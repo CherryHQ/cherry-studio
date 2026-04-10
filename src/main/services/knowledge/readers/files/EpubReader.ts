@@ -18,6 +18,7 @@ export class EpubReader extends FileReader<Document<Metadata>> {
 
     const chapters = epub.flow ?? []
     const documents: Document<Metadata>[] = []
+    const failedChapterIds: string[] = []
 
     for (const [index, chapter] of chapters.entries()) {
       try {
@@ -43,11 +44,16 @@ export class EpubReader extends FileReader<Document<Metadata>> {
           })
         )
       } catch (error) {
+        failedChapterIds.push(chapter.id)
         logger.error('Failed to read epub chapter', error as Error, {
           filename,
           chapterId: chapter.id
         })
       }
+    }
+
+    if (failedChapterIds.length > 0) {
+      throw new Error(`Failed to read epub chapters: ${failedChapterIds.join(', ')}`)
     }
 
     return documents

@@ -313,4 +313,29 @@ describe('KnowledgeOrchestrationService', () => {
     expect(expandSitemapOwnerToCreateItemsMock).toHaveBeenCalledWith(sitemapItem)
     expect(runtimeAddItemsMock).toHaveBeenCalledWith(base, [createdUrlItem])
   })
+
+  it('does not create expanded child items until all expansions succeed', async () => {
+    const service = new KnowledgeOrchestrationService()
+    const base = createBase()
+    const directoryItem = createDirectoryItem()
+    const sitemapItem = createSitemapItem()
+
+    knowledgeBaseGetByIdMock.mockResolvedValue(base)
+    knowledgeItemGetByIdsInBaseMock.mockResolvedValue([directoryItem, sitemapItem])
+    expandDirectoryOwnerToCreateItemsMock.mockResolvedValue([
+      {
+        groupId: directoryItem.id,
+        type: 'file',
+        data: createFileItem('file-child', directoryItem.id).data
+      }
+    ])
+    expandSitemapOwnerToCreateItemsMock.mockRejectedValue(new Error('sitemap expansion failed'))
+
+    await expect(service.addItems(base.id, [directoryItem.id, sitemapItem.id])).rejects.toThrow(
+      'sitemap expansion failed'
+    )
+
+    expect(knowledgeItemCreateManyMock).not.toHaveBeenCalled()
+    expect(runtimeAddItemsMock).not.toHaveBeenCalled()
+  })
 })

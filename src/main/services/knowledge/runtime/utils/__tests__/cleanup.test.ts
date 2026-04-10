@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appGetMock, getStoreIfExistsMock, vectorDeleteMock } = vi.hoisted(() => ({
+const { appGetMock, getStoreIfExistsMock, loggerWarnMock, vectorDeleteMock } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
   getStoreIfExistsMock: vi.fn(),
+  loggerWarnMock: vi.fn(),
   vectorDeleteMock: vi.fn()
 }))
 
@@ -21,13 +22,13 @@ vi.mock('@data/services/KnowledgeItemService', () => ({
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({
-      warn: vi.fn(),
+      warn: loggerWarnMock,
       error: vi.fn()
     })
   }
 }))
 
-const { deleteItemVectors } = await import('../cleanup')
+const { deleteItemVectors, deleteVectorsForEntries } = await import('../cleanup')
 
 function createBase() {
   return {
@@ -80,5 +81,77 @@ describe('cleanup', () => {
     expect(vectorDeleteMock).toHaveBeenCalledTimes(2)
     expect(vectorDeleteMock).toHaveBeenCalledWith('item-1')
     expect(vectorDeleteMock).toHaveBeenCalledWith('item-2')
+  })
+
+  it('keeps deleting remaining items and reports partial failures', async () => {
+    const base = createBase()
+    const deleteError = new Error('delete failed for item-2')
+
+    getStoreIfExistsMock.mockResolvedValueOnce({
+      delete: vectorDeleteMock
+    })
+    vectorDeleteMock.mockImplementation(async (itemId: string) => {
+      if (itemId === 'item-2') {
+        throw deleteError
+      }
+    })
+
+    await expect(deleteItemVectors(base, ['item-1', 'item-2'])).rejects.toMatchObject({
+      name: 'DeleteItemVectorsError',
+      message: 'Failed to delete vectors for knowledge items in base kb-1: item-2',
+      baseId: 'kb-1',
+      succeededItemIds: ['item-1'],
+      failed: [
+        {
+          itemId: 'item-2',
+          error: deleteError
+        }
+      ]
+    })
+
+    expect(vectorDeleteMock).toHaveBeenCalledTimes(2)
+    expect(vectorDeleteMock).toHaveBeenCalledWith('item-1')
+    expect(vectorDeleteMock).toHaveBeenCalledWith('item-2')
+  })
+
+  it('logs partial vector cleanup failures and continues when continueOnError is enabled', async () => {
+    const base = createBase()
+
+    getStoreIfExistsMock.mockResolvedValueOnce({
+      delete: vectorDeleteMock
+    })
+    vectorDeleteMock.mockImplementation(async (itemId: string) => {
+      if (itemId === 'item-2') {
+        throw new Error('delete failed for item-2')
+      }
+    })
+
+    await expect(
+      deleteVectorsForEntries(
+        [
+          {
+            base,
+            item: {
+              id: 'item-1'
+            }
+          },
+          {
+            base,
+            item: {
+              id: 'item-2'
+            }
+          }
+        ] as any,
+        { continueOnError: true }
+      )
+    ).resolves.toBeUndefined()
+
+    expect(loggerWarnMock).toHaveBeenCalledWith('Failed to delete knowledge item vectors during interruption cleanup', {
+      baseId: 'kb-1',
+      itemIds: ['item-1', 'item-2'],
+      succeededItemIds: ['item-1'],
+      failedItemIds: ['item-2'],
+      cleanupError: 'Failed to delete vectors for knowledge items in base kb-1: item-2'
+    })
   })
 })

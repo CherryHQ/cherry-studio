@@ -1,7 +1,7 @@
 import path from 'node:path'
 
 import type { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
-import { normalizeKnowledgeBaseConfig } from '@data/services/knowledgeBaseConfig'
+import { normalizeKnowledgeBaseConfig } from '@data/services/KnowledgeBaseService'
 import type { FileMetadata } from '@shared/data/types/file'
 import type { KnowledgeItemData, KnowledgeItemStatus } from '@shared/data/types/knowledge'
 

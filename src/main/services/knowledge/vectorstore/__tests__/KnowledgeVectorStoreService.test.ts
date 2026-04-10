@@ -1,11 +1,15 @@
 import type * as LifecycleModule from '@main/core/lifecycle'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { providerCreateMock, providerDeleteMock, providerExistsMock } = vi.hoisted(() => ({
-  providerCreateMock: vi.fn(),
-  providerDeleteMock: vi.fn(),
-  providerExistsMock: vi.fn()
-}))
+const { loggerDebugMock, loggerErrorMock, loggerInfoMock, providerCreateMock, providerDeleteMock, providerExistsMock } =
+  vi.hoisted(() => ({
+    loggerDebugMock: vi.fn(),
+    loggerErrorMock: vi.fn(),
+    loggerInfoMock: vi.fn(),
+    providerCreateMock: vi.fn(),
+    providerDeleteMock: vi.fn(),
+    providerExistsMock: vi.fn()
+  }))
 
 vi.mock('@main/core/lifecycle', async (importOriginal) => {
   const actual = await importOriginal<typeof LifecycleModule>()
@@ -33,6 +37,16 @@ vi.mock('@vectorstores/libsql', () => {
     LibSQLVectorStore: MockLibSQLVectorStore
   }
 })
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({
+      debug: loggerDebugMock,
+      info: loggerInfoMock,
+      error: loggerErrorMock
+    })
+  }
+}))
 
 vi.mock('../providers/LibSqlVectorStoreProvider', () => ({
   libSqlVectorStoreProvider: {
@@ -84,6 +98,11 @@ describe('KnowledgeVectorStoreService', () => {
 
     expect(firstCloseMock).toHaveBeenCalledTimes(1)
     expect(providerCreateMock).toHaveBeenCalledTimes(2)
+    expect(loggerInfoMock).toHaveBeenCalledWith('Created vector store', {
+      baseId: base.id,
+      dimensions: base.dimensions,
+      cacheSize: 1
+    })
   })
 
   it('clears cached stores during stop after closing them', async () => {
@@ -104,6 +123,37 @@ describe('KnowledgeVectorStoreService', () => {
 
     await expect(service.createStore(createBase('kb-2'))).resolves.toBe(replacementStore)
     expect(secondCloseMock).toHaveBeenCalledTimes(1)
+    expect(loggerInfoMock).toHaveBeenCalledWith('Stopping vector stores', { storeCount: 2 })
+    expect(loggerInfoMock).toHaveBeenCalledWith('Stopped vector stores', { storeCount: 2 })
+  })
+
+  it('continues closing remaining stores when one close fails during stop', async () => {
+    const service = new KnowledgeVectorStoreService()
+    const firstCloseError = new Error('close failed')
+    const firstCloseMock = vi.fn(() => {
+      throw firstCloseError
+    })
+    const secondCloseMock = vi.fn()
+    const firstStore = createStore(firstCloseMock)
+    const secondStore = createStore(secondCloseMock)
+
+    providerCreateMock.mockResolvedValueOnce(firstStore).mockResolvedValueOnce(secondStore)
+
+    await service.createStore(createBase('kb-1'))
+    await service.createStore(createBase('kb-2'))
+
+    await expect((service as any).onStop()).resolves.toBeUndefined()
+
+    expect(firstCloseMock).toHaveBeenCalledTimes(1)
+    expect(secondCloseMock).toHaveBeenCalledTimes(1)
+    expect(loggerErrorMock).toHaveBeenCalledWith('Failed to close vector store', firstCloseError, {
+      baseId: 'kb-1'
+    })
+
+    const replacementStore = createStore()
+    providerCreateMock.mockResolvedValueOnce(replacementStore)
+
+    await expect(service.createStore(createBase('kb-2'))).resolves.toBe(replacementStore)
   })
 
   it('returns undefined from getStoreIfExists when no cached store or backing file exists', async () => {
@@ -116,6 +166,7 @@ describe('KnowledgeVectorStoreService', () => {
 
     expect(providerExistsMock).toHaveBeenCalledWith(base.id)
     expect(providerCreateMock).not.toHaveBeenCalled()
+    expect(loggerDebugMock).toHaveBeenCalledWith('Vector store does not exist on disk', { baseId: base.id })
   })
 
   it('opens an existing store from disk when getStoreIfExists detects a backing file', async () => {
@@ -130,6 +181,7 @@ describe('KnowledgeVectorStoreService', () => {
 
     expect(providerExistsMock).toHaveBeenCalledWith(base.id)
     expect(providerCreateMock).toHaveBeenCalledWith(base)
+    expect(loggerInfoMock).toHaveBeenCalledWith('Opening existing vector store from disk', { baseId: base.id })
   })
 
   it('returns the cached store from getStoreIfExists without probing the provider', async () => {
@@ -144,5 +196,6 @@ describe('KnowledgeVectorStoreService', () => {
 
     expect(providerExistsMock).not.toHaveBeenCalled()
     expect(providerCreateMock).toHaveBeenCalledTimes(1)
+    expect(loggerDebugMock).toHaveBeenCalledWith('Using cached vector store from getStoreIfExists', { baseId: base.id })
   })
 })

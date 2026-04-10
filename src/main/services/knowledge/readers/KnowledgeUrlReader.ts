@@ -17,7 +17,7 @@ export async function loadUrlDocuments(
       sourceUrl: item.data.url,
       name: item.data.name
     })
-    return []
+    throw new Error(`Knowledge URL returned empty markdown: ${item.data.url}`)
   }
 
   return [

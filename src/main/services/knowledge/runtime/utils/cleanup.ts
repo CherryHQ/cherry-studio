@@ -5,6 +5,24 @@ import type { KnowledgeBase, KnowledgeItem } from '@shared/data/types/knowledge'
 
 const logger = loggerService.withContext('KnowledgeRuntimeCleanup')
 
+interface DeleteItemVectorFailure {
+  itemId: string
+  error: Error
+}
+
+class DeleteItemVectorsError extends Error {
+  constructor(
+    readonly baseId: string,
+    readonly succeededItemIds: string[],
+    readonly failed: DeleteItemVectorFailure[]
+  ) {
+    super(
+      `Failed to delete vectors for knowledge items in base ${baseId}: ${failed.map((entry) => entry.itemId).join(', ')}`
+    )
+    this.name = 'DeleteItemVectorsError'
+  }
+}
+
 /**
  * Deletes vectors for the given item ids within one knowledge base.
  */
@@ -20,7 +38,26 @@ export async function deleteItemVectors(base: KnowledgeBase, itemIds: string[]):
     return
   }
 
-  await Promise.all(uniqueItemIds.map((itemId) => vectorStore.delete(itemId)))
+  const results = await Promise.allSettled(uniqueItemIds.map((itemId) => vectorStore.delete(itemId)))
+  const succeededItemIds: string[] = []
+  const failed: DeleteItemVectorFailure[] = []
+
+  for (const [index, result] of results.entries()) {
+    const itemId = uniqueItemIds[index]
+    if (result.status === 'fulfilled') {
+      succeededItemIds.push(itemId)
+      continue
+    }
+
+    failed.push({
+      itemId,
+      error: result.reason instanceof Error ? result.reason : new Error(String(result.reason))
+    })
+  }
+
+  if (failed.length > 0) {
+    throw new DeleteItemVectorsError(base.id, succeededItemIds, failed)
+  }
 }
 
 /**
@@ -53,9 +90,12 @@ export async function deleteVectorsForEntries(
         throw error
       }
 
+      const deleteError = error instanceof DeleteItemVectorsError ? error : null
       logger.warn('Failed to delete knowledge item vectors during interruption cleanup', {
         baseId: base.id,
         itemIds: [...itemIds],
+        succeededItemIds: deleteError?.succeededItemIds ?? [],
+        failedItemIds: deleteError?.failed.map((entry) => entry.itemId) ?? [],
         cleanupError: error instanceof Error ? error.message : String(error)
       })
     }

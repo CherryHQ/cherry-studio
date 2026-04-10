@@ -801,6 +801,56 @@ describe('KnowledgeRuntimeService', () => {
     })
   })
 
+  it('does not leave an item stuck in pending when stop happens during the pending write', async () => {
+    const service = new KnowledgeRuntimeService()
+    const base = createBase()
+    const item = createNoteItem('note-stop-during-pending')
+    const pendingUpdateDeferred = createDeferred<unknown>()
+
+    knowledgeItemUpdateMock.mockImplementation(async (_id, dto) => {
+      if (dto.status === 'pending') {
+        return await pendingUpdateDeferred.promise
+      }
+
+      return dto
+    })
+
+    const addPromise = service.addItems(base, [item])
+
+    await vi.waitFor(() => {
+      expect(knowledgeItemUpdateMock).toHaveBeenCalledWith(item.id, {
+        status: 'pending',
+        error: null
+      })
+    })
+
+    let stopResolved = false
+    const stopPromise = (service as any).onStop().then(() => {
+      stopResolved = true
+    })
+
+    expect(stopResolved).toBe(false)
+
+    pendingUpdateDeferred.resolve({
+      status: 'pending',
+      error: null
+    })
+
+    await stopPromise
+
+    await expect(addPromise).rejects.toThrow(SHUTDOWN_INTERRUPTED_REASON)
+    expect(stopResolved).toBe(true)
+    expect(loadKnowledgeItemDocumentsMock).not.toHaveBeenCalledWith(item, expect.any(AbortSignal))
+    expect(knowledgeItemUpdateMock).toHaveBeenCalledWith(item.id, {
+      status: 'failed',
+      error: SHUTDOWN_INTERRUPTED_REASON
+    })
+    expect(knowledgeItemUpdateMock).not.toHaveBeenCalledWith(item.id, {
+      status: 'completed',
+      error: null
+    })
+  })
+
   it('deduplicates repeated item ids during delete', async () => {
     const service = new KnowledgeRuntimeService()
     const base = createBase()

@@ -32,12 +32,19 @@ export class KnowledgeAddRuntime {
     let vectorStore: BaseVectorStore | null = null
 
     try {
+      await runAbortable(this.isStopping, ctx, () =>
+        knowledgeItemService.update(item.id, {
+          status: 'pending',
+          error: null
+        })
+      )
+
       const nodes = await this.indexItem(ctx, base, item)
       const vectorStoreService = application.get('KnowledgeVectorStoreService')
-      vectorStore = await runAbortable(this.isStopping(), ctx, () => vectorStoreService.createStore(base))
+      vectorStore = await runAbortable(this.isStopping, ctx, () => vectorStoreService.createStore(base))
       const activeVectorStore = vectorStore
-      await runAbortable(this.isStopping(), ctx, () => activeVectorStore.add(nodes))
-      await runAbortable(this.isStopping(), ctx, () =>
+      await runAbortable(this.isStopping, ctx, () => activeVectorStore.add(nodes))
+      await runAbortable(this.isStopping, ctx, () =>
         knowledgeItemService.update(item.id, {
           status: 'completed',
           error: null
@@ -63,10 +70,10 @@ export class KnowledgeAddRuntime {
       throw new Error(CONTAINER_ITEM_INDEXING_UNSUPPORTED_REASON)
     }
 
-    const documents = await runAbortable(this.isStopping(), ctx, () => loadKnowledgeItemDocuments(item, ctx.signal))
-    const chunks = await runAbortable(this.isStopping(), ctx, () => chunkDocuments(base, item, documents))
-    const embeddingModel = await runAbortable(this.isStopping(), ctx, () => getEmbedModel(base))
-    return await runAbortable(this.isStopping(), ctx, () => embedDocuments(embeddingModel, chunks, ctx.signal))
+    const documents = await runAbortable(this.isStopping, ctx, () => loadKnowledgeItemDocuments(item, ctx.signal))
+    const chunks = await runAbortable(this.isStopping, ctx, () => chunkDocuments(base, item, documents))
+    const embeddingModel = await runAbortable(this.isStopping, ctx, () => getEmbedModel(base))
+    return await runAbortable(this.isStopping, ctx, () => embedDocuments(embeddingModel, chunks, ctx.signal))
   }
 
   private async handleAddItemFailure(

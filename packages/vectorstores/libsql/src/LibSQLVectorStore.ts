@@ -26,6 +26,10 @@ export const DEFAULT_DIMENSIONS = 1536
 
 type PositionalArgs = Extract<InArgs, readonly unknown[]>
 
+function toError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error))
+}
+
 function isSupportedInArg(param: unknown): param is NonNullable<PositionalArgs[number]> {
   return (
     param != null &&
@@ -243,19 +247,22 @@ export class LibSQLVectorStore extends BaseVectorStore {
         meta.create_date = new Date()
       }
 
-      let embedding: Float32Array
-      try {
-        embedding = this.normalizeEmbedding(node.getEmbedding())
-      } catch {
-        console.warn(`Embedding missing for node ${id ?? '<auto-id>'}, using zero vector.`)
-        embedding = new Float32Array(this.dimensions)
-      }
+      const nodeId = id ?? '<auto-id>'
+      const embedding = this.normalizeEmbeddingOrThrow(this.getNodeEmbedding(node, nodeId), nodeId)
 
       // Convert embedding to JSON string for vector() function
       const embeddingJson = `[${Array.from(embedding).join(',')}]`
 
       return [id!, externalId, this.collection, node.getContent(MetadataMode.NONE), JSON.stringify(meta), embeddingJson]
     })
+  }
+
+  private getNodeEmbedding(node: BaseNode<Metadata>, nodeId: string): number[] | undefined {
+    try {
+      return node.getEmbedding()
+    } catch (error) {
+      throw new Error(`Missing embedding for node ${nodeId}`, { cause: toError(error) })
+    }
   }
 
   async add(embeddingResults: BaseNode<Metadata>[]): Promise<string[]> {
@@ -306,18 +313,18 @@ export class LibSQLVectorStore extends BaseVectorStore {
     await this.clientInstance.execute(statement)
   }
 
-  private normalizeEmbedding(embedding?: number[]): Float32Array {
+  private normalizeEmbeddingOrThrow(embedding: number[] | undefined, nodeId: string): Float32Array {
     if (!embedding || embedding.length === 0) {
-      return new Float32Array(this.dimensions)
+      throw new Error(`Missing embedding for node ${nodeId}`)
     }
 
-    if (embedding.length === this.dimensions) {
-      return new Float32Array(embedding)
+    if (embedding.length !== this.dimensions) {
+      throw new Error(
+        `Embedding dimension mismatch for node ${nodeId}: expected ${this.dimensions}, got ${embedding.length}`
+      )
     }
 
-    const normalized = new Float32Array(this.dimensions)
-    normalized.set(embedding.slice(0, this.dimensions))
-    return normalized
+    return new Float32Array(embedding)
   }
 
   private deserializeEmbedding(raw: unknown): number[] {
@@ -345,7 +352,11 @@ export class LibSQLVectorStore extends BaseVectorStore {
     return []
   }
 
-  private parseJson<T>(value: T | string | null | undefined, fallback: T): T {
+  private parseJson<T>(
+    value: T | string | null | undefined,
+    fallback: T,
+    context: { field: string; rowId?: string }
+  ): T {
     if (value == null) {
       return fallback
     }
@@ -356,7 +367,8 @@ export class LibSQLVectorStore extends BaseVectorStore {
 
     try {
       return JSON.parse(value) as T
-    } catch {
+    } catch (error) {
+      console.warn(`Failed to parse ${context.field} JSON for row ${context.rowId ?? '<unknown>'}`, toError(error))
       return fallback
     }
   }
@@ -565,9 +577,9 @@ export class LibSQLVectorStore extends BaseVectorStore {
     try {
       const results = await this.clientInstance.execute(ftsStatement)
       return this.mapBm25Result(results.rows, max)
-    } catch (err) {
-      console.warn('FTS5 search failed:', err)
-      throw new Error(`BM25 search failed: ${err}`)
+    } catch (error) {
+      console.warn('FTS5 search failed:', toError(error))
+      throw new Error('BM25 search failed', { cause: toError(error) })
     }
   }
 
@@ -610,7 +622,14 @@ export class LibSQLVectorStore extends BaseVectorStore {
       const embedding = this.deserializeEmbedding(row.embeddings)
       const distance = Number(row.distance ?? 0)
       const similarity = 1 - distance
-      const metadata = this.parseJson<Metadata>(row.metadata as Metadata | string | null | undefined, {})
+      const metadata = this.parseJson<Metadata>(
+        row.metadata as Metadata | string | null | undefined,
+        {},
+        {
+          field: 'metadata',
+          rowId: String(row.id ?? '')
+        }
+      )
       const externalId = typeof row.external_id === 'string' && row.external_id.length > 0 ? row.external_id : undefined
 
       if (externalId && metadata.itemId === undefined) {
@@ -640,7 +659,14 @@ export class LibSQLVectorStore extends BaseVectorStore {
     const results = rows.slice(0, max).map((row) => {
       const embedding = this.deserializeEmbedding(row.embeddings)
       const score = Math.abs(Number(row.score ?? 0))
-      const metadata = this.parseJson<Metadata>(row.metadata as Metadata | string | null | undefined, {})
+      const metadata = this.parseJson<Metadata>(
+        row.metadata as Metadata | string | null | undefined,
+        {},
+        {
+          field: 'metadata',
+          rowId: String(row.id ?? '')
+        }
+      )
       const externalId = typeof row.external_id === 'string' && row.external_id.length > 0 ? row.external_id : undefined
 
       if (externalId && metadata.itemId === undefined) {

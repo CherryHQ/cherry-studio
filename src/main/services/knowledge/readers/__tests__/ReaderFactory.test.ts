@@ -2,6 +2,7 @@ import type { KnowledgeItemOf } from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const fetchMock = vi.hoisted(() => vi.fn())
+const loggerWarnMock = vi.hoisted(() => vi.fn())
 const customReaderSpies = vi.hoisted(() => ({
   drafts: vi.fn(async (item: KnowledgeItemOf<'file'>) => [{ metadata: { reader: 'drafts', itemId: item.id } }]),
   epub: vi.fn(async (item: KnowledgeItemOf<'file'>) => [{ metadata: { reader: 'epub', itemId: item.id } }])
@@ -20,7 +21,7 @@ vi.mock('@logger', () => ({
     withContext: () => ({
       debug: vi.fn(),
       info: vi.fn(),
-      warn: vi.fn(),
+      warn: loggerWarnMock,
       error: vi.fn()
     })
   }
@@ -225,6 +226,7 @@ function createDirectoryItem(): KnowledgeItemOf<'directory'> {
 describe('loadKnowledgeItemDocuments', () => {
   beforeEach(() => {
     fetchMock.mockReset()
+    loggerWarnMock.mockReset()
   })
 
   it.each([
@@ -331,6 +333,21 @@ describe('loadKnowledgeItemDocuments', () => {
         sourceUrl: 'https://example.com',
         name: 'Example'
       }
+    })
+  })
+
+  it('throws when the knowledge web provider returns empty markdown', async () => {
+    fetchMock.mockResolvedValue(new Response('   ', { status: 200 }))
+
+    const item = createUrlItem()
+
+    await expect(loadKnowledgeItemDocuments(item)).rejects.toThrow(
+      'Knowledge URL returned empty markdown: https://example.com'
+    )
+    expect(loggerWarnMock).toHaveBeenCalledWith('Knowledge URL reader received empty markdown', {
+      itemId: 'url-1',
+      sourceUrl: 'https://example.com',
+      name: 'Example'
     })
   })
 

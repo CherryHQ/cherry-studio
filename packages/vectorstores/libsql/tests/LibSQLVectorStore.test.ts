@@ -93,6 +93,39 @@ describe('LibSQLVectorStore', () => {
       expect(ids[1]).toBeDefined()
     })
 
+    it('should reject nodes with missing embeddings instead of writing zero vectors', async () => {
+      const node = new TextNode({
+        id_: 'chunk-missing-embedding',
+        text: 'Document chunk without embedding',
+        metadata: { category: 'invalid' }
+      })
+
+      await expect(store.add([node])).rejects.toThrow('Missing embedding for node chunk-missing-embedding')
+
+      const rows = await client.execute(
+        "SELECT COUNT(*) as count FROM test_embeddings WHERE id = 'chunk-missing-embedding'"
+      )
+      expect(Number(rows.rows[0]?.count ?? 0)).toBe(0)
+    })
+
+    it('should reject nodes with mismatched embedding dimensions', async () => {
+      const node = new TextNode({
+        id_: 'chunk-bad-dimensions',
+        text: 'Document chunk with mismatched embedding dimensions',
+        embedding: [0.1, 0.2, 0.3],
+        metadata: { category: 'invalid' }
+      })
+
+      await expect(store.add([node])).rejects.toThrow(
+        'Embedding dimension mismatch for node chunk-bad-dimensions: expected 2, got 3'
+      )
+
+      const rows = await client.execute(
+        "SELECT COUNT(*) as count FROM test_embeddings WHERE id = 'chunk-bad-dimensions'"
+      )
+      expect(Number(rows.rows[0]?.count ?? 0)).toBe(0)
+    })
+
     it('should persist external_id from sourceNode.nodeId', async () => {
       const node = new TextNode({
         id_: 'chunk-1',
@@ -219,6 +252,7 @@ describe('LibSQLVectorStore', () => {
         args: ['{"itemId":', 'chunk-invalid-metadata-vector']
       })
 
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
       const result = await store.query({
         queryEmbedding: [1.0, 0.0],
         similarityTopK: 1,
@@ -229,6 +263,11 @@ describe('LibSQLVectorStore', () => {
       expect(result.nodes?.[0]?.metadata).toMatchObject({
         itemId: 'item-invalid-metadata-vector'
       })
+      expect(warnSpy).toHaveBeenCalledWith(
+        'Failed to parse metadata JSON for row chunk-invalid-metadata-vector',
+        expect.any(Error)
+      )
+      warnSpy.mockRestore()
     })
 
     it('should tolerate invalid metadata JSON in bm25 query results', async () => {
@@ -251,6 +290,7 @@ describe('LibSQLVectorStore', () => {
         args: ['{"itemId":', 'chunk-invalid-metadata-bm25']
       })
 
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
       const result = await store.query({
         queryStr: 'searchable',
         similarityTopK: 1,
@@ -261,6 +301,52 @@ describe('LibSQLVectorStore', () => {
       expect(result.nodes?.[0]?.metadata).toMatchObject({
         itemId: 'item-invalid-metadata-bm25'
       })
+      expect(warnSpy).toHaveBeenCalledWith(
+        'Failed to parse metadata JSON for row chunk-invalid-metadata-bm25',
+        expect.any(Error)
+      )
+      warnSpy.mockRestore()
+    })
+
+    it('should preserve the original cause when bm25 execution fails', async () => {
+      await store.add([
+        new TextNode({
+          id_: 'chunk-bm25-failure',
+          text: 'searchable document',
+          embedding: [1.0, 0.0],
+          metadata: { category: 'test' }
+        })
+      ])
+
+      const originalExecute = client.execute.bind(client)
+      const executeSpy = vi.spyOn(client, 'execute').mockImplementation(async (statement: any) => {
+        const sql = typeof statement === 'string' ? statement : statement.sql
+        if (typeof sql === 'string' && sql.includes('bm25(')) {
+          throw new Error('fts execution failed')
+        }
+
+        return await originalExecute(statement)
+      })
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+      try {
+        await store.query({
+          queryStr: 'searchable',
+          similarityTopK: 1,
+          mode: VectorStoreQueryMode.BM25
+        })
+        throw new Error('Expected BM25 query to fail')
+      } catch (error) {
+        expect(error).toBeInstanceOf(Error)
+        expect((error as Error).message).toBe('BM25 search failed')
+        expect((error as Error & { cause?: unknown }).cause).toBeInstanceOf(Error)
+        expect(((error as Error & { cause?: Error }).cause as Error).message).toBe('fts execution failed')
+      }
+
+      expect(warnSpy).toHaveBeenCalledWith('FTS5 search failed:', expect.any(Error))
+      warnSpy.mockRestore()
+      executeSpy.mockRestore()
     })
 
     it('should handle empty add request', async () => {
@@ -622,15 +708,13 @@ describe('LibSQLVectorStore', () => {
   })
 
   describe('Error Handling', () => {
-    it('should handle missing embeddings gracefully', async () => {
+    it('should reject nodes with missing embeddings', async () => {
       const nodeWithoutEmbedding = new TextNode({
         text: 'Test node',
         metadata: { category: 'test' }
       })
 
-      // Should handle nodes without embeddings
-      const ids = await store.add([nodeWithoutEmbedding])
-      expect(ids).toHaveLength(1)
+      await expect(store.add([nodeWithoutEmbedding])).rejects.toThrow('Missing embedding for node')
     })
 
     it('should handle query with null embedding', async () => {

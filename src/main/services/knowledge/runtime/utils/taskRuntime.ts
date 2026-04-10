@@ -11,7 +11,7 @@ export interface RuntimeTaskContext {
  * step body.
  */
 export async function runAbortable<T>(
-  isStopping: boolean,
+  isStopping: () => boolean,
   ctx: RuntimeTaskContext,
   step: () => Promise<T> | T
 ): Promise<T> {
@@ -24,7 +24,7 @@ export async function runAbortable<T>(
 /**
  * Throws when the runtime has been interrupted by shutdown or abort signal.
  */
-export function assertTaskActive(isStopping: boolean, ctx: RuntimeTaskContext): void {
+export function assertTaskActive(isStopping: () => boolean, ctx: RuntimeTaskContext): void {
   if (ctx.signal.aborted) {
     const reason =
       typeof ctx.signal.reason === 'string' && ctx.signal.reason.length > 0
@@ -33,7 +33,7 @@ export function assertTaskActive(isStopping: boolean, ctx: RuntimeTaskContext): 
     throw new Error(reason)
   }
 
-  if (isStopping) {
+  if (isStopping()) {
     throw new Error(SHUTDOWN_INTERRUPTED_REASON)
   }
 }

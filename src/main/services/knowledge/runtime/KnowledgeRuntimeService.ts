@@ -58,16 +58,7 @@ export class KnowledgeRuntimeService extends BaseService {
   }
 
   async addItems(base: KnowledgeBase, items: KnowledgeItem[]) {
-    return await Promise.all(
-      items.map(async (item) => {
-        await knowledgeItemService.update(item.id, {
-          status: 'pending',
-          error: null
-        })
-
-        return await this.addQueue.enqueue(base, item)
-      })
-    )
+    return await Promise.all(items.map((item) => this.addQueue.enqueue(base, item)))
   }
 
   async deleteItems(base: KnowledgeBase, items: KnowledgeItem[]) {

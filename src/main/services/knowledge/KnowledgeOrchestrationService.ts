@@ -34,7 +34,18 @@ export class KnowledgeOrchestrationService extends BaseService {
       knowledgeItemService.getByIdsInBase(baseId, itemIds)
     ])
 
-    const expandedLeafItems = await this.expandAndCreateLeafItems(baseId, items)
+    const expandedItems = await this.expandItemsToCreateInputs(items)
+    const expandedLeafItems =
+      expandedItems.length === 0
+        ? []
+        : this.collectIndexableItems(
+            (
+              await knowledgeItemService.createMany(baseId, {
+                items: expandedItems
+              })
+            ).items
+          )
+
     const allLeafItems = this.collectIndexableItems([...items, ...expandedLeafItems])
 
     if (allLeafItems.length === 0) {
@@ -82,22 +93,19 @@ export class KnowledgeOrchestrationService extends BaseService {
     })
   }
 
-  private async expandAndCreateLeafItems(baseId: string, items: KnowledgeItem[]): Promise<KnowledgeItem[]> {
-    const createdLeafItems: KnowledgeItem[] = []
+  private async expandItemsToCreateInputs(items: KnowledgeItem[]): Promise<CreateKnowledgeItemsDto['items']> {
+    const expandedItems: CreateKnowledgeItemsDto['items'] = []
 
     for (const item of items) {
-      const expandedItems = await this.expandItemToCreateInputs(item)
-      if (expandedItems.length === 0) {
+      const itemCreateInputs = await this.expandItemToCreateInputs(item)
+      if (itemCreateInputs.length === 0) {
         continue
       }
 
-      const { items: createdItems } = await knowledgeItemService.createMany(baseId, {
-        items: expandedItems
-      })
-      createdLeafItems.push(...this.collectIndexableItems(createdItems))
+      expandedItems.push(...itemCreateInputs)
     }
 
-    return createdLeafItems
+    return expandedItems
   }
 
   private async expandItemToCreateInputs(item: KnowledgeItem): Promise<CreateKnowledgeItemsDto['items']> {
