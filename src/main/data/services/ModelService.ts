@@ -254,7 +254,10 @@ export class ModelService {
     if (dto.description !== undefined) updates.description = dto.description
     if (dto.group !== undefined) updates.group = dto.group
     if (dto.capabilities !== undefined) updates.capabilities = dto.capabilities as ModelCapability[]
+    if (dto.inputModalities !== undefined) updates.inputModalities = dto.inputModalities as Modality[]
+    if (dto.outputModalities !== undefined) updates.outputModalities = dto.outputModalities as Modality[]
     if (dto.endpointTypes !== undefined) updates.endpointTypes = dto.endpointTypes as EndpointType[]
+    if (dto.parameterSupport !== undefined) updates.parameters = dto.parameterSupport
     if (dto.supportsStreaming !== undefined) updates.supportsStreaming = dto.supportsStreaming
     if (dto.contextWindow !== undefined) updates.contextWindow = dto.contextWindow
     if (dto.maxOutputTokens !== undefined) updates.maxOutputTokens = dto.maxOutputTokens

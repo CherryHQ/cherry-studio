@@ -204,20 +204,9 @@ class ProviderRegistryService {
    */
   async resolveModels(providerId: string, modelIds: string[]): Promise<Model[]> {
     const loader = this.getLoader()
-    const registryModels = loader.loadModels()
+    const models = loader.loadModels()
     const providerModels = loader.loadProviderModels()
     const { defaultChatEndpoint, reasoningFormatTypes } = await this.getEffectiveReasoningConfig(providerId)
-
-    const modelMap = new Map<string, ProtoModelConfig>()
-    for (const m of registryModels) {
-      modelMap.set(m.id, m)
-    }
-    const overrideMap = new Map<string, ProtoProviderModelOverride>()
-    for (const pm of providerModels) {
-      if (pm.providerId === providerId) {
-        overrideMap.set(pm.modelId, pm)
-      }
-    }
 
     const results: Model[] = []
     const seen = new Set<string>()
@@ -226,8 +215,8 @@ class ProviderRegistryService {
       if (!modelId || seen.has(modelId)) continue
       seen.add(modelId)
 
-      const presetModel = modelMap.get(modelId) ?? null
-      const registryOverride = overrideMap.get(modelId) ?? null
+      // Uses exact match + normalized fallback (handles gpt-4o:free, aihubmix-gpt-4o, etc.)
+      const { presetModel, registryOverride } = lookupRegistryModel(models, providerModels, providerId, modelId)
 
       try {
         if (presetModel) {
