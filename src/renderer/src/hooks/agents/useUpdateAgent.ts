@@ -10,11 +10,14 @@ import { useAgentClient } from './useAgentClient'
 export const useUpdateAgent = () => {
   const { t } = useTranslation()
   const client = useAgentClient()
-  const listKey = client.agentPaths.base
+  const listKey = client?.agentPaths.base
 
   const updateAgent: UpdateAgentFunction = useCallback(
     async (form: UpdateAgentForm, options?: UpdateAgentBaseOptions): Promise<AgentEntity | undefined> => {
       try {
+        if (!client || !listKey) {
+          throw new Error(t('apiServer.messages.notEnabled'))
+        }
         const itemKey = client.agentPaths.withId(form.id)
         // may change to optimistic update
         const result = await client.updateAgent(form)

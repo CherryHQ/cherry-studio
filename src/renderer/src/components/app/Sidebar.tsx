@@ -13,7 +13,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { getSidebarIconLabel, getThemeModeLabel } from '@renderer/i18n/label'
 import { isEmoji } from '@renderer/utils'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
-import { ThemeMode } from '@shared/data/preference/preferenceTypes'
+import { type SidebarIcon, ThemeMode } from '@shared/data/preference/preferenceTypes'
 import {
   Code,
   FileSearch,
@@ -31,6 +31,7 @@ import {
   Sun
 } from 'lucide-react'
 import type { FC } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -39,10 +40,24 @@ import { OpenClawSidebarIcon } from '../Icons/SVGIcon'
 import UserPopup from '../Popups/UserPopup'
 import { SidebarOpenedMinappTabs, SidebarPinnedApps } from './PinnedMinapps'
 
+const withAgentsSidebarIcon = (visibleIcons: SidebarIcon[], invisibleIcons: SidebarIcon[]): SidebarIcon[] => {
+  if (visibleIcons.includes('agents') || invisibleIcons.includes('agents')) {
+    return visibleIcons
+  }
+
+  const assistantsIndex = visibleIcons.indexOf('assistants')
+  if (assistantsIndex === -1) {
+    return [...visibleIcons, 'agents']
+  }
+
+  return [...visibleIcons.slice(0, assistantsIndex + 1), 'agents', ...visibleIcons.slice(assistantsIndex + 1)]
+}
+
 const Sidebar: FC = () => {
   const { hideMinappPopup } = useMinappPopup()
   const { pinned, minappShow } = useMinapps()
-  const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
+  const [visibleSidebarIcons, setVisibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
+  const [invisibleSidebarIcons] = usePreference('ui.sidebar.icons.invisible')
   const { tabs, activeTabId, updateTab } = useTabs()
 
   // 获取当前 Tab 的 URL 作为 pathname
@@ -57,7 +72,18 @@ const Sidebar: FC = () => {
 
   const backgroundColor = useNavBackgroundColor()
 
-  const showPinnedApps = pinned.length > 0 && visibleSidebarIcons.includes('minapp')
+  const normalizedVisibleSidebarIcons = useMemo(
+    () => withAgentsSidebarIcon(visibleSidebarIcons, invisibleSidebarIcons),
+    [visibleSidebarIcons, invisibleSidebarIcons]
+  )
+
+  useEffect(() => {
+    if (normalizedVisibleSidebarIcons !== visibleSidebarIcons) {
+      void setVisibleSidebarIcons(normalizedVisibleSidebarIcons)
+    }
+  }, [normalizedVisibleSidebarIcons, setVisibleSidebarIcons, visibleSidebarIcons])
+
+  const showPinnedApps = pinned.length > 0 && normalizedVisibleSidebarIcons.includes('minapp')
 
   // 在当前 Tab 内跳转
   const to = async (path: string) => {
@@ -85,7 +111,7 @@ const Sidebar: FC = () => {
       )}
       <MainMenusContainer>
         <Menus onClick={hideMinappPopup}>
-          <MainMenus />
+          <MainMenus visibleSidebarIcons={normalizedVisibleSidebarIcons} />
         </Menus>
         <SidebarOpenedMinappTabs />
         {showPinnedApps && (
@@ -125,14 +151,13 @@ const Sidebar: FC = () => {
   )
 }
 
-const MainMenus: FC = () => {
+const MainMenus: FC<{ visibleSidebarIcons: SidebarIcon[] }> = ({ visibleSidebarIcons }) => {
   const { hideMinappPopup } = useMinappPopup()
   const { minappShow } = useMinapps()
   const { activeTab, updateTab } = useTabs()
 
   const pathname = activeTab?.url || '/'
 
-  const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
   const { defaultPaintingProvider } = useSettings()
   const { theme } = useTheme()
 
