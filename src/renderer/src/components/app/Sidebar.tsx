@@ -41,7 +41,7 @@ const routePrefixMap: Record<SidebarIconType, string> = {
   store: '/app/assistant',
   paintings: '/app/paintings',
   translate: '/app/translate',
-  minapp: '/app/minapp',
+  miniapp: '/app/miniapp',
   knowledge: '/app/knowledge',
   files: '/app/files',
   code_tools: '/app/code',
@@ -55,7 +55,7 @@ const iconMap: Record<SidebarIconType, SidebarMenuItem['icon']> = {
   store: Sparkle,
   paintings: Palette,
   translate: Languages,
-  minapp: LayoutGrid,
+  miniapp: LayoutGrid,
   knowledge: FileSearch,
   files: Folder,
   code_tools: Code,
@@ -107,32 +107,32 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   )
 
   // MiniApp tabs — bridge v1 popup system data to v2 sidebar UI
-  const { openedKeepAliveMinapps, currentMinappId, minappShow } = useMiniApps()
-  const { openMinappKeepAlive } = useMiniAppPopup()
+  const { openedKeepAliveMiniApps, currentMiniAppId, miniAppShow } = useMiniApps()
+  const { openMiniAppKeepAlive } = useMiniAppPopup()
 
   const activeMiniAppTabs = useMemo<SidebarMiniAppTab[]>(() => {
     if (!showOpenedInSidebar) return []
-    return openedKeepAliveMinapps.map((app) => ({
+    return openedKeepAliveMiniApps.map((app) => ({
       type: 'miniapp',
-      id: app.id,
+      id: app.appId,
       title: app.name,
       miniApp: {
-        id: app.id,
+        id: app.appId,
         color: app.background,
         url: app.url,
         logo: app.logo as SidebarMiniApp['logo']
       }
     }))
-  }, [showOpenedInSidebar, openedKeepAliveMinapps])
+  }, [showOpenedInSidebar, openedKeepAliveMiniApps])
 
   const handleMiniAppTabClick = useCallback(
     (tabId: string) => {
-      const app = openedKeepAliveMinapps.find((a) => a.id === tabId)
+      const app = openedKeepAliveMiniApps.find((a) => a.appId === tabId)
       if (app) {
-        openMinappKeepAlive(app)
+        openMiniAppKeepAlive(app)
       }
     },
-    [openedKeepAliveMinapps, openMinappKeepAlive]
+    [openedKeepAliveMiniApps, openMiniAppKeepAlive]
   )
 
   // Floating sidebar (hover reveal when hidden)
@@ -155,7 +155,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
             id: icon,
             label: getSidebarIconLabel(icon),
             icon: Icon,
-            ...(icon === 'minapp' ? { miniAppTabs: activeMiniAppTabs } : {})
+            ...(icon === 'miniapp' ? { miniAppTabs: activeMiniAppTabs } : {})
           }
         ]
       }),
@@ -197,7 +197,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     title: 'Cherry Studio',
     logo: APP_LOGO,
     user: sidebarUser,
-    activeTabId: minappShow ? currentMinappId : undefined,
+    activeTabId: miniAppShow ? currentMiniAppId : undefined,
     dockedTabs: [],
     onItemClick: handleNavigate,
     onMiniAppTabClick: handleMiniAppTabClick,
