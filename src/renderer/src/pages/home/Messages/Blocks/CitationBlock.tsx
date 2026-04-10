@@ -1,34 +1,22 @@
 import { useSharedCache } from '@data/hooks/useCache'
 import type { GroundingMetadata } from '@google/genai'
 import Spinner from '@renderer/components/Spinner'
-import type { RootState } from '@renderer/store'
-import { formatCitationsFromBlock, selectFormattedCitationsByBlockId } from '@renderer/store/messageBlock'
+import { formatCitationsFromBlock } from '@renderer/store/messageBlock'
 import { WEB_SEARCH_SOURCE } from '@renderer/types'
 import { type CitationMessageBlock, MessageBlockStatus } from '@renderer/types/newMessage'
 import React, { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSelector } from 'react-redux'
 
 import CitationsList from '../CitationsList'
-import { useIsV2Chat } from './V2Contexts'
 
+/**
+ * @deprecated Legacy block component.
+ * V2 parts rendering handles citations in PartsRenderer/MainTextBlock.
+ */
 function CitationBlock({ block }: { block: CitationMessageBlock }) {
   const { t } = useTranslation()
-  const isV2Chat = useIsV2Chat()
-
-  // V2: block prop already has full data — format directly without Redux lookup
-  // V1: read from Redux via selector
-  const reduxCitations = useSelector((state: RootState) =>
-    isV2Chat ? [] : selectFormattedCitationsByBlockId(state, block.id)
-  )
-  const formattedCitations = isV2Chat ? formatCitationsFromBlock(block) : reduxCitations
-
-  // V2: no Redux message entity — use block.messageId directly
-  // V1: read from Redux to get askId
-  const reduxMessage = useSelector((state: RootState) =>
-    isV2Chat ? undefined : state.messages.entities[block.messageId]
-  )
-  const userMessageId = reduxMessage?.askId || block.messageId
+  const formattedCitations = formatCitationsFromBlock(block)
+  const userMessageId = block.messageId
   const [activeSearches] = useSharedCache('chat.web_search.active_searches')
 
   const hasGeminiBlock = block.response?.source === WEB_SEARCH_SOURCE.GEMINI

@@ -2,18 +2,13 @@ import { loggerService } from '@logger'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import FileManager from '@renderer/services/FileManager'
 import type { RootState } from '@renderer/store'
-import {
-  formatCitationsFromBlock,
-  messageBlocksSelectors,
-  selectFormattedCitationsByBlockId
-} from '@renderer/store/messageBlock'
+import { messageBlocksSelectors, selectFormattedCitationsByBlockId } from '@renderer/store/messageBlock'
 import type { Model } from '@renderer/types'
 import type { ImageMessageBlock, MainTextMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { isMainTextBlock, isMessageProcessing, isToolBlock, isVideoBlock } from '@renderer/utils/messageUtils/is'
-import { mapMessageStatusToBlockStatus, partToBlock } from '@renderer/utils/partsToBlocks'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
-import React, { use, useMemo } from 'react'
+import React, { useMemo } from 'react'
 import { useSelector } from 'react-redux'
 
 import BlockErrorFallback from './BlockErrorFallback'
@@ -28,7 +23,6 @@ import ThinkingBlock from './ThinkingBlock'
 import ToolBlock from './ToolBlock'
 import ToolBlockGroup from './ToolBlockGroup'
 import TranslationBlock from './TranslationBlock'
-import { PartsContext, useResolveBlock } from './V2Contexts'
 import VideoBlock from './VideoBlock'
 
 // Re-export context providers and hooks so existing imports keep working
@@ -37,8 +31,7 @@ export {
   resolveBlockFromParts,
   useIsV2Chat,
   useMessageBlocks,
-  usePartsMap,
-  useResolveBlock
+  usePartsMap
 } from './V2Contexts'
 
 const logger = loggerService.withContext('MessageBlockRenderer')
@@ -130,7 +123,7 @@ const groupSimilarBlocks = (blocks: MessageBlock[]): (MessageBlock[] | MessageBl
 }
 
 /**
- * V1 wrapper: resolves citations from Redux/PartsContext and passes pure props to MainTextBlock.
+ * Legacy (V1) wrapper: resolve citations from Redux and pass pure props to MainTextBlock.
  */
 const MainTextBlockWithCitations: React.FC<{
   block: MainTextMessageBlock
@@ -138,17 +131,7 @@ const MainTextBlockWithCitations: React.FC<{
   role: Message['role']
   mentions?: Model[]
 }> = ({ block, citationBlockId, role, mentions }) => {
-  const v2CitationBlock = useResolveBlock(citationBlockId)
-  const reduxCitations = useSelector((state: RootState) =>
-    v2CitationBlock ? [] : selectFormattedCitationsByBlockId(state, citationBlockId)
-  )
-  const citations = useMemo(() => {
-    if (!v2CitationBlock) return reduxCitations
-    if (v2CitationBlock.type === MessageBlockType.CITATION) {
-      return formatCitationsFromBlock(v2CitationBlock)
-    }
-    return []
-  }, [v2CitationBlock, reduxCitations])
+  const citations = useSelector((state: RootState) => selectFormattedCitationsByBlockId(state, citationBlockId))
 
   return (
     <MainTextBlock
@@ -177,28 +160,16 @@ function extractImagesFromBlock(block: ImageMessageBlock): string[] {
   return []
 }
 
+/**
+ * @deprecated Legacy renderer for V1 block pipeline only.
+ * V2 path renders via PartsRenderer directly.
+ */
 const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
-  const partsMap = use(PartsContext)
-  // Always call useSelector to satisfy hooks-rules (no conditional hooks)
   const reduxBlockEntities = useSelector((state: RootState) => messageBlocksSelectors.selectEntities(state))
 
-  // Priority: PartsContext (convert parts→blocks internally) > Redux fallback
   const renderedBlocks = useMemo(() => {
-    const messageParts = partsMap?.[message.id]
-    if (messageParts) {
-      // Parts-driven: convert parts to blocks inline, no ID lookup needed
-      const blockStatus = mapMessageStatusToBlockStatus(message.status as string)
-      const converted: MessageBlock[] = []
-      for (let i = 0; i < messageParts.length; i++) {
-        const blockId = `${message.id}-block-${i}`
-        const block = partToBlock(messageParts[i], blockId, message.id, message.createdAt, blockStatus)
-        if (block) converted.push(block)
-      }
-      return converted
-    }
-    // Redux fallback (V1 mode)
     return blocks.map((blockId) => reduxBlockEntities[blockId]).filter((b): b is MessageBlock => b != null)
-  }, [partsMap, message.id, message.status, message.createdAt, reduxBlockEntities, blocks])
+  }, [reduxBlockEntities, blocks])
 
   const groupedBlocks = useMemo(() => groupSimilarBlocks(renderedBlocks), [renderedBlocks])
 

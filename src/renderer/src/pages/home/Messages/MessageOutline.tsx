@@ -1,12 +1,8 @@
 import Scrollbar from '@renderer/components/Scrollbar'
-import type { RootState } from '@renderer/store'
-import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import type { Message } from '@renderer/types/newMessage'
-import { MessageBlockType } from '@renderer/types/newMessage'
 import { scrollIntoView } from '@renderer/utils/dom'
 import type { FC } from 'react'
 import React, { useMemo, useRef } from 'react'
-import { useSelector } from 'react-redux'
 import remarkParse from 'remark-parse'
 import { unified } from 'unified'
 import { visit } from 'unist-util-visit'
@@ -26,32 +22,23 @@ interface HeadingItem {
 
 const MessageOutline: FC<MessageOutlineProps> = ({ message }) => {
   const partsMap = usePartsMap()
-  const reduxBlockEntities = useSelector((state: RootState) => messageBlocksSelectors.selectEntities(state))
 
   const headings: HeadingItem[] = useMemo(() => {
-    // Collect text contents: from parts (priority) or blocks (fallback)
+    // Collect text contents from parts only
     const textEntries: { id: string; content: string }[] = []
     const messageParts = partsMap?.[message.id]
-    if (messageParts) {
-      let idx = 0
-      for (const part of messageParts) {
-        if (part.type === 'text' && 'text' in part) {
-          const text = part.text.trim()
-          if (text.length > 0) {
-            textEntries.push({ id: `${message.id}-block-${idx}`, content: text })
-          }
-        }
-        idx++
-      }
-    } else {
-      const mainTextBlocks = message.blocks
-        .map((blockId) => reduxBlockEntities[blockId])
-        .filter((b) => b?.type === MessageBlockType.MAIN_TEXT)
-      for (const block of mainTextBlocks) {
-        if (block?.content) {
-          textEntries.push({ id: block.id, content: block.content })
+
+    if (!messageParts) return []
+
+    let idx = 0
+    for (const part of messageParts) {
+      if (part.type === 'text' && 'text' in part) {
+        const text = part.text.trim()
+        if (text.length > 0) {
+          textEntries.push({ id: `${message.id}-block-${idx}`, content: text })
         }
       }
+      idx++
     }
 
     if (!textEntries.length) return []
@@ -83,7 +70,7 @@ const MessageOutline: FC<MessageOutlineProps> = ({ message }) => {
     }
 
     return result
-  }, [partsMap, message.id, message.blocks, reduxBlockEntities])
+  }, [partsMap, message.id])
 
   const miniLevel = useMemo(() => {
     return headings.length ? Math.min(...headings.map((heading) => heading.level)) : 1

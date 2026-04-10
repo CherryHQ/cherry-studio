@@ -7,7 +7,6 @@ import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPo
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { SelectChatModelPopup } from '@renderer/components/Popups/SelectModelPopup'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
-import { isDev } from '@renderer/config/constant'
 import { isEmbeddingModel, isRerankModel, isWebSearchModel } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
@@ -33,8 +32,7 @@ import Messages from './Messages/Messages'
 import Tabs from './Tabs'
 import V2ChatContent from './V2ChatContent'
 
-// DEV-ONLY: flip to `true` to test new AI IPC pipeline within existing Chat page
-const USE_V2_CHAT = isDev && true
+const USE_V2_CHAT = true
 
 const logger = loggerService.withContext('Chat')
 

@@ -20,13 +20,9 @@ import useTranslate from '@renderer/hooks/useTranslate'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageTitle } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
-import store, { useAppDispatch } from '@renderer/store'
-import { messageBlocksSelectors } from '@renderer/store/messageBlock'
-import { selectMessagesForTopic } from '@renderer/store/newMessage'
-import { removeBlocksThunk } from '@renderer/store/thunk/messageThunk'
 import { TraceIcon } from '@renderer/trace/pages/Component'
 import type { Assistant, Model, Topic, TranslateLanguage } from '@renderer/types'
-import { type Message, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { captureScrollableAsBlob, captureScrollableAsDataURL, classNames } from '@renderer/utils'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { copyMessageAsPlainText } from '@renderer/utils/copy'
@@ -43,12 +39,13 @@ import {
 // import { withMessageThought } from '@renderer/utils/formats'
 import { removeTrailingDoubleSpaces } from '@renderer/utils/markdown'
 import {
-  findMainTextBlocks,
-  findTranslationBlocks,
-  findTranslationBlocksById,
-  getMainTextContent
-} from '@renderer/utils/messageUtils/find'
-import { getTextFromParts, hasTextParts, hasTranslationParts } from '@renderer/utils/messageUtils/partsHelpers'
+  getTextFromParts,
+  getTranslationFromParts,
+  hasTextParts,
+  hasTranslationParts
+} from '@renderer/utils/messageUtils/partsHelpers'
+import { mapMessageStatusToBlockStatus, partToBlock } from '@renderer/utils/partsToBlocks'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import type { MenuProps } from 'antd'
 import { Dropdown, Popconfirm } from 'antd'
 import dayjs from 'dayjs'
@@ -71,7 +68,6 @@ import {
 import type { ComponentProps, Dispatch, FC, ReactNode, SetStateAction } from 'react'
 import { Fragment, memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSelector } from 'react-redux'
 
 import { useIsV2Chat, usePartsMap } from './Blocks'
 import MessageTokens from './MessageTokens'
@@ -102,7 +98,7 @@ type MessageOperationsHandlers = ReturnType<typeof useMessageOperations>
 
 type MessageMenubarButtonContext = {
   assistant: Assistant
-  blockEntities: ReturnType<typeof messageBlocksSelectors.selectEntities>
+  messageParts: CherryMessagePart[]
   confirmDeleteMessage: boolean
   confirmRegenerateMessage: boolean
   copied: boolean
@@ -126,7 +122,6 @@ type MessageMenubarButtonContext = {
   onMentionModel: (e: React.MouseEvent) => void | Promise<void>
   onRegenerate: (e?: React.MouseEvent) => void | Promise<void>
   onUseful: (e: React.MouseEvent) => void
-  removeMessageBlock: MessageOperationsHandlers['removeMessageBlock']
   setShowDeleteTooltip: Dispatch<SetStateAction<boolean>>
   showDeleteTooltip: boolean
   softHoverBg: boolean
@@ -159,14 +154,8 @@ const MessageMenubar: FC<Props> = (props) => {
   const [showDeleteTooltip, setShowDeleteTooltip] = useState(false)
   const { translateLanguages } = useTranslate()
   // const assistantModel = assistant?.model
-  const {
-    deleteMessage,
-    resendMessage,
-    regenerateAssistantMessage,
-    getTranslationUpdater,
-    appendAssistantResponse,
-    removeMessageBlock
-  } = useMessageOperations(topic)
+  const { deleteMessage, resendMessage, regenerateAssistantMessage, getTranslationUpdater, appendAssistantResponse } =
+    useMessageOperations(topic)
 
   const [messageStyle] = usePreference('chat.message.style')
   const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
@@ -192,44 +181,22 @@ const MessageMenubar: FC<Props> = (props) => {
     plain_text: 'data.export.menus.plain_text'
   })
 
-  const dispatch = useAppDispatch()
   const partsMap = usePartsMap()
-  const reduxBlockEntities = useSelector(messageBlocksSelectors.selectEntities)
-  const blockEntities = reduxBlockEntities
-  const messageParts = partsMap?.[message.id]
+  const messageParts = useMemo(() => partsMap?.[message.id] ?? [], [partsMap, message.id])
   const isV2Chat = useIsV2Chat()
 
-  const mainTextContent = useMemo(() => {
-    if (messageParts) {
-      return getTextFromParts(messageParts)
-    }
-    return getMainTextContent(message, blockEntities)
-  }, [messageParts, message, blockEntities])
+  const mainTextContent = useMemo(() => getTextFromParts(messageParts), [messageParts])
 
   const onCopy = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
 
-      let contentToCopy = ''
-      if (messageParts) {
-        // Parts-driven: read directly from parts
-        contentToCopy = getTextFromParts(messageParts)
-      } else {
-        const currentMessageId = message.id
-        const latestMessageEntity = store.getState().messages.entities[currentMessageId]
-        if (latestMessageEntity) {
-          contentToCopy = getMainTextContent(latestMessageEntity)
-        } else {
-          contentToCopy = getMainTextContent(message, blockEntities)
-        }
-      }
-
-      void navigator.clipboard.writeText(removeTrailingDoubleSpaces(contentToCopy.trimStart()))
+      void navigator.clipboard.writeText(removeTrailingDoubleSpaces(mainTextContent.trimStart()))
 
       window.toast.success(t('message.copied'))
       setCopied(true)
     },
-    [messageParts, message, blockEntities, setCopied, t]
+    [mainTextContent, setCopied, t]
   )
 
   const onNewBranch = useCallback(async () => {
@@ -251,15 +218,15 @@ const MessageMenubar: FC<Props> = (props) => {
     startEditing(message.id)
   }, [message.id, startEditing])
 
-  const isTranslating = useMemo(() => {
-    const translationBlock = message.blocks
-      .map((blockId) => blockEntities[blockId])
-      .find((block) => block?.type === MessageBlockType.TRANSLATION)
-    return (
-      translationBlock?.status === MessageBlockStatus.STREAMING ||
-      translationBlock?.status === MessageBlockStatus.PROCESSING
-    )
-  }, [message.blocks, blockEntities])
+  const isTranslating = useMemo(
+    () =>
+      messageParts.some((part) => {
+        if (part.type !== 'data-translation') return false
+        const state = (part as { state?: string }).state
+        return state === 'input-streaming' || state === 'input-available'
+      }),
+    [messageParts]
+  )
 
   const handleTranslate = useCallback(
     async (language: TranslateLanguage) => {
@@ -275,28 +242,9 @@ const MessageMenubar: FC<Props> = (props) => {
         if (!isAbortError(error)) {
           window.toast.error(t('translate.error.failed'))
         }
-        const translationBlocks = findTranslationBlocksById(message.id, blockEntities)
-        logger.silly(`there are ${translationBlocks.length} translation blocks`)
-        if (translationBlocks.length > 0) {
-          const block = translationBlocks[0]
-          logger.silly(`block`, block)
-          if (!block.content) {
-            void dispatch(removeBlocksThunk(message.topicId, message.id, [block.id]))
-          }
-        }
       }
     },
-    [
-      isTranslating,
-      message.topicId,
-      message.id,
-      blockEntities,
-      getTranslationUpdater,
-      mainTextContent,
-      translationAbortKey,
-      t,
-      dispatch
-    ]
+    [isTranslating, getTranslationUpdater, mainTextContent, translationAbortKey, t, message.id]
   )
 
   const handleTraceUserMessage = useCallback(async () => {
@@ -313,10 +261,7 @@ const MessageMenubar: FC<Props> = (props) => {
   const menubarScope: MessageMenubarScope = topic?.type ?? DEFAULT_MESSAGE_MENUBAR_SCOPE
   const { buttonIds, dropdownRootAllowKeys } = getMessageMenubarConfig(menubarScope)
 
-  const isEditable = useMemo(() => {
-    if (messageParts) return hasTextParts(messageParts)
-    return findMainTextBlocks(message, blockEntities).length > 0
-  }, [messageParts, message, blockEntities])
+  const isEditable = useMemo(() => hasTextParts(messageParts), [messageParts])
 
   const dropdownItems = useMemo(() => {
     const items: MenuProps['items'] = [
@@ -528,29 +473,22 @@ const MessageMenubar: FC<Props> = (props) => {
     if (!isAssistantMessage) {
       return defaultFilter
     }
-    const state = store.getState()
-    const topicMessages: Message[] = selectMessagesForTopic(state, topic.id)
-    // 理论上助手消息只会关联一条用户消息
-    const relatedUserMessage = topicMessages.find((msg) => {
-      return msg.role === 'user' && message.askId === msg.id
-    })
-    // 无关联用户消息时，默认返回所有模型
-    if (!relatedUserMessage) {
+    const relatedUserParts = message.askId ? partsMap?.[message.askId] : undefined
+    if (!relatedUserParts) {
       return defaultFilter
     }
-
-    const relatedUserMessageBlocks = relatedUserMessage.blocks.map((msgBlockId) => blockEntities[msgBlockId])
-
-    if (!relatedUserMessageBlocks) {
-      return defaultFilter
-    }
-
-    if (relatedUserMessageBlocks.some((block) => block && block.type === MessageBlockType.IMAGE)) {
+    const hasImageInput = relatedUserParts.some(
+      (part) =>
+        part.type === 'file' &&
+        'mediaType' in part &&
+        typeof part.mediaType === 'string' &&
+        part.mediaType.startsWith('image/')
+    )
+    if (hasImageInput) {
       return (m: Model) => isVisionModel(m) && defaultFilter(m)
-    } else {
-      return defaultFilter
     }
-  }, [blockEntities, isAssistantMessage, message.askId, topic.id])
+    return defaultFilter
+  }, [isAssistantMessage, message.askId, partsMap])
 
   const onMentionModel = useCallback(
     async (e: React.MouseEvent) => {
@@ -570,10 +508,7 @@ const MessageMenubar: FC<Props> = (props) => {
     [message.id, onUpdateUseful]
   )
 
-  const hasTranslationBlocks = useMemo(() => {
-    if (messageParts) return hasTranslationParts(messageParts)
-    return findTranslationBlocks(message, blockEntities).length > 0
-  }, [messageParts, message, blockEntities])
+  const hasTranslationBlocks = useMemo(() => hasTranslationParts(messageParts), [messageParts])
 
   const softHoverBg = isBubbleStyle && !isLastMessage
   const showMessageTokens = !isBubbleStyle
@@ -581,7 +516,7 @@ const MessageMenubar: FC<Props> = (props) => {
 
   const buttonContext: MessageMenubarButtonContext = {
     assistant,
-    blockEntities,
+    messageParts,
     confirmDeleteMessage,
     confirmRegenerateMessage,
     copied,
@@ -605,7 +540,6 @@ const MessageMenubar: FC<Props> = (props) => {
     onMentionModel,
     onRegenerate,
     onUseful,
-    removeMessageBlock,
     setShowDeleteTooltip,
     showDeleteTooltip,
     softHoverBg,
@@ -773,14 +707,13 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
     )
   },
   translate: ({
+    message,
     isUserMessage,
     isTranslating,
     translateLanguages,
     handleTranslate,
     hasTranslationBlocks,
-    message,
-    blockEntities,
-    removeMessageBlock,
+    messageParts,
     softHoverBg,
     supportsWrites,
     t
@@ -818,41 +751,16 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
               label: '📋 ' + t('common.copy'),
               key: 'translate-copy',
               onClick: () => {
-                const translationBlocks = message.blocks
-                  .map((blockId) => blockEntities[blockId])
-                  .filter((block) => block?.type === 'translation')
+                const translationContent = getTranslationFromParts(messageParts)
+                  .map((item) => item.content || '')
+                  .join('\n\n')
+                  .trim()
 
-                if (translationBlocks.length > 0) {
-                  const translationContent = translationBlocks
-                    .map((block) => block?.content || '')
-                    .join('\n\n')
-                    .trim()
-
-                  if (translationContent) {
-                    void navigator.clipboard.writeText(translationContent)
-                    window.toast.success(t('translate.copied'))
-                  } else {
-                    window.toast.warning(t('translate.empty'))
-                  }
-                }
-              }
-            },
-            {
-              label: '✖ ' + t('translate.close'),
-              key: 'translate-close',
-              onClick: () => {
-                const translationBlocks = message.blocks
-                  .map((blockId) => blockEntities[blockId])
-                  .filter((block) => block?.type === 'translation')
-                  .map((block) => block?.id)
-
-                if (translationBlocks.length > 0) {
-                  translationBlocks.forEach((blockId) => {
-                    if (blockId) {
-                      void removeMessageBlock(message.id, blockId)
-                    }
-                  })
-                  window.toast.success(t('translate.closed'))
+                if (translationContent) {
+                  void navigator.clipboard.writeText(translationContent)
+                  window.toast.success(t('translate.copied'))
+                } else {
+                  window.toast.warning(t('translate.empty'))
                 }
               }
             }
@@ -990,14 +898,19 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
       </Tooltip>
     )
   },
-  'inspect-data': ({ message, blockEntities, enableDeveloperMode }) => {
+  'inspect-data': ({ message, messageParts, enableDeveloperMode }) => {
     if (!enableDeveloperMode) {
       return null
     }
 
     const handleInspect = (e: React.MouseEvent) => {
       e.stopPropagation()
-      const blocks = message.blocks.map((blockId) => blockEntities[blockId]).filter(Boolean)
+      const blockStatus = mapMessageStatusToBlockStatus(message.status)
+      const blocks = messageParts
+        .map((part, index) =>
+          partToBlock(part, `${message.id}-block-${index}`, message.id, message.createdAt, blockStatus)
+        )
+        .filter((block): block is MessageBlock => block !== null)
       void InspectMessagePopup.show({
         title: `Message: ${message.id}`,
         message,

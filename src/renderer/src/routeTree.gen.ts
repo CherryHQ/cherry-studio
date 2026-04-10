@@ -34,7 +34,6 @@ import { Route as SettingsChannelsRouteImport } from './routes/settings/channels
 import { Route as SettingsApiServerRouteImport } from './routes/settings/api-server'
 import { Route as SettingsAboutRouteImport } from './routes/settings/about'
 import { Route as AppTranslateRouteImport } from './routes/app/translate'
-import { Route as AppTestChatRouteImport } from './routes/app/test-chat'
 import { Route as AppNotesRouteImport } from './routes/app/notes'
 import { Route as AppKnowledgeRouteImport } from './routes/app/knowledge'
 import { Route as AppFilesRouteImport } from './routes/app/files'
@@ -183,11 +182,6 @@ const AppTranslateRoute = AppTranslateRouteImport.update({
   path: '/translate',
   getParentRoute: () => AppRoute,
 } as any)
-const AppTestChatRoute = AppTestChatRouteImport.update({
-  id: '/test-chat',
-  path: '/test-chat',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppNotesRoute = AppNotesRouteImport.update({
   id: '/notes',
   path: '/notes',
@@ -308,7 +302,6 @@ export interface FileRoutesByFullPath {
   '/app/files': typeof AppFilesRoute
   '/app/knowledge': typeof AppKnowledgeRoute
   '/app/notes': typeof AppNotesRoute
-  '/app/test-chat': typeof AppTestChatRoute
   '/app/translate': typeof AppTranslateRoute
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-server': typeof SettingsApiServerRoute
@@ -356,7 +349,6 @@ export interface FileRoutesByTo {
   '/app/files': typeof AppFilesRoute
   '/app/knowledge': typeof AppKnowledgeRoute
   '/app/notes': typeof AppNotesRoute
-  '/app/test-chat': typeof AppTestChatRoute
   '/app/translate': typeof AppTranslateRoute
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-server': typeof SettingsApiServerRoute
@@ -404,7 +396,6 @@ export interface FileRoutesById {
   '/app/files': typeof AppFilesRoute
   '/app/knowledge': typeof AppKnowledgeRoute
   '/app/notes': typeof AppNotesRoute
-  '/app/test-chat': typeof AppTestChatRoute
   '/app/translate': typeof AppTranslateRoute
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-server': typeof SettingsApiServerRoute
@@ -455,7 +446,6 @@ export interface FileRouteTypes {
     | '/app/files'
     | '/app/knowledge'
     | '/app/notes'
-    | '/app/test-chat'
     | '/app/translate'
     | '/settings/about'
     | '/settings/api-server'
@@ -503,7 +493,6 @@ export interface FileRouteTypes {
     | '/app/files'
     | '/app/knowledge'
     | '/app/notes'
-    | '/app/test-chat'
     | '/app/translate'
     | '/settings/about'
     | '/settings/api-server'
@@ -550,7 +539,6 @@ export interface FileRouteTypes {
     | '/app/files'
     | '/app/knowledge'
     | '/app/notes'
-    | '/app/test-chat'
     | '/app/translate'
     | '/settings/about'
     | '/settings/api-server'
@@ -773,13 +761,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTranslateRouteImport
       parentRoute: typeof AppRoute
     }
-    '/app/test-chat': {
-      id: '/app/test-chat'
-      path: '/test-chat'
-      fullPath: '/app/test-chat'
-      preLoaderRoute: typeof AppTestChatRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/app/notes': {
       id: '/app/notes'
       path: '/notes'
@@ -937,7 +918,6 @@ interface AppRouteChildren {
   AppFilesRoute: typeof AppFilesRoute
   AppKnowledgeRoute: typeof AppKnowledgeRoute
   AppNotesRoute: typeof AppNotesRoute
-  AppTestChatRoute: typeof AppTestChatRoute
   AppTranslateRoute: typeof AppTranslateRoute
   AppMinappAppIdRoute: typeof AppMinappAppIdRoute
   AppPaintingsSplatRoute: typeof AppPaintingsSplatRoute
@@ -952,7 +932,6 @@ const AppRouteChildren: AppRouteChildren = {
   AppFilesRoute: AppFilesRoute,
   AppKnowledgeRoute: AppKnowledgeRoute,
   AppNotesRoute: AppNotesRoute,
-  AppTestChatRoute: AppTestChatRoute,
   AppTranslateRoute: AppTranslateRoute,
   AppMinappAppIdRoute: AppMinappAppIdRoute,
   AppPaintingsSplatRoute: AppPaintingsSplatRoute,

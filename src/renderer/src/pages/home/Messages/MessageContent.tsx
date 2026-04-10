@@ -4,17 +4,13 @@ import type { Message } from '@renderer/types/newMessage'
 import { isEmpty } from 'lodash'
 import React from 'react'
 
-import MessageBlockRenderer from './Blocks'
 import PartsRenderer from './Blocks/PartsRenderer'
-import { useIsV2Chat } from './Blocks/V2Contexts'
 
 interface Props {
   message: Message
 }
 
 const MessageContent: React.FC<Props> = ({ message }) => {
-  const isV2 = useIsV2Chat()
-
   return (
     <>
       {!isEmpty(message.mentions) && (
@@ -26,7 +22,7 @@ const MessageContent: React.FC<Props> = ({ message }) => {
           ))}
         </Flex>
       )}
-      {isV2 ? <PartsRenderer message={message} /> : <MessageBlockRenderer blocks={message.blocks} message={message} />}
+      <PartsRenderer message={message} />
     </>
   )
 }
