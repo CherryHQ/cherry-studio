@@ -1490,6 +1490,7 @@
       "unpin": "Unpin Topic"
     },
     "translate": "Translate",
+    "user": "User",
     "web_search": {
       "warning": {
         "openai": "The GPT-5 model's minimal reasoning effort does not support web search."

@@ -34,6 +34,7 @@ import { Route as SettingsChannelsRouteImport } from './routes/settings/channels
 import { Route as SettingsApiServerRouteImport } from './routes/settings/api-server'
 import { Route as SettingsAboutRouteImport } from './routes/settings/about'
 import { Route as AppTranslateRouteImport } from './routes/app/translate'
+import { Route as AppOpenclawRouteImport } from './routes/app/openclaw'
 import { Route as AppNotesRouteImport } from './routes/app/notes'
 import { Route as AppKnowledgeRouteImport } from './routes/app/knowledge'
 import { Route as AppFilesRouteImport } from './routes/app/files'
@@ -183,6 +184,11 @@ const AppTranslateRoute = AppTranslateRouteImport.update({
   path: '/translate',
   getParentRoute: () => AppRoute,
 } as any)
+const AppOpenclawRoute = AppOpenclawRouteImport.update({
+  id: '/openclaw',
+  path: '/openclaw',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppNotesRoute = AppNotesRouteImport.update({
   id: '/notes',
   path: '/notes',
@@ -309,6 +315,7 @@ export interface FileRoutesByFullPath {
   '/app/files': typeof AppFilesRoute
   '/app/knowledge': typeof AppKnowledgeRoute
   '/app/notes': typeof AppNotesRoute
+  '/app/openclaw': typeof AppOpenclawRoute
   '/app/translate': typeof AppTranslateRoute
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-server': typeof SettingsApiServerRoute
@@ -357,6 +364,7 @@ export interface FileRoutesByTo {
   '/app/files': typeof AppFilesRoute
   '/app/knowledge': typeof AppKnowledgeRoute
   '/app/notes': typeof AppNotesRoute
+  '/app/openclaw': typeof AppOpenclawRoute
   '/app/translate': typeof AppTranslateRoute
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-server': typeof SettingsApiServerRoute
@@ -405,6 +413,7 @@ export interface FileRoutesById {
   '/app/files': typeof AppFilesRoute
   '/app/knowledge': typeof AppKnowledgeRoute
   '/app/notes': typeof AppNotesRoute
+  '/app/openclaw': typeof AppOpenclawRoute
   '/app/translate': typeof AppTranslateRoute
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-server': typeof SettingsApiServerRoute
@@ -456,6 +465,7 @@ export interface FileRouteTypes {
     | '/app/files'
     | '/app/knowledge'
     | '/app/notes'
+    | '/app/openclaw'
     | '/app/translate'
     | '/settings/about'
     | '/settings/api-server'
@@ -504,6 +514,7 @@ export interface FileRouteTypes {
     | '/app/files'
     | '/app/knowledge'
     | '/app/notes'
+    | '/app/openclaw'
     | '/app/translate'
     | '/settings/about'
     | '/settings/api-server'
@@ -551,6 +562,7 @@ export interface FileRouteTypes {
     | '/app/files'
     | '/app/knowledge'
     | '/app/notes'
+    | '/app/openclaw'
     | '/app/translate'
     | '/settings/about'
     | '/settings/api-server'
@@ -773,6 +785,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTranslateRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/openclaw': {
+      id: '/app/openclaw'
+      path: '/openclaw'
+      fullPath: '/app/openclaw'
+      preLoaderRoute: typeof AppOpenclawRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/notes': {
       id: '/app/notes'
       path: '/notes'
@@ -938,6 +957,7 @@ interface AppRouteChildren {
   AppFilesRoute: typeof AppFilesRoute
   AppKnowledgeRoute: typeof AppKnowledgeRoute
   AppNotesRoute: typeof AppNotesRoute
+  AppOpenclawRoute: typeof AppOpenclawRoute
   AppTranslateRoute: typeof AppTranslateRoute
   AppMinappAppIdRoute: typeof AppMinappAppIdRoute
   AppPaintingsSplatRoute: typeof AppPaintingsSplatRoute
@@ -953,6 +973,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppFilesRoute: AppFilesRoute,
   AppKnowledgeRoute: AppKnowledgeRoute,
   AppNotesRoute: AppNotesRoute,
+  AppOpenclawRoute: AppOpenclawRoute,
   AppTranslateRoute: AppTranslateRoute,
   AppMinappAppIdRoute: AppMinappAppIdRoute,
   AppPaintingsSplatRoute: AppPaintingsSplatRoute,

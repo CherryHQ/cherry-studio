@@ -1490,6 +1490,7 @@
       "unpin": "固定解除"
     },
     "translate": "翻訳",
+    "user": "ユーザー",
     "web_search": {
       "warning": {
         "openai": "GPT5モデルの最小思考強度ではネット検索はサポートされません"

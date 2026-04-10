@@ -107,6 +107,10 @@ DataApi must not be used as a general-purpose RPC layer. The following categorie
 - **Responsibility**: Domain logic, workflows, and data access
 - **Does**: Validation, transaction coordination, orchestration, Drizzle ORM queries
 
+> **Note:** In rare cases, a read-only Registry Service (e.g., `ProviderRegistryService`)
+> may exist alongside Entity Services to merge preset data with DB data.
+> See [DataApi in Main — Registry Services](./data-api-in-main.md#registry-services-supplementary).
+
 ### 3. Database Layer
 - **Location**: `src/main/data/db/`
 - **Technology**: SQLite + Drizzle ORM
