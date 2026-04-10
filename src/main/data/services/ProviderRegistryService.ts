@@ -16,6 +16,7 @@ import { buildRuntimeEndpointConfigs } from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
+import { ErrorCode, isDataApiError } from '@shared/data/api/apiErrors'
 import type { Model } from '@shared/data/types/model'
 import type { EndpointConfig, ReasoningFormatType } from '@shared/data/types/provider'
 import { createCustomModel, extractReasoningFormatTypes, mergePresetModel } from '@shared/data/utils/modelMerger'
@@ -101,8 +102,10 @@ class ProviderRegistryService {
         extractReasoningFormatTypes(provider.endpointConfigs) ?? registryConfig.reasoningFormatTypes
 
       return { defaultChatEndpoint, reasoningFormatTypes }
-    } catch {
-      // Provider not in DB yet (e.g. during initial model resolve) — use registry defaults
+    } catch (error) {
+      if (!(isDataApiError(error) && error.code === ErrorCode.NOT_FOUND)) {
+        logger.warn('Failed to fetch provider for reasoning config, using registry defaults', error as Error)
+      }
       return registryConfig
     }
   }

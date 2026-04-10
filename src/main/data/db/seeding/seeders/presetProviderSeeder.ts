@@ -4,7 +4,7 @@ import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { application } from '@main/core/application'
 
-import type { DbType, ISeed } from '../types'
+import type { DbType, ISeeder } from '../../types'
 
 function toDbRow(p: ProtoProviderConfig) {
   const apiFeatures = p.apiFeatures
@@ -28,18 +28,33 @@ function toDbRow(p: ProtoProviderConfig) {
   }
 }
 
-class PresetProviderSeed implements ISeed {
-  async migrate(db: DbType): Promise<void> {
-    let rawProviders: ProtoProviderConfig[]
-    try {
-      const loader = new RegistryLoader({
+export class PresetProviderSeeder implements ISeeder {
+  readonly name = 'presetProvider'
+  readonly description = 'Insert preset provider configurations'
+
+  private _loader?: RegistryLoader
+
+  private getLoader(): RegistryLoader {
+    if (!this._loader) {
+      this._loader = new RegistryLoader({
         models: application.getPath('feature.provider_registry.data', 'models.json'),
         providers: application.getPath('feature.provider_registry.data', 'providers.json'),
         providerModels: application.getPath('feature.provider_registry.data', 'provider-models.json')
       })
-      rawProviders = loader.loadProviders()
+    }
+    return this._loader
+  }
+
+  get version(): string {
+    return this.getLoader().getProvidersVersion()
+  }
+
+  async run(db: DbType): Promise<void> {
+    let rawProviders: ProtoProviderConfig[]
+    try {
+      rawProviders = this.getLoader().loadProviders()
     } catch (error) {
-      throw new Error('PresetProviderSeed: failed to load registry providers', { cause: error })
+      throw new Error('PresetProviderSeeder: failed to load registry providers', { cause: error })
     }
 
     if (rawProviders.length === 0) return
@@ -70,5 +85,3 @@ class PresetProviderSeed implements ISeed {
     }
   }
 }
-
-export default PresetProviderSeed
