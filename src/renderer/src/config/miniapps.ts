@@ -70,7 +70,7 @@ import { ORIGIN_DEFAULT_MIN_APPS as SHARED_PRESETS } from '@shared/data/presets/
 
 const logger = loggerService.withContext('Config:miniapps')
 
-// 加载自定义小程序
+// Load custom miniapps
 const loadCustomMiniApp = async (): Promise<MiniAppType[]> => {
   try {
     let content: string

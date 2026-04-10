@@ -30,7 +30,7 @@ const MiniAppIcon: FC<Props> = ({ app, size = 48, style, sidebar = false }) => {
           height: `${size}px`,
           backgroundColor: app.background,
           userSelect: 'none',
-          ...(sidebar ? {} : app.style),
+          ...(sidebar ? {} : undefined),
           ...style
         }}
         draggable={false}

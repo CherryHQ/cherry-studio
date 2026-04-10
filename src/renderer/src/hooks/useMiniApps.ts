@@ -58,8 +58,7 @@ const mergeWithPreset = (app: MiniApp): MiniApp => {
     logo: app.logo ?? preset.logo,
     bordered: app.bordered ?? preset.bordered,
     background: app.background ?? preset.background,
-    supportedRegions: app.supportedRegions ?? preset.supportedRegions,
-    style: app.style ?? preset.style
+    supportedRegions: app.supportedRegions ?? preset.supportedRegions
   }
 }
 

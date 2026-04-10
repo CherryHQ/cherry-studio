@@ -3,22 +3,29 @@ import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import NavigationService from '@renderer/services/NavigationService'
 import { tabsService } from '@renderer/services/TabsService'
 import { clearWebviewState } from '@renderer/utils/webviewStateManager'
-import type { MiniApp } from '@shared/data/types/miniapp'
+import type { MiniApp, MiniAppId } from '@shared/data/types/miniapp'
 import { LRUCache } from 'lru-cache'
 import { useCallback, useEffect, useRef } from 'react'
 
 import { useNavbarPosition } from './useNavbar'
 
-type MiniAppInput = Pick<MiniApp, 'appId' | 'name' | 'url' | 'logo'> &
-  Partial<Omit<MiniApp, 'appId' | 'name' | 'url' | 'logo' | 'type' | 'status' | 'sortOrder'>>
+/** Brand a raw string as MiniAppId. Safe — caller controls the string. */
+function brandId(raw: string): MiniAppId {
+  return raw as MiniAppId
+}
+
+type MiniAppInput = Omit<MiniApp, 'appId' | 'type' | 'status' | 'sortOrder'> & {
+  appId: string
+}
 
 function toMiniApp(input: MiniAppInput): MiniApp {
   return {
     ...input,
+    appId: brandId(input.appId),
     type: 'default',
     status: 'enabled',
     sortOrder: 0
-  } as MiniApp
+  }
 }
 
 let miniAppsCache: LRUCache<string, MiniApp>
@@ -156,11 +163,11 @@ export const useMiniAppPopup = () => {
   const openMiniApp = useCallback(
     (app: MiniApp, keepAlive: boolean = false) => {
       if (keepAlive && miniAppsCache) {
-        // 通过 get 和 set 去更新缓存，避免重复添加
+        // Update cache via get/set to avoid duplicate entries
         const cacheApp = miniAppsCache.get(app.appId)
         if (!cacheApp) miniAppsCache.set(app.appId, app)
 
-        // 如果小程序已经打开，只切换显示
+        // If the miniapp is already open, just switch the display
         if (openedKeepAliveMiniApps.some((item) => item.appId === app.appId)) {
           setCurrentMiniAppId(app.appId)
           setMiniAppShow(true)
@@ -218,8 +225,8 @@ export const useMiniAppPopup = () => {
 
   /** Close all miniapps (popup hides and all miniapps unloaded) */
   const closeAllMiniApps = useCallback(() => {
-    // miniAppsCache.clear 会多次调用 dispose 方法
-    // 重新创建一个 LRU Cache 替换
+    // miniAppsCache.clear would invoke dispose multiple times,
+    // so recreate the LRU cache to replace it
     miniAppsCache = createLRUCache()
     setOpenedKeepAliveMiniApps([])
     setOpenedOneOffMiniApp(null)

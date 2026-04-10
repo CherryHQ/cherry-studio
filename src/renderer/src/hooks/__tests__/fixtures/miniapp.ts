@@ -15,7 +15,7 @@ import type { MiniApp, MiniAppRegion } from '@shared/data/types/miniapp'
  * createMiniApp('app1', { status: 'pinned', supportedRegions: ['Global'] })
  */
 export const createMiniApp = (appId: string, overrides?: Partial<MiniApp>): MiniApp => ({
-  appId,
+  appId: appId as MiniApp['appId'],
   name: appId,
   url: `https://${appId}.example.com`,
   type: 'default',

@@ -27,7 +27,7 @@ vi.mock('@renderer/config/miniapps', () => ({
 
 describe('MiniAppIcon', () => {
   const mockApp = {
-    appId: 'test-app-1',
+    appId: 'test-app-1' as any,
     type: 'default' as const,
     status: 'enabled' as const,
     sortOrder: 0,
@@ -35,16 +35,12 @@ describe('MiniAppIcon', () => {
     url: 'https://test.com',
     logo: '/test-logo-1.png',
     bordered: true,
-    background: '#f0f0f0',
-    style: {
-      opacity: 0.8,
-      transform: 'scale(1.1)'
-    }
+    background: '#f0f0f0'
   }
 
   it('should render correctly with various props', () => {
     const customStyle = { marginTop: '10px' }
-    const { container } = render(<MiniAppIcon app={mockApp} size={64} style={customStyle} sidebar={false} />)
+    const { container } = render(<MiniAppIcon app={mockApp} size={64} style={customStyle} sidebar={true} />)
 
     expect(container.firstChild).toMatchSnapshot()
   })
@@ -61,7 +57,7 @@ describe('MiniAppIcon', () => {
 
   it('should return null when app is not found in allMiniApps', () => {
     const unknownApp = {
-      appId: 'unknown-app',
+      appId: 'unknown-app' as any,
       type: 'default' as const,
       status: 'enabled' as const,
       sortOrder: 0,

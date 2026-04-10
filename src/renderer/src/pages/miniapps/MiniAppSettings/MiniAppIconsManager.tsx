@@ -47,7 +47,7 @@ const MiniAppIconsManager: FC<MiniAppManagerProps> = ({
       const { source, destination } = result
 
       if (source.droppableId === destination.droppableId) {
-        // 在同一列表内重新排序
+        // Reorder within the same list
         const list = source.droppableId === 'visible' ? [...visibleMiniApps] : [...disabledMiniApps]
         const [removed] = list.splice(source.index, 1)
         list.splice(destination.index, 0, removed)
@@ -60,7 +60,7 @@ const MiniAppIconsManager: FC<MiniAppManagerProps> = ({
         return
       }
 
-      // 在不同列表间移动
+      // Move between different lists
       const sourceList = source.droppableId === 'visible' ? [...visibleMiniApps] : [...disabledMiniApps]
       const destList = destination.droppableId === 'visible' ? [...visibleMiniApps] : [...disabledMiniApps]
 

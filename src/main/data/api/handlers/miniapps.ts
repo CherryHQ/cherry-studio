@@ -47,23 +47,23 @@ export const miniAppHandlers: {
     }
   },
 
-  '/miniapps/:id': {
+  '/miniapps/:appId': {
     GET: async ({ params }) => {
-      return await miniAppService.getByAppId(params.id)
+      return await miniAppService.getByAppId(params.appId)
     },
 
     PATCH: async ({ params, body }) => {
       const parsed = UpdateMiniAppSchema.parse(body)
-      return await miniAppService.update(params.id, parsed)
+      return await miniAppService.update(params.appId, parsed)
     },
 
     DELETE: async ({ params }) => {
-      await miniAppService.delete(params.id)
+      await miniAppService.delete(params.appId)
       return undefined
     }
   },
 
-  '/miniapps/defaults': {
+  '/miniapps/_actions/reset-defaults': {
     DELETE: async () => {
       await miniAppService.resetDefaults()
       return undefined

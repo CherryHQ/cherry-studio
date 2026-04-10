@@ -9,14 +9,14 @@ import React, { useEffect, useRef } from 'react'
 import styled from 'styled-components'
 
 /**
- * Mini-app WebView pool for Tab 模式 (顶部导航).
+ * Mini-app WebView pool for Tab mode (top navbar).
  *
- * 与 Popup 模式相似，但独立存在：
- *  - 仅在 isTopNavbar=true 且访问 /apps 路由时显示
- *  - 保证已打开的 keep-alive 小程序对应的 <webview> 不被卸载，只通过 display 切换
- *  - LRU 淘汰通过 openedKeepAliveMiniApps 变化自动移除 DOM
+ * Similar to Popup mode, but independently exists:
+ *  - Only shown when isTopNavbar=true and visiting /apps route
+ *  - Ensures <webview> elements for opened keep-alive miniapps are not unmounted; only toggled via display
+ *  - LRU eviction auto-removes DOM entries when openedKeepAliveMiniApps changes
  *
- * 后续可演进：与 Popup 共享同一实例（方案 B）。
+ * Future evolution: share the same instance with Popup (plan B).
  */
 const logger = loggerService.withContext('MiniAppTabsPool')
 
@@ -25,10 +25,10 @@ const MiniAppTabsPool: React.FC = () => {
   const { isTopNavbar } = useNavbarPosition()
   const location = useLocation()
 
-  // webview refs（池内部自用，用于控制显示/隐藏）
+  // webview refs (pool-internal, used to control show/hide)
   const webviewRefs = useRef<Map<string, WebviewTag | null>>(new Map())
 
-  // 使用集中工具进行更稳健的路由判断
+  // Use centralized utility for more robust route detection
   const isAppDetail = (() => {
     const pathname = location.pathname
     if (pathname === '/app/miniapp') return false
@@ -38,7 +38,7 @@ const MiniAppTabsPool: React.FC = () => {
   })()
   const shouldShow = isTopNavbar && isAppDetail
 
-  // 组合当前需要渲染的列表（保持顺序即可）
+  // Combine the list to render (preserve order)
   const apps = openedKeepAliveMiniApps
 
   /** 设置 ref 回调 */
@@ -56,12 +56,12 @@ const MiniAppTabsPool: React.FC = () => {
     logger.debug(`TabPool webview loaded: ${appid}`)
   }
 
-  /** 记录导航（暂未外曝 URL 状态，后续可接入全局 URL Map） */
+  /** Record navigation (URL state not yet exposed; can integrate with global URL Map later) */
   const handleNavigate = (appid: string, url: string) => {
     logger.debug(`TabPool webview navigate: ${appid} -> ${url}`)
   }
 
-  /** 切换显示状态：仅当前 active 的显示，其余隐藏 */
+  /** Toggle display: only the active one is visible, the rest are hidden */
   useEffect(() => {
     webviewRefs.current.forEach((ref, id) => {
       if (!ref) return
@@ -70,10 +70,10 @@ const MiniAppTabsPool: React.FC = () => {
     })
   }, [currentMiniAppId, shouldShow, apps.length])
 
-  /** 当某个已在 Map 里但不再属于 openedKeepAlive 时，移除引用（React 自身会卸载元素） */
+  /** When an entry is in the Map but no longer in openedKeepAlive, remove the ref (React unmounts the element itself) */
   useEffect(() => {
     // Build Set for O(1) lookups (js-set-map-lookups)
-    const activeIds = new Set(apps.map((a) => a.appId))
+    const activeIds = new Set<string>(apps.map((a) => a.appId))
     for (const id of webviewRefs.current.keys()) {
       if (!activeIds.has(id)) {
         webviewRefs.current.delete(id)
@@ -84,8 +84,8 @@ const MiniAppTabsPool: React.FC = () => {
     }
   }, [apps])
 
-  // 不显示时直接 hidden，避免闪烁；仍然保留 DOM 做保活
-  const toolbarHeight = 35 // 与 MinimalToolbar 高度保持一致
+  // Hide directly when not shown to avoid flicker; keep DOM for keep-alive
+  const toolbarHeight = 35 // Match MinimalToolbar height
 
   return (
     <PoolContainer
@@ -136,7 +136,7 @@ const WebviewWrapper = styled.div<{ $active: boolean }>`
   inset: 0;
   width: 100%;
   height: 100%;
-  /* display 控制在内部 webview 元素上做，这里保持结构稳定 */
+  /* display is controlled on the inner webview element; keep the wrapper structure stable */
   pointer-events: ${(props) => (props.$active ? 'auto' : 'none')};
 `
 

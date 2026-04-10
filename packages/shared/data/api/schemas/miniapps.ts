@@ -108,21 +108,21 @@ export interface MiniAppSchemas {
    * @example PATCH /miniapps/qwen { "status": "disabled" }
    * @example DELETE /miniapps/qwen
    */
-  '/miniapps/:id': {
+  '/miniapps/:appId': {
     /** Get a miniapp by appId */
     GET: {
-      params: { id: string }
+      params: { appId: string }
       response: MiniApp
     }
     /** Update a miniapp */
     PATCH: {
-      params: { id: string }
+      params: { appId: string }
       body: UpdateMiniAppDto
       response: MiniApp
     }
     /** Delete a miniapp */
     DELETE: {
-      params: { id: string }
+      params: { appId: string }
       response: void
     }
   }
@@ -130,9 +130,9 @@ export interface MiniAppSchemas {
   /**
    * Reset all builtin (default) app preferences to factory defaults.
    * Removes all DB preference rows for type='default', restoring original status/sortOrder.
-   * @example DELETE /miniapps/defaults
+   * @example DELETE /miniapps/_actions/reset-defaults
    */
-  '/miniapps/defaults': {
+  '/miniapps/_actions/reset-defaults': {
     /** Reset all default app preferences to builtin defaults */
     DELETE: {
       response: void

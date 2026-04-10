@@ -1,4 +1,4 @@
-import { InfoCircleOutlined, UndoOutlined } from '@ant-design/icons' // 导入重置图标和Info图标
+import { InfoCircleOutlined, UndoOutlined } from '@ant-design/icons'
 import { Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
@@ -13,7 +13,7 @@ import styled from 'styled-components'
 
 import MiniAppIconsManager from './MiniAppIconsManager'
 
-// 默认小程序缓存数量
+// Default max keep-alive miniapp count
 const DEFAULT_MAX_KEEPALIVE = 3
 
 // Region selector component with defensive default value
@@ -49,14 +49,14 @@ const MiniAppSettings: FC = () => {
   const [disabledMiniApps, setDisabledMiniApps] = useState(disabled || [])
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
 
-  // 当 store 数据变化时（例如切换地区）同步本地状态
+  // Sync local state when store data changes (e.g. switching regions)
   useEffect(() => {
     setVisibleMiniApps(miniapps)
     setDisabledMiniApps(disabled || [])
   }, [miniapps, disabled])
 
   const handleResetMiniApps = useCallback(() => {
-    // 仅重置为当前地区可见的应用，以避免混淆
+    // Only reset to apps visible in the current region to avoid confusion
     setVisibleMiniApps(miniapps)
     setDisabledMiniApps([])
     void updateMiniApps(miniapps)
@@ -69,13 +69,13 @@ const MiniAppSettings: FC = () => {
     setDisabledMiniApps(temp)
   }, [disabledMiniApps, visibleMiniApps])
 
-  // 恢复默认缓存数量
+  // Restore default cache count
   const handleResetCacheLimit = useCallback(() => {
     void setMaxKeepAliveMiniApps(DEFAULT_MAX_KEEPALIVE)
     window.toast.info(t('settings.miniapps.cache_change_notice'))
   }, [t, setMaxKeepAliveMiniApps])
 
-  // 处理缓存数量变更
+  // Handle cache count change
   const handleCacheChange = useCallback(
     (value: number) => {
       void setMaxKeepAliveMiniApps(value)
@@ -92,7 +92,7 @@ const MiniAppSettings: FC = () => {
     [t, setMaxKeepAliveMiniApps]
   )
 
-  // 组件卸载时清除定时器
+  // Clear timer on unmount
   useEffect(() => {
     return () => {
       if (debounceTimerRef.current) {
@@ -118,7 +118,7 @@ const MiniAppSettings: FC = () => {
         />
       </BorderedContainer>
       <SettingDivider />
-      {/* 小程序地区设置 */}
+      {/* Miniapp region setting */}
       <SettingRow style={{ height: 40, alignItems: 'center' }}>
         <Flex align="center" gap={4}>
           <SettingRowTitle>{t('settings.miniapps.region.title')}</SettingRowTitle>
@@ -136,7 +136,7 @@ const MiniAppSettings: FC = () => {
         <Switch checked={openLinkExternal} onCheckedChange={(checked) => setOpenLinkExternal(checked)} />
       </SettingRow>
       <SettingDivider />
-      {/* 缓存小程序数量设置 */}
+      {/* Cached miniapp count setting */}
       <SettingRow>
         <SettingLabelGroup>
           <SettingRowTitle>{t('settings.miniapps.cache_title')}</SettingRowTitle>
@@ -186,7 +186,7 @@ const Container = styled.div`
   padding-top: 10px;
 `
 
-// 修改和新增样式
+// SettingRow styles
 const SettingRow = styled.div`
   display: flex;
   align-items: flex-start;
@@ -199,7 +199,7 @@ const SettingLabelGroup = styled.div`
   flex: 1;
 `
 
-// 新增控件容器，包含滑块和恢复默认按钮
+// Slider and reset button container
 const CacheSettingControls = styled.div`
   display: flex;
   flex-direction: column;
@@ -226,14 +226,14 @@ const SliderWithResetContainer = styled.div`
   }
 `
 
-// 重置按钮样式
+// Reset button styles
 const ResetButton = styled.button`
   display: flex;
   align-items: center;
   justify-content: center;
   width: 28px;
   height: 28px;
-  min-width: 28px; /* 确保不会被压缩 */
+  min-width: 28px; /* Prevent shrinking */
   border-radius: 4px;
   border: 1px solid var(--color-border);
   background-color: var(--color-bg-1);
@@ -259,7 +259,7 @@ const ButtonWrapper = styled.div`
   gap: 8px;
 `
 
-// 新增: 带边框的容器组件
+// Bordered container component
 const BorderedContainer = styled.div`
   border: 1px solid var(--color-border);
   border-radius: 8px;

@@ -13,7 +13,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import BeatLoader from 'react-spinners/BeatLoader'
 import styled from 'styled-components'
 
-// Tab 模式下新的页面壳，不再直接创建 WebView，而是依赖全局 MiniAppTabsPool
+// Tab mode page shell — relies on the global MiniAppTabsPool instead of creating WebViews directly
 import MinimalToolbar from './components/MinimalToolbar'
 import WebviewSearch from './components/WebviewSearch'
 
@@ -24,8 +24,6 @@ const MiniAppPage: FC = () => {
   const { isTopNavbar } = useNavbarPosition()
   const { openMiniAppKeepAlive, miniAppsCache } = useMiniAppPopup()
   const { allApps } = useMiniApps()
-  // openedKeepAliveMiniApps 不再需要作为依赖参与 webview 选择，已通过 MutationObserver 动态发现
-  // const { openedKeepAliveMiniApps } = useRuntime()
   const navigate = useNavigate()
 
   // Remember the initial navbar position when component mounts
@@ -84,27 +82,27 @@ const MiniAppPage: FC = () => {
 
     // For top navbar mode, integrate with cache system
     if (initialIsTopNavbar.current) {
-      // 无论是否已在缓存，都调用以确保 currentMiniAppId 同步到路由切换的新 appId
+      // Always call to ensure currentMiniAppId stays in sync with the route-changed appId
       openMiniAppKeepAlive(app)
     }
   }, [app, navigate, openMiniAppKeepAlive, initialIsTopNavbar])
 
-  // -------------- 新的 Tab Shell 逻辑 --------------
-  // 注意：Hooks 必须在任何 return 之前调用，因此提前定义，并在内部判空
+  // -------------- Tab Shell logic --------------
+  // Hooks must be called before any return, so define them early with null-checks inside
   const webviewRef = useRef<WebviewTag | null>(null)
   const [isReady, setIsReady] = useState<boolean>(() => (app ? getWebviewLoaded(app.appId) : false))
   const [currentUrl, setCurrentUrl] = useState<string | null>(app?.url ?? null)
 
-  // 获取池中的 webview 元素（避免因为 openedKeepAliveMiniApps.length 变化而频繁重跑）
+  // Get the webview element from the pool (avoid re-running on openedKeepAliveMiniApps.length changes)
   const webviewCleanupRef = useRef<(() => void) | null>(null)
 
   const attachWebview = useCallback(() => {
-    if (!app) return true // 没有 app 不再继续监控
+    if (!app) return true // No app — stop monitoring
     const selector = `webview[data-miniapp-id="${app.appId}"]`
     const el = document.querySelector<WebviewTag>(selector)
     if (!el) return false
 
-    if (webviewRef.current === el) return true // 已附着
+    if (webviewRef.current === el) return true // Already attached
 
     webviewRef.current = el
     const handleInPageNav = (e: any) => setCurrentUrl(e.url)
@@ -118,10 +116,10 @@ const MiniAppPage: FC = () => {
   useEffect(() => {
     if (!app) return
 
-    // 先尝试立即附着
+    // Try immediate attachment first
     if (attachWebview()) return () => webviewCleanupRef.current?.()
 
-    // 若尚未创建，对 DOM 变更做一次监听（轻量 + 自动断开）
+    // If not yet created, observe DOM changes (lightweight + auto-disconnect)
     const observer = new MutationObserver(() => {
       if (attachWebview()) {
         observer.disconnect()
@@ -135,11 +133,11 @@ const MiniAppPage: FC = () => {
     }
   }, [app, attachWebview])
 
-  // 事件驱动等待加载完成（移除固定 150ms 轮询）
+  // Event-driven wait for load completion (replaces fixed 150ms polling)
   useEffect(() => {
     if (!app) return
     if (getWebviewLoaded(app.appId)) {
-      // 已经加载
+      // Already loaded
       if (!isReady) setIsReady(true)
       return
     }
@@ -157,7 +155,7 @@ const MiniAppPage: FC = () => {
     }
   }, [app, isReady])
 
-  // 如果条件不满足，提前返回（所有 hooks 已调用）
+  // Early return if conditions not met (all hooks already called)
   if (!app || !initialIsTopNavbar.current) {
     return null
   }
@@ -182,7 +180,7 @@ const MiniAppPage: FC = () => {
         <MinimalToolbar
           app={app}
           webviewRef={webviewRef}
-          // currentUrl 可能为 null（尚未捕获导航），外部打开时会 fallback 到 app.url
+          // currentUrl may be null (navigation not yet captured); fallback to app.url when opening externally
           currentUrl={currentUrl}
           onReload={handleReload}
           onOpenDevTools={handleOpenDevTools}
@@ -204,8 +202,8 @@ const ShellContainer = styled.div`
   flex-direction: column;
   height: 100%;
   width: 100%;
-  z-index: 3; /* 高于池中的 webview */
-  pointer-events: none; /* 让下层 webview 默认可交互 */
+  z-index: 3; /* Above the webviews in the pool */
+  pointer-events: none; /* Let lower webviews be interactive by default */
   > * {
     pointer-events: auto;
   }
@@ -217,9 +215,9 @@ const ToolbarWrapper = styled.div`
 
 const LoadingMask = styled.div`
   position: absolute;
-  inset: 35px 0 0 0; /* 避开 toolbar 高度 */
+  inset: 35px 0 0 0; /* Avoid toolbar height */
   display: flex;
-  flex-direction: column; /* 垂直堆叠 */
+  flex-direction: column; /* Vertical stacking */
   align-items: center;
   justify-content: center;
   background: var(--color-background);

@@ -71,9 +71,9 @@ const GoogleLoginTip = ({
   const [visible, setVisible] = useState(false)
   const { openMiniAppById } = useMiniAppPopup()
 
-  // 判断当前URL是否涉及Google登录
+  // Check whether the current URL involves a Google login flow
   const needsGoogleLogin = useMemo(() => {
-    // 如果当前已经在Google小程序中，不需要显示提示
+    // Already in the Google miniapp — no need to show the tip
     if (currentAppId === 'google') return false
 
     if (!currentUrl) return false
@@ -82,12 +82,12 @@ const GoogleLoginTip = ({
     return GOOGLE_LOGIN_PATTERNS.some((pattern) => lowerUrl.includes(pattern))
   }, [currentUrl, currentAppId])
 
-  // 在URL更新时检查是否需要显示提示
+  // Check on URL change whether the tip should be shown
   useEffect(() => {
     let showTimer: NodeJS.Timeout | null = null
     let hideTimer: NodeJS.Timeout | null = null
 
-    // 如果是Google登录相关URL且小程序已加载完成，则延迟显示提示
+    // If the URL is Google-login-related and the miniapp is ready, show tip with a delay
     if (needsGoogleLogin && isReady) {
       showTimer = setTimeout(() => {
         setVisible(true)
@@ -105,23 +105,22 @@ const GoogleLoginTip = ({
     }
   }, [needsGoogleLogin, isReady, currentUrl])
 
-  // 处理关闭提示
+  // Close the tip
   const handleClose = () => {
     setVisible(false)
   }
 
-  // 跳转到Google小程序
+  // Navigate to the Google miniapp
   const openGoogleMiniApp = () => {
-    // 使用openMiniAppById方法打开Google小程序
     openMiniAppById('google', true)
-    // 关闭提示
+    // Dismiss the tip
     setVisible(false)
   }
 
-  // 只在需要Google登录时显示提示
+  // Only show the tip when a Google login is needed
   if (!needsGoogleLogin || !visible) return null
 
-  // 使用直接的消息文本
+  // Render the tip with direct message text
   const message = t('miniwindow.alert.google_login')
 
   return (
@@ -465,7 +464,7 @@ const MiniAppPopupContainer: React.FC = () => {
 
   /** the callback function to handle webview navigation */
   const handleWebviewNavigate = (appid: string, url: string) => {
-    // 记录当前URL，用于GoogleLoginTip判断
+    // Track current URL for GoogleLoginTip detection
     if (appid === currentMiniAppId) {
       logger.debug(`URL changed: ${url}`)
       setCurrentUrl(url)
@@ -606,7 +605,7 @@ const MiniAppPopupContainer: React.FC = () => {
           <div
             className="flex-1 overflow-hidden rounded-tl-[10px]"
             style={{ backgroundColor: 'var(--color-background)' }}>
-            {/* 在所有小程序中显示GoogleLoginTip */}
+            {/* Show GoogleLoginTip across all miniapps */}
             <GoogleLoginTip isReady={isReady} currentUrl={currentUrl} currentAppId={currentMiniAppId} />
             {!isReady && (
               <EmptyView style={{ backgroundColor: 'var(--color-background-soft)' }}>

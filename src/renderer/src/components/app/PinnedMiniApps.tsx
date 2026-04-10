@@ -56,10 +56,10 @@ export const SidebarOpenedMiniAppTabs: FC = () => {
     container.style.setProperty('--indicator-right', `${indicatorRight}px`)
   }, [currentMiniAppId, openedKeepAliveMiniApps, miniAppShow])
 
-  // 检查是否需要显示已打开小程序组件
+  // Check whether to show the opened-miniapps component
   const isShowOpened = showOpenedMiniAppsInSidebar && openedKeepAliveMiniApps.length > 0
 
-  // 如果不需要显示，返回空容器保持动画效果但不显示内容
+  // If not needed, return an empty container to preserve animation but show no content
   if (!isShowOpened) return <TabsContainer className="TabsContainer" />
 
   return (

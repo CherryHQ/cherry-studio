@@ -196,8 +196,8 @@ describe('miniAppHandlers', () => {
     })
   })
 
-  describe('GET /miniapps/:id', () => {
-    it('should delegate to service with path id', async () => {
+  describe('GET /miniapps/:appId', () => {
+    it('should delegate to service with path appId', async () => {
       const app = {
         appId: 'openai',
         type: 'default',
@@ -208,14 +208,14 @@ describe('miniAppHandlers', () => {
       }
       getByAppIdMock.mockResolvedValueOnce(app)
 
-      const result = await miniAppHandlers['/miniapps/:id'].GET({ params: { id: 'openai' } })
+      const result = await miniAppHandlers['/miniapps/:appId'].GET({ params: { appId: 'openai' } })
 
       expect(getByAppIdMock).toHaveBeenCalledWith('openai')
       expect(result).toEqual(app)
     })
   })
 
-  describe('PATCH /miniapps/:id', () => {
+  describe('PATCH /miniapps/:appId', () => {
     it('should parse body and delegate to service', async () => {
       const updated = {
         appId: 'custom-app',
@@ -227,8 +227,8 @@ describe('miniAppHandlers', () => {
       }
       updateMock.mockResolvedValueOnce(updated)
 
-      const result = await miniAppHandlers['/miniapps/:id'].PATCH({
-        params: { id: 'custom-app' },
+      const result = await miniAppHandlers['/miniapps/:appId'].PATCH({
+        params: { appId: 'custom-app' },
         body: { status: 'disabled' }
       })
 
@@ -238,7 +238,7 @@ describe('miniAppHandlers', () => {
 
     it('should reject invalid status in PATCH body before calling the service', async () => {
       await expect(
-        miniAppHandlers['/miniapps/:id'].PATCH({ params: { id: 'openai' }, body: { status: 'banned' } } as never)
+        miniAppHandlers['/miniapps/:appId'].PATCH({ params: { appId: 'openai' }, body: { status: 'banned' } } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
 
       expect(updateMock).not.toHaveBeenCalled()
@@ -246,8 +246,8 @@ describe('miniAppHandlers', () => {
 
     it('should reject invalid region in PATCH body before calling the service', async () => {
       await expect(
-        miniAppHandlers['/miniapps/:id'].PATCH({
-          params: { id: 'openai' },
+        miniAppHandlers['/miniapps/:appId'].PATCH({
+          params: { appId: 'openai' },
           body: { supportedRegions: ['EU'] }
         } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
@@ -261,7 +261,7 @@ describe('miniAppHandlers', () => {
       )
 
       await expect(
-        miniAppHandlers['/miniapps/:id'].PATCH({ params: { id: 'openai' }, body: {} })
+        miniAppHandlers['/miniapps/:appId'].PATCH({ params: { appId: 'openai' }, body: {} })
       ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
 
       // Empty body is valid Zod — UpdateMiniAppSchema allows all optional fields
@@ -269,21 +269,21 @@ describe('miniAppHandlers', () => {
     })
   })
 
-  describe('DELETE /miniapps/:id', () => {
-    it('should delegate to service with path id', async () => {
+  describe('DELETE /miniapps/:appId', () => {
+    it('should delegate to service with path appId', async () => {
       deleteMock.mockResolvedValueOnce(undefined)
 
-      await miniAppHandlers['/miniapps/:id'].DELETE({ params: { id: 'custom-app' } })
+      await miniAppHandlers['/miniapps/:appId'].DELETE({ params: { appId: 'custom-app' } })
 
       expect(deleteMock).toHaveBeenCalledWith('custom-app')
     })
   })
 
-  describe('DELETE /miniapps/defaults', () => {
+  describe('DELETE /miniapps/_actions/reset-defaults', () => {
     it('should call resetDefaults exactly once', async () => {
       resetDefaultsMock.mockResolvedValueOnce(undefined)
 
-      await miniAppHandlers['/miniapps/defaults'].DELETE({})
+      await miniAppHandlers['/miniapps/_actions/reset-defaults'].DELETE({})
 
       expect(resetDefaultsMock).toHaveBeenCalledTimes(1)
     })
@@ -292,10 +292,10 @@ describe('miniAppHandlers', () => {
       deleteMock.mockResolvedValueOnce(undefined)
       resetDefaultsMock.mockResolvedValueOnce(undefined)
 
-      // Deleting a specific app by id
-      await miniAppHandlers['/miniapps/:id'].DELETE({ params: { id: 'custom-app' } })
+      // Deleting a specific app by appId
+      await miniAppHandlers['/miniapps/:appId'].DELETE({ params: { appId: 'custom-app' } })
       // Resetting defaults
-      await miniAppHandlers['/miniapps/defaults'].DELETE({})
+      await miniAppHandlers['/miniapps/_actions/reset-defaults'].DELETE({})
 
       expect(deleteMock).toHaveBeenCalledWith('custom-app')
       expect(resetDefaultsMock).toHaveBeenCalledTimes(1)

@@ -52,10 +52,10 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
 
   const handleClick = () => {
     if (isTopNavbar) {
-      // 顶部导航栏：导航到小程序页面
+      // Top navbar: navigate to the miniapp page
       void navigate({ to: '/app/miniapp/$appId', params: { appId: app.appId } })
     } else {
-      // 侧边导航栏：保持原有弹窗行为
+      // Side navbar: keep the original popup behavior
       openMiniAppKeepAlive(app)
     }
     onClick?.()
@@ -86,7 +86,7 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
               void updateMiniApps(newMiniApps)
               const newDisabled = [...(disabled || []), app]
               void updateDisabledMiniApps(newDisabled)
-              // 更新 openedKeepAliveMiniApps
+              // Update openedKeepAliveMiniApps
               const newOpenedKeepAliveMiniApps = openedKeepAliveMiniApps.filter((item) => item.appId !== app.appId)
               setOpenedKeepAliveMiniApps(newOpenedKeepAliveMiniApps)
             }

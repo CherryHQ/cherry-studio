@@ -20,7 +20,7 @@ import { DataApiErrorFactory } from '@shared/data/api'
 import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniapps'
 import { type BuiltinMiniAppDefinition, ORIGIN_DEFAULT_MIN_APPS } from '@shared/data/presets/miniapps'
-import type { MiniApp } from '@shared/data/types/miniapp'
+import type { MiniApp, MiniAppId } from '@shared/data/types/miniapp'
 import { and, asc, desc, eq, inArray, type SQL } from 'drizzle-orm'
 
 const logger = loggerService.withContext('DataApi:MiniAppService')
@@ -56,6 +56,11 @@ function parseRegions(raw: unknown): ('CN' | 'Global')[] | undefined {
   return regions.length > 0 ? regions : undefined
 }
 
+/** Brand a raw DB/app-def string as a MiniAppId. Safe because DB enforces non-empty app_id. */
+function brandId(raw: string): MiniAppId {
+  return raw as MiniAppId
+}
+
 /**
  * Convert database row to MiniApp entity
  */
@@ -63,6 +68,7 @@ function rowToMiniApp(row: MiniAppSelect): MiniApp {
   const clean = stripNulls(row)
   return {
     ...clean,
+    appId: brandId(clean.appId),
     type: clean.type,
     status: clean.status,
     sortOrder: clean.sortOrder ?? 0,
@@ -78,7 +84,7 @@ function rowToMiniApp(row: MiniAppSelect): MiniApp {
  */
 function builtinToMiniApp(def: BuiltinMiniAppDefinition, dbRow?: MiniAppSelect): MiniApp {
   return {
-    appId: def.id,
+    appId: brandId(def.id),
     type: 'default',
     status: dbRow ? dbRow.status : 'enabled',
     sortOrder: dbRow ? (dbRow.sortOrder ?? 0) : (builtinMiniAppDefaultSortOrder.get(def.id) ?? 0),
@@ -135,14 +141,12 @@ export class MiniAppService {
     }
     const customWhere = and(...customConditions)
 
-    // I12: Removed redundant COUNT query — customRows.length gives count directly
     const customRows = await this.db
       .select()
       .from(miniAppTable)
       .where(customWhere)
       .orderBy(asc(miniAppTable.status), asc(miniAppTable.sortOrder))
 
-    // N6: Handle type filters — 'custom' returns only DB custom apps, 'default' returns only builtins
     if (query.type === 'custom') {
       const items = customRows.map(rowToMiniApp)
       return {
@@ -185,7 +189,6 @@ export class MiniAppService {
         .sort((a: MiniApp, b: MiniApp) => a.sortOrder - b.sortOrder)
     }
 
-    // N6: Combine — skip custom rows when type filter is 'default'
     const allItems = query.type === 'default' ? [...builtinItems] : [...builtinItems, ...customRows.map(rowToMiniApp)]
     allItems.sort((a, b) => {
       // Sort by status priority: pinned=0, enabled=1, disabled=2
@@ -268,7 +271,6 @@ export class MiniAppService {
       await this.ensureDefaultAppPref(appId)
     }
 
-    // I5: For default apps, only allow preference fields; ignore preset fields
     const updates: Partial<MiniAppInsert> = {}
 
     if (existing.type === 'default') {
@@ -286,7 +288,6 @@ export class MiniAppService {
       if (dto.configuration !== undefined) updates.configuration = dto.configuration
     }
 
-    // N5: Reject empty updates (e.g. non-status fields on a default app)
     const appliedChanges = Object.keys(updates)
     if (appliedChanges.length === 0) {
       throw DataApiErrorFactory.validation(
@@ -297,14 +298,12 @@ export class MiniAppService {
 
     const [row] = await this.db.update(miniAppTable).set(updates).where(eq(miniAppTable.appId, appId)).returning()
 
-    // I2: Validate .returning() result
     if (!row) {
       throw DataApiErrorFactory.notFound('MiniApp', appId)
     }
 
     logger.info('Updated miniapp', { appId, changes: appliedChanges })
 
-    // I1: Return merged preset for builtin apps
     const builtinDef = builtinMiniAppMap.get(appId)
     if (builtinDef) {
       return builtinToMiniApp(builtinDef, row)
@@ -333,7 +332,6 @@ export class MiniAppService {
 
   /**
    * Batch reorder miniapps.
-   * I3: All ensureDefaultAppPref calls and updates happen inside a single transaction.
    */
   async reorder(items: Array<{ appId: string; sortOrder: number }>): Promise<void> {
     await this.db.transaction(async (tx) => {
@@ -355,7 +353,7 @@ export class MiniAppService {
           const valuesToInsert = missingIds.map((id) => {
             const def = builtinMiniAppMap.get(id)!
             return {
-              appId: def.id,
+              appId: brandId(def.id),
               name: def.name,
               url: def.url,
               logo: def.logo ?? null,
@@ -406,7 +404,6 @@ export class MiniAppService {
 
   /**
    * Ensure a DB preference row exists for a builtin app.
-   * I4: Uses INSERT ... ON CONFLICT DO NOTHING to avoid TOCTOU race.
    */
   private async ensureDefaultAppPref(appId: string): Promise<void> {
     const builtinDef = builtinMiniAppMap.get(appId)
