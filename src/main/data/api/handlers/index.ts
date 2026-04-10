@@ -7,6 +7,8 @@
  * Handler files are organized by domain:
  * - topics.ts - Topic API handlers
  * - messages.ts - Message API handlers
+ * - models.ts - Model API handlers
+ * - providers.ts - Provider API handlers
  * - translate.ts - Translate API handlers
  */
 
@@ -17,6 +19,8 @@ import { knowledgeHandlers } from './knowledges'
 import { mcpServerHandlers } from './mcpServers'
 import { messageHandlers } from './messages'
 import { miniAppHandlers } from './miniapps'
+import { modelHandlers } from './models'
+import { providerHandlers } from './providers'
 import { topicHandlers } from './topics'
 import { translateHandlers } from './translate'
 
@@ -31,6 +35,8 @@ export const apiHandlers: ApiImplementation = {
   ...fileProcessingHandlers,
   ...topicHandlers,
   ...messageHandlers,
+  ...modelHandlers,
+  ...providerHandlers,
   ...knowledgeHandlers,
   ...translateHandlers,
   ...mcpServerHandlers,

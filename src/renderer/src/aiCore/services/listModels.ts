@@ -200,7 +200,7 @@ const githubFetcher: ModelFetcher = {
         abortSignal: signal
       }).catch(() => ({ data: [] as { id: string; owned_by?: string }[] }))
     ])
-    const catalogModels = catalogResponse.map((m) =>
+    const registryModels = catalogResponse.map((m) =>
       toModel(m.id, provider, {
         name: m.name || m.id,
         description: pickPreferredString([m.summary, m.description]),
@@ -208,7 +208,7 @@ const githubFetcher: ModelFetcher = {
       })
     )
     const v1Models = v1Response.data.map((m) => toModel(m.id, provider, { owned_by: m.owned_by }))
-    return dedup([...catalogModels, ...v1Models], (m) => m.id)
+    return dedup([...registryModels, ...v1Models], (m) => m.id)
   }
 }
 
