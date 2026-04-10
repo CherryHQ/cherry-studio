@@ -279,7 +279,9 @@ export class DetachedWindowManager extends BaseService {
         })
     }
 
-    this.trackWindowSize(tabId, win)
+    if (USE_CONTENT_BOUNDS_MOVE) {
+      this.trackWindowSize(tabId, win)
+    }
 
     win.on('ready-to-show', () => {
       if (!hasPosition) {
