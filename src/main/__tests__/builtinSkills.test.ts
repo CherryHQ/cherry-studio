@@ -27,6 +27,10 @@ vi.mock('electron', () => ({
   }
 }))
 
+vi.mock('../utils', () => ({
+  toAsarUnpackedPath: vi.fn((filePath: string) => filePath)
+}))
+
 const mockRepo = {
   getByFolderName: vi.fn(),
   delete: vi.fn(),

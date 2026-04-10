@@ -442,7 +442,7 @@ export class ExtensionRegistry {
     return undefined
   }
 
-  /** Get base provider for .tools extraction (cached or dummy instance) */
+  /** Get provider for .tools extraction (cached or dummy instance) */
   private async getToolProvider(providerId: string): Promise<ProviderV3 | undefined> {
     const parsed = this.parseProviderId(providerId)
     if (!parsed) return undefined
@@ -450,11 +450,14 @@ export class ExtensionRegistry {
     const extension = this.get(parsed.baseId)
     if (!extension) return undefined
 
-    const cached = extension.getCachedProvider()
-    if (cached) return cached
-
     try {
-      return await extension.createProvider({ apiKey: '_tool_descriptor' })
+      // For variants, create the variant-transformed provider so that
+      // toolFactories receive the correct provider type (e.g. AnthropicProvider
+      // for azure-anthropic instead of AzureOpenAIProvider).
+      return await extension.createProvider(
+        extension.getCachedProvider() ? undefined : { apiKey: '_tool_descriptor' },
+        parsed.isVariant ? parsed.mode : undefined
+      )
     } catch {
       return undefined
     }
