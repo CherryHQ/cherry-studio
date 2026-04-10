@@ -5568,7 +5568,9 @@
       "rename_topic": "Renomear tópico",
       "reset_defaults": "Redefinir atalhos padrão",
       "reset_defaults_confirm": "Tem certeza de que deseja redefinir todos os atalhos?",
+      "reset_defaults_failed": "[to be translated]:Failed to reset shortcuts to defaults",
       "reset_to_default": "Redefinir para padrão",
+      "save_failed": "[to be translated]:Failed to save shortcut",
       "search_message": "Pesquisar mensagem",
       "search_message_in_chat": "Pesquisar mensagens nesta conversa",
       "search_placeholder": "Atalhos de pesquisa...",
@@ -5580,7 +5582,7 @@
       "title": "Atalhos",
       "toggle_new_context": "Limpar contexto",
       "toggle_show_topics": "Alternar exibição de tópicos",
-      "toggle_sidebar": "Alternar exibição de assistentes",
+      "toggle_sidebar": "Alternar barra lateral",
       "zoom_in": "Ampliar interface",
       "zoom_out": "Diminuir interface",
       "zoom_reset": "Redefinir zoom"

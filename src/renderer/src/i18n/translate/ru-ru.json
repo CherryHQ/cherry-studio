@@ -5568,7 +5568,9 @@
       "rename_topic": "Переименовать топик",
       "reset_defaults": "Сбросить настройки по умолчанию",
       "reset_defaults_confirm": "Вы уверены, что хотите сбросить все горячие клавиши?",
+      "reset_defaults_failed": "[to be translated]:Failed to reset shortcuts to defaults",
       "reset_to_default": "Сбросить настройки по умолчанию",
+      "save_failed": "[to be translated]:Failed to save shortcut",
       "search_message": "Поиск сообщения",
       "search_message_in_chat": "Поиск сообщения в текущем диалоге",
       "search_placeholder": "Поиск ярлыков...",
@@ -5580,7 +5582,7 @@
       "title": "Горячие клавиши",
       "toggle_new_context": "Очистить контекст",
       "toggle_show_topics": "Переключить отображение топиков",
-      "toggle_sidebar": "Переключить отображение ассистентов",
+      "toggle_sidebar": "Переключить боковую панель",
       "zoom_in": "Увеличить",
       "zoom_out": "Уменьшить",
       "zoom_reset": "Сбросить масштаб"

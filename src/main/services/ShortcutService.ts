@@ -103,11 +103,12 @@ export class ShortcutService extends BaseService {
   private subscribeToPreferenceChanges(): void {
     const preferenceService = application.get('PreferenceService')
     for (const definition of relevantDefinitions) {
-      const unsub = preferenceService.subscribeChange(definition.key, () => {
-        logger.debug(`Shortcut preference changed: ${definition.key}`)
-        this.reregisterShortcuts()
-      })
-      this.registerDisposable({ dispose: unsub })
+      this.registerDisposable(
+        preferenceService.subscribeChange(definition.key, () => {
+          logger.debug(`Shortcut preference changed: ${definition.key}`)
+          this.reregisterShortcuts()
+        })
+      )
     }
   }
 
@@ -141,7 +142,6 @@ export class ShortcutService extends BaseService {
     if (window.isDestroyed()) return
 
     const preferenceService = application.get('PreferenceService')
-    const getPreference = <K extends string>(key: K) => preferenceService.get(key as any)
 
     // Build the desired set of accelerators
     const desired = new Map<string, { handler: ShortcutHandler; window: BrowserWindow }>()
@@ -152,7 +152,6 @@ export class ShortcutService extends BaseService {
       const rawPref = preferenceService.get(definition.key) as PreferenceShortcutType | undefined
       const pref = resolveShortcutPreference(definition, rawPref)
       if (!pref.enabled || !pref.binding.length) continue
-      if (definition.enabledWhen && !definition.enabledWhen(getPreference as any)) continue
 
       const handler = this.handlers.get(definition.key)
       if (!handler) continue
@@ -178,8 +177,8 @@ export class ShortcutService extends BaseService {
       if (!entry || entry.handler !== prevHandler) {
         try {
           globalShortcut.unregister(accelerator)
-        } catch {
-          // ignore
+        } catch (error) {
+          logger.debug(`Failed to unregister shortcut accelerator: ${accelerator}`, error as Error)
         }
         this.registeredAccelerators.delete(accelerator)
       }
@@ -189,13 +188,17 @@ export class ShortcutService extends BaseService {
     for (const [accelerator, { handler, window: win }] of desired) {
       if (!this.registeredAccelerators.has(accelerator)) {
         try {
-          globalShortcut.register(accelerator, () => {
+          const success = globalShortcut.register(accelerator, () => {
             const targetWindow = win?.isDestroyed?.() ? undefined : win
             handler(targetWindow)
           })
-          this.registeredAccelerators.set(accelerator, handler)
+          if (success) {
+            this.registeredAccelerators.set(accelerator, handler)
+          } else {
+            logger.warn(`Failed to register shortcut ${accelerator}: accelerator is held by another application`)
+          }
         } catch (error) {
-          logger.warn(`Failed to register shortcut ${accelerator}`)
+          logger.warn(`Failed to register shortcut ${accelerator}`, error as Error)
         }
       }
     }
@@ -221,13 +224,13 @@ export class ShortcutService extends BaseService {
       for (const accelerator of this.registeredAccelerators.keys()) {
         try {
           globalShortcut.unregister(accelerator)
-        } catch {
-          // ignore
+        } catch (error) {
+          logger.debug(`Failed to unregister shortcut accelerator: ${accelerator}`, error as Error)
         }
       }
       this.registeredAccelerators.clear()
     } catch (error) {
-      logger.warn('Failed to unregister all shortcuts')
+      logger.warn('Failed to unregister all shortcuts', error as Error)
     }
   }
 }

@@ -107,14 +107,13 @@ const ensureBoolean = (value: unknown, fallback: boolean): boolean => (typeof va
 export const getDefaultShortcut = (definition: ShortcutDefinition): ResolvedShortcut => {
   const fallback = DefaultPreferences.default[definition.key]
 
-  const rawBinding = ensureArray(fallback?.key)
+  const rawBinding = ensureArray(fallback?.binding)
   const binding = rawBinding.length ? rawBinding : definition.defaultBinding
 
   return {
     binding,
     enabled: ensureBoolean(fallback?.enabled, true),
-    editable: definition.editable !== false,
-    system: definition.system === true
+    editable: definition.editable !== false
   }
 }
 
@@ -123,12 +122,11 @@ export const resolveShortcutPreference = (
   value?: PreferenceShortcutType | null
 ): ResolvedShortcut => {
   const fallback = getDefaultShortcut(definition)
-  const binding = value != null ? (value.key?.length ? ensureArray(value.key) : []) : fallback.binding
+  const binding = value != null ? (value.binding?.length ? ensureArray(value.binding) : []) : fallback.binding
 
   return {
     binding,
     enabled: ensureBoolean(value?.enabled, fallback.enabled),
-    editable: definition.editable !== false,
-    system: definition.system === true
+    editable: definition.editable !== false
   }
 }

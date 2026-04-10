@@ -5568,7 +5568,9 @@
       "rename_topic": "Thema umbenennen",
       "reset_defaults": "Standard-Shortcuts zurücksetzen",
       "reset_defaults_confirm": "Alle Shortcuts wirklich zurücksetzen?",
+      "reset_defaults_failed": "[to be translated]:Failed to reset shortcuts to defaults",
       "reset_to_default": "Auf Standard zurücksetzen",
+      "save_failed": "[to be translated]:Failed to save shortcut",
       "search_message": "Nachricht suchen",
       "search_message_in_chat": "In aktuellem Chat suchen",
       "search_placeholder": "Suchverknüpfungen durchsuchen...",
@@ -5580,7 +5582,7 @@
       "title": "Shortcut",
       "toggle_new_context": "Kontext löschen",
       "toggle_show_topics": "Themenanzeige umschalten",
-      "toggle_sidebar": "Assistentenanzeige umschalten",
+      "toggle_sidebar": "Seitenleiste umschalten",
       "zoom_in": "Oberfläche vergrößern",
       "zoom_out": "Oberfläche verkleinern",
       "zoom_reset": "Zoom zurücksetzen"

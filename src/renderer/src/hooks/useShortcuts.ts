@@ -27,8 +27,10 @@ const defaultOptions: UseShortcutOptions = {
   enableOnContentEditable: false
 }
 
+const isFullKey = (key: string): key is ShortcutPreferenceKey => key.startsWith('shortcut.')
+
 const toFullKey = (key: ShortcutKey | ShortcutPreferenceKey): ShortcutPreferenceKey =>
-  (key.startsWith('shortcut.') ? key : `shortcut.${key}`) as ShortcutPreferenceKey
+  isFullKey(key) ? key : (`shortcut.${key}` as ShortcutPreferenceKey)
 
 export const useShortcut = (
   shortcutKey: ShortcutKey | ShortcutPreferenceKey,
@@ -134,7 +136,11 @@ export const useAllShortcuts = (): ShortcutListItem[] => {
     ): PreferenceShortcutType => {
       const current = (currentValue ?? {}) as PreferenceShortcutType
 
-      const nextKey = Array.isArray(patch.key) ? patch.key : Array.isArray(current.key) ? current.key : state.binding
+      const nextBinding = Array.isArray(patch.binding)
+        ? patch.binding
+        : Array.isArray(current.binding)
+          ? current.binding
+          : state.binding
 
       const nextEnabled =
         typeof patch.enabled === 'boolean'
@@ -144,7 +150,7 @@ export const useAllShortcuts = (): ShortcutListItem[] => {
             : state.enabled
 
       return {
-        key: nextKey,
+        binding: nextBinding,
         enabled: nextEnabled
       }
     },

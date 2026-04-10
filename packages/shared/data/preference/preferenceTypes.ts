@@ -22,7 +22,7 @@ export type PreferenceUpdateOptions = {
 }
 
 export type PreferenceShortcutType = {
-  key: string[]
+  binding: string[]
   enabled: boolean
 }
 

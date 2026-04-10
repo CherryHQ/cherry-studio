@@ -5568,7 +5568,9 @@
       "rename_topic": "Renombrar tema",
       "reset_defaults": "Restablecer atajos predeterminados",
       "reset_defaults_confirm": "¿Está seguro de querer restablecer todos los atajos?",
+      "reset_defaults_failed": "[to be translated]:Failed to reset shortcuts to defaults",
       "reset_to_default": "Restablecer a predeterminado",
+      "save_failed": "[to be translated]:Failed to save shortcut",
       "search_message": "Buscar mensaje",
       "search_message_in_chat": "Buscar mensajes en la conversación actual",
       "search_placeholder": "Buscar accesos directos...",
@@ -5580,7 +5582,7 @@
       "title": "Atajos",
       "toggle_new_context": "Limpiar contexto",
       "toggle_show_topics": "Alternar visibilidad de temas",
-      "toggle_sidebar": "Alternar visibilidad de asistentes",
+      "toggle_sidebar": "Alternar barra lateral",
       "zoom_in": "Ampliar interfaz",
       "zoom_out": "Reducir interfaz",
       "zoom_reset": "Restablecer zoom"

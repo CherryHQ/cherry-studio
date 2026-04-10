@@ -5568,7 +5568,9 @@
       "rename_topic": "Redenumește subiectul",
       "reset_defaults": "Resetează la implicite",
       "reset_defaults_confirm": "Ești sigur că vrei să resetezi toate comenzile rapide?",
+      "reset_defaults_failed": "[to be translated]:Failed to reset shortcuts to defaults",
       "reset_to_default": "Resetează la implicit",
+      "save_failed": "[to be translated]:Failed to save shortcut",
       "search_message": "Caută mesaj",
       "search_message_in_chat": "Caută mesaj în chat-ul curent",
       "search_placeholder": "Căutare comenzi rapide...",
@@ -5580,7 +5582,7 @@
       "title": "Comenzi rapide de la tastatură",
       "toggle_new_context": "Șterge contextul",
       "toggle_show_topics": "Comută subiectele",
-      "toggle_sidebar": "Comută asistenții",
+      "toggle_sidebar": "Comută bara laterală",
       "zoom_in": "Mărește",
       "zoom_out": "Micșorează",
       "zoom_reset": "Resetează zoom-ul"

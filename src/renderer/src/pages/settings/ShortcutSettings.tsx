@@ -1,6 +1,7 @@
 import { UndoOutlined } from '@ant-design/icons'
 import { Button, Input, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import { preferenceService } from '@data/PreferenceService'
+import { loggerService } from '@logger'
 import { isMac, platform } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAllShortcuts } from '@renderer/hooks/useShortcuts'
@@ -20,6 +21,8 @@ import { useTranslation } from 'react-i18next'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingTitle } from '.'
 
+const logger = loggerService.withContext('ShortcutSettings')
+
 type ShortcutRecord = {
   id: string
   label: string
@@ -27,7 +30,6 @@ type ShortcutRecord = {
   enabled: boolean
   editable: boolean
   displayKeys: string[]
-  system: boolean
   updatePreference: (patch: Partial<PreferenceShortcutType>) => Promise<void>
   defaultPreference: {
     binding: string[]
@@ -91,7 +93,6 @@ const ShortcutSettings: FC = () => {
         enabled: item.preference.enabled,
         editable: item.preference.editable,
         displayKeys,
-        system: item.preference.system,
         updatePreference: item.updatePreference,
         defaultPreference: {
           binding: item.defaultPreference.binding,
@@ -137,8 +138,15 @@ const ShortcutSettings: FC = () => {
     return !isBindingEqual(record.displayKeys, record.defaultPreference.binding)
   }
 
+  const handleUpdateFailure = (record: ShortcutRecord, error: unknown) => {
+    logger.error(`Failed to update shortcut preference: ${record.key}`, error as Error)
+    window.toast.error(t('settings.shortcuts.save_failed'))
+  }
+
   const handleResetShortcut = (record: ShortcutRecord) => {
-    void record.updatePreference({ key: record.defaultPreference.binding })
+    record.updatePreference({ binding: record.defaultPreference.binding }).catch((error) => {
+      handleUpdateFailure(record, error)
+    })
     setEditingKey(null)
     setPendingKeys([])
     setConflictLabel(null)
@@ -200,7 +208,9 @@ const ShortcutSettings: FC = () => {
     }
 
     setConflictLabel(null)
-    void record.updatePreference({ key: keys })
+    record.updatePreference({ binding: keys }).catch((error) => {
+      handleUpdateFailure(record, error)
+    })
     setEditingKey(null)
     setPendingKeys([])
   }
@@ -214,12 +224,17 @@ const ShortcutSettings: FC = () => {
 
         shortcuts.forEach((item) => {
           updates[item.definition.key] = {
-            key: item.defaultPreference.binding,
+            binding: item.defaultPreference.binding,
             enabled: item.defaultPreference.enabled
           }
         })
 
-        await preferenceService.setMultiple(updates)
+        try {
+          await preferenceService.setMultiple(updates)
+        } catch (error) {
+          logger.error('Failed to reset all shortcuts to defaults', error as Error)
+          window.toast.error(t('settings.shortcuts.reset_defaults_failed'))
+        }
       }
     })
   }
@@ -321,7 +336,11 @@ const ShortcutSettings: FC = () => {
                   <Switch
                     size="sm"
                     checked={record.enabled}
-                    onCheckedChange={() => void record.updatePreference({ enabled: !record.enabled })}
+                    onCheckedChange={() => {
+                      record.updatePreference({ enabled: !record.enabled }).catch((error) => {
+                        handleUpdateFailure(record, error)
+                      })
+                    }}
                   />
                 )}
               </RowFlex>

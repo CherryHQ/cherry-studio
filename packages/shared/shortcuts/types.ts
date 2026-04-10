@@ -1,4 +1,4 @@
-import type { PreferenceDefaultScopeType, PreferenceKeyType } from '@shared/data/preference/preferenceTypes'
+import type { PreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 
 export type ShortcutScope = 'main' | 'renderer' | 'both'
 
@@ -19,10 +19,6 @@ export type ShortcutPreferenceKey = Extract<PreferenceKeyType, `shortcut.${strin
 
 export type ShortcutKey = ShortcutPreferenceKey extends `shortcut.${infer Rest}` ? Rest : never
 
-export type GetPreferenceFn = <K extends PreferenceKeyType>(key: K) => PreferenceDefaultScopeType[K]
-
-export type ShortcutEnabledPredicate = (getPreference: GetPreferenceFn) => boolean
-
 /** Static metadata for a single shortcut — the single source of truth for the shortcut system. */
 export interface ShortcutDefinition {
   /** Preference key in `shortcut.{category}.{name}` format for built-in shortcuts. Plugins use `shortcut.plugin.{pluginId}.{name}`. */
@@ -37,14 +33,10 @@ export interface ShortcutDefinition {
   labelKey: string
   /** Whether users can modify the binding in settings. Defaults to `true`. */
   editable?: boolean
-  /** System-level shortcut — when `true` the binding cannot be deleted. */
-  system?: boolean
   /** Global shortcut — stays registered when the window loses focus. Aligns with Electron `globalShortcut`. */
   global?: boolean
   /** Additional equivalent bindings for the same action (e.g. numpad variants for zoom). */
   variants?: string[][]
-  /** Dynamic enable condition evaluated at registration time. Return `false` to skip registration. */
-  enabledWhen?: ShortcutEnabledPredicate
   /** Restrict this shortcut to specific operating systems. Omit to enable on all platforms. */
   supportedPlatforms?: SupportedPlatform[]
 }
@@ -57,6 +49,4 @@ export interface ResolvedShortcut {
   enabled: boolean
   /** Whether users can modify the binding. Injected from `ShortcutDefinition.editable`, not stored in preferences. */
   editable: boolean
-  /** System-level flag. Injected from `ShortcutDefinition.system`, not stored in preferences. */
-  system: boolean
 }

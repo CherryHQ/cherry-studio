@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { findShortcutDefinition, SHORTCUT_DEFINITIONS } from '../shortcuts/definitions'
 import type { ShortcutDefinition } from '../shortcuts/types'
 import {
   convertAcceleratorToHotkey,
@@ -108,17 +109,11 @@ describe('getDefaultShortcut', () => {
     expect(result.binding).toEqual(['CommandOrControl', 'L'])
     expect(result.enabled).toBe(true)
     expect(result.editable).toBe(true)
-    expect(result.system).toBe(false)
   })
 
   it('respects editable: false', () => {
     const def = makeDefinition({ editable: false })
     expect(getDefaultShortcut(def).editable).toBe(false)
-  })
-
-  it('respects system: true', () => {
-    const def = makeDefinition({ system: true })
-    expect(getDefaultShortcut(def).system).toBe(true)
   })
 })
 
@@ -138,20 +133,20 @@ describe('resolveShortcutPreference', () => {
     expect(result.binding).toEqual(['CommandOrControl', 'L'])
   })
 
-  it('uses custom key when provided', () => {
+  it('uses custom binding when provided', () => {
     const def = makeDefinition()
     const result = resolveShortcutPreference(def, {
-      key: ['Alt', 'L'],
+      binding: ['Alt', 'L'],
       enabled: true
     })
 
     expect(result.binding).toEqual(['Alt', 'L'])
   })
 
-  it('returns empty binding when key is explicitly cleared (empty array)', () => {
+  it('returns empty binding when binding is explicitly cleared (empty array)', () => {
     const def = makeDefinition()
     const result = resolveShortcutPreference(def, {
-      key: [],
+      binding: [],
       enabled: true
     })
 
@@ -161,10 +156,40 @@ describe('resolveShortcutPreference', () => {
   it('respects enabled: false from preference', () => {
     const def = makeDefinition()
     const result = resolveShortcutPreference(def, {
-      key: ['CommandOrControl', 'L'],
+      binding: ['CommandOrControl', 'L'],
       enabled: false
     })
 
     expect(result.enabled).toBe(false)
+  })
+})
+
+describe('SHORTCUT_DEFINITIONS', () => {
+  it('has unique preference keys', () => {
+    const keys = SHORTCUT_DEFINITIONS.map((d) => d.key)
+    const unique = new Set(keys)
+    expect(unique.size).toBe(keys.length)
+  })
+
+  it('has non-empty labelKey for every entry', () => {
+    for (const def of SHORTCUT_DEFINITIONS) {
+      expect(def.labelKey, `missing labelKey for ${def.key}`).toBeTruthy()
+    }
+  })
+
+  it('uses `shortcut.` prefix for every preference key', () => {
+    for (const def of SHORTCUT_DEFINITIONS) {
+      expect(def.key.startsWith('shortcut.')).toBe(true)
+    }
+  })
+
+  it('is resolvable via findShortcutDefinition', () => {
+    for (const def of SHORTCUT_DEFINITIONS) {
+      expect(findShortcutDefinition(def.key)).toBe(def)
+    }
+  })
+
+  it('returns undefined for unknown keys', () => {
+    expect(findShortcutDefinition('shortcut.unknown.nope' as never)).toBeUndefined()
   })
 })

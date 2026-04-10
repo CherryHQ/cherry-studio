@@ -2476,11 +2476,11 @@
             {
               "category": "preferences",
               "defaultValue": {
-                "enabled": true,
-                "key": [
+                "binding": [
                   "CommandOrControl",
                   "="
-                ]
+                ],
+                "enabled": true
               },
               "originalKey": "zoom_in",
               "status": "classified",
@@ -2490,11 +2490,11 @@
             {
               "category": "preferences",
               "defaultValue": {
-                "enabled": true,
-                "key": [
+                "binding": [
                   "CommandOrControl",
                   "-"
-                ]
+                ],
+                "enabled": true
               },
               "originalKey": "zoom_out",
               "status": "classified",
@@ -2504,11 +2504,11 @@
             {
               "category": "preferences",
               "defaultValue": {
-                "enabled": true,
-                "key": [
+                "binding": [
                   "CommandOrControl",
                   "0"
-                ]
+                ],
+                "enabled": true
               },
               "originalKey": "zoom_reset",
               "status": "classified",
@@ -2518,11 +2518,11 @@
             {
               "category": "preferences",
               "defaultValue": {
-                "enabled": true,
-                "key": [
+                "binding": [
                   "CommandOrControl",
                   ","
-                ]
+                ],
+                "enabled": true
               },
               "originalKey": "show_settings",
               "status": "classified",
@@ -2532,8 +2532,8 @@
             {
               "category": "preferences",
               "defaultValue": {
-                "enabled": true,
-                "key": []
+                "binding": [],
+                "enabled": true
               },
               "originalKey": "show_app",
               "status": "classified",
@@ -2543,11 +2543,11 @@
             {
               "category": "preferences",
               "defaultValue": {
-                "enabled": false,
-                "key": [
+                "binding": [
                   "CommandOrControl",
                   "E"
-                ]
+                ],
+                "enabled": false
               },
               "originalKey": "mini_window",
               "status": "classified",
@@ -2557,8 +2557,8 @@
             {
               "category": "preferences",
               "defaultValue": {
-                "enabled": false,
-                "key": []
+                "binding": [],
+                "enabled": false
               },
               "originalKey": "selection_assistant_toggle",
               "status": "classified",
@@ -2568,8 +2568,8 @@
             {
               "category": "preferences",
               "defaultValue": {
-                "enabled": false,
-                "key": []
+                "binding": [],
+                "enabled": false
               },
               "originalKey": "selection_assistant_select_text",
               "status": "classified",
@@ -2579,11 +2579,11 @@
             {
               "category": "preferences",
               "defaultValue": {
-                "enabled": true,
-                "key": [
+                "binding": [
                   "CommandOrControl",
                   "N"
-                ]
+                ],
+                "enabled": true
               },
               "originalKey": "new_topic",
               "status": "classified",
@@ -2593,11 +2593,11 @@
             {
               "category": "preferences",
               "defaultValue": {
-                "enabled": true,
-                "key": [
+                "binding": [
                   "CommandOrControl",
                   "T"
-                ]
+                ],
+                "enabled": false
               },
               "originalKey": "rename_topic",
               "status": "classified",
@@ -2607,11 +2607,11 @@
             {
               "category": "preferences",
               "defaultValue": {
-                "enabled": true,
-                "key": [
+                "binding": [
                   "CommandOrControl",
                   "]"
-                ]
+                ],
+                "enabled": true
               },
               "originalKey": "toggle_show_topics",
               "status": "classified",
@@ -2621,11 +2621,11 @@
             {
               "category": "preferences",
               "defaultValue": {
-                "enabled": true,
-                "key": [
+                "binding": [
                   "CommandOrControl",
                   "["
-                ]
+                ],
+                "enabled": true
               },
               "originalKey": "toggle_show_assistants",
               "status": "classified",
@@ -2635,12 +2635,12 @@
             {
               "category": "preferences",
               "defaultValue": {
-                "enabled": false,
-                "key": [
+                "binding": [
                   "CommandOrControl",
                   "Shift",
                   "C"
-                ]
+                ],
+                "enabled": false
               },
               "originalKey": "copy_last_message",
               "status": "classified",
@@ -2650,12 +2650,12 @@
             {
               "category": "preferences",
               "defaultValue": {
-                "enabled": false,
-                "key": [
+                "binding": [
                   "CommandOrControl",
                   "Shift",
                   "E"
-                ]
+                ],
+                "enabled": false
               },
               "originalKey": "edit_last_user_message",
               "status": "classified",
@@ -2665,11 +2665,11 @@
             {
               "category": "preferences",
               "defaultValue": {
-                "enabled": true,
-                "key": [
+                "binding": [
                   "CommandOrControl",
                   "F"
-                ]
+                ],
+                "enabled": true
               },
               "originalKey": "search_message_in_chat",
               "status": "classified",
@@ -2679,12 +2679,12 @@
             {
               "category": "preferences",
               "defaultValue": {
-                "enabled": true,
-                "key": [
+                "binding": [
                   "CommandOrControl",
                   "Shift",
                   "F"
-                ]
+                ],
+                "enabled": true
               },
               "originalKey": "search_message",
               "status": "classified",
@@ -2694,11 +2694,11 @@
             {
               "category": "preferences",
               "defaultValue": {
-                "enabled": true,
-                "key": [
+                "binding": [
                   "CommandOrControl",
                   "L"
-                ]
+                ],
+                "enabled": true
               },
               "originalKey": "clear_topic",
               "status": "classified",
@@ -2708,11 +2708,11 @@
             {
               "category": "preferences",
               "defaultValue": {
-                "enabled": true,
-                "key": [
+                "binding": [
                   "CommandOrControl",
                   "K"
-                ]
+                ],
+                "enabled": true
               },
               "originalKey": "toggle_new_context",
               "status": "classified",
@@ -2722,12 +2722,12 @@
             {
               "category": "preferences",
               "defaultValue": {
-                "enabled": true,
-                "key": [
+                "binding": [
                   "CommandOrControl",
                   "Shift",
                   "M"
-                ]
+                ],
+                "enabled": true
               },
               "originalKey": "select_model",
               "status": "classified",
@@ -2737,10 +2737,10 @@
             {
               "category": "preferences",
               "defaultValue": {
-                "enabled": true,
-                "key": [
+                "binding": [
                   "Escape"
-                ]
+                ],
+                "enabled": true
               },
               "originalKey": "exit_fullscreen",
               "status": "classified",

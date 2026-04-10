@@ -1,4 +1,4 @@
-import type { ShortcutDefinition } from './types'
+import type { ShortcutDefinition, ShortcutPreferenceKey } from './types'
 
 export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
   // ==================== 应用级快捷键 ====================
@@ -8,7 +8,6 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
     scope: 'main',
     category: 'general',
     labelKey: 'show_app',
-    system: true,
     global: true
   },
   {
@@ -17,9 +16,7 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
     scope: 'main',
     category: 'general',
     labelKey: 'mini_window',
-    system: true,
-    global: true,
-    enabledWhen: (getPreference) => !!getPreference('feature.quick_assistant.enabled')
+    global: true
   },
   {
     key: 'shortcut.general.show_settings',
@@ -27,8 +24,7 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
     scope: 'both',
     category: 'general',
     labelKey: 'show_settings',
-    editable: false,
-    system: true
+    editable: false
   },
   {
     key: 'shortcut.general.toggle_sidebar',
@@ -43,8 +39,7 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
     scope: 'renderer',
     category: 'general',
     labelKey: 'exit_fullscreen',
-    editable: false,
-    system: true
+    editable: false
   },
   {
     key: 'shortcut.general.zoom_in',
@@ -53,7 +48,6 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
     category: 'general',
     labelKey: 'zoom_in',
     editable: false,
-    system: true,
     variants: [['CommandOrControl', 'numadd']]
   },
   {
@@ -63,7 +57,6 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
     category: 'general',
     labelKey: 'zoom_out',
     editable: false,
-    system: true,
     variants: [['CommandOrControl', 'numsub']]
   },
   {
@@ -72,8 +65,7 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
     scope: 'main',
     category: 'general',
     labelKey: 'zoom_reset',
-    editable: false,
-    system: true
+    editable: false
   },
   {
     key: 'shortcut.general.search',
@@ -154,7 +146,6 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
     scope: 'main',
     category: 'feature.selection',
     labelKey: 'selection_assistant_toggle',
-    system: true,
     global: true,
     supportedPlatforms: ['darwin', 'win32']
   },
@@ -164,16 +155,15 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
     scope: 'main',
     category: 'feature.selection',
     labelKey: 'selection_assistant_select_text',
-    system: true,
     global: true,
     supportedPlatforms: ['darwin', 'win32']
   }
 ] as const
 
-const definitionMap = new Map<string, ShortcutDefinition>(
+const definitionMap = new Map<ShortcutPreferenceKey, ShortcutDefinition>(
   SHORTCUT_DEFINITIONS.map((definition) => [definition.key, definition])
 )
 
-export const findShortcutDefinition = (key: string): ShortcutDefinition | undefined => {
+export const findShortcutDefinition = (key: ShortcutPreferenceKey): ShortcutDefinition | undefined => {
   return definitionMap.get(key)
 }

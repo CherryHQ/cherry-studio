@@ -5568,7 +5568,9 @@
       "rename_topic": "トピックの名前を変更",
       "reset_defaults": "デフォルトのショートカットをリセット",
       "reset_defaults_confirm": "すべてのショートカットをリセットしてもよろしいですか？",
+      "reset_defaults_failed": "[to be translated]:Failed to reset shortcuts to defaults",
       "reset_to_default": "デフォルトにリセット",
+      "save_failed": "[to be translated]:Failed to save shortcut",
       "search_message": "メッセージを検索",
       "search_message_in_chat": "現在のチャットでメッセージを検索",
       "search_placeholder": "検索ショートカット...",
@@ -5580,7 +5582,7 @@
       "title": "ショートカット",
       "toggle_new_context": "コンテキストをクリア",
       "toggle_show_topics": "トピックの表示を切り替え",
-      "toggle_sidebar": "アシスタントの表示を切り替え",
+      "toggle_sidebar": "サイドバーを切り替え",
       "zoom_in": "ズームイン",
       "zoom_out": "ズームアウト",
       "zoom_reset": "ズームをリセット"
