@@ -442,6 +442,40 @@ describe('KnowledgeVectorMigrator', () => {
     expect(fs.existsSync(`${dbPath}.vectorstore.tmp`)).toBe(false)
   })
 
+  it('reports knowledge vector migration progress for each inserted batch', async () => {
+    const migrator = new KnowledgeVectorMigrator() as any
+    const dbPath = path.join(knowledgeBaseDir, 'kb-progress')
+    const reportedProgress: number[] = []
+
+    migrator.preparedBasePlans = [
+      {
+        baseId: 'kb-progress',
+        dbPath,
+        dimensions: 2,
+        rows: Array.from({ length: 250 }, (_, index) => ({
+          document: `doc-${index}`,
+          externalId: `item-${index}`,
+          source: `/tmp/doc-${index}.md`,
+          embedding: [index, index + 1]
+        })),
+        sourceRowCount: 250
+      }
+    ]
+
+    migrator.setProgressCallback((progress: number) => {
+      reportedProgress.push(progress)
+    })
+
+    await expect(migrator.execute()).resolves.toMatchObject({
+      success: true,
+      processedCount: 250
+    })
+
+    expect(reportedProgress).toEqual([40, 80, 100])
+    expect(fs.existsSync(dbPath)).toBe(true)
+    expect(fs.existsSync(`${dbPath}.vectorstore.tmp`)).toBe(false)
+  })
+
   it('execute allows missing legacy source and omits metadata.source', async () => {
     await insertKnowledgeBaseRow(db, {
       id: 'kb-1',

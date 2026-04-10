@@ -15,6 +15,12 @@ const logger = loggerService.withContext('KnowledgeVectorMigrator')
 const VECTORSTORE_TABLE_NAME = 'libsql_vectorstores_embedding'
 const INSERT_BATCH_SIZE = 100
 
+function yieldToEventLoop(): Promise<void> {
+  return new Promise((resolve) => {
+    setImmediate(resolve)
+  })
+}
+
 interface LegacyKnowledgeItemWithLoaders {
   id?: string
   uniqueId?: string
@@ -376,26 +382,45 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           id: uuidv4()
         }))
 
-        if (fs.existsSync(tempPath)) {
-          fs.rmSync(tempPath, { force: true })
-        }
+        await fs.promises.rm(tempPath, { force: true })
 
         const targetClient = createClient({ url: pathToFileURL(tempPath).toString() })
         try {
           await this.ensureVectorStoreSchema(targetClient, plan.dimensions)
 
           for (let i = 0; i < rebuiltRows.length; i += INSERT_BATCH_SIZE) {
-            await this.insertVectorRows(targetClient, rebuiltRows.slice(i, i + INSERT_BATCH_SIZE), plan.baseId)
+            const batch = rebuiltRows.slice(i, i + INSERT_BATCH_SIZE)
+            await this.insertVectorRows(targetClient, batch, plan.baseId)
+            processedWork += batch.length
+            this.reportProgress(
+              Math.round((processedWork / totalWork) * 100),
+              `Migrated ${processedWork}/${totalWork} knowledge vector work units`,
+              {
+                key: 'migration.progress.migrated_knowledge_vectors',
+                params: { processed: processedWork, total: totalWork }
+              }
+            )
+            await yieldToEventLoop()
           }
         } finally {
           targetClient.close()
         }
 
-        if (fs.existsSync(plan.dbPath)) {
-          fs.rmSync(plan.dbPath, { force: true })
+        if (rebuiltRows.length === 0) {
+          processedWork += 1
+          this.reportProgress(
+            Math.round((processedWork / totalWork) * 100),
+            `Migrated ${processedWork}/${totalWork} knowledge vector work units`,
+            {
+              key: 'migration.progress.migrated_knowledge_vectors',
+              params: { processed: processedWork, total: totalWork }
+            }
+          )
+          await yieldToEventLoop()
         }
 
-        fs.renameSync(tempPath, plan.dbPath)
+        await fs.promises.rm(plan.dbPath, { force: true })
+        await fs.promises.rename(tempPath, plan.dbPath)
 
         this.successfulBaseIds.add(plan.baseId)
         this.targetCountByBaseId.set(plan.baseId, rebuiltRows.length)
@@ -405,25 +430,13 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         logger.error(errorMessage, error instanceof Error ? error : new Error(String(error)))
         this.executionErrors.push(errorMessage)
 
-        if (fs.existsSync(tempPath)) {
-          fs.rmSync(tempPath, { force: true })
-        }
+        await fs.promises.rm(tempPath, { force: true })
 
         return {
           success: false,
           processedCount,
           error: errorMessage
         }
-      } finally {
-        processedWork += Math.max(plan.rows.length, 1)
-        this.reportProgress(
-          Math.round((processedWork / totalWork) * 100),
-          `Migrated ${processedWork}/${totalWork} knowledge vector work units`,
-          {
-            key: 'migration.progress.migrated_knowledge_vectors',
-            params: { processed: processedWork, total: totalWork }
-          }
-        )
       }
     }
 
