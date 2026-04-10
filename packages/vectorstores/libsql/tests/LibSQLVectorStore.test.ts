@@ -416,13 +416,12 @@ describe('LibSQLVectorStore', () => {
       const initializationBarrier = new Promise<void>((resolve) => {
         resolveInitialization = resolve
       })
+      const originalCheckSchema = (store as any).checkSchema.bind(store) as (clientArg: unknown) => Promise<void>
 
-      const checkSchemaSpy = vi.spyOn(store as any, 'checkSchema').mockImplementation(async function (
-        clientArg: unknown
-      ) {
+      const checkSchemaSpy = vi.spyOn(store as any, 'checkSchema').mockImplementation(async (clientArg: unknown) => {
         checkSchemaCalls += 1
         await initializationBarrier
-        return await LibSQLVectorStore.prototype['checkSchema'].call(this, clientArg)
+        return await originalCheckSchema(clientArg)
       })
 
       const firstAddPromise = store.add([

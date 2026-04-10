@@ -27,7 +27,9 @@ vi.mock('epub', () => ({
       language: 'en'
     }
 
-    constructor(_buffer: Buffer) {}
+    constructor(buffer: Buffer) {
+      void buffer
+    }
 
     async parse() {
       return await parseMock()
