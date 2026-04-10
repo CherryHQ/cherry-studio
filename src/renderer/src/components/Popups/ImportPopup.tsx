@@ -169,6 +169,9 @@ const PopupContainer: React.FC<Props> = ({ resolve, initialSource }) => {
             defaultValue: `Successfully imported ${result.topicsCount} conversations with ${result.messagesCount} messages`
           })
         )
+        if (result.error) {
+          window.toast.warning(result.error)
+        }
         setOpen(false)
       } else {
         window.toast.error(result.error || t('import.error.unknown', { defaultValue: 'Unknown error occurred' }))

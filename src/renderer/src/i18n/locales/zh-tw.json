@@ -1975,7 +1975,8 @@
       "error": {
         "no_conversations": "檔案中未找到任何對話",
         "no_json_files": "所選資料夾中未找到 JSON 檔案。請確保選擇了 Claude 匯出資料夾。",
-        "no_valid_conversations": "沒有可匯入的有效對話"
+        "no_valid_conversations": "沒有可匯入的有效對話",
+        "too_many_files": "所選資料夾包含過多檔案，部分對話可能未被匯入。請嘗試選擇更具體的子資料夾。"
       },
       "help": {
         "note": "程式碼工件、思考過程和工具呼叫均會被保留。",
@@ -2010,12 +2011,19 @@
       "mixed": "混合模型",
       "unknown": "未知模型"
     },
+    "selecting": "正在選擇檔案...",
     "source": {
       "auto": "自動偵測",
       "label": "來源："
     },
     "success": "成功匯入 {{topics}} 個對話，共 {{messages}} 則訊息",
-    "title": "匯入外部對話"
+    "title": "匯入外部對話",
+    "auto": {
+      "help": {
+        "title": "自動偵測格式",
+        "description": "選擇一個 JSON 檔案，我們將自動偵測它是來自 ChatGPT 還是 Claude。"
+      }
+    }
   },
   "knowledge": {
     "add": {

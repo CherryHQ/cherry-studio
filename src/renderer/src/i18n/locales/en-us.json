@@ -1975,7 +1975,8 @@
       "error": {
         "no_conversations": "No conversations found in file",
         "no_json_files": "No JSON files found in the selected folder. Make sure you selected the Claude export folder.",
-        "no_valid_conversations": "No valid conversations to import"
+        "no_valid_conversations": "No valid conversations to import",
+        "too_many_files": "The selected folder contains too many files. Some conversations may not be imported. Try selecting a more specific subfolder."
       },
       "help": {
         "note": "Artifacts (code), thinking blocks, and tool calls are preserved.",
@@ -2010,12 +2011,19 @@
       "mixed": "Mixed Models",
       "unknown": "Unknown Model"
     },
+    "selecting": "Selecting file...",
     "source": {
       "auto": "Auto-detect",
       "label": "Source:"
     },
     "success": "Successfully imported {{topics}} conversations with {{messages}} messages",
-    "title": "Import Conversations"
+    "title": "Import Conversations",
+    "auto": {
+      "help": {
+        "title": "Auto-detect format",
+        "description": "Select a JSON file and we will automatically detect whether it is from ChatGPT or Claude."
+      }
+    }
   },
   "knowledge": {
     "add": {

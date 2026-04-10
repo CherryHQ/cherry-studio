@@ -1975,7 +1975,8 @@
       "error": {
         "no_conversations": "文件中未找到任何对话",
         "no_json_files": "所选文件夹中未找到 JSON 文件。请确保选择了 Claude 导出文件夹。",
-        "no_valid_conversations": "没有可导入的有效对话"
+        "no_valid_conversations": "没有可导入的有效对话",
+        "too_many_files": "所选文件夹包含过多文件，部分对话可能未被导入。请尝试选择更具体的子文件夹。"
       },
       "help": {
         "note": "代码工件、思考过程和工具调用均会被保留。",
@@ -2010,12 +2011,19 @@
       "mixed": "混合模型",
       "unknown": "未知模型"
     },
+    "selecting": "正在选择文件...",
     "source": {
       "auto": "自动检测",
       "label": "来源："
     },
     "success": "成功导入 {{topics}} 个对话，共 {{messages}} 条消息",
-    "title": "导入外部对话"
+    "title": "导入外部对话",
+    "auto": {
+      "help": {
+        "title": "自动检测格式",
+        "description": "选择一个 JSON 文件，我们将自动检测它是来自 ChatGPT 还是 Claude。"
+      }
+    }
   },
   "knowledge": {
     "add": {

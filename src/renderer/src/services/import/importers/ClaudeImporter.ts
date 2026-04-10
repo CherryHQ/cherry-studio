@@ -117,8 +117,14 @@ export class ClaudeImporter implements ConversationImporter {
       }
 
       if (models.size === 1) {
-        const modelKey = Array.from(models)[0]
-        return { key: modelKey, label: this.getAssistantModelLabel(modelKey) }
+        const rawModel = Array.from(models)[0]
+        // Normalize key: strip prefix and trailing date suffix so variants bucket together
+        const modelKey = rawModel
+          .toLowerCase()
+          .trim()
+          .replace(/^anthropic[/.:]/, '')
+          .replace(/-\d{8}$/, '')
+        return { key: modelKey, label: this.getAssistantModelLabel(rawModel) }
       }
       if (models.size > 1) {
         // Use generic i18n key for user-visible string
@@ -190,7 +196,13 @@ export class ClaudeImporter implements ConversationImporter {
    * Leaf nodes are messages with no children
    */
   private findAllLeafNodes(messages: ClaudeMessage[]): ClaudeMessage[] {
-    return messages.filter((msg) => !msg.child_message_uuids || msg.child_message_uuids.length === 0)
+    const knownUuids = new Set(messages.map((msg) => msg.uuid))
+    return messages.filter(
+      (msg) =>
+        !msg.child_message_uuids ||
+        msg.child_message_uuids.length === 0 ||
+        msg.child_message_uuids.every((id) => !knownUuids.has(id))
+    )
   }
 
   /**
@@ -380,7 +392,10 @@ export class ClaudeImporter implements ConversationImporter {
           while (artifactCode.includes(fence)) {
             fence += '`'
           }
-          const markdownContent = `${fence}${artifactLanguage || 'text'}\n${artifactFilename ? `// ${artifactFilename}\n` : ''}${artifactCode}\n${fence}`
+          // Sanitize language/filename to prevent code fence breakout
+          const safeLang = (artifactLanguage || 'text').replace(/[\r\n`]/g, '')
+          const safeFilename = artifactFilename?.replace(/[\r\n`]/g, '')
+          const markdownContent = `${fence}${safeLang}\n${safeFilename ? `// ${safeFilename}\n` : ''}${artifactCode}\n${fence}`
           const mainTextBlock: MainTextMessageBlock = {
             id: uuid(),
             messageId,
@@ -398,13 +413,31 @@ export class ClaudeImporter implements ConversationImporter {
           // expects rawMcpToolResponse metadata that imported blocks don't have,
           // so we use MainTextMessageBlock to guarantee visibility
           const argsStr = block.input ? JSON.stringify(block.input, null, 2) : ''
+          let toolFence = '```'
+          while (argsStr.includes(toolFence)) {
+            toolFence += '`'
+          }
           const toolMarkdown = argsStr
-            ? `**Tool: ${block.name}**\n\`\`\`json\n${argsStr}\n\`\`\``
+            ? `**Tool: ${block.name}**\n${toolFence}json\n${argsStr}\n${toolFence}`
             : `**Tool: ${block.name}**`
           pendingTextParts.push(toolMarkdown)
         }
+      } else if (block.type === 'tool_result') {
+        // Extract text from tool result blocks (contains tool output like search results)
+        const resultBlock = block as unknown as Record<string, unknown>
+        let resultText = ''
+        if (typeof resultBlock.content === 'string') {
+          resultText = resultBlock.content
+        } else if (Array.isArray(resultBlock.content)) {
+          resultText = (resultBlock.content as Array<Record<string, unknown>>)
+            .filter((item) => item?.type === 'text' && typeof item?.text === 'string')
+            .map((item) => item.text as string)
+            .join('\n')
+        }
+        if (resultText) {
+          pendingTextParts.push(resultText)
+        }
       }
-      // Skip 'tool_result' blocks (handled as part of tool flow)
     }
 
     // Flush any remaining text at the end
@@ -580,7 +613,11 @@ export class ClaudeImporter implements ConversationImporter {
     const createdAt = claudeMessage.created_at || new Date().toISOString()
 
     // Process all content blocks and create typed MessageBlocks
-    const blocks = this.processContentBlocks(claudeMessage.content, messageId, createdAt)
+    const blocks = this.processContentBlocks(
+      Array.isArray(claudeMessage.content) ? claudeMessage.content : [],
+      messageId,
+      createdAt
+    )
 
     // Skip messages with no blocks
     if (blocks.length === 0) {
