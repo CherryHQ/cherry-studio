@@ -15,7 +15,6 @@ import { mapMessageStatusToBlockStatus, partToBlock } from '@renderer/utils/part
 import { AnimatePresence, motion, type Variants } from 'motion/react'
 import React, { use, useMemo } from 'react'
 import { useSelector } from 'react-redux'
-import styled from 'styled-components'
 
 import BlockErrorFallback from './BlockErrorFallback'
 import CitationBlock from './CitationBlock'
@@ -229,7 +228,7 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
             // 多张图片使用 ImageBlockGroup 包装
             return (
               <AnimatedBlockWrapper key={groupKey} enableAnimation={message.status.includes('ing')}>
-                <ImageBlockGroup count={block.length}>
+                <div className="flex max-w-full flex-wrap gap-2.5">
                   {block.map((imageBlock) => {
                     const images = extractImagesFromBlock(imageBlock as ImageMessageBlock)
                     return (
@@ -241,7 +240,7 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
                       />
                     )
                   })}
-                </ImageBlockGroup>
+                </div>
               </AnimatedBlockWrapper>
             )
           } else if (block[0].type === MessageBlockType.VIDEO) {
@@ -394,10 +393,3 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
 }
 
 export default React.memo(MessageBlockRenderer)
-
-const ImageBlockGroup = styled.div<{ count: number }>`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  max-width: 100%;
-`

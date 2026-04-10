@@ -4,7 +4,6 @@ import type { FC } from 'react'
 import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactPlayer from 'react-player'
-import styled from 'styled-components'
 
 const logger = loggerService.withContext('MessageVideo')
 interface Props {
@@ -71,15 +70,7 @@ const MessageVideo: FC<Props> = ({ block }) => {
     }
   }
 
-  return <Container>{renderVideo()}</Container>
+  return <div className="aspect-video h-auto w-full max-w-[560px] bg-black">{renderVideo()}</div>
 }
 
 export default MessageVideo
-
-const Container = styled.div`
-  max-width: 560px;
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  height: auto;
-  background-color: #000;
-`

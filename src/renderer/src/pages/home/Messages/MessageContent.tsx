@@ -3,7 +3,6 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import type { Message } from '@renderer/types/newMessage'
 import { isEmpty } from 'lodash'
 import React from 'react'
-import styled from 'styled-components'
 
 import MessageBlockRenderer from './Blocks'
 import PartsRenderer from './Blocks/PartsRenderer'
@@ -21,7 +20,9 @@ const MessageContent: React.FC<Props> = ({ message }) => {
       {!isEmpty(message.mentions) && (
         <Flex className="mb-2.5 flex-wrap gap-2">
           {message.mentions?.map((model) => (
-            <MentionTag key={getModelUniqId(model)}>{'@' + model.name}</MentionTag>
+            <span key={getModelUniqId(model)} className="text-(--color-link)">
+              {'@' + model.name}
+            </span>
           ))}
         </Flex>
       )}
@@ -29,10 +30,6 @@ const MessageContent: React.FC<Props> = ({ message }) => {
     </>
   )
 }
-
-const MentionTag = styled.span`
-  color: var(--color-link);
-`
 
 // const SearchingText = styled.div`
 //   font-size: 14px;

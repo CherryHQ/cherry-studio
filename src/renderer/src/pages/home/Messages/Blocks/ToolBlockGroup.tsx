@@ -1,14 +1,13 @@
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@cherrystudio/ui'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useAppSelector } from '@renderer/store'
 import type { ToolPermissionEntry } from '@renderer/store/toolPermissions'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { isToolPending } from '@renderer/utils/userConfirmation'
-import { Collapse, type CollapseProps } from 'antd'
 import { Wrench } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { useToolApproval } from '../Tools/hooks/useToolApproval'
 import { getEffectiveStatus, type ToolStatus } from '../Tools/MessageAgentTools/GenericTools'
@@ -18,91 +17,6 @@ import ToolHeader from '../Tools/ToolHeader'
 import type { ToolRenderItem, ToolResponseLike } from '../Tools/toolResponse'
 import { buildToolRenderItemFromBlock } from '../Tools/toolResponse'
 import BlockErrorFallback from './BlockErrorFallback'
-
-// ============ Styled Components ============
-
-const Container = styled.div`
-  width: fit-content;
-  max-width: 100%;
-
-  /* Only style the direct group collapse, not nested tool collapses */
-  > .ant-collapse {
-    background: transparent;
-    border: none;
-
-    > .ant-collapse-item {
-      border: none !important;
-
-      > .ant-collapse-header {
-        padding: 8px 12px !important;
-        background: var(--color-background);
-        border: 1px solid var(--color-border);
-        border-radius: 0.75rem !important;
-        display: flex;
-        align-items: center;
-
-        .ant-collapse-expand-icon {
-          padding: 0 !important;
-          margin-left: 8px;
-          height: auto !important;
-        }
-      }
-
-      > .ant-collapse-content {
-        border: none;
-        background: transparent;
-
-        > .ant-collapse-content-box {
-          padding: 4px 0 0 0 !important;
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-        }
-      }
-    }
-  }
-`
-
-const GroupHeader = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  font-weight: 500;
-
-  .tool-icon {
-    color: var(--color-primary);
-  }
-
-  .tool-count {
-    color: var(--color-text-1);
-  }
-`
-
-const ScrollableToolList = styled.div`
-  max-height: 300px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-`
-
-const ToolItem = styled.div<{ $isCompleted: boolean }>`
-  opacity: ${(props) => (props.$isCompleted ? 0.7 : 1)};
-  transition: opacity 0.2s;
-`
-
-const AnimatedHeaderWrapper = styled(motion.div)`
-  display: inline-block;
-`
-
-const HeaderWithActions = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  justify-content: space-between;
-`
 
 // ============ Types & Helpers ============
 
@@ -167,10 +81,10 @@ const WaitingToolHeader = React.memo(({ item }: WaitingToolHeaderProps) => {
   const effectiveStatus = getEffectiveStatus(toolResponse?.status, approval.isWaiting)
 
   return (
-    <HeaderWithActions>
+    <div className="flex w-full items-center justify-between gap-2">
       <ToolHeader toolResponse={toolResponse} variant="collapse-label" status={effectiveStatus} />
       {(approval.isWaiting || approval.isExecuting) && <ToolApprovalActionsComponent {...approval} compact />}
-    </HeaderWithActions>
+    </div>
   )
 })
 WaitingToolHeader.displayName = 'WaitingToolHeader'
@@ -186,10 +100,10 @@ const GroupHeaderContent = React.memo(({ items, allCompleted }: GroupHeaderConte
 
   if (allCompleted) {
     return (
-      <GroupHeader>
-        <Wrench size={14} className="tool-icon" />
-        <span className="tool-count">{t('message.tools.groupHeader', { count: items.length })}</span>
-      </GroupHeader>
+      <div className="flex items-center gap-2 font-medium text-[13px]">
+        <Wrench size={14} className="text-(--color-primary)" />
+        <span className="text-(--color-text-1)">{t('message.tools.groupHeader', { count: items.length })}</span>
+      </div>
     )
   }
 
@@ -201,14 +115,15 @@ const GroupHeaderContent = React.memo(({ items, allCompleted }: GroupHeaderConte
   if (lastWaitingItem) {
     return (
       <AnimatePresence mode="wait">
-        <AnimatedHeaderWrapper
+        <motion.div
+          className="inline-block"
           key={lastWaitingItem.id}
           variants={headerVariants}
           initial="enter"
           animate="center"
           exit="exit">
           <WaitingToolHeader item={lastWaitingItem} />
-        </AnimatedHeaderWrapper>
+        </motion.div>
       </AnimatePresence>
     )
   }
@@ -224,24 +139,25 @@ const GroupHeaderContent = React.memo(({ items, allCompleted }: GroupHeaderConte
   if (lastRunningItem) {
     return (
       <AnimatePresence mode="wait">
-        <AnimatedHeaderWrapper
+        <motion.div
+          className="inline-block"
           key={lastRunningItem.id}
           variants={headerVariants}
           initial="enter"
           animate="center"
           exit="exit">
           <ToolHeader toolResponse={lastRunningItem.toolResponse} variant="collapse-label" />
-        </AnimatedHeaderWrapper>
+        </motion.div>
       </AnimatePresence>
     )
   }
 
   // Fallback
   return (
-    <GroupHeader>
-      <Wrench size={14} className="tool-icon" />
-      <span className="tool-count">{t('message.tools.groupHeader', { count: items.length })}</span>
-    </GroupHeader>
+    <div className="flex items-center gap-2 font-medium text-[13px]">
+      <Wrench size={14} className="text-(--color-primary)" />
+      <span className="text-(--color-text-1)">{t('message.tools.groupHeader', { count: items.length })}</span>
+    </div>
   )
 })
 GroupHeaderContent.displayName = 'GroupHeaderContent'
@@ -253,19 +169,22 @@ interface ToolListContentProps {
 }
 
 const ToolListContent = React.memo(({ items, scrollRef }: ToolListContentProps) => (
-  <ScrollableToolList ref={scrollRef}>
+  <div ref={scrollRef} className="flex max-h-[300px] flex-col gap-1 overflow-y-auto">
     {items.map((item) => {
       const status = item.toolResponse.status
       const isCompleted = isCompletedStatus(status)
       return (
-        <ToolItem key={item.id} data-block-id={item.id} $isCompleted={isCompleted}>
+        <div
+          key={item.id}
+          data-block-id={item.id}
+          className={`transition-opacity duration-200 ${isCompleted ? 'opacity-70' : 'opacity-100'}`}>
           <ErrorBoundary fallbackComponent={BlockErrorFallback}>
             <MessageTools toolResponse={item.toolResponse} />
           </ErrorBoundary>
-        </ToolItem>
+        </div>
       )
     })}
-  </ScrollableToolList>
+  </div>
 ))
 ToolListContent.displayName = 'ToolListContent'
 
@@ -273,7 +192,7 @@ ToolListContent.displayName = 'ToolListContent'
 
 const ToolBlockGroup: React.FC<Props> = (props) => {
   const toolItems = useMemo(() => normalizeItems(props), [props])
-  const [activeKey, setActiveKey] = useState<string[]>([])
+  const [activeKey, setActiveKey] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
   const userExpandedRef = useRef(false)
 
@@ -286,40 +205,30 @@ const ToolBlockGroup: React.FC<Props> = (props) => {
   }, [toolItems])
 
   useEffect(() => {
-    if (activeKey.includes('tool-group') && currentRunningBlock && scrollRef.current) {
+    if (activeKey === 'tool-group' && currentRunningBlock && scrollRef.current) {
       const element = scrollRef.current.querySelector(`[data-block-id="${currentRunningBlock.id}"]`)
       element?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     }
   }, [activeKey, currentRunningBlock])
 
-  const handleChange = (keys: string | string[]) => {
-    const keyArray = Array.isArray(keys) ? keys : [keys]
-    const isExpanding = keyArray.includes('tool-group')
-    userExpandedRef.current = isExpanding
-    setActiveKey(keyArray)
+  const handleChange = (value: string) => {
+    userExpandedRef.current = value === 'tool-group'
+    setActiveKey(value)
   }
 
-  const collapseItems: CollapseProps['items'] = useMemo(() => {
-    return [
-      {
-        key: 'tool-group',
-        label: <GroupHeaderContent items={toolItems} allCompleted={allCompleted} />,
-        children: <ToolListContent items={toolItems} scrollRef={scrollRef} />
-      }
-    ]
-  }, [toolItems, allCompleted])
-
   return (
-    <Container>
-      <Collapse
-        ghost
-        size="small"
-        expandIconPosition="end"
-        activeKey={activeKey}
-        onChange={handleChange}
-        items={collapseItems}
-      />
-    </Container>
+    <div className="w-fit max-w-full">
+      <Accordion type="single" collapsible value={activeKey} onValueChange={handleChange}>
+        <AccordionItem value="tool-group" className="border-0 first:border-t-0">
+          <AccordionTrigger className="rounded-xl border border-(--color-border) bg-(--color-background) px-3 py-2 hover:no-underline">
+            <GroupHeaderContent items={toolItems} allCompleted={allCompleted} />
+          </AccordionTrigger>
+          <AccordionContent className="gap-1 pt-1 pb-0">
+            <ToolListContent items={toolItems} scrollRef={scrollRef} />
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
+    </div>
   )
 }
 

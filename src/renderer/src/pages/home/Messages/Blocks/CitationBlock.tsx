@@ -8,7 +8,6 @@ import { type CitationMessageBlock, MessageBlockStatus } from '@renderer/types/n
 import React, { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
-import styled from 'styled-components'
 
 import CitationsList from '../CitationsList'
 import { useIsV2Chat } from './V2Contexts'
@@ -80,7 +79,8 @@ function CitationBlock({ block }: { block: CitationMessageBlock }) {
         (hasGeminiBlock ? (
           <>
             <CitationsList citations={formattedCitations} />
-            <SearchEntryPoint
+            <div
+              className="mx-0.5 my-2 hidden md:block [&_.carousel]:whitespace-normal [&_.carousel_.chip]:m-0 [&_.carousel_.chip]:ml-[5px]"
               dangerouslySetInnerHTML={{
                 __html:
                   (block.response?.results as GroundingMetadata)?.searchEntryPoint?.renderedContent
@@ -106,19 +106,5 @@ function CitationBlock({ block }: { block: CitationMessageBlock }) {
     </>
   )
 }
-
-const SearchEntryPoint = styled.div`
-  margin: 10px 2px;
-  @media (max-width: 768px) {
-    display: none;
-  }
-  .carousel {
-    white-space: normal;
-    .chip {
-      margin: 0;
-      margin-left: 5px;
-    }
-  }
-`
 
 export default React.memo(CitationBlock)

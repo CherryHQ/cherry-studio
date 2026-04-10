@@ -68,11 +68,10 @@ import {
   ThumbsUp,
   Upload
 } from 'lucide-react'
-import type { Dispatch, FC, ReactNode, SetStateAction } from 'react'
+import type { ComponentProps, Dispatch, FC, ReactNode, SetStateAction } from 'react'
 import { Fragment, memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
-import styled from 'styled-components'
 
 import { useIsV2Chat, usePartsMap } from './Blocks'
 import MessageTokens from './MessageTokens'
@@ -157,7 +156,6 @@ const MessageMenubar: FC<Props> = (props) => {
   const { toggleMultiSelectMode } = useChatContext(props.topic)
   const [copied, setCopied] = useTemporaryValue(false, 2000)
   const translationAbortKey = createTranslationAbortKey(message.id)
-  // remove confirm for regenerate; tooltip stays simple
   const [showDeleteTooltip, setShowDeleteTooltip] = useState(false)
   const { translateLanguages } = useTranslate()
   // const assistantModel = assistant?.model
@@ -620,8 +618,12 @@ const MessageMenubar: FC<Props> = (props) => {
   return (
     <>
       {showMessageTokens && <MessageTokens message={message} />}
-      <MenusBar
-        className={classNames({ menubar: true, show: isLastMessage, 'user-bubble-style': isUserBubbleStyleMessage })}>
+      <div
+        className={classNames(
+          'menubar flex flex-row items-center justify-end gap-2',
+          isUserBubbleStyleMessage && 'user-bubble-style mt-[5px]',
+          isLastMessage && 'show'
+        )}>
         {buttonIds.map((buttonId) => {
           const renderFn = buttonRenderers[buttonId]
           if (!renderFn) {
@@ -634,52 +636,25 @@ const MessageMenubar: FC<Props> = (props) => {
           }
           return <Fragment key={buttonId}>{element}</Fragment>
         })}
-      </MenusBar>
+      </div>
     </>
   )
 }
 
-const MenusBar = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 8px;
-
-  &.user-bubble-style {
-    margin-top: 5px;
-  }
-`
-
-const ActionButton = styled.div<{ $softHoverBg?: boolean }>`
-  cursor: pointer;
-  border-radius: 8px;
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  width: 26px;
-  height: 26px;
-  transition: all 0.2s ease;
-  &:hover {
-    background-color: ${(props) =>
-      props.$softHoverBg ? 'var(--color-background-soft)' : 'var(--color-background-mute)'};
-    color: var(--color-text-1);
-    .anticon,
-    .lucide {
-      color: var(--color-text-1);
-    }
-  }
-  .anticon,
-  .iconfont {
-    cursor: pointer;
-    font-size: 14px;
-    color: var(--color-icon);
-  }
-  .icon-at {
-    font-size: 16px;
-  }
-`
+const ActionButton = ({ $softHoverBg, className, ...props }: ComponentProps<'div'> & { $softHoverBg?: boolean }) => {
+  return (
+    <div
+      className={classNames(
+        'flex h-[26px] w-[26px] cursor-pointer items-center justify-center rounded-lg text-(--color-icon) transition-all duration-200 ease-out',
+        '[&_.anticon]:cursor-pointer [&_.anticon]:text-sm [&_.icon-at]:text-base [&_.iconfont]:cursor-pointer [&_.iconfont]:text-sm',
+        'hover:text-(--color-text-1)',
+        $softHoverBg ? 'hover:bg-(--color-background-soft)' : 'hover:bg-(--color-background-mute)',
+        className
+      )}
+      {...props}
+    />
+  )
+}
 
 const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRenderer> = {
   'user-regenerate': ({

@@ -1,7 +1,5 @@
 import ImageViewer from '@renderer/components/ImageViewer'
-import { Skeleton } from 'antd'
 import React from 'react'
-import styled from 'styled-components'
 
 interface Props {
   images: string[]
@@ -11,7 +9,7 @@ interface Props {
 
 const ImageBlock: React.FC<Props> = ({ images, isPending = false, isSingle = false }) => {
   if (isPending) {
-    return <Skeleton.Image active style={{ width: 200, height: 200 }} />
+    return <div className="h-[200px] w-[200px] animate-pulse rounded-lg bg-(--color-background-soft)" />
   }
 
   if (images.length === 0) {
@@ -19,7 +17,7 @@ const ImageBlock: React.FC<Props> = ({ images, isPending = false, isSingle = fal
   }
 
   return (
-    <Container>
+    <div>
       {images.map((src, index) => (
         <ImageViewer
           src={src}
@@ -31,11 +29,8 @@ const ImageBlock: React.FC<Props> = ({ images, isPending = false, isSingle = fal
           }
         />
       ))}
-    </Container>
+    </div>
   )
 }
 
-const Container = styled.div`
-  display: block;
-`
 export default React.memo(ImageBlock)
