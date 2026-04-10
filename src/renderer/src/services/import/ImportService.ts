@@ -98,6 +98,7 @@ class ImportServiceClass {
           topicsCount: 0,
           messagesCount: 0,
           error: i18n.t('import.error.invalid_format', {
+            importer: importer.name,
             defaultValue: `Invalid ${importer.name} format`
           })
         }
