@@ -234,6 +234,7 @@ export async function convertFileBlockToFilePart(fileBlock: FileMessageBlock, mo
 
       let fileData = base64Data.data
       if (fileData.startsWith('data:')) {
+        logger.warn(`Unexpected data URI prefix found in base64 file for ${file.origin_name}; stripping prefix`)
         const base64Match = fileData.match(/^data:[^;]+;base64,(.+)$/)
         if (base64Match) {
           fileData = base64Match[1]
