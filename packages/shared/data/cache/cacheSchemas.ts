@@ -247,7 +247,9 @@ export const DefaultSharedCache: SharedCacheSchema = {
  * This ensures type safety and prevents key conflicts
  */
 export type RendererPersistCacheSchema = {
-  'ui.tab.state': CacheValueTypes.TabsState
+  'ui.tab.pinned_tabs': CacheValueTypes.Tab[]
+  'ui.sidebar.docked_tabs': CacheValueTypes.Tab[]
+  'ui.sidebar.width': number
   'feature.mcp.is_uv_installed': boolean
   'feature.mcp.is_bun_installed': boolean
   // Multi-model list for @mention parallel answering, keyed by assistantId
@@ -260,7 +262,9 @@ export type RendererPersistCacheSchema = {
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
-  'ui.tab.state': { tabs: [], activeTabId: '' },
+  'ui.tab.pinned_tabs': [],
+  'ui.sidebar.docked_tabs': [],
+  'ui.sidebar.width': 200,
   'feature.mcp.is_uv_installed': false,
   'feature.mcp.is_bun_installed': false,
   'ui.assistant.multi_model_ids': {},

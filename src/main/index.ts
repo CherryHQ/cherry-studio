@@ -41,12 +41,6 @@ import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electro
 
 import { isDev } from './constant'
 import { registerIpc } from './ipc'
-import {
-  CHERRY_STUDIO_PROTOCOL,
-  handleProtocolUrl,
-  registerProtocolClient,
-  setupAppImageDeepLink
-} from './services/ProtocolClient'
 import { versionService } from './services/VersionService'
 import { extractRtkBinaries } from './utils/rtk'
 
@@ -79,32 +73,6 @@ const startApp = async () => {
     logger.error('Application lifecycle bootstrap failed:', error)
   })
 
-  // Register protocol/event handlers while bootstrap runs in parallel (same as old code)
-  registerProtocolClient(app)
-
-  // macOS specific: handle protocol when app is already running
-  app.on('open-url', (event, url) => {
-    event.preventDefault()
-    handleProtocolUrl(url)
-  })
-
-  const handleOpenUrl = (args: string[]) => {
-    const url = args.find((arg) => arg.startsWith(CHERRY_STUDIO_PROTOCOL + '://'))
-    if (url) handleProtocolUrl(url)
-  }
-
-  // for windows to start with url
-  handleOpenUrl(process.argv)
-
-  // Listen for second instance
-  app.on('second-instance', (_event, argv) => {
-    application.get('WindowService').showMainWindow()
-
-    // Protocol handler for Windows/Linux
-    // The commandLine is an array of strings where the last item might be the URL
-    handleOpenUrl(argv)
-  })
-
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
@@ -125,9 +93,6 @@ const startApp = async () => {
   // registerIpc still needs the window reference for legacy IPC handlers.
   const mainWindow = application.get('WindowService').getMainWindow()!
   await registerIpc(mainWindow, app)
-
-  // Setup deep link for AppImage on Linux
-  await setupAppImageDeepLink()
 
   if (isDev) {
     installExtension([REDUX_DEVTOOLS, REACT_DEVELOPER_TOOLS])

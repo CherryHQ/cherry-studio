@@ -1591,6 +1591,7 @@
           "type": "PreferenceTypes.SidebarIcon[]",
           "defaultValue": [
             "assistants",
+            "agents",
             "store",
             "paintings",
             "translate",

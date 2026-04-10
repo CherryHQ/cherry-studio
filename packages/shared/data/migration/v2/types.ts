@@ -4,6 +4,7 @@
 
 // Migration stages for UI flow
 export type MigrationStage =
+  | 'version_incompatible'
   | 'introduction'
   | 'backup_required'
   | 'backup_progress'
@@ -136,6 +137,9 @@ export const MigrationIpcChannels = {
 
   // File transfer (Renderer -> Main)
   WriteExportFile: 'migration:write-export-file',
+
+  // Skip migration (version incompatible — user chose to use defaults)
+  SkipMigration: 'migration:skip-migration',
 
   // Progress broadcast (Main -> Renderer)
   Progress: 'migration:progress',

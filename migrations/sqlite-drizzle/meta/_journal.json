@@ -67,8 +67,15 @@
     {
       "idx": 9,
       "version": "6",
-      "when": 1775706919977,
-      "tag": "0009_aberrant_harpoon",
+      "when": 1775543209395,
+      "tag": "0009_medical_giant_girl",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1775820970055,
+      "tag": "0010_pink_shaman",
       "breakpoints": true
     }
   ],

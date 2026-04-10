@@ -4,9 +4,9 @@ This directory contains the main process data management implementation.
 
 ## Documentation
 
-- **Overview**: [docs/en/references/data/README.md](../../../docs/en/references/data/README.md)
-- **DataApi in Main**: [data-api-in-main.md](../../../docs/en/references/data/data-api-in-main.md)
-- **Database Patterns**: [database-patterns.md](../../../docs/en/references/data/database-patterns.md)
+- **Overview**: [docs/references/data/README.md](../../../docs/references/data/README.md)
+- **DataApi in Main**: [data-api-in-main.md](../../../docs/references/data/data-api-in-main.md)
+- **Database Patterns**: [database-patterns.md](../../../docs/references/data/database-patterns.md)
 
 ## Directory Structure
 
