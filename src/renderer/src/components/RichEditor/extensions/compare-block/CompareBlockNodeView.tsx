@@ -1,8 +1,10 @@
 import type { Editor } from '@tiptap/core'
 import { NodeViewWrapper } from '@tiptap/react'
 import { Button } from 'antd'
-import React, { useCallback } from 'react'
+import React, { useCallback, useMemo } from 'react'
 import styled from 'styled-components'
+
+import type { CompareBlockStorage } from './compare-block'
 
 const LazyCompareBlockPopoverEditor = React.lazy(() => import('./CompareBlockPopoverEditor'))
 
@@ -12,9 +14,17 @@ interface CompareBlockNodeViewProps {
   editor: Editor
 }
 
+function getCompareBlockStorage(editor: Editor): CompareBlockStorage | null {
+  const storage = (editor.storage as any)?.compareBlock as CompareBlockStorage | undefined
+  return storage ?? null
+}
+
 export const CompareBlockNodeView: React.FC<CompareBlockNodeViewProps> = ({ node, updateAttributes, editor }) => {
+  const id = String(node?.attrs?.id || '')
   const collapsed = Boolean(node?.attrs?.collapsed ?? true)
-  const content = String(node?.attrs?.content ?? '')
+
+  const storage = getCompareBlockStorage(editor)
+  const initialContent = useMemo(() => storage?.blocks[id]?.content ?? '', [storage, id])
 
   const open = !collapsed
 
@@ -27,9 +37,10 @@ export const CompareBlockNodeView: React.FC<CompareBlockNodeViewProps> = ({ node
       e.preventDefault()
       e.stopPropagation()
 
+      if (!id) return
       updateAttributes({ collapsed: false })
     },
-    [updateAttributes]
+    [id, updateAttributes]
   )
 
   const handleToggle = useCallback(
@@ -47,15 +58,17 @@ export const CompareBlockNodeView: React.FC<CompareBlockNodeViewProps> = ({ node
 
   const handleContentChange = useCallback(
     (markdown: string) => {
-      updateAttributes({ content: markdown })
+      if (!id || !storage) return
+      storage.blocks[id] = { content: markdown }
+      storage.onMetaChange?.()
     },
-    [updateAttributes]
+    [id, storage]
   )
 
   const isEditable = editor.isEditable
 
   return (
-    <NodeViewWrapper className="compare-block-wrapper">
+    <NodeViewWrapper className="compare-block-wrapper" data-compare-id={id}>
       <CompareDividerButton
         type="text"
         onClick={isEditable ? handleToggle : undefined}
@@ -80,7 +93,7 @@ export const CompareBlockNodeView: React.FC<CompareBlockNodeViewProps> = ({ node
           </PopoverHeader>
           <PopoverBody>
             <React.Suspense fallback={<LoadingText>加载编辑器中…</LoadingText>}>
-              <LazyCompareBlockPopoverEditor initialContent={content} onMarkdownChange={handleContentChange} />
+              <LazyCompareBlockPopoverEditor initialContent={initialContent} onMarkdownChange={handleContentChange} />
             </React.Suspense>
           </PopoverBody>
         </PopoverContainer>

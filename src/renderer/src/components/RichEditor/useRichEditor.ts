@@ -25,7 +25,7 @@ import Typography from '@tiptap/extension-typography'
 import { useEditor, useEditorState } from '@tiptap/react'
 import { StarterKit } from '@tiptap/starter-kit'
 import { t } from 'i18next'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { commandSuggestion } from './command'
 import { CodeBlockShiki } from './extensions/code-block-shiki/code-block-shiki'
@@ -35,7 +35,12 @@ import { EnhancedLink } from './extensions/enhanced-link'
 import { EnhancedMath } from './extensions/enhanced-math'
 import { Placeholder } from './extensions/placeholder'
 import { YamlFrontMatter } from './extensions/yaml-front-matter'
-import { replaceCaretBlocksForHtml } from './helpers/compareBlockCodec'
+import {
+  appendCompareMetaToMarkdown,
+  type CompareBlockMeta,
+  extractCompareMetaFromMarkdown,
+  replaceCompareMarkersForHtml
+} from './helpers/compareBlockCodec'
 import { blobToArrayBuffer, compressImage, shouldCompressImage } from './helpers/imageUtils'
 
 const logger = loggerService.withContext('useRichEditor')
@@ -105,7 +110,7 @@ export interface UseRichEditorReturn {
   editor: Editor
   /** Current markdown content */
   markdown: string
-  /** 用于持久化保存的 Markdown（保留 ^^ 折叠块原文） */
+  /** 用于持久化保存的 Markdown（包含隐藏元数据尾注） */
   persistedMarkdown: string
   /** Current HTML content (converted from markdown) */
   html: string
@@ -167,14 +172,22 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     scrollParent
   } = options
 
-  const initialMarkdown = useMemo(() => (typeof initialContent === 'string' ? initialContent : ''), [initialContent])
+  const initialExtract = useMemo((): { cleanMarkdown: string; meta: CompareBlockMeta | null } => {
+    if (!initialContent || typeof initialContent !== 'string') return { cleanMarkdown: '', meta: null }
+    if (!isMarkdownContent(initialContent)) return { cleanMarkdown: initialContent, meta: null }
+    return extractCompareMetaFromMarkdown(initialContent)
+  }, [initialContent])
 
-  const [markdown, setMarkdownState] = useState<string>(initialMarkdown)
-  const [persistedMarkdown, setPersistedMarkdown] = useState<string>(initialMarkdown)
+  const [markdown, setMarkdownState] = useState<string>(initialExtract.cleanMarkdown)
+  const [persistedMarkdown, setPersistedMarkdown] = useState<string>(() =>
+    appendCompareMetaToMarkdown(initialExtract.cleanMarkdown, initialExtract.meta)
+  )
+  const lastBodyMarkdownRef = useRef<string>(initialExtract.cleanMarkdown)
+  const initialCompareMetaRef = useRef<CompareBlockMeta | null>(initialExtract.meta)
 
   const html = useMemo(() => {
     if (!markdown) return ''
-    const mdForHtml = enableCompareBlock ? replaceCaretBlocksForHtml(markdown) : markdown
+    const mdForHtml = enableCompareBlock ? replaceCompareMarkersForHtml(markdown) : markdown
     return markdownToHtml(mdForHtml)
   }, [markdown, enableCompareBlock])
 
@@ -187,9 +200,35 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     return isMarkdownContent(markdown)
   }, [markdown])
 
-  const buildPersistedMarkdown = useCallback((bodyMarkdown: string): string => {
-    return bodyMarkdown
-  }, [])
+  const buildPersistedMarkdown = useCallback(
+    (bodyMarkdown: string, currentEditor: Editor): string => {
+      if (!enableCompareBlock) return appendCompareMetaToMarkdown(bodyMarkdown, null)
+
+      const ids = new Set<string>()
+      currentEditor.state.doc.descendants((node) => {
+        if (node.type.name === 'compareBlock') {
+          const id = String((node.attrs as any)?.id || '')
+          if (id) ids.add(id)
+        }
+      })
+
+      const storage = (currentEditor.storage as any)?.compareBlock as
+        | {
+            blocks?: Record<string, { content: string }>
+          }
+        | undefined
+
+      const blocks: Record<string, { content: string }> = {}
+      for (const id of ids) {
+        const content = storage?.blocks?.[id]?.content
+        blocks[id] = { content: typeof content === 'string' ? content : '' }
+      }
+
+      const meta: CompareBlockMeta | null = Object.keys(blocks).length > 0 ? { v: 1, blocks } : null
+      return appendCompareMetaToMarkdown(bodyMarkdown, meta)
+    },
+    [enableCompareBlock]
+  )
 
   // Get theme and language mapping from CodeStyleProvider
   const { activeShikiTheme } = useCodeStyle()
@@ -471,9 +510,10 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
       const htmlContent = editor.getHTML()
       try {
         const convertedBodyMarkdown = htmlToMarkdown(htmlContent)
+        lastBodyMarkdownRef.current = convertedBodyMarkdown
         setMarkdownState(convertedBodyMarkdown)
 
-        const nextPersisted = buildPersistedMarkdown(convertedBodyMarkdown)
+        const nextPersisted = buildPersistedMarkdown(convertedBodyMarkdown, editor)
         setPersistedMarkdown(nextPersisted)
         onChange?.(nextPersisted)
 
@@ -490,6 +530,23 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     },
     onCreate: ({ editor: currentEditor }) => {
       migrateMathStrings(currentEditor)
+      if (enableCompareBlock) {
+        const storage = (currentEditor.storage as any)?.compareBlock as
+          | {
+              blocks: Record<string, { content: string }>
+              onMetaChange?: () => void
+            }
+          | undefined
+
+        if (storage) {
+          storage.blocks = initialCompareMetaRef.current?.blocks ? { ...initialCompareMetaRef.current.blocks } : {}
+          storage.onMetaChange = () => {
+            const nextPersisted = buildPersistedMarkdown(lastBodyMarkdownRef.current, currentEditor)
+            setPersistedMarkdown(nextPersisted)
+            onChange?.(nextPersisted)
+          }
+        }
+      }
       try {
         currentEditor.commands.focus('end')
       } catch (error) {
@@ -779,15 +836,31 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
   const setMarkdown = useCallback(
     (content: string) => {
       try {
-        const cleanMarkdown = typeof content === 'string' ? content : ''
+        const extracted =
+          typeof content === 'string' && isMarkdownContent(content)
+            ? extractCompareMetaFromMarkdown(content)
+            : { cleanMarkdown: content ?? '', meta: null }
+
+        const cleanMarkdown = extracted.cleanMarkdown
+        lastBodyMarkdownRef.current = cleanMarkdown
         setMarkdownState(cleanMarkdown)
 
-        const mdForHtml = enableCompareBlock ? replaceCaretBlocksForHtml(cleanMarkdown) : cleanMarkdown
+        // 更新 storage（对照区内容）
+        if (enableCompareBlock) {
+          const storage = (editor.storage as any)?.compareBlock as
+            | { blocks: Record<string, { content: string }> }
+            | undefined
+          if (storage) {
+            storage.blocks = extracted.meta?.blocks ? { ...extracted.meta.blocks } : {}
+          }
+        }
+
+        const mdForHtml = enableCompareBlock ? replaceCompareMarkersForHtml(cleanMarkdown) : cleanMarkdown
         const convertedHtml = markdownToHtml(mdForHtml)
         editor.commands.setContent(convertedHtml)
         onHtmlChange?.(convertedHtml)
 
-        const nextPersisted = buildPersistedMarkdown(cleanMarkdown)
+        const nextPersisted = buildPersistedMarkdown(cleanMarkdown, editor)
         setPersistedMarkdown(nextPersisted)
         onChange?.(nextPersisted)
       } catch (error) {
@@ -801,36 +874,58 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     (htmlContent: string) => {
       try {
         const convertedBodyMarkdown = htmlToMarkdown(htmlContent)
+        lastBodyMarkdownRef.current = convertedBodyMarkdown
         setMarkdownState(convertedBodyMarkdown)
 
         editor.commands.setContent(htmlContent)
 
         onHtmlChange?.(htmlContent)
 
-        const nextPersisted = buildPersistedMarkdown(convertedBodyMarkdown)
+        // 设置 HTML 时默认不携带对照区元数据
+        if (enableCompareBlock) {
+          const storage = (editor.storage as any)?.compareBlock as
+            | { blocks: Record<string, { content: string }> }
+            | undefined
+          if (storage) storage.blocks = {}
+        }
+
+        const nextPersisted = buildPersistedMarkdown(convertedBodyMarkdown, editor)
         setPersistedMarkdown(nextPersisted)
         onChange?.(nextPersisted)
       } catch (error) {
         logger.error('Error setting HTML content:', error as Error)
       }
     },
-    [buildPersistedMarkdown, editor, onChange, onHtmlChange]
+    [buildPersistedMarkdown, editor, enableCompareBlock, onChange, onHtmlChange]
   )
 
   const clear = useCallback(() => {
     setMarkdownState('')
+    lastBodyMarkdownRef.current = ''
     setPersistedMarkdown('')
+
+    if (enableCompareBlock) {
+      const storage = (editor.storage as any)?.compareBlock as
+        | { blocks: Record<string, { content: string }> }
+        | undefined
+      if (storage) storage.blocks = {}
+    }
 
     onChange?.('')
     onHtmlChange?.('')
-  }, [onChange, onHtmlChange])
+  }, [editor, enableCompareBlock, onChange, onHtmlChange])
 
   // Utility methods
   const toHtml = useCallback(
     (content: string): string => {
       try {
-        const cleanMarkdown = typeof content === 'string' ? content : ''
-        const mdForHtml = enableCompareBlock ? replaceCaretBlocksForHtml(cleanMarkdown) : cleanMarkdown
+        const extracted =
+          typeof content === 'string' && isMarkdownContent(content)
+            ? extractCompareMetaFromMarkdown(content)
+            : { cleanMarkdown: content ?? '', meta: null }
+        const mdForHtml = enableCompareBlock
+          ? replaceCompareMarkersForHtml(extracted.cleanMarkdown)
+          : extracted.cleanMarkdown
         return markdownToHtml(mdForHtml)
       } catch (error) {
         logger.error('Error converting markdown to HTML:', error as Error)
@@ -843,8 +938,13 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
   const toSafeHtml = useCallback(
     (content: string): string => {
       try {
-        const cleanMarkdown = typeof content === 'string' ? content : ''
-        const mdForHtml = enableCompareBlock ? replaceCaretBlocksForHtml(cleanMarkdown) : cleanMarkdown
+        const extracted =
+          typeof content === 'string' && isMarkdownContent(content)
+            ? extractCompareMetaFromMarkdown(content)
+            : { cleanMarkdown: content ?? '', meta: null }
+        const mdForHtml = enableCompareBlock
+          ? replaceCompareMarkersForHtml(extracted.cleanMarkdown)
+          : extracted.cleanMarkdown
         return markdownToHtml(mdForHtml)
       } catch (error) {
         logger.error('Error converting markdown to safe HTML:', error as Error)

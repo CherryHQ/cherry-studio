@@ -3,6 +3,10 @@ import type { CodeEditorHandles } from '@renderer/components/CodeEditor'
 import CodeEditor from '@renderer/components/CodeEditor'
 import { HSpaceBetweenStack } from '@renderer/components/Layout'
 import RichEditor from '@renderer/components/RichEditor'
+import {
+  appendCompareMetaToMarkdown,
+  extractCompareMetaFromMarkdown
+} from '@renderer/components/RichEditor/helpers/compareBlockCodec'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import Selector from '@renderer/components/Selector'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
@@ -48,11 +52,14 @@ const NotesEditor: FC<NotesEditorProps> = memo(
       })
     }, [])
 
+    const extractedForSource = useMemo(() => extractCompareMetaFromMarkdown(currentContent), [currentContent])
     const handleSourceMarkdownChange = useCallback(
       (content: string) => {
-        onMarkdownChange(content)
+        // Source 模式下隐藏元数据尾注，但仍需随笔记持久化保存
+        const next = appendCompareMetaToMarkdown(content, extractedForSource.meta)
+        onMarkdownChange(next)
       },
-      [onMarkdownChange]
+      [extractedForSource.meta, onMarkdownChange]
     )
 
     if (!activeNodeId) {
@@ -70,7 +77,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
             <SourceEditorWrapper isFullWidth={settings.isFullWidth} fontSize={settings.fontSize}>
               <CodeEditor
                 ref={codeEditorRef}
-                value={currentContent}
+                value={extractedForSource.cleanMarkdown}
                 language="markdown"
                 onChange={handleSourceMarkdownChange}
                 height="100%"
