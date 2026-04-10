@@ -33,6 +33,7 @@ import { getSidebarLayout } from '../Sidebar/constants'
 import type { SidebarMenuItem, SidebarMiniApp, SidebarMiniAppTab, SidebarUser } from '../Sidebar/types'
 
 const APP_LOGO = <img src={AppLogo} alt="Cherry Studio" className="h-9 w-9 rounded-lg" draggable={false} />
+const noop = () => {}
 
 const routePrefixMap: Record<SidebarIconType, string> = {
   assistants: '/app/chat',
@@ -200,7 +201,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     dockedTabs: [],
     onItemClick: handleNavigate,
     onMiniAppTabClick: handleMiniAppTabClick,
-    onCloseDockedTab: () => {}
+    onCloseDockedTab: noop
   }
 
   return (
