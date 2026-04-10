@@ -1,3 +1,4 @@
+import { dataApiService } from '@renderer/data/DataApiService'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import type { AgentSessionEntity, UpdateSessionForm } from '@renderer/types'
 import type { UpdateAgentBaseOptions, UpdateAgentSessionFunction } from '@renderer/types/agent'
@@ -5,19 +6,18 @@ import { getErrorMessage } from '@renderer/utils/error'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useAgentClient } from './useAgentClient'
-
 export const useUpdateSession = (agentId: string | null) => {
   const { t } = useTranslation()
-  const client = useAgentClient()
   const invalidate = useInvalidateCache()
 
   const updateSession: UpdateAgentSessionFunction = useCallback(
     async (form: UpdateSessionForm, options?: UpdateAgentBaseOptions): Promise<AgentSessionEntity | undefined> => {
-      if (!agentId || !client) return
+      if (!agentId) return
 
       try {
-        const result = await client.updateSession(agentId, form)
+        const result = (await dataApiService.patch(`/agents/${agentId}/sessions/${form.id}`, {
+          body: form
+        })) as AgentSessionEntity
         await invalidate([`/agents/${agentId}/sessions`, `/agents/${agentId}/sessions/${form.id}`])
         if (options?.showSuccessToast ?? true) {
           window.toast.success(t('common.update_success'))
@@ -29,7 +29,7 @@ export const useUpdateSession = (agentId: string | null) => {
         return undefined
       }
     },
-    [agentId, client, invalidate, t]
+    [agentId, invalidate, t]
   )
 
   const updateModel = useCallback(

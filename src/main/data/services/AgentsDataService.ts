@@ -7,7 +7,11 @@ import type {
   AgentListQueryDto,
   AgentSessionDetailDto,
   AgentSessionListQueryDto,
-  AgentSessionSummaryDto
+  AgentSessionSummaryDto,
+  CreateAgentDto,
+  CreateAgentSessionDto,
+  UpdateAgentDto,
+  UpdateAgentSessionDto
 } from '@shared/data/api/schemas/agents'
 
 const DEFAULT_PAGE = 1
@@ -35,12 +39,47 @@ export class AgentsDataService {
     }
   }
 
+  async createAgent(body: CreateAgentDto): Promise<AgentDetailDto> {
+    const agent = await agentService.createAgent(body as any)
+
+    try {
+      await sessionService.createSession(agent.id, {})
+    } catch (error) {
+      await agentService.deleteAgent(agent.id)
+      throw DataApiErrorFactory.database(error as Error, 'create default agent session')
+    }
+
+    return await this.getAgent(agent.id)
+  }
+
   async getAgent(id: string): Promise<AgentDetailDto> {
     const agent = await agentService.getAgent(id)
     if (!agent) {
       throw DataApiErrorFactory.notFound('Agent', id)
     }
     return agent as AgentDetailDto
+  }
+
+  async updateAgent(id: string, body: UpdateAgentDto): Promise<AgentDetailDto> {
+    const updated = await agentService.updateAgent(id, body as any)
+    if (!updated) {
+      throw DataApiErrorFactory.notFound('Agent', id)
+    }
+    return updated as AgentDetailDto
+  }
+
+  async deleteAgent(id: string): Promise<void> {
+    const deleted = await agentService.deleteAgent(id)
+    if (!deleted) {
+      throw DataApiErrorFactory.notFound('Agent', id)
+    }
+  }
+
+  async reorderAgents(orderedIds: string[]): Promise<void> {
+    if (orderedIds.length === 0) {
+      throw DataApiErrorFactory.validation({ orderedIds: ['orderedIds must not be empty'] })
+    }
+    await agentService.reorderAgents(orderedIds)
   }
 
   async listSessions(
@@ -63,12 +102,42 @@ export class AgentsDataService {
     }
   }
 
+  async createSession(agentId: string, body: CreateAgentSessionDto): Promise<AgentSessionDetailDto> {
+    const session = await sessionService.createSession(agentId, body as any)
+    if (!session) {
+      throw DataApiErrorFactory.notFound('Agent', agentId)
+    }
+    return session as AgentSessionDetailDto
+  }
+
   async getSession(agentId: string, sessionId: string): Promise<AgentSessionDetailDto> {
     const session = await sessionService.getSession(agentId, sessionId)
     if (!session) {
       throw DataApiErrorFactory.notFound('AgentSession', sessionId)
     }
     return session as AgentSessionDetailDto
+  }
+
+  async updateSession(agentId: string, sessionId: string, body: UpdateAgentSessionDto): Promise<AgentSessionDetailDto> {
+    const session = await sessionService.updateSession(agentId, sessionId, body as any)
+    if (!session) {
+      throw DataApiErrorFactory.notFound('AgentSession', sessionId)
+    }
+    return session as AgentSessionDetailDto
+  }
+
+  async deleteSession(agentId: string, sessionId: string): Promise<void> {
+    const deleted = await sessionService.deleteSession(agentId, sessionId)
+    if (!deleted) {
+      throw DataApiErrorFactory.notFound('AgentSession', sessionId)
+    }
+  }
+
+  async reorderSessions(agentId: string, orderedIds: string[]): Promise<void> {
+    if (orderedIds.length === 0) {
+      throw DataApiErrorFactory.validation({ orderedIds: ['orderedIds must not be empty'] })
+    }
+    await sessionService.reorderSessions(agentId, orderedIds)
   }
 }
 
