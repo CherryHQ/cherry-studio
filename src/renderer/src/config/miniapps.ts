@@ -65,7 +65,7 @@ import {
   Zhipu
 } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
-import type { MiniAppType } from '@renderer/types'
+import type { MiniAppType } from '@renderer/store/miniapps'
 import { ORIGIN_DEFAULT_MIN_APPS as SHARED_PRESETS } from '@shared/data/presets/miniapps'
 
 const logger = loggerService.withContext('Config:miniapps')

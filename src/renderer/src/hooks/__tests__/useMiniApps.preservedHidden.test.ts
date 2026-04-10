@@ -1,7 +1,6 @@
 import { configureStore } from '@reduxjs/toolkit'
-import miniAppsReducer, { setPinnedMinApps } from '@renderer/store/miniapps'
-import type { MiniAppRegion } from '@shared/data/types/miniapp'
-import type { MiniAppType } from '@shared/data/types/miniapp'
+import miniAppsReducer, { type MiniAppType, setPinnedMinApps } from '@renderer/store/miniapps'
+import type { MiniAppRegion } from '@shared/data/preference/preferenceTypes'
 import { describe, expect, it } from 'vitest'
 
 // This test uses the legacy MiniAppType (Redux model) so it cannot use the

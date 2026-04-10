@@ -1,5 +1,4 @@
-import miniAppsReducer, { type MinAppsState, setPinnedMinApps } from '@renderer/store/miniapps'
-import type { MiniAppType } from '@shared/data/types/miniapp'
+import miniAppsReducer, { type MinAppsState, type MiniAppType, setPinnedMinApps } from '@renderer/store/miniapps'
 import { describe, expect, it } from 'vitest'
 
 // Test fixture factory

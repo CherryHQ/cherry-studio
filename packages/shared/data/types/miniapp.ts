@@ -5,7 +5,6 @@
  * (status, sortOrder) for them. Custom apps store full data + preferences.
  */
 
-import type { MiniAppRegion } from '@shared/data/preference/preferenceTypes'
 import type { CSSProperties } from 'react'
 
 export type { MiniAppRegion, MiniAppRegionFilter } from '@shared/data/preference/preferenceTypes'
@@ -26,20 +25,4 @@ export interface MiniApp {
   style?: CSSProperties
   createdAt?: string
   updatedAt?: string
-}
-
-export type MiniAppType = {
-  id: string
-  name: string
-  /** i18n key for translatable names */
-  nameKey?: string
-  /** Regions where this app is available. If includes 'Global', shown to international users. */
-  supportedRegions?: MiniAppRegion[]
-  logo?: string
-  url: string
-  bordered?: boolean
-  background?: string
-  style?: CSSProperties
-  addTime?: string
-  type?: 'Custom' | 'Default' // Added the 'type' property
 }

@@ -15,7 +15,6 @@ import type { GenerateImagesConfig, GroundingMetadata, PersonGeneration } from '
 export * from './file'
 export * from './note'
 export type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
-export type { MiniAppType } from '@shared/data/types/miniapp'
 
 import type { TranslateLanguageCode } from '@shared/data/preference/preferenceTypes'
 import type { MCPServer } from '@shared/data/types/mcpServer'

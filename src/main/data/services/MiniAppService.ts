@@ -12,7 +12,7 @@
  * definitions with DB preference rows to produce a unified MiniApp view.
  */
 
-import { type MiniAppInsert, type MiniAppSelect } from '@data/db/schemas/miniapp'
+import { type MiniAppInsert, type MiniAppRegion, type MiniAppSelect } from '@data/db/schemas/miniapp'
 import { type MiniAppKind, type MiniAppStatus, miniAppTable } from '@data/db/schemas/miniapp'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
@@ -44,6 +44,18 @@ function stripNulls<T extends Record<string, unknown>>(obj: T): { [K in keyof T]
   return result as { [K in keyof T]: Exclude<T[K], null> }
 }
 
+const VALID_REGIONS = new Set<string>(['CN', 'Global'])
+
+/**
+ * Validate and parse supportedRegions from a DB row.
+ * Mirrors the write-side validation in MiniAppMappings.toNullableRegions.
+ */
+function parseRegions(raw: unknown): ('CN' | 'Global')[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  const regions = raw.filter((r): r is MiniAppRegion => typeof r === 'string' && VALID_REGIONS.has(r))
+  return regions.length > 0 ? regions : undefined
+}
+
 /**
  * Convert database row to MiniApp entity
  */
@@ -54,7 +66,7 @@ function rowToMiniApp(row: MiniAppSelect): MiniApp {
     type: clean.type,
     status: clean.status,
     sortOrder: clean.sortOrder ?? 0,
-    supportedRegions: clean.supportedRegions as ('CN' | 'Global')[] | undefined,
+    supportedRegions: parseRegions(clean.supportedRegions),
     createdAt: clean.createdAt ? new Date(clean.createdAt).toISOString() : undefined,
     updatedAt: clean.updatedAt ? new Date(clean.updatedAt).toISOString() : undefined
   }
