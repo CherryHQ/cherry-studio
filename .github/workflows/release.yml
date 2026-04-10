@@ -128,23 +128,20 @@ jobs:
           set -euo pipefail
           sudo -H pip install setuptools
 
-          # fork 仓库通常没有配置签名证书 secrets；只有在提供了有效证书时才启用 codesign。
-          # 如果 CSC_LINK 被误配置为目录（例如 "." 或仓库根目录），electron-builder 会报：
-          # “<path> not a file”
-          # 仅当提供了有效的签名证书时才启用 codesign。
-          if [ -n "${CSC_LINK:-}" ]; then
-            if [[ "$CSC_LINK" == http*://* ]] || [[ "$CSC_LINK" == base64:* ]] || [[ "$CSC_LINK" =~ ^[A-Za-z0-9+/=]{200,}$ ]]; then
-              echo "codesign: 使用 URL/base64 证书（CSC_LINK）"
-            elif [ -f "$CSC_LINK" ]; then
-              echo "codesign: 使用本地证书文件（CSC_LINK=$CSC_LINK）"
+          # 仅当“签名+公证”所需参数均齐全时才启用；否则统一走无签名构建。
+          # 这样 fork 或未配置证书的仓库不会在 mac 构建阶段因签名/公证失败。
+          if [ -n "${CSC_LINK:-}" ] && [ -n "${CSC_KEY_PASSWORD:-}" ] && [ -n "${APPLE_ID:-}" ] && [ -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" ] && [ -n "${APPLE_TEAM_ID:-}" ]; then
+            # 额外检查：如果 CSC_LINK 既不是 URL/base64，也不是本地文件，则禁用签名。
+            if [[ "$CSC_LINK" == http*://* ]] || [[ "$CSC_LINK" == base64:* ]] || [[ "$CSC_LINK" =~ ^[A-Za-z0-9+/=]{200,}$ ]] || [ -f "$CSC_LINK" ]; then
+              echo "codesign/notarize: 已启用（签名与公证参数完整）"
             else
-              echo "codesign: CSC_LINK 非文件/URL/base64（值可能是目录），已禁用签名以避免构建失败"
-              unset CSC_LINK
-              unset CSC_KEY_PASSWORD
+              echo "codesign/notarize: CSC_LINK 无效，已切换到无签名构建"
+              unset CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
               export CSC_IDENTITY_AUTO_DISCOVERY=false
             fi
           else
-            echo "codesign: 未提供 CSC_LINK，已禁用签名"
+            echo "codesign/notarize: 缺少签名或公证参数，已切换到无签名构建"
+            unset CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
             export CSC_IDENTITY_AUTO_DISCOVERY=false
           fi
           pnpm build:mac

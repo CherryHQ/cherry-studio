@@ -6,6 +6,11 @@ exports.default = async function notarizing(context) {
     return
   }
 
+  // 无签名构建不进行公证，避免在缺少证书场景下失败
+  if (!process.env.CSC_LINK) {
+    return
+  }
+
   if (!process.env.APPLE_ID || !process.env.APPLE_APP_SPECIFIC_PASSWORD || !process.env.APPLE_TEAM_ID) {
     return
   }
