@@ -36,17 +36,24 @@ vi.mock('@main/core/application', async () => {
 })
 
 // Mock provider-registry/node — include RegistryLoader that delegates to mocked readers
-vi.mock('@cherrystudio/provider-registry/node', () => {
+vi.mock('@cherrystudio/provider-registry/node', async () => {
+  const { normalizeModelId } = await vi.importActual<Record<string, unknown>>('@cherrystudio/provider-registry')
+  const normalize = normalizeModelId as (id: string) => string
+
   const readModelRegistry = vi.fn()
   const readProviderModelRegistry = vi.fn()
   const readProviderRegistry = vi.fn()
 
   class RegistryLoader {
     private paths: { models: string; providers: string; providerModels: string }
-    private cachedModels: unknown[] | null = null
-    private cachedProviders: unknown[] | null = null
-    private cachedProviderModels: unknown[] | null = null
+    private cachedModels: any[] | null = null
+    private cachedProviders: any[] | null = null
+    private cachedProviderModels: any[] | null = null
     private ver: string | null = null
+    private modelById: Map<string, any> | null = null
+    private modelByNormId: Map<string, any> | null = null
+    private overrideByKey: Map<string, any> | null = null
+    private overrideByNormKey: Map<string, any> | null = null
 
     constructor(paths: { models: string; providers: string; providerModels: string }) {
       this.paths = paths
@@ -56,6 +63,13 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
       const d = readModelRegistry(this.paths.models)
       this.cachedModels = d.models ?? []
       this.ver = d.version
+      this.modelById = new Map()
+      this.modelByNormId = new Map()
+      for (const m of this.cachedModels!) {
+        this.modelById.set(m.id, m)
+        const nid = normalize(m.id)
+        if (!this.modelByNormId.has(nid)) this.modelByNormId.set(nid, m)
+      }
       return this.cachedModels
     }
     loadProviders() {
@@ -68,17 +82,30 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
       if (this.cachedProviderModels) return this.cachedProviderModels
       const d = readProviderModelRegistry(this.paths.providerModels)
       this.cachedProviderModels = d.overrides ?? []
+      this.overrideByKey = new Map()
+      this.overrideByNormKey = new Map()
+      for (const pm of this.cachedProviderModels!) {
+        this.overrideByKey.set(`${pm.providerId}::${pm.modelId}`, pm)
+        const nk = `${pm.providerId}::${normalize(pm.modelId)}`
+        if (!this.overrideByNormKey.has(nk)) this.overrideByNormKey.set(nk, pm)
+      }
       return this.cachedProviderModels
+    }
+    findModel(modelId: string) {
+      this.loadModels()
+      return this.modelById!.get(modelId) ?? this.modelByNormId!.get(normalize(modelId)) ?? null
+    }
+    findOverride(providerId: string, modelId: string) {
+      this.loadProviderModels()
+      return (
+        this.overrideByKey!.get(`${providerId}::${modelId}`) ??
+        this.overrideByNormKey!.get(`${providerId}::${normalize(modelId)}`) ??
+        null
+      )
     }
     getModelsVersion() {
       this.loadModels()
       return this.ver!
-    }
-    clearCache() {
-      this.cachedModels = null
-      this.cachedProviders = null
-      this.cachedProviderModels = null
-      this.ver = null
     }
   }
 

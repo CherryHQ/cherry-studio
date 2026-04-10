@@ -12,7 +12,7 @@
 
 import type { ProtoModelConfig, ProtoProviderModelOverride } from '@cherrystudio/provider-registry'
 import type { EndpointType } from '@cherrystudio/provider-registry'
-import { buildRuntimeEndpointConfigs, lookupRegistryModel } from '@cherrystudio/provider-registry'
+import { buildRuntimeEndpointConfigs } from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
@@ -176,12 +176,8 @@ class ProviderRegistryService {
     reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>>
   }> {
     const loader = this.getLoader()
-    const { presetModel, registryOverride } = lookupRegistryModel(
-      loader.loadModels(),
-      loader.loadProviderModels(),
-      providerId,
-      modelId
-    )
+    const presetModel = loader.findModel(modelId)
+    const registryOverride = loader.findOverride(providerId, modelId)
     const reasoningConfig = await this.getEffectiveReasoningConfig(providerId)
 
     return { presetModel, registryOverride, ...reasoningConfig }
@@ -204,8 +200,6 @@ class ProviderRegistryService {
    */
   async resolveModels(providerId: string, modelIds: string[]): Promise<Model[]> {
     const loader = this.getLoader()
-    const models = loader.loadModels()
-    const providerModels = loader.loadProviderModels()
     const { defaultChatEndpoint, reasoningFormatTypes } = await this.getEffectiveReasoningConfig(providerId)
 
     const results: Model[] = []
@@ -215,8 +209,9 @@ class ProviderRegistryService {
       if (!modelId || seen.has(modelId)) continue
       seen.add(modelId)
 
-      // Uses exact match + normalized fallback (handles gpt-4o:free, aihubmix-gpt-4o, etc.)
-      const { presetModel, registryOverride } = lookupRegistryModel(models, providerModels, providerId, modelId)
+      // O(1) lookup with exact match + normalized fallback
+      const presetModel = loader.findModel(modelId)
+      const registryOverride = loader.findOverride(providerId, modelId)
 
       try {
         if (presetModel) {
