@@ -22,7 +22,6 @@ import { sanitizeFilename } from '@main/utils/file'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import type { FileMetadata } from '@shared/data/types/file'
 import { sql } from 'drizzle-orm'
-import { app } from 'electron'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
@@ -131,16 +130,13 @@ export class KnowledgeMigrator extends BaseMigrator {
     this.seenItemIds = new Set<string>()
   }
 
-  private getLegacyKnowledgeDbPath(baseId: string): string | null {
-    // KnowledgeMigrator is a v2 migration pipeline (`src/main/data/migration/v2/`)
-    // and runs before the v2 path registry is available. Application.ts:132-137
-    // explicitly carves out this exception: "one-shot startup pipelines
-    // (migration, legacy backup restore) carry their own ad-hoc path logic and
-    // do not consume the registry". So we hand-roll {userData}/Data/KnowledgeBase
-    // here instead of routing through application.getPath('feature.knowledgebase.data')
-    // — calling the registry pre-bootstrap would throw. This must also stay in
-    // sync with KnowledgeService.storageDir which uses the same v1 path layout.
-    const rootPath = path.join(app.getPath('userData'), 'Data', 'KnowledgeBase')
+  private getLegacyKnowledgeDbPath(baseId: string, knowledgeBaseDir: string): string | null {
+    // The knowledge base directory comes from MigrationPaths, which is resolved
+    // once at the migration gate entry by resolveMigrationPaths(). This avoids
+    // calling app.getPath('userData') directly (which would miss custom userData
+    // overrides from legacy config.json) and avoids the v2 path registry (which
+    // is not available during migration).
+    const rootPath = knowledgeBaseDir
     const sanitizedBaseId = sanitizeFilename(baseId, '_')
     const resolvedDbPath = path.resolve(rootPath, sanitizedBaseId)
     const relativePath = path.relative(rootPath, resolvedDbPath)
@@ -187,9 +183,10 @@ export class KnowledgeMigrator extends BaseMigrator {
   }
 
   private async resolveDimensionsForBase(
-    base: LegacyKnowledgeBaseWithIdentity
+    base: LegacyKnowledgeBaseWithIdentity,
+    knowledgeBaseDir: string
   ): Promise<{ dimensions: number | null; reason: DimensionResolutionReason }> {
-    const dbPath = this.getLegacyKnowledgeDbPath(base.id)
+    const dbPath = this.getLegacyKnowledgeDbPath(base.id, knowledgeBaseDir)
     if (!dbPath) {
       return { dimensions: null, reason: 'vector_db_invalid_path' }
     }
@@ -428,7 +425,7 @@ export class KnowledgeMigrator extends BaseMigrator {
           continue
         }
 
-        const resolvedDimensions = await this.resolveDimensionsForBase(validBase)
+        const resolvedDimensions = await this.resolveDimensionsForBase(validBase, ctx.paths.knowledgeBaseDir)
 
         if (resolvedDimensions.dimensions === null) {
           this.skippedCount += 1 + items.length

@@ -27,6 +27,10 @@ vi.mock('electron', () => ({
   }
 }))
 
+vi.mock('../utils', () => ({
+  toAsarUnpackedPath: vi.fn((filePath: string) => filePath)
+}))
+
 const mockRepo = {
   getByFolderName: vi.fn(),
   delete: vi.fn(),
@@ -53,8 +57,8 @@ vi.mock('../utils/markdownParser', () => ({
   findAllSkillDirectories: vi.fn()
 }))
 
-const resourceSkillsPath = '/app/resources/skills'
 // Matches the stub in tests/main.setup.ts → mockApplicationFactory().getPath
+const resourceSkillsPath = '/mock/feature.agents.skills.builtin'
 const globalSkillsPath = '/mock/feature.agents.skills'
 
 beforeEach(() => {

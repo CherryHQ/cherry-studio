@@ -9,6 +9,7 @@ import { ApiServerService } from '@main/services/ApiServerService'
 import { AppMenuService } from '@main/services/AppMenuService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { CodeCliService } from '@main/services/CodeCliService'
+import { DetachedWindowManager } from '@main/services/DetachedWindowManager'
 import { LanTransferService } from '@main/services/lanTransfer'
 import { MCPService } from '@main/services/MCPService'
 import { NodeTraceService } from '@main/services/NodeTraceService'
@@ -16,6 +17,7 @@ import { OcrService } from '@main/services/ocr/OcrService'
 import { OpenClawService } from '@main/services/OpenClawService'
 import { OvmsManager } from '@main/services/OvmsManager'
 import { PowerMonitorService } from '@main/services/PowerMonitorService'
+import { ProtocolService } from '@main/services/ProtocolService'
 import { ProxyManager } from '@main/services/ProxyManager'
 import { PythonService } from '@main/services/PythonService'
 import { SearchService } from '@main/services/SearchService'
@@ -56,6 +58,7 @@ export const services = {
   DbService,
   CacheService,
   DataApiService,
+  DetachedWindowManager,
   PreferenceService,
   AnalyticsService,
   AppMenuService,
@@ -69,6 +72,7 @@ export const services = {
   NodeTraceService,
   OcrService,
   OvmsManager,
+  ProtocolService,
   ProxyManager,
   PythonService,
   TrayService,

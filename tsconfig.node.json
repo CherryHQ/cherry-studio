@@ -6,6 +6,8 @@
     "incremental": true,
     "moduleResolution": "bundler",
     "paths": {
+      "@cherrystudio/provider-registry": ["./packages/provider-registry/src/index.ts"],
+      "@cherrystudio/provider-registry/node": ["./packages/provider-registry/src/registry-loader.ts"],
       "@data/*": ["./src/main/data/*"],
       "@logger": ["./src/main/services/LoggerService"],
       "@main/*": ["./src/main/*"],
@@ -35,6 +37,7 @@
     "src/renderer/src/services/traceApi.ts",
     "src/renderer/src/types/*",
     "packages/mcp-trace/**/*",
+    "packages/provider-registry/**/*",
     "packages/shared/**/*",
     "packages/aiCore/src/**/*",
     "packages/ai-sdk-provider/src/**/*",

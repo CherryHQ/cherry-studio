@@ -7,6 +7,7 @@
     "jsx": "react-jsx",
     "moduleResolution": "bundler",
     "paths": {
+      "@cherrystudio/provider-registry": ["./packages/provider-registry/src/index.ts"],
       "@cherrystudio/ai-core": ["./packages/aiCore/src/index.ts"],
       "@cherrystudio/ai-core/*": ["./packages/aiCore/src/*"],
       "@cherrystudio/ai-core/built-in/plugins": ["./packages/aiCore/src/core/plugins/built-in/index.ts"],
@@ -38,6 +39,7 @@
     "packages/ai-sdk-provider/**/*",
     "packages/extension-table-plus/**/*",
     "packages/mcp-trace/**/*",
+    "packages/provider-registry/**/*",
     "packages/shared/**/*",
     "packages/ui/**/*"
   ],
