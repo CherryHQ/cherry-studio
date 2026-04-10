@@ -410,6 +410,94 @@ describe('LibSQLVectorStore', () => {
       executeSpy.mockRestore()
     })
 
+    it('should only run schema initialization once for concurrent callers', async () => {
+      let checkSchemaCalls = 0
+      let resolveInitialization!: () => void
+      const initializationBarrier = new Promise<void>((resolve) => {
+        resolveInitialization = resolve
+      })
+
+      const checkSchemaSpy = vi.spyOn(store as any, 'checkSchema').mockImplementation(async function (
+        clientArg: unknown
+      ) {
+        checkSchemaCalls += 1
+        await initializationBarrier
+        return await LibSQLVectorStore.prototype['checkSchema'].call(this, clientArg)
+      })
+
+      const firstAddPromise = store.add([
+        new TextNode({
+          id_: 'chunk-concurrent-1',
+          text: 'Concurrent document 1',
+          embedding: [0.1, 0.2],
+          metadata: { category: 'first' }
+        })
+      ])
+
+      const secondAddPromise = store.add([
+        new TextNode({
+          id_: 'chunk-concurrent-2',
+          text: 'Concurrent document 2',
+          embedding: [0.2, 0.1],
+          metadata: { category: 'second' }
+        })
+      ])
+
+      await vi.waitFor(() => {
+        expect(checkSchemaCalls).toBe(1)
+      })
+
+      resolveInitialization()
+
+      await expect(Promise.all([firstAddPromise, secondAddPromise])).resolves.toEqual([
+        ['chunk-concurrent-1'],
+        ['chunk-concurrent-2']
+      ])
+
+      expect(checkSchemaCalls).toBe(1)
+      checkSchemaSpy.mockRestore()
+    })
+
+    it('should rebuild FTS only when the FTS table is first created', async () => {
+      let rebuildCount = 0
+      const originalExecute = client.execute.bind(client)
+      const executeSpy = vi.spyOn(client, 'execute').mockImplementation(async (statement: any) => {
+        const sql = typeof statement === 'string' ? statement : statement.sql
+        if (typeof sql === 'string' && sql.includes("VALUES ('rebuild')")) {
+          rebuildCount += 1
+        }
+
+        return await originalExecute(statement)
+      })
+
+      await store.add([
+        new TextNode({
+          id_: 'chunk-first-init',
+          text: 'First document',
+          embedding: [0.1, 0.2],
+          metadata: { category: 'first' }
+        })
+      ])
+
+      const secondStore = new LibSQLVectorStore({
+        client,
+        tableName: 'test_embeddings',
+        dimensions: 2
+      })
+
+      await secondStore.add([
+        new TextNode({
+          id_: 'chunk-second-init',
+          text: 'Second document',
+          embedding: [0.2, 0.1],
+          metadata: { category: 'second' }
+        })
+      ])
+
+      expect(rebuildCount).toBe(1)
+      executeSpy.mockRestore()
+    })
+
     it('should delete all nodes by external_id', async () => {
       const nodeA = new TextNode({
         id_: 'chunk-1',
@@ -618,6 +706,27 @@ describe('LibSQLVectorStore', () => {
         assert?.(result.nodes as BaseNode<Metadata>[])
       })
     })
+
+    it('should reject invalid metadata filter keys', async () => {
+      const query: VectorStoreQuery = {
+        queryEmbedding: [0.5, 0.5],
+        similarityTopK: 5,
+        filters: {
+          filters: [
+            {
+              key: "category') = 'technology' OR 1=1 --",
+              value: 'technology',
+              operator: FilterOperator.EQ
+            }
+          ]
+        },
+        mode: VectorStoreQueryMode.DEFAULT
+      }
+
+      await expect(store.query(query)).rejects.toThrow(
+        "Invalid metadata filter key: category') = 'technology' OR 1=1 --"
+      )
+    })
   })
 
   describe('Collection Management', () => {
@@ -705,6 +814,18 @@ describe('LibSQLVectorStore', () => {
         expect(value).toBeCloseTo([0.1, 0.2, 0.3][idx], 6)
       })
     })
+
+    it('should throw when deserializeEmbedding receives an unsupported payload type', () => {
+      expect(() => (store as any).deserializeEmbedding('not-an-embedding')).toThrow(
+        'Unexpected embedding payload type in LibSQLVectorStore.deserializeEmbedding'
+      )
+    })
+
+    it('should throw when deserializeEmbedding receives a missing payload', () => {
+      expect(() => (store as any).deserializeEmbedding(null)).toThrow(
+        'Missing embedding payload in LibSQLVectorStore.deserializeEmbedding'
+      )
+    })
   })
 
   describe('Error Handling', () => {
@@ -717,19 +838,14 @@ describe('LibSQLVectorStore', () => {
       await expect(store.add([nodeWithoutEmbedding])).rejects.toThrow('Missing embedding for node')
     })
 
-    it('should handle query with null embedding', async () => {
+    it('should reject query with null embedding', async () => {
       const query: VectorStoreQuery = {
         queryEmbedding: undefined,
         similarityTopK: 1,
         mode: VectorStoreQueryMode.DEFAULT
       }
 
-      // Should handle gracefully, possibly returning empty results
-      const result = await store.query(query)
-      expect(result).toBeDefined()
-      expect(result.nodes).toBeDefined()
-      expect(result.similarities).toBeDefined()
-      expect(result.ids).toBeDefined()
+      await expect(store.query(query)).rejects.toThrow('queryEmbedding is required for vector search')
     })
   })
 

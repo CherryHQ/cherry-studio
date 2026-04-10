@@ -284,6 +284,20 @@ describe('KnowledgeRuntimeService', () => {
     expect(rerankKnowledgeSearchResultsMock).not.toHaveBeenCalled()
   })
 
+  it('fails search when embedMany returns an empty embedding result', async () => {
+    const service = new KnowledgeRuntimeService()
+    const base = createBase()
+
+    embedManyMock.mockResolvedValueOnce({ embeddings: [] })
+
+    await expect(service.search(base, 'hello')).rejects.toThrow(
+      'Failed to embed search query: model returned empty result'
+    )
+
+    expect(createVectorStoreMock).not.toHaveBeenCalled()
+    expect(vectorStoreQueryMock).not.toHaveBeenCalled()
+  })
+
   it('marks directory items as failed instead of completed', async () => {
     const service = new KnowledgeRuntimeService()
     const base = createBase()

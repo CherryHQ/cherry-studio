@@ -199,6 +199,57 @@ describe('KnowledgeOrchestrationService', () => {
     ])
   })
 
+  it('rejects invalid create-base IPC payloads before touching services', async () => {
+    const service = new KnowledgeOrchestrationService()
+    ;(service as any).onInit()
+
+    const createBaseHandlerCall = ((service as any).ipcHandle as ReturnType<typeof vi.fn>).mock.calls.find(
+      (call) => call[0] === 'knowledge-runtime:create-base'
+    )
+    expect(createBaseHandlerCall).toBeDefined()
+    const createBaseHandler = createBaseHandlerCall?.[1] as (_event: unknown, payload: unknown) => Promise<unknown>
+
+    await expect(createBaseHandler({}, { baseId: '' })).rejects.toThrow()
+    await expect(createBaseHandler({}, { baseId: 'kb-1', extra: true })).rejects.toThrow()
+
+    expect(knowledgeBaseGetByIdMock).not.toHaveBeenCalled()
+    expect(createBaseMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects invalid add-items IPC payloads before touching services', async () => {
+    const service = new KnowledgeOrchestrationService()
+    ;(service as any).onInit()
+
+    const addItemsHandlerCall = ((service as any).ipcHandle as ReturnType<typeof vi.fn>).mock.calls.find(
+      (call) => call[0] === 'knowledge-runtime:add-items'
+    )
+    expect(addItemsHandlerCall).toBeDefined()
+    const addItemsHandler = addItemsHandlerCall?.[1] as (_event: unknown, payload: unknown) => Promise<unknown>
+
+    await expect(addItemsHandler({}, { baseId: 'kb-1', itemIds: [] })).rejects.toThrow()
+    await expect(addItemsHandler({}, { baseId: 'kb-1', itemIds: ['note-1', ''] })).rejects.toThrow()
+
+    expect(knowledgeItemGetByIdsInBaseMock).not.toHaveBeenCalled()
+    expect(runtimeAddItemsMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects invalid search IPC payloads before touching services', async () => {
+    const service = new KnowledgeOrchestrationService()
+    ;(service as any).onInit()
+
+    const searchHandlerCall = ((service as any).ipcHandle as ReturnType<typeof vi.fn>).mock.calls.find(
+      (call) => call[0] === 'knowledge-runtime:search'
+    )
+    expect(searchHandlerCall).toBeDefined()
+    const searchHandler = searchHandlerCall?.[1] as (_event: unknown, payload: unknown) => Promise<unknown>
+
+    await expect(searchHandler({}, { baseId: 'kb-1', query: '' })).rejects.toThrow()
+    await expect(searchHandler({}, { baseId: 'kb-1', query: 'hello', extra: true })).rejects.toThrow()
+
+    expect(knowledgeBaseGetByIdMock).not.toHaveBeenCalled()
+    expect(runtimeSearchMock).not.toHaveBeenCalled()
+  })
+
   it('forwards base lifecycle operations to runtime', async () => {
     const service = new KnowledgeOrchestrationService()
     const base = createBase()

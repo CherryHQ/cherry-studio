@@ -1,7 +1,6 @@
 import path from 'node:path'
 
 import type { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
-import { normalizeKnowledgeBaseConfig } from '@data/services/KnowledgeBaseService'
 import type { FileMetadata } from '@shared/data/types/file'
 import type { KnowledgeItemData, KnowledgeItemStatus } from '@shared/data/types/knowledge'
 
@@ -132,6 +131,38 @@ export const toCompositeModelId = (model: LegacyModel | null | undefined): strin
 export const inferKnowledgeItemStatus = (item: Pick<LegacyKnowledgeItem, 'uniqueId'>): KnowledgeItemStatus =>
   typeof item.uniqueId === 'string' && item.uniqueId.trim() !== '' ? 'completed' : 'idle'
 
+function normalizeMigratedKnowledgeBaseConfig<T extends Partial<NewKnowledgeBase>>(config: T): T {
+  const normalized = { ...config }
+
+  if (normalized.chunkSize != null && normalized.chunkSize <= 0) {
+    normalized.chunkSize = undefined as T['chunkSize']
+  }
+
+  if (normalized.chunkOverlap != null) {
+    if (normalized.chunkOverlap < 0) {
+      normalized.chunkOverlap = undefined as T['chunkOverlap']
+    } else if (normalized.chunkSize == null || normalized.chunkOverlap >= normalized.chunkSize) {
+      normalized.chunkOverlap = undefined as T['chunkOverlap']
+    }
+  }
+
+  if (normalized.threshold != null && (normalized.threshold < 0 || normalized.threshold > 1)) {
+    normalized.threshold = undefined as T['threshold']
+  }
+
+  if (normalized.documentCount != null && normalized.documentCount <= 0) {
+    normalized.documentCount = undefined as T['documentCount']
+  }
+
+  if (normalized.hybridAlpha != null) {
+    if (normalized.hybridAlpha < 0 || normalized.hybridAlpha > 1 || normalized.searchMode !== 'hybrid') {
+      normalized.hybridAlpha = undefined as T['hybridAlpha']
+    }
+  }
+
+  return normalized
+}
+
 export const resolveLegacyFileMetadata = (
   content: LegacyKnowledgeItem['content'],
   filesById: Map<string, FileMetadata>
@@ -188,7 +219,7 @@ export const transformKnowledgeBase = (
 
   return {
     ok: true,
-    value: normalizeKnowledgeBaseConfig(transformedBase)
+    value: normalizeMigratedKnowledgeBaseConfig(transformedBase)
   }
 }
 

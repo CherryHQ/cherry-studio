@@ -40,32 +40,6 @@ function addFieldError(
   fieldErrors[field].push(message)
 }
 
-export function normalizeKnowledgeBaseConfig<T extends KnowledgeBaseConfigInput>(config: T): T {
-  const normalized = { ...config }
-
-  if (normalized.chunkSize != null && normalized.chunkSize <= 0) {
-    normalized.chunkSize = undefined as T['chunkSize']
-  }
-
-  if (normalized.chunkOverlap != null && normalized.chunkOverlap < 0) {
-    normalized.chunkOverlap = undefined as T['chunkOverlap']
-  }
-
-  if (normalized.threshold != null && (normalized.threshold < 0 || normalized.threshold > 1)) {
-    normalized.threshold = undefined as T['threshold']
-  }
-
-  if (normalized.documentCount != null && normalized.documentCount <= 0) {
-    normalized.documentCount = undefined as T['documentCount']
-  }
-
-  if (normalized.hybridAlpha != null && (normalized.hybridAlpha < 0 || normalized.hybridAlpha > 1)) {
-    normalized.hybridAlpha = undefined as T['hybridAlpha']
-  }
-
-  return normalizeKnowledgeBaseConfigDependencies(normalized)
-}
-
 export function normalizeKnowledgeBaseConfigDependencies<T extends KnowledgeBaseConfigInput>(config: T): T {
   const normalized = { ...config }
 

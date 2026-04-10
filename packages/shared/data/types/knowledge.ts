@@ -29,6 +29,12 @@ export const KNOWLEDGE_SEARCH_MODES = ['default', 'bm25', 'hybrid'] as const
 export const KnowledgeSearchModeSchema = z.enum(KNOWLEDGE_SEARCH_MODES)
 export type KnowledgeSearchMode = z.infer<typeof KnowledgeSearchModeSchema>
 
+export const KnowledgeChunkSizeSchema = z.number().int().positive()
+export const KnowledgeChunkOverlapSchema = z.number().int().min(0)
+export const KnowledgeThresholdSchema = z.number().min(0).max(1)
+export const KnowledgeDocumentCountSchema = z.number().int().positive()
+export const KnowledgeHybridAlphaSchema = z.number().min(0).max(1)
+
 /**
  * Temporary schema mirroring the current FileMetadata shape.
  * TODO: Move to `types/file.ts` once the dedicated file domain schema is ready.
@@ -122,12 +128,12 @@ export const KnowledgeBaseSchema = z.object({
   embeddingModelId: z.string().min(1),
   rerankModelId: z.string().optional(),
   fileProcessorId: z.string().optional(),
-  chunkSize: z.number().optional(),
-  chunkOverlap: z.number().optional(),
-  threshold: z.number().optional(),
-  documentCount: z.number().optional(),
+  chunkSize: KnowledgeChunkSizeSchema.optional(),
+  chunkOverlap: KnowledgeChunkOverlapSchema.optional(),
+  threshold: KnowledgeThresholdSchema.optional(),
+  documentCount: KnowledgeDocumentCountSchema.optional(),
   searchMode: KnowledgeSearchModeSchema.optional(),
-  hybridAlpha: z.number().optional(),
+  hybridAlpha: KnowledgeHybridAlphaSchema.optional(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
 })
@@ -138,7 +144,7 @@ const KnowledgeItemBaseSchema = z.object({
   baseId: z.string(),
   groupId: z.string().nullable().optional(),
   status: KnowledgeItemStatusSchema,
-  error: z.string().nullable().optional(),
+  error: z.string().nullable(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
 })

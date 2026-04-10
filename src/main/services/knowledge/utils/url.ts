@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
-import { isValidUrl } from '@shared/utils'
 import { net } from 'electron'
 import PQueue from 'p-queue'
+import { sanitizeUrl } from 'strict-url-sanitise'
 
 const logger = loggerService.withContext('KnowledgeWebSearch')
 const DEFAULT_FETCH_TIMEOUT_MS = 30000
@@ -16,19 +16,32 @@ const knowledgeWebFetchQueue = new PQueue({
   interval: KNOWLEDGE_WEB_FETCH_INTERVAL_MS
 })
 
+export function sanitizeKnowledgeUrl(rawUrl: string): string {
+  try {
+    const sanitizedUrl = sanitizeUrl(rawUrl)
+    const parsedRawUrl = new URL(rawUrl)
+
+    if (parsedRawUrl.pathname === '/' && !rawUrl.endsWith('/') && !parsedRawUrl.search && !parsedRawUrl.hash) {
+      return sanitizedUrl.replace(/\/$/, '')
+    }
+
+    return sanitizedUrl
+  } catch {
+    throw new Error(`Invalid knowledge url: ${rawUrl}`)
+  }
+}
+
 /**
  * Fetches a knowledge web page through the Jina reader endpoint and returns
  * the normalized markdown payload.
  */
 export async function fetchKnowledgeWebPage(url: string, signal?: AbortSignal): Promise<string> {
   try {
-    if (!isValidUrl(url)) {
-      throw new Error(`Invalid knowledge web url: ${url}`)
-    }
+    const safeUrl = sanitizeKnowledgeUrl(url)
 
     const response = await knowledgeWebFetchQueue.add(
       async () =>
-        await net.fetch(`${JINA_READER_BASE_URL}${url}`, {
+        await net.fetch(`${JINA_READER_BASE_URL}${safeUrl}`, {
           signal: signal ?? AbortSignal.timeout(DEFAULT_FETCH_TIMEOUT_MS),
           headers: {
             'X-Retain-Images': 'none',
@@ -38,11 +51,11 @@ export async function fetchKnowledgeWebPage(url: string, signal?: AbortSignal): 
       signal ? { signal } : undefined
     )
     if (!response) {
-      throw new Error(`Knowledge web fetch queue returned no response for ${url}`)
+      throw new Error(`Knowledge web fetch queue returned no response for ${safeUrl}`)
     }
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch knowledge web page ${url}: HTTP ${response.status}`)
+      throw new Error(`Failed to fetch knowledge web page ${safeUrl}: HTTP ${response.status}`)
     }
 
     const markdown = (await response.text()).trim()

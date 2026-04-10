@@ -1,9 +1,10 @@
 import { loggerService } from '@logger'
 import type { CreateKnowledgeItemsDto } from '@shared/data/api/schemas/knowledges'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
-import { isValidUrl } from '@shared/utils'
 import { net } from 'electron'
 import { XMLParser } from 'fast-xml-parser'
+
+import { sanitizeKnowledgeUrl } from './url'
 
 const logger = loggerService.withContext('KnowledgeSitemapExpansion')
 const DEFAULT_FETCH_TIMEOUT_MS = 30000
@@ -37,21 +38,26 @@ export async function expandSitemapOwnerToCreateItems(owner: KnowledgeItem): Pro
   const sitemapUrl = owner.data.url
 
   try {
-    if (!isValidUrl(sitemapUrl)) {
-      throw new Error(`Invalid knowledge sitemap url: ${sitemapUrl}`)
-    }
+    const safeSitemapUrl = sanitizeKnowledgeUrl(sitemapUrl)
 
-    const response = await net.fetch(sitemapUrl, {
+    const response = await net.fetch(safeSitemapUrl, {
       signal: AbortSignal.timeout(DEFAULT_FETCH_TIMEOUT_MS)
     })
 
     if (!response.ok) {
-      throw new Error(`Failed to read sitemap ${sitemapUrl}: HTTP ${response.status}`)
+      throw new Error(`Failed to read sitemap ${safeSitemapUrl}: HTTP ${response.status}`)
     }
 
     const xml = await response.text()
     const parsed = sitemapParser.parse(xml) as ParsedSitemapDocument
-    const pageUrls = [...new Set(normalizeLocs(parsed.urlset?.url))]
+    const pageUrls = [...new Set(normalizeLocs(parsed.urlset?.url).map((url) => sanitizeKnowledgeUrl(url)))]
+
+    if (pageUrls.length === 0) {
+      logger.warn('Sitemap expansion produced no URLs', {
+        ownerId: owner.id,
+        sitemapUrl: safeSitemapUrl
+      })
+    }
 
     return pageUrls.map((url) => ({
       groupId: owner.id,

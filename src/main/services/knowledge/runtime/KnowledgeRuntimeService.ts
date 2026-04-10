@@ -73,11 +73,17 @@ export class KnowledgeRuntimeService extends BaseService {
   async search(base: KnowledgeBase, query: string): Promise<KnowledgeSearchResult[]> {
     const model = getEmbedModel(base)
     const embedResult = await embedMany({ model, values: [query] })
+    const queryEmbedding = embedResult.embeddings[0]
+
+    if (!queryEmbedding?.length) {
+      throw new Error('Failed to embed search query: model returned empty result')
+    }
+
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
     const vectorStore = await vectorStoreService.createStore(base)
     const results = await vectorStore.query({
       queryStr: query,
-      queryEmbedding: embedResult.embeddings[0],
+      queryEmbedding,
       mode: base.searchMode ?? 'default',
       similarityTopK: base.documentCount ?? 10,
       alpha: base.hybridAlpha

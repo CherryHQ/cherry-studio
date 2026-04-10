@@ -23,11 +23,20 @@ import { getEnv } from '@vectorstores/env'
 
 export const LIBSQL_TABLE = 'libsql_vectorstores_embedding'
 export const DEFAULT_DIMENSIONS = 1536
+const SAFE_METADATA_KEY_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$/
 
 type PositionalArgs = Extract<InArgs, readonly unknown[]>
 
 function toError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error))
+}
+
+function validateMetadataKey(key: string): string {
+  if (!SAFE_METADATA_KEY_PATTERN.test(key)) {
+    throw new Error(`Invalid metadata filter key: ${key}`)
+  }
+
+  return key
 }
 
 function isSupportedInArg(param: unknown): param is NonNullable<PositionalArgs[number]> {
@@ -66,6 +75,7 @@ export class LibSQLVectorStore extends BaseVectorStore {
 
   private clientInstance: Client
   private initialized: boolean = false
+  private initializationPromise?: Promise<void>
 
   constructor(
     init: Partial<{ client: Client }> &
@@ -123,10 +133,21 @@ export class LibSQLVectorStore extends BaseVectorStore {
   }
 
   private async ensureInitialized(): Promise<void> {
-    if (!this.initialized) {
-      await this.checkSchema(this.clientInstance)
-      this.initialized = true
+    if (this.initialized) {
+      return
     }
+
+    if (!this.initializationPromise) {
+      this.initializationPromise = this.checkSchema(this.clientInstance)
+        .then(() => {
+          this.initialized = true
+        })
+        .finally(() => {
+          this.initializationPromise = undefined
+        })
+    }
+
+    await this.initializationPromise
   }
 
   private async checkSchema(client: Client) {
@@ -174,6 +195,16 @@ export class LibSQLVectorStore extends BaseVectorStore {
 
     // Create FTS5 virtual table for full-text search (bm25/hybrid modes)
     const ftsTableName = `${this.tableName}_fts`
+    const ftsTableExistsResult = await client.execute({
+      sql: `
+        SELECT 1
+        FROM sqlite_master
+        WHERE type = 'table' AND name = ?
+        LIMIT 1
+      `,
+      args: toInArgs([ftsTableName])
+    })
+    const shouldRebuildFts = ftsTableExistsResult.rows.length === 0
     const ftsStatement: InStatement = {
       sql: `
         CREATE VIRTUAL TABLE IF NOT EXISTS ${ftsTableName}
@@ -221,13 +252,15 @@ export class LibSQLVectorStore extends BaseVectorStore {
       args: []
     })
 
-    await client.execute({
-      sql: `
-        INSERT INTO ${ftsTableName}(${ftsTableName})
-        VALUES ('rebuild')
-      `,
-      args: []
-    })
+    if (shouldRebuildFts) {
+      await client.execute({
+        sql: `
+          INSERT INTO ${ftsTableName}(${ftsTableName})
+          VALUES ('rebuild')
+        `,
+        args: []
+      })
+    }
   }
 
   async clearCollection(): Promise<void> {
@@ -328,7 +361,9 @@ export class LibSQLVectorStore extends BaseVectorStore {
   }
 
   private deserializeEmbedding(raw: unknown): number[] {
-    if (!raw) return []
+    if (raw == null) {
+      throw new Error('Missing embedding payload in LibSQLVectorStore.deserializeEmbedding')
+    }
 
     if (raw instanceof Float32Array) {
       return Array.from(raw)
@@ -349,7 +384,12 @@ export class LibSQLVectorStore extends BaseVectorStore {
       return raw.map((value) => Number(value))
     }
 
-    return []
+    throw new Error(
+      `Unexpected embedding payload type in LibSQLVectorStore.deserializeEmbedding: ${JSON.stringify({
+        type: typeof raw,
+        constructorName: raw instanceof Object ? raw.constructor?.name : undefined
+      })}`
+    )
   }
 
   private parseJson<T>(
@@ -391,7 +431,7 @@ export class LibSQLVectorStore extends BaseVectorStore {
     clause: string
     params: unknown[]
   } {
-    const key = filter.key
+    const key = validateMetadataKey(filter.key)
     const metadataColumn = `${alias}.metadata`
 
     switch (filter.operator) {
@@ -524,7 +564,7 @@ export class LibSQLVectorStore extends BaseVectorStore {
     const queryEmbedding = query.queryEmbedding ?? []
 
     if (!queryEmbedding.length) {
-      return { nodes: [], similarities: [], ids: [] }
+      throw new Error('queryEmbedding is required for vector search')
     }
 
     const { where, params } = this.buildWhereClause(query, 't')

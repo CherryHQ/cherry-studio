@@ -20,12 +20,9 @@ vi.mock('@main/core/application', () => ({
   }
 }))
 
-const {
-  KnowledgeBaseService,
-  normalizeKnowledgeBaseConfig,
-  normalizeKnowledgeBaseConfigDependencies,
-  validateKnowledgeBaseConfig
-} = await import('../KnowledgeBaseService')
+const { KnowledgeBaseService, normalizeKnowledgeBaseConfigDependencies, validateKnowledgeBaseConfig } = await import(
+  '../KnowledgeBaseService'
+)
 
 function createMockRow(overrides: Record<string, unknown> = {}) {
   return {
@@ -430,28 +427,6 @@ describe('KnowledgeBaseService', () => {
   })
 
   describe('config helpers', () => {
-    describe('normalizeKnowledgeBaseConfig', () => {
-      it('should clear invalid tuning fields for migration inputs', () => {
-        expect(
-          normalizeKnowledgeBaseConfig({
-            chunkSize: 200,
-            chunkOverlap: 200,
-            threshold: 2,
-            documentCount: 0,
-            searchMode: 'default' as const,
-            hybridAlpha: 0.6
-          })
-        ).toEqual({
-          chunkSize: 200,
-          chunkOverlap: undefined,
-          threshold: undefined,
-          documentCount: undefined,
-          searchMode: 'default',
-          hybridAlpha: undefined
-        })
-      })
-    })
-
     describe('normalizeKnowledgeBaseConfigDependencies', () => {
       it('should clear stale dependent fields after primary config changes', () => {
         expect(

@@ -5,9 +5,30 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import type { CreateKnowledgeItemsDto } from '@shared/data/api/schemas/knowledges'
 import type { KnowledgeItem, KnowledgeSearchResult } from '@shared/data/types/knowledge'
 import { IpcChannel } from '@shared/IpcChannel'
+import * as z from 'zod'
 
 import { expandDirectoryOwnerToCreateItems } from './utils/directory'
 import { expandSitemapOwnerToCreateItems } from './utils/sitemap'
+
+const KnowledgeRuntimeBasePayloadSchema = z
+  .object({
+    baseId: z.string().trim().min(1)
+  })
+  .strict()
+
+const KnowledgeRuntimeItemsPayloadSchema = z
+  .object({
+    baseId: z.string().trim().min(1),
+    itemIds: z.array(z.string().trim().min(1)).min(1)
+  })
+  .strict()
+
+const KnowledgeRuntimeSearchPayloadSchema = z
+  .object({
+    baseId: z.string().trim().min(1),
+    query: z.string().trim().min(1).max(1000)
+  })
+  .strict()
 
 @Injectable('KnowledgeOrchestrationService')
 @ServicePhase(Phase.WhenReady)
@@ -73,23 +94,25 @@ export class KnowledgeOrchestrationService extends BaseService {
   }
 
   private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.KnowledgeRuntime_CreateBase, async (_, payload: { baseId: string }) => {
-      return await this.createBase(payload.baseId)
+    this.ipcHandle(IpcChannel.KnowledgeRuntime_CreateBase, async (_, payload: unknown) => {
+      const { baseId } = KnowledgeRuntimeBasePayloadSchema.parse(payload)
+      return await this.createBase(baseId)
     })
-    this.ipcHandle(IpcChannel.KnowledgeRuntime_DeleteBase, async (_, payload: { baseId: string }) => {
-      return await this.deleteBase(payload.baseId)
+    this.ipcHandle(IpcChannel.KnowledgeRuntime_DeleteBase, async (_, payload: unknown) => {
+      const { baseId } = KnowledgeRuntimeBasePayloadSchema.parse(payload)
+      return await this.deleteBase(baseId)
     })
-    this.ipcHandle(IpcChannel.KnowledgeRuntime_AddItems, async (_, payload: { baseId: string; itemIds: string[] }) => {
-      return await this.addItems(payload.baseId, payload.itemIds)
+    this.ipcHandle(IpcChannel.KnowledgeRuntime_AddItems, async (_, payload: unknown) => {
+      const { baseId, itemIds } = KnowledgeRuntimeItemsPayloadSchema.parse(payload)
+      return await this.addItems(baseId, itemIds)
     })
-    this.ipcHandle(
-      IpcChannel.KnowledgeRuntime_DeleteItems,
-      async (_, payload: { baseId: string; itemIds: string[] }) => {
-        return await this.deleteItems(payload.baseId, payload.itemIds)
-      }
-    )
-    this.ipcHandle(IpcChannel.KnowledgeRuntime_Search, async (_, payload: { baseId: string; query: string }) => {
-      return await this.search(payload.baseId, payload.query)
+    this.ipcHandle(IpcChannel.KnowledgeRuntime_DeleteItems, async (_, payload: unknown) => {
+      const { baseId, itemIds } = KnowledgeRuntimeItemsPayloadSchema.parse(payload)
+      return await this.deleteItems(baseId, itemIds)
+    })
+    this.ipcHandle(IpcChannel.KnowledgeRuntime_Search, async (_, payload: unknown) => {
+      const { baseId, query } = KnowledgeRuntimeSearchPayloadSchema.parse(payload)
+      return await this.search(baseId, query)
     })
   }
 

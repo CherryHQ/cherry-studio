@@ -1,13 +1,16 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const fetchMock = vi.hoisted(() => vi.fn())
+const { fetchMock, loggerWarnMock } = vi.hoisted(() => ({
+  fetchMock: vi.fn(),
+  loggerWarnMock: vi.fn()
+}))
 
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({
       debug: vi.fn(),
       info: vi.fn(),
-      warn: vi.fn(),
+      warn: loggerWarnMock,
       error: vi.fn()
     })
   }
@@ -22,6 +25,11 @@ vi.mock('electron', () => ({
 const { expandSitemapOwnerToCreateItems } = await import('../sitemap')
 
 describe('expandSitemapOwnerToCreateItems', () => {
+  beforeEach(() => {
+    fetchMock.mockReset()
+    loggerWarnMock.mockReset()
+  })
+
   it('creates deduplicated url child items for a sitemap owner', async () => {
     fetchMock.mockResolvedValue(
       new Response(
@@ -69,5 +77,52 @@ describe('expandSitemapOwnerToCreateItems', () => {
         }
       }
     ])
+  })
+
+  it('rejects unsupported sitemap protocols before fetching', async () => {
+    await expect(
+      expandSitemapOwnerToCreateItems({
+        id: 'sitemap-owner-2',
+        baseId: 'kb-1',
+        groupId: null,
+        type: 'sitemap',
+        data: {
+          url: 'file:///etc/passwd',
+          name: 'file:///etc/passwd'
+        },
+        status: 'idle',
+        error: null,
+        createdAt: '2026-04-08T00:00:00.000Z',
+        updatedAt: '2026-04-08T00:00:00.000Z'
+      })
+    ).rejects.toThrow('Invalid knowledge url: file:///etc/passwd')
+
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('logs a warning when sitemap parsing yields no URLs', async () => {
+    fetchMock.mockResolvedValue(new Response('<urlset></urlset>', { status: 200 }))
+
+    await expect(
+      expandSitemapOwnerToCreateItems({
+        id: 'sitemap-owner-3',
+        baseId: 'kb-1',
+        groupId: null,
+        type: 'sitemap',
+        data: {
+          url: 'https://example.com/empty-sitemap.xml',
+          name: 'https://example.com/empty-sitemap.xml'
+        },
+        status: 'idle',
+        error: null,
+        createdAt: '2026-04-08T00:00:00.000Z',
+        updatedAt: '2026-04-08T00:00:00.000Z'
+      })
+    ).resolves.toEqual([])
+
+    expect(loggerWarnMock).toHaveBeenCalledWith('Sitemap expansion produced no URLs', {
+      ownerId: 'sitemap-owner-3',
+      sitemapUrl: 'https://example.com/empty-sitemap.xml'
+    })
   })
 })

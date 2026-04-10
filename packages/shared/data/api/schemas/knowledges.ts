@@ -8,10 +8,15 @@ import {
   FileItemDataSchema,
   FileMetadataSchema,
   type KnowledgeBase,
+  KnowledgeChunkOverlapSchema,
+  KnowledgeChunkSizeSchema,
+  KnowledgeDocumentCountSchema,
+  KnowledgeHybridAlphaSchema,
   type KnowledgeItem,
   KnowledgeItemStatusSchema,
   KnowledgeItemTypeSchema,
   KnowledgeSearchModeSchema,
+  KnowledgeThresholdSchema,
   NoteItemDataSchema,
   SitemapItemDataSchema,
   UrlItemDataSchema
@@ -25,12 +30,12 @@ export const CreateKnowledgeBaseSchema = z.object({
   embeddingModelId: z.string().trim().min(1),
   rerankModelId: z.string().optional(),
   fileProcessorId: z.string().optional(),
-  chunkSize: z.number().optional(),
-  chunkOverlap: z.number().optional(),
-  threshold: z.number().optional(),
-  documentCount: z.number().optional(),
+  chunkSize: KnowledgeChunkSizeSchema.optional(),
+  chunkOverlap: KnowledgeChunkOverlapSchema.optional(),
+  threshold: KnowledgeThresholdSchema.optional(),
+  documentCount: KnowledgeDocumentCountSchema.optional(),
   searchMode: KnowledgeSearchModeSchema.optional(),
-  hybridAlpha: z.number().optional()
+  hybridAlpha: KnowledgeHybridAlphaSchema.optional()
 })
 export type CreateKnowledgeBaseDto = z.infer<typeof CreateKnowledgeBaseSchema>
 
@@ -40,12 +45,12 @@ export const UpdateKnowledgeBaseSchema = z
     description: z.string().nullable().optional(),
     rerankModelId: z.string().nullable().optional(),
     fileProcessorId: z.string().nullable().optional(),
-    chunkSize: z.number().nullable().optional(),
-    chunkOverlap: z.number().nullable().optional(),
-    threshold: z.number().nullable().optional(),
-    documentCount: z.number().nullable().optional(),
+    chunkSize: KnowledgeChunkSizeSchema.nullable().optional(),
+    chunkOverlap: KnowledgeChunkOverlapSchema.nullable().optional(),
+    threshold: KnowledgeThresholdSchema.nullable().optional(),
+    documentCount: KnowledgeDocumentCountSchema.nullable().optional(),
     searchMode: KnowledgeSearchModeSchema.nullable().optional(),
-    hybridAlpha: z.number().nullable().optional()
+    hybridAlpha: KnowledgeHybridAlphaSchema.nullable().optional()
   })
   .strict()
 export type UpdateKnowledgeBaseDto = z.infer<typeof UpdateKnowledgeBaseSchema>

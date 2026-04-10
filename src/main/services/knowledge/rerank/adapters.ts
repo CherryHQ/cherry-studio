@@ -1,14 +1,35 @@
+import * as z from 'zod'
+
 import type { RerankAdapter, RerankRequestInput, RerankResult } from './types'
 
 const OPENAI_COMPATIBLE_RERANK_SUFFIX = '/rerank'
 const OPENAI_COMPATIBLE_V1_SUFFIX = '/v1'
 const BAILIAN_RERANK_URL = 'https://dashscope.aliyuncs.com/api/v1/services/rerank/text-rerank/text-rerank'
 
-function parseResults(
-  data: unknown,
-  select: (payload: any) => Array<{ index: number; relevance_score?: number; score?: number }>
-) {
-  return select(data).map((item) => ({
+const RerankResultItemSchema = z.object({
+  index: z.number(),
+  relevance_score: z.number().optional(),
+  score: z.number().optional()
+})
+
+const OpenAiCompatibleRerankResponseSchema = z.object({
+  results: z.array(RerankResultItemSchema)
+})
+
+const VoyageRerankResponseSchema = z.object({
+  data: z.array(RerankResultItemSchema)
+})
+
+const TeiRerankResponseSchema = z.array(RerankResultItemSchema)
+
+const BailianRerankResponseSchema = z.object({
+  output: z.object({
+    results: z.array(RerankResultItemSchema)
+  })
+})
+
+function parseResults(items: z.infer<typeof RerankResultItemSchema>[]) {
+  return items.map((item) => ({
     index: item.index,
     relevanceScore: item.relevance_score ?? item.score ?? 0
   }))
@@ -45,7 +66,7 @@ const defaultAdapter: RerankAdapter = {
     }
   },
   parseResponse(data: unknown): RerankResult[] {
-    return parseResults(data, (payload) => payload.results)
+    return parseResults(OpenAiCompatibleRerankResponseSchema.parse(data).results)
   }
 }
 
@@ -72,7 +93,7 @@ const voyageAdapter: RerankAdapter = {
     }
   },
   parseResponse(data: unknown): RerankResult[] {
-    return parseResults(data, (payload) => payload.data)
+    return parseResults(VoyageRerankResponseSchema.parse(data).data)
   }
 }
 
@@ -86,7 +107,7 @@ const teiAdapter: RerankAdapter = {
     }
   },
   parseResponse(data: unknown): RerankResult[] {
-    return parseResults(data, (payload) => payload)
+    return parseResults(TeiRerankResponseSchema.parse(data))
   }
 }
 
@@ -108,7 +129,7 @@ const bailianAdapter: RerankAdapter = {
     }
   },
   parseResponse(data: unknown): RerankResult[] {
-    return parseResults(data, (payload) => payload.output.results)
+    return parseResults(BailianRerankResponseSchema.parse(data).output.results)
   }
 }
 

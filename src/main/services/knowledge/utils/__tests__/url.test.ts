@@ -74,6 +74,14 @@ describe('fetchKnowledgeWebPage', () => {
     )
   })
 
+  it('rejects unsupported protocols before dispatching the request', async () => {
+    await expect(fetchKnowledgeWebPage('file:///etc/passwd')).rejects.toThrow(
+      'Invalid knowledge url: file:///etc/passwd'
+    )
+
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('limits concurrent upstream web fetches through a shared queue', async () => {
     let activeFetches = 0
     let maxActiveFetches = 0

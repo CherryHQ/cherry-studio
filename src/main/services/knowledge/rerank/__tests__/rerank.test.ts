@@ -95,6 +95,18 @@ describe('knowledge rerank adapters', () => {
       'https://dashscope.aliyuncs.com/api/v1/services/rerank/text-rerank/text-rerank'
     )
   })
+
+  it('throws when object-based rerank payloads do not contain an array of results', () => {
+    const adapter = getRerankAdapter('jina')
+
+    expect(() => adapter.parseResponse({ results: 'bad-payload' })).toThrow()
+  })
+
+  it('throws when array-based rerank payloads are malformed', () => {
+    const adapter = getRerankAdapter('tei-local')
+
+    expect(() => adapter.parseResponse({ results: [] })).toThrow()
+  })
 })
 
 describe('knowledge rerank runtime', () => {
