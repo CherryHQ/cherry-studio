@@ -13,14 +13,12 @@ import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWRInfinite from 'swr/infinite'
 
-import { useAgentClient } from './useAgentClient'
 import { useSessionChanged } from './useSessionChanged'
 
 type SessionsPage = OffsetPaginationResponse<AgentSessionEntity>
 
 export const useSessions = (agentId: string | null, pageSize = DEFAULT_SESSION_PAGE_SIZE) => {
   const { t } = useTranslation()
-  const client = useAgentClient()
   const invalidate = useInvalidateCache()
   const listPath = agentId ? `/agents/${agentId}/sessions` : null
 
@@ -68,9 +66,11 @@ export const useSessions = (agentId: string | null, pageSize = DEFAULT_SESSION_P
 
   const createSession = useCallback(
     async (form: CreateSessionForm): Promise<CreateAgentSessionResponse | null> => {
-      if (!agentId || !client) return null
+      if (!agentId) return null
       try {
-        const result = await client.createSession(agentId, form)
+        const result = (await dataApiService.post(`/agents/${agentId}/sessions`, {
+          body: form
+        })) as CreateAgentSessionResponse
         void mutate(
           (prev) => {
             if (!prev || prev.length === 0) {
@@ -86,13 +86,14 @@ export const useSessions = (agentId: string | null, pageSize = DEFAULT_SESSION_P
           },
           { revalidate: false }
         )
+        await invalidate(`/agents/${agentId}/sessions/${result.id}`)
         return result
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.create.error.failed')))
         return null
       }
     },
-    [agentId, client, mutate, t]
+    [agentId, invalidate, mutate, t]
   )
 
   const getSession = useCallback(
@@ -119,9 +120,9 @@ export const useSessions = (agentId: string | null, pageSize = DEFAULT_SESSION_P
 
   const deleteSession = useCallback(
     async (id: string): Promise<boolean> => {
-      if (!agentId || !client) return false
+      if (!agentId) return false
       try {
-        await client.deleteSession(agentId, id)
+        await dataApiService.delete(`/agents/${agentId}/sessions/${id}`)
         void mutate(
           (prev) => {
             if (!prev || prev.length === 0) return prev
@@ -140,12 +141,12 @@ export const useSessions = (agentId: string | null, pageSize = DEFAULT_SESSION_P
         return false
       }
     },
-    [agentId, client, mutate, t]
+    [agentId, mutate, t]
   )
 
   const reorderSessions = useCallback(
     async (reorderedList: AgentSessionEntity[]) => {
-      if (!agentId || !client) return
+      if (!agentId || !listPath) return
       const orderedIds = reorderedList.map((s) => s.id)
       void mutate(
         (prev) => {
@@ -156,16 +157,16 @@ export const useSessions = (agentId: string | null, pageSize = DEFAULT_SESSION_P
       )
 
       try {
-        await client.reorderSessions(agentId, orderedIds)
-        if (listPath) {
-          await invalidate(listPath)
-        }
+        await dataApiService.patch(listPath as `/agents/${string}/sessions`, {
+          body: { orderedIds }
+        })
+        await invalidate(listPath as `/agents/${string}/sessions`)
       } catch (error) {
         void mutate()
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.reorder.error.failed')))
       }
     },
-    [agentId, client, invalidate, listPath, mutate, t]
+    [agentId, invalidate, listPath, mutate, t]
   )
 
   return {
