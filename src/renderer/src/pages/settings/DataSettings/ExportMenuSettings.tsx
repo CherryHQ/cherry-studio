@@ -1,8 +1,9 @@
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { RootState, useAppDispatch } from '@renderer/store'
+import type { RootState } from '@renderer/store'
+import { useAppDispatch } from '@renderer/store'
 import { setExportMenuOptions } from '@renderer/store/settings'
 import { Switch } from 'antd'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 

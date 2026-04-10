@@ -3,7 +3,8 @@ import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import { PROVIDER_LOGO_MAP } from '@renderer/config/providers'
 import { getProviderLabel } from '@renderer/i18n/label'
 import { Input, Tooltip } from 'antd'
-import { FC, useMemo, useState } from 'react'
+import type { FC } from 'react'
+import { useMemo, useState } from 'react'
 import styled from 'styled-components'
 
 interface Props {

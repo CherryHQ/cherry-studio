@@ -1,11 +1,14 @@
-import { trace, Tracer } from '@opentelemetry/api'
+import type { Tracer } from '@opentelemetry/api'
+import { trace } from '@opentelemetry/api'
 import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks'
 import { W3CTraceContextPropagator } from '@opentelemetry/core'
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http'
-import { BatchSpanProcessor, ConsoleSpanExporter, SpanProcessor } from '@opentelemetry/sdk-trace-base'
+import type { SpanProcessor } from '@opentelemetry/sdk-trace-base'
+import { BatchSpanProcessor, ConsoleSpanExporter } from '@opentelemetry/sdk-trace-base'
 import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node'
 
-import { defaultConfig, TraceConfig } from '../trace-core/types/config'
+import type { TraceConfig } from '../trace-core/types/config'
+import { defaultConfig } from '../trace-core/types/config'
 
 export class NodeTracer {
   private static provider: NodeTracerProvider

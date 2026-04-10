@@ -4,7 +4,8 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { useAppDispatch } from '@renderer/store'
 import { setDefaultObsidianVault } from '@renderer/store/settings'
 import { Empty, Select, Spin } from 'antd'
-import { FC, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
@@ -50,7 +51,7 @@ const ObsidianSettings: FC = () => {
       }
     }
 
-    fetchVaults()
+    void fetchVaults()
   }, [dispatch, defaultObsidianVault, t])
 
   const handleChange = (value: string) => {

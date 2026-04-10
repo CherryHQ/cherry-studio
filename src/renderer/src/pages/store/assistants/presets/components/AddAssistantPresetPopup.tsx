@@ -1,5 +1,3 @@
-import 'emoji-picker-element'
-
 import { CheckOutlined, LoadingOutlined, RollbackOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import EmojiPicker from '@renderer/components/EmojiPicker'
@@ -11,9 +9,10 @@ import { fetchGenerate } from '@renderer/services/ApiService'
 import { getDefaultModel } from '@renderer/services/AssistantService'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import { useAppSelector } from '@renderer/store'
-import { AssistantPreset, KnowledgeBase } from '@renderer/types'
+import type { AssistantPreset, KnowledgeBase } from '@renderer/types'
 import { getLeadingEmoji, uuid } from '@renderer/utils'
-import { Button, Form, FormInstance, Input, Modal, Popover, Select, SelectProps } from 'antd'
+import type { FormInstance, SelectProps } from 'antd'
+import { Button, Form, Input, Modal, Popover, Select } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -57,16 +56,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   })
 
   useEffect(() => {
-    const updateTokenCount = async () => {
-      const prompt = formRef.current?.getFieldValue('prompt')
-      if (prompt) {
-        const count = await estimateTextTokens(prompt)
-        setTokenCount(count)
-      } else {
-        setTokenCount(0)
-      }
-    }
-    updateTokenCount()
+    const prompt = formRef.current?.getFieldValue('prompt')
+    setTokenCount(prompt ? estimateTextTokens(prompt) : 0)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.getFieldValue('prompt')])
 
@@ -127,7 +118,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     }
 
     if (content) {
-      navigator.clipboard.writeText(content)
+      void navigator.clipboard.writeText(content)
     }
 
     setLoading(true)
@@ -183,9 +174,9 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         colon={false}
         style={{ marginTop: 25 }}
         onFinish={onFinish}
-        onValuesChange={async (changedValues) => {
+        onValuesChange={(changedValues) => {
           if (changedValues.prompt) {
-            const count = await estimateTextTokens(changedValues.prompt)
+            const count = estimateTextTokens(changedValues.prompt)
             setTokenCount(count)
             setShowUndoButton(false)
           }

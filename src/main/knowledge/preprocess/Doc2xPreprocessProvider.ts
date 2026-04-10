@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { fileStorage } from '@main/services/FileStorage'
-import { FileMetadata, PreprocessProvider } from '@types'
+import type { FileMetadata, PreprocessProvider } from '@types'
 import AdmZip from 'adm-zip'
 import { net } from 'electron'
 
@@ -366,9 +366,5 @@ export default class Doc2xPreprocessProvider extends BasePreprocessProvider {
       logger.error(`Failed to download and extract file: ${error instanceof Error ? error.message : String(error)}`)
       throw new Error('Failed to download and extract file')
     }
-  }
-
-  public checkQuota(): Promise<number> {
-    throw new Error('Method not implemented.')
   }
 }

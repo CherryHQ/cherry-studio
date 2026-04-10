@@ -2,11 +2,11 @@ import ExpandableText from '@renderer/components/ExpandableText'
 import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
-import { getModelLogo } from '@renderer/config/models'
-import { isNewApiProvider } from '@renderer/config/providers'
+import { getModelLogoById } from '@renderer/config/models'
 import FileItem from '@renderer/pages/files/FileItem'
 import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiBatchAddModelPopup'
-import { Model, Provider } from '@renderer/types'
+import type { Model, Provider } from '@renderer/types'
+import { isNewApiProvider } from '@renderer/utils/provider'
 import { Button, Flex, Tooltip } from 'antd'
 import { Avatar } from 'antd'
 import { ChevronRight, Minus, Plus } from 'lucide-react'
@@ -33,12 +33,19 @@ type RowData = GroupRowData | ModelRowData
 
 interface ManageModelsListProps {
   modelGroups: Record<string, Model[]>
+  duplicateModelNames: Set<string>
   provider: Provider
   onAddModel: (model: Model) => void
   onRemoveModel: (model: Model) => void
 }
 
-const ManageModelsList: React.FC<ManageModelsListProps> = ({ modelGroups, provider, onAddModel, onRemoveModel }) => {
+const ManageModelsList: React.FC<ManageModelsListProps> = ({
+  modelGroups,
+  duplicateModelNames,
+  provider,
+  onAddModel,
+  onRemoveModel
+}) => {
   const { t } = useTranslation()
   const [collapsedGroups, setCollapsedGroups] = useState(new Set<string>())
 
@@ -96,7 +103,7 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({ modelGroups, provid
             if (wouldAddModels.every(isValidNewApiModel)) {
               wouldAddModels.forEach(onAddModel)
             } else {
-              NewApiBatchAddModelPopup.show({
+              void NewApiBatchAddModelPopup.show({
                 title: t('settings.models.add.batch_add_models'),
                 batchModels: wouldAddModels,
                 provider
@@ -170,6 +177,7 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({ modelGroups, provid
           <ModelListItem
             last={row.last}
             model={row.model}
+            showIdentifier={duplicateModelNames.has(row.model.name)}
             provider={provider}
             onAddModel={onAddModel}
             onRemoveModel={onRemoveModel}
@@ -183,37 +191,40 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({ modelGroups, provid
 // 模型列表项组件
 interface ModelListItemProps {
   model: Model
+  showIdentifier: boolean
   provider: Provider
   onAddModel: (model: Model) => void
   onRemoveModel: (model: Model) => void
   last?: boolean
 }
 
-const ModelListItem: React.FC<ModelListItemProps> = memo(({ model, provider, onAddModel, onRemoveModel, last }) => {
-  const isAdded = useMemo(() => isModelInProvider(provider, model.id), [provider, model.id])
-  return (
-    <ModelListItemContainer last={last}>
-      <FileItem
-        style={{
-          backgroundColor: isAdded ? 'rgba(0, 126, 0, 0.06)' : '',
-          border: 'none',
-          boxShadow: 'none'
-        }}
-        fileInfo={{
-          icon: <Avatar src={getModelLogo(model.id)}>{model?.name?.[0]?.toUpperCase()}</Avatar>,
-          name: <ModelIdWithTags model={model} />,
-          extra: model.description && <ExpandableText text={model.description} />,
-          ext: '.model',
-          actions: isAdded ? (
-            <Button type="text" onClick={() => onRemoveModel(model)} icon={<Minus size={16} />} />
-          ) : (
-            <Button type="text" onClick={() => onAddModel(model)} icon={<Plus size={16} />} />
-          )
-        }}
-      />
-    </ModelListItemContainer>
-  )
-})
+const ModelListItem: React.FC<ModelListItemProps> = memo(
+  ({ model, showIdentifier, provider, onAddModel, onRemoveModel, last }) => {
+    const isAdded = useMemo(() => isModelInProvider(provider, model.id), [provider, model.id])
+    return (
+      <ModelListItemContainer last={last}>
+        <FileItem
+          style={{
+            backgroundColor: isAdded ? 'rgba(0, 126, 0, 0.06)' : '',
+            border: 'none',
+            boxShadow: 'none'
+          }}
+          fileInfo={{
+            icon: <Avatar src={getModelLogoById(model.id)}>{model?.name?.[0]?.toUpperCase()}</Avatar>,
+            name: <ModelIdWithTags model={model} showIdentifier={showIdentifier} />,
+            extra: model.description && <ExpandableText text={model.description} />,
+            ext: '.model',
+            actions: isAdded ? (
+              <Button type="text" onClick={() => onRemoveModel(model)} icon={<Minus size={16} />} />
+            ) : (
+              <Button type="text" onClick={() => onAddModel(model)} icon={<Plus size={16} />} />
+            )
+          }}
+        />
+      </ModelListItemContainer>
+    )
+  }
+)
 
 const GroupHeader = styled.div<{ isCollapsed: boolean }>`
   display: flex;

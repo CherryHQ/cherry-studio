@@ -1,5 +1,5 @@
-import { Model } from '@types'
-import { z } from 'zod'
+import type { Model } from '@types'
+import * as z from 'zod'
 
 import { ProviderTypeSchema } from './provider'
 

@@ -1,11 +1,12 @@
 import { loggerService } from '@logger'
 import WebviewContainer from '@renderer/components/MinApp/WebviewContainer'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { MinAppType } from '@renderer/types'
+import type { MinAppType } from '@renderer/types'
 import { getWebviewLoaded, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import { Avatar } from 'antd'
-import { WebviewTag } from 'electron'
-import { FC, useCallback, useEffect, useRef, useState } from 'react'
+import type { WebviewTag } from 'electron'
+import type { FC } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import BeatLoader from 'react-spinners/BeatLoader'
 import styled from 'styled-components'
 
@@ -58,7 +59,7 @@ const MinAppFullPageView: FC<Props> = ({ app }) => {
       logger.debug(`WebView loaded for app: ${appId}`)
       const webviewId = webviewRef.current?.getWebContentsId()
       if (webviewId) {
-        window.api.webview.setOpenLinkExternal(webviewId, minappsOpenLinkExternal)
+        void window.api.webview.setOpenLinkExternal(webviewId, minappsOpenLinkExternal)
       }
 
       // Mark this WebView as loaded for future use in global state

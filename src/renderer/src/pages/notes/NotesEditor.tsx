@@ -1,17 +1,19 @@
 import ActionIconButton from '@renderer/components/Buttons/ActionIconButton'
+import type { CodeEditorHandles } from '@renderer/components/CodeEditor'
 import CodeEditor from '@renderer/components/CodeEditor'
 import { HSpaceBetweenStack } from '@renderer/components/Layout'
 import RichEditor from '@renderer/components/RichEditor'
-import { RichEditorRef } from '@renderer/components/RichEditor/types'
+import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import Selector from '@renderer/components/Selector'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useAppDispatch } from '@renderer/store'
 import { setEnableSpellCheck } from '@renderer/store/settings'
-import { EditorView } from '@renderer/types'
+import type { EditorView } from '@renderer/types'
 import { Empty, Tooltip } from 'antd'
 import { SpellCheck } from 'lucide-react'
-import { FC, memo, RefObject, useCallback, useMemo, useState } from 'react'
+import type { FC, RefObject } from 'react'
+import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -20,11 +22,12 @@ interface NotesEditorProps {
   currentContent: string
   tokenCount: number
   editorRef: RefObject<RichEditorRef | null>
+  codeEditorRef: RefObject<CodeEditorHandles | null>
   onMarkdownChange: (content: string) => void
 }
 
 const NotesEditor: FC<NotesEditorProps> = memo(
-  ({ activeNodeId, currentContent, tokenCount, onMarkdownChange, editorRef }) => {
+  ({ activeNodeId, currentContent, tokenCount, onMarkdownChange, editorRef, codeEditorRef }) => {
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
     const { settings } = useNotesSettings()
@@ -59,6 +62,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
           {tmpViewMode === 'source' ? (
             <SourceEditorWrapper isFullWidth={settings.isFullWidth} fontSize={settings.fontSize}>
               <CodeEditor
+                ref={codeEditorRef}
                 value={currentContent}
                 language="markdown"
                 onChange={onMarkdownChange}
@@ -75,7 +79,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
               key={`${activeNodeId}-${tmpViewMode === 'preview' ? 'preview' : 'read'}`}
               ref={editorRef}
               initialContent={currentContent}
-              onMarkdownChange={onMarkdownChange}
+              onMarkdownChange={tmpViewMode === 'preview' ? onMarkdownChange : undefined}
               onCommandsReady={handleCommandsReady}
               showToolbar={tmpViewMode === 'preview'}
               editable={tmpViewMode === 'preview'}
@@ -109,7 +113,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                     onClick={() => {
                       const newValue = !enableSpellCheck
                       dispatch(setEnableSpellCheck(newValue))
-                      window.api.setEnableSpellCheck(newValue)
+                      void window.api.setEnableSpellCheck(newValue)
                     }}>
                     <SpellCheck size={18} />
                   </ActionIconButton>

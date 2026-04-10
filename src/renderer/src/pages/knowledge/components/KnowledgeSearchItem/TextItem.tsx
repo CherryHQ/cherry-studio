@@ -1,6 +1,7 @@
-import { FileMetadata, KnowledgeSearchResult } from '@renderer/types'
+import type { FileMetadata, KnowledgeSearchResult } from '@renderer/types'
 import { Typography } from 'antd'
-import React, { FC } from 'react'
+import type { FC } from 'react'
+import React from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { CopyButtonContainer, KnowledgeItemMetadata } from './components'

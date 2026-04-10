@@ -1,7 +1,9 @@
 import { createServer } from 'node:http'
 
-import { agentService } from '../services/agents'
-import { loggerService } from '../services/LoggerService'
+import { loggerService } from '@logger'
+import { IpcChannel } from '@shared/IpcChannel'
+
+import { windowService } from '../services/WindowService'
 import { app } from './app'
 import { config } from './config'
 
@@ -15,18 +17,19 @@ export class ApiServer {
   private server: ReturnType<typeof createServer> | null = null
 
   async start(): Promise<void> {
-    if (this.server) {
+    if (this.server && this.server.listening) {
       logger.warn('Server already running')
       return
     }
 
+    // Clean up any failed server instance
+    if (this.server && !this.server.listening) {
+      logger.warn('Cleaning up failed server instance')
+      this.server = null
+    }
+
     // Load config
     const { port, host } = await config.load()
-
-    // Initialize AgentService
-    logger.info('Initializing AgentService')
-    await agentService.initialize()
-    logger.info('AgentService initialized')
 
     // Create server with Express app
     this.server = createServer(app)
@@ -36,10 +39,21 @@ export class ApiServer {
     return new Promise((resolve, reject) => {
       this.server!.listen(port, host, () => {
         logger.info('API server started', { host, port })
+
+        // Notify renderer that API server is ready
+        const mainWindow = windowService.getMainWindow()
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send(IpcChannel.ApiServer_Ready)
+        }
+
         resolve()
       })
 
-      this.server!.on('error', reject)
+      this.server!.on('error', (error) => {
+        // Clean up the server instance if listen fails
+        this.server = null
+        reject(error)
+      })
     })
   }
 

@@ -1,9 +1,10 @@
-import { Provider } from '@types'
-import OpenAI from 'openai'
-import { ChatCompletionCreateParams, ChatCompletionCreateParamsStreaming } from 'openai/resources'
+import OpenAI from '@cherrystudio/openai'
+import type { ChatCompletionCreateParams, ChatCompletionCreateParamsStreaming } from '@cherrystudio/openai/resources'
+import type { Provider } from '@types'
 
 import { loggerService } from '../../services/LoggerService'
-import { ModelValidationError, validateModelId } from '../utils'
+import type { ModelValidationError } from '../utils'
+import { validateModelId } from '../utils'
 
 const logger = loggerService.withContext('ChatCompletionService')
 
@@ -88,7 +89,7 @@ export class ChatCompletionService {
       }
     }
 
-    const providerContext = await this.resolveProviderContext(request.model!)
+    const providerContext = await this.resolveProviderContext(request.model)
     if (!providerContext.ok) {
       return {
         status: 'model_error',
@@ -127,26 +128,15 @@ export class ChatCompletionService {
   validateRequest(request: ChatCompletionCreateParams): ValidationResult {
     const errors: string[] = []
 
-    // Validate messages
+    // Only validate minimal structure required for routing.
+    // Detailed message validation is delegated to the upstream provider.
     if (!request.messages) {
       errors.push('Messages array is required')
     } else if (!Array.isArray(request.messages)) {
       errors.push('Messages must be an array')
     } else if (request.messages.length === 0) {
       errors.push('Messages array cannot be empty')
-    } else {
-      // Validate each message
-      request.messages.forEach((message, index) => {
-        if (!message.role) {
-          errors.push(`Message ${index}: role is required`)
-        }
-        if (!message.content) {
-          errors.push(`Message ${index}: content is required`)
-        }
-      })
     }
-
-    // Validate optional parameters
 
     return {
       isValid: errors.length === 0,

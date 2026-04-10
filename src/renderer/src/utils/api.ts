@@ -1,38 +1,105 @@
+import store from '@renderer/store'
+import type { VertexProvider } from '@renderer/types'
+import { formatApiHost, withoutTrailingSlash } from '@shared/utils'
+import { trim } from 'lodash'
+
+// Re-export from shared, for backward compatibility
+export {
+  formatApiHost,
+  formatApiKeys,
+  hasAPIVersion,
+  isWithTrailingSharp,
+  withoutTrailingSharp,
+  withoutTrailingSlash
+} from '@shared/utils/api'
+
+// Re-export from shared, for backward compatibility
+export { formatAzureOpenAIApiHost, formatOllamaApiHost } from '@shared/aiCore/provider/utils'
+
+// NOTE: Since #13194, it depends on the store state in renderer, so it cannot be moved to shared now.
+export function formatVertexApiHost(provider: VertexProvider): string {
+  const { apiHost } = provider
+  const { projectId: project, location } = store.getState().llm.settings.vertexai
+  const trimmedHost = withoutTrailingSlash(trim(apiHost))
+  if (!trimmedHost || trimmedHost.endsWith('aiplatform.googleapis.com')) {
+    const host =
+      location === 'global' ? 'https://aiplatform.googleapis.com' : `https://${location}-aiplatform.googleapis.com`
+    return `${formatApiHost(host)}/projects/${project}/locations/${location}`
+  }
+  return formatApiHost(trimmedHost)
+}
+
+// 目前对话界面只支持这些端点
+export const SUPPORTED_IMAGE_ENDPOINT_LIST = ['images/generations', 'images/edits', 'predict'] as const
+export const SUPPORTED_ENDPOINT_LIST = [
+  'chat/completions',
+  'responses',
+  'messages',
+  'generateContent',
+  'streamGenerateContent',
+  ...SUPPORTED_IMAGE_ENDPOINT_LIST
+] as const
+
 /**
- * 格式化 API key 字符串。
+ * Converts an API host URL into separate base URL and endpoint components.
  *
- * @param {string} value - 需要格式化的 API key 字符串。
- * @returns {string} 格式化后的 API key 字符串。
+ * @param apiHost - The API host string to parse. Expected to be a trimmed URL that may end with '#' followed by an endpoint identifier.
+ * @returns An object containing:
+ *   - `baseURL`: The base URL without the endpoint suffix
+ *   - `endpoint`: The matched endpoint identifier, or empty string if no match found
+ *
+ * @description
+ * This function extracts endpoint information from a composite API host string.
+ * If the host ends with '#', it attempts to match the preceding part against the supported endpoint list.
+ * The '#' delimiter is removed before processing.
+ *
+ * @example
+ * routeToEndpoint('https://api.example.com/openai/chat/completions#')
+ * // Returns: { baseURL: 'https://api.example.com/v1', endpoint: 'chat/completions' }
+ *
+ * @example
+ * routeToEndpoint('https://api.example.com/v1')
+ * // Returns: { baseURL: 'https://api.example.com/v1', endpoint: '' }
  */
-export function formatApiKeys(value: string): string {
-  return value.replaceAll('，', ',').replaceAll(' ', ',').replaceAll('\n', ',')
+export function routeToEndpoint(apiHost: string): { baseURL: string; endpoint: string } {
+  const trimmedHost = trim(apiHost)
+  // 前面已经确保apiHost合法
+  if (!trimmedHost.endsWith('#')) {
+    return { baseURL: trimmedHost, endpoint: '' }
+  }
+  // 去掉结尾的 #
+  const host = trimmedHost.slice(0, -1)
+  const endpointMatch = SUPPORTED_ENDPOINT_LIST.find((endpoint) => host.endsWith(endpoint))
+  if (!endpointMatch) {
+    const baseURL = withoutTrailingSlash(host)
+    return { baseURL, endpoint: '' }
+  }
+  const baseSegment = host.slice(0, host.length - endpointMatch.length)
+  const baseURL = withoutTrailingSlash(baseSegment).replace(/:$/, '') // 去掉结尾可能存在的冒号(gemini的特殊情况)
+  return { baseURL, endpoint: endpointMatch }
 }
 
 /**
- * 格式化 API 主机地址。
+ * 验证 API 主机地址是否合法。
  *
- * 根据传入的 host 判断是否需要在其末尾加 `/v1/`。
- * - 不加：host 以 `/` 结尾，或以 `volces.com/api/v3` 结尾。
- * - 要加：其余情况。
- *
- * @param {string} host - 需要格式化的 API 主机地址。
- * @param {string} apiVersion - 需要添加的 API 版本。
- * @returns {string} 格式化后的 API 主机地址。
+ * @param {string} apiHost - 需要验证的 API 主机地址。
+ * @returns {boolean} 如果是合法的 URL 则返回 true，否则返回 false。
  */
-export function formatApiHost(host: string, apiVersion: string = 'v1'): string {
-  if (!host) {
-    return ''
+export function validateApiHost(apiHost: string): boolean {
+  // 允许apiHost为空
+  if (!apiHost || !trim(apiHost)) {
+    return true
   }
-
-  const forceUseOriginalHost = () => {
-    if (host.endsWith('/')) {
-      return true
+  try {
+    const url = new URL(trim(apiHost))
+    // 验证协议是否为 http 或 https
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      return false
     }
-
-    return host.endsWith('volces.com/api/v3')
+    return true
+  } catch {
+    return false
   }
-
-  return forceUseOriginalHost() ? host : `${host}/${apiVersion}/`
 }
 
 /**

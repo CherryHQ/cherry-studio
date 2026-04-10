@@ -1,7 +1,9 @@
 import { loggerService } from '@logger'
-import { Attributes, convertSpanToSpanEntity, SpanEntity, TokenUsage, TraceCache } from '@mcp-trace/trace-core'
+import type { Attributes, SpanEntity, TokenUsage, TraceCache } from '@mcp-trace/trace-core'
+import { convertSpanToSpanEntity } from '@mcp-trace/trace-core'
 import { SpanStatusCode } from '@opentelemetry/api'
-import { ReadableSpan } from '@opentelemetry/sdk-trace-base'
+import type { ReadableSpan } from '@opentelemetry/sdk-trace-base'
+import { HOME_CHERRY_DIR } from '@shared/config/constant'
 import fs from 'fs/promises'
 import * as os from 'os'
 import * as path from 'path'
@@ -17,7 +19,7 @@ class SpanCacheService implements TraceCache {
   pri
 
   constructor() {
-    this.fileDir = path.join(os.homedir(), '.cherrystudio', 'trace')
+    this.fileDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'trace')
   }
 
   createSpan: (span: ReadableSpan) => void = (span: ReadableSpan) => {
@@ -60,30 +62,28 @@ class SpanCacheService implements TraceCache {
     await this._checkFolder(path.join(this.fileDir, topicId))
 
     if (modelName) {
-      this.cleanHistoryTrace(topicId, traceId || '', modelName)
-      this.saveSpans(topicId)
+      await this.cleanHistoryTrace(topicId, traceId || '', modelName)
+      await this.saveSpans(topicId)
     } else if (traceId) {
-      fs.rm(path.join(this.fileDir, topicId, traceId))
+      await fs.rm(path.join(this.fileDir, topicId, traceId))
     } else {
-      fs.readdir(path.join(this.fileDir, topicId)).then((files) =>
-        files.forEach((file) => {
-          fs.rm(path.join(this.fileDir, topicId, file))
-        })
-      )
+      const files = await fs.readdir(path.join(this.fileDir, topicId))
+      for (const file of files) {
+        await fs.rm(path.join(this.fileDir, topicId, file))
+      }
     }
   }
 
   async cleanLocalData() {
     this.cache.clear()
-    fs.readdir(this.fileDir)
-      .then((files) =>
-        files.forEach((topicId) => {
-          fs.rm(path.join(this.fileDir, topicId), { recursive: true, force: true })
-        })
-      )
-      .catch((err) => {
-        logger.error('Error cleaning local data:', err)
-      })
+    try {
+      const files = await fs.readdir(this.fileDir)
+      for (const topicId of files) {
+        await fs.rm(path.join(this.fileDir, topicId), { recursive: true, force: true })
+      }
+    } catch (err) {
+      logger.error('Error cleaning local data:', err as Error)
+    }
   }
 
   async saveSpans(topicId: string) {

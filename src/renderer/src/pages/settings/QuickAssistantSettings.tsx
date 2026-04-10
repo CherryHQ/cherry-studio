@@ -14,7 +14,8 @@ import {
 import { matchKeywordsInString } from '@renderer/utils'
 import HomeWindow from '@renderer/windows/mini/home/HomeWindow'
 import { Button, Select, Switch, Tooltip } from 'antd'
-import { FC, useMemo } from 'react'
+import type { FC } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -40,7 +41,7 @@ const QuickAssistantSettings: FC = () => {
     dispatch(setEnableQuickAssistant(enable))
     await window.api.config.set('enableQuickAssistant', enable, true)
 
-    !enable && window.api.miniWindow.close()
+    void (!enable && window.api.miniWindow.close())
 
     if (enable && !clickTrayToShowQuickAssistant) {
       window.toast.info({
@@ -64,7 +65,7 @@ const QuickAssistantSettings: FC = () => {
   const handleClickReadClipboardAtStartup = async (checked: boolean) => {
     dispatch(setReadClipboardAtStartup(checked))
     await window.api.config.set('readClipboardAtStartup', checked)
-    window.api.miniWindow.close()
+    void window.api.miniWindow.close()
   }
 
   return (

@@ -3,18 +3,18 @@ import { loggerService } from '@logger'
 import { HStack } from '@renderer/components/Layout'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
-import { NavbarIcon } from '@renderer/pages/home/ChatNavbar'
 import { getProviderName } from '@renderer/services/ProviderService'
-import { KnowledgeBase } from '@renderer/types'
+import type { KnowledgeBase } from '@renderer/types'
 import { Button, Empty, Tabs, Tag, Tooltip } from 'antd'
 import { Book, Folder, Globe, Link, Notebook, Search, Settings, Video } from 'lucide-react'
-import { FC, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import NavbarIcon from '../../components/NavbarIcon'
 import EditKnowledgeBasePopup from './components/EditKnowledgeBasePopup'
 import KnowledgeSearchPopup from './components/KnowledgeSearchPopup'
-import QuotaTag from './components/QuotaTag'
 import KnowledgeDirectories from './items/KnowledgeDirectories'
 import KnowledgeFiles from './items/KnowledgeFiles'
 import KnowledgeNotes from './items/KnowledgeNotes'
@@ -33,7 +33,6 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     selectedBase.id || ''
   )
   const [activeKey, setActiveKey] = useState('files')
-  const [quota, setQuota] = useState<number | undefined>(undefined)
   const [progressMap, setProgressMap] = useState<Map<string, number>>(new Map())
   const [preprocessMap, setPreprocessMap] = useState<Map<string, boolean>>(new Map())
 
@@ -41,11 +40,8 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
 
   useEffect(() => {
     const handlers = [
-      window.electron.ipcRenderer.on('file-preprocess-finished', (_, { itemId, quota }) => {
+      window.electron.ipcRenderer.on('file-preprocess-finished', (_, { itemId }) => {
         setPreprocessMap((prev) => new Map(prev).set(itemId, true))
-        if (quota) {
-          setQuota(quota)
-        }
       }),
 
       window.electron.ipcRenderer.on('file-preprocess-progress', (_, { itemId, progress }) => {
@@ -159,9 +155,6 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
               </div>
             </Tooltip>
             {base.rerankModel && <Tag style={{ borderRadius: 20, margin: 0 }}>{base.rerankModel.name}</Tag>}
-            {base.preprocessProvider && base.preprocessProvider.type === 'preprocess' && (
-              <QuotaTag base={base} providerId={base.preprocessProvider?.provider.id} quota={quota} />
-            )}
           </div>
         </ModelInfo>
         <HStack gap={8} alignItems="center">

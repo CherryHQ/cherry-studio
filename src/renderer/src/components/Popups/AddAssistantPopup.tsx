@@ -5,9 +5,10 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { useSystemAssistantPresets } from '@renderer/pages/store/assistants/presets'
 import { createAssistantFromAgent } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { Assistant, AssistantPreset } from '@renderer/types'
+import type { Assistant, AssistantPreset } from '@renderer/types'
 import { uuid } from '@renderer/utils'
-import { Divider, Input, InputRef, Modal, Tag } from 'antd'
+import type { InputRef } from 'antd'
+import { Divider, Input, Modal, Tag } from 'antd'
 import { take } from 'lodash'
 import { Search } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -109,12 +110,12 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           // 如果焦点在输入框且有搜索内容，则默认选择第一项
           if (document.activeElement === inputRef.current?.input && searchText.trim()) {
             e.preventDefault()
-            onCreateAssistant(displayedPresets[selectedIndex])
+            void onCreateAssistant(displayedPresets[selectedIndex])
           }
           // 否则选择当前选中项
           else if (selectedIndex >= 0 && selectedIndex < displayedPresets.length) {
             e.preventDefault()
-            onCreateAssistant(displayedPresets[selectedIndex])
+            void onCreateAssistant(displayedPresets[selectedIndex])
           }
           break
       }

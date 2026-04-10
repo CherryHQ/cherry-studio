@@ -1,4 +1,5 @@
-import { Tooltip, TooltipProps } from 'antd'
+import type { TooltipProps } from 'antd'
+import { Tooltip } from 'antd'
 import { HelpCircle } from 'lucide-react'
 
 type InheritedTooltipProps = Omit<TooltipProps, 'children'>

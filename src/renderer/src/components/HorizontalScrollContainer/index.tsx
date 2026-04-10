@@ -1,5 +1,5 @@
-import { cn } from '@heroui/react'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { cn } from '@renderer/utils'
 import { ChevronRight } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'

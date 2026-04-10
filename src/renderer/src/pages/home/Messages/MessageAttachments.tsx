@@ -4,7 +4,7 @@ import type { FileMessageBlock } from '@renderer/types/newMessage'
 import { parseFileTypes } from '@renderer/utils'
 import { Upload } from 'antd'
 import { t } from 'i18next'
-import { FC } from 'react'
+import type { FC } from 'react'
 import styled from 'styled-components'
 
 interface Props {
@@ -56,7 +56,7 @@ const MessageAttachments: FC<Props> = ({ block }) => {
           if (path.startsWith('file://')) {
             path = path.replace('file://', '')
           }
-          preview(path, file.name, fileType, file.preview)
+          void preview(path, file.name, fileType, file.preview)
         }}
       />
     </Container>

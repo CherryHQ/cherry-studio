@@ -1,34 +1,50 @@
 import { loggerService } from '@logger'
 import { formatAgentServerError } from '@renderer/utils/error'
-import {
+import type {
   AddAgentForm,
-  AgentServerErrorSchema,
   ApiModelsFilter,
   ApiModelsResponse,
-  ApiModelsResponseSchema,
   CreateAgentRequest,
   CreateAgentResponse,
-  CreateAgentResponseSchema,
+  CreateAgentSessionResponse,
   CreateSessionForm,
   CreateSessionRequest,
   GetAgentResponse,
-  GetAgentResponseSchema,
   GetAgentSessionResponse,
-  GetAgentSessionResponseSchema,
   ListAgentSessionsResponse,
-  ListAgentSessionsResponseSchema,
-  type ListAgentsResponse,
-  ListAgentsResponseSchema,
-  objectEntries,
-  objectKeys,
+  ListOptions,
   UpdateAgentForm,
   UpdateAgentRequest,
   UpdateAgentResponse,
-  UpdateAgentResponseSchema,
   UpdateSessionForm,
   UpdateSessionRequest
 } from '@types'
-import axios, { Axios, AxiosRequestConfig, isAxiosError } from 'axios'
+import type {
+  CreateTaskRequest,
+  ListTaskLogsResponse,
+  ListTasksResponse,
+  ScheduledTaskEntity,
+  UpdateTaskRequest
+} from '@types'
+import {
+  AgentServerErrorSchema,
+  ApiModelsResponseSchema,
+  CreateAgentResponseSchema,
+  CreateAgentSessionResponseSchema,
+  GetAgentResponseSchema,
+  GetAgentSessionResponseSchema,
+  ListAgentSessionsResponseSchema,
+  type ListAgentsResponse,
+  ListAgentsResponseSchema,
+  ListTaskLogsResponseSchema,
+  ListTasksResponseSchema,
+  objectEntries,
+  objectKeys,
+  ScheduledTaskEntitySchema,
+  UpdateAgentResponseSchema
+} from '@types'
+import type { Axios, AxiosRequestConfig } from 'axios'
+import axios, { isAxiosError } from 'axios'
 import { ZodError } from 'zod'
 
 type ApiVersion = 'v1'
@@ -48,6 +64,8 @@ const processError = (error: unknown, fallbackMessage: string) => {
   }
   return new Error(fallbackMessage, { cause: error })
 }
+
+export const DEFAULT_SESSION_PAGE_SIZE = 20
 
 export class AgentApiClient {
   private axios: Axios
@@ -80,6 +98,18 @@ export class AgentApiClient {
     withId: (id: number) => `/${this.apiVersion}/agents/${agentId}/sessions/${sessionId}/messages/${id}`
   })
 
+  public channelPaths = {
+    base: `/${this.apiVersion}/channels`,
+    withId: (id: string) => `/${this.apiVersion}/channels/${id}`
+  }
+
+  public taskPaths = {
+    base: `/${this.apiVersion}/tasks`,
+    withId: (taskId: string) => `/${this.apiVersion}/tasks/${taskId}`,
+    run: (taskId: string) => `/${this.apiVersion}/tasks/${taskId}/run`,
+    logs: (taskId: string) => `/${this.apiVersion}/tasks/${taskId}/logs`
+  }
+
   public getModelsPath = (props?: ApiModelsFilter) => {
     const base = `/${this.apiVersion}/models`
     if (!props) return base
@@ -93,10 +123,28 @@ export class AgentApiClient {
     }
   }
 
-  public async listAgents(): Promise<ListAgentsResponse> {
+  public async reorderAgents(orderedIds: string[]): Promise<void> {
+    const url = `${this.agentPaths.base}/reorder`
+    try {
+      await this.axios.put(url, { ordered_ids: orderedIds })
+    } catch (error) {
+      throw processError(error, 'Failed to reorder agents.')
+    }
+  }
+
+  public async listAgents(options?: ListOptions): Promise<ListAgentsResponse> {
     const url = this.agentPaths.base
     try {
-      const response = await this.axios.get(url)
+      const params = new URLSearchParams()
+      if (options?.limit !== undefined) params.append('limit', String(options.limit))
+      if (options?.offset !== undefined) params.append('offset', String(options.offset))
+      if (options?.sortBy) params.append('sortBy', options.sortBy)
+      if (options?.orderBy) params.append('orderBy', options.orderBy)
+
+      const queryString = params.toString()
+      const fullUrl = queryString ? `${url}?${queryString}` : url
+
+      const response = await this.axios.get(fullUrl)
       const result = ListAgentsResponseSchema.safeParse(response.data)
       if (!result.success) {
         throw new Error('Not a valid Agents array.')
@@ -157,10 +205,19 @@ export class AgentApiClient {
     }
   }
 
-  public async listSessions(agentId: string): Promise<ListAgentSessionsResponse> {
+  public async reorderSessions(agentId: string, orderedIds: string[]): Promise<void> {
+    const url = `${this.getSessionPaths(agentId).base}/reorder`
+    try {
+      await this.axios.put(url, { ordered_ids: orderedIds })
+    } catch (error) {
+      throw processError(error, 'Failed to reorder sessions.')
+    }
+  }
+
+  public async listSessions(agentId: string, options?: ListOptions): Promise<ListAgentSessionsResponse> {
     const url = this.getSessionPaths(agentId).base
     try {
-      const response = await this.axios.get(url)
+      const response = await this.axios.get(url, { params: options })
       const result = ListAgentSessionsResponseSchema.safeParse(response.data)
       if (!result.success) {
         throw new Error('Not a valid Sessions array.')
@@ -171,12 +228,12 @@ export class AgentApiClient {
     }
   }
 
-  public async createSession(agentId: string, session: CreateSessionForm): Promise<GetAgentSessionResponse> {
+  public async createSession(agentId: string, session: CreateSessionForm): Promise<CreateAgentSessionResponse> {
     const url = this.getSessionPaths(agentId).base
     try {
       const payload = session satisfies CreateSessionRequest
       const response = await this.axios.post(url, payload)
-      const data = GetAgentSessionResponseSchema.parse(response.data)
+      const data = CreateAgentSessionResponseSchema.parse(response.data)
       return data
     } catch (error) {
       throw processError(error, 'Failed to add session.')
@@ -240,6 +297,128 @@ export class AgentApiClient {
       return data
     } catch (error) {
       throw processError(error, 'Failed to get models.')
+    }
+  }
+
+  // --- Task CRUD ---
+
+  public async listTasks(options?: ListOptions): Promise<ListTasksResponse> {
+    const url = this.taskPaths.base
+    try {
+      const response = await this.axios.get(url, { params: options })
+      const result = ListTasksResponseSchema.safeParse(response.data)
+      if (!result.success) {
+        throw new Error('Not a valid Tasks response.')
+      }
+      return result.data
+    } catch (error) {
+      throw processError(error, 'Failed to list tasks.')
+    }
+  }
+
+  public async createTask(agentId: string, task: CreateTaskRequest): Promise<ScheduledTaskEntity> {
+    const url = this.taskPaths.base
+    try {
+      const response = await this.axios.post(url, { agent_id: agentId, ...task })
+      const data = ScheduledTaskEntitySchema.parse(response.data)
+      return data
+    } catch (error) {
+      throw processError(error, 'Failed to create task.')
+    }
+  }
+
+  public async getTask(taskId: string): Promise<ScheduledTaskEntity> {
+    const url = this.taskPaths.withId(taskId)
+    try {
+      const response = await this.axios.get(url)
+      const data = ScheduledTaskEntitySchema.parse(response.data)
+      return data
+    } catch (error) {
+      throw processError(error, 'Failed to get task.')
+    }
+  }
+
+  public async updateTask(taskId: string, updates: UpdateTaskRequest): Promise<ScheduledTaskEntity> {
+    const url = this.taskPaths.withId(taskId)
+    try {
+      const response = await this.axios.patch(url, updates)
+      const data = ScheduledTaskEntitySchema.parse(response.data)
+      return data
+    } catch (error) {
+      throw processError(error, 'Failed to update task.')
+    }
+  }
+
+  public async deleteTask(taskId: string): Promise<void> {
+    const url = this.taskPaths.withId(taskId)
+    try {
+      await this.axios.delete(url)
+    } catch (error) {
+      throw processError(error, 'Failed to delete task.')
+    }
+  }
+
+  public async runTask(taskId: string): Promise<void> {
+    const url = this.taskPaths.run(taskId)
+    try {
+      await this.axios.post(url)
+    } catch (error) {
+      throw processError(error, 'Failed to run task.')
+    }
+  }
+
+  // --- Channel CRUD ---
+
+  public async listChannels(filters?: { agent_id?: string; type?: string }): Promise<{ data: any[]; total: number }> {
+    const url = this.channelPaths.base
+    try {
+      const response = await this.axios.get(url, { params: filters })
+      return response.data
+    } catch (error) {
+      throw processError(error, 'Failed to list channels.')
+    }
+  }
+
+  public async createChannel(data: Record<string, unknown>): Promise<any> {
+    const url = this.channelPaths.base
+    try {
+      const response = await this.axios.post(url, data)
+      return response.data
+    } catch (error) {
+      throw processError(error, 'Failed to create channel.')
+    }
+  }
+
+  public async updateChannel(id: string, data: Record<string, unknown>): Promise<any> {
+    const url = this.channelPaths.withId(id)
+    try {
+      const response = await this.axios.patch(url, data)
+      return response.data
+    } catch (error) {
+      throw processError(error, 'Failed to update channel.')
+    }
+  }
+
+  public async deleteChannel(id: string): Promise<void> {
+    const url = this.channelPaths.withId(id)
+    try {
+      await this.axios.delete(url)
+    } catch (error) {
+      throw processError(error, 'Failed to delete channel.')
+    }
+  }
+
+  public async getTaskLogs(taskId: string, options?: ListOptions): Promise<ListTaskLogsResponse> {
+    const url = this.taskPaths.logs(taskId)
+    try {
+      const response = await this.axios.get(url, { params: options })
+      const result = ListTaskLogsResponseSchema.safeParse(response.data)
+      if (!result.success) {
+        throw new Error('Not a valid TaskLogs response.')
+      }
+      return result.data
+    } catch (error) {
+      throw processError(error, 'Failed to get task logs.')
     }
   }
 }

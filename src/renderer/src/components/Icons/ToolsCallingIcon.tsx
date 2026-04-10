@@ -1,6 +1,7 @@
 import { ToolOutlined } from '@ant-design/icons'
 import { Tooltip } from 'antd'
-import React, { FC } from 'react'
+import type { FC } from 'react'
+import React from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 

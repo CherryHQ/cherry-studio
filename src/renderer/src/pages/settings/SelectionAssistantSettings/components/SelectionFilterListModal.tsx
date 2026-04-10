@@ -1,6 +1,7 @@
 import { isWin } from '@renderer/config/constant'
 import { Button, Form, Input, Modal } from 'antd'
-import { FC, useEffect } from 'react'
+import type { FC } from 'react'
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -30,7 +31,7 @@ const SelectionFilterListModal: FC<SelectionFilterListModalProps> = ({ open, onC
         .trim()
         .toLowerCase()
         .split('\n')
-        .map((line: string) => line.trim().slice(0, 32))
+        .map((line: string) => line.trim())
         .filter((line: string) => line.length > 0)
       onSave([...new Set(newList)])
       onClose()

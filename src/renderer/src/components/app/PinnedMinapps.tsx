@@ -3,10 +3,11 @@ import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
-import { MinAppType } from '@renderer/types'
+import type { MinAppType } from '@renderer/types'
 import type { MenuProps } from 'antd'
 import { Dropdown, Tooltip } from 'antd'
-import { FC, useEffect } from 'react'
+import type { FC } from 'react'
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -119,8 +120,7 @@ export const SidebarPinnedApps: FC = () => {
             key: 'togglePin',
             label: isTopNavbar ? t('minapp.remove_from_launchpad') : t('minapp.remove_from_sidebar'),
             onClick: () => {
-              const newPinned = pinned.filter((item) => item.id !== app.id)
-              updatePinnedMinapps(newPinned)
+              updatePinnedMinapps(pinned.filter((item) => item.id !== app.id))
             }
           }
         ]

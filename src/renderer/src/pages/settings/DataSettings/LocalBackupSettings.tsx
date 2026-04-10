@@ -15,7 +15,7 @@ import {
   setLocalBackupSkipBackupFile as _setLocalBackupSkipBackupFile,
   setLocalBackupSyncInterval as _setLocalBackupSyncInterval
 } from '@renderer/store/settings'
-import { AppInfo } from '@renderer/types'
+import type { AppInfo } from '@renderer/types'
 import { Button, Input, Switch, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { useEffect, useState } from 'react'
@@ -46,12 +46,12 @@ const LocalBackupSettings: React.FC = () => {
   const [appInfo, setAppInfo] = useState<AppInfo>()
 
   useEffect(() => {
-    window.api.getAppInfo().then(setAppInfo)
+    void window.api.getAppInfo().then(setAppInfo)
   }, [])
 
   useEffect(() => {
     if (localBackupDirSetting) {
-      window.api.resolvePath(localBackupDirSetting).then(setResolvedLocalBackupDir)
+      void window.api.resolvePath(localBackupDirSetting).then(setResolvedLocalBackupDir)
     }
   }, [localBackupDirSetting])
 

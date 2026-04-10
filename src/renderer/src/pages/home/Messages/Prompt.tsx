@@ -1,9 +1,10 @@
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
-import { Assistant, Topic } from '@renderer/types'
+import type { Assistant, Topic } from '@renderer/types'
 import { containsSupportedVariables } from '@renderer/utils/prompt'
-import { FC, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -62,7 +63,10 @@ const Prompt: FC<Props> = ({ assistant, topic }) => {
   }
 
   return (
-    <Container className="system-prompt" onClick={() => AssistantSettingsPopup.show({ assistant })} $isDark={isDark}>
+    <Container
+      className="system-prompt"
+      onClick={() => AssistantSettingsPopup.show({ assistant, tab: 'prompt' })}
+      $isDark={isDark}>
       <Text $isVisible={isVisible}>{displayText}</Text>
     </Container>
   )

@@ -4,7 +4,7 @@ import { EventEmitter } from '@renderer/services/EventService'
 import { EVENT_NAMES } from '@renderer/services/EventService'
 import { ThemeMode } from '@renderer/types'
 import { Button as AntdButton } from 'antd'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -13,7 +13,7 @@ const NewTopicButton: FC = () => {
   const { theme } = useTheme()
 
   const addNewTopic = () => {
-    EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)
+    void EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)
   }
 
   return (

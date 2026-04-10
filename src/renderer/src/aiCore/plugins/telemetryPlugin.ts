@@ -6,12 +6,15 @@
  * 集成 AiSdkSpanAdapter 将 AI SDK trace 数据转换为现有格式
  */
 
-import { definePlugin } from '@cherrystudio/ai-core'
+import type { AiPlugin } from '@cherrystudio/ai-core'
+import { definePlugin, type StreamTextParams, type StreamTextResult } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
-import { Context, context as otelContext, Span, SpanContext, trace, Tracer } from '@opentelemetry/api'
+import type { Context, Span, SpanContext, Tracer } from '@opentelemetry/api'
+import { context as otelContext, trace } from '@opentelemetry/api'
 import { currentSpan } from '@renderer/services/SpanManagerService'
 import { webTraceService } from '@renderer/services/WebTraceService'
-import { Assistant } from '@renderer/types'
+import type { Assistant } from '@renderer/types'
+import type { TelemetrySettings } from 'ai'
 
 import { AiSdkSpanAdapter } from '../trace/AiSdkSpanAdapter'
 
@@ -49,7 +52,7 @@ class AdapterTracer {
       this.cachedParentContext = undefined
     }
 
-    logger.info('AdapterTracer created with parent context info', {
+    logger.debug('AdapterTracer created with parent context info', {
       topicId,
       modelName,
       parentTraceId: this.parentSpanContext?.traceId,
@@ -58,11 +61,112 @@ class AdapterTracer {
     })
   }
 
+  startSpan(name: string, options?: any, context?: any): Span {
+    logger.debug('AdapterTracer.startSpan called', {
+      spanName: name,
+      topicId: this.topicId,
+      modelName: this.modelName
+    })
+
+    // 创建包含父 SpanContext 的上下文（如果有的话）
+    const createContextWithParent = () => {
+      if (this.cachedParentContext) {
+        return this.cachedParentContext
+      }
+      if (this.parentSpanContext) {
+        try {
+          const ctx = trace.setSpanContext(otelContext.active(), this.parentSpanContext)
+          logger.debug('Created active context with parent SpanContext for startSpan', {
+            spanName: name,
+            parentTraceId: this.parentSpanContext.traceId,
+            parentSpanId: this.parentSpanContext.spanId,
+            topicId: this.topicId
+          })
+          return ctx
+        } catch (error) {
+          logger.warn('Failed to create context with parent SpanContext in startSpan', error as Error)
+        }
+      }
+      return otelContext.active()
+    }
+
+    const ctx = context ?? createContextWithParent()
+    const span = this.originalTracer.startSpan(name, options, ctx)
+
+    // 注入父子关系属性（兜底重建层级用）
+    try {
+      if (this.parentSpanContext) {
+        span.setAttribute('trace.parentSpanId', this.parentSpanContext.spanId)
+        span.setAttribute('trace.parentTraceId', this.parentSpanContext.traceId)
+      }
+      if (this.topicId) {
+        span.setAttribute('trace.topicId', this.topicId)
+      }
+    } catch (e) {
+      logger.debug('Failed to set trace parent attributes in startSpan', e as Error)
+    }
+
+    // 包装span的end方法
+    const originalEnd = span.end.bind(span)
+    span.end = (endTime?: any) => {
+      logger.debug('AI SDK span.end() called in startSpan - about to convert span', {
+        spanName: name,
+        spanId: span.spanContext().spanId,
+        traceId: span.spanContext().traceId,
+        topicId: this.topicId,
+        modelName: this.modelName
+      })
+
+      // 调用原始 end 方法
+      originalEnd(endTime)
+
+      // 转换并保存 span 数据
+      try {
+        logger.debug('Converting AI SDK span to SpanEntity (from startSpan)', {
+          spanName: name,
+          spanId: span.spanContext().spanId,
+          traceId: span.spanContext().traceId,
+          topicId: this.topicId,
+          modelName: this.modelName
+        })
+        logger.silly('span', span)
+        const spanEntity = AiSdkSpanAdapter.convertToSpanEntity({
+          span,
+          topicId: this.topicId,
+          modelName: this.modelName
+        })
+
+        // 保存转换后的数据
+        void window.api.trace.saveEntity(spanEntity)
+
+        logger.debug('AI SDK span converted and saved successfully (from startSpan)', {
+          spanName: name,
+          spanId: span.spanContext().spanId,
+          traceId: span.spanContext().traceId,
+          topicId: this.topicId,
+          modelName: this.modelName,
+          hasUsage: !!spanEntity.usage,
+          usage: spanEntity.usage
+        })
+      } catch (error) {
+        logger.error('Failed to convert AI SDK span (from startSpan)', error as Error, {
+          spanName: name,
+          spanId: span.spanContext().spanId,
+          traceId: span.spanContext().traceId,
+          topicId: this.topicId,
+          modelName: this.modelName
+        })
+      }
+    }
+
+    return span
+  }
+
   startActiveSpan<F extends (span: Span) => any>(name: string, fn: F): ReturnType<F>
   startActiveSpan<F extends (span: Span) => any>(name: string, options: any, fn: F): ReturnType<F>
   startActiveSpan<F extends (span: Span) => any>(name: string, options: any, context: any, fn: F): ReturnType<F>
   startActiveSpan<F extends (span: Span) => any>(name: string, arg2?: any, arg3?: any, arg4?: any): ReturnType<F> {
-    logger.info('AdapterTracer.startActiveSpan called', {
+    logger.debug('AdapterTracer.startActiveSpan called', {
       spanName: name,
       topicId: this.topicId,
       modelName: this.modelName,
@@ -88,7 +192,7 @@ class AdapterTracer {
         // 包装span的end方法
         const originalEnd = span.end.bind(span)
         span.end = (endTime?: any) => {
-          logger.info('AI SDK span.end() called in startActiveSpan - about to convert span', {
+          logger.debug('AI SDK span.end() called in startActiveSpan - about to convert span', {
             spanName: name,
             spanId: span.spanContext().spanId,
             traceId: span.spanContext().traceId,
@@ -101,14 +205,14 @@ class AdapterTracer {
 
           // 转换并保存 span 数据
           try {
-            logger.info('Converting AI SDK span to SpanEntity (from startActiveSpan)', {
+            logger.debug('Converting AI SDK span to SpanEntity (from startActiveSpan)', {
               spanName: name,
               spanId: span.spanContext().spanId,
               traceId: span.spanContext().traceId,
               topicId: this.topicId,
               modelName: this.modelName
             })
-            logger.info('span', span)
+            logger.silly('span', span)
             const spanEntity = AiSdkSpanAdapter.convertToSpanEntity({
               span,
               topicId: this.topicId,
@@ -116,9 +220,9 @@ class AdapterTracer {
             })
 
             // 保存转换后的数据
-            window.api.trace.saveEntity(spanEntity)
+            void window.api.trace.saveEntity(spanEntity)
 
-            logger.info('AI SDK span converted and saved successfully (from startActiveSpan)', {
+            logger.debug('AI SDK span converted and saved successfully (from startActiveSpan)', {
               spanName: name,
               spanId: span.spanContext().spanId,
               traceId: span.spanContext().traceId,
@@ -151,7 +255,7 @@ class AdapterTracer {
       if (this.parentSpanContext) {
         try {
           const ctx = trace.setSpanContext(otelContext.active(), this.parentSpanContext)
-          logger.info('Created active context with parent SpanContext for startActiveSpan', {
+          logger.debug('Created active context with parent SpanContext for startActiveSpan', {
             spanName: name,
             parentTraceId: this.parentSpanContext.traceId,
             parentSpanId: this.parentSpanContext.spanId,
@@ -186,10 +290,10 @@ class AdapterTracer {
   }
 }
 
-export function createTelemetryPlugin(config: TelemetryPluginConfig) {
+export function createTelemetryPlugin(config: TelemetryPluginConfig): AiPlugin<StreamTextParams, StreamTextResult> {
   const { enabled = true, recordInputs = true, recordOutputs = true, topicId } = config
 
-  return definePlugin({
+  return definePlugin<StreamTextParams, StreamTextResult>({
     name: 'telemetryPlugin',
     enforce: 'pre', // 在其他插件之前执行，确保 telemetry 配置被正确注入
 
@@ -218,7 +322,7 @@ export function createTelemetryPlugin(config: TelemetryPluginConfig) {
       if (effectiveTopicId) {
         try {
           // 从 SpanManagerService 获取当前的 span
-          logger.info('Attempting to find parent span', {
+          logger.debug('Attempting to find parent span', {
             topicId: effectiveTopicId,
             requestId: context.requestId,
             modelName: modelName,
@@ -230,7 +334,7 @@ export function createTelemetryPlugin(config: TelemetryPluginConfig) {
           if (parentSpan) {
             // 直接使用父 span 的 SpanContext，避免手动拼装字段遗漏
             parentSpanContext = parentSpan.spanContext()
-            logger.info('Found active parent span for AI SDK', {
+            logger.debug('Found active parent span for AI SDK', {
               parentSpanId: parentSpanContext.spanId,
               parentTraceId: parentSpanContext.traceId,
               topicId: effectiveTopicId,
@@ -274,7 +378,7 @@ export function createTelemetryPlugin(config: TelemetryPluginConfig) {
         isEnabled: true,
         recordInputs,
         recordOutputs,
-        tracer: adapterTracer, // 使用包装后的 tracer
+        tracer: adapterTracer,
         functionId: `ai-request-${context.requestId}`,
         metadata: {
           providerId: context.providerId,
@@ -285,11 +389,11 @@ export function createTelemetryPlugin(config: TelemetryPluginConfig) {
           // 确保topicId也作为标准属性传递
           'trace.topicId': effectiveTopicId,
           'trace.modelName': modelName,
-          // 添加父span信息用于调试
-          parentSpanId: parentSpanContext?.spanId,
-          parentTraceId: parentSpanContext?.traceId
+          // 添加父span信息用于调试（只在有值时添加）
+          ...(parentSpanContext?.spanId && { parentSpanId: parentSpanContext.spanId }),
+          ...(parentSpanContext?.traceId && { parentTraceId: parentSpanContext.traceId })
         }
-      }
+      } satisfies TelemetrySettings
 
       // 如果有父span，尝试在telemetry配置中设置父上下文
       if (parentSpan) {
@@ -302,7 +406,7 @@ export function createTelemetryPlugin(config: TelemetryPluginConfig) {
             logger.debug('Updated active context with parent span')
           })
 
-          logger.info('Set parent context for AI SDK spans', {
+          logger.debug('Set parent context for AI SDK spans', {
             parentSpanId: parentSpanContext?.spanId,
             parentTraceId: parentSpanContext?.traceId,
             hasActiveContext: !!activeContext,
@@ -313,7 +417,7 @@ export function createTelemetryPlugin(config: TelemetryPluginConfig) {
         }
       }
 
-      logger.info('Injecting AI SDK telemetry config with adapter', {
+      logger.debug('Injecting AI SDK telemetry config with adapter', {
         requestId: context.requestId,
         topicId: effectiveTopicId,
         modelId: context.modelId,

@@ -1,17 +1,28 @@
-import { AccordionItem } from '@heroui/react'
-import { Globe } from 'lucide-react'
+import type { CollapseProps } from 'antd'
 
-import { ToolTitle } from './GenericTools'
-import type { WebFetchToolInput, WebFetchToolOutput } from './types'
+import { truncateOutput } from '../shared/truncateOutput'
+import { ToolHeader, TruncatedIndicator } from './GenericTools'
+import { AgentToolsType, type WebFetchToolInput, type WebFetchToolOutput } from './types'
 
-export function WebFetchTool({ input, output }: { input: WebFetchToolInput; output?: WebFetchToolOutput }) {
-  return (
-    <AccordionItem
-      key="tool"
-      aria-label="Web Fetch Tool"
-      title={<ToolTitle icon={<Globe className="h-4 w-4" />} label="Web Fetch" params={input.url} />}
-      subtitle={input.prompt}>
-      {output}
-    </AccordionItem>
-  )
+export function WebFetchTool({
+  input,
+  output
+}: {
+  input?: WebFetchToolInput
+  output?: WebFetchToolOutput
+}): NonNullable<CollapseProps['items']>[number] {
+  const { data: truncatedOutput, isTruncated, originalLength } = truncateOutput(output)
+
+  return {
+    key: AgentToolsType.WebFetch,
+    label: (
+      <ToolHeader toolName={AgentToolsType.WebFetch} params={input?.url} variant="collapse-label" showStatus={false} />
+    ),
+    children: (
+      <div>
+        <div>{truncatedOutput}</div>
+        {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
+      </div>
+    )
+  }
 }

@@ -4,12 +4,13 @@ import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import FileItem from '@renderer/pages/files/FileItem'
 import { getProviderName } from '@renderer/services/ProviderService'
-import { KnowledgeBase, KnowledgeItem } from '@renderer/types'
+import type { KnowledgeBase, KnowledgeItem } from '@renderer/types'
 import { isMarkdownContent, markdownToPreviewText } from '@renderer/utils/markdownConverter'
 import { Button } from 'antd'
 import dayjs from 'dayjs'
 import { PlusIcon } from 'lucide-react'
-import { FC, useCallback, useMemo } from 'react'
+import type { FC } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -85,7 +86,7 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           icon={<PlusIcon size={16} />}
           onClick={(e) => {
             e.stopPropagation()
-            handleAddNote()
+            void handleAddNote()
           }}
           disabled={disabled}>
           {t('knowledge.add_note')}

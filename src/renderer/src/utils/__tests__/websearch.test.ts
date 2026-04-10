@@ -1,4 +1,4 @@
-import { KnowledgeReference, WebSearchProviderResult } from '@renderer/types'
+import type { KnowledgeReference, WebSearchProviderResult } from '@renderer/types'
 import { describe, expect, it } from 'vitest'
 
 import { consolidateReferencesByUrl, selectReferences } from '../websearch'

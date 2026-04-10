@@ -1,9 +1,10 @@
-import { AccordionItem } from '@heroui/react'
-import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
+import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
+import type { CollapseProps } from 'antd'
 import { Wrench } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
-import { ToolTitle } from './GenericTools'
+import { ToolArgsTable } from '../shared/ArgsTable'
+import { ToolHeader } from './GenericTools'
 
 interface UnknownToolProps {
   toolName: string
@@ -11,78 +12,85 @@ interface UnknownToolProps {
   output?: unknown
 }
 
-export function UnknownToolRenderer({ toolName = '', input, output }: UnknownToolProps) {
-  const { highlightCode } = useCodeStyle()
-  const [inputHtml, setInputHtml] = useState<string>('')
-  const [outputHtml, setOutputHtml] = useState<string>('')
-
-  useEffect(() => {
-    if (input !== undefined) {
-      const inputStr = JSON.stringify(input, null, 2)
-      highlightCode(inputStr, 'json').then(setInputHtml)
+const getToolDisplayName = (name: string) => {
+  if (name.startsWith('mcp__')) {
+    const parts = name.substring(5).split('__')
+    if (parts.length >= 2) {
+      return `${parts[0]}:${parts.slice(1).join(':')}`
     }
-  }, [input, highlightCode])
+  }
+  return name
+}
 
-  useEffect(() => {
-    if (output !== undefined) {
-      const outputStr = JSON.stringify(output, null, 2)
-      highlightCode(outputStr, 'json').then(setOutputHtml)
+/**
+ * Extract text-only preview from MCP CallToolResult.
+ * Images are already rendered via IMAGE_COMPLETE, so only text is shown here.
+ * Returns null if the output is not a valid CallToolResult.
+ */
+function extractMcpText(output: unknown): string | null {
+  const result = CallToolResultSchema.safeParse(output)
+  if (!result.success) return null
+
+  const textParts: string[] = []
+  for (const item of result.data.content) {
+    if (item.type === 'text' && item.text) {
+      textParts.push(item.text)
     }
-  }, [output, highlightCode])
+  }
+  return textParts.length > 0 ? textParts.join('\n\n') : null
+}
 
-  const getToolDisplayName = (name: string) => {
+/**
+ * Fallback renderer for unknown tool types
+ * Uses shared ArgsTable for consistent styling with MCP tools
+ */
+export function UnknownToolRenderer({
+  toolName = '',
+  input,
+  output
+}: UnknownToolProps): NonNullable<CollapseProps['items']>[number] {
+  const { t } = useTranslation()
+
+  const getToolDescription = (name: string) => {
     if (name.startsWith('mcp__')) {
-      const parts = name.substring(5).split('__')
-      if (parts.length >= 2) {
-        return `${parts[0]}:${parts.slice(1).join(':')}`
-      }
+      return t('message.tools.labels.mcpServerTool')
     }
-    return name
+    return t('message.tools.labels.tool')
   }
 
-  const getToolDescription = () => {
-    if (toolName.startsWith('mcp__')) {
-      return 'MCP Server Tool'
-    }
-    return 'Tool'
+  // Normalize input/output for table display
+  const normalizeArgs = (value: unknown): Record<string, unknown> | unknown[] | null => {
+    if (value === undefined || value === null) return null
+    if (typeof value === 'object') return value as Record<string, unknown> | unknown[]
+    // Wrap primitive values
+    return { value }
   }
 
-  return (
-    <AccordionItem
-      key="unknown-tool"
-      aria-label={toolName}
-      title={
-        <ToolTitle
-          icon={<Wrench className="h-4 w-4" />}
-          label={getToolDisplayName(toolName)}
-          params={getToolDescription()}
-        />
-      }>
-      <div className="space-y-3">
-        {input !== undefined && (
-          <div>
-            <div className="mb-1 font-semibold text-foreground-600 text-xs dark:text-foreground-400">Input:</div>
-            <div
-              className="overflow-x-auto rounded bg-gray-50 dark:bg-gray-900"
-              dangerouslySetInnerHTML={{ __html: inputHtml }}
-            />
-          </div>
-        )}
+  const normalizedInput = normalizeArgs(input)
 
-        {output !== undefined && (
-          <div>
-            <div className="mb-1 font-semibold text-foreground-600 text-xs dark:text-foreground-400">Output:</div>
-            <div
-              className="rounded bg-gray-50 dark:bg-gray-900 [&>*]:whitespace-pre-line"
-              dangerouslySetInnerHTML={{ __html: outputHtml }}
-            />
-          </div>
-        )}
+  // Try MCP CallToolResult format first (text only, images rendered via IMAGE_COMPLETE)
+  const mcpText = extractMcpText(output)
+  const normalizedOutput = mcpText !== null ? { value: mcpText } : normalizeArgs(output)
 
-        {input === undefined && output === undefined && (
-          <div className="text-foreground-500 text-xs">No data available for this tool</div>
+  return {
+    key: 'unknown-tool',
+    label: (
+      <ToolHeader
+        toolName={getToolDisplayName(toolName)}
+        icon={<Wrench className="h-4 w-4" />}
+        params={getToolDescription(toolName)}
+        variant="collapse-label"
+        showStatus={false}
+      />
+    ),
+    children: (
+      <div className="space-y-1">
+        {normalizedInput && <ToolArgsTable args={normalizedInput} title={t('message.tools.sections.input')} />}
+        {normalizedOutput && <ToolArgsTable args={normalizedOutput} title={t('message.tools.sections.output')} />}
+        {!normalizedInput && !normalizedOutput && (
+          <div className="p-3 text-foreground-500 text-xs">{t('message.tools.noData')}</div>
         )}
       </div>
-    </AccordionItem>
-  )
+    )
+  }
 }

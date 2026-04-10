@@ -1,7 +1,8 @@
 import { loggerService } from '@logger'
 import { isValidUrl } from '@renderer/utils/fetch'
 import { message } from 'antd'
-import React, { ReactElement } from 'react'
+import type { ReactElement } from 'react'
+import React from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('KnowledgeSearchItem hooks')

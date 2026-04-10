@@ -1,7 +1,7 @@
 import { useSortable } from '@dnd-kit/sortable'
 
 import { ItemRenderer } from './ItemRenderer'
-import { RenderItemType } from './types'
+import type { RenderItemType } from './types'
 
 interface SortableItemProps<T> {
   item: T

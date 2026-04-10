@@ -1,8 +1,7 @@
 import { GithubOutlined } from '@ant-design/icons'
-import { useDisclosure } from '@heroui/react'
 import IndicatorLight from '@renderer/components/IndicatorLight'
 import { HStack } from '@renderer/components/Layout'
-import UpdateDialog from '@renderer/components/UpdateDialog'
+import UpdateDialogPopup from '@renderer/components/Popups/UpdateDialogPopup'
 import { APP_NAME, AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
@@ -15,11 +14,11 @@ import { ThemeMode } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
 import { UpgradeChannel } from '@shared/config/constant'
 import { Avatar, Button, Progress, Radio, Row, Switch, Tag, Tooltip } from 'antd'
-import { UpdateInfo } from 'builder-util-runtime'
 import { debounce } from 'lodash'
-import { Bug, FileCheck, Globe, Mail, Rss } from 'lucide-react'
+import { Briefcase, Bug, Building2, Github, Globe, Mail, Rss } from 'lucide-react'
 import { BadgeQuestionMark } from 'lucide-react'
-import { FC, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import Markdown from 'react-markdown'
 import { Link } from 'react-router-dom'
@@ -30,8 +29,6 @@ import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingTitl
 const AboutSettings: FC = () => {
   const [version, setVersion] = useState('')
   const [isPortable, setIsPortable] = useState(false)
-  const [updateDialogInfo, setUpdateDialogInfo] = useState<UpdateInfo | null>(null)
-  const { isOpen, onOpen, onClose } = useDisclosure()
   const { t } = useTranslation()
   const { autoCheckUpdate, setAutoCheckUpdate, testPlan, setTestPlan, testChannel, setTestChannel } = useSettings()
   const { theme } = useTheme()
@@ -47,16 +44,16 @@ const AboutSettings: FC = () => {
 
       if (update.downloaded) {
         // Open update dialog directly in renderer
-        setUpdateDialogInfo(update.info || null)
-        onOpen()
+        void UpdateDialogPopup.show({ releaseInfo: update.info || null })
         return
       }
 
-      dispatch(setUpdateState({ checking: true }))
+      dispatch(setUpdateState({ checking: true, manualCheck: true }))
 
       try {
         await window.api.checkForUpdate()
       } catch (error) {
+        dispatch(setUpdateState({ manualCheck: false }))
         window.toast.error(t('settings.about.updateError'))
       }
 
@@ -67,7 +64,7 @@ const AboutSettings: FC = () => {
   )
 
   const onOpenWebsite = (url: string) => {
-    window.api.openWebsite(url)
+    void window.api.openWebsite(url)
   }
 
   const mailto = async () => {
@@ -83,14 +80,8 @@ const AboutSettings: FC = () => {
     await window.api.devTools.toggle()
   }
 
-  const showLicense = async () => {
-    const { appPath } = await window.api.getAppInfo()
-    openSmartMinapp({
-      id: 'cherrystudio-license',
-      name: t('settings.about.license.title'),
-      url: `file://${appPath}/resources/cherry-studio/license.html`,
-      logo: AppLogo
-    })
+  const showEnterprise = async () => {
+    onOpenWebsite('https://enterprise.cherry-ai.com')
   }
 
   const showReleases = async () => {
@@ -169,7 +160,7 @@ const AboutSettings: FC = () => {
   }
 
   useEffect(() => {
-    runAsyncFunction(async () => {
+    void runAsyncFunction(async () => {
       const appInfo = await window.api.getAppInfo()
       setVersion(appInfo.version)
       setIsPortable(appInfo.isPortable)
@@ -179,9 +170,7 @@ const AboutSettings: FC = () => {
 
   const onOpenDocs = () => {
     const isChinese = i18n.language.startsWith('zh')
-    window.api.openWebsite(
-      isChinese ? 'https://docs.cherry-ai.com/' : 'https://docs.cherry-ai.com/cherry-studio-wen-dang/en-us'
-    )
+    void window.api.openWebsite(isChinese ? 'https://docs.cherry-ai.com/' : 'https://docs.cherry-ai.com/docs/en-us')
   }
 
   return (
@@ -315,7 +304,7 @@ const AboutSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>
-            <GithubOutlined size={18} />
+            <Github size={18} />
             {t('settings.about.feedback.title')}
           </SettingRowTitle>
           <Button onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio/issues/new/choose')}>
@@ -325,10 +314,10 @@ const AboutSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>
-            <FileCheck size={18} />
-            {t('settings.about.license.title')}
+            <Building2 size={18} />
+            {t('settings.about.enterprise.title')}
           </SettingRowTitle>
-          <Button onClick={showLicense}>{t('settings.about.license.button')}</Button>
+          <Button onClick={showEnterprise}>{t('settings.about.website.button')}</Button>
         </SettingRow>
         <SettingDivider />
         <SettingRow>
@@ -341,15 +330,22 @@ const AboutSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>
+            <Briefcase size={18} />
+            {t('settings.about.careers.title')}
+          </SettingRowTitle>
+          <Button onClick={() => onOpenWebsite('https://www.cherry-ai.com/careers')}>
+            {t('settings.about.careers.button')}
+          </Button>
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>
             <Bug size={18} />
             {t('settings.about.debug.title')}
           </SettingRowTitle>
           <Button onClick={debug}>{t('settings.about.debug.open')}</Button>
         </SettingRow>
       </SettingGroup>
-
-      {/* Update Dialog */}
-      <UpdateDialog isOpen={isOpen} onClose={onClose} releaseInfo={updateDialogInfo} />
     </SettingContainer>
   )
 }
@@ -417,11 +413,11 @@ const UpdateNotesWrapper = styled.div`
   margin: 8px 0;
   background-color: var(--color-bg-2);
   border-radius: 6px;
+  color: var(--color-text-2);
+  font-size: 14px;
 
   p {
     margin: 0;
-    color: var(--color-text-2);
-    font-size: 14px;
   }
 `
 

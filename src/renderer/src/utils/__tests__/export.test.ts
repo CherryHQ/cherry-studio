@@ -9,9 +9,9 @@ import { afterEach, beforeEach, describe, expect, it, test, vi } from 'vitest'
 vi.mock('@renderer/config/minapps', () => {
   return {
     ORIGIN_DEFAULT_MIN_APPS: [],
-    DEFAULT_MIN_APPS: [],
+    allMinApps: [],
     loadCustomMiniApp: async () => [],
-    updateDefaultMinApps: vi.fn()
+    updateAllMinApps: vi.fn()
   }
 })
 
@@ -75,7 +75,8 @@ vi.mock('@renderer/utils/markdown', async (importOriginal) => {
 })
 
 // Import the functions to test AFTER setting up mocks
-import { Topic, TopicType } from '@renderer/types'
+import type { Topic } from '@renderer/types'
+import { TopicType } from '@renderer/types'
 import { markdownToPlainText } from '@renderer/utils/markdown'
 
 import { copyMessageAsPlainText } from '../copy'

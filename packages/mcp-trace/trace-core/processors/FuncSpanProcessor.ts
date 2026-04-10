@@ -1,5 +1,7 @@
-import { Context, trace } from '@opentelemetry/api'
-import { BatchSpanProcessor, BufferConfig, ReadableSpan, Span, SpanExporter } from '@opentelemetry/sdk-trace-base'
+import type { Context } from '@opentelemetry/api'
+import { trace } from '@opentelemetry/api'
+import type { BufferConfig, ReadableSpan, Span, SpanExporter } from '@opentelemetry/sdk-trace-base'
+import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base'
 
 export type SpanFunction = (span: ReadableSpan) => void
 

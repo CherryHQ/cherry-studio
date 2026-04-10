@@ -1,6 +1,7 @@
 import 'katex/dist/katex.min.css'
 
-import React, { FC, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 import rehypeKatex from 'rehype-katex'

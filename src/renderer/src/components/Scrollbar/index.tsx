@@ -1,5 +1,6 @@
 import { throttle } from 'lodash'
-import { FC, useCallback, useEffect, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
 
 export interface ScrollbarProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'onScroll'> {
@@ -60,6 +61,7 @@ const Scrollbar: FC<ScrollbarProps> = ({ ref: passedRef, children, onScroll: ext
 
 const ScrollBarContainer = styled.div<{ $isScrolling: boolean }>`
   overflow-y: auto;
+  scrollbar-gutter: stable;
   &::-webkit-scrollbar-thumb {
     transition: background 2s ease;
     background: ${(props) => (props.$isScrolling ? 'var(--color-scrollbar-thumb)' : 'transparent')};

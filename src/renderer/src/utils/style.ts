@@ -1,4 +1,7 @@
-import { HexColor, isHexColor } from '@renderer/types'
+import type { HexColor } from '@renderer/types'
+import { isHexColor } from '@renderer/types'
+import { clsx } from 'clsx'
+import { twMerge } from 'tailwind-merge'
 
 type ClassValue = string | number | boolean | undefined | null | ClassDictionary | ClassArray
 
@@ -201,3 +204,7 @@ export function getForegroundColor(backgroundColor: HexColor): HexColor {
 //   `
 //   return acc
 // }, {} as MediaQueries)
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs))
+}

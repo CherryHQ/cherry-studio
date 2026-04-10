@@ -2,7 +2,8 @@
 // port https://github.com/modelcontextprotocol/servers/blob/main/src/brave-search/index.ts
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import { CallToolRequestSchema, ListToolsRequestSchema, Tool } from '@modelcontextprotocol/sdk/types.js'
+import type { Tool } from '@modelcontextprotocol/sdk/types.js'
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { net } from 'electron'
 
 const WEB_SEARCH_TOOL: Tool = {

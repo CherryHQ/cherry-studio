@@ -1,7 +1,8 @@
 import { loggerService } from '@logger'
 import { TopView } from '@renderer/components/TopView'
-import { Provider } from '@renderer/types'
-import { AutoComplete, Button, Flex, Form, FormProps, Input, Modal, Progress, Select } from 'antd'
+import type { Provider } from '@renderer/types'
+import type { FormProps } from 'antd'
+import { AutoComplete, Button, Flex, Form, Input, Modal, Progress, Select } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -34,6 +35,13 @@ interface PresetModel {
 }
 
 const PRESET_MODELS: PresetModel[] = [
+  {
+    modelId: 'OpenVINO/Qwen3-4B-int4-ov',
+    modelName: 'Qwen3-4B-int4-ov',
+    modelSource: 'https://www.modelscope.cn/models',
+    task: 'text_generation',
+    label: 'Qwen3-4B-int4-ov (Text Generation)'
+  },
   {
     modelId: 'OpenVINO/Qwen3-8B-int4-ov',
     modelName: 'Qwen3-8B-int4-ov',

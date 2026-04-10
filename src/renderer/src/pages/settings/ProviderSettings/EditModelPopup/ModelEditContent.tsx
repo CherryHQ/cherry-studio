@@ -17,27 +17,16 @@ import {
   isVisionModel,
   isWebSearchModel
 } from '@renderer/config/models'
-import { isNewApiProvider } from '@renderer/config/providers'
 import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
-import { Model, ModelCapability, ModelType, Provider } from '@renderer/types'
+import type { Model, ModelCapability, ModelType, Provider } from '@renderer/types'
 import { getDefaultGroupName, getDifference, getUnion, uniqueObjectArray } from '@renderer/utils'
-import {
-  Button,
-  Divider,
-  Flex,
-  Form,
-  Input,
-  InputNumber,
-  message,
-  Modal,
-  ModalProps,
-  Select,
-  Switch,
-  Tooltip
-} from 'antd'
+import { isNewApiProvider } from '@renderer/utils/provider'
+import type { ModalProps } from 'antd'
+import { Button, Divider, Flex, Form, Input, InputNumber, message, Modal, Select, Switch, Tooltip } from 'antd'
 import { cloneDeep } from 'lodash'
 import { ChevronDown, ChevronUp, RotateCcw, SaveIcon } from 'lucide-react'
-import { FC, useCallback, useEffect, useMemo, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -150,7 +139,7 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
         selectedTypes.map((type) => {
           const existingCapability = modelCapabilities?.find((m) => m.type === type)
           return {
-            type: type as ModelType,
+            type: type,
             isUserSelected: existingCapability?.isUserSelected ?? undefined
           }
         }),
@@ -290,7 +279,7 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
                   style={{ cursor: 'pointer' }}
                   onClick={() => {
                     const val = form.getFieldValue('name')
-                    navigator.clipboard.writeText((val.id || model.id) as string)
+                    void navigator.clipboard.writeText((val.id || model.id) as string)
                     message.success(t('message.copied'))
                   }}
                 />

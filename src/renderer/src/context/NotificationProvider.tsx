@@ -1,5 +1,5 @@
 import { NotificationQueue } from '@renderer/queue/NotificationQueue'
-import { Notification } from '@renderer/types/notification'
+import type { Notification } from '@renderer/types/notification'
 import { isFocused } from '@renderer/utils/window'
 import { notification } from 'antd'
 import React, { createContext, use, useEffect, useMemo } from 'react'
@@ -33,7 +33,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const listener = async (notification: Notification) => {
       // 判断是否需要系统通知
       if (notification.channel === 'system' || !isFocused()) {
-        window.api.notification.send(notification)
+        void window.api.notification.send(notification)
         return
       }
       return new Promise<void>((resolve) => {

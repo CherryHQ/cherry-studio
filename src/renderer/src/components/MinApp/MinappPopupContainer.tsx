@@ -13,7 +13,7 @@ import {
 import { loggerService } from '@logger'
 import WindowControls from '@renderer/components/WindowControls'
 import { isDev, isLinux, isMac, isWin } from '@renderer/config/constant'
-import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
+import { allMinApps } from '@renderer/config/minapps'
 import { useBridge } from '@renderer/hooks/useBridge'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
@@ -23,11 +23,11 @@ import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useAppDispatch } from '@renderer/store'
 import { setMinappsOpenLinkExternal } from '@renderer/store/settings'
-import { MinAppType } from '@renderer/types'
+import type { MinAppType } from '@renderer/types'
 import { delay } from '@renderer/utils'
 import { clearWebviewState, getWebviewLoaded, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import { Alert, Avatar, Button, Drawer, Tooltip } from 'antd'
-import { WebviewTag } from 'electron'
+import type { WebviewTag } from 'electron'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import BeatLoader from 'react-spinners/BeatLoader'
@@ -222,7 +222,7 @@ const MinappPopupContainer: React.FC = () => {
         try {
           const webviewId = webviewElement.getWebContentsId()
           if (webviewId) {
-            window.api.webview.setOpenLinkExternal(webviewId, minappsOpenLinkExternal)
+            void window.api.webview.setOpenLinkExternal(webviewId, minappsOpenLinkExternal)
           }
         } catch (error) {
           // WebView not ready yet, will be set when it's loaded
@@ -246,7 +246,7 @@ const MinappPopupContainer: React.FC = () => {
       (acc, app) => ({
         ...acc,
         [app.id]: {
-          canPinned: DEFAULT_MIN_APPS.some((item) => item.id === app.id),
+          canPinned: allMinApps.some((item) => item.id === app.id),
           isPinned: pinned.some((item) => item.id === app.id),
           canOpenExternalLink: app.url.startsWith('http://') || app.url.startsWith('https://')
         }
@@ -296,7 +296,7 @@ const MinappPopupContainer: React.FC = () => {
       try {
         const webviewId = webviewElement.getWebContentsId()
         if (webviewId) {
-          window.api.webview.setOpenLinkExternal(webviewId, minappsOpenLinkExternal)
+          void window.api.webview.setOpenLinkExternal(webviewId, minappsOpenLinkExternal)
         }
       } catch (error) {
         logger.debug(`WebView ${appid} not ready for getWebContentsId() in handleWebviewLoaded`)
@@ -337,7 +337,7 @@ const MinappPopupContainer: React.FC = () => {
 
   /** open the giving url in browser */
   const handleOpenLink = (url: string) => {
-    window.api.openWebsite(url)
+    void window.api.openWebsite(url)
   }
 
   /** toggle the pin status of the minapp */
@@ -575,7 +575,7 @@ const TitleContainer = styled.div`
   bottom: 0;
   background-color: transparent;
   [navbar-position='left'] & {
-    padding-left: ${isMac ? '20px' : '10px'};
+    padding-left: ${isMac ? '40px' : '10px'};
   }
   [navbar-position='top'] & {
     padding-left: ${isMac ? '80px' : '10px'};

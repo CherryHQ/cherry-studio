@@ -4,13 +4,14 @@ import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import db from '@renderer/databases'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { clearHistory, deleteHistory, updateTranslateHistory } from '@renderer/services/TranslateService'
-import { TranslateHistory, TranslateLanguage } from '@renderer/types'
+import type { TranslateHistory, TranslateLanguage } from '@renderer/types'
 import { Button, Drawer, Empty, Flex, Input, Popconfirm } from 'antd'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { isEmpty } from 'lodash'
 import { SearchIcon } from 'lucide-react'
-import { FC, useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -74,7 +75,7 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
       if (!origin) {
         return
       }
-      updateTranslateHistory(id, { star: !origin.star })
+      void updateTranslateHistory(id, { star: !origin.star })
     },
     [translateHistory]
   )
@@ -82,7 +83,7 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
   const handleDelete = useCallback(
     (id: string) => {
       try {
-        deleteHistory(id)
+        void deleteHistory(id)
       } catch (e) {
         window.toast.error(t('translate.history.error.delete'))
       }

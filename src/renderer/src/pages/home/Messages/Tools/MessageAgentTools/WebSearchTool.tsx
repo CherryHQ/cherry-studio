@@ -1,26 +1,38 @@
-import { AccordionItem } from '@heroui/react'
-import { Globe } from 'lucide-react'
+import type { CollapseProps } from 'antd'
+import { useTranslation } from 'react-i18next'
 
-import { ToolTitle } from './GenericTools'
-import type { WebSearchToolInput, WebSearchToolOutput } from './types'
+import { countLines, truncateOutput } from '../shared/truncateOutput'
+import { ToolHeader, TruncatedIndicator } from './GenericTools'
+import { AgentToolsType, type WebSearchToolInput, type WebSearchToolOutput } from './types'
 
-export function WebSearchTool({ input, output }: { input: WebSearchToolInput; output?: WebSearchToolOutput }) {
+export function WebSearchTool({
+  input,
+  output
+}: {
+  input?: WebSearchToolInput
+  output?: WebSearchToolOutput
+}): NonNullable<CollapseProps['items']>[number] {
+  const { t } = useTranslation()
   // 如果有输出，计算结果数量
-  const resultCount = output ? output.split('\n').filter((line) => line.trim()).length : 0
+  const resultCount = countLines(output)
+  const { data: truncatedOutput, isTruncated, originalLength } = truncateOutput(output)
 
-  return (
-    <AccordionItem
-      key="tool"
-      aria-label="Web Search Tool"
-      title={
-        <ToolTitle
-          icon={<Globe className="h-4 w-4" />}
-          label="Web Search"
-          params={input.query}
-          stats={output ? `${resultCount} ${resultCount === 1 ? 'result' : 'results'}` : undefined}
-        />
-      }>
-      {output}
-    </AccordionItem>
-  )
+  return {
+    key: AgentToolsType.WebSearch,
+    label: (
+      <ToolHeader
+        toolName={AgentToolsType.WebSearch}
+        params={input?.query}
+        stats={output ? t('message.tools.units.result', { count: resultCount }) : undefined}
+        variant="collapse-label"
+        showStatus={false}
+      />
+    ),
+    children: (
+      <div>
+        <div>{truncatedOutput}</div>
+        {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
+      </div>
+    )
+  }
 }

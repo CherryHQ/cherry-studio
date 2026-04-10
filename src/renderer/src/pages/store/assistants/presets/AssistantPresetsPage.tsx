@@ -1,4 +1,3 @@
-import { ImportOutlined, PlusOutlined } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
 import ListItem from '@renderer/components/ListItem'
@@ -7,12 +6,13 @@ import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
 import { useNavbarPosition } from '@renderer/hooks/useSettings'
 import { createAssistantFromAgent } from '@renderer/services/AssistantService'
-import { AssistantPreset } from '@renderer/types'
+import type { AssistantPreset } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { Button, Empty, Flex, Input } from 'antd'
 import { omit } from 'lodash'
-import { Search } from 'lucide-react'
-import { FC, useCallback, useEffect, useMemo, useState } from 'react'
+import { Import, Plus, Search, Settings2 } from 'lucide-react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 import styled from 'styled-components'
@@ -23,6 +23,7 @@ import AddAssistantPresetPopup from './components/AddAssistantPresetPopup'
 import AssistantPresetCard from './components/AssistantPresetCard'
 import { AssistantPresetGroupIcon } from './components/AssistantPresetGroupIcon'
 import ImportAssistantPresetPopup from './components/ImportAssistantPresetPopup'
+import ManageAssistantPresetsPopup from './components/ManageAssistantPresetsPopup'
 
 const AssistantPresetsPage: FC = () => {
   const [search, setSearch] = useState('')
@@ -161,7 +162,7 @@ const AssistantPresetsPage: FC = () => {
   }
 
   const handleAddAgent = () => {
-    AddAssistantPresetPopup.show().then(() => {
+    void AddAssistantPresetPopup.show().then(() => {
       handleSearchClear()
     })
   }
@@ -172,6 +173,10 @@ const AssistantPresetsPage: FC = () => {
     } catch (error) {
       window.toast.error(error instanceof Error ? error.message : t('message.agents.import.error'))
     }
+  }
+
+  const handleManageAgents = () => {
+    ManageAssistantPresetsPopup.show()
   }
 
   return (
@@ -245,12 +250,12 @@ const AssistantPresetsPage: FC = () => {
                 </CustomTag>
               }
             </AgentsListTitle>
-            <Flex gap={8}>
+            <Flex gap={2}>
               {isSearchExpanded ? (
                 <Input
                   placeholder={t('common.search')}
                   className="nodrag"
-                  style={{ width: 300, height: 28, borderRadius: 15, paddingLeft: 12 }}
+                  style={{ width: 200, height: 28, borderRadius: 15, paddingLeft: 12 }}
                   size="small"
                   variant="filled"
                   allowClear
@@ -273,10 +278,13 @@ const AssistantPresetsPage: FC = () => {
                   </Button>
                 )
               )}
-              <Button type="text" onClick={handleImportAgent} icon={<ImportOutlined />}>
+              <Button type="text" onClick={handleImportAgent} icon={<Import size={18} color="var(--color-icon)" />}>
                 {t('assistants.presets.import.title')}
               </Button>
-              <Button type="text" onClick={handleAddAgent} icon={<PlusOutlined />}>
+              <Button type="text" onClick={handleManageAgents} icon={<Settings2 size={18} color="var(--color-icon)" />}>
+                {t('assistants.presets.manage.title')}
+              </Button>
+              <Button type="text" onClick={handleAddAgent} icon={<Plus size={18} color="var(--color-icon)" />}>
                 {t('assistants.presets.add.title')}
               </Button>
             </Flex>

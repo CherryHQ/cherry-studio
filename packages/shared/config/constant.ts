@@ -1,4 +1,4 @@
-import { languages } from './languages'
+import { codeLanguages } from './code-languages'
 
 export const imageExts = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']
 export const videoExts = ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.mkv']
@@ -7,12 +7,17 @@ export const documentExts = ['.pdf', '.doc', '.docx', '.pptx', '.xlsx', '.odt', 
 export const thirdPartyApplicationExts = ['.draftsExport']
 export const bookExts = ['.epub']
 
+export const API_SERVER_DEFAULTS = {
+  HOST: '127.0.0.1',
+  PORT: 23333
+}
+
 /**
  * A flat array of all file extensions known by the linguist database.
  * This is the primary source for identifying code files.
  */
 const linguistExtSet = new Set<string>()
-for (const lang of Object.values(languages)) {
+for (const lang of Object.values(codeLanguages)) {
   if (lang.extensions) {
     for (const ext of lang.extensions) {
       linguistExtSet.add(ext)
@@ -197,13 +202,23 @@ export enum FeedUrl {
   GITHUB_LATEST = 'https://github.com/CherryHQ/cherry-studio/releases/latest/download'
 }
 
+export enum UpdateConfigUrl {
+  GITHUB = 'https://raw.githubusercontent.com/CherryHQ/cherry-studio/refs/heads/x-files/app-upgrade-config/app-upgrade-config.json',
+  GITCODE = 'https://raw.gitcode.com/CherryHQ/cherry-studio/raw/x-files%2Fapp-upgrade-config/app-upgrade-config.json'
+}
+
 export enum UpgradeChannel {
   LATEST = 'latest', // 最新稳定版本
   RC = 'rc', // 公测版本
   BETA = 'beta' // 预览版本
 }
 
-export const defaultTimeout = 10 * 1000 * 60
+export enum UpdateMirror {
+  GITHUB = 'github',
+  GITCODE = 'gitcode'
+}
+
+export const DEFAULT_TIMEOUT = 30 * 1000 * 60
 
 export const occupiedDirs = ['logs', 'Network', 'Partitions/webview/Network']
 
@@ -218,7 +233,9 @@ export enum codeTools {
   geminiCli = 'gemini-cli',
   openaiCodex = 'openai-codex',
   iFlowCli = 'iflow-cli',
-  githubCopilotCli = 'github-copilot-cli'
+  githubCopilotCli = 'github-copilot-cli',
+  kimiCli = 'kimi-cli',
+  openCode = 'opencode'
 }
 
 export enum terminalApps {
@@ -318,15 +335,15 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     name: 'Command Prompt',
     command: (_: string, fullCommand: string) => ({
       command: 'cmd',
-      args: ['/c', 'start', 'cmd', '/k', fullCommand]
+      args: ['/c', fullCommand]
     })
   },
   {
     id: terminalApps.powershell,
     name: 'PowerShell',
     command: (_: string, fullCommand: string) => ({
-      command: 'cmd',
-      args: ['/c', 'start', 'powershell', '-NoExit', '-Command', `& '${fullCommand}'`]
+      command: 'powershell',
+      args: ['-NoExit', '-Command', `& "${fullCommand}"`]
     })
   },
   {
@@ -334,37 +351,33 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     name: 'Windows Terminal',
     command: (_: string, fullCommand: string) => ({
       command: 'wt',
-      args: ['cmd', '/k', fullCommand]
+      args: ['--', 'cmd', '/c', fullCommand]
     })
   },
   {
     id: terminalApps.wsl,
     name: 'WSL (Ubuntu/Debian)',
-    command: (_: string, fullCommand: string) => {
-      // Start WSL in a new window and execute the batch file from within WSL using cmd.exe
-      // The batch file will run in Windows context but output will be in WSL terminal
-      return {
-        command: 'cmd',
-        args: ['/c', 'start', 'wsl', '-e', 'bash', '-c', `cmd.exe /c '${fullCommand}' ; exec bash`]
-      }
-    }
+    command: (_: string, fullCommand: string) => ({
+      command: 'wsl',
+      args: ['bash', '-c', `cmd.exe /c '${fullCommand}' ; read -p 'Press Enter to exit'`]
+    })
   },
   {
     id: terminalApps.alacritty,
     name: 'Alacritty',
-    customPath: '', // Will be set by user in settings
+    customPath: '',
     command: (_: string, fullCommand: string) => ({
-      command: 'alacritty', // Will be replaced with customPath if set
-      args: ['-e', 'cmd', '/k', fullCommand]
+      command: 'alacritty',
+      args: ['-e', 'cmd', '/c', fullCommand]
     })
   },
   {
     id: terminalApps.wezterm,
     name: 'WezTerm',
-    customPath: '', // Will be set by user in settings
+    customPath: '',
     command: (_: string, fullCommand: string) => ({
-      command: 'wezterm', // Will be replaced with customPath if set
-      args: ['start', 'cmd', '/k', fullCommand]
+      command: 'wezterm',
+      args: ['start', '--', 'cmd', '/c', fullCommand]
     })
   }
 ]
@@ -470,3 +483,24 @@ export const MACOS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     })
   }
 ]
+
+// resources/scripts should be maintained manually
+export const HOME_CHERRY_DIR = '.cherrystudio'
+
+// Git Bash path configuration types
+export type GitBashPathSource = 'manual' | 'auto'
+
+export interface GitBashPathInfo {
+  path: string | null
+  source: GitBashPathSource | null
+}
+
+// CherryIN OAuth configuration
+export const CHERRYIN_CONFIG = {
+  CLIENT_ID: '2a348c87-bae1-4756-a62f-b2e97200fd6d',
+  ALLOWED_HOSTS: ['https://open.cherryin.ai', 'https://open.cherryin.dev'],
+  REDIRECT_URI: 'cherrystudio://oauth/callback',
+  SCOPES: 'openid profile email offline_access balance:read usage:read tokens:read tokens:write'
+}
+
+export const APP_NAME = 'Cherry Studio'

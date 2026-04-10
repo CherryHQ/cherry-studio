@@ -1,7 +1,6 @@
-import { HStack } from '@renderer/components/Layout'
-import { Avatar, Button, Select, Space, Tooltip } from 'antd'
+import { Button, Select, Space, Tooltip } from 'antd'
 import { UserRoundPlus } from 'lucide-react'
-import { useCallback, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DEFAULT_USER_ID } from './constants'
@@ -16,39 +15,18 @@ interface UserSelectorProps {
 const UserSelector: React.FC<UserSelectorProps> = ({ currentUser, uniqueUsers, onUserSwitch, onAddUser }) => {
   const { t } = useTranslation()
 
-  const getUserAvatar = useCallback((user: string) => {
-    return user === DEFAULT_USER_ID ? user.slice(0, 1).toUpperCase() : user.slice(0, 2).toUpperCase()
-  }, [])
-
-  const renderLabel = useCallback(
-    (userId: string, userName: string) => {
-      return (
-        <HStack alignItems="center" gap={10}>
-          <Avatar size={20} style={{ background: 'var(--color-primary)' }}>
-            {getUserAvatar(userId)}
-          </Avatar>
-          <span>{userName}</span>
-        </HStack>
-      )
-    },
-    [getUserAvatar]
-  )
-
   const options = useMemo(() => {
     const defaultOption = {
       value: DEFAULT_USER_ID,
-      label: renderLabel(DEFAULT_USER_ID, t('memory.default_user'))
+      label: t('memory.default_user')
     }
 
     const userOptions = uniqueUsers
       .filter((user) => user !== DEFAULT_USER_ID)
-      .map((user) => ({
-        value: user,
-        label: renderLabel(user, user)
-      }))
+      .map((user) => ({ value: user, label: user }))
 
     return [defaultOption, ...userOptions]
-  }, [renderLabel, t, uniqueUsers])
+  }, [t, uniqueUsers])
 
   return (
     <Space.Compact>

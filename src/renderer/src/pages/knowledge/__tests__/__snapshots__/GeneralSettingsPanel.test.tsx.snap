@@ -40,43 +40,6 @@ exports[`GeneralSettingsPanel > basic rendering > should match snapshot 1`] = `
     <div
       class="settings-label"
     >
-      settings.tool.preprocess.title
-      <span
-        data-placement="right"
-        data-testid="info-tooltip"
-        title="settings.tool.preprocess.tooltip"
-      >
-        ℹ️
-      </span>
-    </div>
-    <select
-      data-allow-clear="true"
-      data-placeholder="settings.tool.preprocess.provider_placeholder"
-      data-testid="preprocess-select"
-    >
-      <option
-        value=""
-      >
-        Select option
-      </option>
-      <option
-        value="doc2x"
-      >
-        Doc2X
-      </option>
-      <option
-        value="mistral"
-      >
-        Mistral
-      </option>
-    </select>
-  </div>
-  <div
-    class="c1"
-  >
-    <div
-      class="settings-label"
-    >
       models.embedding_model
       <span
         data-placement="right"
@@ -88,7 +51,6 @@ exports[`GeneralSettingsPanel > basic rendering > should match snapshot 1`] = `
     </div>
     <select
       data-has-providers="true"
-      data-model-type="embedding"
       data-placeholder="settings.models.empty"
       data-testid="model-selector"
     >
@@ -137,45 +99,6 @@ exports[`GeneralSettingsPanel > basic rendering > should match snapshot 1`] = `
     <div
       class="settings-label"
     >
-      models.rerank_model
-      <span
-        data-placement="right"
-        data-testid="info-tooltip"
-        title="models.rerank_model_tooltip"
-      >
-        ℹ️
-      </span>
-    </div>
-    <select
-      data-allow-clear="true"
-      data-has-providers="true"
-      data-model-type="rerank"
-      data-placeholder="settings.models.empty"
-      data-testid="model-selector"
-    >
-      <option
-        value=""
-      >
-        Select model
-      </option>
-      <option
-        value="openai/rerank-model"
-      >
-        rerank-model
-      </option>
-      <option
-        value="cohere/rerank-english-v2.0"
-      >
-        rerank-english-v2.0
-      </option>
-    </select>
-  </div>
-  <div
-    class="c1"
-  >
-    <div
-      class="settings-label"
-    >
       knowledge.document_count
       <span
         data-placement="right"
@@ -191,7 +114,7 @@ exports[`GeneralSettingsPanel > basic rendering > should match snapshot 1`] = `
       max="50"
       min="1"
       step="1"
-      style="width: 100%;"
+      style="width: 97%;"
       type="range"
       value="6"
     />

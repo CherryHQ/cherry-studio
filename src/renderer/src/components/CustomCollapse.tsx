@@ -1,7 +1,8 @@
 import { Collapse } from 'antd'
 import { merge } from 'lodash'
 import { ChevronRight } from 'lucide-react'
-import { FC, memo, useMemo, useState } from 'react'
+import type { FC } from 'react'
+import { memo, useMemo, useState } from 'react'
 
 interface CustomCollapseProps {
   label: React.ReactNode

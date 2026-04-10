@@ -1,24 +1,40 @@
-import { AccordionItem } from '@heroui/react'
-import { DoorOpen } from 'lucide-react'
+import type { CollapseProps } from 'antd'
+import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 
-import { ToolTitle } from './GenericTools'
+import { truncateOutput } from '../shared/truncateOutput'
+import { ToolHeader, TruncatedIndicator } from './GenericTools'
 import type { ExitPlanModeToolInput, ExitPlanModeToolOutput } from './types'
 import { AgentToolsType } from './types'
 
-export function ExitPlanModeTool({ input, output }: { input: ExitPlanModeToolInput; output?: ExitPlanModeToolOutput }) {
-  return (
-    <AccordionItem
-      key={AgentToolsType.ExitPlanMode}
-      aria-label="ExitPlanMode Tool"
-      title={
-        <ToolTitle
-          icon={<DoorOpen className="h-4 w-4" />}
-          label="ExitPlanMode"
-          stats={`${input.plan.split('\n\n').length} plans`}
-        />
-      }>
-      {<ReactMarkdown>{input.plan + '\n\n' + (output ?? '')}</ReactMarkdown>}
-    </AccordionItem>
-  )
+export function ExitPlanModeTool({
+  input,
+  output
+}: {
+  input?: ExitPlanModeToolInput
+  output?: ExitPlanModeToolOutput
+}): NonNullable<CollapseProps['items']>[number] {
+  const { t } = useTranslation()
+  const plan = input?.plan ?? ''
+  const combinedContent = plan + '\n\n' + (output ?? '')
+  const { data: truncatedContent, isTruncated, originalLength } = truncateOutput(combinedContent)
+  const planCount = plan.split('\n\n').length
+
+  return {
+    key: AgentToolsType.ExitPlanMode,
+    label: (
+      <ToolHeader
+        toolName={AgentToolsType.ExitPlanMode}
+        stats={t('message.tools.units.plan', { count: planCount })}
+        variant="collapse-label"
+        showStatus={false}
+      />
+    ),
+    children: (
+      <div>
+        <ReactMarkdown>{truncatedContent}</ReactMarkdown>
+        {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
+      </div>
+    )
+  }
 }

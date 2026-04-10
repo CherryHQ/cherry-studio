@@ -22,12 +22,10 @@ export const Navbar: FC<Props> = ({ children, ...props }) => {
   }
 
   return (
-    <>
-      <NavbarContainer {...props} style={{ backgroundColor }} $isFullScreen={isFullscreen}>
-        {children}
-      </NavbarContainer>
-      {!isTopNavbar && !minappShow && <WindowControls />}
-    </>
+    <NavbarContainer {...props} style={{ backgroundColor }} $isFullScreen={isFullscreen}>
+      {children}
+      {!minappShow && <WindowControls />}
+    </NavbarContainer>
   )
 }
 
@@ -65,16 +63,16 @@ const NavbarContainer = styled.div<{ $isFullScreen: boolean }>`
   min-width: 100%;
   display: flex;
   flex-direction: row;
-  min-height: ${isMac ? 'env(titlebar-area-height)' : 'var(--navbar-height)'};
+  min-height: ${({ $isFullScreen }) => (!$isFullScreen && isMac ? 'env(titlebar-area-height)' : 'var(--navbar-height)')};
   max-height: var(--navbar-height);
-  margin-left: ${isMac ? 'calc(var(--sidebar-width) * -1)' : 0};
+  margin-left: ${isMac ? 'calc(var(--sidebar-width) * -1 + 2px)' : 0};
   padding-left: ${({ $isFullScreen }) =>
     isMac ? ($isFullScreen ? 'var(--sidebar-width)' : 'env(titlebar-area-x)') : 0};
   -webkit-app-region: drag;
 `
 
 const NavbarLeftContainer = styled.div`
-  min-width: var(--assistants-width);
+  /* min-width: ${isMac ? 'calc(var(--assistants-width) - 20px)' : 'var(--assistants-width)'}; */
   padding: 0 10px;
   display: flex;
   flex-direction: row;

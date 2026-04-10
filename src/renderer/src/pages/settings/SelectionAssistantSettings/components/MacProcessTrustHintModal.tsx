@@ -1,5 +1,5 @@
 import { Button, Modal, Typography } from 'antd'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -14,12 +14,12 @@ const MacProcessTrustHintModal: FC<MacProcessTrustHintModalProps> = ({ open, onC
   const { t } = useTranslation()
 
   const handleOpenAccessibility = () => {
-    window.api.shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility')
+    void window.api.shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility')
     onClose()
   }
 
   const handleConfirm = async () => {
-    window.api.mac.requestProcessTrust()
+    void window.api.mac.requestProcessTrust()
     onClose()
   }
 

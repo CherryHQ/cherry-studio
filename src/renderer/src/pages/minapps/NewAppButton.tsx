@@ -1,11 +1,12 @@
 import { PlusOutlined, UploadOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
-import { loadCustomMiniApp, ORIGIN_DEFAULT_MIN_APPS, updateDefaultMinApps } from '@renderer/config/minapps'
+import { loadCustomMiniApp, ORIGIN_DEFAULT_MIN_APPS, updateAllMinApps } from '@renderer/config/minapps'
 import { useMinapps } from '@renderer/hooks/useMinapps'
-import { MinAppType } from '@renderer/types'
+import type { MinAppType } from '@renderer/types'
 import { Button, Form, Input, Modal, Radio, Upload } from 'antd'
 import type { UploadFile } from 'antd/es/upload/interface'
-import { FC, useState } from 'react'
+import type { FC } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -59,7 +60,7 @@ const NewAppButton: FC<Props> = ({ size = 60 }) => {
       form.resetFields()
       setFileList([])
       const reloadedApps = [...ORIGIN_DEFAULT_MIN_APPS, ...(await loadCustomMiniApp())]
-      updateDefaultMinApps(reloadedApps)
+      updateAllMinApps(reloadedApps)
       updateMinapps([...minapps, newApp])
     } catch (error) {
       window.toast.error(t('settings.miniapps.custom.save_error'))

@@ -1,8 +1,11 @@
-import { AccordionItem, Chip, Code } from '@heroui/react'
+import type { CollapseProps } from 'antd'
+import { Tag } from 'antd'
 import { CheckCircle, Terminal, XCircle } from 'lucide-react'
-import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 
-import { ToolTitle } from './GenericTools'
+import { truncateOutput } from '../shared/truncateOutput'
+import { ToolHeader, TruncatedIndicator } from './GenericTools'
+import { TerminalOutput } from './TerminalOutput'
 import type { BashOutputToolInput, BashOutputToolOutput } from './types'
 import { AgentToolsType } from './types'
 
@@ -15,162 +18,171 @@ interface ParsedBashOutput {
   tool_use_error?: string
 }
 
-export function BashOutputTool({ input, output }: { input: BashOutputToolInput; output?: BashOutputToolOutput }) {
-  // 解析 XML 输出
-  const parsedOutput = useMemo(() => {
-    if (!output) return null
+const parseBashOutput = (output?: BashOutputToolOutput): ParsedBashOutput | null => {
+  if (!output) return null
 
-    try {
-      const parser = new DOMParser()
-      // 检查是否包含 tool_use_error 标签
-      const hasToolError = output.includes('<tool_use_error>')
-      // 包装成有效的 XML（如果还没有根元素）
-      const xmlStr = output.includes('<status>') || hasToolError ? `<root>${output}</root>` : output
-      const xmlDoc = parser.parseFromString(xmlStr, 'application/xml')
+  try {
+    const parser = new DOMParser()
+    const hasToolError = output.includes('<tool_use_error>')
+    const xmlStr = output.includes('<status>') || hasToolError ? `<root>${output}</root>` : output
+    const xmlDoc = parser.parseFromString(xmlStr, 'application/xml')
+    const parserError = xmlDoc.querySelector('parsererror')
+    if (parserError) return null
 
-      // 检查是否有解析错误
-      const parserError = xmlDoc.querySelector('parsererror')
-      if (parserError) {
-        return null
-      }
-
-      const getElementText = (tagName: string): string | undefined => {
-        const element = xmlDoc.getElementsByTagName(tagName)[0]
-        return element?.textContent?.trim()
-      }
-
-      const result: ParsedBashOutput = {
-        status: getElementText('status'),
-        exit_code: getElementText('exit_code') ? parseInt(getElementText('exit_code')!) : undefined,
-        stdout: getElementText('stdout'),
-        stderr: getElementText('stderr'),
-        timestamp: getElementText('timestamp'),
-        tool_use_error: getElementText('tool_use_error')
-      }
-
-      return result
-    } catch {
-      return null
+    const getElementText = (tagName: string): string | undefined => {
+      const element = xmlDoc.getElementsByTagName(tagName)[0]
+      return element?.textContent?.trim()
     }
-  }, [output])
 
-  // 获取状态配置
-  const statusConfig = useMemo(() => {
-    if (!parsedOutput) return null
+    return {
+      status: getElementText('status'),
+      exit_code: getElementText('exit_code') ? parseInt(getElementText('exit_code')!) : undefined,
+      stdout: getElementText('stdout'),
+      stderr: getElementText('stderr'),
+      timestamp: getElementText('timestamp'),
+      tool_use_error: getElementText('tool_use_error')
+    }
+  } catch {
+    return null
+  }
+}
 
-    // 如果有 tool_use_error，直接显示错误状态
-    if (parsedOutput.tool_use_error) {
+export function BashOutputTool({
+  input,
+  output
+}: {
+  input?: BashOutputToolInput
+  output?: BashOutputToolOutput
+}): NonNullable<CollapseProps['items']>[number] {
+  const { t } = useTranslation()
+  const parsedOutput = parseBashOutput(output)
+
+  const getStatusConfig = (parsed: ParsedBashOutput | null) => {
+    if (!parsed) return null
+
+    if (parsed.tool_use_error) {
       return {
         color: 'danger',
         icon: <XCircle className="h-3.5 w-3.5" />,
-        text: 'Error'
+        text: t('message.tools.status.error')
       } as const
     }
 
-    const isCompleted = parsedOutput.status === 'completed'
-    const isSuccess = parsedOutput.exit_code === 0
+    const isCompleted = parsed.status === 'completed'
+    const isSuccess = parsed.exit_code === 0
+
+    if (isCompleted && isSuccess) {
+      return {
+        color: 'success',
+        icon: <CheckCircle className="h-3.5 w-3.5" />,
+        text: t('message.tools.status.success')
+      } as const
+    }
+
+    if (isCompleted) {
+      return {
+        color: 'danger',
+        icon: <XCircle className="h-3.5 w-3.5" />,
+        text: t('message.tools.status.failed')
+      } as const
+    }
 
     return {
-      color: isCompleted && isSuccess ? 'success' : isCompleted && !isSuccess ? 'danger' : 'warning',
-      icon:
-        isCompleted && isSuccess ? (
-          <CheckCircle className="h-3.5 w-3.5" />
-        ) : isCompleted && !isSuccess ? (
-          <XCircle className="h-3.5 w-3.5" />
-        ) : (
-          <Terminal className="h-3.5 w-3.5" />
-        ),
-      text: isCompleted ? (isSuccess ? 'Success' : 'Failed') : 'Running'
+      color: 'warning',
+      icon: <Terminal className="h-3.5 w-3.5" />,
+      text: t('message.tools.status.running')
     } as const
-  }, [parsedOutput])
+  }
 
-  return (
-    <AccordionItem
-      key={AgentToolsType.BashOutput}
-      aria-label="BashOutput Tool"
-      title={
-        <ToolTitle
-          icon={<Terminal className="h-4 w-4" />}
-          label="Bash Output"
-          params={
-            <div className="flex items-center gap-2">
-              <Code size="sm" className="py-0 text-xs">
-                {input.bash_id}
-              </Code>
-              {statusConfig && (
-                <Chip
-                  size="sm"
-                  color={statusConfig.color}
-                  variant="flat"
-                  startContent={statusConfig.icon}
-                  className="h-5">
-                  {statusConfig.text}
-                </Chip>
-              )}
-            </div>
-          }
-        />
-      }
-      classNames={{
-        content: 'space-y-3 px-1'
-      }}>
-      {parsedOutput ? (
-        <>
-          {/* Status Info */}
-          <div className="flex flex-wrap items-center gap-2">
-            {parsedOutput.exit_code !== undefined && (
-              <Chip size="sm" color={parsedOutput.exit_code === 0 ? 'success' : 'danger'} variant="flat">
-                Exit Code: {parsedOutput.exit_code}
-              </Chip>
-            )}
-            {parsedOutput.timestamp && (
-              <Code size="sm" className="py-0 text-xs">
-                {new Date(parsedOutput.timestamp).toLocaleString()}
-              </Code>
-            )}
-          </div>
+  const statusConfig = getStatusConfig(parsedOutput)
 
-          {/* Standard Output */}
-          {parsedOutput.stdout && (
-            <div>
-              <div className="mb-2 font-medium text-default-600 text-xs">stdout:</div>
-              <pre className="whitespace-pre-wrap font-mono text-default-700 text-xs dark:text-default-300">
-                {parsedOutput.stdout}
-              </pre>
-            </div>
-          )}
+  // Truncate stdout and stderr separately
+  const truncatedStdout = truncateOutput(parsedOutput?.stdout)
+  const truncatedStderr = truncateOutput(parsedOutput?.stderr)
+  const truncatedError = truncateOutput(parsedOutput?.tool_use_error)
+  const truncatedRawOutput = truncateOutput(output)
 
-          {/* Standard Error */}
-          {parsedOutput.stderr && (
-            <div className="border border-danger-200">
-              <div className="mb-2 font-medium text-danger-600 text-xs">stderr:</div>
-              <pre className="whitespace-pre-wrap font-mono text-danger-600 text-xs dark:text-danger-400">
-                {parsedOutput.stderr}
-              </pre>
-            </div>
-          )}
+  const children = parsedOutput ? (
+    <div className="flex flex-col gap-4">
+      {/* Status Info */}
+      <div className="flex flex-wrap items-center gap-2">
+        {parsedOutput.exit_code !== undefined && (
+          <Tag color={parsedOutput.exit_code === 0 ? 'success' : 'danger'}>
+            {t('message.tools.sections.exitCode')}: {parsedOutput.exit_code}
+          </Tag>
+        )}
+        {parsedOutput.timestamp && (
+          <Tag className="py-0 font-mono text-xs">{new Date(parsedOutput.timestamp).toLocaleString()}</Tag>
+        )}
+      </div>
 
-          {/* Tool Use Error */}
-          {parsedOutput.tool_use_error && (
-            <div className="border border-danger-200">
-              <div className="mb-2 flex items-center gap-2">
-                <XCircle className="h-4 w-4 text-danger" />
-                <span className="font-medium text-danger-600 text-xs">Error:</span>
-              </div>
-              <pre className="whitespace-pre-wrap font-mono text-danger-600 text-xs dark:text-danger-400">
-                {parsedOutput.tool_use_error}
-              </pre>
-            </div>
-          )}
-        </>
-      ) : (
-        // 原始输出（如果解析失败或非 XML 格式）
-        output && (
-          <div>
-            <pre className="whitespace-pre-wrap font-mono text-default-700 text-xs dark:text-default-300">{output}</pre>
-          </div>
-        )
+      {/* Standard Output */}
+      {truncatedStdout.data && (
+        <div>
+          <div className="mb-2 font-medium text-default-600 text-xs">{t('message.tools.sections.stdout')}:</div>
+          <TerminalOutput content={truncatedStdout.data} />
+          {truncatedStdout.isTruncated && <TruncatedIndicator originalLength={truncatedStdout.originalLength} />}
+        </div>
       )}
-    </AccordionItem>
+
+      {/* Standard Error */}
+      {truncatedStderr.data && (
+        <div className="border border-danger-200">
+          <div className="mb-2 font-medium text-danger-600 text-xs">{t('message.tools.sections.stderr')}:</div>
+          <TerminalOutput content={truncatedStderr.data} />
+          {truncatedStderr.isTruncated && <TruncatedIndicator originalLength={truncatedStderr.originalLength} />}
+        </div>
+      )}
+
+      {/* Tool Use Error */}
+      {truncatedError.data && (
+        <div className="border border-danger-200">
+          <div className="mb-2 flex items-center gap-2">
+            <XCircle className="h-4 w-4 text-danger" />
+            <span className="font-medium text-danger-600 text-xs">{t('message.tools.status.error')}:</span>
+          </div>
+          <TerminalOutput content={truncatedError.data} />
+          {truncatedError.isTruncated && <TruncatedIndicator originalLength={truncatedError.originalLength} />}
+        </div>
+      )}
+    </div>
+  ) : (
+    // 原始输出（如果解析失败或非 XML 格式）
+    truncatedRawOutput.data && (
+      <div>
+        <TerminalOutput content={truncatedRawOutput.data} />
+        {truncatedRawOutput.isTruncated && <TruncatedIndicator originalLength={truncatedRawOutput.originalLength} />}
+      </div>
+    )
   )
+  return {
+    key: AgentToolsType.BashOutput,
+    label: (
+      <ToolHeader
+        toolName={AgentToolsType.BashOutput}
+        params={
+          <div className="flex items-center gap-2">
+            <Tag className="py-0 font-mono text-xs">{input?.bash_id}</Tag>
+            {statusConfig && (
+              <Tag
+                color={statusConfig.color}
+                icon={statusConfig.icon}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: '2px'
+                }}>
+                {statusConfig.text}
+              </Tag>
+            )}
+          </div>
+        }
+        variant="collapse-label"
+        showStatus={false}
+      />
+    ),
+
+    children: children
+  }
 }

@@ -1,7 +1,8 @@
 import Doc2xLogo from '@renderer/assets/images/ocr/doc2x.png'
 import MinerULogo from '@renderer/assets/images/ocr/mineru.jpg'
 import MistralLogo from '@renderer/assets/images/providers/mistral.png'
-import { PreprocessProviderId } from '@renderer/types'
+import PaddleocrLogo from '@renderer/assets/images/providers/paddleocr.png'
+import type { PreprocessProviderId } from '@renderer/types'
 
 export function getPreprocessProviderLogo(providerId: PreprocessProviderId) {
   switch (providerId) {
@@ -11,6 +12,10 @@ export function getPreprocessProviderLogo(providerId: PreprocessProviderId) {
       return MistralLogo
     case 'mineru':
       return MinerULogo
+    case 'open-mineru':
+      return MinerULogo
+    case 'paddleocr':
+      return PaddleocrLogo
     default:
       return undefined
   }
@@ -35,6 +40,18 @@ export const PREPROCESS_PROVIDER_CONFIG: Record<PreprocessProviderId, Preprocess
     websites: {
       official: 'https://mineru.net/',
       apiKey: 'https://mineru.net/apiManage'
+    }
+  },
+  'open-mineru': {
+    websites: {
+      official: 'https://github.com/opendatalab/MinerU/',
+      apiKey: 'https://github.com/opendatalab/MinerU/'
+    }
+  },
+  paddleocr: {
+    websites: {
+      official: 'https://aistudio.baidu.com/paddleocr/',
+      apiKey: 'https://aistudio.baidu.com/paddleocr/'
     }
   }
 }

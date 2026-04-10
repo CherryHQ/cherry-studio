@@ -1,4 +1,4 @@
-import { OcrHandler } from '@types'
+import type { OcrHandler } from '@types'
 
 export abstract class OcrBaseService {
   abstract ocr: OcrHandler

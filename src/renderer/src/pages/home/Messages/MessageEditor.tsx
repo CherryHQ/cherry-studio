@@ -5,27 +5,31 @@ import TranslateButton from '@renderer/components/TranslateButton'
 import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { useTimer } from '@renderer/hooks/useTimer'
+import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import FileManager from '@renderer/services/FileManager'
 import PasteService from '@renderer/services/PasteService'
 import { useAppSelector } from '@renderer/store'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
-import { FileMetadata, FileTypes } from '@renderer/types'
-import { Message, MessageBlock, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import type { FileMetadata } from '@renderer/types'
+import { FILE_TYPE } from '@renderer/types'
+import type { Message, MessageBlock } from '@renderer/types/newMessage'
+import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { classNames } from '@renderer/utils'
 import { getFilesFromDropEvent, isSendMessageKeyPressed } from '@renderer/utils/input'
 import { createFileBlock, createImageBlock } from '@renderer/utils/messageUtils/create'
 import { findAllBlocks } from '@renderer/utils/messageUtils/find'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { Space, Tooltip } from 'antd'
-import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
+import type { TextAreaRef } from 'antd/es/input/TextArea'
+import TextArea from 'antd/es/input/TextArea'
 import { Save, Send, X } from 'lucide-react'
-import { FC, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import AttachmentButton, { AttachmentButtonRef } from '../Inputbar/AttachmentButton'
 import { FileNameRender, getFileIcon } from '../Inputbar/AttachmentPreview'
+import AttachmentButton from '../Inputbar/tools/components/AttachmentButton'
 
 interface Props {
   message: Message
@@ -45,14 +49,20 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
   const [isFileDragging, setIsFileDragging] = useState(false)
   const { assistant } = useAssistant(message.assistantId)
   const model = assistant.model || assistant.defaultModel
-  const { pasteLongTextThreshold, fontSize, sendMessageShortcut, enableSpellCheck } = useSettings()
+  const { pasteLongTextAsFile, pasteLongTextThreshold, fontSize, sendMessageShortcut, enableSpellCheck } = useSettings()
   const { t } = useTranslation()
   const textareaRef = useRef<TextAreaRef>(null)
-  const attachmentButtonRef = useRef<AttachmentButtonRef>(null)
   const isUserMessage = message.role === 'user'
 
   const topicMessages = useAppSelector((state) => selectMessagesForTopic(state, topicId))
-  const { setTimeoutTimer } = useTimer()
+
+  const noopQuickPanel = useMemo<ToolQuickPanelApi>(
+    () => ({
+      registerRootMenu: () => () => {},
+      registerTrigger: () => () => {}
+    }),
+    []
+  )
 
   const couldAddImageFile = useMemo(() => {
     const relatedAssistantMessages = topicMessages.filter((m) => m.askId === message.id && m.role === 'assistant')
@@ -126,14 +136,14 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
         extensions,
         setFiles,
         undefined, // 不需要setText
-        false, // 不需要 pasteLongTextAsFile
+        pasteLongTextAsFile,
         pasteLongTextThreshold,
         undefined, // 不需要text
         undefined, // 不需要 resizeTextArea
         t
       )
     },
-    [extensions, pasteLongTextThreshold, t]
+    [extensions, pasteLongTextThreshold, t, pasteLongTextAsFile]
   )
 
   // 添加全局粘贴事件处理
@@ -194,7 +204,7 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
     if (files && files.length) {
       const uploadedFiles = await FileManager.uploadFiles(files)
       uploadedFiles.forEach((file) => {
-        if (file.type === FileTypes.IMAGE) {
+        if (file.type === FILE_TYPE.IMAGE) {
           const imgBlock = createImageBlock(message.id, { file, status: MessageBlockStatus.SUCCESS })
           updatedBlocks.push(imgBlock)
         } else {
@@ -220,7 +230,7 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
     onResend(updatedBlocks)
   }
 
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>, blockId: string) => {
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (message.role !== 'user') {
       return
     }
@@ -235,32 +245,8 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
     const isEnterPressed = event.key === 'Enter' && !event.nativeEvent.isComposing
     if (isEnterPressed) {
       if (isSendMessageKeyPressed(event, sendMessageShortcut)) {
-        handleResend()
+        void handleResend()
         return event.preventDefault()
-      } else {
-        if (!event.shiftKey) {
-          event.preventDefault()
-
-          const textArea = textareaRef.current?.resizableTextArea?.textArea
-          if (textArea) {
-            const start = textArea.selectionStart
-            const end = textArea.selectionEnd
-            const text = textArea.value
-            const newText = text.substring(0, start) + '\n' + text.substring(end)
-
-            //same with onChange()
-            handleTextChange(blockId, newText)
-
-            // set cursor position in the next render cycle
-            setTimeoutTimer(
-              'handleKeyDown',
-              () => {
-                textArea.selectionStart = textArea.selectionEnd = start + 1
-              },
-              0
-            )
-          }
-        }
       }
     }
   }
@@ -286,7 +272,7 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
               onChange={(e) => {
                 handleTextChange(block.id, e.target.value)
               }}
-              onKeyDown={(e) => handleKeyDown(e, block.id)}
+              onKeyDown={handleKeyDown}
               autoFocus
               spellCheck={enableSpellCheck}
               onPaste={(e) => onPaste(e.nativeEvent)}
@@ -341,7 +327,7 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
         <ActionBarLeft>
           {isUserMessage && (
             <AttachmentButton
-              ref={attachmentButtonRef}
+              quickPanel={noopQuickPanel}
               files={files}
               setFiles={setFiles}
               couldAddImageFile={couldAddImageFile}
@@ -417,7 +403,7 @@ const FileBlocksContainer = styled.div`
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  padding: 0 15px;
+  padding: 0;
   margin: 8px 0;
   background: transparent;
   border-radius: 4px;

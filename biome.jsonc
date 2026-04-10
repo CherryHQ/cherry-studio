@@ -14,14 +14,18 @@
       }
     },
     "enabled": true,
-    "includes": ["**/*.json", "!*.json", "!**/package.json"]
+    "includes": ["**/*.json", "!**/package.json", "!coverage/**", "!config/app-upgrade-segments.json"]
   },
   "css": {
     "formatter": {
       "quoteStyle": "single"
     }
   },
-  "files": { "ignoreUnknown": false },
+  "files": {
+    "ignoreUnknown": false,
+    "includes": ["**", "!**/.claude/**", "!**/.vscode/**", "!**/.conductor/**", "!resources/**", "!**/dist/**"],
+    "maxSize": 2097152
+  },
   "formatter": {
     "attributePosition": "auto",
     "bracketSameLine": false,
@@ -43,10 +47,8 @@
       "!*.mjs",
       "!*.cjs",
       "!*.md",
-      "!*.json",
       "!src/main/integration/**",
-      "!**/tailwind.css",
-      "!**/package.json"
+      "!**/tailwind.css"
     ],
     "indentStyle": "space",
     "indentWidth": 2,

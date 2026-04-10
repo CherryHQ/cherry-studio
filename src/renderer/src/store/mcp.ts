@@ -1,8 +1,25 @@
+/**
+ * @deprecated Scheduled for removal in v2.0.0
+ * --------------------------------------------------------------------------
+ * ⚠️ NOTICE: V2 DATA&UI REFACTORING (by 0xfullex)
+ * --------------------------------------------------------------------------
+ * STOP: Feature PRs affecting this file are currently BLOCKED.
+ * Only critical bug fixes are accepted during this migration phase.
+ *
+ * This file is being refactored to v2 standards.
+ * Any non-critical changes will conflict with the ongoing work.
+ *
+ * 🔗 Context & Status:
+ * - Contribution Hold: https://github.com/CherryHQ/cherry-studio/issues/10954
+ * - v2 Refactor PR   : https://github.com/CherryHQ/cherry-studio/pull/10162
+ * --------------------------------------------------------------------------
+ */
 import { loggerService } from '@logger'
 import { createSlice, nanoid, type PayloadAction } from '@reduxjs/toolkit'
 import { type BuiltinMCPServer, BuiltinMCPServerNames, type MCPConfig, type MCPServer } from '@renderer/types'
 
 const logger = loggerService.withContext('Store:MCP')
+const filesystemManualApprovalTools = ['write', 'edit', 'delete'] as const
 
 export const initialState: MCPConfig = {
   servers: [],
@@ -70,7 +87,39 @@ export { mcpSlice }
 // Export the reducer as default export
 export default mcpSlice.reducer
 
+/**
+ * Hub MCP server for auto mode - aggregates all MCP servers for LLM code mode.
+ * This server is injected automatically when mcpMode === 'auto'.
+ */
+export const hubMCPServer: BuiltinMCPServer = {
+  id: 'hub',
+  name: BuiltinMCPServerNames.hub,
+  type: 'inMemory',
+  isActive: true,
+  provider: 'CherryAI',
+  installSource: 'builtin',
+  isTrusted: true
+}
+
+/**
+ * User-installable built-in MCP servers shown in the UI.
+ *
+ * Note: The `hub` server (@cherry/hub) is intentionally excluded because:
+ * - It's a meta-server that aggregates all other MCP servers
+ * - It's designed for LLM code mode, not direct user interaction
+ * - It should be auto-enabled internally when needed, not manually installed
+ */
 export const builtinMCPServers: BuiltinMCPServer[] = [
+  {
+    id: nanoid(),
+    name: BuiltinMCPServerNames.flomo,
+    reference: 'https://flomoapp.com',
+    type: 'inMemory',
+    isActive: false,
+    provider: 'flomo',
+    installSource: 'builtin',
+    isTrusted: true
+  },
   {
     id: nanoid(),
     name: BuiltinMCPServerNames.mcpAutoInstall,
@@ -79,7 +128,9 @@ export const builtinMCPServers: BuiltinMCPServer[] = [
     command: 'npx',
     args: ['-y', '@mcpmarket/mcp-auto-install', 'connect', '--json'],
     isActive: false,
-    provider: 'CherryAI'
+    provider: 'CherryAI',
+    installSource: 'builtin',
+    isTrusted: true
   },
   {
     id: nanoid(),
@@ -91,14 +142,18 @@ export const builtinMCPServers: BuiltinMCPServer[] = [
       MEMORY_FILE_PATH: 'YOUR_MEMORY_FILE_PATH'
     },
     shouldConfig: true,
-    provider: 'CherryAI'
+    provider: 'CherryAI',
+    installSource: 'builtin',
+    isTrusted: true
   },
   {
     id: nanoid(),
     name: BuiltinMCPServerNames.sequentialThinking,
     type: 'inMemory',
     isActive: true,
-    provider: 'CherryAI'
+    provider: 'CherryAI',
+    installSource: 'builtin',
+    isTrusted: true
   },
   {
     id: nanoid(),
@@ -109,23 +164,30 @@ export const builtinMCPServers: BuiltinMCPServer[] = [
       BRAVE_API_KEY: 'YOUR_API_KEY'
     },
     shouldConfig: true,
-    provider: 'CherryAI'
+    provider: 'CherryAI',
+    installSource: 'builtin',
+    isTrusted: true
   },
   {
     id: nanoid(),
     name: BuiltinMCPServerNames.fetch,
     type: 'inMemory',
     isActive: true,
-    provider: 'CherryAI'
+    provider: 'CherryAI',
+    installSource: 'builtin',
+    isTrusted: true
   },
   {
     id: nanoid(),
     name: BuiltinMCPServerNames.filesystem,
     type: 'inMemory',
-    args: ['/Users/username/Desktop', '/path/to/other/allowed/dir'],
+    args: ['/Users/username/Desktop'],
+    disabledAutoApproveTools: [...filesystemManualApprovalTools],
     shouldConfig: true,
     isActive: false,
-    provider: 'CherryAI'
+    provider: 'CherryAI',
+    installSource: 'builtin',
+    isTrusted: true
   },
   {
     id: nanoid(),
@@ -136,14 +198,51 @@ export const builtinMCPServers: BuiltinMCPServer[] = [
       DIFY_KEY: 'YOUR_DIFY_KEY'
     },
     shouldConfig: true,
-    provider: 'CherryAI'
+    provider: 'CherryAI',
+    installSource: 'builtin',
+    isTrusted: true
   },
   {
     id: nanoid(),
     name: BuiltinMCPServerNames.python,
     type: 'inMemory',
     isActive: false,
-    provider: 'CherryAI'
+    provider: 'CherryAI',
+    installSource: 'builtin',
+    isTrusted: true
+  },
+  {
+    id: nanoid(),
+    name: '@cherry/didi-mcp',
+    reference: 'https://mcp.didichuxing.com/',
+    type: 'inMemory',
+    isActive: false,
+    env: {
+      DIDI_API_KEY: 'YOUR_DIDI_API_KEY'
+    },
+    shouldConfig: true,
+    provider: 'CherryAI',
+    installSource: 'builtin',
+    isTrusted: true
+  },
+  {
+    id: nanoid(),
+    name: BuiltinMCPServerNames.browser,
+    type: 'inMemory',
+    isActive: false,
+    provider: 'CherryAI',
+    installSource: 'builtin',
+    isTrusted: true
+  },
+  {
+    id: nanoid(),
+    name: BuiltinMCPServerNames.nowledgeMem,
+    reference: 'https://mem.nowledge.co/',
+    type: 'inMemory',
+    isActive: false,
+    provider: 'Nowledge',
+    installSource: 'builtin',
+    isTrusted: true
   }
 ] as const
 

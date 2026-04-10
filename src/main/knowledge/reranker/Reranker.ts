@@ -1,4 +1,4 @@
-import { KnowledgeBaseParams, KnowledgeSearchResult } from '@types'
+import type { KnowledgeBaseParams, KnowledgeSearchResult } from '@types'
 
 import GeneralReranker from './GeneralReranker'
 

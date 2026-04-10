@@ -8,7 +8,8 @@ import { getFileFieldLabel } from '@renderer/i18n/label'
 import { handleDelete, handleRename, sortFiles, tempFilesSort } from '@renderer/services/FileAction'
 import FileManager from '@renderer/services/FileManager'
 import store from '@renderer/store'
-import { FileMetadata, FileTypes } from '@renderer/types'
+import type { FileMetadata, FileType } from '@renderer/types'
+import { FILE_TYPE } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { Button, Checkbox, Dropdown, Empty, Flex, Popconfirm } from 'antd'
 import dayjs from 'dayjs'
@@ -21,7 +22,8 @@ import {
   FileText,
   FileType as FileTypeIcon
 } from 'lucide-react'
-import { FC, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -34,7 +36,7 @@ const logger = loggerService.withContext('FilesPage')
 
 const FilesPage: FC = () => {
   const { t } = useTranslation()
-  const [fileType, setFileType] = useState<string>('document')
+  const [fileType, setFileType] = useState<FileType | 'all'>('document')
   const [sortField, setSortField] = useState<SortField>('created_at')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
   const [selectedFileIds, setSelectedFileIds] = useState<string[]>([])
@@ -43,7 +45,7 @@ const FilesPage: FC = () => {
     setSelectedFileIds([])
   }, [fileType])
 
-  const files = useLiveQuery<FileMetadata[]>(() => {
+  const files = useLiveQuery<FileMetadata[]>(async () => {
     if (fileType === 'all') {
       return db.files.orderBy('count').toArray().then(tempFilesSort)
     }
@@ -135,11 +137,11 @@ const FilesPage: FC = () => {
   })
 
   const menuItems = [
-    { key: FileTypes.DOCUMENT, label: t('files.document'), icon: <FileIcon size={16} /> },
-    { key: FileTypes.IMAGE, label: t('files.image'), icon: <FileImage size={16} /> },
-    { key: FileTypes.TEXT, label: t('files.text'), icon: <FileTypeIcon size={16} /> },
+    { key: FILE_TYPE.DOCUMENT, label: t('files.document'), icon: <FileIcon size={16} /> },
+    { key: FILE_TYPE.IMAGE, label: t('files.image'), icon: <FileImage size={16} /> },
+    { key: FILE_TYPE.TEXT, label: t('files.text'), icon: <FileTypeIcon size={16} /> },
     { key: 'all', label: t('files.all'), icon: <FileText size={16} /> }
-  ]
+  ] as const
 
   return (
     <Container>
@@ -154,7 +156,7 @@ const FilesPage: FC = () => {
               icon={item.icon}
               title={item.label}
               active={fileType === item.key}
-              onClick={() => setFileType(item.key as FileTypes)}
+              onClick={() => setFileType(item.key)}
             />
           ))}
         </SideNav>
@@ -169,7 +171,7 @@ const FilesPage: FC = () => {
                     if (sortField === field) {
                       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
                     } else {
-                      setSortField(field as 'created_at' | 'size' | 'name')
+                      setSortField(field)
                       setSortOrder('desc')
                     }
                   }}>

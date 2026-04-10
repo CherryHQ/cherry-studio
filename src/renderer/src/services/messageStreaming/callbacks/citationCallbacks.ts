@@ -1,10 +1,11 @@
 import { loggerService } from '@logger'
 import type { ExternalToolResult } from '@renderer/types'
-import { CitationMessageBlock, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import type { CitationMessageBlock } from '@renderer/types/newMessage'
+import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { createCitationBlock } from '@renderer/utils/messageUtils/create'
 import { findMainTextBlocks } from '@renderer/utils/messageUtils/find'
 
-import { BlockManager } from '../BlockManager'
+import type { BlockManager } from '../BlockManager'
 
 const logger = loggerService.withContext('CitationCallbacks')
 
@@ -120,6 +121,11 @@ export const createCitationCallbacks = (deps: CitationCallbacksDependencies) => 
     },
 
     // 暴露给外部的方法，用于textCallbacks中获取citationBlockId
-    getCitationBlockId: () => citationBlockId
+    getCitationBlockId: () => citationBlockId,
+
+    // 暴露给外部的方法，用于 KnowledgeService 中设置 citationBlockId
+    setCitationBlockId: (blockId: string) => {
+      citationBlockId = blockId
+    }
   }
 }

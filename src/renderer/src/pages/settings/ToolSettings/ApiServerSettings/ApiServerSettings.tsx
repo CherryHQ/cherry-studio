@@ -1,13 +1,13 @@
-// TODO: Refactor this component to use HeroUI
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { loggerService } from '@renderer/services/LoggerService'
-import { RootState, useAppDispatch } from '@renderer/store'
-import { setApiServerApiKey, setApiServerEnabled, setApiServerPort } from '@renderer/store/settings'
+import { useApiServer } from '@renderer/hooks/useApiServer'
+import type { RootState } from '@renderer/store'
+import { useAppDispatch } from '@renderer/store'
+import { setApiServerApiKey, setApiServerPort } from '@renderer/store/settings'
 import { formatErrorMessage } from '@renderer/utils/error'
-import { IpcChannel } from '@shared/IpcChannel'
-import { Button, Input, InputNumber, Tooltip, Typography } from 'antd'
+import { API_SERVER_DEFAULTS } from '@shared/config/constant'
+import { Alert, Button, Input, InputNumber, Tooltip, Typography } from 'antd'
 import { Copy, ExternalLink, Play, RotateCcw, Square } from 'lucide-react'
-import { FC, useEffect, useState } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
@@ -15,7 +15,6 @@ import { v4 as uuidv4 } from 'uuid'
 
 import { SettingContainer } from '../..'
 
-const logger = loggerService.withContext('ApiServerSettings')
 const { Text, Title } = Typography
 
 const ApiServerSettings: FC = () => {
@@ -25,71 +24,29 @@ const ApiServerSettings: FC = () => {
 
   // API Server state with proper defaults
   const apiServerConfig = useSelector((state: RootState) => state.settings.apiServer)
-
-  const [apiServerRunning, setApiServerRunning] = useState(false)
-  const [apiServerLoading, setApiServerLoading] = useState(false)
-
-  // API Server functions
-  const checkApiServerStatus = async () => {
-    try {
-      const status = await window.electron.ipcRenderer.invoke(IpcChannel.ApiServer_GetStatus)
-      setApiServerRunning(status.running)
-    } catch (error: any) {
-      logger.error('Failed to check API server status:', error)
-    }
-  }
-
-  useEffect(() => {
-    checkApiServerStatus()
-  }, [])
+  const { apiServerRunning, apiServerLoading, startApiServer, stopApiServer, restartApiServer, setApiServerEnabled } =
+    useApiServer()
 
   const handleApiServerToggle = async (enabled: boolean) => {
-    setApiServerLoading(true)
     try {
       if (enabled) {
-        const result = await window.electron.ipcRenderer.invoke(IpcChannel.ApiServer_Start)
-        if (result.success) {
-          setApiServerRunning(true)
-          window.toast.success(t('apiServer.messages.startSuccess'))
-        } else {
-          window.toast.error(t('apiServer.messages.startError') + result.error)
-        }
+        await startApiServer()
       } else {
-        const result = await window.electron.ipcRenderer.invoke(IpcChannel.ApiServer_Stop)
-        if (result.success) {
-          setApiServerRunning(false)
-          window.toast.success(t('apiServer.messages.stopSuccess'))
-        } else {
-          window.toast.error(t('apiServer.messages.stopError') + result.error)
-        }
+        await stopApiServer()
       }
     } catch (error) {
       window.toast.error(t('apiServer.messages.operationFailed') + formatErrorMessage(error))
     } finally {
-      dispatch(setApiServerEnabled(enabled))
-      setApiServerLoading(false)
+      setApiServerEnabled(enabled)
     }
   }
 
   const handleApiServerRestart = async () => {
-    setApiServerLoading(true)
-    try {
-      const result = await window.electron.ipcRenderer.invoke(IpcChannel.ApiServer_Restart)
-      if (result.success) {
-        await checkApiServerStatus()
-        window.toast.success(t('apiServer.messages.restartSuccess'))
-      } else {
-        window.toast.error(t('apiServer.messages.restartError') + result.error)
-      }
-    } catch (error) {
-      window.toast.error(t('apiServer.messages.restartFailed') + (error as Error).message)
-    } finally {
-      setApiServerLoading(false)
-    }
+    await restartApiServer()
   }
 
   const copyApiKey = () => {
-    navigator.clipboard.writeText(apiServerConfig.apiKey)
+    void navigator.clipboard.writeText(apiServerConfig.apiKey)
     window.toast.success(t('apiServer.messages.apiKeyCopied'))
   }
 
@@ -100,7 +57,7 @@ const ApiServerSettings: FC = () => {
   }
 
   const handlePortChange = (value: string) => {
-    const port = parseInt(value) || 23333
+    const port = parseInt(value) || API_SERVER_DEFAULTS.PORT
     if (port >= 1000 && port <= 65535) {
       dispatch(setApiServerPort(port))
     }
@@ -108,7 +65,9 @@ const ApiServerSettings: FC = () => {
 
   const openApiDocs = () => {
     if (apiServerRunning) {
-      window.open(`http://localhost:${apiServerConfig.port}/api-docs`, '_blank')
+      const host = apiServerConfig.host || API_SERVER_DEFAULTS.HOST
+      const port = apiServerConfig.port || API_SERVER_DEFAULTS.PORT
+      window.open(`http://${host}:${port}/api-docs`, '_blank')
     }
   }
 
@@ -129,6 +88,10 @@ const ApiServerSettings: FC = () => {
         )}
       </HeaderSection>
 
+      {!apiServerRunning && (
+        <Alert type="warning" message={t('agent.warning.enable_server')} style={{ marginBottom: 10 }} showIcon />
+      )}
+
       {/* Server Control Panel with integrated configuration */}
       <ServerControlPanel $status={apiServerRunning}>
         <StatusSection>
@@ -138,7 +101,9 @@ const ApiServerSettings: FC = () => {
               {apiServerRunning ? t('apiServer.status.running') : t('apiServer.status.stopped')}
             </StatusText>
             <StatusSubtext>
-              {apiServerRunning ? `http://localhost:${apiServerConfig.port}` : t('apiServer.fields.port.description')}
+              {apiServerRunning
+                ? `http://${apiServerConfig.host || API_SERVER_DEFAULTS.HOST}:${apiServerConfig.port || API_SERVER_DEFAULTS.PORT}`
+                : t('apiServer.fields.port.description')}
             </StatusSubtext>
           </StatusContent>
         </StatusSection>
@@ -159,11 +124,11 @@ const ApiServerSettings: FC = () => {
           {!apiServerRunning && (
             <StyledInputNumber
               value={apiServerConfig.port}
-              onChange={(value) => handlePortChange(String(value || 23333))}
+              onChange={(value) => handlePortChange(String(value || API_SERVER_DEFAULTS.PORT))}
               min={1000}
               max={65535}
               disabled={apiServerRunning}
-              placeholder="23333"
+              placeholder={String(API_SERVER_DEFAULTS.PORT)}
               size="middle"
             />
           )}

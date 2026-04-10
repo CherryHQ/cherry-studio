@@ -1,6 +1,9 @@
 import { TopView } from '@renderer/components/TopView'
-import { Modal, ModalProps } from 'antd'
-import { ReactNode, useState } from 'react'
+import type { ModalProps } from 'antd'
+import { Modal as AntdModal } from 'antd'
+import type { ReactNode } from 'react'
+import { useState } from 'react'
+import styled from 'styled-components'
 
 interface ShowParams extends ModalProps {
   content: ReactNode
@@ -40,6 +43,12 @@ const PopupContainer: React.FC<Props> = ({ content, resolve, ...rest }) => {
     </Modal>
   )
 }
+
+const Modal = styled(AntdModal)`
+  .ant-modal-close {
+    top: 8px;
+  }
+`
 
 const TopViewKey = 'GeneralPopup'
 

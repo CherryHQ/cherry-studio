@@ -5,7 +5,8 @@ import { LRUCache } from 'lru-cache'
 import type { HighlighterCore, SpecialLanguage, ThemedToken } from 'shiki/core'
 
 // 注意保持 ShikiStreamTokenizer 依赖简单，避免打包出问题
-import { ShikiStreamTokenizer, ShikiStreamTokenizerOptions } from '../services/ShikiStreamTokenizer'
+import type { ShikiStreamTokenizerOptions } from '../services/ShikiStreamTokenizer'
+import { ShikiStreamTokenizer } from '../services/ShikiStreamTokenizer'
 
 const logger = loggerService.initWindowSource('Worker').withContext('ShikiStream')
 

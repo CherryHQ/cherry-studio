@@ -4,10 +4,11 @@
  *
  * WARNING: Any null value will be converted to undefined from api.
  */
-import { ModelMessage, TextStreamPart } from 'ai'
-import { z } from 'zod'
+import type { ModelMessage, TextStreamPart } from 'ai'
+import * as z from 'zod'
 
 import type { Message, MessageBlock } from './newMessage'
+import { PluginMetadataSchema } from './plugin'
 
 // ------------------ Core enums and helper types ------------------
 export const PermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan'])
@@ -26,6 +27,21 @@ export type SessionMessageType = TextStreamPart<Record<string, any>>['type']
 
 export const AgentTypeSchema = z.enum(['claude-code'])
 export type AgentType = z.infer<typeof AgentTypeSchema>
+
+// ------------------ CherryClaw-specific types ------------------
+export const SchedulerTypeSchema = z.enum(['cron', 'interval', 'one-time'])
+export type SchedulerType = z.infer<typeof SchedulerTypeSchema>
+
+export type FeishuDomain = 'feishu' | 'lark'
+export type FeishuChannelConfig = {
+  type: 'feishu'
+  app_id: string
+  app_secret: string
+  encrypt_key: string
+  verification_token: string
+  allowed_chat_ids: string[]
+  domain: FeishuDomain
+}
 
 export const isAgentType = (type: unknown): type is AgentType => {
   return AgentTypeSchema.safeParse(type).success
@@ -57,18 +73,77 @@ export const AgentConfigurationSchema = z
 
     // https://docs.claude.com/en/docs/claude-code/sdk/sdk-permissions#mode-specific-behaviors
     permission_mode: PermissionModeSchema.optional().default('default'), // Permission mode, default to 'default'
-    max_turns: z.number().optional().default(100) // Maximum number of interaction turns, default to 100
+    max_turns: z.number().optional().default(100), // Maximum number of interaction turns, default to 100
+    env_vars: z.record(z.string(), z.string()).optional().default({}), // Custom environment variables for the agent runtime
+
+    // Soul
+    soul_enabled: z.boolean().optional(),
+    bootstrap_completed: z.boolean().optional(),
+
+    // Scheduler
+    scheduler_enabled: z.boolean().optional(),
+    scheduler_type: SchedulerTypeSchema.optional(),
+    scheduler_cron: z.string().optional(),
+    scheduler_interval: z.number().optional(),
+    scheduler_one_time_delay: z.number().optional(),
+    scheduler_last_run: z.string().optional(),
+
+    // Heartbeat
+    heartbeat_enabled: z.boolean().optional(),
+    heartbeat_interval: z.number().optional() // minutes, default 30
   })
   .loose()
 
 export type AgentConfiguration = z.infer<typeof AgentConfigurationSchema>
+
+/** @deprecated Use AgentConfiguration directly — all fields are now in AgentConfigurationSchema */
+export type CherryClawConfiguration = AgentConfiguration
+
+// ------------------ Scheduled Task types ------------------
+export const TaskScheduleTypeSchema = z.enum(['cron', 'interval', 'once'])
+export type TaskScheduleType = z.infer<typeof TaskScheduleTypeSchema>
+
+export const TaskStatusSchema = z.enum(['active', 'paused', 'completed'])
+export type TaskStatus = z.infer<typeof TaskStatusSchema>
+
+export const ScheduledTaskEntitySchema = z.object({
+  id: z.string(),
+  agent_id: z.string(),
+  name: z.string(),
+  prompt: z.string(),
+  schedule_type: TaskScheduleTypeSchema,
+  schedule_value: z.string(),
+  timeout_minutes: z.number(),
+  channel_ids: z.array(z.string()).optional(), // populated from channel_task_subscriptions
+  next_run: z.string().nullable().optional(),
+  last_run: z.string().nullable().optional(),
+  last_result: z.string().nullable().optional(),
+  status: TaskStatusSchema,
+  created_at: z.iso.datetime(),
+  updated_at: z.iso.datetime()
+})
+
+export type ScheduledTaskEntity = z.infer<typeof ScheduledTaskEntitySchema>
+
+export const TaskRunLogEntitySchema = z.object({
+  id: z.number(),
+  task_id: z.string(),
+  session_id: z.string().nullable().optional(),
+  run_at: z.string(),
+  duration_ms: z.number(),
+  status: z.enum(['running', 'success', 'error']),
+  result: z.string().nullable().optional(),
+  error: z.string().nullable().optional()
+})
+
+export type TaskRunLogEntity = z.infer<typeof TaskRunLogEntitySchema>
 
 // Shared configuration interface for both agents and sessions
 export const AgentBaseSchema = z.object({
   // Basic info
   name: z.string().optional(),
   description: z.string().optional(),
-  accessible_paths: z.array(z.string()).nonempty(), // Array of directory paths the agent can access
+  accessible_paths: z.array(z.string()), // Array of directory paths the agent can access (empty = use default workspace)
 
   // Instructions for the agent
   instructions: z.string().optional(), // System prompt
@@ -81,6 +156,7 @@ export const AgentBaseSchema = z.object({
   // Tools
   mcps: z.array(z.string()).optional(), // Array of MCP tool IDs
   allowed_tools: z.array(z.string()).optional(), // Array of allowed tool IDs (whitelist)
+  slash_commands: z.array(SlashCommandSchema).optional(), // Array of slash commands merged from builtin and SDK
 
   // Configuration
   configuration: AgentConfigurationSchema.optional() // Extensible settings like temperature, top_p, etc.
@@ -121,6 +197,8 @@ export const isAgentEntity = (value: unknown): value is AgentEntity => {
 export interface ListOptions {
   limit?: number
   offset?: number
+  sortBy?: 'created_at' | 'updated_at' | 'name' | 'sort_order'
+  orderBy?: 'asc' | 'desc'
 }
 
 // AgentSession entity representing a conversation session with one or more agents
@@ -224,6 +302,25 @@ export type SessionForm = CreateSessionForm | UpdateSessionForm
 
 export type UpdateAgentBaseForm = Partial<AgentBase> & { id: string }
 
+// --------------------- Components & Hooks ----------------------
+
+export type UpdateAgentBaseOptions = {
+  /** Whether to show success toast after updating. Defaults to true. */
+  showSuccessToast?: boolean
+}
+
+export type UpdateAgentFunction = (
+  form: UpdateAgentForm,
+  options?: UpdateAgentBaseOptions
+) => Promise<AgentEntity | undefined>
+
+export type UpdateAgentSessionFunction = (
+  form: UpdateSessionForm,
+  options?: UpdateAgentBaseOptions
+) => Promise<AgentSessionEntity | undefined>
+
+export type UpdateAgentFunctionUnion = UpdateAgentFunction | UpdateAgentSessionFunction
+
 // ------------------ API data transfer objects ------------------
 export interface CreateAgentRequest extends AgentBase {
   type: AgentType
@@ -263,10 +360,22 @@ export interface UpdateSessionRequest extends Partial<AgentBase> {}
 export const GetAgentSessionResponseSchema = AgentSessionEntitySchema.extend({
   tools: z.array(ToolSchema).optional(), // All tools available to the session (including built-in and custom)
   messages: z.array(AgentSessionMessageEntitySchema).optional(), // Messages in the session
-  slash_commands: z.array(SlashCommandSchema).optional() // Array of slash commands to trigger the agent
+  plugins: z
+    .array(
+      z.object({
+        filename: z.string(),
+        type: z.enum(['agent', 'command', 'skill']),
+        metadata: PluginMetadataSchema
+      })
+    )
+    .optional() // Installed plugins from workdir
 })
 
+export const CreateAgentSessionResponseSchema = GetAgentSessionResponseSchema
+
 export type GetAgentSessionResponse = z.infer<typeof GetAgentSessionResponseSchema>
+
+export type CreateAgentSessionResponse = GetAgentSessionResponse
 
 export const ListAgentSessionsResponseSchema = z.object({
   data: z.array(AgentSessionEntitySchema),
@@ -290,6 +399,53 @@ export const AgentServerErrorSchema = z.object({
 })
 
 export type AgentServerError = z.infer<typeof AgentServerErrorSchema>
+
+// ------------------ Task API types ------------------
+export const CreateTaskRequestSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  prompt: z.string().min(1, 'Prompt is required'),
+  schedule_type: TaskScheduleTypeSchema,
+  schedule_value: z.string().min(1, 'Schedule value is required'),
+  timeout_minutes: z.number().min(1).nullable().optional(),
+  channel_ids: z.array(z.string()).optional()
+})
+
+export type CreateTaskRequest = z.infer<typeof CreateTaskRequestSchema>
+
+export const UpdateTaskRequestSchema = z.object({
+  name: z.string().min(1).optional(),
+  prompt: z.string().min(1).optional(),
+  agent_id: z.string().min(1).optional(),
+  schedule_type: TaskScheduleTypeSchema.optional(),
+  schedule_value: z.string().min(1).optional(),
+  timeout_minutes: z.number().min(1).nullable().optional(),
+  channel_ids: z.array(z.string()).optional(),
+  status: TaskStatusSchema.optional()
+})
+
+export type UpdateTaskRequest = z.infer<typeof UpdateTaskRequestSchema>
+
+export const ListTasksResponseSchema = z.object({
+  data: z.array(ScheduledTaskEntitySchema),
+  total: z.int(),
+  limit: z.int(),
+  offset: z.int()
+})
+
+export type ListTasksResponse = z.infer<typeof ListTasksResponseSchema>
+
+export const ListTaskLogsResponseSchema = z.object({
+  data: z.array(TaskRunLogEntitySchema),
+  total: z.int(),
+  limit: z.int(),
+  offset: z.int()
+})
+
+export type ListTaskLogsResponse = z.infer<typeof ListTaskLogsResponseSchema>
+
+export const TaskIdParamSchema = z.object({
+  taskId: z.string().min(1, 'Task ID is required')
+})
 
 // ------------------ API validation schemas ------------------
 
@@ -339,6 +495,29 @@ export const ReplaceSessionRequestSchema = sessionCreatableSchema
 
 export type ReplaceSessionRequest = z.infer<typeof ReplaceSessionRequestSchema>
 
+const AgentEffortSchema = z.enum(['low', 'medium', 'high', 'max'])
+
+const AgentThinkingConfigSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('enabled'), budgetTokens: z.number().optional() }),
+  z.object({ type: z.literal('disabled') }),
+  z.object({ type: z.literal('adaptive') })
+])
+
+export type AgentEffort = z.infer<typeof AgentEffortSchema>
+export type AgentThinkingConfig = z.infer<typeof AgentThinkingConfigSchema>
+
 export const CreateSessionMessageRequestSchema = z.object({
-  content: z.string().min(1, 'Content must be a valid string')
+  content: z.string().min(1, 'Content must be a valid string'),
+  effort: AgentEffortSchema.optional(),
+  thinking: AgentThinkingConfigSchema.optional()
 })
+
+export type PermissionModeCard = {
+  mode: PermissionMode
+  titleKey: string
+  titleFallback: string
+  descriptionKey: string
+  descriptionFallback: string
+  caution?: boolean
+  unsupported?: boolean
+}

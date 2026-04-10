@@ -1,7 +1,24 @@
+/**
+ * @deprecated Scheduled for removal in v2.0.0
+ * --------------------------------------------------------------------------
+ * ⚠️ NOTICE: V2 DATA&UI REFACTORING (by 0xfullex)
+ * --------------------------------------------------------------------------
+ * STOP: Feature PRs affecting this file are currently BLOCKED.
+ * Only critical bug fixes are accepted during this migration phase.
+ *
+ * This file is being refactored to v2 standards.
+ * Any non-critical changes will conflict with the ongoing work.
+ *
+ * 🔗 Context & Status:
+ * - Contribution Hold: https://github.com/CherryHQ/cherry-studio/issues/10954
+ * - v2 Refactor PR   : https://github.com/CherryHQ/cherry-studio/pull/10162
+ * --------------------------------------------------------------------------
+ */
 import { loggerService } from '@logger'
 import store from '@renderer/store'
 import type { AgentPersistedMessage } from '@renderer/types/agent'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
+import { MessageBlockType } from '@renderer/types/newMessage'
 import { IpcChannel } from '@shared/IpcChannel'
 import { throttle } from 'lodash'
 import { LRUCache } from 'lru-cache'
@@ -34,7 +51,10 @@ const streamingMessageCache = new LRUCache<
  */
 const messagePersistThrottlers = new LRUCache<string, ReturnType<typeof throttle>>({
   max: 100,
-  ttl: 1000 * 60 * 5
+  ttl: 1000 * 60 * 5,
+  dispose: (throttler) => {
+    throttler.cancel()
+  }
 })
 
 /**
@@ -196,9 +216,32 @@ export class AgentMessageDataSource implements MessageDataSource {
       const isStreaming = this.isMessageStreaming(message)
       const agentSessionId = message.agentSessionId ?? ''
 
+      // Extract thoughtSignatures from blocks' metadata for Gemini persistence
+      const thoughtSignatures: Record<string, string> = {}
+      for (const block of blocks) {
+        if (block.type === MessageBlockType.MAIN_TEXT && block.metadata?.thoughtSignature) {
+          thoughtSignatures[block.id] = block.metadata.thoughtSignature
+        }
+      }
+
+      // Add thoughtSignatures to message's providerMetadata for persistence
+      const messageWithMetadata =
+        Object.keys(thoughtSignatures).length > 0
+          ? {
+              ...message,
+              providerMetadata: {
+                ...message.providerMetadata,
+                google: {
+                  ...((message.providerMetadata as Record<string, unknown>)?.google as Record<string, unknown>),
+                  geminiThoughtSignatures: thoughtSignatures
+                }
+              } as Message['providerMetadata']
+            }
+          : message
+
       // Always persist immediately for visibility in UI
       const payload: AgentPersistedMessage = {
-        message,
+        message: messageWithMetadata,
         blocks
       }
 
@@ -639,10 +682,32 @@ export class AgentMessageDataSource implements MessageDataSource {
 
   // ============ Additional Methods for Interface Compatibility ============
 
-  // oxlint-disable-next-line no-unused-vars
-  async updateSingleBlock(blockId: string, _updates: Partial<MessageBlock>): Promise<void> {
-    // Agent session blocks are immutable once persisted
-    logger.warn(`updateSingleBlock called for agent session block ${blockId}, operation not supported`)
+  async updateSingleBlock(blockId: string, updates: Partial<MessageBlock>): Promise<void> {
+    const state = store.getState()
+    const existingBlock = state.messageBlocks.entities[blockId]
+
+    if (!existingBlock) {
+      logger.warn(`Block ${blockId} not found in store for updateSingleBlock`)
+      return
+    }
+
+    const mergedBlock = { ...existingBlock, ...updates } as MessageBlock
+    await this.updateBlocks([mergedBlock])
+  }
+
+  /**
+   * Get streaming cache info for a message ID if available.
+   * Used by DbService for routing fallback when message is not in Redux state.
+   */
+  getStreamingCacheInfo(messageId: string): { sessionId: string; message?: Message } | undefined {
+    const cached = streamingMessageCache.get(messageId)
+    if (cached) {
+      return {
+        sessionId: cached.sessionId,
+        message: cached.message
+      }
+    }
+    return undefined
   }
 
   // oxlint-disable-next-line no-unused-vars

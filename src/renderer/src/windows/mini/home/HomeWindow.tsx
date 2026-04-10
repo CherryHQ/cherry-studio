@@ -12,26 +12,31 @@ import store, { useAppSelector } from '@renderer/store'
 import { updateOneBlock, upsertManyBlocks, upsertOneBlock } from '@renderer/store/messageBlock'
 import { newMessagesActions, selectMessagesForTopic } from '@renderer/store/newMessage'
 import { cancelThrottledBlockUpdate, throttledBlockUpdate } from '@renderer/store/thunk/messageThunk'
-import { ThemeMode, Topic } from '@renderer/types'
-import { Chunk, ChunkType } from '@renderer/types/chunk'
+import type { Topic } from '@renderer/types'
+import { ThemeMode } from '@renderer/types'
+import type { Chunk } from '@renderer/types/chunk'
+import { ChunkType } from '@renderer/types/chunk'
 import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { isAbortError } from '@renderer/utils/error'
 import { createMainTextBlock, createThinkingBlock } from '@renderer/utils/messageUtils/create'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { replacePromptVariables } from '@renderer/utils/prompt'
 import { defaultLanguage } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Divider } from 'antd'
 import { cloneDeep, isEmpty } from 'lodash'
 import { last } from 'lodash'
-import React, { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { FC } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import ChatWindow from '../chat/ChatWindow'
 import TranslateWindow from '../translate/TranslateWindow'
 import ClipboardPreview from './components/ClipboardPreview'
-import FeatureMenus, { FeatureMenusRef } from './components/FeatureMenus'
+import type { FeatureMenusRef } from './components/FeatureMenus'
+import FeatureMenus from './components/FeatureMenus'
 import Footer from './components/Footer'
 import InputBar from './components/InputBar'
 
@@ -78,7 +83,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   }, [isFirstMessage, referenceText, userInputText])
 
   useEffect(() => {
-    i18n.changeLanguage(language || navigator.language || defaultLanguage)
+    void i18n.changeLanguage(language || navigator.language || defaultLanguage)
   }, [language])
 
   // Reset state when switching to home route
@@ -121,13 +126,12 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   }, [focusInput])
 
   const onWindowShow = useCallback(async () => {
-    featureMenusRef.current?.resetSelectedIndex()
     await readClipboard()
     focusInput()
   }, [readClipboard, focusInput])
 
   useEffect(() => {
-    window.api.miniWindow.setPin(isPinned)
+    void window.api.miniWindow.setPin(isPinned)
   }, [isPinned])
 
   useEffect(() => {
@@ -139,7 +143,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   }, [onWindowShow])
 
   useEffect(() => {
-    readClipboard()
+    void readClipboard()
   }, [readClipboard])
 
   const handleCloseWindow = useCallback(() => window.api.miniWindow.hide(), [])
@@ -167,7 +171,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
             } else {
               // Currently text input is only available in 'chat' mode
               setRoute('chat')
-              handleSendMessage()
+              void handleSendMessage()
               focusInput()
             }
           }
@@ -176,7 +180,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
       case 'Backspace':
         {
           if (userInputText.length === 0) {
-            clearClipboard()
+            void clearClipboard()
           }
         }
         break
@@ -249,6 +253,17 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
         let blockId: string | null = null
         let thinkingBlockId: string | null = null
+        let thinkingStartTime: number | null = null
+
+        const resolveThinkingDuration = (duration?: number) => {
+          if (typeof duration === 'number' && Number.isFinite(duration)) {
+            return duration
+          }
+          if (thinkingStartTime !== null) {
+            return Math.max(0, performance.now() - thinkingStartTime)
+          }
+          return 0
+        }
 
         setIsLoading(true)
         setIsOutputted(false)
@@ -266,6 +281,10 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
         newAssistant.webSearchProviderId = undefined
         newAssistant.mcpServers = undefined
         newAssistant.knowledge_bases = undefined
+        // replace prompt vars
+        newAssistant.prompt = await replacePromptVariables(currentAssistant.prompt, currentAssistant?.model.name)
+        // logger.debug('newAssistant', newAssistant)
+
         const { modelMessages, uiMessages } = await ConversationService.prepareMessagesForModel(
           messagesForContext,
           newAssistant
@@ -274,7 +293,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
         await fetchChatCompletion({
           messages: modelMessages,
           assistant: newAssistant,
-          options: {},
+          requestOptions: {},
           topicId,
           uiMessages: uiMessages,
           onChunkReceived: (chunk: Chunk) => {
@@ -282,6 +301,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
               case ChunkType.THINKING_START:
                 {
                   setIsOutputted(true)
+                  thinkingStartTime = performance.now()
                   if (thinkingBlockId) {
                     store.dispatch(
                       updateOneBlock({ id: thinkingBlockId, changes: { status: MessageBlockStatus.STREAMING } })
@@ -306,9 +326,13 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
                 {
                   setIsOutputted(true)
                   if (thinkingBlockId) {
+                    if (thinkingStartTime === null) {
+                      thinkingStartTime = performance.now()
+                    }
+                    const thinkingDuration = resolveThinkingDuration(chunk.thinking_millsec)
                     throttledBlockUpdate(thinkingBlockId, {
                       content: chunk.text,
-                      thinking_millsec: chunk.thinking_millsec
+                      thinking_millsec: thinkingDuration
                     })
                   }
                 }
@@ -316,14 +340,17 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
               case ChunkType.THINKING_COMPLETE:
                 {
                   if (thinkingBlockId) {
+                    const thinkingDuration = resolveThinkingDuration(chunk.thinking_millsec)
                     cancelThrottledBlockUpdate(thinkingBlockId)
                     store.dispatch(
                       updateOneBlock({
                         id: thinkingBlockId,
-                        changes: { status: MessageBlockStatus.SUCCESS, thinking_millsec: chunk.thinking_millsec }
+                        changes: { status: MessageBlockStatus.SUCCESS, thinking_millsec: thinkingDuration }
                       })
                     )
                   }
+                  thinkingStartTime = null
+                  thinkingBlockId = null
                 }
                 break
               case ChunkType.TEXT_START:
@@ -395,6 +422,8 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
                 if (!isAborted) {
                   throw new Error(chunk.error.message)
                 }
+                thinkingStartTime = null
+                thinkingBlockId = null
               }
               //fall through
               case ChunkType.BLOCK_COMPLETE:
@@ -439,7 +468,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
       handlePause()
     } else {
       if (route === 'home') {
-        handleCloseWindow()
+        void handleCloseWindow()
       } else {
         // Clear the topic messages to reduce memory usage
         if (currentTopic.current) {
@@ -449,6 +478,8 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
         // Reset the topic
         currentTopic.current = getDefaultTopic(currentAssistant.id)
 
+        // Reset selection only after using a feature and returning to home.
+        featureMenusRef.current?.resetSelectedIndex()
         setError(null)
         setRoute('home')
         setUserInputText('')
@@ -464,7 +495,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
     if (lastMessage) {
       const content = getMainTextContent(lastMessage)
-      navigator.clipboard.writeText(content)
+      void navigator.clipboard.writeText(content)
       window.toast.success(t('message.copy.success'))
     }
   }, [currentTopic, t])

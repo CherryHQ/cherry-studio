@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { isMac, isWin } from '@renderer/config/constant'
 import type { SendMessageShortcut } from '@renderer/store/settings'
-import { FileMetadata } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types'
 
 const logger = loggerService.withContext('Utils:Input')
 

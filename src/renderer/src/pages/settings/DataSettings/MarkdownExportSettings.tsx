@@ -1,7 +1,8 @@
 import { DeleteOutlined, FolderOpenOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { RootState, useAppDispatch } from '@renderer/store'
+import type { RootState } from '@renderer/store'
+import { useAppDispatch } from '@renderer/store'
 import {
   setExcludeCitationsInExport,
   setForceDollarMathInMarkdown,
@@ -13,7 +14,7 @@ import {
 } from '@renderer/store/settings'
 import { Button, Switch } from 'antd'
 import Input from 'antd/es/input/Input'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 

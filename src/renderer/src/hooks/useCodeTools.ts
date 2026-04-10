@@ -11,7 +11,7 @@ import {
   setSelectedModel,
   setSelectedTerminal
 } from '@renderer/store/codeTools'
-import { Model } from '@renderer/types'
+import type { Model } from '@renderer/types'
 import { codeTools } from '@shared/config/constant'
 import { useCallback } from 'react'
 

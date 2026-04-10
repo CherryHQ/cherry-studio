@@ -1,19 +1,15 @@
 import mcpService from '@main/services/MCPService'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp'
-import {
-  isJSONRPCRequest,
-  JSONRPCMessage,
-  JSONRPCMessageSchema,
-  MessageExtraInfo
-} from '@modelcontextprotocol/sdk/types'
-import { MCPServer } from '@types'
+import type { JSONRPCMessage, MessageExtraInfo } from '@modelcontextprotocol/sdk/types'
+import { isJSONRPCRequest, JSONRPCMessageSchema } from '@modelcontextprotocol/sdk/types'
+import type { MCPServer } from '@types'
 import { randomUUID } from 'crypto'
 import { EventEmitter } from 'events'
-import { Request, Response } from 'express'
-import { IncomingMessage, ServerResponse } from 'http'
+import type { Request, Response } from 'express'
+import type { IncomingMessage, ServerResponse } from 'http'
 
 import { loggerService } from '../../services/LoggerService'
-import { getMcpServerById, getMCPServersFromRedux } from '../utils/mcp'
+import { createMcpServerForTransport, getMCPServersFromRedux } from '../utils/mcp'
 
 const logger = loggerService.withContext('MCPApiService')
 const transports: Record<string, StreamableHTTPServerTransport> = {}
@@ -143,10 +139,8 @@ class MCPApiService extends EventEmitter {
           delete transports[transport.sessionId]
         }
       }
-      const mcpServer = await getMcpServerById(server.id)
-      if (mcpServer) {
-        await mcpServer.connect(transport)
-      }
+      const mcpServer = await createMcpServerForTransport(server.id)
+      await mcpServer.connect(transport)
     }
     const jsonpayload = req.body
     const messages: JSONRPCMessage[] = []

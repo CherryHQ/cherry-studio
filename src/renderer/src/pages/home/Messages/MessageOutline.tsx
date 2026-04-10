@@ -1,8 +1,11 @@
 import Scrollbar from '@renderer/components/Scrollbar'
-import { RootState } from '@renderer/store'
+import type { RootState } from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
-import { Message, MessageBlockType } from '@renderer/types/newMessage'
-import React, { FC, useMemo, useRef } from 'react'
+import type { Message } from '@renderer/types/newMessage'
+import { MessageBlockType } from '@renderer/types/newMessage'
+import { scrollIntoView } from '@renderer/utils/dom'
+import type { FC } from 'react'
+import React, { useMemo, useRef } from 'react'
 import { useSelector } from 'react-redux'
 import remarkParse from 'remark-parse'
 import styled from 'styled-components'
@@ -70,10 +73,10 @@ const MessageOutline: FC<MessageOutlineProps> = ({ message }) => {
     const parent = messageOutlineContainerRef.current?.parentElement
     const messageContentContainer = parent?.querySelector('.message-content-container')
     if (messageContentContainer) {
-      const headingElement = messageContentContainer.querySelector(`#${id}`)
+      const headingElement = messageContentContainer.querySelector<HTMLElement>(`#${id}`)
       if (headingElement) {
         const scrollBlock = ['horizontal', 'grid'].includes(message.multiModelMessageStyle ?? '') ? 'nearest' : 'start'
-        headingElement.scrollIntoView({ behavior: 'smooth', block: scrollBlock })
+        scrollIntoView(headingElement, { behavior: 'smooth', block: scrollBlock, container: 'nearest' })
       }
     }
   }

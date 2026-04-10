@@ -1,4 +1,4 @@
-import { OcrApiProvider, OcrHandler } from '@renderer/types'
+import type { OcrApiProvider, OcrHandler } from '@renderer/types'
 
 export abstract class OcrBaseApiClient {
   public provider: OcrApiProvider

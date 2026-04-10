@@ -1,136 +1,78 @@
-import { Alert, Spinner } from '@heroui/react'
 import { TopView } from '@renderer/components/TopView'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
-import { useState } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import AdvancedSettings from './AdvancedSettings'
-import AgentEssentialSettings from './AgentEssentialSettings'
-import PromptSettings from './PromptSettings'
-import { AgentLabel, LeftMenu, Settings, StyledMenu, StyledModal } from './shared'
-import ToolingSettings from './ToolingSettings'
+import { BaseSettingsPopup, type SettingsMenuItem, type SettingsPopupTab } from './BaseSettingsPopup'
+import AdvancedSettings from './components/AdvancedSettings'
+import EssentialSettings from './components/EssentialSettings'
+import PermissionModeSettings from './components/PermissionModeSettings'
+import PromptSettings from './components/PromptSettings'
+import { InstalledSkillsSettings } from './components/SkillsSettings/SkillsSettings'
+import ToolsSettings from './components/ToolsSettings'
+import { AgentLabel, isSoulModeEnabled } from './shared'
 
 interface AgentSettingPopupShowParams {
   agentId: string
-  tab?: AgentSettingPopupTab
+  tab?: SettingsPopupTab
 }
 
 interface AgentSettingPopupParams extends AgentSettingPopupShowParams {
   resolve: () => void
 }
 
-type AgentSettingPopupTab = 'essential' | 'prompt' | 'tooling' | 'advanced' | 'session-mcps'
-
 const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, agentId, resolve }) => {
-  const [open, setOpen] = useState(true)
   const { t } = useTranslation()
-  const [menu, setMenu] = useState<AgentSettingPopupTab>(tab || 'essential')
-
   const { agent, isLoading, error } = useAgent(agentId)
   const { updateAgent } = useUpdateAgent()
 
-  const onOk = () => {
-    setOpen(false)
-  }
+  const isSoul = isSoulModeEnabled(agent?.configuration)
 
-  const onCancel = () => {
-    setOpen(false)
-  }
+  const menuItems: SettingsMenuItem[] = useMemo(
+    () =>
+      [
+        { key: 'essential', label: t('agent.settings.essential') },
+        { key: 'prompt', label: t('agent.settings.prompt') },
+        !isSoul && { key: 'permission-mode', label: t('agent.settings.permissionMode.tab', 'Permission Mode') },
+        { key: 'tools-mcp', label: t('agent.settings.toolsMcp.tab', 'Tools & MCP') },
+        { key: 'installed', label: t('agent.settings.skills.tab', 'Skills') },
+        { key: 'advanced', label: t('agent.settings.advance.title', 'Advanced Settings') }
+      ].filter(Boolean) as SettingsMenuItem[],
+    [t, isSoul]
+  )
 
-  const afterClose = () => {
-    resolve()
-  }
+  const renderTabContent = (currentTab: SettingsPopupTab) => {
+    if (!agent) return null
 
-  const items = (
-    [
-      {
-        key: 'essential',
-        label: t('agent.settings.essential')
-      },
-      {
-        key: 'prompt',
-        label: t('agent.settings.prompt')
-      },
-      {
-        key: 'tooling',
-        label: t('agent.settings.tooling.tab', 'Tooling & permissions')
-      },
-      {
-        key: 'advanced',
-        label: t('agent.settings.advance.title', 'Advanced Settings')
-      }
-    ] as const satisfies { key: AgentSettingPopupTab; label: string }[]
-  ).filter(Boolean)
-
-  const ModalContent = () => {
-    if (isLoading) {
-      // TODO: use skeleton for better ux
-      return <Spinner />
+    switch (currentTab) {
+      case 'essential':
+        return <EssentialSettings agentBase={agent} update={updateAgent} />
+      case 'prompt':
+        return <PromptSettings agentBase={agent} update={updateAgent} />
+      case 'permission-mode':
+        return <PermissionModeSettings agentBase={agent} update={updateAgent} />
+      case 'tools-mcp':
+        return <ToolsSettings agentBase={agent} update={updateAgent} />
+      case 'installed':
+        return <InstalledSkillsSettings agentBase={agent} update={updateAgent} />
+      case 'advanced':
+        return <AdvancedSettings agentBase={agent} update={updateAgent} />
+      default:
+        return null
     }
-    if (error) {
-      return (
-        <div>
-          <Alert color="danger" title={t('agent.get.error.failed')} />
-        </div>
-      )
-    }
-    return (
-      <div className="flex w-full flex-1">
-        <LeftMenu>
-          <StyledMenu
-            defaultSelectedKeys={[tab || 'essential'] satisfies AgentSettingPopupTab[]}
-            mode="vertical"
-            selectedKeys={[menu]}
-            items={items}
-            onSelect={({ key }) => setMenu(key as AgentSettingPopupTab)}
-          />
-        </LeftMenu>
-        <Settings>
-          {menu === 'essential' && <AgentEssentialSettings agent={agent} update={updateAgent} />}
-          {menu === 'prompt' && <PromptSettings agentBase={agent} update={updateAgent} />}
-          {menu === 'tooling' && <ToolingSettings agentBase={agent} update={updateAgent} />}
-          {menu === 'advanced' && <AdvancedSettings agentBase={agent} update={updateAgent} />}
-        </Settings>
-      </div>
-    )
   }
 
   return (
-    <StyledModal
-      open={open}
-      onOk={onOk}
-      onCancel={onCancel}
-      afterClose={afterClose}
-      maskClosable={false}
-      footer={null}
-      title={<AgentLabel agent={agent} classNames={{ name: 'text-lg font-extrabold' }} />}
-      transitionName="animation-move-down"
-      styles={{
-        content: {
-          padding: 0,
-          overflow: 'hidden',
-          height: '80vh',
-          display: 'flex',
-          flexDirection: 'column'
-        },
-        header: {
-          padding: '10px 15px',
-          paddingRight: '32px',
-          borderBottom: '0.5px solid var(--color-border)',
-          margin: 0,
-          borderRadius: 0
-        },
-        body: {
-          padding: 0,
-          display: 'flex',
-          flex: 1
-        }
-      }}
-      width="min(800px, 70vw)"
-      centered>
-      <ModalContent />
-    </StyledModal>
+    <BaseSettingsPopup
+      isLoading={isLoading}
+      error={error}
+      initialTab={tab}
+      onClose={resolve}
+      titleContent={<AgentLabel agent={agent} />}
+      menuItems={menuItems}
+      renderTabContent={renderTabContent}
+    />
   )
 }
 

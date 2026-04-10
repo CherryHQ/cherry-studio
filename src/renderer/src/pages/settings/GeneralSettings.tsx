@@ -2,11 +2,13 @@ import { InfoCircleOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import Selector from '@renderer/components/Selector'
 import { InfoTooltip } from '@renderer/components/TooltipIcons'
+import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useEnableDeveloperMode, useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
 import i18n from '@renderer/i18n'
-import { RootState, useAppDispatch } from '@renderer/store'
+import type { RootState } from '@renderer/store'
+import { useAppDispatch } from '@renderer/store'
 import {
   setEnableDataCollection,
   setEnableSpellCheck,
@@ -17,17 +19,35 @@ import {
   setProxyUrl as _setProxyUrl,
   setSpellCheckLanguages
 } from '@renderer/store/settings'
-import { LanguageVarious } from '@renderer/types'
-import { NotificationSource } from '@renderer/types/notification'
+import type { LanguageVarious } from '@renderer/types'
+import type { NotificationSource } from '@renderer/types/notification'
 import { isValidProxyUrl } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { defaultByPassRules, defaultLanguage } from '@shared/config/constant'
 import { Flex, Input, Switch, Tooltip } from 'antd'
-import { FC, useState } from 'react'
+import type { FC } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '.'
+
+type SpellCheckOption = { readonly value: string; readonly label: string; readonly flag: string }
+
+// Define available spell check languages with display names (only commonly supported languages)
+const spellCheckLanguageOptions: readonly SpellCheckOption[] = [
+  { value: 'en-US', label: 'English (US)', flag: '🇺🇸' },
+  { value: 'es', label: 'Español', flag: '🇪🇸' },
+  { value: 'fr', label: 'Français', flag: '🇫🇷' },
+  { value: 'de', label: 'Deutsch', flag: '🇩🇪' },
+  { value: 'it', label: 'Italiano', flag: '🇮🇹' },
+  { value: 'pt', label: 'Português', flag: '🇵🇹' },
+  { value: 'ru', label: 'Русский', flag: '🇷🇺' },
+  { value: 'nl', label: 'Nederlands', flag: '🇳🇱' },
+  { value: 'pl', label: 'Polski', flag: '🇵🇱' },
+  { value: 'sk', label: 'Slovenčina', flag: '🇸🇰' },
+  { value: 'el', label: 'Ελληνικά', flag: '🇬🇷' }
+]
 
 const GeneralSettings: FC = () => {
   const {
@@ -86,13 +106,13 @@ const GeneralSettings: FC = () => {
   const onSelectLanguage = (value: LanguageVarious) => {
     dispatch(setLanguage(value))
     localStorage.setItem('language', value)
-    window.api.setLanguage(value)
-    i18n.changeLanguage(value)
+    void window.api.setLanguage(value)
+    void i18n.changeLanguage(value)
   }
 
   const handleSpellCheckChange = (checked: boolean) => {
     dispatch(setEnableSpellCheck(checked))
-    window.api.setEnableSpellCheck(checked)
+    void window.api.setEnableSpellCheck(checked)
   }
 
   const onSetProxyUrl = () => {
@@ -122,12 +142,14 @@ const GeneralSettings: FC = () => {
     { value: 'zh-CN', label: '中文', flag: '🇨🇳' },
     { value: 'zh-TW', label: '中文（繁体）', flag: '🇭🇰' },
     { value: 'en-US', label: 'English', flag: '🇺🇸' },
+    { value: 'de-DE', label: 'Deutsch', flag: '🇩🇪' },
     { value: 'ja-JP', label: '日本語', flag: '🇯🇵' },
     { value: 'ru-RU', label: 'Русский', flag: '🇷🇺' },
     { value: 'el-GR', label: 'Ελληνικά', flag: '🇬🇷' },
     { value: 'es-ES', label: 'Español', flag: '🇪🇸' },
     { value: 'fr-FR', label: 'Français', flag: '🇫🇷' },
-    { value: 'pt-PT', label: 'Português', flag: '🇵🇹' }
+    { value: 'pt-PT', label: 'Português', flag: '🇵🇹' },
+    { value: 'ro-RO', label: 'Română', flag: '🇷🇴' }
   ]
 
   const notificationSettings = useSelector((state: RootState) => state.settings.notification)
@@ -137,22 +159,9 @@ const GeneralSettings: FC = () => {
     dispatch(setNotificationSettings({ ...notificationSettings, [type]: value }))
   }
 
-  // Define available spell check languages with display names (only commonly supported languages)
-  const spellCheckLanguageOptions = [
-    { value: 'en-US', label: 'English (US)', flag: '🇺🇸' },
-    { value: 'es', label: 'Español', flag: '🇪🇸' },
-    { value: 'fr', label: 'Français', flag: '🇫🇷' },
-    { value: 'de', label: 'Deutsch', flag: '🇩🇪' },
-    { value: 'it', label: 'Italiano', flag: '🇮🇹' },
-    { value: 'pt', label: 'Português', flag: '🇵🇹' },
-    { value: 'ru', label: 'Русский', flag: '🇷🇺' },
-    { value: 'nl', label: 'Nederlands', flag: '🇳🇱' },
-    { value: 'pl', label: 'Polski', flag: '🇵🇱' }
-  ]
-
   const handleSpellCheckLanguagesChange = (selectedLanguages: string[]) => {
     dispatch(setSpellCheckLanguages(selectedLanguages))
-    window.api.setSpellCheckLanguages(selectedLanguages)
+    void window.api.setSpellCheckLanguages(selectedLanguages)
   }
 
   const handleHardwareAccelerationChange = (checked: boolean) => {
@@ -174,7 +183,7 @@ const GeneralSettings: FC = () => {
         setTimeoutTimer(
           'handleHardwareAccelerationChange',
           () => {
-            window.api.relaunchApp()
+            void window.api.relaunchApp()
           },
           500
         )
@@ -232,7 +241,12 @@ const GeneralSettings: FC = () => {
           <>
             <SettingDivider />
             <SettingRow>
-              <SettingRowTitle>{t('settings.proxy.bypass')}</SettingRowTitle>
+              <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span>{t('settings.proxy.bypass')}</span>
+                <Tooltip title={t('settings.proxy.tip')} placement="right">
+                  <InfoCircleOutlined style={{ cursor: 'pointer' }} />
+                </Tooltip>
+              </SettingRowTitle>
               <Input
                 spellCheck={false}
                 placeholder={defaultByPassRules}
@@ -248,7 +262,7 @@ const GeneralSettings: FC = () => {
         <SettingRow>
           <HStack justifyContent="space-between" alignItems="center" style={{ flex: 1, marginRight: 16 }}>
             <SettingRowTitle>{t('settings.general.spell_check.label')}</SettingRowTitle>
-            {enableSpellCheck && (
+            {enableSpellCheck && !isMac && (
               <Selector<string>
                 size={14}
                 multiple
@@ -335,7 +349,7 @@ const GeneralSettings: FC = () => {
             value={enableDataCollection}
             onChange={(v) => {
               dispatch(setEnableDataCollection(v))
-              window.api.config.set('enableDataCollection', v)
+              void window.api.config.set('enableDataCollection', v)
             }}
           />
         </SettingRow>

@@ -1,74 +1,103 @@
-import { Model } from '@types'
-import z from 'zod'
+import type OpenAI from '@cherrystudio/openai'
+import type { Model } from '@types'
+import * as z from 'zod'
+
+import type { OpenAIVerbosity } from './aiCoreTypes'
 
 export const ProviderTypeSchema = z.enum([
   'openai',
   'openai-response',
   'anthropic',
   'gemini',
-  'qwenlm',
   'azure-openai',
   'vertexai',
   'mistral',
   'aws-bedrock',
-  'vertex-anthropic'
+  'vertex-anthropic',
+  'new-api',
+  'gateway',
+  'ollama'
 ])
 
 export type ProviderType = z.infer<typeof ProviderTypeSchema>
 
-// undefined 视为支持，默认支持
+// undefined is treated as supported, enabled by default
 export type ProviderApiOptions = {
-  /** 是否不支持 message 的 content 为数组类型 */
+  /** Whether message content of array type is not supported */
   isNotSupportArrayContent?: boolean
-  /** 是否不支持 stream_options 参数 */
+  /** Whether the stream_options parameter is not supported */
   isNotSupportStreamOptions?: boolean
   /**
    * @deprecated
-   * 是否不支持 message 的 role 为 developer */
+   * Whether message role 'developer' is not supported */
   isNotSupportDeveloperRole?: boolean
-  /* 是否支持 message 的 role 为 developer */
+  /* Whether message role 'developer' is supported */
   isSupportDeveloperRole?: boolean
   /**
    * @deprecated
-   * 是否不支持 service_tier 参数. Only for OpenAI Models. */
+   * Whether the service_tier parameter is not supported. Only for OpenAI Models. */
   isNotSupportServiceTier?: boolean
-  /* 是否支持 service_tier 参数. Only for OpenAI Models. */
+  /* Whether the service_tier parameter is supported. Only for OpenAI Models. */
   isSupportServiceTier?: boolean
-  /** 是否不支持 enable_thinking 参数 */
+  /** Whether the enable_thinking parameter is not supported */
   isNotSupportEnableThinking?: boolean
+  /** Whether APIVersion is not supported */
+  isNotSupportAPIVersion?: boolean
+  /** Whether verbosity is not supported. For OpenAI API (completions & responses). */
+  isNotSupportVerbosity?: boolean
 }
+
+// scale is not well supported now. It even lacks of docs
+// We take undefined as same as default, and null as same as explicitly off.
+// It controls whether the response contains the serviceTier field or not, so undefined and null should be separated.
+export type OpenAIServiceTier = Exclude<OpenAI.Responses.ResponseCreateParams['service_tier'], 'scale'>
 
 export const OpenAIServiceTiers = {
   auto: 'auto',
   default: 'default',
   flex: 'flex',
   priority: 'priority'
-} as const
+} as const satisfies Record<NonNullable<OpenAIServiceTier>, OpenAIServiceTier>
 
-export type OpenAIServiceTier = keyof typeof OpenAIServiceTiers
-
-export function isOpenAIServiceTier(tier: string): tier is OpenAIServiceTier {
-  return Object.hasOwn(OpenAIServiceTiers, tier)
+export function isOpenAIServiceTier(tier: string | null | undefined): tier is OpenAIServiceTier {
+  return tier === null || tier === undefined || Object.hasOwn(OpenAIServiceTiers, tier)
 }
+
+// https://console.groq.com/docs/api-reference#responses
+// null is not used.
+export type GroqServiceTier = 'auto' | 'on_demand' | 'flex' | undefined | null
 
 export const GroqServiceTiers = {
   auto: 'auto',
   on_demand: 'on_demand',
-  flex: 'flex',
-  performance: 'performance'
-} as const
+  flex: 'flex'
+} as const satisfies Record<string, GroqServiceTier>
 
-// 从 GroqServiceTiers 对象中提取类型
-export type GroqServiceTier = keyof typeof GroqServiceTiers
-
-export function isGroqServiceTier(tier: string): tier is GroqServiceTier {
-  return Object.hasOwn(GroqServiceTiers, tier)
+export function isGroqServiceTier(tier: string | undefined | null): tier is GroqServiceTier {
+  return tier === null || tier === undefined || Object.hasOwn(GroqServiceTiers, tier)
 }
 
 export type ServiceTier = OpenAIServiceTier | GroqServiceTier
 
-export function isServiceTier(tier: string): tier is ServiceTier {
+export type AnthropicCacheControlSettings = {
+  tokenThreshold: number
+  cacheSystemMessage: boolean
+  cacheLastNMessages: number
+}
+
+export function isServiceTier(tier: string | null | undefined): tier is ServiceTier {
   return isGroqServiceTier(tier) || isOpenAIServiceTier(tier)
+}
+
+export const AwsBedrockAuthTypes = {
+  iam: 'iam',
+  apiKey: 'apiKey'
+} as const
+
+export type AwsBedrockAuthType = keyof typeof AwsBedrockAuthTypes
+
+export function isAwsBedrockAuthType(type: string): type is AwsBedrockAuthType {
+  return Object.hasOwn(AwsBedrockAuthTypes, type)
 }
 
 export type Provider = {
@@ -89,6 +118,7 @@ export type Provider = {
   // API options
   apiOptions?: ProviderApiOptions
   serviceTier?: ServiceTier
+  verbosity?: OpenAIVerbosity
 
   /** @deprecated */
   isNotSupportArrayContent?: boolean
@@ -103,6 +133,81 @@ export type Provider = {
   isVertex?: boolean
   notes?: string
   extra_headers?: Record<string, string>
+
+  // Anthropic prompt caching settings
+  anthropicCacheControl?: AnthropicCacheControlSettings
+}
+
+export const SystemProviderIdSchema = z.enum([
+  'cherryin',
+  'silicon',
+  'aihubmix',
+  'ocoolai',
+  'deepseek',
+  'ppio',
+  'alayanew',
+  'qiniu',
+  'dmxapi',
+  'burncloud',
+  'tokenflux',
+  '302ai',
+  'cephalon',
+  'lanyun',
+  'ph8',
+  'openrouter',
+  'ollama',
+  'ovms',
+  'new-api',
+  'lmstudio',
+  'anthropic',
+  'openai',
+  'azure-openai',
+  'gemini',
+  'vertexai',
+  'github',
+  'copilot',
+  'zhipu',
+  'yi',
+  'moonshot',
+  'baichuan',
+  'dashscope',
+  'stepfun',
+  'doubao',
+  'infini',
+  'minimax',
+  'groq',
+  'together',
+  'fireworks',
+  'nvidia',
+  'grok',
+  'hyperbolic',
+  'mistral',
+  'jina',
+  'perplexity',
+  'modelscope',
+  'xirang',
+  'hunyuan',
+  'tencent-cloud-ti',
+  'baidu-cloud',
+  'gpustack',
+  'voyageai',
+  'aws-bedrock',
+  'poe',
+  'aionly',
+  'longcat',
+  'huggingface',
+  'sophnet',
+  'gateway',
+  'cerebras',
+  'mimo',
+  'minimax-global',
+  'zai'
+])
+
+export type SystemProviderId = z.infer<typeof SystemProviderIdSchema>
+
+export const isSystemProviderId = (id: string): id is SystemProviderId => {
+  return SystemProviderIdSchema.safeParse(id).success
 }
 
 export const SystemProviderIds = {
@@ -121,6 +226,7 @@ export const SystemProviderIds = {
   cephalon: 'cephalon',
   lanyun: 'lanyun',
   ph8: 'ph8',
+  sophnet: 'sophnet',
   openrouter: 'openrouter',
   ollama: 'ollama',
   ovms: 'ovms',
@@ -161,14 +267,16 @@ export const SystemProviderIds = {
   'aws-bedrock': 'aws-bedrock',
   poe: 'poe',
   aionly: 'aionly',
-  longcat: 'longcat'
-} as const
+  longcat: 'longcat',
+  huggingface: 'huggingface',
+  gateway: 'gateway',
+  cerebras: 'cerebras',
+  mimo: 'mimo',
+  'minimax-global': 'minimax-global',
+  zai: 'zai'
+} as const satisfies Record<SystemProviderId, SystemProviderId>
 
-export type SystemProviderId = keyof typeof SystemProviderIds
-
-export const isSystemProviderId = (id: string): id is SystemProviderId => {
-  return Object.hasOwn(SystemProviderIds, id)
-}
+type SystemProviderIdTypeMap = typeof SystemProviderIds
 
 export type SystemProvider = Provider & {
   id: SystemProviderId
@@ -185,6 +293,11 @@ export type VertexProvider = Provider & {
   location: string
 }
 
+export type AzureOpenAIProvider = Provider & {
+  type: 'azure-openai'
+  apiVersion: string
+}
+
 /**
  * 判断是否为系统内置的提供商。比直接使用`provider.isSystem`更好，因为该数据字段不会随着版本更新而变化。
  * @param provider - Provider对象，包含提供商的信息
@@ -192,4 +305,17 @@ export type VertexProvider = Provider & {
  */
 export const isSystemProvider = (provider: Provider): provider is SystemProvider => {
   return isSystemProviderId(provider.id) && !!provider.isSystem
+}
+
+export type GroqSystemProvider = Provider & {
+  id: SystemProviderIdTypeMap['groq']
+  isSystem: true
+}
+
+export type NotGroqProvider = Provider & {
+  id: Exclude<string, SystemProviderIdTypeMap['groq']>
+}
+
+export const isGroqSystemProvider = (provider: Provider): provider is GroqSystemProvider => {
+  return provider.id === SystemProviderIds.groq
 }

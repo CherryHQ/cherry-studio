@@ -7,11 +7,12 @@ import db from '@renderer/databases'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { translateText } from '@renderer/services/TranslateService'
-import { TranslateLanguage } from '@renderer/types'
+import type { TranslateLanguage } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
 import { Select } from 'antd'
 import { isEmpty } from 'lodash'
-import { FC, useCallback, useEffect, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -53,18 +54,18 @@ const Translate: FC<Props> = ({ text }) => {
   }, [text, targetLanguage, translateModel])
 
   useEffect(() => {
-    runAsyncFunction(async () => {
+    void runAsyncFunction(async () => {
       const targetLang = await db.settings.get({ id: 'translate:target:language' })
       targetLang && setTargetLanguage(getLanguageByLangcode(targetLang.value))
     })
   }, [getLanguageByLangcode])
 
   useEffect(() => {
-    translate()
+    void translate()
   }, [translate])
 
   useHotkeys('c', () => {
-    navigator.clipboard.writeText(result)
+    void navigator.clipboard.writeText(result)
     window.toast.success(t('message.copy.success'))
   })
 

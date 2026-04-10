@@ -7,28 +7,29 @@ const { downloadWithRedirects } = require('./download')
 
 // Base URL for downloading uv binaries
 const UV_RELEASE_BASE_URL = 'https://gitcode.com/CherryHQ/uv/releases/download'
-const DEFAULT_UV_VERSION = '0.7.13'
+const DEFAULT_UV_VERSION = '0.9.5'
 
 // Mapping of platform+arch to binary package name
 const UV_PACKAGES = {
-  'darwin-arm64': 'uv-aarch64-apple-darwin.zip',
-  'darwin-x64': 'uv-x86_64-apple-darwin.zip',
+  'darwin-arm64': 'uv-aarch64-apple-darwin.tar.gz',
+  'darwin-x64': 'uv-x86_64-apple-darwin.tar.gz',
   'win32-arm64': 'uv-aarch64-pc-windows-msvc.zip',
   'win32-ia32': 'uv-i686-pc-windows-msvc.zip',
   'win32-x64': 'uv-x86_64-pc-windows-msvc.zip',
-  'linux-arm64': 'uv-aarch64-unknown-linux-gnu.zip',
-  'linux-ia32': 'uv-i686-unknown-linux-gnu.zip',
-  'linux-ppc64': 'uv-powerpc64-unknown-linux-gnu.zip',
-  'linux-ppc64le': 'uv-powerpc64le-unknown-linux-gnu.zip',
-  'linux-s390x': 'uv-s390x-unknown-linux-gnu.zip',
-  'linux-x64': 'uv-x86_64-unknown-linux-gnu.zip',
-  'linux-armv7l': 'uv-armv7-unknown-linux-gnueabihf.zip',
+  'linux-arm64': 'uv-aarch64-unknown-linux-gnu.tar.gz',
+  'linux-ia32': 'uv-i686-unknown-linux-gnu.tar.gz',
+  'linux-ppc64': 'uv-powerpc64-unknown-linux-gnu.tar.gz',
+  'linux-ppc64le': 'uv-powerpc64le-unknown-linux-gnu.tar.gz',
+  'linux-riscv64': 'uv-riscv64gc-unknown-linux-gnu.tar.gz',
+  'linux-s390x': 'uv-s390x-unknown-linux-gnu.tar.gz',
+  'linux-x64': 'uv-x86_64-unknown-linux-gnu.tar.gz',
+  'linux-armv7l': 'uv-armv7-unknown-linux-gnueabihf.tar.gz',
   // MUSL variants
-  'linux-musl-arm64': 'uv-aarch64-unknown-linux-musl.zip',
-  'linux-musl-ia32': 'uv-i686-unknown-linux-musl.zip',
-  'linux-musl-x64': 'uv-x86_64-unknown-linux-musl.zip',
-  'linux-musl-armv6l': 'uv-arm-unknown-linux-musleabihf.zip',
-  'linux-musl-armv7l': 'uv-armv7-unknown-linux-musleabihf.zip'
+  'linux-musl-arm64': 'uv-aarch64-unknown-linux-musl.tar.gz',
+  'linux-musl-ia32': 'uv-i686-unknown-linux-musl.tar.gz',
+  'linux-musl-x64': 'uv-x86_64-unknown-linux-musl.tar.gz',
+  'linux-musl-armv6l': 'uv-arm-unknown-linux-musleabihf.tar.gz',
+  'linux-musl-armv7l': 'uv-armv7-unknown-linux-musleabihf.tar.gz'
 }
 
 /**
@@ -56,6 +57,7 @@ async function downloadUvBinary(platform, arch, version = DEFAULT_UV_VERSION, is
   const downloadUrl = `${UV_RELEASE_BASE_URL}/${version}/${packageName}`
   const tempdir = os.tmpdir()
   const tempFilename = path.join(tempdir, packageName)
+  const isTarGz = packageName.endsWith('.tar.gz')
 
   try {
     console.log(`Downloading uv ${version} for ${platformKey}...`)
@@ -65,34 +67,58 @@ async function downloadUvBinary(platform, arch, version = DEFAULT_UV_VERSION, is
 
     console.log(`Extracting ${packageName} to ${binDir}...`)
 
-    const zip = new StreamZip.async({ file: tempFilename })
+    if (isTarGz) {
+      // Use tar command to extract tar.gz files (macOS and Linux)
+      const tempExtractDir = path.join(tempdir, `uv-extract-${Date.now()}`)
+      fs.mkdirSync(tempExtractDir, { recursive: true })
 
-    // Get all entries in the zip file
-    const entries = await zip.entries()
+      execSync(`tar -xzf "${tempFilename}" -C "${tempExtractDir}"`, { stdio: 'inherit' })
 
-    // Extract files directly to binDir, flattening the directory structure
-    for (const entry of Object.values(entries)) {
-      if (!entry.isDirectory) {
-        // Get just the filename without path
-        const filename = path.basename(entry.name)
-        const outputPath = path.join(binDir, filename)
-
-        console.log(`Extracting ${entry.name} -> ${filename}`)
-        await zip.extract(entry.name, outputPath)
-        // Make executable files executable on Unix-like systems
-        if (platform !== 'win32') {
-          try {
+      // Find all files in the extracted directory and move them to binDir
+      const findAndMoveFiles = (dir) => {
+        const entries = fs.readdirSync(dir, { withFileTypes: true })
+        for (const entry of entries) {
+          const fullPath = path.join(dir, entry.name)
+          if (entry.isDirectory()) {
+            findAndMoveFiles(fullPath)
+          } else {
+            const filename = path.basename(entry.name)
+            const outputPath = path.join(binDir, filename)
+            fs.copyFileSync(fullPath, outputPath)
+            console.log(`Extracted ${entry.name} -> ${outputPath}`)
+            // Make executable on Unix-like systems
             fs.chmodSync(outputPath, 0o755)
-          } catch (chmodError) {
-            console.error(`Warning: Failed to set executable permissions on ${filename}`)
-            return 102
           }
         }
-        console.log(`Extracted ${entry.name} -> ${outputPath}`)
       }
+
+      findAndMoveFiles(tempExtractDir)
+
+      // Clean up temporary extraction directory
+      fs.rmSync(tempExtractDir, { recursive: true })
+    } else {
+      // Use StreamZip for zip files (Windows)
+      const zip = new StreamZip.async({ file: tempFilename })
+
+      // Get all entries in the zip file
+      const entries = await zip.entries()
+
+      // Extract files directly to binDir, flattening the directory structure
+      for (const entry of Object.values(entries)) {
+        if (!entry.isDirectory) {
+          // Get just the filename without path
+          const filename = path.basename(entry.name)
+          const outputPath = path.join(binDir, filename)
+
+          console.log(`Extracting ${entry.name} -> ${filename}`)
+          await zip.extract(entry.name, outputPath)
+          console.log(`Extracted ${entry.name} -> ${outputPath}`)
+        }
+      }
+
+      await zip.close()
     }
 
-    await zip.close()
     fs.unlinkSync(tempFilename)
     console.log(`Successfully installed uv ${version} for ${platform}-${arch}`)
     return 0

@@ -3,7 +3,7 @@ import { memo, useCallback } from 'react'
 import { useDebouncedRender } from './hooks/useDebouncedRender'
 import ImagePreviewLayout from './ImagePreviewLayout'
 import { ShadowTransparentContainer } from './styles'
-import { BasicPreviewHandles } from './types'
+import type { BasicPreviewHandles } from './types'
 import { renderSvgInShadowHost } from './utils'
 
 interface SvgPreviewProps {

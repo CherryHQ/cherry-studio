@@ -1,6 +1,6 @@
-import { ToolSet } from 'ai'
+import type { ToolSet } from 'ai'
 
-import { AiRequestContext } from '../..'
+import type { AiRequestContext } from '../..'
 
 /**
  * 解析结果类型
@@ -22,7 +22,7 @@ export interface PromptToolUseConfig extends BaseToolUsePluginConfig {
   buildSystemPrompt?: (userSystemPrompt: string, tools: ToolSet) => string
   // 自定义工具解析函数（可选，有默认实现）
   parseToolUse?: (content: string, tools: ToolSet) => { results: ToolUseResult[]; content: string }
-  createSystemMessage?: (systemPrompt: string, originalParams: any, context: AiRequestContext) => string | null
+  mcpMode?: string
 }
 
 /**

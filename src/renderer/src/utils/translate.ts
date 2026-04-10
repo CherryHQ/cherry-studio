@@ -5,13 +5,16 @@ import { builtinLanguages, LanguagesEnum, UNKNOWN } from '@renderer/config/trans
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
-import { getDefaultAssistant, getDefaultModel, getQuickModel } from '@renderer/services/AssistantService'
+import { getDefaultAssistant, getQuickModel } from '@renderer/services/AssistantService'
+import { hasModel } from '@renderer/services/ModelService'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import { getAllCustomLanguages } from '@renderer/services/TranslateService'
-import { Assistant, TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
-import { Chunk, ChunkType } from '@renderer/types/chunk'
+import type { Assistant, TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
+import type { Chunk } from '@renderer/types/chunk'
+import { ChunkType } from '@renderer/types/chunk'
 import { franc } from 'franc-min'
-import React, { RefObject } from 'react'
+import type { RefObject } from 'react'
+import React from 'react'
 import { sliceByTokens } from 'tokenx'
 
 const logger = loggerService.withContext('Utils:translate')
@@ -66,8 +69,8 @@ const detectLanguageByLLM = async (inputText: string): Promise<TranslateLanguage
   const listLang = translateLanguageOptions.map((item) => item.langCode)
   const listLangText = JSON.stringify(listLang)
 
-  const model = getQuickModel() || getDefaultModel()
-  if (!model) {
+  const model = getQuickModel()
+  if (!model || !hasModel(model)) {
     throw new Error(i18n.t('error.model.not_exists'))
   }
 
@@ -82,7 +85,7 @@ const detectLanguageByLLM = async (inputText: string): Promise<TranslateLanguage
 
   assistant.model = model
   assistant.settings = {
-    temperature: 0.7
+    reasoning_effort: 'none'
   }
   assistant.prompt = LANG_DETECT_PROMPT.replace('{{list_lang}}', listLangText).replace('{{input}}', text)
 
@@ -255,6 +258,7 @@ export const getTranslateOptions = async () => {
     }))
     return [...builtinLanguages, ...transformedCustomLangs]
   } catch (e) {
+    logger.error('[getTranslateOptions] Failed to get custom languages. Fallback to builtinLanguages', e as Error)
     return builtinLanguages
   }
 }

@@ -6,8 +6,9 @@
  */
 
 import { loggerService } from '@logger'
-import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
-import { Span, SpanKind, SpanStatusCode } from '@opentelemetry/api'
+import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
+import type { Span } from '@opentelemetry/api'
+import { SpanKind, SpanStatusCode } from '@opentelemetry/api'
 
 const logger = loggerService.withContext('AiSdkSpanAdapter')
 
@@ -132,7 +133,7 @@ export class AiSdkSpanAdapter {
 
     // 详细记录转换过程
     const operationId = attributes['ai.operationId']
-    logger.info('Converting AI SDK span to SpanEntity', {
+    logger.debug('Converting AI SDK span to SpanEntity', {
       spanName: spanName,
       operationId,
       spanTag,
@@ -148,7 +149,7 @@ export class AiSdkSpanAdapter {
     })
 
     if (tokenUsage) {
-      logger.info('Token usage data found', {
+      logger.debug('Token usage data found', {
         spanName: spanName,
         operationId,
         usage: tokenUsage,
@@ -157,7 +158,7 @@ export class AiSdkSpanAdapter {
     }
 
     if (inputs || outputs) {
-      logger.info('Input/Output data extracted', {
+      logger.debug('Input/Output data extracted', {
         spanName: spanName,
         operationId,
         hasInputs: !!inputs,
@@ -169,7 +170,7 @@ export class AiSdkSpanAdapter {
     }
 
     if (Object.keys(typeSpecificData).length > 0) {
-      logger.info('Type-specific data extracted', {
+      logger.debug('Type-specific data extracted', {
         spanName: spanName,
         operationId,
         typeSpecificKeys: Object.keys(typeSpecificData),
@@ -203,7 +204,7 @@ export class AiSdkSpanAdapter {
       modelName: modelName || this.extractModelFromAttributes(attributes)
     }
 
-    logger.info('AI SDK span successfully converted to SpanEntity', {
+    logger.debug('AI SDK span successfully converted to SpanEntity', {
       spanName: spanName,
       operationId,
       spanId: spanContext.spanId,
@@ -244,8 +245,8 @@ export class AiSdkSpanAdapter {
       'gen_ai.usage.output_tokens'
     ]
 
-    const completionTokens = attributes[inputsTokenKeys.find((key) => attributes[key]) || '']
-    const promptTokens = attributes[outputTokenKeys.find((key) => attributes[key]) || '']
+    const promptTokens = attributes[inputsTokenKeys.find((key) => attributes[key]) || '']
+    const completionTokens = attributes[outputTokenKeys.find((key) => attributes[key]) || '']
 
     if (completionTokens !== undefined || promptTokens !== undefined) {
       const usage: TokenUsage = {

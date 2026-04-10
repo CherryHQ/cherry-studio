@@ -3,7 +3,7 @@ import { nanoid } from '@reduxjs/toolkit'
 import logo from '@renderer/assets/images/cherry-text-logo.svg'
 import { Center, HStack } from '@renderer/components/Layout'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
-import { MCPServer } from '@renderer/types'
+import type { MCPServer } from '@renderer/types'
 import { getMcpConfigSampleFromReadme } from '@renderer/utils'
 import { Button, Card, Flex, Input, Space, Spin, Tag, Typography } from 'antd'
 import { npxFinder } from 'npx-scope-finder'
@@ -95,7 +95,7 @@ const NpxSearch: FC = () => {
   }
 
   useEffect(() => {
-    handleNpmSearch()
+    void handleNpmSearch()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -122,7 +122,7 @@ const NpxSearch: FC = () => {
                 key={scope}
                 onClick={() => {
                   setNpmScope(scope)
-                  handleNpmSearch(scope)
+                  void handleNpmSearch(scope)
                 }}
                 style={{
                   cursor: searchLoading ? 'not-allowed' : 'pointer',

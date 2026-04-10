@@ -1,3 +1,9 @@
+import * as fs from 'node:fs'
+import * as path from 'node:path'
+
+import { loggerService } from '@logger'
+import { parsePluginMetadata } from '@main/utils/markdownParser'
+import type { SlashCommand, UpdateSessionResponse } from '@types'
 import {
   AgentBaseSchema,
   type AgentEntity,
@@ -5,14 +11,16 @@ import {
   type CreateSessionRequest,
   type GetAgentSessionResponse,
   type ListOptions,
-  type UpdateSessionRequest,
-  UpdateSessionResponse
+  type UpdateSessionRequest
 } from '@types'
-import { and, count, desc, eq, type SQL } from 'drizzle-orm'
+import { and, asc, count, desc, eq, type SQL, sql } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
 import { agentsTable, type InsertSessionRow, type SessionRow, sessionsTable } from '../database/schema'
-import { AgentModelField } from '../errors'
+import type { AgentModelField } from '../errors'
+import { builtinSlashCommands } from './claudecode/commands'
+
+const logger = loggerService.withContext('SessionService')
 
 export class SessionService extends BaseService {
   private static instance: SessionService | null = null
@@ -25,21 +33,88 @@ export class SessionService extends BaseService {
     return SessionService.instance
   }
 
-  async initialize(): Promise<void> {
-    await BaseService.initialize()
+  /**
+   * Override BaseService.listSlashCommands to merge builtin and plugin commands
+   */
+  async listSlashCommands(agentType: string, agentId?: string): Promise<SlashCommand[]> {
+    const commands: SlashCommand[] = []
+
+    // Add builtin slash commands
+    if (agentType === 'claude-code') {
+      commands.push(...builtinSlashCommands)
+    }
+
+    // Add local command plugins from .claude/commands/
+    if (agentId) {
+      try {
+        const database = await this.getDatabase()
+        const result = await database.select().from(agentsTable).where(eq(agentsTable.id, agentId)).limit(1)
+        const agent = result[0] ? this.deserializeJsonFields(result[0]) : null
+        const workdir = (agent as AgentEntity | null)?.accessible_paths?.[0]
+
+        if (workdir) {
+          const commandsDir = path.join(workdir, '.claude', 'commands')
+          try {
+            const entries = await fs.promises.readdir(commandsDir, { withFileTypes: true })
+            const ALLOWED_EXTENSIONS = ['.md', '.txt']
+            let localCount = 0
+
+            for (const entry of entries) {
+              if (!entry.isFile()) continue
+              const ext = path.extname(entry.name).toLowerCase()
+              if (!ALLOWED_EXTENSIONS.includes(ext)) continue
+
+              try {
+                const filePath = path.join(commandsDir, entry.name)
+                const metadata = await parsePluginMetadata(
+                  filePath,
+                  path.join('commands', entry.name),
+                  'commands',
+                  'command'
+                )
+                const commandName = entry.name.replace(/\.md$/i, '')
+                commands.push({
+                  command: `/${commandName}`,
+                  description: metadata.description
+                })
+                localCount++
+              } catch {
+                // Skip files that fail to parse
+              }
+            }
+
+            logger.info('Listed slash commands', {
+              agentType,
+              agentId,
+              builtinCount: builtinSlashCommands.length,
+              localCount,
+              totalCount: commands.length
+            })
+          } catch {
+            // .claude/commands/ doesn't exist, that's fine
+          }
+        }
+      } catch (error) {
+        logger.warn('Failed to list local command plugins', {
+          agentId,
+          error: error instanceof Error ? error.message : String(error)
+        })
+      }
+    }
+
+    return commands
   }
 
   async createSession(
     agentId: string,
     req: Partial<CreateSessionRequest> = {}
   ): Promise<GetAgentSessionResponse | null> {
-    this.ensureInitialized()
-
     // Validate agent exists - we'll need to import AgentService for this check
     // For now, we'll skip this validation to avoid circular dependencies
     // The database foreign key constraint will handle this
 
-    const agents = await this.database.select().from(agentsTable).where(eq(agentsTable.id, agentId)).limit(1)
+    const database = await this.getDatabase()
+    const agents = await database.select().from(agentsTable).where(eq(agentsTable.id, agentId)).limit(1)
     if (!agents[0]) {
       throw new Error('Agent not found')
     }
@@ -78,14 +153,24 @@ export class SessionService extends BaseService {
       plan_model: serializedData.plan_model || null,
       small_model: serializedData.small_model || null,
       mcps: serializedData.mcps || null,
+      allowed_tools: serializedData.allowed_tools || null,
       configuration: serializedData.configuration || null,
+      sort_order: 0,
       created_at: now,
       updated_at: now
     }
 
-    await this.database.insert(sessionsTable).values(insertData)
+    const db = await this.getDatabase()
+    // Shift all existing sessions' sort_order up by 1 and insert new session at position 0 atomically
+    await db.transaction(async (tx) => {
+      await tx
+        .update(sessionsTable)
+        .set({ sort_order: sql`${sessionsTable.sort_order} + 1` })
+        .where(eq(sessionsTable.agent_id, agentId))
+      await tx.insert(sessionsTable).values(insertData)
+    })
 
-    const result = await this.database.select().from(sessionsTable).where(eq(sessionsTable.id, id)).limit(1)
+    const result = await db.select().from(sessionsTable).where(eq(sessionsTable.id, id)).limit(1)
 
     if (!result[0]) {
       throw new Error('Failed to create session')
@@ -96,9 +181,8 @@ export class SessionService extends BaseService {
   }
 
   async getSession(agentId: string, id: string): Promise<GetAgentSessionResponse | null> {
-    this.ensureInitialized()
-
-    const result = await this.database
+    const database = await this.getDatabase()
+    const result = await database
       .select()
       .from(sessionsTable)
       .where(and(eq(sessionsTable.id, id), eq(sessionsTable.agent_id, agentId)))
@@ -109,8 +193,16 @@ export class SessionService extends BaseService {
     }
 
     const session = this.deserializeJsonFields(result[0]) as GetAgentSessionResponse
-    session.tools = await this.listMcpTools(session.agent_type, session.mcps)
-    session.slash_commands = await this.listSlashCommands(session.agent_type)
+    const { tools, legacyIdMap } = await this.listMcpTools(session.agent_type, session.mcps)
+    session.tools = tools
+    session.allowed_tools = this.normalizeAllowedTools(session.allowed_tools, session.tools, legacyIdMap)
+
+    // If slash_commands is not in database yet (e.g., first invoke before init message),
+    // fall back to builtin + local commands. Otherwise, use the merged commands from database.
+    if (!session.slash_commands || session.slash_commands.length === 0) {
+      session.slash_commands = await this.listSlashCommands(session.agent_type, agentId)
+    }
+
     return session
   }
 
@@ -118,8 +210,6 @@ export class SessionService extends BaseService {
     agentId?: string,
     options: ListOptions = {}
   ): Promise<{ sessions: AgentSessionEntity[]; total: number }> {
-    this.ensureInitialized()
-
     // Build where conditions
     const whereConditions: SQL[] = []
     if (agentId) {
@@ -134,16 +224,17 @@ export class SessionService extends BaseService {
           : undefined
 
     // Get total count
-    const totalResult = await this.database.select({ count: count() }).from(sessionsTable).where(whereClause)
+    const database = await this.getDatabase()
+    const totalResult = await database.select({ count: count() }).from(sessionsTable).where(whereClause)
 
     const total = totalResult[0].count
 
-    // Build list query with pagination - sort by updated_at descending (latest first)
-    const baseQuery = this.database
+    // Build list query with pagination - sort by sort_order ASC, created_at DESC for tie-breaking
+    const baseQuery = database
       .select()
       .from(sessionsTable)
       .where(whereClause)
-      .orderBy(desc(sessionsTable.updated_at))
+      .orderBy(asc(sessionsTable.sort_order), desc(sessionsTable.created_at))
 
     const result =
       options.limit !== undefined
@@ -154,6 +245,14 @@ export class SessionService extends BaseService {
 
     const sessions = result.map((row) => this.deserializeJsonFields(row)) as GetAgentSessionResponse[]
 
+    await Promise.all(
+      sessions.map(async (session) => {
+        const { tools, legacyIdMap } = await this.listMcpTools(session.agent_type, session.mcps)
+        session.tools = tools
+        session.allowed_tools = this.normalizeAllowedTools(session.allowed_tools, session.tools, legacyIdMap)
+      })
+    )
+
     return { sessions, total }
   }
 
@@ -162,8 +261,6 @@ export class SessionService extends BaseService {
     id: string,
     updates: UpdateSessionRequest
   ): Promise<UpdateSessionResponse | null> {
-    this.ensureInitialized()
-
     // Check if session exists
     const existing = await this.getSession(agentId, id)
     if (!existing) {
@@ -176,7 +273,10 @@ export class SessionService extends BaseService {
     const now = new Date().toISOString()
 
     if (updates.accessible_paths !== undefined) {
-      updates.accessible_paths = this.ensurePathsExist(updates.accessible_paths)
+      if (updates.accessible_paths.length === 0) {
+        throw new Error('accessible_paths must not be empty')
+      }
+      updates.accessible_paths = this.resolveAccessiblePaths(updates.accessible_paths, existing.agent_id)
     }
 
     const modelUpdates: Partial<Record<AgentModelField, string | undefined>> = {}
@@ -204,25 +304,37 @@ export class SessionService extends BaseService {
       }
     }
 
-    await this.database.update(sessionsTable).set(updateData).where(eq(sessionsTable.id, id))
+    const database = await this.getDatabase()
+    await database.update(sessionsTable).set(updateData).where(eq(sessionsTable.id, id))
 
     return await this.getSession(agentId, id)
   }
 
   async deleteSession(agentId: string, id: string): Promise<boolean> {
-    this.ensureInitialized()
-
-    const result = await this.database
+    const database = await this.getDatabase()
+    const result = await database
       .delete(sessionsTable)
       .where(and(eq(sessionsTable.id, id), eq(sessionsTable.agent_id, agentId)))
 
     return result.rowsAffected > 0
   }
 
-  async sessionExists(agentId: string, id: string): Promise<boolean> {
-    this.ensureInitialized()
+  async reorderSessions(agentId: string, orderedIds: string[]): Promise<void> {
+    const database = await this.getDatabase()
+    await database.transaction(async (tx) => {
+      for (let i = 0; i < orderedIds.length; i++) {
+        await tx
+          .update(sessionsTable)
+          .set({ sort_order: i })
+          .where(and(eq(sessionsTable.id, orderedIds[i]), eq(sessionsTable.agent_id, agentId)))
+      }
+    })
+    logger.info('Sessions reordered', { agentId, count: orderedIds.length })
+  }
 
-    const result = await this.database
+  async sessionExists(agentId: string, id: string): Promise<boolean> {
+    const database = await this.getDatabase()
+    const result = await database
       .select({ id: sessionsTable.id })
       .from(sessionsTable)
       .where(and(eq(sessionsTable.id, id), eq(sessionsTable.agent_id, agentId)))

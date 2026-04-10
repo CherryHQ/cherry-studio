@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import * as z from 'zod'
 
 export type ToolType = 'builtin' | 'provider' | 'mcp'
 
@@ -34,6 +34,15 @@ export const MCPToolInputSchema = z
     required: z.array(z.string()).optional()
   })
   .loose()
+  .transform((schema) => {
+    if (!schema.properties) {
+      schema.properties = {}
+    }
+    if (!schema.required) {
+      schema.required = []
+    }
+    return schema
+  })
 
 export interface BuiltinTool extends BaseTool {
   inputSchema: z.infer<typeof MCPToolInputSchema>

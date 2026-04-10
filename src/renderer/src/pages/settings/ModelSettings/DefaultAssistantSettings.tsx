@@ -2,15 +2,18 @@ import { CloseCircleFilled, QuestionCircleOutlined } from '@ant-design/icons'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { ResetIcon } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
+import Selector from '@renderer/components/Selector'
 import { TopView } from '@renderer/components/TopView'
-import { DEFAULT_CONTEXTCOUNT, DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
+import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useDefaultAssistant } from '@renderer/hooks/useAssistant'
-import { AssistantSettings as AssistantSettingsType } from '@renderer/types'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@renderer/services/AssistantService'
+import type { AssistantSettings as AssistantSettingsType } from '@renderer/types'
 import { getLeadingEmoji, modalConfirm } from '@renderer/utils'
-import { Button, Col, Flex, Input, InputNumber, Modal, Popover, Row, Slider, Switch, Tooltip } from 'antd'
+import { Button, Col, Divider, Flex, Input, InputNumber, Modal, Popover, Row, Slider, Switch, Tooltip } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
-import { Dispatch, FC, SetStateAction, useState } from 'react'
+import type { Dispatch, FC, SetStateAction } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -19,12 +22,15 @@ import { SettingContainer, SettingRow, SettingSubtitle } from '..'
 const AssistantSettings: FC = () => {
   const { defaultAssistant, updateDefaultAssistant } = useDefaultAssistant()
   const [temperature, setTemperature] = useState(defaultAssistant.settings?.temperature ?? DEFAULT_TEMPERATURE)
-  const [enableTemperature, setEnableTemperature] = useState(defaultAssistant.settings?.enableTemperature ?? true)
+  const [enableTemperature, setEnableTemperature] = useState(defaultAssistant.settings?.enableTemperature ?? false)
   const [contextCount, setContextCount] = useState(defaultAssistant.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT)
   const [enableMaxTokens, setEnableMaxTokens] = useState(defaultAssistant?.settings?.enableMaxTokens ?? false)
   const [maxTokens, setMaxTokens] = useState(defaultAssistant?.settings?.maxTokens ?? 0)
   const [topP, setTopP] = useState(defaultAssistant.settings?.topP ?? 1)
-  const [enableTopP, setEnableTopP] = useState(defaultAssistant.settings?.enableTopP ?? true)
+  const [enableTopP, setEnableTopP] = useState(defaultAssistant.settings?.enableTopP ?? false)
+  const [toolUseMode, setToolUseMode] = useState<AssistantSettingsType['toolUseMode']>(
+    defaultAssistant.settings?.toolUseMode ?? 'function'
+  )
   const [emoji, setEmoji] = useState(defaultAssistant.emoji || getLeadingEmoji(defaultAssistant.name) || '')
   const [name, setName] = useState(
     defaultAssistant.name.replace(getLeadingEmoji(defaultAssistant.name) || '', '').trim()
@@ -45,7 +51,8 @@ const AssistantSettings: FC = () => {
         maxTokens: settings.maxTokens ?? maxTokens,
         streamOutput: settings.streamOutput ?? true,
         topP: settings.topP ?? topP,
-        enableTopP: settings.enableTopP ?? enableTopP
+        enableTopP: settings.enableTopP ?? enableTopP,
+        toolUseMode: settings.toolUseMode ?? toolUseMode
       }
     })
   }
@@ -71,20 +78,11 @@ const AssistantSettings: FC = () => {
     setEnableMaxTokens(false)
     setMaxTokens(0)
     setTopP(1)
-    setEnableTopP(true)
+    setEnableTopP(false)
+    setToolUseMode('function')
     updateDefaultAssistant({
       ...defaultAssistant,
-      settings: {
-        ...defaultAssistant.settings,
-        temperature: DEFAULT_TEMPERATURE,
-        enableTemperature: true,
-        contextCount: DEFAULT_CONTEXTCOUNT,
-        enableMaxTokens: false,
-        maxTokens: DEFAULT_MAX_TOKENS,
-        streamOutput: true,
-        topP: 1,
-        enableTopP: true
-      }
+      settings: { ...DEFAULT_ASSISTANT_SETTINGS }
     })
   }
 
@@ -106,10 +104,9 @@ const AssistantSettings: FC = () => {
 
   return (
     <SettingContainer
-      style={{ height: 'auto', background: 'transparent', padding: `0 0 12px 0`, gap: 12 }}
+      style={{ height: 'auto', background: 'transparent', padding: `0 0 12px 0`, gap: 10 }}
       theme={theme}>
-      <SettingSubtitle style={{ marginTop: 0 }}>{t('common.name')}</SettingSubtitle>
-      <HStack gap={8} alignItems="center">
+      <HStack gap={8} alignItems="center" mt={10}>
         <Popover content={<EmojiPicker onEmojiClick={handleEmojiSelect} />} arrow trigger="click">
           <EmojiButtonWrapper>
             <Button style={{ fontSize: 20, padding: '4px', minWidth: '30px', height: '30px' }}>{emoji}</Button>
@@ -160,6 +157,7 @@ const AssistantSettings: FC = () => {
           <Button type="text" onClick={onReset} icon={<ResetIcon size={16} />} />
         </Tooltip>
       </SettingSubtitle>
+      <Divider style={{ margin: '2px 0' }} />
       <SettingRow>
         <HStack alignItems="center">
           <Label>{t('chat.settings.temperature.label')}</Label>
@@ -177,7 +175,7 @@ const AssistantSettings: FC = () => {
         />
       </SettingRow>
       {enableTemperature && (
-        <Row align="middle" gutter={12}>
+        <Row align="middle" gutter={12} style={{ marginTop: -5, marginBottom: -10 }}>
           <Col span={20}>
             <Slider
               min={0}
@@ -201,6 +199,7 @@ const AssistantSettings: FC = () => {
           </Col>
         </Row>
       )}
+      <Divider style={{ margin: '2px 0' }} />
       <SettingRow>
         <HStack alignItems="center">
           <Label>{t('chat.settings.top_p.label')}</Label>
@@ -218,7 +217,7 @@ const AssistantSettings: FC = () => {
         />
       </SettingRow>
       {enableTopP && (
-        <Row align="middle" gutter={12}>
+        <Row align="middle" gutter={12} style={{ marginTop: -5, marginBottom: -10 }}>
           <Col span={20}>
             <Slider
               min={0}
@@ -235,13 +234,14 @@ const AssistantSettings: FC = () => {
           </Col>
         </Row>
       )}
+      <Divider style={{ margin: '2px 0' }} />
       <Row align="middle">
         <Label>{t('chat.settings.context_count.label')}</Label>
         <Tooltip title={t('chat.settings.context_count.tip')}>
           <QuestionIcon />
         </Tooltip>
       </Row>
-      <Row align="middle" gutter={20}>
+      <Row align="middle" gutter={20} style={{ marginTop: -5, marginBottom: -10 }}>
         <Col span={19}>
           <Slider
             min={0}
@@ -264,6 +264,7 @@ const AssistantSettings: FC = () => {
           />
         </Col>
       </Row>
+      <Divider style={{ margin: '2px 0' }} />
       <Flex justify="space-between" align="center">
         <HStack alignItems="center">
           <Label>{t('chat.settings.max_tokens.label')}</Label>
@@ -307,6 +308,22 @@ const AssistantSettings: FC = () => {
           </Col>
         </Row>
       )}
+      <Divider style={{ margin: '2px 0' }} />
+      <SettingRow>
+        <Label>{t('assistants.settings.tool_use_mode.label')}</Label>
+        <Selector
+          value={toolUseMode}
+          options={[
+            { label: t('assistants.settings.tool_use_mode.prompt'), value: 'prompt' },
+            { label: t('assistants.settings.tool_use_mode.function'), value: 'function' }
+          ]}
+          onChange={(value) => {
+            setToolUseMode(value)
+            onUpdateAssistantSettings({ toolUseMode: value })
+          }}
+          size={14}
+        />
+      </SettingRow>
     </SettingContainer>
   )
 }

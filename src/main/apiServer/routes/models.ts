@@ -1,5 +1,7 @@
-import { ApiModelsFilterSchema, ApiModelsResponse } from '@types'
-import express, { Request, Response } from 'express'
+import type { ApiModelsResponse } from '@types'
+import { ApiModelsFilterSchema } from '@types'
+import type { Request, Response } from 'express'
+import express from 'express'
 
 import { loggerService } from '../../services/LoggerService'
 import { modelsService } from '../services/models'
@@ -101,12 +103,6 @@ const router = express
       if (response.data.length === 0) {
         logger.warn('No models available from providers', { filter })
       }
-
-      logger.info('Models response ready', {
-        filter,
-        total: response.total,
-        modelIds: response.data.map((m) => m.id)
-      })
 
       return res.json(response satisfies ApiModelsResponse)
     } catch (error: any) {

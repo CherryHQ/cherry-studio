@@ -6,15 +6,16 @@ import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { MultiModelMessageStyle } from '@renderer/store/settings'
+import type { MultiModelMessageStyle } from '@renderer/store/settings'
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { classNames } from '@renderer/utils'
+import { scrollIntoView } from '@renderer/utils/dom'
 import { Popover } from 'antd'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { ComponentProps } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import styled from 'styled-components'
 
-import { useChatMaxWidth } from '../Chat'
 import MessageItem from './Message'
 import MessageGroupMenuBar from './MessageGroupMenuBar'
 
@@ -32,7 +33,6 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
   const { editMessage } = useMessageOperations(topic)
   const { multiModelMessageStyle: multiModelMessageStyleSetting, gridColumns, gridPopoverTrigger } = useSettings()
   const { isMultiSelectMode } = useChatContext(topic)
-  const maxWidth = useChatMaxWidth()
   const { setTimeoutTimer } = useTimer()
 
   const isGrouped = isMultiSelectMode ? false : messageLength > 1 && messages.every((m) => m.role === 'assistant')
@@ -42,9 +42,6 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
     messages[0].multiModelMessageStyle || multiModelMessageStyleSetting
   )
   const [selectedIndex, setSelectedIndex] = useState(messageLength - 1)
-
-  // Refs
-  const prevMessageLengthRef = useRef(messageLength)
 
   // 对于单模型消息，采用简单的样式，避免 overflow 影响内部的 sticky 效果
   const multiModelMessageStyle = useMemo(
@@ -66,16 +63,16 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
   const setSelectedMessage = useCallback(
     (message: Message) => {
       // 前一个
-      editMessage(selectedMessageId, { foldSelected: false })
+      void editMessage(selectedMessageId, { foldSelected: false })
       // 当前选中的消息
-      editMessage(message.id, { foldSelected: true })
+      void editMessage(message.id, { foldSelected: true })
 
       setTimeoutTimer(
         'setSelectedMessage',
         () => {
           const messageElement = document.getElementById(`message-${message.id}`)
           if (messageElement) {
-            messageElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            scrollIntoView(messageElement, { behavior: 'smooth', block: 'start', container: 'nearest' })
           }
         },
         200
@@ -83,24 +80,6 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
     },
     [editMessage, selectedMessageId, setTimeoutTimer]
   )
-
-  useEffect(() => {
-    if (messageLength > prevMessageLengthRef.current) {
-      setSelectedIndex(messageLength - 1)
-      const lastMessage = messages[messageLength - 1]
-      if (lastMessage) {
-        setSelectedMessage(lastMessage)
-      }
-    } else {
-      const newIndex = messages.findIndex((msg) => msg.id === selectedMessageId)
-      if (newIndex !== -1) {
-        setSelectedIndex(newIndex)
-      }
-    }
-    prevMessageLengthRef.current = messageLength
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messageLength])
-
   // 添加对流程图节点点击事件的监听
   useEffect(() => {
     // 只在组件挂载和消息数组变化时添加监听器
@@ -152,7 +131,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
             setSelectedMessage(message)
           } else {
             // 直接滚动
-            element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            scrollIntoView(element, { behavior: 'smooth', block: 'start', container: 'nearest' })
           }
         }
       }
@@ -186,16 +165,16 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
         return
       }
       if (message.useful) {
-        editMessage(msgId, { useful: undefined })
+        void editMessage(msgId, { useful: undefined })
         return
       } else {
         const toResetUsefulMsgs = messages.filter((msg) => msg.id !== msgId && msg.useful)
         toResetUsefulMsgs.forEach(async (msg) => {
-          editMessage(msg.id, {
+          void editMessage(msg.id, {
             useful: undefined
           })
         })
-        editMessage(msgId, { useful: true })
+        void editMessage(msgId, { useful: true })
       }
     },
     [editMessage, messages]
@@ -223,7 +202,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
         message,
         topic,
         index: message.index
-      }
+      } satisfies ComponentProps<typeof MessageItem>
 
       const messageContent = (
         <MessageWrapper
@@ -277,7 +256,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
       isGrouped,
       topic,
       multiModelMessageStyle,
-      messages.length,
+      messages,
       selectedMessageId,
       onUpdateUseful,
       groupContextMessageId,
@@ -289,8 +268,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
     <MessageEditingProvider>
       <GroupContainer
         id={messages[0].askId ? `message-group-${messages[0].askId}` : undefined}
-        className={classNames([multiModelMessageStyle, { 'multi-select-mode': isMultiSelectMode }])}
-        style={{ maxWidth }}>
+        className={classNames([multiModelMessageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
         <GridContainer
           $count={messageLength}
           $gridColumns={gridColumns}
@@ -303,7 +281,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
             setMultiModelMessageStyle={(style) => {
               setMultiModelMessageStyle(style)
               messages.forEach((message) => {
-                editMessage(message.id, { multiModelMessageStyle: style })
+                void editMessage(message.id, { multiModelMessageStyle: style })
               })
             }}
             messages={messages}
@@ -318,9 +296,6 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
 }
 
 const GroupContainer = styled.div`
-  [navbar-position='left'] & {
-    max-width: calc(100vw - var(--sidebar-width) - var(--assistants-width) - 20px);
-  }
   &.horizontal,
   &.grid {
     padding: 4px 10px;
@@ -337,29 +312,18 @@ const GroupContainer = styled.div`
 const GridContainer = styled(Scrollbar)<{ $count: number; $gridColumns: number }>`
   width: 100%;
   display: grid;
+  overflow-y: visible;
   gap: 16px;
 
   &.horizontal {
     padding-bottom: 4px;
     grid-template-columns: repeat(${({ $count }) => $count}, minmax(420px, 1fr));
-    overflow-y: hidden;
     overflow-x: auto;
-    &::-webkit-scrollbar {
-      height: 6px;
-    }
-    &::-webkit-scrollbar-thumb {
-      background: var(--color-scrollbar-thumb);
-      border-radius: var(--scrollbar-thumb-radius);
-    }
-    &::-webkit-scrollbar-thumb:hover {
-      background: var(--color-scrollbar-thumb-hover);
-    }
   }
   &.fold,
   &.vertical {
     grid-template-columns: repeat(1, minmax(0, 1fr));
     gap: 8px;
-    overflow: hidden;
   }
   &.grid {
     grid-template-columns: repeat(
@@ -367,15 +331,11 @@ const GridContainer = styled(Scrollbar)<{ $count: number; $gridColumns: number }
       minmax(0, 1fr)
     );
     grid-template-rows: auto;
-    overflow-y: auto;
-    overflow-x: hidden;
   }
 
   &.multi-select-mode {
     grid-template-columns: repeat(1, minmax(0, 1fr));
     gap: 10px;
-    overflow-y: auto;
-    overflow-x: hidden;
     .grid {
       height: auto;
     }
@@ -401,7 +361,7 @@ interface MessageWrapperProps {
 const MessageWrapper = styled.div<MessageWrapperProps>`
   &.horizontal {
     padding: 1px;
-    /* overflow-y: auto; */
+    overflow-y: auto;
     .message {
       height: 100%;
       border: 0.5px solid var(--color-border);
@@ -423,7 +383,7 @@ const MessageWrapper = styled.div<MessageWrapperProps>`
   &.grid {
     display: block;
     height: 300px;
-    overflow: hidden;
+    overflow-y: hidden;
     border: 0.5px solid var(--color-border);
     border-radius: 10px;
     cursor: pointer;

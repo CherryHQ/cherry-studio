@@ -1,4 +1,5 @@
-import { Context, context } from '@opentelemetry/api'
+import type { Context } from '@opentelemetry/api'
+import { context } from '@opentelemetry/api'
 
 const originalPromise = globalThis.Promise
 

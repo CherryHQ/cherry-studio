@@ -2,6 +2,7 @@ import tseslint from '@electron-toolkit/eslint-config-ts'
 import eslint from '@eslint/js'
 import eslintReact from '@eslint-react/eslint-plugin'
 import { defineConfig } from 'eslint/config'
+import importZod from 'eslint-plugin-import-zod'
 import oxlint from 'eslint-plugin-oxlint'
 import reactHooks from 'eslint-plugin-react-hooks'
 import simpleImportSort from 'eslint-plugin-simple-import-sort'
@@ -15,7 +16,8 @@ export default defineConfig([
   {
     plugins: {
       'simple-import-sort': simpleImportSort,
-      'unused-imports': unusedImports
+      'unused-imports': unusedImports,
+      'import-zod': importZod
     },
     rules: {
       '@typescript-eslint/explicit-function-return-type': 'off',
@@ -25,6 +27,7 @@ export default defineConfig([
       'simple-import-sort/exports': 'error',
       'unused-imports/no-unused-imports': 'error',
       '@eslint-react/no-prop-types': 'error',
+      'import-zod/prefer-zod-namespace': 'error'
     }
   },
   // Configuration for ensuring compatibility with the original ESLint(8.x) rules
@@ -55,8 +58,10 @@ export default defineConfig([
       'dist/**',
       'out/**',
       'local/**',
+      'tests/**',
       '.yarn/**',
       '.gitignore',
+      '.conductor/**',
       'scripts/cloudflare-worker.js',
       'src/main/integration/nutstore/sso/lib/**',
       'src/main/integration/cherryai/index.js',
@@ -75,11 +80,11 @@ export default defineConfig([
     ignores: ['src/**/__tests__/**', 'src/**/__mocks__/**', 'src/**/*.test.*', 'src/preload/**'],
     rules: {
       'no-restricted-syntax': [
-        process.env.PRCI ? 'error' : 'warn',
+        process.env.CI ? 'error' : 'warn',
         {
           selector: 'CallExpression[callee.object.name="console"]',
           message:
-            '❗CherryStudio uses unified LoggerService: 📖 docs/technical/how-to-use-logger-en.md\n❗CherryStudio 使用统一的日志服务：📖 docs/technical/how-to-use-logger-zh.md\n\n'
+            '❗CherryStudio uses unified LoggerService: 📖 docs/en/guides/logging.md\n❗CherryStudio 使用统一的日志服务：📖 docs/zh/guides/logging.md\n\n'
         }
       ]
     }

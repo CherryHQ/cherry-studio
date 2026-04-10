@@ -4,9 +4,9 @@
  * API_KEY=sk-xxxx BASE_URL=xxxx MODEL=xxxx ts-node scripts/update-i18n.ts
  */
 
+import OpenAI from '@cherrystudio/openai'
 import cliProgress from 'cli-progress'
 import fs from 'fs'
-import OpenAI from 'openai'
 
 type I18NValue = string | { [key: string]: I18NValue }
 type I18N = { [key: string]: I18NValue }
@@ -130,7 +130,7 @@ MAKE SURE TO OUTPUT IN ${targetLang}. DO NOT OUTPUT IN UNSPECIFIED LANGUAGE.
 
 let count = 0
 
-;(async () => {
+void (async () => {
   const bar = new cliProgress.SingleBar({}, cliProgress.Presets.shades_classic)
   bar.start(INDEX.length, 0)
   for (const { name, code, model } of INDEX) {

@@ -1,122 +1,20 @@
 import { loggerService } from '@logger'
-import axios from 'axios'
-import { app, ProxyConfig, session } from 'electron'
-import { socksDispatcher } from 'fetch-socks'
-import http from 'http'
-import https from 'https'
+import type { ProxyConfig } from 'electron'
+import { app, session } from 'electron'
 import { getSystemProxy } from 'os-proxy-config'
-import { ProxyAgent } from 'proxy-agent'
-import { Dispatcher, EnvHttpProxyAgent, getGlobalDispatcher, setGlobalDispatcher } from 'undici'
+
+import { NodeProxyController } from './proxy/nodeProxy'
 
 const logger = loggerService.withContext('ProxyManager')
-let byPassRules: string[] = []
-
-const isByPass = (url: string) => {
-  if (byPassRules.length === 0) {
-    return false
-  }
-
-  try {
-    const subjectUrlTokens = new URL(url)
-    for (const rule of byPassRules) {
-      const ruleMatch = rule.replace(/^(?<leadingDot>\.)/, '*').match(/^(?<hostname>.+?)(?::(?<port>\d+))?$/)
-
-      if (!ruleMatch || !ruleMatch.groups) {
-        logger.warn('Failed to parse bypass rule:', { rule })
-        continue
-      }
-
-      if (!ruleMatch.groups.hostname) {
-        continue
-      }
-
-      const hostnameIsMatch = subjectUrlTokens.hostname === ruleMatch.groups.hostname
-
-      if (
-        hostnameIsMatch &&
-        (!ruleMatch.groups ||
-          !ruleMatch.groups.port ||
-          (subjectUrlTokens.port && subjectUrlTokens.port === ruleMatch.groups.port))
-      ) {
-        return true
-      }
-    }
-    return false
-  } catch (error) {
-    logger.error('Failed to check bypass:', error as Error)
-    return false
-  }
-}
-class SelectiveDispatcher extends Dispatcher {
-  private proxyDispatcher: Dispatcher
-  private directDispatcher: Dispatcher
-
-  constructor(proxyDispatcher: Dispatcher, directDispatcher: Dispatcher) {
-    super()
-    this.proxyDispatcher = proxyDispatcher
-    this.directDispatcher = directDispatcher
-  }
-
-  dispatch(opts: Dispatcher.DispatchOptions, handler: Dispatcher.DispatchHandlers) {
-    if (opts.origin) {
-      if (isByPass(opts.origin.toString())) {
-        return this.directDispatcher.dispatch(opts, handler)
-      }
-    }
-
-    return this.proxyDispatcher.dispatch(opts, handler)
-  }
-
-  async close(): Promise<void> {
-    try {
-      await this.proxyDispatcher.close()
-    } catch (error) {
-      logger.error('Failed to close dispatcher:', error as Error)
-      this.proxyDispatcher.destroy()
-    }
-  }
-
-  async destroy(): Promise<void> {
-    try {
-      await this.proxyDispatcher.destroy()
-    } catch (error) {
-      logger.error('Failed to destroy dispatcher:', error as Error)
-    }
-  }
-}
 
 export class ProxyManager {
   private config: ProxyConfig = { mode: 'direct' }
   private systemProxyInterval: NodeJS.Timeout | null = null
   private isSettingProxy = false
-
-  private proxyDispatcher: Dispatcher | null = null
-  private proxyAgent: ProxyAgent | null = null
-
-  private originalGlobalDispatcher: Dispatcher
-  private originalSocksDispatcher: Dispatcher
-  // for http and https
-  private originalHttpGet: typeof http.get
-  private originalHttpRequest: typeof http.request
-  private originalHttpsGet: typeof https.get
-  private originalHttpsRequest: typeof https.request
-
-  private originalAxiosAdapter
-
-  constructor() {
-    this.originalGlobalDispatcher = getGlobalDispatcher()
-    this.originalSocksDispatcher = global[Symbol.for('undici.globalDispatcher.1')]
-    this.originalHttpGet = http.get
-    this.originalHttpRequest = http.request
-    this.originalHttpsGet = https.get
-    this.originalHttpsRequest = https.request
-    this.originalAxiosAdapter = axios.defaults.adapter
-  }
+  private nodeProxyController = new NodeProxyController(logger)
 
   private async monitorSystemProxy(): Promise<void> {
-    // Clear any existing interval first
     this.clearSystemProxyMonitor()
-    // Set new interval
     this.systemProxyInterval = setInterval(async () => {
       const currentProxy = await getSystemProxy()
       if (
@@ -154,19 +52,19 @@ export class ProxyManager {
     this.isSettingProxy = true
 
     try {
-      this.config = config
       this.clearSystemProxyMonitor()
       if (config.mode === 'system') {
         const currentProxy = await getSystemProxy()
         if (currentProxy) {
-          logger.info(`current system proxy: ${currentProxy.proxyUrl}`)
-          this.config.proxyRules = currentProxy.proxyUrl.toLowerCase()
+          logger.info(`current system proxy: ${currentProxy.proxyUrl}, bypass rules: ${currentProxy.noProxy.join(',')}`)
+          config.proxyRules = currentProxy.proxyUrl.toLowerCase()
+          config.proxyBypassRules = currentProxy.noProxy.join(',')
         }
-        this.monitorSystemProxy()
+        void this.monitorSystemProxy()
       }
 
-      byPassRules = config.proxyBypassRules?.split(',') || []
-      this.setGlobalProxy(this.config)
+      this.setGlobalProxy(config)
+      this.config = config
     } catch (error) {
       logger.error('Failed to config proxy:', error as Error)
       throw error
@@ -175,150 +73,19 @@ export class ProxyManager {
     }
   }
 
-  private setEnvironment(url: string): void {
-    if (url === '') {
-      delete process.env.HTTP_PROXY
-      delete process.env.HTTPS_PROXY
-      delete process.env.grpc_proxy
-      delete process.env.http_proxy
-      delete process.env.https_proxy
-      delete process.env.no_proxy
-
-      delete process.env.SOCKS_PROXY
-      delete process.env.ALL_PROXY
-      return
-    }
-
-    process.env.grpc_proxy = url
-    process.env.HTTP_PROXY = url
-    process.env.HTTPS_PROXY = url
-    process.env.http_proxy = url
-    process.env.https_proxy = url
-    process.env.no_proxy = byPassRules.join(',')
-
-    if (url.startsWith('socks')) {
-      process.env.SOCKS_PROXY = url
-      process.env.ALL_PROXY = url
-    }
-  }
-
   private setGlobalProxy(config: ProxyConfig) {
-    this.setEnvironment(config.proxyRules || '')
-    this.setGlobalFetchProxy(config)
-    this.setSessionsProxy(config)
-
-    this.setGlobalHttpProxy(config)
-  }
-
-  private setGlobalHttpProxy(config: ProxyConfig) {
-    if (config.mode === 'direct' || !config.proxyRules) {
-      http.get = this.originalHttpGet
-      http.request = this.originalHttpRequest
-      https.get = this.originalHttpsGet
-      https.request = this.originalHttpsRequest
-      try {
-        this.proxyAgent?.destroy()
-      } catch (error) {
-        logger.error('Failed to destroy proxy agent:', error as Error)
-      }
-      this.proxyAgent = null
-      return
-    }
-
-    // ProxyAgent 从环境变量读取代理配置
-    const agent = new ProxyAgent()
-    this.proxyAgent = agent
-    http.get = this.bindHttpMethod(this.originalHttpGet, agent)
-    http.request = this.bindHttpMethod(this.originalHttpRequest, agent)
-
-    https.get = this.bindHttpMethod(this.originalHttpsGet, agent)
-    https.request = this.bindHttpMethod(this.originalHttpsRequest, agent)
-  }
-
-  // oxlint-disable-next-line @typescript-eslint/no-unsafe-function-type
-  private bindHttpMethod(originalMethod: Function, agent: http.Agent | https.Agent) {
-    return (...args: any[]) => {
-      let url: string | URL | undefined
-      let options: http.RequestOptions | https.RequestOptions
-      let callback: (res: http.IncomingMessage) => void
-
-      if (typeof args[0] === 'string' || args[0] instanceof URL) {
-        url = args[0]
-        if (typeof args[1] === 'function') {
-          options = {}
-          callback = args[1]
-        } else {
-          options = {
-            ...args[1]
-          }
-          callback = args[2]
-        }
-      } else {
-        options = {
-          ...args[0]
-        }
-        callback = args[1]
-      }
-
-      // filter localhost
-      if (url) {
-        if (isByPass(url.toString())) {
-          return originalMethod(url, options, callback)
-        }
-      }
-
-      // for webdav https self-signed certificate
-      if (options.agent instanceof https.Agent) {
-        ;(agent as https.Agent).options.rejectUnauthorized = options.agent.options.rejectUnauthorized
-      }
-      options.agent = agent
-      if (url) {
-        return originalMethod(url, options, callback)
-      }
-      return originalMethod(options, callback)
-    }
-  }
-
-  private setGlobalFetchProxy(config: ProxyConfig) {
-    const proxyUrl = config.proxyRules
-    if (config.mode === 'direct' || !proxyUrl) {
-      setGlobalDispatcher(this.originalGlobalDispatcher)
-      global[Symbol.for('undici.globalDispatcher.1')] = this.originalSocksDispatcher
-      this.proxyDispatcher?.close()
-      this.proxyDispatcher = null
-      axios.defaults.adapter = this.originalAxiosAdapter
-      return
-    }
-
-    // axios 使用 fetch 代理
-    axios.defaults.adapter = 'fetch'
-
-    const url = new URL(proxyUrl)
-    if (url.protocol === 'http:' || url.protocol === 'https:') {
-      this.proxyDispatcher = new SelectiveDispatcher(new EnvHttpProxyAgent(), this.originalGlobalDispatcher)
-      setGlobalDispatcher(this.proxyDispatcher)
-      return
-    }
-
-    this.proxyDispatcher = new SelectiveDispatcher(
-      socksDispatcher({
-        port: parseInt(url.port),
-        type: url.protocol === 'socks4:' ? 4 : 5,
-        host: url.hostname,
-        userId: url.username || undefined,
-        password: url.password || undefined
-      }),
-      this.originalSocksDispatcher
-    )
-    global[Symbol.for('undici.globalDispatcher.1')] = this.proxyDispatcher
+    this.nodeProxyController.configure({
+      proxyRules: config.mode === 'direct' ? undefined : config.proxyRules,
+      proxyBypassRules: config.proxyBypassRules
+    })
+    void this.setSessionsProxy(config)
   }
 
   private async setSessionsProxy(config: ProxyConfig): Promise<void> {
     const sessions = [session.defaultSession, session.fromPartition('persist:webview')]
     await Promise.all(sessions.map((session) => session.setProxy(config)))
 
-    // set proxy for electron
-    app.setProxy(config)
+    void app.setProxy(config)
   }
 }
 

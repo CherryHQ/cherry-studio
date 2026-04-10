@@ -1,7 +1,7 @@
 import './Trace.css'
 
-import { SpanEntity } from '@mcp-trace/trace-core'
-import { TraceModal } from '@renderer/trace/pages/TraceModel'
+import type { SpanEntity } from '@mcp-trace/trace-core'
+import type { TraceModal } from '@renderer/trace/pages/TraceModel'
 import { Divider } from 'antd/lib'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -129,7 +129,7 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, modelName
         }, 300)
       }
     }
-    handleShowTrace()
+    void handleShowTrace()
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current)
@@ -158,7 +158,7 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, modelName
             {showList ? (
               <VStack gap={1} align="start">
                 {spans.length === 0 ? (
-                  <Text>没有找到Trace信息</Text>
+                  <Text>{t('trace.noTraceList')}</Text>
                 ) : (
                   <>
                     <SimpleGrid columns={20} style={{ width: '100%' }} className="floating">

@@ -1,7 +1,8 @@
-import { MessageCreateParams } from '@anthropic-ai/sdk/resources'
+import type { MessageCreateParams } from '@anthropic-ai/sdk/resources'
 import { loggerService } from '@logger'
-import { Provider } from '@types'
-import express, { Request, Response } from 'express'
+import type { Provider } from '@types'
+import type { Request, Response } from 'express'
+import express from 'express'
 
 import { messagesService } from '../services/messages'
 import { getProviderById, validateModelId } from '../utils'

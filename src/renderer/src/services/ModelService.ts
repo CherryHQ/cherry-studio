@@ -1,5 +1,5 @@
 import { getStoreProviders } from '@renderer/hooks/useStore'
-import { Model } from '@renderer/types'
+import type { Model } from '@renderer/types'
 import { pick } from 'lodash'
 
 import { getProviderName } from './ProviderService'
@@ -27,4 +27,12 @@ export function getModelName(model?: Model) {
   }
 
   return modelName
+}
+
+export function getModelById(modelId: string) {
+  const allModels = getStoreProviders()
+    .filter((p) => p.enabled)
+    .map((p) => p.models)
+    .flat()
+  return allModels.find((m) => m.id === modelId)
 }

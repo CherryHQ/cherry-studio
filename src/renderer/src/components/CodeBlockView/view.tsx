@@ -1,6 +1,8 @@
+import { Icon } from '@iconify/react'
 import { loggerService } from '@logger'
-import { ActionTool } from '@renderer/components/ActionTools'
-import CodeEditor, { CodeEditorHandles } from '@renderer/components/CodeEditor'
+import type { ActionTool } from '@renderer/components/ActionTools'
+import type { CodeEditorHandles } from '@renderer/components/CodeEditor'
+import CodeEditor from '@renderer/components/CodeEditor'
 import {
   CodeToolbar,
   useCopyTool,
@@ -14,11 +16,12 @@ import {
 } from '@renderer/components/CodeToolbar'
 import CodeViewer from '@renderer/components/CodeViewer'
 import ImageViewer from '@renderer/components/ImageViewer'
-import { BasicPreviewHandles } from '@renderer/components/Preview'
+import type { BasicPreviewHandles } from '@renderer/components/Preview'
 import { MAX_COLLAPSED_CODE_HEIGHT } from '@renderer/config/constant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { pyodideService } from '@renderer/services/PyodideService'
 import { getExtensionByLanguage } from '@renderer/utils/code-language'
+import { getFileIconName } from '@renderer/utils/fileIconName'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import dayjs from 'dayjs'
 import React, { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -27,7 +30,7 @@ import styled, { css } from 'styled-components'
 
 import { SPECIAL_VIEW_COMPONENTS, SPECIAL_VIEWS } from './constants'
 import StatusBar from './StatusBar'
-import { ViewMode } from './types'
+import type { ViewMode } from './types'
 
 const logger = loggerService.withContext('CodeBlockView')
 
@@ -126,10 +129,19 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
     })
   }, [])
 
-  const handleCopySource = useCallback(() => {
-    navigator.clipboard.writeText(children)
-    window.toast.success(t('code_block.copy.success'))
+  const handleCopySource = useCallback(async () => {
+    try {
+      // Prioritize getting content from editor, fallback to children
+      const content = sourceViewRef.current?.getContent?.() ?? children
+      await navigator.clipboard.writeText(content.trimEnd())
+      window.toast.success(t('code_block.copy.success'))
+    } catch (error) {
+      logger.error('Failed to copy to clipboard:', { error })
+      window.toast.error(t('code_block.copy.failed'))
+    }
   }, [children, t])
+  // Note: sourceViewRef not in deps because it's a stable ref,
+  // and getContent reads content in real-time from editorViewRef.current.state.doc
 
   const handleDownloadSource = useCallback(() => {
     let fileName = ''
@@ -145,7 +157,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
     }
 
     const ext = getExtensionByLanguage(language)
-    window.api.file.save(`${fileName}${ext}`, children)
+    void window.api.file.save(`${fileName}${ext}`, children)
   }, [children, language])
 
   const handleRunScript = useCallback(() => {
@@ -263,9 +275,10 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
           expanded={shouldExpand}
           wrapped={shouldWrap}
           maxHeight={`${MAX_COLLAPSED_CODE_HEIGHT}px`}
+          onRequestExpand={codeCollapsible ? () => setExpandOverride(true) : undefined}
         />
       ),
-    [children, codeEditor.enabled, handleHeightChange, language, onSave, shouldExpand, shouldWrap]
+    [children, codeCollapsible, codeEditor.enabled, handleHeightChange, language, onSave, shouldExpand, shouldWrap]
   )
 
   // 特殊视图组件映射
@@ -282,8 +295,17 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
   }, [children, codeImageTools, language])
 
   const renderHeader = useMemo(() => {
-    const langTag = '<' + language.toUpperCase() + '>'
-    return <CodeHeader $isInSpecialView={isInSpecialView}>{isInSpecialView ? '' : langTag}</CodeHeader>
+    if (isInSpecialView) {
+      return <CodeHeader $isInSpecialView>{''}</CodeHeader>
+    }
+    const ext = getExtensionByLanguage(language)
+    const iconName = getFileIconName(`file${ext}`)
+    return (
+      <CodeHeader $isInSpecialView={false}>
+        <Icon icon={`material-icon-theme:${iconName}`} style={{ fontSize: '1.1em', marginRight: 6 }} />
+        {language.charAt(0).toUpperCase() + language.slice(1)}
+      </CodeHeader>
+    )
   }, [isInSpecialView, language])
 
   // 根据视图模式和语言选择组件，优先展示特殊视图，fallback是源代码视图
@@ -326,7 +348,7 @@ const CodeBlockWrapper = styled.div<{ $isInSpecialView: boolean }>`
    * 一是 CodeViewer 在气泡样式下的用户消息中无法撑开气泡，
    * 二是 代码块内容过少时 toolbar 会和 title 重叠。
    */
-  min-width: 45ch;
+  min-width: 35ch;
 
   .code-toolbar {
     background-color: ${(props) => (props.$isInSpecialView ? 'transparent' : 'var(--color-background-mute)')};

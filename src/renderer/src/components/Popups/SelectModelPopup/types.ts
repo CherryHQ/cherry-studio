@@ -1,5 +1,5 @@
-import { AdaptedApiModel, Model } from '@renderer/types'
-import { ReactNode } from 'react'
+import type { Model } from '@renderer/types'
+import type { ReactNode } from 'react'
 
 /**
  * 滚动触发来源类型
@@ -44,17 +44,3 @@ export type FlatListModel = FlatListBaseItem & {
  * 扁平化列表项
  */
 export type FlatListItem = FlatListGroup | FlatListModel
-
-/**
- * 模型列表项
- */
-export type FlatListApiModel = FlatListBaseItem & {
-  type: 'model'
-  model: AdaptedApiModel
-  tags?: ReactNode
-}
-
-/**
- * 扁平化列表项
- */
-export type FlatListApiItem = FlatListGroup | FlatListApiModel

@@ -1,5 +1,5 @@
 import { PlusOutlined } from '@ant-design/icons'
-import AiProvider from '@renderer/aiCore'
+import { AiProvider } from '@renderer/aiCore'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -8,14 +8,14 @@ import { getProviderLogo } from '@renderer/config/providers'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import { useRuntime } from '@renderer/hooks/useRuntime'
-import { getProviderLabel } from '@renderer/i18n/label'
 import FileManager from '@renderer/services/FileManager'
 import { useAppDispatch } from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { Avatar, Button, InputNumber, Radio, Select } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
-import { FC, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
@@ -24,6 +24,7 @@ import SendMessageButton from '../home/Inputbar/SendMessageButton'
 import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
 import PaintingsList from './components/PaintingsList'
+import ProviderSelect from './components/ProviderSelect'
 import {
   COURSE_URL,
   DEFAULT_PAINTING,
@@ -49,21 +50,6 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [painting?.id]) // 只在painting的id改变时执行，避免无限循环
-
-  const providerOptions = Options.map((option) => {
-    const provider = providers.find((p) => p.id === option)
-    if (provider) {
-      return {
-        label: getProviderLabel(provider.id),
-        value: provider.id
-      }
-    } else {
-      return {
-        label: 'Unknown Provider',
-        value: undefined
-      }
-    }
-  })
 
   const zhipuProvider = providers.find((p) => p.id === 'zhipu')!
 
@@ -133,7 +119,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
       if (painting.imageSize === 'custom') {
         if (!customWidth || !customHeight) {
           window.modal.error({
-            content: '请设置自定义尺寸的宽度和高度',
+            content: t('paintings.zhipu.custom_size_required'),
             centered: true
           })
           return
@@ -141,7 +127,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
         // 验证自定义尺寸是否符合智谱AI的要求
         if (customWidth < 512 || customWidth > 2048 || customHeight < 512 || customHeight > 2048) {
           window.modal.error({
-            content: '自定义尺寸必须在512px-2048px之间',
+            content: t('paintings.zhipu.custom_size_range'),
             centered: true
           })
           return
@@ -149,7 +135,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
 
         if (customWidth % 16 !== 0 || customHeight % 16 !== 0) {
           window.modal.error({
-            content: '自定义尺寸必须能被16整除',
+            content: t('paintings.zhipu.custom_size_divisible'),
             centered: true
           })
           return
@@ -159,7 +145,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
         if (totalPixels > 2097152) {
           // 2^21 = 2097152
           window.modal.error({
-            content: '自定义尺寸的总像素数不能超过2,097,152',
+            content: t('paintings.zhipu.custom_size_pixels'),
             centered: true
           })
           return
@@ -178,19 +164,15 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
         signal: controller.signal
       }
 
-      // 调用智谱AI绘图API
-      const imageUrls = await aiProvider.generateImage(request)
+      // NOTE: ai sdk内部已经处理成了base64
+      const images = await aiProvider.generateImage(request)
 
       // 下载图片到本地文件
-      if (imageUrls.length > 0) {
+      if (images.length > 0) {
         const downloadedFiles = await Promise.all(
-          imageUrls.map(async (url) => {
+          images.map(async (image) => {
             try {
-              if (!url || url.trim() === '') {
-                window.toast.warning(t('message.empty_url'))
-                return null
-              }
-              return await window.api.file.download(url)
+              return await window.api.file.saveBase64Image(image)
             } catch (error) {
               if (
                 error instanceof Error &&
@@ -210,7 +192,6 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
         // 处理响应结果
         const newPainting = {
           ...painting,
-          urls: imageUrls,
           files: validFiles
         }
 
@@ -370,16 +351,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
               />
             </div>
           </ProviderTitleContainer>
-          <Select value={providerOptions[0].value} onChange={handleProviderChange} style={{ marginBottom: 15 }}>
-            {providerOptions.map((provider) => (
-              <Select.Option value={provider.value} key={provider.value}>
-                <SelectOptionContainer>
-                  <ProviderLogo shape="square" src={getProviderLogo(provider.value || '')} size={16} />
-                  {provider.label}
-                </SelectOptionContainer>
-              </Select.Option>
-            ))}
-          </Select>
+          <ProviderSelect provider={zhipuProvider} options={Options} onChange={handleProviderChange} className="mb-4" />
 
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('common.model')}</SettingTitle>
           <Select
@@ -398,7 +370,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
               <Radio.Group value={painting.quality} onChange={(e) => onSelectQuality(e.target.value)}>
                 {QUALITY_OPTIONS.map((option) => (
                   <Radio key={option.value} value={option.value}>
-                    {option.label}
+                    {t(option.label)}
                   </Radio>
                 ))}
               </Radio.Group>
@@ -412,7 +384,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
             style={{ width: '100%' }}>
             {IMAGE_SIZES.map((size) => (
               <Select.Option key={size.value} value={size.value}>
-                {size.label}
+                {t(size.label)}
               </Select.Option>
             ))}
             <Select.Option value="custom" key="custom">
@@ -446,7 +418,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
                 <span style={{ color: 'var(--color-text-2)', fontSize: '12px' }}>px</span>
               </HStack>
               <div style={{ marginTop: 5, fontSize: '12px', color: 'var(--color-text-3)' }}>
-                长宽均需满足512px-2048px之间, 需被16整除, 并保证最大像素数不超过2^21px
+                {t('paintings.zhipu.custom_size_hint')}
               </div>
             </div>
           )}
@@ -561,12 +533,6 @@ const ProviderTitleContainer = styled.div`
   justify-content: space-between;
   align-items: center;
   margin-bottom: 10px;
-`
-
-const SelectOptionContainer = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
 `
 
 const ProviderLogo = styled(Avatar)`

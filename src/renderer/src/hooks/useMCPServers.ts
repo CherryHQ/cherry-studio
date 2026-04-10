@@ -1,8 +1,9 @@
 import { createSelector } from '@reduxjs/toolkit'
 import NavigationService from '@renderer/services/NavigationService'
-import store, { RootState, useAppDispatch, useAppSelector } from '@renderer/store'
+import type { RootState } from '@renderer/store'
+import store, { useAppDispatch, useAppSelector } from '@renderer/store'
 import { addMCPServer, deleteMCPServer, setMCPServers, updateMCPServer } from '@renderer/store/mcp'
-import { MCPServer } from '@renderer/types'
+import type { MCPServer } from '@renderer/types'
 import { IpcChannel } from '@shared/IpcChannel'
 
 // Listen for server changes from main process

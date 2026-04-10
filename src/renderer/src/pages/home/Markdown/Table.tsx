@@ -1,13 +1,18 @@
+import { loggerService } from '@logger'
 import { CopyIcon } from '@renderer/components/Icons'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import store from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
+import { exportTableToExcel } from '@renderer/utils/exportExcel'
 import { Tooltip } from 'antd'
-import { Check } from 'lucide-react'
+import { Check, FileSpreadsheet } from 'lucide-react'
+import MarkdownIt from 'markdown-it'
 import React, { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import type { Node } from 'unist'
+
+const logger = loggerService.withContext('Table')
 
 interface Props {
   children: React.ReactNode
@@ -22,19 +27,49 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
   const { t } = useTranslation()
   const [copied, setCopied] = useTemporaryValue(false, 2000)
 
-  const handleCopyTable = useCallback(() => {
+  const handleCopyTable = useCallback(async () => {
     const tableMarkdown = extractTableMarkdown(blockId ?? '', node?.position)
-    if (!tableMarkdown) return
+    if (!tableMarkdown) {
+      window.toast?.error(t('message.error.table.invalid'))
+      return
+    }
 
-    navigator.clipboard
-      .writeText(tableMarkdown)
-      .then(() => {
-        setCopied(true)
-      })
-      .catch((error) => {
-        window.toast?.error(`${t('message.copy.failed')}: ${error}`)
-      })
+    try {
+      const tableHtml = convertMarkdownTableToHtml(tableMarkdown)
+
+      if (navigator.clipboard && window.ClipboardItem) {
+        const clipboardItem = new ClipboardItem({
+          'text/plain': new Blob([tableMarkdown], { type: 'text/plain' }),
+          'text/html': new Blob([tableHtml], { type: 'text/html' })
+        })
+        await navigator.clipboard.write([clipboardItem])
+      } else {
+        await navigator.clipboard.writeText(tableMarkdown)
+      }
+      setCopied(true)
+    } catch (error) {
+      logger.error('Failed to copy table to clipboard', { error })
+      window.toast?.error(t('message.copy.failed'))
+    }
   }, [blockId, node?.position, setCopied, t])
+
+  const handleExportExcel = useCallback(async () => {
+    const tableMarkdown = extractTableMarkdown(blockId ?? '', node?.position)
+    if (!tableMarkdown) {
+      window.toast?.error(t('message.error.table.invalid'))
+      return
+    }
+
+    try {
+      const result = await exportTableToExcel(tableMarkdown)
+      if (result) {
+        window.toast?.success(t('message.success.excel.export'))
+      }
+    } catch (error) {
+      logger.error('Failed to export table to Excel', { error })
+      window.toast?.error(t('message.error.excel.export'))
+    }
+  }, [blockId, node?.position, t])
 
   return (
     <TableWrapper className="table-wrapper">
@@ -43,6 +78,11 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
         <Tooltip title={t('common.copy')} mouseEnterDelay={0.8}>
           <ToolButton role="button" aria-label={t('common.copy')} onClick={handleCopyTable}>
             {copied ? <Check size={14} color="var(--color-primary)" /> : <CopyIcon size={14} />}
+          </ToolButton>
+        </Tooltip>
+        <Tooltip title={t('common.export.excel')} mouseEnterDelay={0.8}>
+          <ToolButton role="button" aria-label={t('common.export.excel')} onClick={handleExportExcel}>
+            <FileSpreadsheet size={14} />
           </ToolButton>
         </Tooltip>
       </ToolbarWrapper>
@@ -60,7 +100,6 @@ export function extractTableMarkdown(blockId: string, position: any): string {
   if (!position || !blockId) return ''
 
   const block = messageBlocksSelectors.selectById(store.getState(), blockId)
-
   if (!block || !('content' in block) || typeof block.content !== 'string') return ''
 
   const { start, end } = position
@@ -69,6 +108,16 @@ export function extractTableMarkdown(blockId: string, position: any): string {
   // 提取表格对应的行（行号从1开始，数组索引从0开始）
   const tableLines = lines.slice(start.line - 1, end.line)
   return tableLines.join('\n').trim()
+}
+
+function convertMarkdownTableToHtml(markdownTable: string): string {
+  const md = new MarkdownIt({
+    html: true,
+    breaks: false,
+    linkify: false
+  })
+
+  return md.render(markdownTable)
 }
 
 const TableWrapper = styled.div`
@@ -93,6 +142,8 @@ const ToolbarWrapper = styled.div`
   top: 8px;
   right: 8px;
   z-index: 10;
+  display: flex;
+  gap: 4px;
 `
 
 const ToolButton = styled.div`

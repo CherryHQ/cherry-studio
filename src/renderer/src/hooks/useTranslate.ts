@@ -1,8 +1,9 @@
 import { loggerService } from '@logger'
 import { builtinLanguages, UNKNOWN } from '@renderer/config/translate'
 import { useAppSelector } from '@renderer/store'
-import { TranslateState, updateSettings } from '@renderer/store/translate'
-import { TranslateLanguage } from '@renderer/types'
+import type { TranslateState } from '@renderer/store/translate'
+import { updateSettings } from '@renderer/store/translate'
+import type { TranslateLanguage } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
 import { getTranslateOptions } from '@renderer/utils/translate'
 import { useCallback, useEffect, useState } from 'react'
@@ -26,7 +27,7 @@ export default function useTranslate() {
   const dispatch = useDispatch()
 
   useEffect(() => {
-    runAsyncFunction(async () => {
+    void runAsyncFunction(async () => {
       const options = await getTranslateOptions()
       setTranslateLanguages(options)
       setIsLoaded(true)
@@ -35,18 +36,16 @@ export default function useTranslate() {
 
   const getLanguageByLangcode = useCallback(
     (langCode: string) => {
-      if (!isLoaded) {
-        logger.verbose('Translate languages are not loaded yet. Return UNKNOWN.')
-        return UNKNOWN
-      }
-
       const result = translateLanguages.find((item) => item.langCode === langCode)
+
       if (result) {
         return result
+      } else if (!isLoaded) {
+        logger.verbose('Translate languages are not loaded yet. Return UNKNOWN.')
       } else {
         logger.warn(`Unknown language ${langCode}`)
-        return UNKNOWN
       }
+      return UNKNOWN
     },
     [isLoaded, translateLanguages]
   )
@@ -62,6 +61,7 @@ export default function useTranslate() {
     prompt,
     settings,
     translateLanguages,
+    isLoaded,
     getLanguageByLangcode,
     updateSettings: handleUpdateSettings
   }

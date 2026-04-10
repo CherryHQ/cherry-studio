@@ -2,12 +2,13 @@ import { ExportOutlined } from '@ant-design/icons'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
 import { getPreprocessProviderLogo, PREPROCESS_PROVIDER_CONFIG } from '@renderer/config/preprocessProviders'
 import { usePreprocessProvider } from '@renderer/hooks/usePreprocess'
-import { PreprocessProvider } from '@renderer/types'
+import type { PreprocessProvider } from '@renderer/types'
 import { formatApiKeys, hasObjectKey } from '@renderer/utils'
 import { Avatar, Button, Divider, Flex, Input, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { List } from 'lucide-react'
-import { FC, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -36,7 +37,7 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
 
   const onUpdateApiKey = () => {
     if (apiKey !== preprocessProvider.apiKey) {
-      updateProvider({ apiKey, quota: undefined })
+      updateProvider({ apiKey })
     }
   }
 
@@ -71,36 +72,34 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
       <SettingTitle>
         <Flex align="center" gap={8}>
           <ProviderLogo shape="square" src={getPreprocessProviderLogo(preprocessProvider.id)} size={16} />
-
           <ProviderName> {preprocessProvider.name}</ProviderName>
           {officialWebsite && preprocessProviderConfig?.websites && (
             <Link target="_blank" href={preprocessProviderConfig.websites.official}>
-              <ExportOutlined style={{ color: 'var(--color-text)', fontSize: '12px' }} />
+              <ExportOutlined className="text-[--color-text] text-[12px]" />
             </Link>
           )}
         </Flex>
       </SettingTitle>
-      <Divider style={{ width: '100%', margin: '10px 0' }} />
+      <Divider className="my-[10px] w-full" />
       {hasObjectKey(preprocessProvider, 'apiKey') && (
         <>
-          <SettingSubtitle
-            style={{
-              marginTop: 5,
-              marginBottom: 10,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between'
-            }}>
-            {t('settings.provider.api_key.label')}
-            <Tooltip title={t('settings.provider.api.key.list.open')} mouseEnterDelay={0.5}>
-              <Button type="text" size="small" onClick={openApiKeyList} icon={<List size={14} />} />
-            </Tooltip>
+          <SettingSubtitle className="mt-[5px] mb-[10px] flex items-center justify-between">
+            {preprocessProvider.id === 'paddleocr'
+              ? t('settings.tool.preprocess.paddleocr.aistudio_access_token')
+              : t('settings.provider.api_key.label')}
+            {preprocessProvider.id !== 'paddleocr' && (
+              <Tooltip title={t('settings.provider.api.key.list.open')} mouseEnterDelay={0.5}>
+                <Button type="text" size="small" onClick={openApiKeyList} icon={<List size={14} />} />
+              </Tooltip>
+            )}
           </SettingSubtitle>
           <Flex gap={8}>
             <Input.Password
               value={apiKey}
               placeholder={
-                preprocessProvider.id === 'mineru' ? t('settings.mineru.api_key') : t('settings.provider.api_key.label')
+                preprocessProvider.id === 'paddleocr'
+                  ? t('settings.tool.preprocess.paddleocr.aistudio_access_token')
+                  : t('settings.provider.api_key.label')
               }
               onChange={(e) => setApiKey(formatApiKeys(e.target.value))}
               onBlur={onUpdateApiKey}
@@ -109,28 +108,51 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
               autoFocus={apiKey === ''}
             />
           </Flex>
-          <SettingHelpTextRow style={{ justifyContent: 'space-between', marginTop: 5 }}>
-            <SettingHelpLink target="_blank" href={apiKeyWebsite}>
-              {t('settings.provider.get_api_key')}
-            </SettingHelpLink>
-            <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
-          </SettingHelpTextRow>
+          {preprocessProvider.id !== 'paddleocr' && (
+            <SettingHelpTextRow className="mt-[5px] justify-between">
+              <SettingHelpLink target="_blank" href={apiKeyWebsite}>
+                {t('settings.provider.get_api_key')}
+              </SettingHelpLink>
+              <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
+            </SettingHelpTextRow>
+          )}
         </>
       )}
 
       {hasObjectKey(preprocessProvider, 'apiHost') && (
         <>
-          <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
-            {t('settings.provider.api_host')}
+          <SettingSubtitle className="mt-[5px] mb-[10px]">
+            {preprocessProvider.id === 'paddleocr'
+              ? t('settings.tool.preprocess.paddleocr.api_url')
+              : t('settings.provider.api_host')}
           </SettingSubtitle>
           <Flex>
             <Input
               value={apiHost}
-              placeholder={t('settings.provider.api_host')}
+              placeholder={
+                preprocessProvider.id === 'paddleocr'
+                  ? t('settings.tool.preprocess.paddleocr.api_url')
+                  : t('settings.provider.api_host')
+              }
               onChange={(e) => setApiHost(e.target.value)}
               onBlur={onUpdateApiHost}
             />
           </Flex>
+          {preprocessProvider.id === 'paddleocr' && (
+            <SettingHelpTextRow className="!flex-col">
+              <div className="!flex !gap-3">
+                <SettingHelpLink
+                  className="!inline-block"
+                  target="_blank"
+                  href="https://aistudio.baidu.com/paddleocr/task">
+                  {t('settings.tool.preprocess.paddleocr.api_url_label')}
+                </SettingHelpLink>
+                <SettingHelpLink className="!inline-block" target="_blank" href="https://aistudio.baidu.com/paddleocr">
+                  {t('settings.tool.preprocess.paddleocr.paddleocr_url_label')}
+                </SettingHelpLink>
+              </div>
+            </SettingHelpTextRow>
+          )}
         </>
       )}
 

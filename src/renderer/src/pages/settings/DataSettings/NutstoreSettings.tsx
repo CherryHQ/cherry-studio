@@ -28,7 +28,8 @@ import { modalConfirm } from '@renderer/utils'
 import { NUTSTORE_HOST } from '@shared/config/nutstore'
 import { Button, Input, Switch, Tooltip, Typography } from 'antd'
 import dayjs from 'dayjs'
-import { FC, useCallback, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { type FileStat } from 'webdav'
 
@@ -84,7 +85,7 @@ const NutstoreSettings: FC = () => {
         }
       }
     }
-    decryptTokenEffect()
+    void decryptTokenEffect()
   }, [nutstoreToken, dispatch, nutstorePath])
 
   const handleLayout = useCallback(async () => {
@@ -132,7 +133,7 @@ const NutstoreSettings: FC = () => {
       stopNutstoreAutoSync()
     } else {
       dispatch(setNutstoreAutoSync(true))
-      startNutstoreAutoSync()
+      void startNutstoreAutoSync()
     }
   }
 

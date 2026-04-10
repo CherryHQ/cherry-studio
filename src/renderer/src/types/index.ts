@@ -1,27 +1,35 @@
-import type { LanguageModelV2Source } from '@ai-sdk/provider'
+import type { LanguageModelV3Source } from '@ai-sdk/provider'
 import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
+import type OpenAI from '@cherrystudio/openai'
 import type { GenerateImagesConfig, GroundingMetadata, PersonGeneration } from '@google/genai'
-import type OpenAI from 'openai'
 import type { CSSProperties } from 'react'
 
 export * from './file'
 export * from './note'
 
+import * as z from 'zod'
+
 import type { StreamTextParams } from './aiCoreTypes'
 import type { Chunk } from './chunk'
 import type { FileMetadata } from './file'
-import { KnowledgeBase, KnowledgeReference } from './knowledge'
-import { MCPConfigSample, McpServerType } from './mcp'
+import type { KnowledgeBase, KnowledgeReference } from './knowledge'
+import type { MCPConfigSample, MCPServerInstallSource, McpServerType } from './mcp'
 import type { Message } from './newMessage'
 import type { BaseTool, MCPTool } from './tool'
 
 export * from './agent'
 export * from './apiModels'
+export * from './apiServer'
 export * from './knowledge'
 export * from './mcp'
 export * from './notification'
 export * from './ocr'
+export * from './plugin'
 export * from './provider'
+export * from './serialize'
+export * from './skill'
+
+export type McpMode = 'disabled' | 'auto' | 'manual'
 
 export type Assistant = {
   id: string
@@ -34,14 +42,17 @@ export type Assistant = {
   description?: string
   model?: Model
   defaultModel?: Model
+  // This field should be considered as not Partial and not optional in v2
   settings?: Partial<AssistantSettings>
   messages?: AssistantMessage[]
   /** enableWebSearch 代表使用模型内置网络搜索功能 */
   enableWebSearch?: boolean
   webSearchProviderId?: WebSearchProvider['id']
-  // enableUrlContext 是 Gemini 的特有功能
+  // enableUrlContext 是 Gemini/Anthropic 的特有功能
   enableUrlContext?: boolean
   enableGenerateImage?: boolean
+  /** MCP mode: 'disabled' (no MCP), 'auto' (hub server only), 'manual' (user selects servers) */
+  mcpMode?: McpMode
   mcpServers?: MCPServer[]
   knowledgeRecognition?: 'off' | 'on'
   regularPhrases?: QuickPhrase[] // Added for regular phrase
@@ -50,6 +61,15 @@ export type Assistant = {
   // for translate. 更好的做法是定义base assistant，把 Assistant 作为多种不同定义 assistant 的联合类型，但重构代价太大
   content?: string
   targetLanguage?: TranslateLanguage
+}
+
+/**
+ * Get the effective MCP mode for an assistant with backward compatibility.
+ * Legacy assistants without mcpMode default based on mcpServers presence.
+ */
+export function getEffectiveMcpMode(assistant: Assistant): McpMode {
+  if (assistant.mcpMode) return assistant.mcpMode
+  return (assistant.mcpServers?.length ?? 0) > 0 ? 'manual' : 'disabled'
 }
 
 export type TranslateAssistant = Assistant & {
@@ -78,24 +98,57 @@ export type AssistantSettingCustomParameters = {
 const ThinkModelTypes = [
   'default',
   'o',
+  'openai_deep_research',
   'gpt5',
+  'gpt5_1',
   'gpt5_codex',
+  'gpt5_1_codex',
+  'gpt5_1_codex_max',
+  'gpt5_2_codex',
+  'gpt5_2',
+  'gpt5pro',
+  'gpt52pro',
+  'gpt_oss',
   'grok',
   'grok4_fast',
-  'gemini',
-  'gemini_pro',
+  'gemini2_flash',
+  'gemini2_pro',
+  'gemini3_flash',
+  'gemini3_pro',
+  'gemini3_1_pro',
   'qwen',
   'qwen_thinking',
   'doubao',
   'doubao_no_auto',
+  'doubao_after_251015',
+  'mimo',
   'hunyuan',
   'zhipu',
   'perplexity',
-  'deepseek_hybrid'
+  'deepseek_hybrid',
+  'kimi_k2_5',
+  'claude',
+  'claude46'
 ] as const
 
-export type ReasoningEffortOption = NonNullable<OpenAI.ReasoningEffort> | 'auto'
-export type ThinkingOption = ReasoningEffortOption | 'off'
+/** If the model's reasoning effort could be controlled, or its reasoning behavior could be turned on/off.
+ * It's basically based on OpenAI's reasoning effort, but we have adapted it for other models.
+ *
+ * Possible options:
+ * - 'none': Disable reasoning for the model. (inherit from OpenAI)
+ *            It's also used as "off" when the reasoning behavior of the model only could be set to "on" and "off".
+ * - 'minimal': Enable minimal reasoning effort for the model. (inherit from OpenAI, only for few models, such as GPT-5.)
+ * - 'low': Enable low reasoning effort for the model. (inherit from OpenAI)
+ * - 'medium': Enable medium reasoning effort for the model. (inherit from OpenAI)
+ * - 'high': Enable high reasoning effort for the model. (inherit from OpenAI)
+ * - 'xhigh': Enable extra high reasoning effort for the model. (inherit from OpenAI)
+ * - 'auto': Automatically determine the reasoning effort based on the model's capabilities.
+ *            For some providers, it's same with 'default'.
+ *            It's also used as "on" when the reasoning behavior of the model only could be set to "on" and "off".
+ * - 'default': Depend on default behavior. It means we would not set any reasoning related settings when calling API.
+ */
+export type ReasoningEffortOption = NonNullable<OpenAI.ReasoningEffort> | 'auto' | 'default'
+export type ThinkingOption = ReasoningEffortOption
 export type ThinkingModelType = (typeof ThinkModelTypes)[number]
 export type ThinkingOptionConfig = Record<ThinkingModelType, ThinkingOption[]>
 export type ReasoningEffortConfig = Record<ThinkingModelType, ReasoningEffortOption[]>
@@ -106,10 +159,14 @@ export function isThinkModelType(type: string): type is ThinkingModelType {
 }
 
 export const EFFORT_RATIO: EffortRatio = {
+  // 'default' is not expected to be used.
+  default: 0,
+  none: 0.01,
   minimal: 0.05,
   low: 0.05,
   medium: 0.5,
   high: 0.8,
+  xhigh: 0.9,
   auto: 2
 }
 
@@ -124,16 +181,17 @@ export type AssistantSettings = {
   streamOutput: boolean
   defaultModel?: Model
   customParameters?: AssistantSettingCustomParameters[]
-  reasoning_effort?: ReasoningEffortOption
-  /** 保留上一次使用思考模型时的 reasoning effort, 在从非思考模型切换到思考模型时恢复.
-   *
-   * TODO: 目前 reasoning_effort === undefined 有两个语义，有的场景是显式关闭思考，有的场景是不传参。
-   * 未来应该重构思考控制，将启用/关闭思考和思考选项分离，这样就不用依赖 cache 了。
-   *
+  reasoning_effort: ReasoningEffortOption
+  /**
+   * Preserve the effective reasoning effort (not 'default') from the last use of a thinking model which supports thinking control,
+   * and restore it when switching back from a non-thinking or fixed reasoning model.
+   * FIXME: It should be managed by external cache service instead of being stored in the assistant
    */
   reasoning_effort_cache?: ReasoningEffortOption
   qwenThinkMode?: boolean
   toolUseMode: 'function' | 'prompt'
+  maxToolCalls?: number
+  enableMaxToolCalls?: boolean
 }
 
 export type AssistantPreset = Omit<Assistant, 'model'> & {
@@ -229,7 +287,16 @@ export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning' | 'functio
 
 export type ModelTag = Exclude<ModelType, 'text'> | 'free'
 
-export type EndpointType = 'openai' | 'openai-response' | 'anthropic' | 'gemini' | 'image-generation' | 'jina-rerank'
+// "image-generation" is also openai endpoint, but specifically for image generation.
+export const EndPointTypeSchema = z.enum([
+  'openai',
+  'openai-response',
+  'anthropic',
+  'gemini',
+  'image-generation',
+  'jina-rerank'
+])
+export type EndpointType = z.infer<typeof EndPointTypeSchema>
 
 export type ModelPricing = {
   input_per_million_tokens: number
@@ -272,9 +339,11 @@ export type PaintingParams = {
   id: string
   urls: string[]
   files: FileMetadata[]
+  // provider that this painting belongs to (for new-api family separation)
+  providerId?: string
 }
 
-export type PaintingProvider = 'zhipu' | 'aihubmix' | 'silicon' | 'dmxapi' | 'new-api'
+export type PaintingProvider = 'zhipu' | 'aihubmix' | 'silicon' | 'dmxapi' | 'new-api' | 'ovms' | 'cherryin' | 'ppio'
 
 export interface Painting extends PaintingParams {
   model?: string
@@ -308,6 +377,7 @@ export interface GeneratePainting extends PaintingParams {
   safetyTolerance?: number
   width?: number
   height?: number
+  imageSize?: string
 }
 
 export interface EditPainting extends PaintingParams {
@@ -364,6 +434,7 @@ export interface DmxapiPainting extends PaintingParams {
   autoCreate?: boolean
   generationMode?: generationModeType
   priceModel?: string
+  extend_params?: Record<string, unknown>
 }
 
 export interface TokenFluxPainting extends PaintingParams {
@@ -374,8 +445,43 @@ export interface TokenFluxPainting extends PaintingParams {
   status?: 'starting' | 'processing' | 'succeeded' | 'failed' | 'cancelled'
 }
 
+export interface OvmsPainting extends PaintingParams {
+  model?: string
+  prompt?: string
+  size?: string
+  num_inference_steps?: number
+  rng_seed?: number
+  safety_check?: boolean
+  response_format?: 'url' | 'b64_json'
+}
+
+export interface PpioPainting extends PaintingParams {
+  model?: string
+  prompt?: string
+  size?: string
+  width?: number
+  height?: number
+  ppioSeed?: number // 使用 ppioSeed 避免与其他 Painting 类型的 seed (string) 冲突
+  usePreLlm?: boolean
+  addWatermark?: boolean
+  taskId?: string
+  ppioStatus?: 'pending' | 'processing' | 'succeeded' | 'failed'
+  // Edit 模式相关
+  imageFile?: string // 输入图像 URL 或 base64
+  ppioMask?: string // 遮罩图像 URL 或 base64（用于擦除功能）
+  resolution?: string // 高清化分辨率
+  outputFormat?: string // 输出格式
+}
+
 export type PaintingAction = Partial<
-  GeneratePainting & RemixPainting & EditPainting & ScalePainting & DmxapiPainting & TokenFluxPainting
+  GeneratePainting &
+    RemixPainting &
+    EditPainting &
+    ScalePainting &
+    DmxapiPainting &
+    TokenFluxPainting &
+    OvmsPainting &
+    PpioPainting
 > &
   PaintingParams
 
@@ -396,19 +502,34 @@ export interface PaintingsState {
   // OpenAI
   openai_image_generate: Partial<GeneratePainting> & PaintingParams[]
   openai_image_edit: Partial<EditPainting> & PaintingParams[]
+  // OVMS
+  ovms_paintings: OvmsPainting[]
+  // PPIO
+  ppio_draw: PpioPainting[]
+  ppio_edit: PpioPainting[]
 }
 
 export type MinAppType = {
   id: string
   name: string
+  /** i18n key for translatable names */
+  nameKey?: string
+  /** Regions where this app is available. If includes 'Global', shown to international users. */
+  supportedRegions?: MinAppRegion[]
   logo?: string
   url: string
+  // FIXME: It should be `bordered`
   bodered?: boolean
   background?: string
   style?: CSSProperties
   addTime?: string
   type?: 'Custom' | 'Default' // Added the 'type' property
 }
+
+/** Region types for miniapps visibility */
+export type MinAppRegion = 'CN' | 'Global'
+
+export type MinAppRegionFilter = 'auto' | MinAppRegion
 
 export enum ThemeMode {
   light = 'light',
@@ -417,7 +538,18 @@ export enum ThemeMode {
 }
 
 /** 有限的UI语言 */
-export type LanguageVarious = 'zh-CN' | 'zh-TW' | 'el-GR' | 'en-US' | 'es-ES' | 'fr-FR' | 'ja-JP' | 'pt-PT' | 'ru-RU'
+export type LanguageVarious =
+  | 'zh-CN'
+  | 'zh-TW'
+  | 'de-DE'
+  | 'el-GR'
+  | 'en-US'
+  | 'es-ES'
+  | 'fr-FR'
+  | 'ja-JP'
+  | 'pt-PT'
+  | 'ro-RO'
+  | 'ru-RU'
 
 export type CodeStyleVarious = 'auto' | string
 
@@ -478,6 +610,25 @@ export type GenerateImageParams = {
   quality?: string
 }
 
+/**
+ * 图像编辑参数
+ * 用于基于输入图像和文本提示生成编辑后的图像
+ */
+export type EditImageParams = {
+  /** 模型 ID */
+  model: string
+  /** 编辑提示词 */
+  prompt: string
+  /** 需要编辑的输入图像（可以是 Buffer、Uint8Array 或 base64/URL 字符串） */
+  inputImages: (Buffer | Uint8Array | string)[]
+  /** 可选的 mask 图像用于 inpainting（指定需要编辑的区域） */
+  mask?: Buffer | Uint8Array | string
+  /** 输出图像尺寸 */
+  imageSize?: string
+  /** 中止信号 */
+  signal?: AbortSignal
+}
+
 export type GenerateImageResponse = {
   type: 'url' | 'base64'
   images: string[]
@@ -527,6 +678,7 @@ export const isAutoDetectionMethod = (method: string): method is AutoDetectionMe
 
 export type SidebarIcon =
   | 'assistants'
+  | 'agents'
   | 'store'
   | 'paintings'
   | 'translate'
@@ -535,6 +687,7 @@ export type SidebarIcon =
   | 'files'
   | 'code_tools'
   | 'notes'
+  | 'openclaw'
 
 export type ExternalToolResult = {
   mcpTools?: MCPTool[]
@@ -549,7 +702,9 @@ export const WebSearchProviderIds = {
   tavily: 'tavily',
   searxng: 'searxng',
   exa: 'exa',
+  'exa-mcp': 'exa-mcp',
   bocha: 'bocha',
+  querit: 'querit',
   'local-google': 'local-google',
   'local-bing': 'local-bing',
   'local-baidu': 'local-baidu'
@@ -572,6 +727,7 @@ export type WebSearchProvider = {
   basicAuthPassword?: string
   usingBrowser?: boolean
   topicId?: string
+  allowedTools?: string[]
   parentSpanId?: string
   modelName?: string
 }
@@ -587,7 +743,7 @@ export type WebSearchProviderResponse = {
   results: WebSearchProviderResult[]
 }
 
-export type AISDKWebSearchResult = Omit<Extract<LanguageModelV2Source, { sourceType: 'url' }>, 'sourceType'>
+export type AISDKWebSearchResult = Omit<Extract<LanguageModelV3Source, { sourceType: 'url' }>, 'sourceType'>
 
 export type WebSearchResults =
   | WebSearchProviderResponse
@@ -598,20 +754,24 @@ export type WebSearchResults =
   | AISDKWebSearchResult[]
   | any[]
 
-export enum WebSearchSource {
-  WEBSEARCH = 'websearch',
-  OPENAI = 'openai',
-  OPENAI_RESPONSE = 'openai-response',
-  OPENROUTER = 'openrouter',
-  ANTHROPIC = 'anthropic',
-  GEMINI = 'gemini',
-  PERPLEXITY = 'perplexity',
-  QWEN = 'qwen',
-  HUNYUAN = 'hunyuan',
-  ZHIPU = 'zhipu',
-  GROK = 'grok',
-  AISDK = 'ai-sdk'
-}
+export const WEB_SEARCH_SOURCE = {
+  WEBSEARCH: 'websearch',
+  OPENAI: 'openai',
+  OPENAI_RESPONSE: 'openai-response',
+  OPENROUTER: 'openrouter',
+  ANTHROPIC: 'anthropic',
+  GEMINI: 'gemini',
+  PERPLEXITY: 'perplexity',
+  QWEN: 'qwen',
+  HUNYUAN: 'hunyuan',
+  ZHIPU: 'zhipu',
+  GROK: 'grok',
+  AISDK: 'ai-sdk'
+} as const
+
+export const WebSearchSourceSchema = z.enum(objectValues(WEB_SEARCH_SOURCE))
+
+export type WebSearchSource = z.infer<typeof WebSearchSourceSchema>
 
 export type WebSearchResponse = {
   results?: WebSearchResults
@@ -669,6 +829,14 @@ export interface MCPServer {
   shouldConfig?: boolean
   /** 用于标记服务器是否运行中 */
   isActive: boolean
+  /** 标记 MCP 安装来源，例如 builtin/manual/protocol */
+  installSource?: MCPServerInstallSource
+  /** 指示用户是否已信任该 MCP */
+  isTrusted?: boolean
+  /** 首次标记为信任的时间戳 */
+  trustedAt?: number
+  /** 安装时间戳 */
+  installedAt?: number
 }
 
 export type BuiltinMCPServer = MCPServer & {
@@ -681,6 +849,7 @@ export const isBuiltinMCPServer = (server: MCPServer): server is BuiltinMCPServe
 }
 
 export const BuiltinMCPServerNames = {
+  flomo: '@cherry/flomo',
   mcpAutoInstall: '@cherry/mcp-auto-install',
   memory: '@cherry/memory',
   sequentialThinking: '@cherry/sequentialthinking',
@@ -688,7 +857,11 @@ export const BuiltinMCPServerNames = {
   fetch: '@cherry/fetch',
   filesystem: '@cherry/filesystem',
   difyKnowledge: '@cherry/dify-knowledge',
-  python: '@cherry/python'
+  python: '@cherry/python',
+  didiMCP: '@cherry/didi-mcp',
+  browser: '@cherry/browser',
+  nowledgeMem: '@cherry/nowledge-mem',
+  hub: '@cherry/hub'
 } as const
 
 export type BuiltinMCPServerName = (typeof BuiltinMCPServerNames)[keyof typeof BuiltinMCPServerNames]
@@ -733,7 +906,7 @@ export interface MCPConfig {
   isBunInstalled: boolean
 }
 
-export type MCPToolResponseStatus = 'pending' | 'cancelled' | 'invoking' | 'done' | 'error'
+export type MCPToolResponseStatus = 'pending' | 'streaming' | 'cancelled' | 'invoking' | 'done' | 'error'
 
 interface BaseToolResponse {
   id: string // unique id
@@ -741,6 +914,8 @@ interface BaseToolResponse {
   arguments: Record<string, unknown> | Record<string, unknown>[] | string | undefined
   status: MCPToolResponseStatus
   response?: any
+  // Streaming arguments support
+  partialArguments?: string // Accumulated partial JSON string during streaming
 }
 
 export interface ToolUseResponse extends BaseToolResponse {
@@ -757,11 +932,13 @@ export interface MCPToolResponse extends Omit<ToolUseResponse | ToolCallResponse
   tool: MCPTool
   toolCallId?: string
   toolUseId?: string
+  parentToolUseId?: string
 }
 
 export interface NormalToolResponse extends Omit<ToolCallResponse, 'tool'> {
   tool: BaseTool
   toolCallId: string
+  parentToolUseId?: string
 }
 
 export interface MCPToolResultContent {
@@ -779,6 +956,7 @@ export interface MCPToolResultContent {
 
 export interface MCPCallToolResponse {
   content: MCPToolResultContent[]
+  structuredContent?: unknown
   isError?: boolean
 }
 
@@ -829,10 +1007,6 @@ export interface StoreSyncAction {
   }
 }
 
-export type OpenAIVerbosity = 'high' | 'medium' | 'low'
-
-export type OpenAISummaryText = 'auto' | 'concise' | 'detailed' | 'off'
-
 export type S3Config = {
   endpoint: string
   region: string
@@ -848,29 +1022,16 @@ export type S3Config = {
 }
 
 export type { Message } from './newMessage'
-
-export interface ApiServerConfig {
-  enabled: boolean
-  host: string
-  port: number
-  apiKey: string
-}
 export * from './tool'
 
 // Memory Service Types
 // ========================================================================
 export interface MemoryConfig {
-  /**
-   * @deprecated use embedderApiClient instead
-   */
-  embedderModel?: Model
-  embedderDimensions?: number
-  /**
-   * @deprecated use llmApiClient instead
-   */
+  embeddingDimensions?: number
+  embeddingModel?: Model
   llmModel?: Model
-  embedderApiClient?: ApiClient
-  llmApiClient?: ApiClient
+  // Dynamically retrieved, not persistently stored
+  embeddingApiClient?: ApiClient
   customFactExtractionPrompt?: string
   customUpdateMemoryPrompt?: string
   /** Indicates whether embedding dimensions are automatically detected */
@@ -1056,7 +1217,7 @@ export const isHexColor = (value: string): value is HexColor => {
   return /^#([0-9A-F]{3}){1,2}$/i.test(value)
 }
 
-export type FetchChatCompletionOptions = {
+export type FetchChatCompletionRequestOptions = {
   signal?: AbortSignal
   timeout?: number
   headers?: Record<string, string>
@@ -1064,9 +1225,10 @@ export type FetchChatCompletionOptions = {
 
 type BaseParams = {
   assistant: Assistant
-  options?: FetchChatCompletionOptions
+  requestOptions?: FetchChatCompletionRequestOptions
   onChunkReceived: (chunk: Chunk) => void
   topicId?: string // 添加 topicId 参数
+  allowedTools?: string[]
   uiMessages?: Message[]
 }
 
@@ -1084,3 +1246,7 @@ type PromptParams = BaseParams & {
 }
 
 export type FetchChatCompletionParams = MessagesParams | PromptParams
+
+// More specific than NonNullable
+export type NotUndefined<T> = Exclude<T, undefined>
+export type NotNull<T> = Exclude<T, null>

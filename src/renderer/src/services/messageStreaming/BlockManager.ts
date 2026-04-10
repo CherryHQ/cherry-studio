@@ -2,7 +2,8 @@ import { loggerService } from '@logger'
 import type { AppDispatch, RootState } from '@renderer/store'
 import { updateOneBlock, upsertOneBlock } from '@renderer/store/messageBlock'
 import { newMessagesActions } from '@renderer/store/newMessage'
-import { MessageBlock, MessageBlockType } from '@renderer/types/newMessage'
+import type { MessageBlock } from '@renderer/types/newMessage'
+import { MessageBlockType } from '@renderer/types/newMessage'
 
 const logger = loggerService.withContext('BlockManager')
 
@@ -93,7 +94,7 @@ export class BlockManager {
         this._activeBlockInfo = { id: blockId, type: blockType } // 更新活跃块信息
       }
       this.deps.dispatch(updateOneBlock({ id: blockId, changes }))
-      this.deps.saveUpdatedBlockToDB(blockId, this.deps.assistantMsgId, this.deps.topicId, this.deps.getState)
+      void this.deps.saveUpdatedBlockToDB(blockId, this.deps.assistantMsgId, this.deps.topicId, this.deps.getState)
       this._lastBlockType = blockType
     } else {
       this._activeBlockInfo = { id: blockId, type: blockType } // 更新活跃块信息

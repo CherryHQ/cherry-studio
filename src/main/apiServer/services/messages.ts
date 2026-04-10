@@ -1,10 +1,10 @@
-import Anthropic from '@anthropic-ai/sdk'
-import { MessageCreateParams, MessageStreamEvent } from '@anthropic-ai/sdk/resources'
+import type Anthropic from '@anthropic-ai/sdk'
+import type { MessageCreateParams, MessageStreamEvent } from '@anthropic-ai/sdk/resources'
 import { loggerService } from '@logger'
 import anthropicService from '@main/services/AnthropicService'
 import { buildClaudeCodeSystemMessage, getSdkClient } from '@shared/anthropic'
-import { Provider } from '@types'
-import { Response } from 'express'
+import type { Provider } from '@types'
+import type { Response } from 'express'
 
 const logger = loggerService.withContext('MessagesService')
 const EXCLUDED_FORWARD_HEADERS: ReadonlySet<string> = new Set([

@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
-import { OcrApiProvider } from '@renderer/types'
+import type { OcrApiProvider } from '@renderer/types'
 
-import { OcrBaseApiClient } from './OcrBaseApiClient'
+import type { OcrBaseApiClient } from './OcrBaseApiClient'
 import { OcrExampleApiClient } from './OcrExampleApiClient'
 
 const logger = loggerService.withContext('OcrApiClientFactory')

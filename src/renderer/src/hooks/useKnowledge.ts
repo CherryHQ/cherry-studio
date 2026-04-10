@@ -1,7 +1,8 @@
 import { db } from '@renderer/databases'
 import KnowledgeQueue from '@renderer/queue/KnowledgeQueue'
 import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
-import { RootState, useAppDispatch } from '@renderer/store'
+import type { RootState } from '@renderer/store'
+import { useAppDispatch } from '@renderer/store'
 import {
   addBase,
   clearAllProcessing,
@@ -16,16 +17,8 @@ import {
   updateNotes
 } from '@renderer/store/knowledge'
 import { addFilesThunk, addItemThunk, addNoteThunk, addVedioThunk } from '@renderer/store/thunk/knowledgeThunk'
-import {
-  FileMetadata,
-  isKnowledgeFileItem,
-  isKnowledgeNoteItem,
-  isKnowledgeVideoItem,
-  KnowledgeBase,
-  KnowledgeItem,
-  KnowledgeNoteItem,
-  ProcessingStatus
-} from '@renderer/types'
+import type { FileMetadata, KnowledgeBase, KnowledgeItem, KnowledgeNoteItem, ProcessingStatus } from '@renderer/types'
+import { isKnowledgeFileItem, isKnowledgeNoteItem, isKnowledgeVideoItem } from '@renderer/types'
 import { runAsyncFunction, uuid } from '@renderer/utils'
 import dayjs from 'dayjs'
 import { cloneDeep } from 'lodash'
@@ -108,7 +101,7 @@ export const useKnowledge = (baseId: string) => {
       dispatch(updateNotes({ baseId, item: updatedNote }))
     }
     const noteItem = base?.items.find((item) => item.id === noteId)
-    noteItem && refreshItem(noteItem)
+    void (noteItem && refreshItem(noteItem))
   }
 
   // 获取笔记内容
@@ -170,6 +163,7 @@ export const useKnowledge = (baseId: string) => {
         processingProgress: 0,
         processingError: '',
         uniqueId: undefined,
+        retryCount: 0,
         updated_at: Date.now()
       })
       checkAllBases()
@@ -189,6 +183,7 @@ export const useKnowledge = (baseId: string) => {
       processingProgress: 0,
       processingError: '',
       uniqueId: undefined,
+      retryCount: 0,
       updated_at: Date.now()
     })
     setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
@@ -302,7 +297,7 @@ export const useKnowledge = (baseId: string) => {
 
   useEffect(() => {
     const notes = base?.items.filter(isKnowledgeNoteItem) ?? []
-    runAsyncFunction(async () => {
+    void runAsyncFunction(async () => {
       const newNoteItems = await Promise.all(
         notes.map(async (item) => {
           const note = await db.knowledge_notes.get(item.id)

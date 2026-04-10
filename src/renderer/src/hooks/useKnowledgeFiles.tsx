@@ -1,5 +1,5 @@
 import FileManager from '@renderer/services/FileManager'
-import { FileMetadata } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types'
 import { isEmpty } from 'lodash'
 import { useEffect, useState } from 'react'
 

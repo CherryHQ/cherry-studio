@@ -7,7 +7,8 @@ import { useAppDispatch } from '@renderer/store'
 import { setGridColumns, setGridPopoverTrigger } from '@renderer/store/settings'
 import { Col, Row, Slider } from 'antd'
 import { Popover } from 'antd'
-import { FC, useState } from 'react'
+import type { FC } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const MessageGroupSettings: FC = () => {
@@ -28,7 +29,7 @@ const MessageGroupSettings: FC = () => {
             <Selector
               size={14}
               value={gridPopoverTrigger || 'hover'}
-              onChange={(value) => dispatch(setGridPopoverTrigger(value as 'hover' | 'click'))}
+              onChange={(value) => dispatch(setGridPopoverTrigger(value))}
               options={[
                 { label: t('settings.messages.grid_popover_trigger.hover'), value: 'hover' },
                 { label: t('settings.messages.grid_popover_trigger.click'), value: 'click' }

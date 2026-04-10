@@ -1,6 +1,17 @@
+import { MARKDOWN_SOURCE_LINE_ATTR } from '@renderer/components/RichEditor/constants'
 import { describe, expect, it } from 'vitest'
 
 import { htmlToMarkdown, markdownToHtml } from '../markdownConverter'
+
+/**
+ * Strip markdown line number attributes for testing HTML structure
+ */
+
+const LINE_NUMBER_REGEX = new RegExp(`\\s*${MARKDOWN_SOURCE_LINE_ATTR.replace(/-/g, '\\-')}="\\d+"`, 'g')
+
+function stripLineNumbers(html: string): string {
+  return html.replace(LINE_NUMBER_REGEX, '')
+}
 
 describe('markdownConverter', () => {
   describe('htmlToMarkdown', () => {
@@ -104,13 +115,13 @@ describe('markdownConverter', () => {
   describe('markdownToHtml', () => {
     it('should convert <br> to <br>', () => {
       const markdown = 'Text with<br>\nindentation<br>\nand without indentation'
-      const result = markdownToHtml(markdown)
+      const result = stripLineNumbers(markdownToHtml(markdown))
       expect(result).toBe('<p>Text with<br>\nindentation<br>\nand without indentation</p>\n')
     })
 
     it('should handle indentation in blockquotes', () => {
       const markdown = '> Quote line 1\n>   Quote line 2 with indentation'
-      const result = markdownToHtml(markdown)
+      const result = stripLineNumbers(markdownToHtml(markdown))
       // This should preserve indentation within the blockquote
       expect(result).toContain('Quote line 1')
       expect(result).toContain('Quote line 2 with indentation')
@@ -118,7 +129,7 @@ describe('markdownConverter', () => {
 
     it('should preserve indentation in nested lists', () => {
       const markdown = '- Item 1\n  - Nested item\n    - Double nested\n      with continued line'
-      const result = markdownToHtml(markdown)
+      const result = stripLineNumbers(markdownToHtml(markdown))
       // Should create proper nested list structure
       expect(result).toContain('<ul>')
       expect(result).toContain('<li>')
@@ -126,13 +137,13 @@ describe('markdownConverter', () => {
 
     it('should handle poetry or formatted text with indentation', () => {
       const markdown = 'Roses are red\n    Violets are blue\n        Sugar is sweet\n            And so are you'
-      const result = markdownToHtml(markdown)
+      const result = stripLineNumbers(markdownToHtml(markdown))
       expect(result).toBe('<p>Roses are red\nViolets are blue\nSugar is sweet\nAnd so are you</p>\n')
     })
 
     it('should preserve indentation after line breaks with multiple paragraphs', () => {
       const markdown = 'First paragraph\n\n    with indentation\n\n    Second paragraph\n\nwith different indentation'
-      const result = markdownToHtml(markdown)
+      const result = stripLineNumbers(markdownToHtml(markdown))
       expect(result).toBe(
         '<p>First paragraph</p>\n<pre><code>with indentation\n\nSecond paragraph\n</code></pre><p>with different indentation</p>\n'
       )
@@ -140,14 +151,14 @@ describe('markdownConverter', () => {
 
     it('should handle zero-width indentation (just line break)', () => {
       const markdown = 'Hello\n\nWorld'
-      const result = markdownToHtml(markdown)
+      const result = stripLineNumbers(markdownToHtml(markdown))
       expect(result).toBe('<p>Hello</p>\n<p>World</p>\n')
     })
 
     it('should preserve indentation in mixed content', () => {
       const markdown =
         'Normal text\n  Indented continuation\n\n- List item\n    List continuation\n\n> Quote\n>   Indented quote'
-      const result = markdownToHtml(markdown)
+      const result = stripLineNumbers(markdownToHtml(markdown))
       expect(result).toBe(
         '<p>Normal text\nIndented continuation</p>\n<ul>\n<li>List item\nList continuation</li>\n</ul>\n<blockquote>\n<p>Quote\nIndented quote</p>\n</blockquote>\n'
       )
@@ -155,19 +166,19 @@ describe('markdownConverter', () => {
 
     it('should convert Markdown to HTML', () => {
       const markdown = '# Hello World'
-      const result = markdownToHtml(markdown)
+      const result = stripLineNumbers(markdownToHtml(markdown))
       expect(result).toContain('<h1>Hello World</h1>')
     })
 
     it('should convert math block syntax to HTML', () => {
       const markdown = '$$a+b+c$$'
-      const result = markdownToHtml(markdown)
+      const result = stripLineNumbers(markdownToHtml(markdown))
       expect(result).toContain('<div data-latex="a+b+c" data-type="block-math"></div>')
     })
 
     it('should convert math inline syntax to HTML', () => {
       const markdown = '$a+b+c$'
-      const result = markdownToHtml(markdown)
+      const result = stripLineNumbers(markdownToHtml(markdown))
       expect(result).toContain('<span data-latex="a+b+c" data-type="inline-math"></span>')
     })
 
@@ -181,7 +192,7 @@ describe('markdownConverter', () => {
 \\nabla \\cdot \\vec{\\mathbf{B}} & = 0
 
 \\end{array}$$`
-      const result = markdownToHtml(markdown)
+      const result = stripLineNumbers(markdownToHtml(markdown))
       expect(result).toContain(
         '<div data-latex="\\begin{array}{c}\n\\nabla \\times \\vec{\\mathbf{B}} -\\, \\frac1c\\, \\frac{\\partial\\vec{\\mathbf{E}}}{\\partial t} &amp;\n= \\frac{4\\pi}{c}\\vec{\\mathbf{j}}    \\nabla \\cdot \\vec{\\mathbf{E}} &amp; = 4 \\pi \\rho \\\\\n\n\\nabla \\times \\vec{\\mathbf{E}}\\, +\\, \\frac1c\\, \\frac{\\partial\\vec{\\mathbf{B}}}{\\partial t} &amp; = \\vec{\\mathbf{0}} \\\\\n\n\\nabla \\cdot \\vec{\\mathbf{B}} &amp; = 0\n\n\\end{array}" data-type="block-math"></div>'
       )
@@ -189,7 +200,7 @@ describe('markdownConverter', () => {
 
     it('should convert task list syntax to proper HTML', () => {
       const markdown = '- [ ] abcd\n\n- [x] efgh\n\n'
-      const result = markdownToHtml(markdown)
+      const result = stripLineNumbers(markdownToHtml(markdown))
       expect(result).toContain('data-type="taskList"')
       expect(result).toContain('data-type="taskItem"')
       expect(result).toContain('data-checked="false"')
@@ -202,7 +213,7 @@ describe('markdownConverter', () => {
 
     it('should convert mixed task list with checked and unchecked items', () => {
       const markdown = '- [ ] First task\n\n- [x] Second task\n\n- [ ] Third task'
-      const result = markdownToHtml(markdown)
+      const result = stripLineNumbers(markdownToHtml(markdown))
       expect(result).toContain('data-type="taskList"')
       expect(result).toContain('First task')
       expect(result).toContain('Second task')
@@ -213,14 +224,14 @@ describe('markdownConverter', () => {
 
     it('should NOT convert standalone task syntax to task list', () => {
       const markdown = '[x] abcd'
-      const result = markdownToHtml(markdown)
+      const result = stripLineNumbers(markdownToHtml(markdown))
       expect(result).toContain('<p>[x] abcd</p>')
       expect(result).not.toContain('data-type="taskList"')
     })
 
     it('should handle regular list items alongside task lists', () => {
       const markdown = '- Regular item\n\n- [ ] Task item\n\n- Another regular item'
-      const result = markdownToHtml(markdown)
+      const result = stripLineNumbers(markdownToHtml(markdown))
       expect(result).toContain('data-type="taskList"')
       expect(result).toContain('Regular item')
       expect(result).toContain('Task item')
@@ -241,25 +252,25 @@ describe('markdownConverter', () => {
       const markdown = `# 🌠 Screenshot
 
 ![](https://example.com/image.png)`
-      const result = markdownToHtml(markdown)
+      const result = stripLineNumbers(markdownToHtml(markdown))
       expect(result).toBe('<h1>🌠 Screenshot</h1>\n<p><img src="https://example.com/image.png" alt="" /></p>\n')
     })
 
     it('should handle heading and paragraph', () => {
       const markdown = '# Hello\n\nHello'
-      const result = markdownToHtml(markdown)
+      const result = stripLineNumbers(markdownToHtml(markdown))
       expect(result).toBe('<h1>Hello</h1>\n<p>Hello</p>\n')
     })
 
     it('should convert code block to HTML', () => {
       const markdown = '```\nconsole.log("Hello, world!");\n```'
-      const result = markdownToHtml(markdown)
+      const result = stripLineNumbers(markdownToHtml(markdown))
       expect(result).toBe('<pre><code>console.log(&#x22;Hello, world!&#x22;);\n</code></pre>')
     })
 
     it('should convert code block with language to HTML', () => {
       const markdown = '```javascript\nconsole.log("Hello, world!");\n```'
-      const result = markdownToHtml(markdown)
+      const result = stripLineNumbers(markdownToHtml(markdown))
       expect(result).toBe(
         '<pre><code class="language-javascript">console.log(&#x22;Hello, world!&#x22;);\n</code></pre>'
       )
@@ -267,7 +278,7 @@ describe('markdownConverter', () => {
 
     it('should convert table to HTML', () => {
       const markdown = '| f   |     |     |\n| --- | --- | --- |\n|     | f   |     |\n|     |     | f   |'
-      const result = markdownToHtml(markdown)
+      const result = stripLineNumbers(markdownToHtml(markdown))
       expect(result).toBe(
         '<table>\n<thead>\n<tr>\n<th>f</th>\n<th></th>\n<th></th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td></td>\n<td>f</td>\n<td></td>\n</tr>\n<tr>\n<td></td>\n<td></td>\n<td>f</td>\n</tr>\n</tbody>\n</table>\n'
       )
@@ -275,7 +286,7 @@ describe('markdownConverter', () => {
 
     it('should escape XML-like tags in code blocks', () => {
       const markdown = '```jsx\nconst component = <><div>content</div></>\n```'
-      const result = markdownToHtml(markdown)
+      const result = stripLineNumbers(markdownToHtml(markdown))
       expect(result).toBe(
         '<pre><code class="language-jsx">const component = &#x3C;&#x3E;&#x3C;div&#x3E;content&#x3C;/div&#x3E;&#x3C;/&#x3E;\n</code></pre>'
       )
@@ -283,13 +294,13 @@ describe('markdownConverter', () => {
 
     it('should escape XML-like tags in inline code', () => {
       const markdown = 'Use `<>` for fragments'
-      const result = markdownToHtml(markdown)
+      const result = stripLineNumbers(markdownToHtml(markdown))
       expect(result).toBe('<p>Use <code>&#x3C;&#x3E;</code> for fragments</p>\n')
     })
 
     it('shoud convert XML-like tags in paragraph', () => {
       const markdown = '<abc></abc>'
-      const result = markdownToHtml(markdown)
+      const result = stripLineNumbers(markdownToHtml(markdown))
       expect(result).toBe('<p><abc></abc></p>\n')
     })
   })
@@ -297,7 +308,7 @@ describe('markdownConverter', () => {
   describe('Task List with Labels', () => {
     it('should wrap task items with labels when label option is true', () => {
       const markdown = '- [ ] abcd\n\n- [x] efgh'
-      const result = markdownToHtml(markdown)
+      const result = stripLineNumbers(markdownToHtml(markdown))
       expect(result).toBe(
         '<ul data-type="taskList" class="task-list">\n<li data-type="taskItem" class="task-list-item" data-checked="false">\n<p><label><input type="checkbox" disabled> abcd</label></p>\n</li>\n<li data-type="taskItem" class="task-list-item" data-checked="true">\n<p><label><input type="checkbox" checked disabled> efgh</label></p>\n</li>\n</ul>\n'
       )
@@ -317,7 +328,7 @@ describe('markdownConverter', () => {
       const originalHtml =
         '<ul data-type="taskList" class="task-list"><li data-type="taskItem" class="task-list-item" data-checked="false"><label><input type="checkbox" disabled></label><div><p></p></div></li></ul>'
       const markdown = htmlToMarkdown(originalHtml)
-      const html = markdownToHtml(markdown)
+      const html = stripLineNumbers(markdownToHtml(markdown))
 
       expect(html).toBe(
         '<ul data-type="taskList" class="task-list">\n<li data-type="taskItem" class="task-list-item" data-checked="false"><label><input type="checkbox" disabled></label><div><p></p></div></li>\n</ul>\n'
@@ -328,7 +339,7 @@ describe('markdownConverter', () => {
       const originalHtml =
         '<ul data-type="taskList" class="task-list">\n<li data-type="taskItem" class="task-list-item" data-checked="false">\n<label><input type="checkbox" disabled></label><div><p>123</p></div>\n</li>\n<li data-type="taskItem" class="task-list-item" data-checked="false">\n<label><input type="checkbox" disabled></label><div><p></p></div>\n</li>\n</ul>\n'
       const markdown = htmlToMarkdown(originalHtml)
-      const html = markdownToHtml(markdown)
+      const html = stripLineNumbers(markdownToHtml(markdown))
 
       expect(html).toBe(originalHtml)
     })
@@ -383,7 +394,7 @@ describe('markdownConverter', () => {
   describe('markdown image', () => {
     it('should convert markdown image to HTML img tag', () => {
       const markdown = '![foo](train.jpg)'
-      const result = markdownToHtml(markdown)
+      const result = stripLineNumbers(markdownToHtml(markdown))
       expect(result).toBe('<p><img src="train.jpg" alt="foo" /></p>\n')
     })
     it('should convert markdown image with file:// protocol to HTML img tag', () => {
@@ -420,7 +431,7 @@ describe('markdownConverter', () => {
 
   it('should handle hardbreak with backslash followed by indented text', () => {
     const markdown = 'Text with \\\n    indentation \\\nand without indentation'
-    const result = markdownToHtml(markdown)
+    const result = stripLineNumbers(markdownToHtml(markdown))
     expect(result).toBe('<p>Text with <br />\nindentation <br />\nand without indentation</p>\n')
   })
 
@@ -454,7 +465,7 @@ describe('markdownConverter', () => {
 
     it('should preserve custom XML tags mixed with regular markdown', () => {
       const markdown = '# Heading\n\n<custom-widget id="widget1">Widget content</custom-widget>\n\n**Bold text**'
-      const html = markdownToHtml(markdown)
+      const html = stripLineNumbers(markdownToHtml(markdown))
       const backToMarkdown = htmlToMarkdown(html)
 
       expect(html).toContain('<h1>Heading</h1>')
@@ -470,7 +481,7 @@ describe('markdownConverter', () => {
     it('should not add unwanted line breaks during simple text typing', () => {
       const html = '<p>Hello world</p>'
       const markdown = htmlToMarkdown(html)
-      const backToHtml = markdownToHtml(markdown)
+      const backToHtml = stripLineNumbers(markdownToHtml(markdown))
 
       expect(markdown).toBe('Hello world')
       expect(backToHtml).toBe('<p>Hello world</p>\n')
@@ -479,7 +490,7 @@ describe('markdownConverter', () => {
     it('should preserve simple paragraph structure during round-trip conversion', () => {
       const originalHtml = '<p>This is a simple paragraph being typed</p>'
       const markdown = htmlToMarkdown(originalHtml)
-      const backToHtml = markdownToHtml(markdown)
+      const backToHtml = stripLineNumbers(markdownToHtml(markdown))
       expect(markdown).toBe('This is a simple paragraph being typed')
       expect(backToHtml).toBe('<p>This is a simple paragraph being typed</p>\n')
     })
@@ -518,6 +529,26 @@ cssclasses:
       const result = markdownToHtml(markdown)
       const backToMarkdown = htmlToMarkdown(result)
       expect(backToMarkdown).toBe(markdown)
+    })
+  })
+
+  describe('should have markdown line number injected in HTML', () => {
+    it('should inject line numbers into paragraphs', () => {
+      const markdown = 'First paragraph\n\nSecond paragraph\n\nThird paragraph'
+      const result = markdownToHtml(markdown)
+      expect(result).toContain(`<p ${MARKDOWN_SOURCE_LINE_ATTR}="1">First paragraph</p>`)
+      expect(result).toContain(`<p ${MARKDOWN_SOURCE_LINE_ATTR}="3">Second paragraph</p>`)
+      expect(result).toContain(`<p ${MARKDOWN_SOURCE_LINE_ATTR}="5">Third paragraph</p>`)
+    })
+
+    it('should inject line numbers into mixed content', () => {
+      const markdown = 'Text\n\n- List\n\n> Quote'
+      const result = markdownToHtml(markdown)
+      expect(result).toContain(`<p ${MARKDOWN_SOURCE_LINE_ATTR}="1">Text</p>`)
+      expect(result).toContain(`<ul ${MARKDOWN_SOURCE_LINE_ATTR}="3">`)
+      expect(result).toContain(`<li ${MARKDOWN_SOURCE_LINE_ATTR}="3">List</li>`)
+      expect(result).toContain(`<blockquote ${MARKDOWN_SOURCE_LINE_ATTR}="5">`)
+      expect(result).toContain(`<p ${MARKDOWN_SOURCE_LINE_ATTR}="5">Quote</p>`)
     })
   })
 })

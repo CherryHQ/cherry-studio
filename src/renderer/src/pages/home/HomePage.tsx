@@ -1,17 +1,17 @@
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
-import { useAgentSessionInitializer } from '@renderer/hooks/agents/useAgentSessionInitializer'
 import { useAssistants } from '@renderer/hooks/useAssistant'
-import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
+import { useShortcut } from '@renderer/hooks/useShortcuts'
+import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { useActiveTopic } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import NavigationService from '@renderer/services/NavigationService'
 import { newMessagesActions } from '@renderer/store/newMessage'
-import { setActiveAgentId, setActiveTopicOrSessionAction } from '@renderer/store/runtime'
-import { Assistant, Topic } from '@renderer/types'
+import type { Assistant, Topic } from '@renderer/types'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { AnimatePresence, motion } from 'motion/react'
-import { FC, startTransition, useCallback, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { startTransition, useCallback, useEffect, useState } from 'react'
 import { useDispatch } from 'react-redux'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
@@ -27,24 +27,57 @@ const HomePage: FC = () => {
   const navigate = useNavigate()
   const { isLeftNavbar } = useNavbarPosition()
 
-  // Initialize agent session hook
-  useAgentSessionInitializer()
-
   const location = useLocation()
   const state = location.state
 
-  const [activeAssistant, _setActiveAssistant] = useState(state?.assistant || _activeAssistant || assistants[0])
-  const { activeTopic, setActiveTopic: _setActiveTopic } = useActiveTopic(activeAssistant?.id, state?.topic)
+  const [activeAssistant, _setActiveAssistant] = useState<Assistant>(
+    state?.assistant || _activeAssistant || assistants[0]
+  )
+  const { activeTopic, setActiveTopic: _setActiveTopic } = useActiveTopic(activeAssistant?.id ?? '', state?.topic)
   const { showAssistants, showTopics, topicPosition } = useSettings()
+  const { setShowAssistants, toggleShowAssistants } = useShowAssistants()
+  const { toggleShowTopics } = useShowTopics()
   const dispatch = useDispatch()
-  const { chat } = useRuntime()
-  const { activeTopicOrSession } = chat
 
   _activeAssistant = activeAssistant
 
+  useShortcut('toggle_show_assistants', () => {
+    if (topicPosition === 'right') {
+      toggleShowAssistants()
+      return
+    }
+
+    if (!showAssistants) {
+      setShowAssistants(true)
+      requestAnimationFrame(() => {
+        void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
+      })
+      return
+    }
+
+    void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
+  })
+
+  useShortcut('toggle_show_topics', () => {
+    if (topicPosition === 'right') {
+      toggleShowTopics()
+      return
+    }
+
+    if (!showAssistants) {
+      setShowAssistants(true)
+      requestAnimationFrame(() => {
+        void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
+      })
+      return
+    }
+
+    void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
+  })
+
   const setActiveAssistant = useCallback(
     (newAssistant: Assistant) => {
-      if (newAssistant.id === activeAssistant.id) return
+      if (newAssistant.id === activeAssistant?.id) return
       startTransition(() => {
         _setActiveAssistant(newAssistant)
         // 同步更新 active topic，避免不必要的重新渲染
@@ -52,7 +85,7 @@ const HomePage: FC = () => {
         _setActiveTopic((prev) => (newTopic?.id === prev.id ? prev : newTopic))
       })
     },
-    [_setActiveTopic, activeAssistant]
+    [_setActiveTopic, activeAssistant?.id]
   )
 
   const setActiveTopic = useCallback(
@@ -60,7 +93,6 @@ const HomePage: FC = () => {
       startTransition(() => {
         _setActiveTopic((prev) => (newTopic?.id === prev.id ? prev : newTopic))
         dispatch(newMessagesActions.setTopicFulfilled({ topicId: newTopic.id, fulfilled: false }))
-        dispatch(setActiveTopicOrSessionAction('topic'))
       })
     },
     [_setActiveTopic, dispatch]
@@ -77,49 +109,13 @@ const HomePage: FC = () => {
   }, [state])
 
   useEffect(() => {
-    const unsubscribe = EventEmitter.on(EVENT_NAMES.SWITCH_ASSISTANT, (assistantId: string) => {
-      const newAssistant = assistants.find((a) => a.id === assistantId)
-      if (newAssistant) {
-        setActiveAssistant(newAssistant)
-      }
-    })
-
-    return () => {
-      unsubscribe()
-    }
-  }, [assistants, setActiveAssistant])
-
-  useEffect(() => {
     const canMinimize = topicPosition == 'left' ? !showAssistants : !showAssistants && !showTopics
-    window.api.window.setMinimumSize(canMinimize ? SECOND_MIN_WINDOW_WIDTH : MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
+    void window.api.window.setMinimumSize(canMinimize ? SECOND_MIN_WINDOW_WIDTH : MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
 
     return () => {
-      window.api.window.resetMinimumSize()
+      void window.api.window.resetMinimumSize()
     }
   }, [showAssistants, showTopics, topicPosition])
-
-  useEffect(() => {
-    if (activeTopicOrSession === 'session') {
-      setActiveAssistant({
-        id: 'fake',
-        name: '',
-        prompt: '',
-        topics: [
-          {
-            id: 'fake',
-            assistantId: 'fake',
-            name: 'fake',
-            createdAt: '',
-            updatedAt: '',
-            messages: []
-          } as unknown as Topic
-        ],
-        type: 'chat'
-      })
-    } else if (activeTopicOrSession === 'topic') {
-      dispatch(setActiveAgentId('fake'))
-    }
-  }, [activeTopicOrSession, dispatch, setActiveAssistant])
 
   return (
     <Container id="home-page">
@@ -183,6 +179,10 @@ const ContentContainer = styled.div`
   flex: 1;
   flex-direction: row;
   overflow: hidden;
+
+  [navbar-position='top'] & {
+    max-width: calc(100vw - 12px);
+  }
 `
 
 export default HomePage

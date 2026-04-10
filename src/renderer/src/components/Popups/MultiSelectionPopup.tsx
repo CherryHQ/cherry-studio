@@ -1,9 +1,9 @@
 import { CopyIcon, DeleteIcon } from '@renderer/components/Icons'
 import { useChatContext } from '@renderer/hooks/useChatContext'
-import { Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types'
 import { Button, Tooltip } from 'antd'
 import { Save, X } from 'lucide-react'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -17,7 +17,7 @@ const MultiSelectActionPopup: FC<Props> = ({ topic }) => {
     useChatContext(topic)
 
   const handleAction = (action: string) => {
-    handleMultiSelectAction(action, selectedMessageIds)
+    void handleMultiSelectAction(action, selectedMessageIds)
   }
 
   const handleClose = () => {

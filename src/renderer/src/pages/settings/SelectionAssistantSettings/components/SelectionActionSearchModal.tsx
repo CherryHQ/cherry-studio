@@ -2,7 +2,8 @@ import { loggerService } from '@logger'
 import type { ActionItem } from '@renderer/types/selectionTypes'
 import { Button, Form, Input, Modal, Select } from 'antd'
 import { Globe } from 'lucide-react'
-import { FC, useEffect } from 'react'
+import type { FC } from 'react'
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('SelectionActionSearchModal')
@@ -139,7 +140,7 @@ const SelectionActionSearchModal: FC<SelectionActionSearchModalProps> = ({
     const values = form.getFieldsValue()
     if (values.customUrl) {
       const testUrl = values.customUrl.replace('{{queryString}}', 'cherry studio')
-      window.api.openWebsite(testUrl)
+      void window.api.openWebsite(testUrl)
     }
   }
 

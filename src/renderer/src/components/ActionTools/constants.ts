@@ -1,4 +1,4 @@
-import { ActionToolSpec } from './types'
+import type { ActionToolSpec } from './types'
 
 export const TOOL_SPECS: Record<string, ActionToolSpec> = {
   // Core tools

@@ -4,12 +4,13 @@ import { getTopicById } from '@renderer/hooks/useTopic'
 import { default as MessageItem } from '@renderer/pages/home/Messages/Message'
 import { locateToMessage } from '@renderer/services/MessagesService'
 import NavigationService from '@renderer/services/NavigationService'
-import { Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { runAsyncFunction } from '@renderer/utils'
 import { Button } from 'antd'
 import { Forward } from 'lucide-react'
-import { FC, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -23,7 +24,7 @@ const SearchMessage: FC<Props> = ({ message, ...props }) => {
   const [topic, setTopic] = useState<Topic | null>(null)
 
   useEffect(() => {
-    runAsyncFunction(async () => {
+    void runAsyncFunction(async () => {
       if (message?.topicId) {
         const topic = await getTopicById(message.topicId)
         setTopic(topic)

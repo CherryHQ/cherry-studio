@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { isLinux, isPortable, isWin } from '@main/constant'
+import { HOME_CHERRY_DIR } from '@shared/config/constant'
 import { app } from 'electron'
 
 // Please don't import any other modules which is not node/electron built-in modules
@@ -17,7 +18,7 @@ function hasWritePermission(path: string) {
 }
 
 function getConfigDir() {
-  return path.join(os.homedir(), '.cherrystudio', 'config')
+  return path.join(os.homedir(), HOME_CHERRY_DIR, 'config')
 }
 
 export function initAppDataDir() {

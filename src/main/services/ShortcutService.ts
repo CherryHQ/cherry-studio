@@ -1,7 +1,24 @@
+/**
+ * @deprecated Scheduled for removal in v2.0.0
+ * --------------------------------------------------------------------------
+ * ⚠️ NOTICE: V2 DATA&UI REFACTORING (by 0xfullex)
+ * --------------------------------------------------------------------------
+ * STOP: Feature PRs affecting this file are currently BLOCKED.
+ * Only critical bug fixes are accepted during this migration phase.
+ *
+ * This file is being refactored to v2 standards.
+ * Any non-critical changes will conflict with the ongoing work.
+ *
+ * 🔗 Context & Status:
+ * - Contribution Hold: https://github.com/CherryHQ/cherry-studio/issues/10954
+ * - v2 Refactor PR   : https://github.com/CherryHQ/cherry-studio/pull/10162
+ * --------------------------------------------------------------------------
+ */
 import { loggerService } from '@logger'
 import { handleZoomFactor } from '@main/utils/zoom'
-import { Shortcut } from '@types'
-import { BrowserWindow, globalShortcut } from 'electron'
+import type { Shortcut } from '@types'
+import type { BrowserWindow } from 'electron'
+import { globalShortcut } from 'electron'
 
 import { configManager } from './ConfigManager'
 import selectionService from './SelectionService'
@@ -34,6 +51,15 @@ function getShortcutHandler(shortcut: Shortcut) {
       }
     case 'mini_window':
       return () => {
+        // 在处理器内部检查QuickAssistant状态，而不是在注册时检查
+        const quickAssistantEnabled = configManager.getEnableQuickAssistant()
+        logger.info(`mini_window shortcut triggered, QuickAssistant enabled: ${quickAssistantEnabled}`)
+
+        if (!quickAssistantEnabled) {
+          logger.warn('QuickAssistant is disabled, ignoring mini_window shortcut trigger')
+          return
+        }
+
         windowService.toggleMiniWindow()
       }
     case 'selection_assistant_toggle':
@@ -189,11 +215,10 @@ export function registerShortcuts(window: BrowserWindow) {
             break
 
           case 'mini_window':
-            //available only when QuickAssistant enabled
-            if (!configManager.getEnableQuickAssistant()) {
-              return
-            }
+            // 移除注册时的条件检查，在处理器内部进行检查
+            logger.info(`Processing mini_window shortcut, enabled: ${shortcut.enabled}`)
             showMiniWindowAccelerator = formatShortcutKey(shortcut.shortcut)
+            logger.debug(`Mini window accelerator set to: ${showMiniWindowAccelerator}`)
             break
 
           case 'selection_assistant_toggle':

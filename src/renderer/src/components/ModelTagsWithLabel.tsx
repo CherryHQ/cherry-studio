@@ -7,9 +7,10 @@ import {
   isWebSearchModel
 } from '@renderer/config/models'
 import i18n from '@renderer/i18n'
-import { Model } from '@renderer/types'
+import type { Model } from '@renderer/types'
 import { isFreeModel } from '@renderer/utils/model'
-import { FC, memo, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { memo, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import styled from 'styled-components'
 
 import {

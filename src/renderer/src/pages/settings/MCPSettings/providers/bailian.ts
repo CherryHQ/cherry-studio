@@ -55,6 +55,7 @@ export interface BailianSyncResult {
   message: string
   addedServers: MCPServer[]
   updatedServers: MCPServer[]
+  allServers: MCPServer[]
   errorDetails?: string
 }
 
@@ -117,6 +118,7 @@ export const syncBailianServers = async (token: string, existingServers: MCPServ
 
     const addedServers: MCPServer[] = []
     const updatedServers: MCPServer[] = []
+    const allServers: MCPServer[] = []
 
     for (const server of servers) {
       try {
@@ -151,6 +153,7 @@ export const syncBailianServers = async (token: string, existingServers: MCPServ
         } else {
           addedServers.push(mcpServer)
         }
+        allServers.push(mcpServer)
       } catch (err) {
         logger.error(`Error processing Bailian server ${server.id}:`, err as Error)
       }
@@ -162,7 +165,8 @@ export const syncBailianServers = async (token: string, existingServers: MCPServ
       success: true,
       message: t('settings.mcp.sync.success', { count: totalServers }),
       addedServers,
-      updatedServers
+      updatedServers,
+      allServers
     }
   } catch (error) {
     let message = ''
@@ -176,7 +180,8 @@ export const syncBailianServers = async (token: string, existingServers: MCPServ
         success: false,
         message,
         addedServers: [],
-        updatedServers: []
+        updatedServers: [],
+        allServers: []
       }
     }
 
@@ -189,6 +194,7 @@ export const syncBailianServers = async (token: string, existingServers: MCPServ
         message,
         addedServers: [],
         updatedServers: [],
+        allServers: [],
         errorDetails
       }
     }
@@ -202,6 +208,7 @@ export const syncBailianServers = async (token: string, existingServers: MCPServ
       message,
       addedServers: [],
       updatedServers: [],
+      allServers: [],
       errorDetails
     }
   }

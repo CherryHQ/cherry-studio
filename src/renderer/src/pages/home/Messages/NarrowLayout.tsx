@@ -1,5 +1,5 @@
 import { useSettings } from '@renderer/hooks/useSettings'
-import { FC, HTMLAttributes } from 'react'
+import type { FC, HTMLAttributes } from 'react'
 import styled from 'styled-components'
 
 interface Props extends HTMLAttributes<HTMLDivElement> {

@@ -1,20 +1,30 @@
 import { getProviderByModel } from '@renderer/services/AssistantService'
-import { Model } from '@renderer/types'
+import type { Model } from '@renderer/types'
+import { SystemProviderIds } from '@renderer/types'
 import { getLowerBaseModelName, isUserSelectedModelType } from '@renderer/utils'
+import {
+  isAzureOpenAIProvider,
+  isGeminiProvider,
+  isNewApiProvider,
+  isOpenAICompatibleProvider,
+  isOpenAIProvider,
+  isVertexProvider
+} from '@renderer/utils/provider'
+
+export { GEMINI_FLASH_MODEL_REGEX } from './utils'
 
 import { isEmbeddingModel, isRerankModel } from './embedding'
+import { isClaude4SeriesModel } from './reasoning'
 import { isAnthropicModel } from './utils'
-import { isPureGenerateImageModel, isTextToImageModel } from './vision'
+import { isTextToImageModel } from './vision'
 
-export const CLAUDE_SUPPORTED_WEBSEARCH_REGEX = new RegExp(
-  `\\b(?:claude-3(-|\\.)(7|5)-sonnet(?:-[\\w-]+)|claude-3(-|\\.)5-haiku(?:-[\\w-]+)|claude-sonnet-4(?:-[\\w-]+)?|claude-opus-4(?:-[\\w-]+)?)\\b`,
+const CLAUDE_SUPPORTED_WEBSEARCH_REGEX = new RegExp(
+  `\\b(?:claude-3(-|\\.)(7|5)-sonnet(?:-[\\w-]+)|claude-3(-|\\.)5-haiku(?:-[\\w-]+)|claude-(haiku|sonnet|opus)-4(?:-[\\w-]+)?)\\b`,
   'i'
 )
 
-export const GEMINI_FLASH_MODEL_REGEX = new RegExp('gemini.*-flash.*$')
-
 export const GEMINI_SEARCH_REGEX = new RegExp(
-  'gemini-(?:2.*(?:-latest)?|flash-latest|pro-latest|flash-lite-latest)(?:-[\\w-]+)*$',
+  'gemini-(?:2(?!.*-image-preview).*(?:-latest)?|3(?:\\.\\d+)?-(?:flash|pro)(?:-(?:image-)?preview)?|flash-latest|pro-latest|flash-lite-latest)(?:-[\\w-]+)*$',
   'i'
 )
 
@@ -27,13 +37,7 @@ export const PERPLEXITY_SEARCH_MODELS = [
 ]
 
 export function isWebSearchModel(model: Model): boolean {
-  if (
-    !model ||
-    isEmbeddingModel(model) ||
-    isRerankModel(model) ||
-    isTextToImageModel(model) ||
-    isPureGenerateImageModel(model)
-  ) {
+  if (!model || isEmbeddingModel(model) || isRerankModel(model) || isTextToImageModel(model)) {
     return false
   }
 
@@ -49,24 +53,34 @@ export function isWebSearchModel(model: Model): boolean {
 
   const modelId = getLowerBaseModelName(model.id, '/')
 
-  // 不管哪个供应商都判断了
-  if (isAnthropicModel(model)) {
+  // bedrock不支持, azure支持
+  if (isAnthropicModel(model) && !(provider.id === SystemProviderIds['aws-bedrock'])) {
+    if (isVertexProvider(provider)) {
+      return isClaude4SeriesModel(model)
+    }
     return CLAUDE_SUPPORTED_WEBSEARCH_REGEX.test(modelId)
   }
 
-  if (provider.type === 'openai-response') {
+  // TODO: 当其他供应商采用Response端点时，这个地方逻辑需要改进
+  // azure现在也支持了websearch
+  if (isOpenAIProvider(provider) || isAzureOpenAIProvider(provider)) {
     if (isOpenAIWebSearchModel(model)) {
+      return true
+    }
+
+    // v2
+    if (provider.id === SystemProviderIds.grok) {
       return true
     }
 
     return false
   }
 
-  if (provider.id === 'perplexity') {
+  if (provider.id === SystemProviderIds.perplexity) {
     return PERPLEXITY_SEARCH_MODELS.includes(modelId)
   }
 
-  if (provider.id === 'aihubmix') {
+  if (provider.id === SystemProviderIds.aihubmix) {
     // modelId 不以-search结尾
     if (!modelId.endsWith('-search') && GEMINI_SEARCH_REGEX.test(modelId)) {
       return true
@@ -79,13 +93,13 @@ export function isWebSearchModel(model: Model): boolean {
     return false
   }
 
-  if (provider?.type === 'openai') {
+  if (isOpenAICompatibleProvider(provider) || isNewApiProvider(provider)) {
     if (GEMINI_SEARCH_REGEX.test(modelId) || isOpenAIWebSearchModel(model)) {
       return true
     }
   }
 
-  if (provider.id === 'gemini' || provider?.type === 'gemini' || provider.type === 'vertexai') {
+  if (isGeminiProvider(provider) || isVertexProvider(provider)) {
     return GEMINI_SEARCH_REGEX.test(modelId)
   }
 
@@ -94,7 +108,7 @@ export function isWebSearchModel(model: Model): boolean {
   }
 
   if (provider.id === 'zhipu') {
-    return modelId?.startsWith('glm-4-')
+    return false
   }
 
   if (provider.id === 'dashscope') {
@@ -104,10 +118,6 @@ export function isWebSearchModel(model: Model): boolean {
   }
 
   if (provider.id === 'openrouter') {
-    return true
-  }
-
-  if (provider.id === 'grok') {
     return true
   }
 

@@ -1,6 +1,6 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
-import AiProvider from '@renderer/aiCore'
+import { AiProvider } from '@renderer/aiCore'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
@@ -14,7 +14,6 @@ import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { getProviderLabel } from '@renderer/i18n/label'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import { useAppDispatch } from '@renderer/store'
@@ -35,6 +34,7 @@ import SendMessageButton from '../home/Inputbar/SendMessageButton'
 import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
 import PaintingsList from './components/PaintingsList'
+import ProviderSelect from './components/ProviderSelect'
 import { type ConfigItem, createModeConfigs, DEFAULT_PAINTING } from './config/aihubmixConfig'
 import { checkProviderEnabled } from './utils'
 
@@ -76,20 +76,6 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const providers = useAllProviders()
-  const providerOptions = Options.map((option) => {
-    const provider = providers.find((p) => p.id === option)
-    if (provider) {
-      return {
-        label: getProviderLabel(provider.id),
-        value: provider.id
-      }
-    } else {
-      return {
-        label: 'Unknown Provider',
-        value: undefined
-      }
-    }
-  })
   const dispatch = useAppDispatch()
   const { generating } = useRuntime()
   const navigate = useNavigate()
@@ -107,7 +93,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   const getNewPainting = useCallback(() => {
     return {
       ...DEFAULT_PAINTING,
-      model: mode === 'aihubmix_image_generate' ? 'gpt-image-1' : 'V_3',
+      model: mode === 'aihubmix_image_generate' ? 'gemini-3-pro-image-preview' : 'V_3',
       id: uuid()
     }
   }, [mode])
@@ -212,7 +198,75 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
               })
             )
             await FileManager.addFiles(validFiles)
-            updatePaintingState({ files: validFiles, urls: validFiles.map((file) => file.name) })
+            updatePaintingState({ files: validFiles, urls: [] })
+          }
+          return
+        } else if (painting.model === 'gemini-3-pro-image-preview') {
+          const geminiUrl = `${aihubmixProvider.apiHost}/gemini/v1beta/models/gemini-3-pro-image-preview:streamGenerateContent`
+          const geminiHeaders = {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': aihubmixProvider.apiKey
+          }
+
+          const requestBody = {
+            contents: [
+              {
+                parts: [
+                  {
+                    text: prompt
+                  }
+                ],
+                role: 'user'
+              }
+            ],
+            generationConfig: {
+              responseModalities: ['TEXT', 'IMAGE'],
+              imageConfig: {
+                aspectRatio: painting.aspectRatio?.replace('ASPECT_', '').replace('_', ':') || '1:1',
+                imageSize: painting.imageSize || '1k'
+              }
+            }
+          }
+
+          logger.silly(`Gemini Request: ${JSON.stringify(requestBody)}`)
+
+          const response = await fetch(geminiUrl, {
+            method: 'POST',
+            headers: geminiHeaders,
+            body: JSON.stringify(requestBody)
+          })
+
+          if (!response.ok) {
+            const errorData = await response.json()
+            logger.error('Gemini API Error:', errorData)
+            throw new Error(errorData.error?.message || t('paintings.generate_failed'))
+          }
+
+          const data = await response.json()
+          logger.silly(`Gemini API Response: ${JSON.stringify(data)}`)
+
+          // Handle array response (stream) or single object
+          const responseItems = Array.isArray(data) ? data : [data]
+          const base64s: string[] = []
+
+          responseItems.forEach((item) => {
+            item.candidates?.forEach((candidate: any) => {
+              candidate.content?.parts?.forEach((part: any) => {
+                if (part.inlineData?.data) {
+                  base64s.push(part.inlineData.data)
+                }
+              })
+            })
+          })
+
+          if (base64s.length > 0) {
+            const validFiles = await Promise.all(
+              base64s.map(async (base64: string) => {
+                return await window.api.file.saveBase64Image(base64)
+              })
+            )
+            await FileManager.addFiles(validFiles)
+            updatePaintingState({ files: validFiles, urls: [] })
           }
           return
         } else if (painting.model === 'V_3') {
@@ -286,7 +340,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             if (!response.ok) {
               const errorData = await response.json()
               logger.error('V3 API错误:', errorData)
-              throw new Error(errorData.error?.message || '生成图像失败')
+              throw new Error(errorData.error?.message || t('paintings.generate_failed'))
             }
 
             const data = await response.json()
@@ -414,7 +468,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           if (!response.ok) {
             const errorData = await response.json()
             logger.error('V3 Remix API错误:', errorData)
-            throw new Error(errorData.error?.message || '图像混合失败')
+            throw new Error(errorData.error?.message || t('paintings.image_mix_failed'))
           }
 
           const data = await response.json()
@@ -484,7 +538,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
         if (!response.ok) {
           const errorData = await response.json()
           logger.error('通用API错误:', errorData)
-          throw new Error(errorData.error?.message || '生成图像失败')
+          throw new Error(errorData.error?.message || t('paintings.generate_failed'))
         }
 
         const data = await response.json()
@@ -497,7 +551,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             })
           )
           await FileManager.addFiles(validFiles)
-          updatePaintingState({ files: validFiles, urls: validFiles.map((file) => file.name) })
+          updatePaintingState({ files: validFiles, urls: [] })
           return
         }
         const urls = data.data.filter((item) => item.url).map((item) => item.url)
@@ -516,7 +570,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             })
           )
           await FileManager.addFiles(validFiles)
-          updatePaintingState({ files: validFiles, urls: validFiles.map((file) => file.name) })
+          updatePaintingState({ files: validFiles, urls: [] })
         }
       }
     } catch (error: unknown) {
@@ -571,7 +625,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
     }
 
-    removePainting(mode, paintingToDelete)
+    void removePainting(mode, paintingToDelete)
   }
 
   const translate = async () => {
@@ -609,7 +663,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       if (spaceClickCount === 2) {
         setSpaceClickCount(0)
         setIsTranslating(true)
-        translate()
+        void translate()
       }
     }
   }
@@ -650,11 +704,11 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           typeof item.options === 'function'
             ? item.options(item, painting).map((option) => ({
                 ...option,
-                label: option.label.startsWith('paintings.') ? t(option.label) : option.label
+                label: option.labelKey ? t(option.labelKey) : option.label
               }))
             : item.options?.map((option) => ({
                 ...option,
-                label: option.label.startsWith('paintings.') ? t(option.label) : option.label
+                label: option.labelKey ? t(option.labelKey) : option.label
               }))
 
         return (
@@ -674,11 +728,11 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           typeof item.options === 'function'
             ? item.options(item, painting).map((option) => ({
                 ...option,
-                label: option.label.startsWith('paintings.') ? t(option.label) : option.label
+                label: option.labelKey ? t(option.labelKey) : option.label
               }))
             : item.options?.map((option) => ({
                 ...option,
-                label: option.label.startsWith('paintings.') ? t(option.label) : option.label
+                label: option.labelKey ? t(option.labelKey) : option.label
               }))
 
         return (
@@ -849,17 +903,12 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
               />
             </SettingHelpLink>
           </ProviderTitleContainer>
-
-          <Select value={providerOptions[1].value} onChange={handleProviderChange} style={{ marginBottom: 15 }}>
-            {providerOptions.map((provider) => (
-              <Select.Option value={provider.value} key={provider.value}>
-                <SelectOptionContainer>
-                  <ProviderLogo shape="square" src={getProviderLogo(provider.value || '')} size={16} />
-                  {provider.label}
-                </SelectOptionContainer>
-              </Select.Option>
-            ))}
-          </Select>
+          <ProviderSelect
+            provider={aihubmixProvider}
+            options={Options}
+            onChange={handleProviderChange}
+            className={'mb-4'}
+          />
 
           {/* 使用JSON配置渲染设置项 */}
           {modeConfigs[mode].filter((item) => (item.condition ? item.condition(painting) : true)).map(renderConfigItem)}
@@ -1032,12 +1081,6 @@ const ModeSegmentedContainer = styled.div`
   display: flex;
   justify-content: center;
   padding-top: 24px;
-`
-
-const SelectOptionContainer = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
 `
 
 // 添加新的样式组件

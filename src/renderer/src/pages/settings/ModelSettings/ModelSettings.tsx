@@ -11,11 +11,12 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { getModelUniqId, hasModel } from '@renderer/services/ModelService'
 import { useAppDispatch } from '@renderer/store'
 import { setTranslateModelPrompt } from '@renderer/store/settings'
-import { Model } from '@renderer/types'
+import type { Model } from '@renderer/types'
 import { Button, Tooltip } from 'antd'
 import { find } from 'lodash'
 import { Languages, MessageSquareMore, Rocket, Settings2 } from 'lucide-react'
-import { FC, useCallback, useMemo } from 'react'
+import type { FC } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingContainer, SettingDescription, SettingGroup, SettingTitle } from '..'
@@ -23,7 +24,17 @@ import TranslateSettingsPopup from '../TranslateSettingsPopup/TranslateSettingsP
 import DefaultAssistantSettings from './DefaultAssistantSettings'
 import TopicNamingModalPopup from './QuickModelPopup'
 
-const ModelSettings: FC = () => {
+interface ModelSettingsProps {
+  showSettingsButton?: boolean
+  showDescription?: boolean
+  compact?: boolean
+}
+
+const ModelSettings: FC<ModelSettingsProps> = ({
+  showSettingsButton = true,
+  showDescription = true,
+  compact = false
+}) => {
   const { defaultModel, quickModel, translateModel, setDefaultModel, setQuickModel, setTranslateModel } =
     useDefaultModel()
   const { providers } = useProviders()
@@ -55,9 +66,12 @@ const ModelSettings: FC = () => {
     dispatch(setTranslateModelPrompt(TRANSLATE_PROMPT))
   }
 
+  const containerStyle = compact ? { padding: 0, background: 'transparent' } : undefined
+  const groupStyle = compact ? { padding: 0, border: 'none', background: 'transparent' } : undefined
+
   return (
-    <SettingContainer theme={theme}>
-      <SettingGroup theme={theme}>
+    <SettingContainer theme={theme} style={containerStyle}>
+      <SettingGroup theme={theme} style={groupStyle}>
         <SettingTitle style={{ marginBottom: 12 }}>
           <HStack alignItems="center" gap={10}>
             <MessageSquareMore size={18} color="var(--color-text)" />
@@ -70,15 +84,20 @@ const ModelSettings: FC = () => {
             predicate={modelPredicate}
             value={defaultModelValue}
             defaultValue={defaultModelValue}
-            style={{ width: 360 }}
+            style={{ width: compact ? '100%' : 360 }}
+            size={compact ? 'large' : 'middle'}
             onChange={(value) => setDefaultModel(find(allModels, JSON.parse(value)) as Model)}
             placeholder={t('settings.models.empty')}
           />
-          <Button icon={<Settings2 size={16} />} style={{ marginLeft: 8 }} onClick={DefaultAssistantSettings.show} />
+          {showSettingsButton && (
+            <Button icon={<Settings2 size={16} />} style={{ marginLeft: 8 }} onClick={DefaultAssistantSettings.show} />
+          )}
         </HStack>
-        <SettingDescription>{t('settings.models.default_assistant_model_description')}</SettingDescription>
+        {showDescription && (
+          <SettingDescription>{t('settings.models.default_assistant_model_description')}</SettingDescription>
+        )}
       </SettingGroup>
-      <SettingGroup theme={theme}>
+      <SettingGroup theme={theme} style={groupStyle}>
         <SettingTitle style={{ marginBottom: 12 }}>
           <HStack alignItems="center" gap={10}>
             <Rocket size={18} color="var(--color-text)" />
@@ -92,15 +111,18 @@ const ModelSettings: FC = () => {
             predicate={modelPredicate}
             value={defaultQuickModel}
             defaultValue={defaultQuickModel}
-            style={{ width: 360 }}
+            style={{ width: compact ? '100%' : 360 }}
+            size={compact ? 'large' : 'middle'}
             onChange={(value) => setQuickModel(find(allModels, JSON.parse(value)) as Model)}
             placeholder={t('settings.models.empty')}
           />
-          <Button icon={<Settings2 size={16} />} style={{ marginLeft: 8 }} onClick={TopicNamingModalPopup.show} />
+          {showSettingsButton && (
+            <Button icon={<Settings2 size={16} />} style={{ marginLeft: 8 }} onClick={TopicNamingModalPopup.show} />
+          )}
         </HStack>
-        <SettingDescription>{t('settings.models.quick_model.description')}</SettingDescription>
+        {showDescription && <SettingDescription>{t('settings.models.quick_model.description')}</SettingDescription>}
       </SettingGroup>
-      <SettingGroup theme={theme}>
+      <SettingGroup theme={theme} style={groupStyle}>
         <SettingTitle style={{ marginBottom: 12 }}>
           <HStack alignItems="center" gap={10}>
             <Languages size={18} color="var(--color-text)" />
@@ -113,22 +135,27 @@ const ModelSettings: FC = () => {
             predicate={modelPredicate}
             value={defaultTranslateModel}
             defaultValue={defaultTranslateModel}
-            style={{ width: 360 }}
+            style={{ width: compact ? '100%' : 360 }}
+            size={compact ? 'large' : 'middle'}
             onChange={(value) => setTranslateModel(find(allModels, JSON.parse(value)) as Model)}
             placeholder={t('settings.models.empty')}
           />
-          <Button
-            icon={<Settings2 size={16} />}
-            style={{ marginLeft: 8 }}
-            onClick={() => TranslateSettingsPopup.show()}
-          />
-          {translateModelPrompt !== TRANSLATE_PROMPT && (
-            <Tooltip title={t('common.reset')}>
-              <Button icon={<RedoOutlined />} style={{ marginLeft: 8 }} onClick={onResetTranslatePrompt}></Button>
-            </Tooltip>
+          {showSettingsButton && (
+            <>
+              <Button
+                icon={<Settings2 size={16} />}
+                style={{ marginLeft: 8 }}
+                onClick={() => TranslateSettingsPopup.show()}
+              />
+              {translateModelPrompt !== TRANSLATE_PROMPT && (
+                <Tooltip title={t('common.reset')}>
+                  <Button icon={<RedoOutlined />} style={{ marginLeft: 8 }} onClick={onResetTranslatePrompt}></Button>
+                </Tooltip>
+              )}
+            </>
           )}
         </HStack>
-        <SettingDescription>{t('settings.models.translate_model_description')}</SettingDescription>
+        {showDescription && <SettingDescription>{t('settings.models.translate_model_description')}</SettingDescription>}
       </SettingGroup>
     </SettingContainer>
   )

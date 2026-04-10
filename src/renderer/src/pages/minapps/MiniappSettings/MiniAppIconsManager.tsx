@@ -1,17 +1,12 @@
 import { CloseOutlined } from '@ant-design/icons'
-import {
-  DragDropContext,
-  Draggable,
-  DraggableProvided,
-  Droppable,
-  DroppableProvided,
-  DropResult
-} from '@hello-pangea/dnd'
-import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
+import type { DraggableProvided, DroppableProvided, DropResult } from '@hello-pangea/dnd'
+import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd'
+import { allMinApps } from '@renderer/config/minapps'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { getMiniappsStatusLabel } from '@renderer/i18n/label'
-import { MinAppType } from '@renderer/types'
-import { FC, useCallback } from 'react'
+import type { MinAppType } from '@renderer/types'
+import type { FC } from 'react'
+import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -39,7 +34,8 @@ const MiniAppIconsManager: FC<MiniAppManagerProps> = ({
       setDisabledMiniApps(newDisabled)
       updateMinapps(newVisible)
       updateDisabledMinapps(newDisabled)
-      updatePinnedMinapps(pinned.filter((p) => !newDisabled.some((d) => d.id === p.id)))
+      const disabledIds = new Set(newDisabled.map((d) => d.id))
+      updatePinnedMinapps(pinned.filter((p) => !disabledIds.has(p.id)))
     },
     [pinned, setDisabledMiniApps, setVisibleMiniApps, updateDisabledMinapps, updateMinapps, updatePinnedMinapps]
   )
@@ -96,7 +92,9 @@ const MiniAppIconsManager: FC<MiniAppManagerProps> = ({
   )
 
   const renderProgramItem = (program: MinAppType, provided: DraggableProvided, listType: ListType) => {
-    const { name, logo } = DEFAULT_MIN_APPS.find((app) => app.id === program.id) || { name: program.name, logo: '' }
+    const appData = allMinApps.find((app) => app.id === program.id)
+    const name = appData?.nameKey ? t(appData.nameKey) : appData?.name || program.name
+    const logo = appData?.logo || ''
 
     return (
       <ProgramItem ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>

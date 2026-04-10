@@ -1,7 +1,7 @@
 import FileManager from '@renderer/services/FileManager'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { addPainting, removePainting, updatePainting, updatePaintings } from '@renderer/store/paintings'
-import { PaintingAction, PaintingsState } from '@renderer/types'
+import type { PaintingAction, PaintingsState } from '@renderer/types'
 
 export function usePaintings() {
   const siliconflow_paintings = useAppSelector((state) => state.paintings.siliconflow_paintings)
@@ -14,6 +14,9 @@ export function usePaintings() {
   const aihubmix_image_upscale = useAppSelector((state) => state.paintings.aihubmix_image_upscale)
   const openai_image_generate = useAppSelector((state) => state.paintings.openai_image_generate)
   const openai_image_edit = useAppSelector((state) => state.paintings.openai_image_edit)
+  const ovms_paintings = useAppSelector((state) => state.paintings.ovms_paintings)
+  const ppio_draw = useAppSelector((state) => state.paintings.ppio_draw)
+  const ppio_edit = useAppSelector((state) => state.paintings.ppio_edit)
   const dispatch = useAppDispatch()
 
   return {
@@ -27,12 +30,15 @@ export function usePaintings() {
     aihubmix_image_upscale,
     openai_image_generate,
     openai_image_edit,
+    ovms_paintings,
+    ppio_draw,
+    ppio_edit,
     addPainting: (namespace: keyof PaintingsState, painting: PaintingAction) => {
       dispatch(addPainting({ namespace, painting }))
       return painting
     },
     removePainting: async (namespace: keyof PaintingsState, painting: PaintingAction) => {
-      FileManager.deleteFiles(painting.files)
+      void FileManager.deleteFiles(painting.files)
       dispatch(removePainting({ namespace, painting }))
     },
     updatePainting: (namespace: keyof PaintingsState, painting: PaintingAction) => {

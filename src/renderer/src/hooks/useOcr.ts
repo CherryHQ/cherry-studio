@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import * as OcrService from '@renderer/services/ocr/OcrService'
-import { ImageFileMetadata, isImageFileMetadata, SupportedOcrFile } from '@renderer/types'
+import type { ImageFileMetadata, SupportedOcrFile } from '@renderer/types'
+import { isImageFileMetadata } from '@renderer/types'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'

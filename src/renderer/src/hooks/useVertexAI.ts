@@ -5,7 +5,7 @@ import {
   setVertexAIServiceAccountClientEmail,
   setVertexAIServiceAccountPrivateKey
 } from '@renderer/store/llm'
-import { Provider, VertexProvider } from '@renderer/types'
+import type { Provider, VertexProvider } from '@renderer/types'
 import { useDispatch } from 'react-redux'
 
 export function useVertexAISettings() {
@@ -36,13 +36,6 @@ export function getVertexAIProjectId() {
 
 export function getVertexAIServiceAccount() {
   return store.getState().llm.settings.vertexai.serviceAccount
-}
-
-/**
- * 类型守卫：检查 Provider 是否为 VertexProvider
- */
-export function isVertexProvider(provider: Provider): provider is VertexProvider {
-  return provider.type === 'vertexai' && 'googleCredentials' in provider
 }
 
 /**

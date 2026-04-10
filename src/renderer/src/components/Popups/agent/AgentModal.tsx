@@ -1,133 +1,152 @@
-import {
-  Button,
-  cn,
-  Form,
-  Input,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalFooter,
-  ModalHeader,
-  Select,
-  SelectedItemProps,
-  SelectItem,
-  Textarea,
-  useDisclosure
-} from '@heroui/react'
 import { loggerService } from '@logger'
-import type { Selection } from '@react-types/shared'
-import ClaudeIcon from '@renderer/assets/images/models/claude.png'
-import { getModelLogo } from '@renderer/config/models'
-import { permissionModeCards } from '@renderer/constants/permissionModes'
+import AnthropicProviderListPopover from '@renderer/components/AnthropicProviderListPopover'
+import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import Scrollbar from '@renderer/components/Scrollbar'
+import { HelpTooltip } from '@renderer/components/TooltipIcons'
+import { TopView } from '@renderer/components/TopView'
+import { permissionModeCards } from '@renderer/config/agent'
+import { isWin } from '@renderer/config/constant'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
-import { useApiModels } from '@renderer/hooks/agents/useModels'
 import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
-import {
+import SelectAgentBaseModelButton from '@renderer/pages/agents/components/SelectAgentBaseModelButton'
+import type {
   AddAgentForm,
-  AgentConfigurationSchema,
   AgentEntity,
-  AgentType,
+  ApiModel,
   BaseAgentForm,
-  isAgentType,
   PermissionMode,
   Tool,
   UpdateAgentForm
 } from '@renderer/types'
-import { AlertTriangleIcon } from 'lucide-react'
-import { ChangeEvent, FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AgentConfigurationSchema, isAgentType } from '@renderer/types'
+import { parseKeyValueString, serializeKeyValueString } from '@renderer/utils/env'
+import { getAnthropicSupportedProviders } from '@renderer/utils/provider'
+import type { GitBashPathInfo } from '@shared/config/constant'
+import { Button, Input, Modal, Select, Switch, Tooltip } from 'antd'
+import { Info } from 'lucide-react'
+import type { ChangeEvent, FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import styled from 'styled-components'
 
-import { ErrorBoundary } from '../../ErrorBoundary'
-import { BaseOption, ModelOption, Option, renderOption } from './shared'
+const { TextArea } = Input
 
 const logger = loggerService.withContext('AddAgentPopup')
-
-interface AgentTypeOption extends BaseOption {
-  type: 'type'
-  key: AgentEntity['type']
-  name: AgentEntity['name']
-}
-
-type Option = AgentTypeOption | ModelOption
 
 type AgentWithTools = AgentEntity & { tools?: Tool[] }
 
 const buildAgentForm = (existing?: AgentWithTools): BaseAgentForm => ({
   type: existing?.type ?? 'claude-code',
-  name: existing?.name ?? 'Claude Code',
+  name: existing?.name ?? 'Agent',
   description: existing?.description,
   instructions: existing?.instructions,
-  model: existing?.model ?? 'claude-4-sonnet',
+  model: existing?.model ?? '',
   accessible_paths: existing?.accessible_paths ? [...existing.accessible_paths] : [],
   allowed_tools: existing?.allowed_tools ? [...existing.allowed_tools] : [],
   mcps: existing?.mcps ? [...existing.mcps] : [],
   configuration: AgentConfigurationSchema.parse(existing?.configuration ?? {})
 })
 
-interface BaseProps {
+interface ShowParams {
   agent?: AgentWithTools
+  afterSubmit?: (a: AgentEntity) => void
 }
 
-interface TriggerProps extends BaseProps {
-  trigger: { content: ReactNode; className?: string }
-  isOpen?: never
-  onClose?: never
+interface Props extends ShowParams {
+  resolve: (data: any) => void
 }
 
-interface StateProps extends BaseProps {
-  trigger?: never
-  isOpen: boolean
-  onClose: () => void
-}
-
-type Props = TriggerProps | StateProps
-
-/**
- * Modal component for creating or editing an agent.
- *
- * Either trigger or isOpen and onClose is given.
- * @param agent - Optional agent entity for editing mode.
- * @param trigger - Optional trigger element that opens the modal. It MUST propagate the click event to trigger the modal.
- * @param isOpen - Optional controlled modal open state. From useDisclosure.
- * @param onClose - Optional callback when modal closes. From useDisclosure.
- * @returns Modal component for agent creation/editing
- */
-export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, onClose: _onClose }) => {
-  const { isOpen, onClose, onOpen } = useDisclosure({ isOpen: _isOpen, onClose: _onClose })
+const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
   const { t } = useTranslation()
+  const [open, setOpen] = useState(true)
   const loadingRef = useRef(false)
-  // const { setTimeoutTimer } = useTimer()
   const { addAgent } = useAgents()
   const { updateAgent } = useUpdateAgent()
-  // hard-coded. We only support anthropic for now.
-  const { models } = useApiModels({ providerType: 'anthropic' })
   const isEditing = (agent?: AgentWithTools) => agent !== undefined
 
   const [form, setForm] = useState<BaseAgentForm>(() => buildAgentForm(agent))
+  const [gitBashPathInfo, setGitBashPathInfo] = useState<GitBashPathInfo>({ path: null, source: null })
 
   useEffect(() => {
-    if (isOpen) {
+    if (open) {
       setForm(buildAgentForm(agent))
     }
-  }, [agent, isOpen])
+  }, [agent, open])
+
+  const checkGitBash = useCallback(async () => {
+    if (!isWin) return
+    try {
+      const pathInfo = await window.api.system.getGitBashPathInfo()
+      setGitBashPathInfo(pathInfo)
+    } catch (error) {
+      logger.error('Failed to check Git Bash:', error as Error)
+    }
+  }, [])
+
+  useEffect(() => {
+    void checkGitBash()
+  }, [checkGitBash])
 
   const selectedPermissionMode = form.configuration?.permission_mode ?? 'default'
 
-  const onPermissionModeChange = useCallback((keys: Selection) => {
-    if (keys === 'all') {
-      return
-    }
+  const handlePickGitBash = useCallback(async () => {
+    try {
+      const selected = await window.api.file.select({
+        title: t('agent.gitBash.pick.title', 'Select Git Bash executable'),
+        filters: [{ name: 'Executable', extensions: ['exe'] }],
+        properties: ['openFile']
+      })
 
-    const [first] = Array.from(keys)
-    if (!first) {
-      return
-    }
+      if (!selected || selected.length === 0) {
+        return
+      }
 
+      const pickedPath = selected[0].path
+      const ok = await window.api.system.setGitBashPath(pickedPath)
+      if (!ok) {
+        window.toast.error(
+          t('agent.gitBash.pick.invalidPath', 'Selected file is not a valid Git Bash executable (bash.exe).')
+        )
+        return
+      }
+
+      await checkGitBash()
+    } catch (error) {
+      logger.error('Failed to pick Git Bash path', error as Error)
+      window.toast.error(t('agent.gitBash.pick.failed', 'Failed to set Git Bash path'))
+    }
+  }, [checkGitBash, t])
+
+  const handleResetGitBash = useCallback(async () => {
+    try {
+      // Clear manual setting and re-run auto-discovery
+      await window.api.system.setGitBashPath(null)
+      await checkGitBash()
+    } catch (error) {
+      logger.error('Failed to reset Git Bash path', error as Error)
+    }
+  }, [checkGitBash])
+
+  const soulEnabled = form.configuration?.soul_enabled === true
+
+  const onSoulModeChange = useCallback((checked: boolean) => {
+    setForm((prev) => {
+      const prevConfig = AgentConfigurationSchema.parse(prev.configuration ?? {})
+      return {
+        ...prev,
+        configuration: {
+          ...prevConfig,
+          soul_enabled: checked,
+          permission_mode: checked ? 'bypassPermissions' : prevConfig.permission_mode
+        }
+      }
+    })
+  }, [])
+
+  const onPermissionModeChange = useCallback((value: PermissionMode) => {
     setForm((prev) => {
       const parsedConfiguration = AgentConfigurationSchema.parse(prev.configuration ?? {})
-      const nextMode = first as PermissionMode
-
-      if (parsedConfiguration.permission_mode === nextMode) {
+      if (parsedConfiguration.permission_mode === value) {
         if (!prev.configuration) {
           return {
             ...prev,
@@ -137,80 +156,62 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
         return prev
       }
 
+      const nextConfig = {
+        ...parsedConfiguration,
+        permission_mode: value
+      }
+
+      // Disable soul mode when switching away from bypassPermissions
+      if (value !== 'bypassPermissions' && parsedConfiguration.soul_enabled === true) {
+        nextConfig.soul_enabled = false
+      }
+
       return {
         ...prev,
-        configuration: {
-          ...parsedConfiguration,
-          permission_mode: nextMode
-        }
+        configuration: nextConfig
       }
     })
   }, [])
 
-  // add supported agents type here.
-  const agentConfig = useMemo(
-    () =>
-      [
-        {
-          type: 'type',
-          key: 'claude-code',
-          label: 'Claude Code',
-          name: 'Claude Code',
-          avatar: ClaudeIcon
-        }
-      ] as const satisfies AgentTypeOption[],
-    []
-  )
+  const onNameChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
+    setForm((prev) => ({
+      ...prev,
+      name: e.target.value
+    }))
+  }, [])
 
-  const agentOptions: AgentTypeOption[] = useMemo(
-    () =>
-      agentConfig.map(
-        (option) =>
-          ({
-            ...option,
-            rendered: <Option option={option} />
-          }) as const satisfies SelectedItemProps
-      ),
-    [agentConfig]
-  )
+  // const onDescChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
+  //   setForm((prev) => ({
+  //     ...prev,
+  //     description: e.target.value
+  //   }))
+  // }, [])
 
-  const onAgentTypeChange = useCallback(
-    (e: ChangeEvent<HTMLSelectElement>) => {
-      const prevConfig = agentConfig.find((config) => config.key === form.type)
-      let newName: string | undefined = form.name
-      if (prevConfig && prevConfig.name === form.name) {
-        const newConfig = agentConfig.find((config) => config.key === e.target.value)
-        if (newConfig) {
-          newName = newConfig.name
-        }
+  const onInstChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
+    setForm((prev) => ({
+      ...prev,
+      instructions: e.target.value
+    }))
+  }, [])
+
+  const [envVarsText, setEnvVarsText] = useState(() => serializeKeyValueString(form.configuration?.env_vars ?? {}))
+
+  useEffect(() => {
+    if (open) {
+      setEnvVarsText(serializeKeyValueString(buildAgentForm(agent).configuration?.env_vars ?? {}))
+    }
+  }, [agent, open])
+
+  const onEnvVarsChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
+    const text = e.target.value
+    setEnvVarsText(text)
+    const parsed = parseKeyValueString(text)
+    setForm((prev) => ({
+      ...prev,
+      configuration: {
+        ...AgentConfigurationSchema.parse(prev.configuration ?? {}),
+        env_vars: parsed
       }
-      setForm((prev) => ({
-        ...prev,
-        type: e.target.value as AgentType,
-        name: newName
-      }))
-    },
-    [agentConfig, form.name, form.type]
-  )
-
-  const onNameChange = useCallback((name: string) => {
-    setForm((prev) => ({
-      ...prev,
-      name
-    }))
-  }, [])
-
-  const onDescChange = useCallback((description: string) => {
-    setForm((prev) => ({
-      ...prev,
-      description
-    }))
-  }, [])
-
-  const onInstChange = useCallback((instructions: string) => {
-    setForm((prev) => ({
-      ...prev,
-      instructions
     }))
   }, [])
 
@@ -243,24 +244,35 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
     }))
   }, [])
 
-  const modelOptions = useMemo(() => {
-    // mocked data. not final version
-    return (models ?? []).map((model) => ({
-      type: 'model',
-      key: model.id,
-      label: model.name,
-      avatar: getModelLogo(model.id),
-      providerId: model.provider,
-      providerName: model.provider_name
-    })) satisfies ModelOption[]
-  }, [models])
+  // Create a temporary agentBase object for SelectAgentBaseModelButton
+  const tempAgentBase: AgentEntity = useMemo(
+    () => ({
+      id: agent?.id ?? 'temp-creating',
+      type: form.type,
+      name: form.name,
+      model: form.model,
+      accessible_paths: form.accessible_paths.length > 0 ? form.accessible_paths : ['/'],
+      allowed_tools: form.allowed_tools ?? [],
+      description: form.description,
+      instructions: form.instructions,
+      configuration: form.configuration,
+      created_at: agent?.created_at ?? new Date().toISOString(),
+      updated_at: agent?.updated_at ?? new Date().toISOString()
+    }),
+    [form, agent?.id, agent?.created_at, agent?.updated_at]
+  )
 
-  const onModelChange = useCallback((e: ChangeEvent<HTMLSelectElement>) => {
-    setForm((prev) => ({
-      ...prev,
-      model: e.target.value
-    }))
+  const handleModelSelect = useCallback(async (model: ApiModel) => {
+    setForm((prev) => ({ ...prev, model: model.id }))
   }, [])
+
+  const onCancel = () => {
+    setOpen(false)
+  }
+
+  const onClose = () => {
+    resolve({})
+  }
 
   const onSubmit = useCallback(
     async (e: FormEvent<HTMLFormElement>) => {
@@ -283,8 +295,8 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
         return
       }
 
-      if (form.accessible_paths.length === 0) {
-        window.toast.error(t('agent.session.accessible_paths.error.at_least_one'))
+      if (isWin && !gitBashPathInfo.path) {
+        window.toast.error(t('agent.gitBash.error.required', 'Git Bash path is required on Windows'))
         loadingRef.current = false
         return
       }
@@ -306,8 +318,13 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
           configuration: form.configuration ? { ...form.configuration } : undefined
         } satisfies UpdateAgentForm
 
-        updateAgent(updatePayload)
-        logger.debug('Updated agent', updatePayload)
+        const result = await updateAgent(updatePayload)
+        if (result) {
+          logger.debug('Updated agent', result)
+          afterSubmit?.(result)
+        } else {
+          logger.error('Update failed.')
+        }
       } else {
         const newAgent = {
           type: form.type,
@@ -320,183 +337,387 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
           configuration: form.configuration ? { ...form.configuration } : undefined
         } satisfies AddAgentForm
         const result = await addAgent(newAgent)
+
         if (!result.success) {
           loadingRef.current = false
           throw result.error
         }
+        afterSubmit?.(result.data)
       }
-
       loadingRef.current = false
-
-      // setTimeoutTimer('onCreateAgent', () => EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS), 0)
-      onClose()
+      setOpen(false)
     },
     [
       form.type,
       form.model,
+      form.accessible_paths,
       form.name,
       form.description,
       form.instructions,
-      form.accessible_paths,
       form.allowed_tools,
       form.configuration,
       agent,
-      onClose,
       t,
       updateAgent,
-      addAgent
+      afterSubmit,
+      addAgent,
+      gitBashPathInfo.path
     ]
   )
 
+  AgentModalPopup.hide = onCancel
+
   return (
     <ErrorBoundary>
-      {/* NOTE: Hero UI Modal Pattern: Combine the Button and Modal components into a single
-      encapsulated component. This is because the Modal component needs to bind the onOpen
-      event handler to the Button for proper focus management.
-
-      Or just use external isOpen/onOpen/onClose to control modal state.
-      */}
-
-      {trigger && (
-        <div
-          onClick={(e) => {
-            e.stopPropagation()
-            onOpen()
-          }}
-          className={cn('w-full', trigger.className)}>
-          {trigger.content}
-        </div>
-      )}
       <Modal
-        isOpen={isOpen}
-        onClose={onClose}
-        classNames={{
-          base: 'max-h-[90vh]',
-          wrapper: 'overflow-hidden'
-        }}>
-        <ModalContent>
-          {(onClose) => (
-            <>
-              <ModalHeader>{isEditing(agent) ? t('agent.edit.title') : t('agent.add.title')}</ModalHeader>
-              <Form onSubmit={onSubmit} className="min-h-0 w-full shrink overflow-auto">
-                <ModalBody className="min-h-0 w-full flex-1 shrink overflow-auto">
-                  <div className="flex gap-2">
-                    <Select
-                      isRequired
-                      isDisabled={isEditing(agent)}
-                      selectionMode="single"
-                      selectedKeys={[form.type]}
-                      disallowEmptySelection
-                      onChange={onAgentTypeChange}
-                      items={agentOptions}
-                      label={t('agent.type.label')}
-                      placeholder={t('agent.add.type.placeholder')}
-                      renderValue={renderOption}>
-                      {(option) => (
-                        <SelectItem key={option.key} textValue={option.label}>
-                          <Option option={option} />
-                        </SelectItem>
-                      )}
-                    </Select>
-                    <Input isRequired value={form.name} onValueChange={onNameChange} label={t('common.name')} />
-                  </div>
-                  <Select
-                    isRequired
-                    selectionMode="single"
-                    selectedKeys={form.model ? [form.model] : []}
-                    disallowEmptySelection
-                    onChange={onModelChange}
-                    items={modelOptions}
-                    label={t('common.model')}
-                    placeholder={t('common.placeholders.select.model')}
-                    renderValue={renderOption}>
-                    {(option) => (
-                      <SelectItem key={option.key} textValue={option.label}>
-                        <Option option={option} />
-                      </SelectItem>
+        title={isEditing(agent) ? t('agent.edit.title') : t('agent.add.title')}
+        open={open}
+        onCancel={onCancel}
+        afterClose={onClose}
+        transitionName="animation-move-down"
+        centered
+        width={500}
+        footer={null}>
+        <StyledForm onSubmit={onSubmit}>
+          <FormContent>
+            <FormRow>
+              <FormItem style={{ flex: 1 }}>
+                <Label>
+                  {t('common.name')} <RequiredMark>*</RequiredMark>
+                </Label>
+                <Input value={form.name} onChange={onNameChange} required />
+              </FormItem>
+            </FormRow>
+
+            <FormItem>
+              <div className="flex items-center gap-2">
+                <Label>
+                  {t('common.model')} <RequiredMark>*</RequiredMark>
+                </Label>
+                <AnthropicProviderListPopover
+                  useWindowNavigate
+                  filterProviders={getAnthropicSupportedProviders}
+                  onProviderClick={() => {
+                    setOpen(false)
+                    resolve(undefined)
+                  }}
+                />
+              </div>
+              <SelectAgentBaseModelButton
+                agentBase={tempAgentBase}
+                onSelect={handleModelSelect}
+                fontSize={14}
+                avatarSize={24}
+                iconSize={16}
+                buttonStyle={{
+                  padding: '3px 8px',
+                  width: '100%',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 6,
+                  height: 'auto'
+                }}
+                containerClassName="flex items-center justify-between w-full"
+              />
+            </FormItem>
+
+            {isWin && (
+              <FormItem>
+                <div className="flex items-center gap-2">
+                  <Label>
+                    Git Bash <RequiredMark>*</RequiredMark>
+                  </Label>
+                  <HelpTooltip
+                    title={t(
+                      'agent.gitBash.tooltip',
+                      'Git Bash is required to run agents on Windows. Install from git-scm.com if not available.'
                     )}
-                  </Select>
-                  <Select
-                    isRequired
-                    selectionMode="single"
-                    selectedKeys={[selectedPermissionMode]}
-                    onSelectionChange={onPermissionModeChange}
-                    label={t('agent.settings.tooling.permissionMode.title', 'Permission mode')}
-                    placeholder={t('agent.settings.tooling.permissionMode.placeholder', 'Select permission mode')}
-                    description={t(
-                      'agent.settings.tooling.permissionMode.helper',
-                      'Choose how the agent handles tool approvals.'
-                    )}
-                    items={permissionModeCards}>
-                    {(item) => (
-                      <SelectItem key={item.mode} textValue={t(item.titleKey, item.titleFallback)}>
-                        <div className="flex flex-col gap-1">
-                          <span className="font-medium text-sm">{t(item.titleKey, item.titleFallback)}</span>
-                          <span className="text-foreground-500 text-xs">
-                            {t(item.descriptionKey, item.descriptionFallback)}
-                          </span>
-                          <span className="text-foreground-400 text-xs">
-                            {t(item.behaviorKey, item.behaviorFallback)}
-                          </span>
-                          {item.caution ? (
-                            <span className="flex items-center gap-1 text-danger-500 text-xs">
-                              <AlertTriangleIcon size={12} className="text-danger" />
-                              {t(
-                                'agent.settings.tooling.permissionMode.bypassPermissions.warning',
-                                'Use with caution — all tools will run without asking for approval.'
-                              )}
-                            </span>
-                          ) : null}
-                        </div>
-                      </SelectItem>
-                    )}
-                  </Select>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium text-foreground text-sm">
-                        {t('agent.session.accessible_paths.label')}
-                      </span>
-                      <Button size="sm" variant="flat" onPress={addAccessiblePath}>
-                        {t('agent.session.accessible_paths.add')}
-                      </Button>
-                    </div>
-                    {form.accessible_paths.length > 0 ? (
-                      <div className="space-y-2">
-                        {form.accessible_paths.map((path) => (
-                          <div
-                            key={path}
-                            className="flex items-center justify-between gap-2 rounded-medium border border-default-200 px-3 py-2">
-                            <span className="truncate text-sm" title={path}>
-                              {path}
-                            </span>
-                            <Button size="sm" variant="light" color="danger" onPress={() => removeAccessiblePath(path)}>
-                              {t('common.delete')}
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-foreground-400 text-sm">{t('agent.session.accessible_paths.empty')}</p>
-                    )}
-                  </div>
-                  <Textarea label={t('common.prompt')} value={form.instructions ?? ''} onValueChange={onInstChange} />
-                  <Textarea
-                    label={t('common.description')}
-                    value={form.description ?? ''}
-                    onValueChange={onDescChange}
                   />
-                </ModalBody>
-                <ModalFooter className="w-full">
-                  <Button onPress={onClose}>{t('common.close')}</Button>
-                  <Button color="primary" type="submit" isLoading={loadingRef.current}>
-                    {isEditing(agent) ? t('common.confirm') : t('common.add')}
+                </div>
+                <GitBashInputWrapper>
+                  <Input
+                    value={gitBashPathInfo.path ?? ''}
+                    readOnly
+                    placeholder={t('agent.gitBash.placeholder', 'Select bash.exe path')}
+                  />
+                  <Button size="small" onClick={handlePickGitBash}>
+                    {t('common.select', 'Select')}
                   </Button>
-                </ModalFooter>
-              </Form>
-            </>
-          )}
-        </ModalContent>
+                  {gitBashPathInfo.source === 'manual' && (
+                    <Button size="small" onClick={handleResetGitBash}>
+                      {t('common.reset', 'Reset')}
+                    </Button>
+                  )}
+                </GitBashInputWrapper>
+                {gitBashPathInfo.path && gitBashPathInfo.source === 'auto' && (
+                  <SourceHint>{t('agent.gitBash.autoDiscoveredHint', 'Auto-discovered')}</SourceHint>
+                )}
+              </FormItem>
+            )}
+
+            <FormItem>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Label>{t('agent.settings.soulMode.title')}</Label>
+                  <Tooltip title={t('agent.settings.soulMode.description')} placement="right">
+                    <Info size={16} className="text-foreground-400" />
+                  </Tooltip>
+                </div>
+                <Switch checked={soulEnabled} size="small" onChange={onSoulModeChange} />
+              </div>
+            </FormItem>
+
+            {!soulEnabled && (
+              <FormItem>
+                <Label>
+                  {t('agent.settings.tooling.permissionMode.title', 'Permission mode')} <RequiredMark>*</RequiredMark>
+                </Label>
+                <Select
+                  value={selectedPermissionMode}
+                  onChange={onPermissionModeChange}
+                  style={{ width: '100%' }}
+                  placeholder={t('agent.settings.tooling.permissionMode.placeholder', 'Select permission mode')}
+                  optionLabelProp="label">
+                  {permissionModeCards.map((item) => (
+                    <Select.Option key={item.mode} value={item.mode} label={t(item.titleKey, item.titleFallback)}>
+                      <PermissionOptionWrapper>
+                        <div className="title">{t(item.titleKey, item.titleFallback)}</div>
+                        <div className="description">{t(item.descriptionKey, item.descriptionFallback)}</div>
+                      </PermissionOptionWrapper>
+                    </Select.Option>
+                  ))}
+                </Select>
+                <HelpText>
+                  {t('agent.settings.tooling.permissionMode.helper', 'Choose how the agent handles tool approvals.')}
+                </HelpText>
+              </FormItem>
+            )}
+
+            <FormItem>
+              <LabelWithButton>
+                <Label>{t('agent.session.accessible_paths.label')}</Label>
+                <Button size="small" onClick={addAccessiblePath}>
+                  {t('agent.session.accessible_paths.add')}
+                </Button>
+              </LabelWithButton>
+              {form.accessible_paths.length > 0 ? (
+                <PathList>
+                  {form.accessible_paths.map((path) => (
+                    <PathItem key={path}>
+                      <PathText title={path}>{path}</PathText>
+                      <Button size="small" danger onClick={() => removeAccessiblePath(path)}>
+                        {t('common.delete')}
+                      </Button>
+                    </PathItem>
+                  ))}
+                </PathList>
+              ) : (
+                <HelpText>
+                  {t(
+                    'agent.session.accessible_paths.default_hint',
+                    'A default workspace will be created automatically if not specified.'
+                  )}
+                </HelpText>
+              )}
+            </FormItem>
+
+            <FormItem>
+              <Label>{t('common.prompt')}</Label>
+              <TextArea rows={3} value={form.instructions ?? ''} onChange={onInstChange} />
+            </FormItem>
+
+            <FormItem>
+              <Label>{t('agent.settings.advance.envVars.label')}</Label>
+              <TextArea
+                rows={3}
+                value={envVarsText}
+                onChange={onEnvVarsChange}
+                placeholder={'API_KEY=xxx\nDEBUG=true'}
+              />
+              <HelpText>{t('agent.settings.advance.envVars.helper')}</HelpText>
+            </FormItem>
+
+            {/* <FormItem>
+              <Label>{t('common.description')}</Label>
+              <TextArea rows={1} value={form.description ?? ''} onChange={onDescChange} />
+            </FormItem> */}
+          </FormContent>
+
+          <FormFooter>
+            <Button onClick={onCancel}>{t('common.close')}</Button>
+            <Button
+              type="primary"
+              htmlType="submit"
+              loading={loadingRef.current}
+              disabled={isWin && !gitBashPathInfo.path}>
+              {isEditing(agent) ? t('common.confirm') : t('common.add')}
+            </Button>
+          </FormFooter>
+        </StyledForm>
       </Modal>
     </ErrorBoundary>
   )
 }
+
+const TopViewKey = 'AgentModalPopup'
+
+export default class AgentModalPopup {
+  static topviewId = 0
+  static hide() {
+    TopView.hide(TopViewKey)
+  }
+  static show(props: ShowParams) {
+    return new Promise<any>((resolve) => {
+      TopView.show(
+        <PopupContainer
+          {...props}
+          resolve={(v) => {
+            resolve(v)
+            TopView.hide(TopViewKey)
+          }}
+        />,
+        TopViewKey
+      )
+    })
+  }
+}
+
+// Keep the old export for backward compatibility during migration
+export const AgentModal = AgentModalPopup
+
+const StyledForm = styled.form`
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+`
+
+const FormContent = styled(Scrollbar)`
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: 60vh;
+  padding-right: 8px;
+`
+
+const FormRow = styled.div`
+  display: flex;
+  gap: 12px;
+`
+
+const FormItem = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`
+
+const GitBashInputWrapper = styled.div`
+  display: flex;
+  gap: 8px;
+  align-items: center;
+
+  input {
+    flex: 1;
+  }
+`
+
+const SourceHint = styled.span`
+  font-size: 12px;
+  color: var(--color-text-3);
+`
+
+const Label = styled.label`
+  font-size: 14px;
+  color: var(--color-text-1);
+  font-weight: 500;
+`
+
+const RequiredMark = styled.span`
+  color: #ff4d4f;
+  margin-left: 4px;
+`
+
+const HelpText = styled.div`
+  font-size: 12px;
+  color: var(--color-text-3);
+`
+
+const LabelWithButton = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+`
+
+const PathList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`
+
+const PathItem = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background-color: var(--color-bg-1);
+`
+
+const PathText = styled.span`
+  flex: 1;
+  font-size: 13px;
+  color: var(--color-text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`
+
+const FormFooter = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px;
+`
+
+const PermissionOptionWrapper = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0;
+
+  .title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-text-1);
+    margin-bottom: 2px;
+  }
+
+  .description {
+    font-size: 12px;
+    color: var(--color-text-2);
+    line-height: 1.4;
+  }
+
+  .behavior {
+    font-size: 12px;
+    color: var(--color-text-3);
+    line-height: 1.4;
+  }
+
+  .caution {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    font-size: 12px;
+    color: #ff4d4f;
+    margin-top: 4px;
+    padding: 6px 8px;
+    background-color: rgba(255, 77, 79, 0.1);
+    border-radius: 4px;
+
+    svg {
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+  }
+`
