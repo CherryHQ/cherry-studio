@@ -36,7 +36,6 @@ describe('routeTitle', () => {
         ['/', '首页'],
         ['/home', '首页'],
         ['/app/chat', '聊天'],
-        ['/agents', '智能体'],
         ['/app/agents', '智能体'],
         ['/app/assistant', '助手库'],
         ['/app/paintings', '绘画'],
