@@ -23,7 +23,6 @@ This is the main entry point for Cherry Studio's data management documentation. 
 - [Preference Schema Guide](./preference-schema-guide.md) - Adding new preference keys
 - [Boot Config Schema Guide](./boot-config-schema-guide.md) - Adding new boot config keys
 - [Layered Preset Pattern](./best-practice-layered-preset-pattern.md) - Presets with user overrides
-- [Provider & Model Registry](./provider-registry.md) - Registry loading, merge pipeline, normalization
 - [V2 Migration Guide](./v2-migration-guide.md) - Migration system
 
 ### Testing
