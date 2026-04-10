@@ -1,13 +1,16 @@
-import type { KnowledgeItem } from '@shared/data/types/knowledge'
+import type { KnowledgeItem, KnowledgeItemOf } from '@shared/data/types/knowledge'
 import type { Document } from '@vectorstores/core'
 
-import { loadDirectoryDocuments } from './KnowledgeDirectoryReader'
 import { loadFileDocuments } from './KnowledgeFileReader'
 import { loadNoteDocuments } from './KnowledgeNoteReader'
-import { loadSitemapDocuments } from './KnowledgeSitemapReader'
 import { loadUrlDocuments } from './KnowledgeUrlReader'
 
-export async function loadKnowledgeItemDocuments(item: KnowledgeItem, signal?: AbortSignal): Promise<Document[]> {
+export type ReadableKnowledgeItem = KnowledgeItemOf<'file'> | KnowledgeItemOf<'url'> | KnowledgeItemOf<'note'>
+
+export async function loadKnowledgeItemDocuments(
+  item: ReadableKnowledgeItem,
+  signal?: AbortSignal
+): Promise<Document[]> {
   switch (item.type) {
     case 'file':
       return await loadFileDocuments(item)
@@ -15,9 +18,7 @@ export async function loadKnowledgeItemDocuments(item: KnowledgeItem, signal?: A
       return await loadUrlDocuments(item, signal)
     case 'note':
       return await loadNoteDocuments(item)
-    case 'sitemap':
-      return await loadSitemapDocuments(item)
-    case 'directory':
-      return await loadDirectoryDocuments(item)
+    default:
+      throw new Error(`Unsupported knowledge item type: ${(item as KnowledgeItem).type}`)
   }
 }

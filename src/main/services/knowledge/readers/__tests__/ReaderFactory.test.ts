@@ -154,23 +154,6 @@ function createFileItem(ext: string, filePath?: string): KnowledgeItemOf<'file'>
   }
 }
 
-function createDirectoryItem(): KnowledgeItemOf<'directory'> {
-  return {
-    id: 'directory-1',
-    baseId: 'base-1',
-    groupId: null,
-    type: 'directory',
-    status: 'idle',
-    error: null,
-    createdAt: '2026-04-03T00:00:00.000Z',
-    updatedAt: '2026-04-03T00:00:00.000Z',
-    data: {
-      name: 'example-directory',
-      path: '/tmp/example-directory'
-    }
-  }
-}
-
 function createNoteItem(content: string, sourceUrl?: string): KnowledgeItemOf<'note'> {
   return {
     id: 'note-1',
@@ -218,6 +201,23 @@ function createSitemapItem(): KnowledgeItemOf<'sitemap'> {
     data: {
       url: 'https://example.com/sitemap.xml',
       name: 'Example Sitemap'
+    }
+  }
+}
+
+function createDirectoryItem(): KnowledgeItemOf<'directory'> {
+  return {
+    id: 'directory-1',
+    baseId: 'base-1',
+    groupId: null,
+    type: 'directory',
+    status: 'idle',
+    error: null,
+    createdAt: '2026-04-03T00:00:00.000Z',
+    updatedAt: '2026-04-03T00:00:00.000Z',
+    data: {
+      name: 'example-directory',
+      path: '/tmp/example-directory'
     }
   }
 }
@@ -306,12 +306,6 @@ describe('loadKnowledgeItemDocuments', () => {
     })
   })
 
-  it('returns empty documents for directory items', async () => {
-    const item = createDirectoryItem()
-
-    await expect(loadKnowledgeItemDocuments(item)).resolves.toEqual([])
-  })
-
   it('fetches markdown from the local knowledge web provider and splits it into documents', async () => {
     fetchMock.mockResolvedValue(new Response('# Example Page\n\nHello knowledge', { status: 200 }))
 
@@ -340,11 +334,13 @@ describe('loadKnowledgeItemDocuments', () => {
     })
   })
 
-  it('skips sitemap items because they must be expanded into url items upstream', async () => {
-    const item = createSitemapItem()
-    const docs = await loadKnowledgeItemDocuments(item)
-
+  it.each([
+    ['directory', createDirectoryItem()],
+    ['sitemap', createSitemapItem()]
+  ])('throws for unsupported %s items', async (_type, item) => {
+    await expect(
+      loadKnowledgeItemDocuments(item as unknown as Parameters<typeof loadKnowledgeItemDocuments>[0])
+    ).rejects.toThrow(`Unsupported knowledge item type: ${item.type}`)
     expect(fetchMock).not.toHaveBeenCalled()
-    expect(docs).toEqual([])
   })
 })

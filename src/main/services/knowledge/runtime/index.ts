@@ -1,5 +1,5 @@
-export * from './addRuntime'
 export * from './KnowledgeAddQueue'
+export * from './KnowledgeAddRuntime'
 export * from './KnowledgeRuntimeService'
 export * from './utils/cleanup'
 export * from './utils/taskRuntime'
