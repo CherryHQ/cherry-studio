@@ -179,6 +179,6 @@ export const KnowledgeSearchResultSchema = z.object({
   score: z.number(),
   metadata: z.record(z.string(), z.unknown()),
   itemId: z.string().optional(),
-  chunkId: z.string().optional()
+  chunkId: z.string()
 })
 export type KnowledgeSearchResult = z.infer<typeof KnowledgeSearchResultSchema>

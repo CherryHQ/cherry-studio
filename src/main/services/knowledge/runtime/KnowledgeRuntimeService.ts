@@ -97,14 +97,17 @@ export class KnowledgeRuntimeService extends BaseService {
       alpha: base.hybridAlpha
     })
     const nodes = results.nodes ?? []
-    const searchResults = nodes.map((node, index) => ({
-      pageContent: node.getContent(MetadataMode.NONE),
-      score: results.similarities[index] ?? 0,
-      metadata: node.metadata ?? {},
-      itemId:
-        typeof node.metadata?.itemId === 'string' && node.metadata.itemId.length > 0 ? node.metadata.itemId : undefined,
-      chunkId: node.id_
-    }))
+    const searchResults = nodes.map((node, index) => {
+      const metadata = node.metadata ?? {}
+
+      return {
+        pageContent: node.getContent(MetadataMode.NONE),
+        score: results.similarities[index] ?? 0,
+        metadata,
+        itemId: typeof metadata.itemId === 'string' && metadata.itemId.length > 0 ? metadata.itemId : undefined,
+        chunkId: node.id_
+      }
+    })
 
     return await rerankKnowledgeSearchResults(base, query, searchResults)
   }
