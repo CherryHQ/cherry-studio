@@ -89,16 +89,21 @@ export class WindowService extends BaseService {
     this.registerDisposable(() => app.removeListener('second-instance', handler))
   }
 
-  private registerIpcHandlers() {
-    const resolveTargetWindow = (sender: Electron.WebContents) => {
-      const senderWindow = BrowserWindow.fromWebContents(sender)
-      if (senderWindow && !senderWindow.isDestroyed()) {
-        return senderWindow
-      }
-      this.checkMainWindow()
-      return this.mainWindow!
+  /**
+   * Resolves the BrowserWindow that originated the IPC call.
+   * Used for window-control channels (minimize/maximize/close) that must operate
+   * on whichever window sent the IPC — main window or a detached tab window.
+   * Throws if the sender cannot be mapped to a live window.
+   */
+  private resolveIpcSenderWindow(sender: Electron.WebContents): BrowserWindow {
+    const win = BrowserWindow.fromWebContents(sender)
+    if (win && !win.isDestroyed()) {
+      return win
     }
+    throw new Error('WindowService: could not resolve a live BrowserWindow from IPC sender')
+  }
 
+  private registerIpcHandlers() {
     this.ipcHandle(IpcChannel.Windows_SetMinimumSize, (_, width: number, height: number) => {
       this.checkMainWindow()
       this.mainWindow!.setMinimumSize(width, height)
@@ -120,23 +125,23 @@ export class WindowService extends BaseService {
     })
 
     this.ipcHandle(IpcChannel.Windows_Minimize, (event) => {
-      resolveTargetWindow(event.sender).minimize()
+      this.resolveIpcSenderWindow(event.sender).minimize()
     })
 
     this.ipcHandle(IpcChannel.Windows_Maximize, (event) => {
-      resolveTargetWindow(event.sender).maximize()
+      this.resolveIpcSenderWindow(event.sender).maximize()
     })
 
     this.ipcHandle(IpcChannel.Windows_Unmaximize, (event) => {
-      resolveTargetWindow(event.sender).unmaximize()
+      this.resolveIpcSenderWindow(event.sender).unmaximize()
     })
 
     this.ipcHandle(IpcChannel.Windows_Close, (event) => {
-      resolveTargetWindow(event.sender).close()
+      this.resolveIpcSenderWindow(event.sender).close()
     })
 
     this.ipcHandle(IpcChannel.Windows_IsMaximized, (event) => {
-      return resolveTargetWindow(event.sender).isMaximized()
+      return this.resolveIpcSenderWindow(event.sender).isMaximized()
     })
 
     this.ipcHandle(IpcChannel.MiniWindow_Show, () => this.showMiniWindow())
