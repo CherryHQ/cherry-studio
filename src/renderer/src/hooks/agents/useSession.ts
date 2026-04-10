@@ -1,28 +1,20 @@
-import { useTranslation } from 'react-i18next'
-import useSWR from 'swr'
+import { useQuery } from '@renderer/data/hooks/useDataApi'
+import type { GetAgentSessionResponse } from '@renderer/types'
 
-import { requireAgentClient, useAgentClient } from './useAgentClient'
 import { useUpdateSession } from './useUpdateSession'
 
 export const useSession = (agentId: string | null, sessionId: string | null) => {
-  const { t } = useTranslation()
-  const client = useAgentClient()
-  const key = agentId && sessionId && client ? client.getSessionPaths(agentId).withId(sessionId) : null
   const { updateSession } = useUpdateSession(agentId)
-
-  const fetcher = async () => {
-    if (!agentId) throw new Error(t('agent.get.error.null_id'))
-    if (!sessionId) throw new Error(t('agent.session.get.error.null_id'))
-    const data = await requireAgentClient(client).getSession(agentId, sessionId)
-    return data
-  }
-  const { data, error, isLoading, mutate } = useSWR(key, fetcher)
+  const path: `/agents/${string}/sessions/${string}` = `/agents/${agentId ?? '__pending__'}/sessions/${sessionId ?? '__pending__'}`
+  const { data, error, isLoading, refetch } = useQuery(path, {
+    enabled: !!agentId && !!sessionId
+  })
 
   return {
-    session: data,
-    error,
+    session: data as GetAgentSessionResponse | undefined,
+    error: error ?? null,
     isLoading,
     updateSession,
-    mutate
+    mutate: refetch
   }
 }

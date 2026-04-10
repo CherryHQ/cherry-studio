@@ -1,9 +1,10 @@
 import { loggerService } from '@logger'
 import { cacheService } from '@renderer/data/CacheService'
+import { dataApiService } from '@renderer/data/DataApiService'
 import { useCache } from '@renderer/data/hooks/useCache'
+import type { AgentSessionEntity } from '@renderer/types'
+import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
 import { useCallback, useEffect, useRef } from 'react'
-
-import { useAgentClient } from './useAgentClient'
 
 const logger = loggerService.withContext('useAgentSessionInitializer')
 
@@ -13,7 +14,6 @@ const logger = loggerService.withContext('useAgentSessionInitializer')
  * its most recent session is automatically selected.
  */
 export const useAgentSessionInitializer = () => {
-  const client = useAgentClient()
   const [activeAgentId] = useCache('agent.active_id')
   const [activeSessionIdMap] = useCache('agent.session.active_id_map')
 
@@ -25,39 +25,38 @@ export const useAgentSessionInitializer = () => {
    * Initialize session for the given agent by loading its sessions
    * and setting the latest one as active
    */
-  const initializeAgentSession = useCallback(
-    async (agentId: string) => {
-      if (!agentId || !client) return
+  const initializeAgentSession = useCallback(async (agentId: string) => {
+    if (!agentId) return
 
-      try {
-        // Check if this agent has already been initialized (key exists in map)
-        if (agentId in activeSessionIdMapRef.current) {
-          // Already initialized, nothing to do
-          return
-        }
-
-        // Load sessions for this agent
-        const response = await client.listSessions(agentId)
-        const sessions = response.data
-
-        if (sessions && sessions.length > 0) {
-          // Get the latest session (first in the list, assuming they're sorted by updatedAt)
-          const latestSession = sessions[0]
-
-          // Set the latest session as active
-          const currentMap = cacheService.get('agent.session.active_id_map') ?? {}
-          cacheService.set('agent.session.active_id_map', { ...currentMap, [agentId]: latestSession.id })
-        } else {
-          // Mark as initialized with no session (null vs undefined distinction)
-          const currentMap = cacheService.get('agent.session.active_id_map') ?? {}
-          cacheService.set('agent.session.active_id_map', { ...currentMap, [agentId]: null })
-        }
-      } catch (error) {
-        logger.error('Failed to initialize agent session:', error as Error)
+    try {
+      // Check if this agent has already been initialized (key exists in map)
+      if (agentId in activeSessionIdMapRef.current) {
+        // Already initialized, nothing to do
+        return
       }
-    },
-    [client]
-  )
+
+      // Load sessions for this agent
+      const response = (await dataApiService.get(`/agents/${agentId}/sessions`, {
+        query: { page: 1, limit: 20 }
+      })) as OffsetPaginationResponse<AgentSessionEntity>
+      const sessions = response.items
+
+      if (sessions && sessions.length > 0) {
+        // Get the latest session (first in the list, assuming they're sorted by updatedAt)
+        const latestSession = sessions[0]
+
+        // Set the latest session as active
+        const currentMap = cacheService.get('agent.session.active_id_map') ?? {}
+        cacheService.set('agent.session.active_id_map', { ...currentMap, [agentId]: latestSession.id })
+      } else {
+        // Mark as initialized with no session (null vs undefined distinction)
+        const currentMap = cacheService.get('agent.session.active_id_map') ?? {}
+        cacheService.set('agent.session.active_id_map', { ...currentMap, [agentId]: null })
+      }
+    } catch (error) {
+      logger.error('Failed to initialize agent session:', error as Error)
+    }
+  }, [])
 
   /**
    * Auto-initialize when activeAgentId changes
