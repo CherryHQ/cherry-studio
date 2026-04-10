@@ -1,31 +1,25 @@
-import type { AgentEntity, ListAgentsResponse, UpdateAgentForm } from '@renderer/types'
+import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
+import type { AgentEntity, UpdateAgentForm } from '@renderer/types'
 import type { UpdateAgentBaseOptions, UpdateAgentFunction } from '@renderer/types/agent'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { mutate } from 'swr'
 
 import { useAgentClient } from './useAgentClient'
 
 export const useUpdateAgent = () => {
   const { t } = useTranslation()
   const client = useAgentClient()
-  const listKey = client?.agentPaths.base
+  const invalidate = useInvalidateCache()
 
   const updateAgent: UpdateAgentFunction = useCallback(
     async (form: UpdateAgentForm, options?: UpdateAgentBaseOptions): Promise<AgentEntity | undefined> => {
       try {
-        if (!client || !listKey) {
+        if (!client) {
           throw new Error(t('apiServer.messages.notEnabled'))
         }
-        const itemKey = client.agentPaths.withId(form.id)
-        // may change to optimistic update
         const result = await client.updateAgent(form)
-        void mutate<ListAgentsResponse['data']>(
-          listKey,
-          (prev) => prev?.map((a) => (a.id === result.id ? result : a)) ?? []
-        )
-        void mutate(itemKey, result)
+        await invalidate(['/agents', `/agents/${form.id}`])
         if (options?.showSuccessToast ?? true) {
           window.toast.success({ key: 'update-agent', title: t('common.update_success') })
         }
@@ -35,7 +29,7 @@ export const useUpdateAgent = () => {
         return undefined
       }
     },
-    [client, listKey, t]
+    [client, invalidate, t]
   )
 
   const updateModel = useCallback(
