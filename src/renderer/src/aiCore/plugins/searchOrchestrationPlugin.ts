@@ -418,14 +418,14 @@ export const searchOrchestrationPlugin = (
         if (messages && assistant) {
           await storeConversationMemory(messages, assistant, context)
         }
-
-        // 清理缓存
-        delete intentAnalysisResults[context.requestId]
-        delete userMessages[context.requestId]
-        delete prefillKeywordsPerRequest[context.requestId]
       } catch (error) {
         logger.error('💾 Memory storage failed:', error as Error)
         // 不抛出错误，避免影响主流程
+      } finally {
+        // 无论记忆存储是否成功，都清理缓存以防止泄漏
+        delete intentAnalysisResults[context.requestId]
+        delete userMessages[context.requestId]
+        delete prefillKeywordsPerRequest[context.requestId]
       }
     }
   })

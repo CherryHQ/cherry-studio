@@ -41,22 +41,22 @@ export const webSearchToolWithPreExtractedKeywords = (
     }),
 
     execute: async ({ additionalContext }) => {
-      let searchResults: WebSearchProviderResponse = {
-        query: '',
-        results: []
+      const emptyResult: WebSearchProviderResponse = { query: '', results: [] }
+
+      if (!webSearchProvider) {
+        throw new Error(
+          `Web search provider "${webSearchProviderId}" not found. Check that the provider is configured correctly.`
+        )
       }
 
       if (!prefillKeywords) {
-        // Model-driven mode: the model must supply its own query via additionalContext.
-        // If it called the tool without one, surface a clear error so it can retry.
+        // Model-driven mode: additionalContext is optional in the schema; no query means no search.
         const query = additionalContext?.trim()
         if (!query) {
-          throw new Error(
-            'No search query provided. Please call this tool again with a specific search query in additionalContext.'
-          )
+          return emptyResult
         }
         const extractResults: ExtractResults = { websearch: { question: [query] } }
-        return webSearchService.processWebsearch(webSearchProvider!, extractResults, requestId)
+        return webSearchService.processWebsearch(webSearchProvider, extractResults, requestId)
       }
 
       // Pre-extraction mode: fall back to extracted keywords when model adds no extra context.
@@ -64,7 +64,7 @@ export const webSearchToolWithPreExtractedKeywords = (
 
       // 检查是否需要搜索
       if (finalQueries[0] === 'not_needed' || !finalQueries.some((q) => q.trim().length > 0)) {
-        return searchResults
+        return emptyResult
       }
 
       // 构建 ExtractResults 结构用于 processWebsearch
@@ -74,9 +74,7 @@ export const webSearchToolWithPreExtractedKeywords = (
           links: extractedKeywords.links
         }
       }
-      searchResults = await webSearchService.processWebsearch(webSearchProvider!, extractResults, requestId)
-
-      return searchResults
+      return webSearchService.processWebsearch(webSearchProvider, extractResults, requestId)
     },
     toModelOutput: ({ output: results }) => {
       let summary = 'No search needed based on the query analysis.'
