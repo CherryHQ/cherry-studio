@@ -2,7 +2,7 @@
 // 将 v2 DataApi Provider 桥接为 v1 Provider 形状，供尚未迁移的下游使用。
 
 import type { Model as V1Model, Provider as V1Provider, ProviderType } from '@renderer/types'
-import { EndpointType, type Model as V2Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model as V2Model } from '@shared/data/types/model'
 import type { Provider as V2Provider } from '@shared/data/types/provider'
 
 export interface V1ShimOptions {
@@ -15,7 +15,7 @@ export interface V1ShimOptions {
 }
 
 function defaultChatBaseUrl(v2: V2Provider): string {
-  const ep = v2.defaultChatEndpoint ?? EndpointType.OPENAI_CHAT_COMPLETIONS
+  const ep = v2.defaultChatEndpoint ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
   return v2.endpointConfigs?.[ep]?.baseUrl ?? ''
 }
 
@@ -40,20 +40,20 @@ function v1ProviderTypeFromV2(v2: V2Provider): ProviderType {
     return 'mistral'
   }
 
-  const ep = v2.defaultChatEndpoint ?? EndpointType.OPENAI_CHAT_COMPLETIONS
+  const ep = v2.defaultChatEndpoint ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
 
   switch (ep) {
-    case EndpointType.OPENAI_RESPONSES:
+    case ENDPOINT_TYPE.OPENAI_RESPONSES:
       return 'openai-response'
-    case EndpointType.ANTHROPIC_MESSAGES:
+    case ENDPOINT_TYPE.ANTHROPIC_MESSAGES:
       return 'anthropic'
-    case EndpointType.GOOGLE_GENERATE_CONTENT:
+    case ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT:
       return 'gemini'
-    case EndpointType.OLLAMA_CHAT:
-    case EndpointType.OLLAMA_GENERATE:
+    case ENDPOINT_TYPE.OLLAMA_CHAT:
+    case ENDPOINT_TYPE.OLLAMA_GENERATE:
       return 'ollama'
-    case EndpointType.OPENAI_CHAT_COMPLETIONS:
-    case EndpointType.OPENAI_TEXT_COMPLETIONS:
+    case ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS:
+    case ENDPOINT_TYPE.OPENAI_TEXT_COMPLETIONS:
     default:
       return 'openai'
   }
@@ -93,7 +93,7 @@ export function toV1ProviderShim(v2Provider: V2Provider, options: V1ShimOptions 
     type: v1ProviderTypeFromV2(v2Provider),
     apiKey: options.apiKey ?? '',
     apiHost: options.apiHost ?? defaultChatBaseUrl(v2Provider),
-    anthropicApiHost: v2Provider.endpointConfigs?.[EndpointType.ANTHROPIC_MESSAGES]?.baseUrl,
+    anthropicApiHost: v2Provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl,
     models: (options.models ?? []) as unknown as V1Model[],
     enabled: v2Provider.isEnabled,
     isSystem: v2Provider.presetProviderId != null,

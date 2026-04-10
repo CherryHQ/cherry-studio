@@ -1,27 +1,27 @@
 import { getProviderLabel } from '@renderer/i18n/label'
-import { EndpointType } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { EndpointConfig, Provider } from '@shared/data/types/provider'
 
 // ─── Protocol-level: check defaultChatEndpoint ───────────────────────────────
 
 export function isAnthropicProvider(provider: Provider): boolean {
-  return provider.defaultChatEndpoint === EndpointType.ANTHROPIC_MESSAGES
+  return provider.defaultChatEndpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
 }
 
 export function isGeminiProvider(provider: Provider): boolean {
-  return provider.defaultChatEndpoint === EndpointType.GOOGLE_GENERATE_CONTENT
+  return provider.defaultChatEndpoint === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
 }
 
 export function isOllamaProvider(provider: Provider): boolean {
-  return provider.defaultChatEndpoint === EndpointType.OLLAMA_CHAT
+  return provider.defaultChatEndpoint === ENDPOINT_TYPE.OLLAMA_CHAT
 }
 
 export function isOpenAIResponsesProvider(provider: Provider): boolean {
-  return provider.defaultChatEndpoint === EndpointType.OPENAI_RESPONSES
+  return provider.defaultChatEndpoint === ENDPOINT_TYPE.OPENAI_RESPONSES
 }
 
 export function isOpenAIChatProvider(provider: Provider): boolean {
-  return provider.defaultChatEndpoint === EndpointType.OPENAI_CHAT_COMPLETIONS
+  return provider.defaultChatEndpoint === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
 }
 
 // ─── Vendor-level: check authType ────────────────────────────────────────────
@@ -62,15 +62,15 @@ export function isSystemProvider(provider: Provider): boolean {
 
 export function isOpenAICompatibleProvider(provider: Provider): boolean {
   return (
-    provider.defaultChatEndpoint === EndpointType.OPENAI_CHAT_COMPLETIONS ||
-    provider.defaultChatEndpoint === EndpointType.OPENAI_RESPONSES
+    provider.defaultChatEndpoint === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS ||
+    provider.defaultChatEndpoint === ENDPOINT_TYPE.OPENAI_RESPONSES
   )
 }
 
 export function isAnthropicSupportedProvider(provider: Provider): boolean {
   return (
-    provider.defaultChatEndpoint === EndpointType.ANTHROPIC_MESSAGES ||
-    provider.endpointConfigs?.[EndpointType.ANTHROPIC_MESSAGES]?.baseUrl != null
+    provider.defaultChatEndpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES ||
+    provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl != null
   )
 }
 

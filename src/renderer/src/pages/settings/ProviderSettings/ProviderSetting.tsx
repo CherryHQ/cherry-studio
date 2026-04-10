@@ -40,7 +40,7 @@ import {
   isVertexProvider
 } from '@renderer/utils/provider.v2'
 import { toV1ProviderShim } from '@renderer/utils/v1ProviderShim'
-import { EndpointType } from '@shared/data/types/model'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { Divider, Input, Select, Space } from 'antd'
 import Link from 'antd/es/typography/Link'
@@ -130,9 +130,9 @@ const ProviderSettingContent: FC<ContentProps> = ({ provider, providerId, isOnbo
   )
 
   // Derive v1-like fields from v2 Provider
-  const primaryEndpoint = provider.defaultChatEndpoint ?? EndpointType.OPENAI_CHAT_COMPLETIONS
+  const primaryEndpoint = provider.defaultChatEndpoint ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
   const providerApiHost = provider.endpointConfigs?.[primaryEndpoint]?.baseUrl ?? ''
-  const providerAnthropicHost = provider.endpointConfigs?.[EndpointType.ANTHROPIC_MESSAGES]?.baseUrl
+  const providerAnthropicHost = provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl
   const providerApiVersion = provider.settings?.apiVersion ?? ''
   const providerApiKey = apiKeysData?.keys?.map((k) => k.key).join(',') ?? ''
 
@@ -238,8 +238,8 @@ const ProviderSettingContent: FC<ContentProps> = ({ provider, providerId, isOnbo
           endpointConfigs: {
             ...provider.endpointConfigs,
             [primaryEndpoint]: { ...provider.endpointConfigs?.[primaryEndpoint], baseUrl: apiHost },
-            [EndpointType.ANTHROPIC_MESSAGES]: {
-              ...provider.endpointConfigs?.[EndpointType.ANTHROPIC_MESSAGES],
+            [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+              ...provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
               baseUrl: apiHost
             }
           }
@@ -265,8 +265,8 @@ const ProviderSettingContent: FC<ContentProps> = ({ provider, providerId, isOnbo
       void patchProvider({
         endpointConfigs: {
           ...provider.endpointConfigs,
-          [EndpointType.ANTHROPIC_MESSAGES]: {
-            ...provider.endpointConfigs?.[EndpointType.ANTHROPIC_MESSAGES],
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+            ...provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
             baseUrl: trimmedHost
           }
         }
@@ -274,7 +274,7 @@ const ProviderSettingContent: FC<ContentProps> = ({ provider, providerId, isOnbo
       setAnthropicHost(trimmedHost)
     } else {
       const restConfigs = { ...provider.endpointConfigs }
-      delete restConfigs[EndpointType.ANTHROPIC_MESSAGES]
+      delete restConfigs[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
       void patchProvider({ endpointConfigs: restConfigs })
       setAnthropicHost(undefined)
     }
@@ -377,7 +377,7 @@ const ProviderSettingContent: FC<ContentProps> = ({ provider, providerId, isOnbo
     let formattedHost: string
 
     if (isAnthropicProvider(provider)) {
-      const anthropicHost = provider.endpointConfigs?.[EndpointType.ANTHROPIC_MESSAGES]?.baseUrl
+      const anthropicHost = provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl
       formattedHost = formatApiHost(anthropicHost || apiHost, appendVersion)
     } else if (
       provider.id === 'copilot' ||

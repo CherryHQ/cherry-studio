@@ -6,7 +6,7 @@ import ProviderLogoPicker from '@renderer/components/ProviderLogoPicker'
 import { TopView } from '@renderer/components/TopView'
 import ImageStorage from '@renderer/services/ImageStorage'
 import { compressImage, generateColorFromChar, getForegroundColor } from '@renderer/utils'
-import { EndpointType } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { Divider, Dropdown, Form, Input, Modal, Popover, Select, Upload } from 'antd'
 import type { ItemType } from 'antd/es/menu/interface'
@@ -32,7 +32,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
   const [open, setOpen] = useState(true)
   const [name, setName] = useState(provider?.name || '')
   const [selectedEndpoint, setSelectedEndpoint] = useState<EndpointType>(
-    provider?.defaultChatEndpoint ?? EndpointType.OPENAI_CHAT_COMPLETIONS
+    provider?.defaultChatEndpoint ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
   )
   const [logo, setLogo] = useState<string | null>(null)
   const [logoPickerOpen, setLogoPickerOpen] = useState(false)
@@ -63,7 +63,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
 
   const onCancel = () => {
     setOpen(false)
-    resolve({ name: '', defaultChatEndpoint: EndpointType.OPENAI_CHAT_COMPLETIONS })
+    resolve({ name: '', defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS })
   }
 
   const onClose = () => {
@@ -254,11 +254,11 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
             value={selectedEndpoint}
             onChange={(value: EndpointType) => setSelectedEndpoint(value)}
             options={[
-              { label: 'OpenAI', value: EndpointType.OPENAI_CHAT_COMPLETIONS },
-              { label: 'OpenAI Responses', value: EndpointType.OPENAI_RESPONSES },
-              { label: 'Anthropic', value: EndpointType.ANTHROPIC_MESSAGES },
-              { label: 'Gemini', value: EndpointType.GOOGLE_GENERATE_CONTENT },
-              { label: 'Ollama', value: EndpointType.OLLAMA_CHAT }
+              { label: 'OpenAI', value: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS },
+              { label: 'OpenAI Responses', value: ENDPOINT_TYPE.OPENAI_RESPONSES },
+              { label: 'Anthropic', value: ENDPOINT_TYPE.ANTHROPIC_MESSAGES },
+              { label: 'Gemini', value: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT },
+              { label: 'Ollama', value: ENDPOINT_TYPE.OLLAMA_CHAT }
             ]}
           />
         </Form.Item>

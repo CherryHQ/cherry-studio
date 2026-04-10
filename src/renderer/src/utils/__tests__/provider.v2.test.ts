@@ -1,4 +1,4 @@
-import { EndpointType } from '@shared/data/types/model'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
 
@@ -52,17 +52,19 @@ function makeProvider(overrides: Partial<Provider> = {}): Provider {
 
 describe('provider.v2 - Protocol-level identity checks', () => {
   it('isAnthropicProvider: true when defaultChatEndpoint is ANTHROPIC_MESSAGES', () => {
-    const p = makeProvider({ defaultChatEndpoint: EndpointType.ANTHROPIC_MESSAGES })
+    const p = makeProvider({ defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES })
     expect(isAnthropicProvider(p)).toBe(true)
   })
 
   it('isAnthropicProvider: false for other endpoints', () => {
-    expect(isAnthropicProvider(makeProvider({ defaultChatEndpoint: EndpointType.OPENAI_CHAT_COMPLETIONS }))).toBe(false)
+    expect(isAnthropicProvider(makeProvider({ defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS }))).toBe(
+      false
+    )
     expect(isAnthropicProvider(makeProvider())).toBe(false) // undefined endpoint
   })
 
   it('isGeminiProvider: true when defaultChatEndpoint is GOOGLE_GENERATE_CONTENT', () => {
-    const p = makeProvider({ defaultChatEndpoint: EndpointType.GOOGLE_GENERATE_CONTENT })
+    const p = makeProvider({ defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT })
     expect(isGeminiProvider(p)).toBe(true)
   })
 
@@ -71,17 +73,17 @@ describe('provider.v2 - Protocol-level identity checks', () => {
   })
 
   it('isOllamaProvider: true when defaultChatEndpoint is OLLAMA_CHAT', () => {
-    const p = makeProvider({ defaultChatEndpoint: EndpointType.OLLAMA_CHAT })
+    const p = makeProvider({ defaultChatEndpoint: ENDPOINT_TYPE.OLLAMA_CHAT })
     expect(isOllamaProvider(p)).toBe(true)
   })
 
   it('isOpenAIResponsesProvider: true when defaultChatEndpoint is OPENAI_RESPONSES', () => {
-    const p = makeProvider({ defaultChatEndpoint: EndpointType.OPENAI_RESPONSES })
+    const p = makeProvider({ defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES })
     expect(isOpenAIResponsesProvider(p)).toBe(true)
   })
 
   it('isOpenAIChatProvider: true when defaultChatEndpoint is OPENAI_CHAT_COMPLETIONS', () => {
-    const p = makeProvider({ defaultChatEndpoint: EndpointType.OPENAI_CHAT_COMPLETIONS })
+    const p = makeProvider({ defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS })
     expect(isOpenAIChatProvider(p)).toBe(true)
   })
 })
@@ -134,29 +136,29 @@ describe('provider.v2 - ID-level identity checks', () => {
 describe('provider.v2 - Composite identity checks', () => {
   it('isOpenAICompatibleProvider: true for OPENAI_CHAT_COMPLETIONS or OPENAI_RESPONSES', () => {
     expect(
-      isOpenAICompatibleProvider(makeProvider({ defaultChatEndpoint: EndpointType.OPENAI_CHAT_COMPLETIONS }))
+      isOpenAICompatibleProvider(makeProvider({ defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS }))
     ).toBe(true)
-    expect(isOpenAICompatibleProvider(makeProvider({ defaultChatEndpoint: EndpointType.OPENAI_RESPONSES }))).toBe(true)
-    expect(isOpenAICompatibleProvider(makeProvider({ defaultChatEndpoint: EndpointType.ANTHROPIC_MESSAGES }))).toBe(
+    expect(isOpenAICompatibleProvider(makeProvider({ defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES }))).toBe(true)
+    expect(isOpenAICompatibleProvider(makeProvider({ defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES }))).toBe(
       false
     )
   })
 
   it('isAnthropicSupportedProvider: true for ANTHROPIC_MESSAGES endpoint', () => {
-    const p = makeProvider({ defaultChatEndpoint: EndpointType.ANTHROPIC_MESSAGES })
+    const p = makeProvider({ defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES })
     expect(isAnthropicSupportedProvider(p)).toBe(true)
   })
 
   it('isAnthropicSupportedProvider: true when endpointConfigs has ANTHROPIC_MESSAGES baseUrl', () => {
     const p = makeProvider({
-      defaultChatEndpoint: EndpointType.OPENAI_CHAT_COMPLETIONS,
-      endpointConfigs: { [EndpointType.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.example.com' } }
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: { [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.example.com' } }
     })
     expect(isAnthropicSupportedProvider(p)).toBe(true)
   })
 
   it('isAnthropicSupportedProvider: false when neither condition is met', () => {
-    const p = makeProvider({ defaultChatEndpoint: EndpointType.OPENAI_CHAT_COMPLETIONS })
+    const p = makeProvider({ defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS })
     expect(isAnthropicSupportedProvider(p)).toBe(false)
   })
 })
@@ -268,13 +270,13 @@ describe('provider.v2 - Endpoint config helpers', () => {
   it('replaceEndpointConfigDomain: replaces domain in all baseUrls while preserving paths', () => {
     const result = replaceEndpointConfigDomain(
       {
-        [EndpointType.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://old.com/v1' },
-        [EndpointType.ANTHROPIC_MESSAGES]: { baseUrl: 'https://old.com/anthropic' }
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://old.com/v1' },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://old.com/anthropic' }
       },
       'new.com'
     )
-    expect(result[EndpointType.OPENAI_CHAT_COMPLETIONS]?.baseUrl).toBe('https://new.com/v1')
-    expect(result[EndpointType.ANTHROPIC_MESSAGES]?.baseUrl).toBe('https://new.com/anthropic')
+    expect(result[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.baseUrl).toBe('https://new.com/v1')
+    expect(result[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl).toBe('https://new.com/anthropic')
   })
 
   it('replaceEndpointConfigDomain: returns empty object for undefined input', () => {
@@ -283,27 +285,29 @@ describe('provider.v2 - Endpoint config helpers', () => {
 
   it('replaceEndpointConfigDomain: preserves invalid URLs unchanged', () => {
     const result = replaceEndpointConfigDomain(
-      { [EndpointType.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'not-a-url' } },
+      { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'not-a-url' } },
       'new.com'
     )
-    expect(result[EndpointType.OPENAI_CHAT_COMPLETIONS]?.baseUrl).toBe('not-a-url')
+    expect(result[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.baseUrl).toBe('not-a-url')
   })
 
   it('replaceEndpointConfigDomain: handles URLs with ports and paths', () => {
     const result = replaceEndpointConfigDomain(
-      { [EndpointType.OLLAMA_CHAT]: { baseUrl: 'http://localhost:11434/api' } },
+      { [ENDPOINT_TYPE.OLLAMA_CHAT]: { baseUrl: 'http://localhost:11434/api' } },
       '192.168.1.100'
     )
-    expect(result[EndpointType.OLLAMA_CHAT]?.baseUrl).toBe('http://192.168.1.100:11434/api')
+    expect(result[ENDPOINT_TYPE.OLLAMA_CHAT]?.baseUrl).toBe('http://192.168.1.100:11434/api')
   })
 
   it('replaceEndpointConfigDomain: preserves other EndpointConfig fields', () => {
     const result = replaceEndpointConfigDomain(
-      { [EndpointType.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://old.com/v1', reasoningFormatType: 'openai-chat' } },
+      {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://old.com/v1', reasoningFormatType: 'openai-chat' }
+      },
       'new.com'
     )
-    expect(result[EndpointType.OPENAI_CHAT_COMPLETIONS]?.baseUrl).toBe('https://new.com/v1')
-    expect(result[EndpointType.OPENAI_CHAT_COMPLETIONS]?.reasoningFormatType).toBe('openai-chat')
+    expect(result[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.baseUrl).toBe('https://new.com/v1')
+    expect(result[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.reasoningFormatType).toBe('openai-chat')
   })
 })
 

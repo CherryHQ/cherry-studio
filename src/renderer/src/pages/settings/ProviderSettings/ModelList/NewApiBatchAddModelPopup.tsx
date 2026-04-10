@@ -4,7 +4,7 @@ import { useModelMutations } from '@data/hooks/useModels'
 import { TopView } from '@renderer/components/TopView'
 import { endpointTypeOptions } from '@renderer/config/endpointTypes'
 import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
-import type { Model } from '@shared/data/types/model'
+import type { EndpointType, Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { FormProps } from 'antd'
@@ -54,7 +54,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
         modelId,
         name: model.name,
         group: model.group,
-        endpointTypes: values.endpointType ? [values.endpointType as string] : undefined
+        endpointTypes: values.endpointType ? [values.endpointType as EndpointType] : undefined
       })
     }
     return true

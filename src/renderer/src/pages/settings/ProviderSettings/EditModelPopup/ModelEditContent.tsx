@@ -21,7 +21,7 @@ import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
 import { getDefaultGroupName } from '@renderer/utils'
 import { isNewApiProvider } from '@renderer/utils/provider.v2'
 import type { Model } from '@shared/data/types/model'
-import { ModelCapability } from '@shared/data/types/model'
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { ModalProps } from 'antd'
 import { Divider, Form, Input, InputNumber, Modal, Select } from 'antd'
@@ -34,12 +34,12 @@ import styled from 'styled-components'
 type ToggleType = 'vision' | 'reasoning' | 'function_calling' | 'web_search' | 'embedding' | 'rerank'
 
 const TOGGLE_TO_V2: Record<ToggleType, string> = {
-  vision: ModelCapability.IMAGE_RECOGNITION,
-  reasoning: ModelCapability.REASONING,
-  function_calling: ModelCapability.FUNCTION_CALL,
-  web_search: ModelCapability.WEB_SEARCH,
-  embedding: ModelCapability.EMBEDDING,
-  rerank: ModelCapability.RERANK
+  vision: MODEL_CAPABILITY.IMAGE_RECOGNITION,
+  reasoning: MODEL_CAPABILITY.REASONING,
+  function_calling: MODEL_CAPABILITY.FUNCTION_CALL,
+  web_search: MODEL_CAPABILITY.WEB_SEARCH,
+  embedding: MODEL_CAPABILITY.EMBEDDING,
+  rerank: MODEL_CAPABILITY.RERANK
 }
 
 const V2_TO_TOGGLE: Record<string, ToggleType> = Object.fromEntries(
