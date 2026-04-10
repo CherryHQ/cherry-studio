@@ -28,7 +28,8 @@ vi.mock('electron', () => ({
 }))
 
 vi.mock('../utils', () => ({
-  getDataPath: vi.fn((subPath?: string) => (subPath ? path.join('/userData/Data', subPath) : '/userData/Data'))
+  getDataPath: vi.fn((subPath?: string) => (subPath ? path.join('/userData/Data', subPath) : '/userData/Data')),
+  toAsarUnpackedPath: vi.fn((filePath: string) => filePath)
 }))
 
 const mockRepo = {
