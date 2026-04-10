@@ -1,5 +1,6 @@
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { Card } from 'antd'
+import DOMPurify from 'dompurify'
 import { npxFinder } from 'npx-scope-finder'
 import type { FC } from 'react'
 import { memo, useEffect, useState } from 'react'
@@ -19,11 +20,11 @@ const MCPDescription: FC<McpDescriptionProps> = ({ searchKey }) => {
   useEffect(() => {
     let isMounted = true
     setLoading(true)
-    npxFinder(searchKey)
+    void npxFinder(searchKey)
       .then((packages) => {
         const readme = packages[0]?.original?.readme ?? t('settings.mcp.noDescriptionAvailable')
-        shikiMarkdownIt(readme).then((result) => {
-          if (isMounted) setMcpInfo(result)
+        void shikiMarkdownIt(readme).then((result) => {
+          if (isMounted) setMcpInfo(DOMPurify.sanitize(result))
         })
       })
       .finally(() => {

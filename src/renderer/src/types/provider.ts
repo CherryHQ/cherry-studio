@@ -200,7 +200,9 @@ export const SystemProviderIdSchema = z.enum([
   'sophnet',
   'gateway',
   'cerebras',
-  'mimo'
+  'mimo',
+  'minimax-global',
+  'zai'
 ])
 
 export type SystemProviderId = z.infer<typeof SystemProviderIdSchema>
@@ -271,7 +273,9 @@ export const SystemProviderIds = {
   huggingface: 'huggingface',
   gateway: 'gateway',
   cerebras: 'cerebras',
-  mimo: 'mimo'
+  mimo: 'mimo',
+  'minimax-global': 'minimax-global',
+  zai: 'zai'
 } as const satisfies Record<SystemProviderId, SystemProviderId>
 
 type SystemProviderIdTypeMap = typeof SystemProviderIds

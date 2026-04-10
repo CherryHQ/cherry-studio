@@ -1,3 +1,4 @@
+import { resolve } from 'path'
 import { defineConfig } from 'vitest/config'
 
 import electronViteConfig from './electron.vite.config'
@@ -19,7 +20,10 @@ export default defineConfig({
           name: 'main',
           environment: 'node',
           setupFiles: ['tests/main.setup.ts'],
-          include: ['src/main/**/*.{test,spec}.{ts,tsx}', 'src/main/**/__tests__/**/*.{test,spec}.{ts,tsx}']
+          include: ['src/main/**/*.{test,spec}.{ts,tsx}', 'src/main/**/__tests__/**/*.{test,spec}.{ts,tsx}'],
+          benchmark: {
+            include: ['src/main/**/*.bench.{ts,tsx}', 'src/main/**/__tests__/**/*.bench.{ts,tsx}']
+          }
         }
       },
       // 渲染进程单元测试配置
@@ -33,7 +37,10 @@ export default defineConfig({
           name: 'renderer',
           environment: 'jsdom',
           setupFiles: ['@vitest/web-worker', 'tests/renderer.setup.ts'],
-          include: ['src/renderer/**/*.{test,spec}.{ts,tsx}', 'src/renderer/**/__tests__/**/*.{test,spec}.{ts,tsx}']
+          include: ['src/renderer/**/*.{test,spec}.{ts,tsx}', 'src/renderer/**/__tests__/**/*.{test,spec}.{ts,tsx}'],
+          benchmark: {
+            include: ['src/renderer/**/*.bench.{ts,tsx}', 'src/renderer/**/__tests__/**/*.bench.{ts,tsx}']
+          }
         }
       },
       // 脚本单元测试配置
@@ -42,7 +49,10 @@ export default defineConfig({
         test: {
           name: 'scripts',
           environment: 'node',
-          include: ['scripts/**/*.{test,spec}.{ts,tsx}', 'scripts/**/__tests__/**/*.{test,spec}.{ts,tsx}']
+          include: ['scripts/**/*.{test,spec}.{ts,tsx}', 'scripts/**/__tests__/**/*.{test,spec}.{ts,tsx}'],
+          benchmark: {
+            include: ['scripts/**/*.bench.{ts,tsx}', 'scripts/**/__tests__/**/*.bench.{ts,tsx}']
+          }
         }
       },
       // aiCore 包单元测试配置
@@ -54,19 +64,30 @@ export default defineConfig({
           include: [
             'packages/aiCore/**/*.{test,spec}.{ts,tsx}',
             'packages/aiCore/**/__tests__/**/*.{test,spec}.{ts,tsx}'
-          ]
+          ],
+          benchmark: {
+            include: ['packages/aiCore/**/*.bench.{ts,tsx}', 'packages/aiCore/**/__tests__/**/*.bench.{ts,tsx}']
+          }
         }
       },
       // shared 包单元测试配置
       {
         extends: true,
+        resolve: {
+          alias: {
+            '@shared': resolve('packages/shared')
+          }
+        },
         test: {
           name: 'shared',
           environment: 'node',
           include: [
             'packages/shared/**/*.{test,spec}.{ts,tsx}',
             'packages/shared/**/__tests__/**/*.{test,spec}.{ts,tsx}'
-          ]
+          ],
+          benchmark: {
+            include: ['packages/shared/**/*.bench.{ts,tsx}', 'packages/shared/**/__tests__/**/*.bench.{ts,tsx}']
+          }
         }
       }
     ],

@@ -61,6 +61,7 @@ const Scrollbar: FC<ScrollbarProps> = ({ ref: passedRef, children, onScroll: ext
 
 const ScrollBarContainer = styled.div<{ $isScrolling: boolean }>`
   overflow-y: auto;
+  scrollbar-gutter: stable;
   &::-webkit-scrollbar-thumb {
     transition: background 2s ease;
     background: ${(props) => (props.$isScrolling ? 'var(--color-scrollbar-thumb)' : 'transparent')};

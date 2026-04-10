@@ -1,19 +1,20 @@
 import { CloseOutlined } from '@ant-design/icons'
 import type { DraggableProvided, DroppableProvided, DropResult } from '@hello-pangea/dnd'
 import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd'
+import { OpenClawSidebarIcon } from '@renderer/components/Icons/SVGIcon'
 import { getSidebarIconLabel } from '@renderer/i18n/label'
 import { useAppDispatch } from '@renderer/store'
 import { setSidebarIcons } from '@renderer/store/settings'
 import type { SidebarIcon } from '@renderer/types'
 import { message } from 'antd'
 import {
-  Bot,
   Code,
   FileSearch,
   Folder,
   Languages,
   LayoutGrid,
   MessageSquareQuote,
+  MousePointerClick,
   NotepadText,
   Palette,
   Sparkle
@@ -117,6 +118,7 @@ const SidebarIconsManager: FC<SidebarIconsManagerProps> = ({
     () =>
       ({
         assistants: <MessageSquareQuote size={16} />,
+        agents: <MousePointerClick size={16} />,
         store: <Sparkle size={16} />,
         paintings: <Palette size={16} />,
         translate: <Languages size={16} />,
@@ -125,7 +127,7 @@ const SidebarIconsManager: FC<SidebarIconsManagerProps> = ({
         files: <Folder size={16} />,
         notes: <NotepadText size={16} />,
         code_tools: <Code size={16} />,
-        openclaw: <Bot size={16} />
+        openclaw: <OpenClawSidebarIcon style={{ width: 16, height: 16 }} />
       }) satisfies Record<SidebarIcon, ReactNode>,
     []
   )
