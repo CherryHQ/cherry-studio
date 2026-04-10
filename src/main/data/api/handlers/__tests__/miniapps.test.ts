@@ -36,7 +36,7 @@ describe('miniAppHandlers', () => {
       const response = { items: [], total: 0, page: 1 }
       listMock.mockResolvedValueOnce(response)
 
-      const result = await miniAppHandlers['/miniapps'].GET({ query: {} })
+      const result = await miniAppHandlers['/miniapps'].GET({ query: undefined })
 
       expect(listMock).toHaveBeenCalledWith({})
       expect(result).toEqual(response)
@@ -88,7 +88,7 @@ describe('miniAppHandlers', () => {
       url: 'https://my.app',
       logo: 'application',
       bordered: true,
-      supportedRegions: ['CN', 'Global'] as const
+      supportedRegions: ['CN', 'Global'] as ('CN' | 'Global')[]
     }
 
     it('should parse body and delegate to service', async () => {
