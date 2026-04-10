@@ -6,7 +6,7 @@ import { foreignKey, index, integer, sqliteTable, text } from 'drizzle-orm/sqlit
 
 import { agentsTable } from './agents.schema'
 
-export const sessionsTable = sqliteTable('sessions', {
+export const sessionsTable = sqliteTable('agents_sessions', {
   id: text('id').primaryKey(),
   agent_type: text('agent_type').notNull(),
   agent_id: text('agent_id').notNull(), // Primary agent ID for the session

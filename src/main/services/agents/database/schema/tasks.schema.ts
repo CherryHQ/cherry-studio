@@ -6,7 +6,7 @@ import { foreignKey, index, integer, sqliteTable, text } from 'drizzle-orm/sqlit
 
 import { agentsTable } from './agents.schema'
 
-export const scheduledTasksTable = sqliteTable('scheduled_tasks', {
+export const scheduledTasksTable = sqliteTable('agents_tasks', {
   id: text('id').primaryKey(),
   agent_id: text('agent_id').notNull(),
   name: text('name').notNull(),
@@ -22,7 +22,7 @@ export const scheduledTasksTable = sqliteTable('scheduled_tasks', {
   updated_at: text('updated_at').notNull()
 })
 
-export const taskRunLogsTable = sqliteTable('task_run_logs', {
+export const taskRunLogsTable = sqliteTable('agents_task_run_logs', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   task_id: text('task_id').notNull(),
   session_id: text('session_id'),

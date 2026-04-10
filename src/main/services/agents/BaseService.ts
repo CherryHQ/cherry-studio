@@ -8,7 +8,6 @@ import { objectKeys } from '@types'
 import fs from 'fs'
 import path from 'path'
 
-import { databaseManager } from './database/DatabaseManager'
 import { type AgentModelField, AgentModelValidationError } from './errors'
 import { builtinSlashCommands } from './services/claudecode/commands'
 import { builtinTools } from './services/claudecode/tools'
@@ -144,12 +143,13 @@ export abstract class BaseService {
   }
 
   /**
-   * Get database instance
-   * Automatically waits for initialization to complete
+   * Get the consolidated v2 main database.
+   *
+   * Agents services now read/write the shared main SQLite database via
+   * `DbService` instead of the deprecated standalone `agents.db` manager.
    */
   public async getDatabase() {
-    await databaseManager.initialize()
-    return databaseManager.getDatabase()
+    return application.get('DbService').getDb()
   }
 
   protected serializeJsonFields(data: any): any {
