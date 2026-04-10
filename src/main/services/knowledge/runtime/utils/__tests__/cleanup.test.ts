@@ -1,11 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appGetMock, getStoreIfExistsMock, loggerWarnMock, vectorDeleteMock } = vi.hoisted(() => ({
-  appGetMock: vi.fn(),
-  getStoreIfExistsMock: vi.fn(),
-  loggerWarnMock: vi.fn(),
-  vectorDeleteMock: vi.fn()
-}))
+const { appGetMock, getStoreIfExistsMock, knowledgeItemUpdateMock, loggerErrorMock, loggerWarnMock, vectorDeleteMock } =
+  vi.hoisted(() => ({
+    appGetMock: vi.fn(),
+    getStoreIfExistsMock: vi.fn(),
+    knowledgeItemUpdateMock: vi.fn(),
+    loggerErrorMock: vi.fn(),
+    loggerWarnMock: vi.fn(),
+    vectorDeleteMock: vi.fn()
+  }))
 
 vi.mock('@main/core/application', () => ({
   application: {
@@ -15,7 +18,7 @@ vi.mock('@main/core/application', () => ({
 
 vi.mock('@data/services/KnowledgeItemService', () => ({
   knowledgeItemService: {
-    update: vi.fn()
+    update: knowledgeItemUpdateMock
   }
 }))
 
@@ -23,12 +26,12 @@ vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({
       warn: loggerWarnMock,
-      error: vi.fn()
+      error: loggerErrorMock
     })
   }
 }))
 
-const { deleteItemVectors, deleteVectorsForEntries } = await import('../cleanup')
+const { deleteItemVectors, deleteVectorsForEntries, failItems } = await import('../cleanup')
 
 function createBase() {
   return {
@@ -153,5 +156,94 @@ describe('cleanup', () => {
       failedItemIds: ['item-2'],
       cleanupError: 'Failed to delete vectors for knowledge items in base kb-1: item-2'
     })
+  })
+
+  it('throws vector cleanup errors when continueOnError is disabled', async () => {
+    const base = createBase()
+
+    getStoreIfExistsMock.mockResolvedValueOnce({
+      delete: vectorDeleteMock
+    })
+    vectorDeleteMock.mockRejectedValueOnce(new Error('delete failed for item-1'))
+
+    await expect(
+      deleteVectorsForEntries(
+        [
+          {
+            base,
+            item: { id: 'item-1' }
+          }
+        ] as any,
+        { continueOnError: false }
+      )
+    ).rejects.toMatchObject({
+      name: 'DeleteItemVectorsError',
+      baseId: 'kb-1',
+      failed: [
+        {
+          itemId: 'item-1'
+        }
+      ]
+    })
+
+    expect(loggerWarnMock).not.toHaveBeenCalled()
+  })
+
+  it('groups entries by base before deleting vectors', async () => {
+    const firstBase = createBase()
+    const secondBase = {
+      ...createBase(),
+      id: 'kb-2'
+    }
+
+    getStoreIfExistsMock
+      .mockResolvedValueOnce({ delete: vectorDeleteMock })
+      .mockResolvedValueOnce({ delete: vectorDeleteMock })
+    vectorDeleteMock.mockResolvedValue(undefined)
+
+    await expect(
+      deleteVectorsForEntries(
+        [
+          { base: firstBase, item: { id: 'item-1' } },
+          { base: firstBase, item: { id: 'item-2' } },
+          { base: secondBase, item: { id: 'item-3' } }
+        ] as any,
+        { continueOnError: true }
+      )
+    ).resolves.toBeUndefined()
+
+    expect(getStoreIfExistsMock).toHaveBeenNthCalledWith(1, firstBase)
+    expect(getStoreIfExistsMock).toHaveBeenNthCalledWith(2, secondBase)
+    expect(vectorDeleteMock).toHaveBeenCalledWith('item-1')
+    expect(vectorDeleteMock).toHaveBeenCalledWith('item-2')
+    expect(vectorDeleteMock).toHaveBeenCalledWith('item-3')
+  })
+
+  it('marks interrupted items as failed and logs persistence errors per item', async () => {
+    knowledgeItemUpdateMock.mockImplementation(async (itemId: string) => {
+      if (itemId === 'item-2') {
+        throw new Error('persist failed')
+      }
+    })
+
+    await expect(failItems(['item-1', 'item-2', 'item-1'], 'stop')).resolves.toBeUndefined()
+
+    expect(knowledgeItemUpdateMock).toHaveBeenCalledTimes(2)
+    expect(knowledgeItemUpdateMock).toHaveBeenCalledWith('item-1', {
+      status: 'failed',
+      error: 'stop'
+    })
+    expect(knowledgeItemUpdateMock).toHaveBeenCalledWith('item-2', {
+      status: 'failed',
+      error: 'stop'
+    })
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      'Failed to persist interrupted knowledge item state',
+      expect.objectContaining({ message: 'persist failed' }),
+      {
+        itemId: 'item-2',
+        reason: 'stop'
+      }
+    )
   })
 })

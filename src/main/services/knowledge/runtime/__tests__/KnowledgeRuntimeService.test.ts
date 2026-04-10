@@ -19,7 +19,8 @@ const {
   loggerWarnMock,
   rerankKnowledgeSearchResultsMock,
   vectorStoreAddMock,
-  vectorStoreDeleteMock
+  vectorStoreDeleteMock,
+  vectorStoreQueryMock
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
   createVectorStoreMock: vi.fn(),
@@ -33,7 +34,8 @@ const {
   loggerWarnMock: vi.fn(),
   rerankKnowledgeSearchResultsMock: vi.fn(),
   vectorStoreAddMock: vi.fn(),
-  vectorStoreDeleteMock: vi.fn()
+  vectorStoreDeleteMock: vi.fn(),
+  vectorStoreQueryMock: vi.fn()
 }))
 
 vi.mock('@main/core/application', () => ({
@@ -191,11 +193,16 @@ describe('KnowledgeRuntimeService', () => {
     createVectorStoreMock.mockResolvedValue({
       add: vectorStoreAddMock,
       delete: vectorStoreDeleteMock,
-      query: vi.fn()
+      query: vectorStoreQueryMock
     })
     deleteVectorStoreMock.mockResolvedValue(undefined)
     vectorStoreAddMock.mockResolvedValue(undefined)
     vectorStoreDeleteMock.mockResolvedValue(undefined)
+    vectorStoreQueryMock.mockResolvedValue({
+      nodes: [],
+      similarities: [],
+      ids: []
+    })
     knowledgeItemGetCascadeIdsInBaseMock.mockImplementation(async (_baseId, itemIds: string[]) => [...new Set(itemIds)])
     knowledgeItemUpdateMock.mockImplementation(async (_id, dto) => dto)
     loadKnowledgeItemDocumentsMock.mockImplementation(async (item) => [
@@ -209,6 +216,72 @@ describe('KnowledgeRuntimeService', () => {
   it('uses WhenReady phase and depends on KnowledgeVectorStoreService', () => {
     expect(getPhase(KnowledgeRuntimeService)).toBe(Phase.WhenReady)
     expect(getDependencies(KnowledgeRuntimeService)).toEqual(['KnowledgeVectorStoreService'])
+  })
+
+  it('maps vector search results into knowledge search results with metadata and chunk ids', async () => {
+    const service = new KnowledgeRuntimeService()
+    const base = createBase()
+    const query = 'hello'
+    const firstNode = {
+      id_: 'chunk-1',
+      metadata: {
+        itemId: 'item-1',
+        sourceUrl: 'https://example.com/1'
+      },
+      getContent: vi.fn(() => 'page one')
+    }
+    const secondNode = {
+      id_: 'chunk-2',
+      metadata: {
+        itemId: '',
+        sourceUrl: 'https://example.com/2'
+      },
+      getContent: vi.fn(() => 'page two')
+    }
+
+    embedManyMock.mockResolvedValueOnce({ embeddings: [[0.9, 0.1]] })
+    vectorStoreQueryMock.mockResolvedValueOnce({
+      nodes: [firstNode, secondNode],
+      similarities: [0.8, 0.6],
+      ids: ['chunk-1', 'chunk-2']
+    })
+
+    await expect(service.search(base, query)).resolves.toEqual([
+      {
+        pageContent: 'page one',
+        score: 0.8,
+        metadata: {
+          itemId: 'item-1',
+          sourceUrl: 'https://example.com/1'
+        },
+        itemId: 'item-1',
+        chunkId: 'chunk-1'
+      },
+      {
+        pageContent: 'page two',
+        score: 0.6,
+        metadata: {
+          itemId: '',
+          sourceUrl: 'https://example.com/2'
+        },
+        itemId: undefined,
+        chunkId: 'chunk-2'
+      }
+    ])
+
+    expect(getEmbedModelMock).toHaveBeenCalledWith(base)
+    expect(embedManyMock).toHaveBeenCalledWith({
+      model: { provider: 'mock' },
+      values: [query]
+    })
+    expect(vectorStoreQueryMock).toHaveBeenCalledWith({
+      queryStr: query,
+      queryEmbedding: [0.9, 0.1],
+      mode: 'default',
+      similarityTopK: 10,
+      alpha: undefined
+    })
+    expect(rerankKnowledgeSearchResultsMock).not.toHaveBeenCalled()
   })
 
   it('marks directory items as failed instead of completed', async () => {
@@ -688,14 +761,13 @@ describe('KnowledgeRuntimeService', () => {
       status: 'failed',
       error: SHUTDOWN_INTERRUPTED_REASON
     })
-    expect(loggerWarnMock).toHaveBeenCalledWith(
-      'Failed to delete knowledge item vectors during interruption cleanup',
-      expect.objectContaining({
-        baseId: base.id,
-        itemIds: expect.arrayContaining([runningItem.id, pendingItem.id]),
-        cleanupError: 'interrupted cleanup failed'
-      })
-    )
+    expect(loggerWarnMock).toHaveBeenCalledWith('Failed to delete knowledge item vectors during interruption cleanup', {
+      baseId: base.id,
+      itemIds: [runningItem.id, pendingItem.id],
+      succeededItemIds: [runningItem.id],
+      failedItemIds: [pendingItem.id],
+      cleanupError: `Failed to delete vectors for knowledge items in base ${base.id}: ${pendingItem.id}`
+    })
   })
 
   it('deletes vectors on stop when add already succeeded but completed status is still pending', async () => {

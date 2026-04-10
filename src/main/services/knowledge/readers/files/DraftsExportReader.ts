@@ -10,7 +10,15 @@ type DraftsExportItem = {
 export class DraftsExportReader extends FileReader<Document<Metadata>> {
   async loadDataAsContent(fileContent: Uint8Array): Promise<Document<Metadata>[]> {
     const text = new TextDecoder('utf-8').decode(fileContent)
-    const rawJson = JSON.parse(text) as DraftsExportItem[]
+    let rawJson: DraftsExportItem[]
+
+    try {
+      rawJson = JSON.parse(text) as DraftsExportItem[]
+    } catch (error) {
+      throw new Error('Failed to parse Drafts export JSON', {
+        cause: error instanceof Error ? error : new Error(String(error))
+      })
+    }
 
     return rawJson
       .filter((entry) => typeof entry.content === 'string' && entry.content.trim().length > 0)

@@ -58,6 +58,52 @@ function createMockRow(overrides: Record<string, unknown> = {}) {
   }
 }
 
+async function initializeKnowledgeTables(db: DbType) {
+  await db.run(sql`PRAGMA foreign_keys = ON`)
+  await db.run(
+    sql.raw(`
+      CREATE TABLE knowledge_base (
+        id TEXT PRIMARY KEY NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT,
+        dimensions INTEGER NOT NULL,
+        embedding_model_id TEXT NOT NULL,
+        rerank_model_id TEXT,
+        file_processor_id TEXT,
+        chunk_size INTEGER,
+        chunk_overlap INTEGER,
+        threshold REAL,
+        document_count INTEGER,
+        search_mode TEXT,
+        hybrid_alpha REAL,
+        created_at INTEGER,
+        updated_at INTEGER,
+        CONSTRAINT knowledge_base_search_mode_check CHECK (search_mode IN ('default', 'bm25', 'hybrid') OR search_mode IS NULL)
+      )
+    `)
+  )
+  await db.run(
+    sql.raw(`
+      CREATE TABLE knowledge_item (
+        id TEXT PRIMARY KEY NOT NULL,
+        base_id TEXT NOT NULL,
+        group_id TEXT,
+        type TEXT NOT NULL,
+        data TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'idle',
+        error TEXT,
+        created_at INTEGER,
+        updated_at INTEGER,
+        CONSTRAINT knowledge_item_type_check CHECK (type IN ('file', 'url', 'note', 'sitemap', 'directory')),
+        CONSTRAINT knowledge_item_status_check CHECK (status IN ('idle', 'pending', 'file_processing', 'read', 'embed', 'completed', 'failed')),
+        FOREIGN KEY (base_id) REFERENCES knowledge_base(id) ON DELETE CASCADE,
+        FOREIGN KEY (base_id, group_id) REFERENCES knowledge_item(base_id, id) ON DELETE CASCADE,
+        CONSTRAINT knowledge_item_baseId_id_unique UNIQUE (base_id, id)
+      )
+    `)
+  )
+}
+
 describe('KnowledgeItemService', () => {
   let service: InstanceType<typeof KnowledgeItemService>
 
@@ -326,49 +372,7 @@ describe('KnowledgeItemService', () => {
       })
       const db = realDb
 
-      await db.run(sql`PRAGMA foreign_keys = ON`)
-      await db.run(
-        sql.raw(`
-        CREATE TABLE knowledge_base (
-          id TEXT PRIMARY KEY NOT NULL,
-          name TEXT NOT NULL,
-          description TEXT,
-          dimensions INTEGER NOT NULL,
-          embedding_model_id TEXT NOT NULL,
-          rerank_model_id TEXT,
-          file_processor_id TEXT,
-          chunk_size INTEGER,
-          chunk_overlap INTEGER,
-          threshold REAL,
-          document_count INTEGER,
-          search_mode TEXT,
-          hybrid_alpha REAL,
-          created_at INTEGER,
-          updated_at INTEGER,
-          CONSTRAINT knowledge_base_search_mode_check CHECK (search_mode IN ('default', 'bm25', 'hybrid') OR search_mode IS NULL)
-        )
-      `)
-      )
-      await db.run(
-        sql.raw(`
-        CREATE TABLE knowledge_item (
-          id TEXT PRIMARY KEY NOT NULL,
-          base_id TEXT NOT NULL,
-          group_id TEXT,
-          type TEXT NOT NULL,
-          data TEXT NOT NULL,
-          status TEXT NOT NULL DEFAULT 'idle',
-          error TEXT,
-          created_at INTEGER,
-          updated_at INTEGER,
-          CONSTRAINT knowledge_item_type_check CHECK (type IN ('file', 'url', 'note', 'sitemap', 'directory')),
-          CONSTRAINT knowledge_item_status_check CHECK (status IN ('idle', 'pending', 'file_processing', 'read', 'embed', 'completed', 'failed')),
-          FOREIGN KEY (base_id) REFERENCES knowledge_base(id) ON DELETE CASCADE,
-          FOREIGN KEY (base_id, group_id) REFERENCES knowledge_item(base_id, id) ON DELETE CASCADE,
-          CONSTRAINT knowledge_item_baseId_id_unique UNIQUE (base_id, id)
-        )
-      `)
-      )
+      await initializeKnowledgeTables(db)
 
       await db.insert(knowledgeBaseTable).values({
         id: 'kb-1',
@@ -480,6 +484,53 @@ describe('KnowledgeItemService', () => {
       const result = await service.getCascadeIdsInBase('kb-1', ['dir-a'])
 
       expect(result).toEqual(['dir-a', 'note-group-a', 'note-grandchild'])
+    })
+
+    it('getByIdsInBase returns items in input order for one base', async () => {
+      const result = await service.getByIdsInBase('kb-1', ['note-plain', 'dir-a'])
+
+      expect(result.map((item) => item.id)).toEqual(['note-plain', 'dir-a'])
+      expect(result.map((item) => item.data)).toEqual([{ content: 'plain note' }, { name: 'a', path: '/a' }])
+    })
+
+    it('getByIdsInBase throws when any requested item is outside the base or missing', async () => {
+      await expect(service.getByIdsInBase('kb-1', ['note-plain', 'missing-item'])).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        status: 404
+      })
+    })
+
+    it('getCascadeIdsInBase preserves root order and deduplicates repeated root ids', async () => {
+      const db = realDb!
+
+      await db.insert(knowledgeItemTable).values([
+        {
+          id: 'child-root-1',
+          baseId: 'kb-1',
+          groupId: 'dir-a',
+          type: 'note',
+          data: { content: 'child a' },
+          status: 'idle',
+          error: null,
+          createdAt: 40
+        },
+        {
+          id: 'child-root-2',
+          baseId: 'kb-1',
+          groupId: 'dir-b',
+          type: 'note',
+          data: { content: 'child b' },
+          status: 'idle',
+          error: null,
+          createdAt: 30
+        }
+      ])
+
+      const result = await service.getCascadeIdsInBase('kb-1', ['dir-a', 'dir-b', 'dir-a'])
+
+      expect(result.slice(0, 2)).toEqual(['dir-a', 'dir-b'])
+      expect(result.slice(2)).toEqual(expect.arrayContaining(['note-group-a', 'child-root-1', 'child-root-2']))
+      expect(result).toHaveLength(5)
     })
 
     it('db check constraints reject invalid knowledge enums', async () => {
@@ -780,79 +831,6 @@ describe('KnowledgeItemService', () => {
     })
   })
 
-  describe('getByIdsInBase', () => {
-    it('should return knowledge items in input order for one base', async () => {
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue([
-            createMockRow({
-              id: 'item-2',
-              baseId: 'kb-1',
-              data: JSON.stringify({ content: 'second' })
-            }),
-            createMockRow({
-              id: 'item-1',
-              baseId: 'kb-1',
-              data: JSON.stringify({ content: 'first' })
-            })
-          ])
-        })
-      })
-
-      const result = await service.getByIdsInBase('kb-1', ['item-1', 'item-2'])
-
-      expect(result.map((item) => item.id)).toEqual(['item-1', 'item-2'])
-      expect(result.map((item) => item.data)).toEqual([{ content: 'first' }, { content: 'second' }])
-    })
-
-    it('should throw NotFound when any requested item is outside the base or missing', async () => {
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue([
-            createMockRow({
-              id: 'item-1',
-              baseId: 'kb-1'
-            })
-          ])
-        })
-      })
-
-      await expect(service.getByIdsInBase('kb-1', ['item-1', 'item-2'])).rejects.toMatchObject({
-        code: ErrorCode.NOT_FOUND,
-        status: 404
-      })
-    })
-  })
-
-  describe('getCascadeIdsInBase', () => {
-    it('should preserve root order and deduplicate repeated root ids', async () => {
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue([
-            createMockRow({
-              id: 'root-2',
-              baseId: 'kb-1',
-              type: 'directory',
-              data: { name: 'b', path: '/b' }
-            }),
-            createMockRow({
-              id: 'root-1',
-              baseId: 'kb-1',
-              type: 'directory',
-              data: { name: 'a', path: '/a' }
-            })
-          ])
-        })
-      })
-      mockDb.all.mockResolvedValue([{ id: 'child-1' }, { id: 'child-2' }])
-
-      const result = await service.getCascadeIdsInBase('kb-1', ['root-1', 'root-2', 'root-1'])
-
-      expect(result).toEqual(['root-1', 'root-2', 'child-1', 'child-2'])
-      expect(mockDb.all).toHaveBeenCalledTimes(1)
-    })
-  })
-
   describe('update', () => {
     it('should return the existing item when update is empty', async () => {
       mockSelect.mockReturnValue({
@@ -964,49 +942,7 @@ describe('KnowledgeItemService', () => {
       })
       const db = realDb
 
-      await db.run(sql`PRAGMA foreign_keys = ON`)
-      await db.run(
-        sql.raw(`
-        CREATE TABLE knowledge_base (
-          id TEXT PRIMARY KEY NOT NULL,
-          name TEXT NOT NULL,
-          description TEXT,
-          dimensions INTEGER NOT NULL,
-          embedding_model_id TEXT NOT NULL,
-          rerank_model_id TEXT,
-          file_processor_id TEXT,
-          chunk_size INTEGER,
-          chunk_overlap INTEGER,
-          threshold REAL,
-          document_count INTEGER,
-          search_mode TEXT,
-          hybrid_alpha REAL,
-          created_at INTEGER,
-          updated_at INTEGER,
-          CONSTRAINT knowledge_base_search_mode_check CHECK (search_mode IN ('default', 'bm25', 'hybrid') OR search_mode IS NULL)
-        )
-      `)
-      )
-      await db.run(
-        sql.raw(`
-        CREATE TABLE knowledge_item (
-          id TEXT PRIMARY KEY NOT NULL,
-          base_id TEXT NOT NULL,
-          group_id TEXT,
-          type TEXT NOT NULL,
-          data TEXT NOT NULL,
-          status TEXT NOT NULL DEFAULT 'idle',
-          error TEXT,
-          created_at INTEGER,
-          updated_at INTEGER,
-          CONSTRAINT knowledge_item_type_check CHECK (type IN ('file', 'url', 'note', 'sitemap', 'directory')),
-          CONSTRAINT knowledge_item_status_check CHECK (status IN ('idle', 'pending', 'file_processing', 'read', 'embed', 'completed', 'failed')),
-          FOREIGN KEY (base_id) REFERENCES knowledge_base(id) ON DELETE CASCADE,
-          FOREIGN KEY (base_id, group_id) REFERENCES knowledge_item(base_id, id) ON DELETE CASCADE,
-          CONSTRAINT knowledge_item_baseId_id_unique UNIQUE (base_id, id)
-        )
-      `)
-      )
+      await initializeKnowledgeTables(db)
 
       await db.insert(knowledgeBaseTable).values({
         id: 'kb-delete',
