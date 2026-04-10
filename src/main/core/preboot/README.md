@@ -33,6 +33,11 @@ Code belongs in `core/preboot/` if **all** are true:
 3. It directly performs side effects on global state (paths, command-line
    switches, file relocations) — or is a pure helper that supports a
    side-effecting preboot operation.
+4. It does **not** depend on any lifecycle-managed service (anything
+   accessed via `application.get(...)`). This is the real hard
+   constraint: async preboot code is allowed when necessary, but
+   depending on services that only exist after `application.bootstrap()`
+   is not.
 
 If any of these is false, the code belongs in a regular service under
 `services/` or in a lifecycle-managed module.
@@ -43,8 +48,12 @@ The v2 main process has three startup phases. This is the preferred
 terminology across the codebase — please don't introduce alternative names
 without good reason.
 
-- **preboot** — the phase this directory owns: synchronous setup before
-  `application.bootstrap()` is called. This is what an OS or Linux
+- **preboot** — the phase this directory owns: setup code that must run
+  before `application.bootstrap()` is called. Typically synchronous, but
+  may be async when the operation cannot be expressed synchronously
+  (e.g. a v1→v2 migration gate that awaits a DB probe). Preboot modules
+  must not depend on any lifecycle-managed service — that is the real
+  constraint, not whether the code awaits. This is what an OS or Linux
   developer would call "early boot" or "init phase 0". It is *not* a
   NestJS/Spring concept.
 - **bootstrap** — the `application.bootstrap()` orchestration function
@@ -98,11 +107,23 @@ for the deprecated v1 constant.
 
 ```
 preboot/
+├── singleInstance.ts    claims Electron's single-instance lock and exits
+│                        second instances. Runs FIRST so second instances
+│                        never reach resolveUserDataLocation/initPathRegistry.
 ├── userDataLocation.ts  decides where userData lives (dev suffix or
 │                        BootConfig-driven), performs relaunch copy
 ├── chromiumFlags.ts     Chromium startup flags (command-line switches and
 │                        hardware-acceleration toggles) that must run
 │                        before app.whenReady()
+├── crashTelemetry.ts    crashReporter + process-level error hooks +
+│                        webContents hardening (Document-Policy response
+│                        header and unresponsive renderer call-stack
+│                        collection)
+├── v2MigrationGate.ts   v1→v2 migration decision gate; runs before
+│                        bootstrap. Calls resolveMigrationPaths() to
+│                        detect v1 legacy userData before engine init.
+│                        Temporary — scoped for deletion once all
+│                        users have migrated off v1.
 └── __tests__/           unit tests for each sibling module
 ```
 

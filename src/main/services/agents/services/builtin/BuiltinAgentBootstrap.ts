@@ -18,8 +18,8 @@ const logger = loggerService.withContext('BuiltinAgentBootstrap')
 /**
  * Initialize all built-in skills and agents. Safe to call multiple times (idempotent).
  *
- * Runs sequentially to avoid concurrent SQLite writes (skills and agents share the
- * same database — parallel transactions cause SQLITE_BUSY failures).
+ * Skills are installed first (shared dependency). Agent inits run in parallel
+ * since they operate on different rows and don't conflict.
  */
 export async function bootstrapBuiltinAgents(): Promise<void> {
   try {
@@ -27,8 +27,7 @@ export async function bootstrapBuiltinAgents(): Promise<void> {
   } catch (error) {
     logger.error('Failed to install built-in skills', error as Error)
   }
-  await initCherryClaw()
-  await initCherryAssistant()
+  await Promise.all([initCherryClaw(), initCherryAssistant()])
 }
 
 // ── CherryClaw ──────────────────────────────────────────────────────

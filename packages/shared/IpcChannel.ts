@@ -183,6 +183,13 @@ export enum IpcChannel {
   Windows_NavigateToAbout = 'window:navigate-to-about',
   Windows_NavigateToSettings = 'window:navigate-to-settings',
 
+  // Tab
+  Tab_Attach = 'tab:attach',
+  Tab_Detach = 'tab:detach',
+  Tab_MoveWindow = 'tab:move-window',
+  Tab_TryAttach = 'tab:try-attach',
+  Tab_DragEnd = 'tab:drag-end',
+
   KnowledgeBase_Create = 'knowledge-base:create',
   KnowledgeBase_Reset = 'knowledge-base:reset',
   KnowledgeBase_Delete = 'knowledge-base:delete',

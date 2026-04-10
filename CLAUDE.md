@@ -86,7 +86,7 @@ If the skill is unavailable, directly read `.agents/skills/gh-create-issue/SKILL
 
 #### Data Management
 
-**MUST READ**: [docs/en/references/data/README.md](docs/en/references/data/README.md) for system selection, architecture, and patterns.
+**MUST READ**: [docs/references/data/README.md](docs/references/data/README.md) for system selection, architecture, and patterns.
 
 | System     | Use Case                        | APIs                                            |
 | ---------- | ------------------------------- | ----------------------------------------------- |
@@ -97,7 +97,7 @@ If the skill is unavailable, directly read `.agents/skills/gh-create-issue/SKILL
 
 Database: SQLite + Drizzle ORM, schemas in `src/main/data/db/schemas/`, migrations via `yarn db:migrations:generate`
 
-**DataApi boundary rule**: DataApi is for SQLite-backed business data only. No database table → no DataApi endpoint; use IPC instead. See [Scope & Boundaries](docs/en/references/data/api-design-guidelines.md#dataapi-scope--boundaries).
+**DataApi boundary rule**: DataApi is for SQLite-backed business data only. No database table → no DataApi endpoint; use IPC instead. See [Scope & Boundaries](docs/references/data/api-design-guidelines.md#dataapi-scope--boundaries).
 
 ### Build System
 
@@ -116,7 +116,7 @@ Database: SQLite + Drizzle ORM, schemas in `src/main/data/db/schemas/`, migratio
 
 #### Main Process Services (Lifecycle)
 
-**MUST READ**: [docs/en/references/lifecycle/README.md](docs/en/references/lifecycle/README.md) — architecture, decision guides, usage patterns, and migration steps.
+**MUST READ**: [docs/references/lifecycle/README.md](docs/references/lifecycle/README.md) — architecture, decision guides, usage patterns, and migration steps.
 
 All main-process services that own long-lived resources or register persistent side effects **must** use the lifecycle system:
 
@@ -129,11 +129,11 @@ All main-process services that own long-lived resources or register persistent s
 - **Implement `Activatable`** for services with heavy on-demand resources (IPC stays registered, resources load/release via `onActivate()`/`onDeactivate()`)
 - **Do NOT** use `new` or manual singleton patterns — the container manages instantiation, ordering, and shutdown
 
-For detailed code examples, see [Usage Guide](docs/en/references/lifecycle/lifecycle-usage.md). For migrating legacy services, see [Migration Guide](docs/en/references/lifecycle/lifecycle-migration-guide.md).
+For detailed code examples, see [Usage Guide](docs/references/lifecycle/lifecycle-usage.md). For migrating legacy services, see [Migration Guide](docs/references/lifecycle/lifecycle-migration-guide.md).
 
 #### Non-Lifecycle Services (Direct-Import Singleton)
 
-Services without long-lived resources or persistent side effects: use **named export singleton** (`export const x = new X()`). No `getInstance()` patterns. See [Decision Guide](docs/en/references/lifecycle/lifecycle-decision-guide.md) for criteria.
+Services without long-lived resources or persistent side effects: use **named export singleton** (`export const x = new X()`). No `getInstance()` patterns. See [Decision Guide](docs/references/lifecycle/lifecycle-decision-guide.md) for criteria.
 
 ### Key Patterns
 
@@ -144,6 +144,21 @@ Services without long-lived resources or persistent side effects: use **named ex
 - **Theme System**: Light/dark themes with custom CSS variables
 
 ## v2 Refactoring (In Progress)
+
+The `main` branch is under code freeze. All development has moved to the `v2` branch.
+
+- **`main` branch**: Only accepts critical bug fixes via `hotfix/*` branches. Minimal changes, no refactoring.
+- **`v2` branch**: All new features, refactoring, and optimizations go here.
+
+Files marked with the following header are **blocked for feature changes** (bug fixes only):
+
+```typescript
+/**
+ * @deprecated Scheduled for removal in v2.0.0
+ * ⚠️ NOTICE: V2 DATA&UI REFACTORING
+ * STOP: Feature PRs affecting this file are currently BLOCKED.
+ */
+```
 
 The v2 branch is undergoing a major refactoring effort:
 
@@ -278,25 +293,6 @@ Several dependencies have patches in `patches/` — be careful when upgrading:
 - **Test Mocking**: Use the unified mock system — do NOT create ad-hoc mocks for `application`, services, or data layers. See [tests/__mocks__/README.md](tests/__mocks__/README.md) for available mocks, usage patterns, and best practices.
 
 ## Important Notes
-
-### V2 Refactoring in Progress
-
-The `main` branch is under code freeze. All development has moved to the `v2` branch.
-
-- **`main` branch**: Only accepts critical bug fixes via `hotfix/*` branches. Minimal changes, no refactoring.
-- **`v2` branch**: All new features, refactoring, and optimizations go here.
-
-Files marked with the following header are **blocked for feature changes**:
-
-```typescript
-/**
- * @deprecated Scheduled for removal in v2.0.0
- * ⚠️ NOTICE: V2 DATA&UI REFACTORING
- * STOP: Feature PRs affecting this file are currently BLOCKED.
- */
-```
-
-Do not introduce new features to these files. Bug fixes only.
 
 ### Security
 

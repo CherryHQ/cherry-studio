@@ -78,6 +78,7 @@ vi.mock('@renderer/config/models', async (importOriginal) => {
     isSupportedThinkingTokenGeminiModel: vi.fn(() => false),
     isSupportedThinkingTokenDoubaoModel: vi.fn(() => false),
     isSupportedThinkingTokenZhipuModel: vi.fn(() => false),
+    isSupportedThinkingTokenMiMoModel: vi.fn(() => false),
     isSupportedReasoningEffortModel: vi.fn(() => false),
     isDeepSeekHybridInferenceModel: vi.fn(() => false),
     isSupportedReasoningEffortGrokModel: vi.fn(() => false),
@@ -344,6 +345,62 @@ describe('reasoning utils', () => {
       const result = getReasoningEffort(assistant, model)
       expect(result).toEqual({
         reasoningEffort: 'none'
+      })
+    })
+
+    it('should disable thinking for MiMo models when reasoning effort is none', async () => {
+      const { isReasoningModel, isSupportedThinkingTokenMiMoModel } = await import('@renderer/config/models')
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isSupportedThinkingTokenMiMoModel).mockReturnValue(true)
+
+      const model: Model = {
+        id: 'mimo-v2-pro',
+        name: 'MiMo V2 Pro',
+        provider: SystemProviderIds.mimo
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: {
+          reasoning_effort: 'none'
+        }
+      } as Assistant
+
+      const result = getReasoningEffort(assistant, model)
+      expect(result).toEqual({
+        thinking: {
+          type: 'disabled'
+        }
+      })
+    })
+
+    it('should enable thinking for MiMo models when reasoning effort is auto', async () => {
+      const { isReasoningModel, isSupportedThinkingTokenMiMoModel } = await import('@renderer/config/models')
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isSupportedThinkingTokenMiMoModel).mockReturnValue(true)
+
+      const model: Model = {
+        id: 'mimo-v2-pro',
+        name: 'MiMo V2 Pro',
+        provider: SystemProviderIds.mimo
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: {
+          reasoning_effort: 'auto'
+        }
+      } as Assistant
+
+      const result = getReasoningEffort(assistant, model)
+      expect(result).toEqual({
+        thinking: {
+          type: 'enabled'
+        }
       })
     })
 
