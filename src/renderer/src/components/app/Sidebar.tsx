@@ -32,6 +32,8 @@ import { Sidebar as UISidebar } from '../Sidebar'
 import { getSidebarLayout } from '../Sidebar/constants'
 import type { SidebarMenuItem, SidebarMiniApp, SidebarMiniAppTab, SidebarUser } from '../Sidebar/types'
 
+const APP_LOGO = <img src={AppLogo} alt="Cherry Studio" className="h-9 w-9 rounded-lg" draggable={false} />
+
 const routePrefixMap: Record<SidebarIconType, string> = {
   assistants: '/app/chat',
   agents: '/app/agents',
@@ -161,35 +163,38 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   const activeItem = resolveActiveItem(pathname)
 
-  const handleNavigate = async (menuItemId: string) => {
-    const path = getMenuPath(menuItemId as SidebarIconType, defaultPaintingProvider)
-    if (!path) return
+  const handleNavigate = useCallback(
+    async (menuItemId: string) => {
+      const path = getMenuPath(menuItemId as SidebarIconType, defaultPaintingProvider)
+      if (!path) return
 
-    try {
-      await modelGenerating()
-    } catch {
-      return
-    }
+      try {
+        await modelGenerating()
+      } catch {
+        return
+      }
 
-    const hasUserTabsInTabBar = tabs.some((tab) => tab.id !== 'home')
-    if (!hasUserTabsInTabBar) {
-      openTab(path, {
-        forceNew: true,
-        title: getDefaultRouteTitle(path)
-      })
-      return
-    }
-    if (activeTabId) {
-      updateTab(activeTabId, { url: path, title: getDefaultRouteTitle(path) })
-    }
-  }
+      const hasUserTabsInTabBar = tabs.some((tab) => tab.id !== 'home')
+      if (!hasUserTabsInTabBar) {
+        openTab(path, {
+          forceNew: true,
+          title: getDefaultRouteTitle(path)
+        })
+        return
+      }
+      if (activeTabId) {
+        updateTab(activeTabId, { url: path, title: getDefaultRouteTitle(path) })
+      }
+    },
+    [tabs, activeTabId, updateTab, openTab, defaultPaintingProvider]
+  )
 
   // Common props shared between normal and floating sidebar
   const sidebarProps = {
     activeItem,
     items,
     title: 'Cherry Studio',
-    logo: <img src={AppLogo} alt="Cherry Studio" className="h-9 w-9 rounded-lg" draggable={false} />,
+    logo: APP_LOGO,
     user: sidebarUser,
     activeTabId: minappShow ? currentMinappId : undefined,
     dockedTabs: [],
