@@ -7,16 +7,8 @@ import {
   messageBlocksSelectors,
   selectFormattedCitationsByBlockId
 } from '@renderer/store/messageBlock'
-import type {
-  CitationMessageBlock,
-  CompactMessageBlock,
-  ImageMessageBlock,
-  MainTextMessageBlock,
-  Message,
-  MessageBlock,
-  ThinkingMessageBlock,
-  TranslationMessageBlock
-} from '@renderer/types/newMessage'
+import type { Model } from '@renderer/types'
+import type { ImageMessageBlock, MainTextMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { isMainTextBlock, isMessageProcessing, isToolBlock, isVideoBlock } from '@renderer/utils/messageUtils/is'
 import { mapMessageStatusToBlockStatus, partToBlock } from '@renderer/utils/partsToBlocks'
@@ -145,7 +137,7 @@ const MainTextBlockWithCitations: React.FC<{
   block: MainTextMessageBlock
   citationBlockId?: string
   role: Message['role']
-  mentions?: import('@renderer/types').Model[]
+  mentions?: Model[]
 }> = ({ block, citationBlockId, role, mentions }) => {
   const v2CitationBlock = useResolveBlock(citationBlockId)
   const reduxCitations = useSelector((state: RootState) =>
@@ -154,7 +146,7 @@ const MainTextBlockWithCitations: React.FC<{
   const citations = useMemo(() => {
     if (!v2CitationBlock) return reduxCitations
     if (v2CitationBlock.type === MessageBlockType.CITATION) {
-      return formatCitationsFromBlock(v2CitationBlock as CitationMessageBlock)
+      return formatCitationsFromBlock(v2CitationBlock)
     }
     return []
   }, [v2CitationBlock, reduxCitations])
@@ -222,7 +214,7 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
 
           if (block[0].type === MessageBlockType.IMAGE) {
             if (block.length === 1) {
-              const images = extractImagesFromBlock(block[0] as ImageMessageBlock)
+              const images = extractImagesFromBlock(block[0])
               return (
                 <AnimatedBlockWrapper key={groupKey} enableAnimation={message.status.includes('ing')}>
                   <ImageBlock
@@ -302,7 +294,7 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
               logger.warn('Expected main text block but got different type', block)
               break
             }
-            const mainTextBlock = block as MainTextMessageBlock
+            const mainTextBlock = block
             const citationBlockId = mainTextBlock.citationReferences?.[0]?.citationBlockId
             blockComponent = (
               <MainTextBlockWithCitations
@@ -315,7 +307,7 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
             break
           }
           case MessageBlockType.IMAGE: {
-            const images = extractImagesFromBlock(block as ImageMessageBlock)
+            const images = extractImagesFromBlock(block)
             blockComponent = (
               <ImageBlock key={block.id} images={images} isPending={block.status === MessageBlockStatus.PENDING} />
             )
@@ -334,7 +326,7 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
             blockComponent = <ErrorBlock key={block.id} block={block} message={message} />
             break
           case MessageBlockType.THINKING: {
-            const thinkingBlock = block as ThinkingMessageBlock
+            const thinkingBlock = block
             blockComponent = (
               <ThinkingBlock
                 key={block.id}
@@ -347,7 +339,7 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
             break
           }
           case MessageBlockType.TRANSLATION: {
-            const translationBlock = block as TranslationMessageBlock
+            const translationBlock = block
             blockComponent = (
               <TranslationBlock
                 key={block.id}
@@ -362,7 +354,7 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
             blockComponent = <VideoBlock key={block.id} block={block} />
             break
           case MessageBlockType.COMPACT: {
-            const compactBlock = block as CompactMessageBlock
+            const compactBlock = block
             blockComponent = (
               <CompactBlock
                 key={block.id}

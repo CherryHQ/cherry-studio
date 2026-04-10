@@ -5,7 +5,6 @@ import type { Citation, Model, WebSearchSource } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { determineCitationSource, withCitationTags } from '@renderer/utils/citation'
 import React, { useCallback } from 'react'
-import styled from 'styled-components'
 
 import type { MarkdownSource } from '../../Markdown/Markdown'
 import Markdown from '../../Markdown/Markdown'
@@ -54,7 +53,9 @@ const MainTextBlock: React.FC<Props> = ({
       {mentions && mentions.length > 0 && (
         <Flex className="mb-2.5 flex-wrap gap-2">
           {mentions.map((m) => (
-            <MentionTag key={getModelUniqId(m)}>{'@' + m.name}</MentionTag>
+            <span key={getModelUniqId(m)} className="text-(--color-link)">
+              {'@' + m.name}
+            </span>
           ))}
         </Flex>
       )}
@@ -68,9 +69,5 @@ const MainTextBlock: React.FC<Props> = ({
     </>
   )
 }
-
-const MentionTag = styled.span`
-  color: var(--color-link);
-`
 
 export default React.memo(MainTextBlock)

@@ -362,7 +362,7 @@ export function serializeError(error: unknown): SerializedError {
     const base: SerializedError = {
       name: error.name,
       message: error.message,
-      stack: error.stack ?? null,
+      stack: error.stack ?? null
     }
 
     const e = error as unknown as Record<string, unknown>
@@ -378,7 +378,7 @@ export function serializeError(error: unknown): SerializedError {
         responseHeaders: (e.responseHeaders as Record<string, string>) ?? null,
         responseBody: String(e.responseBody ?? null),
         isRetryable: Boolean(e.isRetryable),
-        data: (e.data as Serializable) ?? null,
+        data: (e.data as Serializable) ?? null
       }
     }
 
@@ -392,6 +392,6 @@ export function serializeError(error: unknown): SerializedError {
   return {
     name: null,
     message: String(error),
-    stack: null,
+    stack: null
   }
 }

@@ -38,7 +38,7 @@ function createMcpTool(mcpTool: MCPTool, disabledAutoApproveTools?: string[]): R
         server: { id: mcpTool.serverId } as MCPServer,
         name: mcpTool.name,
         args,
-        callId: toolCallId,
+        callId: toolCallId
       })
 
       if (result.isError) {
@@ -58,10 +58,10 @@ function createMcpTool(mcpTool: MCPTool, disabledAutoApproveTools?: string[]): R
         metadata: {
           serverName: mcpTool.serverName,
           serverId: mcpTool.serverId,
-          type: 'mcp' as const,
-        },
+          type: 'mcp' as const
+        }
       }
-    },
+    }
   }
 
   return { name: mcpTool.id, source: 'mcp', tool: mcpToolDef }
@@ -95,8 +95,8 @@ export async function registerMcpTools(registry: ToolRegistry, mcpToolIds: strin
     try {
       // Fetch tools + server config in parallel
       const [allTools, serverConfig] = await Promise.all([
-        mcpService.listTools({ id: serverId } as MCPServer) as Promise<MCPTool[]>,
-        mcpServerService.getById(serverId).catch(() => null),
+        mcpService.listTools({ id: serverId } as MCPServer),
+        mcpServerService.getById(serverId).catch(() => null)
       ])
 
       const toolIdSet = new Set(toolIds)

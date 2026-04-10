@@ -2,7 +2,7 @@ import { MessageBlockStatus } from '@renderer/types/newMessage'
 import React, { useMemo } from 'react'
 
 import type { MarkdownSource } from '../../Markdown/Markdown'
-import MessageTranslate from '../MessageTranslate'
+import MessageTranslate from './MessageTranslate'
 
 interface Props {
   /** Stable ID for heading prefix */

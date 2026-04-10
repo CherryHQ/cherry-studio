@@ -1,12 +1,12 @@
-import { TranslationOutlined } from '@ant-design/icons'
+import { Divider } from '@cherrystudio/ui'
 import { LoadingIcon } from '@renderer/components/Icons'
-import { Divider } from 'antd'
+import { Languages } from 'lucide-react'
 import type { FC } from 'react'
 import { Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { MarkdownSource } from '../Markdown/Markdown'
-import Markdown from '../Markdown/Markdown'
+import type { MarkdownSource } from '../../Markdown/Markdown'
+import Markdown from '../../Markdown/Markdown'
 
 interface Props {
   block: MarkdownSource & { content: string }
@@ -17,9 +17,12 @@ const MessageTranslate: FC<Props> = ({ block }) => {
 
   return (
     <Fragment>
-      <Divider style={{ margin: 0, marginBottom: 10 }}>
-        <TranslationOutlined />
-      </Divider>
+      <div className="relative mb-2.5">
+        <Divider />
+        <div className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 bg-(--color-background) px-2">
+          <Languages size={14} className="text-(--color-text-2)" />
+        </div>
+      </div>
       {!block.content || block.content === t('translate.processing') ? (
         <LoadingIcon color="var(--color-text-2)" style={{ marginBottom: 15 }} />
       ) : (
