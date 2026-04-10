@@ -3,14 +3,14 @@ import { merge } from 'lodash'
 import { useCallback } from 'react'
 import useSWR from 'swr'
 
-import { useAgentClient } from './useAgentClient'
+import { requireAgentClient, useAgentClient } from './useAgentClient'
 
 export const useApiModels = (filter?: ApiModelsFilter) => {
   const client = useAgentClient()
   // const defaultFilter = { limit: -1 } satisfies ApiModelsFilter
   const defaultFilter = {} satisfies ApiModelsFilter
   const finalFilter = merge(filter, defaultFilter)
-  const path = client.getModelsPath(finalFilter)
+  const path = client ? client.getModelsPath(finalFilter) : null
   const fetcher = useCallback(async () => {
     const limit = finalFilter.limit || 100
     let offset = finalFilter.offset || 0
@@ -19,7 +19,7 @@ export const useApiModels = (filter?: ApiModelsFilter) => {
 
     while (offset < total) {
       const pageFilter = { ...finalFilter, limit, offset }
-      const res = await client.getModels(pageFilter)
+      const res = await requireAgentClient(client).getModels(pageFilter)
       allModels.push(...(res.data || []))
       total = res.total ?? 0
       offset += limit
