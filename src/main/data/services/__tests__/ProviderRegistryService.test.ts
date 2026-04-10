@@ -1,18 +1,24 @@
+/**
+ * Tests for ProviderRegistryService.
+ * Uses the unified mock system per CLAUDE.md testing guidelines.
+ */
+
+import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// Create a chainable mock DB that resolves to an empty array
-// when awaited (Drizzle queries are thenable).
+// ─────────────────────────────────────────────────────────────────────────────
+// Chainable DB mock (Drizzle queries are thenable)
+// ─────────────────────────────────────────────────────────────────────────────
+
 function createChainableMockDb() {
   const emptyResult: unknown[] = []
 
   const makeChainable = (): unknown => {
     const obj: Record<string, unknown> = {}
-    // Every method returns another chainable
     for (const method of ['select', 'from', 'where', 'limit', 'insert', 'values', 'onConflictDoUpdate', 'all', 'get']) {
       obj[method] = vi.fn(() => makeChainable())
     }
     obj.transaction = vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(makeChainable()))
-    // Make thenable so `await db.select().from(...)` resolves to []
     obj.then = (resolve: (v: unknown) => void) => resolve(emptyResult)
     return obj
   }
@@ -20,21 +26,14 @@ function createChainableMockDb() {
   return makeChainable()
 }
 
-const mockDb = createChainableMockDb()
+// ─────────────────────────────────────────────────────────────────────────────
+// Mocks
+// ─────────────────────────────────────────────────────────────────────────────
 
-// Mock application before importing the service
-vi.mock('@main/core/application', () => ({
-  application: {
-    get: vi.fn((name: string) => {
-      if (name === 'DbService') return { getDb: () => mockDb }
-      throw new Error(`Unknown service: ${name}`)
-    }),
-    getPath: vi.fn((_key: string, filename?: string) => {
-      const base = '/mock/registry/data'
-      return filename ? `${base}/${filename}` : base
-    })
-  }
-}))
+vi.mock('@main/core/application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory()
+})
 
 // Mock provider-registry/node — include RegistryLoader that delegates to mocked readers
 vi.mock('@cherrystudio/provider-registry/node', () => {
@@ -86,7 +85,6 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
   return { readModelRegistry, readProviderModelRegistry, readProviderRegistry, RegistryLoader }
 })
 
-// Mock downstream services
 vi.mock('../ModelService', () => ({
   modelService: { batchUpsert: vi.fn() }
 }))
@@ -150,7 +148,6 @@ function setupRegistryData() {
 
 function clearServiceCache() {
   const svc = providerRegistryService as unknown as Record<string, unknown>
-  // RegistryLoader is lazily created; reset it so mocks take effect
   svc['loader'] = null
 }
 
@@ -158,6 +155,7 @@ describe('ProviderRegistryService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     clearServiceCache()
+    MockMainDbServiceUtils.setDb(createChainableMockDb())
   })
 
   describe('registry load failure', () => {
@@ -175,7 +173,6 @@ describe('ProviderRegistryService', () => {
         throw new Error('ENOENT: no such file')
       })
 
-      // getRegistryModelsByProvider reads providers.json via getRegistryReasoningConfig
       expect(() => providerRegistryService.getRegistryModelsByProvider('openai')).toThrow('ENOENT')
     })
   })
@@ -240,6 +237,34 @@ describe('ProviderRegistryService', () => {
       const models = await providerRegistryService.resolveModels('openai', ['gpt-4o', 'gpt-4o'])
 
       expect(models).toHaveLength(1)
+    })
+
+    // ── Regression: normalize fallback ────────────────────────────────────────
+    // These two cases previously returned a bare custom model (name === modelId)
+    // because lookupRegistryModel only did an exact-match lookup. The normalize
+    // fallback was added to handle aggregator prefixes and colon-variant suffixes.
+
+    it('should resolve model with variant suffix via normalize fallback (gpt-4o:free → gpt-4o)', async () => {
+      setupRegistryData()
+
+      // 'gpt-4o:free' is not in the registry verbatim, but normalizeModelId strips
+      // the ':free' colon-variant suffix, leaving 'gpt-4o' which IS in the registry.
+      const models = await providerRegistryService.resolveModels('openai', ['gpt-4o:free'])
+
+      expect(models).toHaveLength(1)
+      // Must carry the registry display name, not the raw model ID
+      expect(models[0].name).toBe('GPT-4o')
+    })
+
+    it('should resolve model with aggregator prefix via normalize fallback (aihubmix-gpt-4o → gpt-4o)', async () => {
+      setupRegistryData()
+
+      // 'aihubmix-gpt-4o' has the 'aihubmix-' aggregator prefix. normalizeModelId
+      // strips it, leaving 'gpt-4o' which matches the registry entry.
+      const models = await providerRegistryService.resolveModels('openai', ['aihubmix-gpt-4o'])
+
+      expect(models).toHaveLength(1)
+      expect(models[0].name).toBe('GPT-4o')
     })
   })
 })

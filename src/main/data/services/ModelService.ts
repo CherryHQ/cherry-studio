@@ -30,6 +30,82 @@ import { and, eq, inArray, type SQL } from 'drizzle-orm'
 const logger = loggerService.withContext('DataApi:ModelService')
 
 /**
+ * Mapping from UpdateModelDto field → DB column for the update path.
+ * Entries are either a shared key name, or [dtoKey, dbColumn] when names differ.
+ * Exported for test coverage — ensures no DTO field is silently dropped.
+ */
+export const UPDATE_MODEL_FIELD_MAP: Array<keyof UpdateModelDto | [keyof UpdateModelDto, keyof NewUserModel]> = [
+  'name',
+  'description',
+  'group',
+  'capabilities',
+  'inputModalities',
+  'outputModalities',
+  'endpointTypes',
+  ['parameterSupport', 'parameters'],
+  'supportsStreaming',
+  'contextWindow',
+  'maxOutputTokens',
+  'reasoning',
+  'pricing',
+  'isEnabled',
+  'isHidden',
+  'sortOrder',
+  'notes'
+]
+
+/** Convert CreateModelDto to a NewUserModel row (shared by preset and custom paths). */
+function dtoToNewUserModel(dto: CreateModelDto): NewUserModel {
+  return {
+    providerId: dto.providerId,
+    modelId: dto.modelId,
+    presetModelId: null,
+    name: dto.name ?? null,
+    description: dto.description ?? null,
+    group: dto.group ?? null,
+    capabilities: (dto.capabilities ?? null) as ModelCapability[] | null,
+    inputModalities: (dto.inputModalities ?? null) as Modality[] | null,
+    outputModalities: (dto.outputModalities ?? null) as Modality[] | null,
+    endpointTypes: (dto.endpointTypes ?? null) as EndpointType[] | null,
+    contextWindow: dto.contextWindow ?? null,
+    maxOutputTokens: dto.maxOutputTokens ?? null,
+    supportsStreaming: dto.supportsStreaming ?? null,
+    reasoning: dto.reasoning ?? null,
+    parameters: dto.parameterSupport ?? null,
+    pricing: dto.pricing ?? null
+  }
+}
+
+/** Convert a merged Model back to a NewUserModel row for DB insert. */
+function mergedModelToNewUserModel(
+  providerId: string,
+  modelId: string,
+  presetModelId: string,
+  merged: Model
+): NewUserModel {
+  return {
+    providerId,
+    modelId,
+    presetModelId,
+    name: merged.name,
+    description: merged.description ?? null,
+    group: merged.group ?? null,
+    capabilities: merged.capabilities,
+    inputModalities: merged.inputModalities ?? null,
+    outputModalities: merged.outputModalities ?? null,
+    endpointTypes: merged.endpointTypes ?? null,
+    contextWindow: merged.contextWindow ?? null,
+    maxOutputTokens: merged.maxOutputTokens ?? null,
+    supportsStreaming: merged.supportsStreaming,
+    reasoning: merged.reasoning ?? null,
+    parameters: merged.parameterSupport ?? null,
+    pricing: merged.pricing ?? null,
+    isEnabled: merged.isEnabled,
+    isHidden: merged.isHidden
+  }
+}
+
+/**
  * Convert database row to Model entity
  *
  * Since user_model stores fully resolved data (merged at add-time),
@@ -54,7 +130,9 @@ function rowToRuntimeModel(row: UserModel): Model {
     parameterSupport: (row.parameters ?? undefined) as RuntimeParameterSupport | undefined,
     pricing: row.pricing ?? undefined,
     isEnabled: row.isEnabled ?? true,
-    isHidden: row.isHidden ?? false
+    isHidden: row.isHidden ?? false,
+    sortOrder: row.sortOrder ?? undefined,
+    notes: row.notes ?? undefined
   }
 }
 
@@ -144,29 +222,14 @@ export class ModelService {
     const reasoningFormatTypes = registryData?.reasoningFormatTypes
     const defaultChatEndpoint = registryData?.defaultChatEndpoint
 
+    // Build base DB row from DTO using the shared field map
+    const dtoValues = dtoToNewUserModel(dto)
     let values: NewUserModel
 
     if (presetModel) {
       // Registry match found — merge DTO with preset data
-      const userRow = {
-        providerId: dto.providerId,
-        modelId: dto.modelId,
-        presetModelId: presetModel.id,
-        name: dto.name ?? null,
-        description: dto.description ?? null,
-        group: dto.group ?? null,
-        capabilities: (dto.capabilities as ModelCapability[]) ?? null,
-        inputModalities: (dto.inputModalities as Modality[]) ?? null,
-        outputModalities: (dto.outputModalities as Modality[]) ?? null,
-        endpointTypes: (dto.endpointTypes as EndpointType[]) ?? null,
-        contextWindow: dto.contextWindow ?? null,
-        maxOutputTokens: dto.maxOutputTokens ?? null,
-        supportsStreaming: dto.supportsStreaming ?? null,
-        reasoning: dto.reasoning ?? null
-      }
-
       const merged = mergeModelWithUser(
-        userRow,
+        { ...dtoValues, presetModelId: presetModel.id },
         registryOverride,
         presetModel,
         dto.providerId,
@@ -174,24 +237,7 @@ export class ModelService {
         defaultChatEndpoint
       )
 
-      values = {
-        providerId: dto.providerId,
-        modelId: dto.modelId,
-        presetModelId: presetModel.id,
-        name: merged.name,
-        description: merged.description ?? null,
-        group: merged.group ?? null,
-        capabilities: merged.capabilities,
-        inputModalities: merged.inputModalities ?? null,
-        outputModalities: merged.outputModalities ?? null,
-        endpointTypes: merged.endpointTypes ?? null,
-        contextWindow: merged.contextWindow ?? null,
-        maxOutputTokens: merged.maxOutputTokens ?? null,
-        supportsStreaming: merged.supportsStreaming,
-        reasoning: merged.reasoning ?? null,
-        parameters: merged.parameterSupport ?? null,
-        pricing: merged.pricing ?? null
-      }
+      values = mergedModelToNewUserModel(dto.providerId, dto.modelId, presetModel.id, merged)
 
       logger.info('Created model with registry enrichment', {
         providerId: dto.providerId,
@@ -199,25 +245,8 @@ export class ModelService {
         presetModelId: presetModel.id
       })
     } else {
-      // No registry match — store as custom model
-      values = {
-        providerId: dto.providerId,
-        modelId: dto.modelId,
-        presetModelId: dto.presetModelId ?? null,
-        name: dto.name ?? null,
-        description: dto.description ?? null,
-        group: dto.group ?? null,
-        capabilities: (dto.capabilities as ModelCapability[]) ?? null,
-        inputModalities: (dto.inputModalities as Modality[]) ?? null,
-        outputModalities: (dto.outputModalities as Modality[]) ?? null,
-        endpointTypes: (dto.endpointTypes as EndpointType[]) ?? null,
-        contextWindow: dto.contextWindow ?? null,
-        maxOutputTokens: dto.maxOutputTokens ?? null,
-        supportsStreaming: dto.supportsStreaming ?? null,
-        reasoning: dto.reasoning ?? null,
-        parameters: dto.parameterSupport ?? null,
-        pricing: dto.pricing ?? null
-      }
+      // No registry match — store as custom model directly from DTO
+      values = { ...dtoValues, presetModelId: dto.presetModelId ?? null }
 
       logger.info('Created custom model (no registry match)', {
         providerId: dto.providerId,
@@ -247,30 +276,8 @@ export class ModelService {
       throw DataApiErrorFactory.notFound('Model', `${providerId}/${modelId}`)
     }
 
-    // Build update object — mapping from DTO field → DB column
-    // Keys where DTO name differs from DB column use [dtoKey, dbColumn] tuples.
-    const FIELD_MAP: Array<keyof UpdateModelDto | [keyof UpdateModelDto, keyof NewUserModel]> = [
-      'name',
-      'description',
-      'group',
-      'capabilities',
-      'inputModalities',
-      'outputModalities',
-      'endpointTypes',
-      ['parameterSupport', 'parameters'],
-      'supportsStreaming',
-      'contextWindow',
-      'maxOutputTokens',
-      'reasoning',
-      'pricing',
-      'isEnabled',
-      'isHidden',
-      'sortOrder',
-      'notes'
-    ]
-
     const updates: Partial<NewUserModel> = {}
-    for (const entry of FIELD_MAP) {
+    for (const entry of UPDATE_MODEL_FIELD_MAP) {
       const [dtoKey, dbKey] = Array.isArray(entry) ? entry : [entry, entry as keyof NewUserModel]
       if (dto[dtoKey] !== undefined) {
         ;(updates as Record<string, unknown>)[dbKey] = dto[dtoKey]
