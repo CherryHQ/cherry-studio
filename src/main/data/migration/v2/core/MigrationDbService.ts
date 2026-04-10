@@ -13,15 +13,13 @@ import { loggerService } from '@logger'
 import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/libsql'
 import { migrate } from 'drizzle-orm/libsql/migrator'
-import { app } from 'electron'
 import fs from 'fs'
 import path from 'path'
 import { pathToFileURL } from 'url'
 
-const logger = loggerService.withContext('MigrationDbService')
+import type { MigrationPaths } from './MigrationPaths'
 
-const DB_NAME = 'cherrystudio.sqlite'
-const MIGRATIONS_BASE_PATH = 'migrations/sqlite-drizzle'
+const logger = loggerService.withContext('MigrationDbService')
 
 export class MigrationDbService {
   private db: DbType
@@ -33,11 +31,14 @@ export class MigrationDbService {
   /**
    * Create a MigrationDbService with connection, WAL, schema migrations, and custom SQL.
    * No seeds are run — migration does not need them.
+   *
+   * All paths come from the pre-resolved MigrationPaths object — never
+   * from `app.getPath()` directly. See MigrationPaths.ts for why.
    */
-  static async create(): Promise<MigrationDbService> {
-    ensureDatabaseIntegrity()
+  static async create(paths: MigrationPaths): Promise<MigrationDbService> {
+    ensureDatabaseIntegrity(paths.databaseFile)
 
-    const dbUrl = pathToFileURL(path.join(app.getPath('userData'), DB_NAME)).href
+    const dbUrl = pathToFileURL(paths.databaseFile).href
     const db = drizzle({ connection: { url: dbUrl }, casing: 'snake_case' })
 
     // Each PRAGMA must be a separate statement — @libsql/client's db.prepare()
@@ -52,10 +53,7 @@ export class MigrationDbService {
     }
 
     // Schema migrations
-    const migrationsFolder = app.isPackaged
-      ? path.join(process.resourcesPath, MIGRATIONS_BASE_PATH)
-      : path.join(__dirname, '../../', MIGRATIONS_BASE_PATH)
-    await migrate(db, { migrationsFolder })
+    await migrate(db, { migrationsFolder: paths.migrationsFolder })
 
     // libsql is compiled with SQLITE_DEFAULT_FOREIGN_KEYS=1 (see libsql-ffi/build.rs),
     // so every new connection has foreign_keys = ON by default. Drizzle's migrate()
@@ -92,8 +90,7 @@ export class MigrationDbService {
  * Ensure database file integrity before opening connection.
  * Duplicated from DbService — this file is temporary and will be removed with migration.
  */
-function ensureDatabaseIntegrity(): void {
-  const dbPath = path.join(app.getPath('userData'), DB_NAME)
+function ensureDatabaseIntegrity(dbPath: string): void {
   const dbExists = fs.existsSync(dbPath)
 
   if (dbExists) {
