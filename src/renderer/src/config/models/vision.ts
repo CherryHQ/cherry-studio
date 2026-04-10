@@ -1,7 +1,7 @@
+import { getProviderByModel } from '@renderer/services/AssistantService'
+import type { Model } from '@renderer/types'
 import { getLowerBaseModelName, isUserSelectedModelType } from '@renderer/utils'
 
-import type { ClassifiableModel } from './classifiable'
-import { getModelProviderId, modelHasEndpointType } from './classifiable'
 import { isEmbeddingModel, isRerankModel } from './embedding'
 import { isFunctionCallingModel } from './tooluse'
 
@@ -171,7 +171,7 @@ const MODERN_GENERATE_IMAGE_MODELS_REGEX = new RegExp(MODERN_IMAGE_MODELS.join('
  * 1. Route to dedicated image generation API
  * 2. Exclude from reasoning/websearch/tooluse selection
  */
-export function isDedicatedImageModel(model: ClassifiableModel): boolean {
+export function isDedicatedImageModel(model: Model): boolean {
   if (!model) return false
   const modelId = getLowerBaseModelName(model.id)
   return DEDICATED_IMAGE_MODEL_REGEX.test(modelId)
@@ -180,7 +180,7 @@ export function isDedicatedImageModel(model: ClassifiableModel): boolean {
 // Backward compatible aliases
 export const isDedicatedImageGenerationModel = isDedicatedImageModel
 
-export const isAutoEnableImageGenerationModel = (model: ClassifiableModel): boolean => {
+export const isAutoEnableImageGenerationModel = (model: Model): boolean => {
   if (!model) return false
 
   const modelId = getLowerBaseModelName(model.id)
@@ -192,14 +192,19 @@ export const isAutoEnableImageGenerationModel = (model: ClassifiableModel): bool
  * @param model
  * @returns
  */
-export function isGenerateImageModel(model: ClassifiableModel): boolean {
+export function isGenerateImageModel(model: Model): boolean {
   if (!model || isEmbeddingModel(model) || isRerankModel(model)) {
+    return false
+  }
+
+  const provider = getProviderByModel(model)
+  if (!provider) {
     return false
   }
 
   const modelId = getLowerBaseModelName(model.id, '/')
 
-  if (modelHasEndpointType(model, 'openai-responses')) {
+  if (provider.type === 'openai-response') {
     return OPENAI_IMAGE_GENERATION_MODELS_REGEX.test(modelId) || GENERATE_IMAGE_MODELS_REGEX.test(modelId)
   }
 
@@ -212,7 +217,7 @@ export function isGenerateImageModel(model: ClassifiableModel): boolean {
  * @param model
  * @returns
  */
-export function isPureGenerateImageModel(model: ClassifiableModel): boolean {
+export function isPureGenerateImageModel(model: Model): boolean {
   if (!isGenerateImageModel(model) && !isTextToImageModel(model)) {
     return false
   }
@@ -236,17 +241,17 @@ export const isTextToImageModel = isDedicatedImageModel
  * 判断模型是否支持图片增强（包括编辑、增强、修复等）
  * @param model
  */
-export function isImageEnhancementModel(model: ClassifiableModel): boolean {
+export function isImageEnhancementModel(model: Model): boolean {
   const modelId = getLowerBaseModelName(model.id)
   return IMAGE_ENHANCEMENT_MODELS_REGEX.test(modelId)
 }
 
-export function isVisionModel(model: ClassifiableModel): boolean {
+export function isVisionModel(model: Model): boolean {
   if (!model || isEmbeddingModel(model) || isRerankModel(model)) {
     return false
   }
   // 新添字段 copilot-vision-request 后可使用 vision
-  // if (getModelProviderId(model) === 'copilot') {
+  // if (model.provider === 'copilot') {
   //   return false
   // }
   if (isUserSelectedModelType(model, 'vision') !== undefined) {
@@ -254,7 +259,7 @@ export function isVisionModel(model: ClassifiableModel): boolean {
   }
 
   const modelId = getLowerBaseModelName(model.id)
-  if (getModelProviderId(model) === 'doubao' || modelId.includes('doubao')) {
+  if (model.provider === 'doubao' || modelId.includes('doubao')) {
     return VISION_REGEX.test(model.name) || VISION_REGEX.test(modelId) || false
   }
 

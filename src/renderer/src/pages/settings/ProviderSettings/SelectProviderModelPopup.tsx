@@ -1,5 +1,5 @@
 import { TopView } from '@renderer/components/TopView'
-import { isRerankModel } from '@renderer/config/models'
+import { isRerankModel } from '@renderer/config/models/v2'
 import { useTimer } from '@renderer/hooks/useTimer'
 import i18n from '@renderer/i18n'
 import type { Model } from '@shared/data/types/model'

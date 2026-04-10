@@ -1,22 +1,22 @@
-import type { Model } from '@renderer/types'
+import type { ProviderSettingsModel } from '@renderer/config/models/v2'
 import { memo } from 'react'
 
-import ModelTagsWithLabel from './ModelTagsWithLabel'
+import ModelTagsWithLabelV2 from './ModelTagsWithLabelV2'
 
-interface ModelIdWithTagsProps {
-  model: Model
+interface ModelIdWithTagsV2Props {
+  model: ProviderSettingsModel
   fontSize?: number
   showIdentifier?: boolean
   style?: React.CSSProperties
 }
 
-const ModelIdWithTags = ({
+const ModelIdWithTagsV2 = ({
   ref,
   model,
   fontSize = 14,
   showIdentifier = false,
   style
-}: ModelIdWithTagsProps & { ref?: React.RefObject<HTMLDivElement> | null }) => {
+}: ModelIdWithTagsV2Props & { ref?: React.RefObject<HTMLDivElement> | null }) => {
   const shouldShowIdentifier = showIdentifier && model.id !== model.name
 
   return (
@@ -36,9 +36,9 @@ const ModelIdWithTags = ({
           </span>
         )}
       </div>
-      <ModelTagsWithLabel model={model} size={11} style={{ flexShrink: 0 }} />
+      <ModelTagsWithLabelV2 model={model} size={11} style={{ flexShrink: 0 }} />
     </div>
   )
 }
 
-export default memo(ModelIdWithTags)
+export default memo(ModelIdWithTagsV2)

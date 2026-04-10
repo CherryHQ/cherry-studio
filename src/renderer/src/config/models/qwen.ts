@@ -1,8 +1,7 @@
+import type { Model } from '@renderer/types'
 import { getLowerBaseModelName } from '@renderer/utils'
 
-import type { ClassifiableModel } from './classifiable'
-
-export const isQwenMTModel = (model: ClassifiableModel): boolean => {
+export const isQwenMTModel = (model: Model): boolean => {
   const modelId = getLowerBaseModelName(model.id)
   return modelId.includes('qwen-mt')
 }
@@ -17,7 +16,7 @@ export const isQwenMTModel = (model: ClassifiableModel): boolean => {
  * @param model - The model to check, can be undefined.
  * @returns `true` if the model is a Qwen 3.5–3.9 series model, `false` otherwise.
  */
-export function isQwen35to39Model(model?: ClassifiableModel): boolean {
+export function isQwen35to39Model(model?: Model): boolean {
   if (!model) {
     return false
   }

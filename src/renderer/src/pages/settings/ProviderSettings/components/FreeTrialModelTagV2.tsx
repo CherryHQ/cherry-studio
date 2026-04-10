@@ -1,24 +1,23 @@
+import IndicatorLight from '@renderer/components/IndicatorLight'
+import { SelectModelPopup } from '@renderer/components/Popups/SelectModelPopup'
+import CustomTag from '@renderer/components/Tags/CustomTag'
+import type { ProviderSettingsModel } from '@renderer/config/models/v2'
 import { getProviderLabel } from '@renderer/i18n/label'
 import NavigationService from '@renderer/services/NavigationService'
-import type { Model } from '@renderer/types'
 import { ArrowUpRight } from 'lucide-react'
 import type { FC, MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import IndicatorLight from './IndicatorLight'
-import { SelectModelPopup } from './Popups/SelectModelPopup'
-import CustomTag from './Tags/CustomTag'
-
 interface Props {
-  model: Model
+  model: Pick<ProviderSettingsModel, 'id' | 'providerId'>
   showLabel?: boolean
 }
 
-export const FreeTrialModelTag: FC<Props> = ({ model, showLabel = true }) => {
+export const FreeTrialModelTagV2: FC<Props> = ({ model, showLabel = true }) => {
   const { t } = useTranslation()
 
-  if (model.provider !== 'cherryai') {
+  if (model.providerId !== 'cherryai') {
     return null
   }
 
@@ -28,7 +27,7 @@ export const FreeTrialModelTag: FC<Props> = ({ model, showLabel = true }) => {
   if (!providerId) return null
 
   const onSelectProvider = () => {
-    void NavigationService.navigate!({ to: `/settings/provider`, search: { id: providerId } })
+    void NavigationService.navigate?.({ to: '/settings/provider', search: { id: providerId } })
   }
 
   const onNavigateProvider = (e: MouseEvent) => {

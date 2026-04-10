@@ -16,7 +16,7 @@ import {
   isRerankModel,
   isVisionModel,
   isWebSearchModel
-} from '@renderer/config/models'
+} from '@renderer/config/models/v2'
 import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
 import { getDefaultGroupName } from '@renderer/utils'
 import { isNewApiProvider } from '@renderer/utils/provider.v2'

@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import type { Model, ModelType } from '@renderer/types'
+import type { ModelType } from '@renderer/types'
 import type { ModalFuncProps } from 'antd'
 import { isEqual } from 'lodash'
 import { v4 as uuidv4 } from 'uuid'

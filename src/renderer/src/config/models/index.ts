@@ -1,4 +1,3 @@
-export * from './classifiable'
 export * from './default'
 export * from './embedding'
 export * from './logo'

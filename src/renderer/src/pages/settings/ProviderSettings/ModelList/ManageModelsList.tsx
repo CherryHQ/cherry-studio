@@ -1,9 +1,8 @@
 import { Avatar, AvatarFallback, Button, Flex, Tooltip } from '@cherrystudio/ui'
 import ExpandableText from '@renderer/components/ExpandableText'
-import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
-import { getModelLogo } from '@renderer/config/models'
+import { getModelLogo } from '@renderer/config/models/v2'
 import FileItem from '@renderer/pages/files/FileItem'
 import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiBatchAddModelPopup'
 import { isNewApiProvider } from '@renderer/utils/provider.v2'
@@ -14,6 +13,7 @@ import React, { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import ModelIdWithTagsV2 from '../components/ModelIdWithTagsV2'
 import { isValidNewApiModel } from './utils'
 
 // 列表项类型定义
@@ -215,7 +215,7 @@ const ModelListItem: React.FC<ModelListItemProps> = memo(
                 </Avatar>
               )
             })(),
-            name: <ModelIdWithTags model={model} />,
+            name: <ModelIdWithTagsV2 model={model} />,
             extra: model.description && <ExpandableText text={model.description} />,
             ext: '.model',
             actions: isAdded ? (

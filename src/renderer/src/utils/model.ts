@@ -6,9 +6,7 @@ import {
   isVisionModel,
   isWebSearchModel
 } from '@renderer/config/models'
-import type { ClassifiableModel } from '@renderer/config/models/classifiable'
-import { getModelProviderId } from '@renderer/config/models/classifiable'
-import type { AdaptedApiModel, ApiModel, ModelTag } from '@renderer/types'
+import type { AdaptedApiModel, ApiModel, Model, ModelTag } from '@renderer/types'
 import { objectKeys } from '@renderer/types'
 
 /**
@@ -16,7 +14,7 @@ import { objectKeys } from '@renderer/types'
  * @param models - 模型列表
  * @returns 包含各个标签布尔值的对象，表示是否存在具有该标签的模型
  */
-export const getModelTags = (models: ClassifiableModel[]): Record<ModelTag, boolean> => {
+export const getModelTags = (models: Model[]): Record<ModelTag, boolean> => {
   const result: Record<ModelTag, boolean> = {
     vision: false,
     embedding: false,
@@ -66,15 +64,15 @@ export const getModelTags = (models: ClassifiableModel[]): Record<ModelTag, bool
   return result
 }
 
-export function isFreeModel(model: ClassifiableModel) {
-  if (getModelProviderId(model) === 'cherryai') {
+export function isFreeModel(model: Model) {
+  if (model.provider === 'cherryai') {
     return true
   }
 
   return (model.id + model.name).toLocaleLowerCase().includes('free')
 }
 
-export const getDuplicateModelNames = <T extends Pick<ClassifiableModel, 'name'>>(models: T[]): Set<string> => {
+export const getDuplicateModelNames = <T extends Pick<Model, 'name'>>(models: T[]): Set<string> => {
   const nameCounts = new Map<string, number>()
 
   for (const model of models) {

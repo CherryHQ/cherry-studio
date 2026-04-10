@@ -8,17 +8,17 @@ import { TopView } from '@renderer/components/TopView'
 import {
   groupQwenModels,
   isEmbeddingModel,
+  isFreeModel,
   isFunctionCallingModel,
   isReasoningModel,
   isRerankModel,
   isVisionModel,
   isWebSearchModel
-} from '@renderer/config/models'
+} from '@renderer/config/models/v2'
 import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiAddModelPopup'
 import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiBatchAddModelPopup'
 import { fetchModels } from '@renderer/services/ApiService'
 import { filterModelsByKeywords } from '@renderer/utils'
-import { isFreeModel } from '@renderer/utils/model'
 import { getFancyProviderName, isNewApiProvider } from '@renderer/utils/provider.v2'
 import { toV1ProviderShim } from '@renderer/utils/v1ProviderShim'
 import type { Model } from '@shared/data/types/model'

@@ -1,7 +1,5 @@
+import type { Model } from '@renderer/types'
 import { getLowerBaseModelName, isUserSelectedModelType } from '@renderer/utils'
-
-import type { ClassifiableModel } from './classifiable'
-import { getModelProviderId } from './classifiable'
 
 // Embedding models
 export const EMBEDDING_REGEX =
@@ -9,7 +7,7 @@ export const EMBEDDING_REGEX =
 
 // Rerank models
 export const RERANKING_REGEX = /(?:rerank|re-rank|re-ranker|re-ranking|retrieval|retriever)/i
-export function isEmbeddingModel(model: ClassifiableModel): boolean {
+export function isEmbeddingModel(model: Model): boolean {
   if (!model || isRerankModel(model)) {
     return false
   }
@@ -20,18 +18,18 @@ export function isEmbeddingModel(model: ClassifiableModel): boolean {
     return isUserSelectedModelType(model, 'embedding')!
   }
 
-  if (getModelProviderId(model) === 'anthropic') {
+  if (model.provider === 'anthropic') {
     return false
   }
 
-  if (getModelProviderId(model) === 'doubao' || modelId.includes('doubao')) {
+  if (model.provider === 'doubao' || modelId.includes('doubao')) {
     return EMBEDDING_REGEX.test(model.name)
   }
 
   return EMBEDDING_REGEX.test(modelId) || false
 }
 
-export function isRerankModel(model: ClassifiableModel): boolean {
+export function isRerankModel(model: Model): boolean {
   if (isUserSelectedModelType(model, 'rerank') !== undefined) {
     return isUserSelectedModelType(model, 'rerank')!
   }

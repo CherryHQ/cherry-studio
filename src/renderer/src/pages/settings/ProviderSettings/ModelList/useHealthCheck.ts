@@ -1,4 +1,4 @@
-import { isRerankModel } from '@renderer/config/models'
+import { isRerankModel } from '@renderer/config/models/v2'
 import { checkModelsHealth } from '@renderer/services/HealthCheckService'
 import type { ModelWithStatus } from '@renderer/types/healthCheck'
 import { HealthStatus } from '@renderer/types/healthCheck'

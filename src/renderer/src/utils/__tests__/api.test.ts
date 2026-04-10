@@ -1,5 +1,4 @@
 import store from '@renderer/store'
-import type { VertexProvider } from '@renderer/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { formatVertexApiHost, maskApiKey, routeToEndpoint, splitApiKeyString, validateApiHost } from '../api'
@@ -14,21 +13,6 @@ vi.mock('@renderer/store', () => {
 })
 
 const getStateMock = store.getState as unknown as ReturnType<typeof vi.fn>
-
-const createVertexProvider = (apiHost: string): VertexProvider => ({
-  id: 'vertex-provider',
-  type: 'vertexai',
-  name: 'Vertex AI',
-  apiKey: '',
-  apiHost,
-  models: [],
-  googleCredentials: {
-    privateKey: '',
-    clientEmail: ''
-  },
-  project: '',
-  location: ''
-})
 
 beforeEach(() => {
   getStateMock.mockReset()

@@ -1,19 +1,4 @@
 import {
-  isEmbeddingModel,
-  isFunctionCallingModel,
-  isReasoningModel,
-  isRerankModel,
-  isVisionModel,
-  isWebSearchModel
-} from '@renderer/config/models'
-import i18n from '@renderer/i18n'
-import type { Model } from '@renderer/types'
-import { isFreeModel } from '@renderer/utils/model'
-import type { FC } from 'react'
-import { memo, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import styled from 'styled-components'
-
-import {
   EmbeddingTag,
   FreeTag,
   ReasoningTag,
@@ -21,10 +6,24 @@ import {
   ToolsCallingTag,
   VisionTag,
   WebSearchTag
-} from './Tags/Model'
+} from '@renderer/components/Tags/Model'
+import {
+  isEmbeddingModel,
+  isFreeModel,
+  isFunctionCallingModel,
+  isReasoningModel,
+  isRerankModel,
+  isVisionModel,
+  isWebSearchModel,
+  type ProviderSettingsModel
+} from '@renderer/config/models/v2'
+import i18n from '@renderer/i18n'
+import type { FC } from 'react'
+import { memo, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import styled from 'styled-components'
 
 interface ModelTagsProps {
-  model: Model
+  model: ProviderSettingsModel
   showFree?: boolean
   showReasoning?: boolean
   showToolsCalling?: boolean
@@ -34,7 +33,7 @@ interface ModelTagsProps {
   style?: React.CSSProperties
 }
 
-const ModelTagsWithLabel: FC<ModelTagsProps> = ({
+const ModelTagsWithLabelV2: FC<ModelTagsProps> = ({
   model,
   showFree = true,
   showReasoning = true,
@@ -56,18 +55,15 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
 
     setShouldShowLabel(currentElement.offsetWidth >= maxWidth)
 
-    if (currentElement) {
-      resizeObserver.current = new ResizeObserver((entries) => {
-        for (const entry of entries) {
-          const { width } = entry.contentRect
-          setShouldShowLabel(width >= maxWidth)
-        }
-      })
-      resizeObserver.current.observe(currentElement)
-    }
+    resizeObserver.current = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setShouldShowLabel(entry.contentRect.width >= maxWidth)
+      }
+    })
+    resizeObserver.current.observe(currentElement)
+
     return () => {
-      if (resizeObserver.current && currentElement) {
-        resizeObserver.current.unobserve(currentElement)
+      if (resizeObserver.current) {
         resizeObserver.current.disconnect()
         resizeObserver.current = null
       }
@@ -103,4 +99,4 @@ const Container = styled.div`
   }
 `
 
-export default memo(ModelTagsWithLabel)
+export default memo(ModelTagsWithLabelV2)
