@@ -9,7 +9,8 @@ import { v4 as uuid } from 'uuid'
 
 import { useTabs } from '../../hooks/useTabs'
 import Sidebar from '../app/Sidebar'
-import { TabRouter } from './TabRouter'
+import { TabContainer } from './TabContainer'
+import { TabContextMenu } from './TabContextMenu'
 
 // Mock Webview component (TODO: Replace with actual MinApp/Webview)
 const WebviewContainer = ({ url, isActive }: { url: string; isActive: boolean }) => (
@@ -50,27 +51,28 @@ export const AppShell = () => {
           <header className="flex h-10 w-full items-center border-b bg-muted/5">
             <TabsList className="flex h-full min-w-0 flex-1 justify-start gap-0 overflow-hidden">
               {tabs.map((tab) => (
-                <TabsTrigger
-                  key={tab.id}
-                  value={tab.id}
-                  className={cn(
-                    'group relative flex h-full min-w-0 max-w-[200px] flex-1 items-center justify-between gap-2 rounded-none border-r px-3 text-sm',
-                    tab.id === activeTabId ? 'bg-background' : 'bg-transparent'
-                  )}>
-                  {/* TODO: pin功能,形式还未确定 */}
-                  <span className={cn('truncate text-xs', tab.isDormant && 'opacity-60')}>{tab.title}</span>
-                  {tabs.length > 1 && (
-                    <div
-                      role="button"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        closeTab(tab.id)
-                      }}
-                      className="ml-1 cursor-pointer rounded-sm p-0.5 opacity-0 hover:bg-muted-foreground/20 hover:opacity-100 group-hover:opacity-50">
-                      <X className="size-3" />
-                    </div>
-                  )}
-                </TabsTrigger>
+                <TabContextMenu key={tab.id} tab={tab}>
+                  <TabsTrigger
+                    value={tab.id}
+                    className={cn(
+                      'group relative flex h-full min-w-0 max-w-[200px] flex-1 items-center justify-between gap-2 rounded-none border-r px-3 text-sm',
+                      tab.id === activeTabId ? 'bg-background' : 'bg-transparent'
+                    )}>
+                    {/* TODO: pin功能,形式还未确定 */}
+                    <span className={cn('truncate text-xs', tab.isDormant && 'opacity-60')}>{tab.title}</span>
+                    {tabs.length > 1 && (
+                      <div
+                        role="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          closeTab(tab.id)
+                        }}
+                        className="ml-1 cursor-pointer rounded-sm p-0.5 opacity-0 hover:bg-muted-foreground/20 hover:opacity-100 group-hover:opacity-50">
+                        <X className="size-3" />
+                      </div>
+                    )}
+                  </TabsTrigger>
+                </TabContextMenu>
               ))}
               {/* 新增 Tab 按钮 - 跟随最后一个 Tab */}
               <button
@@ -90,7 +92,7 @@ export const AppShell = () => {
           {tabs
             .filter((t) => t.type === 'route' && !t.isDormant)
             .map((tab) => (
-              <TabRouter
+              <TabContainer
                 key={tab.id}
                 tab={tab}
                 isActive={tab.id === activeTabId}
