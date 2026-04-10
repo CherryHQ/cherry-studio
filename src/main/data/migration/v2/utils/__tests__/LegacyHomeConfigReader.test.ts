@@ -11,7 +11,7 @@ const MOCK_EXE = '/mock/unknown'
 
 async function createReader() {
   const { LegacyHomeConfigReader } = await import('../LegacyHomeConfigReader')
-  return new LegacyHomeConfigReader()
+  return new LegacyHomeConfigReader(CONFIG_PATH)
 }
 
 describe('LegacyHomeConfigReader', () => {

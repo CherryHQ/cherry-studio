@@ -139,7 +139,6 @@ export function createApp(): express.Application {
         messages_provider: 'POST /:provider/v1/messages',
         mcps: 'GET /v1/mcps',
         mcp_server: 'GET /v1/mcps/:server_id',
-        mcp_proxy: 'ALL /v1/mcps/:server_id/mcp',
         agents: 'GET /v1/agents',
         channels: 'GET /v1/channels',
         agent_sessions: 'GET /v1/agents/:agentId/sessions',

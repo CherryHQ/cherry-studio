@@ -154,10 +154,8 @@ const Sidebar: FC = () => {
 const MainMenus: FC<{ visibleSidebarIcons: SidebarIcon[] }> = ({ visibleSidebarIcons }) => {
   const { hideMinappPopup } = useMinappPopup()
   const { minappShow } = useMinapps()
-  const { tabs, activeTabId, updateTab } = useTabs()
+  const { activeTab, updateTab } = useTabs()
 
-  // 获取当前 Tab 的 URL 作为 pathname
-  const activeTab = tabs.find((t) => t.id === activeTabId)
   const pathname = activeTab?.url || '/'
 
   const { defaultPaintingProvider } = useSettings()
@@ -196,8 +194,8 @@ const MainMenus: FC<{ visibleSidebarIcons: SidebarIcon[] }> = ({ visibleSidebarI
   // 在当前 Tab 内跳转
   const to = async (path: string) => {
     await modelGenerating()
-    if (activeTabId) {
-      updateTab(activeTabId, { url: path, title: getDefaultRouteTitle(path) })
+    if (activeTab?.id) {
+      updateTab(activeTab.id, { url: path, title: getDefaultRouteTitle(path) })
     }
   }
 
