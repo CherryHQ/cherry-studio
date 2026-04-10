@@ -120,8 +120,10 @@ preboot/
 │                        header and unresponsive renderer call-stack
 │                        collection)
 ├── v2MigrationGate.ts   v1→v2 migration decision gate; runs before
-│                        bootstrap. Temporary — scoped for deletion
-│                        once all users have migrated off v1.
+│                        bootstrap. Calls resolveMigrationPaths() to
+│                        detect v1 legacy userData before engine init.
+│                        Temporary — scoped for deletion once all
+│                        users have migrated off v1.
 └── __tests__/           unit tests for each sibling module
 ```
 

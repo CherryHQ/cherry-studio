@@ -12,7 +12,7 @@
 
 import type { ProtoModelConfig, ProtoProviderModelOverride } from '@cherrystudio/provider-registry'
 import type { EndpointType } from '@cherrystudio/provider-registry'
-import { buildRuntimeEndpointConfigs, lookupRegistryModel } from '@cherrystudio/provider-registry'
+import { buildRuntimeEndpointConfigs } from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
@@ -130,21 +130,14 @@ class ProviderRegistryService {
    */
   getRegistryModelsByProvider(providerId: string): Model[] {
     const loader = this.getLoader()
-    const registryModels = loader.loadModels()
-    const providerModels = loader.loadProviderModels()
     const { defaultChatEndpoint, reasoningFormatTypes } = this.getRegistryReasoningConfig(providerId)
 
-    const overrides = providerModels.filter((pm) => pm.providerId === providerId)
+    const overrides = loader.getOverridesForProvider(providerId)
     if (overrides.length === 0) return []
-
-    const modelMap = new Map<string, ProtoModelConfig>()
-    for (const model of registryModels) {
-      modelMap.set(model.id, model)
-    }
 
     const mergedModels: Model[] = []
     for (const override of overrides) {
-      const baseModel = modelMap.get(override.modelId) ?? null
+      const baseModel = loader.findModel(override.modelId)
       if (!baseModel) continue
       mergedModels.push(mergePresetModel(baseModel, override, providerId, reasoningFormatTypes, defaultChatEndpoint))
     }
@@ -176,12 +169,8 @@ class ProviderRegistryService {
     reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>>
   }> {
     const loader = this.getLoader()
-    const { presetModel, registryOverride } = lookupRegistryModel(
-      loader.loadModels(),
-      loader.loadProviderModels(),
-      providerId,
-      modelId
-    )
+    const presetModel = loader.findModel(modelId)
+    const registryOverride = loader.findOverride(providerId, modelId)
     const reasoningConfig = await this.getEffectiveReasoningConfig(providerId)
 
     return { presetModel, registryOverride, ...reasoningConfig }
@@ -204,20 +193,7 @@ class ProviderRegistryService {
    */
   async resolveModels(providerId: string, modelIds: string[]): Promise<Model[]> {
     const loader = this.getLoader()
-    const registryModels = loader.loadModels()
-    const providerModels = loader.loadProviderModels()
     const { defaultChatEndpoint, reasoningFormatTypes } = await this.getEffectiveReasoningConfig(providerId)
-
-    const modelMap = new Map<string, ProtoModelConfig>()
-    for (const m of registryModels) {
-      modelMap.set(m.id, m)
-    }
-    const overrideMap = new Map<string, ProtoProviderModelOverride>()
-    for (const pm of providerModels) {
-      if (pm.providerId === providerId) {
-        overrideMap.set(pm.modelId, pm)
-      }
-    }
 
     const results: Model[] = []
     const seen = new Set<string>()
@@ -226,8 +202,9 @@ class ProviderRegistryService {
       if (!modelId || seen.has(modelId)) continue
       seen.add(modelId)
 
-      const presetModel = modelMap.get(modelId) ?? null
-      const registryOverride = overrideMap.get(modelId) ?? null
+      // O(1) lookup with exact match + normalized fallback
+      const presetModel = loader.findModel(modelId)
+      const registryOverride = loader.findOverride(providerId, modelId)
 
       try {
         if (presetModel) {

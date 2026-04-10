@@ -277,7 +277,13 @@ export const ModelSchema = z.object({
   /** Whether this model is hidden from lists */
   isHidden: z.boolean(),
   /** Replacement model if this one is deprecated */
-  replaceWith: UniqueModelIdSchema.optional()
+  replaceWith: UniqueModelIdSchema.optional(),
+
+  // UI metadata
+  /** Sort order in provider's model list */
+  sortOrder: z.number().optional(),
+  /** User notes about this model */
+  notes: z.string().optional()
 })
 
 export type Model = z.infer<typeof ModelSchema>

@@ -11,7 +11,7 @@ This document describes how Cherry Studio loads, parses, and merges provider/mod
 │   ├── providers.json        63 preset providers (endpoints, apiFeatures, metadata)
 │   └── provider-models.json  Provider-specific model overrides (per-provider tweaks)
 ├── src/
-│   ├── registry-loader.ts    RegistryLoader: read JSON, validate, cache, build indexes
+│   ├── registry-loader.ts    RegistryLoader: load, validate, cache, index, idle TTL
 │   ├── registry-utils.ts     Pure functions: lookupRegistryModel, buildRuntimeEndpointConfigs
 │   ├── utils/normalize.ts    normalizeModelId and helpers (aggregator prefix, variant suffix...)
 │   └── schemas/              Zod schemas for validation
@@ -20,7 +20,7 @@ src/main/data/
 ├── db/seeding/
 │   └── presetProviderSeeding.ts   ISeed: insert-only preset providers on first boot
 ├── services/
-│   ├── ProviderRegistryService.ts Merge-dependent operations (enrich, resolve, initialize)
+│   ├── ProviderRegistryService.ts Merge-dependent queries (resolve, lookup)
 │   ├── ModelService.ts            Model CRUD, accepts registry lookup from handler
 │   └── ProviderService.ts         Provider CRUD, preset deletion protection
 └── api/handlers/
@@ -42,95 +42,103 @@ DbService.onInit()
       → Never overwrites user customizations
 ```
 
-**Key behavior**: Insert-only. If provider already exists in DB, skip it. Preset providers (those with `presetProviderId`) cannot be deleted by users.
+**Key behavior**: Insert-only. If provider already exists in DB, skip it. Canonical preset providers (where `providerId === presetProviderId`) cannot be deleted by users. User-created providers that inherit from a preset can be deleted.
 
 ### 2. On-Demand: Model Creation
 
 ```
 POST /models { providerId: 'openai', modelId: 'gpt-4o' }
   → handler: providerRegistryService.lookupModel(providerId, modelId)
-    → RegistryLoader.findModel('gpt-4o')           // exact match, then normalize fallback
-    → RegistryLoader.findOverride('openai', 'gpt-4o')
+    → RegistryLoader.findModel('gpt-4o')           // O(1) indexed, normalize fallback
+    → RegistryLoader.findOverride('openai', 'gpt-4o')  // O(1) indexed
     → getEffectiveReasoningConfig(providerId)       // DB query for user provider overrides
     → returns { presetModel, registryOverride, reasoningFormatTypes, defaultChatEndpoint }
   → handler: modelService.create(dto, registryData)
-    → mergeModelConfig(userRow, override, preset, providerId, ...)
+    → mergeModelWithUser(userRow, override, preset, providerId, ...)
     → INSERT into user_model with presetModelId = preset.id
 ```
 
-### 3. On-Demand: Provider Model Initialization
+### 3. Resolve SDK Model List
 
 ```
-POST /providers/:providerId/registry-models
-  → providerRegistryService.initializeProvider(providerId)
-    → RegistryLoader.getOverridesForProvider(providerId)  // all overrides for this provider
-    → For each override: find base model, mergeModelConfig, collect rows
-    → modelService.batchUpsert(rows)                      // respects userOverrides protection
+POST /providers/:providerId/registry-models { modelIds: ['gpt-4o', ...] }
+  → providerRegistryService.resolveModels(providerId, modelIds)
+    → For each modelId:
+        → RegistryLoader.findModel(modelId)         // O(1), normalize fallback
+        → RegistryLoader.findOverride(providerId, modelId)  // O(1)
+        → mergePresetModel(preset, override, ...) or createCustomModel(...)
+    → Return merged Model[]
+
+SDK only provides model IDs. All other data (capabilities, pricing, etc.)
+comes from the registry — SDK data does not overwrite curated registry data.
 ```
 
-### 4. Enrichment: Update Existing Models from Registry
-
-```
-providerRegistryService.enrichExistingModels()
-  → RegistryLoader.loadModels() + loadProviderModels()
-  → SELECT * FROM user_model WHERE presetModelId IS NOT NULL
-  → SELECT providerId, defaultChatEndpoint, endpointConfigs FROM user_provider
-  → For each user model:
-      → RegistryLoader.findModel(presetModelId)      // exact + normalize fallback
-      → RegistryLoader.findOverride(providerId, presetModelId)
-      → mergeModelConfig(userRow, override, preset, ...)
-      → collect update rows
-  → modelService.batchUpsert(updateRows)             // respects userOverrides protection
-```
-
-**Status**: Currently not wired into any startup hook. Will be called by a future registry update service (CDN-based JSON updates).
-
-### 5. Read-Only: Registry Model Queries
+### 4. Read-Only: Registry Model Queries
 
 ```
 GET /providers/:providerId/registry-models
   → providerRegistryService.getRegistryModelsByProvider(providerId)
-    → RegistryLoader.getOverridesForProvider(providerId)
-    → For each override: find base model, mergeModelConfig
+    → RegistryLoader.getOverridesForProvider(providerId)  // O(1) indexed
+    → For each override: RegistryLoader.findModel(modelId)  // O(1)
+    → mergePresetModel for each
     → Return merged Model[] (no DB writes)
 ```
 
-## Three-Layer Merge
+## Merge Functions
 
-All model data follows a three-layer merge with strict priority:
+Three separate functions for three distinct use cases:
+
+| Function | Use Case | Layers |
+|----------|----------|--------|
+| `mergePresetModel` | Registry queries, resolveModels | preset → override |
+| `mergeModelWithUser` | ModelService.create with registry match | preset → override → user |
+| `createCustomModel` | No registry match | modelId only |
+
+Shared logic extracted to `applyPresetAndOverride` (preset + override merge) and `resolveReasoning` (reasoning config resolution).
+
+### Priority
 
 ```
 user_model (DB)  >  provider-models.json (override)  >  models.json (preset)
    highest                  middle                         lowest
 ```
 
-Implemented in `mergeModelConfig()` (`packages/shared/data/utils/modelMerger.ts`):
-
-```typescript
-// 1. Start from preset (models.json)
-let capabilities = [...presetModel.capabilities]
-let inputModalities = presetModel.inputModalities
-let contextWindow = presetModel.contextWindow
-// ...all fields initialized from preset
-
-// 2. Apply catalog override (provider-models.json)
-if (catalogOverride) {
-  if (catalogOverride.capabilities) capabilities = applyCapabilityOverride(...)
-  if (catalogOverride.limits?.contextWindow) contextWindow = catalogOverride.limits.contextWindow
-  // ...
-}
-
-// 3. Apply user override (user_model DB row) — highest priority
-if (userModel) {
-  if (userModel.capabilities) capabilities = userModel.capabilities
-  if (userModel.contextWindow != null) contextWindow = userModel.contextWindow
-  // ...
-}
-```
+Null user fields fall through to preset/override values — they do not clobber.
 
 ### User Override Protection
 
 `ModelService.batchUpsert()` respects a `userOverrides` field on each `user_model` row. When a user manually edits a field (e.g., changes `name`), that field name is recorded in `userOverrides`. During enrichment, fields in `userOverrides` are skipped — the user's customization is preserved even when registry data updates.
+
+## RegistryLoader
+
+Cached, indexed access to registry JSON with idle auto-expiry.
+
+### Lifecycle
+
+- **Lazy load**: Data loaded on first access (not at startup)
+- **Pre-computed indexes**: 5 Maps built on first load for O(1) lookups
+- **Idle TTL**: Auto-invalidates after 30s of no access, releasing ~6MB memory
+- **Touch on access**: Every `findModel/findOverride/loadModels` resets the timer
+- **Singleton**: One instance per `ProviderRegistryService`, shared across queries
+
+### Indexes
+
+| Index | Key | Use |
+|-------|-----|-----|
+| `modelById` | `model.id` | Exact model lookup |
+| `modelByNormId` | `normalizeModelId(id)` | Normalized fallback |
+| `overrideByKey` | `providerId::modelId` | Exact override lookup |
+| `overrideByNormKey` | `providerId::normalizeModelId(id)` | Normalized fallback |
+| `overridesByProvider` | `providerId` | All overrides for a provider |
+
+### Query API
+
+```typescript
+loader.findModel(modelId)                    // O(1): exact → normalized fallback
+loader.findOverride(providerId, modelId)     // O(1): exact → normalized fallback
+loader.getOverridesForProvider(providerId)   // O(1): grouped by provider
+loader.invalidate()                          // Release all data, reload on next access
+```
 
 ## Model ID Normalization
 
@@ -182,7 +190,10 @@ Implemented in `normalizeModelId()` (`packages/provider-registry/src/utils/norma
 | `contextWindow` / `maxOutputTokens` | Numeric limits |
 | `reasoning` | JSON: type, supportedEfforts, thinkingTokenLimits |
 | `pricing` | JSON: input/output/cacheRead/cacheWrite per million tokens |
+| `parameters` | JSON: parameter support config (temperature, topP, etc.) |
 | `userOverrides` | JSON array of field names user has manually edited |
+| `sortOrder` | Sort order in provider's model list |
+| `notes` | User notes about this model |
 
 ## Provider Configuration Merge
 
@@ -225,11 +236,11 @@ reasoning = extractRuntimeReasoning(presetModel.reasoning, reasoningFormatType)
 |------|-------|
 | Registry JSON data | `packages/provider-registry/data/` |
 | Zod schemas | `packages/provider-registry/src/schemas/` |
-| RegistryLoader + readers | `packages/provider-registry/src/registry-loader.ts` |
+| RegistryLoader (load, index, TTL) | `packages/provider-registry/src/registry-loader.ts` |
 | Pure lookup/transform | `packages/provider-registry/src/registry-utils.ts` |
 | Normalize utilities | `packages/provider-registry/src/utils/normalize.ts` |
 | Preset provider seeding | `src/main/data/db/seeding/presetProviderSeeding.ts` |
-| Service (merge-dependent) | `src/main/data/services/ProviderRegistryService.ts` |
+| Service (merge queries) | `src/main/data/services/ProviderRegistryService.ts` |
 | Model service | `src/main/data/services/ModelService.ts` |
 | Provider service | `src/main/data/services/ProviderService.ts` |
 | Merge utilities | `packages/shared/data/utils/modelMerger.ts` |

@@ -40,6 +40,7 @@ import { Route as AppFilesRouteImport } from './routes/app/files'
 import { Route as AppCodeRouteImport } from './routes/app/code'
 import { Route as AppChatRouteImport } from './routes/app/chat'
 import { Route as AppAssistantRouteImport } from './routes/app/assistant'
+import { Route as AppAgentsRouteImport } from './routes/app/agents'
 import { Route as SettingsWebsearchIndexRouteImport } from './routes/settings/websearch/index'
 import { Route as SettingsMcpIndexRouteImport } from './routes/settings/mcp/index'
 import { Route as AppPaintingsIndexRouteImport } from './routes/app/paintings/index'
@@ -212,6 +213,11 @@ const AppAssistantRoute = AppAssistantRouteImport.update({
   path: '/assistant',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAgentsRoute = AppAgentsRouteImport.update({
+  id: '/agents',
+  path: '/agents',
+  getParentRoute: () => AppRoute,
+} as any)
 const SettingsWebsearchIndexRoute = SettingsWebsearchIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -296,6 +302,7 @@ export interface FileRoutesByFullPath {
   '/app': typeof AppRouteWithChildren
   '/home': typeof HomeRoute
   '/settings': typeof SettingsRouteWithChildren
+  '/app/agents': typeof AppAgentsRoute
   '/app/assistant': typeof AppAssistantRoute
   '/app/chat': typeof AppChatRoute
   '/app/code': typeof AppCodeRoute
@@ -343,6 +350,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
   '/home': typeof HomeRoute
+  '/app/agents': typeof AppAgentsRoute
   '/app/assistant': typeof AppAssistantRoute
   '/app/chat': typeof AppChatRoute
   '/app/code': typeof AppCodeRoute
@@ -390,6 +398,7 @@ export interface FileRoutesById {
   '/app': typeof AppRouteWithChildren
   '/home': typeof HomeRoute
   '/settings': typeof SettingsRouteWithChildren
+  '/app/agents': typeof AppAgentsRoute
   '/app/assistant': typeof AppAssistantRoute
   '/app/chat': typeof AppChatRoute
   '/app/code': typeof AppCodeRoute
@@ -440,6 +449,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/home'
     | '/settings'
+    | '/app/agents'
     | '/app/assistant'
     | '/app/chat'
     | '/app/code'
@@ -487,6 +497,7 @@ export interface FileRouteTypes {
     | '/'
     | '/app'
     | '/home'
+    | '/app/agents'
     | '/app/assistant'
     | '/app/chat'
     | '/app/code'
@@ -533,6 +544,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/home'
     | '/settings'
+    | '/app/agents'
     | '/app/assistant'
     | '/app/chat'
     | '/app/code'
@@ -803,6 +815,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAssistantRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/agents': {
+      id: '/app/agents'
+      path: '/agents'
+      fullPath: '/app/agents'
+      preLoaderRoute: typeof AppAgentsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/settings/websearch/': {
       id: '/settings/websearch/'
       path: '/'
@@ -912,6 +931,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppRouteChildren {
+  AppAgentsRoute: typeof AppAgentsRoute
   AppAssistantRoute: typeof AppAssistantRoute
   AppChatRoute: typeof AppChatRoute
   AppCodeRoute: typeof AppCodeRoute
@@ -926,6 +946,7 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppAgentsRoute: AppAgentsRoute,
   AppAssistantRoute: AppAssistantRoute,
   AppChatRoute: AppChatRoute,
   AppCodeRoute: AppCodeRoute,
