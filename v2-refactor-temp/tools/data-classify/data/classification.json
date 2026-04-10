@@ -2484,7 +2484,7 @@
               },
               "originalKey": "zoom_in",
               "status": "classified",
-              "targetKey": "shortcut.app.general.zoom_in",
+              "targetKey": "shortcut.general.zoom_in",
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
@@ -2498,7 +2498,7 @@
               },
               "originalKey": "zoom_out",
               "status": "classified",
-              "targetKey": "shortcut.app.general.zoom_out",
+              "targetKey": "shortcut.general.zoom_out",
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
@@ -2512,7 +2512,7 @@
               },
               "originalKey": "zoom_reset",
               "status": "classified",
-              "targetKey": "shortcut.app.general.zoom_reset",
+              "targetKey": "shortcut.general.zoom_reset",
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
@@ -2526,7 +2526,7 @@
               },
               "originalKey": "show_settings",
               "status": "classified",
-              "targetKey": "shortcut.app.general.show_settings",
+              "targetKey": "shortcut.general.show_settings",
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
@@ -2537,7 +2537,7 @@
               },
               "originalKey": "show_app",
               "status": "classified",
-              "targetKey": "shortcut.app.general.show_main_window",
+              "targetKey": "shortcut.general.show_main_window",
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
@@ -2551,7 +2551,7 @@
               },
               "originalKey": "mini_window",
               "status": "classified",
-              "targetKey": "shortcut.app.general.show_mini_window",
+              "targetKey": "shortcut.general.show_mini_window",
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
@@ -2587,7 +2587,7 @@
               },
               "originalKey": "new_topic",
               "status": "classified",
-              "targetKey": "shortcut.app.topic.new",
+              "targetKey": "shortcut.topic.new",
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
@@ -2601,7 +2601,7 @@
               },
               "originalKey": "rename_topic",
               "status": "classified",
-              "targetKey": "shortcut.app.topic.rename",
+              "targetKey": "shortcut.topic.rename",
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
@@ -2615,7 +2615,7 @@
               },
               "originalKey": "toggle_show_topics",
               "status": "classified",
-              "targetKey": "shortcut.app.topic.toggle_show_topics",
+              "targetKey": "shortcut.topic.toggle_show_topics",
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
@@ -2629,7 +2629,7 @@
               },
               "originalKey": "toggle_show_assistants",
               "status": "classified",
-              "targetKey": "shortcut.app.general.toggle_sidebar",
+              "targetKey": "shortcut.general.toggle_sidebar",
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
@@ -2644,7 +2644,7 @@
               },
               "originalKey": "copy_last_message",
               "status": "classified",
-              "targetKey": "shortcut.app.chat.copy_last_message",
+              "targetKey": "shortcut.chat.copy_last_message",
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
@@ -2659,7 +2659,7 @@
               },
               "originalKey": "edit_last_user_message",
               "status": "classified",
-              "targetKey": "shortcut.app.chat.edit_last_user_message",
+              "targetKey": "shortcut.chat.edit_last_user_message",
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
@@ -2673,7 +2673,7 @@
               },
               "originalKey": "search_message_in_chat",
               "status": "classified",
-              "targetKey": "shortcut.app.chat.search_message",
+              "targetKey": "shortcut.chat.search_message",
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
@@ -2688,7 +2688,7 @@
               },
               "originalKey": "search_message",
               "status": "classified",
-              "targetKey": "shortcut.app.general.search",
+              "targetKey": "shortcut.general.search",
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
@@ -2702,7 +2702,7 @@
               },
               "originalKey": "clear_topic",
               "status": "classified",
-              "targetKey": "shortcut.app.chat.clear",
+              "targetKey": "shortcut.chat.clear",
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
@@ -2716,7 +2716,7 @@
               },
               "originalKey": "toggle_new_context",
               "status": "classified",
-              "targetKey": "shortcut.app.chat.toggle_new_context",
+              "targetKey": "shortcut.chat.toggle_new_context",
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
@@ -2731,7 +2731,7 @@
               },
               "originalKey": "select_model",
               "status": "classified",
-              "targetKey": "shortcut.app.chat.select_model",
+              "targetKey": "shortcut.chat.select_model",
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
@@ -2744,7 +2744,7 @@
               },
               "originalKey": "exit_fullscreen",
               "status": "classified",
-              "targetKey": "shortcut.app.general.exit_fullscreen",
+              "targetKey": "shortcut.general.exit_fullscreen",
               "type": "PreferenceTypes.PreferenceShortcutType"
             }
           ]

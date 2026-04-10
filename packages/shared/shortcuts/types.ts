@@ -3,11 +3,11 @@ import type { PreferenceDefaultScopeType, PreferenceKeyType } from '@shared/data
 export type ShortcutScope = 'main' | 'renderer' | 'both'
 
 /** Built-in shortcut categories for UI grouping. */
-export type BuiltinShortcutCategory = 'app.general' | 'app.chat' | 'app.topic' | 'feature.selection'
+export type BuiltinShortcutCategory = 'general' | 'chat' | 'topic' | 'feature.selection'
 
 /**
  * Dot-separated namespace for UI grouping in the settings page.
- * Built-in: `app.general`, `app.chat`, `app.topic`, `feature.selection`.
+ * Built-in: `general`, `chat`, `topic`, `feature.selection`.
  * Plugins: `plugin.{pluginId}` (e.g. `plugin.translator`).
  */
 export type ShortcutCategory = BuiltinShortcutCategory | `plugin.${string}`
@@ -25,13 +25,13 @@ export type ShortcutEnabledPredicate = (getPreference: GetPreferenceFn) => boole
 
 /** Static metadata for a single shortcut — the single source of truth for the shortcut system. */
 export interface ShortcutDefinition {
-  /** Preference key in `shortcut.app.{category}.{name}` format for built-in shortcuts. Plugins use `shortcut.plugin.{pluginId}.{name}`. */
+  /** Preference key in `shortcut.{category}.{name}` format for built-in shortcuts. Plugins use `shortcut.plugin.{pluginId}.{name}`. */
   key: ShortcutPreferenceKey
   /** Default key binding in Electron accelerator format (e.g. `['CommandOrControl', 'L']`). Empty array means no default binding. */
   defaultBinding: string[]
   /** Where the shortcut is registered: `main` (globalShortcut), `renderer` (react-hotkeys-hook), or `both`. */
   scope: ShortcutScope
-  /** Dot-separated category for UI grouping (e.g. `app.general`, `app.chat`, `app.topic`, `plugin.translator`). */
+  /** Dot-separated category for UI grouping (e.g. `general`, `chat`, `topic`, `plugin.translator`). */
   category: ShortcutCategory
   /** i18n label key used by `getShortcutLabel()` for display. */
   labelKey: string

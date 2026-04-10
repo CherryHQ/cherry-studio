@@ -33,7 +33,7 @@ const AgentPage = () => {
   const { t } = useTranslation()
 
   // TODO: Replace with sidebar toggle logic once the new sidebar UI is implemented
-  useShortcut('app.general.toggle_sidebar', () => {
+  useShortcut('general.toggle_sidebar', () => {
     if (topicPosition === 'left') {
       void toggleShowAssistants()
       return
@@ -42,7 +42,7 @@ const AgentPage = () => {
     void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
   })
 
-  useShortcut('app.topic.toggle_show_topics', () => {
+  useShortcut('topic.toggle_show_topics', () => {
     if (topicPosition === 'right') {
       void toggleShowTopics()
     } else {

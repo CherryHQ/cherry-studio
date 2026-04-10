@@ -51,11 +51,11 @@ export class ShortcutService extends BaseService {
   }
 
   private registerBuiltInHandlers(): void {
-    this.handlers.set('shortcut.app.general.show_main_window', () => {
+    this.handlers.set('shortcut.general.show_main_window', () => {
       application.get('WindowService').toggleMainWindow()
     })
 
-    this.handlers.set('shortcut.app.general.show_settings', () => {
+    this.handlers.set('shortcut.general.show_settings', () => {
       let targetWindow = application.get('WindowService').getMainWindow()
 
       if (
@@ -74,20 +74,20 @@ export class ShortcutService extends BaseService {
       targetWindow.webContents.send(IpcChannel.Windows_NavigateToSettings)
     })
 
-    this.handlers.set('shortcut.app.general.show_mini_window', () => {
+    this.handlers.set('shortcut.general.show_mini_window', () => {
       if (!application.get('PreferenceService').get('feature.quick_assistant.enabled')) return
       application.get('WindowService').toggleMiniWindow()
     })
 
-    this.handlers.set('shortcut.app.general.zoom_in', (window) => {
+    this.handlers.set('shortcut.general.zoom_in', (window) => {
       if (window) handleZoomFactor([window], 0.1)
     })
 
-    this.handlers.set('shortcut.app.general.zoom_out', (window) => {
+    this.handlers.set('shortcut.general.zoom_out', (window) => {
       if (window) handleZoomFactor([window], -0.1)
     })
 
-    this.handlers.set('shortcut.app.general.zoom_reset', (window) => {
+    this.handlers.set('shortcut.general.zoom_reset', (window) => {
       if (window) handleZoomFactor([window], 0, true)
     })
 

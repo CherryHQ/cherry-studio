@@ -29,7 +29,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
 
   const { isTopNavbar } = useNavbarPosition()
 
-  useShortcut('app.general.search', () => {
+  useShortcut('general.search', () => {
     void SearchPopup.show()
   })
 

@@ -3,148 +3,148 @@ import type { ShortcutDefinition } from './types'
 export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
   // ==================== 应用级快捷键 ====================
   {
-    key: 'shortcut.app.general.show_main_window',
+    key: 'shortcut.general.show_main_window',
     defaultBinding: [],
     scope: 'main',
-    category: 'app.general',
+    category: 'general',
     labelKey: 'show_app',
     system: true,
     global: true
   },
   {
-    key: 'shortcut.app.general.show_mini_window',
+    key: 'shortcut.general.show_mini_window',
     defaultBinding: ['CommandOrControl', 'E'],
     scope: 'main',
-    category: 'app.general',
+    category: 'general',
     labelKey: 'mini_window',
     system: true,
     global: true,
     enabledWhen: (getPreference) => !!getPreference('feature.quick_assistant.enabled')
   },
   {
-    key: 'shortcut.app.general.show_settings',
+    key: 'shortcut.general.show_settings',
     defaultBinding: ['CommandOrControl', ','],
     scope: 'both',
-    category: 'app.general',
+    category: 'general',
     labelKey: 'show_settings',
     editable: false,
     system: true
   },
   {
-    key: 'shortcut.app.general.toggle_sidebar',
+    key: 'shortcut.general.toggle_sidebar',
     defaultBinding: ['CommandOrControl', '['],
     scope: 'renderer',
-    category: 'app.general',
+    category: 'general',
     labelKey: 'toggle_sidebar'
   },
   {
-    key: 'shortcut.app.general.exit_fullscreen',
+    key: 'shortcut.general.exit_fullscreen',
     defaultBinding: ['Escape'],
     scope: 'renderer',
-    category: 'app.general',
+    category: 'general',
     labelKey: 'exit_fullscreen',
     editable: false,
     system: true
   },
   {
-    key: 'shortcut.app.general.zoom_in',
+    key: 'shortcut.general.zoom_in',
     defaultBinding: ['CommandOrControl', '='],
     scope: 'main',
-    category: 'app.general',
+    category: 'general',
     labelKey: 'zoom_in',
     editable: false,
     system: true,
     variants: [['CommandOrControl', 'numadd']]
   },
   {
-    key: 'shortcut.app.general.zoom_out',
+    key: 'shortcut.general.zoom_out',
     defaultBinding: ['CommandOrControl', '-'],
     scope: 'main',
-    category: 'app.general',
+    category: 'general',
     labelKey: 'zoom_out',
     editable: false,
     system: true,
     variants: [['CommandOrControl', 'numsub']]
   },
   {
-    key: 'shortcut.app.general.zoom_reset',
+    key: 'shortcut.general.zoom_reset',
     defaultBinding: ['CommandOrControl', '0'],
     scope: 'main',
-    category: 'app.general',
+    category: 'general',
     labelKey: 'zoom_reset',
     editable: false,
     system: true
   },
   {
-    key: 'shortcut.app.general.search',
+    key: 'shortcut.general.search',
     defaultBinding: ['CommandOrControl', 'Shift', 'F'],
     scope: 'renderer',
-    category: 'app.general',
+    category: 'general',
     labelKey: 'search_message'
   },
   // ==================== 聊天相关快捷键 ====================
   {
-    key: 'shortcut.app.chat.clear',
+    key: 'shortcut.chat.clear',
     defaultBinding: ['CommandOrControl', 'L'],
     scope: 'renderer',
-    category: 'app.chat',
+    category: 'chat',
     labelKey: 'clear_topic'
   },
   {
-    key: 'shortcut.app.chat.search_message',
+    key: 'shortcut.chat.search_message',
     defaultBinding: ['CommandOrControl', 'F'],
     scope: 'renderer',
-    category: 'app.chat',
+    category: 'chat',
     labelKey: 'search_message_in_chat'
   },
   {
-    key: 'shortcut.app.chat.toggle_new_context',
+    key: 'shortcut.chat.toggle_new_context',
     defaultBinding: ['CommandOrControl', 'K'],
     scope: 'renderer',
-    category: 'app.chat',
+    category: 'chat',
     labelKey: 'toggle_new_context'
   },
   {
-    key: 'shortcut.app.chat.copy_last_message',
+    key: 'shortcut.chat.copy_last_message',
     defaultBinding: ['CommandOrControl', 'Shift', 'C'],
     scope: 'renderer',
-    category: 'app.chat',
+    category: 'chat',
     labelKey: 'copy_last_message'
   },
   {
-    key: 'shortcut.app.chat.edit_last_user_message',
+    key: 'shortcut.chat.edit_last_user_message',
     defaultBinding: ['CommandOrControl', 'Shift', 'E'],
     scope: 'renderer',
-    category: 'app.chat',
+    category: 'chat',
     labelKey: 'edit_last_user_message'
   },
   {
-    key: 'shortcut.app.chat.select_model',
+    key: 'shortcut.chat.select_model',
     defaultBinding: ['CommandOrControl', 'Shift', 'M'],
     scope: 'renderer',
-    category: 'app.chat',
+    category: 'chat',
     labelKey: 'select_model'
   },
   // ==================== 话题管理快捷键 ====================
   {
-    key: 'shortcut.app.topic.new',
+    key: 'shortcut.topic.new',
     defaultBinding: ['CommandOrControl', 'N'],
     scope: 'renderer',
-    category: 'app.topic',
+    category: 'topic',
     labelKey: 'new_topic'
   },
   {
-    key: 'shortcut.app.topic.rename',
+    key: 'shortcut.topic.rename',
     defaultBinding: ['CommandOrControl', 'T'],
     scope: 'renderer',
-    category: 'app.topic',
+    category: 'topic',
     labelKey: 'rename_topic'
   },
   {
-    key: 'shortcut.app.topic.toggle_show_topics',
+    key: 'shortcut.topic.toggle_show_topics',
     defaultBinding: ['CommandOrControl', ']'],
     scope: 'renderer',
-    category: 'app.topic',
+    category: 'topic',
     labelKey: 'toggle_show_topics'
   },
   // ==================== 划词助手快捷键 ====================

@@ -74,7 +74,7 @@ Only use object values when the data is frequently read/written as a whole unit.
 
 ```typescript
 // Acceptable: Shortcut config is always read/written together
-'shortcut.app.general.show_main_window': { key: string[], enabled: boolean, ... }
+'shortcut.general.show_main_window': { key: string[], enabled: boolean, ... }
 ```
 
 **Rule of thumb:** If you find yourself frequently accessing just one property of an object, split it into separate keys.

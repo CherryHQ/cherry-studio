@@ -11,10 +11,10 @@ import {
 } from '../shortcuts/utils'
 
 const makeDefinition = (overrides: Partial<ShortcutDefinition> = {}): ShortcutDefinition => ({
-  key: 'shortcut.app.chat.clear',
+  key: 'shortcut.chat.clear',
   defaultBinding: ['CommandOrControl', 'L'],
   scope: 'renderer',
-  category: 'app.chat',
+  category: 'chat',
   labelKey: 'clear_topic',
   ...overrides
 })
