@@ -7,7 +7,7 @@ export interface SidebarMenuProps {
   items: SidebarMenuItem[]
   activeItem: string
   activeTabId?: string
-  onItemClick: (id: string) => void
+  onItemClick: (id: string) => void | Promise<void>
   onMiniAppTabClick?: (tabId: string) => void
 }
 
@@ -32,7 +32,7 @@ function IconMenuItems({ items, activeItem, activeTabId, onItemClick, onMiniAppT
             <SidebarTooltip content={item.label}>
               <button
                 type="button"
-                onClick={() => onItemClick(item.id)}
+                onClick={() => void onItemClick(item.id)}
                 className={`relative flex h-9 w-9 items-center justify-center rounded-md transition-all duration-150 ${
                   isActive
                     ? 'bg-sidebar-active-bg text-foreground'
@@ -75,7 +75,7 @@ function VerticalCardMenuItems({ items, activeItem, activeTabId, onItemClick, on
           <div key={item.id} className="contents">
             <button
               type="button"
-              onClick={() => onItemClick(item.id)}
+              onClick={() => void onItemClick(item.id)}
               className={`relative flex w-full flex-col items-center gap-0.5 rounded-md py-2 transition-all duration-150 ${
                 isActive
                   ? 'bg-sidebar-active-bg text-foreground'
@@ -120,7 +120,7 @@ function FullMenuItems({ items, activeItem, activeTabId, onItemClick, onMiniAppT
           <div key={item.id}>
             <button
               type="button"
-              onClick={() => onItemClick(item.id)}
+              onClick={() => void onItemClick(item.id)}
               className={`relative flex w-full items-center gap-2.5 rounded-xl px-2.5 py-[7px] text-[13px] transition-all duration-150 ${
                 isActive
                   ? 'bg-sidebar-active-bg text-foreground'
