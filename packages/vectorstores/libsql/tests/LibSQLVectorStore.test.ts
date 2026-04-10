@@ -199,6 +199,70 @@ describe('LibSQLVectorStore', () => {
       })
     })
 
+    it('should tolerate invalid metadata JSON in vector query results', async () => {
+      await store.add([
+        new TextNode({
+          id_: 'chunk-invalid-metadata-vector',
+          text: 'Knowledge document',
+          embedding: [1.0, 0.0],
+          relationships: {
+            [NodeRelationship.SOURCE]: {
+              nodeId: 'item-invalid-metadata-vector',
+              metadata: {}
+            }
+          }
+        })
+      ])
+
+      await client.execute({
+        sql: 'UPDATE test_embeddings SET metadata = ? WHERE id = ?',
+        args: ['{"itemId":', 'chunk-invalid-metadata-vector']
+      })
+
+      const result = await store.query({
+        queryEmbedding: [1.0, 0.0],
+        similarityTopK: 1,
+        mode: VectorStoreQueryMode.DEFAULT
+      })
+
+      expect(result.nodes).toHaveLength(1)
+      expect(result.nodes?.[0]?.metadata).toMatchObject({
+        itemId: 'item-invalid-metadata-vector'
+      })
+    })
+
+    it('should tolerate invalid metadata JSON in bm25 query results', async () => {
+      await store.add([
+        new TextNode({
+          id_: 'chunk-invalid-metadata-bm25',
+          text: 'searchable bm25 document',
+          embedding: [1.0, 0.0],
+          relationships: {
+            [NodeRelationship.SOURCE]: {
+              nodeId: 'item-invalid-metadata-bm25',
+              metadata: {}
+            }
+          }
+        })
+      ])
+
+      await client.execute({
+        sql: 'UPDATE test_embeddings SET metadata = ? WHERE id = ?',
+        args: ['{"itemId":', 'chunk-invalid-metadata-bm25']
+      })
+
+      const result = await store.query({
+        queryStr: 'searchable',
+        similarityTopK: 1,
+        mode: VectorStoreQueryMode.BM25
+      })
+
+      expect(result.nodes).toHaveLength(1)
+      expect(result.nodes?.[0]?.metadata).toMatchObject({
+        itemId: 'item-invalid-metadata-bm25'
+      })
+    })
+
     it('should handle empty add request', async () => {
       const ids = await store.add([])
       expect(ids).toEqual([])

@@ -345,6 +345,22 @@ export class LibSQLVectorStore extends BaseVectorStore {
     return []
   }
 
+  private parseJson<T>(value: T | string | null | undefined, fallback: T): T {
+    if (value == null) {
+      return fallback
+    }
+
+    if (typeof value !== 'string') {
+      return value as T
+    }
+
+    try {
+      return JSON.parse(value) as T
+    } catch {
+      return fallback
+    }
+  }
+
   private toLibSQLCondition(condition: `${FilterCondition}`) {
     switch (condition) {
       case FilterCondition.AND:
@@ -356,85 +372,89 @@ export class LibSQLVectorStore extends BaseVectorStore {
     }
   }
 
-  private buildFilterClause(filter: MetadataFilter): {
+  private buildFilterClause(
+    filter: MetadataFilter,
+    alias: string
+  ): {
     clause: string
     params: unknown[]
   } {
     const key = filter.key
+    const metadataColumn = `${alias}.metadata`
 
     switch (filter.operator) {
       case FilterOperator.EQ:
         return {
-          clause: `json_extract(metadata, '$.${key}') = ?`,
+          clause: `json_extract(${metadataColumn}, '$.${key}') = ?`,
           params: [filter.value]
         }
       case FilterOperator.GT:
         return {
-          clause: `CAST(json_extract(metadata, '$.${key}') AS REAL) > ?`,
+          clause: `CAST(json_extract(${metadataColumn}, '$.${key}') AS REAL) > ?`,
           params: [filter.value]
         }
       case FilterOperator.LT:
         return {
-          clause: `CAST(json_extract(metadata, '$.${key}') AS REAL) < ?`,
+          clause: `CAST(json_extract(${metadataColumn}, '$.${key}') AS REAL) < ?`,
           params: [filter.value]
         }
       case FilterOperator.GTE:
         return {
-          clause: `CAST(json_extract(metadata, '$.${key}') AS REAL) >= ?`,
+          clause: `CAST(json_extract(${metadataColumn}, '$.${key}') AS REAL) >= ?`,
           params: [filter.value]
         }
       case FilterOperator.LTE:
         return {
-          clause: `CAST(json_extract(metadata, '$.${key}') AS REAL) <= ?`,
+          clause: `CAST(json_extract(${metadataColumn}, '$.${key}') AS REAL) <= ?`,
           params: [filter.value]
         }
       case FilterOperator.NE:
         return {
-          clause: `json_extract(metadata, '$.${key}') != ?`,
+          clause: `json_extract(${metadataColumn}, '$.${key}') != ?`,
           params: [filter.value]
         }
       case FilterOperator.IN:
         if (Array.isArray(filter.value)) {
           const placeholders = filter.value.map(() => '?').join(', ')
           return {
-            clause: `json_extract(metadata, '$.${key}') IN (${placeholders})`,
+            clause: `json_extract(${metadataColumn}, '$.${key}') IN (${placeholders})`,
             params: filter.value
           }
         }
         return {
-          clause: `json_extract(metadata, '$.${key}') IN (?)`,
+          clause: `json_extract(${metadataColumn}, '$.${key}') IN (?)`,
           params: [filter.value]
         }
       case FilterOperator.NIN:
         if (Array.isArray(filter.value)) {
           const placeholders = filter.value.map(() => '?').join(', ')
           return {
-            clause: `json_extract(metadata, '$.${key}') NOT IN (${placeholders})`,
+            clause: `json_extract(${metadataColumn}, '$.${key}') NOT IN (${placeholders})`,
             params: filter.value
           }
         }
         return {
-          clause: `json_extract(metadata, '$.${key}') NOT IN (?)`,
+          clause: `json_extract(${metadataColumn}, '$.${key}') NOT IN (?)`,
           params: [filter.value]
         }
       case FilterOperator.CONTAINS:
         return {
-          clause: `json_extract(metadata, '$.${key}') LIKE '%' || ? || '%'`,
+          clause: `json_extract(${metadataColumn}, '$.${key}') LIKE '%' || ? || '%'`,
           params: [filter.value]
         }
       case FilterOperator.IS_EMPTY:
         return {
-          clause: `(json_extract(metadata, '$.${key}') IS NULL OR json_extract(metadata, '$.${key}') = '' OR json_extract(metadata, '$.${key}') = '[]')`,
+          clause: `(json_extract(${metadataColumn}, '$.${key}') IS NULL OR json_extract(${metadataColumn}, '$.${key}') = '' OR json_extract(${metadataColumn}, '$.${key}') = '[]')`,
           params: []
         }
       case FilterOperator.TEXT_MATCH:
         return {
-          clause: `LOWER(json_extract(metadata, '$.${key}')) LIKE LOWER('%' || ? || '%')`,
+          clause: `LOWER(json_extract(${metadataColumn}, '$.${key}')) LIKE LOWER('%' || ? || '%')`,
           params: [filter.value]
         }
       default:
         return {
-          clause: `json_extract(metadata, '$.${key}') = ?`,
+          clause: `json_extract(${metadataColumn}, '$.${key}') = ?`,
           params: [filter.value]
         }
     }
@@ -453,7 +473,10 @@ export class LibSQLVectorStore extends BaseVectorStore {
     }
   }
 
-  private buildWhereClause(query: VectorStoreQuery): {
+  private buildWhereClause(
+    query: VectorStoreQuery,
+    alias: string
+  ): {
     where: string
     params: unknown[]
   } {
@@ -461,13 +484,13 @@ export class LibSQLVectorStore extends BaseVectorStore {
     const params: unknown[] = []
 
     if (this.collection.length) {
-      whereClauses.push('collection = ?')
+      whereClauses.push(`${alias}.collection = ?`)
       params.push(this.collection)
     }
 
     const filterClauses: string[] = []
     query.filters?.filters.forEach((filter: MetadataFilter) => {
-      const { clause, params: filterParams } = this.buildFilterClause(filter)
+      const { clause, params: filterParams } = this.buildFilterClause(filter, alias)
       filterClauses.push(clause)
       if (filterParams.length > 0) {
         params.push(...filterParams)
@@ -492,7 +515,7 @@ export class LibSQLVectorStore extends BaseVectorStore {
       return { nodes: [], similarities: [], ids: [] }
     }
 
-    const { where, params } = this.buildWhereClause(query)
+    const { where, params } = this.buildWhereClause(query, 't')
     const vectorJson = `[${queryEmbedding.join(',')}]`
     const indexName = `idx_${this.tableName}_vector`
 
@@ -505,7 +528,7 @@ export class LibSQLVectorStore extends BaseVectorStore {
         SELECT t.*, vector_distance_cos(t.embeddings, vector32(?)) as distance
         FROM vector_top_k('${indexName}', vector32(?), ${prefetch}) AS v
         JOIN ${this.tableName} t ON t.rowid = v.id
-        ${where.replace(/collection/g, 't.collection').replace(/metadata/g, 't.metadata')}
+        ${where}
         ORDER BY distance
         LIMIT ${max}
       `,
@@ -523,7 +546,7 @@ export class LibSQLVectorStore extends BaseVectorStore {
       throw new Error('queryStr is required for BM25 mode')
     }
 
-    const { where, params } = this.buildWhereClause(query)
+    const { where, params } = this.buildWhereClause(query, 'v')
 
     // Use FTS5 for BM25 search
     const ftsStatement: InStatement = {
@@ -531,7 +554,7 @@ export class LibSQLVectorStore extends BaseVectorStore {
         SELECT v.*, bm25(${this.tableName}_fts) as score
         FROM ${this.tableName}_fts fts
         JOIN ${this.tableName} v ON fts.rowid = v.rowid
-        ${where.replace(/collection/g, 'v.collection').replace(/metadata/g, 'v.metadata')}
+        ${where}
         ${where ? 'AND' : 'WHERE'} ${this.tableName}_fts MATCH ?
         ORDER BY score
         LIMIT ${max}
@@ -587,7 +610,7 @@ export class LibSQLVectorStore extends BaseVectorStore {
       const embedding = this.deserializeEmbedding(row.embeddings)
       const distance = Number(row.distance ?? 0)
       const similarity = 1 - distance
-      const metadata = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : ((row.metadata ?? {}) as Metadata)
+      const metadata = this.parseJson<Metadata>(row.metadata as Metadata | string | null | undefined, {})
       const externalId = typeof row.external_id === 'string' && row.external_id.length > 0 ? row.external_id : undefined
 
       if (externalId && metadata.itemId === undefined) {
@@ -617,7 +640,7 @@ export class LibSQLVectorStore extends BaseVectorStore {
     const results = rows.slice(0, max).map((row) => {
       const embedding = this.deserializeEmbedding(row.embeddings)
       const score = Math.abs(Number(row.score ?? 0))
-      const metadata = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : ((row.metadata ?? {}) as Metadata)
+      const metadata = this.parseJson<Metadata>(row.metadata as Metadata | string | null | undefined, {})
       const externalId = typeof row.external_id === 'string' && row.external_id.length > 0 ? row.external_id : undefined
 
       if (externalId && metadata.itemId === undefined) {
