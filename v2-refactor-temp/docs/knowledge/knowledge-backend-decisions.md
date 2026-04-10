@@ -13,38 +13,48 @@
 |   UI (Data API)                    UI / preload IPC / main-side calls            |
 +------------------------------------------+---------------------------------------+
                                            |
-                    +--------------------------+     +-----------------------------+
-                    |       Data API           |     |   KnowledgeRuntimeService   |
-                    |  knowledge handlers      |     | runtime / vector facade     |
-                    +-------------+------------+     +---------------+-------------+
-                                  |                                  |
-                                  v                                  v
+                    +--------------------------+     +-----------------------------------+
+                    |       Data API           |     |  KnowledgeOrchestrationService    |
+                    |  knowledge handlers      |     |  caller-facing workflow facade    |
+                    +-------------+------------+     +-----------------+-----------------+
+                                  |                                    |
+                                  v                                    v
                     +--------------------------+          +---------------------------+
-                    |   KnowledgeBaseService   |          | reader / chunk / embed / |
-                    |   base data logic        |          | rerank / vectorstore      |
+                    |   KnowledgeBaseService   |<---------|   KnowledgeItemService    |
+                    |   base data logic        |          |   item data + status      |
                     +-------------+------------+          +-------------+-------------+
-                                  |                                  |
-                                  v                                  v
-                    +--------------------------+          +---------------------------+
-                    |   KnowledgeItemService   |          | in-memory p-queue runtime |
-                    |   item data + status     |          | + store cache             |
-                    +-------------+------------+          +-------------+-------------+
-                                  |                                  |
-                                  v                                  v
-                        +----------------------+              +------------------------+
-                        |   SQLite / Drizzle   |              |  LibSQL vector store   |
-                        +----------------------+              +------------------------+
+                                  |                                    |
+                                  v                                    v
+                        +----------------------+          +---------------------------+
+                        |   SQLite / Drizzle   |          |   KnowledgeRuntimeService |
+                        +----------------------+          | runtime execution / queue  |
+                                                          +-------------+-------------+
+                                                                        |
+                                                                        v
+                                                          +---------------------------+
+                                                          | reader / chunk / embed / |
+                                                          | rerank / vectorstore      |
+                                                          +-------------+-------------+
+                                                                        |
+                                                                        v
+                                                          +------------------------+
+                                                          |  LibSQL vector store   |
+                                                          +------------------------+
 ```
 
-当前知识库后端已经分成两层：
+当前知识库后端已经分成三层：
 
 1. `KnowledgeBaseService` / `KnowledgeItemService`
    - 负责 SQLite 中的知识库业务主数据 CRUD
    - 负责 `knowledge_item.status` / `error` 的持久化更新
-2. `KnowledgeRuntimeService`
-   - 负责 runtime 编排
+2. `KnowledgeOrchestrationService`
+   - 负责对外 workflow 编排
+   - 负责统一 caller-facing IPC
+   - 负责把 expand / create / add / delete / search 串成单次调用入口
+3. `KnowledgeRuntimeService`
+   - 负责 runtime 执行
    - 负责 reader / chunk / embedding / vector store 调用串联
-   - 负责检索入口
+   - 负责队列、中断、stop 清理和检索执行
 
 ## 2. Data Service 的定位
 
@@ -66,7 +76,7 @@
 
 ## 3. `KnowledgeRuntimeService` 的定位
 
-当前 runtime/vector 侧的单一 facade 已经是 `KnowledgeRuntimeService`，不是旧文档中的 `KnowledgeService`。
+当前 runtime/vector 侧的底层执行 service 是 `KnowledgeRuntimeService`，不是旧文档中的 `KnowledgeService`。
 
 对应实现：
 
@@ -79,33 +89,70 @@
 2. `@ServicePhase(Phase.WhenReady)`
 3. 已注册到应用 service registry
 
-它当前对外暴露的核心能力是：
+它当前对内部调用方暴露的核心能力是：
 
 1. `createBase(base)`
-2. `deleteBase(base)`
+2. `deleteBase(baseId)`
 3. `addItems(base, items)`
 4. `deleteItems(base, items)`
 5. `search(base, query)`
-6. `expandDirectoryItem(baseId, itemId)`
-7. `expandSitemapItem(baseId, itemId)`
 
 它负责：
 
-1. runtime 入口方法
-2. `directory` / `sitemap` owner item 的展开
-3. item 级索引任务入队与执行
-4. `knowledge_item.status` 的有限状态推进
-5. 失败与中断原因写回数据库
-6. 向量库实例的获取、删除和清理
-7. 检索后的 rerank 串联
+1. item 级索引任务入队与执行
+2. `knowledge_item.status` 的有限状态推进
+3. 失败与中断原因写回数据库
+4. 向量库实例的获取、删除和清理
+5. 检索后的 rerank 串联
+6. stop / delete 时的 queue 中断与向量清理补偿
 
 它不负责：
 
 1. `knowledge_base` / `knowledge_item` 的主数据 CRUD
-2. 持久化任务队列
-3. 自动重试
-4. 恢复未完成索引任务继续执行
-5. 暴露调度器内部概念给调用方
+2. caller-facing IPC workflow 编排
+3. `directory` / `sitemap` owner item 的对外展开入口
+4. 持久化任务队列
+5. 自动重试
+6. 恢复未完成索引任务继续执行
+7. 暴露调度器内部概念给调用方
+
+## 3.1 `KnowledgeOrchestrationService` 的定位
+
+当前对外 workflow facade 是 `KnowledgeOrchestrationService`。
+
+对应实现：
+
+- `src/main/services/knowledge/KnowledgeOrchestrationService.ts`
+- `src/main/core/application/serviceRegistry.ts`
+
+它是一个 lifecycle service：
+
+1. `@Injectable('KnowledgeOrchestrationService')`
+2. `@ServicePhase(Phase.WhenReady)`
+3. 已注册到应用 service registry
+
+它当前对外暴露的核心 IPC 能力是：
+
+1. `createBase(baseId)`
+2. `deleteBase(baseId)`
+3. `addItems(baseId, itemIds)`
+4. `deleteItems(baseId, itemIds)`
+5. `search(baseId, query)`
+
+它负责：
+
+1. 统一 caller-facing knowledge runtime IPC
+2. 对传入 item ids 做主数据读取
+3. 对 `directory` / `sitemap` owner item 做内部 expand
+4. 通过 `KnowledgeItemService.createMany()` 持久化 expanded child items
+5. 过滤真正可索引的 leaf items，再交给 `KnowledgeRuntimeService.addItems()`
+6. 协调 runtime 与 data service 的调用顺序
+
+它不负责：
+
+1. 直接执行 reader / chunk / embed / vector write
+2. 直接持有 queue
+3. 直接持有 vector store 实例
 
 ## 4. 当前调用边界与调用方契约
 
@@ -116,18 +163,20 @@ UI
  |
  +--> Data API -> knowledge handlers -> KnowledgeBaseService / KnowledgeItemService
  |
- \--> preload IPC -> KnowledgeRuntimeService
+ \--> preload IPC -> KnowledgeOrchestrationService
+                     -> KnowledgeRuntimeService
 ```
 
 当前实现要求调用方明确区分两条调用路径：
 
 1. Data API
    - 负责 `knowledge_base` / `knowledge_item` 的持久化 CRUD
-   - 负责 owner item / child item 的主数据创建
+   - 负责调用方显式创建的 owner item / leaf item 主数据创建
    - 负责 `knowledge_item.status` / `error` 的持久化读写
 2. runtime IPC
-   - 负责 `directory` / `sitemap` owner item 的展开
-   - 负责 leaf item 的索引入队、向量写入和删除
+   - 负责统一的 knowledge workflow 入口
+   - 负责必要时在 main process 内部展开 `directory` / `sitemap`
+   - 负责索引入队、向量写入和删除
    - 负责检索
 
 当前 Data API 侧稳定接口是：
@@ -150,8 +199,6 @@ preload 已暴露的 runtime IPC 通道是：
 3. `knowledge-runtime:add-items`
 4. `knowledge-runtime:delete-items`
 5. `knowledge-runtime:search`
-6. `knowledge-runtime:expand-directory-item`
-7. `knowledge-runtime:expand-sitemap-item`
 
 ### 4.1.1 Leaf item 的调用链
 
@@ -182,47 +229,48 @@ caller
 
 ### 4.1.2 Container item 的调用链
 
-`directory` / `sitemap` 当前已经不是“先展开再一次性 createMany root + children”的旧调用方式。
+`directory` / `sitemap` 当前已经收口为与 leaf item 相同的“两步调用模型”。
 
-当前调用方应使用 root-first 两阶段流程：
+当前调用方应使用：
 
 ```text
 caller
  -> Data API create owner item
- -> preload IPC expand owner item
- -> Data API create child items
- -> preload IPC add-items(child ids)
+ -> preload IPC add-items(owner item ids)
 ```
 
 也就是说：
 
 1. owner item 的主数据创建仍然走 Data API
-2. 展开逻辑走 runtime IPC
-3. expand 返回的是“要写入 `knowledge_item` 的 child items 集合”，不是“可直接索引的 items 集合”
-4. 因此 child item 的主数据创建仍然走 Data API，而且允许同时创建 `directory` / `file` 这类 mixed batch
-5. `groupId` / `groupRef` 的职责是把这些 owner / child / nested child 的持久化关系写进 `knowledge_item`
-6. runtime `addItems` 的输入集合是另一层语义：只接受真正可索引的 leaf items
-7. 当前约束下，`directory` / `sitemap` 这类 container item 不应直接传给 runtime `addItems`
-8. 调用方必须在“创建 items”与“提交索引”之间完成一次过滤，只把 indexable child item ids 传给 runtime
+2. 对外 IPC 不再暴露 `expand*`，而是由 `KnowledgeOrchestrationService.addItems()` 在内部判断 owner item 类型
+3. 如果传入的是 `directory` / `sitemap` owner item，orchestration 会：
+   - expand owner
+   - 通过 `KnowledgeItemService.createMany()` 持久化 child items
+   - 过滤出 indexable leaf items
+   - 调用 `KnowledgeRuntimeService.addItems()` 入队索引
+4. `groupId` / `groupRef` 的职责仍然是把 owner / child / nested child 的持久化关系写进 `knowledge_item`
+5. 当前调用方不再需要自己显式执行 “expand -> create children -> filter -> add” 这四步
 
 这个边界是当前实现的硬约束：
 
-1. expand 负责生成要创建的持久化 items
-2. Data API 负责把这些 items 写入 SQLite
-3. runtime 只负责编排可索引 items 的读取 / 切块 / embedding / vector write
-4. mixed batch 可用于持久化树结构，但不等于 mixed batch 可直接进入索引队列
+1. expand 仍然负责生成要创建的持久化 items
+2. child item 的持久化仍然通过 `KnowledgeItemService.createMany()` 写入 SQLite
+3. `KnowledgeRuntimeService` 仍然只负责编排可索引 items 的读取 / 切块 / embedding / vector write
+4. orchestration 只是把上述步骤收口到一次 caller-facing IPC，不改变 data/runtime 的最终边界
+5. mixed batch 可用于持久化树结构，但不等于 mixed batch 可直接进入 runtime 索引队列
 
-这个调用链仍然符合“Data API 负责主数据，runtime 负责展开/索引”的分层，不属于边界漂移。
+这个调用链仍然符合“Data Service 负责主数据，Runtime 负责索引执行，Orchestration 负责 workflow 收口”的分层，不属于边界漂移。
 
-`directory` / `sitemap` 的当前推荐流程可以进一步写成：
+`directory` / `sitemap` 的当前内部流程可以进一步写成：
 
 ```text
 directory/sitemap
  -> Data API create owner
- -> IPC expand owner
- -> Data API create expanded items
- -> filter indexable leaf items
- -> IPC add-items(indexable child ids)
+ -> IPC add-items(owner item ids)
+    -> orchestration expand owner
+    -> orchestration create expanded items
+    -> orchestration filter indexable leaf items
+    -> runtime add-items(indexable child items)
 ```
 
 ### 4.1.3 删除链路的当前约束
@@ -232,6 +280,7 @@ directory/sitemap
 item 删除时，调用方应理解为两件独立的事：
 
 1. runtime IPC `delete-items`
+   - 通过 orchestration 进入删除 workflow
    - 中断 pending / running add task
    - 删除 item 及其级联子项的向量
 2. Data API `DELETE /knowledge-items/:id`
@@ -241,6 +290,7 @@ item 删除时，调用方应理解为两件独立的事：
 base 删除时，调用方同样需要区分两步：
 
 1. runtime IPC `delete-base`
+   - 通过 orchestration 进入删除 workflow
    - 中断该 base 下相关 add task
    - 删除对应 vector store
 2. Data API `DELETE /knowledge-bases/:id`
@@ -250,7 +300,9 @@ base 删除时，调用方同样需要区分两步：
 
 ### 4.2 Main 进程内部调用
 
-主进程内部其他模块如果需要知识库 runtime 能力，应直接调用 `KnowledgeRuntimeService`，不需要绕回 Data API。
+主进程内部其他模块如果需要 caller-facing workflow 能力，应优先调用 `KnowledgeOrchestrationService`。
+
+主进程内部如果已经明确持有 leaf items 且只需要底层索引执行能力，可以直接调用 `KnowledgeRuntimeService`。
 
 主进程内部如果需要业务主数据能力，应直接调用 `KnowledgeBaseService` / `KnowledgeItemService`。
 
@@ -386,7 +438,6 @@ schema 和共享类型仍然保留完整状态集合：
 
 1. `isStopping = false`
 2. `addQueue.reset()`
-3. 注册 runtime IPC handlers
 
 当前没有启动时“扫描中间状态并补偿失败”的逻辑。
 
