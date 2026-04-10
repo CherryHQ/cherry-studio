@@ -28,6 +28,7 @@ export { ReduxStateReader } from './utils/ReduxStateReader'
 export {
   registerMigrationIpcHandlers,
   resetMigrationData,
+  setVersionIncompatible,
   unregisterMigrationIpcHandlers
 } from './window/MigrationIpcHandler'
 export { MigrationWindowManager, migrationWindowManager } from './window/MigrationWindowManager'

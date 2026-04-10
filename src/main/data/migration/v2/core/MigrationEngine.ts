@@ -441,6 +441,15 @@ export class MigrationEngine {
   }
 
   /**
+   * Skip migration entirely (user chose to ignore old data and use defaults).
+   * Marks migration as completed so the gate will not trigger on next launch.
+   */
+  async skipMigration(): Promise<void> {
+    logger.info('Migration skipped by user (version incompatible, using defaults)')
+    await this.markCompleted()
+  }
+
+  /**
    * Mark migration as completed in app_state
    */
   private async markCompleted(): Promise<void> {

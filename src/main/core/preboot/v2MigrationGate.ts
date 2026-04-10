@@ -6,6 +6,7 @@ import {
   migrationWindowManager,
   registerMigrationIpcHandlers,
   resolveMigrationPaths,
+  setVersionIncompatible,
   unregisterMigrationIpcHandlers
 } from '@data/migration/v2'
 import {
@@ -121,15 +122,32 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     })
 
     if (versionCheck.outcome === 'block') {
-      logger.warn('Version compatibility check failed, blocking migration', {
+      logger.warn('Version compatibility check failed, showing version incompatible UI', {
         reason: versionCheck.reason,
         ...versionCheck.details
       })
-      migrationEngine.close()
-      await app.whenReady()
-      dialog.showErrorBox('Version Upgrade Required', getBlockMessage(versionCheck.reason, versionCheck.details))
-      application.quit()
-      return 'handled'
+
+      // Do NOT close the engine — the "skip migration" action needs it
+      // to write the completed status. Set the initial stage so the
+      // renderer picks it up via GetProgress on mount.
+      setVersionIncompatible(versionCheck.reason, versionCheck.details)
+      registerMigrationIpcHandlers(paths.userData)
+
+      try {
+        await app.whenReady()
+        migrationWindowManager.create()
+        await migrationWindowManager.waitForReady()
+        logger.info('Version incompatible window created successfully')
+        return 'handled'
+      } catch (windowError) {
+        // Fallback: if the window fails to create, use a plain dialog
+        logger.error('Failed to create version incompatible window, falling back to dialog', windowError as Error)
+        unregisterMigrationIpcHandlers()
+        migrationEngine.close()
+        dialog.showErrorBox('Version Upgrade Required', getBlockMessage(versionCheck.reason, versionCheck.details))
+        application.quit()
+        return 'handled'
+      }
     }
 
     logger.info('Data Migration v2 needed, starting migration process')
