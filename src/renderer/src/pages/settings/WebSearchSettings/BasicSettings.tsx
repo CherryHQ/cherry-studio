@@ -1,4 +1,5 @@
 import { InfoTooltip, Switch } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
 import { getWebSearchProviderLogo } from '@renderer/config/webSearchProviders'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -24,6 +25,7 @@ const BasicSettings: FC = () => {
   const { providers } = useWebSearchProviders()
   const { provider: defaultProvider, setDefaultProvider } = useDefaultWebSearchProvider()
   const { searchWithTime, maxResults, compressionConfig } = useWebSearchSettings()
+  const [prefillKeywords, setPrefillKeywords] = usePreference('chat.web_search.prefill_keywords')
   const navigate = useNavigate()
 
   const dispatch = useAppDispatch()
@@ -107,6 +109,17 @@ const BasicSettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.tool.websearch.search_with_time')}</SettingRowTitle>
           <Switch checked={searchWithTime} onCheckedChange={(checked) => dispatch(setSearchWithTime(checked))} />
+        </SettingRow>
+        <SettingDivider style={{ marginTop: 15, marginBottom: 10 }} />
+        <SettingRow>
+          <SettingRowTitle>
+            {t('settings.tool.websearch.prefill_keywords.label')}
+            <InfoTooltip
+              content={t('settings.tool.websearch.prefill_keywords.tooltip')}
+              iconProps={{ size: 16, color: 'var(--color-icon)', className: 'ml-1 cursor-pointer' }}
+            />
+          </SettingRowTitle>
+          <Switch checked={prefillKeywords} onCheckedChange={(checked) => void setPrefillKeywords(checked)} />
         </SettingRow>
         <SettingDivider style={{ marginTop: 15, marginBottom: 10 }} />
         <SettingRow style={{ height: 40 }}>

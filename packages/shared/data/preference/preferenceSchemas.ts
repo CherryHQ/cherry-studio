@@ -192,6 +192,8 @@ export interface PreferenceSchemas {
     'chat.web_search.exclude_domains': string[]
     // target-key-definitions/complex/complex
     'chat.web_search.max_results': number
+    // whether to prefill pre-extracted keywords into the web search tool description
+    'chat.web_search.prefill_keywords': boolean
     // target-key-definitions/complex/complex
     'chat.web_search.provider_overrides': PreferenceTypes.WebSearchProviderOverrides
     // redux/settings/skipBackupFile
@@ -570,6 +572,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'chat.web_search.compression.rag_rerank_model_id': null,
     'chat.web_search.exclude_domains': [],
     'chat.web_search.max_results': 5,
+    'chat.web_search.prefill_keywords': true,
     'chat.web_search.provider_overrides': {},
     'data.backup.general.skip_backup_file': false,
     'data.backup.local.auto_sync': false,

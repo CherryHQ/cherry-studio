@@ -282,10 +282,15 @@ export const searchOrchestrationPlugin = (
         const shouldKnowledgeSearch = hasKnowledgeBase && knowledgeRecognition === 'on'
         const shouldMemorySearch = globalMemoryEnabled && assistant.enableMemory
 
+        // When prefillKeywords is disabled the model decides on its own when and what to search,
+        // so there is no point running the pre-extraction LLM call for web search.
+        const prefillKeywords = await preferenceService.get('chat.web_search.prefill_keywords')
+        const shouldWebExtract = shouldWebSearch && prefillKeywords
+
         // 执行意图分析
-        if (shouldWebSearch || shouldKnowledgeSearch) {
+        if (shouldWebExtract || shouldKnowledgeSearch) {
           const analysisResult = await analyzeSearchIntent(lastUserMessage, assistant, {
-            shouldWebSearch,
+            shouldWebSearch: shouldWebExtract,
             shouldKnowledgeSearch,
             shouldMemorySearch,
             lastAnswer: lastAssistantMessage,
@@ -323,16 +328,30 @@ export const searchOrchestrationPlugin = (
         }
 
         // 🌐 网络搜索工具配置
-        if (analysisResult?.websearch && assistant.webSearchProviderId) {
-          const needsSearch = analysisResult.websearch.question && analysisResult.websearch.question[0] !== 'not_needed'
+        if (assistant.webSearchProviderId) {
+          const prefillKeywords = await preferenceService.get('chat.web_search.prefill_keywords')
 
-          if (needsSearch) {
-            // onChunk({ type: ChunkType.EXTERNEL_TOOL_IN_PROGRESS })
-            // logger.info('🌐 Adding web search tool with pre-extracted keywords')
+          if (prefillKeywords) {
+            // Pre-extraction mode: only add the tool when intent analysis says search is needed,
+            // and seed the description with the extracted queries.
+            const needsSearch =
+              analysisResult?.websearch?.question && analysisResult.websearch.question[0] !== 'not_needed'
+            if (needsSearch && analysisResult?.websearch) {
+              params.tools['builtin_web_search'] = webSearchToolWithPreExtractedKeywords(
+                assistant.webSearchProviderId,
+                analysisResult.websearch,
+                context.requestId,
+                true
+              )
+            }
+          } else {
+            // Model-driven mode: always expose the tool and let the model decide whether to call
+            // it and with what query. No pre-extracted keywords are provided.
             params.tools['builtin_web_search'] = webSearchToolWithPreExtractedKeywords(
               assistant.webSearchProviderId,
-              analysisResult.websearch,
-              context.requestId
+              { question: [] },
+              context.requestId,
+              false
             )
           }
         }

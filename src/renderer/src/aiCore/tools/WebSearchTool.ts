@@ -15,40 +15,40 @@ export const webSearchToolWithPreExtractedKeywords = (
     question: string[]
     links?: string[]
   },
-  requestId: string
+  requestId: string,
+  prefillKeywords = true
 ) => {
   const webSearchProvider = webSearchService.getWebSearchProvider(webSearchProviderId)
 
+  const preparedQueriesSection = prefillKeywords
+    ? `\n\nThis tool has been configured with search parameters based on the conversation context:\n- Prepared queries: ${extractedKeywords.question.map((q) => `"${q}"`).join(', ')}${
+        extractedKeywords.links?.length ? `\n- Relevant URLs: ${extractedKeywords.links.join(', ')}` : ''
+      }\n\nYou can use this tool as-is to search with the prepared queries, or provide additionalContext to refine or replace the search terms.`
+    : '\n\nProvide additionalContext with your search terms to query the web.'
+
   return tool({
-    description: `Web search tool for finding current information, news, and real-time data from the internet.
-
-This tool has been configured with search parameters based on the conversation context:
-- Prepared queries: ${extractedKeywords.question.map((q) => `"${q}"`).join(', ')}${
-      extractedKeywords.links?.length
-        ? `
-- Relevant URLs: ${extractedKeywords.links.join(', ')}`
-        : ''
-    }
-
-You can use this tool as-is to search with the prepared queries, or provide additionalContext to refine or replace the search terms.`,
+    description: `Web search tool for finding current information, news, and real-time data from the internet.${preparedQueriesSection}`,
 
     inputSchema: z.object({
       additionalContext: z
         .string()
         .optional()
-        .describe('Optional additional context, keywords, or specific focus to enhance the search')
+        .describe(
+          prefillKeywords
+            ? 'Optional additional context, keywords, or specific focus to enhance the search'
+            : 'Search query or keywords to search the web'
+        )
     }),
 
     execute: async ({ additionalContext }) => {
-      let finalQueries = [...extractedKeywords.question]
-
-      if (additionalContext?.trim()) {
-        // 如果大模型提供了额外上下文，使用更具体的描述
-        const cleanContext = additionalContext.trim()
-        if (cleanContext) {
-          finalQueries = [cleanContext]
-        }
-      }
+      // When prefillKeywords is disabled, the model must supply its own query via additionalContext.
+      // Falling back to the pre-extracted keywords would silently re-introduce the behavior the user
+      // opted out of, so we treat a missing additionalContext as "no search needed" in that case.
+      const finalQueries = additionalContext?.trim()
+        ? [additionalContext.trim()]
+        : prefillKeywords
+          ? [...extractedKeywords.question]
+          : ['not_needed']
 
       let searchResults: WebSearchProviderResponse = {
         query: '',

@@ -5745,6 +5745,10 @@
         "search_provider": "搜尋供應商",
         "search_provider_placeholder": "選擇一個搜尋供應商",
         "search_with_time": "搜尋包含日期",
+        "prefill_keywords": {
+          "label": "預填充搜尋關鍵詞",
+          "tooltip": "開啟後，預提取的關鍵詞會包含在網路搜尋工具描述中，模型可直接使用。關閉後，模型將自主決定搜尋內容。"
+        },
         "set_as_default": "設為預設",
         "subscribe": "黑名單訂閱",
         "subscribe_add": "新增訂閱",
