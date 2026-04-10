@@ -287,12 +287,14 @@ export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetK
  * === AUTO-GENERATED CONTENT START ===
  */
 
+import type { BootConfigKey } from '@shared/data/bootConfig/bootConfigTypes'
+
 /**
  * ElectronStore映射关系 - 简单一层结构
  *
  * ElectronStore没有嵌套，originalKey直接对应configManager.get(key)
  */
-export const BOOT_CONFIG_ELECTRON_STORE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetKey: string }> = ${JSON.stringify(electronStoreMappings, null, 2)} as const
+export const BOOT_CONFIG_ELECTRON_STORE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetKey: BootConfigKey }> = ${JSON.stringify(electronStoreMappings, null, 2)} as const
 
 /**
  * Redux Store映射关系 - 按category分组，支持嵌套路径
@@ -304,12 +306,12 @@ export const BOOT_CONFIG_REDUX_MAPPINGS = ${JSON.stringify(reduxMappings, null, 
 /**
  * Dexie Settings映射关系 - 简单KV结构
  */
-export const BOOT_CONFIG_DEXIE_SETTINGS_MAPPINGS: ReadonlyArray<{ originalKey: string; targetKey: string }> = ${JSON.stringify(dexieSettingsMappings, null, 2)} as const
+export const BOOT_CONFIG_DEXIE_SETTINGS_MAPPINGS: ReadonlyArray<{ originalKey: string; targetKey: BootConfigKey }> = ${JSON.stringify(dexieSettingsMappings, null, 2)} as const
 
 /**
  * localStorage映射关系 - 简单KV结构
  */
-export const BOOT_CONFIG_LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetKey: string }> = ${JSON.stringify(localStorageMappings, null, 2)} as const
+export const BOOT_CONFIG_LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetKey: BootConfigKey }> = ${JSON.stringify(localStorageMappings, null, 2)} as const
 
 // === AUTO-GENERATED CONTENT END ===
 

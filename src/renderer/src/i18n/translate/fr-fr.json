@@ -1490,6 +1490,7 @@
       "unpin": "Annuler le fixage"
     },
     "translate": "Traduire",
+    "user": "Utilisateur",
     "web_search": {
       "warning": {
         "openai": "Le modèle GPT5 avec une intensité de réflexion minimale ne prend pas en charge la recherche sur Internet."

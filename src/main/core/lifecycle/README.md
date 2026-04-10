@@ -2,18 +2,18 @@
 
 IoC container + service lifecycle management with phased bootstrap and parallel initialization.
 
-> **Full documentation** has moved to [docs/en/references/lifecycle/](../../../../docs/en/references/lifecycle/README.md).
+> **Full documentation** has moved to [docs/references/lifecycle/](../../../../docs/references/lifecycle/README.md).
 > This file is a quick-reference pointer.
 
 ## Quick Links
 
 | Topic | Reference Doc |
 |-------|--------------|
-| Decision: lifecycle vs singleton? | [Decision Guide](../../../../docs/en/references/lifecycle/lifecycle-decision-guide.md) |
-| Architecture: phases, hooks, states | [Lifecycle Overview](../../../../docs/en/references/lifecycle/lifecycle-overview.md) |
-| Application: bootstrap, shutdown, registry | [Application Overview](../../../../docs/en/references/lifecycle/application-overview.md) |
-| Usage: decorators, error handling, platform | [Usage Guide](../../../../docs/en/references/lifecycle/lifecycle-usage.md) |
-| Migrating old services | [Migration Guide](../../../../docs/en/references/lifecycle/lifecycle-migration-guide.md) |
+| Decision: lifecycle vs singleton? | [Decision Guide](../../../../docs/references/lifecycle/lifecycle-decision-guide.md) |
+| Architecture: phases, hooks, states | [Lifecycle Overview](../../../../docs/references/lifecycle/lifecycle-overview.md) |
+| Application: bootstrap, shutdown, registry | [Application Overview](../../../../docs/references/lifecycle/application-overview.md) |
+| Usage: decorators, error handling, platform | [Usage Guide](../../../../docs/references/lifecycle/lifecycle-usage.md) |
+| Migrating old services | [Migration Guide](../../../../docs/references/lifecycle/lifecycle-migration-guide.md) |
 
 ## File Structure
 

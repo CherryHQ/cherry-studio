@@ -1,9 +1,8 @@
 import type { Client } from '@libsql/client'
 import { createClient } from '@libsql/client'
 import { loggerService } from '@logger'
-import { DATA_PATH } from '@main/config'
+import { application } from '@main/core/application'
 import Embeddings from '@main/knowledge/embedjs/embeddings/Embeddings'
-import { makeSureDirExists } from '@main/utils'
 import type {
   AddMemoryOptions,
   AssistantMessage,
@@ -59,10 +58,9 @@ export class MemoryService {
    * If the old memory database exists, rename it to the new path
    */
   public migrateMemoryDb(): void {
+    // Legacy path: kept as-is for migration detection (pre-v2 stored memories.db directly under userData)
     const oldMemoryDbPath = path.join(app.getPath('userData'), 'memories.db')
-    const memoryDbPath = path.join(DATA_PATH, 'Memory', 'memories.db')
-
-    makeSureDirExists(path.dirname(memoryDbPath))
+    const memoryDbPath = application.getPath('feature.memory.db_file')
 
     if (fs.existsSync(oldMemoryDbPath)) {
       fs.renameSync(oldMemoryDbPath, memoryDbPath)
@@ -78,9 +76,7 @@ export class MemoryService {
     }
 
     try {
-      const memoryDbPath = path.join(DATA_PATH, 'Memory', 'memories.db')
-
-      makeSureDirExists(path.dirname(memoryDbPath))
+      const memoryDbPath = application.getPath('feature.memory.db_file')
 
       this.db = createClient({
         url: `file:${memoryDbPath}`,

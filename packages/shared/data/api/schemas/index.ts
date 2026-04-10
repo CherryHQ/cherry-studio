@@ -13,7 +13,6 @@
  * import type { ApiSchemas, DataRequest } from '@shared/data/api'
  *
  * // Domain DTOs directly from schema files
- * import type { TestItem, CreateTestItemDto } from '@shared/data/api/schemas/test'
  * import type { Topic, CreateTopicDto } from '@shared/data/api/schemas/topics'
  * import type { Message, CreateMessageDto } from '@shared/data/api/schemas/messages'
  * import type { TranslateHistory, CreateTranslateHistoryDto } from '@shared/data/api/schemas/translate'
@@ -26,7 +25,6 @@ import type { KnowledgeSchemas } from './knowledges'
 import type { MCPServerSchemas } from './mcpServers'
 import type { MessageSchemas } from './messages'
 import type { MiniAppSchemas } from './miniapps'
-import type { TestSchemas } from './test'
 import type { TopicSchemas } from './topics'
 import type { TranslateSchemas } from './translate'
 
@@ -44,8 +42,7 @@ import type { TranslateSchemas } from './translate'
  */
 
 export type ApiSchemas = AssertValidSchemas<
-  TestSchemas &
-    TopicSchemas &
+  TopicSchemas &
     MessageSchemas &
     TranslateSchemas &
     FileProcessingSchemas &
