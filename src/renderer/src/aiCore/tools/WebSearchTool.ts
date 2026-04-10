@@ -29,16 +29,19 @@ export const webSearchToolWithPreExtractedKeywords = (
   return tool({
     description: `Web search tool for finding current information, news, and real-time data from the internet.${preparedQueriesSection}`,
 
-    inputSchema: z.object({
-      additionalContext: z
-        .string()
-        .optional()
-        .describe(
-          prefillKeywords
-            ? 'Optional additional context, keywords, or specific focus to enhance the search'
-            : 'Search query or keywords to search the web'
-        )
-    }),
+    // In model-driven mode additionalContext is the sole source of the query — make it required
+    // so the AI SDK validates it before execute is called. In prefill mode it remains optional
+    // because the tool can fall back to the pre-extracted keywords.
+    inputSchema: prefillKeywords
+      ? z.object({
+          additionalContext: z
+            .string()
+            .optional()
+            .describe('Optional additional context, keywords, or specific focus to enhance the search')
+        })
+      : z.object({
+          additionalContext: z.string().describe('Required: the search query or keywords to search the web')
+        }),
 
     execute: async ({ additionalContext }) => {
       const emptyResult: WebSearchProviderResponse = { query: '', results: [] }
@@ -50,10 +53,10 @@ export const webSearchToolWithPreExtractedKeywords = (
       }
 
       if (!prefillKeywords) {
-        // Model-driven mode: additionalContext is optional in the schema; no query means no search.
+        // Schema requires additionalContext in this mode; this guard is purely defensive.
         const query = additionalContext?.trim()
         if (!query) {
-          return emptyResult
+          throw new Error('No search query provided. Please retry with a non-empty search query in additionalContext.')
         }
         const extractResults: ExtractResults = { websearch: { question: [query] } }
         return webSearchService.processWebsearch(webSearchProvider, extractResults, requestId)
