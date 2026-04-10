@@ -203,7 +203,6 @@ export class DetachedWindowManager extends BaseService {
     }
 
     win.on('closed', () => {
-      this.windows.delete(tabId)
       this.windowState.delete(tabId)
     })
   }
@@ -291,6 +290,10 @@ export class DetachedWindowManager extends BaseService {
     win.webContents.setWindowOpenHandler((details) => {
       void shell.openExternal(details.url)
       return { action: 'deny' }
+    })
+
+    win.on('closed', () => {
+      this.windows.delete(tabId)
     })
 
     this.windows.set(tabId, win)
