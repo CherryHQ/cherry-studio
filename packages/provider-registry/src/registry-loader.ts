@@ -16,21 +16,27 @@ import type { ProviderModelOverride } from './schemas/provider-models'
 import { ProviderModelListSchema } from './schemas/provider-models'
 import { normalizeModelId } from './utils/normalize'
 
+function readAndParse<T>(jsonPath: string, schema: { parse: (data: unknown) => T }): T {
+  try {
+    const data = JSON.parse(readFileSync(jsonPath, 'utf-8'))
+    return schema.parse(data)
+  } catch (error) {
+    throw new Error(`Failed to load registry file: ${jsonPath}`, { cause: error })
+  }
+}
+
 export function readModelRegistry(jsonPath: string): { version: string; models: ModelConfig[] } {
-  const data = JSON.parse(readFileSync(jsonPath, 'utf-8'))
-  const registry = ModelListSchema.parse(data)
+  const registry = readAndParse(jsonPath, ModelListSchema)
   return { version: registry.version, models: registry.models }
 }
 
 export function readProviderRegistry(jsonPath: string): { version: string; providers: ProviderConfig[] } {
-  const data = JSON.parse(readFileSync(jsonPath, 'utf-8'))
-  const registry = ProviderListSchema.parse(data)
+  const registry = readAndParse(jsonPath, ProviderListSchema)
   return { version: registry.version, providers: registry.providers }
 }
 
 export function readProviderModelRegistry(jsonPath: string): { version: string; overrides: ProviderModelOverride[] } {
-  const data = JSON.parse(readFileSync(jsonPath, 'utf-8'))
-  const registry = ProviderModelListSchema.parse(data)
+  const registry = readAndParse(jsonPath, ProviderModelListSchema)
   return { version: registry.version, overrides: registry.overrides }
 }
 

@@ -65,18 +65,7 @@ function rowToRuntimeProvider(row: UserProvider): Provider {
   }
 }
 
-export class ProviderService {
-  private static instance: ProviderService
-
-  private constructor() {}
-
-  public static getInstance(): ProviderService {
-    if (!ProviderService.instance) {
-      ProviderService.instance = new ProviderService()
-    }
-    return ProviderService.instance
-  }
-
+class ProviderService {
   /**
    * List providers with optional filters
    */
@@ -172,10 +161,9 @@ export class ProviderService {
   }
 
   /**
-   * Batch upsert providers (used by RegistryService for preset providers)
-   * Inserts new providers on first run. On conflict, only updates the
-   * preset linkage field — all user-customizable fields (name, endpointConfigs,
-   * apiKeys, authConfig, etc.) are preserved.
+   * Batch insert providers (used by PresetProviderSeed for preset seeding).
+   * Insert-only — existing providers are silently skipped via onConflictDoNothing.
+   * All user-customizable fields are preserved.
    */
   async batchUpsert(providers: NewUserProvider[]): Promise<void> {
     if (providers.length === 0) return
@@ -351,4 +339,4 @@ export class ProviderService {
   }
 }
 
-export const providerService = ProviderService.getInstance()
+export const providerService = new ProviderService()

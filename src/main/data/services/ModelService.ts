@@ -136,18 +136,7 @@ function rowToRuntimeModel(row: UserModel): Model {
   }
 }
 
-export class ModelService {
-  private static instance: ModelService
-
-  private constructor() {}
-
-  public static getInstance(): ModelService {
-    if (!ModelService.instance) {
-      ModelService.instance = new ModelService()
-    }
-    return ModelService.instance
-  }
-
+class ModelService {
   /**
    * List models with optional filters
    */
@@ -285,7 +274,12 @@ export class ModelService {
     }
 
     // Track which registry-enrichable fields the user explicitly changed
-    const changedEnrichableFields = Object.keys(dto).filter(isRegistryEnrichableField)
+    // Map DTO keys to DB column names (e.g. parameterSupport → parameters)
+    const dtoToDbKey = (key: string): string => {
+      const mapping = UPDATE_MODEL_FIELD_MAP.find((entry) => (Array.isArray(entry) ? entry[0] === key : false))
+      return mapping && Array.isArray(mapping) ? mapping[1] : key
+    }
+    const changedEnrichableFields = Object.keys(dto).map(dtoToDbKey).filter(isRegistryEnrichableField)
     if (changedEnrichableFields.length > 0) {
       const existingOverrides = existing.userOverrides ?? []
       updates.userOverrides = [...new Set([...existingOverrides, ...changedEnrichableFields])]
@@ -390,4 +384,4 @@ export class ModelService {
   }
 }
 
-export const modelService = ModelService.getInstance()
+export const modelService = new ModelService()

@@ -14,7 +14,7 @@ This is the main entry point for Cherry Studio's data management documentation. 
 - [Cache Usage](./cache-usage.md) - useCache hooks, CacheService examples
 - [Preference Usage](./preference-usage.md) - usePreference hook, PreferenceService examples
 - [DataApi in Renderer](./data-api-in-renderer.md) - useQuery/useMutation, DataApiService
-- [DataApi in Main](./data-api-in-main.md) - Handlers, Services, Repositories patterns
+- [DataApi in Main](./data-api-in-main.md) - Handlers, Services patterns
 
 ### Reference Guides (Coding Standards)
 - [API Design Guidelines](./api-design-guidelines.md) - RESTful design rules

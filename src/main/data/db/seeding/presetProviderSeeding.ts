@@ -30,12 +30,17 @@ function toDbRow(p: ProtoProviderConfig) {
 
 class PresetProviderSeed implements ISeed {
   async migrate(db: DbType): Promise<void> {
-    const loader = new RegistryLoader({
-      models: application.getPath('feature.provider_registry.data', 'models.json'),
-      providers: application.getPath('feature.provider_registry.data', 'providers.json'),
-      providerModels: application.getPath('feature.provider_registry.data', 'provider-models.json')
-    })
-    const rawProviders = loader.loadProviders()
+    let rawProviders: ProtoProviderConfig[]
+    try {
+      const loader = new RegistryLoader({
+        models: application.getPath('feature.provider_registry.data', 'models.json'),
+        providers: application.getPath('feature.provider_registry.data', 'providers.json'),
+        providerModels: application.getPath('feature.provider_registry.data', 'provider-models.json')
+      })
+      rawProviders = loader.loadProviders()
+    } catch (error) {
+      throw new Error('PresetProviderSeed: failed to load registry providers', { cause: error })
+    }
 
     if (rawProviders.length === 0) return
 
