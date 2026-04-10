@@ -1,7 +1,9 @@
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
+import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import { isDev } from '@renderer/config/constant'
 import type { CherryUIMessage } from '@renderer/hooks/useAiChat'
+import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useChatSession } from '@renderer/hooks/useChatSession'
 import { type V2ChatOverrides, V2ChatOverridesProvider } from '@renderer/hooks/useMessageOperations'
 import { useTopicMessagesV2 } from '@renderer/hooks/useTopicMessagesV2'
@@ -104,6 +106,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
   historyPartsMap,
   refresh
 }) => {
+  const { isMultiSelectMode } = useChatContext(topic)
   // Set of persisted message IDs — used to distinguish history vs. live messages
   const historyIds = useMemo(() => new Set(historyUIMessages.map((m) => m.id)), [historyUIMessages])
 
@@ -298,7 +301,10 @@ const V2ChatContentInner: FC<InnerProps> = ({
             logger.warn('Failed to clean up old message before regenerate', { messageId, err })
           }
         }
-        await regenerateWithCapabilities(messageId)
+        // After deleting the assistant message, the old messageId no longer exists
+        // in chat.messages. Pass undefined so AI SDK regenerates from the last
+        // message (which is now the user message).
+        await regenerateWithCapabilities()
       },
       resend: async (messageId?: string) => {
         if (messageId) {
@@ -369,7 +375,9 @@ const V2ChatContentInner: FC<InnerProps> = ({
           className="flex flex-1 flex-col justify-between"
           style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>
           {isDev && (
-            <div className="shrink-0 border-b px-4 py-1 text-xs" style={{ color: 'var(--color-text-3)' }}>
+            <div
+              className="fixed top-5 right-50 z-50 px-4 py-1 text-xs opacity-50"
+              style={{ color: 'var(--color-text-3)' }}>
               [V2] {status} | {adaptedMessages.length} msgs ({historyMessages.length} history + {liveAdapted.length}{' '}
               live)
               {error && <span className="ml-2 text-red-500">{error.message}</span>}
@@ -385,6 +393,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
           />
 
           <Inputbar assistant={assistant} topic={topic} setActiveTopic={setActiveTopic} onSendV2={handleSendV2} />
+          {isMultiSelectMode && <MultiSelectActionPopup topic={topic} />}
         </div>
       </PartsProvider>
     </V2ChatOverridesProvider>

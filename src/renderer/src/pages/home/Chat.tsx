@@ -208,9 +208,9 @@ const Chat: FC<Props> = (props) => {
                   />
                   {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
                   <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
-                  {isMultiSelectMode && <MultiSelectActionPopup topic={props.activeTopic} />}
                 </div>
               )}
+              {!USE_V2_CHAT && isMultiSelectMode && <MultiSelectActionPopup topic={props.activeTopic} />}
             </QuickPanelProvider>
           </Main>
         </motion.div>

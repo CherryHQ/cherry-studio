@@ -241,6 +241,7 @@ const MessageMenubar: FC<Props> = (props) => {
 
   const handleResendUserMessage = useCallback(
     async (messageUpdate?: Message) => {
+      logger.debug('Resend user message triggered', { messageId: message.id, messageUpdate })
       await resendMessage(messageUpdate ?? message, assistant)
     },
     [assistant, message, resendMessage]
@@ -695,20 +696,20 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
 
     if (confirmRegenerateMessage) {
       return (
-        <Popconfirm
-          title={t('message.regenerate.confirm')}
-          okButtonProps={{ danger: true }}
-          onConfirm={() => handleResendUserMessage()}
-          onOpenChange={(open) => open && setShowDeleteTooltip(false)}>
-          <Tooltip content={t('common.regenerate')} delay={800}>
+        <Tooltip content={t('common.regenerate')} delay={800}>
+          <Popconfirm
+            title={t('message.regenerate.confirm')}
+            okButtonProps={{ danger: true }}
+            onConfirm={() => handleResendUserMessage()}
+            onOpenChange={(open) => open && setShowDeleteTooltip(false)}>
             <ActionButton
               className="message-action-button"
               onClick={(e) => e.stopPropagation()}
               $softHoverBg={isBubbleStyle}>
               <RefreshIcon size={15} />
             </ActionButton>
-          </Tooltip>
-        </Popconfirm>
+          </Popconfirm>
+        </Tooltip>
       )
     }
 
@@ -758,20 +759,20 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
 
     if (confirmRegenerateMessage) {
       return (
-        <Popconfirm
-          title={t('message.regenerate.confirm')}
-          okButtonProps={{ danger: true }}
-          onConfirm={() => onRegenerate()}
-          onOpenChange={(open) => open && setShowDeleteTooltip(false)}>
-          <Tooltip content={t('common.regenerate')} delay={800}>
+        <Tooltip content={t('common.regenerate')} delay={800}>
+          <Popconfirm
+            title={t('message.regenerate.confirm')}
+            okButtonProps={{ danger: true }}
+            onConfirm={() => onRegenerate()}
+            onOpenChange={(open) => open && setShowDeleteTooltip(false)}>
             <ActionButton
               className="message-action-button"
               onClick={(e) => e.stopPropagation()}
               $softHoverBg={softHoverBg}>
               <RefreshIcon size={15} />
             </ActionButton>
-          </Tooltip>
-        </Popconfirm>
+          </Popconfirm>
+        </Tooltip>
       )
     }
 
@@ -885,28 +886,28 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
     ]
 
     return (
-      <Dropdown
-        menu={{
-          style: {
-            maxHeight: 250,
-            overflowY: 'auto',
-            backgroundClip: 'border-box'
-          },
-          items,
-          onClick: (e) => e.domEvent.stopPropagation()
-        }}
-        trigger={['click']}
-        placement="top"
-        arrow>
-        <Tooltip content={t('chat.translate')} delay={1200}>
+      <Tooltip content={t('chat.translate')} delay={1200}>
+        <Dropdown
+          menu={{
+            style: {
+              maxHeight: 250,
+              overflowY: 'auto',
+              backgroundClip: 'border-box'
+            },
+            items,
+            onClick: (e) => e.domEvent.stopPropagation()
+          }}
+          trigger={['click']}
+          placement="top"
+          arrow>
           <ActionButton
             className="message-action-button"
             onClick={(e) => e.stopPropagation()}
             $softHoverBg={softHoverBg}>
             <Languages size={15} />
           </ActionButton>
-        </Tooltip>
-      </Dropdown>
+        </Dropdown>
+      </Tooltip>
     )
   },
   useful: ({ isAssistantMessage, isGrouped, onUseful, softHoverBg, message, t }) => {

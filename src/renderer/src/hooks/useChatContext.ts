@@ -1,12 +1,12 @@
 import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
+import { usePartsMap } from '@renderer/pages/home/Messages/Blocks'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { RootState } from '@renderer/store'
-import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
-// import { setActiveTopic, setSelectedMessageIds, toggleMultiSelectMode } from '@renderer/store/runtime'
 import type { Topic } from '@renderer/types'
+import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useStore } from 'react-redux'
@@ -16,6 +16,7 @@ export const useChatContext = (activeTopic: Topic) => {
   const { t } = useTranslation()
   const store = useStore<RootState>()
   const { deleteMessage } = useMessageOperations(activeTopic)
+  const partsMap = usePartsMap()
 
   const [isMultiSelectMode, setIsMultiSelectMode] = useCache('chat.multi_select_mode')
   const [selectedMessageIds, setSelectedMessageIds] = useCache('chat.selected_message_ids')
@@ -102,9 +103,11 @@ export const useChatContext = (activeTopic: Topic) => {
         return
       }
 
-      const state = store.getState()
-      const messages = selectMessagesForTopic(state, activeTopic.id)
-      const messageBlocks = messageBlocksSelectors.selectEntities(state)
+      const extractContent = (msgId: string): string => {
+        const parts = partsMap?.[msgId]
+        if (parts) return getTextFromParts(parts)
+        return ''
+      }
 
       switch (actionType) {
         case 'delete':
@@ -126,50 +129,27 @@ export const useChatContext = (activeTopic: Topic) => {
           })
           break
         case 'save': {
-          // 筛选消息，实际并非assistant messages，而是可能包含user messages
-          const assistantMessages = messages.filter((msg) => messageIds.includes(msg.id))
-          if (assistantMessages.length > 0) {
-            const contentToSave = assistantMessages
-              .map((msg) => {
-                return msg.blocks
-                  .map((blockId) => {
-                    const block = messageBlocks[blockId]
-                    return block && 'content' in block ? block.content : ''
-                  })
-                  .filter(Boolean)
-                  .join('\n')
-                  .trim()
-              })
-              .join('\n\n---\n\n')
+          const contentToSave = messageIds
+            .map((id) => extractContent(id))
+            .filter(Boolean)
+            .join('\n\n---\n\n')
+          if (contentToSave) {
             const fileName = `chat_export_${new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')}.md`
             await window.api.file.save(fileName, contentToSave)
             window.toast.success(t('message.save.success.title'))
             handleToggleMultiSelectMode(false)
-          } else {
-            // 这个分支不会进入 因为 messageIds.length === 0 已提前返回，需要简化掉
           }
           break
         }
         case 'copy': {
-          const assistantMessages = messages.filter((msg) => messageIds.includes(msg.id))
-          if (assistantMessages.length > 0) {
-            const contentToCopy = assistantMessages
-              .map((msg) => {
-                return msg.blocks
-                  .map((blockId) => {
-                    const block = messageBlocks[blockId]
-                    return block && 'content' in block ? block.content : ''
-                  })
-                  .filter(Boolean)
-                  .join('\n')
-                  .trim()
-              })
-              .join('\n\n---\n\n')
+          const contentToCopy = messageIds
+            .map((id) => extractContent(id))
+            .filter(Boolean)
+            .join('\n\n---\n\n')
+          if (contentToCopy) {
             void navigator.clipboard.writeText(contentToCopy)
             window.toast.success(t('message.copied'))
             handleToggleMultiSelectMode(false)
-          } else {
-            // 和上面一样
           }
           break
         }
@@ -177,7 +157,7 @@ export const useChatContext = (activeTopic: Topic) => {
           break
       }
     },
-    [t, store, activeTopic.id, deleteMessage, handleToggleMultiSelectMode]
+    [t, deleteMessage, handleToggleMultiSelectMode, partsMap]
   )
 
   return {
