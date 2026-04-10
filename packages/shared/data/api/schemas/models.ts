@@ -8,7 +8,11 @@
 import * as z from 'zod'
 
 import {
+  ENDPOINT_TYPE,
+  MODALITY,
   type Model,
+  MODEL_CAPABILITY,
+  objectValues,
   ParameterSupportDbSchema,
   RuntimeModelPricingSchema,
   RuntimeReasoningSchema
@@ -19,7 +23,7 @@ const ListModelsQuerySchema = z.object({
   /** Filter by provider ID */
   providerId: z.string().optional(),
   /** Filter by capability (ModelCapability string value) */
-  capability: z.string().optional(),
+  capability: z.enum(objectValues(MODEL_CAPABILITY)).optional(),
   /** Filter by enabled status */
   enabled: z.boolean().optional()
 })
@@ -39,14 +43,14 @@ const CreateModelDtoSchema = z.object({
   description: z.string().optional(),
   /** UI grouping */
   group: z.string().optional(),
-  /** Capabilities (numeric ModelCapability enum values) */
-  capabilities: z.array(z.string()).optional(),
-  /** Input modalities (numeric Modality enum values) */
-  inputModalities: z.array(z.string()).optional(),
-  /** Output modalities (numeric Modality enum values) */
-  outputModalities: z.array(z.string()).optional(),
+  /** Capabilities */
+  capabilities: z.array(z.enum(objectValues(MODEL_CAPABILITY))).optional(),
+  /** Input modalities */
+  inputModalities: z.array(z.enum(objectValues(MODALITY))).optional(),
+  /** Output modalities */
+  outputModalities: z.array(z.enum(objectValues(MODALITY))).optional(),
   /** Endpoint types */
-  endpointTypes: z.array(z.string()).optional(),
+  endpointTypes: z.array(z.enum(objectValues(ENDPOINT_TYPE))).optional(),
   /** Context window size */
   contextWindow: z.number().optional(),
   /** Maximum output tokens */
@@ -77,16 +81,12 @@ const UpdateModelDtoSchema = CreateModelDtoSchema.omit({
   })
 export type UpdateModelDto = z.infer<typeof UpdateModelDtoSchema>
 
-/** DTO for enriching raw model entries against registry presets */
+/** DTO for resolving raw model IDs against registry presets */
 const EnrichModelsDtoSchema = z.object({
-  /** Raw model entries from SDK */
+  /** Raw model IDs from SDK listModels() */
   models: z.array(
     z.object({
-      modelId: z.string(),
-      name: z.string().optional(),
-      group: z.string().optional(),
-      description: z.string().optional(),
-      endpointTypes: z.array(z.string()).optional()
+      modelId: z.string()
     })
   )
 })

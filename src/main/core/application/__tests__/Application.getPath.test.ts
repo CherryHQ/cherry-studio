@@ -102,10 +102,12 @@ describe('Application.getPath', () => {
   })
 
   describe('pre-bootstrap throw guard', () => {
-    it('throws a clear error when pathMap is null (pre-bootstrap)', () => {
-      // Temporarily reset pathMap to simulate the pre-bootstrap state.
+    it('throws a clear error when pathMap is null (pre-initPathRegistry)', () => {
+      // Temporarily reset pathMap to simulate the pre-initPathRegistry state.
       app.__setPathMapForTesting(null)
-      expect(() => app.getPath('feature.files.data')).toThrowError(/called before Application\.bootstrap\(\) ran/)
+      expect(() => app.getPath('feature.files.data')).toThrowError(
+        /called before application\.initPathRegistry\(\) ran/
+      )
       // Restore the mock for any subsequent test that runs in the same
       // describe (the beforeEach also restores it, but we want this case
       // to leave the state clean for any in-flight observation).

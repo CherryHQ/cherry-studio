@@ -11,8 +11,13 @@ import type {
   ProtoProviderModelOverride,
   ProtoReasoningSupport
 } from '@cherrystudio/provider-registry'
-import type { Modality, ModelCapability, ReasoningEffort as ReasoningEffortType } from '@cherrystudio/provider-registry'
-import { EndpointType, objectValues, ReasoningEffort } from '@cherrystudio/provider-registry'
+import type {
+  EndpointType,
+  Modality,
+  ModelCapability,
+  ReasoningEffort as ReasoningEffortType
+} from '@cherrystudio/provider-registry'
+import { ENDPOINT_TYPE, objectValues, REASONING_EFFORT } from '@cherrystudio/provider-registry'
 import * as z from 'zod'
 
 import type { Model, RuntimeModelPricing, RuntimeReasoning } from '../types/model'
@@ -78,7 +83,7 @@ const UserProviderRowSchema = z.object({
   presetProviderId: z.string().nullish(),
   name: z.string(),
   endpointConfigs: z.record(z.string(), EndpointConfigSchema).nullish(),
-  defaultChatEndpoint: z.enum(objectValues(EndpointType)).nullish(),
+  defaultChatEndpoint: z.enum(objectValues(ENDPOINT_TYPE)).nullish(),
   apiKeys: z.array(ApiKeyEntrySchema.pick({ id: true, key: true, label: true, isEnabled: true })).nullish(),
   authConfig: z.object({ type: z.string() }).catchall(z.unknown()).nullish(),
   apiFeatures: ApiFeaturesSchema.nullish(),
@@ -125,43 +130,180 @@ type UserModelRow = z.infer<typeof UserModelRowSchema>
  * @param providerId - Provider ID for the result
  * @returns Merged Model
  */
-export function mergeModelConfig(
-  userModel: UserModelRow | null,
+/**
+ * Create a minimal custom model (no preset association).
+ *
+ * Used when a model ID has no match in the registry.
+ */
+export function createCustomModel(providerId: string, modelId: string): Model {
+  return {
+    id: createUniqueModelId(providerId, modelId),
+    providerId,
+    name: modelId,
+    capabilities: [],
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false
+  }
+}
+
+/**
+ * Merge preset model data with an optional provider override.
+ *
+ * Two-layer merge: preset → override. No user data involved.
+ * Used by resolveModels and getRegistryModelsByProvider.
+ *
+ * @param presetModel - Base model from models.json
+ * @param catalogOverride - Provider-specific override from provider-models.json
+ * @param providerId - Provider context for UniqueModelId generation
+ * @param reasoningFormatTypes - Provider's reasoning format config
+ * @param defaultChatEndpoint - Provider's default chat endpoint
+ */
+export function mergePresetModel(
+  presetModel: ProtoModelConfig,
   catalogOverride: ProtoProviderModelOverride | null,
-  presetModel: ProtoModelConfig | null,
   providerId: string,
   reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>> | null,
   defaultChatEndpoint?: EndpointType
 ): Model {
-  // Case 1: Fully custom user model (no preset association)
-  if (userModel && !userModel.presetModelId) {
-    return {
-      id: createUniqueModelId(providerId, userModel.modelId),
-      providerId,
-      name: userModel.name ?? userModel.modelId,
-      description: userModel.description ?? undefined,
-      group: userModel.group ?? undefined,
-      capabilities: (userModel.capabilities ?? []) as ModelCapability[],
-      inputModalities: (userModel.inputModalities ?? undefined) as Modality[] | undefined,
-      outputModalities: (userModel.outputModalities ?? undefined) as Modality[] | undefined,
-      contextWindow: userModel.contextWindow ?? undefined,
-      maxOutputTokens: userModel.maxOutputTokens ?? undefined,
-      endpointTypes: (userModel.endpointTypes ?? undefined) as EndpointType[] | undefined,
-      supportsStreaming: userModel.supportsStreaming ?? true,
-      reasoning: userModel.reasoning as RuntimeReasoning | undefined,
-      isEnabled: userModel.isEnabled ?? true,
-      isHidden: userModel.isHidden ?? false
-    }
+  const {
+    capabilities,
+    inputModalities,
+    outputModalities,
+    endpointTypes,
+    name,
+    description,
+    contextWindow,
+    maxOutputTokens,
+    maxInputTokens,
+    pricing,
+    replaceWith
+  } = applyPresetAndOverride(presetModel, catalogOverride)
+
+  const reasoningFormatType = resolveReasoningFormatType(endpointTypes, defaultChatEndpoint, reasoningFormatTypes)
+  const reasoning = resolveReasoning(presetModel, catalogOverride, reasoningFormatType)
+
+  return {
+    id: createUniqueModelId(providerId, presetModel.id),
+    providerId,
+    apiModelId: catalogOverride?.apiModelId,
+    name,
+    description,
+    family: presetModel.family,
+    ownedBy: presetModel.ownedBy,
+    capabilities,
+    inputModalities,
+    outputModalities,
+    contextWindow,
+    maxOutputTokens,
+    maxInputTokens,
+    endpointTypes,
+    supportsStreaming: true,
+    reasoning,
+    pricing,
+    isEnabled: !(catalogOverride?.disabled ?? false),
+    isHidden: false,
+    replaceWith: replaceWith ? createUniqueModelId(providerId, replaceWith) : undefined
+  }
+}
+
+/**
+ * Three-layer merge: preset → override → user.
+ *
+ * User values take highest priority. Null user fields fall through to
+ * preset/override values. Used by ModelService.create.
+ *
+ * @param userModel - User's DB row (from user_model table)
+ * @param catalogOverride - Provider-specific override from provider-models.json
+ * @param presetModel - Base model from models.json
+ * @param providerId - Provider context
+ * @param reasoningFormatTypes - Provider's reasoning format config
+ * @param defaultChatEndpoint - Provider's default chat endpoint
+ */
+export function mergeModelWithUser(
+  userModel: UserModelRow,
+  catalogOverride: ProtoProviderModelOverride | null,
+  presetModel: ProtoModelConfig,
+  providerId: string,
+  reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>> | null,
+  defaultChatEndpoint?: EndpointType
+): Model {
+  const base = applyPresetAndOverride(presetModel, catalogOverride)
+  let {
+    capabilities,
+    inputModalities,
+    outputModalities,
+    endpointTypes,
+    name,
+    description,
+    contextWindow,
+    maxOutputTokens
+  } = base
+  const { maxInputTokens, pricing, replaceWith } = base
+
+  // Apply user override (highest priority)
+  if (userModel.capabilities) {
+    capabilities = [...userModel.capabilities] as ModelCapability[]
+  }
+  if (userModel.endpointTypes) {
+    endpointTypes = [...userModel.endpointTypes] as EndpointType[]
+  }
+  if (userModel.inputModalities) {
+    inputModalities = [...userModel.inputModalities] as Modality[]
+  }
+  if (userModel.outputModalities) {
+    outputModalities = [...userModel.outputModalities] as Modality[]
+  }
+  if (userModel.name) {
+    name = userModel.name
+  }
+  if (userModel.description) {
+    description = userModel.description
+  }
+  if (userModel.contextWindow != null) {
+    contextWindow = userModel.contextWindow
+  }
+  if (userModel.maxOutputTokens != null) {
+    maxOutputTokens = userModel.maxOutputTokens
   }
 
-  // Case 2: Preset model (may have catalog override and user override)
-  if (!presetModel) {
-    throw new Error('Preset model not found for merge')
+  const reasoningFormatType = resolveReasoningFormatType(endpointTypes, defaultChatEndpoint, reasoningFormatTypes)
+  let reasoning = resolveReasoning(presetModel, catalogOverride, reasoningFormatType)
+  if (userModel.reasoning) {
+    reasoning = userModel.reasoning as RuntimeReasoning
   }
 
-  const modelId = presetModel.id
+  return {
+    id: createUniqueModelId(providerId, presetModel.id),
+    providerId,
+    apiModelId: catalogOverride?.apiModelId,
+    name,
+    description,
+    group: userModel.group ?? undefined,
+    family: presetModel.family,
+    ownedBy: presetModel.ownedBy,
+    capabilities,
+    inputModalities,
+    outputModalities,
+    contextWindow,
+    maxOutputTokens,
+    maxInputTokens,
+    endpointTypes,
+    supportsStreaming: userModel.supportsStreaming ?? true,
+    reasoning,
+    pricing,
+    isEnabled: userModel.isEnabled ?? !(catalogOverride?.disabled ?? false),
+    isHidden: userModel.isHidden ?? false,
+    replaceWith: replaceWith ? createUniqueModelId(providerId, replaceWith) : undefined
+  }
+}
 
-  // Start from preset
+// ─────────────────────────────────────────────────────────────────────────────
+// Internal helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Shared preset + override merge logic (used by both mergePresetModel and mergeModelWithUser) */
+function applyPresetAndOverride(presetModel: ProtoModelConfig, catalogOverride: ProtoProviderModelOverride | null) {
   let capabilities: ModelCapability[] = [...(presetModel.capabilities ?? [])]
   let inputModalities: Modality[] | undefined = presetModel.inputModalities?.length
     ? [...presetModel.inputModalities]
@@ -170,16 +312,14 @@ export function mergeModelConfig(
     ? [...presetModel.outputModalities]
     : undefined
   let endpointTypes: EndpointType[] | undefined = undefined
-  let name = presetModel.name ?? presetModel.id
-  let description = presetModel.description
+  const name = presetModel.name ?? presetModel.id
+  const description = presetModel.description
   let contextWindow = presetModel.contextWindow
   let maxOutputTokens = presetModel.maxOutputTokens
   let maxInputTokens = presetModel.maxInputTokens
-  let reasoning: RuntimeReasoning | undefined
   let pricing: RuntimeModelPricing | undefined
   let replaceWith: string | undefined
 
-  // Extract pricing
   if (presetModel.pricing) {
     pricing = {
       input: {
@@ -205,65 +345,40 @@ export function mergeModelConfig(
     }
   }
 
-  // Apply catalog override
   if (catalogOverride) {
-    if (catalogOverride.capabilities) {
-      capabilities = applyCapabilityOverride(capabilities, catalogOverride.capabilities)
-    }
-    if (catalogOverride.limits?.contextWindow != null) {
-      contextWindow = catalogOverride.limits.contextWindow
-    }
-    if (catalogOverride.limits?.maxOutputTokens != null) {
-      maxOutputTokens = catalogOverride.limits.maxOutputTokens
-    }
-    if (catalogOverride.limits?.maxInputTokens != null) {
-      maxInputTokens = catalogOverride.limits.maxInputTokens
-    }
-    if (catalogOverride.endpointTypes?.length) {
-      endpointTypes = [...catalogOverride.endpointTypes]
-    }
-    if (catalogOverride.inputModalities?.length) {
-      inputModalities = [...catalogOverride.inputModalities]
-    }
-    if (catalogOverride.outputModalities?.length) {
-      outputModalities = [...catalogOverride.outputModalities]
-    }
-    if (catalogOverride.replaceWith) {
-      replaceWith = catalogOverride.replaceWith
-    }
+    if (catalogOverride.capabilities) capabilities = applyCapabilityOverride(capabilities, catalogOverride.capabilities)
+    if (catalogOverride.limits?.contextWindow != null) contextWindow = catalogOverride.limits.contextWindow
+    if (catalogOverride.limits?.maxOutputTokens != null) maxOutputTokens = catalogOverride.limits.maxOutputTokens
+    if (catalogOverride.limits?.maxInputTokens != null) maxInputTokens = catalogOverride.limits.maxInputTokens
+    if (catalogOverride.endpointTypes?.length) endpointTypes = [...catalogOverride.endpointTypes]
+    if (catalogOverride.inputModalities?.length) inputModalities = [...catalogOverride.inputModalities]
+    if (catalogOverride.outputModalities?.length) outputModalities = [...catalogOverride.outputModalities]
+    if (catalogOverride.replaceWith) replaceWith = catalogOverride.replaceWith
   }
 
-  // Apply user override
-  if (userModel) {
-    if (userModel.capabilities) {
-      capabilities = [...userModel.capabilities] as ModelCapability[]
-    }
-    if (userModel.endpointTypes) {
-      endpointTypes = [...userModel.endpointTypes] as EndpointType[]
-    }
-    if (userModel.inputModalities) {
-      inputModalities = [...userModel.inputModalities] as Modality[]
-    }
-    if (userModel.outputModalities) {
-      outputModalities = [...userModel.outputModalities] as Modality[]
-    }
-    if (userModel.name) {
-      name = userModel.name
-    }
-    if (userModel.description) {
-      description = userModel.description
-    }
-    if (userModel.contextWindow != null) {
-      contextWindow = userModel.contextWindow
-    }
-    if (userModel.maxOutputTokens != null) {
-      maxOutputTokens = userModel.maxOutputTokens
-    }
+  return {
+    capabilities,
+    inputModalities,
+    outputModalities,
+    endpointTypes,
+    name,
+    description,
+    contextWindow,
+    maxOutputTokens,
+    maxInputTokens,
+    pricing,
+    replaceWith
   }
+}
 
-  const reasoningFormatType = resolveReasoningFormatType(endpointTypes, defaultChatEndpoint, reasoningFormatTypes)
+/** Resolve reasoning from preset + override + format type */
+function resolveReasoning(
+  presetModel: ProtoModelConfig,
+  catalogOverride: ProtoProviderModelOverride | null,
+  reasoningFormatType: ReasoningFormatType | undefined
+): RuntimeReasoning | undefined {
+  let reasoning: RuntimeReasoning | undefined
 
-  // Extract reasoning config from proto ReasoningSupport + provider's reasoning format type
   if (presetModel.reasoning) {
     reasoning = extractRuntimeReasoning(presetModel.reasoning, reasoningFormatType)
   }
@@ -272,41 +387,11 @@ export function mergeModelConfig(
     const overrideReasoning = extractRuntimeReasoning(catalogOverride.reasoning, reasoningFormatType)
     reasoning = {
       ...overrideReasoning,
-      thinkingTokenLimits: overrideReasoning.thinkingTokenLimits ?? reasoning?.thinkingTokenLimits,
-      interleaved: overrideReasoning.interleaved ?? reasoning?.interleaved
+      thinkingTokenLimits: overrideReasoning.thinkingTokenLimits ?? reasoning?.thinkingTokenLimits
     }
   }
 
-  if (userModel) {
-    if (userModel.reasoning) {
-      reasoning = userModel.reasoning as RuntimeReasoning
-    }
-  }
-
-  return {
-    id: createUniqueModelId(providerId, modelId),
-    providerId,
-    // Use api_model_id from catalog override if available, otherwise fall back to model id
-    apiModelId: catalogOverride?.apiModelId,
-    name,
-    description,
-    group: userModel?.group ?? undefined,
-    family: presetModel.family,
-    ownedBy: presetModel.ownedBy,
-    capabilities,
-    inputModalities,
-    outputModalities,
-    contextWindow,
-    maxOutputTokens,
-    maxInputTokens,
-    endpointTypes,
-    supportsStreaming: userModel?.supportsStreaming ?? true,
-    reasoning,
-    pricing,
-    isEnabled: userModel?.isEnabled ?? !(catalogOverride?.disabled ?? false),
-    isHidden: userModel?.isHidden ?? false,
-    replaceWith: replaceWith ? createUniqueModelId(providerId, replaceWith) : undefined
-  }
+  return reasoning
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -369,7 +454,7 @@ export function mergeProviderConfig(
     name: userProvider?.name ?? presetProvider?.name ?? providerId,
     description: presetProvider?.description,
     endpointConfigs: Object.keys(endpointConfigs).length > 0 ? endpointConfigs : undefined,
-    defaultChatEndpoint: userProvider?.defaultChatEndpoint ?? presetProvider?.defaultChatEndpoint,
+    defaultChatEndpoint: userProvider?.defaultChatEndpoint ?? presetProvider?.defaultChatEndpoint ?? undefined,
     apiKeys,
     authType,
     apiFeatures,
@@ -383,35 +468,35 @@ export function mergeProviderConfig(
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const CHAT_REASONING_ENDPOINT_PRIORITY: EndpointType[] = [
-  EndpointType.OPENAI_RESPONSES,
-  EndpointType.OPENAI_CHAT_COMPLETIONS,
-  EndpointType.ANTHROPIC_MESSAGES,
-  EndpointType.GOOGLE_GENERATE_CONTENT,
-  EndpointType.OLLAMA_CHAT,
-  EndpointType.OLLAMA_GENERATE,
-  EndpointType.OPENAI_TEXT_COMPLETIONS
+  ENDPOINT_TYPE.OPENAI_RESPONSES,
+  ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+  ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+  ENDPOINT_TYPE.OLLAMA_CHAT,
+  ENDPOINT_TYPE.OLLAMA_GENERATE,
+  ENDPOINT_TYPE.OPENAI_TEXT_COMPLETIONS
 ]
 
 /** Default effort levels per reasoning format type (when not specified in catalog) */
 const DEFAULT_EFFORTS: Partial<Record<ReasoningFormatType, ReasoningEffortType[]>> = {
   'openai-chat': [
-    ReasoningEffort.NONE,
-    ReasoningEffort.MINIMAL,
-    ReasoningEffort.LOW,
-    ReasoningEffort.MEDIUM,
-    ReasoningEffort.HIGH
+    REASONING_EFFORT.NONE,
+    REASONING_EFFORT.MINIMAL,
+    REASONING_EFFORT.LOW,
+    REASONING_EFFORT.MEDIUM,
+    REASONING_EFFORT.HIGH
   ],
   'openai-responses': [
-    ReasoningEffort.NONE,
-    ReasoningEffort.MINIMAL,
-    ReasoningEffort.LOW,
-    ReasoningEffort.MEDIUM,
-    ReasoningEffort.HIGH
+    REASONING_EFFORT.NONE,
+    REASONING_EFFORT.MINIMAL,
+    REASONING_EFFORT.LOW,
+    REASONING_EFFORT.MEDIUM,
+    REASONING_EFFORT.HIGH
   ],
   anthropic: [],
-  gemini: [ReasoningEffort.LOW, ReasoningEffort.MEDIUM, ReasoningEffort.HIGH],
-  'enable-thinking': [ReasoningEffort.NONE, ReasoningEffort.LOW, ReasoningEffort.MEDIUM, ReasoningEffort.HIGH],
-  'thinking-type': [ReasoningEffort.NONE, ReasoningEffort.AUTO]
+  gemini: [REASONING_EFFORT.LOW, REASONING_EFFORT.MEDIUM, REASONING_EFFORT.HIGH],
+  'enable-thinking': [REASONING_EFFORT.NONE, REASONING_EFFORT.LOW, REASONING_EFFORT.MEDIUM, REASONING_EFFORT.HIGH],
+  'thinking-type': [REASONING_EFFORT.NONE, REASONING_EFFORT.AUTO]
 }
 
 function isChatReasoningEndpointType(endpointType: EndpointType): boolean {
@@ -542,7 +627,6 @@ function extractRuntimeReasoning(
   return {
     type,
     supportedEfforts,
-    thinkingTokenLimits: reasoning.thinkingTokenLimits,
-    interleaved: reasoning.interleaved
+    thinkingTokenLimits: reasoning.thinkingTokenLimits
   }
 }

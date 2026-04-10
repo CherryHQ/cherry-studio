@@ -46,6 +46,7 @@ export class WindowService extends BaseService {
   protected async onInit() {
     this.registerIpcHandlers()
     this.registerActivateHandler()
+    this.registerSecondInstanceHandler()
   }
 
   protected async onReady() {
@@ -77,6 +78,15 @@ export class WindowService extends BaseService {
     }
     app.on('activate', handler)
     this.registerDisposable(() => app.removeListener('activate', handler))
+  }
+
+  private registerSecondInstanceHandler() {
+    // Protocol URL dispatch is handled by ProtocolService on the same event.
+    // Multiple listeners on 'second-instance' are intentional: ProtocolService
+    // dispatches the URL, WindowService restores the window.
+    const handler = () => this.showMainWindow()
+    app.on('second-instance', handler)
+    this.registerDisposable(() => app.removeListener('second-instance', handler))
   }
 
   private registerIpcHandlers() {

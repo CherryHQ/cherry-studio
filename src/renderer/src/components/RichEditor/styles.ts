@@ -118,6 +118,7 @@ export const ToolbarDivider = styled.div`
 
 export const EditorContent = styled.div`
   flex: 1;
+  min-height: 0;
   /* overflow handled by Scrollbar wrapper */
   position: relative; /* keep internal elements positioned, but ToC is now sibling */
 
@@ -157,7 +158,7 @@ export const EditorContent = styled.div`
   /* Ensure the ProseMirror editor content doesn't override drag handle positioning */
   .ProseMirror {
     position: relative;
-    height: 100%;
+    min-height: 100%;
 
     /* Allow text selection when not editable */
     &:not([contenteditable='true']) {

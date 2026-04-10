@@ -147,7 +147,7 @@ export function isGemmaModel(model?: ClassifiableModel): boolean {
   }
 
   const modelId = getLowerBaseModelName(model.id)
-  return modelId.includes('gemma-') || model.group === 'Gemma'
+  return modelId.includes('gemma-') || modelId.includes('gemma4') || model.group === 'Gemma'
 }
 
 export function isZhipuModel(model: ClassifiableModel): boolean {

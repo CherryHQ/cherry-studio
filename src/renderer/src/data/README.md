@@ -4,10 +4,10 @@ This directory contains the renderer process data services.
 
 ## Documentation
 
-- **Overview**: [docs/en/references/data/README.md](../../../../docs/en/references/data/README.md)
-- **Cache**: [cache-overview.md](../../../../docs/en/references/data/cache-overview.md) | [cache-usage.md](../../../../docs/en/references/data/cache-usage.md)
-- **Preference**: [preference-overview.md](../../../../docs/en/references/data/preference-overview.md) | [preference-usage.md](../../../../docs/en/references/data/preference-usage.md)
-- **DataApi**: [data-api-in-renderer.md](../../../../docs/en/references/data/data-api-in-renderer.md)
+- **Overview**: [docs/references/data/README.md](../../../../docs/references/data/README.md)
+- **Cache**: [cache-overview.md](../../../../docs/references/data/cache-overview.md) | [cache-usage.md](../../../../docs/references/data/cache-usage.md)
+- **Preference**: [preference-overview.md](../../../../docs/references/data/preference-overview.md) | [preference-usage.md](../../../../docs/references/data/preference-usage.md)
+- **DataApi**: [data-api-in-renderer.md](../../../../docs/references/data/data-api-in-renderer.md)
 
 ## Directory Structure
 

@@ -10,30 +10,33 @@
  * 3. models.json (catalog base definition)
  */
 
-import {
+import type {
   Currency,
-  ENDPOINT_TYPE,
   EndpointType,
-  MODALITY,
   Modality,
-  MODEL_CAPABILITY,
   ModelCapability,
-  objectValues,
   ReasoningEffort
+} from '@cherrystudio/provider-registry'
+import {
+  CURRENCY,
+  ENDPOINT_TYPE,
+  MODALITY,
+  MODEL_CAPABILITY,
+  objectValues,
+  REASONING_EFFORT
 } from '@cherrystudio/provider-registry'
 import * as z from 'zod'
 
-// Re-export const objects and types for consumers
-export { Currency, ENDPOINT_TYPE, EndpointType, MODALITY, Modality, MODEL_CAPABILITY, ModelCapability, ReasoningEffort }
+// Re-export const objects for consumers
+export { CURRENCY, ENDPOINT_TYPE, MODALITY, MODEL_CAPABILITY, objectValues, REASONING_EFFORT }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// Zod schemas (formerly in provider-registry/schemas, now owned by shared)
-// ═══════════════════════════════════════════════════════════════════════════════
+// Re-export types for consumers
+export type { Currency, EndpointType, Modality, ModelCapability, ReasoningEffort }
 
 /** Price per token schema */
 export const PricePerTokenSchema = z.object({
   perMillionTokens: z.number().nonnegative().nullable(),
-  currency: z.enum(objectValues(Currency)).default(Currency.USD).optional()
+  currency: z.enum(objectValues(CURRENCY)).default(CURRENCY.USD).optional()
 })
 
 /** Thinking token limits */
@@ -44,7 +47,7 @@ export const ThinkingTokenLimitsSchema = z.object({
 })
 
 /** Reasoning effort levels */
-const ReasoningEffortSchema = z.enum(objectValues(ReasoningEffort))
+const ReasoningEffortSchema = z.enum(objectValues(REASONING_EFFORT))
 
 /** Common reasoning fields shared across all reasoning type variants */
 const CommonReasoningFieldsSchema = {
@@ -75,6 +78,11 @@ export const UNIQUE_MODEL_ID_SEPARATOR = '::'
 
 /** UniqueModelId type: "providerId::modelId" */
 export type UniqueModelId = `${string}${typeof UNIQUE_MODEL_ID_SEPARATOR}${string}`
+
+/** Zod schema for UniqueModelId with runtime validation */
+export const UniqueModelIdSchema = z.string().refine((v) => v.includes(UNIQUE_MODEL_ID_SEPARATOR), {
+  message: `Must be a valid UniqueModelId (providerId${UNIQUE_MODEL_ID_SEPARATOR}modelId)`
+}) as z.ZodType<UniqueModelId>
 
 /**
  * Create a UniqueModelId from provider and model IDs
@@ -154,7 +162,7 @@ export type ReasoningConfig = z.infer<typeof ReasoningConfigSchema>
 /** Runtime form: extends DB form — supportedEfforts required, adds defaultEffort */
 export const RuntimeReasoningSchema = ReasoningConfigSchema.required({ supportedEfforts: true }).extend({
   /** Default effort level */
-  defaultEffort: z.enum(objectValues(ReasoningEffort)).optional()
+  defaultEffort: z.enum(objectValues(REASONING_EFFORT)).optional()
 })
 
 export type RuntimeReasoning = z.infer<typeof RuntimeReasoningSchema>
@@ -219,7 +227,7 @@ export type RuntimeModelPricing = z.infer<typeof RuntimeModelPricingSchema>
 
 export const ModelSchema = z.object({
   /** Unique identifier: "providerId::modelId" */
-  id: z.string() as z.ZodType<UniqueModelId>,
+  id: UniqueModelIdSchema,
   /** Provider ID */
   providerId: z.string(),
   /** API Model ID - The actual ID used when calling the provider's API */
@@ -239,11 +247,11 @@ export const ModelSchema = z.object({
 
   // Capabilities
   /** Final capability list after all merges */
-  capabilities: z.array(z.enum(objectValues(ModelCapability))),
+  capabilities: z.array(z.enum(objectValues(MODEL_CAPABILITY))),
   /** Supported input modalities */
-  inputModalities: z.array(z.enum(objectValues(Modality))).optional(),
+  inputModalities: z.array(z.enum(objectValues(MODALITY))).optional(),
   /** Supported output modalities */
-  outputModalities: z.array(z.enum(objectValues(Modality))).optional(),
+  outputModalities: z.array(z.enum(objectValues(MODALITY))).optional(),
 
   // Configuration
   /** Context window size */
@@ -253,7 +261,7 @@ export const ModelSchema = z.object({
   /** Maximum input tokens */
   maxInputTokens: z.number().optional(),
   /** Supported endpoint types */
-  endpointTypes: z.array(z.enum(objectValues(EndpointType))).optional(),
+  endpointTypes: z.array(z.enum(objectValues(ENDPOINT_TYPE))).optional(),
   /** Whether streaming is supported */
   supportsStreaming: z.boolean(),
   /** Reasoning configuration */
@@ -269,7 +277,7 @@ export const ModelSchema = z.object({
   /** Whether this model is hidden from lists */
   isHidden: z.boolean(),
   /** Replacement model if this one is deprecated */
-  replaceWith: (z.string() as z.ZodType<UniqueModelId>).optional()
+  replaceWith: UniqueModelIdSchema.optional()
 })
 
 export type Model = z.infer<typeof ModelSchema>

@@ -11,6 +11,7 @@ import {
 } from '@cherrystudio/provider-registry'
 import type { NewUserModel } from '@data/db/schemas/userModel'
 import type { NewUserProvider } from '@data/db/schemas/userProvider'
+import { loggerService } from '@logger'
 import type { RuntimeModelPricing } from '@shared/data/types/model'
 import type {
   ApiFeatures,
@@ -22,6 +23,8 @@ import type {
 } from '@shared/data/types/provider'
 import type { Model as LegacyModel, ModelType, Provider as LegacyProvider } from '@types'
 import { v4 as uuidv4 } from 'uuid'
+
+const logger = loggerService.withContext('ProviderModelMappings')
 
 /** Legacy llm.settings structure used by a few providers. */
 export interface OldLlmSettings {
@@ -155,6 +158,9 @@ export function transformProvider(
   sortOrder: number
 ): NewUserProvider {
   const endpointType = ENDPOINT_MAP[legacy.type]
+  if (legacy.type && !endpointType) {
+    logger.warn('Unknown provider type dropped during migration', { providerId: legacy.id, legacyType: legacy.type })
+  }
 
   return {
     providerId: legacy.id,
@@ -405,9 +411,15 @@ function mapCapabilities(capabilities?: LegacyModel['capabilities']): ModelCapab
     return null
   }
 
-  const mapped = capabilities
-    .map((capability) => CAPABILITY_MAP[capability.type])
-    .filter((capability): capability is ModelCapability => capability !== undefined)
+  const mapped: ModelCapability[] = []
+  for (const capability of capabilities) {
+    const result = CAPABILITY_MAP[capability.type]
+    if (result !== undefined) {
+      mapped.push(result)
+    } else if (capability.type !== 'text') {
+      logger.warn('Unknown capability type dropped during migration', { type: capability.type })
+    }
+  }
 
   return mapped.length > 0 ? Array.from(new Set(mapped)) : null
 }
@@ -421,9 +433,16 @@ function mapEndpointTypes(
     return null
   }
 
-  const mapped = sourceTypes
-    .map((type) => (type ? ENDPOINT_MAP[type] : undefined))
-    .filter((type): type is EndpointType => type !== undefined)
+  const mapped: EndpointType[] = []
+  for (const type of sourceTypes) {
+    if (!type) continue
+    const result = ENDPOINT_MAP[type]
+    if (result !== undefined) {
+      mapped.push(result)
+    } else {
+      logger.warn('Unknown endpoint type dropped during migration', { endpointType: type })
+    }
+  }
 
   return mapped.length > 0 ? Array.from(new Set(mapped)) : null
 }

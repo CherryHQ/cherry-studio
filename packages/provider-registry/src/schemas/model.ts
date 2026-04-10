@@ -13,30 +13,37 @@ import {
   VersionSchema,
   ZodCurrencySchema
 } from './common'
-import { Modality, ModelCapability, objectValues, ReasoningEffort } from './enums'
+import { MODALITY, MODEL_CAPABILITY, objectValues, REASONING_EFFORT } from './enums'
 
-export const ModalitySchema = z.enum(objectValues(Modality))
+export const ModalitySchema = z.enum(objectValues(MODALITY))
 export type ModalityType = z.infer<typeof ModalitySchema>
 
-export const ModelCapabilityTypeSchema = z.enum(objectValues(ModelCapability))
+export const ModelCapabilityTypeSchema = z.enum(objectValues(MODEL_CAPABILITY))
 export type ModelCapabilityType = z.infer<typeof ModelCapabilityTypeSchema>
 
 // Thinking token limits schema (shared across reasoning types)
-export const ThinkingTokenLimitsSchema = z.object({
-  min: z.number().nonnegative().optional(),
-  max: z.number().positive().optional(),
-  default: z.number().nonnegative().optional()
-})
+// min and max must be both present or both absent; when present, min <= max
+export const ThinkingTokenLimitsSchema = z
+  .object({
+    min: z.number().nonnegative().optional(),
+    max: z.number().positive().optional(),
+    default: z.number().nonnegative().optional()
+  })
+  .refine((d) => (d.min == null) === (d.max == null), {
+    message: 'min and max must be both present or both absent'
+  })
+  .refine((d) => d.min == null || d.max == null || d.min <= d.max, {
+    message: 'min must be less than or equal to max'
+  })
 
 /** Reasoning effort levels shared across providers */
-export const ReasoningEffortSchema = z.enum(objectValues(ReasoningEffort))
+export const ReasoningEffortSchema = z.enum(objectValues(REASONING_EFFORT))
 
 // Common reasoning fields shared across all reasoning type variants
 // Exported for shared/runtime types to reuse
 export const CommonReasoningFieldsSchema = {
   thinkingTokenLimits: ThinkingTokenLimitsSchema.optional(),
-  supportedEfforts: z.array(ReasoningEffortSchema).optional(),
-  interleaved: z.boolean().optional()
+  supportedEfforts: z.array(ReasoningEffortSchema).optional()
 }
 
 /**
@@ -51,36 +58,45 @@ export const ReasoningSupportSchema = z.object({
 })
 
 // Parameter support configuration
+// Defaults reflect the most common LLM provider capabilities
 export const ParameterSupportSchema = z.object({
   temperature: z
     .object({
       supported: z.boolean(),
       range: NumericRangeSchema.optional()
     })
-    .optional(),
+    .default({ supported: true }),
 
   topP: z
     .object({
       supported: z.boolean(),
       range: NumericRangeSchema.optional()
     })
-    .optional(),
+    .default({ supported: true }),
 
   topK: z
     .object({
       supported: z.boolean(),
       range: NumericRangeSchema.optional()
     })
-    .optional(),
+    .default({ supported: false }),
 
-  frequencyPenalty: z.boolean().optional(),
-  presencePenalty: z.boolean().optional(),
-  maxTokens: z.boolean().optional(),
-  stopSequences: z.boolean().optional(),
-  systemMessage: z.boolean().optional()
+  frequencyPenalty: z.boolean().default(true),
+  presencePenalty: z.boolean().default(true),
+  maxTokens: z.boolean().default(true),
+  stopSequences: z.boolean().default(true),
+  systemMessage: z.boolean().default(true)
 })
 
-// Model pricing configuration
+/**
+ * Model pricing configuration.
+ *
+ * Pricing tiers based on actual provider billing models:
+ * - input/output per-token: OpenAI, Anthropic, Google, all major LLM providers
+ * - cacheRead/cacheWrite: Anthropic prompt caching, OpenAI cached tokens
+ * - perImage: DALL-E (per-image), Midjourney (per-image)
+ * - perMinute: Whisper, ElevenLabs (per-minute audio billing)
+ */
 export const ModelPricingSchema = z.object({
   input: PricePerTokenSchema,
   output: PricePerTokenSchema,
@@ -108,7 +124,7 @@ export const ModelPricingSchema = z.object({
 export const ModelConfigSchema = z.object({
   // Basic information
   id: ModelIdSchema,
-  name: z.string().optional(),
+  name: z.string(),
   description: z.string().optional(),
 
   // Capabilities
@@ -156,10 +172,6 @@ export const ModelConfigSchema = z.object({
 
   // Whether the model has open weights (from models.dev)
   openWeights: z.boolean().optional(),
-
-  // Date version variants (same capabilities, different snapshots)
-  // Example: gpt-4-turbo's variants: ["gpt-4-turbo-2024-04-09", "gpt-4-turbo-2024-01-25"]
-  alias: z.array(ModelIdSchema).optional(),
 
   // Additional metadata
   metadata: MetadataSchema

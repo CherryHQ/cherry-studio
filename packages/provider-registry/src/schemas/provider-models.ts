@@ -41,10 +41,10 @@ export const ProviderModelOverrideSchema = z.object({
   // If not set, modelId is used for API calls
   apiModelId: z.string().optional(),
 
-  // Variant identification (for same model with different variants)
-  // Used to distinguish variants like :free, :thinking, -search
-  // providerId + modelId + modelVariant forms the unique identifier
-  modelVariant: z.string().optional(), // 'free', 'thinking', 'nitro', 'search', etc.
+  // Variant tags (for models with modifier suffixes like :free, :thinking, -search)
+  // A model like "xxx-thinking-free" has modelVariants: ['thinking', 'free']
+  // providerId + modelId + sorted modelVariants forms the unique identifier
+  modelVariants: z.array(z.string().min(1)).optional(),
 
   // Override configuration
   capabilities: CapabilityOverrideSchema.optional(),
@@ -71,8 +71,7 @@ export const ProviderModelOverrideSchema = z.object({
   replaceWith: ModelIdSchema.optional(),
 
   // Metadata
-  reason: z.string().optional(),
-  priority: z.number().default(0)
+  reason: z.string().optional()
 })
 
 // Container schema for JSON files

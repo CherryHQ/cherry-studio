@@ -58,6 +58,7 @@ export class MemoryService {
    * If the old memory database exists, rename it to the new path
    */
   public migrateMemoryDb(): void {
+    // Legacy path: kept as-is for migration detection (pre-v2 stored memories.db directly under userData)
     const oldMemoryDbPath = path.join(app.getPath('userData'), 'memories.db')
     const memoryDbPath = application.getPath('feature.memory.db_file')
 

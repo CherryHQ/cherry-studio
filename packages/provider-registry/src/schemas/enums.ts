@@ -12,30 +12,30 @@
 // EndpointType
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const EndpointType = {
-  OPENAI_CHAT_COMPLETIONS: 'openai-chat-completions',
-  OPENAI_TEXT_COMPLETIONS: 'openai-text-completions',
+export const ENDPOINT_TYPE = {
   ANTHROPIC_MESSAGES: 'anthropic-messages',
-  OPENAI_RESPONSES: 'openai-responses',
   GOOGLE_GENERATE_CONTENT: 'google-generate-content',
+  JINA_RERANK: 'jina-rerank',
   OLLAMA_CHAT: 'ollama-chat',
   OLLAMA_GENERATE: 'ollama-generate',
-  OPENAI_EMBEDDINGS: 'openai-embeddings',
-  JINA_RERANK: 'jina-rerank',
-  OPENAI_IMAGE_GENERATION: 'openai-image-generation',
-  OPENAI_IMAGE_EDIT: 'openai-image-edit',
   OPENAI_AUDIO_TRANSCRIPTION: 'openai-audio-transcription',
   OPENAI_AUDIO_TRANSLATION: 'openai-audio-translation',
+  OPENAI_CHAT_COMPLETIONS: 'openai-chat-completions',
+  OPENAI_EMBEDDINGS: 'openai-embeddings',
+  OPENAI_IMAGE_EDIT: 'openai-image-edit',
+  OPENAI_IMAGE_GENERATION: 'openai-image-generation',
+  OPENAI_RESPONSES: 'openai-responses',
+  OPENAI_TEXT_COMPLETIONS: 'openai-text-completions',
   OPENAI_TEXT_TO_SPEECH: 'openai-text-to-speech',
   OPENAI_VIDEO_GENERATION: 'openai-video-generation'
 } as const
-export type EndpointType = (typeof EndpointType)[keyof typeof EndpointType]
+export type EndpointType = (typeof ENDPOINT_TYPE)[keyof typeof ENDPOINT_TYPE]
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ModelCapability
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const ModelCapability = {
+export const MODEL_CAPABILITY = {
   FUNCTION_CALL: 'function-call',
   REASONING: 'reasoning',
   IMAGE_RECOGNITION: 'image-recognition',
@@ -54,37 +54,37 @@ export const ModelCapability = {
   FILE_SEARCH: 'file-search',
   COMPUTER_USE: 'computer-use'
 } as const
-export type ModelCapability = (typeof ModelCapability)[keyof typeof ModelCapability]
+export type ModelCapability = (typeof MODEL_CAPABILITY)[keyof typeof MODEL_CAPABILITY]
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Modality
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const Modality = {
+export const MODALITY = {
   TEXT: 'text',
   IMAGE: 'image',
   AUDIO: 'audio',
   VIDEO: 'video',
   VECTOR: 'vector'
 } as const
-export type Modality = (typeof Modality)[keyof typeof Modality]
+export type Modality = (typeof MODALITY)[keyof typeof MODALITY]
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Currency
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Uses uppercase ISO 4217 codes (not kebab-case) — intentional exception
-export const Currency = {
+export const CURRENCY = {
   USD: 'USD',
   CNY: 'CNY'
 } as const
-export type Currency = (typeof Currency)[keyof typeof Currency]
+export type Currency = (typeof CURRENCY)[keyof typeof CURRENCY]
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ReasoningEffort
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const ReasoningEffort = {
+export const REASONING_EFFORT = {
   NONE: 'none',
   MINIMAL: 'minimal',
   LOW: 'low',
@@ -93,34 +93,35 @@ export const ReasoningEffort = {
   MAX: 'max',
   AUTO: 'auto'
 } as const
-export type ReasoningEffort = (typeof ReasoningEffort)[keyof typeof ReasoningEffort]
+export type ReasoningEffort = (typeof REASONING_EFFORT)[keyof typeof REASONING_EFFORT]
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Provider-specific reasoning effort enums
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const OpenAIReasoningEffort = {
+export const OPENAI_REASONING_EFFORT = {
   LOW: 'low',
   MEDIUM: 'medium',
-  HIGH: 'high'
+  HIGH: 'high',
+  XHIGH: 'xhigh'
 } as const
-export type OpenAIReasoningEffort = (typeof OpenAIReasoningEffort)[keyof typeof OpenAIReasoningEffort]
+export type OpenAIReasoningEffort = (typeof OPENAI_REASONING_EFFORT)[keyof typeof OPENAI_REASONING_EFFORT]
 
-export const AnthropicReasoningEffort = {
+export const ANTHROPIC_REASONING_EFFORT = {
   LOW: 'low',
   MEDIUM: 'medium',
   HIGH: 'high',
   MAX: 'max'
 } as const
-export type AnthropicReasoningEffort = (typeof AnthropicReasoningEffort)[keyof typeof AnthropicReasoningEffort]
+export type AnthropicReasoningEffort = (typeof ANTHROPIC_REASONING_EFFORT)[keyof typeof ANTHROPIC_REASONING_EFFORT]
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Backward-compatible aliases
-// ─────────────────────────────────────────────────────────────────────────────
-
-export const ENDPOINT_TYPE = EndpointType
-export const MODEL_CAPABILITY = ModelCapability
-export const MODALITY = Modality
+export const GEMINI_THINKING_LEVEL = {
+  MINIMAL: 'minimal',
+  LOW: 'low',
+  MEDIUM: 'medium',
+  HIGH: 'high'
+} as const
+export type GeminiThinkingLevel = (typeof GEMINI_THINKING_LEVEL)[keyof typeof GEMINI_THINKING_LEVEL]
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Utility

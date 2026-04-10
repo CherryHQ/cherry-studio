@@ -7,6 +7,7 @@
  */
 
 import { modelService } from '@data/services/ModelService'
+import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
 import type { ModelSchemas } from '@shared/data/api/schemas/models'
 
@@ -29,7 +30,8 @@ export const modelHandlers: {
     },
 
     POST: async ({ body }) => {
-      return await modelService.create(body)
+      const registryData = await providerRegistryService.lookupModel(body.providerId, body.modelId)
+      return await modelService.create(body, registryData)
     }
   },
 

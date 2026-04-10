@@ -5,6 +5,17 @@
 
 import type { ModelCapabilityType, ModelConfig } from '../../../schemas'
 import { MODALITY, type Modality, MODEL_CAPABILITY } from '../../../schemas/enums'
+import {
+  COLON_VARIANT_SUFFIXES,
+  expandKnownPrefixes,
+  extractParameterSize,
+  HYPHEN_VARIANT_SUFFIXES,
+  normalizeVersionSeparators,
+  PAREN_VARIANT_SUFFIXES,
+  stripAggregatorPrefixes,
+  stripParameterSize,
+  stripVariantSuffixes
+} from '../../normalize'
 
 /**
  * Generic transformer interface
@@ -215,166 +226,6 @@ export const OFFICIAL_ALIASES: Record<string, string[]> = {
 }
 
 /**
- * Common aggregator prefixes that should be stripped from model IDs
- * These are routing/deployment prefixes, not actual model name parts
- * Note: More specific prefixes must come before shorter ones (e.g., 'zai-org-' before 'zai-')
- */
-export const COMMON_AGGREGATOR_PREFIXES = [
-  // AIHubMix routing prefixes
-  'aihubmix-',
-  'aihub-',
-  'ahm-',
-  // Cloud provider routing
-  'alicloud-',
-  'azure-',
-  'baidu-',
-  'cbs-',
-  'cc-',
-  'sf-',
-  's-',
-  'bai-',
-  'mm-',
-  'web-',
-  // Platform aggregators
-  'deepinfra-',
-  'groq-',
-  'nvidia-',
-  'sophnet-',
-  // Legacy prefixes
-  'zai-org-', // Must be before zai-
-  'zai-',
-  'lucidquery-',
-  'lucidnova-',
-  'lucid-',
-  'siliconflow-',
-  'chutes-',
-  'huoshan-',
-  'meta-',
-  'cohere-',
-  'coding-',
-  'dmxapi-',
-  'perplexity-',
-  'ai21-',
-  'openai-',
-  // Underscore-based prefixes
-  'dmxapi_',
-  'aistudio_'
-]
-
-/**
- * Known abbreviated prefixes and their canonical expansions
- * These are brand abbreviations that providers use in model IDs
- * Applied after aggregator prefix stripping to restore canonical names
- */
-export const PREFIX_EXPANSIONS: [string, string][] = [
-  ['mm-', 'minimax-'] // MiniMax shorthand: mm-m2-1 → minimax-m2-1
-]
-
-/**
- * Common colon-based variant suffixes (OpenRouter style)
- */
-export const COLON_VARIANT_SUFFIXES = [':free', ':nitro', ':extended', ':beta', ':preview', ':thinking', ':exacto']
-
-/**
- * Common hyphen-based variant suffixes
- * These are provider-specific deployment variants that should be stripped
- */
-export const HYPHEN_VARIANT_SUFFIXES = [
-  '-free',
-  '-search',
-  '-online',
-  '-think',
-  '-reasoning',
-  '-classic',
-  '-low',
-  '-high',
-  '-minimal',
-  '-medium',
-  '-nothink',
-  '-no-think',
-  '-ssvip',
-  '-thinking',
-  '-nothinking',
-  '-aliyun',
-  '-huoshan',
-  '-tee', // Trusted Execution Environment variant
-  '-cc', // Cloud compute variant
-  '-fw', // Firewall/provider-specific variant
-  '-di', // Provider-specific variant
-  '-t', // Test/provider-specific variant
-  '-reverse' // Reverse proxy variant
-]
-
-/**
- * Common parentheses-based variant suffixes
- */
-export const PAREN_VARIANT_SUFFIXES = ['(free)', '(beta)', '(preview)', '(thinking)']
-
-/**
- * Compound prefixes that protect a hyphen-based suffix from being stripped.
- * e.g., "non-" before "-reasoning" means "non-reasoning" is part of the model name,
- * not a variant suffix.
- */
-const PROTECTED_COMPOUND_PREFIXES = ['non', 'no', 'pre', 'anti', 'post']
-
-/**
- * Normalize version separators in model IDs
- * Converts comma, dot, and 'p' separators to hyphen (-)
- * Existing hyphens are left unchanged to avoid date pattern issues
- *
- * IMPORTANT: Call this AFTER stripping parameter sizes to avoid
- * converting decimal parameter sizes like 1.5b to 1-5b
- *
- * Examples:
- *   - gpt-3,5-turbo → gpt-3-5-turbo
- *   - gpt-3p5-turbo → gpt-3-5-turbo
- *   - claude-3.5-sonnet → claude-3-5-sonnet (dot to hyphen)
- *   - claude-3-5-sonnet → claude-3-5-sonnet (unchanged)
- *   - deepseek-r1-0728 → deepseek-r1-0728 (unchanged, date pattern)
- */
-export function normalizeVersionSeparators(modelId: string): string {
-  // Normalize comma, dot, and 'p' separators between digits to hyphen
-  // Uses lookahead so the trailing digit isn't consumed, allowing overlapping matches
-  // e.g., "4.0.1" → "4-0-1" (without lookahead, "4.0.1" → "4-0.1" because "0" is consumed)
-  return modelId.replace(/(\d)[,.p](?=\d)/g, '$1-')
-}
-
-/**
- * Parameter size pattern: matches Xb or X.Xb where X is a number
- * Must be preceded by a hyphen and optionally followed by hyphen+suffix or end of string
- * Examples: -72b, -7b, -1.5b, -72b-instruct
- */
-const PARAMETER_SIZE_PATTERN = /-(\d+(?:\.\d+)?b)(?=-|$)/i
-
-/**
- * Extract parameter size suffix from model ID
- * Returns the parameter size (e.g., "72b", "7b", "1.5b") or undefined if not found
- *
- * Examples:
- *   - qwen-2.5-72b → "72b"
- *   - llama-3.1-70b-instruct → "70b"
- *   - qwen-2.5-1.5b → "1.5b"
- *   - gpt-4o → undefined
- */
-export function extractParameterSize(modelId: string): string | undefined {
-  const match = modelId.match(PARAMETER_SIZE_PATTERN)
-  return match ? match[1].toLowerCase() : undefined
-}
-
-/**
- * Strip parameter size suffix from model ID
- * Removes the parameter size but keeps other suffixes like -instruct, -chat
- *
- * Examples:
- *   - qwen-2.5-72b → qwen-2.5
- *   - llama-3.1-70b-instruct → llama-3.1-instruct
- *   - gpt-4o → gpt-4o (unchanged)
- */
-export function stripParameterSize(modelId: string): string {
-  return modelId.replace(PARAMETER_SIZE_PATTERN, '')
-}
-
-/**
  * Infer publisher from a normalized model ID using MODEL_TO_PUBLISHER patterns
  */
 export function inferPublisherFromModelId(normalizedModelId: string): string | undefined {
@@ -454,116 +305,11 @@ export function mapModalities(modalityList: string[]): Modality[] {
 }
 
 /**
- * Normalize a model ID to its canonical form:
- * 1. Strip provider prefix (e.g., "anthropic/claude-3" -> "claude-3")
- * 2. Convert to lowercase
- * 3. Strip aggregator prefixes (zai-xxx -> xxx)
- * 4. Strip variant suffixes (:free, -free, etc.)
- * 5. Strip parameter size suffix (72b, 7b, 1.5b) - BEFORE version normalization
- * 6. Normalize version separators (3.5, 3,5, 3p5 → 3-5)
- *
- * This is the single source of truth for model ID normalization.
- * All parsers and scripts should use this function.
+ * Compound prefixes that protect a hyphen-based suffix from being stripped.
+ * e.g., "non-" before "-reasoning" means "non-reasoning" is part of the model name,
+ * not a variant suffix.
  */
-export function normalizeModelId(modelId: string): string {
-  const parts = modelId.split('/')
-  let baseName = parts[parts.length - 1].toLowerCase()
-  baseName = stripAggregatorPrefixes(baseName)
-  baseName = expandKnownPrefixes(baseName)
-  baseName = stripVariantSuffixes(baseName)
-  baseName = stripParameterSize(baseName)
-  baseName = normalizeVersionSeparators(baseName)
-  return baseName
-}
-
-/**
- * Strip aggregator prefixes from a model ID
- */
-export function stripAggregatorPrefixes(modelId: string, additionalPrefixes: string[] = []): string {
-  const allPrefixes = [...additionalPrefixes, ...COMMON_AGGREGATOR_PREFIXES]
-  let result = modelId
-
-  for (const prefix of allPrefixes) {
-    if (result.startsWith(prefix)) {
-      result = result.slice(prefix.length)
-      break // Only remove one prefix
-    }
-  }
-
-  return result
-}
-
-/**
- * Expand known abbreviated prefixes to their canonical form
- * e.g., mm-m2-1 → minimax-m2-1
- */
-export function expandKnownPrefixes(modelId: string): string {
-  for (const [abbrev, canonical] of PREFIX_EXPANSIONS) {
-    if (modelId.startsWith(abbrev)) {
-      return canonical + modelId.slice(abbrev.length)
-    }
-  }
-  return modelId
-}
-
-/**
- * Strip variant suffixes from a model ID
- * Handles colon-based (:free), hyphen-based (-free), and parentheses-based ((free)) suffixes
- */
-export function stripVariantSuffixes(
-  modelId: string,
-  options: {
-    colonSuffixes?: string[]
-    hyphenSuffixes?: string[]
-    parenSuffixes?: string[]
-    officialModelsWithSuffix?: Set<string>
-  } = {}
-): string {
-  const colonSuffixes = options.colonSuffixes ?? COLON_VARIANT_SUFFIXES
-  const hyphenSuffixes = options.hyphenSuffixes ?? HYPHEN_VARIANT_SUFFIXES
-  const parenSuffixes = options.parenSuffixes ?? PAREN_VARIANT_SUFFIXES
-  const officialModels = options.officialModelsWithSuffix ?? new Set<string>()
-
-  // Don't strip if it's an official model
-  if (officialModels.has(modelId)) {
-    return modelId
-  }
-
-  // Strip colon-based suffixes
-  const colonIdx = modelId.lastIndexOf(':')
-  if (colonIdx > 0) {
-    const suffix = modelId.slice(colonIdx)
-    if (colonSuffixes.includes(suffix)) {
-      return modelId.slice(0, colonIdx)
-    }
-  }
-
-  // Strip hyphen-based suffixes
-  // Protect compound modifiers like "non-reasoning", "non-thinking" from being stripped
-  for (const suffix of hyphenSuffixes) {
-    if (modelId.endsWith(suffix)) {
-      const remaining = modelId.slice(0, -suffix.length)
-      if (PROTECTED_COMPOUND_PREFIXES.some((p) => remaining.endsWith(p))) {
-        continue
-      }
-      return remaining
-    }
-  }
-
-  // Strip parentheses-based suffixes (with optional space before)
-  for (const suffix of parenSuffixes) {
-    if (modelId.endsWith(suffix)) {
-      let result = modelId.slice(0, -suffix.length)
-      // Also strip trailing space if present
-      if (result.endsWith(' ')) {
-        result = result.slice(0, -1)
-      }
-      return result
-    }
-  }
-
-  return modelId
-}
+const PROTECTED_COMPOUND_PREFIXES = ['non', 'no', 'pre', 'anti', 'post']
 
 /**
  * Extract variant suffix from a model ID

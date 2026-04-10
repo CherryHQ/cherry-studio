@@ -2,7 +2,7 @@ import type { Request, Response } from 'express'
 import express from 'express'
 
 import { loggerService } from '../../services/LoggerService'
-import { mcpApiService } from '../services/mcp'
+import { getMcpApiService } from '../services/mcp'
 
 const logger = loggerService.withContext('ApiServerMCPRoutes')
 
@@ -45,7 +45,7 @@ const router = express.Router()
 router.get('/', async (req: Request, res: Response) => {
   try {
     logger.debug('Listing MCP servers')
-    const servers = await mcpApiService.getAllActiveServers()
+    const servers = await getMcpApiService().getAllActiveServers()
     const result: Record<string, { id: string; name: string; type: string; description?: string; url: string }> = {}
     for (const server of servers) {
       result[server.id] = {
@@ -117,7 +117,7 @@ router.get('/:server_id', async (req: Request, res: Response) => {
     logger.debug('Get MCP server info request received', {
       serverId: req.params.server_id
     })
-    const server = await mcpApiService.getServerInfo(req.params.server_id)
+    const server = await getMcpApiService().getServerInfo(req.params.server_id)
     if (!server) {
       logger.warn('MCP server not found', { serverId: req.params.server_id })
       return res.status(404).json({
@@ -188,7 +188,7 @@ router.get('/:server_id', async (req: Request, res: Response) => {
  */
 // Connect to MCP server
 router.all('/:server_id/mcp', async (req: Request, res: Response) => {
-  const server = await mcpApiService.getServerById(req.params.server_id)
+  const server = await getMcpApiService().getServerById(req.params.server_id)
   if (!server) {
     logger.warn('MCP server not found', { serverId: req.params.server_id })
     return res.status(404).json({
@@ -200,7 +200,7 @@ router.all('/:server_id/mcp', async (req: Request, res: Response) => {
       }
     })
   }
-  return await mcpApiService.handleRequest(req, res, server)
+  return await getMcpApiService().handleRequest(req, res, server)
 })
 
 export { router as mcpRoutes }
