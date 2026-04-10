@@ -119,7 +119,7 @@ const BasicSettings: FC = () => {
               iconProps={{ size: 16, color: 'var(--color-icon)', className: 'ml-1 cursor-pointer' }}
             />
           </SettingRowTitle>
-          <Switch checked={prefillKeywords} onCheckedChange={(checked) => setPrefillKeywords(checked)} />
+          <Switch checked={prefillKeywords} onCheckedChange={(checked) => void setPrefillKeywords(checked)} />
         </SettingRow>
         <SettingDivider style={{ marginTop: 15, marginBottom: 10 }} />
         <SettingRow style={{ height: 40 }}>

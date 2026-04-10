@@ -41,7 +41,14 @@ export const webSearchToolWithPreExtractedKeywords = (
     }),
 
     execute: async ({ additionalContext }) => {
-      const finalQueries = additionalContext?.trim() ? [additionalContext.trim()] : [...extractedKeywords.question]
+      // When prefillKeywords is disabled, the model must supply its own query via additionalContext.
+      // Falling back to the pre-extracted keywords would silently re-introduce the behavior the user
+      // opted out of, so we treat a missing additionalContext as "no search needed" in that case.
+      const finalQueries = additionalContext?.trim()
+        ? [additionalContext.trim()]
+        : prefillKeywords
+          ? [...extractedKeywords.question]
+          : ['not_needed']
 
       let searchResults: WebSearchProviderResponse = {
         query: '',
