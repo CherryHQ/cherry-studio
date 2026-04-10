@@ -247,26 +247,35 @@ export class ModelService {
       throw DataApiErrorFactory.notFound('Model', `${providerId}/${modelId}`)
     }
 
-    // Build update object
-    const updates: Partial<NewUserModel> = {}
+    // Build update object — mapping from DTO field → DB column
+    // Keys where DTO name differs from DB column use [dtoKey, dbColumn] tuples.
+    const FIELD_MAP: Array<keyof UpdateModelDto | [keyof UpdateModelDto, keyof NewUserModel]> = [
+      'name',
+      'description',
+      'group',
+      'capabilities',
+      'inputModalities',
+      'outputModalities',
+      'endpointTypes',
+      ['parameterSupport', 'parameters'],
+      'supportsStreaming',
+      'contextWindow',
+      'maxOutputTokens',
+      'reasoning',
+      'pricing',
+      'isEnabled',
+      'isHidden',
+      'sortOrder',
+      'notes'
+    ]
 
-    if (dto.name !== undefined) updates.name = dto.name
-    if (dto.description !== undefined) updates.description = dto.description
-    if (dto.group !== undefined) updates.group = dto.group
-    if (dto.capabilities !== undefined) updates.capabilities = dto.capabilities as ModelCapability[]
-    if (dto.inputModalities !== undefined) updates.inputModalities = dto.inputModalities as Modality[]
-    if (dto.outputModalities !== undefined) updates.outputModalities = dto.outputModalities as Modality[]
-    if (dto.endpointTypes !== undefined) updates.endpointTypes = dto.endpointTypes as EndpointType[]
-    if (dto.parameterSupport !== undefined) updates.parameters = dto.parameterSupport
-    if (dto.supportsStreaming !== undefined) updates.supportsStreaming = dto.supportsStreaming
-    if (dto.contextWindow !== undefined) updates.contextWindow = dto.contextWindow
-    if (dto.maxOutputTokens !== undefined) updates.maxOutputTokens = dto.maxOutputTokens
-    if (dto.reasoning !== undefined) updates.reasoning = dto.reasoning
-    if (dto.pricing !== undefined) updates.pricing = dto.pricing
-    if (dto.isEnabled !== undefined) updates.isEnabled = dto.isEnabled
-    if (dto.isHidden !== undefined) updates.isHidden = dto.isHidden
-    if (dto.sortOrder !== undefined) updates.sortOrder = dto.sortOrder
-    if (dto.notes !== undefined) updates.notes = dto.notes
+    const updates: Partial<NewUserModel> = {}
+    for (const entry of FIELD_MAP) {
+      const [dtoKey, dbKey] = Array.isArray(entry) ? entry : [entry, entry as keyof NewUserModel]
+      if (dto[dtoKey] !== undefined) {
+        ;(updates as Record<string, unknown>)[dbKey] = dto[dtoKey]
+      }
+    }
 
     // Track which registry-enrichable fields the user explicitly changed
     const changedEnrichableFields = Object.keys(dto).filter(isRegistryEnrichableField)
