@@ -16,6 +16,10 @@ const visualizerPlugin = (type: 'renderer' | 'main') => {
 
 const isDev = process.env.NODE_ENV === 'development'
 const isProd = process.env.NODE_ENV === 'production'
+const bundledMainDependencies = new Set(['@vectorstores/libsql'])
+const mainExternalDependencies = Object.keys(pkg.dependencies).filter(
+  (dependency) => !bundledMainDependencies.has(dependency)
+)
 
 export default defineConfig({
   main: {
@@ -40,6 +44,7 @@ export default defineConfig({
         '@cherrystudio/ai-core/built-in/plugins': resolve('packages/aiCore/src/core/plugins/built-in'),
         '@cherrystudio/ai-core': resolve('packages/aiCore/src'),
         '@cherrystudio/ai-sdk-provider': resolve('packages/ai-sdk-provider/src'),
+        '@vectorstores/libsql': resolve('packages/vectorstores/libsql/src/index.ts'),
         '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
         '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
         '@test-mocks': resolve('tests/__mocks__')
@@ -47,7 +52,7 @@ export default defineConfig({
     },
     build: {
       rollupOptions: {
-        external: ['bufferutil', 'utf-8-validate', 'electron', ...Object.keys(pkg.dependencies)],
+        external: ['bufferutil', 'utf-8-validate', 'electron', ...mainExternalDependencies],
         output: {
           manualChunks: undefined, // 彻底禁用代码分割 - 返回 null 强制单文件打包
           inlineDynamicImports: true // 内联所有动态导入，这是关键配置

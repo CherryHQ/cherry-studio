@@ -1,10 +1,19 @@
 import { preferenceTable } from '@data/db/schemas/preference'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 
-import type { DbType, ISeed } from '../types'
+import type { DbType, ISeeder } from '../../types'
+import { hashObject } from '../hashObject'
 
-class PreferenceSeed implements ISeed {
-  async migrate(db: DbType): Promise<void> {
+export class PreferenceSeeder implements ISeeder {
+  readonly name = 'preference'
+  readonly description = 'Insert default preference values'
+  readonly version: string
+
+  constructor() {
+    this.version = hashObject(DefaultPreferences)
+  }
+
+  async run(db: DbType): Promise<void> {
     const preferences = await db.select().from(preferenceTable)
 
     // Convert existing preferences to a Map for quick lookup
@@ -43,5 +52,3 @@ class PreferenceSeed implements ISeed {
     }
   }
 }
-
-export default PreferenceSeed

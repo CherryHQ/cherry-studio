@@ -73,11 +73,24 @@ This document records the current V2 knowledge target schema, migration constrai
   - optional query filters: `type`, `groupId`
 - Current runtime create flow uses:
   - `POST /knowledge-bases/:id/items`
-  - request bodies may carry `groupId`
-  - `groupId` may only point to an already existing owner item in the same knowledge base
-  - creating a new owner item and its grouped members is therefore a two-step flow in the current contract:
-    - create the owner item first
-    - create grouped members afterwards with `groupId = ownerItem.id`
+  - request bodies may carry `groupId`, `ref`, and `groupRef`
+  - `groupId` may point to an already existing owner item in the same knowledge base
+  - `ref` is an optional request-local reference key for one newly created item in the current batch
+  - `groupRef` is an optional request-local owner reference that points to another item's `ref` in the same batch
+  - `ref` and `groupRef` are request-level helper fields only:
+    - they are not persisted to SQLite
+    - they are resolved by the DataApi/service layer before insert
+    - the persisted relationship is still `groupId = ownerItem.id`
+  - `groupId` and `groupRef` are mutually exclusive on one item
+  - `groupRef` must resolve to a `ref` present in the same request batch
+  - one request batch may therefore create:
+    - a new owner item and its grouped members together
+    - a multi-level same-base grouping tree
+  - the current create contract rejects invalid batch-local grouping:
+    - duplicate `ref` values in one request batch
+    - missing `groupRef` targets
+    - self-references
+    - cycles within one request batch
 - Current runtime update flow uses:
   - `PATCH /knowledge-items/:id`
   - mutable fields may include `data`, `status`, `error`
@@ -132,6 +145,54 @@ This document records the current V2 knowledge target schema, migration constrai
   - otherwise -> `idle`
 - Temporary legacy states such as in-progress or failed processing are not preserved as V2 status during migration.
 
+## Runtime Status Boundary
+
+- `knowledge_item.status` and `knowledge_item.error` remain part of the official V2 business schema.
+- The runtime queue implementation is not part of the schema contract:
+  - no separate task table
+  - no persisted queue record
+  - no scheduler-specific stage column
+- Runtime currently uses an in-memory `p-queue` based pipeline in `KnowledgeRuntimeService`.
+- The schema-level status set is still:
+  - `idle`
+  - `pending`
+  - `file_processing`
+  - `read`
+  - `embed`
+  - `completed`
+  - `failed`
+- But the current runtime implementation only persists:
+  - `pending` before enqueue
+  - `completed` after successful vector write
+  - `failed` on any exception or shutdown interruption
+- `file_processing`, `read`, and `embed` remain reserved intermediate statuses in the schema and shared types, but are not written by the current runtime yet.
+- In other words:
+  - queue structure is implementation detail
+  - item status is business state
+  - some business states are currently reserved for future runtime expansion
+  - these concerns must not be conflated
+
+## Current Runtime Consumption Notes
+
+- Runtime entrypoint:
+  - `src/main/services/knowledge/KnowledgeRuntimeService.ts`
+- Reader dispatch code still exists for stored `knowledge_item.type` values:
+  - `file` -> file reader by extension
+  - `url` -> fetch markdown through Jina Reader
+  - `note` -> inline note content
+  - `sitemap` -> sitemap reader code path is present, but current runtime does not index `sitemap` items directly
+  - `directory` -> currently treated as a container placeholder and returns no documents
+- This means `directory` and `sitemap` remain valid persisted `knowledge_item.type` values, but the current runtime does not index them directly.
+- For container expansion flows, upstream callers may still create mixed persisted child batches under one owner/group, for example `directory` + `file`.
+- That mixed batch is a persistence concern, not an indexing contract:
+  - container items may be stored in `knowledge_item`
+  - but only concrete indexable leaf items should be submitted to runtime `addItems`
+- In other words, callers must distinguish:
+  - create set: all items that should be persisted into `knowledge_item`
+  - index set: only items that runtime is allowed to index
+- Upstream callers must therefore flatten containers into concrete child items and filter out non-indexable container types before indexing.
+- Runtime embedding model resolution currently expects `knowledge_base.embeddingModelId` in `providerId::modelId` format and only supports `ollama` as the active provider.
+
 ## Implementation Status
 
 - `video` and `memory` items are skipped during migration.
@@ -140,3 +201,5 @@ This document records the current V2 knowledge target schema, migration constrai
 - Group ownership is represented implicitly by `groupId = ownerItem.id`; there is no standalone group table in the current phase.
 - `dimensions` resolution failure skips the entire base and all nested items, with warnings recorded in migration output.
 - Knowledge item status migration uses `uniqueId` instead of `processingStatus`.
+- The current runtime service is `KnowledgeRuntimeService`, not the old `KnowledgeService` name used in earlier notes.
+- Current runtime queue behavior is a single in-memory `PQueue({ concurrency: 5 })` shared across knowledge bases; there is no per-base serial queue yet.
