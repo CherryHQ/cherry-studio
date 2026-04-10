@@ -1490,6 +1490,7 @@
       "unpin": "Detașează subiectul"
     },
     "translate": "Tradu",
+    "user": "Utilizator",
     "web_search": {
       "warning": {
         "openai": "Efortul minim de raționament al modelului GPT-5 nu acceptă căutarea web."

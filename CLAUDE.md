@@ -143,6 +143,11 @@ Services without long-lived resources or persistent side effects: use **named ex
 - **Multi-language Support**: i18n with dynamic loading
 - **Theme System**: Light/dark themes with custom CSS variables
 
+
+### Design Specifications
+
+When generating or modifying any UI component or page styles, you MUST first read the [Design Principle](./DESIGN.md) in the project root directory, strictly follow the colors, fonts, spacing, and component specifications defined therein, and must not use styles outside the specifications.
+
 ## v2 Refactoring (In Progress)
 
 The `main` branch is under code freeze. All development has moved to the `v2` branch.
