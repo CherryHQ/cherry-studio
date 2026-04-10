@@ -182,7 +182,7 @@ describe('KnowledgeOrchestrationService', () => {
 
   it('uses WhenReady phase and depends on KnowledgeRuntimeService', () => {
     expect(getPhase(KnowledgeOrchestrationService)).toBe(Phase.WhenReady)
-    expect(getDependencies(KnowledgeOrchestrationService)).toEqual(['DbService', 'KnowledgeRuntimeService'])
+    expect(getDependencies(KnowledgeOrchestrationService)).toEqual(['KnowledgeRuntimeService'])
   })
 
   it('registers only the five caller-facing knowledge runtime IPC handlers', async () => {

@@ -14,7 +14,7 @@ import { DELETE_INTERRUPTED_REASON, SHUTDOWN_INTERRUPTED_REASON } from './utils/
 
 @Injectable('KnowledgeRuntimeService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['DbService', 'KnowledgeVectorStoreService'])
+@DependsOn(['KnowledgeVectorStoreService'])
 export class KnowledgeRuntimeService extends BaseService {
   private isStopping = false
   private addRuntime = new KnowledgeAddRuntime(() => this.isStopping)

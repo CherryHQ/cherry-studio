@@ -181,9 +181,8 @@ describe('KnowledgeRuntimeService', () => {
       if (serviceName === 'KnowledgeVectorStoreService') {
         return {
           createStore: createVectorStoreMock,
-          getStoreIfExists: createVectorStoreMock,
           deleteStore: deleteVectorStoreMock,
-          clear: vi.fn()
+          getStoreIfExists: createVectorStoreMock
         }
       }
 
@@ -207,9 +206,9 @@ describe('KnowledgeRuntimeService', () => {
     rerankKnowledgeSearchResultsMock.mockImplementation(async (_base, _query, results) => results)
   })
 
-  it('uses WhenReady phase and declares DbService dependency', () => {
+  it('uses WhenReady phase and depends on KnowledgeVectorStoreService', () => {
     expect(getPhase(KnowledgeRuntimeService)).toBe(Phase.WhenReady)
-    expect(getDependencies(KnowledgeRuntimeService)).toEqual(['DbService', 'KnowledgeVectorStoreService'])
+    expect(getDependencies(KnowledgeRuntimeService)).toEqual(['KnowledgeVectorStoreService'])
   })
 
   it('marks directory items as failed instead of completed', async () => {

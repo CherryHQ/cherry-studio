@@ -11,7 +11,7 @@ import { expandSitemapOwnerToCreateItems } from './utils/sitemap'
 
 @Injectable('KnowledgeOrchestrationService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['DbService', 'KnowledgeRuntimeService'])
+@DependsOn(['KnowledgeRuntimeService'])
 export class KnowledgeOrchestrationService extends BaseService {
   protected onInit(): void {
     this.registerIpcHandlers()
