@@ -36,7 +36,7 @@ export default defineConfig({
         '@logger': resolve('src/main/services/LoggerService'),
         '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core'),
         '@mcp-trace/trace-node': resolve('packages/mcp-trace/trace-node'),
-        '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-reader'),
+        '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
         '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
         '@test-mocks': resolve('tests/__mocks__')
       }
@@ -118,7 +118,7 @@ export default defineConfig({
         '@cherrystudio/ai-core': resolve('packages/aiCore/src'),
         '@cherrystudio/extension-table-plus': resolve('packages/extension-table-plus/src'),
         '@cherrystudio/ai-sdk-provider': resolve('packages/ai-sdk-provider/src'),
-        '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-reader'),
+        '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
         '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
         '@cherrystudio/ui/icons': resolve('packages/ui/src/components/icons'),
         '@cherrystudio/ui': resolve('packages/ui/src'),

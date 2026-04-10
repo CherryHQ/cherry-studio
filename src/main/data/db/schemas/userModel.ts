@@ -18,7 +18,15 @@ import type {
   ReasoningConfig,
   RuntimeModelPricing
 } from '@shared/data/types/model'
-import { ParameterSupportDbSchema, ReasoningConfigSchema, RuntimeModelPricingSchema } from '@shared/data/types/model'
+import {
+  ENDPOINT_TYPE,
+  MODALITY,
+  MODEL_CAPABILITY,
+  objectValues,
+  ParameterSupportDbSchema,
+  ReasoningConfigSchema,
+  RuntimeModelPricingSchema
+} from '@shared/data/types/model'
 import { index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { createSchemaFactory } from 'drizzle-zod'
 import * as z from 'zod'
@@ -156,10 +164,10 @@ export type UserModel = typeof userModelTable.$inferSelect
 export type NewUserModel = typeof userModelTable.$inferInsert
 
 const jsonColumnOverrides = {
-  capabilities: () => z.array(z.string()).nullable() as z.ZodNullable<z.ZodArray<z.ZodType<ModelCapability>>>,
-  inputModalities: () => z.array(z.string()).nullable() as z.ZodNullable<z.ZodArray<z.ZodType<Modality>>>,
-  outputModalities: () => z.array(z.string()).nullable() as z.ZodNullable<z.ZodArray<z.ZodType<Modality>>>,
-  endpointTypes: () => z.array(z.string()).nullable() as z.ZodNullable<z.ZodArray<z.ZodType<EndpointType>>>,
+  capabilities: () => z.array(z.enum(objectValues(MODEL_CAPABILITY))).nullable(),
+  inputModalities: () => z.array(z.enum(objectValues(MODALITY))).nullable(),
+  outputModalities: () => z.array(z.enum(objectValues(MODALITY))).nullable(),
+  endpointTypes: () => z.array(z.enum(objectValues(ENDPOINT_TYPE))).nullable(),
   reasoning: () => ReasoningConfigSchema.nullable(),
   parameters: () => ParameterSupportDbSchema.nullable(),
   pricing: () => RuntimeModelPricingSchema.nullable(),

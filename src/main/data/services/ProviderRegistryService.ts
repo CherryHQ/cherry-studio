@@ -7,20 +7,20 @@
  * - lookupModel: DB-aware single model lookup with reasoning config
  *
  * Pure JSON loading, caching, and lookups live in @cherrystudio/provider-registry
- * (RegistryLoader, lookupRegistryModel, buildRuntimeEndpointConfigs).
+ * (RegistryLoader, buildRuntimeEndpointConfigs).
  */
 
 import type { ProtoModelConfig, ProtoProviderModelOverride } from '@cherrystudio/provider-registry'
 import type { EndpointType } from '@cherrystudio/provider-registry'
 import { buildRuntimeEndpointConfigs } from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
-import { userProviderTable } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import type { Model } from '@shared/data/types/model'
 import type { EndpointConfig, ReasoningFormatType } from '@shared/data/types/provider'
 import { createCustomModel, extractReasoningFormatTypes, mergePresetModel } from '@shared/data/utils/modelMerger'
-import { eq } from 'drizzle-orm'
+
+import { providerService } from './ProviderService'
 
 const logger = loggerService.withContext('DataApi:ProviderRegistryService')
 
@@ -31,13 +31,12 @@ const logger = loggerService.withContext('DataApi:ProviderRegistryService')
  * data from the registry package with user-specific configuration stored in
  * the database (e.g. reasoning format overrides from `user_provider`).
  *
- * It does **not** own any database table — all DB writes go through
- * `ModelService` / `ProviderService`. It only reads `user_provider` for
- * effective reasoning config resolution.
+ * It does **not** own any database table and does **not** access the
+ * database directly. User data is obtained via `ProviderService`.
  *
- * @see {@link RegistryLoader} for JSON loading and caching
- * @see {@link lookupRegistryModel} for pure model lookup (no DB)
- * @see {@link mergeModelConfig} for the three-layer merge algorithm
+ * @see {@link RegistryLoader} for JSON loading, caching, and O(1) indexed lookups
+ * @see {@link mergePresetModel} for the two-layer merge (preset → override)
+ * @see {@link mergeModelWithUser} for the three-layer merge (preset → override → user)
  */
 class ProviderRegistryService {
   private loader: RegistryLoader | null = null
@@ -84,8 +83,7 @@ class ProviderRegistryService {
    * Get effective reasoning config by merging registry defaults with user DB overrides.
    *
    * Priority: user_provider DB values > registry providers.json defaults.
-   * Queries `user_provider` for the given providerId to check if the user
-   * has customized `defaultChatEndpoint` or `endpointConfigs`.
+   * Obtains user provider data via ProviderService (does not access DB directly).
    *
    * @param providerId - The provider to resolve config for
    * @returns Merged reasoning config with user overrides applied
@@ -94,26 +92,19 @@ class ProviderRegistryService {
     defaultChatEndpoint?: EndpointType
     reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>>
   }> {
-    const db = application.get('DbService').getDb()
     const registryConfig = this.getRegistryReasoningConfig(providerId)
-    const [provider] = await db
-      .select({
-        defaultChatEndpoint: userProviderTable.defaultChatEndpoint,
-        endpointConfigs: userProviderTable.endpointConfigs
-      })
-      .from(userProviderTable)
-      .where(eq(userProviderTable.providerId, providerId))
-      .limit(1)
 
-    if (provider) {
+    try {
+      const provider = await providerService.getByProviderId(providerId)
       const defaultChatEndpoint = provider.defaultChatEndpoint ?? registryConfig.defaultChatEndpoint
       const reasoningFormatTypes =
         extractReasoningFormatTypes(provider.endpointConfigs) ?? registryConfig.reasoningFormatTypes
 
       return { defaultChatEndpoint, reasoningFormatTypes }
+    } catch {
+      // Provider not in DB yet (e.g. during initial model resolve) — use registry defaults
+      return registryConfig
     }
-
-    return registryConfig
   }
 
   /**
@@ -148,8 +139,8 @@ class ProviderRegistryService {
   /**
    * Look up a single model's registry data and effective reasoning config.
    *
-   * Combines a pure registry lookup (exact match + normalized fallback via
-   * {@link lookupRegistryModel}) with DB-aware reasoning config resolution.
+   * Combines O(1) indexed registry lookup (exact match + normalized fallback via
+   * {@link RegistryLoader.findModel}) with DB-aware reasoning config resolution.
    *
    * Used by: `POST /models` handler — the handler calls this, then passes
    * the result to `ModelService.create(dto, registryData)` to avoid a
@@ -215,11 +206,7 @@ class ProviderRegistryService {
           results.push(createCustomModel(providerId, modelId))
         }
       } catch (error) {
-        logger.error('Failed to resolve model — model will be missing from results', {
-          providerId,
-          modelId,
-          error
-        })
+        logger.error(`Failed to resolve model ${providerId}/${modelId} — will be missing from results`, error as Error)
       }
     }
 

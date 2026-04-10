@@ -139,6 +139,7 @@ export function createCustomModel(providerId: string, modelId: string): Model {
   return {
     id: createUniqueModelId(providerId, modelId),
     providerId,
+    apiModelId: modelId,
     name: modelId,
     capabilities: [],
     supportsStreaming: true,
@@ -186,7 +187,7 @@ export function mergePresetModel(
   return {
     id: createUniqueModelId(providerId, presetModel.id),
     providerId,
-    apiModelId: catalogOverride?.apiModelId,
+    apiModelId: catalogOverride?.apiModelId ?? presetModel.id,
     name,
     description,
     family: presetModel.family,
@@ -276,7 +277,7 @@ export function mergeModelWithUser(
   return {
     id: createUniqueModelId(providerId, presetModel.id),
     providerId,
-    apiModelId: catalogOverride?.apiModelId,
+    apiModelId: catalogOverride?.apiModelId ?? presetModel.id,
     name,
     description,
     group: userModel.group ?? undefined,
