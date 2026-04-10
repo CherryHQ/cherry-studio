@@ -193,7 +193,6 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     user: sidebarUser,
     activeTabId: minappShow ? currentMinappId : undefined,
     dockedTabs: [],
-    isDockDropTarget: false,
     onItemClick: handleNavigate,
     onMiniAppTabClick: handleMiniAppTabClick,
     onCloseDockedTab: () => {}
