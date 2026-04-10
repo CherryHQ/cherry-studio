@@ -270,6 +270,13 @@ export class MCPService extends BaseService {
     return this.serverLogs.get(this.getServerKey(server))
   }
 
+  private getServerUrlHash(server: MCPServer): string {
+    return crypto
+      .createHash('md5')
+      .update(server.baseUrl || '')
+      .digest('hex')
+  }
+
   async initClient(server: MCPServer): Promise<Client> {
     const serverKey = this.getServerKey(server)
 
@@ -320,10 +327,7 @@ export class MCPService extends BaseService {
 
         // let transport: StdioClientTransport | SSEClientTransport | InMemoryTransport | StreamableHTTPClientTransport
         const authProvider = new McpOAuthClientProvider({
-          serverUrlHash: crypto
-            .createHash('md5')
-            .update(server.baseUrl || '')
-            .digest('hex')
+          serverUrlHash: this.getServerUrlHash(server)
         })
 
         const initTransport = async (): Promise<
@@ -803,15 +807,13 @@ export class MCPService extends BaseService {
     }
 
     // Clear OAuth token for this server
-    if (server.baseUrl) {
-      const serverUrlHash = crypto.createHash('md5').update(server.baseUrl).digest('hex')
-      const oauthStorage = new JsonFileStorage(serverUrlHash, path.join(getConfigDir(), 'mcp', 'oauth'))
-      try {
-        await oauthStorage.clear()
-        getServerLogger(server).debug(`Cleared OAuth token for server`)
-      } catch (error) {
-        getServerLogger(server).error(`Failed to clear OAuth token`, error as Error)
-      }
+    const serverUrlHash = this.getServerUrlHash(server)
+    const oauthStorage = new JsonFileStorage(serverUrlHash, path.join(getConfigDir(), 'mcp', 'oauth'))
+    try {
+      await oauthStorage.clear()
+      getServerLogger(server).debug(`Cleared OAuth token for server`)
+    } catch (error) {
+      getServerLogger(server).error(`Failed to clear OAuth token`, error as Error)
     }
 
     // If this is a DXT server, cleanup its directory
