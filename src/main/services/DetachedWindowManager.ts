@@ -22,21 +22,27 @@ const DETACHED_DEFAULT_HEIGHT = 600
 /**
  * After Tab_MoveWindow, ignore `resize` bursts briefly so DPI rounding noise is not written back
  * into the content-size cache (would feed the next setContentBounds and re-trigger electron#27651).
+ * empirically chosen: covers typical DPI-rounding resize burst (~100–200ms on test machines)
  */
 const MOVE_RESIZE_IGNORE_MS = 280
 
 /** Win/Linux: move detached windows with setContentBounds + cached size (see electron#27651). */
 const USE_CONTENT_BOUNDS_MOVE = isWin || isLinux
 
+type DetachedWindowState = {
+  /** Cached content size to avoid getBounds() round-trips during drag (electron#27651) */
+  width: number
+  height: number
+  /** Timestamp of last Tab_MoveWindow IPC, used to debounce resize events triggered by the move */
+  lastMoveAt: number
+}
+
 @Injectable('DetachedWindowManager')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['WindowService'])
 export class DetachedWindowManager extends BaseService {
   private windows: Map<string, BrowserWindow> = new Map()
-
-  /** Client/content size for setContentBounds during drag — never read from the window inside move IPC. */
-  private detachedContentSize = new Map<string, { width: number; height: number }>()
-  private detachedLastMoveAt = new Map<string, number>()
+  private windowState: Map<string, DetachedWindowState> = new Map()
 
   protected async onInit() {
     this.registerIpcHandlers()
@@ -84,19 +90,7 @@ export class DetachedWindowManager extends BaseService {
       if (win && !win.isDestroyed()) {
         const x = Math.round(payload.x)
         const y = Math.round(payload.y)
-        if (USE_CONTENT_BOUNDS_MOVE) {
-          const tabId = payload.tabId
-          this.detachedLastMoveAt.set(tabId, Date.now())
-          const size = this.detachedContentSize.get(tabId) ?? {
-            width: DETACHED_DEFAULT_WIDTH,
-            height: DETACHED_DEFAULT_HEIGHT
-          }
-          // electron#27651 (Windows): avoid outer getBounds/setBounds round-trips during drag.
-          win.setContentBounds({ x, y, width: size.width, height: size.height })
-        } else {
-          // macOS: no reported #27651-style creep; move without touching size.
-          win.setPosition(x, y)
-        }
+        this.moveWindow(win, payload.tabId, x, y)
         if (!win.isVisible()) {
           win.show()
         }
@@ -157,6 +151,60 @@ export class DetachedWindowManager extends BaseService {
       if (senderWindow && !senderWindow.isDestroyed() && senderWindow.getOpacity() < 1) {
         senderWindow.setOpacity(1)
       }
+    })
+  }
+
+  /**
+   * Moves a detached window to (x, y).
+   * On Win/Linux uses setContentBounds with cached size to avoid electron#27651 outer-bounds creep.
+   * On macOS uses setPosition (no reported creep issue).
+   */
+  private moveWindow(win: BrowserWindow, tabId: string, x: number, y: number) {
+    if (USE_CONTENT_BOUNDS_MOVE) {
+      const state = this.windowState.get(tabId)
+      if (state) {
+        state.lastMoveAt = Date.now()
+      }
+      const { width, height } = state ?? { width: DETACHED_DEFAULT_WIDTH, height: DETACHED_DEFAULT_HEIGHT }
+      // electron#27651: avoid outer getBounds/setBounds round-trips during drag
+      win.setContentBounds({ x, y, width, height })
+    } else {
+      win.setPosition(x, y)
+    }
+  }
+
+  /**
+   * Tracks the content size of a detached window, keeping windowState in sync.
+   * Must be called once per created window; cleans up state on close.
+   */
+  private trackWindowSize(tabId: string, win: BrowserWindow) {
+    this.windowState.set(tabId, { width: DETACHED_DEFAULT_WIDTH, height: DETACHED_DEFAULT_HEIGHT, lastMoveAt: 0 })
+
+    win.on('ready-to-show', () => {
+      if (!win.isDestroyed() && USE_CONTENT_BOUNDS_MOVE) {
+        const { width, height } = win.getContentBounds()
+        const state = this.windowState.get(tabId)
+        if (state) {
+          state.width = width
+          state.height = height
+        }
+      }
+    })
+
+    if (USE_CONTENT_BOUNDS_MOVE) {
+      win.on('resize', () => {
+        if (win.isDestroyed()) return
+        const state = this.windowState.get(tabId)
+        if (!state || Date.now() - state.lastMoveAt < MOVE_RESIZE_IGNORE_MS) return
+        const { width, height } = win.getContentBounds()
+        state.width = width
+        state.height = height
+      })
+    }
+
+    win.on('closed', () => {
+      this.windows.delete(tabId)
+      this.windowState.delete(tabId)
     })
   }
 
@@ -232,40 +280,17 @@ export class DetachedWindowManager extends BaseService {
         })
     }
 
-    this.detachedContentSize.set(tabId, {
-      width: DETACHED_DEFAULT_WIDTH,
-      height: DETACHED_DEFAULT_HEIGHT
-    })
+    this.trackWindowSize(tabId, win)
 
     win.on('ready-to-show', () => {
-      if (!win.isDestroyed() && USE_CONTENT_BOUNDS_MOVE) {
-        const c = win.getContentBounds()
-        this.detachedContentSize.set(tabId, { width: c.width, height: c.height })
-      }
       if (!hasPosition) {
         win.show()
       }
     })
 
-    if (USE_CONTENT_BOUNDS_MOVE) {
-      win.on('resize', () => {
-        if (win.isDestroyed()) return
-        const last = this.detachedLastMoveAt.get(tabId) ?? 0
-        if (Date.now() - last < MOVE_RESIZE_IGNORE_MS) return
-        const c = win.getContentBounds()
-        this.detachedContentSize.set(tabId, { width: c.width, height: c.height })
-      })
-    }
-
     win.webContents.setWindowOpenHandler((details) => {
       void shell.openExternal(details.url)
       return { action: 'deny' }
-    })
-
-    win.on('closed', () => {
-      this.windows.delete(tabId)
-      this.detachedContentSize.delete(tabId)
-      this.detachedLastMoveAt.delete(tabId)
     })
 
     this.windows.set(tabId, win)
