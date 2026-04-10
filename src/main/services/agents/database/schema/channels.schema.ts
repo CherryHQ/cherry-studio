@@ -36,7 +36,7 @@ export { ChannelConfigSchema }
 // ---- Channels table ----
 
 export const channelsTable = sqliteTable(
-  'channels',
+  'agents_channels',
   {
     id: text('id')
       .primaryKey()
@@ -69,7 +69,7 @@ export const channelsTable = sqliteTable(
 // ---- Channel ↔ Task subscriptions (many-to-many) ----
 
 export const channelTaskSubscriptionsTable = sqliteTable(
-  'channel_task_subscriptions',
+  'agents_channel_task_subscriptions',
   {
     channelId: text('channel_id')
       .notNull()

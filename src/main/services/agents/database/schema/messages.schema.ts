@@ -3,7 +3,7 @@ import { foreignKey, index, integer, sqliteTable, text } from 'drizzle-orm/sqlit
 import { sessionsTable } from './sessions.schema'
 
 // session_messages table to log all messages, thoughts, actions, observations in a session
-export const sessionMessagesTable = sqliteTable('session_messages', {
+export const sessionMessagesTable = sqliteTable('agents_session_messages', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   session_id: text('session_id').notNull(),
   role: text('role').notNull(), // 'user', 'agent', 'system', 'tool'
