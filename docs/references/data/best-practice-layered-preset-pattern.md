@@ -39,6 +39,14 @@ Use this pattern when:
 
 For large-scale scenarios, the layered pattern still applies, but implementation details vary based on data characteristics. Refer to [DataApi documentation](./data-api-overview.md) for guidance.
 
+### Large-Scale Scenario: SQLite + Registry Service
+
+For large item counts (dozens+) backed by SQLite, the layered merge is
+handled by a **Registry Service** in `src/main/data/services/`.
+The Registry Service reads preset data from a package or shared constants,
+obtains user overrides from the owning Entity Service, and returns
+merged results. It does not access the database directly.
+
 **This document focuses on small-scale scenarios using Preference storage.**
 
 ## Preset File Standards

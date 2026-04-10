@@ -182,6 +182,21 @@ async createTopicWithMessage(data: CreateTopicWithMessageDto) {
 >
 > If in doubt, keep it in the Service. The overhead of an extra architectural layer is not justified for this project's scale (Electron desktop app + SQLite).
 
+### Registry Services (Supplementary)
+
+> In rare cases where a handler needs to merge **read-only preset data**
+> (shipped JSON/TS) with database data, a Registry Service may be introduced.
+> This is uncommon — the vast majority of services are Entity Services.
+
+Registry Services:
+- **Do NOT own a database table** and **do NOT access the database directly**
+- Obtain DB data by calling the owning Entity Service
+- Named `{Domain}RegistryService` (e.g., `ProviderRegistryService`)
+- Primary data source is static preset data (JSON files, TS constants)
+- All methods are read-only (no inserts, updates, or deletes)
+
+See [Layered Preset Pattern](./best-practice-layered-preset-pattern.md) for the general architecture.
+
 ## Error Handling
 
 ### Using DataApiErrorFactory
