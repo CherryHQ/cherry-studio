@@ -144,10 +144,10 @@ export class RegistryLoader {
       if (!this.overrideByNormKey.has(normKey)) {
         this.overrideByNormKey.set(normKey, pm)
       }
-      let arr = this.overridesByProvider!.get(pm.providerId)
+      let arr = this.overridesByProvider.get(pm.providerId)
       if (!arr) {
         arr = []
-        this.overridesByProvider!.set(pm.providerId, arr)
+        this.overridesByProvider.set(pm.providerId, arr)
       }
       arr.push(pm)
     }

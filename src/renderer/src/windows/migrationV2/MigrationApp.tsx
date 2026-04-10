@@ -240,7 +240,7 @@ const MigrationApp: React.FC = () => {
                 variant="destructive"
                 onClick={() => {
                   if (window.confirm(t('migration.version_incompatible.confirm_ignore'))) {
-                    actions.skipMigration()
+                    void actions.skipMigration()
                   }
                 }}>
                 {t('migration.buttons.ignore_migration')}

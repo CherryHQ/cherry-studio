@@ -78,8 +78,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
       defaultId: 0
     })
     if (response === 0) {
-      app.relaunch()
-      app.exit(0)
+      application.relaunch()
       return 'handled'
     }
     application.quit()
@@ -185,8 +184,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
   // and freezes the registry correctly.
   if (userDataChanged) {
     logger.info('Legacy userData resolved but migration not needed, relaunching for path consistency')
-    app.relaunch()
-    app.exit(0)
+    application.relaunch()
     return 'handled'
   }
 
