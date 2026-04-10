@@ -2841,6 +2841,15 @@
           "status": "classified",
           "category": "preferences",
           "targetKey": null
+        },
+        {
+          "originalKey": "prefillKeywords",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "new",
+          "category": "preferences",
+          "targetKey": "chat.web_search.prefill_keywords",
+          "note": "new preference, not migrated from Redux"
         }
       ],
       "codeTools": [

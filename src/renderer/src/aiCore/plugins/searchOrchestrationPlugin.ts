@@ -250,6 +250,8 @@ export const searchOrchestrationPlugin = (
   // 存储意图分析结果
   const intentAnalysisResults: { [requestId: string]: ExtractResults } = {}
   const userMessages: { [requestId: string]: ModelMessage } = {}
+  // Cache per-request preference values so both phases always see the same value
+  const prefillKeywordsPerRequest: { [requestId: string]: boolean } = {}
 
   return definePlugin<StreamTextParams, StreamTextResult>({
     name: 'search-orchestration',
@@ -284,7 +286,9 @@ export const searchOrchestrationPlugin = (
 
         // When prefillKeywords is disabled the model decides on its own when and what to search,
         // so there is no point running the pre-extraction LLM call for web search.
+        // Read once and cache so transformParams sees the same value for this request.
         const prefillKeywords = await preferenceService.get('chat.web_search.prefill_keywords')
+        prefillKeywordsPerRequest[context.requestId] = prefillKeywords
         const shouldWebExtract = shouldWebSearch && prefillKeywords
 
         // 执行意图分析
@@ -329,13 +333,16 @@ export const searchOrchestrationPlugin = (
 
         // 🌐 网络搜索工具配置
         if (assistant.webSearchProviderId) {
-          const prefillKeywords = await preferenceService.get('chat.web_search.prefill_keywords')
+          // Use the value cached in onRequestStart to guarantee both phases are consistent.
+          const prefillKeywords = prefillKeywordsPerRequest[context.requestId] ?? true
 
           if (prefillKeywords) {
             // Pre-extraction mode: only add the tool when intent analysis says search is needed,
             // and seed the description with the extracted queries.
             const needsSearch =
-              analysisResult?.websearch?.question && analysisResult.websearch.question[0] !== 'not_needed'
+              analysisResult?.websearch?.question &&
+              analysisResult.websearch.question[0] !== 'not_needed' &&
+              analysisResult.websearch.question.some((q) => q.trim().length > 0)
             if (needsSearch && analysisResult?.websearch) {
               params.tools['builtin_web_search'] = webSearchToolWithPreExtractedKeywords(
                 assistant.webSearchProviderId,
@@ -415,6 +422,7 @@ export const searchOrchestrationPlugin = (
         // 清理缓存
         delete intentAnalysisResults[context.requestId]
         delete userMessages[context.requestId]
+        delete prefillKeywordsPerRequest[context.requestId]
       } catch (error) {
         logger.error('💾 Memory storage failed:', error as Error)
         // 不抛出错误，避免影响主流程

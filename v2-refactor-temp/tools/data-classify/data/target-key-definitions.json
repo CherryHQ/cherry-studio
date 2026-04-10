@@ -116,6 +116,13 @@
       "defaultValue": {},
       "status": "classified",
       "description": "Web search provider overrides (from complex migration)"
+    },
+    {
+      "targetKey": "chat.web_search.prefill_keywords",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Whether to prefill web search tool description with pre-extracted keywords"
     }
   ]
 }
