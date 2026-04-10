@@ -130,21 +130,14 @@ class ProviderRegistryService {
    */
   getRegistryModelsByProvider(providerId: string): Model[] {
     const loader = this.getLoader()
-    const registryModels = loader.loadModels()
-    const providerModels = loader.loadProviderModels()
     const { defaultChatEndpoint, reasoningFormatTypes } = this.getRegistryReasoningConfig(providerId)
 
-    const overrides = providerModels.filter((pm) => pm.providerId === providerId)
+    const overrides = loader.getOverridesForProvider(providerId)
     if (overrides.length === 0) return []
-
-    const modelMap = new Map<string, ProtoModelConfig>()
-    for (const model of registryModels) {
-      modelMap.set(model.id, model)
-    }
 
     const mergedModels: Model[] = []
     for (const override of overrides) {
-      const baseModel = modelMap.get(override.modelId) ?? null
+      const baseModel = loader.findModel(override.modelId)
       if (!baseModel) continue
       mergedModels.push(mergePresetModel(baseModel, override, providerId, reasoningFormatTypes, defaultChatEndpoint))
     }

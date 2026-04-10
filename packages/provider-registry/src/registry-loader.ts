@@ -60,6 +60,7 @@ export class RegistryLoader {
   private modelByNormId: Map<string, ModelConfig> | null = null
   private overrideByKey: Map<string, ProviderModelOverride> | null = null
   private overrideByNormKey: Map<string, ProviderModelOverride> | null = null
+  private overridesByProvider: Map<string, ProviderModelOverride[]> | null = null
 
   private idleTimer: ReturnType<typeof setTimeout> | null = null
   private readonly idleTtlMs: number
@@ -135,6 +136,7 @@ export class RegistryLoader {
   private buildOverrideIndex(): void {
     this.overrideByKey = new Map()
     this.overrideByNormKey = new Map()
+    this.overridesByProvider = new Map()
     for (const pm of this.providerModels!) {
       const key = `${pm.providerId}::${pm.modelId}`
       this.overrideByKey.set(key, pm)
@@ -142,6 +144,12 @@ export class RegistryLoader {
       if (!this.overrideByNormKey.has(normKey)) {
         this.overrideByNormKey.set(normKey, pm)
       }
+      let arr = this.overridesByProvider!.get(pm.providerId)
+      if (!arr) {
+        arr = []
+        this.overridesByProvider!.set(pm.providerId, arr)
+      }
+      arr.push(pm)
     }
   }
 
@@ -158,6 +166,12 @@ export class RegistryLoader {
     )
   }
 
+  /** O(1) get all overrides for a provider. */
+  getOverridesForProvider(providerId: string): ProviderModelOverride[] {
+    this.loadProviderModels()
+    return this.overridesByProvider!.get(providerId) ?? []
+  }
+
   /** Release all cached data and indexes. Next access triggers a fresh load. */
   invalidate(): void {
     this.models = null
@@ -169,6 +183,7 @@ export class RegistryLoader {
     this.modelByNormId = null
     this.overrideByKey = null
     this.overrideByNormKey = null
+    this.overridesByProvider = null
     if (this.idleTimer) {
       clearTimeout(this.idleTimer)
       this.idleTimer = null

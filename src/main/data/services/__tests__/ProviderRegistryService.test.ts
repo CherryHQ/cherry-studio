@@ -103,6 +103,10 @@ vi.mock('@cherrystudio/provider-registry/node', async () => {
         null
       )
     }
+    getOverridesForProvider(providerId: string) {
+      this.loadProviderModels()
+      return this.cachedProviderModels!.filter((pm: any) => pm.providerId === providerId)
+    }
     getModelsVersion() {
       this.loadModels()
       return this.ver!
@@ -187,6 +191,7 @@ describe('ProviderRegistryService', () => {
 
   describe('registry load failure', () => {
     it('should throw when models.json cannot be read', () => {
+      setupRegistryData()
       mockReadModels.mockImplementation(() => {
         throw new Error('ENOENT: no such file')
       })
