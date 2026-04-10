@@ -101,6 +101,23 @@ export function TabsProvider({ children }: { children: ReactNode }) {
     lruManagerRef.current = new TabLRUManager()
   }
 
+  // LRU auto-hibernation: check normalTabs and hibernate excess tabs
+  const performLRUCheck = useCallback((newActiveTabId: string) => {
+    if (!lruManagerRef.current) return
+    setNormalTabs((prev) => {
+      const toHibernate = lruManagerRef.current!.checkAndGetDormantCandidates(prev, newActiveTabId)
+      if (toHibernate.length === 0) return prev
+      return prev.map((t) => {
+        if (toHibernate.includes(t.id)) {
+          logger.info('Tab auto-hibernated (LRU)', { tabId: t.id, route: t.url })
+          const savedState: TabSavedState = { scrollPosition: 0 }
+          return { ...t, isDormant: true, savedState }
+        }
+        return t
+      })
+    })
+  }, [])
+
   // Merge tabs: home + pinned + normal
   const tabs = useMemo(() => {
     return [DEFAULT_TAB, ...(pinnedTabs || []), ...normalTabs]
@@ -187,8 +204,9 @@ export function TabsProvider({ children }: { children: ReactNode }) {
       }
 
       setActiveTabIdState(id)
+      performLRUCheck(id)
     },
-    [activeTabId, tabs, setPinnedTabs]
+    [activeTabId, tabs, setPinnedTabs, performLRUCheck]
   )
 
   const addTab = useCallback(
@@ -209,11 +227,12 @@ export function TabsProvider({ children }: { children: ReactNode }) {
         setPinnedTabs((prev) => [...prev, newTab])
       } else {
         setNormalTabs((prev) => [...prev, newTab])
+        performLRUCheck(tab.id)
       }
 
       setActiveTabIdState(tab.id)
     },
-    [tabs, setActiveTab, setPinnedTabs]
+    [tabs, setActiveTab, setPinnedTabs, performLRUCheck]
   )
 
   const closeTab = useCallback(
