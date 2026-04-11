@@ -84,6 +84,16 @@ describe('OpenClawService gateway status state machine', () => {
     vi.restoreAllMocks()
   })
 
+  describe('getDashboardUrl', () => {
+    it('uses query string token to preserve dashboard UI state', () => {
+      // @ts-expect-error -- accessing private field for testing
+      service.gatewayAuthToken = 'a b+c'
+
+      const url = service.getDashboardUrl()
+      expect(url).toBe(`http://127.0.0.1:18790?token=${encodeURIComponent('a b+c')}`)
+    })
+  })
+
   // ─── getStatus ───────────────────────────────────────────────
 
   describe('getStatus', () => {
