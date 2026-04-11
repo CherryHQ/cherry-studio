@@ -143,13 +143,13 @@ const MARKETPLACE_BASE_URL = 'https://claude-plugins.dev'
 const SKILLS_TOOL: Tool = {
   name: 'skills',
   description:
-    "Manage Claude skills in the agent's workspace. Use action 'search' to find skills from the marketplace, 'install' to install a skill, 'remove' to uninstall a skill, or 'list' to see installed skills.",
+    "Manage Claude skills. Use 'search' to find skills from the marketplace, 'install' to install a marketplace skill, 'remove' to uninstall, or 'list' to see installed skills. To author a brand-new skill, use 'init' to prepare a target directory, write SKILL.md and supporting files into that directory, then call 'register' to add it to the global skill list and enable it for the current session.",
   inputSchema: {
     type: 'object',
     properties: {
       action: {
         type: 'string',
-        enum: ['search', 'install', 'remove', 'list'],
+        enum: ['search', 'install', 'remove', 'list', 'init', 'register'],
         description: 'The action to perform'
       },
       query: {
@@ -163,7 +163,8 @@ const SKILLS_TOOL: Tool = {
       },
       name: {
         type: 'string',
-        description: "Skill folder name to remove (required for 'remove'). Get this from the list results."
+        description:
+          "Skill folder name. Required for 'remove' (from list results), 'init' (the new skill's folder name), and 'register' (same name passed to init)."
       }
     },
     required: ['action']
@@ -403,10 +404,14 @@ class ClawServer {
                 return await this.removeSkill(args)
               case 'list':
                 return await this.listSkills()
+              case 'init':
+                return await this.initSkill(args)
+              case 'register':
+                return await this.registerSkill(args)
               default:
                 throw new McpError(
                   ErrorCode.InvalidParams,
-                  `Unknown action "${action}", expected search/install/remove/list`
+                  `Unknown action "${action}", expected search/install/remove/list/init/register`
                 )
             }
           }
@@ -676,6 +681,59 @@ class ClawServer {
     logger.info('Skills list via tool', { agentId: this.agentId, count: results.length })
     return {
       content: [{ type: 'text' as const, text: JSON.stringify(results, null, 2) }]
+    }
+  }
+
+  private async initSkill(args: Record<string, string | undefined>) {
+    const name = args.name
+    if (!name) throw new McpError(ErrorCode.InvalidParams, "'name' is required for init")
+
+    const skillDir = skillService.getSkillDirectory(name)
+    await mkdir(skillDir, { recursive: true })
+
+    logger.info('Skill directory initialized via tool', { agentId: this.agentId, name, skillDir })
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text: [
+            `Skill directory ready at:`,
+            skillDir,
+            ``,
+            `Write SKILL.md and any supporting files (scripts/, references/, assets/) directly into this directory.`,
+            `When the skill is ready, call skills with action="register" and name="${name}" to register it in the global skill list and enable it for the current session.`,
+            `You can re-edit files in place and call register again to refresh — the live symlink picks up file changes immediately.`
+          ].join('\n')
+        }
+      ]
+    }
+  }
+
+  private async registerSkill(args: Record<string, string | undefined>) {
+    const name = args.name
+    if (!name) throw new McpError(ErrorCode.InvalidParams, "'name' is required for register")
+
+    const skillDir = skillService.getSkillDirectory(name)
+    const installed = await skillService.installFromDirectory({ directoryPath: skillDir })
+    const enabled = await skillService.toggle({ skillId: installed.id, isEnabled: true })
+
+    logger.info('Skill registered via tool', {
+      agentId: this.agentId,
+      name: installed.name,
+      folderName: installed.folderName
+    })
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text: [
+            `Skill "${installed.name}" registered and enabled.`,
+            `  Folder: ${installed.folderName}`,
+            `  Description: ${installed.description ?? 'N/A'}`,
+            `  Enabled: ${enabled?.isEnabled ?? true}`
+          ].join('\n')
+        }
+      ]
     }
   }
 

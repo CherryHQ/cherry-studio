@@ -122,6 +122,16 @@ export class SkillService {
     await this.uninstall(skill.id)
   }
 
+  /**
+   * Resolve the absolute path a skill with the given name would live at under
+   * the global Skills storage root. The name is sanitized using the same rules
+   * as installSkillDir, so callers can pre-create the directory and then pass
+   * the path to installFromDirectory for in-place registration.
+   */
+  getSkillDirectory(name: string): string {
+    return this.getSkillStoragePath(this.sanitizeFolderName(name))
+  }
+
   async uninstall(skillId: string): Promise<void> {
     const skill = await this.repository.getById(skillId)
     if (!skill) {
@@ -368,7 +378,14 @@ export class SkillService {
    */
   private async installSkillDir(skillDir: string, source: string, sourceUrl: string | null): Promise<InstalledSkill> {
     const metadata = await parseSkillMetadata(skillDir, path.basename(skillDir), 'skills')
-    const folderName = this.sanitizeFolderName(metadata.filename)
+
+    // In-place registration: when skillDir already lives directly under the global
+    // Skills storage root, preserve its existing basename as folderName so the
+    // destination resolves to the same path and SkillInstaller short-circuits the
+    // copy. This avoids sanitize drift between caller-chosen names and metadata.
+    const skillsRoot = path.resolve(getDataPath('Skills'))
+    const isInPlace = path.resolve(path.dirname(skillDir)) === skillsRoot
+    const folderName = isInPlace ? path.basename(skillDir) : this.sanitizeFolderName(metadata.filename)
 
     // Check for existing skill with same folder name
     const existing = await this.repository.getByFolderName(folderName)
