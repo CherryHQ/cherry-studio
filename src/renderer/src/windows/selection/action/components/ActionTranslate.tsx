@@ -6,18 +6,16 @@ import CopyButton from '@renderer/components/CopyButton'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import { LanguagesEnum, UNKNOWN } from '@renderer/config/translate'
 import db from '@renderer/databases'
+import { useLightweightAssistantFlow } from '@renderer/hooks/useLightweightAssistantFlow'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { PartsProvider } from '@renderer/pages/home/Messages/Blocks'
 import MessageContent from '@renderer/pages/home/Messages/MessageContent'
 import { getDefaultTopic, getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
 import { pauseTrace } from '@renderer/services/SpanManagerService'
 import type { Assistant, Topic, TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
-import { abortCompletion } from '@renderer/utils/abortController'
 import { detectLanguage } from '@renderer/utils/translate'
 import { defaultLanguage } from '@shared/config/constant'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
-import type { CherryMessagePart } from '@shared/data/types/message'
 import { Dropdown } from 'antd'
 import { ArrowRight, ChevronDown, CircleHelp, Settings2 } from 'lucide-react'
 import type { FC } from 'react'
@@ -25,7 +23,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled, { createGlobalStyle } from 'styled-components'
 
-import { type ActionSessionSnapshot, processMessages } from './ActionUtils'
 import WindowFooter from './WindowFooter'
 interface Props {
   action: SelectionActionItem
@@ -54,32 +51,15 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const [detectedLanguage, setDetectedLanguage] = useState<TranslateLanguage | null>(null)
   const [actualTargetLanguage, setActualTargetLanguage] = useState<TranslateLanguage>(targetLanguage)
 
-  const [error, setError] = useState('')
+  const [detectError, setDetectError] = useState<string | null>(null)
   const [showOriginal, setShowOriginal] = useState(false)
-  const [status, setStatus] = useState<'preparing' | 'streaming' | 'finished'>('preparing')
-  const [contentToCopy, setContentToCopy] = useState('')
-  const [assistantMessage, setAssistantMessage] = useState<Message | null>(null)
-  const [partsMap, setPartsMap] = useState<Record<string, CherryMessagePart[]>>({})
   const [initialized, setInitialized] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const requestVersionRef = useRef(0)
-  const mountedRef = useRef(true)
+  const [activeAssistant, setActiveAssistant] = useState<Assistant | null>(null)
+  const [activeTopic, setActiveTopic] = useState<Topic | null>(null)
 
   // Use useRef for values that shouldn't trigger re-renders
-  const assistantRef = useRef<Assistant | null>(null)
-  const topicRef = useRef<Topic | null>(null)
-  const askId = useRef('')
   const targetLangRef = useRef(targetLanguage)
-
-  useEffect(() => {
-    mountedRef.current = true
-    return () => {
-      mountedRef.current = false
-      if (askId.current) {
-        abortCompletion(askId.current)
-      }
-    }
-  }, [])
 
   // It's called only in initialization.
   // It will change target/alter language, so fetchResult will be triggered. Be careful!
@@ -133,10 +113,9 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     // Initialize assistant
     const currentAssistant = await getDefaultTranslateAssistant(targetLangRef.current, action.selectedText)
 
-    assistantRef.current = currentAssistant
-
     // Initialize topic
-    topicRef.current = getDefaultTopic(currentAssistant.id)
+    setActiveAssistant(currentAssistant)
+    setActiveTopic(getDefaultTopic(currentAssistant.id))
     setInitialized(true)
   }, [action.selectedText, initialized, isLanguagesLoaded, updateLanguagePair])
 
@@ -148,53 +127,25 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     void initialize()
   }, [initialize])
 
+  const { error, isPreparing, isStreaming, content, latestAssistantMessage, partsMap, run, stop, clear } =
+    useLightweightAssistantFlow({
+      chatId: activeTopic?.id ?? 'selection-translate',
+      topicId: activeTopic?.id ?? 'selection-translate',
+      assistantId: activeAssistant?.id,
+      onStreamStart: scrollToBottom
+    })
+
   const fetchResult = useCallback(async () => {
-    if (!assistantRef.current || !topicRef.current || !action.selectedText || !initialized) return
-    if (askId.current) {
-      abortCompletion(askId.current)
-      askId.current = ''
-    }
-    const requestVersion = requestVersionRef.current + 1
-    requestVersionRef.current = requestVersion
-
-    setStatus('preparing')
-    setError('')
-    setAssistantMessage(null)
-    setPartsMap({})
-
-    const setAskId = (id: string) => {
-      if (!mountedRef.current || requestVersionRef.current !== requestVersion) return
-      askId.current = id
-    }
-    const onSessionUpdate = ({ assistantMessage, partsMap }: ActionSessionSnapshot) => {
-      if (!mountedRef.current || requestVersionRef.current !== requestVersion) return
-      setAssistantMessage(assistantMessage)
-      setPartsMap(partsMap)
-    }
-    const onStream = () => {
-      if (!mountedRef.current || requestVersionRef.current !== requestVersion) return
-      setStatus('streaming')
-      scrollToBottom?.()
-    }
-    const onFinish = (content: string) => {
-      if (!mountedRef.current || requestVersionRef.current !== requestVersion) return
-      setStatus('finished')
-      askId.current = ''
-      setContentToCopy(content)
-    }
-    const onError = (error: Error) => {
-      if (!mountedRef.current || requestVersionRef.current !== requestVersion) return
-      setStatus('finished')
-      askId.current = ''
-      setError(error.message)
-    }
+    if (!activeTopic || !action.selectedText || !initialized) return
+    clear()
+    setDetectError(null)
 
     let sourceLanguageCode: TranslateLanguageCode
 
     try {
       sourceLanguageCode = await detectLanguage(action.selectedText)
     } catch (err) {
-      onError(err instanceof Error ? err : new Error('An error occurred'))
+      setDetectError(err instanceof Error ? err.message : 'An error occurred')
       logger.error('Error detecting language:', err as Error)
       return
     }
@@ -221,26 +172,14 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     setActualTargetLanguage(translateLang)
 
     const assistant = await getDefaultTranslateAssistant(translateLang, action.selectedText)
-    assistantRef.current = assistant
-    logger.debug('process once')
-    void processMessages(
-      assistant,
-      topicRef.current,
-      assistant.content,
-      setAskId,
-      onSessionUpdate,
-      onStream,
-      onFinish,
-      onError
-    )
-  }, [action, targetLanguage, alterLanguage, scrollToBottom, initialized, getLanguageByLangcode])
+    setActiveAssistant(assistant)
+    logger.debug('Run translate action stream')
+    await run({ assistant, prompt: assistant.content })
+  }, [action, activeTopic, alterLanguage, clear, getLanguageByLangcode, initialized, run, targetLanguage])
 
   useEffect(() => {
     void fetchResult()
   }, [fetchResult])
-
-  const isPreparing = status === 'preparing'
-  const isStreaming = status === 'streaming'
 
   const handleChangeLanguage = useCallback(
     (newTargetLanguage: TranslateLanguage, newAlterLanguage: TranslateLanguage) => {
@@ -326,18 +265,13 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   )
 
   const handlePause = () => {
-    // FIXME: It doesn't work because abort signal is not set.
-    logger.silly('Try to pause: ', { id: askId.current })
-    if (askId.current) {
-      abortCompletion(askId.current)
-    }
-    if (topicRef.current?.id) {
-      void pauseTrace(topicRef.current.id)
+    stop()
+    if (activeTopic?.id) {
+      void pauseTrace(activeTopic.id)
     }
   }
 
   const handleRegenerate = () => {
-    setContentToCopy('')
     void fetchResult()
   }
 
@@ -416,21 +350,16 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
         )}
         <Result>
           {isPreparing && <LoadingOutlined style={{ fontSize: 16 }} spin />}
-          {!isPreparing && assistantMessage && (
+          {!isPreparing && latestAssistantMessage && (
             <PartsProvider value={partsMap}>
-              <MessageContent key={assistantMessage.id} message={assistantMessage} />
+              <MessageContent key={latestAssistantMessage.id} message={latestAssistantMessage} />
             </PartsProvider>
           )}
         </Result>
-        {error && <ErrorMsg>{error}</ErrorMsg>}
+        {(detectError || error) && <ErrorMsg>{detectError || error}</ErrorMsg>}
       </Container>
       <FooterPadding />
-      <WindowFooter
-        loading={isStreaming}
-        onPause={handlePause}
-        onRegenerate={handleRegenerate}
-        content={contentToCopy}
-      />
+      <WindowFooter loading={isStreaming} onPause={handlePause} onRegenerate={handleRegenerate} content={content} />
     </>
   )
 }

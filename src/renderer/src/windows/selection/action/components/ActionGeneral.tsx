@@ -2,6 +2,7 @@ import { LoadingOutlined } from '@ant-design/icons'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
+import { useLightweightAssistantFlow } from '@renderer/hooks/useLightweightAssistantFlow'
 import { PartsProvider } from '@renderer/pages/home/Messages/Blocks'
 import MessageContent from '@renderer/pages/home/Messages/MessageContent'
 import {
@@ -11,18 +12,13 @@ import {
   getDefaultTopic
 } from '@renderer/services/AssistantService'
 import { pauseTrace } from '@renderer/services/SpanManagerService'
-import type { Assistant, Topic } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
-import { abortCompletion } from '@renderer/utils/abortController'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
-import type { CherryMessagePart } from '@shared/data/types/message'
 import { ChevronDown } from 'lucide-react'
 import type { FC } from 'react'
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { type ActionSessionSnapshot, processMessages } from './ActionUtils'
 import WindowFooter from './WindowFooter'
 
 const logger = loggerService.withContext('ActionGeneral')
@@ -34,51 +30,21 @@ interface Props {
 const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
   const { t } = useTranslation()
   const [language] = usePreference('app.language')
-  const [error, setError] = useState<string | null>(null)
   const [showOriginal, setShowOriginal] = useState(false)
-  const [status, setStatus] = useState<'preparing' | 'streaming' | 'finished'>('preparing')
-  const [contentToCopy, setContentToCopy] = useState('')
-  const [assistantMessage, setAssistantMessage] = useState<Message | null>(null)
-  const [partsMap, setPartsMap] = useState<Record<string, CherryMessagePart[]>>({})
-  const initialized = useRef(false)
-  const requestVersionRef = useRef(0)
-  const mountedRef = useRef(true)
-
-  // Use useRef for values that shouldn't trigger re-renders
-  const assistantRef = useRef<Assistant | null>(null)
-  const topicRef = useRef<Topic | null>(null)
-  const promptContentRef = useRef('')
-  const askId = useRef('')
-
-  // Initialize values only once when action changes
-  useEffect(() => {
-    mountedRef.current = true
-    return () => {
-      mountedRef.current = false
-      if (askId.current) {
-        abortCompletion(askId.current)
-      }
-    }
-  }, [])
-
-  useEffect(() => {
-    if (initialized.current) return
-    initialized.current = true
-
-    // Initialize assistant
+  const activeAssistant = useMemo(() => {
     const currentAssistant = action.assistantId
       ? getAssistantById(action.assistantId) || getDefaultAssistant()
       : getDefaultAssistant()
 
-    assistantRef.current = {
+    return {
       ...currentAssistant,
       model: currentAssistant.model || getDefaultModel()
     }
+  }, [action.assistantId])
 
-    // Initialize topic
-    topicRef.current = getDefaultTopic(currentAssistant.id)
+  const activeTopic = useMemo(() => getDefaultTopic(activeAssistant.id), [activeAssistant.id])
 
-    // Initialize prompt content
+  const promptContent = useMemo(() => {
     let userContent = ''
     switch (action.id) {
       case 'summary':
@@ -103,83 +69,32 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
 
         userContent = action.prompt + '\n\n' + action.selectedText
     }
-    promptContentRef.current = userContent
+    return userContent
   }, [action, language, t])
 
+  const { partsMap, error, isPreparing, isStreaming, content, latestAssistantMessage, run, stop } =
+    useLightweightAssistantFlow({
+      chatId: activeTopic.id,
+      topicId: activeTopic.id,
+      assistantId: activeAssistant.id,
+      onStreamStart: scrollToBottom
+    })
+
   const fetchResult = useCallback(() => {
-    if (!initialized.current) {
-      return
-    }
-    if (askId.current) {
-      abortCompletion(askId.current)
-      askId.current = ''
-    }
-    const requestVersion = requestVersionRef.current + 1
-    requestVersionRef.current = requestVersion
-    setStatus('preparing')
-    setError(null)
-    setAssistantMessage(null)
-    setPartsMap({})
-
-    const setAskId = (id: string) => {
-      if (!mountedRef.current || requestVersionRef.current !== requestVersion) return
-      askId.current = id
-    }
-    const onSessionUpdate = ({ assistantMessage, partsMap }: ActionSessionSnapshot) => {
-      if (!mountedRef.current || requestVersionRef.current !== requestVersion) return
-      setAssistantMessage(assistantMessage)
-      setPartsMap(partsMap)
-    }
-    const onStream = () => {
-      if (!mountedRef.current || requestVersionRef.current !== requestVersion) return
-      setStatus('streaming')
-      scrollToBottom?.()
-    }
-    const onFinish = (content: string) => {
-      if (!mountedRef.current || requestVersionRef.current !== requestVersion) return
-      setStatus('finished')
-      askId.current = ''
-      setContentToCopy(content)
-    }
-    const onError = (error: Error) => {
-      if (!mountedRef.current || requestVersionRef.current !== requestVersion) return
-      setStatus('finished')
-      askId.current = ''
-      setError(error.message)
-    }
-
-    if (!assistantRef.current || !topicRef.current) return
-    logger.debug('Before peocess message', { assistant: assistantRef.current })
-    void processMessages(
-      assistantRef.current,
-      topicRef.current,
-      promptContentRef.current,
-      setAskId,
-      onSessionUpdate,
-      onStream,
-      onFinish,
-      onError
-    )
-  }, [scrollToBottom])
+    logger.debug('Before process message', { assistant: activeAssistant })
+    void run({ assistant: activeAssistant, prompt: promptContent })
+  }, [activeAssistant, promptContent, run])
 
   useEffect(() => {
     fetchResult()
   }, [fetchResult])
 
-  const isPreparing = status === 'preparing'
-  const isStreaming = status === 'streaming'
-
   const handlePause = () => {
-    if (askId.current) {
-      abortCompletion(askId.current)
-    }
-    if (topicRef.current?.id) {
-      void pauseTrace(topicRef.current.id)
-    }
+    stop()
+    void pauseTrace(activeTopic.id)
   }
 
   const handleRegenerate = () => {
-    setContentToCopy('')
     fetchResult()
   }
 
@@ -208,21 +123,16 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
         )}
         <Result>
           {isPreparing && <LoadingOutlined style={{ fontSize: 16 }} spin />}
-          {!isPreparing && assistantMessage && (
+          {!isPreparing && latestAssistantMessage && (
             <PartsProvider value={partsMap}>
-              <MessageContent key={assistantMessage.id} message={assistantMessage} />
+              <MessageContent key={latestAssistantMessage.id} message={latestAssistantMessage} />
             </PartsProvider>
           )}
         </Result>
         {error && <ErrorMsg>{error}</ErrorMsg>}
       </Container>
       <FooterPadding />
-      <WindowFooter
-        loading={isStreaming}
-        onPause={handlePause}
-        onRegenerate={handleRegenerate}
-        content={contentToCopy}
-      />
+      <WindowFooter loading={isStreaming} onPause={handlePause} onRegenerate={handleRegenerate} content={content} />
     </>
   )
 })
