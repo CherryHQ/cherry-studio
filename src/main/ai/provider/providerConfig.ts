@@ -14,7 +14,7 @@ import { anthropicService } from '@main/services/AnthropicService'
 import { copilotService } from '@main/services/CopilotService'
 import { formatOllamaApiHost } from '@shared/aiCore/provider/utils'
 import { isAzureOpenAIProvider, isGeminiProvider, isOllamaProvider } from '@shared/config/providerChecks'
-import type { Model } from '@shared/data/types/model'
+import type { EndpointType, Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { defaultAppHeaders } from '@shared/utils'
@@ -23,7 +23,7 @@ import { SystemProviderIds } from '@types'
 import { isEmpty } from 'lodash'
 
 import type { ProviderConfig } from '../types'
-import { type AppProviderId, type AppProviderSettingsMap } from '../types'
+import { type AppProviderId, appProviderIds, type AppProviderSettingsMap } from '../types'
 import { getBaseUrl, getExtraHeaders, routeToEndpoint } from '../utils/provider'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import { getAiSdkProviderId } from './factory'
@@ -38,37 +38,84 @@ interface BuilderContext {
   model: Model
   baseConfig: BaseConfig
   endpoint?: string
-  aiSdkProviderId: AppProviderId
+  aiSdkProviderId: StringKeys<AppProviderSettingsMap>
 }
 
-// ── Host Formatting (v2) ──
-
 /**
- * Format the provider's base URL for API calls.
- * In v2, the base URL comes from endpointConfigs, not a flat apiHost field.
+ * Format a raw base URL for API calls.
+ * Applies provider-specific formatting (API version, Ollama/Gemini paths, etc.)
  */
-function formatBaseUrl(provider: Provider): string {
-  const rawUrl = getBaseUrl(provider)
+function formatBaseUrlFromRaw(rawUrl: string, provider: Provider, endpointType?: EndpointType): string {
   if (!rawUrl) return ''
 
   const appendApiVersion = !isWithTrailingSharp(rawUrl)
 
-  if (provider.presetProviderId === 'anthropic' || provider.id === 'anthropic') {
-    // Check for anthropic-specific endpoint (messages)
-    const anthropicUrl = provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl
-    return formatApiHost(anthropicUrl || rawUrl, appendApiVersion)
+  // Endpoint-driven formatting
+  if (endpointType === ENDPOINT_TYPE.OLLAMA_CHAT || endpointType === ENDPOINT_TYPE.OLLAMA_GENERATE) {
+    return formatOllamaApiHost(rawUrl)
+  }
+  if (endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT) {
+    return formatApiHost(rawUrl, appendApiVersion, 'v1beta')
   }
 
+  // Provider-driven formatting (for providers without endpoint type info)
   if (isOllamaProvider(provider)) return formatOllamaApiHost(rawUrl)
   if (isGeminiProvider(provider)) return formatApiHost(rawUrl, appendApiVersion, 'v1beta')
 
-  // Most providers: format with API version
+  // Providers that don't append API version
   const noVersionProviders = ['copilot', 'github', 'cherryai', 'perplexity', 'newapi', 'new-api', 'azure-openai']
   if (noVersionProviders.includes(provider.id) || noVersionProviders.includes(provider.presetProviderId ?? '')) {
     return formatApiHost(rawUrl, false)
   }
 
   return formatApiHost(rawUrl, appendApiVersion)
+}
+
+/**
+ * Resolve the effective endpoint type and base URL.
+ * Priority: model.endpointTypes[0] > provider.defaultChatEndpoint > fallback
+ */
+function resolveEffectiveEndpoint(
+  provider: Provider,
+  model: Model
+): {
+  endpointType: EndpointType | undefined
+  baseUrl: string
+} {
+  // 1. Model says (highest priority)
+  const modelEndpoint = model.endpointTypes?.[0]
+
+  // 2. Provider default (middle)
+  const providerDefault = provider.defaultChatEndpoint
+
+  // 3. Effective endpoint
+  const endpointType = modelEndpoint ?? providerDefault
+
+  return { endpointType, baseUrl: getBaseUrl(provider) }
+}
+
+/**
+ * Select the correct AI SDK provider variant based on endpoint type.
+ * Only switches variant when the base provider has a registered variant for that endpoint.
+ * E.g. openai + chat-completions → openai-chat (variant exists)
+ *      deepseek + chat-completions → deepseek (no variant, stays as-is)
+ */
+function resolveProviderVariant(baseProviderId: AppProviderId, endpointType: EndpointType | undefined): AppProviderId {
+  if (!endpointType) return baseProviderId
+
+  // Chat completions → try -chat variant
+  if (endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS || endpointType === ENDPOINT_TYPE.OLLAMA_CHAT) {
+    const chatVariant = `${baseProviderId}-chat`
+    if (chatVariant in appProviderIds) return appProviderIds[chatVariant]
+  }
+
+  // Responses → try -responses variant
+  if (endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES) {
+    const responsesVariant = `${baseProviderId}-responses`
+    if (responsesVariant in appProviderIds) return appProviderIds[responsesVariant]
+  }
+
+  return baseProviderId
 }
 
 // ── SDK Config Building ──
@@ -81,15 +128,26 @@ type ConfigBuilderEntry = {
 /**
  * Build AI SDK provider config from v2 Provider + Model.
  * Always async (getRotatedApiKey is async).
+ *
+ * Endpoint routing: model.endpointTypes[0] > provider.defaultChatEndpoint > fallback.
+ * Provider variant selected by resolveProviderVariant based on endpoint type.
  */
 export async function providerToAiSdkConfig(provider: Provider, model: Model): Promise<ProviderConfig> {
-  const aiSdkProviderId = getAiSdkProviderId(provider)
+  // 1. Get base provider ID (from factory.ts)
+  const baseProviderId = getAiSdkProviderId(provider)
 
-  // Get base URL and parse endpoint
-  const formattedBaseUrl = formatBaseUrl(provider)
+  // 2. Resolve effective endpoint (model > provider > fallback)
+  const { endpointType, baseUrl } = resolveEffectiveEndpoint(provider, model)
+
+  // 3. Select correct provider variant based on endpoint type
+  // Cast: AppProviderId (with string escape hatch) → strict StringKeys (known keys only).
+  // Safe because resolveProviderVariant only returns values from appProviderIds or the base ID
+  // which getAiSdkProviderId already validated against the extension registry.
+  const aiSdkProviderId = resolveProviderVariant(baseProviderId, endpointType) as StringKeys<AppProviderSettingsMap>
+
+  // 4. Format URL + get API key
+  const formattedBaseUrl = formatBaseUrlFromRaw(baseUrl, provider, endpointType)
   const { baseURL, endpoint } = routeToEndpoint(formattedBaseUrl)
-
-  // Get API key (async, round-robin)
   const apiKey = await providerService.getRotatedApiKey(provider.id)
 
   const ctx: BuilderContext = {
@@ -304,10 +362,10 @@ async function buildCherryinConfig(ctx: BuilderContext): Promise<ProviderConfig>
 
   const endpointType = ctx.model.endpointTypes?.[0]
   const cherryinEndpointType = mapCherryinEndpointType(endpointType)
-  const useChatVariant = !cherryinEndpointType || cherryinEndpointType === 'openai'
 
   return {
-    providerId: useChatVariant ? 'cherryin-chat' : 'cherryin',
+    // Variant already resolved by resolveProviderVariant in providerToAiSdkConfig
+    providerId: ctx.aiSdkProviderId,
     endpoint: ctx.endpoint,
     providerSettings: {
       ...ctx.baseConfig,
@@ -324,9 +382,14 @@ function formatAzureBaseURL(baseURL: string, forAnthropic: boolean): string {
   return forAnthropic ? normalized : normalized + '/openai'
 }
 
-function buildAzureConfig(ctx: BuilderContext): ProviderConfig<'azure'> {
+function buildAzureConfig(
+  ctx: BuilderContext
+): ProviderConfig<'azure'> | ProviderConfig<'azure-anthropic'> | ProviderConfig<'azure-responses'> {
   const modelId = ctx.model.apiModelId ?? ctx.model.id
-  if (modelId.startsWith('claude')) {
+  const endpointType = ctx.model.endpointTypes?.[0]
+
+  // Azure + Claude model → azure-anthropic
+  if (modelId.startsWith('claude') || endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
     return {
       providerId: 'azure-anthropic',
       endpoint: ctx.endpoint,
@@ -335,13 +398,16 @@ function buildAzureConfig(ctx: BuilderContext): ProviderConfig<'azure'> {
         baseURL: formatAzureBaseURL(ctx.baseConfig.baseURL, true),
         headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
       }
-    } as any
+    }
   }
 
   const apiVersion = ctx.actualProvider.settings?.apiVersion?.trim()
-  const useResponsesMode = apiVersion && ['preview', 'v1'].includes(apiVersion)
+  const isResponsesVariant = ctx.aiSdkProviderId === 'azure-responses'
 
-  const providerSettings: any = {
+  const providerSettings: AppProviderSettingsMap['azure'] & {
+    apiVersion?: string
+    useDeploymentBasedUrls?: boolean
+  } = {
     ...ctx.baseConfig,
     baseURL: formatAzureBaseURL(ctx.baseConfig.baseURL, false),
     headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
@@ -349,16 +415,25 @@ function buildAzureConfig(ctx: BuilderContext): ProviderConfig<'azure'> {
 
   if (apiVersion) {
     providerSettings.apiVersion = apiVersion
-    if (!useResponsesMode) {
+    // Variant (azure vs azure-responses) already resolved by resolveProviderVariant
+    if (!isResponsesVariant) {
       providerSettings.useDeploymentBasedUrls = true
     }
   }
 
+  if (isResponsesVariant) {
+    return {
+      providerId: 'azure-responses',
+      endpoint: ctx.endpoint,
+      providerSettings
+    }
+  }
+
   return {
-    providerId: useResponsesMode ? 'azure-responses' : 'azure',
+    providerId: 'azure',
     endpoint: ctx.endpoint,
     providerSettings
-  } as ProviderConfig<'azure'>
+  }
 }
 
 function buildOpenAICompatibleConfig(ctx: BuilderContext): ProviderConfig<'openai-compatible'> {
@@ -375,7 +450,7 @@ function buildGenericProviderConfig(ctx: BuilderContext): ProviderConfig {
   const commonOptions = buildCommonOptions(ctx)
 
   return {
-    providerId: ctx.aiSdkProviderId as StringKeys<AppProviderSettingsMap>,
+    providerId: ctx.aiSdkProviderId,
     endpoint: ctx.endpoint,
     providerSettings: { ...ctx.baseConfig, ...commonOptions }
   }
@@ -401,7 +476,7 @@ function buildNewApiConfig(ctx: BuilderContext): ProviderConfig<'newapi'> {
     providerSettings: {
       ...ctx.baseConfig,
       baseURL,
-      endpointType: ctx.model.endpointTypes?.[0] as any,
+      endpointType: mapCherryinEndpointType(ctx.model.endpointTypes?.[0]),
       headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
     }
   }
