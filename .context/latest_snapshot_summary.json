@@ -1,43 +1,42 @@
 {
-  "generated_at": "2026-04-09T17:56:05.342171+00:00",
-  "date": "2026-04-09",
-  "data_source": "hybrid",
-  "data_note": "GitHub API rate limited (unauthenticated 60 req/hr). Numeric metrics estimated from yesterday's baseline (2026-04-08). Today's activity sourced from local git history. Set GITHUB_TOKEN for full unthrottled access.",
-  "api_available": false,
+  "generated_at": "2026-04-11T17:55:32.905549+00:00",
+  "date": "2026-04-11",
+  "data_source": "github_mcp_api",
+  "api_available": true,
   "latest_release": {
     "version": "v1.9.0",
-    "released_today": true,
+    "released_today": false,
     "pr": 14142,
-    "date": "2026-04-09"
+    "date": "2026-04-09",
+    "next_milestone": "v1.9.1",
+    "v1_9_1_open_issues": 12
   },
   "open_issues": {
-    "total": 684,
-    "p1_critical": 5,
+    "total": 707,
+    "p1_critical": 7,
     "bugs": 169,
-    "unlabeled": 53,
-    "unlabeled_pct": 7.7,
-    "new_7d": null,
-    "aged_30_90d": null,
-    "stale_90d_plus": null,
-    "data_freshness": "estimated_from_2026-04-08",
+    "unlabeled": 60,
+    "unlabeled_pct": 8.5,
+    "new_7d": 345,
+    "aged_30_90d": 128,
+    "stale_90d_plus": 3,
+    "data_freshness": "live_2026-04-11",
     "label_distribution": {
-      "Models": 173,
-      "BUG": 169,
-      "UI/UX": 158,
-      "feature": 149,
-      "MCP": 64,
-      "Blocked: v2": 61,
-      "Assistant": 59,
-      "Data": 55,
-      "discussion": 47,
-      "help wanted": 44,
-      "needs-repro": 40,
-      "P2": 30,
-      "inactive": 30,
-      "P3": 29,
-      "RAG": 28,
-      "Connectivity": 28
+      "inactive": 81,
+      "BUG": 49,
+      "Models": 22,
+      "MCP": 13,
+      "help wanted": 13,
+      "discussion": 13,
+      "UI/UX": 12,
+      "Assistant": 11,
+      "Data": 11,
+      "feature": 10,
+      "needs-repro": 6,
+      "Connectivity": 5,
+      "RAG": 4
     },
+    "label_distribution_note": "Based on most-recently-updated-100 sample; full distribution from 2026-04-09: Models=173, BUG=169, UI/UX=158, feature=149",
     "top_reporters": {
       "EurFelux": 33,
       "JohnXu22786": 17,
@@ -49,22 +48,41 @@
     }
   },
   "closed_issues_30d": {
-    "total": 199,
-    "data_freshness": "estimated_from_2026-04-08"
+    "total": 161,
+    "data_freshness": "live_2026-04-11"
   },
   "open_prs": {
     "total": 232,
-    "to_main": 180,
-    "to_v2": 52,
-    "data_freshness": "estimated_from_2026-04-08"
+    "to_main": 75,
+    "to_v2": 50,
+    "draft": 18,
+    "data_note": "Sampled first 100; prior full count was 232 (2026-04-09)"
   },
   "v2_branch": {
-    "open_prs": 52,
+    "open_prs": 50,
     "merged_prs_total": 71,
     "merged_prs_30d": 42,
-    "data_freshness": "estimated_from_2026-04-08"
+    "data_freshness": "open_prs_live_2026-04-11"
   },
   "p1_issues_list": [
+    {
+      "number": 14201,
+      "title": "[Bug]: UI blocks navigation to other modules while image generation is in progress",
+      "labels": [
+        "UI/UX"
+      ],
+      "age_days": 0,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/14201",
+      "note": "v1.9.1 system test, self-identified P1"
+    },
+    {
+      "number": 14200,
+      "title": "[Bug]: Sending multiple PDFs to Agent triggers 6MB request body limit error",
+      "labels": [],
+      "age_days": 0,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/14200",
+      "note": "v1.9.1 system test, self-identified P1"
+    },
     {
       "number": 13608,
       "title": "[Bug]: xiaomi mimo response only displays the last line",
@@ -72,39 +90,40 @@
         "P1",
         "Models"
       ],
-      "age_days": 22,
+      "age_days": 24,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/13608"
     },
     {
       "number": 13193,
-      "title": "[Bug]: [AI_APICallError] Could not call Azure OpenAI in the latest macOS app",
+      "title": "[Bug]: Azure OpenAI Resource not found - defaults to responses API instead of /chat/completions",
       "labels": [
         "P1",
         "Models"
       ],
-      "age_days": 36,
+      "age_days": 38,
+      "assignee": "DeJeune",
       "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"
     },
     {
       "number": 13105,
-      "title": "[Bug]: In version 1.7.19, PDF files cannot be read by almost all models",
+      "title": "[Bug]: PDF files cannot be read in v1.7.19 when sent directly in chat",
       "labels": [
         "P1",
         "Models",
         "inactive"
       ],
-      "age_days": 40,
+      "age_days": 42,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/13105"
     },
     {
       "number": 13061,
-      "title": "[Bug]: Data is cleared after in-app upgrade when syncing via OneDrive",
+      "title": "[Bug]: Data cleared after in-app upgrade when syncing via OneDrive",
       "labels": [
         "P1",
         "Data",
         "inactive"
       ],
-      "age_days": 42,
+      "age_days": 44,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/13061"
     },
     {
@@ -114,43 +133,30 @@
         "BUG",
         "P1"
       ],
-      "age_days": 49,
+      "age_days": 51,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/12966"
     }
   ],
   "today_git_activity": {
-    "commits_to_main": 50,
-    "prs_merged_to_main_today": 7,
-    "commit_type_distribution": {
-      "fix": 30,
-      "feat": 9,
+    "commits_to_main_since_v1_9_0": 0,
+    "note": "main is under code freeze since v1.9.0 release (2026-04-09); no new commits",
+    "prs_merged_to_main_today": 0,
+    "commit_type_distribution_last20": {
+      "fix": 14,
       "chore": 3,
-      "refactor": 3,
-      "other": 2,
-      "ci": 2,
-      "docs": 1
+      "refactor": 1,
+      "docs": 1,
+      "feat": 1
     },
-    "top_scopes_10d": {
-      "agents": 4,
-      "models": 3,
-      "mcp": 2,
-      "security": 2,
-      "deps": 2,
+    "top_scopes_last20": {
+      "agents": 3,
+      "models": 2,
+      "mcp": 1,
       "channels": 1,
       "ci": 1,
-      "build": 1
-    },
-    "active_contributors_10d": {
-      "SuYao": 7,
-      "亢奋猫": 6,
-      "Konv Suu": 3,
-      "George·Dong": 2,
-      "beyondkmp": 2,
-      "github-actions[bot]": 2,
-      "Phantom": 2,
-      "404-Page-Found": 2,
-      "kangfenmao": 2,
-      "Tim Ren": 2
+      "build": 1,
+      "think": 1,
+      "renderer": 1
     },
     "recent_prs": [
       {
@@ -211,36 +217,6 @@
         "number": 14076,
         "title": "fix(agents): remove conflicting language instruction from Cherry Assistant (#14076)",
         "date": "2026-04-08",
-        "type": "fix"
-      },
-      {
-        "number": 14109,
-        "title": "hotfix(think): MiMo thinking toggle (#14109)",
-        "date": "2026-04-08",
-        "type": "fix"
-      },
-      {
-        "number": 14092,
-        "title": "hotfix(renderer): redering issue of the unescaped '|' in <sup> within Markdown tables. (#14092)",
-        "date": "2026-04-07",
-        "type": "fix"
-      },
-      {
-        "number": 13987,
-        "title": "chore: release v1.9.0-rc.0 (#13987)",
-        "date": "2026-04-03",
-        "type": "chore"
-      },
-      {
-        "number": 13995,
-        "title": "hotfix(agents): paginate session messages to reduce initial paint time (#13995)",
-        "date": "2026-04-03",
-        "type": "fix"
-      },
-      {
-        "number": 13998,
-        "title": "fix: suppress UNDICI-EHPA experimental warning in Claude Code child process (#13998)",
-        "date": "2026-04-03",
         "type": "fix"
       }
     ]

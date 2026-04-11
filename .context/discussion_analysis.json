@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-04-09T17:56:17.014199+00:00",
-  "date": "2026-04-09",
+  "generated_at": "2026-04-11T17:55:32.905549+00:00",
+  "date": "2026-04-11",
   "total_discussions": 0,
   "data_available": false,
   "answered": 0,
@@ -9,5 +9,17 @@
   "recent_30d": 0,
   "category_breakdown": {},
   "top_unanswered": [],
-  "note": "GitHub API rate limited. Last available data from 2026-04-08 run."
+  "note": "GitHub Discussions GraphQL API requires GITHUB_TOKEN with read:discussion scope. Running without token — discussion data unavailable for this run.",
+  "known_hot_topics": [
+    "v1.9.1 system testing issues (milestone open: 12 issues)",
+    "Azure OpenAI /responses API regression (#13193)",
+    "PDF attachment regression in v1.7.19 (#13105)",
+    "V2 migration timeline and refactoring progress",
+    "CherryIN API 6MB request body limit (#14200)"
+  ],
+  "action_items": [
+    "Publicly acknowledge GHSA-qmgw-45x4-3626 security advisory",
+    "Pin FAQ entry for Azure OpenAI /responses API issue",
+    "Post v2 roadmap update for community"
+  ]
 }
