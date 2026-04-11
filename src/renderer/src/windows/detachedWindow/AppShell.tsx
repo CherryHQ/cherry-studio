@@ -19,7 +19,8 @@ const WebviewContainer = ({ url, isActive }: { url: string; isActive: boolean })
 )
 
 export const DetachedAppShell = () => {
-  const { tabs, activeTabId, setActiveTab, closeTab, updateTab, addTab, reorderTabs, openTab } = useTabs()
+  const { tabs, activeTabId, setActiveTab, closeTab, updateTab, addTab, reorderTabs, openTab, pinTab, unpinTab } =
+    useTabs()
   const initialized = useRef(false)
 
   // Initialize tab from URL parameters
@@ -83,6 +84,8 @@ export const DetachedAppShell = () => {
         closeTab={handleCloseTab}
         addTab={addTab}
         reorderTabs={reorderTabs}
+        pinTab={pinTab}
+        unpinTab={unpinTab}
         isDetached={true}
       />
 

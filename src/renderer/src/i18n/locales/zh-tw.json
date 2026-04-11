@@ -5847,7 +5847,11 @@
     }
   },
   "tab": {
-    "new": "新標籤頁"
+    "close": "[to be translated]:Close Tab",
+    "moveToFirst": "[to be translated]:Move to First",
+    "new": "新標籤頁",
+    "pin": "[to be translated]:Pin Tab",
+    "unpin": "[to be translated]:Unpin Tab"
   },
   "title": {
     "apps": "小程式",
