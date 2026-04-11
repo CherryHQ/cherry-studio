@@ -267,7 +267,7 @@ async function buildVertexConfig(ctx: BuilderContext): Promise<ProviderConfig<'g
   } as ProviderConfig<'google-vertex'>
 }
 
-async function buildCherryinConfig(ctx: BuilderContext): Promise<ProviderConfig<'cherryin'>> {
+async function buildCherryinConfig(ctx: BuilderContext): Promise<ProviderConfig> {
   // v2: look up cherryin provider for anthropic/gemini base URLs
   let anthropicBaseURL: string | undefined
   let geminiBaseURL: string | undefined
@@ -281,16 +281,21 @@ async function buildCherryinConfig(ctx: BuilderContext): Promise<ProviderConfig<
     // CherryIn provider may not exist
   }
 
+  // Route to cherryin-chat variant for models that use chat completions endpoint
+  const endpointType = ctx.model.endpointTypes?.[0]
+  const useChatVariant =
+    !endpointType || endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS || endpointType === ENDPOINT_TYPE.OLLAMA_CHAT
+
   return {
-    providerId: 'cherryin',
+    providerId: useChatVariant ? 'cherryin-chat' : 'cherryin',
     endpoint: ctx.endpoint,
     providerSettings: {
       ...ctx.baseConfig,
-      endpointType: ctx.model.endpointTypes?.[0] as any,
+      endpointType: endpointType as any,
       anthropicBaseURL,
       geminiBaseURL,
-      headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
-    }
+      headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) },
+    },
   }
 }
 

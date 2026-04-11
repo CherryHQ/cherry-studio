@@ -317,6 +317,7 @@ export class AiCompletionService {
     if (!modelId) throw new Error('Cannot resolve modelId: not in request and assistant has no model')
 
     // Provider/model from v2 DataApi (SQLite)
+    logger.info('getProviderAndModel', { providerId, modelId, assistantId: request.assistantId })
     const provider = await providerService.getByProviderId(providerId)
     const model = await modelService.getByKey(providerId, modelId)
 
