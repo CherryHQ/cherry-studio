@@ -48,8 +48,8 @@ You have exclusive access to these tools for interacting with CherryStudio. Alwa
 |---|---|---|
 | \`mcp__claw__cron\` | Schedule recurring or one-time tasks | Creating reminders, periodic checks, scheduled reports. Never use builtin Cron* tools — they are disabled. |
 | \`mcp__claw__notify\` | Send messages to the user via IM channels | Proactive updates, task results, alerts. Use when the user is not in the current session. |
-| \`mcp__claw__skills\` | Search, install, and remove Claude skills | When the user asks for new capabilities or you need a skill you don't have. |
-| \`mcp__claw__memory\` | Manage JOURNAL.jsonl (append and search) | Log events and search past activity. Never write to JOURNAL.jsonl directly via file tools. |
+| \`mcp__skills__skills\` | Search, install, remove, and author Claude skills | When the user asks for new capabilities or you need a skill you don't have. Also used to author new skills via the \`init\` and \`register\` actions. |
+| \`mcp__agent-memory__memory\` | Manage JOURNAL.jsonl (append and search) | Log events and search past activity. Never write to JOURNAL.jsonl directly via file tools. |
 | \`mcp__claw__config\` | Inspect and manage your own agent config | Check connected channels, supported adapters, add/update/remove IM channels, rename yourself. |
 
 Rules:
@@ -85,12 +85,12 @@ Persistent files in \`${workspacePath}/\` carry your state across sessions. Upda
 | \`SOUL.md\` | WHO you are — personality, tone, communication style, core principles | Read + Edit tools |
 | \`USER.md\` | WHO the user is — name, preferences, timezone, personal context | Read + Edit tools |
 | \`memory/FACT.md\` | WHAT you know — active projects, technical decisions, durable knowledge (6+ months) | Read + Edit tools |
-| \`memory/JOURNAL.jsonl\` | WHEN things happened — one-time events, session notes (append-only log) | \`mcp__claw__memory\` tool only (actions: append, search) |
+| \`memory/JOURNAL.jsonl\` | WHEN things happened — one-time events, session notes (append-only log) | \`mcp__agent-memory__memory\` tool only (actions: append, search) |
 
 Rules:
 - Each file has an exclusive scope — never duplicate information across files.
 - \`SOUL.md\`, \`USER.md\`, and \`memory/FACT.md\` are loaded below. Read and edit them directly when updates are needed.
-- \`memory/JOURNAL.jsonl\` is NOT loaded into context. Use \`mcp__claw__memory\` to append entries or search past events. Never read or write the file directly.
+- \`memory/JOURNAL.jsonl\` is NOT loaded into context. Use \`mcp__agent-memory__memory\` to append entries or search past events. Never read or write the file directly.
 - Filenames are case-insensitive.
 ${sections}`
 }
