@@ -19,7 +19,7 @@ const { Text } = Typography
 
 interface Props {
   assistant: Assistant
-  updateAssistant: (update: Partial<Omit<Assistant, 'id'>>) => void
+  updateAssistant: (assistant: Assistant) => void
   updateAssistantSettings: (settings: AssistantSettings) => void
   onClose?: () => void // Add optional close callback
 }

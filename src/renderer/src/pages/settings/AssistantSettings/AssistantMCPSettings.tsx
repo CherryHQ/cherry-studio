@@ -20,7 +20,7 @@ export interface MCPServer {
 
 interface Props {
   assistant: Assistant
-  updateAssistant: (update: Partial<Omit<Assistant, 'id'>>) => void
+  updateAssistant: (assistant: Assistant) => void
   updateAssistantSettings: (settings: AssistantSettings) => void
 }
 

@@ -29,7 +29,7 @@ import styled from 'styled-components'
 
 interface Props {
   assistant: Assistant
-  updateAssistant: (update: Partial<Omit<Assistant, 'id'>>) => void
+  updateAssistant: (assistant: Assistant) => void
   updateAssistantSettings: (settings: Partial<AssistantSettings>) => void
 }
 

@@ -17,7 +17,7 @@ const { TextArea } = Input
 
 interface AssistantRegularPromptsSettingsProps {
   assistant: Assistant
-  updateAssistant: (update: Partial<Omit<Assistant, 'id'>>) => void
+  updateAssistant: (assistant: Assistant) => void
 }
 
 const AssistantRegularPromptsSettings: FC<AssistantRegularPromptsSettingsProps> = ({ assistant, updateAssistant }) => {
