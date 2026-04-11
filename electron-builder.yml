@@ -73,7 +73,7 @@ asarUnpack:
   - out/proxy/**
   - resources/**
   - "**/*.{metal,exp,lib}"
-  - "node_modules/@img/sharp-libvips-*/**"
+  - "node_modules/@img/sharp-*/**"
 
 win:
   executableName: Cherry Studio
