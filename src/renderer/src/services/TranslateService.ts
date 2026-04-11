@@ -20,13 +20,7 @@ type TranslateOptions = {
 }
 
 /**
- * 翻译文本到目标语言
- * @param text - 需要翻译的文本内容
- * @param targetLanguage - 目标语言
- * @param onResponse - 流式输出的回调函数，用于实时获取翻译结果
- * @param abortKey - 用于控制 abort 的键
- * @returns 返回翻译后的文本
- * @throws {Error} 翻译中止或失败时抛出异常
+ * 翻译文本到目标语言（流式 IPC）
  */
 export const translateText = async (
   text: string,
@@ -45,15 +39,62 @@ export const translateText = async (
     throw new Error(t('translate.error.empty'))
   }
 
-  const { text: translatedText } = await window.api.ai.generateText({
-    providerId: model.provider,
-    modelId: model.id,
-    system: assistant.prompt,
-    prompt: assistant.content,
+  const requestId = crypto.randomUUID()
+  let translatedText = ''
+
+  const result = await new Promise<string>((resolve, reject) => {
+    const unsubscribers: Array<() => void> = []
+    const cleanup = () => unsubscribers.forEach((u) => u())
+
+    // Listen for stream chunks
+    unsubscribers.push(
+      window.api.ai.onStreamChunk((data) => {
+        if (data.requestId !== requestId) return
+        const chunk = data.chunk
+        if (chunk.type === 'text-delta') {
+          translatedText += chunk.delta
+          onResponse?.(translatedText, false)
+        }
+      })
+    )
+
+    // Listen for completion
+    unsubscribers.push(
+      window.api.ai.onStreamDone((data) => {
+        if (data.requestId !== requestId) return
+        cleanup()
+        onResponse?.(translatedText, true)
+        resolve(translatedText)
+      })
+    )
+
+    // Listen for errors
+    unsubscribers.push(
+      window.api.ai.onStreamError((data) => {
+        if (data.requestId !== requestId) return
+        cleanup()
+        reject(new Error(data.error.message ?? 'Translation stream error'))
+      })
+    )
+
+    // Fire the stream request
+    window.api.ai
+      .streamText({
+        requestId,
+        chatId: `translate-${requestId}`,
+        trigger: 'submit-message',
+        messages: [{ id: crypto.randomUUID(), role: 'user', parts: [{ type: 'text', text: assistant.content }] }],
+        providerId: model.provider,
+        modelId: model.id,
+        assistantId: assistant.id
+      })
+      .catch((error: unknown) => {
+        cleanup()
+        reject(error instanceof Error ? error : new Error(String(error)))
+      })
   })
 
-  const trimmedText = translatedText.trim()
-  onResponse?.(trimmedText, true)
+  const trimmedText = result.trim()
 
   if (!trimmedText) {
     return Promise.reject(new Error(t('translate.error.empty')))
@@ -64,18 +105,12 @@ export const translateText = async (
 
 /**
  * 添加自定义翻译语言
- * @param value - 语言名称
- * @param emoji - 语言对应的emoji图标
- * @param langCode - 语言代码
- * @returns {Promise<CustomTranslateLanguage>} 返回新添加的自定义语言对象
- * @throws {Error} 当语言已存在或添加失败时抛出错误
  */
 export const addCustomLanguage = async (
   value: string,
   emoji: string,
   langCode: string
 ): Promise<CustomTranslateLanguage> => {
-  // 按langcode判重
   const existing = await db.translate_languages.where('langCode').equals(langCode).first()
   if (existing) {
     logger.error(`Custom language ${langCode} exists.`)
@@ -99,8 +134,6 @@ export const addCustomLanguage = async (
 
 /**
  * 删除自定义翻译语言
- * @param id - 要删除的自定义语言ID
- * @throws {Error} 删除自定义语言失败时抛出错误
  */
 export const deleteCustomLanguage = async (id: string) => {
   try {
@@ -113,11 +146,6 @@ export const deleteCustomLanguage = async (id: string) => {
 
 /**
  * 更新自定义翻译语言
- * @param old - 原有的自定义语言对象
- * @param value - 新的语言名称
- * @param emoji - 新的语言emoji图标
- * @param langCode - 新的语言代码
- * @throws {Error} 更新自定义语言失败时抛出错误
  */
 export const updateCustomLanguage = async (
   old: CustomTranslateLanguage,
@@ -140,7 +168,6 @@ export const updateCustomLanguage = async (
 
 /**
  * 获取所有自定义语言
- * @throws {Error} 获取自定义语言失败时抛出错误
  */
 export const getAllCustomLanguages = async () => {
   try {
@@ -154,11 +181,6 @@ export const getAllCustomLanguages = async () => {
 
 /**
  * 保存翻译历史记录到数据库
- * @param sourceText - 原文内容
- * @param targetText - 翻译后的内容
- * @param sourceLanguage - 源语言代码
- * @param targetLanguage - 目标语言代码
- * @returns Promise<void>
  */
 export const saveTranslateHistory = async (
   sourceText: string,
@@ -179,9 +201,6 @@ export const saveTranslateHistory = async (
 
 /**
  * 更新翻译历史记录
- * @param id - 历史记录ID
- * @param update - 更新内容
- * @returns Promise<void>
  */
 export const updateTranslateHistory = async (id: string, update: Omit<Partial<TranslateHistory>, 'id'>) => {
   try {
@@ -198,8 +217,6 @@ export const updateTranslateHistory = async (id: string, update: Omit<Partial<Tr
 
 /**
  * 删除指定的翻译历史记录
- * @param id - 要删除的翻译历史记录ID
- * @returns Promise<void>
  */
 export const deleteHistory = async (id: string) => {
   try {
@@ -212,7 +229,6 @@ export const deleteHistory = async (id: string) => {
 
 /**
  * 清空所有翻译历史记录
- * @returns Promise<void>
  */
 export const clearHistory = async () => {
   void db.translate_history.clear()
