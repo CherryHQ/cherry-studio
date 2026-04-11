@@ -138,7 +138,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
             <ToolName className="items-center gap-1">
               {tool.serverName} : {tool.name}
               {isToolAutoApproved(tool) && (
-                <Tooltip content={t('message.tools.autoApproveEnabled')} closeDelay={0}>
+                <Tooltip content={t('message.tools.autoApproveEnabled')}>
                   <ShieldCheck size={14} color="var(--status-color-success)" />
                 </Tooltip>
               )}
@@ -232,18 +232,24 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
   )
 }
 
+type ExtractedContent = {
+  text: string
+  images: Array<{ data: string; mimeType: string }>
+}
+
 /**
  * Extract preview content from MCP tool response using SDK schema
  */
-const extractPreviewContent = (response: unknown): string => {
-  if (!response) return ''
+const extractPreviewContent = (response: unknown): ExtractedContent => {
+  if (!response) return { text: '', images: [] }
 
   const result = CallToolResultSchema.safeParse(response)
   if (result.success) {
     const contents = result.data.content
-    if (contents.length === 0) return ''
+    if (contents.length === 0) return { text: '', images: [] }
 
     const textParts: string[] = []
+    const images: Array<{ data: string; mimeType: string }> = []
     for (const content of contents) {
       switch (content.type) {
         case 'text':
@@ -257,18 +263,20 @@ const extractPreviewContent = (response: unknown): string => {
           }
           break
         case 'image':
-          textParts.push(`[Image: ${content.mimeType ?? 'image/png'}]`)
+          if (content.data) {
+            images.push({ data: content.data, mimeType: content.mimeType ?? 'image/png' })
+          }
           break
         case 'resource':
           textParts.push(`[Resource: ${content.resource?.uri ?? 'unknown'}]`)
           break
       }
     }
-    return textParts.join('\n\n')
+    return { text: textParts.join('\n\n'), images }
   }
 
   // Fallback: return JSON string for unknown format
-  return JSON.stringify(response, null, 2)
+  return { text: JSON.stringify(response, null, 2), images: [] }
 }
 
 // Unified tool response content component
@@ -280,6 +288,7 @@ const ToolResponseContent: FC<{
 }> = ({ isExpanded, args, isStreaming, response }) => {
   const { highlightCode } = useCodeStyle()
   const [highlightedResponse, setHighlightedResponse] = useState<string>('')
+  const [responseImages, setResponseImages] = useState<Array<{ data: string; mimeType: string }>>([])
   const [isTruncated, setIsTruncated] = useState(false)
   const [originalLength, setOriginalLength] = useState(0)
 
@@ -301,7 +310,8 @@ const ToolResponseContent: FC<{
     if (!isExpanded || !response) return
 
     const highlight = async () => {
-      const previewContent = extractPreviewContent(response)
+      const { text: previewContent, images } = extractPreviewContent(response)
+      setResponseImages(images)
       const {
         data: truncatedContent,
         isTruncated: wasTruncated,
@@ -364,11 +374,21 @@ const ToolResponseContent: FC<{
       {renderArgsTable()}
 
       {/* Response */}
-      {response !== undefined && response !== null && highlightedResponse && (
+      {response !== undefined && response !== null && (highlightedResponse || responseImages.length > 0) && (
         <ResponseSection>
           <ArgsSectionTitle>Response</ArgsSectionTitle>
-          <MarkdownContainer className="markdown" dangerouslySetInnerHTML={{ __html: highlightedResponse }} />
+          {highlightedResponse && (
+            <MarkdownContainer className="markdown" dangerouslySetInnerHTML={{ __html: highlightedResponse }} />
+          )}
           {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
+          {responseImages.map((img, idx) => (
+            <img
+              key={idx}
+              src={`data:${img.mimeType};base64,${img.data}`}
+              alt="Tool output"
+              style={{ maxWidth: 300, borderRadius: 4, marginTop: 8 }}
+            />
+          ))}
         </ResponseSection>
       )}
     </div>

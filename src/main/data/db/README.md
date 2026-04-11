@@ -4,7 +4,7 @@ This directory contains database schemas and configuration.
 
 ## Documentation
 
-- **Database Patterns**: [docs/en/references/data/database-patterns.md](../../../../docs/en/references/data/database-patterns.md)
+- **Database Patterns**: [docs/references/data/database-patterns.md](../../../../docs/references/data/database-patterns.md)
 
 ## Directory Structure
 
@@ -16,7 +16,7 @@ src/main/data/db/
 │   ├── message.ts        # Message table
 │   ├── messageFts.ts     # FTS5 virtual table & triggers
 │   └── ...               # Other tables
-├── seeding/              # Database initialization
+├── seeding/              # Data seeding (see seeding/README.md)
 ├── customSql.ts          # Custom SQL (triggers, virtual tables, etc.)
 └── DbService.ts          # Database connection management
 ```

@@ -22,7 +22,7 @@ const CodeToolButton = ({ tool }: CodeToolButtonProps) => {
 
   const mainTool = useMemo(
     () => (
-      <Tooltip key={tool.id} content={tool.tooltip} delay={500} closeDelay={0}>
+      <Tooltip key={tool.id} content={tool.tooltip} delay={500}>
         <ToolWrapper
           onClick={tool.onClick}
           onKeyDown={handleKeyDown}

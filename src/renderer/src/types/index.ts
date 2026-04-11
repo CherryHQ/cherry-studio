@@ -39,6 +39,7 @@ export * from './ocr'
 export * from './plugin'
 export * from './provider'
 export * from './serialize'
+export * from './skill'
 
 export type McpMode = 'disabled' | 'auto' | 'manual'
 
@@ -527,10 +528,9 @@ export type MinAppType = {
   nameKey?: string
   /** Regions where this app is available. If includes 'Global', shown to international users. */
   supportedRegions?: MinAppRegion[]
-  logo?: string | object
+  logo?: string
   url: string
-  // FIXME: It should be `bordered`
-  bodered?: boolean
+  bordered?: boolean
   background?: string
   style?: CSSProperties
   addTime?: string
@@ -927,6 +927,7 @@ export interface MCPToolResultContent {
 
 export interface MCPCallToolResponse {
   content: MCPToolResultContent[]
+  structuredContent?: unknown
   isError?: boolean
 }
 

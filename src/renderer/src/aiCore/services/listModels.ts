@@ -19,6 +19,7 @@ import { defaultAppHeaders } from '@shared/utils'
 import * as z from 'zod'
 
 import {
+  AIHubMixModelsResponseSchema,
   GeminiModelsResponseSchema,
   GitHubModelsResponseSchema,
   NewApiModelsResponseSchema,
@@ -199,7 +200,7 @@ const githubFetcher: ModelFetcher = {
         abortSignal: signal
       }).catch(() => ({ data: [] as { id: string; owned_by?: string }[] }))
     ])
-    const catalogModels = catalogResponse.map((m) =>
+    const registryModels = catalogResponse.map((m) =>
       toModel(m.id, provider, {
         name: m.name || m.id,
         description: pickPreferredString([m.summary, m.description]),
@@ -207,7 +208,7 @@ const githubFetcher: ModelFetcher = {
       })
     )
     const v1Models = v1Response.data.map((m) => toModel(m.id, provider, { owned_by: m.owned_by }))
-    return dedup([...catalogModels, ...v1Models], (m) => m.id)
+    return dedup([...registryModels, ...v1Models], (m) => m.id)
   }
 }
 
@@ -249,7 +250,7 @@ const togetherFetcher: ModelFetcher = {
 }
 
 const newApiFetcher: ModelFetcher = {
-  match: (p) => p.id === SystemProviderIds['new-api'] || p.type === 'new-api',
+  match: (p) => p.id === SystemProviderIds['new-api'] || p.type === 'new-api' || p.id === SystemProviderIds.cherryin,
   fetch: async (provider, signal) => {
     const baseUrl = formatApiHost(provider.apiHost)
     const response = await getFromApi({
@@ -318,6 +319,24 @@ const ppioFetcher: ModelFetcher = {
   }
 }
 
+const aiHubMixFetcher: ModelFetcher = {
+  match: (p) => p.id === SystemProviderIds.aihubmix,
+  fetch: async (provider, signal) => {
+    const response = await getFromApi({
+      url: `https://aihubmix.com/api/v1/models`,
+      headers: defaultHeaders(provider),
+      responseSchema: AIHubMixModelsResponseSchema,
+      abortSignal: signal
+    })
+    return dedup(response.data, (m) => m.model_id).map((m) =>
+      toModel(m.model_id, provider, {
+        name: m.model_name || m.model_id,
+        description: m.desc
+      })
+    )
+  }
+}
+
 /** Default fallback: OpenAI-compatible /models endpoint */
 const openAICompatibleFetcher: ModelFetcher = {
   match: () => true,
@@ -336,6 +355,7 @@ const openAICompatibleFetcher: ModelFetcher = {
 // === Registry (order matters: first match wins) ===
 
 const fetchers: ModelFetcher[] = [
+  aiHubMixFetcher,
   ollamaFetcher,
   geminiFetcher,
   githubFetcher,

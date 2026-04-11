@@ -2,6 +2,7 @@ import AddButton from '@renderer/components/AddButton'
 import DraggableVirtualList, { type DraggableVirtualListRef } from '@renderer/components/DraggableList/virtual-list'
 import { cacheService } from '@renderer/data/CacheService'
 import { useCache } from '@renderer/data/hooks/useCache'
+import { useAgentClient } from '@renderer/hooks/agents/useAgentClient'
 import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
 import { useAppDispatch } from '@renderer/store'
@@ -11,7 +12,7 @@ import { formatErrorMessage } from '@renderer/utils/error'
 import { Alert, Button, Spin } from 'antd'
 import { motion } from 'framer-motion'
 import { throttle } from 'lodash'
-import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import SessionItem from './SessionItem'
@@ -43,6 +44,28 @@ const Sessions = ({ agentId, onSelectItem }: SessionsProps) => {
   const dispatch = useAppDispatch()
   const { createDefaultSession, creatingSession } = useCreateDefaultSession(agentId)
   const listRef = useRef<DraggableVirtualListRef>(null)
+  const client = useAgentClient()
+
+  // Build sessionId → channelType map from channels table
+  const [channelTypeMap, setChannelTypeMap] = useState<Record<string, string>>({})
+  useEffect(() => {
+    if (!client) {
+      return
+    }
+
+    client
+      .listChannels({ agent_id: agentId })
+      .then(({ data }) => {
+        const map: Record<string, string> = {}
+        for (const ch of data) {
+          if (ch.sessionId) {
+            map[ch.sessionId] = ch.type
+          }
+        }
+        setChannelTypeMap(map)
+      })
+      .catch(() => {})
+  }, [client, agentId, sessions])
 
   // Use refs to always read the latest values inside the throttled handler,
   // avoiding stale closures caused by recreating the throttle on each render.
@@ -180,6 +203,7 @@ const Sessions = ({ agentId, onSelectItem }: SessionsProps) => {
             key={session.id}
             session={session}
             agentId={agentId}
+            channelType={channelTypeMap[session.id]}
             onDelete={() => handleDeleteSession(session.id)}
             onPress={() => {
               setActiveSessionId(agentId, session.id)

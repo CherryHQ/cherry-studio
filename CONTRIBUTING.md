@@ -1,5 +1,3 @@
-[中文](docs/zh/guides/contributing.md) | [English](CONTRIBUTING.md)
-
 # Cherry Studio Contributor Guide
 
 Welcome to the Cherry Studio contributor community! We are committed to making Cherry Studio a project that provides long-term value and hope to invite more developers to join us. Whether you are an experienced developer or a beginner just starting out, your contributions will help us better serve users and improve software quality.
@@ -28,7 +26,7 @@ Please make sure you have read the [Code of Conduct](CODE_OF_CONDUCT.md) and the
 
 ## Setting Up Your Development Environment
 
-Please refer to the [Developer Guide](docs/en/guides/development.md) for instructions on setting up your local development environment, including prerequisites, installation steps, and available commands.
+Please refer to the [Developer Guide](docs/guides/development.md) for instructions on setting up your local development environment, including prerequisites, installation steps, and available commands.
 
 For a comprehensive overview of the project architecture, tech stack, conventions, and available commands, see [`CLAUDE.md`](CLAUDE.md).
 
@@ -38,7 +36,7 @@ To help you get familiar with the codebase, we recommend tackling issues tagged 
 
 ### Testing
 
-Features without tests are considered non-existent. To ensure code is truly effective, relevant processes should be covered by unit tests and functional tests. Therefore, when considering contributions, please also consider testability. All tests can be run locally without dependency on CI. Please refer to the "Testing" section in the [Developer Guide](docs/zh/guides/development.md).
+Features without tests are considered non-existent. To ensure code is truly effective, relevant processes should be covered by unit tests and functional tests. Therefore, when considering contributions, please also consider testability. All tests can be run locally without dependency on CI. Please refer to the "Testing" section in the [Developer Guide](docs/guides/development.md).
 
 ### Automated Testing for Pull Requests
 
@@ -66,7 +64,7 @@ Maintainers are here to help you implement your use case within a reasonable tim
 
 ### Participating in the Test Plan
 
-The Test Plan aims to provide users with a more stable application experience and faster iteration speed. For details, please refer to the [Test Plan](docs/en/guides/test-plan.md).
+The Test Plan aims to provide users with a more stable application experience and faster iteration speed. For details, please refer to the [Test Plan](docs/guides/test-plan.md).
 
 ### Other Suggestions
 
@@ -76,20 +74,18 @@ The Test Plan aims to provide users with a more stable application experience an
 
 Please review the following critical information before submitting your Pull Request:
 
-### Temporary Restriction on Data-Changing Feature PRs 🚫
+### Branch Strategy Change (Effective April 3, 2026) 🚨
 
-**Currently, we are NOT accepting feature Pull Requests that introduce changes to our Redux data models or IndexedDB schemas.**
+**The `main` branch is now under code freeze.** The merge strategy is as follows:
 
-Our core team is currently focused on significant architectural updates that involve these data structures. To ensure stability and focus during this period, contributions of this nature will be temporarily managed internally.
+*   **`main` branch**: Only accepts **critical bug fixes**. Fix PRs must be submitted via `hotfix/*` branches (e.g., `hotfix/fix-crash-on-startup`), kept minimal in scope, and must not include any refactoring code.
+*   **`v2` branch**: All new feature development, refactoring, and optimizations should be done on the `v2` branch.
 
-*   **PRs that require changes to Redux state shape or IndexedDB schemas will be closed.**
-*   **This restriction is temporary and will be lifted with the release of `v2.0.0`.** You can track the progress of `v2.0.0` and its related discussions on issue [#10162](https://github.com/CherryHQ/cherry-studio/pull/10162).
+### Participate in v2 Development 🚀
 
-We highly encourage contributions for:
-*   Bug fixes 🐞
-*   Performance improvements 🚀
-*   Documentation updates 📚
-*   Features that **do not** alter Redux data models or IndexedDB schemas (e.g., UI enhancements, new components, minor refactors). ✨
+v2 is the next major milestone for Cherry Studio, and we invite every developer to actively participate! Whether it's new feature development, architecture optimization, or code refactoring, your contributions on the `v2` branch are welcome. Let's build a better Cherry Studio together!
+
+> **Note**: The `v2` branch will only accept new feature submissions after all current features have been fully refactored.
 
 We appreciate your understanding and continued support during this important development phase. Thank you!
 

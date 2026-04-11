@@ -4,10 +4,6 @@ import path from 'node:path'
 
 import { app } from 'electron'
 
-export function getResourcePath() {
-  return path.join(app.getAppPath(), 'resources')
-}
-
 export function toAsarUnpackedPath(filePath: string): string {
   if (!app.isPackaged) {
     return filePath
@@ -29,14 +25,6 @@ export function toAsarUnpackedPath(filePath: string): string {
   }
 
   return path.join(unpackedAppPath, path.relative(appPath, filePath))
-}
-
-export function getDataPath() {
-  const dataPath = path.join(app.getPath('userData'), 'Data')
-  if (!fs.existsSync(dataPath)) {
-    fs.mkdirSync(dataPath, { recursive: true })
-  }
-  return dataPath
 }
 
 export function getInstanceName(baseURL: string) {

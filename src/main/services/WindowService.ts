@@ -3,7 +3,6 @@ import { loggerService } from '@logger'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { application } from '@main/core/application'
 import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { getFilesDir } from '@main/utils/file'
 import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -47,6 +46,7 @@ export class WindowService extends BaseService {
   protected async onInit() {
     this.registerIpcHandlers()
     this.registerActivateHandler()
+    this.registerSecondInstanceHandler()
   }
 
   protected async onReady() {
@@ -80,6 +80,29 @@ export class WindowService extends BaseService {
     this.registerDisposable(() => app.removeListener('activate', handler))
   }
 
+  private registerSecondInstanceHandler() {
+    // Protocol URL dispatch is handled by ProtocolService on the same event.
+    // Multiple listeners on 'second-instance' are intentional: ProtocolService
+    // dispatches the URL, WindowService restores the window.
+    const handler = () => this.showMainWindow()
+    app.on('second-instance', handler)
+    this.registerDisposable(() => app.removeListener('second-instance', handler))
+  }
+
+  /**
+   * Resolves the BrowserWindow that originated the IPC call.
+   * Used for window-control channels (minimize/maximize/close) that must operate
+   * on whichever window sent the IPC — main window or a detached tab window.
+   * Throws if the sender cannot be mapped to a live window.
+   */
+  private resolveIpcSenderWindow(sender: Electron.WebContents): BrowserWindow {
+    const win = BrowserWindow.fromWebContents(sender)
+    if (win && !win.isDestroyed()) {
+      return win
+    }
+    throw new Error('WindowService: could not resolve a live BrowserWindow from IPC sender')
+  }
+
   private registerIpcHandlers() {
     this.ipcHandle(IpcChannel.Windows_SetMinimumSize, (_, width: number, height: number) => {
       this.checkMainWindow()
@@ -101,29 +124,24 @@ export class WindowService extends BaseService {
       return [width, height]
     })
 
-    this.ipcHandle(IpcChannel.Windows_Minimize, () => {
-      this.checkMainWindow()
-      this.mainWindow!.minimize()
+    this.ipcHandle(IpcChannel.Windows_Minimize, (event) => {
+      this.resolveIpcSenderWindow(event.sender).minimize()
     })
 
-    this.ipcHandle(IpcChannel.Windows_Maximize, () => {
-      this.checkMainWindow()
-      this.mainWindow!.maximize()
+    this.ipcHandle(IpcChannel.Windows_Maximize, (event) => {
+      this.resolveIpcSenderWindow(event.sender).maximize()
     })
 
-    this.ipcHandle(IpcChannel.Windows_Unmaximize, () => {
-      this.checkMainWindow()
-      this.mainWindow!.unmaximize()
+    this.ipcHandle(IpcChannel.Windows_Unmaximize, (event) => {
+      this.resolveIpcSenderWindow(event.sender).unmaximize()
     })
 
-    this.ipcHandle(IpcChannel.Windows_Close, () => {
-      this.checkMainWindow()
-      this.mainWindow!.close()
+    this.ipcHandle(IpcChannel.Windows_Close, (event) => {
+      this.resolveIpcSenderWindow(event.sender).close()
     })
 
-    this.ipcHandle(IpcChannel.Windows_IsMaximized, () => {
-      this.checkMainWindow()
-      return this.mainWindow!.isMaximized()
+    this.ipcHandle(IpcChannel.Windows_IsMaximized, (event) => {
+      return this.resolveIpcSenderWindow(event.sender).isMaximized()
     })
 
     this.ipcHandle(IpcChannel.MiniWindow_Show, () => this.showMiniWindow())
@@ -415,7 +433,7 @@ export class WindowService extends BaseService {
           logger.warn('Blocked empty file name in http://file/ URL')
           return { action: 'deny' }
         }
-        const storageDir = getFilesDir()
+        const storageDir = application.getPath('feature.files.data')
         const filePath = path.resolve(storageDir, fileName)
         // Prevent path traversal: ensure resolved path is within storageDir
         if (!filePath.startsWith(path.resolve(storageDir) + path.sep)) {

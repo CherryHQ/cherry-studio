@@ -1,7 +1,7 @@
 {
   "name": "@cherrystudio/extension-table-plus",
   "description": "table extension for tiptap forked from tiptap/extension-table",
-  "version": "3.0.11",
+  "version": "3.0.12",
   "homepage": "https://cherry-ai.com",
   "keywords": ["tiptap", "tiptap extension"],
   "license": "MIT",

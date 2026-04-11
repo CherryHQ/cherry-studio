@@ -21,7 +21,7 @@ import {
   isOpenAIModel,
   isOpenAIOpenWeightModel,
   isOpenAIReasoningModel,
-  isQwen35Model,
+  isQwen35to39Model,
   isQwenAlwaysThinkModel,
   isQwenReasoningModel,
   isReasoningModel,
@@ -174,6 +174,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     if (
       isSupportedThinkingTokenDoubaoModel(model) ||
       isSupportedThinkingTokenZhipuModel(model) ||
+      isSupportedThinkingTokenMiMoModel(model) ||
       isSupportedThinkingTokenKimiModel(model)
     ) {
       if (provider.id === SystemProviderIds.cerebras) {
@@ -198,7 +199,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
 
     // Qwen 3.5 without direct enable_thinking
     // https://huggingface.co/Qwen/Qwen3.5-397B-A17B#instruct-or-non-thinking-mode
-    if (isQwen35Model(model)) {
+    if (isQwen35to39Model(model)) {
       return {
         chat_template_kwargs: {
           enable_thinking: false

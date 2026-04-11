@@ -112,7 +112,7 @@ const KnowledgeBaseButton: FC<Props> = ({ quickPanel, selectedBases, onSelect, d
   }, [openQuickPanel, quickPanel, t])
 
   return (
-    <Tooltip content={t('chat.input.knowledge_base')} closeDelay={0}>
+    <Tooltip content={t('chat.input.knowledge_base')}>
       <ActionIconButton
         onClick={handleOpenQuickPanel}
         active={selectedBases && selectedBases.length > 0}

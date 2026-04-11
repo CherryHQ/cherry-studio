@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
-import { mcpApiService } from '@main/apiServer/services/mcp'
+import { getMcpApiService } from '@main/apiServer/services/mcp'
 import { type ModelValidationError, validateModelId } from '@main/apiServer/utils'
-import { getDataPath } from '@main/utils'
+import { application } from '@main/core/application'
 import { buildFunctionCallToolName } from '@shared/mcp'
 import type { AgentType, SlashCommand, SystemProviderId, Tool } from '@types'
 import { objectKeys } from '@types'
@@ -58,7 +58,7 @@ export abstract class BaseService {
     if (ids && ids.length > 0) {
       for (const id of ids) {
         try {
-          const server = await mcpApiService.getServerInfo(id)
+          const server = await getMcpApiService().getServerInfo(id)
           if (server) {
             server.tools.forEach((tool) => {
               const canonicalId = buildFunctionCallToolName(server.name, tool.name)
@@ -182,6 +182,14 @@ export abstract class BaseService {
       }
     }
 
+    // Normalize legacy agent type values to the unified type
+    if (deserialized.type === 'cherry-claw') {
+      deserialized.type = 'claude-code'
+    }
+    if (deserialized.agent_type === 'cherry-claw') {
+      deserialized.agent_type = 'claude-code'
+    }
+
     // convert null from db to undefined to satisfy type definition
     for (const key of objectKeys(data)) {
       if (deserialized[key] === null) {
@@ -267,7 +275,7 @@ export abstract class BaseService {
   protected resolveAccessiblePaths(paths: string[] | undefined, id: string): string[] {
     if (!paths || paths.length === 0) {
       const shortId = id.substring(id.length - 9)
-      paths = [path.join(getDataPath(), 'Agents', shortId)]
+      paths = [path.join(application.getPath('feature.agents.workspaces'), shortId)]
     }
     return this.ensurePathsExist(paths)
   }

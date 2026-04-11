@@ -1,0 +1,266 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Skill search API schemas > ClaudePluginsSearchResponseSchema > should snapshot the parsed fixture 1`] = `
+{
+  "limit": 20,
+  "offset": 0,
+  "skills": [
+    {
+      "author": "anthropic",
+      "createdAt": "2025-01-15T10:00:00Z",
+      "description": "Automated code review skill for Claude",
+      "id": "cp-001",
+      "installs": 1500,
+      "metadata": {
+        "directoryPath": "code-review",
+        "rawFileUrl": "https://raw.githubusercontent.com/anthropic/skills/main/code-review/SKILL.md",
+        "repoName": "skills",
+        "repoOwner": "anthropic",
+      },
+      "name": "code-review",
+      "namespace": "anthropic",
+      "sourceUrl": "https://github.com/anthropic/skills/tree/main/code-review",
+      "stars": 42,
+      "updatedAt": "2025-06-20T14:30:00Z",
+      "version": "1.2.0",
+    },
+    {
+      "author": null,
+      "createdAt": "2025-03-01T08:00:00Z",
+      "description": null,
+      "id": "cp-002",
+      "installs": 300,
+      "metadata": null,
+      "name": "test-generator",
+      "namespace": "community",
+      "sourceUrl": null,
+      "stars": 10,
+      "updatedAt": "2025-05-10T12:00:00Z",
+      "version": null,
+    },
+    {
+      "author": "devtools-org",
+      "description": "Generate technical documentation",
+      "id": "cp-003",
+      "metadata": {
+        "repoName": "claude-skills",
+        "repoOwner": "devtools-org",
+      },
+      "name": "docs-writer",
+      "namespace": "devtools",
+      "version": "0.5.0",
+    },
+    {
+      "author": "vercel-labs",
+      "createdAt": "2025-06-01T00:00:00Z",
+      "description": "React and Next.js performance optimization guidelines",
+      "id": "cp-004",
+      "installs": 8500,
+      "metadata": {
+        "directoryPath": "skills/react-best-practices",
+        "rawFileUrl": "https://raw.githubusercontent.com/vercel-labs/agent-skills/main/skills/react-best-practices/SKILL.md",
+        "repoName": "agent-skills",
+        "repoOwner": "vercel-labs",
+      },
+      "name": "vercel-react-best-practices",
+      "namespace": "@vercel-labs/agent-skills/react-best-practices",
+      "sourceUrl": "https://github.com/vercel-labs/agent-skills/tree/main/skills/react-best-practices",
+      "stars": 1200,
+      "updatedAt": "2025-12-15T10:00:00Z",
+      "version": null,
+    },
+  ],
+  "total": 4,
+}
+`;
+
+exports[`Skill search API schemas > ClawhubSearchResponseSchema > should snapshot the parsed fixture 1`] = `
+{
+  "results": [
+    {
+      "displayName": "Code Reviewer Pro",
+      "score": 0.95,
+      "slug": "code-reviewer-pro",
+      "summary": "Advanced code review with security analysis",
+      "updatedAt": 1719849600,
+      "version": "2.1.0",
+    },
+    {
+      "displayName": "Test Suite Generator",
+      "score": 0.82,
+      "slug": "test-suite-gen",
+      "summary": "Automatically generate comprehensive test suites",
+      "updatedAt": 1718640000,
+      "version": null,
+    },
+  ],
+}
+`;
+
+exports[`Skill search API schemas > ClawhubSkillDetailSchema > should snapshot the parsed fixture 1`] = `
+{
+  "moderation": {
+    "isMalwareBlocked": false,
+    "isSuspicious": false,
+    "verdict": "clean",
+  },
+  "owner": {
+    "displayName": "Dev Master",
+    "handle": "devmaster",
+    "image": "https://clawhub.ai/avatars/devmaster.png",
+  },
+  "skill": {
+    "displayName": "Code Reviewer Pro",
+    "slug": "code-reviewer-pro",
+    "stats": {
+      "downloads": 5200,
+      "installsAllTime": 3400,
+      "stars": 128,
+    },
+    "summary": "Advanced code review with security analysis",
+    "tags": {
+      "category": "development",
+      "language": "typescript",
+    },
+  },
+}
+`;
+
+exports[`Skill search API schemas > SkillsShSearchResponseSchema > should snapshot the parsed fixture 1`] = `
+{
+  "count": 3,
+  "query": "vercel",
+  "skills": [
+    {
+      "id": "vercel-labs/skills/find-skills",
+      "installs": 787460,
+      "name": "find-skills",
+      "skillId": "find-skills",
+      "source": "vercel-labs/skills",
+    },
+    {
+      "id": "vercel-labs/agent-skills/vercel-react-best-practices",
+      "installs": 263730,
+      "name": "vercel-react-best-practices",
+      "skillId": "vercel-react-best-practices",
+      "source": "vercel-labs/agent-skills",
+    },
+    {
+      "id": "vercel-labs/agent-skills/vercel-composition-patterns",
+      "installs": 107305,
+      "name": "vercel-composition-patterns",
+      "skillId": "vercel-composition-patterns",
+      "source": "vercel-labs/agent-skills",
+    },
+  ],
+}
+`;
+
+exports[`Skill search normalizers > normalizeClaudePlugins > should normalize fixture to unified results 1`] = `
+[
+  {
+    "author": "anthropic",
+    "description": "Automated code review skill for Claude",
+    "downloads": 1500,
+    "installSource": "claude-plugins:anthropic/skills/code-review",
+    "name": "code-review",
+    "slug": "cp-001",
+    "sourceRegistry": "claude-plugins.dev",
+    "sourceUrl": "https://github.com/anthropic/skills/tree/main/code-review",
+    "stars": 42,
+  },
+  {
+    "author": "community",
+    "description": null,
+    "downloads": 300,
+    "installSource": "claude-plugins://",
+    "name": "test-generator",
+    "slug": "cp-002",
+    "sourceRegistry": "claude-plugins.dev",
+    "sourceUrl": null,
+    "stars": 10,
+  },
+  {
+    "author": "devtools-org",
+    "description": "Generate technical documentation",
+    "downloads": 0,
+    "installSource": "claude-plugins:devtools-org/claude-skills/",
+    "name": "docs-writer",
+    "slug": "cp-003",
+    "sourceRegistry": "claude-plugins.dev",
+    "sourceUrl": "https://github.com/devtools-org/claude-skills",
+    "stars": 0,
+  },
+  {
+    "author": "vercel-labs",
+    "description": "React and Next.js performance optimization guidelines",
+    "downloads": 8500,
+    "installSource": "claude-plugins:vercel-labs/agent-skills/skills/react-best-practices",
+    "name": "vercel-react-best-practices",
+    "slug": "cp-004",
+    "sourceRegistry": "claude-plugins.dev",
+    "sourceUrl": "https://github.com/vercel-labs/agent-skills/tree/main/skills/react-best-practices",
+    "stars": 1200,
+  },
+]
+`;
+
+exports[`Skill search normalizers > normalizeClawhub > should normalize fixture to unified results 1`] = `
+[
+  {
+    "author": null,
+    "description": "Advanced code review with security analysis",
+    "downloads": 0,
+    "installSource": "clawhub:code-reviewer-pro",
+    "name": "Code Reviewer Pro",
+    "slug": "code-reviewer-pro",
+    "sourceRegistry": "clawhub.ai",
+    "stars": 0,
+  },
+  {
+    "author": null,
+    "description": "Automatically generate comprehensive test suites",
+    "downloads": 0,
+    "installSource": "clawhub:test-suite-gen",
+    "name": "Test Suite Generator",
+    "slug": "test-suite-gen",
+    "sourceRegistry": "clawhub.ai",
+    "stars": 0,
+  },
+]
+`;
+
+exports[`Skill search normalizers > normalizeSkillsSh > should normalize fixture to unified results 1`] = `
+[
+  {
+    "author": "vercel-labs",
+    "description": null,
+    "downloads": 787460,
+    "installSource": "skills.sh:vercel-labs/skills/find-skills",
+    "name": "find-skills",
+    "slug": "vercel-labs/skills/find-skills",
+    "sourceRegistry": "skills.sh",
+    "stars": 0,
+  },
+  {
+    "author": "vercel-labs",
+    "description": null,
+    "downloads": 263730,
+    "installSource": "skills.sh:vercel-labs/agent-skills/vercel-react-best-practices",
+    "name": "vercel-react-best-practices",
+    "slug": "vercel-labs/agent-skills/vercel-react-best-practices",
+    "sourceRegistry": "skills.sh",
+    "stars": 0,
+  },
+  {
+    "author": "vercel-labs",
+    "description": null,
+    "downloads": 107305,
+    "installSource": "skills.sh:vercel-labs/agent-skills/vercel-composition-patterns",
+    "name": "vercel-composition-patterns",
+    "slug": "vercel-labs/agent-skills/vercel-composition-patterns",
+    "sourceRegistry": "skills.sh",
+    "stars": 0,
+  },
+]
+`;

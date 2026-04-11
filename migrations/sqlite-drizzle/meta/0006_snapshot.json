@@ -2,7 +2,7 @@
   "version": "6",
   "dialect": "sqlite",
   "id": "d13e0f64-c3f9-4e7a-b455-a1031c197f0c",
-  "prevId": "unknown",
+  "prevId": "a5b7c9d1-2e4f-6a8b-0c2d-4e6f8a0b2c4d",
   "tables": {
     "app_state": {
       "name": "app_state",
@@ -342,7 +342,7 @@
         },
         "knowledge_item_status_check": {
           "name": "knowledge_item_status_check",
-          "value": "\"knowledge_item\".\"status\" IN ('idle', 'pending', 'ocr', 'read', 'embed', 'completed', 'failed')"
+          "value": "\"knowledge_item\".\"status\" IN ('idle', 'pending', 'file_processing', 'read', 'embed', 'completed', 'failed')"
         }
       }
     },

@@ -21,7 +21,9 @@
  */
 
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk'
+import type { ImageBlockParam, TextBlockParam } from '@anthropic-ai/sdk/resources/messages/messages'
 import { loggerService } from '@logger'
+import type { CallToolResult, ImageContent, TextContent } from '@modelcontextprotocol/sdk/types.js'
 import type { LanguageModelUsage, ProviderMetadata, TextStreamPart } from 'ai'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -39,10 +41,13 @@ type ToolUseContent = {
   input: unknown
 }
 
+/** Anthropic API ToolResultBlockParam content (from Claude Code SDK messages) */
+type AnthropicToolResultContent = string | Array<TextBlockParam | ImageBlockParam>
+
 type ToolResultContent = {
   type: 'tool_result'
   tool_use_id: string
-  content: unknown
+  content: AnthropicToolResultContent
   is_error?: boolean
 }
 
@@ -67,6 +72,37 @@ const emptyUsage: LanguageModelUsage = {
  * our own to ensure the downstream renderer can stitch chunks together.
  */
 const generateMessageId = (): string => `msg_${uuidv4().replace(/-/g, '')}`
+
+/**
+ * Converts Anthropic API tool_result content into MCP CallToolResult format.
+ *
+ * Claude Code SDK delivers tool_result.content using Anthropic image blocks:
+ *   { type: 'image', source: { type: 'base64', media_type, data } }
+ *
+ * Downstream consumers (extractImagesFromToolOutput) expect MCP format:
+ *   { type: 'image', data, mimeType }
+ *
+ * This function normalises the content so a single format flows through the
+ * entire pipeline.
+ */
+function toMcpToolResult(content: AnthropicToolResultContent): CallToolResult | string {
+  if (typeof content === 'string') {
+    return content
+  }
+
+  const mapped: Array<TextContent | ImageContent> = content.map((item) => {
+    if (item.type === 'image' && item.source.type === 'base64') {
+      return {
+        type: 'image' as const,
+        data: item.source.data,
+        mimeType: item.source.media_type
+      }
+    }
+    return item as TextContent
+  })
+
+  return { content: mapped }
+}
 
 /**
  * Removes any local command stdout/stderr XML wrappers that should never surface to the UI.
@@ -356,7 +392,7 @@ function handleUserMessage(
             toolCallId,
             toolName: pendingCall?.toolName ?? 'unknown',
             input: pendingCall?.input,
-            output: toolResult.content,
+            output: toMcpToolResult(toolResult.content),
             providerExecuted: true
           })
         }

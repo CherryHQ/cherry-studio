@@ -14,7 +14,6 @@ import store from '@renderer/store'
 import { type Model, type Provider, SystemProviderIds } from '@renderer/types'
 import {
   formatApiHost,
-  formatAzureOpenAIApiHost,
   formatOllamaApiHost,
   formatVertexApiHost,
   isWithTrailingSharp,
@@ -87,7 +86,7 @@ export function formatProviderApiHost(provider: Provider): Provider {
     { match: isPerplexityProvider, format: (p) => formatApiHost(p.apiHost, false) },
     { match: isOllamaProvider, format: (p) => formatOllamaApiHost(p.apiHost) },
     { match: isGeminiProvider, format: (p, av) => formatApiHost(p.apiHost, av, 'v1beta') },
-    { match: isAzureOpenAIProvider, format: (p) => formatAzureOpenAIApiHost(p.apiHost) },
+    { match: isAzureOpenAIProvider, format: (p) => formatApiHost(p.apiHost, false) },
     { match: isVertexProvider, format: (p) => formatVertexApiHost(p as Parameters<typeof formatVertexApiHost>[0]) }
   ]
 
@@ -258,7 +257,7 @@ function buildCherryinConfig(ctx: BuilderContext): ProviderConfig<'cherryin'> {
       ...ctx.baseConfig,
       endpointType: ctx.model.endpoint_type,
       anthropicBaseURL: cherryinProvider ? cherryinProvider.anthropicApiHost + '/v1' : undefined,
-      geminiBaseURL: cherryinProvider ? cherryinProvider.apiHost + '/v1beta/models' : undefined,
+      geminiBaseURL: cherryinProvider ? cherryinProvider.apiHost + '/v1beta' : undefined,
       headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
     }
   }
@@ -285,6 +284,13 @@ async function buildCherryAIConfig(ctx: BuilderContext): Promise<ProviderConfig<
   }
 }
 
+function formatAzureBaseURL(baseURL: string, forAnthropic: boolean): string {
+  // Normalize: strip trailing /v1 and /openai that user may have included
+  const normalized = baseURL.replace(/\/v1$/, '').replace(/\/openai$/, '')
+  // Azure OpenAI endpoints need /openai suffix; Azure Anthropic does not
+  return forAnthropic ? normalized : normalized + '/openai'
+}
+
 function buildAzureConfig(
   ctx: BuilderContext
 ): ProviderConfig<'azure'> | ProviderConfig<'azure-responses'> | ProviderConfig<'azure-anthropic'> {
@@ -295,6 +301,7 @@ function buildAzureConfig(
       endpoint: ctx.endpoint,
       providerSettings: {
         ...ctx.baseConfig,
+        baseURL: formatAzureBaseURL(ctx.baseConfig.baseURL, true),
         headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
       }
     }
@@ -305,6 +312,7 @@ function buildAzureConfig(
 
   const providerSettings: ProviderConfig<'azure'>['providerSettings'] = {
     ...ctx.baseConfig,
+    baseURL: formatAzureBaseURL(ctx.baseConfig.baseURL, false),
     headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
   }
 
@@ -374,12 +382,26 @@ function buildAiHubMixConfig(ctx: BuilderContext): ProviderConfig<'aihubmix'> {
   }
 }
 
+function formatNewApiBaseURL(baseURL: string, endpointType?: string): string {
+  switch (endpointType) {
+    case 'gemini':
+      return formatApiHost(baseURL, true, 'v1beta')
+    case 'anthropic':
+      return formatApiHost(baseURL, false)
+    default:
+      return formatApiHost(baseURL, true)
+  }
+}
+
 function buildNewApiConfig(ctx: BuilderContext): ProviderConfig<'newapi'> {
+  const baseURL = formatNewApiBaseURL(ctx.baseConfig.baseURL, ctx.model.endpoint_type)
+
   return {
     providerId: 'newapi',
     endpoint: ctx.endpoint,
     providerSettings: {
       ...ctx.baseConfig,
+      baseURL,
       endpointType: ctx.model.endpoint_type,
       headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
     }

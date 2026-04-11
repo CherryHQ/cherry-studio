@@ -2,11 +2,15 @@ import { CacheService } from '@data/CacheService'
 import { DataApiService } from '@data/DataApiService'
 import { DbService } from '@data/db/DbService'
 import { PreferenceService } from '@data/PreferenceService'
+import { AgentBootstrapService } from '@main/services/AgentBootstrapService'
 import { AnalyticsService } from '@main/services/AnalyticsService'
 import { ApiServerService } from '@main/services/ApiServerService'
 import { AppMenuService } from '@main/services/AppMenuService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { CodeCliService } from '@main/services/CodeCliService'
+import { DetachedWindowManager } from '@main/services/DetachedWindowManager'
+import { KnowledgeOrchestrationService, KnowledgeRuntimeService } from '@main/services/knowledge'
+import { KnowledgeVectorStoreService } from '@main/services/knowledge/vectorstore/KnowledgeVectorStoreService'
 import { LanTransferService } from '@main/services/lanTransfer'
 import { MCPService } from '@main/services/MCPService'
 import { NodeTraceService } from '@main/services/NodeTraceService'
@@ -14,6 +18,7 @@ import { OcrService } from '@main/services/ocr/OcrService'
 import { OpenClawService } from '@main/services/OpenClawService'
 import { OvmsManager } from '@main/services/OvmsManager'
 import { PowerMonitorService } from '@main/services/PowerMonitorService'
+import { ProtocolService } from '@main/services/ProtocolService'
 import { ProxyManager } from '@main/services/ProxyManager'
 import { PythonService } from '@main/services/PythonService'
 import { SearchService } from '@main/services/SearchService'
@@ -54,6 +59,7 @@ export const services = {
   DbService,
   CacheService,
   DataApiService,
+  DetachedWindowManager,
   PreferenceService,
   AnalyticsService,
   AppMenuService,
@@ -67,6 +73,7 @@ export const services = {
   NodeTraceService,
   OcrService,
   OvmsManager,
+  ProtocolService,
   ProxyManager,
   PythonService,
   TrayService,
@@ -75,6 +82,10 @@ export const services = {
   MCPService,
   OpenClawService,
   SearchService,
+  KnowledgeOrchestrationService,
+  KnowledgeVectorStoreService,
+  KnowledgeRuntimeService,
+  AgentBootstrapService,
   ApiServerService,
   AppUpdaterService
 } as const

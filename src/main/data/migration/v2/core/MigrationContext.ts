@@ -10,8 +10,11 @@ import fs from 'fs/promises'
 
 import { DexieFileReader } from '../utils/DexieFileReader'
 import { DexieSettingsReader, type DexieSettingsRecord } from '../utils/DexieSettingsReader'
+import { KnowledgeVectorSourceReader } from '../utils/KnowledgeVectorSourceReader'
+import { LegacyHomeConfigReader } from '../utils/LegacyHomeConfigReader'
 import { LocalStorageReader } from '../utils/LocalStorageReader'
 import { ReduxStateReader } from '../utils/ReduxStateReader'
+import type { MigrationPaths } from './MigrationPaths'
 
 // Logger type for migration context (using actual LoggerService type)
 export type MigrationLogger = LoggerService
@@ -30,6 +33,8 @@ export interface MigrationContext {
     dexieExport: DexieFileReader
     dexieSettings: DexieSettingsReader
     localStorage: LocalStorageReader
+    knowledgeVectorSource: KnowledgeVectorSourceReader
+    legacyHomeConfig: LegacyHomeConfigReader
   }
 
   // Target database
@@ -40,6 +45,9 @@ export interface MigrationContext {
 
   // Logger
   logger: MigrationLogger
+
+  // Migration paths
+  paths: MigrationPaths
 }
 
 /**
@@ -49,12 +57,13 @@ export interface MigrationContext {
  */
 export async function createMigrationContext(
   db: DbType,
+  paths: MigrationPaths,
   reduxData: Record<string, unknown>,
   dexieExportPath: string,
   localStorageExportPath?: string
 ): Promise<MigrationContext> {
   const logger = loggerService.withContext('Migration')
-  const electronStore = new Store()
+  const electronStore = new Store({ cwd: paths.userData })
   const dexieFileReader = new DexieFileReader(dexieExportPath)
 
   // Pre-load Dexie settings table into memory for synchronous access
@@ -90,10 +99,13 @@ export async function createMigrationContext(
       reduxState: new ReduxStateReader(reduxData),
       dexieExport: dexieFileReader,
       dexieSettings: new DexieSettingsReader(dexieSettingsRecords),
-      localStorage: new LocalStorageReader(localStorageRecords)
+      localStorage: new LocalStorageReader(localStorageRecords),
+      knowledgeVectorSource: new KnowledgeVectorSourceReader(),
+      legacyHomeConfig: new LegacyHomeConfigReader(paths.legacyConfigFile)
     },
     db,
     sharedData: new Map(),
-    logger
+    logger,
+    paths
   }
 }
