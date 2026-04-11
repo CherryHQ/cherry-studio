@@ -17,7 +17,7 @@ const { TextArea } = Input
 
 interface AssistantRegularPromptsSettingsProps {
   assistant: Assistant
-  updateAssistant: (assistant: Assistant) => void
+  updateAssistant: (update: Partial<Omit<Assistant, 'id'>>) => void
 }
 
 const AssistantRegularPromptsSettings: FC<AssistantRegularPromptsSettingsProps> = ({ assistant, updateAssistant }) => {
@@ -47,7 +47,7 @@ const AssistantRegularPromptsSettings: FC<AssistantRegularPromptsSettingsProps> 
   const handleDelete = async (id: string) => {
     const updatedPrompts = promptsList.filter((prompt) => prompt.id !== id)
     setPromptsList(updatedPrompts)
-    updateAssistant({ ...assistant, regularPhrases: updatedPrompts })
+    updateAssistant({ regularPhrases: updatedPrompts })
   }
 
   const handleModalOk = async () => {
@@ -70,13 +70,13 @@ const AssistantRegularPromptsSettings: FC<AssistantRegularPromptsSettingsProps> 
       updatedPrompts = [...promptsList, newPrompt]
     }
     setPromptsList(updatedPrompts)
-    updateAssistant({ ...assistant, regularPhrases: updatedPrompts })
+    updateAssistant({ regularPhrases: updatedPrompts })
     setIsModalOpen(false)
   }
 
   const handleUpdateOrder = async (newPrompts: QuickPhrase[]) => {
     setPromptsList(newPrompts)
-    updateAssistant({ ...assistant, regularPhrases: newPrompts })
+    updateAssistant({ regularPhrases: newPrompts })
   }
 
   const reversedPrompts = [...promptsList].reverse()

@@ -20,7 +20,7 @@ export interface MCPServer {
 
 interface Props {
   assistant: Assistant
-  updateAssistant: (assistant: Assistant) => void
+  updateAssistant: (update: Partial<Omit<Assistant, 'id'>>) => void
   updateAssistantSettings: (settings: AssistantSettings) => void
 }
 
@@ -31,7 +31,7 @@ const AssistantMCPSettings: React.FC<Props> = ({ assistant, updateAssistant }) =
   const currentMode = getEffectiveMcpMode(assistant)
 
   const handleModeChange = (mode: McpMode) => {
-    updateAssistant({ ...assistant, mcpMode: mode })
+    updateAssistant({ mcpMode: mode })
   }
 
   const onUpdate = (ids: string[]) => {
@@ -39,7 +39,7 @@ const AssistantMCPSettings: React.FC<Props> = ({ assistant, updateAssistant }) =
       .map((id) => allMcpServers.find((server) => server.id === id))
       .filter((server): server is MCPServer => server !== undefined && server.isActive)
 
-    updateAssistant({ ...assistant, mcpServers, mcpMode: 'manual' })
+    updateAssistant({ mcpServers, mcpMode: 'manual' })
   }
 
   const handleServerToggle = (serverId: string) => {

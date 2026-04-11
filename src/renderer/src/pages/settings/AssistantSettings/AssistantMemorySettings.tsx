@@ -19,7 +19,7 @@ const { Text } = Typography
 
 interface Props {
   assistant: Assistant
-  updateAssistant: (assistant: Assistant) => void
+  updateAssistant: (update: Partial<Omit<Assistant, 'id'>>) => void
   updateAssistantSettings: (settings: AssistantSettings) => void
   onClose?: () => void // Add optional close callback
 }
@@ -56,7 +56,7 @@ const AssistantMemorySettings: React.FC<Props> = ({ assistant, updateAssistant, 
   }, [loadMemoryStats])
 
   const handleMemoryToggle = (enabled: boolean) => {
-    updateAssistant({ ...assistant, enableMemory: enabled })
+    updateAssistant({ enableMemory: enabled })
   }
 
   const handleNavigateToMemory = () => {

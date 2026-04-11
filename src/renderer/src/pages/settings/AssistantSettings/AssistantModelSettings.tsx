@@ -29,7 +29,7 @@ import styled from 'styled-components'
 
 interface Props {
   assistant: Assistant
-  updateAssistant: (assistant: Assistant) => void
+  updateAssistant: (update: Partial<Omit<Assistant, 'id'>>) => void
   updateAssistantSettings: (settings: Partial<AssistantSettings>) => void
 }
 
@@ -225,7 +225,6 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
     const selectedModel = await SelectChatModelPopup.show({ model: currentModel, filter: modelFilter })
     if (selectedModel) {
       updateAssistant({
-        ...assistant,
         model: selectedModel,
         defaultModel: selectedModel
       })
@@ -266,7 +265,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
               variant="filled"
               icon={<DeleteIcon size={14} className="lucide-custom" />}
               onClick={() => {
-                updateAssistant({ ...assistant, defaultModel: undefined })
+                updateAssistant({ defaultModel: undefined })
               }}
               danger
             />
