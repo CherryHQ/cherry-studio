@@ -198,6 +198,7 @@ export function isGenerateImageModel(model: Model): boolean {
   }
 
   const provider = getProviderByModel(model)
+
   if (!provider) {
     return false
   }

@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import type { ModelType } from '@renderer/types'
+import type { Model, ModelType } from '@renderer/types'
 import type { ModalFuncProps } from 'antd'
 import { isEqual } from 'lodash'
 import { v4 as uuidv4 } from 'uuid'
@@ -208,7 +208,7 @@ export function getMcpConfigSampleFromReadme(readme: string): Record<string, any
  * @param {ModelType} type 模型类型
  * @returns {boolean} 是否为用户手动选择
  */
-export function isUserSelectedModelType(model: { capabilities?: any[] }, type: ModelType): boolean | undefined {
+export function isUserSelectedModelType(model: Model, type: ModelType): boolean | undefined {
   const t = model.capabilities?.find((t) => t.type === type)
   return t ? t.isUserSelected : undefined
 }

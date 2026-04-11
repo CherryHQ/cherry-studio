@@ -22,10 +22,15 @@ export const FreeTrialModelTag: FC<Props> = ({ model, showLabel = true }) => {
     return null
   }
 
-  const rawId = model.id.includes('::') ? model.id.slice(model.id.indexOf('::') + 2) : model.id
-  const cherryInModels = ['Qwen/Qwen3-8B', 'Qwen/Qwen3-Next-80B-A3B-Instruct']
-  const providerId = cherryInModels.includes(rawId) ? 'cherryin' : ''
-  if (!providerId) return null
+  let providerId
+
+  if (model.id === 'Qwen/Qwen3-8B') {
+    providerId = 'cherryin'
+  }
+
+  if (model.id === 'Qwen/Qwen3-Next-80B-A3B-Instruct') {
+    providerId = 'cherryin'
+  }
 
   const onSelectProvider = () => {
     void NavigationService.navigate!({ to: `/settings/provider`, search: { id: providerId } })

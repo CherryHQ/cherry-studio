@@ -89,7 +89,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({
               overflow: 'hidden'
             }}
           />
-          <FreeTrialModelTagV2 model={model} />
+          <FreeTrialModelTagV2 modelId={model.id} providerId={model.providerId} />
         </RowFlex>
         <RowFlex className="items-center gap-1.5">
           <HealthStatusIndicator

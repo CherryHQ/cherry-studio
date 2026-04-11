@@ -1,7 +1,6 @@
 import IndicatorLight from '@renderer/components/IndicatorLight'
 import { SelectModelPopup } from '@renderer/components/Popups/SelectModelPopup'
 import CustomTag from '@renderer/components/Tags/CustomTag'
-import type { ProviderSettingsModel } from '@renderer/config/models/v2'
 import { getProviderLabel } from '@renderer/i18n/label'
 import NavigationService from '@renderer/services/NavigationService'
 import { ArrowUpRight } from 'lucide-react'
@@ -10,30 +9,31 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 interface Props {
-  model: Pick<ProviderSettingsModel, 'id' | 'providerId'>
+  modelId: string
+  providerId: string
   showLabel?: boolean
 }
 
-export const FreeTrialModelTagV2: FC<Props> = ({ model, showLabel = true }) => {
+export const FreeTrialModelTagV2: FC<Props> = ({ modelId, providerId, showLabel = true }) => {
   const { t } = useTranslation()
 
-  if (model.providerId !== 'cherryai') {
+  if (providerId !== 'cherryai') {
     return null
   }
 
-  const rawId = model.id.includes('::') ? model.id.slice(model.id.indexOf('::') + 2) : model.id
+  const rawId = modelId.includes('::') ? modelId.slice(modelId.indexOf('::') + 2) : modelId
   const cherryInModels = ['Qwen/Qwen3-8B', 'Qwen/Qwen3-Next-80B-A3B-Instruct']
-  const providerId = cherryInModels.includes(rawId) ? 'cherryin' : ''
-  if (!providerId) return null
+  const linkedProviderId = cherryInModels.includes(rawId) ? 'cherryin' : ''
+  if (!linkedProviderId) return null
 
   const onSelectProvider = () => {
-    void NavigationService.navigate?.({ to: '/settings/provider', search: { id: providerId } })
+    void NavigationService.navigate?.({ to: '/settings/provider', search: { id: linkedProviderId } })
   }
 
   const onNavigateProvider = (e: MouseEvent) => {
     e.stopPropagation()
     SelectModelPopup.hide()
-    void NavigationService.navigate?.({ to: '/settings/provider', search: { id: providerId } })
+    void NavigationService.navigate?.({ to: '/settings/provider', search: { id: linkedProviderId } })
   }
 
   if (!showLabel) {
@@ -44,7 +44,7 @@ export const FreeTrialModelTagV2: FC<Props> = ({ model, showLabel = true }) => {
           size={11}
           onClick={onNavigateProvider}
           style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          {getProviderLabel(providerId)}
+          {getProviderLabel(linkedProviderId)}
           <ArrowUpRight size={12} />
         </CustomTag>
       </Container>
@@ -55,7 +55,7 @@ export const FreeTrialModelTagV2: FC<Props> = ({ model, showLabel = true }) => {
     <Container>
       <IndicatorLight size={6} color="var(--color-primary)" animation={false} shadow={false} />
       <PoweredBy>{t('common.powered_by')}</PoweredBy>
-      <LinkText onClick={onSelectProvider}>{getProviderLabel(providerId)}</LinkText>
+      <LinkText onClick={onSelectProvider}>{getProviderLabel(linkedProviderId)}</LinkText>
     </Container>
   )
 }

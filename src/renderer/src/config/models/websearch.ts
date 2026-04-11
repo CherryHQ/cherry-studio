@@ -68,6 +68,7 @@ export function isWebSearchModel(model: Model): boolean {
       return true
     }
 
+    // v2
     if (provider.id === SystemProviderIds.grok) {
       return true
     }
@@ -112,6 +113,7 @@ export function isWebSearchModel(model: Model): boolean {
 
   if (provider.id === 'dashscope') {
     const models = ['qwen-turbo', 'qwen-max', 'qwen-plus', 'qwq', 'qwen-flash', 'qwen3-max']
+    // matches id like qwen-max-0919, qwen-max-latest
     return models.some((i) => modelId.startsWith(i))
   }
 
@@ -128,9 +130,11 @@ export function isMandatoryWebSearchModel(model: Model): boolean {
   }
 
   const provider = getProviderByModel(model)
+
   if (!provider) {
     return false
   }
+
   const modelId = getLowerBaseModelName(model.id)
 
   if (provider.id === 'perplexity' || provider.id === 'openrouter') {
@@ -147,7 +151,7 @@ export function isOpenRouterBuiltInWebSearchModel(model: Model): boolean {
 
   const provider = getProviderByModel(model)
 
-  if (!provider || provider.id !== 'openrouter') {
+  if (provider.id !== 'openrouter') {
     return false
   }
 

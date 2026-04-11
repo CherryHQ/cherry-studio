@@ -1,10 +1,10 @@
-import type { ProviderSettingsModel } from '@renderer/config/models/v2'
+import type { ProviderSettingsDisplayModel } from '@renderer/config/models/v2'
 import { memo } from 'react'
 
 import ModelTagsWithLabelV2 from './ModelTagsWithLabelV2'
 
 interface ModelIdWithTagsV2Props {
-  model: ProviderSettingsModel
+  model: ProviderSettingsDisplayModel
   fontSize?: number
   showIdentifier?: boolean
   style?: React.CSSProperties

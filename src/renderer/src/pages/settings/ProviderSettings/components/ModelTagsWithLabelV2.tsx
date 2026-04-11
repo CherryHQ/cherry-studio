@@ -15,7 +15,7 @@ import {
   isRerankModel,
   isVisionModel,
   isWebSearchModel,
-  type ProviderSettingsModel
+  type ProviderSettingsDisplayModel
 } from '@renderer/config/models/v2'
 import i18n from '@renderer/i18n'
 import type { FC } from 'react'
@@ -23,7 +23,7 @@ import { memo, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import styled from 'styled-components'
 
 interface ModelTagsProps {
-  model: ProviderSettingsModel
+  model: ProviderSettingsDisplayModel
   showFree?: boolean
   showReasoning?: boolean
   showToolsCalling?: boolean

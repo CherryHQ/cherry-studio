@@ -18,11 +18,18 @@ import {
 import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiAddModelPopup'
 import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiBatchAddModelPopup'
 import { fetchModels } from '@renderer/services/ApiService'
+import type { Model as LegacyModel, ModelCapability as LegacyModelCapability } from '@renderer/types'
 import { filterModelsByKeywords } from '@renderer/utils'
 import { getFancyProviderName, isNewApiProvider } from '@renderer/utils/provider.v2'
 import { toV1ProviderShim } from '@renderer/utils/v1ProviderShim'
-import type { Model } from '@shared/data/types/model'
-import { createUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
+import {
+  createUniqueModelId,
+  ENDPOINT_TYPE,
+  type EndpointType as RuntimeEndpointType,
+  type Model,
+  MODEL_CAPABILITY,
+  type ModelCapability as RuntimeModelCapability,
+  parseUniqueModelId} from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { Empty, Modal, Spin, Tabs } from 'antd'
 import Input from 'antd/es/input/Input'
@@ -37,6 +44,55 @@ import ManageModelsList from './ManageModelsList'
 import { isValidNewApiModel } from './utils'
 
 const logger = loggerService.withContext('ManageModelsPopup')
+
+const LEGACY_CAPABILITY_TO_V2: Record<LegacyModelCapability['type'], RuntimeModelCapability | undefined> = {
+  text: undefined,
+  vision: MODEL_CAPABILITY.IMAGE_RECOGNITION,
+  embedding: MODEL_CAPABILITY.EMBEDDING,
+  reasoning: MODEL_CAPABILITY.REASONING,
+  function_calling: MODEL_CAPABILITY.FUNCTION_CALL,
+  web_search: MODEL_CAPABILITY.WEB_SEARCH,
+  rerank: MODEL_CAPABILITY.RERANK
+}
+
+const LEGACY_ENDPOINT_TO_V2: Record<string, RuntimeEndpointType> = {
+  openai: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  'openai-response': ENDPOINT_TYPE.OPENAI_RESPONSES,
+  anthropic: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+  gemini: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+  'image-generation': ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+  'jina-rerank': ENDPOINT_TYPE.JINA_RERANK
+}
+
+function normalizeFetchedModel(providerId: string, model: LegacyModel): Model {
+  const capabilities =
+    model.capabilities
+      ?.map((capability) => LEGACY_CAPABILITY_TO_V2[capability.type])
+      .filter((capability): capability is RuntimeModelCapability => capability !== undefined) ?? []
+
+  const endpointTypes = [
+    ...(model.supported_endpoint_types
+      ?.map((endpointType) => LEGACY_ENDPOINT_TO_V2[endpointType])
+      .filter((endpointType): endpointType is RuntimeEndpointType => endpointType !== undefined) ?? []),
+    ...(model.endpoint_type && LEGACY_ENDPOINT_TO_V2[model.endpoint_type]
+      ? [LEGACY_ENDPOINT_TO_V2[model.endpoint_type]]
+      : [])
+  ]
+
+  return {
+    id: createUniqueModelId(providerId, model.id),
+    providerId,
+    apiModelId: model.id,
+    name: model.name,
+    description: model.description,
+    group: model.group,
+    capabilities,
+    endpointTypes: endpointTypes.length > 0 ? endpointTypes : undefined,
+    supportsStreaming: model.supported_text_delta ?? true,
+    isEnabled: true,
+    isHidden: false
+  }
+}
 
 interface ShowParams {
   providerId: string
@@ -223,16 +279,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
           })
           setListModels(resolved as Model[])
         } catch {
-          setListModels(
-            filteredModels.map(
-              (m) =>
-                ({
-                  ...m,
-                  id: createUniqueModelId(providerId, m.id),
-                  providerId
-                }) as unknown as Model
-            )
-          )
+          setListModels(filteredModels.map((model) => normalizeFetchedModel(providerId, model)))
         }
       } catch (error) {
         logger.error(`Failed to load models for provider ${getFancyProviderName(prov)}`, error as Error)

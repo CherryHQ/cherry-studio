@@ -18,7 +18,7 @@ export function isEmbeddingModel(model: Model): boolean {
     return isUserSelectedModelType(model, 'embedding')!
   }
 
-  if (model.provider === 'anthropic') {
+  if (['anthropic'].includes(model?.provider)) {
     return false
   }
 
