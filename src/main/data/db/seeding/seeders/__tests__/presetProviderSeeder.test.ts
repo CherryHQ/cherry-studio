@@ -1,5 +1,5 @@
 /**
- * Regression tests for PresetProviderSeed.migrate — insert-only behavior.
+ * Regression tests for PresetProviderSeeder.run — insert-only behavior.
  *
  * Regression: An earlier implementation called db.insert() unconditionally and
  * used onConflictDoUpdate, overwriting user customizations (renamed providers,
@@ -27,6 +27,9 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
         { id: 'anthropic', name: 'Anthropic', endpointConfigs: {}, defaultChatEndpoint: null }
       ]
     }
+    getProvidersVersion() {
+      return 'test-version'
+    }
     loadModels() {
       return []
     }
@@ -46,7 +49,7 @@ vi.mock('@cherrystudio/provider-registry', async () => {
 })
 
 // Import AFTER mocks
-const PresetProviderSeed = (await import('../presetProviderSeeding')).default
+const { PresetProviderSeeder } = await import('../presetProviderSeeder')
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -88,7 +91,7 @@ function createMockDb(existingProviderIds: string[]) {
 // Tests
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('PresetProviderSeed.migrate — insert-only behavior', () => {
+describe('PresetProviderSeeder.run — insert-only behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -96,8 +99,8 @@ describe('PresetProviderSeed.migrate — insert-only behavior', () => {
   it('should insert all preset providers (plus cherryai) when DB is empty', async () => {
     const { db, insertedValues, mockInsert } = createMockDb([])
 
-    const seed = new PresetProviderSeed()
-    await seed.migrate(db as any)
+    const seed = new PresetProviderSeeder()
+    await seed.run(db as any)
 
     // insert must be called exactly once with all new rows
     expect(mockInsert).toHaveBeenCalledTimes(1)
@@ -115,8 +118,8 @@ describe('PresetProviderSeed.migrate — insert-only behavior', () => {
     // 'openai' is already present — only 'anthropic' and 'cherryai' are new
     const { db, insertedValues, mockInsert } = createMockDb(['openai'])
 
-    const seed = new PresetProviderSeed()
-    await seed.migrate(db as any)
+    const seed = new PresetProviderSeeder()
+    await seed.run(db as any)
 
     expect(mockInsert).toHaveBeenCalledTimes(1)
 
@@ -134,8 +137,8 @@ describe('PresetProviderSeed.migrate — insert-only behavior', () => {
     // Every provider the seed would add is already present
     const { db, mockInsert } = createMockDb(['openai', 'anthropic', 'cherryai'])
 
-    const seed = new PresetProviderSeed()
-    await seed.migrate(db as any)
+    const seed = new PresetProviderSeeder()
+    await seed.run(db as any)
 
     // Nothing new to insert — insert must never be called
     expect(mockInsert).not.toHaveBeenCalled()

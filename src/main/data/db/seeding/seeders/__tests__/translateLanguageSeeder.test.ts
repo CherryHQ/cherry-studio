@@ -8,7 +8,7 @@ vi.mock('@data/db/schemas/translateLanguage', () => ({
   translateLanguageTable: { langCode: 'lang_code' }
 }))
 
-const TranslateLanguageSeed = (await import('../translateLanguageSeeding')).default
+const { TranslateLanguageSeeder } = await import('../translateLanguageSeeder')
 
 function createMockDb() {
   return {
@@ -17,7 +17,7 @@ function createMockDb() {
   }
 }
 
-describe('TranslateLanguageSeed', () => {
+describe('TranslateLanguageSeeder', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -29,8 +29,8 @@ describe('TranslateLanguageSeed', () => {
     const valuesArg = vi.fn().mockResolvedValue(undefined)
     mockInsert.mockReturnValue({ values: valuesArg })
 
-    const seed = new TranslateLanguageSeed()
-    await seed.migrate(createMockDb() as any)
+    const seed = new TranslateLanguageSeeder()
+    await seed.run(createMockDb() as any)
 
     expect(mockInsert).toHaveBeenCalledTimes(1)
     expect(valuesArg).toHaveBeenCalledWith(BUILTIN_TRANSLATE_LANGUAGES)
@@ -44,8 +44,8 @@ describe('TranslateLanguageSeed', () => {
     const valuesArg = vi.fn().mockResolvedValue(undefined)
     mockInsert.mockReturnValue({ values: valuesArg })
 
-    const seed = new TranslateLanguageSeed()
-    await seed.migrate(createMockDb() as any)
+    const seed = new TranslateLanguageSeeder()
+    await seed.run(createMockDb() as any)
 
     expect(mockInsert).toHaveBeenCalledTimes(1)
     const inserted = valuesArg.mock.calls[0][0] as typeof BUILTIN_TRANSLATE_LANGUAGES
@@ -60,8 +60,8 @@ describe('TranslateLanguageSeed', () => {
       from: vi.fn().mockResolvedValue(allCodes)
     })
 
-    const seed = new TranslateLanguageSeed()
-    await seed.migrate(createMockDb() as any)
+    const seed = new TranslateLanguageSeeder()
+    await seed.run(createMockDb() as any)
 
     expect(mockInsert).not.toHaveBeenCalled()
   })

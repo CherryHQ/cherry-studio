@@ -9,6 +9,7 @@
 
 import { CUSTOM_SQL_STATEMENTS } from '@data/db/customSqls'
 import type { DbType } from '@data/db/types'
+import { createClient } from '@libsql/client'
 import { loggerService } from '@logger'
 import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/libsql'
@@ -39,14 +40,14 @@ export class MigrationDbService {
     ensureDatabaseIntegrity(paths.databaseFile)
 
     const dbUrl = pathToFileURL(paths.databaseFile).href
-    const db = drizzle({ connection: { url: dbUrl }, casing: 'snake_case' })
+    const client = createClient({ url: dbUrl })
+    const db = drizzle({ client, casing: 'snake_case' })
 
-    // Each PRAGMA must be a separate statement — @libsql/client's db.prepare()
-    // only compiles the first statement in a multi-statement string, silently
-    // discarding the rest.
     try {
+      // WAL mode persisted in DB file — no replay needed
       await db.run(sql`PRAGMA journal_mode = WAL`)
-      await db.run(sql`PRAGMA synchronous = NORMAL`)
+      // Per-connection PRAGMA — use setPragma() to survive transaction() reconnects
+      client.setPragma('PRAGMA synchronous = NORMAL')
       logger.info('WAL mode configured')
     } catch (error) {
       logger.warn('Failed to configure WAL mode', error as Error)

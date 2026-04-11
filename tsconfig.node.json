@@ -15,7 +15,9 @@
       "@modelcontextprotocol/sdk/*": ["./node_modules/@modelcontextprotocol/sdk/dist/esm/*"],
       "@shared/*": ["./packages/shared/*"],
       "@test-mocks/*": ["./tests/__mocks__/*"],
-      "@types": ["./src/renderer/src/types/index.ts"]
+      "@types": ["./src/renderer/src/types/index.ts"],
+      "@vectorstores/libsql": ["./packages/vectorstores/libsql/src/index.ts"],
+      "@vectorstores/libsql/*": ["./packages/vectorstores/libsql/src/*"]
     },
     "tsBuildInfoFile": ".tsbuildinfo/tsconfig.node.tsbuildinfo",
     "types": ["electron-vite/node", "vitest/globals"],
@@ -33,6 +35,7 @@
     "packages/mcp-trace/**/*",
     "packages/provider-registry/**/*",
     "packages/shared/**/*",
+    "packages/vectorstores/**/*",
     "tests/__mocks__/**/*"
   ]
 }

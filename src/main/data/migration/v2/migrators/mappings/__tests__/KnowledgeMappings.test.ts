@@ -220,8 +220,8 @@ describe('KnowledgeMappings', () => {
         groupId: null,
         type: 'directory',
         data: {
-          path: '/tmp/docs',
-          recursive: true
+          name: 'docs',
+          path: '/tmp/docs'
         },
         status: 'idle',
         error: null,
