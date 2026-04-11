@@ -25,6 +25,7 @@ import { isWin } from '@main/constant'
 import AssistantServer from '@main/mcpServers/assistant'
 import BrowserServer from '@main/mcpServers/browser/server'
 import ClawServer from '@main/mcpServers/claw'
+import OcrMcpServer from '@main/mcpServers/ocr'
 import SkillsServer from '@main/mcpServers/skills'
 import WorkspaceMemoryServer from '@main/mcpServers/workspaceMemory'
 import { configManager } from '@main/services/ConfigManager'
@@ -596,6 +597,19 @@ class ClaudeCodeService implements AgentServiceInterface {
     if (Array.isArray(options.allowedTools) && options.allowedTools.length > 0) {
       if (!options.allowedTools.includes('mcp__agent-memory__*')) {
         options.allowedTools = [...options.allowedTools, 'mcp__agent-memory__*']
+      }
+    }
+
+    // Inject OCR MCP server for all agents — allows extracting text from
+    // images via the registered OCR providers (Tesseract, system, PaddleOCR,
+    // OpenVINO). Especially useful for non-vision models that cannot read
+    // images natively, but any agent can benefit from structured text extraction.
+    const ocrServer = new OcrMcpServer()
+    options.mcpServers.ocr = { type: 'sdk', name: 'ocr', instance: ocrServer.mcpServer }
+    autoAllowTools.add('mcp__ocr__ocr')
+    if (Array.isArray(options.allowedTools) && options.allowedTools.length > 0) {
+      if (!options.allowedTools.includes('mcp__ocr__*')) {
+        options.allowedTools = [...options.allowedTools, 'mcp__ocr__*']
       }
     }
 

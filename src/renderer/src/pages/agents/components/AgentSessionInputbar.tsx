@@ -2,7 +2,6 @@ import { loggerService } from '@logger'
 import { getAnthropicReasoningParams } from '@renderer/aiCore/utils/reasoning'
 import type { QuickPanelTriggerInfo } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
-import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useSession } from '@renderer/hooks/agents/useSession'
 import { useInputText } from '@renderer/hooks/useInputText'
@@ -188,27 +187,6 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
   const sessionTopicId = buildAgentSessionTopicId(sessionId)
   const topicMessages = useAppSelector((state) => selectMessagesForTopic(state, sessionTopicId))
   const loading = useAppSelector((state) => selectNewTopicLoading(state, sessionTopicId))
-
-  // Calculate vision and image generation support
-  const isVisionAssistant = useMemo(() => (assistant.model ? isVisionModel(assistant.model) : false), [assistant.model])
-  const isGenerateImageAssistant = useMemo(
-    () => (assistant.model ? isGenerateImageModel(assistant.model) : false),
-    [assistant.model]
-  )
-
-  // Agent sessions don't support model mentions yet, so we only check the assistant's model
-  const canAddImageFile = useMemo(() => {
-    return isVisionAssistant || isGenerateImageAssistant
-  }, [isVisionAssistant, isGenerateImageAssistant])
-
-  const canAddTextFile = useMemo(() => {
-    return isVisionAssistant || (!isVisionAssistant && !isGenerateImageAssistant)
-  }, [isVisionAssistant, isGenerateImageAssistant])
-
-  // Update the couldAddImageFile state when the model changes
-  useEffect(() => {
-    setCouldAddImageFile(canAddImageFile)
-  }, [canAddImageFile, setCouldAddImageFile])
 
   const syncExpandedState = useCallback(
     (expanded: boolean) => {
@@ -459,21 +437,7 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
     }
   }, [focusTextarea])
 
-  const supportedExts = useMemo(() => {
-    if (canAddImageFile && canAddTextFile) {
-      return [...imageExts, ...documentExts, ...textExts]
-    }
-
-    if (canAddImageFile) {
-      return [...imageExts]
-    }
-
-    if (canAddTextFile) {
-      return [...documentExts, ...textExts]
-    }
-
-    return []
-  }, [canAddImageFile, canAddTextFile])
+  const supportedExts = [...imageExts, ...documentExts, ...textExts]
 
   const toolsSession = useMemo(() => {
     if (!sessionData) return undefined
