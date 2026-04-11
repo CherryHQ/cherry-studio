@@ -20,7 +20,13 @@ type TranslateOptions = {
 }
 
 /**
- * 翻译文本到目标语言（流式 IPC）
+ * 翻译文本到目标语言
+ * @param text - 需要翻译的文本内容
+ * @param targetLanguage - 目标语言
+ * @param onResponse - 流式输出的回调函数，用于实时获取翻译结果
+ * @param _abortKey - 用于控制 abort 的键（TODO: 接入 IPC abort）
+ * @returns 返回翻译后的文本
+ * @throws {Error} 翻译中止或失败时抛出异常
  */
 export const translateText = async (
   text: string,
@@ -105,6 +111,11 @@ export const translateText = async (
 
 /**
  * 添加自定义翻译语言
+ * @param value - 语言名称
+ * @param emoji - 语言对应的emoji图标
+ * @param langCode - 语言代码
+ * @returns {Promise<CustomTranslateLanguage>} 返回新添加的自定义语言对象
+ * @throws {Error} 当语言已存在或添加失败时抛出错误
  */
 export const addCustomLanguage = async (
   value: string,
@@ -134,6 +145,8 @@ export const addCustomLanguage = async (
 
 /**
  * 删除自定义翻译语言
+ * @param id - 要删除的自定义语言ID
+ * @throws {Error} 删除自定义语言失败时抛出错误
  */
 export const deleteCustomLanguage = async (id: string) => {
   try {
@@ -146,6 +159,11 @@ export const deleteCustomLanguage = async (id: string) => {
 
 /**
  * 更新自定义翻译语言
+ * @param old - 原有的自定义语言对象
+ * @param value - 新的语言名称
+ * @param emoji - 新的语言emoji图标
+ * @param langCode - 新的语言代码
+ * @throws {Error} 更新自定义语言失败时抛出错误
  */
 export const updateCustomLanguage = async (
   old: CustomTranslateLanguage,
@@ -168,6 +186,7 @@ export const updateCustomLanguage = async (
 
 /**
  * 获取所有自定义语言
+ * @throws {Error} 获取自定义语言失败时抛出错误
  */
 export const getAllCustomLanguages = async () => {
   try {
@@ -181,6 +200,11 @@ export const getAllCustomLanguages = async () => {
 
 /**
  * 保存翻译历史记录到数据库
+ * @param sourceText - 原文内容
+ * @param targetText - 翻译后的内容
+ * @param sourceLanguage - 源语言代码
+ * @param targetLanguage - 目标语言代码
+ * @returns Promise<void>
  */
 export const saveTranslateHistory = async (
   sourceText: string,
@@ -201,6 +225,9 @@ export const saveTranslateHistory = async (
 
 /**
  * 更新翻译历史记录
+ * @param id - 历史记录ID
+ * @param update - 更新内容
+ * @returns Promise<void>
  */
 export const updateTranslateHistory = async (id: string, update: Omit<Partial<TranslateHistory>, 'id'>) => {
   try {
@@ -217,6 +244,8 @@ export const updateTranslateHistory = async (id: string, update: Omit<Partial<Tr
 
 /**
  * 删除指定的翻译历史记录
+ * @param id - 要删除的翻译历史记录ID
+ * @returns Promise<void>
  */
 export const deleteHistory = async (id: string) => {
   try {
@@ -229,6 +258,7 @@ export const deleteHistory = async (id: string) => {
 
 /**
  * 清空所有翻译历史记录
+ * @returns Promise<void>
  */
 export const clearHistory = async () => {
   void db.translate_history.clear()
