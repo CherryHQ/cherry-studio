@@ -319,8 +319,6 @@ const MiniAppPopupContainer: React.FC = () => {
 
   /** store the webview refs, one of the key to make them keepalive */
   const webviewRefs = useRef<Map<string, WebviewTag | null>>(new Map())
-  /** Note: WebView loaded states now managed globally via webviewStateManager */
-  /** whether the miniapps open link external is enabled */
 
   const { isLeftNavbar } = useNavbarPosition()
 
@@ -536,8 +534,6 @@ const MiniAppPopupContainer: React.FC = () => {
       }
     }
   }
-
-  /** Title bar - rendered via module-level TitleBar component to avoid remount (rerender-no-inline-components) */
 
   /** group the webview containers with Memo, one of the key to make them keepalive */
   const WebviewContainerGroup = useMemo(() => {
