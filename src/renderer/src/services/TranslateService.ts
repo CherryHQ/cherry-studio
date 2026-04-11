@@ -3,21 +3,14 @@ import { db } from '@renderer/databases'
 import type {
   AssistantSettings,
   CustomTranslateLanguage,
-  FetchChatCompletionRequestOptions,
   ReasoningEffortOption,
   TranslateHistory,
   TranslateLanguage,
   TranslateLanguageCode
 } from '@renderer/types'
-import type { Chunk } from '@renderer/types/chunk'
-import { ChunkType } from '@renderer/types/chunk'
 import { uuid } from '@renderer/utils'
-import { readyToAbort } from '@renderer/utils/abortController'
-import { isAbortError } from '@renderer/utils/error'
-import { NoOutputGeneratedError } from 'ai'
 import { t } from 'i18next'
 
-import { fetchChatCompletion } from './ApiService'
 import { getDefaultTranslateAssistant } from './AssistantService'
 
 const logger = loggerService.withContext('TranslateService')
@@ -39,56 +32,28 @@ export const translateText = async (
   text: string,
   targetLanguage: TranslateLanguage,
   onResponse?: (text: string, isComplete: boolean) => void,
-  abortKey?: string,
+  _abortKey?: string,
   options?: TranslateOptions
 ) => {
-  let error
   const assistantSettings: Partial<AssistantSettings> | undefined = options
     ? { reasoning_effort: options?.reasoningEffort }
     : undefined
   const assistant = await getDefaultTranslateAssistant(targetLanguage, text, assistantSettings)
 
-  const signal = abortKey ? readyToAbort(abortKey) : undefined
-
-  let translatedText = ''
-  let completed = false
-  const onChunk = (chunk: Chunk) => {
-    if (chunk.type === ChunkType.TEXT_DELTA) {
-      translatedText = chunk.text
-    } else if (chunk.type === ChunkType.TEXT_COMPLETE) {
-      completed = true
-    } else if (chunk.type === ChunkType.ERROR) {
-      error = chunk.error
-      if (isAbortError(chunk.error)) {
-        completed = true
-      }
-    }
-    onResponse?.(translatedText, completed)
+  const model = assistant.model
+  if (!model) {
+    throw new Error(t('translate.error.empty'))
   }
 
-  const requestOptions = {
-    signal
-  } satisfies FetchChatCompletionRequestOptions
-
-  try {
-    await fetchChatCompletion({
-      prompt: assistant.content,
-      assistant,
-      requestOptions,
-      onChunkReceived: onChunk
-    })
-  } catch (e) {
-    // dismiss no output generated error. it will be thrown when aborted.
-    if (!NoOutputGeneratedError.isInstance(e)) {
-      throw e
-    }
-  }
-
-  if (error !== undefined && !isAbortError(error)) {
-    throw error
-  }
+  const { text: translatedText } = await window.api.ai.generateText({
+    providerId: model.provider,
+    modelId: model.id,
+    system: assistant.prompt,
+    prompt: assistant.content,
+  })
 
   const trimmedText = translatedText.trim()
+  onResponse?.(trimmedText, true)
 
   if (!trimmedText) {
     return Promise.reject(new Error(t('translate.error.empty')))
