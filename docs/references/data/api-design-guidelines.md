@@ -363,5 +363,5 @@ Routing non-data operations through DataApi causes concrete problems:
 
 - **Automatic retry is dangerous for side effects**: DataApi retries failed requests with exponential backoff. Retrying a "send notification" or "restart service" operation means it executes multiple times.
 - **SWR caching is meaningless for commands**: `useQuery` caches and deduplicates responses. Caching the result of "open window" or "start backup" has no value and can mask failures.
-- **Four-layer architecture becomes hollow**: Handler → Service → Repository → SQLite is designed for data flow. Without a database layer, the Repository layer is absent and the Service layer becomes a pass-through wrapper with no purpose.
+- **Layered architecture becomes hollow**: Handler → Service → SQLite is designed for data flow. Without a database layer, the Service layer becomes a pass-through wrapper with no purpose.
 - **Test patterns don't match**: DataApi tests mock database operations (Drizzle queries, transactions). Side-effectful operations need entirely different test strategies (mocking external services, verifying calls).

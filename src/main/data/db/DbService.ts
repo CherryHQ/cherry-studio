@@ -1,3 +1,5 @@
+import type { Client } from '@libsql/client'
+import { createClient } from '@libsql/client'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { BaseService, ErrorHandling, Injectable, Priority, ServicePhase } from '@main/core/lifecycle'
@@ -10,7 +12,8 @@ import path from 'path'
 import { pathToFileURL } from 'url'
 
 import { CUSTOM_SQL_STATEMENTS } from './customSqls'
-import Seeding from './seeding'
+import { seeders } from './seeding'
+import { SeedRunner } from './seeding/SeedRunner'
 import type { DbType } from './types'
 
 const logger = loggerService.withContext('DbService')
@@ -35,6 +38,7 @@ const logger = loggerService.withContext('DbService')
 @Priority(10)
 @ErrorHandling('fail-fast')
 export class DbService extends BaseService {
+  private client: Client
   private db: DbType
   private pragmasConfigured = false
 
@@ -42,10 +46,9 @@ export class DbService extends BaseService {
     super()
     try {
       this.ensureDatabaseIntegrity()
-      this.db = drizzle({
-        connection: { url: pathToFileURL(application.getPath('app.database.file')).href },
-        casing: 'snake_case'
-      })
+      const url = pathToFileURL(application.getPath('app.database.file')).href
+      this.client = createClient({ url })
+      this.db = drizzle({ client: this.client, casing: 'snake_case' })
       logger.info('Database connection initialized', {
         dbPath: application.getPath('app.database.file')
       })
@@ -61,32 +64,34 @@ export class DbService extends BaseService {
   protected async onInit(): Promise<void> {
     await this.configurePragmas()
     await this.migrateDb()
-    await this.migrateSeed('preference')
-    await this.migrateSeed('translateLanguage')
+    await new SeedRunner(this.db).runAll(seeders)
   }
 
   /**
    * Configure database PRAGMAs (WAL mode, synchronous, foreign keys).
    *
-   * ## Known issue: per-connection PRAGMAs lost after transaction()
+   * ## Background: per-connection PRAGMAs lost after transaction()
    *
    * `@libsql/client`'s `Sqlite3Client.transaction()` nullifies its internal
    * connection (`this.#db = null`) after opening a transaction. The next
    * non-transaction operation lazily creates a **new** `Database` connection
    * whose PRAGMAs reset to libsql compile-time defaults:
    * - `synchronous` reverts to FULL (standard SQLite default)
-   * - `foreign_keys` stays ON — libsql (turso's SQLite fork) is compiled with
-   *   `SQLITE_DEFAULT_FOREIGN_KEYS=1` (see libsql-ffi/build.rs), unlike
-   *   standard SQLite which defaults to OFF
+   * - `foreign_keys` stays ON — libsql is compiled with
+   *   `SQLITE_DEFAULT_FOREIGN_KEYS=1`, unlike standard SQLite
    * - `journal_mode = WAL` is unaffected (persisted in the database file)
    *
-   * This is a known limitation with no upstream fix as of @libsql/client 0.17.2.
-   * Related issues:
+   * ## Fix: patched setPragma() with PRAGMA replay
+   *
+   * We patched `@libsql/client` (see patches/@libsql__client@0.15.15.patch)
+   * to add `client.setPragma()`, which registers per-connection PRAGMAs and
+   * automatically replays them in `#getDb()` and `reconnect()` whenever a
+   * new connection is created. Pattern borrowed from upstream PR #328's
+   * ATTACH replay mechanism.
+   *
+   * Related upstream issues (still open, no official fix as of 0.17.2):
    * - https://github.com/tursodatabase/libsql-client-ts/issues/229
    * - https://github.com/tursodatabase/libsql-client-ts/issues/288
-   *
-   * TODO: Patch @libsql/client to replay PRAGMAs in `#getDb()` when a new
-   * connection is lazily created (similar to PR #328's ATTACH replay pattern).
    */
   private async configurePragmas(): Promise<void> {
     if (this.pragmasConfigured) {
@@ -94,13 +99,14 @@ export class DbService extends BaseService {
     }
 
     try {
-      // Each PRAGMA must be a separate db.run() call. @libsql/client uses
-      // db.prepare() internally which maps to SQLite's sqlite3_prepare_v2() —
-      // this API only compiles the FIRST statement in a multi-statement string
-      // and silently discards the rest. This is by design in the SQLite C API.
+      // WAL mode is persisted in the database file — only needs to run once,
+      // no replay needed across connections.
       await this.db.run(sql`PRAGMA journal_mode = WAL`)
-      await this.db.run(sql`PRAGMA synchronous = NORMAL`)
-      await this.db.run(sql`PRAGMA foreign_keys = ON`)
+
+      // Per-connection PRAGMAs — use setPragma() so they are automatically
+      // replayed when @libsql/client creates a new connection after transaction().
+      this.client.setPragma('PRAGMA synchronous = NORMAL')
+      this.client.setPragma('PRAGMA foreign_keys = ON')
 
       this.pragmasConfigured = true
       logger.info('Database PRAGMAs configured (WAL, synchronous, foreign_keys)')
@@ -157,26 +163,6 @@ export class DbService extends BaseService {
       throw new Error('Database is not initialized, please call init() first!')
     }
     return this.db
-  }
-
-  /**
-   * Run seed data migration
-   * @param seedName - Name of the seed to run
-   */
-  private async migrateSeed(seedName: keyof typeof Seeding): Promise<void> {
-    try {
-      const Seed = Seeding[seedName]
-      if (!Seed) {
-        throw new Error(`Seed "${seedName}" not found`)
-      }
-
-      await new Seed().migrate(this.db)
-
-      logger.info('Seed migration completed successfully', { seedName })
-    } catch (error) {
-      logger.error('Seed migration failed', error as Error, { seedName })
-      throw error
-    }
   }
 
   /**

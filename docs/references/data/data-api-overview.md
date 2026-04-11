@@ -20,7 +20,7 @@ DataApi must not be used as a general-purpose RPC layer. The following categorie
 - **Imperative commands**: Sending notifications, opening URLs, launching external processes
 - **Stateless queries without database backing**: System info, font lists, disk space checks
 
-**Why?** DataApi's built-in retry, caching, and four-layer architecture (Handler → Service → Repository → SQLite) are designed for data persistence. These features become harmful or meaningless when applied to side-effectful operations. See [API Design Guidelines — Scope & Boundaries](./api-design-guidelines.md#dataapi-scope--boundaries) for detailed anti-patterns.
+**Why?** DataApi's built-in retry, caching, and layered architecture (Handler → Service → SQLite) are designed for data persistence. These features become harmful or meaningless when applied to side-effectful operations. See [API Design Guidelines — Scope & Boundaries](./api-design-guidelines.md#dataapi-scope--boundaries) for detailed anti-patterns.
 
 ## Key Characteristics
 
@@ -83,18 +83,8 @@ DataApi must not be used as a general-purpose RPC layer. The following categorie
 │ │ Services (services/)                                   │ │
 │ │ - Business logic and validation                        │ │
 │ │ - Transaction coordination                             │ │
-│ │ - Domain workflows                                     │ │
+│ │ - Data access via Drizzle ORM                          │ │
 │ └──────────────────────────┬─────────────────────────────┘ │
-│                            ▼                               │
-│         ┌──────────────────┴───────────────────┐           │
-│         ▼                                      ▼           │
-│ ┌───────────────┐                    ┌───────────────────┐ │
-│ │ Repositories  │                    │ Direct Drizzle    │ │
-│ │ (Complex)     │                    │ (Simple domains)  │ │
-│ │ - Query logic │                    │ - Inline queries  │ │
-│ └───────┬───────┘                    └─────────┬─────────┘ │
-│         │                                      │           │
-│         └──────────────────┬───────────────────┘           │
 │                            ▼                               │
 │ ┌────────────────────────────────────────────────────────┐ │
 │ │ SQLite Database (via Drizzle ORM)                      │ │
@@ -104,7 +94,7 @@ DataApi must not be used as a general-purpose RPC layer. The following categorie
 └────────────────────────────────────────────────────────────┘
 ```
 
-## Four-Layer Architecture
+## Architecture Layers
 
 ### 1. API Layer (Handlers)
 - **Location**: `src/main/data/api/handlers/`
@@ -112,37 +102,27 @@ DataApi must not be used as a general-purpose RPC layer. The following categorie
 - **Does**: Extract parameters, call services, transform responses
 - **Does NOT**: Contain business logic
 
-### 2. Business Logic Layer (Services)
+### 2. Service Layer (Services)
 - **Location**: `src/main/data/services/`
-- **Responsibility**: Domain logic and workflows
-- **Does**: Validation, transaction coordination, orchestration
-- **Uses**: Repositories or direct Drizzle queries
+- **Responsibility**: Domain logic, workflows, and data access
+- **Does**: Validation, transaction coordination, orchestration, Drizzle ORM queries
 
-### 3. Data Access Layer (Repositories)
-- **Location**: `src/main/data/repositories/`
-- **Responsibility**: Complex data operations
-- **When to use**: Complex queries, large datasets, reusable patterns
-- **Alternative**: Direct Drizzle for simple CRUD
+> **Note:** In rare cases, a read-only Registry Service (e.g., `ProviderRegistryService`)
+> may exist alongside Entity Services to merge preset data with DB data.
+> See [DataApi in Main — Registry Services](./data-api-in-main.md#registry-services-supplementary).
 
-### 4. Database Layer
+### 3. Database Layer
 - **Location**: `src/main/data/db/`
 - **Technology**: SQLite + Drizzle ORM
 - **Schemas**: `db/schemas/` directory
 
-## Data Access Pattern Decision
+### Repository Pattern (Strongly Discouraged)
 
-### Use Repository Pattern When:
-- ✅ Complex queries (joins, subqueries, aggregations)
-- ✅ GB-scale data requiring optimization and pagination
-- ✅ Complex transactions involving multiple tables
-- ✅ Reusable data access patterns across services
-- ✅ High testing requirements (mock data access)
-
-### Use Direct Drizzle When:
-- ✅ Simple CRUD operations
-- ✅ Small datasets (< 100MB)
-- ✅ Domain-specific queries with no reuse potential
-- ✅ Fast development is priority
+> **⚠️ Do NOT create Repository files by default.** Services handle both business logic and data access directly via Drizzle ORM. This is an intentional design decision.
+>
+> Only create a separate Repository when you are **1000% certain** it is absolutely necessary — e.g., extremely complex multi-table queries with joins/CTEs that would make the Service unreadable, AND the query logic is reused across multiple services.
+>
+> If in doubt, keep it in the Service. The overhead of an extra architectural layer is not justified for this project's scale (Electron desktop app + SQLite).
 
 ## Key Features
 

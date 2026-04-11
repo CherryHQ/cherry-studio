@@ -8,6 +8,7 @@ import { parseSkillMetadata } from '@main/utils/markdownParser'
 import { app } from 'electron'
 
 import { SkillRepository } from '../services/agents/skills/SkillRepository'
+import { toAsarUnpackedPath } from '.'
 
 const logger = loggerService.withContext('builtinSkills')
 
@@ -31,7 +32,7 @@ const VERSION_FILE = '.version'
  */
 // TODO: v2-backup
 export async function installBuiltinSkills(): Promise<void> {
-  const resourceSkillsPath = application.getPath('feature.agents.skills.builtin')
+  const resourceSkillsPath = toAsarUnpackedPath(application.getPath('feature.agents.skills.builtin'))
   const globalSkillsPath = application.getPath('feature.agents.skills')
   const linkBasePath = application.getPath('feature.agents.claude.skills')
   const appVersion = app.getVersion()

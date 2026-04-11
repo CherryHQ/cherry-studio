@@ -12,6 +12,8 @@ import { preferenceTable } from '@data/db/schemas/preference'
 import { topicTable } from '@data/db/schemas/topic'
 import { translateHistoryTable } from '@data/db/schemas/translateHistory'
 import { translateLanguageTable } from '@data/db/schemas/translateLanguage'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import type {
@@ -286,6 +288,8 @@ export class MigrationEngine {
     // Tables to clear - add more as they are created
     // Order matters: child tables must be cleared before parent tables
     const tables = [
+      { table: userModelTable, name: 'user_model' }, // Must clear before user_provider
+      { table: userProviderTable, name: 'user_provider' },
       { table: messageTable, name: 'message' }, // Must clear before topic (FK reference)
       { table: topicTable, name: 'topic' },
       { table: mcpServerTable, name: 'mcp_server' },
@@ -311,6 +315,8 @@ export class MigrationEngine {
 
     // Clear tables in dependency order (children before parents)
     // Messages reference topics, so delete messages first
+    await db.delete(userModelTable)
+    await db.delete(userProviderTable)
     await db.delete(messageTable)
     await db.delete(topicTable)
     await db.delete(mcpServerTable)
