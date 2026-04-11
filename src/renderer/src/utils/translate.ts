@@ -80,7 +80,7 @@ const detectLanguageByLLM = async (inputText: string): Promise<TranslateLanguage
     providerId: model.provider,
     modelId: model.id,
     system: prompt,
-    prompt: 'follow system prompt',
+    prompt: 'follow system prompt'
   })
 
   return detectedLang.trim()
