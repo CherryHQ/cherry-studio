@@ -6,7 +6,6 @@ import { net } from 'electron'
 import { JSDOM } from 'jsdom'
 import TurndownService from 'turndown'
 
-import { localBrowser } from '../providers/locals/LocalBrowser'
 import { isAbortError } from './errors'
 
 const logger = loggerService.withContext('MainWebSearchContentFetcher')
@@ -26,35 +25,25 @@ function buildHeaders(headers?: HeadersInit) {
   return resolvedHeaders
 }
 
-export async function fetchWebSearchContent(
-  url: string,
-  usingBrowser: boolean,
-  httpOptions: RequestInit = {}
-): Promise<WebSearchResult> {
+export async function fetchWebSearchContent(url: string, httpOptions: RequestInit = {}): Promise<WebSearchResult> {
   try {
     if (!isValidUrl(url)) {
       throw new Error(`Invalid URL format: ${url}`)
     }
 
-    let html: string
+    const response = await net.fetch(url, {
+      ...httpOptions,
+      headers: buildHeaders(httpOptions.headers),
+      signal: httpOptions.signal
+        ? AbortSignal.any([httpOptions.signal, AbortSignal.timeout(30000)])
+        : AbortSignal.timeout(30000)
+    })
 
-    if (usingBrowser) {
-      html = await localBrowser.fetchHtml(url, { signal: httpOptions.signal ?? undefined })
-    } else {
-      const response = await net.fetch(url, {
-        ...httpOptions,
-        headers: buildHeaders(httpOptions.headers),
-        signal: httpOptions.signal
-          ? AbortSignal.any([httpOptions.signal, AbortSignal.timeout(30000)])
-          : AbortSignal.timeout(30000)
-      })
-
-      if (!response.ok) {
-        throw new Error(`HTTP error: ${response.status}`)
-      }
-
-      html = await response.text()
+    if (!response.ok) {
+      throw new Error(`HTTP error: ${response.status}`)
     }
+
+    const html = await response.text()
 
     const dom = new JSDOM(html, { url: SAFE_JSDOM_URL })
     const article = new Readability(dom.window.document).parse()

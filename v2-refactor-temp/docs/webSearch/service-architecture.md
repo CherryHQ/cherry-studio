@@ -141,16 +141,6 @@
 3. Renderer 侧目前仍残留“给 query 注入日期”或 provider-specific freshness / timeRange 的旧实现，但这些会在后续切流和旧链路清理时一起收敛。
 4. 因此，当前分支里 Main-side backend 未保留 `searchWithTime`，应视为对废弃行为的提前对齐，而不是功能回归。
 
-#### 关于 local provider 的语言注入
-
-这里还有一个容易和 `searchWithTime` 混在一起误判的点：
-
-1. Renderer 旧链路里的 `local-google` / `local-bing` 曾经会基于 `app.language` 给 query 注入 `lang:<xx>` 之类的语言 bias。
-2. Main-side local provider 没有继续复制这项行为，这是当前分支的有意变化，不是迁移遗漏。
-3. 当前分支的判断是：检索语言与最终回答语言不需要强绑定，Agent 可以对跨语言搜索结果继续用用户语言总结。
-4. 因此 Main-side local provider 当前更偏向“扩大召回范围”，而不是默认按 UI 语言限制搜索语料。
-5. 换句话说，当前分支不再把 `app.language` 作为隐式 query rewrite 策略；如果未来需要恢复语言偏置，也应作为显式检索策略再单独设计，而不是沿用旧 Renderer 的隐式注入。
-
 #### `providers/factory.ts`
 
 职责：
@@ -162,7 +152,6 @@
 
 1. `api`: `zhipu` / `tavily` / `searxng` / `exa` / `bocha` / `querit`
 2. `mcp`: `exa-mcp`
-3. `local`: `local-google` / `local-bing` / `local-baidu`
 
 #### Provider Drivers
 
@@ -170,7 +159,6 @@
 
 1. `src/main/services/webSearch/providers/api/`
 2. `src/main/services/webSearch/providers/mcp/`
-3. `src/main/services/webSearch/providers/locals/`
 
 职责：
 
@@ -181,8 +169,12 @@
 当前已实现的关键差异处理：
 
 1. `searxng` 仍然保持“先搜索，再抓取结果 URL 正文”的旧行为
-2. `local-*` provider 仍然保持“只返回搜索结果摘要，不抓正文”
-3. `exa-mcp` 通过 MCP 风格的 HTTP / SSE 文本响应解析结果
+2. `exa-mcp` 通过 MCP 风格的 HTTP / SSE 文本响应解析结果
+
+补充说明：
+
+1. Main-side `local-*` provider 已在后续清理中移除，不再属于当前 backend 支持范围。
+2. 仓库里如果仍然能看到本地搜索相关实现，属于 Renderer 旧链路残留，不是这套 Main-side backend 的一部分。
 
 #### `postProcessing.ts`
 
@@ -239,17 +231,15 @@
 
 1. `src/main/services/webSearch/WebSearchService.test.ts`
 2. `src/main/services/webSearch/providers/__tests__/ApiProviders.test.ts`
-3. `src/main/services/webSearch/providers/locals/__tests__/LocalProviders.test.ts`
-4. `src/main/services/webSearch/runtime/__tests__/status.test.ts`
-5. `src/main/services/webSearch/utils/__tests__/*`
+3. `src/main/services/webSearch/runtime/__tests__/status.test.ts`
+4. `src/main/services/webSearch/utils/__tests__/*`
 
 当前测试重点覆盖了：
 
 1. `cutoff` post-processing
 2. blacklist 过滤
 3. partial success 行为
-4. local provider 支持
-5. 各 API provider 的协议解析
+4. 各 API provider 的协议解析
 
 ---
 
@@ -295,7 +285,7 @@
 | WebSearchService                                                                    |
 | Config Resolver                                                                     |
 | Provider Factory                                                                    |
-| API / MCP / Local Drivers                                                           |
+| API / MCP Drivers                                                                   |
 | Blacklist Filter                                                                    |
 | Post Processing (none / cutoff)                                                     |
 +-----------------------------------------------+------------------------------------+

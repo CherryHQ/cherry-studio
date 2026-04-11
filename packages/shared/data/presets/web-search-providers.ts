@@ -15,14 +15,12 @@ export const WebSearchProviderPresetDefinitionSchema = z.object({
   id: WebSearchProviderIdSchema,
   name: z.string(),
   type: WebSearchProviderTypeSchema,
-  usingBrowser: z.boolean(),
   defaultApiHost: z.string()
 })
 
 type WebSearchProviderPresetConfig = {
   name: string
   type: WebSearchProviderType
-  usingBrowser: boolean
   defaultApiHost: string
 }
 
@@ -47,62 +45,37 @@ export const WEB_SEARCH_PROVIDER_PRESET_MAP = {
   zhipu: {
     name: 'Zhipu',
     type: 'api',
-    usingBrowser: false,
     defaultApiHost: 'https://open.bigmodel.cn/api/paas/v4/web_search'
   },
   tavily: {
     name: 'Tavily',
     type: 'api',
-    usingBrowser: false,
     defaultApiHost: 'https://api.tavily.com'
   },
   searxng: {
     name: 'Searxng',
     type: 'api',
-    usingBrowser: false,
     defaultApiHost: ''
   },
   exa: {
     name: 'Exa',
     type: 'api',
-    usingBrowser: false,
     defaultApiHost: 'https://api.exa.ai'
   },
   'exa-mcp': {
     name: 'ExaMCP',
     type: 'mcp',
-    usingBrowser: false,
     defaultApiHost: 'https://mcp.exa.ai/mcp'
   },
   bocha: {
     name: 'Bocha',
     type: 'api',
-    usingBrowser: false,
     defaultApiHost: 'https://api.bochaai.com'
   },
   querit: {
     name: 'Querit',
     type: 'api',
-    usingBrowser: false,
     defaultApiHost: 'https://api.querit.ai'
-  },
-  'local-google': {
-    name: 'Google',
-    type: 'local',
-    usingBrowser: true,
-    defaultApiHost: 'https://www.google.com/search?q=%s'
-  },
-  'local-bing': {
-    name: 'Bing',
-    type: 'local',
-    usingBrowser: true,
-    defaultApiHost: 'https://cn.bing.com/search?q=%s&ensearch=1'
-  },
-  'local-baidu': {
-    name: 'Baidu',
-    type: 'local',
-    usingBrowser: true,
-    defaultApiHost: 'https://www.baidu.com/s?wd=%s'
   }
 } as const satisfies Record<WebSearchProviderId, WebSearchProviderPresetConfig>
 

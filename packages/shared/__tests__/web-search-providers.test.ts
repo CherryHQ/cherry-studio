@@ -27,7 +27,6 @@ describe('web search provider schemas', () => {
       id: 'custom',
       name: 'Custom',
       type: 'custom',
-      usingBrowser: false,
       defaultApiHost: 'https://example.com'
     })
 

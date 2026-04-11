@@ -230,7 +230,7 @@ describe('PreferenceTransformers', () => {
       const result = migrateWebSearchProviders({
         providers: [
           { id: 'tavily', name: 'Tavily', apiKey: ' key1 , key2 ', apiHost: 'https://api.tavily.com' },
-          { id: 'local-google', name: 'Google' }
+          { id: 'custom-provider', name: 'Custom', apiHost: 'https://custom.example.com/search' }
         ]
       })
 
@@ -240,13 +240,13 @@ describe('PreferenceTransformers', () => {
       })
     })
 
-    it('should map url to apiHost and preserve auth fields', () => {
+    it('should preserve custom auth fields for supported providers', () => {
       const result = migrateWebSearchProviders({
         providers: [
           {
-            id: 'local-bing',
-            name: 'Bing',
-            url: 'https://www.bing.com/search?q=%s',
+            id: 'searxng',
+            name: 'Searxng',
+            apiHost: 'https://searx.example.com',
             engines: ['news'],
             basicAuthUsername: 'user',
             basicAuthPassword: 'pass'
@@ -256,8 +256,8 @@ describe('PreferenceTransformers', () => {
 
       const overrides = result['chat.web_search.provider_overrides'] as Record<string, Record<string, unknown>>
       expect(overrides).toEqual({
-        'local-bing': {
-          apiHost: 'https://www.bing.com/search?q=%s',
+        searxng: {
+          apiHost: 'https://searx.example.com',
           engines: ['news'],
           basicAuthUsername: 'user',
           basicAuthPassword: 'pass'
@@ -267,10 +267,7 @@ describe('PreferenceTransformers', () => {
 
     it('should omit apiHost when it matches preset default host', () => {
       const result = migrateWebSearchProviders({
-        providers: [
-          { id: 'exa-mcp', name: 'ExaMCP', apiHost: 'https://mcp.exa.ai/mcp' },
-          { id: 'local-baidu', name: 'Baidu', url: 'https://www.baidu.com/s?wd=%s' }
-        ]
+        providers: [{ id: 'exa-mcp', name: 'ExaMCP', apiHost: 'https://mcp.exa.ai/mcp' }]
       })
 
       const overrides = result['chat.web_search.provider_overrides'] as Record<string, Record<string, unknown>>

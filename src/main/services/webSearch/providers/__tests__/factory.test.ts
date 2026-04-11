@@ -37,9 +37,6 @@ import { SearxngProvider } from '../api/SearxngProvider'
 import { TavilyProvider } from '../api/TavilyProvider'
 import { ZhipuProvider } from '../api/ZhipuProvider'
 import { createWebSearchProvider } from '../factory'
-import { LocalBaiduProvider } from '../locals/LocalBaiduProvider'
-import { LocalBingProvider } from '../locals/LocalBingProvider'
-import { LocalGoogleProvider } from '../locals/LocalGoogleProvider'
 import { ExaMcpProvider } from '../mcp/ExaMcpProvider'
 
 function createProvider(overrides: Partial<ResolvedWebSearchProvider>): ResolvedWebSearchProvider {
@@ -47,7 +44,6 @@ function createProvider(overrides: Partial<ResolvedWebSearchProvider>): Resolved
     id: 'tavily',
     name: 'Provider',
     type: 'api',
-    usingBrowser: false,
     apiKeys: ['test-key'],
     apiHost: 'https://api.example.com',
     engines: [],
@@ -66,15 +62,6 @@ describe('createWebSearchProvider', () => {
     expect(createWebSearchProvider(createProvider({ id: 'exa-mcp', type: 'mcp' }))).toBeInstanceOf(ExaMcpProvider)
     expect(createWebSearchProvider(createProvider({ id: 'bocha' }))).toBeInstanceOf(BochaProvider)
     expect(createWebSearchProvider(createProvider({ id: 'querit' }))).toBeInstanceOf(QueritProvider)
-    expect(
-      createWebSearchProvider(createProvider({ id: 'local-google', type: 'local', usingBrowser: true, apiKeys: [] }))
-    ).toBeInstanceOf(LocalGoogleProvider)
-    expect(
-      createWebSearchProvider(createProvider({ id: 'local-bing', type: 'local', usingBrowser: true, apiKeys: [] }))
-    ).toBeInstanceOf(LocalBingProvider)
-    expect(
-      createWebSearchProvider(createProvider({ id: 'local-baidu', type: 'local', usingBrowser: true, apiKeys: [] }))
-    ).toBeInstanceOf(LocalBaiduProvider)
   })
 
   it('throws for unsupported provider ids', () => {
