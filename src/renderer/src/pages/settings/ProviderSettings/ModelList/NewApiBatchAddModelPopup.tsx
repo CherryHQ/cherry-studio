@@ -4,8 +4,9 @@ import { useModelMutations } from '@data/hooks/useModels'
 import { TopView } from '@renderer/components/TopView'
 import { endpointTypeOptions } from '@renderer/config/endpointTypes'
 import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
-import type { EndpointType, Model } from '@shared/data/types/model'
-import { parseUniqueModelId } from '@shared/data/types/model'
+import type { CreateModelDto } from '@shared/data/api/schemas/models'
+import type { Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { FormProps } from 'antd'
 import { Form, Modal, Select } from 'antd'
@@ -31,7 +32,7 @@ type FieldType = {
 const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels }) => {
   const [open, setOpen] = useState(true)
   const [form] = Form.useForm()
-  const { createModel } = useModelMutations()
+  const { createModelsBatch } = useModelMutations()
   const { t } = useTranslation()
 
   const onOk = () => {
@@ -47,16 +48,17 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
   }
 
   const onAddModel = async (values: FieldType) => {
-    for (const model of batchModels) {
+    const dtos: CreateModelDto[] = batchModels.map((model) => {
       const modelId = model.apiModelId ?? parseUniqueModelId(model.id).modelId
-      await createModel({
+      return {
         providerId: provider.id,
         modelId,
         name: model.name,
         group: model.group,
         endpointTypes: values.endpointType ? [values.endpointType as EndpointType] : undefined
-      })
-    }
+      }
+    })
+    await createModelsBatch(dtos)
     return true
   }
 
@@ -85,7 +87,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
         className="mt-[25px]"
         onFinish={onFinish}
         initialValues={{
-          endpointType: 'openai'
+          endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
         }}>
         <Form.Item
           name="endpointType"

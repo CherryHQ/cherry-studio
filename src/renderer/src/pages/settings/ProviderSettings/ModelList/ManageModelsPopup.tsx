@@ -22,6 +22,7 @@ import type { Model as LegacyModel, ModelCapability as LegacyModelCapability } f
 import { filterModelsByKeywords } from '@renderer/utils'
 import { getFancyProviderName, isNewApiProvider } from '@renderer/utils/provider.v2'
 import { toV1ProviderShim } from '@renderer/utils/v1ProviderShim'
+import type { CreateModelDto } from '@shared/data/api/schemas/models'
 import {
   createUniqueModelId,
   ENDPOINT_TYPE,
@@ -41,6 +42,7 @@ import { useCallback, useEffect, useMemo, useOptimistic, useRef, useState, useTr
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import { normalizeModelGroupName } from './grouping'
 import ManageModelsList from './ManageModelsList'
 import { isValidNewApiModel } from './utils'
 
@@ -63,6 +65,18 @@ const LEGACY_ENDPOINT_TO_V2: Record<string, RuntimeEndpointType> = {
   gemini: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
   'image-generation': ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
   'jina-rerank': ENDPOINT_TYPE.JINA_RERANK
+}
+
+function toCreateModelDto(providerId: string, model: Model, endpointTypes?: RuntimeEndpointType[]): CreateModelDto {
+  const modelId = model.apiModelId ?? parseUniqueModelId(model.id).modelId
+
+  return {
+    providerId,
+    modelId,
+    name: model.name,
+    group: model.group,
+    ...(endpointTypes ? { endpointTypes } : {})
+  }
 }
 
 function normalizeFetchedModel(providerId: string, model: LegacyModel): Model {
@@ -108,7 +122,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
   const { provider } = useProvider(providerId)
   const { models: existingModels } = useModels({ providerId })
   const { data: catalogModels = [] } = useProviderRegistryModels(providerId)
-  const { createModel, deleteModel } = useModelMutations()
+  const { createModel, createModelsBatch, deleteModel } = useModelMutations()
   const existingModelIds = useMemo(() => new Set<string>(existingModels.map((m) => m.id)), [existingModels])
   const [listModels, setListModels] = useState<Model[]>([])
   const [loadingModels, setLoadingModels] = useState(false)
@@ -175,7 +189,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
   )
 
   const modelGroups: Record<string, Model[]> = useMemo(() => {
-    const groupFn = (m: Model) => m.group || provider?.id || ''
+    const groupFn = (m: Model) => normalizeModelGroupName(m.group, provider?.id)
     if (provider?.id === 'dashscope') {
       const isQwen = (m: Model) => parseUniqueModelId(m.id).modelId.startsWith('qwen')
       const qwenModels = list.filter(isQwen)
@@ -197,11 +211,10 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
   const onAddModel = useCallback(
     async (model: Model) => {
       if (!isEmpty(model.name) && provider) {
-        const { modelId } = parseUniqueModelId(model.id)
         if (isNewApiProvider(provider)) {
           const endpointTypes = model.endpointTypes
           if (endpointTypes && endpointTypes.length > 0) {
-            await createModel({ providerId, modelId, name: model.name, group: model.group, endpointTypes })
+            await createModel(toCreateModelDto(providerId, model, endpointTypes))
           } else {
             void NewApiAddModelPopup.show({
               title: t('settings.models.add.add_model'),
@@ -210,7 +223,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
             })
           }
         } else {
-          await createModel({ providerId, modelId, name: model.name, group: model.group })
+          await createModel(toCreateModelDto(providerId, model))
         }
       }
     },
@@ -235,23 +248,30 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
       title: t('settings.models.manage.add_listed.label'),
       content: t('settings.models.manage.add_listed.confirm'),
       centered: true,
-      onOk: () => {
+      onOk: async () => {
         if (provider && isNewApiProvider(provider)) {
-          if (wouldAddModel.every(isValidNewApiModel)) {
-            wouldAddModel.forEach((m) => onAddModel(m))
-          } else {
+          const directAddModels = wouldAddModel.filter(isValidNewApiModel)
+          const pendingEndpointModels = wouldAddModel.filter((model) => !isValidNewApiModel(model))
+
+          if (directAddModels.length > 0) {
+            await createModelsBatch(
+              directAddModels.map((model) => toCreateModelDto(providerId, model, model.endpointTypes))
+            )
+          }
+
+          if (pendingEndpointModels.length > 0) {
             void NewApiBatchAddModelPopup.show({
               title: t('settings.models.add.batch_add_models'),
-              batchModels: wouldAddModel,
+              batchModels: pendingEndpointModels,
               provider
             })
           }
         } else {
-          wouldAddModel.forEach((m) => onAddModel(m))
+          await createModelsBatch(wouldAddModel.map((model) => toCreateModelDto(providerId, model)))
         }
       }
     })
-  }, [list, existingModelIds, onAddModel, provider, t])
+  }, [createModelsBatch, existingModelIds, list, provider, providerId, t])
 
   const loadModels = useCallback(
     async (prov: Provider) => {
@@ -278,7 +298,65 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
               }))
             }
           })
-          setListModels(resolved as Model[])
+          // ── Enrich: fetched models as primary, registry as supplement ──
+          //
+          // The fetched list from the provider's API is the source of truth for
+          // model identity (ID, name, group, endpointTypes, count). The registry
+          // POST (`/registry-models`) only supplements catalog metadata such as
+          // capabilities, pricing, contextWindow, description, etc.
+          //
+          // We iterate over fetched models (not resolved), convert each to v2 via
+          // normalizeFetchedModel, then overlay any richer fields the registry
+          // provided. This guarantees no models are lost to registry normalization
+          // (e.g. "agent/deepseek-v3.2" and "agent/deepseek-v3.2(free)" both
+          // resolving to the same preset "deepseek-v3-2").
+          //
+          // Registry lookup: the registry normalizes IDs during resolution
+          // (e.g. "agent/deepseek-v3.2" → "deepseek-v3-2"), so we index resolved
+          // models under their apiModelId for O(1) lookup from the fetched side.
+          const resolvedMap = new Map<string, Model>()
+          for (const model of resolved as Model[]) {
+            if (!resolvedMap.has(model.apiModelId)) {
+              resolvedMap.set(model.apiModelId, model)
+            }
+          }
+
+          // Fields to supplement from registry when available
+          const REGISTRY_FIELDS = [
+            'capabilities',
+            'inputModalities',
+            'outputModalities',
+            'contextWindow',
+            'maxOutputTokens',
+            'maxInputTokens',
+            'reasoning',
+            'pricing',
+            'description',
+            'family',
+            'ownedBy'
+          ] as const
+
+          const enriched = filteredModels.map((fetched) => {
+            // Start from the fetched model converted to v2 (preserves ID, group, endpointTypes)
+            const base = normalizeFetchedModel(providerId, fetched)
+
+            // Try to find a matching registry model by normalized ID variants
+            const bare = fetched.id.includes('/') ? fetched.id.substring(fetched.id.lastIndexOf('/') + 1) : fetched.id
+            const dashed = bare.replace(/\./g, '-')
+            const registry = resolvedMap.get(fetched.id) ?? resolvedMap.get(bare) ?? resolvedMap.get(dashed)
+            if (!registry) return base
+
+            // Overlay registry catalog fields onto the fetched base
+            const merged = { ...base }
+            for (const field of REGISTRY_FIELDS) {
+              const val = registry[field]
+              if (val !== undefined && val !== null && !(Array.isArray(val) && val.length === 0)) {
+                ;(merged as Record<string, unknown>)[field] = val
+              }
+            }
+            return merged
+          })
+          setListModels(enriched)
         } catch {
           setListModels(filteredModels.map((model) => normalizeFetchedModel(providerId, model)))
         }

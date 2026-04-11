@@ -23,7 +23,7 @@ export async function checkModelWithMultipleKeys(
 ): Promise<ApiKeyWithStatus[]> {
   const checkPromises = apiKeys.map(async (key) => {
     const startTime = Date.now()
-    const v1Provider = toV1ProviderShim(provider, { apiKey: key })
+    const v1Provider = toV1ProviderShim(provider, { apiKey: key, models: [model] })
     await checkModel(v1Provider, model as unknown as V1Model, timeout)
     const latency = Date.now() - startTime
 

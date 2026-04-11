@@ -6,7 +6,7 @@ import { endpointTypeOptions } from '@renderer/config/endpointTypes'
 import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
 import { getDefaultGroupName } from '@renderer/utils'
 import { isNewApiProvider } from '@renderer/utils/provider.v2'
-import type { EndpointType, Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { FormProps } from 'antd'
 import { Form, Input, Modal, Select } from 'antd'
@@ -64,8 +64,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, model, endp
       modelId,
       name: values.name ? values.name : modelId.toUpperCase(),
       group: values.group ?? getDefaultGroupName(modelId),
-      endpointTypes:
-        isNewApiProvider(provider) && values.endpointType ? [values.endpointType as EndpointType] : undefined
+      endpointTypes: isNewApiProvider(provider) && values.endpointType ? [values.endpointType as string] : undefined
     })
 
     return true
@@ -112,10 +111,10 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, model, endp
                 id: model.id,
                 name: model.name,
                 group: model.group,
-                endpointType: endpointType ?? 'openai'
+                endpointType: endpointType ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
               }
             : {
-                endpointType: endpointType ?? 'openai'
+                endpointType: endpointType ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
               }
         }>
         <Form.Item
