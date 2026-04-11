@@ -14,7 +14,6 @@ import { InputbarCore } from '@renderer/pages/home/Inputbar/components/InputbarC
 import {
   InputbarToolsProvider,
   useInputbarToolsDispatch,
-  useInputbarToolsInternalDispatch,
   useInputbarToolsState
 } from '@renderer/pages/home/Inputbar/context/InputbarToolsProvider'
 import InputbarTools from '@renderer/pages/home/Inputbar/InputbarTools'
@@ -180,7 +179,6 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
 
   const { files } = useInputbarToolsState()
   const { toolsRegistry, setIsExpanded, setFiles } = useInputbarToolsDispatch()
-  const { setCouldAddImageFile } = useInputbarToolsInternalDispatch()
 
   const { setTimeoutTimer } = useTimer()
   const dispatch = useAppDispatch()
