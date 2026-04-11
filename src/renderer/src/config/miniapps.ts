@@ -65,8 +65,25 @@ import {
   Zhipu
 } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
-import type { MiniAppType } from '@renderer/store/miniapps'
 import { ORIGIN_DEFAULT_MIN_APPS as SHARED_PRESETS } from '@shared/data/presets/miniapps'
+
+/**
+ * Legacy mini-app entity type used by the deprecated Redux slice and config layer.
+ * The v2 MiniApp entity lives in @shared/data/types/miniapp.
+ */
+export type MiniAppType = {
+  id: string
+  name: string
+  nameKey?: string
+  supportedRegions?: string[]
+  logo?: string
+  url: string
+  bordered?: boolean
+  background?: string
+  style?: Record<string, unknown>
+  addTime?: string
+  type?: 'Custom' | 'Default'
+}
 
 const logger = loggerService.withContext('Config:miniapps')
 

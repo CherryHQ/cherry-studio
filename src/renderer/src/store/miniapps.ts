@@ -16,29 +16,7 @@
  */
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
-import { allMiniApps } from '@renderer/config/miniapps'
-import type { MiniAppRegion } from '@shared/data/preference/preferenceTypes'
-import type { CSSProperties } from 'react'
-
-/**
- * Legacy mini-app entity type used only by this deprecated Redux slice.
- * The v2 MiniApp entity lives in @shared/data/types/miniapp.
- */
-export type MiniAppType = {
-  id: string
-  name: string
-  /** i18n key for translatable names */
-  nameKey?: string
-  /** Regions where this app is available. If includes 'Global', shown to international users. */
-  supportedRegions?: MiniAppRegion[]
-  logo?: string
-  url: string
-  bordered?: boolean
-  background?: string
-  style?: CSSProperties
-  addTime?: string
-  type?: 'Custom' | 'Default'
-}
+import { allMiniApps, type MiniAppType } from '@renderer/config/miniapps'
 
 export interface MinAppsState {
   enabled: MiniAppType[]
