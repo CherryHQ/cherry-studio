@@ -1,61 +1,55 @@
-// @ts-nocheck — TODO (Step 2 Phase C): Remove after full BuildContext refactor.
 /**
- * Provider configuration builder.
+ * Provider configuration builder — v2 DataApi types.
  *
- * Migrated from src/renderer/src/aiCore/provider/providerConfig.ts
- *
- * Current state (Phase 1):
- * - formatApiHost / isWithTrailingSharp / formatOllamaApiHost: ✅ imported from @shared
- * - routeToEndpoint: ✅ reimplemented with full endpoint parsing
- * - Provider resolution: ✅ via ReduxService in AiCompletionService.resolveFromRedux()
- * - getProviderByModel / getProviderById stubs: dead code (not called in Phase 1 path)
- *
- * TODO — migrate to real providerConfig (when ProviderService exists):
- * 1. Replace getProviderById stub → ProviderService.getById() (currently dead code,
- *    only called by buildCherryinConfig which needs cross-provider lookup)
- * 2. Replace getProviderByModel stub → ProviderService.getByModel() (currently dead code,
- *    only called by getActualProvider() which is bypassed)
- * 3. formatVertexApiHost → needs vertexai settings (project, location) from ProviderService
- *    instead of store.getState().llm.settings.vertexai
- * 4. buildBedrockConfig → needs AWS credentials from ProviderService/SecretService
- *    instead of getAwsBedrockAuthType/Region/ApiKey stubs
- * 5. buildVertexConfig → needs VertexAI provider creation from ProviderService
- *    instead of createVertexProvider stub
- * 6. Remove @ts-nocheck once all stubs are replaced
- * 7. Consolidate provider check functions (isAnthropicProvider, etc.) to @shared
+ * Converts v2 Provider + Model into ProviderConfig for @cherrystudio/ai-core.
+ * API key resolved via providerService.getRotatedApiKey() (async).
+ * Auth config via providerService.getAuthConfig() for IAM providers.
  */
 
 import { formatPrivateKey, hasProviderConfig, type StringKeys } from '@cherrystudio/ai-core/provider'
 import { generateSignature } from '@main/integration/cherryai'
+import { providerService } from '@main/data/services/ProviderService'
 import { anthropicService } from '@main/services/AnthropicService'
 import { copilotService } from '@main/services/CopilotService'
+import {
+  isAzureOpenAIProvider,
+  isGeminiProvider,
+  isOllamaProvider,
+} from '@shared/config/providerChecks'
+import { formatOllamaApiHost } from '@shared/aiCore/provider/utils'
+import { formatApiHost, isWithTrailingSharp } from '@shared/utils/api'
 import { defaultAppHeaders } from '@shared/utils'
-import { type Model, type Provider, SystemProviderIds } from '@types'
-import { cloneDeep, isEmpty } from 'lodash'
+import type { Provider } from '@shared/data/types/provider'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import type { Model } from '@shared/data/types/model'
+import { SystemProviderIds } from '@types'
+import { isEmpty } from 'lodash'
 
 import type { ProviderConfig } from '../types'
 import { type AppProviderId, type AppProviderSettingsMap } from '../types'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import { getAiSdkProviderId } from './factory'
 
-// === Stubs for renderer dependencies ===
-// TODO (Step 2 Phase C): Replace with BuildContext
+// ── Helpers ──
 
-function getProviderByModel(_model: Model): Provider {
-  throw new Error('getProviderByModel stub: use BuildContext')
+/** Extract base URL from v2 Provider's endpoint configs */
+function getBaseUrl(provider: Provider): string {
+  const ep = provider.defaultChatEndpoint
+  if (ep && provider.endpointConfigs?.[ep]?.baseUrl) {
+    return provider.endpointConfigs[ep]!.baseUrl!
+  }
+  // Fallback: try any available endpoint config
+  if (provider.endpointConfigs) {
+    for (const config of Object.values(provider.endpointConfigs)) {
+      if (config?.baseUrl) return config.baseUrl
+    }
+  }
+  return ''
 }
 
-function getProviderById(_id: string): Provider | undefined {
-  throw new Error('getProviderById stub: use BuildContext')
-}
-
-// Format utils — imported from shared
-import { formatOllamaApiHost } from '@shared/aiCore/provider/utils'
-import { formatApiHost, isWithTrailingSharp } from '@shared/utils/api'
-
-function formatVertexApiHost(provider: any): string {
-  // TODO: needs Redux store access for vertexai settings (project, location)
-  return provider.apiHost || ''
+/** Get extra headers from v2 Provider settings */
+function getExtraHeaders(provider: Provider): Record<string, string> {
+  return provider.settings?.extraHeaders ?? {}
 }
 
 function routeToEndpoint(apiHost: string): { baseURL: string; endpoint: string } {
@@ -72,7 +66,7 @@ function routeToEndpoint(apiHost: string): { baseURL: string; endpoint: string }
     'streamGenerateContent',
     'images/generations',
     'images/edits',
-    'predict'
+    'predict',
   ]
   const endpointMatch = SUPPORTED_ENDPOINTS.find((ep) => host.endsWith(ep))
   if (!endpointMatch) {
@@ -83,57 +77,7 @@ function routeToEndpoint(apiHost: string): { baseURL: string; endpoint: string }
   return { baseURL, endpoint: endpointMatch }
 }
 
-// Provider checks — TODO: consolidate with @shared/config/providerChecks
-function isAnthropicProvider(p: Provider): boolean {
-  return p.type === 'anthropic' || p.id === 'anthropic'
-}
-function isAzureOpenAIProvider(p: Provider): boolean {
-  return p.type === 'azure-openai' || p.id === 'azure-openai'
-}
-function isCherryAIProvider(p: Provider): boolean {
-  return p.id === 'cherryai'
-}
-function isGeminiProvider(p: Provider): boolean {
-  return p.type === 'gemini' || p.id === 'google'
-}
-function isNewApiProvider(p: Provider): boolean {
-  return p.id === 'newapi' || p.id === 'new-api'
-}
-function isOllamaProvider(p: Provider): boolean {
-  return p.type === 'ollama' || p.id === 'ollama'
-}
-function isPerplexityProvider(p: Provider): boolean {
-  return p.id === 'perplexity'
-}
-// function isSupportStreamOptionsProvider(_p: Provider): boolean { return false }
-function isVertexProvider(p: Provider): boolean {
-  return p.type === 'vertexai' || p.id === 'google-vertex'
-}
-
-// AWS/Vertex stubs — TODO: Main-side credential services
-function getAwsBedrockAuthType(): string {
-  return 'apiKey'
-}
-function getAwsBedrockRegion(): string {
-  return 'us-east-1'
-}
-function getAwsBedrockApiKey(): string {
-  throw new Error('AWS Bedrock stub: use BuildContext')
-}
-function getAwsBedrockAccessKeyId(): string {
-  throw new Error('AWS Bedrock stub: use BuildContext')
-}
-function getAwsBedrockSecretAccessKey(): string {
-  throw new Error('AWS Bedrock stub: use BuildContext')
-}
-function isVertexAIConfigured(): boolean {
-  return false
-}
-function createVertexProvider(_provider: Provider): any {
-  throw new Error('Vertex stub: use BuildContext')
-}
-
-// === Types ===
+// ── Types ──
 
 interface BaseConfig {
   baseURL: string
@@ -148,72 +92,63 @@ interface BuilderContext {
   aiSdkProviderId: AppProviderId
 }
 
-// === Host Formatting ===
+// ── Host Formatting (v2) ──
 
-type HostFormatter = {
-  match: (provider: Provider) => boolean
-  format: (provider: Provider, appendApiVersion: boolean) => string
-}
+/**
+ * Format the provider's base URL for API calls.
+ * In v2, the base URL comes from endpointConfigs, not a flat apiHost field.
+ */
+function formatBaseUrl(provider: Provider): string {
+  const rawUrl = getBaseUrl(provider)
+  if (!rawUrl) return ''
 
-export function formatProviderApiHost(provider: Provider): Provider {
-  const formatted = { ...provider }
-  const appendApiVersion = !isWithTrailingSharp(provider.apiHost)
+  const appendApiVersion = !isWithTrailingSharp(rawUrl)
 
-  if (formatted.anthropicApiHost) {
-    formatted.anthropicApiHost = formatApiHost(formatted.anthropicApiHost, appendApiVersion)
+  if (provider.presetProviderId === 'anthropic' || provider.id === 'anthropic') {
+    // Check for anthropic-specific endpoint (messages)
+    const anthropicUrl = provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl
+    return formatApiHost(anthropicUrl || rawUrl, appendApiVersion)
   }
 
-  if (isAnthropicProvider(provider)) {
-    const baseHost = formatted.anthropicApiHost || formatted.apiHost
-    formatted.apiHost = formatApiHost(baseHost, appendApiVersion)
-    if (!formatted.anthropicApiHost) {
-      formatted.anthropicApiHost = formatted.apiHost
-    }
-    return formatted
+  if (isOllamaProvider(provider)) return formatOllamaApiHost(rawUrl)
+  if (isGeminiProvider(provider)) return formatApiHost(rawUrl, appendApiVersion, 'v1beta')
+
+  // Most providers: format with API version
+  const noVersionProviders = ['copilot', 'github', 'cherryai', 'perplexity', 'newapi', 'new-api', 'azure-openai']
+  if (noVersionProviders.includes(provider.id) || noVersionProviders.includes(provider.presetProviderId ?? '')) {
+    return formatApiHost(rawUrl, false)
   }
 
-  const formatters: HostFormatter[] = [
-    {
-      match: (p) => p.id === SystemProviderIds.copilot || p.id === SystemProviderIds.github,
-      format: (p) => formatApiHost(p.apiHost, false)
-    },
-    { match: isCherryAIProvider, format: (p) => formatApiHost(p.apiHost, false) },
-    { match: isPerplexityProvider, format: (p) => formatApiHost(p.apiHost, false) },
-    { match: isNewApiProvider, format: (p) => formatApiHost(p.apiHost, false) },
-    { match: isOllamaProvider, format: (p) => formatOllamaApiHost(p.apiHost) },
-    { match: isGeminiProvider, format: (p, av) => formatApiHost(p.apiHost, av, 'v1beta') },
-    { match: isAzureOpenAIProvider, format: (p) => formatApiHost(p.apiHost, false) },
-    { match: isVertexProvider, format: (p) => formatVertexApiHost(p) }
-  ]
-
-  const formatter = formatters.find((f) => f.match(provider))
-  formatted.apiHost = formatter
-    ? formatter.format(formatted, appendApiVersion)
-    : formatApiHost(formatted.apiHost, appendApiVersion)
-
-  return formatted
+  return formatApiHost(rawUrl, appendApiVersion)
 }
 
-// === SDK Config Building ===
+// ── SDK Config Building ──
 
 type ConfigBuilderEntry = {
   match: (provider: Provider, aiSdkProviderId: AppProviderId) => boolean
   build: (ctx: BuilderContext) => ProviderConfig | Promise<ProviderConfig>
 }
 
-export function providerToAiSdkConfig(
-  actualProvider: Provider,
-  model: Model
-): ProviderConfig | Promise<ProviderConfig> {
-  const aiSdkProviderId = getAiSdkProviderId(actualProvider)
-  const { baseURL, endpoint } = routeToEndpoint(actualProvider.apiHost)
+/**
+ * Build AI SDK provider config from v2 Provider + Model.
+ * Always async (getRotatedApiKey is async).
+ */
+export async function providerToAiSdkConfig(provider: Provider, model: Model): Promise<ProviderConfig> {
+  const aiSdkProviderId = getAiSdkProviderId(provider)
+
+  // Get base URL and parse endpoint
+  const formattedBaseUrl = formatBaseUrl(provider)
+  const { baseURL, endpoint } = routeToEndpoint(formattedBaseUrl)
+
+  // Get API key (async, round-robin)
+  const apiKey = await providerService.getRotatedApiKey(provider.id)
 
   const ctx: BuilderContext = {
-    actualProvider,
+    actualProvider: provider,
     model,
-    baseConfig: { baseURL, apiKey: actualProvider.apiKey },
+    baseConfig: { baseURL, apiKey },
     endpoint,
-    aiSdkProviderId
+    aiSdkProviderId,
   }
 
   const builders: ConfigBuilderEntry[] = [
@@ -226,10 +161,10 @@ export function providerToAiSdkConfig(
     { match: (_, id) => id === 'google-vertex', build: buildVertexConfig },
     { match: (_, id) => id === 'cherryin', build: buildCherryinConfig },
     { match: (_, id) => id === 'newapi', build: buildNewApiConfig },
-    { match: (_, id) => id === 'aihubmix', build: buildAiHubMixConfig }
+    { match: (_, id) => id === 'aihubmix', build: buildAiHubMixConfig },
   ]
 
-  const builder = builders.find((b) => b.match(actualProvider, aiSdkProviderId))
+  const builder = builders.find((b) => b.match(provider, aiSdkProviderId))
   if (builder) {
     return builder.build(ctx)
   }
@@ -240,24 +175,9 @@ export function providerToAiSdkConfig(
   return buildOpenAICompatibleConfig(ctx)
 }
 
-// === Public API ===
-
-export function getActualProvider(model: Model): Provider {
-  return adaptProvider({ provider: getProviderByModel(model), model })
-}
-
-export function adaptProvider({ provider }: { provider: Provider; model?: Model }): Provider {
-  return formatProviderApiHost(cloneDeep(provider))
-}
-
-export function isModernSdkSupported(provider: Provider): boolean {
-  return hasProviderConfig(getAiSdkProviderId(provider))
-}
-
-// === Config Builders ===
+// ── Config Builders ──
 
 async function buildCopilotConfig(ctx: BuilderContext): Promise<ProviderConfig<'github-copilot-openai-compatible'>> {
-  // Direct call to Main-side CopilotService (no window.api IPC needed)
   const storedHeaders = {} // TODO: read from PreferenceService if copilot headers are persisted
   const headers = { ...COPILOT_DEFAULT_HEADERS, ...storedHeaders }
   const { token } = await copilotService.getToken(null as any, headers)
@@ -268,9 +188,9 @@ async function buildCopilotConfig(ctx: BuilderContext): Promise<ProviderConfig<'
     providerSettings: {
       ...ctx.baseConfig,
       apiKey: token,
-      headers: { ...headers, ...ctx.actualProvider.extra_headers },
-      name: ctx.actualProvider.id
-    }
+      headers: { ...headers, ...getExtraHeaders(ctx.actualProvider) },
+      name: ctx.actualProvider.id,
+    },
   }
 }
 
@@ -281,23 +201,21 @@ async function buildCherryAIConfig(ctx: BuilderContext): Promise<ProviderConfig<
     providerSettings: {
       ...ctx.baseConfig,
       name: ctx.actualProvider.id,
-      headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers },
+      headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) },
       fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
-        // Direct call to Main-side generateSignature (no window.api IPC needed)
         const signature = generateSignature({
           method: 'POST',
           path: '/chat/completions',
           query: '',
-          body: init?.body && typeof init.body === 'string' ? JSON.parse(init.body) : undefined
+          body: init?.body && typeof init.body === 'string' ? JSON.parse(init.body) : undefined,
         })
         return fetch(input, { ...init, headers: { ...init?.headers, ...signature } })
-      }
-    }
+      },
+    },
   }
 }
 
 async function buildAnthropicOAuthConfig(ctx: BuilderContext): Promise<ProviderConfig<'anthropic'>> {
-  // Direct call to Main-side AnthropicService (no window.api IPC needed)
   const oauthToken = await anthropicService.getValidAccessToken()
 
   if (!oauthToken) {
@@ -313,9 +231,9 @@ async function buildAnthropicOAuthConfig(ctx: BuilderContext): Promise<ProviderC
       headers: {
         'Content-Type': 'application/json',
         'anthropic-version': '2023-06-01',
-        Authorization: `Bearer ${oauthToken}`
-      }
-    }
+        Authorization: `Bearer ${oauthToken}`,
+      },
+    },
   }
 }
 
@@ -323,8 +241,8 @@ function buildCommonOptions(ctx: BuilderContext) {
   const options: Record<string, any> = {
     headers: {
       ...defaultAppHeaders(),
-      ...ctx.actualProvider.extra_headers
-    }
+      ...getExtraHeaders(ctx.actualProvider),
+    },
   }
   if (ctx.aiSdkProviderId === 'openai') {
     options.headers['X-Api-Key'] = ctx.baseConfig.apiKey
@@ -335,7 +253,7 @@ function buildCommonOptions(ctx: BuilderContext) {
 function buildOllamaConfig(ctx: BuilderContext): ProviderConfig<'ollama'> {
   const headers: Record<string, string> = {
     ...defaultAppHeaders(),
-    ...ctx.actualProvider.extra_headers
+    ...getExtraHeaders(ctx.actualProvider),
   }
   if (!isEmpty(ctx.baseConfig.apiKey)) {
     headers.Authorization = `Bearer ${ctx.baseConfig.apiKey}`
@@ -344,58 +262,87 @@ function buildOllamaConfig(ctx: BuilderContext): ProviderConfig<'ollama'> {
   return {
     providerId: 'ollama',
     endpoint: ctx.endpoint,
-    providerSettings: { ...ctx.baseConfig, headers }
+    providerSettings: { ...ctx.baseConfig, headers },
   }
 }
 
-function buildBedrockConfig(ctx: BuilderContext): ProviderConfig<'bedrock'> {
-  const authType = getAwsBedrockAuthType()
-  const region = getAwsBedrockRegion()
+async function buildBedrockConfig(ctx: BuilderContext): Promise<ProviderConfig<'bedrock'>> {
+  // v2: get full auth config from DB (includes IAM credentials)
+  const authConfig = await providerService.getAuthConfig(ctx.actualProvider.id)
   const base = { providerId: 'bedrock' as const, endpoint: ctx.endpoint }
 
-  if (authType === 'apiKey') {
-    return { ...base, providerSettings: { ...ctx.baseConfig, region, apiKey: getAwsBedrockApiKey() } }
-  }
-  return {
-    ...base,
-    providerSettings: {
-      ...ctx.baseConfig,
-      region,
-      accessKeyId: getAwsBedrockAccessKeyId(),
-      secretAccessKey: getAwsBedrockSecretAccessKey()
+  if (authConfig?.type === 'iam-aws') {
+    return {
+      ...base,
+      providerSettings: {
+        ...ctx.baseConfig,
+        region: authConfig.region,
+        ...(authConfig.accessKeyId && { accessKeyId: authConfig.accessKeyId }),
+        ...(authConfig.secretAccessKey && { secretAccessKey: authConfig.secretAccessKey }),
+      },
     }
   }
+
+  // Fallback: API key auth
+  return { ...base, providerSettings: { ...ctx.baseConfig, region: 'us-east-1' } }
 }
 
-function buildVertexConfig(ctx: BuilderContext): ProviderConfig<'google-vertex'> {
-  if (!isVertexAIConfigured()) {
-    throw new Error('VertexAI is not configured.')
+async function buildVertexConfig(ctx: BuilderContext): Promise<ProviderConfig<'google-vertex'>> {
+  // v2: get full auth config from DB (includes GCP credentials)
+  const authConfig = await providerService.getAuthConfig(ctx.actualProvider.id)
+
+  if (authConfig?.type !== 'iam-gcp') {
+    throw new Error('VertexAI requires iam-gcp auth configuration.')
   }
-  const { project, location, googleCredentials } = createVertexProvider(ctx.actualProvider)
-  const isAnthropic = ctx.aiSdkProviderId === 'google-vertex-anthropic' || ctx.model.id.startsWith('claude')
+
+  const { project, location, credentials } = authConfig
+  const googleCredentials = credentials as Record<string, string> | undefined
+
+  const modelId = ctx.model.apiModelId ?? ctx.model.id
+  const isAnthropic = ctx.aiSdkProviderId === 'google-vertex-anthropic' || modelId.startsWith('claude')
   const baseURL = ctx.baseConfig.baseURL + (isAnthropic ? '/publishers/anthropic/models' : '/publishers/google')
-  const creds = { ...googleCredentials, privateKey: formatPrivateKey(googleCredentials.privateKey) }
+
+  const creds = googleCredentials
+    ? { ...googleCredentials, privateKey: formatPrivateKey(googleCredentials.privateKey ?? '') }
+    : undefined
 
   return {
     providerId: isAnthropic ? 'google-vertex-anthropic' : 'google-vertex',
     endpoint: ctx.endpoint,
-    providerSettings: { ...ctx.baseConfig, baseURL, project, location, googleCredentials: creds }
+    providerSettings: {
+      ...ctx.baseConfig,
+      baseURL,
+      project,
+      location,
+      ...(creds && { googleCredentials: creds }),
+    },
   } as ProviderConfig<'google-vertex'>
 }
 
-function buildCherryinConfig(ctx: BuilderContext): ProviderConfig<'cherryin'> {
-  const cherryinProvider = getProviderById(SystemProviderIds.cherryin)
+async function buildCherryinConfig(ctx: BuilderContext): Promise<ProviderConfig<'cherryin'>> {
+  // v2: look up cherryin provider for anthropic/gemini base URLs
+  let anthropicBaseURL: string | undefined
+  let geminiBaseURL: string | undefined
+  try {
+    const cherryinProvider = await providerService.getByProviderId(SystemProviderIds.cherryin)
+    const anthropicUrl = cherryinProvider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl
+    anthropicBaseURL = anthropicUrl ? anthropicUrl + '/v1' : undefined
+    const geminiUrl = getBaseUrl(cherryinProvider)
+    geminiBaseURL = geminiUrl ? geminiUrl + '/v1beta' : undefined
+  } catch {
+    // CherryIn provider may not exist
+  }
 
   return {
     providerId: 'cherryin',
     endpoint: ctx.endpoint,
     providerSettings: {
       ...ctx.baseConfig,
-      endpointType: ctx.model.endpoint_type,
-      anthropicBaseURL: cherryinProvider ? cherryinProvider.anthropicApiHost + '/v1' : undefined,
-      geminiBaseURL: cherryinProvider ? cherryinProvider.apiHost + '/v1beta' : undefined,
-      headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
-    }
+      endpointType: ctx.model.endpointTypes?.[0] as any,
+      anthropicBaseURL,
+      geminiBaseURL,
+      headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) },
+    },
   }
 }
 
@@ -405,25 +352,26 @@ function formatAzureBaseURL(baseURL: string, forAnthropic: boolean): string {
 }
 
 function buildAzureConfig(ctx: BuilderContext): ProviderConfig<'azure'> {
-  if (ctx.model.id.startsWith('claude')) {
+  const modelId = ctx.model.apiModelId ?? ctx.model.id
+  if (modelId.startsWith('claude')) {
     return {
       providerId: 'azure-anthropic',
       endpoint: ctx.endpoint,
       providerSettings: {
         ...ctx.baseConfig,
         baseURL: formatAzureBaseURL(ctx.baseConfig.baseURL, true),
-        headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
-      }
+        headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) },
+      },
     } as any
   }
 
-  const apiVersion = ctx.actualProvider.apiVersion?.trim()
+  const apiVersion = ctx.actualProvider.settings?.apiVersion?.trim()
   const useResponsesMode = apiVersion && ['preview', 'v1'].includes(apiVersion)
 
   const providerSettings: any = {
     ...ctx.baseConfig,
     baseURL: formatAzureBaseURL(ctx.baseConfig.baseURL, false),
-    headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
+    headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) },
   }
 
   if (apiVersion) {
@@ -436,7 +384,7 @@ function buildAzureConfig(ctx: BuilderContext): ProviderConfig<'azure'> {
   return {
     providerId: useResponsesMode ? 'azure-responses' : 'azure',
     endpoint: ctx.endpoint,
-    providerSettings
+    providerSettings,
   } as ProviderConfig<'azure'>
 }
 
@@ -446,7 +394,7 @@ function buildOpenAICompatibleConfig(ctx: BuilderContext): ProviderConfig<'opena
   return {
     providerId: 'openai-compatible',
     endpoint: ctx.endpoint,
-    providerSettings: { ...ctx.baseConfig, ...commonOptions, name: ctx.actualProvider.id }
+    providerSettings: { ...ctx.baseConfig, ...commonOptions, name: ctx.actualProvider.id },
   }
 }
 
@@ -456,7 +404,7 @@ function buildGenericProviderConfig(ctx: BuilderContext): ProviderConfig {
   return {
     providerId: ctx.aiSdkProviderId as StringKeys<AppProviderSettingsMap>,
     endpoint: ctx.endpoint,
-    providerSettings: { ...ctx.baseConfig, ...commonOptions }
+    providerSettings: { ...ctx.baseConfig, ...commonOptions },
   }
 }
 
@@ -466,8 +414,8 @@ function buildAiHubMixConfig(ctx: BuilderContext): ProviderConfig<'aihubmix'> {
     endpoint: ctx.endpoint,
     providerSettings: {
       ...ctx.baseConfig,
-      headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
-    }
+      headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) },
+    },
   }
 }
 
@@ -480,8 +428,8 @@ function buildNewApiConfig(ctx: BuilderContext): ProviderConfig<'newapi'> {
     providerSettings: {
       ...ctx.baseConfig,
       baseURL,
-      endpointType: ctx.model.endpoint_type,
-      headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
-    }
+      endpointType: ctx.model.endpointTypes?.[0] as any,
+      headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) },
+    },
   }
 }

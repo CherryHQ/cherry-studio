@@ -1,7 +1,8 @@
 import { extensionRegistry } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
 import { isAzureOpenAIProvider, isAzureResponsesEndpoint } from '@shared/config/providerChecks'
-import { type Provider, SystemProviderIds } from '@types'
+import type { Provider } from '@shared/data/types/provider'
+import { SystemProviderIds } from '@types'
 
 import { type AppProviderId, appProviderIds } from '../types'
 import { extensions } from './extensions'
@@ -15,16 +16,13 @@ for (const extension of extensions) {
 }
 
 /**
- * 获取 AI SDK Provider ID
+ * Get AI SDK Provider ID from a v2 Provider.
  *
- * 使用运行时类型安全的 appProviderIds 统一解析
- * 特殊处理 Azure 端点检测和 OpenAI API 域名检测
- *
- * @param provider - Provider 配置对象
- * @returns AI SDK 标准 provider ID
+ * Uses provider.id for direct lookup, provider.presetProviderId as fallback
+ * (replaces old provider.type), and endpoint baseUrl for OpenAI domain detection.
  */
 export function getAiSdkProviderId(provider: Provider): AppProviderId {
-  // 1. 特殊处理：Azure 的 responses 端点检测（必须在别名解析之前）
+  // 1. Azure responses endpoint detection
   if (isAzureOpenAIProvider(provider)) {
     return isAzureResponsesEndpoint(provider) ? appProviderIds['azure-responses'] : appProviderIds.azure
   }
@@ -33,22 +31,42 @@ export function getAiSdkProviderId(provider: Provider): AppProviderId {
     return appProviderIds['xai-responses']
   }
 
+  // 2. Direct ID match
   if (provider.id in appProviderIds) {
     return appProviderIds[provider.id]
   }
 
-  if (provider.type !== 'openai' && provider.type in appProviderIds) {
-    return appProviderIds[provider.type]
+  // 3. Fallback to presetProviderId (v2 replacement for provider.type)
+  const presetId = provider.presetProviderId
+  if (presetId && presetId !== 'openai' && presetId in appProviderIds) {
+    return appProviderIds[presetId]
   }
 
-  if (provider.apiHost.includes('api.openai.com')) {
+  // 4. Detect OpenAI by endpoint baseUrl
+  const baseUrl = getBaseUrlFromProvider(provider)
+  if (baseUrl.includes('api.openai.com')) {
     return appProviderIds['openai-chat']
   }
 
   logger.warn('Provider ID not found in registered extensions, using as-is', {
     providerId: provider.id,
-    providerType: provider.type,
-    registeredIds: Object.keys(appProviderIds)
+    presetProviderId: provider.presetProviderId,
+    registeredIds: Object.keys(appProviderIds),
   })
   return provider.id
+}
+
+/** Extract base URL from v2 Provider's endpoint configs */
+function getBaseUrlFromProvider(provider: Provider): string {
+  const endpoint = provider.defaultChatEndpoint
+  if (endpoint && provider.endpointConfigs?.[endpoint]?.baseUrl) {
+    return provider.endpointConfigs[endpoint].baseUrl
+  }
+  // Fallback: try any endpoint config
+  if (provider.endpointConfigs) {
+    for (const config of Object.values(provider.endpointConfigs)) {
+      if (config?.baseUrl) return config.baseUrl
+    }
+  }
+  return ''
 }

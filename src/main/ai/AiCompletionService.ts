@@ -1,8 +1,11 @@
 import { createAgent, embedMany as aiCoreEmbedMany, generateImage as aiCoreGenerateImage } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
+import { modelService } from '@main/data/services/ModelService'
+import { providerService } from '@main/data/services/ProviderService'
 import { reduxService } from '@main/services/ReduxService'
-import type { Assistant, Model, Provider } from '@types'
+import type { Model } from '@shared/data/types/model'
+import type { Assistant } from '@types'
 import type {
   ChatTransport,
   EmbeddingModelUsage,
@@ -15,7 +18,7 @@ import type {
 
 import { type AgentOptions, runAgentLoop } from './agentLoop'
 import { buildPlugins } from './plugins/PluginBuilder'
-import { adaptProvider, providerToAiSdkConfig } from './provider/providerConfig'
+import { providerToAiSdkConfig } from './provider/providerConfig'
 import { listModels as listModelsFromProvider } from './services/listModels'
 import { registerMcpTools } from './tools/mcpTools'
 import type { ToolRegistry } from './tools/ToolRegistry'
@@ -223,8 +226,8 @@ export class AiCompletionService {
 
   // ── Model listing ──
 
-  async listModels(request: AiBaseRequest): Promise<Model[]> {
-    const { provider } = await this.resolveFromRedux(request)
+  async listModels(request: AiBaseRequest): Promise<Partial<Model>[]> {
+    const { provider } = await this.getProviderAndModel(request)
     return listModelsFromProvider(provider)
   }
 
@@ -245,12 +248,11 @@ export class AiCompletionService {
   // ── Shared agent parameter resolution ──
 
   private async buildAgentParams(request: AiBaseRequest) {
-    const { provider, model, assistant } = await this.resolveFromRedux(request)
+    const { provider, model, assistant } = await this.getProviderAndModel(request)
 
-    const adapted = adaptProvider({ provider })
     const sdkConfig = {
-      ...(await providerToAiSdkConfig(adapted, model)),
-      modelId: model.id
+      ...(await providerToAiSdkConfig(provider, model)),
+      modelId: model.apiModelId ?? model.id,
     }
 
     // Register MCP tools on-demand, then resolve
@@ -277,7 +279,7 @@ export class AiCompletionService {
   // ── Token usage tracking ──
 
   private trackUsage(model: Model, usage?: { inputTokens?: number; outputTokens?: number }): void {
-    if (!usage || !model.provider || !model.id) return
+    if (!usage || !model.providerId || !model.apiModelId) return
     const inputTokens = usage.inputTokens ?? 0
     const outputTokens = usage.outputTokens ?? 0
     if (inputTokens === 0 && outputTokens === 0) return
@@ -285,8 +287,8 @@ export class AiCompletionService {
     try {
       const analyticsService = application.get('AnalyticsService')
       analyticsService.trackTokenUsage({
-        provider: model.provider,
-        model: model.id,
+        provider: model.providerId,
+        model: model.apiModelId ?? model.id,
         input_tokens: inputTokens,
         output_tokens: outputTokens
       })
@@ -295,10 +297,13 @@ export class AiCompletionService {
     }
   }
 
-  /** Resolve provider + model from Redux. Priority: explicit > assistant.model */
-  private async resolveFromRedux(request: AiBaseRequest) {
-    const providers = await reduxService.select<Provider[]>('state.llm.providers')
-
+  /**
+   * Get provider + model for this request.
+   * Provider/model from v2 DataApi (SQLite). Assistant still from Redux (not yet migrated).
+   * Priority: explicit providerId/modelId > assistant.model
+   */
+  private async getProviderAndModel(request: AiBaseRequest) {
+    // Assistant still in Redux (TODO: migrate to DataApi)
     let assistant: Assistant | undefined
     if (request.assistantId) {
       const assistants = await reduxService.select<Assistant[]>('state.assistants.assistants')
@@ -308,14 +313,12 @@ export class AiCompletionService {
     const providerId = request.providerId ?? assistant?.model?.provider
     if (!providerId) throw new Error('Cannot resolve providerId: not in request and assistant has no model')
 
-    const provider = providers.find((p: Provider) => p.id === providerId)
-    if (!provider) throw new Error(`Provider not found: ${providerId}`)
-
     const modelId = request.modelId ?? assistant?.model?.id
     if (!modelId) throw new Error('Cannot resolve modelId: not in request and assistant has no model')
 
-    const model = provider.models?.find((m: Model) => m.id === modelId)
-    if (!model) throw new Error(`Model not found: ${modelId} in provider ${providerId}`)
+    // Provider/model from v2 DataApi (SQLite)
+    const provider = await providerService.getByProviderId(providerId)
+    const model = await modelService.getByKey(providerId, modelId)
 
     return { provider, model, assistant }
   }
