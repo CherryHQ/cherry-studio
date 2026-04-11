@@ -316,8 +316,9 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
           // models under their apiModelId for O(1) lookup from the fetched side.
           const resolvedMap = new Map<string, Model>()
           for (const model of resolved as Model[]) {
-            if (!resolvedMap.has(model.apiModelId)) {
-              resolvedMap.set(model.apiModelId, model)
+            const key = model.apiModelId ?? parseUniqueModelId(model.id).modelId
+            if (!resolvedMap.has(key)) {
+              resolvedMap.set(key, model)
             }
           }
 

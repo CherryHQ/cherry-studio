@@ -6,7 +6,7 @@ import { endpointTypeOptions } from '@renderer/config/endpointTypes'
 import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
 import { getDefaultGroupName } from '@renderer/utils'
 import { isNewApiProvider } from '@renderer/utils/provider.v2'
-import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { FormProps } from 'antd'
 import { Form, Input, Modal, Select } from 'antd'
@@ -64,7 +64,8 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, model, endp
       modelId,
       name: values.name ? values.name : modelId.toUpperCase(),
       group: values.group ?? getDefaultGroupName(modelId),
-      endpointTypes: isNewApiProvider(provider) && values.endpointType ? [values.endpointType as string] : undefined
+      endpointTypes:
+        isNewApiProvider(provider) && values.endpointType ? [values.endpointType as EndpointType] : undefined
     })
 
     return true

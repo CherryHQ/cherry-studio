@@ -26,11 +26,12 @@ const VertexAISettings: FC<Props> = ({ providerId }) => {
   const [localClientEmail, setLocalClientEmail] = useState(credentials?.clientEmail ?? '')
 
   useEffect(() => {
-    if (gcpConfig) {
-      setLocalProjectId(gcpConfig.project ?? '')
-      setLocalLocation(gcpConfig.location ?? '')
-      setLocalPrivateKey((gcpConfig.credentials as Record<string, string> | undefined)?.privateKey ?? '')
-      setLocalClientEmail((gcpConfig.credentials as Record<string, string> | undefined)?.clientEmail ?? '')
+    const config = authConfig?.type === 'iam-gcp' ? authConfig : null
+    if (config) {
+      setLocalProjectId(config.project ?? '')
+      setLocalLocation(config.location ?? '')
+      setLocalPrivateKey((config.credentials as Record<string, string> | undefined)?.privateKey ?? '')
+      setLocalClientEmail((config.credentials as Record<string, string> | undefined)?.clientEmail ?? '')
     }
   }, [authConfig])
 

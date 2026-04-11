@@ -28,10 +28,11 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
   const [localRegion, setLocalRegion] = useState(awsConfig?.region ?? '')
 
   useEffect(() => {
-    if (awsConfig) {
-      setLocalAccessKeyId(awsConfig.accessKeyId ?? '')
-      setLocalSecretAccessKey(awsConfig.secretAccessKey ?? '')
-      setLocalRegion(awsConfig.region ?? '')
+    const config = authConfig?.type === 'iam-aws' ? authConfig : null
+    if (config) {
+      setLocalAccessKeyId(config.accessKeyId ?? '')
+      setLocalSecretAccessKey(config.secretAccessKey ?? '')
+      setLocalRegion(config.region ?? '')
     }
   }, [authConfig])
 
