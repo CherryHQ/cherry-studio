@@ -15,6 +15,7 @@ import { type FetchChatCompletionParams, getEffectiveMcpMode, isSystemProvider }
 import { type Chunk, ChunkType } from '@renderer/types/chunk'
 import type { Message } from '@renderer/types/newMessage'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
+import { trackTokenUsage } from '@renderer/utils/analytics'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/assistant'
 import { getErrorMessage } from '@renderer/utils/error'

@@ -7,6 +7,7 @@
  */
 
 import { formatPrivateKey, hasProviderConfig, type StringKeys } from '@cherrystudio/ai-core/provider'
+import type { CherryInProviderSettings } from '@cherrystudio/ai-sdk-provider'
 import { providerService } from '@main/data/services/ProviderService'
 import { generateSignature } from '@main/integration/cherryai'
 import { anthropicService } from '@main/services/AnthropicService'
@@ -267,6 +268,26 @@ async function buildVertexConfig(ctx: BuilderContext): Promise<ProviderConfig<'g
   } as ProviderConfig<'google-vertex'>
 }
 
+function mapCherryinEndpointType(epType: string | undefined): CherryInProviderSettings['endpointType'] {
+  if (!epType) return undefined
+
+  switch (epType) {
+    case ENDPOINT_TYPE.ANTHROPIC_MESSAGES:
+      return 'anthropic'
+    case ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT:
+      return 'gemini'
+    case ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS:
+    case ENDPOINT_TYPE.OLLAMA_CHAT:
+      return 'openai'
+    case ENDPOINT_TYPE.OPENAI_RESPONSES:
+      return 'openai-response'
+    case ENDPOINT_TYPE.JINA_RERANK:
+      return 'jina-rerank'
+    default:
+      return undefined
+  }
+}
+
 async function buildCherryinConfig(ctx: BuilderContext): Promise<ProviderConfig> {
   // v2: look up cherryin provider for anthropic/gemini base URLs
   let anthropicBaseURL: string | undefined
@@ -281,21 +302,20 @@ async function buildCherryinConfig(ctx: BuilderContext): Promise<ProviderConfig>
     // CherryIn provider may not exist
   }
 
-  // Route to cherryin-chat variant for models that use chat completions endpoint
   const endpointType = ctx.model.endpointTypes?.[0]
-  const useChatVariant =
-    !endpointType || endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS || endpointType === ENDPOINT_TYPE.OLLAMA_CHAT
+  const cherryinEndpointType = mapCherryinEndpointType(endpointType)
+  const useChatVariant = !cherryinEndpointType || cherryinEndpointType === 'openai'
 
   return {
     providerId: useChatVariant ? 'cherryin-chat' : 'cherryin',
     endpoint: ctx.endpoint,
     providerSettings: {
       ...ctx.baseConfig,
-      endpointType: endpointType as any,
+      endpointType: cherryinEndpointType,
       anthropicBaseURL,
       geminiBaseURL,
-      headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) },
-    },
+      headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
+    }
   }
 }
 
