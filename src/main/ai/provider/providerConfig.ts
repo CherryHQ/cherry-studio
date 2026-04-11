@@ -284,7 +284,7 @@ function mapCherryinEndpointType(epType: string | undefined): CherryInProviderSe
     case ENDPOINT_TYPE.JINA_RERANK:
       return 'jina-rerank'
     default:
-      return undefined
+      return 'openai'
   }
 }
 
