@@ -1,3 +1,4 @@
+import { OllamaEmbeddings } from '@cherrystudio/embedjs-ollama'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { fetchMock } = vi.hoisted(() => {
@@ -6,20 +7,14 @@ const { fetchMock } = vi.hoisted(() => {
   return { fetchMock }
 })
 
-vi.mock('electron', () => ({
-  net: {
-    fetch: fetchMock
-  }
-}))
-
-import { OllamaEmbeddings } from '../OllamaEmbeddings'
-
 describe('OllamaEmbeddings', () => {
   beforeEach(() => {
     fetchMock.mockReset()
+    vi.stubGlobal('fetch', fetchMock)
   })
 
   afterEach(() => {
+    vi.unstubAllGlobals()
     vi.clearAllMocks()
   })
 
