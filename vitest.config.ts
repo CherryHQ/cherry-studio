@@ -90,6 +90,18 @@ export default defineConfig({
           }
         }
       },
+      // vectorstores 包单元测试配置
+      {
+        extends: true,
+        test: {
+          name: 'vectorstores',
+          environment: 'node',
+          include: [
+            'packages/vectorstores/**/*.{test,spec}.{ts,tsx}',
+            'packages/vectorstores/**/__tests__/**/*.{test,spec}.{ts,tsx}'
+          ]
+        }
+      },
       // packages/ui 单元测试配置
       {
         extends: true,

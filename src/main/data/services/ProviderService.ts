@@ -161,7 +161,7 @@ class ProviderService {
   }
 
   /**
-   * Batch insert providers (used by PresetProviderSeed for preset seeding).
+   * Batch insert providers (used by PresetProviderSeeder for preset seeding).
    * Insert-only — existing providers are silently skipped via onConflictDoNothing.
    * All user-customizable fields are preserved.
    */
