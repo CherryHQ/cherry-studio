@@ -25,6 +25,7 @@ import { TopicType } from '@renderer/pages/home/Inputbar/types'
 import { isSoulModeEnabled } from '@renderer/pages/settings/AgentSettings/shared'
 import { CacheService } from '@renderer/services/CacheService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import FileManager from '@renderer/services/FileManager'
 import { pauseTrace } from '@renderer/services/SpanManagerService'
 import { estimateUserPromptUsage } from '@renderer/services/TokenService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
@@ -37,7 +38,7 @@ import { MessageBlockStatus } from '@renderer/types/newMessage'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
-import { createMainTextBlock, createMessage } from '@renderer/utils/messageUtils/create'
+import { createImageBlock, createMainTextBlock, createMessage } from '@renderer/utils/messageUtils/create'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import type { FC } from 'react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -387,10 +388,31 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
     try {
       const userMessageId = uuid()
 
-      // For agent sessions, append file paths to the text content instead of uploading files
+      // Process files: separate images from other files
+      const imageFiles = files.filter(
+        (f) =>
+          f.type?.startsWith('image/') ||
+          ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'].some((ext) => f.name?.toLowerCase().endsWith(ext))
+      )
+      const otherFiles = files.filter((f) => !imageFiles.includes(f))
+
+      // Convert images to base64
+      const images: Array<{ data: string; media_type: string }> = []
+      for (const imgFile of imageFiles) {
+        try {
+          const base64Data = await FileManager.readBase64File(imgFile)
+          // Extract media type from file extension or file.type
+          const mediaType = imgFile.type || (imgFile.ext ? `image/${imgFile.ext.replace('.', '')}` : 'image/png')
+          images.push({ data: base64Data, media_type: mediaType })
+        } catch (err) {
+          logger.error('Failed to read image file:', err as Error)
+        }
+      }
+
+      // For agent sessions, append non-image file paths to the text content
       let messageText = text
-      if (files.length > 0) {
-        const filePaths = files.map((file) => file.path).join('\n')
+      if (otherFiles.length > 0) {
+        const filePaths = otherFiles.map((file) => file.path).join('\n')
         messageText = text ? `${text}\n\nAttached files:\n${filePaths}` : `Attached files:\n${filePaths}`
       }
 
@@ -398,6 +420,15 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
         status: MessageBlockStatus.SUCCESS
       })
       const userMessageBlocks: MessageBlock[] = [mainBlock]
+
+      // Add image blocks for display in UI
+      for (const imgFile of imageFiles) {
+        const imgBlock = createImageBlock(userMessageId, {
+          file: imgFile,
+          status: MessageBlockStatus.SUCCESS
+        })
+        userMessageBlocks.push(imgBlock)
+      }
 
       // Calculate token usage for the user message
       const usage = await estimateUserPromptUsage({ content: text })
@@ -421,6 +452,7 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
         dispatchSendMessage(userMessage, userMessageBlocks, assistant, sessionTopicId, {
           agentId,
           sessionId,
+          images,
           ...thinkingParams
         })
       )

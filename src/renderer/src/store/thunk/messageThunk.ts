@@ -96,6 +96,7 @@ type AgentSessionContext = {
   agentSessionId?: string
   effort?: AgentEffort
   thinking?: AgentThinkingConfig
+  images?: Array<{ data: string; media_type: string }>
 }
 
 const agentSessionRenameLocks = new Set<string>()
@@ -409,7 +410,8 @@ const createAgentMessageStream = async (
     body: JSON.stringify({
       content,
       ...(agentSession.effort ? { effort: agentSession.effort } : {}),
-      ...(agentSession.thinking ? { thinking: agentSession.thinking } : {})
+      ...(agentSession.thinking ? { thinking: agentSession.thinking } : {}),
+      ...(agentSession.images && agentSession.images.length > 0 ? { images: agentSession.images } : {})
     }),
     signal
   })
