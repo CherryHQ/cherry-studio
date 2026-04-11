@@ -84,7 +84,6 @@ const HomePage: FC = () => {
       if (newAssistant.id === activeAssistant?.id) return
       startTransition(() => {
         _setActiveAssistant(newAssistant)
-        // 同步更新 active topic，避免不必要的重新渲染
         const newTopic = newAssistant.topics[0]
         _setActiveTopic((prev) => (newTopic?.id === prev.id ? prev : newTopic))
       })

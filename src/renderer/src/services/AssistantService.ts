@@ -280,6 +280,7 @@ export function getAssistantById(id: string) {
 export async function createAssistantFromAgent(agent: AssistantPreset) {
   const assistantId = uuid()
   const topic = getDefaultTopic(assistantId)
+  const resolvedDefaultModel = agent.defaultModel ?? getDefaultModel()
 
   const assistant: Assistant = {
     ...agent,
@@ -287,7 +288,8 @@ export async function createAssistantFromAgent(agent: AssistantPreset) {
     name: agent.name,
     emoji: agent.emoji,
     topics: [topic],
-    model: agent.defaultModel,
+    model: agent.defaultModel ?? resolvedDefaultModel,
+    defaultModel: resolvedDefaultModel,
     type: 'assistant',
     regularPhrases: agent.regularPhrases || [], // Ensured regularPhrases
     settings: agent.settings || DEFAULT_ASSISTANT_SETTINGS

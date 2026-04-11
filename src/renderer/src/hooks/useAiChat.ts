@@ -25,6 +25,10 @@ export interface UseAiChatOptions {
   topicId: string
   /** Assistant ID for CreateMessageDto. */
   assistantId?: string
+  /** Explicit provider ID for Main-side model resolution. */
+  providerId?: string
+  /** Explicit model ID for Main-side model resolution. */
+  modelId?: string
   /** Pre-existing messages to populate the chat. */
   initialMessages?: CherryUIMessage[]
   /** Called when an assistant message finishes streaming. */
@@ -57,6 +61,8 @@ export function useAiChat(options: UseAiChatOptions): UseAiChatReturn {
     chatId,
     topicId,
     assistantId,
+    providerId,
+    modelId,
     initialMessages,
     onFinish: onFinishCallback,
     onError: onErrorCallback
@@ -79,22 +85,22 @@ export function useAiChat(options: UseAiChatOptions): UseAiChatReturn {
   // Destructure for stable useCallback references
   const { sendMessage: chatSendMessage, regenerate: chatRegenerate } = chat
 
-  /** Inject topicId/assistantId into body for every sendMessage call. */
+  /** Inject topic/model context into body for every sendMessage call. */
   const sendMessage: UseChatHelpers<CherryUIMessage>['sendMessage'] = useCallback(
     (message, options_) => {
-      const mergedBody = { topicId, assistantId, ...options_?.body }
+      const mergedBody = { topicId, assistantId, providerId, modelId, ...options_?.body }
       return chatSendMessage(message, { ...options_, body: mergedBody })
     },
-    [chatSendMessage, topicId, assistantId]
+    [chatSendMessage, topicId, assistantId, providerId, modelId]
   )
 
-  /** Inject topicId/assistantId into body for every regenerate call. */
+  /** Inject topic/model context into body for every regenerate call. */
   const regenerate = useCallback(
     (messageId?: string, requestOptions?: ChatRequestOptions) => {
-      const mergedBody = { topicId, assistantId, ...requestOptions?.body }
+      const mergedBody = { topicId, assistantId, providerId, modelId, ...requestOptions?.body }
       return chatRegenerate({ messageId, ...requestOptions, body: mergedBody })
     },
-    [chatRegenerate, topicId, assistantId]
+    [chatRegenerate, topicId, assistantId, providerId, modelId]
   )
 
   return { ...chat, sendMessage, regenerate }

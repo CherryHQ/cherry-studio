@@ -93,7 +93,7 @@ describe('useAiChat', () => {
   it('should inject topicId and assistantId into sendMessage body', () => {
     const { result } = renderHook(() => useAiChat({ chatId: 'chat-1', topicId: 'topic-abc', assistantId: 'asst-42' }))
 
-    result.current.sendMessage({ text: 'hello' })
+    void result.current.sendMessage({ text: 'hello' })
 
     expect(mockSendMessage).toHaveBeenCalledWith(
       { text: 'hello' },
@@ -103,10 +103,36 @@ describe('useAiChat', () => {
     )
   })
 
+  it('should inject providerId and modelId into sendMessage body', () => {
+    const { result } = renderHook(() =>
+      useAiChat({
+        chatId: 'chat-1',
+        topicId: 'topic-abc',
+        assistantId: 'asst-42',
+        providerId: 'openai',
+        modelId: 'gpt-4o'
+      })
+    )
+
+    void result.current.sendMessage({ text: 'hello' })
+
+    expect(mockSendMessage).toHaveBeenCalledWith(
+      { text: 'hello' },
+      expect.objectContaining({
+        body: expect.objectContaining({
+          topicId: 'topic-abc',
+          assistantId: 'asst-42',
+          providerId: 'openai',
+          modelId: 'gpt-4o'
+        })
+      })
+    )
+  })
+
   it('should merge per-call body with static topicId/assistantId in sendMessage', () => {
     const { result } = renderHook(() => useAiChat({ chatId: 'chat-1', topicId: 'topic-1', assistantId: 'asst-1' }))
 
-    result.current.sendMessage({ text: 'hi' }, { body: { files: ['f1'] } })
+    void result.current.sendMessage({ text: 'hi' }, { body: { files: ['f1'] } })
 
     const callArgs = mockSendMessage.mock.calls[0]
     expect(callArgs[1].body).toEqual({
@@ -125,6 +151,32 @@ describe('useAiChat', () => {
       expect.objectContaining({
         messageId: 'msg-99',
         body: expect.objectContaining({ topicId: 'topic-1', assistantId: 'asst-1' })
+      })
+    )
+  })
+
+  it('should inject providerId and modelId into regenerate body', async () => {
+    const { result } = renderHook(() =>
+      useAiChat({
+        chatId: 'chat-1',
+        topicId: 'topic-1',
+        assistantId: 'asst-1',
+        providerId: 'anthropic',
+        modelId: 'claude-sonnet-4-20250514'
+      })
+    )
+
+    await result.current.regenerate('msg-99')
+
+    expect(mockRegenerate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messageId: 'msg-99',
+        body: expect.objectContaining({
+          topicId: 'topic-1',
+          assistantId: 'asst-1',
+          providerId: 'anthropic',
+          modelId: 'claude-sonnet-4-20250514'
+        })
       })
     )
   })
