@@ -640,13 +640,14 @@ class ClawServer {
     const installed = await skillService.install({
       installSource: `claude-plugins:${identifier}`
     })
+    const enabled = await skillService.toggle({ skillId: installed.id, isEnabled: true })
 
     logger.info('Skill installed via tool', { agentId: this.agentId, identifier, name: installed.name })
     return {
       content: [
         {
           type: 'text' as const,
-          text: `Skill installed:\n  Name: ${installed.name}\n  Description: ${installed.description ?? 'N/A'}\n  Folder: ${installed.folderName}`
+          text: `Skill installed and enabled:\n  Name: ${installed.name}\n  Description: ${installed.description ?? 'N/A'}\n  Folder: ${installed.folderName}\n  Enabled: ${enabled?.isEnabled ?? true}`
         }
       ]
     }
