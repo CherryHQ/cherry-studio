@@ -17,7 +17,7 @@ import { checkApi } from '@renderer/services/ApiService'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
 import { useAppDispatch } from '@renderer/store'
 import { updateWebSearchProvider } from '@renderer/store/websearch'
-import type { Model as V1Model, SystemProviderId } from '@renderer/types'
+import type { SystemProviderId } from '@renderer/types'
 import { isSystemProviderId, SystemProviderIds } from '@renderer/types'
 import type { ApiKeyConnectivity } from '@renderer/types/healthCheck'
 import { HealthStatus } from '@renderer/types/healthCheck'
@@ -39,7 +39,7 @@ import {
   isSystemProvider,
   isVertexProvider
 } from '@renderer/utils/provider.v2'
-import { toV1ProviderShim } from '@renderer/utils/v1ProviderShim'
+import { toV1ModelForCheckApi, toV1ProviderShim } from '@renderer/utils/v1ProviderShim'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { Divider, Input, Select, Space } from 'antd'
@@ -329,7 +329,7 @@ const ProviderSettingContent: FC<ContentProps> = ({ provider, providerId, isOnbo
         apiKey: formattedLocalKey,
         apiHost
       })
-      await checkApi(v1ProviderForCheck, model as unknown as V1Model)
+      await checkApi(v1ProviderForCheck, toV1ModelForCheckApi(model))
 
       window.toast.success({
         timeout: 2000,

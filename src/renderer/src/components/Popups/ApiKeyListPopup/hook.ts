@@ -3,13 +3,13 @@ import { isEmbeddingModel, isRerankModel } from '@renderer/config/models/v2'
 import SelectProviderModelPopup from '@renderer/pages/settings/ProviderSettings/SelectProviderModelPopup'
 import { checkApi } from '@renderer/services/ApiService'
 import { webSearchService } from '@renderer/services/WebSearchService'
-import type { Model as V1Model, PreprocessProvider, WebSearchProvider } from '@renderer/types'
+import type { PreprocessProvider, WebSearchProvider } from '@renderer/types'
 import { isPreprocessProviderId, isWebSearchProviderId } from '@renderer/types'
 import type { ApiKeyConnectivity, ApiKeyWithStatus } from '@renderer/types/healthCheck'
 import { HealthStatus } from '@renderer/types/healthCheck'
 import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'
 import { serializeHealthCheckError } from '@renderer/utils/error'
-import { toV1ProviderShim } from '@renderer/utils/v1ProviderShim'
+import { toV1ModelForCheckApi, toV1ProviderShim } from '@renderer/utils/v1ProviderShim'
 import type { Model } from '@shared/data/types/model'
 import type { TFunction } from 'i18next'
 import { isEmpty } from 'lodash'
@@ -207,7 +207,7 @@ export function useApiKeys({ provider, updateProvider }: UseApiKeysProps) {
             models: provider.models,
             apiKey: keyToCheck
           })
-          await checkApi(v1ProviderForCheck, model as unknown as V1Model)
+          await checkApi(v1ProviderForCheck, toV1ModelForCheckApi(model))
         } else if (isWebSearchProvider(provider)) {
           const result = await webSearchService.checkSearch({ ...provider, apiKey: keyToCheck })
           if (!result.valid) throw new Error(result.error)
