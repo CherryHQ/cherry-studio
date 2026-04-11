@@ -1,24 +1,21 @@
 import type { Assistant, Topic } from '@renderer/types'
-import { ChunkType } from '@renderer/types/chunk'
-import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
+import {
+  AssistantMessageStatus,
+  type ErrorMessageBlock,
+  type MainTextMessageBlock,
+  type Message,
+  MessageBlockStatus,
+  MessageBlockType,
+  type ThinkingMessageBlock
+} from '@renderer/types/newMessage'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
-import { processMessages } from '../ActionUtils'
+const sendMessagesMock = vi.hoisted(() => vi.fn())
 
-// Mock all dependencies
-vi.mock('@renderer/services/ApiService', () => ({
-  fetchChatCompletion: vi.fn()
-}))
-
-vi.mock('@renderer/services/ConversationService', () => ({
-  ConversationService: class {
-    static async prepareMessagesForModel() {
-      return {
-        modelMessages: [{ role: 'user', content: 'test prompt' }],
-        uiMessages: [{ id: 'user-message-1', role: 'user', content: 'test prompt' }]
-      }
-    }
-  }
+vi.mock('@renderer/transport/IpcChatTransport', () => ({
+  IpcChatTransport: vi.fn(() => ({
+    sendMessages: sendMessagesMock
+  }))
 }))
 
 vi.mock('@renderer/services/MessagesService', () => ({
@@ -26,28 +23,9 @@ vi.mock('@renderer/services/MessagesService', () => ({
   getAssistantMessage: vi.fn()
 }))
 
-vi.mock('@renderer/store', () => ({
-  default: {
-    dispatch: vi.fn()
-  }
-}))
-
-vi.mock('@renderer/store/messageBlock', () => ({
-  updateOneBlock: vi.fn(),
-  upsertManyBlocks: vi.fn(),
-  upsertOneBlock: vi.fn()
-}))
-
-vi.mock('@renderer/store/newMessage', () => ({
-  newMessagesActions: {
-    addMessage: vi.fn(),
-    updateMessage: vi.fn()
-  }
-}))
-
-vi.mock('@renderer/store/thunk/messageThunk', () => ({
-  cancelThrottledBlockUpdate: vi.fn(),
-  throttledBlockUpdate: vi.fn()
+vi.mock('@renderer/utils/abortController', () => ({
+  addAbortController: vi.fn(),
+  removeAbortController: vi.fn()
 }))
 
 vi.mock('@renderer/utils/error', () => ({
@@ -62,40 +40,35 @@ vi.mock('@renderer/utils/messageUtils/create', () => ({
   createErrorBlock: vi.fn()
 }))
 
-vi.mock('@renderer/config/models', () => ({
-  SYSTEM_MODELS: {
-    defaultModel: [
-      { id: 'gpt-4', name: 'GPT-4' },
-      { id: 'gpt-4', name: 'GPT-4' },
-      { id: 'gpt-4', name: 'GPT-4' }
-    ],
-    silicon: [],
-    openai: [],
-    anthropic: [],
-    gemini: []
-  }
-}))
-
-// Import mocked modules
-import { fetchChatCompletion } from '@renderer/services/ApiService'
 import { getAssistantMessage, getUserMessage } from '@renderer/services/MessagesService'
-import store from '@renderer/store'
-import { updateOneBlock } from '@renderer/store/messageBlock'
-import { newMessagesActions } from '@renderer/store/newMessage'
-import { cancelThrottledBlockUpdate, throttledBlockUpdate } from '@renderer/store/thunk/messageThunk'
+import { addAbortController } from '@renderer/utils/abortController'
 import { formatErrorMessage, isAbortError } from '@renderer/utils/error'
 import { createErrorBlock, createMainTextBlock, createThinkingBlock } from '@renderer/utils/messageUtils/create'
+
+import { type ActionSessionSnapshot, processMessages } from '../ActionUtils'
+
+function createStream(chunks: any[]) {
+  return new ReadableStream({
+    start(controller) {
+      for (const chunk of chunks) {
+        controller.enqueue(chunk)
+      }
+      controller.close()
+    }
+  })
+}
 
 describe('processMessages', () => {
   let mockAssistant: Assistant
   let mockTopic: Topic
   let mockSetAskId: Mock
+  let mockOnSessionUpdate: Mock
   let mockOnStream: Mock
   let mockOnFinish: Mock
   let mockOnError: Mock
+  let registeredAbortFn: (() => void) | undefined
 
   beforeEach(() => {
-    // Setup mock data
     mockAssistant = {
       id: 'assistant-1',
       name: 'Test Assistant',
@@ -115,485 +88,338 @@ describe('processMessages', () => {
       name: 'Test Topic'
     } as Topic
 
-    // Setup mock callbacks
     mockSetAskId = vi.fn()
+    mockOnSessionUpdate = vi.fn()
     mockOnStream = vi.fn()
     mockOnFinish = vi.fn()
     mockOnError = vi.fn()
 
-    // Reset all mocks
     vi.clearAllMocks()
 
-    // Setup default mock implementations
     vi.mocked(getUserMessage).mockReturnValue({
-      message: { id: 'user-message-1', role: 'user', content: 'test prompt' },
+      message: {
+        id: 'user-message-1',
+        role: 'user',
+        assistantId: 'assistant-1',
+        topicId: 'topic-1',
+        createdAt: new Date().toISOString(),
+        status: 'success',
+        blocks: []
+      },
       blocks: []
     } as any)
 
     vi.mocked(getAssistantMessage).mockReturnValue({
       id: 'assistant-message-1',
       role: 'assistant',
-      content: ''
-    } as any)
+      assistantId: 'assistant-1',
+      topicId: 'topic-1',
+      createdAt: new Date().toISOString(),
+      status: AssistantMessageStatus.PENDING,
+      blocks: []
+    } as Message)
 
-    vi.mocked(createThinkingBlock).mockReturnValue({
-      id: 'thinking-block-1',
-      content: '',
-      status: MessageBlockStatus.STREAMING
-    } as any)
+    vi.mocked(createThinkingBlock).mockImplementation(
+      (messageId: string, content = '', options?: { status?: MessageBlockStatus }) =>
+        ({
+          id: 'thinking-block-1',
+          messageId,
+          type: MessageBlockType.THINKING,
+          createdAt: new Date().toISOString(),
+          content,
+          status: options?.status ?? MessageBlockStatus.PENDING,
+          thinking_millsec: 0
+        }) as ThinkingMessageBlock
+    )
 
-    vi.mocked(createMainTextBlock).mockReturnValue({
-      id: 'text-block-1',
-      content: '',
-      status: MessageBlockStatus.STREAMING
-    } as any)
+    vi.mocked(createMainTextBlock).mockImplementation(
+      (messageId: string, content: string, options?: { status?: MessageBlockStatus }) =>
+        ({
+          id: 'text-block-1',
+          messageId,
+          type: MessageBlockType.MAIN_TEXT,
+          createdAt: new Date().toISOString(),
+          content,
+          status: options?.status ?? MessageBlockStatus.PENDING
+        }) as MainTextMessageBlock
+    )
 
-    vi.mocked(createErrorBlock).mockReturnValue({
-      id: 'error-block-1',
-      content: '',
-      status: MessageBlockStatus.ERROR
-    } as any)
+    vi.mocked(createErrorBlock).mockImplementation(
+      (messageId: string, error: any, options?: { status?: MessageBlockStatus }) =>
+        ({
+          id: 'error-block-1',
+          messageId,
+          type: MessageBlockType.ERROR,
+          createdAt: new Date().toISOString(),
+          status: options?.status ?? MessageBlockStatus.ERROR,
+          error
+        }) as ErrorMessageBlock
+    )
 
     vi.mocked(isAbortError).mockReturnValue(false)
     vi.mocked(formatErrorMessage).mockReturnValue('Formatted error message')
+    vi.mocked(addAbortController).mockImplementation((_, abortFn) => {
+      registeredAbortFn = abortFn
+    })
   })
 
   afterEach(() => {
     vi.clearAllMocks()
+    registeredAbortFn = undefined
   })
 
-  describe('normal complete stream with thinking flow', () => {
-    it('should process a complete stream with thinking and text blocks', async () => {
-      // Mock chunk stream for normal flow
-      const mockChunks = [
-        { type: ChunkType.THINKING_START },
-        { type: ChunkType.THINKING_DELTA, text: 'I need to think about this...', thinking_millsec: 1000 },
-        {
-          type: ChunkType.THINKING_DELTA,
-          text: 'I need to think about this... Let me consider the options.',
-          thinking_millsec: 2000
-        },
-        {
-          type: ChunkType.THINKING_COMPLETE,
-          text: 'I need to think about this... Let me consider the options. Now I have a solution.',
-          thinking_millsec: 3000
-        },
-        { type: ChunkType.TEXT_START },
-        { type: ChunkType.TEXT_DELTA, text: 'Here is' },
-        { type: ChunkType.TEXT_DELTA, text: 'Here is my' },
-        { type: ChunkType.TEXT_DELTA, text: 'Here is my answer' },
-        { type: ChunkType.TEXT_COMPLETE, text: 'Here is my answer to your question.' },
-        { type: ChunkType.BLOCK_COMPLETE }
-      ]
+  it('processes a complete reasoning + text stream into local session snapshots', async () => {
+    sendMessagesMock.mockResolvedValue(
+      createStream([
+        { type: 'reasoning-start' },
+        { type: 'reasoning-delta', delta: 'Think 1 ' },
+        { type: 'reasoning-delta', delta: 'Think 2' },
+        { type: 'reasoning-end' },
+        { type: 'text-start' },
+        { type: 'text-delta', delta: 'Hello ' },
+        { type: 'text-delta', delta: 'world' },
+        { type: 'text-end' },
+        { type: 'finish' }
+      ])
+    )
 
-      vi.mocked(fetchChatCompletion).mockImplementation(async ({ onChunkReceived }: any) => {
-        for (const chunk of mockChunks) {
-          await onChunkReceived(chunk)
+    await processMessages(
+      mockAssistant,
+      mockTopic,
+      'test prompt',
+      mockSetAskId,
+      mockOnSessionUpdate,
+      mockOnStream,
+      mockOnFinish,
+      mockOnError
+    )
+
+    expect(mockSetAskId).toHaveBeenCalledWith('user-message-1')
+    expect(sendMessagesMock).toHaveBeenCalled()
+    expect(mockOnSessionUpdate).toHaveBeenCalled()
+    expect(mockOnFinish).toHaveBeenCalledWith('Hello world')
+    expect(mockOnError).not.toHaveBeenCalled()
+
+    const snapshots = mockOnSessionUpdate.mock.calls.map(([snapshot]) => snapshot as ActionSessionSnapshot)
+    const lastSnapshot = snapshots.at(-1)
+    expect(lastSnapshot?.assistantMessage.status).toBe(AssistantMessageStatus.SUCCESS)
+    expect(lastSnapshot?.partsMap['assistant-message-1']).toEqual([
+      expect.objectContaining({
+        type: 'reasoning',
+        text: 'Think 1 Think 2',
+        providerMetadata: {
+          cherry: {
+            thinkingMs: expect.any(Number)
+          }
         }
+      }),
+      expect.objectContaining({
+        type: 'text',
+        text: 'Hello world'
       })
-
-      await processMessages(
-        mockAssistant,
-        mockTopic,
-        'test prompt',
-        mockSetAskId,
-        mockOnStream,
-        mockOnFinish,
-        mockOnError
-      )
-
-      // Verify setAskId was called
-      expect(mockSetAskId).toHaveBeenCalledWith('user-message-1')
-
-      // Verify store dispatches for user message
-      expect(store.dispatch).toHaveBeenCalledWith(
-        newMessagesActions.addMessage({
-          topicId: 'topic-1',
-          message: expect.objectContaining({ id: 'user-message-1' })
-        })
-      )
-
-      // Verify store dispatches for assistant message
-      expect(store.dispatch).toHaveBeenCalledWith(
-        newMessagesActions.addMessage({
-          topicId: 'topic-1',
-          message: expect.objectContaining({ id: 'assistant-message-1' })
-        })
-      )
-
-      // Verify thinking block creation and updates
-      expect(createThinkingBlock).toHaveBeenCalledWith('assistant-message-1', '', {
-        status: MessageBlockStatus.STREAMING
-      })
-      expect(throttledBlockUpdate).toHaveBeenCalledWith('thinking-block-1', {
-        content: 'I need to think about this...',
-        thinking_millsec: 1000
-      })
-      expect(throttledBlockUpdate).toHaveBeenCalledWith('thinking-block-1', {
-        content: 'I need to think about this... Let me consider the options.',
-        thinking_millsec: 2000
-      })
-
-      // Verify thinking block completion
-      expect(cancelThrottledBlockUpdate).toHaveBeenCalledWith('thinking-block-1')
-      expect(store.dispatch).toHaveBeenCalledWith(
-        updateOneBlock({
-          id: 'thinking-block-1',
-          changes: {
-            content: 'I need to think about this... Let me consider the options. Now I have a solution.',
-            status: MessageBlockStatus.SUCCESS,
-            thinking_millsec: 3000
-          }
-        })
-      )
-
-      // Verify text block creation and updates
-      expect(createMainTextBlock).toHaveBeenCalledWith('assistant-message-1', '', {
-        status: MessageBlockStatus.STREAMING
-      })
-      expect(throttledBlockUpdate).toHaveBeenCalledWith('text-block-1', { content: 'Here is' })
-      expect(throttledBlockUpdate).toHaveBeenCalledWith('text-block-1', { content: 'Here is my' })
-      expect(throttledBlockUpdate).toHaveBeenCalledWith('text-block-1', { content: 'Here is my answer' })
-
-      // Verify text block completion
-      expect(cancelThrottledBlockUpdate).toHaveBeenCalledWith('text-block-1')
-      expect(store.dispatch).toHaveBeenCalledWith(
-        updateOneBlock({
-          id: 'text-block-1',
-          changes: {
-            content: 'Here is my answer to your question.',
-            status: MessageBlockStatus.SUCCESS
-          }
-        })
-      )
-
-      // Verify callbacks
-      expect(mockOnStream).toHaveBeenCalledWith()
-
-      // Verify final message status update
-      expect(store.dispatch).toHaveBeenCalledWith(
-        newMessagesActions.updateMessage({
-          topicId: 'topic-1',
-          messageId: 'assistant-message-1',
-          updates: { status: AssistantMessageStatus.SUCCESS }
-        })
-      )
-
-      expect(mockOnFinish).toHaveBeenCalledWith('Here is my answer to your question.')
-      // Verify no errors
-      expect(mockOnError).not.toHaveBeenCalled()
-    })
+    ])
   })
 
-  describe('thinking timer fallback', () => {
-    it('should use local timer when thinking_millsec is missing', async () => {
-      const nowValues = [1000, 1500, 2000]
-      let nowIndex = 0
-      const performanceSpy = vi.spyOn(performance, 'now').mockImplementation(() => {
-        const value = nowValues[Math.min(nowIndex, nowValues.length - 1)]
-        nowIndex += 1
-        return value
-      })
+  it('handles stream error chunk and appends a local error part', async () => {
+    sendMessagesMock.mockResolvedValue(
+      createStream([
+        { type: 'text-start' },
+        { type: 'text-delta', delta: 'Partial response' },
+        { type: 'error', error: new Error('Stream processing error') }
+      ])
+    )
 
-      const mockChunks = [
-        { type: ChunkType.THINKING_START },
-        { type: ChunkType.THINKING_DELTA, text: 'Thinking...' },
-        { type: ChunkType.THINKING_COMPLETE, text: 'Done thinking' },
-        { type: ChunkType.TEXT_START },
-        { type: ChunkType.TEXT_COMPLETE, text: 'Final answer' },
-        { type: ChunkType.BLOCK_COMPLETE }
-      ]
+    await processMessages(
+      mockAssistant,
+      mockTopic,
+      'test prompt',
+      mockSetAskId,
+      mockOnSessionUpdate,
+      mockOnStream,
+      mockOnFinish,
+      mockOnError
+    )
 
-      vi.mocked(fetchChatCompletion).mockImplementation(async ({ onChunkReceived }: any) => {
-        for (const chunk of mockChunks) {
-          await onChunkReceived(chunk)
-        }
-      })
+    expect(mockOnFinish).toHaveBeenCalledWith('Partial response')
+    expect(mockOnError).not.toHaveBeenCalled()
 
-      await processMessages(
-        mockAssistant,
-        mockTopic,
-        'test prompt',
-        mockSetAskId,
-        mockOnStream,
-        mockOnFinish,
-        mockOnError
-      )
-
-      const thinkingDeltaCall = vi.mocked(throttledBlockUpdate).mock.calls.find(([id]) => id === 'thinking-block-1')
-      const deltaPayload = thinkingDeltaCall?.[1] as { thinking_millsec?: number } | undefined
-      expect(deltaPayload?.thinking_millsec).toBe(500)
-
-      const thinkingCompleteUpdate = vi
-        .mocked(updateOneBlock)
-        .mock.calls.find(([payload]) => (payload as any)?.changes?.thinking_millsec !== undefined)
-      expect((thinkingCompleteUpdate?.[0] as any)?.changes?.thinking_millsec).toBe(1000)
-
-      performanceSpy.mockRestore()
-    })
-  })
-
-  describe('stream with exceptions', () => {
-    it('should handle error chunks properly', async () => {
-      const mockError = new Error('Stream processing error')
-      const mockChunks = [
-        { type: ChunkType.TEXT_START },
-        { type: ChunkType.TEXT_DELTA, text: 'Partial response' },
-        { type: ChunkType.ERROR, error: mockError }
-      ]
-
-      vi.mocked(fetchChatCompletion).mockImplementation(async ({ onChunkReceived }: any) => {
-        for (const chunk of mockChunks) {
-          await onChunkReceived(chunk)
-        }
-      })
-
-      await processMessages(
-        mockAssistant,
-        mockTopic,
-        'test prompt',
-        mockSetAskId,
-        mockOnStream,
-        mockOnFinish,
-        mockOnError
-      )
-
-      // Verify text block was created and updated
-      expect(createMainTextBlock).toHaveBeenCalled()
-      expect(throttledBlockUpdate).toHaveBeenCalledWith('text-block-1', { content: 'Partial response' })
-      expect(mockOnStream).toHaveBeenCalledWith()
-
-      // Verify error handling
-      expect(store.dispatch).toHaveBeenCalledWith(
-        updateOneBlock({
-          id: 'text-block-1',
-          changes: {
-            status: MessageBlockStatus.ERROR
-          }
-        })
-      )
-
-      // Verify error block creation
-      expect(createErrorBlock).toHaveBeenCalledWith(
-        'assistant-message-1',
-        expect.objectContaining({
-          name: 'Error',
+    const snapshots = mockOnSessionUpdate.mock.calls.map(([snapshot]) => snapshot as ActionSessionSnapshot)
+    const lastSnapshot = snapshots.at(-1)
+    expect(lastSnapshot?.assistantMessage.status).toBe(AssistantMessageStatus.ERROR)
+    expect(lastSnapshot?.partsMap['assistant-message-1']).toEqual([
+      expect.objectContaining({
+        type: 'text',
+        text: 'Partial response'
+      }),
+      expect.objectContaining({
+        type: 'data-error',
+        data: expect.objectContaining({
           message: 'Stream processing error'
-        }),
-        { status: MessageBlockStatus.ERROR }
-      )
-
-      expect(store.dispatch).toHaveBeenCalledWith(
-        newMessagesActions.updateMessage({
-          topicId: 'topic-1',
-          messageId: 'assistant-message-1',
-          updates: {
-            status: AssistantMessageStatus.ERROR
-          }
         })
-      )
-
-      // Verify onFinish is called with text content accumulated so far
-      expect(mockOnFinish).toHaveBeenCalledWith('Partial response')
-      expect(mockOnError).not.toHaveBeenCalled()
-    })
-
-    it('should handle fetchChatCompletion errors', async () => {
-      const mockError = new Error('API Error')
-      vi.mocked(fetchChatCompletion).mockRejectedValue(mockError)
-
-      await processMessages(
-        mockAssistant,
-        mockTopic,
-        'test prompt',
-        mockSetAskId,
-        mockOnStream,
-        mockOnFinish,
-        mockOnError
-      )
-
-      // Verify error callback is called
-      expect(mockOnError).toHaveBeenCalledWith(mockError)
-    })
+      })
+    ])
   })
 
-  describe('actively aborted stream', () => {
-    it('should handle aborted streams properly', async () => {
-      const mockAbortError = new Error('AbortError')
-      vi.mocked(isAbortError).mockReturnValue(true)
+  it('handles abort chunk and marks assistant as paused', async () => {
+    vi.mocked(isAbortError).mockReturnValue(true)
+    sendMessagesMock.mockResolvedValue(
+      createStream([{ type: 'text-start' }, { type: 'text-delta', delta: 'Partial' }, { type: 'abort' }])
+    )
 
-      const mockChunks = [
-        { type: ChunkType.THINKING_START },
-        { type: ChunkType.THINKING_DELTA, text: 'Starting to think...', thinking_millsec: 1000 },
-        { type: ChunkType.TEXT_START },
-        { type: ChunkType.TEXT_DELTA, text: 'Partial' },
-        { type: ChunkType.ERROR, error: mockAbortError }
-      ]
+    await processMessages(
+      mockAssistant,
+      mockTopic,
+      'test prompt',
+      mockSetAskId,
+      mockOnSessionUpdate,
+      mockOnStream,
+      mockOnFinish,
+      mockOnError
+    )
 
-      vi.mocked(fetchChatCompletion).mockImplementation(async ({ onChunkReceived }: any) => {
-        for (const chunk of mockChunks) {
-          await onChunkReceived(chunk)
-        }
-      })
-
-      await processMessages(
-        mockAssistant,
-        mockTopic,
-        'test prompt',
-        mockSetAskId,
-        mockOnStream,
-        mockOnFinish,
-        mockOnError
-      )
-
-      // Verify both blocks were created
-      expect(createThinkingBlock).toHaveBeenCalled()
-      expect(createMainTextBlock).toHaveBeenCalled()
-
-      // Verify partial updates were made
-      expect(throttledBlockUpdate).toHaveBeenCalledWith('thinking-block-1', {
-        content: 'Starting to think...',
-        thinking_millsec: 1000
-      })
-      expect(throttledBlockUpdate).toHaveBeenCalledWith('text-block-1', { content: 'Partial' })
-
-      // Verify abort handling - should set status to PAUSED
-      expect(store.dispatch).toHaveBeenCalledWith(
-        updateOneBlock({
-          id: 'text-block-1',
-          changes: {
-            status: MessageBlockStatus.PAUSED
-          }
+    const snapshots = mockOnSessionUpdate.mock.calls.map(([snapshot]) => snapshot as ActionSessionSnapshot)
+    const lastSnapshot = snapshots.at(-1)
+    expect(lastSnapshot?.assistantMessage.status).toBe(AssistantMessageStatus.PAUSED)
+    expect(lastSnapshot?.partsMap['assistant-message-1']).toEqual([
+      expect.objectContaining({
+        type: 'text',
+        text: 'Partial'
+      }),
+      expect.objectContaining({
+        type: 'data-error',
+        data: expect.objectContaining({
+          message: 'Request was aborted'
         })
-      )
-
-      expect(store.dispatch).toHaveBeenCalledWith(
-        newMessagesActions.updateMessage({
-          topicId: 'topic-1',
-          messageId: 'assistant-message-1',
-          updates: {
-            status: AssistantMessageStatus.PAUSED
-          }
-        })
-      )
-
-      // Verify error block creation for abort
-      expect(createErrorBlock).toHaveBeenCalledWith(
-        'assistant-message-1',
-        expect.objectContaining({
-          name: 'Error',
-          message: 'AbortError',
-          i18nKey: 'stream_paused'
-        }),
-        { status: MessageBlockStatus.PAUSED }
-      )
-
-      // Verify callbacks
-      expect(mockOnStream).toHaveBeenCalledWith()
-      expect(mockOnFinish).toHaveBeenCalledWith('Partial')
-      expect(mockOnError).not.toHaveBeenCalled()
-    })
-
-    it('should handle aborted fetchChatCompletion gracefully', async () => {
-      const mockAbortError = new Error('AbortError')
-      vi.mocked(isAbortError).mockReturnValue(true)
-      vi.mocked(fetchChatCompletion).mockRejectedValue(mockAbortError)
-
-      await processMessages(
-        mockAssistant,
-        mockTopic,
-        'test prompt',
-        mockSetAskId,
-        mockOnStream,
-        mockOnFinish,
-        mockOnError
-      )
-
-      // Verify that abort errors are handled gracefully (no error callback)
-      expect(mockOnError).not.toHaveBeenCalled()
-      expect(mockOnFinish).not.toHaveBeenCalled()
-    })
+      })
+    ])
+    expect(mockOnError).not.toHaveBeenCalled()
   })
 
-  describe('edge cases', () => {
-    it('should handle missing assistant or topic', async () => {
-      await processMessages(
-        null as any,
-        mockTopic,
-        'test prompt',
-        mockSetAskId,
-        mockOnStream,
-        mockOnFinish,
-        mockOnError
-      )
-
-      // Should return early without making any calls
-      expect(fetchChatCompletion).not.toHaveBeenCalled()
-      expect(mockSetAskId).not.toHaveBeenCalled()
-      expect(mockOnStream).not.toHaveBeenCalled()
-      expect(mockOnFinish).not.toHaveBeenCalled()
-      expect(mockOnError).not.toHaveBeenCalled()
-    })
-
-    it('should handle multiple text/thinking blocks correctly', async () => {
-      const mockChunks = [
-        { type: ChunkType.THINKING_START },
-        { type: ChunkType.THINKING_COMPLETE, text: 'First thinking', thinking_millsec: 1000 },
-        { type: ChunkType.TEXT_START },
-        { type: ChunkType.TEXT_COMPLETE, text: 'First text' },
-        { type: ChunkType.THINKING_START },
-        { type: ChunkType.THINKING_COMPLETE, text: 'Second thinking', thinking_millsec: 2000 },
-        { type: ChunkType.TEXT_START },
-        { type: ChunkType.TEXT_COMPLETE, text: 'Second text' }
-      ]
-
-      vi.mocked(createThinkingBlock)
-        .mockReturnValueOnce({
-          id: 'thinking-block-1',
-          content: '',
-          status: MessageBlockStatus.STREAMING
-        } as any)
-        .mockReturnValueOnce({
-          id: 'thinking-block-2',
-          content: '',
-          status: MessageBlockStatus.STREAMING
-        } as any)
-
-      vi.mocked(createMainTextBlock)
-        .mockReturnValueOnce({
-          id: 'text-block-1',
-          content: '',
-          status: MessageBlockStatus.STREAMING
-        } as any)
-        .mockReturnValueOnce({
-          id: 'text-block-2',
-          content: '',
-          status: MessageBlockStatus.STREAMING
-        } as any)
-
-      vi.mocked(fetchChatCompletion).mockImplementation(async ({ onChunkReceived }: any) => {
-        for (const chunk of mockChunks) {
-          await onChunkReceived(chunk)
+  it('treats an abort-closed stream as paused even without an explicit abort chunk', async () => {
+    vi.mocked(isAbortError).mockImplementation((error) => error instanceof DOMException && error.name === 'AbortError')
+    sendMessagesMock.mockImplementation(async ({ abortSignal }: { abortSignal?: AbortSignal }) => {
+      return new ReadableStream({
+        start(controller) {
+          controller.enqueue({ type: 'text-start' })
+          controller.enqueue({ type: 'text-delta', delta: 'Partial' })
+          abortSignal?.addEventListener(
+            'abort',
+            () => {
+              controller.close()
+            },
+            { once: true }
+          )
+          queueMicrotask(() => {
+            registeredAbortFn?.()
+          })
         }
       })
-
-      await processMessages(
-        mockAssistant,
-        mockTopic,
-        'test prompt',
-        mockSetAskId,
-        mockOnStream,
-        mockOnFinish,
-        mockOnError
-      )
-
-      // Verify both thinking blocks were created and completed
-      expect(createThinkingBlock).toHaveBeenCalledTimes(2)
-      expect(createMainTextBlock).toHaveBeenCalledTimes(2)
-
-      // Verify onFinish was called for both text completions
-      expect(mockOnFinish).toHaveBeenCalledWith('First text')
-      expect(mockOnFinish).toHaveBeenCalledWith('Second text')
     })
+
+    await processMessages(
+      mockAssistant,
+      mockTopic,
+      'test prompt',
+      mockSetAskId,
+      mockOnSessionUpdate,
+      mockOnStream,
+      mockOnFinish,
+      mockOnError
+    )
+
+    const snapshots = mockOnSessionUpdate.mock.calls.map(([snapshot]) => snapshot as ActionSessionSnapshot)
+    const lastSnapshot = snapshots.at(-1)
+    expect(lastSnapshot?.assistantMessage.status).toBe(AssistantMessageStatus.PAUSED)
+    expect(lastSnapshot?.partsMap['assistant-message-1']).toEqual([
+      expect.objectContaining({
+        type: 'text',
+        text: 'Partial'
+      }),
+      expect.objectContaining({
+        type: 'data-error',
+        data: expect.objectContaining({
+          message: 'Request was aborted'
+        })
+      })
+    ])
+  })
+
+  it('handles sendMessages rejection', async () => {
+    const mockError = new Error('Transport Error')
+    sendMessagesMock.mockRejectedValue(mockError)
+
+    await processMessages(
+      mockAssistant,
+      mockTopic,
+      'test prompt',
+      mockSetAskId,
+      mockOnSessionUpdate,
+      mockOnStream,
+      mockOnFinish,
+      mockOnError
+    )
+
+    expect(mockOnError).toHaveBeenCalledWith(mockError)
+  })
+
+  it('passes assistant runtime overrides to the transport body', async () => {
+    sendMessagesMock.mockResolvedValue(createStream([{ type: 'finish' }]))
+
+    await processMessages(
+      {
+        ...mockAssistant,
+        prompt: 'runtime prompt',
+        enableWebSearch: true,
+        webSearchProviderId: 'tavily',
+        settings: {
+          streamOutput: false,
+          reasoning_effort: 'high',
+          toolUseMode: 'function',
+          temperature: 0.1,
+          topP: 1,
+          contextCount: 3
+        }
+      } as Assistant,
+      mockTopic,
+      'test prompt',
+      mockSetAskId,
+      mockOnSessionUpdate,
+      mockOnStream,
+      mockOnFinish,
+      mockOnError
+    )
+
+    expect(sendMessagesMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: expect.objectContaining({
+          assistantOverrides: expect.objectContaining({
+            prompt: 'runtime prompt',
+            enableWebSearch: true,
+            webSearchProviderId: undefined,
+            settings: expect.objectContaining({
+              streamOutput: true,
+              reasoning_effort: 'high'
+            })
+          })
+        })
+      })
+    )
+  })
+
+  it('returns early when assistant is missing', async () => {
+    await processMessages(
+      null as any,
+      mockTopic,
+      'test prompt',
+      mockSetAskId,
+      mockOnSessionUpdate,
+      mockOnStream,
+      mockOnFinish,
+      mockOnError
+    )
+
+    expect(sendMessagesMock).not.toHaveBeenCalled()
+    expect(mockSetAskId).not.toHaveBeenCalled()
+    expect(mockOnError).not.toHaveBeenCalled()
   })
 })

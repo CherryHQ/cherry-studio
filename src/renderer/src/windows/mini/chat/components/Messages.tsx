@@ -1,7 +1,9 @@
 import { LoadingOutlined } from '@ant-design/icons'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { useTopicMessages } from '@renderer/hooks/useMessageOperations'
-import type { Assistant, Topic } from '@renderer/types'
+import { PartsProvider } from '@renderer/pages/home/Messages/Blocks'
+import type { Assistant } from '@renderer/types'
+import type { Message } from '@renderer/types/newMessage'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import type { FC } from 'react'
 import styled from 'styled-components'
 
@@ -9,25 +11,26 @@ import MessageItem from './Message'
 
 interface Props {
   assistant: Assistant
-  topic: Topic
   route: string
   isOutputted: boolean
+  messages: Message[]
+  partsMap: Record<string, CherryMessagePart[]>
 }
 
 interface ContainerProps {
   right?: boolean
 }
 
-const Messages: FC<Props> = ({ assistant, topic, route, isOutputted }) => {
-  const messages = useTopicMessages(topic.id)
-
+const Messages: FC<Props> = ({ assistant, route, isOutputted, messages, partsMap }) => {
   return (
-    <Container id="messages" key={assistant.id}>
-      {!isOutputted && <LoadingOutlined style={{ fontSize: 16 }} spin />}
-      {[...messages].reverse().map((message, index) => (
-        <MessageItem key={message.id} message={message} index={index} total={messages.length} route={route} />
-      ))}
-    </Container>
+    <PartsProvider value={partsMap}>
+      <Container id="messages" key={assistant.id}>
+        {!isOutputted && <LoadingOutlined style={{ fontSize: 16 }} spin />}
+        {[...messages].reverse().map((message, index) => (
+          <MessageItem key={message.id} message={message} index={index} total={messages.length} route={route} />
+        ))}
+      </Container>
+    </PartsProvider>
   )
 }
 

@@ -1,4 +1,33 @@
 /** Context payload sent with each AI chat request via body. */
+export interface AiAssistantRuntimeOverrides {
+  prompt?: string
+  settings?: {
+    maxTokens?: number
+    enableMaxTokens?: boolean
+    temperature?: number
+    enableTemperature?: boolean
+    topP?: number
+    enableTopP?: boolean
+    contextCount?: number
+    streamOutput?: boolean
+    customParameters?: Array<{
+      name: string
+      value: string | number | boolean | object
+      type: 'string' | 'number' | 'boolean' | 'json'
+    }>
+    reasoning_effort?: string
+    reasoning_effort_cache?: string
+    qwenThinkMode?: boolean
+    toolUseMode?: 'function' | 'prompt'
+    maxToolCalls?: number
+    enableMaxToolCalls?: boolean
+  }
+  enableWebSearch?: boolean
+  webSearchProviderId?: string
+  enableUrlContext?: boolean
+  enableGenerateImage?: boolean
+}
+
 export interface AiChatRequestBody {
   /** Topic ID for message routing and persistence. */
   topicId: string
@@ -10,6 +39,8 @@ export interface AiChatRequestBody {
   files?: Array<{ id: string; name: string; type: string; size: number; url: string }>
   /** OpenTelemetry trace ID for request tracing. */
   traceId?: string
+  /** Runtime assistant overrides for ephemeral chat flows. */
+  assistantOverrides?: AiAssistantRuntimeOverrides
 
   // ── Capability flags (Renderer → Main) ──
   // Renderer extracts these from the Assistant config and passes them as IDs/booleans.

@@ -2,7 +2,7 @@ import { LoadingOutlined } from '@ant-design/icons'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
-import { useTopicMessages } from '@renderer/hooks/useMessageOperations'
+import { PartsProvider } from '@renderer/pages/home/Messages/Blocks'
 import MessageContent from '@renderer/pages/home/Messages/MessageContent'
 import {
   getAssistantById,
@@ -12,16 +12,17 @@ import {
 } from '@renderer/services/AssistantService'
 import { pauseTrace } from '@renderer/services/SpanManagerService'
 import type { Assistant, Topic } from '@renderer/types'
-import { AssistantMessageStatus } from '@renderer/types/newMessage'
+import type { Message } from '@renderer/types/newMessage'
 import { abortCompletion } from '@renderer/utils/abortController'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import { ChevronDown } from 'lucide-react'
 import type { FC } from 'react'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { processMessages } from './ActionUtils'
+import { type ActionSessionSnapshot, processMessages } from './ActionUtils'
 import WindowFooter from './WindowFooter'
 
 const logger = loggerService.withContext('ActionGeneral')
@@ -37,7 +38,11 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
   const [showOriginal, setShowOriginal] = useState(false)
   const [status, setStatus] = useState<'preparing' | 'streaming' | 'finished'>('preparing')
   const [contentToCopy, setContentToCopy] = useState('')
+  const [assistantMessage, setAssistantMessage] = useState<Message | null>(null)
+  const [partsMap, setPartsMap] = useState<Record<string, CherryMessagePart[]>>({})
   const initialized = useRef(false)
+  const requestVersionRef = useRef(0)
+  const mountedRef = useRef(true)
 
   // Use useRef for values that shouldn't trigger re-renders
   const assistantRef = useRef<Assistant | null>(null)
@@ -46,6 +51,16 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
   const askId = useRef('')
 
   // Initialize values only once when action changes
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      if (askId.current) {
+        abortCompletion(askId.current)
+      }
+    }
+  }, [])
+
   useEffect(() => {
     if (initialized.current) return
     initialized.current = true
@@ -95,21 +110,41 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
     if (!initialized.current) {
       return
     }
+    if (askId.current) {
+      abortCompletion(askId.current)
+      askId.current = ''
+    }
+    const requestVersion = requestVersionRef.current + 1
+    requestVersionRef.current = requestVersion
     setStatus('preparing')
+    setError(null)
+    setAssistantMessage(null)
+    setPartsMap({})
 
     const setAskId = (id: string) => {
+      if (!mountedRef.current || requestVersionRef.current !== requestVersion) return
       askId.current = id
     }
+    const onSessionUpdate = ({ assistantMessage, partsMap }: ActionSessionSnapshot) => {
+      if (!mountedRef.current || requestVersionRef.current !== requestVersion) return
+      setAssistantMessage(assistantMessage)
+      setPartsMap(partsMap)
+    }
     const onStream = () => {
+      if (!mountedRef.current || requestVersionRef.current !== requestVersion) return
       setStatus('streaming')
       scrollToBottom?.()
     }
     const onFinish = (content: string) => {
+      if (!mountedRef.current || requestVersionRef.current !== requestVersion) return
       setStatus('finished')
+      askId.current = ''
       setContentToCopy(content)
     }
     const onError = (error: Error) => {
+      if (!mountedRef.current || requestVersionRef.current !== requestVersion) return
       setStatus('finished')
+      askId.current = ''
       setError(error.message)
     }
 
@@ -120,6 +155,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
       topicRef.current,
       promptContentRef.current,
       setAskId,
+      onSessionUpdate,
       onStream,
       onFinish,
       onError
@@ -129,36 +165,6 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
   useEffect(() => {
     fetchResult()
   }, [fetchResult])
-
-  const allMessages = useTopicMessages(topicRef.current?.id || '')
-
-  const currentAssistantMessage = useMemo(() => {
-    const assistantMessages = allMessages.filter((message) => message.role === 'assistant')
-    if (assistantMessages.length === 0) {
-      return null
-    }
-    return assistantMessages[assistantMessages.length - 1]
-  }, [allMessages])
-
-  useEffect(() => {
-    // Sync message status
-    switch (currentAssistantMessage?.status) {
-      case AssistantMessageStatus.PROCESSING:
-      case AssistantMessageStatus.PENDING:
-      case AssistantMessageStatus.SEARCHING:
-        setStatus('streaming')
-        break
-      case AssistantMessageStatus.PAUSED:
-      case AssistantMessageStatus.ERROR:
-      case AssistantMessageStatus.SUCCESS:
-        setStatus('finished')
-        break
-      case undefined:
-        break
-      default:
-        logger.warn('Unexpected assistant message status:', { status: currentAssistantMessage?.status })
-    }
-  }, [currentAssistantMessage?.status])
 
   const isPreparing = status === 'preparing'
   const isStreaming = status === 'streaming'
@@ -202,8 +208,10 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
         )}
         <Result>
           {isPreparing && <LoadingOutlined style={{ fontSize: 16 }} spin />}
-          {!isPreparing && currentAssistantMessage && (
-            <MessageContent key={currentAssistantMessage.id} message={currentAssistantMessage} />
+          {!isPreparing && assistantMessage && (
+            <PartsProvider value={partsMap}>
+              <MessageContent key={assistantMessage.id} message={assistantMessage} />
+            </PartsProvider>
           )}
         </Result>
         {error && <ErrorMsg>{error}</ErrorMsg>}
