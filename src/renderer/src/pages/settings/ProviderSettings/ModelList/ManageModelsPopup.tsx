@@ -29,7 +29,8 @@ import {
   type Model,
   MODEL_CAPABILITY,
   type ModelCapability as RuntimeModelCapability,
-  parseUniqueModelId} from '@shared/data/types/model'
+  parseUniqueModelId
+} from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { Empty, Modal, Spin, Tabs } from 'antd'
 import Input from 'antd/es/input/Input'
@@ -181,7 +182,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
       const nonQwenModels = list.filter((m) => !isQwen(m))
       return {
         ...groupBy(nonQwenModels, groupFn),
-        ...(groupQwenModels(qwenModels) as Record<string, Model[]>)
+        ...groupQwenModels(qwenModels)
       }
     }
     return groupBy(list, groupFn)

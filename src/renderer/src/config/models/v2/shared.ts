@@ -1,4 +1,4 @@
-import { type Model,MODEL_CAPABILITY } from '@shared/data/types/model'
+import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 export type CapabilityKey = 'vision' | 'reasoning' | 'function_calling' | 'web_search' | 'embedding' | 'rerank'
 type RuntimeModelCapability = Model['capabilities'][number]
