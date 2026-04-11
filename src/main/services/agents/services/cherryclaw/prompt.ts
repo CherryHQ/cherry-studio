@@ -40,26 +40,44 @@ const DEFAULT_BASIC_PROMPT = `You are CherryClaw, a personal assistant running i
 
 `
 
-const TOOLS_SECTION = `## CherryClaw Tools
+const SKILLS_GUIDANCE = `## Skills
 
-You have exclusive access to these tools for interacting with CherryStudio. Always prefer them over manual alternatives.
+You can manage Claude skills via the \`mcp__skills__skills\` tool — search the marketplace, install / remove existing skills, and author new ones via the \`init\` and \`register\` actions. Discovery and runtime activation of installed skills is handled automatically by the agent SDK; this tool is just the management surface.
+
+When to act:
+- When the user asks for a capability you don't already have, search the marketplace before attempting the task from scratch — there is often an existing skill that fits.
+- After completing a non-trivial task (5+ tool calls, an iterative fix, a workflow you'd want to repeat), offer to save the approach as a new skill via \`init\` + \`register\`.
+- If you find an installed skill is outdated, incomplete, or wrong, edit its files in place at the path returned by \`init\` — the live symlink picks up changes immediately, so iteration costs nothing extra.`
+
+const MEMORY_GUIDANCE = `## Workspace Memory
+
+You have persistent memory in this agent's workspace via the \`mcp__agent-memory__memory\` tool: \`update\` rewrites \`memory/FACT.md\` (durable knowledge), \`append\` adds a timestamped entry to \`memory/JOURNAL.jsonl\` (one-off events), and \`search\` queries the journal.
+
+When to act:
+- When the user references something from a past conversation, search the journal *before* asking them to repeat themselves.
+- When the user corrects you with information that should survive across sessions ("we use X not Y", "the prod URL is Z"), update \`FACT.md\`.
+- For one-off events, completed tasks, or session notes, append to the journal.
+- Before writing to \`FACT.md\`, ask: will this still matter in 6 months? If not, append to the journal instead.
+- Never write to \`memory/FACT.md\` or \`memory/JOURNAL.jsonl\` via direct file tools — always go through the memory tool so writes stay atomic and searchable.`
+
+const CLAW_GUIDANCE = `## CherryClaw Tools
+
+You have exclusive access to these tools for interacting with CherryStudio's autonomous features. Always prefer them over manual alternatives.
 
 | Tool | Purpose | When to use |
 |---|---|---|
 | \`mcp__claw__cron\` | Schedule recurring or one-time tasks | Creating reminders, periodic checks, scheduled reports. Never use builtin Cron* tools — they are disabled. |
 | \`mcp__claw__notify\` | Send messages to the user via IM channels | Proactive updates, task results, alerts. Use when the user is not in the current session. |
-| \`mcp__skills__skills\` | Search, install, remove, and author Claude skills | When the user asks for new capabilities or you need a skill you don't have. Also used to author new skills via the \`init\` and \`register\` actions. |
-| \`mcp__agent-memory__memory\` | Manage JOURNAL.jsonl (append and search) | Log events and search past activity. Never write to JOURNAL.jsonl directly via file tools. |
 | \`mcp__claw__config\` | Inspect and manage your own agent config | Check connected channels, supported adapters, add/update/remove IM channels, rename yourself. |
 
 Rules:
-- These are your primary interface to CherryStudio. Do not attempt workarounds or alternative approaches.
+- These are your primary interface to CherryStudio's autonomous features. Do not attempt workarounds or alternative approaches.
 - When creating scheduled tasks, always use \`mcp__claw__cron\`. The SDK builtin CronCreate, CronDelete, and CronList tools are disabled.
 - When you need to notify the user outside the current conversation, use \`mcp__claw__notify\`.
 - When adding a WeChat channel, the config tool returns a QR code image. Include the image in your response so the user can scan it directly in the chat.
-- Use \`config status\` to check which channels are actually connected. If a channel shows \`connected: false\`, use \`config reconnect_channel\` to trigger a fresh QR scan.
+- Use \`config status\` to check which channels are actually connected. If a channel shows \`connected: false\`, use \`config reconnect_channel\` to trigger a fresh QR scan.`
 
-## Web Search & Browser Strategy
+const WEB_TOOLS_GUIDANCE = `## Web Search & Browser Strategy
 
 You have two complementary web tools: \`mcp__exa__web_search_exa\` for structured search and \`mcp__browser__*\` for page interaction.
 
@@ -72,8 +90,23 @@ You have two complementary web tools: \`mcp__exa__web_search_exa\` for structure
 - Combining search + browse: search with Exa while simultaneously screenshotting a known URL
 
 **Use \`mcp__browser__screenshot\`** to visually inspect pages (search results, dashboards, verification). It's far more efficient than fetching full page content.
-**Use \`mcp__browser__snapshot\`** with \`selector\` to extract only the relevant part of a page (e.g., \`selector: "#search"\` for Google results).
-`
+**Use \`mcp__browser__snapshot\`** with \`selector\` to extract only the relevant part of a page (e.g., \`selector: "#search"\` for Google results).`
+
+/**
+ * Compose the tool-strategy guidance for an agent based on which MCP servers
+ * have actually been injected. The skills, memory, and web-tools sections are
+ * always present (those servers are injected for every agent); the claw
+ * section is only included for autonomous (Soul Mode) agents that get the
+ * cron / notify / config tools.
+ */
+function composeToolGuidance(opts: { hasClaw: boolean }): string {
+  const parts: string[] = []
+  if (opts.hasClaw) parts.push(CLAW_GUIDANCE)
+  parts.push(SKILLS_GUIDANCE)
+  parts.push(MEMORY_GUIDANCE)
+  parts.push(WEB_TOOLS_GUIDANCE)
+  return parts.join('\n\n')
+}
 
 function memoriesTemplate(workspacePath: string, sections: string): string {
   return `## Memories
@@ -96,11 +129,22 @@ ${sections}`
 }
 
 /**
- * PromptBuilder assembles the full system prompt for CherryClaw from workspace files.
+ * PromptBuilder assembles the system prompt for CherryStudio agents.
  *
- * Structure: basic prompt (system.md override or default) + tools section + memories section.
+ * Two entry points:
  *
- * Memory files layout:
+ * 1. {@link buildSystemPrompt} — full custom prompt for Soul Mode agents that
+ *    REPLACES the SDK preset entirely. Includes the basic identity, the full
+ *    tool guidance (claw + skills + memory + web), bootstrap instructions when
+ *    needed, and the workspace memory files (SOUL.md / USER.md / FACT.md).
+ *
+ * 2. {@link buildToolGuidance} — lightweight tool-strategy suffix for
+ *    non-Soul agents. Does not touch workspace files; intended to be APPENDED
+ *    to the SDK's `claude_code` preset so the model gets cross-tool strategy
+ *    guidance (skills + memory + web) on top of the standard Claude Code
+ *    instructions. Returns a synchronous string — no I/O.
+ *
+ * Memory files layout (Soul Mode only):
  *   {workspace}/soul.md          — personality, tone, communication style
  *   {workspace}/user.md          — user profile, preferences, context
  *   {workspace}/memory/FACT.md   — durable project knowledge, technical decisions
@@ -117,8 +161,8 @@ export class PromptBuilder {
     const basicPrompt = systemPath ? await this.readCachedFile(systemPath) : undefined
     parts.push(basicPrompt ?? DEFAULT_BASIC_PROMPT)
 
-    // Tools section (always included)
-    parts.push(TOOLS_SECTION)
+    // Tool guidance — Soul Mode gets the full set including claw (cron / notify / config)
+    parts.push(composeToolGuidance({ hasClaw: true }))
 
     // Bootstrap detection: inject bootstrap instructions if not completed
     const needsBootstrap = await this.shouldRunBootstrap(workspacePath, config)
@@ -134,6 +178,19 @@ export class PromptBuilder {
     }
 
     return parts.join('\n\n')
+  }
+
+  /**
+   * Build the cross-tool strategy guidance string for a non-Soul agent. The
+   * returned text is meant to be APPENDED to the Claude Code SDK preset so
+   * the model gets explicit "when to use which tool" guidance on top of the
+   * SDK's built-in instructions. The skills + memory + web sections are
+   * always included (those MCP servers are injected for every agent); the
+   * claw section is excluded by default (non-Soul agents do not get cron /
+   * notify / config).
+   */
+  buildToolGuidance(opts: { hasClaw?: boolean } = {}): string {
+    return composeToolGuidance({ hasClaw: opts.hasClaw ?? false })
   }
 
   /**

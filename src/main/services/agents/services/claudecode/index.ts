@@ -418,6 +418,14 @@ class ClaudeCodeService implements AgentServiceInterface {
       | undefined
     const isAssistant = builtinRole === 'assistant'
 
+    // For non-Soul, non-Assistant agents we still want the model to know how
+    // to use the skills + memory MCP servers we inject for everyone, plus the
+    // shared web tool strategy. This is a lightweight strategy suffix that
+    // sits on top of the SDK's `claude_code` preset rather than replacing it.
+    // Soul agents already get the full guidance via `soulSystemPrompt`, and
+    // Cherry Assistant has its own specialized prompt path.
+    const nonSoulToolGuidance = !soulEnabled && !isAssistant ? promptBuilder.buildToolGuidance() : ''
+
     // Provision built-in agent workspace (copy skills/plugins to working directory)
     if (builtinRole && cwd && !isProvisioned(cwd)) {
       const agentConfig = await provisionBuiltinAgent(cwd, builtinRole)
@@ -482,17 +490,13 @@ class ClaudeCodeService implements AgentServiceInterface {
         ? assistantSystemPrompt
         : soulSystemPrompt
           ? `${soulSystemPrompt}${channelSecurityBlock}\n\n${getLanguageInstruction()}`
-          : session.instructions
-            ? {
-                type: 'preset',
-                preset: 'claude_code',
-                append: `${session.instructions}${channelSecurityBlock}\n\n${getLanguageInstruction()}`
-              }
-            : {
-                type: 'preset',
-                preset: 'claude_code',
-                append: `${channelSecurityBlock}\n\n${getLanguageInstruction()}`
-              },
+          : {
+              type: 'preset',
+              preset: 'claude_code',
+              append:
+                [nonSoulToolGuidance, session.instructions].filter(Boolean).join('\n\n') +
+                `${channelSecurityBlock}\n\n${getLanguageInstruction()}`
+            },
       // Built-in agents skip CLAUDE.md loading to save tokens
       settingSources: builtinRole ? [] : ['project', 'local'],
       includePartialMessages: true,
