@@ -426,6 +426,13 @@ class ClaudeCodeService implements AgentServiceInterface {
     // Cherry Assistant has its own specialized prompt path.
     const nonSoulToolGuidance = !soulEnabled && !isAssistant ? promptBuilder.buildToolGuidance() : ''
 
+    // Recall side of the cross-session learning loop for non-Soul agents:
+    // load `memory/FACT.md` (written via the memory tool in previous sessions)
+    // back into the system prompt so the agent remembers what it learned.
+    // Soul agents already get this via `soulSystemPrompt`'s memories section.
+    const nonSoulFactsRecall =
+      !soulEnabled && !isAssistant && cwd ? await promptBuilder.buildFactsSection(cwd) : undefined
+
     // Provision built-in agent workspace (copy skills/plugins to working directory)
     if (builtinRole && cwd && !isProvisioned(cwd)) {
       const agentConfig = await provisionBuiltinAgent(cwd, builtinRole)
@@ -494,7 +501,7 @@ class ClaudeCodeService implements AgentServiceInterface {
               type: 'preset',
               preset: 'claude_code',
               append:
-                [nonSoulToolGuidance, session.instructions].filter(Boolean).join('\n\n') +
+                [nonSoulToolGuidance, nonSoulFactsRecall, session.instructions].filter(Boolean).join('\n\n') +
                 `${channelSecurityBlock}\n\n${getLanguageInstruction()}`
             },
       // Built-in agents skip CLAUDE.md loading to save tokens

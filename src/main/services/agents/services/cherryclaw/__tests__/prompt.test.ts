@@ -326,4 +326,70 @@ describe('PromptBuilder', () => {
       expect(soulPrompt).toContain(guidance)
     })
   })
+
+  describe('buildFactsSection', () => {
+    it('returns undefined when no FACT.md exists', async () => {
+      setupFiles({})
+
+      const result = await builder.buildFactsSection('/workspace')
+
+      expect(result).toBeUndefined()
+    })
+
+    it('wraps memory/FACT.md content in a Workspace Knowledge block', async () => {
+      setupFiles({
+        '/workspace/memory/FACT.md': '- Project: cherry-studio\n- Build tool: pnpm + electron-vite'
+      })
+
+      const result = await builder.buildFactsSection('/workspace')
+
+      expect(result).toBeDefined()
+      expect(result).toContain('## Workspace Knowledge')
+      expect(result).toContain('<facts>')
+      expect(result).toContain('Project: cherry-studio')
+      expect(result).toContain('Build tool: pnpm + electron-vite')
+      expect(result).toContain('</facts>')
+      // The agent should also be told to keep updating FACT.md
+      expect(result).toContain('mcp__agent-memory__memory')
+      expect(result).toContain('action="update"')
+    })
+
+    it('resolves FACT.md case-insensitively', async () => {
+      setupFiles({
+        '/workspace/memory/fact.md': '- lowercase filename'
+      })
+
+      const result = await builder.buildFactsSection('/workspace')
+
+      expect(result).toBeDefined()
+      expect(result).toContain('lowercase filename')
+    })
+
+    it('returns undefined when FACT.md exists but is empty', async () => {
+      setupFiles({
+        '/workspace/memory/FACT.md': ''
+      })
+
+      const result = await builder.buildFactsSection('/workspace')
+
+      expect(result).toBeUndefined()
+    })
+
+    it('does not include SOUL.md or USER.md content (those are Soul-only)', async () => {
+      setupFiles({
+        '/workspace/SOUL.md': 'Warm but direct.',
+        '/workspace/user.md': 'Name: V',
+        '/workspace/memory/FACT.md': 'Build tool: pnpm'
+      })
+
+      const result = await builder.buildFactsSection('/workspace')
+
+      expect(result).toBeDefined()
+      expect(result).toContain('Build tool: pnpm')
+      expect(result).not.toContain('Warm but direct')
+      expect(result).not.toContain('Name: V')
+      expect(result).not.toContain('<soul>')
+      expect(result).not.toContain('<user>')
+    })
+  })
 })

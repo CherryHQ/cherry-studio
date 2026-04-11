@@ -194,6 +194,37 @@ export class PromptBuilder {
   }
 
   /**
+   * Build a "## Workspace Knowledge" section for non-Soul agents that loads
+   * just the workspace's `memory/FACT.md` content. This is the recall side of
+   * the cross-session learning loop — agents write durable knowledge to
+   * FACT.md via \`mcp__agent-memory__memory\` action="update", and this method
+   * loads it back into the system prompt at the start of the next session so
+   * the agent remembers what it learned (e.g. parameter shapes that previously
+   * failed, project conventions, user corrections).
+   *
+   * Distinct from {@link buildSystemPrompt}'s memories section which is Soul
+   * Mode only and also includes the SOUL.md / USER.md persona files. Returns
+   * undefined when no FACT.md exists, so callers can omit the section
+   * entirely rather than emitting an empty wrapper.
+   */
+  async buildFactsSection(workspacePath: string): Promise<string | undefined> {
+    const memoryDir = path.join(workspacePath, 'memory')
+    const factPath = await resolveFile(memoryDir, 'FACT.md')
+    if (!factPath) return undefined
+
+    const content = await this.readCachedFile(factPath)
+    if (!content) return undefined
+
+    return `## Workspace Knowledge
+
+These are durable facts and lessons accumulated across past sessions in this workspace. Trust them as ground truth unless you have direct evidence they're wrong — in which case update \`memory/FACT.md\` via \`mcp__agent-memory__memory\` action="update" so the next session also benefits.
+
+<facts>
+${content}
+</facts>`
+  }
+
+  /**
    * Determine whether bootstrap should run.
    * - If `bootstrap_completed` is explicitly true, skip.
    * - If SOUL.md has substantial non-template content, skip (legacy agent migration).
