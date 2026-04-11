@@ -9,6 +9,9 @@ const mockSendMessage = vi.fn()
 const mockSkillInstall = vi.fn()
 const mockSkillUninstallByFolderName = vi.fn()
 const mockSkillList = vi.fn()
+const mockSkillToggle = vi.fn()
+const mockSkillInstallFromDirectory = vi.fn()
+const mockSkillGetSkillDirectory = vi.fn()
 const mockNetFetch = vi.fn()
 const mockGetAgent = vi.fn()
 const mockUpdateAgent = vi.fn()
@@ -73,7 +76,10 @@ vi.mock('@main/services/agents/skills', () => ({
   skillService: {
     install: mockSkillInstall,
     uninstallByFolderName: mockSkillUninstallByFolderName,
-    list: mockSkillList
+    list: mockSkillList,
+    toggle: mockSkillToggle,
+    installFromDirectory: mockSkillInstallFromDirectory,
+    getSkillDirectory: mockSkillGetSkillDirectory
   }
 }))
 
