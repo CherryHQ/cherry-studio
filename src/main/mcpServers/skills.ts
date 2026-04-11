@@ -230,9 +230,14 @@ class SkillsServer {
       return { content: [{ type: 'text' as const, text: 'No skills installed.' }] }
     }
 
+    // Include the absolute on-disk path so the model can patch a skill in
+    // place via the native Read / Edit tools when it discovers the skill is
+    // outdated, incomplete, or wrong (the live symlink picks up file edits
+    // immediately, so no separate "patch" tool is needed).
     const results = skills.map((s) => ({
       name: s.name,
       folder: s.folderName,
+      path: skillService.getSkillDirectory(s.folderName),
       description: s.description ?? null,
       enabled: s.isEnabled
     }))

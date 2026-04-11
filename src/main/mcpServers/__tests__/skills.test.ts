@@ -168,18 +168,35 @@ describe('SkillsServer', () => {
   })
 
   describe('list action', () => {
-    it('should list installed skills', async () => {
+    it('should list installed skills with absolute on-disk paths', async () => {
       mockSkillList.mockResolvedValue([
         { id: '1', name: 'gh-create-pr', description: 'Create PRs', folderName: 'gh-create-pr', isEnabled: true },
         { id: '2', name: 'code-review', description: 'Review code', folderName: 'code-review', isEnabled: true }
       ])
+      mockSkillGetSkillDirectory.mockImplementation((folder: string) => `/global-skills/${folder}`)
 
       const server = createServer('agent_1')
       const result = await callTool(server, { action: 'list' })
 
       expect(mockSkillList).toHaveBeenCalled()
-      expect(result.content[0].text).toContain('gh-create-pr')
-      expect(result.content[0].text).toContain('code-review')
+      const parsed = JSON.parse(result.content[0].text)
+      expect(parsed).toHaveLength(2)
+      // Each entry must include the absolute path so the model can patch the
+      // skill in place via Read / Edit on the symlinked files.
+      expect(parsed[0]).toMatchObject({
+        name: 'gh-create-pr',
+        folder: 'gh-create-pr',
+        path: '/global-skills/gh-create-pr',
+        enabled: true
+      })
+      expect(parsed[1]).toMatchObject({
+        name: 'code-review',
+        folder: 'code-review',
+        path: '/global-skills/code-review',
+        enabled: true
+      })
+      expect(mockSkillGetSkillDirectory).toHaveBeenCalledWith('gh-create-pr')
+      expect(mockSkillGetSkillDirectory).toHaveBeenCalledWith('code-review')
     })
 
     it('should handle empty list', async () => {

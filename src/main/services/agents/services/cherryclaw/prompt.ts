@@ -47,7 +47,7 @@ You can manage Claude skills via the \`mcp__skills__skills\` tool — search the
 When to act:
 - When the user asks for a capability you don't already have, search the marketplace before attempting the task from scratch — there is often an existing skill that fits.
 - After completing a non-trivial task (5+ tool calls, an iterative fix, a workflow you'd want to repeat), offer to save the approach as a new skill via \`init\` + \`register\`.
-- If you find an installed skill is outdated, incomplete, or wrong, edit its files in place at the path returned by \`init\` — the live symlink picks up changes immediately, so iteration costs nothing extra.`
+- If you find an installed skill is outdated, incomplete, or wrong, fix it in place. Get the skill's \`path\` from \`mcp__skills__skills\` action="list" (or use the path returned by \`init\` if you just created it), then use the native Read / Edit tools on the files in that directory. The live symlink picks up file changes immediately, so no separate "patch" call is needed. Don't wait for the user to ask — patch immediately when you notice the issue.`
 
 const MEMORY_GUIDANCE = `## Workspace Memory
 
