@@ -25,6 +25,8 @@ import { isWin } from '@main/constant'
 import AssistantServer from '@main/mcpServers/assistant'
 import BrowserServer from '@main/mcpServers/browser/server'
 import ClawServer from '@main/mcpServers/claw'
+import SkillsServer from '@main/mcpServers/skills'
+import WorkspaceMemoryServer from '@main/mcpServers/workspaceMemory'
 import { configManager } from '@main/services/ConfigManager'
 import {
   getNodeProxyConfigFromEnvironment,
@@ -545,6 +547,33 @@ class ClaudeCodeService implements AgentServiceInterface {
     options.mcpServers.exa = {
       type: 'http',
       url: 'https://mcp.exa.ai/mcp'
+    }
+
+    // Inject skills MCP for all agents — managing Claude skills (search / install
+    // / list / remove / init / register) is a generally useful capability and is
+    // not coupled to Soul Mode's autonomous-agent semantics.
+    const skillsServer = new SkillsServer(session.agent_id)
+    options.mcpServers.skills = { type: 'sdk', name: 'skills', instance: skillsServer.mcpServer }
+    if (Array.isArray(options.allowedTools) && options.allowedTools.length > 0) {
+      if (!options.allowedTools.includes('mcp__skills__*')) {
+        options.allowedTools = [...options.allowedTools, 'mcp__skills__*']
+      }
+    }
+
+    // Inject agent workspace memory MCP for all agents — cross-session FACT.md /
+    // JOURNAL.jsonl in the agent's workspace. Distinct from the user-opt-in
+    // built-in `memory-server` (knowledge graph). Any agent with a stable
+    // workspace benefits from this.
+    const workspaceMemoryServer = new WorkspaceMemoryServer(session.agent_id)
+    options.mcpServers['agent-memory'] = {
+      type: 'sdk',
+      name: 'agent-memory',
+      instance: workspaceMemoryServer.mcpServer
+    }
+    if (Array.isArray(options.allowedTools) && options.allowedTools.length > 0) {
+      if (!options.allowedTools.includes('mcp__agent-memory__*')) {
+        options.allowedTools = [...options.allowedTools, 'mcp__agent-memory__*']
+      }
     }
 
     if (soulEnabled) {
