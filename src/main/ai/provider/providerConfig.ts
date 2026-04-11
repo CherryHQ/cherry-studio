@@ -7,77 +7,25 @@
  */
 
 import { formatPrivateKey, hasProviderConfig, type StringKeys } from '@cherrystudio/ai-core/provider'
-import { generateSignature } from '@main/integration/cherryai'
 import { providerService } from '@main/data/services/ProviderService'
+import { generateSignature } from '@main/integration/cherryai'
 import { anthropicService } from '@main/services/AnthropicService'
 import { copilotService } from '@main/services/CopilotService'
-import {
-  isAzureOpenAIProvider,
-  isGeminiProvider,
-  isOllamaProvider,
-} from '@shared/config/providerChecks'
 import { formatOllamaApiHost } from '@shared/aiCore/provider/utils'
-import { formatApiHost, isWithTrailingSharp } from '@shared/utils/api'
-import { defaultAppHeaders } from '@shared/utils'
-import type { Provider } from '@shared/data/types/provider'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { isAzureOpenAIProvider, isGeminiProvider, isOllamaProvider } from '@shared/config/providerChecks'
 import type { Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
+import { defaultAppHeaders } from '@shared/utils'
+import { formatApiHost, isWithTrailingSharp } from '@shared/utils/api'
 import { SystemProviderIds } from '@types'
 import { isEmpty } from 'lodash'
 
 import type { ProviderConfig } from '../types'
 import { type AppProviderId, type AppProviderSettingsMap } from '../types'
+import { getBaseUrl, getExtraHeaders, routeToEndpoint } from '../utils/provider'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import { getAiSdkProviderId } from './factory'
-
-// ── Helpers ──
-
-/** Extract base URL from v2 Provider's endpoint configs */
-function getBaseUrl(provider: Provider): string {
-  const ep = provider.defaultChatEndpoint
-  if (ep && provider.endpointConfigs?.[ep]?.baseUrl) {
-    return provider.endpointConfigs[ep]!.baseUrl!
-  }
-  // Fallback: try any available endpoint config
-  if (provider.endpointConfigs) {
-    for (const config of Object.values(provider.endpointConfigs)) {
-      if (config?.baseUrl) return config.baseUrl
-    }
-  }
-  return ''
-}
-
-/** Get extra headers from v2 Provider settings */
-function getExtraHeaders(provider: Provider): Record<string, string> {
-  return provider.settings?.extraHeaders ?? {}
-}
-
-function routeToEndpoint(apiHost: string): { baseURL: string; endpoint: string } {
-  const trimmedHost = (apiHost || '').trim()
-  if (!trimmedHost.endsWith('#')) {
-    return { baseURL: trimmedHost.replace(/\/+$/, ''), endpoint: '' }
-  }
-  const host = trimmedHost.slice(0, -1)
-  const SUPPORTED_ENDPOINTS = [
-    'chat/completions',
-    'responses',
-    'messages',
-    'generateContent',
-    'streamGenerateContent',
-    'images/generations',
-    'images/edits',
-    'predict',
-  ]
-  const endpointMatch = SUPPORTED_ENDPOINTS.find((ep) => host.endsWith(ep))
-  if (!endpointMatch) {
-    return { baseURL: host.replace(/\/+$/, ''), endpoint: '' }
-  }
-  const baseSegment = host.slice(0, host.length - endpointMatch.length)
-  const baseURL = baseSegment.replace(/\/+$/, '').replace(/:$/, '')
-  return { baseURL, endpoint: endpointMatch }
-}
-
-// ── Types ──
 
 interface BaseConfig {
   baseURL: string
@@ -148,7 +96,7 @@ export async function providerToAiSdkConfig(provider: Provider, model: Model): P
     model,
     baseConfig: { baseURL, apiKey },
     endpoint,
-    aiSdkProviderId,
+    aiSdkProviderId
   }
 
   const builders: ConfigBuilderEntry[] = [
@@ -161,7 +109,7 @@ export async function providerToAiSdkConfig(provider: Provider, model: Model): P
     { match: (_, id) => id === 'google-vertex', build: buildVertexConfig },
     { match: (_, id) => id === 'cherryin', build: buildCherryinConfig },
     { match: (_, id) => id === 'newapi', build: buildNewApiConfig },
-    { match: (_, id) => id === 'aihubmix', build: buildAiHubMixConfig },
+    { match: (_, id) => id === 'aihubmix', build: buildAiHubMixConfig }
   ]
 
   const builder = builders.find((b) => b.match(provider, aiSdkProviderId))
@@ -189,8 +137,8 @@ async function buildCopilotConfig(ctx: BuilderContext): Promise<ProviderConfig<'
       ...ctx.baseConfig,
       apiKey: token,
       headers: { ...headers, ...getExtraHeaders(ctx.actualProvider) },
-      name: ctx.actualProvider.id,
-    },
+      name: ctx.actualProvider.id
+    }
   }
 }
 
@@ -207,11 +155,11 @@ async function buildCherryAIConfig(ctx: BuilderContext): Promise<ProviderConfig<
           method: 'POST',
           path: '/chat/completions',
           query: '',
-          body: init?.body && typeof init.body === 'string' ? JSON.parse(init.body) : undefined,
+          body: init?.body && typeof init.body === 'string' ? JSON.parse(init.body) : undefined
         })
         return fetch(input, { ...init, headers: { ...init?.headers, ...signature } })
-      },
-    },
+      }
+    }
   }
 }
 
@@ -231,9 +179,9 @@ async function buildAnthropicOAuthConfig(ctx: BuilderContext): Promise<ProviderC
       headers: {
         'Content-Type': 'application/json',
         'anthropic-version': '2023-06-01',
-        Authorization: `Bearer ${oauthToken}`,
-      },
-    },
+        Authorization: `Bearer ${oauthToken}`
+      }
+    }
   }
 }
 
@@ -241,8 +189,8 @@ function buildCommonOptions(ctx: BuilderContext) {
   const options: Record<string, any> = {
     headers: {
       ...defaultAppHeaders(),
-      ...getExtraHeaders(ctx.actualProvider),
-    },
+      ...getExtraHeaders(ctx.actualProvider)
+    }
   }
   if (ctx.aiSdkProviderId === 'openai') {
     options.headers['X-Api-Key'] = ctx.baseConfig.apiKey
@@ -253,7 +201,7 @@ function buildCommonOptions(ctx: BuilderContext) {
 function buildOllamaConfig(ctx: BuilderContext): ProviderConfig<'ollama'> {
   const headers: Record<string, string> = {
     ...defaultAppHeaders(),
-    ...getExtraHeaders(ctx.actualProvider),
+    ...getExtraHeaders(ctx.actualProvider)
   }
   if (!isEmpty(ctx.baseConfig.apiKey)) {
     headers.Authorization = `Bearer ${ctx.baseConfig.apiKey}`
@@ -262,7 +210,7 @@ function buildOllamaConfig(ctx: BuilderContext): ProviderConfig<'ollama'> {
   return {
     providerId: 'ollama',
     endpoint: ctx.endpoint,
-    providerSettings: { ...ctx.baseConfig, headers },
+    providerSettings: { ...ctx.baseConfig, headers }
   }
 }
 
@@ -278,8 +226,8 @@ async function buildBedrockConfig(ctx: BuilderContext): Promise<ProviderConfig<'
         ...ctx.baseConfig,
         region: authConfig.region,
         ...(authConfig.accessKeyId && { accessKeyId: authConfig.accessKeyId }),
-        ...(authConfig.secretAccessKey && { secretAccessKey: authConfig.secretAccessKey }),
-      },
+        ...(authConfig.secretAccessKey && { secretAccessKey: authConfig.secretAccessKey })
+      }
     }
   }
 
@@ -314,8 +262,8 @@ async function buildVertexConfig(ctx: BuilderContext): Promise<ProviderConfig<'g
       baseURL,
       project,
       location,
-      ...(creds && { googleCredentials: creds }),
-    },
+      ...(creds && { googleCredentials: creds })
+    }
   } as ProviderConfig<'google-vertex'>
 }
 
@@ -341,8 +289,8 @@ async function buildCherryinConfig(ctx: BuilderContext): Promise<ProviderConfig<
       endpointType: ctx.model.endpointTypes?.[0] as any,
       anthropicBaseURL,
       geminiBaseURL,
-      headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) },
-    },
+      headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
+    }
   }
 }
 
@@ -360,8 +308,8 @@ function buildAzureConfig(ctx: BuilderContext): ProviderConfig<'azure'> {
       providerSettings: {
         ...ctx.baseConfig,
         baseURL: formatAzureBaseURL(ctx.baseConfig.baseURL, true),
-        headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) },
-      },
+        headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
+      }
     } as any
   }
 
@@ -371,7 +319,7 @@ function buildAzureConfig(ctx: BuilderContext): ProviderConfig<'azure'> {
   const providerSettings: any = {
     ...ctx.baseConfig,
     baseURL: formatAzureBaseURL(ctx.baseConfig.baseURL, false),
-    headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) },
+    headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
   }
 
   if (apiVersion) {
@@ -384,7 +332,7 @@ function buildAzureConfig(ctx: BuilderContext): ProviderConfig<'azure'> {
   return {
     providerId: useResponsesMode ? 'azure-responses' : 'azure',
     endpoint: ctx.endpoint,
-    providerSettings,
+    providerSettings
   } as ProviderConfig<'azure'>
 }
 
@@ -394,7 +342,7 @@ function buildOpenAICompatibleConfig(ctx: BuilderContext): ProviderConfig<'opena
   return {
     providerId: 'openai-compatible',
     endpoint: ctx.endpoint,
-    providerSettings: { ...ctx.baseConfig, ...commonOptions, name: ctx.actualProvider.id },
+    providerSettings: { ...ctx.baseConfig, ...commonOptions, name: ctx.actualProvider.id }
   }
 }
 
@@ -404,7 +352,7 @@ function buildGenericProviderConfig(ctx: BuilderContext): ProviderConfig {
   return {
     providerId: ctx.aiSdkProviderId as StringKeys<AppProviderSettingsMap>,
     endpoint: ctx.endpoint,
-    providerSettings: { ...ctx.baseConfig, ...commonOptions },
+    providerSettings: { ...ctx.baseConfig, ...commonOptions }
   }
 }
 
@@ -414,8 +362,8 @@ function buildAiHubMixConfig(ctx: BuilderContext): ProviderConfig<'aihubmix'> {
     endpoint: ctx.endpoint,
     providerSettings: {
       ...ctx.baseConfig,
-      headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) },
-    },
+      headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
+    }
   }
 }
 
@@ -429,7 +377,7 @@ function buildNewApiConfig(ctx: BuilderContext): ProviderConfig<'newapi'> {
       ...ctx.baseConfig,
       baseURL,
       endpointType: ctx.model.endpointTypes?.[0] as any,
-      headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) },
-    },
+      headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
+    }
   }
 }

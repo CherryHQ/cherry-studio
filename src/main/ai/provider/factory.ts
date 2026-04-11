@@ -5,6 +5,7 @@ import type { Provider } from '@shared/data/types/provider'
 import { SystemProviderIds } from '@types'
 
 import { type AppProviderId, appProviderIds } from '../types'
+import { getBaseUrl } from '../utils/provider'
 import { extensions } from './extensions'
 
 const logger = loggerService.withContext('ProviderFactory')
@@ -43,7 +44,7 @@ export function getAiSdkProviderId(provider: Provider): AppProviderId {
   }
 
   // 4. Detect OpenAI by endpoint baseUrl
-  const baseUrl = getBaseUrlFromProvider(provider)
+  const baseUrl = getBaseUrl(provider)
   if (baseUrl.includes('api.openai.com')) {
     return appProviderIds['openai-chat']
   }
@@ -51,22 +52,7 @@ export function getAiSdkProviderId(provider: Provider): AppProviderId {
   logger.warn('Provider ID not found in registered extensions, using as-is', {
     providerId: provider.id,
     presetProviderId: provider.presetProviderId,
-    registeredIds: Object.keys(appProviderIds),
+    registeredIds: Object.keys(appProviderIds)
   })
   return provider.id
-}
-
-/** Extract base URL from v2 Provider's endpoint configs */
-function getBaseUrlFromProvider(provider: Provider): string {
-  const endpoint = provider.defaultChatEndpoint
-  if (endpoint && provider.endpointConfigs?.[endpoint]?.baseUrl) {
-    return provider.endpointConfigs[endpoint].baseUrl
-  }
-  // Fallback: try any endpoint config
-  if (provider.endpointConfigs) {
-    for (const config of Object.values(provider.endpointConfigs)) {
-      if (config?.baseUrl) return config.baseUrl
-    }
-  }
-  return ''
 }

@@ -252,7 +252,7 @@ export class AiCompletionService {
 
     const sdkConfig = {
       ...(await providerToAiSdkConfig(provider, model)),
-      modelId: model.apiModelId ?? model.id,
+      modelId: model.apiModelId ?? model.id
     }
 
     // Register MCP tools on-demand, then resolve

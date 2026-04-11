@@ -9,20 +9,21 @@ import {
   createJsonErrorResponseHandler,
   createJsonResponseHandler,
   getFromApi as aiSdkGetFromApi,
-  zodSchema,
+  zodSchema
 } from '@ai-sdk/provider-utils'
 import { loggerService } from '@logger'
 import { providerService } from '@main/data/services/ProviderService'
 import { isAIGatewayProvider, isGeminiProvider, isOllamaProvider } from '@shared/config/providerChecks'
-import { formatApiHost } from '@shared/utils/api'
-import { withoutTrailingSlash } from '@shared/utils/api/utils'
-import { defaultAppHeaders } from '@shared/utils'
 import type { Model } from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { defaultAppHeaders } from '@shared/utils'
+import { formatApiHost } from '@shared/utils/api'
+import { withoutTrailingSlash } from '@shared/utils/api/utils'
 import { SystemProviderIds } from '@types'
 import * as z from 'zod'
 
+import { defaultHeaders, getBaseUrl } from '../utils/provider'
 import {
   AIHubMixModelsResponseSchema,
   GeminiModelsResponseSchema,
@@ -31,7 +32,7 @@ import {
   OllamaTagsResponseSchema,
   OpenAIModelsResponseSchema,
   OVMSConfigResponseSchema,
-  TogetherModelsResponseSchema,
+  TogetherModelsResponseSchema
 } from './schemas'
 
 const logger = loggerService.withContext('ModelListService')
@@ -49,10 +50,10 @@ const ApiErrorSchema = z.object({
   error: z
     .object({
       message: z.string().optional(),
-      code: z.string().optional(),
+      code: z.string().optional()
     })
     .optional(),
-  message: z.string().optional(),
+  message: z.string().optional()
 })
 
 type ApiError = z.infer<typeof ApiErrorSchema>
@@ -61,7 +62,7 @@ async function getFromApi<T>({
   url,
   headers,
   responseSchema,
-  abortSignal,
+  abortSignal
 }: {
   url: string
   headers?: Record<string, string>
@@ -74,39 +75,15 @@ async function getFromApi<T>({
     successfulResponseHandler: createJsonResponseHandler(zodSchema(responseSchema)),
     failedResponseHandler: createJsonErrorResponseHandler({
       errorSchema: zodSchema(ApiErrorSchema),
-      errorToMessage: (error: ApiError) => error.error?.message || error.message || 'Unknown error',
+      errorToMessage: (error: ApiError) => error.error?.message || error.message || 'Unknown error'
     }),
-    abortSignal,
+    abortSignal
   })
 
   return value
 }
 
-// ── Helpers ──
-
-/** Get base URL from v2 Provider's endpoint configs */
-function getBaseUrl(provider: Provider): string {
-  const ep = provider.defaultChatEndpoint
-  if (ep && provider.endpointConfigs?.[ep]?.baseUrl) {
-    return provider.endpointConfigs[ep]!.baseUrl!
-  }
-  if (provider.endpointConfigs) {
-    for (const config of Object.values(provider.endpointConfigs)) {
-      if (config?.baseUrl) return config.baseUrl
-    }
-  }
-  return ''
-}
-
 /** Build default headers with rotated API key */
-async function defaultHeaders(provider: Provider): Promise<Record<string, string>> {
-  const apiKey = await providerService.getRotatedApiKey(provider.id)
-  return {
-    ...defaultAppHeaders(),
-    ...(apiKey ? { Authorization: `Bearer ${apiKey}`, 'X-Api-Key': apiKey } : {}),
-    ...provider.settings?.extraHeaders,
-  }
-}
 
 function defaultGroup(modelId: string, providerId: string): string {
   const parts = modelId.split('/')
@@ -127,7 +104,7 @@ function toModel(apiModelId: string, provider: Provider, extra?: Partial<Model>)
     supportsStreaming: true,
     isEnabled: true,
     isHidden: false,
-    ...extra,
+    ...extra
   }
 }
 
@@ -151,20 +128,20 @@ function pickPreferredString(values: Array<unknown>): string | undefined {
   return undefined
 }
 
-// ── Fetchers ──
-
 const ollamaFetcher: ModelFetcher = {
   match: (p) => isOllamaProvider(p),
   fetch: async (provider, signal) => {
-    const baseUrl = withoutTrailingSlash(getBaseUrl(provider)).replace(/\/v1$/, '').replace(/\/api$/, '')
+    const baseUrl = withoutTrailingSlash(getBaseUrl(provider))
+      .replace(/\/v1$/, '')
+      .replace(/\/api$/, '')
     const response = await getFromApi({
       url: `${baseUrl}/api/tags`,
       headers: await defaultHeaders(provider),
       responseSchema: OllamaTagsResponseSchema,
-      abortSignal: signal,
+      abortSignal: signal
     })
     return dedup(response.models, (m) => m.name).map((m) => toModel(m.name, provider, { ownedBy: 'ollama' }))
-  },
+  }
 }
 
 const geminiFetcher: ModelFetcher = {
@@ -177,43 +154,34 @@ const geminiFetcher: ModelFetcher = {
       url: `${baseUrl}/v1beta/models?key=${apiKey}`,
       headers: { ...defaultAppHeaders(), ...provider.settings?.extraHeaders },
       responseSchema: GeminiModelsResponseSchema,
-      abortSignal: signal,
+      abortSignal: signal
     })
     return dedup(response.models, (m) => m.name).map((m) => {
       const id = m.name.startsWith('models/') ? m.name.slice(7) : m.name
       return toModel(id, provider, { name: m.displayName || id, description: m.description })
     })
-  },
+  }
 }
 
 const githubFetcher: ModelFetcher = {
   match: (p) => p.id === SystemProviderIds.github,
   fetch: async (provider, signal) => {
     const headers = await defaultHeaders(provider)
-    const [catalogResponse, v1Response] = await Promise.all([
-      getFromApi({
-        url: 'https://models.github.ai/catalog/models',
-        headers,
-        responseSchema: GitHubModelsResponseSchema,
-        abortSignal: signal,
-      }),
-      getFromApi({
-        url: 'https://models.github.ai/v1/models',
-        headers,
-        responseSchema: OpenAIModelsResponseSchema,
-        abortSignal: signal,
-      }).catch(() => ({ data: [] as { id: string; owned_by?: string }[] })),
-    ])
+    const catalogResponse = await getFromApi({
+      url: 'https://models.github.ai/catalog/models',
+      headers,
+      responseSchema: GitHubModelsResponseSchema,
+      abortSignal: signal
+    })
     const catalogModels = catalogResponse.map((m) =>
       toModel(m.id, provider, {
         name: m.name || m.id,
         description: pickPreferredString([m.summary, m.description]),
-        ownedBy: m.publisher,
-      }),
+        ownedBy: m.publisher
+      })
     )
-    const v1Models = v1Response.data.map((m) => toModel(m.id, provider, { ownedBy: m.owned_by }))
-    return dedup([...catalogModels, ...v1Models], (m) => m.apiModelId)
-  },
+    return dedup(catalogModels, (m) => m.apiModelId)
+  }
 }
 
 const ovmsFetcher: ModelFetcher = {
@@ -224,13 +192,13 @@ const ovmsFetcher: ModelFetcher = {
       url: `${baseUrl}/config`,
       headers: await defaultHeaders(provider),
       responseSchema: OVMSConfigResponseSchema,
-      abortSignal: signal,
+      abortSignal: signal
     })
     const entries = Object.entries(response).filter(([, info]) =>
-      info?.model_version_status?.some((v) => v?.state === 'AVAILABLE'),
+      info?.model_version_status?.some((v) => v?.state === 'AVAILABLE')
     )
     return dedup(entries, ([name]) => name).map(([name]) => toModel(name, provider, { ownedBy: 'ovms' }))
-  },
+  }
 }
 
 const togetherFetcher: ModelFetcher = {
@@ -241,32 +209,31 @@ const togetherFetcher: ModelFetcher = {
       url: `${baseUrl}/models`,
       headers: await defaultHeaders(provider),
       responseSchema: TogetherModelsResponseSchema,
-      abortSignal: signal,
+      abortSignal: signal
     })
     return dedup(response, (m) => m.id).map((m) =>
       toModel(m.id, provider, {
         name: m.display_name || m.id,
         description: m.description,
-        ownedBy: m.organization,
-      }),
+        ownedBy: m.organization
+      })
     )
-  },
+  }
 }
 
 const newApiFetcher: ModelFetcher = {
-  match: (p) => p.id === SystemProviderIds['new-api'] || p.presetProviderId === 'new-api' || p.id === SystemProviderIds.cherryin,
+  match: (p) =>
+    p.id === SystemProviderIds['new-api'] || p.presetProviderId === 'new-api' || p.id === SystemProviderIds.cherryin,
   fetch: async (provider, signal) => {
     const baseUrl = formatApiHost(getBaseUrl(provider))
     const response = await getFromApi({
       url: `${baseUrl}/models`,
       headers: await defaultHeaders(provider),
       responseSchema: NewApiModelsResponseSchema,
-      abortSignal: signal,
+      abortSignal: signal
     })
-    return dedup(response.data, (m) => m.id).map((m) =>
-      toModel(m.id, provider, { ownedBy: m.owned_by }),
-    )
-  },
+    return dedup(response.data, (m) => m.id).map((m) => toModel(m.id, provider, { ownedBy: m.owned_by }))
+  }
 }
 
 const openRouterFetcher: ModelFetcher = {
@@ -278,18 +245,18 @@ const openRouterFetcher: ModelFetcher = {
         url: 'https://openrouter.ai/api/v1/models',
         headers,
         responseSchema: OpenAIModelsResponseSchema,
-        abortSignal: signal,
+        abortSignal: signal
       }),
       getFromApi({
         url: 'https://openrouter.ai/api/v1/embeddings/models',
         headers,
         responseSchema: OpenAIModelsResponseSchema,
-        abortSignal: signal,
-      }).catch(() => ({ data: [] })),
+        abortSignal: signal
+      }).catch(() => ({ data: [] }))
     ])
     const all = [...modelsResponse.data, ...embedModelsResponse.data]
     return dedup(all, (m) => m.id).map((m) => toModel(m.id, provider, { ownedBy: m.owned_by }))
-  },
+  }
 }
 
 const ppioFetcher: ModelFetcher = {
@@ -302,24 +269,24 @@ const ppioFetcher: ModelFetcher = {
         url: `${baseUrl}/models`,
         headers,
         responseSchema: OpenAIModelsResponseSchema,
-        abortSignal: signal,
+        abortSignal: signal
       }),
       getFromApi({
         url: `${baseUrl}/models?model_type=embedding`,
         headers,
         responseSchema: OpenAIModelsResponseSchema,
-        abortSignal: signal,
+        abortSignal: signal
       }).catch(() => ({ data: [] })),
       getFromApi({
         url: `${baseUrl}/models?model_type=reranker`,
         headers,
         responseSchema: OpenAIModelsResponseSchema,
-        abortSignal: signal,
-      }).catch(() => ({ data: [] })),
+        abortSignal: signal
+      }).catch(() => ({ data: [] }))
     ])
     const all = [...chat.data, ...embed.data, ...reranker.data]
     return dedup(all, (m) => m.id).map((m) => toModel(m.id, provider, { ownedBy: m.owned_by }))
-  },
+  }
 }
 
 const aiHubMixFetcher: ModelFetcher = {
@@ -329,15 +296,15 @@ const aiHubMixFetcher: ModelFetcher = {
       url: `https://aihubmix.com/api/v1/models`,
       headers: await defaultHeaders(provider),
       responseSchema: AIHubMixModelsResponseSchema,
-      abortSignal: signal,
+      abortSignal: signal
     })
     return dedup(response.data, (m) => m.model_id).map((m) =>
       toModel(m.model_id, provider, {
         name: m.model_name || m.model_id,
-        description: m.desc,
-      }),
+        description: m.desc
+      })
     )
-  },
+  }
 }
 
 const openAICompatibleFetcher: ModelFetcher = {
@@ -348,10 +315,10 @@ const openAICompatibleFetcher: ModelFetcher = {
       url: `${baseUrl}/models`,
       headers: await defaultHeaders(provider),
       responseSchema: OpenAIModelsResponseSchema,
-      abortSignal: signal,
+      abortSignal: signal
     })
     return dedup(response.data, (m) => m.id).map((m) => toModel(m.id, provider, { ownedBy: m.owned_by }))
-  },
+  }
 }
 
 // ── Registry (order matters: first match wins) ──
@@ -366,13 +333,17 @@ const fetchers: ModelFetcher[] = [
   newApiFetcher,
   openRouterFetcher,
   ppioFetcher,
-  openAICompatibleFetcher, // always-match fallback, must be last
+  openAICompatibleFetcher // always-match fallback, must be last
 ]
 
 const UNSUPPORTED_PROVIDERS = new Set<string>([SystemProviderIds['aws-bedrock'], SystemProviderIds.anthropic])
 
 function isUnsupported(provider: Provider): boolean {
-  return isAIGatewayProvider(provider) || UNSUPPORTED_PROVIDERS.has(provider.id) || provider.presetProviderId === 'vertex-anthropic'
+  return (
+    isAIGatewayProvider(provider) ||
+    UNSUPPORTED_PROVIDERS.has(provider.id) ||
+    provider.presetProviderId === 'vertex-anthropic'
+  )
 }
 
 // ── Public API ──
