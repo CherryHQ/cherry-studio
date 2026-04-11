@@ -16,7 +16,7 @@ src/main/data/db/
 │   ├── message.ts        # Message table
 │   ├── messageFts.ts     # FTS5 virtual table & triggers
 │   └── ...               # Other tables
-├── seeding/              # Database initialization
+├── seeding/              # Data seeding (see seeding/README.md)
 ├── customSql.ts          # Custom SQL (triggers, virtual tables, etc.)
 └── DbService.ts          # Database connection management
 ```

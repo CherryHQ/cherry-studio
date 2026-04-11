@@ -1,10 +1,19 @@
 import { translateLanguageTable } from '@data/db/schemas/translateLanguage'
 import { BUILTIN_TRANSLATE_LANGUAGES } from '@shared/data/presets/translate-languages'
 
-import type { DbType, ISeed } from '../types'
+import type { DbType, ISeeder } from '../../types'
+import { hashObject } from '../hashObject'
 
-class TranslateLanguageSeed implements ISeed {
-  async migrate(db: DbType): Promise<void> {
+export class TranslateLanguageSeeder implements ISeeder {
+  readonly name = 'translateLanguage'
+  readonly description = 'Insert builtin translation languages'
+  readonly version: string
+
+  constructor() {
+    this.version = hashObject(BUILTIN_TRANSLATE_LANGUAGES)
+  }
+
+  async run(db: DbType): Promise<void> {
     const existing = await db.select({ langCode: translateLanguageTable.langCode }).from(translateLanguageTable)
 
     const existingCodes = new Set(existing.map((r) => r.langCode))
@@ -16,5 +25,3 @@ class TranslateLanguageSeed implements ISeed {
     }
   }
 }
-
-export default TranslateLanguageSeed

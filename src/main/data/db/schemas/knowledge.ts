@@ -1,6 +1,6 @@
 import type {
-  ItemStatus,
   KnowledgeItemData,
+  KnowledgeItemStatus,
   KnowledgeItemType,
   KnowledgeSearchMode
 } from '@shared/data/types/knowledge'
@@ -72,7 +72,7 @@ export const knowledgeItemTable = sqliteTable(
     data: text({ mode: 'json' }).$type<KnowledgeItemData>().notNull(),
 
     // Processing status
-    status: text().$type<ItemStatus>().notNull().default('idle'),
+    status: text().$type<KnowledgeItemStatus>().notNull().default('idle'),
     error: text(),
 
     ...createUpdateTimestamps
@@ -81,7 +81,7 @@ export const knowledgeItemTable = sqliteTable(
     check('knowledge_item_type_check', sql`${t.type} IN ('file', 'url', 'note', 'sitemap', 'directory')`),
     check(
       'knowledge_item_status_check',
-      sql`${t.status} IN ('idle', 'pending', 'ocr', 'read', 'embed', 'completed', 'failed')`
+      sql`${t.status} IN ('idle', 'pending', 'file_processing', 'read', 'embed', 'completed', 'failed')`
     ),
     // Enforce that group owners live inside the same knowledge base.
     foreignKey({ columns: [t.baseId, t.groupId], foreignColumns: [t.baseId, t.id] }).onDelete('cascade'),

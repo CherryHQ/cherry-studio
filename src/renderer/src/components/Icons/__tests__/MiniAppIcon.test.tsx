@@ -42,7 +42,17 @@ describe('MiniAppIcon', () => {
     const customStyle = { marginTop: '10px' }
     const { container } = render(<MiniAppIcon app={mockApp} size={64} style={customStyle} sidebar={true} />)
 
-    expect(container.firstChild).toMatchSnapshot()
+    const img = container.querySelector('img')
+    expect(img).toBeInTheDocument()
+    expect(img).toHaveAttribute('src', '/test-logo-1.png')
+    expect(img).toHaveAttribute('alt', 'Test App')
+    expect(img).toHaveAttribute('draggable', 'false')
+    expect(img).toHaveStyle({
+      width: '64px',
+      height: '64px',
+      marginTop: '10px',
+      backgroundColor: '#f0f0f0'
+    })
   })
 
   it('should not apply app.style when sidebar is true', () => {
