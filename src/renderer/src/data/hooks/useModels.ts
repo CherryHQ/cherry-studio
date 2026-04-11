@@ -1,6 +1,6 @@
 import { dataApiService } from '@data/DataApiService'
 import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
-import type { CreateModelDto, UpdateModelDto } from '@shared/data/api/schemas/models'
+import type { CreateModelDto, CreateModelsBatchDto, UpdateModelDto } from '@shared/data/api/schemas/models'
 import type { Model } from '@shared/data/types/model'
 import { useCallback, useMemo } from 'react'
 
@@ -8,7 +8,7 @@ import { useInvalidateCache, useMutation, useQuery } from './useDataApi'
 
 /** Helper to build `/models/:providerId/:modelId` concrete path (tsgo cannot resolve two-segment template literals) */
 function modelPath(providerId: string, modelId: string): ConcreteApiPaths {
-  return `/models/${providerId}/${modelId}` as ConcreteApiPaths
+  return `/models/${encodeURIComponent(providerId)}/${encodeURIComponent(modelId)}` as ConcreteApiPaths
 }
 
 const REFRESH_MODELS = ['/models'] as const
@@ -37,8 +37,15 @@ export function useModelMutations() {
   const { trigger: createTrigger } = useMutation('POST', '/models', {
     refresh: [...REFRESH_MODELS]
   })
+  const { trigger: createBatchTrigger } = useMutation('POST', '/models/batch', {
+    refresh: [...REFRESH_MODELS]
+  })
 
   const createModel = useCallback((dto: CreateModelDto) => createTrigger({ body: dto }), [createTrigger])
+  const createModelsBatch = useCallback(
+    (dtos: CreateModelsBatchDto['items']) => createBatchTrigger({ body: { items: dtos } }),
+    [createBatchTrigger]
+  )
 
   const deleteModel = useCallback(
     async (providerId: string, modelId: string) => {
@@ -56,5 +63,5 @@ export function useModelMutations() {
     [invalidate]
   )
 
-  return { createModel, deleteModel, patchModel }
+  return { createModel, createModelsBatch, deleteModel, patchModel }
 }

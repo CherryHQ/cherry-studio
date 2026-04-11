@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import ModelIdWithTagsV2 from '../components/ModelIdWithTagsV2'
+import { getModelGroupLabel } from './grouping'
 import { isValidNewApiModel } from './utils'
 
 // 列表项类型定义
@@ -159,7 +160,7 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
                     strokeWidth={1.5}
                     className={isCollapsed ? '' : 'rotate-90'}
                   />
-                  <span className="font-bold text-sm">{row.groupName}</span>
+                  <span className="font-bold text-sm">{getModelGroupLabel(row.groupName, t)}</span>
                   <CustomTag color="#02B96B" size={10}>
                     {row.models.length}
                   </CustomTag>

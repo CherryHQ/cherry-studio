@@ -8,6 +8,7 @@ import React, { memo, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import { getModelGroupLabel } from './grouping'
 import ModelListItem from './ModelListItem'
 
 const MAX_SCROLLER_HEIGHT = 390
@@ -38,6 +39,7 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
 }) => {
   const { t } = useTranslation()
   const listRef = useRef<DynamicVirtualListRef>(null)
+  const groupLabel = getModelGroupLabel(groupName, t)
 
   const handleCollapseChange = useCallback((activeKeys: string[] | string) => {
     const isNowExpanded = Array.isArray(activeKeys) ? activeKeys.length > 0 : !!activeKeys
@@ -54,7 +56,7 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
         onChange={handleCollapseChange}
         label={
           <Flex className="items-center gap-[10px]">
-            <span style={{ fontWeight: 'bold' }}>{groupName}</span>
+            <span style={{ fontWeight: 'bold' }}>{groupLabel}</span>
           </Flex>
         }
         extra={

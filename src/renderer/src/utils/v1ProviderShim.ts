@@ -2,7 +2,8 @@
 // 将 v2 DataApi Provider 桥接为 v1 Provider 形状，供尚未迁移的下游使用。
 
 import type { Model as V1Model, Provider as V1Provider, ProviderType } from '@renderer/types'
-import { ENDPOINT_TYPE, type Model as V2Model } from '@shared/data/types/model'
+import type { Model as V2Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider as V2Provider } from '@shared/data/types/provider'
 
 export interface V1ShimOptions {
@@ -71,6 +72,37 @@ function apiFeaturesToApiOptions(v2: V2Provider): V1Provider['apiOptions'] {
     isNotSupportVerbosity: !f.verbosity,
     isNotSupportEnableThinking: !f.enableThinking
   }
+}
+
+/**
+ * 将 v2 DataApi Model 桥接为 v1 Model 形状，供 AiProvider / checkApi 等仍依赖 `model.provider` 的代码使用。
+ */
+export function toV1ModelShim(v2: V2Model): V1Model {
+  const apiId = v2.apiModelId?.trim() || (isUniqueModelId(v2.id) ? parseUniqueModelId(v2.id).modelId : v2.id)
+
+  return {
+    id: apiId,
+    provider: v2.providerId,
+    name: v2.name,
+    group: v2.group ?? '',
+    owned_by: v2.ownedBy,
+    description: v2.description,
+    endpoint_type: v2.endpointTypes?.[0],
+    supported_endpoint_types: v2.endpointTypes
+  } as V1Model
+}
+
+/** 调用仍基于 v1 `Model` 的 `checkApi` 前使用：已是 v1 则原样返回，否则走 {@link toV1ModelShim}。 */
+export function toV1ModelForCheckApi(model: unknown): V1Model {
+  if (
+    typeof model === 'object' &&
+    model !== null &&
+    'provider' in model &&
+    typeof (model as { provider?: unknown }).provider === 'string'
+  ) {
+    return model as V1Model
+  }
+  return toV1ModelShim(model as V2Model)
 }
 
 /**

@@ -35,11 +35,13 @@ function createCapturingMockDb(selectResults: unknown[][] = [[]]) {
         const returnChain: Record<string, unknown> = {}
         returnChain.returning = vi.fn(() => {
           const thenable: Record<string, unknown> = {}
-          thenable.then = (resolve: (v: unknown) => void) => resolve([capturedInsertValues])
+          thenable.then = (resolve: (v: unknown) => void) =>
+            resolve(Array.isArray(capturedInsertValues) ? capturedInsertValues : [capturedInsertValues])
           return thenable
         })
         returnChain.onConflictDoUpdate = vi.fn(() => returnChain)
-        returnChain.then = (resolve: (v: unknown) => void) => resolve([capturedInsertValues])
+        returnChain.then = (resolve: (v: unknown) => void) =>
+          resolve(Array.isArray(capturedInsertValues) ? capturedInsertValues : [capturedInsertValues])
         return returnChain
       })
       return insertChain
@@ -223,5 +225,66 @@ describe('ModelService.create', () => {
     expect(vals.name).toBe('GPT-4o')
     expect(vals.capabilities).toEqual(['function-call'])
     expect(vals.contextWindow).toBe(128_000)
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ModelService.batchCreate — batch insert with create semantics
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('ModelService.batchCreate', () => {
+  beforeEach(() => {
+    capturedInsertValues = null
+    MockMainDbServiceUtils.setDb(createCapturingMockDb())
+  })
+
+  it('builds all rows with the same registry-aware merge semantics as create', async () => {
+    const batch = [
+      {
+        dto: {
+          providerId: 'openai',
+          modelId: 'gpt-4o'
+        },
+        registryData: {
+          presetModel: {
+            id: 'gpt-4o',
+            name: 'GPT-4o',
+            capabilities: ['function-call'],
+            inputModalities: ['text'],
+            contextWindow: 128_000,
+            maxOutputTokens: 4096
+          } as any,
+          registryOverride: null
+        }
+      },
+      {
+        dto: {
+          providerId: 'custom',
+          modelId: 'my-model',
+          name: 'My Model',
+          endpointTypes: ['openai']
+        }
+      }
+    ]
+
+    await modelService.batchCreate(batch as any)
+
+    const vals = capturedInsertValues as Array<Record<string, unknown>>
+    expect(vals).toHaveLength(2)
+    expect(vals[0]).toMatchObject({
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      presetModelId: 'gpt-4o',
+      name: 'GPT-4o',
+      capabilities: ['function-call'],
+      contextWindow: 128_000
+    })
+    expect(vals[1]).toMatchObject({
+      providerId: 'custom',
+      modelId: 'my-model',
+      presetModelId: null,
+      name: 'My Model',
+      endpointTypes: ['openai']
+    })
   })
 })

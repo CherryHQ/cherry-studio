@@ -116,6 +116,9 @@ describe('useModelMutations', () => {
     expect(mockUseMutation).toHaveBeenCalledWith('POST', '/models', {
       refresh: ['/models']
     })
+    expect(mockUseMutation).toHaveBeenCalledWith('POST', '/models/batch', {
+      refresh: ['/models']
+    })
   })
 
   it('should call createTrigger when createModel is invoked', async () => {
@@ -134,6 +137,35 @@ describe('useModelMutations', () => {
     })
 
     expect(mockTrigger).toHaveBeenCalledWith({ body: dto })
+  })
+
+  it('should call batch create trigger when createModelsBatch is invoked', async () => {
+    const singleTrigger = vi.fn().mockResolvedValue({ id: 'single-model' })
+    const batchTrigger = vi.fn().mockResolvedValue([{ id: 'batch-model-1' }, { id: 'batch-model-2' }])
+    mockUseMutation
+      .mockImplementationOnce(() => ({
+        trigger: singleTrigger,
+        isLoading: false,
+        error: undefined
+      }))
+      .mockImplementationOnce(() => ({
+        trigger: batchTrigger,
+        isLoading: false,
+        error: undefined
+      }))
+
+    const { result } = renderHook(() => useModelMutations())
+
+    const items = [
+      { providerId: 'openai', modelId: 'gpt-5' },
+      { providerId: 'openai', modelId: 'gpt-5-mini' }
+    ]
+    await act(async () => {
+      await result.current.createModelsBatch(items)
+    })
+
+    expect(batchTrigger).toHaveBeenCalledWith({ body: { items } })
+    expect(singleTrigger).not.toHaveBeenCalled()
   })
 
   it('should delete model via dataApiService and invalidate cache', async () => {
@@ -180,5 +212,19 @@ describe('useModelMutations', () => {
     })
 
     expect(mockDataApiService.delete).toHaveBeenCalledWith('/models/anthropic/claude-3-opus')
+  })
+
+  it('should encode model IDs that contain slashes', async () => {
+    const mockInvalidate = vi.fn().mockResolvedValue(undefined)
+    mockUseInvalidateCache.mockImplementation(() => mockInvalidate)
+    mockDataApiService.delete.mockResolvedValue({ deleted: true })
+
+    const { result } = renderHook(() => useModelMutations())
+
+    await act(async () => {
+      await result.current.deleteModel('cherryin', 'qwen/qwen3-vl-30b-a3b-thinking(free)')
+    })
+
+    expect(mockDataApiService.delete).toHaveBeenCalledWith('/models/cherryin/qwen%2Fqwen3-vl-30b-a3b-thinking(free)')
   })
 })
