@@ -16,6 +16,7 @@ import { sessionMessagesTable } from '../database/schema'
 import { agentMessageRepository } from '../database/sessionMessageRepository'
 import type { AgentStreamEvent } from '../interfaces/AgentStreamInterface'
 import ClaudeCodeService from './claudecode'
+import { canResumeClaudeSession } from './claudecode/sessionCompatibility'
 
 const claudeCodeService = new ClaudeCodeService()
 
@@ -181,7 +182,7 @@ export class SessionMessageService extends BaseService {
     abortController: AbortController,
     options?: CreateMessageOptions
   ): Promise<SessionStreamResult> {
-    const agentSessionId = await this.getLastAgentSessionId(session.id)
+    const agentSessionId = await this.getLastAgentSessionId(session)
     logger.debug('Session Message stream message data:', { message: req, session_id: agentSessionId })
 
     const claudeStream = await claudeCodeService.invoke(
@@ -429,21 +430,66 @@ export class SessionMessageService extends BaseService {
     return result
   }
 
-  private async getLastAgentSessionId(sessionId: string): Promise<string> {
+  private async getLastAgentSessionId(session: GetAgentSessionResponse): Promise<string> {
     try {
       const database = await this.getDatabase()
       const result = await database
-        .select({ agent_session_id: sessionMessagesTable.agent_session_id })
+        .select({
+          agent_session_id: sessionMessagesTable.agent_session_id,
+          content: sessionMessagesTable.content
+        })
         .from(sessionMessagesTable)
-        .where(and(eq(sessionMessagesTable.session_id, sessionId), not(eq(sessionMessagesTable.agent_session_id, ''))))
+        .where(
+          and(
+            eq(sessionMessagesTable.session_id, session.id),
+            sql`${sessionMessagesTable.role} in ('assistant', 'agent')`,
+            not(eq(sessionMessagesTable.agent_session_id, ''))
+          )
+        )
         .orderBy(desc(sessionMessagesTable.created_at))
         .limit(1)
 
-      logger.silly('Last agent session ID result:', { agentSessionId: result[0]?.agent_session_id, sessionId })
-      return result[0]?.agent_session_id || ''
+      const latestMessage = result[0]
+      if (!latestMessage) {
+        return ''
+      }
+
+      let lastModelId: string | undefined
+      try {
+        const parsed = JSON.parse(latestMessage.content) as AgentPersistedMessage
+        lastModelId = parsed?.message?.modelId ?? parsed?.message?.model?.id
+      } catch (error) {
+        logger.warn('Failed to parse last agent session message content', {
+          sessionId: session.id,
+          error: error instanceof Error ? error.message : String(error)
+        })
+        return ''
+      }
+
+      if (!lastModelId) {
+        logger.debug('Skipping agent session resume because the last message is missing model metadata', {
+          sessionId: session.id
+        })
+        return ''
+      }
+
+      if (!canResumeClaudeSession(session.model, lastModelId)) {
+        logger.debug('Skipping agent session resume because the provider changed', {
+          sessionId: session.id,
+          currentModel: session.model,
+          lastModelId: lastModelId || ''
+        })
+        return ''
+      }
+
+      logger.silly('Last agent session ID result:', {
+        agentSessionId: latestMessage.agent_session_id,
+        sessionId: session.id
+      })
+      return latestMessage.agent_session_id || ''
     } catch (error) {
       logger.error('Failed to get last agent session ID', {
-        sessionId,
+        sessionId: session.id,
         error
       })
       return ''
