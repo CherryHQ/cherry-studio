@@ -345,30 +345,40 @@ export class AiStreamManager extends BaseService {
     sender: Electron.WebContents,
     req: AiStreamOpenRequest
   ): Promise<{ mode: 'started' | 'steered' }> {
-    // Persist user message (explicit parentId, no activeNodeId fallback)
+    // Resolve assistant and model from Redux (same approach as AiCompletionService.getProviderAndModel).
+    // TODO: When assistant is migrated to v2 DataApi, assistant.model will store UniqueModelId
+    // directly (e.g. "openai::gpt-4o"), eliminating the need to manually construct it here.
+    // At that point, replace this block with a single DataApi query.
+    const assistants =
+      await reduxService.select<
+        Array<{ id: string; name: string; emoji?: string; model?: { id: string; provider: string; name: string } }>
+      >('state.assistants.assistants')
+    const assistant = assistants.find((a) => a.id === req.assistantId)
+    if (!assistant?.model) {
+      throw new Error(`Cannot resolve model for assistant ${req.assistantId}`)
+    }
+    const { model } = assistant
+    const modelId: UniqueModelId = `${model.provider}::${model.id}`
+
+    // Persist user message with full metadata
     const userMessage = await messageService.create(req.topicId, {
       role: 'user',
       parentId: req.parentAnchorId,
-      data: { parts: req.userMessageParts }
+      data: { parts: req.userMessageParts },
+      assistantId: req.assistantId,
+      assistantMeta: { id: assistant.id, name: assistant.name, emoji: assistant.emoji },
+      modelId: model.id,
+      modelMeta: { id: model.id, name: model.name, provider: model.provider }
     })
 
-    // Resolve model from assistant config (same approach as AiCompletionService.getProviderAndModel)
-    const assistants =
-      await reduxService.select<Array<{ id: string; model?: { provider?: string; id?: string } }>>(
-        'state.assistants.assistants'
-      )
-    const assistant = assistants.find((a) => a.id === req.assistantId)
-    const providerId = assistant?.model?.provider
-    const resolvedModelId = assistant?.model?.id
-    if (!providerId || !resolvedModelId) {
-      throw new Error(`Cannot resolve model for assistant ${req.assistantId}`)
-    }
-    const modelId: UniqueModelId = `${providerId}::${resolvedModelId}`
-
+    // Construct PersistenceListener with full metadata for assistant message
     const persistenceListener = new PersistenceListener({
       topicId: req.topicId,
       assistantId: req.assistantId,
-      parentUserMessageId: userMessage.id
+      parentUserMessageId: userMessage.id,
+      modelId: model.id,
+      modelMeta: { id: model.id, name: model.name, provider: model.provider },
+      assistantMeta: { id: assistant.id, name: assistant.name, emoji: assistant.emoji }
     })
     const webContentsListener = new WebContentsListener(sender, req.topicId)
 
