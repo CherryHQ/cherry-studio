@@ -70,7 +70,12 @@ export class PersistenceListener implements StreamListener {
         traceId: this.ctx.traceId,
         siblingsGroupId: this.ctx.siblingsGroupId,
         data: { parts: finalMessage.parts },
-        status
+        status,
+        // Extract stats from finalMessage metadata if available (token usage from AI SDK)
+        stats:
+          (this.ctx.stats ?? (finalMessage.metadata as { totalTokens?: number } | undefined)?.totalTokens)
+            ? { totalTokens: (finalMessage.metadata as { totalTokens?: number }).totalTokens }
+            : undefined
       })
 
       logger.info('Assistant message persisted', {
