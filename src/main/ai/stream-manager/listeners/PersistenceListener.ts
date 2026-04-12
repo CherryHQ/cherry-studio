@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { messageService } from '@main/data/services/MessageService'
 import type { SerializedError } from '@shared/types/error'
 
 import type { CherryUIMessage, StreamDoneResult, StreamListener } from '../types'
@@ -6,15 +7,15 @@ import type { CherryUIMessage, StreamDoneResult, StreamListener } from '../types
 const logger = loggerService.withContext('PersistenceListener')
 
 export interface PersistenceListenerOptions {
-  /** For logging/trace only — does not participate in listener.id construction. */
+  /** For logging/trace only. */
   requestId?: string
   topicId: string
   assistantId: string
-  /** Real SQLite id of the user message created by handleStreamRequest step 1. */
+  /** Real SQLite id of the user message created by handleStreamRequest. */
   parentUserMessageId: string
   /**
    * Optional post-persist hook. Runs only on `status === 'success'`.
-   * Failures are caught + warned, never propagated.
+   * Failures are caught and warned, never propagated.
    */
   afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
 }
@@ -22,14 +23,7 @@ export interface PersistenceListenerOptions {
 /**
  * Writes the assistant message to SQLite when the stream ends.
  *
- * **Listener id is `persistence:${topicId}`** (topic-based, not requestId).
- *
- * Why: during steering, a second `Ai_Stream_Open` for the same topic causes the
- * Broker to add the new PersistenceListener to the *existing* ActiveStream via upsert.
- * Topic-based id ensures only one PersistenceListener survives per topic, with the
- * `parentUserMessageId` updated to the latest steered user message. If the id used
- * requestId, two listeners would coexist → `onDone` fires twice → duplicate assistant
- * rows in SQLite.
+ * Listener id is `persistence:${topicId}` — topic-based for steering upsert correctness.
  */
 export class PersistenceListener implements StreamListener {
   readonly id: string
@@ -39,35 +33,53 @@ export class PersistenceListener implements StreamListener {
   }
 
   onChunk(): void {
-    // no-op: persistence only writes on onDone
+    // Persistence only writes on onDone, not per-chunk.
   }
 
   async onDone(result: StreamDoneResult): Promise<void> {
     const { finalMessage, status } = result
 
     if (!finalMessage) {
-      logger.warn('PersistenceListener.onDone without finalMessage, skipping persistence', {
+      logger.warn('onDone without finalMessage, skipping persistence', {
         topicId: this.ctx.topicId,
-        requestId: this.ctx.requestId,
         status
       })
       return
     }
 
-    // TODO (Step 2.6): Call messageService.create(topicId, { role: 'assistant', ... })
-    // For now this is a skeleton — the real implementation will:
-    //  1. Write assistant message to SQLite via messageService.create
-    //  2. Run afterPersist hook (success path only)
-    logger.info('PersistenceListener.onDone [skeleton]', {
-      topicId: this.ctx.topicId,
-      requestId: this.ctx.requestId,
-      status,
-      hasAfterPersist: !!this.ctx.afterPersist
-    })
+    try {
+      await messageService.create(this.ctx.topicId, {
+        role: 'assistant',
+        parentId: this.ctx.parentUserMessageId,
+        assistantId: this.ctx.assistantId,
+        data: finalMessage as never,
+        status
+      })
+
+      logger.info('Assistant message persisted', {
+        topicId: this.ctx.topicId,
+        status
+      })
+    } catch (err) {
+      logger.error('Failed to persist assistant message', {
+        topicId: this.ctx.topicId,
+        err
+      })
+      return
+    }
+
+    // Post-persist hook: only on success, best-effort
+    if (status === 'success' && this.ctx.afterPersist) {
+      try {
+        await this.ctx.afterPersist(finalMessage)
+      } catch (err) {
+        logger.warn('afterPersist hook failed', { topicId: this.ctx.topicId, err })
+      }
+    }
   }
 
   async onError(_error: SerializedError): Promise<void> {
-    // Strategy: don't persist error messages (consistent with v1 ChatSession.handleFinish)
+    // Don't persist error messages (consistent with v1 ChatSession.handleFinish)
   }
 
   isAlive(): boolean {
