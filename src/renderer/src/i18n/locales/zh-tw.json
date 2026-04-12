@@ -1490,6 +1490,7 @@
       "unpin": "取消固定"
     },
     "translate": "翻譯",
+    "user": "使用者",
     "web_search": {
       "warning": {
         "openai": "GPT-5 模型的最小推理力度不支援網路搜尋。"
@@ -5607,7 +5608,7 @@
       "noInstalled": "暫無已安裝的技能",
       "noResults": "未找到技能",
       "noSkillFile": "未找到 SKILL.md 檔案",
-      "searchPlaceholder": "跨登錄檔搜尋技能...",
+      "searchPlaceholder": "發現更多技能...",
       "searchRegistryTitle": "在線搜尋技能登錄檔",
       "searchTitle": "搜尋技能",
       "selectFile": "選擇一個檔案查看",

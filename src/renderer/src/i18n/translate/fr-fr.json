@@ -1490,6 +1490,7 @@
       "unpin": "Annuler le fixage"
     },
     "translate": "Traduire",
+    "user": "Utilisateur",
     "web_search": {
       "warning": {
         "openai": "Le modèle GPT5 avec une intensité de réflexion minimale ne prend pas en charge la recherche sur Internet."
@@ -5607,7 +5608,7 @@
       "noInstalled": "Aucune compétence installée",
       "noResults": "Aucune compétence trouvée",
       "noSkillFile": "Aucun SKILL.md trouvé",
-      "searchPlaceholder": "Rechercher des compétences dans les registres...",
+      "searchPlaceholder": "Découvrir plus de compétences...",
       "searchRegistryTitle": "Rechercher des registres de compétences en ligne",
       "searchTitle": "Compétences de recherche",
       "selectFile": "Sélectionner un fichier à afficher",

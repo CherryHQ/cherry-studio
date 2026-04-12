@@ -1490,6 +1490,7 @@
       "unpin": "Anheften aufheben"
     },
     "translate": "Übersetzen",
+    "user": "Benutzer",
     "web_search": {
       "warning": {
         "openai": "GPT5-Modell mit minimaler Denkstärke unterstützt keine Websuche"
@@ -5607,7 +5608,7 @@
       "noInstalled": "Keine Fähigkeiten installiert",
       "noResults": "Keine Fähigkeiten gefunden",
       "noSkillFile": "Keine SKILL.md gefunden",
-      "searchPlaceholder": "Suchfähigkeiten über Registrierungsstellen hinweg...",
+      "searchPlaceholder": "Weitere Fähigkeiten entdecken...",
       "searchRegistryTitle": "Durchsuche Fähigkeitsregister online",
       "searchTitle": "Suchfähigkeiten",
       "selectFile": "Wählen Sie eine Datei zum Anzeigen",

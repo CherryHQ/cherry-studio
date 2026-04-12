@@ -68,6 +68,7 @@ export function createMockApplication(overrides: ServiceOverrides = {}) {
     // specific value.
     getPath: vi.fn((key: string, filename?: string) => (filename ? `/mock/${key}/${filename}` : `/mock/${key}`)),
     registerAll: vi.fn(),
+    initPathRegistry: vi.fn(),
     bootstrap: vi.fn().mockResolvedValue(undefined),
     isReady: vi.fn(() => true)
   }

@@ -31,6 +31,7 @@ import type {
   FileProcessingMarkdownTaskStartResult,
   FileProcessingTextExtractionResult
 } from '@shared/data/types/fileProcessing'
+import type { KnowledgeSearchResult as KnowledgeVectorSearchResult } from '@shared/data/types/knowledge'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type {
@@ -355,6 +356,18 @@ const api = {
         base,
         results
       })
+  },
+  knowledgeRuntime: {
+    createBase: (baseId: string): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_CreateBase, { baseId }),
+    deleteBase: (baseId: string): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_DeleteBase, { baseId }),
+    addItems: (baseId: string, itemIds: string[]): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_AddItems, { baseId, itemIds }),
+    deleteItems: (baseId: string, itemIds: string[]): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_DeleteItems, { baseId, itemIds }),
+    search: (baseId: string, query: string): Promise<KnowledgeVectorSearchResult[]> =>
+      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_Search, { baseId, query })
   },
   memory: {
     add: (messages: string | AssistantMessage[], options?: AddMemoryOptions) =>

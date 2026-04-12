@@ -9,7 +9,7 @@ import path from 'node:path'
 import type {
   CanUseTool,
   HookCallback,
-  McpHttpServerConfig,
+  McpServerConfig,
   Options,
   SDKMessage,
   SdkPluginConfig,
@@ -59,6 +59,7 @@ import { channelService } from '../ChannelService'
 import { PromptBuilder } from '../cherryclaw/prompt'
 import { sessionService } from '../SessionService'
 import { buildNamespacedToolCallId } from './claude-stream-state'
+import { createSdkMcpServerInstance } from './createSdkMcpServerInstance'
 import { promptForToolApproval } from './tool-permissions'
 import { ClaudeStreamState, transformSDKMessageToStreamParts } from './transform'
 
@@ -162,11 +163,6 @@ class ClaudeCodeService implements AgentServiceInterface {
       provider.apiKey = provider.id
     }
 
-    const apiConfig = application.get('PreferenceService').getMultiple({
-      host: 'feature.csaas.host',
-      port: 'feature.csaas.port',
-      apiKey: 'feature.csaas.api_key'
-    })
     const loginShellEnv = await getLoginShellEnvironment()
 
     // Auto-discover Git Bash path on Windows (already logs internally)
@@ -208,7 +204,7 @@ class ClaudeCodeService implements AgentServiceInterface {
       // Set CLAUDE_CONFIG_DIR to app's userData directory to avoid path encoding issues
       // on Windows when the username contains non-ASCII characters (e.g., Chinese characters)
       // This prevents the SDK from using the user's home directory which may have encoding problems
-      CLAUDE_CONFIG_DIR: path.join(app.getPath('userData'), '.claude'),
+      CLAUDE_CONFIG_DIR: application.getPath('feature.agents.claude.root'),
       ENABLE_TOOL_SEARCH: 'auto',
       CHERRY_STUDIO_BUN_PATH: bunPath,
       ...(customGitBashPath ? { CLAUDE_CODE_GIT_BASH_PATH: customGitBashPath } : {})
@@ -452,6 +448,11 @@ class ClaudeCodeService implements AgentServiceInterface {
       pathToClaudeCodeExecutable: this.claudeExecutablePath,
       spawnClaudeCodeProcess: (spawnOptions) => {
         const childEnv = { ...spawnOptions.env } as NodeJS.ProcessEnv
+
+        // Ensure the child process can resolve native modules (e.g. @img/sharp)
+        // that live in asar.unpacked alongside the SDK
+        childEnv.NODE_PATH = toAsarUnpackedPath(path.join(app.getAppPath(), 'node_modules'))
+
         let execArgv = process.execArgv
 
         const activeProxyConfig = getNodeProxyConfigFromEnvironment(childEnv)
@@ -483,7 +484,7 @@ class ClaudeCodeService implements AgentServiceInterface {
         return child as unknown as SpawnedProcess
       },
       systemPrompt: assistantSystemPrompt
-        ? `${assistantSystemPrompt}\n\n${getLanguageInstruction()}`
+        ? assistantSystemPrompt
         : soulSystemPrompt
           ? `${soulSystemPrompt}${channelSecurityBlock}\n\n${getLanguageInstruction()}`
           : session.instructions
@@ -527,15 +528,14 @@ class ClaudeCodeService implements AgentServiceInterface {
     }
 
     if (session.mcps && session.mcps.length > 0) {
-      // mcp configs
-      const mcpList: Record<string, McpHttpServerConfig> = {}
+      // Use in-memory SDK transport instead of HTTP proxy for reliability
+      const mcpList: Record<string, McpServerConfig> = {}
       for (const mcpId of session.mcps) {
-        mcpList[mcpId] = {
-          type: 'http',
-          url: `http://${apiConfig.host}:${apiConfig.port}/v1/mcps/${mcpId}/mcp`,
-          headers: {
-            Authorization: `Bearer ${apiConfig.apiKey}`
-          }
+        try {
+          const sdkServer = await createSdkMcpServerInstance(mcpId)
+          mcpList[mcpId] = { type: 'sdk', name: mcpId, instance: sdkServer }
+        } catch (error) {
+          logger.error(`Failed to create SDK MCP bridge for ${mcpId}, skipping`, { error })
         }
       }
       options.mcpServers = mcpList

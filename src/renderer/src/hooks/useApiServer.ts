@@ -144,9 +144,11 @@ export const useApiServer = () => {
     }
   }, [apiServerLoading, checkApiServerStatus, setApiServerEnabled, t])
 
+  // Only check status once on mount
   useEffect(() => {
     void checkApiServerStatus()
-  }, [checkApiServerStatus])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Use ref to keep the latest checkApiServerStatus without causing re-subscription
   const checkStatusRef = useRef(checkApiServerStatus)

@@ -1,0 +1,135 @@
+diff --git a/lib-cjs/sqlite3.js b/lib-cjs/sqlite3.js
+index 8527e6190ea92dc2c832049bf2c8862e81f36c2b..be09d2dfd44b837ee98115b5d19bb653672e3e86 100644
+--- a/lib-cjs/sqlite3.js
++++ b/lib-cjs/sqlite3.js
+@@ -77,6 +77,7 @@ class Sqlite3Client {
+     #options;
+     #db;
+     #intMode;
++    #connectionPragmas = [];
+     closed;
+     protocol;
+     /** @private */
+@@ -88,6 +89,15 @@ class Sqlite3Client {
+         this.closed = false;
+         this.protocol = "file";
+     }
++    setPragma(pragmaStmt) {
++        if (typeof pragmaStmt !== 'string' || !pragmaStmt.trim().toUpperCase().startsWith('PRAGMA')) {
++            throw new api_1.LibsqlError('setPragma() requires a PRAGMA statement string', 'PRAGMA_INVALID');
++        }
++        this.#connectionPragmas.push(pragmaStmt);
++        if (this.#db !== null) {
++            executeStmt(this.#db, pragmaStmt, this.#intMode);
++        }
++    }
+     async execute(stmtOrSql, args) {
+         let stmt;
+         if (typeof stmtOrSql === "string") {
+@@ -181,6 +191,9 @@ class Sqlite3Client {
+         }
+         finally {
+             this.#db = new libsql_1.default(this.#path, this.#options);
++            for (const pragma of this.#connectionPragmas) {
++                executeStmt(this.#db, pragma, this.#intMode);
++            }
+             this.closed = false;
+         }
+     }
+@@ -200,6 +213,9 @@ class Sqlite3Client {
+     #getDb() {
+         if (this.#db === null) {
+             this.#db = new libsql_1.default(this.#path, this.#options);
++            for (const pragma of this.#connectionPragmas) {
++                executeStmt(this.#db, pragma, this.#intMode);
++            }
+         }
+         return this.#db;
+     }
+diff --git a/lib-esm/node.d.ts b/lib-esm/node.d.ts
+index 3e82e6b41e65881f5e48b7dd221b0046f47862d8..76af5c20d63990e993f701ace7a696bcef77a495 100644
+--- a/lib-esm/node.d.ts
++++ b/lib-esm/node.d.ts
+@@ -1,5 +1,22 @@
+ import type { Config, Client } from "@libsql/core/api";
+ export * from "@libsql/core/api";
++
++/**
++ * Augment the Client interface with setPragma() from our patch.
++ *
++ * Sqlite3Client.setPragma() registers per-connection PRAGMAs that are
++ * replayed whenever a new connection is lazily created (e.g. after
++ * transaction()). Only Sqlite3Client implements this; HTTP/WS clients
++ * will throw at runtime.
++ *
++ * See patches/@libsql__client@0.15.15.patch for the implementation.
++ */
++declare module "@libsql/core/api" {
++    interface Client {
++        setPragma(pragmaStmt: string): void;
++    }
++}
++
+ /** Creates a {@link Client} object.
+  *
+  * You must pass at least an `url` in the {@link Config} object.
+diff --git a/lib-esm/sqlite3.d.ts b/lib-esm/sqlite3.d.ts
+index 77e075ab5f30e1401dbd8bd50f1759e98bafd89f..54f7f7c54ea139c00ba4247ef46a77087120dcb5 100644
+--- a/lib-esm/sqlite3.d.ts
++++ b/lib-esm/sqlite3.d.ts
+@@ -17,6 +17,7 @@ export declare class Sqlite3Client implements Client {
+     transaction(mode?: TransactionMode): Promise<Transaction>;
+     executeMultiple(sql: string): Promise<void>;
+     sync(): Promise<Replicated>;
++    setPragma(pragmaStmt: string): void;
+     reconnect(): Promise<void>;
+     close(): void;
+ }
+diff --git a/lib-esm/sqlite3.js b/lib-esm/sqlite3.js
+index d9a4f0136804059b31105e977eaeb953f521abdd..1ecdc599a26785489e163d2a9071ea1320a0473d 100644
+--- a/lib-esm/sqlite3.js
++++ b/lib-esm/sqlite3.js
+@@ -55,6 +55,7 @@ export class Sqlite3Client {
+     #options;
+     #db;
+     #intMode;
++    #connectionPragmas = [];
+     closed;
+     protocol;
+     /** @private */
+@@ -66,6 +67,15 @@ export class Sqlite3Client {
+         this.closed = false;
+         this.protocol = "file";
+     }
++    setPragma(pragmaStmt) {
++        if (typeof pragmaStmt !== 'string' || !pragmaStmt.trim().toUpperCase().startsWith('PRAGMA')) {
++            throw new LibsqlError('setPragma() requires a PRAGMA statement string', 'PRAGMA_INVALID');
++        }
++        this.#connectionPragmas.push(pragmaStmt);
++        if (this.#db !== null) {
++            executeStmt(this.#db, pragmaStmt, this.#intMode);
++        }
++    }
+     async execute(stmtOrSql, args) {
+         let stmt;
+         if (typeof stmtOrSql === "string") {
+@@ -159,6 +169,9 @@ export class Sqlite3Client {
+         }
+         finally {
+             this.#db = new Database(this.#path, this.#options);
++            for (const pragma of this.#connectionPragmas) {
++                executeStmt(this.#db, pragma, this.#intMode);
++            }
+             this.closed = false;
+         }
+     }
+@@ -178,6 +191,9 @@ export class Sqlite3Client {
+     #getDb() {
+         if (this.#db === null) {
+             this.#db = new Database(this.#path, this.#options);
++            for (const pragma of this.#connectionPragmas) {
++                executeStmt(this.#db, pragma, this.#intMode);
++            }
+         }
+         return this.#db;
+     }

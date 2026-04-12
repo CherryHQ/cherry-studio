@@ -12,7 +12,6 @@ import { CancellationToken } from 'builder-util-runtime'
 import { app, net } from 'electron'
 import type { Logger, NsisUpdater, UpdateCheckResult } from 'electron-updater'
 import { autoUpdater } from 'electron-updater'
-import path from 'path'
 import semver from 'semver'
 
 const logger = loggerService.withContext('AppUpdaterService')
@@ -80,7 +79,7 @@ export class AppUpdaterService extends BaseService {
     this.registerAutoUpdaterListeners()
 
     if (isWin) {
-      ;(autoUpdater as NsisUpdater).installDirectory = path.dirname(app.getPath('exe'))
+      ;(autoUpdater as NsisUpdater).installDirectory = application.getPath('app.install')
     }
 
     this.registerIpcHandlers()

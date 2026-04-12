@@ -13,9 +13,7 @@ import type {
   MemorySearchOptions
 } from '@types'
 import crypto from 'crypto'
-import { app } from 'electron'
 import fs from 'fs'
-import path from 'path'
 
 import { MemoryQueries } from './queries'
 
@@ -58,7 +56,8 @@ export class MemoryService {
    * If the old memory database exists, rename it to the new path
    */
   public migrateMemoryDb(): void {
-    const oldMemoryDbPath = path.join(app.getPath('userData'), 'memories.db')
+    // Legacy path: pre-v2 stored memories.db directly under userData root
+    const oldMemoryDbPath = application.getPath('app.userdata', 'memories.db')
     const memoryDbPath = application.getPath('feature.memory.db_file')
 
     if (fs.existsSync(oldMemoryDbPath)) {
