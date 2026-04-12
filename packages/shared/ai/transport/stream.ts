@@ -1,4 +1,4 @@
-import type { UIMessageChunk } from 'ai'
+import type { UIMessage, UIMessageChunk } from 'ai'
 
 import type { CherryUIMessage } from '../../data/types/message'
 import type { SerializedError } from '../../types/error'
@@ -45,10 +45,14 @@ export interface AiStreamOpenRequest {
    * back to `topic.activeNodeId`.
    */
   parentAnchorId: string | null
-  /** User message content (no id — Main generates the real SQLite id). */
+  /**
+   * User message content (no id — Main generates the real SQLite id).
+   * Uses generic `UIMessage['parts']` rather than `CherryUIMessage['parts']`
+   * because the transport layer should not enforce app-specific data part types.
+   */
   userMessage: {
     role: 'user'
-    data: { parts: CherryUIMessage['parts'] }
+    data: { parts: UIMessage['parts'] }
   }
   /** Assistant id for the response message metadata. */
   assistantId: string

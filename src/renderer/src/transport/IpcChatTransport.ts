@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import type { AiChatRequestBody, AiStreamOpenRequest } from '@shared/ai/transport'
+import type { AiChatRequestBody } from '@shared/ai/transport'
 import type { ChatRequestOptions, ChatTransport, UIMessage, UIMessageChunk } from 'ai'
 
 const logger = loggerService.withContext('IpcChatTransport')
@@ -35,17 +35,10 @@ export class IpcChatTransport implements ChatTransport<UIMessage> {
     // Build listener stream before sending IPC to avoid missing early chunks
     const stream = this.buildListenerStream(topicId, abortSignal)
 
-    // Extract user message content from the last message.
-    // Cast parts to the expected Cherry-specific type — at runtime these are the same objects,
-    // the type mismatch is because UIMessage.parts uses generic UIDataTypes while
-    // AiStreamOpenRequest expects CherryDataPartTypes.
     const lastMessage = messages.at(-1)
     const userMessage = lastMessage
-      ? {
-          role: 'user' as const,
-          data: { parts: (lastMessage.parts ?? []) as AiStreamOpenRequest['userMessage']['data']['parts'] }
-        }
-      : { role: 'user' as const, data: { parts: [] as AiStreamOpenRequest['userMessage']['data']['parts'] } }
+      ? { role: 'user' as const, data: { parts: lastMessage.parts ?? [] } }
+      : { role: 'user' as const, data: { parts: [] as UIMessage['parts'] } }
 
     // Fire the IPC request — AiStreamManager handles dedup, persistence, routing
     window.api.ai
