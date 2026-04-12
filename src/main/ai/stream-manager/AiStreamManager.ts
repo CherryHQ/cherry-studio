@@ -1,3 +1,4 @@
+import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -345,17 +346,21 @@ export class AiStreamManager extends BaseService {
     sender: Electron.WebContents,
     req: AiStreamOpenRequest
   ): Promise<{ mode: 'started' | 'steered' }> {
-    // Resolve assistant and model from Redux (same approach as AiCompletionService.getProviderAndModel).
-    // TODO: When assistant is migrated to v2 DataApi, assistant.model will store UniqueModelId
-    // directly (e.g. "openai::gpt-4o"), eliminating the need to manually construct it here.
-    // At that point, replace this block with a single DataApi query.
+    // Resolve assistant from topic → assistantId → Redux (will be DataApi after #13851 merges)
+    const topic = await topicService.getById(req.topicId)
+    const assistantId = topic?.assistantId
+    if (!assistantId) {
+      throw new Error(`Cannot resolve assistantId for topic ${req.topicId}`)
+    }
+
+    // TODO: migrate dataapiservice
     const assistants =
       await reduxService.select<
         Array<{ id: string; name: string; emoji?: string; model?: { id: string; provider: string; name: string } }>
       >('state.assistants.assistants')
-    const assistant = assistants.find((a) => a.id === req.assistantId)
+    const assistant = assistants.find((a) => a.id === assistantId)
     if (!assistant?.model) {
-      throw new Error(`Cannot resolve model for assistant ${req.assistantId}`)
+      throw new Error(`Cannot resolve model for assistant ${assistantId}`)
     }
     const { model } = assistant
     const modelId = createUniqueModelId(model.provider, model.id)
@@ -365,16 +370,14 @@ export class AiStreamManager extends BaseService {
       role: 'user',
       parentId: req.parentAnchorId,
       data: { parts: req.userMessageParts },
-      assistantId: req.assistantId,
-      assistantMeta: { id: assistant.id, name: assistant.name, emoji: assistant.emoji },
-      modelId: model.id,
-      modelMeta: { id: model.id, name: model.name, provider: model.provider }
+      assistantId,
+      modelId: model.id
     })
 
     // Construct PersistenceListener with full metadata for assistant message
     const persistenceListener = new PersistenceListener({
       topicId: req.topicId,
-      assistantId: req.assistantId,
+      assistantId,
       parentUserMessageId: userMessage.id,
       modelId: model.id,
       modelMeta: { id: model.id, name: model.name, provider: model.provider },
@@ -385,7 +388,7 @@ export class AiStreamManager extends BaseService {
     const result = this.send({
       topicId: req.topicId,
       modelId,
-      request: await this.buildAiStreamRequest(req, modelId, userMessage.id),
+      request: await this.buildAiStreamRequest(req.topicId, assistantId, modelId, userMessage.id),
       userMessage,
       listeners: [webContentsListener, persistenceListener]
     })
@@ -505,7 +508,8 @@ export class AiStreamManager extends BaseService {
    * converts Message[] to UIMessage[] for the AI SDK, and constructs the full request.
    */
   private async buildAiStreamRequest(
-    req: AiStreamOpenRequest,
+    topicId: string,
+    assistantId: string,
     uniqueModelId: UniqueModelId,
     parentUserMessageId: string
   ): Promise<AiStreamRequest> {
@@ -520,9 +524,9 @@ export class AiStreamManager extends BaseService {
     }))
 
     return {
-      chatId: req.topicId,
+      chatId: topicId,
       trigger: 'submit-message',
-      assistantId: req.assistantId,
+      assistantId,
       uniqueModelId,
       messages
     }

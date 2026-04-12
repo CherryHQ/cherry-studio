@@ -31,7 +31,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
     } & ChatRequestOptions
   ): Promise<ReadableStream<UIMessageChunk>> {
     const { chatId: topicId, messages, abortSignal, body } = options
-    const mergedBody = { ...this.#defaultBody, ...(body as Partial<AiChatRequestBody> | undefined) }
+    const mergedBody: Partial<AiChatRequestBody> = { ...this.#defaultBody, ...body }
 
     // Build listener stream before sending IPC to avoid missing early chunks
     const stream = this.buildListenerStream(topicId, abortSignal)
@@ -42,10 +42,8 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
     window.api.ai
       .streamOpen({
         topicId,
-        parentAnchorId: (mergedBody as Record<string, unknown>).parentAnchorId as string | null,
-        userMessageParts: lastMessage ? lastMessage.parts : [],
-        assistantId: (mergedBody as Record<string, unknown>).assistantId as string,
-        ...mergedBody
+        parentAnchorId: mergedBody.parentAnchorId ?? null,
+        userMessageParts: lastMessage ? lastMessage.parts : []
       })
       .catch((error: unknown) => {
         logger.error('streamOpen IPC failed', error instanceof Error ? error : new Error(String(error)))

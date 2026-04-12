@@ -29,9 +29,9 @@ export interface StreamErrorPayload {
 /**
  * Open a new stream or steer an existing one.
  *
- * Renderer sends the minimum required: topicId, parent anchor, user content, and
- * assistant id. Main resolves everything else (provider, model, tools, overrides)
- * from the assistant config via reduxService / DB.
+ * Renderer sends the minimum required: topicId, parent anchor, and user content.
+ * Main resolves everything else (assistant, provider, model, tools, overrides)
+ * from the topic's assistant config via DB.
  */
 export interface AiStreamOpenRequest {
   topicId: string
@@ -39,8 +39,6 @@ export interface AiStreamOpenRequest {
   parentAnchorId: string | null
   /** User message content — Main wraps into a full Message when persisting. */
   userMessageParts: CherryMessagePart[]
-  /** Assistant id — Main uses this to look up provider, model, tools, overrides. */
-  assistantId: string
 }
 
 /** Subscribe to a topic's stream state. */
