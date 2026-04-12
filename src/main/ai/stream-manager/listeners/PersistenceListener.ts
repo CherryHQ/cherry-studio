@@ -8,7 +8,6 @@ const logger = loggerService.withContext('PersistenceListener')
 
 export interface PersistenceListenerOptions {
   /** For logging/trace only. */
-  requestId?: string
   topicId: string
   assistantId: string
   /** Real SQLite id of the user message created by handleStreamRequest. */

@@ -43,7 +43,6 @@ export class IpcChatTransport implements ChatTransport<UIMessage> {
     // Fire the IPC request — AiStreamManager handles dedup, persistence, routing
     window.api.ai
       .streamOpen({
-        requestId: crypto.randomUUID(),
         topicId,
         parentAnchorId: (mergedBody as Record<string, unknown>).parentAnchorId as string | null,
         userMessage,

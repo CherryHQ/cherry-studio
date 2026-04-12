@@ -36,8 +36,6 @@ export interface StreamErrorPayload {
 
 /** Open a new stream or steer an existing one. */
 export interface AiStreamOpenRequest {
-  /** Optional dedup token for rapid-retry detection. */
-  requestId?: string
   topicId: string
   /**
    * Explicit parent node anchor — the message id at the current branch tip.
@@ -94,5 +92,5 @@ export type AiStreamAttachResponse =
 
 /** Result of an open attempt. */
 export interface AiStreamOpenResponse {
-  mode: 'started' | 'steered' | 'deduped'
+  mode: 'started' | 'steered'
 }

@@ -91,7 +91,6 @@ export interface ActiveStream {
   /** Primary key — the Cherry Studio conversation this stream belongs to. */
   topicId: string
   /** Optional dedup token for rapid-retry detection. */
-  requestId?: string
 
   /** Owned by AiStreamManager, independent of any Renderer lifecycle. */
   abortController: AbortController

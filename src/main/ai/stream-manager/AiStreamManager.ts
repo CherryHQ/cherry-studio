@@ -72,32 +72,20 @@ export class AiStreamManager extends BaseService {
    * - If the topic has a finished stream (grace period) → evict it, create new
    * - If the topic already has a streaming stream → throw (use `send()` to steer instead)
    */
-  startStream(input: {
-    topicId: string
-    request: AiStreamRequest
-    listeners: StreamListener[]
-    requestId?: string
-  }): ActiveStream {
+  startStream(input: { topicId: string; request: AiStreamRequest; listeners: StreamListener[] }): ActiveStream {
     let inheritedSessionId: string | undefined
     const existing = this.activeStreams.get(input.topicId)
 
     if (existing) {
       if (existing.status === 'streaming') {
-        // Dedup: same requestId = retry of the same action
-        if (input.requestId && existing.requestId === input.requestId) {
-          for (const listener of input.listeners) this.addListener(input.topicId, listener)
-          return existing
-        }
         throw new Error(`Topic ${input.topicId} already has an active stream; use send() to steer`)
       }
-      // Grace period: evict finished stream, inherit resume token
       inheritedSessionId = existing.sourceSessionId
       this.evictStream(input.topicId)
     }
 
     const stream: ActiveStream = {
       topicId: input.topicId,
-      requestId: input.requestId,
       abortController: new AbortController(),
       listeners: new Map(input.listeners.map((l) => [l.id, l])),
       pendingMessages: new PendingMessageQueue(),
@@ -129,7 +117,6 @@ export class AiStreamManager extends BaseService {
     request: AiStreamRequest
     userMessage: { id: string }
     listeners: StreamListener[]
-    requestId?: string
   }): { mode: 'started' | 'steered' } {
     const existing = this.activeStreams.get(input.topicId)
     if (existing?.status === 'streaming') {
@@ -254,38 +241,26 @@ export class AiStreamManager extends BaseService {
   private async handleStreamRequest(
     sender: Electron.WebContents,
     req: AiStreamOpenRequest
-  ): Promise<{ mode: 'started' | 'steered' | 'deduped' }> {
-    // Dedup: same requestId on the same topic = retry of the same action
-    const existing = this.activeStreams.get(req.topicId)
-    if (existing?.status === 'streaming' && req.requestId && existing.requestId === req.requestId) {
-      logger.info('Ai_Stream_Open deduped', { topicId: req.topicId, requestId: req.requestId })
-      this.addListener(req.topicId, new WebContentsListener(sender, req.topicId))
-      return { mode: 'deduped' }
-    }
-
-    // Persist user message atomically (explicit parentId, no activeNodeId fallback)
+  ): Promise<{ mode: 'started' | 'steered' }> {
+    // Persist user message (explicit parentId, no activeNodeId fallback)
     const userMessage = await messageService.create(req.topicId, {
       role: 'user',
       parentId: req.parentAnchorId,
       data: req.userMessage.data as never
     })
 
-    // Construct listeners
     const persistenceListener = new PersistenceListener({
-      requestId: req.requestId,
       topicId: req.topicId,
       assistantId: req.assistantId,
       parentUserMessageId: userMessage.id
     })
     const webContentsListener = new WebContentsListener(sender, req.topicId)
 
-    // Route: startStream or steer
     const result = this.send({
       topicId: req.topicId,
       request: this.toAiStreamRequest(req),
       userMessage,
-      listeners: [webContentsListener, persistenceListener],
-      requestId: req.requestId
+      listeners: [webContentsListener, persistenceListener]
     })
 
     return { mode: result.mode }
@@ -333,7 +308,7 @@ export class AiStreamManager extends BaseService {
   /** Map AiStreamOpenRequest → AiStreamRequest for AiCompletionService. */
   private toAiStreamRequest(req: AiStreamOpenRequest): AiStreamRequest {
     return {
-      requestId: req.requestId ?? req.topicId,
+      requestId: req.topicId,
       chatId: req.topicId,
       trigger: 'submit-message',
       messages: (req.messages ?? []) as never,
