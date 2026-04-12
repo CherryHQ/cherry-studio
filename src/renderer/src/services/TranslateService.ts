@@ -45,60 +45,18 @@ export const translateText = async (
     throw new Error(t('translate.error.empty'))
   }
 
-  const requestId = crypto.randomUUID()
-  let translatedText = ''
-
-  const result = await new Promise<string>((resolve, reject) => {
-    const unsubscribers: Array<() => void> = []
-    const cleanup = () => unsubscribers.forEach((u) => u())
-
-    // Listen for stream chunks
-    unsubscribers.push(
-      window.api.ai.onStreamChunk((data) => {
-        if (data.requestId !== requestId) return
-        const chunk = data.chunk
-        if (chunk.type === 'text-delta') {
-          translatedText += chunk.delta
-          onResponse?.(translatedText, false)
-        }
-      })
-    )
-
-    // Listen for completion
-    unsubscribers.push(
-      window.api.ai.onStreamDone((data) => {
-        if (data.requestId !== requestId) return
-        cleanup()
-        onResponse?.(translatedText, true)
-        resolve(translatedText)
-      })
-    )
-
-    // Listen for errors
-    unsubscribers.push(
-      window.api.ai.onStreamError((data) => {
-        if (data.requestId !== requestId) return
-        cleanup()
-        reject(new Error(data.error.message ?? 'Translation stream error'))
-      })
-    )
-
-    // Fire the stream request
-    window.api.ai
-      .streamText({
-        requestId,
-        chatId: `translate-${requestId}`,
-        trigger: 'submit-message',
-        messages: [{ id: crypto.randomUUID(), role: 'user', parts: [{ type: 'text', text: assistant.content }] }],
-        providerId: model.provider,
-        modelId: model.id,
-        assistantId: assistant.id
-      })
-      .catch((error: unknown) => {
-        cleanup()
-        reject(error instanceof Error ? error : new Error(String(error)))
-      })
+  // TODO: Restore streaming support for translation. Currently using non-streaming
+  // generateText because the legacy streamText IPC was removed. To add streaming back,
+  // either use AiStreamManager with an ephemeral topicId, or add a dedicated lightweight
+  // streaming IPC that doesn't require topic persistence.
+  const { text: result } = await window.api.ai.generateText({
+    providerId: model.provider,
+    modelId: model.id,
+    assistantId: assistant.id,
+    prompt: assistant.content
   })
+
+  onResponse?.(result, true)
 
   const trimmedText = result.trim()
 

@@ -871,40 +871,22 @@ const api = {
     }
   },
   ai: {
-    streamText: (request: {
-      requestId: string
-      chatId: string
-      trigger: 'submit-message' | 'regenerate-message'
-      messageId?: string
-      messages: unknown[]
-      [key: string]: unknown
-    }) => ipcRenderer.invoke(IpcChannel.Ai_StreamRequest, request),
-    abort: (requestId: string) => ipcRenderer.send(IpcChannel.Ai_Abort, requestId),
-    // Stream push listeners — payload includes both requestId (legacy AiService path)
-    // and topicId (AiStreamManager path). Consumers filter by whichever they use.
-    onStreamChunk: (callback: (data: { requestId?: string; topicId?: string; chunk: UIMessageChunk }) => void) => {
-      const listener = (
-        _: Electron.IpcRendererEvent,
-        data: { requestId?: string; topicId?: string; chunk: UIMessageChunk }
-      ) => callback(data)
+    // Stream push listeners — payload keyed by topicId
+    onStreamChunk: (callback: (data: { topicId: string; chunk: UIMessageChunk }) => void) => {
+      const listener = (_: Electron.IpcRendererEvent, data: { topicId: string; chunk: UIMessageChunk }) =>
+        callback(data)
       ipcRenderer.on(IpcChannel.Ai_StreamChunk, listener)
       return () => ipcRenderer.removeListener(IpcChannel.Ai_StreamChunk, listener)
     },
-    onStreamDone: (
-      callback: (data: { requestId?: string; topicId?: string; status?: 'success' | 'paused' }) => void
-    ) => {
-      const listener = (
-        _: Electron.IpcRendererEvent,
-        data: { requestId?: string; topicId?: string; status?: 'success' | 'paused' }
-      ) => callback(data)
+    onStreamDone: (callback: (data: { topicId: string; status?: 'success' | 'paused' }) => void) => {
+      const listener = (_: Electron.IpcRendererEvent, data: { topicId: string; status?: 'success' | 'paused' }) =>
+        callback(data)
       ipcRenderer.on(IpcChannel.Ai_StreamDone, listener)
       return () => ipcRenderer.removeListener(IpcChannel.Ai_StreamDone, listener)
     },
-    onStreamError: (callback: (data: { requestId?: string; topicId?: string; error: SerializedError }) => void) => {
-      const listener = (
-        _: Electron.IpcRendererEvent,
-        data: { requestId?: string; topicId?: string; error: SerializedError }
-      ) => callback(data)
+    onStreamError: (callback: (data: { topicId: string; error: SerializedError }) => void) => {
+      const listener = (_: Electron.IpcRendererEvent, data: { topicId: string; error: SerializedError }) =>
+        callback(data)
       ipcRenderer.on(IpcChannel.Ai_StreamError, listener)
       return () => ipcRenderer.removeListener(IpcChannel.Ai_StreamError, listener)
     },

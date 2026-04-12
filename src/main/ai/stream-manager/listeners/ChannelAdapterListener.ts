@@ -1,23 +1,19 @@
+import { loggerService } from '@logger'
+import type { ChannelAdapter } from '@main/services/agents/services/channels/ChannelAdapter'
 import type { SerializedError } from '@shared/types/error'
 
 import type { StreamDoneResult, StreamListener } from '../types'
 
+const logger = loggerService.withContext('ChannelAdapterListener')
+
 /**
- * Placeholder for the Channel (Discord / Slack / Feishu) adapter listener.
+ * Sends stream results to an IM channel (Discord / Slack / Feishu / Telegram / etc).
  *
- * Will be implemented in Step 2.7 when ChannelMessageHandler integration lands.
- * The interface is defined now so that the AiStreamManager types compile and
- * ChannelMessageHandler can reference it in its planning.
+ * Listener id is `channel:${channelId}:${platformChatId}`.
  */
-
-export interface ChannelAdapter {
-  readonly channelId: string
-  readonly connected: boolean
-  sendMessage(platformChatId: string, text: string): Promise<void>
-}
-
 export class ChannelAdapterListener implements StreamListener {
   readonly id: string
+  private accumulatedText = ''
 
   constructor(
     private readonly adapter: ChannelAdapter,
@@ -26,16 +22,55 @@ export class ChannelAdapterListener implements StreamListener {
     this.id = `channel:${adapter.channelId}:${this.platformChatId}`
   }
 
-  onChunk(): void {
-    // Most IM platforms don't support message edit — no per-chunk push.
+  onChunk(chunk: { type: string; delta?: string; [key: string]: unknown }): void {
+    // Accumulate text for adapters that don't support streaming updates.
+    // Adapters with streaming support (e.g. Feishu card editing) get updates
+    // via onTextUpdate — called here on every text-delta.
+    if (chunk.type === 'text-delta' && chunk.delta) {
+      this.accumulatedText += chunk.delta
+      // Best-effort streaming update — adapter decides whether to throttle/flush
+      void this.adapter.onTextUpdate(this.platformChatId, this.accumulatedText).catch(() => {})
+    }
   }
 
-  async onDone(_result: StreamDoneResult): Promise<void> {
-    // TODO (Step 2.7): extract plain text from finalMessage, send to adapter
+  async onDone(result: StreamDoneResult): Promise<void> {
+    const text = this.accumulatedText.trim()
+    if (!text) {
+      logger.warn('ChannelAdapterListener.onDone with empty text', {
+        channelId: this.adapter.channelId,
+        chatId: this.platformChatId,
+        status: result.status
+      })
+      return
+    }
+
+    try {
+      // Let adapter finalize its streaming UI first (e.g. close Feishu card)
+      const handled = await this.adapter.onStreamComplete(this.platformChatId, text)
+      if (!handled) {
+        // Fallback: send a regular text message
+        const suffix = result.status === 'paused' ? '\n\n_(stopped)_' : ''
+        await this.adapter.sendMessage(this.platformChatId, text + suffix)
+      }
+    } catch (err) {
+      logger.error('Failed to deliver message to channel', {
+        channelId: this.adapter.channelId,
+        chatId: this.platformChatId,
+        err
+      })
+    }
   }
 
-  async onError(_error: SerializedError): Promise<void> {
-    // TODO (Step 2.7): send error message to adapter
+  async onError(error: SerializedError): Promise<void> {
+    try {
+      await this.adapter.sendMessage(this.platformChatId, `Error: ${error.message ?? 'Unknown error'}`)
+    } catch (err) {
+      logger.error('Failed to deliver error to channel', {
+        channelId: this.adapter.channelId,
+        chatId: this.platformChatId,
+        err
+      })
+    }
   }
 
   isAlive(): boolean {

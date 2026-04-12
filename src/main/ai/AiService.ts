@@ -70,17 +70,7 @@ export class AiService extends BaseService {
   }
 
   private registerIpcHandlers(): void {
-    // Renderer-initiated stream request
-    this.ipcHandle(IpcChannel.Ai_StreamRequest, async (event, request: AiStreamRequest) => {
-      await this.executeStream(event.sender, request)
-    })
-
-    // Renderer-initiated abort (fire-and-forget)
-    this.ipcOn(IpcChannel.Ai_Abort, (_, requestId: string) => {
-      this.completionService.abort(requestId)
-    })
-
-    // Non-streaming text generation (topic naming, summaries, etc.)
+    // Non-streaming text generation (topic naming, summaries, translate, etc.)
     this.ipcHandle(IpcChannel.Ai_GenerateText, async (_, request: AiGenerateRequest) => {
       return this.completionService.generateText(request)
     })
