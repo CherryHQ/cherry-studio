@@ -200,4 +200,29 @@ describe('openMineruProcessor', () => {
       expect(runtimeService.getTask('open-mineru', createdProviderTaskId)).toBeUndefined()
     }
   })
+
+  it('does not rethrow when the task expires before the failure state can be written back', async () => {
+    const processor = openMineruProcessor as any
+
+    runtimeService.createTask('open-mineru', 'task-expired', {
+      status: 'processing',
+      progress: 0
+    })
+
+    executeTaskMock.mockRejectedValueOnce(new Error('provider failed'))
+    vi.spyOn(runtimeService, 'updateTask').mockImplementationOnce(() => {
+      throw new Error('File processing task not found for open-mineru:task-expired')
+    })
+
+    await expect(
+      processor.runTask('task-expired', {
+        apiHost: 'http://127.0.0.1:8000',
+        signal: undefined,
+        file: {
+          id: 'file-1',
+          path: '/tmp/input.pdf'
+        }
+      })
+    ).resolves.toBeUndefined()
+  })
 })

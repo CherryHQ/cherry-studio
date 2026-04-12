@@ -21,10 +21,7 @@ export class FileProcessingRuntimeService extends BaseService {
 
   protected async onInit(): Promise<void> {
     this.tasks = new Map()
-    this.pruneTimer = setInterval(() => {
-      this.pruneExpiredTasks()
-    }, FILE_PROCESSING_TASK_PRUNE_INTERVAL_MS)
-    this.pruneTimer.unref?.()
+    this.startPruneTimer()
 
     logger.info('FileProcessingRuntimeService initialized')
   }
@@ -36,14 +33,30 @@ export class FileProcessingRuntimeService extends BaseService {
 
     this.tasks.clear()
 
+    logger.debug('FileProcessingRuntimeService cleanup completed')
+  }
+
+  private startPruneTimer(): void {
     if (this.pruneTimer) {
-      clearInterval(this.pruneTimer)
-      this.pruneTimer = null
+      return
     }
 
-    this.tasks = null
+    const pruneTimer = setInterval(() => {
+      this.pruneExpiredTasks()
+    }, FILE_PROCESSING_TASK_PRUNE_INTERVAL_MS)
 
-    logger.debug('FileProcessingRuntimeService cleanup completed')
+    pruneTimer.unref?.()
+    this.pruneTimer = pruneTimer
+
+    this.registerDisposable(() => {
+      clearInterval(pruneTimer)
+
+      if (this.pruneTimer === pruneTimer) {
+        this.pruneTimer = null
+      }
+
+      this.tasks = null
+    })
   }
 
   createTask<TState>(processorId: FileProcessorId, providerTaskId: string, state: TState): TState {

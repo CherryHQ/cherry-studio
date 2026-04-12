@@ -111,6 +111,42 @@ describe('FileProcessingOrchestrationService', () => {
     ])
   })
 
+  it('validates extract-text IPC input before dispatching to processors', async () => {
+    const service = new FileProcessingOrchestrationService()
+    ;(service as any).onInit()
+
+    const extractTextHandler = ((service as any).ipcHandle as ReturnType<typeof vi.fn>).mock.calls.find(
+      (call) => call[0] === 'file-processing:extract-text'
+    )?.[1]
+
+    expect(extractTextHandler).toBeTypeOf('function')
+    await expect(
+      extractTextHandler?.(
+        {},
+        {
+          file: {
+            id: 'file-1'
+          },
+          processorId: 'tesseract'
+        }
+      )
+    ).rejects.toThrow('[')
+    expect(createTextExtractionProcessorMock).not.toHaveBeenCalled()
+  })
+
+  it('validates markdown-result IPC input before dispatching to processors', async () => {
+    const service = new FileProcessingOrchestrationService()
+    ;(service as any).onInit()
+
+    const getResultHandler = ((service as any).ipcHandle as ReturnType<typeof vi.fn>).mock.calls.find(
+      (call) => call[0] === 'file-processing:get-markdown-conversion-task-result'
+    )?.[1]
+
+    expect(getResultHandler).toBeTypeOf('function')
+    await expect(getResultHandler?.({}, { providerTaskId: '   ', processorId: 'doc2x' })).rejects.toThrow('[')
+    expect(createMarkdownConversionProcessorMock).not.toHaveBeenCalled()
+  })
+
   it('resolves text extraction config and forwards the request to the selected processor', async () => {
     const signal = new AbortController().signal
     const service = new FileProcessingOrchestrationService()

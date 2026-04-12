@@ -46,13 +46,19 @@ export class OpenMineruRuntimeService extends BaseService {
     }
 
     const controller = new AbortController()
-    const promise = this.runTask(runner, controller.signal).finally(() => {
-      const current = this.inFlightTasks.get(providerTaskId)
+    const promise = this.runTask(runner, controller.signal)
+      .catch((error) => {
+        logger.error('Open MinerU background task failed', error as Error, {
+          providerTaskId
+        })
+      })
+      .finally(() => {
+        const current = this.inFlightTasks.get(providerTaskId)
 
-      if (current?.promise === promise) {
-        this.inFlightTasks.delete(providerTaskId)
-      }
-    })
+        if (current?.promise === promise) {
+          this.inFlightTasks.delete(providerTaskId)
+        }
+      })
 
     this.inFlightTasks.set(providerTaskId, {
       controller,

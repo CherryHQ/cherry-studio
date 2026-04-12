@@ -95,6 +95,14 @@ describe('paddleocr utils', () => {
     })
   })
 
+  it('rejects unsafe jsonUrl targets before downloading', async () => {
+    await expect(
+      resolveJsonlResult('job-1', createJobResult({ jsonUrl: 'http://127.0.0.1:8080/output.jsonl' }))
+    ).rejects.toThrow('Unsafe remote url: local or private addresses are not allowed (127.0.0.1)')
+
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('rejects markdown conversion results without jsonUrl', async () => {
     await expect(
       resolveJsonlResult('job-1', createJobResult({ markdownUrl: 'https://download.example.com/output.md' }))

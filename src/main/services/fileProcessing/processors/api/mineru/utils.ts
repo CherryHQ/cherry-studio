@@ -5,6 +5,7 @@ import { MB } from '@shared/config/constant'
 import type { FileMetadata } from '@types'
 import { net } from 'electron'
 
+import { sanitizeFileProcessingRemoteUrl } from '../../../utils/url'
 import {
   MineruApiResponseSchema,
   MineruBatchUploadDataSchema,
@@ -73,10 +74,11 @@ export async function uploadFile(
     throw new Error('Mineru file is too large (must be smaller than 200MB)')
   }
 
+  const safeUploadUrl = sanitizeFileProcessingRemoteUrl(uploadUrl)
   const fileStream = createReadStream(file.path)
 
   try {
-    const response = await net.fetch(uploadUrl, {
+    const response = await net.fetch(safeUploadUrl, {
       method: 'PUT',
       headers: uploadHeaders,
       body: fileStream as any,

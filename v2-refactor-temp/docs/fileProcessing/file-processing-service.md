@@ -1,4 +1,4 @@
-# FileProcessing Main Service PR Scope
+# File Processing Service PR Scope
 
 ## 1. 文档目的
 
@@ -69,31 +69,31 @@
 
 1. 原有 Renderer 逻辑先保留。
 2. 等后续 UI PR 再统一修改调用方式。
-3. 当前执行入口由 `FileProcessingOrchestrationService` 对外提供 provider-aware 的执行入口；processor 配置读写仍由 Main-side 配置服务 `FileProcessingService` 负责。
+3. 当前执行入口由 `FileProcessingOrchestrationService` 对外提供 provider-aware 的执行入口；processor 配置当前由 shared preset + preference key 组合表达，不再通过 DataApi handler 暴露配置接口。
 4. 本次 PR 先把 Main-side service 迁移完成，再推进前端切流和知识库接入。
 
 ---
 
 ## 5. 当前接口与分层设计
 
-当前实现已经拆成三层，不应再把它们混写成单个 `FileProcessingService`：
+当前实现已经拆成两类运行时层和一组共享配置定义，不应再把它们混写成单个 `FileProcessingService`：
 
 1. 执行入口：`FileProcessingOrchestrationService`
    - `extractText(...)`
    - `startMarkdownConversionTask(...)`
    - `getMarkdownConversionTaskResult(...)`
-2. 配置服务：Main-side 配置服务 `FileProcessingService`
-   - 负责列出 processor
-   - 负责读取单个 processor 合并后的配置
-   - 负责更新 preference 中的 override
-   - 当前实现落在 `src/main/data/services/`，并可通过现有 handler 暴露配置接口；但这里的职责是 preset + preference 配置管理，不应被解读为“SQLite business data 型 DataApi facade”
-3. 运行时 service：
+2. 运行时 service：
    - `FileProcessingRuntimeService`
    - `Doc2xRuntimeService`
    - `TesseractRuntimeService`
    - `OpenMineruRuntimeService`
+3. 共享配置定义：
+   - `packages/shared/data/presets/file-processing.ts`
+   - `feature.file_processing.default_*`
+   - `feature.file_processing.overrides`
+   - `resolveProcessorConfig(...)` / `mergeProcessorPreset(...)`
 
-因此，当前真正承担 provider-aware 执行入口角色的是 `FileProcessingOrchestrationService`，而不是这个 Main-side 配置服务 `FileProcessingService`。
+因此，当前真正承担 provider-aware 执行入口角色的是 `FileProcessingOrchestrationService`；配置只作为 shared preset + preference 数据参与解析，不再存在单独的 Main-side 配置服务 facade。
 
 当前推荐能力面：
 
@@ -107,11 +107,12 @@
 2. `FileProcessingOrchestrationService` 当前不维护统一的本地 `taskId`。
 3. 对支持异步文档解析的 provider，外部 service 直接持有 `providerTaskId` 并负责轮询；这里的 `providerTaskId` 是统一字段名，但不保证一定是远端 provider 原生任务号。
 4. 当前阶段调用方需要感知 `processorId` 与 `providerTaskId`，这属于明确接受的过渡设计。
-5. 当前运行期任务上下文保存在 Main 进程内存态 `FileProcessingTaskRuntime` 中；任务仅保证在当前 Main 进程生命周期内可查询，不承诺重启恢复。
+5. 当前运行期任务上下文保存在 Main 进程内存态 `FileProcessingRuntimeService` 中；任务仅保证在当前 Main 进程生命周期内可查询，不承诺重启恢复。
 6. `resolveProcessorConfig(...)` 会先使用显式传入的 `processorId`，否则读取按 feature 区分的默认 preference；若两者都没有，则直接 fail fast。
    - 这里的 fail fast 是当前明确接受的契约，不是待补默认值的缺陷。
    - fresh install 场景同样适用这条约束：用户必须先配置默认 processor，或者调用方必须显式传入 `processorId`，否则主服务拒绝执行属于预期行为。
-7. 当前阶段 Main service 方法签名已切到 input object 风格；但 IPC handler 对外仍保留少量位置参数转发，这属于当前明确接受的过渡形态。
+7. 当前阶段 Main service 方法签名已切到 input object 风格；IPC handler 也已统一成单 `payload` 入参，并在 `FileProcessingOrchestrationService` 内通过 Zod schema `.parse(...)` 做显式运行时校验，风格与 `KnowledgeOrchestrationService` 对齐。
+8. `FileProcessingRuntimeService` 的后台 prune timer 已通过 lifecycle `registerDisposable()` 托管清理，不再依赖单独的手工定时器回收路径。
 
 当前接口语义：
 
@@ -389,7 +390,7 @@
 当前状态应理解为：
 
 1. 当前对外查询接口仍然走 `providerTaskId + processorId` 输入。
-2. 运行时任务上下文的 source of truth 是 Main 进程内的 `FileProcessingTaskRuntime`，并由 `FileProcessingRuntimeService` 持有。
+2. 运行时任务上下文的 source of truth 是 Main 进程内的 `FileProcessingRuntimeService` 内存态 task store。
 3. task key 实际按 `processorId:providerTaskId` 组合命名，允许不同 provider 复用同名 `providerTaskId`。
 4. task state 带有 TTL，当前默认保留 10 分钟，并按定时器和访问时懒清理双路径剪枝；因此任务上下文即使在 Main 进程未重启时也可能先过期。
    - 这里选择 10 分钟而不是更长时间，前提是调用方会持续轮询获取结果；当前优先目标是覆盖常见解析耗时，同时避免长时间占用 Main 进程内存态上下文。

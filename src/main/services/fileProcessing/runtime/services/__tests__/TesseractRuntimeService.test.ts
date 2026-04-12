@@ -203,4 +203,39 @@ describe('TesseractRuntimeService', () => {
 
     expect(terminateMock).toHaveBeenCalledTimes(1)
   })
+
+  it('does not fail stop when terminating the worker throws', async () => {
+    const terminateMock = vi.fn().mockRejectedValue(new Error('terminate failed'))
+    createWorkerMock.mockResolvedValue({
+      recognize: vi.fn().mockResolvedValue({
+        data: {
+          text: 'hello'
+        }
+      }),
+      terminate: terminateMock
+    })
+
+    service = new TesseractRuntimeService()
+    await service._doInit()
+
+    await service.extract({
+      file: {
+        id: 'file-1',
+        name: 'scan.png',
+        origin_name: 'scan.png',
+        path: '/tmp/scan.png',
+        size: 1024,
+        ext: '.png',
+        type: 'image',
+        created_at: '2026-03-31T00:00:00.000Z',
+        count: 1
+      },
+      langs: ['eng']
+    })
+
+    await expect(service._doStop()).resolves.toBeUndefined()
+    service = undefined
+
+    expect(terminateMock).toHaveBeenCalledTimes(1)
+  })
 })

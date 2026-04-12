@@ -1,8 +1,9 @@
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
+import { FILE_PROCESSOR_IDS } from '@shared/data/preference/preferenceTypes'
+import { FileMetadataSchema } from '@shared/data/types/knowledge'
 import { IpcChannel } from '@shared/IpcChannel'
-import type { FileMetadata } from '@types'
+import * as z from 'zod'
 
 import { resolveProcessorConfigByFeature } from './config/resolveProcessorConfig'
 import type {
@@ -16,6 +17,28 @@ import type {
 import { createMarkdownConversionProcessor, createTextExtractionProcessor } from './processors/factory'
 
 const logger = loggerService.withContext('FileProcessingOrchestrationService')
+const FileProcessorIdSchema = z.enum(FILE_PROCESSOR_IDS)
+
+const ExtractTextPayloadSchema = z
+  .object({
+    file: FileMetadataSchema,
+    processorId: FileProcessorIdSchema.optional()
+  })
+  .strict()
+
+const StartMarkdownConversionTaskPayloadSchema = z
+  .object({
+    file: FileMetadataSchema,
+    processorId: FileProcessorIdSchema.optional()
+  })
+  .strict()
+
+const GetMarkdownConversionTaskResultPayloadSchema = z
+  .object({
+    providerTaskId: z.string().trim().min(1),
+    processorId: FileProcessorIdSchema
+  })
+  .strict()
 
 @Injectable('FileProcessingOrchestrationService')
 @ServicePhase(Phase.WhenReady)
@@ -69,18 +92,14 @@ export class FileProcessingOrchestrationService extends BaseService {
   }
 
   private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.FileProcessing_ExtractText, (_event, file: FileMetadata, processorId?: FileProcessorId) =>
-      this.extractText({ file, processorId })
-    )
-    this.ipcHandle(
-      IpcChannel.FileProcessing_StartMarkdownConversionTask,
-      (_event, file: FileMetadata, processorId?: FileProcessorId) =>
-        this.startMarkdownConversionTask({ file, processorId })
-    )
-    this.ipcHandle(
-      IpcChannel.FileProcessing_GetMarkdownConversionTaskResult,
-      (_event, providerTaskId: string, processorId: FileProcessorId) =>
-        this.getMarkdownConversionTaskResult({ providerTaskId, processorId })
-    )
+    this.ipcHandle(IpcChannel.FileProcessing_ExtractText, async (_, payload: unknown) => {
+      return await this.extractText(ExtractTextPayloadSchema.parse(payload))
+    })
+    this.ipcHandle(IpcChannel.FileProcessing_StartMarkdownConversionTask, async (_, payload: unknown) => {
+      return await this.startMarkdownConversionTask(StartMarkdownConversionTaskPayloadSchema.parse(payload))
+    })
+    this.ipcHandle(IpcChannel.FileProcessing_GetMarkdownConversionTaskResult, async (_, payload: unknown) => {
+      return await this.getMarkdownConversionTaskResult(GetMarkdownConversionTaskResultPayloadSchema.parse(payload))
+    })
   }
 }

@@ -101,10 +101,12 @@ describe('Doc2xRuntimeService', () => {
     const container = ServiceContainer.getInstance()
     const stopOrder: string[] = []
 
+    container.register(FileProcessingRuntimeService)
     container.register(Doc2xRuntimeService)
 
     await manager.startPhase(Phase.BeforeReady)
 
+    expect(container.getInstance('FileProcessingRuntimeService')).toBeDefined()
     expect(container.getInstance('Doc2xRuntimeService')).toBeDefined()
 
     manager.on(LifecycleEvents.SERVICE_STOPPING, ({ name }) => {

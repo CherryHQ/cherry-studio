@@ -47,6 +47,7 @@ describe('FileProcessingRuntimeService', () => {
 
     await service._doStop()
     expect((service as any).tasks).toBeNull()
+    expect((service as any).pruneTimer).toBeNull()
   })
 
   it('throws when accessed after stop', async () => {

@@ -9,6 +9,7 @@ import type { FileMetadata } from '@types'
 import { v4 as uuidv4 } from 'uuid'
 
 import { persistResponseZipResult } from '../../../persistence/resultPersistence'
+import type { FileProcessingRuntimeService } from '../../../runtime/services/FileProcessingRuntimeService'
 import { BaseMarkdownConversionProcessor, getFileProcessingResultsDir } from '../../base/BaseFileProcessor'
 import type { OpenMineruTaskState, PreparedOpenMineruContext } from './types'
 import { executeTask } from './utils'
@@ -144,11 +145,29 @@ export class OpenMineruProcessor extends BaseMarkdownConversionProcessor {
       }))
     } catch (error) {
       logger.warn('Open MinerU markdown conversion task failed', error as Error)
+      this.tryMarkTaskFailed(runtimeService, providerTaskId, error)
+    }
+  }
+
+  private tryMarkTaskFailed(
+    runtimeService: FileProcessingRuntimeService,
+    providerTaskId: string,
+    error: unknown
+  ): void {
+    try {
       runtimeService.updateTask<OpenMineruTaskState>('open-mineru', providerTaskId, () => ({
         status: 'failed',
         progress: 0,
         error: error instanceof Error ? error.message : String(error)
       }))
+    } catch (updateError) {
+      logger.warn(
+        'Skipping Open MinerU failure state update because task context is unavailable',
+        updateError as Error,
+        {
+          providerTaskId
+        }
+      )
     }
   }
 

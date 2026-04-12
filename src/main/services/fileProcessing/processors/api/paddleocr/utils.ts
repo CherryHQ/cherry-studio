@@ -5,6 +5,7 @@ import { MB } from '@shared/config/constant'
 import { net } from 'electron'
 import FormData from 'form-data'
 
+import { sanitizeFileProcessingRemoteUrl } from '../../../utils/url'
 import {
   PaddleCreateJobResponseSchema,
   type PaddleJobResultData,
@@ -194,7 +195,8 @@ export async function resolveJsonlResult(
 }
 
 export async function downloadPaddleResult(downloadUrl: string, signal?: AbortSignal): Promise<string> {
-  const response = await net.fetch(downloadUrl, {
+  const safeDownloadUrl = sanitizeFileProcessingRemoteUrl(downloadUrl)
+  const response = await net.fetch(safeDownloadUrl, {
     method: 'GET',
     signal
   })

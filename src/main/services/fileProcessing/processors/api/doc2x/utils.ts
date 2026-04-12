@@ -3,6 +3,7 @@ import fs, { createReadStream } from 'node:fs'
 import { GB } from '@shared/config/constant'
 import { net } from 'electron'
 
+import { sanitizeFileProcessingRemoteUrl } from '../../../utils/url'
 import {
   type Doc2xExportStatusResponse,
   Doc2xExportStatusResponseSchema,
@@ -55,10 +56,11 @@ export async function uploadFile(filePath: string, uploadUrl: string, signal?: A
     throw new Error('Doc2x file is too large (must be smaller than 1GB)')
   }
 
+  const safeUploadUrl = sanitizeFileProcessingRemoteUrl(uploadUrl)
   const fileStream = createReadStream(filePath)
 
   try {
-    const response = await net.fetch(uploadUrl, {
+    const response = await net.fetch(safeUploadUrl, {
       method: 'PUT',
       body: fileStream as any,
       duplex: 'half',

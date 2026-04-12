@@ -8,6 +8,7 @@ import type { FileMetadata } from '@types'
 import { net } from 'electron'
 
 import { persistResponseZipResult } from '../../../persistence/resultPersistence'
+import { sanitizeFileProcessingRemoteUrl } from '../../../utils/url'
 import { BaseMarkdownConversionProcessor, getFileProcessingResultsDir } from '../../base/BaseFileProcessor'
 import type { Doc2xTaskContext, PreparedDoc2xQueryContext, PreparedDoc2xStartContext } from './types'
 import { createUploadTask, getExportResult, getParseStatus, triggerExportTask, uploadFile } from './utils'
@@ -92,8 +93,9 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
 
     const fileProcessingResultsDir = getFileProcessingResultsDir(fileId)
     signal?.throwIfAborted()
+    const safeDownloadUrl = sanitizeFileProcessingRemoteUrl(downloadUrl.replace(/\\u0026/g, '&'))
 
-    const response = await net.fetch(downloadUrl.replace(/\\u0026/g, '&'), {
+    const response = await net.fetch(safeDownloadUrl, {
       method: 'GET',
       signal
     })

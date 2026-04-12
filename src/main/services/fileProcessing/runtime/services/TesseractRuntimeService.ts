@@ -42,9 +42,8 @@ export class TesseractRuntimeService extends BaseService {
     this.acceptingTasks = false
     this.shutdownController?.abort(this.createAbortError('Tesseract runtime is stopping'))
 
-    await this.disposeWorker()
+    await this.disposeWorkerSafely()
     await this.extractionQueue.onIdle()
-    await this.disposeWorker()
     this.shutdownController = null
 
     logger.debug('Tesseract runtime cleanup completed')
@@ -133,6 +132,14 @@ export class TesseractRuntimeService extends BaseService {
     this.sharedWorker = null
     this.previousLangsKey = null
     await worker.terminate()
+  }
+
+  private async disposeWorkerSafely(): Promise<void> {
+    try {
+      await this.disposeWorker()
+    } catch (error) {
+      logger.warn('Failed to terminate Tesseract worker during shutdown', error as Error)
+    }
   }
 
   private async getLangPath(): Promise<string> {

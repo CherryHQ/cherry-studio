@@ -8,6 +8,7 @@ import type { FileMetadata } from '@types'
 import { net } from 'electron'
 
 import { persistResponseZipResult } from '../../../persistence/resultPersistence'
+import { sanitizeFileProcessingRemoteUrl } from '../../../utils/url'
 import { BaseMarkdownConversionProcessor, getFileProcessingResultsDir } from '../../base/BaseFileProcessor'
 import type {
   MineruExtractFileResult,
@@ -92,8 +93,9 @@ export class MineruProcessor extends BaseMarkdownConversionProcessor {
 
     const fileProcessingResultsDir = getFileProcessingResultsDir(fileId)
     signal?.throwIfAborted()
+    const safeDownloadUrl = sanitizeFileProcessingRemoteUrl(downloadUrl)
 
-    const response = await net.fetch(downloadUrl, {
+    const response = await net.fetch(safeDownloadUrl, {
       method: 'GET',
       signal
     })

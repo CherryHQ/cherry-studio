@@ -1,5 +1,4 @@
 import { application } from '@application'
-import { DataApiErrorFactory } from '@shared/data/api'
 import type {
   FileProcessorFeature,
   FileProcessorId,
@@ -23,7 +22,7 @@ function getPresetById(processorId: FileProcessorId) {
   const preset = PRESETS_FILE_PROCESSORS.find((item) => item.id === processorId)
 
   if (!preset) {
-    throw DataApiErrorFactory.notFound('File processor', processorId)
+    throw new Error(`File processor not found: ${processorId}`)
   }
 
   return preset

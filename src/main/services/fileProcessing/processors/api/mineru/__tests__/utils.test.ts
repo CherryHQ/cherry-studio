@@ -70,7 +70,7 @@ describe('mineru utils', () => {
 
     expect(createReadStreamMock).toHaveBeenCalledWith('/tmp/file.pdf')
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://upload.example.com',
+      'https://upload.example.com/',
       expect.objectContaining({
         method: 'PUT',
         headers: { Authorization: 'Bearer secret' },
@@ -80,5 +80,21 @@ describe('mineru utils', () => {
       })
     )
     expect(destroyMock).toHaveBeenCalled()
+  })
+
+  it('rejects unsafe upload urls before dispatching the request', async () => {
+    vi.spyOn(fs, 'stat').mockResolvedValue({ size: 1024 } as never)
+
+    await expect(
+      uploadFile(
+        {
+          path: '/tmp/file.pdf'
+        } as never,
+        'http://localhost:9000/upload',
+        { Authorization: 'Bearer secret' }
+      )
+    ).rejects.toThrow('Unsafe remote url: local or private addresses are not allowed (localhost)')
+
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })
