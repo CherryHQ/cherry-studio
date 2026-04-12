@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import type { AiChatRequestBody } from '@shared/ai/transport'
-import type { ChatRequestOptions, ChatTransport, UIMessage, UIMessageChunk } from 'ai'
+import type { CherryUIMessage } from '@shared/data/types/message'
+import type { ChatRequestOptions, ChatTransport, UIMessageChunk } from 'ai'
 
 const logger = loggerService.withContext('IpcChatTransport')
 
@@ -13,7 +14,7 @@ const logger = loggerService.withContext('IpcChatTransport')
  * - `streamAbort` to stop generation
  * - Chunk/done/error listeners filtered by `topicId`
  */
-export class IpcChatTransport implements ChatTransport<UIMessage> {
+export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
   readonly #defaultBody: Partial<AiChatRequestBody>
 
   constructor(defaultBody: Partial<AiChatRequestBody> = {}) {
@@ -25,7 +26,7 @@ export class IpcChatTransport implements ChatTransport<UIMessage> {
       trigger: 'submit-message' | 'regenerate-message'
       chatId: string
       messageId: string | undefined
-      messages: UIMessage[]
+      messages: CherryUIMessage[]
       abortSignal: AbortSignal | undefined
     } & ChatRequestOptions
   ): Promise<ReadableStream<UIMessageChunk>> {
@@ -36,16 +37,13 @@ export class IpcChatTransport implements ChatTransport<UIMessage> {
     const stream = this.buildListenerStream(topicId, abortSignal)
 
     const lastMessage = messages.at(-1)
-    const userMessage = lastMessage
-      ? { role: 'user' as const, data: { parts: lastMessage.parts ?? [] } }
-      : { role: 'user' as const, data: { parts: [] as UIMessage['parts'] } }
 
     // Fire the IPC request — AiStreamManager handles dedup, persistence, routing
     window.api.ai
       .streamOpen({
         topicId,
         parentAnchorId: (mergedBody as Record<string, unknown>).parentAnchorId as string | null,
-        userMessage,
+        userMessageParts: lastMessage ? lastMessage.parts : [],
         assistantId: (mergedBody as Record<string, unknown>).assistantId as string,
         ...mergedBody
       })

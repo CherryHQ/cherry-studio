@@ -9,6 +9,7 @@ import type {
   AiStreamDetachRequest,
   AiStreamOpenRequest
 } from '@shared/ai/transport'
+import type { Message } from '@shared/data/types/message'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { SerializedError } from '@shared/types/error'
 import { serializeError } from '@shared/types/error'
@@ -131,15 +132,12 @@ export class AiStreamManager extends BaseService {
    * - Topic has active streaming → steer (push to pendingMessages + add listeners)
    * - Otherwise → startStream
    */
-  send(input: {
-    topicId: string
-    request: AiStreamRequest
-    userMessage: { id: string }
-    listeners: StreamListener[]
-  }): { mode: 'started' | 'steered' } {
+  send(input: { topicId: string; request: AiStreamRequest; userMessage: Message; listeners: StreamListener[] }): {
+    mode: 'started' | 'steered'
+  } {
     const existing = this.activeStreams.get(input.topicId)
     if (existing?.status === 'streaming') {
-      existing.pendingMessages.push(input.userMessage as never)
+      existing.pendingMessages.push(input.userMessage)
       for (const listener of input.listeners) this.addListener(input.topicId, listener)
       return { mode: 'steered' }
     }
@@ -148,10 +146,10 @@ export class AiStreamManager extends BaseService {
   }
 
   /** Push a steering message into a running stream. */
-  steer(topicId: string, message: unknown): boolean {
+  steer(topicId: string, message: Message): boolean {
     const stream = this.activeStreams.get(topicId)
     if (!stream || stream.status !== 'streaming') return false
-    stream.pendingMessages.push(message as never)
+    stream.pendingMessages.push(message)
     return true
   }
 
@@ -265,7 +263,7 @@ export class AiStreamManager extends BaseService {
     const userMessage = await messageService.create(req.topicId, {
       role: 'user',
       parentId: req.parentAnchorId,
-      data: req.userMessage.data as never
+      data: { parts: req.userMessageParts }
     })
 
     const persistenceListener = new PersistenceListener({
@@ -324,20 +322,21 @@ export class AiStreamManager extends BaseService {
     this.activeStreams.delete(topicId)
   }
 
-  /** Map AiStreamOpenRequest → AiStreamRequest for AiCompletionService. */
-  // TODO: Main reads history from DB via messageService — messages field will come from there
+  /**
+   * Build AiStreamRequest from the minimal AiStreamOpenRequest.
+   * Main resolves provider/model/tools/overrides from the assistant config.
+   *
+   * TODO: Read messages from DB via messageService.getTree(topicId).
+   * TODO: Resolve provider/model/mcpTools/knowledgeBaseIds from assistant config via reduxService.
+   */
   private toAiStreamRequest(req: AiStreamOpenRequest): AiStreamRequest {
+    // TODO: const assistant = reduxService.getAssistant(req.assistantId)
+    // Then populate providerId, modelId, mcpToolIds, knowledgeBaseIds from assistant
     return {
       requestId: req.topicId,
       chatId: req.topicId,
       trigger: 'submit-message',
-      messages: [] as never, // TODO: read from DB via messageService.getTree(topicId)
-      providerId: req.providerId,
-      modelId: req.modelId,
-      assistantId: req.assistantId,
-      mcpToolIds: req.mcpToolIds,
-      knowledgeBaseIds: req.knowledgeBaseIds,
-      assistantOverrides: req.assistantOverrides as never
+      assistantId: req.assistantId
     }
   }
 }

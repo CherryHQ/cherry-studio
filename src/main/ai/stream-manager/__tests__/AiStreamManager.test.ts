@@ -138,7 +138,16 @@ describe('AiStreamManager', () => {
       const result = mgr.send({
         topicId: 'a',
         request: req('a'),
-        userMessage: { id: 'user-2' },
+        userMessage: {
+          id: 'user-2',
+          topicId: 'a',
+          parentId: null,
+          role: 'user',
+          data: {},
+          status: 'success',
+          createdAt: '',
+          updatedAt: ''
+        } as any,
         listeners: [l2]
       })
 
@@ -155,7 +164,16 @@ describe('AiStreamManager', () => {
       const result = mgr.send({
         topicId: 'b',
         request: req('b'),
-        userMessage: { id: 'user-1' },
+        userMessage: {
+          id: 'user-1',
+          topicId: 'b',
+          parentId: null,
+          role: 'user',
+          data: {},
+          status: 'success',
+          createdAt: '',
+          updatedAt: ''
+        } as any,
         listeners: [new FakeListener('l:b')]
       })
 
@@ -363,7 +381,18 @@ describe('AiStreamManager', () => {
     it('pushes to pending queue of active stream', () => {
       const stream = mgr.startStream({ topicId: 'a', request: req('a'), listeners: [new FakeListener('l:a')] })
 
-      expect(mgr.steer('a', { id: 'msg-2' })).toBe(true)
+      expect(
+        mgr.steer('a', {
+          id: 'msg-2',
+          topicId: 'a',
+          parentId: null,
+          role: 'user',
+          data: {},
+          status: 'success',
+          createdAt: '',
+          updatedAt: ''
+        } as any)
+      ).toBe(true)
       expect(stream.pendingMessages.hasPending()).toBe(true)
       expect(stream.pendingMessages.drain()).toHaveLength(1)
     })

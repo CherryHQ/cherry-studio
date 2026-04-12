@@ -4,7 +4,6 @@ import { application } from '@main/core/application'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { reduxService } from '@main/services/ReduxService'
-import type { AiAssistantRuntimeOverrides } from '@shared/ai/transport'
 import type { Model } from '@shared/data/types/model'
 import type { Assistant } from '@types'
 import type {
@@ -37,7 +36,6 @@ export interface AiBaseRequest {
   providerId?: string
   modelId?: string
   mcpToolIds?: string[]
-  assistantOverrides?: AiAssistantRuntimeOverrides
 }
 
 /** Streaming chat request. */
@@ -46,7 +44,7 @@ export interface AiStreamRequest extends AiBaseRequest {
   chatId: string
   trigger: ChatTrigger
   messageId?: string
-  messages: UIMessage[]
+  messages?: UIMessage[]
   knowledgeBaseIds?: string[]
 }
 
@@ -133,7 +131,7 @@ export class AiCompletionService {
           onFinish: (result) => this.trackUsage(model, result.totalUsage)
         }
       },
-      request.messages,
+      request.messages ?? [],
       signal
     )
 
@@ -251,7 +249,6 @@ export class AiCompletionService {
 
   private async buildAgentParams(request: AiBaseRequest) {
     const { provider, model, assistant } = await this.getProviderAndModel(request)
-    const runtimeAssistant = this.applyAssistantOverrides(assistant, request.assistantOverrides)
 
     const sdkConfig = {
       ...(await providerToAiSdkConfig(provider, model)),
@@ -265,10 +262,10 @@ export class AiCompletionService {
     const tools = this.toolRegistry.resolve(request.mcpToolIds)
 
     const plugins = buildPlugins()
-    const system = runtimeAssistant?.prompt || undefined
+    const system = assistant?.prompt || undefined
 
     // Extract model parameters from assistant settings
-    const settings = runtimeAssistant?.settings
+    const settings = assistant?.settings
     const options: AgentOptions = {
       ...(settings?.enableTemperature !== false &&
         settings?.temperature != null && { temperature: settings.temperature }),
@@ -276,29 +273,7 @@ export class AiCompletionService {
       ...(settings?.enableMaxTokens && settings?.maxTokens != null && { maxOutputTokens: settings.maxTokens })
     }
 
-    return { sdkConfig, tools, plugins, system, options, provider, model, assistant: runtimeAssistant }
-  }
-
-  private applyAssistantOverrides(
-    assistant: Assistant | undefined,
-    overrides: AiAssistantRuntimeOverrides | undefined
-  ): Assistant | undefined {
-    if (!assistant || !overrides) return assistant
-
-    return {
-      ...assistant,
-      ...(overrides.prompt !== undefined && { prompt: overrides.prompt }),
-      ...(overrides.settings && {
-        settings: {
-          ...assistant.settings,
-          ...overrides.settings
-        } as Assistant['settings']
-      }),
-      ...(overrides.enableWebSearch !== undefined && { enableWebSearch: overrides.enableWebSearch }),
-      ...(overrides.webSearchProviderId !== undefined && { webSearchProviderId: overrides.webSearchProviderId }),
-      ...(overrides.enableUrlContext !== undefined && { enableUrlContext: overrides.enableUrlContext }),
-      ...(overrides.enableGenerateImage !== undefined && { enableGenerateImage: overrides.enableGenerateImage })
-    } as Assistant
+    return { sdkConfig, tools, plugins, system, options, provider, model }
   }
 
   // ── Token usage tracking ──

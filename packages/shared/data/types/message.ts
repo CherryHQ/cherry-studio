@@ -52,7 +52,13 @@ export type CherryMessagePart = UIMessagePart<CherryDataPartTypes, UITools>
 export interface MessageData {
   /** @deprecated Use `parts` for new messages. Retained for v1→v2 migration compatibility. */
   blocks?: MessageDataBlock[]
-  /** AI SDK UIMessage.parts format — the canonical storage format after v2 migration. */
+  /**
+   * AI SDK UIMessage.parts format — the canonical storage format after v2 migration.
+   *
+   * Accepts `UIMessagePart[]` (the generic AI SDK type) for writes — the DB stores
+   * whatever parts the AI SDK produces. Readers can narrow to `CherryMessagePart[]`
+   * when they need Cherry-specific data part type safety.
+   */
   parts?: CherryMessagePart[]
 }
 

@@ -51,7 +51,7 @@ export class PersistenceListener implements StreamListener {
         role: 'assistant',
         parentId: this.ctx.parentUserMessageId,
         assistantId: this.ctx.assistantId,
-        data: finalMessage as never,
+        data: { parts: finalMessage.parts },
         status
       })
 

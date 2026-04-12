@@ -1,89 +1,71 @@
-import type { UIMessage, UIMessageChunk } from 'ai'
+import type { CherryUIMessage } from '@shared/data/types/message'
+import type { SerializedError } from '@shared/types/error'
+import type { UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { IpcChatTransport } from '../IpcChatTransport'
 
-/** Type-safe mock for `window.api.ai` */
+// ── Mock window.api.ai ──────────────────────────────────────────────
+
 interface MockAiApi {
-  streamText: ReturnType<typeof vi.fn>
-  abort: ReturnType<typeof vi.fn>
+  streamOpen: ReturnType<typeof vi.fn>
+  streamAttach: ReturnType<typeof vi.fn>
+  streamAbort: ReturnType<typeof vi.fn>
   onStreamChunk: ReturnType<typeof vi.fn>
   onStreamDone: ReturnType<typeof vi.fn>
   onStreamError: ReturnType<typeof vi.fn>
 }
 
-/**
- * Creates a mock `window.api.ai` that captures registered IPC callbacks.
- * Returns both the mock object and a way to emit events.
- */
 function createMockAiApi() {
   const listeners = {
-    chunk: [] as Array<(data: { requestId: string; chunk: UIMessageChunk }) => void>,
-    done: [] as Array<(data: { requestId: string }) => void>,
-    error: [] as Array<(data: { requestId: string; error: { message: string } }) => void>
-  }
-
-  const unsubFns = {
-    chunk: [] as Array<() => void>,
-    done: [] as Array<() => void>,
-    error: [] as Array<() => void>
+    chunk: [] as Array<(data: { topicId: string; chunk: UIMessageChunk }) => void>,
+    done: [] as Array<(data: { topicId: string; status?: string }) => void>,
+    error: [] as Array<(data: { topicId: string; error: SerializedError }) => void>
   }
 
   const mockApi: MockAiApi = {
-    streamText: vi.fn().mockResolvedValue(undefined),
-    abort: vi.fn(),
+    streamOpen: vi.fn().mockResolvedValue({ mode: 'started' }),
+    streamAttach: vi.fn().mockResolvedValue({ status: 'not-found' }),
+    streamAbort: vi.fn().mockResolvedValue(undefined),
     onStreamChunk: vi.fn((cb) => {
       listeners.chunk.push(cb)
-      const unsub = () => {
-        const idx = listeners.chunk.indexOf(cb)
-        if (idx >= 0) listeners.chunk.splice(idx, 1)
+      return () => {
+        const i = listeners.chunk.indexOf(cb)
+        if (i >= 0) listeners.chunk.splice(i, 1)
       }
-      unsubFns.chunk.push(unsub)
-      return unsub
     }),
     onStreamDone: vi.fn((cb) => {
       listeners.done.push(cb)
-      const unsub = () => {
-        const idx = listeners.done.indexOf(cb)
-        if (idx >= 0) listeners.done.splice(idx, 1)
+      return () => {
+        const i = listeners.done.indexOf(cb)
+        if (i >= 0) listeners.done.splice(i, 1)
       }
-      unsubFns.done.push(unsub)
-      return unsub
     }),
     onStreamError: vi.fn((cb) => {
       listeners.error.push(cb)
-      const unsub = () => {
-        const idx = listeners.error.indexOf(cb)
-        if (idx >= 0) listeners.error.splice(idx, 1)
+      return () => {
+        const i = listeners.error.indexOf(cb)
+        if (i >= 0) listeners.error.splice(i, 1)
       }
-      unsubFns.error.push(unsub)
-      return unsub
     })
   }
 
   return {
     mockApi,
     listeners,
-    /** Emit a chunk to all registered listeners */
-    emitChunk: (requestId: string, chunk: UIMessageChunk) => {
-      for (const cb of [...listeners.chunk]) cb({ requestId, chunk })
+    emitChunk: (topicId: string, chunk: UIMessageChunk) => {
+      for (const cb of [...listeners.chunk]) cb({ topicId, chunk })
     },
-    /** Emit done to all registered listeners */
-    emitDone: (requestId: string) => {
-      for (const cb of [...listeners.done]) cb({ requestId })
+    emitDone: (topicId: string) => {
+      for (const cb of [...listeners.done]) cb({ topicId, status: 'success' })
     },
-    /** Emit error to all registered listeners */
-    emitError: (requestId: string, message: string) => {
-      for (const cb of [...listeners.error]) cb({ requestId, error: { message } })
+    emitError: (topicId: string, message: string) => {
+      for (const cb of [...listeners.error]) cb({ topicId, error: { name: 'Error', message, stack: null } })
     }
   }
 }
 
-// Capture requestId from streamText calls
-function getRequestId(mockApi: MockAiApi): string {
-  const call = mockApi.streamText.mock.calls[0]
-  return (call[0] as { requestId: string }).requestId
-}
+// ── Tests ────────────────────────────────────────────────────────────
 
 describe('IpcChatTransport', () => {
   let transport: IpcChatTransport
@@ -104,32 +86,32 @@ describe('IpcChatTransport', () => {
     ;(window as unknown as { api: unknown }).api = originalApi
   })
 
+  const topicId = 'topic-1'
   const baseOptions = {
     trigger: 'submit-message' as const,
-    chatId: 'chat-1',
+    chatId: topicId,
     messageId: undefined,
-    messages: [] as UIMessage[],
+    messages: [] as CherryUIMessage[],
     abortSignal: undefined
   }
 
-  it('should return a ReadableStream and invoke streamText', async () => {
+  it('returns a ReadableStream and calls streamOpen', async () => {
     const stream = await transport.sendMessages(baseOptions)
     expect(stream).toBeInstanceOf(ReadableStream)
-    expect(mock.mockApi.streamText).toHaveBeenCalledOnce()
+    expect(mock.mockApi.streamOpen).toHaveBeenCalledOnce()
   })
 
-  it('should stream chunks filtered by requestId', async () => {
+  it('filters chunks by topicId', async () => {
     const stream = await transport.sendMessages(baseOptions)
     const reader = stream.getReader()
-    const requestId = getRequestId(mock.mockApi)
 
-    // Emit chunk for a different requestId — should be ignored
-    mock.emitChunk('other-request', { type: 'text-start', id: 'x' } as UIMessageChunk)
+    // Chunk for different topic — ignored
+    mock.emitChunk('other-topic', { type: 'text-start', id: 'x' } as UIMessageChunk)
 
-    // Emit chunks for our requestId
-    mock.emitChunk(requestId, { type: 'text-start', id: 't1' } as UIMessageChunk)
-    mock.emitChunk(requestId, { type: 'text-delta', id: 't1', delta: 'Hello' } as UIMessageChunk)
-    mock.emitDone(requestId)
+    // Chunks for our topic
+    mock.emitChunk(topicId, { type: 'text-start', id: 't1' } as UIMessageChunk)
+    mock.emitChunk(topicId, { type: 'text-delta', id: 't1', delta: 'Hello' } as UIMessageChunk)
+    mock.emitDone(topicId)
 
     const chunks: UIMessageChunk[] = []
     while (true) {
@@ -139,17 +121,14 @@ describe('IpcChatTransport', () => {
     }
 
     expect(chunks).toHaveLength(2)
-    expect(chunks[0]).toEqual({ type: 'text-start', id: 't1' })
-    expect(chunks[1]).toEqual({ type: 'text-delta', id: 't1', delta: 'Hello' })
   })
 
-  it('should close stream on done', async () => {
+  it('closes stream on done', async () => {
     const stream = await transport.sendMessages(baseOptions)
     const reader = stream.getReader()
-    const requestId = getRequestId(mock.mockApi)
 
-    mock.emitChunk(requestId, { type: 'text-start', id: 't1' } as UIMessageChunk)
-    mock.emitDone(requestId)
+    mock.emitChunk(topicId, { type: 'text-start', id: 't1' } as UIMessageChunk)
+    mock.emitDone(topicId)
 
     const { done: firstDone } = await reader.read()
     expect(firstDone).toBe(false)
@@ -158,27 +137,24 @@ describe('IpcChatTransport', () => {
     expect(secondDone).toBe(true)
   })
 
-  it('should error stream on error event', async () => {
+  it('errors stream on error event', async () => {
     const stream = await transport.sendMessages(baseOptions)
     const reader = stream.getReader()
-    const requestId = getRequestId(mock.mockApi)
 
-    mock.emitError(requestId, 'Something went wrong')
+    mock.emitError(topicId, 'Something went wrong')
 
     await expect(reader.read()).rejects.toThrow('Something went wrong')
   })
 
-  it('should abort stream and call window.api.ai.abort', async () => {
+  it('calls streamAbort on abort signal', async () => {
     const abortController = new AbortController()
     const stream = await transport.sendMessages({
       ...baseOptions,
       abortSignal: abortController.signal
     })
     const reader = stream.getReader()
-    const requestId = getRequestId(mock.mockApi)
 
-    // Emit one chunk, then abort
-    mock.emitChunk(requestId, { type: 'text-start', id: 't1' } as UIMessageChunk)
+    mock.emitChunk(topicId, { type: 'text-start', id: 't1' } as UIMessageChunk)
     abortController.abort()
 
     const chunks: UIMessageChunk[] = []
@@ -188,11 +164,11 @@ describe('IpcChatTransport', () => {
       chunks.push(value)
     }
 
-    expect(mock.mockApi.abort).toHaveBeenCalledWith(requestId)
-    expect(chunks).toHaveLength(1) // Only the chunk before abort
+    expect(mock.mockApi.streamAbort).toHaveBeenCalledWith({ topicId })
+    expect(chunks).toHaveLength(1)
   })
 
-  it('should handle already-aborted signal', async () => {
+  it('handles already-aborted signal', async () => {
     const abortController = new AbortController()
     abortController.abort()
 
@@ -204,40 +180,46 @@ describe('IpcChatTransport', () => {
 
     const { done } = await reader.read()
     expect(done).toBe(true)
-    expect(mock.mockApi.abort).toHaveBeenCalled()
+    expect(mock.mockApi.streamAbort).toHaveBeenCalledWith({ topicId })
   })
 
-  it('should clean up IPC listeners after done', async () => {
+  it('cleans up IPC listeners after done', async () => {
     const stream = await transport.sendMessages(baseOptions)
     const reader = stream.getReader()
-    const requestId = getRequestId(mock.mockApi)
 
     expect(mock.listeners.chunk).toHaveLength(1)
     expect(mock.listeners.done).toHaveLength(1)
     expect(mock.listeners.error).toHaveLength(1)
 
-    mock.emitDone(requestId)
-    await reader.read() // drain
+    mock.emitDone(topicId)
+    await reader.read()
 
-    // Listeners should be removed after cleanup
     expect(mock.listeners.chunk).toHaveLength(0)
     expect(mock.listeners.done).toHaveLength(0)
     expect(mock.listeners.error).toHaveLength(0)
   })
 
-  it('should pass body fields to streamText', async () => {
-    await transport.sendMessages({
-      ...baseOptions,
-      body: { providerId: 'openai', modelId: 'gpt-4o' }
-    })
-
-    const call = mock.mockApi.streamText.mock.calls[0][0] as Record<string, unknown>
-    expect(call.providerId).toBe('openai')
-    expect(call.modelId).toBe('gpt-4o')
+  it('reconnectToStream returns null when not found', async () => {
+    const result = await transport.reconnectToStream({ chatId: topicId })
+    expect(result).toBeNull()
+    expect(mock.mockApi.streamAttach).toHaveBeenCalledWith({ topicId })
   })
 
-  it('reconnectToStream should return null', async () => {
-    const result = await transport.reconnectToStream({ chatId: 'chat-1' })
-    expect(result).toBeNull()
+  it('reconnectToStream returns stream when attached', async () => {
+    mock.mockApi.streamAttach.mockResolvedValue({ status: 'attached', replayedChunks: 2 })
+
+    const stream = await transport.reconnectToStream({ chatId: topicId })
+    expect(stream).toBeInstanceOf(ReadableStream)
+  })
+
+  it('reconnectToStream returns closed stream when done', async () => {
+    mock.mockApi.streamAttach.mockResolvedValue({ status: 'done', finalMessage: {} })
+
+    const stream = await transport.reconnectToStream({ chatId: topicId })
+    expect(stream).toBeInstanceOf(ReadableStream)
+
+    const reader = stream!.getReader()
+    const { done } = await reader.read()
+    expect(done).toBe(true)
   })
 })

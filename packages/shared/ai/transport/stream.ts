@@ -1,19 +1,11 @@
-import type { UIMessage, UIMessageChunk } from 'ai'
+import type { UIMessageChunk } from 'ai'
 
-import type { CherryUIMessage } from '../../data/types/message'
+import type { CherryMessagePart, CherryUIMessage } from '../../data/types/message'
 import type { SerializedError } from '../../types/error'
-import type { AiAssistantRuntimeOverrides } from './index'
 
 // ── Push payloads (Main → Renderer) ─────────────────────────────────
 
-/**
- * A single chunk of a running stream.
- *
- * Uses AI SDK's `UIMessageChunk` (the wide type that `streamText` produces),
- * not `CherryUIMessageChunk` (the narrowed app-specific type). The transport
- * layer carries whatever the AI SDK emits; narrowing to Cherry-specific data
- * part types happens at the consumption site (Renderer rendering).
- */
+/** A single chunk of a running stream. */
 export interface StreamChunkPayload {
   topicId: string
   chunk: UIMessageChunk
@@ -34,36 +26,21 @@ export interface StreamErrorPayload {
 
 // ── Request payloads (Renderer → Main) ──────────────────────────────
 
-/** Open a new stream or steer an existing one. */
+/**
+ * Open a new stream or steer an existing one.
+ *
+ * Renderer sends the minimum required: topicId, parent anchor, user content, and
+ * assistant id. Main resolves everything else (provider, model, tools, overrides)
+ * from the assistant config via reduxService / DB.
+ */
 export interface AiStreamOpenRequest {
   topicId: string
-  /**
-   * Explicit parent node anchor — the message id at the current branch tip.
-   * Main uses this as `parentId` for `messageService.create`, never falling
-   * back to `topic.activeNodeId`.
-   */
+  /** Explicit parent node — message id at the current branch tip, or null for first message. */
   parentAnchorId: string | null
-  /**
-   * User message content (no id — Main generates the real SQLite id).
-   * Uses generic `UIMessage['parts']` rather than `CherryUIMessage['parts']`
-   * because the transport layer should not enforce app-specific data part types.
-   */
-  userMessage: {
-    role: 'user'
-    data: { parts: UIMessage['parts'] }
-  }
-  /** Assistant id for the response message metadata. */
+  /** User message content — Main wraps into a full Message when persisting. */
+  userMessageParts: CherryMessagePart[]
+  /** Assistant id — Main uses this to look up provider, model, tools, overrides. */
   assistantId: string
-  /** Provider id for model resolution. */
-  providerId?: string
-  /** Model id for model resolution. */
-  modelId?: string
-  /** Enabled MCP tool IDs. */
-  mcpToolIds?: string[]
-  /** Knowledge base IDs for RAG. */
-  knowledgeBaseIds?: string[]
-  /** Runtime assistant overrides. */
-  assistantOverrides?: AiAssistantRuntimeOverrides
 }
 
 /** Subscribe to a topic's stream state. */
