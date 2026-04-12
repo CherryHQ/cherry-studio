@@ -1,49 +1,17 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildCompositeModelId } from '../modelIdUtils'
+import { createUniqueModelId } from '../modelIdUtils'
 
-describe('buildCompositeModelId', () => {
+describe('createUniqueModelId (re-export)', () => {
   it('should build "provider::modelId" from valid provider and id', () => {
-    expect(buildCompositeModelId({ provider: 'openai', id: 'gpt-4' })).toBe('openai::gpt-4')
+    expect(createUniqueModelId('openai', 'gpt-4')).toBe('openai::gpt-4')
   })
 
-  it('should trim whitespace from provider and id', () => {
-    expect(buildCompositeModelId({ provider: ' openai ', id: ' gpt-4 ' })).toBe('openai::gpt-4')
+  it('should handle colons in modelId', () => {
+    expect(createUniqueModelId('azure', 'gpt-4:2025-04')).toBe('azure::gpt-4:2025-04')
   })
 
-  it('should return null when provider is missing', () => {
-    expect(buildCompositeModelId({ id: 'gpt-4' })).toBeNull()
-  })
-
-  it('should return null when id is missing', () => {
-    expect(buildCompositeModelId({ provider: 'openai' })).toBeNull()
-  })
-
-  it('should return null when both are missing', () => {
-    expect(buildCompositeModelId({})).toBeNull()
-  })
-
-  it('should return null when provider is empty string', () => {
-    expect(buildCompositeModelId({ provider: '', id: 'gpt-4' })).toBeNull()
-  })
-
-  it('should return null when id is empty string', () => {
-    expect(buildCompositeModelId({ provider: 'openai', id: '' })).toBeNull()
-  })
-
-  it('should return null when provider is whitespace only', () => {
-    expect(buildCompositeModelId({ provider: '  ', id: 'gpt-4' })).toBeNull()
-  })
-
-  it('should return null when provider is non-string', () => {
-    expect(buildCompositeModelId({ provider: 123, id: 'gpt-4' })).toBeNull()
-  })
-
-  it('should return null when id is non-string', () => {
-    expect(buildCompositeModelId({ provider: 'openai', id: 42 })).toBeNull()
-  })
-
-  it('should handle provider::id with colons in modelId', () => {
-    expect(buildCompositeModelId({ provider: 'azure', id: 'gpt-4:2025-04' })).toBe('azure::gpt-4:2025-04')
+  it('should throw when provider contains separator', () => {
+    expect(() => createUniqueModelId('open::ai', 'gpt-4')).toThrow()
   })
 })

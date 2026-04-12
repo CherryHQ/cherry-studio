@@ -61,7 +61,7 @@ import type {
   VideoBlock
 } from '@shared/data/types/message'
 
-import { buildCompositeModelId } from '../../utils/modelIdUtils'
+import { createUniqueModelId } from '../../utils/modelIdUtils'
 
 // ============================================================================
 // Old Type Definitions (Source Data Structures)
@@ -511,14 +511,12 @@ export function transformMessage(
     searchableText: searchableText || null,
     status: normalizeStatus(oldMessage.status),
     siblingsGroupId,
-    // Build composite modelId (provider::modelId) from full model object when available.
+    // Build UniqueModelId (provider::modelId) from full model object when available.
     // Falls back to raw modelId (lacks provider prefix) for incomplete legacy data.
     modelId: (() => {
-      if (oldMessage.model) {
-        const compositeId = buildCompositeModelId(oldMessage.model)
-        if (compositeId) return compositeId
+      if (oldMessage.model?.provider && oldMessage.model?.id) {
+        return createUniqueModelId(oldMessage.model.provider, oldMessage.model.id)
       }
-      // Raw modelId fallback — no model object or buildCompositeModelId returned null
       return oldMessage.modelId || null
     })(),
     // Snapshot of model at message creation time for historical display

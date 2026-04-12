@@ -22,7 +22,7 @@
 import type { AssistantInsert } from '@data/db/schemas/assistant'
 import type { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
 
-import { buildCompositeModelId } from '../../utils/modelIdUtils'
+import { createUniqueModelId } from '../../utils/modelIdUtils'
 
 // ============================================================================
 // Old Type Definitions (Source Data Structures)
@@ -134,14 +134,12 @@ export interface AssistantTransformResult {
  * Prefers `model` over `defaultModel` (defaultModel is the settings-level fallback).
  */
 function extractPrimaryModelId(source: OldAssistant): string | null {
-  if (source.model) {
-    const compositeId = buildCompositeModelId(source.model)
-    if (compositeId) return compositeId
+  if (source.model?.provider && source.model?.id) {
+    return createUniqueModelId(source.model.provider, source.model.id)
   }
 
-  if (source.defaultModel) {
-    const compositeId = buildCompositeModelId(source.defaultModel)
-    if (compositeId) return compositeId
+  if (source.defaultModel?.provider && source.defaultModel?.id) {
+    return createUniqueModelId(source.defaultModel.provider, source.defaultModel.id)
   }
 
   return null

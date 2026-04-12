@@ -110,7 +110,7 @@ export const toTimestamp = (value: number | undefined): number | undefined => {
   return undefined
 }
 
-export const toCompositeModelId = (model: LegacyModel | null | undefined): string | null => {
+export const toUniqueModelId = (model: LegacyModel | null | undefined): string | null => {
   if (!model) {
     return null
   }
@@ -121,6 +121,7 @@ export const toCompositeModelId = (model: LegacyModel | null | undefined): strin
     return null
   }
 
+  // Already in UniqueModelId format
   if (modelId.includes('::')) {
     return modelId
   }
@@ -192,7 +193,7 @@ export const transformKnowledgeBase = (
   base: LegacyKnowledgeBaseWithIdentity,
   dimensions: number
 ): KnowledgeBaseTransformResult => {
-  const embeddingModelId = toCompositeModelId(base.model ?? null)
+  const embeddingModelId = toUniqueModelId(base.model ?? null)
   if (!embeddingModelId) {
     return {
       ok: false,
@@ -206,7 +207,7 @@ export const transformKnowledgeBase = (
     description: base.description,
     dimensions,
     embeddingModelId,
-    rerankModelId: toCompositeModelId(base.rerankModel ?? null),
+    rerankModelId: toUniqueModelId(base.rerankModel ?? null),
     fileProcessorId: base.preprocessProvider?.provider?.id,
     chunkSize: base.chunkSize,
     chunkOverlap: base.chunkOverlap,

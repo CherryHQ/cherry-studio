@@ -8,7 +8,7 @@
 import { terminalApps } from '@shared/config/constant'
 import { CODE_CLI_IDS, type CodeCliOverride, type CodeCliOverrides } from '@shared/data/preference/preferenceTypes'
 
-import { buildCompositeModelId } from '../../utils/modelIdUtils'
+import { createUniqueModelId } from '../../utils/modelIdUtils'
 import type { TransformResult } from './ComplexPreferenceMappings'
 
 const VALID_CLI_IDS = new Set<string>(CODE_CLI_IDS)
@@ -37,7 +37,10 @@ export function transformSelectedModelsToIds(
     if (model === null || model === undefined) {
       result[toolKey] = null
     } else if (typeof model === 'object') {
-      result[toolKey] = buildCompositeModelId(model as Record<string, unknown>)
+      const m = model as Record<string, unknown>
+      const provider = typeof m.provider === 'string' ? m.provider : ''
+      const id = typeof m.id === 'string' ? m.id : ''
+      result[toolKey] = provider && id ? createUniqueModelId(provider, id) : null
     } else {
       result[toolKey] = null
     }
