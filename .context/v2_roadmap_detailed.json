@@ -1,25 +1,29 @@
 {
-  "generated_at": "2026-04-11T17:55:32.905549+00:00",
-  "date": "2026-04-11",
+  "generated_at": "2026-04-12T18:00:00.000000+00:00",
+  "date": "2026-04-12",
   "data_available": true,
   "v2_branch_summary": {
-    "total_merged_prs": 71,
-    "merged_last_30d": 42,
-    "merged_last_7d": null,
+    "total_merged_prs": 81,
+    "merged_last_30d": 52,
+    "merged_last_7d": 10,
     "open_prs": 50,
-    "data_freshness": "open_prs_live_2026-04-11_merged_from_2026-04-09"
+    "data_freshness": "live_2026-04-12"
   },
-  "area_breakdown_all_time": {},
-  "area_breakdown_30d": {},
+  "merge_velocity": {
+    "all_time_avg_per_day": 1.7,
+    "last_7d_count": 10,
+    "last_7d_avg_per_day": 1.4,
+    "note": "81 total merged PRs; significant acceleration this week with 10 merges in 2 days (Apr 10–11)"
+  },
   "area_breakdown_open": {
-    "Other": 13,
+    "Other": 14,
     "AI Core / Streaming": 6,
     "Refactor": 6,
     "Provider Settings": 5,
-    "UI/Navigation": 3,
+    "UI/Navigation": 4,
     "WebSearch": 3,
     "Agents / Database": 3,
-    "Data Architecture": 3,
+    "Data Architecture": 4,
     "File Processing": 2,
     "Copilot": 1,
     "Backup": 1,
@@ -28,10 +32,28 @@
     "Import/Export": 1,
     "MCP": 1
   },
+  "area_breakdown_recent_merged": {
+    "UI/Navigation": 3,
+    "Data Architecture": 3,
+    "MCP": 1,
+    "Agents": 1,
+    "Knowledge": 1,
+    "Database": 1
+  },
   "weekly_merge_velocity": {
-    "note": "velocity data from 2026-04-09 run: 42 merged in 30d ≈ 1.4/day"
+    "note": "52 merged in last 30d ≈ 1.7/day; 10 merges on Apr 10–11 alone"
   },
   "open_prs": [
+    {
+      "number": 14210,
+      "title": "feat: add v2 painting data foundation",
+      "author": "jidan745le",
+      "labels": ["v2"],
+      "area": "Data Architecture",
+      "created_at": "2026-04-12T13:08:47Z",
+      "draft": true,
+      "url": "https://github.com/CherryHQ/cherry-studio/pull/14210"
+    },
     {
       "number": 14187,
       "title": "feat(sidebar): implement tab bar UI with drag, pin, and context menu",
@@ -45,9 +67,7 @@
       "number": 14178,
       "title": "refactor(copilot): separate business logic from IPC handler signatures",
       "author": "DeJeune",
-      "labels": [
-        "v2"
-      ],
+      "labels": ["v2"],
       "area": "Copilot",
       "created_at": "2026-04-11T06:59:00Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/14178"
@@ -56,9 +76,7 @@
       "number": 14174,
       "title": "refactor(v2): remove local web search backend",
       "author": "eeee0717",
-      "labels": [
-        "v2"
-      ],
+      "labels": ["v2"],
       "area": "WebSearch",
       "created_at": "2026-04-11T03:27:34Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/14174"
@@ -67,10 +85,8 @@
       "number": 14159,
       "title": "feat: migrate agents storage to v2 main database",
       "author": "vaayne",
-      "labels": [
-        "v2"
-      ],
-      "area": "AI Core / Streaming",
+      "labels": ["v2"],
+      "area": "Agents / Database",
       "created_at": "2026-04-10T06:30:38Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/14159"
     },
@@ -78,16 +94,14 @@
       "number": 14146,
       "title": "feat(layout): add split-view infrastructure for multi-pane tabs",
       "author": "DeJeune",
-      "labels": [
-        "v2"
-      ],
+      "labels": ["v2"],
       "area": "UI/Navigation",
       "created_at": "2026-04-09T10:25:51Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/14146"
     },
     {
       "number": 14135,
-      "title": "feat(websearch): add toggle to disable prefilling search keywords in …",
+      "title": "feat(websearch): add toggle to disable prefilling search keywords",
       "author": "karuboniru",
       "labels": [],
       "area": "WebSearch",
@@ -98,9 +112,7 @@
       "number": 14125,
       "title": "refactor(renderer): ProviderSettings v2 migration + ClassifiableModel compat layer",
       "author": "jidan745le",
-      "labels": [
-        "v2"
-      ],
+      "labels": ["v2"],
       "area": "Provider Settings",
       "created_at": "2026-04-08T12:57:39Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/14125"
@@ -127,9 +139,7 @@
       "number": 14086,
       "title": "refactor: migrate shortcut system to Preference architecture",
       "author": "kangfenmao",
-      "labels": [
-        "v2"
-      ],
+      "labels": ["v2"],
       "area": "Shortcuts",
       "created_at": "2026-04-07T03:13:31Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/14086"
@@ -138,9 +148,7 @@
       "number": 14071,
       "title": "feat(ai): add V2 AI streaming pipeline and blocks-to-parts migration",
       "author": "DeJeune",
-      "labels": [
-        "v2"
-      ],
+      "labels": ["v2"],
       "area": "AI Core / Streaming",
       "created_at": "2026-04-06T07:51:50Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/14071"
@@ -156,11 +164,9 @@
     },
     {
       "number": 14064,
-      "title": "feat: add Task template, gh-cherry-usage skill, and migrate PR review to gh cherry",
+      "title": "feat: add Task template, gh-cherry-usage skill, and migrate PR review",
       "author": "EurFelux",
-      "labels": [
-        "v2"
-      ],
+      "labels": ["v2"],
       "area": "Other",
       "created_at": "2026-04-05T20:03:06Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/14064"
@@ -169,9 +175,7 @@
       "number": 14049,
       "title": "refactor(miniapp): migrate to v2 data layer",
       "author": "chengcheng84",
-      "labels": [
-        "v2"
-      ],
+      "labels": ["v2"],
       "area": "MiniApp",
       "created_at": "2026-04-05T06:17:24Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/14049"
@@ -180,9 +184,7 @@
       "number": 14034,
       "title": "feat(data): migrate provider/model data and finalize provider APIs",
       "author": "jidan745le",
-      "labels": [
-        "v2"
-      ],
+      "labels": ["v2"],
       "area": "Provider Settings",
       "created_at": "2026-04-04T10:24:22Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/14034"
@@ -191,9 +193,7 @@
       "number": 14033,
       "title": "feat(selection): add screenshot-to-translate action with OCR",
       "author": "404-Page-Found",
-      "labels": [
-        "v2"
-      ],
+      "labels": ["v2"],
       "area": "Other",
       "created_at": "2026-04-04T09:17:54Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/14033"
@@ -211,10 +211,8 @@
       "number": 13968,
       "title": "feat(v2): add main-side file processing backend",
       "author": "eeee0717",
-      "labels": [
-        "v2"
-      ],
-      "area": "AI Core / Streaming",
+      "labels": ["v2"],
+      "area": "File Processing",
       "created_at": "2026-04-02T04:58:38Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/13968"
     },
@@ -222,43 +220,34 @@
       "number": 13909,
       "title": "feat(v2): add agent/session schema and migration transform mappings",
       "author": "DeJeune",
-      "labels": [
-        "v2"
-      ],
+      "labels": ["v2"],
       "area": "Agents / Database",
       "created_at": "2026-03-30T19:15:18Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/13909"
     },
     {
       "number": 13871,
-      "title": "refactor(translate): migrate renderer translate module from Redux/Dexie to v2 data APIs",
+      "title": "refactor(translate): migrate renderer translate module from Redux/Dexie to v2",
       "author": "EurFelux",
-      "labels": [
-        "v2"
-      ],
+      "labels": ["v2"],
       "area": "Refactor",
       "created_at": "2026-03-28T18:29:38Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/13871"
     },
     {
       "number": 13870,
-      "title": "refactor(tool-permissions): migrate Redux store to SharedCache with main-process writes",
+      "title": "refactor(tool-permissions): migrate Redux store to SharedCache",
       "author": "DeJeune",
-      "labels": [
-        "WIP",
-        "v2"
-      ],
+      "labels": ["WIP", "v2"],
       "area": "AI Core / Streaming",
       "created_at": "2026-03-28T13:12:38Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/13870"
     },
     {
       "number": 13856,
-      "title": "feat(process-manager): add ProcessManager with unified lifecycle, events, and service integrations",
+      "title": "feat(process-manager): add ProcessManager with unified lifecycle and events",
       "author": "DeJeune",
-      "labels": [
-        "v2"
-      ],
+      "labels": ["v2"],
       "area": "Other",
       "created_at": "2026-03-27T09:32:27Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/13856"
@@ -267,10 +256,8 @@
       "number": 13851,
       "title": "feat(v2): decouple assistant from topic with dedicated table and migration",
       "author": "DeJeune",
-      "labels": [
-        "v2"
-      ],
-      "area": "UI/Navigation",
+      "labels": ["v2"],
+      "area": "Data Architecture",
       "created_at": "2026-03-27T07:24:37Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/13851"
     },
@@ -287,20 +274,16 @@
       "number": 13687,
       "title": "chore: migrate to vite 8",
       "author": "EurFelux",
-      "labels": [
-        "Pending"
-      ],
+      "labels": ["Pending"],
       "area": "Other",
       "created_at": "2026-03-21T17:13:39Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/13687"
     },
     {
       "number": 13589,
-      "title": "feat(v2): migrate PR12258 proxy api server into v2 api gateway",
+      "title": "feat(v2): migrate proxy api server into v2 api gateway",
       "author": "FactrueSolin",
-      "labels": [
-        "v2"
-      ],
+      "labels": ["v2"],
       "area": "Other",
       "created_at": "2026-03-18T06:19:59Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/13589"
@@ -309,9 +292,7 @@
       "number": 13561,
       "title": "refactor(ui): replace CustomTag with Tag component aligned to Figma design",
       "author": "DeJeune",
-      "labels": [
-        "v2"
-      ],
+      "labels": ["v2"],
       "area": "Refactor",
       "created_at": "2026-03-17T14:38:24Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/13561"
@@ -320,9 +301,7 @@
       "number": 13547,
       "title": "refactor: redesign v2 migration window UI with shadcn components",
       "author": "kovsu",
-      "labels": [
-        "v2"
-      ],
+      "labels": ["v2"],
       "area": "Data Architecture",
       "created_at": "2026-03-17T09:28:59Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/13547"
@@ -331,9 +310,7 @@
       "number": 13517,
       "title": "feat: integrate json-render for interactive UI in chat",
       "author": "DeJeune",
-      "labels": [
-        "v2"
-      ],
+      "labels": ["v2"],
       "area": "Other",
       "created_at": "2026-03-16T14:33:54Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/13517"
@@ -342,9 +319,7 @@
       "number": 13451,
       "title": "feat(file): Add schema and foundation for new file module",
       "author": "EurFelux",
-      "labels": [
-        "v2"
-      ],
+      "labels": ["v2"],
       "area": "File Processing",
       "created_at": "2026-03-14T06:13:45Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/13451"
@@ -353,9 +328,7 @@
       "number": 13443,
       "title": "V2 websearch setting ui",
       "author": "eeee0717",
-      "labels": [
-        "v2"
-      ],
+      "labels": ["v2"],
       "area": "WebSearch",
       "created_at": "2026-03-13T12:28:30Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/13443"
@@ -364,9 +337,7 @@
       "number": 13430,
       "title": "refactor(data): migrate QuickPhrase to Prompt with version management",
       "author": "zhangjiadi225",
-      "labels": [
-        "v2"
-      ],
+      "labels": ["v2"],
       "area": "Refactor",
       "created_at": "2026-03-13T02:48:31Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/13430"
@@ -375,9 +346,7 @@
       "number": 13312,
       "title": "feat(data): add note metadata DataApi and cache schemas for v2 migration",
       "author": "DeJeune",
-      "labels": [
-        "v2"
-      ],
+      "labels": ["v2"],
       "area": "Data Architecture",
       "created_at": "2026-03-09T02:10:59Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/13312"
@@ -386,9 +355,7 @@
       "number": 13238,
       "title": "feat(data): add provider/model data API and catalog core",
       "author": "DeJeune",
-      "labels": [
-        "v2"
-      ],
+      "labels": ["v2"],
       "area": "Provider Settings",
       "created_at": "2026-03-05T09:00:33Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/13238"
@@ -397,10 +364,7 @@
       "number": 13173,
       "title": "refactor(renderer): migrate from ReactMarkdown to Streamdown",
       "author": "DeJeune",
-      "labels": [
-        "v2",
-        "ready-to-merge"
-      ],
+      "labels": ["v2", "ready-to-merge"],
       "area": "AI Core / Streaming",
       "created_at": "2026-03-03T09:52:50Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/13173"
@@ -409,9 +373,7 @@
       "number": 12659,
       "title": "feat(backup): add v2 backup system refactor plan document",
       "author": "GeorgeDong32",
-      "labels": [
-        "v2"
-      ],
+      "labels": ["v2"],
       "area": "Backup",
       "created_at": "2026-01-30T16:31:10Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/12659"
@@ -420,9 +382,7 @@
       "number": 12519,
       "title": "refactor: replace antd Input/TextArea with Shadcn UI components",
       "author": "SherlockShemol",
-      "labels": [
-        "v2"
-      ],
+      "labels": ["v2"],
       "area": "Refactor",
       "created_at": "2026-01-19T10:03:45Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/12519"
@@ -440,9 +400,7 @@
       "number": 12150,
       "title": "refactor(files): File Management System Architecture",
       "author": "EurFelux",
-      "labels": [
-        "v2"
-      ],
+      "labels": ["v2"],
       "area": "File Processing",
       "created_at": "2025-12-26T12:02:11Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/12150"
@@ -451,9 +409,7 @@
       "number": 12060,
       "title": "feat: context menu",
       "author": "DeJeune",
-      "labels": [
-        "v2"
-      ],
+      "labels": ["v2"],
       "area": "Other",
       "created_at": "2025-12-21T11:04:10Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/12060"
@@ -462,20 +418,16 @@
       "number": 11878,
       "title": "feat(ui): toast",
       "author": "EurFelux",
-      "labels": [
-        "v2"
-      ],
+      "labels": ["v2"],
       "area": "Other",
       "created_at": "2025-12-12T11:19:16Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/11878"
     },
     {
       "number": 11420,
-      "title": "feat: Model &amp; Provider Catalog",
+      "title": "feat: Model & Provider Catalog",
       "author": "DeJeune",
-      "labels": [
-        "v2"
-      ],
+      "labels": ["v2"],
       "area": "Provider Settings",
       "created_at": "2025-11-23T17:41:13Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/11420"
@@ -484,9 +436,7 @@
       "number": 11054,
       "title": "feat: reset default model",
       "author": "EurFelux",
-      "labels": [
-        "v2"
-      ],
+      "labels": ["v2"],
       "area": "Other",
       "created_at": "2025-10-30T09:18:43Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/11054"
@@ -495,9 +445,7 @@
       "number": 10933,
       "title": "feat: show enabled provider only",
       "author": "EurFelux",
-      "labels": [
-        "v2"
-      ],
+      "labels": ["v2"],
       "area": "Provider Settings",
       "created_at": "2025-10-23T20:11:13Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/10933"
@@ -506,20 +454,16 @@
       "number": 10929,
       "title": "refactor: Migrate to tiptap markdown",
       "author": "Copilot",
-      "labels": [
-        "v2"
-      ],
+      "labels": ["v2"],
       "area": "Refactor",
-      "created_at": "2025-10-23T17:34:27Z",
+      "created_at": "2025-10-23T17:34:37Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/10929"
     },
     {
       "number": 10912,
       "title": "refactor: i18n",
       "author": "EurFelux",
-      "labels": [
-        "Blocked: v2"
-      ],
+      "labels": ["Blocked: v2"],
       "area": "Refactor",
       "created_at": "2025-10-23T09:24:37Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/10912"
@@ -528,9 +472,7 @@
       "number": 10874,
       "title": "feat: one-click fix mermaid error",
       "author": "EurFelux",
-      "labels": [
-        "v2"
-      ],
+      "labels": ["v2"],
       "area": "AI Core / Streaming",
       "created_at": "2025-10-21T23:31:22Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/10874"
@@ -539,9 +481,7 @@
       "number": 10699,
       "title": "feat: video generation",
       "author": "EurFelux",
-      "labels": [
-        "v2"
-      ],
+      "labels": ["v2"],
       "area": "Other",
       "created_at": "2025-10-13T15:53:40Z",
       "url": "https://github.com/CherryHQ/cherry-studio/pull/10699"
@@ -566,39 +506,37 @@
     }
   ],
   "recent_merged_30d": [
-    {
-      "title": "hotfix(mcp): preserve multi-element hub tool results",
-      "number": 14116,
-      "merged_at": "2026-04-09",
-      "area": "MCP"
-    },
-    {
-      "title": "fix: optimize agent bootstrap startup time (~1.6s → ~270ms)",
-      "number": 14098,
-      "merged_at": "2026-04-09",
-      "area": "Agents / Database"
-    },
-    {
-      "title": "feat(agents): add CherryClaw autonomous agent type",
-      "number": 13359,
-      "merged_at": "2026-04-09",
-      "area": "Agents / Database"
-    },
-    {
-      "title": "fix(models): add model capabilities, loosen schema validation, gemma4",
-      "number": 13996,
-      "merged_at": "2026-04-03",
-      "area": "Other"
-    }
+    {"number": 14180, "title": "fix: remove libsql_vector_idx", "merged_at": "2026-04-11", "area": "Database"},
+    {"number": 14090, "title": "feat(v2): knowledge service backend", "merged_at": "2026-04-10", "area": "Knowledge"},
+    {"number": 14167, "title": "docs: move provider-registry.md to provider-model directory", "merged_at": "2026-04-10", "area": "Docs"},
+    {"number": 14166, "title": "fix(data): log non-NotFound errors in getEffectiveReasoningConfig", "merged_at": "2026-04-10", "area": "Data Architecture"},
+    {"number": 14115, "title": "feat(data): provider/model data migration and registry service", "merged_at": "2026-04-10", "area": "Provider Settings"},
+    {"number": 14163, "title": "docs: add design system specifications (DESIGN.md)", "merged_at": "2026-04-10", "area": "Docs"},
+    {"number": 13954, "title": "feat(sidebar): rewrite sidebar with Tailwind/shadcn UI", "merged_at": "2026-04-10", "area": "UI/Navigation"},
+    {"number": 14147, "title": "refactor: replace HTTP MCP proxy with in-memory SDK transport", "merged_at": "2026-04-10", "area": "MCP"},
+    {"number": 12474, "title": "feat(tabs): implement browser-like tab system with detach/attach", "merged_at": "2026-04-10", "area": "UI/Navigation"},
+    {"number": 14143, "title": "fix: restore agents UI routing, auth, and message sending", "merged_at": "2026-04-10", "area": "Agents"},
+    {"number": 14138, "title": "docs: consolidate bilingual docs, add link checker and architecture", "merged_at": "2026-04-09", "area": "Docs"},
+    {"number": 14058, "title": "feat(ui): add Skeleton component", "merged_at": "2026-04-07", "area": "UI"},
+    {"number": 13563, "title": "refactor(ui): migrate Tooltip from HeroUI to shadcn/Radix UI", "merged_at": "2026-04-07", "area": "UI"},
+    {"number": 14037, "title": "feat: add PopoverConfirm component", "merged_at": "2026-04-05", "area": "UI"},
+    {"number": 14017, "title": "fix(i18n): update conversation title length constraint", "merged_at": "2026-04-05", "area": "i18n"},
+    {"number": 13468, "title": "refactor(miniapp): Miniapp V2", "merged_at": "2026-04-04", "area": "MiniApp"},
+    {"number": 14032, "title": "feat(aiCore): add createAgent factory for ToolLoopAgent with plugins", "merged_at": "2026-04-04", "area": "AI Core"},
+    {"number": 13943, "title": "fix(migration): seed builtin languages before migrating translate", "merged_at": "2026-04-02", "area": "Migration"},
+    {"number": 13942, "title": "feat(ui): add Drawer component and Storybook stories", "merged_at": "2026-04-02", "area": "UI"},
+    {"number": 13950, "title": "fix: redux exporter", "merged_at": "2026-04-01", "area": "Data Architecture"}
   ],
   "top_v2_contributors": {
-    "note": "contributor data from 2026-04-09 run",
-    "SuYao": 7,
-    "亢奋猫": 6,
-    "Konv Suu": 3,
-    "George·Dong": 2,
-    "beyondkmp": 2,
+    "DeJeune": 12,
+    "EurFelux": 8,
+    "jidan745le": 7,
+    "404-Page-Found": 5,
+    "eeee0717": 4,
     "kangfenmao": 2,
-    "Tim Ren": 2
+    "chengcheng84": 2,
+    "vaayne": 1,
+    "karuboniru": 1,
+    "note": "contributor counts approximate; based on open + recent merged PRs visible in this snapshot"
   }
 }

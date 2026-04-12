@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-04-11T17:55:32.905549+00:00",
-  "date": "2026-04-11",
+  "generated_at": "2026-04-12T18:00:00.000000+00:00",
+  "date": "2026-04-12",
   "data_source": "github_mcp_api",
   "api_available": true,
   "latest_release": {
@@ -12,31 +12,31 @@
     "v1_9_1_open_issues": 12
   },
   "open_issues": {
-    "total": 707,
-    "p1_critical": 7,
+    "total": 713,
+    "p1_critical": 5,
     "bugs": 169,
-    "unlabeled": 60,
-    "unlabeled_pct": 8.5,
-    "new_7d": 345,
-    "aged_30_90d": 128,
+    "unlabeled": 62,
+    "unlabeled_pct": 8.7,
+    "new_7d": 339,
+    "aged_30_90d": 129,
     "stale_90d_plus": 3,
-    "data_freshness": "live_2026-04-11",
+    "data_freshness": "live_2026-04-12",
     "label_distribution": {
-      "inactive": 81,
-      "BUG": 49,
-      "Models": 22,
-      "MCP": 13,
-      "help wanted": 13,
+      "inactive": 70,
+      "BUG": 42,
+      "Models": 24,
+      "UI/UX": 14,
       "discussion": 13,
-      "UI/UX": 12,
-      "Assistant": 11,
-      "Data": 11,
-      "feature": 10,
-      "needs-repro": 6,
-      "Connectivity": 5,
-      "RAG": 4
+      "MCP": 12,
+      "help wanted": 11,
+      "Assistant": 10,
+      "Data": 10,
+      "feature": 8,
+      "needs-repro": 7,
+      "RAG": 4,
+      "Connectivity": 4
     },
-    "label_distribution_note": "Based on most-recently-updated-100 sample; full distribution from 2026-04-09: Models=173, BUG=169, UI/UX=158, feature=149",
+    "label_distribution_note": "Sample from 100 most-recently-updated issues; full BUG=169, unlabeled=62 confirmed via live search",
     "top_reporters": {
       "EurFelux": 33,
       "JohnXu22786": 17,
@@ -48,177 +48,88 @@
     }
   },
   "closed_issues_30d": {
-    "total": 161,
-    "data_freshness": "live_2026-04-11"
+    "total": 156,
+    "data_freshness": "live_2026-04-12"
   },
   "open_prs": {
-    "total": 232,
+    "total": 230,
     "to_main": 75,
     "to_v2": 50,
     "draft": 18,
-    "data_note": "Sampled first 100; prior full count was 232 (2026-04-09)"
+    "data_note": "total_count from live search (230); base branch split from sampled first 100"
   },
   "v2_branch": {
     "open_prs": 50,
-    "merged_prs_total": 71,
-    "merged_prs_30d": 42,
-    "data_freshness": "open_prs_live_2026-04-11"
+    "merged_prs_total": 81,
+    "merged_prs_30d": 52,
+    "data_freshness": "live_2026-04-12"
   },
   "p1_issues_list": [
     {
-      "number": 14201,
-      "title": "[Bug]: UI blocks navigation to other modules while image generation is in progress",
-      "labels": [
-        "UI/UX"
-      ],
-      "age_days": 0,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/14201",
-      "note": "v1.9.1 system test, self-identified P1"
-    },
-    {
-      "number": 14200,
-      "title": "[Bug]: Sending multiple PDFs to Agent triggers 6MB request body limit error",
-      "labels": [],
-      "age_days": 0,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/14200",
-      "note": "v1.9.1 system test, self-identified P1"
-    },
-    {
       "number": 13608,
       "title": "[Bug]: xiaomi mimo response only displays the last line",
-      "labels": [
-        "P1",
-        "Models"
-      ],
-      "age_days": 24,
+      "labels": ["P1", "Models"],
+      "age_days": 25,
+      "last_updated": "2026-03-19",
       "url": "https://github.com/CherryHQ/cherry-studio/issues/13608"
     },
     {
       "number": 13193,
-      "title": "[Bug]: Azure OpenAI Resource not found - defaults to responses API instead of /chat/completions",
-      "labels": [
-        "P1",
-        "Models"
-      ],
-      "age_days": 38,
+      "title": "[Bug]: Azure OpenAI Resource not found - defaults to responses API",
+      "labels": ["P1", "Models"],
+      "age_days": 39,
       "assignee": "DeJeune",
+      "last_updated": "2026-03-05",
       "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"
     },
     {
       "number": 13105,
       "title": "[Bug]: PDF files cannot be read in v1.7.19 when sent directly in chat",
-      "labels": [
-        "P1",
-        "Models",
-        "inactive"
-      ],
-      "age_days": 42,
+      "labels": ["P1", "Models", "inactive"],
+      "age_days": 43,
+      "last_updated": "2026-04-07",
       "url": "https://github.com/CherryHQ/cherry-studio/issues/13105"
     },
     {
       "number": 13061,
       "title": "[Bug]: Data cleared after in-app upgrade when syncing via OneDrive",
-      "labels": [
-        "P1",
-        "Data",
-        "inactive"
-      ],
-      "age_days": 44,
+      "labels": ["P1", "Data", "inactive"],
+      "age_days": 45,
+      "last_updated": "2026-04-05",
       "url": "https://github.com/CherryHQ/cherry-studio/issues/13061"
     },
     {
       "number": 12966,
       "title": "[URGENT] Unanswered Critical Security Advisory (GHSA-qmgw-45x4-3626)",
-      "labels": [
-        "BUG",
-        "P1"
-      ],
-      "age_days": 51,
+      "labels": ["BUG", "P1"],
+      "age_days": 52,
+      "last_updated": "2026-03-25",
       "url": "https://github.com/CherryHQ/cherry-studio/issues/12966"
     }
   ],
   "today_git_activity": {
     "commits_to_main_since_v1_9_0": 0,
-    "note": "main is under code freeze since v1.9.0 release (2026-04-09); no new commits",
+    "note": "main is under code freeze since v1.9.0 release (2026-04-09); hotfix/* only",
     "prs_merged_to_main_today": 0,
-    "commit_type_distribution_last20": {
-      "fix": 14,
-      "chore": 3,
-      "refactor": 1,
-      "docs": 1,
-      "feat": 1
-    },
-    "top_scopes_last20": {
-      "agents": 3,
-      "models": 2,
-      "mcp": 1,
-      "channels": 1,
-      "ci": 1,
-      "build": 1,
-      "think": 1,
-      "renderer": 1
-    },
-    "recent_prs": [
-      {
-        "number": 14142,
-        "title": "chore: release v1.9.0 (#14142)",
-        "date": "2026-04-09",
-        "type": "chore"
-      },
-      {
-        "number": 14036,
-        "title": "fix(models): add Ollama gemma4 format support for capability detection (#14036)",
-        "date": "2026-04-09",
-        "type": "fix"
-      },
-      {
-        "number": 14116,
-        "title": "hotfix(mcp): preserve multi-element hub tool results (#14116)",
-        "date": "2026-04-09",
-        "type": "fix"
-      },
-      {
-        "number": 14098,
-        "title": "fix: optimize agent bootstrap startup time (~1.6s → ~270ms) (#14098)",
-        "date": "2026-04-09",
-        "type": "fix"
-      },
-      {
-        "number": 14112,
-        "title": "hotfix(channels): toggle single channel no longer reconnects all channels (#14112)",
-        "date": "2026-04-09",
-        "type": "fix"
-      },
-      {
-        "number": 14130,
-        "title": "fix: prevent data loss when selecting model via keyboard shortcut (#14130)",
-        "date": "2026-04-09",
-        "type": "fix"
-      },
-      {
-        "number": 14117,
-        "title": "fix: restore rich editor search state and scrolling (#14117)",
-        "date": "2026-04-09",
-        "type": "fix"
-      },
-      {
-        "number": 14105,
-        "title": "fix(ci): restore missing Linux build dependencies in nightly workflow (#14105)",
-        "date": "2026-04-08",
-        "type": "fix"
-      },
-      {
-        "number": 14121,
-        "title": "hotfix(build): include resources directory files excluded by glob pattern (#14121)",
-        "date": "2026-04-08",
-        "type": "fix"
-      },
-      {
-        "number": 14076,
-        "title": "fix(agents): remove conflicting language instruction from Cherry Assistant (#14076)",
-        "date": "2026-04-08",
-        "type": "fix"
-      }
+    "v2_merges_since_yesterday": 10,
+    "v2_notable_recent_merges": [
+      {"number": 14180, "title": "fix: remove libsql_vector_idx", "date": "2026-04-11", "area": "Database"},
+      {"number": 14090, "title": "feat(v2): knowledge service backend", "date": "2026-04-10", "area": "Knowledge"},
+      {"number": 14115, "title": "feat(data): provider/model data migration and registry service", "date": "2026-04-10", "area": "Provider Settings"},
+      {"number": 13954, "title": "feat(sidebar): rewrite sidebar with Tailwind/shadcn UI", "date": "2026-04-10", "area": "UI/Navigation"},
+      {"number": 12474, "title": "feat(tabs): implement browser-like tab system", "date": "2026-04-10", "area": "UI/Navigation"},
+      {"number": 14147, "title": "refactor: replace HTTP MCP proxy with in-memory SDK transport", "date": "2026-04-10", "area": "MCP"},
+      {"number": 14143, "title": "fix: restore agents UI routing, auth, and message sending", "date": "2026-04-10", "area": "Agents"},
+      {"number": 14032, "title": "feat(aiCore): add createAgent factory for ToolLoopAgent", "date": "2026-04-04", "area": "AI Core"},
+      {"number": 13943, "title": "fix(migration): seed builtin languages before migrating translate", "date": "2026-04-02", "area": "Migration"},
+      {"number": 13942, "title": "feat(ui): add Drawer component and Storybook stories", "date": "2026-04-02", "area": "UI"}
     ]
+  },
+  "delta_from_yesterday": {
+    "open_issues": "+6 (707 → 713)",
+    "open_prs": "-2 (232 → 230)",
+    "v2_merged_prs_total": "+10 (71 → 81)",
+    "closed_issues_30d": "-5 (161 → 156, 30d window shift)",
+    "p1_count": "-2 (7 → 5, issues #14201 and #14200 resolved/de-prioritized)"
   }
 }
