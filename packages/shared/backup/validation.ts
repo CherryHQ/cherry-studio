@@ -1,11 +1,8 @@
 /**
- * Validation Types
- * Defines structures for backup validation
+ * Backup Validation Types
+ * V2 architecture: VACUUM INTO + selective restore
  */
 
-/**
- * Error codes for validation failures
- */
 export enum ValidationErrorCode {
   // Manifest errors
   MANIFEST_MISSING = 'manifest_missing',
@@ -26,12 +23,6 @@ export enum ValidationErrorCode {
   FILE_SIZE_MISMATCH = 'file_size_mismatch',
   FILE_HASH_MISMATCH = 'file_hash_mismatch',
 
-  // Encryption errors
-  ENCRYPTION_PASSWORD_REQUIRED = 'encryption_password_required',
-  ENCRYPTION_INVALID_PASSWORD = 'encryption_invalid_password',
-  ENCRYPTION_CORRUPTED = 'encryption_corrupted',
-  ENCRYPTION_MISSING_KEY = 'encryption_missing_key',
-
   // Structure errors
   STRUCTURE_INVALID = 'structure_invalid',
   STRUCTURE_MISSING_ROOT = 'structure_missing_root',
@@ -49,111 +40,61 @@ export enum ValidationErrorCode {
   COMPAT_VERSION_TOO_OLD = 'compat_version_too_old',
   COMPAT_VERSION_TOO_NEW = 'compat_version_too_new',
 
-  // Incremental backup errors
-  INCREMENTAL_CHAIN_BROKEN = 'incremental_chain_broken',
-  INCREMENTAL_PARENT_MISSING = 'incremental_parent_missing',
-  INCREMENTAL_SEQUENCE_GAP = 'incremental_sequence_gap'
+  // Schema migration errors
+  SCHEMA_MIGRATION_FAILED = 'schema_migration_failed',
+  SCHEMA_DOWNGRADE_NOT_SUPPORTED = 'schema_downgrade_not_supported'
 }
 
-/**
- * Validation error with context
- */
 export interface ValidationError {
-  /** Error code */
   code: ValidationErrorCode
-  /** Human-readable message */
   message: string
-  /** Domain where error occurred (if applicable) */
   domain?: string
-  /** File path where error occurred */
   filePath?: string
-  /** Record ID where error occurred */
   recordId?: string
-  /** Expected value */
   expected?: unknown
-  /** Actual value */
   actual?: unknown
-  /** Nested validation errors */
   nestedErrors?: ValidationError[]
-  /** Suggestion for fixing the error */
   suggestion?: string
 }
 
-/**
- * Result of validation
- */
 export interface ValidationResult {
-  /** Whether validation passed */
   valid: boolean
-  /** List of errors encountered */
   errors: ValidationError[]
-  /** List of warnings (non-fatal issues) */
   warnings: ValidationError[]
-  /** Validation duration in milliseconds */
   duration: number
-  /** Files that were validated */
   filesValidated: string[]
-  /** Records that were validated */
   recordsValidated: number
 }
 
-/**
- * Summary of validation results by severity
- */
 export interface ValidationSummary {
-  /** Total error count */
   errorCount: number
-  /** Total warning count */
   warningCount: number
-  /** Errors grouped by code */
-  errorsByCode: Record<ValidationErrorCode, number>
-  /** Errors grouped by domain */
+  errorsByCode: Partial<Record<ValidationErrorCode, number>>
   errorsByDomain: Record<string, number>
-  /** Whether validation can proceed despite errors */
   canProceed: boolean
-  /** Recommended action */
   recommendedAction: 'none' | 'skip' | 'repair' | 'abort'
 }
 
-/**
- * Validator interface for custom validators
- */
 export interface BackupValidator {
-  /** Get the name of this validator */
   getName(): string
-  /** Validate a backup */
   validate(context: ValidationContext): Promise<ValidationResult>
 }
 
-/**
- * Context provided to validators
- */
 export interface ValidationContext {
-  /** Backup manifest */
   manifest: {
-    version: string
+    version: number
     createdAt: string
     domains: string[]
-    domainStats: Record<string, { itemCount: number; checksum: string }>
+    domainStats: Record<string, { itemCount: number; sizeBytes: number }>
+    schemaVersion: { hash: string; createdAt: number }
   }
-  /** Paths to domain data files */
-  domainPaths: Map<string, string>
-  /** Paths to file storage */
+  backupDbPath: string
   filePaths: Map<string, string>
-  /** Encryption info if encrypted */
-  encryption?: {
-    algorithm: string
-    hasPassword: boolean
-  }
-  /** Options for this validation */
   options: {
     checkIntegrity: boolean
     checkFiles: boolean
-    checkEncryption: boolean
     collectAllErrors: boolean
   }
-  /** Function to read a file */
   readFile: (path: string) => Promise<Uint8Array>
-  /** Function to validate a checksum */
-  verifyChecksum: (data: Uint8Array, expected: string) => Promise<boolean>
+  verifyChecksum: (filePath: string, expected: string) => Promise<boolean>
 }
