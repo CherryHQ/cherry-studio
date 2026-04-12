@@ -421,7 +421,7 @@ export class AgentService extends BaseService {
     // Only sync fields that are present in the update AND actually changed.
     const changedFields = syncFields.filter((field) => {
       if (!Object.prototype.hasOwnProperty.call(serializedUpdates, field)) return false
-      return (serializedUpdates[field] ?? null) !== ((rawOldAgent as Record<string, unknown>)[field] ?? null)
+      return (serializedUpdates[field] ?? null) !== (rawOldAgent[field] ?? null)
     })
     if (changedFields.length === 0) return
 
