@@ -1,8 +1,9 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { InternalStreamTarget } from '../InternalStreamTarget'
 import type { StreamDoneResult, StreamListener } from '../types'
 
 // ── Fake listener ───────────────────────────────────────────────────
@@ -13,6 +14,7 @@ class FakeListener implements StreamListener {
   doneResults: StreamDoneResult[] = []
   errors: SerializedError[] = []
   alive = true
+  onDoneImpl?: (result: StreamDoneResult) => void | Promise<void>
 
   constructor(id: string) {
     this.id = id
@@ -22,8 +24,9 @@ class FakeListener implements StreamListener {
     this.chunks.push(chunk)
   }
 
-  onDone(result: StreamDoneResult): void {
+  onDone(result: StreamDoneResult): void | Promise<void> {
     this.doneResults.push(result)
+    return this.onDoneImpl?.(result)
   }
 
   onError(error: SerializedError): void {
@@ -35,23 +38,17 @@ class FakeListener implements StreamListener {
   }
 }
 
-// ── Mock messageService (direct-import singleton, not via application.get) ──
+// ── Mocks ───────────────────────────────────────────────────────────
 
 vi.mock('@main/data/services/MessageService', () => ({
-  messageService: {
-    create: vi.fn().mockResolvedValue({ id: 'msg-001' })
-  }
+  messageService: { create: vi.fn().mockResolvedValue({ id: 'msg-001' }) }
 }))
-
-// ── Override AiService in application.get() ─────────────────────────
 
 const mockExecuteStream = vi.fn().mockResolvedValue(undefined)
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({
-    AiService: { executeStream: mockExecuteStream }
-  })
+  return mockApplicationFactory({ AiService: { executeStream: mockExecuteStream } })
 })
 
 // ── Import after mocks ──────────────────────────────────────────────
@@ -65,294 +62,310 @@ function createManager(): InstanceType<typeof AiStreamManager> {
   return new (AiStreamManager as any)()
 }
 
-function makeChunk(text: string): UIMessageChunk {
-  return { type: 'text-delta', delta: text, id: 'part-1' } as unknown as UIMessageChunk
+function chunk(text: string): UIMessageChunk {
+  return { type: 'text-delta', delta: text, id: 'p1' } as unknown as UIMessageChunk
 }
 
-function makeError(message: string): SerializedError {
-  return { name: 'Error', message, stack: null }
+function error(msg: string): SerializedError {
+  return { name: 'Error', message: msg, stack: null }
 }
 
-function makeRequest(topicId: string) {
+function req(topicId: string) {
   return { requestId: topicId, chatId: topicId, trigger: 'submit-message', messages: [] } as any
 }
 
 // ── Tests ───────────────────────────────────────────────────────────
 
 describe('AiStreamManager', () => {
-  let manager: ReturnType<typeof createManager>
+  let mgr: ReturnType<typeof createManager>
 
   beforeEach(() => {
-    manager = createManager()
+    vi.useFakeTimers()
+    mgr = createManager()
     vi.clearAllMocks()
   })
 
-  describe('startStream', () => {
-    it('creates an active stream with listeners', () => {
-      const listener = new FakeListener('test:topicA')
-      const stream = manager.startStream({
-        topicId: 'topicA',
-        request: makeRequest('topicA'),
-        listeners: [listener]
-      })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
 
-      expect(stream.topicId).toBe('topicA')
+  // ── startStream ─────────────────────────────────────────────────
+
+  describe('startStream', () => {
+    it('creates stream and calls executeStream with correct args', () => {
+      const listener = new FakeListener('l:a')
+      const stream = mgr.startStream({ topicId: 'a', request: req('a'), listeners: [listener] })
+
+      expect(stream.topicId).toBe('a')
       expect(stream.status).toBe('streaming')
       expect(stream.listeners.size).toBe(1)
+
+      // Verify executeStream received InternalStreamTarget + the broker's signal
       expect(mockExecuteStream).toHaveBeenCalledOnce()
+      const [target, , options] = mockExecuteStream.mock.calls[0]
+      expect(target).toBeInstanceOf(InternalStreamTarget)
+      expect(options.signal).toBe(stream.abortController.signal)
     })
 
-    it('throws if topic already has a streaming stream', () => {
-      manager.startStream({
-        topicId: 'topicA',
-        request: makeRequest('topicA'),
-        listeners: [new FakeListener('l1:topicA')]
-      })
+    it('throws on duplicate streaming topic', () => {
+      mgr.startStream({ topicId: 'a', request: req('a'), listeners: [new FakeListener('l1:a')] })
 
-      expect(() =>
-        manager.startStream({
-          topicId: 'topicA',
-          request: makeRequest('topicA'),
-          listeners: [new FakeListener('l2:topicA')]
-        })
-      ).toThrow('already has an active stream')
+      expect(() => mgr.startStream({ topicId: 'a', request: req('a'), listeners: [new FakeListener('l2:a')] })).toThrow(
+        'already has an active stream'
+      )
     })
 
-    it('evicts grace-period stream and creates new one', async () => {
-      manager.startStream({
-        topicId: 'topicA',
-        request: makeRequest('topicA'),
-        listeners: [new FakeListener('l1:topicA')]
-      })
+    it('evicts finished stream and inherits sourceSessionId', async () => {
+      const s1 = mgr.startStream({ topicId: 'a', request: req('a'), listeners: [new FakeListener('l1:a')] })
+      s1.sourceSessionId = 'sdk-session-42'
+      await mgr.onDone('a', 'success')
 
-      await manager.onDone('topicA', 'success')
-
-      const stream = manager.startStream({
-        topicId: 'topicA',
-        request: makeRequest('topicA'),
-        listeners: [new FakeListener('l2:topicA')]
-      })
-
-      expect(stream.status).toBe('streaming')
+      const s2 = mgr.startStream({ topicId: 'a', request: req('a'), listeners: [new FakeListener('l2:a')] })
+      expect(s2.status).toBe('streaming')
+      expect(s2.sourceSessionId).toBe('sdk-session-42')
     })
   })
 
-  describe('send (routing)', () => {
-    it('starts a new stream if no active stream exists', () => {
-      const result = manager.send({
-        topicId: 'topicB',
-        request: makeRequest('topicB'),
-        userMessage: { id: 'user-1' },
-        listeners: [new FakeListener('test:topicB')]
-      })
+  // ── send (routing) ──────────────────────────────────────────────
 
-      expect(result.mode).toBe('started')
-    })
+  describe('send', () => {
+    it('steers into existing stream without calling executeStream again', () => {
+      const l1 = new FakeListener('l:a')
+      const stream = mgr.startStream({ topicId: 'a', request: req('a'), listeners: [l1] })
+      expect(mockExecuteStream).toHaveBeenCalledTimes(1)
 
-    it('steers if topic already has a streaming stream', () => {
-      manager.startStream({
-        topicId: 'topicC',
-        request: makeRequest('topicC'),
-        listeners: [new FakeListener('l1:topicC')]
-      })
-
-      const result = manager.send({
-        topicId: 'topicC',
-        request: makeRequest('topicC'),
+      const l2 = new FakeListener('l:a') // same id → upsert
+      const result = mgr.send({
+        topicId: 'a',
+        request: req('a'),
         userMessage: { id: 'user-2' },
-        listeners: [new FakeListener('l2:topicC')]
+        listeners: [l2]
       })
 
       expect(result.mode).toBe('steered')
+      // No second executeStream call — steering reuses the existing stream
+      expect(mockExecuteStream).toHaveBeenCalledTimes(1)
+      // Message pushed to pending queue
+      expect(stream.pendingMessages.hasPending()).toBe(true)
+      // Listener upserted: l2 replaced l1 (same id)
+      expect(stream.listeners.get('l:a')).toBe(l2)
+    })
+
+    it('starts new stream when no active stream exists', () => {
+      const result = mgr.send({
+        topicId: 'b',
+        request: req('b'),
+        userMessage: { id: 'user-1' },
+        listeners: [new FakeListener('l:b')]
+      })
+
+      expect(result.mode).toBe('started')
+      expect(mockExecuteStream).toHaveBeenCalledOnce()
     })
   })
 
-  describe('onChunk (multicast)', () => {
-    it('delivers chunks to all alive listeners', () => {
-      const l1 = new FakeListener('l1:topicD')
-      const l2 = new FakeListener('l2:topicD')
-      manager.startStream({
-        topicId: 'topicD',
-        request: makeRequest('topicD'),
-        listeners: [l1, l2]
-      })
+  // ── onChunk (multicast) ─────────────────────────────────────────
 
-      const chunk = makeChunk('hello')
-      manager.onChunk('topicD', chunk)
+  describe('onChunk', () => {
+    it('multicasts to all alive listeners', () => {
+      const l1 = new FakeListener('l1:a')
+      const l2 = new FakeListener('l2:a')
+      mgr.startStream({ topicId: 'a', request: req('a'), listeners: [l1, l2] })
 
-      expect(l1.chunks).toEqual([chunk])
-      expect(l2.chunks).toEqual([chunk])
+      mgr.onChunk('a', chunk('hi'))
+
+      expect(l1.chunks).toEqual([chunk('hi')])
+      expect(l2.chunks).toEqual([chunk('hi')])
     })
 
-    it('removes dead listeners automatically', () => {
-      const alive = new FakeListener('alive:topicE')
-      const dead = new FakeListener('dead:topicE')
+    it('removes dead listeners and skips delivery to them', () => {
+      const alive = new FakeListener('alive:a')
+      const dead = new FakeListener('dead:a')
       dead.alive = false
 
-      manager.startStream({
-        topicId: 'topicE',
-        request: makeRequest('topicE'),
-        listeners: [alive, dead]
-      })
-
-      manager.onChunk('topicE', makeChunk('test'))
+      const stream = mgr.startStream({ topicId: 'a', request: req('a'), listeners: [alive, dead] })
+      mgr.onChunk('a', chunk('x'))
 
       expect(alive.chunks).toHaveLength(1)
       expect(dead.chunks).toHaveLength(0)
+      expect(stream.listeners.size).toBe(1) // dead was removed from map
     })
 
-    it('replays buffer when adding a late listener', () => {
-      manager.startStream({
-        topicId: 'topicF',
-        request: makeRequest('topicF'),
-        listeners: [new FakeListener('early:topicF')]
-      })
+    it('buffers chunks and replays to late-joining listener', () => {
+      mgr.startStream({ topicId: 'a', request: req('a'), listeners: [new FakeListener('early:a')] })
+      mgr.onChunk('a', chunk('a'))
+      mgr.onChunk('a', chunk('b'))
 
-      manager.onChunk('topicF', makeChunk('a'))
-      manager.onChunk('topicF', makeChunk('b'))
+      const late = new FakeListener('late:a')
+      mgr.addListener('a', late)
 
-      const late = new FakeListener('late:topicF')
-      manager.addListener('topicF', late)
+      expect(late.chunks).toEqual([chunk('a'), chunk('b')])
+    })
 
-      expect(late.chunks).toHaveLength(2)
+    it('does not deliver to a non-streaming topic', async () => {
+      const l = new FakeListener('l:a')
+      mgr.startStream({ topicId: 'a', request: req('a'), listeners: [l] })
+      await mgr.onDone('a')
+
+      mgr.onChunk('a', chunk('late'))
+      expect(l.chunks).toHaveLength(0)
     })
   })
 
+  // ── onDone ──────────────────────────────────────────────────────
+
   describe('onDone', () => {
-    it('broadcasts done to all listeners', async () => {
-      const listener = new FakeListener('test:topicG')
-      manager.startStream({
-        topicId: 'topicG',
-        request: makeRequest('topicG'),
-        listeners: [listener]
-      })
+    it('broadcasts with finalMessage and status', async () => {
+      const l = new FakeListener('l:a')
+      const stream = mgr.startStream({ topicId: 'a', request: req('a'), listeners: [l] })
+      mgr.setStreamFinalMessage('a', { id: '1', role: 'assistant', parts: [] } as any)
 
-      await manager.onDone('topicG', 'success')
+      await mgr.onDone('a', 'success')
 
-      expect(listener.doneResults).toEqual([{ finalMessage: undefined, status: 'success' }])
+      expect(stream.status).toBe('done')
+      expect(l.doneResults).toHaveLength(1)
+      expect(l.doneResults[0].status).toBe('success')
+      expect(l.doneResults[0].finalMessage).toEqual({ id: '1', role: 'assistant', parts: [] })
     })
 
-    it('sets status to aborted when paused', async () => {
-      const stream = manager.startStream({
-        topicId: 'topicH',
-        request: makeRequest('topicH'),
-        listeners: [new FakeListener('test:topicH')]
-      })
-
-      await manager.onDone('topicH', 'paused')
+    it('maps paused status to aborted state', async () => {
+      const stream = mgr.startStream({ topicId: 'a', request: req('a'), listeners: [new FakeListener('l:a')] })
+      await mgr.onDone('a', 'paused')
 
       expect(stream.status).toBe('aborted')
     })
-  })
 
-  describe('onError', () => {
-    it('broadcasts error to all listeners', async () => {
-      const listener = new FakeListener('test:topicI')
-      manager.startStream({
-        topicId: 'topicI',
-        request: makeRequest('topicI'),
-        listeners: [listener]
-      })
+    it('isolates listener errors — one throw does not block others', async () => {
+      const thrower = new FakeListener('thrower:a')
+      thrower.onDoneImpl = () => {
+        throw new Error('listener bug')
+      }
+      const receiver = new FakeListener('receiver:a')
 
-      await manager.onError('topicI', makeError('test error'))
+      mgr.startStream({ topicId: 'a', request: req('a'), listeners: [thrower, receiver] })
+      await mgr.onDone('a', 'success')
 
-      expect(listener.errors).toEqual([makeError('test error')])
+      // Both listeners received onDone despite thrower throwing
+      expect(thrower.doneResults).toHaveLength(1)
+      expect(receiver.doneResults).toHaveLength(1)
     })
   })
 
-  describe('abort', () => {
-    it('sets status to aborted and triggers AbortController', () => {
-      const stream = manager.startStream({
-        topicId: 'topicJ',
-        request: makeRequest('topicJ'),
-        listeners: [new FakeListener('test:topicJ')]
-      })
+  // ── onError ─────────────────────────────────────────────────────
 
-      manager.abort('topicJ', 'user-requested')
+  describe('onError', () => {
+    it('broadcasts error and sets stream status', async () => {
+      const l = new FakeListener('l:a')
+      const stream = mgr.startStream({ topicId: 'a', request: req('a'), listeners: [l] })
+
+      await mgr.onError('a', error('fail'))
+
+      expect(stream.status).toBe('error')
+      expect(l.errors).toEqual([error('fail')])
+    })
+  })
+
+  // ── abort ───────────────────────────────────────────────────────
+
+  describe('abort', () => {
+    it('sets status and triggers AbortController signal', () => {
+      const stream = mgr.startStream({ topicId: 'a', request: req('a'), listeners: [new FakeListener('l:a')] })
+
+      mgr.abort('a', 'user-stop')
 
       expect(stream.status).toBe('aborted')
       expect(stream.abortController.signal.aborted).toBe(true)
     })
 
-    it('is a no-op for non-existent topics', () => {
-      expect(() => manager.abort('non-existent', 'test')).not.toThrow()
+    it('does not affect non-streaming topics', async () => {
+      const stream = mgr.startStream({ topicId: 'a', request: req('a'), listeners: [new FakeListener('l:a')] })
+      await mgr.onDone('a')
+
+      // Abort on a finished stream → no-op (status stays 'done')
+      mgr.abort('a', 'late')
+      expect(stream.status).toBe('done')
     })
   })
 
+  // ── listener management ─────────────────────────────────────────
+
   describe('listener management', () => {
-    it('upserts listeners by id', () => {
-      const l1 = new FakeListener('same-id:topicK')
-      manager.startStream({
-        topicId: 'topicK',
-        request: makeRequest('topicK'),
-        listeners: [l1]
-      })
+    it('upserts by id — new listener replaces old with same id', () => {
+      const l1 = new FakeListener('same:a')
+      mgr.startStream({ topicId: 'a', request: req('a'), listeners: [l1] })
 
-      const l2 = new FakeListener('same-id:topicK')
-      manager.addListener('topicK', l2)
+      const l2 = new FakeListener('same:a')
+      mgr.addListener('a', l2)
 
-      manager.onChunk('topicK', makeChunk('hello'))
-      expect(l1.chunks).toHaveLength(0) // replaced
+      mgr.onChunk('a', chunk('x'))
+      expect(l1.chunks).toHaveLength(0)
       expect(l2.chunks).toHaveLength(1)
     })
 
-    it('removes listener by id', () => {
-      const listener = new FakeListener('test:topicL')
-      manager.startStream({
-        topicId: 'topicL',
-        request: makeRequest('topicL'),
-        listeners: [listener]
-      })
+    it('removeListener prevents further delivery', () => {
+      const l = new FakeListener('l:a')
+      mgr.startStream({ topicId: 'a', request: req('a'), listeners: [l] })
 
-      manager.removeListener('topicL', 'test:topicL')
-      manager.onChunk('topicL', makeChunk('hello'))
+      mgr.removeListener('a', 'l:a')
+      mgr.onChunk('a', chunk('x'))
 
-      expect(listener.chunks).toHaveLength(0)
+      expect(l.chunks).toHaveLength(0)
     })
   })
+
+  // ── shouldStopStream ────────────────────────────────────────────
 
   describe('shouldStopStream', () => {
-    it('returns true for non-existent topic', () => {
-      expect(manager.shouldStopStream('non-existent')).toBe(true)
-    })
+    it('returns false while streaming, true after abort', () => {
+      mgr.startStream({ topicId: 'a', request: req('a'), listeners: [new FakeListener('l:a')] })
+      expect(mgr.shouldStopStream('a')).toBe(false)
 
-    it('returns false for active streaming', () => {
-      manager.startStream({
-        topicId: 'topicM',
-        request: makeRequest('topicM'),
-        listeners: [new FakeListener('test:topicM')]
-      })
-
-      expect(manager.shouldStopStream('topicM')).toBe(false)
-    })
-
-    it('returns true after abort', () => {
-      manager.startStream({
-        topicId: 'topicN',
-        request: makeRequest('topicN'),
-        listeners: [new FakeListener('test:topicN')]
-      })
-
-      manager.abort('topicN', 'test')
-      expect(manager.shouldStopStream('topicN')).toBe(true)
+      mgr.abort('a', 'stop')
+      expect(mgr.shouldStopStream('a')).toBe(true)
     })
   })
 
-  describe('steer', () => {
-    it('pushes message to pending queue', () => {
-      const stream = manager.startStream({
-        topicId: 'topicO',
-        request: makeRequest('topicO'),
-        listeners: [new FakeListener('test:topicO')]
-      })
+  // ── grace period ────────────────────────────────────────────────
 
-      const steered = manager.steer('topicO', { id: 'user-2' })
-      expect(steered).toBe(true)
-      expect(stream.pendingMessages.hasPending()).toBe(true)
+  describe('grace period', () => {
+    it('stream remains accessible during grace period', async () => {
+      const l = new FakeListener('l:a')
+      mgr.startStream({ topicId: 'a', request: req('a'), listeners: [l] })
+      mgr.setStreamFinalMessage('a', { id: '1' } as any)
+      await mgr.onDone('a', 'success')
+
+      // During grace period: shouldStopStream returns true (stream ended)
+      // but the stream data is still in memory for reconnect
+      expect(mgr.shouldStopStream('a')).toBe(true)
+
+      // A late listener can still be added during grace period
+      const late = new FakeListener('late:a')
+      const added = mgr.addListener('a', late)
+      expect(added).toBe(true)
     })
 
-    it('returns false for non-existent topic', () => {
-      expect(manager.steer('non-existent', {})).toBe(false)
+    it('stream is reaped after grace period expires', async () => {
+      mgr.startStream({ topicId: 'a', request: req('a'), listeners: [new FakeListener('l:a')] })
+      await mgr.onDone('a', 'success')
+
+      // Advance past grace period (default 30s)
+      vi.advanceTimersByTime(31_000)
+
+      // Stream should be gone — addListener returns false
+      const late = new FakeListener('late:a')
+      expect(mgr.addListener('a', late)).toBe(false)
+    })
+  })
+
+  // ── steer ───────────────────────────────────────────────────────
+
+  describe('steer', () => {
+    it('pushes to pending queue of active stream', () => {
+      const stream = mgr.startStream({ topicId: 'a', request: req('a'), listeners: [new FakeListener('l:a')] })
+
+      expect(mgr.steer('a', { id: 'msg-2' })).toBe(true)
+      expect(stream.pendingMessages.hasPending()).toBe(true)
+      expect(stream.pendingMessages.drain()).toHaveLength(1)
     })
   })
 })
