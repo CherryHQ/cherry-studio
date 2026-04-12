@@ -176,7 +176,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       }
 
       const hasUserTabsInTabBar = tabs.some((tab) => tab.id !== 'home')
-      if (!hasUserTabsInTabBar) {
+      if (!hasUserTabsInTabBar || activeTabId === 'home') {
         openTab(path, {
           forceNew: true,
           title: getDefaultRouteTitle(path)

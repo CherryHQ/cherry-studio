@@ -34,7 +34,7 @@ export function TabContextMenu({ x, y, isPinned, onPin, onClose, onMoveToFirst, 
   return (
     <div
       ref={ref}
-      className="fixed z-[300] min-w-[130px] rounded-md border border-border bg-popover p-0.5 shadow-xl"
+      className="fixed z-[300] min-w-[130px] rounded-[4px] border border-border bg-popover p-0.5 shadow-xl"
       style={{ left: x, top: y }}>
       <button
         type="button"

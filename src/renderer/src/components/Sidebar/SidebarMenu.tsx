@@ -1,3 +1,5 @@
+import { MenuItem } from '@cherrystudio/ui'
+
 import { ActiveIndicator, MiniAppIcon } from './primitives'
 import { SidebarTooltip } from './Tooltip'
 import type { SidebarMenuItem, SidebarVisibleLayout } from './types'
@@ -118,18 +120,17 @@ function FullMenuItems({ items, activeItem, activeTabId, onItemClick, onMiniAppT
 
         return (
           <div key={item.id}>
-            <button
-              type="button"
-              onClick={() => void onItemClick(item.id)}
-              className={`relative flex w-full items-center gap-2.5 rounded-xl px-2.5 py-[7px] text-[13px] transition-all duration-150 ${
-                isActive
-                  ? 'bg-sidebar-active-bg text-foreground'
-                  : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
-              }`}>
-              {isActive && <ActiveIndicator className="rounded-xl" glow />}
-              <Icon size={16} strokeWidth={1.6} />
-              <span className="truncate">{item.label}</span>
-            </button>
+            <div className="relative">
+              <MenuItem
+                variant="ghost"
+                icon={<Icon size={16} strokeWidth={1.6} />}
+                label={item.label}
+                active={isActive}
+                onClick={() => void onItemClick(item.id)}
+                className="rounded-xl data-[active=true]:bg-sidebar-active-bg"
+              />
+              {isActive && <ActiveIndicator className="rounded-xl" />}
+            </div>
 
             {miniTabs.map((miniTab) => (
               <button
