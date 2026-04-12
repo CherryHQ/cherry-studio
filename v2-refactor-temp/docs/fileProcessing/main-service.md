@@ -69,7 +69,7 @@
 
 1. 原有 Renderer 逻辑先保留。
 2. 等后续 UI PR 再统一修改调用方式。
-3. 当前执行入口由 `FileProcessingFacade` 对外提供 provider-aware 的薄 facade；processor 配置读写仍由 Data API 层的 `FileProcessingService` 负责。
+3. 当前执行入口由 `FileProcessingOrchestrationService` 对外提供 provider-aware 的执行入口；processor 配置读写仍由 Data API 层的 `FileProcessingService` 负责。
 4. 本次 PR 先把 Main-side service 迁移完成，再推进前端切流和知识库接入。
 
 ---
@@ -78,11 +78,10 @@
 
 当前实现已经拆成三层，不应再把它们混写成单个 `FileProcessingService`：
 
-1. 执行入口：`FileProcessingFacade`
+1. 执行入口：`FileProcessingOrchestrationService`
    - `extractText(...)`
    - `startMarkdownConversionTask(...)`
    - `getMarkdownConversionTaskResult(...)`
-   - `getPersistedMarkdownResult(fileId)`
 2. 配置服务：Data API 层的 `FileProcessingService`
    - 负责列出 processor
    - 负责读取单个 processor 合并后的配置
@@ -92,19 +91,18 @@
    - `TesseractRuntimeService`
    - `OpenMineruRuntimeService`
 
-因此，当前真正承担 provider-aware 执行 facade 角色的是 `FileProcessingFacade`，而不是 Data API 层的 `FileProcessingService`。
+因此，当前真正承担 provider-aware 执行入口角色的是 `FileProcessingOrchestrationService`，而不是 Data API 层的 `FileProcessingService`。
 
 当前推荐能力面：
 
 1. `extractText(...)`
 2. `startMarkdownConversionTask(...)`
 3. `getMarkdownConversionTaskResult(...)`
-4. `getPersistedMarkdownResult(fileId)`
 
 设计原则：
 
-1. `FileProcessingFacade` 负责解析 config、选择 processor，并转发调用。
-2. `FileProcessingFacade` 当前不维护统一的本地 `taskId`。
+1. `FileProcessingOrchestrationService` 负责解析 config、选择 processor，并转发调用。
+2. `FileProcessingOrchestrationService` 当前不维护统一的本地 `taskId`。
 3. 对支持异步文档解析的 provider，外部 service 直接持有 `providerTaskId` 并负责轮询；这里的 `providerTaskId` 是统一字段名，但不保证一定是远端 provider 原生任务号。
 4. 当前阶段调用方需要感知 `processorId` 与 `providerTaskId`，这属于明确接受的过渡设计。
 5. 当前运行期任务上下文保存在 Main 进程内存态 `FileProcessingTaskRuntime` 中；任务仅保证在当前 Main 进程生命周期内可查询，不承诺重启恢复。
@@ -128,11 +126,10 @@
 4. 对文档解析查询来说，调用方需要提供：
    - `providerTaskId`
    - `processorId`
-5. `getPersistedMarkdownResult(fileId)` 是按文件读取最近一次已落盘结果的 file-level helper，不是任务查询接口。
 
 这里需要特别说明：
 
-1. 当前 `FileProcessingFacade` 还没有抽象出统一 `taskId -> providerTaskId` 映射层。
+1. 当前 `FileProcessingOrchestrationService` 还没有抽象出统一 `taskId -> providerTaskId` 映射层。
 2. 当前 `markdown_conversion` 已经不再建模成“同步立即返回最终结果”，但查询行为也还没有被 service 完全屏蔽掉 provider 差异。
 3. 这次 PR 的重点是先把 Main-side 能力和 provider 入口拆出来，而不是在本次内完成统一任务编排平台。
 4. 当前查询契约是“当前 Main 进程会话内可轮询”；如果 Main 进程重启，调用方应视为任务上下文失效并重新发起任务。
@@ -167,7 +164,7 @@
 这样做的目标是：
 
 1. 避免不支持某项能力的 provider 实现无意义的占位方法。
-2. 让 `FileProcessingFacade` 按 feature 选择对应的 processor factory。
+2. 让 `FileProcessingOrchestrationService` 按 feature 选择对应的 processor factory。
 3. 保留统一 Main-side 调用入口，同时让 provider 抽象更贴近真实能力边界。
 
 当前阶段对这些接口的理解是：
@@ -182,14 +179,14 @@
 这里需要再明确一条 `markdown_conversion` 的输入约束：
 
 1. `markdown_conversion` 当前没有放在 facade 层做统一的文件类型前置准入校验。
-2. 具体某个 provider 实际支持哪些文档格式，由上游调用方和 provider 自身共同决定，不要求在 `FileProcessingFacade` 层统一做一层前置格式拦截。
-3. 换句话说，`FileProcessingFacade` 当前不负责回答“这个文档格式是否一定能被某 provider 成功解析”；它只负责按 feature 选 processor 并转发调用。
+2. 具体某个 provider 实际支持哪些文档格式，由上游调用方和 provider 自身共同决定，不要求在 `FileProcessingOrchestrationService` 层统一做一层前置格式拦截。
+3. 换句话说，`FileProcessingOrchestrationService` 当前不负责回答“这个文档格式是否一定能被某 provider 成功解析”；它只负责按 feature 选 processor 并转发调用。
 4. provider 仍然会做自身需要的运行时校验，例如 `file.path`、`apiHost`、`apiKey`、特定模型限制，部分 `text_extraction` provider 还会校验是否为图片输入。
 5. 因此，评审时不应把“未在 facade 层统一校验 `file.type === 'document'`”单独判定为缺陷；这是当前明确保留给上游调用方和具体 provider 的职责边界。
 
 ### 6.3 provider 行为差异
 
-虽然 `FileProcessingFacade` 对外保持统一执行入口，但 provider 内部实现和能力分布仍分成两类：
+虽然 `FileProcessingOrchestrationService` 对外保持统一执行入口，但 provider 内部实现和能力分布仍分成两类：
 
 #### 远程查询型 provider
 
@@ -212,7 +209,7 @@
 
 #### 本地/同步封装型 provider
 
-这类 provider 不一定天然支持远程任务查询，但当前仍通过 capability 分层接口接入 `FileProcessingFacade`。
+这类 provider 不一定天然支持远程任务查询，但当前仍通过 capability 分层接口接入 `FileProcessingOrchestrationService`。
 
 典型例子：
 
@@ -241,8 +238,8 @@
 
 当前阶段的边界是：
 
-1. 统一的是 `FileProcessingFacade` 对外执行入口和 capability 分层接口，而不是统一任务 ID 模型。
-2. `FileProcessingFacade` 当前只是 provider-aware facade，不负责屏蔽所有 provider 差异。
+1. 统一的是 `FileProcessingOrchestrationService` 对外执行入口和 capability 分层接口，而不是统一任务 ID 模型。
+2. `FileProcessingOrchestrationService` 当前只是 provider-aware orchestration entry，不负责屏蔽所有 provider 差异。
 3. `providerTaskId` 目前是显式暴露给调用方的。
 
 ### 6.4.1 与统一进程管理的未来边界
@@ -261,7 +258,7 @@
 
 1. 当前持久化结果目录按 `fileId` 分桶，而不是按 `providerTaskId` 分桶。
 2. 这意味着同一个文件在当前会话内重复触发 file-processing 时，后一次成功结果可以覆盖前一次落盘产物；当前优先保证的是“按文件读取最新可用结果”，而不是“为每次 providerTaskId 查询永久保留一份独立产物目录”。
-3. 与之对应，当前 `getPersistedMarkdownResult(fileId)` 的语义本来就是 file-level helper，而不是 `providerTaskId -> markdownPath` 的稳定映射。
+3. 当前对结果路径的暴露仍以任务查询返回的 `markdownPath` 为主，而不是额外提供 `providerTaskId -> markdownPath` 的稳定映射接口。
 4. 对 zip 类结果，当前实现会做 entry path 规范化与安全校验，并把 provider 内部的 markdown 路径归一到稳定输出文件名；评审时不应再按“结果仍落 temp”或“markdown 文件名随 provider 变化”来理解。
 5. 评审时不应把“结果目录未按 providerTaskId 隔离”单独判定为本次 PR 的 blocker；这是当前明确接受的实现，后续如需引入按任务维度的正式文件管理，再在统一文件管理方案里整体收口。
 

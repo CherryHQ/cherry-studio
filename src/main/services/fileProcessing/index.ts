@@ -8,7 +8,7 @@ export type {
   GetMarkdownConversionTaskResultInput,
   StartMarkdownConversionTaskInput
 } from './contracts/types'
-export { FileProcessingFacade, fileProcessingFacade } from './facade/FileProcessingFacade'
+export { FileProcessingOrchestrationService } from './FileProcessingOrchestrationService'
 export {
   BaseFileProcessor,
   BaseMarkdownConversionProcessor,

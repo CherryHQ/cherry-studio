@@ -1,9 +1,10 @@
+import type * as LifecycleModule from '@main/core/lifecycle'
+import { getDependencies, getPhase } from '@main/core/lifecycle/decorators'
+import { Phase } from '@main/core/lifecycle/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   resolveProcessorConfigMock,
-  getFilesDirMock,
-  pathExistsMock,
   createTextExtractionProcessorMock,
   createMarkdownConversionProcessorMock,
   extractTextMock,
@@ -11,8 +12,6 @@ const {
   getMarkdownConversionTaskResultMock
 } = vi.hoisted(() => ({
   resolveProcessorConfigMock: vi.fn(),
-  getFilesDirMock: vi.fn(() => '/files'),
-  pathExistsMock: vi.fn(),
   createTextExtractionProcessorMock: vi.fn(),
   createMarkdownConversionProcessorMock: vi.fn(),
   extractTextMock: vi.fn(),
@@ -20,21 +19,29 @@ const {
   getMarkdownConversionTaskResultMock: vi.fn()
 }))
 
-vi.mock('../../config/resolveProcessorConfig', () => ({
+vi.mock('@main/core/lifecycle', async (importOriginal) => {
+  const actual = await importOriginal<typeof LifecycleModule>()
+
+  class MockBaseService {
+    ipcHandle = vi.fn()
+  }
+
+  return {
+    ...actual,
+    BaseService: MockBaseService
+  }
+})
+
+vi.mock('../config/resolveProcessorConfig', () => ({
   resolveProcessorConfig: resolveProcessorConfigMock
 }))
 
-vi.mock('@main/utils/file', () => ({
-  getFilesDir: getFilesDirMock,
-  pathExists: pathExistsMock
-}))
-
-vi.mock('../../processors/factory', () => ({
+vi.mock('../processors/factory', () => ({
   createTextExtractionProcessor: createTextExtractionProcessorMock,
   createMarkdownConversionProcessor: createMarkdownConversionProcessorMock
 }))
 
-import { fileProcessingFacade } from '../FileProcessingFacade'
+const { FileProcessingOrchestrationService } = await import('../FileProcessingOrchestrationService')
 
 const imageFile = {
   id: 'file-1',
@@ -60,10 +67,27 @@ const documentFile = {
   count: 1
 } as const
 
-describe('fileProcessingFacade', () => {
+describe('FileProcessingOrchestrationService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    pathExistsMock.mockResolvedValue(false)
+  })
+
+  it('uses WhenReady phase without init-time service dependencies', () => {
+    expect(getPhase(FileProcessingOrchestrationService)).toBe(Phase.WhenReady)
+    expect(getDependencies(FileProcessingOrchestrationService)).toEqual([])
+  })
+
+  it('registers the three file processing IPC handlers', () => {
+    const service = new FileProcessingOrchestrationService()
+    ;(service as any).onInit()
+
+    const handlerCalls = ((service as any).ipcHandle as ReturnType<typeof vi.fn>).mock.calls.map((call) => call[0])
+
+    expect(handlerCalls).toEqual([
+      'file-processing:extract-text',
+      'file-processing:start-markdown-conversion-task',
+      'file-processing:get-markdown-conversion-task-result'
+    ])
   })
 
   it('resolves text extraction config and forwards the request to the selected processor', async () => {
@@ -79,6 +103,7 @@ describe('fileProcessingFacade', () => {
         }
       ]
     }
+    const service = new FileProcessingOrchestrationService()
 
     resolveProcessorConfigMock.mockResolvedValueOnce(resolvedConfig)
     createTextExtractionProcessorMock.mockReturnValueOnce({
@@ -88,7 +113,7 @@ describe('fileProcessingFacade', () => {
       text: 'hello'
     })
 
-    await expect(fileProcessingFacade.extractText(imageFile as never, undefined, signal)).resolves.toEqual({
+    await expect(service.extractText({ file: imageFile as never, signal })).resolves.toEqual({
       text: 'hello'
     })
 
@@ -111,6 +136,7 @@ describe('fileProcessingFacade', () => {
         }
       ]
     }
+    const service = new FileProcessingOrchestrationService()
 
     resolveProcessorConfigMock.mockResolvedValueOnce(resolvedConfig)
     createMarkdownConversionProcessorMock.mockReturnValueOnce({
@@ -123,9 +149,7 @@ describe('fileProcessingFacade', () => {
       processorId: 'open-mineru'
     })
 
-    await expect(
-      fileProcessingFacade.startMarkdownConversionTask(documentFile as never, undefined, signal)
-    ).resolves.toEqual({
+    await expect(service.startMarkdownConversionTask({ file: documentFile as never, signal })).resolves.toEqual({
       providerTaskId: 'task-1',
       status: 'processing',
       progress: 0,
@@ -139,6 +163,7 @@ describe('fileProcessingFacade', () => {
 
   it('queries markdown conversion result directly from the requested processor id', async () => {
     const signal = new AbortController().signal
+    const service = new FileProcessingOrchestrationService()
 
     createMarkdownConversionProcessorMock.mockReturnValueOnce({
       getMarkdownConversionTaskResult: getMarkdownConversionTaskResultMock
@@ -151,7 +176,11 @@ describe('fileProcessingFacade', () => {
     })
 
     await expect(
-      fileProcessingFacade.getMarkdownConversionTaskResult('provider-task-1', 'doc2x', signal)
+      service.getMarkdownConversionTaskResult({
+        providerTaskId: 'provider-task-1',
+        processorId: 'doc2x',
+        signal
+      })
     ).resolves.toEqual({
       status: 'completed',
       progress: 100,
@@ -162,21 +191,5 @@ describe('fileProcessingFacade', () => {
     expect(resolveProcessorConfigMock).not.toHaveBeenCalled()
     expect(createMarkdownConversionProcessorMock).toHaveBeenCalledWith('doc2x')
     expect(getMarkdownConversionTaskResultMock).toHaveBeenCalledWith('provider-task-1', signal)
-  })
-
-  it('reads the persisted markdown result by file id', async () => {
-    pathExistsMock.mockResolvedValueOnce(true)
-
-    await expect(fileProcessingFacade.getPersistedMarkdownResult('file-2')).resolves.toBe(
-      '/files/file-2/file-processing/output.md'
-    )
-
-    expect(pathExistsMock).toHaveBeenCalledWith('/files/file-2/file-processing/output.md')
-  })
-
-  it('returns undefined when the persisted markdown result is not available', async () => {
-    pathExistsMock.mockResolvedValueOnce(false)
-
-    await expect(fileProcessingFacade.getPersistedMarkdownResult('file-2')).resolves.toBeUndefined()
   })
 })

@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
 const logger = loggerService.withContext('OpenMineruRuntimeService')
 
@@ -10,7 +10,6 @@ interface OpenMineruTaskExecution {
 
 @Injectable('OpenMineruRuntimeService')
 @ServicePhase(Phase.BeforeReady)
-@DependsOn(['FileProcessingRuntimeService'])
 export class OpenMineruRuntimeService extends BaseService {
   private readonly inFlightTasks = new Map<string, OpenMineruTaskExecution>()
   private acceptingTasks = false

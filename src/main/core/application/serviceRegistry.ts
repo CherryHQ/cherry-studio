@@ -10,11 +10,11 @@ import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { CodeCliService } from '@main/services/CodeCliService'
 import { DetachedWindowManager } from '@main/services/DetachedWindowManager'
 import {
+  FileProcessingOrchestrationService,
   FileProcessingRuntimeService,
   OpenMineruRuntimeService,
   TesseractRuntimeService
 } from '@main/services/fileProcessing'
-import { FileProcessingIpcService } from '@main/services/fileProcessing/FileProcessingIpcService'
 import { KnowledgeOrchestrationService, KnowledgeRuntimeService } from '@main/services/knowledge'
 import { KnowledgeVectorStoreService } from '@main/services/knowledge/vectorstore/KnowledgeVectorStoreService'
 import { LanTransferService } from '@main/services/lanTransfer'
@@ -74,7 +74,7 @@ export const services = {
   AppMenuService,
   CodeCliService,
   LanTransferService,
-  FileProcessingIpcService,
+  FileProcessingOrchestrationService,
   PowerMonitorService,
   SelectionService,
   ShortcutService,
