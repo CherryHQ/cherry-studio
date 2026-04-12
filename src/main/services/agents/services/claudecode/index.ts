@@ -930,10 +930,6 @@ class ClaudeCodeService implements AgentServiceInterface {
 
         const chunks = transformSDKMessageToStreamParts(message, streamState)
         for (const chunk of chunks) {
-          // TODO (Phase 6): Replace with toUIMessageStream() when ClaudeCodeService
-          // is replaced by ToolLoopAgent. For now emit TextStreamPart directly —
-          // AgentStreamEvent.chunk typed as UIMessageChunk is a known mismatch.
-          // @ts-expect-error TextStreamPart ≠ UIMessageChunk — Phase 6 fix
           stream.emit('data', { type: 'chunk', chunk })
 
           // Close prompt stream when SDK signals completion or error
