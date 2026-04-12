@@ -5,11 +5,11 @@ import type { UIMessageChunk } from 'ai'
 import type { CherryUIMessage, StreamTarget } from './types'
 
 // Use a lazy import to break the circular dependency:
-// BrokerStreamTarget → AiStreamBroker → (uses BrokerStreamTarget in startStream)
-// At runtime the broker instance is passed via constructor, so we only need the
+// InternalStreamTarget → AiStreamManager → (uses InternalStreamTarget in startStream)
+// At runtime the manager instance is passed via constructor, so we only need the
 // type at compile time. We define a minimal interface here instead of importing
 // the class directly.
-interface BrokerCallbacks {
+interface ManagerCallbacks {
   onChunk(requestId: string, chunk: UIMessageChunk): void
   onDone(requestId: string, status?: 'success' | 'paused'): Promise<void>
   onError(requestId: string, error: SerializedError): Promise<void>
@@ -18,41 +18,41 @@ interface BrokerCallbacks {
 }
 
 /**
- * A fake "WebContents" that routes executeStream's output back to the Broker.
+ * StreamTarget adapter that routes executeStream output back to AiStreamManager.
  *
  * AiService.executeStream only sees `StreamTarget` (send + isDestroyed +
  * optional setFinalMessage). It does not know whether the target is a real
- * Electron WebContents or this Broker shim — that's the decoupling point.
+ * Electron WebContents or this adapter — that's the decoupling point.
  *
  * Bound to a specific `requestId` (one generation attempt). Chunks / done /
- * error events are forwarded to the Broker's per-requestId callbacks, which
- * then multicast to all sinks.
+ * error events are forwarded to AiStreamManager's per-requestId callbacks, which
+ * then multicast to all listeners.
  */
-export class BrokerStreamTarget implements StreamTarget {
+export class InternalStreamTarget implements StreamTarget {
   constructor(
-    private readonly broker: BrokerCallbacks,
+    private readonly manager: ManagerCallbacks,
     private readonly requestId: string
   ) {}
 
-  send(channel: string, payload: { chunk?: UIMessageChunk; error?: SerializedError }): void {
+  send(channel: string, payload: { chunk?: UIMessageChunk; error?: SerializedError; [key: string]: unknown }): void {
     switch (channel) {
       case IpcChannel.Ai_StreamChunk:
-        if (payload.chunk) this.broker.onChunk(this.requestId, payload.chunk)
+        if (payload.chunk) this.manager.onChunk(this.requestId, payload.chunk)
         break
       case IpcChannel.Ai_StreamDone:
-        void this.broker.onDone(this.requestId)
+        void this.manager.onDone(this.requestId)
         break
       case IpcChannel.Ai_StreamError:
-        if (payload.error) void this.broker.onError(this.requestId, payload.error)
+        if (payload.error) void this.manager.onError(this.requestId, payload.error)
         break
     }
   }
 
   isDestroyed(): boolean {
-    return this.broker.shouldStopStream(this.requestId)
+    return this.manager.shouldStopStream(this.requestId)
   }
 
   setFinalMessage(message: CherryUIMessage): void {
-    this.broker.setStreamFinalMessage(this.requestId, message)
+    this.manager.setStreamFinalMessage(this.requestId, message)
   }
 }

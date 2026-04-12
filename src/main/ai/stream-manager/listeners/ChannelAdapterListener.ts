@@ -1,12 +1,12 @@
 import type { SerializedError } from '@shared/types/error'
 
-import type { StreamDoneResult, StreamSink } from '../types'
+import type { StreamDoneResult, StreamListener } from '../types'
 
 /**
- * Placeholder for the Channel (Discord / Slack / Feishu) adapter sink.
+ * Placeholder for the Channel (Discord / Slack / Feishu) adapter listener.
  *
  * Will be implemented in Step 2.7 when ChannelMessageHandler integration lands.
- * The interface is defined now so that the Broker types compile and
+ * The interface is defined now so that the AiStreamManager types compile and
  * ChannelMessageHandler can reference it in its planning.
  */
 
@@ -16,7 +16,7 @@ export interface ChannelAdapter {
   sendMessage(platformChatId: string, text: string): Promise<void>
 }
 
-export class ChannelAdapterSink implements StreamSink {
+export class ChannelAdapterListener implements StreamListener {
   readonly id: string
 
   constructor(

@@ -928,7 +928,7 @@ const api = {
     }): Promise<Array<{ id: string; name: string; provider: string; group: string; [key: string]: unknown }>> =>
       ipcRenderer.invoke(IpcChannel.Ai_ListModels, request),
 
-    // ── AiStreamBroker (Phase 2) ──
+    // ── AiStreamManager (Phase 2) ──
 
     /** Open a new stream or steer an existing one. Returns requestId + routing mode. */
     streamOpen: (req: {
@@ -941,21 +941,21 @@ const api = {
     }): Promise<{ requestId: string; mode: 'started' | 'steered' | 'deduped' }> =>
       ipcRenderer.invoke(IpcChannel.Ai_Stream_Open, req),
 
-    /** Reconnect to a running or recently-finished stream. */
-    streamAttach: (
-      req: { mode: 'byRequestId'; requestId: string } | { mode: 'byTopicId'; topicId: string }
-    ): Promise<
+    /** Subscribe to a topic's stream state (reconnect / observe). */
+    streamAttach: (req: {
+      topicId: string
+    }): Promise<
       | { status: 'not-found' }
-      | { status: 'attached'; requestId: string; replayedChunks: number }
-      | { status: 'done'; requestId: string; finalMessage: unknown }
-      | { status: 'error'; requestId: string; error: SerializedError }
+      | { status: 'attached'; replayedChunks: number }
+      | { status: 'done'; finalMessage: unknown }
+      | { status: 'error'; error: SerializedError }
     > => ipcRenderer.invoke(IpcChannel.Ai_Stream_Attach, req),
 
-    /** Unsubscribe from a stream (stream keeps running in Main). */
-    streamDetach: (req: { requestId: string }) => ipcRenderer.invoke(IpcChannel.Ai_Stream_Detach, req),
+    /** Unsubscribe from a topic (stream keeps running in Main). */
+    streamDetach: (req: { topicId: string }) => ipcRenderer.invoke(IpcChannel.Ai_Stream_Detach, req),
 
-    /** Abort a specific generation attempt by requestId. */
-    streamAbort: (req: { requestId: string }) => ipcRenderer.invoke(IpcChannel.Ai_Stream_Abort, req)
+    /** Abort the active generation on a topic. */
+    streamAbort: (req: { topicId: string }) => ipcRenderer.invoke(IpcChannel.Ai_Stream_Abort, req)
   },
   apiServer: {
     getStatus: (): Promise<GetApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_GetStatus),

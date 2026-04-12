@@ -1,12 +1,12 @@
 import { loggerService } from '@logger'
 import type { SerializedError } from '@shared/types/error'
 
-import type { CherryUIMessage, StreamDoneResult, StreamSink } from '../types'
+import type { CherryUIMessage, StreamDoneResult, StreamListener } from '../types'
 
-const logger = loggerService.withContext('PersistenceSink')
+const logger = loggerService.withContext('PersistenceListener')
 
-export interface PersistenceSinkOptions {
-  /** For logging/trace only — does not participate in sink.id construction. */
+export interface PersistenceListenerOptions {
+  /** For logging/trace only — does not participate in listener.id construction. */
   requestId: string
   topicId: string
   assistantId: string
@@ -22,19 +22,19 @@ export interface PersistenceSinkOptions {
 /**
  * Writes the assistant message to SQLite when the stream ends.
  *
- * **Sink id is `persistence:${topicId}`** (topic-based, not requestId).
+ * **Listener id is `persistence:${topicId}`** (topic-based, not requestId).
  *
  * Why: during steering, a second `Ai_Stream_Open` for the same topic causes the
- * Broker to add the new PersistenceSink to the *existing* ActiveStream via upsert.
- * Topic-based id ensures only one PersistenceSink survives per topic, with the
+ * Broker to add the new PersistenceListener to the *existing* ActiveStream via upsert.
+ * Topic-based id ensures only one PersistenceListener survives per topic, with the
  * `parentUserMessageId` updated to the latest steered user message. If the id used
- * requestId, two sinks would coexist → `onDone` fires twice → duplicate assistant
+ * requestId, two listeners would coexist → `onDone` fires twice → duplicate assistant
  * rows in SQLite.
  */
-export class PersistenceSink implements StreamSink {
+export class PersistenceListener implements StreamListener {
   readonly id: string
 
-  constructor(private readonly ctx: PersistenceSinkOptions) {
+  constructor(private readonly ctx: PersistenceListenerOptions) {
     this.id = `persistence:${ctx.topicId}`
   }
 
@@ -46,7 +46,7 @@ export class PersistenceSink implements StreamSink {
     const { finalMessage, status } = result
 
     if (!finalMessage) {
-      logger.warn('PersistenceSink.onDone without finalMessage, skipping persistence', {
+      logger.warn('PersistenceListener.onDone without finalMessage, skipping persistence', {
         topicId: this.ctx.topicId,
         requestId: this.ctx.requestId,
         status
@@ -58,7 +58,7 @@ export class PersistenceSink implements StreamSink {
     // For now this is a skeleton — the real implementation will:
     //  1. Write assistant message to SQLite via messageService.create
     //  2. Run afterPersist hook (success path only)
-    logger.info('PersistenceSink.onDone [skeleton]', {
+    logger.info('PersistenceListener.onDone [skeleton]', {
       topicId: this.ctx.topicId,
       requestId: this.ctx.requestId,
       status,

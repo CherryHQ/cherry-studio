@@ -3,25 +3,25 @@ import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 
 import type {
-  BrokerStreamChunkPayload,
-  BrokerStreamDonePayload,
-  BrokerStreamErrorPayload,
+  StreamChunkPayload,
+  StreamDonePayload,
   StreamDoneResult,
-  StreamSink
+  StreamErrorPayload,
+  StreamListener
 } from '../types'
 
 /**
  * Pushes stream events to an Electron WebContents (= one Renderer window).
  *
- * **Sink id is `wc:${wc.id}:${topicId}`** (data-plane identity, not requestId).
+ * **Listener id is `wc:${wc.id}:${topicId}`** (data-plane identity, not requestId).
  *
  * Why topicId in the id (not requestId): during steering, a second `Ai_Stream_Open`
- * for the same topic causes the Broker to add the new sinks to the *existing*
- * ActiveStream. If the id used requestId, the old and new WebContentsSink would
+ * for the same topic causes AiStreamManager to add the new listeners to the *existing*
+ * ActiveStream. If the id used requestId, the old and new WebContentsListener would
  * *coexist* in the Map → chunks double-dispatched to the same window. With
- * topicId, `addSink` upserts and only one subscription survives.
+ * topicId, `addListener` upserts and only one subscription survives.
  */
-export class WebContentsSink implements StreamSink {
+export class WebContentsListener implements StreamListener {
   readonly id: string
 
   constructor(
@@ -36,7 +36,7 @@ export class WebContentsSink implements StreamSink {
     this.wc.send(IpcChannel.Ai_StreamChunk, {
       topicId: this.topicId,
       chunk
-    } satisfies BrokerStreamChunkPayload)
+    } satisfies StreamChunkPayload)
   }
 
   onDone(result: StreamDoneResult): void {
@@ -44,7 +44,7 @@ export class WebContentsSink implements StreamSink {
     this.wc.send(IpcChannel.Ai_StreamDone, {
       topicId: this.topicId,
       status: result.status
-    } satisfies BrokerStreamDonePayload)
+    } satisfies StreamDonePayload)
   }
 
   onError(error: SerializedError): void {
@@ -52,7 +52,7 @@ export class WebContentsSink implements StreamSink {
     this.wc.send(IpcChannel.Ai_StreamError, {
       topicId: this.topicId,
       error
-    } satisfies BrokerStreamErrorPayload)
+    } satisfies StreamErrorPayload)
   }
 
   isAlive(): boolean {

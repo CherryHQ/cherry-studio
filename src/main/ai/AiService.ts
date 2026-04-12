@@ -12,7 +12,14 @@ import {
   type AiImageRequest,
   type AiStreamRequest
 } from './AiCompletionService'
+import type { StreamTarget } from './stream-manager/types'
 import { ToolRegistry } from './tools/ToolRegistry'
+
+/** Options for executeStream when called by the Broker (Phase 2). */
+export interface ExecuteStreamOptions {
+  /** Broker-owned AbortSignal. When provided, executeStream does NOT create its own AbortController. */
+  signal?: AbortSignal
+}
 
 const logger = loggerService.withContext('AiService')
 
@@ -100,32 +107,46 @@ export class AiService extends BaseService {
   }
 
   /**
-   * Execute an AI stream and push chunks to the target webContents.
+   * Execute an AI stream and push chunks to the target.
    *
    * Used by both:
-   * - User-initiated requests (Renderer invokes via IPC, this method is called from the handler)
-   * - Server-push scenarios (Channel/Agent calls this method directly with a webContents reference)
+   * - Legacy path: Renderer invokes Ai_StreamRequest IPC → handler passes `event.sender` (WebContents)
+   * - Broker path: AiStreamManager passes a `BrokerStreamTarget` + `{ signal }` from the Broker's AbortController
    *
-   * @param target - The Electron webContents to send chunks to.
+   * @param target - Any object with `send(channel, payload)` and `isDestroyed()`.
+   *                 Real WebContents and BrokerStreamTarget both satisfy this.
    * @param request - The stream request payload.
+   * @param options - When provided by the Broker, `signal` is the Broker-owned AbortSignal.
+   *                  executeStream will NOT create its own AbortController in this case.
    */
-  async executeStream(target: Electron.WebContents, request: AiStreamRequest): Promise<void> {
+  async executeStream(target: StreamTarget, request: AiStreamRequest, options?: ExecuteStreamOptions): Promise<void> {
     const { requestId } = request
-    const abortController = new AbortController()
-    this.completionService.registerRequest(requestId, abortController)
+
+    // If the Broker provides a signal, use it directly. Otherwise (legacy path)
+    // create our own AbortController and register it for Ai_Abort IPC.
+    const brokerOwned = !!options?.signal
+    let signal: AbortSignal
+
+    if (brokerOwned) {
+      signal = options.signal!
+    } else {
+      const abortController = new AbortController()
+      signal = abortController.signal
+      this.completionService.registerRequest(requestId, abortController)
+    }
 
     try {
-      const stream = this.completionService.streamText(request, abortController.signal)
+      const stream = this.completionService.streamText(request, signal)
       const reader = stream.getReader()
 
       while (true) {
         const { done, value } = await reader.read()
         if (done || target.isDestroyed()) break
-        target.send(IpcChannel.Ai_StreamChunk, { requestId, chunk: value } satisfies AiStreamChunkPayload)
+        target.send(IpcChannel.Ai_StreamChunk, { requestId, chunk: value })
       }
 
       if (!target.isDestroyed()) {
-        target.send(IpcChannel.Ai_StreamDone, { requestId } satisfies AiStreamDonePayload)
+        target.send(IpcChannel.Ai_StreamDone, { requestId })
       }
     } catch (error) {
       logger.error('Stream error', { requestId, error })
@@ -133,10 +154,12 @@ export class AiService extends BaseService {
         target.send(IpcChannel.Ai_StreamError, {
           requestId,
           error: serializeError(error)
-        } satisfies AiStreamErrorPayload)
+        })
       }
     } finally {
-      this.completionService.removeRequest(requestId)
+      if (!brokerOwned) {
+        this.completionService.removeRequest(requestId)
+      }
     }
   }
 }
