@@ -100,11 +100,11 @@ describe('AiStreamManager', () => {
       expect(stream.status).toBe('streaming')
       expect(stream.listeners.size).toBe(1)
 
-      // Verify executeStream received InternalStreamTarget + the broker's signal
+      // Verify executeStream received InternalStreamTarget + the manager's signal
       expect(mockExecuteStream).toHaveBeenCalledOnce()
-      const [target, , options] = mockExecuteStream.mock.calls[0]
+      const [target, , signal] = mockExecuteStream.mock.calls[0]
       expect(target).toBeInstanceOf(InternalStreamTarget)
-      expect(options.signal).toBe(stream.abortController.signal)
+      expect(signal).toBe(stream.abortController.signal)
     })
 
     it('throws on duplicate streaming topic', () => {

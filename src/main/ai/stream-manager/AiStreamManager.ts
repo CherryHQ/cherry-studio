@@ -98,9 +98,7 @@ export class AiStreamManager extends BaseService {
     const target = new InternalStreamTarget(this, input.topicId)
     const aiService = application.get('AiService')
     void aiService
-      .executeStream(target, input.request, {
-        signal: stream.abortController.signal
-      })
+      .executeStream(target, input.request, stream.abortController.signal)
       .catch((err: unknown) => this.onError(input.topicId, serializeError(err)))
 
     return stream
