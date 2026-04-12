@@ -7,6 +7,7 @@ import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/w
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, BrowserWindow, nativeImage, nativeTheme, screen, shell } from 'electron'
+import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer'
 import windowStateKeeper from 'electron-window-state'
 import path, { join } from 'path'
 
@@ -68,6 +69,13 @@ export class WindowService extends BaseService {
     }
 
     this.createMainWindow()
+
+    // Install React Developer Tools extension for debugging in development mode
+    if (isDev) {
+      installExtension(REACT_DEVELOPER_TOOLS)
+        .then((name) => logger.info(`Added Extension: ${name}`))
+        .catch((err) => logger.error('An error occurred: ', err))
+    }
   }
 
   private checkMainWindow() {
