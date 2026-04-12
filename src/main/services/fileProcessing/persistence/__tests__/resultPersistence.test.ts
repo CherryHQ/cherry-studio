@@ -130,10 +130,15 @@ describe('fileProcessing result persistence utils', () => {
     vi.spyOn(fs, 'rm').mockResolvedValue(undefined)
     pathExistsMock.mockResolvedValue(false)
 
+    let notifyFirstRenameStarted!: () => void
+    const firstRenameStarted = new Promise<void>((resolve) => {
+      notifyFirstRenameStarted = resolve
+    })
     let releaseFirstRename: (() => void) | undefined
     const renameSpy = vi.spyOn(fs, 'rename').mockImplementationOnce(
       () =>
         new Promise((resolve) => {
+          notifyFirstRenameStarted()
           releaseFirstRename = () => resolve(undefined)
         })
     )
@@ -148,9 +153,7 @@ describe('fileProcessing result persistence utils', () => {
       markdownContent: '# second'
     })
 
-    for (let attempt = 0; attempt < 20 && renameSpy.mock.calls.length === 0; attempt += 1) {
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    }
+    await firstRenameStarted
 
     expect(renameSpy).toHaveBeenCalledTimes(1)
 

@@ -1,7 +1,11 @@
 import { BaseService } from '@main/core/lifecycle'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { FILE_PROCESSING_TASK_PRUNE_INTERVAL_MS, FileProcessingRuntimeService } from '../FileProcessingRuntimeService'
+import {
+  FILE_PROCESSING_TASK_PRUNE_INTERVAL_MS,
+  FILE_PROCESSING_TASK_TTL_MS,
+  FileProcessingRuntimeService
+} from '../FileProcessingRuntimeService'
 
 describe('FileProcessingRuntimeService', () => {
   let service: FileProcessingRuntimeService
@@ -109,7 +113,7 @@ describe('FileProcessingRuntimeService', () => {
     try {
       service.createTask('doc2x', 'expired-task', { stage: 'parsing' as const })
 
-      now = 60 * 60 * 1000
+      now = FILE_PROCESSING_TASK_TTL_MS
       service.createTask('mineru', 'fresh-task', { stage: 'running' as const })
 
       expect((service as any).tasks?.size).toBe(2)
@@ -120,7 +124,7 @@ describe('FileProcessingRuntimeService', () => {
     }
   })
 
-  it('prunes tasks that have been idle for more than one hour on read', () => {
+  it('prunes tasks that have been idle for longer than the ttl on read', () => {
     const originalNow = Date.now
     let now = 0
     Date.now = () => now
@@ -128,7 +132,7 @@ describe('FileProcessingRuntimeService', () => {
     try {
       service.createTask('doc2x', 'expired-on-read', { stage: 'parsing' as const })
 
-      now = 60 * 60 * 1000
+      now = FILE_PROCESSING_TASK_TTL_MS
 
       expect(service.getTask('doc2x', 'expired-on-read')).toBeUndefined()
     } finally {
@@ -144,10 +148,10 @@ describe('FileProcessingRuntimeService', () => {
     try {
       service.createTask('doc2x', 'read-refresh-task', { stage: 'parsing' as const })
 
-      now = 30 * 60 * 1000
+      now = FILE_PROCESSING_TASK_TTL_MS / 2
       expect(service.getTask('doc2x', 'read-refresh-task')).toEqual({ stage: 'parsing' })
 
-      now = 89 * 60 * 1000
+      now = FILE_PROCESSING_TASK_TTL_MS + FILE_PROCESSING_TASK_TTL_MS / 2 - 1
       expect(service.getTask('doc2x', 'read-refresh-task')).toEqual({ stage: 'parsing' })
     } finally {
       Date.now = originalNow
@@ -165,7 +169,7 @@ describe('FileProcessingRuntimeService', () => {
         progress: 10
       })
 
-      now = 60 * 60 * 1000
+      now = FILE_PROCESSING_TASK_TTL_MS
 
       expect(() =>
         service.updateTask<{ status: 'processing'; progress: number }>(
@@ -193,13 +197,13 @@ describe('FileProcessingRuntimeService', () => {
         progress: 10
       })
 
-      now = 30 * 60 * 1000
+      now = FILE_PROCESSING_TASK_TTL_MS / 2
       service.updateTask<{ status: 'processing'; progress: number }>('open-mineru', 'task-4', (current) => ({
         ...current,
         progress: 60
       }))
 
-      now = 89 * 60 * 1000
+      now = FILE_PROCESSING_TASK_TTL_MS + FILE_PROCESSING_TASK_TTL_MS / 2 - 1
       service.createTask('paddleocr', 'task-5', { progress: 0 })
 
       expect(service.getTask('open-mineru', 'task-4')).toEqual({
@@ -227,7 +231,7 @@ describe('FileProcessingRuntimeService', () => {
 
       expect((intervalBackedService as any).tasks?.size).toBe(1)
 
-      vi.setSystemTime(60 * 60 * 1000)
+      vi.setSystemTime(FILE_PROCESSING_TASK_TTL_MS)
       vi.advanceTimersByTime(FILE_PROCESSING_TASK_PRUNE_INTERVAL_MS)
 
       expect((intervalBackedService as any).tasks?.size).toBe(0)

@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises'
 
-import { application } from '@main/core/application'
+import { application } from '@application'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { getParseStatusMock, triggerExportTaskMock, getExportResultMock, fetchMock, persistResponseZipResultMock } =
@@ -34,10 +34,14 @@ import { doc2xProcessor } from '../doc2xProcessor'
 
 describe('doc2xProcessor', () => {
   const runtimeService = application.get('FileProcessingRuntimeService')
+  const doc2xRuntimeService = application.get('Doc2xRuntimeService') as {
+    __reset?: () => void
+  }
 
   beforeEach(() => {
     vi.clearAllMocks()
     runtimeService.clearTasks()
+    doc2xRuntimeService.__reset?.()
     vi.spyOn(fs, 'access').mockRejectedValue(new Error('missing'))
   })
 
@@ -76,7 +80,7 @@ describe('doc2xProcessor', () => {
       expect.objectContaining({
         apiHost: 'https://doc2x.example.com',
         apiKey: 'secret',
-        signal: controller.signal
+        signal: expect.any(AbortSignal)
       })
     )
     expect(triggerExportTaskMock).toHaveBeenCalledWith(
@@ -84,7 +88,7 @@ describe('doc2xProcessor', () => {
       expect.objectContaining({
         apiHost: 'https://doc2x.example.com',
         apiKey: 'secret',
-        signal: controller.signal
+        signal: expect.any(AbortSignal)
       })
     )
     expect(runtimeService.getTask('doc2x', 'task-1')).toMatchObject({
@@ -126,10 +130,14 @@ describe('doc2xProcessor', () => {
       expect.objectContaining({
         apiHost: 'https://doc2x.example.com',
         apiKey: 'secret',
-        signal: controller.signal
+        signal: expect.any(AbortSignal)
       })
     )
-    expect(persistSpy).toHaveBeenCalledWith('file-2', 'https://download.example.com/output.zip', controller.signal)
+    expect(persistSpy).toHaveBeenCalledWith(
+      'file-2',
+      'https://download.example.com/output.zip',
+      expect.any(AbortSignal)
+    )
     expect(runtimeService.getTask('doc2x', 'task-2')).toBeUndefined()
   })
 

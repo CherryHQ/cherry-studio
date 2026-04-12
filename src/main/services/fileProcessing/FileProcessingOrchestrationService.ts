@@ -4,7 +4,7 @@ import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { FileMetadata } from '@types'
 
-import { resolveProcessorConfig } from './config/resolveProcessorConfig'
+import { resolveProcessorConfigByFeature } from './config/resolveProcessorConfig'
 import type {
   ExtractTextInput,
   FileProcessingMarkdownTaskResult,
@@ -26,7 +26,7 @@ export class FileProcessingOrchestrationService extends BaseService {
   }
 
   async extractText({ file, processorId, signal }: ExtractTextInput): Promise<FileProcessingTextExtractionResult> {
-    const resolvedConfig = await resolveProcessorConfig('text_extraction', processorId)
+    const resolvedConfig = resolveProcessorConfigByFeature('text_extraction', processorId)
     const processor = createTextExtractionProcessor(resolvedConfig.id)
 
     logger.debug('Extracting text with file-processing orchestration service', {
@@ -42,7 +42,7 @@ export class FileProcessingOrchestrationService extends BaseService {
     processorId,
     signal
   }: StartMarkdownConversionTaskInput): Promise<FileProcessingMarkdownTaskStartResult> {
-    const resolvedConfig = await resolveProcessorConfig('markdown_conversion', processorId)
+    const resolvedConfig = resolveProcessorConfigByFeature('markdown_conversion', processorId)
     const processor = createMarkdownConversionProcessor(resolvedConfig.id)
 
     logger.debug('Starting markdown conversion task with file-processing orchestration service', {

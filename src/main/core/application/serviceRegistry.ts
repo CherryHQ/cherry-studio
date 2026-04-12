@@ -10,6 +10,7 @@ import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { CodeCliService } from '@main/services/CodeCliService'
 import { DetachedWindowManager } from '@main/services/DetachedWindowManager'
 import {
+  Doc2xRuntimeService,
   FileProcessingOrchestrationService,
   FileProcessingRuntimeService,
   OpenMineruRuntimeService,
@@ -68,6 +69,7 @@ export const services = {
   DetachedWindowManager,
   PreferenceService,
   FileProcessingRuntimeService,
+  Doc2xRuntimeService,
   TesseractRuntimeService,
   OpenMineruRuntimeService,
   AnalyticsService,

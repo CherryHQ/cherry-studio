@@ -3,7 +3,7 @@ import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecyc
 import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
 
 const logger = loggerService.withContext('FileProcessingRuntimeService')
-export const FILE_PROCESSING_TASK_TTL_MS = 60 * 60 * 1000
+export const FILE_PROCESSING_TASK_TTL_MS = 10 * 60 * 1000
 export const FILE_PROCESSING_TASK_PRUNE_INTERVAL_MS = 5 * 60 * 1000
 
 interface FileProcessingTaskEntry<TState> {

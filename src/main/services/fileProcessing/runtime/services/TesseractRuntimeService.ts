@@ -1,12 +1,11 @@
 import fs from 'node:fs'
-import path from 'node:path'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getIpCountry } from '@main/utils/ipService'
 import { loadOcrImage } from '@main/utils/ocr'
 import { MB } from '@shared/config/constant'
-import { app } from 'electron'
 import PQueue from 'p-queue'
 import type { LanguageCode } from 'tesseract.js'
 import type Tesseract from 'tesseract.js'
@@ -142,9 +141,7 @@ export class TesseractRuntimeService extends BaseService {
   }
 
   private async getCacheDir(): Promise<string> {
-    const cacheDir = path.join(app.getPath('userData'), 'tesseract')
-    await fs.promises.mkdir(cacheDir, { recursive: true })
-    return cacheDir
+    return application.getPath('feature.ocr.tesseract')
   }
 
   private throwIfStopped(): void {

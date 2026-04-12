@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 
+import { application } from '@application'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@main/constant', () => ({
@@ -12,10 +13,20 @@ import { prepareContext } from '../utils'
 describe('OvOcr prepareContext', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(application.getPath).mockImplementation((key: string) => {
+      if (key === 'app.temp') {
+        return '/tmp/app-temp'
+      }
+
+      if (key === 'feature.ovms.ovocr') {
+        return '/mock/ovocr'
+      }
+
+      return `/mock/${key}`
+    })
     vi.mocked(fs.existsSync).mockReturnValue(true)
     vi.mocked(fs.mkdtempSync).mockReturnValueOnce('/tmp/cherry-ovocr-1').mockReturnValueOnce('/tmp/cherry-ovocr-2')
     vi.mocked(os.cpus).mockReturnValue([{ model: 'Intel Ultra 7' }] as never)
-    vi.mocked(os.tmpdir).mockReturnValue('/tmp')
   })
 
   it('allocates an isolated working directory for each request', () => {

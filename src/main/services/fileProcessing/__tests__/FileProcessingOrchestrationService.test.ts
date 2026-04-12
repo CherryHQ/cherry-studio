@@ -4,14 +4,14 @@ import { Phase } from '@main/core/lifecycle/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  resolveProcessorConfigMock,
+  preferenceGetMock,
   createTextExtractionProcessorMock,
   createMarkdownConversionProcessorMock,
   extractTextMock,
   startMarkdownConversionTaskMock,
   getMarkdownConversionTaskResultMock
 } = vi.hoisted(() => ({
-  resolveProcessorConfigMock: vi.fn(),
+  preferenceGetMock: vi.fn(),
   createTextExtractionProcessorMock: vi.fn(),
   createMarkdownConversionProcessorMock: vi.fn(),
   extractTextMock: vi.fn(),
@@ -32,9 +32,15 @@ vi.mock('@main/core/lifecycle', async (importOriginal) => {
   }
 })
 
-vi.mock('../config/resolveProcessorConfig', () => ({
-  resolveProcessorConfig: resolveProcessorConfigMock
-}))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+
+  return mockApplicationFactory({
+    PreferenceService: {
+      get: preferenceGetMock
+    }
+  })
+})
 
 vi.mock('../processors/factory', () => ({
   createTextExtractionProcessor: createTextExtractionProcessorMock,
@@ -70,6 +76,21 @@ const documentFile = {
 describe('FileProcessingOrchestrationService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    preferenceGetMock.mockImplementation((key: string) => {
+      if (key === 'feature.file_processing.default_text_extraction') {
+        return 'tesseract'
+      }
+
+      if (key === 'feature.file_processing.default_markdown_conversion') {
+        return 'open-mineru'
+      }
+
+      if (key === 'feature.file_processing.overrides') {
+        return {}
+      }
+
+      return undefined
+    })
   })
 
   it('uses WhenReady phase without init-time service dependencies', () => {
@@ -92,20 +113,25 @@ describe('FileProcessingOrchestrationService', () => {
 
   it('resolves text extraction config and forwards the request to the selected processor', async () => {
     const signal = new AbortController().signal
-    const resolvedConfig = {
-      id: 'tesseract',
-      type: 'builtin',
-      capabilities: [
-        {
-          feature: 'text_extraction',
-          inputs: ['image'],
-          output: 'text'
-        }
-      ]
-    }
     const service = new FileProcessingOrchestrationService()
 
-    resolveProcessorConfigMock.mockResolvedValueOnce(resolvedConfig)
+    preferenceGetMock.mockImplementation((key: string) => {
+      if (key === 'feature.file_processing.default_text_extraction') {
+        return 'tesseract'
+      }
+
+      if (key === 'feature.file_processing.overrides') {
+        return {
+          tesseract: {
+            options: {
+              langs: ['eng']
+            }
+          }
+        }
+      }
+
+      return undefined
+    })
     createTextExtractionProcessorMock.mockReturnValueOnce({
       extractText: extractTextMock
     })
@@ -117,28 +143,43 @@ describe('FileProcessingOrchestrationService', () => {
       text: 'hello'
     })
 
-    expect(resolveProcessorConfigMock).toHaveBeenCalledWith('text_extraction', undefined)
     expect(createTextExtractionProcessorMock).toHaveBeenCalledWith('tesseract')
-    expect(extractTextMock).toHaveBeenCalledWith(imageFile, resolvedConfig, signal)
+    expect(extractTextMock).toHaveBeenCalledWith(
+      imageFile,
+      expect.objectContaining({
+        id: 'tesseract',
+        options: {
+          langs: ['eng']
+        }
+      }),
+      signal
+    )
   })
 
   it('starts markdown conversion with the resolved processor config only', async () => {
     const signal = new AbortController().signal
-    const resolvedConfig = {
-      id: 'open-mineru',
-      type: 'api',
-      capabilities: [
-        {
-          feature: 'markdown_conversion',
-          inputs: ['document'],
-          output: 'markdown',
-          apiHost: 'http://127.0.0.1:8000'
-        }
-      ]
-    }
     const service = new FileProcessingOrchestrationService()
 
-    resolveProcessorConfigMock.mockResolvedValueOnce(resolvedConfig)
+    preferenceGetMock.mockImplementation((key: string) => {
+      if (key === 'feature.file_processing.default_markdown_conversion') {
+        return 'open-mineru'
+      }
+
+      if (key === 'feature.file_processing.overrides') {
+        return {
+          'open-mineru': {
+            apiKeys: ['secret-key'],
+            capabilities: {
+              markdown_conversion: {
+                apiHost: 'http://127.0.0.1:8000'
+              }
+            }
+          }
+        }
+      }
+
+      return undefined
+    })
     createMarkdownConversionProcessorMock.mockReturnValueOnce({
       startMarkdownConversionTask: startMarkdownConversionTaskMock
     })
@@ -156,9 +197,15 @@ describe('FileProcessingOrchestrationService', () => {
       processorId: 'open-mineru'
     })
 
-    expect(resolveProcessorConfigMock).toHaveBeenCalledWith('markdown_conversion', undefined)
     expect(createMarkdownConversionProcessorMock).toHaveBeenCalledWith('open-mineru')
-    expect(startMarkdownConversionTaskMock).toHaveBeenCalledWith(documentFile, resolvedConfig, signal)
+    expect(startMarkdownConversionTaskMock).toHaveBeenCalledWith(
+      documentFile,
+      expect.objectContaining({
+        id: 'open-mineru',
+        apiKeys: ['secret-key']
+      }),
+      signal
+    )
   })
 
   it('queries markdown conversion result directly from the requested processor id', async () => {
@@ -188,7 +235,6 @@ describe('FileProcessingOrchestrationService', () => {
       markdownPath: '/tmp/output.md'
     })
 
-    expect(resolveProcessorConfigMock).not.toHaveBeenCalled()
     expect(createMarkdownConversionProcessorMock).toHaveBeenCalledWith('doc2x')
     expect(getMarkdownConversionTaskResultMock).toHaveBeenCalledWith('provider-task-1', signal)
   })

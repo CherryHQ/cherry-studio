@@ -1,13 +1,13 @@
 import fs from 'node:fs'
 
+import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { createWorkerMock, getIpCountryMock, loadOcrImageMock, appGetPathMock } = vi.hoisted(() => ({
+const { createWorkerMock, getIpCountryMock, loadOcrImageMock } = vi.hoisted(() => ({
   createWorkerMock: vi.fn(),
   getIpCountryMock: vi.fn(),
-  loadOcrImageMock: vi.fn(),
-  appGetPathMock: vi.fn()
+  loadOcrImageMock: vi.fn()
 }))
 
 vi.mock('tesseract.js', () => ({
@@ -22,12 +22,6 @@ vi.mock('@main/utils/ocr', () => ({
   loadOcrImage: loadOcrImageMock
 }))
 
-vi.mock('electron', () => ({
-  app: {
-    getPath: appGetPathMock
-  }
-}))
-
 import { TesseractRuntimeService } from '../TesseractRuntimeService'
 
 describe('TesseractRuntimeService', () => {
@@ -38,9 +32,8 @@ describe('TesseractRuntimeService', () => {
     BaseService.resetInstances()
     getIpCountryMock.mockResolvedValue('us')
     loadOcrImageMock.mockResolvedValue(Buffer.from('image'))
-    appGetPathMock.mockReturnValue('/tmp/userData')
+    vi.mocked(application.getPath).mockReturnValue('/tmp/tesseract-cache')
     vi.spyOn(fs.promises, 'stat').mockResolvedValue({ size: 1024 } as never)
-    vi.spyOn(fs.promises, 'mkdir').mockResolvedValue(undefined)
   })
 
   afterEach(async () => {

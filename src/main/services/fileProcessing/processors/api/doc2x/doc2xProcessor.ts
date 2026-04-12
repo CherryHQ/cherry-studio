@@ -1,4 +1,4 @@
-import { application } from '@main/core/application'
+import { application } from '@application'
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import type {
   FileProcessingMarkdownTaskResult,
@@ -13,8 +13,6 @@ import type { Doc2xTaskContext, PreparedDoc2xQueryContext, PreparedDoc2xStartCon
 import { createUploadTask, getExportResult, getParseStatus, triggerExportTask, uploadFile } from './utils'
 
 export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
-  private readonly inFlightResultQueries = new Map<string, Promise<FileProcessingMarkdownTaskResult>>()
-
   constructor() {
     super('doc2x')
   }
@@ -50,61 +48,13 @@ export class Doc2xProcessor extends BaseMarkdownConversionProcessor {
     providerTaskId: string,
     signal?: AbortSignal
   ): Promise<FileProcessingMarkdownTaskResult> {
-    signal?.throwIfAborted()
+    const doc2xRuntimeService = application.get('Doc2xRuntimeService')
 
-    const existingQuery = this.inFlightResultQueries.get(providerTaskId)
-
-    if (existingQuery) {
-      return this.withCallerAbort(existingQuery, signal)
-    }
-
-    const queryPromise = this.queryMarkdownConversionTaskResult(providerTaskId, signal).finally(() => {
-      if (this.inFlightResultQueries.get(providerTaskId) === queryPromise) {
-        this.inFlightResultQueries.delete(providerTaskId)
-      }
-    })
-
-    this.inFlightResultQueries.set(providerTaskId, queryPromise)
-    return this.withCallerAbort(queryPromise, signal)
-  }
-
-  private withCallerAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
-    if (!signal) {
-      return promise
-    }
-
-    if (signal.aborted) {
-      return Promise.reject(this.createAbortError(signal))
-    }
-
-    return new Promise<T>((resolve, reject) => {
-      const abortHandler = () => reject(this.createAbortError(signal))
-
-      signal.addEventListener('abort', abortHandler, { once: true })
-
-      void promise.then(
-        (value) => {
-          signal.removeEventListener('abort', abortHandler)
-          resolve(value)
-        },
-        (error) => {
-          signal.removeEventListener('abort', abortHandler)
-          reject(error)
-        }
-      )
-    })
-  }
-
-  private createAbortError(signal: AbortSignal): Error {
-    const reason = signal.reason
-
-    if (reason instanceof Error) {
-      return reason
-    }
-
-    const error = new Error(typeof reason === 'string' ? reason : 'The operation was aborted')
-    error.name = 'AbortError'
-    return error
+    return doc2xRuntimeService.runDedupedQuery(
+      providerTaskId,
+      (runtimeSignal) => this.queryMarkdownConversionTaskResult(providerTaskId, runtimeSignal),
+      signal
+    )
   }
 
   private async queryMarkdownConversionTaskResult(

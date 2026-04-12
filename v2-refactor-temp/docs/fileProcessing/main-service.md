@@ -69,7 +69,7 @@
 
 1. 原有 Renderer 逻辑先保留。
 2. 等后续 UI PR 再统一修改调用方式。
-3. 当前执行入口由 `FileProcessingOrchestrationService` 对外提供 provider-aware 的执行入口；processor 配置读写仍由 Data API 层的 `FileProcessingService` 负责。
+3. 当前执行入口由 `FileProcessingOrchestrationService` 对外提供 provider-aware 的执行入口；processor 配置读写仍由 Main-side 配置服务 `FileProcessingService` 负责。
 4. 本次 PR 先把 Main-side service 迁移完成，再推进前端切流和知识库接入。
 
 ---
@@ -82,16 +82,18 @@
    - `extractText(...)`
    - `startMarkdownConversionTask(...)`
    - `getMarkdownConversionTaskResult(...)`
-2. 配置服务：Data API 层的 `FileProcessingService`
+2. 配置服务：Main-side 配置服务 `FileProcessingService`
    - 负责列出 processor
    - 负责读取单个 processor 合并后的配置
    - 负责更新 preference 中的 override
+   - 当前实现落在 `src/main/data/services/`，并可通过现有 handler 暴露配置接口；但这里的职责是 preset + preference 配置管理，不应被解读为“SQLite business data 型 DataApi facade”
 3. 运行时 service：
    - `FileProcessingRuntimeService`
+   - `Doc2xRuntimeService`
    - `TesseractRuntimeService`
    - `OpenMineruRuntimeService`
 
-因此，当前真正承担 provider-aware 执行入口角色的是 `FileProcessingOrchestrationService`，而不是 Data API 层的 `FileProcessingService`。
+因此，当前真正承担 provider-aware 执行入口角色的是 `FileProcessingOrchestrationService`，而不是这个 Main-side 配置服务 `FileProcessingService`。
 
 当前推荐能力面：
 
@@ -107,7 +109,9 @@
 4. 当前阶段调用方需要感知 `processorId` 与 `providerTaskId`，这属于明确接受的过渡设计。
 5. 当前运行期任务上下文保存在 Main 进程内存态 `FileProcessingTaskRuntime` 中；任务仅保证在当前 Main 进程生命周期内可查询，不承诺重启恢复。
 6. `resolveProcessorConfig(...)` 会先使用显式传入的 `processorId`，否则读取按 feature 区分的默认 preference；若两者都没有，则直接 fail fast。
-7. 当前阶段方法签名允许继续使用少量位置参数；`contracts/types.ts` 已经补了 input object 类型，但 facade 还没有整体切到 input object 风格。
+   - 这里的 fail fast 是当前明确接受的契约，不是待补默认值的缺陷。
+   - fresh install 场景同样适用这条约束：用户必须先配置默认 processor，或者调用方必须显式传入 `processorId`，否则主服务拒绝执行属于预期行为。
+7. 当前阶段 Main service 方法签名已切到 input object 风格；但 IPC handler 对外仍保留少量位置参数转发，这属于当前明确接受的过渡形态。
 
 当前接口语义：
 
@@ -233,6 +237,13 @@
 2. 当前接受的迁移策略是：legacy `preprocess` 里的 `mistral` 配置只迁移到新的 `text_extraction` 配置位。
 3. 换句话说，当前不应把 legacy `preprocess` 中的 `mistral` 理解成“仍然接入文档 markdown 解析链路”。
 4. 这是一条明确接受的过渡约束；评审时不应把“legacy preprocess 的 `mistral` 没有迁移到 `markdown_conversion`”单独判定为缺陷。
+
+`paddleocr` 的迁移语义也需要明确：
+
+1. legacy `preprocess` 和 legacy OCR 里的 `paddleocr` 配置，当前只迁移 API key / token。
+2. 当前接受的迁移策略是：`paddleocr` 的自定义 `apiHost`、`apiUrl`、`model` 不进入新的 capability override。
+3. 换句话说，迁移后的 `paddleocr` override 当前主要承担凭证承接，不承诺保留 legacy 自定义 endpoint / model 配置。
+4. 这同样是当前明确接受的过渡约束；评审时不应把“`paddleocr` 没有迁移 legacy 自定义 host/model”单独判定为缺陷。
 
 ### 6.4 当前抽象边界
 
@@ -380,7 +391,8 @@
 1. 当前对外查询接口仍然走 `providerTaskId + processorId` 输入。
 2. 运行时任务上下文的 source of truth 是 Main 进程内的 `FileProcessingTaskRuntime`，并由 `FileProcessingRuntimeService` 持有。
 3. task key 实际按 `processorId:providerTaskId` 组合命名，允许不同 provider 复用同名 `providerTaskId`。
-4. task state 带有 TTL，当前默认保留 1 小时，并按定时器和访问时懒清理双路径剪枝；因此任务上下文即使在 Main 进程未重启时也可能先过期。
+4. task state 带有 TTL，当前默认保留 10 分钟，并按定时器和访问时懒清理双路径剪枝；因此任务上下文即使在 Main 进程未重启时也可能先过期。
+   - 这里选择 10 分钟而不是更长时间，前提是调用方会持续轮询获取结果；当前优先目标是覆盖常见解析耗时，同时避免长时间占用 Main 进程内存态上下文。
 5. `file-processing` 当前不额外承担跨窗口状态分发职责，也不尝试对 UI 暴露独立任务中心。
 
 换句话说：

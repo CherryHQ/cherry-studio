@@ -16,6 +16,62 @@ describe('FileProcessingService', () => {
     MockMainPreferenceServiceUtils.resetMocks()
   })
 
+  describe('resolveProcessorByFeature', () => {
+    it('should use the explicit processor id when provided and merge capability overrides', async () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {
+        doc2x: {
+          apiKeys: ['doc-key'],
+          capabilities: {
+            markdown_conversion: {
+              apiHost: 'https://doc2x-proxy.example.com',
+              modelId: 'doc2x-custom'
+            }
+          }
+        }
+      })
+
+      await expect(
+        fileProcessingService.resolveProcessorByFeature('markdown_conversion', 'doc2x')
+      ).resolves.toMatchObject({
+        id: 'doc2x',
+        apiKeys: ['doc-key'],
+        capabilities: [
+          expect.objectContaining({
+            feature: 'markdown_conversion',
+            apiHost: 'https://doc2x-proxy.example.com',
+            modelId: 'doc2x-custom'
+          })
+        ]
+      })
+    })
+
+    it('should fall back to the feature default processor preference', async () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.default_text_extraction', 'tesseract')
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {
+        tesseract: {
+          options: {
+            langs: ['eng']
+          }
+        }
+      })
+
+      await expect(fileProcessingService.resolveProcessorByFeature('text_extraction')).resolves.toMatchObject({
+        id: 'tesseract',
+        options: {
+          langs: ['eng']
+        }
+      })
+    })
+
+    it('should fail fast when neither explicit processor id nor default preference is available', async () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.default_markdown_conversion', null)
+
+      await expect(fileProcessingService.resolveProcessorByFeature('markdown_conversion')).rejects.toThrow(
+        'Default file processor for markdown_conversion is not configured'
+      )
+    })
+  })
+
   describe('getProcessors', () => {
     it('should return all processors with merged overrides', async () => {
       MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {

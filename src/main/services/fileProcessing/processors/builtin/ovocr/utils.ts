@@ -4,8 +4,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
 
+import { application } from '@application'
 import { isWin } from '@main/constant'
-import { HOME_CHERRY_DIR } from '@shared/config/constant'
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import type { FileMetadata } from '@types'
 import { isImageFileMetadata } from '@types'
@@ -14,7 +14,6 @@ import type { FileProcessingTextExtractionResult } from '../../../contracts/type
 import type { PreparedOvOcrContext } from './type'
 
 const execAsync = promisify(exec)
-const PATH_BAT_FILE = path.join(os.homedir(), HOME_CHERRY_DIR, 'ovms', 'ovocr', 'run.npu.bat')
 
 export function prepareContext(
   file: FileMetadata,
@@ -29,7 +28,7 @@ export function prepareContext(
     throw new Error('OV OCR is not available on this device')
   }
 
-  const workingDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'cherry-ovocr-'))
+  const workingDirectory = fs.mkdtempSync(path.join(application.getPath('app.temp'), 'cherry-ovocr-'))
   const imgDirectory = path.join(workingDirectory, 'img')
   const outputDirectory = path.join(workingDirectory, 'output')
 
@@ -55,7 +54,7 @@ export async function executeExtraction(context: PreparedOvOcrContext): Promise<
     // TODO(file-processing): Once unified ProcessManagerService lands, delegate
     // OV OCR process lifecycle/logging/restart handling there and keep this
     // provider focused on input/output preparation plus result parsing.
-    await execAsync(`"${PATH_BAT_FILE}"`, {
+    await execAsync(`"${getOvOcrScriptPath()}"`, {
       cwd: context.workingDirectory,
       timeout: 60000
     })
@@ -82,8 +81,12 @@ function isAvailable(): boolean {
     isWin &&
     os.cpus()[0]?.model.toLowerCase().includes('intel') &&
     os.cpus()[0]?.model.toLowerCase().includes('ultra') &&
-    fs.existsSync(PATH_BAT_FILE)
+    fs.existsSync(getOvOcrScriptPath())
   )
+}
+
+function getOvOcrScriptPath(): string {
+  return application.getPath('feature.ovms.ovocr', 'run.npu.bat')
 }
 
 async function prepareWorkingDirectory(dirPath: string): Promise<void> {

@@ -5,12 +5,19 @@ import type {
   FileProcessorFeature,
   FileProcessorId,
   FileProcessorOverride,
-  FileProcessorOverrides
+  FileProcessorOverrides,
+  PreferenceKeyType
 } from '@shared/data/preference/preferenceTypes'
 import { FILE_PROCESSOR_FEATURES, type FileProcessorCapabilityOverride } from '@shared/data/preference/preferenceTypes'
 import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
 
+import { mergeProcessorPreset } from '../../services/fileProcessing/config/mergeProcessorPreset'
+
 const logger = loggerService.withContext('DataApi:FileProcessingService')
+const DEFAULT_PROCESSOR_KEY_BY_FEATURE = {
+  markdown_conversion: 'feature.file_processing.default_markdown_conversion',
+  text_extraction: 'feature.file_processing.default_text_extraction'
+} as const satisfies Record<FileProcessorFeature, PreferenceKeyType>
 
 function isFileProcessorFeature(value: string): value is FileProcessorFeature {
   return FILE_PROCESSOR_FEATURES.includes(value as FileProcessorFeature)
@@ -70,22 +77,20 @@ function mergeProcessorOverrides(
   }
 }
 
-function mergeCapabilityConfig<T extends { apiHost?: string; modelId?: string }>(
-  capability: T,
-  override?: FileProcessorCapabilityOverride
-): T {
-  return {
-    ...capability,
-    ...(override?.apiHost !== undefined ? { apiHost: override.apiHost } : {}),
-    ...(override?.modelId !== undefined ? { modelId: override.modelId } : {})
-  }
-}
-
 export class FileProcessingService {
   public async getProcessors(): Promise<FileProcessorMerged[]> {
     const overrides = this.getOverrides()
 
     return PRESETS_FILE_PROCESSORS.map((preset) => this.mergeProcessorConfig(preset.id, overrides))
+  }
+
+  public async resolveProcessorByFeature(
+    feature: FileProcessorFeature,
+    processorId?: FileProcessorId
+  ): Promise<FileProcessorMerged> {
+    const resolvedProcessorId = this.resolveProcessorId(feature, processorId)
+
+    return this.mergeProcessorConfig(resolvedProcessorId, this.getOverrides())
   }
 
   public async getProcessorById(id: FileProcessorId): Promise<FileProcessorMerged> {
@@ -126,19 +131,37 @@ export class FileProcessingService {
     return preset
   }
 
+  private resolveProcessorId(feature: FileProcessorFeature, processorId?: FileProcessorId): FileProcessorId {
+    if (processorId) {
+      if (!this.supportsFeature(processorId, feature)) {
+        throw new Error(`File processor ${processorId} does not support ${feature}`)
+      }
+
+      return processorId
+    }
+
+    const defaultProcessorId = application.get('PreferenceService').get(DEFAULT_PROCESSOR_KEY_BY_FEATURE[feature])
+
+    if (defaultProcessorId) {
+      if (!this.supportsFeature(defaultProcessorId, feature)) {
+        throw new Error(`File processor ${defaultProcessorId} does not support ${feature}`)
+      }
+
+      return defaultProcessorId
+    }
+
+    throw new Error(`Default file processor for ${feature} is not configured`)
+  }
+
+  private supportsFeature(processorId: FileProcessorId, feature: FileProcessorFeature): boolean {
+    const preset = PRESETS_FILE_PROCESSORS.find((item) => item.id === processorId)
+    return Boolean(preset?.capabilities.some((capability) => capability.feature === feature))
+  }
+
   private mergeProcessorConfig(processorId: FileProcessorId, overrides: FileProcessorOverrides): FileProcessorMerged {
     const preset = this.getPresetById(processorId)
-    const override = overrides[processorId]
 
-    return {
-      id: preset.id,
-      type: preset.type,
-      capabilities: preset.capabilities.map((capability) =>
-        mergeCapabilityConfig(capability, override?.capabilities?.[capability.feature])
-      ),
-      apiKeys: override?.apiKeys,
-      options: override?.options
-    }
+    return mergeProcessorPreset(preset, overrides[processorId])
   }
 }
 
