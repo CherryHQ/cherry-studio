@@ -5995,6 +5995,72 @@ providerConfig.ts / buildClaudeCodeConfig:
 | `apiServer/handlers/messages.ts` | 未来通过 `AiStreamManager` API 重建 |
 | `SessionMessageService.createSessionMessage` | `AiStreamManager.startExecution` |
 
+### API Server 订阅 AiStreamManager
+
+#### 废弃旧模式
+
+旧架构中 API Server 暴露两种 AI 调用方式，都已过时：
+
+| 旧接口 | 问题 | 状态 |
+|--------|------|------|
+| `POST /agents/:agentId/sessions/:sessionId/messages` | 通过 `sessionMessageService.createSessionMessage` 手动 pump stream → SSE | **已删除** |
+| `POST /v1/chat/completions` (OpenAI 兼容) | 独立的 `chatCompletionService`，绕过 AiStreamManager，无 listener 分发 | **待废弃** |
+
+两者共同的问题：
+- 自己管流生命周期（手动 pump ReadableStream → SSE response），不走 AiStreamManager 的 topic 注册表
+- Renderer 无法通过 `Ai_Stream_Attach` 订阅同一个 topic（API 发起的流对 renderer 不可见）
+- 不受 PersistenceListener 管理，持久化逻辑自己写
+- 无 buffer 回放、无 grace period、无 steering 支持
+
+#### 新模式：API Server 作为 StreamListener
+
+API Server 的 SSE endpoint 应该作为 AiStreamManager 的一个 listener，和 WebContentsListener、ChannelAdapterListener 平等：
+
+```
+API Client → POST /v1/agents/:id/sessions/:id/stream
+  → API Handler:
+    1. 解析 session → topicId
+    2. 构建 AiStreamRequest（同 SchedulerService / ChannelMessageHandler 模式）
+    3. 注册 inline StreamListener（写 SSE 到 res）
+    4. 调 aiStreamManager.startExecution({ topicId, modelId, request, listeners })
+    5. listener.onChunk → res.write(`data: ${JSON.stringify(chunk)}\n\n`)
+    6. listener.onDone → res.write('data: [DONE]\n\n'); res.end()
+    7. listener.onError → res.write(error SSE); res.end()
+```
+
+```typescript
+// 伪代码 — API handler 内联 listener
+const listeners: StreamListener[] = [
+  {
+    id: `sse:${req.id}`,
+    onChunk: (chunk) => res.write(`data: ${JSON.stringify(chunk)}\n\n`),
+    onDone: () => { res.write('data: [DONE]\n\n'); res.end() },
+    onError: (err) => { res.write(`data: ${JSON.stringify({ type: 'error', error: err })}\n\n`); res.end() },
+    isAlive: () => !res.writableEnded
+  }
+]
+
+aiStreamManager.startExecution({ topicId, modelId, request, listeners })
+```
+
+#### `POST /v1/chat/completions` 的迁移路径
+
+OpenAI 兼容接口 (`chatCompletionService`) 当前独立于 AiStreamManager，有自己的 provider 解析和流管理。迁移方向：
+
+1. **非流式** (`stream: false`)：改为调 `AiCompletionService.generateText`，复用已有的 provider 解析流水线
+2. **流式** (`stream: true`)：改为 `AiStreamManager.startExecution` + inline SSE listener，复用 topic 注册表 + listener 分发
+3. **Request 映射**：OpenAI `messages` 格式 → `CherryUIMessage[]` 转换（已有 `convertToModelMessages`）
+4. **Response 映射**：`UIMessageChunk` → OpenAI `ChatCompletionChunk` 格式转换
+
+迁移后 `chatCompletionService` 变为薄转换层：只做 OpenAI ↔ Cherry 格式映射，不做 provider 解析、不管流生命周期。
+
+#### 设计原则
+
+- **API Server 不直接调 AI SDK**。所有 AI 调用通过 `AiStreamManager`（流式）或 `AiCompletionService`（非流式）
+- **API Server 不管流生命周期**。它是 listener，不是 controller。abort 通过 `Ai_Stream_Abort` 或 AbortController
+- **SSE 只是一种 transport**。和 IPC（WebContentsListener）、IM（ChannelAdapterListener）平级
+- **同一个 topic 的所有消费者共享同一个流**。API Client + Renderer + Channel 可以同时订阅
+
 ### 当前进度总览
 
 | Phase | 状态 | 说明 |
