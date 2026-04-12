@@ -2471,7 +2471,7 @@ Phase 2 的核心设计就是把 Main 端从"一次性管线"升级成"按 `topi
 
 **核心抽象**:
 - **`StreamListener`**:任何想消费 chunks 的东西都实现这个极窄接口。`WebContentsListener`(推给 Renderer)、`PersistenceListener`(写 SQLite)、`ChannelAdapterListener`(推回 Discord/飞书等)是三个内置实现
-- **`InternalStreamTarget`**:伪装成 `WebContents` 的虚拟 target,实现 `send` + `isDestroyed` 两个方法,加上可选的 `setFinalMessage`。传给 `AiService.executeStream`,让它误以为在推给一个真 WebContents;内部把每个 chunk 记入 buffer、多播给所有 listeners;上游(agentLoop / ClaudeCodeStreamAdapter)在流结束前通过 `setFinalMessage` 塞进 AI SDK 工具产出的完整 UIMessage。`AiService` 主体方法对这些近乎无感,只在 `hooks.afterIteration` 里多一次 `target.setFinalMessage?.()` 调用
+- **`InternalStreamTarget`**:伪装成 `WebContents` 的虚拟 target,实现 `send` + `isDestroyed` 两个方法,加上可选的 `setFinalMessage`。传给 `AiService.executeStream`,让它误以为在推给一个真 WebContents;内部把每个 chunk 记入 buffer、多播给所有 listeners;上游(agentLoop)在流结束前通过 `setFinalMessage` 塞进 AI SDK 工具产出的完整 UIMessage。`AiService` 主体方法对这些近乎无感,只在 `hooks.afterIteration` 里多一次 `target.setFinalMessage?.()` 调用
 
 ### 核心数据结构
 
@@ -2495,8 +2495,8 @@ export interface StreamDoneResult {
  * `AiService.executeStream` 实际使用的 WebContents 子集 —— 一次流的"出口"接口。
  *
  * `send` / `isDestroyed` 是原本 `Electron.WebContents` 就有的两个方法。
- * `setFinalMessage` 是 AiStreamManager 专用的可选扩展 —— 上游(agentLoop 或
- * ClaudeCodeStreamAdapter)在流结束前把 AI SDK 工具函数产出的完整 UIMessage
+ * `setFinalMessage` 是 AiStreamManager 专用的可选扩展 —— 上游(agentLoop)
+ * 在流结束前把 AI SDK 工具函数产出的完整 UIMessage
  * 通过这个 setter 传下来,避免 AiStreamManager 自己 rebuild。
  *
  * 定义在 types.ts 是因为:
@@ -2531,8 +2531,7 @@ export interface StreamListener {
   /**
    * 流结束(**包含 success 和 paused 两种终态**)。AiStreamManager 传入一个终态对象:
    *
-   *   - `result.finalMessage` 由上游(agentLoop.afterIteration hook 或
-   *     ClaudeCodeStreamAdapter 的 complete / abort 分支)通过
+   *   - `result.finalMessage` 由上游(agentLoop.afterIteration hook)通过
    *     `InternalStreamTarget.setFinalMessage` 在 onDone 之前塞进 `stream.finalMessage`,
    *     由 AiStreamManager 原样转发给每个 listener。可能为 `undefined`(上游未提供或异常路径);
    *     listener 自己决定 undefined 时如何降级。
@@ -2621,7 +2620,7 @@ export interface ActiveStream {
   /**
    * 流完成后的完整 UIMessage。
    *
-   * **由上游(agentLoop / ClaudeCodeStreamAdapter)通过 `InternalStreamTarget.setFinalMessage()`
+   * **由上游(agentLoop)通过 `InternalStreamTarget.setFinalMessage()`
    * 在流结束前塞进来**,AiStreamManager 自己不 rebuild —— 直接复用 AI SDK 的
    * `readUIMessageStream` 等工具函数产出,避免重造 chunk 状态机。
    *
@@ -2649,7 +2648,7 @@ export interface ActiveStream {
    * 纯 AiCompletionService 路径(普通 chat)不使用这个字段,留空即可。
    *
    * ⚠️ 这是 backend-owned metadata,不是"流的类型 discriminator"。AiStreamManager
-   *    主体代码不读它,只由 ClaudeCodeStreamAdapter 写入和读回。
+   *    主体代码不读它,只由 claude-code provider 路径写入和读回。
    */
   sourceSessionId?: string
 }
@@ -2722,9 +2721,7 @@ export class InternalStreamTarget implements StreamTarget {
    *   3. AiService 把 uiMessage 通过 target.setFinalMessage?.() 传下来
    *   4. AiService 调 send(Ai_StreamDone) → manager.onDone → 分发到 listeners(此时 stream.finalMessage 已经就位)
    *
-   * 对 ClaudeCodeStreamAdapter 同样适用 —— adapter 订阅 ClaudeCodeStream 的 'data' 事件,
-   * 在收到 { type: 'complete' } 前用 AI SDK 工具处理累积的 chunks,产出 UIMessage,
-   * 然后 setFinalMessage → manager.onDone。
+   * Claude Code 作为标准 AI SDK provider 走同一条 agentLoop 路径,无需额外 adapter。
    */
   setFinalMessage(message: CherryUIMessage): void {
     // @ts-expect-error 访问 AiStreamManager 内部 map,或在 AiStreamManager 上暴露 setter 方法
@@ -3093,8 +3090,7 @@ export class AiStreamManager extends BaseService {
       buffer: [],
       status: 'streaming',
       sourceSessionId: inheritedSessionId
-      // finalMessage 字段不在这里初始化;等上游 agentLoop.afterIteration
-      // 或 ClaudeCodeStreamAdapter 的 'complete' 回调把它塞进来
+      // finalMessage 字段不在这里初始化;等上游 agentLoop.afterIteration 把它塞进来
     }
     this.activeStreams.set(input.topicId, stream)
     this..set(input.topicId, input.topicId)
@@ -3222,12 +3218,11 @@ export class AiStreamManager extends BaseService {
 
   /**
    * 流终态广播(按 topicId)。由两个上游路径触发:
-   *   - 自然结束:AiService.executeStream 的 finally / ClaudeCodeStreamAdapter 的 'complete'
-   *     → 调 `onDone(topicId, 'success')`
+   *   - 自然结束:AiService.executeStream 的 finally → 调 `onDone(topicId, 'success')`
    *   - 被中止:AiStreamManager 自己的 `abort(topicId)` 内部,在 abort 之后给 listeners 发一次
    *     `onDone(topicId, 'paused')`,前提是上游能在 abort 分支里把部分结果
    *     通过 `setFinalMessage` 塞进 `stream.finalMessage`(agentLoop 的 onError/abort
-   *     分支 / ClaudeCodeStreamAdapter 的 'cancelled' 分支需要做这件事)。
+   *     分支需要做这件事)。
    */
   async onDone(topicId: string, status: 'success' | 'paused' = 'success'): Promise<void> {
     const stream = this.activeStreams.get(topicId)
@@ -3239,8 +3234,7 @@ export class AiStreamManager extends BaseService {
       this..delete(stream.topicId)
     }
     // 注意:stream.finalMessage 应该已经被上游通过 InternalStreamTarget.setFinalMessage
-    // 在 onDone 之前塞好了(agentLoop.afterIteration hook / ClaudeCodeStreamAdapter 的
-    // 'complete'/'cancelled' 回调)。AiStreamManager 自己不做 rebuild。
+    // 在 onDone 之前塞好了(agentLoop.afterIteration hook)。AiStreamManager 自己不做 rebuild。
     // 如果 finalMessage 仍是 undefined,说明上游没有提供 —— listener 自己按 undefined 处理。
     const result: StreamDoneResult = { finalMessage: stream.finalMessage, status }
 
@@ -3535,92 +3529,6 @@ const stream = runAgentLoop(params, request.messages, options?.signal, {
 })
 ```
 
-### ClaudeCodeStreamAdapter 必须做同样的事
-
-`ClaudeCodeService` 不走 `agentLoop`(它自己管 Claude Agent SDK 的 `query()` 循环),所以上面的 agentLoop 改动**不自动覆盖** agent 路径。`ClaudeCodeStreamAdapter` 必须用 **相同的模式**独立产出最终 UIMessage,否则 agent 流的持久化、late reconnect、debug 面板都拿不到 finalMessage。
-
-**ClaudeCodeStream 的 chunk 流结构**:`transformSDKMessageToStreamParts`(见 `src/main/services/agents/services/claudecode/transform.ts`)把 Claude SDK 的 `SDKMessage` 转成 stream parts,每个 part 走 `stream.emit('data', { type: 'chunk', chunk })` 推给订阅者(`claudecode/index.ts:926-932`)。最终 `{ type: 'complete' }` 事件表示流结束(`:952`)。
-
-**Adapter 的职责**:订阅 `'data'` 事件,把 chunks 累积成 UIMessage,在 `complete` 触发前用 AI SDK 工具(同一个 `readUIMessageStream` 或等价的)rebuild,塞给 AiStreamManager:
-
-```ts
-// src/main/ai/stream-manager/adapters/ClaudeCodeStreamAdapter.ts
-
-export async function startClaudeCodeStreamViaAiStreamManager(params: {
-  topicId: string
-  session: GetAgentSessionResponse
-  prompt: string
-  images?: Array<{ data: string; media_type: string }>
-  target: StreamTarget
-}): Promise<void> {
-  // 1. Claude SDK 启动(用 AiStreamManager 传进来的 AbortController)
-  const claudeStream = await claudeCodeService.invoke(
-    params.prompt,
-    params.session,
-    /* abortController */ ...,
-    /* lastAgentSessionId */ ...
-  )
-
-  // 2. 准备一个累积 chunks 的 TransformStream —— 同步转发给 target,
-  //    同时 tee 一份给 AI SDK 工具消费产出 finalMessage
-  const chunkStream = new TransformStream<UIMessageChunk>()
-  const writer = chunkStream.writable.getWriter()
-
-  // 3. 分两路消费
-  const [forAiStreamManager, forReconstruct] = chunkStream.readable.tee()
-
-  //    3a. 一路: 逐 chunk 送给 AiStreamManager 做实时多播
-  void (async () => {
-    const reader = forAiStreamManager.getReader()
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      params.target.send(IpcChannel.Ai_StreamChunk, { chunk: value })
-    }
-  })()
-
-  //    3b. 另一路: 喂给 AI SDK 的 readUIMessageStream 拿完整 UIMessage
-  const finalMessagePromise = aiSdkReadUIMessageStream(forReconstruct)
-
-  // 4. 订阅 ClaudeCodeStream 的 'data' 事件,把 chunks 转发进 chunkStream
-  claudeStream.on('data', async (evt) => {
-    if (evt.type === 'chunk') {
-      // 注意:transformSDKMessageToStreamParts 当前产出的是 Cherry Studio 自建的
-      // ChunkType(非 AI SDK UIMessageChunk)。这里需要一个 **格式转换适配** ——
-      // 要么重构 transform.ts 直接产 UIMessageChunk,要么在 adapter 里做一层映射。
-      // 这是 Step 2.4b 里要明确的一部分工作。
-      await writer.write(convertToAiSdkChunk(evt.chunk))
-    } else if (evt.type === 'complete') {
-      await writer.close()
-      // 等 readUIMessageStream 消费完,拿到 finalMessage
-      const finalMessage = await finalMessagePromise
-      params.target.setFinalMessage?.(finalMessage)
-      params.target.send(IpcChannel.Ai_StreamDone, {})
-    } else if (evt.type === 'error' || evt.type === 'cancelled') {
-      await writer.abort(evt.error)
-      params.target.send(IpcChannel.Ai_StreamError, {
-        error: serializeError(evt.error ?? new Error('unknown'))
-      })
-    }
-  })
-
-  // 5. 捕获 sdkSessionId(同之前描述,在 'sdk-init' 事件里写 stream.sourceSessionId)
-}
-```
-
-**与 agentLoop 路径的对称性**:
-
-| 步骤 | agentLoop 路径 | ClaudeCodeStreamAdapter 路径 |
-|---|---|---|
-| chunks 来源 | `result.toUIMessageStream()` | `ClaudeCodeStream.emit('data', {chunk})` |
-| 实时多播 | 读 reader 转 writer → target.send | 订阅 'data' 转 writer → target.send |
-| 最终 UIMessage | tee 一份喂 `readUIMessageStream` | tee 一份喂 `readUIMessageStream`(同一个工具函数) |
-| 完成通知 | `hooks.afterIteration` → `target.setFinalMessage` → `target.send(Ai_StreamDone)` | 'complete' 事件里 → `target.setFinalMessage` → `target.send(Ai_StreamDone)` |
-
-**两条路径调用的 AI SDK 工具是同一个**,产出的 UIMessage 格式也一致 —— AiStreamManager 对两边完全透明,不需要知道上游是 agentLoop 还是 ClaudeCodeStreamAdapter。
-
-> **关于 `convertToAiSdkChunk` 这一层**:Cherry Studio 当前 `transformSDKMessageToStreamParts` 产出的是自建 `ChunkType`(`src/renderer/src/types/chunk.ts`),Phase 1 设计目标是**统一到 AI SDK `UIMessageChunk`**。Step 2.4b 的 adapter 里要么直接重构 `transform.ts` 让它产 `UIMessageChunk`(更彻底),要么先写一层映射转换(过渡方案)。这个选择和 Phase 6 的 ClaudeCodeService → ToolLoopAgent 大重构顺序相关 —— 如果 Phase 6 快,走过渡映射;如果 Phase 6 晚,直接重构 transform.ts。
-
 ### IPC 契约
 
 ```ts
@@ -3686,9 +3594,7 @@ import type { AiStreamOpenRequest } from '@shared/ai-transport'
  *   - **byTopicId**:多窗口观察者 attach —— 第二个窗口打开同一 topic 只知道
  *     topicId,AiStreamManager 用 `` 反查当前活跃 request
  */
-type AiStreamAttachRequest =
-  | { topicId: string }
-  | { topicId: string }
+type AiStreamAttachRequest = { topicId: string }
 
 interface AiStreamDetachRequest {
   /** 按 topicId 精确退订 —— Renderer 在发起时就生成了 topicId,detach 时能传 */
@@ -3917,83 +3823,6 @@ AiStreamManager 中有**两个 id**,分工明确,不要混用:
 
 `startStream` 遇到 `` 指向 grace period 内(done/error/aborted)的旧 request 时,会**提前驱逐**旧 request,让新 request 立即开始 —— 这修复了"停止后立即重试"/"出错后立即重发"/"完成后秒速连发"三种用户动作的顺滑度。迟到 reconnect 的代价:按旧 topicId attach 会拿到 'not-found',Renderer 退化到 `useQuery('/topics/:id/messages')` 从 DB 读,由 `PersistenceListener` 已落库的数据兜底。
 
-### ClaudeCodeService 集成:`ClaudeCodeStreamAdapter`
-
-Cherry Studio 当前仍然通过 `@anthropic-ai/claude-agent-sdk` 桥接 agent 能力(见 `src/main/services/agents/services/claudecode/index.ts`)。这条路径**不走** `AiCompletionService.streamText`,而是自己启动 Claude Code SDK 的 `query()` 生成一个独立的 `ClaudeCodeStream`(`EventEmitter`)。
-
-#### 事件对应关系
-
-| ClaudeCodeStream 事件 | AiStreamManager 调用 |
-|---|---|
-| `{ type: 'chunk', chunk }` (`index.ts:926-932`) | `manager.onChunk(topicId, toUIMessageChunk(chunk))` |
-| `{ type: 'complete' }` (`:952`) | `manager.onDone(topicId)` |
-| `{ type: 'error', error }` (`:983`) | `manager.onError(topicId, serializeError(error))` |
-| `{ type: 'cancelled', error }` (`:968`) | `manager.onError(topicId, ...)` 或 `manager.abort(topicId)` |
-
-#### Adapter 骨架
-
-```ts
-// src/main/ai/stream-manager/adapters/ClaudeCodeStreamAdapter.ts
-
-export async function startClaudeCodeStreamViaAiStreamManager(params: {
-  topicId: string
-  session: GetAgentSessionResponse
-  prompt: string
-  images?: Array<{ data: string; media_type: string }>
-  listeners: StreamListener[]
-}): Promise<void> {
-  // 1. 让 AiStreamManager 先注册 ActiveStream(带上 listeners + 自己的 AbortController)
-  const stream = manager.registerEmpty({
-    topicId: params.topicId,
-    listeners: params.listeners
-  })
-
-  // 2. 如果之前的流留下了 sourceSessionId(resume token),传给 SDK
-  const lastAgentSessionId = stream.sourceSessionId
-
-  // 3. 调 ClaudeCodeService,传入 AiStreamManager 的 AbortController
-  const claudeStream = await claudeCodeService.invoke(
-    params.prompt,
-    params.session,
-    stream.abortController,
-    lastAgentSessionId,
-    undefined,
-    params.images
-  )
-
-  // 4. 事件转发 —— AiStreamManager 负责多播给所有 listeners
-  claudeStream.on('data', (evt) => {
-    if (evt.type === 'chunk') {
-      manager.onChunk(params.topicId, toUIMessageChunk(evt.chunk))
-    } else if (evt.type === 'complete') {
-      // init 消息里捕获的 sdkSessionId 已经写进了 stream.sourceSessionId
-      void manager.onDone(params.topicId)
-    } else if (evt.type === 'error' || evt.type === 'cancelled') {
-      void manager.onError(params.topicId, serializeError(evt.error ?? new Error('unknown')))
-    }
-  })
-
-  // 5. 捕获 SDK session_id(供下次 resume)
-  //    这里需要 hook 进 ClaudeCodeStream 的 init 消息处理,见下方
-}
-```
-
-#### 需要 hook 的两个点
-
-**(a) `sourceSessionId` 捕获**
-`ClaudeCodeStream` 的 `processSDKQuery` 在收到 SDK init 消息时已经把 `session_id` 存到 `stream.sdkSessionId`(`index.ts:864`)。Adapter 需要监听这个点,同步写到 `ActiveStream.sourceSessionId`。可以用一个轻量的 `once('sdk-init', ...)` 事件,或在 AiStreamManager 的 `registerEmpty` 返回对象上暴露 setter。
-
-**(b) Steering 转发到 `userInputStream.enqueue`**
-AiStreamManager 的 `steer(topicId, message)` 只是把消息推进 `stream.pendingMessages` 队列。Claude Code 路径的消费方是 `userInputStream`(见 `createUserMessageStream`,`index.ts:647`),需要把 pendingMessages 的新增事件转换成 `SDKUserMessage` push 进去:
-
-```ts
-stream.pendingMessages.on('push', (msg: CherryUIMessage) => {
-  claudeCodeUserInputStream.enqueue(toSDKUserMessage(msg))
-})
-```
-
-(这要求 `PendingMessageQueue` 支持事件订阅;如果它目前是纯 push/pop 队列,Phase 2 Step 2.3 需要顺便给它加一个 `Emitter<'push'>`。)
-
 #### `persistAgentSessionId` 在 Renderer 侧消失
 
 `messageThunk.ts:721-785` 的 `persistAgentSessionId` 现在负责:"SDK init 消息到达 Renderer → 写 Redux + IndexedDB + SWR mutate 刷 session 缓存"。整个 60 行逻辑**Phase 2 之后在 Renderer 侧完全消失**:
@@ -4104,27 +3933,21 @@ afterPersist: async (finalMessage) => {
 
 #### ⚠️ 为什么 `afterPersist` **不能**推回 agentLoop 的 hooks
 
-看 agentLoop.ts 就会想:它已经有 `afterIteration` / `onFinish` / `onError` 这些 hook 了,为什么不直接在那里做 rename / metering / 知识库回填?**这条路有四个致命问题**,都是真的会炸:
+看 agentLoop.ts 就会想:它已经有 `afterIteration` / `onFinish` / `onError` 这些 hook 了,为什么不直接在那里做 rename / metering / 知识库回填?**这条路有两个致命问题**:
 
-1. **`agentLoop` 只是两条后端路径之一**。`ClaudeCodeStreamAdapter` 那条(agent session 用的 Claude Agent SDK 路径)**完全不走 agentLoop**,没有 afterIteration / onFinish 这些 hook。而**最需要 rename 的恰恰是 agent session**(v1 `renameAgentSessionIfNeeded` 就是从 ClaudeCodeService 那条路径调的)。把 rename 塞进 agentLoop hook = agent session 根本不触发 rename,变成"给不需要的人加功能,给需要的人没加"
+> **已过时**：原文讨论的"两条后端路径"(agentLoop + ClaudeCodeStreamAdapter)已在 Phase 6 统一为一条路径。afterPersist hook 仍然是正确的分层，但理由简化为：agentLoop hooks 是执行引擎控制面，PersistenceListener.afterPersist 是业务副作用层。
 
-2. **`InternalStreamTarget` 是两条后端路径唯一的汇合点**。任何"后端无关的 post-done 副作用"只能挂在 Listener 层才能被两条路径都触发。塞进 agentLoop hook 会错过 ClaudeCodeStreamAdapter 路径
+1. **层次分工被污染**。`agentLoop` 的 hooks 是**执行引擎内部的控制面**(drain steering、token 汇总、otel span、retry 控制、prepareStep 里动态调整 messages/tools),全部是"如何正确地跑这次 AI 调用"级别的问题。塞业务副作用进来,agentLoop 就从"纯粹的 AI 执行函数"退化成"Cherry Studio 业务 orchestrator",违反 agentLoop 的设计契约(`AgentLoopHooks` 的注释原文:*"lifecycle extension points"* —— 给**执行**生命周期开的 hook,不是给业务副作用开的)
 
-3. **层次分工被污染**。`agentLoop` 的 hooks 是**执行引擎内部的控制面**(drain steering、token 汇总、otel span、retry 控制、prepareStep 里动态调整 messages/tools),全部是"如何正确地跑这次 AI 调用"级别的问题。塞业务副作用进来,agentLoop 就从"纯粹的 AI 执行函数"退化成"Cherry Studio 业务 orchestrator",违反 agentLoop 的设计契约(`AgentLoopHooks` 的注释原文:*"lifecycle extension points"* —— 给**执行**生命周期开的 hook,不是给业务副作用开的)
+2. **次序被破坏**。agentLoop 的 `afterIteration` 在**每次 outer iteration 结束时**触发,一次流的 multi-iteration steering 场景下会触发**多次**;而 rename 是"整条流结束一次"语义。如果硬塞进 afterIteration,rename 会被触发 N 次,每次摘要源都是"当前这一轮的 assistant message",结果就是 session 名字一直变。更糟:`afterIteration` 发生在 **persistence 之前**(persistence 发生在 `AiStreamManager.onDone` 里,由 `Ai_StreamDone` 信号触发,时序在 agentLoop 兑现之后),rename 想依赖"消息已落库"这个状态就拿不到,回到"必须 persistence-first"的隐式约束 —— 而 Listener 层的 `afterPersist` 天然就是"落库成功后"语义,次序自然正确
 
-4. **次序被破坏**。agentLoop 的 `afterIteration` 在**每次 outer iteration 结束时**触发,一次流的 multi-iteration steering 场景下会触发**多次**;而 rename 是"整条流结束一次"语义。如果硬塞进 afterIteration,rename 会被触发 N 次,每次摘要源都是"当前这一轮的 assistant message",结果就是 session 名字一直变。更糟:`afterIteration` 发生在 **persistence 之前**(persistence 发生在 `AiStreamManager.onDone` 里,由 `Ai_StreamDone` 信号触发,时序在 agentLoop 兑现之后),rename 想依赖"消息已落库"这个状态就拿不到,回到"必须 persistence-first"的隐式约束 —— 而 Listener 层的 `afterPersist` 天然就是"落库成功后"语义,次序自然正确
-
-**所以不论这四个理由哪一条,都足以说明"把 post-done 副作用推回 agentLoop"是错的**。正确的分层是:
+**所以这两个理由都足以说明"把 post-done 副作用推回 agentLoop"是错的**。正确的分层是:
 
 - **`agentLoop.hooks`** = 执行引擎内部的控制面(AiService 是读者)
 - **`PersistenceListener.afterPersist`** = 流完成后的业务副作用(handleStreamRequest 是读者)
 - **两个 hook 的时序关系**:agentLoop hooks 全部跑完 → agentLoop 兑现 result → AiService 调 `AiStreamManager.onDone(topicId, 'success')` → PersistenceListener.onDone → `messageService.create(…)` → `afterPersist`(只在 success 路径下跑)
 
 一个是"流怎么跑",一个是"流跑完后业务上还要做什么",这两个层次永远不要糅在一起。
-
-#### Phase 6 落地后 adapter 怎么处理
-
-当 Phase 6 (`ClaudeCodeService → 统一 ToolLoopAgent`) 完成后,agent 流和普通 chat 都走 `AiCompletionService.streamText` 一条路径,`ClaudeCodeStreamAdapter` 整个文件变成死代码,一并删除。AiStreamManager 主体零改动 —— 这就是 adapter 模式的意义,把 backend 迁移的影响隔离在一个文件里。
 
 ### Phase 2 子阶段实施顺序
 
@@ -4135,11 +3958,11 @@ afterPersist: async (finalMessage) => {
 - [ ] 定义 `StreamListener` / `StreamTarget` / `ActiveStream` / `AiStreamManagerConfig` 类型(**不定义 `StreamSource`** —— AiStreamManager 不区分流的发起源)
 - [ ] `ActiveStream.sourceSessionId` 字段预留给 ClaudeCodeService 路径使用
 - [ ] 实现 `InternalStreamTarget`
-- [ ] **不写** `UIMessageAccumulator` —— 最终 UIMessage 由上游 agentLoop / ClaudeCodeStreamAdapter 调 AI SDK 的 `readUIMessageStream`(或等价工具)产出,AiStreamManager 只负责存 `stream.finalMessage` 字段
+- [ ] **不写** `UIMessageAccumulator` —— 最终 UIMessage 由上游 agentLoop 调 AI SDK 的 `readUIMessageStream`(或等价工具)产出,AiStreamManager 只负责存 `stream.finalMessage` 字段
 - [ ] `AiStreamManager` 空壳 + lifecycle 注册,`onInit` 只注册 4 个 channel 但暂不处理
 - [ ] `AiService.executeStream` 参数类型放宽为 `StreamTarget`(确保既有调用方零破坏)
 - [ ] **不新建** `MessagePersistenceService` —— `PersistenceListener` 直接 `import { messageService } from '@main/data/services/MessageService'` 调 `messageService.create(topicId, { parentId: parentUserMessageId, ... })`。如果 reasoning parts 的 `thinking_millsec → cherry.thinkingMs` 规范化还没在 Phase 1 stream plugin 里完成,抽一个 `normalizeReasoningParts(parts)` util 函数放在 listener 同目录,10 行以内
-- [ ] `PendingMessageQueue` 加 `Emitter<'push'>` 事件订阅能力(给 Step 2.4b 的 ClaudeCodeStreamAdapter 用)
+- [ ] `PendingMessageQueue` 加 `Emitter<'push'>` 事件订阅能力(给 steering 消费方使用)
 - [ ] 单元测试:FakeListener 验证 AiStreamManager 的分发逻辑、buffer 回放、isAlive 清理、异常隔离
 
 **Step 2.4 · Renderer 流接入 (2-3 天)**
@@ -4147,14 +3970,6 @@ afterPersist: async (finalMessage) => {
 - [ ] `handleStreamRequest` IPC handler 实现(构造 WebContentsListener + PersistenceListener)
 - [ ] 新建 `src/renderer/src/transport/IpcChatTransport.ts`,`sendMessages` 走 `Ai_Stream_Open`
 - [ ] E2E:发消息、收 chunk、正常完成、错误、abort(走 AiCompletionService 路径,**普通 chat**)
-
-**Step 2.4b · ClaudeCodeStreamAdapter (1-2 天,可与 Step 2.5 并行)**
-- [ ] 新建 `src/main/ai/stream-manager/adapters/ClaudeCodeStreamAdapter.ts`(~30 行,见"ClaudeCodeService 集成"小节)
-- [ ] `ClaudeCodeStream` 加 `'sdk-init'` 事件或等价 hook,adapter 在事件回调里把 `sdkSessionId` 写进 `stream.sourceSessionId`
-- [ ] SQLite topic 表加 `sourceSessionId TEXT NULL` 字段 + 对应 DataApi 更新(Main 端 adapter 在流完成时写入)
-- [ ] `steer()` 在 agent 路径下转发给 `userInputStream.enqueue`:订阅 `stream.pendingMessages` 的 push 事件,转 `SDKUserMessage`
-- [ ] 删除 `messageThunk.ts:721-785` 的 `persistAgentSessionId` + 所有调用点
-- [ ] E2E:Claude Code agent 对话(发消息 / steering / abort / unmount-reconnect / 完成落库 / sourceSessionId 跨会话续跑)
 
 **Step 2.5 · Reconnect (1-2 天)**
 - [ ] `handleAttach` + `addListener` + buffer 回放
@@ -4178,7 +3993,7 @@ afterPersist: async (finalMessage) => {
 >
 > **为什么是 hook 参数而不是独立 Listener 类**:Listener 是"对流有结构性交互"的观察者(需要 `onChunk` / 有独立 `isAlive` / 有独立错误处理),它有四个方法要实现。post-persist 副作用只用 `onDone` 的 finalMessage,其他三个方法都是 no-op —— 用一个完整的观察者类装一个纯粹的后置回调,是杀鸡用牛刀。详见前面 "`renameAgentSessionIfNeeded` 作为 `PersistenceListener.afterPersist` hook 注入" 小节里"Listener vs post-persist hook 的选择经验法则"。
 >
-> **为什么不是推回 `agentLoop.afterIteration` / `onFinish`**:agentLoop 只是两条后端路径之一(ClaudeCodeStreamAdapter 不走它),塞进去会错过 agent session;而且 agentLoop 的 hooks 是执行引擎的控制面,不该沾业务副作用;还会破坏"persistence-first"的次序。详见前面小节里对四条反对理由的完整论证。
+> **为什么不是推回 `agentLoop.afterIteration` / `onFinish`**:agentLoop 的 hooks 是执行引擎的控制面,不该沾业务副作用;还会破坏"persistence-first"的次序。详见前面小节里对两条反对理由的完整论证。
 
 **Step 2.7 · Channel Push 迁移 (2 天)**
 - [ ] 实现 `ChannelAdapterListener`
@@ -4262,10 +4077,6 @@ class FakeListener implements StreamListener {
 | 2.3 | `src/main/core/application/serviceRegistry.ts` | 修改(注册 `AiStreamManager`)|
 | 2.4 | `src/renderer/src/transport/IpcChatTransport.ts` | 新建(sendMessages 走 `Ai_Stream_Open`) |
 | 2.4 | `src/main/ai/AiStreamManager.ts` | `startStream` / `send` / `steer` / `onChunk` / `onDone` / `onError` / `abort` 完整实现 |
-| 2.4b | `src/main/ai/stream-manager/adapters/ClaudeCodeStreamAdapter.ts` | 新建(~30 行,订阅 `ClaudeCodeStream` 事件转发到 AiStreamManager) |
-| 2.4b | `src/main/services/agents/services/claudecode/index.ts` | 修改(暴露 `sdk-init` 事件或钩子,供 adapter 捕获 `sourceSessionId`) |
-| 2.4b | SQLite `topics` schema + migration | 加 `sourceSessionId TEXT NULL` 字段 + 对应 DataApi 更新 |
-| 2.4b | `src/renderer/src/store/thunk/messageThunk.ts` | **删除** `persistAgentSessionId`(:721-785)+ 所有调用点 |
 | 2.5 | `src/renderer/src/transport/IpcChatTransport.ts` | 修改(`reconnectToStream` 真实现 + buffer 回放) |
 | 2.6 | `handleStreamRequest` 构造 `PersistenceListener` 的地方 | 修改(agent session 时注入 `afterPersist` hook,搬迁 `renameAgentSessionIfNeeded` 逻辑作为闭包 —— 不新建独立文件) |
 | 2.6 | `src/renderer/src/store/thunk/messageThunk.ts` | **删除** `createAgentMessageStream` / `createSSEReadableStream` / `withAbortStreamPart` / `fetchAndProcessAgentResponseImpl` / `setupChannelStream` / `addChannelUserMessage` / `renameAgentSessionIfNeeded` 等 ~500 行 |
@@ -4279,10 +4090,9 @@ class FakeListener implements StreamListener {
 ### 风险与回退
 
 - **双写期(Step 2.6)**:在 Step 2.6 切换的过渡一两天里,如果旧 `messageThunk.ts` 里的某些函数还没来得及全部删除,Renderer 侧旧持久化逻辑和 Main 侧 `PersistenceListener` 可能同时写。**风险**:如果去重逻辑有 bug,可能出现重复消息。**缓解**:过渡期不超过一周;E2E 测试覆盖"切 topic + 关窗口 + 重开"的组合;准备 SQL 清理脚本
-- ~~UIMessageAccumulator 的 chunk state machine 风险~~ —— **这条风险不存在**。AiStreamManager 不自己 rebuild,直接让上游 agentLoop / ClaudeCodeStreamAdapter 调 AI SDK 的 `readUIMessageStream`(或等价工具)产出 UIMessage。"chunks → UIMessage" 状态机是 AI SDK 官方维护的,我们只是消费者
+- ~~UIMessageAccumulator 的 chunk state machine 风险~~ —— **这条风险不存在**。AiStreamManager 不自己 rebuild,直接让上游 agentLoop 调 AI SDK 的 `readUIMessageStream`(或等价工具)产出 UIMessage。"chunks → UIMessage" 状态机是 AI SDK 官方维护的,我们只是消费者
 - **回退**:每个子步骤(Step 2.3-2.8)独立可 merge、独立可回退。Step 2.6 的大删除 PR 单独做,一旦出问题 revert 这一个 commit 就回到旧 thunk 状态
-- **与 Phase 6(ClaudeCodeService → ToolLoopAgent)的顺序**:两者独立不阻塞。本 Phase 2 架构只改"流的分发和落库",不碰 tool loop 的逻辑;Phase 6 只改"agent 循环的执行",不碰流的传输。可以并行推进
-- **ClaudeCodeService 集成**:Phase 6 完成前,ClaudeCodeService 通过一层薄 adapter(~30 行)接入 AiStreamManager —— 订阅它的 `'data'` 事件,转发到 `manager.onChunk/onDone/onError`。Phase 6 完成后这个 adapter 自动变成死代码,顺手删除
+- **与 Phase 6(ClaudeCodeService → ToolLoopAgent)的顺序**:Phase 6 已完成。Claude Code 作为标准 AI SDK provider 走统一 agentLoop 路径,无需额外 adapter
 
 ### 为什么值得做(给决策者)
 
