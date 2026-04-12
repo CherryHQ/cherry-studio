@@ -190,14 +190,29 @@ export function useAssistant(id: string) {
 export function useDefaultAssistant() {
   const defaultAssistant = useAppSelector((state) => state.assistants.defaultAssistant)
   const dispatch = useAppDispatch()
+  const { defaultModel } = useDefaultModel()
   const memoizedTopics = useMemo(() => [getDefaultTopic(defaultAssistant.id)], [defaultAssistant.id])
+  const resolvedDefaultModel = defaultAssistant.defaultModel ?? defaultModel
+  const resolvedModel = defaultAssistant.model ?? resolvedDefaultModel
 
   return {
     defaultAssistant: {
       ...defaultAssistant,
+      defaultModel: resolvedDefaultModel,
+      model: resolvedModel,
       topics: memoizedTopics
     },
-    updateDefaultAssistant: (assistant: Assistant) => dispatch(updateDefaultAssistant({ assistant }))
+    updateDefaultAssistant: (assistant: Assistant) =>
+      dispatch(
+        updateDefaultAssistant({
+          assistant: {
+            ...assistant,
+            model: defaultAssistant.model,
+            defaultModel: defaultAssistant.defaultModel,
+            topics: defaultAssistant.topics
+          }
+        })
+      )
   }
 }
 

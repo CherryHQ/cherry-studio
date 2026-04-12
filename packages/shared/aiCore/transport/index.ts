@@ -33,6 +33,10 @@ export interface AiChatRequestBody {
   topicId: string
   /** Assistant configuration ID. */
   assistantId?: string
+  /** Explicit provider ID for model resolution in Main. */
+  providerId?: string
+  /** Explicit model ID for model resolution in Main. */
+  modelId?: string
   /** Models mentioned via @ in the input (multi-model fan-out). */
   mentionedModels?: Array<{ id: string; name?: string }>
   /** Uploaded file metadata. */
