@@ -165,12 +165,14 @@ const Container = styled.div`
   display: flex;
   flex-direction: column;
   flex: 1;
+  min-height: 0;
 `
 
 const ContentContainer = styled.div`
   display: flex;
   flex: 1;
   flex-direction: row;
+  min-height: 0;
   height: calc(100vh - var(--navbar-height));
   padding: 1px 0;
 `
@@ -179,6 +181,7 @@ const SettingMenus = styled(Scrollbar)`
   display: flex;
   flex-direction: column;
   min-width: var(--settings-width);
+  min-height: 0;
   border-right: 0.5px solid var(--color-border);
   padding: 10px;
   user-select: none;
@@ -218,6 +221,7 @@ const MenuItem = styled.li`
 const SettingContent = styled.div`
   display: flex;
   height: 100%;
+  min-height: 0;
   flex: 1;
 `
 
