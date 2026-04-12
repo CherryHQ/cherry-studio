@@ -1,4 +1,4 @@
-import { application } from '@main/core/application'
+import { application } from '@application'
 import type { Notification } from '@types'
 import { Notification as ElectronNotification } from 'electron'
 

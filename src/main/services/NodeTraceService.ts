@@ -1,6 +1,6 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { isDev } from '@main/constant'
-import { application } from '@main/core/application'
 import {
   type Activatable,
   BaseService,

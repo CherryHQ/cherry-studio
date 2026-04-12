@@ -2,8 +2,8 @@ import { exec } from 'node:child_process'
 import fs from 'node:fs/promises'
 import { promisify } from 'node:util'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { app } from 'electron'
 

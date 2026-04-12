@@ -6,9 +6,9 @@
  * - Listing with optional filters (isActive, type)
  */
 
+import { application } from '@application'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateMCPServerDto, ListMCPServersQuery, UpdateMCPServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { MCPServer } from '@shared/data/types/mcpServer'

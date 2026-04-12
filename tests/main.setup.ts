@@ -44,7 +44,7 @@ vi.mock('@main/data/db/DbService', async () => {
 })
 
 // Mock application globally - provides type-safe service access via application.get()
-vi.mock('@main/core/application', async () => {
+vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('./__mocks__/main/application')
   return mockApplicationFactory()
 })

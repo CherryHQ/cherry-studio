@@ -1,4 +1,4 @@
-import { application } from '@main/core/application'
+import { application } from '@application'
 import { IpcChannel } from '@shared/IpcChannel'
 import { parseDataUrl } from '@shared/utils'
 

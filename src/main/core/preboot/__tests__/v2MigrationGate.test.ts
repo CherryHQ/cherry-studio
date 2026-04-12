@@ -13,7 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  *     manager, and IPC handler registration functions are all backed by
  *     shared vi.fn() instances at module scope so assertions can inspect
  *     call order across test boundaries.
- *   - `@main/core/application` is globally mocked in tests/main.setup.ts
+ *   - `@application` is globally mocked in tests/main.setup.ts
  *     but the global mock has no `quit()`; we shadow it per test with a
  *     factory that provides a spy-able `quit`.
  *   - `electron` is shadowed so `app.whenReady()` resolves synchronously
@@ -88,7 +88,7 @@ function stubElectron() {
 }
 
 function stubApplication() {
-  vi.doMock('@main/core/application', () => ({
+  vi.doMock('@application', () => ({
     application: {
       quit: appQuitMock
     }
