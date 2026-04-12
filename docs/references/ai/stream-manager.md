@@ -125,33 +125,72 @@ interface StreamTarget {
 
 ```typescript
 class InternalStreamTarget implements StreamTarget {
-  constructor(manager: ManagerCallbacks, topicId: string)
+  constructor(manager: ManagerCallbacks, topicId: string, modelId: UniqueModelId)
 
-  send(channel, payload) → 根据 channel 类型分发到 manager.onChunk / onDone / onError
-  isDestroyed()          → manager.shouldStopStream(topicId)
-  setFinalMessage(msg)   → manager.setStreamFinalMessage(topicId, msg)
+  send(channel, payload) → onChunk (topic-level), onExecutionDone / onExecutionError (per-execution)
+  isDestroyed()          → manager.shouldStopExecution(topicId, modelId)
+  setFinalMessage(msg)   → manager.setExecutionFinalMessage(topicId, modelId, msg)
 }
 ```
 
-绑定 `topicId`。上游产出的 chunk/done/error 通过 topicId 路由回对应的 ActiveStream。
+绑定 `topicId` + `modelId`。chunks 是 topic 级别广播(所有 listener 都收到);done/error/stop 是 per-execution 级别(精确到哪个模型)。
 
-## ActiveStream: 一次生成的完整状态
+## StreamExecution: 单个模型的执行状态
+
+```typescript
+interface StreamExecution {
+  modelId: UniqueModelId           // "providerId::modelId"
+  abortController: AbortController // 独立 abort — 多模型时互不影响
+  status: 'streaming' | 'done' | 'error' | 'aborted'
+  finalMessage?: CherryUIMessage
+  error?: SerializedError
+  siblingsGroupId?: number         // 多模型: 共享的组 id
+  sourceSessionId?: string         // Claude Agent SDK resume token
+}
+```
+
+## ActiveStream: topic 级别的流状态
 
 ```typescript
 interface ActiveStream {
   topicId: string
-  abortController: AbortController
-  listeners: Map<string, StreamListener>
-  pendingMessages: PendingMessageQueue
-  buffer: UIMessageChunk[]
-  status: 'streaming' | 'done' | 'error' | 'aborted'
-  finalMessage?: CherryUIMessage
-  error?: SerializedError
+  executions: Map<UniqueModelId, StreamExecution>  // 单模型: 1 条; 多模型: N 条
+  listeners: Map<string, StreamListener>           // 所有 execution 共享
+  pendingMessages: PendingMessageQueue             // 所有 execution 共享
+  buffer: UIMessageChunk[]                         // 所有 execution 的 chunks 混合缓存
+  status: 'streaming' | 'done' | 'error' | 'aborted'  // 从 executions 派生
   reapAt?: number
   reapTimer?: ReturnType<typeof setTimeout>
-  sourceSessionId?: string       // Claude Agent SDK resume token
 }
 ```
+
+Topic 状态从 executions 派生:
+- 任一 execution 仍在 streaming → topic 状态 = `'streaming'`
+- 全部 done → `'done'`
+- 全部 aborted → `'aborted'`
+- 有 error 且无 streaming → `'error'`
+
+## 多模型问答
+
+用户通过 @mentions 触发多个模型并行回复同一条消息:
+
+```
+用户: "解释量子力学" @gpt-4o @claude-sonnet
+
+handleStreamRequest:
+  1. 持久化 user message
+  2. 检测 mentionedModels = [openai::gpt-4o, anthropic::claude-sonnet]
+  3. siblingsGroupId = 生成共享组 id
+  4. 对每个模型调 startExecution:
+     startExecution({ topicId, modelId: 'openai::gpt-4o', siblingsGroupId, ... })
+     startExecution({ topicId, modelId: 'anthropic::claude-sonnet', siblingsGroupId, ... })
+  5. 两个 execution 在同一个 ActiveStream 里并行运行
+  6. chunks 混合广播给所有 listener (UI 通过 part id 区分)
+  7. PersistenceListener 为每个 execution 的 onDone 各持久化一条 assistant 消息
+     (共享 siblingsGroupId,UI 渲染为并列回复)
+```
+
+单模型场景下只有 1 个 execution,零额外开销。
 
 ## 完整数据流
 
@@ -175,12 +214,12 @@ Renderer                           Main
                                     │     WebContentsListener(sender, topicId)
                                     │     PersistenceListener({ topicId, ... })
                                     │
-                                    └─ 6. send() → startStream()
+                                    └─ 6. send() → startExecution()
                                           │
-                                          ├─ 创建 ActiveStream
+                                          ├─ 创建 ActiveStream + StreamExecution
                                           ├─ activeStreams.set(topicId, stream)
-                                          ├─ target = InternalStreamTarget(manager, topicId)
-                                          └─ AiService.executeStream(target, req, { signal })
+                                          ├─ target = InternalStreamTarget(manager, topicId, modelId)
+                                          └─ AiService.executeStream(target, req, signal)
                                                     │
 7. ←── Ai_StreamChunk ──── WebContentsListener ←── onChunk(广播)
 8. ←── Ai_StreamChunk ──── ...
