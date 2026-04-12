@@ -7,6 +7,7 @@ import { getIpCountry } from '@main/utils/ipService'
 import { loadOcrImage } from '@main/utils/ocr'
 import { MB } from '@shared/config/constant'
 import { app } from 'electron'
+import PQueue from 'p-queue'
 import type { LanguageCode } from 'tesseract.js'
 import type Tesseract from 'tesseract.js'
 import { createWorker } from 'tesseract.js'
@@ -29,7 +30,9 @@ export class TesseractRuntimeService extends BaseService {
   // TODO(file-processing): When ProcessManagerService lands, move the shared
   // worker lifecycle and concurrency control behind a managed utility process
   // or process pool instead of keeping the runtime in the main process.
-  private extractionQueue: Promise<void> = Promise.resolve()
+  private extractionQueue = new PQueue({
+    concurrency: 1
+  })
 
   protected async onInit(): Promise<void> {
     this.acceptingTasks = true
@@ -41,8 +44,8 @@ export class TesseractRuntimeService extends BaseService {
     this.shutdownController?.abort(this.createAbortError('Tesseract runtime is stopping'))
 
     await this.disposeWorker()
-    await this.extractionQueue
-    this.extractionQueue = Promise.resolve()
+    await this.extractionQueue.onIdle()
+    await this.disposeWorker()
     this.shutdownController = null
 
     logger.debug('Tesseract runtime cleanup completed')
@@ -55,7 +58,7 @@ export class TesseractRuntimeService extends BaseService {
 
     context.signal?.throwIfAborted()
 
-    return this.runInExtractionQueue(async () => {
+    const extractionResult = await this.extractionQueue.add(async () => {
       this.throwIfStopped()
       context.signal?.throwIfAborted()
 
@@ -81,6 +84,12 @@ export class TesseractRuntimeService extends BaseService {
         text: result.data.text
       }
     })
+
+    if (!extractionResult) {
+      throw new Error('Tesseract extraction task did not return a result')
+    }
+
+    return extractionResult
   }
 
   private async getWorker(langs: LanguageCode[]): Promise<Tesseract.Worker> {
@@ -96,11 +105,19 @@ export class TesseractRuntimeService extends BaseService {
         langs
       })
 
-      this.sharedWorker = await createWorker(langs, undefined, {
+      const nextWorker = await createWorker(langs, undefined, {
         langPath: await this.getLangPath(),
         cachePath: await this.getCacheDir(),
         logger: (message) => logger.debug('Tesseract worker event', message)
       })
+      try {
+        this.throwIfStopped()
+      } catch (error) {
+        await nextWorker.terminate().catch(() => undefined)
+        throw error
+      }
+
+      this.sharedWorker = nextWorker
       this.previousLangsKey = langsKey
     }
 
@@ -128,15 +145,6 @@ export class TesseractRuntimeService extends BaseService {
     const cacheDir = path.join(app.getPath('userData'), 'tesseract')
     await fs.promises.mkdir(cacheDir, { recursive: true })
     return cacheDir
-  }
-
-  private runInExtractionQueue<T>(task: () => Promise<T>): Promise<T> {
-    const nextTask = this.extractionQueue.then(task)
-    this.extractionQueue = nextTask.then(
-      () => undefined,
-      () => undefined
-    )
-    return nextTask
   }
 
   private throwIfStopped(): void {

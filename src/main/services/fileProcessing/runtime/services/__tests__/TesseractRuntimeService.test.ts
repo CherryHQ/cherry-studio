@@ -159,4 +159,55 @@ describe('TesseractRuntimeService', () => {
       })
     ).rejects.toThrow('TesseractRuntimeService is not initialized')
   })
+
+  it('terminates a worker created after stop starts while createWorker is still pending', async () => {
+    let resolveWorker!: (worker: { recognize: ReturnType<typeof vi.fn>; terminate: ReturnType<typeof vi.fn> }) => void
+    const recognizeMock = vi.fn().mockResolvedValue({
+      data: {
+        text: 'hello'
+      }
+    })
+    const terminateMock = vi.fn().mockResolvedValue(undefined)
+    createWorkerMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveWorker = resolve
+        })
+    )
+
+    service = new TesseractRuntimeService()
+    await service._doInit()
+
+    const extractPromise = service.extract({
+      file: {
+        id: 'file-1',
+        name: 'scan.png',
+        origin_name: 'scan.png',
+        path: '/tmp/scan.png',
+        size: 1024,
+        ext: '.png',
+        type: 'image',
+        created_at: '2026-03-31T00:00:00.000Z',
+        count: 1
+      },
+      langs: ['eng']
+    })
+
+    await vi.waitFor(() => {
+      expect(createWorkerMock).toHaveBeenCalledTimes(1)
+    })
+
+    const stopPromise = service._doStop()
+    resolveWorker({
+      recognize: recognizeMock,
+      terminate: terminateMock
+    })
+
+    await expect(extractPromise).rejects.toMatchObject({
+      name: 'AbortError'
+    })
+    await stopPromise
+
+    expect(terminateMock).toHaveBeenCalledTimes(1)
+  })
 })
