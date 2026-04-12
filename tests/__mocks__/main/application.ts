@@ -12,13 +12,13 @@ import { MockMainTesseractRuntimeServiceExport } from './TesseractRuntimeService
  * Unified mock application factory for main process testing.
  *
  * Usage in vi.mock():
- *   vi.mock('@main/core/application', async () => {
+ *   vi.mock('@application', async () => {
  *     const { mockApplicationFactory } = await import('@test-mocks/main/application')
  *     return mockApplicationFactory()
  *   })
  *
  * With service overrides:
- *   vi.mock('@main/core/application', async () => {
+ *   vi.mock('@application', async () => {
  *     const { mockApplicationFactory } = await import('@test-mocks/main/application')
  *     return mockApplicationFactory({
  *       DbService: { getDb: () => customMockDb }
@@ -75,7 +75,7 @@ export function createMockApplication(overrides: ServiceOverrides = {}) {
 }
 
 /**
- * Create the full mock module for vi.mock('@main/core/application', ...).
+ * Create the full mock module for vi.mock('@application', ...).
  * Returns { application, serviceList }.
  */
 export function mockApplicationFactory(overrides: ServiceOverrides = {}) {

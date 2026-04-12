@@ -4,6 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { HOME_CHERRY_DIR } from '@shared/config/constant'

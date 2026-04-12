@@ -1,7 +1,7 @@
+import { application } from '@application'
 import type { Client } from '@libsql/client'
 import { createClient } from '@libsql/client'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import Embeddings from '@main/knowledge/embedjs/embeddings/Embeddings'
 import type {
   AddMemoryOptions,

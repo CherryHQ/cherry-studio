@@ -1,7 +1,7 @@
-import { is } from '@electron-toolkit/utils'
+import { application } from '@application'
+import { is, optimizer } from '@electron-toolkit/utils'
 import { loggerService } from '@logger'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
-import { application } from '@main/core/application'
 import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
@@ -44,9 +44,18 @@ export class WindowService extends BaseService {
   }
 
   protected async onInit() {
+    this.registerWindowShortcuts()
     this.registerIpcHandlers()
     this.registerActivateHandler()
     this.registerSecondInstanceHandler()
+  }
+
+  private registerWindowShortcuts() {
+    const handler = (_: Electron.Event, window: BrowserWindow) => {
+      optimizer.watchWindowShortcuts(window)
+    }
+    app.on('browser-window-created', handler)
+    this.registerDisposable(() => app.removeListener('browser-window-created', handler))
   }
 
   protected async onReady() {

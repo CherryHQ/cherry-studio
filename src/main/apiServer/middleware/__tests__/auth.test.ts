@@ -8,7 +8,7 @@ const { mockPreferenceGet } = vi.hoisted(() => ({
   mockPreferenceGet: vi.fn()
 }))
 
-vi.mock('@main/core/application', async () => {
+vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
     PreferenceService: { get: mockPreferenceGet }

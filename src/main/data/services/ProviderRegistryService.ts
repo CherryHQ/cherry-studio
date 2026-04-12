@@ -10,12 +10,12 @@
  * (RegistryLoader, buildRuntimeEndpointConfigs).
  */
 
+import { application } from '@application'
 import type { ProtoModelConfig, ProtoProviderModelOverride } from '@cherrystudio/provider-registry'
 import type { EndpointType } from '@cherrystudio/provider-registry'
 import { buildRuntimeEndpointConfigs } from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import { ErrorCode, isDataApiError } from '@shared/data/api/apiErrors'
 import type { Model } from '@shared/data/types/model'
 import type { EndpointConfig, ReasoningFormatType } from '@shared/data/types/provider'

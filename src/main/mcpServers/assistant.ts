@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
@@ -538,7 +539,7 @@ class AssistantServer {
       const defaultModel = configManager.get<Record<string, unknown>>('defaultModel', {})
       const topicNamingModel = configManager.get<Record<string, unknown>>('topicNamingModel', {})
 
-      const { application } = await import('@main/core/application')
+      const { application } = await import('@application')
       const preferenceService = application.get('PreferenceService')
 
       const settings = {

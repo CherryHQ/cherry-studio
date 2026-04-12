@@ -49,7 +49,7 @@ vi.mock('node:os', async (importOriginal) => {
   return (await importOriginal()) as any
 })
 
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: {
     getPath: getPathMock
   }

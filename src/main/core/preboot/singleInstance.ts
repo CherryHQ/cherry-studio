@@ -1,5 +1,5 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import { app } from 'electron'
 
 const logger = loggerService.withContext('SingleInstance')

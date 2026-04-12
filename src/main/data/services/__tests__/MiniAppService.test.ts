@@ -9,7 +9,7 @@ const mockUpdate = vi.fn()
 const mockDelete = vi.fn()
 const mockTransaction = vi.fn()
 
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: {
     get: vi.fn(() => ({
       getDb: vi.fn(() => ({

@@ -135,7 +135,7 @@ unsubscribe()
 In the main process, PreferenceService is lifecycle-managed. Access it via `application.get()`:
 
 ```typescript
-import { application } from '@main/core/application'
+import { application } from '@application'
 
 const preferenceService = application.get('PreferenceService')
 

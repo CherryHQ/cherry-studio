@@ -6,10 +6,11 @@
     "incremental": true,
     "moduleResolution": "bundler",
     "paths": {
+      "@application": ["./src/main/core/application"],
       "@cherrystudio/provider-registry": ["./packages/provider-registry/src/index.ts"],
       "@cherrystudio/provider-registry/node": ["./packages/provider-registry/src/registry-loader.ts"],
       "@data/*": ["./src/main/data/*"],
-      "@logger": ["./src/main/services/LoggerService"],
+      "@logger": ["./src/main/core/logger/LoggerService"],
       "@main/*": ["./src/main/*"],
       "@mcp-trace/*": ["./packages/mcp-trace/*"],
       "@modelcontextprotocol/sdk/*": ["./node_modules/@modelcontextprotocol/sdk/dist/esm/*"],

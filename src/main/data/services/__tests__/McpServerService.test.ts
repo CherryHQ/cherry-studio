@@ -72,7 +72,7 @@ function mockChain(resolvedValue: unknown) {
 
 let mockDb: any
 
-vi.mock('@main/core/application', async () => {
+vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
     DbService: { getDb: () => mockDb }

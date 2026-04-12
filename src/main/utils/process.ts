@@ -1,3 +1,4 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import type { GitBashPathInfo, GitBashPathSource } from '@shared/config/constant'
