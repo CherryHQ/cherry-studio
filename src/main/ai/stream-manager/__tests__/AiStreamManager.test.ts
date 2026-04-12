@@ -89,12 +89,17 @@ describe('AiStreamManager', () => {
     vi.useRealTimers()
   })
 
-  // ── startStream ─────────────────────────────────────────────────
+  // ── startExecution ─────────────────────────────────────────────────
 
-  describe('startStream', () => {
+  describe('startExecution', () => {
     it('creates stream and calls executeStream with correct args', () => {
       const listener = new FakeListener('l:a')
-      const stream = mgr.startStream({ topicId: 'a', request: req('a'), listeners: [listener] })
+      const stream = mgr.startExecution({
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [listener]
+      })
 
       expect(stream.topicId).toBe('a')
       expect(stream.status).toBe('streaming')
@@ -104,25 +109,44 @@ describe('AiStreamManager', () => {
       expect(mockExecuteStream).toHaveBeenCalledOnce()
       const [target, , signal] = mockExecuteStream.mock.calls[0]
       expect(target).toBeInstanceOf(InternalStreamTarget)
-      expect(signal).toBe(stream.abortController.signal)
+      expect(signal).toBe(stream.executions.values().next().value!.abortController.signal)
     })
 
     it('throws on duplicate streaming topic', () => {
-      mgr.startStream({ topicId: 'a', request: req('a'), listeners: [new FakeListener('l1:a')] })
+      mgr.startExecution({
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('l1:a')]
+      })
 
-      expect(() => mgr.startStream({ topicId: 'a', request: req('a'), listeners: [new FakeListener('l2:a')] })).toThrow(
-        'already has an active stream'
-      )
+      expect(() =>
+        mgr.startExecution({
+          topicId: 'a',
+          modelId: 'provider-a::model-a',
+          request: req('a'),
+          listeners: [new FakeListener('l2:a')]
+        })
+      ).toThrow('already has an execution')
     })
 
-    it('evicts finished stream and inherits sourceSessionId', async () => {
-      const s1 = mgr.startStream({ topicId: 'a', request: req('a'), listeners: [new FakeListener('l1:a')] })
-      s1.sourceSessionId = 'sdk-session-42'
+    it('evicts finished stream and creates new one', async () => {
+      mgr.startExecution({
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('l1:a')]
+      })
       await mgr.onDone('a', 'success')
 
-      const s2 = mgr.startStream({ topicId: 'a', request: req('a'), listeners: [new FakeListener('l2:a')] })
+      const s2 = mgr.startExecution({
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('l2:a')]
+      })
       expect(s2.status).toBe('streaming')
-      expect(s2.sourceSessionId).toBe('sdk-session-42')
+      expect(s2.executions.size).toBe(1)
     })
   })
 
@@ -131,12 +155,18 @@ describe('AiStreamManager', () => {
   describe('send', () => {
     it('steers into existing stream without calling executeStream again', () => {
       const l1 = new FakeListener('l:a')
-      const stream = mgr.startStream({ topicId: 'a', request: req('a'), listeners: [l1] })
+      const stream = mgr.startExecution({
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [l1]
+      })
       expect(mockExecuteStream).toHaveBeenCalledTimes(1)
 
       const l2 = new FakeListener('l:a') // same id → upsert
       const result = mgr.send({
         topicId: 'a',
+        modelId: 'provider-a::model-a',
         request: req('a'),
         userMessage: {
           id: 'user-2',
@@ -163,6 +193,7 @@ describe('AiStreamManager', () => {
     it('starts new stream when no active stream exists', () => {
       const result = mgr.send({
         topicId: 'b',
+        modelId: 'provider-b::model-b',
         request: req('b'),
         userMessage: {
           id: 'user-1',
@@ -188,7 +219,7 @@ describe('AiStreamManager', () => {
     it('multicasts to all alive listeners', () => {
       const l1 = new FakeListener('l1:a')
       const l2 = new FakeListener('l2:a')
-      mgr.startStream({ topicId: 'a', request: req('a'), listeners: [l1, l2] })
+      mgr.startExecution({ topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [l1, l2] })
 
       mgr.onChunk('a', chunk('hi'))
 
@@ -201,7 +232,12 @@ describe('AiStreamManager', () => {
       const dead = new FakeListener('dead:a')
       dead.alive = false
 
-      const stream = mgr.startStream({ topicId: 'a', request: req('a'), listeners: [alive, dead] })
+      const stream = mgr.startExecution({
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [alive, dead]
+      })
       mgr.onChunk('a', chunk('x'))
 
       expect(alive.chunks).toHaveLength(1)
@@ -210,7 +246,12 @@ describe('AiStreamManager', () => {
     })
 
     it('buffers chunks and replays to late-joining listener', () => {
-      mgr.startStream({ topicId: 'a', request: req('a'), listeners: [new FakeListener('early:a')] })
+      mgr.startExecution({
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('early:a')]
+      })
       mgr.onChunk('a', chunk('a'))
       mgr.onChunk('a', chunk('b'))
 
@@ -222,7 +263,7 @@ describe('AiStreamManager', () => {
 
     it('does not deliver to a non-streaming topic', async () => {
       const l = new FakeListener('l:a')
-      mgr.startStream({ topicId: 'a', request: req('a'), listeners: [l] })
+      mgr.startExecution({ topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [l] })
       await mgr.onDone('a')
 
       mgr.onChunk('a', chunk('late'))
@@ -235,7 +276,12 @@ describe('AiStreamManager', () => {
   describe('onDone', () => {
     it('broadcasts with finalMessage and status', async () => {
       const l = new FakeListener('l:a')
-      const stream = mgr.startStream({ topicId: 'a', request: req('a'), listeners: [l] })
+      const stream = mgr.startExecution({
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [l]
+      })
       mgr.setStreamFinalMessage('a', { id: '1', role: 'assistant', parts: [] } as any)
 
       await mgr.onDone('a', 'success')
@@ -247,7 +293,12 @@ describe('AiStreamManager', () => {
     })
 
     it('maps paused status to aborted state', async () => {
-      const stream = mgr.startStream({ topicId: 'a', request: req('a'), listeners: [new FakeListener('l:a')] })
+      const stream = mgr.startExecution({
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('l:a')]
+      })
       await mgr.onDone('a', 'paused')
 
       expect(stream.status).toBe('aborted')
@@ -260,7 +311,12 @@ describe('AiStreamManager', () => {
       }
       const receiver = new FakeListener('receiver:a')
 
-      mgr.startStream({ topicId: 'a', request: req('a'), listeners: [thrower, receiver] })
+      mgr.startExecution({
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [thrower, receiver]
+      })
       await mgr.onDone('a', 'success')
 
       // Both listeners received onDone despite thrower throwing
@@ -274,7 +330,12 @@ describe('AiStreamManager', () => {
   describe('onError', () => {
     it('broadcasts error and sets stream status', async () => {
       const l = new FakeListener('l:a')
-      const stream = mgr.startStream({ topicId: 'a', request: req('a'), listeners: [l] })
+      const stream = mgr.startExecution({
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [l]
+      })
 
       await mgr.onError('a', error('fail'))
 
@@ -287,16 +348,26 @@ describe('AiStreamManager', () => {
 
   describe('abort', () => {
     it('sets status and triggers AbortController signal', () => {
-      const stream = mgr.startStream({ topicId: 'a', request: req('a'), listeners: [new FakeListener('l:a')] })
+      const stream = mgr.startExecution({
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('l:a')]
+      })
 
       mgr.abort('a', 'user-stop')
 
       expect(stream.status).toBe('aborted')
-      expect(stream.abortController.signal.aborted).toBe(true)
+      expect(stream.executions.values().next().value!.abortController.signal.aborted).toBe(true)
     })
 
     it('does not affect non-streaming topics', async () => {
-      const stream = mgr.startStream({ topicId: 'a', request: req('a'), listeners: [new FakeListener('l:a')] })
+      const stream = mgr.startExecution({
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('l:a')]
+      })
       await mgr.onDone('a')
 
       // Abort on a finished stream → no-op (status stays 'done')
@@ -310,7 +381,7 @@ describe('AiStreamManager', () => {
   describe('listener management', () => {
     it('upserts by id — new listener replaces old with same id', () => {
       const l1 = new FakeListener('same:a')
-      mgr.startStream({ topicId: 'a', request: req('a'), listeners: [l1] })
+      mgr.startExecution({ topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [l1] })
 
       const l2 = new FakeListener('same:a')
       mgr.addListener('a', l2)
@@ -322,7 +393,7 @@ describe('AiStreamManager', () => {
 
     it('removeListener prevents further delivery', () => {
       const l = new FakeListener('l:a')
-      mgr.startStream({ topicId: 'a', request: req('a'), listeners: [l] })
+      mgr.startExecution({ topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [l] })
 
       mgr.removeListener('a', 'l:a')
       mgr.onChunk('a', chunk('x'))
@@ -335,7 +406,12 @@ describe('AiStreamManager', () => {
 
   describe('shouldStopStream', () => {
     it('returns false while streaming, true after abort', () => {
-      mgr.startStream({ topicId: 'a', request: req('a'), listeners: [new FakeListener('l:a')] })
+      mgr.startExecution({
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('l:a')]
+      })
       expect(mgr.shouldStopStream('a')).toBe(false)
 
       mgr.abort('a', 'stop')
@@ -348,7 +424,7 @@ describe('AiStreamManager', () => {
   describe('grace period', () => {
     it('stream remains accessible during grace period', async () => {
       const l = new FakeListener('l:a')
-      mgr.startStream({ topicId: 'a', request: req('a'), listeners: [l] })
+      mgr.startExecution({ topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [l] })
       mgr.setStreamFinalMessage('a', { id: '1' } as any)
       await mgr.onDone('a', 'success')
 
@@ -363,7 +439,12 @@ describe('AiStreamManager', () => {
     })
 
     it('stream is reaped after grace period expires', async () => {
-      mgr.startStream({ topicId: 'a', request: req('a'), listeners: [new FakeListener('l:a')] })
+      mgr.startExecution({
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('l:a')]
+      })
       await mgr.onDone('a', 'success')
 
       // Advance past grace period (default 30s)
@@ -379,7 +460,12 @@ describe('AiStreamManager', () => {
 
   describe('steer', () => {
     it('pushes to pending queue of active stream', () => {
-      const stream = mgr.startStream({ topicId: 'a', request: req('a'), listeners: [new FakeListener('l:a')] })
+      const stream = mgr.startExecution({
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('l:a')]
+      })
 
       expect(
         mgr.steer('a', {

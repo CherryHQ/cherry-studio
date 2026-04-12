@@ -1,4 +1,5 @@
 import type { CherryUIMessage } from '@shared/data/types/message'
+import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 
@@ -78,40 +79,72 @@ export interface StreamListener {
   isAlive(): boolean
 }
 
+// ── StreamExecution ─────────────────────────────────────────────────
+
+/**
+ * One model's execution within an ActiveStream.
+ *
+ * Single-model (common case): ActiveStream.executions has 1 entry.
+ * Multi-model (@gpt-4o @claude-sonnet): N entries, each running independently
+ * but sharing the same topic listeners and siblingsGroupId.
+ */
+export interface StreamExecution {
+  /** Model id for this execution (also the key in ActiveStream.executions). Format: "providerId::modelId". */
+  modelId: UniqueModelId
+  /** Independent abort — aborting one model doesn't stop others in multi-model. */
+  abortController: AbortController
+  status: 'streaming' | 'done' | 'error' | 'aborted'
+  /** Full UIMessage for this execution, set by upstream via setFinalMessage. */
+  finalMessage?: CherryUIMessage
+  error?: SerializedError
+  /** Multi-model: shared group id so parallel responses appear as siblings in UI. */
+  siblingsGroupId?: number
+  /** Backend-specific resume token (ClaudeCodeService). */
+  sourceSessionId?: string
+}
+
 // ── ActiveStream ────────────────────────────────────────────────────
 
 /**
- * Runtime state for one generation attempt, keyed by `topicId` in the
- * AiStreamManager's `activeStreams` Map.
+ * Topic-level stream state, keyed by `topicId` in AiStreamManager.
  *
  * One topic has at most one ActiveStream at any time. Streaming is just
  * one state of a topic — all subscribers subscribe to the topic.
+ *
+ * Contains one or more StreamExecutions — one per model:
+ *  - Single-model: executions has 1 entry
+ *  - Multi-model: executions has N entries (one per @mentioned model)
+ *
+ * Topic-level status is derived from executions:
+ *  - Any execution streaming → 'streaming'
+ *  - All executions done → 'done'
+ *  - Any execution errored (none streaming) → 'error'
+ *  - All executions aborted → 'aborted'
  */
 export interface ActiveStream {
   /** Primary key — the Cherry Studio conversation this stream belongs to. */
   topicId: string
-  /** Optional dedup token for rapid-retry detection. */
 
-  /** Owned by AiStreamManager, independent of any Renderer lifecycle. */
-  abortController: AbortController
-  /** All consumers. Key = listener.id. */
+  /**
+   * Per-model executions. Key = UniqueModelId ("providerId::modelId").
+   * Single-model: 1 entry. Multi-model: N entries.
+   */
+  executions: Map<UniqueModelId, StreamExecution>
+
+  /** All consumers. Key = listener.id. Shared across all executions. */
   listeners: Map<string, StreamListener>
-  /** Steering queue — messages the user sends while this stream is still running. */
+  /** Steering queue — shared, drained by all active executions. */
   pendingMessages: PendingMessageQueue
-  /** Ordered chunk buffer for reconnect replay. */
+  /** Chunk buffer for reconnect replay — interleaved from all executions. */
   buffer: UIMessageChunk[]
 
+  /** Topic-level status, derived from executions. */
   status: 'streaming' | 'done' | 'error' | 'aborted'
-  /** Full UIMessage set by upstream via `InternalStreamTarget.setFinalMessage()`. */
-  finalMessage?: CherryUIMessage
-  error?: SerializedError
 
   /** Grace-period reap timestamp (ms since epoch). */
   reapAt?: number
   /** Timer handle for `scheduleReap`, so `evictStream` can cancel it. */
   reapTimer?: ReturnType<typeof setTimeout>
-  /** Backend-specific resume token (currently only used by ClaudeCodeService). */
-  sourceSessionId?: string
 }
 
 // ── Config ──────────────────────────────────────────────────────────

@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { messageService } from '@main/data/services/MessageService'
+import { reduxService } from '@main/services/ReduxService'
 import type {
   AiStreamAbortRequest,
   AiStreamAttachRequest,
@@ -10,6 +11,7 @@ import type {
   AiStreamOpenRequest
 } from '@shared/ai/transport'
 import type { Message } from '@shared/data/types/message'
+import type { UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { SerializedError } from '@shared/types/error'
 import { serializeError } from '@shared/types/error'
@@ -20,21 +22,20 @@ import { PendingMessageQueue } from '../PendingMessageQueue'
 import { InternalStreamTarget } from './InternalStreamTarget'
 import { PersistenceListener } from './listeners/PersistenceListener'
 import { WebContentsListener } from './listeners/WebContentsListener'
-import type { ActiveStream, AiStreamManagerConfig, CherryUIMessage, StreamListener } from './types'
+import type { ActiveStream, AiStreamManagerConfig, CherryUIMessage, StreamExecution, StreamListener } from './types'
 
 const logger = loggerService.withContext('AiStreamManager')
 
 /**
  * Active-stream registry for AI streaming.
  *
- * Keyed by `topicId` — one topic has at most one active stream at any time.
- * Streaming is just one state of a topic; all subscribers subscribe to the
- * topic, not to a specific stream.
+ * Keyed by `topicId` — one topic has at most one ActiveStream at any time.
+ * Each ActiveStream contains one or more StreamExecutions (one per model).
+ * Streaming is just one state of a topic; all subscribers subscribe to the topic.
  */
 @Injectable('AiStreamManager')
 @ServicePhase(Phase.WhenReady)
 export class AiStreamManager extends BaseService {
-  /** Primary registry: topicId → ActiveStream. One topic, one stream. */
   private readonly activeStreams = new Map<string, ActiveStream>()
 
   private readonly config: AiStreamManagerConfig = {
@@ -73,56 +74,70 @@ export class AiStreamManager extends BaseService {
       .map(([topicId]) => topicId)
 
     if (activeTopics.length === 0) return
-
     logger.info('Stopping active streams on shutdown', { count: activeTopics.length })
 
     for (const topicId of activeTopics) {
       this.abort(topicId, 'app-shutdown')
     }
 
-    // Give PersistenceListeners a chance to persist partial results.
-    // onDone('paused') is async — wait for all to settle.
-    await Promise.allSettled(activeTopics.map((topicId) => this.onDone(topicId, 'paused')))
+    // Wait for all PersistenceListeners to finish persisting partial results
+    const donePromises: Promise<void>[] = []
+    for (const topicId of activeTopics) {
+      const stream = this.activeStreams.get(topicId)
+      if (!stream) continue
+      for (const exec of stream.executions.values()) {
+        donePromises.push(this.broadcastExecutionDone(stream, exec, 'paused'))
+      }
+    }
+    await Promise.allSettled(donePromises)
   }
 
-  // ── Public: start / send / steer ──────────────────────────────────
+  // ── Public: start execution ───────────────────────────────────────
 
   /**
-   * Start a new stream for a topic.
+   * Start a new execution for a topic.
    *
-   * - If the topic has no active stream → create one
-   * - If the topic has a finished stream (grace period) → evict it, create new
-   * - If the topic already has a streaming stream → throw (use `send()` to steer instead)
+   * Single-model: creates a new ActiveStream with one execution.
+   * Multi-model: can add an execution to an existing streaming ActiveStream.
+   *
+   * @param modelId - The model id for this execution. Must come from the resolved
+   *                  assistant config, not a magic string.
    */
-  startStream(input: { topicId: string; request: AiStreamRequest; listeners: StreamListener[] }): ActiveStream {
-    let inheritedSessionId: string | undefined
+  startExecution(input: {
+    topicId: string
+    modelId: UniqueModelId
+    request: AiStreamRequest
+    listeners: StreamListener[]
+    siblingsGroupId?: number
+  }): ActiveStream {
     const existing = this.activeStreams.get(input.topicId)
 
     if (existing) {
       if (existing.status === 'streaming') {
-        throw new Error(`Topic ${input.topicId} already has an active stream; use send() to steer`)
+        // Multi-model: add execution to existing active stream
+        if (existing.executions.has(input.modelId)) {
+          throw new Error(`Topic ${input.topicId} already has an execution for model ${input.modelId}`)
+        }
+        const exec = this.createAndLaunchExecution(input.topicId, input.modelId, input.request, input.siblingsGroupId)
+        existing.executions.set(input.modelId, exec)
+        for (const listener of input.listeners) existing.listeners.set(listener.id, listener)
+        return existing
       }
-      inheritedSessionId = existing.sourceSessionId
+      // Grace period: evict finished stream, inherit sourceSessionId
       this.evictStream(input.topicId)
     }
 
+    // Create new ActiveStream with one execution
+    const exec = this.createAndLaunchExecution(input.topicId, input.modelId, input.request, input.siblingsGroupId)
     const stream: ActiveStream = {
       topicId: input.topicId,
-      abortController: new AbortController(),
+      executions: new Map([[input.modelId, exec]]),
       listeners: new Map(input.listeners.map((l) => [l.id, l])),
       pendingMessages: new PendingMessageQueue(),
       buffer: [],
-      status: 'streaming',
-      sourceSessionId: inheritedSessionId
+      status: 'streaming'
     }
     this.activeStreams.set(input.topicId, stream)
-
-    const target = new InternalStreamTarget(this, input.topicId)
-    const aiService = application.get('AiService')
-    void aiService
-      .executeStream(target, input.request, stream.abortController.signal)
-      .catch((err: unknown) => this.onError(input.topicId, serializeError(err)))
-
     return stream
   }
 
@@ -130,18 +145,22 @@ export class AiStreamManager extends BaseService {
    * Unified "send message for a topic" entry point.
    *
    * - Topic has active streaming → steer (push to pendingMessages + add listeners)
-   * - Otherwise → startStream
+   * - Otherwise → startExecution (single-model)
    */
-  send(input: { topicId: string; request: AiStreamRequest; userMessage: Message; listeners: StreamListener[] }): {
-    mode: 'started' | 'steered'
-  } {
+  send(input: {
+    topicId: string
+    modelId: UniqueModelId
+    request: AiStreamRequest
+    userMessage: Message
+    listeners: StreamListener[]
+  }): { mode: 'started' | 'steered' } {
     const existing = this.activeStreams.get(input.topicId)
     if (existing?.status === 'streaming') {
       existing.pendingMessages.push(input.userMessage)
       for (const listener of input.listeners) this.addListener(input.topicId, listener)
       return { mode: 'steered' }
     }
-    this.startStream(input)
+    this.startExecution(input)
     return { mode: 'started' }
   }
 
@@ -170,16 +189,23 @@ export class AiStreamManager extends BaseService {
 
   // ── Public: abort ─────────────────────────────────────────────────
 
+  /** Abort all executions in a topic. */
   abort(topicId: string, reason: string): void {
     const stream = this.activeStreams.get(topicId)
     if (!stream || stream.status !== 'streaming') return
     logger.info('Aborting stream', { topicId, reason })
+    for (const exec of stream.executions.values()) {
+      if (exec.status === 'streaming') {
+        exec.status = 'aborted'
+        exec.abortController.abort(reason)
+      }
+    }
     stream.status = 'aborted'
-    stream.abortController.abort(reason)
   }
 
-  // ── InternalStreamTarget callbacks (by topicId) ───────────────────
+  // ── InternalStreamTarget callbacks ────────────────────────────────
 
+  /** Chunks are topic-level — multicast to all listeners regardless of which model produced them. */
   onChunk(topicId: string, chunk: UIMessageChunk): void {
     const stream = this.activeStreams.get(topicId)
     if (!stream || stream.status !== 'streaming') return
@@ -203,31 +229,42 @@ export class AiStreamManager extends BaseService {
     for (const id of dead) stream.listeners.delete(id)
   }
 
-  async onDone(topicId: string, status: 'success' | 'paused' = 'success'): Promise<void> {
+  /** Called when one execution finishes. Topic-level done only when ALL executions finished. */
+  async onExecutionDone(
+    topicId: string,
+    modelId: UniqueModelId,
+    status: 'success' | 'paused' = 'success'
+  ): Promise<void> {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return
 
-    stream.status = status === 'paused' ? 'aborted' : 'done'
+    const exec = stream.executions.get(modelId)
+    if (!exec || exec.status !== 'streaming') return
 
-    const result = { finalMessage: stream.finalMessage, status }
-    for (const [id, listener] of stream.listeners) {
-      try {
-        await listener.onDone(result)
-      } catch (err) {
-        logger.warn('Listener onDone threw', { topicId, listenerId: id, err })
-      }
+    exec.status = status === 'paused' ? 'aborted' : 'done'
+
+    // Broadcast per-execution done to listeners (PersistenceListener persists per execution)
+    await this.broadcastExecutionDone(stream, exec, status)
+
+    // Update topic-level status
+    stream.status = this.computeTopicStatus(stream)
+    if (stream.status !== 'streaming') {
+      this.scheduleReap(topicId)
     }
-
-    this.scheduleReap(topicId)
   }
 
-  async onError(topicId: string, error: SerializedError): Promise<void> {
+  /** Called when one execution errors. */
+  async onExecutionError(topicId: string, modelId: UniqueModelId, error: SerializedError): Promise<void> {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return
 
-    stream.status = 'error'
-    stream.error = error
+    const exec = stream.executions.get(modelId)
+    if (!exec) return
 
+    exec.status = 'error'
+    exec.error = error
+
+    // Broadcast error to listeners
     for (const [id, listener] of stream.listeners) {
       try {
         await listener.onError(error)
@@ -236,21 +273,70 @@ export class AiStreamManager extends BaseService {
       }
     }
 
-    this.scheduleReap(topicId)
+    stream.status = this.computeTopicStatus(stream)
+    if (stream.status !== 'streaming') {
+      this.scheduleReap(topicId)
+    }
   }
 
-  shouldStopStream(topicId: string): boolean {
+  /** Check if a specific execution should stop. */
+  shouldStopExecution(topicId: string, modelId: UniqueModelId): boolean {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return true
-    if (stream.status !== 'streaming') return true
-    if (stream.abortController.signal.aborted) return true
+
+    const exec = stream.executions.get(modelId)
+    if (!exec) return true
+    if (exec.status !== 'streaming') return true
+    if (exec.abortController.signal.aborted) return true
     if (stream.listeners.size === 0 && this.config.backgroundMode === 'abort') return true
+
     return false
   }
 
+  /** Set finalMessage on a specific execution. */
+  setExecutionFinalMessage(topicId: string, modelId: UniqueModelId, message: CherryUIMessage): void {
+    const stream = this.activeStreams.get(topicId)
+    if (!stream) return
+    const exec = stream.executions.get(modelId)
+    if (exec) exec.finalMessage = message
+  }
+
+  // ── Backward-compat (single-execution convenience) ─────────────────
+  // Used by tests and ClaudeCodeStreamAdapter that operate on single-model topics.
+  // These delegate to the first execution in the topic's executions Map.
+
+  /** Convenience: onDone for the first (or only) execution. */
+  async onDone(topicId: string, status: 'success' | 'paused' = 'success'): Promise<void> {
+    const stream = this.activeStreams.get(topicId)
+    if (!stream) return
+    const firstModelId = stream.executions.keys().next().value
+    if (firstModelId) await this.onExecutionDone(topicId, firstModelId, status)
+  }
+
+  /** Convenience: onError for the first (or only) execution. */
+  async onError(topicId: string, error: SerializedError): Promise<void> {
+    const stream = this.activeStreams.get(topicId)
+    if (!stream) return
+    const firstModelId = stream.executions.keys().next().value
+    if (firstModelId) await this.onExecutionError(topicId, firstModelId, error)
+  }
+
+  /** Convenience: shouldStopStream checks if ANY execution is still running. */
+  shouldStopStream(topicId: string): boolean {
+    const stream = this.activeStreams.get(topicId)
+    if (!stream || stream.status !== 'streaming') return true
+    for (const exec of stream.executions.values()) {
+      if (exec.status === 'streaming' && !exec.abortController.signal.aborted) return false
+    }
+    return true
+  }
+
+  /** Convenience: setFinalMessage on the first (or only) execution. */
   setStreamFinalMessage(topicId: string, message: CherryUIMessage): void {
     const stream = this.activeStreams.get(topicId)
-    if (stream) stream.finalMessage = message
+    if (!stream) return
+    const firstModelId = stream.executions.keys().next().value
+    if (firstModelId) this.setExecutionFinalMessage(topicId, firstModelId, message)
   }
 
   // ── IPC handlers ──────────────────────────────────────────────────
@@ -266,6 +352,19 @@ export class AiStreamManager extends BaseService {
       data: { parts: req.userMessageParts }
     })
 
+    // Resolve model from assistant config (same approach as AiCompletionService.getProviderAndModel)
+    const assistants =
+      await reduxService.select<Array<{ id: string; model?: { provider?: string; id?: string } }>>(
+        'state.assistants.assistants'
+      )
+    const assistant = assistants.find((a) => a.id === req.assistantId)
+    const providerId = assistant?.model?.provider
+    const resolvedModelId = assistant?.model?.id
+    if (!providerId || !resolvedModelId) {
+      throw new Error(`Cannot resolve model for assistant ${req.assistantId}`)
+    }
+    const modelId: UniqueModelId = `${providerId}::${resolvedModelId}`
+
     const persistenceListener = new PersistenceListener({
       topicId: req.topicId,
       assistantId: req.assistantId,
@@ -275,6 +374,7 @@ export class AiStreamManager extends BaseService {
 
     const result = this.send({
       topicId: req.topicId,
+      modelId,
       request: this.toAiStreamRequest(req),
       userMessage,
       listeners: [webContentsListener, persistenceListener]
@@ -288,10 +388,13 @@ export class AiStreamManager extends BaseService {
     if (!stream) return { status: 'not-found' }
 
     if (stream.status === 'done' || stream.status === 'aborted') {
-      return { status: 'done', finalMessage: stream.finalMessage! }
+      // Return the first execution's finalMessage
+      const firstExec = stream.executions.values().next().value
+      return { status: 'done', finalMessage: firstExec?.finalMessage! }
     }
     if (stream.status === 'error') {
-      return { status: 'error', error: stream.error! }
+      const firstExec = stream.executions.values().next().value
+      return { status: 'error', error: firstExec?.error! }
     }
 
     this.addListener(req.topicId, new WebContentsListener(sender, req.topicId))
@@ -302,7 +405,70 @@ export class AiStreamManager extends BaseService {
     this.removeListener(req.topicId, `wc:${sender.id}:${req.topicId}`)
   }
 
-  // ── Lifecycle helpers ─────────────────────────────────────────────
+  // ── Internal helpers ──────────────────────────────────────────────
+
+  /** Create a StreamExecution and launch executeStream for it. */
+  private createAndLaunchExecution(
+    topicId: string,
+    modelId: UniqueModelId,
+    request: AiStreamRequest,
+    siblingsGroupId?: number
+  ): StreamExecution {
+    const exec: StreamExecution = {
+      modelId,
+      abortController: new AbortController(),
+      status: 'streaming',
+      siblingsGroupId
+    }
+
+    const target = new InternalStreamTarget(this, topicId, modelId)
+    const aiService = application.get('AiService')
+    void aiService
+      .executeStream(target, request, exec.abortController.signal)
+      .catch((err: unknown) => this.onExecutionError(topicId, modelId, serializeError(err)))
+
+    return exec
+  }
+
+  /** Broadcast done for a single execution to all topic listeners. */
+  private async broadcastExecutionDone(
+    stream: ActiveStream,
+    exec: StreamExecution,
+    status: 'success' | 'paused'
+  ): Promise<void> {
+    const result = { finalMessage: exec.finalMessage, status }
+    for (const [id, listener] of stream.listeners) {
+      try {
+        await listener.onDone(result)
+      } catch (err) {
+        logger.warn('Listener onDone threw', { topicId: stream.topicId, listenerId: id, err })
+      }
+    }
+  }
+
+  /**
+   * Derive topic-level status from its executions.
+   * - Any execution streaming → 'streaming'
+   * - All done → 'done'
+   * - Any error (none streaming) → 'error'
+   * - All aborted → 'aborted'
+   */
+  private computeTopicStatus(stream: ActiveStream): ActiveStream['status'] {
+    let hasStreaming = false
+    let hasError = false
+    let allAborted = true
+
+    for (const exec of stream.executions.values()) {
+      if (exec.status === 'streaming') hasStreaming = true
+      if (exec.status === 'error') hasError = true
+      if (exec.status !== 'aborted') allAborted = false
+    }
+
+    if (hasStreaming) return 'streaming'
+    if (allAborted) return 'aborted'
+    if (hasError) return 'error'
+    return 'done'
+  }
 
   private scheduleReap(topicId: string): void {
     const stream = this.activeStreams.get(topicId)
@@ -330,8 +496,6 @@ export class AiStreamManager extends BaseService {
    * TODO: Resolve provider/model/mcpTools/knowledgeBaseIds from assistant config via reduxService.
    */
   private toAiStreamRequest(req: AiStreamOpenRequest): AiStreamRequest {
-    // TODO: const assistant = reduxService.getAssistant(req.assistantId)
-    // Then populate providerId, modelId, mcpToolIds, knowledgeBaseIds from assistant
     return {
       requestId: req.topicId,
       chatId: req.topicId,

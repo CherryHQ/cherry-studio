@@ -1,3 +1,4 @@
+import type { UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
@@ -7,10 +8,10 @@ import type { CherryUIMessage, StreamTarget } from './types'
 // Minimal interface to avoid circular import with AiStreamManager.
 interface ManagerCallbacks {
   onChunk(topicId: string, chunk: UIMessageChunk): void
-  onDone(topicId: string, status?: 'success' | 'paused'): Promise<void>
-  onError(topicId: string, error: SerializedError): Promise<void>
-  shouldStopStream(topicId: string): boolean
-  setStreamFinalMessage(topicId: string, message: CherryUIMessage): void
+  onExecutionDone(topicId: string, modelId: UniqueModelId, status?: 'success' | 'paused'): Promise<void>
+  onExecutionError(topicId: string, modelId: UniqueModelId, error: SerializedError): Promise<void>
+  shouldStopExecution(topicId: string, modelId: UniqueModelId): boolean
+  setExecutionFinalMessage(topicId: string, modelId: UniqueModelId, message: CherryUIMessage): void
 }
 
 /**
@@ -20,33 +21,36 @@ interface ManagerCallbacks {
  * optional setFinalMessage). It does not know whether the target is a real
  * Electron WebContents or this adapter — that's the decoupling point.
  *
- * Bound to a `topicId`. All events are routed back to AiStreamManager by topicId.
+ * Bound to a `topicId` + `modelId` pair, identifying one execution within
+ * a (potentially multi-model) ActiveStream.
  */
 export class InternalStreamTarget implements StreamTarget {
   constructor(
     private readonly manager: ManagerCallbacks,
-    private readonly topicId: string
+    private readonly topicId: string,
+    private readonly modelId: UniqueModelId
   ) {}
 
   send(channel: string, payload: { chunk?: UIMessageChunk; error?: SerializedError; [key: string]: unknown }): void {
     switch (channel) {
       case IpcChannel.Ai_StreamChunk:
+        // Chunks are topic-level (multicast to all listeners regardless of model)
         if (payload.chunk) this.manager.onChunk(this.topicId, payload.chunk)
         break
       case IpcChannel.Ai_StreamDone:
-        void this.manager.onDone(this.topicId)
+        void this.manager.onExecutionDone(this.topicId, this.modelId)
         break
       case IpcChannel.Ai_StreamError:
-        if (payload.error) void this.manager.onError(this.topicId, payload.error)
+        if (payload.error) void this.manager.onExecutionError(this.topicId, this.modelId, payload.error)
         break
     }
   }
 
   isDestroyed(): boolean {
-    return this.manager.shouldStopStream(this.topicId)
+    return this.manager.shouldStopExecution(this.topicId, this.modelId)
   }
 
   setFinalMessage(message: CherryUIMessage): void {
-    this.manager.setStreamFinalMessage(this.topicId, message)
+    this.manager.setExecutionFinalMessage(this.topicId, this.modelId, message)
   }
 }
