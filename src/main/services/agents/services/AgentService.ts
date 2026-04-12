@@ -386,7 +386,7 @@ export class AgentService extends BaseService {
 
     // Sync changed fields to all sessions that still match the agent's old values.
     // Sessions where the user has customized a field are left untouched.
-    await this.syncSettingsToSessions(database, id, existing, updates)
+    await this.syncSettingsToSessions(database, id, existing, serializedUpdates)
 
     return await this.getAgent(id)
   }
@@ -403,12 +403,17 @@ export class AgentService extends BaseService {
     database: Awaited<ReturnType<typeof this.getDatabase>>,
     agentId: string,
     oldAgent: AgentEntity,
-    updates: UpdateAgentRequest
+    serializedUpdates: Record<string, unknown>
   ): Promise<void> {
     const syncFields = ['model', 'plan_model', 'small_model', 'allowed_tools', 'configuration', 'mcps', 'instructions']
 
-    // Collect only the fields that were actually changed
-    const changedFields = syncFields.filter((field) => Object.prototype.hasOwnProperty.call(updates, field))
+    const serializedOldAgent = this.serializeJsonFields(oldAgent)
+
+    // Only sync fields that are present in the update AND actually changed
+    const changedFields = syncFields.filter((field) => {
+      if (!Object.prototype.hasOwnProperty.call(serializedUpdates, field)) return false
+      return (serializedUpdates[field] ?? null) !== (serializedOldAgent[field] ?? null)
+    })
     if (changedFields.length === 0) return
 
     try {
@@ -417,27 +422,27 @@ export class AgentService extends BaseService {
       if (sessions.length === 0) return
 
       const now = new Date().toISOString()
-      const serializedUpdates = this.serializeJsonFields(updates)
-      const serializedOldAgent = this.serializeJsonFields(oldAgent)
 
-      for (const session of sessions) {
-        const sessionUpdateData: Partial<Record<string, unknown>> = {}
+      await database.transaction(async (tx) => {
+        for (const session of sessions) {
+          const sessionUpdateData: Partial<Record<string, unknown>> = {}
 
-        for (const field of changedFields) {
-          const oldAgentValue = serializedOldAgent[field] ?? null
-          const sessionValue = (session as Record<string, unknown>)[field] ?? null
+          for (const field of changedFields) {
+            const oldAgentValue = serializedOldAgent[field] ?? null
+            const sessionValue = (session as Record<string, unknown>)[field] ?? null
 
-          // Only sync if session still has the agent's old value (not user-customized)
-          if (oldAgentValue === sessionValue) {
-            sessionUpdateData[field] = serializedUpdates[field] ?? null
+            // Only sync if session still has the agent's old value (not user-customized)
+            if (oldAgentValue === sessionValue) {
+              sessionUpdateData[field] = serializedUpdates[field] ?? null
+            }
+          }
+
+          if (Object.keys(sessionUpdateData).length > 0) {
+            sessionUpdateData.updated_at = now
+            await tx.update(sessionsTable).set(sessionUpdateData).where(eq(sessionsTable.id, session.id))
           }
         }
-
-        if (Object.keys(sessionUpdateData).length > 0) {
-          sessionUpdateData.updated_at = now
-          await database.update(sessionsTable).set(sessionUpdateData).where(eq(sessionsTable.id, session.id))
-        }
-      }
+      })
 
       logger.info('Synced agent settings to sessions', {
         agentId,
