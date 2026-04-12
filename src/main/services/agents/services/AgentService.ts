@@ -13,7 +13,7 @@ import { AgentBaseSchema } from '@types'
 import { asc, count, desc, eq, sql } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
-import { type AgentRow, agentsTable, type InsertAgentRow } from '../database/schema'
+import { type AgentRow, agentsTable, type InsertAgentRow, sessionsTable } from '../database/schema'
 import type { AgentModelField } from '../errors'
 import { seedWorkspaceTemplates } from './cherryclaw/seedWorkspace'
 
@@ -383,7 +383,73 @@ export class AgentService extends BaseService {
 
     const database = await this.getDatabase()
     await database.update(agentsTable).set(updateData).where(eq(agentsTable.id, id))
+
+    // Sync changed fields to all sessions that still match the agent's old values.
+    // Sessions where the user has customized a field are left untouched.
+    await this.syncSettingsToSessions(database, id, existing, updates)
+
     return await this.getAgent(id)
+  }
+
+  /**
+   * Sync agent settings to all sessions that haven't been individually customized.
+   *
+   * For each changed field, we compare the session's current value against the agent's
+   * OLD value (before update). If they match, the session inherited the default and
+   * should receive the new value. If they differ, the user customized that field on
+   * the session, so we skip it.
+   */
+  private async syncSettingsToSessions(
+    database: Awaited<ReturnType<typeof this.getDatabase>>,
+    agentId: string,
+    oldAgent: AgentEntity,
+    updates: UpdateAgentRequest
+  ): Promise<void> {
+    const syncFields = ['model', 'plan_model', 'small_model', 'allowed_tools', 'configuration', 'mcps', 'instructions']
+
+    // Collect only the fields that were actually changed
+    const changedFields = syncFields.filter((field) => Object.prototype.hasOwnProperty.call(updates, field))
+    if (changedFields.length === 0) return
+
+    try {
+      const sessions = await database.select().from(sessionsTable).where(eq(sessionsTable.agent_id, agentId))
+
+      if (sessions.length === 0) return
+
+      const now = new Date().toISOString()
+      const serializedUpdates = this.serializeJsonFields(updates)
+      const serializedOldAgent = this.serializeJsonFields(oldAgent)
+
+      for (const session of sessions) {
+        const sessionUpdateData: Partial<Record<string, unknown>> = {}
+
+        for (const field of changedFields) {
+          const oldAgentValue = serializedOldAgent[field] ?? null
+          const sessionValue = (session as Record<string, unknown>)[field] ?? null
+
+          // Only sync if session still has the agent's old value (not user-customized)
+          if (oldAgentValue === sessionValue) {
+            sessionUpdateData[field] = serializedUpdates[field] ?? null
+          }
+        }
+
+        if (Object.keys(sessionUpdateData).length > 0) {
+          sessionUpdateData.updated_at = now
+          await database.update(sessionsTable).set(sessionUpdateData).where(eq(sessionsTable.id, session.id))
+        }
+      }
+
+      logger.info('Synced agent settings to sessions', {
+        agentId,
+        changedFields,
+        sessionCount: sessions.length
+      })
+    } catch (error) {
+      logger.warn('Failed to sync agent settings to sessions', {
+        agentId,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
   }
 
   async reorderAgents(orderedIds: string[]): Promise<void> {

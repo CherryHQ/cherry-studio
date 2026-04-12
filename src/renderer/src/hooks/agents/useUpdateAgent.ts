@@ -1,5 +1,5 @@
 import store from '@renderer/store'
-import type { AgentEntity, ListAgentsResponse, UpdateAgentForm, UpdateSessionForm } from '@renderer/types'
+import type { AgentEntity, ListAgentsResponse, UpdateAgentForm } from '@renderer/types'
 import type { UpdateAgentBaseOptions, UpdateAgentFunction } from '@renderer/types/agent'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { useCallback } from 'react'
@@ -7,17 +7,6 @@ import { useTranslation } from 'react-i18next'
 import { mutate } from 'swr'
 
 import { useAgentClient } from './useAgentClient'
-
-/** Fields that should be synced from agent to its active session */
-const SYNC_FIELDS = [
-  'model',
-  'plan_model',
-  'small_model',
-  'allowed_tools',
-  'configuration',
-  'mcps',
-  'instructions'
-] as const
 
 export const useUpdateAgent = () => {
   const { t } = useTranslation()
@@ -39,27 +28,13 @@ export const useUpdateAgent = () => {
           window.toast.success({ key: 'update-agent', title: t('common.update_success') })
         }
 
-        // Sync changed fields to the active session for this agent
+        // Backend syncs agent settings to all sessions (skipping user-customized fields).
+        // Revalidate the active session's SWR cache so the UI picks up changes immediately.
         const { activeSessionIdMap } = store.getState().runtime.chat
         const activeSessionId = activeSessionIdMap[form.id]
         if (activeSessionId) {
-          const sessionUpdate: UpdateSessionForm = { id: activeSessionId }
-          let hasChanges = false
-          for (const field of SYNC_FIELDS) {
-            if (Object.prototype.hasOwnProperty.call(form, field)) {
-              sessionUpdate[field] = form[field]
-              hasChanges = true
-            }
-          }
-          if (hasChanges) {
-            try {
-              const updatedSession = await client.updateSession(form.id, sessionUpdate)
-              const sessionKey = client.getSessionPaths(form.id).withId(activeSessionId)
-              void mutate(sessionKey, updatedSession, { revalidate: false })
-            } catch {
-              // Session sync is best-effort; agent update already succeeded
-            }
-          }
+          const sessionKey = client.getSessionPaths(form.id).withId(activeSessionId)
+          void mutate(sessionKey)
         }
 
         return result
