@@ -1,7 +1,7 @@
 import { createServer } from 'node:http'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import { IpcChannel } from '@shared/IpcChannel'
 
 import { createApp } from './app'

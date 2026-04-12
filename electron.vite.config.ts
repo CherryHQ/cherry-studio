@@ -34,10 +34,11 @@ export default defineConfig({
     resolve: {
       alias: {
         '@main': resolve('src/main'),
+        '@application': resolve('src/main/core/application'),
         '@types': resolve('src/renderer/src/types'),
         '@data': resolve('src/main/data'),
         '@shared': resolve('packages/shared'),
-        '@logger': resolve('src/main/services/LoggerService'),
+        '@logger': resolve('src/main/core/logger/LoggerService'),
         '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core'),
         '@mcp-trace/trace-node': resolve('packages/mcp-trace/trace-node'),
         '@cherrystudio/ai-core/provider': resolve('packages/aiCore/src/core/providers'),

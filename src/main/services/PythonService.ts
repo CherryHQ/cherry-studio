@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import { application } from '@main/core/application'
+import { application } from '@application'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { IpcChannel } from '@shared/IpcChannel'
 

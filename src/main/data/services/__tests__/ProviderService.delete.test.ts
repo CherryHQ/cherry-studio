@@ -46,7 +46,7 @@ function createMockDbForProvider(providerRow: unknown) {
 // Mocks
 // ─────────────────────────────────────────────────────────────────────────────
 
-vi.mock('@main/core/application', async () => {
+vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory()
 })

@@ -12,6 +12,10 @@ Handlers → Services → Database
 - **Services**: Business logic, validation, transaction coordination, data access via Drizzle ORM
 - **Database**: Drizzle ORM + SQLite
 
+## Transport Adapters
+
+ApiServer is transport-agnostic. Adapters in `api/core/adapters/` bridge specific transports (IPC, HTTP) to ApiServer. Each adapter implements `Disposable` for automatic lifecycle cleanup. See `IpcAdapter.ts` JSDoc for design rationale and extension guide.
+
 ## Implementing Handlers
 
 ### Location
@@ -86,7 +90,7 @@ export const allHandlers: ApiImplementation = {
 ```typescript
 // services/TopicService.ts
 import { eq, desc, sql } from 'drizzle-orm'
-import { application } from '@main/core/application'
+import { application } from '@application'
 import { topicTable } from '@data/db/schemas/topic'
 import { DataApiErrorFactory } from '@shared/data/api'
 

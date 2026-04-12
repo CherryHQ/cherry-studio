@@ -31,7 +31,7 @@ class PreferenceService extends BaseService {
 
 // 2. Register in serviceRegistry.ts and bootstrap via Application
 //    See: docs/references/lifecycle/application-overview.md
-import { application } from '@main/core/application'
+import { application } from '@application'
 await application.bootstrap()
 
 // 3. Access service instance
@@ -350,7 +350,7 @@ class RealTimeService extends BaseService implements Pausable {
 All services support stop/start operations (no special interface needed):
 
 ```typescript
-import { application } from '@main/core/application'
+import { application } from '@application'
 
 await application.stop('HeavyComputeService')    // calls onStop()
 await application.start('HeavyComputeService')   // calls onInit() again
@@ -368,7 +368,7 @@ Unlike `Pausable` (which temporarily suspends execution), `Activatable` controls
 ### Interface
 
 ```typescript
-import { application } from '@main/core/application'
+import { application } from '@application'
 import { BaseService, Injectable, type Activatable } from '@main/core/lifecycle'
 
 @Injectable('SelectionService')

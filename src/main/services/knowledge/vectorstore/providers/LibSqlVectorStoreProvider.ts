@@ -1,8 +1,8 @@
 import fs from 'node:fs'
 import { pathToFileURL } from 'node:url'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import { sanitizeFilename } from '@main/utils/file'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { BaseVectorStore } from '@vectorstores/core'

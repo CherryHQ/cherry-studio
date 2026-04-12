@@ -1,10 +1,10 @@
+import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
 import { bootstrapBuiltinAgents } from './agents/services/builtin/BuiltinAgentBootstrap'
 import { channelManager } from './agents/services/channels'
 import { registerSessionStreamIpc } from './agents/services/channels/sessionStreamIpc'
 import { schedulerService } from './agents/services/SchedulerService'
-import { loggerService } from './LoggerService'
 
 const logger = loggerService.withContext('AgentBootstrapService')
 
