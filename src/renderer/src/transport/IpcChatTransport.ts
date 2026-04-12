@@ -7,10 +7,11 @@ const logger = loggerService.withContext('IpcChatTransport')
 /**
  * ChatTransport implementation that bridges Renderer ↔ Main AI streaming via Electron IPC.
  *
- * Uses `window.api.ai` preload API to:
- * - Initiate stream requests (`streamText`)
- * - Receive chunks/done/error signals via global IPC listeners filtered by `requestId`
- * - Abort in-flight requests
+ * Uses `window.api.ai` preload API:
+ * - `streamOpen` to initiate a stream (AiStreamManager routes to start or steer)
+ * - `streamAttach` to reconnect to a running or recently-finished stream
+ * - `streamAbort` to stop generation
+ * - Chunk/done/error listeners filtered by `topicId`
  */
 export class IpcChatTransport implements ChatTransport<UIMessage> {
   readonly #defaultBody: Partial<AiChatRequestBody>
@@ -28,25 +29,80 @@ export class IpcChatTransport implements ChatTransport<UIMessage> {
       abortSignal: AbortSignal | undefined
     } & ChatRequestOptions
   ): Promise<ReadableStream<UIMessageChunk>> {
-    const { trigger, chatId, messageId, messages, abortSignal, body } = options
+    const { chatId: topicId, messages, abortSignal, body } = options
     const mergedBody = { ...this.#defaultBody, ...(body as Partial<AiChatRequestBody> | undefined) }
-    const requestId = crypto.randomUUID()
 
-    // Register IPC listeners before invoking streamText to avoid missing early chunks
+    // Build listener stream before sending IPC to avoid missing early chunks
+    const stream = this.buildListenerStream(topicId, abortSignal)
+
+    // Extract user message content from the last message
+    const lastMessage = messages.at(-1)
+    const userMessage = lastMessage
+      ? { role: 'user' as const, data: { parts: lastMessage.parts ?? [] } }
+      : { role: 'user' as const, data: { parts: [] } }
+
+    // Fire the IPC request — AiStreamManager handles dedup, persistence, routing
+    window.api.ai
+      .streamOpen({
+        requestId: crypto.randomUUID(),
+        topicId,
+        parentAnchorId: (mergedBody as Record<string, unknown>).parentAnchorId as string | null,
+        userMessage,
+        assistantId: (mergedBody as Record<string, unknown>).assistantId as string,
+        ...mergedBody
+      })
+      .catch((error: unknown) => {
+        logger.error('streamOpen IPC failed', error instanceof Error ? error : new Error(String(error)))
+      })
+
+    return Promise.resolve(stream)
+  }
+
+  async reconnectToStream(
+    options: { chatId: string } & ChatRequestOptions
+  ): Promise<ReadableStream<UIMessageChunk> | null> {
+    const topicId = options.chatId
+
+    const result = await window.api.ai.streamAttach({ topicId })
+    if (result.status === 'not-found') return null
+    if (result.status === 'done') {
+      // Stream already finished — return a stream that immediately closes
+      return new ReadableStream<UIMessageChunk>({
+        start(controller) {
+          controller.close()
+        }
+      })
+    }
+    if (result.status === 'error') {
+      return new ReadableStream<UIMessageChunk>({
+        start(controller_1) {
+          controller_1.error(new Error((result.error as { message?: string })?.message ?? 'Stream error'))
+        }
+      })
+    }
+    // status === 'attached' — buffer already replayed by Main, live chunks incoming
+    logger.info('Reconnected to stream', { topicId, replayedChunks: result.replayedChunks })
+    return this.buildListenerStream(topicId)
+  }
+
+  /**
+   * Build a ReadableStream that receives chunks via IPC, filtered by topicId.
+   *
+   * All subscribers filter by topicId (not requestId) — streaming is just
+   * one state of a topic, and all subscribers to the same topic are equal.
+   */
+  private buildListenerStream(topicId: string, abortSignal?: AbortSignal): ReadableStream<UIMessageChunk> {
     const unsubscribers: Array<() => void> = []
     let isCleaned = false
+    let isStreamClosed = false
 
     const cleanup = () => {
       if (isCleaned) return
       isCleaned = true
-      for (const unsub of unsubscribers) {
-        unsub()
-      }
+      for (const unsub of unsubscribers) unsub()
     }
 
-    let isStreamClosed = false
-
-    const stream = new ReadableStream<UIMessageChunk>({
+    return new ReadableStream<UIMessageChunk>({
       start(controller) {
         const closeStream = () => {
           if (isStreamClosed) return
@@ -62,77 +118,52 @@ export class IpcChatTransport implements ChatTransport<UIMessage> {
           controller.error(err)
         }
 
-        // Chunk listener — filter by requestId since listeners are global
         unsubscribers.push(
           window.api.ai.onStreamChunk((data) => {
-            if (data.requestId !== requestId || isStreamClosed) return
+            if (data.topicId !== topicId || isStreamClosed) return
             controller.enqueue(data.chunk)
           })
         )
 
-        // Done listener
         unsubscribers.push(
           window.api.ai.onStreamDone((data) => {
-            if (data.requestId !== requestId) return
+            if (data.topicId !== topicId) return
             closeStream()
           })
         )
 
-        // Error listener
         unsubscribers.push(
           window.api.ai.onStreamError((data) => {
-            if (data.requestId !== requestId) return
+            if (data.topicId !== topicId) return
             errorStream(new Error(data.error.message ?? 'Unknown stream error'))
           })
         )
 
-        // Abort handler — tell Main to stop and close the stream
+        // Abort: stop the generation on Main
         if (abortSignal) {
           if (abortSignal.aborted) {
-            window.api.ai.abort(requestId)
+            void window.api.ai.streamAbort({ topicId })
             closeStream()
             return
           }
 
           const onAbort = () => {
-            logger.info('Stream aborted', { requestId })
-            window.api.ai.abort(requestId)
+            logger.info('Stream abort requested', { topicId })
+            void window.api.ai.streamAbort({ topicId })
             closeStream()
           }
           abortSignal.addEventListener('abort', onAbort, { once: true })
           unsubscribers.push(() => abortSignal.removeEventListener('abort', onAbort))
         }
-
-        // Fire the IPC request — stream chunks will arrive via listeners above
-        window.api.ai
-          .streamText({
-            requestId,
-            chatId,
-            trigger,
-            messageId,
-            messages,
-            ...mergedBody
-          })
-          .catch((error: unknown) => {
-            const err = error instanceof Error ? error : new Error(String(error))
-            logger.error('streamText IPC invoke failed', err)
-            errorStream(err)
-          })
       },
       cancel() {
         if (!isStreamClosed) {
           isStreamClosed = true
-          window.api.ai.abort(requestId)
+          // Component unmount: abort the stream so Main can persist partial result
+          window.api.ai.streamAbort({ topicId })
           cleanup()
         }
       }
     })
-
-    return Promise.resolve(stream)
-  }
-
-  reconnectToStream(_options: { chatId: string } & ChatRequestOptions): Promise<ReadableStream<UIMessageChunk> | null> {
-    // Electron IPC does not support stream reconnection
-    return Promise.resolve(null)
   }
 }
