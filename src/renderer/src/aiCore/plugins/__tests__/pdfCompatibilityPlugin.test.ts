@@ -176,6 +176,35 @@ describe('pdfCompatibilityPlugin', () => {
     })
   })
 
+  it('should truncate oversized PDF text to keep the prompt under the body limit', async () => {
+    const provider = makeProvider('ollama', 'ollama')
+    const largeText = 'a'.repeat(2_500_000)
+    mockExtractPdfText.mockResolvedValueOnce(largeText)
+    mockExtractPdfText.mockResolvedValueOnce(largeText)
+
+    const params = {
+      prompt: [{ role: 'user' as const, content: [makePdfFilePart('first.pdf'), makePdfFilePart('second.pdf')] }]
+    } as unknown as LanguageModelV3CallOptions
+
+    const result = await runMiddleware(provider, params)
+    const serializedBytes = new TextEncoder().encode(JSON.stringify(result)).length
+
+    expect(serializedBytes).toBeLessThan(6 * 1024 * 1024)
+
+    const content = result.prompt[0].content as Array<{ type: string; text?: string }>
+    expect(content).toHaveLength(2)
+    expect(content[0]).toMatchObject({
+      type: 'text',
+      text: expect.stringContaining('first.pdf')
+    })
+    expect(content[1]).toMatchObject({
+      type: 'text',
+      text: expect.stringContaining('second.pdf')
+    })
+    expect(content[0].text).toContain('[PDF truncated]')
+    expect(content[1].text).toContain('[PDF truncated]')
+  })
+
   it('should drop PDF part and warn when text extraction fails', async () => {
     const provider = makeProvider('ollama', 'ollama')
     mockExtractPdfText.mockRejectedValue(new Error('parse failed'))

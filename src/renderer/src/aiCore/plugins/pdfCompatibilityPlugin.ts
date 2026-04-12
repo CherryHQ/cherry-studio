@@ -15,8 +15,69 @@ import type { LanguageModelMiddleware } from 'ai'
 import i18n from 'i18next'
 
 const logger = loggerService.withContext('pdfCompatibilityPlugin')
+const MAX_INLINE_PDF_TEXT_BYTES = 4 * 1024 * 1024
+const PDF_TRUNCATED_SUFFIX = '\n[PDF truncated]'
+const textEncoder = new TextEncoder()
+const textDecoder = new TextDecoder()
 
 type ContentPart = Exclude<LanguageModelV3Message['content'], string>[number]
+
+function getUtf8ByteLength(text: string): number {
+  return textEncoder.encode(text).length
+}
+
+function truncateUtf8Text(text: string, maxBytes: number): string {
+  if (maxBytes <= 0 || text.length === 0) {
+    return ''
+  }
+
+  const encoded = textEncoder.encode(text)
+  if (encoded.length <= maxBytes) {
+    return text
+  }
+
+  let truncated = textDecoder.decode(encoded.slice(0, maxBytes))
+  while (getUtf8ByteLength(truncated) > maxBytes && truncated.length > 0) {
+    truncated = truncated.slice(0, -1)
+  }
+
+  return truncated
+}
+
+function buildPdfPromptText(
+  fileName: string,
+  textContent: string,
+  maxBytes: number
+): { text: string; truncated: boolean } | null {
+  if (maxBytes <= 0) {
+    return null
+  }
+
+  const normalizedContent = textContent.trim()
+  const prefix = `${fileName}\n`
+  const prefixBytes = getUtf8ByteLength(prefix)
+  const fullText = `${prefix}${normalizedContent}`
+
+  if (getUtf8ByteLength(fullText) <= maxBytes) {
+    return { text: fullText, truncated: false }
+  }
+
+  const suffixBytes = getUtf8ByteLength(PDF_TRUNCATED_SUFFIX)
+  const contentBudget = maxBytes - prefixBytes - suffixBytes
+  if (contentBudget <= 0) {
+    return null
+  }
+
+  const truncatedContent = truncateUtf8Text(normalizedContent, contentBudget)
+  const text = `${prefix}${truncatedContent}${PDF_TRUNCATED_SUFFIX}`
+
+  if (getUtf8ByteLength(text) <= maxBytes) {
+    return { text, truncated: true }
+  }
+
+  const compactText = truncateUtf8Text(text, maxBytes)
+  return compactText ? { text: compactText, truncated: true } : null
+}
 
 /**
  * Provider types whose API natively supports PDF file input.
@@ -62,6 +123,21 @@ function pdfCompatibilityMiddleware(provider: Provider, model: Model): LanguageM
         return params
       }
 
+      const pdfPartCount = params.prompt.reduce((count, message) => {
+        if (!Array.isArray(message.content)) {
+          return count
+        }
+
+        return count + message.content.filter((part: (typeof message.content)[number]) => isPdfFilePart(part)).length
+      }, 0)
+
+      if (pdfPartCount === 0) {
+        return params
+      }
+
+      let remainingPdfBudget = MAX_INLINE_PDF_TEXT_BYTES
+      let remainingPdfParts = pdfPartCount
+
       const messages: LanguageModelV3Message[] = []
       for (const message of params.prompt) {
         if (!Array.isArray(message.content)) {
@@ -83,12 +159,34 @@ function pdfCompatibilityMiddleware(provider: Provider, model: Model): LanguageM
           }
 
           const fileName = part.filename || 'PDF'
+          const budgetForThisFile = Math.ceil(remainingPdfBudget / remainingPdfParts)
+          remainingPdfParts -= 1
+
+          if (budgetForThisFile <= 0) {
+            logger.warn(`Skipping PDF ${fileName} because the prompt budget is exhausted`)
+            continue
+          }
 
           try {
             const textContent =
               part.data instanceof URL ? await extractPdfText(part.data) : await window.api.pdf.extractText(part.data)
-            logger.debug(`Converting PDF FilePart to TextPart for provider ${provider.id} (type: ${provider.type})`)
-            newContent.push({ type: 'text', text: `${fileName}\n${textContent.trim()}` })
+            const promptText = buildPdfPromptText(fileName, textContent, budgetForThisFile)
+
+            if (!promptText) {
+              logger.warn(`Skipping PDF ${fileName} because the prompt budget is too small`)
+              continue
+            }
+
+            if (promptText.truncated) {
+              logger.debug(
+                `Truncated PDF ${fileName} to fit within the request budget for provider ${provider.id} (type: ${provider.type})`
+              )
+            } else {
+              logger.debug(`Converting PDF FilePart to TextPart for provider ${provider.id} (type: ${provider.type})`)
+            }
+
+            newContent.push({ type: 'text', text: promptText.text })
+            remainingPdfBudget = Math.max(0, remainingPdfBudget - getUtf8ByteLength(promptText.text))
           } catch (error) {
             logger.warn(`Failed to extract text from PDF ${fileName}:`, error instanceof Error ? error : undefined)
             window.toast.warning(i18n.t('message.warning.file.pdf_text_extraction_failed', { name: fileName }))
