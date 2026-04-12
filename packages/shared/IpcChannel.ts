@@ -437,11 +437,6 @@ export enum IpcChannel {
   OCR_ocr = 'ocr:ocr',
   OCR_ListProviders = 'ocr:list-providers',
 
-  // File Processing
-  FileProcessing_ExtractText = 'file-processing:extract-text',
-  FileProcessing_StartMarkdownConversionTask = 'file-processing:start-markdown-conversion-task',
-  FileProcessing_GetMarkdownConversionTaskResult = 'file-processing:get-markdown-conversion-task-result',
-
   // OVMS
   Ovms_IsSupported = 'ovms:is-supported',
   Ovms_AddModel = 'ovms:add-model',

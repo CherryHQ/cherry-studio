@@ -27,7 +27,6 @@ import { Route as SettingsModelRouteImport } from './routes/settings/model'
 import { Route as SettingsMemoryRouteImport } from './routes/settings/memory'
 import { Route as SettingsMcpRouteImport } from './routes/settings/mcp'
 import { Route as SettingsGeneralRouteImport } from './routes/settings/general'
-import { Route as SettingsDocprocessTestRouteImport } from './routes/settings/docprocess-test'
 import { Route as SettingsDocprocessRouteImport } from './routes/settings/docprocess'
 import { Route as SettingsDisplayRouteImport } from './routes/settings/display'
 import { Route as SettingsDataRouteImport } from './routes/settings/data'
@@ -148,11 +147,6 @@ const SettingsMcpRoute = SettingsMcpRouteImport.update({
 const SettingsGeneralRoute = SettingsGeneralRouteImport.update({
   id: '/general',
   path: '/general',
-  getParentRoute: () => SettingsRoute,
-} as any)
-const SettingsDocprocessTestRoute = SettingsDocprocessTestRouteImport.update({
-  id: '/docprocess-test',
-  path: '/docprocess-test',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsDocprocessRoute = SettingsDocprocessRouteImport.update({
@@ -329,7 +323,6 @@ export interface FileRoutesByFullPath {
   '/settings/data': typeof SettingsDataRoute
   '/settings/display': typeof SettingsDisplayRoute
   '/settings/docprocess': typeof SettingsDocprocessRoute
-  '/settings/docprocess-test': typeof SettingsDocprocessTestRoute
   '/settings/general': typeof SettingsGeneralRoute
   '/settings/mcp': typeof SettingsMcpRouteWithChildren
   '/settings/memory': typeof SettingsMemoryRoute
@@ -379,7 +372,6 @@ export interface FileRoutesByTo {
   '/settings/data': typeof SettingsDataRoute
   '/settings/display': typeof SettingsDisplayRoute
   '/settings/docprocess': typeof SettingsDocprocessRoute
-  '/settings/docprocess-test': typeof SettingsDocprocessTestRoute
   '/settings/general': typeof SettingsGeneralRoute
   '/settings/memory': typeof SettingsMemoryRoute
   '/settings/model': typeof SettingsModelRoute
@@ -429,7 +421,6 @@ export interface FileRoutesById {
   '/settings/data': typeof SettingsDataRoute
   '/settings/display': typeof SettingsDisplayRoute
   '/settings/docprocess': typeof SettingsDocprocessRoute
-  '/settings/docprocess-test': typeof SettingsDocprocessTestRoute
   '/settings/general': typeof SettingsGeneralRoute
   '/settings/mcp': typeof SettingsMcpRouteWithChildren
   '/settings/memory': typeof SettingsMemoryRoute
@@ -482,7 +473,6 @@ export interface FileRouteTypes {
     | '/settings/data'
     | '/settings/display'
     | '/settings/docprocess'
-    | '/settings/docprocess-test'
     | '/settings/general'
     | '/settings/mcp'
     | '/settings/memory'
@@ -532,7 +522,6 @@ export interface FileRouteTypes {
     | '/settings/data'
     | '/settings/display'
     | '/settings/docprocess'
-    | '/settings/docprocess-test'
     | '/settings/general'
     | '/settings/memory'
     | '/settings/model'
@@ -581,7 +570,6 @@ export interface FileRouteTypes {
     | '/settings/data'
     | '/settings/display'
     | '/settings/docprocess'
-    | '/settings/docprocess-test'
     | '/settings/general'
     | '/settings/mcp'
     | '/settings/memory'
@@ -746,13 +734,6 @@ declare module '@tanstack/react-router' {
       path: '/general'
       fullPath: '/settings/general'
       preLoaderRoute: typeof SettingsGeneralRouteImport
-      parentRoute: typeof SettingsRoute
-    }
-    '/settings/docprocess-test': {
-      id: '/settings/docprocess-test'
-      path: '/docprocess-test'
-      fullPath: '/settings/docprocess-test'
-      preLoaderRoute: typeof SettingsDocprocessTestRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/docprocess': {
@@ -1051,7 +1032,6 @@ interface SettingsRouteChildren {
   SettingsDataRoute: typeof SettingsDataRoute
   SettingsDisplayRoute: typeof SettingsDisplayRoute
   SettingsDocprocessRoute: typeof SettingsDocprocessRoute
-  SettingsDocprocessTestRoute: typeof SettingsDocprocessTestRoute
   SettingsGeneralRoute: typeof SettingsGeneralRoute
   SettingsMcpRoute: typeof SettingsMcpRouteWithChildren
   SettingsMemoryRoute: typeof SettingsMemoryRoute
@@ -1075,7 +1055,6 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsDataRoute: SettingsDataRoute,
   SettingsDisplayRoute: SettingsDisplayRoute,
   SettingsDocprocessRoute: SettingsDocprocessRoute,
-  SettingsDocprocessTestRoute: SettingsDocprocessTestRoute,
   SettingsGeneralRoute: SettingsGeneralRoute,
   SettingsMcpRoute: SettingsMcpRouteWithChildren,
   SettingsMemoryRoute: SettingsMemoryRoute,
