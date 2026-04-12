@@ -145,6 +145,10 @@ export class FileProcessingRuntimeService extends BaseService {
     return deleted
   }
 
+  clearTasks(): void {
+    this.getRequiredTasks().clear()
+  }
+
   private getRequiredTasks(): Map<string, FileProcessingTaskEntry<unknown>> {
     if (!this.tasks) {
       throw new Error('FileProcessingRuntimeService is not initialized')

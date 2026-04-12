@@ -1,7 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
-import { application } from '@main/core/application'
 import { app } from 'electron'
 import fs from 'fs'
 import os from 'os'

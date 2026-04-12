@@ -12,10 +12,6 @@ vi.mock('../utils', () => ({
   executeTask: executeTaskMock
 }))
 
-vi.mock('@main/utils/file', () => ({
-  getFilesDir: vi.fn(() => '/tmp/files')
-}))
-
 vi.mock('../../../../persistence/resultPersistence', () => ({
   persistResponseZipResult: persistResponseZipResultMock
 }))

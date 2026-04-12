@@ -6,7 +6,6 @@ import { promisify } from 'node:util'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import { HOME_CHERRY_DIR } from '@shared/config/constant'
 import { gte as semverGte } from 'semver'
 

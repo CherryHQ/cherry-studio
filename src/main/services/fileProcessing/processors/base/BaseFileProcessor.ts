@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { getFilesDir } from '@main/utils/file'
+import { application } from '@application'
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import type { FileProcessorFeatureCapability, FileProcessorMerged } from '@shared/data/presets/file-processing'
 import type { FileProcessingTextExtractionResult } from '@shared/data/types/fileProcessing'
@@ -13,7 +13,7 @@ const lastUsedKeyByProcessor = new Map<FileProcessorId, string>()
 export function getFileProcessingResultsDir(fileId: string): string {
   // TODO(file-processing): Move this derived-file path calculation into the
   // unified FileSystem/FileManager once that layer lands.
-  return path.join(getFilesDir(), fileId, 'file-processing')
+  return path.join(application.getPath('feature.files.data'), fileId, 'file-processing')
 }
 
 export abstract class BaseFileProcessor {
