@@ -1,6 +1,6 @@
 import express from 'express'
 
-import { agentHandlers, messageHandlers, sessionHandlers } from './handlers'
+import { agentHandlers, sessionHandlers } from './handlers'
 import { checkAgentExists, handleValidationErrors } from './middleware'
 import {
   validateAgent,
@@ -10,8 +10,6 @@ import {
   validatePagination,
   validateSession,
   validateSessionId,
-  validateSessionMessage,
-  validateSessionMessageId,
   validateSessionReplace,
   validateSessionUpdate
 } from './validators'
@@ -878,138 +876,11 @@ const createSessionsRouter = (): express.Router => {
   return sessionsRouter
 }
 
-// Create messages router with agent and session context
-const createMessagesRouter = (): express.Router => {
-  const messagesRouter = express.Router({ mergeParams: true })
-
-  // Message CRUD routes (nested under agent/session)
-  /**
-   * @swagger
-   * /agents/{agentId}/sessions/{sessionId}/messages:
-   *   post:
-   *     summary: Create a new message in a session
-   *     tags: [Messages]
-   *     parameters:
-   *       - in: path
-   *         name: agentId
-   *         required: true
-   *         schema:
-   *           type: string
-   *         description: Agent ID
-   *       - in: path
-   *         name: sessionId
-   *         required: true
-   *         schema:
-   *           type: string
-   *         description: Session ID
-   *     requestBody:
-   *       required: true
-   *       content:
-   *         application/json:
-   *           schema:
-   *             $ref: '#/components/schemas/CreateSessionMessageRequest'
-   *     responses:
-   *       201:
-   *         description: Message created successfully
-   *         content:
-   *           application/json:
-   *             schema:
-   *               type: object
-   *               properties:
-   *                 id:
-   *                   type: number
-   *                   description: Message ID
-   *                 session_id:
-   *                   type: string
-   *                   description: Session ID
-   *                 role:
-   *                   type: string
-   *                   enum: [assistant, user, system, tool]
-   *                   description: Message role
-   *                 content:
-   *                   type: object
-   *                   description: Message content (AI SDK format)
-   *                 agent_session_id:
-   *                   type: string
-   *                   description: Agent session ID for resuming
-   *                 metadata:
-   *                   type: object
-   *                   description: Additional metadata
-   *                 created_at:
-   *                   type: string
-   *                   format: date-time
-   *                 updated_at:
-   *                   type: string
-   *                   format: date-time
-   *       400:
-   *         description: Invalid request body
-   *         content:
-   *           application/json:
-   *             schema:
-   *               $ref: '#/components/schemas/ErrorResponse'
-   *       404:
-   *         description: Agent or session not found
-   *         content:
-   *           application/json:
-   *             schema:
-   *               $ref: '#/components/schemas/ErrorResponse'
-   */
-  messagesRouter.post('/', validateSessionMessage, handleValidationErrors, messageHandlers.createMessage)
-
-  /**
-   * @swagger
-   * /agents/{agentId}/sessions/{sessionId}/messages/{messageId}:
-   *   delete:
-   *     summary: Delete a message from a session
-   *     tags: [Messages]
-   *     parameters:
-   *       - in: path
-   *         name: agentId
-   *         required: true
-   *         schema:
-   *           type: string
-   *         description: Agent ID
-   *       - in: path
-   *         name: sessionId
-   *         required: true
-   *         schema:
-   *           type: string
-   *         description: Session ID
-   *       - in: path
-   *         name: messageId
-   *         required: true
-   *         schema:
-   *           type: integer
-   *         description: Message ID
-   *     responses:
-   *       204:
-   *         description: Message deleted successfully
-   *       404:
-   *         description: Agent, session, or message not found
-   *         content:
-   *           application/json:
-   *             schema:
-   *               $ref: '#/components/schemas/ErrorResponse'
-   */
-  messagesRouter.delete('/:messageId', validateSessionMessageId, handleValidationErrors, messageHandlers.deleteMessage)
-  return messagesRouter
-}
-
 // Mount nested resources with clear hierarchy
 const sessionsRouter = createSessionsRouter()
-const messagesRouter = createMessagesRouter()
 
 // Mount sessions under specific agent
 agentsRouter.use('/:agentId/sessions', validateAgentId, checkAgentExists, handleValidationErrors, sessionsRouter)
-
-// Mount messages under specific agent/session
-agentsRouter.use(
-  '/:agentId/sessions/:sessionId/messages',
-  validateAgentId,
-  validateSessionId,
-  handleValidationErrors,
-  messagesRouter
-)
 
 // Export main router and convenience router
 export const agentsRoutes = agentsRouter

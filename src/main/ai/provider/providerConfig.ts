@@ -10,6 +10,7 @@ import { formatPrivateKey, hasProviderConfig, type StringKeys } from '@cherrystu
 import type { CherryInProviderSettings } from '@cherrystudio/ai-sdk-provider'
 import { providerService } from '@main/data/services/ProviderService'
 import { generateSignature } from '@main/integration/cherryai'
+import { agentService, sessionService } from '@main/services/agents'
 import { anthropicService } from '@main/services/AnthropicService'
 import { copilotService } from '@main/services/CopilotService'
 import { formatOllamaApiHost } from '@shared/ai/provider/utils'
@@ -19,12 +20,18 @@ import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { defaultAppHeaders } from '@shared/utils'
 import { formatApiHost, isWithTrailingSharp } from '@shared/utils/api'
+import type { AgentSessionEntity } from '@types'
 import { SystemProviderIds } from '@types'
 import { isEmpty } from 'lodash'
 
 import type { ProviderConfig } from '../types'
 import { type AppProviderId, appProviderIds, type AppProviderSettingsMap } from '../types'
 import { getBaseUrl, getExtraHeaders, routeToEndpoint } from '../utils/provider'
+import {
+  buildClaudeCodeSessionSettings,
+  buildSpawnProcess,
+  resolveClaudeExecutablePath
+} from './claudeCodeSettingsBuilder'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import { getAiSdkProviderId } from './factory'
 
@@ -39,6 +46,8 @@ interface BuilderContext {
   baseConfig: BaseConfig
   endpoint?: string
   aiSdkProviderId: StringKeys<AppProviderSettingsMap>
+  /** Agent session ID — when provided, claude-code builder looks up session and merges settings. */
+  agentSessionId?: string
 }
 
 /**
@@ -132,7 +141,11 @@ type ConfigBuilderEntry = {
  * Endpoint routing: model.endpointTypes[0] > provider.defaultChatEndpoint > fallback.
  * Provider variant selected by resolveProviderVariant based on endpoint type.
  */
-export async function providerToAiSdkConfig(provider: Provider, model: Model): Promise<ProviderConfig> {
+export async function providerToAiSdkConfig(
+  provider: Provider,
+  model: Model,
+  options?: { agentSessionId?: string }
+): Promise<ProviderConfig> {
   // 1. Get base provider ID (from factory.ts)
   const baseProviderId = getAiSdkProviderId(provider)
 
@@ -155,7 +168,8 @@ export async function providerToAiSdkConfig(provider: Provider, model: Model): P
     model,
     baseConfig: { baseURL, apiKey },
     endpoint,
-    aiSdkProviderId
+    aiSdkProviderId,
+    agentSessionId: options?.agentSessionId
   }
 
   const builders: ConfigBuilderEntry[] = [
@@ -470,9 +484,30 @@ function buildAiHubMixConfig(ctx: BuilderContext): ProviderConfig<'aihubmix'> {
 
 /**
  * Claude Code provider — wraps Claude Agent SDK as a standard AI SDK provider.
- * API key and base URL are passed through env vars to the SDK subprocess.
+ *
+ * Without agentSession: provider-level defaults (exe path, spawn, env vars).
+ * With agentSession: full session settings (cwd, MCP, tools, prompts) via
+ * buildClaudeCodeSessionSettings — replaces provider-level defaults entirely.
  */
-function buildClaudeCodeConfig(ctx: BuilderContext): ProviderConfig<'claude-code'> {
+async function buildClaudeCodeConfig(ctx: BuilderContext): Promise<ProviderConfig<'claude-code'>> {
+  // Agent session: look up session from DB, build complete ClaudeCodeSettings
+  if (ctx.agentSessionId) {
+    const { agents } = await agentService.listAgents()
+    let session: AgentSessionEntity | null = null
+    for (const agent of agents) {
+      session = await sessionService.getSession(agent.id, ctx.agentSessionId)
+      if (session) break
+    }
+    if (!session) throw new Error(`Agent session not found: ${ctx.agentSessionId}`)
+    const sessionSettings = await buildClaudeCodeSessionSettings(session, ctx.actualProvider)
+    return {
+      providerId: 'claude-code',
+      providerSettings: { defaultSettings: sessionSettings }
+    }
+  }
+
+  // never approach
+  // No session: provider-level defaults only
   const anthropicBaseUrl = ctx.baseConfig.baseURL
     ? formatApiHost(ctx.baseConfig.baseURL, !isWithTrailingSharp(ctx.baseConfig.baseURL))
     : ''
@@ -481,6 +516,8 @@ function buildClaudeCodeConfig(ctx: BuilderContext): ProviderConfig<'claude-code
     providerId: 'claude-code',
     providerSettings: {
       defaultSettings: {
+        pathToClaudeCodeExecutable: resolveClaudeExecutablePath(),
+        spawnClaudeCodeProcess: buildSpawnProcess(),
         env: {
           ANTHROPIC_API_KEY: ctx.baseConfig.apiKey,
           ANTHROPIC_AUTH_TOKEN: ctx.baseConfig.apiKey,

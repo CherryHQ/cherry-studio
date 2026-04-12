@@ -26,6 +26,15 @@ import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
 import { application } from '@main/core/application'
+import AssistantServer from '@main/mcpServers/assistant'
+import BrowserServer from '@main/mcpServers/browser/server'
+import ClawServer from '@main/mcpServers/claw'
+import { agentService } from '@main/services/agents/services/AgentService'
+import { isProvisioned, provisionBuiltinAgent } from '@main/services/agents/services/builtin/BuiltinAgentProvisioner'
+import { channelService } from '@main/services/agents/services/ChannelService'
+import { PromptBuilder } from '@main/services/agents/services/cherryclaw/prompt'
+import { createSdkMcpServerInstance } from '@main/services/agents/services/claudecode/createSdkMcpServerInstance'
+import { promptForToolApproval } from '@main/services/agents/services/claudecode/tool-permissions'
 import { getNodeProxyConfigFromEnvironment, getProxyEnvironment } from '@main/services/proxy/nodeProxy'
 import { toAsarUnpackedPath } from '@main/utils'
 import { getAppLanguage } from '@main/utils/language'
@@ -44,14 +53,6 @@ import type { GetAgentSessionResponse } from '@types'
 import type { ClaudeCodeSettings } from 'ai-sdk-provider-claude-code'
 import { app } from 'electron'
 
-import { agentService } from '../../services/agents/services/AgentService'
-import { isProvisioned, provisionBuiltinAgent } from '../../services/agents/services/builtin/BuiltinAgentProvisioner'
-import { channelService } from '../../services/agents/services/ChannelService'
-import { PromptBuilder } from '../../services/agents/services/cherryclaw/prompt'
-import { buildNamespacedToolCallId } from '../../services/agents/services/claudecode/claude-stream-state'
-import { createSdkMcpServerInstance } from '../../services/agents/services/claudecode/createSdkMcpServerInstance'
-import { promptForToolApproval } from '../../services/agents/services/claudecode/tool-permissions'
-
 const logger = loggerService.withContext('ClaudeCodeSettingsBuilder')
 const require_ = createRequire(import.meta.url)
 const promptBuilder = new PromptBuilder()
@@ -59,6 +60,10 @@ const DEFAULT_AUTO_ALLOW_TOOLS = new Set(['Read', 'Glob', 'Grep'])
 const shouldAutoApproveTools = process.env.CHERRY_AUTO_ALLOW_TOOLS === '1'
 
 // ── Topic ID convention ──────────────────────────────────────────────
+
+function buildNamespacedToolCallId(sessionId: string, rawToolCallId: string): string {
+  return `${sessionId}:${rawToolCallId}`
+}
 
 const AGENT_SESSION_PREFIX = 'agent-session:'
 
@@ -170,10 +175,15 @@ export async function buildClaudeCodeSessionSettings(
   // 6. Spawn options
   const spawnClaudeCodeProcess = buildSpawnProcess()
 
-  // 7. MCP servers
-  const mcpServers = await buildMcpServers(session.mcps)
+  // 7. MCP servers (session + built-in)
+  const soulEnabled = session.configuration?.soul_enabled === true
+  const isAssistant = (session.configuration as Record<string, unknown> | undefined)?.builtin_role === 'assistant'
+  const mcpServers = await buildMcpServers(session, soulEnabled, isAssistant)
 
-  // 8. Build settings
+  // 8. Adjust allowedTools for injected MCP servers
+  const finalAllowedTools = adjustAllowedToolsForMcp(allowedTools, soulEnabled, isAssistant)
+
+  // 9. Build settings
   const settings: ClaudeCodeSettings = {
     cwd,
     env,
@@ -184,7 +194,7 @@ export async function buildClaudeCodeSessionSettings(
     includePartialMessages: true,
     permissionMode: session.configuration?.permission_mode,
     maxTurns: session.configuration?.max_turns,
-    allowedTools,
+    allowedTools: finalAllowedTools,
     disallowedTools,
     plugins,
     canUseTool,
@@ -204,7 +214,7 @@ export async function buildClaudeCodeSessionSettings(
 
 // ── Subsection builders ─────────────────────────────────────────────
 
-function resolveClaudeExecutablePath(): string {
+export function resolveClaudeExecutablePath(): string {
   return toAsarUnpackedPath(path.join(path.dirname(require_.resolve('@anthropic-ai/claude-agent-sdk')), 'cli.js'))
 }
 
@@ -224,8 +234,10 @@ async function buildEnvironment(
   // const sonnetModelId = createUniqueModelId(provider.id, session.model)
   // TODO: use session.small_model
   // const smallModelId = createUniqueModelId(provider.id, session.model)
-
-  const model = await modelService.getByKey(provider.id, session.model)
+  // FIXME: In V2, session.model SHOULD be UniqueModelId
+  const colonIdx = session.model.indexOf(':')
+  const rawModelId = colonIdx > 0 ? session.model.slice(colonIdx + 1) : session.model
+  const model = await modelService.getByKey(provider.id, rawModelId)
 
   const resolveAnthropicBaseUrl = (): string => {
     if (!providerApiHost) return ''
@@ -447,7 +459,7 @@ async function buildSystemPrompt(
   }
 }
 
-function buildSpawnProcess(): ClaudeCodeSettings['spawnClaudeCodeProcess'] {
+export function buildSpawnProcess(): ClaudeCodeSettings['spawnClaudeCodeProcess'] {
   const claudeProxyBootstrapPath = toAsarUnpackedPath(path.join(app.getAppPath(), 'out', 'proxy', 'index.js'))
 
   return (spawnOptions) => {
@@ -474,19 +486,88 @@ function buildSpawnProcess(): ClaudeCodeSettings['spawnClaudeCodeProcess'] {
   }
 }
 
-async function buildMcpServers(mcpIds?: string[]): Promise<Record<string, McpServerConfig> | undefined> {
-  if (!mcpIds || mcpIds.length === 0) return undefined
-
+async function buildMcpServers(
+  session: GetAgentSessionResponse,
+  soulEnabled: boolean,
+  isAssistant: boolean
+): Promise<Record<string, McpServerConfig> | undefined> {
   const mcpList: Record<string, McpServerConfig> = {}
-  for (const mcpId of mcpIds) {
-    try {
-      const sdkServer = await createSdkMcpServerInstance(mcpId)
-      mcpList[mcpId] = { type: 'sdk', name: mcpId, instance: sdkServer }
-    } catch (error) {
-      logger.error(`Failed to create MCP bridge for ${mcpId}`, { error })
+
+  // 1. Session-configured MCP servers (user-added via UI)
+  const mcpIds = session.mcps
+  if (mcpIds && mcpIds.length > 0) {
+    for (const mcpId of mcpIds) {
+      try {
+        const sdkServer = await createSdkMcpServerInstance(mcpId)
+        mcpList[mcpId] = { type: 'sdk', name: mcpId, instance: sdkServer }
+      } catch (error) {
+        logger.error(`Failed to create MCP bridge for ${mcpId}`, { error })
+      }
     }
   }
+
+  // 2. @cherry/browser — replaces SDK built-in WebSearch/WebFetch (all agents)
+  const browserServer = new BrowserServer()
+  mcpList.browser = { type: 'sdk', name: '@cherry/browser', instance: browserServer.mcpServer }
+
+  // 3. Exa — structured web search via HTTP (free tier, no API key)
+  mcpList.exa = { type: 'http', url: 'https://mcp.exa.ai/mcp' }
+
+  // 4. Claw — agent autonomy tools (soul mode only)
+  if (soulEnabled) {
+    const sourceChannelId = await resolveSourceChannel(session.agent_id, session.id)
+    const clawServer = new ClawServer(session.agent_id, sourceChannelId)
+    mcpList.claw = { type: 'sdk', name: 'claw', instance: clawServer.mcpServer }
+    logger.debug('Soul Mode: injected claw MCP server', {
+      agentId: session.agent_id,
+      totalMcpServers: Object.keys(mcpList).length
+    })
+  }
+
+  // 5. Assistant — navigate + diagnose tools (Cherry Assistant only)
+  if (isAssistant) {
+    const assistantServer = new AssistantServer()
+    mcpList.assistant = { type: 'sdk', name: 'assistant', instance: assistantServer.mcpServer }
+    logger.debug('Cherry Assistant: injected assistant MCP server', {
+      agentId: session.agent_id,
+      totalMcpServers: Object.keys(mcpList).length
+    })
+  }
+
   return Object.keys(mcpList).length > 0 ? mcpList : undefined
+}
+
+async function resolveSourceChannel(agentId: string, sessionId: string): Promise<string | undefined> {
+  try {
+    const channels = await channelService.listChannels({ agentId })
+    return channels.find((ch) => ch.sessionId === sessionId)?.id
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * Auto-approve MCP tools for injected built-in servers.
+ * Claw and assistant tools must be in allowedTools for canUseTool to pass them.
+ */
+function adjustAllowedToolsForMcp(
+  allowedTools: string[] | undefined,
+  soulEnabled: boolean,
+  isAssistant: boolean
+): string[] | undefined {
+  if (!soulEnabled && !isAssistant) return allowedTools
+
+  const result = allowedTools ? [...allowedTools] : []
+
+  if (soulEnabled && !result.includes('mcp__claw__*')) {
+    result.push('mcp__claw__*')
+  }
+
+  if (isAssistant && !result.includes('mcp__assistant__*')) {
+    result.push('mcp__assistant__*')
+  }
+
+  return result.length > 0 ? result : undefined
 }
 
 function getSettingSources(session: GetAgentSessionResponse): Array<'user' | 'project' | 'local'> {

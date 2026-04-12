@@ -224,7 +224,7 @@ export async function buildStreamTextParams(
     params.tools = tools
   }
 
-  let systemPrompt = assistant.prompt ? await replacePromptVariables(assistant.prompt, model.name) : ''
+  let systemPrompt = assistant.prompt ? replacePromptVariables(assistant.prompt, model.name) : ''
 
   if (getEffectiveMcpMode(assistant) === 'auto') {
     const autoModePrompt = getHubModeSystemPrompt()

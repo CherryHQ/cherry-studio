@@ -302,7 +302,7 @@ export class AiStreamManager extends BaseService {
   }
 
   // ── Backward-compat (single-execution convenience) ─────────────────
-  // Used by tests and ClaudeCodeStreamAdapter that operate on single-model topics.
+  // Used by tests that operate on single-model topics.
   // These delegate to the first execution in the topic's executions Map.
 
   /** Convenience: onDone for the first (or only) execution. */

@@ -78,8 +78,6 @@ src/main/ai/stream-manager/
 │   ├── WebContentsListener.ts      将 chunks 分发到 Renderer 窗口
 │   ├── PersistenceListener.ts      流结束时将 assistant 消息写入 SQLite
 │   └── ChannelAdapterListener.ts   将回复文本发送到 Discord / Slack / 飞书
-├── adapters/
-│   └── ClaudeCodeStreamAdapter.ts  桥接 Claude Agent SDK 的事件到 AiStreamManager
 └── index.ts                    barrel export
 ```
 

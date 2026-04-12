@@ -18,6 +18,7 @@ import type {
 
 import { type AgentOptions, runAgentLoop } from './agentLoop'
 import { buildPlugins } from './plugins/PluginBuilder'
+import { extractAgentSessionId, isAgentSessionTopic } from './provider/claudeCodeSettingsBuilder'
 import { providerToAiSdkConfig } from './provider/providerConfig'
 import { listModels as listModelsFromProvider } from './services/listModels'
 import { registerMcpTools } from './tools/mcpTools'
@@ -247,11 +248,14 @@ export class AiCompletionService {
 
   // ── Shared agent parameter resolution ──
 
-  private async buildAgentParams(request: AiBaseRequest) {
+  private async buildAgentParams(request: AiBaseRequest & { chatId?: string }) {
     const { provider, model, assistant } = await this.getProviderAndModel(request)
 
+    const chatId = request.chatId
+    const isSession = chatId && isAgentSessionTopic(chatId)
+    const agentSessionId = isSession ? extractAgentSessionId(chatId) : undefined
     const sdkConfig = {
-      ...(await providerToAiSdkConfig(provider, model)),
+      ...(await providerToAiSdkConfig(provider, model, { agentSessionId })),
       modelId: model.apiModelId ?? model.id
     }
 
