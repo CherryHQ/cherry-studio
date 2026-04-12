@@ -33,7 +33,7 @@ export const useUpdateAgent = () => {
         // Other sessions refresh via SWR stale-while-revalidate when navigated to.
         // Using store.getState() instead of useSelector to avoid adding reactive deps to useCallback.
         const { activeSessionIdMap } = store.getState().runtime.chat
-        const activeSessionId = activeSessionIdMap[form.id]
+        const activeSessionId = activeSessionIdMap?.[form.id]
         if (activeSessionId) {
           const sessionKey = client.getSessionPaths(form.id).withId(activeSessionId)
           void mutate(sessionKey)

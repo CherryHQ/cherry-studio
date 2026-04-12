@@ -382,11 +382,20 @@ export class AgentService extends BaseService {
     }
 
     const database = await this.getDatabase()
+
+    // Read the raw agent row before updating — getAgent() normalizes allowed_tools
+    // (legacy ID → canonical ID), but sessions store the original format. We need
+    // the raw DB values so string comparison against sessions is accurate.
+    const rawRows = await database.select().from(agentsTable).where(eq(agentsTable.id, id)).limit(1)
+    const rawOldAgent = rawRows[0]
+
     await database.update(agentsTable).set(updateData).where(eq(agentsTable.id, id))
 
     // Sync changed fields to all sessions that still match the agent's old values.
     // Sessions where the user has customized a field are left untouched.
-    await this.syncSettingsToSessions(database, id, existing, serializedUpdates)
+    if (rawOldAgent) {
+      await this.syncSettingsToSessions(database, id, rawOldAgent, serializedUpdates)
+    }
 
     return await this.getAgent(id)
   }
@@ -402,17 +411,17 @@ export class AgentService extends BaseService {
   private async syncSettingsToSessions(
     database: Awaited<ReturnType<typeof this.getDatabase>>,
     agentId: string,
-    oldAgent: AgentEntity,
+    rawOldAgent: Record<string, unknown>,
     serializedUpdates: Record<string, unknown>
   ): Promise<void> {
     const syncFields = ['model', 'plan_model', 'small_model', 'allowed_tools', 'configuration', 'mcps', 'instructions']
 
-    const serializedOldAgent = this.serializeJsonFields(oldAgent)
-
-    // Only sync fields that are present in the update AND actually changed
+    // rawOldAgent is already in DB-serialized form (JSON strings), so we can
+    // compare directly against session rows without normalization mismatch.
+    // Only sync fields that are present in the update AND actually changed.
     const changedFields = syncFields.filter((field) => {
       if (!Object.prototype.hasOwnProperty.call(serializedUpdates, field)) return false
-      return (serializedUpdates[field] ?? null) !== (serializedOldAgent[field] ?? null)
+      return (serializedUpdates[field] ?? null) !== ((rawOldAgent as Record<string, unknown>)[field] ?? null)
     })
     if (changedFields.length === 0) return
 
@@ -428,7 +437,7 @@ export class AgentService extends BaseService {
           const sessionUpdateData: Partial<Record<string, unknown>> = {}
 
           for (const field of changedFields) {
-            const oldAgentValue = serializedOldAgent[field] ?? null
+            const oldAgentValue = rawOldAgent[field] ?? null
             const sessionValue = (session as Record<string, unknown>)[field] ?? null
 
             // Only sync if session still has the agent's old value (not user-customized)
