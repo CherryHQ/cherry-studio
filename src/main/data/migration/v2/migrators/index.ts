@@ -12,6 +12,7 @@ import { KnowledgeMigrator } from './KnowledgeMigrator'
 import { KnowledgeVectorMigrator } from './KnowledgeVectorMigrator'
 import { McpServerMigrator } from './McpServerMigrator'
 import { MiniAppMigrator } from './MiniAppMigrator'
+import { PaintingMigrator } from './PaintingMigrator'
 import { PreferencesMigrator } from './PreferencesMigrator'
 import { ProviderModelMigrator } from './ProviderModelMigrator'
 import { TranslateMigrator } from './TranslateMigrator'
@@ -25,6 +26,7 @@ export {
   KnowledgeVectorMigrator,
   McpServerMigrator,
   MiniAppMigrator,
+  PaintingMigrator,
   PreferencesMigrator,
   ProviderModelMigrator,
   TranslateMigrator
@@ -44,6 +46,7 @@ export function getAllMigrators() {
     new KnowledgeMigrator(),
     new KnowledgeVectorMigrator(),
     new ChatMigrator(),
+    new PaintingMigrator(),
     new TranslateMigrator()
   ]
 }

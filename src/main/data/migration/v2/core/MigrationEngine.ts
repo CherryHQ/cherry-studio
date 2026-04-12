@@ -10,6 +10,7 @@ import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowled
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { messageTable } from '@data/db/schemas/message'
 import { miniappTable } from '@data/db/schemas/miniapp'
+import { paintingTable } from '@data/db/schemas/painting'
 import { preferenceTable } from '@data/db/schemas/preference'
 import { topicTable } from '@data/db/schemas/topic'
 import { translateHistoryTable } from '@data/db/schemas/translateHistory'
@@ -294,6 +295,7 @@ export class MigrationEngine {
       { table: userProviderTable, name: 'user_provider' },
       { table: messageTable, name: 'message' }, // Must clear before topic (FK reference)
       { table: topicTable, name: 'topic' }, // Must clear before assistant (FK reference)
+      { table: paintingTable, name: 'painting' },
       { table: assistantMcpServerTable, name: 'assistant_mcp_server' }, // Junction: clear before assistant
       { table: assistantKnowledgeBaseTable, name: 'assistant_knowledge_base' }, // Junction: clear before assistant
       { table: assistantTable, name: 'assistant' },
@@ -321,6 +323,7 @@ export class MigrationEngine {
     await db.delete(userProviderTable)
     await db.delete(messageTable) // FK → topic
     await db.delete(topicTable) // FK → assistant
+    await db.delete(paintingTable)
     await db.delete(assistantMcpServerTable) // FK → assistant, mcp_server
     await db.delete(assistantKnowledgeBaseTable) // FK → assistant
     await db.delete(assistantTable)

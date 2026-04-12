@@ -27,6 +27,7 @@ import type { MCPServerSchemas } from './mcpServers'
 import type { MessageSchemas } from './messages'
 import type { MiniappSchemas } from './miniapps'
 import type { ModelSchemas } from './models'
+import type { PaintingsSchemas } from './paintings'
 import type { ProviderSchemas } from './providers'
 import type { TopicSchemas } from './topics'
 import type { TranslateSchemas } from './translate'
@@ -49,6 +50,7 @@ export type ApiSchemas = AssertValidSchemas<
     MessageSchemas &
     ModelSchemas &
     ProviderSchemas &
+    PaintingsSchemas &
     TranslateSchemas &
     FileProcessingSchemas &
     MCPServerSchemas &
