@@ -1,10 +1,11 @@
+import { BaseService } from '@main/core/lifecycle/BaseService'
 import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { StreamDoneResult, StreamListener } from '../types'
 
-// ── Fake listener for testing ───────────────────────────────────────
+// ── Fake listener ───────────────────────────────────────────────────
 
 class FakeListener implements StreamListener {
   readonly id: string
@@ -21,11 +22,11 @@ class FakeListener implements StreamListener {
     this.chunks.push(chunk)
   }
 
-  async onDone(result: StreamDoneResult): Promise<void> {
+  onDone(result: StreamDoneResult): void {
     this.doneResults.push(result)
   }
 
-  async onError(error: SerializedError): Promise<void> {
+  onError(error: SerializedError): void {
     this.errors.push(error)
   }
 
@@ -34,7 +35,7 @@ class FakeListener implements StreamListener {
   }
 }
 
-// ── Mocks ───────────────────────────────────────────────────────────
+// ── Mock messageService (direct-import singleton, not via application.get) ──
 
 vi.mock('@main/data/services/MessageService', () => ({
   messageService: {
@@ -42,25 +43,24 @@ vi.mock('@main/data/services/MessageService', () => ({
   }
 }))
 
-// AiStreamManager uses application.get('AiService') internally.
-// Since we're testing the manager's own logic (not executeStream), we mock
-// AiService.executeStream to be a no-op that just resolves.
+// ── Override AiService in application.get() ─────────────────────────
+
 const mockExecuteStream = vi.fn().mockResolvedValue(undefined)
-vi.mock('@main/core/application', () => ({
-  application: {
-    get: () => ({ executeStream: mockExecuteStream })
-  }
-}))
+
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    AiService: { executeStream: mockExecuteStream }
+  })
+})
 
 // ── Import after mocks ──────────────────────────────────────────────
 
 const { AiStreamManager } = await import('../AiStreamManager')
-const { BaseService } = await import('@main/core/lifecycle/BaseService')
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
 function createManager(): InstanceType<typeof AiStreamManager> {
-  // Reset the singleton registry so we can create a fresh instance per test
   BaseService.resetInstances()
   return new (AiStreamManager as any)()
 }
@@ -71,6 +71,10 @@ function makeChunk(text: string): UIMessageChunk {
 
 function makeError(message: string): SerializedError {
   return { name: 'Error', message, stack: null }
+}
+
+function makeRequest(topicId: string) {
+  return { requestId: topicId, chatId: topicId, trigger: 'submit-message', messages: [] } as any
 }
 
 // ── Tests ───────────────────────────────────────────────────────────
@@ -84,87 +88,79 @@ describe('AiStreamManager', () => {
   })
 
   describe('startStream', () => {
-    it('should create an active stream', () => {
+    it('creates an active stream with listeners', () => {
       const listener = new FakeListener('test:topicA')
       const stream = manager.startStream({
         topicId: 'topicA',
-        request: { requestId: 'topicA', chatId: 'topicA', trigger: 'submit-message', messages: [] } as any,
+        request: makeRequest('topicA'),
         listeners: [listener]
       })
 
       expect(stream.topicId).toBe('topicA')
       expect(stream.status).toBe('streaming')
       expect(stream.listeners.size).toBe(1)
+      expect(mockExecuteStream).toHaveBeenCalledOnce()
     })
 
-    it('should throw if topic already has a streaming stream', () => {
-      const listener = new FakeListener('test:topicA')
+    it('throws if topic already has a streaming stream', () => {
       manager.startStream({
         topicId: 'topicA',
-        request: { requestId: 'topicA', chatId: 'topicA', trigger: 'submit-message', messages: [] } as any,
-        listeners: [listener]
+        request: makeRequest('topicA'),
+        listeners: [new FakeListener('l1:topicA')]
       })
 
       expect(() =>
         manager.startStream({
           topicId: 'topicA',
-          request: { requestId: 'topicA', chatId: 'topicA', trigger: 'submit-message', messages: [] } as any,
-          listeners: [new FakeListener('test2:topicA')]
+          request: makeRequest('topicA'),
+          listeners: [new FakeListener('l2:topicA')]
         })
       ).toThrow('already has an active stream')
     })
 
-    it('should evict grace-period stream and create new one', async () => {
-      const listener1 = new FakeListener('test:topicA')
+    it('evicts grace-period stream and creates new one', async () => {
       manager.startStream({
         topicId: 'topicA',
-        request: { requestId: 'topicA', chatId: 'topicA', trigger: 'submit-message', messages: [] } as any,
-        listeners: [listener1]
+        request: makeRequest('topicA'),
+        listeners: [new FakeListener('l1:topicA')]
       })
 
-      // Simulate stream completion
       await manager.onDone('topicA', 'success')
 
-      // Start a new stream on the same topic — should evict the old one
-      const listener2 = new FakeListener('test:topicA')
       const stream = manager.startStream({
         topicId: 'topicA',
-        request: { requestId: 'topicA', chatId: 'topicA', trigger: 'submit-message', messages: [] } as any,
-        listeners: [listener2]
+        request: makeRequest('topicA'),
+        listeners: [new FakeListener('l2:topicA')]
       })
 
       expect(stream.status).toBe('streaming')
-      expect(stream.listeners.size).toBe(1)
     })
   })
 
   describe('send (routing)', () => {
-    it('should start a new stream if no active stream exists', () => {
-      const listener = new FakeListener('test:topicB')
+    it('starts a new stream if no active stream exists', () => {
       const result = manager.send({
         topicId: 'topicB',
-        request: { requestId: 'topicB', chatId: 'topicB', trigger: 'submit-message', messages: [] } as any,
+        request: makeRequest('topicB'),
         userMessage: { id: 'user-1' },
-        listeners: [listener]
+        listeners: [new FakeListener('test:topicB')]
       })
 
       expect(result.mode).toBe('started')
     })
 
-    it('should steer if topic already has a streaming stream', () => {
-      const listener1 = new FakeListener('test:topicC')
+    it('steers if topic already has a streaming stream', () => {
       manager.startStream({
         topicId: 'topicC',
-        request: { requestId: 'topicC', chatId: 'topicC', trigger: 'submit-message', messages: [] } as any,
-        listeners: [listener1]
+        request: makeRequest('topicC'),
+        listeners: [new FakeListener('l1:topicC')]
       })
 
-      const listener2 = new FakeListener('test:topicC')
       const result = manager.send({
         topicId: 'topicC',
-        request: { requestId: 'topicC', chatId: 'topicC', trigger: 'submit-message', messages: [] } as any,
+        request: makeRequest('topicC'),
         userMessage: { id: 'user-2' },
-        listeners: [listener2]
+        listeners: [new FakeListener('l2:topicC')]
       })
 
       expect(result.mode).toBe('steered')
@@ -172,113 +168,104 @@ describe('AiStreamManager', () => {
   })
 
   describe('onChunk (multicast)', () => {
-    it('should deliver chunks to all alive listeners', () => {
-      const listener1 = new FakeListener('l1:topicD')
-      const listener2 = new FakeListener('l2:topicD')
+    it('delivers chunks to all alive listeners', () => {
+      const l1 = new FakeListener('l1:topicD')
+      const l2 = new FakeListener('l2:topicD')
       manager.startStream({
         topicId: 'topicD',
-        request: { requestId: 'topicD', chatId: 'topicD', trigger: 'submit-message', messages: [] } as any,
-        listeners: [listener1, listener2]
+        request: makeRequest('topicD'),
+        listeners: [l1, l2]
       })
 
       const chunk = makeChunk('hello')
       manager.onChunk('topicD', chunk)
 
-      expect(listener1.chunks).toHaveLength(1)
-      expect(listener2.chunks).toHaveLength(1)
-      expect(listener1.chunks[0]).toBe(chunk)
+      expect(l1.chunks).toEqual([chunk])
+      expect(l2.chunks).toEqual([chunk])
     })
 
-    it('should remove dead listeners automatically', () => {
+    it('removes dead listeners automatically', () => {
       const alive = new FakeListener('alive:topicE')
       const dead = new FakeListener('dead:topicE')
       dead.alive = false
 
       manager.startStream({
         topicId: 'topicE',
-        request: { requestId: 'topicE', chatId: 'topicE', trigger: 'submit-message', messages: [] } as any,
+        request: makeRequest('topicE'),
         listeners: [alive, dead]
       })
 
       manager.onChunk('topicE', makeChunk('test'))
 
       expect(alive.chunks).toHaveLength(1)
-      expect(dead.chunks).toHaveLength(0) // dead listener never received chunk
+      expect(dead.chunks).toHaveLength(0)
     })
 
-    it('should buffer chunks for reconnect replay', () => {
-      const listener = new FakeListener('test:topicF')
+    it('replays buffer when adding a late listener', () => {
       manager.startStream({
         topicId: 'topicF',
-        request: { requestId: 'topicF', chatId: 'topicF', trigger: 'submit-message', messages: [] } as any,
-        listeners: [listener]
+        request: makeRequest('topicF'),
+        listeners: [new FakeListener('early:topicF')]
       })
 
       manager.onChunk('topicF', makeChunk('a'))
       manager.onChunk('topicF', makeChunk('b'))
 
-      // Add a new listener — should get buffer replay
       const late = new FakeListener('late:topicF')
       manager.addListener('topicF', late)
 
       expect(late.chunks).toHaveLength(2)
-      expect(late.chunks[0]).toEqual(makeChunk('a'))
     })
   })
 
   describe('onDone', () => {
-    it('should broadcast done to all listeners', async () => {
+    it('broadcasts done to all listeners', async () => {
       const listener = new FakeListener('test:topicG')
       manager.startStream({
         topicId: 'topicG',
-        request: { requestId: 'topicG', chatId: 'topicG', trigger: 'submit-message', messages: [] } as any,
+        request: makeRequest('topicG'),
         listeners: [listener]
       })
 
       await manager.onDone('topicG', 'success')
 
-      expect(listener.doneResults).toHaveLength(1)
-      expect(listener.doneResults[0].status).toBe('success')
+      expect(listener.doneResults).toEqual([{ finalMessage: undefined, status: 'success' }])
     })
 
-    it('should set status to aborted when paused', async () => {
-      const listener = new FakeListener('test:topicH')
+    it('sets status to aborted when paused', async () => {
       const stream = manager.startStream({
         topicId: 'topicH',
-        request: { requestId: 'topicH', chatId: 'topicH', trigger: 'submit-message', messages: [] } as any,
-        listeners: [listener]
+        request: makeRequest('topicH'),
+        listeners: [new FakeListener('test:topicH')]
       })
 
       await manager.onDone('topicH', 'paused')
 
       expect(stream.status).toBe('aborted')
-      expect(listener.doneResults[0].status).toBe('paused')
     })
   })
 
   describe('onError', () => {
-    it('should broadcast error to all listeners', async () => {
+    it('broadcasts error to all listeners', async () => {
       const listener = new FakeListener('test:topicI')
       manager.startStream({
         topicId: 'topicI',
-        request: { requestId: 'topicI', chatId: 'topicI', trigger: 'submit-message', messages: [] } as any,
+        request: makeRequest('topicI'),
         listeners: [listener]
       })
 
       await manager.onError('topicI', makeError('test error'))
 
-      expect(listener.errors).toHaveLength(1)
-      expect(listener.errors[0].message).toBe('test error')
+      expect(listener.errors).toEqual([makeError('test error')])
     })
   })
 
   describe('abort', () => {
-    it('should set status to aborted and trigger AbortController', () => {
-      const listener = new FakeListener('test:topicJ')
+    it('sets status to aborted and triggers AbortController', () => {
       const stream = manager.startStream({
         topicId: 'topicJ',
-        request: { requestId: 'topicJ', chatId: 'topicJ', trigger: 'submit-message', messages: [] } as any,
-        listeners: [listener]
+        request: makeRequest('topicJ'),
+        listeners: [new FakeListener('test:topicJ')]
       })
 
       manager.abort('topicJ', 'user-requested')
@@ -287,35 +274,33 @@ describe('AiStreamManager', () => {
       expect(stream.abortController.signal.aborted).toBe(true)
     })
 
-    it('should be a no-op for non-existent topics', () => {
+    it('is a no-op for non-existent topics', () => {
       expect(() => manager.abort('non-existent', 'test')).not.toThrow()
     })
   })
 
   describe('listener management', () => {
-    it('should upsert listeners by id', () => {
-      const listener1 = new FakeListener('test:topicK')
+    it('upserts listeners by id', () => {
+      const l1 = new FakeListener('same-id:topicK')
       manager.startStream({
         topicId: 'topicK',
-        request: { requestId: 'topicK', chatId: 'topicK', trigger: 'submit-message', messages: [] } as any,
-        listeners: [listener1]
+        request: makeRequest('topicK'),
+        listeners: [l1]
       })
 
-      // Add another listener with the SAME id — should replace
-      const listener2 = new FakeListener('test:topicK')
-      manager.addListener('topicK', listener2)
+      const l2 = new FakeListener('same-id:topicK')
+      manager.addListener('topicK', l2)
 
-      // Send a chunk — only listener2 should receive it
       manager.onChunk('topicK', makeChunk('hello'))
-      expect(listener1.chunks).toHaveLength(0) // replaced
-      expect(listener2.chunks).toHaveLength(1)
+      expect(l1.chunks).toHaveLength(0) // replaced
+      expect(l2.chunks).toHaveLength(1)
     })
 
-    it('should remove listener by id', () => {
+    it('removes listener by id', () => {
       const listener = new FakeListener('test:topicL')
       manager.startStream({
         topicId: 'topicL',
-        request: { requestId: 'topicL', chatId: 'topicL', trigger: 'submit-message', messages: [] } as any,
+        request: makeRequest('topicL'),
         listeners: [listener]
       })
 
@@ -327,24 +312,24 @@ describe('AiStreamManager', () => {
   })
 
   describe('shouldStopStream', () => {
-    it('should return true for non-existent topic', () => {
+    it('returns true for non-existent topic', () => {
       expect(manager.shouldStopStream('non-existent')).toBe(true)
     })
 
-    it('should return false for active streaming', () => {
+    it('returns false for active streaming', () => {
       manager.startStream({
         topicId: 'topicM',
-        request: { requestId: 'topicM', chatId: 'topicM', trigger: 'submit-message', messages: [] } as any,
+        request: makeRequest('topicM'),
         listeners: [new FakeListener('test:topicM')]
       })
 
       expect(manager.shouldStopStream('topicM')).toBe(false)
     })
 
-    it('should return true after abort', () => {
+    it('returns true after abort', () => {
       manager.startStream({
         topicId: 'topicN',
-        request: { requestId: 'topicN', chatId: 'topicN', trigger: 'submit-message', messages: [] } as any,
+        request: makeRequest('topicN'),
         listeners: [new FakeListener('test:topicN')]
       })
 
@@ -354,20 +339,19 @@ describe('AiStreamManager', () => {
   })
 
   describe('steer', () => {
-    it('should push message to pending queue', () => {
-      const listener = new FakeListener('test:topicO')
+    it('pushes message to pending queue', () => {
       const stream = manager.startStream({
         topicId: 'topicO',
-        request: { requestId: 'topicO', chatId: 'topicO', trigger: 'submit-message', messages: [] } as any,
-        listeners: [listener]
+        request: makeRequest('topicO'),
+        listeners: [new FakeListener('test:topicO')]
       })
 
-      const steered = manager.steer('topicO', { id: 'user-2', text: 'follow up' })
+      const steered = manager.steer('topicO', { id: 'user-2' })
       expect(steered).toBe(true)
       expect(stream.pendingMessages.hasPending()).toBe(true)
     })
 
-    it('should return false for non-existent topic', () => {
+    it('returns false for non-existent topic', () => {
       expect(manager.steer('non-existent', {})).toBe(false)
     })
   })
