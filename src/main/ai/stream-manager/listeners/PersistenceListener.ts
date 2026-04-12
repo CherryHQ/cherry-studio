@@ -1,5 +1,7 @@
 import { loggerService } from '@logger'
 import { messageService } from '@main/data/services/MessageService'
+import type { MessageStats } from '@shared/data/types/message'
+import type { AssistantMeta, ModelMeta } from '@shared/data/types/meta'
 import type { SerializedError } from '@shared/types/error'
 
 import type { CherryUIMessage, StreamDoneResult, StreamListener } from '../types'
@@ -7,11 +9,22 @@ import type { CherryUIMessage, StreamDoneResult, StreamListener } from '../types
 const logger = loggerService.withContext('PersistenceListener')
 
 export interface PersistenceListenerOptions {
-  /** For logging/trace only. */
   topicId: string
   assistantId: string
   /** Real SQLite id of the user message created by handleStreamRequest. */
   parentUserMessageId: string
+  /** Model id used for this generation. */
+  modelId?: string
+  /** Snapshot of model metadata for historical display (survives model rename/deletion). */
+  modelMeta?: ModelMeta
+  /** Snapshot of assistant metadata for historical display. */
+  assistantMeta?: AssistantMeta
+  /** Token usage and performance metrics, set by AiStreamManager from executeStream result. */
+  stats?: MessageStats
+  /** OpenTelemetry trace id for request tracing. */
+  traceId?: string
+  /** Multi-model: siblings group id shared by parallel responses to the same user message. */
+  siblingsGroupId?: number
   /**
    * Optional post-persist hook. Runs only on `status === 'success'`.
    * Failures are caught and warned, never propagated.
@@ -51,6 +64,11 @@ export class PersistenceListener implements StreamListener {
         role: 'assistant',
         parentId: this.ctx.parentUserMessageId,
         assistantId: this.ctx.assistantId,
+        modelId: this.ctx.modelId,
+        modelMeta: this.ctx.modelMeta,
+        assistantMeta: this.ctx.assistantMeta,
+        traceId: this.ctx.traceId,
+        siblingsGroupId: this.ctx.siblingsGroupId,
         data: { parts: finalMessage.parts },
         status
       })
