@@ -490,12 +490,26 @@ export enum IpcChannel {
   // Analytics
   Analytics_TrackTokenUsage = 'analytics:track-token-usage',
 
-  // AI Stream
+  // AI Stream (legacy — Phase 2 Step 2.8 will remove these)
+  /** @deprecated Use Ai_Stream_Open instead */
   Ai_StreamRequest = 'ai:stream-request',
   Ai_StreamChunk = 'ai:stream-chunk',
   Ai_StreamDone = 'ai:stream-done',
   Ai_StreamError = 'ai:stream-error',
+  /** @deprecated Use Ai_Stream_Abort instead */
   Ai_Abort = 'ai:abort',
+
+  // AI Stream Broker (Phase 2)
+  /** Renderer → Main: send message (Broker routes to startStream or steer) */
+  Ai_Stream_Open = 'ai:stream:open',
+  /** Renderer → Main: reconnect (byRequestId for original sender, byTopicId for observer) */
+  Ai_Stream_Attach = 'ai:stream:attach',
+  /** Renderer → Main: unsubscribe by requestId (stream continues in Main) */
+  Ai_Stream_Detach = 'ai:stream:detach',
+  /** Renderer → Main: abort by requestId (stops the generation attempt) */
+  Ai_Stream_Abort = 'ai:stream:abort',
+
+  // AI Non-streaming
   Ai_GenerateText = 'ai:generate-text',
   Ai_CheckModel = 'ai:check-model',
   Ai_EmbedMany = 'ai:embed-many',

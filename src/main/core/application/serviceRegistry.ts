@@ -3,6 +3,7 @@ import { DataApiService } from '@data/DataApiService'
 import { DbService } from '@data/db/DbService'
 import { PreferenceService } from '@data/PreferenceService'
 import { AiService } from '@main/ai/AiService'
+import { AiStreamBroker } from '@main/ai/stream-broker/AiStreamBroker'
 import { AgentBootstrapService } from '@main/services/AgentBootstrapService'
 import { AnalyticsService } from '@main/services/AnalyticsService'
 import { ApiServerService } from '@main/services/ApiServerService'
@@ -84,6 +85,7 @@ export const services = {
   OpenClawService,
   SearchService,
   AiService,
+  AiStreamBroker,
   KnowledgeOrchestrationService,
   KnowledgeVectorStoreService,
   KnowledgeRuntimeService,

@@ -926,7 +926,36 @@ const api = {
       providerId?: string
       assistantId?: string
     }): Promise<Array<{ id: string; name: string; provider: string; group: string; [key: string]: unknown }>> =>
-      ipcRenderer.invoke(IpcChannel.Ai_ListModels, request)
+      ipcRenderer.invoke(IpcChannel.Ai_ListModels, request),
+
+    // ── AiStreamBroker (Phase 2) ──
+
+    /** Open a new stream or steer an existing one. Returns requestId + routing mode. */
+    streamOpen: (req: {
+      requestId: string
+      topicId: string
+      parentAnchorId: string | null
+      userMessage: { role: 'user'; data: { parts: unknown[] } }
+      assistantId: string
+      [key: string]: unknown
+    }): Promise<{ requestId: string; mode: 'started' | 'steered' | 'deduped' }> =>
+      ipcRenderer.invoke(IpcChannel.Ai_Stream_Open, req),
+
+    /** Reconnect to a running or recently-finished stream. */
+    streamAttach: (
+      req: { mode: 'byRequestId'; requestId: string } | { mode: 'byTopicId'; topicId: string }
+    ): Promise<
+      | { status: 'not-found' }
+      | { status: 'attached'; requestId: string; replayedChunks: number }
+      | { status: 'done'; requestId: string; finalMessage: unknown }
+      | { status: 'error'; requestId: string; error: SerializedError }
+    > => ipcRenderer.invoke(IpcChannel.Ai_Stream_Attach, req),
+
+    /** Unsubscribe from a stream (stream keeps running in Main). */
+    streamDetach: (req: { requestId: string }) => ipcRenderer.invoke(IpcChannel.Ai_Stream_Detach, req),
+
+    /** Abort a specific generation attempt by requestId. */
+    streamAbort: (req: { requestId: string }) => ipcRenderer.invoke(IpcChannel.Ai_Stream_Abort, req)
   },
   apiServer: {
     getStatus: (): Promise<GetApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_GetStatus),
