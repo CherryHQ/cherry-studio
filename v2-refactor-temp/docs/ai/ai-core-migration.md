@@ -878,13 +878,13 @@ export class AiService extends BaseService {
     })
 
     // 中止请求 (fire-and-forget)
-    this.ipcOn(IpcChannel.Ai_Abort, (_, requestId: string) => {
-      this.completionService.abort(requestId)
+    this.ipcOn(IpcChannel.Ai_Abort, (_, topicId: string) => {
+      this.completionService.abort(topicId)
     })
 
     // Agent 执行中注入新消息 (steering, fire-and-forget)
-    this.ipcOn(IpcChannel.Ai_SteerMessage, (_, requestId: string, message: any) => {
-      this.completionService.steer(requestId, message)
+    this.ipcOn(IpcChannel.Ai_SteerMessage, (_, topicId: string, message: any) => {
+      this.completionService.steer(topicId, message)
     })
   }
 
@@ -893,9 +893,9 @@ export class AiService extends BaseService {
    * 同时用于 Renderer IPC 请求和 Main 内部 Agent/Channel 调用。
    */
   async executeStream(target: Electron.WebContents, request: AiStreamRequest) {
-    const { requestId } = request
+    const { topicId } = request
     const abortController = new AbortController()
-    this.completionService.registerRequest(requestId, abortController)
+    this.completionService.registerRequest(topicId, abortController)
 
     try {
       const stream = await this.completionService.streamText(request, abortController.signal)
@@ -904,18 +904,18 @@ export class AiService extends BaseService {
       while (true) {
         const { done, value } = await reader.read()
         if (done || target.isDestroyed()) break
-        target.send(IpcChannel.Ai_StreamChunk, { requestId, chunk: value })
+        target.send(IpcChannel.Ai_StreamChunk, { topicId, chunk: value })
       }
 
       if (!target.isDestroyed()) {
-        target.send(IpcChannel.Ai_StreamDone, { requestId })
+        target.send(IpcChannel.Ai_StreamDone, { topicId })
       }
     } catch (error) {
       if (!target.isDestroyed()) {
-        target.send(IpcChannel.Ai_StreamError, { requestId, error: serializeError(error) })
+        target.send(IpcChannel.Ai_StreamError, { topicId, error: serializeError(error) })
       }
     } finally {
-      this.completionService.removeRequest(requestId)
+      this.completionService.removeRequest(topicId)
     }
   }
 }
@@ -980,7 +980,7 @@ export class AiCompletionService {
     const plugins = buildPlugins(model, provider, request.assistantConfig)
 
     // 4. 委托 runAgentLoop（双循环纯函数）
-    const pendingMessages = this.getPendingMessageQueue(request.requestId)
+    const pendingMessages = this.getPendingMessageQueue(request.topicId)
 
     return runAgentLoop(
       {
@@ -993,10 +993,10 @@ export class AiCompletionService {
         pendingMessages,
         maxSteps: request.maxSteps ?? 20,
         isAgentMode: request.agentMode === true,
-        requestId: request.requestId,
+        topicId: request.topicId,
         chatId: request.chatId,
         modelContextWindow: model.contextWindow ?? 128_000,
-        onStepProgress: (progress) => this.emitStepProgress(request.requestId, progress),
+        onStepProgress: (progress) => this.emitStepProgress(request.topicId, progress),
       },
       request.messages,
       signal,
@@ -1004,23 +1004,23 @@ export class AiCompletionService {
   }
 
   // --- Request tracking ---
-  registerRequest(requestId: string, controller: AbortController) { ... }
-  removeRequest(requestId: string) { ... }
-  abort(requestId: string) { ... }
+  registerRequest(topicId: string, controller: AbortController) { ... }
+  removeRequest(topicId: string) { ... }
+  abort(topicId: string) { ... }
 
   // --- Pending Messages (Steering) ---
   private pendingMessageQueues = new Map<string, PendingMessageQueue>()
 
-  getPendingMessageQueue(requestId: string): PendingMessageQueue {
-    if (!this.pendingMessageQueues.has(requestId)) {
-      this.pendingMessageQueues.set(requestId, new PendingMessageQueue())
+  getPendingMessageQueue(topicId: string): PendingMessageQueue {
+    if (!this.pendingMessageQueues.has(topicId)) {
+      this.pendingMessageQueues.set(topicId, new PendingMessageQueue())
     }
-    return this.pendingMessageQueues.get(requestId)!
+    return this.pendingMessageQueues.get(topicId)!
   }
 
   /** 用户在执行中注入新消息（由 AiService IPC handler 调用） */
-  steer(requestId: string, message: ModelMessage) {
-    this.getPendingMessageQueue(requestId).push(message)
+  steer(topicId: string, message: ModelMessage) {
+    this.getPendingMessageQueue(topicId).push(message)
   }
 }
 
@@ -1201,7 +1201,7 @@ export class AiCompletionService {
 ai: {
   // 已有
   streamText: (request) => ipcRenderer.invoke(Ai_StreamRequest, request),
-  abort: (requestId) => ipcRenderer.send(Ai_Abort, requestId),
+  abort: (topicId) => ipcRenderer.send(Ai_Abort, topicId),
   onStreamChunk: (callback) => ...,
   onStreamDone: (callback) => ...,
   onStreamError: (callback) => ...,
@@ -1721,7 +1721,7 @@ function runAgentLoop(
  *     const drained = pendingMessages.drain()
  *     return drained.length > 0 ? { messages: [...messages, ...drained] } : {}
  *   },
- *   onStepFinish: (step) => emitStepProgress(requestId, step),
+ *   onStepFinish: (step) => emitStepProgress(topicId, step),
  *   afterIteration: async (ctx, result) => {
  *     await persistMessages(chatId, result.messages)
  *     ipcMain.emit('Ai_MessagesPersisted', { chatId })
@@ -2125,7 +2125,7 @@ src/renderer/src/aiCore/types/middlewareConfig.ts → src/main/ai/types/middlewa
 
 ### Step 1.16: 定义共享 Zod Schema
 
-oRPC 使用 Zod schema 作为跨进程的类型契约，不需要手写 `BridgeRequest` / `WorkerMessage` / `WorkerControl` 等消息类型——oRPC 内部处理序列化、requestId 匹配、错误传播。
+oRPC 使用 Zod schema 作为跨进程的类型契约，不需要手写 `BridgeRequest` / `WorkerMessage` / `WorkerControl` 等消息类型——oRPC 内部处理序列化、topicId 匹配、错误传播。
 
 **新建文件**: `packages/shared/ai-transport/schemas.ts`
 
@@ -2178,11 +2178,11 @@ export const aiStreamRequestSchema = z.object({
   /**
    * 一次生成尝试的身份 —— Renderer 在用户点发送时 `crypto.randomUUID()` 生成。
    *
-   * **控制平面身份**:AiStreamManager 主表 key、`Ai_Stream_Abort` / `Ai_Stream_Detach` 精确路由键、
+   * **唯一标识**:AiStreamManager 主表 key、`Ai_Stream_Abort` / `Ai_Stream_Detach` 精确路由键、
    * in-memory 去重键(rapid retry / 双击 / 网络重发幂等)。详见 Phase 2 Step 2.3
-   * 的 "requestId / topicId 命名空间与并发约束" 小节。
+   * 的 "topicId / topicId 命名空间与并发约束" 小节。
    */
-  requestId: z.string(),
+  topicId: z.string(),
   /**
    * 会话身份 —— = Cherry Studio SQLite `topics` 表的主键,同时用作 AI SDK
    * `useChat({ id })` 的状态复用 key。
@@ -2250,8 +2250,8 @@ export const aiStreamRequestSchema = z.object({
   // 1. 不再需要 `toolsRequiringApproval` — 每个 tool 在 ToolRegistry 注册时
   //    自带 needsApproval 声明，AI SDK 自动管理审批流程
   // 2. 不再有 `trigger: 'submit-message' | 'regenerate-message'` 和 `messageId` —
-  //    Phase 2 的 AiStreamManager 模型下,regenerate 退化成"Renderer 生成新 requestId +
-  //    指向被重新生成那条消息的父节点的 parentAnchorId",语义完全由 `requestId`
+  //    Phase 2 的 AiStreamManager 模型下,regenerate 退化成"Renderer 生成新 topicId +
+  //    指向被重新生成那条消息的父节点的 parentAnchorId",语义完全由 `topicId`
   //    + `parentAnchorId` 表达,AI SDK 那套 trigger/messageId 在我们的契约里是冗余
   // 3. 不再有 `chatId` — 和 `topicId` 是同一东西,统一用 domain 术语
 })
@@ -2290,7 +2290,7 @@ export const uiMessageChunkSchema = z.object({ type: z.string() }).passthrough()
 **前置**: Phase 1
 **产出**:
 - Renderer 通过 IPC 调用 Main 的 AI 服务,流式回传 `UIMessageChunk`
-- Main 端建立 `AiStreamManager` 作为"活跃流注册表",**按 `requestId` 索引**(一次生成尝试的身份),配合 `topicId → 当前活跃 requestId` 的辅助索引(给 steering 和多窗口观察者 attach 用);支持多订阅者、reconnect、grace period
+- Main 端建立 `AiStreamManager` 作为"活跃流注册表",**按 `topicId` 索引**(一次生成尝试的身份),配合 `topicId → 当前活跃 topicId` 的辅助索引(给 steering 和多窗口观察者 attach 用);支持多订阅者、reconnect、grace period
 - 持久化下沉到 Main 端 —— `PersistenceListener` 直接调 Main 端已有的 `messageService` singleton(`src/main/data/services/MessageService.ts`),不新增中间 Service。**注意**:Main 端**没有** Renderer 那个 HTTP-like `dataApiService` —— Renderer 客户端不能在 Main 里用,Main 直接用 service singleton
 - Channel push 流和 Renderer user 流走同一套 AiStreamManager 机制,不再分两条路径
 
@@ -2307,11 +2307,11 @@ export const uiMessageChunkSchema = z.object({ type: z.string() }).passthrough()
    ```typescript
    // === AiStreamManager 拥有的 4 个请求通道 ===
    Ai_Stream_Open   = 'ai:stream:open'     // Renderer → Main: 发送消息(AiStreamManager 按 topicId 判断开新 request 或 steer)
-   Ai_Stream_Attach = 'ai:stream:attach'   // Renderer → Main: reconnect(支持 byRequestId / byTopicId 两种模式)
-   Ai_Stream_Detach = 'ai:stream:detach'   // Renderer → Main: 按 requestId 主动退订(不 abort,流继续跑)
-   Ai_Stream_Abort  = 'ai:stream:abort'    // Renderer → Main: 按 requestId abort 一次生成尝试
+   Ai_Stream_Attach = 'ai:stream:attach'   // Renderer → Main: reconnect(支持 topicId 两种模式)
+   Ai_Stream_Detach = 'ai:stream:detach'   // Renderer → Main: 按 topicId 主动退订(不 abort,流继续跑)
+   Ai_Stream_Abort  = 'ai:stream:abort'    // Renderer → Main: 按 topicId abort 一次生成尝试
 
-   // === Main → Renderer 推送通道(payload 同时带 requestId + topicId) ===
+   // === Main → Renderer 推送通道(payload 同时带 topicId + topicId) ===
    Ai_StreamChunk = 'ai:stream-chunk'     // 流式 chunk 推送
    Ai_StreamDone  = 'ai:stream-done'      // 流结束
    Ai_StreamError = 'ai:stream-error'     // 流错误
@@ -2320,9 +2320,9 @@ export const uiMessageChunkSchema = z.object({ type: z.string() }).passthrough()
 **关键约束**:
 - **两个 id,分工明确**:
   - `topicId` = Cherry Studio SQLite `topics` 主键,数据平面身份(`useChat({ id })` 复用 key、DataApi 关联、多窗口观察者反查)
-  - `requestId` = Renderer 在 `sendMessages` 里 `crypto.randomUUID()` 生成,控制平面身份(AiStreamManager 主表 key、abort/detach 路由、in-memory 去重)
-- 详见 [requestId / topicId 命名空间与并发约束](#requestid--topicid-命名空间与并发约束) 小节
-- 订阅者身份由 `(event.sender, requestId)` 联合确定 —— 同一 WebContents 对同一 request 只挂一个 Listener
+  - `topicId` = Renderer 在 `sendMessages` 里 `crypto.randomUUID()` 生成,唯一标识(AiStreamManager 主表 key、abort/detach 路由、in-memory 去重)
+- 详见 [topicId / topicId 命名空间与并发约束](#requestid--topicid-命名空间与并发约束) 小节
+- 订阅者身份由 `(event.sender, topicId)` 联合确定 —— 同一 WebContents 对同一 request 只挂一个 Listener
 - Payload 类型见 Step 2.6 的 **IPC 契约** 小节
 
 ### Step 2.2: Preload 暴露 AI API
@@ -2350,7 +2350,7 @@ export const uiMessageChunkSchema = z.object({ type: z.string() }).passthrough()
 
 **注意**:
 - **不暴露** `steerMessage` 接口 —— 用户追加消息直接调 `streamOpen`,AiStreamManager 内部根据当前 topic 是否有活跃流自动路由到 `steer` 或 `startStream`,Renderer 无感
-- **`abort` 按 `requestId` 精确路由**(而不是 topicId)—— 这样 regenerate / stop+retry 场景下,迟到的 abort 不会误杀下一轮新流;同样地 `detach` 也按 `requestId`
+- **`abort` 按 `topicId` 精确路由**(而不是 topicId)—— 这样 regenerate / stop+retry 场景下,迟到的 abort 不会误杀下一轮新流;同样地 `detach` 也按 `topicId`
 
 ### Step 2.3 及后续:AiStreamManager 架构详细设计
 
@@ -2421,9 +2421,9 @@ IPC 本身完全支持 reconnect —— 它只是一个消息通道,既不知道
 - Buffer 已推送的 chunks 供回放
 - 支持多订阅者(新 Renderer 接入时加入,旧 Renderer unmount 时退订)
 
-如果 Main 端 `AiService.executeStream` 是"一次性管线":`requestId` 每次新生成、`target = event.sender` 硬绑单个 WebContents、`target.isDestroyed()` 就 break,没有 buffer、没有多订阅者,那 reconnect 确实没法做 —— 但这是 Main 端的实现选择,不是 IPC 的约束。
+如果 Main 端 `AiService.executeStream` 是"一次性管线":`topicId` 每次新生成、`target = event.sender` 硬绑单个 WebContents、`target.isDestroyed()` 就 break,没有 buffer、没有多订阅者,那 reconnect 确实没法做 —— 但这是 Main 端的实现选择,不是 IPC 的约束。
 
-Phase 2 的核心设计就是把 Main 端从"一次性管线"升级成"按 `requestId` 索引的活跃流注册表"(即 `AiStreamManager`,`requestId` 是一次生成尝试的身份,`topicId` 保留作为会话维度 + steering/多窗口 attach 的反查键),让 Transport 的 `reconnectToStream` 从一开始就是真的。一旦可用,上面三个 Renderer 侧的问题全部自然消失。
+Phase 2 的核心设计就是把 Main 端从"一次性管线"升级成"按 `topicId` 索引的活跃流注册表"(即 `AiStreamManager`,`topicId` 是一次生成尝试的身份,`topicId` 保留作为会话维度 + steering/多窗口 attach 的反查键),让 Transport 的 `reconnectToStream` 从一开始就是真的。一旦可用,上面三个 Renderer 侧的问题全部自然消失。
 
 ### 设计总览
 
@@ -2436,17 +2436,17 @@ Phase 2 的核心设计就是把 Main 端从"一次性管线"升级成"按 `requ
 │                                                │
 │ 历史消息: useQuery('/topics/:id/messages')    │
 └────────────────────────────────────────────────┘
-                     ↕ IPC (req/resp 按 requestId;push 按 topicId)
+                     ↕ IPC (req/resp 按 topicId;push 按 topicId)
 ┌─────────────────── Main ───────────────────────┐
 │  AiStreamManager (新增 lifecycle 服务)           │
 │  ┌──────────────────────────────────────────┐  │
-│  │ activeStreams: Map<requestId, ActiveStream> │
+│  │ activeStreams: Map<topicId, ActiveStream> │
 │  │   - topicId / abortController / status   │  │
 │  │   - buffer: UIMessageChunk[]             │  │
 │  │   - listeners:  Map<listenerId, StreamListener>      │  │
 │  │   - finalMessage (由上游 setFinalMessage)│  │
 │  │                                          │  │
-│  │ topicToActiveRequest: Map<topicId, rid>  │  │
+│  │ : Map<topicId, rid>  │  │
 │  │   (反查索引,给 steering / byTopicId       │  │
 │  │    attach / Open 路由判断用)             │  │
 │  └──────────────────────────────────────────┘  │
@@ -2464,10 +2464,10 @@ Phase 2 的核心设计就是把 Main 端从"一次性管线"升级成"按 `requ
 
 | id | 平面 | 用途 |
 |---|---|---|
-| `requestId` | 控制平面 | AiStreamManager `activeStreams` 主表 key、`abort/detach/attach(byRequestId)` 精确路由、in-memory 去重键、一次生成尝试的身份 |
+| `topicId 作为唯一 key、`abort/detach/attach(byRequestId)` 精确路由、in-memory 去重键、一次生成尝试的身份 |
 | `topicId` | 数据平面 | Listener.id 构造(`wc:X:topicId`, `persistence:topicId`,配合 steering 的 upsert 语义)、push payload 的过滤键、useChat `{ id }` 状态复用 key、DataApi 关联键、`attach(byTopicId)` 观察者模式 |
 
-详见 [`requestId / topicId 命名空间与并发约束`](#requestid--topicid-命名空间与并发约束) 小节。
+详见 [`topicId / topicId 命名空间与并发约束`](#requestid--topicid-命名空间与并发约束) 小节。
 
 **核心抽象**:
 - **`StreamListener`**:任何想消费 chunks 的东西都实现这个极窄接口。`WebContentsListener`(推给 Renderer)、`PersistenceListener`(写 SQLite)、`ChannelAdapterListener`(推回 Discord/飞书等)是三个内置实现
@@ -2587,11 +2587,11 @@ export interface ActiveStream {
    *   - 迟到的 `abort` 区分不出是"上一次的取消"还是"下一次的取消"
    *   - 迟到的 `attach` 可能错挂到下一轮流上,拿错 finalMessage
    *   - Listener 的生命周期被压进"整个 topic"的时间轴,per-turn 的副作用会跨轮串台
-   * 所以控制平面(`abort`/`attach`/`done`/Listener id)必须按 `requestId` 路由,
+   * 所以控制平面(`abort`/`attach`/`done`/Listener id)必须按 `topicId` 路由,
    * `topicId` 保留为"数据平面"身份(useChat 复用 key、DataApi 关联键、
    * steering 聚合的归属判断)。
    */
-  requestId: string
+  topicId: string
 
   /** 数据平面身份 —— Cherry Studio 对话的 topicId,整个 ActiveStream 生命周期不变 */
   topicId: string
@@ -2604,9 +2604,9 @@ export interface ActiveStream {
   listeners: Map<string, StreamListener>
 
   /**
-   * Steering 队列(搬自 Phase 1 的 `PendingMessageQueue`,按 requestId 归属)。
+   * Steering 队列(搬自 Phase 1 的 `PendingMessageQueue`,按 topicId 归属)。
    *
-   * 当用户在流进行中继续发消息时,这些消息入本队列,**不创建新 requestId**
+   * 当用户在流进行中继续发消息时,这些消息入本队列,**不创建新 topicId**
    * (后续发送只是 steer 当前轮,不算新轮次)。`runAgentLoop` 的 `prepareStep`
    * (内层步间)和外层循环边界都会 drain 这个队列,把新消息拼进下一轮 context。
    * 流 reap 时随 ActiveStream 一起 GC,无需独立注册表。
@@ -2682,35 +2682,35 @@ import type { StreamTarget } from './types'
 
 export class InternalStreamTarget implements StreamTarget {
   /**
-   * **按 requestId 绑定**,不是 topicId。
+   * **按 topicId 绑定**,不是 topicId。
    *
    * 为什么:target 是一次生成尝试的"出口",它代表"这条具体的流",而"这条具体
-   * 的流"的身份就是 AiStreamManager 控制平面的 `requestId`。上游 agentLoop / ClaudeCodeStream
+   * 的流"的身份就是 AiStreamManager 控制平面的 `topicId`。上游 agentLoop / ClaudeCodeStream
    * 产生的 chunk / done / error 事件都要精确回到这条流,不能按 topicId 路由
    * (否则在同一 topic 的前一轮流刚结束、下一轮立刻开始的场景下,迟到的事件会
    * 挂错流)。
    */
   constructor(
     private readonly broker: AiStreamManager,
-    private readonly requestId: string
+    private readonly topicId: string
   ) {}
 
   send(channel: string, payload: { chunk?: UIMessageChunk; error?: SerializedError }): void {
     switch (channel) {
       case IpcChannel.Ai_StreamChunk:
-        if (payload.chunk) this.manager.onChunk(this.requestId, payload.chunk)
+        if (payload.chunk) this.manager.onChunk(this.topicId, payload.chunk)
         break
       case IpcChannel.Ai_StreamDone:
-        void this.manager.onDone(this.requestId)
+        void this.manager.onDone(this.topicId)
         break
       case IpcChannel.Ai_StreamError:
-        if (payload.error) void this.manager.onError(this.requestId, payload.error)
+        if (payload.error) void this.manager.onError(this.topicId, payload.error)
         break
     }
   }
 
   isDestroyed(): boolean {
-    return this.manager.shouldStopStream(this.requestId)
+    return this.manager.shouldStopStream(this.topicId)
   }
 
   /**
@@ -2728,7 +2728,7 @@ export class InternalStreamTarget implements StreamTarget {
    */
   setFinalMessage(message: CherryUIMessage): void {
     // @ts-expect-error 访问 AiStreamManager 内部 map,或在 AiStreamManager 上暴露 setter 方法
-    const stream = this.manager.activeStreams.get(this.requestId)
+    const stream = this.manager.activeStreams.get(this.topicId)
     if (stream) stream.finalMessage = message
   }
 }
@@ -2749,10 +2749,10 @@ export class WebContentsListener implements StreamListener {
   /**
    * 订阅者身份 = `(wc.id, topicId)` —— 同一窗口对同一 topic 只订阅一次。
    *
-   * **为什么 id 按 topicId 而不是 requestId**:这是数据平面 vs 控制平面的分层。
+   * **为什么 id 按 topicId 而不是 topicId**:这是数据平面 vs 控制平面的分层。
    * 同一个 topic 的 steering 路径下,Renderer 连续发 msg1/msg2 时,AiStreamManager 会把
    * msg2 的 listeners 追加到 msg1 的 ActiveStream.listeners Map 里。如果 WebContentsListener
-   * 的 id 按 requestId 构造,msg1 的 `wc:X:R1` 和 msg2 的 `wc:X:R2` 会**同时存在**,
+   * 的 id 按 topicId 构造,msg1 的 `wc:X:R1` 和 msg2 的 `wc:X:R2` 会**同时存在**,
    * onChunk 会往同一个 WebContents **双发**每条 chunk,UI 上重影。用 topicId
    * 作为 id 可以让第二个 listener 通过 upsert **替换**第一个,只保留一条订阅。
    *
@@ -2800,7 +2800,7 @@ export class WebContentsListener implements StreamListener {
 }
 ```
 
-> **push payload 为什么只带 topicId 不带 requestId**:数据平面(chunk 推送 + Renderer 过滤)用 topicId 就够了 —— useChat 给我们的 chatId 就是 topicId,transport 的 listener 按 topicId 过滤;多窗口观察者天然走这条路径;steering 路径下两次发送的 chunks 本来就属于**同一条流**(同一个 ActiveStream,单个 PersistenceListener,线性持久化),所以用 topicId 过滤正是正确的聚合语义。控制平面(abort/detach/attach)才需要 requestId 做精确路由 —— 那是另一层,和 chunk 分发无关。
+> **push payload 为什么只带 topicId 不带 topicId**:数据平面(chunk 推送 + Renderer 过滤)用 topicId 就够了 —— useChat 给我们的 chatId 就是 topicId,transport 的 listener 按 topicId 过滤;多窗口观察者天然走这条路径;steering 路径下两次发送的 chunks 本来就属于**同一条流**(同一个 ActiveStream,单个 PersistenceListener,线性持久化),所以用 topicId 过滤正是正确的聚合语义。控制平面(abort/detach/attach)才需要 topicId 做精确路由 —— 那是另一层,和 chunk 分发无关。
 
 ```ts
 // src/main/ai/stream-manager/listeners/PersistenceListener.ts
@@ -2815,9 +2815,9 @@ import type { StreamListener, StreamDoneResult } from '../types'
 
 export interface PersistenceListenerOptions {
   /** 一次生成尝试的身份 —— **仅用于日志/trace**,不参与 listener.id 构造。
-   *  listener.id 按 topicId 构造(见 constructor 注释),这里留一个 requestId 字段是
-   *  为了 onDone 里写 warn/info 日志时能带上 requestId 做追溯。 */
-  requestId: string
+   *  listener.id 按 topicId 构造(见 constructor 注释),这里留一个 topicId 字段是
+   *  为了 onDone 里写 warn/info 日志时能带上 topicId 做追溯。 */
+  topicId: string
   topicId: string
   assistantId: string
   /** 触发本轮流的 user message 的 id —— 由 `handleStreamRequest` 在 Main 端
@@ -2842,12 +2842,12 @@ export class PersistenceListener implements StreamListener {
   readonly id: string
 
   constructor(private readonly ctx: PersistenceListenerOptions) {
-    // id 按 topicId 构造,**不用 requestId**。
+    // id 按 topicId 构造,**不用 topicId**。
     //
     // 关键原因:steering 路径下,用户连续发送的消息会被路由成"同 topic 现有流的
     // 追加",新来的 PersistenceListener 必须 **upsert 替换**旧的(更新 parentUserMessageId
     // 为最新一条 steered user message),才能保证 onDone 时只写一条 assistant 且
-    // parent 正确。如果用 requestId 作为 id,两次的 PersistenceListener 会**共存**在
+    // parent 正确。如果用 topicId 作为 id,两次的 PersistenceListener 会**共存**在
     // 同一个 ActiveStream.listeners Map 里,onDone 触发两次,导致同一次 AI 回复被
     // 复制成两条 DB 记录(parent 一条指 U1 一条指 U2),破坏 v1 的"steering = 线性链"
     // 语义(U1 → U2 → A,只有一条 A)。
@@ -2981,15 +2981,15 @@ export class ChannelAdapterListener implements StreamListener {
 @DependsOn(['AiService'])
 export class AiStreamManager extends BaseService {
   /**
-   * 主注册表 —— **按 requestId 索引**。这是 AiStreamManager 控制平面的权威 Map。
-   * 一次生成尝试 = 一条 ActiveStream = 一个 requestId。
+   * 主注册表 —— **按 topicId 索引**。这是 AiStreamManager 控制平面的权威 Map。
+   * 一次生成尝试 = 一条 ActiveStream = 一个 topicId。
    *
    * 为什么不按 topicId 索引(v1 / Phase 2 早期设计):
-   *   见 `ActiveStream.requestId` 字段的注释 —— 一个 topic 生命周期内会发生多次
+   *   见 `ActiveStream.topicId` 字段的注释 —— 一个 topic 生命周期内会发生多次
    *   生成尝试(发送、regenerate、stop-and-retry),控制平面消息(abort/attach/
    *   done)必须能区分是哪一次,topicId 粒度太粗。
    */
-  private readonly activeStreams = new Map<string /* requestId */, ActiveStream>()
+  private readonly activeStreams = new Map<string /* topicId */, ActiveStream>()
 
   /**
    * 辅助反查索引 —— 按 `topicId` 查"当前活跃 request"。
@@ -2997,18 +2997,18 @@ export class AiStreamManager extends BaseService {
    * 用途:
    *   1. **Steering**:用户在流进行中继续发消息,AiStreamManager 需要找到"这个 topic
    *      正在跑的那条 ActiveStream"并把新消息入 pendingMessages。steering 消息
-   *      只认 topic,不认 requestId(用户不知道 requestId 是什么)。
+   *      只认 topic,不认 topicId(用户不知道 topicId 是什么)。
    *   2. **多窗口观察者 attach**:第二个窗口打开同一个 topic 时,它只知道
-   *      topicId(useQuery 读出来的),不知道原始发起者生成的 requestId。
+   *      topicId(useQuery 读出来的),不知道原始发起者生成的 topicId。
    *      `Ai_Stream_Attach` 的 topicId 模式通过这个索引查到当前活跃 request
    *      并挂 WebContentsListener 上去。
-   *   3. **去重**:Renderer 重复调 `Ai_Stream_Open` 时,先按 requestId 查主表;
+   *   3. **去重**:Renderer 重复调 `Ai_Stream_Open` 时,先按 topicId 查主表;
    *      但"旧 request 结束了又来新 request"的判断也可以用这个索引快速剔除。
    *
    * 只记录 `status === 'streaming'` 的流;进入 done/error/aborted 后立即清理,
    * 避免 Attach 误挂到已完成的旧流。
    */
-  private readonly topicToActiveRequest = new Map<string /* topicId */, string /* requestId */>()
+  private readonly  = new Map<string /* topicId */, string /* topicId */>()
 
   private readonly config: AiStreamManagerConfig = {
     gracePeriodMs: 30_000,
@@ -3028,7 +3028,7 @@ export class AiStreamManager extends BaseService {
       this.handleDetach(event.sender, req)
     )
     this.ipcHandle(IpcChannel.Ai_Stream_Abort, (_, req: AiStreamAbortRequest) =>
-      this.abort(req.requestId, 'user-requested')
+      this.abort(req.topicId, 'user-requested')
     )
 
     // WebContents 销毁时自动清理它挂载的所有 listeners
@@ -3043,37 +3043,37 @@ export class AiStreamManager extends BaseService {
    * 启动一条新流。调用方负责构造所有初始 listeners —— 持久化不是隐式兜底。
    *
    * 语义:
-   *   - 如果 requestId 主表里没有这条流 **且** topicId 没有活跃流 → 创建新 ActiveStream
-   *   - 如果 requestId 主表命中(重复调用,in-memory 去重) → **直接返回现有 stream**,
+   *   - 如果 topicId 主表里没有这条流 **且** topicId 没有活跃流 → 创建新 ActiveStream
+   *   - 如果 topicId 主表命中(重复调用,in-memory 去重) → **直接返回现有 stream**,
    *     不重开、不重新跑 AI,整个调用变成幂等(配合 Renderer 重试)
    *   - 如果 topicId 有 done/error/aborted 状态的旧流(grace period 内) → 提前驱逐旧流
-   *   - 如果 topicId 有 streaming 状态的流(requestId 不同)→ 抛 ConflictError
+   *   - 如果 topicId 有 streaming 状态的流(topicId 不同)→ 抛 ConflictError
    *     —— 正常路径不应该走到这里,想"同 topic 继续发消息"应该走 `send()` 让它 route 到 steer
    */
   startStream(input: {
-    requestId: string
+    topicId: string
     topicId: string
     request: AiStreamRequest
     listeners: StreamListener[]
   }): ActiveStream {
-    // 内存去重:同一 requestId 重复到达 → 返回现有 stream,绝不重复执行
-    const existingByRequest = this.activeStreams.get(input.requestId)
+    // 内存去重:同一 topicId 重复到达 → 返回现有 stream,绝不重复执行
+    const existingByRequest = this.activeStreams.get(input.topicId)
     if (existingByRequest) {
       // 把本次调用想挂的新 listeners 追加上去(重试场景下 Renderer 的 WebContents
       // 可能换了,需要让新 WebContentsListener 接上,但 PersistenceListener 由第一次
       // 调用已挂,这里 listener.id 去重会自动吞掉重复)
-      for (const listener of input.listeners) this.addListenerByRequestId(input.requestId, listener)
+      for (const listener of input.listeners) this.addListenerByRequestId(input.topicId, listener)
       return existingByRequest
     }
 
     let inheritedSessionId: string | undefined
-    const existingRequestIdForTopic = this.topicToActiveRequest.get(input.topicId)
+    const existingRequestIdForTopic = this..get(input.topicId)
     if (existingRequestIdForTopic) {
       const existing = this.activeStreams.get(existingRequestIdForTopic)
       if (existing) {
         if (existing.status === 'streaming') {
           throw new ConflictError(
-            `Topic ${input.topicId} already has an active stream (requestId=${existingRequestIdForTopic}); use send() to steer instead of startStream()`
+            `Topic ${input.topicId} already has an active stream (topicId=${existingRequestIdForTopic}); use send() to steer instead of startStream()`
           )
         }
         // grace period 内的 done/error/aborted —— 提前驱逐旧 request,放行新 request
@@ -3085,7 +3085,7 @@ export class AiStreamManager extends BaseService {
     }
 
     const stream: ActiveStream = {
-      requestId: input.requestId,
+      
       topicId: input.topicId,
       abortController: new AbortController(),
       listeners: new Map(input.listeners.map((s) => [s.id, s])),
@@ -3096,10 +3096,10 @@ export class AiStreamManager extends BaseService {
       // finalMessage 字段不在这里初始化;等上游 agentLoop.afterIteration
       // 或 ClaudeCodeStreamAdapter 的 'complete' 回调把它塞进来
     }
-    this.activeStreams.set(input.requestId, stream)
-    this.topicToActiveRequest.set(input.topicId, input.requestId)
+    this.activeStreams.set(input.topicId, stream)
+    this..set(input.topicId, input.topicId)
 
-    const target = new InternalStreamTarget(this, input.requestId)
+    const target = new InternalStreamTarget(this, input.topicId)
     const aiService = application.get('AiService')
 
     // 把 AiStreamManager 拥有的 signal + pendingMessages 传进去 ——
@@ -3110,7 +3110,7 @@ export class AiStreamManager extends BaseService {
         signal: stream.abortController.signal,
         pendingMessages: stream.pendingMessages
       })
-      .catch((err) => this.onError(input.requestId, serializeError(err)))
+      .catch((err) => this.onError(input.topicId, serializeError(err)))
 
     return stream
   }
@@ -3118,14 +3118,14 @@ export class AiStreamManager extends BaseService {
   /**
    * Steer:在已有流中追加一条用户消息。
    *
-   * **按 topicId 路由**(用户视角只有 topic,不知道 requestId)。
+   * **按 topicId 路由**(用户视角只有 topic,不知道 topicId)。
    * 不创建新流,只把消息推进 pendingMessages 队列。正在跑的 `runAgentLoop`
    * 会在 `prepareStep`(内层步间)或外层循环边界 drain 并拼进 context。
    */
   steer(topicId: string, message: CherryUIMessage): boolean {
-    const requestId = this.topicToActiveRequest.get(topicId)
-    if (!requestId) return false
-    const stream = this.activeStreams.get(requestId)
+    const topicId = this..get(topicId)
+    if (!topicId) return false
+    const stream = this.activeStreams.get(topicId)
     if (!stream || stream.status !== 'streaming') return false
     stream.pendingMessages.push(message)
     return true
@@ -3134,22 +3134,22 @@ export class AiStreamManager extends BaseService {
   /**
    * Send:统一的"为某 topic 发消息"入口 —— IPC handler 和 Main 内部调用者都走这里。
    *
-   * 路由逻辑(**按 topicId 判断,不按 requestId**):
+   * 路由逻辑(**按 topicId 判断,不按 topicId**):
    *   - 该 topic 已有 streaming 流 → `steer()` + 把发起者的 listeners 追加到**已有那条流**上
-   *     (注意:此时传入的 `requestId` **被忽略**,steering 不算新轮次)
-   *   - 该 topic 没有流 / 流已结束 → `startStream(requestId, ...)` 开新流
+   *     (注意:此时传入的 `topicId` **被忽略**,steering 不算新轮次)
+   *   - 该 topic 没有流 / 流已结束 → `startStream(topicId, ...)` 开新流
    *
    * 这个语义保证了"用户在流进行中连发多条消息"被合并到同一轮,不会因为 Renderer
-   * 每次生成新 requestId 就误开新流。
+   * 每次生成新 topicId 就误开新流。
    */
   send(input: {
-    requestId: string
+    topicId: string
     topicId: string
     request: AiStreamRequest
     userMessage: Message          // 本次用户发的消息(已原子落库,见 handleStreamRequest)
     listeners: StreamListener[]           // 本次发起者的 listeners(通常是 WebContentsListener + PersistenceListener)
   }): { mode: 'started' | 'steered'; activeRequestId: string } {
-    const activeRequestId = this.topicToActiveRequest.get(input.topicId)
+    const activeRequestId = this..get(input.topicId)
     if (activeRequestId) {
       const existing = this.activeStreams.get(activeRequestId)
       if (existing?.status === 'streaming') {
@@ -3159,14 +3159,14 @@ export class AiStreamManager extends BaseService {
         return { mode: 'steered', activeRequestId }
       }
     }
-    // 新流路径 —— 用调用方传入的 requestId 作为主 key
+    // 新流路径 —— 用调用方传入的 topicId 作为主 key
     this.startStream(input)
-    return { mode: 'started', activeRequestId: input.requestId }
+    return { mode: 'started', activeRequestId: input.topicId }
   }
 
-  /** 按 requestId 加入一个新的 listener。返回 true 表示已加入;false 表示流不存在。 */
-  addListenerByRequestId(requestId: string, listener: StreamListener): boolean {
-    const stream = this.activeStreams.get(requestId)
+  /** 按 topicId 加入一个新的 listener。返回 true 表示已加入;false 表示流不存在。 */
+  addListenerByRequestId(topicId: string, listener: StreamListener): boolean {
+    const stream = this.activeStreams.get(topicId)
     if (!stream) return false
     stream.listeners.set(listener.id, listener)  // upsert:同 id 覆盖
     // 回放 buffer 给这个新 listener
@@ -3174,27 +3174,27 @@ export class AiStreamManager extends BaseService {
     return true
   }
 
-  removeListenerByRequestId(requestId: string, listenerId: string): void {
-    const stream = this.activeStreams.get(requestId)
+  removeListenerByRequestId(topicId: string, listenerId: string): void {
+    const stream = this.activeStreams.get(topicId)
     stream?.listeners.delete(listenerId)
   }
 
-  abort(requestId: string, reason: string): void {
-    const stream = this.activeStreams.get(requestId)
+  abort(topicId: string, reason: string): void {
+    const stream = this.activeStreams.get(topicId)
     if (!stream) return
     stream.status = 'aborted'
     stream.abortController.abort(reason)
-    // 立刻从 topicToActiveRequest 里摘掉,防止后续 steer/attach 误挂
-    if (this.topicToActiveRequest.get(stream.topicId) === requestId) {
-      this.topicToActiveRequest.delete(stream.topicId)
+    // 立刻从  里摘掉,防止后续 steer/attach 误挂
+    if (this..get(stream.topicId) === topicId) {
+      this..delete(stream.topicId)
     }
     // 下一轮 onChunk/onDone 会看到 status 变化自动停止分发
   }
 
-  // === InternalStreamTarget 的回调入口(全部按 requestId) ===
+  // === InternalStreamTarget 的回调入口(全部按 topicId) ===
 
-  onChunk(requestId: string, chunk: UIMessageChunk): void {
-    const stream = this.activeStreams.get(requestId)
+  onChunk(topicId: string, chunk: UIMessageChunk): void {
+    const stream = this.activeStreams.get(topicId)
     if (!stream || stream.status !== 'streaming') return
 
     // 1. 入 buffer(reconnect 回放 + 可选的 backup 重建路径)
@@ -3214,29 +3214,29 @@ export class AiStreamManager extends BaseService {
       try {
         listener.onChunk(chunk)
       } catch (err) {
-        logger.warn('Listener onChunk threw', { requestId, listenerId: id, err })
+        logger.warn('Listener onChunk threw', { topicId, listenerId: id, err })
       }
     }
     for (const id of dead) stream.listeners.delete(id)
   }
 
   /**
-   * 流终态广播(按 requestId)。由两个上游路径触发:
+   * 流终态广播(按 topicId)。由两个上游路径触发:
    *   - 自然结束:AiService.executeStream 的 finally / ClaudeCodeStreamAdapter 的 'complete'
-   *     → 调 `onDone(requestId, 'success')`
-   *   - 被中止:AiStreamManager 自己的 `abort(requestId)` 内部,在 abort 之后给 listeners 发一次
-   *     `onDone(requestId, 'paused')`,前提是上游能在 abort 分支里把部分结果
+   *     → 调 `onDone(topicId, 'success')`
+   *   - 被中止:AiStreamManager 自己的 `abort(topicId)` 内部,在 abort 之后给 listeners 发一次
+   *     `onDone(topicId, 'paused')`,前提是上游能在 abort 分支里把部分结果
    *     通过 `setFinalMessage` 塞进 `stream.finalMessage`(agentLoop 的 onError/abort
    *     分支 / ClaudeCodeStreamAdapter 的 'cancelled' 分支需要做这件事)。
    */
-  async onDone(requestId: string, status: 'success' | 'paused' = 'success'): Promise<void> {
-    const stream = this.activeStreams.get(requestId)
+  async onDone(topicId: string, status: 'success' | 'paused' = 'success'): Promise<void> {
+    const stream = this.activeStreams.get(topicId)
     if (!stream) return
 
     stream.status = status === 'paused' ? 'aborted' : 'done'
-    // 从 topicToActiveRequest 里摘掉这个 topic → request 的指向,防止后续新请求走 steer
-    if (this.topicToActiveRequest.get(stream.topicId) === requestId) {
-      this.topicToActiveRequest.delete(stream.topicId)
+    // 从  里摘掉这个 topic → request 的指向,防止后续新请求走 steer
+    if (this..get(stream.topicId) === topicId) {
+      this..delete(stream.topicId)
     }
     // 注意:stream.finalMessage 应该已经被上游通过 InternalStreamTarget.setFinalMessage
     // 在 onDone 之前塞好了(agentLoop.afterIteration hook / ClaudeCodeStreamAdapter 的
@@ -3248,40 +3248,40 @@ export class AiStreamManager extends BaseService {
       try {
         await listener.onDone(result)
       } catch (err) {
-        logger.warn('Listener onDone threw', { requestId, listenerId: id, err })
+        logger.warn('Listener onDone threw', { topicId, listenerId: id, err })
       }
     }
 
     // 进入 grace period,供迟到 reconnect 读取 finalMessage
-    this.scheduleReap(requestId, stream)
+    this.scheduleReap(topicId, stream)
   }
 
-  async onError(requestId: string, error: SerializedError): Promise<void> {
-    const stream = this.activeStreams.get(requestId)
+  async onError(topicId: string, error: SerializedError): Promise<void> {
+    const stream = this.activeStreams.get(topicId)
     if (!stream) return
 
     stream.status = 'error'
     stream.error = error
-    if (this.topicToActiveRequest.get(stream.topicId) === requestId) {
-      this.topicToActiveRequest.delete(stream.topicId)
+    if (this..get(stream.topicId) === topicId) {
+      this..delete(stream.topicId)
     }
 
     for (const [id, listener] of stream.listeners) {
       try {
         await listener.onError(error)
       } catch (err) {
-        logger.warn('Listener onError threw', { requestId, listenerId: id, err })
+        logger.warn('Listener onError threw', { topicId, listenerId: id, err })
       }
     }
 
-    this.scheduleReap(requestId, stream)
+    this.scheduleReap(topicId, stream)
   }
 
-  private scheduleReap(requestId: string, stream: ActiveStream): void {
+  private scheduleReap(topicId: string, stream: ActiveStream): void {
     stream.reapAt = Date.now() + this.config.gracePeriodMs
     stream.reapTimer = setTimeout(() => {
-      if (this.activeStreams.get(requestId) === stream) {
-        this.activeStreams.delete(requestId)
+      if (this.activeStreams.get(topicId) === stream) {
+        this.activeStreams.delete(topicId)
       }
     }, this.config.gracePeriodMs)
   }
@@ -3289,23 +3289,23 @@ export class AiStreamManager extends BaseService {
   /**
    * 提前驱逐一个 grace period 内的 done/error/aborted 流,让出 topic slot。
    *
-   * 代价:迟到的按 requestId 的 reconnect 会拿到 'not-found' 而不是 'done + finalMessage',
+   * 代价:迟到的按 topicId 的 reconnect 会拿到 'not-found' 而不是 'done + finalMessage',
    * Renderer 需要退化到 `useQuery('/topics/:id/messages')` 从 DB 读。因为
    * `PersistenceListener.onDone` 已经把消息落库,数据不会丢,只是走 DB 路径一次。
    *
    * 这个代价换的是"用户停/错/完之后立即重试"的顺滑体验,值得。
    */
-  private evictStream(requestId: string, stream: ActiveStream): void {
+  private evictStream(topicId: string, stream: ActiveStream): void {
     if (stream.reapTimer) clearTimeout(stream.reapTimer)
-    this.activeStreams.delete(requestId)
-    if (this.topicToActiveRequest.get(stream.topicId) === requestId) {
-      this.topicToActiveRequest.delete(stream.topicId)
+    this.activeStreams.delete(topicId)
+    if (this..get(stream.topicId) === topicId) {
+      this..delete(stream.topicId)
     }
   }
 
   /** InternalStreamTarget 用它决定 isDestroyed 返回什么 */
-  shouldStopStream(requestId: string): boolean {
-    const stream = this.activeStreams.get(requestId)
+  shouldStopStream(topicId: string): boolean {
+    const stream = this.activeStreams.get(topicId)
     if (!stream) return true
     if (stream.status !== 'streaming') return true
     if (stream.abortController.signal.aborted) return true
@@ -3317,13 +3317,13 @@ export class AiStreamManager extends BaseService {
    * === Ai_Stream_Open handler ===
    *
    * 核心顺序:
-   *   0. **内存去重**:先查 `activeStreams.get(req.requestId)`,命中就返回 ——
-   *      同一个 requestId 的重复调用幂等(rapid retry / 双击 / 网络重发)
+   *   0. **内存去重**:先查 `activeStreams.get(req.topicId)`,命中就返回 ——
+   *      同一个 topicId 的重复调用幂等(rapid retry / 双击 / 网络重发)
    *   1. 用请求里的 `parentAnchorId` **显式**调 `messageService.create` 落 user message
    *      → 得到真实的 user.id(`messageService.create` 会在同一事务里更新
    *        `topic.activeNodeId`,这是 v2 数据层的契约)
-   *   2. 构造 WebContentsListener(event.sender, requestId) + PersistenceListener(parentUserMessageId = 步骤 1 的 id)
-   *   3. 调 `this.send({ requestId, topicId, request, userMessage, listeners })`
+   *   2. 构造 WebContentsListener(event.sender, topicId) + PersistenceListener(parentUserMessageId = 步骤 1 的 id)
+   *   3. 调 `this.send({ topicId, topicId, request, userMessage, listeners })`
    *      (内部会判断是 startStream 还是 steer —— 同一 topic 已有活跃流时走 steer,
    *       不再起第二条,这是"用户连续发多条消息"的合法路径)
    *
@@ -3334,19 +3334,19 @@ export class AiStreamManager extends BaseService {
    *   - 步骤 1 失败要把错误直接返回给 Renderer,不继续起流
    *   - ChannelMessageHandler / Agent scheduler 路径走自己的入口,在各自的 handler 里
    *     同样先调 `messageService.create` 落 user-side 消息再构造 PersistenceListener,并自己
-   *     生成一个 requestId(通常是 `crypto.randomUUID()`)
+   *     生成一个 topicId(通常是 `crypto.randomUUID()`)
    */
   private async handleStreamRequest(
     sender: WebContents,
     req: AiStreamOpenRequest
-  ): Promise<{ requestId: string; mode: 'started' | 'steered' | 'deduped' }> {
-    // 步骤 0:内存去重 —— requestId 命中就返回,不重复落库、不重复起流
-    if (this.activeStreams.has(req.requestId)) {
-      logger.info('Ai_Stream_Open deduped by requestId', { requestId: req.requestId })
+  ): Promise<{ topicId: string; mode: 'started' | 'steered' |  }> {
+    // 步骤 0:内存去重 —— topicId 命中就返回,不重复落库、不重复起流
+    if (this.activeStreams.has(req.topicId)) {
+      logger.info('Ai_Stream_Open deduped by topicId', { topicId: req.topicId })
       // 把本次发起者的 WebContentsListener 挂上去(可能是 Renderer 重连场景)。
       // 注意 listener id 按 topicId 构造,addListener 的 upsert 语义会吞掉重复订阅。
-      this.addListenerByRequestId(req.requestId, new WebContentsListener(sender, req.topicId))
-      return { requestId: req.requestId, mode: 'deduped' }
+      this.addListenerByRequestId(req.topicId, new WebContentsListener(sender, req.topicId))
+      return {  mode:  }
     }
 
     // 步骤 1:原子落库 user message,显式 parentId,绝不 fall back 到 activeNodeId
@@ -3357,9 +3357,9 @@ export class AiStreamManager extends BaseService {
     })
 
     // 步骤 2:构造 listeners —— id 都按 topicId 构造(见 listener 实现的注释)。
-    // requestId 只在 PersistenceListenerOptions 里作为日志/trace 字段传入,不参与 id。
+    // topicId 只在 PersistenceListenerOptions 里作为日志/trace 字段传入,不参与 id。
     const persistenceListener = new PersistenceListener({
-      requestId: req.requestId,
+      
       topicId: req.topicId,
       assistantId: req.assistantId,
       parentUserMessageId: userMessage.id,
@@ -3369,64 +3369,64 @@ export class AiStreamManager extends BaseService {
 
     // 步骤 3:路由给 AiStreamManager(内部会判断是 startStream 还是 steer)
     const result = this.send({
-      requestId: req.requestId,
+      
       topicId: req.topicId,
       request: req,
       userMessage,
       listeners: [webContentsListener, persistenceListener]
     })
-    return { requestId: result.activeRequestId, mode: result.mode }
+    return { topicId: result.activeRequestId, mode: result.mode }
   }
 
   /**
    * === Ai_Stream_Attach handler ===
    *
    * 支持两种 attach 模式:
-   *   - **byRequestId**:原始发起者重连(Renderer 侧仍然持有 requestId,比如页面
+   *   - **byRequestId**:原始发起者重连(Renderer 侧仍然持有 topicId,比如页面
    *     刷新后从 sessionStorage 恢复),精准挂回同一条 ActiveStream
    *   - **byTopicId**:多窗口观察者 attach —— 第二个窗口打开同一 topic,它只知道
-   *     topicId(useQuery 读出来的树),不知道原始 requestId。AiStreamManager 用
-   *     topicToActiveRequest 反查当前活跃 request,挂 WebContentsListener 上去
+   *     topicId(useQuery 读出来的树),不知道原始 topicId。AiStreamManager 用
+   *      反查当前活跃 request,挂 WebContentsListener 上去
    *
-   * 返回值告诉 Renderer 它 attach 到了哪个 requestId,后续 chunk listener 按
-   * requestId 过滤。
+   * 返回值告诉 Renderer 它 attach 到了哪个 topicId,后续 chunk listener 按
+   * topicId 过滤。
    */
   private handleAttach(
     sender: WebContents,
     req: AiStreamAttachRequest
   ): AiStreamAttachResponse {
-    let requestId: string | undefined
-    if ('requestId' in req && req.requestId) {
-      requestId = req.requestId
+    let topicId: string | undefined
+    if ('topicId' in req && req.topicId) {
+      topicId = req.topicId
     } else if ('topicId' in req && req.topicId) {
-      requestId = this.topicToActiveRequest.get(req.topicId)
+      topicId = this..get(req.topicId)
     }
-    if (!requestId) return { status: 'not-found' }
+    if (!topicId) return { status: 'not-found' }
 
-    const stream = this.activeStreams.get(requestId)
+    const stream = this.activeStreams.get(topicId)
     if (!stream) return { status: 'not-found' }
 
     if (stream.status === 'done') {
-      return { status: 'done', requestId, finalMessage: stream.finalMessage! }
+      return { status: 'done', topicId, finalMessage: stream.finalMessage! }
     }
     if (stream.status === 'error') {
-      return { status: 'error', requestId, error: stream.error! }
+      return { status: 'error', topicId, error: stream.error! }
     }
     if (stream.status === 'aborted') {
-      return { status: 'done', requestId, finalMessage: stream.finalMessage! }  // paused 也算 done,带 partial
+      return { status: 'done', topicId, finalMessage: stream.finalMessage! }  // paused 也算 done,带 partial
     }
 
-    // streaming 中:挂 listener + 回放 buffer。listener id 按 topicId 构造,不按 requestId。
-    this.addListenerByRequestId(requestId, new WebContentsListener(sender, stream.topicId))
-    return { status: 'attached', requestId, replayedChunks: stream.buffer.length }
+    // streaming 中:挂 listener + 回放 buffer。listener id 按 topicId 构造,不按 topicId。
+    this.addListenerByRequestId(topicId, new WebContentsListener(sender, stream.topicId))
+    return { status: 'attached', topicId, replayedChunks: stream.buffer.length }
   }
 
   private handleDetach(sender: WebContents, req: AiStreamDetachRequest): void {
-    // Detach:按 requestId 找到 ActiveStream,按 (wc.id, topicId) 构造 listener id 移除。
-    // requestId 是控制平面路由键(告诉 AiStreamManager 去哪个 Map 里找),topicId 是 listener 身份键。
-    const stream = this.activeStreams.get(req.requestId)
+    // Detach:按 topicId 找到 ActiveStream,按 (wc.id, topicId) 构造 listener id 移除。
+    // topicId 是控制平面路由键(告诉 AiStreamManager 去哪个 Map 里找),topicId 是 listener 身份键。
+    const stream = this.activeStreams.get(req.topicId)
     if (!stream) return
-    this.removeListenerByRequestId(req.requestId, `wc:${sender.id}:${stream.topicId}`)
+    this.removeListenerByRequestId(req.topicId, `wc:${sender.id}:${stream.topicId}`)
   }
 
   private cleanupByWebContents(wc: WebContents): void {
@@ -3448,11 +3448,11 @@ Phase 2 架构对 `AiService.ts` / `AiCompletionService.ts` 的**全部**改动:
 1. **放宽 `executeStream` 的 target 参数类型**: `Electron.WebContents` → `StreamTarget`(一个只有 `send` 和 `isDestroyed` 两个方法的 interface,外加可选的 `setFinalMessage`)。`Electron.WebContents` 本身不实现 `setFinalMessage`,但因为是 optional 方法,老的直接调用路径零破坏
 2. **`executeStream` 新增 options 参数**: 签名由 `(target, request)` 改为 `(target, request, options?: { signal?: AbortSignal; pendingMessages?: PendingMessageQueue })`,方法体把内部 `new AbortController()` 删掉,改为把 `options.signal` 直接透传给 `runAgentLoop` / `this.completionService.streamText`;`options.pendingMessages` 透传给 `runAgentLoop`,供 `prepareStep` 在内层步间 drain steering 消息
 3. **`executeStream` 注册 `afterIteration` hook 捕获 UIMessage**:这是 Phase 2 新增的责任 —— 在 `runAgentLoop` 的 hooks 里挂一个 `afterIteration(ctx, result)` 回调,从 `result.uiMessage` 拿到 AI SDK 工具产出的完整 UIMessage,调 `target.setFinalMessage?.(result.uiMessage)` 塞给 AiStreamManager。见下方 "`agentLoop` 的配套修改" 小节
-4. **把 AiCompletionService 的两个 per-requestId 注册表上移到 AiStreamManager 层**(注意:requestId 这个**概念**没删,只是管理方从 AiCompletionService 换成 AiStreamManager):
-   - `AiCompletionService.registerRequest / removeRequest / abort(requestId)` —— 删掉,AiStreamManager 在 `activeStreams: Map<requestId, ActiveStream>` 主表里直接持有每条流的 `AbortController`,abort 走 `AiStreamManager.abort(requestId)`(`Ai_Stream_Abort` IPC 直接路由到这里)
-   - `AiCompletionService.pendingMessageQueues: Map<requestId, PendingMessageQueue>` 和 `getPendingMessageQueue / steer(requestId, message)` —— 删掉,队列的归属从"按 requestId 索引的全局 Map"改为"`ActiveStream.pendingMessages` 字段",随流 GC(steering 消息由 AiStreamManager 根据 topicId 反查当前活跃 requestId,再推进对应的队列)
-   - 对应的 `ipcOn(Ai_Abort)` 和 `ipcOn(Ai_SteerMessage)` 挂接都删掉,Renderer 的 abort 走 `Ai_Stream_Abort({ requestId })`,steer 走 `Ai_Stream_Open`(AiStreamManager 按 topicId 发现当前有活跃流则路由到 steer,忽略 Renderer 传的 requestId)
-   - **executeStream 本身不再认识 requestId** —— 它只收 `target: StreamTarget` + `signal: AbortSignal`,`target` 实际上是 `InternalStreamTarget(broker, requestId)`,requestId 被**封装在 target 闭包里**,executeStream 完全看不到。这是关键的分层:AiCompletionService 是"一次 AI 调用的库函数",不关心"这次调用是谁的哪一轮";AiStreamManager 才是那个管"谁的哪一轮"的控制平面
+4. **把 AiCompletionService 的两个 per-topicId 注册表上移到 AiStreamManager 层**(注意:topicId 这个**概念**没删,只是管理方从 AiCompletionService 换成 AiStreamManager):
+   - `AiCompletionService.registerRequest / removeRequest / abort(topicId)` —— 删掉,AiStreamManager 在 `activeStreams: Map<topicId, ActiveStream>` 主表里直接持有每条流的 `AbortController`,abort 走 `AiStreamManager.abort(topicId)`(`Ai_Stream_Abort` IPC 直接路由到这里)
+   - `AiCompletionService.pendingMessageQueues: Map<topicId, PendingMessageQueue>` 和 `getPendingMessageQueue / steer(topicId, message)` —— 删掉,队列的归属从"按 topicId 索引的全局 Map"改为"`ActiveStream.pendingMessages` 字段",随流 GC(steering 消息由 AiStreamManager 根据 topicId 反查当前活跃 topicId,再推进对应的队列)
+   - 对应的 `ipcOn(Ai_Abort)` 和 `ipcOn(Ai_SteerMessage)` 挂接都删掉,Renderer 的 abort 走 `Ai_Stream_Abort({ topicId })`,steer 走 `Ai_Stream_Open`(AiStreamManager 按 topicId 发现当前有活跃流则路由到 steer,忽略 Renderer 传的 topicId)
+   - **executeStream 本身不再认识 topicId** —— 它只收 `target: StreamTarget` + `signal: AbortSignal`,`target` 实际上是 `InternalStreamTarget(broker, topicId)`,topicId 被**封装在 target 闭包里**,executeStream 完全看不到。这是关键的分层:AiCompletionService 是"一次 AI 调用的库函数",不关心"这次调用是谁的哪一轮";AiStreamManager 才是那个管"谁的哪一轮"的控制平面
 5. **删除 `Ai_StreamRequest` / `Ai_Abort` / `Ai_SteerMessage` 三个 `ipcHandle` / `ipcOn` 注册**。Renderer 全部走 `Ai_Stream_*`,由 AiStreamManager 接管
 
 **不动**:`AiCompletionService.streamText` 本身(它本来就接受 `AbortSignal`)、`ToolRegistry`、`generateText`/`checkModel`/`embedMany`/`generateImage`/`listModels` 等其他 IPC handler、`@DependsOn` 依赖、服务生命周期。
@@ -3633,9 +3633,9 @@ enum IpcChannel {
 
   // === Phase 2 新增(AiStreamManager 拥有) ===
   Ai_Stream_Open   = 'ai:stream:open',   // Renderer → Main:发送消息(AiStreamManager 按 topicId 判断开新流 or steer)
-  Ai_Stream_Attach = 'ai:stream:attach', // Renderer → Main:reconnect(支持 byRequestId / byTopicId 两种模式)
-  Ai_Stream_Detach = 'ai:stream:detach', // Renderer → Main:主动退订(按 requestId)
-  Ai_Stream_Abort  = 'ai:stream:abort',  // Renderer → Main:按 requestId abort(一次生成尝试停止)
+  Ai_Stream_Attach = 'ai:stream:attach', // Renderer → Main:reconnect(支持 topicId 两种模式)
+  Ai_Stream_Detach = 'ai:stream:detach', // Renderer → Main:主动退订(按 topicId)
+  Ai_Stream_Abort  = 'ai:stream:abort',  // Renderer → Main:按 topicId abort(一次生成尝试停止)
 
   // === Phase 2 Step 2.8 最终删除 ===
   Ai_StreamRequest = 'ai:stream-request',  // @deprecated 由 Ai_Stream_Open 取代
@@ -3643,7 +3643,7 @@ enum IpcChannel {
 }
 ```
 
-Payload 类型(**request/response 带 `requestId` 做控制平面精确路由,Main→Renderer 的 push 只带 `topicId` 做数据平面聚合过滤** —— 两个 id 分管两个平面,不是到处都并存):
+Payload 类型(**request/response 带 `topicId` 做控制平面精确路由,Main→Renderer 的 push 只带 `topicId` 做数据平面聚合过滤** —— 两个 id 分管两个平面,不是到处都并存):
 
 **Phase 2 里 Renderer → Main 的统一流请求 payload,不在这里重新定义字段** —— 它就是 Step 1.16 的 `aiStreamRequestSchema` 的 TypeScript 类型:
 
@@ -3657,7 +3657,7 @@ import type { AiStreamOpenRequest } from '@shared/ai-transport'
 // 等价于 z.infer<typeof aiStreamRequestSchema>
 
 // 字段速览(权威定义见 Step 1.16):
-//   - requestId       —— Renderer 生成 UUID,控制平面身份 + 幂等键
+//   - topicId
 //   - topicId         —— SQLite topics 主键,数据平面身份 + useChat({ id }) 复用 key
 //   - parentAnchorId  —— 显式父节点(Renderer 从 useQuery 读树拿,可能为 null)
 //   - userMessage     —— { role: 'user', data: { parts } } 内容载体,无 id
@@ -3681,36 +3681,36 @@ import type { AiStreamOpenRequest } from '@shared/ai-transport'
 
 /**
  * Attach 请求 —— 两种模式之一(判别式联合):
- *   - **byRequestId**:原始发起者重连(Renderer 持有 requestId,比如刷新页面
+ *   - **byRequestId**:原始发起者重连(Renderer 持有 topicId,比如刷新页面
  *     后从 sessionStorage 恢复),精准挂回同一条 ActiveStream
  *   - **byTopicId**:多窗口观察者 attach —— 第二个窗口打开同一 topic 只知道
- *     topicId,AiStreamManager 用 `topicToActiveRequest` 反查当前活跃 request
+ *     topicId,AiStreamManager 用 `` 反查当前活跃 request
  */
 type AiStreamAttachRequest =
-  | { mode: 'byRequestId'; requestId: string }
-  | { mode: 'byTopicId'; topicId: string }
+  | { topicId: string }
+  | { topicId: string }
 
 interface AiStreamDetachRequest {
-  /** 按 requestId 精确退订 —— Renderer 在发起时就生成了 requestId,detach 时能传 */
-  requestId: string
+  /** 按 topicId 精确退订 —— Renderer 在发起时就生成了 topicId,detach 时能传 */
+  topicId: string
   // 不需要 subscriber id —— event.sender 就是身份,AiStreamManager 按
-  // `wc:${event.sender.id}:${requestId}` 精确定位这个窗口对该 request 的 listener
+  // `wc:${event.sender.id}:${topicId}` 精确定位这个窗口对该 request 的 listener
 }
 
 interface AiStreamAbortRequest {
-  /** abort 的是一次具体的生成尝试 —— 按 requestId 路由,和 topic 无关 */
-  requestId: string
+  /** abort 的是一次具体的生成尝试 —— 按 topicId 路由,和 topic 无关 */
+  topicId: string
 }
 
 type AiStreamAttachResponse =
   | { status: 'not-found' }
-  | { status: 'attached'; requestId: string; replayedChunks: number }
-  | { status: 'done'; requestId: string; finalMessage: CherryUIMessage }
-  | { status: 'error'; requestId: string; error: SerializedError }
+  | { status: 'attached'; topicId: string; replayedChunks: number }
+  | { status: 'done'; topicId: string; finalMessage: CherryUIMessage }
+  | { status: 'error'; topicId: string; error: SerializedError }
 
 // === Push payloads (Main → Renderer, 由 WebContentsListener 发出) ===
-// 所有 push **只带 topicId,不带 requestId** —— 数据平面按 topicId 聚合,
-// 原因见 WebContentsListener 注释。控制平面的 requestId 只存在于 request/response
+// 所有 push **只带 topicId,不带 topicId** —— 数据平面按 topicId 聚合,
+// 原因见 WebContentsListener 注释。控制平面的 topicId 只存在于 request/response
 // IPC(Ai_Stream_Open / Ai_Stream_Abort / Ai_Stream_Detach / Ai_Stream_Attach)里。
 
 interface AiStreamChunkPayload {
@@ -3740,7 +3740,7 @@ window.api.ai.onStreamChunk((data) => {
 
 多窗口场景:两个窗口看同一 topic,它们的 listener 都会收到相同的 chunks(因为 topicId 一致),两边 UI 同步更新 —— 这正是期望行为,不需要额外区分订阅者。
 
-**为什么 Renderer 的 listener 不按 requestId 过滤**:steering 路径下 msg2 和 msg1 属于**同一条 ActiveStream**,chunks 是作为一条连续的流发给 WebContents 的(只有一个 WebContentsListener 通过 upsert 保留)。如果 Renderer 按 requestId 过滤,transport 闭包持有的 requestId 是 msg2 生成的 R2,而 chunks 来自 msg1 发起的 AS_R1,过滤就会漏掉所有 chunks。用 topicId 过滤则天然正确 —— 它表达的就是"这个对话的流",包含 steering 聚合后的所有 chunks。
+**为什么 Renderer 的 listener 不按 topicId 过滤**:steering 路径下 msg2 和 msg1 属于**同一条 ActiveStream**,chunks 是作为一条连续的流发给 WebContents 的(只有一个 WebContentsListener 通过 upsert 保留)。如果 Renderer 按 topicId 过滤,transport 闭包持有的 topicId 是 msg2 生成的 R2,而 chunks 来自 msg1 发起的 AS_R1,过滤就会漏掉所有 chunks。用 topicId 过滤则天然正确 —— 它表达的就是"这个对话的流",包含 steering 聚合后的所有 chunks。
 
 ### Renderer 侧 Transport 改造
 
@@ -3752,16 +3752,16 @@ export class IpcChatTransport implements ChatTransport<UIMessage> {
     const { chatId: topicId, messages, abortSignal, body } = options
     // 注意:AI SDK 的 `chatId` 参数映射为我们的 topicId —— 两者意义相同
 
-    // Renderer 在发送时生成 requestId —— **只用于控制平面**(abort/detach 精确路由
+    // Renderer 在发送时生成 topicId —— **只用于控制平面**(abort/detach 精确路由
     // + Main 端内存去重 key)。chunks 的 listener 仍然按 topicId 过滤,因为 steering
     // 路径下同一 topic 的多次发送会被 AiStreamManager 合并到一条 ActiveStream,chunks 属于
     // 同一条流,只能按 topicId 聚合。
-    const requestId = crypto.randomUUID()
+    const 
     const stream = this.buildListenerStream(topicId)
 
     const lastMessage = messages.at(-1)!
     window.api.ai.streamOpen({
-      requestId,
+      topicId,
       topicId,
       assistantId: body.assistantId,
       // 注意:只传内容,不传 id —— user message 的 id 由 Main 端原子落库时生成
@@ -3772,20 +3772,20 @@ export class IpcChatTransport implements ChatTransport<UIMessage> {
       // ...其余 AiStreamRequest 字段
     })
 
-    // abort 改为 detach —— 仅退订,流在 Main 端继续跑完并落库。按 requestId 精确路由。
+    // abort 改为 detach —— 仅退订,流在 Main 端继续跑完并落库。按 topicId 精确路由。
     abortSignal?.addEventListener('abort', () => {
-      window.api.ai.streamDetach({ requestId })
+      window.api.ai.streamDetach({ topicId })
     })
 
     return stream
   }
 
   /**
-   * Reconnect 支持两种 attach 模式(mode 由 transport 根据有无保存的 requestId 决定):
-   *   - **页面刷新后恢复原始发起者的流**:transport 从 sessionStorage 拿回 requestId,
+   * Reconnect 支持两种 attach 模式(mode 由 transport 根据有无保存的 topicId 决定):
+   *   - **页面刷新后恢复原始发起者的流**:transport 从 sessionStorage 拿回 topicId,
    *     走 `byRequestId` 精准挂回同一条 ActiveStream(拿到的 finalMessage 能精确到
    *     正是那一轮的结果,而不是"当前这个 topic 的流")
-   *   - **第二个窗口打开同一 topic 加入观察**:没有 requestId,走 `byTopicId`
+   *   - **第二个窗口打开同一 topic 加入观察**:没有 topicId,走 `byTopicId`
    *     让 AiStreamManager 反查当前活跃 request 并 attach
    *
    * 不管哪种 mode,返回的 ReadableStream 都按 `topicId` 过滤 —— Renderer 侧的数据
@@ -3794,7 +3794,7 @@ export class IpcChatTransport implements ChatTransport<UIMessage> {
   async reconnectToStream({ chatId: topicId }): Promise<ReadableStream<UIMessageChunk> | null> {
     const savedRequestId = this.getSavedRequestId?.(topicId)  // 可选的 sessionStorage 恢复
     const attachReq: AiStreamAttachRequest = savedRequestId
-      ? { mode: 'byRequestId', requestId: savedRequestId }
+      ? { mode: 'byRequestId', topicId: savedRequestId }
       : { mode: 'byTopicId', topicId }
 
     const result = await window.api.ai.streamAttach(attachReq)
@@ -3829,9 +3829,9 @@ export class IpcChatTransport implements ChatTransport<UIMessage> {
 ```
 
 **Phase 2 两个 id 的分层(重要)**:
-- **数据平面(chunk 推送 + listener 过滤)** = `topicId`。理由见上方 steering 解释:msg1 和 msg2 在 AiStreamManager 里合并成一条流,chunks 属于同一个 WebContentsListener(upsert 去重后只有一个),只能按 topicId 聚合,过滤不能按 requestId
-- **控制平面(sendOpen 去重 / abort / detach / attach)** = `requestId`。这是 Codex Finding 1 + 2 的根治 —— 让迟到的 abort 精确打到特定的一轮,让 Renderer 重发请求被 Main 内存去重识别为同一次操作
-- **两层互不相干**:transport 的 `requestId` 是 `sendMessages` 的局部变量,只在 `streamOpen` 和 `streamDetach` 的 IPC 请求体里出现;`buildListenerStream` 根本不 care 它,只认 topicId
+- **数据平面(chunk 推送 + listener 过滤)** = `topicId`。理由见上方 steering 解释:msg1 和 msg2 在 AiStreamManager 里合并成一条流,chunks 属于同一个 WebContentsListener(upsert 去重后只有一个),只能按 topicId 聚合,过滤不能按 topicId
+- **控制平面(sendOpen 去重 / abort / detach / attach)** = `topicId`。这是 Codex Finding 1 + 2 的根治 —— 让迟到的 abort 精确打到特定的一轮,让 Renderer 重发请求被 Main 内存去重识别为同一次操作
+- **两层互不相干**:transport 的 `topicId` 是 `sendMessages` 的局部变量,只在 `streamOpen` 和 `streamDetach` 的 IPC 请求体里出现;`buildListenerStream` 根本不 care 它,只认 topicId
 
 ### Channel Push 流的对称支持
 
@@ -3852,9 +3852,9 @@ async handleIncoming(adapter: ChannelAdapter, msg: IncomingMessage) {
   const assistantId = adapter.assistantId
   const request = await this.buildStreamRequest(topicId, msg)
 
-  // Channel 路径也要有 requestId —— ChannelMessageHandler 自己生成一个,
+  // Channel 路径也要有 topicId —— ChannelMessageHandler 自己生成一个,
   // 作为 AiStreamManager 主表 key + in-memory 去重键。
-  const requestId = crypto.randomUUID()
+  const 
 
   // 在这之前先调 `messageService.create` 落 user-side 消息(用 channel 平台消息
   // 转成 CherryUIMessage 的 parts),拿到真实的 id 后才能构造 PersistenceListener。
@@ -3867,13 +3867,13 @@ async handleIncoming(adapter: ChannelAdapter, msg: IncomingMessage) {
   })
 
   aiStreamAiStreamManager.startStream({
-    requestId,
+    topicId,
     topicId,
     request,
     listeners: [
       new ChannelAdapterListener(adapter, msg.chatId),   // adapter + platformChatId 在 listener 里固化
       new PersistenceListener({
-        requestId,
+        topicId,
         topicId,
         assistantId,
         parentUserMessageId: createdUserMessage.id
@@ -3889,33 +3889,33 @@ async handleIncoming(adapter: ChannelAdapter, msg: IncomingMessage) {
 
 **顺带获得的能力**:Renderer 用户打开对应 topic 时,`Ai_Stream_Attach` 会把新的 `WebContentsListener` 加入这条由 channel 发起的流 —— **用户可以实时看到 bot 正在回复什么**。这是 v1/v2 现状都没有的能力,在新架构下零成本。
 
-### requestId / topicId 命名空间与并发约束
+### topicId / topicId 命名空间与并发约束
 
 AiStreamManager 中有**两个 id**,分工明确,不要混用:
 
 | id | 来源 | 用途 | 生命周期 |
 |---|---|---|---|
 | `topicId` | Cherry Studio SQLite `topics` 表的主键 | **数据平面身份**:AI SDK `useChat({ id })` 的状态复用 key、DataApi 关联 key、多窗口观察者 attach 时的反查 key、steering 消息的归属判断 | 永久(= topic 生命周期) |
-| `requestId` | Renderer 在用户点发送时生成 UUID | **控制平面身份**:AiStreamManager 的 `activeStreams` 主表 key、`abort/attach/detach` 路由 key、Listener.id 前缀、in-memory 去重键、IPC chunks listener 过滤键 | 一次生成尝试(start → done/error/aborted + grace period) |
+| `topicId、IPC chunks listener 过滤键 | 一次生成尝试(start → done/error/aborted + grace period) |
 
-**为什么要两个**:`topicId` 粒度太粗,一个 topic 生命周期内会发生多次生成尝试(首次发送、regenerate、stop 后再发……),控制平面消息(abort/attach/done)必须能区分"哪一次",所以需要 `requestId`。但 `topicId` 仍然是**用户视角**的身份(UI 只知道"我在哪个对话里"),steering 消息和多窗口观察者只认 topic,所以不能把 topicId 丢掉。
+**为什么要两个**:`topicId` 粒度太粗,一个 topic 生命周期内会发生多次生成尝试(首次发送、regenerate、stop 后再发……),控制平面消息(abort/attach/done)必须能区分"哪一次",所以需要 `topicId`。但 `topicId` 仍然是**用户视角**的身份(UI 只知道"我在哪个对话里"),steering 消息和多窗口观察者只认 topic,所以不能把 topicId 丢掉。
 
 三种发起源对两个 id 的处理:
 
-- **Renderer 发起**:UI 传入当前打开的 `topicId` + `crypto.randomUUID()` 作为新 requestId
-- **Channel 发起**:`ChannelMessageHandler` 根据 `(channelId, platformChatId)` → `topicId`,自己生成 requestId
-- **Agent 发起**:调度器用自己的 agent task 元数据解析出 `topicId`,自己生成 requestId
+- **Renderer 发起**:UI 传入当前打开的 `topicId` + `crypto.randomUUID()` 作为新 topicId
+- **Channel 发起**:`ChannelMessageHandler` 根据 `(channelId, platformChatId)` → `topicId`,自己生成 topicId
+- **Agent 发起**:调度器用自己的 agent task 元数据解析出 `topicId`,自己生成 topicId
 
-**并发约束**:同一 `topicId` 在 AiStreamManager 里同时只能有一条活跃 request(由 `topicToActiveRequest: Map<topicId, requestId>` 反查索引强制)。但"一条流"不等于"一次发送" —— 用户在流跑的时候继续发消息是合法的,AiStreamManager 的 `send()` 路由会检测到当前 topic 已有活跃 request,把新消息的 `requestId` **忽略**,把消息 push 到现有 `ActiveStream.pendingMessages` 队列,由 `runAgentLoop.prepareStep` 在内层步间 drain 拼进 context(Phase 1 设计原则里的 "Pending Messages Steering 双层保障")。
+**并发约束**:同一 `topicId` 在 AiStreamManager 里同时只能有一条活跃 request(由 `` 反查索引强制)。但"一条流"不等于"一次发送" —— 用户在流跑的时候继续发消息是合法的,AiStreamManager 的 `send()` 路由会检测到当前 topic 已有活跃 request,把新消息的 `topicId` **忽略**,把消息 push 到现有 `ActiveStream.pendingMessages` 队列,由 `runAgentLoop.prepareStep` 在内层步间 drain 拼进 context(Phase 1 设计原则里的 "Pending Messages Steering 双层保障")。
 
 所以:
 - **同一 topic 同时一条活跃 request** —— 这是对 AiStreamManager 的约束,对用户透明
 - **用户感知的"多次发送"** —— 都合法,通过 steering 队列聚合到当前 request,不报错也不开新 request
 - **真正会被拒绝的** —— 只有 Main 内部直接调 `startStream`(绕过 `send()` 路由)且当前正 streaming 的情况。这通常是调用方写错了(应该调 `send`),`ConflictError` 在 dev/test 阶段能帮忙发现这种 bug
 
-**requestId 幂等性**:`startStream` 开头先查 `activeStreams.get(requestId)` 主表,命中就直接返回,不重新起流。这覆盖了 rapid retry / 双击 / 网络重发场景。Main 重启后 Map 清空,重启后的重复请求被当成新请求 —— 这个 edge case 在 v1/v2 都没有覆盖,保持一致。
+**topicId 幂等性**:`startStream` 开头先查 `activeStreams.get(topicId)` 主表,命中就直接返回,不重新起流。这覆盖了 rapid retry / 双击 / 网络重发场景。Main 重启后 Map 清空,重启后的重复请求被当成新请求 —— 这个 edge case 在 v1/v2 都没有覆盖,保持一致。
 
-`startStream` 遇到 `topicToActiveRequest` 指向 grace period 内(done/error/aborted)的旧 request 时,会**提前驱逐**旧 request,让新 request 立即开始 —— 这修复了"停止后立即重试"/"出错后立即重发"/"完成后秒速连发"三种用户动作的顺滑度。迟到 reconnect 的代价:按旧 requestId attach 会拿到 'not-found',Renderer 退化到 `useQuery('/topics/:id/messages')` 从 DB 读,由 `PersistenceListener` 已落库的数据兜底。
+`startStream` 遇到 `` 指向 grace period 内(done/error/aborted)的旧 request 时,会**提前驱逐**旧 request,让新 request 立即开始 —— 这修复了"停止后立即重试"/"出错后立即重发"/"完成后秒速连发"三种用户动作的顺滑度。迟到 reconnect 的代价:按旧 topicId attach 会拿到 'not-found',Renderer 退化到 `useQuery('/topics/:id/messages')` 从 DB 读,由 `PersistenceListener` 已落库的数据兜底。
 
 ### ClaudeCodeService 集成:`ClaudeCodeStreamAdapter`
 
