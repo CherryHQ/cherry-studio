@@ -20,6 +20,8 @@ import {
   type GitHubCopilotProviderSettings
 } from '@opeoginni/github-copilot-openai-compatible'
 import { SystemProviderIds } from '@types'
+import type { ClaudeCodeProviderSettings } from 'ai-sdk-provider-claude-code'
+import { createClaudeCode } from 'ai-sdk-provider-claude-code'
 import type { OllamaProviderSettings } from 'ollama-ai-provider-v2'
 import { createOllama } from 'ollama-ai-provider-v2'
 import { createVoyage, type VoyageProviderSettings } from 'voyage-ai-provider'
@@ -201,6 +203,17 @@ export const VoyageExtension = ProviderExtension.create({
 } as const satisfies ProviderExtensionConfig<VoyageProviderSettings, ProviderV3, 'voyage'>)
 
 /**
+ * Claude Code Extension — wraps Claude Agent SDK as a standard AI SDK provider.
+ * Agent sessions go through the same agentLoop/streamText path as any other provider,
+ * producing UIMessageChunk natively via toUIMessageStream().
+ */
+export const ClaudeCodeExtension = ProviderExtension.create({
+  name: 'claude-code',
+  supportsImageGeneration: false,
+  create: (options?: ClaudeCodeProviderSettings) => createClaudeCode(options)
+} as const satisfies ProviderExtensionConfig<ClaudeCodeProviderSettings, ProviderV3, 'claude-code'>)
+
+/**
  * 所有项目特定的 Extensions
  */
 export const extensions = [
@@ -218,5 +231,6 @@ export const extensions = [
   NewApiExtension,
   VoyageExtension,
   TogetherAIExtension,
-  GroqExtension
+  GroqExtension,
+  ClaudeCodeExtension
 ] as const

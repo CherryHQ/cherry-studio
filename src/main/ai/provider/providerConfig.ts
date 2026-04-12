@@ -168,7 +168,8 @@ export async function providerToAiSdkConfig(provider: Provider, model: Model): P
     { match: (_, id) => id === 'google-vertex', build: buildVertexConfig },
     { match: (_, id) => id === 'cherryin', build: buildCherryinConfig },
     { match: (_, id) => id === 'newapi', build: buildNewApiConfig },
-    { match: (_, id) => id === 'aihubmix', build: buildAiHubMixConfig }
+    { match: (_, id) => id === 'aihubmix', build: buildAiHubMixConfig },
+    { match: (_, id) => id === 'claude-code', build: buildClaudeCodeConfig }
   ]
 
   const builder = builders.find((b) => b.match(provider, aiSdkProviderId))
@@ -463,6 +464,29 @@ function buildAiHubMixConfig(ctx: BuilderContext): ProviderConfig<'aihubmix'> {
     providerSettings: {
       ...ctx.baseConfig,
       headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
+    }
+  }
+}
+
+/**
+ * Claude Code provider — wraps Claude Agent SDK as a standard AI SDK provider.
+ * API key and base URL are passed through env vars to the SDK subprocess.
+ */
+function buildClaudeCodeConfig(ctx: BuilderContext): ProviderConfig<'claude-code'> {
+  const anthropicBaseUrl = ctx.baseConfig.baseURL
+    ? formatApiHost(ctx.baseConfig.baseURL, !isWithTrailingSharp(ctx.baseConfig.baseURL))
+    : ''
+
+  return {
+    providerId: 'claude-code',
+    providerSettings: {
+      defaultSettings: {
+        env: {
+          ANTHROPIC_API_KEY: ctx.baseConfig.apiKey,
+          ANTHROPIC_AUTH_TOKEN: ctx.baseConfig.apiKey,
+          ...(anthropicBaseUrl ? { ANTHROPIC_BASE_URL: anthropicBaseUrl } : {})
+        }
+      }
     }
   }
 }
