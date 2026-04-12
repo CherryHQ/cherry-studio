@@ -387,7 +387,6 @@ const persistenceListener = new PersistenceListener({
 | Buffer 溢出 | 超过 maxBufferChunks 后停止缓存(不停止流) |
 | Main 进程重启 | activeStreams 清空,Renderer 通过数据库读取 |
 
-## 待确认的产品决策
+## 设计备注
 
-1. **`parentAnchorId` 并发语义**: 多窗口同时向同一 topic 发送消息时,第二个请求的 `parentAnchorId` 可能已过时。Main 会创建兄弟分支。这是缺陷还是符合预期?待产品侧确认。
-2. **`afterPersist` best-effort 边界**: 当前所有 post-persist 副作用均采用 fire-and-forget 模式。若某项副作用的丢失构成业务问题,需升级为 outbox + worker 机制。
+**`afterPersist` best-effort 边界**: 当前所有 post-persist 副作用(重命名、用量统计)均采用 fire-and-forget 模式。若将来某项副作用的丢失构成业务问题(如计费), 需升级为 outbox + worker 机制。当前阶段尚无此需求, 保留扩展点。
