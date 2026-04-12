@@ -4,6 +4,7 @@ import { RefreshIcon } from '@renderer/components/Icons'
 import { useProvider } from '@renderer/hooks/useProvider'
 import type { Model } from '@renderer/types'
 import { getErrorMessage } from '@renderer/utils'
+import { createUniqueModelId } from '@shared/data/types/model'
 import { InputNumber, Space } from 'antd'
 import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -48,8 +49,7 @@ const InputEmbeddingDimension = ({
     setLoading(true)
     try {
       const { embeddings } = await window.api.ai.embedMany({
-        providerId: provider.id,
-        modelId: model.id,
+        uniqueModelId: createUniqueModelId(provider.id, model.id),
         values: ['test']
       })
       const dimension = embeddings[0].length

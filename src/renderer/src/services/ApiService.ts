@@ -23,6 +23,7 @@ import { purifyMarkdownImages } from '@renderer/utils/markdown'
 import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { containsSupportedVariables, replacePromptVariables } from '@renderer/utils/prompt'
 import { NOT_SUPPORT_API_KEY_PROVIDER_TYPES, NOT_SUPPORT_API_KEY_PROVIDERS } from '@renderer/utils/provider'
+import { createUniqueModelId } from '@shared/data/types/model'
 import { isEmpty, takeRight } from 'lodash'
 
 import { AiProvider } from '../aiCore'
@@ -369,8 +370,7 @@ export async function fetchImageGeneration({
     const inputImages = await collectImagesFromMessages(lastUserMessage, lastAssistantMessage)
 
     const { images } = await window.api.ai.generateImage({
-      providerId: model.provider,
-      modelId: model.id,
+      uniqueModelId: createUniqueModelId(model.provider, model.id),
       prompt: prompt || '',
       inputImages: inputImages.length > 0 ? inputImages : undefined,
       n: 1,
@@ -427,8 +427,7 @@ export async function fetchMessagesSummary({
 
   try {
     const { text } = await window.api.ai.generateText({
-      providerId: model.provider,
-      modelId: model.id,
+      uniqueModelId: createUniqueModelId(model.provider, model.id),
       system: prompt,
       prompt: conversation
     })
@@ -454,8 +453,7 @@ export async function fetchNoteSummary({ content, assistant }: { content: string
 
   try {
     const { text } = await window.api.ai.generateText({
-      providerId: model.provider,
-      modelId: model.id,
+      uniqueModelId: createUniqueModelId(model.provider, model.id),
       system: prompt,
       prompt: purifiedContent
     })
@@ -500,8 +498,7 @@ export async function fetchGenerate({
   try {
     const resolvedModel = model || getDefaultModel()
     const { text } = await window.api.ai.generateText({
-      providerId: resolvedModel.provider,
-      modelId: resolvedModel.id,
+      uniqueModelId: createUniqueModelId(resolvedModel.provider, resolvedModel.id),
       system: prompt,
       prompt: content
     })
@@ -619,11 +616,11 @@ export async function checkApi(provider: Provider, model: Model, timeout = 15000
   if (isEmbeddingModel(model)) {
     const timerPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeout))
     await Promise.race([
-      window.api.ai.embedMany({ providerId: provider.id, modelId: model.id, values: ['test'] }),
+      window.api.ai.embedMany({ uniqueModelId: createUniqueModelId(provider.id, model.id), values: ['test'] }),
       timerPromise
     ])
   } else {
-    await window.api.ai.checkModel({ providerId: provider.id, modelId: model.id, timeout })
+    await window.api.ai.checkModel({ uniqueModelId: createUniqueModelId(provider.id, model.id), timeout })
   }
 }
 

@@ -4,7 +4,7 @@ import { application } from '@main/core/application'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { reduxService } from '@main/services/ReduxService'
-import type { Model } from '@shared/data/types/model'
+import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Assistant } from '@types'
 import type {
   ChatTransport,
@@ -33,14 +33,14 @@ type ChatTrigger = Parameters<ChatTransport<UIMessage>['sendMessages']>[0]['trig
 /** Base fields shared by all AI requests. */
 export interface AiBaseRequest {
   assistantId?: string
-  providerId?: string
-  modelId?: string
+  /** Model identifier in "providerId::modelId" format. */
+  uniqueModelId?: UniqueModelId
   mcpToolIds?: string[]
 }
 
 /** Streaming chat request. */
 export interface AiStreamRequest extends AiBaseRequest {
-  requestId: string
+  /** Used by AiService for chunk routing. In AiStreamManager path this is set to topicId. */
   chatId: string
   trigger: ChatTrigger
   messageId?: string
@@ -98,13 +98,13 @@ export class AiCompletionService {
   // ── Streaming chat (agent.stream) ──
 
   streamText(request: AiStreamRequest, signal: AbortSignal): ReadableStream<UIMessageChunk> {
-    logger.info('streamText started', { requestId: request.requestId, chatId: request.chatId })
+    logger.info('streamText started', { chatId: request.chatId })
 
     const { readable, writable } = new TransformStream<UIMessageChunk>()
     const writer = writable.getWriter()
 
     this.resolveAndStream(request, signal, writer).catch(async (error) => {
-      logger.error('streamText failed', { requestId: request.requestId, error })
+      logger.error('streamText failed', { error })
       await writer.abort(error).catch(() => {})
     })
 
@@ -300,7 +300,7 @@ export class AiCompletionService {
   /**
    * Get provider + model for this request.
    * Provider/model from v2 DataApi (SQLite). Assistant still from Redux (not yet migrated).
-   * Priority: explicit providerId/modelId > assistant.model
+   * Priority: explicit uniqueModelId > assistant.model
    */
   private async getProviderAndModel(request: AiBaseRequest) {
     // Assistant still in Redux (TODO: migrate to DataApi)
@@ -310,10 +310,18 @@ export class AiCompletionService {
       assistant = assistants.find((a: Assistant) => a.id === request.assistantId)
     }
 
-    const providerId = request.providerId ?? assistant?.model?.provider
+    // Parse UniqueModelId or fall back to assistant.model
+    let providerId: string | undefined
+    let modelId: string | undefined
+    if (request.uniqueModelId) {
+      const parsed = parseUniqueModelId(request.uniqueModelId)
+      providerId = parsed.providerId
+      modelId = parsed.modelId
+    } else {
+      providerId = assistant?.model?.provider
+      modelId = assistant?.model?.id
+    }
     if (!providerId) throw new Error('Cannot resolve providerId: not in request and assistant has no model')
-
-    const modelId = request.modelId ?? assistant?.model?.id
     if (!modelId) throw new Error('Cannot resolve modelId: not in request and assistant has no model')
 
     // Provider/model from v2 DataApi (SQLite)

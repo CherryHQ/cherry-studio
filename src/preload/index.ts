@@ -906,25 +906,23 @@ const api = {
     streamAbort: (req: AiStreamAbortRequest): Promise<void> => ipcRenderer.invoke(IpcChannel.Ai_Stream_Abort, req),
 
     // ── Non-streaming operations ──
+    // All use uniqueModelId ("providerId::modelId") instead of separate providerId/modelId.
     generateText: (request: {
       assistantId?: string
-      providerId?: string
-      modelId?: string
+      uniqueModelId?: string
       system?: string
       prompt?: string
       messages?: unknown[]
       mcpToolIds?: string[]
     }): Promise<{ text: string; usage?: unknown }> => ipcRenderer.invoke(IpcChannel.Ai_GenerateText, request),
-    checkModel: (request: { providerId?: string; modelId?: string; timeout?: number }): Promise<{ latency: number }> =>
+    checkModel: (request: { uniqueModelId?: string; timeout?: number }): Promise<{ latency: number }> =>
       ipcRenderer.invoke(IpcChannel.Ai_CheckModel, request),
     embedMany: (request: {
-      providerId?: string
-      modelId?: string
+      uniqueModelId?: string
       values: string[]
     }): Promise<{ embeddings: number[][]; usage?: unknown }> => ipcRenderer.invoke(IpcChannel.Ai_EmbedMany, request),
     generateImage: (request: {
-      providerId?: string
-      modelId?: string
+      uniqueModelId?: string
       prompt: string
       inputImages?: string[]
       mask?: string

@@ -9,6 +9,7 @@ import { estimateTextTokens } from '@renderer/services/TokenService'
 import { getAllCustomLanguages } from '@renderer/services/TranslateService'
 import type { TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
 import { LANG_DETECT_PROMPT } from '@shared/config/prompts'
+import { createUniqueModelId } from '@shared/data/types/model'
 import { franc } from 'franc-min'
 import type { RefObject } from 'react'
 import React from 'react'
@@ -77,8 +78,7 @@ const detectLanguageByLLM = async (inputText: string): Promise<TranslateLanguage
   const prompt = LANG_DETECT_PROMPT.replace('{{list_lang}}', listLangText).replace('{{input}}', text)
 
   const { text: detectedLang } = await window.api.ai.generateText({
-    providerId: model.provider,
-    modelId: model.id,
+    uniqueModelId: createUniqueModelId(model.provider, model.id),
     system: prompt,
     prompt: 'follow system prompt'
   })

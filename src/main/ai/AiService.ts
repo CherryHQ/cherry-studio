@@ -70,7 +70,7 @@ export class AiService extends BaseService {
    * AI SDK ReadableStream and writes chunks to the target until done or aborted.
    */
   async executeStream(target: StreamTarget, request: AiStreamRequest, signal: AbortSignal): Promise<void> {
-    const { requestId } = request
+    const requestId = request.chatId
 
     try {
       const stream = this.completionService.streamText(request, signal)

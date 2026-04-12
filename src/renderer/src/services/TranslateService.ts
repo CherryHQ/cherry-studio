@@ -9,6 +9,7 @@ import type {
   TranslateLanguageCode
 } from '@renderer/types'
 import { uuid } from '@renderer/utils'
+import { createUniqueModelId } from '@shared/data/types/model'
 import { t } from 'i18next'
 
 import { getDefaultTranslateAssistant } from './AssistantService'
@@ -50,8 +51,7 @@ export const translateText = async (
   // either use AiStreamManager with an ephemeral topicId, or add a dedicated lightweight
   // streaming IPC that doesn't require topic persistence.
   const { text: result } = await window.api.ai.generateText({
-    providerId: model.provider,
-    modelId: model.id,
+    uniqueModelId: createUniqueModelId(model.provider, model.id),
     assistantId: assistant.id,
     prompt: assistant.content
   })

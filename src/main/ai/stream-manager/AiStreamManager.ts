@@ -11,7 +11,7 @@ import type {
   AiStreamOpenRequest
 } from '@shared/ai/transport'
 import type { Message } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
+import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { SerializedError } from '@shared/types/error'
 import { serializeError } from '@shared/types/error'
@@ -358,7 +358,7 @@ export class AiStreamManager extends BaseService {
       throw new Error(`Cannot resolve model for assistant ${req.assistantId}`)
     }
     const { model } = assistant
-    const modelId: UniqueModelId = `${model.provider}::${model.id}`
+    const modelId = createUniqueModelId(model.provider, model.id)
 
     // Persist user message with full metadata
     const userMessage = await messageService.create(req.topicId, {
@@ -385,7 +385,7 @@ export class AiStreamManager extends BaseService {
     const result = this.send({
       topicId: req.topicId,
       modelId,
-      request: this.toAiStreamRequest(req),
+      request: this.toAiStreamRequest(req, modelId),
       userMessage,
       listeners: [webContentsListener, persistenceListener]
     })
@@ -499,18 +499,17 @@ export class AiStreamManager extends BaseService {
   }
 
   /**
-   * Build AiStreamRequest from the minimal AiStreamOpenRequest.
-   * Main resolves provider/model/tools/overrides from the assistant config.
+   * Build AiStreamRequest from the resolved model info.
+   * uniqueModelId is passed so AiCompletionService does not re-resolve from Redux.
    *
    * TODO: Read messages from DB via messageService.getTree(topicId).
-   * TODO: Resolve provider/model/mcpTools/knowledgeBaseIds from assistant config via reduxService.
    */
-  private toAiStreamRequest(req: AiStreamOpenRequest): AiStreamRequest {
+  private toAiStreamRequest(req: AiStreamOpenRequest, uniqueModelId: UniqueModelId): AiStreamRequest {
     return {
-      requestId: req.topicId,
       chatId: req.topicId,
       trigger: 'submit-message',
-      assistantId: req.assistantId
+      assistantId: req.assistantId,
+      uniqueModelId
     }
   }
 }
