@@ -3,6 +3,17 @@ import type { TokenUsageData } from '@cherrystudio/analytics-client'
 import { electronAPI } from '@electron-toolkit/preload'
 import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import type { SpanContext } from '@opentelemetry/api'
+import type {
+  AiStreamAbortRequest,
+  AiStreamAttachRequest,
+  AiStreamAttachResponse,
+  AiStreamDetachRequest,
+  AiStreamOpenRequest,
+  AiStreamOpenResponse,
+  StreamChunkPayload,
+  StreamDonePayload,
+  StreamErrorPayload
+} from '@shared/ai/transport'
 import type { GitBashPathInfo, TerminalConfig } from '@shared/config/constant'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import type {
@@ -28,7 +39,6 @@ import type {
 import type { KnowledgeSearchResult as KnowledgeVectorSearchResult } from '@shared/data/types/knowledge'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import type { SerializedError } from '@shared/types/error'
 import type {
   AddMemoryOptions,
   AssistantMessage,
@@ -56,7 +66,6 @@ import type {
   SupportedOcrFile,
   WebDavConfig
 } from '@types'
-import type { UIMessageChunk } from 'ai'
 import type { OpenDialogOptions } from 'electron'
 import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
 import type { CreateDirectoryOptions } from 'webdav'
@@ -871,25 +880,32 @@ const api = {
     }
   },
   ai: {
-    // Stream push listeners — payload keyed by topicId
-    onStreamChunk: (callback: (data: { topicId: string; chunk: UIMessageChunk }) => void) => {
-      const listener = (_: Electron.IpcRendererEvent, data: { topicId: string; chunk: UIMessageChunk }) =>
-        callback(data)
+    // ── Stream push listeners ──
+    onStreamChunk: (callback: (data: StreamChunkPayload) => void) => {
+      const listener = (_: Electron.IpcRendererEvent, data: StreamChunkPayload) => callback(data)
       ipcRenderer.on(IpcChannel.Ai_StreamChunk, listener)
       return () => ipcRenderer.removeListener(IpcChannel.Ai_StreamChunk, listener)
     },
-    onStreamDone: (callback: (data: { topicId: string; status?: 'success' | 'paused' }) => void) => {
-      const listener = (_: Electron.IpcRendererEvent, data: { topicId: string; status?: 'success' | 'paused' }) =>
-        callback(data)
+    onStreamDone: (callback: (data: StreamDonePayload) => void) => {
+      const listener = (_: Electron.IpcRendererEvent, data: StreamDonePayload) => callback(data)
       ipcRenderer.on(IpcChannel.Ai_StreamDone, listener)
       return () => ipcRenderer.removeListener(IpcChannel.Ai_StreamDone, listener)
     },
-    onStreamError: (callback: (data: { topicId: string; error: SerializedError }) => void) => {
-      const listener = (_: Electron.IpcRendererEvent, data: { topicId: string; error: SerializedError }) =>
-        callback(data)
+    onStreamError: (callback: (data: StreamErrorPayload) => void) => {
+      const listener = (_: Electron.IpcRendererEvent, data: StreamErrorPayload) => callback(data)
       ipcRenderer.on(IpcChannel.Ai_StreamError, listener)
       return () => ipcRenderer.removeListener(IpcChannel.Ai_StreamError, listener)
     },
+
+    // ── Stream control ──
+    streamOpen: (req: AiStreamOpenRequest): Promise<AiStreamOpenResponse> =>
+      ipcRenderer.invoke(IpcChannel.Ai_Stream_Open, req),
+    streamAttach: (req: AiStreamAttachRequest): Promise<AiStreamAttachResponse> =>
+      ipcRenderer.invoke(IpcChannel.Ai_Stream_Attach, req),
+    streamDetach: (req: AiStreamDetachRequest): Promise<void> => ipcRenderer.invoke(IpcChannel.Ai_Stream_Detach, req),
+    streamAbort: (req: AiStreamAbortRequest): Promise<void> => ipcRenderer.invoke(IpcChannel.Ai_Stream_Abort, req),
+
+    // ── Non-streaming operations ──
     generateText: (request: {
       assistantId?: string
       providerId?: string
@@ -919,36 +935,7 @@ const api = {
       providerId?: string
       assistantId?: string
     }): Promise<Array<{ id: string; name: string; provider: string; group: string; [key: string]: unknown }>> =>
-      ipcRenderer.invoke(IpcChannel.Ai_ListModels, request),
-
-    // ── AiStreamManager (Phase 2) ──
-
-    /** Open a new stream or steer an existing one. Returns requestId + routing mode. */
-    streamOpen: (req: {
-      requestId: string
-      topicId: string
-      parentAnchorId: string | null
-      userMessage: { role: 'user'; data: { parts: unknown[] } }
-      assistantId: string
-      [key: string]: unknown
-    }): Promise<{ requestId: string; mode: 'started' | 'steered' | 'deduped' }> =>
-      ipcRenderer.invoke(IpcChannel.Ai_Stream_Open, req),
-
-    /** Subscribe to a topic's stream state (reconnect / observe). */
-    streamAttach: (req: {
-      topicId: string
-    }): Promise<
-      | { status: 'not-found' }
-      | { status: 'attached'; replayedChunks: number }
-      | { status: 'done'; finalMessage: unknown }
-      | { status: 'error'; error: SerializedError }
-    > => ipcRenderer.invoke(IpcChannel.Ai_Stream_Attach, req),
-
-    /** Unsubscribe from a topic (stream keeps running in Main). */
-    streamDetach: (req: { topicId: string }) => ipcRenderer.invoke(IpcChannel.Ai_Stream_Detach, req),
-
-    /** Abort the active generation on a topic. */
-    streamAbort: (req: { topicId: string }) => ipcRenderer.invoke(IpcChannel.Ai_Stream_Abort, req)
+      ipcRenderer.invoke(IpcChannel.Ai_ListModels, request)
   },
   apiServer: {
     getStatus: (): Promise<GetApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_GetStatus),

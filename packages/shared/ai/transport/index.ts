@@ -63,3 +63,15 @@ export interface AiChatRequestBody {
   /** Enable inline image generation. */
   enableGenerateImage?: boolean
 }
+
+export type {
+  AiStreamAbortRequest,
+  AiStreamAttachRequest,
+  AiStreamAttachResponse,
+  AiStreamDetachRequest,
+  AiStreamOpenRequest,
+  AiStreamOpenResponse,
+  StreamChunkPayload,
+  StreamDonePayload,
+  StreamErrorPayload
+} from './stream'

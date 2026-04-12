@@ -4,7 +4,7 @@ import { application } from '@main/core/application'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { reduxService } from '@main/services/ReduxService'
-import type { AiAssistantRuntimeOverrides } from '@shared/aiCore/transport'
+import type { AiAssistantRuntimeOverrides } from '@shared/ai/transport'
 import type { Model } from '@shared/data/types/model'
 import type { Assistant } from '@types'
 import type {

@@ -7,7 +7,7 @@ import {
   isOllamaProvider,
   isPerplexityProvider,
   isVertexProvider
-} from '@shared/aiCore/provider/utils'
+} from '@shared/ai/provider/utils'
 import { formatApiHost, isWithTrailingSharp } from '@shared/utils'
 import type { Provider } from '@types'
 import { SystemProviderIds } from '@types'

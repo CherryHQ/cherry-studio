@@ -14,7 +14,7 @@ export {
 } from '@shared/utils/api'
 
 // Re-export from shared, for backward compatibility
-export { formatAzureOpenAIApiHost, formatOllamaApiHost } from '@shared/aiCore/provider/utils'
+export { formatAzureOpenAIApiHost, formatOllamaApiHost } from '@shared/ai/provider/utils'
 
 // NOTE: Since #13194, it depends on the store state in renderer, so it cannot be moved to shared now.
 export function formatVertexApiHost(provider: VertexProvider): string {

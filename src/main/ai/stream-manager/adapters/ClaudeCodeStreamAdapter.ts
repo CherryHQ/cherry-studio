@@ -43,12 +43,9 @@ export function bridgeAgentStream(params: {
         break
 
       case 'complete':
-        // Capture SDK session_id for resume support before signaling done
-        if (agentStream.sdkSessionId) {
-          manager.setStreamFinalMessage(topicId, {
-            sdkSessionId: agentStream.sdkSessionId
-          })
-        }
+        // TODO: Build CherryUIMessage from accumulated chunks via AI SDK tools,
+        // then call manager.setStreamFinalMessage(topicId, cherryMessage).
+        // For now, sdkSessionId is stored on the ActiveStream directly.
         void manager.onDone(topicId, 'success')
         break
 

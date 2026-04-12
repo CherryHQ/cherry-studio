@@ -2,6 +2,13 @@ import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { messageService } from '@main/data/services/MessageService'
+import type {
+  AiStreamAbortRequest,
+  AiStreamAttachRequest,
+  AiStreamAttachResponse,
+  AiStreamDetachRequest,
+  AiStreamOpenRequest
+} from '@shared/ai/transport'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { SerializedError } from '@shared/types/error'
 import { serializeError } from '@shared/types/error'
@@ -12,17 +19,7 @@ import { PendingMessageQueue } from '../PendingMessageQueue'
 import { InternalStreamTarget } from './InternalStreamTarget'
 import { PersistenceListener } from './listeners/PersistenceListener'
 import { WebContentsListener } from './listeners/WebContentsListener'
-import type {
-  ActiveStream,
-  AiStreamAbortRequest,
-  AiStreamAttachRequest,
-  AiStreamAttachResponse,
-  AiStreamDetachRequest,
-  AiStreamManagerConfig,
-  AiStreamOpenRequest,
-  CherryUIMessage,
-  StreamListener
-} from './types'
+import type { ActiveStream, AiStreamManagerConfig, CherryUIMessage, StreamListener } from './types'
 
 const logger = loggerService.withContext('AiStreamManager')
 
@@ -340,11 +337,11 @@ export class AiStreamManager extends BaseService {
       chatId: req.topicId,
       trigger: 'submit-message',
       messages: (req.messages ?? []) as never,
-      providerId: req.providerId as string | undefined,
-      modelId: req.modelId as string | undefined,
+      providerId: req.providerId,
+      modelId: req.modelId,
       assistantId: req.assistantId,
-      mcpToolIds: req.mcpToolIds as string[] | undefined,
-      knowledgeBaseIds: req.knowledgeBaseIds as string[] | undefined,
+      mcpToolIds: req.mcpToolIds,
+      knowledgeBaseIds: req.knowledgeBaseIds,
       assistantOverrides: req.assistantOverrides as never
     }
   }

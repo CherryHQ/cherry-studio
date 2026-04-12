@@ -3,9 +3,11 @@ import type {
   DataUIPart,
   DynamicToolUIPart,
   FileUIPart,
+  InferUIMessageChunk,
   ReasoningUIPart,
   TextUIPart,
   UIDataTypes,
+  UIMessage,
   UIMessagePart,
   UITools
 } from 'ai'
@@ -54,6 +56,14 @@ export interface MessageData {
   parts?: CherryMessagePart[]
 }
 
+// ── Cherry-specific UI message types ────────────────────────────────
+
+/** Cherry Studio's UIMessage with custom metadata and data part types. */
+export type CherryUIMessage = UIMessage<{ totalTokens?: number }, CherryDataPartTypes>
+
+/** Cherry Studio's UIMessageChunk — inferred from CherryUIMessage. */
+export type CherryUIMessageChunk = InferUIMessageChunk<CherryUIMessage>
+
 // Re-export AI SDK part types for convenience
 export type {
   DataUIPart,
@@ -62,6 +72,7 @@ export type {
   ReasoningUIPart,
   TextUIPart,
   UIDataTypes,
+  UIMessage,
   UIMessagePart,
   UITools
 }
