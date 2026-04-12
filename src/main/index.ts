@@ -36,9 +36,7 @@ application.initPathRegistry()
 import { electronApp } from '@electron-toolkit/utils'
 import { loggerService } from '@logger'
 import { app } from 'electron'
-import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electron-devtools-installer'
 
-import { isDev } from './constant'
 import { registerIpc } from './ipc'
 import { versionService } from './services/VersionService'
 import { extractRtkBinaries } from './utils/rtk'
@@ -62,10 +60,6 @@ const startApp = async () => {
     })
   })
 
-  // [v2] temporary code to set the CherryAI client secret (move from config.ts)
-  // TODO: should move to somewhere else
-  global.CHERRYAI_CLIENT_SECRET = import.meta.env.MAIN_VITE_CHERRYAI_CLIENT_SECRET
-
   // Start lifecycle (BeforeReady runs parallel with app.whenReady)
   application.registerAll(serviceList)
   const bootstrapPromise = application.bootstrap().catch((error) => {
@@ -88,12 +82,6 @@ const startApp = async () => {
   // registerIpc still needs the window reference for legacy IPC handlers.
   const mainWindow = application.get('WindowService').getMainWindow()!
   await registerIpc(mainWindow, app)
-
-  if (isDev) {
-    installExtension([REDUX_DEVTOOLS, REACT_DEVELOPER_TOOLS])
-      .then((name) => logger.info(`Added Extension:  ${name}`))
-      .catch((err) => logger.error('An error occurred: ', err))
-  }
 }
 
 void startApp()
