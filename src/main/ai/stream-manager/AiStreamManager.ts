@@ -385,7 +385,7 @@ export class AiStreamManager extends BaseService {
     const result = this.send({
       topicId: req.topicId,
       modelId,
-      request: this.toAiStreamRequest(req, modelId),
+      request: await this.buildAiStreamRequest(req, modelId, userMessage.id),
       userMessage,
       listeners: [webContentsListener, persistenceListener]
     })
@@ -499,17 +499,32 @@ export class AiStreamManager extends BaseService {
   }
 
   /**
-   * Build AiStreamRequest from the resolved model info.
-   * uniqueModelId is passed so AiCompletionService does not re-resolve from Redux.
+   * Build AiStreamRequest by reading message history from DB and attaching resolved model info.
    *
-   * TODO: Read messages from DB via messageService.getTree(topicId).
+   * Reads the path from root to the just-persisted user message (parentUserMessageId),
+   * converts Message[] to UIMessage[] for the AI SDK, and constructs the full request.
    */
-  private toAiStreamRequest(req: AiStreamOpenRequest, uniqueModelId: UniqueModelId): AiStreamRequest {
+  private async buildAiStreamRequest(
+    req: AiStreamOpenRequest,
+    uniqueModelId: UniqueModelId,
+    parentUserMessageId: string
+  ): Promise<AiStreamRequest> {
+    // Read conversation history: root → ... → user message (linear path)
+    const messagePath = await messageService.getPathToNode(parentUserMessageId)
+
+    // Convert Message[] → UIMessage[] for AI SDK
+    const messages: CherryUIMessage[] = messagePath.map((msg) => ({
+      id: msg.id,
+      role: msg.role as CherryUIMessage['role'],
+      parts: msg.data.parts ?? []
+    }))
+
     return {
       chatId: req.topicId,
       trigger: 'submit-message',
       assistantId: req.assistantId,
-      uniqueModelId
+      uniqueModelId,
+      messages
     }
   }
 }
