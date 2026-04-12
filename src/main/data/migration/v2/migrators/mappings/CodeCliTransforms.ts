@@ -7,8 +7,8 @@
 
 import { terminalApps } from '@shared/config/constant'
 import { CODE_CLI_IDS, type CodeCliOverride, type CodeCliOverrides } from '@shared/data/preference/preferenceTypes'
+import { createUniqueModelId } from '@shared/data/types/model'
 
-import { createUniqueModelId } from '../../utils/modelIdUtils'
 import type { TransformResult } from './ComplexPreferenceMappings'
 
 const VALID_CLI_IDS = new Set<string>(CODE_CLI_IDS)

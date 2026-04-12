@@ -60,8 +60,7 @@ import type {
   TranslationBlock,
   VideoBlock
 } from '@shared/data/types/message'
-
-import { createUniqueModelId } from '../../utils/modelIdUtils'
+import { createUniqueModelId } from '@shared/data/types/model'
 
 // ============================================================================
 // Old Type Definitions (Source Data Structures)

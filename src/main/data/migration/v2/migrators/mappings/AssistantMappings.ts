@@ -21,8 +21,7 @@
 
 import type { AssistantInsert } from '@data/db/schemas/assistant'
 import type { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
-
-import { createUniqueModelId } from '../../utils/modelIdUtils'
+import { createUniqueModelId } from '@shared/data/types/model'
 
 // ============================================================================
 // Old Type Definitions (Source Data Structures)
