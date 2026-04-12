@@ -318,11 +318,54 @@ AiService 的职责收敛为纯粹的 AI 执行函数 —— 接收 target、req
 
 ### User message 在 Main 端事务写入
 
-Renderer 在 `Ai_Stream_Open` 请求中传递 `userMessage`(仅包含内容, 不含 id)和 `parentAnchorId`(显式父节点)。Main 端 `handleStreamRequest` 调用 `messageService.create` 写入 user message,获得真实 SQLite id。该 id 作为 `PersistenceListener.parentUserMessageId`。
+Renderer 不再自行持久化 user message。流程:
+
+1. Renderer 在 `Ai_Stream_Open` 请求中传递 `userMessage`(仅包含内容, 不含 id)和 `parentAnchorId`(显式父节点)
+2. Main 端 `handleStreamRequest` 调用 `messageService.create` 在事务中写入 user message, 获得真实 SQLite id
+3. 该 id 作为 `PersistenceListener.parentUserMessageId`, 确保 assistant 消息关联到正确的父节点
+
+为什么不在 Renderer 端写入: 原有的 `streamingService.createUserMessage` 不传递 `parentId`, 依赖 `topic.activeNodeId` 自动解析 —— 多窗口同时操作同一 topic 时容易关联到错误的分支。Main 端使用 `parentAnchorId` 显式指定, 从根源上避免竞态条件。
 
 ### PersistenceListener
 
-流结束时调用 `messageService.create` 写入 assistant 消息,显式指定 `parentId`,不依赖 `activeNodeId`。支持 `afterPersist` 钩子用于 UI 增强类副作用(重命名、标题生成),采用 best-effort 策略。
+```
+流结束
+  → AiStreamManager.onDone(topicId, 'success')
+    → 广播至所有 listeners
+      → PersistenceListener.onDone({ finalMessage, status })
+        │
+        ├─ 无 finalMessage → 跳过(与 v1 handleFinish 行为一致)
+        ├─ 存在 finalMessage:
+        │   messageService.create(topicId, {
+        │     role: 'assistant',
+        │     parentId: parentUserMessageId,
+        │     data: finalMessage,
+        │     status: 'success' 或 'paused'
+        │   })
+        │
+        └─ status == 'success' && afterPersist 已定义?
+             try { await afterPersist(finalMessage) } catch { logger.warn }
+```
+
+### afterPersist 钩子
+
+流完成后的业务副作用通过 `afterPersist` 可选参数注入, 不直接编码在 PersistenceListener 内部:
+
+```typescript
+const persistenceListener = new PersistenceListener({
+  topicId, assistantId, parentUserMessageId: userMessage.id,
+  afterPersist: isAgentSession(topicId)
+    ? async (finalMessage) => {
+        await Promise.allSettled([
+          maybeRenameAgentSession(req, finalMessage),
+          maybeReportUsage(req, finalMessage),
+        ])
+      }
+    : undefined
+})
+```
+
+**约束**: `afterPersist` 采用 best-effort 策略 —— 执行失败仅记录警告, 不会重试。仅允许 UI 增强类副作用(自动重命名、标题生成)。若将来存在"必须保证执行"的副作用(计费、审计), 则需要引入 outbox + worker 机制。
 
 ## Grace Period 与 Reconnect 机制
 
