@@ -6043,14 +6043,60 @@ const listeners: StreamListener[] = [
 aiStreamManager.startExecution({ topicId, modelId, request, listeners })
 ```
 
+#### API 网关格式转换：`SSEListener` + `mapChunk`
+
+API 网关对外暴露标准 OpenAI 格式（`/v1/chat/completions`、`/v1/responses`），但内部所有 AI 执行产出的是 AI SDK 的 `UIMessageChunk`。两者格式不同：
+
+| AI SDK `UIMessageChunk` | OpenAI `ChatCompletionChunk` |
+|---|---|
+| `{ type: 'text-delta', text: '你好' }` | `{ choices: [{ delta: { content: '你好' }, finish_reason: null }] }` |
+| `{ type: 'tool-call', toolName, input }` | `{ choices: [{ delta: { tool_calls: [...] } }] }` |
+| `{ type: 'finish-step', finishReason }` | `{ choices: [{ delta: {}, finish_reason: 'stop' }] }` |
+
+AI SDK 没有内置 `UIMessageChunk → OpenAI ChatCompletionChunk` 转换器。这层映射由 `SSEListener.mapChunk` 承担：
+
+```typescript
+// stream-manager/listeners/SSEListener.ts
+// mapChunk: 将 UIMessageChunk 转换为目标格式（OpenAI / Anthropic / Responses 等）
+
+new SSEListener(
+  (data) => res.write(`data: ${data}\n\n`),
+  () => { res.write('data: [DONE]\n\n'); res.end() },
+  () => !res.writableEnded,
+  {
+    mapChunk: (chunk) => {
+      // UIMessageChunk → OpenAI ChatCompletionChunk
+      if (chunk.type === 'text-delta') {
+        return {
+          id: requestId,
+          object: 'chat.completion.chunk',
+          created: timestamp,
+          model: modelName,
+          choices: [{ index: 0, delta: { content: chunk.text }, finish_reason: null }]
+        }
+      }
+      return null // 过滤非文本 chunk（tool calls、reasoning 等按需处理）
+    }
+  }
+)
+```
+
+**关键决策**：API 网关不直接创建 OpenAI client 调上游 provider（旧 `chatCompletionService` 的做法），而是通过 AiStreamManager 统一执行，再通过 `mapChunk` 转换输出格式。这样：
+- 所有 provider 都能被 API 网关暴露（不限于 OpenAI 兼容 provider）
+- API 发起的流对 renderer 可见（共享 topic）
+- 共享 PersistenceListener、buffer 回放、steering 等能力
+
 #### `POST /v1/chat/completions` 的迁移路径
 
-OpenAI 兼容接口 (`chatCompletionService`) 当前独立于 AiStreamManager，有自己的 provider 解析和流管理。迁移方向：
+> **注**：#12258（API Gateway + Model Groups + Responses API）尚未合并，以下是合并后的迁移方向。
 
-1. **非流式** (`stream: false`)：改为调 `AiCompletionService.generateText`，复用已有的 provider 解析流水线
-2. **流式** (`stream: true`)：改为 `AiStreamManager.startExecution` + inline SSE listener，复用 topic 注册表 + listener 分发
-3. **Request 映射**：OpenAI `messages` 格式 → `CherryUIMessage[]` 转换（已有 `convertToModelMessages`）
-4. **Response 映射**：`UIMessageChunk` → OpenAI `ChatCompletionChunk` 格式转换
+`chatCompletionService` 当前直接创建 OpenAI client 代理到上游 provider，绕过 AiStreamManager。迁移方向：
+
+1. **非流式** (`stream: false`)：改为调 `AiCompletionService.generateText`，结果转换为 OpenAI `ChatCompletion` 格式
+2. **流式** (`stream: true`)：改为 `AiStreamManager.startExecution` + `SSEListener(mapChunk: UIMessageChunk → ChatCompletionChunk)`
+3. **Request 映射**：OpenAI `messages` → `CherryUIMessage[]`（已有 `convertToModelMessages`）
+4. **Response 映射**：`UIMessageChunk` → OpenAI `ChatCompletionChunk`（via `SSEListener.mapChunk`）
+5. **`/v1/responses` 端点**：同理，`mapChunk` 转换为 OpenAI Responses 格式的 semantic events（`response.created`、`response.output_text.delta` 等）
 
 迁移后 `chatCompletionService` 变为薄转换层：只做 OpenAI ↔ Cherry 格式映射，不做 provider 解析、不管流生命周期。
 
