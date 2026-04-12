@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
-import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { messageService } from '@main/data/services/MessageService'
 import type {
   AiStreamAbortRequest,
@@ -32,7 +32,6 @@ const logger = loggerService.withContext('AiStreamManager')
  */
 @Injectable('AiStreamManager')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['AiService'])
 export class AiStreamManager extends BaseService {
   /** Primary registry: topicId → ActiveStream. One topic, one stream. */
   private readonly activeStreams = new Map<string, ActiveStream>()
