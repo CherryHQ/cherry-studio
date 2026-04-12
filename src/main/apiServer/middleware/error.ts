@@ -1,6 +1,5 @@
+import { loggerService } from '@logger'
 import type { NextFunction, Request, Response } from 'express'
-
-import { loggerService } from '../../services/LoggerService'
 
 const logger = loggerService.withContext('ApiServerErrorHandler')
 

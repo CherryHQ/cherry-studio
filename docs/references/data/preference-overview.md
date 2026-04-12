@@ -118,7 +118,7 @@ Main process provides `getStats(details?)` for debugging subscription status:
 - **Warning**: Resource-intensive, recommended for development only
 
 ```typescript
-import { application } from '@main/core/application'
+import { application } from '@application'
 
 const preferenceService = application.get('PreferenceService')
 const stats = preferenceService.getStats(true);

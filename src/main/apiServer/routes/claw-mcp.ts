@@ -1,5 +1,5 @@
+import { loggerService } from '@logger'
 import ClawServer from '@main/mcpServers/claw'
-import { loggerService } from '@main/services/LoggerService'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp'
 import type { JSONRPCMessage } from '@modelcontextprotocol/sdk/types'
 import { isJSONRPCRequest, JSONRPCMessageSchema } from '@modelcontextprotocol/sdk/types'

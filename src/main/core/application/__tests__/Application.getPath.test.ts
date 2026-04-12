@@ -50,10 +50,11 @@ vi.mock('@main/core/paths/pathRegistry', async () => {
 import { Application } from '@main/core/application/Application'
 import { buildPathRegistry } from '@main/core/paths/pathRegistry'
 
-// Bypass the global mock of '@main/core/application' (which exports a stub
+// Bypass the global mock of '@application' (which exports a stub
 // `application` proxy with a no-op bootstrap) by importing the real
 // Application class directly via its file path. The global mock only
-// intercepts the directory/index path.
+// intercepts the directory/index path, leaving `Application.ts` reachable
+// via the `@main/*` alias.
 
 describe('Application.getPath', () => {
   const app = Application.getInstance()

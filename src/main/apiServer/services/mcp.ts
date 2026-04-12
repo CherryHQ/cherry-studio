@@ -1,9 +1,8 @@
+import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
-import { application } from '@main/core/application'
+import { loggerService } from '@logger'
 import type { Tool } from '@modelcontextprotocol/sdk/types'
 import type { MCPServer } from '@shared/data/types/mcpServer'
-
-import { loggerService } from '../../services/LoggerService'
 
 const logger = loggerService.withContext('MCPApiService')
 
