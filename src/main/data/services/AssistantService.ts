@@ -14,6 +14,7 @@ import { application } from '@main/core/application'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateAssistantDto, ListAssistantsQuery, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import type { UniqueModelId } from '@shared/data/types/model'
 import { and, asc, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
 
 const logger = loggerService.withContext('DataApi:AssistantService')
@@ -40,7 +41,7 @@ function rowToAssistant(row: AssistantRow, relations: AssistantRelationIds = cre
     emoji: row.emoji ?? '🌟',
     description: row.description ?? '',
     settings: row.settings ?? DEFAULT_ASSISTANT_SETTINGS,
-    modelId: row.modelId ?? null,
+    modelId: (row.modelId as UniqueModelId) ?? null,
     mcpServerIds: relations.mcpServerIds,
     knowledgeBaseIds: relations.knowledgeBaseIds,
     createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),

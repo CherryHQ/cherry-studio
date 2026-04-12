@@ -7,6 +7,8 @@
 
 import * as z from 'zod'
 
+import { UniqueModelIdSchema } from './model'
+
 // ============================================================================
 // Sub-Schemas
 // ============================================================================
@@ -133,8 +135,8 @@ export const AssistantSchema = z.object({
   description: z.string().default(''),
   /** Inference settings — model params + context toggles */
   settings: AssistantSettingsSchema,
-  /** Default/primary model ID (composite format: "provider::modelId") */
-  modelId: z.string().nullable(),
+  /** Default/primary model ID in UniqueModelId format ("providerId::modelId") */
+  modelId: UniqueModelIdSchema.nullable(),
   /** Ordered MCP server IDs linked through assistant_mcp_server */
   mcpServerIds: z.array(z.string()),
   /** Ordered knowledge base IDs linked through assistant_knowledge_base */
