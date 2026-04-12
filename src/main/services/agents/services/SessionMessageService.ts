@@ -9,7 +9,7 @@ import type {
   ListOptions
 } from '@types'
 import type { TextStreamPart } from 'ai'
-import { and, desc, eq, not } from 'drizzle-orm'
+import { and, desc, eq, not, sql } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
 import { sessionMessagesTable } from '../database/schema'
