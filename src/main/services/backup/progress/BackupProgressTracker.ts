@@ -11,8 +11,8 @@ const logger = loggerService.withContext('BackupProgressTracker')
 
 export enum BackupPhase {
   INIT = 'init',
-  SCANNING = 'scanning',
-  EXPORTING = 'exporting',
+  VACUUM = 'vacuum',
+  FILES = 'files',
   COMPRESSING = 'compressing',
   FINALIZING = 'finalizing',
   COMPLETE = 'complete'
@@ -22,8 +22,9 @@ export enum RestorePhase {
   INIT = 'init',
   VALIDATING = 'validating',
   DECOMPRESSING = 'decompressing',
+  MIGRATING = 'migrating',
   IMPORTING = 'importing',
-  LINKING = 'linking',
+  FTS_REBUILD = 'fts_rebuild',
   COMPLETE = 'complete'
 }
 
