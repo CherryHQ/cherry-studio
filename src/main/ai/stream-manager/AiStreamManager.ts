@@ -27,18 +27,18 @@ import type {
 const logger = loggerService.withContext('AiStreamManager')
 
 /**
- * Active-stream registry and control plane for AI streaming.
+ * Active-stream registry for AI streaming.
  *
- * Two-id model:
- *  - `requestId` (control plane): primary Map key, abort/attach/detach routing, dedup
- *  - `topicId` (data plane): listener.id construction, push payload filtering, steering
+ * Keyed by `topicId` — one topic has at most one active stream at any time.
+ * Streaming is just one state of a topic; all subscribers subscribe to the
+ * topic, not to a specific stream.
  */
 @Injectable('AiStreamManager')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['AiService'])
 export class AiStreamManager extends BaseService {
+  /** Primary registry: topicId → ActiveStream. One topic, one stream. */
   private readonly activeStreams = new Map<string, ActiveStream>()
-  private readonly topicToActiveRequest = new Map<string, string>()
 
   private readonly config: AiStreamManagerConfig = {
     gracePeriodMs: 30_000,
@@ -60,8 +60,7 @@ export class AiStreamManager extends BaseService {
     })
 
     this.ipcHandle(IpcChannel.Ai_Stream_Abort, (_, req: AiStreamAbortRequest) => {
-      const requestId = this.topicToActiveRequest.get(req.topicId)
-      if (requestId) this.abort(requestId, 'user-requested')
+      this.abort(req.topicId, 'user-requested')
     })
 
     logger.info('AiStreamManager initialized')
@@ -70,59 +69,54 @@ export class AiStreamManager extends BaseService {
   // ── Public: start / send / steer ──────────────────────────────────
 
   /**
-   * Start a new stream. Callers provide all initial listeners — persistence is not implicit.
+   * Start a new stream for a topic.
    *
-   * Returns the ActiveStream for the caller to inspect (e.g. sourceSessionId).
+   * - If the topic has no active stream → create one
+   * - If the topic has a finished stream (grace period) → evict it, create new
+   * - If the topic already has a streaming stream → throw (use `send()` to steer instead)
    */
   startStream(input: {
-    requestId: string
     topicId: string
     request: AiStreamRequest
     listeners: StreamListener[]
+    requestId?: string
   }): ActiveStream {
-    // In-memory dedup: same requestId → return existing, don't re-execute
-    const existingByRequest = this.activeStreams.get(input.requestId)
-    if (existingByRequest) {
-      for (const listener of input.listeners) this.addListener(input.requestId, listener)
-      return existingByRequest
-    }
-
-    // Check topic conflict: evict grace-period streams, reject active ones
     let inheritedSessionId: string | undefined
-    const existingRequestId = this.topicToActiveRequest.get(input.topicId)
-    if (existingRequestId) {
-      const existing = this.activeStreams.get(existingRequestId)
-      if (existing) {
-        if (existing.status === 'streaming') {
-          throw new Error(
-            `Topic ${input.topicId} already has an active stream (requestId=${existingRequestId}); use send() to steer`
-          )
+    const existing = this.activeStreams.get(input.topicId)
+
+    if (existing) {
+      if (existing.status === 'streaming') {
+        // Dedup: same requestId = retry of the same action
+        if (input.requestId && existing.requestId === input.requestId) {
+          for (const listener of input.listeners) this.addListener(input.topicId, listener)
+          return existing
         }
-        inheritedSessionId = existing.sourceSessionId
-        this.evictStream(existingRequestId, existing)
+        throw new Error(`Topic ${input.topicId} already has an active stream; use send() to steer`)
       }
+      // Grace period: evict finished stream, inherit resume token
+      inheritedSessionId = existing.sourceSessionId
+      this.evictStream(input.topicId)
     }
 
     const stream: ActiveStream = {
-      requestId: input.requestId,
       topicId: input.topicId,
+      requestId: input.requestId,
       abortController: new AbortController(),
-      listeners: new Map(input.listeners.map((s) => [s.id, s])),
+      listeners: new Map(input.listeners.map((l) => [l.id, l])),
       pendingMessages: new PendingMessageQueue(),
       buffer: [],
       status: 'streaming',
       sourceSessionId: inheritedSessionId
     }
-    this.activeStreams.set(input.requestId, stream)
-    this.topicToActiveRequest.set(input.topicId, input.requestId)
+    this.activeStreams.set(input.topicId, stream)
 
-    const target = new InternalStreamTarget(this, input.requestId)
+    const target = new InternalStreamTarget(this, input.topicId)
     const aiService = application.get('AiService')
     void aiService
       .executeStream(target, input.request, {
         signal: stream.abortController.signal
       })
-      .catch((err) => this.onError(input.requestId, serializeError(err)))
+      .catch((err: unknown) => this.onError(input.topicId, serializeError(err)))
 
     return stream
   }
@@ -130,72 +124,63 @@ export class AiStreamManager extends BaseService {
   /**
    * Unified "send message for a topic" entry point.
    *
-   * Routes automatically:
-   *  - Topic has active streaming request → steer (push to pendingMessages + add listeners)
-   *  - Otherwise → startStream
+   * - Topic has active streaming → steer (push to pendingMessages + add listeners)
+   * - Otherwise → startStream
    */
   send(input: {
-    requestId: string
     topicId: string
     request: AiStreamRequest
     userMessage: { id: string }
     listeners: StreamListener[]
-  }): { mode: 'started' | 'steered'; activeRequestId: string } {
-    const activeRequestId = this.topicToActiveRequest.get(input.topicId)
-    if (activeRequestId) {
-      const existing = this.activeStreams.get(activeRequestId)
-      if (existing?.status === 'streaming') {
-        existing.pendingMessages.push(input.userMessage as never)
-        for (const listener of input.listeners) this.addListener(activeRequestId, listener)
-        return { mode: 'steered', activeRequestId }
-      }
+    requestId?: string
+  }): { mode: 'started' | 'steered' } {
+    const existing = this.activeStreams.get(input.topicId)
+    if (existing?.status === 'streaming') {
+      existing.pendingMessages.push(input.userMessage as never)
+      for (const listener of input.listeners) this.addListener(input.topicId, listener)
+      return { mode: 'steered' }
     }
     this.startStream(input)
-    return { mode: 'started', activeRequestId: input.requestId }
+    return { mode: 'started' }
   }
 
-  /** Push a steering message into a running stream by topicId. */
+  /** Push a steering message into a running stream. */
   steer(topicId: string, message: unknown): boolean {
-    const requestId = this.topicToActiveRequest.get(topicId)
-    if (!requestId) return false
-    const stream = this.activeStreams.get(requestId)
+    const stream = this.activeStreams.get(topicId)
     if (!stream || stream.status !== 'streaming') return false
     stream.pendingMessages.push(message as never)
     return true
   }
 
-  // ── Public: listener management ────────────────────────────────────
+  // ── Public: listener management ───────────────────────────────────
 
-  addListener(requestId: string, listener: StreamListener): boolean {
-    const stream = this.activeStreams.get(requestId)
+  addListener(topicId: string, listener: StreamListener): boolean {
+    const stream = this.activeStreams.get(topicId)
     if (!stream) return false
     stream.listeners.set(listener.id, listener)
     for (const chunk of stream.buffer) listener.onChunk(chunk)
     return true
   }
 
-  removeListener(requestId: string, listenerId: string): void {
-    const stream = this.activeStreams.get(requestId)
+  removeListener(topicId: string, listenerId: string): void {
+    const stream = this.activeStreams.get(topicId)
     stream?.listeners.delete(listenerId)
   }
 
   // ── Public: abort ─────────────────────────────────────────────────
 
-  abort(requestId: string, reason: string): void {
-    const stream = this.activeStreams.get(requestId)
-    if (!stream) return
-    logger.info('Aborting stream', { requestId, reason })
+  abort(topicId: string, reason: string): void {
+    const stream = this.activeStreams.get(topicId)
+    if (!stream || stream.status !== 'streaming') return
+    logger.info('Aborting stream', { topicId, reason })
     stream.status = 'aborted'
     stream.abortController.abort(reason)
-    if (this.topicToActiveRequest.get(stream.topicId) === requestId) {
-      this.topicToActiveRequest.delete(stream.topicId)
-    }
   }
 
-  // ── InternalStreamTarget callbacks (by requestId) ───────────────────
+  // ── InternalStreamTarget callbacks (by topicId) ───────────────────
 
-  onChunk(requestId: string, chunk: UIMessageChunk): void {
-    const stream = this.activeStreams.get(requestId)
+  onChunk(topicId: string, chunk: UIMessageChunk): void {
+    const stream = this.activeStreams.get(topicId)
     if (!stream || stream.status !== 'streaming') return
 
     if (stream.buffer.length < this.config.maxBufferChunks) {
@@ -211,56 +196,50 @@ export class AiStreamManager extends BaseService {
       try {
         listener.onChunk(chunk)
       } catch (err) {
-        logger.warn('Listener onChunk threw', { requestId, listenerId: id, err })
+        logger.warn('Listener onChunk threw', { topicId, listenerId: id, err })
       }
     }
     for (const id of dead) stream.listeners.delete(id)
   }
 
-  async onDone(requestId: string, status: 'success' | 'paused' = 'success'): Promise<void> {
-    const stream = this.activeStreams.get(requestId)
+  async onDone(topicId: string, status: 'success' | 'paused' = 'success'): Promise<void> {
+    const stream = this.activeStreams.get(topicId)
     if (!stream) return
 
     stream.status = status === 'paused' ? 'aborted' : 'done'
-    if (this.topicToActiveRequest.get(stream.topicId) === requestId) {
-      this.topicToActiveRequest.delete(stream.topicId)
-    }
 
     const result = { finalMessage: stream.finalMessage, status }
     for (const [id, listener] of stream.listeners) {
       try {
         await listener.onDone(result)
       } catch (err) {
-        logger.warn('Listener onDone threw', { requestId, listenerId: id, err })
+        logger.warn('Listener onDone threw', { topicId, listenerId: id, err })
       }
     }
 
-    this.scheduleReap(requestId, stream)
+    this.scheduleReap(topicId)
   }
 
-  async onError(requestId: string, error: SerializedError): Promise<void> {
-    const stream = this.activeStreams.get(requestId)
+  async onError(topicId: string, error: SerializedError): Promise<void> {
+    const stream = this.activeStreams.get(topicId)
     if (!stream) return
 
     stream.status = 'error'
     stream.error = error
-    if (this.topicToActiveRequest.get(stream.topicId) === requestId) {
-      this.topicToActiveRequest.delete(stream.topicId)
-    }
 
     for (const [id, listener] of stream.listeners) {
       try {
         await listener.onError(error)
       } catch (err) {
-        logger.warn('Listener onError threw', { requestId, listenerId: id, err })
+        logger.warn('Listener onError threw', { topicId, listenerId: id, err })
       }
     }
 
-    this.scheduleReap(requestId, stream)
+    this.scheduleReap(topicId)
   }
 
-  shouldStopStream(requestId: string): boolean {
-    const stream = this.activeStreams.get(requestId)
+  shouldStopStream(topicId: string): boolean {
+    const stream = this.activeStreams.get(topicId)
     if (!stream) return true
     if (stream.status !== 'streaming') return true
     if (stream.abortController.signal.aborted) return true
@@ -268,8 +247,8 @@ export class AiStreamManager extends BaseService {
     return false
   }
 
-  setStreamFinalMessage(requestId: string, message: CherryUIMessage): void {
-    const stream = this.activeStreams.get(requestId)
+  setStreamFinalMessage(topicId: string, message: CherryUIMessage): void {
+    const stream = this.activeStreams.get(topicId)
     if (stream) stream.finalMessage = message
   }
 
@@ -278,48 +257,45 @@ export class AiStreamManager extends BaseService {
   private async handleStreamRequest(
     sender: Electron.WebContents,
     req: AiStreamOpenRequest
-  ): Promise<{ requestId: string; mode: 'started' | 'steered' | 'deduped' }> {
-    // Step 0: dedup — same requestId already in-flight
-    if (this.activeStreams.has(req.requestId)) {
-      logger.info('Ai_Stream_Open deduped', { requestId: req.requestId })
-      this.addListener(req.requestId, new WebContentsListener(sender, req.topicId))
-      return { requestId: req.requestId, mode: 'deduped' }
+  ): Promise<{ mode: 'started' | 'steered' | 'deduped' }> {
+    // Dedup: same requestId on the same topic = retry of the same action
+    const existing = this.activeStreams.get(req.topicId)
+    if (existing?.status === 'streaming' && req.requestId && existing.requestId === req.requestId) {
+      logger.info('Ai_Stream_Open deduped', { topicId: req.topicId, requestId: req.requestId })
+      this.addListener(req.topicId, new WebContentsListener(sender, req.topicId))
+      return { mode: 'deduped' }
     }
 
-    // Step 1: persist user message atomically (explicit parentId, no activeNodeId fallback)
+    // Persist user message atomically (explicit parentId, no activeNodeId fallback)
     const userMessage = await messageService.create(req.topicId, {
       role: 'user',
       parentId: req.parentAnchorId,
       data: req.userMessage.data as never
     })
 
-    // Step 2: construct listeners (ids by topicId for steering upsert correctness)
+    // Construct listeners
     const persistenceListener = new PersistenceListener({
       requestId: req.requestId,
       topicId: req.topicId,
       assistantId: req.assistantId,
       parentUserMessageId: userMessage.id
-      // TODO (Step 2.6): afterPersist hook for agent rename, etc.
     })
     const webContentsListener = new WebContentsListener(sender, req.topicId)
 
-    // Step 3: route (startStream or steer based on topic state)
+    // Route: startStream or steer
     const result = this.send({
-      requestId: req.requestId,
       topicId: req.topicId,
-      request: this.toAiStreamRequest(req, userMessage.id),
+      request: this.toAiStreamRequest(req),
       userMessage,
-      listeners: [webContentsListener, persistenceListener]
+      listeners: [webContentsListener, persistenceListener],
+      requestId: req.requestId
     })
 
-    return { requestId: result.activeRequestId, mode: result.mode }
+    return { mode: result.mode }
   }
 
   private handleAttach(sender: Electron.WebContents, req: AiStreamAttachRequest): AiStreamAttachResponse {
-    const requestId = this.topicToActiveRequest.get(req.topicId)
-    if (!requestId) return { status: 'not-found' }
-
-    const stream = this.activeStreams.get(requestId)
+    const stream = this.activeStreams.get(req.topicId)
     if (!stream) return { status: 'not-found' }
 
     if (stream.status === 'done' || stream.status === 'aborted') {
@@ -329,51 +305,38 @@ export class AiStreamManager extends BaseService {
       return { status: 'error', error: stream.error! }
     }
 
-    // Streaming: register listener + replay buffer
-    this.addListener(requestId, new WebContentsListener(sender, req.topicId))
+    this.addListener(req.topicId, new WebContentsListener(sender, req.topicId))
     return { status: 'attached', replayedChunks: stream.buffer.length }
   }
 
   private handleDetach(sender: Electron.WebContents, req: AiStreamDetachRequest): void {
-    this.removeListenerByTopic(req.topicId, `wc:${sender.id}:${req.topicId}`)
-  }
-
-  /** Remove a listener by topicId — finds the active request for this topic, then removes the listener. */
-  private removeListenerByTopic(topicId: string, listenerId: string): void {
-    const requestId = this.topicToActiveRequest.get(topicId)
-    if (requestId) this.removeListener(requestId, listenerId)
+    this.removeListener(req.topicId, `wc:${sender.id}:${req.topicId}`)
   }
 
   // ── Lifecycle helpers ─────────────────────────────────────────────
 
-  private scheduleReap(requestId: string, stream: ActiveStream): void {
+  private scheduleReap(topicId: string): void {
+    const stream = this.activeStreams.get(topicId)
+    if (!stream) return
     stream.reapAt = Date.now() + this.config.gracePeriodMs
     stream.reapTimer = setTimeout(() => {
-      if (this.activeStreams.get(requestId) === stream) {
-        this.activeStreams.delete(requestId)
+      if (this.activeStreams.get(topicId) === stream) {
+        this.activeStreams.delete(topicId)
       }
     }, this.config.gracePeriodMs)
   }
 
-  private evictStream(requestId: string, stream: ActiveStream): void {
+  private evictStream(topicId: string): void {
+    const stream = this.activeStreams.get(topicId)
+    if (!stream) return
     if (stream.reapTimer) clearTimeout(stream.reapTimer)
-    this.activeStreams.delete(requestId)
-    if (this.topicToActiveRequest.get(stream.topicId) === requestId) {
-      this.topicToActiveRequest.delete(stream.topicId)
-    }
+    this.activeStreams.delete(topicId)
   }
 
-  /**
-   * Convert the IPC request into the AiStreamRequest shape that
-   * AiCompletionService.streamText expects.
-   *
-   * The AiStreamManager's AiStreamOpenRequest has manager-specific fields (parentAnchorId,
-   * userMessage, assistantId) that AiCompletionService doesn't need. This method
-   * maps to the shape the execution layer expects.
-   */
-  private toAiStreamRequest(req: AiStreamOpenRequest, _userMessageId: string): AiStreamRequest {
+  /** Map AiStreamOpenRequest → AiStreamRequest for AiCompletionService. */
+  private toAiStreamRequest(req: AiStreamOpenRequest): AiStreamRequest {
     return {
-      requestId: req.requestId,
+      requestId: req.requestId ?? req.topicId,
       chatId: req.topicId,
       trigger: 'submit-message',
       messages: (req.messages ?? []) as never,
