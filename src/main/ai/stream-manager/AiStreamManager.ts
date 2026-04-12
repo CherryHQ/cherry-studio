@@ -62,6 +62,28 @@ export class AiStreamManager extends BaseService {
     logger.info('AiStreamManager initialized')
   }
 
+  /**
+   * Graceful shutdown: abort all active streams so PersistenceListener
+   * can persist partial results before the process exits.
+   */
+  protected async onStop(): Promise<void> {
+    const activeTopics = [...this.activeStreams.entries()]
+      .filter(([, s]) => s.status === 'streaming')
+      .map(([topicId]) => topicId)
+
+    if (activeTopics.length === 0) return
+
+    logger.info('Stopping active streams on shutdown', { count: activeTopics.length })
+
+    for (const topicId of activeTopics) {
+      this.abort(topicId, 'app-shutdown')
+    }
+
+    // Give PersistenceListeners a chance to persist partial results.
+    // onDone('paused') is async — wait for all to settle.
+    await Promise.allSettled(activeTopics.map((topicId) => this.onDone(topicId, 'paused')))
+  }
+
   // ── Public: start / send / steer ──────────────────────────────────
 
   /**
