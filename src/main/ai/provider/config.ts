@@ -53,31 +53,32 @@ interface BuilderContext {
 /**
  * Format a raw base URL for API calls.
  * Applies provider-specific formatting (API version, Ollama/Gemini paths, etc.)
+ * align ai sdk
  */
-function formatBaseUrlFromRaw(rawUrl: string, provider: Provider, endpointType?: EndpointType): string {
-  if (!rawUrl) return ''
+function formatBaseURL(baseURL: string, provider: Provider, endpointType?: EndpointType): string {
+  if (!baseURL) return ''
 
-  const appendApiVersion = !isWithTrailingSharp(rawUrl)
+  const appendApiVersion = !isWithTrailingSharp(baseURL)
 
   // Endpoint-driven formatting
   if (endpointType === ENDPOINT_TYPE.OLLAMA_CHAT || endpointType === ENDPOINT_TYPE.OLLAMA_GENERATE) {
-    return formatOllamaApiHost(rawUrl)
+    return formatOllamaApiHost(baseURL)
   }
   if (endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT) {
-    return formatApiHost(rawUrl, appendApiVersion, 'v1beta')
+    return formatApiHost(baseURL, appendApiVersion, 'v1beta')
   }
 
   // Provider-driven formatting (for providers without endpoint type info)
-  if (isOllamaProvider(provider)) return formatOllamaApiHost(rawUrl)
-  if (isGeminiProvider(provider)) return formatApiHost(rawUrl, appendApiVersion, 'v1beta')
+  if (isOllamaProvider(provider)) return formatOllamaApiHost(baseURL)
+  if (isGeminiProvider(provider)) return formatApiHost(baseURL, appendApiVersion, 'v1beta')
 
   // Providers that don't append API version
   const noVersionProviders = ['copilot', 'github', 'cherryai', 'perplexity', 'newapi', 'new-api', 'azure-openai']
   if (noVersionProviders.includes(provider.id) || noVersionProviders.includes(provider.presetProviderId ?? '')) {
-    return formatApiHost(rawUrl, false)
+    return formatApiHost(baseURL, false)
   }
 
-  return formatApiHost(rawUrl, appendApiVersion)
+  return formatApiHost(baseURL, appendApiVersion)
 }
 
 /**
@@ -159,7 +160,7 @@ export async function providerToAiSdkConfig(
   const aiSdkProviderId = resolveProviderVariant(baseProviderId, endpointType) as StringKeys<AppProviderSettingsMap>
 
   // 4. Format URL + get API key
-  const formattedBaseUrl = formatBaseUrlFromRaw(baseUrl, provider, endpointType)
+  const formattedBaseUrl = formatBaseURL(baseUrl, provider, endpointType)
   const { baseURL, endpoint } = routeToEndpoint(formattedBaseUrl)
   const apiKey = await providerService.getRotatedApiKey(provider.id)
 
@@ -289,7 +290,6 @@ function buildOllamaConfig(ctx: BuilderContext): ProviderConfig<'ollama'> {
 }
 
 async function buildBedrockConfig(ctx: BuilderContext): Promise<ProviderConfig<'bedrock'>> {
-  // v2: get full auth config from DB (includes IAM credentials)
   const authConfig = await providerService.getAuthConfig(ctx.actualProvider.id)
   const base = { providerId: 'bedrock' as const, endpoint: ctx.endpoint }
 
@@ -310,7 +310,6 @@ async function buildBedrockConfig(ctx: BuilderContext): Promise<ProviderConfig<'
 }
 
 async function buildVertexConfig(ctx: BuilderContext): Promise<ProviderConfig<'google-vertex'>> {
-  // v2: get full auth config from DB (includes GCP credentials)
   const authConfig = await providerService.getAuthConfig(ctx.actualProvider.id)
 
   if (authConfig?.type !== 'iam-gcp') {
@@ -362,15 +361,12 @@ function mapCherryinEndpointType(epType: string | undefined): CherryInProviderSe
 }
 
 async function buildCherryinConfig(ctx: BuilderContext): Promise<ProviderConfig> {
-  // v2: look up cherryin provider for anthropic/gemini base URLs
   let anthropicBaseURL: string | undefined
   let geminiBaseURL: string | undefined
   try {
     const cherryinProvider = await providerService.getByProviderId(SystemProviderIds.cherryin)
-    const anthropicUrl = cherryinProvider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl
-    anthropicBaseURL = anthropicUrl ? anthropicUrl + '/v1' : undefined
-    const geminiUrl = getBaseUrl(cherryinProvider)
-    geminiBaseURL = geminiUrl ? geminiUrl + '/v1beta' : undefined
+    anthropicBaseURL = formatApiHost(cherryinProvider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl)
+    geminiBaseURL = getBaseUrl(cherryinProvider)
   } catch {
     // CherryIn provider may not exist
   }

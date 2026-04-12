@@ -19,7 +19,7 @@ import type {
 import { type AgentOptions, runAgentLoop } from './agentLoop'
 import { buildPlugins } from './plugins/PluginBuilder'
 import { extractAgentSessionId, isAgentSessionTopic } from './provider/claudeCodeSettingsBuilder'
-import { providerToAiSdkConfig } from './provider/providerConfig'
+import { providerToAiSdkConfig } from './provider/config'
 import { listModels as listModelsFromProvider } from './services/listModels'
 import { registerMcpTools } from './tools/mcpTools'
 import type { ToolRegistry } from './tools/ToolRegistry'
