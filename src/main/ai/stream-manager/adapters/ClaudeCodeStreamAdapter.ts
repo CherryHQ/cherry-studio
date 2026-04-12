@@ -1,7 +1,6 @@
 import { loggerService } from '@logger'
 import type { AgentStream } from '@main/services/agents/interfaces/AgentStreamInterface'
 import { serializeError } from '@shared/types/error'
-import type { UIMessageChunk } from 'ai'
 
 import type { AiStreamManager } from '../AiStreamManager'
 
@@ -32,13 +31,7 @@ export function bridgeAgentStream(params: {
     switch (event.type) {
       case 'chunk':
         if (event.chunk) {
-          // TODO: TextStreamPart → UIMessageChunk conversion.
-          // Currently AgentStreamEvent.chunk is TextStreamPart<any>, but
-          // AiStreamManager.onChunk expects UIMessageChunk. These are structurally
-          // similar for text-delta/tool-call parts but not type-identical.
-          // Phase 6 (ClaudeCodeService → unified ToolLoopAgent) will eliminate this
-          // mismatch entirely. For now, pass through with assertion.
-          manager.onChunk(topicId, event.chunk as unknown as UIMessageChunk)
+          manager.onChunk(topicId, event.chunk)
         }
         break
 

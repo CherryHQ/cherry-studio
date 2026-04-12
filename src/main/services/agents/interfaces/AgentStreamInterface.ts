@@ -5,12 +5,12 @@ import type { EventEmitter } from 'node:events'
 
 import type { Options } from '@anthropic-ai/claude-agent-sdk'
 import type { GetAgentSessionResponse } from '@types'
-import type { TextStreamPart } from 'ai'
+import type { UIMessageChunk } from 'ai'
 
 // Generic agent stream event that works with any agent type
 export interface AgentStreamEvent {
   type: 'chunk' | 'error' | 'complete' | 'cancelled'
-  chunk?: TextStreamPart<any> // Standard AI SDK chunk for UI consumption
+  chunk?: UIMessageChunk
   error?: Error
 }
 

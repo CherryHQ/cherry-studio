@@ -930,9 +930,13 @@ class ClaudeCodeService implements AgentServiceInterface {
 
         const chunks = transformSDKMessageToStreamParts(message, streamState)
         for (const chunk of chunks) {
+          // TextStreamPart → UIMessageChunk cast: structurally overlapping for
+          // text-delta/tool-call but not type-identical. Phase 6 will replace
+          // ClaudeCodeService with ToolLoopAgent which uses streamText.toUIMessageStream()
+          // natively, eliminating this cast.
           stream.emit('data', {
             type: 'chunk',
-            chunk
+            chunk: chunk as never
           })
 
           // Close prompt stream when SDK signals completion or error

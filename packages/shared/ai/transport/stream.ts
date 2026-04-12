@@ -64,8 +64,6 @@ export interface AiStreamOpenRequest {
   knowledgeBaseIds?: string[]
   /** Runtime assistant overrides. */
   assistantOverrides?: AiAssistantRuntimeOverrides
-  /** Chat history (optional — Main reads from DB in AiStreamManager path). */
-  messages?: CherryUIMessage[]
 }
 
 /** Subscribe to a topic's stream state. */

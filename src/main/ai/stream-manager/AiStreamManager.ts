@@ -325,12 +325,13 @@ export class AiStreamManager extends BaseService {
   }
 
   /** Map AiStreamOpenRequest → AiStreamRequest for AiCompletionService. */
+  // TODO: Main reads history from DB via messageService — messages field will come from there
   private toAiStreamRequest(req: AiStreamOpenRequest): AiStreamRequest {
     return {
       requestId: req.topicId,
       chatId: req.topicId,
       trigger: 'submit-message',
-      messages: (req.messages ?? []) as never,
+      messages: [] as never, // TODO: read from DB via messageService.getTree(topicId)
       providerId: req.providerId,
       modelId: req.modelId,
       assistantId: req.assistantId,
