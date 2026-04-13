@@ -4,6 +4,7 @@ import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { messageService } from '@main/data/services/MessageService'
+import { agentService, sessionService } from '@main/services/agents'
 import type {
   AiStreamAbortRequest,
   AiStreamAttachRequest,
@@ -416,8 +417,6 @@ export class AiStreamManager extends BaseService {
   ): Promise<{ mode: 'started' | 'steered' }> {
     const sessionId = extractAgentSessionId(req.topicId)
 
-    // Resolve session → agent → model
-    const { agentService, sessionService } = await import('@main/services/agents')
     const { agents } = await agentService.listAgents()
     let session: Awaited<ReturnType<typeof sessionService.getSession>> = null
     for (const agent of agents) {

@@ -127,7 +127,7 @@ const Chat: FC<Props> = (props) => {
       id="chat"
       className={classNames([
         messageStyle,
-        'flex flex-col flex-1 overflow-hidden h-[calc(100vh-var(--navbar-height))]',
+        'flex h-[calc(100vh-var(--navbar-height))] flex-1 flex-col overflow-hidden',
         '[navbar-position=top]_&:h-[calc(100vh-var(--navbar-height)-6px)]',
         '[navbar-position=top]_&:bg-(--color-background)',
         '[navbar-position=top]_&:rounded-tl-[10px] [navbar-position=top]_&:rounded-bl-[10px]'
@@ -140,7 +140,7 @@ const Chat: FC<Props> = (props) => {
           <div
             ref={mainRef}
             id="chat-main"
-            className="flex flex-col flex-1 justify-between [transform:translateZ(0)] relative"
+            className="relative flex flex-1 flex-col justify-between [transform:translateZ(0)]"
             style={{ height: mainHeight, width: '100%' }}>
             <QuickPanelProvider>
               <ChatNavbar

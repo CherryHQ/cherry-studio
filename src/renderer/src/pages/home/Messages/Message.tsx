@@ -171,15 +171,15 @@ const MessageItem: FC<Props> = ({
   if (message.type === 'clear') {
     return (
       <div
-        className={cn('cursor-pointer flex-1 clear-context-divider', isMultiSelectMode && 'cursor-default')}
+        className={cn('clear-context-divider flex-1 cursor-pointer', isMultiSelectMode && 'cursor-default')}
         onClick={() => {
           if (isMultiSelectMode) return
           void EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
         }}>
-        <div className="flex items-center my-0 mx-5 gap-2 text-[var(--color-text-3)] text-sm">
-          <hr className="flex-1 border-dashed border-[var(--color-border)]" />
+        <div className="mx-5 my-0 flex items-center gap-2 text-[var(--color-text-3)] text-sm">
+          <hr className="flex-1 border-[var(--color-border)] border-dashed" />
           <span>{t('chat.message.new.context')}</span>
-          <hr className="flex-1 border-dashed border-[var(--color-border)]" />
+          <hr className="flex-1 border-[var(--color-border)] border-dashed" />
         </div>
       </div>
     )
@@ -190,7 +190,7 @@ const MessageItem: FC<Props> = ({
       <div
         key={message.id}
         className={classNames({
-          'message flex flex-col w-full relative transition-colors duration-300 p-[10px] pb-0 rounded-[10px] [transform:translateZ(0)] [will-change:transform] [&_.menubar]:opacity-0 [&_.menubar]:transition-opacity [&_.menubar]:duration-200 [&:hover_.menubar]:opacity-100 [&_.menubar.show]:opacity-100': true,
+          'message relative flex w-full flex-col rounded-[10px] p-[10px] pb-0 transition-colors duration-300 [transform:translateZ(0)] [will-change:transform] [&:hover_.menubar]:opacity-100 [&_.menubar.show]:opacity-100 [&_.menubar]:opacity-0 [&_.menubar]:transition-opacity [&_.menubar]:duration-200': true,
           'message-assistant': isAssistantMessage,
           'message-user': !isAssistantMessage
         })}
@@ -217,7 +217,7 @@ const MessageItem: FC<Props> = ({
               <MessageOutline message={message} />
             )}
             <Scrollbar
-              className="message-content-container max-w-full pl-[46px] mt-0 overflow-y-auto"
+              className="message-content-container mt-0 max-w-full overflow-y-auto pl-[46px]"
               style={{
                 fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
                 fontSize,
@@ -228,7 +228,7 @@ const MessageItem: FC<Props> = ({
               </MessageErrorBoundary>
             </Scrollbar>
             {showMenubar && (
-              <div className="MessageFooter flex items-center justify-between gap-2.5 ml-[46px] mt-[3px]">
+              <div className="MessageFooter mt-[3px] ml-[46px] flex items-center justify-between gap-2.5">
                 <HorizontalScrollContainer
                   classNames={{
                     content: cn(
