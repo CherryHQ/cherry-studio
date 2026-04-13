@@ -22,7 +22,7 @@ import { getMessageTitle } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
 import { TraceIcon } from '@renderer/trace/pages/Component'
 import type { Assistant, Model, Topic, TranslateLanguage } from '@renderer/types'
-import type { Message, MessageBlock } from '@renderer/types/newMessage'
+import type { Message } from '@renderer/types/newMessage'
 import { captureScrollableAsBlob, captureScrollableAsDataURL, classNames } from '@renderer/utils'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { copyMessageAsPlainText } from '@renderer/utils/copy'
@@ -44,7 +44,6 @@ import {
   hasTextParts,
   hasTranslationParts
 } from '@renderer/utils/messageUtils/partsHelpers'
-import { mapMessageStatusToBlockStatus, partToBlock } from '@renderer/utils/partsToBlocks'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { MenuProps } from 'antd'
 import { Dropdown, Popconfirm } from 'antd'
@@ -905,16 +904,10 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
 
     const handleInspect = (e: React.MouseEvent) => {
       e.stopPropagation()
-      const blockStatus = mapMessageStatusToBlockStatus(message.status)
-      const blocks = messageParts
-        .map((part, index) =>
-          partToBlock(part, `${message.id}-block-${index}`, message.id, message.createdAt, blockStatus)
-        )
-        .filter((block): block is MessageBlock => block !== null)
       void InspectMessagePopup.show({
         title: `Message: ${message.id}`,
         message,
-        blocks
+        parts: messageParts
       })
     }
 

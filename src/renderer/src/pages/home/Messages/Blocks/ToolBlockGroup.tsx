@@ -2,7 +2,6 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@c
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useAppSelector } from '@renderer/store'
 import type { ToolPermissionEntry } from '@renderer/store/toolPermissions'
-import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { isToolPending } from '@renderer/utils/userConfirmation'
 import { Wrench } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
@@ -15,24 +14,16 @@ import MessageTools from '../Tools/MessageTools'
 import ToolApprovalActionsComponent from '../Tools/ToolApprovalActions'
 import ToolHeader from '../Tools/ToolHeader'
 import type { ToolRenderItem, ToolResponseLike } from '../Tools/toolResponse'
-import { buildToolRenderItemFromBlock } from '../Tools/toolResponse'
 import BlockErrorFallback from './BlockErrorFallback'
 
 // ============ Types & Helpers ============
 
 interface Props {
-  blocks?: ToolMessageBlock[]
-  items?: ToolRenderItem[]
+  items: ToolRenderItem[]
 }
 
 function isCompletedStatus(status: ToolResponseLike['status'] | undefined): boolean {
   return status === 'done' || status === 'error' || status === 'cancelled'
-}
-
-function normalizeItems(props: Props): ToolRenderItem[] {
-  if (props.items?.length) return props.items
-  if (!props.blocks?.length) return []
-  return props.blocks.map(buildToolRenderItemFromBlock).filter((item): item is ToolRenderItem => item !== null)
 }
 
 // Calculate actual waiting state for a tool item (not depending on hooks)
@@ -190,19 +181,18 @@ ToolListContent.displayName = 'ToolListContent'
 
 // ============ Main Component ============
 
-const ToolBlockGroup: React.FC<Props> = (props) => {
-  const toolItems = useMemo(() => normalizeItems(props), [props])
+const ToolBlockGroup: React.FC<Props> = ({ items }) => {
   const [activeKey, setActiveKey] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
   const userExpandedRef = useRef(false)
 
   const allCompleted = useMemo(() => {
-    return toolItems.every((item) => isCompletedStatus(item.toolResponse.status))
-  }, [toolItems])
+    return items.every((item) => isCompletedStatus(item.toolResponse.status))
+  }, [items])
 
   const currentRunningBlock = useMemo(() => {
-    return toolItems.find((item) => !isCompletedStatus(item.toolResponse.status))
-  }, [toolItems])
+    return items.find((item) => !isCompletedStatus(item.toolResponse.status))
+  }, [items])
 
   useEffect(() => {
     if (activeKey === 'tool-group' && currentRunningBlock && scrollRef.current) {
@@ -221,10 +211,10 @@ const ToolBlockGroup: React.FC<Props> = (props) => {
       <Accordion type="single" collapsible value={activeKey} onValueChange={handleChange}>
         <AccordionItem value="tool-group" className="border-0 first:border-t-0">
           <AccordionTrigger className="rounded-xl border border-(--color-border) bg-(--color-background) px-3 py-2 hover:no-underline">
-            <GroupHeaderContent items={toolItems} allCompleted={allCompleted} />
+            <GroupHeaderContent items={items} allCompleted={allCompleted} />
           </AccordionTrigger>
           <AccordionContent className="gap-1 pt-1 pb-0">
-            <ToolListContent items={toolItems} scrollRef={scrollRef} />
+            <ToolListContent items={items} scrollRef={scrollRef} />
           </AccordionContent>
         </AccordionItem>
       </Accordion>

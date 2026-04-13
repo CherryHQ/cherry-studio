@@ -8,7 +8,7 @@ interface Props {
 }
 
 const FileBlock: React.FC<Props> = ({ block }) => {
-  return <MessageAttachments block={block} />
+  return <MessageAttachments file={block.file} />
 }
 
 export default React.memo(FileBlock)

@@ -2,7 +2,6 @@ import { loggerService } from '@logger'
 import { createSelector } from '@reduxjs/toolkit'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { appendMessageTrace, pauseTrace, restartTrace } from '@renderer/services/SpanManagerService'
-import { estimateUserPromptUsage } from '@renderer/services/TokenService'
 import store, { type RootState, useAppDispatch, useAppSelector } from '@renderer/store'
 import { updateOneBlock } from '@renderer/store/messageBlock'
 import { newMessagesActions, selectMessagesForTopic } from '@renderer/store/newMessage'
@@ -14,9 +13,7 @@ import {
   deleteSingleMessageThunk,
   initiateTranslationThunk,
   regenerateAssistantResponseThunk,
-  removeBlocksThunk,
   resendMessageThunk,
-  resendUserMessageWithEditThunk,
   updateMessageAndBlocksThunk,
   updateTranslationBlockThunk
 } from '@renderer/store/thunk/messageThunk'
@@ -24,6 +21,7 @@ import { type Assistant, type Model, objectKeys, type Topic, type TranslateLangu
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { abortCompletion } from '@renderer/utils/abortController'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import { difference, throttle } from 'lodash'
 import { createContext, use, useCallback } from 'react'
 
@@ -47,7 +45,7 @@ export interface V2ChatOverrides {
   /** Clear all messages for the current topic. */
   clearTopicMessages: () => Promise<void>
   /** Edit a message's content (update parts via DataApi). */
-  editMessage: (messageId: string, editedBlocks: MessageBlock[]) => Promise<void>
+  editMessage: (messageId: string, editedParts: CherryMessagePart[]) => Promise<void>
   /** Raw AI SDK chat status. Single source of truth for request state. */
   requestStatus: RequestStatus
   refresh: () => Promise<unknown>
@@ -389,134 +387,6 @@ export function useMessageOperations(topic: Topic) {
   )
 
   /**
-   * Updates message blocks by comparing original and edited blocks.
-   * Handles adding, updating, and removing blocks in a single operation.
-   * @param messageId The ID of the message to update
-   * @param editedBlocks The complete set of blocks after editing
-   */
-  const editMessageBlocks = useCallback(
-    async (messageId: string, editedBlocks: MessageBlock[]) => {
-      if (!topic?.id) {
-        logger.error('[editMessageBlocks] Topic prop is not valid.')
-        return
-      }
-
-      if (v2) {
-        await v2.editMessage(messageId, editedBlocks)
-        return
-      }
-
-      try {
-        // 1. Get the current state of the message and its blocks
-        const state = store.getState()
-        const message = state.messages.entities[messageId]
-        if (!message) {
-          logger.error(`[editMessageBlocks] Message not found: ${messageId}`)
-          return
-        }
-
-        // 2. Get all original blocks
-        const originalBlocks = message.blocks
-          ? message.blocks
-              .map((blockId) => state.messageBlocks.entities[blockId])
-              .filter((block) => block !== undefined)
-          : []
-
-        // 3. Create sets for efficient comparison
-        const originalBlockIds = new Set(originalBlocks.map((block) => block.id))
-        const editedBlockIds = new Set(editedBlocks.map((block) => block.id))
-
-        // 4. Identify blocks to remove, update, and add
-        const blockIdsToRemove = originalBlocks
-          .filter((block) => !editedBlockIds.has(block.id))
-          .map((block) => block.id)
-
-        const blocksToUpdate = editedBlocks
-          .filter((block) => originalBlockIds.has(block.id))
-          .map((block) => ({
-            ...block,
-            updatedAt: new Date().toISOString()
-          }))
-
-        const blocksToAdd = editedBlocks
-          .filter((block) => !originalBlockIds.has(block.id))
-          .map((block) => ({
-            ...block,
-            updatedAt: new Date().toISOString()
-          }))
-
-        // 5. Prepare message update with new block IDs
-        const updatedBlockIds = editedBlocks.map((block) => block.id)
-        const messageUpdates: Partial<Message> & Pick<Message, 'id'> = {
-          id: messageId,
-          updatedAt: new Date().toISOString(),
-          blocks: updatedBlockIds
-        }
-
-        // 7. Update Redux state and database
-        // First update message and add/update blocks
-        if (blocksToAdd.length > 0) {
-          await dispatch(updateMessageAndBlocksThunk(topic.id, messageUpdates, blocksToAdd))
-        }
-
-        if (blocksToUpdate.length > 0) {
-          await dispatch(updateMessageAndBlocksThunk(topic.id, messageUpdates, blocksToUpdate))
-        }
-
-        // Then remove blocks if needed
-        if (blockIdsToRemove.length > 0) {
-          await dispatch(removeBlocksThunk(topic.id, messageId, blockIdsToRemove))
-        }
-      } catch (error) {
-        logger.error('[editMessageBlocks] Failed to update message blocks:', error as Error)
-      }
-    },
-    [dispatch, topic?.id, v2]
-  )
-
-  /**
-   * 在用户消息的主文本块被编辑后重新发送该消息。 / Resends a user message after its main text block has been edited.
-   * Dispatches resendUserMessageWithEditThunk.
-   */
-  const resendUserMessageWithEdit = useCallback(
-    async (message: Message, editedBlocks: MessageBlock[], assistant: Assistant) => {
-      if (v2) {
-        await v2.editMessage(message.id, editedBlocks)
-        await v2.resend(message.id)
-        return
-      }
-
-      await editMessageBlocks(message.id, editedBlocks)
-
-      const mainTextBlock = editedBlocks.find((block) => block.type === MessageBlockType.MAIN_TEXT)
-      if (!mainTextBlock) {
-        logger.error('[resendUserMessageWithEdit] Main text block not found in edited blocks')
-        return
-      }
-
-      await restartTrace(message, mainTextBlock.content)
-
-      const fileBlocks = editedBlocks.filter(
-        (block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE
-      )
-
-      const files = fileBlocks.map((block) => block.file).filter((file) => file !== undefined)
-
-      const usage = await estimateUserPromptUsage({ content: mainTextBlock.content, files })
-      const messageUpdates: Partial<Message> & Pick<Message, 'id'> = {
-        id: message.id,
-        updatedAt: new Date().toISOString(),
-        usage
-      }
-
-      dispatch(newMessagesActions.updateMessage({ topicId: topic.id, messageId: message.id, updates: messageUpdates }))
-      // 对于message的修改会在下面的thunk中保存
-      await dispatch(resendUserMessageWithEditThunk(topic.id, message, assistant))
-    },
-    [dispatch, editMessageBlocks, topic.id, v2]
-  )
-
-  /**
    * Removes a specific block from a message.
    */
   const removeMessageBlock = useCallback(
@@ -546,6 +416,39 @@ export function useMessageOperations(topic: Topic) {
     [dispatch, topic?.id]
   )
 
+  /**
+   * Edit a message's parts directly (V2 only).
+   * Skips block→part conversion by sending CherryMessagePart[] directly to the V2 API.
+   * Falls back to no-op if not in V2 mode.
+   */
+  const editMessageParts = useCallback(
+    async (messageId: string, editedParts: CherryMessagePart[]) => {
+      if (!v2) {
+        logger.warn('[editMessageParts] Called outside V2 mode — no-op')
+        return
+      }
+      await v2.editMessage(messageId, editedParts)
+    },
+    [v2]
+  )
+
+  /**
+   * Resend a user message with edited parts (V2 only).
+   * Persists the edited parts then triggers a resend.
+   * Falls back to no-op if not in V2 mode.
+   */
+  const resendUserMessageWithEditParts = useCallback(
+    async (message: Message, editedParts: CherryMessagePart[]) => {
+      if (!v2) {
+        logger.warn('[resendUserMessageWithEditParts] Called outside V2 mode — no-op')
+        return
+      }
+      await v2.editMessage(message.id, editedParts)
+      await v2.resend(message.id)
+    },
+    [v2]
+  )
+
   return {
     displayCount,
     deleteMessage,
@@ -553,7 +456,6 @@ export function useMessageOperations(topic: Topic) {
     editMessage,
     resendMessage,
     regenerateAssistantMessage,
-    resendUserMessageWithEdit,
     appendAssistantResponse,
     createNewContext,
     clearTopicMessages,
@@ -561,7 +463,8 @@ export function useMessageOperations(topic: Topic) {
     resumeMessage,
     getTranslationUpdater,
     createTopicBranch,
-    editMessageBlocks,
+    editMessageParts,
+    resendUserMessageWithEditParts,
     removeMessageBlock
   }
 }

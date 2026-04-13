@@ -11,6 +11,7 @@ import { AnimatePresence, motion, type Variants } from 'motion/react'
 import React, { useMemo } from 'react'
 import { useSelector } from 'react-redux'
 
+import { buildToolRenderItemFromBlock } from '../Tools/toolResponse'
 import BlockErrorFallback from './BlockErrorFallback'
 import CitationBlock from './CitationBlock'
 import CompactBlock from './CompactBlock'
@@ -27,11 +28,14 @@ import VideoBlock from './VideoBlock'
 
 // Re-export context providers and hooks so existing imports keep working
 export {
+  parseBlockId,
   PartsProvider,
-  resolveBlockFromParts,
+  RefreshProvider,
+  resolvePartFromParts,
   useIsV2Chat,
-  useMessageBlocks,
-  usePartsMap
+  useMessageParts,
+  usePartsMap,
+  useRefresh
 } from './V2Contexts'
 
 const logger = loggerService.withContext('MessageBlockRenderer')
@@ -244,9 +248,12 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
             const toolBlocks = block.filter(isToolBlock)
             // Use first block ID as stable key to prevent remounting when new blocks are added
             const stableGroupKey = `tool-group-${toolBlocks[0].id}`
+            const toolItems = toolBlocks
+              .map(buildToolRenderItemFromBlock)
+              .filter((item): item is NonNullable<typeof item> => item !== null)
             return (
               <AnimatedBlockWrapper key={stableGroupKey} enableAnimation={message.status.includes('ing')}>
-                <ToolBlockGroup blocks={toolBlocks} />
+                <ToolBlockGroup items={toolItems} />
               </AnimatedBlockWrapper>
             )
           }
@@ -293,7 +300,19 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
             blockComponent = <CitationBlock key={block.id} block={block} />
             break
           case MessageBlockType.ERROR:
-            blockComponent = <ErrorBlock key={block.id} block={block} message={message} />
+            blockComponent = (
+              <ErrorBlock
+                key={block.id}
+                partId={block.id}
+                error={block.error}
+                message={message}
+                cachedDiagnosis={
+                  block.metadata?.diagnosis as
+                    | import('@renderer/services/ErrorDiagnosisService').DiagnosisResult
+                    | undefined
+                }
+              />
+            )
             break
           case MessageBlockType.THINKING: {
             const thinkingBlock = block
@@ -348,15 +367,7 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
       })}
       {isProcessing && (
         <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
-          <PlaceholderBlock
-            block={{
-              id: `loading-${message.id}`,
-              messageId: message.id,
-              type: MessageBlockType.UNKNOWN,
-              status: MessageBlockStatus.PROCESSING,
-              createdAt: new Date().toISOString()
-            }}
-          />
+          <PlaceholderBlock isProcessing={true} />
         </AnimatedBlockWrapper>
       )}
     </AnimatePresence>

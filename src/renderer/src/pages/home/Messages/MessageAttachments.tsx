@@ -1,34 +1,34 @@
 import { Button } from '@cherrystudio/ui'
 import { useAttachment } from '@renderer/hooks/useAttachment'
 import FileManager from '@renderer/services/FileManager'
-import type { FileMessageBlock } from '@renderer/types/newMessage'
+import type { FileMetadata } from '@renderer/types/file'
 import { formatFileSize, parseFileTypes } from '@renderer/utils'
 import { t } from 'i18next'
 import { Paperclip } from 'lucide-react'
 import type { FC } from 'react'
 
 interface Props {
-  block: FileMessageBlock
+  file: FileMetadata
 }
 
-const MessageAttachments: FC<Props> = ({ block }) => {
+const MessageAttachments: FC<Props> = ({ file }) => {
   const { preview } = useAttachment()
 
-  if (!block.file) {
+  if (!file) {
     return null
   }
 
-  const safePath = FileManager.getSafePath(block.file)
-  const fileName = FileManager.formatFileName(block.file)
-  const fileSuffix = block.file.ext ? block.file.ext.replace('.', '').toUpperCase() : block.file.type.toUpperCase()
+  const safePath = FileManager.getSafePath(file)
+  const fileName = FileManager.formatFileName(file)
+  const fileSuffix = file.ext ? file.ext.replace('.', '').toUpperCase() : file.type.toUpperCase()
 
   const handlePreview = () => {
-    const fileType = parseFileTypes(block.file.type)
+    const fileType = parseFileTypes(file.type)
     if (fileType === null) {
       window.modal.error({ content: t('files.preview.error'), centered: true })
       return
     }
-    void preview(safePath, fileName, fileType, block.file.ext)
+    void preview(safePath, fileName, fileType, file.ext)
   }
 
   return (
@@ -45,7 +45,7 @@ const MessageAttachments: FC<Props> = ({ block }) => {
           aria-label={fileName}>
           <div className="truncate text-(--color-text-1) text-sm">{fileName}</div>
           <div className="text-(--color-text-2) text-xs">
-            {formatFileSize(block.file.size)} · {fileSuffix}
+            {formatFileSize(file.size)} · {fileSuffix}
           </div>
         </button>
         <div className="flex shrink-0 items-center gap-2">

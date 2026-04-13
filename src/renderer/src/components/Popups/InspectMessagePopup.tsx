@@ -2,6 +2,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { TopView } from '@renderer/components/TopView'
 import type { Message } from '@renderer/types'
 import type { MessageBlock } from '@renderer/types/newMessage'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import { Modal } from 'antd'
 import { useState } from 'react'
 
@@ -10,14 +11,15 @@ import CodeEditor from '../CodeEditor'
 interface ShowParams {
   title: string
   message: Message
-  blocks: MessageBlock[]
+  blocks?: MessageBlock[]
+  parts?: CherryMessagePart[]
 }
 
 interface Props extends ShowParams {
   resolve: (data: any) => void
 }
 
-const InspectMessagePopupContainer: React.FC<Props> = ({ title, message, blocks, resolve }) => {
+const InspectMessagePopupContainer: React.FC<Props> = ({ title, message, blocks, parts, resolve }) => {
   const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
   const [open, setOpen] = useState(true)
 
@@ -51,8 +53,17 @@ const InspectMessagePopupContainer: React.FC<Props> = ({ title, message, blocks,
       centered>
       <div className="mb-2 font-bold text-xl">Message</div>
       <CodeEditor language="json" value={JSON.stringify(message, null, 2)} editable={false} />
-      <div className="mb-2 font-bold text-xl">Blocks ({blocks.length})</div>
-      <CodeEditor language="json" value={JSON.stringify(blocks, null, 2)} editable={false} />
+      {parts !== undefined ? (
+        <>
+          <div className="mb-2 font-bold text-xl">Parts ({parts.length})</div>
+          <CodeEditor language="json" value={JSON.stringify(parts, null, 2)} editable={false} />
+        </>
+      ) : (
+        <>
+          <div className="mb-2 font-bold text-xl">Blocks ({(blocks ?? []).length})</div>
+          <CodeEditor language="json" value={JSON.stringify(blocks ?? [], null, 2)} editable={false} />
+        </>
+      )}
     </Modal>
   )
 }

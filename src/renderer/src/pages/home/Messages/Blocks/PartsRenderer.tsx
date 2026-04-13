@@ -15,7 +15,6 @@ import { loggerService } from '@logger'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { FILE_TYPE } from '@renderer/types/file'
 import type { Message } from '@renderer/types/newMessage'
-import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { isMessageProcessing } from '@renderer/utils/messageUtils/is'
 import { convertReferencesToCitations, convertReferencesToLegacyCitations } from '@renderer/utils/partsToBlocks'
 import type { CherryMessagePart, ContentReference } from '@shared/data/types/message'
@@ -259,36 +258,25 @@ function renderPart(part: CherryMessagePart, partId: string, message: Message, i
     case 'data-error': {
       const rawData = 'data' in part ? (part.data as ErrorPartData) : undefined
       if (!rawData) return null
-      const error = {
-        name: rawData.name ?? null,
-        message: rawData.message ?? null,
-        stack: null as string | null,
-        ...(rawData.code != null && { code: rawData.code })
-      }
-      const errorBlock = {
-        id: partId,
-        messageId: message.id,
-        type: MessageBlockType.ERROR as const,
-        createdAt: message.createdAt,
-        status: MessageBlockStatus.ERROR,
-        error
-      }
-      return <ErrorBlock key={partId} block={errorBlock} message={message} />
+      return (
+        <ErrorBlock
+          key={partId}
+          partId={partId}
+          error={{
+            name: rawData.name ?? null,
+            message: rawData.message ?? null,
+            stack: null,
+            ...(rawData.code != null && { code: rawData.code })
+          }}
+          message={message}
+        />
+      )
     }
 
     case 'data-video': {
       const rawData = 'data' in part ? (part.data as VideoPartData) : undefined
       if (!rawData) return null
-      const videoBlock = {
-        id: partId,
-        messageId: message.id,
-        type: MessageBlockType.VIDEO as const,
-        createdAt: message.createdAt,
-        status: MessageBlockStatus.SUCCESS,
-        url: rawData.url,
-        filePath: rawData.filePath
-      }
-      return <MessageVideo key={partId} block={videoBlock} />
+      return <MessageVideo key={partId} url={rawData.url} filePath={rawData.filePath} />
     }
 
     case 'data-citation':
@@ -306,25 +294,22 @@ function renderPart(part: CherryMessagePart, partId: string, message: Message, i
         logger.warn('File part has no url, skipping', { filename: filePart.filename })
         return null
       }
-      const fileBlock = {
-        id: partId,
-        messageId: message.id,
-        type: MessageBlockType.FILE as const,
-        createdAt: message.createdAt,
-        status: MessageBlockStatus.SUCCESS,
-        file: {
-          id: partId,
-          name: filePart.filename || '',
-          origin_name: filePart.filename || '',
-          path: filePart.url.replace('file://', ''),
-          size: 0,
-          ext: '',
-          type: FILE_TYPE.OTHER,
-          created_at: message.createdAt,
-          count: 0
-        }
-      }
-      return <MessageAttachments key={partId} block={fileBlock} />
+      return (
+        <MessageAttachments
+          key={partId}
+          file={{
+            id: partId,
+            name: filePart.filename || '',
+            origin_name: filePart.filename || '',
+            path: filePart.url.replace('file://', ''),
+            size: 0,
+            ext: '',
+            type: FILE_TYPE.OTHER,
+            created_at: message.createdAt,
+            count: 0
+          }}
+        />
+      )
     }
 
     case 'source-url':
@@ -460,15 +445,7 @@ const PartsRenderer: React.FC<Props> = ({ message }) => {
       })}
       {isProcessing && (
         <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
-          <PlaceholderBlock
-            block={{
-              id: `loading-${message.id}`,
-              messageId: message.id,
-              type: MessageBlockType.UNKNOWN,
-              status: MessageBlockStatus.PROCESSING,
-              createdAt: new Date().toISOString()
-            }}
-          />
+          <PlaceholderBlock isProcessing={true} />
         </AnimatedBlockWrapper>
       )}
     </AnimatePresence>

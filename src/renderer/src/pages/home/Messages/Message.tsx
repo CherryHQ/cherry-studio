@@ -11,12 +11,12 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageModelId } from '@renderer/services/MessagesService'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { estimateMessageUsage } from '@renderer/services/TokenService'
 import type { Assistant, Topic } from '@renderer/types'
-import type { Message, MessageBlock } from '@renderer/types/newMessage'
+import type { Message } from '@renderer/types/newMessage'
 import { classNames, cn } from '@renderer/utils'
 import { scrollIntoView } from '@renderer/utils/dom'
 import { isMessageProcessing } from '@renderer/utils/messageUtils/is'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import { Divider } from 'antd'
 import type { Dispatch, FC, SetStateAction } from 'react'
 import React, { memo, useCallback, useEffect, useRef } from 'react'
@@ -77,7 +77,7 @@ const MessageItem: FC<Props> = ({
   const [messageStyle] = usePreference('chat.message.style')
   const [showMessageOutline] = usePreference('chat.message.show_outline')
 
-  const { editMessageBlocks, resendUserMessageWithEdit, editMessage } = useMessageOperations(topic)
+  const { editMessageParts, resendUserMessageWithEditParts } = useMessageOperations(topic)
   const messageContainerRef = useRef<HTMLDivElement>(null)
   const { editingMessageId, startEditing, stopEditing } = useMessageEditing()
   const { setTimeoutTimer } = useTimer()
@@ -94,29 +94,27 @@ const MessageItem: FC<Props> = ({
   }, [isEditing])
 
   const handleEditSave = useCallback(
-    async (blocks: MessageBlock[]) => {
+    async (parts: CherryMessagePart[]) => {
       try {
-        await editMessageBlocks(message.id, blocks)
-        const usage = await estimateMessageUsage(message)
-        void editMessage(message.id, { usage: usage })
+        await editMessageParts(message.id, parts)
         stopEditing()
       } catch (error) {
-        logger.error('Failed to save message blocks:', error as Error)
+        logger.error('Failed to save message parts:', error as Error)
       }
     },
-    [message, editMessageBlocks, stopEditing, editMessage]
+    [message.id, editMessageParts, stopEditing]
   )
 
   const handleEditResend = useCallback(
-    async (blocks: MessageBlock[]) => {
+    async (parts: CherryMessagePart[]) => {
       try {
-        await resendUserMessageWithEdit(message, blocks, assistant)
+        await resendUserMessageWithEditParts(message, parts)
         stopEditing()
       } catch (error) {
-        logger.error('Failed to resend message:', error as Error)
+        logger.error('Failed to resend message with parts:', error as Error)
       }
     },
-    [message, resendUserMessageWithEdit, assistant, stopEditing]
+    [message, resendUserMessageWithEditParts, stopEditing]
   )
 
   const handleEditCancel = useCallback(() => {
@@ -211,7 +209,6 @@ const MessageItem: FC<Props> = ({
         {isEditing && (
           <MessageEditor
             message={message}
-            topicId={topic.id}
             onSave={handleEditSave}
             onResend={handleEditResend}
             onCancel={handleEditCancel}

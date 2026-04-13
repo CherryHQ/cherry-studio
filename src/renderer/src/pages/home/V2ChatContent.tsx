@@ -9,16 +9,15 @@ import { type V2ChatOverrides, V2ChatOverridesProvider } from '@renderer/hooks/u
 import { useTopicMessagesV2 } from '@renderer/hooks/useTopicMessagesV2'
 import { fetchMcpTools } from '@renderer/services/ApiService'
 import type { Assistant, FileMetadata, Model, Topic } from '@renderer/types'
-import type { Message, MessageBlock } from '@renderer/types/newMessage'
+import type { Message } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, UserMessageStatus } from '@renderer/types/newMessage'
 import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/assistant'
-import { blocksToParts } from '@renderer/utils/blocksToparts'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { FC } from 'react'
 import { useCallback, useMemo, useRef } from 'react'
 
 import Inputbar from './Inputbar/Inputbar'
-import { PartsProvider } from './Messages/Blocks'
+import { PartsProvider, RefreshProvider } from './Messages/Blocks'
 import Messages from './Messages/Messages'
 
 const logger = loggerService.withContext('V2ChatContent')
@@ -175,12 +174,11 @@ const V2ChatContentInner: FC<InnerProps> = ({
     await refresh()
   }, [historyMessages, refresh, setMessages, topic.id])
 
-  /** Edit a message's blocks: convert to parts, persist to DataApi, and refresh history. */
+  /** Edit a message's parts directly and persist to DataApi. */
   const handleEditMessage = useCallback(
-    async (messageId: string, editedBlocks: MessageBlock[]) => {
-      const parts = blocksToParts(editedBlocks)
-      await dataApiService.patch(`/messages/${messageId}`, { body: { data: { parts } } })
-      logger.info('Edited message', { messageId, partCount: parts.length })
+    async (messageId: string, editedParts: CherryMessagePart[]) => {
+      await dataApiService.patch(`/messages/${messageId}`, { body: { data: { parts: editedParts } } })
+      logger.info('Edited message', { messageId, partCount: editedParts.length })
       await refresh()
     },
     [refresh]
@@ -370,32 +368,34 @@ const V2ChatContentInner: FC<InnerProps> = ({
 
   return (
     <V2ChatOverridesProvider value={v2ChatOverrides}>
-      <PartsProvider value={partsMap}>
-        <div
-          className="flex flex-1 flex-col justify-between"
-          style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>
-          {isDev && (
-            <div
-              className="fixed top-5 right-50 z-50 px-4 py-1 text-xs opacity-50"
-              style={{ color: 'var(--color-text-3)' }}>
-              [V2] {status} | {adaptedMessages.length} msgs ({historyMessages.length} history + {liveAdapted.length}{' '}
-              live)
-              {error && <span className="ml-2 text-red-500">{error.message}</span>}
-            </div>
-          )}
+      <RefreshProvider value={refresh}>
+        <PartsProvider value={partsMap}>
+          <div
+            className="flex flex-1 flex-col justify-between"
+            style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>
+            {isDev && (
+              <div
+                className="fixed top-5 right-50 z-50 px-4 py-1 text-xs opacity-50"
+                style={{ color: 'var(--color-text-3)' }}>
+                [V2] {status} | {adaptedMessages.length} msgs ({historyMessages.length} history + {liveAdapted.length}{' '}
+                live)
+                {error && <span className="ml-2 text-red-500">{error.message}</span>}
+              </div>
+            )}
 
-          <Messages
-            key={topic.id}
-            assistant={assistant}
-            topic={topic}
-            setActiveTopic={setActiveTopic}
-            messages={adaptedMessages}
-          />
+            <Messages
+              key={topic.id}
+              assistant={assistant}
+              topic={topic}
+              setActiveTopic={setActiveTopic}
+              messages={adaptedMessages}
+            />
 
-          <Inputbar assistant={assistant} topic={topic} setActiveTopic={setActiveTopic} onSendV2={handleSendV2} />
-          {isMultiSelectMode && <MultiSelectActionPopup topic={topic} />}
-        </div>
-      </PartsProvider>
+            <Inputbar assistant={assistant} topic={topic} setActiveTopic={setActiveTopic} onSendV2={handleSendV2} />
+            {isMultiSelectMode && <MultiSelectActionPopup topic={topic} />}
+          </div>
+        </PartsProvider>
+      </RefreshProvider>
     </V2ChatOverridesProvider>
   )
 }

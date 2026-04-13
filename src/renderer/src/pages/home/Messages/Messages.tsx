@@ -1,3 +1,4 @@
+import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import ContextMenu from '@renderer/components/ContextMenu'
@@ -32,13 +33,14 @@ import { updateCodeBlock } from '@renderer/utils/markdown'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { isTextLikeBlock } from '@renderer/utils/messageUtils/is'
 import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import { last } from 'lodash'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import InfiniteScroll from 'react-infinite-scroll-component'
 import styled from 'styled-components'
 
-import { resolveBlockFromParts, useIsV2Chat, usePartsMap } from './Blocks'
+import { resolvePartFromParts, useIsV2Chat, usePartsMap } from './Blocks'
 import MessageAnchorLine from './MessageAnchorLine'
 import MessageGroup from './MessageGroup'
 import NarrowLayout from './NarrowLayout'
@@ -239,14 +241,26 @@ const Messages: React.FC<MessagesProps> = ({
         async (data: { msgBlockId: string; codeBlockId: string; newContent: string }) => {
           const { msgBlockId, codeBlockId, newContent } = data
 
-          // V2: resolve from partsMap ref; V1: read from Redux
-          const msgBlock =
-            (partsMapRef.current && resolveBlockFromParts(partsMapRef.current, msgBlockId)) ??
-            messageBlocksSelectors.selectById(store.getState(), msgBlockId)
+          try {
+            // V2: resolve from parts directly
+            const resolved = partsMapRef.current && resolvePartFromParts(partsMapRef.current, msgBlockId)
+            if (resolved && resolved.part.type === 'text') {
+              const textPart = resolved.part as { text?: string }
+              const updatedText = updateCodeBlock(textPart.text || '', codeBlockId, newContent)
+              const allParts = [...(partsMapRef.current![resolved.messageId] || [])]
+              allParts[resolved.index] = { ...resolved.part, text: updatedText } as CherryMessagePart
+              await dataApiService.patch(`/messages/${resolved.messageId}`, {
+                body: { data: { parts: allParts } }
+              })
+              window.toast.success(t('code_block.edit.save.success'))
+              return
+            }
 
-          // FIXME: 目前 error block 没有 content
-          if (msgBlock && isTextLikeBlock(msgBlock) && msgBlock.type !== MessageBlockType.ERROR) {
-            try {
+            // V1 fallback: read from Redux
+            const msgBlock = messageBlocksSelectors.selectById(store.getState(), msgBlockId)
+
+            // FIXME: 目前 error block 没有 content
+            if (msgBlock && isTextLikeBlock(msgBlock) && msgBlock.type !== MessageBlockType.ERROR) {
               const updatedRaw = updateCodeBlock(msgBlock.content, codeBlockId, newContent)
               const updatedBlock: MessageBlock = {
                 ...msgBlock,
@@ -258,16 +272,16 @@ const Messages: React.FC<MessagesProps> = ({
               await dispatch(updateMessageAndBlocksThunk(topic.id, null, [updatedBlock]))
 
               window.toast.success(t('code_block.edit.save.success'))
-            } catch (error) {
+            } else {
               logger.error(
-                `Failed to save code block ${codeBlockId} content to message block ${msgBlockId}:`,
-                error as Error
+                `Failed to save code block ${codeBlockId} content to message block ${msgBlockId}: no such message block or the block doesn't have a content field`
               )
               window.toast.error(t('code_block.edit.save.failed.label'))
             }
-          } else {
+          } catch (error) {
             logger.error(
-              `Failed to save code block ${codeBlockId} content to message block ${msgBlockId}: no such message block or the block doesn't have a content field`
+              `Failed to save code block ${codeBlockId} content to message block ${msgBlockId}:`,
+              error as Error
             )
             window.toast.error(t('code_block.edit.save.failed.label'))
           }
