@@ -82,7 +82,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const [userName] = usePreference('app.user.name')
   const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
   const [showOpenedInSidebar] = usePreference('feature.minapp.show_opened_in_sidebar')
-  const { tabs, activeTab, activeTabId, updateTab, openTab } = useTabs()
+  const { tabs, activeTab, setActiveTab, openTab } = useTabs()
   const { defaultPaintingProvider } = useSettings()
 
   // Sidebar width — persisted across restarts
@@ -166,7 +166,8 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   const handleNavigate = useCallback(
     async (menuItemId: string) => {
-      const path = getMenuPath(menuItemId as SidebarIconType, defaultPaintingProvider)
+      const menuId = menuItemId as SidebarIconType
+      const path = getMenuPath(menuId, defaultPaintingProvider)
       if (!path) return
 
       try {
@@ -175,19 +176,22 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
         return
       }
 
-      const hasUserTabsInTabBar = tabs.some((tab) => tab.id !== 'home')
-      if (!hasUserTabsInTabBar || activeTabId === 'home') {
-        openTab(path, {
-          forceNew: true,
-          title: getDefaultRouteTitle(path)
-        })
+      // assistants and agents support multiple tabs — always open new
+      if (menuId === 'assistants' || menuId === 'agents') {
+        openTab(path, { forceNew: true, title: getDefaultRouteTitle(path) })
         return
       }
-      if (activeTabId) {
-        updateTab(activeTabId, { url: path, title: getDefaultRouteTitle(path) })
+
+      // All other routes: single-instance — switch to existing or open new
+      const prefix = routePrefixMap[menuId]
+      const existing = tabs.find((tab) => tab.url === prefix || tab.url.startsWith(prefix + '/'))
+      if (existing) {
+        setActiveTab(existing.id)
+      } else {
+        openTab(path, { forceNew: true, title: getDefaultRouteTitle(path) })
       }
     },
-    [tabs, activeTabId, updateTab, openTab, defaultPaintingProvider]
+    [tabs, setActiveTab, openTab, defaultPaintingProvider]
   )
 
   // Common props shared between normal and floating sidebar
