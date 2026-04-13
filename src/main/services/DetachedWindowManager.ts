@@ -43,6 +43,7 @@ type DetachedWindowState = {
 export class DetachedWindowManager extends BaseService {
   private windows: Map<string, BrowserWindow> = new Map()
   private windowState: Map<string, DetachedWindowState> = new Map()
+  private windowUrls: Map<string, string> = new Map()
 
   protected async onInit() {
     this.registerIpcHandlers()
@@ -151,6 +152,20 @@ export class DetachedWindowManager extends BaseService {
       if (senderWindow && !senderWindow.isDestroyed() && senderWindow.getOpacity() < 1) {
         senderWindow.setOpacity(1)
       }
+    })
+
+    this.ipcHandle(IpcChannel.Tab_FocusDetachedByRoute, (_, prefix: string) => {
+      for (const [tabId, url] of this.windowUrls) {
+        if (url === prefix || url.startsWith(prefix + '/')) {
+          const win = this.windows.get(tabId)
+          if (win && !win.isDestroyed()) {
+            if (!win.isVisible()) win.show()
+            win.focus()
+            return true
+          }
+        }
+      }
+      return false
     })
   }
 
@@ -296,9 +311,11 @@ export class DetachedWindowManager extends BaseService {
 
     win.on('closed', () => {
       this.windows.delete(tabId)
+      this.windowUrls.delete(tabId)
     })
 
     this.windows.set(tabId, win)
+    this.windowUrls.set(tabId, url)
     logger.info(`Created detached window for tab ${tabId}`, payload)
 
     return win

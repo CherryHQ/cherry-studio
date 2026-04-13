@@ -9,6 +9,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { getSidebarIconLabel } from '@renderer/i18n/label'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { SidebarIcon as SidebarIconType } from '@shared/data/preference/preferenceTypes'
+import { IpcChannel } from '@shared/IpcChannel'
 import {
   Code,
   FileSearch,
@@ -182,8 +183,11 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
         return
       }
 
-      // All other routes: single-instance — switch to existing or open new
+      // All other routes: single-instance — focus detached window if exists, else switch to existing tab or open new
       const prefix = routePrefixMap[menuId]
+      const focusedDetached = await window.electron.ipcRenderer.invoke(IpcChannel.Tab_FocusDetachedByRoute, prefix)
+      if (focusedDetached) return
+
       const existing = tabs.find((tab) => tab.url === prefix || tab.url.startsWith(prefix + '/'))
       if (existing) {
         setActiveTab(existing.id)
