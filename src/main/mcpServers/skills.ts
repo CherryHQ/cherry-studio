@@ -1,4 +1,4 @@
-import { mkdir } from 'node:fs/promises'
+import { mkdir, readdir } from 'node:fs/promises'
 
 import { loggerService } from '@logger'
 import { skillService } from '@main/services/agents/skills'
@@ -253,6 +253,33 @@ class SkillsServer {
     if (!name) throw new McpError(ErrorCode.InvalidParams, "'name' is required for init")
 
     const skillDir = skillService.getSkillDirectory(name)
+
+    // Check for collision with an existing skill in DB.
+    const existingSkill = await skillService.getByFolderName(name)
+    if (existingSkill) {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        `A skill named "${existingSkill.name}" already exists with folder "${name}". ` +
+          `Choose a different name, or use action="remove" with name="${name}" first if you intend to replace it.`
+      )
+    }
+
+    // Guard against an orphaned non-empty directory that isn't tracked in the DB.
+    let dirHasContent = false
+    try {
+      const entries = await readdir(skillDir)
+      dirHasContent = entries.length > 0
+    } catch {
+      // Directory doesn't exist yet — safe to create.
+    }
+    if (dirHasContent) {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        `The directory "${skillDir}" already exists and is non-empty but is not tracked in the skill database. ` +
+          `Choose a different name, or manually remove the directory before calling init.`
+      )
+    }
+
     await mkdir(skillDir, { recursive: true })
 
     logger.info('Skill directory initialized via tool', { agentId: this.agentId, name, skillDir })

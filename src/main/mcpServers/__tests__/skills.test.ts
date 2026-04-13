@@ -7,11 +7,14 @@ const mockSkillList = vi.fn()
 const mockSkillToggle = vi.fn()
 const mockSkillInstallFromDirectory = vi.fn()
 const mockSkillGetSkillDirectory = vi.fn()
+const mockSkillGetByFolderName = vi.fn()
 const mockNetFetch = vi.fn()
 const mockMkdir = vi.fn()
+const mockReaddir = vi.fn()
 
 vi.mock('node:fs/promises', () => ({
-  mkdir: (...args: unknown[]) => mockMkdir(...args)
+  mkdir: (...args: unknown[]) => mockMkdir(...args),
+  readdir: (...args: unknown[]) => mockReaddir(...args)
 }))
 
 vi.mock('@main/services/agents/skills', () => ({
@@ -21,7 +24,8 @@ vi.mock('@main/services/agents/skills', () => ({
     list: mockSkillList,
     toggle: mockSkillToggle,
     installFromDirectory: mockSkillInstallFromDirectory,
-    getSkillDirectory: mockSkillGetSkillDirectory
+    getSkillDirectory: mockSkillGetSkillDirectory,
+    getByFolderName: mockSkillGetByFolderName
   }
 }))
 
@@ -212,6 +216,8 @@ describe('SkillsServer', () => {
   describe('init action', () => {
     it('should create the skill directory and return its path', async () => {
       mockSkillGetSkillDirectory.mockReturnValue('/global-skills/my-skill')
+      mockSkillGetByFolderName.mockResolvedValue(null)
+      mockReaddir.mockRejectedValue(new Error('ENOENT'))
       mockMkdir.mockResolvedValue(undefined)
 
       const server = createServer('agent_1')
@@ -221,6 +227,50 @@ describe('SkillsServer', () => {
       expect(mockMkdir).toHaveBeenCalledWith('/global-skills/my-skill', { recursive: true })
       expect(result.content[0].text).toContain('/global-skills/my-skill')
       expect(result.content[0].text).toContain('register')
+    })
+
+    it('should reject when a skill with the same folder name already exists in DB', async () => {
+      mockSkillGetSkillDirectory.mockReturnValue('/global-skills/my-skill')
+      mockSkillGetByFolderName.mockResolvedValue({
+        id: 'existing-id',
+        name: 'My Existing Skill',
+        folderName: 'my-skill'
+      })
+
+      const server = createServer()
+      const result = await callTool(server, { action: 'init', name: 'my-skill' })
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('already exists')
+      expect(result.content[0].text).toContain('My Existing Skill')
+      expect(result.content[0].text).toContain('action="remove"')
+      expect(mockMkdir).not.toHaveBeenCalled()
+    })
+
+    it('should reject when directory exists and is non-empty but not tracked in DB', async () => {
+      mockSkillGetSkillDirectory.mockReturnValue('/global-skills/my-skill')
+      mockSkillGetByFolderName.mockResolvedValue(null)
+      mockReaddir.mockResolvedValue(['SKILL.md', 'scripts'])
+
+      const server = createServer()
+      const result = await callTool(server, { action: 'init', name: 'my-skill' })
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('already exists and is non-empty')
+      expect(mockMkdir).not.toHaveBeenCalled()
+    })
+
+    it('should allow init when directory exists but is empty', async () => {
+      mockSkillGetSkillDirectory.mockReturnValue('/global-skills/my-skill')
+      mockSkillGetByFolderName.mockResolvedValue(null)
+      mockReaddir.mockResolvedValue([])
+      mockMkdir.mockResolvedValue(undefined)
+
+      const server = createServer()
+      const result = await callTool(server, { action: 'init', name: 'my-skill' })
+
+      expect(result.content[0].text).toContain('Skill directory ready at:')
+      expect(mockMkdir).toHaveBeenCalled()
     })
 
     it('should error when name is missing', async () => {

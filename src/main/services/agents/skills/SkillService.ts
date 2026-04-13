@@ -122,6 +122,11 @@ export class SkillService {
     await this.uninstall(skill.id)
   }
 
+  async getByFolderName(name: string): Promise<InstalledSkill | null> {
+    const folderName = this.sanitizeFolderName(name)
+    return this.repository.getByFolderName(folderName)
+  }
+
   /**
    * Resolve the absolute path a skill with the given name would live at under
    * the global Skills storage root. The name is sanitized using the same rules
