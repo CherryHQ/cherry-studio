@@ -250,7 +250,7 @@ export function runAgentLoop<T extends AppProviderKey>(
       })
 
       // Stream → writer (transport channel)
-      const uiStream = result.toUIMessageStream()
+      const uiStream = result.toUIMessageStream({ generateMessageId: () => crypto.randomUUID() })
       const reader = uiStream.getReader()
       try {
         while (true) {

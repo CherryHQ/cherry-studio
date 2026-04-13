@@ -96,7 +96,7 @@ export class AgentPersistenceListener implements StreamListener {
       agentSessionId: this.ctx.agentSessionId ?? '',
       payload: {
         message: {
-          id: finalMessage.id || crypto.randomUUID(),
+          id: finalMessage.id,
           role: 'assistant',
           assistantId: this.ctx.agentId,
           topicId: `agent-session:${this.ctx.sessionId}`,
