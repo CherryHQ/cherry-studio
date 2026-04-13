@@ -32,5 +32,4 @@ export {
 } from './types'
 
 // Export implementations (for testing or direct access if needed)
-export { AgentMessageDataSource } from './AgentMessageDataSource'
 export { DexieMessageDataSource } from './DexieMessageDataSource'

@@ -14,17 +14,11 @@
  * - v2 Refactor PR   : https://github.com/CherryHQ/cherry-studio/pull/10162
  * --------------------------------------------------------------------------
  */
-import { loggerService } from '@logger'
-import store from '@renderer/store'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 
-import { AgentMessageDataSource } from './AgentMessageDataSource'
 import { fetchMessagesFromDataApi } from './DataApiMessageDataSource'
 import { DexieMessageDataSource } from './DexieMessageDataSource'
 import type { MessageDataSource } from './types'
-import { buildAgentSessionTopicId, isAgentSessionTopicId } from './types'
-
-const logger = loggerService.withContext('DbService')
 
 /**
  * Facade service that routes data operations to the appropriate data source
@@ -32,46 +26,18 @@ const logger = loggerService.withContext('DbService')
  */
 class DbService implements MessageDataSource {
   private dexieSource: DexieMessageDataSource
-  private agentSource: AgentMessageDataSource
 
   constructor() {
     this.dexieSource = new DexieMessageDataSource()
-    this.agentSource = new AgentMessageDataSource()
   }
 
   /**
-   * Determine which data source to use based on topic ID
+   * Determine which data source to use based on topic ID.
+   * Agent sessions now use useAgentSessionParts + AgentPersistenceListener (Main-side),
+   * so this only routes to Dexie.
    */
-  private getDataSource(topicId: string): MessageDataSource {
-    if (isAgentSessionTopicId(topicId)) {
-      logger.silly(`Using AgentMessageDataSource for topic ${topicId}`)
-      return this.agentSource
-    }
-
-    // Future: Could add more data source types here
-    // e.g., if (isCloudTopicId(topicId)) return this.cloudSource
-
-    logger.silly(`Using DexieMessageDataSource for topic ${topicId}`)
+  private getDataSource(_topicId: string): MessageDataSource {
     return this.dexieSource
-  }
-
-  /**
-   * Resolve topicId for a message
-   */
-  private resolveMessageTopicId(messageId: string): string | undefined {
-    const state = store.getState()
-
-    const parentMessage = state.messages.entities[messageId]
-    if (parentMessage) {
-      return parentMessage.topicId
-    }
-
-    const agentInfo = this.agentSource.getStreamingCacheInfo(messageId)
-    if (agentInfo) {
-      return buildAgentSessionTopicId(agentInfo.sessionId)
-    }
-
-    return undefined
   }
 
   // ============ Read Operations ============
@@ -84,11 +50,8 @@ class DbService implements MessageDataSource {
     messages: Message[]
     blocks: MessageBlock[]
   }> {
-    if (isAgentSessionTopicId(topicId)) {
-      return this.agentSource.fetchMessages(topicId)
-    }
-
     // Normal topics: read from Data API (SQLite)
+    // Agent sessions now use useAgentSessionParts (direct IPC), not this path.
     return fetchMessagesFromDataApi(topicId)
   }
 
@@ -125,33 +88,8 @@ class DbService implements MessageDataSource {
   // ============ Block Operations ============
 
   async updateBlocks(blocks: MessageBlock[]): Promise<void> {
-    if (blocks.length === 0) {
-      return
-    }
-
-    const agentBlocks: MessageBlock[] = []
-    const regularBlocks: MessageBlock[] = []
-
-    for (const block of blocks) {
-      const topicId = this.resolveMessageTopicId(block.messageId)
-
-      if (topicId && isAgentSessionTopicId(topicId)) {
-        agentBlocks.push(block)
-      } else {
-        if (!topicId) {
-          logger.warn(`Unable to resolve topicId for block ${block.id}, defaulting to Dexie`)
-        }
-        regularBlocks.push(block)
-      }
-    }
-
-    if (agentBlocks.length > 0) {
-      await this.agentSource.updateBlocks(agentBlocks)
-    }
-
-    if (regularBlocks.length > 0) {
-      await this.dexieSource.updateBlocks(regularBlocks)
-    }
+    if (blocks.length === 0) return
+    return this.dexieSource.updateBlocks(blocks)
   }
 
   async deleteBlocks(blockIds: string[]): Promise<void> {
@@ -185,21 +123,6 @@ class DbService implements MessageDataSource {
   }
 
   async updateSingleBlock(blockId: string, updates: Partial<MessageBlock>): Promise<void> {
-    const state = store.getState()
-    const existingBlock = state.messageBlocks.entities[blockId]
-
-    if (!existingBlock) {
-      logger.warn(`Block ${blockId} not found in state, defaulting to Dexie`)
-      return this.dexieSource.updateSingleBlock(blockId, updates)
-    }
-
-    const topicId = this.resolveMessageTopicId(existingBlock.messageId)
-
-    if (topicId && isAgentSessionTopicId(topicId)) {
-      return this.agentSource.updateSingleBlock(blockId, updates)
-    }
-
-    // Default to Dexie for regular blocks
     return this.dexieSource.updateSingleBlock(blockId, updates)
   }
 
@@ -216,26 +139,6 @@ class DbService implements MessageDataSource {
   async updateFileCounts(files: Array<{ id: string; delta: number; deleteIfZero?: boolean }>): Promise<void> {
     // File operations only apply to Dexie source
     return this.dexieSource.updateFileCounts(files)
-  }
-
-  // ============ Utility Methods ============
-
-  /**
-   * Check if a topic is an agent session
-   */
-  isAgentSession(topicId: string): boolean {
-    return isAgentSessionTopicId(topicId)
-  }
-
-  /**
-   * Get the data source type for a topic
-   */
-  getSourceType(topicId: string): 'dexie' | 'agent' | 'unknown' {
-    if (isAgentSessionTopicId(topicId)) {
-      return 'agent'
-    }
-    // Add more checks for other source types as needed
-    return 'dexie'
   }
 }
 

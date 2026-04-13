@@ -9,6 +9,7 @@
 
 import { loggerService } from '@logger'
 import { agentMessageRepository } from '@main/services/agents/database/sessionMessageRepository'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import type { SerializedError } from '@shared/types/error'
 import type { UIMessage } from 'ai'
 
@@ -72,11 +73,8 @@ export class AgentPersistenceListener implements StreamListener {
             topicId: `agent-session:${this.ctx.sessionId}`,
             createdAt: now,
             status: 'error',
-            blocks: [],
-            data: {
-              parts: [{ type: 'data-error', data: { name: error.name, message: error.message } }]
-            }
-          } as any,
+            data: { parts: [{ type: 'data-error', data: { name: error.name, message: error.message } }] }
+          },
           blocks: []
         }
       })
@@ -104,9 +102,8 @@ export class AgentPersistenceListener implements StreamListener {
           topicId: `agent-session:${this.ctx.sessionId}`,
           createdAt: now,
           status: 'success',
-          blocks: [],
-          data: { parts: finalMessage.parts }
-        } as any,
+          data: { parts: finalMessage.parts as CherryMessagePart[] }
+        },
         blocks: []
       }
     })
