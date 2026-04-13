@@ -142,6 +142,23 @@ describe('SkillsServer', () => {
       expect(result.content[0].text).toContain('gh-create-pr')
     })
 
+    it('should warn when toggle fails after install', async () => {
+      mockSkillInstall.mockResolvedValue({
+        id: 'skill-1',
+        name: 'gh-create-pr',
+        description: 'Create PRs',
+        folderName: 'gh-create-pr',
+        isEnabled: false
+      })
+      mockSkillToggle.mockResolvedValue(null)
+
+      const server = createServer('agent_1')
+      const result = await callTool(server, { action: 'install', identifier: 'owner/repo/gh-create-pr' })
+
+      expect(result.content[0].text).toContain('warning: failed to enable')
+      expect(result.content[0].text).toContain('Enabled: false')
+    })
+
     it('should error when identifier is missing', async () => {
       const server = createServer()
       const result = await callTool(server, { action: 'install' })
@@ -336,8 +353,41 @@ describe('SkillsServer', () => {
       const result = await callTool(server, { action: 'register', name: 'my-skill' })
 
       expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('does not exist')
       expect(result.content[0].text).toContain('Did you call action="init" first')
       expect(mockSkillInstallFromDirectory).not.toHaveBeenCalled()
+    })
+
+    it('should error with InternalError when readdir fails with EACCES', async () => {
+      mockSkillGetSkillDirectory.mockReturnValue('/global-skills/my-skill')
+      mockReaddir.mockRejectedValue(Object.assign(new Error('Permission denied'), { code: 'EACCES' }))
+
+      const server = createServer()
+      const result = await callTool(server, { action: 'register', name: 'my-skill' })
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Cannot read skill directory')
+      expect(result.content[0].text).not.toContain('Did you call action="init" first')
+      expect(mockSkillInstallFromDirectory).not.toHaveBeenCalled()
+    })
+
+    it('should warn when toggle fails after register', async () => {
+      mockSkillGetSkillDirectory.mockReturnValue('/global-skills/my-skill')
+      mockReaddir.mockResolvedValue(['SKILL.md'])
+      mockSkillInstallFromDirectory.mockResolvedValue({
+        id: 'skill-2',
+        name: 'My Skill',
+        description: 'Cool skill',
+        folderName: 'my-skill',
+        isEnabled: false
+      })
+      mockSkillToggle.mockResolvedValue(null)
+
+      const server = createServer()
+      const result = await callTool(server, { action: 'register', name: 'my-skill' })
+
+      expect(result.content[0].text).toContain('warning: failed to enable')
+      expect(result.content[0].text).toContain('Enabled: false')
     })
 
     it('should error when name is missing', async () => {

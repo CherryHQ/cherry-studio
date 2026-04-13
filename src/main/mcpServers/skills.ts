@@ -324,9 +324,16 @@ class SkillsServer {
       }
     } catch (err) {
       if (err instanceof McpError) throw err
+      const code = (err as NodeJS.ErrnoException).code
+      if (code === 'ENOENT') {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          `Skill directory "${skillDir}" does not exist. Did you call action="init" first?`
+        )
+      }
       throw new McpError(
-        ErrorCode.InvalidParams,
-        `Cannot read skill directory "${skillDir}": ${(err as Error).message}. Did you call action="init" first?`
+        ErrorCode.InternalError,
+        `Cannot read skill directory "${skillDir}": ${(err as Error).message}`
       )
     }
 

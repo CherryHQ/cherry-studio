@@ -275,7 +275,14 @@ export class SkillService {
         await fs.promises.unlink(linkPath)
         logger.info('Skill unlinked', { folderName })
       }
-    } catch {
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        logger.error('Failed to unlink skill', {
+          folderName,
+          error: error instanceof Error ? error.message : String(error)
+        })
+        throw error
+      }
       // Link doesn't exist, nothing to do
     }
   }
