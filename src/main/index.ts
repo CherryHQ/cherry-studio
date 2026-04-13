@@ -39,7 +39,6 @@ import { app } from 'electron'
 
 import { registerIpc } from './ipc'
 import { versionService } from './services/VersionService'
-import { extractRtkBinaries } from './utils/rtk'
 
 const logger = loggerService.withContext('MainEntry')
 
@@ -51,14 +50,6 @@ const startApp = async () => {
   // 'handled' = migration window took over OR fatal error already quit the app.
   const migrationResult = await runV2MigrationGate()
   if (migrationResult === 'handled') return
-
-  // Extract bundled rtk binary to ~/.cherrystudio/bin/ on first run
-  // TODO: v2 refactor to use lifecycle
-  extractRtkBinaries().catch((error) => {
-    logger.warn('Failed to extract rtk binaries (non-fatal)', {
-      error: error instanceof Error ? error.message : String(error)
-    })
-  })
 
   // Start lifecycle (BeforeReady runs parallel with app.whenReady)
   application.registerAll(serviceList)
