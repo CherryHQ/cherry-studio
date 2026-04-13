@@ -19,7 +19,6 @@ import type { FC } from 'react'
 import React, { useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import ChatNavbar from './components/ChatNavBar'
 import Tabs from './Tabs'
@@ -124,13 +123,25 @@ const Chat: FC<Props> = (props) => {
   const mainHeight = isTopNavbar ? 'calc(100vh - var(--navbar-height) - 6px)' : 'calc(100vh - var(--navbar-height))'
 
   return (
-    <Container id="chat" className={classNames([messageStyle])}>
+    <div
+      id="chat"
+      className={classNames([
+        messageStyle,
+        'flex flex-col flex-1 overflow-hidden h-[calc(100vh-var(--navbar-height))]',
+        '[navbar-position=top]_&:h-[calc(100vh-var(--navbar-height)-6px)]',
+        '[navbar-position=top]_&:bg-(--color-background)',
+        '[navbar-position=top]_&:rounded-tl-[10px] [navbar-position=top]_&:rounded-bl-[10px]'
+      ])}>
       <RowFlex>
         <motion.div
           layout
           transition={{ duration: 0.3, ease: 'easeInOut' }}
           style={{ flex: 1, display: 'flex', minWidth: 0, overflow: 'hidden' }}>
-          <Main ref={mainRef} id="chat-main" style={{ height: mainHeight, width: '100%' }}>
+          <div
+            ref={mainRef}
+            id="chat-main"
+            className="flex flex-col flex-1 justify-between [transform:translateZ(0)] relative"
+            style={{ height: mainHeight, width: '100%' }}>
             <QuickPanelProvider>
               <ChatNavbar
                 activeAssistant={props.assistant}
@@ -154,7 +165,7 @@ const Chat: FC<Props> = (props) => {
                 onIncludeUserChange={userOutlinedItemClickHandler}
               />
             </QuickPanelProvider>
-          </Main>
+          </div>
         </motion.div>
         <AnimatePresence initial={false}>
           {topicPosition === 'right' && showTopics && (
@@ -178,34 +189,8 @@ const Chat: FC<Props> = (props) => {
           )}
         </AnimatePresence>
       </RowFlex>
-    </Container>
+    </div>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  flex-direction: column;
-  height: calc(100vh - var(--navbar-height));
-  flex: 1;
-  overflow: hidden;
-  [navbar-position='top'] & {
-    height: calc(100vh - var(--navbar-height) - 6px);
-    background-color: var(--color-background);
-    border-top-left-radius: 10px;
-    border-bottom-left-radius: 10px;
-  }
-`
-
-const Main = styled.div`
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  justify-content: space-between;
-  [navbar-position='left'] & {
-    height: calc(100vh - var(--navbar-height));
-  }
-  transform: translateZ(0);
-  position: relative;
-`
 
 export default Chat

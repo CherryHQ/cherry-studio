@@ -1,15 +1,19 @@
+import { useChat } from '@ai-sdk/react'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useLightweightAssistantFlow } from '@renderer/hooks/useLightweightAssistantFlow'
 import i18n from '@renderer/i18n'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { useAppSelector } from '@renderer/store'
+import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
 import type { Topic } from '@renderer/types'
+import { AssistantMessageStatus, UserMessageStatus } from '@renderer/types/newMessage'
+import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
 import { defaultLanguage } from '@shared/config/constant'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Divider } from 'antd'
 import { isEmpty } from 'lodash'
@@ -67,21 +71,88 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     return userInputText.trim()
   }, [isFirstMessage, referenceText, userInputText])
 
+  const [isPreparing, setIsPreparing] = useState(false)
+  const [flowError, setFlowError] = useState<string | null>(null)
+  const timestampCacheRef = useRef(new Map<string, string>())
+
   const {
-    adaptedMessages,
-    partsMap,
-    error: flowError,
-    isPreparing,
-    isStreaming,
-    content,
-    run,
-    stop,
-    clear
-  } = useLightweightAssistantFlow({
-    chatId: topic.id,
-    topicId: topic.id,
-    assistantId: currentAssistant.id
+    messages: chatMessages,
+    status,
+    sendMessage,
+    stop: stopChat,
+    setMessages
+  } = useChat<CherryUIMessage>({
+    id: topic.id,
+    transport: ipcChatTransport,
+    experimental_throttle: 50,
+    onError: (err) => {
+      setIsPreparing(false)
+      setFlowError(err.message)
+    }
   })
+
+  useEffect(() => {
+    if (status === 'streaming') setIsPreparing(false)
+  }, [status])
+
+  const partsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
+    const map: Record<string, CherryMessagePart[]> = {}
+    for (const m of chatMessages) map[m.id] = m.parts as CherryMessagePart[]
+    return map
+  }, [chatMessages])
+
+  const adaptedMessages = useMemo(() => {
+    const cache = timestampCacheRef.current
+    const activeIds = new Set<string>()
+    const latestAssistantId = [...chatMessages].reverse().find((m) => m.role === 'assistant')?.id
+
+    const result = chatMessages.map((m) => {
+      activeIds.add(m.id)
+      let ts = cache.get(m.id)
+      if (!ts) {
+        ts = new Date().toISOString()
+        cache.set(m.id, ts)
+      }
+      return {
+        id: m.id,
+        role: m.role as 'user' | 'assistant',
+        assistantId: currentAssistant.id,
+        topicId: topic.id,
+        createdAt: ts,
+        status:
+          m.role === 'user'
+            ? UserMessageStatus.SUCCESS
+            : m.id === latestAssistantId && (status === 'streaming' || status === 'submitted')
+              ? AssistantMessageStatus.PROCESSING
+              : AssistantMessageStatus.SUCCESS,
+        blocks: []
+      }
+    })
+
+    for (const key of cache.keys()) {
+      if (!activeIds.has(key)) cache.delete(key)
+    }
+    return result
+  }, [chatMessages, currentAssistant.id, topic.id, status])
+
+  const latestAssistantUIMsg = useMemo(
+    () => [...chatMessages].reverse().find((m) => m.role === 'assistant'),
+    [chatMessages]
+  )
+
+  const content = useMemo(
+    () => (latestAssistantUIMsg ? getTextFromParts(latestAssistantUIMsg.parts as CherryMessagePart[]) : ''),
+    [latestAssistantUIMsg]
+  )
+
+  const isStreaming = status === 'streaming' || status === 'submitted'
+
+  const clear = useCallback(() => {
+    void stopChat()
+    setMessages([])
+    setFlowError(null)
+    setIsPreparing(false)
+  }, [stopChat, setMessages])
 
   const isLoading = isPreparing || isStreaming
   const isOutputted = adaptedMessages.some((message) => message.role === 'assistant')
@@ -159,23 +230,31 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
         setError(null)
         setIsFirstMessage(false)
         setUserInputText('')
-        await run({
-          assistant: currentAssistant,
-          prompt: [prompt, userContent].filter(Boolean).join('\n\n'),
-          reset: false
-        })
+        setIsPreparing(true)
+        void sendMessage(
+          { text: [prompt, userContent].filter(Boolean).join('\n\n') },
+          {
+            body: {
+              topicId: topic.id,
+              assistantId: currentAssistant.id,
+              providerId: currentAssistant.model?.provider,
+              modelId: currentAssistant.model?.id,
+              mcpToolIds: []
+            }
+          }
+        )
       } catch (streamError) {
         const resolvedError = streamError instanceof Error ? streamError : new Error('An error occurred')
         setError(resolvedError.message)
         logger.error('Error fetching result:', resolvedError)
       }
     },
-    [currentAssistant, run, userContent]
+    [currentAssistant, sendMessage, topic.id, userContent]
   )
 
   const handlePause = useCallback(() => {
-    stop()
-  }, [stop])
+    void stopChat()
+  }, [stopChat])
 
   const resetConversation = useCallback(() => {
     setCurrentTopic(getDefaultTopic(currentAssistant.id))

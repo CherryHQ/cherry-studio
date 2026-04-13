@@ -1,3 +1,4 @@
+import { useChat } from '@ai-sdk/react'
 import { LoadingOutlined } from '@ant-design/icons'
 import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
@@ -6,16 +7,19 @@ import CopyButton from '@renderer/components/CopyButton'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import { LanguagesEnum, UNKNOWN } from '@renderer/config/translate'
 import db from '@renderer/databases'
-import { useLightweightAssistantFlow } from '@renderer/hooks/useLightweightAssistantFlow'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { PartsProvider } from '@renderer/pages/home/Messages/Blocks'
 import MessageContent from '@renderer/pages/home/Messages/MessageContent'
 import { getDefaultTopic, getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
 import { pauseTrace } from '@renderer/services/SpanManagerService'
+import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
 import type { Assistant, Topic, TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
+import { AssistantMessageStatus } from '@renderer/types/newMessage'
+import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
 import { detectLanguage } from '@renderer/utils/translate'
 import { defaultLanguage } from '@shared/config/constant'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { Dropdown } from 'antd'
 import { ArrowRight, ChevronDown, CircleHelp, Settings2 } from 'lucide-react'
 import type { FC } from 'react'
@@ -127,13 +131,73 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     void initialize()
   }, [initialize])
 
-  const { error, isPreparing, isStreaming, content, latestAssistantMessage, partsMap, run, stop, clear } =
-    useLightweightAssistantFlow({
-      chatId: activeTopic?.id ?? 'selection-translate',
+  const [isPreparing, setIsPreparing] = useState(false)
+  const [completionError, setCompletionError] = useState<string | null>(null)
+
+  const {
+    messages: chatMessages,
+    status,
+    sendMessage,
+    stop: stopChat,
+    setMessages
+  } = useChat<CherryUIMessage>({
+    id: activeTopic?.id ?? 'selection-translate',
+    transport: ipcChatTransport,
+    experimental_throttle: 50,
+    onError: (err) => {
+      setIsPreparing(false)
+      setCompletionError(err.message)
+    }
+  })
+
+  useEffect(() => {
+    if (status === 'streaming') {
+      setIsPreparing(false)
+      scrollToBottom?.()
+    }
+  }, [status, scrollToBottom])
+
+  const partsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
+    const map: Record<string, CherryMessagePart[]> = {}
+    for (const m of chatMessages) map[m.id] = m.parts as CherryMessagePart[]
+    return map
+  }, [chatMessages])
+
+  const latestAssistantUIMsg = useMemo(
+    () => [...chatMessages].reverse().find((m) => m.role === 'assistant'),
+    [chatMessages]
+  )
+
+  const latestAssistantMessage = useMemo(() => {
+    if (!latestAssistantUIMsg) return null
+    return {
+      id: latestAssistantUIMsg.id,
+      role: latestAssistantUIMsg.role as 'assistant',
+      assistantId: activeAssistant?.id ?? '',
       topicId: activeTopic?.id ?? 'selection-translate',
-      assistantId: activeAssistant?.id,
-      onStreamStart: scrollToBottom
-    })
+      createdAt: new Date().toISOString(),
+      status:
+        status === 'streaming' || status === 'submitted'
+          ? AssistantMessageStatus.PROCESSING
+          : AssistantMessageStatus.SUCCESS,
+      blocks: []
+    }
+  }, [latestAssistantUIMsg, activeAssistant?.id, activeTopic?.id, status])
+
+  const content = useMemo(
+    () => (latestAssistantUIMsg ? getTextFromParts(latestAssistantUIMsg.parts as CherryMessagePart[]) : ''),
+    [latestAssistantUIMsg]
+  )
+
+  const isStreaming = status === 'streaming' || status === 'submitted'
+  const error = completionError
+
+  const clear = useCallback(() => {
+    void stopChat()
+    setMessages([])
+    setCompletionError(null)
+    setIsPreparing(false)
+  }, [stopChat, setMessages])
 
   const fetchResult = useCallback(async () => {
     if (!activeTopic || !action.selectedText || !initialized) return
@@ -150,7 +214,6 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
       return
     }
 
-    // Set detected language for UI display
     const detectedLang = getLanguageByLangcode(sourceLanguageCode)
     setDetectedLanguage(detectedLang)
 
@@ -161,21 +224,30 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
       translateLang = targetLanguage
     } else {
       logger.debug('Detected Language: ', { sourceLanguage: sourceLanguageCode })
-      if (sourceLanguageCode === targetLanguage.langCode) {
-        translateLang = alterLanguage
-      } else {
-        translateLang = targetLanguage
-      }
+      translateLang = sourceLanguageCode === targetLanguage.langCode ? alterLanguage : targetLanguage
     }
 
-    // Set actual target language for UI display
     setActualTargetLanguage(translateLang)
 
     const assistant = await getDefaultTranslateAssistant(translateLang, action.selectedText)
     setActiveAssistant(assistant)
     logger.debug('Run translate action stream')
-    await run({ assistant, prompt: assistant.content })
-  }, [action, activeTopic, alterLanguage, clear, getLanguageByLangcode, initialized, run, targetLanguage])
+
+    setCompletionError(null)
+    setIsPreparing(true)
+    void sendMessage(
+      { text: assistant.content },
+      {
+        body: {
+          topicId: activeTopic.id,
+          assistantId: assistant.id,
+          providerId: assistant.model?.provider,
+          modelId: assistant.model?.id,
+          mcpToolIds: []
+        }
+      }
+    )
+  }, [action, activeTopic, alterLanguage, clear, getLanguageByLangcode, initialized, sendMessage, targetLanguage])
 
   useEffect(() => {
     void fetchResult()
@@ -265,10 +337,8 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   )
 
   const handlePause = () => {
-    stop()
-    if (activeTopic?.id) {
-      void pauseTrace(activeTopic.id)
-    }
+    void stopChat()
+    if (activeTopic?.id) void pauseTrace(activeTopic.id)
   }
 
   const handleRegenerate = () => {

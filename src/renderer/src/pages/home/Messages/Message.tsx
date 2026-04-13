@@ -17,11 +17,9 @@ import { classNames, cn } from '@renderer/utils'
 import { scrollIntoView } from '@renderer/utils/dom'
 import { isMessageProcessing } from '@renderer/utils/messageUtils/is'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { Divider } from 'antd'
 import type { Dispatch, FC, SetStateAction } from 'react'
 import React, { memo, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import MessageContent from './MessageContent'
 import MessageEditor from './MessageEditor'
@@ -172,28 +170,27 @@ const MessageItem: FC<Props> = ({
 
   if (message.type === 'clear') {
     return (
-      <NewContextMessage
-        isMultiSelectMode={isMultiSelectMode}
-        className="clear-context-divider"
+      <div
+        className={cn('cursor-pointer flex-1 clear-context-divider', isMultiSelectMode && 'cursor-default')}
         onClick={() => {
-          if (isMultiSelectMode) {
-            return
-          }
+          if (isMultiSelectMode) return
           void EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
         }}>
-        <Divider dashed style={{ padding: '0 20px' }} plain>
-          {t('chat.message.new.context')}
-        </Divider>
-      </NewContextMessage>
+        <div className="flex items-center my-0 mx-5 gap-2 text-[var(--color-text-3)] text-sm">
+          <hr className="flex-1 border-dashed border-[var(--color-border)]" />
+          <span>{t('chat.message.new.context')}</span>
+          <hr className="flex-1 border-dashed border-[var(--color-border)]" />
+        </div>
+      </div>
     )
   }
 
   return (
     <WrapperContainer isMultiSelectMode={isMultiSelectMode}>
-      <MessageContainer
+      <div
         key={message.id}
         className={classNames({
-          message: true,
+          'message flex flex-col w-full relative transition-colors duration-300 p-[10px] pb-0 rounded-[10px] [transform:translateZ(0)] [will-change:transform] [&_.menubar]:opacity-0 [&_.menubar]:transition-opacity [&_.menubar]:duration-200 [&:hover_.menubar]:opacity-100 [&_.menubar.show]:opacity-100': true,
           'message-assistant': isAssistantMessage,
           'message-user': !isAssistantMessage
         })}
@@ -219,8 +216,8 @@ const MessageItem: FC<Props> = ({
             {!isMultiSelectMode && message.role === 'assistant' && showMessageOutline && (
               <MessageOutline message={message} />
             )}
-            <MessageContentContainer
-              className="message-content-container"
+            <Scrollbar
+              className="message-content-container max-w-full pl-[46px] mt-0 overflow-y-auto"
               style={{
                 fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
                 fontSize,
@@ -229,9 +226,9 @@ const MessageItem: FC<Props> = ({
               <MessageErrorBoundary>
                 <MessageContent message={message} />
               </MessageErrorBoundary>
-            </MessageContentContainer>
+            </Scrollbar>
             {showMenubar && (
-              <MessageFooter className="MessageFooter">
+              <div className="MessageFooter flex items-center justify-between gap-2.5 ml-[46px] mt-[3px]">
                 <HorizontalScrollContainer
                   classNames={{
                     content: cn(
@@ -253,63 +250,13 @@ const MessageItem: FC<Props> = ({
                     onUpdateUseful={onUpdateUseful}
                   />
                 </HorizontalScrollContainer>
-              </MessageFooter>
+              </div>
             )}
           </>
         )}
-      </MessageContainer>
+      </div>
     </WrapperContainer>
   )
 }
-
-const MessageContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  position: relative;
-  transition: background-color 0.3s ease;
-  transform: translateZ(0);
-  will-change: transform;
-  padding: 10px;
-  padding-bottom: 0;
-  border-radius: 10px;
-  .menubar {
-    opacity: 0;
-    transition: opacity 0.2s ease;
-    transform: translateZ(0);
-    will-change: opacity;
-    &.show {
-      opacity: 1;
-    }
-  }
-  &:hover {
-    .menubar {
-      opacity: 1;
-    }
-  }
-`
-
-const MessageContentContainer = styled(Scrollbar)`
-  max-width: 100%;
-  padding-left: 46px;
-  margin-top: 0;
-  overflow-y: auto;
-`
-
-const MessageFooter = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-left: 46px;
-  margin-top: 3px;
-`
-
-const NewContextMessage = styled.div<{ isMultiSelectMode: boolean }>`
-  cursor: pointer;
-  flex: 1;
-
-  ${({ isMultiSelectMode }) => isMultiSelectMode && 'cursor: default;'}
-`
 
 export default memo(MessageItem)

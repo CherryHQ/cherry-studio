@@ -1,8 +1,8 @@
+import { useChat } from '@ai-sdk/react'
 import { LoadingOutlined } from '@ant-design/icons'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
-import { useLightweightAssistantFlow } from '@renderer/hooks/useLightweightAssistantFlow'
 import { PartsProvider } from '@renderer/pages/home/Messages/Blocks'
 import MessageContent from '@renderer/pages/home/Messages/MessageContent'
 import {
@@ -12,7 +12,11 @@ import {
   getDefaultTopic
 } from '@renderer/services/AssistantService'
 import { pauseTrace } from '@renderer/services/SpanManagerService'
+import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
+import { AssistantMessageStatus } from '@renderer/types/newMessage'
+import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { ChevronDown } from 'lucide-react'
 import type { FC } from 'react'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
@@ -72,25 +76,90 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
     return userContent
   }, [action, language, t])
 
-  const { partsMap, error, isPreparing, isStreaming, content, latestAssistantMessage, run, stop } =
-    useLightweightAssistantFlow({
-      chatId: activeTopic.id,
-      topicId: activeTopic.id,
+  const [isPreparing, setIsPreparing] = useState(false)
+  const [completionError, setCompletionError] = useState<string | null>(null)
+
+  const {
+    messages: chatMessages,
+    status,
+    sendMessage,
+    stop: stopChat
+  } = useChat<CherryUIMessage>({
+    id: activeTopic.id,
+    transport: ipcChatTransport,
+    experimental_throttle: 50,
+    onError: (err) => {
+      setIsPreparing(false)
+      setCompletionError(err.message)
+    }
+  })
+
+  useEffect(() => {
+    if (status === 'streaming') {
+      setIsPreparing(false)
+      scrollToBottom?.()
+    }
+  }, [status, scrollToBottom])
+
+  const partsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
+    const map: Record<string, CherryMessagePart[]> = {}
+    for (const m of chatMessages) map[m.id] = m.parts as CherryMessagePart[]
+    return map
+  }, [chatMessages])
+
+  const latestAssistantUIMsg = useMemo(
+    () => [...chatMessages].reverse().find((m) => m.role === 'assistant'),
+    [chatMessages]
+  )
+
+  const latestAssistantMessage = useMemo(() => {
+    if (!latestAssistantUIMsg) return null
+    return {
+      id: latestAssistantUIMsg.id,
+      role: latestAssistantUIMsg.role as 'assistant',
       assistantId: activeAssistant.id,
-      onStreamStart: scrollToBottom
-    })
+      topicId: activeTopic.id,
+      createdAt: new Date().toISOString(),
+      status:
+        status === 'streaming' || status === 'submitted'
+          ? AssistantMessageStatus.PROCESSING
+          : AssistantMessageStatus.SUCCESS,
+      blocks: []
+    }
+  }, [latestAssistantUIMsg, activeAssistant.id, activeTopic.id, status])
+
+  const content = useMemo(
+    () => (latestAssistantUIMsg ? getTextFromParts(latestAssistantUIMsg.parts as CherryMessagePart[]) : ''),
+    [latestAssistantUIMsg]
+  )
+
+  const isStreaming = status === 'streaming' || status === 'submitted'
+  const error = completionError
 
   const fetchResult = useCallback(() => {
     logger.debug('Before process message', { assistant: activeAssistant })
-    void run({ assistant: activeAssistant, prompt: promptContent })
-  }, [activeAssistant, promptContent, run])
+    setCompletionError(null)
+    setIsPreparing(true)
+    void sendMessage(
+      { text: promptContent },
+      {
+        body: {
+          topicId: activeTopic.id,
+          assistantId: activeAssistant.id,
+          providerId: activeAssistant.model?.provider,
+          modelId: activeAssistant.model?.id,
+          mcpToolIds: []
+        }
+      }
+    )
+  }, [activeAssistant, activeTopic.id, promptContent, sendMessage])
 
   useEffect(() => {
     fetchResult()
   }, [fetchResult])
 
   const handlePause = () => {
-    stop()
+    void stopChat()
     void pauseTrace(activeTopic.id)
   }
 

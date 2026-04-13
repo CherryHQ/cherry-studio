@@ -6,7 +6,7 @@ import { LoadingIcon } from '@renderer/components/Icons'
 import { LOAD_MORE_COUNT } from '@renderer/config/constant'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
-import { useMessageOperations, useTopicMessages } from '@renderer/hooks/useMessageOperations'
+import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -14,11 +14,8 @@ import { autoRenameTopic } from '@renderer/hooks/useTopic'
 import SelectionBox from '@renderer/pages/home/Messages/SelectionBox'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { getContextCount, getGroupedMessages, getUserMessage } from '@renderer/services/MessagesService'
+import { getContextCount, getGroupedMessages } from '@renderer/services/MessagesService'
 import { estimateHistoryTokens } from '@renderer/services/TokenService'
-import { useAppDispatch } from '@renderer/store'
-import { newMessagesActions } from '@renderer/store/newMessage'
-import { saveMessageAndBlocksToDB } from '@renderer/store/thunk/messageThunk'
 import type { Assistant, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import {
@@ -35,7 +32,6 @@ import { last } from 'lodash'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import InfiniteScroll from 'react-infinite-scroll-component'
-import styled from 'styled-components'
 
 import { resolvePartFromParts, useIsV2Chat, usePartsMap } from './Blocks'
 import MessageAnchorLine from './MessageAnchorLine'
@@ -50,8 +46,7 @@ interface MessagesProps {
   setActiveTopic: (topic: Topic) => void
   onComponentUpdate?(): void
   onFirstUpdate?(): void
-  /** V2 mode: messages provided externally (bypasses Redux). */
-  messages?: Message[]
+  messages: Message[]
 }
 
 const logger = loggerService.withContext('Messages')
@@ -62,7 +57,7 @@ const Messages: React.FC<MessagesProps> = ({
   setActiveTopic,
   onComponentUpdate,
   onFirstUpdate,
-  messages: messagesProp
+  messages
 }) => {
   const { containerRef: scrollContainerRef, handleScroll: handleScrollPosition } = useScrollPosition(
     `topic-${topic.id}`
@@ -70,19 +65,13 @@ const Messages: React.FC<MessagesProps> = ({
   const [displayMessages, setDisplayMessages] = useState<Message[]>([])
   const [hasMore, setHasMore] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
-  const [isProcessingContext, setIsProcessingContext] = useState(false)
-
   const { addTopic } = useAssistant(assistant.id)
   const [showPrompt] = usePreference('chat.message.show_prompt')
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const { t } = useTranslation()
-  const dispatch = useAppDispatch()
   const partsMap = usePartsMap()
   const isV2Chat = useIsV2Chat()
-  const reduxMessages = useTopicMessages(topic.id)
-  // V2 mode: use externally provided messages; V1 mode: read from Redux
-  const messages = messagesProp ?? reduxMessages
-  const { displayCount, clearTopicMessages, deleteMessage, createTopicBranch } = useMessageOperations(topic)
+  const { displayCount, clearTopicMessages, createTopicBranch } = useMessageOperations(topic)
   const { setTimeoutTimer } = useTimer()
 
   const { isMultiSelectMode, handleSelectMessage } = useChatContext(topic)
@@ -161,40 +150,8 @@ const Messages: React.FC<MessagesProps> = ({
           void window.api.file.saveImage(removeSpecialCharactersForFileName(topic.name), imageData)
         }
       }),
-      EventEmitter.on(EVENT_NAMES.NEW_CONTEXT, async () => {
-        if (isV2Chat) {
-          logger.warn('[NEW_CONTEXT] V2 clear/new-context flow is disabled until DataApi semantics are finalized.', {
-            topicId: topic.id
-          })
-          return
-        }
-
-        if (isProcessingContext) return
-        setIsProcessingContext(true)
-
-        try {
-          const messages = messagesRef.current
-
-          if (messages.length === 0) {
-            return
-          }
-
-          const lastMessage = last(messages)
-
-          if (lastMessage?.type === 'clear') {
-            await deleteMessage(lastMessage.id)
-            scrollToBottom()
-            return
-          }
-
-          const { message: clearMessage } = getUserMessage({ assistant, topic, type: 'clear' })
-          dispatch(newMessagesActions.addMessage({ topicId: topic.id, message: clearMessage }))
-          await saveMessageAndBlocksToDB(topic.id, clearMessage, [])
-
-          scrollToBottom()
-        } finally {
-          setIsProcessingContext(false)
-        }
+      EventEmitter.on(EVENT_NAMES.NEW_CONTEXT, () => {
+        logger.info('[NEW_CONTEXT] Not yet implemented in V2.')
       }),
       EventEmitter.on(EVENT_NAMES.NEW_BRANCH, async (index: number) => {
         if (isV2Chat) {
@@ -269,7 +226,7 @@ const Messages: React.FC<MessagesProps> = ({
 
     return () => unsubscribes.forEach((unsub) => unsub())
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assistant, dispatch, scrollToBottom, topic, isProcessingContext])
+  }, [assistant, scrollToBottom, topic])
 
   useEffect(() => {
     void runAsyncFunction(async () => {
@@ -367,9 +324,11 @@ const Messages: React.FC<MessagesProps> = ({
                 />
               ))}
               {isLoadingMore && (
-                <LoaderContainer>
+                <div
+                  className="flex w-full justify-center py-2.5 pointer-events-none"
+                  style={{ background: 'var(--color-background)' }}>
                   <LoadingIcon color="var(--color-text-2)" />
-                </LoaderContainer>
+                </div>
               )}
             </ScrollContainer>
           </ContextMenu>
@@ -424,14 +383,5 @@ const computeDisplayMessages = (messages: Message[], startIndex: number, display
 
   return displayMessages
 }
-
-const LoaderContainer = styled.div`
-  display: flex;
-  justify-content: center;
-  padding: 10px;
-  width: 100%;
-  background: var(--color-background);
-  pointer-events: none;
-`
 
 export default Messages
