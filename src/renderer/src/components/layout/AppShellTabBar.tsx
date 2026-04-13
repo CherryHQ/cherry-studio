@@ -80,18 +80,21 @@ const PinnedTabButton = ({
   isActive,
   onSelect,
   onContextMenu,
-  drag
+  drag,
+  tabRef
 }: {
   tab: Tab
   isActive: boolean
   onSelect: () => void
   onContextMenu: (e: React.MouseEvent) => void
   drag: DragItemProps
+  tabRef: (el: HTMLButtonElement | null) => void
 }) => {
   const Icon = getTabIcon(tab)
   return (
     <Tooltip placement="bottom" content={tab.title} delay={600}>
       <button
+        ref={tabRef}
         data-tab-id={tab.id}
         type="button"
         onPointerDown={drag.onPointerDown}
@@ -332,6 +335,13 @@ export const AppShellTabBar = ({
                     noTransition,
                     translateX: getTranslateX(tab.id, 'pinned'),
                     onPointerDown: (e) => handlePointerDown(e, tab, 'pinned')
+                  }}
+                  tabRef={(el) => {
+                    if (el) {
+                      tabRefs.current.set(tab.id, el)
+                    } else {
+                      tabRefs.current.delete(tab.id)
+                    }
                   }}
                 />
               ))}
