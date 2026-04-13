@@ -1,5 +1,6 @@
 import { UndoOutlined } from '@ant-design/icons'
 import { Button, Input, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { isMac, platform } from '@renderer/config/constant'
@@ -22,6 +23,7 @@ import { useTranslation } from 'react-i18next'
 import { SettingContainer, SettingDivider, SettingGroup, SettingTitle } from '.'
 
 const logger = loggerService.withContext('ShortcutSettings')
+const MINI_WINDOW_SHORTCUT_KEY: ShortcutPreferenceKey = 'shortcut.general.show_mini_window'
 
 type ShortcutRecord = {
   id: string
@@ -65,6 +67,7 @@ const ShortcutSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const shortcuts = useAllShortcuts()
+  const [quickAssistantEnabled] = usePreference('feature.quick_assistant.enabled')
   const inputRefs = useRef<Record<string, HTMLInputElement>>({})
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [pendingKeys, setPendingKeys] = useState<string[]>([])
@@ -249,6 +252,7 @@ const ShortcutSettings: FC = () => {
   const renderShortcutCell = (record: ShortcutRecord) => {
     const isEditing = editingKey === record.id
     const displayShortcut = record.displayKeys.length > 0 ? formatShortcutDisplay(record.displayKeys, isMac) : ''
+    const isMiniWindowShortcutDisabled = record.key === MINI_WINDOW_SHORTCUT_KEY && !quickAssistantEnabled
 
     if (isEditing) {
       const pendingDisplay = pendingKeys.length > 0 ? formatShortcutDisplay(pendingKeys, isMac) : ''
@@ -299,8 +303,8 @@ const ShortcutSettings: FC = () => {
             </Tooltip>
           )}
           <RowFlex
-            className={`items-center gap-1 rounded-lg bg-white/5 px-2 py-1 ${record.editable ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
-            onClick={() => record.editable && handleAddShortcut(record)}>
+            className={`items-center gap-1 rounded-lg bg-white/5 px-2 py-1 ${record.editable && !isMiniWindowShortcutDisabled ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
+            onClick={() => record.editable && !isMiniWindowShortcutDisabled && handleAddShortcut(record)}>
             {record.displayKeys.map((key) => (
               <kbd
                 key={key}
@@ -315,8 +319,8 @@ const ShortcutSettings: FC = () => {
 
     return (
       <span
-        className={`rounded-lg bg-white/5 px-3 py-1 text-sm text-white/30 ${record.editable ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
-        onClick={() => record.editable && handleAddShortcut(record)}>
+        className={`rounded-lg bg-white/5 px-3 py-1 text-sm text-white/30 ${record.editable && !isMiniWindowShortcutDisabled ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
+        onClick={() => record.editable && !isMiniWindowShortcutDisabled && handleAddShortcut(record)}>
         {t('settings.shortcuts.press_shortcut')}
       </span>
     )
@@ -336,17 +340,15 @@ const ShortcutSettings: FC = () => {
           />
         </div>
         <div className="flex flex-col">
-          {filteredShortcuts.map((record, index) => (
-            <div
-              key={record.id}
-              className={`flex items-center justify-between py-3.5 ${index < filteredShortcuts.length - 1 ? 'border-white/10 border-b' : ''}`}>
-              <span className="text-sm">{record.label}</span>
-              <RowFlex className="items-center gap-3">
-                {renderShortcutCell(record)}
-                {record.displayKeys.length > 0 ? (
+          {filteredShortcuts.map((record, index) =>
+            (() => {
+              const isMiniWindowShortcutDisabled = record.key === MINI_WINDOW_SHORTCUT_KEY && !quickAssistantEnabled
+              const switchNode =
+                record.displayKeys.length > 0 ? (
                   <Switch
                     size="sm"
                     checked={record.enabled}
+                    disabled={isMiniWindowShortcutDisabled}
                     onCheckedChange={() => {
                       record.updatePreference({ enabled: !record.enabled }).catch((error) => {
                         handleUpdateFailure(record, error)
@@ -354,15 +356,31 @@ const ShortcutSettings: FC = () => {
                     }}
                   />
                 ) : (
-                  <Tooltip content={t('settings.shortcuts.bind_first_to_enable')}>
-                    <span>
-                      <Switch size="sm" checked={record.enabled} disabled />
-                    </span>
-                  </Tooltip>
-                )}
-              </RowFlex>
-            </div>
-          ))}
+                  <Switch size="sm" checked={record.enabled} disabled />
+                )
+
+              let switchContent = switchNode
+              if (isMiniWindowShortcutDisabled) {
+                switchContent = (
+                  <Tooltip content={t('settings.quickAssistant.enable_quick_assistant')}>{switchNode}</Tooltip>
+                )
+              } else if (!record.displayKeys.length) {
+                switchContent = <Tooltip content={t('settings.shortcuts.bind_first_to_enable')}>{switchNode}</Tooltip>
+              }
+
+              return (
+                <div
+                  key={record.id}
+                  className={`flex items-center justify-between py-3.5 ${index < filteredShortcuts.length - 1 ? 'border-white/10 border-b' : ''}`}>
+                  <span className="text-sm">{record.label}</span>
+                  <RowFlex className="items-center gap-3">
+                    {renderShortcutCell(record)}
+                    <span>{switchContent}</span>
+                  </RowFlex>
+                </div>
+              )
+            })()
+          )}
         </div>
         <SettingDivider style={{ marginBottom: 0 }} />
         <RowFlex className="justify-end p-4">

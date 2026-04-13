@@ -50,9 +50,14 @@ export const useShortcut = (
 
   const optionsRef = useRef(options)
   optionsRef.current = options
+  const isExternallyEnabled = options.enabled !== false
 
   const hotkey = useMemo(() => {
     if (!definition || !resolved) {
+      return 'none'
+    }
+
+    if (!isExternallyEnabled) {
       return 'none'
     }
 
@@ -69,7 +74,7 @@ export const useShortcut = (
     }
 
     return convertAcceleratorToHotkey(resolved.binding)
-  }, [definition, resolved])
+  }, [definition, isExternallyEnabled, resolved])
 
   useHotkeys(
     hotkey,
@@ -84,10 +89,10 @@ export const useShortcut = (
     {
       enableOnFormTags: optionsRef.current.enableOnFormTags,
       description: optionsRef.current.description ?? fullKey,
-      enabled: hotkey !== 'none',
+      enabled: isExternallyEnabled && hotkey !== 'none',
       enableOnContentEditable: optionsRef.current.enableOnContentEditable
     },
-    [hotkey]
+    [hotkey, isExternallyEnabled]
   )
 }
 

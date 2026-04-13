@@ -27,6 +27,7 @@ import type { BrowserWindow } from 'electron'
 import { globalShortcut } from 'electron'
 
 const logger = loggerService.withContext('ShortcutService')
+const MINI_WINDOW_SHORTCUT_KEY: ShortcutPreferenceKey = 'shortcut.general.show_mini_window'
 
 type ShortcutHandler = (window?: BrowserWindow) => void
 
@@ -137,6 +138,13 @@ export class ShortcutService extends BaseService {
         })
       )
     }
+
+    this.registerDisposable(
+      preferenceService.subscribeChange('feature.quick_assistant.enabled', () => {
+        logger.debug('Shortcut dependency changed: feature.quick_assistant.enabled')
+        this.reregisterShortcuts()
+      })
+    )
   }
 
   private registerForWindow(window: BrowserWindow): void {
@@ -182,6 +190,10 @@ export class ShortcutService extends BaseService {
 
     for (const definition of relevantDefinitions) {
       if (onlyPersistent && !definition.global) continue
+
+      if (definition.key === MINI_WINDOW_SHORTCUT_KEY && !preferenceService.get('feature.quick_assistant.enabled')) {
+        continue
+      }
 
       const rawPref = preferenceService.get(definition.key) as PreferenceShortcutType | undefined
       const pref = resolveShortcutPreference(definition, rawPref)
