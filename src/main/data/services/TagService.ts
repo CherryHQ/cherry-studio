@@ -6,9 +6,9 @@
  * - Entity-tag association management (get by entity, sync, bulk set)
  */
 
+import { application } from '@application'
 import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateTagDto, SetTagEntitiesDto, SyncEntityTagsDto, UpdateTagDto } from '@shared/data/api/schemas/tags'
 import type { Tag, TaggableEntityType } from '@shared/data/types/tag'
