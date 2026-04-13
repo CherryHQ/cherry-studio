@@ -171,4 +171,11 @@ describe('MigrationEngine', () => {
     expect((engine as any).verifyAndClearNewTables).not.toHaveBeenCalled()
     expect(events).toStrictEqual(['agents:reset', 'agents:prepare', 'agents:execute', 'agents:validate'])
   })
+
+  it('marks both core and agents migration as completed when the user skips migration', async () => {
+    await engine.skipMigration()
+
+    expect((engine as any).markCompleted).toHaveBeenCalledTimes(1)
+    expect((engine as any).markAgentsCompleted).toHaveBeenCalledTimes(1)
+  })
 })

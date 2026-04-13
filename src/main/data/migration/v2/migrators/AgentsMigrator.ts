@@ -60,9 +60,20 @@ export class AgentsMigrator extends BaseMigrator {
     }
 
     const statements = buildAgentsImportStatements(dbPath)
+    const [attachStatement, ...remainingStatements] = statements
+    let isAttached = false
 
-    for (const statement of statements) {
-      await ctx.db.run(sql.raw(statement))
+    try {
+      await ctx.db.run(sql.raw(attachStatement))
+      isAttached = true
+
+      for (const statement of remainingStatements.slice(0, -1)) {
+        await ctx.db.run(sql.raw(statement))
+      }
+    } finally {
+      if (isAttached) {
+        await ctx.db.run(sql.raw('DETACH DATABASE agents_legacy'))
+      }
     }
 
     return {

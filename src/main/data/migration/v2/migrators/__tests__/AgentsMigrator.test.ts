@@ -67,6 +67,21 @@ describe('AgentsMigrator', () => {
     expect(run).toHaveBeenCalledTimes(10)
   })
 
+  it('detaches the legacy db when an import statement fails after attach', async () => {
+    const run = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('insert failed'))
+      .mockResolvedValueOnce(undefined)
+
+    vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue('/mock/feature.agents.db_file')
+    vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockResolvedValue(createCounts())
+
+    await expect(migrator.execute({ db: { run } } as never)).rejects.toThrow('insert failed')
+    expect(run).toHaveBeenLastCalledWith(expect.anything())
+    expect(run).toHaveBeenCalledTimes(3)
+  })
+
   it('validate fails when imported table counts are lower than the source counts', async () => {
     vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue('/mock/feature.agents.db_file')
     vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockResolvedValue(createCounts())

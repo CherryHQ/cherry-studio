@@ -593,6 +593,7 @@ export class MigrationEngine {
   async skipMigration(): Promise<void> {
     logger.info('Migration skipped by user (version incompatible, using defaults)')
     await this.markCompleted()
+    await this.markAgentsCompleted()
   }
 
   /**
