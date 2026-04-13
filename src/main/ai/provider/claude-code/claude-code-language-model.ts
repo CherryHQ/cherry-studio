@@ -352,6 +352,31 @@ export class ClaudeCodeLanguageModel implements LanguageModelV3 {
     return this.modelId
   }
 
+  // ── Steering ────────────────────────────────────────────────────
+
+  /**
+   * Map an AsyncIterable<string> (steering messages from PendingMessageQueue)
+   * to an AsyncIterable<SDKUserMessage> for query.streamInput().
+   */
+  private async *mapSteeringToSdkMessages(
+    source: NonNullable<ClaudeCodeSettings['steeringSource']>
+  ): AsyncIterable<SDKUserMessage> {
+    for await (const message of source) {
+      const parts = message.data?.parts
+      const text = parts
+        ?.filter((p): p is { type: 'text'; text: string } => p.type === 'text' && 'text' in p)
+        .map((p) => p.text)
+        .join('\n')
+      if (!text) continue
+      yield {
+        type: 'user',
+        message: { role: 'user', content: text },
+        parent_tool_use_id: null,
+        session_id: this.sessionId ?? ''
+      }
+    }
+  }
+
   // ── SDK Options Builder ─────────────────────────────────────────
 
   private getEffectiveResume(): string | undefined {
@@ -367,7 +392,7 @@ export class ClaudeCodeLanguageModel implements LanguageModelV3 {
     // Spread all settings (which are already Omit<Options, managed fields>),
     // then overlay provider-managed fields.
     // oxlint-disable-next-line no-unused-vars
-    const { maxToolResultSize: _mts, onQueryCreated: _oqc, ...settingsRest } = this.settings
+    const { maxToolResultSize: _mts, steeringSource: _ss, ...settingsRest } = this.settings
 
     const opts: Partial<Options> = {
       ...settingsRest,
@@ -693,7 +718,11 @@ export class ClaudeCodeLanguageModel implements LanguageModelV3 {
           )
 
           const response = query({ prompt: sdkPrompt, options: queryOptions })
-          this.settings.onQueryCreated?.(response)
+
+          // Pipe steering messages to SDK's streamInput for mid-turn injection
+          if (this.settings.steeringSource) {
+            void response.streamInput(this.mapSteeringToSdkMessages(this.settings.steeringSource))
+          }
 
           for await (const message of response) {
             switch (message.type) {

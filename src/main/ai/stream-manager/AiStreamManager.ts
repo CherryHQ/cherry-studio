@@ -370,7 +370,6 @@ export class AiStreamManager extends BaseService {
       role: 'user',
       parentId: req.parentAnchorId,
       data: { parts: req.userMessageParts },
-      assistantId,
       modelId: model.id
     })
 

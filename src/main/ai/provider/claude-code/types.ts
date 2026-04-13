@@ -6,7 +6,8 @@
  * excluded since they're set internally by the language model.
  */
 
-import type { Options, Query } from '@anthropic-ai/claude-agent-sdk'
+import type { Options } from '@anthropic-ai/claude-agent-sdk'
+import type { Message } from '@shared/data/types/message'
 
 // Re-export SDK types that consumers may need
 export type {
@@ -15,7 +16,6 @@ export type {
   McpServerConfig,
   Options,
   PermissionMode,
-  Query,
   SandboxSettings,
   SdkBeta,
   SdkPluginConfig,
@@ -37,8 +37,13 @@ export type {
 export type ClaudeCodeSettings = Omit<Options, 'model' | 'abortController' | 'prompt' | 'outputFormat'> & {
   /** Maximum size (chars) for tool results in client stream. @default 10000 */
   maxToolResultSize?: number
-  /** Callback invoked when the Query object is created. */
-  onQueryCreated?: (query: Query) => void
+  /**
+   * Async iterable of steering messages injected mid-stream.
+   * The language model extracts text from each Message and feeds it to
+   * query.streamInput() as SDKUserMessage for mid-turn injection.
+   * Set by AiStreamManager — backed by PendingMessageQueue (which is AsyncIterable).
+   */
+  steeringSource?: AsyncIterable<Message>
 }
 
 /**
