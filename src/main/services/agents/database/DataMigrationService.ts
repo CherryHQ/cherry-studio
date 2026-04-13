@@ -34,13 +34,30 @@ const DATA_MIGRATIONS: DataMigration[] = [
     tag: 'data_0001_fix_block_references',
     description: 'Fix missing block IDs in message.blocks array',
     migrate: async (db) => {
-      // Dynamic import to avoid circular dependency
       const { runBlockReferencesMigration } = await import('./migrateBlockReferences')
       const result = await runBlockReferencesMigration(db)
       logger.info('Block references migration result', {
         totalMessages: result.totalMessages,
         messagesFixed: result.messagesFixed,
         blockReferencesAdded: result.blockReferencesAdded,
+        errors: result.errors.length
+      })
+      if (result.errors.length > 0) {
+        logger.warn('Some messages failed to migrate', { errors: result.errors })
+      }
+    }
+  },
+  {
+    version: 10002,
+    tag: 'data_0002_blocks_to_parts',
+    description: 'Convert agent session messages from blocks[] to parts[] format',
+    migrate: async (db) => {
+      const { runBlocksToPartsMigration } = await import('./migrateBlocksToParts')
+      const result = await runBlocksToPartsMigration(db)
+      logger.info('Blocks→Parts migration result', {
+        totalMessages: result.totalMessages,
+        messagesConverted: result.messagesConverted,
+        messagesSkipped: result.messagesSkipped,
         errors: result.errors.length
       })
       if (result.errors.length > 0) {
