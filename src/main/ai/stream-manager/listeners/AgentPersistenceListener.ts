@@ -58,8 +58,32 @@ export class AgentPersistenceListener implements StreamListener {
     }
   }
 
-  async onError(_error: SerializedError): Promise<void> {
-    // Don't persist error messages
+  async onError(error: SerializedError): Promise<void> {
+    try {
+      const now = new Date().toISOString()
+      await agentMessageRepository.persistAssistantMessage({
+        sessionId: this.ctx.sessionId,
+        agentSessionId: this.ctx.agentSessionId ?? '',
+        payload: {
+          message: {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            assistantId: this.ctx.agentId,
+            topicId: `agent-session:${this.ctx.sessionId}`,
+            createdAt: now,
+            status: 'error',
+            blocks: [],
+            data: {
+              parts: [{ type: 'data-error', data: { name: error.name, message: error.message } }]
+            }
+          } as any,
+          blocks: []
+        }
+      })
+      logger.info('Agent error message persisted', { sessionId: this.ctx.sessionId })
+    } catch (err) {
+      logger.error('Failed to persist agent error message', { sessionId: this.ctx.sessionId, err })
+    }
   }
 
   isAlive(): boolean {
@@ -81,7 +105,7 @@ export class AgentPersistenceListener implements StreamListener {
           createdAt: now,
           status: 'success',
           blocks: [],
-          data: { parts: finalMessage.parts as any[] }
+          data: { parts: finalMessage.parts }
         } as any,
         blocks: []
       }
