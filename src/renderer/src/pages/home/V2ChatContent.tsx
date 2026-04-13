@@ -1,21 +1,18 @@
-import { useChat } from '@ai-sdk/react'
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import { isDev } from '@renderer/config/constant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
+import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import { type V2ChatOverrides, V2ChatOverridesProvider } from '@renderer/hooks/useMessageOperations'
 import { useTopicMessagesV2 } from '@renderer/hooks/useTopicMessagesV2'
 import { fetchMcpTools } from '@renderer/services/ApiService'
-import { ensureTopicStreamStateSyncStarted } from '@renderer/services/topicStreamStateSync'
-import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
 import type { Assistant, FileMetadata, Model, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
-import { AssistantMessageStatus, UserMessageStatus } from '@renderer/types/newMessage'
 import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/assistant'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
 
 import { ensureChatTopicPersisted } from './chatPersistence'
 import Inputbar from './Inputbar/Inputbar'
@@ -106,42 +103,13 @@ const V2ChatContentInner: FC<InnerProps> = ({
 }) => {
   const { isMultiSelectMode } = useChatContext(topic)
 
-  useEffect(() => {
-    ensureTopicStreamStateSyncStarted()
-  }, [])
+  const history = useMemo(
+    () => ({ messages: historyMessages, partsMap: historyPartsMap, isLoading: false, refresh, activeNodeId }),
+    [historyMessages, historyPartsMap, refresh, activeNodeId]
+  )
 
-  const {
-    messages: streamingUIMessages,
-    setMessages,
-    stop,
-    status,
-    error,
-    sendMessage,
-    regenerate
-  } = useChat<CherryUIMessage>({
-    id: topic.id,
-    transport: ipcChatTransport,
-    experimental_throttle: 50,
-    onError: (streamError) => {
-      logger.error('AI stream error', { topicId: topic.id, streamError })
-    }
-  })
-
-  useEffect(() => {
-    const unsubscribe = window.api.ai.onStreamDone((data) => {
-      if (data.topicId !== topic.id) return
-      // Refresh history first, then clear live messages to avoid flash
-      void refresh()
-        .then(() => setMessages([]))
-        .catch((err) => {
-          logger.warn('Failed to refresh messages after stream done', { topicId: topic.id, err })
-          setMessages([])
-        })
-    })
-    return () => {
-      unsubscribe()
-    }
-  }, [refresh, setMessages, topic.id])
+  const { adaptedMessages, partsMap, sendMessage, regenerate, stop, status, error, setMessages, streamingUIMessages } =
+    useChatWithHistory(topic.id, history, { assistantId: assistant.id })
 
   /** Delete a single message (reparent children to grandparent) and sync UI. */
   const handleDeleteMessage = useCallback(
@@ -150,7 +118,6 @@ const V2ChatContentInner: FC<InnerProps> = ({
         await dataApiService.delete(`/messages/${id}`, { query: { cascade: false } })
         setMessages((msgs) => msgs.filter((m) => m.id !== id))
       } catch (err: unknown) {
-        // Root messages have no parent to reparent children to — fallback to cascade.
         if (err && typeof err === 'object' && 'code' in err && err.code === 'INVALID_OPERATION') {
           const result = await dataApiService.delete(`/messages/${id}`, { query: { cascade: true } })
           const deletedSet = new Set(result.deletedIds)
@@ -179,7 +146,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
 
   /** Clear all messages for the current topic from DataApi and UI. */
   const handleClearTopicMessages = useCallback(async () => {
-    const rootMsg = historyMessages.find((m) => !m.askId)
+    const rootMsg = historyMessages.find((m: Message) => !m.askId)
     if (rootMsg) {
       await dataApiService.delete(`/messages/${rootMsg.id}`, { query: { cascade: true } })
       logger.info('Cleared all messages via root cascade delete', { topicId: topic.id, rootId: rootMsg.id })
@@ -197,71 +164,6 @@ const V2ChatContentInner: FC<InnerProps> = ({
     },
     [refresh]
   )
-
-  // Live messages from useChat — only contains active streaming messages (no history)
-  const liveUIMessages = streamingUIMessages
-
-  // Stable timestamp cache — preserves createdAt across re-renders for each message ID
-  const timestampCacheRef = useRef(new Map<string, string>())
-
-  // Adapt live UIMessages to legacy Message[] for MessageGroup/MessageItem.
-  const liveAdapted = useMemo<Message[]>(() => {
-    const cache = timestampCacheRef.current
-    const activeIds = new Set<string>()
-
-    const messages = liveUIMessages.map((uiMsg) => {
-      activeIds.add(uiMsg.id)
-      let ts = cache.get(uiMsg.id)
-      if (!ts) {
-        ts = new Date().toISOString()
-        cache.set(uiMsg.id, ts)
-      }
-      return {
-        id: uiMsg.id,
-        role: uiMsg.role,
-        assistantId: assistant.id,
-        topicId: topic.id,
-        createdAt: ts,
-        status:
-          uiMsg.role === 'user'
-            ? UserMessageStatus.SUCCESS
-            : status === 'streaming' || status === 'submitted'
-              ? AssistantMessageStatus.PROCESSING
-              : AssistantMessageStatus.SUCCESS,
-        blocks: []
-      }
-    })
-
-    for (const key of cache.keys()) {
-      if (!activeIds.has(key)) cache.delete(key)
-    }
-
-    return messages
-  }, [liveUIMessages, assistant.id, topic.id, status])
-
-  // Merge: history (authority) + live streaming (appended).
-  // Merge history (from DataApi) + live (from useChat). Dedup by ID handles the
-  // brief race window between onStreamDone setMessages([]) and SWR refresh.
-  const adaptedMessages = useMemo<Message[]>(() => {
-    if (liveAdapted.length === 0) return historyMessages
-    const seen = new Set(historyMessages.map((m) => m.id))
-    const deduped = liveAdapted.filter((m) => !seen.has(m.id))
-    if (deduped.length === 0) return historyMessages
-    return [...historyMessages, ...deduped]
-  }, [historyMessages, liveAdapted])
-
-  // PartsContext: history parts + live streaming parts overlay.
-  // Live parts overlay on top — during active streaming they carry the latest content.
-  // Stale temp-ID entries may briefly exist in the race window but are harmless:
-  // adaptedMessages (which controls rendering) is already deduped by ID.
-  const partsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
-    if (liveUIMessages.length === 0) return historyPartsMap
-    const map: Record<string, CherryMessagePart[]> = { ...historyPartsMap }
-    for (const uiMsg of liveUIMessages) {
-      map[uiMsg.id] = uiMsg.parts as CherryMessagePart[]
-    }
-    return map
-  }, [historyPartsMap, liveUIMessages])
 
   /** Synchronous capability flags derived from assistant config. */
   const capabilityBody = useMemo(
@@ -396,8 +298,8 @@ const V2ChatContentInner: FC<InnerProps> = ({
               <div
                 className="fixed top-5 right-50 z-50 px-4 py-1 text-xs opacity-50"
                 style={{ color: 'var(--color-text-3)' }}>
-                [V2] {status} | {adaptedMessages.length} msgs ({historyMessages.length} history + {liveAdapted.length}{' '}
-                live)
+                [V2] {status} | {adaptedMessages.length} msgs ({historyMessages.length} history +{' '}
+                {streamingUIMessages.length} live)
                 {error && <span className="ml-2 text-red-500">{error.message}</span>}
               </div>
             )}
