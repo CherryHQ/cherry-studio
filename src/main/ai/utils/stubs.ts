@@ -10,7 +10,9 @@
  * 2. Refactor callers to receive data via function parameters instead of calling these
  */
 
-import type { Assistant, Model, Provider } from '@types'
+import type { Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
+import type { Assistant } from '@types'
 
 /** Stub: get provider config by model. */
 export function getProviderByModel(_model: Model): Provider | undefined {
@@ -48,7 +50,6 @@ export interface CherryWebSearchConfig {
   enabled?: boolean
   maxResults?: number
   excludeDomains?: string[]
-  searchWithTime?: boolean
   [key: string]: unknown
 }
 

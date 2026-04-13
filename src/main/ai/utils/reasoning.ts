@@ -1,4 +1,3 @@
-// @ts-nocheck — TODO (Step 2 Phase C): Remove after BuildContext refactor. Current file has renderer-stub type mismatches.
 import type { BedrockProviderOptions } from '@ai-sdk/amazon-bedrock'
 import type { AnthropicProviderOptions } from '@ai-sdk/anthropic'
 import type { GoogleGenerativeAIProviderOptions } from '@ai-sdk/google'
@@ -10,6 +9,7 @@ import { DEFAULT_MAX_TOKENS } from '@shared/config/constants'
 import {
   findTokenLimit,
   GEMINI_FLASH_MODEL_REGEX,
+  getLowerBaseModelName,
   getModelSupportedReasoningEffortOptions,
   isClaude46SeriesModel,
   isDeepSeekHybridInferenceModel,
@@ -41,18 +41,15 @@ import {
   isSupportNoneReasoningEffortModel
 } from '@shared/config/models'
 import { isSupportEnableThinkingProvider } from '@shared/config/providerChecks'
-import type { Assistant, Model, ReasoningEffortOption } from '@types'
-import { EFFORT_RATIO, isSystemProvider, SystemProviderIds } from '@types'
-import type { OpenAIReasoningEffort, OpenAIReasoningSummary } from '@types/aiCoreTypes'
+import type { Model } from '@shared/data/types/model'
+import { parseUniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
+import type { Assistant, ReasoningEffortOption } from '@types'
+import { EFFORT_RATIO, isSystemProviderId, SystemProviderIds } from '@types'
 import { toInteger } from 'lodash'
 import type { OllamaProviderOptions } from 'ollama-ai-provider-v2'
 
-// TODO (Step 2 Phase C): Replace with BuildContext injection
-import { getStoreSetting } from './stubs'
-// TODO (Step 2 Phase C): Replace with BuildContext injection
-import { getAssistantSettings, getProviderByModel } from './stubs'
-// TODO (Step 2 Phase C): Migrate utility function
-import { getLowerBaseModelName } from './stubs'
+import type { OpenAIReasoningEffort, OpenAIReasoningSummary } from '../../../renderer/src/types/aiCoreTypes'
 
 const logger = loggerService.withContext('reasoning')
 
@@ -90,9 +87,13 @@ type ReasoningEffortOptionalParams = {
 }
 
 // The function is only for generic provider. May extract some logics to independent provider
-export function getReasoningEffort(assistant: Assistant, model: Model): ReasoningEffortOptionalParams {
-  const provider = getProviderByModel(model)
-  const modelId = getLowerBaseModelName(model.id)
+export function getReasoningEffort(
+  assistant: Assistant,
+  model: Model,
+  provider: Provider
+): ReasoningEffortOptionalParams {
+  const rawModelId = parseUniqueModelId(model.id).modelId
+  const modelId = getLowerBaseModelName(rawModelId)
   if (provider.id === 'groq') {
     return {}
   }
@@ -118,7 +119,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   // Handle 'none' reasoningEffort. It's explicitly off.
   if (reasoningEffort === 'none') {
     // openrouter: use reasoning
-    if (model.provider === SystemProviderIds.openrouter) {
+    if (model.providerId === SystemProviderIds.openrouter) {
       if (isSupportNoneReasoningEffortModel(model) && reasoningEffort === 'none') {
         return { reasoning: { effort: 'none' } }
       }
@@ -128,7 +129,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     // nvidia: must use chat_template_kwargs
     // Since limited documentation, it's hard to find what parameters should be set
     // only part of mainstream oss model covered, all verified by nvidia api
-    if (model.provider === SystemProviderIds.nvidia) {
+    if (model.providerId === SystemProviderIds.nvidia) {
       if (isSupportedThinkingTokenQwenModel(model)) {
         return { chat_template_kwargs: { enable_thinking: false } }
       } else if (isDeepSeekHybridInferenceModel(model)) {
@@ -230,7 +231,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     // Claude models use thinking_budget parameter in extra_body
     if (isSupportedThinkingTokenClaudeModel(model)) {
       const effortRatio = EFFORT_RATIO[reasoningEffort]
-      const tokenLimit = findTokenLimit(model.id)
+      const tokenLimit = findTokenLimit(rawModelId)
       const maxTokens = assistant.settings?.maxTokens
 
       if (!tokenLimit) {
@@ -254,7 +255,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     // Gemini models use thinking_budget parameter in extra_body
     if (isSupportedThinkingTokenGeminiModel(model)) {
       const effortRatio = EFFORT_RATIO[reasoningEffort]
-      const tokenLimit = findTokenLimit(model.id)
+      const tokenLimit = findTokenLimit(rawModelId)
       let budgetTokens: number | undefined
       if (tokenLimit && reasoningEffort !== 'auto') {
         budgetTokens = Math.floor((tokenLimit.max - tokenLimit.min) * effortRatio + tokenLimit.min)
@@ -280,7 +281,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   }
 
   // OpenRouter models
-  if (model.provider === SystemProviderIds.openrouter) {
+  if (model.providerId === SystemProviderIds.openrouter) {
     // Grok 4 Fast doesn't support effort levels, always use enabled: true
     if (isGrok4FastReasoningModel(model)) {
       return {
@@ -310,7 +311,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   // nvidia: must use chat_template_kwargs
   // Since limited documentation, it's hard to find what parameters should be set
   // only part of mainstream oss model covered, all verified by nvidia api
-  if (model.provider === SystemProviderIds.nvidia) {
+  if (model.providerId === SystemProviderIds.nvidia) {
     if (isSupportedThinkingTokenQwenModel(model)) {
       const enableThinkingConfig = isQwenAlwaysThinkModel(model) ? {} : { enable_thinking: true }
       return {
@@ -329,7 +330,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   }
 
   // See https://docs.siliconflow.cn/cn/api-reference/chat-completions/chat-completions
-  if (model.provider === SystemProviderIds.silicon) {
+  if (model.providerId === SystemProviderIds.silicon) {
     if (
       isDeepSeekHybridInferenceModel(model) ||
       isSupportedThinkingTokenZhipuModel(model) ||
@@ -348,7 +349,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   // DeepSeek hybrid inference models, v3.1 and maybe more in the future
   // 不同的 provider 有不同的思考控制方式，在这里统一解决
   if (isDeepSeekHybridInferenceModel(model)) {
-    if (isSystemProvider(provider)) {
+    if (isSystemProviderId(provider.id)) {
       switch (provider.id) {
         case SystemProviderIds.dashscope:
           return {
@@ -402,7 +403,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
 
   // OpenRouter models, use reasoning
   // FIXME: duplicated openrouter handling. remove one
-  if (model.provider === SystemProviderIds.openrouter) {
+  if (model.providerId === SystemProviderIds.openrouter) {
     if (isSupportedReasoningEffortModel(model) || isSupportedThinkingTokenModel(model)) {
       return {
         reasoning: {
@@ -489,7 +490,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     } else {
       // 如果不支持，fallback到第一个支持的值
       return {
-        reasoningEffort: supportedOptions?.[0]
+        reasoningEffort: supportedOptions?.[0] as OpenAIReasoningEffort | undefined
       }
     }
   }
@@ -577,7 +578,8 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
  */
 export function getOpenAIReasoningParams(
   assistant: Assistant,
-  model: Model
+  model: Model,
+  openAISettings?: { summaryText?: OpenAIReasoningSummary }
 ): Pick<OpenAIResponsesProviderOptions, 'reasoningEffort' | 'reasoningSummary'> {
   if (!isReasoningModel(model)) {
     return {}
@@ -600,8 +602,7 @@ export function getOpenAIReasoningParams(
     }
   }
 
-  const openAI = getStoreSetting('openAI')
-  const summaryText = openAI.summaryText
+  const summaryText = openAISettings?.summaryText
 
   let reasoningSummary: OpenAIReasoningSummary = undefined
 
@@ -718,7 +719,7 @@ export function getAnthropicReasoningParams(
     }
 
     // Other Claude models continue using enabled + budgetTokens
-    const { maxTokens } = getAssistantSettings(assistant)
+    const maxTokens = assistant.settings?.maxTokens
     const budgetTokens = getThinkingBudget(maxTokens, reasoningEffort, model.id)
 
     return {
@@ -729,7 +730,7 @@ export function getAnthropicReasoningParams(
     }
   } else {
     // 其他使用claude端點的模型，比如Kimi,Minimax等等
-    const { maxTokens } = getAssistantSettings(assistant)
+    const maxTokens = assistant.settings?.maxTokens
     const budgetTokens = getThinkingBudget(maxTokens, reasoningEffort, model.id)
     // Always include budgetTokens to prevent Claude Agent SDK from converting
     // { type: 'enabled' } into '--thinking adaptive', which non-Anthropic
@@ -783,13 +784,15 @@ export function getGeminiReasoningParams(
     return {}
   }
 
+  const rawModelId = parseUniqueModelId(model.id).modelId
+
   let thinkingLevel: GoogleThinkingLevel | null = null
   const includeThoughts = reasoningEffort !== 'none'
 
   // https://ai.google.dev/gemini-api/docs/gemini-3?thinking=high#new_api_features_in_gemini_3
   if (isGemini3ThinkingTokenModel(model)) {
     thinkingLevel = mapToGeminiThinkingLevel(reasoningEffort)
-    if (thinkingLevel === 'minimal' && getLowerBaseModelName(model.id).includes('pro')) {
+    if (thinkingLevel === 'minimal' && getLowerBaseModelName(rawModelId).includes('pro')) {
       thinkingLevel = 'low'
     }
   }
@@ -824,7 +827,7 @@ export function getGeminiReasoningParams(
       }
     }
 
-    const { min, max } = findTokenLimit(model.id) || { min: 0, max: 0 }
+    const { min, max } = findTokenLimit(rawModelId) || { min: 0, max: 0 }
     const budget = Math.floor((max - min) * effortRatio + min)
 
     return {
@@ -848,7 +851,7 @@ export function getXAIReasoningParams(assistant: Assistant, model: Model): Pick<
     return {}
   }
 
-  const { reasoning_effort: reasoningEffort } = getAssistantSettings(assistant)
+  const reasoningEffort = assistant.settings?.reasoning_effort
 
   switch (reasoningEffort) {
     case 'auto':
@@ -917,7 +920,7 @@ export function getBedrockReasoningParams(
   }
 
   // Other Claude models use enabled + budgetTokens
-  const { maxTokens } = getAssistantSettings(assistant)
+  const maxTokens = assistant.settings?.maxTokens
   const budgetTokens = getThinkingBudget(maxTokens, reasoningEffort, model.id)
   return {
     reasoningConfig: {

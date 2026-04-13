@@ -1,7 +1,7 @@
 // @ts-nocheck — TODO (Step 2 Phase C): Remove after BuildContext refactor. Current file has renderer-stub type mismatches.
 import type { WebSearchPluginConfig } from '@cherrystudio/ai-core/core/plugins/built-in/webSearchPlugin'
 import { isOpenAIDeepResearchModel, isOpenAIWebSearchChatCompletionOnlyModel } from '@shared/config/models'
-import type { Model } from '@types'
+import type { Model } from '@shared/data/types/model'
 
 import type { AppProviderId } from '../types'
 // TODO (Step 2 Phase C): Extract websearch config type to shared

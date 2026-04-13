@@ -1,20 +1,20 @@
-// @ts-nocheck — TODO (Step 2 Phase C): Remove after BuildContext refactor. Current file has renderer-stub type mismatches.
 /**
  * 模型能力检查模块
  * 检查不同模型支持的功能（PDF输入、图片输入、大文件上传等）
  */
 
 import { isVisionModel } from '@shared/config/models'
-import type { FileType, Model } from '@types'
+import type { Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
+import type { FileType } from '@types'
 import { FILE_TYPE } from '@types'
 
 import { getAiSdkProviderId } from '../provider/factory'
-// TODO (Step 2 Phase C): Replace with BuildContext injection
-import { getProviderByModel } from './stubs'
 
 // 工具函数：基于模型名和提供商判断是否支持某特性
 function modelSupportValidator(
   model: Model,
+  provider: Provider,
   {
     supportedModels = [],
     unsupportedModels = [],
@@ -27,7 +27,6 @@ function modelSupportValidator(
     unsupportedProviders?: string[]
   }
 ): boolean {
-  const provider = getProviderByModel(model)
   const aiSdkId = getAiSdkProviderId(provider)
 
   // 黑名单：命中不支持的模型直接拒绝
@@ -59,9 +58,9 @@ export function supportsImageInput(model: Model): boolean {
 /**
  * 检查提供商是否支持大文件上传（如Gemini File API）
  */
-export function supportsLargeFileUpload(model: Model): boolean {
+export function supportsLargeFileUpload(model: Model, provider: Provider): boolean {
   // 基于AI SDK文档，以下模型或提供商支持大文件上传
-  return modelSupportValidator(model, {
+  return modelSupportValidator(model, provider, {
     supportedModels: ['qwen-long', 'qwen-doc'],
     supportedProviders: ['google', 'google-generative-ai', 'google-vertex']
   })
@@ -70,8 +69,7 @@ export function supportsLargeFileUpload(model: Model): boolean {
 /**
  * 获取提供商特定的文件大小限制
  */
-export function getFileSizeLimit(model: Model, fileType: FileType): number {
-  const provider = getProviderByModel(model)
+export function getFileSizeLimit(model: Model, provider: Provider, fileType: FileType): number {
   const aiSdkId = getAiSdkProviderId(provider)
 
   // Anthropic PDF限制32MB
@@ -85,7 +83,7 @@ export function getFileSizeLimit(model: Model, fileType: FileType): number {
   }
 
   // Dashscope如果模型支持大文件上传优先使用File API上传
-  if (aiSdkId === 'dashscope' && supportsLargeFileUpload(model)) {
+  if (aiSdkId === 'dashscope' && supportsLargeFileUpload(model, provider)) {
     return 0 // 使用较小的默认值
   }
 

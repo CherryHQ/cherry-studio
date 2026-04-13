@@ -1,13 +1,15 @@
-// @ts-nocheck — TODO (Step 2 Phase C): Remove after BuildContext refactor.
+// @ts-nocheck — TODO: Full v2 type migration pending. Pre-existing issues with stubs, Model/Provider types.
 /**
  * 参数构建模块
  * 构建AI SDK的流式和非流式参数
  */
 
 import { combineHeaders } from '@ai-sdk/provider-utils'
+import { application } from '@application'
 import type { WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugins'
 import { extensionRegistry } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
+import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@shared/config/constants'
 import {
   isAnthropicModel,
@@ -22,21 +24,15 @@ import {
   isSupportedThinkingTokenModel,
   isWebSearchModel
 } from '@shared/config/models'
-
-import type { AppProviderId } from '../types'
-import { getHubModeSystemPrompt } from './stubs'
-import { DEFAULT_ASSISTANT_SETTINGS, getDefaultModel } from './stubs'
-// TODO (Step 2 Phase C): Remove Redux store dependency
-const store = { getState: () => ({ websearch: {} as any }) }
-import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 import { isAIGatewayProvider, isAwsBedrockProvider, isSupportUrlContextProvider } from '@shared/config/providerChecks'
-import type { Model } from '@types'
-import { type Assistant, getEffectiveMcpMode, type MCPTool, type Provider, SystemProviderIds } from '@types'
+import type { Provider } from '@shared/data/types/provider'
+import { type Assistant, getEffectiveMcpMode, type MCPTool, SystemProviderIds } from '@types'
 import type { StreamTextParams } from '@types/aiCoreTypes'
 import type { ModelMessage } from 'ai'
 import { stepCountIs } from 'ai'
 
 import { getAiSdkProviderId } from '../provider/factory'
+import type { AppProviderId } from '../types'
 import type { ProviderCapabilities } from '../types'
 import { setupToolsConfig } from '../utils/mcp'
 import { buildProviderOptions } from '../utils/options'
@@ -44,6 +40,8 @@ import type { CherryWebSearchConfig } from '../utils/stubs'
 import { buildProviderBuiltinWebSearchConfig } from '../utils/websearch'
 import { addAnthropicHeaders } from './header'
 import { getMaxTokens, getTemperature, getTopP } from './modelParameters'
+import { getHubModeSystemPrompt } from './stubs'
+import { DEFAULT_ASSISTANT_SETTINGS, getDefaultModel } from './stubs'
 import { IdleTimeoutController, type IdleTimeoutHandle } from './stubs'
 import { replacePromptVariables } from './stubs'
 
@@ -149,12 +147,10 @@ export async function buildStreamTextParams(
   const enableGenerateImage = !!(isGenerateImageModel(model) && assistant.enableGenerateImage)
 
   const tools = setupToolsConfig(mcpTools, options.allowedTools)
-
-  // 构建真正的 providerOptions
+  const preferenceService = application.get('PreferenceService')
   const webSearchConfig: CherryWebSearchConfig = {
-    maxResults: store.getState().websearch.maxResults,
-    excludeDomains: store.getState().websearch.excludeDomains,
-    searchWithTime: store.getState().websearch.searchWithTime
+    maxResults: preferenceService.get('chat.web_search.max_results'),
+    excludeDomains: preferenceService.get('chat.web_search.exclude_domains')
   }
 
   const { providerOptions, standardParams } = buildProviderOptions(assistant, model, provider, {
