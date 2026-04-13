@@ -114,7 +114,7 @@ Note: Template keys follow the same dot-separated naming pattern as fixed keys. 
 Access in main process via lifecycle:
 
 ```typescript
-import { application } from '@main/core/application'
+import { application } from '@application'
 
 const cacheService = application.get('CacheService')
 cacheService.setShared('window.layout', layoutConfig)

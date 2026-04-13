@@ -16,6 +16,10 @@ const visualizerPlugin = (type: 'renderer' | 'main') => {
 
 const isDev = process.env.NODE_ENV === 'development'
 const isProd = process.env.NODE_ENV === 'production'
+const bundledMainDependencies = new Set(['@vectorstores/libsql'])
+const mainExternalDependencies = Object.keys(pkg.dependencies).filter(
+  (dependency) => !bundledMainDependencies.has(dependency)
+)
 
 export default defineConfig({
   main: {
@@ -30,18 +34,22 @@ export default defineConfig({
     resolve: {
       alias: {
         '@main': resolve('src/main'),
+        '@application': resolve('src/main/core/application'),
         '@types': resolve('src/renderer/src/types'),
         '@data': resolve('src/main/data'),
         '@shared': resolve('packages/shared'),
-        '@logger': resolve('src/main/services/LoggerService'),
+        '@logger': resolve('src/main/core/logger/LoggerService'),
         '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core'),
         '@mcp-trace/trace-node': resolve('packages/mcp-trace/trace-node'),
+        '@vectorstores/libsql': resolve('packages/vectorstores/libsql/src/index.ts'),
+        '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
+        '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
         '@test-mocks': resolve('tests/__mocks__')
       }
     },
     build: {
       rollupOptions: {
-        external: ['bufferutil', 'utf-8-validate', 'electron', ...Object.keys(pkg.dependencies)],
+        external: ['bufferutil', 'utf-8-validate', 'electron', ...mainExternalDependencies],
         output: {
           manualChunks: undefined, // 彻底禁用代码分割 - 返回 null 强制单文件打包
           inlineDynamicImports: true // 内联所有动态导入，这是关键配置
@@ -116,6 +124,8 @@ export default defineConfig({
         '@cherrystudio/ai-core': resolve('packages/aiCore/src'),
         '@cherrystudio/extension-table-plus': resolve('packages/extension-table-plus/src'),
         '@cherrystudio/ai-sdk-provider': resolve('packages/ai-sdk-provider/src'),
+        '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
+        '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
         '@cherrystudio/ui/icons': resolve('packages/ui/src/components/icons'),
         '@cherrystudio/ui': resolve('packages/ui/src'),
         '@test-mocks': resolve('tests/__mocks__')

@@ -19,13 +19,15 @@ const mockDb = {
   select: mockSelect,
   insert: mockInsert,
   update: mockUpdate,
-  delete: mockDelete
+  delete: mockDelete,
+  all: vi.fn(),
+  transaction: vi.fn(async (callback: (tx: typeof mockDb) => Promise<unknown>) => await callback(mockDb))
 }
 
 let realDb: DbType | null = null
 let closeClient: (() => void) | undefined
 
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: {
     get: vi.fn(() => ({
       getDb: vi.fn(() => realDb ?? mockDb)
@@ -56,6 +58,52 @@ function createMockRow(overrides: Record<string, unknown> = {}) {
   }
 }
 
+async function initializeKnowledgeTables(db: DbType) {
+  await db.run(sql`PRAGMA foreign_keys = ON`)
+  await db.run(
+    sql.raw(`
+      CREATE TABLE knowledge_base (
+        id TEXT PRIMARY KEY NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT,
+        dimensions INTEGER NOT NULL,
+        embedding_model_id TEXT NOT NULL,
+        rerank_model_id TEXT,
+        file_processor_id TEXT,
+        chunk_size INTEGER,
+        chunk_overlap INTEGER,
+        threshold REAL,
+        document_count INTEGER,
+        search_mode TEXT,
+        hybrid_alpha REAL,
+        created_at INTEGER,
+        updated_at INTEGER,
+        CONSTRAINT knowledge_base_search_mode_check CHECK (search_mode IN ('default', 'bm25', 'hybrid') OR search_mode IS NULL)
+      )
+    `)
+  )
+  await db.run(
+    sql.raw(`
+      CREATE TABLE knowledge_item (
+        id TEXT PRIMARY KEY NOT NULL,
+        base_id TEXT NOT NULL,
+        group_id TEXT,
+        type TEXT NOT NULL,
+        data TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'idle',
+        error TEXT,
+        created_at INTEGER,
+        updated_at INTEGER,
+        CONSTRAINT knowledge_item_type_check CHECK (type IN ('file', 'url', 'note', 'sitemap', 'directory')),
+        CONSTRAINT knowledge_item_status_check CHECK (status IN ('idle', 'pending', 'file_processing', 'read', 'embed', 'completed', 'failed')),
+        FOREIGN KEY (base_id) REFERENCES knowledge_base(id) ON DELETE CASCADE,
+        FOREIGN KEY (base_id, group_id) REFERENCES knowledge_item(base_id, id) ON DELETE CASCADE,
+        CONSTRAINT knowledge_item_baseId_id_unique UNIQUE (base_id, id)
+      )
+    `)
+  )
+}
+
 describe('KnowledgeItemService', () => {
   let service: InstanceType<typeof KnowledgeItemService>
 
@@ -64,6 +112,8 @@ describe('KnowledgeItemService', () => {
     mockInsert.mockReset()
     mockUpdate.mockReset()
     mockDelete.mockReset()
+    mockDb.all.mockReset()
+    mockDb.transaction.mockClear()
     getKnowledgeBaseByIdMock.mockReset()
     getKnowledgeBaseByIdMock.mockResolvedValue({ id: 'kb-1' })
     realDb = null
@@ -146,13 +196,17 @@ describe('KnowledgeItemService', () => {
 
   describe('createMany', () => {
     it('should create and return knowledge items', async () => {
-      const values = vi.fn().mockReturnValue({
+      const valuesFirst = vi.fn().mockReturnValue({
         returning: vi.fn().mockResolvedValue([
           createMockRow({
             id: 'item-1',
             type: 'directory',
-            data: { path: '/tmp/files', recursive: true }
-          }),
+            data: { name: 'files', path: '/tmp/files' }
+          })
+        ])
+      })
+      const valuesSecond = vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([
           createMockRow({
             id: 'item-2',
             type: 'note',
@@ -160,13 +214,13 @@ describe('KnowledgeItemService', () => {
           })
         ])
       })
-      mockInsert.mockReturnValue({ values })
+      mockInsert.mockReturnValueOnce({ values: valuesFirst }).mockReturnValueOnce({ values: valuesSecond })
 
       const dto: CreateKnowledgeItemsDto = {
         items: [
           {
             type: 'directory',
-            data: { path: '/tmp/files', recursive: true }
+            data: { name: 'files', path: '/tmp/files' }
           },
           {
             type: 'note',
@@ -177,28 +231,83 @@ describe('KnowledgeItemService', () => {
 
       const result = await service.createMany('kb-1', dto)
 
-      expect(values).toHaveBeenCalledWith([
-        {
-          baseId: 'kb-1',
-          groupId: null,
-          type: 'directory',
-          data: { path: '/tmp/files', recursive: true },
-          status: 'idle',
-          error: null
-        },
-        {
-          baseId: 'kb-1',
-          groupId: null,
-          type: 'note',
-          data: { content: 'child note' },
-          status: 'idle',
-          error: null
-        }
-      ])
+      expect(valuesFirst).toHaveBeenCalledWith({
+        baseId: 'kb-1',
+        groupId: null,
+        type: 'directory',
+        data: { name: 'files', path: '/tmp/files' },
+        status: 'idle',
+        error: null
+      })
+      expect(valuesSecond).toHaveBeenCalledWith({
+        baseId: 'kb-1',
+        groupId: null,
+        type: 'note',
+        data: { content: 'child note' },
+        status: 'idle',
+        error: null
+      })
       expect(result.items).toHaveLength(2)
       expect(result.items[0]).toMatchObject({
         id: 'item-1'
       })
+    })
+
+    it('should create grouped items that reference a batch-local parent by groupRef', async () => {
+      const valuesFirst = vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([
+          createMockRow({
+            id: 'generated-dir',
+            groupId: null,
+            type: 'directory',
+            data: { name: 'files', path: '/tmp/files' }
+          })
+        ])
+      })
+      const valuesSecond = vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([
+          createMockRow({
+            id: 'generated-note',
+            groupId: 'generated-dir',
+            type: 'note',
+            data: { content: 'child note' }
+          })
+        ])
+      })
+      mockInsert.mockReturnValueOnce({ values: valuesFirst }).mockReturnValueOnce({ values: valuesSecond })
+
+      const result = await service.createMany('kb-1', {
+        items: [
+          {
+            ref: 'root',
+            type: 'directory',
+            data: { name: 'files', path: '/tmp/files' }
+          },
+          {
+            groupRef: 'root',
+            type: 'note',
+            data: { content: 'child note' }
+          }
+        ]
+      })
+
+      expect(valuesFirst).toHaveBeenCalledWith({
+        baseId: 'kb-1',
+        groupId: null,
+        type: 'directory',
+        data: { name: 'files', path: '/tmp/files' },
+        status: 'idle',
+        error: null
+      })
+      expect(valuesSecond).toHaveBeenCalledWith({
+        baseId: 'kb-1',
+        groupId: 'generated-dir',
+        type: 'note',
+        data: { content: 'child note' },
+        status: 'idle',
+        error: null
+      })
+      expect(result.items).toHaveLength(2)
     })
 
     it('should reject invalid item data with validation error before insert', async () => {
@@ -263,49 +372,7 @@ describe('KnowledgeItemService', () => {
       })
       const db = realDb
 
-      await db.run(sql`PRAGMA foreign_keys = ON`)
-      await db.run(
-        sql.raw(`
-        CREATE TABLE knowledge_base (
-          id TEXT PRIMARY KEY NOT NULL,
-          name TEXT NOT NULL,
-          description TEXT,
-          dimensions INTEGER NOT NULL,
-          embedding_model_id TEXT NOT NULL,
-          rerank_model_id TEXT,
-          file_processor_id TEXT,
-          chunk_size INTEGER,
-          chunk_overlap INTEGER,
-          threshold REAL,
-          document_count INTEGER,
-          search_mode TEXT,
-          hybrid_alpha REAL,
-          created_at INTEGER,
-          updated_at INTEGER,
-          CONSTRAINT knowledge_base_search_mode_check CHECK (search_mode IN ('default', 'bm25', 'hybrid') OR search_mode IS NULL)
-        )
-      `)
-      )
-      await db.run(
-        sql.raw(`
-        CREATE TABLE knowledge_item (
-          id TEXT PRIMARY KEY NOT NULL,
-          base_id TEXT NOT NULL,
-          group_id TEXT,
-          type TEXT NOT NULL,
-          data TEXT NOT NULL,
-          status TEXT NOT NULL DEFAULT 'idle',
-          error TEXT,
-          created_at INTEGER,
-          updated_at INTEGER,
-          CONSTRAINT knowledge_item_type_check CHECK (type IN ('file', 'url', 'note', 'sitemap', 'directory')),
-          CONSTRAINT knowledge_item_status_check CHECK (status IN ('idle', 'pending', 'ocr', 'read', 'embed', 'completed', 'failed')),
-          FOREIGN KEY (base_id) REFERENCES knowledge_base(id) ON DELETE CASCADE,
-          FOREIGN KEY (base_id, group_id) REFERENCES knowledge_item(base_id, id) ON DELETE CASCADE,
-          CONSTRAINT knowledge_item_baseId_id_unique UNIQUE (base_id, id)
-        )
-      `)
-      )
+      await initializeKnowledgeTables(db)
 
       await db.insert(knowledgeBaseTable).values({
         id: 'kb-1',
@@ -320,7 +387,7 @@ describe('KnowledgeItemService', () => {
           baseId: 'kb-1',
           groupId: null,
           type: 'directory',
-          data: { path: '/a', recursive: true },
+          data: { name: 'a', path: '/a' },
           status: 'idle',
           error: null,
           createdAt: 100
@@ -330,7 +397,7 @@ describe('KnowledgeItemService', () => {
           baseId: 'kb-1',
           groupId: null,
           type: 'directory',
-          data: { path: '/b', recursive: true },
+          data: { name: 'b', path: '/b' },
           status: 'idle',
           error: null,
           createdAt: 90
@@ -398,6 +465,72 @@ describe('KnowledgeItemService', () => {
       })
 
       expect(result.items.map((item) => item.id)).toEqual(['note-group-a'])
+    })
+
+    it('getCascadeIdsInBase returns root ids with recursive descendants', async () => {
+      const db = realDb!
+
+      await db.insert(knowledgeItemTable).values({
+        id: 'note-grandchild',
+        baseId: 'kb-1',
+        groupId: 'note-group-a',
+        type: 'note',
+        data: { content: 'grandchild note' },
+        status: 'idle',
+        error: null,
+        createdAt: 50
+      })
+
+      const result = await service.getCascadeIdsInBase('kb-1', ['dir-a'])
+
+      expect(result).toEqual(['dir-a', 'note-group-a', 'note-grandchild'])
+    })
+
+    it('getByIdsInBase returns items in input order for one base', async () => {
+      const result = await service.getByIdsInBase('kb-1', ['note-plain', 'dir-a'])
+
+      expect(result.map((item) => item.id)).toEqual(['note-plain', 'dir-a'])
+      expect(result.map((item) => item.data)).toEqual([{ content: 'plain note' }, { name: 'a', path: '/a' }])
+    })
+
+    it('getByIdsInBase throws when any requested item is outside the base or missing', async () => {
+      await expect(service.getByIdsInBase('kb-1', ['note-plain', 'missing-item'])).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        status: 404
+      })
+    })
+
+    it('getCascadeIdsInBase preserves root order and deduplicates repeated root ids', async () => {
+      const db = realDb!
+
+      await db.insert(knowledgeItemTable).values([
+        {
+          id: 'child-root-1',
+          baseId: 'kb-1',
+          groupId: 'dir-a',
+          type: 'note',
+          data: { content: 'child a' },
+          status: 'idle',
+          error: null,
+          createdAt: 40
+        },
+        {
+          id: 'child-root-2',
+          baseId: 'kb-1',
+          groupId: 'dir-b',
+          type: 'note',
+          data: { content: 'child b' },
+          status: 'idle',
+          error: null,
+          createdAt: 30
+        }
+      ])
+
+      const result = await service.getCascadeIdsInBase('kb-1', ['dir-a', 'dir-b', 'dir-a'])
+
+      expect(result.slice(0, 2)).toEqual(['dir-a', 'dir-b'])
+      expect(result.slice(2)).toEqual(expect.arrayContaining(['note-group-a', 'child-root-1', 'child-root-2']))
+      expect(result).toHaveLength(5)
     })
 
     it('db check constraints reject invalid knowledge enums', async () => {
@@ -469,6 +602,163 @@ describe('KnowledgeItemService', () => {
         groupId: 'dir-a',
         type: 'note',
         data: { content: 'new grouped note' }
+      })
+    })
+
+    it('createMany accepts multi-level groupRef trees in one batch', async () => {
+      const result = await service.createMany('kb-1', {
+        items: [
+          {
+            ref: 'dir-a',
+            type: 'directory',
+            data: { name: 'a', path: '/a' }
+          },
+          {
+            ref: 'dir-b',
+            groupRef: 'dir-a',
+            type: 'directory',
+            data: { name: 'b', path: '/a/b' }
+          },
+          {
+            groupRef: 'dir-b',
+            type: 'note',
+            data: { content: 'nested note' }
+          }
+        ]
+      })
+
+      expect(result.items).toHaveLength(3)
+
+      const dirA = result.items.find((item) => item.type === 'directory' && item.data.path === '/a')
+      const dirB = result.items.find((item) => item.type === 'directory' && item.data.path === '/a/b')
+      const note = result.items.find((item) => item.type === 'note')
+
+      expect(dirA?.groupId).toBeNull()
+      expect(dirB?.groupId).toBe(dirA?.id)
+      expect(note?.groupId).toBe(dirB?.id)
+    })
+
+    it('createMany accepts sitemap owner items with grouped url children in one batch', async () => {
+      const result = await service.createMany('kb-1', {
+        items: [
+          {
+            ref: 'sitemap-root',
+            type: 'sitemap',
+            data: {
+              url: 'https://example.com/sitemap.xml',
+              name: 'Example Sitemap'
+            }
+          },
+          {
+            groupRef: 'sitemap-root',
+            type: 'url',
+            data: {
+              url: 'https://example.com/page-a',
+              name: 'Page A'
+            }
+          },
+          {
+            groupRef: 'sitemap-root',
+            type: 'url',
+            data: {
+              url: 'https://example.com/page-b',
+              name: 'Page B'
+            }
+          }
+        ]
+      })
+
+      expect(result.items).toHaveLength(3)
+
+      const sitemap = result.items.find((item) => item.type === 'sitemap')
+      const urlItems = result.items.filter((item) => item.type === 'url')
+
+      expect(sitemap?.groupId).toBeNull()
+      expect(urlItems).toHaveLength(2)
+      expect(urlItems.every((item) => item.groupId === sitemap?.id)).toBe(true)
+    })
+
+    it('createMany rejects self-referencing groupRef items', async () => {
+      await expect(
+        service.createMany('kb-1', {
+          items: [
+            {
+              ref: 'self',
+              groupRef: 'self',
+              type: 'note',
+              data: { content: 'self ref' }
+            }
+          ]
+        })
+      ).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: {
+          fieldErrors: {
+            groupRef: ['Knowledge item cannot reference itself as group owner']
+          }
+        }
+      })
+    })
+
+    it('createMany rejects two-node groupRef cycles', async () => {
+      await expect(
+        service.createMany('kb-1', {
+          items: [
+            {
+              ref: 'a',
+              groupRef: 'b',
+              type: 'note',
+              data: { content: 'A' }
+            },
+            {
+              ref: 'b',
+              groupRef: 'a',
+              type: 'note',
+              data: { content: 'B' }
+            }
+          ]
+        })
+      ).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: {
+          fieldErrors: {
+            groupRef: ['Knowledge item grouping cannot contain cycles within one request batch']
+          }
+        }
+      })
+    })
+
+    it('createMany rejects longer groupRef cycles', async () => {
+      await expect(
+        service.createMany('kb-1', {
+          items: [
+            {
+              ref: 'a',
+              groupRef: 'c',
+              type: 'directory',
+              data: { name: 'a', path: '/a' }
+            },
+            {
+              ref: 'b',
+              groupRef: 'a',
+              type: 'directory',
+              data: { name: 'b', path: '/b' }
+            },
+            {
+              ref: 'c',
+              groupRef: 'b',
+              type: 'note',
+              data: { content: 'cycle' }
+            }
+          ]
+        })
+      ).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: {
+          fieldErrors: {
+            groupRef: ['Knowledge item grouping cannot contain cycles within one request batch']
+          }
+        }
       })
     })
   })
@@ -568,7 +858,7 @@ describe('KnowledgeItemService', () => {
 
       await expect(
         service.update('item-1', {
-          data: { path: '/tmp/files', recursive: true }
+          data: { name: 'files', path: '/tmp/files' }
         })
       ).rejects.toMatchObject({
         code: ErrorCode.VALIDATION_ERROR,
@@ -652,49 +942,7 @@ describe('KnowledgeItemService', () => {
       })
       const db = realDb
 
-      await db.run(sql`PRAGMA foreign_keys = ON`)
-      await db.run(
-        sql.raw(`
-        CREATE TABLE knowledge_base (
-          id TEXT PRIMARY KEY NOT NULL,
-          name TEXT NOT NULL,
-          description TEXT,
-          dimensions INTEGER NOT NULL,
-          embedding_model_id TEXT NOT NULL,
-          rerank_model_id TEXT,
-          file_processor_id TEXT,
-          chunk_size INTEGER,
-          chunk_overlap INTEGER,
-          threshold REAL,
-          document_count INTEGER,
-          search_mode TEXT,
-          hybrid_alpha REAL,
-          created_at INTEGER,
-          updated_at INTEGER,
-          CONSTRAINT knowledge_base_search_mode_check CHECK (search_mode IN ('default', 'bm25', 'hybrid') OR search_mode IS NULL)
-        )
-      `)
-      )
-      await db.run(
-        sql.raw(`
-        CREATE TABLE knowledge_item (
-          id TEXT PRIMARY KEY NOT NULL,
-          base_id TEXT NOT NULL,
-          group_id TEXT,
-          type TEXT NOT NULL,
-          data TEXT NOT NULL,
-          status TEXT NOT NULL DEFAULT 'idle',
-          error TEXT,
-          created_at INTEGER,
-          updated_at INTEGER,
-          CONSTRAINT knowledge_item_type_check CHECK (type IN ('file', 'url', 'note', 'sitemap', 'directory')),
-          CONSTRAINT knowledge_item_status_check CHECK (status IN ('idle', 'pending', 'ocr', 'read', 'embed', 'completed', 'failed')),
-          FOREIGN KEY (base_id) REFERENCES knowledge_base(id) ON DELETE CASCADE,
-          FOREIGN KEY (base_id, group_id) REFERENCES knowledge_item(base_id, id) ON DELETE CASCADE,
-          CONSTRAINT knowledge_item_baseId_id_unique UNIQUE (base_id, id)
-        )
-      `)
-      )
+      await initializeKnowledgeTables(db)
 
       await db.insert(knowledgeBaseTable).values({
         id: 'kb-delete',
@@ -709,7 +957,7 @@ describe('KnowledgeItemService', () => {
           baseId: 'kb-delete',
           groupId: null,
           type: 'directory',
-          data: { path: '/docs', recursive: true },
+          data: { name: 'docs', path: '/docs' },
           status: 'idle',
           error: null,
           createdAt: 100

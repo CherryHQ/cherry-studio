@@ -20,11 +20,14 @@
  */
 
 import type { AssertValidSchemas } from '../apiTypes'
+import type { AssistantSchemas } from './assistants'
 import type { FileProcessingSchemas } from './fileProcessing'
 import type { KnowledgeSchemas } from './knowledges'
 import type { MCPServerSchemas } from './mcpServers'
 import type { MessageSchemas } from './messages'
 import type { MiniappSchemas } from './miniapps'
+import type { ModelSchemas } from './models'
+import type { ProviderSchemas } from './providers'
 import type { TopicSchemas } from './topics'
 import type { TranslateSchemas } from './translate'
 
@@ -44,9 +47,12 @@ import type { TranslateSchemas } from './translate'
 export type ApiSchemas = AssertValidSchemas<
   TopicSchemas &
     MessageSchemas &
+    ModelSchemas &
+    ProviderSchemas &
     TranslateSchemas &
     FileProcessingSchemas &
     MCPServerSchemas &
     KnowledgeSchemas &
-    MiniappSchemas
+    MiniappSchemas &
+    AssistantSchemas
 >

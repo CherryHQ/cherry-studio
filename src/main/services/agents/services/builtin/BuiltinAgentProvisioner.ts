@@ -8,8 +8,8 @@
  * The Claude Agent SDK auto-discovers skills from .claude/skills/ and
  * plugins from .claude/plugins.json, so no programmatic injection is needed.
  */
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import fs from 'fs'
 import path from 'path'
 

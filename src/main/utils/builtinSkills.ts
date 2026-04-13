@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import { parseSkillMetadata } from '@main/utils/markdownParser'
 import { app } from 'electron'
 

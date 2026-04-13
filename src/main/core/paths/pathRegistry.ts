@@ -81,6 +81,11 @@ export function buildPathRegistry() {
 
     // -- D. feature.* — grouped by feature, physical location is irrelevant --
 
+    // Provider registry data (models.json, providers.json, etc.)
+    'feature.provider_registry.data': app.isPackaged
+      ? path.join(appExtraResources, 'packages/provider-registry/data')
+      : path.join(__dirname, '../../packages/provider-registry/data'),
+
     // MCP
     'feature.mcp': path.join(CHERRY_HOME, 'mcp'),
     'feature.mcp.oauth': path.join(CHERRY_HOME, 'config', 'mcp', 'oauth'),
@@ -180,6 +185,7 @@ const NO_ENSURE = [
   'app.root.resources.scripts',
   'app.root.resources.binaries',
   'app.database.migrations',
+  'feature.provider_registry.data',
   'feature.agents.builtin',
   'feature.agents.skills.builtin'
 ] as const satisfies readonly NoEnsureEntry[]

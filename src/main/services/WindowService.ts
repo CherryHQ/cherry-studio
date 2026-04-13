@@ -1,12 +1,13 @@
-import { is } from '@electron-toolkit/utils'
+import { application } from '@application'
+import { is, optimizer } from '@electron-toolkit/utils'
 import { loggerService } from '@logger'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
-import { application } from '@main/core/application'
 import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, BrowserWindow, nativeImage, nativeTheme, screen, shell } from 'electron'
+import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer'
 import windowStateKeeper from 'electron-window-state'
 import path, { join } from 'path'
 
@@ -44,9 +45,18 @@ export class WindowService extends BaseService {
   }
 
   protected async onInit() {
+    this.registerWindowShortcuts()
     this.registerIpcHandlers()
     this.registerActivateHandler()
     this.registerSecondInstanceHandler()
+  }
+
+  private registerWindowShortcuts() {
+    const handler = (_: Electron.Event, window: BrowserWindow) => {
+      optimizer.watchWindowShortcuts(window)
+    }
+    app.on('browser-window-created', handler)
+    this.registerDisposable(() => app.removeListener('browser-window-created', handler))
   }
 
   protected async onReady() {
@@ -59,6 +69,13 @@ export class WindowService extends BaseService {
     }
 
     this.createMainWindow()
+
+    // Install React Developer Tools extension for debugging in development mode
+    if (isDev) {
+      installExtension(REACT_DEVELOPER_TOOLS)
+        .then((name) => logger.info(`Added Extension: ${name}`))
+        .catch((err) => logger.error('An error occurred: ', err))
+    }
   }
 
   private checkMainWindow() {

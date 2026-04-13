@@ -6,7 +6,7 @@ All paths are registered in `pathRegistry.ts` and accessed exclusively via `appl
 ## Quick Start
 
 ```ts
-import { application } from '@main/core/application'
+import { application } from '@application'
 
 const dir  = application.getPath('feature.files.data')
 //=> '/Users/alice/Library/Application Support/CherryStudio/Data/Files'

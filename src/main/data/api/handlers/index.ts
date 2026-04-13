@@ -7,16 +7,21 @@
  * Handler files are organized by domain:
  * - topics.ts - Topic API handlers
  * - messages.ts - Message API handlers
+ * - models.ts - Model API handlers
+ * - providers.ts - Provider API handlers
  * - translate.ts - Translate API handlers
  */
 
 import type { ApiImplementation } from '@shared/data/api/apiTypes'
 
+import { assistantHandlers } from './assistants'
 import { fileProcessingHandlers } from './fileProcessing'
 import { knowledgeHandlers } from './knowledges'
 import { mcpServerHandlers } from './mcpServers'
 import { messageHandlers } from './messages'
 import { miniappHandlers } from './miniapps'
+import { modelHandlers } from './models'
+import { providerHandlers } from './providers'
 import { topicHandlers } from './topics'
 import { translateHandlers } from './translate'
 
@@ -28,9 +33,12 @@ import { translateHandlers } from './translate'
  * TypeScript ensures exhaustive coverage - missing handlers cause compile errors.
  */
 export const apiHandlers: ApiImplementation = {
+  ...assistantHandlers,
   ...fileProcessingHandlers,
   ...topicHandlers,
   ...messageHandlers,
+  ...modelHandlers,
+  ...providerHandlers,
   ...knowledgeHandlers,
   ...translateHandlers,
   ...mcpServerHandlers,

@@ -1,7 +1,8 @@
+import path from 'node:path'
+
 import type { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
-import { normalizeKnowledgeBaseConfig } from '@data/services/knowledgeBaseConfig'
 import type { FileMetadata } from '@shared/data/types/file'
-import type { ItemStatus, KnowledgeItemData } from '@shared/data/types/knowledge'
+import type { KnowledgeItemData, KnowledgeItemStatus } from '@shared/data/types/knowledge'
 
 export type NewKnowledgeBase = typeof knowledgeBaseTable.$inferInsert
 export type NewKnowledgeItem = typeof knowledgeItemTable.$inferInsert
@@ -109,7 +110,7 @@ export const toTimestamp = (value: number | undefined): number | undefined => {
   return undefined
 }
 
-export const toCompositeModelId = (model: LegacyModel | null | undefined): string | null => {
+export const toUniqueModelId = (model: LegacyModel | null | undefined): string | null => {
   if (!model) {
     return null
   }
@@ -120,6 +121,7 @@ export const toCompositeModelId = (model: LegacyModel | null | undefined): strin
     return null
   }
 
+  // Already in UniqueModelId format
   if (modelId.includes('::')) {
     return modelId
   }
@@ -127,8 +129,40 @@ export const toCompositeModelId = (model: LegacyModel | null | undefined): strin
   return `${providerId}::${modelId}`
 }
 
-export const inferKnowledgeItemStatus = (item: Pick<LegacyKnowledgeItem, 'uniqueId'>): ItemStatus =>
+export const inferKnowledgeItemStatus = (item: Pick<LegacyKnowledgeItem, 'uniqueId'>): KnowledgeItemStatus =>
   typeof item.uniqueId === 'string' && item.uniqueId.trim() !== '' ? 'completed' : 'idle'
+
+function normalizeMigratedKnowledgeBaseConfig<T extends Partial<NewKnowledgeBase>>(config: T): T {
+  const normalized = { ...config }
+
+  if (normalized.chunkSize != null && normalized.chunkSize <= 0) {
+    normalized.chunkSize = undefined as T['chunkSize']
+  }
+
+  if (normalized.chunkOverlap != null) {
+    if (normalized.chunkOverlap < 0) {
+      normalized.chunkOverlap = undefined as T['chunkOverlap']
+    } else if (normalized.chunkSize == null || normalized.chunkOverlap >= normalized.chunkSize) {
+      normalized.chunkOverlap = undefined as T['chunkOverlap']
+    }
+  }
+
+  if (normalized.threshold != null && (normalized.threshold < 0 || normalized.threshold > 1)) {
+    normalized.threshold = undefined as T['threshold']
+  }
+
+  if (normalized.documentCount != null && normalized.documentCount <= 0) {
+    normalized.documentCount = undefined as T['documentCount']
+  }
+
+  if (normalized.hybridAlpha != null) {
+    if (normalized.hybridAlpha < 0 || normalized.hybridAlpha > 1 || normalized.searchMode !== 'hybrid') {
+      normalized.hybridAlpha = undefined as T['hybridAlpha']
+    }
+  }
+
+  return normalized
+}
 
 export const resolveLegacyFileMetadata = (
   content: LegacyKnowledgeItem['content'],
@@ -159,7 +193,7 @@ export const transformKnowledgeBase = (
   base: LegacyKnowledgeBaseWithIdentity,
   dimensions: number
 ): KnowledgeBaseTransformResult => {
-  const embeddingModelId = toCompositeModelId(base.model ?? null)
+  const embeddingModelId = toUniqueModelId(base.model ?? null)
   if (!embeddingModelId) {
     return {
       ok: false,
@@ -173,7 +207,7 @@ export const transformKnowledgeBase = (
     description: base.description,
     dimensions,
     embeddingModelId,
-    rerankModelId: toCompositeModelId(base.rerankModel ?? null),
+    rerankModelId: toUniqueModelId(base.rerankModel ?? null),
     fileProcessorId: base.preprocessProvider?.provider?.id,
     chunkSize: base.chunkSize,
     chunkOverlap: base.chunkOverlap,
@@ -186,7 +220,7 @@ export const transformKnowledgeBase = (
 
   return {
     ok: true,
-    value: normalizeKnowledgeBaseConfig(transformedBase)
+    value: normalizeMigratedKnowledgeBaseConfig(transformedBase)
   }
 }
 
@@ -255,8 +289,8 @@ export const transformKnowledgeItem = (
 
     type = 'directory'
     data = {
-      path: item.content,
-      recursive: true
+      name: path.basename(item.content),
+      path: item.content
     }
   } else if (item.type === 'note') {
     const note = deps.noteById.get(item.id)

@@ -74,6 +74,8 @@ export interface ValidateResult {
     skippedCount: number
     mismatchReason?: string
   }
+  /** Migrator-specific diagnostics for threshold-based failure decisions */
+  diagnostics?: Record<string, number>
 }
 
 // Individual migrator result

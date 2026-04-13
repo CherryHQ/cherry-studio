@@ -311,7 +311,7 @@ export class LifecycleManager extends EventEmitter {
    */
   public getBootstrapSummary(totalDuration: number, excludedCount: number): string {
     const totalServices = this.initializationOrder.length
-    const W = 48
+    const W = 54
     const lines: string[] = []
 
     const fmt = (ms: number) => ms.toFixed(3) + 'ms'
@@ -319,7 +319,7 @@ export class LifecycleManager extends EventEmitter {
     const sep = (l: string, r: string) => `${l}${'─'.repeat(W)}${r}`
 
     lines.push(sep('┌', '┐'))
-    lines.push(row('               Bootstrap Summary'.padEnd(W)))
+    lines.push(row('                  Bootstrap Summary'.padEnd(W)))
     lines.push(sep('├', '┤'))
     lines.push(row(`  Total: ${totalServices} services in ${fmt(totalDuration)}`))
 
@@ -350,10 +350,10 @@ export class LifecycleManager extends EventEmitter {
       if (timing && services && services.length > 0) {
         services.sort((a, b) => b[1] - a[1])
         const title = `[${phase}] ${timing.serviceCount} services`
-        lines.push(row(`  ${title.padEnd(30)} ${fmt(timing.duration).padStart(12)}`))
+        lines.push(row(`  ${title.padEnd(36)} ${fmt(timing.duration).padStart(12)}`))
         for (const [name, ms] of services) {
           const tags = this.getServiceTags(name)
-          lines.push(row(`    ${name.padEnd(26)} ${tags}  ${fmt(ms).padStart(10)}`))
+          lines.push(row(`    ${name.padEnd(32)} ${tags}  ${fmt(ms).padStart(10)}`))
         }
       } else {
         lines.push(row(`  [${phase}]`))
@@ -361,7 +361,7 @@ export class LifecycleManager extends EventEmitter {
 
       if (excludedServices && excludedServices.length > 0) {
         for (const name of excludedServices) {
-          lines.push(row(`    ${name.padEnd(26)} C   ${'Excluded'.padStart(10)}`))
+          lines.push(row(`    ${name.padEnd(32)} C   ${'Excluded'.padStart(10)}`))
         }
       }
     }

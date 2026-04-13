@@ -8,7 +8,7 @@
 //     constructs at module load and consumes LOGS_DIR through this file.
 //
 // CONSUMERS (all main-process bootstrap services):
-//   - src/main/services/LoggerService.ts            → uses LOGS_DIR
+//   - src/main/core/logger/LoggerService.ts         → uses LOGS_DIR
 //   - src/main/data/bootConfig/BootConfigService.ts → uses BOOT_CONFIG_PATH
 //   - src/main/core/paths/pathRegistry.ts           → re-exposes LOGS_DIR as 'app.logs'
 
