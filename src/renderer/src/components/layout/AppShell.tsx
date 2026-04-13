@@ -46,8 +46,8 @@ export const AppShell = () => {
         <Sidebar />
 
         {/* Zone 2b: Content Area - Multi MemoryRouter Architecture */}
-        <div className="flex flex-1 flex-col min-w-0 pr-2 pb-2">
-          <main className="relative flex-1 overflow-hidden bg-background rounded-[16px]">
+        <div className="flex min-w-0 flex-1 flex-col pr-2 pb-2">
+          <main className="relative flex-1 overflow-hidden rounded-[16px] bg-background">
             {/* Route Tabs: Only render non-dormant tabs */}
             {tabs
               .filter((t) => t.type === 'route' && !t.isDormant)
