@@ -1,28 +1,10 @@
 {
-  "generated_at": "2026-04-12T18:00:00.000000+00:00",
-  "date": "2026-04-12",
-  "total_discussions": 0,
-  "data_available": false,
-  "answered": 0,
-  "unanswered": 0,
-  "answered_rate_pct": 0.0,
-  "recent_30d": 0,
-  "category_breakdown": {},
-  "top_unanswered": [],
-  "note": "GitHub Discussions GraphQL API requires GITHUB_TOKEN with read:discussion scope. Running without token — discussion data unavailable for this run.",
-  "known_hot_topics": [
-    "v1.9.0 released 2026-04-09 — v1.9.1 milestone open with 12 issues",
-    "Azure OpenAI /responses API regression (#13193) — 39 days open, assigned to DeJeune",
-    "PDF attachment regression in v1.7.19 (#13105) — 43 days open, unassigned",
-    "V2 migration progress — 81 PRs merged, 50 open; massive 10-PR batch on Apr 10–11",
-    "Critical security advisory GHSA-qmgw-45x4-3626 (#12966) — 52 days without public response",
-    "OneDrive data loss on in-app upgrade (#13061) — P1, unassigned, 45 days open"
-  ],
-  "action_items": [
-    "Publicly acknowledge GHSA-qmgw-45x4-3626 security advisory — overdue by 52 days",
-    "Assign owners to P1 issues: #13608, #13105, #13061",
-    "Pin FAQ entry for Azure OpenAI /responses API regression (#13193)",
-    "Post v2 roadmap update for community — 81 PRs merged is a major milestone",
-    "Triage 129 stale issues (31–90 days without update)"
-  ]
+  "generated_at": "2026-04-13T00:00:00Z",
+  "date": "2026-04-13",
+  "data_source": "GitHub Discussions API (GraphQL) — not available via MCP tools in this session",
+  "note": "Discussion data requires GraphQL API access. This file will be populated when gh CLI or GraphQL MCP tool is available.",
+  "placeholder": true,
+  "recent_discussion_count": null,
+  "top_categories": [],
+  "unanswered_count": null
 }

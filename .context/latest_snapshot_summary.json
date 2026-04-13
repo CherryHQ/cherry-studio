@@ -1,135 +1,157 @@
 {
-  "generated_at": "2026-04-12T18:00:00.000000+00:00",
-  "date": "2026-04-12",
-  "data_source": "github_mcp_api",
-  "api_available": true,
-  "latest_release": {
-    "version": "v1.9.0",
-    "released_today": false,
-    "pr": 14142,
-    "date": "2026-04-09",
-    "next_milestone": "v1.9.1",
-    "v1_9_1_open_issues": 12
-  },
+  "generated_at": "2026-04-13T00:00:00Z",
+  "date": "2026-04-13",
   "open_issues": {
-    "total": 713,
-    "p1_critical": 5,
-    "bugs": 169,
-    "unlabeled": 62,
-    "unlabeled_pct": 8.7,
-    "new_7d": 339,
-    "aged_30_90d": 129,
-    "stale_90d_plus": 3,
-    "data_freshness": "live_2026-04-12",
-    "label_distribution": {
-      "inactive": 70,
-      "BUG": 42,
-      "Models": 24,
-      "UI/UX": 14,
-      "discussion": 13,
-      "MCP": 12,
-      "help wanted": 11,
-      "Assistant": 10,
-      "Data": 10,
-      "feature": 8,
-      "needs-repro": 7,
-      "RAG": 4,
-      "Connectivity": 4
+    "total": 723,
+    "health": {
+      "Active": 428,
+      "Aging": 163,
+      "Stale": 129,
+      "Zombie": 3
     },
-    "label_distribution_note": "Sample from 100 most-recently-updated issues; full BUG=169, unlabeled=62 confirmed via live search",
-    "top_reporters": {
-      "EurFelux": 33,
-      "JohnXu22786": 17,
-      "DeJeune": 15,
-      "SiinXu": 13,
-      "id7869": 12,
-      "Huaweidev": 10,
-      "NianBroken": 8
+    "health_pct": {
+      "Active": 59.2,
+      "Aging": 22.5,
+      "Stale": 17.8,
+      "Zombie": 0.4
+    },
+    "uncategorized_count": 44,
+    "uncategorized_pct": 6.1,
+    "label_distribution": {
+      "feature": 126,
+      "UI/UX": 112,
+      "inactive": 108,
+      "Models": 88,
+      "BUG": 61,
+      "Blocked: v2": 60,
+      "Data": 41,
+      "Assistant": 40,
+      "discussion": 33,
+      "MCP": 32,
+      "help wanted": 30,
+      "RAG": 30,
+      "P2": 23,
+      "P3": 21,
+      "needs-repro": 20,
+      "Planned": 15,
+      "Connectivity": 14,
+      "v2": 13,
+      "OpenClaw": 11,
+      "Agent": 9,
+      "P1": 5
+    },
+    "p1_issues": [
+      {
+        "number": 12966,
+        "title": "[URGENT] Unanswered Critical Security Advisory (GHSA-qmgw-45x4-3626) - Pending Triage for 8 Days",
+        "labels": [
+          "BUG",
+          "P1"
+        ],
+        "assignee": null,
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/12966"
+      },
+      {
+        "number": 13061,
+        "title": "[Bug]: Data is cleared after in-app upgrade when syncing data via OneDrive",
+        "labels": [
+          "P1",
+          "Data",
+          "inactive"
+        ],
+        "assignee": null,
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/13061"
+      },
+      {
+        "number": 13105,
+        "title": "[Bug]: In version 1.7.19, when sending PDF files directly in the chat box, almost all models cannot read PDF files",
+        "labels": [
+          "P1",
+          "Models",
+          "inactive"
+        ],
+        "assignee": null,
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/13105"
+      },
+      {
+        "number": 13193,
+        "title": "[Bug]: [AI_APICallError: Resource not found, default use responses API] Could not call Azure openai",
+        "labels": [
+          "P1",
+          "Models"
+        ],
+        "assignee": "DeJeune",
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"
+      },
+      {
+        "number": 13608,
+        "title": "[Bug]: xiaomi mimo response only displays the last line",
+        "labels": [
+          "P1",
+          "Models"
+        ],
+        "assignee": null,
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/13608"
+      }
+    ]
+  },
+  "open_prs": {
+    "total_sampled": 100,
+    "note": "MCP returns up to 100 per page; actual count may be higher",
+    "label_distribution": {
+      "v2": 21,
+      "Blocked: v2": 9,
+      "WIP": 5,
+      "Pending": 2,
+      "PM said OK": 2,
+      "needs-review": 2,
+      "needs-more-info": 1,
+      "ready-to-merge": 1,
+      "Dev Team": 1,
+      "needs-verified": 1,
+      "Blocked": 1
     }
   },
   "closed_issues_30d": {
-    "total": 156,
-    "data_freshness": "live_2026-04-12"
-  },
-  "open_prs": {
-    "total": 230,
-    "to_main": 75,
-    "to_v2": 50,
-    "draft": 18,
-    "data_note": "total_count from live search (230); base branch split from sampled first 100"
+    "total_sampled": 100,
+    "label_distribution": {
+      "Models": 24,
+      "UI/UX": 22,
+      "inactive": 12,
+      "BUG": 11,
+      "Assistant": 10,
+      "discussion": 9,
+      "help wanted": 8,
+      "P2": 8,
+      "Connectivity": 7,
+      "needs-repro": 7,
+      "needs-more-info": 7,
+      "duplicate": 7,
+      "MCP": 4,
+      "closed:no-response": 4,
+      "OpenClaw": 3
+    }
   },
   "v2_branch": {
-    "open_prs": 50,
-    "merged_prs_total": 81,
-    "merged_prs_30d": 52,
-    "data_freshness": "live_2026-04-12"
-  },
-  "p1_issues_list": [
-    {
-      "number": 13608,
-      "title": "[Bug]: xiaomi mimo response only displays the last line",
-      "labels": ["P1", "Models"],
-      "age_days": 25,
-      "last_updated": "2026-03-19",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13608"
+    "open_prs": 52,
+    "merged_prs_30d": 50,
+    "merged_breakdown": {
+      "feat": 16,
+      "fix": 20,
+      "refactor": 9,
+      "docs": 5
     },
-    {
-      "number": 13193,
-      "title": "[Bug]: Azure OpenAI Resource not found - defaults to responses API",
-      "labels": ["P1", "Models"],
-      "age_days": 39,
-      "assignee": "DeJeune",
-      "last_updated": "2026-03-05",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"
-    },
-    {
-      "number": 13105,
-      "title": "[Bug]: PDF files cannot be read in v1.7.19 when sent directly in chat",
-      "labels": ["P1", "Models", "inactive"],
-      "age_days": 43,
-      "last_updated": "2026-04-07",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13105"
-    },
-    {
-      "number": 13061,
-      "title": "[Bug]: Data cleared after in-app upgrade when syncing via OneDrive",
-      "labels": ["P1", "Data", "inactive"],
-      "age_days": 45,
-      "last_updated": "2026-04-05",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13061"
-    },
-    {
-      "number": 12966,
-      "title": "[URGENT] Unanswered Critical Security Advisory (GHSA-qmgw-45x4-3626)",
-      "labels": ["BUG", "P1"],
-      "age_days": 52,
-      "last_updated": "2026-03-25",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/12966"
-    }
-  ],
-  "today_git_activity": {
-    "commits_to_main_since_v1_9_0": 0,
-    "note": "main is under code freeze since v1.9.0 release (2026-04-09); hotfix/* only",
-    "prs_merged_to_main_today": 0,
-    "v2_merges_since_yesterday": 10,
-    "v2_notable_recent_merges": [
-      {"number": 14180, "title": "fix: remove libsql_vector_idx", "date": "2026-04-11", "area": "Database"},
-      {"number": 14090, "title": "feat(v2): knowledge service backend", "date": "2026-04-10", "area": "Knowledge"},
-      {"number": 14115, "title": "feat(data): provider/model data migration and registry service", "date": "2026-04-10", "area": "Provider Settings"},
-      {"number": 13954, "title": "feat(sidebar): rewrite sidebar with Tailwind/shadcn UI", "date": "2026-04-10", "area": "UI/Navigation"},
-      {"number": 12474, "title": "feat(tabs): implement browser-like tab system", "date": "2026-04-10", "area": "UI/Navigation"},
-      {"number": 14147, "title": "refactor: replace HTTP MCP proxy with in-memory SDK transport", "date": "2026-04-10", "area": "MCP"},
-      {"number": 14143, "title": "fix: restore agents UI routing, auth, and message sending", "date": "2026-04-10", "area": "Agents"},
-      {"number": 14032, "title": "feat(aiCore): add createAgent factory for ToolLoopAgent", "date": "2026-04-04", "area": "AI Core"},
-      {"number": 13943, "title": "fix(migration): seed builtin languages before migrating translate", "date": "2026-04-02", "area": "Migration"},
-      {"number": 13942, "title": "feat(ui): add Drawer component and Storybook stories", "date": "2026-04-02", "area": "UI"}
+    "recent_merged": [
+      "#13851 feat(v2): decouple assistant from topic with dedicated table and migration",
+      "#14220 refactor: move rtk extraction into agent bootstrap service",
+      "#14180 fix: remove libsql_vector_idx",
+      "#14090 feat(v2): knowledge service backend",
+      "#14166 fix(data): log non-NotFound errors in getEffectiveReasoningConfig",
+      "#14115 feat(data): provider/model data migration and registry service",
+      "#13954 feat(sidebar): rewrite sidebar with Tailwind/shadcn UI",
+      "#14147 refactor: replace HTTP MCP proxy with in-memory SDK transport",
+      "#12474 feat(tabs): implement browser-like tab system with detach/attach support",
+      "#14143 fix: restore agents UI routing, auth, and message sending"
     ]
-  },
-  "delta_from_yesterday": {
-    "open_issues": "+6 (707 → 713)",
-    "open_prs": "-2 (232 → 230)",
-    "v2_merged_prs_total": "+10 (71 → 81)",
-    "closed_issues_30d": "-5 (161 → 156, 30d window shift)",
-    "p1_count": "-2 (7 → 5, issues #14201 and #14200 resolved/de-prioritized)"
   }
 }

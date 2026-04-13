@@ -1,83 +1,85 @@
 {
-  "generated_at": "2026-04-12T18:00:00.000000+00:00",
-  "date": "2026-04-12",
-  "total_open_issues": 713,
-  "data_available": true,
-  "data_source": "github_mcp_api_search",
-  "health_summary": {
-    "Active": 339,
-    "Aging": 242,
-    "Stale": 129,
-    "Zombie": 3
+  "generated_at": "2026-04-13T00:00:00Z",
+  "date": "2026-04-13",
+  "methodology": {
+    "Active": "updated within 14 days (after 2026-03-30)",
+    "Aging": "updated 14-30 days ago (2026-03-14 to 2026-03-30)",
+    "Stale": "updated 30-90 days ago (2026-01-13 to 2026-03-14)",
+    "Zombie": "not updated in 90+ days (before 2026-01-13)"
   },
-  "health_pct": {
-    "Active": 47.5,
-    "Aging": 33.9,
-    "Stale": 18.1,
-    "Zombie": 0.4
+  "total_open_issues": 723,
+  "health_distribution": {
+    "Active": {
+      "count": 428,
+      "pct": 59.2
+    },
+    "Aging": {
+      "count": 163,
+      "pct": 22.5
+    },
+    "Stale": {
+      "count": 129,
+      "pct": 17.8
+    },
+    "Zombie": {
+      "count": 3,
+      "pct": 0.4
+    }
   },
-  "health_score": 66.3,
-  "health_score_formula": "(Active*1.0 + Aging*0.5 + Stale*0.1) / Total * 100",
-  "health_trend": {
-    "2026-04-11": 65.1,
-    "2026-04-12": 66.3,
-    "delta": "+1.2"
+  "score_note": "59.2% active rate. 18.2% stale/zombie — cleanup opportunity.",
+  "uncategorized": {
+    "count": 44,
+    "pct_of_sample": 11.0,
+    "note": "Issues in 400-sample with no functional label (no BUG/feature/UI-UX/Models/Data/MCP/RAG/Assistant/Connectivity/discussion/Agent/P-priority)"
   },
-  "definitions": {
-    "Active": "updated ≤7 days (>2026-04-05)",
-    "Aging": "updated 8–30 days (2026-03-13..2026-04-05)",
-    "Stale": "updated 31–90 days (2026-01-12..2026-03-12)",
-    "Zombie": "updated >90 days (<2026-01-12)"
+  "p_priority_distribution": {
+    "P1": 5,
+    "P2": 23,
+    "P3": 21,
+    "unlabeled_priority": 674
   },
-  "zombie_issues": [
+  "inactive_label_count": 108,
+  "blocked_v2_count": 60,
+  "needs_repro_count": 20,
+  "top_areas_by_open_issues": [
     {
-      "number": 11578,
-      "title": "Upgrade to the MCP protocol by November 25, 2025",
-      "labels": ["MCP"],
-      "updated_at": "2025-11-30T10:29:08Z",
-      "update_age_days": 133,
-      "assignee": "DeJeune"
+      "area": "feature",
+      "count": 126
+    },
+    {
+      "area": "UI/UX",
+      "count": 112
+    },
+    {
+      "area": "Models",
+      "count": 88
+    },
+    {
+      "area": "BUG",
+      "count": 61
+    },
+    {
+      "area": "Data",
+      "count": 41
+    },
+    {
+      "area": "Assistant",
+      "count": 40
+    },
+    {
+      "area": "MCP",
+      "count": 32
+    },
+    {
+      "area": "RAG",
+      "count": 30
     }
   ],
-  "stale_issues": [],
-  "aging_issues": [],
-  "data_note": "zombie/stale/aging lists are representative samples; full lists require paginated fetch. Health bucket counts from targeted updated: date-range searches.",
-  "label_health": {
-    "bugs_total": 169,
-    "p1_labeled_open": 5,
-    "p1_including_unlabeled_self_identified": 5,
-    "inactive_labeled_in_sample_100": 70,
-    "unlabeled_open": 62,
-    "unlabeled_pct": 8.7
-  },
-  "new_issues_today": {
-    "count_estimate": 6,
-    "note": "Total grew 707→713 vs yesterday's snapshot",
-    "notable": [
-      {
-        "number": 14214,
-        "title": "Feature Request: Pluggable Memory Provider System (Integration of Hindsight)",
-        "labels": ["Assistant", "Data"],
-        "created_at": "2026-04-12T17:29:01Z",
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/14214"
-      },
-      {
-        "number": 14209,
-        "title": "[Feature]: Migrate ProviderSettings to Provider DataApi and establish frontend v2 migration primitives",
-        "labels": [],
-        "created_at": "2026-04-12T09:39:26Z",
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/14209"
-      }
-    ]
-  },
   "recommendations": [
-    "CRITICAL: Security advisory #12966 (GHSA-qmgw-45x4-3626) open since 2026-02-19, 52 days without public response",
-    "P1 #13193 (Azure /responses API regression) assigned to DeJeune — no update since 2026-03-05, follow up",
-    "P1 #13608 (mimo streaming broken) and #13105 (PDF regression) unassigned — need owners",
-    "P1 #13061 (OneDrive data loss on upgrade) unassigned and inactive — critical data-loss issue",
-    "129 Stale issues need triage pass — confirm relevance or close",
-    "62 unlabeled issues (8.7%) need label categorization",
-    "main is under code freeze — hotfix/* branches only, redirect all feature PRs to v2",
-    "Zombie issue #11578 (MCP protocol upgrade) is 133 days old — close or re-scope for v2"
+    "3 Zombie issues (90+ days stale) should be reviewed for closure or re-triage",
+    "129 Stale issues need attention — prioritize BUG-labeled ones",
+    "44 uncategorized issues (11%) in sample need functional labels applied",
+    "5 P1 bugs require immediate focus; 2 are marked 'inactive' (may be auto-tagged incorrectly)",
+    "60 issues blocked by v2 — track against v2 milestone for unblocking"
   ]
 }
