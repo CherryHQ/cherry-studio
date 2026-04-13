@@ -64,6 +64,16 @@ const DATA_MIGRATIONS: DataMigration[] = [
         logger.warn('Some messages failed to migrate', { errors: result.errors })
       }
     }
+  },
+  {
+    version: 10003,
+    tag: 'data_0003_model_id_format',
+    description: 'Convert model IDs from providerId:modelId to UniqueModelId providerId::modelId',
+    migrate: async (db) => {
+      const { runModelIdFormatMigration } = await import('./migrateModelIdFormat')
+      const result = await runModelIdFormatMigration(db)
+      logger.info('Model ID format migration result', result)
+    }
   }
 ]
 
