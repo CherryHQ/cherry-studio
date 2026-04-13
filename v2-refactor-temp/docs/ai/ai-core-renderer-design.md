@@ -46,16 +46,16 @@
 - 保留 Agent 独立 SSE client / parser / datasource
 - 保留自建 tool approval 状态机或自定义 permission part 作为主链方案
 
-### 2.2 当前必须收敛的偏差
+### 2.2 当前必须收敛的偏差（2026-04-13 更新）
 
-| 偏差 | migration 文档要求 |
-|---|---|
-| `IpcChatTransport.reconnectToStream()` 返回 `null` | 必须接 Main `Ai_Stream_Attach`，实现真实 reconnect |
-| Chat 生命周期仍在 Renderer | 活跃流生命周期归 Main `AiStreamBroker` |
-| 完成态仍依赖 Renderer `onFinish` | 完成态由 Main 持久化，Renderer 不配置 `onFinish` |
-| 普通聊天仍夹带 legacy streaming 逻辑 | 收敛到 `useChat` + `IpcChatTransport` + `UIMessage.parts[]` |
-| Agent 页面仍保留独立 SSE 链路 | Phase 4 统一到同一 `useChat` / `UIMessageChunk` 主链 |
-| tool approval 仍走自建 Redux + IPC 回路 | 切换到 AI SDK 原生 ToolUIPart approval 语义 |
+| 偏差 | migration 文档要求 | 状态 |
+|---|---|---|
+| `IpcChatTransport.reconnectToStream()` 返回 `null` | 必须接 Main `Ai_Stream_Attach`，实现真实 reconnect | ✅ 已修复 |
+| Chat 生命周期仍在 Renderer | 活跃流生命周期归 Main `AiStreamManager` | ✅ 已完成 |
+| 完成态仍依赖 Renderer `onFinish` | 完成态由 Main 持久化，Renderer 不配置 `onFinish` | ✅ 已完成 |
+| 普通聊天仍夹带 legacy streaming 逻辑 | 收敛到 `useChat` + `IpcChatTransport` + `UIMessage.parts[]` | ✅ 已完成 |
+| Agent 页面仍保留独立 SSE 链路 | Phase 4 统一到同一 `useChat` / `UIMessageChunk` 主链 | ❌ 未开始 |
+| tool approval 仍走自建 Redux + IPC 回路 | 切换到 AI SDK 原生 ToolUIPart approval 语义 | ❌ 未开始 |
 
 ---
 
@@ -126,14 +126,12 @@ export class IpcChatTransport implements ChatTransport<UIMessage> {
 - 不模拟 session registry
 - 不再依赖 `requestId`
 
-### 3.4 Phase 2 对 Renderer 的直接结果
+### 3.4 Phase 2 对 Renderer 的直接结果 ✅ 已全部完成
 
-Phase 2 完成后，Renderer 侧必须满足：
-
-- `reconnectToStream()` 是真实实现，不再默认返回 `null`
-- 活跃流与历史消息分离
-- `useChat` 的 resume 能力依赖 Main `AiStreamBroker`
-- 普通用户流与 channel push 流共享同一套 Broker 机制
+- ✅ `reconnectToStream()` 是真实实现，通过 `Ai_Stream_Attach` 接入 Main
+- ✅ 活跃流与历史消息分离
+- ✅ `useChat` 的 resume 能力依赖 Main `AiStreamManager`
+- ✅ 普通用户流与 channel push 流共享同一套 Manager 机制
 
 ---
 
@@ -222,27 +220,22 @@ const chat = useChat({
 
 Renderer 侧不再把 `BlockManager` / `ChunkType` / `AiSdkToChunkAdapter` 作为目标设计的一部分。
 
-### 4.6 Phase 3 需要删除的旧代码
+### 4.6 Phase 3 需要删除的旧代码（2026-04-13 更新）
 
-按 migration 文档，普通聊天接入完成后删除：
+普通聊天主链已完成。待删除的 legacy 代码：
 
-```text
-src/renderer/src/aiCore/
-src/renderer/src/services/messageStreaming/
-src/renderer/src/types/chunk.ts
-```
+| 目录/文件 | 状态 | 说明 |
+|---|---|---|
+| `src/renderer/src/aiCore/` (63 files) | ❌ 待删 | 不再被 V2 主聊天引用，但需确认 Agent 无依赖 |
+| `src/renderer/src/services/messageStreaming/` | ⚠️ 保留 | Agent 侧 `setupChannelStream` 仍在使用 |
+| `src/renderer/src/types/chunk.ts` | ⚠️ 保留 | Agent streaming 和 block management 仍在使用 |
 
-并清理以下旧依赖：
+清理以下旧依赖（待 Agent Phase 4 完成后统一清理）：
 
 - `from.*aiCore`
 - `ChunkType`
 - `BlockManager`
 - `AiSdkToChunkAdapter`
-
-同时修改：
-
-- `src/renderer/src/services/ApiService.ts`
-- `electron.vite.config.ts`
 
 ---
 
@@ -428,38 +421,37 @@ Renderer 侧要求：
 
 这是 migration 文档中 `Phase 3` 的主入口。
 
-#### 7.3.1 现在情况
+#### 7.3.1 现在情况（2026-04-13 更新）
+
+> **主聊天 Phase 3 核心链路已完成。** 以下是按实际代码审计后的状态快照。
 
 - `src/renderer/src/pages/home/Chat.tsx`
-  现在默认 `USE_V2_CHAT = true`，主页面已经切到 `V2ChatContent`，但 V1 分支仍保留，说明主聊天入口还处在双轨状态。
+  ✅ **已完成。** `USE_V2_CHAT` 双轨开关已删除，V1 分支已清理。`Chat.tsx` 无条件渲染 `<V2ChatContent>`。
 - `src/renderer/src/pages/home/V2ChatContent.tsx`
-  外层已经通过 `useTopicMessagesV2(topic.id)` 从 DataApi 加载历史消息；这部分已经符合“历史消息来自 DataApi / SQLite”的方向。
-- `src/renderer/src/pages/home/V2ChatContent.tsx`
-  内层仍通过 `useChatSession(topic.id, { initialMessages, historyIds, refresh })` 挂接活跃流，说明当前活跃流生命周期仍由 Renderer 服务层托管，而不是 migration 文档要求的 Main `AiStreamBroker`。
-- `src/renderer/src/hooks/useChatSession.ts`
-  这个 hook 通过 `retain/release` 持有 session，并订阅 `session.chat['~registerMessagesCallback']`、`~registerStatusCallback`、`~registerErrorCallback` 等私有接口；这条链路本质上仍是“Renderer 保活 Chat 实例”。
+  ✅ **已完成。** 直接使用官方 `useChat<CherryUIMessage>({ id: topic.id, transport: ipcChatTransport })`，不再经过任何 wrapper。历史消息来自 `useTopicMessagesV2(topic.id)`，活跃流来自 `useChat`，两者在组件内合并展示。
 - `src/renderer/src/services/ChatSessionManager.ts`
-  这里不仅保活 `Chat`，还在 `onFinish` 中做完成态持久化：懒创建 topic、写 user message、写 assistant message、刷新历史、回填真实 ID、维护 fulfilled 状态。这正是 migration 文档明确要求下沉到 Main 的职责。
+  ✅ **已删除。**
+- `src/renderer/src/hooks/useChatSession.ts`
+  ✅ **已删除。**
 - `src/renderer/src/hooks/useAiChat.ts`
-  仍保留了 `useChat` 包装层，支持 `initialMessages`、`onFinish`、`topicId/assistantId/providerId/modelId` 注入。它证明主链可跑，但不符合“调用点直接使用官方 `useChat`”的最终目标。
+  ✅ **已删除。**
 - `src/renderer/src/pages/home/Inputbar/Inputbar.tsx`
-  已经支持 `onSendV2`，并能把 `files`、`mentionedModels` 传给 V2 路径；但未传入 `onSendV2` 时仍回退到旧的 `messageThunk` / Redux 发送链，说明发送入口仍保留 legacy fallback。
-- `src/renderer/src/hooks/useTopicMessagesV2.ts`
-  当前同时返回 `uiMessages`、`adaptedMessages`、`partsMap` 三套视图，说明历史消息主数据已经是 `UIMessage`，但渲染层仍在照顾 legacy `Message` / block 模型。
+  ✅ **已完成。** 只保留 `onSendProp` 回调，无 legacy `messageThunk` fallback。发送链：`Inputbar.onSend` → `V2ChatContent.handleSendV2` → `useChat.sendMessage()`。
 - `src/renderer/src/pages/home/Tabs/components/Topics.tsx`
-  topic 列表的 `streaming` / `fulfilled` 状态仍通过 `chatSessionManager.getSnapshot()` 获取，说明 sidebar 还依赖 Renderer session snapshot，而不是 migration 文档要求的轻量 Main / transport 状态来源。
+  ✅ **已完成。** 不再依赖 `chatSessionManager.getSnapshot()`，使用 Redux + DataApi 双写模式。
+- `src/renderer/src/hooks/useTopicMessagesV2.ts`
+  ⚠️ **进行中。** 仍返回 `adaptedMessages` 和 `partsMap` 双轨结果；渲染层仍在照顾 legacy `Message` / block 模型。后续应继续收敛到直读 `UIMessage.parts[]`。
+- `src/renderer/src/hooks/useLightweightAssistantFlow.ts`
+  ✅ **已完成。** 直接使用 `useChat<CherryUIMessage>({ transport: ipcChatTransport })`，不再依赖 `useAiChat`。
 - `src/renderer/src/hooks/useAssistant.ts` 与 `src/renderer/src/store/assistants.ts`
-  assistant、topic、model、settings 仍主要来源于 Redux；这部分可以继续作为配置来源存在，但不应该继续承载消息生命周期、流状态和完成态裁决。
+  ✅ assistant、topic、model、settings 作为配置来源存在；不再承载消息生命周期、流状态和完成态裁决。
 
 #### 7.3.2 代码位置
 
 - 入口与页面壳
   `src/renderer/src/pages/home/Chat.tsx`
   `src/renderer/src/pages/home/V2ChatContent.tsx`
-- 活跃流与会话管理
-  `src/renderer/src/hooks/useAiChat.ts`
-  `src/renderer/src/hooks/useChatSession.ts`
-  `src/renderer/src/services/ChatSessionManager.ts`
+- 活跃流 transport
   `src/renderer/src/transport/IpcChatTransport.ts`
 - 历史消息与刷新
   `src/renderer/src/hooks/useTopicMessagesV2.ts`
@@ -471,89 +463,89 @@ Renderer 侧要求：
   `src/renderer/src/utils/assistant.ts`
 - 消息渲染
   `src/renderer/src/pages/home/Messages/*`
-  `src/renderer/src/pages/home/Messages/Blocks/*`
+  `src/renderer/src/pages/home/Messages/Blocks/*`（legacy 适配层，待收敛）
 - topic 列表与状态展示
   `src/renderer/src/pages/home/Tabs/components/Topics.tsx`
 - assistant 配置来源
   `src/renderer/src/hooks/useAssistant.ts`
   `src/renderer/src/store/assistants.ts`
+- 已删除
+  ~~`src/renderer/src/hooks/useAiChat.ts`~~
+  ~~`src/renderer/src/hooks/useChatSession.ts`~~
+  ~~`src/renderer/src/services/ChatSessionManager.ts`~~
 
-#### 7.3.3 后续任务
+#### 7.3.3 后续任务（2026-04-13 更新）
 
-- 任务 1：把主聊天调用点改成直接使用官方 `useChat`
-  涉及文件：`src/renderer/src/pages/home/V2ChatContent.tsx`、`src/renderer/src/pages/home/Chat.tsx`
-  说明：移除 `useChatSession` 这一层，直接在调用点使用 `useChat({ id: topicId, transport })`；普通聊天调用点不再以自定义 hook 或 session manager 为中心。
+> 任务 1-6, 8-9, 11 已在前端同学的工作中完成。以下标注实际状态。
 
-- 任务 2：去掉把历史消息灌回 `Chat` 的做法
-  涉及文件：`src/renderer/src/pages/home/V2ChatContent.tsx`
-  说明：当前 `initialMessages: historyUIMessages` 仍被传给 `useChatSession` / `ChatSession`；后续要改成“历史消息来自 `useTopicMessagesV2`，活跃流来自 `useChat`”，不再把 SQLite 历史重新注入 chat 实例。
+- ~~任务 1：把主聊天调用点改成直接使用官方 `useChat`~~ ✅ **已完成**
+  `V2ChatContent` 直接使用 `useChat<CherryUIMessage>({ id: topic.id, transport: ipcChatTransport })`。
 
-- 任务 3：删除 `ChatSessionManager` 这条错误补丁链
-  涉及文件：`src/renderer/src/services/ChatSessionManager.ts`、`src/renderer/src/hooks/useChatSession.ts`
-  说明：删除 Renderer 侧 `retain/release`、LRU/reap、fulfilled 标记、私有 `~register*` 订阅，以及“跨 unmount 保活 Chat”的设计。
+- ~~任务 2：去掉把历史消息灌回 `Chat` 的做法~~ ✅ **已完成**
+  历史走 `useTopicMessagesV2`，活跃流走 `useChat`，两者在组件内合并。
 
-- 任务 4：把完成态持久化从 Renderer 挪走
-  涉及文件：`src/renderer/src/services/ChatSessionManager.ts`、`src/renderer/src/pages/home/V2ChatContent.tsx`
-  说明：删除 `handleFinish()` 中的 topic 懒创建、user/assistant message 写入、history refresh 后回填 `chat.messages` 等逻辑；完成态以后端 `PersistenceSink` / `MessagePersistenceService` 为准，Renderer 只做历史刷新。
+- ~~任务 3：删除 `ChatSessionManager` 这条错误补丁链~~ ✅ **已完成**
+  `ChatSessionManager.ts` 和 `useChatSession.ts` 均已删除。
 
-- 任务 5：让 `V2ChatContent` 只保留页面壳职责
-  涉及文件：`src/renderer/src/pages/home/V2ChatContent.tsx`
-  说明：最终它只负责加载历史消息、挂接 `useChat` 活跃流、组合展示数据、路由 UI 操作；不再承担流生命周期、最终状态裁决、完成态持久化。
+- ~~任务 4：把完成态持久化从 Renderer 挪走~~ ✅ **已完成**
+  Main 侧 `PersistenceListener` 负责持久化。Renderer 不配置 `onFinish`。
 
-- 任务 6：保留 Inputbar 的 V2 发送入口，删除 legacy fallback
-  涉及文件：`src/renderer/src/pages/home/Inputbar/Inputbar.tsx`
-  说明：`onSendV2` 这条链路已经是正确方向，应继续保留；后续删除未传 `onSendV2` 时回退到 `_sendMessage(messageThunk)` 的旧路径，使助手侧发送完全走统一主链。
+- ~~任务 5：让 `V2ChatContent` 只保留页面壳职责~~ ✅ **已完成**
+  只负责加载历史、挂接 `useChat`、组合展示、路由 UI 操作。
+
+- ~~任务 6：保留 Inputbar 的 V2 发送入口，删除 legacy fallback~~ ✅ **已完成**
+  只保留 `onSendProp` 回调，无 `messageThunk` fallback。
 
 - 任务 7：把 assistant 相关请求参数整理为调用点注入
   涉及文件：`src/renderer/src/pages/home/V2ChatContent.tsx`、`src/renderer/src/pages/home/Inputbar/Inputbar.tsx`、`src/renderer/src/utils/assistantRuntimeOverrides.ts`
-  说明：把当前 `assistant.id`、`files`、`mentionedModels`、`knowledgeBaseIds`、`enableWebSearch`、`webSearchProviderId`、`enableUrlContext`、`enableGenerateImage`、`mcpToolIds` 等统一整理为 `chat.sendMessage(..., { body })` 的调用点注入逻辑，不再散落在 session manager 或多层包装里。
+  说明：当前 `handleSendV2` 已通过 `sendMessage(..., { body })` 注入参数，方向正确。后续继续整理 `mcpToolIds`、`capabilities` 等参数的组装逻辑。
 
-- 任务 8：把 `useAiChat` 从目标架构中移除
-  涉及文件：`src/renderer/src/hooks/useAiChat.ts`
-  说明：这个 hook 当前还承载 `initialMessages`、`onFinish`、模型上下文注入等过渡职责；后续要么删除，要么缩减为极薄的请求参数 helper，不能继续作为主聊天状态容器。
+- ~~任务 8：把 `useAiChat` 从目标架构中移除~~ ✅ **已完成**
+  `useAiChat.ts` 已删除。
 
-- 任务 9：把 topic 列表状态从 session snapshot 切走
-  涉及文件：`src/renderer/src/pages/home/Tabs/components/Topics.tsx`
-  说明：当前 `streamingTopicIds` / `fulfilledTopicIds` 仍来自 `chatSessionManager.getSnapshot()`；后续要换成 migration 文档要求的轻量状态来源，不能继续依赖 Renderer session manager。
+- ~~任务 9：把 topic 列表状态从 session snapshot 切走~~ ✅ **已完成**
+  `Topics.tsx` 使用 Redux + DataApi 双写，不再依赖 `chatSessionManager.getSnapshot()`。
 
 - 任务 10：继续压缩 legacy `Message` / block 适配层
   涉及文件：`src/renderer/src/hooks/useTopicMessagesV2.ts`、`src/renderer/src/pages/home/Messages/*`
-  说明：当前 `useTopicMessagesV2()` 仍返回 `adaptedMessages` 和 `partsMap` 双轨结果；后续应继续把消息渲染收敛到直读 `UIMessage.parts[]`，逐步降低对 legacy `Message` 和 block 适配层的依赖。
+  说明：`useTopicMessagesV2()` 仍返回 `adaptedMessages` 和 `partsMap` 双轨结果；后续应继续把消息渲染收敛到直读 `UIMessage.parts[]`。
 
-- 任务 11：把主聊天入口的双轨开关清理掉
-  涉及文件：`src/renderer/src/pages/home/Chat.tsx`
-  说明：当前 `USE_V2_CHAT` 仍保留 V1 / V2 双轨分支；在 `Phase 3` 主链稳定后，应删除旧 `Messages + Inputbar + thunk` 分支，避免主聊天继续维护两套入口。
+- ~~任务 11：把主聊天入口的双轨开关清理掉~~ ✅ **已完成**
+  `Chat.tsx` 无条件渲染 `V2ChatContent`，无 `USE_V2_CHAT` 开关。
 
-- 任务 12：明确 assistant store 的边界
-  涉及文件：`src/renderer/src/hooks/useAssistant.ts`、`src/renderer/src/store/assistants.ts`
-  说明：assistant / topic / model / settings 继续作为配置来源存在；但消息完成态、流状态、session 生命周期、topic fulfilled 状态不再从这里派生或回写。
+- 任务 12：明确 assistant store 的边界 ✅ **基本完成**
+  assistant / topic / model / settings 作为配置来源；不再承载消息生命周期。
 
 - 任务 13：主聊天回归验证补齐
   涉及文件：`src/renderer/src/transport/__tests__/IpcChatTransport.test.ts`、主聊天相关测试文件
-  说明：重点补“发送 → 流式回复 → Main 持久化 → DataApi 刷新 → 切 topic / 重挂载后恢复”的链路验证，确保删除 `ChatSessionManager` 后主聊天仍然稳定。
+  说明：重点补”发送 → 流式回复 → Main 持久化 → DataApi 刷新 → 切 topic / 重挂载后恢复”的链路验证。
 
-#### 7.3.4 助手侧收尾判定
+- **新增 任务 14：删除 `src/renderer/src/aiCore/` 目录（63 个文件）**
+  说明：整个目录不再被 V2 主聊天链路引用，是 legacy dead code。待确认 Agent 侧也无依赖后可安全删除。
 
-当助手侧完成收尾后，应满足以下状态：
+#### 7.3.4 助手侧收尾判定（2026-04-13 更新）
 
-- `Chat.tsx` / `V2ChatContent.tsx` 直接使用官方 `useChat`
-- 助手侧不再依赖 `useChatSession`
-- `ChatSessionManager` 已删除
-- Inputbar 不再回退到旧 `messageThunk`
-- topic 列表不再依赖 `chatSessionManager.getSnapshot()`
-- 历史消息与活跃流明确分离
-- 消息渲染主链是 `UIMessage.parts[]`
+| 判定条件 | 状态 |
+|---|---|
+| `Chat.tsx` / `V2ChatContent.tsx` 直接使用官方 `useChat` | ✅ 已完成 |
+| 助手侧不再依赖 `useChatSession` | ✅ 已删除 |
+| `ChatSessionManager` 已删除 | ✅ 已删除 |
+| Inputbar 不再回退到旧 `messageThunk` | ✅ 已完成 |
+| topic 列表不再依赖 `chatSessionManager.getSnapshot()` | ✅ 已完成 |
+| 历史消息与活跃流明确分离 | ✅ 已完成 |
+| 消息渲染主链是 `UIMessage.parts[]` | ⚠️ 进行中（`partsMap` 适配层仍存在） |
+| `src/renderer/src/aiCore/` 已删除 | ❌ 待删除（63 个文件） |
 
 ### 7.4 快捷助手
 
 快捷助手属于普通聊天轻量入口，按 migration 文档并入 `Phase 3`，不单独定义新链路。
 
-#### 7.4.1 现在情况
+#### 7.4.1 现在情况（2026-04-13 更新）
 
 - `src/renderer/src/hooks/useLightweightAssistantFlow.ts`
-  快捷助手当前共用这一层轻量运行时；它内部仍然直接依赖 `useAiChat()`，并且继续使用 `onFinish` / `onError` / `setMessages([])` 这套过渡逻辑，说明 mini window 还没有直接挂到 migration 文档要求的官方 `useChat` 调用点上。
+  ✅ 已直接使用 `useChat<CherryUIMessage>({ transport: ipcChatTransport })`，不再依赖 `useAiChat()`。
 - `src/renderer/src/hooks/useLightweightAssistantFlow.ts`
-  这里虽然已经通过 `sendMessage(..., { body })` 注入 `assistantId`、`providerId`、`modelId`、`assistantOverrides`，方向基本正确；但它仍同时产出 `messages`、`adaptedMessages`、`partsMap` 三套结果，说明轻量入口还在兼容 legacy `Message` / block 渲染模型。
+  通过 `sendMessage(..., { body })` 注入参数，方向正确。仍产出 `adaptedMessages` 和 `partsMap` 适配结果用于 mini window 渲染，需后续收敛。
 - `src/renderer/src/windows/mini/home/HomeWindow.tsx`
   mini window 主页面通过 `getDefaultTopic(currentAssistant.id)` 生成 topic，并把 `topic.id` 同时作为 `chatId` / `topicId` 传给 `useLightweightAssistantFlow()`；发送时调用 `run({ assistant, prompt, reset: false })`，返回首页时调用 `clear()`，说明当前快捷助手仍用本地路由状态去管理一段独立对话生命周期。
 - `src/renderer/src/windows/mini/home/HomeWindow.tsx`
@@ -623,15 +615,15 @@ Renderer 侧要求：
   涉及文件：mini window 相关测试文件
   说明：至少覆盖“打开快捷助手 → 发送 → 流式回复 → 停止 → 关闭重开 → 配置变更后仍走统一 transport”这条主链，确认它只是普通聊天的轻量入口。
 
-#### 7.4.4 快捷助手收尾判定
+#### 7.4.4 快捷助手收尾判定（2026-04-13 更新）
 
-当快捷助手完成收尾后，应满足以下状态：
-
-- 快捷助手不再直接依赖 `useAiChat`
-- mini window 发送、停止、恢复与主聊天共用同一条 `useChat + transport` 主链
-- mini chat 不再以 `Message[] + partsMap` 作为主渲染协议
-- `QuickAssistantSettings` 仍然只是配置页
-- 快捷助手没有独立 transport、独立 chunk 协议、独立完成态语义
+| 判定条件 | 状态 |
+|---|---|
+| 快捷助手不再直接依赖 `useAiChat` | ✅ 已完成（直接使用 `useChat`）|
+| mini window 发送、停止、恢复与主聊天共用同一条 `useChat + transport` 主链 | ✅ 已完成 |
+| mini chat 不再以 `Message[] + partsMap` 作为主渲染协议 | ⚠️ 进行中（`partsMap` 适配层仍存在）|
+| `QuickAssistantSettings` 仍然只是配置页 | ✅ |
+| 快捷助手没有独立 transport、独立 chunk 协议、独立完成态语义 | ✅ 已完成 |
 
 ### 7.5 划词助手
 
@@ -856,20 +848,21 @@ Renderer 侧工作按以下顺序展开：
 4. 再把划词助手并入同一条 `Phase 3` 主线
 5. 最后处理 `Phase 4`：Agent 页面、Tool approval、旧 Agent 前端链路删除
 
-## 八、验收标准
+## 八、验收标准（2026-04-13 更新）
 
-当 Renderer 侧方案与 migration 文档对齐后，应满足以下条件：
-
-- 普通聊天直接使用官方 `useChat`
-- `IpcChatTransport.reconnectToStream()` 通过 `Ai_Stream_Attach` 工作
-- 历史消息来自 DataApi，活跃流来自 `useChat`
-- Renderer 调用点不再配置 `onFinish`
-- `ChatSessionManager` / `useChatSession` 不再是目标方案组成部分
-- 消息渲染主链是 `UIMessage.parts[]`
-- Agent 页面不再保留独立 SSE / parser / datasource
-- 旧 approval hooks / 组件已删除
-- `useChat` 调用点已接入 `sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses`
-- tool approval 使用 AI SDK 原生 ToolUIPart 状态与 `addToolApprovalResponse()`
-- Agent 步骤进度通过 `Ai_AgentStepProgress` 推送
+| 验收条件 | 状态 |
+|---|---|
+| 普通聊天直接使用官方 `useChat` | ✅ |
+| `IpcChatTransport.reconnectToStream()` 通过 `Ai_Stream_Attach` 工作 | ✅ |
+| 历史消息来自 DataApi，活跃流来自 `useChat` | ✅ |
+| Renderer 调用点不再配置 `onFinish` | ✅ |
+| `ChatSessionManager` / `useChatSession` 不再是目标方案组成部分 | ✅ 已删除 |
+| 消息渲染主链是 `UIMessage.parts[]` | ⚠️ 进行中（`partsMap` 适配层待收敛）|
+| Agent 页面不再保留独立 SSE / parser / datasource | ❌ Phase 4 |
+| 旧 approval hooks / 组件已删除 | ❌ Phase 4 |
+| `useChat` 调用点已接入 `sendAutomaticallyWhen` | ❌ Phase 4 |
+| tool approval 使用 AI SDK 原生 ToolUIPart | ❌ Phase 4 |
+| Agent 步骤进度通过 `Ai_AgentStepProgress` 推送 | ❌ Phase 4 |
+| `src/renderer/src/aiCore/` 已删除 | ❌ 待清理 |
 
 ---
