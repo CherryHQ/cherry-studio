@@ -425,8 +425,11 @@ export class AiStreamManager extends BaseService {
     }
     if (!session) throw new Error(`Agent session not found: ${sessionId}`)
 
-    // session.model is UniqueModelId format ("providerId::modelId")
-    const { providerId, modelId: rawModelId } = parseUniqueModelId(session.model)
+    // FIXME: session.model is "providerId:modelId" (single colon), not UniqueModelId ("::").
+    // When sessions migrate to UniqueModelId, switch to parseUniqueModelId().
+    const colonIdx = session.model.indexOf(':')
+    const providerId = colonIdx > 0 ? session.model.slice(0, colonIdx) : session.model
+    const rawModelId = colonIdx > 0 ? session.model.slice(colonIdx + 1) : session.model
     const uniqueModelId = createUniqueModelId(providerId, rawModelId)
 
     // Extract user message text from parts
