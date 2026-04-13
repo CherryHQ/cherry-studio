@@ -16,13 +16,11 @@ import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getContextCount, getGroupedMessages, getUserMessage } from '@renderer/services/MessagesService'
 import { estimateHistoryTokens } from '@renderer/services/TokenService'
-import store, { useAppDispatch } from '@renderer/store'
-import { messageBlocksSelectors, updateOneBlock } from '@renderer/store/messageBlock'
+import { useAppDispatch } from '@renderer/store'
 import { newMessagesActions } from '@renderer/store/newMessage'
-import { saveMessageAndBlocksToDB, updateMessageAndBlocksThunk } from '@renderer/store/thunk/messageThunk'
+import { saveMessageAndBlocksToDB } from '@renderer/store/thunk/messageThunk'
 import type { Assistant, Topic } from '@renderer/types'
-import type { MessageBlock } from '@renderer/types/newMessage'
-import { type Message, MessageBlockType } from '@renderer/types/newMessage'
+import type { Message } from '@renderer/types/newMessage'
 import {
   captureScrollableAsBlob,
   captureScrollableAsDataURL,
@@ -31,7 +29,6 @@ import {
 } from '@renderer/utils'
 import { updateCodeBlock } from '@renderer/utils/markdown'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
-import { isTextLikeBlock } from '@renderer/utils/messageUtils/is'
 import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { last } from 'lodash'
@@ -242,7 +239,6 @@ const Messages: React.FC<MessagesProps> = ({
           const { msgBlockId, codeBlockId, newContent } = data
 
           try {
-            // V2: resolve from parts directly
             const resolved = partsMapRef.current && resolvePartFromParts(partsMapRef.current, msgBlockId)
             if (resolved && resolved.part.type === 'text') {
               const textPart = resolved.part as { text?: string }
@@ -256,28 +252,10 @@ const Messages: React.FC<MessagesProps> = ({
               return
             }
 
-            // V1 fallback: read from Redux
-            const msgBlock = messageBlocksSelectors.selectById(store.getState(), msgBlockId)
-
-            // FIXME: 目前 error block 没有 content
-            if (msgBlock && isTextLikeBlock(msgBlock) && msgBlock.type !== MessageBlockType.ERROR) {
-              const updatedRaw = updateCodeBlock(msgBlock.content, codeBlockId, newContent)
-              const updatedBlock: MessageBlock = {
-                ...msgBlock,
-                content: updatedRaw,
-                updatedAt: new Date().toISOString()
-              }
-
-              dispatch(updateOneBlock({ id: msgBlockId, changes: { content: updatedRaw } }))
-              await dispatch(updateMessageAndBlocksThunk(topic.id, null, [updatedBlock]))
-
-              window.toast.success(t('code_block.edit.save.success'))
-            } else {
-              logger.error(
-                `Failed to save code block ${codeBlockId} content to message block ${msgBlockId}: no such message block or the block doesn't have a content field`
-              )
-              window.toast.error(t('code_block.edit.save.failed.label'))
-            }
+            logger.error(
+              `Failed to save code block ${codeBlockId} content to message block ${msgBlockId}: unable to resolve part`
+            )
+            window.toast.error(t('code_block.edit.save.failed.label'))
           } catch (error) {
             logger.error(
               `Failed to save code block ${codeBlockId} content to message block ${msgBlockId}:`,

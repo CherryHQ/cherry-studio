@@ -2,8 +2,6 @@ import { Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { CopyIcon } from '@renderer/components/Icons'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
-import store from '@renderer/store'
-import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import { exportTableToExcel } from '@renderer/utils/exportExcel'
 import { Check, FileSpreadsheet } from 'lucide-react'
 import MarkdownIt from 'markdown-it'
@@ -97,26 +95,14 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
  * 从原始 Markdown 内容中提取表格源代码
  * @param blockId 消息块 ID
  * @param position 表格节点的位置信息
- * @param markdownContent 原始 markdown 内容（MarkdownBlockContext 优先，Redux fallback）
+ * @param markdownContent 原始 markdown 内容（来自 MarkdownBlockContext）
  * @returns 源代码
  */
-export function extractTableMarkdown(blockId: string, position: any, markdownContent?: string): string {
-  if (!position) return ''
-
-  // Prefer content passed from MarkdownBlockContext; fallback to Redux for V1
-  const content =
-    markdownContent ??
-    (() => {
-      if (!blockId) return undefined
-      const block = messageBlocksSelectors.selectById(store.getState(), blockId)
-      if (!block || !('content' in block) || typeof block.content !== 'string') return undefined
-      return block.content
-    })()
-
-  if (!content) return ''
+export function extractTableMarkdown(_blockId: string, position: any, markdownContent?: string): string {
+  if (!position || !markdownContent) return ''
 
   const { start, end } = position
-  const lines = content.split('\n')
+  const lines = markdownContent.split('\n')
 
   // 提取表格对应的行（行号从1开始，数组索引从0开始）
   const tableLines = lines.slice(start.line - 1, end.line)

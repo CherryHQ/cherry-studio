@@ -2,9 +2,6 @@ import { CodeBlockView, HtmlArtifactsCard } from '@renderer/components/CodeBlock
 import { useSettings } from '@renderer/hooks/useSettings'
 import { ClickableFilePath } from '@renderer/pages/home/Messages/Tools/MessageAgentTools/ClickableFilePath'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import store from '@renderer/store'
-import { messageBlocksSelectors } from '@renderer/store/messageBlock'
-import { MessageBlockStatus } from '@renderer/types/newMessage'
 import { getCodeBlockId, isOpenFenceBlock } from '@renderer/utils/markdown'
 import type { Node } from 'mdast'
 import React, { memo, useCallback, useMemo } from 'react'
@@ -35,13 +32,8 @@ const CodeBlock: React.FC<Props> = ({ children, className, node, blockId }) => {
   // 代码块 id
   const id = useMemo(() => getCodeBlockId(node?.position?.start), [node?.position?.start])
 
-  // MarkdownBlockContext first (V2), then Redux fallback (V1)
   const mdCtx = useMarkdownBlockContext()
-  const isStreaming = useMemo(() => {
-    if (mdCtx) return mdCtx.isStreaming
-    const msgBlock = messageBlocksSelectors.selectById(store.getState(), blockId)
-    return msgBlock?.status === MessageBlockStatus.STREAMING
-  }, [mdCtx, blockId])
+  const isStreaming = mdCtx?.isStreaming ?? false
 
   const handleSave = useCallback(
     (newContent: string) => {
