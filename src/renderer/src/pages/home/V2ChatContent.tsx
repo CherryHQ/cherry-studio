@@ -7,7 +7,6 @@ import { useChatContext } from '@renderer/hooks/useChatContext'
 import { type V2ChatOverrides, V2ChatOverridesProvider } from '@renderer/hooks/useMessageOperations'
 import { useTopicMessagesV2 } from '@renderer/hooks/useTopicMessagesV2'
 import { fetchMcpTools } from '@renderer/services/ApiService'
-import { mapLegacyTopicToDto } from '@renderer/services/AssistantService'
 import { ensureTopicStreamStateSyncStarted } from '@renderer/services/topicStreamStateSync'
 import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
 import type { Assistant, FileMetadata, Model, Topic } from '@renderer/types'
@@ -18,6 +17,7 @@ import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/mess
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
+import { ensureChatTopicPersisted } from './chatPersistence'
 import Inputbar from './Inputbar/Inputbar'
 import { PartsProvider, RefreshProvider } from './Messages/Blocks'
 import Messages from './Messages/Messages'
@@ -50,7 +50,8 @@ const V2ChatContent: FC<Props> = ({ assistant, topic, setActiveTopic, mainHeight
     adaptedMessages: historyMessages,
     partsMap: historyPartsMap,
     isLoading: isHistoryLoading,
-    refresh
+    refresh,
+    activeNodeId
   } = useTopicMessagesV2(topic.id)
 
   // Don't mount the chat instance until history is loaded.
@@ -77,6 +78,7 @@ const V2ChatContent: FC<Props> = ({ assistant, topic, setActiveTopic, mainHeight
       historyMessages={historyMessages}
       historyPartsMap={historyPartsMap}
       refresh={refresh}
+      activeNodeId={activeNodeId}
     />
   )
 }
@@ -89,6 +91,7 @@ interface InnerProps extends Props {
   historyMessages: Message[]
   historyPartsMap: Record<string, CherryMessagePart[]>
   refresh: () => Promise<CherryUIMessage[]>
+  activeNodeId: string | null
 }
 
 const V2ChatContentInner: FC<InnerProps> = ({
@@ -98,7 +101,8 @@ const V2ChatContentInner: FC<InnerProps> = ({
   mainHeight,
   historyMessages,
   historyPartsMap,
-  refresh
+  refresh,
+  activeNodeId
 }) => {
   const { isMultiSelectMode } = useChatContext(topic)
 
@@ -282,7 +286,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
     if (!isPromptToolUse(assistant) && !isSupportedToolUse(assistant)) return undefined
     const tools = await fetchMcpTools(assistant)
     return tools.length > 0 ? tools.map((t) => t.id) : undefined
-  }, [assistant.mcpServers, assistant.settings?.toolUseMode, assistant.model])
+  }, [assistant])
 
   /** Regenerate with capability body injected. */
   const regenerateWithCapabilities = useCallback(
@@ -352,15 +356,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
   const ensuredTopicIds = useRef(new Set<string>())
   const ensureTopicExists = useCallback(async () => {
     if (ensuredTopicIds.current.has(topic.id)) return
-    try {
-      await dataApiService.get(`/topics/${topic.id}`)
-    } catch (err: unknown) {
-      if (err instanceof Object && 'code' in err && err.code === 'NOT_FOUND') {
-        await dataApiService.post('/topics', { body: mapLegacyTopicToDto(topic) })
-      } else {
-        throw err
-      }
-    }
+    await ensureChatTopicPersisted(topic)
     ensuredTopicIds.current.add(topic.id)
   }, [topic])
 
@@ -373,12 +369,11 @@ const V2ChatContentInner: FC<InnerProps> = ({
       } catch (err) {
         logger.warn('Failed to resolve MCP tool IDs, proceeding without tools', { err })
       }
-      const lastMessageId = historyMessages.at(-1)?.id
       void sendMessage(
         { text },
         {
           body: {
-            parentAnchorId: lastMessageId,
+            parentAnchorId: activeNodeId ?? undefined,
             files: options?.files,
             mentionedModels: options?.mentionedModels,
             mcpToolIds,
@@ -387,7 +382,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
         }
       )
     },
-    [ensureTopicExists, sendMessage, resolveMcpToolIds, capabilityBody, historyMessages]
+    [activeNodeId, ensureTopicExists, sendMessage, resolveMcpToolIds, capabilityBody]
   )
 
   return (

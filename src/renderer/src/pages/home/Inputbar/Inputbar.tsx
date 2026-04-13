@@ -1,5 +1,4 @@
 import { cacheService } from '@data/CacheService'
-import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import {
@@ -24,7 +23,7 @@ import {
   useInputbarToolsInternalDispatch,
   useInputbarToolsState
 } from '@renderer/pages/home/Inputbar/context/InputbarToolsProvider'
-import { getDefaultTopic, mapLegacyTopicToDto } from '@renderer/services/AssistantService'
+import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { estimateTextTokens as estimateTxtTokens } from '@renderer/services/TokenService'
 import { webSearchService } from '@renderer/services/WebSearchService'
@@ -44,6 +43,7 @@ import type { FC } from 'react'
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ensureChatTopicPersisted } from '../chatPersistence'
 import { InputbarCore } from './components/InputbarCore'
 import InputbarTools from './InputbarTools'
 import KnowledgeBaseInput from './KnowledgeBaseInput'
@@ -286,22 +286,15 @@ const InputbarInner: FC<InputbarInnerProps> = ({
 
   const addNewTopic = useCallback(async () => {
     const newTopic = getDefaultTopic(assistant.id)
-
-    // Create topic via Data API and use server-returned data
-    const createdTopic = await dataApiService.post('/topics', {
-      body: mapLegacyTopicToDto(newTopic)
-    })
-
-    logger.silly('create topic in sqlite', { id: createdTopic.id })
+    await ensureChatTopicPersisted(newTopic)
+    logger.silly('create topic in sqlite', { id: newTopic.id })
 
     if (assistant.defaultModel) {
       setModel(assistant.defaultModel)
     }
 
-    // @ts-ignore TODO: #13748
-    addTopic(createdTopic)
-    // @ts-ignore
-    setActiveTopic(createdTopic)
+    addTopic(newTopic)
+    setActiveTopic(newTopic)
 
     setTimeoutTimer('addNewTopic', () => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
   }, [addTopic, assistant.defaultModel, assistant.id, setActiveTopic, setModel, setTimeoutTimer])

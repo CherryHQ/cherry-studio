@@ -18,7 +18,7 @@ import { modelGenerating } from '@renderer/hooks/useModel'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { finishTopicRenaming, startTopicRenaming, TopicManager } from '@renderer/hooks/useTopic'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
-import { getDefaultTopic, mapLegacyTopicToDto } from '@renderer/services/AssistantService'
+import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { RootState } from '@renderer/store'
 import { newMessagesActions } from '@renderer/store/newMessage'
@@ -43,11 +43,9 @@ import {
   BrushCleaning,
   CheckSquare,
   FolderOpen,
-  HelpCircle,
   ListChecks,
   MenuIcon,
   NotebookPen,
-  PackagePlus,
   PinIcon,
   PinOffIcon,
   Save,
@@ -61,6 +59,7 @@ import { useTranslation } from 'react-i18next'
 import { useDispatch, useSelector } from 'react-redux'
 import styled from 'styled-components'
 
+import { ensureChatTopicPersisted } from '../../chatPersistence'
 import { TopicManagePanel, useTopicManageMode } from './TopicManageMode'
 
 const logger = loggerService.withContext('Topics')
@@ -94,7 +93,6 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
           body: {
             name: topic.name,
             isNameManuallyEdited: topic.isNameManuallyEdited,
-            prompt: topic.prompt,
             isPinned: topic.pinned
           }
         })
@@ -199,9 +197,9 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
       if (assistant.topics.length === 1) {
         const newTopic = getDefaultTopic(assistant.id)
         await db.topics.add({ id: newTopic.id, messages: [] })
-        await dataApiService
-          .post('/topics', { body: mapLegacyTopicToDto(newTopic) })
-          .catch((err) => logger.warn('Failed to dual-write topic to SQLite', { topicId: newTopic.id, err }))
+        await ensureChatTopicPersisted(newTopic).catch((err) =>
+          logger.warn('Failed to dual-write topic to SQLite', { topicId: newTopic.id, err })
+        )
         addTopic(newTopic)
         setActiveTopic(newTopic)
       } else {
@@ -347,34 +345,6 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
             const updatedTopic = { ...topic, name, isNameManuallyEdited: true }
             updateTopic(updatedTopic)
           }
-        }
-      },
-      {
-        label: t('chat.topics.prompt.label'),
-        key: 'topic-prompt',
-        icon: <PackagePlus size={14} />,
-        extra: (
-          <Tooltip title={t('chat.topics.prompt.tips')}>
-            <HelpCircle size={14} />
-          </Tooltip>
-        ),
-        async onClick() {
-          const prompt = await PromptPopup.show({
-            title: t('chat.topics.prompt.edit.title'),
-            message: '',
-            defaultValue: topic?.prompt || '',
-            inputProps: {
-              rows: 8,
-              allowClear: true
-            }
-          })
-
-          prompt !== null &&
-            (() => {
-              const updatedTopic = { ...topic, prompt: prompt.trim() }
-              updateTopic(updatedTopic)
-              topic.id === activeTopic.id && setActiveTopic(updatedTopic)
-            })()
         }
       },
       {

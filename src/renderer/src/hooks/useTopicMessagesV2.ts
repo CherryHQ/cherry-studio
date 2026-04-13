@@ -35,6 +35,8 @@ interface UseTopicMessagesV2Result {
   error?: Error
   /** SWR mutate — call to revalidate after write operations. Returns refreshed UIMessages. */
   refresh: () => Promise<CherryUIMessage[]>
+  /** Active branch leaf node from DataApi, used as the next reply anchor. */
+  activeNodeId: string | null
 }
 
 /**
@@ -58,7 +60,7 @@ function toAdaptedMessage(shared: SharedMessage): Message {
     id: shared.id,
     topicId: shared.topicId,
     role: shared.role,
-    assistantId: shared.assistantId || '',
+    assistantId: '',
     status:
       shared.role === 'user'
         ? UserMessageStatus.SUCCESS
@@ -135,7 +137,8 @@ export function useTopicMessagesV2(topicId: string, enabled = true): UseTopicMes
         partsMap: {},
         isLoading,
         error,
-        refresh
+        refresh,
+        activeNodeId: null
       }
     }
 
@@ -155,6 +158,6 @@ export function useTopicMessagesV2(topicId: string, enabled = true): UseTopicMes
       adaptedMessages.push(toAdaptedMessage(shared))
     }
 
-    return { uiMessages, adaptedMessages, partsMap, isLoading, error, refresh }
+    return { uiMessages, adaptedMessages, partsMap, isLoading, error, refresh, activeNodeId: data.activeNodeId }
   }, [data, isLoading, error, refresh])
 }
