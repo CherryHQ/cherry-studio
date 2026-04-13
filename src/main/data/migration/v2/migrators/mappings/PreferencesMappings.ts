@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-04-13T03:21:18.293Z
+ * Generated at: 2026-04-13T10:49:36.107Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in packages/shared/data/preferences.ts
@@ -689,6 +689,12 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'feature.selection.action_items'
     }
   ],
+  llm: [
+    {
+      originalKey: 'quickAssistantId',
+      targetKey: 'feature.quick_assistant.id'
+    }
+  ],
   memory: [
     {
       originalKey: 'memoryConfig.embedderDimensions',
@@ -937,11 +943,11 @@ export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetK
 /**
  * 映射统计:
  * - ElectronStore项: 1
- * - Redux Store项: 207
- * - Redux分类: settings, selectionStore, memory, nutstore, preprocess, shortcuts, translate, websearch, ocr, note
+ * - Redux Store项: 208
+ * - Redux分类: settings, selectionStore, llm, memory, nutstore, preprocess, shortcuts, translate, websearch, ocr, note
  * - DexieSettings项: 7
  * - localStorage项: 0
- * - 总配置项: 215
+ * - 总配置项: 216
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)
