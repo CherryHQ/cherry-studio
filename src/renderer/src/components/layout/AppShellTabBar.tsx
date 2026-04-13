@@ -4,6 +4,7 @@ import { cn, uuid } from '@renderer/utils'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { Home, Plus, X } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import type { Tab } from '../../hooks/useTabs'
 import { ShellTabBarActions, useShellTabBarLayout } from './ShellTabBarActions'
@@ -50,13 +51,15 @@ const Separator = () => <div className="mx-0.5 h-4 w-px shrink-0 bg-border/50" /
 const HomeTabButton = ({
   isActive,
   onClick,
-  onContextMenu
+  onContextMenu,
+  tooltip
 }: {
   isActive: boolean
   onClick: () => void
   onContextMenu: (e: React.MouseEvent) => void
+  tooltip: string
 }) => (
-  <Tooltip placement="bottom" content="Home" delay={600}>
+  <Tooltip placement="bottom" content={tooltip} delay={600}>
     <button
       type="button"
       onClick={onClick}
@@ -202,6 +205,7 @@ export const AppShellTabBar = ({
   unpinTab,
   isDetached = false
 }: AppShellTabBarProps) => {
+  const { t } = useTranslation()
   const { rightPaddingClass } = useShellTabBarLayout(isDetached)
 
   const { homeTab, pinnedTabs, normalTabs } = useMemo(() => {
@@ -303,6 +307,7 @@ export const AppShellTabBar = ({
             isActive={activeTabId === HOME_TAB_ID}
             onClick={handleHomeClick}
             onContextMenu={(e) => handleContextMenu(e, HOME_TAB_ID)}
+            tooltip={t('title.home')}
           />
         )}
 
@@ -369,7 +374,7 @@ export const AppShellTabBar = ({
               type="button"
               onClick={handleAddTab}
               className="ml-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors [-webkit-app-region:no-drag] hover:bg-sidebar-accent hover:text-sidebar-foreground"
-              title="New Tab">
+              title={t('tab.new')}>
               <Plus size={14} />
             </button>
           )}

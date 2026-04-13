@@ -7,6 +7,7 @@ import type { Tab, TabSavedState, TabType } from '@shared/data/cache/cacheValueT
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ReactNode } from 'react'
 import { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('TabsContext')
 
@@ -14,9 +15,16 @@ const DEFAULT_TAB: Tab = {
   id: 'home',
   type: 'route',
   url: '/home',
-  title: getDefaultRouteTitle('/home'),
+  title: '',
   lastAccessTime: Date.now(),
   isDormant: false
+}
+
+function withLocalizedRouteTitle(tab: Tab): Tab {
+  if (tab.type !== 'route') {
+    return tab
+  }
+  return { ...tab, title: getDefaultRouteTitle(tab.url) }
 }
 
 /**
@@ -69,6 +77,8 @@ export interface TabsContextValue {
 const TabsContext = createContext<TabsContextValue | null>(null)
 
 export function TabsProvider({ children }: { children: ReactNode }) {
+  const { i18n } = useTranslation()
+
   // Pinned tabs - persistent storage
   const [pinnedTabs, setPinnedTabsRaw] = usePersistCache('ui.tab.pinned_tabs')
 
@@ -118,10 +128,11 @@ export function TabsProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
-  // Merge tabs: home + pinned + normal
+  // Merge tabs: home + pinned + normal (route titles follow current i18n language)
   const tabs = useMemo(() => {
-    return [DEFAULT_TAB, ...(pinnedTabs || []), ...normalTabs]
-  }, [pinnedTabs, normalTabs])
+    const home = withLocalizedRouteTitle({ ...DEFAULT_TAB })
+    return [home, ...(pinnedTabs || []).map(withLocalizedRouteTitle), ...normalTabs.map(withLocalizedRouteTitle)]
+  }, [pinnedTabs, normalTabs, i18n.language])
 
   /**
    * Hibernate tab (manual)

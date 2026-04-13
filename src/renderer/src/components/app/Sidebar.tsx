@@ -78,7 +78,7 @@ function resolveActiveItem(pathname: string): SidebarIconType | '' {
 }
 
 export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [userName] = usePreference('app.user.name')
   const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
   const [showOpenedInSidebar] = usePreference('feature.minapp.show_opened_in_sidebar')
@@ -103,7 +103,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       avatar: avatar || undefined,
       onClick: () => UserPopup.show()
     }),
-    [avatar, t, userName]
+    [avatar, t, userName, i18n.language]
   )
 
   // MiniApp tabs — bridge v1 popup system data to v2 sidebar UI
@@ -159,7 +159,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
           }
         ]
       }),
-    [defaultPaintingProvider, visibleSidebarIcons, activeMiniAppTabs]
+    [defaultPaintingProvider, visibleSidebarIcons, activeMiniAppTabs, i18n.language]
   )
 
   const activeItem = resolveActiveItem(pathname)

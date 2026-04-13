@@ -47,6 +47,7 @@ resources/binaries/
 
 # Local
 local
+.review-loop
 .aider*
 .cursorrules
 .cursor/*
