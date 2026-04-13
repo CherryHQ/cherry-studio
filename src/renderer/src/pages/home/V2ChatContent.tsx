@@ -8,6 +8,7 @@ import { useChatSession } from '@renderer/hooks/useChatSession'
 import { type V2ChatOverrides, V2ChatOverridesProvider } from '@renderer/hooks/useMessageOperations'
 import { useTopicMessagesV2 } from '@renderer/hooks/useTopicMessagesV2'
 import { fetchMcpTools } from '@renderer/services/ApiService'
+import { mapLegacyTopicToDto } from '@renderer/services/AssistantService'
 import type { Assistant, FileMetadata, Model, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, UserMessageStatus } from '@renderer/types/newMessage'
@@ -343,18 +344,29 @@ const V2ChatContentInner: FC<InnerProps> = ({
     ]
   )
 
+  const ensureTopicExists = useCallback(async () => {
+    try {
+      await dataApiService.get(`/topics/${topic.id}`)
+    } catch {
+      await dataApiService.post('/topics', { body: mapLegacyTopicToDto(topic) })
+    }
+  }, [topic])
+
   const handleSendV2 = useCallback(
     async (text: string, options?: { files?: FileMetadata[]; mentionedModels?: Model[] }) => {
+      await ensureTopicExists()
       let mcpToolIds: string[] | undefined
       try {
         mcpToolIds = await resolveMcpToolIds()
       } catch (err) {
         logger.warn('Failed to resolve MCP tool IDs, proceeding without tools', { err })
       }
+      const lastMessageId = historyMessages.at(-1)?.id
       void sendMessage(
         { text },
         {
           body: {
+            parentAnchorId: lastMessageId,
             files: options?.files,
             mentionedModels: options?.mentionedModels,
             mcpToolIds,
@@ -363,7 +375,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
         }
       )
     },
-    [sendMessage, resolveMcpToolIds, capabilityBody]
+    [ensureTopicExists, sendMessage, resolveMcpToolIds, capabilityBody, historyMessages]
   )
 
   return (

@@ -42,7 +42,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
     window.api.ai
       .streamOpen({
         topicId,
-        parentAnchorId: mergedBody.parentAnchorId ?? null,
+        parentAnchorId: mergedBody.parentAnchorId || undefined,
         userMessageParts: lastMessage ? lastMessage.parts : []
       })
       .catch((error: unknown) => {

@@ -35,8 +35,8 @@ export interface StreamErrorPayload {
  */
 export interface AiStreamOpenRequest {
   topicId: string
-  /** Explicit parent node — message id at the current branch tip, or null for first message. */
-  parentAnchorId: string | null
+  /** Explicit parent node — message id at the current branch tip. Omit to let Main auto-resolve. */
+  parentAnchorId?: string
   /** User message content — Main wraps into a full Message when persisting. */
   userMessageParts: CherryMessagePart[]
 }
