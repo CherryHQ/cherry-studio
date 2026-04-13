@@ -3,6 +3,7 @@
  * 用于支持运行时动态导入的 AI Providers
  */
 
+import type { AmazonBedrockProvider } from '@ai-sdk/amazon-bedrock'
 import { type AmazonBedrockProviderSettings, createAmazonBedrock } from '@ai-sdk/amazon-bedrock'
 import { type CerebrasProviderSettings, createCerebras } from '@ai-sdk/cerebras'
 import { createGateway, type GatewayProviderSettings } from '@ai-sdk/gateway'
@@ -94,8 +95,20 @@ export const BedrockExtension = ProviderExtension.create({
   name: 'bedrock',
   aliases: ['aws-bedrock'] as const,
   supportsImageGeneration: true,
-  create: createAmazonBedrock
-} as const satisfies ProviderExtensionConfig<AmazonBedrockProviderSettings, ProviderV3, 'bedrock'>)
+  create: createAmazonBedrock,
+  toolFactories: {
+    webSearch:
+      (provider: AmazonBedrockProvider) =>
+      (config: NonNullable<Parameters<AmazonBedrockProvider['tools']['webSearch_20260209']>[0]>) => ({
+        tools: { webSearch: provider.tools.webSearch_20260209(config) }
+      }),
+    urlContext:
+      (provider: AmazonBedrockProvider) =>
+      (config: NonNullable<Parameters<AmazonBedrockProvider['tools']['webFetch_20260209']>[0]>) => ({
+        tools: { urlContext: provider.tools.webFetch_20260209(config) }
+      })
+  }
+} as const satisfies ProviderExtensionConfig<AmazonBedrockProviderSettings, AmazonBedrockProvider, 'bedrock'>)
 
 /**
  * Perplexity Extension

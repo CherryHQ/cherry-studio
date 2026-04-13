@@ -1,5 +1,16 @@
 # @cherrystudio/ai-core
 
+## 2.0.1
+
+### Patch Changes
+
+- [#14087](https://github.com/CherryHQ/cherry-studio/pull/14087) [`1f72f98`](https://github.com/CherryHQ/cherry-studio/commit/1f72f9890508c6fc0bc95793e286cf61b991c51c) Thanks [@DeJeune](https://github.com/DeJeune)! - fix(providers): azure-anthropic variant uses correct Anthropic toolFactories for web search
+
+  - Add `TOutput` generic to `ProviderVariant` so `transform` output type flows to `toolFactories` and `resolveModel`
+  - Add Anthropic-specific `toolFactories` to `azure-anthropic` variant (fixes `provider.tools.webSearchPreview is not a function`)
+  - Fix `urlContext` factory incorrectly mapping to `webSearch` tool key instead of `urlContext`
+  - Fix `BedrockExtension` `satisfies` type to use `AmazonBedrockProvider` instead of `ProviderV3`
+
 ## 2.0.0
 
 ### Major Changes

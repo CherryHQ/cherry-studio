@@ -19,6 +19,7 @@ import type {
 } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
+import { isAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { trackTokenUsage } from '@renderer/utils/analytics'
 import { isAbortError, isTimeoutError, serializeError } from '@renderer/utils/error'
 import { createBaseMessageBlock, createErrorBlock } from '@renderer/utils/messageUtils/create'
@@ -367,9 +368,9 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
       )
       await saveUpdatesToDB(assistantMsgId, topicId, messageUpdates, todoBlocksToSave)
 
-      // Track token usage analytics
-      if (status === 'success') {
-        trackTokenUsage({ usage: response?.usage, model: assistant?.model })
+      // Track token usage for agent sessions (chat sessions are tracked in fetchChatCompletion)
+      if (status === 'success' && isAgentSessionTopicId(topicId)) {
+        trackTokenUsage({ usage: response?.usage, model: assistant?.model, source: 'agent' })
       }
 
       void EventEmitter.emit(EVENT_NAMES.MESSAGE_COMPLETE, { id: assistantMsgId, topicId, status })

@@ -296,6 +296,45 @@ describe('formatProviderApiHost', () => {
     })
   })
 
+  describe('NewAPI provider', () => {
+    // Regression: previously isNewApiProvider was matched in formatProviderApiHost and forced
+    it('appends /v1 when matched by type "new-api"', () => {
+      const provider = makeProvider({
+        id: 'some-newapi-instance',
+        type: 'new-api',
+        apiHost: 'https://api.example.com'
+      })
+
+      const result = formatProviderApiHost(provider)
+
+      expect(result.apiHost).toBe('https://api.example.com/v1')
+    })
+
+    it('does not double-append /v1', () => {
+      const provider = makeProvider({
+        id: 'new-api',
+        type: 'openai',
+        apiHost: 'https://api.newapi.com/v1'
+      })
+
+      const result = formatProviderApiHost(provider)
+
+      expect(result.apiHost).toBe('https://api.newapi.com/v1')
+    })
+
+    it('skips version append when trailing sharp is present', () => {
+      const provider = makeProvider({
+        id: 'new-api',
+        type: 'openai',
+        apiHost: 'https://api.newapi.com/custom#'
+      })
+
+      const result = formatProviderApiHost(provider)
+
+      expect(result.apiHost).toBe('https://api.newapi.com/custom')
+    })
+  })
+
   describe('Ollama provider', () => {
     it('strips trailing /v1 and appends /api', () => {
       const provider = makeProvider({

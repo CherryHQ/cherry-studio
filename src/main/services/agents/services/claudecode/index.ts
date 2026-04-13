@@ -446,6 +446,11 @@ class ClaudeCodeService implements AgentServiceInterface {
       pathToClaudeCodeExecutable: this.claudeExecutablePath,
       spawnClaudeCodeProcess: (spawnOptions) => {
         const childEnv = { ...spawnOptions.env } as NodeJS.ProcessEnv
+
+        // Ensure the child process can resolve native modules (e.g. @img/sharp)
+        // that live in asar.unpacked alongside the SDK
+        childEnv.NODE_PATH = toAsarUnpackedPath(path.join(app.getAppPath(), 'node_modules'))
+
         let execArgv = process.execArgv
 
         const activeProxyConfig = getNodeProxyConfigFromEnvironment(childEnv)
