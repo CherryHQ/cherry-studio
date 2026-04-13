@@ -185,39 +185,18 @@ export class TagDataService {
 
   /**
    * Bulk set entities for a tag (replace all entity associations for this tag).
-   * Performs diff-based sync: only deletes removed and inserts added associations.
+   * Uses delete-all-then-reinsert strategy within a transaction.
    */
   async setEntities(tagId: string, dto: SetTagEntitiesDto): Promise<void> {
     await this.getById(tagId)
 
     await this.db.transaction(async (tx) => {
-      const existing = await tx
-        .select({ entityType: entityTagTable.entityType, entityId: entityTagTable.entityId })
-        .from(entityTagTable)
-        .where(eq(entityTagTable.tagId, tagId))
+      await tx.delete(entityTagTable).where(eq(entityTagTable.tagId, tagId))
 
-      const existingKeys = new Set(existing.map((r) => `${r.entityType}:${r.entityId}`))
-      const desiredKeys = new Set(dto.entities.map((e) => `${e.entityType}:${e.entityId}`))
-
-      const toRemove = existing.filter((r) => !desiredKeys.has(`${r.entityType}:${r.entityId}`))
-      const toAdd = dto.entities.filter((e) => !existingKeys.has(`${e.entityType}:${e.entityId}`))
-
-      for (const r of toRemove) {
-        await tx
-          .delete(entityTagTable)
-          .where(
-            and(
-              eq(entityTagTable.tagId, tagId),
-              eq(entityTagTable.entityType, r.entityType),
-              eq(entityTagTable.entityId, r.entityId)
-            )
-          )
-      }
-
-      if (toAdd.length > 0) {
+      if (dto.entities.length > 0) {
         await tx
           .insert(entityTagTable)
-          .values(toAdd.map((e) => ({ entityType: e.entityType, entityId: e.entityId, tagId })))
+          .values(dto.entities.map((e) => ({ entityType: e.entityType, entityId: e.entityId, tagId })))
       }
     })
 
