@@ -18,7 +18,7 @@ vi.mock('@renderer/config/models/openai', () => ({
 const mockExtractPdfText = vi.fn()
 
 vi.mock('@shared/utils/pdf', async (importOriginal) => {
-  const actual = await importOriginal()
+  const actual = (await importOriginal()) as Record<string, unknown>
 
   return {
     ...actual,
