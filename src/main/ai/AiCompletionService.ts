@@ -1,11 +1,11 @@
 import { createAgent, embedMany as aiCoreEmbedMany, generateImage as aiCoreGenerateImage } from '@cherrystudio/ai-core'
+import { assistantDataService } from '@data/services/AssistantService'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
-import { reduxService } from '@main/services/ReduxService'
+import type { Assistant } from '@shared/data/types/assistant'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import type { Assistant } from '@types'
 import type {
   ChatTransport,
   EmbeddingModelUsage,
@@ -303,27 +303,25 @@ export class AiCompletionService {
 
   /**
    * Get provider + model for this request.
-   * Provider/model from v2 DataApi (SQLite). Assistant still from Redux (not yet migrated).
-   * Priority: explicit uniqueModelId > assistant.model
+   * All from v2 DataApi (SQLite). Priority: explicit uniqueModelId > assistant.modelId
    */
-  private async getProviderAndModel(request: AiBaseRequest) {
-    // Assistant still in Redux (TODO: migrate to DataApi)
+  private async getProviderAndModel(request: AiBaseRequest & { chatId?: string }) {
     let assistant: Assistant | undefined
     if (request.assistantId) {
-      const assistants = await reduxService.select<Assistant[]>('state.assistants.assistants')
-      assistant = assistants.find((a: Assistant) => a.id === request.assistantId)
+      assistant = await assistantDataService.getById(request.assistantId).catch(() => undefined)
     }
 
-    // Parse UniqueModelId or fall back to assistant.model
+    // Parse UniqueModelId or fall back to assistant.modelId
     let providerId: string | undefined
     let modelId: string | undefined
     if (request.uniqueModelId) {
       const parsed = parseUniqueModelId(request.uniqueModelId)
       providerId = parsed.providerId
       modelId = parsed.modelId
-    } else {
-      providerId = assistant?.model?.provider
-      modelId = assistant?.model?.id
+    } else if (assistant?.modelId) {
+      const parsed = parseUniqueModelId(assistant.modelId)
+      providerId = parsed.providerId
+      modelId = parsed.modelId
     }
     if (!providerId) throw new Error('Cannot resolve providerId: not in request and assistant has no model')
     if (!modelId) throw new Error('Cannot resolve modelId: not in request and assistant has no model')

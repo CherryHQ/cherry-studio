@@ -1,7 +1,6 @@
 import { loggerService } from '@logger'
 import { messageService } from '@main/data/services/MessageService'
-import type { MessageStats } from '@shared/data/types/message'
-import type { AssistantMeta, ModelMeta } from '@shared/data/types/meta'
+import type { MessageStats, ModelSnapshot } from '@shared/data/types/message'
 import type { SerializedError } from '@shared/types/error'
 
 import type { CherryUIMessage, StreamDoneResult, StreamListener } from '../types'
@@ -10,20 +9,17 @@ const logger = loggerService.withContext('PersistenceListener')
 
 export interface PersistenceListenerOptions {
   topicId: string
-  assistantId: string
   /** Real SQLite id of the user message created by handleStreamRequest. */
   parentUserMessageId: string
-  /** Model id used for this generation. */
+  /** Model identifier (UniqueModelId). */
   modelId?: string
-  /** Snapshot of model metadata for historical display (survives model rename/deletion). */
-  modelMeta?: ModelMeta
-  /** Snapshot of assistant metadata for historical display. */
-  assistantMeta?: AssistantMeta
-  /** Token usage and performance metrics, set by AiStreamManager from executeStream result. */
+  /** Model snapshot for historical display (survives model rename/deletion). */
+  modelSnapshot?: ModelSnapshot
+  /** Token usage and performance metrics. */
   stats?: MessageStats
-  /** OpenTelemetry trace id for request tracing. */
+  /** OpenTelemetry trace id. */
   traceId?: string
-  /** Multi-model: siblings group id shared by parallel responses to the same user message. */
+  /** Multi-model: siblings group id shared by parallel responses. */
   siblingsGroupId?: number
   /**
    * Optional post-persist hook. Runs only on `status === 'success'`.
@@ -63,30 +59,20 @@ export class PersistenceListener implements StreamListener {
       await messageService.create(this.ctx.topicId, {
         role: 'assistant',
         parentId: this.ctx.parentUserMessageId,
-        assistantId: this.ctx.assistantId,
         modelId: this.ctx.modelId,
-        modelMeta: this.ctx.modelMeta,
-        assistantMeta: this.ctx.assistantMeta,
+        modelSnapshot: this.ctx.modelSnapshot,
         traceId: this.ctx.traceId,
         siblingsGroupId: this.ctx.siblingsGroupId,
         data: { parts: finalMessage.parts },
         status,
-        // Extract stats from finalMessage metadata if available (token usage from AI SDK)
         stats:
-          (this.ctx.stats ?? finalMessage.metadata?.totalTokens)
-            ? { totalTokens: finalMessage.metadata?.totalTokens }
-            : undefined
+          this.ctx.stats ??
+          (finalMessage.metadata?.totalTokens ? { totalTokens: finalMessage.metadata.totalTokens } : undefined)
       })
 
-      logger.info('Assistant message persisted', {
-        topicId: this.ctx.topicId,
-        status
-      })
+      logger.info('Assistant message persisted', { topicId: this.ctx.topicId, status })
     } catch (err) {
-      logger.error('Failed to persist assistant message', {
-        topicId: this.ctx.topicId,
-        err
-      })
+      logger.error('Failed to persist assistant message', { topicId: this.ctx.topicId, err })
       return
     }
 

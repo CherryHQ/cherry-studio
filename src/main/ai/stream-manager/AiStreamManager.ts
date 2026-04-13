@@ -1,9 +1,9 @@
+import { assistantDataService } from '@data/services/AssistantService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { messageService } from '@main/data/services/MessageService'
-import { reduxService } from '@main/services/ReduxService'
 import type {
   AiStreamAbortRequest,
   AiStreamAttachRequest,
@@ -12,7 +12,7 @@ import type {
   AiStreamOpenRequest
 } from '@shared/ai/transport'
 import type { Message } from '@shared/data/types/message'
-import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { SerializedError } from '@shared/types/error'
 import { serializeError } from '@shared/types/error'
@@ -353,34 +353,31 @@ export class AiStreamManager extends BaseService {
       throw new Error(`Cannot resolve assistantId for topic ${req.topicId}`)
     }
 
-    // TODO: migrate dataapiservice
-    const assistants =
-      await reduxService.select<
-        Array<{ id: string; name: string; emoji?: string; model?: { id: string; provider: string; name: string } }>
-      >('state.assistants.assistants')
-    const assistant = assistants.find((a) => a.id === assistantId)
-    if (!assistant?.model) {
-      throw new Error(`Cannot resolve model for assistant ${assistantId}`)
+    const assistant = await assistantDataService.getById(assistantId)
+    if (!assistant.modelId) {
+      throw new Error(`Assistant ${assistantId} has no model configured`)
     }
-    const { model } = assistant
-    const modelId = createUniqueModelId(model.provider, model.id)
+    const modelId = assistant.modelId
+    const { providerId, modelId: rawModelId } = parseUniqueModelId(modelId)
 
-    // Persist user message with full metadata
+    // Build model snapshot for message metadata
+    const modelSnapshot = { id: rawModelId, name: rawModelId, provider: providerId }
+
+    // Persist user message with model snapshot
     const userMessage = await messageService.create(req.topicId, {
       role: 'user',
       parentId: req.parentAnchorId,
       data: { parts: req.userMessageParts },
-      modelId: model.id
+      modelId,
+      modelSnapshot
     })
 
-    // Construct PersistenceListener with full metadata for assistant message
+    // Construct PersistenceListener
     const persistenceListener = new PersistenceListener({
       topicId: req.topicId,
-      assistantId,
       parentUserMessageId: userMessage.id,
-      modelId: model.id,
-      modelMeta: { id: model.id, name: model.name, provider: model.provider },
-      assistantMeta: { id: assistant.id, name: assistant.name, emoji: assistant.emoji }
+      modelId,
+      modelSnapshot
     })
     const webContentsListener = new WebContentsListener(sender, req.topicId)
 
