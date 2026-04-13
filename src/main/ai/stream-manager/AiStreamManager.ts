@@ -12,7 +12,7 @@ import type {
   AiStreamOpenRequest
 } from '@shared/ai/transport'
 import type { Message } from '@shared/data/types/message'
-import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { createUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { SerializedError } from '@shared/types/error'
 import { serializeError } from '@shared/types/error'
@@ -20,6 +20,7 @@ import type { UIMessageChunk } from 'ai'
 
 import type { AiStreamRequest } from '../AiCompletionService'
 import { PendingMessageQueue } from '../PendingMessageQueue'
+import { extractAgentSessionId, isAgentSessionTopic } from '../provider/claudeCodeSettingsBuilder'
 import { InternalStreamTarget } from './InternalStreamTarget'
 import { PersistenceListener } from './listeners/PersistenceListener'
 import { WebContentsListener } from './listeners/WebContentsListener'
@@ -355,7 +356,17 @@ export class AiStreamManager extends BaseService {
     sender: Electron.WebContents,
     req: AiStreamOpenRequest
   ): Promise<{ mode: 'started' | 'steered' }> {
-    // Resolve assistant from topic → assistantId → Redux (will be DataApi after #13851 merges)
+    if (isAgentSessionTopic(req.topicId)) {
+      return this.handleAgentSessionStream(sender, req)
+    }
+    return this.handleNormalChatStream(sender, req)
+  }
+
+  /** Normal chat: resolve from topic → assistant → model, persist user message, start execution. */
+  private async handleNormalChatStream(
+    sender: Electron.WebContents,
+    req: AiStreamOpenRequest
+  ): Promise<{ mode: 'started' | 'steered' }> {
     const topic = await topicService.getById(req.topicId)
     const assistantId = topic?.assistantId
     if (!assistantId) {
@@ -369,10 +380,8 @@ export class AiStreamManager extends BaseService {
     const modelId = assistant.modelId
     const { providerId, modelId: rawModelId } = parseUniqueModelId(modelId)
 
-    // Build model snapshot for message metadata
     const modelSnapshot = { id: rawModelId, name: rawModelId, provider: providerId }
 
-    // Persist user message with model snapshot
     const userMessage = await messageService.create(req.topicId, {
       role: 'user',
       parentId: req.parentAnchorId,
@@ -381,7 +390,6 @@ export class AiStreamManager extends BaseService {
       modelSnapshot
     })
 
-    // Construct PersistenceListener
     const persistenceListener = new PersistenceListener({
       topicId: req.topicId,
       parentUserMessageId: userMessage.id,
@@ -396,6 +404,55 @@ export class AiStreamManager extends BaseService {
       request: await this.buildAiStreamRequest(req.topicId, assistantId, modelId, userMessage.id),
       userMessage,
       listeners: [webContentsListener, persistenceListener]
+    })
+
+    return { mode: result.mode }
+  }
+
+  /** Agent session: resolve from session → agent → model, start execution with Claude Code provider. */
+  private async handleAgentSessionStream(
+    sender: Electron.WebContents,
+    req: AiStreamOpenRequest
+  ): Promise<{ mode: 'started' | 'steered' }> {
+    const sessionId = extractAgentSessionId(req.topicId)
+
+    // Resolve session → agent → model
+    const { agentService, sessionService } = await import('@main/services/agents')
+    const { agents } = await agentService.listAgents()
+    let session: Awaited<ReturnType<typeof sessionService.getSession>> = null
+    for (const agent of agents) {
+      session = await sessionService.getSession(agent.id, sessionId)
+      if (session) break
+    }
+    if (!session) throw new Error(`Agent session not found: ${sessionId}`)
+
+    // Parse model from session (format: "providerId:modelId")
+    const colonIdx = session.model.indexOf(':')
+    const providerId = session.model.slice(0, colonIdx > 0 ? colonIdx : undefined)
+    const rawModelId = colonIdx > 0 ? session.model.slice(colonIdx + 1) : session.model
+    const uniqueModelId = createUniqueModelId(providerId, rawModelId)
+
+    // Extract user message text from parts
+    const userText =
+      req.userMessageParts
+        ?.filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+        .map((p) => p.text)
+        .join('\n') || ''
+
+    const webContentsListener = new WebContentsListener(sender, req.topicId)
+
+    const result = this.send({
+      topicId: req.topicId,
+      modelId: uniqueModelId,
+      request: {
+        chatId: req.topicId,
+        trigger: 'submit-message',
+        assistantId: session.agent_id,
+        uniqueModelId,
+        messages: [{ id: crypto.randomUUID(), role: 'user', parts: [{ type: 'text', text: userText }] }]
+      },
+      userMessage: { id: crypto.randomUUID(), topicId: req.topicId, role: 'user' } as Message,
+      listeners: [webContentsListener]
     })
 
     return { mode: result.mode }
