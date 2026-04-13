@@ -32,9 +32,9 @@
  *    - Old: Separate `CitationMessageBlock` with response/knowledge/memories
  *    - New: Merged into `MainTextBlock.references` as typed ContentReference[]
  *
- * 5. **Mentions → References**
+ * 5. **Mentions Dropped**
  *    - Old: `message.mentions: Model[]`
- *    - New: `MentionReference[]` in `MainTextBlock.references`
+ *    - New: Not migrated — derivable from sibling responses' modelId + siblingsGroupId
  *
  * @since v2.0.0
  */
@@ -55,10 +55,10 @@ import type {
   FileUIPart,
   ImageBlock,
   MainTextBlock,
-  MentionReference,
   MessageData,
   MessageDataBlock,
   MessageStats,
+  ModelSnapshot,
   ReasoningUIPart,
   ReferenceCategory,
   SerializedErrorData,
@@ -68,7 +68,7 @@ import type {
   TranslationBlock,
   VideoBlock
 } from '@shared/data/types/message'
-import type { AssistantMeta, ModelMeta } from '@shared/data/types/meta'
+import { createUniqueModelId } from '@shared/data/types/model'
 import type { CherryDataPartTypes, CherryProviderMetadata } from '@shared/data/types/uiParts'
 import type { FileMetadata } from '@types'
 import type { ProviderMetadata, SourceUrlUIPart } from 'ai'
@@ -95,7 +95,7 @@ export interface OldTopic {
 }
 
 /**
- * Old Assistant type for extracting AssistantMeta
+ * Old Assistant type from Redux state
  * Note: In Redux state, assistant.topics[] contains topic metadata (but with messages: [])
  */
 export interface OldAssistant {
@@ -164,8 +164,9 @@ export interface OldMessage {
   metrics?: OldMetrics
   traceId?: string
 
-  // Fields being transformed
-  mentions?: OldModel[] // → MentionReference in MainTextBlock.references
+  // Dropped: mentions are redundant in tree-based architecture
+  // (derivable from sibling response messages' modelId + siblingsGroupId)
+  mentions?: OldModel[]
 
   // Dropped fields
   type?: 'clear' | 'text' | '@'
@@ -382,8 +383,6 @@ export interface NewTopic {
   name: string | null
   isNameManuallyEdited: boolean
   assistantId: string | null
-  assistantMeta: AssistantMeta | null
-  prompt: string | null
   activeNodeId: string | null
   groupId: string | null
   sortOrder: number
@@ -406,10 +405,8 @@ export interface NewMessage {
   searchableText: string | null
   status: 'success' | 'error' | 'paused'
   siblingsGroupId: number
-  assistantId: string | null
-  assistantMeta: AssistantMeta | null
   modelId: string | null
-  modelMeta: ModelMeta | null
+  modelSnapshot: ModelSnapshot | null
   traceId: string | null
   stats: MessageStats | null
   createdAt: number // timestamp
@@ -424,7 +421,6 @@ export interface NewMessage {
  * Transform old Topic to new Topic format
  *
  * @param oldTopic - Source topic from Redux/Dexie
- * @param assistant - Assistant entity for generating AssistantMeta
  * @param activeNodeId - Last message ID to set as active node
  * @returns New topic ready for SQLite insertion
  *
@@ -434,9 +430,7 @@ export interface NewMessage {
  * | id | id | Direct copy |
  * | name | name | Direct copy |
  * | isNameManuallyEdited | isNameManuallyEdited | Direct copy |
- * | assistantId | assistantId | Direct copy |
- * | (from Assistant) | assistantMeta | Generated from assistant entity |
- * | prompt | prompt | Direct copy |
+ * | assistantId | assistantId | FK to assistant table (validated) |
  * | (computed) | activeNodeId | Last message ID |
  * | (none) | groupId | null (new field) |
  * | (none) | sortOrder | 0 (new field) |
@@ -447,19 +441,14 @@ export interface NewMessage {
  *
  * ## Dropped Fields:
  * - type ('chat' | 'session'): No longer needed in new schema
+ * - prompt: Topic-level prompt removed from schema; assistant prompt is authoritative
  */
-export function transformTopic(
-  oldTopic: OldTopic,
-  assistant: OldAssistant | null,
-  activeNodeId: string | null
-): NewTopic {
+export function transformTopic(oldTopic: OldTopic, activeNodeId: string | null): NewTopic {
   return {
     id: oldTopic.id,
     name: oldTopic.name || null,
     isNameManuallyEdited: oldTopic.isNameManuallyEdited ?? false,
     assistantId: oldTopic.assistantId || null,
-    assistantMeta: assistant ? extractAssistantMeta(assistant) : null,
-    prompt: oldTopic.prompt || null,
     activeNodeId,
     groupId: null, // New field, no migration source
     sortOrder: 0, // New field, default value
@@ -467,24 +456,6 @@ export function transformTopic(
     pinnedOrder: 0, // New field, default value
     createdAt: parseTimestamp(oldTopic.createdAt),
     updatedAt: parseTimestamp(oldTopic.updatedAt)
-  }
-}
-
-/**
- * Extract AssistantMeta from old Assistant entity
- *
- * AssistantMeta preserves display information when the original
- * assistant is deleted, ensuring messages/topics remain readable.
- *
- * @param assistant - Source assistant entity
- * @returns AssistantMeta for storage in topic/message
- */
-export function extractAssistantMeta(assistant: OldAssistant): AssistantMeta {
-  return {
-    id: assistant.id,
-    name: assistant.name,
-    emoji: assistant.emoji,
-    type: assistant.type
   }
 }
 
@@ -499,14 +470,13 @@ export function extractAssistantMeta(assistant: OldAssistant): AssistantMeta {
  * - Status normalization
  * - Block transformation (IDs → inline data)
  * - Citation merging into references
- * - Mention conversion to references
  * - Stats merging (usage + metrics)
  *
  * @param oldMessage - Source message from Dexie
  * @param parentId - Computed parent message ID (from tree building)
  * @param siblingsGroupId - Computed siblings group ID (from multi-model detection)
  * @param blocks - Resolved block data from message_blocks table
- * @param assistant - Assistant entity for generating AssistantMeta
+
  * @param correctTopicId - The correct topic ID (from parent topic, not from message)
  * @returns New message ready for SQLite insertion
  *
@@ -521,10 +491,7 @@ export function extractAssistantMeta(assistant: OldAssistant): AssistantMeta {
  * | (extracted) | searchableText | Extracted from text blocks |
  * | status | status | Normalized to success/error/paused |
  * | (computed) | siblingsGroupId | From multi-model detection |
- * | assistantId | assistantId | Direct copy |
- * | (from Message.model) | assistantMeta | Generated if available |
- * | modelId | modelId | Direct copy |
- * | (from Message.model) | modelMeta | Generated from model entity |
+ * | model/modelId | modelId | Composite (provider::modelId) or raw fallback |
  * | traceId | traceId | Direct copy |
  * | usage + metrics | stats | Merged into single stats object |
  * | createdAt | createdAt | ISO string → timestamp |
@@ -545,18 +512,17 @@ export function transformMessage(
   parentId: string | null,
   siblingsGroupId: number,
   blocks: OldBlock[],
-  assistant: OldAssistant | null,
   correctTopicId: string
 ): NewMessage {
   // Transform blocks to AI SDK UIMessage.parts format
   const { parts, citationReferences, searchableText } = transformBlocksToParts(blocks)
 
-  // Convert mentions to MentionReferences
-  const mentionReferences = transformMentions(oldMessage.mentions)
+  // Mentions are NOT migrated. In the new tree-based architecture, which models
+  // responded to a user message can be derived from sibling response messages'
+  // modelId + siblingsGroupId, making stored mentions redundant.
 
-  // Merge citations and mentions into the first TextUIPart's providerMetadata.cherry.references
-  const allReferences = [...citationReferences, ...mentionReferences]
-  if (allReferences.length > 0) {
+  // Merge citations into the first TextUIPart's providerMetadata.cherry.references
+  if (citationReferences.length > 0) {
     const textPartIndex = parts.findIndex((p): p is TextUIPart => p.type === 'text')
     if (textPartIndex >= 0) {
       const textPart = parts[textPartIndex] as TextUIPart
@@ -565,7 +531,7 @@ export function transformMessage(
         ...textPart,
         providerMetadata: {
           ...textPart.providerMetadata,
-          cherry: { ...existingCherry, references: allReferences } as unknown as JSONObject
+          cherry: { ...existingCherry, references: citationReferences } as unknown as JSONObject
         }
       }
     }
@@ -580,10 +546,16 @@ export function transformMessage(
     searchableText: searchableText || null,
     status: normalizeStatus(oldMessage.status),
     siblingsGroupId,
-    assistantId: oldMessage.assistantId || null,
-    assistantMeta: assistant ? extractAssistantMeta(assistant) : null,
-    modelId: oldMessage.modelId || null,
-    modelMeta: oldMessage.model ? extractModelMeta(oldMessage.model) : null,
+    // Build UniqueModelId (provider::modelId) from full model object when available.
+    // Falls back to raw modelId (lacks provider prefix) for incomplete legacy data.
+    modelId: (() => {
+      if (oldMessage.model?.provider && oldMessage.model?.id) {
+        return createUniqueModelId(oldMessage.model.provider, oldMessage.model.id)
+      }
+      return oldMessage.modelId || null
+    })(),
+    // Snapshot of model at message creation time for historical display
+    modelSnapshot: buildModelSnapshot(oldMessage.model),
     traceId: oldMessage.traceId || null,
     stats: mergeStats(oldMessage.usage, oldMessage.metrics),
     createdAt: parseTimestamp(oldMessage.createdAt),
@@ -592,20 +564,17 @@ export function transformMessage(
 }
 
 /**
- * Extract ModelMeta from old Model entity
- *
- * ModelMeta preserves model display information when the original
- * model configuration is removed or unavailable.
- *
- * @param model - Source model entity
- * @returns ModelMeta for storage in message
+ * Build a ModelSnapshot from a legacy model object.
+ * Returns null if model is missing required fields (id + provider).
  */
-export function extractModelMeta(model: OldModel): ModelMeta {
+function buildModelSnapshot(model: OldMessage['model']): ModelSnapshot | null {
+  if (!model || typeof model.id !== 'string' || typeof model.provider !== 'string') return null
+  if (!model.id.trim() || !model.provider.trim()) return null
   return {
     id: model.id,
-    name: model.name,
+    name: (typeof model.name === 'string' ? model.name : model.id) || model.id,
     provider: model.provider,
-    group: model.group
+    group: typeof model.group === 'string' ? model.group : undefined
   }
 }
 
@@ -613,7 +582,8 @@ export function extractModelMeta(model: OldModel): ModelMeta {
  * Normalize old status values to new enum
  *
  * Old system has multiple transient states that don't apply to stored messages.
- * We normalize these to the three final states in the new schema.
+ * Transient states (sending/pending/searching/processing) indicate interrupted
+ * operations and are mapped to 'error' — the message was not completed.
  *
  * @param oldStatus - Status from old message
  * @returns Normalized status for new message
@@ -622,23 +592,22 @@ export function extractModelMeta(model: OldModel): ModelMeta {
  * - 'success' → 'success'
  * - 'error' → 'error'
  * - 'paused' → 'paused'
- * - 'sending', 'pending', 'searching', 'processing' → 'success' (completed states)
+ * - 'sending', 'pending', 'searching', 'processing' → 'error' (interrupted)
  */
 export function normalizeStatus(oldStatus: OldMessage['status']): 'success' | 'error' | 'paused' {
   switch (oldStatus) {
-    case 'error':
-      return 'error'
+    case 'success':
+      return 'success'
     case 'paused':
       return 'paused'
-    case 'success':
+    case 'error':
     case 'sending':
     case 'pending':
     case 'searching':
     case 'processing':
     default:
-      // All transient states are treated as success for stored messages
-      // If a message was in a transient state during export, it completed
-      return 'success'
+      // Transient states in persisted data indicate interrupted operations
+      return 'error'
   }
 }
 
@@ -1270,31 +1239,6 @@ export function extractCitationReferences(citationBlock: OldCitationBlock): Cont
   return references
 }
 
-/**
- * Transform old mentions to MentionReferences
- *
- * Old system stored @mentions as a Model[] array on the message.
- * New system stores them as MentionReference[] in MainTextBlock.references.
- *
- * @param mentions - Array of mentioned models from old message
- * @returns Array of MentionReferences
- *
- * ## Transformation:
- * | Old Field | New Field |
- * |-----------|-----------|
- * | model.id | modelId |
- * | model.name | displayName |
- */
-export function transformMentions(mentions?: OldModel[]): MentionReference[] {
-  if (!mentions || mentions.length === 0) return []
-
-  return mentions.map((model) => ({
-    category: 'mention' as ReferenceCategory.MENTION,
-    modelId: model.id,
-    displayName: model.name
-  }))
-}
-
 // ============================================================================
 // Tree Building Functions
 // ============================================================================
@@ -1367,6 +1311,8 @@ export function buildMessageTree(
   // Second pass: build parent/sibling relationships
   let previousMessageId: string | null = null
   let lastNonGroupMessageId: string | null = null // Last message not in a group, for linking subsequent user messages
+  let lastGroupFallbackId: string | null = null // Last group member as fallback when no foldSelected
+  let groupHasFoldSelected = false // Whether current group has a foldSelected member
 
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i]
@@ -1387,14 +1333,22 @@ export function buildMessageTree(
         parentId = orphanedGroupParent.get(msg.askId) ?? null
       }
 
-      // If this is the selected response, update lastNonGroupMessageId for subsequent user messages
+      // Track selected response or last group member for linking subsequent user messages
       if (msg.foldSelected) {
         lastNonGroupMessageId = msg.id
+        groupHasFoldSelected = true
       }
-    } else if (msg.role === 'user' && lastNonGroupMessageId) {
-      // User message after a multi-model group links to the selected response
-      parentId = lastNonGroupMessageId
+      if (!groupHasFoldSelected) {
+        lastGroupFallbackId = msg.id
+      }
+    } else if (msg.role === 'user' && (lastNonGroupMessageId || lastGroupFallbackId)) {
+      // User message after a multi-model group links to the selected (or last) response.
+      // lastGroupFallbackId takes priority: it means the group had no foldSelected,
+      // so the user message should follow the last group member, not the pre-group message.
+      parentId = lastGroupFallbackId ?? lastNonGroupMessageId
       lastNonGroupMessageId = null
+      lastGroupFallbackId = null
+      groupHasFoldSelected = false
     } else {
       // Normal sequential message - parent is previous message
       parentId = previousMessageId
@@ -1408,6 +1362,8 @@ export function buildMessageTree(
     // Update lastNonGroupMessageId for non-group messages
     if (siblingsGroupId === 0) {
       lastNonGroupMessageId = msg.id
+      lastGroupFallbackId = null
+      groupHasFoldSelected = false
     }
   }
 
@@ -1485,8 +1441,9 @@ function inferMediaType(ext: string | undefined, fallback: string): string {
  * @param isoString - ISO 8601 timestamp string or undefined
  * @returns Unix timestamp in milliseconds
  */
-export function parseTimestamp(isoString: string | undefined): number {
-  if (!isoString) return Date.now()
+export function parseTimestamp(isoString: string | null | undefined): number {
+  if (isoString == null) return Date.now() // handles both null and undefined
+  if (!isoString) return Date.now() // handles empty string
 
   const parsed = new Date(isoString).getTime()
   return isNaN(parsed) ? Date.now() : parsed

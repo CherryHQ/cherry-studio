@@ -25,6 +25,10 @@ export async function fetchMessagesFromDataApi(topicId: string): Promise<{
   blocks: MessageBlock[]
 }> {
   try {
+    // Fetch topic to get assistantId (messages no longer store it directly)
+    const topic = await dataApiService.get(`/topics/${topicId}`)
+    const assistantId = topic.assistantId ?? ''
+
     const response = (await dataApiService.get(`/topics/${topicId}/messages`, {
       query: { limit: FETCH_LIMIT, includeSiblings: true }
     })) as BranchMessagesResponse
@@ -33,13 +37,13 @@ export async function fetchMessagesFromDataApi(topicId: string): Promise<{
     const blocks: MessageBlock[] = []
 
     for (const item of response.items) {
-      const result = convertSharedMessage(item.message)
+      const result = convertSharedMessage(item.message, assistantId)
       messages.push(result.message)
       blocks.push(...result.blocks)
 
       if (item.siblingsGroup) {
         for (const sibling of item.siblingsGroup) {
-          const sibResult = convertSharedMessage(sibling)
+          const sibResult = convertSharedMessage(sibling, assistantId)
           messages.push(sibResult.message)
           blocks.push(...sibResult.blocks)
         }
@@ -70,7 +74,10 @@ export async function fetchMessagesFromDataApi(topicId: string): Promise<{
  * Parts are converted back to renderer MessageBlock[] with deterministic IDs
  * based on messageId + index.
  */
-function convertSharedMessage(shared: SharedMessage): {
+function convertSharedMessage(
+  shared: SharedMessage,
+  assistantId: string
+): {
   message: Message
   blocks: MessageBlock[]
 } {
@@ -95,9 +102,9 @@ function convertSharedMessage(shared: SharedMessage): {
 
   const message: Message = {
     id: shared.id,
+    assistantId,
     topicId: shared.topicId,
     role: shared.role,
-    assistantId: shared.assistantId || '',
     status: shared.status as Message['status'],
     blocks: blockIds,
     createdAt: shared.createdAt,
