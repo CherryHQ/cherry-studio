@@ -86,8 +86,22 @@ export class PersistenceListener implements StreamListener {
     }
   }
 
-  async onError(_error: SerializedError): Promise<void> {
-    // Don't persist error messages (consistent with v1 ChatSession.handleFinish)
+  async onError(error: SerializedError): Promise<void> {
+    try {
+      await messageService.create(this.ctx.topicId, {
+        role: 'assistant',
+        parentId: this.ctx.parentUserMessageId,
+        modelId: this.ctx.modelId,
+        modelSnapshot: this.ctx.modelSnapshot,
+        traceId: this.ctx.traceId,
+        siblingsGroupId: this.ctx.siblingsGroupId,
+        data: { parts: [{ type: 'data-error', data: { name: error.name, message: error.message } }] },
+        status: 'error'
+      })
+      logger.info('Error message persisted', { topicId: this.ctx.topicId })
+    } catch (err) {
+      logger.error('Failed to persist error message', { topicId: this.ctx.topicId, err })
+    }
   }
 
   isAlive(): boolean {
