@@ -209,8 +209,15 @@ export class Application {
 
       this.isBootstrapped = true
 
-      // 4. Wait for Background to finish, then notify all services
+      // 4. Wait for Background to finish, then notify all services.
+      // ServiceInitError = fail-fast service failure → must propagate to
+      // handleFatalServiceError() via the outer catch block.
+      // Non-ServiceInitError = graceful/unexpected failure in a background
+      // service — log and continue, as background services are non-critical.
       await backgroundPromise.catch((err) => {
+        if (err instanceof ServiceInitError) {
+          throw err
+        }
         logger.error('Background phase failed:', err)
       })
       await this.lifecycleManager.allReady()
