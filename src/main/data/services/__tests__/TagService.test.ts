@@ -426,12 +426,10 @@ describe('TagDataService', () => {
   // setEntities
   // --------------------------------------------------------------------------
   describe('setEntities', () => {
-    it('should diff-sync: remove old, keep unchanged, add new', async () => {
+    it('should delete all existing and reinsert desired entities', async () => {
       // getById mock
       mockDb.select.mockReturnValue(mockChain([createMockTagRow()]))
 
-      // existing: [assistant:ast-old, topic:topic-keep]
-      // desired:  [topic:topic-keep, assistant:ast-new]
       const tx = createTrackingTx([
         { entityType: 'assistant', entityId: 'ast-old' },
         { entityType: 'topic', entityId: 'topic-keep' }
@@ -448,13 +446,17 @@ describe('TagDataService', () => {
         ]
       })
 
-      // ast-old removed (1 delete call)
+      // delete-all-then-reinsert: 1 bulk delete, then reinsert all desired
       expect(tx.deleteCalls).toBe(1)
-      // ast-new inserted with correct tag context
-      expect(tx.insertedValues).toEqual([[{ entityType: 'assistant', entityId: 'ast-new', tagId: 'tag-1' }]])
+      expect(tx.insertedValues).toEqual([
+        [
+          { entityType: 'topic', entityId: 'topic-keep', tagId: 'tag-1' },
+          { entityType: 'assistant', entityId: 'ast-new', tagId: 'tag-1' }
+        ]
+      ])
     })
 
-    it('should skip both when entities already match', async () => {
+    it('should delete and reinsert even when entities already match', async () => {
       mockDb.select.mockReturnValue(mockChain([createMockTagRow()]))
 
       const tx = createTrackingTx([{ entityType: 'assistant', entityId: 'ast-1' }])
@@ -467,8 +469,9 @@ describe('TagDataService', () => {
         entities: [{ entityType: 'assistant', entityId: 'ast-1' }]
       })
 
-      expect(tx.deleteCalls).toBe(0)
-      expect(tx.insertedValues).toEqual([])
+      // always deletes all and reinserts
+      expect(tx.deleteCalls).toBe(1)
+      expect(tx.insertedValues).toEqual([[{ entityType: 'assistant', entityId: 'ast-1', tagId: 'tag-1' }]])
     })
 
     it('should remove all when entities list is empty', async () => {
@@ -485,8 +488,8 @@ describe('TagDataService', () => {
 
       await tagDataService.setEntities('tag-1', { entities: [] })
 
-      // one delete per removed entity (loop-based)
-      expect(tx.deleteCalls).toBe(2)
+      // bulk delete all, no reinsert
+      expect(tx.deleteCalls).toBe(1)
       expect(tx.insertedValues).toEqual([])
     })
 
