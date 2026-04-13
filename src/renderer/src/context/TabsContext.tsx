@@ -384,10 +384,19 @@ export function TabsProvider({ children }: { children: ReactNode }) {
       // Send IPC message to create new window
       window.electron.ipcRenderer.send(IpcChannel.Tab_Detach, tab)
 
-      // Remove tab from current window — closeTab handles both pinned and normal tabs
-      closeTab(tabId)
+      // Remove tab from current window without the "fall back to previous tab" behavior.
+      // Detach is not a close — the tab lives on in a new window, so we switch to home instead.
+      if (tab.isPinned) {
+        setPinnedTabs((prev) => prev.filter((t) => t.id !== tabId))
+      } else {
+        setNormalTabs((prev) => prev.filter((t) => t.id !== tabId))
+      }
+
+      if (activeTabId === tabId) {
+        setActiveTabIdState(DEFAULT_TAB.id)
+      }
     },
-    [tabs, closeTab]
+    [tabs, activeTabId, setPinnedTabs]
   )
 
   /**
