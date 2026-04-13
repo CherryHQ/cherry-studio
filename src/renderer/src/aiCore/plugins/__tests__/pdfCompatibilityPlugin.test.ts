@@ -17,9 +17,14 @@ vi.mock('@renderer/config/models/openai', () => ({
 
 const mockExtractPdfText = vi.fn()
 
-vi.mock('@shared/utils/pdf', () => ({
-  extractPdfText: (...args: unknown[]) => mockExtractPdfText(...args)
-}))
+vi.mock('@shared/utils/pdf', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@shared/utils/pdf')>()
+
+  return {
+    ...actual,
+    extractPdfText: (...args: unknown[]) => mockExtractPdfText(...args)
+  }
+})
 
 vi.stubGlobal('window', {
   ...globalThis.window,

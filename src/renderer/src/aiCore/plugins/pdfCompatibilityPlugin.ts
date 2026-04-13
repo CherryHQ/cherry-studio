@@ -10,74 +10,13 @@ import { loggerService } from '@logger'
 import { isAnthropicModel, isGeminiModel } from '@renderer/config/models'
 import { isOpenAILLMModel } from '@renderer/config/models/openai'
 import type { Model, Provider, ProviderType } from '@renderer/types'
-import { extractPdfText } from '@shared/utils/pdf'
+import { buildPdfPromptText, extractPdfText, getUtf8ByteLength, MAX_INLINE_PDF_TEXT_BYTES } from '@shared/utils/pdf'
 import type { LanguageModelMiddleware } from 'ai'
 import i18n from 'i18next'
 
 const logger = loggerService.withContext('pdfCompatibilityPlugin')
-const MAX_INLINE_PDF_TEXT_BYTES = 4 * 1024 * 1024
-const PDF_TRUNCATED_SUFFIX = '\n[PDF truncated]'
-const textEncoder = new TextEncoder()
-const textDecoder = new TextDecoder()
 
 type ContentPart = Exclude<LanguageModelV3Message['content'], string>[number]
-
-function getUtf8ByteLength(text: string): number {
-  return textEncoder.encode(text).length
-}
-
-function truncateUtf8Text(text: string, maxBytes: number): string {
-  if (maxBytes <= 0 || text.length === 0) {
-    return ''
-  }
-
-  const encoded = textEncoder.encode(text)
-  if (encoded.length <= maxBytes) {
-    return text
-  }
-
-  let truncated = textDecoder.decode(encoded.slice(0, maxBytes))
-  while (getUtf8ByteLength(truncated) > maxBytes && truncated.length > 0) {
-    truncated = truncated.slice(0, -1)
-  }
-
-  return truncated
-}
-
-function buildPdfPromptText(
-  fileName: string,
-  textContent: string,
-  maxBytes: number
-): { text: string; truncated: boolean } | null {
-  if (maxBytes <= 0) {
-    return null
-  }
-
-  const normalizedContent = textContent.trim()
-  const prefix = `${fileName}\n`
-  const prefixBytes = getUtf8ByteLength(prefix)
-  const fullText = `${prefix}${normalizedContent}`
-
-  if (getUtf8ByteLength(fullText) <= maxBytes) {
-    return { text: fullText, truncated: false }
-  }
-
-  const suffixBytes = getUtf8ByteLength(PDF_TRUNCATED_SUFFIX)
-  const contentBudget = maxBytes - prefixBytes - suffixBytes
-  if (contentBudget <= 0) {
-    return null
-  }
-
-  const truncatedContent = truncateUtf8Text(normalizedContent, contentBudget)
-  const text = `${prefix}${truncatedContent}${PDF_TRUNCATED_SUFFIX}`
-
-  if (getUtf8ByteLength(text) <= maxBytes) {
-    return { text, truncated: true }
-  }
-
-  const compactText = truncateUtf8Text(text, maxBytes)
-  return compactText ? { text: compactText, truncated: true } : null
-}
 
 /**
  * Provider types whose API natively supports PDF file input.
