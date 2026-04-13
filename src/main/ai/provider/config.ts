@@ -11,6 +11,7 @@ import type { CherryInProviderSettings } from '@cherrystudio/ai-sdk-provider'
 import { providerService } from '@main/data/services/ProviderService'
 import { generateSignature } from '@main/integration/cherryai'
 import { agentService, sessionService } from '@main/services/agents'
+import { agentMessageRepository } from '@main/services/agents/database/sessionMessageRepository'
 import { anthropicService } from '@main/services/AnthropicService'
 import { copilotService } from '@main/services/CopilotService'
 import { formatOllamaApiHost } from '@shared/ai/provider/utils'
@@ -500,7 +501,10 @@ async function buildClaudeCodeConfig(ctx: BuilderContext): Promise<ProviderConfi
       if (session) break
     }
     if (!session) throw new Error(`Agent session not found: ${ctx.agentSessionId}`)
-    const sessionSettings = await buildClaudeCodeSessionSettings(session, ctx.actualProvider)
+
+    // Look up last SDK session ID for resume (survives app restart)
+    const lastAgentSessionId = await agentMessageRepository.getLastAgentSessionId(ctx.agentSessionId)
+    const sessionSettings = await buildClaudeCodeSessionSettings(session, ctx.actualProvider, { lastAgentSessionId })
     return {
       providerId: 'claude-code',
       providerSettings: {

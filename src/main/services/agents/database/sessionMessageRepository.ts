@@ -7,7 +7,7 @@ import type {
   AgentPersistedMessage,
   AgentSessionMessageEntity
 } from '@types'
-import { and, asc, eq, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, ne, sql } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
 import type { InsertSessionMessageRow, SessionMessageRow } from './schema'
@@ -181,6 +181,21 @@ class AgentMessageRepository extends BaseService {
     }
 
     return exchangeResult
+  }
+
+  /**
+   * Get the last non-empty agent_session_id for a session.
+   * Used to resume Claude Code SDK sessions across app restarts.
+   */
+  async getLastAgentSessionId(sessionId: string): Promise<string | undefined> {
+    const database = await this.getDatabase()
+    const [row] = await database
+      .select({ agentSessionId: sessionMessagesTable.agent_session_id })
+      .from(sessionMessagesTable)
+      .where(and(eq(sessionMessagesTable.session_id, sessionId), ne(sessionMessagesTable.agent_session_id, '')))
+      .orderBy(desc(sessionMessagesTable.created_at))
+      .limit(1)
+    return row?.agentSessionId ?? undefined
   }
 
   async getSessionHistory(sessionId: string): Promise<AgentPersistedMessage[]> {
