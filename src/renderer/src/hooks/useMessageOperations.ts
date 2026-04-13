@@ -1,26 +1,18 @@
 import { loggerService } from '@logger'
 import { createSelector } from '@reduxjs/toolkit'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { appendMessageTrace, pauseTrace, restartTrace } from '@renderer/services/SpanManagerService'
 import store, { type RootState, useAppDispatch, useAppSelector } from '@renderer/store'
 import { updateOneBlock } from '@renderer/store/messageBlock'
-import { newMessagesActions, selectMessagesForTopic } from '@renderer/store/newMessage'
+import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import {
-  appendAssistantResponseThunk,
-  clearTopicMessagesThunk,
   cloneMessagesToNewTopicThunk,
-  deleteMessageGroupThunk,
-  deleteSingleMessageThunk,
   initiateTranslationThunk,
-  regenerateAssistantResponseThunk,
-  resendMessageThunk,
   updateMessageAndBlocksThunk,
   updateTranslationBlockThunk
 } from '@renderer/store/thunk/messageThunk'
 import { type Assistant, type Model, objectKeys, type Topic, type TranslateLanguageCode } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
-import { abortCompletion } from '@renderer/utils/abortController'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { difference, throttle } from 'lodash'
 import { createContext, use, useCallback } from 'react'
@@ -80,10 +72,7 @@ export const selectNewTopicLoading = createSelector(
   }
 )
 
-export const selectNewDisplayCount = createSelector(
-  [selectMessagesState],
-  (messagesState) => messagesState.displayCount
-)
+const DEFAULT_DISPLAY_COUNT = 10
 
 /**
  * Hook 提供针对特定主题的消息操作方法。 / Hook providing various operations for messages within a specific topic.
@@ -100,14 +89,10 @@ export function useMessageOperations(topic: Topic) {
    */
   const deleteMessage = useCallback(
     async (id: string, traceId?: string, modelName?: string) => {
-      if (v2) {
-        await v2.deleteMessage(id)
-      } else {
-        await dispatch(deleteSingleMessageThunk(topic.id, id))
-      }
+      await v2?.deleteMessage(id)
       void window.api.trace.cleanHistory(topic.id, traceId || '', modelName)
     },
-    [dispatch, topic.id, v2]
+    [topic.id, v2]
   )
 
   /**
@@ -116,20 +101,15 @@ export function useMessageOperations(topic: Topic) {
    */
   const deleteGroupMessages = useCallback(
     async (askId: string) => {
-      if (v2) {
-        // In V2, askId is the user message ID (parentId of assistant messages).
-        // Cascade-deleting the user message removes the entire exchange.
-        await v2.deleteMessageGroup(askId)
-      } else {
-        await dispatch(deleteMessageGroupThunk(topic.id, askId))
-      }
+      // In V2, askId is the user message ID (parentId of assistant messages).
+      // Cascade-deleting the user message removes the entire exchange.
+      await v2?.deleteMessageGroup(askId)
     },
-    [dispatch, topic.id, v2]
+    [v2]
   )
 
   /**
    * 编辑消息。 / Edits a message.
-   * 使用 newMessagesActions.updateMessage.
    */
   const editMessage = useCallback(
     async (messageId: string, updates: Partial<Omit<Message, 'id' | 'topicId' | 'blocks'>>) => {
@@ -157,33 +137,20 @@ export function useMessageOperations(topic: Topic) {
    * Dispatches resendMessageThunk.
    */
   const resendMessage = useCallback(
-    async (message: Message, assistant: Assistant) => {
-      if (v2) {
-        logger.info('[resendMessage] V2 path — delegating to useAiChat.resend')
-        await v2.resend(message.id)
-        return
-      }
-      await restartTrace(message)
-      await dispatch(resendMessageThunk(topic.id, message, assistant))
+    async (message: Message, _assistant: Assistant) => {
+      logger.info('[resendMessage] delegating to useAiChat.resend')
+      await v2?.resend(message.id)
     },
-    [dispatch, topic.id, v2]
+    [v2]
   )
 
   /**
    * 清除当前或指定主题的所有消息。 / Clears all messages for the current or specified topic.
    * Dispatches clearTopicMessagesThunk.
    */
-  const clearTopicMessages = useCallback(
-    async (_topicId?: string) => {
-      if (v2) {
-        await v2.clearTopicMessages()
-        return
-      }
-      const topicIdToClear = _topicId || topic.id
-      await dispatch(clearTopicMessagesThunk(topicIdToClear))
-    },
-    [dispatch, topic.id, v2]
-  )
+  const clearTopicMessages = useCallback(async () => {
+    await v2?.clearTopicMessages()
+  }, [v2])
 
   /**
    * 发出事件以表示创建新上下文（清空消息 UI）。 / Emits an event to signal creating a new context (clearing messages UI).
@@ -192,30 +159,14 @@ export function useMessageOperations(topic: Topic) {
     void EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
   }, [])
 
-  const displayCount = useAppSelector(selectNewDisplayCount)
+  const displayCount = DEFAULT_DISPLAY_COUNT
 
   /**
    * 暂停当前主题正在进行的消息生成。 / Pauses ongoing message generation for the current topic.
    */
-  const pauseMessages = useCallback(async () => {
-    if (v2) {
-      v2.pause()
-      return
-    }
-
-    const state = store.getState()
-    const topicMessages = selectMessagesForTopic(state, topic.id)
-    if (!topicMessages) return
-
-    const streamingMessages = topicMessages.filter((m) => m.status === 'processing' || m.status === 'pending')
-    const askIds = [...new Set(streamingMessages?.map((m) => m.askId).filter((id) => !!id) as string[])]
-
-    for (const askId of askIds) {
-      abortCompletion(askId)
-    }
-    void pauseTrace(topic.id)
-    dispatch(newMessagesActions.setTopicLoading({ topicId: topic.id, loading: false }))
-  }, [topic.id, dispatch, v2])
+  const pauseMessages = useCallback(() => {
+    v2?.pause()
+  }, [v2])
 
   /**
    * 恢复/重发用户消息（目前复用 resendMessage 逻辑）。 / Resumes/Resends a user message (currently reuses resendMessage logic).
@@ -232,20 +183,11 @@ export function useMessageOperations(topic: Topic) {
    * Dispatches regenerateAssistantResponseThunk.
    */
   const regenerateAssistantMessage = useCallback(
-    async (message: Message, assistant: Assistant) => {
-      if (v2) {
-        logger.info('[regenerateAssistantMessage] V2 path — delegating to useAiChat.regenerate')
-        await v2.regenerate(message.id)
-        return
-      }
-      await restartTrace(message)
-      if (message.role !== 'assistant') {
-        logger.warn('regenerateAssistantMessage should only be called for assistant messages.')
-        return
-      }
-      await dispatch(regenerateAssistantResponseThunk(topic.id, message, assistant))
+    async (message: Message, _assistant: Assistant) => {
+      logger.info('[regenerateAssistantMessage] delegating to useAiChat.regenerate')
+      await v2?.regenerate(message.id)
     },
-    [dispatch, topic.id, v2]
+    [v2]
   )
 
   /**
@@ -253,38 +195,14 @@ export function useMessageOperations(topic: Topic) {
    * Dispatches appendAssistantResponseThunk.
    */
   const appendAssistantResponse = useCallback(
-    async (existingAssistantMessage: Message, newModel: Model, assistant: Assistant) => {
-      if (v2) {
-        logger.warn(
-          '[appendAssistantResponse] V2 append-response flow is not supported until DataApi semantics are finalized.',
-          {
-            topicId: topic.id,
-            messageId: existingAssistantMessage.id,
-            modelId: newModel.id
-          }
-        )
-        return
-      }
-      await appendMessageTrace(existingAssistantMessage, newModel)
-      if (existingAssistantMessage.role !== 'assistant') {
-        logger.error('appendAssistantResponse should only be called for an existing assistant message.')
-        return
-      }
-      if (!existingAssistantMessage.askId) {
-        logger.error('Cannot append response: The existing assistant message is missing its askId.')
-        return
-      }
-      await dispatch(
-        appendAssistantResponseThunk(
-          topic.id,
-          existingAssistantMessage.id,
-          newModel,
-          assistant,
-          existingAssistantMessage.traceId
-        )
-      )
+    async (existingAssistantMessage: Message, newModel: Model, _assistant: Assistant) => {
+      logger.warn('[appendAssistantResponse] Not yet supported in V2.', {
+        topicId: topic.id,
+        messageId: existingAssistantMessage.id,
+        modelId: newModel.id
+      })
     },
-    [dispatch, topic.id, v2]
+    [topic.id]
   )
 
   /**
