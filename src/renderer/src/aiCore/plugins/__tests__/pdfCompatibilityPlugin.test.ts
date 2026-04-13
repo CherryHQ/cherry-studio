@@ -18,7 +18,7 @@ vi.mock('@renderer/config/models/openai', () => ({
 const mockExtractPdfText = vi.fn()
 
 vi.mock('@shared/utils/pdf', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@shared/utils/pdf')>()
+  const actual = await importOriginal()
 
   return {
     ...actual,
