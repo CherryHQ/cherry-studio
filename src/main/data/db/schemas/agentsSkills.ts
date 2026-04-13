@@ -1,9 +1,13 @@
+import { randomUUID } from 'node:crypto'
+
 import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 export const agentsSkillsTable = sqliteTable(
   'agents_skills',
   {
-    id: text().primaryKey(),
+    id: text()
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
     name: text().notNull(),
     description: text(),
     folder_name: text().notNull(),
