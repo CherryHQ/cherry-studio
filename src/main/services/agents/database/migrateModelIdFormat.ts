@@ -29,7 +29,7 @@ function buildMigrateSql(table: string, col: string) {
   return sql.raw(
     `UPDATE ${table}
      SET ${col} = SUBSTR(${col}, 1, INSTR(${col}, ':') - 1) || '::' || SUBSTR(${col}, INSTR(${col}, ':') + 1),
-         updated_at = datetime('now')
+         updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
      WHERE ${col} IS NOT NULL
        AND ${col} != ''
        AND ${col} LIKE '%:%'
