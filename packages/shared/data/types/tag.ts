@@ -19,8 +19,11 @@ export const TagSchema = z.object({
   id: z.uuidv4(),
   /** Unique tag name */
   name: z.string().min(1),
-  /** Display color (hex code), null if unset */
-  color: z.string().nullable(),
+  /** Display color (e.g. #FF5733), null if unset */
+  color: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .nullable(),
   /** Creation timestamp (ISO string) */
   createdAt: z.iso.datetime(),
   /** Last update timestamp (ISO string) */
