@@ -1,6 +1,6 @@
 # Cherry Studio 快捷键系统重构设计文档
 
-> 版本：v3.0（v2 Preference 架构）
+> 版本：v2.0（v2 Preference 架构）
 > 更新日期：2026-04-03
 > 分支：`refactor/shortcut`
 
@@ -59,7 +59,7 @@ v1 快捷键系统存在以下架构缺陷：
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│                     Shortcut System v3                        │
+│                     Shortcut System v2                        │
 ├──────────────────────────────────────────────────────────────┤
 │                                                              │
 │  ┌─────────────────────────────────────────────────────┐     │
@@ -67,14 +67,14 @@ v1 快捷键系统存在以下架构缺陷：
 │  │  packages/shared/shortcuts/                          │     │
 │  │  ├── types.ts        类型定义                        │     │
 │  │  ├── definitions.ts  SHORTCUT_DEFINITIONS (真相之源) │     │
-│  │  └── utils.ts        转换 / 校验 / coerce 工具      │     │
+│  │  └── utils.ts        转换 / 校验 / 归一化工具       │     │
 │  └─────────────────────────────────────────────────────┘     │
 │                          │                                   │
 │                          ▼                                   │
 │  ┌─────────────────────────────────────────────────────┐     │
 │  │  💾 Preference Layer                                 │     │
 │  │  packages/shared/data/preference/                    │     │
-│  │  ├── preferenceSchemas.ts  默认值 (enabled + key)    │     │
+│  │  ├── preferenceSchemas.ts  默认值 (enabled + binding)│     │
 │  │  └── preferenceTypes.ts    PreferenceShortcutType    │     │
 │  └─────────────────────────────────────────────────────┘     │
 │           │                              │                   │
@@ -111,7 +111,6 @@ v1 快捷键系统存在以下架构缺陷：
 ```typescript
 {
   key: 'shortcut.general.show_mini_window',  // Preference key
-  defaultBinding: ['CommandOrControl', 'E'], // Electron accelerator 格式
   scope: 'main',                         // main | renderer | both
   category: 'general',                   // 点分命名空间 UI 分组：general、chat、topic、plugin.xxx 等
   labelKey: 'mini_window',              // i18n label key
@@ -126,7 +125,6 @@ v1 快捷键系统存在以下架构缺陷：
 | 字段 | 用途 |
 |------|------|
 | `key` | Preference key，内置快捷键用 `shortcut.{category}.{name}` 格式，插件用 `shortcut.plugin.{pluginId}.{name}` |
-| `defaultBinding` | Electron accelerator 格式的默认绑定，空数组表示无默认绑定 |
 | `scope` | 决定快捷键注册在哪个进程：`main`（globalShortcut）、`renderer`（react-hotkeys-hook）、`both`（两者都注册） |
 | `category` | 点分命名空间 UI 分组（如 `general`、`chat`、`topic`、`plugin.translator`），类型为 `ShortcutCategory` 以支持插件扩展 |
 | `labelKey` | i18n label key，由 `getShortcutLabel()` 消费 |
@@ -148,7 +146,6 @@ type ShortcutKey = ShortcutPreferenceKey extends `shortcut.${infer Rest}` ? Rest
 interface ResolvedShortcut {
   binding: string[]   // 生效的绑定（用户自定义、默认值或空数组——显式清空）
   enabled: boolean    // 是否启用
-  editable: boolean   // 来自 definition.editable，不存储在偏好中
 }
 ```
 
@@ -180,10 +177,9 @@ useShortcutDisplay('chat.clear')
 输入值为 null/undefined → 使用 schema 默认值
 输入的 binding 为空数组 → binding 为空（用户显式清空）
 输入的 enabled 非布尔  → 使用默认 enabled
-editable               → 始终从 definition 读取（不存储在偏好中）
 ```
 
-**设计决策**：禁用快捷键可以使用 `enabled: false`，也可以清空绑定（`binding: []`）。想换键就录制覆盖，想重置就写回 `defaultBinding`。
+**设计决策**：禁用快捷键可以使用 `enabled: false`，也可以清空绑定（`binding: []`）。想换键就录制覆盖，想重置就写回 schema 默认值。
 
 ### 2. 偏好层 (`preferenceSchemas.ts` + `preferenceTypes.ts`)
 
@@ -316,12 +312,12 @@ const display = useShortcutDisplay('chat.clear')
 |------|------|
 | **平台过滤** | 根据 `supportedPlatforms` 过滤不支持的快捷键 |
 | **快捷键录制** | `handleKeyDown` 捕获键盘事件 → `convertKeyToAccelerator` → `isValidShortcut` 校验 |
-| **冲突检测** | `isDuplicateShortcut` 检查已显示快捷键中是否存在相同绑定 |
+| **冲突检测** | `findDuplicateLabel` 检查已启用快捷键中是否存在相同绑定 |
 | **清空绑定** | `updatePreference({ binding: [] })` |
 | **重置单项** | 写入 `defaultPreference` 的 `binding` + `enabled` |
 | **重置全部** | `preferenceService.setMultiple()` 批量写入所有默认值 |
 | **启用/禁用** | `updatePreference({ enabled: !current })` |
-| **修改标记** | `isShortcutModified` 比对当前值与默认值，决定重置按钮是否可用 |
+| **修改标记** | `isBindingModified` 比对当前值与默认值，决定重置按钮是否可用 |
 
 ---
 
@@ -374,7 +370,7 @@ ShortcutService.onInit()
 ```
 用户在设置页按下新快捷键
     ↓ handleKeyDown
-convertKeyToAccelerator() + isValidShortcut() + isDuplicateShortcut()
+convertKeyToAccelerator() + isValidShortcut() + findDuplicateLabel()
     ↓ 通过校验
 updatePreference({ binding: newKeys })
     ↓ useMultiplePreferences.setValues()
@@ -410,18 +406,18 @@ toggleMiniWindow()
 
 ## 默认快捷键一览
 
-### 应用级 (`app`)
+### 应用级 (`general`)
 
 | Preference Key | 默认绑定 | 作用域 | 备注 |
 |---|---|---|---|
 | `shortcut.general.show_main_window` | *(无)* | main | 失焦持久 |
-| `shortcut.general.show_mini_window` | `Cmd/Ctrl+E` | main | 关联 quick_assistant 开关 |
-| `shortcut.general.show_settings` | `Cmd/Ctrl+,` | both | 不可编辑 |
+| `shortcut.general.show_mini_window` | `Cmd/Ctrl+E` | main | 默认禁用，关联 quick_assistant 开关 |
+| `shortcut.general.show_settings` | `Cmd/Ctrl+,` | main | 不可编辑 |
 | `shortcut.general.toggle_sidebar` | `Cmd/Ctrl+[` | renderer | |
 | `shortcut.general.exit_fullscreen` | `Escape` | renderer | 不可编辑 |
-| `shortcut.general.zoom_in` | `Cmd/Ctrl+=` | main | 含小键盘变体 |
-| `shortcut.general.zoom_out` | `Cmd/Ctrl+-` | main | 含小键盘变体 |
-| `shortcut.general.zoom_reset` | `Cmd/Ctrl+0` | main | |
+| `shortcut.general.zoom_in` | `Cmd/Ctrl+=` | main | 不可编辑，含小键盘变体 |
+| `shortcut.general.zoom_out` | `Cmd/Ctrl+-` | main | 不可编辑，含小键盘变体 |
+| `shortcut.general.zoom_reset` | `Cmd/Ctrl+0` | main | 不可编辑 |
 | `shortcut.general.search` | `Cmd/Ctrl+Shift+F` | renderer | |
 
 ### 聊天 (`chat`)
@@ -443,7 +439,7 @@ toggleMiniWindow()
 | `shortcut.topic.rename` | `Cmd/Ctrl+T` | 否 |
 | `shortcut.topic.toggle_show_topics` | `Cmd/Ctrl+]` | 是 |
 
-### 划词助手 (`selection`)
+### 划词助手 (`feature.selection`)
 
 | Preference Key | 默认绑定 | 支持平台 |
 |---|---|---|
@@ -471,7 +467,6 @@ toggleMiniWindow()
 // packages/shared/shortcuts/definitions.ts
 {
   key: 'shortcut.chat.regenerate',
-  defaultBinding: ['CommandOrControl', 'Shift', 'R'],
   scope: 'renderer',
   category: 'chat'
 }
@@ -512,7 +507,7 @@ this.handlers.set('shortcut.general.show_mini_window', () => {
 
 ## 迁移清单
 
-### 已移除的旧组件
+### 旧组件处理状态
 
 | 旧组件 | 状态 |
 |--------|------|
@@ -532,7 +527,7 @@ this.handlers.set('shortcut.general.show_mini_window', () => {
 
 ## 测试覆盖
 
-### 单元测试 (`packages/shared/__tests__/shortcutUtils.test.ts`)
+### 单元测试
 
 覆盖 `utils.ts` 中所有导出函数，共 19 个测试用例：
 
@@ -542,8 +537,9 @@ this.handlers.set('shortcut.general.show_mini_window', () => {
 | `convertAcceleratorToHotkey` | 修饰键转换（CommandOrControl→mod, Ctrl→ctrl 等） |
 | `formatShortcutDisplay` | Mac 符号格式（⌘⇧⌥⌃）、非 Mac 文字格式 |
 | `isValidShortcut` | 空数组、含修饰键、特殊单键、普通单键 |
-| `getDefaultShortcut` | 默认值读取、`editable` 继承 |
+| `getDefaultShortcut` | 默认值读取 |
 | `resolveShortcutPreference` | null/undefined 回退、自定义 binding、空数组回退、enabled 覆盖 |
+| `ShortcutMappings` | 旧 key 重命名优先级、畸形 binding 跳过、非数组源兜底 |
 
 ---
 

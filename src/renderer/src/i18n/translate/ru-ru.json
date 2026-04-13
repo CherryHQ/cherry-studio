@@ -5554,6 +5554,7 @@
     "shortcuts": {
       "action": "Действие",
       "actions": "操作",
+      "bind_first_to_enable": "[to be translated]:Bind a shortcut first to change its enabled state",
       "clear_shortcut": "Очистить сочетание клавиш",
       "clear_topic": "Очистить все сообщения",
       "conflict_with": "Уже используется \"{{name}}\"",
@@ -5571,6 +5572,7 @@
       "reset_defaults_failed": "[to be translated]:Failed to reset shortcuts to defaults",
       "reset_to_default": "Сбросить настройки по умолчанию",
       "save_failed": "[to be translated]:Failed to save shortcut",
+      "save_failed_with_name": "[to be translated]:Failed to save shortcut: {{name}}",
       "search_message": "Поиск сообщения",
       "search_message_in_chat": "Поиск сообщения в текущем диалоге",
       "search_placeholder": "Поиск ярлыков...",

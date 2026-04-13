@@ -13,7 +13,6 @@ import {
 
 const makeDefinition = (overrides: Partial<ShortcutDefinition> = {}): ShortcutDefinition => ({
   key: 'shortcut.chat.clear',
-  defaultBinding: ['CommandOrControl', 'L'],
   scope: 'renderer',
   category: 'chat',
   labelKey: 'clear_topic',
@@ -108,12 +107,6 @@ describe('getDefaultShortcut', () => {
 
     expect(result.binding).toEqual(['CommandOrControl', 'L'])
     expect(result.enabled).toBe(true)
-    expect(result.editable).toBe(true)
-  })
-
-  it('respects editable: false', () => {
-    const def = makeDefinition({ editable: false })
-    expect(getDefaultShortcut(def).editable).toBe(false)
   })
 })
 
@@ -180,6 +173,14 @@ describe('SHORTCUT_DEFINITIONS', () => {
   it('uses `shortcut.` prefix for every preference key', () => {
     for (const def of SHORTCUT_DEFINITIONS) {
       expect(def.key.startsWith('shortcut.')).toBe(true)
+    }
+  })
+
+  it('has schema defaults for every definition', () => {
+    for (const def of SHORTCUT_DEFINITIONS) {
+      const resolved = getDefaultShortcut(def)
+      expect(Array.isArray(resolved.binding), `missing default binding for ${def.key}`).toBe(true)
+      expect(typeof resolved.enabled, `missing default enabled flag for ${def.key}`).toBe('boolean')
     }
   })
 

@@ -5554,6 +5554,7 @@
     "shortcuts": {
       "action": "操作",
       "actions": "操作",
+      "bind_first_to_enable": "[to be translated]:Bind a shortcut first to change its enabled state",
       "clear_shortcut": "ショートカットをクリア",
       "clear_topic": "メッセージを消去",
       "conflict_with": "既に「{{name}}」によって使用されています",
@@ -5571,6 +5572,7 @@
       "reset_defaults_failed": "[to be translated]:Failed to reset shortcuts to defaults",
       "reset_to_default": "デフォルトにリセット",
       "save_failed": "[to be translated]:Failed to save shortcut",
+      "save_failed_with_name": "[to be translated]:Failed to save shortcut: {{name}}",
       "search_message": "メッセージを検索",
       "search_message_in_chat": "現在のチャットでメッセージを検索",
       "search_placeholder": "検索ショートカット...",

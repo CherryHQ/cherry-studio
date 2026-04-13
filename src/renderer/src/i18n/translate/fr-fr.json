@@ -5554,6 +5554,7 @@
     "shortcuts": {
       "action": "Action",
       "actions": "操作",
+      "bind_first_to_enable": "[to be translated]:Bind a shortcut first to change its enabled state",
       "clear_shortcut": "Effacer raccourci clavier",
       "clear_topic": "Vider les messages",
       "conflict_with": "Déjà utilisé par \"{{name}}\"",
@@ -5571,6 +5572,7 @@
       "reset_defaults_failed": "[to be translated]:Failed to reset shortcuts to defaults",
       "reset_to_default": "Réinitialiser aux valeurs par défaut",
       "save_failed": "[to be translated]:Failed to save shortcut",
+      "save_failed_with_name": "[to be translated]:Failed to save shortcut: {{name}}",
       "search_message": "Rechercher un message",
       "search_message_in_chat": "Rechercher un message dans la conversation actuelle",
       "search_placeholder": "Raccourcis de recherche...",

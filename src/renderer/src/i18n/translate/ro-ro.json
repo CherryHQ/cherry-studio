@@ -5554,6 +5554,7 @@
     "shortcuts": {
       "action": "Acțiune",
       "actions": "Comandă",
+      "bind_first_to_enable": "[to be translated]:Bind a shortcut first to change its enabled state",
       "clear_shortcut": "Șterge comanda rapidă",
       "clear_topic": "Șterge mesajele",
       "conflict_with": "Deja folosit de „{{name}}”",
@@ -5571,6 +5572,7 @@
       "reset_defaults_failed": "[to be translated]:Failed to reset shortcuts to defaults",
       "reset_to_default": "Resetează la implicit",
       "save_failed": "[to be translated]:Failed to save shortcut",
+      "save_failed_with_name": "[to be translated]:Failed to save shortcut: {{name}}",
       "search_message": "Caută mesaj",
       "search_message_in_chat": "Caută mesaj în chat-ul curent",
       "search_placeholder": "Căutare comenzi rapide...",

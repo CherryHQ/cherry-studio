@@ -5554,6 +5554,7 @@
     "shortcuts": {
       "action": "Ação",
       "actions": "operação",
+      "bind_first_to_enable": "[to be translated]:Bind a shortcut first to change its enabled state",
       "clear_shortcut": "Limpar atalho",
       "clear_topic": "Limpar mensagem",
       "conflict_with": "Já utilizado por \"{{name}}\"",
@@ -5571,6 +5572,7 @@
       "reset_defaults_failed": "[to be translated]:Failed to reset shortcuts to defaults",
       "reset_to_default": "Redefinir para padrão",
       "save_failed": "[to be translated]:Failed to save shortcut",
+      "save_failed_with_name": "[to be translated]:Failed to save shortcut: {{name}}",
       "search_message": "Pesquisar mensagem",
       "search_message_in_chat": "Pesquisar mensagens nesta conversa",
       "search_placeholder": "Atalhos de pesquisa...",

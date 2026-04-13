@@ -16,11 +16,15 @@ const zoomShortcutKeys: ShortcutPreferenceKey[] = [
   'shortcut.general.zoom_reset'
 ]
 
-const isShortcutEnabled = (key: ShortcutPreferenceKey): boolean => {
+const getShortcutAccelerator = (key: ShortcutPreferenceKey): string | undefined => {
   const definition = findShortcutDefinition(key)
-  if (!definition) return true
+  if (!definition) return undefined
   const rawPref = application.get('PreferenceService').get(key) as PreferenceShortcutType | undefined
-  return resolveShortcutPreference(definition, rawPref).enabled
+  const resolved = resolveShortcutPreference(definition, rawPref)
+  if (!resolved.enabled || !resolved.binding.length) {
+    return undefined
+  }
+  return resolved.binding.join('+')
 }
 
 const getMainWindows = (): Electron.BrowserWindow[] =>
@@ -45,9 +49,9 @@ export class AppMenuService extends BaseService {
     const locale = locales[getAppLanguage()]
     const { appMenu } = locale.translation
 
-    const zoomInEnabled = isShortcutEnabled('shortcut.general.zoom_in')
-    const zoomOutEnabled = isShortcutEnabled('shortcut.general.zoom_out')
-    const zoomResetEnabled = isShortcutEnabled('shortcut.general.zoom_reset')
+    const zoomInAccelerator = getShortcutAccelerator('shortcut.general.zoom_in')
+    const zoomOutAccelerator = getShortcutAccelerator('shortcut.general.zoom_out')
+    const zoomResetAccelerator = getShortcutAccelerator('shortcut.general.zoom_reset')
 
     const template: MenuItemConstructorOptions[] = [
       {
@@ -99,20 +103,20 @@ export class AppMenuService extends BaseService {
           { type: 'separator' },
           {
             label: appMenu.resetZoom,
-            accelerator: zoomResetEnabled ? 'CommandOrControl+0' : undefined,
-            enabled: zoomResetEnabled,
+            accelerator: zoomResetAccelerator,
+            enabled: !!zoomResetAccelerator,
             click: () => handleZoomFactor(getMainWindows(), 0, true)
           },
           {
             label: appMenu.zoomIn,
-            accelerator: zoomInEnabled ? 'CommandOrControl+=' : undefined,
-            enabled: zoomInEnabled,
+            accelerator: zoomInAccelerator,
+            enabled: !!zoomInAccelerator,
             click: () => handleZoomFactor(getMainWindows(), 0.1)
           },
           {
             label: appMenu.zoomOut,
-            accelerator: zoomOutEnabled ? 'CommandOrControl+-' : undefined,
-            enabled: zoomOutEnabled,
+            accelerator: zoomOutAccelerator,
+            enabled: !!zoomOutAccelerator,
             click: () => handleZoomFactor(getMainWindows(), -0.1)
           },
           { type: 'separator' },

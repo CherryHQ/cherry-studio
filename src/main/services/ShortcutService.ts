@@ -28,7 +28,7 @@ const relevantDefinitions = SHORTCUT_DEFINITIONS.filter(
 export class ShortcutService extends BaseService {
   private mainWindow: BrowserWindow | null = null
   private handlers = new Map<ShortcutPreferenceKey, ShortcutHandler>()
-  private windowOnHandlers = new Map<BrowserWindow, { onFocus: () => void; onBlur: () => void }>()
+  private windowOnHandlers = new Map<BrowserWindow, { onFocus: () => void; onBlur: () => void; onClosed: () => void }>()
   private isRegisterOnBoot = true
   private registeredAccelerators = new Map<string, ShortcutHandler>()
 
@@ -56,7 +56,8 @@ export class ShortcutService extends BaseService {
     })
 
     this.handlers.set('shortcut.general.show_settings', () => {
-      let targetWindow = application.get('WindowService').getMainWindow()
+      const windowService = application.get('WindowService')
+      let targetWindow = windowService.getMainWindow()
 
       if (
         !targetWindow ||
@@ -65,13 +66,23 @@ export class ShortcutService extends BaseService {
         !targetWindow.isVisible() ||
         !targetWindow.isFocused()
       ) {
-        application.get('WindowService').showMainWindow()
-        targetWindow = application.get('WindowService').getMainWindow()
+        windowService.showMainWindow()
+        targetWindow = windowService.getMainWindow()
       }
 
       if (!targetWindow || targetWindow.isDestroyed()) return
 
-      targetWindow.webContents.send(IpcChannel.Windows_NavigateToSettings)
+      const navigateToSettings = () => {
+        if (!targetWindow || targetWindow.isDestroyed()) return
+        targetWindow.webContents.send(IpcChannel.Windows_NavigateToSettings)
+      }
+
+      if (targetWindow.webContents.isLoadingMainFrame()) {
+        targetWindow.webContents.once('did-finish-load', navigateToSettings)
+        return
+      }
+
+      navigateToSettings()
     })
 
     this.handlers.set('shortcut.general.show_mini_window', () => {
@@ -128,9 +139,16 @@ export class ShortcutService extends BaseService {
     if (!this.windowOnHandlers.has(window)) {
       const onFocus = () => this.registerShortcuts(window, false)
       const onBlur = () => this.registerShortcuts(window, true)
+      const onClosed = () => {
+        this.windowOnHandlers.delete(window)
+        if (this.mainWindow === window) {
+          this.mainWindow = null
+        }
+      }
       window.on('focus', onFocus)
       window.on('blur', onBlur)
-      this.windowOnHandlers.set(window, { onFocus, onBlur })
+      window.once('closed', onClosed)
+      this.windowOnHandlers.set(window, { onFocus, onBlur, onClosed })
     }
 
     if (!window.isDestroyed() && window.isFocused()) {
@@ -190,7 +208,11 @@ export class ShortcutService extends BaseService {
         try {
           const success = globalShortcut.register(accelerator, () => {
             const targetWindow = win?.isDestroyed?.() ? undefined : win
-            handler(targetWindow)
+            try {
+              handler(targetWindow)
+            } catch (error) {
+              logger.error(`Shortcut handler threw for accelerator: ${accelerator}`, error as Error)
+            }
           })
           if (success) {
             this.registeredAccelerators.set(accelerator, handler)
@@ -219,6 +241,7 @@ export class ShortcutService extends BaseService {
       this.windowOnHandlers.forEach((handlers, window) => {
         window.off('focus', handlers.onFocus)
         window.off('blur', handlers.onBlur)
+        window.off('closed', handlers.onClosed)
       })
       this.windowOnHandlers.clear()
       for (const accelerator of this.registeredAccelerators.keys()) {

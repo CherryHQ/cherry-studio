@@ -5554,6 +5554,7 @@
     "shortcuts": {
       "action": "操作",
       "actions": "操作",
+      "bind_first_to_enable": "请先绑定快捷键，再调整启用状态",
       "clear_shortcut": "清除快捷键",
       "clear_topic": "清空消息",
       "conflict_with": "已被「{{name}}」使用",
@@ -5571,6 +5572,7 @@
       "reset_defaults_failed": "重置快捷键失败",
       "reset_to_default": "重置为默认",
       "save_failed": "保存快捷键失败",
+      "save_failed_with_name": "保存快捷键失败：{{name}}",
       "search_message": "搜索消息",
       "search_message_in_chat": "在当前对话中搜索消息",
       "search_placeholder": "搜索快捷键...",

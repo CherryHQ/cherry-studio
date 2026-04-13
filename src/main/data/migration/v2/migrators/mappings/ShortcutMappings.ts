@@ -58,9 +58,15 @@ interface LegacyShortcutEntry {
 const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((item) => typeof item === 'string')
 
+const LEGACY_KEY_PRIORITY: Record<string, number> = {
+  toggle_show_assistants: 0,
+  toggle_sidebar: 1
+}
+
 export const transformShortcuts: TransformFunction = (sources) => {
   const shortcuts = sources.shortcuts
   const result: Record<string, PreferenceShortcutType> = {}
+  const priorities = new Map<string, number>()
 
   if (!Array.isArray(shortcuts)) {
     if (shortcuts !== undefined) {
@@ -82,10 +88,22 @@ export const transformShortcuts: TransformFunction = (sources) => {
       continue
     }
 
+    if (entry.shortcut !== undefined && !isStringArray(entry.shortcut)) {
+      logger.warn(`Skipping malformed legacy shortcut binding for key: ${legacyKey}`)
+      continue
+    }
+
+    const currentPriority = LEGACY_KEY_PRIORITY[legacyKey] ?? 0
+    const existingPriority = priorities.get(targetKey) ?? -1
+    if (currentPriority < existingPriority) {
+      continue
+    }
+
     const binding = isStringArray(entry.shortcut) ? entry.shortcut : []
     const enabled = typeof entry.enabled === 'boolean' ? entry.enabled : true
 
     result[targetKey] = { binding, enabled }
+    priorities.set(targetKey, currentPriority)
   }
 
   return result

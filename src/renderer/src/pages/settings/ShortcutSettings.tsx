@@ -91,7 +91,7 @@ const ShortcutSettings: FC = () => {
         label,
         key: item.definition.key,
         enabled: item.preference.enabled,
-        editable: item.preference.editable,
+        editable: item.definition.editable !== false,
         displayKeys,
         updatePreference: item.updatePreference,
         defaultPreference: {
@@ -140,16 +140,21 @@ const ShortcutSettings: FC = () => {
 
   const handleUpdateFailure = (record: ShortcutRecord, error: unknown) => {
     logger.error(`Failed to update shortcut preference: ${record.key}`, error as Error)
-    window.toast.error(t('settings.shortcuts.save_failed'))
+    window.toast.error(t('settings.shortcuts.save_failed_with_name', { name: record.label }))
   }
 
-  const handleResetShortcut = (record: ShortcutRecord) => {
-    record.updatePreference({ binding: record.defaultPreference.binding }).catch((error) => {
+  const handleResetShortcut = async (record: ShortcutRecord) => {
+    try {
+      await record.updatePreference({
+        binding: record.defaultPreference.binding,
+        enabled: record.defaultPreference.enabled
+      })
+      setEditingKey(null)
+      setPendingKeys([])
+      setConflictLabel(null)
+    } catch (error) {
       handleUpdateFailure(record, error)
-    })
-    setEditingKey(null)
-    setPendingKeys([])
-    setConflictLabel(null)
+    }
   }
 
   const findDuplicateLabel = (keys: string[], currentKey: ShortcutPreferenceKey): string | null => {
@@ -167,7 +172,7 @@ const ShortcutSettings: FC = () => {
     return null
   }
 
-  const handleKeyDown = (event: ReactKeyboardEvent, record: ShortcutRecord) => {
+  const handleKeyDown = async (event: ReactKeyboardEvent, record: ShortcutRecord) => {
     event.preventDefault()
 
     if (event.code === 'Escape') {
@@ -208,11 +213,13 @@ const ShortcutSettings: FC = () => {
     }
 
     setConflictLabel(null)
-    record.updatePreference({ binding: keys }).catch((error) => {
+    try {
+      await record.updatePreference({ binding: keys, enabled: true })
+      setEditingKey(null)
+      setPendingKeys([])
+    } catch (error) {
       handleUpdateFailure(record, error)
-    })
-    setEditingKey(null)
-    setPendingKeys([])
+    }
   }
 
   const handleResetAllShortcuts = () => {
@@ -256,7 +263,9 @@ const ShortcutSettings: FC = () => {
             className={`h-7 w-36 text-center text-xs ${hasConflict ? 'border-red-500 focus-visible:ring-red-500/50' : ''}`}
             value={pendingDisplay}
             placeholder={t('settings.shortcuts.press_shortcut')}
-            onKeyDown={(event) => handleKeyDown(event, record)}
+            onKeyDown={(event) => {
+              void handleKeyDown(event, record)
+            }}
             onBlur={(event) => {
               const isUndoClick = (event.relatedTarget as HTMLElement)?.closest('.shortcut-undo-icon')
               if (!isUndoClick) {
@@ -283,7 +292,9 @@ const ShortcutSettings: FC = () => {
             <Tooltip content={t('settings.shortcuts.reset_to_default')}>
               <UndoOutlined
                 className="mr-1 cursor-pointer opacity-50 hover:opacity-100"
-                onClick={() => handleResetShortcut(record)}
+                onClick={() => {
+                  void handleResetShortcut(record)
+                }}
               />
             </Tooltip>
           )}
@@ -332,7 +343,7 @@ const ShortcutSettings: FC = () => {
               <span className="text-sm">{record.label}</span>
               <RowFlex className="items-center gap-3">
                 {renderShortcutCell(record)}
-                {record.displayKeys.length > 0 && (
+                {record.displayKeys.length > 0 ? (
                   <Switch
                     size="sm"
                     checked={record.enabled}
@@ -342,6 +353,12 @@ const ShortcutSettings: FC = () => {
                       })
                     }}
                   />
+                ) : (
+                  <Tooltip content={t('settings.shortcuts.bind_first_to_enable')}>
+                    <span>
+                      <Switch size="sm" checked={record.enabled} disabled />
+                    </span>
+                  </Tooltip>
                 )}
               </RowFlex>
             </div>

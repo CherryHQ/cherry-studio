@@ -23,8 +23,6 @@ export type ShortcutKey = ShortcutPreferenceKey extends `shortcut.${infer Rest}`
 export interface ShortcutDefinition {
   /** Preference key in `shortcut.{category}.{name}` format for built-in shortcuts. Plugins use `shortcut.plugin.{pluginId}.{name}`. */
   key: ShortcutPreferenceKey
-  /** Default key binding in Electron accelerator format (e.g. `['CommandOrControl', 'L']`). Empty array means no default binding. */
-  defaultBinding: string[]
   /** Where the shortcut is registered: `main` (globalShortcut), `renderer` (react-hotkeys-hook), or `both`. */
   scope: ShortcutScope
   /** Dot-separated category for UI grouping (e.g. `general`, `chat`, `topic`, `plugin.translator`). */
@@ -47,6 +45,4 @@ export interface ResolvedShortcut {
   binding: string[]
   /** Whether this shortcut is currently enabled. */
   enabled: boolean
-  /** Whether users can modify the binding. Injected from `ShortcutDefinition.editable`, not stored in preferences. */
-  editable: boolean
 }
