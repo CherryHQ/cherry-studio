@@ -1005,6 +1005,8 @@ export function buildMessageTree(
   // Second pass: build parent/sibling relationships
   let previousMessageId: string | null = null
   let lastNonGroupMessageId: string | null = null // Last message not in a group, for linking subsequent user messages
+  let lastGroupFallbackId: string | null = null // Last group member as fallback when no foldSelected
+  let groupHasFoldSelected = false // Whether current group has a foldSelected member
 
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i]
@@ -1025,14 +1027,22 @@ export function buildMessageTree(
         parentId = orphanedGroupParent.get(msg.askId) ?? null
       }
 
-      // If this is the selected response, update lastNonGroupMessageId for subsequent user messages
+      // Track selected response or last group member for linking subsequent user messages
       if (msg.foldSelected) {
         lastNonGroupMessageId = msg.id
+        groupHasFoldSelected = true
       }
-    } else if (msg.role === 'user' && lastNonGroupMessageId) {
-      // User message after a multi-model group links to the selected response
-      parentId = lastNonGroupMessageId
+      if (!groupHasFoldSelected) {
+        lastGroupFallbackId = msg.id
+      }
+    } else if (msg.role === 'user' && (lastNonGroupMessageId || lastGroupFallbackId)) {
+      // User message after a multi-model group links to the selected (or last) response.
+      // lastGroupFallbackId takes priority: it means the group had no foldSelected,
+      // so the user message should follow the last group member, not the pre-group message.
+      parentId = lastGroupFallbackId ?? lastNonGroupMessageId
       lastNonGroupMessageId = null
+      lastGroupFallbackId = null
+      groupHasFoldSelected = false
     } else {
       // Normal sequential message - parent is previous message
       parentId = previousMessageId
@@ -1046,6 +1056,8 @@ export function buildMessageTree(
     // Update lastNonGroupMessageId for non-group messages
     if (siblingsGroupId === 0) {
       lastNonGroupMessageId = msg.id
+      lastGroupFallbackId = null
+      groupHasFoldSelected = false
     }
   }
 

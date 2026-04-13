@@ -131,6 +131,23 @@ describe('buildMessageTree', () => {
     expect(tree.get('a1')!.siblingsGroupId).toBe(0)
   })
 
+  it('links user message after multi-model group with no foldSelected to last group member', () => {
+    const messages = [
+      msg('u1', 'user'),
+      msg('a1', 'assistant', { askId: 'u1' }),
+      msg('a2', 'assistant', { askId: 'u1' }),
+      msg('u2', 'user')
+    ]
+
+    const tree = buildMessageTree(messages)
+
+    // Both responses are siblings under u1
+    expect(tree.get('a1')!.parentId).toBe('u1')
+    expect(tree.get('a2')!.parentId).toBe('u1')
+    // u2 should link to the last group member (a2), NOT to u1
+    expect(tree.get('u2')!.parentId).toBe('a2')
+  })
+
   it('links user message after orphaned foldSelected group to the selected response', () => {
     const messages = [
       msg('prev', 'assistant'),

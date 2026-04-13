@@ -144,6 +144,7 @@ export class ChatMigrator extends BaseMigrator {
     this.seenMessageIds = new Set()
     this.blockStats = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
     this.promotedToRootCount = 0
+    this.validAssistantIds = null
   }
 
   /**
@@ -348,22 +349,21 @@ export class ChatMigrator extends BaseMigrator {
           // Must disable FK before each batch to prevent
           // SQLITE_CONSTRAINT_FOREIGNKEY on message.parentId self-references.
           await db.run(sql`PRAGMA foreign_keys = OFF`)
+          try {
+            await db.transaction(async (tx) => {
+              // Insert topics
+              const topicValues = preparedData.map((d) => d.topic)
+              await tx.insert(topicTable).values(topicValues)
 
-          // Execute transaction
-          await db.transaction(async (tx) => {
-            // Insert topics
-            const topicValues = preparedData.map((d) => d.topic)
-            await tx.insert(topicTable).values(topicValues)
-
-            // Insert messages in batches (SQLite parameter limit)
-            for (let i = 0; i < allMessages.length; i += MESSAGE_INSERT_BATCH_SIZE) {
-              const batch = allMessages.slice(i, i + MESSAGE_INSERT_BATCH_SIZE)
-              await tx.insert(messageTable).values(batch)
-            }
-          })
-
-          // Re-enable FK checks after batch insert completes
-          await db.run(sql`PRAGMA foreign_keys = ON`)
+              // Insert messages in batches (SQLite parameter limit)
+              for (let i = 0; i < allMessages.length; i += MESSAGE_INSERT_BATCH_SIZE) {
+                const batch = allMessages.slice(i, i + MESSAGE_INSERT_BATCH_SIZE)
+                await tx.insert(messageTable).values(batch)
+              }
+            })
+          } finally {
+            await db.run(sql`PRAGMA foreign_keys = ON`)
+          }
 
           // Update state ONLY after transaction succeeds (transaction safety)
           for (const id of batchMessageIds) {

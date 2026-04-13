@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { AssistantMigrator } from '../AssistantMigrator'
 import { ChatMigrator } from '../ChatMigrator'
 import { getAllMigrators } from '../index'
 import { TranslateMigrator } from '../TranslateMigrator'
@@ -33,6 +34,7 @@ describe('migrator reset contract', () => {
       messagesWithEmptyBlocks: 2
     }
     state.promotedToRootCount = 3
+    state.validAssistantIds = new Set(['ast-1'])
 
     migrator.reset()
 
@@ -52,6 +54,22 @@ describe('migrator reset contract', () => {
       messagesWithEmptyBlocks: 0
     })
     expect(state.promotedToRootCount).toBe(0)
+    expect(state.validAssistantIds).toBeNull()
+  })
+
+  it('clears all attempt-local state in AssistantMigrator', () => {
+    const migrator = new AssistantMigrator()
+    const state = migrator as any
+
+    state.preparedResults = [{ id: 'ast-1' }]
+    state.skippedCount = 3
+    state.validAssistantIds = new Set(['ast-1', 'ast-2'])
+
+    migrator.reset()
+
+    expect(state.preparedResults).toStrictEqual([])
+    expect(state.skippedCount).toBe(0)
+    expect(state.validAssistantIds.size).toBe(0)
   })
 
   it('clears cached source data and counters in TranslateMigrator', () => {
