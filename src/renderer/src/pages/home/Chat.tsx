@@ -3,36 +3,27 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ContentSearchRef } from '@renderer/components/ContentSearch'
 import { ContentSearch } from '@renderer/components/ContentSearch'
-import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { SelectChatModelPopup } from '@renderer/components/Popups/SelectModelPopup'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { isEmbeddingModel, isRerankModel, isWebSearchModel } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowTopics } from '@renderer/hooks/useStore'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Assistant, Model, Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
-import { Flex } from 'antd'
-import { debounce } from 'lodash'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
-import React, { useState } from 'react'
+import React, { useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import ChatNavbar from './components/ChatNavBar'
-import Inputbar from './Inputbar/Inputbar'
-import ChatNavigation from './Messages/ChatNavigation'
-import Messages from './Messages/Messages'
 import Tabs from './Tabs'
 import V2ChatContent from './V2ChatContent'
-
-const USE_V2_CHAT = true
 
 const logger = loggerService.withContext('Chat')
 
@@ -48,15 +39,12 @@ const Chat: FC<Props> = (props) => {
   const { t } = useTranslation()
   const [topicPosition] = usePreference('topic.position')
   const [messageStyle] = usePreference('chat.message.style')
-  const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const { showTopics } = useShowTopics()
-  const { isMultiSelectMode } = useChatContext(props.activeTopic)
   const [isTopNavbar] = usePreference('ui.navbar.position')
 
   const mainRef = React.useRef<HTMLDivElement>(null)
-  const contentSearchRef = React.useRef<ContentSearchRef>(null)
+  const contentSearchRef = useRef<ContentSearchRef>(null)
   const [filterIncludeUser, setFilterIncludeUser] = useState(false)
-
   const { setTimeoutTimer } = useTimer()
 
   useHotkeys('esc', () => {
@@ -71,6 +59,34 @@ const Chat: FC<Props> = (props) => {
       logger.error('Error enabling content search:', error as Error)
     }
   })
+
+  const contentSearchFilter: NodeFilter = {
+    acceptNode(node) {
+      const container = node.parentElement?.closest('.message-content-container')
+      if (!container) return NodeFilter.FILTER_REJECT
+      const message = container.closest('.message')
+      if (!message) return NodeFilter.FILTER_REJECT
+      if (filterIncludeUser) return NodeFilter.FILTER_ACCEPT
+      if (message.classList.contains('message-assistant')) return NodeFilter.FILTER_ACCEPT
+      return NodeFilter.FILTER_REJECT
+    }
+  }
+
+  const userOutlinedItemClickHandler = () => {
+    setFilterIncludeUser(!filterIncludeUser)
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setTimeoutTimer(
+          'userOutlinedItemClickHandler',
+          () => {
+            contentSearchRef.current?.search()
+            contentSearchRef.current?.focus()
+          },
+          0
+        )
+      })
+    })
+  }
 
   useShortcut('rename_topic', async () => {
     const topic = props.activeTopic
@@ -105,72 +121,16 @@ const Chat: FC<Props> = (props) => {
     }
   })
 
-  const contentSearchFilter: NodeFilter = {
-    acceptNode(node) {
-      const container = node.parentElement?.closest('.message-content-container')
-      if (!container) return NodeFilter.FILTER_REJECT
-
-      const message = container.closest('.message')
-      if (!message) return NodeFilter.FILTER_REJECT
-
-      if (filterIncludeUser) {
-        return NodeFilter.FILTER_ACCEPT
-      }
-      if (message.classList.contains('message-assistant')) {
-        return NodeFilter.FILTER_ACCEPT
-      }
-      return NodeFilter.FILTER_REJECT
-    }
-  }
-
-  const userOutlinedItemClickHandler = () => {
-    setFilterIncludeUser(!filterIncludeUser)
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        setTimeoutTimer(
-          'userOutlinedItemClickHandler',
-          () => {
-            contentSearchRef.current?.search()
-            contentSearchRef.current?.focus()
-          },
-          0
-        )
-      })
-    })
-  }
-
-  let firstUpdateCompleted = false
-  const firstUpdateOrNoFirstUpdateHandler = debounce(() => {
-    contentSearchRef.current?.silentSearch()
-  }, 10)
-
-  const messagesComponentUpdateHandler = () => {
-    if (firstUpdateCompleted) {
-      firstUpdateOrNoFirstUpdateHandler()
-    }
-  }
-
-  const messagesComponentFirstUpdateHandler = () => {
-    setTimeoutTimer('messagesComponentFirstUpdateHandler', () => (firstUpdateCompleted = true), 300)
-    firstUpdateOrNoFirstUpdateHandler()
-  }
-
   const mainHeight = isTopNavbar ? 'calc(100vh - var(--navbar-height) - 6px)' : 'calc(100vh - var(--navbar-height))'
 
   return (
-    <Container id="chat" className={classNames([messageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
+    <Container id="chat" className={classNames([messageStyle])}>
       <RowFlex>
         <motion.div
           layout
           transition={{ duration: 0.3, ease: 'easeInOut' }}
           style={{ flex: 1, display: 'flex', minWidth: 0, overflow: 'hidden' }}>
-          <Main
-            ref={mainRef}
-            id="chat-main"
-            vertical
-            flex={1}
-            justify="space-between"
-            style={{ height: mainHeight, width: '100%' }}>
+          <Main ref={mainRef} id="chat-main" style={{ height: mainHeight, width: '100%' }}>
             <QuickPanelProvider>
               <ChatNavbar
                 activeAssistant={props.assistant}
@@ -179,38 +139,20 @@ const Chat: FC<Props> = (props) => {
                 setActiveAssistant={props.setActiveAssistant}
                 position="left"
               />
-              {USE_V2_CHAT ? (
-                <V2ChatContent
-                  key={props.activeTopic.id}
-                  assistant={assistant}
-                  topic={props.activeTopic}
-                  setActiveTopic={props.setActiveTopic}
-                  mainHeight={mainHeight}
-                />
-              ) : (
-                <div
-                  className="flex flex-1 flex-col justify-between"
-                  style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>
-                  <Messages
-                    key={props.activeTopic.id}
-                    assistant={assistant}
-                    topic={props.activeTopic}
-                    setActiveTopic={props.setActiveTopic}
-                    onComponentUpdate={messagesComponentUpdateHandler}
-                    onFirstUpdate={messagesComponentFirstUpdateHandler}
-                  />
-                  <ContentSearch
-                    ref={contentSearchRef}
-                    searchTarget={mainRef as React.RefObject<HTMLElement>}
-                    filter={contentSearchFilter}
-                    includeUser={filterIncludeUser}
-                    onIncludeUserChange={userOutlinedItemClickHandler}
-                  />
-                  {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
-                  <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
-                </div>
-              )}
-              {!USE_V2_CHAT && isMultiSelectMode && <MultiSelectActionPopup topic={props.activeTopic} />}
+              <V2ChatContent
+                key={props.activeTopic.id}
+                assistant={assistant}
+                topic={props.activeTopic}
+                setActiveTopic={props.setActiveTopic}
+                mainHeight={mainHeight}
+              />
+              <ContentSearch
+                ref={contentSearchRef}
+                searchTarget={mainRef as React.RefObject<HTMLElement>}
+                filter={contentSearchFilter}
+                includeUser={filterIncludeUser}
+                onIncludeUserChange={userOutlinedItemClickHandler}
+              />
             </QuickPanelProvider>
           </Main>
         </motion.div>
@@ -254,7 +196,11 @@ const Container = styled.div`
   }
 `
 
-const Main = styled(Flex)`
+const Main = styled.div`
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  justify-content: space-between;
   [navbar-position='left'] & {
     height: calc(100vh - var(--navbar-height));
   }

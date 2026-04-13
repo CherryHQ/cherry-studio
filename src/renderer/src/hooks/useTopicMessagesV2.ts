@@ -9,8 +9,8 @@
  */
 
 import { dataApiService } from '@data/DataApiService'
-import type { CherryUIMessage } from '@renderer/hooks/useAiChat'
 import { AssistantMessageStatus, type Message, UserMessageStatus } from '@renderer/types/newMessage'
+import type { CherryUIMessage } from '@shared/data/types/message'
 import type {
   BranchMessage,
   BranchMessagesResponse,

@@ -26,13 +26,8 @@ import {
 } from '@renderer/pages/home/Inputbar/context/InputbarToolsProvider'
 import { getDefaultTopic, mapLegacyTopicToDto } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import FileManager from '@renderer/services/FileManager'
-import { checkRateLimit, getUserMessage } from '@renderer/services/MessagesService'
-import { spanManagerService } from '@renderer/services/SpanManagerService'
-import { estimateTextTokens as estimateTxtTokens, estimateUserPromptUsage } from '@renderer/services/TokenService'
+import { estimateTextTokens as estimateTxtTokens } from '@renderer/services/TokenService'
 import { webSearchService } from '@renderer/services/WebSearchService'
-import { useAppDispatch } from '@renderer/store'
-import { sendMessage as _sendMessage } from '@renderer/store/thunk/messageThunk'
 import {
   type Assistant,
   type FileMetadata,
@@ -41,7 +36,6 @@ import {
   type Topic,
   TopicType
 } from '@renderer/types'
-import type { MessageInputBaseParams } from '@renderer/types/newMessage'
 import { delay } from '@renderer/utils'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
@@ -74,7 +68,7 @@ interface Props {
   assistant: Assistant
   setActiveTopic: (topic: Topic) => void
   topic: Topic
-  onSendV2?: (text: string, options?: { files?: FileMetadata[]; mentionedModels?: Model[] }) => void
+  onSend: (text: string, options?: { files?: FileMetadata[]; mentionedModels?: Model[] }) => void
 }
 
 type ProviderActionHandlers = {
@@ -90,7 +84,7 @@ interface InputbarInnerProps extends Props {
   actionsRef: React.RefObject<ProviderActionHandlers>
 }
 
-const Inputbar: FC<Props> = ({ assistant: initialAssistant, setActiveTopic, topic, onSendV2 }) => {
+const Inputbar: FC<Props> = ({ assistant: initialAssistant, setActiveTopic, topic, onSend: onSendProp }) => {
   const actionsRef = useRef<ProviderActionHandlers>({
     resizeTextArea: () => {},
     addNewTopic: () => {},
@@ -130,7 +124,7 @@ const Inputbar: FC<Props> = ({ assistant: initialAssistant, setActiveTopic, topi
         setActiveTopic={setActiveTopic}
         topic={topic}
         actionsRef={actionsRef}
-        onSendV2={onSendV2}
+        onSend={onSendProp}
       />
     </InputbarToolsProvider>
   )
@@ -141,7 +135,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({
   setActiveTopic,
   topic,
   actionsRef,
-  onSendV2
+  onSend: onSendProp
 }) => {
   const scope = topic.type ?? TopicType.Chat
   const config = getInputbarConfig(scope)
@@ -178,7 +172,6 @@ const InputbarInner: FC<InputbarInnerProps> = ({
   const { pauseMessages } = useMessageOperations(topic)
   const loading = useTopicLoading()
   const requestStatus = useRequestStatus()
-  const dispatch = useAppDispatch()
   const isVisionAssistant = useMemo(() => isVisionModel(model), [model])
   const isGenerateImageAssistant = useMemo(() => isGenerateImageModel(model), [model])
   const { setTimeoutTimer } = useTimer()
@@ -245,76 +238,17 @@ const InputbarInner: FC<InputbarInnerProps> = ({
       })
 
   const sendMessage = useCallback(async () => {
-    // V2 mode: delegate to useAiChat.sendMessage via callback
-    if (onSendV2) {
-      const text_ = text.trim()
-      if (!text_) return
-      onSendV2(text_, {
-        files: files.length > 0 ? files : undefined,
-        mentionedModels: mentionedModels.length > 0 ? mentionedModels : undefined
-      })
-      setText('')
-      setFiles([])
-      setTimeoutTimer('sendMessage_v2', () => resizeTextArea(), 0)
-      focusTextarea()
-      return
-    }
-
-    // V1 mode: existing Redux thunk path
-    if (checkRateLimit(assistant)) {
-      return
-    }
-
-    logger.info('Starting to send message')
-
-    const parent = await spanManagerService.startTrace(
-      { topicId: topic.id, name: 'sendMessage', inputs: text },
-      mentionedModels.length > 0 ? mentionedModels : [assistant.model]
-    )
-    void EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: topic.id, traceId: parent?.spanContext().traceId })
-
-    try {
-      const uploadedFiles = await FileManager.uploadFiles(files)
-
-      const baseUserMessage: MessageInputBaseParams = { assistant, topic, content: text }
-      if (uploadedFiles) {
-        baseUserMessage.files = uploadedFiles
-      }
-      if (mentionedModels.length) {
-        baseUserMessage.mentions = mentionedModels
-      }
-
-      baseUserMessage.usage = await estimateUserPromptUsage(baseUserMessage)
-
-      const { message, blocks } = getUserMessage(baseUserMessage)
-      message.traceId = parent?.spanContext().traceId
-
-      void dispatch(_sendMessage(message, blocks, assistant, topic.id))
-
-      setText('')
-      setFiles([])
-      setTimeoutTimer('sendMessage_1', () => setText(''), 500)
-      setTimeoutTimer('sendMessage_2', () => resizeTextArea(), 0)
-      // Restore focus to textarea after sending to maintain IME state (fcitx5 issue)
-      focusTextarea()
-    } catch (error) {
-      logger.warn('Failed to send message:', error as Error)
-      parent?.recordException(error as Error)
-    }
-  }, [
-    onSendV2,
-    assistant,
-    topic,
-    text,
-    mentionedModels,
-    files,
-    dispatch,
-    setText,
-    setFiles,
-    setTimeoutTimer,
-    resizeTextArea,
-    focusTextarea
-  ])
+    const text_ = text.trim()
+    if (!text_) return
+    onSendProp(text_, {
+      files: files.length > 0 ? files : undefined,
+      mentionedModels: mentionedModels.length > 0 ? mentionedModels : undefined
+    })
+    setText('')
+    setFiles([])
+    setTimeoutTimer('sendMessage', () => resizeTextArea(), 0)
+    focusTextarea()
+  }, [onSendProp, text, mentionedModels, files, setText, setFiles, setTimeoutTimer, resizeTextArea, focusTextarea])
 
   const tokenCountProps = useMemo(() => {
     if (!config.showTokenCount || estimateTokenCount === undefined || !showInputEstimatedTokens) {

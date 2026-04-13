@@ -1,4 +1,3 @@
-import type { CherryUIMessage } from '@renderer/hooks/useAiChat'
 import {
   AssistantMessageStatus,
   type Message,
@@ -7,6 +6,7 @@ import {
   MessageBlockType,
   UserMessageStatus
 } from '@renderer/types/newMessage'
+import type { CherryUIMessage } from '@shared/data/types/message'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { describe, expect, it } from 'vitest'
 

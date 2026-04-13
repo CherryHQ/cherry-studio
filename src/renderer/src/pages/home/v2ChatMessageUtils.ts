@@ -1,5 +1,5 @@
-import type { CherryUIMessage } from '@renderer/hooks/useAiChat'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
+import type { CherryUIMessage } from '@shared/data/types/message'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 export function findPrecedingUserMessage(

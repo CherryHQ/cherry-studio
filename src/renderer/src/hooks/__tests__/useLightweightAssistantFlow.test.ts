@@ -1,31 +1,33 @@
 import { act, renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useLightweightAssistantFlow } from '../useLightweightAssistantFlow'
 
-const { mockSendMessage, mockStop, mockSetMessages, getUseAiChatState } = vi.hoisted(() => {
+const { mockSendMessage, mockStop, mockSetMessages, getUseChatState, getAiEventState } = vi.hoisted(() => {
   const mockSendMessage = vi.fn().mockResolvedValue(undefined)
   const mockStop = vi.fn()
   const mockSetMessages = vi.fn()
   const state = {
     messages: [] as any[],
     status: 'ready' as 'ready' | 'submitted' | 'streaming' | 'error',
-    error: undefined as Error | undefined,
-    options: null as any
+    error: undefined as Error | undefined
+  }
+  const aiEventState = {
+    onStreamDone: null as null | ((data: { topicId: string; status: 'success' | 'paused' }) => void)
   }
 
   return {
     mockSendMessage,
     mockStop,
     mockSetMessages,
-    getUseAiChatState: () => state
+    getUseChatState: () => state,
+    getAiEventState: () => aiEventState
   }
 })
 
-vi.mock('@renderer/hooks/useAiChat', () => ({
-  useAiChat: (options: unknown) => {
-    const state = getUseAiChatState()
-    state.options = options
+vi.mock('@ai-sdk/react', () => ({
+  useChat: () => {
+    const state = getUseChatState()
     return {
       messages: state.messages,
       status: state.status,
@@ -37,7 +39,14 @@ vi.mock('@renderer/hooks/useAiChat', () => ({
   }
 }))
 
+vi.mock('@renderer/transport/IpcChatTransport', () => ({
+  ipcChatTransport: { sendMessages: vi.fn(), reconnectToStream: vi.fn() },
+  IpcChatTransport: vi.fn()
+}))
+
 describe('useLightweightAssistantFlow', () => {
+  let originalApi: unknown
+
   const assistant = {
     id: 'assistant-1',
     prompt: 'system prompt',
@@ -50,14 +59,42 @@ describe('useLightweightAssistantFlow', () => {
   } as any
 
   beforeEach(() => {
-    const state = getUseAiChatState()
+    const state = getUseChatState()
+    const aiEvents = getAiEventState()
     state.messages = []
     state.status = 'ready'
     state.error = undefined
-    state.options = null
+    aiEvents.onStreamDone = null
     mockSendMessage.mockClear()
     mockStop.mockClear()
     mockSetMessages.mockClear()
+
+    originalApi = (window as unknown as { api?: unknown }).api
+    ;(
+      window as unknown as {
+        api: {
+          ai: {
+            onStreamDone: (cb: (data: { topicId: string; status: 'success' | 'paused' }) => void) => () => void
+          }
+        }
+      }
+    ).api = {
+      ...(typeof originalApi === 'object' && originalApi ? originalApi : {}),
+      ai: {
+        onStreamDone: vi.fn((cb) => {
+          aiEvents.onStreamDone = cb
+          return () => {
+            if (aiEvents.onStreamDone === cb) {
+              aiEvents.onStreamDone = null
+            }
+          }
+        })
+      }
+    }
+  })
+
+  afterEach(() => {
+    ;(window as unknown as { api?: unknown }).api = originalApi
   })
 
   it('stops and clears the previous stream before running a new request', async () => {
@@ -79,6 +116,7 @@ describe('useLightweightAssistantFlow', () => {
       { text: 'hello' },
       expect.objectContaining({
         body: expect.objectContaining({
+          topicId: 'topic-1',
           assistantId: 'assistant-1',
           providerId: 'provider-1',
           modelId: 'model-1',
@@ -88,8 +126,8 @@ describe('useLightweightAssistantFlow', () => {
     )
   })
 
-  it('maps an aborted completion to a paused assistant message', async () => {
-    const state = getUseAiChatState()
+  it('maps an aborted completion to a paused assistant message via onStreamDone', async () => {
+    const state = getUseChatState()
     state.messages = [
       { id: 'user-1', role: 'user', parts: [{ type: 'text', text: 'hello' }] },
       { id: 'assistant-1', role: 'assistant', parts: [{ type: 'text', text: 'partial' }] }
@@ -106,11 +144,8 @@ describe('useLightweightAssistantFlow', () => {
     await act(async () => {
       await result.current.run({ assistant, prompt: 'hello' })
     })
-    const options = getUseAiChatState().options as {
-      onFinish: (message: unknown, isAbort: boolean, isError: boolean) => void
-    }
     act(() => {
-      options.onFinish(state.messages[1], true, false)
+      getAiEventState().onStreamDone?.({ topicId: 'topic-1', status: 'paused' })
     })
     rerender()
 
@@ -118,8 +153,9 @@ describe('useLightweightAssistantFlow', () => {
   })
 
   it('maps a failed completion to an error assistant message', () => {
-    const state = getUseAiChatState()
+    const state = getUseChatState()
     state.messages = [{ id: 'assistant-1', role: 'assistant', parts: [{ type: 'text', text: 'partial' }] }]
+    state.error = new Error('boom')
 
     const { result, rerender } = renderHook(() =>
       useLightweightAssistantFlow({
@@ -128,11 +164,6 @@ describe('useLightweightAssistantFlow', () => {
         assistantId: assistant.id
       })
     )
-
-    const options = getUseAiChatState().options as { onError: (error: Error) => void }
-    act(() => {
-      options.onError(new Error('boom'))
-    })
     rerender()
 
     expect(result.current.error).toBe('boom')
@@ -140,7 +171,7 @@ describe('useLightweightAssistantFlow', () => {
   })
 
   it('preserves existing messages when run is called with reset=false', async () => {
-    const state = getUseAiChatState()
+    const state = getUseChatState()
     state.messages = [{ id: 'user-1', role: 'user', parts: [{ type: 'text', text: 'existing' }] }]
 
     const { result } = renderHook(() =>
@@ -152,9 +183,10 @@ describe('useLightweightAssistantFlow', () => {
     )
 
     await act(async () => {
-      await result.current.run({ assistant, prompt: 'next', reset: false })
+      await result.current.run({ assistant, prompt: 'follow-up', reset: false })
     })
 
+    // stop and setMessages([]) should NOT be called when reset=false
     expect(mockStop).not.toHaveBeenCalled()
     expect(mockSetMessages).not.toHaveBeenCalledWith([])
   })

@@ -1,21 +1,22 @@
+import { useChat } from '@ai-sdk/react'
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import { isDev } from '@renderer/config/constant'
-import type { CherryUIMessage } from '@renderer/hooks/useAiChat'
 import { useChatContext } from '@renderer/hooks/useChatContext'
-import { useChatSession } from '@renderer/hooks/useChatSession'
 import { type V2ChatOverrides, V2ChatOverridesProvider } from '@renderer/hooks/useMessageOperations'
 import { useTopicMessagesV2 } from '@renderer/hooks/useTopicMessagesV2'
 import { fetchMcpTools } from '@renderer/services/ApiService'
 import { mapLegacyTopicToDto } from '@renderer/services/AssistantService'
+import { ensureTopicStreamStateSyncStarted } from '@renderer/services/topicStreamStateSync'
+import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
 import type { Assistant, FileMetadata, Model, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, UserMessageStatus } from '@renderer/types/newMessage'
 import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/assistant'
-import type { CherryMessagePart } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { FC } from 'react'
-import { useCallback, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 import Inputbar from './Inputbar/Inputbar'
 import { PartsProvider, RefreshProvider } from './Messages/Blocks'
@@ -31,25 +32,21 @@ interface Props {
 }
 
 /**
- * V2 chat content area — replaces Messages + Inputbar when USE_V2_CHAT is enabled.
- *
- * Architecture:
+ * V2 chat content area.
  *
  * Outer shell (V2ChatContent):
  *   - Loads history from DataApi via useTopicMessagesV2
- *   - Renders a loading state until history is ready
- *   - Only mounts V2ChatContentInner AFTER history is loaded, so the
- *     ChatSession receives complete initialMessages on its first creation
+ *   - Renders loading state until history is ready
  *
  * Inner component (V2ChatContentInner):
- *   - Consumes ChatSession via useChatSession (service-layer managed)
- *   - Stream lifecycle is decoupled from React — switching topics does NOT
- *     kill the stream. ChatSessionManager keeps the session alive.
+ *   - Consumes official useChat over IPC transport
+ *   - Stream lifecycle is decoupled from React by Main-side AiStreamManager;
+ *     switching topics detaches the Renderer subscriber without aborting the stream
+ *   - History (from DataApi) and active stream (from useChat) are separate sources
  *   - PartsContext: history parts + live streaming parts overlay
  */
 const V2ChatContent: FC<Props> = ({ assistant, topic, setActiveTopic, mainHeight }) => {
   const {
-    uiMessages: historyUIMessages,
     adaptedMessages: historyMessages,
     partsMap: historyPartsMap,
     isLoading: isHistoryLoading,
@@ -77,7 +74,6 @@ const V2ChatContent: FC<Props> = ({ assistant, topic, setActiveTopic, mainHeight
       topic={topic}
       setActiveTopic={setActiveTopic}
       mainHeight={mainHeight}
-      historyUIMessages={historyUIMessages}
       historyMessages={historyMessages}
       historyPartsMap={historyPartsMap}
       refresh={refresh}
@@ -90,7 +86,6 @@ const V2ChatContent: FC<Props> = ({ assistant, topic, setActiveTopic, mainHeight
 // ============================================================================
 
 interface InnerProps extends Props {
-  historyUIMessages: CherryUIMessage[]
   historyMessages: Message[]
   historyPartsMap: Record<string, CherryMessagePart[]>
   refresh: () => Promise<CherryUIMessage[]>
@@ -101,17 +96,16 @@ const V2ChatContentInner: FC<InnerProps> = ({
   topic,
   setActiveTopic,
   mainHeight,
-  historyUIMessages,
   historyMessages,
   historyPartsMap,
   refresh
 }) => {
   const { isMultiSelectMode } = useChatContext(topic)
-  // Set of persisted message IDs — used to distinguish history vs. live messages
-  const historyIds = useMemo(() => new Set(historyUIMessages.map((m) => m.id)), [historyUIMessages])
 
-  // ChatSession — managed by ChatSessionManager, survives component unmount.
-  // useChatSession handles retain/release automatically.
+  useEffect(() => {
+    ensureTopicStreamStateSyncStarted()
+  }, [])
+
   const {
     messages: streamingUIMessages,
     setMessages,
@@ -120,15 +114,30 @@ const V2ChatContentInner: FC<InnerProps> = ({
     error,
     sendMessage,
     regenerate
-  } = useChatSession(topic.id, {
-    topicId: topic.id,
-    assistantId: assistant.id,
-    topic,
-    assistant,
-    initialMessages: historyUIMessages.length > 0 ? historyUIMessages : undefined,
-    historyIds,
-    refresh
+  } = useChat<CherryUIMessage>({
+    id: topic.id,
+    transport: ipcChatTransport,
+    experimental_throttle: 50,
+    onError: (streamError) => {
+      logger.error('AI stream error', { topicId: topic.id, streamError })
+    }
   })
+
+  useEffect(() => {
+    const unsubscribe = window.api.ai.onStreamDone((data) => {
+      if (data.topicId !== topic.id) return
+      // Refresh history first, then clear live messages to avoid flash
+      void refresh()
+        .then(() => setMessages([]))
+        .catch((err) => {
+          logger.warn('Failed to refresh messages after stream done', { topicId: topic.id, err })
+          setMessages([])
+        })
+    })
+    return () => {
+      unsubscribe()
+    }
+  }, [refresh, setMessages, topic.id])
 
   /** Delete a single message (reparent children to grandparent) and sync UI. */
   const handleDeleteMessage = useCallback(
@@ -185,11 +194,8 @@ const V2ChatContentInner: FC<InnerProps> = ({
     [refresh]
   )
 
-  // Identify NEW messages from ChatSession that aren't yet in persisted history.
-  const liveUIMessages = useMemo(
-    () => streamingUIMessages.filter((m) => !historyIds.has(m.id)),
-    [streamingUIMessages, historyIds]
-  )
+  // Live messages from useChat — only contains active streaming messages (no history)
+  const liveUIMessages = streamingUIMessages
 
   // Stable timestamp cache — preserves createdAt across re-renders for each message ID
   const timestampCacheRef = useRef(new Map<string, string>())
@@ -230,9 +236,8 @@ const V2ChatContentInner: FC<InnerProps> = ({
   }, [liveUIMessages, assistant.id, topic.id, status])
 
   // Merge: history (authority) + live streaming (appended).
-  // Deduplicate by ID to handle the race where SWR updates historyIds (real IDs)
-  // before useSyncExternalStore propagates chat.messages update (may still hold temp IDs),
-  // or vice versa. Without dedup, a brief intermediate render can show duplicates.
+  // Merge history (from DataApi) + live (from useChat). Dedup by ID handles the
+  // brief race window between onStreamDone setMessages([]) and SWR refresh.
   const adaptedMessages = useMemo<Message[]>(() => {
     if (liveAdapted.length === 0) return historyMessages
     const seen = new Set(historyMessages.map((m) => m.id))
@@ -283,7 +288,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
   const regenerateWithCapabilities = useCallback(
     async (messageId?: string) => {
       const mcpToolIds = await resolveMcpToolIds()
-      await regenerate(messageId, { body: { mcpToolIds, ...capabilityBody } })
+      await regenerate({ messageId, body: { mcpToolIds, ...capabilityBody } })
     },
     [regenerate, resolveMcpToolIds, capabilityBody]
   )
@@ -344,12 +349,19 @@ const V2ChatContentInner: FC<InnerProps> = ({
     ]
   )
 
+  const ensuredTopicIds = useRef(new Set<string>())
   const ensureTopicExists = useCallback(async () => {
+    if (ensuredTopicIds.current.has(topic.id)) return
     try {
       await dataApiService.get(`/topics/${topic.id}`)
-    } catch {
-      await dataApiService.post('/topics', { body: mapLegacyTopicToDto(topic) })
+    } catch (err: unknown) {
+      if (err instanceof Object && 'code' in err && err.code === 'NOT_FOUND') {
+        await dataApiService.post('/topics', { body: mapLegacyTopicToDto(topic) })
+      } else {
+        throw err
+      }
     }
+    ensuredTopicIds.current.add(topic.id)
   }, [topic])
 
   const handleSendV2 = useCallback(
@@ -403,7 +415,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
               messages={adaptedMessages}
             />
 
-            <Inputbar assistant={assistant} topic={topic} setActiveTopic={setActiveTopic} onSendV2={handleSendV2} />
+            <Inputbar assistant={assistant} topic={topic} setActiveTopic={setActiveTopic} onSend={handleSendV2} />
             {isMultiSelectMode && <MultiSelectActionPopup topic={topic} />}
           </div>
         </PartsProvider>

@@ -1,9 +1,10 @@
-import { type CherryUIMessage, useAiChat } from '@renderer/hooks/useAiChat'
+import { useChat } from '@ai-sdk/react'
+import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
 import type { Assistant } from '@renderer/types'
 import { AssistantMessageStatus, type Message, UserMessageStatus } from '@renderer/types/newMessage'
 import { buildAssistantRuntimeOverrides } from '@renderer/utils/assistantRuntimeOverrides'
 import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
-import type { CherryMessagePart } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { ChatStatus } from 'ai'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -56,20 +57,27 @@ export function useLightweightAssistantFlow(
     sendMessage,
     stop: stopChat,
     setMessages
-  } = useAiChat({
-    chatId,
-    topicId,
-    assistantId,
-    onFinish: (_message, isAbort, isError) => {
-      setIsPreparing(false)
-      setCompletionState(isError ? 'error' : isAbort ? 'paused' : 'success')
-    },
+  } = useChat<CherryUIMessage>({
+    id: chatId,
+    transport: ipcChatTransport,
+    experimental_throttle: 50,
     onError: (streamError) => {
       setIsPreparing(false)
       setCompletionState('error')
       setError(streamError.message)
     }
   })
+
+  useEffect(() => {
+    const unsubscribe = window.api.ai.onStreamDone((data) => {
+      if (data.topicId !== topicId) return
+      setIsPreparing(false)
+      setCompletionState(data.status === 'paused' ? 'paused' : 'success')
+    })
+    return () => {
+      unsubscribe()
+    }
+  }, [topicId])
 
   useEffect(() => {
     if (status === 'streaming') {
@@ -181,6 +189,7 @@ export function useLightweightAssistantFlow(
         { text: prompt },
         {
           body: {
+            topicId,
             assistantId: assistant.id,
             providerId: model.provider,
             modelId: model.id,
@@ -191,7 +200,7 @@ export function useLightweightAssistantFlow(
         }
       )
     },
-    [sendMessage, setMessages, stopChat]
+    [topicId, sendMessage, setMessages, stopChat]
   )
 
   const stop = useCallback(() => {

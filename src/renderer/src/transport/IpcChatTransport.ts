@@ -153,11 +153,15 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
       cancel() {
         if (!isStreamClosed) {
           isStreamClosed = true
-          // Component unmount: abort the stream so Main can persist partial result
-          void window.api.ai.streamAbort({ topicId })
+          // Component unmount / stream disposal: only detach this subscriber.
+          // The stream itself keeps running in Main and will be persisted there.
+          void window.api.ai.streamDetach({ topicId })
           cleanup()
         }
       }
     })
   }
 }
+
+/** Shared singleton — IpcChatTransport is stateless, safe to reuse everywhere. */
+export const ipcChatTransport = new IpcChatTransport()
