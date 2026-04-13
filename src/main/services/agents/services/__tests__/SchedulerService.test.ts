@@ -21,9 +21,14 @@ vi.mock('../SessionService', () => ({
   }
 }))
 
-vi.mock('../SessionMessageService', () => ({
-  sessionMessageService: {
-    createSessionMessage: vi.fn()
+vi.mock('@shared/data/types/model', () => ({
+  createUniqueModelId: vi.fn((providerId: string, modelId: string) => `${providerId}::${modelId}`)
+}))
+
+const mockStartExecution = vi.fn()
+vi.mock('@main/core/application', () => ({
+  application: {
+    get: vi.fn().mockReturnValue({ startExecution: mockStartExecution })
   }
 }))
 
@@ -55,10 +60,6 @@ vi.mock('../channels/ChannelManager', () => ({
   }
 }))
 
-vi.mock('../channels/sessionStreamIpc', () => ({
-  broadcastSessionChanged: vi.fn()
-}))
-
 vi.mock('../cherryclaw/heartbeat', () => ({
   readHeartbeat: vi.fn().mockResolvedValue(undefined)
 }))
@@ -69,6 +70,13 @@ describe('SchedulerService', () => {
   beforeEach(async () => {
     vi.useFakeTimers()
     vi.resetModules()
+    // Default: startExecution triggers sentinel onDone immediately
+    mockStartExecution.mockImplementation(({ listeners }) => {
+      const sentinel = listeners.find((l: { id: string }) => l.id.startsWith('scheduler:'))
+      if (sentinel) {
+        sentinel.onDone({ status: 'success' })
+      }
+    })
     SchedulerServiceModule = await import('../SchedulerService')
   })
 
@@ -131,8 +139,6 @@ describe('SchedulerService', () => {
     const { taskService } = await import('../TaskService')
     const { agentService } = await import('../AgentService')
     const { sessionService } = await import('../SessionService')
-    const { sessionMessageService } = await import('../SessionMessageService')
-
     const mockTask = {
       id: 'task-1',
       agent_id: 'agent-1',
@@ -166,11 +172,8 @@ describe('SchedulerService', () => {
     })
     vi.mocked(sessionService.getSession).mockResolvedValueOnce({
       id: 'session-1',
-      agent_id: 'agent-1'
-    } as any)
-    vi.mocked(sessionMessageService.createSessionMessage).mockResolvedValueOnce({
-      stream: new ReadableStream({ start: (c) => c.close() }),
-      completion: Promise.resolve({})
+      agent_id: 'agent-1',
+      model: 'openai:gpt-4'
     } as any)
 
     const service = SchedulerServiceModule.schedulerService

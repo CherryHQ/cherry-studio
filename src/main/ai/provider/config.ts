@@ -487,6 +487,11 @@ function buildAiHubMixConfig(ctx: BuilderContext): ProviderConfig<'aihubmix'> {
  */
 async function buildClaudeCodeConfig(ctx: BuilderContext): Promise<ProviderConfig<'claude-code'>> {
   // Agent session: look up session from DB, build complete ClaudeCodeSettings
+  const anthropicBaseUrl = ctx.baseConfig.baseURL
+    ? formatApiHost(ctx.baseConfig.baseURL, !isWithTrailingSharp(ctx.baseConfig.baseURL))
+    : undefined
+
+  // Agent session: full session settings from DB
   if (ctx.agentSessionId) {
     const { agents } = await agentService.listAgents()
     let session: AgentSessionEntity | null = null
@@ -498,27 +503,23 @@ async function buildClaudeCodeConfig(ctx: BuilderContext): Promise<ProviderConfi
     const sessionSettings = await buildClaudeCodeSessionSettings(session, ctx.actualProvider)
     return {
       providerId: 'claude-code',
-      providerSettings: { defaultSettings: sessionSettings }
+      providerSettings: {
+        apiKey: ctx.baseConfig.apiKey,
+        baseURL: anthropicBaseUrl,
+        defaultSettings: sessionSettings
+      }
     }
   }
 
-  // never approach
   // No session: provider-level defaults only
-  const anthropicBaseUrl = ctx.baseConfig.baseURL
-    ? formatApiHost(ctx.baseConfig.baseURL, !isWithTrailingSharp(ctx.baseConfig.baseURL))
-    : ''
-
   return {
     providerId: 'claude-code',
     providerSettings: {
+      apiKey: ctx.baseConfig.apiKey,
+      baseURL: anthropicBaseUrl,
       defaultSettings: {
         pathToClaudeCodeExecutable: resolveClaudeExecutablePath(),
-        spawnClaudeCodeProcess: buildSpawnProcess(),
-        env: {
-          ANTHROPIC_API_KEY: ctx.baseConfig.apiKey,
-          ANTHROPIC_AUTH_TOKEN: ctx.baseConfig.apiKey,
-          ...(anthropicBaseUrl ? { ANTHROPIC_BASE_URL: anthropicBaseUrl } : {})
-        }
+        spawnClaudeCodeProcess: buildSpawnProcess()
       }
     }
   }

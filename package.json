@@ -295,7 +295,6 @@
     "@xyflow/react": "^12.4.4",
     "adm-zip": "0.4.16",
     "ai": "^6.0.143",
-    "ai-sdk-provider-claude-code": "^3.4.4",
     "ansi-to-react": "^6.2.6",
     "antd": "5.27.0",
     "archiver": "^7.0.1",

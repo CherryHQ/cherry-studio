@@ -18,8 +18,14 @@ import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 
-import type { CanUseTool, McpServerConfig, SdkPluginConfig, SpawnedProcess } from '@anthropic-ai/claude-agent-sdk'
-import { ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
+import type {
+  CanUseTool,
+  HookCallback,
+  HookJSONOutput,
+  McpServerConfig,
+  SdkPluginConfig,
+  SpawnedProcess
+} from '@anthropic-ai/claude-agent-sdk'
 import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
@@ -48,10 +54,10 @@ import {
 } from '@shared/agents/claudecode/constants'
 import { languageEnglishNameMap } from '@shared/config/languages'
 import type { Provider } from '@shared/data/types/provider'
-import { withoutTrailingApiVersion } from '@shared/utils'
 import type { GetAgentSessionResponse } from '@types'
-import type { ClaudeCodeSettings } from 'ai-sdk-provider-claude-code'
 import { app } from 'electron'
+
+import type { ClaudeCodeSettings } from './claude-code'
 
 const logger = loggerService.withContext('ClaudeCodeSettingsBuilder')
 const require_ = createRequire(import.meta.url)
@@ -226,35 +232,20 @@ async function buildEnvironment(
   const customGitBashPath = isWin ? autoDiscoverGitBash() : null
   const bunPath = await getBinaryPath('bun')
 
-  const isAzureOpenAI = provider.presetProviderId === 'azure-openai'
-  const providerApiHost = provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl
-  const apiKey = await providerService.getRotatedApiKey(provider.id)
-  // const modelId = createUniqueModelId(provider.id, session.model)
-  // TODO: use session.plan_model
-  // const sonnetModelId = createUniqueModelId(provider.id, session.model)
-  // TODO: use session.small_model
-  // const smallModelId = createUniqueModelId(provider.id, session.model)
+  // API key and base URL are injected by the provider layer (ClaudeCodeProviderSettings),
+  // not set here. This function only builds session-specific env vars.
+
   // FIXME: In V2, session.model SHOULD be UniqueModelId
   const colonIdx = session.model.indexOf(':')
   const rawModelId = colonIdx > 0 ? session.model.slice(colonIdx + 1) : session.model
   const model = await modelService.getByKey(provider.id, rawModelId)
 
-  const resolveAnthropicBaseUrl = (): string => {
-    if (!providerApiHost) return ''
-    if (isAzureOpenAI) {
-      const host = withoutTrailingApiVersion(providerApiHost).replace(/\/openai$/, '')
-      return `${host}/anthropic`
-    }
-    return withoutTrailingApiVersion(providerApiHost)
-  }
-
   const env: Record<string, string | undefined> = {
     ...loginShellEnv,
     ...getProxyEnvironment(process.env),
     CLAUDE_CODE_USE_BEDROCK: '0',
-    ANTHROPIC_API_KEY: apiKey,
-    ANTHROPIC_AUTH_TOKEN: apiKey,
-    ANTHROPIC_BASE_URL: resolveAnthropicBaseUrl(),
+    // ANTHROPIC_API_KEY and ANTHROPIC_BASE_URL are injected by the provider layer
+    // (ClaudeCodeProviderSettings.apiKey/baseURL → env), not duplicated here.
     ANTHROPIC_MODEL: model.apiModelId,
     ANTHROPIC_DEFAULT_OPUS_MODEL: model.apiModelId,
     ANTHROPIC_DEFAULT_SONNET_MODEL: model.apiModelId,
@@ -349,41 +340,33 @@ function buildToolPermissions(session: GetAgentSessionResponse) {
     })
   }
 
-  // Hooks use (...args: unknown[]) signature to satisfy ClaudeCodeSettings type
-  // (provider package uses loose types for multi-SDK-version compat).
-  // Runtime narrowing via 'hook_event_name' check.
-  const preToolUseHook = async (...args: unknown[]): Promise<unknown> => {
-    const input = args[0] as Record<string, unknown> | undefined
-    const toolUseID = args[1] as string | undefined
-    const opts = args[2] as { signal?: AbortSignal } | undefined
+  const preToolUseHook: HookCallback = async (input, toolUseID, opts): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
     if (opts?.signal?.aborted) return {}
 
-    const toolName = String(input.tool_name ?? '')
+    const toolName = String((input as Record<string, unknown>).tool_name ?? '')
     const normalized = normalizeToolName(toolName)
     if (toolUseID) {
-      const bypassAll = input.permission_mode === 'bypassPermissions'
+      const bypassAll = (input as Record<string, unknown>).permission_mode === 'bypassPermissions'
       const autoAllowed = autoAllowTools.has(toolName) || autoAllowTools.has(normalized)
       if (bypassAll || autoAllowed) {
         const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
-        if (opts?.signal) {
-          await promptForToolApproval(toolName, isRecord(input.tool_input) ? input.tool_input : {}, {
-            signal: opts.signal,
-            toolCallId: buildNamespacedToolCallId(session.id, toolUseID),
-            autoApprove: true
-          })
-        }
+        const toolInput = (input as Record<string, unknown>).tool_input
+        await promptForToolApproval(toolName, isRecord(toolInput) ? toolInput : {}, {
+          signal: opts.signal,
+          toolCallId: buildNamespacedToolCallId(session.id, toolUseID),
+          autoApprove: true
+        })
       }
     }
     return {}
   }
 
-  const rtkRewriteHook = async (...args: unknown[]): Promise<unknown> => {
-    const input = args[0] as Record<string, unknown> | undefined
+  const rtkRewriteHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
-    const toolName = String(input.tool_name ?? '')
+    const toolName = String((input as Record<string, unknown>).tool_name ?? '')
     if (toolName !== 'Bash' && toolName !== 'builtin_Bash') return {}
-    const toolInput = input.tool_input as Record<string, unknown> | undefined
+    const toolInput = (input as Record<string, unknown>).tool_input as Record<string, unknown> | undefined
     const command = toolInput?.command
     if (typeof command !== 'string' || !command.trim()) return {}
     const rewritten = await rtkRewrite(command)
