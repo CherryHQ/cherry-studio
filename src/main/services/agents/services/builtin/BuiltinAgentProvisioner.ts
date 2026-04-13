@@ -86,7 +86,9 @@ export async function provisionBuiltinAgent(
   }
 
   try {
-    // Copy .claude/ directory (skills + plugins.json)
+    // Always overwrite .claude/ (skills + plugins.json) — this is product-managed content
+    // that must stay in sync with each release (e.g., knowledge base updates in SKILL.md).
+    // User-customized content (SOUL.md, USER.md, memory/) is handled separately below.
     const srcClaudeDir = path.join(templateDir, '.claude')
     const destClaudeDir = path.join(workspacePath, '.claude')
 
@@ -97,6 +99,23 @@ export async function provisionBuiltinAgent(
         workspacePath,
         destClaudeDir
       })
+    }
+
+    // Copy SOUL.md, USER.md, and memory/ only if they don't already exist (first-time provision)
+    // Never overwrite — user may have customized their persona or accumulated memories
+    fs.mkdirSync(workspacePath, { recursive: true })
+    for (const soulFile of ['SOUL.md', 'USER.md']) {
+      const srcFile = path.join(templateDir, soulFile)
+      const destFile = path.join(workspacePath, soulFile)
+      if (fs.existsSync(srcFile) && !fs.existsSync(destFile)) {
+        fs.copyFileSync(srcFile, destFile)
+      }
+    }
+
+    const srcMemoryDir = path.join(templateDir, 'memory')
+    const destMemoryDir = path.join(workspacePath, 'memory')
+    if (fs.existsSync(srcMemoryDir) && !fs.existsSync(destMemoryDir)) {
+      copyDirSync(srcMemoryDir, destMemoryDir)
     }
 
     // Read agent.json to extract full config

@@ -552,7 +552,7 @@ class ClaudeCodeService implements AgentServiceInterface {
       url: 'https://mcp.exa.ai/mcp'
     }
 
-    if (soulEnabled) {
+    if (soulEnabled && !isAssistant) {
       // Find the channel that owns this session (if any) for context-aware cron defaults
       const sourceChannelId = await this.resolveSourceChannel(session.agent_id, session.id)
       const clawServer = new ClawServer(session.agent_id, sourceChannelId)
