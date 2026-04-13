@@ -221,7 +221,7 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
       .filter((block) => block.type === MessageBlockType.MAIN_TEXT)
       .filter((block) => {
         const searchableContent = stripMarkdownFormatting(block.content)
-        return searchRegexes.some((regex) => regex.test(searchableContent))
+        return searchRegexes.every((regex) => regex.test(searchableContent))
       })
 
     const messages = topics?.flatMap((topic) => topic.messages)
