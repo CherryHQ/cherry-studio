@@ -259,6 +259,7 @@ export class SkillService {
         folderName,
         error: error instanceof Error ? error.message : String(error)
       })
+      throw error
     }
   }
 
@@ -390,6 +391,7 @@ export class SkillService {
     // copy. This avoids sanitize drift between caller-chosen names and metadata.
     const skillsRoot = path.resolve(getDataPath('Skills'))
     const isInPlace = path.resolve(path.dirname(skillDir)) === skillsRoot
+    // INVARIANT: isInPlace assumes basename was already sanitized by getSkillDirectory()
     const folderName = isInPlace ? path.basename(skillDir) : this.sanitizeFolderName(metadata.filename)
 
     // Check for existing skill with same folder name

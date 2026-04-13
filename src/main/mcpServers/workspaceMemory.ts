@@ -18,7 +18,10 @@ async function resolveFileCI(dir: string, name: string): Promise<string> {
   try {
     await stat(exact)
     return exact
-  } catch {
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      logger.warn('Unexpected error checking file', { path: exact, error: (err as Error).message })
+    }
     // exact match not found, try case-insensitive
   }
 
@@ -27,7 +30,10 @@ async function resolveFileCI(dir: string, name: string): Promise<string> {
     const target = name.toLowerCase()
     const match = entries.find((e) => e.toLowerCase() === target)
     return match ? path.join(dir, match) : exact
-  } catch {
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      logger.warn('Unexpected error reading directory', { dir, error: (err as Error).message })
+    }
     return exact
   }
 }
@@ -222,8 +228,11 @@ class WorkspaceMemoryServer {
     let fileContent: string
     try {
       fileContent = await readFile(journalPath, 'utf-8')
-    } catch {
-      return { content: [{ type: 'text' as const, text: 'No journal entries found.' }] }
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+        return { content: [{ type: 'text' as const, text: 'No journal entries found.' }] }
+      }
+      throw new Error(`Failed to read journal at ${journalPath}: ${(err as Error).message}`)
     }
 
     const queryLower = query.toLowerCase()
@@ -236,6 +245,7 @@ class WorkspaceMemoryServer {
       try {
         entry = JSON.parse(line)
       } catch {
+        logger.warn('Skipping corrupted journal line', { journalPath, line: line.substring(0, 100) })
         continue
       }
       if (tagFilter && !entry.tags?.some((t) => t.toLowerCase() === tagLower)) continue

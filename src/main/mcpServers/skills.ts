@@ -205,7 +205,7 @@ class SkillsServer {
       content: [
         {
           type: 'text' as const,
-          text: `Skill installed and enabled:\n  Name: ${installed.name}\n  Description: ${installed.description ?? 'N/A'}\n  Folder: ${installed.folderName}\n  Enabled: ${enabled?.isEnabled ?? true}`
+          text: `Skill installed${enabled?.isEnabled ? ' and enabled' : ' (warning: failed to enable)'}:\n  Name: ${installed.name}\n  Description: ${installed.description ?? 'N/A'}\n  Folder: ${installed.folderName}\n  Enabled: ${enabled?.isEnabled ?? false}`
         }
       ]
     }
@@ -269,7 +269,14 @@ class SkillsServer {
     try {
       const entries = await readdir(skillDir)
       dirHasContent = entries.length > 0
-    } catch {
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code
+      if (code !== 'ENOENT') {
+        throw new McpError(
+          ErrorCode.InternalError,
+          `Cannot read skill directory "${skillDir}": ${(err as Error).message}`
+        )
+      }
       // Directory doesn't exist yet — safe to create.
     }
     if (dirHasContent) {
@@ -293,7 +300,7 @@ class SkillsServer {
             ``,
             `Write SKILL.md and any supporting files (scripts/, references/, assets/) directly into this directory.`,
             `When the skill is ready, call skills with action="register" and name="${name}" to register it in the global skill list and enable it for the current session.`,
-            `You can re-edit files in place and call register again to refresh — the live symlink picks up file changes immediately.`
+            `You can re-edit files in place and call register again to refresh.`
           ].join('\n')
         }
       ]
@@ -305,6 +312,24 @@ class SkillsServer {
     if (!name) throw new McpError(ErrorCode.InvalidParams, "'name' is required for register")
 
     const skillDir = skillService.getSkillDirectory(name)
+
+    // Pre-flight: ensure SKILL.md exists before attempting install
+    try {
+      const entries = await readdir(skillDir)
+      if (!entries.some((e) => e.toLowerCase() === 'skill.md')) {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          `No SKILL.md found in "${skillDir}". Call action="init" first and write a SKILL.md file before registering.`
+        )
+      }
+    } catch (err) {
+      if (err instanceof McpError) throw err
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        `Cannot read skill directory "${skillDir}": ${(err as Error).message}. Did you call action="init" first?`
+      )
+    }
+
     const installed = await skillService.installFromDirectory({ directoryPath: skillDir })
     const enabled = await skillService.toggle({ skillId: installed.id, isEnabled: true })
 
@@ -318,10 +343,10 @@ class SkillsServer {
         {
           type: 'text' as const,
           text: [
-            `Skill "${installed.name}" registered and enabled.`,
+            `Skill "${installed.name}" registered${enabled?.isEnabled ? ' and enabled' : ' (warning: failed to enable)'}.`,
             `  Folder: ${installed.folderName}`,
             `  Description: ${installed.description ?? 'N/A'}`,
-            `  Enabled: ${enabled?.isEnabled ?? true}`
+            `  Enabled: ${enabled?.isEnabled ?? false}`
           ].join('\n')
         }
       ]

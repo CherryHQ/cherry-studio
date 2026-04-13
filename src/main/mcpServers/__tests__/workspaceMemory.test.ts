@@ -163,7 +163,7 @@ describe('WorkspaceMemoryServer', () => {
     })
 
     it('should return message when journal does not exist', async () => {
-      mockReadFile.mockRejectedValue(new Error('ENOENT'))
+      mockReadFile.mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }))
 
       const server = createServer('agent_1')
       const result = await callTool(server, { action: 'search' })

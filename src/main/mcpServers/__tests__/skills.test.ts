@@ -217,7 +217,7 @@ describe('SkillsServer', () => {
     it('should create the skill directory and return its path', async () => {
       mockSkillGetSkillDirectory.mockReturnValue('/global-skills/my-skill')
       mockSkillGetByFolderName.mockResolvedValue(null)
-      mockReaddir.mockRejectedValue(new Error('ENOENT'))
+      mockReaddir.mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }))
       mockMkdir.mockResolvedValue(undefined)
 
       const server = createServer('agent_1')
@@ -273,6 +273,19 @@ describe('SkillsServer', () => {
       expect(mockMkdir).toHaveBeenCalled()
     })
 
+    it('should reject when readdir fails with non-ENOENT error (e.g. EACCES)', async () => {
+      mockSkillGetSkillDirectory.mockReturnValue('/global-skills/my-skill')
+      mockSkillGetByFolderName.mockResolvedValue(null)
+      mockReaddir.mockRejectedValue(Object.assign(new Error('Permission denied'), { code: 'EACCES' }))
+
+      const server = createServer()
+      const result = await callTool(server, { action: 'init', name: 'my-skill' })
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Cannot read skill directory')
+      expect(mockMkdir).not.toHaveBeenCalled()
+    })
+
     it('should error when name is missing', async () => {
       const server = createServer()
       const result = await callTool(server, { action: 'init' })
@@ -285,6 +298,7 @@ describe('SkillsServer', () => {
   describe('register action', () => {
     it('should register an in-place skill and enable it', async () => {
       mockSkillGetSkillDirectory.mockReturnValue('/global-skills/my-skill')
+      mockReaddir.mockResolvedValue(['SKILL.md', 'scripts'])
       mockSkillInstallFromDirectory.mockResolvedValue({
         id: 'skill-2',
         name: 'My Skill',
@@ -300,6 +314,30 @@ describe('SkillsServer', () => {
       expect(mockSkillToggle).toHaveBeenCalledWith({ skillId: 'skill-2', isEnabled: true })
       expect(result.content[0].text).toContain('My Skill')
       expect(result.content[0].text).toContain('registered and enabled')
+    })
+
+    it('should error when SKILL.md is missing from directory', async () => {
+      mockSkillGetSkillDirectory.mockReturnValue('/global-skills/my-skill')
+      mockReaddir.mockResolvedValue(['scripts', 'README.md'])
+
+      const server = createServer()
+      const result = await callTool(server, { action: 'register', name: 'my-skill' })
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('No SKILL.md found')
+      expect(mockSkillInstallFromDirectory).not.toHaveBeenCalled()
+    })
+
+    it('should error when directory does not exist', async () => {
+      mockSkillGetSkillDirectory.mockReturnValue('/global-skills/my-skill')
+      mockReaddir.mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }))
+
+      const server = createServer()
+      const result = await callTool(server, { action: 'register', name: 'my-skill' })
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Did you call action="init" first')
+      expect(mockSkillInstallFromDirectory).not.toHaveBeenCalled()
     })
 
     it('should error when name is missing', async () => {

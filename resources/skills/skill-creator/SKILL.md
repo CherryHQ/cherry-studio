@@ -22,8 +22,10 @@ any `package_skill.py` / `.skill` packaging steps mentioned later in this file
    `register` again at any time to refresh — the live symlink picks up file
    content changes immediately, so mid-iteration edits work without ceremony.
 
-Use the same `<skill-folder-name>` for both calls, and make sure the `name:`
-field inside your `SKILL.md` frontmatter matches it too.
+Use the same `<skill-folder-name>` for both `init` and `register` calls. The
+`name:` field inside your `SKILL.md` frontmatter becomes the display name and
+may differ from the folder name (e.g. `name: My Cool Skill` with folder
+`my-cool-skill`).
 
 Eval / test workspaces (`<skill-name>-workspace/`, `iteration-*/`, etc.) from
 the evaluation loop described below should be created **outside** the skill
