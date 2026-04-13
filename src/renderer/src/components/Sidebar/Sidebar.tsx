@@ -83,7 +83,7 @@ export function Sidebar({
     return (
       <div className="absolute inset-0 z-40" onClick={handleDismiss}>
         <div
-          className="slide-in-from-left-2 absolute top-0 bottom-0 left-0 flex w-[170px] animate-in select-none flex-col rounded-r-[1px] bg-sidebar/70 shadow-2xl backdrop-blur-2xl backdrop-saturate-150 duration-200"
+          className="slide-in-from-left-2 absolute top-0 bottom-0 left-0 flex w-[174px] animate-in select-none flex-col rounded-r-[4px] bg-sidebar/70 shadow-2xl backdrop-blur-2xl backdrop-saturate-150 duration-200"
           onClick={(event) => event.stopPropagation()}
           onMouseLeave={() => {
             if (hoverTimeout.current) clearTimeout(hoverTimeout.current)

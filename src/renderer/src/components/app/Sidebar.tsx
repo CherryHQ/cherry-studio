@@ -213,7 +213,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   }
 
   return (
-    <div ref={ref} id="app-sidebar" className="h-full [-webkit-app-region:no-drag]">
+    <div ref={ref} id="app-sidebar" className="relative h-full [-webkit-app-region:no-drag]">
       <UISidebar width={sidebarWidth} setWidth={setSidebarWidth} onHoverChange={setHoverVisible} {...sidebarProps} />
       {hoverVisible && layout === 'hidden' && (
         <UISidebar
