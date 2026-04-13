@@ -10,6 +10,7 @@ import { useAppSelector } from '@renderer/store'
 import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
 import type { Topic } from '@renderer/types'
 import { AssistantMessageStatus, UserMessageStatus } from '@renderer/types/newMessage'
+import { buildAssistantRuntimeOverrides } from '@renderer/utils/assistantRuntimeOverrides'
 import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
 import { defaultLanguage } from '@shared/config/constant'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
@@ -239,7 +240,8 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
               assistantId: currentAssistant.id,
               providerId: currentAssistant.model?.provider,
               modelId: currentAssistant.model?.id,
-              mcpToolIds: []
+              mcpToolIds: [],
+              assistantOverrides: buildAssistantRuntimeOverrides(currentAssistant)
             }
           }
         )

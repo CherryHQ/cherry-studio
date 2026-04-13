@@ -14,6 +14,7 @@ import {
 import { pauseTrace } from '@renderer/services/SpanManagerService'
 import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
 import { AssistantMessageStatus } from '@renderer/types/newMessage'
+import { buildAssistantRuntimeOverrides } from '@renderer/utils/assistantRuntimeOverrides'
 import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -148,7 +149,8 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
           assistantId: activeAssistant.id,
           providerId: activeAssistant.model?.provider,
           modelId: activeAssistant.model?.id,
-          mcpToolIds: []
+          mcpToolIds: [],
+          assistantOverrides: buildAssistantRuntimeOverrides(activeAssistant)
         }
       }
     )

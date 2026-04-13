@@ -15,6 +15,7 @@ import { pauseTrace } from '@renderer/services/SpanManagerService'
 import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
 import type { Assistant, Topic, TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
 import { AssistantMessageStatus } from '@renderer/types/newMessage'
+import { buildAssistantRuntimeOverrides } from '@renderer/utils/assistantRuntimeOverrides'
 import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
 import { detectLanguage } from '@renderer/utils/translate'
 import { defaultLanguage } from '@shared/config/constant'
@@ -243,7 +244,8 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
           assistantId: assistant.id,
           providerId: assistant.model?.provider,
           modelId: assistant.model?.id,
-          mcpToolIds: []
+          mcpToolIds: [],
+          assistantOverrides: buildAssistantRuntimeOverrides(assistant)
         }
       }
     )
