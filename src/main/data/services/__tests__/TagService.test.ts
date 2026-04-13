@@ -64,11 +64,49 @@ function mockChainReject(error: Error) {
   return chain
 }
 
-function createMockTx() {
+/**
+ * Creates a transaction mock that tracks data passed to .values() and .where().
+ *
+ * Usage:
+ *   const tx = createTrackingTx([...existingRows])
+ *   // after test:
+ *   tx.insertedValues  — array of values() arguments
+ *   tx.deleteCalls     — number of delete().where() invocations
+ */
+function createTrackingTx(existingRows: Record<string, unknown>[] = []) {
+  const insertedValues: unknown[] = []
+  let deleteCalls = 0
+
+  const select = vi.fn(() => ({
+    from: () => ({
+      where: () => mockChain(existingRows)
+    })
+  }))
+
+  const insert = vi.fn(() => ({
+    values: (vals: unknown) => {
+      insertedValues.push(vals)
+      return mockChain(undefined)
+    }
+  }))
+
+  const del = vi.fn(() => ({
+    where: () => {
+      deleteCalls++
+      return mockChain(undefined)
+    }
+  }))
+
   return {
-    select: vi.fn().mockReturnValue(mockChain([])),
-    delete: vi.fn().mockReturnValue(mockChain(undefined)),
-    insert: vi.fn().mockReturnValue(mockChain(undefined))
+    select,
+    insert,
+    delete: del,
+    get insertedValues() {
+      return insertedValues
+    },
+    get deleteCalls() {
+      return deleteCalls
+    }
   }
 }
 
@@ -328,71 +366,70 @@ describe('TagDataService', () => {
   describe('syncEntityTags', () => {
     it('should remove old tags and add new ones (diff sync)', async () => {
       // existing: [tag-old, tag-keep], desired: [tag-keep, tag-new]
-      const mockTx = createMockTx()
-      mockTx.select.mockReturnValue(mockChain([{ tagId: 'tag-old' }, { tagId: 'tag-keep' }]))
+      const tx = createTrackingTx([{ tagId: 'tag-old' }, { tagId: 'tag-keep' }])
 
       mockDb.transaction.mockImplementation(async (fn: (tx: any) => Promise<void>) => {
-        await fn(mockTx)
+        await fn(tx)
       })
 
       await tagDataService.syncEntityTags('assistant', 'ast-1', {
         tagIds: ['tag-keep', 'tag-new']
       })
 
-      expect(mockTx.select).toHaveBeenCalledOnce()
-      expect(mockTx.delete).toHaveBeenCalledOnce() // remove tag-old
-      expect(mockTx.insert).toHaveBeenCalledOnce() // add tag-new
+      // only tag-old should be removed
+      expect(tx.deleteCalls).toBe(1)
+      // only tag-new should be inserted, with correct entity context
+      expect(tx.insertedValues).toEqual([[{ entityType: 'assistant', entityId: 'ast-1', tagId: 'tag-new' }]])
     })
 
-    it('should skip delete when no tags to remove (add-only)', async () => {
-      const mockTx = createMockTx()
-      mockTx.select.mockReturnValue(mockChain([]))
+    it('should only insert when no existing tags (add-only)', async () => {
+      const tx = createTrackingTx([])
 
       mockDb.transaction.mockImplementation(async (fn: (tx: any) => Promise<void>) => {
-        await fn(mockTx)
+        await fn(tx)
+      })
+
+      await tagDataService.syncEntityTags('topic', 'topic-1', {
+        tagIds: ['tag-a', 'tag-b']
+      })
+
+      expect(tx.deleteCalls).toBe(0)
+      expect(tx.insertedValues).toEqual([
+        [
+          { entityType: 'topic', entityId: 'topic-1', tagId: 'tag-a' },
+          { entityType: 'topic', entityId: 'topic-1', tagId: 'tag-b' }
+        ]
+      ])
+    })
+
+    it('should only delete when desired is empty (remove-all)', async () => {
+      const tx = createTrackingTx([{ tagId: 'tag-1' }, { tagId: 'tag-2' }])
+
+      mockDb.transaction.mockImplementation(async (fn: (tx: any) => Promise<void>) => {
+        await fn(tx)
       })
 
       await tagDataService.syncEntityTags('assistant', 'ast-1', {
-        tagIds: ['tag-new']
+        tagIds: []
       })
 
-      expect(mockTx.select).toHaveBeenCalledOnce()
-      expect(mockTx.delete).not.toHaveBeenCalled()
-      expect(mockTx.insert).toHaveBeenCalledOnce()
-    })
-
-    it('should skip insert when no tags to add (remove-only)', async () => {
-      const mockTx = createMockTx()
-      mockTx.select.mockReturnValue(mockChain([{ tagId: 'tag-1' }, { tagId: 'tag-2' }]))
-
-      mockDb.transaction.mockImplementation(async (fn: (tx: any) => Promise<void>) => {
-        await fn(mockTx)
-      })
-
-      await tagDataService.syncEntityTags('assistant', 'ast-1', {
-        tagIds: [] // remove all
-      })
-
-      expect(mockTx.select).toHaveBeenCalledOnce()
-      expect(mockTx.delete).toHaveBeenCalledOnce()
-      expect(mockTx.insert).not.toHaveBeenCalled()
+      expect(tx.deleteCalls).toBe(1)
+      expect(tx.insertedValues).toEqual([])
     })
 
     it('should skip both delete and insert when tags already match', async () => {
-      const mockTx = createMockTx()
-      mockTx.select.mockReturnValue(mockChain([{ tagId: 'tag-1' }]))
+      const tx = createTrackingTx([{ tagId: 'tag-1' }])
 
       mockDb.transaction.mockImplementation(async (fn: (tx: any) => Promise<void>) => {
-        await fn(mockTx)
+        await fn(tx)
       })
 
       await tagDataService.syncEntityTags('assistant', 'ast-1', {
-        tagIds: ['tag-1'] // same as existing
+        tagIds: ['tag-1']
       })
 
-      expect(mockTx.select).toHaveBeenCalledOnce()
-      expect(mockTx.delete).not.toHaveBeenCalled()
-      expect(mockTx.insert).not.toHaveBeenCalled()
+      expect(tx.deleteCalls).toBe(0)
+      expect(tx.insertedValues).toEqual([])
     })
   })
 
@@ -406,17 +443,13 @@ describe('TagDataService', () => {
 
       // existing: [assistant:ast-old, topic:topic-keep]
       // desired:  [topic:topic-keep, assistant:ast-new]
-      // expect: delete ast-old, insert ast-new, skip topic-keep
-      const mockTx = createMockTx()
-      mockTx.select.mockReturnValue(
-        mockChain([
-          { entityType: 'assistant', entityId: 'ast-old' },
-          { entityType: 'topic', entityId: 'topic-keep' }
-        ])
-      )
+      const tx = createTrackingTx([
+        { entityType: 'assistant', entityId: 'ast-old' },
+        { entityType: 'topic', entityId: 'topic-keep' }
+      ])
 
       mockDb.transaction.mockImplementation(async (fn: (tx: any) => Promise<void>) => {
-        await fn(mockTx)
+        await fn(tx)
       })
 
       await tagDataService.setEntities('tag-1', {
@@ -426,49 +459,46 @@ describe('TagDataService', () => {
         ]
       })
 
-      expect(mockTx.select).toHaveBeenCalledOnce()
-      expect(mockTx.delete).toHaveBeenCalledOnce() // remove ast-old
-      expect(mockTx.insert).toHaveBeenCalledOnce() // add ast-new
+      // ast-old removed (1 delete call)
+      expect(tx.deleteCalls).toBe(1)
+      // ast-new inserted with correct tag context
+      expect(tx.insertedValues).toEqual([[{ entityType: 'assistant', entityId: 'ast-new', tagId: 'tag-1' }]])
     })
 
     it('should skip both when entities already match', async () => {
       mockDb.select.mockReturnValue(mockChain([createMockTagRow()]))
 
-      const mockTx = createMockTx()
-      mockTx.select.mockReturnValue(mockChain([{ entityType: 'assistant', entityId: 'ast-1' }]))
+      const tx = createTrackingTx([{ entityType: 'assistant', entityId: 'ast-1' }])
 
       mockDb.transaction.mockImplementation(async (fn: (tx: any) => Promise<void>) => {
-        await fn(mockTx)
+        await fn(tx)
       })
 
       await tagDataService.setEntities('tag-1', {
         entities: [{ entityType: 'assistant', entityId: 'ast-1' }]
       })
 
-      expect(mockTx.delete).not.toHaveBeenCalled()
-      expect(mockTx.insert).not.toHaveBeenCalled()
+      expect(tx.deleteCalls).toBe(0)
+      expect(tx.insertedValues).toEqual([])
     })
 
     it('should remove all when entities list is empty', async () => {
       mockDb.select.mockReturnValue(mockChain([createMockTagRow()]))
 
-      const mockTx = createMockTx()
-      mockTx.select.mockReturnValue(
-        mockChain([
-          { entityType: 'assistant', entityId: 'ast-1' },
-          { entityType: 'topic', entityId: 'topic-1' }
-        ])
-      )
+      const tx = createTrackingTx([
+        { entityType: 'assistant', entityId: 'ast-1' },
+        { entityType: 'topic', entityId: 'topic-1' }
+      ])
 
       mockDb.transaction.mockImplementation(async (fn: (tx: any) => Promise<void>) => {
-        await fn(mockTx)
+        await fn(tx)
       })
 
       await tagDataService.setEntities('tag-1', { entities: [] })
 
-      // one delete per removed entity (loop-based delete)
-      expect(mockTx.delete).toHaveBeenCalledTimes(2)
-      expect(mockTx.insert).not.toHaveBeenCalled()
+      // one delete per removed entity (loop-based)
+      expect(tx.deleteCalls).toBe(2)
+      expect(tx.insertedValues).toEqual([])
     })
 
     it('should throw NOT_FOUND when tag does not exist', async () => {
