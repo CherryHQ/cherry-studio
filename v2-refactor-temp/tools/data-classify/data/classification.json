@@ -30,17 +30,17 @@
           "originalKey": "tagsOrder",
           "type": "string[]",
           "defaultValue": [],
-          "status": "classified",
-          "category": "persist_cache",
-          "targetKey": "ui.assistant.tags_order"
+          "status": "pending",
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "collapsedTags",
           "type": "object",
           "defaultValue": {},
-          "status": "classified",
-          "category": "persist_cache",
-          "targetKey": "ui.assistant.collapsed_tags"
+          "status": "pending",
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "presets",
