@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   inferKnowledgeItemStatus,
-  toCompositeModelId,
+  toUniqueModelId,
   transformKnowledgeBase,
   transformKnowledgeItem
 } from '../KnowledgeMappings'
@@ -21,9 +21,9 @@ const fileMetadata = {
 }
 
 describe('KnowledgeMappings', () => {
-  it('toCompositeModelId builds provider::modelId and preserves precomposed ids', () => {
-    expect(toCompositeModelId({ id: 'BAAI/bge-m3', name: 'bge', provider: 'silicon' })).toBe('silicon::BAAI/bge-m3')
-    expect(toCompositeModelId({ id: 'silicon::BAAI/bge-m3', name: 'bge', provider: 'silicon' })).toBe(
+  it('toUniqueModelId builds provider::modelId and preserves precomposed ids', () => {
+    expect(toUniqueModelId({ id: 'BAAI/bge-m3', name: 'bge', provider: 'silicon' })).toBe('silicon::BAAI/bge-m3')
+    expect(toUniqueModelId({ id: 'silicon::BAAI/bge-m3', name: 'bge', provider: 'silicon' })).toBe(
       'silicon::BAAI/bge-m3'
     )
   })
