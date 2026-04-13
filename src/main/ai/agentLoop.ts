@@ -19,6 +19,7 @@ import type {
 } from 'ai'
 import { convertToModelMessages } from 'ai'
 
+import type { PendingMessageQueue } from './PendingMessageQueue'
 import type { AppProviderSettingsMap } from './types'
 
 const logger = loggerService.withContext('agentLoop')
@@ -145,6 +146,8 @@ export interface AgentLoopParams<T extends AppProviderKey = AppProviderKey> {
   /** AI SDK agent settings (model params, tool choice, provider options, etc.) */
   options?: AgentOptions
   hooks?: AgentLoopHooks
+  /** Session-isolated steering queue. Drained between iterations to append user messages. */
+  pendingMessages?: PendingMessageQueue
 }
 
 // ── Runner ──
@@ -181,7 +184,10 @@ export function runAgentLoop<T extends AppProviderKey>(
     // ★ onStart
     await hooks.onStart?.()
 
+    // Single track: all message state is ModelMessage[] throughout the loop.
+    // Converted once at entry, then directly appended (no lossy round-trips).
     let messages = initialMessages
+    let modelMessages = await convertToModelMessages(initialMessages)
     let iterationNumber = 0
     let totalSteps = 0
     let totalUsage = ZERO_USAGE
@@ -192,11 +198,13 @@ export function runAgentLoop<T extends AppProviderKey>(
 
       // ★ beforeIteration (compileContext, memory, otel)
       const beforeResult = await hooks.beforeIteration?.({ iterationNumber, messages, totalSteps })
-      if (beforeResult?.messages) messages = beforeResult.messages
+      if (beforeResult?.messages) {
+        messages = beforeResult.messages
+        modelMessages = await convertToModelMessages(messages)
+      }
       const system = beforeResult?.system ?? params.system
 
       // ◆ AI SDK: create agent, forward all settings
-      const modelMessages = await convertToModelMessages(messages)
       const agent = await createAgent<AppProviderSettingsMap, T, ToolSet>({
         providerId: params.providerId,
         providerSettings: params.providerSettings,
@@ -279,14 +287,32 @@ export function runAgentLoop<T extends AppProviderKey>(
         }
       )
 
-      if (!shouldContinue) break
+      // Continue if afterIteration explicitly returns true
+      if (shouldContinue === true) continue
+
+      // Before breaking, drain pending steering messages into the conversation
+      const pending = params.pendingMessages?.drain() ?? []
+      if (pending.length === 0) break
+
+      // Append: assistant response + pending user messages → next iteration
+      const pendingAsUI: UIMessage[] = pending.map((msg) => ({
+        id: msg.id,
+        role: 'user' as const,
+        parts: msg.data?.parts ?? []
+      }))
+      modelMessages = [...modelMessages, ...response.messages, ...(await convertToModelMessages(pendingAsUI))]
     }
 
     // ★ onFinish (analytics, otel root span)
+    params.pendingMessages?.close()
     hooks.onFinish?.({ totalUsage, totalIterations: iterationNumber, totalSteps, finishReason: lastFinishReason })
   })()
-    .then(() => writer.close())
+    .then(() => {
+      params.pendingMessages?.close()
+      return writer.close()
+    })
     .catch(async (err) => {
+      params.pendingMessages?.close()
       if (!signal.aborted) {
         const action = await hooks.onError?.({ iterationNumber: 0, error: err })
         if (action !== 'retry') {

@@ -119,7 +119,13 @@ export class AiStreamManager extends BaseService {
         if (existing.executions.has(input.modelId)) {
           throw new Error(`Topic ${input.topicId} already has an execution for model ${input.modelId}`)
         }
-        const exec = this.createAndLaunchExecution(input.topicId, input.modelId, input.request, input.siblingsGroupId)
+        const requestWithQueue = { ...input.request, pendingMessages: existing.pendingMessages }
+        const exec = this.createAndLaunchExecution(
+          input.topicId,
+          input.modelId,
+          requestWithQueue,
+          input.siblingsGroupId
+        )
         existing.executions.set(input.modelId, exec)
         for (const listener of input.listeners) existing.listeners.set(listener.id, listener)
         return existing
@@ -128,13 +134,15 @@ export class AiStreamManager extends BaseService {
       this.evictStream(input.topicId)
     }
 
-    // Create new ActiveStream with one execution
-    const exec = this.createAndLaunchExecution(input.topicId, input.modelId, input.request, input.siblingsGroupId)
+    // Create queue first so it can be passed to the execution
+    const pendingMessages = new PendingMessageQueue()
+    const requestWithQueue = { ...input.request, pendingMessages }
+    const exec = this.createAndLaunchExecution(input.topicId, input.modelId, requestWithQueue, input.siblingsGroupId)
     const stream: ActiveStream = {
       topicId: input.topicId,
       executions: new Map([[input.modelId, exec]]),
       listeners: new Map(input.listeners.map((l) => [l.id, l])),
-      pendingMessages: new PendingMessageQueue(),
+      pendingMessages,
       buffer: [],
       status: 'streaming'
     }
@@ -195,6 +203,7 @@ export class AiStreamManager extends BaseService {
     const stream = this.activeStreams.get(topicId)
     if (!stream || stream.status !== 'streaming') return
     logger.info('Aborting stream', { topicId, reason })
+    stream.pendingMessages.close()
     for (const exec of stream.executions.values()) {
       if (exec.status === 'streaming') {
         exec.status = 'aborted'

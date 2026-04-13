@@ -17,7 +17,9 @@ import type {
 } from 'ai'
 
 import { type AgentOptions, runAgentLoop } from './agentLoop'
+import type { PendingMessageQueue } from './PendingMessageQueue'
 import { buildPlugins } from './plugins/PluginBuilder'
+import type { ClaudeCodeProviderSettings } from './provider/claude-code/types'
 import { extractAgentSessionId, isAgentSessionTopic } from './provider/claudeCodeSettingsBuilder'
 import { providerToAiSdkConfig } from './provider/config'
 import { listModels as listModelsFromProvider } from './services/listModels'
@@ -47,6 +49,8 @@ export interface AiStreamRequest extends AiBaseRequest {
   messageId?: string
   messages?: UIMessage[]
   knowledgeBaseIds?: string[]
+  /** Session-isolated steering queue. Set by AiStreamManager, consumed by agentLoop / Claude Code steeringSource. */
+  pendingMessages?: PendingMessageQueue
 }
 
 /** Non-streaming text generation request. */
@@ -119,6 +123,15 @@ export class AiCompletionService {
   ): Promise<void> {
     const { sdkConfig, tools, plugins, system, options, model } = await this.buildAgentParams(request)
 
+    // Wire steeringSource for Claude Code: PendingMessageQueue is AsyncIterable<Message>
+    if (request.pendingMessages && sdkConfig.providerId === 'claude-code') {
+      const ccSettings = sdkConfig.providerSettings as ClaudeCodeProviderSettings
+      ccSettings.defaultSettings = {
+        ...ccSettings.defaultSettings,
+        steeringSource: request.pendingMessages
+      }
+    }
+
     const stream = runAgentLoop(
       {
         providerId: sdkConfig.providerId,
@@ -128,6 +141,7 @@ export class AiCompletionService {
         tools,
         system,
         options,
+        pendingMessages: request.pendingMessages,
         hooks: {
           onFinish: (result) => this.trackUsage(model, result.totalUsage)
         }
