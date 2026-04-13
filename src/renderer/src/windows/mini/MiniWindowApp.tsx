@@ -3,10 +3,7 @@ import '@renderer/databases'
 import { usePreference } from '@data/hooks/usePreference'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { getToastUtilities } from '@renderer/components/TopView/toast'
-import store, { persistor } from '@renderer/store'
 import { useEffect } from 'react'
-import { Provider } from 'react-redux'
-import { PersistGate } from 'redux-persist/integration/react'
 
 import AntdProvider from '../../context/AntdProvider'
 import { CodeStyleProvider } from '../../context/CodeStyleProvider'
@@ -40,19 +37,15 @@ function MiniWindow(): React.ReactElement {
   }, [])
 
   return (
-    <Provider store={store}>
-      <ThemeProvider>
-        <AntdProvider>
-          <CodeStyleProvider>
-            <PersistGate loading={null} persistor={persistor}>
-              <ErrorBoundary>
-                <MiniWindowContent />
-              </ErrorBoundary>
-            </PersistGate>
-          </CodeStyleProvider>
-        </AntdProvider>
-      </ThemeProvider>
-    </Provider>
+    <ThemeProvider>
+      <AntdProvider>
+        <CodeStyleProvider>
+          <ErrorBoundary>
+            <MiniWindowContent />
+          </ErrorBoundary>
+        </CodeStyleProvider>
+      </AntdProvider>
+    </ThemeProvider>
   )
 }
 

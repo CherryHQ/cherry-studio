@@ -4,8 +4,6 @@ import { usePreference } from '@data/hooks/usePreference'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistants, useDefaultAssistant, useDefaultModel } from '@renderer/hooks/useAssistant'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { setQuickAssistantId } from '@renderer/store/llm'
 import { matchKeywordsInString } from '@renderer/utils'
 import HomeWindow from '@renderer/windows/mini/home/HomeWindow'
 import { Select } from 'antd'
@@ -25,12 +23,11 @@ const QuickAssistantSettings: FC = () => {
     'feature.quick_assistant.read_clipboard_at_startup'
   )
   const [, setTray] = usePreference('app.tray.enabled')
+  const [quickAssistantId, setQuickAssistantId] = usePreference('feature.quick_assistant.assistant_id')
 
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const dispatch = useAppDispatch()
   const { assistants } = useAssistants()
-  const { quickAssistantId } = useAppSelector((state) => state.llm)
   const { defaultAssistant: _defaultAssistant } = useDefaultAssistant()
   const { defaultModel } = useDefaultModel()
 
@@ -121,7 +118,7 @@ const QuickAssistantSettings: FC = () => {
                   <Select
                     value={quickAssistantId || defaultAssistant.id}
                     style={{ width: 300, height: 34 }}
-                    onChange={(value) => dispatch(setQuickAssistantId(value))}
+                    onChange={(value) => void setQuickAssistantId(value)}
                     placeholder={t('settings.models.quick_assistant_selection')}
                     showSearch
                     options={[
@@ -160,15 +157,13 @@ const QuickAssistantSettings: FC = () => {
               <RowFlex className="items-center gap-0">
                 <StyledButton
                   color={quickAssistantId ? 'primary' : 'default'}
-                  onClick={() => {
-                    dispatch(setQuickAssistantId(defaultAssistant.id))
-                  }}
+                  onClick={() => void setQuickAssistantId(defaultAssistant.id)}
                   selected={!!quickAssistantId}>
                   {t('settings.models.use_assistant')}
                 </StyledButton>
                 <StyledButton
                   color={!quickAssistantId ? 'primary' : 'default'}
-                  onClick={() => dispatch(setQuickAssistantId(''))}
+                  onClick={() => void setQuickAssistantId('')}
                   selected={!quickAssistantId}>
                   {t('settings.models.use_model')}
                 </StyledButton>

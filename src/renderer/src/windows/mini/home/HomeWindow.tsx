@@ -6,7 +6,6 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import i18n from '@renderer/i18n'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
-import { useAppSelector } from '@renderer/store'
 import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
 import type { Topic } from '@renderer/types'
 import { AssistantMessageStatus, UserMessageStatus } from '@renderer/types/newMessage'
@@ -37,6 +36,7 @@ type MiniRoute = 'home' | 'chat' | 'translate' | 'summary' | 'explanation'
 
 const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const [readClipboardAtStartup] = usePreference('feature.quick_assistant.read_clipboard_at_startup')
+  const [quickAssistantId] = usePreference('feature.quick_assistant.assistant_id')
   const [language] = usePreference('app.language')
   const [windowStyle] = usePreference('ui.window_style')
   const { theme } = useTheme()
@@ -54,7 +54,6 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const inputBarRef = useRef<HTMLDivElement>(null)
   const featureMenusRef = useRef<FeatureMenusRef>(null)
 
-  const { quickAssistantId } = useAppSelector((state) => state.llm)
   const { assistant: currentAssistant } = useAssistant(quickAssistantId)
 
   useEffect(() => {
