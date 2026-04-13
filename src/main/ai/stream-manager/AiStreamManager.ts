@@ -5,6 +5,7 @@ import { application } from '@main/core/application'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { messageService } from '@main/data/services/MessageService'
 import { agentService, sessionService } from '@main/services/agents'
+import { agentMessageRepository } from '@main/services/agents/database/sessionMessageRepository'
 import type {
   AiStreamAbortRequest,
   AiStreamAttachRequest,
@@ -23,6 +24,7 @@ import type { AiStreamRequest } from '../AiCompletionService'
 import { PendingMessageQueue } from '../PendingMessageQueue'
 import { extractAgentSessionId, isAgentSessionTopic } from '../provider/claudeCodeSettingsBuilder'
 import { InternalStreamTarget } from './InternalStreamTarget'
+import { AgentPersistenceListener } from './listeners/AgentPersistenceListener'
 import { PersistenceListener } from './listeners/PersistenceListener'
 import { WebContentsListener } from './listeners/WebContentsListener'
 import type { ActiveStream, AiStreamManagerConfig, CherryUIMessage, StreamExecution, StreamListener } from './types'
@@ -436,7 +438,31 @@ export class AiStreamManager extends BaseService {
         .map((p) => p.text)
         .join('\n') || ''
 
+    // Persist user message to agents DB
+    const userMessageId = crypto.randomUUID()
+    await agentMessageRepository.persistUserMessage({
+      sessionId,
+      agentSessionId: '',
+      payload: {
+        message: {
+          id: userMessageId,
+          role: 'user',
+          assistantId: session.agent_id,
+          topicId: req.topicId,
+          createdAt: new Date().toISOString(),
+          status: 'success',
+          blocks: [],
+          data: { parts: req.userMessageParts ?? [{ type: 'text', text: userText }] }
+        } as any,
+        blocks: []
+      }
+    })
+
     const webContentsListener = new WebContentsListener(sender, req.topicId)
+    const agentPersistenceListener = new AgentPersistenceListener({
+      sessionId,
+      agentId: session.agent_id
+    })
 
     const result = this.send({
       topicId: req.topicId,
@@ -446,10 +472,10 @@ export class AiStreamManager extends BaseService {
         trigger: 'submit-message',
         assistantId: session.agent_id,
         uniqueModelId,
-        messages: [{ id: crypto.randomUUID(), role: 'user', parts: [{ type: 'text', text: userText }] }]
+        messages: [{ id: userMessageId, role: 'user', parts: [{ type: 'text', text: userText }] }]
       },
-      userMessage: { id: crypto.randomUUID(), topicId: req.topicId, role: 'user' } as Message,
-      listeners: [webContentsListener]
+      userMessage: { id: userMessageId, topicId: req.topicId, role: 'user' } as Message,
+      listeners: [webContentsListener, agentPersistenceListener]
     })
 
     return { mode: result.mode }
