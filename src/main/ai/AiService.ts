@@ -1,7 +1,9 @@
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import type { CherryUIMessage } from '@shared/data/types/message'
 import { IpcChannel } from '@shared/IpcChannel'
 import { serializeError } from '@shared/types/error'
+import { readUIMessageStream } from 'ai'
 
 import {
   type AiBaseRequest,
@@ -73,14 +75,22 @@ export class AiService extends BaseService {
     const requestId = request.chatId
 
     try {
-      const stream = this.completionService.streamText(request, signal)
-      const reader = stream.getReader()
+      const [forChunks, forAccum] = this.completionService.streamText(request, signal).tee()
 
+      // Background: accumulate final UIMessage via AI SDK's readUIMessageStream
+      const finalMessagePromise = this.consumeLastUIMessage(forAccum)
+
+      // Main path: forward chunks to target
+      const reader = forChunks.getReader()
       while (true) {
         const { done, value } = await reader.read()
         if (done || target.isDestroyed()) break
         target.send(IpcChannel.Ai_StreamChunk, { requestId, chunk: value })
       }
+
+      // Set finalMessage before signaling done
+      const finalMessage = await finalMessagePromise
+      if (finalMessage) target.setFinalMessage?.(finalMessage)
 
       if (!target.isDestroyed()) {
         target.send(IpcChannel.Ai_StreamDone, { requestId })
@@ -94,5 +104,18 @@ export class AiService extends BaseService {
         })
       }
     }
+  }
+
+  /** Consume a UIMessageChunk stream via AI SDK's readUIMessageStream, return the final accumulated UIMessage. */
+  private async consumeLastUIMessage(stream: ReadableStream): Promise<CherryUIMessage | undefined> {
+    const uiStream = readUIMessageStream({ stream })
+    const reader = uiStream.getReader()
+    let last: CherryUIMessage | undefined
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      last = value as CherryUIMessage
+    }
+    return last
   }
 }
