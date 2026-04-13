@@ -46,26 +46,28 @@ export const AppShell = () => {
         <Sidebar />
 
         {/* Zone 2b: Content Area - Multi MemoryRouter Architecture */}
-        <main className="relative flex-1 overflow-hidden bg-background">
-          {/* Route Tabs: Only render non-dormant tabs */}
-          {tabs
-            .filter((t) => t.type === 'route' && !t.isDormant)
-            .map((tab) => (
-              <TabRouter
-                key={tab.id}
-                tab={tab}
-                isActive={tab.id === activeTabId}
-                onUrlChange={(url) => handleUrlChange(tab.id, url)}
-              />
-            ))}
+        <div className="flex flex-1 flex-col min-w-0 pr-2 pb-2">
+          <main className="relative flex-1 overflow-hidden bg-background rounded-[16px]">
+            {/* Route Tabs: Only render non-dormant tabs */}
+            {tabs
+              .filter((t) => t.type === 'route' && !t.isDormant)
+              .map((tab) => (
+                <TabRouter
+                  key={tab.id}
+                  tab={tab}
+                  isActive={tab.id === activeTabId}
+                  onUrlChange={(url) => handleUrlChange(tab.id, url)}
+                />
+              ))}
 
-          {/* Webview Tabs: Only render non-dormant tabs */}
-          {tabs
-            .filter((t) => t.type === 'webview' && !t.isDormant)
-            .map((tab) => (
-              <WebviewContainer key={tab.id} url={tab.url} isActive={tab.id === activeTabId} />
-            ))}
-        </main>
+            {/* Webview Tabs: Only render non-dormant tabs */}
+            {tabs
+              .filter((t) => t.type === 'webview' && !t.isDormant)
+              .map((tab) => (
+                <WebviewContainer key={tab.id} url={tab.url} isActive={tab.id === activeTabId} />
+              ))}
+          </main>
+        </div>
       </div>
     </div>
   )
