@@ -1198,6 +1198,10 @@
       }
     },
     "message": {
+      "insert": {
+        "label": "插入消息",
+        "success": "消息已插入"
+      },
       "new": {
         "branch": {
           "created": "新分支已创建",
