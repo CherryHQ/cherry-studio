@@ -2,8 +2,6 @@ import { loggerService } from '@logger'
 import ContextMenu from '@renderer/components/ContextMenu'
 import { LoadingIcon } from '@renderer/components/Icons'
 import { useSession } from '@renderer/hooks/agents/useSession'
-import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
-import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -30,18 +28,15 @@ const AGENT_PAGE_SIZE = 5
 type Props = {
   agentId: string
   sessionId: string
+  adaptedMessages: Message[]
+  partsMap: Record<string, import('@shared/data/types/message').CherryMessagePart[]>
+  isLoading: boolean
 }
 
-const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
+const AgentSessionMessages = ({ agentId, sessionId, adaptedMessages, partsMap, isLoading }: Props) => {
   const { session } = useSession(agentId, sessionId)
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
   const { messageNavigation } = useSettings()
-
-  // Data source: agent session history (reads from agents DB, data.parts after migration)
-  const history = useAgentSessionParts(sessionId, agentId)
-
-  // Shared business logic: useChat streaming + history merge
-  const { adaptedMessages, partsMap } = useChatWithHistory(sessionTopicId, history, { assistantId: agentId })
 
   // ── Pagination (same as before) ──
 
@@ -139,7 +134,7 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
     messageCount: adaptedMessages.length
   })
 
-  if (history.isLoading) {
+  if (isLoading) {
     return (
       <div className="flex flex-1 items-center justify-center">
         <Spin size="small" />
