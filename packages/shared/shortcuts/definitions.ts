@@ -1,7 +1,7 @@
 import type { ShortcutDefinition, ShortcutPreferenceKey } from './types'
 
 export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
-  // ==================== 应用级快捷键 ====================
+  // ==================== Application shortcuts ====================
   {
     key: 'shortcut.general.show_main_window',
     scope: 'main',
@@ -65,7 +65,7 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
     category: 'general',
     labelKey: 'search_message'
   },
-  // ==================== 聊天相关快捷键 ====================
+  // ==================== Chat shortcuts ====================
   {
     key: 'shortcut.chat.clear',
     scope: 'renderer',
@@ -102,7 +102,7 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
     category: 'chat',
     labelKey: 'select_model'
   },
-  // ==================== 话题管理快捷键 ====================
+  // ==================== Topic shortcuts ====================
   {
     key: 'shortcut.topic.new',
     scope: 'renderer',
@@ -121,7 +121,7 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
     category: 'topic',
     labelKey: 'toggle_show_topics'
   },
-  // ==================== 划词助手快捷键 ====================
+  // ==================== Selection assistant shortcuts ====================
   {
     key: 'shortcut.feature.selection.toggle_enabled',
     scope: 'main',
