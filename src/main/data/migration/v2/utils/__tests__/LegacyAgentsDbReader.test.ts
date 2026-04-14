@@ -9,7 +9,7 @@ describe('LegacyAgentsDbReader', () => {
     expect(
       resolveLegacyAgentsDbPath({
         canonicalPath: '/data/agents.db',
-        legacyPath: '/user/agents.db',
+        fallbackPath: '/user/agents.db',
         exists
       })
     ).toBe('/data/agents.db')
@@ -21,7 +21,7 @@ describe('LegacyAgentsDbReader', () => {
     expect(
       resolveLegacyAgentsDbPath({
         canonicalPath: '/data/agents.db',
-        legacyPath: '/user/agents.db',
+        fallbackPath: '/user/agents.db',
         exists
       })
     ).toBe('/user/agents.db')
@@ -31,7 +31,7 @@ describe('LegacyAgentsDbReader', () => {
     expect(
       resolveLegacyAgentsDbPath({
         canonicalPath: '/data/agents.db',
-        legacyPath: '/user/agents.db',
+        fallbackPath: '/user/agents.db',
         exists: () => false
       })
     ).toBeNull()

@@ -1,50 +1,57 @@
 import { existsSync } from 'node:fs'
 
 import { createClient } from '@libsql/client'
-import { application } from '@main/core/application'
 import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/libsql'
 import { pathToFileURL } from 'url'
 
+import { type MigrationPaths, resolveMigrationPaths } from '../core/MigrationPaths'
 import { type AgentsTableRowCounts, getAgentsSourceTableNames } from '../migrators/mappings/AgentsDbMappings'
 
 export type ResolveLegacyAgentsDbPathArgs = {
   canonicalPath: string
-  legacyPath: string
+  fallbackPath: string
   exists: (path: string) => boolean
 }
 
 export function resolveLegacyAgentsDbPath({
   canonicalPath,
-  legacyPath,
+  fallbackPath,
   exists
 }: ResolveLegacyAgentsDbPathArgs): string | null {
   if (exists(canonicalPath)) {
     return canonicalPath
   }
 
-  if (exists(legacyPath)) {
-    return legacyPath
+  if (exists(fallbackPath)) {
+    return fallbackPath
   }
 
   return null
 }
 
 export class LegacyAgentsDbReader {
-  constructor(private readonly exists = existsSync) {}
+  private readonly paths: Pick<MigrationPaths, 'legacyAgentDbFile' | 'legacyAgentDbFallbackFile'>
 
-  getCanonicalPath(): string {
-    return application.getPath('feature.agents.db_file')
+  constructor(
+    paths?: Pick<MigrationPaths, 'legacyAgentDbFile' | 'legacyAgentDbFallbackFile'>,
+    private readonly exists = existsSync
+  ) {
+    this.paths = paths ?? resolveMigrationPaths().paths
   }
 
-  getLegacyPath(): string {
-    return application.getPath('app.userdata', 'agents.db')
+  getCanonicalPath(): string {
+    return this.paths.legacyAgentDbFile
+  }
+
+  getFallbackPath(): string {
+    return this.paths.legacyAgentDbFallbackFile
   }
 
   resolvePath(): string | null {
     return resolveLegacyAgentsDbPath({
       canonicalPath: this.getCanonicalPath(),
-      legacyPath: this.getLegacyPath(),
+      fallbackPath: this.getFallbackPath(),
       exists: this.exists
     })
   }

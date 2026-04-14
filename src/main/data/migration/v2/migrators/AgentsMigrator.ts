@@ -27,7 +27,7 @@ export class AgentsMigrator extends BaseMigrator {
   }
 
   async prepare(): Promise<PrepareResult> {
-    const reader = new LegacyAgentsDbReader()
+    const reader = this.createReader()
     const dbPath = reader.resolvePath()
 
     if (!dbPath) {
@@ -47,7 +47,7 @@ export class AgentsMigrator extends BaseMigrator {
   }
 
   async execute(ctx: MigrationContext): Promise<ExecuteResult> {
-    const reader = new LegacyAgentsDbReader()
+    const reader = this.createReader()
     const dbPath = reader.resolvePath()
 
     if (!dbPath) {
@@ -83,7 +83,7 @@ export class AgentsMigrator extends BaseMigrator {
   }
 
   async validate(ctx: MigrationContext): Promise<ValidateResult> {
-    const reader = new LegacyAgentsDbReader()
+    const reader = this.createReader()
     const dbPath = reader.resolvePath()
 
     if (!dbPath) {
@@ -131,6 +131,10 @@ export class AgentsMigrator extends BaseMigrator {
         mismatchReason: errors.length > 0 ? 'One or more agents_* tables were not fully imported' : undefined
       }
     }
+  }
+
+  private createReader(): LegacyAgentsDbReader {
+    return new LegacyAgentsDbReader()
   }
 
   private createEmptyCounts(): AgentsTableRowCounts {
