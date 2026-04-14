@@ -18,8 +18,13 @@ export const agentsSkillsTable = sqliteTable(
     tags: text(),
     content_hash: text().notNull(),
     is_enabled: integer({ mode: 'boolean' }).notNull().default(true),
-    created_at: integer().notNull(),
-    updated_at: integer().notNull()
+    created_at: integer()
+      .notNull()
+      .$defaultFn(() => Date.now()),
+    updated_at: integer()
+      .notNull()
+      .$defaultFn(() => Date.now())
+      .$onUpdateFn(() => Date.now())
   },
   (t) => [
     uniqueIndex('agents_skills_folder_name_unique').on(t.folder_name),

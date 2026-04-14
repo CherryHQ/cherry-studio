@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import { sql } from 'drizzle-orm'
 import { check, index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
@@ -8,7 +10,9 @@ import { agentsTasksTable } from './agentsTasks'
 export const agentsChannelsTable = sqliteTable(
   'agents_channels',
   {
-    id: text().primaryKey(),
+    id: text()
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
     type: text().notNull(),
     name: text().notNull(),
     agent_id: text().references(() => agentsAgentsTable.id, { onDelete: 'set null' }),
@@ -17,8 +21,10 @@ export const agentsChannelsTable = sqliteTable(
     is_active: integer({ mode: 'boolean' }).notNull().default(true),
     active_chat_ids: text({ mode: 'json' }).$type<string[]>().default([]),
     permission_mode: text(),
-    created_at: integer(),
+    created_at: integer().$defaultFn(() => Date.now()),
     updated_at: integer()
+      .$defaultFn(() => Date.now())
+      .$onUpdateFn(() => Date.now())
   },
   (t) => [
     index('agents_channels_agent_id_idx').on(t.agent_id),
