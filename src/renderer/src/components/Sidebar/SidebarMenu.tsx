@@ -23,7 +23,7 @@ type MenuItemsProps = Omit<SidebarMenuProps, 'layout'>
 
 function IconMenuItems({ items, activeItem, activeTabId, onItemClick, onMiniAppTabClick }: MenuItemsProps) {
   return (
-    <div className="flex flex-col items-center gap-0.5 px-1.5">
+    <div className="flex flex-col items-center gap-0.5 px-1.5 [-webkit-app-region:no-drag]">
       {items.map((item) => {
         const isActive = activeItem === item.id
         const Icon = item.icon
@@ -67,7 +67,7 @@ function IconMenuItems({ items, activeItem, activeTabId, onItemClick, onMiniAppT
 
 function VerticalCardMenuItems({ items, activeItem, activeTabId, onItemClick, onMiniAppTabClick }: MenuItemsProps) {
   return (
-    <div className="flex flex-col items-center gap-1 px-1.5">
+    <div className="flex flex-col items-center gap-1 px-1.5 [-webkit-app-region:no-drag]">
       {items.map((item) => {
         const isActive = activeItem === item.id
         const Icon = item.icon
@@ -112,7 +112,7 @@ function VerticalCardMenuItems({ items, activeItem, activeTabId, onItemClick, on
 
 function FullMenuItems({ items, activeItem, activeTabId, onItemClick, onMiniAppTabClick }: MenuItemsProps) {
   return (
-    <div className="space-y-0.5 px-2">
+    <div className="space-y-0.5 px-2 [-webkit-app-region:no-drag]">
       {items.map((item) => {
         const isActive = activeItem === item.id
         const Icon = item.icon

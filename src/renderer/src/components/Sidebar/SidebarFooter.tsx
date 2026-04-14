@@ -23,7 +23,7 @@ type FooterProps = Omit<SidebarFooterProps, 'layout'>
 
 function IconFooter({ user, actions, extensionsLabel, onExtensionsClick }: FooterProps) {
   return (
-    <div className="flex flex-col items-center gap-1 px-1.5 pt-2 pb-2.5">
+    <div className="flex flex-col items-center gap-1 px-1.5 pt-2 pb-2.5 [-webkit-app-region:no-drag]">
       {extensionsLabel && (
         <SidebarTooltip content={extensionsLabel}>
           <button
@@ -46,7 +46,7 @@ function IconFooter({ user, actions, extensionsLabel, onExtensionsClick }: Foote
 
 function VerticalCardFooter({ user, actions, extensionsLabel, onExtensionsClick }: FooterProps) {
   return (
-    <div className="flex flex-col items-center gap-0 px-1 pt-1 pb-3">
+    <div className="flex flex-col items-center gap-0 px-1 pt-1 pb-3 [-webkit-app-region:no-drag]">
       {extensionsLabel && (
         <button
           type="button"
@@ -68,7 +68,7 @@ function VerticalCardFooter({ user, actions, extensionsLabel, onExtensionsClick 
 
 function FullFooter({ user, actions, extensionsLabel, onExtensionsClick }: FooterProps) {
   return (
-    <div className="space-y-1 px-2 py-2">
+    <div className="space-y-1 px-2 py-2 [-webkit-app-region:no-drag]">
       {extensionsLabel && (
         <button
           type="button"

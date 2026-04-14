@@ -88,7 +88,7 @@ export function Sidebar({
       <div className="fixed inset-0 z-40" onClick={handleDismiss}>
         <div
           className={cn(
-            'slide-in-from-left-2 fixed top-0 bottom-0 left-0 flex w-[174px] animate-in select-none flex-col rounded-r-[4px] rounded-br-[16px] bg-sidebar/70 shadow-2xl backdrop-blur-2xl backdrop-saturate-150 duration-200',
+            'slide-in-from-left-2 fixed top-0 bottom-0 left-0 flex w-[174px] animate-in select-none flex-col rounded-r-[4px] rounded-br-[16px] bg-sidebar/70 shadow-2xl backdrop-blur-2xl backdrop-saturate-150 duration-200 [-webkit-app-region:drag]',
             isMac && 'pt-[env(titlebar-area-height)]'
           )}
           onClick={(event) => event.stopPropagation()}
@@ -111,7 +111,7 @@ export function Sidebar({
                   onSearchClick?.()
                   handleDismiss()
                 }}
-                className="flex cursor-pointer items-center gap-2 rounded-md bg-sidebar-accent/50 px-2.5 py-1.5 text-muted-foreground text-xs transition-colors hover:bg-accent">
+                className="flex cursor-pointer items-center gap-2 rounded-md bg-sidebar-accent/50 px-2.5 py-1.5 text-muted-foreground text-xs transition-colors hover:bg-accent [-webkit-app-region:no-drag]">
                 <Search size={13} />
                 <span>{searchLabel}</span>
               </div>
@@ -168,7 +168,7 @@ export function Sidebar({
       ref={sidebarRef}
       style={{ width: actualWidth }}
       className={cn(
-        'group/sidebar relative z-20 flex h-full flex-shrink-0 select-none flex-col',
+        'group/sidebar relative z-20 flex h-full flex-shrink-0 select-none flex-col [-webkit-app-region:drag]',
         isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
       )}>
       {/* Header */}
@@ -184,13 +184,13 @@ export function Sidebar({
           <div className="px-3 py-2">
             <div
               onClick={onSearchClick}
-              className="flex cursor-pointer items-center gap-2 rounded-md bg-sidebar-accent px-2.5 py-1.5 text-muted-foreground text-xs transition-colors hover:bg-accent">
+              className="flex cursor-pointer items-center gap-2 rounded-md bg-sidebar-accent px-2.5 py-1.5 text-muted-foreground text-xs transition-colors hover:bg-accent [-webkit-app-region:no-drag]">
               <Search size={13} />
               <span>{searchLabel}</span>
             </div>
           </div>
         ) : (
-          <div className="flex justify-center py-1.5">
+          <div className="flex justify-center py-1.5 [-webkit-app-region:no-drag]">
             <SidebarTooltip content={searchLabel}>
               <button
                 type="button"
