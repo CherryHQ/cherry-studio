@@ -215,12 +215,12 @@ class ClaudeCodeService implements AgentServiceInterface {
       ANTHROPIC_DEFAULT_HAIKU_MODEL: modelInfo.modelId,
       ELECTRON_RUN_AS_NODE: '1',
       ELECTRON_NO_ATTACH_CONSOLE: '1',
-      // CLAUDE_CONFIG_DIR is pinned to the agent workspace's `.claude` directory
-      // so skill symlinks (managed per-agent in `agent_skills`) are discovered
-      // by the SDK. Workspaces default to `{userData}/Data/Agents/<shortId>`,
-      // which sidesteps the same Windows-username encoding issues that the
-      // original `{userData}/.claude` workaround targeted.
-      CLAUDE_CONFIG_DIR: path.join(cwd, '.claude'),
+      // Set CLAUDE_CONFIG_DIR to app's userData directory to avoid path encoding issues
+      // on Windows when the username contains non-ASCII characters (e.g., Chinese characters)
+      // This prevents the SDK from using the user's home directory which may have encoding problems.
+      // Per-agent skills live in `<cwd>/.claude/skills/` and are picked up by the SDK's
+      // project-level skill loading layer — no need to point CLAUDE_CONFIG_DIR at the workspace.
+      CLAUDE_CONFIG_DIR: path.join(app.getPath('userData'), '.claude'),
       ENABLE_TOOL_SEARCH: 'auto',
       CHERRY_STUDIO_BUN_PATH: bunPath,
       ...(customGitBashPath ? { CLAUDE_CODE_GIT_BASH_PATH: customGitBashPath } : {})
