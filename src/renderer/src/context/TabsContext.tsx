@@ -7,7 +7,6 @@ import type { Tab, TabSavedState, TabType } from '@shared/data/cache/cacheValueT
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ReactNode } from 'react'
 import { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('TabsContext')
 
@@ -77,8 +76,6 @@ export interface TabsContextValue {
 const TabsContext = createContext<TabsContextValue | null>(null)
 
 export function TabsProvider({ children }: { children: ReactNode }) {
-  const { i18n } = useTranslation()
-
   // Pinned tabs - persistent storage
   const [pinnedTabs, setPinnedTabsRaw] = usePersistCache('ui.tab.pinned_tabs')
 
@@ -132,7 +129,7 @@ export function TabsProvider({ children }: { children: ReactNode }) {
   const tabs = useMemo(() => {
     const home = withLocalizedRouteTitle({ ...DEFAULT_TAB })
     return [home, ...(pinnedTabs || []).map(withLocalizedRouteTitle), ...normalTabs.map(withLocalizedRouteTitle)]
-  }, [pinnedTabs, normalTabs, i18n.language])
+  }, [pinnedTabs, normalTabs])
 
   /**
    * Hibernate tab (manual)
