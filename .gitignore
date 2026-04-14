@@ -78,3 +78,8 @@ test-results
 YOUR_MEMORY_FILE_PATH
 
 .sessions/
+
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
