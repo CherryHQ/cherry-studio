@@ -253,4 +253,21 @@ describe('ShortcutService', () => {
       hasConflict: true
     })
   })
+
+  it('does not notify repeatedly for the same shortcut conflict', async () => {
+    globalShortcutMock.register.mockImplementation((accelerator: string) => accelerator !== 'CommandOrControl+,')
+
+    await (service as any).onInit()
+    mainWindow.webContents.send.mockClear()
+
+    ;(service as any).reregisterShortcuts()
+
+    expect(mainWindow.webContents.send).not.toHaveBeenCalledWith(
+      IpcChannel.Shortcut_RegistrationConflict,
+      expect.objectContaining({
+        key: 'shortcut.general.show_settings',
+        hasConflict: true
+      })
+    )
+  })
 })

@@ -48,11 +48,7 @@ export class ShortcutService extends BaseService {
 
   protected async onStop() {
     this.unregisterAll()
-    this.mainWindow = null
-    this.registeredWindows.clear()
-    this.conflictedKeys.clear()
-    this.handlers.clear()
-    this.isRegisterOnBoot = true
+    this.resetRuntimeState()
   }
 
   private registerBuiltInHandlers(): void {
@@ -296,7 +292,18 @@ export class ShortcutService extends BaseService {
     this.registeredAccelerators.clear()
   }
 
+  private resetRuntimeState(): void {
+    this.mainWindow = null
+    this.registeredWindows.clear()
+    this.conflictedKeys.clear()
+    this.isRegisterOnBoot = true
+  }
+
   private markRegistrationConflict(key: ShortcutPreferenceKey, accelerator: string): void {
+    if (this.conflictedKeys.has(key)) {
+      return
+    }
+
     this.conflictedKeys.add(key)
     this.emitRegistrationConflict({ key, accelerator, hasConflict: true })
   }
