@@ -254,7 +254,7 @@
           "defaultValue": "",
           "status": "classified",
           "category": "preferences",
-          "targetKey": "feature.quick_assistant.id"
+          "targetKey": "feature.quick_assistant.assistant_id"
         },
         {
           "originalKey": "settings",

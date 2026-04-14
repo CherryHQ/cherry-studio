@@ -27,10 +27,10 @@ describe('PreferencesMappings', () => {
   })
 
   describe('llm quickAssistantId simple mapping', () => {
-    it('maps quickAssistantId to feature.quick_assistant.id', () => {
+    it('maps quickAssistantId to feature.quick_assistant.assistant_id', () => {
       expect(REDUX_STORE_MAPPINGS.llm).toContainEqual({
         originalKey: 'quickAssistantId',
-        targetKey: 'feature.quick_assistant.id'
+        targetKey: 'feature.quick_assistant.assistant_id'
       })
     })
 

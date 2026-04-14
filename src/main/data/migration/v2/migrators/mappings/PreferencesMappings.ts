@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-04-13T10:49:36.107Z
+ * Generated at: 2026-04-14T08:19:47.330Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in packages/shared/data/preferences.ts
@@ -692,7 +692,7 @@ export const REDUX_STORE_MAPPINGS = {
   llm: [
     {
       originalKey: 'quickAssistantId',
-      targetKey: 'feature.quick_assistant.id'
+      targetKey: 'feature.quick_assistant.assistant_id'
     }
   ],
   memory: [
