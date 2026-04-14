@@ -46,6 +46,18 @@ describe('LlmModelTransforms', () => {
     it('returns null for empty object', () => {
       expect(extractUniqueModelId({})).toBeNull()
     })
+
+    it('returns null when provider contains "::"', () => {
+      expect(extractUniqueModelId({ id: 'gpt-4', provider: 'o::p' })).toBeNull()
+    })
+
+    it('returns id as-is when already in UniqueModelId format', () => {
+      expect(extractUniqueModelId({ id: 'openai::gpt-4', provider: 'openai' })).toBe('openai::gpt-4')
+    })
+
+    it('trims whitespace around provider and id', () => {
+      expect(extractUniqueModelId({ id: ' gpt-4 ', provider: ' openai ' })).toBe('openai::gpt-4')
+    })
   })
 
   describe('transformLlmModelIds', () => {

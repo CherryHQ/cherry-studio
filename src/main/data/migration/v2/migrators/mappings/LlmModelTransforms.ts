@@ -21,10 +21,12 @@ export function extractUniqueModelId(model: unknown): string | null {
   if (!model || typeof model !== 'object') return null
 
   const m = model as Record<string, unknown>
-  const provider = typeof m.provider === 'string' ? m.provider : ''
-  const id = typeof m.id === 'string' ? m.id : ''
+  const provider = typeof m.provider === 'string' ? m.provider.trim() : ''
+  const id = typeof m.id === 'string' ? m.id.trim() : ''
 
   if (!provider || !id) return null
+  if (id.includes('::')) return id
+  if (provider.includes('::')) return null
   return createUniqueModelId(provider, id)
 }
 
