@@ -12,13 +12,20 @@
  * Messages are stored by the assistant message ID (the Cherry Studio message
  * that triggered the tool-use turn) and retrieved by the message converter
  * when building the prompt for the next API call.
+ *
+ * Memory management: bounded to MAX_ENTRIES via LRU eviction. Each entry
+ * corresponds to one tool-use assistant turn, so typical usage stays well
+ * under the limit even in long sessions.
  */
 import type { ModelMessage } from 'ai'
+
+const MAX_ENTRIES = 100
 
 const cache = new Map<string, ModelMessage[]>()
 
 /**
  * Store response messages from a tool-use turn.
+ * Evicts the oldest entry when the cache exceeds MAX_ENTRIES.
  * @param messageId - The Cherry Studio assistant message ID
  * @param messages - The AI SDK response messages (assistant + tool pairs)
  */
@@ -29,9 +36,15 @@ export function storeResponseMessages(messageId: string, messages: ModelMessage[
       m.role === 'tool' ||
       (m.role === 'assistant' && Array.isArray(m.content) && m.content.some((p) => p.type === 'tool-call'))
   )
-  if (hasToolMessages) {
-    cache.set(messageId, messages)
+  if (!hasToolMessages) return
+
+  // LRU eviction: remove oldest entry when at capacity
+  if (cache.size >= MAX_ENTRIES && !cache.has(messageId)) {
+    const oldest = cache.keys().next().value
+    if (oldest !== undefined) cache.delete(oldest)
   }
+
+  cache.set(messageId, messages)
 }
 
 /**

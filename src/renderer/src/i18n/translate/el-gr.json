@@ -5299,14 +5299,14 @@
             "cache_last_n_help": "Αποθηκεύστε στην κρυφή μνήμη τα τελευταία N μηνύματα της συνομιλίας (εξαιρουμένων των μηνυμάτων συστήματος)",
             "cache_system": "Μήνυμα Συστήματος Κρυφής Μνήμης",
             "cache_system_help": "Εάν θα αποθηκευτεί προσωρινά το σύστημα εντολών",
-            "prompt_caching": "[to be translated]:Prompt Caching",
-            "prompt_caching_help": "[to be translated]:Enable Anthropic prompt caching to reduce costs on repeated conversations. Uses strategic cache breakpoints on system prompt and conversation history.",
+            "prompt_caching": "Prompt Caching",
+            "prompt_caching_help": "Enable Anthropic prompt caching to reduce costs on repeated conversations. Uses strategic cache breakpoints on system prompt and conversation history.",
             "token_threshold": "Κατώφλι Διακριτικού Κρυφής Μνήμης",
             "token_threshold_help": "Μηνύματα που υπερβαίνουν αυτό το όριο token θα αποθηκεύονται στην cache. Ορίστε το σε 0 για να απενεργοποιήσετε την προσωρινή αποθήκευση.",
-            "ttl": "[to be translated]:Cache Duration",
-            "ttl_1h": "[to be translated]:1 hour",
-            "ttl_5min": "[to be translated]:5 minutes",
-            "ttl_help": "[to be translated]:How long cached content persists. 5 minutes is the default; 1 hour costs extra but provides longer cache lifetime."
+            "ttl": "Cache Duration",
+            "ttl_1h": "1 hour",
+            "ttl_5min": "5 minutes",
+            "ttl_help": "How long cached content persists. 5 minutes is the default; 1 hour costs extra but provides longer cache lifetime."
           },
           "array_content": {
             "help": "Εάν ο πάροχος υποστηρίζει το πεδίο περιεχομένου του μηνύματος ως τύπο πίνακα",
