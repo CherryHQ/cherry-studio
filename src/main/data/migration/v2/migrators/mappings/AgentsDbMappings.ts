@@ -10,7 +10,21 @@ export type AgentsSourceTableName =
 
 export type AgentsTableRowCounts = Record<AgentsSourceTableName, number>
 
-export type AgentsColumnExpr = string | { name: string; expr: string }
+export type AgentsTableSchema = {
+  exists: boolean
+  columns: Set<string>
+}
+
+export type AgentsSchemaInfo = Record<AgentsSourceTableName, AgentsTableSchema>
+
+export type AgentsColumnExpr =
+  | string
+  | {
+      name: string
+      expr: string
+      sourceColumn?: string
+      fallbackExpr?: string
+    }
 
 export type AgentsTableMigrationSpec = {
   sourceTable: AgentsSourceTableName
@@ -43,9 +57,17 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       'mcps',
       'allowed_tools',
       'configuration',
-      'sort_order',
-      { name: 'created_at', expr: "CAST(strftime('%s', created_at) AS INTEGER) * 1000" },
-      { name: 'updated_at', expr: "CAST(strftime('%s', updated_at) AS INTEGER) * 1000" }
+      { name: 'sort_order', expr: 'sort_order', fallbackExpr: '0' },
+      {
+        name: 'created_at',
+        expr: "CAST(strftime('%s', created_at) AS INTEGER) * 1000",
+        sourceColumn: 'created_at'
+      },
+      {
+        name: 'updated_at',
+        expr: "CAST(strftime('%s', updated_at) AS INTEGER) * 1000",
+        sourceColumn: 'updated_at'
+      }
     ]
   },
   {
@@ -64,11 +86,19 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       'small_model',
       'mcps',
       'allowed_tools',
-      'slash_commands',
+      { name: 'slash_commands', expr: 'slash_commands' },
       'configuration',
-      'sort_order',
-      { name: 'created_at', expr: "CAST(strftime('%s', created_at) AS INTEGER) * 1000" },
-      { name: 'updated_at', expr: "CAST(strftime('%s', updated_at) AS INTEGER) * 1000" }
+      { name: 'sort_order', expr: 'sort_order', fallbackExpr: '0' },
+      {
+        name: 'created_at',
+        expr: "CAST(strftime('%s', created_at) AS INTEGER) * 1000",
+        sourceColumn: 'created_at'
+      },
+      {
+        name: 'updated_at',
+        expr: "CAST(strftime('%s', updated_at) AS INTEGER) * 1000",
+        sourceColumn: 'updated_at'
+      }
     ]
   },
   {
@@ -105,8 +135,16 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       'last_run',
       'last_result',
       'status',
-      { name: 'created_at', expr: "CAST(strftime('%s', created_at) AS INTEGER) * 1000" },
-      { name: 'updated_at', expr: "CAST(strftime('%s', updated_at) AS INTEGER) * 1000" }
+      {
+        name: 'created_at',
+        expr: "CAST(strftime('%s', created_at) AS INTEGER) * 1000",
+        sourceColumn: 'created_at'
+      },
+      {
+        name: 'updated_at',
+        expr: "CAST(strftime('%s', updated_at) AS INTEGER) * 1000",
+        sourceColumn: 'updated_at'
+      }
     ]
   },
   {
@@ -121,8 +159,16 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       'status',
       'result',
       'error',
-      { name: 'created_at', expr: "CAST(strftime('%s', run_at) AS INTEGER) * 1000" },
-      { name: 'updated_at', expr: "CAST(strftime('%s', run_at) AS INTEGER) * 1000" }
+      {
+        name: 'created_at',
+        expr: "CAST(strftime('%s', run_at) AS INTEGER) * 1000",
+        sourceColumn: 'run_at'
+      },
+      {
+        name: 'updated_at',
+        expr: "CAST(strftime('%s', run_at) AS INTEGER) * 1000",
+        sourceColumn: 'run_at'
+      }
     ]
   },
   {
@@ -157,14 +203,39 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       'content',
       'agent_session_id',
       'metadata',
-      { name: 'created_at', expr: "CAST(strftime('%s', created_at) AS INTEGER) * 1000" },
-      { name: 'updated_at', expr: "CAST(strftime('%s', updated_at) AS INTEGER) * 1000" }
+      {
+        name: 'created_at',
+        expr: "CAST(strftime('%s', created_at) AS INTEGER) * 1000",
+        sourceColumn: 'created_at'
+      },
+      {
+        name: 'updated_at',
+        expr: "CAST(strftime('%s', updated_at) AS INTEGER) * 1000",
+        sourceColumn: 'updated_at'
+      }
     ]
   }
 ] as const
 
+export const AGENTS_TARGET_TABLE_DELETE_ORDER = [
+  'agents_session_messages',
+  'agents_channel_task_subscriptions',
+  'agents_task_run_logs',
+  'agents_channels',
+  'agents_tasks',
+  'agents_sessions',
+  'agents_skills',
+  'agents_agents'
+] as const
+
 export function getAgentsSourceTableNames(): AgentsSourceTableName[] {
   return AGENTS_TABLE_MIGRATION_SPECS.map((spec) => spec.sourceTable)
+}
+
+export function createEmptyAgentsSchemaInfo(): AgentsSchemaInfo {
+  return Object.fromEntries(
+    getAgentsSourceTableNames().map((tableName) => [tableName, { exists: false, columns: new Set<string>() }])
+  ) as AgentsSchemaInfo
 }
 
 export function getTotalAgentsRowCount(counts: Partial<AgentsTableRowCounts>): number {
@@ -175,16 +246,49 @@ export function quoteSqlitePath(path: string): string {
   return `'${path.replaceAll("'", "''")}'`
 }
 
-export function buildAgentsImportStatements(dbPath: string): string[] {
+function resolveColumnSelection(column: AgentsColumnExpr, sourceColumns: Set<string>) {
+  if (typeof column === 'string') {
+    return sourceColumns.has(column) ? { insert: column, select: column } : null
+  }
+
+  const sourceColumn = column.sourceColumn ?? column.name
+  if (sourceColumns.has(sourceColumn)) {
+    return {
+      insert: column.name,
+      select: column.expr === column.name ? column.expr : `${column.expr} AS ${column.name}`
+    }
+  }
+
+  if (column.fallbackExpr) {
+    return {
+      insert: column.name,
+      select: `${column.fallbackExpr} AS ${column.name}`
+    }
+  }
+
+  return null
+}
+
+export function buildAgentsImportStatements(dbPath: string, schemaInfo: AgentsSchemaInfo): string[] {
   const statements = [`ATTACH DATABASE ${quoteSqlitePath(dbPath)} AS agents_legacy`]
 
   for (const spec of AGENTS_TABLE_MIGRATION_SPECS) {
-    const insertCols = spec.columns.map((col) => (typeof col === 'string' ? col : col.name)).join(', ')
-    const selectCols = spec.columns
-      .map((col) => (typeof col === 'string' ? col : `${col.expr} AS ${col.name}`))
-      .join(', ')
+    const sourceSchema = schemaInfo[spec.sourceTable]
+    if (!sourceSchema.exists) {
+      continue
+    }
+
+    const resolvedColumns = spec.columns
+      .map((column) => resolveColumnSelection(column, sourceSchema.columns))
+      .filter((column) => column !== null)
+
+    if (resolvedColumns.length === 0) {
+      continue
+    }
+
     statements.push(
-      `INSERT INTO ${spec.targetTable} (${insertCols}) SELECT ${selectCols} FROM agents_legacy.${spec.sourceTable}`
+      `INSERT INTO ${spec.targetTable} (${resolvedColumns.map((column) => column.insert).join(', ')}) ` +
+        `SELECT ${resolvedColumns.map((column) => column.select).join(', ')} FROM agents_legacy.${spec.sourceTable}`
     )
   }
 

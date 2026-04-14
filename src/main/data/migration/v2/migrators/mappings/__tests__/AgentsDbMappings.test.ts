@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   AGENTS_TABLE_MIGRATION_SPECS,
   buildAgentsImportStatements,
+  createEmptyAgentsSchemaInfo,
   getAgentsSourceTableNames,
   getTotalAgentsRowCount,
   quoteSqlitePath
@@ -10,13 +11,61 @@ import {
 
 describe('AgentsDbMappings', () => {
   it('builds attach/import/detach statements for the legacy agents db', () => {
-    const statements = buildAgentsImportStatements("/tmp/agent's.db")
+    const schemaInfo = createEmptyAgentsSchemaInfo()
+    schemaInfo.agents.exists = true
+    schemaInfo.agents.columns = new Set([
+      'id',
+      'type',
+      'name',
+      'description',
+      'accessible_paths',
+      'instructions',
+      'model',
+      'plan_model',
+      'small_model',
+      'mcps',
+      'allowed_tools',
+      'configuration',
+      'sort_order',
+      'created_at',
+      'updated_at'
+    ])
+
+    const statements = buildAgentsImportStatements("/tmp/agent's.db", schemaInfo)
 
     expect(statements[0]).toBe("ATTACH DATABASE '/tmp/agent''s.db' AS agents_legacy")
     expect(statements).toContain(
       "INSERT INTO agents_agents (id, type, name, description, accessible_paths, instructions, model, plan_model, small_model, mcps, allowed_tools, configuration, sort_order, created_at, updated_at) SELECT id, type, name, description, accessible_paths, instructions, model, plan_model, small_model, mcps, allowed_tools, configuration, sort_order, CAST(strftime('%s', created_at) AS INTEGER) * 1000 AS created_at, CAST(strftime('%s', updated_at) AS INTEGER) * 1000 AS updated_at FROM agents_legacy.agents"
     )
     expect(statements.at(-1)).toBe('DETACH DATABASE agents_legacy')
+  })
+
+  it('falls back to defaults and skips missing tables for older legacy schemas', () => {
+    const schemaInfo = createEmptyAgentsSchemaInfo()
+    schemaInfo.agents.exists = true
+    schemaInfo.agents.columns = new Set([
+      'id',
+      'type',
+      'name',
+      'description',
+      'accessible_paths',
+      'instructions',
+      'model',
+      'plan_model',
+      'small_model',
+      'mcps',
+      'allowed_tools',
+      'configuration',
+      'created_at',
+      'updated_at'
+    ])
+
+    const statements = buildAgentsImportStatements('/tmp/agents.db', schemaInfo)
+
+    expect(statements).toContain(
+      "INSERT INTO agents_agents (id, type, name, description, accessible_paths, instructions, model, plan_model, small_model, mcps, allowed_tools, configuration, sort_order, created_at, updated_at) SELECT id, type, name, description, accessible_paths, instructions, model, plan_model, small_model, mcps, allowed_tools, configuration, 0 AS sort_order, CAST(strftime('%s', created_at) AS INTEGER) * 1000 AS created_at, CAST(strftime('%s', updated_at) AS INTEGER) * 1000 AS updated_at FROM agents_legacy.agents"
+    )
+    expect(statements.some((statement) => statement.includes('agents_legacy.skills'))).toBe(false)
   })
 
   it('exposes all source table names in dependency order', () => {

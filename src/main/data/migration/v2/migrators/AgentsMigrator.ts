@@ -7,8 +7,11 @@ import { LegacyAgentsDbReader } from '../utils/LegacyAgentsDbReader'
 import { BaseMigrator } from './BaseMigrator'
 import {
   AGENTS_TABLE_MIGRATION_SPECS,
+  AGENTS_TARGET_TABLE_DELETE_ORDER,
+  type AgentsSchemaInfo,
   type AgentsTableRowCounts,
   buildAgentsImportStatements,
+  createEmptyAgentsSchemaInfo,
   getTotalAgentsRowCount
 } from './mappings/AgentsDbMappings'
 
@@ -22,10 +25,12 @@ export class AgentsMigrator extends BaseMigrator {
 
   private sourceCounts: AgentsTableRowCounts = this.createEmptyCounts()
   private sourceDbPath: string | null | undefined = undefined
+  private sourceSchemaInfo: AgentsSchemaInfo = createEmptyAgentsSchemaInfo()
 
   override reset(): void {
     this.sourceCounts = this.createEmptyCounts()
     this.sourceDbPath = undefined
+    this.sourceSchemaInfo = createEmptyAgentsSchemaInfo()
   }
 
   async prepare(ctx: MigrationContext): Promise<PrepareResult> {
@@ -40,7 +45,8 @@ export class AgentsMigrator extends BaseMigrator {
       }
     }
 
-    this.sourceCounts = await reader.countRows()
+    this.sourceSchemaInfo = await reader.inspectSchema()
+    this.sourceCounts = await reader.countRows(this.sourceSchemaInfo)
 
     return {
       success: true,
@@ -58,22 +64,35 @@ export class AgentsMigrator extends BaseMigrator {
     }
 
     if (getTotalAgentsRowCount(this.sourceCounts) === 0) {
-      this.sourceCounts = await reader.countRows()
+      this.sourceSchemaInfo = await reader.inspectSchema()
+      this.sourceCounts = await reader.countRows(this.sourceSchemaInfo)
     }
 
-    const statements = buildAgentsImportStatements(dbPath)
+    const statements = buildAgentsImportStatements(dbPath, this.sourceSchemaInfo)
     const [attachStatement, ...remainingStatements] = statements
     let isAttached = false
+    let transactionStarted = false
 
     try {
       await ctx.db.run(sql.raw(attachStatement))
       isAttached = true
+      await ctx.db.run(sql.raw('BEGIN IMMEDIATE'))
+      transactionStarted = true
 
       for (const statement of remainingStatements.filter(
         (statement) => statement !== 'DETACH DATABASE agents_legacy'
       )) {
         await ctx.db.run(sql.raw(statement))
       }
+
+      await ctx.db.run(sql.raw('COMMIT'))
+      transactionStarted = false
+    } catch (error) {
+      if (transactionStarted) {
+        await ctx.db.run(sql.raw('ROLLBACK'))
+      }
+      await this.cleanupPartialImport(ctx)
+      throw error
     } finally {
       if (isAttached) {
         await ctx.db.run(sql.raw('DETACH DATABASE agents_legacy'))
@@ -103,7 +122,8 @@ export class AgentsMigrator extends BaseMigrator {
     }
 
     if (getTotalAgentsRowCount(this.sourceCounts) === 0) {
-      this.sourceCounts = await reader.countRows()
+      this.sourceSchemaInfo = await reader.inspectSchema()
+      this.sourceCounts = await reader.countRows(this.sourceSchemaInfo)
     }
 
     const errors: ValidationError[] = []
@@ -148,6 +168,12 @@ export class AgentsMigrator extends BaseMigrator {
 
     this.sourceDbPath = reader.resolvePath()
     return this.sourceDbPath
+  }
+
+  private async cleanupPartialImport(ctx: MigrationContext): Promise<void> {
+    for (const tableName of AGENTS_TARGET_TABLE_DELETE_ORDER) {
+      await ctx.db.run(sql.raw(`DELETE FROM ${tableName}`))
+    }
   }
 
   private createEmptyCounts(): AgentsTableRowCounts {
