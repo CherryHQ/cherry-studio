@@ -13,6 +13,11 @@ import type { StreamController } from './ToolExecutor'
 
 const RECURSIVE_STREAM_TIMEOUT_MS = 120_000
 
+type RecursiveStreamChunk = {
+  type: string
+  [key: string]: unknown
+}
+
 /**
  * 类型守卫：检查对象是否是有效的流结果（包含可读取的 fullStream）
  */
@@ -22,7 +27,7 @@ function isReadableStreamLike(stream: unknown): stream is ReadableStream {
   )
 }
 
-function hasFullStream(obj: unknown): obj is StreamTextResult & { fullStream: ReadableStream } {
+function hasFullStream(obj: unknown): obj is StreamTextResult & { fullStream: ReadableStream<RecursiveStreamChunk> } {
   return (
     typeof obj === 'object' &&
     obj !== null &&
@@ -146,7 +151,10 @@ export class StreamEventManager {
   /**
    * 将递归流的数据传递到当前流
    */
-  private async pipeRecursiveStream(controller: StreamController, recursiveStream: ReadableStream): Promise<void> {
+  private async pipeRecursiveStream(
+    controller: StreamController,
+    recursiveStream: ReadableStream<RecursiveStreamChunk>
+  ): Promise<void> {
     const reader = recursiveStream.getReader()
     try {
       while (true) {
@@ -184,8 +192,8 @@ export class StreamEventManager {
    * 读取递归流的下一块数据，并在长时间无进展时中断。
    */
   private async readRecursiveStreamChunk(
-    reader: ReadableStreamDefaultReader<unknown>
-  ): Promise<ReadableStreamReadResult<unknown>> {
+    reader: ReadableStreamDefaultReader<RecursiveStreamChunk>
+  ): Promise<ReadableStreamReadResult<RecursiveStreamChunk>> {
     let timeoutId: ReturnType<typeof setTimeout> | undefined
 
     try {
