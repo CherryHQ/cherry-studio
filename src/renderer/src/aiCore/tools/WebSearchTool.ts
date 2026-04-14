@@ -47,17 +47,8 @@ export const webSearchToolWithPreExtractedKeywords = (
   let cachedSearchResultsPromise: Promise<WebSearchProviderResponse> | undefined
 
   return tool({
-    description: `Web search tool for finding current information, news, and real-time data from the internet.
-
-This tool has been configured with search parameters based on the conversation context:
-- Prepared queries: ${extractedKeywords.question.map((q) => `"${q}"`).join(', ')}${
-      extractedKeywords.links?.length
-        ? `
-- Relevant URLs: ${extractedKeywords.links.join(', ')}`
-        : ''
-    }
-
-You can use this tool as-is to search with the prepared queries, or provide additionalContext to refine or replace the search terms.`,
+    description:
+      'Web search tool for finding current information, news, and real-time data from the internet. Use this tool to search with context-aware queries. You can provide additionalContext to refine the search terms.',
 
     inputSchema: z.object({
       additionalContext: z

@@ -11,9 +11,12 @@ import type {
   FileMessageBlock,
   ImageMessageBlock,
   MainTextMessageBlock,
-  ThinkingMessageBlock
+  ThinkingMessageBlock,
+  ToolMessageBlock
 } from '@renderer/types/newMessage'
+import { MessageBlockType } from '@renderer/types/newMessage'
 import {
+  findAllBlocks,
   findFileBlocks,
   findImageBlocks,
   findMainTextBlocks,
@@ -32,6 +35,7 @@ import type {
 } from 'ai'
 import i18n from 'i18next'
 
+import { getResponseMessages } from '../responseMessageCache'
 import { convertFileBlockToFilePart, convertFileBlockToTextPart } from './fileProcessor'
 
 const logger = loggerService.withContext('messageConverter')
@@ -53,6 +57,29 @@ export async function convertMessageToSdkParam(
   if (message.role === 'user' || message.role === 'system') {
     return convertMessageToUserModelMessage(content, fileBlocks, imageBlocks, isVisionModel, model)
   } else {
+    // Check for cached AI SDK response messages (from tool-use turns).
+    // These preserve the exact message format the AI SDK used, enabling
+    // prompt caching to match the prefix across requests.
+    const cachedMessages = getResponseMessages(message.id)
+    if (cachedMessages && cachedMessages.length > 0) {
+      return cachedMessages
+    }
+
+    // Check for tool blocks — if present, serialize as text fallback
+    const toolBlocks = findAllBlocks(message).filter((b): b is ToolMessageBlock => b.type === MessageBlockType.TOOL)
+
+    if (toolBlocks.length > 0) {
+      return await convertAssistantWithToolBlocks(
+        content,
+        fileBlocks,
+        imageBlocks,
+        reasoningBlocks,
+        mainTextBlocks,
+        toolBlocks,
+        model
+      )
+    }
+
     return convertMessageToAssistantModelMessage(
       content,
       fileBlocks,
@@ -217,6 +244,57 @@ export function stripMarkdownBase64Images(text: string): string {
 }
 
 /**
+ * Convert an assistant message that has tool blocks into a single assistant
+ * message with tool interactions serialized as text.
+ *
+ * This approach ensures the conversation history for tool-use turns has the
+ * exact same structure as regular text turns, which is critical for prompt
+ * caching — the AI SDK's internal tool message format cannot be perfectly
+ * reconstructed from stored blocks, so using text serialization guarantees
+ * deterministic, cache-friendly prefixes across requests.
+ */
+async function convertAssistantWithToolBlocks(
+  content: string,
+  fileBlocks: FileMessageBlock[],
+  imageBlocks: ImageMessageBlock[],
+  thinkingBlocks: ThinkingMessageBlock[],
+  mainTextBlocks: MainTextMessageBlock[],
+  toolBlocks: ToolMessageBlock[],
+  model?: Model
+): Promise<AssistantModelMessage> {
+  // Build text content that includes tool interaction history
+  let toolText = ''
+  for (const tb of toolBlocks) {
+    const toolName = tb.toolName || tb.metadata?.rawMcpToolResponse?.tool?.name || 'unknown'
+    toolText += `\n\n[Tool Use: ${toolName}]\nArguments:\n`
+    try {
+      toolText += JSON.stringify(tb.arguments || {}, null, 2)
+    } catch {
+      toolText += '{}'
+    }
+    toolText += '\nResult:\n'
+    try {
+      const raw = tb.content ?? tb.metadata?.rawMcpToolResponse?.response ?? ''
+      toolText += typeof raw === 'string' ? raw : JSON.stringify(raw, null, 2)
+    } catch {
+      toolText += String(tb.content ?? '')
+    }
+  }
+
+  // Combine: tool history + original text response
+  const fullContent = toolText + (content ? '\n\n' + content : '')
+
+  return convertMessageToAssistantModelMessage(
+    fullContent.trim(),
+    fileBlocks,
+    imageBlocks,
+    thinkingBlocks,
+    mainTextBlocks,
+    model
+  )
+}
+
+/**
  * 转换为助手模型消息
  * 注意：当助手消息只包含图片（如图片生成模型的响应）而没有文本时，
  * 需要添加占位文本，因为某些 API（如 Gemini）不接受空的 assistant 消息
@@ -323,6 +401,7 @@ export async function convertMessagesToSdkMessages(messages: Message[], model: M
     const sdkMessage = await convertMessageToSdkParam(message, isVision, model)
     sdkMessages.push(...(Array.isArray(sdkMessage) ? sdkMessage : [sdkMessage]))
   }
+
   // Special handling for vison models
   // These models support multi-turn conversations but need images from previous assistant messages
   // to be merged into the current user message for editing/enhancement operations.
