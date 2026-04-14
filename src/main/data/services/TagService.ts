@@ -22,6 +22,9 @@ type TagRow = typeof tagTable.$inferSelect
  * Convert database row to Tag entity
  */
 function rowToTag(row: TagRow): Tag {
+  if (!row.createdAt || !row.updatedAt) {
+    logger.warn('Tag row has null timestamp, falling back to current time', { id: row.id })
+  }
   return {
     id: row.id,
     name: row.name,
@@ -31,7 +34,7 @@ function rowToTag(row: TagRow): Tag {
   }
 }
 
-export class TagDataService {
+export class TagService {
   private get db() {
     return application.get('DbService').getDb()
   }
@@ -105,7 +108,11 @@ export class TagDataService {
       return rowToTag(row)
     } catch (e: unknown) {
       if (e instanceof Error && e.message.includes('UNIQUE constraint failed')) {
-        throw DataApiErrorFactory.conflict(`Tag with name '${dto.name}' already exists`, 'Tag')
+        const message =
+          dto.name !== undefined
+            ? `Tag with name '${dto.name}' already exists`
+            : 'Tag update conflicts with an existing tag'
+        throw DataApiErrorFactory.conflict(message, 'Tag')
       }
       throw e
     }
@@ -176,6 +183,12 @@ export class TagDataService {
       }
 
       if (toAdd.length > 0) {
+        const existingTags = await tx.select({ id: tagTable.id }).from(tagTable).where(inArray(tagTable.id, toAdd))
+        const existingTagIds = new Set(existingTags.map((t) => t.id))
+        const missing = toAdd.filter((id) => !existingTagIds.has(id))
+        if (missing.length > 0) {
+          throw DataApiErrorFactory.notFound('Tag', missing[0])
+        }
         await tx.insert(entityTagTable).values(toAdd.map((tagId) => ({ entityType, entityId, tagId })))
       }
     })
@@ -204,6 +217,19 @@ export class TagDataService {
   }
 
   /**
+   * Remove all tag associations for a given entity.
+   * Must be called by entity services (AssistantService, TopicService, etc.)
+   * when deleting an entity, since entity_tag has no FK to entity tables.
+   */
+  async removeEntityTags(entityType: TaggableEntityType, entityId: string): Promise<void> {
+    await this.db
+      .delete(entityTagTable)
+      .where(and(eq(entityTagTable.entityType, entityType), eq(entityTagTable.entityId, entityId)))
+
+    logger.info('Removed entity tags', { entityType, entityId })
+  }
+
+  /**
    * Get tag IDs for multiple entities of the same type (batch query).
    * Used by other services (e.g., AssistantService) to efficiently load tags.
    */
@@ -222,7 +248,7 @@ export class TagDataService {
       .select({ entityId: entityTagTable.entityId, tagId: entityTagTable.tagId })
       .from(entityTagTable)
       .where(and(eq(entityTagTable.entityType, entityType), inArray(entityTagTable.entityId, entityIds)))
-      .orderBy(asc(entityTagTable.entityId), asc(entityTagTable.createdAt))
+      .orderBy(asc(entityTagTable.entityId), asc(entityTagTable.createdAt), asc(entityTagTable.tagId))
 
     for (const row of rows) {
       result.get(row.entityId)?.push(row.tagId)
@@ -232,4 +258,4 @@ export class TagDataService {
   }
 }
 
-export const tagDataService = new TagDataService()
+export const tagService = new TagService()

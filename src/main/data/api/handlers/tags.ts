@@ -8,7 +8,7 @@
  * All input validation happens here at the system boundary.
  */
 
-import { tagDataService } from '@data/services/TagService'
+import { tagService } from '@data/services/TagService'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
 import type { TagSchemas } from '@shared/data/api/schemas/tags'
 import {
@@ -34,27 +34,27 @@ export const tagHandlers: {
 } = {
   '/tags': {
     GET: async () => {
-      return await tagDataService.list()
+      return await tagService.list()
     },
 
     POST: async ({ body }) => {
       const parsed = CreateTagSchema.parse(body)
-      return await tagDataService.create(parsed)
+      return await tagService.create(parsed)
     }
   },
 
   '/tags/:id': {
     GET: async ({ params }) => {
-      return await tagDataService.getById(params.id)
+      return await tagService.getById(params.id)
     },
 
     PATCH: async ({ params, body }) => {
       const parsed = UpdateTagSchema.parse(body)
-      return await tagDataService.update(params.id, parsed)
+      return await tagService.update(params.id, parsed)
     },
 
     DELETE: async ({ params }) => {
-      await tagDataService.delete(params.id)
+      await tagService.delete(params.id)
       return undefined
     }
   },
@@ -62,7 +62,7 @@ export const tagHandlers: {
   '/tags/:id/entities': {
     PUT: async ({ params, body }) => {
       const parsed = SetTagEntitiesSchema.parse(body)
-      await tagDataService.setEntities(params.id, parsed)
+      await tagService.setEntities(params.id, parsed)
       return undefined
     }
   },
@@ -70,13 +70,13 @@ export const tagHandlers: {
   '/tags/entities/:entityType/:entityId': {
     GET: async ({ params }) => {
       const entityType = TaggableEntityType.parse(params.entityType)
-      return await tagDataService.getTagsByEntity(entityType, params.entityId)
+      return await tagService.getTagsByEntity(entityType, params.entityId)
     },
 
     PUT: async ({ params, body }) => {
       const entityType = TaggableEntityType.parse(params.entityType)
       const parsed = SyncEntityTagsSchema.parse(body)
-      await tagDataService.syncEntityTags(entityType, params.entityId, parsed)
+      await tagService.syncEntityTags(entityType, params.entityId, parsed)
       return undefined
     }
   }
