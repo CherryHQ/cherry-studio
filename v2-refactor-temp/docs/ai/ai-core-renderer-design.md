@@ -46,7 +46,7 @@
 - 保留 Agent 独立 SSE client / parser / datasource
 - 保留自建 tool approval 状态机或自定义 permission part 作为主链方案
 
-### 2.2 当前必须收敛的偏差（2026-04-13 更新）
+### 2.2 当前必须收敛的偏差（2026-04-14 更新）
 
 | 偏差 | migration 文档要求 | 状态 |
 |---|---|---|
@@ -54,8 +54,8 @@
 | Chat 生命周期仍在 Renderer | 活跃流生命周期归 Main `AiStreamManager` | ✅ 已完成 |
 | 完成态仍依赖 Renderer `onFinish` | 完成态由 Main 持久化，Renderer 不配置 `onFinish` | ✅ 已完成 |
 | 普通聊天仍夹带 legacy streaming 逻辑 | 收敛到 `useChat` + `IpcChatTransport` + `UIMessage.parts[]` | ✅ 已完成 |
-| Agent 页面仍保留独立 SSE 链路 | Phase 4 统一到同一 `useChat` / `UIMessageChunk` 主链 | ❌ 未开始 |
-| tool approval 仍走自建 Redux + IPC 回路 | 切换到 AI SDK 原生 ToolUIPart approval 语义 | ❌ 未开始 |
+| Agent 页面仍保留独立 SSE 链路 | Phase 4 统一到同一 `useChat` / `UIMessageChunk` 主链 | ✅ 已完成（`AgentChat` 使用 `useChatWithHistory`，`useAgentSessionParts` 替代旧 datasource） |
+| tool approval 仍走自建 Redux + IPC 回路 | 切换到 AI SDK 原生 ToolUIPart approval 语义 | ❌ 未开始（Agent 和 MCP 审批仍走 Redux `toolPermissions` + IPC `respondToPermission`） |
 
 ---
 
@@ -220,22 +220,19 @@ const chat = useChat({
 
 Renderer 侧不再把 `BlockManager` / `ChunkType` / `AiSdkToChunkAdapter` 作为目标设计的一部分。
 
-### 4.6 Phase 3 需要删除的旧代码（2026-04-13 更新）
+### 4.6 Phase 3 需要删除的旧代码（2026-04-14 更新）
 
-普通聊天主链已完成。待删除的 legacy 代码：
+普通聊天和 Agent 聊天主链均已完成。V2 聊天链路（`useChat` + `useChatWithHistory` + `IpcChatTransport`）不再依赖以下代码，但仍有非聊天功能引用：
 
-| 目录/文件 | 状态 | 说明 |
+| 目录/文件 | 状态 | 仍被引用的位置 |
 |---|---|---|
-| `src/renderer/src/aiCore/` (63 files) | ❌ 待删 | 不再被 V2 主聊天引用，但需确认 Agent 无依赖 |
-| `src/renderer/src/services/messageStreaming/` | ⚠️ 保留 | Agent 侧 `setupChannelStream` 仍在使用 |
-| `src/renderer/src/types/chunk.ts` | ⚠️ 保留 | Agent streaming 和 block management 仍在使用 |
+| `src/renderer/src/aiCore/` (55 files) | ❌ 待删 | `ApiService`（`buildStreamTextParams`、`AiProvider`）、`KnowledgeService`（`AiProvider`、`getMessageContent`）、`ConversationService`（`convertMessagesToSdkMessages`）、Paintings 页面（`AiProvider`）、`CodeCliPage`（`AiProvider`）、`ProviderSetting`（`adaptProvider`）、工具渲染组件（tool type imports）、`messageThunk`（`AiSdkToChunkAdapter`） |
+| `src/renderer/src/services/messageStreaming/` (12 files) | ❌ 待删 | `messageThunk`、`ApiService`、`KnowledgeService`、一个集成测试 |
+| `src/renderer/src/types/chunk.ts` | ❌ 待删 | 同上，随 `messageStreaming` 一起清理 |
 
-清理以下旧依赖（待 Agent Phase 4 完成后统一清理）：
+**清理策略**：这些引用来自尚未迁移到 Main IPC 的旧 Renderer AI 调用（Paintings 图片生成、KnowledgeService embedding、ApiService 的 `fetchChatCompletion` 旧路径等）。当 Main 侧 `AiCompletionService` 的 `generateImage`、`listModels` 等 API 迁移完成、Renderer `ApiService` 中的 AI 调用全部替换为 `window.api.ai.*` IPC 调用后，这些目录可安全删除。
 
-- `from.*aiCore`
-- `ChunkType`
-- `BlockManager`
-- `AiSdkToChunkAdapter`
+**工具渲染组件的 type import**：`MessageWebSearch`、`MessageKnowledgeSearch`、`MessageMemorySearch` 从 `aiCore/tools/` import 输入输出类型定义，需先将这些类型提取到 `@shared` 或 `packages/shared/`。
 
 ---
 
@@ -421,28 +418,30 @@ Renderer 侧要求：
 
 这是 migration 文档中 `Phase 3` 的主入口。
 
-#### 7.3.1 现在情况（2026-04-13 更新）
+#### 7.3.1 现在情况（2026-04-14 更新）
 
 > **主聊天 Phase 3 核心链路已完成。** 以下是按实际代码审计后的状态快照。
 
 - `src/renderer/src/pages/home/Chat.tsx`
-  ✅ **已完成。** `USE_V2_CHAT` 双轨开关已删除，V1 分支已清理。`Chat.tsx` 无条件渲染 `<V2ChatContent>`。
+  ✅ **已完成。** `USE_V2_CHAT` 双轨开关已删除，V1 分支已清理。`Chat.tsx` 无条件渲染 `<V2ChatContent>`。无 Redux 依赖。
 - `src/renderer/src/pages/home/V2ChatContent.tsx`
-  ✅ **已完成。** 直接使用官方 `useChat<CherryUIMessage>({ id: topic.id, transport: ipcChatTransport })`，不再经过任何 wrapper。历史消息来自 `useTopicMessagesV2(topic.id)`，活跃流来自 `useChat`，两者在组件内合并展示。
+  ✅ **已完成。** 通过 `useChatWithHistory(topic.id, history, { assistantId })` 组合历史与活跃流。`useChatWithHistory` 内部封装官方 `useChat`，外部无需直接操作 `Chat` 实例。历史消息来自 `useTopicMessagesV2(topic.id)`，活跃流来自 `useChat`，两者在 `useChatWithHistory` 内合并。通过 `V2ChatOverridesProvider` 注入 regenerate / resend / capability 等操作。
 - `src/renderer/src/services/ChatSessionManager.ts`
   ✅ **已删除。**
 - `src/renderer/src/hooks/useChatSession.ts`
   ✅ **已删除。**
 - `src/renderer/src/hooks/useAiChat.ts`
   ✅ **已删除。**
+- `src/renderer/src/hooks/useLightweightAssistantFlow.ts`
+  ✅ **已删除。** 快捷助手和划词助手已直接使用 `useChat`。
 - `src/renderer/src/pages/home/Inputbar/Inputbar.tsx`
-  ✅ **已完成。** 只保留 `onSendProp` 回调，无 legacy `messageThunk` fallback。发送链：`Inputbar.onSend` → `V2ChatContent.handleSendV2` → `useChat.sendMessage()`。
+  ✅ **已完成。** 只保留 `onSendProp` 回调，无 legacy `messageThunk` fallback。发送链：`Inputbar.onSend` → `V2ChatContent.handleSendV2` → `useChatWithHistory.sendMessage()`。
 - `src/renderer/src/pages/home/Tabs/components/Topics.tsx`
   ✅ **已完成。** 不再依赖 `chatSessionManager.getSnapshot()`，使用 Redux + DataApi 双写模式。
 - `src/renderer/src/hooks/useTopicMessagesV2.ts`
-  ⚠️ **进行中。** 仍返回 `adaptedMessages` 和 `partsMap` 双轨结果；渲染层仍在照顾 legacy `Message` / block 模型。后续应继续收敛到直读 `UIMessage.parts[]`。
-- `src/renderer/src/hooks/useLightweightAssistantFlow.ts`
-  ✅ **已完成。** 直接使用 `useChat<CherryUIMessage>({ transport: ipcChatTransport })`，不再依赖 `useAiChat`。
+  ✅ **架构正确，双轨输出是设计选择。** 返回 `uiMessages`（AI SDK 格式）、`adaptedMessages`（legacy `Message[]`，`blocks: []` 始终为空）和 `partsMap`（主渲染源）。`partsMap` 是所有消息渲染的唯一数据来源，`adaptedMessages` 仅用于提供 `id`、`role`、`status`、`usage` 等元数据。渲染层通过 `PartsProvider` + `useMessageParts(messageId)` 消费 parts，不读取 `blocks`。
+- `src/renderer/src/hooks/useChatWithHistory.ts`
+  ✅ **核心编排 hook。** 封装官方 `useChat`，接受可插拔的 `ChatHistory` 接口（主聊天用 `useTopicMessagesV2`，Agent 用 `useAgentSessionParts`）。合并历史 + 活跃流的 `adaptedMessages` 和 `partsMap`。Stream 完成后自动 `history.refresh()` + `setMessages([])`。
 - `src/renderer/src/hooks/useAssistant.ts` 与 `src/renderer/src/store/assistants.ts`
   ✅ assistant、topic、model、settings 作为配置来源存在；不再承载消息生命周期、流状态和完成态裁决。
 
@@ -451,11 +450,12 @@ Renderer 侧要求：
 - 入口与页面壳
   `src/renderer/src/pages/home/Chat.tsx`
   `src/renderer/src/pages/home/V2ChatContent.tsx`
+- 核心编排 hook
+  `src/renderer/src/hooks/useChatWithHistory.ts`
 - 活跃流 transport
   `src/renderer/src/transport/IpcChatTransport.ts`
 - 历史消息与刷新
   `src/renderer/src/hooks/useTopicMessagesV2.ts`
-  `src/renderer/src/services/ApiService.ts`
   `@data/DataApiService`
 - 发送入口与请求参数装配
   `src/renderer/src/pages/home/Inputbar/Inputbar.tsx`
@@ -463,7 +463,10 @@ Renderer 侧要求：
   `src/renderer/src/utils/assistant.ts`
 - 消息渲染
   `src/renderer/src/pages/home/Messages/*`
-  `src/renderer/src/pages/home/Messages/Blocks/*`（legacy 适配层，待收敛）
+  `src/renderer/src/pages/home/Messages/Blocks/*`（parts 渲染组件，通过 `PartsProvider` + `PartsRenderer` 驱动）
+- V2 上下文
+  `src/renderer/src/pages/home/Messages/Blocks/V2Contexts.ts`（`PartsProvider`、`RefreshContext`）
+  `src/renderer/src/hooks/useChatContext.ts`（多选、消息定位等 UI 协调）
 - topic 列表与状态展示
   `src/renderer/src/pages/home/Tabs/components/Topics.tsx`
 - assistant 配置来源
@@ -472,17 +475,18 @@ Renderer 侧要求：
 - 已删除
   ~~`src/renderer/src/hooks/useAiChat.ts`~~
   ~~`src/renderer/src/hooks/useChatSession.ts`~~
+  ~~`src/renderer/src/hooks/useLightweightAssistantFlow.ts`~~
   ~~`src/renderer/src/services/ChatSessionManager.ts`~~
 
-#### 7.3.3 后续任务（2026-04-13 更新）
+#### 7.3.3 后续任务（2026-04-14 更新）
 
-> 任务 1-6, 8-9, 11 已在前端同学的工作中完成。以下标注实际状态。
+> 任务 1-6, 8-12, 14 已完成。以下标注实际状态。
 
 - ~~任务 1：把主聊天调用点改成直接使用官方 `useChat`~~ ✅ **已完成**
-  `V2ChatContent` 直接使用 `useChat<CherryUIMessage>({ id: topic.id, transport: ipcChatTransport })`。
+  `V2ChatContent` 通过 `useChatWithHistory`（内部封装官方 `useChat`）组合历史与活跃流。
 
 - ~~任务 2：去掉把历史消息灌回 `Chat` 的做法~~ ✅ **已完成**
-  历史走 `useTopicMessagesV2`，活跃流走 `useChat`，两者在组件内合并。
+  历史走 `useTopicMessagesV2`，活跃流走 `useChat`，两者在 `useChatWithHistory` 内合并。
 
 - ~~任务 3：删除 `ChatSessionManager` 这条错误补丁链~~ ✅ **已完成**
   `ChatSessionManager.ts` 和 `useChatSession.ts` 均已删除。
@@ -491,14 +495,13 @@ Renderer 侧要求：
   Main 侧 `PersistenceListener` 负责持久化。Renderer 不配置 `onFinish`。
 
 - ~~任务 5：让 `V2ChatContent` 只保留页面壳职责~~ ✅ **已完成**
-  只负责加载历史、挂接 `useChat`、组合展示、路由 UI 操作。
+  只负责加载历史、挂接 `useChatWithHistory`、组合展示、路由 UI 操作。
 
 - ~~任务 6：保留 Inputbar 的 V2 发送入口，删除 legacy fallback~~ ✅ **已完成**
   只保留 `onSendProp` 回调，无 `messageThunk` fallback。
 
-- 任务 7：把 assistant 相关请求参数整理为调用点注入
-  涉及文件：`src/renderer/src/pages/home/V2ChatContent.tsx`、`src/renderer/src/pages/home/Inputbar/Inputbar.tsx`、`src/renderer/src/utils/assistantRuntimeOverrides.ts`
-  说明：当前 `handleSendV2` 已通过 `sendMessage(..., { body })` 注入参数，方向正确。后续继续整理 `mcpToolIds`、`capabilities` 等参数的组装逻辑。
+- ~~任务 7：把 assistant 相关请求参数整理为调用点注入~~ ✅ **已完成**
+  `V2ChatContent.handleSendV2` 通过 `sendMessage(..., { body: { parentAnchorId, files, mentionedModels, mcpToolIds, ...capabilityBody } })` 注入参数。`mcpToolIds` 通过 `fetchMcpTools` 异步解析。
 
 - ~~任务 8：把 `useAiChat` 从目标架构中移除~~ ✅ **已完成**
   `useAiChat.ts` 已删除。
@@ -506,54 +509,59 @@ Renderer 侧要求：
 - ~~任务 9：把 topic 列表状态从 session snapshot 切走~~ ✅ **已完成**
   `Topics.tsx` 使用 Redux + DataApi 双写，不再依赖 `chatSessionManager.getSnapshot()`。
 
-- 任务 10：继续压缩 legacy `Message` / block 适配层
-  涉及文件：`src/renderer/src/hooks/useTopicMessagesV2.ts`、`src/renderer/src/pages/home/Messages/*`
-  说明：`useTopicMessagesV2()` 仍返回 `adaptedMessages` 和 `partsMap` 双轨结果；后续应继续把消息渲染收敛到直读 `UIMessage.parts[]`。
+- ~~任务 10：消息渲染收敛到 `UIMessage.parts[]`~~ ✅ **已完成**
+  `PartsRenderer` 从 `PartsContext`（`partsMap`）直读 `CherryMessagePart[]`，按 `type` 路由到 `MainTextBlock`、`ThinkingBlock`、`ImageBlock`、`ToolBlock` 等组件。`adaptedMessages.blocks` 始终为空数组，渲染层不读取 blocks。
 
 - ~~任务 11：把主聊天入口的双轨开关清理掉~~ ✅ **已完成**
   `Chat.tsx` 无条件渲染 `V2ChatContent`，无 `USE_V2_CHAT` 开关。
 
-- 任务 12：明确 assistant store 的边界 ✅ **基本完成**
+- ~~任务 12：明确 assistant store 的边界~~ ✅ **已完成**
   assistant / topic / model / settings 作为配置来源；不再承载消息生命周期。
 
 - 任务 13：主聊天回归验证补齐
   涉及文件：`src/renderer/src/transport/__tests__/IpcChatTransport.test.ts`、主聊天相关测试文件
   说明：重点补”发送 → 流式回复 → Main 持久化 → DataApi 刷新 → 切 topic / 重挂载后恢复”的链路验证。
 
-- **新增 任务 14：删除 `src/renderer/src/aiCore/` 目录（63 个文件）**
-  说明：整个目录不再被 V2 主聊天链路引用，是 legacy dead code。待确认 Agent 侧也无依赖后可安全删除。
+- ~~任务 14：删除 `useLightweightAssistantFlow`~~ ✅ **已完成**
+  文件已删除。快捷助手和划词助手已直接使用 `useChat`。
 
-#### 7.3.4 助手侧收尾判定（2026-04-13 更新）
+- **新增 任务 15：清理 `src/renderer/src/aiCore/` 目录（55 个文件）**
+  说明：V2 聊天链路（主聊天 + 快捷助手 + 划词助手 + Agent）均不再依赖此目录。但仍有非聊天功能引用（`ApiService`、`KnowledgeService`、Paintings 页面、`CodeCliPage`、`ProviderSetting`、工具渲染组件 type imports）。需等 Main 侧 API 迁移完成后统一清理。详见 4.6 节。
+
+- **新增 任务 16：清理 `src/renderer/src/services/messageStreaming/` 目录（12 个文件）**
+  说明：V2 链路不再使用。仍被 `messageThunk`、`ApiService`、`KnowledgeService` 引用。需等这些旧 AI 调用迁移到 Main IPC 后清理。
+
+#### 7.3.4 助手侧收尾判定（2026-04-14 更新）
 
 | 判定条件 | 状态 |
 |---|---|
-| `Chat.tsx` / `V2ChatContent.tsx` 直接使用官方 `useChat` | ✅ 已完成 |
+| `Chat.tsx` / `V2ChatContent.tsx` 使用官方 `useChat`（通过 `useChatWithHistory` 封装） | ✅ 已完成 |
 | 助手侧不再依赖 `useChatSession` | ✅ 已删除 |
 | `ChatSessionManager` 已删除 | ✅ 已删除 |
 | Inputbar 不再回退到旧 `messageThunk` | ✅ 已完成 |
 | topic 列表不再依赖 `chatSessionManager.getSnapshot()` | ✅ 已完成 |
-| 历史消息与活跃流明确分离 | ✅ 已完成 |
-| 消息渲染主链是 `UIMessage.parts[]` | ⚠️ 进行中（`partsMap` 适配层仍存在） |
-| `src/renderer/src/aiCore/` 已删除 | ❌ 待删除（63 个文件） |
+| 历史消息与活跃流明确分离 | ✅ 已完成（`useChatWithHistory` 内合并） |
+| 消息渲染主链是 `UIMessage.parts[]` | ✅ 已完成（`PartsRenderer` 从 `PartsContext` 直读 parts，`blocks` 始终为空） |
+| `src/renderer/src/aiCore/` 已删除 | ❌ 待清理（55 个文件，聊天链路无依赖，非聊天功能仍引用） |
 
 ### 7.4 快捷助手
 
 快捷助手属于普通聊天轻量入口，按 migration 文档并入 `Phase 3`，不单独定义新链路。
 
-#### 7.4.1 现在情况（2026-04-13 更新）
+#### 7.4.1 现在情况（2026-04-14 更新）
+
+> **快捷助手已完成 v2 迁移。** `useLightweightAssistantFlow` 已被删除，`HomeWindow` 直接使用 `useChat`。
 
 - `src/renderer/src/hooks/useLightweightAssistantFlow.ts`
-  ✅ 已直接使用 `useChat<CherryUIMessage>({ transport: ipcChatTransport })`，不再依赖 `useAiChat()`。
-- `src/renderer/src/hooks/useLightweightAssistantFlow.ts`
-  通过 `sendMessage(..., { body })` 注入参数，方向正确。仍产出 `adaptedMessages` 和 `partsMap` 适配结果用于 mini window 渲染，需后续收敛。
+  ✅ **已删除。** 不再存在于代码库中。
 - `src/renderer/src/windows/mini/home/HomeWindow.tsx`
-  mini window 主页面通过 `getDefaultTopic(currentAssistant.id)` 生成 topic，并把 `topic.id` 同时作为 `chatId` / `topicId` 传给 `useLightweightAssistantFlow()`；发送时调用 `run({ assistant, prompt, reset: false })`，返回首页时调用 `clear()`，说明当前快捷助手仍用本地路由状态去管理一段独立对话生命周期。
-- `src/renderer/src/windows/mini/home/HomeWindow.tsx`
-  这里同时维护 `home / chat / translate / summary / explanation` 路由和剪贴板拼接逻辑；这部分是 UI 入口职责，可以保留，但不应该继续扩展为 mini window 专用消息生命周期。
-- `src/renderer/src/windows/mini/chat/ChatWindow.tsx` 与 `src/renderer/src/windows/mini/chat/components/Messages.tsx`
-  当前渲染入口仍要求上层传入 `Message[]` 和 `partsMap`，并通过 `PartsProvider` + 自定义 `MessageItem` 渲染；这说明快捷助手虽然已经能消费 parts，但还没有收敛到直接以 `UIMessage.parts[]` 为中心的统一渲染主链。
+  ✅ **已完成。** 直接使用 `useChat<CherryUIMessage>({ id: topic.id, transport: ipcChatTransport, experimental_throttle: 50 })`。通过 `useMemo` 从 `chatMessages` 生成 `partsMap` 和 `adaptedMessages`（`blocks: []` 始终为空）。发送通过 `sendMessage({ text }, { body: { ... } })` 注入参数。`clear()` 仅做 UI 重置（`setMessages([])`）。路由和剪贴板拼接逻辑保持为 UI 入口职责。
+- `src/renderer/src/windows/mini/chat/ChatWindow.tsx`
+  ✅ **已完成。** 简单 pass-through 组件，接收 `messages: Message[]` 和 `partsMap`，委托给 `Messages` 组件。
+- `src/renderer/src/windows/mini/chat/components/Messages.tsx`
+  ✅ **已完成。** 使用 `PartsProvider value={partsMap}` 包裹消息列表，与主聊天共享同一套 parts 渲染管线。
 - `src/renderer/src/pages/settings/QuickAssistantSettings.tsx`
-  设置页当前只处理 `feature.quick_assistant.*` 偏好和 `quickAssistantId` 选择，并把 `HomeWindow` 作为预览嵌入；这部分边界是对的，后续应继续保持为“配置页”，而不是介入消息状态和完成态。
+  ✅ 设置页只处理偏好配置，不介入消息状态。
 
 #### 7.4.2 代码位置
 
@@ -577,74 +585,68 @@ Renderer 侧要求：
 - 快捷助手设置
   `src/renderer/src/pages/settings/QuickAssistantSettings.tsx`
 
-#### 7.4.3 后续任务
+#### 7.4.3 后续任务（2026-04-14 更新）
 
-- 任务 1：让快捷助手运行时直接落到统一 `useChat`
-  涉及文件：`src/renderer/src/hooks/useLightweightAssistantFlow.ts`
-  说明：去掉对 `useAiChat()` 的直接依赖，改成围绕官方 `useChat({ id, transport })` 组织轻量入口；快捷助手不再继承主聊天旧过渡层的 `onFinish` / `setMessages()` 语义。
+> 任务 1-7 已全部完成。
 
-- 任务 2：把轻量运行时缩减成“调用点 helper”，不再做消息生命周期主控
-  涉及文件：`src/renderer/src/hooks/useLightweightAssistantFlow.ts`
-  说明：保留 prompt 拼接、assistant 运行时参数整理、错误映射这类 helper 职责；删除它对消息数组、完成态、暂停态的主控地位，避免 mini window 自己再长成第二套聊天管理器。
+- ~~任务 1：让快捷助手运行时直接落到统一 `useChat`~~ ✅ **已完成**
+  `useLightweightAssistantFlow` 已删除，`HomeWindow` 直接使用 `useChat<CherryUIMessage>({ id: topic.id, transport: ipcChatTransport })`。
 
-- 任务 3：统一 mini window 的发送语义
-  涉及文件：`src/renderer/src/windows/mini/home/HomeWindow.tsx`
-  说明：`home / chat / translate / summary / explanation` 等路由都应复用同一条 `sendMessage(..., { body })` 语义，只在调用点组织 prompt / body，不单独发明 mini window 专用 transport、chunk 协议或完成态规则。
+- ~~任务 2：把轻量运行时缩减成”调用点 helper”，不再做消息生命周期主控~~ ✅ **已完成**
+  `useLightweightAssistantFlow` 已删除。`HomeWindow` 只在组件内做 prompt 拼接和参数整理，消息生命周期由 `useChat` 管理。
 
-- 任务 4：把快捷助手的本地“清空会话”缩减为 UI 行为
-  涉及文件：`src/renderer/src/windows/mini/home/HomeWindow.tsx`
-  说明：返回首页、重置输入框、切换 feature 菜单可以继续保留；但 `clear()` 不应再承担“裁决最终消息状态 / 重新初始化对话链”的职责，真实消息状态以后端持久化和统一活跃流为准。
+- ~~任务 3：统一 mini window 的发送语义~~ ✅ **已完成**
+  所有路由复用 `sendMessage({ text }, { body })` 语义。
 
-- 任务 5：把消息渲染从 `Message[] + partsMap` 收敛到 `UIMessage.parts[]`
-  涉及文件：`src/renderer/src/windows/mini/chat/ChatWindow.tsx`、`src/renderer/src/windows/mini/chat/components/*`
-  说明：删除 mini chat 对 legacy `Message` 适配结果的依赖，逐步改成和主聊天共用同一套 parts / DataUIPart 渲染逻辑。
+- ~~任务 4：把快捷助手的本地”清空会话”缩减为 UI 行为~~ ✅ **已完成**
+  `clear()` 仅调用 `setMessages([])`，是 UI 重置行为。
 
-- 任务 6：消除快捷助手对 legacy `adaptedMessages` 的依赖
-  涉及文件：`src/renderer/src/hooks/useLightweightAssistantFlow.ts`、`src/renderer/src/windows/mini/home/HomeWindow.tsx`
-  说明：当前 `isOutputted`、消息展示和状态推断都仍围绕 `adaptedMessages`；后续应改成直接从 `UIMessage` / `parts` 派生，不再维持 mini window 专用消息模型。
+- ~~任务 5：把消息渲染从 `Message[] + partsMap` 收敛到 `UIMessage.parts[]`~~ ✅ **已完成**
+  mini chat 使用 `PartsProvider value={partsMap}` 共享主聊天的 parts 渲染管线。`adaptedMessages.blocks` 始终为空。
 
-- 任务 7：把停止 / 错误 / 重连能力统一到 broker transport
-  涉及文件：`src/renderer/src/hooks/useLightweightAssistantFlow.ts`、`src/renderer/src/windows/mini/home/HomeWindow.tsx`
-  说明：`stop()`、错误态、窗口关闭再打开后的恢复都应复用 migration 文档的 broker attach / detach / reconnect 语义，而不是让快捷助手维持自己的流状态解释。
+- ~~任务 6：消除快捷助手对 legacy `adaptedMessages` 的依赖~~ ✅ **已完成**
+  `adaptedMessages` 仅提供 `id`、`role`、`status` 等元数据，渲染通过 `partsMap` 驱动。`isOutputted` 从 `chatMessages` 长度判断。
 
-- 任务 8：保持设置页纯配置边界
-  涉及文件：`src/renderer/src/pages/settings/QuickAssistantSettings.tsx`
-  说明：`feature.quick_assistant.enabled`、`click_tray_to_show`、`read_clipboard_at_startup`、`quickAssistantId` 继续只是偏好配置；设置页不新增消息缓存、会话状态、完成态策略等运行时职责。
+- ~~任务 7：把停止 / 错误 / 重连能力统一到 broker transport~~ ✅ **已完成**
+  `stop()` 来自 `useChat`，错误通过 `onError` 回调处理，transport 统一使用 `ipcChatTransport`。
+
+- ~~任务 8：保持设置页纯配置边界~~ ✅ **已完成**
+  `QuickAssistantSettings` 只处理偏好配置。
 
 - 任务 9：对齐快捷助手的回归验证
   涉及文件：mini window 相关测试文件
-  说明：至少覆盖“打开快捷助手 → 发送 → 流式回复 → 停止 → 关闭重开 → 配置变更后仍走统一 transport”这条主链，确认它只是普通聊天的轻量入口。
+  说明：至少覆盖”打开快捷助手 → 发送 → 流式回复 → 停止 → 关闭重开 → 配置变更后仍走统一 transport”这条主链，确认它只是普通聊天的轻量入口。
 
-#### 7.4.4 快捷助手收尾判定（2026-04-13 更新）
+#### 7.4.4 快捷助手收尾判定（2026-04-14 更新）
 
 | 判定条件 | 状态 |
 |---|---|
-| 快捷助手不再直接依赖 `useAiChat` | ✅ 已完成（直接使用 `useChat`）|
+| 快捷助手直接使用 `useChat`（`useLightweightAssistantFlow` 已删除） | ✅ 已完成 |
 | mini window 发送、停止、恢复与主聊天共用同一条 `useChat + transport` 主链 | ✅ 已完成 |
-| mini chat 不再以 `Message[] + partsMap` 作为主渲染协议 | ⚠️ 进行中（`partsMap` 适配层仍存在）|
-| `QuickAssistantSettings` 仍然只是配置页 | ✅ |
+| mini chat 渲染通过 `PartsProvider` + `partsMap` 驱动（`blocks` 始终为空） | ✅ 已完成 |
+| `QuickAssistantSettings` 仍然只是配置页 | ✅ 已完成 |
 | 快捷助手没有独立 transport、独立 chunk 协议、独立完成态语义 | ✅ 已完成 |
 
 ### 7.5 划词助手
 
 划词助手属于普通聊天触发入口，按 migration 文档并入 `Phase 3`。
 
-#### 7.5.1 现在情况
+#### 7.5.1 现在情况（2026-04-14 更新）
+
+> **划词助手已完成 v2 迁移。** `useLightweightAssistantFlow` 已被删除，`ActionGeneral` 和 `ActionTranslate` 直接使用 `useChat`。
 
 - `src/renderer/src/windows/selection/toolbar/SelectionToolbar.tsx`
-  toolbar 当前主要负责监听 `Selection_TextSelected` / `Selection_ToolbarVisibilityChange`、读取偏好、展示 action buttons、处理复制和搜索等动作；这部分基本还是触发层定位，是符合 migration 文档预期的。
+  ✅ **纯触发层。** 监听 `Selection_TextSelected` / `Selection_ToolbarVisibilityChange`、读取偏好、展示 action buttons。无聊天功能。
 - `src/renderer/src/windows/selection/action/SelectionActionApp.tsx`
-  action window 负责接收 `Selection_UpdateActionData`、处理窗口钉住、自动关闭、透明度、滚动和标题栏；它本身不是 AI 执行层，但现在仍包着划词结果展示的整段生命周期。
+  ✅ **容器壳。** 接收 `Selection_UpdateActionData`、管理窗口钉住/自动关闭/透明度/滚动。按 action type 路由到 `ActionGeneral` 或 `ActionTranslate`，自身不包含 AI 执行逻辑。
 - `src/renderer/src/windows/selection/action/components/ActionGeneral.tsx`
-  总结 / 解释 / 润色等动作当前直接使用 `useLightweightAssistantFlow()`，并在挂载后自动 `run()`；topic 仍通过 `getDefaultTopic(activeAssistant.id)` 生成，说明划词通用动作仍复用了快捷助手那套轻量运行时。
-- `src/renderer/src/windows/selection/action/components/ActionGeneral.tsx`
-  结果展示已经接到 `PartsProvider + MessageContent`，这说明划词结果渲染已经部分走上了 parts 方向；但它仍依赖 `useLightweightAssistantFlow` 提供的 `partsMap` 和 latest message，而不是直接落在统一 `useChat` 主链上。
+  ✅ **已完成。** 直接使用 `useChat<CherryUIMessage>({ id: activeTopic.id, transport: ipcChatTransport, experimental_throttle: 50 })`。通过 `useMemo` 从 `chatMessages` 生成 `partsMap` 和 `latestAssistantMessage`。挂载后通过 `useEffect([fetchResult])` 自动执行。渲染使用 `PartsProvider value={partsMap}` + `MessageContent`。
 - `src/renderer/src/windows/selection/action/components/ActionTranslate.tsx`
-  翻译动作除了 `useLightweightAssistantFlow()` 之外，还在 Renderer 做了语言检测、双向语言偏好读取、目标语言决策、`getDefaultTranslateAssistant()` 初始化和 `clear()` 重跑；这些前处理可以保留在调用点，但执行链本身不应该继续是 selection 专用变体。
+  ✅ **已完成。** 直接使用 `useChat<CherryUIMessage>({ id: activeTopic?.id ?? 'selection-translate', transport: ipcChatTransport })`。保留了语言检测、双向语言偏好、目标语言决策等前处理逻辑（在调用点完成），执行链走统一 `useChat`。渲染使用 `PartsProvider value={partsMap}` + `MessageContent`。
 - `src/renderer/src/pages/settings/SelectionAssistantSettings/SelectionAssistantSettings.tsx`
-  设置页当前基本都在 `usePreference()` 上，负责 trigger mode、compact mode、auto close、auto pin、action items、filter list 等配置；这部分边界也是对的，后续应继续保持为偏好层。
+  ✅ 设置页使用 `usePreference()`，只承载偏好配置。
 - `src/renderer/src/store/selectionStore.ts`
-  这个 store 已标记为 `@deprecated` / `STOP`，当前只剩占位 reducer；它不应该再被拉回运行时主链，selection 配置应继续留在 Preference，消息执行应进入统一 transport。
+  ✅ **已 deprecated。** 所有 reducer action 已注释，仅剩 `setPlaceholder`。不承担运行时职责。
 
 #### 7.5.2 代码位置
 
@@ -663,54 +665,48 @@ Renderer 侧要求：
 - legacy store
   `src/renderer/src/store/selectionStore.ts`
 
-#### 7.5.3 后续任务
+#### 7.5.3 后续任务（2026-04-14 更新）
 
-- 任务 1：保持 toolbar 为纯触发层
-  涉及文件：`src/renderer/src/windows/selection/toolbar/SelectionToolbar.tsx`
-  说明：toolbar 继续只负责拿到选中文本、选择动作、调起 action window；不要往这里继续塞流状态、消息缓存或 selection 专用执行逻辑。
+> 任务 1-8 已全部完成。
 
-- 任务 2：让 action window 的执行链直接并入统一 `useChat`
-  涉及文件：`src/renderer/src/windows/selection/action/components/ActionGeneral.tsx`、`src/renderer/src/windows/selection/action/components/ActionTranslate.tsx`
-  说明：去掉对 `useLightweightAssistantFlow()` 过渡层的依赖，让 general / translate 两类 action 都直接站在统一 `useChat + transport` 上，只在调用点组装 prompt 和 body。
+- ~~任务 1：保持 toolbar 为纯触发层~~ ✅ **已完成**
+  toolbar 只负责选中文本、选择动作、调起 action window。
+
+- ~~任务 2：让 action window 的执行链直接并入统一 `useChat`~~ ✅ **已完成**
+  `ActionGeneral` 和 `ActionTranslate` 直接使用 `useChat<CherryUIMessage>({ id, transport: ipcChatTransport })`。`useLightweightAssistantFlow` 已删除。
 
 - 任务 3：统一划词动作的 topic / chat 标识
-  涉及文件：`src/renderer/src/windows/selection/action/components/ActionGeneral.tsx`、`src/renderer/src/windows/selection/action/components/ActionTranslate.tsx`
-  说明：当前 general action 使用 `getDefaultTopic(activeAssistant.id)`，translate action 还存在 `'selection-translate'` fallback；后续需要明确统一 topicId 约定，避免 selection 模块继续维护自己的哨兵 ID 和专用会话语义。
+  说明：`ActionGeneral` 使用 `activeTopic.id`，`ActionTranslate` 使用 `activeTopic?.id ?? 'selection-translate'` 作为 fallback。翻译的哨兵 ID 仍存在，后续可考虑统一。**低优先级**——不影响功能正确性。
 
-- 任务 4：把翻译前处理留在调用点，把执行链收回统一主链
-  涉及文件：`src/renderer/src/windows/selection/action/components/ActionTranslate.tsx`
-  说明：语言检测、目标语言选择、双向语言偏好可以继续在 Renderer 调用点完成；但 `run / stop / clear / error / reconnect` 的消息执行语义必须与普通聊天一致，不能继续由 selection 模块自行解释。
+- ~~任务 4：把翻译前处理留在调用点，把执行链收回统一主链~~ ✅ **已完成**
+  语言检测、双向语言偏好在 `ActionTranslate` 调用点完成，执行链走统一 `useChat`。
 
-- 任务 5：把结果渲染继续收敛到统一 parts / DataUIPart
-  涉及文件：`src/renderer/src/windows/selection/action/components/ActionGeneral.tsx`、`src/renderer/src/windows/selection/action/components/ActionTranslate.tsx`
-  说明：当前已经用了 `MessageContent`，这是正确方向；后续要继续去掉对 `partsMap` 适配结果的依赖，让划词窗口直接消费统一消息 parts。
+- ~~任务 5：把结果渲染收敛到统一 parts / DataUIPart~~ ✅ **已完成**
+  两个 action 组件都使用 `PartsProvider value={partsMap}` + `MessageContent` 渲染。
 
-- 任务 6：把 footer 的暂停 / 重试语义并入统一 transport
-  涉及文件：`src/renderer/src/windows/selection/action/components/WindowFooter.tsx`、`ActionGeneral.tsx`、`ActionTranslate.tsx`
-  说明：暂停、重新生成、复制结果等操作应复用统一 `useChat` / broker 的 abort 与重发语义，不再保留 selection 自己的一套停止解释。
+- ~~任务 6：把 footer 的暂停 / 重试语义并入统一 transport~~ ✅ **已完成**
+  `handlePause()` 调用 `stopChat()`（来自 `useChat`），`handleRegenerate()` 重新调用 `fetchResult()`。
 
-- 任务 7：保持设置页只承载偏好和动作配置
-  涉及文件：`src/renderer/src/pages/settings/SelectionAssistantSettings/*`
-  说明：`trigger_mode`、`compact`、`auto_close`、`auto_pin`、`follow_toolbar`、`action_items`、`filter_list` 等继续是 Preference；不要把 selection 的消息最终状态、活跃流状态塞回设置层。
+- ~~任务 7：保持设置页只承载偏好和动作配置~~ ✅ **已完成**
 
-- 任务 8：明确 `selectionStore` 的退场边界
-  涉及文件：`src/renderer/src/store/selectionStore.ts`
-  说明：这个 store 已经是迁移遗留；后续不恢复其运行时职责，必要时只做删除或最后的兼容收尾。
+- ~~任务 8：明确 `selectionStore` 的退场边界~~ ✅ **已完成**
+  所有 reducer action 已注释，仅剩占位。不承担运行时职责。
 
 - 任务 9：对齐划词助手回归验证
   涉及文件：selection 相关测试文件
-  说明：至少覆盖“选中文本 → 打开 toolbar → 触发 general / translate → 流式回复 → 暂停 / 重试 → 关闭重开”这条链路，确认划词只是普通聊天的触发入口。
+  说明：至少覆盖”选中文本 → 打开 toolbar → 触发 general / translate → 流式回复 → 暂停 / 重试 → 关闭重开”这条链路。
 
-#### 7.5.4 划词助手收尾判定
+#### 7.5.4 划词助手收尾判定（2026-04-14 更新）
 
-当划词助手完成收尾后，应满足以下状态：
-
-- toolbar 仍然只是触发层
-- action window 不再依赖 `useLightweightAssistantFlow`
-- general / translate 都走统一 `useChat + transport`
-- 划词模块不再维护专用 topic 哨兵 ID、专用消息协议、专用完成态语义
-- `SelectionAssistantSettings` 仍然只是偏好配置页
-- `selectionStore` 不再承担任何运行时主链职责
+| 判定条件 | 状态 |
+|---|---|
+| toolbar 仍然只是触发层 | ✅ 已完成 |
+| action window 不再依赖 `useLightweightAssistantFlow` | ✅ 已完成（已删除） |
+| general / translate 都走统一 `useChat + transport` | ✅ 已完成 |
+| 划词模块不再维护专用消息协议、专用完成态语义 | ✅ 已完成 |
+| `ActionTranslate` 的 `'selection-translate'` 哨兵 ID 已统一 | ⚠️ 低优先级（功能正确，仅 fallback ID 存在） |
+| `SelectionAssistantSettings` 仍然只是偏好配置页 | ✅ 已完成 |
+| `selectionStore` 不再承担任何运行时主链职责 | ✅ 已完成（deprecated，reducer 已清空） |
 
 ### 7.6 Agent 侧
 
@@ -848,21 +844,26 @@ Renderer 侧工作按以下顺序展开：
 4. 再把划词助手并入同一条 `Phase 3` 主线
 5. 最后处理 `Phase 4`：Agent 页面、Tool approval、旧 Agent 前端链路删除
 
-## 八、验收标准（2026-04-13 更新）
+## 八、验收标准（2026-04-14 更新）
 
 | 验收条件 | 状态 |
 |---|---|
-| 普通聊天直接使用官方 `useChat` | ✅ |
+| 普通聊天使用官方 `useChat`（通过 `useChatWithHistory` 封装） | ✅ |
+| 快捷助手直接使用 `useChat`（`useLightweightAssistantFlow` 已删除） | ✅ |
+| 划词助手直接使用 `useChat`（`ActionGeneral` / `ActionTranslate`） | ✅ |
+| Agent 页面使用 `useChatWithHistory`（`useAgentSessionParts` 提供历史） | ✅ |
 | `IpcChatTransport.reconnectToStream()` 通过 `Ai_Stream_Attach` 工作 | ✅ |
-| 历史消息来自 DataApi，活跃流来自 `useChat` | ✅ |
+| 历史消息来自 DataApi / IPC，活跃流来自 `useChat` | ✅ |
 | Renderer 调用点不再配置 `onFinish` | ✅ |
-| `ChatSessionManager` / `useChatSession` 不再是目标方案组成部分 | ✅ 已删除 |
-| 消息渲染主链是 `UIMessage.parts[]` | ⚠️ 进行中（`partsMap` 适配层待收敛）|
-| Agent 页面不再保留独立 SSE / parser / datasource | ❌ Phase 4 |
-| 旧 approval hooks / 组件已删除 | ❌ Phase 4 |
-| `useChat` 调用点已接入 `sendAutomaticallyWhen` | ❌ Phase 4 |
-| tool approval 使用 AI SDK 原生 ToolUIPart | ❌ Phase 4 |
-| Agent 步骤进度通过 `Ai_AgentStepProgress` 推送 | ❌ Phase 4 |
-| `src/renderer/src/aiCore/` 已删除 | ❌ 待清理 |
+| `ChatSessionManager` / `useChatSession` / `useLightweightAssistantFlow` 已删除 | ✅ |
+| 消息渲染主链是 `UIMessage.parts[]`（`PartsRenderer` 从 `PartsContext` 直读） | ✅ |
+| Agent 页面不再保留独立 SSE / parser / datasource | ✅（`AgentMessageDataSource` 已删除，`useSessionStream` 已废弃） |
+| 旧 approval hooks / 组件已删除 | ❌ 未开始（仍走 Redux `toolPermissions` + IPC `respondToPermission`） |
+| `useChat` 调用点已接入 `sendAutomaticallyWhen` | ❌ 未开始 |
+| tool approval 使用 AI SDK 原生 ToolUIPart | ❌ 未开始 |
+| Agent 步骤进度通过 `Ai_AgentStepProgress` 推送 | ❌ 未开始 |
+| `src/renderer/src/aiCore/` 已删除 | ❌ 待清理（聊天链路无依赖，非聊天功能仍引用） |
+| `src/renderer/src/services/messageStreaming/` 已删除 | ❌ 待清理（`messageThunk` 等仍引用） |
+| `useSessionStream.ts` 已删除 | ❌ 待清理（文件存在但已是死代码） |
 
 ---
