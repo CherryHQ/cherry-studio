@@ -1,9 +1,10 @@
 import { loggerService } from '@logger'
 import { messageService } from '@main/data/services/MessageService'
-import type { MessageStats, ModelSnapshot } from '@shared/data/types/message'
+import type { MessageData, MessageStats, ModelSnapshot } from '@shared/data/types/message'
 import type { SerializedError } from '@shared/types/error'
+import type { UIMessage } from 'ai'
 
-import type { CherryUIMessage, StreamDoneResult, StreamListener } from '../types'
+import type { StreamDoneResult, StreamListener } from '../types'
 
 const logger = loggerService.withContext('PersistenceListener')
 
@@ -25,7 +26,7 @@ export interface PersistenceListenerOptions {
    * Optional post-persist hook. Runs only on `status === 'success'`.
    * Failures are caught and warned, never propagated.
    */
-  afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
+  afterPersist?: (finalMessage: UIMessage) => Promise<void>
 }
 
 /**
@@ -86,8 +87,13 @@ export class PersistenceListener implements StreamListener {
     }
   }
 
-  async onError(error: SerializedError): Promise<void> {
+  async onError(error: SerializedError, partialMessage?: UIMessage): Promise<void> {
     try {
+      // Combine partial streamed content with error part
+      const partialParts = (partialMessage?.parts ?? []) as MessageData['parts']
+      const errorPart = { type: 'data-error' as const, data: { name: error.name, message: error.message } }
+      const parts = [...(partialParts ?? []), errorPart]
+
       await messageService.create(this.ctx.topicId, {
         role: 'assistant',
         parentId: this.ctx.parentUserMessageId,
@@ -95,10 +101,10 @@ export class PersistenceListener implements StreamListener {
         modelSnapshot: this.ctx.modelSnapshot,
         traceId: this.ctx.traceId,
         siblingsGroupId: this.ctx.siblingsGroupId,
-        data: { parts: [{ type: 'data-error', data: { name: error.name, message: error.message } }] },
+        data: { parts },
         status: 'error'
       })
-      logger.info('Error message persisted', { topicId: this.ctx.topicId })
+      logger.info('Error message persisted', { topicId: this.ctx.topicId, hasPartial: !!partialMessage })
     } catch (err) {
       logger.error('Failed to persist error message', { topicId: this.ctx.topicId, err })
     }

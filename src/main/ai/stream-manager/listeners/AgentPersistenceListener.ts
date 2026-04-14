@@ -59,26 +59,29 @@ export class AgentPersistenceListener implements StreamListener {
     }
   }
 
-  async onError(error: SerializedError): Promise<void> {
+  async onError(error: SerializedError, partialMessage?: UIMessage): Promise<void> {
     try {
       const now = new Date().toISOString()
+      const partialParts = (partialMessage?.parts ?? []) as CherryMessagePart[]
+      const errorPart = { type: 'data-error' as const, data: { name: error.name, message: error.message } }
+
       await agentMessageRepository.persistAssistantMessage({
         sessionId: this.ctx.sessionId,
         agentSessionId: this.ctx.agentSessionId ?? '',
         payload: {
           message: {
-            id: crypto.randomUUID(),
+            id: partialMessage?.id || crypto.randomUUID(),
             role: 'assistant',
             assistantId: this.ctx.agentId,
             topicId: `agent-session:${this.ctx.sessionId}`,
             createdAt: now,
             status: 'error',
-            data: { parts: [{ type: 'data-error', data: { name: error.name, message: error.message } }] }
+            data: { parts: [...partialParts, errorPart] }
           },
           blocks: []
         }
       })
-      logger.info('Agent error message persisted', { sessionId: this.ctx.sessionId })
+      logger.info('Agent error message persisted', { sessionId: this.ctx.sessionId, hasPartial: !!partialMessage })
     } catch (err) {
       logger.error('Failed to persist agent error message', { sessionId: this.ctx.sessionId, err })
     }

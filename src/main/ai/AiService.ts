@@ -74,11 +74,12 @@ export class AiService extends BaseService {
   async executeStream(target: StreamTarget, request: AiStreamRequest, signal: AbortSignal): Promise<void> {
     const requestId = request.chatId
 
+    let finalMessagePromise: Promise<CherryUIMessage | undefined> | undefined
     try {
       const [forChunks, forAccum] = this.completionService.streamText(request, signal).tee()
 
       // Background: accumulate final UIMessage via AI SDK's readUIMessageStream
-      const finalMessagePromise = this.consumeLastUIMessage(forAccum)
+      finalMessagePromise = this.consumeLastUIMessage(forAccum)
 
       // Main path: forward chunks to target
       const reader = forChunks.getReader()
@@ -96,6 +97,16 @@ export class AiService extends BaseService {
         target.send(IpcChannel.Ai_StreamDone, { requestId })
       }
     } catch (error) {
+      // Try to salvage partial message from the accumulator for persistence
+      if (finalMessagePromise) {
+        try {
+          const partial = await finalMessagePromise
+          if (partial) target.setFinalMessage?.(partial)
+        } catch {
+          // Accumulator also failed — no partial content to save
+        }
+      }
+
       if (signal.aborted) {
         logger.debug('Stream aborted', { requestId, reason: signal.reason })
       } else {

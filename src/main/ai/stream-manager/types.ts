@@ -1,7 +1,7 @@
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
-import type { UIMessageChunk } from 'ai'
+import type { UIMessage, UIMessageChunk } from 'ai'
 
 import type { PendingMessageQueue } from '../PendingMessageQueue'
 
@@ -70,8 +70,8 @@ export interface StreamListener {
   onChunk(chunk: UIMessageChunk): void
   /** Called when the stream ends (success or paused). */
   onDone(result: StreamDoneResult): void | Promise<void>
-  /** Called when the stream errors. */
-  onError(error: SerializedError): void | Promise<void>
+  /** Called when the stream errors. partialMessage contains content streamed before the error. */
+  onError(error: SerializedError, partialMessage?: UIMessage): void | Promise<void>
   /**
    * Liveness check. Returning `false` causes the listener to be immediately
    * removed from the listeners Map.

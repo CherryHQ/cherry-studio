@@ -278,10 +278,10 @@ export class AiStreamManager extends BaseService {
     exec.status = 'error'
     exec.error = error
 
-    // Broadcast error to listeners
+    // Broadcast error to listeners (include partial message if available)
     for (const [id, listener] of stream.listeners) {
       try {
-        await listener.onError(error)
+        await listener.onError(error, exec.finalMessage)
       } catch (err) {
         logger.warn('Listener onError threw', { topicId, listenerId: id, err })
       }
@@ -525,6 +525,13 @@ export class AiStreamManager extends BaseService {
     const aiService = application.get('AiService')
     void aiService
       .executeStream(target, request, exec.abortController.signal)
+      .then(async () => {
+        // Normal return after abort: signal was aborted but no error thrown.
+        // Persist partial content as 'paused' so it survives app restart.
+        if (exec.abortController.signal.aborted && exec.status === 'aborted') {
+          await this.onExecutionDone(topicId, modelId, 'paused')
+        }
+      })
       .catch((err: unknown) => this.onExecutionError(topicId, modelId, serializeError(err)))
 
     return exec
