@@ -11,6 +11,35 @@ vi.mock('@logger', () => ({
   }
 }))
 
+vi.mock('@renderer/services/AssistantService', () => ({
+  DEFAULT_ASSISTANT_SETTINGS: {},
+  getDefaultAssistant: vi.fn(() => ({
+    id: 'default',
+    name: 'Default',
+    emoji: '😀',
+    prompt: '',
+    topics: [],
+    messages: [],
+    type: 'assistant',
+    regularPhrases: [],
+    settings: {}
+  })),
+  getDefaultTopic: vi.fn(() => ({
+    id: 'topic',
+    assistantId: 'default',
+    createdAt: '',
+    updatedAt: '',
+    name: 'Topic',
+    messages: [],
+    isNameManuallyEdited: false
+  })),
+  getProviderByModel: vi.fn(() => ({
+    id: 'openai',
+    type: 'openai',
+    apiHost: 'https://api.openai.com'
+  }))
+}))
+
 import { FILE_TYPE } from '@renderer/types/file'
 
 import { convertFileBlockToFilePart } from '../fileProcessor'
