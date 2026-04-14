@@ -106,8 +106,8 @@ const MessageItem: FC<Props> = ({
   const handleEditResend = useCallback(
     async (parts: CherryMessagePart[]) => {
       try {
-        await resendUserMessageWithEditParts(message, parts)
         stopEditing()
+        await resendUserMessageWithEditParts(message, parts)
       } catch (error) {
         logger.error('Failed to resend message with parts:', error as Error)
       }

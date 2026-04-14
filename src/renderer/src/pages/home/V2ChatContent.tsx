@@ -150,9 +150,12 @@ const V2ChatContentInner: FC<InnerProps> = ({
     async (messageId: string, editedParts: CherryMessagePart[]) => {
       await dataApiService.patch(`/messages/${messageId}`, { body: { data: { parts: editedParts } } })
       logger.info('Edited message', { messageId, partCount: editedParts.length })
+      setMessages((msgs) =>
+        msgs.map((m) => (m.id === messageId ? { ...m, parts: editedParts as CherryUIMessage['parts'] } : m))
+      )
       await refresh()
     },
-    [refresh]
+    [refresh, setMessages]
   )
 
   /** Synchronous capability flags derived from assistant config. */
