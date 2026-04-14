@@ -109,7 +109,11 @@ export class AiCompletionService {
     const writer = writable.getWriter()
 
     this.resolveAndStream(request, signal, writer).catch(async (error) => {
-      logger.error('streamText failed', { error })
+      if (signal.aborted) {
+        logger.debug('streamText aborted', { chatId: request.chatId, reason: signal.reason })
+      } else {
+        logger.error('streamText failed', { error })
+      }
       await writer.abort(error).catch(() => {})
     })
 

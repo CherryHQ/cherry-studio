@@ -96,7 +96,11 @@ export class AiService extends BaseService {
         target.send(IpcChannel.Ai_StreamDone, { requestId })
       }
     } catch (error) {
-      logger.error('Stream error', { requestId, error })
+      if (signal.aborted) {
+        logger.debug('Stream aborted', { requestId, reason: signal.reason })
+      } else {
+        logger.error('Stream error', { requestId, error })
+      }
       if (!target.isDestroyed()) {
         target.send(IpcChannel.Ai_StreamError, {
           requestId,
