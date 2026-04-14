@@ -1,3 +1,5 @@
+import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
+import { cn } from '@renderer/utils'
 import { Search } from 'lucide-react'
 import React, { useCallback, useEffect, useRef } from 'react'
 
@@ -57,6 +59,7 @@ export function Sidebar({
   onCloseDockedTab,
   onDismiss
 }: SidebarProps) {
+  const isMacTransparentWindow = useMacTransparentWindow()
   const { sidebarRef, startResizing } = useSidebarResize(setWidth)
   const hoverTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
   const layout = getSidebarLayout(width)
@@ -160,7 +163,10 @@ export function Sidebar({
     <div
       ref={sidebarRef}
       style={{ width: actualWidth }}
-      className="group/sidebar relative z-20 flex h-full flex-shrink-0 select-none flex-col bg-sidebar">
+      className={cn(
+        'group/sidebar relative z-20 flex h-full flex-shrink-0 select-none flex-col',
+        isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
+      )}>
       {/* Header */}
       <div
         className={`flex flex-shrink-0 items-center [-webkit-app-region:drag] ${layout === 'full' ? 'h-14 gap-2.5 px-4' : 'h-14 justify-center'}`}>

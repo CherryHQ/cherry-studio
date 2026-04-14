@@ -1,5 +1,7 @@
 import '@renderer/databases'
 
+import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
+import { cn } from '@renderer/utils'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { Activity } from 'react'
 
@@ -19,6 +21,7 @@ const WebviewContainer = ({ url, isActive }: { url: string; isActive: boolean })
 )
 
 export const AppShell = () => {
+  const isMacTransparentWindow = useMacTransparentWindow()
   const { tabs, activeTabId, setActiveTab, closeTab, updateTab, addTab, reorderTabs, pinTab, unpinTab } = useTabs()
 
   // Sync internal navigation back to tab state with default title
@@ -27,7 +30,11 @@ export const AppShell = () => {
   }
 
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden bg-sidebar text-foreground">
+    <div
+      className={cn(
+        'flex h-screen w-screen flex-col overflow-hidden text-foreground',
+        isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
+      )}>
       {/* Zone 1: Tab Bar (spans full width) */}
       <AppShellTabBar
         tabs={tabs}

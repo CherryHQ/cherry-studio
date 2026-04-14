@@ -1,5 +1,6 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { isMac } from '@renderer/config/constant'
+import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { cn, uuid } from '@renderer/utils'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { Home, Plus, X } from 'lucide-react'
@@ -209,6 +210,7 @@ export const AppShellTabBar = ({
   isDetached = false
 }: AppShellTabBarProps) => {
   const { t } = useTranslation()
+  const isMacTransparentWindow = useMacTransparentWindow()
   const { rightPaddingClass } = useShellTabBarLayout(isDetached)
 
   const { homeTab, pinnedTabs, normalTabs } = useMemo(() => {
@@ -300,7 +302,8 @@ export const AppShellTabBar = ({
       <header
         ref={tabBarRef}
         className={cn(
-          'relative flex h-11 w-full select-none items-center gap-1 bg-sidebar [-webkit-app-region:drag]',
+          'relative flex h-11 w-full select-none items-center gap-1 [-webkit-app-region:drag]',
+          isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar',
           rightPaddingClass,
           isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-3'
         )}>
