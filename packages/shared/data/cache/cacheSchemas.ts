@@ -172,6 +172,7 @@ export type UseCacheSchema = {
   'topic.stream.loading.${topicId}': boolean
   'topic.stream.fulfilled.${topicId}': boolean
   'topic.stream.active_count': number
+  'message.ui.${messageId}': { foldSelected?: boolean; multiModelMessageStyle?: string; useful?: boolean }
 }
 
 export const DefaultUseCache: UseCacheSchema = {
@@ -236,7 +237,8 @@ export const DefaultUseCache: UseCacheSchema = {
   'message.streaming.chat_session.${topicId}': null,
   'topic.stream.loading.${topicId}': false,
   'topic.stream.fulfilled.${topicId}': false,
-  'topic.stream.active_count': 0
+  'topic.stream.active_count': 0,
+  'message.ui.${messageId}': {}
 }
 
 /**

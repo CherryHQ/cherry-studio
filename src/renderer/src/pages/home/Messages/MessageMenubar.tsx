@@ -1,5 +1,6 @@
 // import { InfoCircleOutlined } from '@ant-design/icons'
 import { Tooltip } from '@cherrystudio/ui'
+import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -790,14 +791,12 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
       return null
     }
 
+    const isUseful = (cacheService.get(`message.ui.${message.id}` as const) as { useful?: boolean } | null)?.useful
+
     return (
       <Tooltip content={t('chat.message.useful.label')} delay={800}>
         <ActionButton className="message-action-button" onClick={onUseful} $softHoverBg={softHoverBg}>
-          {message.useful ? (
-            <ThumbsUp size={17.5} fill="var(--color-primary)" strokeWidth={0} />
-          ) : (
-            <ThumbsUp size={15} />
-          )}
+          {isUseful ? <ThumbsUp size={17.5} fill="var(--color-primary)" strokeWidth={0} /> : <ThumbsUp size={15} />}
         </ActionButton>
       </Tooltip>
     )

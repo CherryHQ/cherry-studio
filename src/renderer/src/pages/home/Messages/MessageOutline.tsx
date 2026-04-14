@@ -1,3 +1,4 @@
+import { cacheService } from '@data/CacheService'
 import Scrollbar from '@renderer/components/Scrollbar'
 import type { Message } from '@renderer/types/newMessage'
 import { scrollIntoView } from '@renderer/utils/dom'
@@ -83,14 +84,18 @@ const MessageOutline: FC<MessageOutlineProps> = ({ message }) => {
     if (messageContentContainer) {
       const headingElement = messageContentContainer.querySelector<HTMLElement>(`#${id}`)
       if (headingElement) {
-        const scrollBlock = ['horizontal', 'grid'].includes(message.multiModelMessageStyle ?? '') ? 'nearest' : 'start'
+        const msgStyle = (
+          cacheService.get(`message.ui.${message.id}` as const) as { multiModelMessageStyle?: string } | null
+        )?.multiModelMessageStyle
+        const scrollBlock = ['horizontal', 'grid'].includes(msgStyle ?? '') ? 'nearest' : 'start'
         scrollIntoView(headingElement, { behavior: 'smooth', block: scrollBlock, container: 'nearest' })
       }
     }
   }
 
   // 暂时不支持 grid，因为在锚点滚动时会导致渲染错位
-  if (message.multiModelMessageStyle === 'grid' || !headings.length) return null
+  const outlineUi = cacheService.get(`message.ui.${message.id}` as const) as { multiModelMessageStyle?: string } | null
+  if (outlineUi?.multiModelMessageStyle === 'grid' || !headings.length) return null
 
   return (
     <div

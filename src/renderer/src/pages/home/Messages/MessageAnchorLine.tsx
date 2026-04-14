@@ -1,4 +1,5 @@
 import { Avatar, AvatarImage, EmojiAvatar } from '@cherrystudio/ui'
+import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { APP_NAME, AppLogo, isLocalAi } from '@renderer/config/env'
 import { getModelLogoById } from '@renderer/config/models'
@@ -7,9 +8,6 @@ import useAvatar from '@renderer/hooks/useAvatar'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getMessageModelId } from '@renderer/services/MessagesService'
 import { getModelName } from '@renderer/services/ModelService'
-import { useAppDispatch } from '@renderer/store'
-import { newMessagesActions } from '@renderer/store/newMessage'
-// import { updateMessageThunk } from '@renderer/store/thunk/messageThunk'
 import type { Message } from '@renderer/types/newMessage'
 import { isEmoji, removeLeadingEmoji } from '@renderer/utils'
 import { scrollIntoView } from '@renderer/utils/dom'
@@ -36,7 +34,6 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
   const partsMap = usePartsMap()
   const avatar = useAvatar()
   const { theme } = useTheme()
-  const dispatch = useAppDispatch()
   const [userName] = usePreference('app.user.name')
   const { setTimeoutTimer } = useTimer()
 
@@ -109,13 +106,9 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
       const groupMessages = messages.filter((m) => m.askId === message.askId)
       if (groupMessages.length > 1) {
         for (const m of groupMessages) {
-          dispatch(
-            newMessagesActions.updateMessage({
-              topicId: m.topicId,
-              messageId: m.id,
-              updates: { foldSelected: m.id === message.id }
-            })
-          )
+          const cacheKey = `message.ui.${m.id}` as const
+          const current = cacheService.get(cacheKey) || {}
+          cacheService.set(cacheKey, { ...current, foldSelected: m.id === message.id })
         }
 
         setTimeoutTimer(
@@ -130,7 +123,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
         )
       }
     },
-    [dispatch, messages, setTimeoutTimer]
+    [messages, setTimeoutTimer]
   )
 
   const scrollToMessage = useCallback(

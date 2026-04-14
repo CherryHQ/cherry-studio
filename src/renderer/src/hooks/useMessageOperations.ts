@@ -1,12 +1,10 @@
+import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import { usePartsMap } from '@renderer/pages/home/Messages/Blocks/V2Contexts'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { useAppDispatch } from '@renderer/store'
-import { updateMessageAndBlocksThunk } from '@renderer/store/thunk/messageThunk'
-import { type Assistant, type Model, objectKeys, type Topic, type TranslateLanguageCode } from '@renderer/types'
+import { type Assistant, type Model, type Topic, type TranslateLanguageCode } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { difference } from 'lodash'
 import { createContext, use, useCallback } from 'react'
 
 /** AI SDK useChat status — V2 single source of truth for request state. */
@@ -40,7 +38,6 @@ const DEFAULT_DISPLAY_COUNT = 10
  * Hook providing message operations for a specific topic.
  */
 export function useMessageOperations(topic: Topic) {
-  const dispatch = useAppDispatch()
   const v2 = use(V2ChatOverridesContext)
   const partsMap = usePartsMap()
 
@@ -61,28 +58,13 @@ export function useMessageOperations(topic: Topic) {
 
   /**
    * Update per-message UI state (foldSelected, multiModelMessageStyle, useful).
-   * TODO: Migrate to Cache or DataApi — currently uses Redux thunk for compatibility
-   * with v2 branch which also stores these in Redux.
+   * Stored in Cache — transient display preferences, not persisted to DB.
    */
-  const editMessage = useCallback(
-    async (messageId: string, updates: Partial<Omit<Message, 'id' | 'topicId' | 'blocks'>>) => {
-      if (!topic?.id) {
-        logger.error('[editMessage] Topic prop is not valid.')
-        return
-      }
-      const uiStates = ['multiModelMessageStyle', 'foldSelected'] as const satisfies (keyof Message)[]
-      const extraUpdate = difference(objectKeys(updates), uiStates)
-      const isUiUpdateOnly = extraUpdate.length === 0
-      const messageUpdates: Partial<Message> & Pick<Message, 'id'> = {
-        id: messageId,
-        updatedAt: isUiUpdateOnly ? undefined : new Date().toISOString(),
-        ...updates
-      }
-
-      await dispatch(updateMessageAndBlocksThunk(topic.id, messageUpdates, []))
-    },
-    [dispatch, topic.id]
-  )
+  const editMessage = useCallback((messageId: string, updates: Partial<Omit<Message, 'id' | 'topicId' | 'blocks'>>) => {
+    const cacheKey = `message.ui.${messageId}` as const
+    const current = cacheService.get(cacheKey) || {}
+    cacheService.set(cacheKey, { ...current, ...updates })
+  }, [])
 
   const resendMessage = useCallback(
     async (message: Message, _assistant: Assistant) => {
