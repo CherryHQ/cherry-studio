@@ -78,7 +78,7 @@ const HomeTabButton = ({
       onClick={onClick}
       onContextMenu={onContextMenu}
       className={cn(
-        'flex h-8 w-8 shrink-0 cursor-default items-center justify-center rounded-[8px] transition-colors duration-150 [-webkit-app-region:no-drag]',
+        'flex h-8 w-8 shrink-0 cursor-default items-center justify-center rounded-full transition-colors duration-150 [-webkit-app-region:no-drag]',
         isActive ? tone.activeClass : tone.hoverClass
       )}>
       <Home size={14} strokeWidth={1.6} />
@@ -121,7 +121,7 @@ const PinnedTabButton = ({
           opacity: drag.isGhost ? 0.3 : 1
         }}
         className={cn(
-          'flex h-7 w-7 items-center justify-center rounded-[8px] transition-colors duration-150',
+          'flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-150',
           drag.isDragging ? 'cursor-grabbing' : 'cursor-default',
           isActive ? tone.activeClass : tone.hoverClass
         )}>
@@ -368,7 +368,7 @@ export const AppShellTabBar = ({
         <div className="flex flex-1 items-center gap-1 overflow-x-auto px-1 [&::-webkit-scrollbar]:hidden">
           {/* Pinned tabs */}
           {pinnedTabs.length > 0 && (
-            <div className="flex shrink-0 items-center gap-0.5 rounded-lg bg-sidebar-accent/50 p-0.5 [-webkit-app-region:no-drag]">
+            <div className="flex shrink-0 items-center gap-0 rounded-full bg-sidebar-accent/50 p-0 [-webkit-app-region:no-drag]">
               {pinnedTabs.map((tab) => (
                 <PinnedTabButton
                   key={tab.id}

@@ -9,7 +9,6 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { getSidebarIconLabel } from '@renderer/i18n/label'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { SidebarIcon as SidebarIconType } from '@shared/data/preference/preferenceTypes'
-import { IpcChannel } from '@shared/IpcChannel'
 import {
   Code,
   FileSearch,
@@ -83,7 +82,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const [userName] = usePreference('app.user.name')
   const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
   const [showOpenedInSidebar] = usePreference('feature.minapp.show_opened_in_sidebar')
-  const { tabs, activeTab, setActiveTab, openTab } = useTabs()
+  const { activeTab, updateTab, openTab } = useTabs()
   const { defaultPaintingProvider } = useSettings()
 
   // Sidebar width — persisted across restarts
@@ -177,25 +176,17 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
         return
       }
 
-      // assistants and agents support multiple tabs — always open new
-      if (menuId === 'assistants' || menuId === 'agents') {
-        openTab(path, { forceNew: true, title: getDefaultRouteTitle(path) })
+      if (activeTab?.isPinned) {
         return
       }
 
-      // All other routes: single-instance — focus detached window if exists, else switch to existing tab or open new
-      const prefix = routePrefixMap[menuId]
-      const focusedDetached = await window.electron.ipcRenderer.invoke(IpcChannel.Tab_FocusDetachedByRoute, prefix)
-      if (focusedDetached) return
-
-      const existing = tabs.find((tab) => tab.url === prefix || tab.url.startsWith(prefix + '/'))
-      if (existing) {
-        setActiveTab(existing.id)
+      if (activeTab && activeTab.id !== 'home') {
+        updateTab(activeTab.id, { url: path, title: getDefaultRouteTitle(path) })
       } else {
         openTab(path, { forceNew: true, title: getDefaultRouteTitle(path) })
       }
     },
-    [tabs, setActiveTab, openTab, defaultPaintingProvider]
+    [activeTab, updateTab, openTab, defaultPaintingProvider]
   )
 
   // Common props shared between normal and floating sidebar
