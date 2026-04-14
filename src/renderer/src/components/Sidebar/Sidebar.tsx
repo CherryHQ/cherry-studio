@@ -132,7 +132,7 @@ export function Sidebar({
   // --- Hidden sidebar (hover zone + resize handle) ---
   if (layout === 'hidden') {
     return (
-      <div ref={sidebarRef} className="relative h-full w-0 flex-shrink-0">
+      <div ref={sidebarRef} className="relative h-full w-2 flex-shrink-0">
         <div
           className="absolute top-0 bottom-0 left-0 z-50 w-[16px]"
           onMouseEnter={() => {
