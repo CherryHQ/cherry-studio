@@ -123,8 +123,8 @@ const AgentChatInner = ({
   isMultiSelectMode
 }: InnerProps) => {
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
-  const history = useAgentSessionParts(sessionId, agentId)
-  const chat = useChatWithHistory(sessionTopicId, history, { assistantId: agentId })
+  const { messages: initialMessages, isLoading, refresh } = useAgentSessionParts(sessionId)
+  const chat = useChatWithHistory(sessionTopicId, initialMessages, refresh, { assistantId: agentId })
 
   return (
     <Container className={cn(messageStyle, { 'multi-select-mode': isMultiSelectMode })}>
@@ -140,7 +140,7 @@ const AgentChatInner = ({
               sessionId={sessionId}
               adaptedMessages={chat.adaptedMessages}
               partsMap={chat.partsMap}
-              isLoading={history.isLoading}
+              isLoading={isLoading}
             />
             <div className="mt-auto px-4.5 pb-2">
               <NarrowLayout>

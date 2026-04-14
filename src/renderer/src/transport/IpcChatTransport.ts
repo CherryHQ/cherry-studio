@@ -34,7 +34,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
     const mergedBody: Partial<AiChatRequestBody> = { ...this.#defaultBody, ...body }
 
     // Build listener stream before sending IPC to avoid missing early chunks
-    const stream = this.buildListenerStream(topicId, abortSignal)
+    const stream = this.buildListenerStream(topicId, undefined, abortSignal)
 
     const lastMessage = messages.at(-1)
 
@@ -57,88 +57,24 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
     options: { chatId: string } & ChatRequestOptions
   ): Promise<ReadableStream<UIMessageChunk> | null> {
     const topicId = options.chatId
-
-    // Register IPC listeners BEFORE the streamAttach round-trip.
-    // Main replays buffered chunks synchronously during attach (addListener iterates
-    // stream.buffer immediately). Those IPC messages are queued before the reply and
-    // can arrive while we are suspended on the await below. Without pre-registration,
-    // thinking blocks and other early chunks would be silently dropped.
-    const earlyChunks: UIMessageChunk[] = []
-    let earlyDone = false
-    let earlyError: Error | null = null
-    let liveController: ReadableStreamDefaultController<UIMessageChunk> | null = null
-    let isCleaned = false
-
-    const chunkUnsub = window.api.ai.onStreamChunk((data) => {
-      if (data.topicId !== topicId) return
-      if (liveController) liveController.enqueue(data.chunk)
-      else earlyChunks.push(data.chunk)
-    })
-    const doneUnsub = window.api.ai.onStreamDone((data) => {
-      if (data.topicId !== topicId) return
-      earlyDone = true
-      cleanup()
-      liveController?.close()
-    })
-    const errorUnsub = window.api.ai.onStreamError((data) => {
-      if (data.topicId !== topicId) return
-      earlyError = new Error(data.error.message ?? 'Stream error')
-      cleanup()
-      liveController?.error(earlyError)
-    })
-
-    const cleanup = () => {
-      if (isCleaned) return
-      isCleaned = true
-      chunkUnsub()
-      doneUnsub()
-      errorUnsub()
-    }
+    logger.info('reconnectToStream called', { topicId })
 
     const result = await window.api.ai.streamAttach({ topicId })
+    logger.info('reconnectToStream result', { topicId, status: result.status })
 
-    if (result.status === 'not-found') {
-      cleanup()
-      return null
-    }
+    if (result.status === 'not-found') return null
     if (result.status === 'done') {
-      cleanup()
-      // Stream already finished — history already loaded by V2ChatContent outer shell
-      return new ReadableStream<UIMessageChunk>({
-        start(controller) {
-          controller.close()
-        }
-      })
+      return new ReadableStream<UIMessageChunk>({ start: (c) => c.close() })
     }
     if (result.status === 'error') {
-      cleanup()
       return new ReadableStream<UIMessageChunk>({
-        start(controller) {
-          controller.error(new Error((result.error as { message?: string })?.message ?? 'Stream error'))
-        }
+        start: (c) => c.error(new Error(result.error.message ?? 'Stream error'))
       })
     }
 
-    // status === 'attached' — buffer replayed by Main; early chunks captured above
-    logger.info('Reconnected to stream', { topicId, replayedChunks: result.replayedChunks })
-    return new ReadableStream<UIMessageChunk>({
-      start(controller) {
-        liveController = controller
-        // Drain chunks that arrived during the IPC round-trip (replayed buffer)
-        for (const chunk of earlyChunks) controller.enqueue(chunk)
-        if (earlyDone) {
-          controller.close()
-          return
-        }
-        if (earlyError) {
-          controller.error(earlyError)
-        }
-      },
-      cancel() {
-        cleanup()
-        void window.api.ai.streamDetach({ topicId })
-      }
-    })
+    // status === 'attached' — buffered chunks returned in response, no IPC race
+    logger.info('Reconnected to stream', { topicId, bufferedChunks: result.bufferedChunks.length })
+    return this.buildListenerStream(topicId, result.bufferedChunks)
   }
 
   /**
@@ -147,7 +83,11 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
    * All subscribers filter by topicId (not requestId) — streaming is just
    * one state of a topic, and all subscribers to the same topic are equal.
    */
-  private buildListenerStream(topicId: string, abortSignal?: AbortSignal): ReadableStream<UIMessageChunk> {
+  private buildListenerStream(
+    topicId: string,
+    initialChunks?: UIMessageChunk[],
+    abortSignal?: AbortSignal
+  ): ReadableStream<UIMessageChunk> {
     const unsubscribers: Array<() => void> = []
     let isCleaned = false
     let isStreamClosed = false
@@ -160,6 +100,11 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
 
     return new ReadableStream<UIMessageChunk>({
       start(controller) {
+        // Drain buffered chunks from attach response (no IPC race — chunks in response)
+        if (initialChunks) {
+          for (const chunk of initialChunks) controller.enqueue(chunk)
+        }
+
         const closeStream = () => {
           if (isStreamClosed) return
           isStreamClosed = true

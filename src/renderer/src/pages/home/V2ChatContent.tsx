@@ -43,13 +43,7 @@ interface Props {
  *   - PartsContext: history parts + live streaming parts overlay
  */
 const V2ChatContent: FC<Props> = ({ assistant, topic, setActiveTopic, mainHeight }) => {
-  const {
-    adaptedMessages: historyMessages,
-    partsMap: historyPartsMap,
-    isLoading: isHistoryLoading,
-    refresh,
-    activeNodeId
-  } = useTopicMessagesV2(topic.id)
+  const { uiMessages, isLoading: isHistoryLoading, refresh, activeNodeId } = useTopicMessagesV2(topic.id)
 
   // Don't mount the chat instance until history is loaded.
   // ChatSession only reads initialMessages on creation — if we create it
@@ -72,8 +66,7 @@ const V2ChatContent: FC<Props> = ({ assistant, topic, setActiveTopic, mainHeight
       topic={topic}
       setActiveTopic={setActiveTopic}
       mainHeight={mainHeight}
-      historyMessages={historyMessages}
-      historyPartsMap={historyPartsMap}
+      initialMessages={uiMessages}
       refresh={refresh}
       activeNodeId={activeNodeId}
     />
@@ -85,8 +78,7 @@ const V2ChatContent: FC<Props> = ({ assistant, topic, setActiveTopic, mainHeight
 // ============================================================================
 
 interface InnerProps extends Props {
-  historyMessages: Message[]
-  historyPartsMap: Record<string, CherryMessagePart[]>
+  initialMessages: CherryUIMessage[]
   refresh: () => Promise<CherryUIMessage[]>
   activeNodeId: string | null
 }
@@ -96,18 +88,14 @@ const V2ChatContentInner: FC<InnerProps> = ({
   topic,
   setActiveTopic,
   mainHeight,
-  historyMessages,
-  historyPartsMap,
+  initialMessages,
   refresh,
   activeNodeId
 }) => {
-  const history = useMemo(
-    () => ({ messages: historyMessages, partsMap: historyPartsMap, isLoading: false, refresh, activeNodeId }),
-    [historyMessages, historyPartsMap, refresh, activeNodeId]
-  )
+  const { isMultiSelectMode } = useChatContext(topic)
 
   const { adaptedMessages, partsMap, sendMessage, regenerate, stop, status, error, setMessages, streamingUIMessages } =
-    useChatWithHistory(topic.id, history, { assistantId: assistant.id })
+    useChatWithHistory(topic.id, initialMessages, refresh, { assistantId: assistant.id })
 
   // Stable ref for streamingUIMessages — avoids recreating v2ChatOverrides on every chunk
   const streamingUIMessagesRef = useRef(streamingUIMessages)
@@ -148,14 +136,14 @@ const V2ChatContentInner: FC<InnerProps> = ({
 
   /** Clear all messages for the current topic from DataApi and UI. */
   const handleClearTopicMessages = useCallback(async () => {
-    const rootMsg = historyMessages.find((m: Message) => !m.askId)
+    const rootMsg = adaptedMessages.find((m: Message) => !m.askId)
     if (rootMsg) {
       await dataApiService.delete(`/messages/${rootMsg.id}`, { query: { cascade: true } })
       logger.info('Cleared all messages via root cascade delete', { topicId: topic.id, rootId: rootMsg.id })
     }
     setMessages([])
     await refresh()
-  }, [historyMessages, refresh, setMessages, topic.id])
+  }, [adaptedMessages, refresh, setMessages, topic.id])
 
   /** Edit a message's parts directly and persist to DataApi. */
   const handleEditMessage = useCallback(
@@ -300,8 +288,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
                 <div
                   className="fixed top-5 right-50 z-50 px-4 py-1 text-xs opacity-50"
                   style={{ color: 'var(--color-text-3)' }}>
-                  [V2] {status} | {adaptedMessages.length} msgs ({historyMessages.length} history +{' '}
-                  {streamingUIMessages.length} live)
+                  [V2] {status} | {adaptedMessages.length} msgs
                   {error && <span className="ml-2 text-red-500">{error.message}</span>}
                 </div>
               )}

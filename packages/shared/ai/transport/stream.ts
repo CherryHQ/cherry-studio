@@ -62,7 +62,7 @@ export interface AiStreamAbortRequest {
 /** Result of an attach attempt. */
 export type AiStreamAttachResponse =
   | { status: 'not-found' }
-  | { status: 'attached'; replayedChunks: number }
+  | { status: 'attached'; bufferedChunks: UIMessageChunk[] }
   | { status: 'done'; finalMessage: CherryUIMessage }
   | { status: 'error'; error: SerializedError }
 

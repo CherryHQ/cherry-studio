@@ -495,8 +495,10 @@ export class AiStreamManager extends BaseService {
       return { status: 'error', error: firstExec?.error! }
     }
 
-    this.addListener(req.topicId, new WebContentsListener(sender, req.topicId))
-    return { status: 'attached', replayedChunks: stream.buffer.length }
+    // Register listener for future live chunks (no buffer replay — chunks returned in response)
+    const listener = new WebContentsListener(sender, req.topicId)
+    stream.listeners.set(listener.id, listener)
+    return { status: 'attached', bufferedChunks: [...stream.buffer] }
   }
 
   private handleDetach(sender: Electron.WebContents, req: AiStreamDetachRequest): void {

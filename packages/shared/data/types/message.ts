@@ -65,7 +65,7 @@ export interface MessageData {
 // ── Cherry-specific UI message types ────────────────────────────────
 
 /** Cherry Studio's UIMessage with custom metadata and data part types. */
-export type CherryUIMessage = UIMessage<{ totalTokens?: number }, CherryDataPartTypes>
+export type CherryUIMessage = UIMessage<{ totalTokens?: number; createdAt?: string }, CherryDataPartTypes>
 
 /** Cherry Studio's UIMessageChunk — inferred from CherryUIMessage. */
 export type CherryUIMessageChunk = InferUIMessageChunk<CherryUIMessage>
