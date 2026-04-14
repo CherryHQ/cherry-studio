@@ -74,6 +74,8 @@ import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceServi
 
 import { ShortcutService } from '../ShortcutService'
 
+const supportsSelectionShortcuts = ['darwin', 'win32'].includes(process.platform)
+
 class MockBrowserWindow {
   private readonly events = new EventEmitter()
   private readonly webContentsEvents = new EventEmitter()
@@ -198,7 +200,11 @@ describe('ShortcutService', () => {
     globalShortcutMock.register.mockClear()
     MockMainPreferenceServiceUtils.setPreferenceValue('feature.selection.enabled', true)
 
-    expect(globalShortcutMock.register).toHaveBeenCalledWith('CommandOrControl+Shift+S', expect.any(Function))
+    if (supportsSelectionShortcuts) {
+      expect(globalShortcutMock.register).toHaveBeenCalledWith('CommandOrControl+Shift+S', expect.any(Function))
+    } else {
+      expect(globalShortcutMock.register).not.toHaveBeenCalledWith('CommandOrControl+Shift+S', expect.any(Function))
+    }
   })
 
   it('re-registers window-bound shortcuts when the main window instance changes', async () => {
