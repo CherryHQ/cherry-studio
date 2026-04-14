@@ -43,7 +43,8 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
       .streamOpen({
         topicId,
         parentAnchorId: mergedBody.parentAnchorId || undefined,
-        userMessageParts: lastMessage ? lastMessage.parts : []
+        userMessageParts: lastMessage ? lastMessage.parts : [],
+        mentionedModels: mergedBody.mentionedModels
       })
       .catch((error: unknown) => {
         logger.error('streamOpen IPC failed', error instanceof Error ? error : new Error(String(error)))
