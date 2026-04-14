@@ -21,14 +21,16 @@ export class AgentsMigrator extends BaseMigrator {
   readonly order = 2.5
 
   private sourceCounts: AgentsTableRowCounts = this.createEmptyCounts()
+  private sourceDbPath: string | null | undefined = undefined
 
   override reset(): void {
     this.sourceCounts = this.createEmptyCounts()
+    this.sourceDbPath = undefined
   }
 
-  async prepare(): Promise<PrepareResult> {
-    const reader = this.createReader()
-    const dbPath = reader.resolvePath()
+  async prepare(ctx: MigrationContext): Promise<PrepareResult> {
+    const reader = this.createReader(ctx)
+    const dbPath = this.resolveSourceDbPath(reader)
 
     if (!dbPath) {
       return {
@@ -47,8 +49,8 @@ export class AgentsMigrator extends BaseMigrator {
   }
 
   async execute(ctx: MigrationContext): Promise<ExecuteResult> {
-    const reader = this.createReader()
-    const dbPath = reader.resolvePath()
+    const reader = this.createReader(ctx)
+    const dbPath = this.resolveSourceDbPath(reader)
 
     if (!dbPath) {
       logger.info('No legacy agents.db found, skipping agents migration')
@@ -67,7 +69,9 @@ export class AgentsMigrator extends BaseMigrator {
       await ctx.db.run(sql.raw(attachStatement))
       isAttached = true
 
-      for (const statement of remainingStatements.slice(0, -1)) {
+      for (const statement of remainingStatements.filter(
+        (statement) => statement !== 'DETACH DATABASE agents_legacy'
+      )) {
         await ctx.db.run(sql.raw(statement))
       }
     } finally {
@@ -83,8 +87,8 @@ export class AgentsMigrator extends BaseMigrator {
   }
 
   async validate(ctx: MigrationContext): Promise<ValidateResult> {
-    const reader = this.createReader()
-    const dbPath = reader.resolvePath()
+    const reader = this.createReader(ctx)
+    const dbPath = this.resolveSourceDbPath(reader)
 
     if (!dbPath) {
       return {
@@ -133,8 +137,17 @@ export class AgentsMigrator extends BaseMigrator {
     }
   }
 
-  private createReader(): LegacyAgentsDbReader {
-    return new LegacyAgentsDbReader()
+  private createReader(ctx: MigrationContext): LegacyAgentsDbReader {
+    return new LegacyAgentsDbReader(ctx.paths)
+  }
+
+  private resolveSourceDbPath(reader: LegacyAgentsDbReader): string | null {
+    if (this.sourceDbPath !== undefined) {
+      return this.sourceDbPath
+    }
+
+    this.sourceDbPath = reader.resolvePath()
+    return this.sourceDbPath
   }
 
   private createEmptyCounts(): AgentsTableRowCounts {

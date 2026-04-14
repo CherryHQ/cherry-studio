@@ -136,7 +136,7 @@ export class MigrationEngine {
   }
 
   private hasLegacyAgentsData(): boolean {
-    return new LegacyAgentsDbReader().resolvePath() !== null
+    return new LegacyAgentsDbReader(this.paths).resolvePath() !== null
   }
 
   private async getStatus(key: string): Promise<MigrationStatusValue | null> {

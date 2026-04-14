@@ -27,6 +27,16 @@ function createCounts() {
   }
 }
 
+function createMigrationContext(overrides: Record<string, unknown> = {}) {
+  return {
+    paths: {
+      legacyAgentDbFile: '/mock/Data/agents.db',
+      legacyAgentDbFallbackFile: '/mock/agents.db'
+    },
+    ...overrides
+  } as never
+}
+
 describe('AgentsMigrator', () => {
   let migrator: AgentsMigrator
 
@@ -38,7 +48,7 @@ describe('AgentsMigrator', () => {
   it('prepare skips cleanly when no legacy agents db exists', async () => {
     vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue(null)
 
-    const result = await migrator.prepare()
+    const result = await migrator.prepare(createMigrationContext())
 
     expect(result.success).toBe(true)
     expect(result.itemCount).toBe(0)
@@ -49,7 +59,7 @@ describe('AgentsMigrator', () => {
     vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue('/mock/feature.agents.db_file')
     vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockResolvedValue(createCounts())
 
-    const result = await migrator.prepare()
+    const result = await migrator.prepare(createMigrationContext())
 
     expect(result.success).toBe(true)
     expect(result.itemCount).toBe(36)
@@ -60,7 +70,7 @@ describe('AgentsMigrator', () => {
     vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue('/mock/feature.agents.db_file')
     vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockResolvedValue(createCounts())
 
-    const result = await migrator.execute({ db: { run } } as never)
+    const result = await migrator.execute(createMigrationContext({ db: { run } }))
 
     expect(result.success).toBe(true)
     expect(result.processedCount).toBe(36)
@@ -77,7 +87,7 @@ describe('AgentsMigrator', () => {
     vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue('/mock/feature.agents.db_file')
     vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockResolvedValue(createCounts())
 
-    await expect(migrator.execute({ db: { run } } as never)).rejects.toThrow('insert failed')
+    await expect(migrator.execute(createMigrationContext({ db: { run } }))).rejects.toThrow('insert failed')
     expect(run).toHaveBeenLastCalledWith(expect.anything())
     expect(run).toHaveBeenCalledTimes(3)
   })
@@ -97,11 +107,28 @@ describe('AgentsMigrator', () => {
       .mockResolvedValueOnce({ count: 7 })
       .mockResolvedValueOnce({ count: 8 })
 
-    const result = await migrator.validate({ db: { get } } as never)
+    const result = await migrator.validate(createMigrationContext({ db: { get } }))
 
     expect(result.success).toBe(false)
     expect(result.errors[0]?.key).toBe('agents_sessions_count_mismatch')
     expect(result.stats.sourceCount).toBe(36)
     expect(result.stats.targetCount).toBe(35)
+  })
+
+  it('resolves the legacy db path once and reuses it across phases', async () => {
+    const resolvePath = vi
+      .spyOn(LegacyAgentsDbReader.prototype, 'resolvePath')
+      .mockReturnValue('/mock/feature.agents.db_file')
+    vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockResolvedValue(createCounts())
+
+    const run = vi.fn().mockResolvedValue(undefined)
+    const get = vi.fn().mockResolvedValue({ count: 8 })
+    const migrationContext = createMigrationContext({ db: { run, get } })
+
+    await migrator.prepare(migrationContext)
+    await migrator.execute(migrationContext)
+    await migrator.validate(migrationContext)
+
+    expect(resolvePath).toHaveBeenCalledTimes(1)
   })
 })
