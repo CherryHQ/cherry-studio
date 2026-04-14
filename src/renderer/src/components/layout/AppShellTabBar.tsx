@@ -50,6 +50,11 @@ interface CloseFlowProps {
   onCloseHoverStart: () => void
 }
 
+interface TabToneProps {
+  activeClass: string
+  hoverClass: string
+}
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 const Separator = () => <div className="mx-0.5 h-4 w-px shrink-0 bg-border/50" />
@@ -58,12 +63,14 @@ const HomeTabButton = ({
   isActive,
   onClick,
   onContextMenu,
-  tooltip
+  tooltip,
+  tone
 }: {
   isActive: boolean
   onClick: () => void
   onContextMenu: (e: React.MouseEvent) => void
   tooltip: string
+  tone: TabToneProps
 }) => (
   <Tooltip placement="bottom" content={tooltip} delay={600}>
     <button
@@ -72,9 +79,7 @@ const HomeTabButton = ({
       onContextMenu={onContextMenu}
       className={cn(
         'flex h-8 w-8 shrink-0 cursor-default items-center justify-center rounded-md transition-colors duration-150 [-webkit-app-region:no-drag]',
-        isActive
-          ? 'bg-sidebar-accent text-sidebar-foreground'
-          : 'text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-foreground'
+        isActive ? tone.activeClass : tone.hoverClass
       )}>
       <Home size={14} strokeWidth={1.6} />
     </button>
@@ -87,7 +92,8 @@ const PinnedTabButton = ({
   onSelect,
   onContextMenu,
   drag,
-  tabRef
+  tabRef,
+  tone
 }: {
   tab: Tab
   isActive: boolean
@@ -95,6 +101,7 @@ const PinnedTabButton = ({
   onContextMenu: (e: React.MouseEvent) => void
   drag: DragItemProps
   tabRef: (el: HTMLButtonElement | null) => void
+  tone: TabToneProps
 }) => {
   const Icon = getTabIcon(tab)
   return (
@@ -116,9 +123,7 @@ const PinnedTabButton = ({
         className={cn(
           'flex h-7 w-7 items-center justify-center rounded-md transition-colors duration-150',
           drag.isDragging ? 'cursor-grabbing' : 'cursor-default',
-          isActive
-            ? 'bg-sidebar-accent text-sidebar-foreground'
-            : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
+          isActive ? tone.activeClass : tone.hoverClass
         )}>
         <Icon size={14} strokeWidth={1.6} />
       </button>
@@ -135,7 +140,8 @@ const NormalTabButton = ({
   showClose = true,
   drag,
   closeFlow,
-  tabRef
+  tabRef,
+  tone
 }: {
   tab: Tab
   isActive: boolean
@@ -146,6 +152,7 @@ const NormalTabButton = ({
   drag: DragItemProps
   closeFlow: CloseFlowProps
   tabRef: (el: HTMLButtonElement | null) => void
+  tone: TabToneProps
 }) => {
   const Icon = getTabIcon(tab)
   const isCloseable = tab.id !== HOME_TAB_ID
@@ -170,9 +177,7 @@ const NormalTabButton = ({
         'group relative flex h-[30px] min-w-[40px] max-w-[160px] flex-1 items-center gap-1.5 rounded-md transition-all duration-150 [-webkit-app-region:no-drag]',
         isCloseable && showClose ? 'pr-1 pl-2' : 'px-2',
         drag.isDragging ? 'cursor-grabbing' : 'cursor-default',
-        isActive
-          ? 'bg-sidebar-accent text-sidebar-foreground'
-          : 'text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-foreground'
+        isActive ? tone.activeClass : tone.hoverClass
       )}>
       <Icon size={13} strokeWidth={1.6} className="shrink-0" />
       <span
@@ -223,6 +228,23 @@ export const AppShellTabBar = ({
   const isMacTransparentWindow = useMacTransparentWindow()
   const { rightPaddingClass } = useShellTabBarLayout(isDetached)
   const [lockedNormalTabWidth, setLockedNormalTabWidth] = useState<number | null>(null)
+  const tabTone = useMemo<TabToneProps>(
+    () =>
+      isMacTransparentWindow
+        ? {
+            activeClass:
+              'bg-white/78 text-sidebar-foreground shadow-[inset_0_0_0_1px_rgba(255,255,255,0.65),0_1px_2px_rgba(0,0,0,0.05)] backdrop-blur-sm dark:bg-white/16 dark:text-sidebar-foreground dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.14)]',
+            hoverClass:
+              'text-muted-foreground hover:bg-black/6 hover:text-sidebar-foreground hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28)] dark:hover:bg-white/6 dark:hover:text-sidebar-foreground dark:hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]'
+          }
+        : {
+            activeClass:
+              'bg-white text-sidebar-foreground shadow-[0_1px_2px_rgba(0,0,0,0.06)] dark:bg-sidebar-accent dark:text-sidebar-foreground dark:shadow-none',
+            hoverClass:
+              'text-muted-foreground hover:bg-black/8 hover:text-sidebar-foreground dark:hover:bg-white/10 dark:hover:text-sidebar-foreground'
+          },
+    [isMacTransparentWindow]
+  )
 
   const { homeTab, pinnedTabs, normalTabs } = useMemo(() => {
     const pinned: Tab[] = []
@@ -338,6 +360,7 @@ export const AppShellTabBar = ({
             onClick={handleHomeClick}
             onContextMenu={(e) => handleContextMenu(e, HOME_TAB_ID)}
             tooltip={t('title.home')}
+            tone={tabTone}
           />
         )}
         {!isDetached && (pinnedTabs.length > 0 || normalTabs.length > 0) && <Separator />}
@@ -354,6 +377,7 @@ export const AppShellTabBar = ({
                   isActive={tab.id === activeTabId}
                   onSelect={() => handleTabClick(tab.id)}
                   onContextMenu={(e) => handleContextMenu(e, tab.id)}
+                  tone={tabTone}
                   drag={{
                     isDragging: isDragging(tab.id),
                     isGhost: isGhost(tab.id),
@@ -386,6 +410,7 @@ export const AppShellTabBar = ({
               onClose={() => closeTab(tab.id)}
               onContextMenu={(e) => handleContextMenu(e, tab.id)}
               showClose={!isDetached}
+              tone={tabTone}
               drag={{
                 isDragging: isDragging(tab.id),
                 isGhost: isGhost(tab.id),
