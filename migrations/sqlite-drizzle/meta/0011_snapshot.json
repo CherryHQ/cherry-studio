@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "d9e34d55-adfe-47ae-a583-2118d391ba21",
+  "id": "09edfdcc-b247-4678-b1df-b34669042f8e",
   "prevId": "ceca2c61-e6f2-49d1-b9c7-e7c6c94cbff0",
   "tables": {
     "agents_agents": {
@@ -101,16 +101,16 @@
         },
         "created_at": {
           "name": "created_at",
-          "type": "text",
+          "type": "integer",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "text",
+          "type": "integer",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         }
       },
@@ -123,11 +123,6 @@
         "agents_agents_type_idx": {
           "name": "agents_agents_type_idx",
           "columns": ["type"],
-          "isUnique": false
-        },
-        "agents_agents_created_at_idx": {
-          "name": "agents_agents_created_at_idx",
-          "columns": ["created_at"],
           "isUnique": false
         },
         "agents_agents_sort_order_idx": {
@@ -381,16 +376,16 @@
         },
         "created_at": {
           "name": "created_at",
-          "type": "text",
+          "type": "integer",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "text",
+          "type": "integer",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         }
       },
@@ -398,16 +393,6 @@
         "agents_session_messages_session_id_idx": {
           "name": "agents_session_messages_session_id_idx",
           "columns": ["session_id"],
-          "isUnique": false
-        },
-        "agents_session_messages_created_at_idx": {
-          "name": "agents_session_messages_created_at_idx",
-          "columns": ["created_at"],
-          "isUnique": false
-        },
-        "agents_session_messages_updated_at_idx": {
-          "name": "agents_session_messages_updated_at_idx",
-          "columns": ["updated_at"],
           "isUnique": false
         }
       },
@@ -537,25 +522,20 @@
         },
         "created_at": {
           "name": "created_at",
-          "type": "text",
+          "type": "integer",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "text",
+          "type": "integer",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         }
       },
       "indexes": {
-        "agents_sessions_created_at_idx": {
-          "name": "agents_sessions_created_at_idx",
-          "columns": ["created_at"],
-          "isUnique": false
-        },
         "agents_sessions_agent_id_idx": {
           "name": "agents_sessions_agent_id_idx",
           "columns": ["agent_id"],
@@ -672,14 +652,14 @@
           "name": "created_at",
           "type": "integer",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "updated_at": {
           "name": "updated_at",
           "type": "integer",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         }
       },
@@ -760,6 +740,20 @@
         "error": {
           "name": "error",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -871,16 +865,16 @@
         },
         "created_at": {
           "name": "created_at",
-          "type": "text",
+          "type": "integer",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "text",
+          "type": "integer",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         }
       },
