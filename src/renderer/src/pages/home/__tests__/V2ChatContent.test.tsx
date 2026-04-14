@@ -15,7 +15,8 @@ vi.mock('@ai-sdk/react', () => ({
 }))
 
 vi.mock('@renderer/hooks/useChatContext', () => ({
-  useChatContext: vi.fn(() => ({ isMultiSelectMode: false }))
+  useChatContextProvider: vi.fn(() => ({ isMultiSelectMode: false })),
+  ChatContextProvider: ({ children }: { children: ReactNode }) => children
 }))
 
 vi.mock('@renderer/hooks/useMessageOperations', () => ({

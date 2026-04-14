@@ -2,7 +2,7 @@ import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import { isDev } from '@renderer/config/constant'
-import { useChatContext } from '@renderer/hooks/useChatContext'
+import { ChatContextProvider, useChatContextProvider } from '@renderer/hooks/useChatContext'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import { type V2ChatOverrides, V2ChatOverridesProvider } from '@renderer/hooks/useMessageOperations'
 import { useTopicMessagesV2 } from '@renderer/hooks/useTopicMessagesV2'
@@ -11,7 +11,7 @@ import type { Assistant, FileMetadata, Model, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/assistant'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import type { FC } from 'react'
+import type { FC, ReactNode } from 'react'
 import { useCallback, useMemo, useRef } from 'react'
 
 import { ensureChatTopicPersisted } from './chatPersistence'
@@ -101,8 +101,6 @@ const V2ChatContentInner: FC<InnerProps> = ({
   refresh,
   activeNodeId
 }) => {
-  const { isMultiSelectMode } = useChatContext(topic)
-
   const history = useMemo(
     () => ({ messages: historyMessages, partsMap: historyPartsMap, isLoading: false, refresh, activeNodeId }),
     [historyMessages, historyPartsMap, refresh, activeNodeId]
@@ -110,6 +108,10 @@ const V2ChatContentInner: FC<InnerProps> = ({
 
   const { adaptedMessages, partsMap, sendMessage, regenerate, stop, status, error, setMessages, streamingUIMessages } =
     useChatWithHistory(topic.id, history, { assistantId: assistant.id })
+
+  // Stable ref for streamingUIMessages — avoids recreating v2ChatOverrides on every chunk
+  const streamingUIMessagesRef = useRef(streamingUIMessages)
+  streamingUIMessagesRef.current = streamingUIMessages
 
   /** Delete a single message (reparent children to grandparent) and sync UI. */
   const handleDeleteMessage = useCallback(
@@ -219,7 +221,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
       resend: async (messageId?: string) => {
         if (messageId) {
           try {
-            const msgs = streamingUIMessages
+            const msgs = streamingUIMessagesRef.current
             const idx = msgs.findIndex((m) => m.id === messageId)
             const nextAssistant = idx >= 0 ? msgs[idx + 1] : undefined
             if (nextAssistant?.role === 'assistant') {
@@ -243,7 +245,6 @@ const V2ChatContentInner: FC<InnerProps> = ({
     }),
     [
       regenerateWithCapabilities,
-      streamingUIMessages,
       setMessages,
       handleDeleteMessage,
       handleDeleteMessageGroup,
@@ -291,33 +292,48 @@ const V2ChatContentInner: FC<InnerProps> = ({
     <V2ChatOverridesProvider value={v2ChatOverrides}>
       <RefreshProvider value={refresh}>
         <PartsProvider value={partsMap}>
-          <div
-            className="flex flex-1 flex-col justify-between"
-            style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>
-            {isDev && (
-              <div
-                className="fixed top-5 right-50 z-50 px-4 py-1 text-xs opacity-50"
-                style={{ color: 'var(--color-text-3)' }}>
-                [V2] {status} | {adaptedMessages.length} msgs ({historyMessages.length} history +{' '}
-                {streamingUIMessages.length} live)
-                {error && <span className="ml-2 text-red-500">{error.message}</span>}
-              </div>
-            )}
+          <ChatContextBridge topic={topic}>
+            <div
+              className="flex flex-1 flex-col justify-between"
+              style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>
+              {isDev && (
+                <div
+                  className="fixed top-5 right-50 z-50 px-4 py-1 text-xs opacity-50"
+                  style={{ color: 'var(--color-text-3)' }}>
+                  [V2] {status} | {adaptedMessages.length} msgs ({historyMessages.length} history +{' '}
+                  {streamingUIMessages.length} live)
+                  {error && <span className="ml-2 text-red-500">{error.message}</span>}
+                </div>
+              )}
 
-            <Messages
-              key={topic.id}
-              assistant={assistant}
-              topic={topic}
-              setActiveTopic={setActiveTopic}
-              messages={adaptedMessages}
-            />
+              <Messages
+                key={topic.id}
+                assistant={assistant}
+                topic={topic}
+                setActiveTopic={setActiveTopic}
+                messages={adaptedMessages}
+              />
 
-            <Inputbar assistant={assistant} topic={topic} setActiveTopic={setActiveTopic} onSend={handleSendV2} />
-            {isMultiSelectMode && <MultiSelectActionPopup topic={topic} />}
-          </div>
+              <Inputbar assistant={assistant} topic={topic} setActiveTopic={setActiveTopic} onSend={handleSendV2} />
+            </div>
+          </ChatContextBridge>
         </PartsProvider>
       </RefreshProvider>
     </V2ChatOverridesProvider>
+  )
+}
+
+/**
+ * Bridge component rendered INSIDE V2ChatOverridesProvider + PartsProvider
+ * so that useChatContextProvider can access those contexts.
+ */
+const ChatContextBridge: FC<{ topic: Topic; children: ReactNode }> = ({ topic, children }) => {
+  const chatContextValue = useChatContextProvider(topic)
+  return (
+    <ChatContextProvider value={chatContextValue}>
+      {children}
+      {chatContextValue.isMultiSelectMode && <MultiSelectActionPopup topic={topic} />}
+    </ChatContextProvider>
   )
 }
 

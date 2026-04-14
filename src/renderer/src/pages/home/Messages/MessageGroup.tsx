@@ -27,7 +27,10 @@ interface Props {
   registerMessageElement?: (id: string, element: HTMLElement | null) => void
 }
 
-const getMessageUi = (messageId: string) =>
+/**
+ * Read initial message UI state from cache (one-time, used for useState initializer).
+ */
+const getMessageUiFromCache = (messageId: string) =>
   (cacheService.get(`message.ui.${messageId}` as const) || {}) as {
     foldSelected?: boolean
     multiModelMessageStyle?: string
@@ -47,10 +50,11 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
 
   const isGrouped = isMultiSelectMode ? false : messageLength > 1 && messages.every((m) => m.role === 'assistant')
 
-  // States — read initial values from Cache
+  // States — initialize from Cache, then tracked in React state
   const [_multiModelMessageStyle, setMultiModelMessageStyle] = useState<MultiModelMessageStyle>(
     () =>
-      (getMessageUi(messages[0]?.id).multiModelMessageStyle as MultiModelMessageStyle) || multiModelMessageStyleSetting
+      (getMessageUiFromCache(messages[0]?.id).multiModelMessageStyle as MultiModelMessageStyle) ||
+      multiModelMessageStyleSetting
   )
   const [selectedIndex, setSelectedIndex] = useState(messageLength - 1)
 
@@ -61,14 +65,17 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
 
   const isGrid = multiModelMessageStyle === 'grid'
 
-  const selectedMessageId = useMemo(() => {
+  // Track selected and useful message IDs in React state
+  const [selectedMessageId, setSelectedMessageIdState] = useState<string>(() => {
     if (messages.length === 1) return messages[0]?.id
-    const selectedMessage = messages.find((message) => getMessageUi(message.id).foldSelected)
-    if (selectedMessage) {
-      return selectedMessage.id
-    }
-    return messages[0]?.id
-  }, [messages])
+    const selected = messages.find((m) => getMessageUiFromCache(m.id).foldSelected)
+    return selected?.id ?? messages[0]?.id
+  })
+
+  const [usefulMessageId, setUsefulMessageIdState] = useState<string | null>(() => {
+    const useful = messages.find((m) => getMessageUiFromCache(m.id).useful)
+    return useful?.id ?? null
+  })
 
   const setSelectedMessage = useCallback(
     (message: Message) => {
@@ -76,6 +83,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
       void editMessage(selectedMessageId, { foldSelected: false })
       // 当前选中的消息
       void editMessage(message.id, { foldSelected: true })
+      setSelectedMessageIdState(message.id)
 
       setTimeoutTimer(
         'setSelectedMessage',
@@ -174,31 +182,31 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
         logger.error("the message to update doesn't exist in this group")
         return
       }
-      if (getMessageUi(msgId).useful) {
+      if (usefulMessageId === msgId) {
         editMessage(msgId, { useful: undefined })
-        return
+        setUsefulMessageIdState(null)
       } else {
-        const toResetUsefulMsgs = messages.filter((msg) => msg.id !== msgId && getMessageUi(msg.id).useful)
-        toResetUsefulMsgs.forEach((msg) => {
-          editMessage(msg.id, { useful: undefined })
-        })
+        // Reset previous useful message
+        if (usefulMessageId) {
+          editMessage(usefulMessageId, { useful: undefined })
+        }
         editMessage(msgId, { useful: true })
+        setUsefulMessageIdState(msgId)
       }
     },
-    [editMessage, messages]
+    [editMessage, messages, usefulMessageId]
   )
 
   const groupContextMessageId = useMemo(() => {
-    const usefulMsg = messages.find((msg) => getMessageUi(msg.id).useful)
-    if (usefulMsg) {
-      return usefulMsg.id
+    if (usefulMessageId && messages.some((msg) => msg.id === usefulMessageId)) {
+      return usefulMessageId
     } else if (messages.length > 0) {
       return messages[0].id
     } else {
       logger.warn('Empty message group')
       return ''
     }
-  }, [messages])
+  }, [messages, usefulMessageId])
 
   const renderMessage = useCallback(
     (message: Message & { index: number }) => {

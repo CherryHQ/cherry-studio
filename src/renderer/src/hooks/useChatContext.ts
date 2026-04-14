@@ -5,11 +5,46 @@ import { usePartsMap } from '@renderer/pages/home/Messages/Blocks'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types'
 import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
-import { useCallback, useEffect, useState } from 'react'
+import { createContext, use, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
 const logger = loggerService.withContext('useChatContext')
 
-export const useChatContext = (activeTopic: Topic) => {
+export interface ChatContextValue {
+  isMultiSelectMode: boolean
+  selectedMessageIds: string[]
+  toggleMultiSelectMode: (value: boolean) => void
+  handleMultiSelectAction: (actionType: string, messageIds: string[]) => Promise<void>
+  handleSelectMessage: (messageId: string, selected: boolean) => void
+  activeTopic: Topic
+  locateMessage: (messageId: string) => void
+  messageRefs: Map<string, HTMLElement>
+  registerMessageElement: (id: string, element: HTMLElement | null) => void
+}
+
+const ChatContext = createContext<ChatContextValue | null>(null)
+
+export const ChatContextProvider = ChatContext.Provider
+
+/**
+ * Consumer hook — reads from the nearest ChatContextProvider.
+ * Must be rendered inside a ChatContextProvider.
+ */
+export const useChatContext = (_topic?: Topic): ChatContextValue => {
+  const ctx = use(ChatContext)
+  if (!ctx) {
+    throw new Error('useChatContext must be used within a ChatContextProvider')
+  }
+  return ctx
+}
+
+/**
+ * Provider-level hook — creates the ChatContext value.
+ *
+ * IMPORTANT: This hook reads V2ChatOverridesContext and PartsContext internally,
+ * so it must be called inside V2ChatOverridesProvider + PartsProvider.
+ */
+export const useChatContextProvider = (activeTopic: Topic): ChatContextValue => {
   const { t } = useTranslation()
   const { deleteMessage } = useMessageOperations(activeTopic)
   const partsMap = usePartsMap()

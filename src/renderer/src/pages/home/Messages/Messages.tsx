@@ -114,7 +114,6 @@ const Messages: React.FC<MessagesProps> = ({
   const clearTopic = useCallback(
     async (data: Topic) => {
       if (data && data.id !== topic.id) {
-        await clearTopicMessages(data.id)
         return
       }
 
