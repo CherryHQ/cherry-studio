@@ -104,19 +104,16 @@ export class AppMenuService extends BaseService {
           {
             label: appMenu.resetZoom,
             accelerator: zoomResetAccelerator,
-            enabled: !!zoomResetAccelerator,
             click: () => handleZoomFactor(getMainWindows(), 0, true)
           },
           {
             label: appMenu.zoomIn,
             accelerator: zoomInAccelerator,
-            enabled: !!zoomInAccelerator,
             click: () => handleZoomFactor(getMainWindows(), 0.1)
           },
           {
             label: appMenu.zoomOut,
             accelerator: zoomOutAccelerator,
-            enabled: !!zoomOutAccelerator,
             click: () => handleZoomFactor(getMainWindows(), -0.1)
           },
           { type: 'separator' },

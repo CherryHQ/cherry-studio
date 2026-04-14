@@ -164,6 +164,20 @@ export interface ShortcutListItem {
   defaultPreference: ResolvedShortcut
 }
 
+export const getAllShortcutDefaultPreferences = (): Record<ShortcutPreferenceKey, PreferenceShortcutType> => {
+  return SHORTCUT_DEFINITIONS.reduce(
+    (acc, definition) => {
+      const defaultPreference = getDefaultShortcut(definition)
+      acc[definition.key] = {
+        binding: defaultPreference.binding,
+        enabled: defaultPreference.enabled
+      }
+      return acc
+    },
+    {} as Record<ShortcutPreferenceKey, PreferenceShortcutType>
+  )
+}
+
 export const useAllShortcuts = () => {
   const [values, setValues] = useMultiplePreferences(shortcutPreferenceKeyMap)
   const [dependencyValues] = useMultiplePreferences(shortcutDependencyPreferenceKeyMap)

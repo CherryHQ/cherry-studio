@@ -4,7 +4,7 @@ import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useAllShortcuts } from '@renderer/hooks/useShortcuts'
+import { getAllShortcutDefaultPreferences, useAllShortcuts } from '@renderer/hooks/useShortcuts'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
@@ -176,14 +176,7 @@ const ShortcutSettings: FC = () => {
       title: t('settings.shortcuts.reset_defaults_confirm'),
       centered: true,
       onOk: async () => {
-        const updates: Record<string, PreferenceShortcutType> = {}
-
-        shortcuts.forEach((item) => {
-          updates[item.definition.key] = {
-            binding: item.defaultPreference.binding,
-            enabled: item.defaultPreference.enabled
-          }
-        })
+        const updates: Record<string, PreferenceShortcutType> = getAllShortcutDefaultPreferences()
 
         try {
           await preferenceService.setMultiple(updates)
