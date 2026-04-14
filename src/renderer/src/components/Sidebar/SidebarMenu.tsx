@@ -67,23 +67,23 @@ function IconMenuItems({ items, activeItem, activeTabId, onItemClick, onMiniAppT
 
 function VerticalCardMenuItems({ items, activeItem, activeTabId, onItemClick, onMiniAppTabClick }: MenuItemsProps) {
   return (
-    <div className="flex flex-col items-center gap-0 px-1">
+    <div className="flex flex-col items-center gap-1 px-1.5">
       {items.map((item) => {
         const isActive = activeItem === item.id
         const Icon = item.icon
         const miniTabs = item.miniAppTabs ?? []
 
         return (
-          <div key={item.id} className="contents">
+          <div key={item.id} className="flex w-full flex-col gap-1">
             <button
               type="button"
               onClick={() => void onItemClick(item.id)}
-              className={`relative flex w-full flex-col items-center gap-0.5 rounded-md py-2 transition-all duration-150 ${
+              className={`relative flex w-full flex-col items-center gap-0.5 rounded-[16px] py-2.5 transition-all duration-150 ${
                 isActive
                   ? 'bg-sidebar-active-bg text-foreground'
                   : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
               }`}>
-              {isActive && <ActiveIndicator className="rounded-md" />}
+              {isActive && <ActiveIndicator className="rounded-[16px]" />}
               <Icon size={18} strokeWidth={1.6} />
               <span className="text-[9px] leading-tight">{item.label}</span>
             </button>
@@ -93,14 +93,14 @@ function VerticalCardMenuItems({ items, activeItem, activeTabId, onItemClick, on
                 type="button"
                 key={miniTab.id}
                 onClick={() => onMiniAppTabClick?.(miniTab.id)}
-                className={`relative flex w-full flex-col items-center gap-0.5 rounded-md py-1.5 transition-all duration-150 ${
-                  activeTabId === miniTab.id ? 'bg-sidebar-active-bg' : 'hover:bg-accent/40'
+                className={`relative flex w-full flex-col items-center gap-0.5 rounded-[16px] py-2 transition-all duration-150 ${
+                  activeTabId === miniTab.id
+                    ? 'bg-sidebar-active-bg text-foreground'
+                    : 'text-muted-foreground hover:bg-accent/40 hover:text-foreground'
                 }`}>
-                {activeTabId === miniTab.id && <ActiveIndicator className="rounded-md" />}
+                {activeTabId === miniTab.id && <ActiveIndicator className="rounded-[16px]" />}
                 <MiniAppIcon tab={miniTab} size="md" />
-                <span className="max-w-[50px] truncate text-[8px] text-muted-foreground leading-tight">
-                  {miniTab.title}
-                </span>
+                <span className="max-w-[50px] truncate text-[8px] leading-tight">{miniTab.title}</span>
               </button>
             ))}
           </div>
