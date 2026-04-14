@@ -10,30 +10,30 @@ import { agentsTasksTable } from './agentsTasks'
 export const agentsChannelsTable = sqliteTable(
   'agents_channels',
   {
-    id: text()
+    id: text('id')
       .primaryKey()
       .$defaultFn(() => randomUUID()),
-    type: text().notNull(),
-    name: text().notNull(),
-    agent_id: text().references(() => agentsAgentsTable.id, { onDelete: 'set null' }),
-    session_id: text().references(() => agentsSessionsTable.id, { onDelete: 'set null' }),
-    config: text({ mode: 'json' }).$type<Record<string, unknown>>().notNull(),
-    is_active: integer({ mode: 'boolean' }).notNull().default(true),
-    active_chat_ids: text({ mode: 'json' }).$type<string[]>().default([]),
-    permission_mode: text(),
-    created_at: integer().$defaultFn(() => Date.now()),
-    updated_at: integer()
+    type: text('type').notNull(),
+    name: text('name').notNull(),
+    agentId: text('agent_id').references(() => agentsAgentsTable.id, { onDelete: 'set null' }),
+    sessionId: text('session_id').references(() => agentsSessionsTable.id, { onDelete: 'set null' }),
+    config: text('config', { mode: 'json' }).$type<Record<string, unknown>>().notNull(),
+    isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+    activeChatIds: text('active_chat_ids', { mode: 'json' }).$type<string[]>().default([]),
+    permissionMode: text('permission_mode'),
+    createdAt: integer('created_at').$defaultFn(() => Date.now()),
+    updatedAt: integer('updated_at')
       .$defaultFn(() => Date.now())
       .$onUpdateFn(() => Date.now())
   },
   (t) => [
-    index('agents_channels_agent_id_idx').on(t.agent_id),
+    index('agents_channels_agent_id_idx').on(t.agentId),
     index('agents_channels_type_idx').on(t.type),
-    index('agents_channels_session_id_idx').on(t.session_id),
+    index('agents_channels_session_id_idx').on(t.sessionId),
     check('agents_channels_type_check', sql`${t.type} IN ('telegram', 'feishu', 'qq', 'wechat', 'discord', 'slack')`),
     check(
       'agents_channels_permission_mode_check',
-      sql`${t.permission_mode} IS NULL OR ${t.permission_mode} IN ('default', 'acceptEdits', 'bypassPermissions', 'plan')`
+      sql`${t.permissionMode} IS NULL OR ${t.permissionMode} IN ('default', 'acceptEdits', 'bypassPermissions', 'plan')`
     )
   ]
 )
@@ -41,17 +41,17 @@ export const agentsChannelsTable = sqliteTable(
 export const agentsChannelTaskSubscriptionsTable = sqliteTable(
   'agents_channel_task_subscriptions',
   {
-    channel_id: text()
+    channelId: text('channel_id')
       .notNull()
       .references(() => agentsChannelsTable.id, { onDelete: 'cascade' }),
-    task_id: text()
+    taskId: text('task_id')
       .notNull()
       .references(() => agentsTasksTable.id, { onDelete: 'cascade' })
   },
   (t) => [
-    primaryKey({ columns: [t.channel_id, t.task_id] }),
-    index('agents_channel_task_subscriptions_channel_id_idx').on(t.channel_id),
-    index('agents_channel_task_subscriptions_task_id_idx').on(t.task_id)
+    primaryKey({ columns: [t.channelId, t.taskId] }),
+    index('agents_channel_task_subscriptions_channel_id_idx').on(t.channelId),
+    index('agents_channel_task_subscriptions_task_id_idx').on(t.taskId)
   ]
 )
 
