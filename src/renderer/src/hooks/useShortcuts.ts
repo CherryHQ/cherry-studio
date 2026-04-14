@@ -1,8 +1,9 @@
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
-import { isMac } from '@renderer/config/constant'
+import { isMac, platform } from '@renderer/config/constant'
+import { getShortcutLabel } from '@renderer/i18n/label'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import { findShortcutDefinition, SHORTCUT_DEFINITIONS } from '@shared/shortcuts/definitions'
-import type { ResolvedShortcut, ShortcutDefinition, ShortcutKey, ShortcutPreferenceKey } from '@shared/shortcuts/types'
+import type { ResolvedShortcut, ShortcutKey, ShortcutPreferenceKey, SupportedPlatform } from '@shared/shortcuts/types'
 import {
   convertAcceleratorToHotkey,
   formatShortcutDisplay,
@@ -139,37 +140,65 @@ export const useShortcutDisplay = (shortcutKey: ShortcutKey | ShortcutPreference
 }
 
 export interface ShortcutListItem {
-  definition: ShortcutDefinition
+  key: ShortcutPreferenceKey
+  label: string
+  definition: (typeof SHORTCUT_DEFINITIONS)[number]
   preference: ResolvedShortcut
   defaultPreference: ResolvedShortcut
-  updatePreference: (patch: Partial<PreferenceShortcutType>) => Promise<void>
 }
 
-export const useAllShortcuts = (): ShortcutListItem[] => {
+const MINI_WINDOW_SHORTCUT_KEY: ShortcutPreferenceKey = 'shortcut.general.show_mini_window'
+const SELECTION_SHORTCUT_CATEGORY = 'feature.selection'
+
+export const useAllShortcuts = () => {
   const [values, setValues] = useMultiplePreferences(shortcutPreferenceKeyMap)
+  const [quickAssistantEnabled] = usePreference('feature.quick_assistant.enabled')
+  const [selectionAssistantEnabled] = usePreference('feature.selection.enabled')
 
   const updatePreference = useCallback(
-    async (definition: ShortcutDefinition, state: ResolvedShortcut, patch: Partial<PreferenceShortcutType>) => {
+    async (key: ShortcutPreferenceKey, patch: Partial<PreferenceShortcutType>) => {
+      const definition = findShortcutDefinition(key)
+      if (!definition) return
       const currentValue = values[definition.key] as PreferenceShortcutType | undefined
+      const state = resolveShortcutPreference(definition, currentValue)
       const nextValue = buildNextPreference(state, currentValue, patch)
       await setValues({ [definition.key]: nextValue } as Partial<Record<string, PreferenceShortcutType>>)
     },
     [setValues, values]
   )
 
-  return useMemo(
+  const shortcuts = useMemo(
     () =>
-      SHORTCUT_DEFINITIONS.map((definition) => {
+      SHORTCUT_DEFINITIONS.flatMap((definition) => {
+        const supported = definition.supportedPlatforms
+        if (supported && platform && !supported.includes(platform as SupportedPlatform)) {
+          return []
+        }
+        if (definition.key === MINI_WINDOW_SHORTCUT_KEY && !quickAssistantEnabled) {
+          return []
+        }
+        if (definition.category === SELECTION_SHORTCUT_CATEGORY && !selectionAssistantEnabled) {
+          return []
+        }
+
         const rawValue = values[definition.key] as PreferenceShortcutType | undefined
         const preference = resolveShortcutPreference(definition, rawValue)
 
-        return {
-          definition,
-          preference,
-          defaultPreference: getDefaultShortcut(definition),
-          updatePreference: (patch: Partial<PreferenceShortcutType>) => updatePreference(definition, preference, patch)
-        }
+        return [
+          {
+            key: definition.key,
+            label: getShortcutLabel(definition.labelKey),
+            definition,
+            preference: {
+              binding: preference.binding,
+              enabled: preference.enabled && preference.binding.length > 0
+            },
+            defaultPreference: getDefaultShortcut(definition)
+          }
+        ]
       }),
-    [updatePreference, values]
+    [quickAssistantEnabled, selectionAssistantEnabled, values]
   )
+
+  return { shortcuts, updatePreference }
 }
