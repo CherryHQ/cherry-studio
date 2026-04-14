@@ -4,7 +4,7 @@ import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { cn, uuid } from '@renderer/utils'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { Home, Plus, X } from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { Tab } from '../../hooks/useTabs'
@@ -126,6 +126,9 @@ const PinnedTabButton = ({
   )
 }
 
+// Threshold below which the right-side X is hidden and icon-overlay X is used instead
+const NARROW_TAB_THRESHOLD = 64
+
 const NormalTabButton = ({
   tab,
   isActive,
@@ -149,10 +152,33 @@ const NormalTabButton = ({
 }) => {
   const Icon = getTabIcon(tab)
   const isCloseable = tab.id !== HOME_TAB_ID
+  const btnRef = useRef<HTMLButtonElement | null>(null)
+  const [isNarrow, setIsNarrow] = useState(false)
+
+  useEffect(() => {
+    const el = btnRef.current
+    if (!el) return
+    const ro = new ResizeObserver(([entry]) => {
+      setIsNarrow(entry.contentRect.width < NARROW_TAB_THRESHOLD)
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  const setRefs = useCallback(
+    (el: HTMLButtonElement | null) => {
+      btnRef.current = el
+      tabRef(el)
+    },
+    [tabRef]
+  )
+
+  const showRightClose = isCloseable && showClose && !isNarrow
+  const showIconOverlayClose = isCloseable && showClose && isNarrow
 
   return (
     <button
-      ref={tabRef}
+      ref={setRefs}
       data-tab-id={tab.id}
       type="button"
       onPointerDown={drag.onPointerDown}
@@ -165,14 +191,15 @@ const NormalTabButton = ({
         opacity: drag.isGhost ? 0.3 : 1
       }}
       className={cn(
-        'group relative flex h-[30px] min-w-[40px] max-w-[160px] flex-1 items-center gap-1.5 rounded-[10px] px-2 transition-all duration-150 [-webkit-app-region:no-drag]',
+        'group relative flex h-[30px] min-w-[40px] max-w-[160px] flex-1 items-center gap-1.5 rounded-[10px] transition-all duration-150 [-webkit-app-region:no-drag]',
+        showRightClose ? 'pr-1 pl-2' : 'px-2',
         drag.isDragging ? 'cursor-grabbing' : 'cursor-default',
         isActive ? tone.activeClass : tone.hoverClass
       )}>
-      {/* Icon with close overlay — X replaces icon on hover (Chrome-style) */}
+      {/* Icon — on narrow tabs, X overlay replaces icon on hover (Chrome-style) */}
       <div className="relative flex h-[13px] w-[13px] shrink-0 items-center justify-center">
-        <Icon size={13} strokeWidth={1.6} className={cn(isCloseable && showClose && 'group-hover:hidden')} />
-        {isCloseable && showClose && (
+        <Icon size={13} strokeWidth={1.6} className={cn(showIconOverlayClose && 'group-hover:hidden')} />
+        {showIconOverlayClose && (
           <div
             role="button"
             tabIndex={0}
@@ -196,6 +223,28 @@ const NormalTabButton = ({
         style={{ maskImage: 'linear-gradient(to right, black 80%, transparent 100%)' }}>
         {tab.title}
       </span>
+      {/* Right-side close button — only on wide tabs */}
+      {showRightClose && (
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={(e) => {
+            e.stopPropagation()
+            onClose()
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.stopPropagation()
+              onClose()
+            }
+          }}
+          className={cn(
+            'ml-auto flex h-[18px] w-[18px] shrink-0 cursor-pointer items-center justify-center rounded-sm transition-all duration-150 hover:bg-foreground/10',
+            isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+          )}>
+          <X size={10} />
+        </div>
+      )}
     </button>
   )
 }
@@ -409,7 +458,7 @@ export const AppShellTabBar = ({
               onClick={handleAddTab}
               className={cn(
                 'sticky right-0 ml-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors [-webkit-app-region:no-drag] hover:bg-sidebar-accent hover:text-sidebar-foreground',
-                isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
+                isMacTransparentWindow ? 'bg-white/60 backdrop-blur-sm dark:bg-black/40' : 'bg-sidebar'
               )}
               title={t('tab.new')}>
               <Plus size={14} />
