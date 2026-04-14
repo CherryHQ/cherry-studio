@@ -177,6 +177,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       }
 
       if (activeTab?.isPinned) {
+        openTab(path, { forceNew: true, title: getDefaultRouteTitle(path) })
         return
       }
 
