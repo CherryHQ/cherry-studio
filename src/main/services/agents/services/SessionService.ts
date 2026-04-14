@@ -114,7 +114,6 @@ export class SessionService extends BaseService {
     const agent = this.deserializeJsonFields(agents[0]) as AgentEntity
 
     const id = `session_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
-    const now = new Date().toISOString()
 
     // inherit configuration from agent by default, can be overridden by sessionData
     const sessionData: Partial<CreateSessionRequest> = {
@@ -148,9 +147,7 @@ export class SessionService extends BaseService {
       mcps: serializedData.mcps || null,
       allowedTools: serializedData.allowed_tools || null,
       configuration: serializedData.configuration || null,
-      sortOrder: 0,
-      createdAt: now,
-      updatedAt: now
+      sortOrder: 0
     }
 
     const db = await this.getDatabase()
@@ -263,8 +260,6 @@ export class SessionService extends BaseService {
     // Validate agent exists if changing main_agent_id
     // We'll skip this validation for now to avoid circular dependencies
 
-    const now = new Date().toISOString()
-
     if (updates.accessible_paths !== undefined) {
       if (updates.accessible_paths.length === 0) {
         throw new Error('accessible_paths must not be empty')
@@ -286,7 +281,7 @@ export class SessionService extends BaseService {
     const serializedUpdates = this.serializeJsonFields(updates)
 
     const updateData: Partial<SessionRow> = {
-      updatedAt: now
+      updatedAt: Date.now()
     }
     // AgentBaseSchema.shape keys are entity-level (snake_case); map them to row-level (camelCase)
     const sessionEntityToRowField: Partial<Record<string, keyof SessionRow>> = {

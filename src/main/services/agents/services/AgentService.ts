@@ -44,7 +44,6 @@ export class AgentService extends BaseService {
   // Agent Methods
   async createAgent(req: CreateAgentRequest): Promise<CreateAgentResponse> {
     const id = `agent_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
-    const now = new Date().toISOString()
 
     req.accessible_paths = this.resolveAccessiblePaths(req.accessible_paths, id)
 
@@ -67,9 +66,7 @@ export class AgentService extends BaseService {
       smallModel: req.small_model,
       configuration: serializedReq.configuration,
       accessiblePaths: serializedReq.accessible_paths,
-      sortOrder: 0,
-      createdAt: now,
-      updatedAt: now
+      sortOrder: 0
     }
 
     const database = await this.getDatabase()
@@ -197,7 +194,7 @@ export class AgentService extends BaseService {
         const workspace = resolvedPaths[0]
         const agentConfig = workspace ? await provisionWorkspace(workspace, builtinRole) : undefined
         if (agentConfig && (agentConfig.description || agentConfig.instructions)) {
-          const updateData: Partial<InsertAgentRow> = { updatedAt: new Date().toISOString() }
+          const updateData: Partial<InsertAgentRow> = { updatedAt: Date.now() }
           if (agentConfig.description) updateData.description = agentConfig.description
           if (agentConfig.instructions) updateData.instructions = agentConfig.instructions
           await database.update(agentsTable).set(updateData).where(eq(agentsTable.id, id))
@@ -219,7 +216,6 @@ export class AgentService extends BaseService {
       // Provision workspace (.claude/skills, plugins) and read agent.json config
       const agentConfig = workspace ? await provisionWorkspace(workspace, builtinRole) : undefined
 
-      const now = new Date().toISOString()
       const configuration: CreateAgentRequest['configuration'] = {
         permission_mode: 'default',
         max_turns: 100,
@@ -249,9 +245,7 @@ export class AgentService extends BaseService {
         model: req.model,
         configuration: serialized.configuration,
         accessiblePaths: serialized.accessible_paths,
-        sortOrder: 0,
-        createdAt: now,
-        updatedAt: now
+        sortOrder: 0
       }
 
       await database.transaction(async (tx) => {
@@ -293,7 +287,6 @@ export class AgentService extends BaseService {
         return null
       }
 
-      const now = new Date().toISOString()
       const configuration: CreateAgentRequest['configuration'] = {
         avatar: '🦞',
         permission_mode: 'bypassPermissions',
@@ -329,9 +322,7 @@ export class AgentService extends BaseService {
         model: req.model,
         configuration: serialized.configuration,
         accessiblePaths: serialized.accessible_paths,
-        sortOrder: 0,
-        createdAt: now,
-        updatedAt: now
+        sortOrder: 0
       }
 
       await database.transaction(async (tx) => {
@@ -364,8 +355,6 @@ export class AgentService extends BaseService {
       return null
     }
 
-    const now = new Date().toISOString()
-
     if (updates.accessible_paths !== undefined) {
       if (updates.accessible_paths.length === 0) {
         throw new Error('accessible_paths must not be empty')
@@ -387,7 +376,7 @@ export class AgentService extends BaseService {
     const serializedUpdates = this.serializeJsonFields(updates)
 
     const updateData: Partial<AgentRow> = {
-      updatedAt: now
+      updatedAt: Date.now()
     }
     // AgentBaseSchema.shape keys are entity-level (snake_case); map them to row-level (camelCase)
     const replaceableEntityFields = Object.keys(AgentBaseSchema.shape)
@@ -463,8 +452,6 @@ export class AgentService extends BaseService {
 
       if (sessions.length === 0) return
 
-      const now = new Date().toISOString()
-
       await database.transaction(async (tx) => {
         for (const session of sessions) {
           const sessionUpdateData: Partial<Record<string, unknown>> = {}
@@ -480,7 +467,7 @@ export class AgentService extends BaseService {
           }
 
           if (Object.keys(sessionUpdateData).length > 0) {
-            sessionUpdateData.updatedAt = now
+            sessionUpdateData.updatedAt = Date.now()
             await tx.update(sessionsTable).set(sessionUpdateData).where(eq(sessionsTable.id, session.id))
           }
         }

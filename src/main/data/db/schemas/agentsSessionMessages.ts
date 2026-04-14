@@ -1,5 +1,6 @@
 import { foreignKey, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
+import { createUpdateTimestamps } from './_columnHelpers'
 import { agentsSessionsTable } from './agentsSessions'
 
 export const agentsSessionMessagesTable = sqliteTable(
@@ -11,8 +12,7 @@ export const agentsSessionMessagesTable = sqliteTable(
     content: text('content').notNull(),
     agentSessionId: text('agent_session_id').default(''),
     metadata: text('metadata'),
-    createdAt: text('created_at').notNull(),
-    updatedAt: text('updated_at').notNull()
+    ...createUpdateTimestamps
   },
   (t) => [
     foreignKey({
@@ -20,9 +20,7 @@ export const agentsSessionMessagesTable = sqliteTable(
       foreignColumns: [agentsSessionsTable.id],
       name: 'agents_session_messages_session_id_fk'
     }).onDelete('cascade'),
-    index('agents_session_messages_session_id_idx').on(t.sessionId),
-    index('agents_session_messages_created_at_idx').on(t.createdAt),
-    index('agents_session_messages_updated_at_idx').on(t.updatedAt)
+    index('agents_session_messages_session_id_idx').on(t.sessionId)
   ]
 )
 

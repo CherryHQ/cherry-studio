@@ -65,7 +65,7 @@ export async function runBlockReferencesMigration(database: LibSQLDatabase<typeo
           .update(sessionMessagesTable)
           .set({
             content: serializedPayload,
-            updatedAt: new Date().toISOString()
+            updatedAt: Date.now()
           })
           .where(eq(sessionMessagesTable.id, row.id))
 

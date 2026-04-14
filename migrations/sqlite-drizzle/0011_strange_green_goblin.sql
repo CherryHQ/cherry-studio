@@ -12,13 +12,12 @@ CREATE TABLE `agents_agents` (
 	`allowed_tools` text,
 	`configuration` text,
 	`sort_order` integer DEFAULT 0 NOT NULL,
-	`created_at` text NOT NULL,
-	`updated_at` text NOT NULL
+	`created_at` integer,
+	`updated_at` integer
 );
 --> statement-breakpoint
 CREATE INDEX `agents_agents_name_idx` ON `agents_agents` (`name`);--> statement-breakpoint
 CREATE INDEX `agents_agents_type_idx` ON `agents_agents` (`type`);--> statement-breakpoint
-CREATE INDEX `agents_agents_created_at_idx` ON `agents_agents` (`created_at`);--> statement-breakpoint
 CREATE INDEX `agents_agents_sort_order_idx` ON `agents_agents` (`sort_order`);--> statement-breakpoint
 CREATE TABLE `agents_channel_task_subscriptions` (
 	`channel_id` text NOT NULL,
@@ -58,14 +57,12 @@ CREATE TABLE `agents_session_messages` (
 	`content` text NOT NULL,
 	`agent_session_id` text DEFAULT '',
 	`metadata` text,
-	`created_at` text NOT NULL,
-	`updated_at` text NOT NULL,
+	`created_at` integer,
+	`updated_at` integer,
 	FOREIGN KEY (`session_id`) REFERENCES `agents_sessions`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
 CREATE INDEX `agents_session_messages_session_id_idx` ON `agents_session_messages` (`session_id`);--> statement-breakpoint
-CREATE INDEX `agents_session_messages_created_at_idx` ON `agents_session_messages` (`created_at`);--> statement-breakpoint
-CREATE INDEX `agents_session_messages_updated_at_idx` ON `agents_session_messages` (`updated_at`);--> statement-breakpoint
 CREATE TABLE `agents_sessions` (
 	`id` text PRIMARY KEY NOT NULL,
 	`agent_type` text NOT NULL,
@@ -82,12 +79,11 @@ CREATE TABLE `agents_sessions` (
 	`slash_commands` text,
 	`configuration` text,
 	`sort_order` integer DEFAULT 0 NOT NULL,
-	`created_at` text NOT NULL,
-	`updated_at` text NOT NULL,
+	`created_at` integer,
+	`updated_at` integer,
 	FOREIGN KEY (`agent_id`) REFERENCES `agents_agents`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE INDEX `agents_sessions_created_at_idx` ON `agents_sessions` (`created_at`);--> statement-breakpoint
 CREATE INDEX `agents_sessions_agent_id_idx` ON `agents_sessions` (`agent_id`);--> statement-breakpoint
 CREATE INDEX `agents_sessions_model_idx` ON `agents_sessions` (`model`);--> statement-breakpoint
 CREATE INDEX `agents_sessions_sort_order_idx` ON `agents_sessions` (`sort_order`);--> statement-breakpoint
@@ -135,8 +131,8 @@ CREATE TABLE `agents_tasks` (
 	`last_run` text,
 	`last_result` text,
 	`status` text DEFAULT 'active' NOT NULL,
-	`created_at` text NOT NULL,
-	`updated_at` text NOT NULL,
+	`created_at` integer,
+	`updated_at` integer,
 	FOREIGN KEY (`agent_id`) REFERENCES `agents_agents`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint

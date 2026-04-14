@@ -10,6 +10,8 @@ export type AgentsSourceTableName =
 
 export type AgentsTableRowCounts = Record<AgentsSourceTableName, number>
 
+export type AgentsColumnExpr = string | { name: string; expr: string }
+
 export type AgentsTableMigrationSpec = {
   sourceTable: AgentsSourceTableName
   targetTable:
@@ -21,7 +23,7 @@ export type AgentsTableMigrationSpec = {
     | 'agents_channels'
     | 'agents_channel_task_subscriptions'
     | 'agents_session_messages'
-  columns: readonly string[]
+  columns: readonly AgentsColumnExpr[]
 }
 
 export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] = [
@@ -42,8 +44,8 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       'allowed_tools',
       'configuration',
       'sort_order',
-      'created_at',
-      'updated_at'
+      { name: 'created_at', expr: "CAST(strftime('%s', created_at) AS INTEGER) * 1000" },
+      { name: 'updated_at', expr: "CAST(strftime('%s', updated_at) AS INTEGER) * 1000" }
     ]
   },
   {
@@ -65,8 +67,8 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       'slash_commands',
       'configuration',
       'sort_order',
-      'created_at',
-      'updated_at'
+      { name: 'created_at', expr: "CAST(strftime('%s', created_at) AS INTEGER) * 1000" },
+      { name: 'updated_at', expr: "CAST(strftime('%s', updated_at) AS INTEGER) * 1000" }
     ]
   },
   {
@@ -103,8 +105,8 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       'last_run',
       'last_result',
       'status',
-      'created_at',
-      'updated_at'
+      { name: 'created_at', expr: "CAST(strftime('%s', created_at) AS INTEGER) * 1000" },
+      { name: 'updated_at', expr: "CAST(strftime('%s', updated_at) AS INTEGER) * 1000" }
     ]
   },
   {
@@ -137,7 +139,16 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
   {
     sourceTable: 'session_messages',
     targetTable: 'agents_session_messages',
-    columns: ['id', 'session_id', 'role', 'content', 'agent_session_id', 'metadata', 'created_at', 'updated_at']
+    columns: [
+      'id',
+      'session_id',
+      'role',
+      'content',
+      'agent_session_id',
+      'metadata',
+      { name: 'created_at', expr: "CAST(strftime('%s', created_at) AS INTEGER) * 1000" },
+      { name: 'updated_at', expr: "CAST(strftime('%s', updated_at) AS INTEGER) * 1000" }
+    ]
   }
 ] as const
 
@@ -157,9 +168,12 @@ export function buildAgentsImportStatements(dbPath: string): string[] {
   const statements = [`ATTACH DATABASE ${quoteSqlitePath(dbPath)} AS agents_legacy`]
 
   for (const spec of AGENTS_TABLE_MIGRATION_SPECS) {
-    const columns = spec.columns.join(', ')
+    const insertCols = spec.columns.map((col) => (typeof col === 'string' ? col : col.name)).join(', ')
+    const selectCols = spec.columns
+      .map((col) => (typeof col === 'string' ? col : `${col.expr} AS ${col.name}`))
+      .join(', ')
     statements.push(
-      `INSERT INTO ${spec.targetTable} (${columns}) SELECT ${columns} FROM agents_legacy.${spec.sourceTable}`
+      `INSERT INTO ${spec.targetTable} (${insertCols}) SELECT ${selectCols} FROM agents_legacy.${spec.sourceTable}`
     )
   }
 

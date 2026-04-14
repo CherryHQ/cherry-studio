@@ -30,7 +30,6 @@ export class TaskService extends BaseService {
     await this.assertAutonomous(agentId)
 
     const id = `task_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
-    const now = new Date().toISOString()
 
     const nextRun = this.computeInitialNextRun(req.schedule_type, req.schedule_value)
 
@@ -43,9 +42,7 @@ export class TaskService extends BaseService {
       scheduleValue: req.schedule_value,
       ...(req.timeout_minutes != null ? { timeoutMinutes: req.timeout_minutes } : {}),
       nextRun,
-      status: 'active',
-      createdAt: now,
-      updatedAt: now
+      status: 'active'
     }
 
     const database = await this.getDatabase()
@@ -128,8 +125,7 @@ export class TaskService extends BaseService {
     const existing = await this.getTaskById(taskId)
     if (!existing) return null
 
-    const now = new Date().toISOString()
-    const updateData: Partial<TaskRow> = { updatedAt: now }
+    const updateData: Partial<TaskRow> = { updatedAt: Date.now() }
 
     if (updates.name !== undefined) updateData.name = updates.name
     if (updates.prompt !== undefined) updateData.prompt = updates.prompt
@@ -200,8 +196,7 @@ export class TaskService extends BaseService {
     const existing = await this.getTask(agentId, taskId)
     if (!existing) return null
 
-    const now = new Date().toISOString()
-    const updateData: Partial<TaskRow> = { updatedAt: now }
+    const updateData: Partial<TaskRow> = { updatedAt: Date.now() }
 
     if (updates.name !== undefined) updateData.name = updates.name
     if (updates.prompt !== undefined) updateData.prompt = updates.prompt
@@ -256,8 +251,8 @@ export class TaskService extends BaseService {
       last_run: row.lastRun ?? null,
       last_result: row.lastResult ?? null,
       status: row.status as ScheduledTaskEntity['status'],
-      created_at: row.createdAt,
-      updated_at: row.updatedAt
+      created_at: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
+      updated_at: row.updatedAt ? new Date(row.updatedAt).toISOString() : new Date().toISOString()
     } as ScheduledTaskEntity
   }
 
@@ -357,12 +352,12 @@ export class TaskService extends BaseService {
   }
 
   async updateTaskAfterRun(taskId: string, nextRun: string | null, lastResult: string): Promise<void> {
-    const now = new Date().toISOString()
+    const nowIso = new Date().toISOString()
     const updateData: Partial<TaskRow> = {
-      lastRun: now,
+      lastRun: nowIso,
       lastResult,
       nextRun,
-      updatedAt: now
+      updatedAt: Date.now()
     }
 
     // Mark one-time tasks as completed

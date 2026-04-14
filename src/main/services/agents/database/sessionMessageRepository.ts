@@ -92,7 +92,7 @@ class AgentMessageRepository extends BaseService {
   private async upsertMessage(
     params: PersistUserMessageParams | PersistAssistantMessageParams
   ): Promise<AgentSessionMessageEntity> {
-    const { sessionId, agentSessionId = '', payload, metadata, createdAt } = params
+    const { sessionId, agentSessionId = '', payload, metadata } = params
 
     if (!payload?.message?.role) {
       throw new Error('Message payload missing role')
@@ -103,7 +103,6 @@ class AgentMessageRepository extends BaseService {
     }
 
     const database = await this.getDatabase()
-    const now = createdAt ?? payload.message.createdAt ?? new Date().toISOString()
     const serializedPayload = this.serializeMessage(payload)
     const serializedMetadata = this.serializeMetadata(metadata)
 
@@ -112,6 +111,7 @@ class AgentMessageRepository extends BaseService {
     if (existingRow) {
       const metadataToPersist = serializedMetadata ?? existingRow.metadata ?? undefined
       const agentSessionToPersist = agentSessionId || existingRow.agentSessionId || ''
+      const updatedAtMs = Date.now()
 
       await database
         .update(sessionMessagesTable)
@@ -119,7 +119,7 @@ class AgentMessageRepository extends BaseService {
           content: serializedPayload,
           metadata: metadataToPersist,
           agentSessionId: agentSessionToPersist,
-          updatedAt: now
+          updatedAt: updatedAtMs
         })
         .where(eq(sessionMessagesTable.id, existingRow.id))
 
@@ -128,7 +128,7 @@ class AgentMessageRepository extends BaseService {
         content: serializedPayload,
         metadata: metadataToPersist,
         agentSessionId: agentSessionToPersist,
-        updatedAt: now
+        updatedAt: updatedAtMs
       })
     }
 
@@ -137,9 +137,7 @@ class AgentMessageRepository extends BaseService {
       role: payload.message.role,
       content: serializedPayload,
       agentSessionId,
-      metadata: serializedMetadata,
-      createdAt: now,
-      updatedAt: now
+      metadata: serializedMetadata
     }
 
     const [saved] = await database.insert(sessionMessagesTable).values(insertData).returning()

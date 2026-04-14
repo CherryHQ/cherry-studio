@@ -1,5 +1,6 @@
 import { foreignKey, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
+import { createUpdateTimestamps } from './_columnHelpers'
 import { agentsAgentsTable } from './agentsAgents'
 
 export const agentsTasksTable = sqliteTable(
@@ -16,8 +17,7 @@ export const agentsTasksTable = sqliteTable(
     lastRun: text('last_run'),
     lastResult: text('last_result'),
     status: text('status').notNull().default('active'),
-    createdAt: text('created_at').notNull(),
-    updatedAt: text('updated_at').notNull()
+    ...createUpdateTimestamps
   },
   (t) => [
     foreignKey({
