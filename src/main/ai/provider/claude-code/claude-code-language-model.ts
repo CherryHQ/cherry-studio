@@ -349,7 +349,9 @@ export class ClaudeCodeLanguageModel implements LanguageModelV3 {
   }
 
   private getModel(): string {
-    return this.modelId
+    // Prefer ANTHROPIC_MODEL from env (set by buildEnvironment from session config).
+    // this.modelId is the AI SDK model ID which may not match the API model name.
+    return this.settings.env?.ANTHROPIC_MODEL ?? this.modelId
   }
 
   // ── Steering ────────────────────────────────────────────────────

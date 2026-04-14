@@ -53,6 +53,7 @@ import {
   SOUL_MODE_DISALLOWED_TOOLS
 } from '@shared/agents/claudecode/constants'
 import { languageEnglishNameMap } from '@shared/config/languages'
+import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { GetAgentSessionResponse } from '@types'
 import { app } from 'electron'
@@ -225,7 +226,7 @@ export function resolveClaudeExecutablePath(): string {
 }
 
 async function buildEnvironment(
-  provider: Provider,
+  _provider: Provider, // retained for API compat; providerId resolved from session.model
   session: GetAgentSessionResponse
 ): Promise<Record<string, string | undefined>> {
   const loginShellEnv = await getLoginShellEnvironment()
@@ -235,10 +236,16 @@ async function buildEnvironment(
   // API key and base URL are injected by the provider layer (ClaudeCodeProviderSettings),
   // not set here. This function only builds session-specific env vars.
 
-  // FIXME: In V2, session.model SHOULD be UniqueModelId
-  const colonIdx = session.model.indexOf(':')
-  const rawModelId = colonIdx > 0 ? session.model.slice(colonIdx + 1) : session.model
-  const model = await modelService.getByKey(provider.id, rawModelId)
+  // session.model is UniqueModelId ("providerId::modelId") after data_0003 migration.
+  // Try DB lookup for apiModelId (may differ from raw ID), fall back to raw if not registered.
+  const { providerId, modelId: rawModelId } = parseUniqueModelId(session.model as UniqueModelId)
+  let apiModelId = rawModelId
+  try {
+    const model = await modelService.getByKey(providerId, rawModelId)
+    apiModelId = model.apiModelId ?? rawModelId
+  } catch {
+    // Model not in model table — use raw ID (common for agent-specific models)
+  }
 
   const env: Record<string, string | undefined> = {
     ...loginShellEnv,
@@ -246,11 +253,11 @@ async function buildEnvironment(
     CLAUDE_CODE_USE_BEDROCK: '0',
     // ANTHROPIC_API_KEY and ANTHROPIC_BASE_URL are injected by the provider layer
     // (ClaudeCodeProviderSettings.apiKey/baseURL → env), not duplicated here.
-    ANTHROPIC_MODEL: model.apiModelId,
-    ANTHROPIC_DEFAULT_OPUS_MODEL: model.apiModelId,
-    ANTHROPIC_DEFAULT_SONNET_MODEL: model.apiModelId,
+    ANTHROPIC_MODEL: apiModelId,
+    ANTHROPIC_DEFAULT_OPUS_MODEL: apiModelId,
+    ANTHROPIC_DEFAULT_SONNET_MODEL: apiModelId,
     // TODO: support set small model in UI
-    ANTHROPIC_DEFAULT_HAIKU_MODEL: model.apiModelId,
+    ANTHROPIC_DEFAULT_HAIKU_MODEL: apiModelId,
     ELECTRON_RUN_AS_NODE: '1',
     ELECTRON_NO_ATTACH_CONSOLE: '1',
     CLAUDE_CONFIG_DIR: application.getPath('feature.agents.claude.root'),

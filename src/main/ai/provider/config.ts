@@ -155,10 +155,11 @@ export async function providerToAiSdkConfig(
   const { endpointType, baseUrl } = resolveEffectiveEndpoint(provider, model)
 
   // 3. Select correct provider variant based on endpoint type
-  // Cast: AppProviderId (with string escape hatch) → strict StringKeys (known keys only).
-  // Safe because resolveProviderVariant only returns values from appProviderIds or the base ID
-  // which getAiSdkProviderId already validated against the extension registry.
-  const aiSdkProviderId = resolveProviderVariant(baseProviderId, endpointType) as StringKeys<AppProviderSettingsMap>
+  // Agent sessions always use Claude Code provider — the session.model's provider
+  // is just the API gateway, Claude Code SDK is the execution engine.
+  const aiSdkProviderId = options?.agentSessionId
+    ? appProviderIds['claude-code']
+    : appProviderIds[resolveProviderVariant(baseProviderId, endpointType)] ?? appProviderIds[baseProviderId]
 
   // 4. Format URL + get API key
   const formattedBaseUrl = formatBaseURL(baseUrl, provider, endpointType)
@@ -487,10 +488,12 @@ function buildAiHubMixConfig(ctx: BuilderContext): ProviderConfig<'aihubmix'> {
  * buildClaudeCodeSessionSettings — replaces provider-level defaults entirely.
  */
 async function buildClaudeCodeConfig(ctx: BuilderContext): Promise<ProviderConfig<'claude-code'>> {
-  // Agent session: look up session from DB, build complete ClaudeCodeSettings
-  const anthropicBaseUrl = ctx.baseConfig.baseURL
-    ? formatApiHost(ctx.baseConfig.baseURL, !isWithTrailingSharp(ctx.baseConfig.baseURL))
-    : undefined
+  // Claude Code SDK uses Anthropic Messages API internally (via @anthropic-ai SDK).
+  // The SDK manages API versioning — ANTHROPIC_BASE_URL should NOT include /v1.
+  // Prefer the provider's anthropic-messages endpoint if configured.
+  const anthropicEndpointUrl = ctx.actualProvider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl
+  const rawBaseUrl = anthropicEndpointUrl || ctx.baseConfig.baseURL
+  const anthropicBaseUrl = rawBaseUrl ? formatApiHost(rawBaseUrl, false) : undefined
 
   // Agent session: full session settings from DB
   if (ctx.agentSessionId) {
@@ -505,6 +508,7 @@ async function buildClaudeCodeConfig(ctx: BuilderContext): Promise<ProviderConfi
     // Look up last SDK session ID for resume (survives app restart)
     const lastAgentSessionId = await agentMessageRepository.getLastAgentSessionId(ctx.agentSessionId)
     const sessionSettings = await buildClaudeCodeSessionSettings(session, ctx.actualProvider, { lastAgentSessionId })
+
     return {
       providerId: 'claude-code',
       providerSettings: {
