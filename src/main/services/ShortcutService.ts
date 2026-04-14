@@ -24,7 +24,7 @@ const relevantDefinitions = SHORTCUT_DEFINITIONS.filter(
 
 @Injectable('ShortcutService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowService', 'SelectionService', 'PreferenceService'])
+@DependsOn(['WindowService', 'SelectionService'])
 export class ShortcutService extends BaseService {
   private mainWindow: BrowserWindow | null = null
   private handlers = new Map<ShortcutPreferenceKey, ShortcutHandler>()

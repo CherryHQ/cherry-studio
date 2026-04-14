@@ -14,6 +14,8 @@
  * - v2 Refactor PR   : https://github.com/CherryHQ/cherry-studio/pull/10162
  * --------------------------------------------------------------------------
  */
+import { ZOOM_SHORTCUTS } from '@shared/config/constant'
+import type { Shortcut } from '@types'
 import Store from 'electron-store'
 
 export enum ConfigKeys {
@@ -23,6 +25,7 @@ export enum ConfigKeys {
   Tray = 'tray',
   TrayOnClose = 'trayOnClose',
   ZoomFactor = 'ZoomFactor',
+  Shortcuts = 'shortcuts',
   ClickTrayToShowQuickAssistant = 'clickTrayToShowQuickAssistant',
   EnableQuickAssistant = 'enableQuickAssistant',
   AutoUpdate = 'autoUpdate',
@@ -123,6 +126,17 @@ export class ConfigManager {
     if (subscribers) {
       subscribers.forEach((subscriber) => subscriber(newValue))
     }
+  }
+
+  getShortcuts() {
+    return this.get(ConfigKeys.Shortcuts, ZOOM_SHORTCUTS) as Shortcut[] | []
+  }
+
+  setShortcuts(shortcuts: Shortcut[]) {
+    this.setAndNotify(
+      ConfigKeys.Shortcuts,
+      shortcuts.filter((shortcut) => shortcut.system)
+    )
   }
 
   // getClickTrayToShowQuickAssistant(): boolean {
