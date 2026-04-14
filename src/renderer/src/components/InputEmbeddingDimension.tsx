@@ -9,6 +9,7 @@ import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { AiProvider } from '../aiCore'
+import { getRotatedApiKey } from '../services/ApiService'
 
 const logger = loggerService.withContext('DimensionsInput')
 
@@ -49,7 +50,11 @@ const InputEmbeddingDimension = ({
 
     setLoading(true)
     try {
-      const aiProvider = new AiProvider(provider)
+      const providerWithRotatedKey = {
+        ...provider,
+        apiKey: getRotatedApiKey(provider)
+      }
+      const aiProvider = new AiProvider(providerWithRotatedKey)
       const dimension = await aiProvider.getEmbeddingDimensions(model)
       // for controlled input
       if (ref?.current) {

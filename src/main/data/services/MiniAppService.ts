@@ -12,10 +12,10 @@
  * definitions with DB preference rows to produce a unified MiniApp view.
  */
 
+import { application } from '@application'
 import { type MiniAppInsert, type MiniAppSelect } from '@data/db/schemas/miniapp'
 import { type MiniAppStatus, miniappTable, type MiniAppType } from '@data/db/schemas/miniapp'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
 import type { CreateMiniappDto, UpdateMiniappDto } from '@shared/data/api/schemas/miniapps'

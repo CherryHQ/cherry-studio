@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  * Mocking strategy (mirrors crashTelemetry.test.ts):
  *   - `electron` is shadowed per test; only `app.requestSingleInstanceLock`
  *     is needed. The return value is toggled via a shared vi.fn().
- *   - `@main/core/application` is shadowed per test with a stub that
+ *   - `@application` is shadowed per test with a stub that
  *     exposes only `quit()` — the global mock in tests/main.setup.ts
  *     does not provide it.
  *   - `process.exit` is a Node global. We temporarily replace it with a
@@ -40,7 +40,7 @@ function stubElectron() {
 }
 
 function stubApplication() {
-  vi.doMock('@main/core/application', () => ({
+  vi.doMock('@application', () => ({
     application: {
       quit: applicationQuitMock
     }

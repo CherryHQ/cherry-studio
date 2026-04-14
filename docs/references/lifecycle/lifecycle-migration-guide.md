@@ -118,7 +118,7 @@ import { windowService } from '@main/services/WindowService'
 windowService.createMainWindow()
 
 // NEW
-import { application } from '@main/core/application'
+import { application } from '@application'
 const windowService = application.get('WindowService')
 windowService.createMainWindow()
 ```

@@ -27,7 +27,7 @@ const mockDb = {
 let realDb: DbType | null = null
 let closeClient: (() => void) | undefined
 
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: {
     get: vi.fn(() => ({
       getDb: vi.fn(() => realDb ?? mockDb)

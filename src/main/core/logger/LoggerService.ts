@@ -1,4 +1,5 @@
 /* eslint-disable no-restricted-syntax */
+import { isDev } from '@main/constant'
 import { LOGS_DIR } from '@main/core/paths/constants'
 import type { LogContextData, LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import { LEVEL, LEVEL_MAP } from '@shared/config/logger'
@@ -9,8 +10,6 @@ import path from 'path'
 import winston from 'winston'
 import DailyRotateFile from 'winston-daily-rotate-file'
 import { isMainThread } from 'worker_threads'
-
-import { isDev } from '../constant'
 
 const ANSICOLORS = {
   RED: '\x1b[31m',

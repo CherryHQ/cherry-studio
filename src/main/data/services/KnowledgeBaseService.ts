@@ -4,9 +4,9 @@
  * Handles CRUD operations for knowledge bases stored in SQLite.
  */
 
+import { application } from '@application'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
 import {

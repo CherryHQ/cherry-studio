@@ -1,6 +1,6 @@
+import { application } from '@application'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import type { KnowledgeBase, KnowledgeItem } from '@shared/data/types/knowledge'
 import type { BaseVectorStore } from '@vectorstores/core'
 

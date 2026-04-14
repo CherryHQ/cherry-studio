@@ -28,7 +28,7 @@
         },
         {
           "originalKey": "tagsOrder",
-          "type": "string",
+          "type": "string[]",
           "defaultValue": [],
           "status": "pending",
           "category": null,
