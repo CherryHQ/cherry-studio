@@ -1,6 +1,5 @@
+import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
-import store from '@renderer/store'
-import { newMessagesActions } from '@renderer/store/newMessage'
 
 const logger = loggerService.withContext('topicStreamStateSync')
 
@@ -9,8 +8,8 @@ let started = false
 /**
  * Keeps topic loading/fulfilled flags in sync with the v2 AI stream.
  *
- * Mirrors Main-side AiStreamManager lifecycle events into Redux topic flags
- * so sidebar/topic UI can read streaming state without component-level effects.
+ * Mirrors Main-side AiStreamManager lifecycle events into Cache
+ * so sidebar/topic UI can read streaming state via useCache hooks.
  */
 export function ensureTopicStreamStateSyncStarted(): void {
   if (started || typeof window === 'undefined') return
@@ -18,22 +17,38 @@ export function ensureTopicStreamStateSyncStarted(): void {
   started = true
 
   window.api.ai.onStreamChunk(({ topicId }) => {
-    const state = store.getState().messages
-    if (!state.loadingByTopic[topicId]) {
-      store.dispatch(newMessagesActions.setTopicLoading({ topicId, loading: true }))
+    const loadingKey = `topic.stream.loading.${topicId}` as const
+    const fulfilledKey = `topic.stream.fulfilled.${topicId}` as const
+    if (!cacheService.get(loadingKey)) {
+      cacheService.set(loadingKey, true)
+      cacheService.set('topic.stream.active_count', (cacheService.get('topic.stream.active_count') || 0) + 1)
     }
-    if (state.fulfilledByTopic[topicId]) {
-      store.dispatch(newMessagesActions.setTopicFulfilled({ topicId, fulfilled: false }))
+    if (cacheService.get(fulfilledKey)) {
+      cacheService.set(fulfilledKey, false)
     }
   })
 
   window.api.ai.onStreamDone(({ topicId }) => {
-    store.dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
-    store.dispatch(newMessagesActions.setTopicFulfilled({ topicId, fulfilled: true }))
+    const loadingKey = `topic.stream.loading.${topicId}` as const
+    if (cacheService.get(loadingKey)) {
+      cacheService.set(loadingKey, false)
+      cacheService.set(
+        'topic.stream.active_count',
+        Math.max(0, (cacheService.get('topic.stream.active_count') || 0) - 1)
+      )
+    }
+    cacheService.set(`topic.stream.fulfilled.${topicId}` as const, true)
   })
 
   window.api.ai.onStreamError(({ topicId, error }) => {
     logger.warn('AI stream ended with error', { topicId, error })
-    store.dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
+    const loadingKey = `topic.stream.loading.${topicId}` as const
+    if (cacheService.get(loadingKey)) {
+      cacheService.set(loadingKey, false)
+      cacheService.set(
+        'topic.stream.active_count',
+        Math.max(0, (cacheService.get('topic.stream.active_count') || 0) - 1)
+      )
+    }
   })
 }

@@ -1,3 +1,4 @@
+import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { useCache } from '@data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
@@ -20,8 +21,6 @@ import { finishTopicRenaming, startTopicRenaming, TopicManager } from '@renderer
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { RootState } from '@renderer/store'
-import { newMessagesActions } from '@renderer/store/newMessage'
 import type { Assistant, Topic } from '@renderer/types'
 import { classNames, removeSpecialCharactersForFileName } from '@renderer/utils'
 import { copyTopicAsMarkdown, copyTopicAsPlainText } from '@renderer/utils/copy'
@@ -56,7 +55,6 @@ import {
 } from 'lucide-react'
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useDispatch, useSelector } from 'react-redux'
 import styled from 'styled-components'
 
 import { ensureChatTopicPersisted } from '../../chatPersistence'
@@ -118,8 +116,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
   const [, setGenerating] = useCache('chat.generating')
 
   const [renamingTopics] = useCache('topic.renaming')
-  const topicLoadingQuery = useSelector((state: RootState) => state.messages.loadingByTopic)
-  const topicFulfilledQuery = useSelector((state: RootState) => state.messages.fulfilledByTopic)
+  const [streamActiveCount] = useCache('topic.stream.active_count', 0)
   const [newlyRenamedTopics] = useCache('topic.newly_renamed')
 
   const borderRadius = showTopicTime ? 12 : 'var(--list-item-border-radius)'
@@ -148,13 +145,21 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
     }
   })
 
-  const isPending = useCallback((topicId: string) => topicLoadingQuery[topicId] || false, [topicLoadingQuery])
-  const isFulfilled = useCallback((topicId: string) => topicFulfilledQuery[topicId] || false, [topicFulfilledQuery])
-  const dispatch = useDispatch()
+  const isPending = useCallback(
+    (topicId: string) => cacheService.get(`topic.stream.loading.${topicId}` as const) || false,
+    // Re-evaluate when any stream starts/ends (active_count changes trigger re-render)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [streamActiveCount]
+  )
+  const isFulfilled = useCallback(
+    (topicId: string) => cacheService.get(`topic.stream.fulfilled.${topicId}` as const) || false,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [streamActiveCount]
+  )
 
   useEffect(() => {
-    dispatch(newMessagesActions.setTopicFulfilled({ topicId: activeTopic.id, fulfilled: false }))
-  }, [activeTopic.id, dispatch, topicFulfilledQuery])
+    cacheService.set(`topic.stream.fulfilled.${activeTopic.id}` as const, false)
+  }, [activeTopic.id])
 
   const isRenaming = useCallback(
     (topicId: string) => {

@@ -169,6 +169,9 @@ export type UseCacheSchema = {
   'message.streaming.block.${blockId}': any // MessageBlock
   'message.streaming.siblings_counter.${topicId}': number
   'message.streaming.chat_session.${topicId}': any // { chat: Chat<CherryUIMessage> } (renderer memory-only)
+  'topic.stream.loading.${topicId}': boolean
+  'topic.stream.fulfilled.${topicId}': boolean
+  'topic.stream.active_count': number
 }
 
 export const DefaultUseCache: UseCacheSchema = {
@@ -230,7 +233,10 @@ export const DefaultUseCache: UseCacheSchema = {
   'message.streaming.content.${messageId}': null,
   'message.streaming.block.${blockId}': null,
   'message.streaming.siblings_counter.${topicId}': 0,
-  'message.streaming.chat_session.${topicId}': null
+  'message.streaming.chat_session.${topicId}': null,
+  'topic.stream.loading.${topicId}': false,
+  'topic.stream.fulfilled.${topicId}': false,
+  'topic.stream.active_count': 0
 }
 
 /**

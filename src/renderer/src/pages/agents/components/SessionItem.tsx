@@ -1,4 +1,5 @@
 import { Tooltip } from '@cherrystudio/ui'
+import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import MarqueeText from '@renderer/components/MarqueeText'
@@ -10,8 +11,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { finishTopicRenaming, startTopicRenaming } from '@renderer/hooks/useTopic'
 import { SessionSettingsPopup } from '@renderer/pages/settings/AgentSettings'
 import { SessionLabel } from '@renderer/pages/settings/AgentSettings/shared'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { newMessagesActions } from '@renderer/store/newMessage'
+import { useAppDispatch } from '@renderer/store'
 import { loadTopicMessagesThunk, renameAgentSessionIfNeeded } from '@renderer/store/thunk/messageThunk'
 import type { AgentSessionEntity } from '@renderer/types'
 import { classNames } from '@renderer/utils'
@@ -94,11 +94,9 @@ const SessionItem = ({ session, agentId, channelType, onDelete, onPress }: Sessi
   }
 
   const isActive = activeSessionId === session.id
-  const topicLoadingQuery = useAppSelector((state) => state.messages.loadingByTopic)
-  const topicFulfilledQuery = useAppSelector((state) => state.messages.fulfilledByTopic)
   const sessionTopicId = buildAgentSessionTopicId(session.id)
-  const isPending = useMemo(() => topicLoadingQuery[sessionTopicId], [sessionTopicId, topicLoadingQuery])
-  const isFulfilled = useMemo(() => topicFulfilledQuery[sessionTopicId], [sessionTopicId, topicFulfilledQuery])
+  const [isPending] = useCache(`topic.stream.loading.${sessionTopicId}` as const, false)
+  const [isFulfilled] = useCache(`topic.stream.fulfilled.${sessionTopicId}` as const, false)
   const [renamingTopics] = useCache('topic.renaming')
   const [newlyRenamedTopics] = useCache('topic.newly_renamed')
   const isRenaming = renamingTopics.includes(sessionTopicId)
@@ -106,14 +104,9 @@ const SessionItem = ({ session, agentId, channelType, onDelete, onPress }: Sessi
 
   useEffect(() => {
     if (isFulfilled && activeSessionId === session.id) {
-      dispatch(
-        newMessagesActions.setTopicFulfilled({
-          topicId: sessionTopicId,
-          fulfilled: false
-        })
-      )
+      cacheService.set(`topic.stream.fulfilled.${sessionTopicId}` as const, false)
     }
-  }, [activeSessionId, dispatch, isFulfilled, session.id, sessionTopicId])
+  }, [activeSessionId, isFulfilled, session.id, sessionTopicId])
 
   const channelIcon = getChannelTypeIcon(channelType)
 
