@@ -1,9 +1,9 @@
 import { Divider } from '@cherrystudio/ui'
-import { LoadingIcon } from '@renderer/components/Icons'
 import { Languages } from 'lucide-react'
 import type { FC } from 'react'
 import { Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
+import { BeatLoader } from 'react-spinners'
 
 import type { MarkdownSource } from '../../Markdown/Markdown'
 import Markdown from '../../Markdown/Markdown'
@@ -24,7 +24,9 @@ const MessageTranslate: FC<Props> = ({ block }) => {
         </div>
       </div>
       {!block.content || block.content === t('translate.processing') ? (
-        <LoadingIcon color="var(--color-text-2)" style={{ marginBottom: 15 }} />
+        <div className="-mt-1.25 mb-1.25 flex h-8 flex-row items-center">
+          <BeatLoader color="var(--color-text-1)" size={8} speedMultiplier={0.8} />
+        </div>
       ) : (
         <Markdown block={block} />
       )}

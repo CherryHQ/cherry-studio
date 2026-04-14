@@ -356,7 +356,17 @@ const PartsRenderer: React.FC<Props> = ({ message }) => {
   const isProcessing = isMessageProcessing(message)
 
   // No parts to render — normal for user messages (content is in message text, not parts)
+  // But if the message is processing (pending/streaming), show the loading placeholder
   if (!messageParts || messageParts.length === 0) {
+    if (isProcessing) {
+      return (
+        <AnimatePresence mode="sync">
+          <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
+            <PlaceholderBlock isProcessing={true} />
+          </AnimatedBlockWrapper>
+        </AnimatePresence>
+      )
+    }
     return null
   }
 
