@@ -45,6 +45,11 @@ interface DragItemProps {
   onPointerDown: (e: React.PointerEvent) => void
 }
 
+interface CloseFlowProps {
+  lockedWidth: number | null
+  onCloseHoverStart: () => void
+}
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 const Separator = () => <div className="mx-0.5 h-4 w-px shrink-0 bg-border/50" />
@@ -129,6 +134,7 @@ const NormalTabButton = ({
   onContextMenu,
   showClose = true,
   drag,
+  closeFlow,
   tabRef
 }: {
   tab: Tab
@@ -138,6 +144,7 @@ const NormalTabButton = ({
   onContextMenu: (e: React.MouseEvent) => void
   showClose?: boolean
   drag: DragItemProps
+  closeFlow: CloseFlowProps
   tabRef: (el: HTMLButtonElement | null) => void
 }) => {
   const Icon = getTabIcon(tab)
@@ -155,7 +162,9 @@ const NormalTabButton = ({
         transform: `translateX(${drag.translateX}px)`,
         transition: drag.isDragging || drag.noTransition ? 'none' : 'transform 200ms ease',
         zIndex: drag.isDragging ? 50 : 'auto',
-        opacity: drag.isGhost ? 0.3 : 1
+        opacity: drag.isGhost ? 0.3 : 1,
+        width: closeFlow.lockedWidth ?? undefined,
+        flex: closeFlow.lockedWidth ? '0 0 auto' : undefined
       }}
       className={cn(
         'group relative flex h-[30px] min-w-[40px] max-w-[160px] flex-1 items-center gap-1.5 rounded-md transition-all duration-150 [-webkit-app-region:no-drag]',
@@ -179,6 +188,7 @@ const NormalTabButton = ({
             e.stopPropagation()
             onClose()
           }}
+          onMouseEnter={closeFlow.onCloseHoverStart}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.stopPropagation()
@@ -212,6 +222,7 @@ export const AppShellTabBar = ({
   const { t } = useTranslation()
   const isMacTransparentWindow = useMacTransparentWindow()
   const { rightPaddingClass } = useShellTabBarLayout(isDetached)
+  const [lockedNormalTabWidth, setLockedNormalTabWidth] = useState<number | null>(null)
 
   const { homeTab, pinnedTabs, normalTabs } = useMemo(() => {
     const pinned: Tab[] = []
@@ -271,6 +282,18 @@ export const AppShellTabBar = ({
   const { tabBarRef, tabRefs, noTransition, getTranslateX, handlePointerDown, handleTabClick, isDragging, isGhost } =
     useTabDrag({ pinnedTabs, normalTabs, isDetached, reorderTabs, closeTab, setActiveTab })
 
+  // ─── Lock normal tab widths during drag-close interaction ──────────────────
+
+  const lockNormalTabWidths = useCallback(() => {
+    if (lockedNormalTabWidth || normalTabs.length === 0) return
+    const firstNormalTab = normalTabs.find((tab) => tabRefs.current.get(tab.id))
+    if (!firstNormalTab) return
+    const width = tabRefs.current.get(firstNormalTab.id)?.getBoundingClientRect().width
+    if (width) {
+      setLockedNormalTabWidth(width)
+    }
+  }, [lockedNormalTabWidth, normalTabs, tabRefs])
+
   // ─── Action handlers ────────────────────────────────────────────────────────
 
   const handleHomeClick = () => {
@@ -301,6 +324,7 @@ export const AppShellTabBar = ({
     <>
       <header
         ref={tabBarRef}
+        onMouseLeave={() => setLockedNormalTabWidth(null)}
         className={cn(
           'relative flex h-11 w-full select-none items-center gap-1 [-webkit-app-region:drag]',
           isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar',
@@ -370,6 +394,10 @@ export const AppShellTabBar = ({
                 noTransition,
                 translateX: getTranslateX(tab.id, 'normal'),
                 onPointerDown: (e) => handlePointerDown(e, tab, 'normal')
+              }}
+              closeFlow={{
+                lockedWidth: lockedNormalTabWidth,
+                onCloseHoverStart: lockNormalTabWidths
               }}
               tabRef={(el) => {
                 if (el) {
