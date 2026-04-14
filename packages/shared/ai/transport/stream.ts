@@ -46,6 +46,8 @@ export interface StreamErrorPayload {
  */
 export interface AiStreamOpenRequest {
   topicId: string
+  /** 'submit-message' (new message) or 'regenerate-message' (re-run from existing user message). */
+  trigger?: 'submit-message' | 'regenerate-message'
   /** Explicit parent node — message id at the current branch tip. Omit to let Main auto-resolve. */
   parentAnchorId?: string
   /** User message content — Main wraps into a full Message when persisting. */

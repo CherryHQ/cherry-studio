@@ -31,7 +31,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
       abortSignal: AbortSignal | undefined
     } & ChatRequestOptions
   ): Promise<ReadableStream<UIMessageChunk>> {
-    const { chatId: topicId, messages, abortSignal, body } = options
+    const { chatId: topicId, messages, abortSignal, body, trigger } = options
     const mergedBody: Partial<AiChatRequestBody> = { ...this.#defaultBody, ...body }
 
     // Build listener stream before sending IPC to avoid missing early chunks
@@ -43,7 +43,8 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
     window.api.ai
       .streamOpen({
         topicId,
-        parentAnchorId: mergedBody.parentAnchorId || undefined,
+        trigger,
+        parentAnchorId: mergedBody.parentAnchorId || (trigger === 'regenerate-message' ? lastMessage?.id : undefined),
         userMessageParts: lastMessage ? lastMessage.parts : [],
         mentionedModelIds: mergedBody.mentionedModels?.map((m) => m.id as UniqueModelId)
       })

@@ -397,13 +397,18 @@ export class AiStreamManager extends BaseService {
 
     const modelSnapshot = { id: rawModelId, name: rawModelId, provider: providerId }
 
-    const userMessage = await messageService.create(req.topicId, {
-      role: 'user',
-      parentId: req.parentAnchorId,
-      data: { parts: req.userMessageParts },
-      modelId,
-      modelSnapshot
-    })
+    // Regenerate: user message already exists in DB, don't create duplicate.
+    // Submit: create new user message.
+    const isRegenerate = req.trigger === 'regenerate-message'
+    const userMessage = isRegenerate
+      ? await messageService.getById(req.parentAnchorId ?? '')
+      : await messageService.create(req.topicId, {
+          role: 'user',
+          parentId: req.parentAnchorId,
+          data: { parts: req.userMessageParts },
+          modelId,
+          modelSnapshot
+        })
 
     // Multi-model: @-mentioned models → one execution per model, shared siblingsGroupId
     // FIXME: v2 refactored
@@ -417,7 +422,26 @@ export class AiStreamManager extends BaseService {
       : [{ uniqueModelId: modelId, rawModelId, providerId }]
 
     const isMultiModel = models.length > 1
-    const siblingsGroupId = isMultiModel ? Date.now() : undefined
+
+    // Determine siblingsGroupId:
+    // - Multi-model: new group ID
+    // - Regenerate: inherit from existing siblings (or create new if first regenerate)
+    // - Single submit: no group
+    let siblingsGroupId: number | undefined
+    if (isMultiModel) {
+      siblingsGroupId = Date.now()
+    } else if (isRegenerate) {
+      // Find existing assistant children to inherit their siblingsGroupId
+      const existingSiblings = await messageService.getChildrenByParentId(userMessage.id)
+      const existingGroup = existingSiblings.find((m) => m.siblingsGroupId > 0)?.siblingsGroupId
+      siblingsGroupId = existingGroup ?? Date.now()
+      // Update existing siblings that have siblingsGroupId=0 to join the group
+      for (const sibling of existingSiblings) {
+        if (sibling.siblingsGroupId === 0) {
+          await messageService.updateSiblingsGroupId(sibling.id, siblingsGroupId)
+        }
+      }
+    }
 
     // Build all requests in parallel
     const requests = await Promise.all(
@@ -486,6 +510,7 @@ export class AiStreamManager extends BaseService {
     }
     if (!session) throw new Error(`Agent session not found: ${sessionId}`)
 
+    // TODO: removed after agent migrated
     // After data_0003_model_id_format migration, session.model is UniqueModelId ("providerId::modelId")
     const { providerId, modelId: rawModelId } = parseUniqueModelId(session.model as UniqueModelId)
     const uniqueModelId = createUniqueModelId(providerId, rawModelId)

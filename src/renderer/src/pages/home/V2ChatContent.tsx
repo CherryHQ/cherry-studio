@@ -316,19 +316,9 @@ const V2ChatContentInner: FC<InnerProps> = ({
   const v2ChatOverrides = useMemo<V2ChatOverrides>(
     () => ({
       regenerate: async (messageId?: string) => {
-        if (messageId) {
-          try {
-            await dataApiService.delete(`/messages/${messageId}`, { query: { cascade: true } })
-            const refreshed = await refresh()
-            setMessages(refreshed)
-          } catch (err) {
-            logger.warn('Failed to clean up old message before regenerate', { messageId, err })
-          }
-        }
-        // After deleting the assistant message, the old messageId no longer exists
-        // in chat.messages. Pass undefined so AI SDK regenerates from the last
-        // message (which is now the user message).
-        await regenerateWithCapabilities()
+        // Don't delete old assistant — regenerate creates a new sibling version.
+        // Both share the same parentId (user message) → MessageGroup renders as siblings.
+        await regenerateWithCapabilities(messageId)
       },
       resend: async (messageId?: string) => {
         if (messageId) {
