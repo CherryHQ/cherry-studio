@@ -41,7 +41,8 @@ export const agentsTaskRunLogsTable = sqliteTable(
     durationMs: integer('duration_ms').notNull(),
     status: text('status').notNull(),
     result: text('result'),
-    error: text('error')
+    error: text('error'),
+    ...createUpdateTimestamps
   },
   (t) => [
     foreignKey({

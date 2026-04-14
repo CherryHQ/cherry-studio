@@ -115,6 +115,8 @@ CREATE TABLE `agents_task_run_logs` (
 	`status` text NOT NULL,
 	`result` text,
 	`error` text,
+	`created_at` integer,
+	`updated_at` integer,
 	FOREIGN KEY (`task_id`) REFERENCES `agents_tasks`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint

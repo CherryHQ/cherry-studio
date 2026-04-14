@@ -112,7 +112,18 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
   {
     sourceTable: 'task_run_logs',
     targetTable: 'agents_task_run_logs',
-    columns: ['id', 'task_id', 'session_id', 'run_at', 'duration_ms', 'status', 'result', 'error']
+    columns: [
+      'id',
+      'task_id',
+      'session_id',
+      'run_at',
+      'duration_ms',
+      'status',
+      'result',
+      'error',
+      { name: 'created_at', expr: "CAST(strftime('%s', run_at) AS INTEGER) * 1000" },
+      { name: 'updated_at', expr: "CAST(strftime('%s', run_at) AS INTEGER) * 1000" }
+    ]
   },
   {
     sourceTable: 'channels',
