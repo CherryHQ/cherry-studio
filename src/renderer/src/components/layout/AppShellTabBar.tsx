@@ -78,7 +78,7 @@ const HomeTabButton = ({
       onClick={onClick}
       onContextMenu={onContextMenu}
       className={cn(
-        'flex h-8 w-8 shrink-0 cursor-default items-center justify-center rounded-md transition-colors duration-150 [-webkit-app-region:no-drag]',
+        'flex h-8 w-8 shrink-0 cursor-default items-center justify-center rounded-[8px] transition-colors duration-150 [-webkit-app-region:no-drag]',
         isActive ? tone.activeClass : tone.hoverClass
       )}>
       <Home size={14} strokeWidth={1.6} />
@@ -121,7 +121,7 @@ const PinnedTabButton = ({
           opacity: drag.isGhost ? 0.3 : 1
         }}
         className={cn(
-          'flex h-7 w-7 items-center justify-center rounded-md transition-colors duration-150',
+          'flex h-7 w-7 items-center justify-center rounded-[8px] transition-colors duration-150',
           drag.isDragging ? 'cursor-grabbing' : 'cursor-default',
           isActive ? tone.activeClass : tone.hoverClass
         )}>
@@ -174,7 +174,7 @@ const NormalTabButton = ({
         flex: closeFlow.lockedWidth ? '0 0 auto' : undefined
       }}
       className={cn(
-        'group relative flex h-[30px] min-w-[40px] max-w-[160px] flex-1 items-center gap-1.5 rounded-md transition-all duration-150 [-webkit-app-region:no-drag]',
+        'group relative flex h-[30px] min-w-[40px] max-w-[160px] flex-1 items-center gap-1.5 rounded-[10px] transition-all duration-150 [-webkit-app-region:no-drag]',
         isCloseable && showClose ? 'pr-1 pl-2' : 'px-2',
         drag.isDragging ? 'cursor-grabbing' : 'cursor-default',
         isActive ? tone.activeClass : tone.hoverClass
@@ -233,15 +233,14 @@ export const AppShellTabBar = ({
       isMacTransparentWindow
         ? {
             activeClass:
-              'bg-white/78 text-sidebar-foreground shadow-[inset_0_0_0_1px_rgba(255,255,255,0.65),0_1px_2px_rgba(0,0,0,0.05)] backdrop-blur-sm dark:bg-white/16 dark:text-sidebar-foreground dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.14)]',
+              'border border-black/8 bg-white/78 text-sidebar-foreground backdrop-blur-sm dark:border-white/14 dark:bg-white/16 dark:text-sidebar-foreground',
             hoverClass:
               'text-muted-foreground hover:bg-black/6 hover:text-sidebar-foreground hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28)] dark:hover:bg-white/6 dark:hover:text-sidebar-foreground dark:hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]'
           }
         : {
-            activeClass:
-              'bg-white text-sidebar-foreground shadow-[0_1px_2px_rgba(0,0,0,0.06)] dark:bg-sidebar-accent dark:text-sidebar-foreground dark:shadow-none',
+            activeClass: 'bg-black/8 text-sidebar-foreground dark:bg-sidebar-accent dark:text-sidebar-foreground',
             hoverClass:
-              'text-muted-foreground hover:bg-black/8 hover:text-sidebar-foreground dark:hover:bg-white/10 dark:hover:text-sidebar-foreground'
+              'text-muted-foreground hover:bg-white hover:text-sidebar-foreground dark:hover:bg-white/10 dark:hover:text-sidebar-foreground'
           },
     [isMacTransparentWindow]
   )
@@ -366,10 +365,10 @@ export const AppShellTabBar = ({
         {!isDetached && (pinnedTabs.length > 0 || normalTabs.length > 0) && <Separator />}
 
         {/* Tabs scrollable area — empty space stays draggable; only interactive elements override */}
-        <div className="flex flex-1 items-center gap-0.5 overflow-x-auto px-1 [&::-webkit-scrollbar]:hidden">
+        <div className="flex flex-1 items-center gap-1 overflow-x-auto px-1 [&::-webkit-scrollbar]:hidden">
           {/* Pinned tabs */}
           {pinnedTabs.length > 0 && (
-            <div className="flex shrink-0 items-center gap-0 rounded-lg bg-sidebar-accent/50 p-0.5 [-webkit-app-region:no-drag]">
+            <div className="flex shrink-0 items-center gap-0.5 rounded-lg bg-sidebar-accent/50 p-0.5 [-webkit-app-region:no-drag]">
               {pinnedTabs.map((tab) => (
                 <PinnedTabButton
                   key={tab.id}
