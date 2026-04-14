@@ -1,5 +1,8 @@
 import type { NewPaintingRow } from '@data/db/schemas/painting'
+import { loggerService } from '@logger'
 import type { PaintingMode, PaintingParams } from '@shared/data/types/painting'
+
+const logger = loggerService.withContext('PaintingMappings')
 
 export const LEGACY_PAINTING_NAMESPACES = [
   'siliconflow_paintings',
@@ -75,11 +78,26 @@ function getFileId(value: unknown): string | undefined {
 
 function getFileIds(value: unknown): string[] {
   if (!Array.isArray(value)) {
+    logger.warn('[getFileIds] record.files is not an array', {
+      type: typeof value,
+      value: String(value)?.slice(0, 200)
+    })
     return []
   }
 
+  logger.info('[getFileIds] record.files array', {
+    length: value.length,
+    sample: JSON.stringify(value[0])?.slice(0, 300)
+  })
+
   return value.flatMap((item) => {
     const id = getFileId(item)
+    if (!id) {
+      logger.warn('[getFileIds] item has no extractable id', {
+        type: typeof item,
+        keys: item && typeof item === 'object' ? Object.keys(item) : 'N/A'
+      })
+    }
     return id ? [id] : []
   })
 }
@@ -102,7 +120,7 @@ export function getPaintingScope(
     case 'aihubmix_image_generate':
       return { providerId: 'aihubmix', mode: 'generate' }
     case 'aihubmix_image_remix':
-      return { providerId: 'aihubmix', mode: 'edit' }
+      return { providerId: 'aihubmix', mode: 'remix' }
     case 'aihubmix_image_edit':
       return { providerId: 'aihubmix', mode: 'edit' }
     case 'aihubmix_image_upscale':
@@ -114,13 +132,16 @@ export function getPaintingScope(
     case 'ovms_paintings':
       return { providerId: 'ovms', mode: 'generate' }
     case 'ppio_draw':
-      return { providerId: 'ppio', mode: 'generate' }
+      return { providerId: 'ppio', mode: 'draw' }
     case 'ppio_edit':
       return { providerId: 'ppio', mode: 'edit' }
     case 'dmxapi_paintings': {
       const generationMode = getString(record.generationMode)
-      if (generationMode === 'edit' || generationMode === 'merge') {
+      if (generationMode === 'edit') {
         return { providerId: 'dmxapi', mode: 'edit' }
+      }
+      if (generationMode === 'merge') {
+        return { providerId: 'dmxapi', mode: 'merge' }
       }
       return { providerId: 'dmxapi', mode: 'generate' }
     }
@@ -191,9 +212,7 @@ function buildParams(
     params.taskId = taskId
   }
 
-  if (namespace === 'aihubmix_image_remix') {
-    params.editVariant = 'remix'
-  } else if (scope.mode === 'edit' && namespace !== 'dmxapi_paintings') {
+  if (scope.mode === 'edit' && namespace !== 'dmxapi_paintings') {
     params.editVariant = 'img2img'
   }
 
@@ -201,8 +220,6 @@ function buildParams(
     const generationMode = getString(record.generationMode)
     if (generationMode === 'edit') {
       params.editVariant = 'img2img'
-    } else if (generationMode === 'merge') {
-      params.legacyGenerationMode = 'merge'
     }
   }
 
@@ -233,11 +250,30 @@ export function transformLegacyPaintingRecord(
     }
   }
 
+  // --- DEBUG: log raw record shape ---
+  const recordKeys = Object.keys(record)
+  logger.info(`[transform] ${namespace} id=${id}`, {
+    keys: recordKeys.join(','),
+    hasFiles: 'files' in record,
+    filesType: typeof record.files,
+    filesIsArray: Array.isArray(record.files),
+    filesLength: Array.isArray(record.files) ? (record.files as unknown[]).length : 'N/A',
+    filesRaw: JSON.stringify(record.files)?.slice(0, 500)
+  })
+
   const fileIds = getFileIds(record.files)
   const inputFileIds = buildInputFileIds(namespace, record, warnings)
   const params = buildParams(namespace, record, scope, warnings)
   const prompt = getString(record.prompt) ?? ''
   const hasTaskId = typeof params.taskId === 'string' && params.taskId.trim().length > 0
+
+  logger.info(`[transform] ${namespace} id=${id} result`, {
+    fileIdsCount: fileIds.length,
+    fileIds: fileIds.slice(0, 5),
+    inputFileIdsCount: inputFileIds.length,
+    promptLength: prompt.length,
+    hasTaskId
+  })
 
   if (!prompt.trim() && fileIds.length === 0 && inputFileIds.length === 0 && !hasTaskId) {
     return {

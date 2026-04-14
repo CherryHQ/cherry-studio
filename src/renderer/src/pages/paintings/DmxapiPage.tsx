@@ -1,30 +1,50 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
-import { Button, InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
+import {
+  Button,
+  InfoTooltip,
+  Input,
+  RowFlex,
+  Select as UiSelect,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+  Switch,
+  Tabs,
+  TabsList,
+  TabsTrigger
+} from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { useCache } from '@data/hooks/useCache'
+import { usePaintingList } from '@data/hooks/usePaintings'
 import DMXAPIToImg from '@renderer/assets/images/providers/DMXAPI-to-img.webp'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isMac } from '@renderer/config/constant'
-import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import FileManager from '@renderer/services/FileManager'
 import type { FileMetadata } from '@renderer/types'
 import { convertToBase64, uuid } from '@renderer/utils'
+import type { PaintingMode } from '@shared/data/types/painting'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import type { DmxapiPainting } from '@types'
-import { Input, InputNumber, Segmented, Select } from 'antd'
-import TextArea from 'antd/es/input/TextArea'
 import type { FC } from 'react'
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { generationModeType } from '../../types'
-import SendMessageButton from '../home/Inputbar/SendMessageButton'
+
+function toDmxapiDbMode(generationMode?: generationModeType): PaintingMode {
+  if (generationMode === generationModeType.EDIT) return 'edit'
+  if (generationMode === generationModeType.MERGE) return 'merge'
+  return 'generate'
+}
 import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
 import ImageUploader from './components/ImageUploader'
+import PaintingPromptBar from './components/PaintingPromptBar'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
 import {
@@ -40,7 +60,13 @@ import { checkProviderEnabled } from './utils'
 const generateRandomSeed = () => Math.floor(Math.random() * 1000000).toString()
 
 const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
-  const { dmxapi_paintings, addPainting, removePainting, updatePainting } = usePaintings()
+  const {
+    items: dmxapi_paintings,
+    add: addPaintingScoped,
+    remove: removePaintingScoped,
+    update: updatePaintingScoped,
+    reorder
+  } = usePaintingList({ providerId: 'dmxapi' })
   const [painting, setPainting] = useState<DmxapiPainting>(dmxapi_paintings?.[0] || DEFAULT_PAINTING)
   const { t } = useTranslation()
   const providers = useAllProviders()
@@ -104,8 +130,6 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     return getModelOptions(currentMode)
   })
 
-  const textareaRef = useRef<any>(null)
-
   // 加载模型数据
   const loadModelData = async () => {
     try {
@@ -127,7 +151,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const updatePaintingState = (updates: Partial<DmxapiPainting>) => {
     const updatedPainting = { ...painting, ...updates }
     setPainting(updatedPainting)
-    updatePainting('dmxapi_paintings', updatedPainting)
+    updatePaintingScoped(updatedPainting)
   }
 
   const getFirstModelInfo = (v: generationModeType) => {
@@ -185,7 +209,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       id: uuid()
     }
 
-    setPainting(addPainting('dmxapi_paintings', copyPainting))
+    setPainting(addPaintingScoped(copyPainting, toDmxapiDbMode(copyPainting.generationMode)))
   }
 
   const onSelectModel = (modelId: string) => {
@@ -309,10 +333,9 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
         generationMode: v,
         model
       })
-      const addedPainting = addPainting('dmxapi_paintings', newPainting)
+      const addedPainting = addPaintingScoped(newPainting, toDmxapiDbMode(v))
       setPainting(addedPainting)
     } else {
-      // 否则更新当前painting
       updatePaintingState({
         generationMode: v,
         model,
@@ -327,7 +350,8 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     if (isLoading) {
       return
     }
-    setPainting(addPainting('dmxapi_paintings', getNewPainting()))
+    const np = getNewPainting()
+    setPainting(addPaintingScoped(np, toDmxapiDbMode(np.generationMode)))
   }
 
   // 检查提供者状态函数
@@ -539,7 +563,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     try {
       // 获取提示词
-      const prompt = textareaRef.current?.resizableTextArea?.textArea?.value || ''
+      const prompt = painting.prompt || ''
       updatePaintingState({ prompt })
 
       // 检查提供者状态
@@ -632,13 +656,11 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
 
     // 删除绘画
-    await removePainting('dmxapi_paintings', paintingToDelete)
+    await removePaintingScoped(paintingToDelete)
 
-    // 检查是否删除空了
     if (!dmxapi_paintings || dmxapi_paintings.length === 1) {
-      // 如果删除后没有绘画了，创建一个新的
       const newPainting = getNewPainting()
-      const addedPainting = addPainting('dmxapi_paintings', newPainting)
+      const addedPainting = addPaintingScoped(newPainting, toDmxapiDbMode(newPainting.generationMode))
       setPainting(addedPainting)
     }
   }
@@ -683,9 +705,12 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     if (painting.generationMode === generationModeType.EDIT) {
       if (painting?.urls.length === 0 && fileMap.paths && fileMap.paths?.length > 0 && fileMap.paths[0]) {
         return (
-          <EmptyImgBox>
-            <EmptyImg bgUrl={fileMap.paths[0]}></EmptyImg>
-          </EmptyImgBox>
+          <div className="flex flex-1 flex-row items-center justify-center">
+            <div
+              className="h-[70vh] w-[70vh] bg-white bg-contain bg-center bg-no-repeat"
+              style={{ backgroundImage: `url(${fileMap.paths[0]})` }}
+            />
+          </div>
         )
       }
     }
@@ -694,9 +719,12 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       return null
     } else {
       return (
-        <EmptyImgBox>
-          <EmptyImg></EmptyImg>
-        </EmptyImgBox>
+        <div className="flex flex-1 flex-row items-center justify-center">
+          <div
+            className="h-[70vh] w-[70vh] bg-white bg-contain bg-center bg-no-repeat"
+            style={{ backgroundImage: `url(${DMXAPIToImg})` }}
+          />
+        </div>
       )
     }
   }
@@ -707,9 +735,13 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       [generationModeType.EDIT, generationModeType.MERGE].includes(painting.generationMode)
     ) {
       return (
-        <LoadTextWrap>
+        <div
+          className="flex flex-col items-center justify-center text-center text-black"
+          style={{
+            textShadow: '-1px -1px 0 #ffffff, 1px -1px 0 #ffffff, -1px 1px 0 #ffffff, 1px 1px 0 #ffffff'
+          }}>
           <div>{t('paintings.dmxapi.generating_tip')}</div>
-        </LoadTextWrap>
+        </div>
       )
     }
 
@@ -727,20 +759,20 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     if (!dmxapi_paintings || dmxapi_paintings.length === 0) {
       const newPainting = getNewPainting()
-      addPainting('dmxapi_paintings', newPainting)
+      addPaintingScoped(newPainting, toDmxapiDbMode(newPainting.generationMode))
       setPainting(newPainting)
     } else if (painting && !painting.generationMode) {
       // 如果当前painting没有generationMode，添加默认值
       const updatedPainting = { ...painting, generationMode: MODEOPTIONS[0].value }
       setPainting(updatedPainting)
-      updatePainting('dmxapi_paintings', updatedPainting)
+      updatePaintingScoped(updatedPainting)
     }
 
     // 确保所有paintings都有generationMode属性
     dmxapi_paintings.forEach((p) => {
       if (!p.generationMode) {
         const updatedPainting = { ...p, generationMode: MODEOPTIONS[0].value }
-        updatePainting('dmxapi_paintings', updatedPainting)
+        updatePaintingScoped(updatedPainting)
       }
     })
 
@@ -778,7 +810,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   }, [painting.model, allModels, isCustomSize])
 
   return (
-    <Container>
+    <div className="flex h-full flex-1 flex-col">
       <Navbar>
         <NavbarCenter className="border-r-0">{t('paintings.title')}</NavbarCenter>
         {isMac && (
@@ -790,9 +822,9 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
           </NavbarRight>
         )}
       </Navbar>
-      <ContentContainer id="content-container">
-        <LeftContainer>
-          <ProviderTitleContainer>
+      <div id="content-container" className="flex h-full flex-1 flex-row overflow-hidden bg-[var(--color-background)]">
+        <Scrollbar className="flex h-full max-w-[var(--assistants-width)] flex-1 flex-col border-r border-[var(--color-border)] bg-[var(--color-background)] p-5">
+          <div className="mb-[5px] flex items-center justify-between">
             <SettingTitle className="mb-1">{t('common.provider')}</SettingTitle>
             <div>
               <SettingHelpLink target="_blank" href={COURSE_URL}>
@@ -806,7 +838,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
                 return Icon ? <Icon.Avatar size={16} className="ml-1" /> : null
               })()}
             </div>
-          </ProviderTitleContainer>
+          </div>
           <ProviderSelect
             provider={dmxapiProvider}
             options={Options}
@@ -829,80 +861,76 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             )}
 
           <SettingTitle className="mt-4 mb-1">
-            {t('common.model')} <SettingPrice>{painting.priceModel !== '0' ? painting.priceModel : ''}</SettingPrice>
+            {t('common.model')}
+            <span className="ml-auto text-[11px] font-medium text-[var(--color-primary)]">
+              {painting.priceModel !== '0' ? painting.priceModel : ''}
+            </span>
           </SettingTitle>
-          <Select
-            value={painting.model}
-            onChange={onSelectModel}
-            className="w-full"
-            loading={isLoadingModels}
-            placeholder={isLoadingModels ? t('common.loading') : t('paintings.select_model')}>
-            {Object.entries(modelOptions).map(([provider, models]) => {
-              if ((models as any[]).length === 0) return null
-              return (
-                <Select.OptGroup label={provider} key={provider}>
-                  {(models as any[]).map((model) => (
-                    <Select.Option key={model.id} value={model.id}>
-                      {model.name}
-                    </Select.Option>
-                  ))}
-                </Select.OptGroup>
-              )
-            })}
-          </Select>
+          <UiSelect value={painting.model} onValueChange={onSelectModel}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder={isLoadingModels ? t('common.loading') : t('paintings.select_model')} />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(modelOptions).map(([provider, models]) => {
+                if ((models as any[]).length === 0) return null
+                return (
+                  <SelectGroup key={provider}>
+                    <SelectLabel>{provider}</SelectLabel>
+                    {(models as any[]).map((model) => (
+                      <SelectItem key={model.id} value={model.id}>
+                        {model.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                )
+              })}
+            </SelectContent>
+          </UiSelect>
 
           <SettingTitle className="mt-4 mb-1">{t('paintings.image.size')}</SettingTitle>
-          <Select
-            value={isCustomSize ? 'custom' : painting.image_size}
-            onChange={(value) => onSelectImageSize(value)}
-            className="w-full">
-            {(() => {
-              const currentModel = allModels.find((m) => m.id === painting.model)
-              const modelImageSizes = currentModel?.image_sizes || []
+          <UiSelect value={isCustomSize ? 'custom' : painting.image_size} onValueChange={onSelectImageSize}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder={t('paintings.image.size')} />
+            </SelectTrigger>
+            <SelectContent>
+              {(() => {
+                const currentModel = allModels.find((m) => m.id === painting.model)
+                const modelImageSizes = currentModel?.image_sizes || []
 
-              // 直接使用模型返回的image_sizes数据，包含label和value
-              return modelImageSizes.map((size) => {
-                return (
-                  <Select.Option key={size.value} value={size.value}>
-                    <RowFlex className="items-center gap-2">
-                      <span>{size.label}</span>
-                    </RowFlex>
-                  </Select.Option>
-                )
-              })
-            })()}
-            {/* 检查当前模型是否支持自定义尺寸 */}
-            {allModels.find((m) => m.id === painting.model)?.is_custom_size && (
-              <Select.Option value="custom" key="custom">
-                <RowFlex className="items-center gap-2">
-                  <span>{t('paintings.custom_size')}</span>
-                </RowFlex>
-              </Select.Option>
-            )}
-          </Select>
+                return modelImageSizes.map((size) => (
+                  <SelectItem key={size.value} value={size.value}>
+                    {size.label}
+                  </SelectItem>
+                ))
+              })()}
+              {allModels.find((m) => m.id === painting.model)?.is_custom_size && (
+                <SelectItem value="custom">{t('paintings.custom_size')}</SelectItem>
+              )}
+            </SelectContent>
+          </UiSelect>
 
           {/* 自定义尺寸输入框 */}
           {isCustomSize && allModels.find((m) => m.id === painting.model)?.is_custom_size && (
             <div className="mt-2.5">
               <RowFlex className="items-center gap-2">
-                <InputNumber
+                <Input
                   placeholder="W"
-                  value={customWidth}
-                  controls={false}
-                  onChange={(value) => onCustomSizeChange(value, 'width')}
+                  type="number"
+                  value={customWidth === undefined ? '' : String(customWidth)}
+                  onChange={(e) => onCustomSizeChange(e.target.value ? Number(e.target.value) : null, 'width')}
                   min={parseInt(allModels.find((m) => m.id === painting.model)?.min_image_size || '512')}
                   max={parseInt(allModels.find((m) => m.id === painting.model)?.max_image_size || '2048')}
-                  style={{ width: 80, flex: 1 }}
+                  className="flex-1"
                 />
                 <span style={{ color: 'var(--color-text-2)', fontSize: '12px' }}>x</span>
-                <InputNumber
+                <Input
                   placeholder="H"
-                  value={customHeight}
-                  controls={false}
-                  onChange={(value) => onCustomSizeChange(value, 'height')}
+                  type="number"
+                  value={customHeight === undefined ? '' : String(customHeight)}
+                  onChange={(e) => onCustomSizeChange(e.target.value ? Number(e.target.value) : null, 'height')}
                   min={parseInt(allModels.find((m) => m.id === painting.model)?.min_image_size || 512)}
                   max={parseInt(allModels.find((m) => m.id === painting.model)?.max_image_size || 2048)}
-                  style={{ width: 80, flex: 1 }}
+                  className="flex-1"
                 />
                 <span style={{ color: 'var(--color-text-3)', fontSize: '11px' }}>px</span>
               </RowFlex>
@@ -915,33 +943,36 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
                 {t('paintings.seed')}
                 <InfoTooltip content={t('paintings.seed_desc_tip')} />
               </SettingTitle>
-              <Input
-                value={painting.seed}
-                pattern="[0-9]*"
-                onChange={(e) => onInputSeed(e)}
-                suffix={
-                  <RedoOutlined
-                    onClick={() => updatePaintingState({ seed: Math.floor(Math.random() * 1000000).toString() })}
-                    style={{ cursor: 'pointer', color: 'var(--color-text-2)' }}
-                  />
-                }
-              />
+              <RowFlex className="items-center gap-2">
+                <Input value={painting.seed} pattern="[0-9]*" onChange={(e) => onInputSeed(e)} />
+                <Button
+                  size="icon-sm"
+                  variant="outline"
+                  onClick={() => updatePaintingState({ seed: Math.floor(Math.random() * 1000000).toString() })}>
+                  <RedoOutlined />
+                </Button>
+              </RowFlex>
             </>
           )}
 
           <SettingTitle className="mt-4 mb-1">{t('paintings.style_type')}</SettingTitle>
-          <SliderContainer>
-            <RadioTextBox>
+          <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-start gap-2">
               {STYLE_TYPE_OPTIONS.map((ele) => (
-                <RadioTextItem
+                <button
+                  type="button"
                   key={ele.value}
-                  className={painting.style_type === ele.value ? 'selected' : ''}
+                  className={`rounded-[6px] border px-[6px] py-[2px] transition-all ${
+                    painting.style_type === ele.value
+                      ? 'border-[var(--color-primary)] bg-[var(--color-primary)] text-white'
+                      : 'border-[var(--color-border)] bg-[var(--color-background)] hover:bg-[var(--color-hover,#f0f0f0)]'
+                  }`}
                   onClick={() => onSelectStyleType(ele.value)}>
                   {t(ele.labelKey)}
-                </RadioTextItem>
+                </button>
               ))}
-            </RadioTextBox>
-          </SliderContainer>
+            </div>
+          </div>
 
           <SettingTitle className="mt-4 mb-1">
             {t('paintings.auto_create_paint')}
@@ -950,16 +981,21 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
           <RowFlex>
             <Switch checked={painting.autoCreate} onCheckedChange={(checked) => onChangeAutoCreate(checked)} />
           </RowFlex>
-        </LeftContainer>
-        <MainContainer>
-          <ModeSegmentedContainer>
-            <Segmented
-              shape="round"
+        </Scrollbar>
+        <div className="flex h-full flex-1 flex-col bg-[var(--color-background)]">
+          <div className="flex justify-center pt-6">
+            <Tabs
               value={painting.generationMode}
-              onChange={onGenerationModeChange}
-              options={modeOptions}
-            />
-          </ModeSegmentedContainer>
+              onValueChange={(value) => onGenerationModeChange(value as generationModeType)}>
+              <TabsList>
+                {modeOptions.map((option) => (
+                  <TabsTrigger key={option.value} value={String(option.value)}>
+                    {option.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+          </div>
           <Artboard
             painting={painting}
             isLoading={isLoading}
@@ -970,200 +1006,25 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             imageCover={defaultCoverImage()}
             loadText={defaultLoadText()}
           />
-          <InputContainer>
-            <Textarea
-              ref={textareaRef}
-              variant="borderless"
-              disabled={isLoading}
-              value={painting.prompt}
-              spellCheck={false}
-              onChange={(e) => updatePaintingState({ prompt: e.target.value })}
-              placeholder={t('paintings.prompt_placeholder')}
-            />
-            <Toolbar>
-              <ToolbarMenu>
-                <SendMessageButton sendMessage={onGenerate} disabled={isLoading} />
-              </ToolbarMenu>
-            </Toolbar>
-          </InputContainer>
-        </MainContainer>
+          <PaintingPromptBar
+            prompt={painting.prompt || ''}
+            disabled={isLoading}
+            placeholder={t('paintings.prompt_placeholder')}
+            onPromptChange={(value) => updatePaintingState({ prompt: value })}
+            onGenerate={onGenerate}
+          />
+        </div>
         <PaintingsList
-          namespace="dmxapi_paintings"
           paintings={dmxapi_paintings}
           selectedPainting={painting}
           onSelectPainting={onSelectPainting}
           onDeletePainting={onDeletePainting}
           onNewPainting={createNewPainting}
+          onReorder={reorder}
         />
-      </ContentContainer>
-    </Container>
+      </div>
+    </div>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: 100%;
-`
-
-// 添加新的样式组件
-const ProviderTitleContainer = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 5px;
-`
-
-const ContentContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: row;
-  height: 100%;
-  background-color: var(--color-background);
-  overflow: hidden;
-`
-
-const LeftContainer = styled(Scrollbar)`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: 100%;
-  padding: 20px;
-  background-color: var(--color-background);
-  max-width: var(--assistants-width);
-  border-right: 0.5px solid var(--color-border);
-`
-
-const MainContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: 100%;
-  background-color: var(--color-background);
-`
-
-const InputContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  min-height: 95px;
-  max-height: 95px;
-  position: relative;
-  border: 1px solid var(--color-border-soft);
-  transition: all 0.3s ease;
-  margin: 0 20px 15px 20px;
-  border-radius: 10px;
-`
-
-const Textarea = styled(TextArea)`
-  padding: 10px;
-  border-radius: 0;
-  display: flex;
-  flex: 1;
-  resize: none !important;
-  overflow: auto;
-  width: auto;
-`
-
-const Toolbar = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: flex-end;
-  padding: 0 8px;
-  height: 40px;
-`
-
-const ToolbarMenu = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 6px;
-`
-
-const SliderContainer = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 16px;
-
-  .ant-slider {
-    flex: 1;
-  }
-`
-
-const RadioTextBox = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 8px;
-`
-
-const RadioTextItem = styled.div`
-  cursor: pointer;
-  padding: 2px 6px;
-  border-radius: 6px;
-  transition: all 0.2s ease;
-  border: 1px solid var(--color-border);
-
-  /* 默认状态 */
-  background-color: var(--color-background);
-
-  /* 悬浮状态 */
-  &:hover {
-    background-color: var(--color-hover, #f0f0f0);
-  }
-
-  /* 选中状态 - 需要添加selected类名 */
-  &.selected {
-    background-color: var(--color-primary, #1890ff);
-    color: white;
-    border: 1px solid var(--color-primary, #1890ff);
-  }
-`
-
-// 添加新的样式组件
-const ModeSegmentedContainer = styled.div`
-  display: flex;
-  justify-content: center;
-  padding-top: 24px;
-`
-
-const EmptyImgBox = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-`
-
-const EmptyImg = styled.div<{ bgUrl?: string }>`
-  width: 70vh;
-  height: 70vh;
-  background-size: contain;
-  background-repeat: no-repeat;
-  background-position: center;
-  background-image: ${(props) => (props.bgUrl ? `url(${props.bgUrl})` : `url(${DMXAPIToImg})`)};
-  background-color: #ffffff;
-`
-
-const LoadTextWrap = styled.div`
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
-  color: black;
-  text-shadow:
-    -1px -1px 0 #ffffff,
-    1px -1px 0 #ffffff,
-    -1px 1px 0 #ffffff,
-    1px 1px 0 #ffffff;
-`
-
-const SettingPrice = styled.div`
-  margin-left: auto;
-  color: var(--color-primary);
-  font-size: 11px;
-  font-weight: 500;
-`
 
 export default DmxapiPage

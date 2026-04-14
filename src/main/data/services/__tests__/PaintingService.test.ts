@@ -30,9 +30,11 @@ function createPaintingServiceMockDb(options?: {
   const tx = {
     select: vi.fn(({ maxSortOrder: selectedMaxSortOrder }: Record<string, unknown> = {}) => ({
       from: vi.fn(() => ({
+        get: vi.fn(async () => (selectedMaxSortOrder !== undefined ? { maxSortOrder } : { maxSortOrder })),
         where: vi.fn(() => ({
           get: vi.fn(async () => (selectedMaxSortOrder !== undefined ? { maxSortOrder } : null)),
-          all: vi.fn(async () => scopeIds.map((id) => ({ id })))
+          all: vi.fn(async () => scopeIds.map((id) => ({ id }))),
+          limit: vi.fn(async () => [{ id: scopeIds[0] ?? existingRow.id }])
         }))
       }))
     })),
@@ -108,8 +110,6 @@ describe('PaintingService', () => {
 
     await expect(
       paintingService.reorder({
-        providerId: 'aihubmix',
-        mode: 'generate',
         orderedIds: ['painting-1', 'painting-1']
       })
     ).rejects.toMatchObject({
@@ -121,8 +121,6 @@ describe('PaintingService', () => {
     MockMainDbServiceUtils.setDb(createPaintingServiceMockDb({ scopeIds: ['painting-1', 'painting-2', 'painting-3'] }))
 
     const dto: ReorderPaintingsDto = {
-      providerId: 'aihubmix',
-      mode: 'generate',
       orderedIds: ['painting-3', 'painting-1', 'painting-2']
     }
 

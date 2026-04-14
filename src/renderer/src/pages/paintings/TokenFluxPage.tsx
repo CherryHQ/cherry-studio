@@ -1,32 +1,39 @@
 import { PlusOutlined } from '@ant-design/icons'
-import { Button, InfoTooltip, Tooltip } from '@cherrystudio/ui'
+import {
+  Button,
+  InfoTooltip,
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+  Tooltip
+} from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { useCache } from '@data/hooks/useCache'
+import { usePaintingList } from '@data/hooks/usePaintings'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
-import TranslateButton from '@renderer/components/TranslateButton'
 import { isMac } from '@renderer/config/constant'
 import { LanguagesEnum } from '@renderer/config/translate'
-import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import type { TokenFluxPainting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { useLocation, useNavigate } from '@tanstack/react-router'
-import { Select } from 'antd'
-import TextArea from 'antd/es/input/TextArea'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
-import SendMessageButton from '../home/Inputbar/SendMessageButton'
 import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
 import { DynamicFormRender } from './components/DynamicFormRender'
+import PaintingPromptBar from './components/PaintingPromptBar'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
 import { DEFAULT_TOKENFLUX_PAINTING, type TokenFluxModel } from './config/tokenFluxConfig'
@@ -48,8 +55,13 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const { t, i18n } = useTranslation()
   const providers = useAllProviders()
-  const { addPainting, removePainting, updatePainting, tokenflux_paintings } = usePaintings()
-  const tokenFluxPaintings = tokenflux_paintings
+  const {
+    items: tokenFluxPaintings,
+    add: addPaintingScoped,
+    remove: removePaintingScoped,
+    update: updatePaintingScoped,
+    reorder
+  } = usePaintingList({ providerId: 'tokenflux', mode: 'generate' })
   const [painting, setPainting] = useState<TokenFluxPainting>(
     tokenFluxPaintings[0] || { ...DEFAULT_TOKENFLUX_PAINTING, id: uuid() }
   )
@@ -59,7 +71,6 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [autoTranslateWithSpace] = usePreference('chat.input.translate.auto_translate_with_space')
   const spaceClickTimer = useRef<NodeJS.Timeout>(null)
   const tokenfluxProvider = providers.find((p) => p.id === 'tokenflux')!
-  const textareaRef = useRef<any>(null)
   const tokenFluxService = useMemo(
     () => new TokenFluxService(tokenfluxProvider.apiHost, tokenfluxProvider.apiKey),
     [tokenfluxProvider]
@@ -88,11 +99,11 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
     (updates: Partial<TokenFluxPainting>) => {
       setPainting((prevPainting) => {
         const updatedPainting = { ...prevPainting, ...updates }
-        updatePainting('tokenflux_paintings', updatedPainting)
+        updatePaintingScoped(updatedPainting)
         return updatedPainting
       })
     },
-    [updatePainting]
+    [updatePaintingScoped]
   )
 
   const handleError = (error: unknown) => {
@@ -132,7 +143,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
       await FileManager.deleteFiles(painting.files)
     }
 
-    const prompt = textareaRef.current?.resizableTextArea?.textArea?.value || ''
+    const prompt = painting.prompt || ''
 
     if (!selectedModel || !prompt) {
       window.modal.error({
@@ -205,8 +216,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const handleAddPainting = () => {
-    const newPainting = addPainting('tokenflux_paintings', getNewPainting())
-    updatePainting('tokenflux_paintings', newPainting)
+    const newPainting = addPaintingScoped(getNewPainting())
     setPainting(newPainting as TokenFluxPainting)
     return newPainting
   }
@@ -222,7 +232,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
     }
 
-    void removePainting('tokenflux_paintings', paintingToDelete)
+    void removePaintingScoped(paintingToDelete)
   }
 
   const translate = async () => {
@@ -279,9 +289,8 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     // Set form data from painting's input params
     if (newPainting.inputParams) {
-      // Filter out the prompt from inputParams since it's handled separately
-      // oxlint-disable-next-line @typescript-eslint/no-unused-vars
-      const { prompt, ...formInputParams } = newPainting.inputParams
+      const formInputParams = { ...newPainting.inputParams }
+      delete formInputParams.prompt
       setFormData(formInputParams)
     } else {
       setFormData({})
@@ -307,10 +316,10 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   useEffect(() => {
     if (tokenFluxPaintings.length === 0) {
       const newPainting = getNewPainting()
-      addPainting('tokenflux_paintings', newPainting)
+      addPaintingScoped(newPainting)
       setPainting(newPainting)
     }
-  }, [tokenFluxPaintings, addPainting, getNewPainting])
+  }, [tokenFluxPaintings, addPaintingScoped, getNewPainting])
 
   useEffect(() => {
     const timer = spaceClickTimer.current
@@ -347,7 +356,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   }, [painting.generationId, painting.status, tokenFluxService, updatePaintingState])
 
   return (
-    <Container>
+    <div className="flex h-full flex-1 flex-col">
       <Navbar>
         <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
         {isMac && (
@@ -359,10 +368,10 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
           </NavbarRight>
         )}
       </Navbar>
-      <ContentContainer id="content-container">
-        <LeftContainer>
+      <div id="content-container" className="flex h-full flex-1 flex-row overflow-hidden bg-[var(--color-background)]">
+        <Scrollbar className="flex h-full max-w-[var(--assistants-width)] flex-1 flex-col border-r border-[var(--color-border)] bg-[var(--color-background)] p-5">
           {/* Provider Section */}
-          <ProviderTitleContainer>
+          <div className="mb-[5px] flex items-center justify-between">
             <SettingTitle style={{ marginBottom: 8 }}>{t('common.provider')}</SettingTitle>
             <SettingHelpLink target="_blank" href="https://tokenflux.ai">
               {t('paintings.learn_more')}
@@ -371,99 +380,104 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
                 return Icon ? <Icon.Avatar size={16} className="ml-[5px]" /> : null
               })()}
             </SettingHelpLink>
-          </ProviderTitleContainer>
+          </div>
 
           <ProviderSelect provider={tokenfluxProvider} options={Options} onChange={handleProviderChange} />
 
           {/* Model & Pricing Section */}
-          <SectionTitle
-            style={{ marginBottom: 5, marginTop: 15, justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="mb-[5px] mt-[15px] flex items-center justify-between text-[14px] font-semibold text-[var(--color-text)]">
             {t('paintings.model_and_pricing')}
             {selectedModel && selectedModel.pricing && (
-              <PricingContainer>
-                <PricingBadge>
+              <div className="flex justify-end">
+                <div className="rounded border border-[var(--color-primary-border)] bg-[var(--color-primary-bg)] px-0 py-1 text-[11px] font-medium text-[var(--color-primary)]">
                   {selectedModel.pricing.price} {selectedModel.pricing.currency}{' '}
                   {selectedModel.pricing.unit > 1 ? t('paintings.per_images') : t('paintings.per_image')}
-                </PricingBadge>
-              </PricingContainer>
+                </div>
+              </div>
             )}
-          </SectionTitle>
-          <Select
-            style={{ width: '100%', marginBottom: 12 }}
-            value={selectedModel?.id}
-            onChange={handleModelChange}
-            placeholder={t('paintings.select_model')}>
-            {Object.entries(
-              models.reduce(
-                (acc, model) => {
-                  const provider = model.model_provider || 'Other'
-                  if (!acc[provider]) {
-                    acc[provider] = []
-                  }
-                  acc[provider].push(model)
-                  return acc
-                },
-                {} as Record<string, typeof models>
-              )
-            ).map(([provider, providerModels]) => (
-              <Select.OptGroup key={provider} label={provider}>
-                {providerModels.map((model) => (
-                  <Select.Option key={model.id} value={model.id}>
-                    <Tooltip placement="right" content={model.description}>
-                      <ModelOptionContainer>
-                        <ModelName>{model.name}</ModelName>
-                      </ModelOptionContainer>
-                    </Tooltip>
-                  </Select.Option>
-                ))}
-              </Select.OptGroup>
-            ))}
+          </div>
+          <Select value={selectedModel?.id} onValueChange={handleModelChange}>
+            <SelectTrigger className="mb-3 w-full">
+              <SelectValue placeholder={t('paintings.select_model')} />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(
+                models.reduce(
+                  (acc, model) => {
+                    const provider = model.model_provider || 'Other'
+                    if (!acc[provider]) {
+                      acc[provider] = []
+                    }
+                    acc[provider].push(model)
+                    return acc
+                  },
+                  {} as Record<string, typeof models>
+                )
+              ).map(([provider, providerModels]) => (
+                <SelectGroup key={provider}>
+                  <SelectLabel>{provider}</SelectLabel>
+                  {providerModels.map((model) => (
+                    <SelectItem key={model.id} value={model.id}>
+                      <Tooltip content={model.description}>
+                        <div className="flex flex-col">
+                          <div className="text-[var(--color-text)]">{model.name}</div>
+                        </div>
+                      </Tooltip>
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              ))}
+            </SelectContent>
           </Select>
 
           {/* Input Parameters Section */}
           {selectedModel && selectedModel.input_schema && (
             <>
-              <SectionTitle style={{ marginBottom: 5, marginTop: 10 }}>{t('paintings.input_parameters')}</SectionTitle>
-              <ParametersContainer>
+              <div className="mb-[5px] mt-[10px] flex items-center text-[14px] font-semibold text-[var(--color-text)]">
+                {t('paintings.input_parameters')}
+              </div>
+              <div className="flex flex-col gap-3">
                 {Object.entries(selectedModel.input_schema.properties).map(([key, property]: [string, any]) => {
                   if (key === 'prompt') return null // Skip prompt as it's handled separately
 
                   const isRequired = selectedModel.input_schema.required?.includes(key)
 
                   return (
-                    <ParameterField key={key}>
-                      <ParameterLabel>
-                        <ParameterName>
+                    <div key={key} className="flex flex-col">
+                      <div className="mb-1.5 flex items-center">
+                        <span className="text-[13px] font-medium capitalize text-[var(--color-text)]">
                           {readI18nContext(property, 'title')}
-                          {isRequired && <RequiredIndicator> *</RequiredIndicator>}
-                        </ParameterName>
+                          {isRequired && <span className="font-semibold text-[var(--color-error)]"> *</span>}
+                        </span>
                         {property.description && <InfoTooltip content={readI18nContext(property, 'description')} />}
-                      </ParameterLabel>
+                      </div>
                       <DynamicFormRender
                         schemaProperty={property}
                         propertyName={key}
                         value={formData[key]}
                         onChange={handleFormFieldChange}
                       />
-                    </ParameterField>
+                    </div>
                   )
                 })}
-              </ParametersContainer>
+              </div>
             </>
           )}
-        </LeftContainer>
+        </Scrollbar>
 
-        <MainContainer>
+        <div className="flex h-full flex-1 flex-col bg-[var(--color-background)]">
           {/* Check if any form field contains an uploaded image */}
           {Object.keys(formData).some((key) => key.toLowerCase().includes('image') && formData[key]) ? (
-            <ComparisonContainer>
-              <ImageComparisonSection>
-                <SectionLabel>{t('paintings.input_image')}</SectionLabel>
-                <UploadedImageContainer>
+            <div className="flex h-full flex-1 flex-row gap-px">
+              <div className="flex h-full flex-1 flex-col border-r border-[var(--color-border)] bg-[var(--color-background)]">
+                <div className="border-b border-[var(--color-border)] bg-[var(--color-background-soft)] px-5 py-2.5 text-center text-[14px] font-medium text-[var(--color-text-2)]">
+                  {t('paintings.input_image')}
+                </div>
+                <div className="flex flex-1 items-center justify-center bg-[var(--color-background)]">
                   {Object.entries(formData).map(([key, value]) => {
                     if (key.toLowerCase().includes('image') && value) {
                       return (
-                        <ImageWrapper key={key}>
+                        <div key={key} className="relative flex items-center justify-center">
                           <img
                             src={value}
                             alt={t('paintings.uploaded_input')}
@@ -474,15 +488,17 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
                               backgroundColor: 'var(--color-background-soft)'
                             }}
                           />
-                        </ImageWrapper>
+                        </div>
                       )
                     }
                     return null
                   })}
-                </UploadedImageContainer>
-              </ImageComparisonSection>
-              <ImageComparisonSection>
-                <SectionLabel>{t('paintings.generated_image')}</SectionLabel>
+                </div>
+              </div>
+              <div className="flex h-full flex-1 flex-col bg-[var(--color-background)]">
+                <div className="border-b border-[var(--color-border)] bg-[var(--color-background-soft)] px-5 py-2.5 text-center text-[14px] font-medium text-[var(--color-text-2)]">
+                  {t('paintings.generated_image')}
+                </div>
                 <Artboard
                   painting={painting}
                   isLoading={isLoading}
@@ -491,8 +507,8 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
                   onNextImage={nextImage}
                   onCancel={onCancel}
                 />
-              </ImageComparisonSection>
-            </ComparisonContainer>
+              </div>
+            </div>
           ) : (
             <Artboard
               painting={painting}
@@ -503,229 +519,29 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
               onCancel={onCancel}
             />
           )}
-          <InputContainer>
-            <Textarea
-              ref={textareaRef}
-              variant="borderless"
-              disabled={isLoading}
-              value={painting.prompt || ''}
-              spellCheck={false}
-              onChange={(e) => updatePaintingState({ prompt: e.target.value })}
-              placeholder={isTranslating ? t('paintings.translating') : t('paintings.prompt_placeholder')}
-              onKeyDown={handleKeyDown}
-            />
-            <Toolbar>
-              <ToolbarMenu>
-                <TranslateButton
-                  text={textareaRef.current?.resizableTextArea?.textArea?.value}
-                  onTranslated={(translatedText) => updatePaintingState({ prompt: translatedText })}
-                  disabled={isLoading || isTranslating}
-                  isLoading={isTranslating}
-                  style={{ marginRight: 6, borderRadius: '50%' }}
-                />
-                <SendMessageButton sendMessage={onGenerate} disabled={isLoading} />
-              </ToolbarMenu>
-            </Toolbar>
-          </InputContainer>
-        </MainContainer>
+          <PaintingPromptBar
+            prompt={painting.prompt || ''}
+            disabled={isLoading}
+            placeholder={isTranslating ? t('paintings.translating') : t('paintings.prompt_placeholder')}
+            onPromptChange={(value) => updatePaintingState({ prompt: value })}
+            onGenerate={onGenerate}
+            onKeyDown={handleKeyDown}
+            showTranslate
+            isTranslating={isTranslating}
+            onTranslated={(translatedText) => updatePaintingState({ prompt: translatedText })}
+          />
+        </div>
 
         <PaintingsList
-          namespace="tokenflux_paintings"
           paintings={tokenFluxPaintings}
           selectedPainting={painting}
           onSelectPainting={onSelectPainting as any}
           onDeletePainting={onDeletePainting as any}
           onNewPainting={handleAddPainting}
+          onReorder={reorder}
         />
-      </ContentContainer>
-    </Container>
+      </div>
+    </div>
   )
 }
-
-const SectionTitle = styled.div`
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--color-text);
-  margin-bottom: 12px;
-  display: flex;
-  align-items: center;
-`
-
-const ModelOptionContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-`
-
-const ModelName = styled.div`
-  color: var(--color-text);
-`
-
-const PricingContainer = styled.div`
-  display: flex;
-  justify-content: flex-end;
-`
-
-const PricingBadge = styled.div`
-  background-color: var(--color-primary-bg);
-  color: var(--color-primary);
-  font-size: 11px;
-  font-weight: 500;
-  padding: 4px 0;
-  border-radius: 4px;
-  border: 1px solid var(--color-primary-border);
-`
-
-const ParametersContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-`
-
-const ParameterField = styled.div`
-  display: flex;
-  flex-direction: column;
-`
-
-const ParameterLabel = styled.div`
-  display: flex;
-  align-items: center;
-  margin-bottom: 6px;
-`
-
-const ParameterName = styled.span`
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--color-text);
-  text-transform: capitalize;
-`
-
-const RequiredIndicator = styled.span`
-  color: var(--color-error);
-  font-weight: 600;
-`
-
-const Container = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: 100%;
-`
-
-const ContentContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: row;
-  height: 100%;
-  background-color: var(--color-background);
-  overflow: hidden;
-`
-
-const LeftContainer = styled(Scrollbar)`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: 100%;
-  padding: 20px;
-  background-color: var(--color-background);
-  max-width: var(--assistants-width);
-  border-right: 0.5px solid var(--color-border);
-`
-
-const MainContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: 100%;
-  background-color: var(--color-background);
-`
-
-const ComparisonContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: row;
-  height: 100%;
-  gap: 1px;
-`
-
-const ImageComparisonSection = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: 100%;
-  background-color: var(--color-background);
-  &:first-child {
-    border-right: 0.5px solid var(--color-border);
-  }
-`
-
-const SectionLabel = styled.div`
-  padding: 10px 20px;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--color-text-2);
-  background-color: var(--color-background-soft);
-  border-bottom: 1px solid var(--color-border);
-  text-align: center;
-`
-
-const UploadedImageContainer = styled.div`
-  display: flex;
-  flex: 1;
-  justify-content: center;
-  align-items: center;
-  background-color: var(--color-background);
-`
-
-const ImageWrapper = styled.div`
-  position: relative;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-`
-
-const InputContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  min-height: 95px;
-  max-height: 95px;
-  position: relative;
-  border: 1px solid var(--color-border-soft);
-  transition: all 0.3s ease;
-  margin: 0 20px 15px 20px;
-  border-radius: 10px;
-`
-
-const Textarea = styled(TextArea)`
-  padding: 10px;
-  border-radius: 0;
-  display: flex;
-  flex: 1;
-  resize: none !important;
-  overflow: auto;
-  width: auto;
-`
-
-const Toolbar = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  justify-content: flex-end;
-  padding: 0 8px;
-  padding-bottom: 0;
-  height: 40px;
-`
-
-const ToolbarMenu = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 6px;
-`
-
-const ProviderTitleContainer = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 5px;
-`
 export default TokenFluxPage

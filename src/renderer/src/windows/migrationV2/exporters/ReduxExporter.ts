@@ -18,7 +18,8 @@ const SLICES_TO_EXPORT = [
   'preprocess', // File preprocess provider configurations
   'ocr', // OCR provider configurations
   'websearch', // Web search configurations
-  'codeTools' // Code tools settings (CLI tool, models, terminal)
+  'codeTools', // Code tools settings (CLI tool, models, terminal)
+  'paintings' // Painting history (all provider namespaces)
 ]
 
 export interface ReduxExportResult {

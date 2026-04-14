@@ -1,27 +1,34 @@
 import { PlusOutlined } from '@ant-design/icons'
-import { RowFlex } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
+import {
+  Button,
+  Input,
+  RadioGroup,
+  RadioGroupItem,
+  RowFlex,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { useCache } from '@data/hooks/useCache'
+import { usePaintingList } from '@data/hooks/usePaintings'
 import { AiProvider } from '@renderer/aiCore'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isMac } from '@renderer/config/constant'
-import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import FileManager from '@renderer/services/FileManager'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { useLocation, useNavigate } from '@tanstack/react-router'
-import { InputNumber, Radio, Select } from 'antd'
-import TextArea from 'antd/es/input/TextArea'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
-import SendMessageButton from '../home/Inputbar/SendMessageButton'
 import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
+import PaintingPromptBar from './components/PaintingPromptBar'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
 import {
@@ -35,7 +42,13 @@ import {
 import { checkProviderEnabled } from './utils'
 
 const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
-  const { zhipu_paintings, addPainting, removePainting, updatePainting } = usePaintings()
+  const {
+    items: zhipu_paintings,
+    add: addPaintingScoped,
+    remove: removePaintingScoped,
+    update: updatePaintingScoped,
+    reorder
+  } = usePaintingList({ providerId: 'zhipu', mode: 'generate' })
   const [painting, setPainting] = useState<any>(zhipu_paintings?.[0] || DEFAULT_PAINTING)
   const { t } = useTranslation()
   const providers = useAllProviders()
@@ -45,7 +58,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
     if (painting && !painting.model?.startsWith('cogview')) {
       const updatedPainting = { ...painting, model: 'cogview-3-flash' }
       setPainting(updatedPainting)
-      updatePainting('zhipu_paintings', updatedPainting)
+      updatePaintingScoped(updatedPainting)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [painting?.id]) // 只在painting的id改变时执行，避免无限循环
@@ -67,7 +80,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
   const updatePaintingState = (updates: Partial<any>) => {
     const updatedPainting = { ...painting, ...updates }
     setPainting(updatedPainting)
-    updatePainting('zhipu_paintings', updatedPainting)
+    updatePaintingScoped(updatedPainting)
   }
 
   const getNewPainting = (params?: Partial<any>) => {
@@ -236,11 +249,11 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
     }
 
-    await removePainting('zhipu_paintings', paintingToDelete)
+    await removePaintingScoped(paintingToDelete)
 
     if (!zhipu_paintings || zhipu_paintings.length === 1) {
       const newPainting = getNewPainting()
-      const addedPainting = addPainting('zhipu_paintings', newPainting)
+      const addedPainting = addPaintingScoped(newPainting)
       setPainting(addedPainting)
     }
   }
@@ -289,18 +302,16 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
   const handleAddPainting = () => {
     if (generating) return
     const newPainting = getNewPainting()
-    const addedPainting = addPainting('zhipu_paintings', newPainting)
+    const addedPainting = addPaintingScoped(newPainting)
     setPainting(addedPainting)
   }
-
-  // 移除modelOptions的定义，直接在Select中使用
 
   useEffect(() => {
     if (!zhipu_paintings || zhipu_paintings.length === 0) {
       const newPainting = getNewPainting()
-      addPainting('zhipu_paintings', newPainting)
+      addPaintingScoped(newPainting)
     }
-  }, [zhipu_paintings, addPainting])
+  }, [zhipu_paintings, addPaintingScoped])
 
   // 同步自定义尺寸状态
   useEffect(() => {
@@ -319,7 +330,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
   }, [painting.imageSize, painting.customWidth, painting.customHeight])
 
   return (
-    <Container>
+    <div className="flex h-full flex-1 flex-col">
       <Navbar>
         <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
         {isMac && (
@@ -331,9 +342,9 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
           </NavbarRight>
         )}
       </Navbar>
-      <ContentContainer id="content-container">
-        <LeftContainer>
-          <ProviderTitleContainer>
+      <div id="content-container" className="flex flex-1 overflow-hidden">
+        <Scrollbar className="flex h-full max-w-[var(--assistants-width)] flex-1 flex-col border-r border-[var(--color-border)] bg-[var(--color-background)] p-5">
+          <div className="mb-[10px] flex items-center justify-between">
             <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
             <div>
               <SettingHelpLink target="_blank" href={TOP_UP_URL}>
@@ -347,80 +358,85 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
                 return Icon ? <Icon.Avatar size={16} className="ml-[5px]" /> : null
               })()}
             </div>
-          </ProviderTitleContainer>
+          </div>
           <ProviderSelect provider={zhipuProvider} options={Options} onChange={handleProviderChange} className="mb-4" />
 
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('common.model')}</SettingTitle>
-          <Select
-            value={painting.model}
-            onChange={onSelectModel}
-            style={{ width: '100%' }}
-            options={ZHIPU_PAINTING_MODELS.map((model) => ({
-              label: model.name,
-              value: model.id
-            }))}
-          />
+          <Select value={painting.model} onValueChange={onSelectModel}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder={t('common.model')} />
+            </SelectTrigger>
+            <SelectContent>
+              {ZHIPU_PAINTING_MODELS.map((model) => (
+                <SelectItem key={model.id} value={model.id}>
+                  {model.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
           {painting.model === 'cogview-4-250304' && (
             <>
               <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('paintings.quality')}</SettingTitle>
-              <Radio.Group value={painting.quality} onChange={(e) => onSelectQuality(e.target.value)}>
+              <RadioGroup value={painting.quality} className="flex flex-col gap-2" onValueChange={onSelectQuality}>
                 {QUALITY_OPTIONS.map((option) => (
-                  <Radio key={option.value} value={option.value}>
-                    {t(option.label)}
-                  </Radio>
+                  <label
+                    key={option.value}
+                    htmlFor={`zhipu-quality-${option.value}`}
+                    className="flex cursor-pointer items-center gap-2 text-sm">
+                    <RadioGroupItem id={`zhipu-quality-${option.value}`} value={option.value} />
+                    <span>{t(option.label)}</span>
+                  </label>
                 ))}
-              </Radio.Group>
+              </RadioGroup>
             </>
           )}
 
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('paintings.image.size')}</SettingTitle>
-          <Select
-            value={isCustomSize ? 'custom' : painting.imageSize}
-            onChange={onSelectImageSize}
-            style={{ width: '100%' }}>
-            {IMAGE_SIZES.map((size) => (
-              <Select.Option key={size.value} value={size.value}>
-                {t(size.label)}
-              </Select.Option>
-            ))}
-            <Select.Option value="custom" key="custom">
-              {t('paintings.custom_size')}
-            </Select.Option>
+          <Select value={isCustomSize ? 'custom' : painting.imageSize} onValueChange={onSelectImageSize}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder={t('paintings.image.size')} />
+            </SelectTrigger>
+            <SelectContent>
+              {IMAGE_SIZES.map((size) => (
+                <SelectItem key={size.value} value={size.value}>
+                  {t(size.label)}
+                </SelectItem>
+              ))}
+              <SelectItem value="custom">{t('paintings.custom_size')}</SelectItem>
+            </SelectContent>
           </Select>
 
           {/* 自定义尺寸输入框 */}
           {isCustomSize && (
-            <div style={{ marginTop: 10 }}>
+            <div className="mt-2.5">
               <RowFlex className="items-center gap-2">
-                <InputNumber
+                <Input
                   placeholder="W"
-                  value={customWidth}
-                  controls={false}
-                  onChange={(value) => onCustomSizeChange(value || undefined, 'width')}
+                  type="number"
+                  value={customWidth === undefined ? '' : String(customWidth)}
+                  onChange={(e) => onCustomSizeChange(e.target.value ? Number(e.target.value) : undefined, 'width')}
                   min={512}
                   max={2048}
-                  style={{ width: 80, flex: 1 }}
+                  className="flex-1"
                 />
-                <span style={{ color: 'var(--color-text-2)', fontSize: '12px' }}>x</span>
-                <InputNumber
+                <span className="text-[12px] text-[var(--color-text-2)]">x</span>
+                <Input
                   placeholder="H"
-                  value={customHeight}
-                  controls={false}
-                  onChange={(value) => onCustomSizeChange(value || undefined, 'height')}
+                  type="number"
+                  value={customHeight === undefined ? '' : String(customHeight)}
+                  onChange={(e) => onCustomSizeChange(e.target.value ? Number(e.target.value) : undefined, 'height')}
                   min={512}
                   max={2048}
-                  style={{ width: 80, flex: 1 }}
+                  className="flex-1"
                 />
-                <span style={{ color: 'var(--color-text-2)', fontSize: '12px' }}>px</span>
+                <span className="text-[12px] text-[var(--color-text-2)]">px</span>
               </RowFlex>
-              <div style={{ marginTop: 5, fontSize: '12px', color: 'var(--color-text-3)' }}>
-                {t('paintings.zhipu.custom_size_hint')}
-              </div>
+              <div className="mt-1 text-[12px] text-[var(--color-text-3)]">{t('paintings.zhipu.custom_size_hint')}</div>
             </div>
           )}
-        </LeftContainer>
-        <MainContainer>
+        </Scrollbar>
+        <div className="flex h-full flex-1 flex-col bg-[var(--color-background)]">
           <Artboard
             painting={painting}
             isLoading={isLoading}
@@ -429,107 +445,25 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
             onNextImage={nextImage}
             onCancel={onCancel}
           />
-          <InputContainer>
-            <Textarea
-              variant="borderless"
-              disabled={isLoading}
-              value={painting.prompt}
-              spellCheck={false}
-              onChange={(e) => updatePaintingState({ prompt: e.target.value })}
-              placeholder={t('paintings.prompt_placeholder')}
-            />
-            <Toolbar>
-              <ToolbarMenu>
-                <SendMessageButton sendMessage={onGenerate} disabled={isLoading} />
-              </ToolbarMenu>
-            </Toolbar>
-          </InputContainer>
-        </MainContainer>
+          <PaintingPromptBar
+            prompt={painting.prompt || ''}
+            disabled={isLoading}
+            placeholder={t('paintings.prompt_placeholder')}
+            onPromptChange={(value) => updatePaintingState({ prompt: value })}
+            onGenerate={onGenerate}
+          />
+        </div>
         <PaintingsList
-          namespace="zhipu_paintings"
           paintings={zhipu_paintings}
           selectedPainting={painting}
           onSelectPainting={onSelectPainting}
           onDeletePainting={onDeletePainting}
           onNewPainting={handleAddPainting}
+          onReorder={reorder}
         />
-      </ContentContainer>
-    </Container>
+      </div>
+    </div>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: 100%;
-`
-
-const ContentContainer = styled.div`
-  display: flex;
-  flex: 1;
-  overflow: hidden;
-`
-
-const LeftContainer = styled(Scrollbar)`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: 100%;
-  padding: 20px;
-  background-color: var(--color-background);
-  max-width: var(--assistants-width);
-  border-right: 0.5px solid var(--color-border);
-`
-const MainContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: 100%;
-  background-color: var(--color-background);
-`
-
-const Textarea = styled(TextArea)`
-  padding: 10px;
-  border-radius: 0;
-  display: flex;
-  flex: 1;
-  resize: none !important;
-  overflow: auto;
-  width: auto;
-`
-
-const InputContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  min-height: 95px;
-  max-height: 95px;
-  position: relative;
-  border: 1px solid var(--color-border-soft);
-  transition: all 0.3s ease;
-  margin: 0 20px 15px 20px;
-  border-radius: 10px;
-`
-
-const Toolbar = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: flex-end;
-  padding: 0 8px;
-  padding-bottom: 0;
-  height: 40px;
-`
-
-const ToolbarMenu = styled.div`
-  display: flex;
-  gap: 8px;
-`
-
-const ProviderTitleContainer = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-`
 
 export default ZhipuPage

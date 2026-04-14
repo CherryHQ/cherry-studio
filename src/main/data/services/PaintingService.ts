@@ -32,10 +32,6 @@ function rowToPainting(row: typeof paintingTable.$inferSelect): Painting {
   }
 }
 
-function buildScopeWhere(providerId: string, mode: Painting['mode']) {
-  return and(eq(paintingTable.providerId, providerId), eq(paintingTable.mode, mode))
-}
-
 function hasDuplicateIds(ids: string[]): boolean {
   return new Set(ids).size !== ids.length
 }
@@ -96,12 +92,12 @@ export class PaintingService {
       const maxSortRow = await tx
         .select({ maxSortOrder: sql<number>`coalesce(max(${paintingTable.sortOrder}), 0)` })
         .from(paintingTable)
-        .where(buildScopeWhere(dto.providerId, dto.mode))
         .get()
 
       const [created] = await tx
         .insert(paintingTable)
         .values({
+          id: dto.id,
           providerId: dto.providerId,
           mode: dto.mode,
           model: dto.model ?? null,
@@ -165,24 +161,20 @@ export class PaintingService {
     const db = application.get('DbService').getDb()
 
     return await db.transaction(async (tx) => {
-      const rows = await tx
-        .select({ id: paintingTable.id })
-        .from(paintingTable)
-        .where(buildScopeWhere(dto.providerId, dto.mode))
-        .all()
-
-      const existingIds = rows.map((row) => row.id)
-      if (existingIds.length !== dto.orderedIds.length) {
-        throw DataApiErrorFactory.validation({
-          orderedIds: ['Painting reorder payload must include every record in the target scope exactly once']
+      const rows = await Promise.all(
+        dto.orderedIds.map(async (id) => {
+          const [row] = await tx
+            .select({ id: paintingTable.id })
+            .from(paintingTable)
+            .where(eq(paintingTable.id, id))
+            .limit(1)
+          return row
         })
-      }
+      )
 
-      const existingIdSet = new Set(existingIds)
-      const containsUnknownId = dto.orderedIds.some((id) => !existingIdSet.has(id))
-      if (containsUnknownId) {
+      if (rows.some((row) => !row)) {
         throw DataApiErrorFactory.validation({
-          orderedIds: ['Painting reorder payload contains ids outside the target scope']
+          orderedIds: ['Painting reorder payload contains unknown ids']
         })
       }
 
@@ -194,8 +186,6 @@ export class PaintingService {
       }
 
       logger.info('Reordered paintings', {
-        providerId: dto.providerId,
-        mode: dto.mode,
         count: dto.orderedIds.length
       })
 

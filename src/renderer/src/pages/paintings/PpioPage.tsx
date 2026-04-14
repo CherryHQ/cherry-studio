@@ -1,34 +1,43 @@
-import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
-import { Switch } from '@cherrystudio/ui'
+import { PlusOutlined } from '@ant-design/icons'
+import {
+  Button,
+  Select as UiSelect,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  Tooltip as UiTooltip
+} from '@cherrystudio/ui'
 import { useCache } from '@data/hooks/useCache'
+import { usePaintingList } from '@data/hooks/usePaintings'
 import { loggerService } from '@logger'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
-import TranslateButton from '@renderer/components/TranslateButton'
 import { isMac } from '@renderer/config/constant'
 import { LanguagesEnum } from '@renderer/config/translate'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
-import type { FileMetadata, PaintingsState, PpioPainting } from '@renderer/types'
+import type { FileMetadata, PpioPainting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { useNavigate } from '@tanstack/react-router'
-import type { UploadFile } from 'antd'
-import { Button, Input, Segmented, Select, Tooltip, Upload } from 'antd'
-import TextArea from 'antd/es/input/TextArea'
 import { Info } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
-import SendMessageButton from '../home/Inputbar/SendMessageButton'
 import { SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
+import { PaintingConfigFieldRenderer } from './components/PaintingConfigFieldRenderer'
+import PaintingPromptBar from './components/PaintingPromptBar'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
 import {
@@ -50,17 +59,15 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const [mode, setMode] = useState<PpioMode>('ppio_draw')
-  const { ppio_draw = [], ppio_edit = [], addPainting, removePainting, updatePainting } = usePaintings()
 
-  const paintings = useMemo(
-    () => ({
-      ppio_draw,
-      ppio_edit
-    }),
-    [ppio_draw, ppio_edit]
-  )
-
-  const filteredPaintings = useMemo(() => paintings[mode] || [], [paintings, mode])
+  const ppioDbMode = mode === 'ppio_draw' ? 'draw' : 'edit'
+  const {
+    items: filteredPaintings,
+    add: addPaintingScoped,
+    remove: removePaintingScoped,
+    update: updatePaintingScoped,
+    reorder
+  } = usePaintingList({ providerId: 'ppio', mode: ppioDbMode })
 
   const getDefaultPainting = useCallback((currentMode: PpioMode): PpioPainting => {
     const models = getModelsByMode(currentMode)
@@ -86,8 +93,6 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
   const navigate = useNavigate()
   const { autoTranslateWithSpace } = useSettings()
   const spaceClickTimer = useRef<NodeJS.Timeout>(null)
-  const textareaRef = useRef<any>(null)
-
   // 模式选项
   const modeOptions = [
     { label: t('paintings.mode.generate'), value: 'ppio_draw' },
@@ -120,9 +125,9 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
     (updates: Partial<PpioPainting>) => {
       const updatedPainting = { ...painting, ...updates }
       setPainting(updatedPainting)
-      updatePainting(mode, updatedPainting)
+      updatePaintingScoped(updatedPainting)
     },
-    [painting, updatePainting, mode]
+    [painting, updatePaintingScoped]
   )
 
   const onSelectModel = (modelId: string) => {
@@ -135,14 +140,14 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const onDeletePainting = async (paintingToDelete: PpioPainting) => {
-    await removePainting(mode, paintingToDelete)
+    await removePaintingScoped(paintingToDelete)
     if (painting.id === paintingToDelete.id) {
       const remainingPaintings = filteredPaintings.filter((p) => p.id !== paintingToDelete.id)
       if (remainingPaintings.length > 0) {
         setPainting(remainingPaintings[0])
       } else {
         const newPainting = getNewPainting()
-        addPainting(mode, newPainting)
+        addPaintingScoped(newPainting)
         setPainting(newPainting)
       }
     }
@@ -176,11 +181,7 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
   const handleModeChange = (value: string) => {
     const newMode = value as PpioMode
     setMode(newMode)
-    if (paintings[newMode] && paintings[newMode].length > 0) {
-      setPainting(paintings[newMode][0])
-    } else {
-      setPainting(getDefaultPainting(newMode))
-    }
+    setPainting(getDefaultPainting(newMode))
   }
 
   const onGenerate = async () => {
@@ -356,97 +357,38 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   // 处理图片上传
-  const handleImageUpload = async (file: UploadFile, fieldKey: keyof PpioPainting = 'imageFile') => {
-    if (file.originFileObj) {
+  const handleImageUpload = async (file: File, fieldKey: keyof PpioPainting = 'imageFile') => {
+    if (file) {
       const reader = new FileReader()
       reader.onload = (e) => {
         const base64 = e.target?.result as string
         updatePaintingState({ [fieldKey]: base64 })
       }
-      reader.readAsDataURL(file.originFileObj)
+      reader.readAsDataURL(file)
     }
     return false
   }
 
   // 渲染配置项表单
   const renderConfigForm = (item: PpioConfigItem) => {
-    switch (item.type) {
-      case 'select':
-        return (
-          <Select
-            value={painting[item.key!] || item.initialValue}
-            options={item.options}
-            onChange={(v) => updatePaintingState({ [item.key!]: v })}
-            style={{ width: '100%' }}
-          />
-        )
-      case 'input':
-        if (item.key === 'ppioSeed') {
-          return (
-            <Input
-              value={painting.ppioSeed === -1 ? '' : painting.ppioSeed}
-              placeholder={t('paintings.seed_random')}
-              onChange={(e) => {
-                const value = e.target.value
-                updatePaintingState({ ppioSeed: value ? parseInt(value, 10) : -1 })
-              }}
-              suffix={
-                <RedoOutlined
-                  onClick={() => updatePaintingState({ ppioSeed: Math.floor(Math.random() * 2147483647) })}
-                  style={{ cursor: 'pointer', color: 'var(--color-text-2)' }}
-                />
-              }
-            />
-          )
+    return (
+      <PaintingConfigFieldRenderer
+        item={item as any}
+        painting={painting as unknown as Record<string, unknown>}
+        translate={t}
+        onChange={(updates) => updatePaintingState(updates as Partial<PpioPainting>)}
+        onGenerateRandomSeed={(key) => {
+          if (key === 'ppioSeed') {
+            updatePaintingState({ ppioSeed: Math.floor(Math.random() * 2147483647) })
+          }
+        }}
+        onImageUpload={(key, file) => handleImageUpload(file, key as keyof PpioPainting)}
+        imagePreviewSrc={item.key ? (painting[item.key] as string | undefined) : undefined}
+        imagePlaceholder={
+          <img src={IcImageUp} className="h-10 w-10" style={{ filter: theme === 'dark' ? 'invert(100%)' : 'none' }} />
         }
-        return (
-          <Input
-            value={(painting[item.key!] || item.initialValue) as string}
-            onChange={(e) => updatePaintingState({ [item.key!]: e.target.value })}
-          />
-        )
-      case 'switch':
-        return (
-          <div className="flex items-center">
-            <Switch
-              checked={(painting[item.key!] ?? item.initialValue) as boolean}
-              onCheckedChange={(checked) => updatePaintingState({ [item.key!]: checked })}
-            />
-          </div>
-        )
-      case 'image': {
-        const imageKey = item.key as keyof PpioPainting
-        const imageValue = painting[imageKey] as string | undefined
-        return (
-          <ImageUploadButton
-            accept="image/png, image/jpeg, image/gif, image/webp"
-            maxCount={1}
-            showUploadList={false}
-            listType="picture-card"
-            beforeUpload={(file) => handleImageUpload({ originFileObj: file } as UploadFile, imageKey)}>
-            {imageValue ? (
-              <ImagePreview>
-                <img src={imageValue} alt={t('common.image_preview')} />
-              </ImagePreview>
-            ) : (
-              <ImageSizeImage src={IcImageUp} theme={theme} />
-            )}
-          </ImageUploadButton>
-        )
-      }
-      case 'textarea':
-        return (
-          <TextArea
-            value={(painting[item.key!] || '') as string}
-            onChange={(e) => updatePaintingState({ [item.key!]: e.target.value })}
-            placeholder={item.required ? t('paintings.prompt_placeholder') : ''}
-            rows={3}
-            style={{ resize: 'none' }}
-          />
-        )
-      default:
-        return null
-    }
+      />
+    )
   }
 
   // 渲染配置项
@@ -466,9 +408,9 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
         <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
           {t(item.title!)}
           {item.tooltip && (
-            <Tooltip title={t(item.tooltip)}>
-              <InfoIcon />
-            </Tooltip>
+            <UiTooltip content={t(item.tooltip)}>
+              <Info className="ml-[5px] h-4 w-4 cursor-help text-[var(--color-text-2)] opacity-60 hover:opacity-100" />
+            </UiTooltip>
           )}
         </SettingTitle>
         {renderConfigForm(item)}
@@ -480,7 +422,7 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
   useEffect(() => {
     if (filteredPaintings.length === 0) {
       const newPainting = getNewPainting()
-      addPainting(mode, newPainting)
+      addPaintingScoped(newPainting)
       setPainting(newPainting)
     }
 
@@ -489,40 +431,61 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
         clearTimeout(spaceClickTimer.current)
       }
     }
-  }, [filteredPaintings.length, addPainting, getNewPainting, mode])
+  }, [filteredPaintings.length, addPaintingScoped, getNewPainting, mode])
 
   return (
-    <Container>
+    <div className="flex h-full flex-1 flex-col">
       <Navbar>
         <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
         {isMac && (
           <NavbarRight style={{ justifyContent: 'flex-end' }}>
-            <Button
-              size="small"
-              className="nodrag"
-              icon={<PlusOutlined />}
-              onClick={() => setPainting(addPainting(mode, getNewPainting()))}>
+            <Button size="sm" className="nodrag" onClick={() => setPainting(addPaintingScoped(getNewPainting()))}>
+              <PlusOutlined />
               {t('paintings.button.new.image')}
             </Button>
           </NavbarRight>
         )}
       </Navbar>
-      <ContentContainer id="content-container">
-        <LeftContainer>
+      <div id="content-container" className="flex h-full flex-1 flex-row overflow-hidden bg-[var(--color-background)]">
+        <Scrollbar className="flex h-full max-w-[var(--assistants-width)] flex-1 flex-col border-r border-[var(--color-border)] bg-[var(--color-background)] p-5">
           <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
           {ppioProvider && <ProviderSelect provider={ppioProvider} options={Options} onChange={handleProviderChange} />}
 
           <SettingTitle className="mt-4 mb-1">{t('common.model')}</SettingTitle>
-          <Select value={painting.model} options={modelOptions} onChange={onSelectModel} style={{ width: '100%' }} />
+          <UiSelect value={painting.model} onValueChange={onSelectModel}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder={t('common.model')} />
+            </SelectTrigger>
+            <SelectContent>
+              {modelOptions.map((group) => (
+                <SelectGroup key={group.label}>
+                  <SelectLabel>{group.label}</SelectLabel>
+                  {group.options.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              ))}
+            </SelectContent>
+          </UiSelect>
 
           {/* 渲染其他配置项 */}
           {modeConfigs[mode].map(renderConfigItem)}
-        </LeftContainer>
-        <MainContainer>
+        </Scrollbar>
+        <div className="flex h-full flex-1 flex-col bg-[var(--color-background)]">
           {/* 模式切换 */}
-          <ModeSegmentedContainer>
-            <Segmented shape="round" value={mode} onChange={handleModeChange} options={modeOptions} />
-          </ModeSegmentedContainer>
+          <div className="flex justify-center pt-6">
+            <Tabs value={mode} onValueChange={handleModeChange}>
+              <TabsList>
+                {modeOptions.map((option) => (
+                  <TabsTrigger key={option.value} value={String(option.value)}>
+                    {option.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+          </div>
           <Artboard
             painting={painting}
             isLoading={isLoading}
@@ -531,164 +494,29 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
             onNextImage={nextImage}
             onCancel={onCancel}
           />
-          <InputContainer>
-            <Textarea
-              ref={textareaRef}
-              variant="borderless"
-              disabled={isLoading}
-              value={painting.prompt}
-              spellCheck={false}
-              onChange={(e) => updatePaintingState({ prompt: e.target.value })}
-              placeholder={isTranslating ? t('paintings.translating') : t('paintings.prompt_placeholder')}
-              onKeyDown={handleKeyDown}
-            />
-            <Toolbar>
-              <ToolbarMenu>
-                <TranslateButton
-                  text={textareaRef.current?.resizableTextArea?.textArea?.value}
-                  onTranslated={(translatedText) => updatePaintingState({ prompt: translatedText })}
-                  disabled={isLoading || isTranslating}
-                  isLoading={isTranslating}
-                  style={{ marginRight: 6, borderRadius: '50%' }}
-                />
-                <SendMessageButton sendMessage={onGenerate} disabled={isLoading} />
-              </ToolbarMenu>
-            </Toolbar>
-          </InputContainer>
-        </MainContainer>
+          <PaintingPromptBar
+            prompt={painting.prompt || ''}
+            disabled={isLoading}
+            placeholder={isTranslating ? t('paintings.translating') : t('paintings.prompt_placeholder')}
+            onPromptChange={(value) => updatePaintingState({ prompt: value })}
+            onGenerate={onGenerate}
+            onKeyDown={handleKeyDown}
+            showTranslate
+            isTranslating={isTranslating}
+            onTranslated={(translatedText) => updatePaintingState({ prompt: translatedText })}
+          />
+        </div>
         <PaintingsList
-          namespace={mode as keyof PaintingsState}
           paintings={filteredPaintings}
           selectedPainting={painting}
           onSelectPainting={onSelectPainting}
           onDeletePainting={onDeletePainting}
-          onNewPainting={() => setPainting(addPainting(mode, getNewPainting()))}
+          onNewPainting={() => setPainting(addPaintingScoped(getNewPainting()))}
+          onReorder={reorder}
         />
-      </ContentContainer>
-    </Container>
+      </div>
+    </div>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: 100%;
-`
-
-const ContentContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: row;
-  height: 100%;
-  background-color: var(--color-background);
-  overflow: hidden;
-`
-
-const LeftContainer = styled(Scrollbar)`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: 100%;
-  padding: 20px;
-  background-color: var(--color-background);
-  max-width: var(--assistants-width);
-  border-right: 0.5px solid var(--color-border);
-`
-
-const MainContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: 100%;
-  background-color: var(--color-background);
-`
-
-const InputContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  min-height: 95px;
-  max-height: 95px;
-  position: relative;
-  border: 1px solid var(--color-border-soft);
-  transition: all 0.3s ease;
-  margin: 0 20px 15px 20px;
-  border-radius: 10px;
-`
-
-const Textarea = styled(TextArea)`
-  padding: 10px;
-  border-radius: 0;
-  display: flex;
-  flex: 1;
-  resize: none !important;
-  overflow: auto;
-  width: auto;
-`
-
-const Toolbar = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: flex-end;
-  padding: 0 8px;
-  padding-bottom: 0;
-  height: 40px;
-`
-
-const ToolbarMenu = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 6px;
-`
-
-const InfoIcon = styled(Info)`
-  margin-left: 5px;
-  cursor: help;
-  color: var(--color-text-2);
-  opacity: 0.6;
-  width: 16px;
-  height: 16px;
-
-  &:hover {
-    opacity: 1;
-  }
-`
-
-const ModeSegmentedContainer = styled.div`
-  display: flex;
-  justify-content: center;
-  padding-top: 24px;
-`
-
-const ImageUploadButton = styled(Upload)`
-  .ant-upload.ant-upload-select {
-    width: 100% !important;
-    height: 120px !important;
-    margin: 0 !important;
-    border-radius: 8px;
-  }
-`
-
-const ImagePreview = styled.div`
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-
-  img {
-    max-width: 100%;
-    max-height: 100%;
-    object-fit: contain;
-  }
-`
-
-const ImageSizeImage = styled.img<{ theme: string }>`
-  filter: ${({ theme }) => (theme === 'dark' ? 'invert(100%)' : 'none')};
-  width: 40px;
-  height: 40px;
-`
 
 export default PpioPage

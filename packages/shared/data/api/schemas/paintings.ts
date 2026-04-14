@@ -21,6 +21,7 @@ export type ListPaintingsQuery = z.output<typeof ListPaintingsQuerySchema>
 
 export const CreatePaintingSchema = z
   .object({
+    id: OptionalTrimmedStringSchema.optional(),
     providerId: OptionalTrimmedStringSchema,
     mode: PaintingModeSchema,
     model: OptionalNullableTrimmedStringSchema.optional(),
@@ -47,8 +48,6 @@ export type UpdatePaintingDto = z.infer<typeof UpdatePaintingSchema>
 
 export const ReorderPaintingsSchema = z
   .object({
-    providerId: OptionalTrimmedStringSchema,
-    mode: PaintingModeSchema,
     orderedIds: z.array(OptionalTrimmedStringSchema).min(1)
   })
   .strict()

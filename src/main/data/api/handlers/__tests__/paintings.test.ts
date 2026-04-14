@@ -82,8 +82,6 @@ describe('paintingHandlers', () => {
 
     await paintingHandlers['/paintings/reorder'].POST({
       body: {
-        providerId: '  aihubmix  ',
-        mode: 'generate',
         orderedIds: ['painting-1', 'painting-2']
       }
     } as never)
@@ -94,8 +92,6 @@ describe('paintingHandlers', () => {
       prompt: 'hello'
     })
     expect(reorderPaintingsMock).toHaveBeenCalledWith({
-      providerId: 'aihubmix',
-      mode: 'generate',
       orderedIds: ['painting-1', 'painting-2']
     })
   })

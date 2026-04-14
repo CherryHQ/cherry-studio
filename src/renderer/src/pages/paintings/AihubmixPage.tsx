@@ -1,38 +1,35 @@
-import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
-import { Button, InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
+import { PlusOutlined } from '@ant-design/icons'
+import { Button, InfoTooltip, Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { useCache } from '@data/hooks/useCache'
+import { usePaintingList } from '@data/hooks/usePaintings'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { AiProvider } from '@renderer/aiCore'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
-import TranslateButton from '@renderer/components/TranslateButton'
 import { isMac } from '@renderer/config/constant'
 import { LanguagesEnum } from '@renderer/config/translate'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import type { FileMetadata } from '@renderer/types'
-import type { PaintingAction, PaintingsState } from '@renderer/types'
+import type { PaintingAction } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { useLocation, useNavigate } from '@tanstack/react-router'
-import { Input, InputNumber, Radio, Segmented, Select, Slider, Upload } from 'antd'
-import TextArea from 'antd/es/input/TextArea'
 import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
-import SendMessageButton from '../home/Inputbar/SendMessageButton'
 import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
+import { PaintingConfigFieldRenderer } from './components/PaintingConfigFieldRenderer'
+import PaintingPromptBar from './components/PaintingPromptBar'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
-import { type ConfigItem, createModeConfigs, DEFAULT_PAINTING } from './config/aihubmixConfig'
+import { type AihubmixMode, type ConfigItem, createModeConfigs, DEFAULT_PAINTING } from './config/aihubmixConfig'
 import { checkProviderEnabled } from './utils'
 
 const logger = loggerService.withContext('AihubmixPage')
@@ -40,28 +37,29 @@ const logger = loggerService.withContext('AihubmixPage')
 // 使用函数创建配置项
 const modeConfigs = createModeConfigs()
 
+type AihubmixPaintingMode = 'generate' | 'remix' | 'upscale'
+
+const MODE_TO_CONFIG: Record<AihubmixPaintingMode, AihubmixMode> = {
+  generate: 'aihubmix_image_generate',
+  remix: 'aihubmix_image_remix',
+  upscale: 'aihubmix_image_upscale'
+}
+
 const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
-  const [mode, setMode] = useState<keyof PaintingsState>('aihubmix_image_generate')
+  const [mode, setMode] = useState<AihubmixPaintingMode>('generate')
+
+  const { t } = useTranslation()
+  const { theme } = useTheme()
+  const providers = useAllProviders()
+  const aihubmixProvider = providers.find((p) => p.id === 'aihubmix')!
+
   const {
-    addPainting,
-    removePainting,
-    updatePainting,
-    aihubmix_image_generate,
-    aihubmix_image_remix,
-    aihubmix_image_edit,
-    aihubmix_image_upscale
-  } = usePaintings()
-
-  const paintings = useMemo(() => {
-    return {
-      aihubmix_image_generate,
-      aihubmix_image_remix,
-      aihubmix_image_edit,
-      aihubmix_image_upscale
-    }
-  }, [aihubmix_image_generate, aihubmix_image_remix, aihubmix_image_edit, aihubmix_image_upscale])
-
-  const filteredPaintings = useMemo(() => paintings[mode] || [], [paintings, mode])
+    items: filteredPaintings,
+    add: addPainting,
+    remove: removePainting,
+    update: updatePaintingRecord,
+    reorder
+  } = usePaintingList({ providerId: 'aihubmix', mode })
   const [painting, setPainting] = useState<PaintingAction>(filteredPaintings[0] || DEFAULT_PAINTING)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
@@ -70,36 +68,30 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [isTranslating, setIsTranslating] = useState(false)
   const [fileMap, setFileMap] = useState<{ [key: string]: FileMetadata }>({})
 
-  const { t } = useTranslation()
-  const { theme } = useTheme()
-  const providers = useAllProviders()
   const [generating, setGenerating] = useCache('chat.generating')
   const navigate = useNavigate()
   const location = useLocation()
   const [autoTranslateWithSpace] = usePreference('chat.input.translate.auto_translate_with_space')
   const spaceClickTimer = useRef<NodeJS.Timeout>(null)
-  const aihubmixProvider = providers.find((p) => p.id === 'aihubmix')!
 
   const modeOptions = [
-    { label: t('paintings.mode.generate'), value: 'aihubmix_image_generate' },
-    { label: t('paintings.mode.remix'), value: 'aihubmix_image_remix' },
-    { label: t('paintings.mode.upscale'), value: 'aihubmix_image_upscale' }
+    { label: t('paintings.mode.generate'), value: 'generate' },
+    { label: t('paintings.mode.remix'), value: 'remix' },
+    { label: t('paintings.mode.upscale'), value: 'upscale' }
   ]
 
   const getNewPainting = useCallback(() => {
     return {
       ...DEFAULT_PAINTING,
-      model: mode === 'aihubmix_image_generate' ? 'gemini-3-pro-image-preview' : 'V_3',
+      model: mode === 'generate' ? 'gemini-3-pro-image-preview' : 'V_3',
       id: uuid()
     }
   }, [mode])
 
-  const textareaRef = useRef<any>(null)
-
   const updatePaintingState = (updates: Partial<PaintingAction>) => {
     const updatedPainting = { ...painting, ...updates }
     setPainting(updatedPainting)
-    updatePainting(mode, updatedPainting)
+    updatePaintingRecord(updatedPainting)
   }
 
   const handleError = (error: unknown) => {
@@ -150,7 +142,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       await FileManager.deleteFiles(painting.files)
     }
 
-    const prompt = textareaRef.current?.resizableTextArea?.textArea?.value || ''
+    const prompt = painting.prompt || ''
     updatePaintingState({ prompt })
 
     if (!aihubmixProvider.apiKey) {
@@ -174,10 +166,10 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
     let headers: Record<string, string> = {
       'Api-Key': aihubmixProvider.apiKey
     }
-    let url = aihubmixProvider.apiHost + `/ideogram/` + mode
+    let url = aihubmixProvider.apiHost + `/ideogram/` + MODE_TO_CONFIG[mode]
 
     try {
-      if (mode === 'aihubmix_image_generate') {
+      if (mode === 'generate') {
         if (painting.model.startsWith('imagen-')) {
           const AI = new AiProvider(aihubmixProvider)
           const base64s = await AI.generateImage({
@@ -401,7 +393,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           body = JSON.stringify(requestData)
           headers['Content-Type'] = 'application/json'
         }
-      } else if (mode === 'aihubmix_image_remix') {
+      } else if (mode === 'remix') {
         if (!painting.imageFile) {
           window.modal.error({
             content: t('paintings.image_file_required'),
@@ -496,7 +488,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           form.append('image_file', fileMap[painting.imageFile] as unknown as Blob)
           body = form
         }
-      } else if (mode === 'aihubmix_image_upscale') {
+      } else if (mode === 'upscale') {
         if (!painting.imageFile) {
           window.modal.error({
             content: t('paintings.image_file_required'),
@@ -527,7 +519,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
 
       // 只针对非V3模型使用通用接口
-      if (!painting.model?.includes('V_3') || mode === 'aihubmix_image_upscale') {
+      if (!painting.model?.includes('V_3') || mode === 'upscale') {
         // 直接调用自定义接口
         const response = await fetch(url, { method: 'POST', headers, body })
 
@@ -604,8 +596,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const handleAddPainting = () => {
-    const newPainting = addPainting(mode, getNewPainting())
-    updatePainting(mode, newPainting)
+    const newPainting = addPainting(getNewPainting())
     setPainting(newPainting)
     return newPainting
   }
@@ -621,7 +612,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
     }
 
-    void removePainting(mode, paintingToDelete)
+    void removePainting(paintingToDelete)
   }
 
   const translate = async () => {
@@ -671,14 +662,9 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
   }
 
-  // 处理模式切换
   const handleModeChange = (value: string) => {
-    setMode(value as keyof PaintingsState)
-    if (paintings[value as keyof PaintingsState] && paintings[value as keyof PaintingsState].length > 0) {
-      setPainting(paintings[value as keyof PaintingsState][0])
-    } else {
-      setPainting(DEFAULT_PAINTING)
-    }
+    setMode(value as AihubmixPaintingMode)
+    setPainting(DEFAULT_PAINTING)
   }
 
   // 处理随机种子的点击事件 >=0<=2147483647
@@ -689,149 +675,24 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   // 渲染配置项的函数
-  const renderConfigForm = (item: ConfigItem) => {
-    switch (item.type) {
-      case 'select': {
-        // 处理函数类型的disabled属性
-        const isDisabled = typeof item.disabled === 'function' ? item.disabled(item, painting) : item.disabled
-
-        // 处理函数类型的options属性
-        const selectOptions =
-          typeof item.options === 'function'
-            ? item.options(item, painting).map((option) => ({
-                ...option,
-                label: option.labelKey ? t(option.labelKey) : option.label
-              }))
-            : item.options?.map((option) => ({
-                ...option,
-                label: option.labelKey ? t(option.labelKey) : option.label
-              }))
-
-        return (
-          <Select
-            style={{ width: '100%' }}
-            listHeight={500}
-            disabled={isDisabled}
-            value={painting[item.key!] || item.initialValue}
-            options={selectOptions as any}
-            onChange={(v) => updatePaintingState({ [item.key!]: v })}
-          />
-        )
+  const renderConfigForm = (item: ConfigItem) => (
+    <PaintingConfigFieldRenderer
+      item={item as any}
+      painting={painting as Record<string, unknown>}
+      translate={t}
+      onChange={(updates) => updatePaintingState(updates as Partial<PaintingAction>)}
+      onGenerateRandomSeed={() => handleRandomSeed()}
+      onImageUpload={(key, file) => {
+        const path = URL.createObjectURL(file)
+        setFileMap({ ...fileMap, [path]: file as unknown as FileMetadata })
+        updatePaintingState({ [key]: path })
+      }}
+      imagePreviewSrc={item.key ? (painting[item.key] as string | undefined) : undefined}
+      imagePlaceholder={
+        <img src={IcImageUp} className="mt-2" style={{ filter: theme === 'dark' ? 'invert(100%)' : 'none' }} />
       }
-      case 'radio': {
-        // 处理函数类型的options属性
-        const radioOptions =
-          typeof item.options === 'function'
-            ? item.options(item, painting).map((option) => ({
-                ...option,
-                label: option.labelKey ? t(option.labelKey) : option.label
-              }))
-            : item.options?.map((option) => ({
-                ...option,
-                label: option.labelKey ? t(option.labelKey) : option.label
-              }))
-
-        return (
-          <Radio.Group
-            value={painting[item.key!] || item.initialValue}
-            onChange={(e) => updatePaintingState({ [item.key!]: e.target.value })}>
-            {radioOptions!.map((option) => (
-              <Radio.Button key={option.value} value={option.value}>
-                {option.label}
-              </Radio.Button>
-            ))}
-          </Radio.Group>
-        )
-      }
-      case 'slider': {
-        return (
-          <SliderContainer>
-            <Slider
-              min={item.min}
-              max={item.max}
-              step={item.step}
-              value={(painting[item.key!] || item.initialValue) as number}
-              onChange={(v) => updatePaintingState({ [item.key!]: v })}
-            />
-            <StyledInputNumber
-              min={item.min}
-              max={item.max}
-              step={item.step}
-              value={(painting[item.key!] || item.initialValue) as number}
-              onChange={(v) => updatePaintingState({ [item.key!]: v })}
-            />
-          </SliderContainer>
-        )
-      }
-      case 'input':
-        return (
-          <Input
-            value={(painting[item.key!] || item.initialValue) as string}
-            onChange={(e) => updatePaintingState({ [item.key!]: e.target.value })}
-            suffix={
-              item.key === 'seed' ? (
-                <RedoOutlined onClick={handleRandomSeed} style={{ cursor: 'pointer', color: 'var(--color-text-2)' }} />
-              ) : (
-                item.suffix
-              )
-            }
-          />
-        )
-      case 'inputNumber':
-        return (
-          <InputNumber
-            min={item.min}
-            max={item.max}
-            style={{ width: '100%' }}
-            value={(painting[item.key!] || item.initialValue) as number}
-            onChange={(v) => updatePaintingState({ [item.key!]: v })}
-          />
-        )
-      case 'textarea':
-        return (
-          <TextArea
-            value={(painting[item.key!] || item.initialValue) as string}
-            onChange={(e) => updatePaintingState({ [item.key!]: e.target.value })}
-            spellCheck={false}
-            rows={4}
-          />
-        )
-      case 'switch':
-        return (
-          <RowFlex>
-            <Switch
-              checked={(painting[item.key!] || item.initialValue) as boolean}
-              onCheckedChange={(checked) => updatePaintingState({ [item.key!]: checked })}
-            />
-          </RowFlex>
-        )
-      case 'image': {
-        return (
-          <ImageUploadButton
-            accept="image/png, image/jpeg, image/gif"
-            maxCount={1}
-            showUploadList={false}
-            listType="picture-card"
-            beforeUpload={(file) => {
-              const path = URL.createObjectURL(file)
-              setFileMap({ ...fileMap, [path]: file as unknown as FileMetadata })
-              updatePaintingState({ [item.key!]: path })
-              return false // 阻止默认上传行为
-            }}>
-            {painting[item.key!] ? (
-              <ImagePreview>
-                <img src={painting[item.key!]} alt="预览图" />
-              </ImagePreview>
-            ) : (
-              <ImageSizeImage src={IcImageUp} theme={theme} />
-            )}
-          </ImageUploadButton>
-        )
-      }
-      default:
-        return null
-    }
-  }
+    />
+  )
 
   // 渲染配置项的函数
   const renderConfigItem = (item: ConfigItem, index: number) => {
@@ -855,10 +716,10 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   useEffect(() => {
     if (filteredPaintings.length === 0) {
       const newPainting = getNewPainting()
-      addPainting(mode, newPainting)
+      addPainting(newPainting)
       setPainting(newPainting)
     }
-  }, [filteredPaintings, mode, addPainting, painting, getNewPainting])
+  }, [filteredPaintings, mode, addPainting, getNewPainting])
 
   useEffect(() => {
     const timer = spaceClickTimer.current
@@ -870,7 +731,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   }, [])
 
   return (
-    <Container>
+    <div className="flex h-full flex-1 flex-col">
       <Navbar>
         <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
         {isMac && (
@@ -882,9 +743,9 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           </NavbarRight>
         )}
       </Navbar>
-      <ContentContainer id="content-container">
-        <LeftContainer>
-          <ProviderTitleContainer>
+      <div id="content-container" className="flex h-full flex-1 flex-row overflow-hidden bg-[var(--color-background)]">
+        <Scrollbar className="flex h-full max-w-[var(--assistants-width)] flex-1 flex-col border-r border-[var(--color-border)] bg-[var(--color-background)] p-5">
+          <div className="mb-[5px] flex items-center justify-between">
             <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
             <SettingHelpLink target="_blank" href={aihubmixProvider.apiHost}>
               {t('paintings.learn_more')}
@@ -893,7 +754,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
                 return Icon ? <Icon.Avatar size={16} className="ml-[5px]" /> : null
               })()}
             </SettingHelpLink>
-          </ProviderTitleContainer>
+          </div>
           <ProviderSelect
             provider={aihubmixProvider}
             options={Options}
@@ -902,13 +763,23 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           />
 
           {/* 使用JSON配置渲染设置项 */}
-          {modeConfigs[mode].filter((item) => (item.condition ? item.condition(painting) : true)).map(renderConfigItem)}
-        </LeftContainer>
-        <MainContainer>
+          {modeConfigs[MODE_TO_CONFIG[mode]]
+            .filter((item) => (item.condition ? item.condition(painting) : true))
+            .map(renderConfigItem)}
+        </Scrollbar>
+        <div className="flex h-full flex-1 flex-col bg-[var(--color-background)]">
           {/* 添加功能切换分段控制器 */}
-          <ModeSegmentedContainer>
-            <Segmented shape="round" value={mode} onChange={handleModeChange} options={modeOptions} />
-          </ModeSegmentedContainer>
+          <div className="flex justify-center pt-6">
+            <Tabs value={mode} onValueChange={handleModeChange}>
+              <TabsList>
+                {modeOptions.map((option) => (
+                  <TabsTrigger key={option.value} value={String(option.value)}>
+                    {option.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+          </div>
           <Artboard
             painting={painting}
             isLoading={isLoading}
@@ -918,195 +789,35 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             onCancel={onCancel}
             retry={handleRetry}
           />
-          <InputContainer>
-            <Textarea
-              ref={textareaRef}
-              variant="borderless"
-              disabled={isLoading}
-              value={painting.prompt}
-              spellCheck={false}
-              onChange={(e) => updatePaintingState({ prompt: e.target.value })}
-              placeholder={
-                isTranslating
-                  ? t('paintings.translating')
-                  : painting.model?.startsWith('imagen-') || painting.model?.startsWith('FLUX')
-                    ? t('paintings.prompt_placeholder_en')
-                    : t('paintings.prompt_placeholder_edit')
-              }
-              onKeyDown={handleKeyDown}
-            />
-            <Toolbar>
-              <ToolbarMenu>
-                <TranslateButton
-                  text={textareaRef.current?.resizableTextArea?.textArea?.value}
-                  onTranslated={(translatedText) => updatePaintingState({ prompt: translatedText })}
-                  disabled={isLoading || isTranslating}
-                  isLoading={isTranslating}
-                  style={{ marginRight: 6, borderRadius: '50%' }}
-                />
-                <SendMessageButton sendMessage={onGenerate} disabled={isLoading} />
-              </ToolbarMenu>
-            </Toolbar>
-          </InputContainer>
-        </MainContainer>
+          <PaintingPromptBar
+            prompt={painting.prompt || ''}
+            disabled={isLoading}
+            placeholder={
+              isTranslating
+                ? t('paintings.translating')
+                : painting.model?.startsWith('imagen-') || painting.model?.startsWith('FLUX')
+                  ? t('paintings.prompt_placeholder_en')
+                  : t('paintings.prompt_placeholder_edit')
+            }
+            onPromptChange={(value) => updatePaintingState({ prompt: value })}
+            onGenerate={onGenerate}
+            onKeyDown={handleKeyDown}
+            showTranslate
+            isTranslating={isTranslating}
+            onTranslated={(translatedText) => updatePaintingState({ prompt: translatedText })}
+          />
+        </div>
         <PaintingsList
-          namespace={mode}
           paintings={filteredPaintings}
           selectedPainting={painting}
           onSelectPainting={onSelectPainting}
           onDeletePainting={onDeletePainting}
           onNewPainting={handleAddPainting}
+          onReorder={reorder}
         />
-      </ContentContainer>
-    </Container>
+      </div>
+    </div>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: 100%;
-`
-
-const ContentContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: row;
-  height: 100%;
-  background-color: var(--color-background);
-  overflow: hidden;
-`
-
-const LeftContainer = styled(Scrollbar)`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: 100%;
-  padding: 20px;
-  background-color: var(--color-background);
-  max-width: var(--assistants-width);
-  border-right: 0.5px solid var(--color-border);
-`
-
-const MainContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: 100%;
-  background-color: var(--color-background);
-`
-
-const InputContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  min-height: 95px;
-  max-height: 95px;
-  position: relative;
-  border: 1px solid var(--color-border-soft);
-  transition: all 0.3s ease;
-  margin: 0 20px 15px 20px;
-  border-radius: 10px;
-`
-
-const Textarea = styled(TextArea)`
-  padding: 10px;
-  border-radius: 0;
-  display: flex;
-  flex: 1;
-  resize: none !important;
-  overflow: auto;
-  width: auto;
-`
-
-const Toolbar = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  justify-content: flex-end;
-  padding: 0 8px;
-  padding-bottom: 0;
-  height: 40px;
-`
-
-const ToolbarMenu = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 6px;
-`
-
-const SliderContainer = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 16px;
-
-  .ant-slider {
-    flex: 1;
-  }
-`
-
-const StyledInputNumber = styled(InputNumber)`
-  width: 70px;
-`
-
-// 添加新的样式组件
-const ModeSegmentedContainer = styled.div`
-  display: flex;
-  justify-content: center;
-  padding-top: 24px;
-`
-
-// 添加新的样式组件
-const ProviderTitleContainer = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 5px;
-`
-
-const ImageSizeImage = styled.img<{ theme: string }>`
-  filter: ${({ theme }) => (theme === 'dark' ? 'invert(100%)' : 'none')};
-  margin-top: 8px;
-`
-
-const ImageUploadButton = styled(Upload)`
-  & .ant-upload.ant-upload-select,
-  .ant-upload-list-item-container {
-    width: 100% !important;
-    height: 100% !important;
-    aspect-ratio: 1 !important;
-  }
-`
-
-// 修改 ImagePreview 组件，添加悬停效果
-const ImagePreview = styled.div`
-  width: 100%;
-  height: 100%;
-  position: relative;
-  border-radius: 6px;
-  overflow: hidden;
-
-  img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  &:hover::after {
-    content: '点击替换';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.5);
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-  }
-`
 
 export default AihubmixPage

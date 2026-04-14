@@ -3,14 +3,14 @@ import { describe, expect, it } from 'vitest'
 import { getPaintingScope, transformLegacyPaintingRecord } from '../PaintingMappings'
 
 describe('PaintingMappings', () => {
-  it('maps DMXAPI edit and merge records into edit mode', () => {
+  it('maps DMXAPI edit and merge records into legacy granular modes', () => {
     expect(getPaintingScope('dmxapi_paintings', { generationMode: 'edit' })).toEqual({
       providerId: 'dmxapi',
       mode: 'edit'
     })
     expect(getPaintingScope('dmxapi_paintings', { generationMode: 'merge' })).toEqual({
       providerId: 'dmxapi',
-      mode: 'edit'
+      mode: 'merge'
     })
     expect(getPaintingScope('dmxapi_paintings', { generationMode: 'generation' })).toEqual({
       providerId: 'dmxapi',
@@ -81,5 +81,18 @@ describe('PaintingMappings', () => {
     expect(result.warnings).toContain(
       'Dropped legacy input image reference because only an in-memory string/object URL was available'
     )
+  })
+
+  it('skips placeholder records when only transient urls exist', () => {
+    const result = transformLegacyPaintingRecord('siliconflow_paintings', {
+      id: 'painting-4',
+      prompt: '',
+      urls: ['https://example.com/a.png']
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      reason: 'empty_placeholder'
+    })
   })
 })

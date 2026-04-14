@@ -11,11 +11,12 @@
  *   - `currentVersion` is coerced via `semver.coerce()` so that
  *     `2.0.0-alpha` is treated as `2.0.0` for the gateway check.
  *     This prevents false-blocking v1 users who install a pre-release.
- *   - `previousVersion` is NOT coerced. A previous version of
- *     `2.0.0-beta` is considered "before 2.0.0" — the user has not
- *     passed the gateway. Pre-release-to-pre-release upgrades
- *     (alpha→beta→rc→2.0.0) are fine because `needsMigration()`
- *     returns false once migration has completed on any pre-release.
+ *   - `previousVersion` keeps its original pre-release semantics for the
+ *     v2.0.0 gateway check. A previous version of `2.0.0-beta` is still
+ *     considered "before 2.0.0" — the user has not passed the gateway.
+ *   - The minimum v1 requirement is slightly looser: `1.9.0-rc.0` is
+ *     treated as satisfying the `1.9.0` floor, because it belongs to the
+ *     same final v1 release line.
  */
 
 import fs from 'node:fs'
@@ -62,7 +63,8 @@ export interface VersionCheckInput {
  * `currentAppVersion` is compatible with the v2 migration requirements.
  *
  * `currentAppVersion` is internally coerced to strip pre-release tags.
- * `previousVersion` is used as-is.
+ * `previousVersion` keeps its original value, except that the minimum
+ * v1-version check treats `1.9.0-*` as satisfying `1.9.0`.
  */
 export function checkUpgradePathCompatibility(input: VersionCheckInput): VersionCheckResult {
   const { currentAppVersion, previousVersion, versionLogExists } = input
@@ -84,7 +86,8 @@ export function checkUpgradePathCompatibility(input: VersionCheckInput): Version
   }
 
   // ❷ Previous version exists but is below V1_REQUIRED_VERSION.
-  if (previousVersion && semver.lt(previousVersion, V1_REQUIRED_VERSION)) {
+  //    Allow pre-releases on the same final v1 line, e.g. 1.9.0-rc.0.
+  if (previousVersion && isBelowRequiredV1Version(previousVersion)) {
     return {
       outcome: 'block',
       reason: 'v1_too_old',
@@ -114,6 +117,15 @@ export function checkUpgradePathCompatibility(input: VersionCheckInput): Version
 
   // ❺ All other cases pass.
   return { outcome: 'pass' }
+}
+
+function isBelowRequiredV1Version(previousVersion: string): boolean {
+  if (!semver.lt(previousVersion, V1_REQUIRED_VERSION)) {
+    return false
+  }
+
+  const coercedPrevious = semver.coerce(previousVersion)?.version ?? ''
+  return coercedPrevious !== V1_REQUIRED_VERSION
 }
 
 // ── version.log reader ──────────────────────────────────────────────

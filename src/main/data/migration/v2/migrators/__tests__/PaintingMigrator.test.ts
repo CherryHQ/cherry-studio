@@ -68,9 +68,24 @@ describe('PaintingMigrator', () => {
       .preparedPaintings
     expect(preparedRows).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ id: 'dmx-1', providerId: 'dmxapi', mode: 'generate', sortOrder: 1 }),
-        expect.objectContaining({ id: 'dmx-2', providerId: 'dmxapi', mode: 'edit', sortOrder: 1 }),
-        expect.objectContaining({ id: 'openai-1', providerId: 'custom-openai', mode: 'generate', sortOrder: 1 })
+        expect.objectContaining({
+          id: 'dmx-1',
+          providerId: 'dmxapi',
+          mode: 'generate',
+          sortOrder: 2
+        }),
+        expect.objectContaining({
+          id: 'dmx-2',
+          providerId: 'dmxapi',
+          mode: 'edit',
+          sortOrder: 1
+        }),
+        expect.objectContaining({
+          id: 'openai-1',
+          providerId: 'custom-openai',
+          mode: 'generate',
+          sortOrder: 1
+        })
       ])
     )
   })

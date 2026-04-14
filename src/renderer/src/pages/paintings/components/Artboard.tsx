@@ -1,12 +1,9 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, Spinner } from '@cherrystudio/ui'
 import ImageViewer from '@renderer/components/ImageViewer'
 import FileManager from '@renderer/services/FileManager'
 import type { Painting } from '@renderer/types'
-import { Spin } from 'antd'
 import type { FC } from 'react'
-import React from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface ArtboardProps {
   painting: Painting
@@ -32,24 +29,26 @@ const Artboard: FC<ArtboardProps> = ({
   loadText
 }) => {
   const { t } = useTranslation()
-
-  const getCurrentImageUrl = () => {
-    const currentFile = painting.files[currentImageIndex]
-    return currentFile ? FileManager.getFileUrl(currentFile) : ''
-  }
+  const currentFile = painting.files[currentImageIndex]
+  const currentImageUrl = currentFile ? FileManager.getFileUrl(currentFile) : ''
 
   return (
-    <Container>
-      <LoadingContainer spinning={isLoading}>
+    <div className="flex flex-1 items-center justify-center [--artboard-max:calc(100vh-256px)]">
+      <div
+        className={`relative flex h-full w-full items-center justify-center transition-opacity ${isLoading ? 'opacity-50' : 'opacity-100'}`}>
         {painting.files.length > 0 ? (
-          <ImageContainer>
+          <div className="relative flex items-center justify-center">
             {painting.files.length > 1 && (
-              <NavigationButton onClick={onPrevImage} className="left-2.5">
+              <Button
+                size="icon-sm"
+                variant="outline"
+                onClick={onPrevImage}
+                className="absolute left-2.5 top-1/2 z-20 -translate-y-1/2 opacity-80 hover:opacity-100">
                 ←
-              </NavigationButton>
+              </Button>
             )}
             <ImageViewer
-              src={getCurrentImageUrl()}
+              src={currentImageUrl}
               preview={{ mask: false }}
               style={{
                 maxWidth: 'var(--artboard-max)',
@@ -60,23 +59,29 @@ const Artboard: FC<ArtboardProps> = ({
               }}
             />
             {painting.files.length > 1 && (
-              <NavigationButton onClick={onNextImage} className="right-2.5">
+              <Button
+                size="icon-sm"
+                variant="outline"
+                onClick={onNextImage}
+                className="absolute right-2.5 top-1/2 z-20 -translate-y-1/2 opacity-80 hover:opacity-100">
                 →
-              </NavigationButton>
+              </Button>
             )}
-            <ImageCounter>
+            <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 rounded-full bg-black/50 px-2 py-1 text-xs text-white">
               {currentImageIndex + 1} / {painting.files.length}
-            </ImageCounter>
-          </ImageContainer>
+            </div>
+          </div>
         ) : (
-          <ImagePlaceholder>
+          <div className="flex h-[var(--artboard-max)] w-[var(--artboard-max)] items-center justify-center bg-[var(--color-background-soft)] p-6 text-center">
             {painting.urls.length > 0 && retry ? (
-              <div>
-                <ImageList>
+              <div className="space-y-3">
+                <ul className="list-none p-0 text-left break-all select-text">
                   {painting.urls.map((url, index) => (
-                    <ImageListItem key={url || index}>{url}</ImageListItem>
+                    <li key={url || index} className="mb-2 text-[var(--color-text-secondary)]">
+                      {url}
+                    </li>
                   ))}
-                </ImageList>
+                </ul>
                 <div>
                   {t('paintings.proxy_required')}
                   <Button variant="ghost" onClick={() => retry?.(painting)}>
@@ -86,126 +91,22 @@ const Artboard: FC<ArtboardProps> = ({
               </div>
             ) : imageCover ? (
               imageCover
-            ) : loadText && isLoading ? (
-              ''
-            ) : (
+            ) : loadText && isLoading ? null : (
               <div>{t('paintings.image_placeholder')}</div>
             )}
-          </ImagePlaceholder>
+          </div>
         )}
+
         {isLoading && (
-          <LoadingOverlay>
-            <Spin size="large" />
-            {loadText ? loadText : ''}
-            <CancelButton onClick={onCancel}>{t('common.cancel')}</CancelButton>
-          </LoadingOverlay>
+          <div className="absolute left-1/2 top-1/2 z-30 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-5">
+            <Spinner text="" />
+            {loadText || null}
+            <Button onClick={onCancel}>{t('common.cancel')}</Button>
+          </div>
         )}
-      </LoadingContainer>
-    </Container>
+      </div>
+    </div>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-
-  --artboard-max: calc(100vh - 256px);
-`
-
-const ImagePlaceholder = styled.div`
-  display: flex;
-  width: var(--artboard-max);
-  height: var(--artboard-max);
-  background-color: var(--color-background-soft);
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  box-sizing: border-box;
-`
-
-const ImageList = styled.ul`
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  word-break: break-all;
-  user-select: text;
-`
-
-const ImageListItem = styled.li`
-  color: var(--color-text-secondary);
-  margin-bottom: 10px;
-`
-
-const ImageContainer = styled.div`
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  .ant-spin {
-    max-height: none;
-  }
-
-  .ant-spin-spinning {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    z-index: 3;
-  }
-`
-
-const NavigationButton = styled(Button)`
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 2;
-  opacity: 0.7;
-  &:hover {
-    opacity: 1;
-  }
-`
-
-const ImageCounter = styled.div`
-  position: absolute;
-  bottom: 10px;
-  left: 50%;
-  transform: translateX(-50%);
-  background-color: rgba(0, 0, 0, 0.5);
-  color: white;
-  padding: 4px 8px;
-  border-radius: 12px;
-  font-size: 12px;
-`
-
-const LoadingContainer = styled.div<{ spinning: boolean }>`
-  position: relative;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  opacity: ${(props) => (props.spinning ? 0.5 : 1)};
-  transition: opacity 0.3s;
-`
-
-const LoadingOverlay = styled.div`
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20px;
-`
-
-const CancelButton = styled(Button)`
-  margin-top: 10px;
-  z-index: 1001;
-`
 
 export default Artboard

@@ -1,6 +1,6 @@
 import * as z from 'zod'
 
-export const PaintingModeSchema = z.enum(['generate', 'edit', 'upscale'])
+export const PaintingModeSchema = z.enum(['generate', 'draw', 'edit', 'remix', 'merge', 'upscale'])
 export type PaintingMode = z.infer<typeof PaintingModeSchema>
 
 export const PaintingParamsSchema = z.record(z.string(), z.unknown())
