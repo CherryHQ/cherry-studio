@@ -103,8 +103,8 @@ CREATE TABLE `agents_skills` (
 	`tags` text,
 	`content_hash` text NOT NULL,
 	`is_enabled` integer DEFAULT true NOT NULL,
-	`created_at` integer NOT NULL,
-	`updated_at` integer NOT NULL
+	`created_at` integer,
+	`updated_at` integer
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `agents_skills_folder_name_unique` ON `agents_skills` (`folder_name`);--> statement-breakpoint
