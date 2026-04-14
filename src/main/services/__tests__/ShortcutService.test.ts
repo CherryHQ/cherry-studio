@@ -1,0 +1,185 @@
+import { EventEmitter } from 'events'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({
+      debug: vi.fn(),
+      error: vi.fn(),
+      warn: vi.fn()
+    })
+  }
+}))
+
+vi.mock('@data/PreferenceService', async () => {
+  const { MockMainPreferenceServiceExport } = await import('@test-mocks/main/PreferenceService')
+  return MockMainPreferenceServiceExport
+})
+
+const { windowServiceMock, selectionServiceMock, globalShortcutMock } = vi.hoisted(() => ({
+  windowServiceMock: {
+    getMainWindow: vi.fn(),
+    onMainWindowCreated: vi.fn(),
+    showMainWindow: vi.fn(),
+    toggleMainWindow: vi.fn(),
+    toggleMiniWindow: vi.fn()
+  },
+  selectionServiceMock: {
+    toggleEnabled: vi.fn(),
+    processSelectTextByShortcut: vi.fn()
+  },
+  globalShortcutMock: {
+    register: vi.fn(),
+    unregister: vi.fn()
+  }
+}))
+
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    WindowService: windowServiceMock,
+    SelectionService: selectionServiceMock
+  } as any)
+})
+
+vi.mock('@main/core/lifecycle', () => {
+  class MockBaseService {
+    protected readonly _disposables: Array<{ dispose: () => void } | (() => void)> = []
+
+    protected registerDisposable<T extends { dispose: () => void } | (() => void)>(disposable: T): T {
+      this._disposables.push(disposable)
+      return disposable
+    }
+  }
+
+  return {
+    BaseService: MockBaseService,
+    Injectable: () => (target: unknown) => target,
+    ServicePhase: () => (target: unknown) => target,
+    DependsOn: () => (target: unknown) => target,
+    Phase: { WhenReady: 'whenReady' }
+  }
+})
+
+vi.mock('@main/utils/zoom', () => ({
+  handleZoomFactor: vi.fn()
+}))
+
+vi.mock('electron', () => ({
+  globalShortcut: globalShortcutMock
+}))
+
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+
+import { ShortcutService } from '../ShortcutService'
+
+class MockBrowserWindow {
+  private readonly events = new EventEmitter()
+  private readonly webContentsEvents = new EventEmitter()
+  private destroyed = false
+  private focused = true
+
+  public readonly webContents = {
+    send: vi.fn(),
+    isLoadingMainFrame: vi.fn(() => false),
+    once: vi.fn((event: string, callback: (...args: any[]) => void) => {
+      this.webContentsEvents.once(event, callback)
+    })
+  }
+
+  public readonly on = vi.fn((event: string, callback: (...args: any[]) => void) => {
+    this.events.on(event, callback)
+    return this
+  })
+
+  public readonly once = vi.fn((event: string, callback: (...args: any[]) => void) => {
+    this.events.once(event, callback)
+    return this
+  })
+
+  public readonly off = vi.fn((event: string, callback: (...args: any[]) => void) => {
+    this.events.off(event, callback)
+    return this
+  })
+
+  public readonly isDestroyed = vi.fn(() => this.destroyed)
+  public readonly isFocused = vi.fn(() => this.focused)
+  public readonly isMinimized = vi.fn(() => false)
+  public readonly isVisible = vi.fn(() => true)
+
+  public emit(event: string, ...args: any[]) {
+    this.events.emit(event, ...args)
+  }
+
+  public emitWebContents(event: string, ...args: any[]) {
+    this.webContentsEvents.emit(event, ...args)
+  }
+
+  public setFocused(value: boolean) {
+    this.focused = value
+  }
+
+  public destroy() {
+    this.destroyed = true
+  }
+}
+
+describe('ShortcutService', () => {
+  let service: ShortcutService
+  let mainWindow: MockBrowserWindow
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    MockMainPreferenceServiceUtils.resetMocks()
+
+    mainWindow = new MockBrowserWindow()
+    windowServiceMock.getMainWindow.mockReturnValue(mainWindow)
+    windowServiceMock.onMainWindowCreated.mockImplementation((callback: (window: MockBrowserWindow) => void) => {
+      return { dispose: vi.fn(), callback }
+    })
+
+    globalShortcutMock.register.mockReturnValue(true)
+
+    service = new ShortcutService()
+  })
+
+  it('registers focused window shortcuts including shortcut variants', async () => {
+    await (service as any).onInit()
+
+    expect(globalShortcutMock.register).toHaveBeenCalledWith('CommandOrControl+,', expect.any(Function))
+    expect(globalShortcutMock.register).toHaveBeenCalledWith('CommandOrControl+=', expect.any(Function))
+    expect(globalShortcutMock.register).toHaveBeenCalledWith('CommandOrControl+numadd', expect.any(Function))
+  })
+
+  it('re-registers only the changed accelerator when shortcut binding changes', async () => {
+    await (service as any).onInit()
+    globalShortcutMock.register.mockClear()
+    globalShortcutMock.unregister.mockClear()
+
+    MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.general.show_settings', {
+      binding: ['Alt', ','],
+      enabled: true
+    })
+
+    expect(globalShortcutMock.unregister).toHaveBeenCalledWith('CommandOrControl+,')
+    expect(globalShortcutMock.register).toHaveBeenCalledWith('Alt+,', expect.any(Function))
+    expect(globalShortcutMock.register).not.toHaveBeenCalledWith('CommandOrControl+=', expect.any(Function))
+  })
+
+  it('reacts to quick assistant enablement changes for mini window shortcut', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.general.show_mini_window', {
+      binding: ['CommandOrControl', 'E'],
+      enabled: true
+    })
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.quick_assistant.enabled', false)
+
+    await (service as any).onInit()
+
+    expect(globalShortcutMock.register).not.toHaveBeenCalledWith('CommandOrControl+E', expect.any(Function))
+
+    globalShortcutMock.register.mockClear()
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.quick_assistant.enabled', true)
+
+    expect(globalShortcutMock.register).toHaveBeenCalledWith('CommandOrControl+E', expect.any(Function))
+  })
+})
