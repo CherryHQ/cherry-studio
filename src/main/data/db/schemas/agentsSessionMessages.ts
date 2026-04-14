@@ -6,12 +6,12 @@ import { agentsSessionsTable } from './agentsSessions'
 export const agentsSessionMessagesTable = sqliteTable(
   'agents_session_messages',
   {
-    id: integer('id').primaryKey({ autoIncrement: true }),
-    sessionId: text('session_id').notNull(),
-    role: text('role').notNull(),
-    content: text('content').notNull(),
-    agentSessionId: text('agent_session_id').default(''),
-    metadata: text('metadata'),
+    id: integer().primaryKey({ autoIncrement: true }),
+    sessionId: text().notNull(),
+    role: text().notNull(),
+    content: text().notNull(),
+    agentSessionId: text().default(''),
+    metadata: text(),
     ...createUpdateTimestamps
   },
   (t) => [

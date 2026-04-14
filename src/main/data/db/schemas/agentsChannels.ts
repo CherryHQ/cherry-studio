@@ -10,14 +10,14 @@ export const agentsChannelsTable = sqliteTable(
   'agents_channels',
   {
     id: uuidPrimaryKey(),
-    type: text('type').notNull(),
-    name: text('name').notNull(),
-    agentId: text('agent_id').references(() => agentsAgentsTable.id, { onDelete: 'set null' }),
-    sessionId: text('session_id').references(() => agentsSessionsTable.id, { onDelete: 'set null' }),
-    config: text('config', { mode: 'json' }).$type<Record<string, unknown>>().notNull(),
-    isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
-    activeChatIds: text('active_chat_ids', { mode: 'json' }).$type<string[]>().default([]),
-    permissionMode: text('permission_mode'),
+    type: text().notNull(),
+    name: text().notNull(),
+    agentId: text().references(() => agentsAgentsTable.id, { onDelete: 'set null' }),
+    sessionId: text().references(() => agentsSessionsTable.id, { onDelete: 'set null' }),
+    config: text({ mode: 'json' }).$type<Record<string, unknown>>().notNull(),
+    isActive: integer({ mode: 'boolean' }).notNull().default(true),
+    activeChatIds: text({ mode: 'json' }).$type<string[]>().default([]),
+    permissionMode: text(),
     ...createUpdateTimestamps
   },
   (t) => [
@@ -35,10 +35,10 @@ export const agentsChannelsTable = sqliteTable(
 export const agentsChannelTaskSubscriptionsTable = sqliteTable(
   'agents_channel_task_subscriptions',
   {
-    channelId: text('channel_id')
+    channelId: text()
       .notNull()
       .references(() => agentsChannelsTable.id, { onDelete: 'cascade' }),
-    taskId: text('task_id')
+    taskId: text()
       .notNull()
       .references(() => agentsTasksTable.id, { onDelete: 'cascade' })
   },

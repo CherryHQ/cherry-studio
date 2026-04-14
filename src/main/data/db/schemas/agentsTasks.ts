@@ -6,17 +6,17 @@ import { agentsAgentsTable } from './agentsAgents'
 export const agentsTasksTable = sqliteTable(
   'agents_tasks',
   {
-    id: text('id').primaryKey(),
-    agentId: text('agent_id').notNull(),
-    name: text('name').notNull(),
-    prompt: text('prompt').notNull(),
-    scheduleType: text('schedule_type').notNull(),
-    scheduleValue: text('schedule_value').notNull(),
-    timeoutMinutes: integer('timeout_minutes').notNull().default(2),
-    nextRun: text('next_run'),
-    lastRun: text('last_run'),
-    lastResult: text('last_result'),
-    status: text('status').notNull().default('active'),
+    id: text().primaryKey(),
+    agentId: text().notNull(),
+    name: text().notNull(),
+    prompt: text().notNull(),
+    scheduleType: text().notNull(),
+    scheduleValue: text().notNull(),
+    timeoutMinutes: integer().notNull().default(2),
+    nextRun: text(),
+    lastRun: text(),
+    lastResult: text(),
+    status: text().notNull().default('active'),
     ...createUpdateTimestamps
   },
   (t) => [
@@ -34,14 +34,14 @@ export const agentsTasksTable = sqliteTable(
 export const agentsTaskRunLogsTable = sqliteTable(
   'agents_task_run_logs',
   {
-    id: integer('id').primaryKey({ autoIncrement: true }),
-    taskId: text('task_id').notNull(),
-    sessionId: text('session_id'),
-    runAt: text('run_at').notNull(),
-    durationMs: integer('duration_ms').notNull(),
-    status: text('status').notNull(),
-    result: text('result'),
-    error: text('error'),
+    id: integer().primaryKey({ autoIncrement: true }),
+    taskId: text().notNull(),
+    sessionId: text(),
+    runAt: text().notNull(),
+    durationMs: integer().notNull(),
+    status: text().notNull(),
+    result: text(),
+    error: text(),
     ...createUpdateTimestamps
   },
   (t) => [
