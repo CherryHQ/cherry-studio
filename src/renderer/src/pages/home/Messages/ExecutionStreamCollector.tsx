@@ -14,17 +14,16 @@ import { useEffect, useMemo } from 'react'
 interface Props {
   topicId: string
   executionId: string
-  initialMessages: CherryUIMessage[]
   onMessages: (executionId: string, messages: CherryUIMessage[]) => void
 }
 
-const ExecutionStreamCollector: FC<Props> = ({ topicId, executionId, initialMessages, onMessages }) => {
+const ExecutionStreamCollector: FC<Props> = ({ topicId, executionId, onMessages }) => {
   const transport = useMemo(() => new ExecutionTransport(topicId, executionId), [topicId, executionId])
 
   const { messages } = useChat<CherryUIMessage>({
     id: `${topicId}:${executionId}`,
     transport,
-    messages: initialMessages,
+    messages: [],
     resume: true,
     experimental_throttle: 50
   })

@@ -37,6 +37,7 @@ export interface UseChatWithHistoryResult {
   streamingUIMessages: CherryUIMessage[]
   /** Multi-model: active execution IDs during streaming. Empty for single-model. */
   activeExecutionIds: string[]
+  seedActiveExecutionIds: (executionIds: string[]) => void
   /** The initialMessages passed through (for multi-model view to share history). */
   initialMessages: CherryUIMessage[]
 }
@@ -64,30 +65,49 @@ export function useChatWithHistory(
   // Stable ref for refresh to avoid re-subscribing IPC listeners
   const refreshRef = useRef(refresh)
   refreshRef.current = refresh
+  const terminalRefreshRef = useRef<Promise<void> | null>(null)
+  const liveCreatedAtRef = useRef<Record<string, string>>({})
 
   const refreshAndReplace = useCallback(() => {
-    void refreshRef
+    if (terminalRefreshRef.current) return terminalRefreshRef.current
+
+    const refreshPromise = refreshRef
       .current()
       .then((refreshed) => {
         setMessages(refreshed)
-        // Clear multi-model state AFTER messages are replaced with DB truth
-        setActiveExecutionIds([])
+        // Do NOT clear activeExecutionIds here — ExecutionStreamCollectors
+        // hold the final messages and keep the multi-model view alive.
+        // Clearing happens on topic change or new message send.
       })
       .catch((err) => {
         logger.warn('Failed to refresh messages after stream end', { topicId, err })
-        setActiveExecutionIds([])
       })
+      .finally(() => {
+        terminalRefreshRef.current = null
+      })
+
+    terminalRefreshRef.current = refreshPromise
+    return refreshPromise
   }, [setMessages, topicId])
+
+  useEffect(() => {
+    setActiveExecutionIds([])
+    terminalRefreshRef.current = null
+    liveCreatedAtRef.current = {}
+  }, [topicId])
 
   // On stream done/error: replace messages with DB truth
   useEffect(() => {
     const doneUnsub = window.api.ai.onStreamDone((data) => {
       if (data.topicId !== topicId) return
-      refreshAndReplace()
+      // Multi-model: skip per-execution done, only refresh when all executions finish
+      if (data.executionId && !data.isTopicDone) return
+      void refreshAndReplace()
     })
     const errorUnsub = window.api.ai.onStreamError((data) => {
       if (data.topicId !== topicId) return
-      refreshAndReplace()
+      if (data.executionId && !data.isTopicDone) return
+      void refreshAndReplace()
     })
     return () => {
       doneUnsub()
@@ -98,20 +118,33 @@ export function useChatWithHistory(
   // Multi-model: track active executionIds from chunk events.
   // Chunks with executionId indicate multi-model streaming.
   const [activeExecutionIds, setActiveExecutionIds] = useState<string[]>([])
+  const seedActiveExecutionIds = useCallback((executionIds: string[]) => {
+    // Empty array = clear multi-model state (used by new message sends)
+    if (executionIds.length === 0) {
+      setActiveExecutionIds([])
+      return
+    }
+
+    setActiveExecutionIds((prev) => {
+      const next = prev.length === 0 ? [...executionIds] : Array.from(new Set([...prev, ...executionIds]))
+      return next.length === prev.length && next.every((id, index) => id === prev[index]) ? prev : next
+    })
+  }, [])
+
   useEffect(() => {
     const seen = new Set<string>()
     const chunkUnsub = window.api.ai.onStreamChunk((data) => {
       if (data.topicId !== topicId || !data.executionId) return
       if (seen.has(data.executionId)) return
       seen.add(data.executionId)
-      setActiveExecutionIds(Array.from(seen))
+      seedActiveExecutionIds([data.executionId])
     })
     // activeExecutionIds is cleared by refreshAndReplace (after DB refresh completes)
     return () => {
       chunkUnsub()
       seen.clear()
     }
-  }, [topicId])
+  }, [seedActiveExecutionIds, topicId])
 
   // ── Adapt UIMessage[] to renderer Message[] ──
 
@@ -120,12 +153,17 @@ export function useChatWithHistory(
     return messages.map((uiMsg) => {
       if (uiMsg.role === 'user') lastUserId = uiMsg.id
       const meta = metadataMap[uiMsg.id]
+      const createdAt =
+        meta?.createdAt ??
+        uiMsg.metadata?.createdAt ??
+        liveCreatedAtRef.current[uiMsg.id] ??
+        (liveCreatedAtRef.current[uiMsg.id] = new Date().toISOString())
       return {
         id: uiMsg.id,
         role: uiMsg.role,
         assistantId: context.assistantId,
         topicId,
-        createdAt: meta?.createdAt ?? uiMsg.metadata?.createdAt ?? '',
+        createdAt,
         askId: meta?.parentId ?? (uiMsg.role === 'assistant' ? lastUserId : undefined),
         modelId: meta?.modelId,
         siblingsGroupId: meta?.siblingsGroupId,
@@ -161,6 +199,7 @@ export function useChatWithHistory(
     setMessages,
     streamingUIMessages: messages,
     activeExecutionIds,
+    seedActiveExecutionIds,
     initialMessages
   }
 }

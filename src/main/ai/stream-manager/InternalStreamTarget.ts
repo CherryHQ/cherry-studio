@@ -7,7 +7,7 @@ import type { CherryUIMessage, StreamTarget } from './types'
 
 // Minimal interface to avoid circular import with AiStreamManager.
 interface ManagerCallbacks {
-  onChunk(topicId: string, chunk: UIMessageChunk): void
+  onChunk(topicId: string, modelId: UniqueModelId, chunk: UIMessageChunk): void
   onExecutionDone(topicId: string, modelId: UniqueModelId, status?: 'success' | 'paused'): Promise<void>
   onExecutionError(topicId: string, modelId: UniqueModelId, error: SerializedError): Promise<void>
   shouldStopExecution(topicId: string, modelId: UniqueModelId): boolean
@@ -34,8 +34,7 @@ export class InternalStreamTarget implements StreamTarget {
   send(channel: string, payload: { chunk?: UIMessageChunk; error?: SerializedError; [key: string]: unknown }): void {
     switch (channel) {
       case IpcChannel.Ai_StreamChunk:
-        // Chunks are topic-level (multicast to all listeners regardless of model)
-        if (payload.chunk) this.manager.onChunk(this.topicId, payload.chunk)
+        if (payload.chunk) this.manager.onChunk(this.topicId, this.modelId, payload.chunk)
         break
       case IpcChannel.Ai_StreamDone:
         void this.manager.onExecutionDone(this.topicId, this.modelId)

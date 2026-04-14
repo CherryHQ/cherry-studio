@@ -134,7 +134,8 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
           window.api.ai.onStreamDone((data) => {
             if (data.topicId !== topicId) return
             if (executionId && data.executionId !== executionId) return
-            if (!executionId && data.executionId) return
+            // Primary stream: close on topic-level done; skip per-execution done
+            if (!executionId && data.executionId && !data.isTopicDone) return
             closeStream()
           })
         )

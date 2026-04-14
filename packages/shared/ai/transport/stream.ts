@@ -21,6 +21,8 @@ export interface StreamDonePayload {
   executionId?: string
   /** 'success' = natural completion; 'paused' = user-initiated abort with partial output. */
   status: 'success' | 'paused'
+  /** True when ALL executions in the topic are done. */
+  isTopicDone?: boolean
 }
 
 /** Stream error. */
@@ -28,6 +30,8 @@ export interface StreamErrorPayload {
   topicId: string
   /** Multi-model: identifies which execution errored. */
   executionId?: string
+  /** True when the topic has no remaining streaming executions. */
+  isTopicDone?: boolean
   error: SerializedError
 }
 

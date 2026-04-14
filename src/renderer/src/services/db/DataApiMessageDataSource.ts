@@ -55,7 +55,6 @@ export async function fetchMessagesFromDataApi(topicId: string): Promise<{
       messageCount: messages.length,
       blockCount: blocks.length
     })
-
     return { messages, blocks }
   } catch (error: unknown) {
     if (error instanceof Object && 'code' in error && error.code === ErrorCode.NOT_FOUND) {

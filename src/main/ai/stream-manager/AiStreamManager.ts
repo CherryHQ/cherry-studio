@@ -221,8 +221,13 @@ export class AiStreamManager extends BaseService {
 
   // ── InternalStreamTarget callbacks ────────────────────────────────
 
-  /** Chunks are topic-level — multicast to all listeners regardless of which model produced them. */
-  onChunk(topicId: string, chunk: UIMessageChunk): void {
+  /**
+   * Per-execution chunk routing.
+   *
+   * Listeners with `executionId` only receive chunks from their own model.
+   * Listeners without `executionId` (topic-level) receive ALL chunks.
+   */
+  onChunk(topicId: string, modelId: UniqueModelId, chunk: UIMessageChunk): void {
     const stream = this.activeStreams.get(topicId)
     if (!stream || stream.status !== 'streaming') return
 
@@ -236,6 +241,8 @@ export class AiStreamManager extends BaseService {
         dead.push(id)
         continue
       }
+      // Execution-scoped listeners only receive their own model's chunks
+      if (listener.executionId && listener.executionId !== modelId) continue
       try {
         listener.onChunk(chunk)
       } catch (err) {
@@ -281,18 +288,19 @@ export class AiStreamManager extends BaseService {
 
     exec.status = 'error'
     exec.error = error
+    stream.status = this.computeTopicStatus(stream)
+    const isTopicDone = stream.status !== 'streaming'
 
     // Broadcast error to listeners (include partial message if available)
     for (const [id, listener] of stream.listeners) {
       try {
-        await listener.onError(error, exec.finalMessage, exec.modelId)
+        await listener.onError(error, exec.finalMessage, exec.modelId, isTopicDone)
       } catch (err) {
         logger.warn('Listener onError threw', { topicId, listenerId: id, err })
       }
     }
 
-    stream.status = this.computeTopicStatus(stream)
-    if (stream.status !== 'streaming') {
+    if (isTopicDone) {
       this.scheduleReap(topicId)
     }
   }

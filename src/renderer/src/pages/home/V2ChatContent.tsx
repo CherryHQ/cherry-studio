@@ -13,7 +13,7 @@ import type { Message } from '@renderer/types/newMessage'
 import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/assistant'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { FC, ReactNode } from 'react'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { ensureChatTopicPersisted } from './chatPersistence'
 import Inputbar from './Inputbar/Inputbar'
@@ -22,6 +22,16 @@ import ExecutionStreamCollector from './Messages/ExecutionStreamCollector'
 import Messages from './Messages/Messages'
 
 const logger = loggerService.withContext('V2ChatContent')
+
+function dedupeMessagesById(messages: Message[]): Message[] {
+  const deduped = new Map<string, Message>()
+
+  for (const message of messages) {
+    deduped.set(message.id, message)
+  }
+
+  return Array.from(deduped.values())
+}
 
 interface Props {
   assistant: Assistant
@@ -110,17 +120,50 @@ const V2ChatContentInner: FC<InnerProps> = ({
     setMessages,
     streamingUIMessages,
     activeExecutionIds,
-    initialMessages: chatInitialMessages
+    seedActiveExecutionIds
   } = useChatWithHistory(topic.id, initialMessages, refresh, { assistantId: assistant.id }, metadataMap)
 
-  const isMultiModelStreaming = activeExecutionIds.length > 1
+  const isMultiModelStreaming = activeExecutionIds.length > 0
 
   // Multi-model: collect messages from per-execution useChat instances
   const [executionMessages, setExecutionMessages] = useState<Record<string, CherryUIMessage[]>>({})
 
   const handleExecutionMessages = useCallback((executionId: string, msgs: CherryUIMessage[]) => {
-    setExecutionMessages((prev) => ({ ...prev, [executionId]: msgs }))
+    setExecutionMessages((prev) => {
+      const prevMsgs = prev[executionId] ?? []
+
+      // Keep the last live payload for this execution. Some collectors can briefly
+      // emit an empty snapshot when they settle, which would collapse the multi-model group.
+      if (msgs.length === 0 && prevMsgs.length > 0) {
+        return prev
+      }
+
+      if (
+        prevMsgs.length === msgs.length &&
+        prevMsgs.every((message, index) => message.id === msgs[index]?.id && message.parts === msgs[index]?.parts)
+      ) {
+        return prev
+      }
+
+      return { ...prev, [executionId]: msgs }
+    })
   }, [])
+
+  useEffect(() => {
+    setExecutionMessages((prev) => {
+      if (activeExecutionIds.length === 0) {
+        return Object.keys(prev).length === 0 ? prev : {}
+      }
+
+      const next = Object.fromEntries(
+        activeExecutionIds
+          .filter((executionId) => executionId in prev)
+          .map((executionId) => [executionId, prev[executionId]])
+      )
+
+      return Object.keys(next).length === Object.keys(prev).length ? prev : next
+    })
+  }, [activeExecutionIds])
 
   // Merge: base adaptedMessages + multi-model execution assistant messages
   const mergedMessages = useMemo(() => {
@@ -128,10 +171,10 @@ const V2ChatContentInner: FC<InnerProps> = ({
 
     // Find the last user message ID for askId linkage
     const lastUser = adaptedMessages.findLast((m) => m.role === 'user')
-    const siblingsGroupId = Date.now()
 
     // Extract latest assistant message from each execution
-    const executionAssistants: Message[] = Object.entries(executionMessages).flatMap(([execId, msgs]) => {
+    const executionAssistants: Message[] = activeExecutionIds.flatMap((execId) => {
+      const msgs = executionMessages[execId] ?? []
       const lastAssistant = [...msgs].reverse().find((m) => m.role === 'assistant')
       if (!lastAssistant) return []
       return [
@@ -140,10 +183,9 @@ const V2ChatContentInner: FC<InnerProps> = ({
           role: 'assistant' as const,
           assistantId: assistant.id,
           topicId: topic.id,
-          createdAt: new Date().toISOString(),
+          createdAt: lastAssistant.metadata?.createdAt ?? lastUser?.createdAt ?? '',
           askId: lastUser?.id,
           modelId: execId,
-          siblingsGroupId,
           status: status === 'streaming' || status === 'submitted' ? ('processing' as any) : ('success' as any),
           blocks: []
         }
@@ -157,25 +199,24 @@ const V2ChatContentInner: FC<InnerProps> = ({
         !(
           m.role === 'assistant' &&
           m.id &&
-          Object.values(executionMessages)
-            .flat()
-            .some((em) => em.id === m.id)
+          activeExecutionIds.some((execId) => (executionMessages[execId] ?? []).some((em) => em.id === m.id))
         )
     )
-    return [...withoutLiveAssistant, ...executionAssistants]
-  }, [adaptedMessages, executionMessages, isMultiModelStreaming, assistant.id, topic.id, status])
+    return dedupeMessagesById([...withoutLiveAssistant, ...executionAssistants])
+  }, [activeExecutionIds, adaptedMessages, executionMessages, isMultiModelStreaming, assistant.id, topic.id, status])
 
   // Merge partsMap: base + multi-model execution parts
   const mergedPartsMap = useMemo(() => {
     if (!isMultiModelStreaming) return partsMap
     const merged = { ...partsMap }
-    for (const msgs of Object.values(executionMessages)) {
+    for (const executionId of activeExecutionIds) {
+      const msgs = executionMessages[executionId] ?? []
       for (const msg of msgs) {
         if (msg.parts?.length) merged[msg.id] = msg.parts as CherryMessagePart[]
       }
     }
     return merged
-  }, [partsMap, executionMessages, isMultiModelStreaming])
+  }, [activeExecutionIds, partsMap, executionMessages, isMultiModelStreaming])
 
   // Stable ref for streamingUIMessages — avoids recreating v2ChatOverrides on every chunk
   const streamingUIMessagesRef = useRef(streamingUIMessages)
@@ -337,6 +378,12 @@ const V2ChatContentInner: FC<InnerProps> = ({
   const handleSendV2 = useCallback(
     async (text: string, options?: { files?: FileMetadata[]; mentionedModels?: Model[] }) => {
       await ensureTopicExists()
+      const mentionedModels = options?.mentionedModels
+      // Reset multi-model state from previous send
+      setExecutionMessages({})
+      // Multi-model: seed execution IDs; single-model: clear previous multi-model state
+      seedActiveExecutionIds(mentionedModels && mentionedModels.length > 1 ? mentionedModels.map((m) => m.id) : [])
+
       let mcpToolIds: string[] | undefined
       try {
         mcpToolIds = await resolveMcpToolIds()
@@ -349,14 +396,14 @@ const V2ChatContentInner: FC<InnerProps> = ({
           body: {
             parentAnchorId: activeNodeId ?? undefined,
             files: options?.files,
-            mentionedModels: options?.mentionedModels,
+            mentionedModels,
             mcpToolIds,
             ...capabilityBody
           }
         }
       )
     },
-    [activeNodeId, ensureTopicExists, sendMessage, resolveMcpToolIds, capabilityBody]
+    [activeNodeId, ensureTopicExists, sendMessage, resolveMcpToolIds, capabilityBody, seedActiveExecutionIds]
   )
 
   return (
@@ -390,7 +437,6 @@ const V2ChatContentInner: FC<InnerProps> = ({
                   key={execId}
                   topicId={topic.id}
                   executionId={execId}
-                  initialMessages={chatInitialMessages}
                   onMessages={handleExecutionMessages}
                 />
               ))}

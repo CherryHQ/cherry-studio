@@ -42,13 +42,51 @@ const PREVIEW_LENGTH = 50
 const DEFAULT_LIMIT = 20
 
 /**
+ * Normalise a raw SQL row into camelCase keys.
+ *
+ * Drizzle ORM queries (`db.select().from()`) automatically map snake_case DB
+ * columns to camelCase JS properties. Raw SQL queries (`db.all(sql`...`)`) do
+ * NOT — they return the actual column names from SQLite (snake_case when
+ * `casing: 'snake_case'` is set in drizzle config).
+ *
+ * This function detects whether the row needs conversion (by checking for a
+ * known snake_case key) and remaps if necessary, so `rowToMessage` always
+ * receives camelCase properties regardless of query type.
+ */
+function normaliseRow(row: Record<string, unknown>): typeof messageTable.$inferSelect {
+  // Fast path: ORM queries already use camelCase
+  if ('topicId' in row) return row as typeof messageTable.$inferSelect
+
+  // Raw SQL: remap snake_case → camelCase
+  return {
+    id: row.id,
+    topicId: row.topic_id,
+    parentId: row.parent_id,
+    role: row.role,
+    data: row.data,
+    searchableText: row.searchable_text,
+    status: row.status,
+    siblingsGroupId: row.siblings_group_id,
+    modelId: row.model_id,
+    modelSnapshot: row.model_snapshot,
+    traceId: row.trace_id,
+    stats: row.stats,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    deletedAt: row.deleted_at
+  } as typeof messageTable.$inferSelect
+}
+
+/**
  * Convert database row to Message entity
  *
  * Note: When using raw SQL queries (db.all with sql``), Drizzle ORM does NOT
  * automatically parse JSON columns. This function handles both parsed objects
  * (from ORM queries) and JSON strings (from raw SQL queries).
  */
-function rowToMessage(row: typeof messageTable.$inferSelect): Message {
+function rowToMessage(rawRow: typeof messageTable.$inferSelect): Message {
+  const row = normaliseRow(rawRow as unknown as Record<string, unknown>)
+
   // Handle JSON strings from raw SQL queries (db.all with sql``)
   // ORM queries (.select().from()) return already-parsed objects
   const parseJson = <T>(value: T | string | null | undefined): T | null => {
@@ -168,16 +206,21 @@ export class MessageService {
     // Use a large depth for unlimited (-1)
     const maxDepth = depth === -1 ? 999 : depth
 
-    const treeRows = await db.all<typeof messageTable.$inferSelect & { tree_depth: number }>(sql`
-      WITH RECURSIVE tree AS (
-        SELECT *, 0 as tree_depth FROM message WHERE id = ${rootId} AND deleted_at IS NULL
-        UNION ALL
-        SELECT m.*, t.tree_depth + 1 FROM message m
-        INNER JOIN tree t ON m.parent_id = t.id
-        WHERE t.tree_depth < ${maxDepth} AND m.deleted_at IS NULL
-      )
-      SELECT * FROM tree
-    `)
+    const treeRows = (
+      await db.all<typeof messageTable.$inferSelect & { tree_depth: number }>(sql`
+        WITH RECURSIVE tree AS (
+          SELECT *, 0 as tree_depth FROM message WHERE id = ${rootId} AND deleted_at IS NULL
+          UNION ALL
+          SELECT m.*, t.tree_depth + 1 FROM message m
+          INNER JOIN tree t ON m.parent_id = t.id
+          WHERE t.tree_depth < ${maxDepth} AND m.deleted_at IS NULL
+        )
+        SELECT * FROM tree
+      `)
+    ).map((row) => ({
+      ...normaliseRow(row as unknown as Record<string, unknown>),
+      tree_depth: (row as any).tree_depth as number
+    }))
 
     // Also fetch active path nodes that might be beyond depth limit
     const treeNodeIds = new Set(treeRows.map((r) => r.id))
@@ -354,16 +397,20 @@ export class MessageService {
     }
 
     // Use recursive CTE to get path from nodeId to root (single query)
-    const pathMessages = await db.all<typeof messageTable.$inferSelect>(sql`
-      WITH RECURSIVE path AS (
-        SELECT * FROM message WHERE id = ${nodeId} AND deleted_at IS NULL
-        UNION ALL
-        SELECT m.* FROM message m
-        INNER JOIN path p ON m.id = p.parent_id
-        WHERE m.deleted_at IS NULL
-      )
-      SELECT * FROM path
-    `)
+    // normaliseRow: raw SQL returns snake_case columns; remap to camelCase
+    // so downstream code can use row.parentId, row.siblingsGroupId, etc.
+    const pathMessages = (
+      await db.all<typeof messageTable.$inferSelect>(sql`
+        WITH RECURSIVE path AS (
+          SELECT * FROM message WHERE id = ${nodeId} AND deleted_at IS NULL
+          UNION ALL
+          SELECT m.* FROM message m
+          INNER JOIN path p ON m.id = p.parent_id
+          WHERE m.deleted_at IS NULL
+        )
+        SELECT * FROM path
+      `)
+    ).map((row) => normaliseRow(row as unknown as Record<string, unknown>))
 
     if (pathMessages.length === 0) {
       throw DataApiErrorFactory.notFound('Message', nodeId)
@@ -803,16 +850,18 @@ export class MessageService {
     const db = application.get('DbService').getDb()
 
     // Use recursive CTE to get all ancestors in one query
-    const result = await db.all<typeof messageTable.$inferSelect>(sql`
-      WITH RECURSIVE ancestors AS (
-        SELECT * FROM message WHERE id = ${nodeId} AND deleted_at IS NULL
-        UNION ALL
-        SELECT m.* FROM message m
-        INNER JOIN ancestors a ON m.id = a.parent_id
-        WHERE m.deleted_at IS NULL
-      )
-      SELECT * FROM ancestors
-    `)
+    const result = (
+      await db.all<typeof messageTable.$inferSelect>(sql`
+        WITH RECURSIVE ancestors AS (
+          SELECT * FROM message WHERE id = ${nodeId} AND deleted_at IS NULL
+          UNION ALL
+          SELECT m.* FROM message m
+          INNER JOIN ancestors a ON m.id = a.parent_id
+          WHERE m.deleted_at IS NULL
+        )
+        SELECT * FROM ancestors
+      `)
+    ).map((row) => normaliseRow(row as unknown as Record<string, unknown>))
 
     if (result.length === 0) {
       throw DataApiErrorFactory.notFound('Message', nodeId)

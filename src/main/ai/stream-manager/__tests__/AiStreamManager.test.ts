@@ -221,7 +221,7 @@ describe('AiStreamManager', () => {
       const l2 = new FakeListener('l2:a')
       mgr.startExecution({ topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [l1, l2] })
 
-      mgr.onChunk('a', chunk('hi'))
+      mgr.onChunk('a', 'provider-a::model-a', chunk('hi'))
 
       expect(l1.chunks).toEqual([chunk('hi')])
       expect(l2.chunks).toEqual([chunk('hi')])
@@ -238,7 +238,7 @@ describe('AiStreamManager', () => {
         request: req('a'),
         listeners: [alive, dead]
       })
-      mgr.onChunk('a', chunk('x'))
+      mgr.onChunk('a', 'provider-a::model-a', chunk('x'))
 
       expect(alive.chunks).toHaveLength(1)
       expect(dead.chunks).toHaveLength(0)
@@ -252,8 +252,8 @@ describe('AiStreamManager', () => {
         request: req('a'),
         listeners: [new FakeListener('early:a')]
       })
-      mgr.onChunk('a', chunk('a'))
-      mgr.onChunk('a', chunk('b'))
+      mgr.onChunk('a', 'provider-a::model-a', chunk('a'))
+      mgr.onChunk('a', 'provider-a::model-a', chunk('b'))
 
       const late = new FakeListener('late:a')
       mgr.addListener('a', late)
@@ -266,7 +266,7 @@ describe('AiStreamManager', () => {
       mgr.startExecution({ topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [l] })
       await mgr.onDone('a')
 
-      mgr.onChunk('a', chunk('late'))
+      mgr.onChunk('a', 'provider-a::model-a', chunk('late'))
       expect(l.chunks).toHaveLength(0)
     })
   })
@@ -386,7 +386,7 @@ describe('AiStreamManager', () => {
       const l2 = new FakeListener('same:a')
       mgr.addListener('a', l2)
 
-      mgr.onChunk('a', chunk('x'))
+      mgr.onChunk('a', 'provider-a::model-a', chunk('x'))
       expect(l1.chunks).toHaveLength(0)
       expect(l2.chunks).toHaveLength(1)
     })
@@ -396,7 +396,7 @@ describe('AiStreamManager', () => {
       mgr.startExecution({ topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [l] })
 
       mgr.removeListener('a', 'l:a')
-      mgr.onChunk('a', chunk('x'))
+      mgr.onChunk('a', 'provider-a::model-a', chunk('x'))
 
       expect(l.chunks).toHaveLength(0)
     })

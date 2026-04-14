@@ -23,12 +23,14 @@ import type {
  */
 export class WebContentsListener implements StreamListener {
   readonly id: string
+  readonly executionId?: string
 
   constructor(
     private readonly wc: Electron.WebContents,
     private readonly topicId: string,
-    private readonly executionId?: string
+    executionId?: string
   ) {
+    this.executionId = executionId
     this.id = executionId ? `wc:${wc.id}:${topicId}:${executionId}` : `wc:${wc.id}:${topicId}`
   }
 
@@ -42,21 +44,25 @@ export class WebContentsListener implements StreamListener {
   }
 
   onDone(result: StreamDoneResult): void {
-    // Multi-model: only send topic-level done when ALL executions finished
-    if (!result.isTopicDone) return
     if (this.wc.isDestroyed()) return
+    // Multi-model: only forward done for our own execution, or when topic is done
+    // (broadcastExecutionDone sends to ALL listeners; without this guard,
+    // model-1 finishing would also close model-2's ExecutionTransport stream)
+    if (this.executionId && result.modelId && result.modelId !== this.executionId && !result.isTopicDone) return
     this.wc.send(IpcChannel.Ai_StreamDone, {
       topicId: this.topicId,
       executionId: this.executionId,
-      status: result.status
+      status: result.status,
+      isTopicDone: result.isTopicDone
     } satisfies StreamDonePayload)
   }
 
-  onError(error: SerializedError, _partialMessage?: UIMessage): void {
+  onError(error: SerializedError, _partialMessage?: UIMessage, _modelId?: string, isTopicDone?: boolean): void {
     if (this.wc.isDestroyed()) return
     this.wc.send(IpcChannel.Ai_StreamError, {
       topicId: this.topicId,
       executionId: this.executionId,
+      isTopicDone,
       error
     } satisfies StreamErrorPayload)
   }

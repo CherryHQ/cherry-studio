@@ -70,12 +70,24 @@ export interface StreamListener {
    */
   readonly id: string
 
+  /**
+   * Optional execution scope. When set, AiStreamManager only dispatches chunks
+   * from the matching execution to this listener (per-model routing).
+   * Listeners without executionId receive ALL chunks (topic-level).
+   */
+  readonly executionId?: string
+
   /** Receives each chunk from the AI stream. Uses wide `UIMessageChunk` type. */
   onChunk(chunk: UIMessageChunk): void
   /** Called when the stream ends (success or paused). */
   onDone(result: StreamDoneResult): void | Promise<void>
   /** Called when the stream errors. partialMessage contains content streamed before the error. */
-  onError(error: SerializedError, partialMessage?: UIMessage, modelId?: UniqueModelId): void | Promise<void>
+  onError(
+    error: SerializedError,
+    partialMessage?: UIMessage,
+    modelId?: UniqueModelId,
+    isTopicDone?: boolean
+  ): void | Promise<void>
   /**
    * Liveness check. Returning `false` causes the listener to be immediately
    * removed from the listeners Map.

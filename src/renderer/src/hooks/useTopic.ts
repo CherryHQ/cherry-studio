@@ -8,6 +8,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { safeDeleteFiles } from '@renderer/services/MessagesService'
 import store from '@renderer/store'
 import { updateTopic } from '@renderer/store/assistants'
+import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import { loadTopicMessagesThunk } from '@renderer/store/thunk/messageThunk'
 import type { Assistant, FileMetadata, Topic } from '@renderer/types'
 import type { FileMessageBlock, ImageMessageBlock } from '@renderer/types/newMessage'
@@ -210,14 +211,8 @@ export const TopicManager = {
    * 加载并返回指定话题的消息
    */
   async getTopicMessages(id: string) {
-    const topic = await TopicManager.getTopic(id)
-    if (!topic) return []
-
     await store.dispatch(loadTopicMessagesThunk(id))
-
-    // 获取更新后的话题
-    const updatedTopic = await TopicManager.getTopic(id)
-    return updatedTopic?.messages || []
+    return selectMessagesForTopic(store.getState(), id)
   },
 
   async removeTopic(id: string) {
