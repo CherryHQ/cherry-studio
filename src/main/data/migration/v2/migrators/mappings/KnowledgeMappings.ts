@@ -4,6 +4,8 @@ import type { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/kn
 import type { FileMetadata } from '@shared/data/types/file'
 import type { KnowledgeItemData, KnowledgeItemStatus } from '@shared/data/types/knowledge'
 
+import { legacyModelToUniqueId } from '../transformers/ModelTransformers'
+
 export type NewKnowledgeBase = typeof knowledgeBaseTable.$inferInsert
 export type NewKnowledgeItem = typeof knowledgeItemTable.$inferInsert
 
@@ -110,25 +112,6 @@ export const toTimestamp = (value: number | undefined): number | undefined => {
   return undefined
 }
 
-export const toUniqueModelId = (model: LegacyModel | null | undefined): string | null => {
-  if (!model) {
-    return null
-  }
-
-  const providerId = model.provider?.trim()
-  const modelId = model.id?.trim()
-  if (!providerId || !modelId) {
-    return null
-  }
-
-  // Already in UniqueModelId format
-  if (modelId.includes('::')) {
-    return modelId
-  }
-
-  return `${providerId}::${modelId}`
-}
-
 export const inferKnowledgeItemStatus = (item: Pick<LegacyKnowledgeItem, 'uniqueId'>): KnowledgeItemStatus =>
   typeof item.uniqueId === 'string' && item.uniqueId.trim() !== '' ? 'completed' : 'idle'
 
@@ -193,7 +176,7 @@ export const transformKnowledgeBase = (
   base: LegacyKnowledgeBaseWithIdentity,
   dimensions: number
 ): KnowledgeBaseTransformResult => {
-  const embeddingModelId = toUniqueModelId(base.model ?? null)
+  const embeddingModelId = legacyModelToUniqueId(base.model ?? null)
   if (!embeddingModelId) {
     return {
       ok: false,
@@ -201,13 +184,15 @@ export const transformKnowledgeBase = (
     }
   }
 
+  const rerankModelId = legacyModelToUniqueId(base.rerankModel ?? null)
+
   const transformedBase: NewKnowledgeBase = {
     id: base.id,
     name: base.name,
     description: base.description,
     dimensions,
     embeddingModelId,
-    rerankModelId: toUniqueModelId(base.rerankModel ?? null),
+    rerankModelId: rerankModelId ?? null,
     fileProcessorId: base.preprocessProvider?.provider?.id,
     chunkSize: base.chunkSize,
     chunkOverlap: base.chunkOverlap,

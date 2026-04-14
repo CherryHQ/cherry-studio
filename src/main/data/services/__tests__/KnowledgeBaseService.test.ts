@@ -30,8 +30,8 @@ function createMockRow(overrides: Record<string, unknown> = {}) {
     name: 'Knowledge Base',
     description: 'Knowledge base description',
     dimensions: 1536,
-    embeddingModelId: 'text-embedding-3-large',
-    rerankModelId: 'rerank-v1',
+    embeddingModelId: 'openai::text-embedding-3-large',
+    rerankModelId: 'cohere::rerank-v1',
     fileProcessorId: 'processor-1',
     chunkSize: 800,
     chunkOverlap: 120,
@@ -84,7 +84,7 @@ describe('KnowledgeBaseService', () => {
       expect(result.items[0]).toMatchObject({
         id: 'kb-2',
         name: 'Another Base',
-        embeddingModelId: 'text-embedding-3-large'
+        embeddingModelId: 'openai::text-embedding-3-large'
       })
       expect(result.items[0].description).toBeUndefined()
     })
@@ -128,7 +128,10 @@ describe('KnowledgeBaseService', () => {
 
   describe('create', () => {
     it('should create a knowledge base with trimmed identifiers', async () => {
-      const row = createMockRow({ name: 'New Base', embeddingModelId: 'embed-model' })
+      const row = createMockRow({
+        name: 'New Base',
+        embeddingModelId: 'openai::embed-model'
+      })
       const values = vi.fn().mockReturnValue({
         returning: vi.fn().mockResolvedValue([row])
       })
@@ -138,8 +141,8 @@ describe('KnowledgeBaseService', () => {
         name: '  New Base  ',
         description: 'desc',
         dimensions: 1024,
-        embeddingModelId: '  embed-model  ',
-        rerankModelId: 'rerank-model',
+        embeddingModelId: '  openai::embed-model  ',
+        rerankModelId: 'cohere::rerank-model',
         fileProcessorId: 'processor-1',
         chunkSize: 512,
         chunkOverlap: 64,
@@ -155,8 +158,8 @@ describe('KnowledgeBaseService', () => {
         name: 'New Base',
         description: 'desc',
         dimensions: 1024,
-        embeddingModelId: 'embed-model',
-        rerankModelId: 'rerank-model',
+        embeddingModelId: 'openai::embed-model',
+        rerankModelId: 'cohere::rerank-model',
         fileProcessorId: 'processor-1',
         chunkSize: 512,
         chunkOverlap: 64,
@@ -168,7 +171,7 @@ describe('KnowledgeBaseService', () => {
       expect(result).toMatchObject({
         id: 'kb-1',
         name: 'New Base',
-        embeddingModelId: 'embed-model'
+        embeddingModelId: 'openai::embed-model'
       })
     })
 
@@ -176,7 +179,7 @@ describe('KnowledgeBaseService', () => {
       const dto: CreateKnowledgeBaseDto = {
         name: 'Invalid Base',
         dimensions: 1024,
-        embeddingModelId: 'embed-model',
+        embeddingModelId: 'openai::embed-model',
         chunkSize: 256,
         chunkOverlap: 256
       }

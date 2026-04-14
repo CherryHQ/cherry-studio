@@ -7,8 +7,8 @@
 
 import { terminalApps } from '@shared/config/constant'
 import { CODE_CLI_IDS, type CodeCliOverride, type CodeCliOverrides } from '@shared/data/preference/preferenceTypes'
-import { createUniqueModelId } from '@shared/data/types/model'
 
+import { type LegacyModelRef, legacyModelToUniqueId } from '../transformers/ModelTransformers'
 import type { TransformResult } from './ComplexPreferenceMappings'
 
 const VALID_CLI_IDS = new Set<string>(CODE_CLI_IDS)
@@ -33,17 +33,7 @@ export function transformSelectedModelsToIds(
 
   for (const [toolKey, model] of Object.entries(selectedModels)) {
     if (!VALID_CLI_IDS.has(toolKey)) continue
-
-    if (model === null || model === undefined) {
-      result[toolKey] = null
-    } else if (typeof model === 'object') {
-      const m = model as Record<string, unknown>
-      const provider = typeof m.provider === 'string' ? m.provider : ''
-      const id = typeof m.id === 'string' ? m.id : ''
-      result[toolKey] = provider && id ? createUniqueModelId(provider, id) : null
-    } else {
-      result[toolKey] = null
-    }
+    result[toolKey] = model != null && typeof model === 'object' ? legacyModelToUniqueId(model as LegacyModelRef) : null
   }
 
   return result
