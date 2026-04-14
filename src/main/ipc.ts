@@ -1050,9 +1050,9 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.Cherryai_GetSignature, (_, params) => generateSignature(params))
 
   // Global Skills
-  ipcMain.handle(IpcChannel.Skill_List, async () => {
+  ipcMain.handle(IpcChannel.Skill_List, async (_, agentId?: string) => {
     try {
-      const data = await skillService.list()
+      const data = await skillService.list(agentId)
       return { success: true, data }
     } catch (error) {
       logger.error('Failed to list skills', { error })

@@ -137,8 +137,12 @@ describe('SkillsServer', () => {
       expect(mockSkillInstall).toHaveBeenCalledWith({
         installSource: 'claude-plugins:owner/repo/gh-create-pr'
       })
-      expect(mockSkillToggle).toHaveBeenCalledWith({ skillId: 'skill-1', isEnabled: true })
-      expect(result.content[0].text).toContain('Skill installed and enabled')
+      expect(mockSkillToggle).toHaveBeenCalledWith({
+        skillId: 'skill-1',
+        agentId: 'agent_1',
+        isEnabled: true
+      })
+      expect(result.content[0].text).toContain('Skill installed and enabled for this agent')
       expect(result.content[0].text).toContain('gh-create-pr')
     })
 
@@ -199,7 +203,9 @@ describe('SkillsServer', () => {
       const server = createServer('agent_1')
       const result = await callTool(server, { action: 'list' })
 
-      expect(mockSkillList).toHaveBeenCalled()
+      // list is scoped to the current agent so enablement reflects
+      // the per-agent state, not a shared global flag.
+      expect(mockSkillList).toHaveBeenCalledWith('agent_1')
       const parsed = JSON.parse(result.content[0].text)
       expect(parsed).toHaveLength(2)
       // Each entry must include the absolute path so the model can patch the
@@ -328,9 +334,13 @@ describe('SkillsServer', () => {
       const result = await callTool(server, { action: 'register', name: 'my-skill' })
 
       expect(mockSkillInstallFromDirectory).toHaveBeenCalledWith({ directoryPath: '/global-skills/my-skill' })
-      expect(mockSkillToggle).toHaveBeenCalledWith({ skillId: 'skill-2', isEnabled: true })
+      expect(mockSkillToggle).toHaveBeenCalledWith({
+        skillId: 'skill-2',
+        agentId: 'agent_1',
+        isEnabled: true
+      })
       expect(result.content[0].text).toContain('My Skill')
-      expect(result.content[0].text).toContain('registered and enabled')
+      expect(result.content[0].text).toContain('registered and enabled for this agent')
     })
 
     it('should error when SKILL.md is missing from directory', async () => {

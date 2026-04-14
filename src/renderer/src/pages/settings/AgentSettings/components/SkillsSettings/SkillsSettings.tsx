@@ -86,12 +86,22 @@ const LocalSkillCard = memo<{ plugin: LocalSkill }>(({ plugin }) => (
 LocalSkillCard.displayName = 'LocalSkillCard'
 
 /**
- * Agent Skills Settings - shows globally installed skills with enable/disable toggle
- * and local skills from .claude/skills/.
+ * Agent Skills Settings - shows the global skill library with a per-agent
+ * enable/disable toggle, plus local skills from the agent workspace
+ * `.claude/skills/` directory.
+ *
+ * The `isEnabled` field in each skill reflects the state from `agent_skills`
+ * for the current agent — toggling only affects this agent's workspace.
  */
 export const InstalledSkillsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase }) => {
   const { t } = useTranslation()
-  const { skills, loading, error, toggle } = useInstalledSkills()
+  // Skills are enabled per-agent, not per-session. When the settings popup is
+  // opened from a session, `agentBase` is a session object and its parent
+  // agent id lives on `agent_id`. When opened from an agent, `agentBase.id`
+  // is the agent id.
+  const agentId =
+    agentBase && 'agent_id' in agentBase && typeof agentBase.agent_id === 'string' ? agentBase.agent_id : agentBase?.id
+  const { skills, loading, error, toggle } = useInstalledSkills(agentId)
   const [filter, setFilter] = useState('')
   const [togglingId, setTogglingId] = useState<string | null>(null)
   const [localPlugins, setLocalSkills] = useState<LocalSkill[]>([])

@@ -44,8 +44,7 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
   const { open, close, updateList, isVisible, symbol } = quickPanelController
   const { t } = useTranslation()
 
-  const { skills, loading: skillsLoading } = useInstalledSkills()
-  const enabledSkills = useMemo(() => skills.filter((s) => s.isEnabled), [skills])
+  const { skills: enabledSkills, loading: skillsLoading } = useInstalledSkills()
 
   const [fileList, setFileList] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(false)

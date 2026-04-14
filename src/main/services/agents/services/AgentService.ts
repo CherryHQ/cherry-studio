@@ -15,6 +15,7 @@ import { asc, count, desc, eq, sql } from 'drizzle-orm'
 import { BaseService } from '../BaseService'
 import { type AgentRow, agentsTable, type InsertAgentRow, sessionsTable } from '../database/schema'
 import type { AgentModelField } from '../errors'
+import { skillService } from '../skills/SkillService'
 import { seedWorkspaceTemplates } from './cherryclaw/seedWorkspace'
 
 const logger = loggerService.withContext('AgentService')
@@ -82,6 +83,18 @@ export class AgentService extends BaseService {
       if (workspace) {
         await seedWorkspaceTemplates(workspace)
       }
+    }
+
+    // Auto-enable every builtin skill for the new agent — they ship with the
+    // app and users expect them to work without manual opt-in. Non-builtin
+    // skills default to disabled and must be enabled explicitly.
+    try {
+      await skillService.initSkillsForAgent(agent.id, agent.accessible_paths?.[0])
+    } catch (error) {
+      logger.warn('Failed to seed builtin skills for new agent', {
+        agentId: agent.id,
+        error: error instanceof Error ? error.message : String(error)
+      })
     }
 
     return agent
@@ -237,6 +250,15 @@ export class AgentService extends BaseService {
         await tx.insert(agentsTable).values(insertData)
       })
 
+      try {
+        await skillService.initSkillsForAgent(id, resolvedPaths?.[0])
+      } catch (error) {
+        logger.warn('Failed to seed builtin skills for built-in agent', {
+          agentId: id,
+          error: error instanceof Error ? error.message : String(error)
+        })
+      }
+
       logger.info(`Created built-in ${builtinRole} agent`, { id })
       return id
     } catch (error) {
@@ -321,6 +343,15 @@ export class AgentService extends BaseService {
       const workspace = resolvedPaths?.[0]
       if (workspace) {
         await seedWorkspaceTemplates(workspace)
+      }
+
+      try {
+        await skillService.initSkillsForAgent(id, workspace)
+      } catch (error) {
+        logger.warn('Failed to seed builtin skills for CherryClaw agent', {
+          agentId: id,
+          error: error instanceof Error ? error.message : String(error)
+        })
       }
 
       logger.info('Created default CherryClaw agent', { id })
