@@ -21,7 +21,7 @@ import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { useIsV2Chat, usePartsMap } from './Blocks'
+import { usePartsMap } from './Blocks'
 import MessageGroupModelList from './MessageGroupModelList'
 import MessageGroupSettings from './MessageGroupSettings'
 
@@ -44,7 +44,7 @@ const MessageGroupMenuBar: FC<Props> = ({
 }) => {
   const { t } = useTranslation()
   const partsMap = usePartsMap()
-  const isV2Chat = useIsV2Chat()
+
   const { deleteGroupMessages, regenerateAssistantMessage } = useMessageOperations(topic)
   const { assistant } = useAssistant(messages[0]?.assistantId)
 
@@ -148,11 +148,9 @@ const MessageGroupMenuBar: FC<Props> = ({
           </Button>
         </Tooltip>
       )}
-      {!isV2Chat && (
-        <Button variant="ghost" size="sm" onClick={handleDeleteGroup}>
-          <DeleteOutlined style={{ color: 'var(--color-error)' }} />
-        </Button>
-      )}
+      <Button variant="ghost" size="sm" onClick={handleDeleteGroup}>
+        <DeleteOutlined style={{ color: 'var(--color-error)' }} />
+      </Button>
     </GroupMenuBar>
   )
 }

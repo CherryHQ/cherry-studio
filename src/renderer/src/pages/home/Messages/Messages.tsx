@@ -154,22 +154,37 @@ const Messages: React.FC<MessagesProps> = ({
         logger.info('[NEW_CONTEXT] Not yet implemented in V2.')
       }),
       EventEmitter.on(EVENT_NAMES.NEW_BRANCH, async (index: number) => {
+        const currentMessages = messagesRef.current
+
+        if (index < 0 || index >= currentMessages.length) {
+          logger.error(`[NEW_BRANCH] Invalid branch index: ${index}`)
+          return
+        }
+
+        const sourceMessage = currentMessages[index]
+
         if (isV2Chat) {
-          logger.warn('[NEW_BRANCH] V2 branching flow is disabled until DataApi semantics are finalized.', {
-            topicId: topic.id,
-            index
-          })
+          try {
+            const created = await dataApiService.post('/topics', {
+              body: {
+                name: topic.name,
+                assistantId: assistant.id,
+                sourceNodeId: sourceMessage.id
+              }
+            })
+            const newTopic = { ...created, messages: [] } as Topic
+            addTopic(newTopic)
+            setActiveTopic(newTopic)
+            void autoRenameTopic(assistant, newTopic.id)
+          } catch (err) {
+            logger.error('[NEW_BRANCH] Failed to create topic branch via DataApi', { topicId: topic.id, err })
+            window.toast.error(t('message.branch.error'))
+          }
           return
         }
 
         const newTopic = getDefaultTopic(assistant.id)
         newTopic.name = topic.name
-        const currentMessages = messagesRef.current
-
-        if (index < 0 || index > currentMessages.length) {
-          logger.error(`[NEW_BRANCH] Invalid branch index: ${index}`)
-          return
-        }
 
         // 1. Add the new topic to Redux store FIRST
         addTopic(newTopic)
@@ -183,11 +198,8 @@ const Messages: React.FC<MessagesProps> = ({
           // 4. Trigger auto-rename for the new topic
           void autoRenameTopic(assistant, newTopic.id)
         } else {
-          // Optional: Handle cloning failure (e.g., show an error message)
-          // You might want to remove the added topic if cloning fails
-          // removeTopic(newTopic.id); // Assuming you have a removeTopic function
           logger.error(`[NEW_BRANCH] Failed to create topic branch for topic ${newTopic.id}`)
-          window.toast.error(t('message.branch.error')) // Example error message
+          window.toast.error(t('message.branch.error'))
         }
       }),
       EventEmitter.on(
@@ -266,13 +278,6 @@ const Messages: React.FC<MessagesProps> = ({
   })
 
   useShortcut('edit_last_user_message', () => {
-    if (isV2Chat) {
-      logger.warn('[edit_last_user_message] V2 edit flow is disabled until DataApi semantics are finalized.', {
-        topicId: topic.id
-      })
-      return
-    }
-
     const lastUserMessage = messagesRef.current.findLast((m) => m.role === 'user' && m.type !== 'clear')
     if (lastUserMessage) {
       void EventEmitter.emit(EVENT_NAMES.EDIT_MESSAGE, lastUserMessage.id)

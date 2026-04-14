@@ -68,7 +68,7 @@ import type { ComponentProps, Dispatch, FC, ReactNode, SetStateAction } from 're
 import { Fragment, memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useIsV2Chat, usePartsMap } from './Blocks'
+import { usePartsMap } from './Blocks'
 import MessageTokens from './MessageTokens'
 
 const createTranslationAbortKey = (messageId: string) => `translation-abort-key:${messageId}`
@@ -124,7 +124,7 @@ type MessageMenubarButtonContext = {
   setShowDeleteTooltip: Dispatch<SetStateAction<boolean>>
   showDeleteTooltip: boolean
   softHoverBg: boolean
-  supportsAppendResponse: boolean
+
   supportsWrites: boolean
   t: TFunction
   translateLanguages: TranslateLanguage[]
@@ -182,7 +182,6 @@ const MessageMenubar: FC<Props> = (props) => {
 
   const partsMap = usePartsMap()
   const messageParts = useMemo(() => partsMap?.[message.id] ?? [], [partsMap, message.id])
-  const isV2Chat = useIsV2Chat()
 
   const mainTextContent = useMemo(() => getTextFromParts(messageParts), [messageParts])
 
@@ -274,16 +273,12 @@ const MessageMenubar: FC<Props> = (props) => {
             }
           ]
         : []),
-      ...(!isV2Chat
-        ? [
-            {
-              label: t('chat.message.new.branch.label'),
-              key: 'new-branch',
-              icon: <Split size={15} />,
-              onClick: onNewBranch
-            }
-          ]
-        : []),
+      {
+        label: t('chat.message.new.branch.label'),
+        key: 'new-branch',
+        icon: <Split size={15} />,
+        onClick: onNewBranch
+      },
       {
         label: t('chat.multiple.select.label'),
         key: 'multi-select',
@@ -448,7 +443,6 @@ const MessageMenubar: FC<Props> = (props) => {
     messageContainerRef,
     onEdit,
     onNewBranch,
-    isV2Chat,
     t,
     toggleMultiSelectMode,
     topic.name
@@ -542,7 +536,6 @@ const MessageMenubar: FC<Props> = (props) => {
     setShowDeleteTooltip,
     showDeleteTooltip,
     softHoverBg,
-    supportsAppendResponse: !isV2Chat,
     supportsWrites: true,
     t,
     translateLanguages
@@ -692,8 +685,8 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
       </Tooltip>
     )
   },
-  'assistant-mention-model': ({ isAssistantMessage, onMentionModel, softHoverBg, supportsAppendResponse, t }) => {
-    if (!isAssistantMessage || !supportsAppendResponse) {
+  'assistant-mention-model': ({ isAssistantMessage, onMentionModel, softHoverBg, t }) => {
+    if (!isAssistantMessage) {
       return null
     }
 
