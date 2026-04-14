@@ -611,8 +611,7 @@ class ClawServer {
     const channel = await channelService.getChannel(channelId)
     if (!channel) throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
 
-    const needsQr =
-      channel.type === 'wechat' || (channel.type === 'feishu' && !(channel.config as Record<string, unknown>).app_id)
+    const needsQr = channel.type === 'wechat' || (channel.type === 'feishu' && !channel.config.app_id)
 
     if (!needsQr) {
       await channelManager.syncChannel(channelId)
