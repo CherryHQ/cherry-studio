@@ -188,7 +188,6 @@ export enum IpcChannel {
   Tab_MoveWindow = 'tab:move-window',
   Tab_TryAttach = 'tab:try-attach',
   Tab_DragEnd = 'tab:drag-end',
-  Tab_FocusDetachedByRoute = 'tab:focus-detached-by-route',
 
   KnowledgeBase_Create = 'knowledge-base:create',
   KnowledgeBase_Reset = 'knowledge-base:reset',

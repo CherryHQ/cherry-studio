@@ -153,20 +153,6 @@ export class DetachedWindowManager extends BaseService {
         senderWindow.setOpacity(1)
       }
     })
-
-    this.ipcHandle(IpcChannel.Tab_FocusDetachedByRoute, (_, prefix: string) => {
-      for (const [tabId, url] of this.windowUrls) {
-        if (url === prefix || url.startsWith(prefix + '/')) {
-          const win = this.windows.get(tabId)
-          if (win && !win.isDestroyed()) {
-            if (!win.isVisible()) win.show()
-            win.focus()
-            return true
-          }
-        }
-      }
-      return false
-    })
   }
 
   /**
