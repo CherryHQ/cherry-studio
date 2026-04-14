@@ -7,9 +7,10 @@ import { useMinapps } from '@renderer/hooks/useMinapps'
 import { SettingDescription, SettingDivider, SettingRowTitle, SettingTitle } from '@renderer/pages/settings'
 import type { RootState } from '@renderer/store'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
+import { setCategoryColumns, setIconOnly } from '@renderer/store/minapps'
 import { setMinAppRegion } from '@renderer/store/settings'
 import type { MinAppRegionFilter } from '@renderer/types'
-import { Flex, Slider } from 'antd'
+import { Flex, InputNumber, Slider } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -49,6 +50,10 @@ const MiniAppSettings: FC = () => {
   const [minappsOpenLinkExternal, setMinappsOpenLinkExternal] = usePreference('feature.minapp.open_link_external')
 
   const { minapps, disabled, updateMinapps, updateDisabledMinapps } = useMinapps()
+
+  // Get display settings from store
+  const iconOnly = useAppSelector((state: RootState) => state.minapps.iconOnly)
+  const categoryColumns = useAppSelector((state: RootState) => state.minapps.categoryColumns)
 
   const [visibleMiniApps, setVisibleMiniApps] = useState(minapps)
   const [disabledMiniApps, setDisabledMiniApps] = useState(disabled || [])
@@ -178,6 +183,28 @@ const MiniAppSettings: FC = () => {
         <Switch
           checked={showOpenedMinappsInSidebar}
           onCheckedChange={(checked) => setShowOpenedMinappsInSidebar(checked)}
+        />
+      </SettingRow>
+      <SettingDivider />
+      {/* Display settings */}
+      <SettingRow style={{ height: 40, alignItems: 'center' }}>
+        <SettingLabelGroup>
+          <SettingRowTitle>{t('settings.miniapps.icon_only.title')}</SettingRowTitle>
+          <SettingDescription>{t('settings.miniapps.icon_only.description')}</SettingDescription>
+        </SettingLabelGroup>
+        <Switch checked={iconOnly} onCheckedChange={(checked) => dispatch(setIconOnly(checked))} />
+      </SettingRow>
+      <SettingDivider />
+      <SettingRow style={{ height: 40, alignItems: 'center' }}>
+        <SettingLabelGroup>
+          <SettingRowTitle>{t('settings.miniapps.category_columns.title')}</SettingRowTitle>
+          <SettingDescription>{t('settings.miniapps.category_columns.description')}</SettingDescription>
+        </SettingLabelGroup>
+        <InputNumber
+          min={1}
+          max={10}
+          value={categoryColumns}
+          onChange={(value) => dispatch(setCategoryColumns(value ?? 1))}
         />
       </SettingRow>
     </Container>
