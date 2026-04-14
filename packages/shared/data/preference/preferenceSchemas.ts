@@ -731,7 +731,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'shortcut.feature.selection.toggle_enabled': { binding: [], enabled: false },
     'shortcut.general.exit_fullscreen': { binding: ['Escape'], enabled: true },
     'shortcut.general.search': { binding: ['CommandOrControl', 'Shift', 'F'], enabled: true },
-    'shortcut.general.show_main_window': { binding: [], enabled: true },
+    'shortcut.general.show_main_window': { binding: [], enabled: false },
     'shortcut.general.show_mini_window': { binding: ['CommandOrControl', 'E'], enabled: false },
     'shortcut.general.show_settings': { binding: ['CommandOrControl', ','], enabled: true },
     'shortcut.general.toggle_sidebar': { binding: ['CommandOrControl', '['], enabled: true },

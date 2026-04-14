@@ -94,7 +94,7 @@ const ShortcutSettings: FC = () => {
         definition: item.definition,
         label: getShortcutLabel(item.definition.labelKey),
         key: item.definition.key,
-        enabled: item.preference.enabled,
+        enabled: item.preference.enabled && item.preference.binding.length > 0,
         displayKeys: item.preference.binding,
         updatePreference: item.updatePreference,
         defaultPreference: item.defaultPreference
@@ -328,21 +328,21 @@ const ShortcutSettings: FC = () => {
       />
     )
 
-    const switchContent = !record.displayKeys.length ? (
-      <Tooltip content={t('settings.shortcuts.bind_first_to_enable')}>{switchNode}</Tooltip>
-    ) : (
-      switchNode
-    )
-
     return (
       <div
         key={record.key}
-        className={`flex items-center justify-between py-3.5 ${isLast ? '' : 'border-white/10 border-b'}`}>
+        className={`grid grid-cols-[minmax(0,1fr)_14rem_2.5rem] items-center gap-3 py-3.5 ${isLast ? '' : 'border-white/10 border-b'}`}>
         <span className="text-sm">{record.label}</span>
-        <RowFlex className="w-[22rem] shrink-0 items-center justify-end gap-3">
-          <div className="flex min-h-8 flex-1 items-center justify-end">{renderShortcutCell(record)}</div>
-          <span className="flex w-10 justify-end">{switchContent}</span>
-        </RowFlex>
+        <div className="flex min-h-8 items-center justify-end">{renderShortcutCell(record)}</div>
+        <span className="flex w-10 justify-end">
+          {!record.displayKeys.length ? (
+            <Tooltip content={t('settings.shortcuts.bind_first_to_enable')}>
+              <span className="flex justify-end">{switchNode}</span>
+            </Tooltip>
+          ) : (
+            <span className="flex justify-end">{switchNode}</span>
+          )}
+        </span>
       </div>
     )
   }
