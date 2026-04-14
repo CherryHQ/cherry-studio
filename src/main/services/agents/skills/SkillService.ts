@@ -117,6 +117,14 @@ export class SkillService {
           await this.unlinkSkill(skill.folderName, workspace)
         }
       } catch (error) {
+        // Roll back DB state so it stays consistent with the filesystem
+        await this.agentSkillRepository.upsert(options.agentId, options.skillId, !options.isEnabled).catch((e) => {
+          logger.error('Failed to roll back agent_skills after symlink error', {
+            agentId: options.agentId,
+            skillId: options.skillId,
+            error: e instanceof Error ? e.message : String(e)
+          })
+        })
         logger.error('Failed to (un)link skill for agent', {
           agentId: options.agentId,
           skillId: options.skillId,
@@ -204,21 +212,45 @@ export class SkillService {
   async reconcileAgentSkills(agentId: string, workspace: string): Promise<void> {
     if (!workspace) return
     const agentSkillRows = await this.agentSkillRepository.getByAgentId(agentId)
-    const enabledSkillIds = agentSkillRows.filter((r) => r.is_enabled).map((r) => r.skill_id)
-    if (enabledSkillIds.length === 0) return
+    const enabledFolders = new Set<string>()
 
-    for (const skillId of enabledSkillIds) {
-      const skill = await this.repository.getById(skillId)
+    // Ensure enabled skills have symlinks
+    for (const row of agentSkillRows) {
+      if (!row.is_enabled) continue
+      const skill = await this.repository.getById(row.skill_id)
       if (!skill) continue
+      enabledFolders.add(skill.folderName)
       try {
         await this.linkSkill(skill.folderName, workspace)
       } catch (error) {
         logger.warn('Reconcile: failed to link skill', {
           agentId,
-          skillId,
+          skillId: row.skill_id,
           error: error instanceof Error ? error.message : String(error)
         })
       }
+    }
+
+    // Remove stale symlinks for skills that are no longer enabled
+    const skillsDir = path.join(workspace, '.claude', 'skills')
+    try {
+      const entries = await fs.promises.readdir(skillsDir, { withFileTypes: true })
+      for (const entry of entries) {
+        if (!entry.isDirectory() && !entry.isSymbolicLink()) continue
+        // Only remove symlinks, never real directories
+        const entryPath = path.join(skillsDir, entry.name)
+        try {
+          const stat = await fs.promises.lstat(entryPath)
+          if (stat.isSymbolicLink() && !enabledFolders.has(entry.name)) {
+            await fs.promises.unlink(entryPath)
+            logger.info('Reconcile: removed stale skill symlink', { agentId, folderName: entry.name })
+          }
+        } catch {
+          // Ignore errors on individual entries
+        }
+      }
+    } catch {
+      // .claude/skills/ may not exist yet
     }
   }
 
@@ -396,11 +428,15 @@ export class SkillService {
       // Ensure .claude/skills/ directory exists
       await fs.promises.mkdir(path.dirname(linkPath), { recursive: true })
 
-      // Remove existing link/directory if present
+      // Remove existing symlink if present; refuse to overwrite real directories
+      // to avoid destroying user-authored content.
       try {
         const stat = await fs.promises.lstat(linkPath)
-        if (stat.isSymbolicLink() || stat.isDirectory()) {
-          await fs.promises.rm(linkPath, { recursive: true })
+        if (stat.isSymbolicLink()) {
+          await fs.promises.rm(linkPath)
+        } else if (stat.isDirectory()) {
+          logger.warn('Refusing to overwrite non-symlink directory for skill', { folderName, linkPath })
+          return
         }
       } catch {
         // Does not exist, fine

@@ -69,6 +69,13 @@ export async function runSkillsPerAgentMigration(db: LibSQLDatabase<typeof schem
       if (!workspace) continue
 
       try {
+        // Validate workspace exists on this machine (may be from a restored backup)
+        const wsExists = await fs.stat(workspace).then(
+          (s) => s.isDirectory(),
+          () => false
+        )
+        if (!wsExists) continue
+
         const target = path.join(getSkillsStorageRoot(), skill.folder_name)
         const linkPath = path.join(workspace, '.claude', 'skills', skill.folder_name)
         await fs.mkdir(path.dirname(linkPath), { recursive: true })

@@ -51,23 +51,23 @@ export async function installBuiltinSkills(): Promise<void> {
   })
 
   let installed = 0
-  await Promise.all(
-    dirs.map(async (entry) => {
-      const destPath = path.join(globalSkillsPath, entry.name)
-      const filesUpdated = !(await isUpToDate(destPath, appVersion))
+  // Process sequentially to avoid interleaved delete+insert on the skills
+  // table when multiple builtins require a metadata refresh.
+  for (const entry of dirs) {
+    const destPath = path.join(globalSkillsPath, entry.name)
+    const filesUpdated = !(await isUpToDate(destPath, appVersion))
 
-      if (filesUpdated) {
-        await fs.mkdir(destPath, { recursive: true })
-        await fs.cp(path.join(resourceSkillsPath, entry.name), destPath, { recursive: true })
-        await fs.writeFile(path.join(destPath, VERSION_FILE), appVersion, 'utf-8')
-        installed++
-      }
+    if (filesUpdated) {
+      await fs.mkdir(destPath, { recursive: true })
+      await fs.cp(path.join(resourceSkillsPath, entry.name), destPath, { recursive: true })
+      await fs.writeFile(path.join(destPath, VERSION_FILE), appVersion, 'utf-8')
+      installed++
+    }
 
-      // Register (or refresh) the DB row; fan the skill out to existing agents
-      // only when this is the first time we see it.
-      await syncBuiltinSkillToDb(entry.name, destPath, filesUpdated)
-    })
-  )
+    // Register (or refresh) the DB row; fan the skill out to existing agents
+    // only when this is the first time we see it.
+    await syncBuiltinSkillToDb(entry.name, destPath, filesUpdated)
+  }
 
   if (installed > 0) {
     logger.info('Built-in skills installed', { installed, version: appVersion })
@@ -91,31 +91,36 @@ async function syncBuiltinSkillToDb(folderName: string, destPath: string, filesU
     const metadata = await parseSkillMetadata(destPath, folderName, 'skills')
     const contentHash = await computeHash(destPath)
 
+    const tags = metadata.tags ? JSON.stringify(metadata.tags) : null
+
     if (existing) {
-      // Delete and re-insert to update metadata
-      await repo.delete(existing.id)
-    }
+      // Update metadata in-place to preserve the skill ID and its agent_skills
+      // rows (per-agent enablement state survives app upgrades).
+      await repo.updateMetadata(existing.id, {
+        name: metadata.name,
+        description: metadata.description ?? null,
+        author: metadata.author ?? null,
+        tags,
+        content_hash: contentHash
+      })
+    } else {
+      const now = Date.now()
+      const inserted = await repo.insert({
+        name: metadata.name,
+        description: metadata.description ?? null,
+        folder_name: folderName,
+        source: 'builtin',
+        source_url: null,
+        namespace: null,
+        author: metadata.author ?? null,
+        tags,
+        content_hash: contentHash,
+        is_enabled: false,
+        created_at: now,
+        updated_at: now
+      })
 
-    const now = Date.now()
-    const inserted = await repo.insert({
-      name: metadata.name,
-      description: metadata.description ?? null,
-      folder_name: folderName,
-      source: 'builtin',
-      source_url: null,
-      namespace: null,
-      author: metadata.author ?? null,
-      tags: metadata.tags ? JSON.stringify(metadata.tags) : null,
-      content_hash: contentHash,
-      // Legacy global flag — no longer read. Per-agent state lives in agent_skills.
-      is_enabled: false,
-      created_at: existing ? existing.createdAt : now,
-      updated_at: now
-    })
-
-    // Only fan out to every agent on first install. Existing builtins keep
-    // whatever per-agent enablement state the user may have adjusted.
-    if (!existing) {
+      // Fan out to every agent on first install only.
       await skillService.enableForAllAgents(inserted.id, folderName)
     }
 

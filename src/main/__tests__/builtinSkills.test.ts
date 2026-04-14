@@ -38,7 +38,8 @@ const { mockRepo, mockEnableForAllAgents } = vi.hoisted(() => ({
   mockRepo: {
     getByFolderName: vi.fn(),
     delete: vi.fn(),
-    insert: vi.fn()
+    insert: vi.fn(),
+    updateMetadata: vi.fn()
   },
   mockEnableForAllAgents: vi.fn()
 }))
@@ -194,17 +195,19 @@ describe('installBuiltinSkills', () => {
       isEnabled: false,
       createdAt: 1000
     })
-    mockRepo.insert.mockResolvedValueOnce({ id: 'existing-id', folderName: 'my-skill' })
 
     await installBuiltinSkills()
 
-    expect(mockRepo.delete).toHaveBeenCalledWith('existing-id')
-    expect(mockRepo.insert).toHaveBeenCalledWith(
+    // Existing builtin: update metadata in-place (preserves skill ID and agent_skills rows).
+    expect(mockRepo.updateMetadata).toHaveBeenCalledWith(
+      'existing-id',
       expect.objectContaining({
-        is_enabled: false,
-        created_at: 1000
+        name: 'Test Skill'
       })
     )
+    // Must NOT delete+insert — that would cascade-drop agent_skills rows.
+    expect(mockRepo.delete).not.toHaveBeenCalled()
+    expect(mockRepo.insert).not.toHaveBeenCalled()
     // Existing builtin: do NOT re-fan-out; per-agent state survives the metadata refresh.
     expect(mockEnableForAllAgents).not.toHaveBeenCalled()
   })
