@@ -7,6 +7,7 @@
 import { loggerService } from '@logger'
 import type { AgentType, BuiltinMCPServerName, BuiltinOcrProviderId } from '@renderer/types'
 import { BuiltinMCPServerNames } from '@renderer/types'
+import type { ShortcutLabelKey } from '@shared/shortcuts/types'
 
 import i18n from './index'
 
@@ -202,41 +203,31 @@ export const getSidebarIconLabel = (key: string): string => {
   return getLabel(sidebarIconKeyMap, key)
 }
 
-const shortcutKeyMap = {
-  action: 'settings.shortcuts.action',
-  actions: 'settings.shortcuts.actions',
-  clear_shortcut: 'settings.shortcuts.clear_shortcut',
+const shortcutLabelKeyMap: Record<ShortcutLabelKey, string> = {
   clear_topic: 'settings.shortcuts.clear_topic',
   rename_topic: 'settings.shortcuts.rename_topic',
   copy_last_message: 'settings.shortcuts.copy_last_message',
-  edit_last_user_message: 'settings.shortcuts.edit_last_user_message',
-  enabled: 'settings.shortcuts.enabled',
-  exit_fullscreen: 'settings.shortcuts.exit_fullscreen',
-  label: 'settings.shortcuts.label',
-  mini_window: 'settings.shortcuts.mini_window',
-  new_topic: 'settings.shortcuts.new_topic',
-  press_shortcut: 'settings.shortcuts.press_shortcut',
-  reset_defaults: 'settings.shortcuts.reset_defaults',
-  reset_defaults_confirm: 'settings.shortcuts.reset_defaults_confirm',
-  reset_to_default: 'settings.shortcuts.reset_to_default',
-  search_message: 'settings.shortcuts.search_message',
-  search_message_in_chat: 'settings.shortcuts.search_message_in_chat',
-  select_model: 'settings.shortcuts.select_model',
-  selection_assistant_select_text: 'settings.shortcuts.selection_assistant_select_text',
-  selection_assistant_toggle: 'settings.shortcuts.selection_assistant_toggle',
   show_app: 'settings.shortcuts.show_app',
   show_settings: 'settings.shortcuts.show_settings',
-  title: 'settings.shortcuts.title',
-  toggle_new_context: 'settings.shortcuts.toggle_new_context',
   toggle_sidebar: 'settings.shortcuts.toggle_sidebar',
-  toggle_show_topics: 'settings.shortcuts.toggle_show_topics',
+  exit_fullscreen: 'settings.shortcuts.exit_fullscreen',
   zoom_in: 'settings.shortcuts.zoom_in',
   zoom_out: 'settings.shortcuts.zoom_out',
-  zoom_reset: 'settings.shortcuts.zoom_reset'
+  zoom_reset: 'settings.shortcuts.zoom_reset',
+  search_message: 'settings.shortcuts.search_message',
+  search_message_in_chat: 'settings.shortcuts.search_message_in_chat',
+  toggle_new_context: 'settings.shortcuts.toggle_new_context',
+  edit_last_user_message: 'settings.shortcuts.edit_last_user_message',
+  select_model: 'settings.shortcuts.select_model',
+  new_topic: 'settings.shortcuts.new_topic',
+  mini_window: 'settings.shortcuts.mini_window',
+  selection_assistant_toggle: 'settings.shortcuts.selection_assistant_toggle',
+  selection_assistant_select_text: 'settings.shortcuts.selection_assistant_select_text',
+  toggle_show_topics: 'settings.shortcuts.toggle_show_topics'
 } as const
 
-export const getShortcutLabel = (key: string): string => {
-  return getLabel(shortcutKeyMap, key)
+export const getShortcutLabel = (key: ShortcutLabelKey): string => {
+  return getLabel(shortcutLabelKeyMap, key)
 }
 
 const selectionDescriptionKeyMap = {

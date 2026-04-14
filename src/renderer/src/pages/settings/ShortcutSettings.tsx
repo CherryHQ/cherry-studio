@@ -9,7 +9,7 @@ import { useAllShortcuts } from '@renderer/hooks/useShortcuts'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getShortcutLabel } from '@renderer/i18n/label'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
-import type { ShortcutPreferenceKey, SupportedPlatform } from '@shared/shortcuts/types'
+import type { ShortcutDefinition, ShortcutPreferenceKey, SupportedPlatform } from '@shared/shortcuts/types'
 import {
   convertKeyToAccelerator,
   formatKeyDisplay,
@@ -27,10 +27,10 @@ const MINI_WINDOW_SHORTCUT_KEY: ShortcutPreferenceKey = 'shortcut.general.show_m
 
 type ShortcutRecord = {
   id: string
+  definition: ShortcutDefinition
   label: string
   key: ShortcutPreferenceKey
   enabled: boolean
-  editable: boolean
   displayKeys: string[]
   updatePreference: (patch: Partial<PreferenceShortcutType>) => Promise<void>
   defaultPreference: {
@@ -91,10 +91,10 @@ const ShortcutSettings: FC = () => {
 
       return {
         id: item.definition.key,
+        definition: item.definition,
         label,
         key: item.definition.key,
         enabled: item.preference.enabled,
-        editable: item.definition.editable !== false,
         displayKeys,
         updatePreference: item.updatePreference,
         defaultPreference: {
@@ -253,6 +253,7 @@ const ShortcutSettings: FC = () => {
     const isEditing = editingKey === record.id
     const displayShortcut = record.displayKeys.length > 0 ? formatShortcutDisplay(record.displayKeys, isMac) : ''
     const isMiniWindowShortcutDisabled = record.key === MINI_WINDOW_SHORTCUT_KEY && !quickAssistantEnabled
+    const isEditable = record.definition.editable !== false
 
     if (isEditing) {
       const pendingDisplay = pendingKeys.length > 0 ? formatShortcutDisplay(pendingKeys, isMac) : ''
@@ -303,8 +304,8 @@ const ShortcutSettings: FC = () => {
             </Tooltip>
           )}
           <RowFlex
-            className={`items-center gap-1 rounded-lg bg-white/5 px-2 py-1 ${record.editable && !isMiniWindowShortcutDisabled ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
-            onClick={() => record.editable && !isMiniWindowShortcutDisabled && handleAddShortcut(record)}>
+            className={`items-center gap-1 rounded-lg bg-white/5 px-2 py-1 ${isEditable && !isMiniWindowShortcutDisabled ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
+            onClick={() => isEditable && !isMiniWindowShortcutDisabled && handleAddShortcut(record)}>
             {record.displayKeys.map((key) => (
               <kbd
                 key={key}
@@ -319,8 +320,8 @@ const ShortcutSettings: FC = () => {
 
     return (
       <span
-        className={`rounded-lg bg-white/5 px-3 py-1 text-sm text-white/30 ${record.editable && !isMiniWindowShortcutDisabled ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
-        onClick={() => record.editable && !isMiniWindowShortcutDisabled && handleAddShortcut(record)}>
+        className={`rounded-lg bg-white/5 px-3 py-1 text-sm text-white/30 ${isEditable && !isMiniWindowShortcutDisabled ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
+        onClick={() => isEditable && !isMiniWindowShortcutDisabled && handleAddShortcut(record)}>
         {t('settings.shortcuts.press_shortcut')}
       </span>
     )

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { findShortcutDefinition, SHORTCUT_DEFINITIONS } from '../shortcuts/definitions'
-import type { ShortcutDefinition } from '../shortcuts/types'
+import { findShortcutDefinition, SHORTCUT_DEFINITIONS } from '../definitions'
+import type { ShortcutDefinition } from '../types'
 import {
   convertAcceleratorToHotkey,
   convertKeyToAccelerator,
@@ -9,7 +9,7 @@ import {
   getDefaultShortcut,
   isValidShortcut,
   resolveShortcutPreference
-} from '../shortcuts/utils'
+} from '../utils'
 
 const makeDefinition = (overrides: Partial<ShortcutDefinition> = {}): ShortcutDefinition => ({
   key: 'shortcut.chat.clear',
