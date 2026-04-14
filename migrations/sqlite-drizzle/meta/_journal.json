@@ -84,6 +84,13 @@
       "when": 1776062004458,
       "tag": "0011_strange_green_goblin",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1776153354712,
+      "tag": "0012_redundant_the_call",
+      "breakpoints": true
     }
   ],
   "version": "7"
