@@ -5565,6 +5565,7 @@
       "label": "Key",
       "mini_window": "Quick Assistant",
       "new_topic": "New Topic",
+      "occupied_by_other_application": "This shortcut is already used by the system or another application",
       "press_shortcut": "Press Shortcut",
       "rename_topic": "Rename Topic",
       "reset_defaults": "Reset Defaults",

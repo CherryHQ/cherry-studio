@@ -70,6 +70,7 @@ vi.mock('electron', () => ({
 }))
 
 import { handleZoomFactor } from '@main/utils/zoom'
+import { IpcChannel } from '@shared/IpcChannel'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 
 import { ShortcutService } from '../ShortcutService'
@@ -227,5 +228,29 @@ describe('ShortcutService', () => {
     zoomInHandler?.()
 
     expect(handleZoomFactor).toHaveBeenCalledWith([nextWindow], 0.1)
+  })
+
+  it('resets boot registration state when the service stops and starts again', async () => {
+    await (service as any).onInit()
+    await (service as any).onStop()
+
+    const nextWindow = new MockBrowserWindow()
+    windowServiceMock.getMainWindow.mockReturnValue(nextWindow)
+
+    await (service as any).onInit()
+
+    expect(nextWindow.once).toHaveBeenCalledWith('ready-to-show', expect.any(Function))
+  })
+
+  it('notifies the renderer when a shortcut cannot be registered', async () => {
+    globalShortcutMock.register.mockImplementation((accelerator: string) => accelerator !== 'CommandOrControl+,')
+
+    await (service as any).onInit()
+
+    expect(mainWindow.webContents.send).toHaveBeenCalledWith(IpcChannel.Shortcut_RegistrationConflict, {
+      key: 'shortcut.general.show_settings',
+      accelerator: 'CommandOrControl+,',
+      hasConflict: true
+    })
   })
 })

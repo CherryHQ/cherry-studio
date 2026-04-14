@@ -12,7 +12,7 @@ import { globalShortcut } from 'electron'
 
 const logger = loggerService.withContext('ShortcutService')
 type ShortcutHandler = (window?: BrowserWindow) => void
-type RegisteredShortcut = { handler: ShortcutHandler; window: BrowserWindow }
+type RegisteredShortcut = { key: ShortcutPreferenceKey; handler: ShortcutHandler; window: BrowserWindow }
 
 const toAccelerator = (keys: string[]): string => keys.join('+')
 
@@ -28,7 +28,8 @@ const relevantDefinitions = SHORTCUT_DEFINITIONS.filter(
 export class ShortcutService extends BaseService {
   private mainWindow: BrowserWindow | null = null
   private handlers = new Map<ShortcutPreferenceKey, ShortcutHandler>()
-  private windowOnHandlers = new Map<BrowserWindow, { onFocus: () => void; onBlur: () => void; onClosed: () => void }>()
+  private registeredWindows = new Set<BrowserWindow>()
+  private conflictedKeys = new Set<ShortcutPreferenceKey>()
   private isRegisterOnBoot = true
   private registeredAccelerators = new Map<string, RegisteredShortcut>()
 
@@ -48,6 +49,10 @@ export class ShortcutService extends BaseService {
   protected async onStop() {
     this.unregisterAll()
     this.mainWindow = null
+    this.registeredWindows.clear()
+    this.conflictedKeys.clear()
+    this.handlers.clear()
+    this.isRegisterOnBoot = true
   }
 
   private registerBuiltInHandlers(): void {
@@ -144,28 +149,41 @@ export class ShortcutService extends BaseService {
     this.mainWindow = window
 
     if (this.isRegisterOnBoot) {
-      window.once('ready-to-show', () => {
+      const onReadyToShow = () => {
         if (!this.mainWindow || this.mainWindow.isDestroyed()) return
         if (application.get('PreferenceService').get('app.tray.on_launch')) {
           this.registerShortcuts(window, true)
         }
-      })
+      }
+      window.once('ready-to-show', onReadyToShow)
+      this.registerDisposable(() => window.off('ready-to-show', onReadyToShow))
       this.isRegisterOnBoot = false
     }
 
-    if (!this.windowOnHandlers.has(window)) {
-      const onFocus = () => this.registerShortcuts(window, false)
-      const onBlur = () => this.registerShortcuts(window, true)
+    if (!this.registeredWindows.has(window)) {
+      this.registeredWindows.add(window)
+
+      const onFocus = () => {
+        if (this.mainWindow !== window) return
+        this.registerShortcuts(window, false)
+      }
+      const onBlur = () => {
+        if (this.mainWindow !== window) return
+        this.registerShortcuts(window, true)
+      }
       const onClosed = () => {
-        this.windowOnHandlers.delete(window)
+        this.registeredWindows.delete(window)
         if (this.mainWindow === window) {
           this.mainWindow = null
         }
       }
+
       window.on('focus', onFocus)
       window.on('blur', onBlur)
       window.once('closed', onClosed)
-      this.windowOnHandlers.set(window, { onFocus, onBlur, onClosed })
+      this.registerDisposable(() => window.off('focus', onFocus))
+      this.registerDisposable(() => window.off('blur', onBlur))
+      this.registerDisposable(() => window.off('closed', onClosed))
     }
 
     if (!window.isDestroyed() && window.isFocused()) {
@@ -197,16 +215,23 @@ export class ShortcutService extends BaseService {
 
       const accelerator = toAccelerator(pref.binding)
       if (accelerator) {
-        desired.set(accelerator, { handler, window })
+        desired.set(accelerator, { key: definition.key, handler, window })
       }
 
       if (definition.variants) {
         for (const variant of definition.variants) {
           const variantAccelerator = toAccelerator(variant)
           if (variantAccelerator) {
-            desired.set(variantAccelerator, { handler, window })
+            desired.set(variantAccelerator, { key: definition.key, handler, window })
           }
         }
+      }
+    }
+
+    const activeKeys = new Set(Array.from(desired.values(), (entry) => entry.key))
+    for (const key of this.conflictedKeys) {
+      if (!activeKeys.has(key)) {
+        this.clearRegistrationConflict(key)
       }
     }
 
@@ -224,7 +249,7 @@ export class ShortcutService extends BaseService {
     }
 
     // Register new or changed shortcuts
-    for (const [accelerator, { handler, window: win }] of desired) {
+    for (const [accelerator, { key, handler, window: win }] of desired) {
       if (!this.registeredAccelerators.has(accelerator)) {
         try {
           const success = globalShortcut.register(accelerator, () => {
@@ -236,12 +261,15 @@ export class ShortcutService extends BaseService {
             }
           })
           if (success) {
-            this.registeredAccelerators.set(accelerator, { handler, window: win })
+            this.registeredAccelerators.set(accelerator, { key, handler, window: win })
+            this.clearRegistrationConflict(key)
           } else {
             logger.warn(`Failed to register shortcut ${accelerator}: accelerator is held by another application`)
+            this.markRegistrationConflict(key, accelerator)
           }
         } catch (error) {
-          logger.warn(`Failed to register shortcut ${accelerator}`, error as Error)
+          logger.error(`Failed to register shortcut ${accelerator}`, error as Error)
+          this.markRegistrationConflict(key, accelerator)
         }
       }
     }
@@ -258,23 +286,37 @@ export class ShortcutService extends BaseService {
   }
 
   private unregisterAll(): void {
-    try {
-      this.windowOnHandlers.forEach((handlers, window) => {
-        window.off('focus', handlers.onFocus)
-        window.off('blur', handlers.onBlur)
-        window.off('closed', handlers.onClosed)
-      })
-      this.windowOnHandlers.clear()
-      for (const accelerator of this.registeredAccelerators.keys()) {
-        try {
-          globalShortcut.unregister(accelerator)
-        } catch (error) {
-          logger.debug(`Failed to unregister shortcut accelerator: ${accelerator}`, error as Error)
-        }
+    for (const accelerator of this.registeredAccelerators.keys()) {
+      try {
+        globalShortcut.unregister(accelerator)
+      } catch (error) {
+        logger.debug(`Failed to unregister shortcut accelerator: ${accelerator}`, error as Error)
       }
-      this.registeredAccelerators.clear()
-    } catch (error) {
-      logger.warn('Failed to unregister all shortcuts', error as Error)
     }
+    this.registeredAccelerators.clear()
+  }
+
+  private markRegistrationConflict(key: ShortcutPreferenceKey, accelerator: string): void {
+    this.conflictedKeys.add(key)
+    this.emitRegistrationConflict({ key, accelerator, hasConflict: true })
+  }
+
+  private clearRegistrationConflict(key: ShortcutPreferenceKey): void {
+    if (!this.conflictedKeys.delete(key)) {
+      return
+    }
+    this.emitRegistrationConflict({ key, hasConflict: false })
+  }
+
+  private emitRegistrationConflict(payload: {
+    key: ShortcutPreferenceKey
+    accelerator?: string
+    hasConflict: boolean
+  }): void {
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) {
+      return
+    }
+
+    this.mainWindow.webContents.send(IpcChannel.Shortcut_RegistrationConflict, payload)
   }
 }

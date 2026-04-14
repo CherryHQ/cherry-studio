@@ -15,7 +15,7 @@ import {
   isValidShortcut
 } from '@shared/shortcuts/utils'
 import type { FC, KeyboardEvent as ReactKeyboardEvent } from 'react'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingTitle } from '.'
@@ -54,6 +54,7 @@ const ShortcutSettings: FC = () => {
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [pendingKeys, setPendingKeys] = useState<string[]>([])
   const [conflictLabel, setConflictLabel] = useState<string | null>(null)
+  const [systemConflictKey, setSystemConflictKey] = useState<ShortcutPreferenceKey | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
 
@@ -90,6 +91,30 @@ const ShortcutSettings: FC = () => {
     setConflictLabel(null)
   }
 
+  const clearSystemConflict = (key?: ShortcutPreferenceKey) => {
+    setSystemConflictKey((currentKey) => {
+      if (!key || currentKey === key) {
+        return null
+      }
+      return currentKey
+    })
+  }
+
+  useEffect(() => {
+    return window.api.shortcut.onRegistrationConflict(({ key, hasConflict }) => {
+      setSystemConflictKey((currentKey) => {
+        if (hasConflict) {
+          return key
+        }
+        return currentKey === key ? null : currentKey
+      })
+
+      if (hasConflict) {
+        window.toast.error(t('settings.shortcuts.occupied_by_other_application'))
+      }
+    })
+  }, [t])
+
   const handleAddShortcut = (key: ShortcutPreferenceKey) => {
     clearEditingState()
     setEditingKey(key)
@@ -109,6 +134,7 @@ const ShortcutSettings: FC = () => {
 
   const handleResetShortcut = async (record: (typeof shortcuts)[number]) => {
     try {
+      clearSystemConflict(record.key)
       await updatePreference(record.key, {
         binding: record.defaultPreference.binding,
         enabled: record.defaultPreference.enabled
@@ -164,6 +190,7 @@ const ShortcutSettings: FC = () => {
 
     setConflictLabel(null)
     try {
+      clearSystemConflict(record.key)
       await updatePreference(record.key, { binding: keys, enabled: true })
       clearEditingState()
     } catch (error) {
@@ -179,6 +206,7 @@ const ShortcutSettings: FC = () => {
         const updates: Record<string, PreferenceShortcutType> = getAllShortcutDefaultPreferences()
 
         try {
+          clearSystemConflict()
           await preferenceService.setMultiple(updates)
         } catch (error) {
           logger.error('Failed to reset all shortcuts to defaults', error as Error)
@@ -194,10 +222,13 @@ const ShortcutSettings: FC = () => {
     const displayShortcut = displayKeys.length > 0 ? formatShortcutDisplay(displayKeys, isMac) : ''
     const isEditable = record.definition.editable !== false
     const isBindingModified = !isBindingEqual(displayKeys, record.defaultPreference.binding)
+    const hasSystemConflict = systemConflictKey === record.key
+    const conflictMessage =
+      conflictLabel ?? (hasSystemConflict ? t('settings.shortcuts.occupied_by_other_application') : null)
 
     if (isEditing) {
       const pendingDisplay = pendingKeys.length > 0 ? formatShortcutDisplay(pendingKeys, isMac) : ''
-      const hasConflict = conflictLabel !== null
+      const hasConflict = conflictMessage !== null
 
       return (
         <div className="relative flex flex-col items-end">
@@ -218,7 +249,7 @@ const ShortcutSettings: FC = () => {
           />
           {hasConflict && (
             <span className="absolute top-full right-0 mt-0.5 whitespace-nowrap text-red-500 text-xs">
-              {t('settings.shortcuts.conflict_with', { name: conflictLabel })}
+              {conflictLabel ? t('settings.shortcuts.conflict_with', { name: conflictLabel }) : conflictMessage}
             </span>
           )}
         </div>
@@ -227,38 +258,52 @@ const ShortcutSettings: FC = () => {
 
     if (displayShortcut) {
       return (
-        <RowFlex className="items-center justify-end gap-1.5">
-          {isBindingModified && (
-            <Tooltip content={t('settings.shortcuts.reset_to_default')}>
-              <UndoOutlined
-                className="mr-1 cursor-pointer opacity-50 hover:opacity-100"
-                onClick={() => {
-                  void handleResetShortcut(record)
-                }}
-              />
-            </Tooltip>
-          )}
-          <RowFlex
-            className={`items-center gap-1 rounded-lg bg-white/5 px-2 py-1 ${isEditable ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
-            onClick={() => isEditable && handleAddShortcut(record.key)}>
-            {displayKeys.map((key) => (
-              <kbd
-                key={key}
-                className="flex min-w-6 items-center justify-center rounded-md bg-white/10 px-1.5 py-0.5 text-xs">
-                {formatKeyDisplay(key, isMac)}
-              </kbd>
-            ))}
+        <div className="relative flex flex-col items-end">
+          <RowFlex className="items-center justify-end gap-1.5">
+            {isBindingModified && (
+              <Tooltip content={t('settings.shortcuts.reset_to_default')}>
+                <UndoOutlined
+                  className="mr-1 cursor-pointer opacity-50 hover:opacity-100"
+                  onClick={() => {
+                    void handleResetShortcut(record)
+                  }}
+                />
+              </Tooltip>
+            )}
+            <RowFlex
+              className={`items-center gap-1 rounded-lg bg-white/5 px-2 py-1 ${hasSystemConflict ? 'border border-red-500' : ''} ${isEditable ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
+              onClick={() => isEditable && handleAddShortcut(record.key)}>
+              {displayKeys.map((key) => (
+                <kbd
+                  key={key}
+                  className="flex min-w-6 items-center justify-center rounded-md bg-white/10 px-1.5 py-0.5 text-xs">
+                  {formatKeyDisplay(key, isMac)}
+                </kbd>
+              ))}
+            </RowFlex>
           </RowFlex>
-        </RowFlex>
+          {hasSystemConflict && (
+            <span className="absolute top-full right-0 mt-0.5 whitespace-nowrap text-red-500 text-xs">
+              {conflictMessage}
+            </span>
+          )}
+        </div>
       )
     }
 
     return (
-      <span
-        className={`rounded-lg bg-white/5 px-3 py-1 text-sm text-white/30 ${isEditable ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
-        onClick={() => isEditable && handleAddShortcut(record.key)}>
-        {t('settings.shortcuts.press_shortcut')}
-      </span>
+      <div className="relative flex flex-col items-end">
+        <span
+          className={`rounded-lg bg-white/5 px-3 py-1 text-sm text-white/30 ${hasSystemConflict ? 'border border-red-500' : ''} ${isEditable ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
+          onClick={() => isEditable && handleAddShortcut(record.key)}>
+          {t('settings.shortcuts.press_shortcut')}
+        </span>
+        {hasSystemConflict && (
+          <span className="absolute top-full right-0 mt-0.5 whitespace-nowrap text-red-500 text-xs">
+            {conflictMessage}
+          </span>
+        )}
+      </div>
     )
   }
 
@@ -269,6 +314,7 @@ const ShortcutSettings: FC = () => {
         checked={record.preference.enabled}
         disabled={!record.preference.binding.length}
         onCheckedChange={() => {
+          clearSystemConflict(record.key)
           updatePreference(record.key, { enabled: !record.preference.enabled }).catch((error) => {
             handleUpdateFailure(record, error)
           })
