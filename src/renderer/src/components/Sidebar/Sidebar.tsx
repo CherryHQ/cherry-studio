@@ -1,3 +1,4 @@
+import { isMac } from '@renderer/config/constant'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { cn } from '@renderer/utils'
 import { Search } from 'lucide-react'
@@ -84,9 +85,12 @@ export function Sidebar({
   // --- Floating sidebar ---
   if (isFloating) {
     return (
-      <div className="absolute inset-0 z-40" onClick={handleDismiss}>
+      <div className="fixed inset-0 z-40" onClick={handleDismiss}>
         <div
-          className="slide-in-from-left-2 absolute top-0 bottom-0 left-0 flex w-[174px] animate-in select-none flex-col rounded-r-[4px] rounded-br-[16px] bg-sidebar/70 shadow-2xl backdrop-blur-2xl backdrop-saturate-150 duration-200"
+          className={cn(
+            'slide-in-from-left-2 fixed top-0 bottom-0 left-0 flex w-[174px] animate-in select-none flex-col rounded-r-[4px] rounded-br-[16px] bg-sidebar/70 shadow-2xl backdrop-blur-2xl backdrop-saturate-150 duration-200',
+            isMac && 'pt-[env(titlebar-area-height)]'
+          )}
           onClick={(event) => event.stopPropagation()}
           onMouseLeave={() => {
             if (hoverTimeout.current) clearTimeout(hoverTimeout.current)
