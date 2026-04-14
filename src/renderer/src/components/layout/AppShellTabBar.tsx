@@ -66,7 +66,7 @@ const HomeTabButton = ({
       onClick={onClick}
       onContextMenu={onContextMenu}
       className={cn(
-        'flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors duration-150 [-webkit-app-region:no-drag]',
+        'flex h-8 w-8 shrink-0 cursor-default items-center justify-center rounded-md transition-colors duration-150 [-webkit-app-region:no-drag]',
         isActive
           ? 'bg-sidebar-accent text-sidebar-foreground'
           : 'text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-foreground'
@@ -110,7 +110,7 @@ const PinnedTabButton = ({
         }}
         className={cn(
           'flex h-7 w-7 items-center justify-center rounded-md transition-colors duration-150',
-          drag.isDragging ? 'cursor-grabbing' : 'cursor-grab',
+          drag.isDragging ? 'cursor-grabbing' : 'cursor-default',
           isActive
             ? 'bg-sidebar-accent text-sidebar-foreground'
             : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
@@ -160,7 +160,7 @@ const NormalTabButton = ({
       className={cn(
         'group relative flex h-[30px] min-w-[40px] max-w-[160px] flex-1 items-center gap-1.5 rounded-md transition-all duration-150 [-webkit-app-region:no-drag]',
         isCloseable && showClose ? 'pr-1 pl-2' : 'px-2',
-        drag.isDragging ? 'cursor-grabbing' : 'cursor-grab',
+        drag.isDragging ? 'cursor-grabbing' : 'cursor-default',
         isActive
           ? 'bg-sidebar-accent text-sidebar-foreground'
           : 'text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-foreground'
