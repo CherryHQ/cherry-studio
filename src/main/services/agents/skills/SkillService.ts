@@ -230,28 +230,6 @@ export class SkillService {
         })
       }
     }
-
-    // Remove stale symlinks for skills that are no longer enabled
-    const skillsDir = path.join(workspace, '.claude', 'skills')
-    try {
-      const entries = await fs.promises.readdir(skillsDir, { withFileTypes: true })
-      for (const entry of entries) {
-        if (!entry.isDirectory() && !entry.isSymbolicLink()) continue
-        // Only remove symlinks, never real directories
-        const entryPath = path.join(skillsDir, entry.name)
-        try {
-          const stat = await fs.promises.lstat(entryPath)
-          if (stat.isSymbolicLink() && !enabledFolders.has(entry.name)) {
-            await fs.promises.unlink(entryPath)
-            logger.info('Reconcile: removed stale skill symlink', { agentId, folderName: entry.name })
-          }
-        } catch {
-          // Ignore errors on individual entries
-        }
-      }
-    } catch {
-      // .claude/skills/ may not exist yet
-    }
   }
 
   async readFile(skillId: string, filename: string): Promise<string | null> {
@@ -602,15 +580,26 @@ export class SkillService {
     await fs.promises.mkdir(path.dirname(destPath), { recursive: true })
     await this.installer.install(skillDir, destPath)
 
+    const tags = metadata.tags ? JSON.stringify(metadata.tags) : null
+
     if (existing) {
-      // Update existing skill
-      await this.repository.delete(existing.id)
+      // Update metadata in-place to preserve the skill ID and its agent_skills
+      // rows — a delete+insert would cascade-drop per-agent enablement state.
+      await this.repository.updateMetadata(existing.id, {
+        name: metadata.name,
+        description: metadata.description ?? null,
+        author: metadata.author ?? null,
+        tags,
+        content_hash: contentHash
+      })
+      const updated = (await this.repository.getById(existing.id))!
+      logger.info('Skill updated', { id: existing.id, name: metadata.name, folderName, source })
+      return updated
     }
 
     const isBuiltin = source === 'builtin'
     const id = randomUUID()
     const now = Date.now()
-    const tags = metadata.tags ? JSON.stringify(metadata.tags) : null
 
     const skill = await this.repository.insert({
       id,

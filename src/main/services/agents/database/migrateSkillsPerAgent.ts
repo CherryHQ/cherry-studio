@@ -91,7 +91,11 @@ export async function runSkillsPerAgentMigration(db: LibSQLDatabase<typeof schem
               await fs.rm(linkPath, { recursive: true })
             }
           } else if (stat.isDirectory()) {
-            await fs.rm(linkPath, { recursive: true })
+            // Real directory — may be a user-authored local skill. Skip to
+            // avoid accidentally deleting user content (same policy as
+            // SkillService.linkSkill).
+            logger.warn('Migration: skipping non-symlink directory', { linkPath })
+            continue
           }
         } catch (err) {
           if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
