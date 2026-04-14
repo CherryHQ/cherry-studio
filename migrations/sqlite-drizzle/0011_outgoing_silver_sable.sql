@@ -70,7 +70,7 @@ CREATE TABLE `__new_assistant` (
 	`created_at` integer,
 	`updated_at` integer,
 	`deleted_at` integer,
-	FOREIGN KEY (`model_id`) REFERENCES `user_model`(`id`) ON UPDATE no action ON DELETE restrict
+	FOREIGN KEY (`model_id`) REFERENCES `user_model`(`id`) ON UPDATE no action ON DELETE set null
 );
 --> statement-breakpoint
 INSERT INTO `__new_assistant`("id", "name", "prompt", "emoji", "description", "model_id", "settings", "created_at", "updated_at", "deleted_at") SELECT "id", "name", "prompt", "emoji", "description", "model_id", "settings", "created_at", "updated_at", "deleted_at" FROM `assistant`;--> statement-breakpoint

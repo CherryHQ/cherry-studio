@@ -139,7 +139,7 @@
           "tableTo": "user_model",
           "columnsFrom": ["model_id"],
           "columnsTo": ["id"],
-          "onDelete": "restrict",
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },

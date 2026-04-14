@@ -19,7 +19,7 @@ export const assistantTable = sqliteTable(
     emoji: text(),
     description: text().default(''),
     // Default/primary model: FK to user_model(id) — UniqueModelId "providerId::modelId"
-    modelId: text().references(() => userModelTable.id, { onDelete: 'restrict' }),
+    modelId: text().references(() => userModelTable.id, { onDelete: 'set null' }),
     /** JSON blob: inference params + context source toggles */
     settings: text({ mode: 'json' }).$type<AssistantSettings>(),
     ...createUpdateDeleteTimestamps
