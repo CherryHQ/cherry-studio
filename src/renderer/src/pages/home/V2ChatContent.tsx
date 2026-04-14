@@ -92,7 +92,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
   refresh,
   activeNodeId
 }) => {
-  const { isMultiSelectMode } = useChatContext(topic)
+  // const { isMultiSelectMode } = useChatContext(topic)
 
   const { adaptedMessages, partsMap, sendMessage, regenerate, stop, status, error, setMessages, streamingUIMessages } =
     useChatWithHistory(topic.id, initialMessages, refresh, { assistantId: assistant.id })
