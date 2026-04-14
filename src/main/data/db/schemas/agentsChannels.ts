@@ -1,8 +1,7 @@
-import { randomUUID } from 'node:crypto'
-
 import { sql } from 'drizzle-orm'
 import { check, index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
+import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
 import { agentsAgentsTable } from './agentsAgents'
 import { agentsSessionsTable } from './agentsSessions'
 import { agentsTasksTable } from './agentsTasks'
@@ -10,9 +9,7 @@ import { agentsTasksTable } from './agentsTasks'
 export const agentsChannelsTable = sqliteTable(
   'agents_channels',
   {
-    id: text('id')
-      .primaryKey()
-      .$defaultFn(() => randomUUID()),
+    id: uuidPrimaryKey(),
     type: text('type').notNull(),
     name: text('name').notNull(),
     agentId: text('agent_id').references(() => agentsAgentsTable.id, { onDelete: 'set null' }),
@@ -21,10 +18,7 @@ export const agentsChannelsTable = sqliteTable(
     isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
     activeChatIds: text('active_chat_ids', { mode: 'json' }).$type<string[]>().default([]),
     permissionMode: text('permission_mode'),
-    createdAt: integer('created_at').$defaultFn(() => Date.now()),
-    updatedAt: integer('updated_at')
-      .$defaultFn(() => Date.now())
-      .$onUpdateFn(() => Date.now())
+    ...createUpdateTimestamps
   },
   (t) => [
     index('agents_channels_agent_id_idx').on(t.agentId),

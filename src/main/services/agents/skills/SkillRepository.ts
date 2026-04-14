@@ -89,8 +89,8 @@ export class SkillRepository extends BaseService {
       tags: row.tags ? JSON.parse(row.tags) : [],
       contentHash: row.contentHash,
       isEnabled: row.isEnabled,
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt
+      createdAt: row.createdAt ?? Date.now(),
+      updatedAt: row.updatedAt ?? Date.now()
     }
   }
 }

@@ -1,13 +1,11 @@
-import { randomUUID } from 'node:crypto'
-
 import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+
+import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
 
 export const agentsSkillsTable = sqliteTable(
   'agents_skills',
   {
-    id: text('id')
-      .primaryKey()
-      .$defaultFn(() => randomUUID()),
+    id: uuidPrimaryKey(),
     name: text('name').notNull(),
     description: text('description'),
     folderName: text('folder_name').notNull(),
@@ -18,13 +16,7 @@ export const agentsSkillsTable = sqliteTable(
     tags: text('tags'),
     contentHash: text('content_hash').notNull(),
     isEnabled: integer('is_enabled', { mode: 'boolean' }).notNull().default(true),
-    createdAt: integer('created_at')
-      .notNull()
-      .$defaultFn(() => Date.now()),
-    updatedAt: integer('updated_at')
-      .notNull()
-      .$defaultFn(() => Date.now())
-      .$onUpdateFn(() => Date.now())
+    ...createUpdateTimestamps
   },
   (t) => [
     uniqueIndex('agents_skills_folder_name_unique').on(t.folderName),
