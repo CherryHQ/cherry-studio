@@ -82,7 +82,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
     })
     const errorUnsub = window.api.ai.onStreamError((data) => {
       if (data.topicId !== topicId) return
-      earlyError = new Error((data.error as { message?: string })?.message ?? 'Stream error')
+      earlyError = new Error(data.error.message ?? 'Stream error')
       cleanup()
       liveController?.error(earlyError)
     })

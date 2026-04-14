@@ -17,7 +17,7 @@ import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
 import type { Message } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, UserMessageStatus } from '@renderer/types/newMessage'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 const logger = loggerService.withContext('useChatWithHistory')
 
@@ -77,38 +77,36 @@ export function useChatWithHistory(
     experimental_throttle: 50
   })
 
-  // On stream done: refresh history first, then clear live messages to avoid flash
-  useEffect(() => {
-    const unsubscribe = window.api.ai.onStreamDone((data) => {
-      if (data.topicId !== topicId) return
-      void history
-        .refresh()
-        .then(() => setMessages([]))
-        .catch((err) => {
-          logger.warn('Failed to refresh messages after stream done', { topicId, err })
-          setMessages([])
-        })
-    })
-    return () => {
-      unsubscribe()
-    }
-  }, [history.refresh, setMessages, topicId]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Stable ref for history.refresh — avoids re-subscribing IPC listeners
+  // when the refresh function identity changes between renders.
+  const refreshRef = useRef(history.refresh)
+  refreshRef.current = history.refresh
 
+  const refreshAndClear = useCallback(() => {
+    void refreshRef
+      .current()
+      .then(() => setMessages([]))
+      .catch((err) => {
+        logger.warn('Failed to refresh messages after stream end', { topicId, err })
+        setMessages([])
+      })
+  }, [setMessages, topicId])
+
+  // On stream done/error: refresh history, then clear live messages to avoid flash
   useEffect(() => {
-    const unsubscribe = window.api.ai.onStreamError((data) => {
+    const doneUnsub = window.api.ai.onStreamDone((data) => {
       if (data.topicId !== topicId) return
-      void history
-        .refresh()
-        .then(() => setMessages([]))
-        .catch((err) => {
-          logger.warn('Failed to refresh messages after stream error', { topicId, err })
-          setMessages([])
-        })
+      refreshAndClear()
+    })
+    const errorUnsub = window.api.ai.onStreamError((data) => {
+      if (data.topicId !== topicId) return
+      refreshAndClear()
     })
     return () => {
-      unsubscribe()
+      doneUnsub()
+      errorUnsub()
     }
-  }, [history.refresh, setMessages, topicId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [topicId, refreshAndClear])
 
   const isLiveStreamActive = status === 'streaming' || status === 'submitted'
   const activeHistoryMessage = useMemo(
@@ -118,12 +116,8 @@ export function useChatWithHistory(
   const persistedStreamingUserId = activeHistoryMessage?.role === 'user' ? activeHistoryMessage.id : null
   const shouldDiscardCompletedLiveMessages =
     !isLiveStreamActive && activeHistoryMessage?.role === 'assistant' && streamingUIMessages.length > 0
+  // Synchronous filter only — actual clearing is handled by onStreamDone/onStreamError effects above.
   const effectiveStreamingUIMessages = shouldDiscardCompletedLiveMessages ? [] : streamingUIMessages
-
-  useEffect(() => {
-    if (!shouldDiscardCompletedLiveMessages) return
-    setMessages([])
-  }, [setMessages, shouldDiscardCompletedLiveMessages])
 
   // ── Adapt live UIMessages to legacy Message[] ──
 
