@@ -12,7 +12,7 @@ import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@s
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
-import { startTransition, useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import styled from 'styled-components'
 
 import Chat from './Chat'
@@ -79,20 +79,16 @@ const HomePage: FC = () => {
   const setActiveAssistant = useCallback(
     (newAssistant: Assistant) => {
       if (newAssistant.id === activeAssistant?.id) return
-      startTransition(() => {
-        _setActiveAssistant(newAssistant)
-        const newTopic = newAssistant.topics[0]
-        _setActiveTopic((prev) => (newTopic?.id === prev.id ? prev : newTopic))
-      })
+      _setActiveAssistant(newAssistant)
+      const newTopic = newAssistant.topics[0]
+      _setActiveTopic((prev) => (newTopic?.id === prev.id ? prev : newTopic))
     },
     [_setActiveTopic, activeAssistant?.id]
   )
 
   const setActiveTopic = useCallback(
     (newTopic: Topic) => {
-      startTransition(() => {
-        _setActiveTopic((prev) => (newTopic?.id === prev.id ? prev : newTopic))
-      })
+      _setActiveTopic((prev) => (newTopic?.id === prev.id ? prev : newTopic))
     },
     [_setActiveTopic]
   )

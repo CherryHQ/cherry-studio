@@ -10,8 +10,9 @@
  *   - AgentSessionMessages (agent, history from useAgentSessionParts)
  */
 
-import { useChat } from '@ai-sdk/react'
+import { Chat, useChat } from '@ai-sdk/react'
 import { loggerService } from '@logger'
+import { useCache } from '@renderer/data/hooks/useCache'
 import { ensureTopicStreamStateSyncStarted } from '@renderer/services/topicStreamStateSync'
 import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
 import type { Message } from '@renderer/types/newMessage'
@@ -31,6 +32,10 @@ export interface ChatHistory {
   activeNodeId: string | null
 }
 
+interface ChatSessionCache {
+  chat: Chat<CherryUIMessage>
+}
+
 // ── Hook ──
 
 export function useChatWithHistory(
@@ -43,6 +48,27 @@ export function useChatWithHistory(
     ensureTopicStreamStateSyncStarted()
   }, [])
 
+  const cacheKey = `message.streaming.chat_session.${topicId}` as const
+  const [cachedSession, setCachedSession] = useCache(cacheKey, null)
+
+  const chat = useMemo(
+    () =>
+      cachedSession?.chat ??
+      new Chat<CherryUIMessage>({
+        id: topicId,
+        transport: ipcChatTransport,
+        onError: (streamError) => {
+          logger.error('AI stream error', { topicId, streamError })
+        }
+      }),
+    [cachedSession, topicId]
+  )
+
+  useEffect(() => {
+    if (cachedSession?.chat === chat) return
+    setCachedSession({ chat } as ChatSessionCache)
+  }, [cachedSession, chat, setCachedSession])
+
   const {
     messages: streamingUIMessages,
     setMessages,
@@ -52,12 +78,8 @@ export function useChatWithHistory(
     sendMessage,
     regenerate
   } = useChat<CherryUIMessage>({
-    id: topicId,
-    transport: ipcChatTransport,
-    experimental_throttle: 50,
-    onError: (streamError) => {
-      logger.error('AI stream error', { topicId, streamError })
-    }
+    chat,
+    experimental_throttle: 50
   })
 
   // On stream done: refresh history first, then clear live messages to avoid flash
@@ -77,27 +99,66 @@ export function useChatWithHistory(
     }
   }, [history.refresh, setMessages, topicId]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    const unsubscribe = window.api.ai.onStreamError((data) => {
+      if (data.topicId !== topicId) return
+      void history
+        .refresh()
+        .then(() => setMessages([]))
+        .catch((err) => {
+          logger.warn('Failed to refresh messages after stream error', { topicId, err })
+          setMessages([])
+        })
+    })
+    return () => {
+      unsubscribe()
+    }
+  }, [history.refresh, setMessages, topicId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const isLiveStreamActive = status === 'streaming' || status === 'submitted'
+  const activeHistoryMessage = useMemo(
+    () => history.messages.find((message) => message.id === history.activeNodeId) ?? null,
+    [history.activeNodeId, history.messages]
+  )
+  const persistedStreamingUserId = activeHistoryMessage?.role === 'user' ? activeHistoryMessage.id : null
+  const shouldDiscardCompletedLiveMessages =
+    !isLiveStreamActive && activeHistoryMessage?.role === 'assistant' && streamingUIMessages.length > 0
+  const effectiveStreamingUIMessages = shouldDiscardCompletedLiveMessages ? [] : streamingUIMessages
+
+  useEffect(() => {
+    if (!shouldDiscardCompletedLiveMessages) return
+    setMessages([])
+  }, [setMessages, shouldDiscardCompletedLiveMessages])
+
   // ── Adapt live UIMessages to legacy Message[] ──
 
   const timestampCacheRef = useRef(new Map<string, string>())
+  const liveUserMessage = useMemo(
+    () => effectiveStreamingUIMessages.find((message) => message.role === 'user') ?? null,
+    [effectiveStreamingUIMessages]
+  )
+  const liveConversationUserId = persistedStreamingUserId ?? liveUserMessage?.id ?? null
 
   const liveAdapted = useMemo<Message[]>(() => {
     const cache = timestampCacheRef.current
     const activeIds = new Set<string>()
 
-    const messages = streamingUIMessages.map((uiMsg) => {
-      activeIds.add(uiMsg.id)
-      let ts = cache.get(uiMsg.id)
+    const messages = effectiveStreamingUIMessages.map((uiMsg) => {
+      const renderedId = uiMsg.role === 'user' ? (liveConversationUserId ?? uiMsg.id) : uiMsg.id
+
+      activeIds.add(renderedId)
+      let ts = cache.get(renderedId)
       if (!ts) {
         ts = new Date().toISOString()
-        cache.set(uiMsg.id, ts)
+        cache.set(renderedId, ts)
       }
       return {
-        id: uiMsg.id,
+        id: renderedId,
         role: uiMsg.role,
         assistantId: context.assistantId,
         topicId,
         createdAt: ts,
+        askId: uiMsg.role === 'assistant' ? (liveConversationUserId ?? undefined) : undefined,
         status:
           uiMsg.role === 'user'
             ? UserMessageStatus.SUCCESS
@@ -113,7 +174,7 @@ export function useChatWithHistory(
     }
 
     return messages
-  }, [streamingUIMessages, context.assistantId, topicId, status])
+  }, [context.assistantId, effectiveStreamingUIMessages, liveConversationUserId, topicId, status])
 
   // ── Merge history + live ──
 
@@ -126,13 +187,14 @@ export function useChatWithHistory(
   }, [history.messages, liveAdapted])
 
   const partsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
-    if (streamingUIMessages.length === 0) return history.partsMap
+    if (effectiveStreamingUIMessages.length === 0) return history.partsMap
     const map: Record<string, CherryMessagePart[]> = { ...history.partsMap }
-    for (const uiMsg of streamingUIMessages) {
-      map[uiMsg.id] = uiMsg.parts as CherryMessagePart[]
+    for (const uiMsg of effectiveStreamingUIMessages) {
+      const messageId = uiMsg.role === 'user' ? (liveConversationUserId ?? uiMsg.id) : uiMsg.id
+      map[messageId] = uiMsg.parts as CherryMessagePart[]
     }
     return map
-  }, [history.partsMap, streamingUIMessages])
+  }, [effectiveStreamingUIMessages, history.partsMap, liveConversationUserId])
 
   return {
     // Merged state

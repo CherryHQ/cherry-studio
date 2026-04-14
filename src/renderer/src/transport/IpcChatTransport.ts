@@ -57,10 +57,52 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
   ): Promise<ReadableStream<UIMessageChunk> | null> {
     const topicId = options.chatId
 
+    // Register IPC listeners BEFORE the streamAttach round-trip.
+    // Main replays buffered chunks synchronously during attach (addListener iterates
+    // stream.buffer immediately). Those IPC messages are queued before the reply and
+    // can arrive while we are suspended on the await below. Without pre-registration,
+    // thinking blocks and other early chunks would be silently dropped.
+    const earlyChunks: UIMessageChunk[] = []
+    let earlyDone = false
+    let earlyError: Error | null = null
+    let liveController: ReadableStreamDefaultController<UIMessageChunk> | null = null
+    let isCleaned = false
+
+    const chunkUnsub = window.api.ai.onStreamChunk((data) => {
+      if (data.topicId !== topicId) return
+      if (liveController) liveController.enqueue(data.chunk)
+      else earlyChunks.push(data.chunk)
+    })
+    const doneUnsub = window.api.ai.onStreamDone((data) => {
+      if (data.topicId !== topicId) return
+      earlyDone = true
+      cleanup()
+      liveController?.close()
+    })
+    const errorUnsub = window.api.ai.onStreamError((data) => {
+      if (data.topicId !== topicId) return
+      earlyError = new Error((data.error as { message?: string })?.message ?? 'Stream error')
+      cleanup()
+      liveController?.error(earlyError)
+    })
+
+    const cleanup = () => {
+      if (isCleaned) return
+      isCleaned = true
+      chunkUnsub()
+      doneUnsub()
+      errorUnsub()
+    }
+
     const result = await window.api.ai.streamAttach({ topicId })
-    if (result.status === 'not-found') return null
+
+    if (result.status === 'not-found') {
+      cleanup()
+      return null
+    }
     if (result.status === 'done') {
-      // Stream already finished — return a stream that immediately closes
+      cleanup()
+      // Stream already finished — history already loaded by V2ChatContent outer shell
       return new ReadableStream<UIMessageChunk>({
         start(controller) {
           controller.close()
@@ -68,15 +110,34 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
       })
     }
     if (result.status === 'error') {
+      cleanup()
       return new ReadableStream<UIMessageChunk>({
-        start(controller_1) {
-          controller_1.error(new Error((result.error as { message?: string })?.message ?? 'Stream error'))
+        start(controller) {
+          controller.error(new Error((result.error as { message?: string })?.message ?? 'Stream error'))
         }
       })
     }
-    // status === 'attached' — buffer already replayed by Main, live chunks incoming
+
+    // status === 'attached' — buffer replayed by Main; early chunks captured above
     logger.info('Reconnected to stream', { topicId, replayedChunks: result.replayedChunks })
-    return this.buildListenerStream(topicId)
+    return new ReadableStream<UIMessageChunk>({
+      start(controller) {
+        liveController = controller
+        // Drain chunks that arrived during the IPC round-trip (replayed buffer)
+        for (const chunk of earlyChunks) controller.enqueue(chunk)
+        if (earlyDone) {
+          controller.close()
+          return
+        }
+        if (earlyError) {
+          controller.error(earlyError)
+        }
+      },
+      cancel() {
+        cleanup()
+        void window.api.ai.streamDetach({ topicId })
+      }
+    })
   }
 
   /**
