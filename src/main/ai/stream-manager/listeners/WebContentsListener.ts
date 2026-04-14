@@ -1,6 +1,6 @@
 import { IpcChannel } from '@shared/IpcChannel'
 import type { SerializedError } from '@shared/types/error'
-import type { UIMessageChunk } from 'ai'
+import type { UIMessage, UIMessageChunk } from 'ai'
 
 import type {
   StreamChunkPayload,
@@ -26,15 +26,17 @@ export class WebContentsListener implements StreamListener {
 
   constructor(
     private readonly wc: Electron.WebContents,
-    private readonly topicId: string
+    private readonly topicId: string,
+    private readonly executionId?: string
   ) {
-    this.id = `wc:${wc.id}:${topicId}`
+    this.id = executionId ? `wc:${wc.id}:${topicId}:${executionId}` : `wc:${wc.id}:${topicId}`
   }
 
   onChunk(chunk: UIMessageChunk): void {
     if (this.wc.isDestroyed()) return
     this.wc.send(IpcChannel.Ai_StreamChunk, {
       topicId: this.topicId,
+      executionId: this.executionId,
       chunk
     } satisfies StreamChunkPayload)
   }
@@ -45,14 +47,16 @@ export class WebContentsListener implements StreamListener {
     if (this.wc.isDestroyed()) return
     this.wc.send(IpcChannel.Ai_StreamDone, {
       topicId: this.topicId,
+      executionId: this.executionId,
       status: result.status
     } satisfies StreamDonePayload)
   }
 
-  onError(error: SerializedError): void {
+  onError(error: SerializedError, _partialMessage?: UIMessage): void {
     if (this.wc.isDestroyed()) return
     this.wc.send(IpcChannel.Ai_StreamError, {
       topicId: this.topicId,
+      executionId: this.executionId,
       error
     } satisfies StreamErrorPayload)
   }

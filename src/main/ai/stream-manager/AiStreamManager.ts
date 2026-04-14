@@ -11,7 +11,8 @@ import type {
   AiStreamAttachRequest,
   AiStreamAttachResponse,
   AiStreamDetachRequest,
-  AiStreamOpenRequest
+  AiStreamOpenRequest,
+  AiStreamOpenResponse
 } from '@shared/ai/transport'
 import type { Message } from '@shared/data/types/message'
 import { createUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -361,7 +362,7 @@ export class AiStreamManager extends BaseService {
   private async handleStreamRequest(
     sender: Electron.WebContents,
     req: AiStreamOpenRequest
-  ): Promise<{ mode: 'started' | 'steered' }> {
+  ): Promise<AiStreamOpenResponse> {
     if (isAgentSessionTopic(req.topicId)) {
       return this.handleAgentSessionStream(sender, req)
     }
@@ -372,7 +373,7 @@ export class AiStreamManager extends BaseService {
   private async handleNormalChatStream(
     sender: Electron.WebContents,
     req: AiStreamOpenRequest
-  ): Promise<{ mode: 'started' | 'steered' }> {
+  ): Promise<AiStreamOpenResponse> {
     const topic = await topicService.getById(req.topicId)
     const assistantId = topic?.assistantId
     if (!assistantId) {
@@ -396,10 +397,7 @@ export class AiStreamManager extends BaseService {
       modelSnapshot
     })
 
-    const webContentsListener = new WebContentsListener(sender, req.topicId)
-
     // Multi-model: @-mentioned models → one execution per model, shared siblingsGroupId
-    logger.debug('mentionedModels', { models: req.mentionedModels?.map((m) => ({ id: m.id, name: m.name })) })
     const models = req.mentionedModels?.length
       ? req.mentionedModels.map((m) => {
           const parsed = parseUniqueModelId(m.id)
@@ -407,10 +405,10 @@ export class AiStreamManager extends BaseService {
         })
       : [{ uniqueModelId: modelId, rawModelId, providerId }]
 
-    const siblingsGroupId = models.length > 1 ? Date.now() : undefined
+    const isMultiModel = models.length > 1
+    const siblingsGroupId = isMultiModel ? Date.now() : undefined
 
-    // Build all requests in parallel, then start all executions.
-    // startExecution (not send) — send() would steer 2nd+ models into pending queue.
+    // Build all requests in parallel
     const requests = await Promise.all(
       models.map(async (model) => ({
         model,
@@ -418,11 +416,14 @@ export class AiStreamManager extends BaseService {
       }))
     )
 
-    // Collect listeners: one WebContents + one PersistenceListener per model
-    const listeners: StreamListener[] = [webContentsListener]
+    // Per-model listeners: WebContents (with executionId for chunk routing) + Persistence
+    const allListeners: StreamListener[] = []
     for (const { model } of requests) {
       const snapshot = { id: model.rawModelId, name: model.rawModelId, provider: model.providerId }
-      listeners.push(
+      // Multi-model: each model gets its own WebContentsListener with executionId for chunk demux
+      // Single-model: executionId omitted → backward compatible (no filtering needed)
+      allListeners.push(new WebContentsListener(sender, req.topicId, isMultiModel ? model.uniqueModelId : undefined))
+      allListeners.push(
         new PersistenceListener({
           topicId: req.topicId,
           parentUserMessageId: userMessage.id,
@@ -438,7 +439,7 @@ export class AiStreamManager extends BaseService {
       topicId: req.topicId,
       modelId: requests[0].model.uniqueModelId,
       request: requests[0].request,
-      listeners,
+      listeners: allListeners,
       siblingsGroupId: siblingsGroupId ? Number(siblingsGroupId) : undefined
     })
 
@@ -453,14 +454,17 @@ export class AiStreamManager extends BaseService {
       })
     }
 
-    return { mode: 'started' }
+    return {
+      mode: 'started' as const,
+      executionIds: isMultiModel ? models.map((m) => m.uniqueModelId) : undefined
+    }
   }
 
   /** Agent session: resolve from session → agent → model, start execution with Claude Code provider. */
   private async handleAgentSessionStream(
     sender: Electron.WebContents,
     req: AiStreamOpenRequest
-  ): Promise<{ mode: 'started' | 'steered' }> {
+  ): Promise<AiStreamOpenResponse> {
     const sessionId = extractAgentSessionId(req.topicId)
 
     const { agents } = await agentService.listAgents()

@@ -9,12 +9,16 @@ import type { SerializedError } from '../../types/error'
 /** A single chunk of a running stream. */
 export interface StreamChunkPayload {
   topicId: string
+  /** Multi-model: identifies which execution produced this chunk (UniqueModelId). */
+  executionId?: string
   chunk: UIMessageChunk
 }
 
 /** Stream ended. */
 export interface StreamDonePayload {
   topicId: string
+  /** Multi-model: identifies which execution finished. */
+  executionId?: string
   /** 'success' = natural completion; 'paused' = user-initiated abort with partial output. */
   status: 'success' | 'paused'
 }
@@ -22,6 +26,8 @@ export interface StreamDonePayload {
 /** Stream error. */
 export interface StreamErrorPayload {
   topicId: string
+  /** Multi-model: identifies which execution errored. */
+  executionId?: string
   error: SerializedError
 }
 
@@ -69,4 +75,6 @@ export type AiStreamAttachResponse =
 /** Result of an open attempt. */
 export interface AiStreamOpenResponse {
   mode: 'started' | 'steered'
+  /** Multi-model: execution IDs (UniqueModelId) for chunk demux. Empty/undefined for single-model. */
+  executionIds?: string[]
 }

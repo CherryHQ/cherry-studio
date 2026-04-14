@@ -86,7 +86,8 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
   private buildListenerStream(
     topicId: string,
     initialChunks?: UIMessageChunk[],
-    abortSignal?: AbortSignal
+    abortSignal?: AbortSignal,
+    executionId?: string
   ): ReadableStream<UIMessageChunk> {
     const unsubscribers: Array<() => void> = []
     let isCleaned = false
@@ -122,6 +123,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
         unsubscribers.push(
           window.api.ai.onStreamChunk((data) => {
             if (data.topicId !== topicId || isStreamClosed) return
+            if (executionId && data.executionId !== executionId) return
             controller.enqueue(data.chunk)
           })
         )
@@ -129,6 +131,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
         unsubscribers.push(
           window.api.ai.onStreamDone((data) => {
             if (data.topicId !== topicId) return
+            if (executionId && data.executionId !== executionId) return
             closeStream()
           })
         )
@@ -136,6 +139,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
         unsubscribers.push(
           window.api.ai.onStreamError((data) => {
             if (data.topicId !== topicId) return
+            if (executionId && data.executionId !== executionId) return
             errorStream(new Error(data.error.message ?? 'Unknown stream error'))
           })
         )
@@ -167,6 +171,14 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
         }
       }
     })
+  }
+
+  /**
+   * Build a filtered listener stream for a specific execution (multi-model).
+   * Only receives chunks/done/error matching the executionId.
+   */
+  buildExecutionStream(topicId: string, executionId: string): ReadableStream<UIMessageChunk> {
+    return this.buildListenerStream(topicId, undefined, undefined, executionId)
   }
 }
 
