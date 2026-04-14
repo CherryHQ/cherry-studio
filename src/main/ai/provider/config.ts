@@ -159,7 +159,7 @@ export async function providerToAiSdkConfig(
   // is just the API gateway, Claude Code SDK is the execution engine.
   const aiSdkProviderId = options?.agentSessionId
     ? appProviderIds['claude-code']
-    : appProviderIds[resolveProviderVariant(baseProviderId, endpointType)] ?? appProviderIds[baseProviderId]
+    : (appProviderIds[resolveProviderVariant(baseProviderId, endpointType)] ?? appProviderIds[baseProviderId])
 
   // 4. Format URL + get API key
   const formattedBaseUrl = formatBaseURL(baseUrl, provider, endpointType)

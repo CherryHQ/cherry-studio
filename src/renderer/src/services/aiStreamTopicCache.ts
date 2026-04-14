@@ -1,21 +1,15 @@
 import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 
-const logger = loggerService.withContext('topicStreamStateSync')
-
-let started = false
+const logger = loggerService.withContext('aiStreamTopicCache')
 
 /**
- * Keeps topic loading/fulfilled flags in sync with the v2 AI stream.
+ * Subscribes to Main-side AI stream IPC events and mirrors each topic's
+ * streaming state into Cache, so sidebar/topic UI can read it via useCache.
  *
- * Mirrors Main-side AiStreamManager lifecycle events into Cache
- * so sidebar/topic UI can read streaming state via useCache hooks.
+ * Call exactly once at app startup from init.ts.
  */
-export function ensureTopicStreamStateSyncStarted(): void {
-  if (started || typeof window === 'undefined') return
-
-  started = true
-
+export function subscribeAiStreamToTopicCache(): void {
   window.api.ai.onStreamChunk(({ topicId }) => {
     const loadingKey = `topic.stream.loading.${topicId}` as const
     const fulfilledKey = `topic.stream.fulfilled.${topicId}` as const

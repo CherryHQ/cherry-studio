@@ -9,7 +9,6 @@ import V2ChatContent from '../V2ChatContent'
 const mockUseChat = vi.fn()
 const mockUseTopicMessagesV2 = vi.fn()
 const mockEnsureChatTopicPersisted = vi.fn()
-const mockEnsureTopicStreamStateSyncStarted = vi.fn()
 
 vi.mock('@ai-sdk/react', () => ({
   useChat: (...args: unknown[]) => mockUseChat(...args)
@@ -29,10 +28,6 @@ vi.mock('@renderer/hooks/useTopicMessagesV2', () => ({
 
 vi.mock('@renderer/services/ApiService', () => ({
   fetchMcpTools: vi.fn(async () => [])
-}))
-
-vi.mock('@renderer/services/topicStreamStateSync', () => ({
-  ensureTopicStreamStateSyncStarted: () => mockEnsureTopicStreamStateSyncStarted()
 }))
 
 vi.mock('@renderer/utils/assistant', () => ({
@@ -105,7 +100,6 @@ describe('V2ChatContent', () => {
 
   beforeEach(() => {
     mockEnsureChatTopicPersisted.mockReset().mockResolvedValue(undefined)
-    mockEnsureTopicStreamStateSyncStarted.mockReset()
 
     ;(window as unknown as { api: any }).api = {
       ai: {

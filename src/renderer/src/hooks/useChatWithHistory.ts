@@ -13,7 +13,6 @@
 import { Chat, useChat } from '@ai-sdk/react'
 import { loggerService } from '@logger'
 import { useCache } from '@renderer/data/hooks/useCache'
-import { ensureTopicStreamStateSyncStarted } from '@renderer/services/topicStreamStateSync'
 import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
 import type { Message } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, UserMessageStatus } from '@renderer/types/newMessage'
@@ -44,10 +43,6 @@ export function useChatWithHistory(
   /** assistantId + topicId for adapting live UIMessages to legacy Message[] */
   context: { assistantId: string }
 ) {
-  useEffect(() => {
-    ensureTopicStreamStateSyncStarted()
-  }, [])
-
   const cacheKey = `message.streaming.chat_session.${topicId}` as const
   const [cachedSession, setCachedSession] = useCache(cacheKey, null)
 

@@ -1,6 +1,7 @@
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 
+import { subscribeAiStreamToTopicCache } from './services/aiStreamTopicCache'
 import { startAutoSync } from './services/BackupService'
 import { startNutstoreAutoSync } from './services/NutstoreService'
 import { webTraceService } from './services/WebTraceService'
@@ -30,3 +31,4 @@ function initWebTrace() {
 
 initAutoSync()
 initWebTrace()
+subscribeAiStreamToTopicCache()
