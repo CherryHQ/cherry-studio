@@ -3,15 +3,7 @@
  * Coordinates migrators, manages progress, and handles failures
  */
 
-import { agentsAgentsTable } from '@data/db/schemas/agentsAgents'
-import { agentsChannelsTable, agentsChannelTaskSubscriptionsTable } from '@data/db/schemas/agentsChannels'
-import { agentsSessionMessagesTable } from '@data/db/schemas/agentsSessionMessages'
-import { agentsSessionsTable } from '@data/db/schemas/agentsSessions'
-import { agentsSkillsTable } from '@data/db/schemas/agentsSkills'
-import { agentsTaskRunLogsTable, agentsTasksTable } from '@data/db/schemas/agentsTasks'
 import { appStateTable } from '@data/db/schemas/appState'
-import { assistantTable } from '@data/db/schemas/assistant'
-import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { messageTable } from '@data/db/schemas/message'
@@ -39,7 +31,6 @@ import fs from 'fs/promises'
 import path from 'path'
 
 import type { BaseMigrator, ProgressMessage } from '../migrators/BaseMigrator'
-import { LegacyAgentsDbReader } from '../utils/LegacyAgentsDbReader'
 import { createMigrationContext } from './MigrationContext'
 import { MigrationDbService } from './MigrationDbService'
 import type { MigrationPaths } from './MigrationPaths'
@@ -51,9 +42,6 @@ import type { MigrationPaths } from './MigrationPaths'
 const logger = loggerService.withContext('MigrationEngine')
 
 const MIGRATION_V2_STATUS = 'migration_v2_status'
-const MIGRATION_V2_AGENTS_STATUS = 'migration_v2_agents_status'
-const MIGRATION_V2_TARGET_VERSION = '2.0.0'
-const MIGRATION_V2_AGENTS_TARGET_VERSION = '2.1.0-agents'
 
 export class MigrationEngine {
   private migrators: BaseMigrator[] = []
@@ -114,9 +102,18 @@ export class MigrationEngine {
    */
   //TODO 不能仅仅判断数据库，如果是全新安装，而不是升级上来的用户，其实并不需要迁移，但是按现在的逻辑，还是会进行迁移，这不正确
   async needsMigration(): Promise<boolean> {
-    const plan = await this.getPendingMigrationPlan()
+    const db = this.getDb()
+    const status = await db.select().from(appStateTable).where(eq(appStateTable.key, MIGRATION_V2_STATUS)).get()
 
-    if (!plan.fullMigrationNeeded && !plan.agentsMigrationNeeded) {
+    if (status?.value) {
+      const statusValue = status.value as MigrationStatusValue
+      return statusValue.status !== 'completed'
+    }
+
+    // No migration status record — check if this is a fresh install or an upgrade.
+    if (!this.hasLegacyData()) {
+      logger.info('Fresh install detected (no legacy data found), skipping migration')
+      await this.markCompleted()
       return false
     }
 
@@ -124,77 +121,37 @@ export class MigrationEngine {
   }
 
   /**
-   * FIXME: 当前仅通过 electron-store 判断 core v2 是否有旧数据，这是临时方案。
-   * electron-store (config.json) 在 v2 中也可能被写入，导致误判。
-   * localStorage 和 IndexedDB 的文件系统路径不可靠（UserData 路径问题待迁移后期统一处理），暂不检测。
-   * 宁可误触发迁移（空数据迁移可安全完成），也不漏掉真正的升级用户。
-   * 后续引入 version history 后可用精确的版本记录替代这些启发式检测。
+   * Heuristic fallback for fresh-install detection.
+   * Version-based upgrade path validation is enforced in
+   * v2MigrationGate.ts (via versionPolicy.ts) BEFORE this method
+   * is called. This heuristic only needs to distinguish "fresh
+   * install" from "upgrade with legacy data".
+   *
+   * Known limitation: electron-store (config.json) may be written
+   * by v2, causing false positives. Prefer to over-trigger (empty-
+   * data migration completes safely) rather than miss a real upgrade.
    */
-  private hasCoreLegacyData(): boolean {
+  private hasLegacyData(): boolean {
     const legacyStore = new Store({ cwd: this.paths.userData })
-    return legacyStore.size > 0
-  }
+    const hasData = legacyStore.size > 0
 
-  private hasLegacyAgentsData(): boolean {
-    return new LegacyAgentsDbReader(this.paths).resolvePath() !== null
-  }
-
-  private async getStatus(key: string): Promise<MigrationStatusValue | null> {
-    const db = this.getDb()
-    const record = await db.select().from(appStateTable).where(eq(appStateTable.key, key)).get()
-    return (record?.value as MigrationStatusValue | undefined) ?? null
-  }
-
-  private async getPendingMigrationPlan(): Promise<{
-    fullMigrationNeeded: boolean
-    agentsMigrationNeeded: boolean
-    migrators: BaseMigrator[]
-  }> {
-    const fullStatus = await this.getStatus(MIGRATION_V2_STATUS)
-    const agentsStatus = await this.getStatus(MIGRATION_V2_AGENTS_STATUS)
-    const hasCoreLegacyData = this.hasCoreLegacyData()
-    const hasLegacyAgentsData = this.hasLegacyAgentsData()
-
-    let fullMigrationNeeded = false
-    if (fullStatus) {
-      fullMigrationNeeded = fullStatus.status !== 'completed'
-    } else if (hasCoreLegacyData) {
-      fullMigrationNeeded = true
-    } else {
-      logger.info('Fresh install detected for core v2 migration, marking completed')
-      await this.markCompleted()
-    }
-
-    let agentsMigrationNeeded = false
-    if (hasLegacyAgentsData) {
-      agentsMigrationNeeded = agentsStatus?.status !== 'completed'
-    } else if (!agentsStatus || agentsStatus.status !== 'completed') {
-      await this.markAgentsCompleted()
-    }
-
-    const migrators = fullMigrationNeeded ? this.migrators : this.migrators.filter((m) => m.id === 'agents')
-
-    return {
-      fullMigrationNeeded,
-      agentsMigrationNeeded,
-      migrators: agentsMigrationNeeded || fullMigrationNeeded ? migrators : []
-    }
+    logger.info('Legacy data detection', { hasElectronStore: hasData })
+    return hasData
   }
 
   /**
    * Get last migration error (for UI display)
    */
   async getLastError(): Promise<string | null> {
-    const fullStatus = await this.getStatus(MIGRATION_V2_STATUS)
-    if (fullStatus?.status === 'failed') {
-      return fullStatus.error || 'Unknown error'
-    }
+    const db = this.getDb()
+    const status = await db.select().from(appStateTable).where(eq(appStateTable.key, MIGRATION_V2_STATUS)).get()
 
-    const agentsStatus = await this.getStatus(MIGRATION_V2_AGENTS_STATUS)
-    if (agentsStatus?.status === 'failed') {
-      return agentsStatus.error || 'Unknown error'
+    if (status?.value) {
+      const statusValue = status.value as MigrationStatusValue
+      if (statusValue.status === 'failed') {
+        return statusValue.error || 'Unknown error'
+      }
     }
-
     return null
   }
 
@@ -211,19 +168,13 @@ export class MigrationEngine {
     const startTime = Date.now()
     const results: MigratorResult[] = []
 
-    const plan = await this.getPendingMigrationPlan()
-    const activeMigrators = plan.migrators
-
     try {
-      for (const migrator of activeMigrators) {
+      for (const migrator of this.migrators) {
         migrator.reset()
       }
 
-      if (plan.fullMigrationNeeded) {
-        await this.verifyAndClearNewTables()
-      } else if (plan.agentsMigrationNeeded) {
-        await this.verifyAndClearAgentsTables()
-      }
+      // Safety check: verify new tables status before clearing
+      await this.verifyAndClearNewTables()
 
       // Create migration context
       const context = await createMigrationContext(
@@ -234,30 +185,18 @@ export class MigrationEngine {
         localStorageExportPath
       )
 
-      for (let i = 0; i < activeMigrators.length; i++) {
-        const migrator = activeMigrators[i]
+      for (let i = 0; i < this.migrators.length; i++) {
+        const migrator = this.migrators[i]
         const migratorStartTime = Date.now()
 
         logger.info(`Starting migrator: ${migrator.name}`, { id: migrator.id })
 
         // Update progress: migrator starting
-        this.updateProgress(
-          'migration',
-          this.calculateProgress(i, 0, activeMigrators.length),
-          migrator,
-          undefined,
-          activeMigrators
-        )
+        this.updateProgress('migration', this.calculateProgress(i, 0), migrator)
 
         // Set up migrator progress callback
         migrator.setProgressCallback((progress, progressMessage) => {
-          this.updateProgress(
-            'migration',
-            this.calculateProgress(i, progress, activeMigrators.length),
-            migrator,
-            progressMessage,
-            activeMigrators
-          )
+          this.updateProgress('migration', this.calculateProgress(i, progress), migrator, progressMessage)
         })
 
         // Phase 1: Prepare (includes dry-run validation)
@@ -296,30 +235,14 @@ export class MigrationEngine {
         })
 
         // Update progress: migrator completed
-        if (migrator.id === 'agents') {
-          await this.markAgentsCompleted()
-        }
-
-        this.updateProgress(
-          'migration',
-          this.calculateProgress(i + 1, 0, activeMigrators.length),
-          migrator,
-          undefined,
-          activeMigrators
-        )
+        this.updateProgress('migration', this.calculateProgress(i + 1, 0), migrator)
       }
 
       // Verify FK integrity after all inserts (FK was off during bulk inserts)
       await this.verifyForeignKeys()
 
       // Mark migration completed
-      if (plan.fullMigrationNeeded) {
-        await this.markCompleted()
-      }
-
-      if (plan.agentsMigrationNeeded && !activeMigrators.some((m) => m.id === 'agents')) {
-        await this.markAgentsCompleted()
-      }
+      await this.markCompleted()
 
       // Cleanup temporary files
       await this.cleanupTempFiles(dexieExportPath)
@@ -344,12 +267,7 @@ export class MigrationEngine {
       logger.error('Migration failed', { error: errorMessage })
 
       // Mark migration as failed with error details
-      if (plan.fullMigrationNeeded) {
-        await this.markFailed(errorMessage)
-      }
-      if (plan.agentsMigrationNeeded) {
-        await this.markAgentsFailed(errorMessage)
-      }
+      await this.markFailed(errorMessage)
 
       return {
         success: false,
@@ -370,21 +288,10 @@ export class MigrationEngine {
     // Tables to clear - add more as they are created
     // Order matters: child tables must be cleared before parent tables
     const tables = [
-      { table: agentsSessionMessagesTable, name: 'agents_session_messages' },
-      { table: agentsChannelTaskSubscriptionsTable, name: 'agents_channel_task_subscriptions' },
-      { table: agentsTaskRunLogsTable, name: 'agents_task_run_logs' },
-      { table: agentsChannelsTable, name: 'agents_channels' },
-      { table: agentsTasksTable, name: 'agents_tasks' },
-      { table: agentsSessionsTable, name: 'agents_sessions' },
-      { table: agentsSkillsTable, name: 'agents_skills' },
-      { table: agentsAgentsTable, name: 'agents_agents' },
       { table: userModelTable, name: 'user_model' }, // Must clear before user_provider
       { table: userProviderTable, name: 'user_provider' },
       { table: messageTable, name: 'message' }, // Must clear before topic (FK reference)
-      { table: topicTable, name: 'topic' }, // Must clear before assistant (FK reference)
-      { table: assistantMcpServerTable, name: 'assistant_mcp_server' }, // Junction: clear before assistant
-      { table: assistantKnowledgeBaseTable, name: 'assistant_knowledge_base' }, // Junction: clear before assistant
-      { table: assistantTable, name: 'assistant' },
+      { table: topicTable, name: 'topic' },
       { table: mcpServerTable, name: 'mcp_server' },
       { table: miniappTable, name: 'miniapp' },
       { table: preferenceTable, name: 'preference' },
@@ -392,7 +299,9 @@ export class MigrationEngine {
       { table: translateLanguageTable, name: 'translate_language' },
       { table: knowledgeItemTable, name: 'knowledge_item' }, // Must clear before knowledge_base (FK reference)
       { table: knowledgeBaseTable, name: 'knowledge_base' }
-      // TODO: Add fileTable when created
+      // TODO: Add these when tables are created
+      // { table: assistantTable, name: 'assistant' },
+      // { table: fileTable, name: 'file' }
     ]
 
     // Check if tables have data (safety check)
@@ -405,68 +314,24 @@ export class MigrationEngine {
     }
 
     // Clear tables in dependency order (children before parents)
-    await db.delete(agentsSessionMessagesTable)
-    await db.delete(agentsChannelTaskSubscriptionsTable)
-    await db.delete(agentsTaskRunLogsTable)
-    await db.delete(agentsChannelsTable)
-    await db.delete(agentsTasksTable)
-    await db.delete(agentsSessionsTable)
-    await db.delete(agentsSkillsTable)
-    await db.delete(agentsAgentsTable)
+    // Messages reference topics, so delete messages first
     await db.delete(userModelTable)
     await db.delete(userProviderTable)
-    await db.delete(messageTable) // FK → topic
-    await db.delete(topicTable) // FK → assistant
-    await db.delete(assistantMcpServerTable) // FK → assistant, mcp_server
-    await db.delete(assistantKnowledgeBaseTable) // FK → assistant
-    await db.delete(assistantTable)
+    await db.delete(messageTable)
+    await db.delete(topicTable)
     await db.delete(mcpServerTable)
     await db.delete(miniappTable)
     await db.delete(preferenceTable)
     await db.delete(translateHistoryTable)
     await db.delete(translateLanguageTable)
-    await db.delete(knowledgeItemTable) // FK → knowledge_base
+    await db.delete(knowledgeItemTable)
+    // Knowledge items reference knowledge bases
     await db.delete(knowledgeBaseTable)
+    // TODO: Add these when tables are created (in correct order)
+    // await db.delete(fileTable)
+    // await db.delete(assistantTable)
 
     logger.info('All new architecture tables cleared successfully')
-  }
-
-  /**
-   * Verify and clear only agents-import target tables.
-   * Used when the core v2 migration is already complete and only legacy agents.db
-   * still needs to be imported into the main database.
-   */
-  private async verifyAndClearAgentsTables(): Promise<void> {
-    const db = this.getDb()
-    const tables = [
-      { table: agentsSessionMessagesTable, name: 'agents_session_messages' },
-      { table: agentsChannelTaskSubscriptionsTable, name: 'agents_channel_task_subscriptions' },
-      { table: agentsTaskRunLogsTable, name: 'agents_task_run_logs' },
-      { table: agentsChannelsTable, name: 'agents_channels' },
-      { table: agentsTasksTable, name: 'agents_tasks' },
-      { table: agentsSessionsTable, name: 'agents_sessions' },
-      { table: agentsSkillsTable, name: 'agents_skills' },
-      { table: agentsAgentsTable, name: 'agents_agents' }
-    ]
-
-    for (const { table, name } of tables) {
-      const result = await db.select({ count: sql<number>`count(*)` }).from(table).get()
-      const count = result?.count ?? 0
-      if (count > 0) {
-        logger.warn(`Table '${name}' is not empty (${count} rows), clearing for agents-only migration`)
-      }
-    }
-
-    await db.delete(agentsSessionMessagesTable)
-    await db.delete(agentsChannelTaskSubscriptionsTable)
-    await db.delete(agentsTaskRunLogsTable)
-    await db.delete(agentsChannelsTable)
-    await db.delete(agentsTasksTable)
-    await db.delete(agentsSessionsTable)
-    await db.delete(agentsSkillsTable)
-    await db.delete(agentsAgentsTable)
-
-    logger.info('Agents import target tables cleared successfully')
   }
 
   /**
@@ -539,13 +404,9 @@ export class MigrationEngine {
   /**
    * Calculate overall progress based on completed migrators and current migrator progress
    */
-  private calculateProgress(
-    completedMigrators: number,
-    currentMigratorProgress: number,
-    totalMigrators: number
-  ): number {
-    if (totalMigrators === 0) return 0
-    const migratorWeight = 100 / totalMigrators
+  private calculateProgress(completedMigrators: number, currentMigratorProgress: number): number {
+    if (this.migrators.length === 0) return 0
+    const migratorWeight = 100 / this.migrators.length
     return Math.round(completedMigrators * migratorWeight + (currentMigratorProgress / 100) * migratorWeight)
   }
 
@@ -556,10 +417,9 @@ export class MigrationEngine {
     stage: MigrationStage,
     overallProgress: number,
     currentMigrator: BaseMigrator,
-    progressMessage?: ProgressMessage,
-    migrators: BaseMigrator[] = this.migrators
+    progressMessage?: ProgressMessage
   ): void {
-    const migratorsProgress = migrators.map((m) => ({
+    const migratorsProgress = this.migrators.map((m) => ({
       id: m.id,
       name: m.name,
       status: this.getMigratorStatus(m, currentMigrator)
@@ -593,7 +453,6 @@ export class MigrationEngine {
   async skipMigration(): Promise<void> {
     logger.info('Migration skipped by user (version incompatible, using defaults)')
     await this.markCompleted()
-    await this.markAgentsCompleted()
   }
 
   /**
@@ -604,7 +463,7 @@ export class MigrationEngine {
     const statusValue: MigrationStatusValue = {
       status: 'completed',
       completedAt: Date.now(),
-      version: MIGRATION_V2_TARGET_VERSION,
+      version: '2.0.0',
       error: null
     }
 
@@ -631,7 +490,7 @@ export class MigrationEngine {
     const statusValue: MigrationStatusValue = {
       status: 'failed',
       failedAt: Date.now(),
-      version: MIGRATION_V2_TARGET_VERSION,
+      version: '2.0.0',
       error: error
     }
 
@@ -639,54 +498,6 @@ export class MigrationEngine {
       .insert(appStateTable)
       .values({
         key: MIGRATION_V2_STATUS,
-        value: statusValue
-      })
-      .onConflictDoUpdate({
-        target: appStateTable.key,
-        set: {
-          value: statusValue,
-          updatedAt: Date.now()
-        }
-      })
-  }
-
-  private async markAgentsCompleted(): Promise<void> {
-    const db = this.getDb()
-    const statusValue: MigrationStatusValue = {
-      status: 'completed',
-      completedAt: Date.now(),
-      version: MIGRATION_V2_AGENTS_TARGET_VERSION,
-      error: null
-    }
-
-    await db
-      .insert(appStateTable)
-      .values({
-        key: MIGRATION_V2_AGENTS_STATUS,
-        value: statusValue
-      })
-      .onConflictDoUpdate({
-        target: appStateTable.key,
-        set: {
-          value: statusValue,
-          updatedAt: Date.now()
-        }
-      })
-  }
-
-  private async markAgentsFailed(error: string): Promise<void> {
-    const db = this.getDb()
-    const statusValue: MigrationStatusValue = {
-      status: 'failed',
-      failedAt: Date.now(),
-      version: MIGRATION_V2_AGENTS_TARGET_VERSION,
-      error
-    }
-
-    await db
-      .insert(appStateTable)
-      .values({
-        key: MIGRATION_V2_AGENTS_STATUS,
         value: statusValue
       })
       .onConflictDoUpdate({
