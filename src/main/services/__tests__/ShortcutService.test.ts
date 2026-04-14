@@ -168,7 +168,7 @@ describe('ShortcutService', () => {
   })
 
   it('reacts to quick assistant enablement changes for mini window shortcut', async () => {
-    MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.general.show_mini_window', {
+    MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.feature.quick_assistant.toggle_window', {
       binding: ['CommandOrControl', 'E'],
       enabled: true
     })

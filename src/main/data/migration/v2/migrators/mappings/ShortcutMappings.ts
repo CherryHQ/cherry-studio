@@ -29,7 +29,7 @@ const LEGACY_KEY_TO_TARGET_KEY: Record<string, string> = {
   zoom_reset: 'shortcut.general.zoom_reset',
   show_settings: 'shortcut.general.show_settings',
   show_app: 'shortcut.general.show_main_window',
-  mini_window: 'shortcut.general.show_mini_window',
+  mini_window: 'shortcut.feature.quick_assistant.toggle_window',
   selection_assistant_toggle: 'shortcut.feature.selection.toggle_enabled',
   selection_assistant_select_text: 'shortcut.feature.selection.get_text',
   new_topic: 'shortcut.topic.new',

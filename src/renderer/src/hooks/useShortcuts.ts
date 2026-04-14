@@ -147,7 +147,7 @@ export interface ShortcutListItem {
   defaultPreference: ResolvedShortcut
 }
 
-const MINI_WINDOW_SHORTCUT_KEY: ShortcutPreferenceKey = 'shortcut.general.show_mini_window'
+const QUICK_ASSISTANT_SHORTCUT_KEY: ShortcutPreferenceKey = 'shortcut.feature.quick_assistant.toggle_window'
 const SELECTION_SHORTCUT_CATEGORY = 'feature.selection'
 
 export const useAllShortcuts = () => {
@@ -174,7 +174,7 @@ export const useAllShortcuts = () => {
         if (supported && platform && !supported.includes(platform as SupportedPlatform)) {
           return []
         }
-        if (definition.key === MINI_WINDOW_SHORTCUT_KEY && !quickAssistantEnabled) {
+        if (definition.key === QUICK_ASSISTANT_SHORTCUT_KEY && !quickAssistantEnabled) {
           return []
         }
         if (definition.category === SELECTION_SHORTCUT_CATEGORY && !selectionAssistantEnabled) {

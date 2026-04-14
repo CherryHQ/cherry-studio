@@ -11,7 +11,7 @@ import type { BrowserWindow } from 'electron'
 import { globalShortcut } from 'electron'
 
 const logger = loggerService.withContext('ShortcutService')
-const MINI_WINDOW_SHORTCUT_KEY: ShortcutPreferenceKey = 'shortcut.general.show_mini_window'
+const QUICK_ASSISTANT_SHORTCUT_KEY: ShortcutPreferenceKey = 'shortcut.feature.quick_assistant.toggle_window'
 
 type ShortcutHandler = (window?: BrowserWindow) => void
 type RegisteredShortcut = { handler: ShortcutHandler; window: BrowserWindow }
@@ -87,7 +87,7 @@ export class ShortcutService extends BaseService {
       navigateToSettings()
     })
 
-    this.handlers.set('shortcut.general.show_mini_window', () => {
+    this.handlers.set('shortcut.feature.quick_assistant.toggle_window', () => {
       if (!application.get('PreferenceService').get('feature.quick_assistant.enabled')) return
       application.get('WindowService').toggleMiniWindow()
     })
@@ -176,7 +176,10 @@ export class ShortcutService extends BaseService {
     for (const definition of relevantDefinitions) {
       if (onlyPersistent && !definition.global) continue
 
-      if (definition.key === MINI_WINDOW_SHORTCUT_KEY && !preferenceService.get('feature.quick_assistant.enabled')) {
+      if (
+        definition.key === QUICK_ASSISTANT_SHORTCUT_KEY &&
+        !preferenceService.get('feature.quick_assistant.enabled')
+      ) {
         continue
       }
 

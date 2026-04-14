@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-04-13T08:12:56.613Z
+ * Generated at: 2026-04-14T03:21:01.613Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in packages/shared/data/preferences.ts
@@ -770,7 +770,7 @@ export const REDUX_STORE_MAPPINGS = {
     },
     {
       originalKey: 'shortcuts.mini_window',
-      targetKey: 'shortcut.general.show_mini_window'
+      targetKey: 'shortcut.feature.quick_assistant.toggle_window'
     },
     {
       originalKey: 'shortcuts.selection_assistant_toggle',

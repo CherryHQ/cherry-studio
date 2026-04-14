@@ -10,9 +10,9 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
     global: true
   },
   {
-    key: 'shortcut.general.show_mini_window',
+    key: 'shortcut.feature.quick_assistant.toggle_window',
     scope: 'main',
-    category: 'general',
+    category: 'feature.quick_assistant',
     labelKey: 'mini_window',
     global: true
   },

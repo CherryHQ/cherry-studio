@@ -2533,7 +2533,7 @@
               "category": "preferences",
               "defaultValue": {
                 "binding": [],
-                "enabled": true
+                "enabled": false
               },
               "originalKey": "show_app",
               "status": "classified",
@@ -2551,7 +2551,7 @@
               },
               "originalKey": "mini_window",
               "status": "classified",
-              "targetKey": "shortcut.general.show_mini_window",
+              "targetKey": "shortcut.feature.quick_assistant.toggle_window",
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {

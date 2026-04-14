@@ -46,7 +46,7 @@ v2 的目标很明确：
 
 ```ts
 {
-  key: 'shortcut.general.show_mini_window',
+  key: 'shortcut.feature.quick_assistant.toggle_window',
   scope: 'main',
   category: 'general',
   labelKey: 'mini_window',
@@ -171,7 +171,7 @@ type ResolvedShortcut = {
 
 当前有两类依赖功能状态的快捷键：
 
-- `shortcut.general.show_mini_window` 依赖 `feature.quick_assistant.enabled`
+- `shortcut.feature.quick_assistant.toggle_window` 依赖 `feature.quick_assistant.enabled`
 - `feature.selection.*` 依赖 `feature.selection.enabled`
 
 功能关闭时，这些快捷键不会注册，也不会在设置页显示。
@@ -189,7 +189,7 @@ type ResolvedShortcut = {
 | Key | 默认绑定 | Scope | 默认启用 |
 | --- | --- | --- | --- |
 | `shortcut.general.show_main_window` | *(无)* | main | 否 |
-| `shortcut.general.show_mini_window` | `Cmd/Ctrl+E` | main | 否 |
+| `shortcut.feature.quick_assistant.toggle_window` | `Cmd/Ctrl+E` | main | 否 |
 | `shortcut.general.show_settings` | `Cmd/Ctrl+,` | main | 是 |
 | `shortcut.general.toggle_sidebar` | `Cmd/Ctrl+[` | renderer | 是 |
 | `shortcut.general.exit_fullscreen` | `Escape` | renderer | 是 |

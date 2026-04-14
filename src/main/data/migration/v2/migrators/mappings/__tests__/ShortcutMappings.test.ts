@@ -16,6 +16,11 @@ describe('transformShortcuts', () => {
     const result = transformShortcuts({
       shortcuts: [
         {
+          key: 'mini_window',
+          shortcut: ['CommandOrControl', 'E'],
+          enabled: false
+        },
+        {
           key: 'show_settings',
           shortcut: ['CommandOrControl', ','],
           enabled: true
@@ -29,6 +34,10 @@ describe('transformShortcuts', () => {
     })
 
     expect(result).toEqual({
+      'shortcut.feature.quick_assistant.toggle_window': {
+        binding: ['CommandOrControl', 'E'],
+        enabled: false
+      },
       'shortcut.general.show_settings': {
         binding: ['CommandOrControl', ','],
         enabled: true
