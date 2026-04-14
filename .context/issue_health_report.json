@@ -1,0 +1,81 @@
+{
+  "generated_at": "2026-04-14T17:51:42+00:00",
+  "date": "2026-04-14",
+  "summary": {
+    "open_total": 737,
+    "closed_30d": 189,
+    "closed_today": 5,
+    "health_score": "MODERATE",
+    "health_note": "High zombie ratio (~51%) driven by main branch code freeze since April 3, 2026. Active closure rate is healthy (189 in 30d / ~6.3/day)."
+  },
+  "health_distribution": {
+    "Active": {
+      "count": 60,
+      "pct": "8.1%",
+      "definition": "Created within last 7 days"
+    },
+    "Aging": {
+      "count": 120,
+      "pct": "16.3%",
+      "definition": "Created 8-30 days ago"
+    },
+    "Stale": {
+      "count": 180,
+      "pct": "24.4%",
+      "definition": "Created 31-90 days ago"
+    },
+    "Zombie": {
+      "count": 377,
+      "pct": "51.2%",
+      "definition": "Created 90+ days ago (pre-Jan 2026)"
+    },
+    "estimation_method": "Sample-based: 2 pages (100 newest + 100 oldest) from 737 total open issues"
+  },
+  "label_health": {
+    "unlabeled_pct_sample": "14.0%",
+    "total_sample_size": 100,
+    "unlabeled_count_in_sample": 14,
+    "top_action_labels": {
+      "needs-repro": 10,
+      "needs-more-info": 1,
+      "help wanted": 9
+    },
+    "triage_note": "14% of recent issues lack labels — triaging team should review unlabeled issues #14256, #14250, #13897, #14215, #14233"
+  },
+  "bug_analysis": {
+    "bug_labeled_in_sample": 23,
+    "extrapolated_total_bugs": "~170 (23% of 737 estimated)",
+    "needs_repro_in_sample": 10,
+    "p1_urgent_note": "No explicit P1 label used. 'BUG' + 'needs-repro' are key triage labels. Consider adding P1/P2/P3 priority labels.",
+    "high_attention_bugs": [
+      {
+        "number": 13897,
+        "title": "[Bug]: High frequency requests to analytics.cherry-ai.com",
+        "concern": "Privacy/telemetry concern - high community upvotes"
+      }
+    ]
+  },
+  "closure_velocity": {
+    "closed_30d": 189,
+    "daily_average": 6.3,
+    "by_recent_day": {
+      "2026-04-14": 5,
+      "2026-04-13": 3,
+      "2026-04-12": 3,
+      "2026-04-11": 9,
+      "2026-04-10": 3,
+      "2026-04-09": 6,
+      "2026-04-08": 3,
+      "2026-04-07": 8,
+      "2026-04-06": 3,
+      "2026-04-05": 4
+    }
+  },
+  "recommendations": [
+    "Apply 'Blocked: v2' label to feature requests blocked by code freeze so reporters understand timeline",
+    "Triage 14% unlabeled recent issues (14/100 in sample)",
+    "Introduce P1/P2/P3 priority labels for better severity tracking",
+    "Consider bulk-closing Zombie issues (90+ days, no activity) with a comment pointing to v2 timeline",
+    "The 'inactive' label (41 in sample) suggests auto-close bot is active — verify threshold settings"
+  ]
+}

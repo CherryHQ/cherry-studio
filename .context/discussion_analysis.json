@@ -1,0 +1,20 @@
+{
+  "generated_at": "2026-04-14T17:51:42+00:00",
+  "date": "2026-04-14",
+  "data_note": "Discussions data not available via REST API in this run. GraphQL query required (gh api graphql or GitHub MCP GraphQL endpoint). Using issue-label proxy for discussion category analysis.",
+  "proxy_from_issues": {
+    "discussion_labeled_issues": 11,
+    "top_discussion_topics_from_labels": [
+      "Models (22 issues) - provider compatibility, model selection",
+      "UI/UX (19 issues) - design feedback, usability",
+      "MCP (12 issues) - protocol integration questions",
+      "Assistant (10 issues) - assistant config and management",
+      "RAG (6 issues) - knowledge base and retrieval",
+      "Data (6 issues) - data handling, export/import"
+    ]
+  },
+  "action_items": [
+    "Set up GraphQL query to fetch Discussions data in next run",
+    "Consider enabling GitHub Discussions for v2 roadmap feedback and feature voting"
+  ]
+}
