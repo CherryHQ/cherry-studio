@@ -1,5 +1,5 @@
 PRAGMA foreign_keys=OFF;--> statement-breakpoint
-CREATE TABLE `__new_agents_skills` (
+CREATE TABLE IF NOT EXISTS `__new_agents_skills` (
 	`id` text PRIMARY KEY NOT NULL,
 	`name` text NOT NULL,
 	`description` text,
@@ -16,7 +16,7 @@ CREATE TABLE `__new_agents_skills` (
 );
 --> statement-breakpoint
 INSERT INTO `__new_agents_skills`("id", "name", "description", "folder_name", "source", "source_url", "namespace", "author", "tags", "content_hash", "is_enabled", "created_at", "updated_at") SELECT "id", "name", "description", "folder_name", "source", "source_url", "namespace", "author", "tags", "content_hash", "is_enabled", "created_at", "updated_at" FROM `agents_skills`;--> statement-breakpoint
-DROP TABLE `agents_skills`;--> statement-breakpoint
+DROP TABLE IF EXISTS `agents_skills`;--> statement-breakpoint
 ALTER TABLE `__new_agents_skills` RENAME TO `agents_skills`;--> statement-breakpoint
 PRAGMA foreign_keys=ON;--> statement-breakpoint
 CREATE UNIQUE INDEX `agents_skills_folder_name_unique` ON `agents_skills` (`folder_name`);--> statement-breakpoint
