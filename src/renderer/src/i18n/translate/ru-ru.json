@@ -5299,8 +5299,14 @@
             "cache_last_n_help": "Кэшировать последние N сообщений разговора (исключая системные сообщения)",
             "cache_system": "Сообщение системы кэша",
             "cache_system_help": "Кэшировать ли системный промпт",
+            "prompt_caching": "[to be translated]:Prompt Caching",
+            "prompt_caching_help": "[to be translated]:Enable Anthropic prompt caching to reduce costs on repeated conversations. Uses strategic cache breakpoints on system prompt and conversation history.",
             "token_threshold": "Порог токена кэша",
-            "token_threshold_help": "Сообщения, превышающие это количество токенов, будут кэшироваться. Установите значение 0, чтобы отключить кэширование."
+            "token_threshold_help": "Сообщения, превышающие это количество токенов, будут кэшироваться. Установите значение 0, чтобы отключить кэширование.",
+            "ttl": "[to be translated]:Cache Duration",
+            "ttl_1h": "[to be translated]:1 hour",
+            "ttl_5min": "[to be translated]:5 minutes",
+            "ttl_help": "[to be translated]:How long cached content persists. 5 minutes is the default; 1 hour costs extra but provides longer cache lifetime."
           },
           "array_content": {
             "help": "Поддерживает ли данный провайдер тип массива для поля content в сообщении",

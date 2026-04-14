@@ -5299,8 +5299,14 @@
             "cache_last_n_help": "Armazenar em cache as últimas N mensagens da conversa (excluindo mensagens do sistema)",
             "cache_system": "Mensagem do Sistema de Cache",
             "cache_system_help": "Se deve armazenar em cache o prompt do sistema",
+            "prompt_caching": "[to be translated]:Prompt Caching",
+            "prompt_caching_help": "[to be translated]:Enable Anthropic prompt caching to reduce costs on repeated conversations. Uses strategic cache breakpoints on system prompt and conversation history.",
             "token_threshold": "Limite de Token de Cache",
-            "token_threshold_help": "Mensagens que excederem essa contagem de tokens serão armazenadas em cache. Defina como 0 para desativar o cache."
+            "token_threshold_help": "Mensagens que excederem essa contagem de tokens serão armazenadas em cache. Defina como 0 para desativar o cache.",
+            "ttl": "[to be translated]:Cache Duration",
+            "ttl_1h": "[to be translated]:1 hour",
+            "ttl_5min": "[to be translated]:5 minutes",
+            "ttl_help": "[to be translated]:How long cached content persists. 5 minutes is the default; 1 hour costs extra but provides longer cache lifetime."
           },
           "array_content": {
             "help": "O fornecedor suporta que o campo content da mensagem seja do tipo array?",

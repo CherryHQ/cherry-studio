@@ -5299,8 +5299,14 @@
             "cache_last_n_help": "缓存最后的 N 条对话消息（不含系统消息）",
             "cache_system": "缓存系统消息",
             "cache_system_help": "是否缓存系统提示词",
+            "prompt_caching": "提示缓存",
+            "prompt_caching_help": "启用 Anthropic 提示缓存以降低重复对话的成本。在系统提示和对话历史上使用策略性缓存断点，实现平滑的增量缓存增长。",
             "token_threshold": "缓存 Token 阈值",
-            "token_threshold_help": "消息超过此 Token 数才会被缓存，设为 0 禁用缓存"
+            "token_threshold_help": "消息超过此 Token 数才会被缓存，设为 0 禁用缓存",
+            "ttl": "缓存时长",
+            "ttl_1h": "1 小时",
+            "ttl_5min": "5 分钟",
+            "ttl_help": "缓存内容的保留时间。5 分钟为默认选项；1 小时有额外费用但缓存保持更久。"
           },
           "array_content": {
             "help": "该提供商是否支持 message 的 content 字段为 array 类型",

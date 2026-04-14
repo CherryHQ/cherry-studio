@@ -22,6 +22,7 @@ import { gateway } from 'ai'
 import AiSdkToChunkAdapter from './chunk/AiSdkToChunkAdapter'
 import { buildPlugins } from './plugins/PluginBuilder'
 import { adaptProvider, getActualProvider, providerToAiSdkConfig } from './provider/providerConfig'
+import { storeResponseMessages } from './responseMessageCache'
 import { listModels } from './services/listModels'
 import type { AppProviderSettingsMap, CompletionsResult, ProviderConfig } from './types'
 import type { AiSdkMiddlewareConfig } from './types/middlewareConfig'
@@ -277,6 +278,21 @@ export default class AiProvider {
       })
 
       const finalText = await adapter.processStream(streamResult)
+
+      // After streaming, capture response messages for prompt caching.
+      // When tool-use turns complete, the AI SDK accumulates structured
+      // tool-call/tool-result messages internally. We store them so
+      // subsequent requests can replay the exact same format.
+      if (middlewareConfig.assistantMessageId) {
+        try {
+          const response = await streamResult.response
+          if (response.messages?.length) {
+            storeResponseMessages(middlewareConfig.assistantMessageId, response.messages)
+          }
+        } catch {
+          // Ignore — response might not be available for all providers
+        }
+      }
 
       return {
         getText: () => finalText

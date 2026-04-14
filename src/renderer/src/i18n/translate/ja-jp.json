@@ -5299,8 +5299,14 @@
             "cache_last_n_help": "最後のN件の会話メッセージをキャッシュする（システムメッセージは除く）",
             "cache_system": "キャッシュシステムメッセージ",
             "cache_system_help": "システムプロンプトをキャッシュするかどうか",
+            "prompt_caching": "[to be translated]:Prompt Caching",
+            "prompt_caching_help": "[to be translated]:Enable Anthropic prompt caching to reduce costs on repeated conversations. Uses strategic cache breakpoints on system prompt and conversation history.",
             "token_threshold": "キャッシュトークン閾値",
-            "token_threshold_help": "このトークン数を超えるメッセージはキャッシュされます。キャッシュを無効にするには0を設定してください。"
+            "token_threshold_help": "このトークン数を超えるメッセージはキャッシュされます。キャッシュを無効にするには0を設定してください。",
+            "ttl": "[to be translated]:Cache Duration",
+            "ttl_1h": "[to be translated]:1 hour",
+            "ttl_5min": "[to be translated]:5 minutes",
+            "ttl_help": "[to be translated]:How long cached content persists. 5 minutes is the default; 1 hour costs extra but provides longer cache lifetime."
           },
           "array_content": {
             "help": "このプロバイダーは、message の content フィールドが配列型であることをサポートしていますか",

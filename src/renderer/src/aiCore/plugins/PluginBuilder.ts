@@ -5,6 +5,7 @@ import { loggerService } from '@logger'
 import { isGemini3Model, isQwen35to39Model, isSupportedThinkingTokenQwenModel } from '@renderer/config/models'
 import type { Assistant, Model, Provider } from '@renderer/types'
 import { SystemProviderIds } from '@renderer/types'
+import { isAnthropicCacheEnabled } from '@renderer/types/provider'
 import { isOllamaProvider, isSupportEnableThinkingProvider } from '@renderer/utils/provider'
 
 import type { AiSdkMiddlewareConfig } from '../types/middlewareConfig'
@@ -75,7 +76,7 @@ export async function buildPlugins({ provider, model, config }: BuildPluginsCont
     plugins.push(createSimulateStreamingPlugin())
   }
 
-  if (provider.anthropicCacheControl?.tokenThreshold) {
+  if (isAnthropicCacheEnabled(provider.anthropicCacheControl)) {
     plugins.push(createAnthropicCachePlugin(provider))
   }
 
