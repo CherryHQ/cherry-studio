@@ -47,7 +47,6 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const [userInputText, setUserInputText] = useState('')
   const [clipboardText, setClipboardText] = useState('')
   const [isPinned, setIsPinned] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [currentTopic, setCurrentTopic] = useState<Topic | null>(null)
 
   const lastClipboardTextRef = useRef<string | null>(null)
@@ -62,7 +61,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
   const topic = currentTopic ?? getDefaultTopic(currentAssistant.id)
 
-  const referenceText = useMemo(() => clipboardText || userInputText, [clipboardText, userInputText])
+  const referenceText = clipboardText || userInputText
 
   const userContent = useMemo(() => {
     if (isFirstMessage) {
@@ -104,7 +103,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const adaptedMessages = useMemo(() => {
     const cache = timestampCacheRef.current
     const activeIds = new Set<string>()
-    const latestAssistantId = [...chatMessages].reverse().find((m) => m.role === 'assistant')?.id
+    const latestAssistantId = chatMessages.findLast((m) => m.role === 'assistant')?.id
 
     const result = chatMessages.map((m) => {
       activeIds.add(m.id)
@@ -135,10 +134,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     return result
   }, [chatMessages, currentAssistant.id, topic.id, status])
 
-  const latestAssistantUIMsg = useMemo(
-    () => [...chatMessages].reverse().find((m) => m.role === 'assistant'),
-    [chatMessages]
-  )
+  const latestAssistantUIMsg = useMemo(() => chatMessages.findLast((m) => m.role === 'assistant'), [chatMessages])
 
   const content = useMemo(
     () => (latestAssistantUIMsg ? getTextFromParts(latestAssistantUIMsg.parts as CherryMessagePart[]) : ''),
@@ -162,13 +158,9 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   }, [language])
 
   useEffect(() => {
-    setError(flowError)
-  }, [flowError])
-
-  useEffect(() => {
     if (route === 'home') {
       setIsFirstMessage(true)
-      setError(null)
+      setFlowError(null)
       clear()
     }
   }, [route, clear])
@@ -227,7 +219,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
       if (isEmpty(userContent)) return
 
       try {
-        setError(null)
+        setFlowError(null)
         setIsFirstMessage(false)
         setUserInputText('')
         setIsPreparing(true)
@@ -246,7 +238,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
         )
       } catch (streamError) {
         const resolvedError = streamError instanceof Error ? streamError : new Error('An error occurred')
-        setError(resolvedError.message)
+        setFlowError(resolvedError.message)
         logger.error('Error fetching result:', resolvedError)
       }
     },
@@ -275,7 +267,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
     resetConversation()
     featureMenusRef.current?.resetSelectedIndex()
-    setError(null)
+    setFlowError(null)
     setRoute('home')
     setUserInputText('')
   }, [handleCloseWindow, handlePause, isLoading, resetConversation, route])
@@ -393,7 +385,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
             messages={adaptedMessages}
             partsMap={partsMap}
           />
-          {error && <ErrorMsg>{error}</ErrorMsg>}
+          {flowError && <ErrorMsg>{flowError}</ErrorMsg>}
 
           <Divider style={{ margin: '10px 0' }} />
           <Footer key="footer" {...baseFooterProps} onCopy={handleCopy} />

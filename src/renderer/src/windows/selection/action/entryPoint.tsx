@@ -9,7 +9,6 @@ import AntdProvider from '@renderer/context/AntdProvider'
 import { CodeStyleProvider } from '@renderer/context/CodeStyleProvider'
 import { ThemeProvider } from '@renderer/context/ThemeProvider'
 import type { FC } from 'react'
-import { useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 
 import SelectionActionApp from './SelectionActionApp'
@@ -26,12 +25,10 @@ await preferenceService.preload([
   'feature.selection.action_window_opacity'
 ])
 
-const App: FC = () => {
-  //actionWindow should register its own message component
-  useEffect(() => {
-    window.toast = getToastUtilities()
-  }, [])
+// Initialize toast once at module level (advanced-init-once)
+window.toast = getToastUtilities()
 
+const App: FC = () => {
   return (
     <ThemeProvider>
       <AntdProvider>

@@ -10,6 +10,9 @@ import { CodeStyleProvider } from '../../context/CodeStyleProvider'
 import { ThemeProvider } from '../../context/ThemeProvider'
 import HomeWindow from './home/HomeWindow'
 
+// Initialize toast once at module level (advanced-init-once)
+window.toast = getToastUtilities()
+
 // Inner component that uses the hook after Redux is initialized
 function MiniWindowContent(): React.ReactElement {
   const [customCss] = usePreference('ui.custom_css')
@@ -32,10 +35,6 @@ function MiniWindowContent(): React.ReactElement {
 }
 
 function MiniWindow(): React.ReactElement {
-  useEffect(() => {
-    window.toast = getToastUtilities()
-  }, [])
-
   return (
     <ThemeProvider>
       <AntdProvider>

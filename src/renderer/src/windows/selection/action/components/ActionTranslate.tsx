@@ -164,10 +164,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     return map
   }, [chatMessages])
 
-  const latestAssistantUIMsg = useMemo(
-    () => [...chatMessages].reverse().find((m) => m.role === 'assistant'),
-    [chatMessages]
-  )
+  const latestAssistantUIMsg = useMemo(() => chatMessages.findLast((m) => m.role === 'assistant'), [chatMessages])
 
   const latestAssistantMessage = useMemo(() => {
     if (!latestAssistantUIMsg) return null
