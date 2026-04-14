@@ -38,7 +38,7 @@ export class PersistenceListener implements StreamListener {
   readonly id: string
 
   constructor(private readonly ctx: PersistenceListenerOptions) {
-    this.id = `persistence:${ctx.topicId}`
+    this.id = `persistence:${ctx.topicId}:${ctx.modelId ?? 'default'}`
   }
 
   onChunk(): void {

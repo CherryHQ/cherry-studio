@@ -26,6 +26,12 @@ function toUIMessage(shared: SharedMessage): CherryUIMessage {
   }
 }
 
+/** DB metadata keyed by message ID — for rendering fields not carried by UIMessage. */
+export type MessageMetadataMap = Record<
+  string,
+  { parentId?: string | null; modelId?: string; siblingsGroupId?: number; createdAt?: string }
+>
+
 function flattenBranchMessages(items: BranchMessage[]): SharedMessage[] {
   const result: SharedMessage[] = []
   for (const item of items) {
@@ -41,6 +47,8 @@ function flattenBranchMessages(items: BranchMessage[]): SharedMessage[] {
 
 export interface UseTopicMessagesV2Result {
   uiMessages: CherryUIMessage[]
+  /** DB metadata lookup — for fields not on UIMessage (parentId, modelId, siblingsGroupId). */
+  metadataMap: MessageMetadataMap
   isLoading: boolean
   refresh: () => Promise<CherryUIMessage[]>
   activeNodeId: string | null
@@ -62,10 +70,25 @@ export function useTopicMessagesV2(topicId: string): UseTopicMessagesV2Result {
 
   const branchData = data as BranchMessagesResponse | undefined
 
-  const uiMessages = useMemo<CherryUIMessage[]>(() => {
+  const sharedMessages = useMemo(() => {
     if (!branchData?.items) return []
-    return flattenBranchMessages(branchData.items).map(toUIMessage)
+    return flattenBranchMessages(branchData.items)
   }, [branchData])
+
+  const uiMessages = useMemo<CherryUIMessage[]>(() => sharedMessages.map(toUIMessage), [sharedMessages])
+
+  const metadataMap = useMemo<MessageMetadataMap>(() => {
+    const map: MessageMetadataMap = {}
+    for (const m of sharedMessages) {
+      map[m.id] = {
+        parentId: m.parentId,
+        modelId: m.modelId ?? undefined,
+        siblingsGroupId: m.siblingsGroupId || undefined,
+        createdAt: m.createdAt
+      }
+    }
+    return map
+  }, [sharedMessages])
 
   const refresh = useCallback(async (): Promise<CherryUIMessage[]> => {
     const result = (await mutate()) as BranchMessagesResponse | undefined
@@ -75,6 +98,7 @@ export function useTopicMessagesV2(topicId: string): UseTopicMessagesV2Result {
 
   return {
     uiMessages,
+    metadataMap,
     isLoading: isLoading || !isReady,
     refresh,
     activeNodeId: branchData?.activeNodeId ?? null

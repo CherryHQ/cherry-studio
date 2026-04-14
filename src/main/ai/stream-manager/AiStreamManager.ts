@@ -398,10 +398,13 @@ export class AiStreamManager extends BaseService {
     })
 
     // Multi-model: @-mentioned models → one execution per model, shared siblingsGroupId
-    const models = req.mentionedModels?.length
-      ? req.mentionedModels.map((m) => {
-          const parsed = parseUniqueModelId(m.id)
-          return { uniqueModelId: m.id, rawModelId: parsed.modelId, providerId: parsed.providerId }
+    // FIXME: v2 refactored
+    const models = req.mentionedModelIds?.length
+      ? req.mentionedModelIds.map((id) => {
+          const sep = id.indexOf('::')
+          const pId = sep > 0 ? id.slice(0, sep) : providerId
+          const mId = sep > 0 ? id.slice(sep + 2) : id
+          return { uniqueModelId: createUniqueModelId(pId, mId), rawModelId: mId, providerId: pId }
         })
       : [{ uniqueModelId: modelId, rawModelId, providerId }]
 

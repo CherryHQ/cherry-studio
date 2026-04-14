@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import type { AiChatRequestBody } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
+import type { UniqueModelId } from '@shared/data/types/model'
 import type { ChatRequestOptions, ChatTransport, UIMessageChunk } from 'ai'
 
 const logger = loggerService.withContext('IpcChatTransport')
@@ -44,7 +45,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
         topicId,
         parentAnchorId: mergedBody.parentAnchorId || undefined,
         userMessageParts: lastMessage ? lastMessage.parts : [],
-        mentionedModels: mergedBody.mentionedModels
+        mentionedModelIds: mergedBody.mentionedModels?.map((m) => m.id as UniqueModelId)
       })
       .catch((error: unknown) => {
         logger.error('streamOpen IPC failed', error instanceof Error ? error : new Error(String(error)))
@@ -123,7 +124,8 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
         unsubscribers.push(
           window.api.ai.onStreamChunk((data) => {
             if (data.topicId !== topicId || isStreamClosed) return
-            if (executionId && data.executionId !== executionId) return
+            if (executionId && data.executionId !== executionId) return // per-execution filter
+            if (!executionId && data.executionId) return // primary stream: skip multi-model chunks
             controller.enqueue(data.chunk)
           })
         )
@@ -132,6 +134,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
           window.api.ai.onStreamDone((data) => {
             if (data.topicId !== topicId) return
             if (executionId && data.executionId !== executionId) return
+            if (!executionId && data.executionId) return
             closeStream()
           })
         )
@@ -140,6 +143,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
           window.api.ai.onStreamError((data) => {
             if (data.topicId !== topicId) return
             if (executionId && data.executionId !== executionId) return
+            if (!executionId && data.executionId) return
             errorStream(new Error(data.error.message ?? 'Unknown stream error'))
           })
         )
@@ -184,3 +188,25 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
 
 /** Shared singleton — IpcChatTransport is stateless, safe to reuse everywhere. */
 export const ipcChatTransport = new IpcChatTransport()
+
+/**
+ * Per-execution transport for multi-model streaming.
+ *
+ * Does NOT send messages (the primary transport already sent the IPC).
+ * sendMessages returns a filtered stream for this execution's chunks.
+ * reconnectToStream also returns a filtered stream (for resume).
+ */
+export class ExecutionTransport implements ChatTransport<CherryUIMessage> {
+  constructor(
+    private readonly topicId: string,
+    private readonly executionId: string
+  ) {}
+
+  async sendMessages(): Promise<ReadableStream<UIMessageChunk>> {
+    return ipcChatTransport.buildExecutionStream(this.topicId, this.executionId)
+  }
+
+  async reconnectToStream(): Promise<ReadableStream<UIMessageChunk> | null> {
+    return ipcChatTransport.buildExecutionStream(this.topicId, this.executionId)
+  }
+}

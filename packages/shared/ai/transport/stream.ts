@@ -1,7 +1,7 @@
+import type { UniqueModelId } from '@shared/data/types/model'
 import type { UIMessageChunk } from 'ai'
 
 import type { CherryMessagePart, CherryUIMessage } from '../../data/types/message'
-import type { Model } from '../../data/types/model'
 import type { SerializedError } from '../../types/error'
 
 // ── Push payloads (Main → Renderer) ─────────────────────────────────
@@ -46,8 +46,8 @@ export interface AiStreamOpenRequest {
   parentAnchorId?: string
   /** User message content — Main wraps into a full Message when persisting. */
   userMessageParts: CherryMessagePart[]
-  /** Models @-mentioned by the user — Main dispatches one stream per model for comparison. */
-  mentionedModels?: Model[]
+  /** UniqueModelIds of @-mentioned models — Main dispatches one execution per model. */
+  mentionedModelIds?: UniqueModelId[]
 }
 
 /** Subscribe to a topic's stream state. */

@@ -5,6 +5,7 @@ import { isDev } from '@renderer/config/constant'
 import { ChatContextProvider, useChatContextProvider } from '@renderer/hooks/useChatContext'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import { type V2ChatOverrides, V2ChatOverridesProvider } from '@renderer/hooks/useMessageOperations'
+import type { MessageMetadataMap } from '@renderer/hooks/useTopicMessagesV2'
 import { useTopicMessagesV2 } from '@renderer/hooks/useTopicMessagesV2'
 import { fetchMcpTools } from '@renderer/services/ApiService'
 import type { Assistant, FileMetadata, Model, Topic } from '@renderer/types'
@@ -12,11 +13,12 @@ import type { Message } from '@renderer/types/newMessage'
 import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/assistant'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { FC, ReactNode } from 'react'
-import { useCallback, useMemo, useRef } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 
 import { ensureChatTopicPersisted } from './chatPersistence'
 import Inputbar from './Inputbar/Inputbar'
 import { PartsProvider, RefreshProvider } from './Messages/Blocks'
+import ExecutionStreamCollector from './Messages/ExecutionStreamCollector'
 import Messages from './Messages/Messages'
 
 const logger = loggerService.withContext('V2ChatContent')
@@ -43,7 +45,7 @@ interface Props {
  *   - PartsContext: history parts + live streaming parts overlay
  */
 const V2ChatContent: FC<Props> = ({ assistant, topic, setActiveTopic, mainHeight }) => {
-  const { uiMessages, isLoading: isHistoryLoading, refresh, activeNodeId } = useTopicMessagesV2(topic.id)
+  const { uiMessages, metadataMap, isLoading: isHistoryLoading, refresh, activeNodeId } = useTopicMessagesV2(topic.id)
 
   // Don't mount the chat instance until history is loaded.
   // ChatSession only reads initialMessages on creation — if we create it
@@ -67,6 +69,7 @@ const V2ChatContent: FC<Props> = ({ assistant, topic, setActiveTopic, mainHeight
       setActiveTopic={setActiveTopic}
       mainHeight={mainHeight}
       initialMessages={uiMessages}
+      metadataMap={metadataMap}
       refresh={refresh}
       activeNodeId={activeNodeId}
     />
@@ -79,6 +82,7 @@ const V2ChatContent: FC<Props> = ({ assistant, topic, setActiveTopic, mainHeight
 
 interface InnerProps extends Props {
   initialMessages: CherryUIMessage[]
+  metadataMap: MessageMetadataMap
   refresh: () => Promise<CherryUIMessage[]>
   activeNodeId: string | null
 }
@@ -89,13 +93,89 @@ const V2ChatContentInner: FC<InnerProps> = ({
   setActiveTopic,
   mainHeight,
   initialMessages,
+  metadataMap,
   refresh,
   activeNodeId
 }) => {
   // const { isMultiSelectMode } = useChatContext(topic)
 
-  const { adaptedMessages, partsMap, sendMessage, regenerate, stop, status, error, setMessages, streamingUIMessages } =
-    useChatWithHistory(topic.id, initialMessages, refresh, { assistantId: assistant.id })
+  const {
+    adaptedMessages,
+    partsMap,
+    sendMessage,
+    regenerate,
+    stop,
+    status,
+    error,
+    setMessages,
+    streamingUIMessages,
+    activeExecutionIds,
+    initialMessages: chatInitialMessages
+  } = useChatWithHistory(topic.id, initialMessages, refresh, { assistantId: assistant.id }, metadataMap)
+
+  const isMultiModelStreaming = activeExecutionIds.length > 1
+
+  // Multi-model: collect messages from per-execution useChat instances
+  const [executionMessages, setExecutionMessages] = useState<Record<string, CherryUIMessage[]>>({})
+
+  const handleExecutionMessages = useCallback((executionId: string, msgs: CherryUIMessage[]) => {
+    setExecutionMessages((prev) => ({ ...prev, [executionId]: msgs }))
+  }, [])
+
+  // Merge: base adaptedMessages + multi-model execution assistant messages
+  const mergedMessages = useMemo(() => {
+    if (!isMultiModelStreaming) return adaptedMessages
+
+    // Find the last user message ID for askId linkage
+    const lastUser = adaptedMessages.findLast((m) => m.role === 'user')
+    const siblingsGroupId = Date.now()
+
+    // Extract latest assistant message from each execution
+    const executionAssistants: Message[] = Object.entries(executionMessages).flatMap(([execId, msgs]) => {
+      const lastAssistant = [...msgs].reverse().find((m) => m.role === 'assistant')
+      if (!lastAssistant) return []
+      return [
+        {
+          id: lastAssistant.id,
+          role: 'assistant' as const,
+          assistantId: assistant.id,
+          topicId: topic.id,
+          createdAt: new Date().toISOString(),
+          askId: lastUser?.id,
+          modelId: execId,
+          siblingsGroupId,
+          status: status === 'streaming' || status === 'submitted' ? ('processing' as any) : ('success' as any),
+          blocks: []
+        }
+      ]
+    })
+
+    // Remove any single-model assistant from adaptedMessages (useChat may have one)
+    // and append multi-model assistants
+    const withoutLiveAssistant = adaptedMessages.filter(
+      (m) =>
+        !(
+          m.role === 'assistant' &&
+          m.id &&
+          Object.values(executionMessages)
+            .flat()
+            .some((em) => em.id === m.id)
+        )
+    )
+    return [...withoutLiveAssistant, ...executionAssistants]
+  }, [adaptedMessages, executionMessages, isMultiModelStreaming, assistant.id, topic.id, status])
+
+  // Merge partsMap: base + multi-model execution parts
+  const mergedPartsMap = useMemo(() => {
+    if (!isMultiModelStreaming) return partsMap
+    const merged = { ...partsMap }
+    for (const msgs of Object.values(executionMessages)) {
+      for (const msg of msgs) {
+        if (msg.parts?.length) merged[msg.id] = msg.parts as CherryMessagePart[]
+      }
+    }
+    return merged
+  }, [partsMap, executionMessages, isMultiModelStreaming])
 
   // Stable ref for streamingUIMessages — avoids recreating v2ChatOverrides on every chunk
   const streamingUIMessagesRef = useRef(streamingUIMessages)
@@ -282,7 +362,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
   return (
     <V2ChatOverridesProvider value={v2ChatOverrides}>
       <RefreshProvider value={refresh}>
-        <PartsProvider value={partsMap}>
+        <PartsProvider value={mergedPartsMap}>
           <ChatContextBridge topic={topic}>
             <div
               className="flex flex-1 flex-col justify-between"
@@ -301,8 +381,19 @@ const V2ChatContentInner: FC<InnerProps> = ({
                 assistant={assistant}
                 topic={topic}
                 setActiveTopic={setActiveTopic}
-                messages={adaptedMessages}
+                messages={mergedMessages}
               />
+
+              {/* Headless collectors for multi-model: each runs useChat with filtered transport */}
+              {activeExecutionIds.map((execId) => (
+                <ExecutionStreamCollector
+                  key={execId}
+                  topicId={topic.id}
+                  executionId={execId}
+                  initialMessages={chatInitialMessages}
+                  onMessages={handleExecutionMessages}
+                />
+              ))}
 
               <Inputbar assistant={assistant} topic={topic} setActiveTopic={setActiveTopic} onSend={handleSendV2} />
             </div>

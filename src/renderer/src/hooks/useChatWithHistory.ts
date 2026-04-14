@@ -17,7 +17,9 @@ import type { Message } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, UserMessageStatus } from '@renderer/types/newMessage'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { ChatRequestOptions, ChatStatus } from 'ai'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
+import type { MessageMetadataMap } from './useTopicMessagesV2'
 
 const logger = loggerService.withContext('useChatWithHistory')
 
@@ -33,6 +35,10 @@ export interface UseChatWithHistoryResult {
   error: Error | undefined
   setMessages: (messages: CherryUIMessage[] | ((messages: CherryUIMessage[]) => CherryUIMessage[])) => void
   streamingUIMessages: CherryUIMessage[]
+  /** Multi-model: active execution IDs during streaming. Empty for single-model. */
+  activeExecutionIds: string[]
+  /** The initialMessages passed through (for multi-model view to share history). */
+  initialMessages: CherryUIMessage[]
 }
 
 // ── Hook ──
@@ -41,7 +47,8 @@ export function useChatWithHistory(
   topicId: string,
   initialMessages: CherryUIMessage[],
   refresh: () => Promise<CherryUIMessage[]>,
-  context: { assistantId: string }
+  context: { assistantId: string },
+  metadataMap: MessageMetadataMap = {}
 ): UseChatWithHistoryResult {
   const { messages, setMessages, stop, status, error, sendMessage, regenerate } = useChat<CherryUIMessage>({
     id: topicId,
@@ -61,9 +68,14 @@ export function useChatWithHistory(
   const refreshAndReplace = useCallback(() => {
     void refreshRef
       .current()
-      .then((refreshed) => setMessages(refreshed))
+      .then((refreshed) => {
+        setMessages(refreshed)
+        // Clear multi-model state AFTER messages are replaced with DB truth
+        setActiveExecutionIds([])
+      })
       .catch((err) => {
         logger.warn('Failed to refresh messages after stream end', { topicId, err })
+        setActiveExecutionIds([])
       })
   }, [setMessages, topicId])
 
@@ -83,19 +95,40 @@ export function useChatWithHistory(
     }
   }, [topicId, refreshAndReplace])
 
-  // ── Adapt UIMessage[] to legacy Message[] (pure map, no merge) ──
+  // Multi-model: track active executionIds from chunk events.
+  // Chunks with executionId indicate multi-model streaming.
+  const [activeExecutionIds, setActiveExecutionIds] = useState<string[]>([])
+  useEffect(() => {
+    const seen = new Set<string>()
+    const chunkUnsub = window.api.ai.onStreamChunk((data) => {
+      if (data.topicId !== topicId || !data.executionId) return
+      if (seen.has(data.executionId)) return
+      seen.add(data.executionId)
+      setActiveExecutionIds(Array.from(seen))
+    })
+    // activeExecutionIds is cleared by refreshAndReplace (after DB refresh completes)
+    return () => {
+      chunkUnsub()
+      seen.clear()
+    }
+  }, [topicId])
+
+  // ── Adapt UIMessage[] to renderer Message[] ──
 
   const adaptedMessages = useMemo<Message[]>(() => {
     let lastUserId: string | undefined
     return messages.map((uiMsg) => {
       if (uiMsg.role === 'user') lastUserId = uiMsg.id
+      const meta = metadataMap[uiMsg.id]
       return {
         id: uiMsg.id,
         role: uiMsg.role,
         assistantId: context.assistantId,
         topicId,
-        createdAt: uiMsg.metadata?.createdAt ?? '',
-        askId: uiMsg.role === 'assistant' ? lastUserId : undefined,
+        createdAt: meta?.createdAt ?? uiMsg.metadata?.createdAt ?? '',
+        askId: meta?.parentId ?? (uiMsg.role === 'assistant' ? lastUserId : undefined),
+        modelId: meta?.modelId,
+        siblingsGroupId: meta?.siblingsGroupId,
         status:
           uiMsg.role === 'user'
             ? UserMessageStatus.SUCCESS
@@ -105,7 +138,7 @@ export function useChatWithHistory(
         blocks: []
       }
     })
-  }, [messages, context.assistantId, topicId, status])
+  }, [messages, context.assistantId, topicId, status, metadataMap])
 
   // ── PartsMap (direct from messages, no merge) ──
 
@@ -126,6 +159,8 @@ export function useChatWithHistory(
     status,
     error,
     setMessages,
-    streamingUIMessages: messages
+    streamingUIMessages: messages,
+    activeExecutionIds,
+    initialMessages
   }
 }
