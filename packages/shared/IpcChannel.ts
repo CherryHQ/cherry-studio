@@ -492,5 +492,16 @@ export enum IpcChannel {
   OpenClaw_PerformUpdate = 'openclaw:perform-update',
 
   // Analytics
-  Analytics_TrackTokenUsage = 'analytics:track-token-usage'
+  Analytics_TrackTokenUsage = 'analytics:track-token-usage',
+
+  // WindowManager
+  WindowManager_Open = 'window-manager:open',
+  WindowManager_Close = 'window-manager:close',
+  WindowManager_Show = 'window-manager:show',
+  WindowManager_Hide = 'window-manager:hide',
+  WindowManager_Minimize = 'window-manager:minimize',
+  WindowManager_Maximize = 'window-manager:maximize',
+  WindowManager_Focus = 'window-manager:focus',
+  WindowManager_GetInitData = 'window-manager:get-init-data',
+  WindowManager_PoolReset = 'window-manager:pool-reset'
 }

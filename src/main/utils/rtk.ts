@@ -45,7 +45,7 @@ function getUserBinDir(): string {
 
 /**
  * Extract bundled rtk binary to ~/.cherrystudio/bin/ if not already present or outdated.
- * Called once at app startup.
+ * Invoked during agent subsystem bootstrap.
  */
 export async function extractRtkBinaries(): Promise<void> {
   if (!isPlatformSupported()) {
