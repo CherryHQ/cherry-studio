@@ -648,8 +648,8 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
             <Dropdown menu={{ items: getTopicMenuItems }} trigger={['contextMenu']} disabled={isManageMode}>
               <TopicListItem
                 onMouseEnter={() =>
-                  prefetch(`/topics/${topic.id}/messages` as any, {
-                    query: { limit: 999, includeSiblings: true } as any
+                  prefetch(`/topics/${topic.id}/messages`, {
+                    query: { limit: 999, includeSiblings: true }
                   })
                 }
                 onContextMenu={() => setTargetTopic(topic)}
