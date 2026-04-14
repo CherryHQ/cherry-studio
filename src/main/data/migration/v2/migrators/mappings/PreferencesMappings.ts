@@ -769,18 +769,6 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'shortcut.general.show_main_window'
     },
     {
-      originalKey: 'shortcuts.mini_window',
-      targetKey: 'shortcut.feature.quick_assistant.toggle_window'
-    },
-    {
-      originalKey: 'shortcuts.selection_assistant_toggle',
-      targetKey: 'shortcut.feature.selection.toggle_enabled'
-    },
-    {
-      originalKey: 'shortcuts.selection_assistant_select_text',
-      targetKey: 'shortcut.feature.selection.get_text'
-    },
-    {
       originalKey: 'shortcuts.new_topic',
       targetKey: 'shortcut.topic.new'
     },
@@ -827,6 +815,18 @@ export const REDUX_STORE_MAPPINGS = {
     {
       originalKey: 'shortcuts.exit_fullscreen',
       targetKey: 'shortcut.general.exit_fullscreen'
+    },
+    {
+      originalKey: 'shortcuts.mini_window',
+      targetKey: 'shortcut.feature.quick_assistant.toggle_window'
+    },
+    {
+      originalKey: 'shortcuts.selection_assistant_toggle',
+      targetKey: 'shortcut.feature.selection.toggle_enabled'
+    },
+    {
+      originalKey: 'shortcuts.selection_assistant_select_text',
+      targetKey: 'shortcut.feature.selection.get_text'
     }
   ],
   translate: [

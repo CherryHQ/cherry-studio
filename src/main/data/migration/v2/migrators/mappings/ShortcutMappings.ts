@@ -29,9 +29,6 @@ const LEGACY_KEY_TO_TARGET_KEY: Record<string, string> = {
   zoom_reset: 'shortcut.general.zoom_reset',
   show_settings: 'shortcut.general.show_settings',
   show_app: 'shortcut.general.show_main_window',
-  mini_window: 'shortcut.feature.quick_assistant.toggle_window',
-  selection_assistant_toggle: 'shortcut.feature.selection.toggle_enabled',
-  selection_assistant_select_text: 'shortcut.feature.selection.get_text',
   new_topic: 'shortcut.topic.new',
   rename_topic: 'shortcut.topic.rename',
   toggle_show_topics: 'shortcut.topic.toggle_show_topics',
@@ -44,7 +41,10 @@ const LEGACY_KEY_TO_TARGET_KEY: Record<string, string> = {
   clear_topic: 'shortcut.chat.clear',
   toggle_new_context: 'shortcut.chat.toggle_new_context',
   select_model: 'shortcut.chat.select_model',
-  exit_fullscreen: 'shortcut.general.exit_fullscreen'
+  exit_fullscreen: 'shortcut.general.exit_fullscreen',
+  mini_window: 'shortcut.feature.quick_assistant.toggle_window',
+  selection_assistant_toggle: 'shortcut.feature.selection.toggle_enabled',
+  selection_assistant_select_text: 'shortcut.feature.selection.get_text'
 }
 
 export const SHORTCUT_TARGET_KEYS: readonly string[] = [...new Set(Object.values(LEGACY_KEY_TO_TARGET_KEY))]

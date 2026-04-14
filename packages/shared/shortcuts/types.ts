@@ -21,7 +21,6 @@ export type ShortcutKey = ShortcutPreferenceKey extends `shortcut.${infer Rest}`
 
 export type ShortcutLabelKey =
   | 'show_app'
-  | 'mini_window'
   | 'show_settings'
   | 'toggle_sidebar'
   | 'exit_fullscreen'
@@ -38,6 +37,7 @@ export type ShortcutLabelKey =
   | 'new_topic'
   | 'rename_topic'
   | 'toggle_show_topics'
+  | 'mini_window'
   | 'selection_assistant_toggle'
   | 'selection_assistant_select_text'
 
