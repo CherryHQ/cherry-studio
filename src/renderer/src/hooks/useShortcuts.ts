@@ -3,11 +3,18 @@ import { isMac, platform } from '@renderer/config/constant'
 import { getShortcutLabel } from '@renderer/i18n/label'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import { findShortcutDefinition, SHORTCUT_DEFINITIONS } from '@shared/shortcuts/definitions'
-import type { ResolvedShortcut, ShortcutKey, ShortcutPreferenceKey, SupportedPlatform } from '@shared/shortcuts/types'
+import type {
+  ResolvedShortcut,
+  ShortcutDependencyPreferenceKey,
+  ShortcutKey,
+  ShortcutPreferenceKey,
+  SupportedPlatform
+} from '@shared/shortcuts/types'
 import {
   convertAcceleratorToHotkey,
   formatShortcutDisplay,
   getDefaultShortcut,
+  isShortcutDefinitionEnabled,
   resolveShortcutPreference
 } from '@shared/shortcuts/utils'
 import { useCallback, useMemo, useRef } from 'react'
@@ -36,6 +43,16 @@ const toFullKey = (key: ShortcutKey | ShortcutPreferenceKey): ShortcutPreference
 const shortcutPreferenceKeyMap = SHORTCUT_DEFINITIONS.reduce<Record<string, ShortcutPreferenceKey>>(
   (acc, definition) => {
     acc[definition.key] = definition.key
+    return acc
+  },
+  {}
+)
+
+const shortcutDependencyPreferenceKeyMap = SHORTCUT_DEFINITIONS.reduce<Record<string, ShortcutDependencyPreferenceKey>>(
+  (acc, definition) => {
+    if (definition.enabledWhen) {
+      acc[definition.enabledWhen] = definition.enabledWhen
+    }
     return acc
   },
   {}
@@ -147,13 +164,9 @@ export interface ShortcutListItem {
   defaultPreference: ResolvedShortcut
 }
 
-const QUICK_ASSISTANT_SHORTCUT_KEY: ShortcutPreferenceKey = 'shortcut.feature.quick_assistant.toggle_window'
-const SELECTION_SHORTCUT_CATEGORY = 'feature.selection'
-
 export const useAllShortcuts = () => {
   const [values, setValues] = useMultiplePreferences(shortcutPreferenceKeyMap)
-  const [quickAssistantEnabled] = usePreference('feature.quick_assistant.enabled')
-  const [selectionAssistantEnabled] = usePreference('feature.selection.enabled')
+  const [dependencyValues] = useMultiplePreferences(shortcutDependencyPreferenceKeyMap)
 
   const updatePreference = useCallback(
     async (key: ShortcutPreferenceKey, patch: Partial<PreferenceShortcutType>) => {
@@ -174,10 +187,7 @@ export const useAllShortcuts = () => {
         if (supported && platform && !supported.includes(platform as SupportedPlatform)) {
           return []
         }
-        if (definition.key === QUICK_ASSISTANT_SHORTCUT_KEY && !quickAssistantEnabled) {
-          return []
-        }
-        if (definition.category === SELECTION_SHORTCUT_CATEGORY && !selectionAssistantEnabled) {
+        if (!isShortcutDefinitionEnabled(definition, (key) => dependencyValues[key])) {
           return []
         }
 
@@ -197,7 +207,7 @@ export const useAllShortcuts = () => {
           }
         ]
       }),
-    [quickAssistantEnabled, selectionAssistantEnabled, values]
+    [dependencyValues, values]
   )
 
   return { shortcuts, updatePreference }

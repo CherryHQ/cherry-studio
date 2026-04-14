@@ -184,6 +184,23 @@ describe('ShortcutService', () => {
     expect(globalShortcutMock.register).toHaveBeenCalledWith('CommandOrControl+E', expect.any(Function))
   })
 
+  it('reacts to selection assistant enablement changes for selection shortcuts', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.feature.selection.toggle_enabled', {
+      binding: ['CommandOrControl', 'Shift', 'S'],
+      enabled: true
+    })
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.selection.enabled', false)
+
+    await (service as any).onInit()
+
+    expect(globalShortcutMock.register).not.toHaveBeenCalledWith('CommandOrControl+Shift+S', expect.any(Function))
+
+    globalShortcutMock.register.mockClear()
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.selection.enabled', true)
+
+    expect(globalShortcutMock.register).toHaveBeenCalledWith('CommandOrControl+Shift+S', expect.any(Function))
+  })
+
   it('re-registers window-bound shortcuts when the main window instance changes', async () => {
     await (service as any).onInit()
 

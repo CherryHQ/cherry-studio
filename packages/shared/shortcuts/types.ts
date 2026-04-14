@@ -16,6 +16,7 @@ export type ShortcutCategory = BuiltinShortcutCategory | `plugin.${string}`
 export type SupportedPlatform = Extract<NodeJS.Platform, 'darwin' | 'win32' | 'linux'>
 
 export type ShortcutPreferenceKey = Extract<PreferenceKeyType, `shortcut.${string}`>
+export type ShortcutDependencyPreferenceKey = Extract<PreferenceKeyType, `feature.${string}.enabled`>
 
 export type ShortcutKey = ShortcutPreferenceKey extends `shortcut.${infer Rest}` ? Rest : never
 
@@ -59,6 +60,8 @@ export interface ShortcutDefinition {
   variants?: string[][]
   /** Restrict this shortcut to specific operating systems. Omit to enable on all platforms. */
   supportedPlatforms?: SupportedPlatform[]
+  /** Optional feature toggle that must be enabled before this shortcut can be shown or registered. */
+  enabledWhen?: ShortcutDependencyPreferenceKey
 }
 
 /** Runtime-resolved shortcut state after merging user preferences with definition defaults. */

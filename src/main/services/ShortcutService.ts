@@ -6,13 +6,11 @@ import type { PreferenceShortcutType } from '@shared/data/preference/preferenceT
 import { IpcChannel } from '@shared/IpcChannel'
 import { SHORTCUT_DEFINITIONS } from '@shared/shortcuts/definitions'
 import type { ShortcutPreferenceKey, SupportedPlatform } from '@shared/shortcuts/types'
-import { resolveShortcutPreference } from '@shared/shortcuts/utils'
+import { isShortcutDefinitionEnabled, resolveShortcutPreference } from '@shared/shortcuts/utils'
 import type { BrowserWindow } from 'electron'
 import { globalShortcut } from 'electron'
 
 const logger = loggerService.withContext('ShortcutService')
-const QUICK_ASSISTANT_SHORTCUT_KEY: ShortcutPreferenceKey = 'shortcut.feature.quick_assistant.toggle_window'
-
 type ShortcutHandler = (window?: BrowserWindow) => void
 type RegisteredShortcut = { handler: ShortcutHandler; window: BrowserWindow }
 
@@ -124,12 +122,22 @@ export class ShortcutService extends BaseService {
       )
     }
 
-    this.registerDisposable(
-      preferenceService.subscribeChange('feature.quick_assistant.enabled', () => {
-        logger.debug('Shortcut dependency changed: feature.quick_assistant.enabled')
-        this.reregisterShortcuts()
-      })
-    )
+    const dependencyKeys = new Set<NonNullable<(typeof relevantDefinitions)[number]['enabledWhen']>>()
+    for (const definition of relevantDefinitions) {
+      if (!definition.enabledWhen) {
+        continue
+      }
+      dependencyKeys.add(definition.enabledWhen)
+    }
+
+    for (const key of dependencyKeys) {
+      this.registerDisposable(
+        preferenceService.subscribeChange(key, () => {
+          logger.debug(`Shortcut dependency changed: ${key}`)
+          this.reregisterShortcuts()
+        })
+      )
+    }
   }
 
   private registerForWindow(window: BrowserWindow): void {
@@ -176,10 +184,7 @@ export class ShortcutService extends BaseService {
     for (const definition of relevantDefinitions) {
       if (onlyPersistent && !definition.global) continue
 
-      if (
-        definition.key === QUICK_ASSISTANT_SHORTCUT_KEY &&
-        !preferenceService.get('feature.quick_assistant.enabled')
-      ) {
+      if (!isShortcutDefinitionEnabled(definition, (key) => preferenceService.get(key))) {
         continue
       }
 

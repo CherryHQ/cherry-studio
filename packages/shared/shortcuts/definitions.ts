@@ -120,7 +120,8 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
     scope: 'main',
     category: 'feature.quick_assistant',
     labelKey: 'mini_window',
-    global: true
+    global: true,
+    enabledWhen: 'feature.quick_assistant.enabled'
   },
   {
     key: 'shortcut.feature.selection.toggle_enabled',
@@ -128,6 +129,7 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
     category: 'feature.selection',
     labelKey: 'selection_assistant_toggle',
     global: true,
+    enabledWhen: 'feature.selection.enabled',
     supportedPlatforms: ['darwin', 'win32']
   },
   {
@@ -136,6 +138,7 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
     category: 'feature.selection',
     labelKey: 'selection_assistant_select_text',
     global: true,
+    enabledWhen: 'feature.selection.enabled',
     supportedPlatforms: ['darwin', 'win32']
   }
 ] as const

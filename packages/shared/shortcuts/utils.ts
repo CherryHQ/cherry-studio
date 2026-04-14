@@ -125,3 +125,14 @@ export const resolveShortcutPreference = (
     enabled: ensureBoolean(value?.enabled, fallback.enabled)
   }
 }
+
+export const isShortcutDefinitionEnabled = (
+  definition: ShortcutDefinition,
+  getPreferenceValue: (key: NonNullable<ShortcutDefinition['enabledWhen']>) => unknown
+): boolean => {
+  if (!definition.enabledWhen) {
+    return true
+  }
+
+  return getPreferenceValue(definition.enabledWhen) === true
+}

@@ -7,6 +7,7 @@ import {
   convertKeyToAccelerator,
   formatShortcutDisplay,
   getDefaultShortcut,
+  isShortcutDefinitionEnabled,
   isValidShortcut,
   resolveShortcutPreference
 } from '../utils'
@@ -154,6 +155,22 @@ describe('resolveShortcutPreference', () => {
     })
 
     expect(result.enabled).toBe(false)
+  })
+})
+
+describe('isShortcutDefinitionEnabled', () => {
+  it('returns true when no dependency is declared', () => {
+    expect(isShortcutDefinitionEnabled(makeDefinition(), () => false)).toBe(true)
+  })
+
+  it('returns true when the required preference is enabled', () => {
+    const def = makeDefinition({ enabledWhen: 'feature.quick_assistant.enabled' })
+    expect(isShortcutDefinitionEnabled(def, () => true)).toBe(true)
+  })
+
+  it('returns false when the required preference is disabled', () => {
+    const def = makeDefinition({ enabledWhen: 'feature.quick_assistant.enabled' })
+    expect(isShortcutDefinitionEnabled(def, () => false)).toBe(false)
   })
 })
 
