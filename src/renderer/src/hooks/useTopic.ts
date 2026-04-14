@@ -1,7 +1,6 @@
 import { cacheService } from '@data/CacheService'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import { isDev } from '@renderer/config/constant'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
@@ -32,16 +31,11 @@ export function useActiveTopic(assistantId: string, topic?: Topic) {
   _activeTopic = activeTopic
   _setActiveTopic = setActiveTopic
 
-  // V2 mode uses useTopicMessagesV2 (DataApi + SWR) instead of Redux thunk
-  const useV2Chat = isDev && true
   useEffect(() => {
     if (activeTopic) {
-      if (!useV2Chat) {
-        void store.dispatch(loadTopicMessagesThunk(activeTopic.id))
-      }
       void EventEmitter.emit(EVENT_NAMES.CHANGE_TOPIC, activeTopic)
     }
-  }, [activeTopic, useV2Chat])
+  }, [activeTopic])
 
   useEffect(() => {
     // activeTopic not in assistant.topics

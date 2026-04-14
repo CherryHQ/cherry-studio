@@ -12,7 +12,6 @@ import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { autoRenameTopic } from '@renderer/hooks/useTopic'
 import SelectionBox from '@renderer/pages/home/Messages/SelectionBox'
-import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getContextCount, getGroupedMessages } from '@renderer/services/MessagesService'
 import { estimateHistoryTokens } from '@renderer/services/TokenService'
@@ -33,7 +32,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import InfiniteScroll from 'react-infinite-scroll-component'
 
-import { resolvePartFromParts, useIsV2Chat, usePartsMap } from './Blocks'
+import { resolvePartFromParts, usePartsMap } from './Blocks'
 import MessageAnchorLine from './MessageAnchorLine'
 import MessageGroup from './MessageGroup'
 import NarrowLayout from './NarrowLayout'
@@ -70,8 +69,7 @@ const Messages: React.FC<MessagesProps> = ({
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const { t } = useTranslation()
   const partsMap = usePartsMap()
-  const isV2Chat = useIsV2Chat()
-  const { displayCount, clearTopicMessages, createTopicBranch } = useMessageOperations(topic)
+  const { displayCount, clearTopicMessages } = useMessageOperations(topic)
   const { setTimeoutTimer } = useTimer()
 
   const { isMultiSelectMode, handleSelectMessage } = useChatContext(topic)
@@ -163,42 +161,20 @@ const Messages: React.FC<MessagesProps> = ({
 
         const sourceMessage = currentMessages[index]
 
-        if (isV2Chat) {
-          try {
-            const created = await dataApiService.post('/topics', {
-              body: {
-                name: topic.name,
-                assistantId: assistant.id,
-                sourceNodeId: sourceMessage.id
-              }
-            })
-            const newTopic = { ...created, messages: [] } as Topic
-            addTopic(newTopic)
-            setActiveTopic(newTopic)
-            void autoRenameTopic(assistant, newTopic.id)
-          } catch (err) {
-            logger.error('[NEW_BRANCH] Failed to create topic branch via DataApi', { topicId: topic.id, err })
-            window.toast.error(t('message.branch.error'))
-          }
-          return
-        }
-
-        const newTopic = getDefaultTopic(assistant.id)
-        newTopic.name = topic.name
-
-        // 1. Add the new topic to Redux store FIRST
-        addTopic(newTopic)
-
-        // 2. Call the thunk to clone messages and update DB
-        const success = await createTopicBranch(topic.id, currentMessages.length - index, newTopic)
-
-        if (success) {
-          // 3. Set the new topic as active
+        try {
+          const created = await dataApiService.post('/topics', {
+            body: {
+              name: topic.name,
+              assistantId: assistant.id,
+              sourceNodeId: sourceMessage.id
+            }
+          })
+          const newTopic = { ...created, messages: [] } as Topic
+          addTopic(newTopic)
           setActiveTopic(newTopic)
-          // 4. Trigger auto-rename for the new topic
           void autoRenameTopic(assistant, newTopic.id)
-        } else {
-          logger.error(`[NEW_BRANCH] Failed to create topic branch for topic ${newTopic.id}`)
+        } catch (err) {
+          logger.error('[NEW_BRANCH] Failed to create topic branch via DataApi', { topicId: topic.id, err })
           window.toast.error(t('message.branch.error'))
         }
       }),

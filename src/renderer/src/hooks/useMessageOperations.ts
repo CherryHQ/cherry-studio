@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import { usePartsMap } from '@renderer/pages/home/Messages/Blocks/V2Contexts'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { useAppDispatch } from '@renderer/store'
-import { cloneMessagesToNewTopicThunk, updateMessageAndBlocksThunk } from '@renderer/store/thunk/messageThunk'
+import { updateMessageAndBlocksThunk } from '@renderer/store/thunk/messageThunk'
 import { type Assistant, type Model, objectKeys, type Topic, type TranslateLanguageCode } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -174,17 +174,6 @@ export function useMessageOperations(topic: Topic) {
     [partsMap, topic.id, v2]
   )
 
-  /**
-   * TODO: Migrate to DataApi — currently uses Redux thunk for compatibility with v2 branch.
-   */
-  const createTopicBranch = useCallback(
-    (sourceTopicId: string, branchPointIndex: number, newTopic: Topic) => {
-      logger.info(`Cloning messages from topic ${sourceTopicId} to new topic ${newTopic.id}`)
-      return dispatch(cloneMessagesToNewTopicThunk(sourceTopicId, branchPointIndex, newTopic))
-    },
-    [dispatch]
-  )
-
   const editMessageParts = useCallback(
     async (messageId: string, editedParts: CherryMessagePart[]) => {
       await v2?.editMessage(messageId, editedParts)
@@ -213,7 +202,6 @@ export function useMessageOperations(topic: Topic) {
     pauseMessages,
     resumeMessage,
     getTranslationUpdater,
-    createTopicBranch,
     editMessageParts,
     resendUserMessageWithEditParts
   }
