@@ -4,7 +4,7 @@ import type { InstalledSkill, LocalSkill } from '@types'
 import type { CardProps } from 'antd'
 import { Card, Empty, Spin, Switch, Tag } from 'antd'
 import { Puzzle } from 'lucide-react'
-import { type FC, memo, useCallback, useEffect, useMemo, useState } from 'react'
+import { type FC, memo, useCallback, useEffect, useEffectEvent, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { type AgentOrSessionSettingsProps, SettingsContainer, SettingsItem, SettingsTitle } from '../../shared'
@@ -34,7 +34,7 @@ const SkillCard = memo<{
   onToggle: (skill: InstalledSkill, checked: boolean) => void
 }>(({ skill, toggling, onToggle }) => {
   const { t } = useTranslation()
-  const handleChange = useCallback((checked: boolean) => onToggle(skill, checked), [skill, onToggle])
+  const handleChange = useEffectEvent((checked: boolean) => onToggle(skill, checked))
 
   return (
     <Card
