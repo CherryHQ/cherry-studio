@@ -45,11 +45,6 @@ interface DragItemProps {
   onPointerDown: (e: React.PointerEvent) => void
 }
 
-interface CloseFlowProps {
-  lockedWidth: number | null
-  onCloseHoverStart: () => void
-}
-
 interface TabToneProps {
   activeClass: string
   hoverClass: string
@@ -139,7 +134,6 @@ const NormalTabButton = ({
   onContextMenu,
   showClose = true,
   drag,
-  closeFlow,
   tabRef,
   tone
 }: {
@@ -150,7 +144,6 @@ const NormalTabButton = ({
   onContextMenu: (e: React.MouseEvent) => void
   showClose?: boolean
   drag: DragItemProps
-  closeFlow: CloseFlowProps
   tabRef: (el: HTMLButtonElement | null) => void
   tone: TabToneProps
 }) => {
@@ -169,44 +162,40 @@ const NormalTabButton = ({
         transform: `translateX(${drag.translateX}px)`,
         transition: drag.isDragging || drag.noTransition ? 'none' : 'transform 200ms ease',
         zIndex: drag.isDragging ? 50 : 'auto',
-        opacity: drag.isGhost ? 0.3 : 1,
-        width: closeFlow.lockedWidth ?? undefined,
-        flex: closeFlow.lockedWidth ? '0 0 auto' : undefined
+        opacity: drag.isGhost ? 0.3 : 1
       }}
       className={cn(
-        'group relative flex h-[30px] min-w-[40px] max-w-[160px] flex-1 items-center gap-1.5 rounded-[10px] transition-all duration-150 [-webkit-app-region:no-drag]',
-        isCloseable && showClose ? 'pr-1 pl-2' : 'px-2',
+        'group relative flex h-[30px] min-w-[40px] max-w-[160px] flex-1 items-center gap-1.5 rounded-[10px] px-2 transition-all duration-150 [-webkit-app-region:no-drag]',
         drag.isDragging ? 'cursor-grabbing' : 'cursor-default',
         isActive ? tone.activeClass : tone.hoverClass
       )}>
-      <Icon size={13} strokeWidth={1.6} className="shrink-0" />
+      {/* Icon with close overlay — X replaces icon on hover (Chrome-style) */}
+      <div className="relative flex h-[13px] w-[13px] shrink-0 items-center justify-center">
+        <Icon size={13} strokeWidth={1.6} className={cn(isCloseable && showClose && 'group-hover:hidden')} />
+        {isCloseable && showClose && (
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={(e) => {
+              e.stopPropagation()
+              onClose()
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.stopPropagation()
+                onClose()
+              }
+            }}
+            className="absolute inset-0 hidden cursor-pointer items-center justify-center rounded-sm group-hover:flex">
+            <X size={11} />
+          </div>
+        )}
+      </div>
       <span
         className="min-w-0 flex-1 truncate text-left font-medium text-[11px] leading-none"
         style={{ maskImage: 'linear-gradient(to right, black 80%, transparent 100%)' }}>
         {tab.title}
       </span>
-      {isCloseable && showClose && (
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={(e) => {
-            e.stopPropagation()
-            onClose()
-          }}
-          onMouseEnter={closeFlow.onCloseHoverStart}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.stopPropagation()
-              onClose()
-            }
-          }}
-          className={cn(
-            'ml-auto flex h-[18px] w-[18px] shrink-0 cursor-pointer items-center justify-center rounded-sm transition-all duration-150 hover:bg-foreground/10',
-            isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-          )}>
-          <X size={10} />
-        </div>
-      )}
     </button>
   )
 }
@@ -227,7 +216,6 @@ export const AppShellTabBar = ({
   const { t } = useTranslation()
   const isMacTransparentWindow = useMacTransparentWindow()
   const { rightPaddingClass } = useShellTabBarLayout(isDetached)
-  const [lockedNormalTabWidth, setLockedNormalTabWidth] = useState<number | null>(null)
   const tabTone = useMemo<TabToneProps>(
     () =>
       isMacTransparentWindow
@@ -303,18 +291,6 @@ export const AppShellTabBar = ({
   const { tabBarRef, tabRefs, noTransition, getTranslateX, handlePointerDown, handleTabClick, isDragging, isGhost } =
     useTabDrag({ pinnedTabs, normalTabs, isDetached, reorderTabs, closeTab, setActiveTab })
 
-  // ─── Lock normal tab widths during drag-close interaction ──────────────────
-
-  const lockNormalTabWidths = useCallback(() => {
-    if (lockedNormalTabWidth || normalTabs.length === 0) return
-    const firstNormalTab = normalTabs.find((tab) => tabRefs.current.get(tab.id))
-    if (!firstNormalTab) return
-    const width = tabRefs.current.get(firstNormalTab.id)?.getBoundingClientRect().width
-    if (width) {
-      setLockedNormalTabWidth(width)
-    }
-  }, [lockedNormalTabWidth, normalTabs, tabRefs])
-
   // ─── Action handlers ────────────────────────────────────────────────────────
 
   const handleHomeClick = () => {
@@ -345,7 +321,6 @@ export const AppShellTabBar = ({
     <>
       <header
         ref={tabBarRef}
-        onMouseLeave={() => setLockedNormalTabWidth(null)}
         className={cn(
           'relative flex h-11 w-full select-none items-center gap-1 [-webkit-app-region:drag]',
           isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar',
@@ -417,10 +392,6 @@ export const AppShellTabBar = ({
                 translateX: getTranslateX(tab.id, 'normal'),
                 onPointerDown: (e) => handlePointerDown(e, tab, 'normal')
               }}
-              closeFlow={{
-                lockedWidth: lockedNormalTabWidth,
-                onCloseHoverStart: lockNormalTabWidths
-              }}
               tabRef={(el) => {
                 if (el) {
                   tabRefs.current.set(tab.id, el)
@@ -431,12 +402,15 @@ export const AppShellTabBar = ({
             />
           ))}
 
-          {/* New tab button */}
+          {/* New tab button — sticky so it hugs the last tab but never scrolls away */}
           {!isDetached && (
             <button
               type="button"
               onClick={handleAddTab}
-              className="ml-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors [-webkit-app-region:no-drag] hover:bg-sidebar-accent hover:text-sidebar-foreground"
+              className={cn(
+                'sticky right-0 ml-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors [-webkit-app-region:no-drag] hover:bg-sidebar-accent hover:text-sidebar-foreground',
+                isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
+              )}
               title={t('tab.new')}>
               <Plus size={14} />
             </button>
