@@ -4,7 +4,6 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { Link, Outlet, useLocation } from '@tanstack/react-router'
 import { Divider as AntDivider } from 'antd'
 import {
-  Brain,
   CalendarClock,
   Cloud,
   Command,
@@ -88,12 +87,6 @@ const SettingsPage: FC = () => {
             <MenuItem className={isRoute('/settings/websearch')}>
               <Search size={18} />
               {t('settings.tool.websearch.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/memory">
-            <MenuItem className={isRoute('/settings/memory')}>
-              <Brain size={18} />
-              {t('memory.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/api-server">

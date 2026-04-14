@@ -1,6 +1,7 @@
-import MemorySettings from '@renderer/pages/settings/MemorySettings'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/settings/memory')({
-  component: MemorySettings
+  beforeLoad: () => {
+    throw redirect({ to: '/settings' })
+  }
 })

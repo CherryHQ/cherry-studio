@@ -358,19 +358,6 @@ export enum IpcChannel {
   Selection_UpdateActionData = 'selection:update-action-data',
   Selection_GetLinuxEnvInfo = 'selection:get-linux-env-info',
 
-  // Memory
-  Memory_Add = 'memory:add',
-  Memory_Search = 'memory:search',
-  Memory_List = 'memory:list',
-  Memory_Delete = 'memory:delete',
-  Memory_Update = 'memory:update',
-  Memory_Get = 'memory:get',
-  Memory_SetConfig = 'memory:set-config',
-  Memory_DeleteUser = 'memory:delete-user',
-  Memory_DeleteAllMemoriesForUser = 'memory:delete-all-memories-for-user',
-  Memory_GetUsersList = 'memory:get-users-list',
-  Memory_MigrateMemoryDb = 'memory:migrate-memory-db',
-
   // Data: Preference
   Preference_Get = 'preference:get',
   Preference_Set = 'preference:set',

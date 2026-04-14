@@ -37,7 +37,6 @@ import { externalAppsService } from './services/ExternalAppsService'
 import { fileStorage as fileManager } from './services/FileStorage'
 import FileService from './services/FileSystemService'
 import { knowledgeService } from './services/KnowledgeService'
-import { memoryService } from './services/memory/MemoryService'
 import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
@@ -55,7 +54,6 @@ const logger = loggerService.withContext('IPC')
 const backupManager = new BackupManager()
 const exportService = new ExportService()
 const obsidianVaultService = new ObsidianVaultService()
-// vertexAIService and memoryService are now imported as named exports
 const dxtService = new DxtService()
 
 export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
@@ -544,20 +542,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.KnowledgeBase_Rerank, knowledgeService.rerank.bind(knowledgeService))
 
   // memory
-  ipcMain.handle(IpcChannel.Memory_Add, (_, messages, config) => memoryService.add(messages, config))
-  ipcMain.handle(IpcChannel.Memory_Search, (_, query, config) => memoryService.search(query, config))
-  ipcMain.handle(IpcChannel.Memory_List, (_, config) => memoryService.list(config))
-  ipcMain.handle(IpcChannel.Memory_Delete, (_, id) => memoryService.delete(id))
-  ipcMain.handle(IpcChannel.Memory_Update, (_, id, memory, metadata) => memoryService.update(id, memory, metadata))
-  ipcMain.handle(IpcChannel.Memory_Get, (_, memoryId) => memoryService.get(memoryId))
-  ipcMain.handle(IpcChannel.Memory_SetConfig, (_, config) => memoryService.setConfig(config))
-  ipcMain.handle(IpcChannel.Memory_DeleteUser, (_, userId) => memoryService.deleteUser(userId))
-  ipcMain.handle(IpcChannel.Memory_DeleteAllMemoriesForUser, (_, userId) =>
-    memoryService.deleteAllMemoriesForUser(userId)
-  )
-  ipcMain.handle(IpcChannel.Memory_GetUsersList, () => memoryService.getUsersList())
-  ipcMain.handle(IpcChannel.Memory_MigrateMemoryDb, () => memoryService.migrateMemoryDb())
-
   // VertexAI
   ipcMain.handle(IpcChannel.VertexAI_GetAuthHeaders, async (_, params) => {
     return vertexAIService.getAuthHeaders(params)

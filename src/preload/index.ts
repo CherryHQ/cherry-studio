@@ -29,8 +29,6 @@ import type { KnowledgeSearchResult as KnowledgeVectorSearchResult } from '@shar
 import type { ExternalAppInfo } from '@shared/externalApp/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type {
-  AddMemoryOptions,
-  AssistantMessage,
   FileListResponse,
   FileMetadata,
   FileUploadResponse,
@@ -39,9 +37,6 @@ import type {
   KnowledgeItem,
   KnowledgeSearchResult,
   MCPServer,
-  MemoryConfig,
-  MemoryListOptions,
-  MemorySearchOptions,
   Model,
   Notification,
   OcrProvider,
@@ -362,23 +357,6 @@ const api = {
       ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_DeleteItems, { baseId, itemIds }),
     search: (baseId: string, query: string): Promise<KnowledgeVectorSearchResult[]> =>
       ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_Search, { baseId, query })
-  },
-  memory: {
-    add: (messages: string | AssistantMessage[], options?: AddMemoryOptions) =>
-      ipcRenderer.invoke(IpcChannel.Memory_Add, messages, options),
-    search: (query: string, options: MemorySearchOptions) =>
-      ipcRenderer.invoke(IpcChannel.Memory_Search, query, options),
-    list: (options?: MemoryListOptions) => ipcRenderer.invoke(IpcChannel.Memory_List, options),
-    delete: (id: string) => ipcRenderer.invoke(IpcChannel.Memory_Delete, id),
-    update: (id: string, memory: string, metadata?: Record<string, any>) =>
-      ipcRenderer.invoke(IpcChannel.Memory_Update, id, memory, metadata),
-    get: (id: string) => ipcRenderer.invoke(IpcChannel.Memory_Get, id),
-    setConfig: (config: MemoryConfig) => ipcRenderer.invoke(IpcChannel.Memory_SetConfig, config),
-    deleteUser: (userId: string) => ipcRenderer.invoke(IpcChannel.Memory_DeleteUser, userId),
-    deleteAllMemoriesForUser: (userId: string) =>
-      ipcRenderer.invoke(IpcChannel.Memory_DeleteAllMemoriesForUser, userId),
-    getUsersList: () => ipcRenderer.invoke(IpcChannel.Memory_GetUsersList),
-    migrateMemoryDb: () => ipcRenderer.invoke(IpcChannel.Memory_MigrateMemoryDb)
   },
   window: {
     setMinimumSize: (width: number, height: number) =>
