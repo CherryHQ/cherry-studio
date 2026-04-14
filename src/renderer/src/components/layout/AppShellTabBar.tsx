@@ -340,12 +340,10 @@ export const AppShellTabBar = ({
             tooltip={t('title.home')}
           />
         )}
+        {!isDetached && (pinnedTabs.length > 0 || normalTabs.length > 0) && <Separator />}
 
         {/* Tabs scrollable area — empty space stays draggable; only interactive elements override */}
         <div className="flex flex-1 items-center gap-0.5 overflow-x-auto px-1 [&::-webkit-scrollbar]:hidden">
-          {/* Separator before pinned group */}
-          {!isDetached && pinnedTabs.length > 0 && <Separator />}
-
           {/* Pinned tabs */}
           {pinnedTabs.length > 0 && (
             <div className="flex shrink-0 items-center gap-0 rounded-lg bg-sidebar-accent/50 p-0.5 [-webkit-app-region:no-drag]">

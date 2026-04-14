@@ -111,7 +111,7 @@ export function Sidebar({
                   onSearchClick?.()
                   handleDismiss()
                 }}
-                className="flex cursor-pointer items-center gap-2 rounded-md bg-sidebar-accent/50 px-2.5 py-1.5 text-muted-foreground text-xs transition-colors hover:bg-accent [-webkit-app-region:no-drag]">
+                className="flex cursor-pointer items-center gap-2 rounded-md bg-sidebar-accent/50 px-2.5 py-1.5 text-muted-foreground text-xs transition-colors [-webkit-app-region:no-drag] hover:bg-accent">
                 <Search size={13} />
                 <span>{searchLabel}</span>
               </div>
@@ -184,7 +184,7 @@ export function Sidebar({
           <div className="px-3 py-2">
             <div
               onClick={onSearchClick}
-              className="flex cursor-pointer items-center gap-2 rounded-md bg-sidebar-accent px-2.5 py-1.5 text-muted-foreground text-xs transition-colors hover:bg-accent [-webkit-app-region:no-drag]">
+              className="flex cursor-pointer items-center gap-2 rounded-md bg-sidebar-accent px-2.5 py-1.5 text-muted-foreground text-xs transition-colors [-webkit-app-region:no-drag] hover:bg-accent">
               <Search size={13} />
               <span>{searchLabel}</span>
             </div>
