@@ -33,6 +33,10 @@ export interface StreamDoneResult {
   finalMessage?: CherryUIMessage
   /** 'success' = natural completion; 'paused' = abort path with partial result. */
   status: 'success' | 'paused'
+  /** Which model's execution finished (for multi-model filtering in PersistenceListener). */
+  modelId?: UniqueModelId
+  /** True when ALL executions in the topic are done (for topic-level listeners like WebContents). */
+  isTopicDone?: boolean
 }
 
 // ── StreamTarget ────────────────────────────────────────────────────
@@ -71,7 +75,7 @@ export interface StreamListener {
   /** Called when the stream ends (success or paused). */
   onDone(result: StreamDoneResult): void | Promise<void>
   /** Called when the stream errors. partialMessage contains content streamed before the error. */
-  onError(error: SerializedError, partialMessage?: UIMessage): void | Promise<void>
+  onError(error: SerializedError, partialMessage?: UIMessage, modelId?: UniqueModelId): void | Promise<void>
   /**
    * Liveness check. Returning `false` causes the listener to be immediately
    * removed from the listeners Map.

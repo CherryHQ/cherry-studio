@@ -166,6 +166,7 @@ export class AiStreamManager extends BaseService {
     request: AiStreamRequest
     userMessage: Message
     listeners: StreamListener[]
+    siblingsGroupId?: number
   }): { mode: 'started' | 'steered' } {
     const existing = this.activeStreams.get(input.topicId)
     if (existing?.status === 'streaming') {
@@ -257,12 +258,14 @@ export class AiStreamManager extends BaseService {
 
     exec.status = status === 'paused' ? 'aborted' : 'done'
 
-    // Broadcast per-execution done to listeners (PersistenceListener persists per execution)
-    await this.broadcastExecutionDone(stream, exec, status)
-
-    // Update topic-level status
+    // Update topic-level status first so listeners can check isTopicDone
     stream.status = this.computeTopicStatus(stream)
-    if (stream.status !== 'streaming') {
+    const isTopicDone = stream.status !== 'streaming'
+
+    // Broadcast per-execution done (PersistenceListener filters by modelId, WebContents by isTopicDone)
+    await this.broadcastExecutionDone(stream, exec, status, isTopicDone)
+
+    if (isTopicDone) {
       this.scheduleReap(topicId)
     }
   }
@@ -281,7 +284,7 @@ export class AiStreamManager extends BaseService {
     // Broadcast error to listeners (include partial message if available)
     for (const [id, listener] of stream.listeners) {
       try {
-        await listener.onError(error, exec.finalMessage)
+        await listener.onError(error, exec.finalMessage, exec.modelId)
       } catch (err) {
         logger.warn('Listener onError threw', { topicId, listenerId: id, err })
       }
@@ -393,23 +396,64 @@ export class AiStreamManager extends BaseService {
       modelSnapshot
     })
 
-    const persistenceListener = new PersistenceListener({
-      topicId: req.topicId,
-      parentUserMessageId: userMessage.id,
-      modelId,
-      modelSnapshot
-    })
     const webContentsListener = new WebContentsListener(sender, req.topicId)
 
-    const result = this.send({
+    // Multi-model: @-mentioned models → one execution per model, shared siblingsGroupId
+    logger.debug('mentionedModels', { models: req.mentionedModels?.map((m) => ({ id: m.id, name: m.name })) })
+    const models = req.mentionedModels?.length
+      ? req.mentionedModels.map((m) => {
+          const parsed = parseUniqueModelId(m.id)
+          return { uniqueModelId: m.id, rawModelId: parsed.modelId, providerId: parsed.providerId }
+        })
+      : [{ uniqueModelId: modelId, rawModelId, providerId }]
+
+    const siblingsGroupId = models.length > 1 ? Date.now() : undefined
+
+    // Build all requests in parallel, then start all executions.
+    // startExecution (not send) — send() would steer 2nd+ models into pending queue.
+    const requests = await Promise.all(
+      models.map(async (model) => ({
+        model,
+        request: await this.buildAiStreamRequest(req.topicId, assistantId, model.uniqueModelId, userMessage.id)
+      }))
+    )
+
+    // Collect listeners: one WebContents + one PersistenceListener per model
+    const listeners: StreamListener[] = [webContentsListener]
+    for (const { model } of requests) {
+      const snapshot = { id: model.rawModelId, name: model.rawModelId, provider: model.providerId }
+      listeners.push(
+        new PersistenceListener({
+          topicId: req.topicId,
+          parentUserMessageId: userMessage.id,
+          modelId: model.uniqueModelId,
+          modelSnapshot: snapshot,
+          siblingsGroupId: siblingsGroupId ? Number(siblingsGroupId) : undefined
+        })
+      )
+    }
+
+    // First model: creates the ActiveStream with all listeners
+    this.startExecution({
       topicId: req.topicId,
-      modelId,
-      request: await this.buildAiStreamRequest(req.topicId, assistantId, modelId, userMessage.id),
-      userMessage,
-      listeners: [webContentsListener, persistenceListener]
+      modelId: requests[0].model.uniqueModelId,
+      request: requests[0].request,
+      listeners,
+      siblingsGroupId: siblingsGroupId ? Number(siblingsGroupId) : undefined
     })
 
-    return { mode: result.mode }
+    // Additional models: add parallel executions to existing stream
+    for (let i = 1; i < requests.length; i++) {
+      this.startExecution({
+        topicId: req.topicId,
+        modelId: requests[i].model.uniqueModelId,
+        request: requests[i].request,
+        listeners: [],
+        siblingsGroupId: siblingsGroupId ? Number(siblingsGroupId) : undefined
+      })
+    }
+
+    return { mode: 'started' }
   }
 
   /** Agent session: resolve from session → agent → model, start execution with Claude Code provider. */
@@ -541,9 +585,10 @@ export class AiStreamManager extends BaseService {
   private async broadcastExecutionDone(
     stream: ActiveStream,
     exec: StreamExecution,
-    status: 'success' | 'paused'
+    status: 'success' | 'paused',
+    isTopicDone = true
   ): Promise<void> {
-    const result = { finalMessage: exec.finalMessage, status }
+    const result = { finalMessage: exec.finalMessage, status, modelId: exec.modelId, isTopicDone }
     for (const [id, listener] of stream.listeners) {
       try {
         await listener.onDone(result)

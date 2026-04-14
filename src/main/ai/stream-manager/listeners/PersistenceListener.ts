@@ -46,6 +46,9 @@ export class PersistenceListener implements StreamListener {
   }
 
   async onDone(result: StreamDoneResult): Promise<void> {
+    // Multi-model: only persist for our own model's execution
+    if (result.modelId && this.ctx.modelId && result.modelId !== this.ctx.modelId) return
+
     const { finalMessage, status } = result
 
     if (!finalMessage) {
@@ -87,7 +90,9 @@ export class PersistenceListener implements StreamListener {
     }
   }
 
-  async onError(error: SerializedError, partialMessage?: UIMessage): Promise<void> {
+  async onError(error: SerializedError, partialMessage?: UIMessage, modelId?: string): Promise<void> {
+    // Multi-model: only persist for our own model's execution
+    if (modelId && this.ctx.modelId && modelId !== this.ctx.modelId) return
     try {
       // Combine partial streamed content with error part
       const partialParts = (partialMessage?.parts ?? []) as MessageData['parts']

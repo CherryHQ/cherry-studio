@@ -40,6 +40,8 @@ export class WebContentsListener implements StreamListener {
   }
 
   onDone(result: StreamDoneResult): void {
+    // Multi-model: only send topic-level done when ALL executions finished
+    if (!result.isTopicDone) return
     if (this.wc.isDestroyed()) return
     this.wc.send(IpcChannel.Ai_StreamDone, {
       topicId: this.topicId,
