@@ -8,7 +8,6 @@ import { application } from '@main/core/application'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { createInMemoryMCPServer } from '@main/mcpServers/factory'
 import { makeSureDirExists, removeEnvProxy } from '@main/utils'
-import { getConfigDir } from '@main/utils/file'
 import { findCommandInShellEnv, getBinaryName, getBinaryPath, isBinaryExists } from '@main/utils/process'
 import getLoginShellEnvironment from '@main/utils/shell-env'
 import { TraceMethod, withSpanFunc } from '@mcp-trace/trace-core'
@@ -808,7 +807,10 @@ export class MCPService extends BaseService {
 
     // Clear OAuth token for this server
     const serverUrlHash = this.getServerUrlHash(server)
-    const oauthStorage = new JsonFileStorage(serverUrlHash, path.join(getConfigDir(), 'mcp', 'oauth'))
+    const oauthStorage = new JsonFileStorage(
+      serverUrlHash,
+      path.join(os.homedir(), HOME_CHERRY_DIR, 'config', 'mcp', 'oauth')
+    )
     try {
       await oauthStorage.clear()
       getServerLogger(server).debug(`Cleared OAuth token for server`)
