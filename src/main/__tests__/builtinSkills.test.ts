@@ -124,9 +124,9 @@ describe('installBuiltinSkills', () => {
     expect(mockRepo.getByFolderName).toHaveBeenCalledWith('my-skill')
     expect(mockRepo.insert).toHaveBeenCalledWith(
       expect.objectContaining({
-        folder_name: 'my-skill',
+        folderName: 'my-skill',
         source: 'builtin',
-        is_enabled: true
+        isEnabled: true
       })
     )
   })
@@ -195,8 +195,8 @@ describe('installBuiltinSkills', () => {
     expect(mockRepo.delete).toHaveBeenCalledWith('existing-id')
     expect(mockRepo.insert).toHaveBeenCalledWith(
       expect.objectContaining({
-        is_enabled: false,
-        created_at: 1000
+        isEnabled: false,
+        createdAt: 1000
       })
     )
   })
@@ -240,7 +240,7 @@ describe('installBuiltinSkills', () => {
     // But DB row should be created
     expect(mockRepo.insert).toHaveBeenCalledWith(
       expect.objectContaining({
-        folder_name: 'my-skill',
+        folderName: 'my-skill',
         source: 'builtin'
       })
     )

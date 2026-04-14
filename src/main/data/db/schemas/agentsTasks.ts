@@ -5,28 +5,28 @@ import { agentsAgentsTable } from './agentsAgents'
 export const agentsTasksTable = sqliteTable(
   'agents_tasks',
   {
-    id: text().primaryKey(),
-    agent_id: text().notNull(),
-    name: text().notNull(),
-    prompt: text().notNull(),
-    schedule_type: text().notNull(),
-    schedule_value: text().notNull(),
-    timeout_minutes: integer().notNull().default(2),
-    next_run: text(),
-    last_run: text(),
-    last_result: text(),
-    status: text().notNull().default('active'),
-    created_at: text().notNull(),
-    updated_at: text().notNull()
+    id: text('id').primaryKey(),
+    agentId: text('agent_id').notNull(),
+    name: text('name').notNull(),
+    prompt: text('prompt').notNull(),
+    scheduleType: text('schedule_type').notNull(),
+    scheduleValue: text('schedule_value').notNull(),
+    timeoutMinutes: integer('timeout_minutes').notNull().default(2),
+    nextRun: text('next_run'),
+    lastRun: text('last_run'),
+    lastResult: text('last_result'),
+    status: text('status').notNull().default('active'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull()
   },
   (t) => [
     foreignKey({
-      columns: [t.agent_id],
+      columns: [t.agentId],
       foreignColumns: [agentsAgentsTable.id],
       name: 'agents_tasks_agent_id_fk'
     }).onDelete('cascade'),
-    index('agents_tasks_agent_id_idx').on(t.agent_id),
-    index('agents_tasks_next_run_idx').on(t.next_run),
+    index('agents_tasks_agent_id_idx').on(t.agentId),
+    index('agents_tasks_next_run_idx').on(t.nextRun),
     index('agents_tasks_status_idx').on(t.status)
   ]
 )
@@ -34,22 +34,22 @@ export const agentsTasksTable = sqliteTable(
 export const agentsTaskRunLogsTable = sqliteTable(
   'agents_task_run_logs',
   {
-    id: integer().primaryKey({ autoIncrement: true }),
-    task_id: text().notNull(),
-    session_id: text(),
-    run_at: text().notNull(),
-    duration_ms: integer().notNull(),
-    status: text().notNull(),
-    result: text(),
-    error: text()
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    taskId: text('task_id').notNull(),
+    sessionId: text('session_id'),
+    runAt: text('run_at').notNull(),
+    durationMs: integer('duration_ms').notNull(),
+    status: text('status').notNull(),
+    result: text('result'),
+    error: text('error')
   },
   (t) => [
     foreignKey({
-      columns: [t.task_id],
+      columns: [t.taskId],
       foreignColumns: [agentsTasksTable.id],
       name: 'agents_task_run_logs_task_id_fk'
     }).onDelete('cascade'),
-    index('agents_task_run_logs_task_id_idx').on(t.task_id)
+    index('agents_task_run_logs_task_id_idx').on(t.taskId)
   ]
 )
 

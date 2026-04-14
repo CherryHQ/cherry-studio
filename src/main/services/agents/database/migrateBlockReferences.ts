@@ -36,7 +36,7 @@ export async function runBlockReferencesMigration(database: LibSQLDatabase<typeo
   }
 
   try {
-    const rows = await database.select().from(sessionMessagesTable).orderBy(asc(sessionMessagesTable.created_at))
+    const rows = await database.select().from(sessionMessagesTable).orderBy(asc(sessionMessagesTable.createdAt))
 
     result.totalMessages = rows.length
     logger.info(`Starting migration: ${rows.length} messages to process`)
@@ -65,7 +65,7 @@ export async function runBlockReferencesMigration(database: LibSQLDatabase<typeo
           .update(sessionMessagesTable)
           .set({
             content: serializedPayload,
-            updated_at: new Date().toISOString()
+            updatedAt: new Date().toISOString()
           })
           .where(eq(sessionMessagesTable.id, row.id))
 
@@ -74,7 +74,7 @@ export async function runBlockReferencesMigration(database: LibSQLDatabase<typeo
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
         result.errors.push({
-          sessionId: row.session_id,
+          sessionId: row.sessionId,
           messageId: row.id.toString(),
           error: errorMessage
         })

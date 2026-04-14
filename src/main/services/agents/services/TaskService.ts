@@ -10,6 +10,7 @@ import {
   type InsertTaskRunLogRow,
   scheduledTasksTable,
   type TaskRow,
+  type TaskRunLogRow,
   taskRunLogsTable
 } from '../database/schema'
 
@@ -35,16 +36,16 @@ export class TaskService extends BaseService {
 
     const insertData: InsertTaskRow = {
       id,
-      agent_id: agentId,
+      agentId,
       name: req.name,
       prompt: req.prompt,
-      schedule_type: req.schedule_type,
-      schedule_value: req.schedule_value,
-      ...(req.timeout_minutes != null ? { timeout_minutes: req.timeout_minutes } : {}),
-      next_run: nextRun,
+      scheduleType: req.schedule_type,
+      scheduleValue: req.schedule_value,
+      ...(req.timeout_minutes != null ? { timeoutMinutes: req.timeout_minutes } : {}),
+      nextRun,
       status: 'active',
-      created_at: now,
-      updated_at: now
+      createdAt: now,
+      updatedAt: now
     }
 
     const database = await this.getDatabase()
@@ -75,7 +76,7 @@ export class TaskService extends BaseService {
     const result = await database
       .select()
       .from(scheduledTasksTable)
-      .where(and(eq(scheduledTasksTable.id, taskId), eq(scheduledTasksTable.agent_id, agentId)))
+      .where(and(eq(scheduledTasksTable.id, taskId), eq(scheduledTasksTable.agentId, agentId)))
       .limit(1)
 
     if (!result[0]) return null
@@ -91,8 +92,8 @@ export class TaskService extends BaseService {
 
     // By default, exclude heartbeat tasks from the listing
     const whereCondition = includeHeartbeat
-      ? eq(scheduledTasksTable.agent_id, agentId)
-      : and(eq(scheduledTasksTable.agent_id, agentId), ne(scheduledTasksTable.name, 'heartbeat'))
+      ? eq(scheduledTasksTable.agentId, agentId)
+      : and(eq(scheduledTasksTable.agentId, agentId), ne(scheduledTasksTable.name, 'heartbeat'))
 
     const totalResult = await database.select({ count: count() }).from(scheduledTasksTable).where(whereCondition)
 
@@ -100,7 +101,7 @@ export class TaskService extends BaseService {
       .select()
       .from(scheduledTasksTable)
       .where(whereCondition)
-      .orderBy(desc(scheduledTasksTable.created_at))
+      .orderBy(desc(scheduledTasksTable.createdAt))
 
     const result =
       paginationOptions.limit !== undefined
@@ -128,26 +129,26 @@ export class TaskService extends BaseService {
     if (!existing) return null
 
     const now = new Date().toISOString()
-    const updateData: Partial<TaskRow> = { updated_at: now }
+    const updateData: Partial<TaskRow> = { updatedAt: now }
 
     if (updates.name !== undefined) updateData.name = updates.name
     if (updates.prompt !== undefined) updateData.prompt = updates.prompt
-    if (updates.agent_id !== undefined) updateData.agent_id = updates.agent_id
-    if (updates.timeout_minutes !== undefined) updateData.timeout_minutes = updates.timeout_minutes ?? 2
+    if (updates.agent_id !== undefined) updateData.agentId = updates.agent_id
+    if (updates.timeout_minutes !== undefined) updateData.timeoutMinutes = updates.timeout_minutes ?? 2
     if (updates.status !== undefined) updateData.status = updates.status
 
     if (updates.schedule_type !== undefined || updates.schedule_value !== undefined) {
       const schedType = updates.schedule_type ?? existing.schedule_type
       const schedValue = updates.schedule_value ?? existing.schedule_value
-      updateData.schedule_type = schedType
-      updateData.schedule_value = schedValue
-      updateData.next_run = this.computeInitialNextRun(schedType, schedValue)
+      updateData.scheduleType = schedType
+      updateData.scheduleValue = schedValue
+      updateData.nextRun = this.computeInitialNextRun(schedType, schedValue)
     }
 
     if (updates.status === 'active' && existing.status === 'paused') {
       const schedType = updates.schedule_type ?? existing.schedule_type
       const schedValue = updates.schedule_value ?? existing.schedule_value
-      updateData.next_run = this.computeInitialNextRun(schedType, schedValue)
+      updateData.nextRun = this.computeInitialNextRun(schedType, schedValue)
     }
 
     const database = await this.getDatabase()
@@ -180,7 +181,7 @@ export class TaskService extends BaseService {
       .select()
       .from(scheduledTasksTable)
       .where(whereCondition)
-      .orderBy(desc(scheduledTasksTable.created_at))
+      .orderBy(desc(scheduledTasksTable.createdAt))
 
     const result =
       options.limit !== undefined
@@ -200,34 +201,34 @@ export class TaskService extends BaseService {
     if (!existing) return null
 
     const now = new Date().toISOString()
-    const updateData: Partial<TaskRow> = { updated_at: now }
+    const updateData: Partial<TaskRow> = { updatedAt: now }
 
     if (updates.name !== undefined) updateData.name = updates.name
     if (updates.prompt !== undefined) updateData.prompt = updates.prompt
-    if (updates.timeout_minutes !== undefined) updateData.timeout_minutes = updates.timeout_minutes ?? 2
+    if (updates.timeout_minutes !== undefined) updateData.timeoutMinutes = updates.timeout_minutes ?? 2
     if (updates.status !== undefined) updateData.status = updates.status
 
-    // If schedule type or value changed, recompute next_run
+    // If schedule type or value changed, recompute nextRun
     if (updates.schedule_type !== undefined || updates.schedule_value !== undefined) {
       const schedType = updates.schedule_type ?? existing.schedule_type
       const schedValue = updates.schedule_value ?? existing.schedule_value
-      updateData.schedule_type = schedType
-      updateData.schedule_value = schedValue
-      updateData.next_run = this.computeInitialNextRun(schedType, schedValue)
+      updateData.scheduleType = schedType
+      updateData.scheduleValue = schedValue
+      updateData.nextRun = this.computeInitialNextRun(schedType, schedValue)
     }
 
-    // If resuming from paused, recompute next_run
+    // If resuming from paused, recompute nextRun
     if (updates.status === 'active' && existing.status === 'paused') {
       const schedType = updates.schedule_type ?? existing.schedule_type
       const schedValue = updates.schedule_value ?? existing.schedule_value
-      updateData.next_run = this.computeInitialNextRun(schedType, schedValue)
+      updateData.nextRun = this.computeInitialNextRun(schedType, schedValue)
     }
 
     const database = await this.getDatabase()
     await database
       .update(scheduledTasksTable)
       .set(updateData)
-      .where(and(eq(scheduledTasksTable.id, taskId), eq(scheduledTasksTable.agent_id, agentId)))
+      .where(and(eq(scheduledTasksTable.id, taskId), eq(scheduledTasksTable.agentId, agentId)))
 
     // Sync channel subscriptions if provided
     if (updates.channel_ids !== undefined) {
@@ -238,6 +239,44 @@ export class TaskService extends BaseService {
     return this.getTaskWithChannels(taskId)
   }
 
+  /**
+   * Convert a TaskRow (camelCase Drizzle properties) to a ScheduledTaskEntity
+   * (snake_case entity properties expected by the rest of the app).
+   */
+  private rowToEntity(row: TaskRow): ScheduledTaskEntity {
+    return {
+      id: row.id,
+      agent_id: row.agentId,
+      name: row.name,
+      prompt: row.prompt,
+      schedule_type: row.scheduleType as ScheduledTaskEntity['schedule_type'],
+      schedule_value: row.scheduleValue,
+      timeout_minutes: row.timeoutMinutes,
+      next_run: row.nextRun ?? null,
+      last_run: row.lastRun ?? null,
+      last_result: row.lastResult ?? null,
+      status: row.status as ScheduledTaskEntity['status'],
+      created_at: row.createdAt,
+      updated_at: row.updatedAt
+    } as ScheduledTaskEntity
+  }
+
+  /**
+   * Convert a TaskRunLogRow (camelCase) to a TaskRunLogEntity (snake_case).
+   */
+  private runLogRowToEntity(row: TaskRunLogRow): TaskRunLogEntity {
+    return {
+      id: row.id,
+      task_id: row.taskId,
+      session_id: row.sessionId ?? null,
+      run_at: row.runAt,
+      duration_ms: row.durationMs,
+      status: row.status as TaskRunLogEntity['status'],
+      result: row.result ?? null,
+      error: row.error ?? null
+    }
+  }
+
   /** Enrich a single task row with its subscribed channel_ids. */
   private async enrichWithChannels(row: TaskRow): Promise<ScheduledTaskEntity> {
     const database = await this.getDatabase()
@@ -245,7 +284,8 @@ export class TaskService extends BaseService {
       .select({ channelId: channelTaskSubscriptionsTable.channelId })
       .from(channelTaskSubscriptionsTable)
       .where(eq(channelTaskSubscriptionsTable.taskId, row.id))
-    return { ...row, channel_ids: subs.map((s) => s.channelId) } as ScheduledTaskEntity
+    const entity = this.rowToEntity(row)
+    return { ...entity, channel_ids: subs.map((s) => s.channelId) } as ScheduledTaskEntity
   }
 
   /** Enrich multiple task rows with their subscribed channel_ids (batched). */
@@ -263,10 +303,10 @@ export class TaskService extends BaseService {
       arr.push(sub.channelId)
       subsByTask.set(sub.taskId, arr)
     }
-    return rows.map((row) => ({
-      ...row,
-      channel_ids: subsByTask.get(row.id) ?? []
-    })) as ScheduledTaskEntity[]
+    return rows.map((row) => {
+      const entity = this.rowToEntity(row)
+      return { ...entity, channel_ids: subsByTask.get(row.id) ?? [] } as ScheduledTaskEntity
+    })
   }
 
   /** Replace all channel subscriptions for a task. */
@@ -287,7 +327,7 @@ export class TaskService extends BaseService {
     const database = await this.getDatabase()
     const result = await database
       .delete(scheduledTasksTable)
-      .where(and(eq(scheduledTasksTable.id, taskId), eq(scheduledTasksTable.agent_id, agentId)))
+      .where(and(eq(scheduledTasksTable.id, taskId), eq(scheduledTasksTable.agentId, agentId)))
 
     logger.info('Task deleted', { taskId, agentId })
     return result.rowsAffected > 0
@@ -310,19 +350,19 @@ export class TaskService extends BaseService {
     const result = await database
       .select()
       .from(scheduledTasksTable)
-      .where(and(eq(scheduledTasksTable.status, 'active'), lte(scheduledTasksTable.next_run, now)))
-      .orderBy(asc(scheduledTasksTable.next_run))
+      .where(and(eq(scheduledTasksTable.status, 'active'), lte(scheduledTasksTable.nextRun, now)))
+      .orderBy(asc(scheduledTasksTable.nextRun))
 
-    return result as ScheduledTaskEntity[]
+    return result.map((row) => this.rowToEntity(row))
   }
 
   async updateTaskAfterRun(taskId: string, nextRun: string | null, lastResult: string): Promise<void> {
     const now = new Date().toISOString()
     const updateData: Partial<TaskRow> = {
-      last_run: now,
-      last_result: lastResult,
-      next_run: nextRun,
-      updated_at: now
+      lastRun: now,
+      lastResult,
+      nextRun,
+      updatedAt: now
     }
 
     // Mark one-time tasks as completed
@@ -344,7 +384,7 @@ export class TaskService extends BaseService {
 
   async updateTaskRunLog(
     logId: number,
-    updates: Partial<Pick<InsertTaskRunLogRow, 'status' | 'result' | 'error' | 'duration_ms' | 'session_id'>>
+    updates: Partial<Pick<InsertTaskRunLogRow, 'status' | 'result' | 'error' | 'durationMs' | 'sessionId'>>
   ): Promise<void> {
     const database = await this.getDatabase()
     await database.update(taskRunLogsTable).set(updates).where(eq(taskRunLogsTable.id, logId))
@@ -356,13 +396,13 @@ export class TaskService extends BaseService {
     const totalResult = await database
       .select({ count: count() })
       .from(taskRunLogsTable)
-      .where(eq(taskRunLogsTable.task_id, taskId))
+      .where(eq(taskRunLogsTable.taskId, taskId))
 
     const baseQuery = database
       .select()
       .from(taskRunLogsTable)
-      .where(eq(taskRunLogsTable.task_id, taskId))
-      .orderBy(desc(taskRunLogsTable.run_at))
+      .where(eq(taskRunLogsTable.taskId, taskId))
+      .orderBy(desc(taskRunLogsTable.runAt))
 
     const result =
       options.limit !== undefined
@@ -372,7 +412,7 @@ export class TaskService extends BaseService {
         : await baseQuery
 
     return {
-      logs: result as unknown as TaskRunLogEntity[],
+      logs: result.map((row) => this.runLogRowToEntity(row)),
       total: totalResult[0].count
     }
   }
@@ -384,13 +424,13 @@ export class TaskService extends BaseService {
   async getLastRunSessionId(taskId: string): Promise<string | null> {
     const database = await this.getDatabase()
     const result = await database
-      .select({ session_id: taskRunLogsTable.session_id })
+      .select({ sessionId: taskRunLogsTable.sessionId })
       .from(taskRunLogsTable)
-      .where(and(eq(taskRunLogsTable.task_id, taskId), eq(taskRunLogsTable.status, 'success')))
-      .orderBy(desc(taskRunLogsTable.run_at))
+      .where(and(eq(taskRunLogsTable.taskId, taskId), eq(taskRunLogsTable.status, 'success')))
+      .orderBy(desc(taskRunLogsTable.runAt))
       .limit(1)
 
-    return result[0]?.session_id ?? null
+    return result[0]?.sessionId ?? null
   }
 
   // --- Next run computation (nanoclaw-inspired, drift-resistant) ---

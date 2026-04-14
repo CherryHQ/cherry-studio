@@ -132,16 +132,16 @@ async function syncBuiltinSkillToDb(folderName: string, destPath: string, filesU
     await repo.insert({
       name: metadata.name,
       description: metadata.description ?? null,
-      folder_name: folderName,
+      folderName,
       source: 'builtin',
-      source_url: null,
+      sourceUrl: null,
       namespace: null,
       author: metadata.author ?? null,
       tags: metadata.tags ? JSON.stringify(metadata.tags) : null,
-      content_hash: contentHash,
-      is_enabled: existing?.isEnabled ?? true,
-      created_at: existing ? existing.createdAt : now,
-      updated_at: now
+      contentHash,
+      isEnabled: existing?.isEnabled ?? true,
+      createdAt: existing ? existing.createdAt : now,
+      updatedAt: now
     })
 
     logger.info('Built-in skill synced to DB', { folderName })

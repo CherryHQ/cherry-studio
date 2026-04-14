@@ -5,34 +5,34 @@ import { agentsAgentsTable } from './agentsAgents'
 export const agentsSessionsTable = sqliteTable(
   'agents_sessions',
   {
-    id: text().primaryKey(),
-    agent_type: text().notNull(),
-    agent_id: text().notNull(),
-    name: text().notNull(),
-    description: text(),
-    accessible_paths: text(),
-    instructions: text(),
-    model: text().notNull(),
-    plan_model: text(),
-    small_model: text(),
-    mcps: text(),
-    allowed_tools: text(),
-    slash_commands: text(),
-    configuration: text(),
-    sort_order: integer().notNull().default(0),
-    created_at: text().notNull(),
-    updated_at: text().notNull()
+    id: text('id').primaryKey(),
+    agentType: text('agent_type').notNull(),
+    agentId: text('agent_id').notNull(),
+    name: text('name').notNull(),
+    description: text('description'),
+    accessiblePaths: text('accessible_paths'),
+    instructions: text('instructions'),
+    model: text('model').notNull(),
+    planModel: text('plan_model'),
+    smallModel: text('small_model'),
+    mcps: text('mcps'),
+    allowedTools: text('allowed_tools'),
+    slashCommands: text('slash_commands'),
+    configuration: text('configuration'),
+    sortOrder: integer('sort_order').notNull().default(0),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull()
   },
   (t) => [
     foreignKey({
-      columns: [t.agent_id],
+      columns: [t.agentId],
       foreignColumns: [agentsAgentsTable.id],
       name: 'agents_sessions_agent_id_fk'
     }).onDelete('cascade'),
-    index('agents_sessions_created_at_idx').on(t.created_at),
-    index('agents_sessions_agent_id_idx').on(t.agent_id),
+    index('agents_sessions_created_at_idx').on(t.createdAt),
+    index('agents_sessions_agent_id_idx').on(t.agentId),
     index('agents_sessions_model_idx').on(t.model),
-    index('agents_sessions_sort_order_idx').on(t.sort_order)
+    index('agents_sessions_sort_order_idx').on(t.sortOrder)
   ]
 )
 

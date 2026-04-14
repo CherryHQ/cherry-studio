@@ -37,7 +37,7 @@ export class SkillRepository extends BaseService {
 
   async getByFolderName(folderName: string): Promise<InstalledSkill | null> {
     const db = await this.getDatabase()
-    const rows = await db.select().from(skillsTable).where(eq(skillsTable.folder_name, folderName)).limit(1)
+    const rows = await db.select().from(skillsTable).where(eq(skillsTable.folderName, folderName)).limit(1)
     return rows[0] ? this.rowToInstalledSkill(rows[0]) : null
   }
 
@@ -55,7 +55,7 @@ export class SkillRepository extends BaseService {
 
   async toggleEnabled(id: string, isEnabled: boolean): Promise<InstalledSkill | null> {
     const db = await this.getDatabase()
-    await db.update(skillsTable).set({ is_enabled: isEnabled }).where(eq(skillsTable.id, id))
+    await db.update(skillsTable).set({ isEnabled }).where(eq(skillsTable.id, id))
 
     const updated = await db.select().from(skillsTable).where(eq(skillsTable.id, id)).limit(1)
     if (!updated[0]) {
@@ -81,16 +81,16 @@ export class SkillRepository extends BaseService {
       id: row.id,
       name: row.name,
       description: row.description,
-      folderName: row.folder_name,
+      folderName: row.folderName,
       source: row.source,
-      sourceUrl: row.source_url,
+      sourceUrl: row.sourceUrl,
       namespace: row.namespace,
       author: row.author,
       tags: row.tags ? JSON.parse(row.tags) : [],
-      contentHash: row.content_hash,
-      isEnabled: row.is_enabled,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at
+      contentHash: row.contentHash,
+      isEnabled: row.isEnabled,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt
     }
   }
 }

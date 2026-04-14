@@ -424,16 +424,16 @@ export class SkillService {
       id,
       name: metadata.name,
       description: metadata.description ?? null,
-      folder_name: folderName,
+      folderName,
       source,
-      source_url: sourceUrl,
+      sourceUrl,
       namespace: null,
       author: metadata.author ?? null,
       tags,
-      content_hash: contentHash,
-      is_enabled: isBuiltin,
-      created_at: now,
-      updated_at: now
+      contentHash,
+      isEnabled: isBuiltin,
+      createdAt: now,
+      updatedAt: now
     })
 
     // Built-in skills are always linked

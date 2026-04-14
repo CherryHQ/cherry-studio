@@ -5,31 +5,31 @@ import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqli
 export const agentsSkillsTable = sqliteTable(
   'agents_skills',
   {
-    id: text()
+    id: text('id')
       .primaryKey()
       .$defaultFn(() => randomUUID()),
-    name: text().notNull(),
-    description: text(),
-    folder_name: text().notNull(),
-    source: text().notNull(),
-    source_url: text(),
-    namespace: text(),
-    author: text(),
-    tags: text(),
-    content_hash: text().notNull(),
-    is_enabled: integer({ mode: 'boolean' }).notNull().default(true),
-    created_at: integer()
+    name: text('name').notNull(),
+    description: text('description'),
+    folderName: text('folder_name').notNull(),
+    source: text('source').notNull(),
+    sourceUrl: text('source_url'),
+    namespace: text('namespace'),
+    author: text('author'),
+    tags: text('tags'),
+    contentHash: text('content_hash').notNull(),
+    isEnabled: integer('is_enabled', { mode: 'boolean' }).notNull().default(true),
+    createdAt: integer('created_at')
       .notNull()
       .$defaultFn(() => Date.now()),
-    updated_at: integer()
+    updatedAt: integer('updated_at')
       .notNull()
       .$defaultFn(() => Date.now())
       .$onUpdateFn(() => Date.now())
   },
   (t) => [
-    uniqueIndex('agents_skills_folder_name_unique').on(t.folder_name),
+    uniqueIndex('agents_skills_folder_name_unique').on(t.folderName),
     index('agents_skills_source_idx').on(t.source),
-    index('agents_skills_is_enabled_idx').on(t.is_enabled)
+    index('agents_skills_is_enabled_idx').on(t.isEnabled)
   ]
 )
 
