@@ -10,13 +10,6 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
     global: true
   },
   {
-    key: 'shortcut.feature.quick_assistant.toggle_window',
-    scope: 'main',
-    category: 'feature.quick_assistant',
-    labelKey: 'mini_window',
-    global: true
-  },
-  {
     key: 'shortcut.general.show_settings',
     scope: 'main',
     category: 'general',
@@ -121,7 +114,14 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
     category: 'topic',
     labelKey: 'toggle_show_topics'
   },
-  // ==================== Selection assistant shortcuts ====================
+  // ==================== Feature shortcuts ====================
+  {
+    key: 'shortcut.feature.quick_assistant.toggle_window',
+    scope: 'main',
+    category: 'feature.quick_assistant',
+    labelKey: 'mini_window',
+    global: true
+  },
   {
     key: 'shortcut.feature.selection.toggle_enabled',
     scope: 'main',
