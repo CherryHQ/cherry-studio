@@ -78,7 +78,7 @@ const initialState: ShortcutsState = {
       system: false
     },
     {
-      key: 'toggle_sidebar',
+      key: 'toggle_show_assistants',
       shortcut: ['CommandOrControl', '['],
       editable: true,
       enabled: true,
@@ -151,21 +151,31 @@ const initialState: ShortcutsState = {
   ]
 }
 
+const getSerializableShortcuts = (shortcuts: Shortcut[]) => {
+  return shortcuts.map((shortcut) => ({
+    key: shortcut.key,
+    shortcut: [...shortcut.shortcut],
+    enabled: shortcut.enabled,
+    system: shortcut.system,
+    editable: shortcut.editable
+  }))
+}
+
 const shortcutsSlice = createSlice({
   name: 'shortcuts',
   initialState,
   reducers: {
     updateShortcut: (state, action: PayloadAction<Shortcut>) => {
       state.shortcuts = state.shortcuts.map((s) => (s.key === action.payload.key ? action.payload : s))
-      // Shortcuts are now managed via PreferenceService — this slice is kept only for migration
+      void window.api.shortcuts.update(getSerializableShortcuts(state.shortcuts))
     },
     toggleShortcut: (state, action: PayloadAction<string>) => {
       state.shortcuts = state.shortcuts.map((s) => (s.key === action.payload ? { ...s, enabled: !s.enabled } : s))
-      // Shortcuts are now managed via PreferenceService — this slice is kept only for migration
+      void window.api.shortcuts.update(getSerializableShortcuts(state.shortcuts))
     },
     resetShortcuts: (state) => {
       state.shortcuts = initialState.shortcuts
-      // Shortcuts are now managed via PreferenceService — this slice is kept only for migration
+      void window.api.shortcuts.update(getSerializableShortcuts(state.shortcuts))
     }
   }
 })

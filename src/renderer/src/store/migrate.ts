@@ -63,15 +63,12 @@ import { mcpSlice } from './mcp'
 import { initialState as notesInitialState } from './note'
 // import { defaultActionItems } from './selectionStore'
 import { initialState as settingsInitialState } from './settings'
-import { initialState as shortcutsInitialState, type ShortcutsState } from './shortcuts'
+import { initialState as shortcutsInitialState } from './shortcuts'
 import { defaultWebSearchProviders } from './websearch'
 const logger = loggerService.withContext('Migrate')
 
-// Legacy state type for migrations — includes `shortcuts` which was removed from the active store
-type MigrationState = RootState & { shortcuts?: ShortcutsState }
-
 // remove logo base64 data to reduce the size of the state
-function removeMiniAppIconsFromState(state: MigrationState) {
+function removeMiniAppIconsFromState(state: RootState) {
   if (state.minapps) {
     state.minapps.enabled = state.minapps.enabled.map((app) => ({
       ...app,
@@ -118,7 +115,7 @@ function addProvider(state: RootState, id: string) {
 }
 
 // Fix missing provider
-function fixMissingProvider(state: MigrationState) {
+function fixMissingProvider(state: RootState) {
   SYSTEM_PROVIDERS.forEach((p) => {
     if (!state.llm.providers.find((provider) => provider.id === p.id)) {
       state.llm.providers.push(p)
@@ -187,7 +184,7 @@ function addSelectionAction(state: RootState, id: string) {
  * if afterId is 'first', add to the first
  * if afterId is 'last', add to the last
  */
-function addShortcuts(state: MigrationState, ids: string[], afterId: string) {
+function addShortcuts(state: RootState, ids: string[], afterId: string) {
   const defaultShortcuts = shortcutsInitialState.shortcuts
 
   // 确保 state.shortcuts 存在
@@ -237,7 +234,7 @@ function addPreprocessProviders(state: RootState, id: string) {
 }
 
 const migrateConfig = {
-  '2': (state: MigrationState) => {
+  '2': (state: RootState) => {
     try {
       addProvider(state, 'yi')
       return state
@@ -245,7 +242,7 @@ const migrateConfig = {
       return state
     }
   },
-  '3': (state: MigrationState) => {
+  '3': (state: RootState) => {
     try {
       addProvider(state, 'zhipu')
       return state
@@ -253,7 +250,7 @@ const migrateConfig = {
       return state
     }
   },
-  '4': (state: MigrationState) => {
+  '4': (state: RootState) => {
     try {
       addProvider(state, 'ollama')
       return state
@@ -261,7 +258,7 @@ const migrateConfig = {
       return state
     }
   },
-  '5': (state: MigrationState) => {
+  '5': (state: RootState) => {
     try {
       addProvider(state, 'moonshot')
       return state
@@ -269,7 +266,7 @@ const migrateConfig = {
       return state
     }
   },
-  '6': (state: MigrationState) => {
+  '6': (state: RootState) => {
     try {
       addProvider(state, 'openrouter')
       return state
@@ -277,7 +274,7 @@ const migrateConfig = {
       return state
     }
   },
-  '7': (state: MigrationState) => {
+  '7': (state: RootState) => {
     try {
       return {
         ...state,
@@ -290,7 +287,7 @@ const migrateConfig = {
       return state
     }
   },
-  '8': (state: MigrationState) => {
+  '8': (state: RootState) => {
     try {
       const fixAssistantName = (assistant: Assistant) => {
         // 2025/07/25 这俩键早没了，从远古版本迁移包出错的
@@ -320,7 +317,7 @@ const migrateConfig = {
       return state
     }
   },
-  '9': (state: MigrationState) => {
+  '9': (state: RootState) => {
     try {
       return {
         ...state,
@@ -338,7 +335,7 @@ const migrateConfig = {
       return state
     }
   },
-  '10': (state: MigrationState) => {
+  '10': (state: RootState) => {
     try {
       addProvider(state, 'baichuan')
       return state
@@ -346,7 +343,7 @@ const migrateConfig = {
       return state
     }
   },
-  '11': (state: MigrationState) => {
+  '11': (state: RootState) => {
     try {
       addProvider(state, 'dashscope')
       addProvider(state, 'anthropic')
@@ -355,7 +352,7 @@ const migrateConfig = {
       return state
     }
   },
-  '12': (state: MigrationState) => {
+  '12': (state: RootState) => {
     try {
       addProvider(state, 'aihubmix')
       return state
@@ -363,7 +360,7 @@ const migrateConfig = {
       return state
     }
   },
-  '13': (state: MigrationState) => {
+  '13': (state: RootState) => {
     try {
       return {
         ...state,
@@ -381,7 +378,7 @@ const migrateConfig = {
       return state
     }
   },
-  '14': (state: MigrationState) => {
+  '14': (state: RootState) => {
     try {
       return {
         ...state,
@@ -395,7 +392,7 @@ const migrateConfig = {
       return state
     }
   },
-  '15': (state: MigrationState) => {
+  '15': (state: RootState) => {
     try {
       return {
         ...state,
@@ -409,7 +406,7 @@ const migrateConfig = {
       return state
     }
   },
-  '16': (state: MigrationState) => {
+  '16': (state: RootState) => {
     try {
       return {
         ...state,
@@ -423,7 +420,7 @@ const migrateConfig = {
       return state
     }
   },
-  '17': (state: MigrationState) => {
+  '17': (state: RootState) => {
     try {
       return {
         ...state,
@@ -436,7 +433,7 @@ const migrateConfig = {
       return state
     }
   },
-  '19': (state: MigrationState) => {
+  '19': (state: RootState) => {
     try {
       return {
         ...state,
@@ -456,7 +453,7 @@ const migrateConfig = {
       return state
     }
   },
-  '20': (state: MigrationState) => {
+  '20': (state: RootState) => {
     try {
       return {
         ...state,
@@ -469,7 +466,7 @@ const migrateConfig = {
       return state
     }
   },
-  '21': (state: MigrationState) => {
+  '21': (state: RootState) => {
     try {
       addProvider(state, 'gemini')
       addProvider(state, 'stepfun')
@@ -479,7 +476,7 @@ const migrateConfig = {
       return state
     }
   },
-  '22': (state: MigrationState) => {
+  '22': (state: RootState) => {
     try {
       addProvider(state, 'minimax')
       return state
@@ -487,7 +484,7 @@ const migrateConfig = {
       return state
     }
   },
-  '23': (state: MigrationState) => {
+  '23': (state: RootState) => {
     try {
       return {
         ...state,
@@ -501,7 +498,7 @@ const migrateConfig = {
       return state
     }
   },
-  '24': (state: MigrationState) => {
+  '24': (state: RootState) => {
     try {
       return {
         ...state,
@@ -525,7 +522,7 @@ const migrateConfig = {
       return state
     }
   },
-  '25': (state: MigrationState) => {
+  '25': (state: RootState) => {
     try {
       addProvider(state, 'github')
       return state
@@ -533,7 +530,7 @@ const migrateConfig = {
       return state
     }
   },
-  '26': (state: MigrationState) => {
+  '26': (state: RootState) => {
     try {
       addProvider(state, 'ocoolai')
       return state
@@ -541,7 +538,7 @@ const migrateConfig = {
       return state
     }
   },
-  '27': (state: MigrationState) => {
+  '27': (state: RootState) => {
     try {
       return {
         ...state,
@@ -554,7 +551,7 @@ const migrateConfig = {
       return state
     }
   },
-  '28': (state: MigrationState) => {
+  '28': (state: RootState) => {
     try {
       addProvider(state, 'together')
       addProvider(state, 'fireworks')
@@ -566,7 +563,7 @@ const migrateConfig = {
       return state
     }
   },
-  '29': (state: MigrationState) => {
+  '29': (state: RootState) => {
     try {
       return {
         ...state,
@@ -585,7 +582,7 @@ const migrateConfig = {
       return state
     }
   },
-  '30': (state: MigrationState) => {
+  '30': (state: RootState) => {
     try {
       addProvider(state, 'azure-openai')
       return state
@@ -593,7 +590,7 @@ const migrateConfig = {
       return state
     }
   },
-  '31': (state: MigrationState) => {
+  '31': (state: RootState) => {
     try {
       return {
         ...state,
@@ -614,7 +611,7 @@ const migrateConfig = {
       return state
     }
   },
-  '32': (state: MigrationState) => {
+  '32': (state: RootState) => {
     try {
       addProvider(state, 'hunyuan')
       return state
@@ -622,7 +619,7 @@ const migrateConfig = {
       return state
     }
   },
-  '33': (state: MigrationState) => {
+  '33': (state: RootState) => {
     try {
       state.assistants.defaultAssistant.type = 'assistant'
 
@@ -652,7 +649,7 @@ const migrateConfig = {
       return state
     }
   },
-  '34': (state: MigrationState) => {
+  '34': (state: RootState) => {
     try {
       state.assistants.assistants.forEach((assistant) => {
         assistant.topics.forEach((topic) => {
@@ -674,7 +671,7 @@ const migrateConfig = {
       return state
     }
   },
-  '35': (state: MigrationState) => {
+  '35': (state: RootState) => {
     try {
       state.settings.mathEngine = 'KaTeX'
       return state
@@ -682,7 +679,7 @@ const migrateConfig = {
       return state
     }
   },
-  '36': (state: MigrationState) => {
+  '36': (state: RootState) => {
     try {
       state.settings.topicPosition = 'left'
       return state
@@ -690,7 +687,7 @@ const migrateConfig = {
       return state
     }
   },
-  '37': (state: MigrationState) => {
+  '37': (state: RootState) => {
     try {
       state.settings.messageStyle = 'plain'
       return state
@@ -698,7 +695,7 @@ const migrateConfig = {
       return state
     }
   },
-  '38': (state: MigrationState) => {
+  '38': (state: RootState) => {
     try {
       addProvider(state, 'grok')
       addProvider(state, 'hyperbolic')
@@ -708,7 +705,7 @@ const migrateConfig = {
       return state
     }
   },
-  '39': (state: MigrationState) => {
+  '39': (state: RootState) => {
     try {
       // @ts-ignore eslint-disable-next-line
       state.settings.codeStyle = 'auto'
@@ -717,7 +714,7 @@ const migrateConfig = {
       return state
     }
   },
-  '40': (state: MigrationState) => {
+  '40': (state: RootState) => {
     try {
       state.settings.tray = true
       return state
@@ -725,7 +722,7 @@ const migrateConfig = {
       return state
     }
   },
-  '41': (state: MigrationState) => {
+  '41': (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
         if (provider.id === 'gemini') {
@@ -741,7 +738,7 @@ const migrateConfig = {
       return state
     }
   },
-  '42': (state: MigrationState) => {
+  '42': (state: RootState) => {
     try {
       state.settings.proxyMode = state.settings.proxyUrl ? 'custom' : 'none'
       return state
@@ -749,7 +746,7 @@ const migrateConfig = {
       return state
     }
   },
-  '43': (state: MigrationState) => {
+  '43': (state: RootState) => {
     try {
       if (state.settings.proxyMode === 'none') {
         state.settings.proxyMode = 'system'
@@ -759,7 +756,7 @@ const migrateConfig = {
       return state
     }
   },
-  '44': (state: MigrationState) => {
+  '44': (state: RootState) => {
     try {
       state.settings.translateModelPrompt = TRANSLATE_PROMPT
       return state
@@ -767,11 +764,11 @@ const migrateConfig = {
       return state
     }
   },
-  '45': (state: MigrationState) => {
+  '45': (state: RootState) => {
     state.settings.enableTopicNaming = true
     return state
   },
-  '46': (state: MigrationState) => {
+  '46': (state: RootState) => {
     try {
       if (
         state.settings?.translateModelPrompt?.includes(
@@ -785,7 +782,7 @@ const migrateConfig = {
       return state
     }
   },
-  '47': (state: MigrationState) => {
+  '47': (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
         provider.models.forEach((model) => {
@@ -797,14 +794,14 @@ const migrateConfig = {
       return state
     }
   },
-  '48': (state: MigrationState) => {
+  '48': (state: RootState) => {
     try {
       if (state.shortcuts) {
         state.shortcuts.shortcuts.forEach((shortcut) => {
           shortcut.system = shortcut.key !== 'new_topic'
         })
         state.shortcuts.shortcuts.push({
-          key: 'toggle_sidebar',
+          key: 'toggle_show_assistants',
           shortcut: [isMac ? 'Command' : 'Ctrl', '['],
           editable: true,
           enabled: true,
@@ -823,7 +820,7 @@ const migrateConfig = {
       return state
     }
   },
-  '49': (state: MigrationState) => {
+  '49': (state: RootState) => {
     try {
       state.settings.pasteLongTextThreshold = 1500
       if (state.shortcuts) {
@@ -843,7 +840,7 @@ const migrateConfig = {
       return state
     }
   },
-  '50': (state: MigrationState) => {
+  '50': (state: RootState) => {
     try {
       addProvider(state, 'jina')
       return state
@@ -851,11 +848,11 @@ const migrateConfig = {
       return state
     }
   },
-  '51': (state: MigrationState) => {
+  '51': (state: RootState) => {
     state.settings.topicNamingPrompt = ''
     return state
   },
-  '54': (state: MigrationState) => {
+  '54': (state: RootState) => {
     try {
       if (state.shortcuts) {
         state.shortcuts.shortcuts.push({
@@ -875,7 +872,7 @@ const migrateConfig = {
       return state
     }
   },
-  '55': (state: MigrationState) => {
+  '55': (state: RootState) => {
     try {
       if (!state.settings.sidebarIcons) {
         state.settings.sidebarIcons = {
@@ -888,7 +885,7 @@ const migrateConfig = {
       return state
     }
   },
-  '57': (state: MigrationState) => {
+  '57': (state: RootState) => {
     try {
       if (state.shortcuts) {
         state.shortcuts.shortcuts.push({
@@ -915,7 +912,7 @@ const migrateConfig = {
       return state
     }
   },
-  '58': (state: MigrationState) => {
+  '58': (state: RootState) => {
     try {
       if (state.shortcuts) {
         state.shortcuts.shortcuts.push(
@@ -940,7 +937,7 @@ const migrateConfig = {
       return state
     }
   },
-  '59': (state: MigrationState) => {
+  '59': (state: RootState) => {
     try {
       addMiniApp(state, 'flowith')
       return state
@@ -948,7 +945,7 @@ const migrateConfig = {
       return state
     }
   },
-  '60': (state: MigrationState) => {
+  '60': (state: RootState) => {
     try {
       state.settings.multiModelMessageStyle = 'fold'
       return state
@@ -956,7 +953,7 @@ const migrateConfig = {
       return state
     }
   },
-  '61': (state: MigrationState) => {
+  '61': (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
         if (provider.id === 'qwenlm') {
@@ -969,7 +966,7 @@ const migrateConfig = {
       return state
     }
   },
-  '62': (state: MigrationState) => {
+  '62': (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
         if (provider.id === 'azure-openai') {
@@ -982,7 +979,7 @@ const migrateConfig = {
       return state
     }
   },
-  '63': (state: MigrationState) => {
+  '63': (state: RootState) => {
     try {
       addMiniApp(state, '3mintop')
       return state
@@ -990,7 +987,7 @@ const migrateConfig = {
       return state
     }
   },
-  '64': (state: MigrationState) => {
+  '64': (state: RootState) => {
     try {
       state.llm.providers = state.llm.providers.filter((provider) => provider.id !== 'qwenlm')
       addProvider(state, 'baidu-cloud')
@@ -999,7 +996,7 @@ const migrateConfig = {
       return state
     }
   },
-  '65': (state: MigrationState) => {
+  '65': (state: RootState) => {
     try {
       // @ts-ignore expect error
       state.settings.targetLanguage = 'english'
@@ -1008,7 +1005,7 @@ const migrateConfig = {
       return state
     }
   },
-  '66': (state: MigrationState) => {
+  '66': (state: RootState) => {
     try {
       addProvider(state, 'gitee-ai')
       addProvider(state, 'ppio')
@@ -1020,7 +1017,7 @@ const migrateConfig = {
       return state
     }
   },
-  '67': (state: MigrationState) => {
+  '67': (state: RootState) => {
     try {
       addMiniApp(state, 'xiaoyi')
       addProvider(state, 'modelscope')
@@ -1038,7 +1035,7 @@ const migrateConfig = {
       return state
     }
   },
-  '68': (state: MigrationState) => {
+  '68': (state: RootState) => {
     try {
       addMiniApp(state, 'notebooklm')
       addProvider(state, 'modelscope')
@@ -1048,7 +1045,7 @@ const migrateConfig = {
       return state
     }
   },
-  '69': (state: MigrationState) => {
+  '69': (state: RootState) => {
     try {
       addMiniApp(state, 'coze')
       state.settings.gridColumns = 2
@@ -1058,7 +1055,7 @@ const migrateConfig = {
       return state
     }
   },
-  '70': (state: MigrationState) => {
+  '70': (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
         if (provider.id === 'dmxapi') {
@@ -1070,7 +1067,7 @@ const migrateConfig = {
       return state
     }
   },
-  '71': (state: MigrationState) => {
+  '71': (state: RootState) => {
     try {
       const appIds = ['dify', 'wpslingxi', 'lechat', 'abacus', 'lambdachat', 'baidu-ai-search']
 
@@ -1093,7 +1090,7 @@ const migrateConfig = {
       return state
     }
   },
-  '72': (state: MigrationState) => {
+  '72': (state: RootState) => {
     try {
       addMiniApp(state, 'monica')
 
@@ -1111,7 +1108,7 @@ const migrateConfig = {
       return state
     }
   },
-  '73': (state: MigrationState) => {
+  '73': (state: RootState) => {
     try {
       if (state.websearch) {
         state.websearch.searchWithTime = true
@@ -1154,7 +1151,7 @@ const migrateConfig = {
       return state
     }
   },
-  '74': (state: MigrationState) => {
+  '74': (state: RootState) => {
     try {
       addProvider(state, 'xirang')
       return state
@@ -1162,7 +1159,7 @@ const migrateConfig = {
       return state
     }
   },
-  '75': (state: MigrationState) => {
+  '75': (state: RootState) => {
     try {
       addMiniApp(state, 'you')
       addMiniApp(state, 'cici')
@@ -1172,7 +1169,7 @@ const migrateConfig = {
       return state
     }
   },
-  '76': (state: MigrationState) => {
+  '76': (state: RootState) => {
     try {
       addProvider(state, 'tencent-cloud-ti')
       return state
@@ -1180,7 +1177,7 @@ const migrateConfig = {
       return state
     }
   },
-  '77': (state: MigrationState) => {
+  '77': (state: RootState) => {
     try {
       addWebSearchProvider(state, 'searxng')
       addWebSearchProvider(state, 'exa')
@@ -1195,7 +1192,7 @@ const migrateConfig = {
       return state
     }
   },
-  '78': (state: MigrationState) => {
+  '78': (state: RootState) => {
     try {
       state.llm.providers = moveProvider(state.llm.providers, 'ppio', 9)
       state.llm.providers = moveProvider(state.llm.providers, 'infini', 10)
@@ -1205,7 +1202,7 @@ const migrateConfig = {
       return state
     }
   },
-  '79': (state: MigrationState) => {
+  '79': (state: RootState) => {
     try {
       addProvider(state, 'gpustack')
       return state
@@ -1213,7 +1210,7 @@ const migrateConfig = {
       return state
     }
   },
-  '80': (state: MigrationState) => {
+  '80': (state: RootState) => {
     try {
       addProvider(state, 'alayanew')
       state.llm.providers = moveProvider(state.llm.providers, 'alayanew', 10)
@@ -1222,7 +1219,7 @@ const migrateConfig = {
       return state
     }
   },
-  '81': (state: MigrationState) => {
+  '81': (state: RootState) => {
     try {
       addProvider(state, 'copilot')
       return state
@@ -1230,7 +1227,7 @@ const migrateConfig = {
       return state
     }
   },
-  '82': (state: MigrationState) => {
+  '82': (state: RootState) => {
     try {
       const runtimeState = state.runtime as any
       if (runtimeState?.webdavSync) {
@@ -1250,7 +1247,7 @@ const migrateConfig = {
       return state
     }
   },
-  '83': (state: MigrationState) => {
+  '83': (state: RootState) => {
     try {
       state.settings.messageNavigation = 'buttons'
       state.settings.launchOnBoot = false
@@ -1262,7 +1259,7 @@ const migrateConfig = {
       return state
     }
   },
-  '84': (state: MigrationState) => {
+  '84': (state: RootState) => {
     try {
       addProvider(state, 'voyageai')
       return state
@@ -1271,7 +1268,7 @@ const migrateConfig = {
       return state
     }
   },
-  '85': (state: MigrationState) => {
+  '85': (state: RootState) => {
     try {
       // @ts-ignore eslint-disable-next-line
       state.settings.autoCheckUpdate = !state.settings.manualUpdateCheck
@@ -1283,7 +1280,7 @@ const migrateConfig = {
       return state
     }
   },
-  '86': (state: MigrationState) => {
+  '86': (state: RootState) => {
     try {
       if (state?.mcp?.servers) {
         state.mcp.servers = state.mcp.servers.map((server) => ({
@@ -1296,7 +1293,7 @@ const migrateConfig = {
     }
     return state
   },
-  '87': (state: MigrationState) => {
+  '87': (state: RootState) => {
     try {
       state.settings.maxKeepAliveMinapps = 3
       state.settings.showOpenedMinappsInSidebar = true
@@ -1305,7 +1302,7 @@ const migrateConfig = {
       return state
     }
   },
-  '88': (state: MigrationState) => {
+  '88': (state: RootState) => {
     try {
       if (state?.mcp?.servers) {
         const hasAutoInstall = state.mcp.servers.some((server) => server.name === '@cherry/mcp-auto-install')
@@ -1319,7 +1316,7 @@ const migrateConfig = {
       return state
     }
   },
-  '89': (state: MigrationState) => {
+  '89': (state: RootState) => {
     try {
       removeMiniAppFromState(state, 'aistudio')
       return state
@@ -1327,7 +1324,7 @@ const migrateConfig = {
       return state
     }
   },
-  '90': (state: MigrationState) => {
+  '90': (state: RootState) => {
     try {
       state.settings.enableDataCollection = true
       return state
@@ -1335,7 +1332,7 @@ const migrateConfig = {
       return state
     }
   },
-  '91': (state: MigrationState) => {
+  '91': (state: RootState) => {
     try {
       // @ts-ignore eslint-disable-next-line
       state.settings.codeCacheable = false
@@ -1351,7 +1348,7 @@ const migrateConfig = {
       return state
     }
   },
-  '92': (state: MigrationState) => {
+  '92': (state: RootState) => {
     try {
       addMiniApp(state, 'dangbei')
       state.llm.providers = moveProvider(state.llm.providers, 'qiniu', 12)
@@ -1360,7 +1357,7 @@ const migrateConfig = {
       return state
     }
   },
-  '93': (state: MigrationState) => {
+  '93': (state: RootState) => {
     try {
       if (!state?.settings?.exportMenuOptions) {
         state.settings.exportMenuOptions = settingsInitialState.exportMenuOptions
@@ -1371,7 +1368,7 @@ const migrateConfig = {
       return state
     }
   },
-  '94': (state: MigrationState) => {
+  '94': (state: RootState) => {
     try {
       state.settings.enableQuickPanelTriggers = false
       return state
@@ -1379,7 +1376,7 @@ const migrateConfig = {
       return state
     }
   },
-  '95': (state: MigrationState) => {
+  '95': (state: RootState) => {
     try {
       addWebSearchProvider(state, 'local-google')
       addWebSearchProvider(state, 'local-bing')
@@ -1400,7 +1397,7 @@ const migrateConfig = {
       return state
     }
   },
-  '96': (state: MigrationState) => {
+  '96': (state: RootState) => {
     try {
       // @ts-ignore eslint-disable-next-line
       state.settings.assistantIconType = state.settings?.showAssistantIcon ? 'model' : 'emoji'
@@ -1411,7 +1408,7 @@ const migrateConfig = {
       return state
     }
   },
-  '97': (state: MigrationState) => {
+  '97': (state: RootState) => {
     try {
       addMiniApp(state, 'zai')
       state.settings.webdavMaxBackups = 0
@@ -1426,7 +1423,7 @@ const migrateConfig = {
       return state
     }
   },
-  '98': (state: MigrationState) => {
+  '98': (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
         if (provider.type === 'openai' && provider.id !== 'openai') {
@@ -1439,7 +1436,7 @@ const migrateConfig = {
       return state
     }
   },
-  '99': (state: MigrationState) => {
+  '99': (state: RootState) => {
     try {
       state.settings.showPrompt = true
 
@@ -1471,7 +1468,7 @@ const migrateConfig = {
       return state
     }
   },
-  '100': (state: MigrationState) => {
+  '100': (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
         // @ts-ignore eslint-disable-next-line
@@ -1491,7 +1488,7 @@ const migrateConfig = {
       return state
     }
   },
-  '101': (state: MigrationState) => {
+  '101': (state: RootState) => {
     try {
       state.assistants.assistants.forEach((assistant) => {
         if (assistant.settings) {
@@ -1519,7 +1516,7 @@ const migrateConfig = {
       return state
     }
   },
-  '102': (state: MigrationState) => {
+  '102': (state: RootState) => {
     try {
       state.settings.openAI = {
         // @ts-expect-error it's a removed type. migrated on 177
@@ -1571,7 +1568,7 @@ const migrateConfig = {
       return state
     }
   },
-  '103': (state: MigrationState) => {
+  '103': (state: RootState) => {
     try {
       if (state.shortcuts) {
         if (!state.shortcuts.shortcuts.find((shortcut) => shortcut.key === 'search_message_in_chat')) {
@@ -1600,7 +1597,7 @@ const migrateConfig = {
       return state
     }
   },
-  '104': (state: MigrationState) => {
+  '104': (state: RootState) => {
     try {
       addProvider(state, 'burncloud')
       state.llm.providers = moveProvider(state.llm.providers, 'burncloud', 10)
@@ -1610,7 +1607,7 @@ const migrateConfig = {
       return state
     }
   },
-  '105': (state: MigrationState) => {
+  '105': (state: RootState) => {
     try {
       state.settings.notification = settingsInitialState.notification
       addMiniApp(state, 'google')
@@ -1628,7 +1625,7 @@ const migrateConfig = {
       return state
     }
   },
-  '106': (state: MigrationState) => {
+  '106': (state: RootState) => {
     try {
       addProvider(state, 'tokenflux')
       state.llm.providers = moveProvider(state.llm.providers, 'tokenflux', 15)
@@ -1638,7 +1635,7 @@ const migrateConfig = {
       return state
     }
   },
-  '107': (state: MigrationState) => {
+  '107': (state: RootState) => {
     try {
       if (state.paintings && !state.paintings.dmxapi_paintings) {
         state.paintings.dmxapi_paintings = []
@@ -1649,7 +1646,7 @@ const migrateConfig = {
       return state
     }
   },
-  '108': (state: MigrationState) => {
+  '108': (state: RootState) => {
     try {
       // @ts-ignore
       state.inputTools.toolOrder = DEFAULT_TOOL_ORDER
@@ -1660,7 +1657,7 @@ const migrateConfig = {
       return state
     }
   },
-  '109': (state: MigrationState) => {
+  '109': (state: RootState) => {
     try {
       state.settings.userTheme = settingsInitialState.userTheme
       return state
@@ -1669,7 +1666,7 @@ const migrateConfig = {
       return state
     }
   },
-  '110': (state: MigrationState) => {
+  '110': (state: RootState) => {
     try {
       if (state.paintings && !state.paintings.tokenflux_paintings) {
         state.paintings.tokenflux_paintings = []
@@ -1681,7 +1678,7 @@ const migrateConfig = {
       return state
     }
   },
-  '111': (state: MigrationState) => {
+  '111': (state: RootState) => {
     try {
       addSelectionAction(state, 'quote')
       if (
@@ -1700,7 +1697,7 @@ const migrateConfig = {
       return state
     }
   },
-  '112': (state: MigrationState) => {
+  '112': (state: RootState) => {
     try {
       addProvider(state, 'cephalon')
       addProvider(state, '302ai')
@@ -1714,7 +1711,7 @@ const migrateConfig = {
       return state
     }
   },
-  '113': (state: MigrationState) => {
+  '113': (state: RootState) => {
     try {
       addProvider(state, 'vertexai')
       if (!state.llm.settings.vertexai) {
@@ -1732,7 +1729,7 @@ const migrateConfig = {
       return state
     }
   },
-  '114': (state: MigrationState) => {
+  '114': (state: RootState) => {
     try {
       if (state.settings && state.settings.exportMenuOptions) {
         if (typeof state.settings.exportMenuOptions.plain_text === 'undefined') {
@@ -1749,7 +1746,7 @@ const migrateConfig = {
       return state
     }
   },
-  '115': (state: MigrationState) => {
+  '115': (state: RootState) => {
     try {
       state.assistants.assistants.forEach((assistant) => {
         if (!assistant.settings) {
@@ -1770,7 +1767,7 @@ const migrateConfig = {
       return state
     }
   },
-  '116': (state: MigrationState) => {
+  '116': (state: RootState) => {
     try {
       if (state.websearch) {
         // migrate contentLimit to cutoffLimit
@@ -1802,7 +1799,7 @@ const migrateConfig = {
       return state
     }
   },
-  '117': (state: MigrationState) => {
+  '117': (state: RootState) => {
     try {
       const ppioProvider = state.llm.providers.find((provider) => provider.id === 'ppio')
       const modelsToRemove = [
@@ -1840,7 +1837,7 @@ const migrateConfig = {
       return state
     }
   },
-  '118': (state: MigrationState) => {
+  '118': (state: RootState) => {
     try {
       addProvider(state, 'ph8')
       state.llm.providers = moveProvider(state.llm.providers, 'ph8', 14)
@@ -1861,7 +1858,7 @@ const migrateConfig = {
       return state
     }
   },
-  '119': (state: MigrationState) => {
+  '119': (state: RootState) => {
     try {
       addProvider(state, 'new-api')
       state.llm.providers = moveProvider(state.llm.providers, 'new-api', 16)
@@ -1879,7 +1876,7 @@ const migrateConfig = {
       return state
     }
   },
-  '120': (state: MigrationState) => {
+  '120': (state: RootState) => {
     try {
       // migrate to remove memory feature from sidebar (moved to settings)
       if (state.settings && state.settings.sidebarIcons) {
@@ -1927,7 +1924,7 @@ const migrateConfig = {
       return state
     }
   },
-  '121': (state: MigrationState) => {
+  '121': (state: RootState) => {
     try {
       const { toolOrder } = state.inputTools
       const urlContextKey = 'url_context'
@@ -1965,7 +1962,7 @@ const migrateConfig = {
       return state
     }
   },
-  '122': (state: MigrationState) => {
+  '122': (state: RootState) => {
     try {
       state.settings.navbarPosition = 'left'
       return state
@@ -1975,7 +1972,7 @@ const migrateConfig = {
     }
   },
 
-  '123': (state: MigrationState) => {
+  '123': (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
         provider.models.forEach((model) => {
@@ -2000,7 +1997,7 @@ const migrateConfig = {
       return state
     }
   }, // 1.5.4
-  '124': (state: MigrationState) => {
+  '124': (state: RootState) => {
     try {
       state.assistants.assistants.forEach((assistant) => {
         if (assistant.settings && !assistant.settings.toolUseMode) {
@@ -2049,7 +2046,7 @@ const migrateConfig = {
       return state
     }
   },
-  '125': (state: MigrationState) => {
+  '125': (state: RootState) => {
     try {
       // Initialize API server configuration if not present
       if (!state.settings.apiServer) {
@@ -2066,7 +2063,7 @@ const migrateConfig = {
       return state
     }
   },
-  '126': (state: MigrationState) => {
+  '126': (state: RootState) => {
     try {
       state.knowledge.bases.forEach((base) => {
         // @ts-ignore eslint-disable-next-line
@@ -2088,7 +2085,7 @@ const migrateConfig = {
       return state
     }
   },
-  '127': (state: MigrationState) => {
+  '127': (state: RootState) => {
     try {
       addProvider(state, 'poe')
 
@@ -2129,7 +2126,7 @@ const migrateConfig = {
       return state
     }
   },
-  '128': (state: MigrationState) => {
+  '128': (state: RootState) => {
     try {
       // 迁移 service tier 设置
       const openai = state.llm.providers.find((provider) => provider.id === SystemProviderIds.openai)
@@ -2155,7 +2152,7 @@ const migrateConfig = {
       return state
     }
   },
-  '129': (state: MigrationState) => {
+  '129': (state: RootState) => {
     try {
       // 聚合 api options
       state.llm.providers.forEach((p) => {
@@ -2177,7 +2174,7 @@ const migrateConfig = {
       return state
     }
   },
-  '130': (state: MigrationState) => {
+  '130': (state: RootState) => {
     try {
       if (state.settings && state.settings.openAI && !state.settings.openAI.verbosity) {
         state.settings.openAI.verbosity = 'medium'
@@ -2192,7 +2189,7 @@ const migrateConfig = {
       return state
     }
   },
-  '131': (state: MigrationState) => {
+  '131': (state: RootState) => {
     try {
       state.settings.mathEnableSingleDollar = true
       return state
@@ -2201,7 +2198,7 @@ const migrateConfig = {
       return state
     }
   },
-  '132': (state: MigrationState) => {
+  '132': (state: RootState) => {
     try {
       state.llm.providers.forEach((p) => {
         // 如果原本是undefined则不做改动，静默从默认支持改为默认不支持
@@ -2218,7 +2215,7 @@ const migrateConfig = {
       return state
     }
   },
-  '133': (state: MigrationState) => {
+  '133': (state: RootState) => {
     try {
       state.settings.sidebarIcons.visible.push('code_tools')
       if (state.codeTools) {
@@ -2234,7 +2231,7 @@ const migrateConfig = {
       return state
     }
   },
-  '134': (state: MigrationState) => {
+  '134': (state: RootState) => {
     try {
       state.llm.quickModel = state.llm.topicNamingModel
 
@@ -2244,7 +2241,7 @@ const migrateConfig = {
       return state
     }
   },
-  '135': (state: MigrationState) => {
+  '135': (state: RootState) => {
     try {
       if (!state.assistants.defaultAssistant.settings) {
         state.assistants.defaultAssistant.settings = DEFAULT_ASSISTANT_SETTINGS
@@ -2257,7 +2254,7 @@ const migrateConfig = {
       return state
     }
   },
-  '136': (state: MigrationState) => {
+  '136': (state: RootState) => {
     try {
       state.settings.sidebarIcons.visible = [...new Set(state.settings.sidebarIcons.visible)].filter((icon) =>
         DefaultPreferences.default['ui.sidebar.icons.visible'].includes(icon)
@@ -2271,7 +2268,7 @@ const migrateConfig = {
       return state
     }
   },
-  '137': (state: MigrationState) => {
+  '137': (state: RootState) => {
     try {
       state.ocr = {
         providers: BUILTIN_OCR_PROVIDERS,
@@ -2284,7 +2281,7 @@ const migrateConfig = {
       return state
     }
   },
-  '138': (state: MigrationState) => {
+  '138': (state: RootState) => {
     try {
       addOcrProvider(state, BUILTIN_OCR_PROVIDERS_MAP.system)
       return state
@@ -2293,7 +2290,7 @@ const migrateConfig = {
       return state
     }
   },
-  '139': (state: MigrationState) => {
+  '139': (state: RootState) => {
     try {
       addProvider(state, 'cherryin')
       state.llm.providers = moveProvider(state.llm.providers, 'cherryin', 1)
@@ -2333,7 +2330,7 @@ const migrateConfig = {
       return state
     }
   },
-  '140': (state: MigrationState) => {
+  '140': (state: RootState) => {
     try {
       // @ts-ignore
       state.paintings = {
@@ -2363,7 +2360,7 @@ const migrateConfig = {
       return state
     }
   },
-  '141': (state: MigrationState) => {
+  '141': (state: RootState) => {
     try {
       if (state.settings && state.settings.sidebarIcons) {
         // Check if 'notes' is not already in visible icons
@@ -2377,7 +2374,7 @@ const migrateConfig = {
       return state
     }
   },
-  '142': (state: MigrationState) => {
+  '142': (state: RootState) => {
     try {
       // Initialize notes settings if not present
       if (!state.note) {
@@ -2389,7 +2386,7 @@ const migrateConfig = {
       return state
     }
   },
-  '143': (state: MigrationState) => {
+  '143': (state: RootState) => {
     try {
       addMiniApp(state, 'longcat')
       return state
@@ -2397,7 +2394,7 @@ const migrateConfig = {
       return state
     }
   },
-  '144': (state: MigrationState) => {
+  '144': (state: RootState) => {
     try {
       if (state.settings) {
         state.settings.confirmDeleteMessage = settingsInitialState.confirmDeleteMessage
@@ -2409,7 +2406,7 @@ const migrateConfig = {
       return state
     }
   },
-  '145': (state: MigrationState) => {
+  '145': (state: RootState) => {
     try {
       if (state.settings) {
         if (state.settings.showMessageOutline === undefined || state.settings.showMessageOutline === null) {
@@ -2422,7 +2419,7 @@ const migrateConfig = {
       return state
     }
   },
-  '146': (state: MigrationState) => {
+  '146': (state: RootState) => {
     try {
       // Migrate showWorkspace from settings to note store
       if (state.settings && state.note) {
@@ -2445,7 +2442,7 @@ const migrateConfig = {
       return state
     }
   },
-  '147': (state: MigrationState) => {
+  '147': (state: RootState) => {
     try {
       state.knowledge.bases.forEach((base) => {
         if ((base as any).framework) {
@@ -2458,7 +2455,7 @@ const migrateConfig = {
       return state
     }
   },
-  '148': (state: MigrationState) => {
+  '148': (state: RootState) => {
     try {
       addOcrProvider(state, BUILTIN_OCR_PROVIDERS_MAP.paddleocr)
       return state
@@ -2467,7 +2464,7 @@ const migrateConfig = {
       return state
     }
   },
-  '149': (state: MigrationState) => {
+  '149': (state: RootState) => {
     try {
       state.knowledge.bases.forEach((base) => {
         if ((base as any).framework) {
@@ -2480,7 +2477,7 @@ const migrateConfig = {
       return state
     }
   },
-  '150': (state: MigrationState) => {
+  '150': (state: RootState) => {
     try {
       addShortcuts(state, ['rename_topic'], 'new_topic')
       addShortcuts(state, ['edit_last_user_message'], 'copy_last_message')
@@ -2490,7 +2487,7 @@ const migrateConfig = {
       return state
     }
   },
-  '151': (state: MigrationState) => {
+  '151': (state: RootState) => {
     try {
       if (state.settings) {
         state.settings.codeFancyBlock = true
@@ -2501,7 +2498,7 @@ const migrateConfig = {
       return state
     }
   },
-  '152': (state: MigrationState) => {
+  '152': (state: RootState) => {
     try {
       state.translate.settings = {
         autoCopy: false
@@ -2512,7 +2509,7 @@ const migrateConfig = {
       return state
     }
   },
-  '153': (state: MigrationState) => {
+  '153': (state: RootState) => {
     try {
       if (state.note.settings) {
         state.note.settings.fontSize = notesInitialState.settings.fontSize
@@ -2524,7 +2521,7 @@ const migrateConfig = {
       return state
     }
   },
-  '154': (state: MigrationState) => {
+  '154': (state: RootState) => {
     try {
       if (state.settings.userTheme) {
         state.settings.userTheme.userFontFamily = settingsInitialState.userTheme.userFontFamily
@@ -2536,7 +2533,7 @@ const migrateConfig = {
       return state
     }
   },
-  '155': (state: MigrationState) => {
+  '155': (state: RootState) => {
     try {
       state.knowledge.bases.forEach((base) => {
         if ((base as any).framework) {
@@ -2549,7 +2546,7 @@ const migrateConfig = {
       return state
     }
   },
-  '156': (state: MigrationState) => {
+  '156': (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
         if (provider.id === SystemProviderIds.anthropic) {
@@ -2564,7 +2561,7 @@ const migrateConfig = {
       return state
     }
   },
-  '157': (state: MigrationState) => {
+  '157': (state: RootState) => {
     try {
       addProvider(state, 'aionly')
       state.llm.providers = moveProvider(state.llm.providers, 'aionly', 10)
@@ -2616,7 +2613,7 @@ const migrateConfig = {
       return state
     }
   },
-  '158': (state: MigrationState) => {
+  '158': (state: RootState) => {
     try {
       state.llm.providers = state.llm.providers.filter((provider) => provider.id !== 'cherryin')
       addProvider(state, 'longcat')
@@ -2626,7 +2623,7 @@ const migrateConfig = {
       return state
     }
   },
-  '159': (state: MigrationState) => {
+  '159': (state: RootState) => {
     try {
       addProvider(state, 'ovms')
       fixMissingProvider(state)
@@ -2636,7 +2633,7 @@ const migrateConfig = {
       return state
     }
   },
-  '161': (state: MigrationState) => {
+  '161': (state: RootState) => {
     try {
       removeMiniAppFromState(state, 'nm-search')
       removeMiniAppFromState(state, 'hika')
@@ -2649,7 +2646,7 @@ const migrateConfig = {
       return state
     }
   },
-  '167': (state: MigrationState) => {
+  '167': (state: RootState) => {
     try {
       addProvider(state, 'huggingface')
       return state
@@ -2658,7 +2655,7 @@ const migrateConfig = {
       return state
     }
   },
-  '168': (state: MigrationState) => {
+  '168': (state: RootState) => {
     try {
       addPreprocessProviders(state, 'open-mineru')
       return state
@@ -2667,7 +2664,7 @@ const migrateConfig = {
       return state
     }
   },
-  '169': (state: MigrationState) => {
+  '169': (state: RootState) => {
     try {
       if (state?.mcp?.servers) {
         state.mcp.servers = state.mcp.servers.map((server) => {
@@ -2684,7 +2681,7 @@ const migrateConfig = {
       return state
     }
   },
-  '170': (state: MigrationState) => {
+  '170': (state: RootState) => {
     try {
       addProvider(state, 'sophnet')
       state.llm.providers = moveProvider(state.llm.providers, 'sophnet', 17)
@@ -2695,7 +2692,7 @@ const migrateConfig = {
       return state
     }
   },
-  '171': (state: MigrationState) => {
+  '171': (state: RootState) => {
     try {
       // Ensure aws-bedrock provider exists
       addProvider(state, 'aws-bedrock')
@@ -2718,7 +2715,7 @@ const migrateConfig = {
       return state
     }
   },
-  '172': (state: MigrationState) => {
+  '172': (state: RootState) => {
     try {
       // Add ling and huggingchat mini apps
       addMiniApp(state, 'ling')
@@ -2810,7 +2807,7 @@ const migrateConfig = {
       return state
     }
   },
-  '173': (state: MigrationState) => {
+  '173': (state: RootState) => {
     try {
       // Migrate toolOrder from global state to scope-based state
       if (state.inputTools && !state.inputTools.sessionToolOrder) {
@@ -2822,7 +2819,7 @@ const migrateConfig = {
       return state
     }
   },
-  '174': (state: MigrationState) => {
+  '174': (state: RootState) => {
     try {
       addProvider(state, SystemProviderIds.longcat)
 
@@ -2839,7 +2836,7 @@ const migrateConfig = {
       return state
     }
   },
-  '175': (state: MigrationState) => {
+  '175': (state: RootState) => {
     try {
       state.assistants.assistants.forEach((assistant) => {
         // @ts-ignore
@@ -2860,7 +2857,7 @@ const migrateConfig = {
       return state
     }
   },
-  '176': (state: MigrationState) => {
+  '176': (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
         if (provider.id === SystemProviderIds.qiniu) {
@@ -2876,7 +2873,7 @@ const migrateConfig = {
       return state
     }
   },
-  '177': (state: MigrationState) => {
+  '177': (state: RootState) => {
     try {
       // @ts-expect-error it's a removed type
       if (state.settings.openAI.summaryText === 'off') {
@@ -2889,7 +2886,7 @@ const migrateConfig = {
       return state
     }
   },
-  '178': (state: MigrationState) => {
+  '178': (state: RootState) => {
     try {
       const groq = state.llm.providers.find((p) => p.id === SystemProviderIds.groq)
       if (groq) {
@@ -2902,7 +2899,7 @@ const migrateConfig = {
       return state
     }
   },
-  '179': (state: MigrationState) => {
+  '179': (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
         switch (provider.id) {
@@ -2924,7 +2921,7 @@ const migrateConfig = {
       return state
     }
   },
-  '181': (state: MigrationState) => {
+  '181': (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
         if (provider.id === 'ai-gateway') {
@@ -2948,7 +2945,7 @@ const migrateConfig = {
       return state
     }
   },
-  '182': (state: MigrationState) => {
+  '182': (state: RootState) => {
     try {
       // Initialize streamOptions in settings.openAI if not exists
       if (!state.settings.openAI.streamOptions) {
@@ -2963,7 +2960,7 @@ const migrateConfig = {
       return state
     }
   },
-  '183': (state: MigrationState) => {
+  '183': (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
         if (provider.id === SystemProviderIds.cherryin) {
@@ -2979,7 +2976,7 @@ const migrateConfig = {
       return state
     }
   },
-  '184': (state: MigrationState) => {
+  '184': (state: RootState) => {
     try {
       // Add exa-mcp (free) web search provider if not exists
       const exaMcpExists = state.websearch.providers.some((p) => p.id === 'exa-mcp')
@@ -3004,7 +3001,7 @@ const migrateConfig = {
       return state
     }
   },
-  '185': (state: MigrationState) => {
+  '185': (state: RootState) => {
     try {
       // Reset toolUseMode to function for default assistant
       if (state.assistants.defaultAssistant.settings?.toolUseMode) {
@@ -3025,7 +3022,7 @@ const migrateConfig = {
       return state
     }
   },
-  '186': (state: MigrationState) => {
+  '186': (state: RootState) => {
     try {
       if (state.settings.apiServer) {
         state.settings.apiServer.host = API_SERVER_DEFAULTS.HOST
@@ -3050,7 +3047,7 @@ const migrateConfig = {
       return state
     }
   },
-  '187': (state: MigrationState) => {
+  '187': (state: RootState) => {
     try {
       state.assistants.assistants.forEach((assistant) => {
         if (assistant.settings && assistant.settings.reasoning_effort === undefined) {
@@ -3066,7 +3063,7 @@ const migrateConfig = {
     }
   },
   // 1.7.7
-  '188': (state: MigrationState) => {
+  '188': (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
         if (provider.id === SystemProviderIds.openrouter) {
@@ -3081,7 +3078,7 @@ const migrateConfig = {
     }
   },
   // 1.7.7
-  '189': (state: MigrationState) => {
+  '189': (state: RootState) => {
     try {
       void window.api.memory.migrateMemoryDb()
       // @ts-ignore
@@ -3110,7 +3107,7 @@ const migrateConfig = {
     }
   },
   // 1.7.8
-  '190': (state: MigrationState) => {
+  '190': (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
         if (provider.id === SystemProviderIds.ollama) {
@@ -3124,7 +3121,7 @@ const migrateConfig = {
       return state
     }
   },
-  '191': (state: MigrationState) => {
+  '191': (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
         if (provider.id === 'tokenflux') {
@@ -3139,7 +3136,7 @@ const migrateConfig = {
       return state
     }
   },
-  '192': (state: MigrationState) => {
+  '192': (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
         if (provider.id === '302ai') {
@@ -3154,7 +3151,7 @@ const migrateConfig = {
       return state
     }
   },
-  '193': (state: MigrationState) => {
+  '193': (state: RootState) => {
     try {
       addPreprocessProviders(state, 'paddleocr')
       logger.info('migrate 193 success')
@@ -3164,7 +3161,7 @@ const migrateConfig = {
       return state
     }
   },
-  '194': (state: MigrationState) => {
+  '194': (state: RootState) => {
     try {
       const GLM_4_5_FLASH_MODEL = 'glm-4.5-flash'
       if (state.llm.defaultModel?.provider === 'cherryai' && state.llm.defaultModel?.id === GLM_4_5_FLASH_MODEL) {
@@ -3192,7 +3189,7 @@ const migrateConfig = {
       return state
     }
   },
-  '195': (state: MigrationState) => {
+  '195': (state: RootState) => {
     try {
       if (state.settings && state.settings.sidebarIcons) {
         // Add 'openclaw' to visible icons if not already present
@@ -3207,7 +3204,7 @@ const migrateConfig = {
       return state
     }
   },
-  '196': (state: MigrationState) => {
+  '196': (state: RootState) => {
     try {
       if (state.paintings && !state.paintings.ppio_draw) {
         state.paintings.ppio_draw = []
@@ -3222,7 +3219,7 @@ const migrateConfig = {
       return state
     }
   },
-  '197': (state: MigrationState) => {
+  '197': (state: RootState) => {
     try {
       if (state.openclaw?.gatewayPort === 18789) {
         state.openclaw.gatewayPort = 18790
@@ -3234,7 +3231,7 @@ const migrateConfig = {
       return state
     }
   },
-  '198': (state: MigrationState) => {
+  '198': (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
         if (provider.id === 'minimax') {
@@ -3248,7 +3245,7 @@ const migrateConfig = {
       return state
     }
   },
-  '199': (state: MigrationState) => {
+  '199': (state: RootState) => {
     try {
       addShortcuts(state, ['select_model'], 'toggle_new_context')
       return state
@@ -3257,7 +3254,7 @@ const migrateConfig = {
       return state
     }
   },
-  '200': (state: MigrationState) => {
+  '200': (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
         if (provider.type === 'ollama') {
@@ -3294,7 +3291,7 @@ const migrateConfig = {
       return state
     }
   },
-  '201': (state: MigrationState) => {
+  '201': (state: RootState) => {
     try {
       addWebSearchProvider(state, 'querit')
       return state
@@ -3303,7 +3300,7 @@ const migrateConfig = {
       return state
     }
   },
-  '202': (state: MigrationState) => {
+  '202': (state: RootState) => {
     try {
       const filesystemServer = state.mcp?.servers?.find((s: any) => s.name === '@cherry/filesystem')
       if (filesystemServer && filesystemServer.disabledAutoApproveTools === undefined) {
@@ -3315,7 +3312,7 @@ const migrateConfig = {
       return state
     }
   },
-  '203': (state: MigrationState) => {
+  '203': (state: RootState) => {
     try {
       if (state.settings && state.settings.sidebarIcons) {
         // Add 'agents' to visible icons if not already present
@@ -3348,7 +3345,7 @@ const migrateConfig = {
       return state
     }
   },
-  '204': (state: MigrationState) => {
+  '204': (state: RootState) => {
     try {
       if (state.llm.defaultModel?.provider === 'cherryai') {
         state.llm.defaultModel = qwenModel
@@ -3374,7 +3371,7 @@ const migrateConfig = {
       return state
     }
   },
-  '205': (state: MigrationState) => {
+  '205': (state: RootState) => {
     try {
       localStorage.setItem('onboarding-completed', 'true')
 
@@ -3395,7 +3392,7 @@ const migrateConfig = {
       return state
     }
   },
-  '206': (state: MigrationState) => {
+  '206': (state: RootState) => {
     try {
       const { sessionToolOrder } = state.inputTools
       const permissionModeKey = 'permission_mode'
