@@ -24,9 +24,9 @@ import { SettingContainer, SettingDivider, SettingGroup, SettingTitle } from '.'
 
 const logger = loggerService.withContext('ShortcutSettings')
 const MINI_WINDOW_SHORTCUT_KEY: ShortcutPreferenceKey = 'shortcut.general.show_mini_window'
+const SELECTION_SHORTCUT_CATEGORY = 'feature.selection'
 
 type ShortcutRecord = {
-  id: string
   definition: ShortcutDefinition
   label: string
   key: ShortcutPreferenceKey
@@ -68,6 +68,7 @@ const ShortcutSettings: FC = () => {
   const { theme } = useTheme()
   const shortcuts = useAllShortcuts()
   const [quickAssistantEnabled] = usePreference('feature.quick_assistant.enabled')
+  const [selectionAssistantEnabled] = usePreference('feature.selection.enabled')
   const inputRefs = useRef<Record<string, HTMLInputElement>>({})
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [pendingKeys, setPendingKeys] = useState<string[]>([])
@@ -75,63 +76,68 @@ const ShortcutSettings: FC = () => {
   const [searchQuery, setSearchQuery] = useState('')
   const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
 
-  const displayedShortcuts = useMemo<ShortcutRecord[]>(() => {
-    const filtered = shortcuts.filter((item) => {
+  const visibleShortcuts = useMemo<ShortcutRecord[]>(() => {
+    const query = searchQuery.toLowerCase()
+    return shortcuts.flatMap((item) => {
       const supported = item.definition.supportedPlatforms
       if (supported && platform && !supported.includes(platform as SupportedPlatform)) {
-        return false
+        return []
       }
-      return true
-    })
+      if (item.definition.key === MINI_WINDOW_SHORTCUT_KEY && !quickAssistantEnabled) {
+        return []
+      }
+      if (item.definition.category === SELECTION_SHORTCUT_CATEGORY && !selectionAssistantEnabled) {
+        return []
+      }
 
-    return filtered.map((item) => {
-      const label = getShortcutLabel(item.definition.labelKey)
-
-      const displayKeys = item.preference.binding
-
-      return {
-        id: item.definition.key,
+      const record = {
         definition: item.definition,
-        label,
+        label: getShortcutLabel(item.definition.labelKey),
         key: item.definition.key,
         enabled: item.preference.enabled,
-        displayKeys,
+        displayKeys: item.preference.binding,
         updatePreference: item.updatePreference,
-        defaultPreference: {
-          binding: item.defaultPreference.binding,
-          enabled: item.defaultPreference.enabled
-        }
+        defaultPreference: item.defaultPreference
       }
+
+      if (!query) {
+        return [record]
+      }
+
+      const display =
+        record.displayKeys.length > 0 ? formatShortcutDisplay(record.displayKeys, isMac).toLowerCase() : ''
+      return record.label.toLowerCase().includes(query) || display.includes(query) ? [record] : []
     })
+  }, [quickAssistantEnabled, searchQuery, selectionAssistantEnabled, shortcuts])
+
+  const duplicateBindingLabels = useMemo(() => {
+    const lookup = new Map<string, { key: ShortcutPreferenceKey; label: string }>()
+
+    for (const shortcut of shortcuts) {
+      if (!shortcut.preference.enabled || !shortcut.preference.binding.length) continue
+      lookup.set(shortcut.preference.binding.map((key) => key.toLowerCase()).join('+'), {
+        key: shortcut.definition.key,
+        label: getShortcutLabel(shortcut.definition.labelKey)
+      })
+    }
+
+    return lookup
   }, [shortcuts])
 
-  const filteredShortcuts = useMemo(() => {
-    if (!searchQuery.trim()) {
-      return displayedShortcuts
-    }
-    const query = searchQuery.toLowerCase()
-    return displayedShortcuts.filter((record) => {
-      if (record.label.toLowerCase().includes(query)) {
-        return true
-      }
-      if (record.displayKeys.length > 0) {
-        const display = formatShortcutDisplay(record.displayKeys, isMac).toLowerCase()
-        if (display.includes(query)) {
-          return true
-        }
-      }
-      return false
-    })
-  }, [displayedShortcuts, searchQuery])
-
-  const handleAddShortcut = (record: ShortcutRecord) => {
-    setEditingKey(record.id)
+  const clearEditingState = () => {
+    clearTimeoutTimer('conflict-clear')
+    setEditingKey(null)
     setPendingKeys([])
     setConflictLabel(null)
+  }
+
+  const handleAddShortcut = (record: ShortcutRecord) => {
+    clearEditingState()
+    setEditingKey(record.key)
     setTimeoutTimer(
-      `focus-${record.id}`,
+      `focus-${record.key}`,
       () => {
-        inputRefs.current[record.id]?.focus()
+        inputRefs.current[record.key]?.focus()
       },
       0
     )
@@ -152,36 +158,22 @@ const ShortcutSettings: FC = () => {
         binding: record.defaultPreference.binding,
         enabled: record.defaultPreference.enabled
       })
-      setEditingKey(null)
-      setPendingKeys([])
-      setConflictLabel(null)
+      clearEditingState()
     } catch (error) {
       handleUpdateFailure(record, error)
     }
   }
 
   const findDuplicateLabel = (keys: string[], currentKey: ShortcutPreferenceKey): string | null => {
-    const normalized = keys.map((key) => key.toLowerCase()).join('+')
-
-    for (const shortcut of shortcuts) {
-      if (shortcut.definition.key === currentKey) continue
-      if (!shortcut.preference.enabled) continue
-      const binding = shortcut.preference.binding
-      if (!binding.length) continue
-      if (binding.map((key) => key.toLowerCase()).join('+') === normalized) {
-        return getShortcutLabel(shortcut.definition.labelKey)
-      }
-    }
-    return null
+    const duplicate = duplicateBindingLabels.get(keys.map((key) => key.toLowerCase()).join('+'))
+    return duplicate && duplicate.key !== currentKey ? duplicate.label : null
   }
 
   const handleKeyDown = async (event: ReactKeyboardEvent, record: ShortcutRecord) => {
     event.preventDefault()
 
     if (event.code === 'Escape') {
-      setEditingKey(null)
-      setPendingKeys([])
-      setConflictLabel(null)
+      clearEditingState()
       return
     }
 
@@ -218,8 +210,7 @@ const ShortcutSettings: FC = () => {
     setConflictLabel(null)
     try {
       await record.updatePreference({ binding: keys, enabled: true })
-      setEditingKey(null)
-      setPendingKeys([])
+      clearEditingState()
     } catch (error) {
       handleUpdateFailure(record, error)
     }
@@ -250,9 +241,8 @@ const ShortcutSettings: FC = () => {
   }
 
   const renderShortcutCell = (record: ShortcutRecord) => {
-    const isEditing = editingKey === record.id
+    const isEditing = editingKey === record.key
     const displayShortcut = record.displayKeys.length > 0 ? formatShortcutDisplay(record.displayKeys, isMac) : ''
-    const isMiniWindowShortcutDisabled = record.key === MINI_WINDOW_SHORTCUT_KEY && !quickAssistantEnabled
     const isEditable = record.definition.editable !== false
 
     if (isEditing) {
@@ -263,7 +253,7 @@ const ShortcutSettings: FC = () => {
         <div className="relative flex flex-col items-end">
           <Input
             ref={(el) => {
-              if (el) inputRefs.current[record.id] = el
+              if (el) inputRefs.current[record.key] = el
             }}
             className={`h-7 w-36 text-center text-xs ${hasConflict ? 'border-red-500 focus-visible:ring-red-500/50' : ''}`}
             value={pendingDisplay}
@@ -274,10 +264,7 @@ const ShortcutSettings: FC = () => {
             onBlur={(event) => {
               const isUndoClick = (event.relatedTarget as HTMLElement)?.closest('.shortcut-undo-icon')
               if (!isUndoClick) {
-                clearTimeoutTimer('conflict-clear')
-                setEditingKey(null)
-                setPendingKeys([])
-                setConflictLabel(null)
+                clearEditingState()
               }
             }}
           />
@@ -304,8 +291,8 @@ const ShortcutSettings: FC = () => {
             </Tooltip>
           )}
           <RowFlex
-            className={`items-center gap-1 rounded-lg bg-white/5 px-2 py-1 ${isEditable && !isMiniWindowShortcutDisabled ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
-            onClick={() => isEditable && !isMiniWindowShortcutDisabled && handleAddShortcut(record)}>
+            className={`items-center gap-1 rounded-lg bg-white/5 px-2 py-1 ${isEditable ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
+            onClick={() => isEditable && handleAddShortcut(record)}>
             {record.displayKeys.map((key) => (
               <kbd
                 key={key}
@@ -320,10 +307,43 @@ const ShortcutSettings: FC = () => {
 
     return (
       <span
-        className={`rounded-lg bg-white/5 px-3 py-1 text-sm text-white/30 ${isEditable && !isMiniWindowShortcutDisabled ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
-        onClick={() => isEditable && !isMiniWindowShortcutDisabled && handleAddShortcut(record)}>
+        className={`rounded-lg bg-white/5 px-3 py-1 text-sm text-white/30 ${isEditable ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
+        onClick={() => isEditable && handleAddShortcut(record)}>
         {t('settings.shortcuts.press_shortcut')}
       </span>
+    )
+  }
+
+  const renderShortcutRow = (record: ShortcutRecord, isLast: boolean) => {
+    const switchNode = (
+      <Switch
+        size="sm"
+        checked={record.enabled}
+        disabled={!record.displayKeys.length}
+        onCheckedChange={() => {
+          record.updatePreference({ enabled: !record.enabled }).catch((error) => {
+            handleUpdateFailure(record, error)
+          })
+        }}
+      />
+    )
+
+    const switchContent = !record.displayKeys.length ? (
+      <Tooltip content={t('settings.shortcuts.bind_first_to_enable')}>{switchNode}</Tooltip>
+    ) : (
+      switchNode
+    )
+
+    return (
+      <div
+        key={record.key}
+        className={`flex items-center justify-between py-3.5 ${isLast ? '' : 'border-white/10 border-b'}`}>
+        <span className="text-sm">{record.label}</span>
+        <RowFlex className="w-[22rem] shrink-0 items-center justify-end gap-3">
+          <div className="flex min-h-8 flex-1 items-center justify-end">{renderShortcutCell(record)}</div>
+          <span className="flex w-10 justify-end">{switchContent}</span>
+        </RowFlex>
+      </div>
     )
   }
 
@@ -341,47 +361,7 @@ const ShortcutSettings: FC = () => {
           />
         </div>
         <div className="flex flex-col">
-          {filteredShortcuts.map((record, index) =>
-            (() => {
-              const isMiniWindowShortcutDisabled = record.key === MINI_WINDOW_SHORTCUT_KEY && !quickAssistantEnabled
-              const switchNode =
-                record.displayKeys.length > 0 ? (
-                  <Switch
-                    size="sm"
-                    checked={record.enabled}
-                    disabled={isMiniWindowShortcutDisabled}
-                    onCheckedChange={() => {
-                      record.updatePreference({ enabled: !record.enabled }).catch((error) => {
-                        handleUpdateFailure(record, error)
-                      })
-                    }}
-                  />
-                ) : (
-                  <Switch size="sm" checked={record.enabled} disabled />
-                )
-
-              let switchContent = switchNode
-              if (isMiniWindowShortcutDisabled) {
-                switchContent = (
-                  <Tooltip content={t('settings.quickAssistant.enable_quick_assistant')}>{switchNode}</Tooltip>
-                )
-              } else if (!record.displayKeys.length) {
-                switchContent = <Tooltip content={t('settings.shortcuts.bind_first_to_enable')}>{switchNode}</Tooltip>
-              }
-
-              return (
-                <div
-                  key={record.id}
-                  className={`flex items-center justify-between py-3.5 ${index < filteredShortcuts.length - 1 ? 'border-white/10 border-b' : ''}`}>
-                  <span className="text-sm">{record.label}</span>
-                  <RowFlex className="items-center gap-3">
-                    {renderShortcutCell(record)}
-                    <span>{switchContent}</span>
-                  </RowFlex>
-                </div>
-              )
-            })()
-          )}
+          {visibleShortcuts.map((record, index) => renderShortcutRow(record, index === visibleShortcuts.length - 1))}
         </div>
         <SettingDivider style={{ marginBottom: 0 }} />
         <RowFlex className="justify-end p-4">

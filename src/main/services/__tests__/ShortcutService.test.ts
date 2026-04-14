@@ -69,6 +69,7 @@ vi.mock('electron', () => ({
   globalShortcut: globalShortcutMock
 }))
 
+import { handleZoomFactor } from '@main/utils/zoom'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 
 import { ShortcutService } from '../ShortcutService'
@@ -181,5 +182,27 @@ describe('ShortcutService', () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('feature.quick_assistant.enabled', true)
 
     expect(globalShortcutMock.register).toHaveBeenCalledWith('CommandOrControl+E', expect.any(Function))
+  })
+
+  it('re-registers window-bound shortcuts when the main window instance changes', async () => {
+    await (service as any).onInit()
+
+    const nextWindow = new MockBrowserWindow()
+    globalShortcutMock.register.mockClear()
+    globalShortcutMock.unregister.mockClear()
+
+    ;(service as any).registerForWindow(nextWindow)
+
+    expect(globalShortcutMock.unregister).toHaveBeenCalledWith('CommandOrControl+=')
+
+    const zoomInRegistration = globalShortcutMock.register.mock.calls.find(
+      ([accelerator]) => accelerator === 'CommandOrControl+='
+    )
+    expect(zoomInRegistration).toBeTruthy()
+
+    const zoomInHandler = zoomInRegistration?.[1] as (() => void) | undefined
+    zoomInHandler?.()
+
+    expect(handleZoomFactor).toHaveBeenCalledWith([nextWindow], 0.1)
   })
 })

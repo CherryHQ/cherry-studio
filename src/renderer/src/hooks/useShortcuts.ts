@@ -32,18 +32,45 @@ const isFullKey = (key: string): key is ShortcutPreferenceKey => key.startsWith(
 const toFullKey = (key: ShortcutKey | ShortcutPreferenceKey): ShortcutPreferenceKey =>
   isFullKey(key) ? key : (`shortcut.${key}` as ShortcutPreferenceKey)
 
+const shortcutPreferenceKeyMap = SHORTCUT_DEFINITIONS.reduce<Record<string, ShortcutPreferenceKey>>(
+  (acc, definition) => {
+    acc[definition.key] = definition.key
+    return acc
+  },
+  {}
+)
+
+const buildNextPreference = (
+  state: ResolvedShortcut,
+  currentValue: PreferenceShortcutType | undefined,
+  patch: Partial<PreferenceShortcutType>
+): PreferenceShortcutType => {
+  const current: Partial<PreferenceShortcutType> = currentValue ?? {}
+
+  return {
+    binding: Array.isArray(patch.binding)
+      ? patch.binding
+      : Array.isArray(current.binding)
+        ? current.binding
+        : state.binding,
+    enabled:
+      typeof patch.enabled === 'boolean'
+        ? patch.enabled
+        : typeof current.enabled === 'boolean'
+          ? current.enabled
+          : state.enabled
+  }
+}
+
 export const useShortcut = (
   shortcutKey: ShortcutKey | ShortcutPreferenceKey,
   callback: (event: KeyboardEvent) => void,
   options: UseShortcutOptions = defaultOptions
 ) => {
   const fullKey = toFullKey(shortcutKey)
-  const definition = useMemo(() => findShortcutDefinition(fullKey), [fullKey])
+  const definition = findShortcutDefinition(fullKey)
   const [preference] = usePreference(fullKey)
-  const resolved = useMemo(
-    () => (definition ? resolveShortcutPreference(definition, preference) : null),
-    [definition, preference]
-  )
+  const resolved = definition ? resolveShortcutPreference(definition, preference) : null
 
   const callbackRef = useRef(callback)
   callbackRef.current = callback
@@ -98,12 +125,9 @@ export const useShortcut = (
 
 export const useShortcutDisplay = (shortcutKey: ShortcutKey | ShortcutPreferenceKey): string => {
   const fullKey = toFullKey(shortcutKey)
-  const definition = useMemo(() => findShortcutDefinition(fullKey), [fullKey])
+  const definition = findShortcutDefinition(fullKey)
   const [preference] = usePreference(fullKey)
-  const resolved = useMemo(
-    () => (definition ? resolveShortcutPreference(definition, preference) : null),
-    [definition, preference]
-  )
+  const resolved = definition ? resolveShortcutPreference(definition, preference) : null
 
   return useMemo(() => {
     if (!definition || !resolved || !resolved.enabled || !resolved.binding.length) {
@@ -122,44 +146,15 @@ export interface ShortcutListItem {
 }
 
 export const useAllShortcuts = (): ShortcutListItem[] => {
-  const keyMap = useMemo(
-    () =>
-      SHORTCUT_DEFINITIONS.reduce<Record<string, ShortcutPreferenceKey>>((acc, definition) => {
-        acc[definition.key] = definition.key
-        return acc
-      }, {}),
-    []
-  )
+  const [values, setValues] = useMultiplePreferences(shortcutPreferenceKeyMap)
 
-  const [values, setValues] = useMultiplePreferences(keyMap)
-
-  const buildNextPreference = useCallback(
-    (
-      state: ResolvedShortcut,
-      currentValue: PreferenceShortcutType | undefined,
-      patch: Partial<PreferenceShortcutType>
-    ): PreferenceShortcutType => {
-      const current = (currentValue ?? {}) as PreferenceShortcutType
-
-      const nextBinding = Array.isArray(patch.binding)
-        ? patch.binding
-        : Array.isArray(current.binding)
-          ? current.binding
-          : state.binding
-
-      const nextEnabled =
-        typeof patch.enabled === 'boolean'
-          ? patch.enabled
-          : typeof current.enabled === 'boolean'
-            ? current.enabled
-            : state.enabled
-
-      return {
-        binding: nextBinding,
-        enabled: nextEnabled
-      }
+  const updatePreference = useCallback(
+    async (definition: ShortcutDefinition, state: ResolvedShortcut, patch: Partial<PreferenceShortcutType>) => {
+      const currentValue = values[definition.key] as PreferenceShortcutType | undefined
+      const nextValue = buildNextPreference(state, currentValue, patch)
+      await setValues({ [definition.key]: nextValue } as Partial<Record<string, PreferenceShortcutType>>)
     },
-    []
+    [setValues, values]
   )
 
   return useMemo(
@@ -167,21 +162,14 @@ export const useAllShortcuts = (): ShortcutListItem[] => {
       SHORTCUT_DEFINITIONS.map((definition) => {
         const rawValue = values[definition.key] as PreferenceShortcutType | undefined
         const preference = resolveShortcutPreference(definition, rawValue)
-        const defaultPreference = getDefaultShortcut(definition)
-
-        const updatePreference = async (patch: Partial<PreferenceShortcutType>) => {
-          const currentValue = values[definition.key] as PreferenceShortcutType | undefined
-          const nextValue = buildNextPreference(preference, currentValue, patch)
-          await setValues({ [definition.key]: nextValue } as Partial<Record<string, PreferenceShortcutType>>)
-        }
 
         return {
           definition,
           preference,
-          defaultPreference,
-          updatePreference
+          defaultPreference: getDefaultShortcut(definition),
+          updatePreference: (patch: Partial<PreferenceShortcutType>) => updatePreference(definition, preference, patch)
         }
       }),
-    [buildNextPreference, setValues, values]
+    [updatePreference, values]
   )
 }

@@ -1,19 +1,3 @@
-/**
- * @deprecated Scheduled for removal in v2.0.0
- * --------------------------------------------------------------------------
- * ⚠️ NOTICE: V2 DATA&UI REFACTORING (by 0xfullex)
- * --------------------------------------------------------------------------
- * STOP: Feature PRs affecting this file are currently BLOCKED.
- * Only critical bug fixes are accepted during this migration phase.
- *
- * This file is being refactored to v2 standards.
- * Any non-critical changes will conflict with the ongoing work.
- *
- * 🔗 Context & Status:
- * - Contribution Hold: https://github.com/CherryHQ/cherry-studio/issues/10954
- * - v2 Refactor PR   : https://github.com/CherryHQ/cherry-studio/pull/10162
- * --------------------------------------------------------------------------
- */
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -30,6 +14,7 @@ const logger = loggerService.withContext('ShortcutService')
 const MINI_WINDOW_SHORTCUT_KEY: ShortcutPreferenceKey = 'shortcut.general.show_mini_window'
 
 type ShortcutHandler = (window?: BrowserWindow) => void
+type RegisteredShortcut = { handler: ShortcutHandler; window: BrowserWindow }
 
 const toAccelerator = (keys: string[]): string => keys.join('+')
 
@@ -47,7 +32,7 @@ export class ShortcutService extends BaseService {
   private handlers = new Map<ShortcutPreferenceKey, ShortcutHandler>()
   private windowOnHandlers = new Map<BrowserWindow, { onFocus: () => void; onBlur: () => void; onClosed: () => void }>()
   private isRegisterOnBoot = true
-  private registeredAccelerators = new Map<string, ShortcutHandler>()
+  private registeredAccelerators = new Map<string, RegisteredShortcut>()
 
   protected async onInit() {
     this.registerBuiltInHandlers()
@@ -186,7 +171,7 @@ export class ShortcutService extends BaseService {
     const preferenceService = application.get('PreferenceService')
 
     // Build the desired set of accelerators
-    const desired = new Map<string, { handler: ShortcutHandler; window: BrowserWindow }>()
+    const desired = new Map<string, RegisteredShortcut>()
 
     for (const definition of relevantDefinitions) {
       if (onlyPersistent && !definition.global) continue
@@ -218,9 +203,9 @@ export class ShortcutService extends BaseService {
     }
 
     // Unregister shortcuts that are no longer needed or have a different handler
-    for (const [accelerator, prevHandler] of this.registeredAccelerators) {
+    for (const [accelerator, previous] of this.registeredAccelerators) {
       const entry = desired.get(accelerator)
-      if (!entry || entry.handler !== prevHandler) {
+      if (!entry || entry.handler !== previous.handler || entry.window !== previous.window) {
         try {
           globalShortcut.unregister(accelerator)
         } catch (error) {
@@ -243,7 +228,7 @@ export class ShortcutService extends BaseService {
             }
           })
           if (success) {
-            this.registeredAccelerators.set(accelerator, handler)
+            this.registeredAccelerators.set(accelerator, { handler, window: win })
           } else {
             logger.warn(`Failed to register shortcut ${accelerator}: accelerator is held by another application`)
           }
