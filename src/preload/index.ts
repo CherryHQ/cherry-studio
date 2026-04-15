@@ -883,6 +883,7 @@ const api = {
         numInferenceSteps?: number
         guidanceScale?: number
         promptEnhancement?: boolean
+        personGeneration?: string
       }
     }): Promise<{
       images: Array<{

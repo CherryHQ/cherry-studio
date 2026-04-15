@@ -1,6 +1,5 @@
 import { loggerService } from '@logger'
 import type { Span } from '@opentelemetry/api'
-import { AiProvider } from '@renderer/aiCore'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, DEFAULT_KNOWLEDGE_THRESHOLD } from '@renderer/config/constant'
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
 import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
@@ -18,6 +17,8 @@ import { ChunkType } from '@renderer/types/chunk'
 import { routeToEndpoint } from '@renderer/utils'
 import type { ExtractResults } from '@renderer/utils/extract'
 import { isAzureOpenAIProvider, isGeminiProvider } from '@renderer/utils/provider'
+import { getRotatedProviderApiKey } from '@renderer/utils/providerAuth'
+import { formatProviderApiHost } from '@renderer/utils/providerHost'
 import { isEmpty } from 'lodash'
 
 import { getProviderByModel } from './AssistantService'
@@ -27,9 +28,8 @@ import { estimateTextTokens } from './TokenService'
 const logger = loggerService.withContext('RendererKnowledgeService')
 
 export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams => {
-  const rerankProvider = getProviderByModel(base.rerankModel)
-  const aiProvider = new AiProvider(base.model)
-  const rerankAiProvider = new AiProvider(rerankProvider)
+  const embedProvider = formatProviderApiHost(getProviderByModel(base.model))
+  const rerankProvider = formatProviderApiHost(getProviderByModel(base.rerankModel))
 
   // get preprocess provider from store instead of base.preprocessProvider
   const preprocessProvider = store
@@ -42,16 +42,14 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
       }
     : base.preprocessProvider
 
-  const actualProvider = aiProvider.getActualProvider()
+  let { baseURL } = routeToEndpoint(embedProvider.apiHost)
 
-  let { baseURL } = routeToEndpoint(actualProvider.apiHost)
-
-  const rerankHost = rerankAiProvider.getBaseURL()
-  if (isGeminiProvider(actualProvider)) {
+  const rerankHost = rerankProvider.apiHost
+  if (isGeminiProvider(embedProvider)) {
     baseURL = baseURL + '/openai'
-  } else if (isAzureOpenAIProvider(actualProvider)) {
+  } else if (isAzureOpenAIProvider(embedProvider)) {
     baseURL = baseURL + '/v1'
-  } else if (actualProvider.id === SystemProviderIds.ollama) {
+  } else if (embedProvider.id === SystemProviderIds.ollama) {
     // LangChain生态不需要/api结尾的URL
     baseURL = baseURL.replace(/\/api$/, '')
   }
@@ -76,7 +74,7 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
     embedApiClient: {
       model: base.model.id,
       provider: base.model.provider,
-      apiKey: aiProvider.getApiKey() || 'secret',
+      apiKey: getRotatedProviderApiKey(embedProvider) || 'secret',
       baseURL
     },
     chunkSize,
@@ -84,7 +82,7 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
     rerankApiClient: {
       model: base.rerankModel?.id || '',
       provider: rerankProvider.name.toLowerCase(),
-      apiKey: rerankAiProvider.getApiKey() || 'secret',
+      apiKey: getRotatedProviderApiKey(rerankProvider) || 'secret',
       baseURL: rerankHost
     },
     documentCount: base.documentCount,

@@ -82,6 +82,7 @@ export interface AiImageRequest extends AiBaseRequest {
   numInferenceSteps?: number
   guidanceScale?: number
   promptEnhancement?: boolean
+  personGeneration?: string
 }
 
 export interface GeneratedImagePayload {

@@ -1,6 +1,6 @@
-import type { MemorySearchToolInput, MemorySearchToolOutput } from '@renderer/aiCore/tools/MemorySearchTool'
 import Spinner from '@renderer/components/Spinner'
 import type { NormalToolResponse } from '@renderer/types'
+import type { MemorySearchToolInput, MemorySearchToolOutput } from '@renderer/types/toolResponses'
 import { Typography } from 'antd'
 import { ChevronRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'

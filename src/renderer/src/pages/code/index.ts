@@ -1,4 +1,3 @@
-import { getThinkingBudget } from '@renderer/aiCore/utils/reasoning'
 import {
   isReasoningModel,
   isSupportedReasoningEffortModel,
@@ -7,6 +6,7 @@ import {
 import { type EndpointType, type Model, type Provider } from '@renderer/types'
 import { formatApiHost } from '@renderer/utils/api'
 import { getFancyProviderName, sanitizeProviderName } from '@renderer/utils/naming'
+import { getThinkingBudget } from '@renderer/utils/reasoningBudget'
 import { codeCLI } from '@shared/config/constant'
 import { CLAUDE_SUPPORTED_PROVIDERS } from '@shared/config/providers'
 
