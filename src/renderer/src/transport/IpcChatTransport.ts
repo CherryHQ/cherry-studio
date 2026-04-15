@@ -54,7 +54,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
       .streamOpen({
         topicId,
         trigger,
-        parentAnchorId: mergedBody.parentAnchorId || (trigger === 'regenerate-message' ? lastMessage?.id : (trigger === 'regenerate-message' ? lastMessage?.id : undefined)),
+        parentAnchorId: mergedBody.parentAnchorId || (trigger === 'regenerate-message' ? lastMessage?.id : undefined),
         userMessageParts: lastMessage ? lastMessage.parts : [],
         mentionedModelIds: mergedBody.mentionedModels
       })
@@ -193,7 +193,6 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
       }
     })
   }
-if (data.topicId !== topicId) return
   buildExecutionStream(topicId: string, executionId: string): ReadableStream<UIMessageChunk> {
     return this.buildListenerStream(topicId, undefined, undefined, executionId)
   }
