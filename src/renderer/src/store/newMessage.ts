@@ -17,9 +17,7 @@
 import { loggerService } from '@logger'
 import type { EntityState, PayloadAction } from '@reduxjs/toolkit'
 import { createEntityAdapter, createSlice } from '@reduxjs/toolkit'
-// Separate type-only imports from value imports
 import type { Message } from '@renderer/types/newMessage'
-import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 
 const logger = loggerService.withContext('newMessage')
 
@@ -32,7 +30,6 @@ export interface MessagesState extends EntityState<Message, string> {
   currentTopicId: string | null
   loadingByTopic: Record<string, boolean>
   fulfilledByTopic: Record<string, boolean>
-  displayCount: number
 }
 
 // 3. Define the Initial State
@@ -40,8 +37,7 @@ const initialState: MessagesState = messagesAdapter.getInitialState({
   messageIdsByTopic: {},
   currentTopicId: null,
   loadingByTopic: {},
-  fulfilledByTopic: {},
-  displayCount: 10
+  fulfilledByTopic: {}
 })
 
 // Payload for receiving messages (used by loadTopicMessagesThunk)
@@ -56,43 +52,10 @@ interface SetTopicLoadingPayload {
   loading: boolean
 }
 
-// Payload for setting topic loading state
+// Payload for setting topic fulfilled state
 interface SetTopicFulfilledPayload {
   topicId: string
   fulfilled: boolean
-}
-
-// Payload for upserting a block reference
-interface UpsertBlockReferencePayload {
-  messageId: string
-  blockId: string
-  status?: MessageBlockStatus
-  blockType?: MessageBlockType
-}
-
-// Payload for removing a single message
-interface RemoveMessagePayload {
-  topicId: string
-  messageId: string
-}
-
-// Payload for removing messages by askId
-interface RemoveMessagesByAskIdPayload {
-  topicId: string
-  askId: string
-}
-
-// Payload for removing multiple messages by ID
-interface RemoveMessagesPayload {
-  topicId: string
-  messageIds: string[]
-}
-
-// Payload for inserting a message at a specific index
-interface InsertMessageAtIndexPayload {
-  topicId: string
-  message: Message
-  index: number
 }
 
 // 4. Create the Slice with Refactored Reducers
@@ -115,46 +78,12 @@ export const messagesSlice = createSlice({
       const { topicId, fulfilled } = action.payload
       state.fulfilledByTopic[topicId] = fulfilled
     },
-    setDisplayCount(state, action: PayloadAction<number>) {
-      state.displayCount = action.payload
-    },
     messagesReceived(state, action: PayloadAction<MessagesReceivedPayload>) {
       const { topicId, messages } = action.payload
       // @ts-ignore ts-2589 false positive
       messagesAdapter.upsertMany(state, messages)
       state.messageIdsByTopic[topicId] = messages.map((m) => m.id)
       state.currentTopicId = topicId
-    },
-    addMessage(state, action: PayloadAction<{ topicId: string; message: Message }>) {
-      const { topicId, message } = action.payload
-      messagesAdapter.addOne(state, message)
-      if (!state.messageIdsByTopic[topicId]) {
-        state.messageIdsByTopic[topicId] = []
-      }
-      state.messageIdsByTopic[topicId].push(message.id)
-      if (!(topicId in state.loadingByTopic)) {
-        state.loadingByTopic[topicId] = false
-      }
-      if (!(topicId in state.fulfilledByTopic)) {
-        state.fulfilledByTopic[topicId] = false
-      }
-    },
-    insertMessageAtIndex(state, action: PayloadAction<InsertMessageAtIndexPayload>) {
-      const { topicId, message, index } = action.payload
-      messagesAdapter.addOne(state, message) // Add message to entities
-      if (!state.messageIdsByTopic[topicId]) {
-        state.messageIdsByTopic[topicId] = []
-      }
-      // Ensure index is within bounds
-      const safeIndex = Math.max(0, Math.min(index, state.messageIdsByTopic[topicId].length))
-      state.messageIdsByTopic[topicId].splice(safeIndex, 0, message.id) // Insert ID at specified index
-
-      if (!(topicId in state.loadingByTopic)) {
-        state.loadingByTopic[topicId] = false
-      }
-      if (!(topicId in state.fulfilledByTopic)) {
-        state.fulfilledByTopic[topicId] = false
-      }
     },
     updateMessage(
       state,
@@ -189,96 +118,6 @@ export const messagesSlice = createSlice({
         }
       } else {
         messagesAdapter.updateOne(state, { id: messageId, changes: otherUpdates })
-      }
-    },
-    clearTopicMessages(state, action: PayloadAction<string>) {
-      const topicId = action.payload
-      const idsToRemove = state.messageIdsByTopic[topicId] || []
-      if (idsToRemove.length > 0) {
-        messagesAdapter.removeMany(state, idsToRemove)
-      }
-      delete state.messageIdsByTopic[topicId]
-      state.loadingByTopic[topicId] = false
-      state.fulfilledByTopic[topicId] = false
-    },
-    removeMessage(state, action: PayloadAction<RemoveMessagePayload>) {
-      const { topicId, messageId } = action.payload
-      const currentTopicIds = state.messageIdsByTopic[topicId]
-      if (currentTopicIds) {
-        state.messageIdsByTopic[topicId] = currentTopicIds.filter((id) => id !== messageId)
-      }
-      messagesAdapter.removeOne(state, messageId)
-    },
-    removeMessagesByAskId(state, action: PayloadAction<RemoveMessagesByAskIdPayload>) {
-      const { topicId, askId } = action.payload
-      const currentTopicIds = state.messageIdsByTopic[topicId] || []
-      const idsToRemove: string[] = []
-
-      currentTopicIds.forEach((id) => {
-        const message = state.entities[id]
-        if (message && message.askId === askId) {
-          idsToRemove.push(id)
-        }
-      })
-
-      if (idsToRemove.length > 0) {
-        messagesAdapter.removeMany(state, idsToRemove)
-        state.messageIdsByTopic[topicId] = currentTopicIds.filter((id) => !idsToRemove.includes(id))
-      }
-    },
-    removeMessages(state, action: PayloadAction<RemoveMessagesPayload>) {
-      const { topicId, messageIds } = action.payload
-      const currentTopicIds = state.messageIdsByTopic[topicId]
-      const idsToRemoveSet = new Set(messageIds)
-      if (currentTopicIds) {
-        state.messageIdsByTopic[topicId] = currentTopicIds.filter((id) => !idsToRemoveSet.has(id))
-      }
-      messagesAdapter.removeMany(state, messageIds)
-    },
-    upsertBlockReference(state, action: PayloadAction<UpsertBlockReferencePayload>) {
-      const { messageId, blockId, status, blockType } = action.payload
-
-      const messageToUpdate = state.entities[messageId]
-      if (!messageToUpdate) {
-        logger.error(`[upsertBlockReference] Message ${messageId} not found.`)
-        return
-      }
-
-      const changes: Partial<Message> = {}
-
-      // Update Block ID
-      const currentBlocks = messageToUpdate.blocks || []
-      if (!currentBlocks.includes(blockId)) {
-        if (blockType === MessageBlockType.THINKING) {
-          changes.blocks = [blockId, ...currentBlocks]
-        } else {
-          changes.blocks = [...currentBlocks, blockId]
-        }
-      }
-
-      // Update Message Status based on Block Status
-      if (status) {
-        if (
-          (status === MessageBlockStatus.PROCESSING || status === MessageBlockStatus.STREAMING) &&
-          messageToUpdate.status !== AssistantMessageStatus.PROCESSING &&
-          messageToUpdate.status !== AssistantMessageStatus.SUCCESS &&
-          messageToUpdate.status !== AssistantMessageStatus.ERROR
-        ) {
-          changes.status = AssistantMessageStatus.PROCESSING
-        } else if (status === MessageBlockStatus.ERROR) {
-          changes.status = AssistantMessageStatus.ERROR
-        } else if (
-          status === MessageBlockStatus.SUCCESS &&
-          messageToUpdate.status === AssistantMessageStatus.PROCESSING
-        ) {
-          // Tentative success - may need refinement
-          // changes.status = AssistantMessageStatus.SUCCESS
-        }
-      }
-
-      // Apply updates if any changes were made
-      if (Object.keys(changes).length > 0) {
-        messagesAdapter.updateOne(state, { id: messageId, changes })
       }
     }
   }
