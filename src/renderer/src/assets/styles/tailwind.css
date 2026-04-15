@@ -27,6 +27,7 @@
   --sidebar-active-border: rgba(16, 185, 129, 0.15);
   --sidebar-glow-bg: rgba(16, 185, 129, 0.25);
   --sidebar-glow-line: rgba(16, 185, 129, 0.5);
+  --color-background: oklch(1 0 0);
 
   --primary-foreground: oklch(0.985 0 0);
   --card-foreground: oklch(0.145 0 0);

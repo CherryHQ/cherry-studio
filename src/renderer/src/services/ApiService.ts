@@ -204,6 +204,54 @@ export function hasApiKey(provider: Provider) {
   return !isEmpty(provider.apiKey)
 }
 
+/**
+ * Get rotated API key for providers that support multiple keys
+ * Returns empty string for providers that don't require API keys
+ */
+export function getRotatedApiKey(provider: Provider): string {
+  // Handle providers that don't require API keys
+  if (!provider.apiKey || provider.apiKey.trim() === '') {
+    return ''
+  }
+
+  const keys = provider.apiKey
+    .split(',')
+    .map((key) => key.trim())
+    .filter(Boolean)
+
+  if (keys.length === 0) {
+    return ''
+  }
+
+  const keyName = `provider:${provider.id}:last_used_key`
+
+  // If only one key, return it directly
+  if (keys.length === 1) {
+    return keys[0]
+  }
+
+  const lastUsedKey = cacheService.getCasual<string>(keyName)
+  if (!lastUsedKey) {
+    cacheService.setCasual(keyName, keys[0])
+    return keys[0]
+  }
+
+  const currentIndex = keys.indexOf(lastUsedKey)
+
+  // Log when the last used key is no longer in the list
+  if (currentIndex === -1) {
+    logger.debug('Last used API key no longer found in provider keys, falling back to first key', {
+      providerId: provider.id,
+      lastUsedKey: lastUsedKey.substring(0, 8) + '...' // Only log first 8 chars for security
+    })
+  }
+
+  const nextIndex = (currentIndex + 1) % keys.length
+  const nextKey = keys[nextIndex]
+  cacheService.setCasual(keyName, nextKey)
+
+  return nextKey
+}
 export async function fetchModels(provider: Provider): Promise<Model[]> {
   try {
     return await window.api.ai.listModels({ providerId: provider.id })

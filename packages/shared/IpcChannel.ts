@@ -505,5 +505,16 @@ export enum IpcChannel {
   Ai_EmbedMany = 'ai:embed-many',
   Ai_GenerateImage = 'ai:generate-image',
   Ai_AbortImage = 'ai:abort-image',
-  Ai_ListModels = 'ai:list-models'
+  Ai_ListModels = 'ai:list-models',
+
+  // WindowManager
+  WindowManager_Open = 'window-manager:open',
+  WindowManager_Close = 'window-manager:close',
+  WindowManager_Show = 'window-manager:show',
+  WindowManager_Hide = 'window-manager:hide',
+  WindowManager_Minimize = 'window-manager:minimize',
+  WindowManager_Maximize = 'window-manager:maximize',
+  WindowManager_Focus = 'window-manager:focus',
+  WindowManager_GetInitData = 'window-manager:get-init-data',
+  WindowManager_PoolReset = 'window-manager:pool-reset'
 }

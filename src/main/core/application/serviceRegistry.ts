@@ -4,6 +4,7 @@ import { DbService } from '@data/db/DbService'
 import { PreferenceService } from '@data/PreferenceService'
 import { AiService } from '@main/ai/AiService'
 import { AiStreamManager } from '@main/ai/stream-manager/AiStreamManager'
+import { WindowManager } from '@main/core/window/WindowManager'
 import { AgentBootstrapService } from '@main/services/AgentBootstrapService'
 import { AnalyticsService } from '@main/services/AnalyticsService'
 import { ApiServerService } from '@main/services/ApiServerService'
@@ -58,6 +59,7 @@ import type { ServiceConstructor } from '../lifecycle/types'
  * Value = service class constructor
  */
 export const services = {
+  WindowManager,
   DbService,
   CacheService,
   DataApiService,
