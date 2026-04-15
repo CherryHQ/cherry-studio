@@ -1,81 +1,84 @@
 {
-  "generated_at": "2026-04-14T17:51:42+00:00",
-  "date": "2026-04-14",
-  "summary": {
-    "open_total": 737,
-    "closed_30d": 189,
-    "closed_today": 5,
-    "health_score": "MODERATE",
-    "health_note": "High zombie ratio (~51%) driven by main branch code freeze since April 3, 2026. Active closure rate is healthy (189 in 30d / ~6.3/day)."
-  },
-  "health_distribution": {
-    "Active": {
-      "count": 60,
-      "pct": "8.1%",
-      "definition": "Created within last 7 days"
+  "date": "2026-04-15",
+  "generated_at": "2026-04-15T00:00:00Z",
+  "total_open_issues": 746,
+  "health_buckets": {
+    "active": {
+      "count": 188,
+      "pct": 25.2,
+      "definition": "updated within last 7 days (>2026-04-08)"
     },
-    "Aging": {
-      "count": 120,
-      "pct": "16.3%",
-      "definition": "Created 8-30 days ago"
+    "aging": {
+      "count": 404,
+      "pct": 54.2,
+      "definition": "updated 8-30 days ago (2026-03-16 to 2026-04-07)"
     },
-    "Stale": {
-      "count": 180,
-      "pct": "24.4%",
-      "definition": "Created 31-90 days ago"
+    "stale": {
+      "count": 132,
+      "pct": 17.7,
+      "definition": "updated 31-90 days ago (2026-01-16 to 2026-03-15)"
     },
-    "Zombie": {
-      "count": 377,
-      "pct": "51.2%",
-      "definition": "Created 90+ days ago (pre-Jan 2026)"
-    },
-    "estimation_method": "Sample-based: 2 pages (100 newest + 100 oldest) from 737 total open issues"
-  },
-  "label_health": {
-    "unlabeled_pct_sample": "14.0%",
-    "total_sample_size": 100,
-    "unlabeled_count_in_sample": 14,
-    "top_action_labels": {
-      "needs-repro": 10,
-      "needs-more-info": 1,
-      "help wanted": 9
-    },
-    "triage_note": "14% of recent issues lack labels — triaging team should review unlabeled issues #14256, #14250, #13897, #14215, #14233"
-  },
-  "bug_analysis": {
-    "bug_labeled_in_sample": 23,
-    "extrapolated_total_bugs": "~170 (23% of 737 estimated)",
-    "needs_repro_in_sample": 10,
-    "p1_urgent_note": "No explicit P1 label used. 'BUG' + 'needs-repro' are key triage labels. Consider adding P1/P2/P3 priority labels.",
-    "high_attention_bugs": [
-      {
-        "number": 13897,
-        "title": "[Bug]: High frequency requests to analytics.cherry-ai.com",
-        "concern": "Privacy/telemetry concern - high community upvotes"
-      }
-    ]
-  },
-  "closure_velocity": {
-    "closed_30d": 189,
-    "daily_average": 6.3,
-    "by_recent_day": {
-      "2026-04-14": 5,
-      "2026-04-13": 3,
-      "2026-04-12": 3,
-      "2026-04-11": 9,
-      "2026-04-10": 3,
-      "2026-04-09": 6,
-      "2026-04-08": 3,
-      "2026-04-07": 8,
-      "2026-04-06": 3,
-      "2026-04-05": 4
+    "zombie": {
+      "count": 3,
+      "pct": 0.4,
+      "definition": "updated 90+ days ago (before 2026-01-16)"
     }
   },
+  "triage_metrics": {
+    "unlabeled": 70,
+    "unlabeled_pct": 9.4,
+    "p1_open": 4,
+    "p1_unassigned": 3,
+    "bug_open": 168
+  },
+  "p1_issues": [
+    {
+      "number": 13608,
+      "title": "xiaomi mimo response only displays the last line",
+      "age_days": 27,
+      "status": "aging",
+      "assignee": null,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13608"
+    },
+    {
+      "number": 13193,
+      "title": "Azure OpenAI defaults to responses API - Resource not found",
+      "age_days": 41,
+      "status": "stale",
+      "assignee": "DeJeune",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"
+    },
+    {
+      "number": 13105,
+      "title": "PDF files cannot be read in v1.7.19",
+      "age_days": 46,
+      "status": "stale",
+      "assignee": null,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13105"
+    },
+    {
+      "number": 12966,
+      "title": "[URGENT] Critical Security Advisory GHSA-qmgw-45x4-3626",
+      "age_days": 55,
+      "status": "stale",
+      "assignee": null,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/12966"
+    }
+  ],
+  "closed_last_30d": 163,
+  "close_rate_per_day": 5.4,
+  "open_rate_per_day_estimate": "unknown",
+  "top_label_bugs": {
+    "BUG": 168,
+    "inactive": 96,
+    "Models": 41,
+    "needs-repro": 14
+  },
   "recommendations": [
-    "Apply 'Blocked: v2' label to feature requests blocked by code freeze so reporters understand timeline",
-    "Triage 14% unlabeled recent issues (14/100 in sample)",
-    "Introduce P1/P2/P3 priority labels for better severity tracking",
-    "Consider bulk-closing Zombie issues (90+ days, no activity) with a comment pointing to v2 timeline",
-    "The 'inactive' label (41 in sample) suggests auto-close bot is active — verify threshold settings"
+    "3 of 4 P1 issues have no assignee — assign immediately",
+    "#12966 (Security Advisory) is 55 days old with no resolution — escalate",
+    "404 issues (54%) in aging bucket — consider triage sprint",
+    "70 unlabeled issues (9.4%) need classification",
+    "132 stale issues may need closing or milestone assignment"
   ]
 }

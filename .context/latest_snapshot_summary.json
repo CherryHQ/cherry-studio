@@ -1,127 +1,96 @@
 {
-  "generated_at": "2026-04-14T17:51:42.807973+00:00",
-  "date": "2026-04-14",
-  "source": "GitHub MCP API (cherryhq/cherry-studio)",
-  "issues": {
-    "open_total": 737,
-    "closed_last_30d": 189,
-    "closed_today": 5,
-    "unlabeled_pct_sample": "14.0%",
-    "label_distribution_top20": {
-      "inactive": 41,
-      "BUG": 23,
-      "Models": 22,
-      "UI/UX": 19,
-      "MCP": 12,
-      "discussion": 11,
-      "Assistant": 10,
-      "needs-repro": 10,
-      "help wanted": 9,
-      "RAG": 6,
-      "Data": 6,
-      "feature": 5,
-      "Connectivity": 2,
-      "Performance": 1,
-      "needs-more-info": 1,
-      "Blocked: v2": 1,
-      "P2": 1,
-      "v2": 1,
-      "Planned": 1
+  "date": "2026-04-15",
+  "generated_at": "2026-04-15T00:00:00Z",
+  "source": "GitHub API via MCP tools",
+  "open_issues": {
+    "total": 746,
+    "unlabeled": 70,
+    "unlabeled_pct": 9.4,
+    "p1_count": 4,
+    "bug_count": 168
+  },
+  "open_prs": {
+    "total": 239,
+    "to_main": 180,
+    "to_v2": 56,
+    "to_other": 3
+  },
+  "closed_issues_30d": 163,
+  "p1_issues": [
+    {
+      "number": 13608,
+      "title": "[Bug]: xiaomi mimo response only displays the last line",
+      "labels": ["P1", "Models"],
+      "created_at": "2026-03-18",
+      "updated_at": "2026-03-19",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13608",
+      "assignee": null
     },
-    "health_distribution": {
-      "estimated": {
-        "Active": 60,
-        "Aging": 120,
-        "Stale": 180,
-        "Zombie": 377
-      },
-      "note": "Estimated from 2-page sample (100 recent + 100 oldest). Full scan requires pagination across all 737 issues."
+    {
+      "number": 13193,
+      "title": "[Bug]: Azure OpenAI Resource not found - defaults to responses API instead of chat/completions",
+      "labels": ["P1", "Models"],
+      "created_at": "2026-03-04",
+      "updated_at": "2026-03-05",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13193",
+      "assignee": "DeJeune"
     },
-    "p1_bug_label_count": 23,
-    "needs_repro_count": 10,
-    "inactive_labeled_count": 41
+    {
+      "number": 13105,
+      "title": "[Bug]: In version 1.7.19, when sending PDF files directly in the chat box, almost all models cannot read PDF files",
+      "labels": ["P1", "Models", "inactive"],
+      "created_at": "2026-02-28",
+      "updated_at": "2026-04-07",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13105",
+      "assignee": null
+    },
+    {
+      "number": 12966,
+      "title": "[URGENT] Unanswered Critical Security Advisory (GHSA-qmgw-45x4-3626) - Pending Triage for 8 Days",
+      "labels": ["BUG", "P1"],
+      "created_at": "2026-02-19",
+      "updated_at": "2026-03-25",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/12966",
+      "assignee": null
+    }
+  ],
+  "label_distribution_sample": {
+    "note": "Based on top-200 recently-updated open issues",
+    "inactive": 96,
+    "BUG": 58,
+    "Models": 41,
+    "UI/UX": 35,
+    "discussion": 23,
+    "MCP": 22,
+    "Assistant": 23,
+    "help_wanted": 21,
+    "Data": 17,
+    "feature": 15,
+    "needs-repro": 14,
+    "Connectivity": 7,
+    "RAG": 10,
+    "v2": 3,
+    "OpenClaw": 7,
+    "Agent": 2,
+    "P2": 2
   },
-  "pull_requests": {
-    "open_total_min": 100,
-    "open_note": "At least 100 (first page only; sorted by recency, may have more)",
-    "open_v2": 53,
-    "open_v2_ready": 35,
-    "open_v2_draft": 18,
-    "merged_to_v2_last_30d": 51,
-    "stale_prs_over_30d": 55,
-    "main_branch_prs_sample": 72,
-    "v2_branch_prs_sample": 27
+  "issue_age_distribution": {
+    "method": "search by last-updated date",
+    "active_7d": 188,
+    "aging_8_30d": 404,
+    "stale_31_90d": 132,
+    "zombie_90d_plus": 3,
+    "active_pct": 25.2,
+    "aging_pct": 54.2,
+    "stale_pct": 17.7,
+    "zombie_pct": 0.4
   },
-  "v2_branch": {
-    "merged_30d_count": 51,
-    "merged_today_count": 1,
-    "top_recent_merges": [
-      {
-        "number": 14240,
-        "title": "feat(sidebar): implement tab bar UI with drag, pin, and context menu",
-        "merged_at": "2026-04-14",
-        "author": "jidan745le"
-      },
-      {
-        "number": 13851,
-        "title": "feat(v2): decouple assistant from topic with dedicated table",
-        "merged_at": "2026-04-13",
-        "author": "DeJeune"
-      },
-      {
-        "number": 14220,
-        "title": "refactor: move rtk extraction into agent bootstrap service",
-        "merged_at": "2026-04-13",
-        "author": "vaayne"
-      },
-      {
-        "number": 14180,
-        "title": "fix: remove libsql_vector_idx",
-        "merged_at": "2026-04-11",
-        "author": "eeee0717"
-      },
-      {
-        "number": 14090,
-        "title": "feat(v2): knowledge service backend",
-        "merged_at": "2026-04-10",
-        "author": "eeee0717"
-      },
-      {
-        "number": 14115,
-        "title": "feat(data): provider/model data migration and registry service (backend)",
-        "merged_at": "2026-04-10",
-        "author": "jidan745le"
-      },
-      {
-        "number": 14147,
-        "title": "refactor: replace HTTP MCP proxy with in-memory SDK transport for Claude Agent SDK",
-        "merged_at": "2026-04-10",
-        "author": "vaayne"
-      },
-      {
-        "number": 12474,
-        "title": "feat(tabs): implement browser-like tab system with detach/attach support",
-        "merged_at": "2026-04-10",
-        "author": "MyPrototypeWhat"
-      }
-    ],
-    "open_ready_for_review": 35,
-    "open_draft": 18,
-    "active_contributors": [
-      "DeJeune",
-      "EurFelux",
-      "eeee0717",
-      "vaayne",
-      "jidan745le",
-      "kovsu",
-      "kangfenmao"
-    ]
-  },
-  "sample_notes": {
-    "issues_page_size": 100,
-    "issues_pages_fetched": 2,
-    "prs_pages_fetched": 1,
-    "v2_prs_pages_fetched": 1,
-    "closed_issues_page_fetched": 1
+  "v2_branch_summary": {
+    "merged_total": 85,
+    "merged_30d": 52,
+    "open_prs": 56,
+    "open_drafts": 18,
+    "open_ready": 38,
+    "closed_unmerged": 30
   }
 }

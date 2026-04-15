@@ -1,20 +1,38 @@
 {
-  "generated_at": "2026-04-14T17:51:42+00:00",
-  "date": "2026-04-14",
-  "data_note": "Discussions data not available via REST API in this run. GraphQL query required (gh api graphql or GitHub MCP GraphQL endpoint). Using issue-label proxy for discussion category analysis.",
-  "proxy_from_issues": {
-    "discussion_labeled_issues": 11,
-    "top_discussion_topics_from_labels": [
-      "Models (22 issues) - provider compatibility, model selection",
-      "UI/UX (19 issues) - design feedback, usability",
-      "MCP (12 issues) - protocol integration questions",
-      "Assistant (10 issues) - assistant config and management",
-      "RAG (6 issues) - knowledge base and retrieval",
-      "Data (6 issues) - data handling, export/import"
-    ]
+  "date": "2026-04-15",
+  "generated_at": "2026-04-15T00:00:00Z",
+  "note": "GitHub Discussions GraphQL data not available via MCP tools in this run. Data below is partial from issue label analysis.",
+  "data_source": "Issues labeled 'discussion' — proxy metric for community engagement",
+  "discussion_label_issues": {
+    "open": 23,
+    "closed_30d": 9
   },
-  "action_items": [
-    "Set up GraphQL query to fetch Discussions data in next run",
-    "Consider enabling GitHub Discussions for v2 roadmap feedback and feature voting"
-  ]
+  "notable_open_issues_discussion_label": [
+    "Issues labeled 'discussion' represent community-driven feature requests and design conversations.",
+    "23 open issues carry the 'discussion' label — recommend triaging for roadmap alignment."
+  ],
+  "community_signals": {
+    "help_wanted_open": 21,
+    "needs_repro_open": 14,
+    "needs_more_info_open": 1,
+    "needs_triage_open": 1
+  },
+  "top_issue_categories_open": {
+    "BUG": 168,
+    "Models": 41,
+    "UI/UX": 35,
+    "MCP": 22,
+    "discussion": 23,
+    "Assistant": 23,
+    "help_wanted": 21,
+    "inactive": 96,
+    "RAG": 10,
+    "Data": 17,
+    "feature": 15,
+    "Connectivity": 7,
+    "Agent": 2,
+    "OpenClaw": 7
+  },
+  "graphql_discussions_status": "not_fetched",
+  "action_needed": "Run GitHub Discussions GraphQL query separately or via GitHub Actions to populate full discussion data."
 }
