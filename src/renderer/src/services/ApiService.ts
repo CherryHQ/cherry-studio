@@ -284,6 +284,15 @@ export async function fetchChatCompletion({
     knowledgeRecognition: assistant.knowledgeRecognition
   }
 
+  // Wrap onChunkReceived to automatically track token usage on completion
+  const originalOnChunk = middlewareConfig.onChunk
+  middlewareConfig.onChunk = (chunk: Chunk) => {
+    if (chunk.type === ChunkType.BLOCK_COMPLETE) {
+      trackTokenUsage({ usage: chunk.response?.usage, model: assistant?.model, source: 'chat' })
+    }
+    originalOnChunk?.(chunk)
+  }
+
   // --- Call AI Completions ---
   await AI.completions(modelId, aiSdkParams, {
     ...middlewareConfig,
@@ -705,7 +714,7 @@ export function hasApiKey(provider: Provider) {
  * Get rotated API key for providers that support multiple keys
  * Returns empty string for providers that don't require API keys
  */
-function getRotatedApiKey(provider: Provider): string {
+export function getRotatedApiKey(provider: Provider): string {
   // Handle providers that don't require API keys
   if (!provider.apiKey || provider.apiKey.trim() === '') {
     return ''

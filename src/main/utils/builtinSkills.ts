@@ -7,7 +7,7 @@ import { parseSkillMetadata } from '@main/utils/markdownParser'
 import { app } from 'electron'
 
 import { SkillRepository } from '../services/agents/skills/SkillRepository'
-import { getDataPath } from '.'
+import { getDataPath, toAsarUnpackedPath } from '.'
 
 const logger = loggerService.withContext('builtinSkills')
 
@@ -31,7 +31,7 @@ const VERSION_FILE = '.version'
  */
 // TODO: v2-backup
 export async function installBuiltinSkills(): Promise<void> {
-  const resourceSkillsPath = path.join(app.getAppPath(), 'resources', 'skills')
+  const resourceSkillsPath = toAsarUnpackedPath(path.join(app.getAppPath(), 'resources', 'skills'))
   const globalSkillsPath = getDataPath('Skills')
   const linkBasePath = path.join(app.getPath('userData'), '.claude', 'skills')
   const appVersion = app.getVersion()
@@ -43,30 +43,32 @@ export async function installBuiltinSkills(): Promise<void> {
   }
 
   const entries = await fs.readdir(resourceSkillsPath, { withFileTypes: true })
+  const dirs = entries.filter((e) => {
+    if (!e.isDirectory()) return false
+    const destPath = path.join(globalSkillsPath, e.name)
+    return destPath.startsWith(globalSkillsPath + path.sep)
+  })
+
   let installed = 0
+  await Promise.all(
+    dirs.map(async (entry) => {
+      const destPath = path.join(globalSkillsPath, entry.name)
+      const filesUpdated = !(await isUpToDate(destPath, appVersion))
 
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue
+      if (filesUpdated) {
+        await fs.mkdir(destPath, { recursive: true })
+        await fs.cp(path.join(resourceSkillsPath, entry.name), destPath, { recursive: true })
+        await fs.writeFile(path.join(destPath, VERSION_FILE), appVersion, 'utf-8')
+        installed++
+      }
 
-    // Guard against path traversal (e.g. entry.name containing "..")
-    const destPath = path.join(globalSkillsPath, entry.name)
-    if (!destPath.startsWith(globalSkillsPath + path.sep)) continue
+      // Ensure symlink exists: .claude/skills/{name} → global-skills/{name}
+      await ensureSymlink(destPath, path.join(linkBasePath, entry.name))
 
-    const filesUpdated = !(await isUpToDate(destPath, appVersion))
-
-    if (filesUpdated) {
-      await fs.mkdir(destPath, { recursive: true })
-      await fs.cp(path.join(resourceSkillsPath, entry.name), destPath, { recursive: true })
-      await fs.writeFile(path.join(destPath, VERSION_FILE), appVersion, 'utf-8')
-      installed++
-    }
-
-    // Ensure symlink exists: .claude/skills/{name} → global-skills/{name}
-    await ensureSymlink(destPath, path.join(linkBasePath, entry.name))
-
-    // Ensure the skill is registered in the DB
-    await syncBuiltinSkillToDb(entry.name, destPath, filesUpdated)
-  }
+      // Ensure the skill is registered in the DB
+      await syncBuiltinSkillToDb(entry.name, destPath, filesUpdated)
+    })
+  )
 
   if (installed > 0) {
     logger.info('Built-in skills installed', { installed, version: appVersion })
