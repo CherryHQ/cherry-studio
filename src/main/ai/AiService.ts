@@ -10,7 +10,8 @@ import {
   AiCompletionService,
   type AiEmbedRequest,
   type AiGenerateRequest,
-  type AiImageRequest,
+  type AiImageAbortRequest,
+  type AiImageGenerateRequest,
   type AiStreamRequest
 } from './AiCompletionService'
 import type { StreamTarget } from './stream-manager/types'
@@ -52,8 +53,18 @@ export class AiService extends BaseService {
       return this.completionService.embedMany(request)
     })
 
-    this.ipcHandle(IpcChannel.Ai_GenerateImage, async (_, request: AiImageRequest) => {
-      return this.completionService.generateImage(request)
+    this.ipcHandle(IpcChannel.Ai_GenerateImage, async (_, request: AiImageGenerateRequest) => {
+      const controller = new AbortController()
+      this.completionService.registerRequest(request.requestId, controller)
+      try {
+        return await this.completionService.generateImage(request.payload, controller.signal)
+      } finally {
+        this.completionService.removeRequest(request.requestId)
+      }
+    })
+
+    this.ipcHandle(IpcChannel.Ai_AbortImage, async (_, request: AiImageAbortRequest) => {
+      this.completionService.abort(request.requestId)
     })
 
     this.ipcHandle(IpcChannel.Ai_ListModels, async (_, request: AiBaseRequest) => {

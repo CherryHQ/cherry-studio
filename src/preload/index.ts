@@ -869,13 +869,30 @@ const api = {
       values: string[]
     }): Promise<{ embeddings: number[][]; usage?: unknown }> => ipcRenderer.invoke(IpcChannel.Ai_EmbedMany, request),
     generateImage: (request: {
-      uniqueModelId?: string
-      prompt: string
-      inputImages?: string[]
-      mask?: string
-      n?: number
-      size?: string
-    }): Promise<{ images: string[] }> => ipcRenderer.invoke(IpcChannel.Ai_GenerateImage, request),
+      requestId: string
+      payload: {
+        uniqueModelId?: string
+        prompt: string
+        inputImages?: string[]
+        mask?: string
+        n?: number
+        size?: string
+        negativePrompt?: string
+        seed?: number
+        quality?: string
+        numInferenceSteps?: number
+        guidanceScale?: number
+        promptEnhancement?: boolean
+      }
+    }): Promise<{
+      images: Array<{
+        kind: 'base64'
+        data: string
+        mediaType?: string
+      }>
+    }> => ipcRenderer.invoke(IpcChannel.Ai_GenerateImage, request),
+    abortImageGeneration: (request: { requestId: string }): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.Ai_AbortImage, request),
     listModels: (request: {
       providerId?: string
       assistantId?: string

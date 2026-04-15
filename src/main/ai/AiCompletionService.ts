@@ -4,6 +4,7 @@ import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
+import { downloadImageAsBase64 } from '@main/services/agents/services/channels/ChannelAdapter'
 import type { Assistant } from '@shared/data/types/assistant'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type {
@@ -75,11 +76,32 @@ export interface AiImageRequest extends AiBaseRequest {
   mask?: string
   n?: number
   size?: string
+  negativePrompt?: string
+  seed?: number
+  quality?: string
+  numInferenceSteps?: number
+  guidanceScale?: number
+  promptEnhancement?: boolean
+}
+
+export interface GeneratedImagePayload {
+  kind: 'base64'
+  data: string
+  mediaType?: string
 }
 
 /** Image generation result. */
 export interface AiImageResult {
-  images: string[]
+  images: GeneratedImagePayload[]
+}
+
+export interface AiImageGenerateRequest {
+  requestId: string
+  payload: AiImageRequest
+}
+
+export interface AiImageAbortRequest {
+  requestId: string
 }
 
 /** Embedding request. */
@@ -197,8 +219,8 @@ export class AiCompletionService {
 
   // ── Image generation ──
 
-  async generateImage(request: AiImageRequest): Promise<AiImageResult> {
-    logger.info('generateImage started', { assistantId: request.assistantId })
+  async generateImage(request: AiImageRequest, signal: AbortSignal): Promise<AiImageResult> {
+    logger.info('generateImage started', { assistantId: request.assistantId, uniqueModelId: request.uniqueModelId })
 
     const { sdkConfig } = await this.buildAgentParams(request)
 
@@ -206,19 +228,64 @@ export class AiCompletionService {
       ? { text: request.prompt, images: request.inputImages, ...(request.mask && { mask: request.mask }) }
       : request.prompt
 
-    const result = await aiCoreGenerateImage<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
+    const imageParams = {
       model: sdkConfig.modelId,
       prompt: promptParam,
       n: request.n ?? 1,
-      size: (request.size ?? '1024x1024') as `${number}x${number}`
-    })
-
-    const images: string[] = []
-    for (const image of result.images ?? []) {
-      if (image.base64) {
-        images.push(`data:${image.mediaType || 'image/png'};base64,${image.base64}`)
+      size: (request.size ?? '1024x1024') as `${number}x${number}`,
+      ...(request.negativePrompt ? { negativePrompt: request.negativePrompt } : {}),
+      ...(request.seed !== undefined ? { seed: request.seed } : {}),
+      ...(request.quality ? { quality: request.quality } : {}),
+      ...(request.numInferenceSteps !== undefined ? { numInferenceSteps: request.numInferenceSteps } : {}),
+      ...(request.guidanceScale !== undefined ? { guidanceScale: request.guidanceScale } : {}),
+      ...(request.promptEnhancement !== undefined ? { promptEnhancement: request.promptEnhancement } : {}),
+      abortSignal: signal,
+      experimental_download: async (downloads) => {
+        return Promise.all(
+          downloads.map(async ({ url }) => {
+            if (signal.aborted) return null
+            const downloaded = await downloadImageAsBase64(url.toString())
+            if (signal.aborted) return null
+            if (!downloaded) return null
+            return {
+              data: Buffer.from(downloaded.data, 'base64'),
+              mediaType: downloaded.media_type
+            }
+          })
+        )
       }
     }
+
+    const result = await aiCoreGenerateImage<AppProviderSettingsMap>(
+      sdkConfig.providerId,
+      sdkConfig.providerSettings,
+      imageParams
+    )
+
+    const images: GeneratedImagePayload[] = []
+    let filteredCount = 0
+    for (const image of result.images ?? []) {
+      if (image.base64) {
+        images.push({
+          kind: 'base64',
+          data: `data:${image.mediaType || 'image/png'};base64,${image.base64}`,
+          ...(image.mediaType ? { mediaType: image.mediaType } : {})
+        })
+        continue
+      }
+
+      filteredCount += 1
+    }
+
+    if (filteredCount > 0) {
+      logger.warn('Filtered invalid generated images', {
+        uniqueModelId: request.uniqueModelId,
+        providerId: sdkConfig.providerId,
+        modelId: sdkConfig.modelId,
+        filteredCount
+      })
+    }
+
     return { images }
   }
 

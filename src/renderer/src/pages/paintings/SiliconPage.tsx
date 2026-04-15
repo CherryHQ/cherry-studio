@@ -3,7 +3,6 @@ import { Button, ColFlex, InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
 import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { AiProvider } from '@renderer/aiCore'
 import ImageSize1_1 from '@renderer/assets/images/paintings/image-size-1-1.svg'
 import ImageSize1_2 from '@renderer/assets/images/paintings/image-size-1-2.svg'
 import ImageSize3_2 from '@renderer/assets/images/paintings/image-size-3-2.svg'
@@ -21,7 +20,7 @@ import { useAllProviders } from '@renderer/hooks/useProvider'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
-import type { FileMetadata, Painting } from '@renderer/types'
+import type { Painting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import { Input, InputNumber, Radio, Select, Slider } from 'antd'
@@ -37,6 +36,7 @@ import Artboard from './components/Artboard'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
 import { checkProviderEnabled } from './utils'
+import { persistGeneratedImages } from './utils/persistGeneratedImages'
 
 export const TEXT_TO_IMAGES_MODELS = [
   {
@@ -116,7 +116,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
 
   const [isLoading, setIsLoading] = useState(false)
-  const [abortController, setAbortController] = useState<AbortController | null>(null)
+  const activeRequestIdRef = useRef<string | null>(null)
   const [generating, setGenerating] = useCache('chat.generating')
   const navigate = useNavigate()
   const location = useLocation()
@@ -181,58 +181,46 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
       return
     }
 
-    const controller = new AbortController()
-    setAbortController(controller)
+    // TODO: extract to hook
+    const requestId = uuid()
+    activeRequestIdRef.current = requestId
     setIsLoading(true)
     setGenerating(true)
-    const AI = new AiProvider(provider)
 
     if (!painting.model) {
       return
     }
 
     try {
-      const urls = await AI.generateImage({
-        model: painting.model,
-        prompt,
-        negativePrompt: painting.negativePrompt || '',
-        imageSize: painting.imageSize || '1024x1024',
-        batchSize: painting.numImages || 1,
-        seed: painting.seed || undefined,
-        numInferenceSteps: painting.steps || 25,
-        guidanceScale: painting.guidanceScale || 4.5,
-        signal: controller.signal,
-        promptEnhancement: painting.promptEnhancement || false
+      const result = await window.api.ai.generateImage({
+        requestId,
+        payload: {
+          uniqueModelId: `${provider.id}::${painting.model}`,
+          prompt,
+          negativePrompt: painting.negativePrompt || undefined,
+          size: painting.imageSize || '1024x1024',
+          n: painting.numImages || 1,
+          seed: painting.seed ? Number(painting.seed) : undefined,
+          numInferenceSteps: painting.steps || 25,
+          guidanceScale: painting.guidanceScale || 4.5,
+          promptEnhancement: painting.promptEnhancement || false
+        }
       })
 
-      if (urls.length > 0) {
-        const downloadedFiles = await Promise.all(
-          urls.map(async (url) => {
-            try {
-              if (!url || url.trim() === '') {
-                logger.error('图像URL为空，可能是提示词违禁')
-                window.toast.warning(t('message.empty_url'))
-                return null
-              }
-              return await window.api.file.download(url)
-            } catch (error) {
-              logger.error('Failed to download image:', error as Error)
-              if (
-                error instanceof Error &&
-                (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
-              ) {
-                window.toast.warning(t('message.empty_url'))
-              }
-              return null
-            }
-          })
-        )
+      if (activeRequestIdRef.current !== requestId) {
+        return
+      }
 
-        const validFiles = downloadedFiles.filter((file): file is FileMetadata => file !== null)
+      if (result.images.length > 0) {
+        const validFiles = await persistGeneratedImages(result.images)
+
+        if (activeRequestIdRef.current !== requestId) {
+          return
+        }
 
         await FileManager.addFiles(validFiles)
 
-        updatePaintingState({ files: validFiles, urls })
+        updatePaintingState({ files: validFiles, urls: [] })
       }
     } catch (error: unknown) {
       if (error instanceof Error && error.name !== 'AbortError') {
@@ -242,14 +230,21 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
         })
       }
     } finally {
-      setIsLoading(false)
-      setGenerating(false)
-      setAbortController(null)
+      if (activeRequestIdRef.current === requestId) {
+        activeRequestIdRef.current = null
+        setIsLoading(false)
+        setGenerating(false)
+      }
     }
   }
 
-  const onCancel = () => {
-    abortController?.abort()
+  const onCancel = async () => {
+    if (activeRequestIdRef.current) {
+      await window.api.ai.abortImageGeneration({ requestId: activeRequestIdRef.current })
+    }
+    activeRequestIdRef.current = null
+    setIsLoading(false)
+    setGenerating(false)
   }
 
   const onSelectImageSize = (v: string) => {
