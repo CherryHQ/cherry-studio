@@ -490,6 +490,7 @@
       },
       "prompt": "提示词设置",
       "skills": {
+        "addMore": "添加更多技能",
         "builtin": "内置",
         "noFilterResults": "没有匹配的技能",
         "noSkills": "暂无已安装的技能。前往 设置 > 技能 安装技能。",
