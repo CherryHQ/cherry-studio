@@ -1,10 +1,9 @@
 import { dataApiService } from '@data/DataApiService'
+import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
 import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
 import type { CreateModelDto, CreateModelsBatchDto, UpdateModelDto } from '@shared/data/api/schemas/models'
 import type { Model } from '@shared/data/types/model'
 import { useCallback, useMemo } from 'react'
-
-import { useInvalidateCache, useMutation, useQuery } from './useDataApi'
 
 /** Helper to build `/models/:providerId/:modelId` concrete path (tsgo cannot resolve two-segment template literals) */
 function modelPath(providerId: string, modelId: string): ConcreteApiPaths {

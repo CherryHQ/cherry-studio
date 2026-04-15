@@ -1,10 +1,9 @@
 import { dataApiService } from '@data/DataApiService'
+import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
 import type { CreateProviderDto, UpdateProviderDto } from '@shared/data/api/schemas/providers'
 import type { Model } from '@shared/data/types/model'
 import type { ApiKeyEntry, AuthConfig, Provider } from '@shared/data/types/provider'
 import { useCallback, useMemo } from 'react'
-
-import { useInvalidateCache, useMutation, useQuery } from './useDataApi'
 
 const REFRESH_PROVIDERS = ['/providers'] as const
 const EMPTY_PROVIDERS: Provider[] = []
