@@ -349,15 +349,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
         }
       )
     },
-    [
-      activeNodeId,
-      ensureTopicExists,
-      sendMessage,
-      resolveMcpToolIds,
-      capabilityBody,
-      seedActiveExecutionIds,
-      clearActiveExecutionIds
-    ]
+    [activeNodeId, ensureTopicExists, sendMessage, resolveMcpToolIds, capabilityBody]
   )
 
   return (
