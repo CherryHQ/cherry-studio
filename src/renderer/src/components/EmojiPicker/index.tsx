@@ -46,7 +46,8 @@ const i18nMap: Record<LanguageVarious, typeof en> = {
   'ja-JP': ja,
   'pt-PT': pt_PT,
   'ro-RO': en, // No Romanian available, fallback to English
-  'ru-RU': ru_RU
+  'ru-RU': ru_RU,
+  'vi-VN': en // No Vietnamese available, fallback to English
 }
 
 // Mapping from app locale to emoji data URL
@@ -62,7 +63,8 @@ const dataSourceMap: Record<LanguageVarious, string> = {
   'ja-JP': dataJA,
   'pt-PT': dataPT,
   'ro-RO': dataEN, // No Romanian CLDR available, fallback to English
-  'ru-RU': dataRU
+  'ru-RU': dataRU,
+  'vi-VN': dataEN // No Vietnamese CLDR available, fallback to English
 }
 
 // Mapping from app locale to emoji-picker-element locale string
@@ -78,7 +80,8 @@ const localeMap: Record<LanguageVarious, string> = {
   'ja-JP': 'ja',
   'pt-PT': 'pt',
   'ro-RO': 'en',
-  'ru-RU': 'ru'
+  'ru-RU': 'ru',
+  'vi-VN': 'en'
 }
 
 const EmojiPicker: FC<Props> = ({ onEmojiClick }) => {

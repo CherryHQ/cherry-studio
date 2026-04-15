@@ -6,6 +6,7 @@ import 'dayjs/locale/ja'
 import 'dayjs/locale/pt'
 import 'dayjs/locale/ro'
 import 'dayjs/locale/ru'
+import 'dayjs/locale/vi'
 import 'dayjs/locale/zh-cn'
 import 'dayjs/locale/zh-tw'
 
@@ -28,6 +29,7 @@ import jaJP from './translate/ja-jp.json'
 import ptPT from './translate/pt-pt.json'
 import roRO from './translate/ro-ro.json'
 import ruRU from './translate/ru-ru.json'
+import viVN from './translate/vi-vn.json'
 
 const logger = loggerService.withContext('I18N')
 
@@ -43,7 +45,8 @@ const resources = Object.fromEntries(
     ['es-ES', esES],
     ['fr-FR', frFR],
     ['pt-PT', ptPT],
-    ['ro-RO', roRO]
+    ['ro-RO', roRO],
+    ['vi-VN', viVN]
   ].map(([locale, translation]) => [locale, { translation }])
 )
 
@@ -67,7 +70,8 @@ const dayjsLocaleMap: Record<string, string> = {
   'es-ES': 'es',
   'fr-FR': 'fr',
   'pt-PT': 'pt',
-  'ro-RO': 'ro'
+  'ro-RO': 'ro',
+  'vi-VN': 'vi'
 }
 
 export const setDayjsLocale = (language: string) => {
