@@ -8,8 +8,7 @@ import type {
   MainTextMessageBlock,
   Message,
   MessageBlock,
-  ThinkingMessageBlock,
-  TranslationMessageBlock
+  ThinkingMessageBlock
 } from '@renderer/types/newMessage'
 import { MessageBlockType } from '@renderer/types/newMessage'
 
@@ -151,11 +150,9 @@ export const getThinkingContent = (message: Message, blockEntities?: BlockEntiti
 
 /**
  * Finds all CitationBlocks associated with a given message.
- * @param message - The message object.
- * @param blockEntities - Optional pre-resolved block map (V2 mode). Falls back to Redux.
- * @returns An array of CitationBlocks (empty if none found).
+ * Internal helper for {@link getCitationContent}.
  */
-export const findCitationBlocks = (message: Message, blockEntities?: BlockEntities): CitationMessageBlock[] => {
+const findCitationBlocks = (message: Message, blockEntities?: BlockEntities): CitationMessageBlock[] => {
   if (!message || !message.blocks || message.blocks.length === 0) {
     return []
   }
@@ -203,72 +200,4 @@ export const getFileContent = (message: Message, blockEntities?: BlockEntities):
     }
   }
   return files
-}
-
-/**
- * Finds all TranslationMessageBlocks associated with a given message.
- * @param message - The message object.
- * @param blockEntities - Optional pre-resolved block map (V2 mode). Falls back to Redux.
- * @returns An array of TranslationMessageBlocks (empty if none found).
- */
-export const findTranslationBlocks = (message: Message, blockEntities?: BlockEntities): TranslationMessageBlock[] => {
-  if (!message || !message.blocks || message.blocks.length === 0) {
-    return []
-  }
-  const entities = resolveBlockEntities(blockEntities)
-  const translationBlocks: TranslationMessageBlock[] = []
-  for (const blockId of message.blocks) {
-    const block = entities[blockId]
-    if (block && block.type === MessageBlockType.TRANSLATION) {
-      translationBlocks.push(block)
-    }
-  }
-  return translationBlocks
-}
-
-/**
- * 通过消息ID从状态中查询最新的消息，并返回其中的翻译块
- * @param id - 消息ID
- * @param blockEntities - Optional pre-resolved block map (V2 mode). Falls back to Redux.
- * @returns 翻译块数组，如果消息不存在则返回空数组
- */
-export const findTranslationBlocksById = (id: string, blockEntities?: BlockEntities): TranslationMessageBlock[] => {
-  const state = store.getState()
-  const message = state.messages.entities[id]
-  return findTranslationBlocks(message, blockEntities)
-}
-
-/**
- * 构造带工具调用结果的消息内容
- * @deprecated
- */
-export function getContentWithTools(message: Message, blockEntities?: BlockEntities) {
-  const blocks = findAllBlocks(message, blockEntities)
-  let constructedContent = ''
-  for (const block of blocks) {
-    if (block.type === MessageBlockType.MAIN_TEXT || block.type === MessageBlockType.TOOL) {
-      if (block.type === MessageBlockType.MAIN_TEXT) {
-        constructedContent += block.content
-      } else if (block.type === MessageBlockType.TOOL) {
-        let resultString =
-          '\n\nAssistant called a tool.\nTool Name:' +
-          block.metadata?.rawMcpToolResponse?.tool.name +
-          '\nTool call result: \n```json\n'
-        try {
-          resultString += JSON.stringify(
-            {
-              params: block.metadata?.rawMcpToolResponse?.arguments,
-              response: block.metadata?.rawMcpToolResponse?.response
-            },
-            null,
-            2
-          )
-        } catch (e) {
-          resultString += 'Invalid Result'
-        }
-        constructedContent += resultString + '\n```\n\n'
-      }
-    }
-  }
-  return constructedContent
 }

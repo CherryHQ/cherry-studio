@@ -9,7 +9,6 @@ import {
   filterAfterContextClearMessages,
   filterEmptyMessages,
   filterErrorOnlyMessagesWithRelated,
-  filterLastAssistantMessage,
   filterUsefulMessages,
   filterUserRoleStartMessages
 } from '../filters'
@@ -255,41 +254,6 @@ describe('Message Filter Utils', () => {
       expect(result).toHaveLength(2)
       expect(result.find((m) => m.id === 'assistant-1')).toBeDefined()
       expect(result.find((m) => m.id === 'assistant-2')).toBeUndefined()
-    })
-  })
-
-  describe('filterLastAssistantMessage', () => {
-    it('should remove trailing assistant messages', () => {
-      const user1 = createMessage('user', 'topic-1', 'assistant-1', { id: 'user-1' })
-      const assistant1 = createMessage('assistant', 'topic-1', 'assistant-1', {
-        id: 'assistant-1'
-      })
-      const assistant2 = createMessage('assistant', 'topic-1', 'assistant-1', {
-        id: 'assistant-2'
-      })
-
-      const result = filterLastAssistantMessage([user1, assistant1, assistant2])
-
-      expect(result).toHaveLength(1)
-      expect(result[0].id).toBe('user-1')
-    })
-
-    it('should keep messages ending with user message', () => {
-      const user1 = createMessage('user', 'topic-1', 'assistant-1', { id: 'user-1' })
-      const assistant1 = createMessage('assistant', 'topic-1', 'assistant-1', {
-        id: 'assistant-1'
-      })
-      const user2 = createMessage('user', 'topic-1', 'assistant-1', { id: 'user-2' })
-
-      const result = filterLastAssistantMessage([user1, assistant1, user2])
-
-      expect(result).toHaveLength(3)
-    })
-
-    it('should handle empty array', () => {
-      const result = filterLastAssistantMessage([])
-
-      expect(result).toHaveLength(0)
     })
   })
 

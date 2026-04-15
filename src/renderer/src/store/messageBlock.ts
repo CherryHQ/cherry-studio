@@ -70,17 +70,6 @@ export const messageBlocksSelectors = messageBlocksAdapter.getSelectors<RootStat
   (state) => state.messageBlocks // Ensure this matches the key in the root reducer
 )
 
-// --- Selector Integration --- START
-
-// Selector to get the raw block entity by ID
-const selectBlockEntityById = (state: RootState, blockId: string | undefined): MessageBlock | undefined => {
-  const entity = blockId ? messageBlocksSelectors.selectById(state, blockId) : undefined
-  if (!entity) return undefined
-
-  // Convert back to full MessageBlock type
-  return entity
-}
-
 // --- Centralized Citation Formatting Logic ---
 export const formatCitationsFromBlock = (block: CitationMessageBlock | undefined): Citation[] => {
   if (!block) return []
@@ -318,21 +307,13 @@ export const formatCitationsFromBlock = (block: CitationMessageBlock | undefined
 }
 // --- End of Centralized Logic ---
 
-// Memoized selector that takes a block ID and returns formatted citations
-export const selectFormattedCitationsByBlockId = createSelector([selectBlockEntityById], (blockEntity): Citation[] => {
-  if (blockEntity?.type === MessageBlockType.CITATION) {
-    return formatCitationsFromBlock(blockEntity)
-  }
-  return []
-})
-
 // --- Active TodoWrite Block Selector ---
-export interface TodoWriteNormalToolResponse extends Omit<NormalToolResponse, 'tool' | 'arguments'> {
+interface TodoWriteNormalToolResponse extends Omit<NormalToolResponse, 'tool' | 'arguments'> {
   tool: BaseTool & { name: 'TodoWrite' }
   arguments: TodoWriteToolInput
 }
 
-export interface TodoWriteToolMessageBlock extends Omit<ToolMessageBlock, 'metadata'> {
+interface TodoWriteToolMessageBlock extends Omit<ToolMessageBlock, 'metadata'> {
   metadata: NonNullable<ToolMessageBlock['metadata']> & {
     rawMcpToolResponse: TodoWriteNormalToolResponse
   }
@@ -347,7 +328,7 @@ const hasIncompleteTodos = (todos: TodoItem[]): boolean =>
 /**
  * Check if a block is a TodoWrite tool block
  */
-export const isTodoWriteBlock = (block: MessageBlock | undefined): block is TodoWriteToolMessageBlock => {
+const isTodoWriteBlock = (block: MessageBlock | undefined): block is TodoWriteToolMessageBlock => {
   if (!block || block.type !== MessageBlockType.TOOL) return false
   const toolResponse = block.metadata?.rawMcpToolResponse
   if (toolResponse?.tool?.name !== 'TodoWrite') return false

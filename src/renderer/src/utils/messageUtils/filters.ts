@@ -132,15 +132,6 @@ export function filterUsefulMessages(messages: Message[]): Message[] {
   return _messages
 }
 
-export function filterLastAssistantMessage(messages: Message[]): Message[] {
-  const _messages = [...messages]
-  // Remove trailing assistant messages
-  while (_messages.length > 0 && _messages[_messages.length - 1].role === 'assistant') {
-    _messages.pop()
-  }
-  return _messages
-}
-
 export function filterAdjacentUserMessaegs(messages: Message[]): Message[] {
   // Filter adjacent user messages, keeping only the last one
   return messages.filter((message, index, origin) => {
