@@ -1,3 +1,4 @@
+import type { UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { SerializedError } from '@shared/types/error'
 import type { UIMessage, UIMessageChunk } from 'ai'
@@ -13,55 +14,46 @@ import type {
 /**
  * Pushes stream events to an Electron WebContents (= one Renderer window).
  *
- * **Listener id is `wc:${wc.id}:${topicId}`** (data-plane identity, not requestId).
+ * Pure forwarding — zero filtering logic. Routing is done upstream by
+ * AiStreamManager (isMultiModel → sourceModelId tag) and downstream by
+ * the frontend transport (matchesStream). One instance per topic per window.
  *
- * Why topicId in the id (not requestId): during steering, a second `Ai_Stream_Open`
- * for the same topic causes AiStreamManager to add the new listeners to the *existing*
- * ActiveStream. If the id used requestId, the old and new WebContentsListener would
- * *coexist* in the Map → chunks double-dispatched to the same window. With
- * topicId, `addListener` upserts and only one subscription survives.
+ * ID: `wc:${wc.id}:${topicId}` — steering upserts, no duplicate dispatch.
  */
 export class WebContentsListener implements StreamListener {
   readonly id: string
-  readonly executionId?: string
 
   constructor(
     private readonly wc: Electron.WebContents,
-    private readonly topicId: string,
-    executionId?: string
+    private readonly topicId: string
   ) {
-    this.executionId = executionId
-    this.id = executionId ? `wc:${wc.id}:${topicId}:${executionId}` : `wc:${wc.id}:${topicId}`
+    this.id = `wc:${wc.id}:${topicId}`
   }
 
-  onChunk(chunk: UIMessageChunk): void {
+  onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId): void {
     if (this.wc.isDestroyed()) return
     this.wc.send(IpcChannel.Ai_StreamChunk, {
       topicId: this.topicId,
-      executionId: this.executionId,
+      executionId: sourceModelId,
       chunk
     } satisfies StreamChunkPayload)
   }
 
   onDone(result: StreamDoneResult): void {
     if (this.wc.isDestroyed()) return
-    // Multi-model: only forward done for our own execution, or when topic is done
-    // (broadcastExecutionDone sends to ALL listeners; without this guard,
-    // model-1 finishing would also close model-2's ExecutionTransport stream)
-    if (this.executionId && result.modelId && result.modelId !== this.executionId && !result.isTopicDone) return
     this.wc.send(IpcChannel.Ai_StreamDone, {
       topicId: this.topicId,
-      executionId: this.executionId,
+      executionId: result.modelId,
       status: result.status,
       isTopicDone: result.isTopicDone
     } satisfies StreamDonePayload)
   }
 
-  onError(error: SerializedError, _partialMessage?: UIMessage, _modelId?: string, isTopicDone?: boolean): void {
+  onError(error: SerializedError, _partialMessage?: UIMessage, modelId?: UniqueModelId, isTopicDone?: boolean): void {
     if (this.wc.isDestroyed()) return
     this.wc.send(IpcChannel.Ai_StreamError, {
       topicId: this.topicId,
-      executionId: this.executionId,
+      executionId: modelId,
       isTopicDone,
       error
     } satisfies StreamErrorPayload)

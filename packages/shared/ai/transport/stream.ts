@@ -1,7 +1,7 @@
-import type { UniqueModelId } from '@shared/data/types/model'
 import type { UIMessageChunk } from 'ai'
 
 import type { CherryMessagePart, CherryUIMessage } from '../../data/types/message'
+import type { UniqueModelId } from '../../data/types/model'
 import type { SerializedError } from '../../types/error'
 
 // ── Push payloads (Main → Renderer) ─────────────────────────────────
@@ -9,7 +9,7 @@ import type { SerializedError } from '../../types/error'
 /** A single chunk of a running stream. */
 export interface StreamChunkPayload {
   topicId: string
-  /** Multi-model: identifies which execution produced this chunk (UniqueModelId). */
+  /** Multi-model: source model that produced this chunk. Frontend demuxes by this. */
   executionId?: string
   chunk: UIMessageChunk
 }
@@ -17,7 +17,7 @@ export interface StreamChunkPayload {
 /** Stream ended. */
 export interface StreamDonePayload {
   topicId: string
-  /** Multi-model: identifies which execution finished. */
+  /** Multi-model: which model's execution finished. */
   executionId?: string
   /** 'success' = natural completion; 'paused' = user-initiated abort with partial output. */
   status: 'success' | 'paused'
@@ -28,7 +28,7 @@ export interface StreamDonePayload {
 /** Stream error. */
 export interface StreamErrorPayload {
   topicId: string
-  /** Multi-model: identifies which execution errored. */
+  /** Multi-model: which model's execution errored. */
   executionId?: string
   /** True when the topic has no remaining streaming executions. */
   isTopicDone?: boolean
@@ -81,6 +81,6 @@ export type AiStreamAttachResponse =
 /** Result of an open attempt. */
 export interface AiStreamOpenResponse {
   mode: 'started' | 'steered'
-  /** Multi-model: execution IDs (UniqueModelId) for chunk demux. Empty/undefined for single-model. */
+  /** Multi-model: execution IDs for frontend to create per-model streams. */
   executionIds?: string[]
 }

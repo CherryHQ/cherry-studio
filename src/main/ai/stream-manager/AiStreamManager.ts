@@ -1,36 +1,34 @@
-import { messageTable } from '@data/db/schemas/message'
-import { assistantDataService } from '@data/services/AssistantService'
-import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { messageService } from '@main/data/services/MessageService'
-import { agentService, sessionService } from '@main/services/agents'
-import { agentMessageRepository } from '@main/services/agents/database/sessionMessageRepository'
 import type {
   AiStreamAbortRequest,
   AiStreamAttachRequest,
   AiStreamAttachResponse,
   AiStreamDetachRequest,
-  AiStreamOpenRequest,
-  AiStreamOpenResponse
+  AiStreamOpenRequest
 } from '@shared/ai/transport'
 import type { Message } from '@shared/data/types/message'
-import { createUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import type { UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { SerializedError } from '@shared/types/error'
 import { serializeError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
-import { and, eq, gt, isNull } from 'drizzle-orm'
 
 import type { AiStreamRequest } from '../AiCompletionService'
 import { PendingMessageQueue } from '../PendingMessageQueue'
-import { extractAgentSessionId, isAgentSessionTopic } from '../provider/claudeCodeSettingsBuilder'
 import { InternalStreamTarget } from './InternalStreamTarget'
-import { AgentPersistenceListener } from './listeners/AgentPersistenceListener'
-import { PersistenceListener } from './listeners/PersistenceListener'
 import { WebContentsListener } from './listeners/WebContentsListener'
-import type { ActiveStream, AiStreamManagerConfig, CherryUIMessage, StreamExecution, StreamListener } from './types'
+import { streamRequestHandler } from './StreamRequestHandler'
+import type {
+  ActiveStream,
+  AiStreamManagerConfig,
+  CherryUIMessage,
+  StreamDoneResult,
+  StreamExecution,
+  StreamListener
+} from './types'
 
 const logger = loggerService.withContext('AiStreamManager')
 
@@ -54,7 +52,8 @@ export class AiStreamManager extends BaseService {
 
   protected async onInit(): Promise<void> {
     this.ipcHandle(IpcChannel.Ai_Stream_Open, async (event, req: AiStreamOpenRequest) => {
-      return this.handleStreamRequest(event.sender, req)
+      const subscriber = new WebContentsListener(event.sender, req.topicId)
+      return streamRequestHandler.handle(this, subscriber, req)
     })
 
     this.ipcHandle(IpcChannel.Ai_Stream_Attach, (event, req: AiStreamAttachRequest) => {
@@ -117,6 +116,7 @@ export class AiStreamManager extends BaseService {
     request: AiStreamRequest
     listeners: StreamListener[]
     siblingsGroupId?: number
+    isMultiModel?: boolean
   }): ActiveStream {
     const existing = this.activeStreams.get(input.topicId)
 
@@ -151,7 +151,8 @@ export class AiStreamManager extends BaseService {
       listeners: new Map(input.listeners.map((l) => [l.id, l])),
       pendingMessages,
       buffer: [],
-      status: 'streaming'
+      status: 'streaming',
+      isMultiModel: input.isMultiModel ?? false
     }
     this.activeStreams.set(input.topicId, stream)
     return stream
@@ -169,7 +170,6 @@ export class AiStreamManager extends BaseService {
     request: AiStreamRequest
     userMessage: Message
     listeners: StreamListener[]
-    siblingsGroupId?: number
   }): { mode: 'started' | 'steered' } {
     const existing = this.activeStreams.get(input.topicId)
     if (existing?.status === 'streaming') {
@@ -223,12 +223,7 @@ export class AiStreamManager extends BaseService {
 
   // ── InternalStreamTarget callbacks ────────────────────────────────
 
-  /**
-   * Per-execution chunk routing.
-   *
-   * Listeners with `executionId` only receive chunks from their own model.
-   * Listeners without `executionId` (topic-level) receive ALL chunks.
-   */
+  /** Broadcast chunk to all listeners. Multi-model: includes sourceModelId for frontend demux. */
   onChunk(topicId: string, modelId: UniqueModelId, chunk: UIMessageChunk): void {
     const stream = this.activeStreams.get(topicId)
     if (!stream || stream.status !== 'streaming') return
@@ -237,16 +232,15 @@ export class AiStreamManager extends BaseService {
       stream.buffer.push(chunk)
     }
 
+    const sourceModelId = stream.isMultiModel ? modelId : undefined
     const dead: string[] = []
     for (const [id, listener] of stream.listeners) {
       if (!listener.isAlive()) {
         dead.push(id)
         continue
       }
-      // Execution-scoped listeners only receive their own model's chunks
-      if (listener.executionId && listener.executionId !== modelId) continue
       try {
-        listener.onChunk(chunk)
+        listener.onChunk(chunk, sourceModelId)
       } catch (err) {
         logger.warn('Listener onChunk threw', { topicId, listenerId: id, err })
       }
@@ -268,11 +262,10 @@ export class AiStreamManager extends BaseService {
 
     exec.status = status === 'paused' ? 'aborted' : 'done'
 
-    // Update topic-level status first so listeners can check isTopicDone
+    // Compute topic status first so listeners get isTopicDone
     stream.status = this.computeTopicStatus(stream)
     const isTopicDone = stream.status !== 'streaming'
 
-    // Broadcast per-execution done (PersistenceListener filters by modelId, WebContents by isTopicDone)
     await this.broadcastExecutionDone(stream, exec, status, isTopicDone)
 
     if (isTopicDone) {
@@ -290,10 +283,10 @@ export class AiStreamManager extends BaseService {
 
     exec.status = 'error'
     exec.error = error
+
     stream.status = this.computeTopicStatus(stream)
     const isTopicDone = stream.status !== 'streaming'
 
-    // Broadcast error to listeners (include partial message if available)
     for (const [id, listener] of stream.listeners) {
       try {
         await listener.onError(error, exec.finalMessage, exec.modelId, isTopicDone)
@@ -367,210 +360,7 @@ export class AiStreamManager extends BaseService {
     if (firstModelId) this.setExecutionFinalMessage(topicId, firstModelId, message)
   }
 
-  // ── IPC handlers ──────────────────────────────────────────────────
-
-  private async handleStreamRequest(
-    sender: Electron.WebContents,
-    req: AiStreamOpenRequest
-  ): Promise<AiStreamOpenResponse> {
-    if (isAgentSessionTopic(req.topicId)) {
-      return this.handleAgentSessionStream(sender, req)
-    }
-    return this.handleNormalChatStream(sender, req)
-  }
-
-  /** Normal chat: resolve from topic → assistant → model, persist user message, start execution. */
-  private async handleNormalChatStream(
-    sender: Electron.WebContents,
-    req: AiStreamOpenRequest
-  ): Promise<AiStreamOpenResponse> {
-    const topic = await topicService.getById(req.topicId)
-    const assistantId = topic?.assistantId
-    if (!assistantId) {
-      throw new Error(`Cannot resolve assistantId for topic ${req.topicId}`)
-    }
-
-    const assistant = await assistantDataService.getById(assistantId)
-    if (!assistant.modelId) {
-      throw new Error(`Assistant ${assistantId} has no model configured`)
-    }
-    const modelId = assistant.modelId
-    const { providerId, modelId: rawModelId } = parseUniqueModelId(modelId)
-
-    const modelSnapshot = { id: rawModelId, name: rawModelId, provider: providerId }
-
-    // Regenerate: user message already exists in DB, don't create duplicate.
-    // Submit: create new user message.
-    const isRegenerate = req.trigger === 'regenerate-message'
-    const userMessage = isRegenerate
-      ? await messageService.getById(req.parentAnchorId ?? '')
-      : await messageService.create(req.topicId, {
-          role: 'user',
-          parentId: req.parentAnchorId,
-          data: { parts: req.userMessageParts },
-          modelId,
-          modelSnapshot
-        })
-
-    // Multi-model: @-mentioned models → one execution per model, shared siblingsGroupId
-    // FIXME: v2 refactored
-    const models = req.mentionedModelIds?.length
-      ? req.mentionedModelIds.map((id) => {
-          const sep = id.indexOf('::')
-          const pId = sep > 0 ? id.slice(0, sep) : providerId
-          const mId = sep > 0 ? id.slice(sep + 2) : id
-          return { uniqueModelId: createUniqueModelId(pId, mId), rawModelId: mId, providerId: pId }
-        })
-      : [{ uniqueModelId: modelId, rawModelId, providerId }]
-
-    const isMultiModel = models.length > 1
-
-    // Determine siblingsGroupId:
-    // - Multi-model: new group ID
-    // - Regenerate: inherit from existing siblings if any already have a group,
-    //   otherwise start a new group (pre-existing solo siblings with
-    //   siblingsGroupId=0 stay outside the group — read-only lookup only)
-    // - Single submit: no group
-    let siblingsGroupId: number | undefined
-    if (isMultiModel) {
-      siblingsGroupId = Date.now()
-    } else if (isRegenerate) {
-      const db = application.get('DbService').getDb()
-      const [existing] = await db
-        .select({ siblingsGroupId: messageTable.siblingsGroupId })
-        .from(messageTable)
-        .where(
-          and(
-            eq(messageTable.parentId, userMessage.id),
-            gt(messageTable.siblingsGroupId, 0),
-            isNull(messageTable.deletedAt)
-          )
-        )
-        .limit(1)
-      siblingsGroupId = existing?.siblingsGroupId ?? Date.now()
-    }
-
-    // Build all requests in parallel
-    const requests = await Promise.all(
-      models.map(async (model) => ({
-        model,
-        request: await this.buildAiStreamRequest(req.topicId, assistantId, model.uniqueModelId, userMessage.id)
-      }))
-    )
-
-    // Per-model listeners: WebContents (with executionId for chunk routing) + Persistence
-    const allListeners: StreamListener[] = []
-    for (const { model } of requests) {
-      const snapshot = { id: model.rawModelId, name: model.rawModelId, provider: model.providerId }
-      // Multi-model: each model gets its own WebContentsListener with executionId for chunk demux
-      // Single-model: executionId omitted → backward compatible (no filtering needed)
-      allListeners.push(new WebContentsListener(sender, req.topicId, isMultiModel ? model.uniqueModelId : undefined))
-      allListeners.push(
-        new PersistenceListener({
-          topicId: req.topicId,
-          parentUserMessageId: userMessage.id,
-          modelId: model.uniqueModelId,
-          modelSnapshot: snapshot,
-          siblingsGroupId: siblingsGroupId ? Number(siblingsGroupId) : undefined
-        })
-      )
-    }
-
-    // First model: creates the ActiveStream with all listeners
-    this.startExecution({
-      topicId: req.topicId,
-      modelId: requests[0].model.uniqueModelId,
-      request: requests[0].request,
-      listeners: allListeners,
-      siblingsGroupId: siblingsGroupId ? Number(siblingsGroupId) : undefined
-    })
-
-    // Additional models: add parallel executions to existing stream
-    for (let i = 1; i < requests.length; i++) {
-      this.startExecution({
-        topicId: req.topicId,
-        modelId: requests[i].model.uniqueModelId,
-        request: requests[i].request,
-        listeners: [],
-        siblingsGroupId: siblingsGroupId ? Number(siblingsGroupId) : undefined
-      })
-    }
-
-    return {
-      mode: 'started' as const,
-      executionIds: isMultiModel ? models.map((m) => m.uniqueModelId) : undefined
-    }
-  }
-
-  /** Agent session: resolve from session → agent → model, start execution with Claude Code provider. */
-  private async handleAgentSessionStream(
-    sender: Electron.WebContents,
-    req: AiStreamOpenRequest
-  ): Promise<AiStreamOpenResponse> {
-    const sessionId = extractAgentSessionId(req.topicId)
-
-    const { agents } = await agentService.listAgents()
-    let session: Awaited<ReturnType<typeof sessionService.getSession>> = null
-    for (const agent of agents) {
-      session = await sessionService.getSession(agent.id, sessionId)
-      if (session) break
-    }
-    if (!session) throw new Error(`Agent session not found: ${sessionId}`)
-
-    // TODO: removed after agent migrated
-    // After data_0003_model_id_format migration, session.model is UniqueModelId ("providerId::modelId")
-    const { providerId, modelId: rawModelId } = parseUniqueModelId(session.model as UniqueModelId)
-    const uniqueModelId = createUniqueModelId(providerId, rawModelId)
-
-    // Extract user message text from parts
-    const userText =
-      req.userMessageParts
-        ?.filter((p): p is { type: 'text'; text: string } => p.type === 'text')
-        .map((p) => p.text)
-        .join('\n') || ''
-
-    // Persist user message to agents DB
-    const userMessageId = crypto.randomUUID()
-    await agentMessageRepository.persistUserMessage({
-      sessionId,
-      agentSessionId: '',
-      payload: {
-        message: {
-          id: userMessageId,
-          role: 'user',
-          assistantId: session.agent_id,
-          topicId: req.topicId,
-          createdAt: new Date().toISOString(),
-          status: 'success',
-          blocks: [],
-          data: { parts: req.userMessageParts ?? [{ type: 'text', text: userText }] }
-        } as any,
-        blocks: []
-      }
-    })
-
-    const webContentsListener = new WebContentsListener(sender, req.topicId)
-    const agentPersistenceListener = new AgentPersistenceListener({
-      sessionId,
-      agentId: session.agent_id
-    })
-
-    const result = this.send({
-      topicId: req.topicId,
-      modelId: uniqueModelId,
-      request: {
-        chatId: req.topicId,
-        trigger: 'submit-message',
-        assistantId: session.agent_id,
-        uniqueModelId,
-        messages: [{ id: userMessageId, role: 'user', parts: [{ type: 'text', text: userText }] }]
-      },
-      userMessage: { id: userMessageId, topicId: req.topicId, role: 'user' } as Message,
-      listeners: [webContentsListener, agentPersistenceListener]
-    })
-
-    return { mode: result.mode }
-  }
+  // ── Attach / Detach (simple registry ops, stay here) ───────────
 
   private handleAttach(sender: Electron.WebContents, req: AiStreamAttachRequest): AiStreamAttachResponse {
     const stream = this.activeStreams.get(req.topicId)
@@ -635,7 +425,7 @@ export class AiStreamManager extends BaseService {
     status: 'success' | 'paused',
     isTopicDone = true
   ): Promise<void> {
-    const result = { finalMessage: exec.finalMessage, status, modelId: exec.modelId, isTopicDone }
+    const result: StreamDoneResult = { finalMessage: exec.finalMessage, status, modelId: exec.modelId, isTopicDone }
     for (const [id, listener] of stream.listeners) {
       try {
         await listener.onDone(result)
@@ -693,7 +483,7 @@ export class AiStreamManager extends BaseService {
    * Reads the path from root to the just-persisted user message (parentUserMessageId),
    * converts Message[] to UIMessage[] for the AI SDK, and constructs the full request.
    */
-  private async buildAiStreamRequest(
+  async buildAiStreamRequest(
     topicId: string,
     assistantId: string,
     uniqueModelId: UniqueModelId,

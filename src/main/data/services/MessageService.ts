@@ -515,6 +515,22 @@ export class MessageService {
     return rowToMessage(row)
   }
 
+  /** Get all children of a message (messages whose parentId = given id). */
+  async getChildrenByParentId(parentId: string): Promise<Message[]> {
+    const db = application.get('DbService').getDb()
+    const rows = await db
+      .select()
+      .from(messageTable)
+      .where(and(eq(messageTable.parentId, parentId), isNull(messageTable.deletedAt)))
+    return rows.map(rowToMessage)
+  }
+
+  /** Update siblingsGroupId for a single message. */
+  async updateSiblingsGroupId(id: string, siblingsGroupId: number): Promise<void> {
+    const db = application.get('DbService').getDb()
+    await db.update(messageTable).set({ siblingsGroupId }).where(eq(messageTable.id, id))
+  }
+
   /**
    * Create a new message
    *

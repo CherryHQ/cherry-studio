@@ -33,9 +33,9 @@ export interface StreamDoneResult {
   finalMessage?: CherryUIMessage
   /** 'success' = natural completion; 'paused' = abort path with partial result. */
   status: 'success' | 'paused'
-  /** Which model's execution finished (for multi-model filtering in PersistenceListener). */
+  /** Which model's execution finished. */
   modelId?: UniqueModelId
-  /** True when ALL executions in the topic are done (for topic-level listeners like WebContents). */
+  /** True when ALL executions in the topic are done. */
   isTopicDone?: boolean
 }
 
@@ -70,18 +70,11 @@ export interface StreamListener {
    */
   readonly id: string
 
-  /**
-   * Optional execution scope. When set, AiStreamManager only dispatches chunks
-   * from the matching execution to this listener (per-model routing).
-   * Listeners without executionId receive ALL chunks (topic-level).
-   */
-  readonly executionId?: string
-
-  /** Receives each chunk from the AI stream. Uses wide `UIMessageChunk` type. */
-  onChunk(chunk: UIMessageChunk): void
-  /** Called when the stream ends (success or paused). */
+  /** Receives each chunk. sourceModelId identifies the producing model (set for multi-model). */
+  onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId): void
+  /** Called when one execution ends (success or paused). */
   onDone(result: StreamDoneResult): void | Promise<void>
-  /** Called when the stream errors. partialMessage contains content streamed before the error. */
+  /** Called when one execution errors. partialMessage contains content streamed before the error. */
   onError(
     error: SerializedError,
     partialMessage?: UIMessage,
@@ -156,6 +149,9 @@ export interface ActiveStream {
 
   /** Topic-level status, derived from executions. */
   status: 'streaming' | 'done' | 'error' | 'aborted'
+
+  /** Static flag set at creation. Determines whether onChunk includes sourceModelId. */
+  isMultiModel: boolean
 
   /** Grace-period reap timestamp (ms since epoch). */
   reapAt?: number
