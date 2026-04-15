@@ -1,3 +1,4 @@
+import { messageTable } from '@data/db/schemas/message'
 import { assistantDataService } from '@data/services/AssistantService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
@@ -20,6 +21,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import type { SerializedError } from '@shared/types/error'
 import { serializeError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
+import { and, eq, gt, isNull } from 'drizzle-orm'
 
 import type { AiStreamRequest } from '../AiCompletionService'
 import { PendingMessageQueue } from '../PendingMessageQueue'
@@ -425,22 +427,27 @@ export class AiStreamManager extends BaseService {
 
     // Determine siblingsGroupId:
     // - Multi-model: new group ID
-    // - Regenerate: inherit from existing siblings (or create new if first regenerate)
+    // - Regenerate: inherit from existing siblings if any already have a group,
+    //   otherwise start a new group (pre-existing solo siblings with
+    //   siblingsGroupId=0 stay outside the group — read-only lookup only)
     // - Single submit: no group
     let siblingsGroupId: number | undefined
     if (isMultiModel) {
       siblingsGroupId = Date.now()
     } else if (isRegenerate) {
-      // Find existing assistant children to inherit their siblingsGroupId
-      const existingSiblings = await messageService.getChildrenByParentId(userMessage.id)
-      const existingGroup = existingSiblings.find((m) => m.siblingsGroupId > 0)?.siblingsGroupId
-      siblingsGroupId = existingGroup ?? Date.now()
-      // Update existing siblings that have siblingsGroupId=0 to join the group
-      for (const sibling of existingSiblings) {
-        if (sibling.siblingsGroupId === 0) {
-          await messageService.updateSiblingsGroupId(sibling.id, siblingsGroupId)
-        }
-      }
+      const db = application.get('DbService').getDb()
+      const [existing] = await db
+        .select({ siblingsGroupId: messageTable.siblingsGroupId })
+        .from(messageTable)
+        .where(
+          and(
+            eq(messageTable.parentId, userMessage.id),
+            gt(messageTable.siblingsGroupId, 0),
+            isNull(messageTable.deletedAt)
+          )
+        )
+        .limit(1)
+      siblingsGroupId = existing?.siblingsGroupId ?? Date.now()
     }
 
     // Build all requests in parallel
