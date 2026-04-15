@@ -153,7 +153,7 @@
     "@cherrystudio/embedjs-loader-sitemap": "0.1.31",
     "@cherrystudio/embedjs-loader-web": "0.1.31",
     "@cherrystudio/embedjs-loader-xml": "0.1.31",
-    "@cherrystudio/embedjs-ollama": "0.1.31",
+    "@cherrystudio/embedjs-ollama": "0.1.35",
     "@cherrystudio/embedjs-openai": "0.1.31",
     "@cherrystudio/embedjs-utils": "0.1.31",
     "@cherrystudio/extension-table-plus": "workspace:^",
@@ -483,7 +483,6 @@
     "patchedDependencies": {
       "@napi-rs/system-ocr@1.0.2": "patches/@napi-rs-system-ocr-npm-1.0.2-59e7a78e8b.patch",
       "tesseract.js@6.0.1": "patches/tesseract.js-npm-6.0.1-2562a7e46d.patch",
-      "@cherrystudio/embedjs-ollama@0.1.31": "patches/@cherrystudio__embedjs-ollama@0.1.31.patch",
       "@langchain/core@1.0.2": "patches/@langchain-core-npm-1.0.2-183ef83fe4.patch",
       "@langchain/openai@1.0.0": "patches/@langchain-openai-npm-1.0.0-474d0ad9d4.patch",
       "@tiptap/extension-drag-handle@3.2.0": "patches/@tiptap-extension-drag-handle-npm-3.2.0-5a9ebff7c9.patch",

@@ -50,11 +50,7 @@ describe('OllamaEmbeddings', () => {
         method: 'POST',
         body: JSON.stringify({
           model: 'nomic-embed-text',
-          input: 'sample',
-          keep_alive: undefined,
-          truncate: false,
-          dimensions: undefined,
-          options: undefined
+          input: 'sample'
         })
       })
     )
