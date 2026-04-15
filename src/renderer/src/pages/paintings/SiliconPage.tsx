@@ -1,7 +1,6 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
 import {
   Button,
-  ColFlex,
   InfoTooltip,
   Input,
   RadioGroup,
@@ -43,12 +42,20 @@ import type { FC } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
 import PaintingPromptBar from './components/PaintingPromptBar'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
 import { checkProviderEnabled } from './utils'
+
+const SectionTitle: FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (
+  <div
+    className={`mt-5 mb-2 flex items-center font-medium text-muted-foreground text-xs uppercase tracking-wider ${
+      className || ''
+    }`}>
+    <div className="flex items-center gap-1">{children}</div>
+  </div>
+)
 
 export const TEXT_TO_IMAGES_MODELS = [
   {
@@ -382,12 +389,12 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
         )}
       </Navbar>
       <div id="content-container" className="flex h-full flex-1 flex-row overflow-hidden bg-[var(--color-background)]">
-        <Scrollbar className="flex h-full max-w-[var(--assistants-width)] flex-1 flex-col border-r border-[var(--color-border)] bg-[var(--color-background)] p-5">
-          <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
+        <Scrollbar className="flex h-full max-w-[var(--assistants-width)] flex-1 flex-col border-[var(--color-border)] border-r bg-[var(--color-background)] p-5">
+          <SectionTitle className="mt-0">{t('common.provider')}</SectionTitle>
           <ProviderSelect provider={siliconFlowProvider} options={Options} onChange={handleProviderChange} />
-          <SettingTitle className="mt-4 mb-1">{t('common.model')}</SettingTitle>
+          <SectionTitle>{t('common.model')}</SectionTitle>
           <Select value={painting.model} onValueChange={onSelectModel}>
-            <SelectTrigger className="w-full">
+            <SelectTrigger className="h-10 min-h-10 w-full rounded-[0.75rem] border-transparent bg-muted/40 transition-all hover:bg-muted/60">
               <SelectValue placeholder={t('common.model')} />
             </SelectTrigger>
             <SelectContent>
@@ -398,42 +405,60 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
               ))}
             </SelectContent>
           </Select>
-          <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('paintings.image.size')}</SettingTitle>
+          <SectionTitle>{t('paintings.image.size')}</SectionTitle>
           <RadioGroup value={painting.imageSize} className="grid grid-cols-3 gap-2" onValueChange={onSelectImageSize}>
             {IMAGE_SIZES.map((size) => (
               <label
                 key={size.value}
                 htmlFor={`silicon-size-${size.value}`}
-                className="flex cursor-pointer flex-col items-center justify-center rounded-md border border-border bg-muted/20 p-2 text-sm transition-colors hover:bg-muted/30">
+                className={`flex aspect-square cursor-pointer flex-col items-center justify-center rounded-[0.75rem] border text-[11px] transition-all ${
+                  painting.imageSize === size.value
+                    ? 'border-primary bg-primary/5 text-primary'
+                    : 'border-transparent bg-muted/40 text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                }`}>
                 <RadioGroupItem value={size.value} id={`silicon-size-${size.value}`} className="sr-only" />
-                <ColFlex className="items-center">
+                <div className="flex items-center justify-center bg-transparent">
                   <img
                     src={size.icon}
-                    className="mt-2"
+                    alt={size.label}
+                    className={`h-3 w-3 transition-opacity ${
+                      painting.imageSize === size.value ? 'opacity-100' : 'opacity-60'
+                    }`}
                     style={{ filter: theme === 'dark' ? 'invert(100%)' : 'none' }}
                   />
-                  <span>{size.label}</span>
-                </ColFlex>
+                </div>
+                <span className="mt-0.5 font-medium tracking-tight">{size.label}</span>
               </label>
             ))}
           </RadioGroup>
 
-          <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
+          <SectionTitle>
             {t('paintings.number_images')}
             <InfoTooltip content={t('paintings.number_images_tip')} />
-          </SettingTitle>
-          <Input
-            type="number"
-            min={1}
-            max={4}
+          </SectionTitle>
+          <RadioGroup
             value={String(painting.numImages ?? 1)}
-            onChange={(e) => updatePaintingState({ numImages: Number(e.target.value) || 1 })}
-          />
+            className="grid grid-cols-4 gap-2"
+            onValueChange={(v) => updatePaintingState({ numImages: Number(v) })}>
+            {[1, 2, 3, 4].map((num) => (
+              <label
+                key={num}
+                htmlFor={`silicon-num-${num}`}
+                className={`flex cursor-pointer items-center justify-center rounded-[0.75rem] border py-1.5 font-medium text-xs transition-all ${
+                  painting.numImages === num
+                    ? 'border-primary bg-primary/5 text-primary'
+                    : 'border-transparent bg-muted/40 text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                }`}>
+                <RadioGroupItem value={String(num)} id={`silicon-num-${num}`} className="sr-only" />
+                {num}
+              </label>
+            ))}
+          </RadioGroup>
 
-          <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
+          <SectionTitle>
             {t('paintings.seed')}
             <InfoTooltip content={t('paintings.seed_tip')} />
-          </SettingTitle>
+          </SectionTitle>
           <div className="flex items-center gap-2">
             <Input
               className="flex-1"
@@ -448,10 +473,10 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
             </Button>
           </div>
 
-          <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
+          <SectionTitle>
             {t('paintings.inference_steps')}
             <InfoTooltip content={t('paintings.inference_steps_tip')} />
-          </SettingTitle>
+          </SectionTitle>
           <div className="flex items-center gap-4">
             <Slider
               className="flex-1"
@@ -470,12 +495,13 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
             />
           </div>
 
-          <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
+          <SectionTitle>
             {t('paintings.guidance_scale')}
             <InfoTooltip content={t('paintings.guidance_scale_tip')} />
-          </SettingTitle>
+          </SectionTitle>
           <div className="flex items-center gap-4">
             <Slider
+              className="flex-1"
               min={1}
               max={20}
               step={0.1}
@@ -492,20 +518,20 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
               onChange={(e) => updatePaintingState({ guidanceScale: Number(e.target.value) || 4.5 })}
             />
           </div>
-          <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
+          <SectionTitle>
             {t('paintings.negative_prompt')}
             <InfoTooltip content={t('paintings.negative_prompt_tip')} />
-          </SettingTitle>
+          </SectionTitle>
           <Textarea.Input
             value={painting.negativePrompt || ''}
             onValueChange={(value) => updatePaintingState({ negativePrompt: value })}
             spellCheck={false}
             rows={4}
           />
-          <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
+          <SectionTitle>
             {t('paintings.prompt_enhancement')}
             <InfoTooltip content={t('paintings.prompt_enhancement_tip')} />
-          </SettingTitle>
+          </SectionTitle>
           <RowFlex>
             <Switch
               checked={painting.promptEnhancement}
@@ -529,9 +555,6 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
             onPromptChange={(value) => updatePaintingState({ prompt: value })}
             onGenerate={onGenerate}
             onKeyDown={handleKeyDown}
-            showTranslate
-            isTranslating={isTranslating}
-            onTranslated={(translatedText) => updatePaintingState({ prompt: translatedText })}
           />
         </div>
         <PaintingsList

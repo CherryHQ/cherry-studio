@@ -63,8 +63,8 @@ const ProviderSelect: FC<ProviderSelectProps> = ({ provider, options, onChange, 
     const logo = systemLogo || customLogos[providerId]
 
     return (
-      <div className="flex min-w-0 items-center gap-2">
-        <div className="flex h-4 w-4 items-center justify-center shrink-0">
+      <div className="flex h-full min-w-0 flex-1 items-center gap-2">
+        <div className="flex h-4 w-4 shrink-0 items-center justify-center">
           <ProviderAvatarPrimitive providerId={providerId} providerName={providerName} logo={logo} size={16} />
         </div>
         <span className="truncate">{providerName}</span>
@@ -75,8 +75,8 @@ const ProviderSelect: FC<ProviderSelectProps> = ({ provider, options, onChange, 
   return (
     <div className={className} style={style}>
       <Select value={provider.id} onValueChange={onChange}>
-        <SelectTrigger className="w-full">
-          <SelectValue>{renderProvider(provider.id, selectedProviderName)}</SelectValue>
+        <SelectTrigger className="h-10 min-h-10 w-full rounded-[0.75rem] border-transparent bg-muted/40 transition-all hover:bg-muted/60">
+          <SelectValue asChild>{renderProvider(provider.id, selectedProviderName)}</SelectValue>
         </SelectTrigger>
         <SelectContent>
           {providerOptions.map((option) => (

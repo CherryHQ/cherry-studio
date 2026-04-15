@@ -5,7 +5,7 @@ import type { Painting } from '@renderer/types'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
-interface ArtboardProps {
+export interface ArtboardProps {
   painting: Painting
   isLoading: boolean
   currentImageIndex: number
@@ -43,7 +43,7 @@ const Artboard: FC<ArtboardProps> = ({
                 size="icon-sm"
                 variant="outline"
                 onClick={onPrevImage}
-                className="absolute left-2.5 top-1/2 z-20 -translate-y-1/2 opacity-80 hover:opacity-100">
+                className="-translate-y-1/2 absolute top-1/2 left-2.5 z-20 opacity-80 hover:opacity-100">
                 ←
               </Button>
             )}
@@ -63,19 +63,19 @@ const Artboard: FC<ArtboardProps> = ({
                 size="icon-sm"
                 variant="outline"
                 onClick={onNextImage}
-                className="absolute right-2.5 top-1/2 z-20 -translate-y-1/2 opacity-80 hover:opacity-100">
+                className="-translate-y-1/2 absolute top-1/2 right-2.5 z-20 opacity-80 hover:opacity-100">
                 →
               </Button>
             )}
-            <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 rounded-full bg-black/50 px-2 py-1 text-xs text-white">
+            <div className="-translate-x-1/2 absolute bottom-2.5 left-1/2 rounded-full bg-black/50 px-2 py-1 text-white text-xs">
               {currentImageIndex + 1} / {painting.files.length}
             </div>
           </div>
         ) : (
           <div className="flex h-[var(--artboard-max)] w-[var(--artboard-max)] items-center justify-center bg-[var(--color-background-soft)] p-6 text-center">
-            {painting.urls.length > 0 && retry ? (
+            {painting.urls.length > 0 && !isLoading ? (
               <div className="space-y-3">
-                <ul className="list-none p-0 text-left break-all select-text">
+                <ul className="select-text list-none break-all p-0 text-left">
                   {painting.urls.map((url, index) => (
                     <li key={url || index} className="mb-2 text-[var(--color-text-secondary)]">
                       {url}
@@ -84,9 +84,11 @@ const Artboard: FC<ArtboardProps> = ({
                 </ul>
                 <div>
                   {t('paintings.proxy_required')}
-                  <Button variant="ghost" onClick={() => retry?.(painting)}>
-                    {t('paintings.image_retry')}
-                  </Button>
+                  {retry && (
+                    <Button variant="ghost" onClick={() => retry?.(painting)}>
+                      {t('paintings.image_retry')}
+                    </Button>
+                  )}
                 </div>
               </div>
             ) : imageCover ? (
@@ -98,7 +100,7 @@ const Artboard: FC<ArtboardProps> = ({
         )}
 
         {isLoading && (
-          <div className="absolute left-1/2 top-1/2 z-30 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-5">
+          <div className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 z-30 flex flex-col items-center gap-5">
             <Spinner text="" />
             {loadText || null}
             <Button onClick={onCancel}>{t('common.cancel')}</Button>

@@ -1,5 +1,4 @@
 import { Textarea } from '@cherrystudio/ui'
-import TranslateButton from '@renderer/components/TranslateButton'
 import SendMessageButton from '@renderer/pages/home/Inputbar/SendMessageButton'
 import type { FC, KeyboardEventHandler } from 'react'
 
@@ -10,9 +9,6 @@ interface PaintingPromptBarProps {
   onPromptChange: (value: string) => void
   onGenerate: () => void
   onKeyDown?: KeyboardEventHandler<HTMLTextAreaElement>
-  showTranslate?: boolean
-  isTranslating?: boolean
-  onTranslated?: (translatedText: string) => void
 }
 
 const PaintingPromptBar: FC<PaintingPromptBarProps> = ({
@@ -21,33 +17,21 @@ const PaintingPromptBar: FC<PaintingPromptBarProps> = ({
   placeholder,
   onPromptChange,
   onGenerate,
-  onKeyDown,
-  showTranslate = false,
-  isTranslating = false,
-  onTranslated
+  onKeyDown
 }) => {
   return (
-    <div className="relative mx-5 mb-[15px] flex min-h-[95px] max-h-[95px] flex-col rounded-[10px] border border-[var(--color-border-soft)] transition-all">
-      <Textarea.Input
-        disabled={disabled}
-        value={prompt}
-        spellCheck={false}
-        className="flex-1 resize-none border-0 bg-transparent p-[10px] shadow-none focus-visible:ring-0"
-        placeholder={placeholder}
-        onValueChange={onPromptChange}
-        onKeyDown={onKeyDown}
-      />
-      <div className="flex h-10 flex-row justify-end px-2">
-        <div className="flex flex-row items-center gap-[6px]">
-          {showTranslate && onTranslated ? (
-            <TranslateButton
-              text={prompt}
-              onTranslated={onTranslated}
-              disabled={disabled || isTranslating}
-              isLoading={isTranslating}
-              style={{ marginRight: 6, borderRadius: '50%' }}
-            />
-          ) : null}
+    <div className="flex shrink-0 justify-center px-6 pt-2 pb-4">
+      <div className="relative flex max-h-[120px] min-h-[88px] w-full max-w-[680px] flex-col rounded-[0.75rem] border border-border/50 bg-background shadow-black/5 shadow-lg">
+        <Textarea.Input
+          disabled={disabled}
+          value={prompt}
+          spellCheck={false}
+          className="flex-1 resize-none border-0 bg-transparent px-4 pt-3 pb-1.5 text-[11px] text-foreground/80 shadow-none placeholder:text-muted-foreground/40 focus-visible:ring-0"
+          placeholder={placeholder}
+          onValueChange={onPromptChange}
+          onKeyDown={onKeyDown}
+        />
+        <div className="flex h-10 flex-row items-center justify-end px-3 pb-2.5">
           <SendMessageButton sendMessage={onGenerate} disabled={disabled} />
         </div>
       </div>

@@ -447,13 +447,13 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
         )}
       </Navbar>
       <div id="content-container" className="flex h-full flex-1 flex-row overflow-hidden bg-[var(--color-background)]">
-        <Scrollbar className="flex h-full max-w-[var(--assistants-width)] flex-1 flex-col border-r border-[var(--color-border)] bg-[var(--color-background)] p-5">
+        <Scrollbar className="flex h-full max-w-[var(--assistants-width)] flex-1 flex-col border-[var(--color-border)] border-r bg-[var(--color-background)] p-5">
           <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
           {ppioProvider && <ProviderSelect provider={ppioProvider} options={Options} onChange={handleProviderChange} />}
 
           <SettingTitle className="mt-4 mb-1">{t('common.model')}</SettingTitle>
           <UiSelect value={painting.model} onValueChange={onSelectModel}>
-            <SelectTrigger className="w-full">
+            <SelectTrigger className="h-10 min-h-10 w-full rounded-[0.75rem] border-transparent bg-muted/40 transition-all hover:bg-muted/60">
               <SelectValue placeholder={t('common.model')} />
             </SelectTrigger>
             <SelectContent>
@@ -501,9 +501,6 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
             onPromptChange={(value) => updatePaintingState({ prompt: value })}
             onGenerate={onGenerate}
             onKeyDown={handleKeyDown}
-            showTranslate
-            isTranslating={isTranslating}
-            onTranslated={(translatedText) => updatePaintingState({ prompt: translatedText })}
           />
         </div>
         <PaintingsList

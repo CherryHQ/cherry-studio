@@ -31,14 +31,14 @@ const PaintingsList: FC<PaintingsListProps> = ({
   return (
     <>
       <div
-        className="flex h-[calc(100vh-var(--navbar-height))] max-w-[100px] flex-1 flex-col items-center gap-2 overflow-x-hidden overflow-y-auto border-l border-[var(--color-border)] bg-[var(--color-background)] p-2"
-        style={{ paddingBottom: dragging ? 80 : 10 }}>
+        className="flex h-[calc(100vh-var(--navbar-height))] max-w-[108px] shrink-0 flex-col items-center gap-2.5 overflow-y-auto overflow-x-hidden border-border border-l bg-muted/15 p-2.5"
+        style={{ paddingBottom: dragging ? 80 : 12 }}>
         {!dragging && (
           <button
             type="button"
             onClick={onNewPainting}
-            className="flex h-20 min-h-20 w-20 items-center justify-center border border-dashed border-[var(--color-border)] bg-[var(--color-background-soft)] text-[var(--color-text-2)] transition-colors hover:border-[var(--color-primary)] hover:bg-[var(--color-background-mute)] hover:text-[var(--color-primary)]">
-            <Plus size={18} />
+            className="flex h-[76px] w-[76px] shrink-0 items-center justify-center rounded-[0.75rem] border border-border/80 border-dashed bg-muted/25 text-muted-foreground transition-colors hover:border-primary/50 hover:bg-muted/40 hover:text-primary">
+            <Plus size={18} strokeWidth={1.75} />
           </button>
         )}
 
@@ -48,29 +48,31 @@ const PaintingsList: FC<PaintingsListProps> = ({
           onDragStart={() => setDragging(true)}
           onDragEnd={() => setDragging(false)}>
           {(item: Painting) => (
-            <div key={item.id} className="group relative">
+            <div key={item.id} className="group relative w-[76px] shrink-0">
               <button
                 type="button"
-                className={`relative h-20 w-20 overflow-hidden border transition-colors ${
+                className={`relative h-[76px] w-[76px] overflow-hidden rounded-[0.75rem] border transition-all ${
                   selectedPainting.id === item.id
-                    ? 'border-[var(--color-primary)]'
-                    : 'border-[var(--color-background-soft)] bg-[var(--color-background-soft)] hover:bg-[var(--color-background-mute)]'
+                    ? 'border-primary ring-2 ring-primary/25'
+                    : 'border-transparent bg-muted/30 hover:bg-muted/45'
                 }`}
                 onClick={() => onSelectPainting(item)}>
-                {item.files[0] && (
+                {item.files[0] ? (
                   <img
                     src={FileManager.getFileUrl(item.files[0])}
                     alt=""
                     className="block h-full w-full object-cover"
                   />
+                ) : (
+                  <span className="block h-full w-full bg-muted/20" aria-hidden />
                 )}
               </button>
 
               <button
                 type="button"
                 onClick={() => setPendingDelete(item)}
-                className="absolute right-1 top-1 flex items-center justify-center rounded-full bg-[var(--color-background-soft)] p-1 text-[var(--color-error)] opacity-0 transition-opacity group-hover:opacity-100">
-                <Trash2 size={14} />
+                className="absolute top-1.5 right-1.5 flex size-6 items-center justify-center rounded-full border border-border/60 bg-background/90 text-destructive opacity-0 shadow-sm backdrop-blur-sm transition-opacity hover:bg-background group-hover:opacity-100">
+                <Trash2 size={12} />
               </button>
             </div>
           )}

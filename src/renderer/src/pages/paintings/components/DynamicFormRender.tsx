@@ -98,7 +98,7 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
         {value && (
           <div className="flex items-center gap-2 rounded-md border border-border bg-muted/40 p-2">
             <img src={value} alt="Image preview" className="h-12 w-12 shrink-0 rounded object-cover" />
-            <div className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+            <div className="min-w-0 flex-1 truncate text-muted-foreground text-xs">
               {typeof value === 'string' && value.startsWith('data:')
                 ? t('common.uploaded_image')
                 : t('common.image_url')}

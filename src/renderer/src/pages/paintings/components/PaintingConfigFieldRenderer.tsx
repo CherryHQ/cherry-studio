@@ -3,6 +3,7 @@ import {
   Input,
   RadioGroup,
   RadioGroupItem,
+  RowFlex,
   Select,
   SelectContent,
   SelectGroup,
@@ -16,9 +17,11 @@ import {
 } from '@cherrystudio/ui'
 import { RotateCcw } from 'lucide-react'
 
+import { DynamicFormRender } from './DynamicFormRender'
+
 type PrimitiveValue = string | number | boolean | undefined
 
-type OptionItem = {
+export type OptionItem = {
   label?: string
   labelKey?: string
   title?: string
@@ -27,8 +30,20 @@ type OptionItem = {
   options?: OptionItem[]
 }
 
-type BaseConfigItem = {
-  type: 'select' | 'radio' | 'slider' | 'input' | 'switch' | 'inputNumber' | 'textarea' | 'image'
+export type BaseConfigItem = {
+  type:
+    | 'select'
+    | 'radio'
+    | 'slider'
+    | 'input'
+    | 'switch'
+    | 'inputNumber'
+    | 'textarea'
+    | 'image'
+    | 'customSize'
+    | 'iconRadio'
+    | 'styleToggle'
+    | 'dynamicSchema'
   key?: string
   title?: string
   tooltip?: string
@@ -38,6 +53,22 @@ type BaseConfigItem = {
   step?: number
   initialValue?: PrimitiveValue
   disabled?: boolean | ((config: BaseConfigItem, painting: Record<string, unknown>) => boolean)
+  condition?: (painting: Record<string, unknown>) => boolean
+  widthKey?: string
+  heightKey?: string
+  sizeKey?: string
+  validation?: {
+    minWidth?: number
+    maxWidth?: number
+    minHeight?: number
+    maxHeight?: number
+    divisibleBy?: number
+    maxPixels?: number
+  }
+  columns?: number
+  toggleMode?: 'single' | 'multi'
+  schema?: Record<string, any>
+  schemaReader?: (property: Record<string, any>, key: string) => string
 }
 
 interface PaintingConfigFieldRendererProps {
@@ -215,7 +246,7 @@ export function PaintingConfigFieldRenderer({
 
     case 'image': {
       return (
-        <label className="flex min-h-32 cursor-pointer items-center justify-center rounded-md border border-dashed border-border bg-muted/20 p-3 hover:bg-muted/30">
+        <label className="flex min-h-32 cursor-pointer items-center justify-center rounded-md border border-border border-dashed bg-muted/20 p-3 hover:bg-muted/30">
           <input
             type="file"
             accept="image/png,image/jpeg,image/gif,image/webp"
@@ -233,9 +264,147 @@ export function PaintingConfigFieldRenderer({
               <img src={imagePreviewSrc} alt="preview" className="max-h-32 object-contain" />
             </div>
           ) : (
-            (imagePlaceholder ?? <span className="text-sm text-muted-foreground">Upload image</span>)
+            (imagePlaceholder ?? <span className="text-muted-foreground text-sm">Upload image</span>)
           )}
         </label>
+      )
+    }
+
+    case 'customSize': {
+      const { widthKey = 'width', heightKey = 'height', sizeKey, validation = {} } = item
+      const widthValue = painting[widthKey] ?? ''
+      const heightValue = painting[heightKey] ?? ''
+
+      return (
+        <div className="flex flex-col gap-2">
+          <RowFlex className="items-center gap-2">
+            <Input
+              placeholder="W"
+              type="number"
+              value={widthValue === undefined || widthValue === null ? '' : String(widthValue)}
+              onChange={(e) => {
+                const value = e.target.value === '' ? '' : Number(e.target.value)
+                const updates: Record<string, unknown> = { [widthKey]: value }
+                if (sizeKey) {
+                  updates[sizeKey] = `${value}x${heightValue}`
+                }
+                onChange(updates)
+              }}
+              min={validation.minWidth}
+              max={validation.maxWidth}
+              className="flex-1"
+            />
+            <span className="text-[12px] text-[var(--color-text-2)]">x</span>
+            <Input
+              placeholder="H"
+              type="number"
+              value={heightValue === undefined || heightValue === null ? '' : String(heightValue)}
+              onChange={(e) => {
+                const value = e.target.value === '' ? '' : Number(e.target.value)
+                const updates: Record<string, unknown> = { [heightKey]: value }
+                if (sizeKey) {
+                  updates[sizeKey] = `${widthValue}x${value}`
+                }
+                onChange(updates)
+              }}
+              min={validation.minHeight}
+              max={validation.maxHeight}
+              className="flex-1"
+            />
+            <span className="text-[12px] text-[var(--color-text-2)]">px</span>
+          </RowFlex>
+        </div>
+      )
+    }
+
+    case 'iconRadio': {
+      const options = mapOptions(item, painting, translate)
+      const value = currentValue !== undefined && currentValue !== null ? String(currentValue) : ''
+      const columns = item.columns || 3
+
+      return (
+        <RadioGroup
+          value={value}
+          className={`grid grid-cols-${columns} gap-2`}
+          onValueChange={(nextValue) => onChange({ [fieldKey]: nextValue })}>
+          {options.map((option) => (
+            <label
+              key={String(option.value)}
+              htmlFor={`${fieldKey}-${option.value}`}
+              className={`flex cursor-pointer flex-col items-center justify-center rounded-[0.75rem] border px-2 py-1.5 text-[11px] transition-all ${
+                value === String(option.value)
+                  ? 'border-primary bg-primary/5 text-primary'
+                  : 'border-transparent bg-muted/40 text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+              }`}>
+              <RadioGroupItem value={String(option.value)} id={`${fieldKey}-${option.value}`} className="sr-only" />
+              {option.icon && (
+                <div className="flex items-center justify-center bg-transparent">
+                  <img
+                    src={option.icon}
+                    alt={option.label}
+                    className={`h-3 w-3 transition-opacity ${value === String(option.value) ? 'opacity-100' : 'opacity-60'}`}
+                  />
+                </div>
+              )}
+              <span className="mt-0.5 font-medium tracking-tight">{option.label}</span>
+            </label>
+          ))}
+        </RadioGroup>
+      )
+    }
+
+    case 'styleToggle': {
+      const options = mapOptions(item, painting, translate)
+      const { toggleMode = 'single' } = item
+
+      return (
+        <div className="flex flex-wrap items-start gap-2">
+          {options.map((option) => (
+            <button
+              type="button"
+              key={String(option.value)}
+              className={`rounded-[6px] border px-[6px] py-[2px] transition-all ${
+                currentValue === String(option.value)
+                  ? 'border-[var(--color-primary)] bg-[var(--color-primary)] text-white'
+                  : 'border-[var(--color-border)] bg-[var(--color-background)] hover:bg-[var(--color-hover,#f0f0f0)]'
+              }`}
+              onClick={() => {
+                if (toggleMode === 'single' && currentValue === String(option.value)) {
+                  onChange({ [fieldKey]: '' })
+                } else {
+                  onChange({ [fieldKey]: String(option.value) })
+                }
+              }}>
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )
+    }
+
+    case 'dynamicSchema': {
+      return (
+        <div className="flex flex-col gap-3">
+          {item.schema &&
+            Object.entries(item.schema).map(([propKey, property]: [string, any]) => {
+              if (propKey === 'prompt') return null
+              return (
+                <div key={propKey} className="flex flex-col">
+                  <div className="mb-1.5 flex items-center">
+                    <span className="font-medium text-[13px] capitalize">
+                      {item.schemaReader ? item.schemaReader(property, 'title') : property.title || propKey}
+                    </span>
+                  </div>
+                  <DynamicFormRender
+                    schemaProperty={property}
+                    propertyName={propKey}
+                    value={painting[propKey]}
+                    onChange={(field, value) => onChange({ [field]: value })}
+                  />
+                </div>
+              )
+            })}
+        </div>
       )
     }
 

@@ -47,7 +47,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
 
       <div className="flex flex-wrap">
         {uploadSlots.map(({ src, index }) => (
-          <div key={index} className="relative mb-1 mr-1 h-[45%] w-[45%]">
+          <div key={index} className="relative mr-1 mb-1 h-[45%] w-[45%]">
             <label className="block h-full w-full cursor-pointer">
               <input
                 type="file"
@@ -76,15 +76,15 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
             <button
               type="button"
               onClick={() => setPendingDeleteIndex(index)}
-              className="absolute right-1 top-1 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white opacity-80 transition-opacity hover:opacity-100">
+              className="absolute top-1 right-1 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white opacity-80 transition-opacity hover:opacity-100">
               <Trash2 size={14} />
             </button>
           </div>
         ))}
 
         {imageFiles.length < maxImages && (
-          <div className="relative mb-1 mr-1 h-[45%] w-[45%]">
-            <label className="flex h-full w-full cursor-pointer items-center justify-center rounded-md border border-dashed border-border bg-muted/20 hover:bg-muted/30">
+          <div className="relative mr-1 mb-1 h-[45%] w-[45%]">
+            <label className="flex h-full w-full cursor-pointer items-center justify-center rounded-md border border-border border-dashed bg-muted/20 hover:bg-muted/30">
               <input
                 type="file"
                 accept="image/png,image/jpeg"
