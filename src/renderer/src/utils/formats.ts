@@ -1,7 +1,3 @@
-import type { Message } from '@renderer/types/newMessage'
-
-import { findImageBlocks, getMainTextContent } from './messageUtils/find'
-
 /**
  * HTML实体编码辅助函数
  * @param str 输入字符串
@@ -34,23 +30,6 @@ export function cleanMarkdownContent(text: string): string {
   cleaned = cleaned.replace(/[￥$€£¥%@#&*^()[\]{}<>~`'"\\|/_.]+/g, '') // 移除特殊字符
   cleaned = cleaned.replace(/\s+/g, ' ').trim() // 规范化空白
   return cleaned
-}
-
-export function escapeDollarNumber(text: string) {
-  let escapedText = ''
-
-  for (let i = 0; i < text.length; i += 1) {
-    let char = text[i]
-    const nextChar = text[i + 1] || ' '
-
-    if (char === '$' && nextChar >= '0' && nextChar <= '9') {
-      char = '\\$'
-    }
-
-    escapedText += char
-  }
-
-  return escapedText
 }
 
 export function extractHtmlTitle(html: string): string {
@@ -96,52 +75,6 @@ export function removeSvgEmptyLines(text: string): string {
       .filter((line) => line.trim() !== '')
       .join('\n')
   })
-}
-
-export function withGenerateImage(message: Message): { content: string; images?: string[] } {
-  const originalContent = getMainTextContent(message)
-  const imagePattern = new RegExp(`!\\[[^\\]]*\\]\\((.*?)\\s*("(?:.*[^"])")?\\s*\\)`)
-  const images: string[] = []
-  let processedContent: string
-
-  processedContent = originalContent.replace(imagePattern, (_, url) => {
-    if (url) {
-      images.push(url)
-    }
-    return ''
-  })
-
-  processedContent = processedContent.replace(/\n\s*\n/g, '\n').trim()
-
-  const downloadPattern = /\[[^\]]*\]\((.*?)\s*("(?:.*[^"])")?\s*\)/g
-  processedContent = processedContent
-    .replace(downloadPattern, '')
-    .replace(/\n\s*\n/g, '\n')
-    .trim()
-
-  if (images.length > 0) {
-    return { content: processedContent, images }
-  }
-
-  return { content: originalContent }
-}
-
-export function addImageFileToContents(messages: Message[]) {
-  const lastAssistantMessage = messages.findLast((m) => m.role === 'assistant')
-  if (!lastAssistantMessage) return messages
-  const blocks = findImageBlocks(lastAssistantMessage)
-  if (!blocks || blocks.length === 0) return messages
-  if (blocks.every((v) => !v.metadata?.generateImage)) {
-    return messages
-  }
-
-  const imageFiles = blocks.map((v) => v.metadata?.generateImage?.images).flat()
-  const updatedAssistantMessage = {
-    ...lastAssistantMessage,
-    images: imageFiles
-  }
-
-  return messages.map((message) => (message.id === lastAssistantMessage.id ? updatedAssistantMessage : message))
 }
 
 export function formatQuotedText(text: string) {

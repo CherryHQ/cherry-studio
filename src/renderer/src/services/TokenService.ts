@@ -1,12 +1,12 @@
 import type { Assistant, FileMetadata, Usage } from '@renderer/types'
 import { FILE_TYPE } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
+import { filterAfterContextClearMessages, filterMessages } from '@renderer/utils/messageUtils/filters'
 import { findFileBlocks, getMainTextContent, getThinkingContent } from '@renderer/utils/messageUtils/find'
 import { flatten, takeRight } from 'lodash'
 import { approximateTokenSize } from 'tokenx'
 
 import { getAssistantSettings } from './AssistantService'
-import { filterAfterContextClearMessages, filterMessages } from './MessagesService'
 
 interface MessageItem {
   name?: string

@@ -23,15 +23,7 @@ import FileManager from './FileManager'
 
 const logger = loggerService.withContext('MessagesService')
 
-export {
-  filterAfterContextClearMessages,
-  filterEmptyMessages,
-  filterErrorOnlyMessagesWithRelated,
-  filterMessages,
-  filterUsefulMessages,
-  filterUserRoleStartMessages,
-  getGroupedMessages
-} from '@renderer/utils/messageUtils/filters'
+export { getGroupedMessages } from '@renderer/utils/messageUtils/filters'
 
 export function getContextCount(assistant: Assistant, messages: Message[]) {
   const settingContextCount = assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT

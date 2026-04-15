@@ -1,4 +1,3 @@
-// import { InfoCircleOutlined } from '@ant-design/icons'
 import { Tooltip } from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
@@ -35,7 +34,6 @@ import {
   exportMessageToNotion,
   messageToMarkdown
 } from '@renderer/utils/export'
-// import { withMessageThought } from '@renderer/utils/formats'
 import { removeTrailingDoubleSpaces } from '@renderer/utils/markdown'
 import {
   getTextFromParts,
@@ -148,7 +146,6 @@ const MessageMenubar: FC<Props> = (props) => {
   const translationAbortKey = createTranslationAbortKey(message.id)
   const [showDeleteTooltip, setShowDeleteTooltip] = useState(false)
   const { translateLanguages } = useTranslate()
-  // const assistantModel = assistant?.model
   const { deleteMessage, resendMessage, regenerateAssistantMessage, getTranslationUpdater } =
     useMessageOperations(topic)
 
@@ -158,8 +155,6 @@ const MessageMenubar: FC<Props> = (props) => {
   const [confirmRegenerateMessage] = usePreference('chat.message.confirm_regenerate')
 
   const isBubbleStyle = messageStyle === 'bubble'
-
-  // const loading = useTopicLoading(topic)
 
   const isUserMessage = message.role === 'user'
 
@@ -446,12 +441,6 @@ const MessageMenubar: FC<Props> = (props) => {
 
   const onRegenerate = async (e: React.MouseEvent | undefined) => {
     e?.stopPropagation?.()
-    // No need to reset or edit the message anymore
-    // const selectedModel = isGrouped ? model : assistantModel
-    // const _message = resetAssistantMessage(message, selectedModel)
-    // editMessage(message.id, { ..._message }) // REMOVED
-
-    // Call the function from the hook
     void regenerateAssistantMessage(message, assistant)
   }
 
