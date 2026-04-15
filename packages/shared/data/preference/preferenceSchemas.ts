@@ -775,6 +775,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'ui.sidebar.icons.invisible': [],
     'ui.sidebar.icons.visible': [
       'assistants',
+      'agents',
       'store',
       'paintings',
       'translate',
