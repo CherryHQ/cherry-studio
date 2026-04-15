@@ -179,6 +179,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     try {
       if (mode === 'aihubmix_image_generate') {
+        // TODO(renderer/aiCore-cleanup): the remaining Gemini/Ideogram/custom fetch branches should move behind main AI/image IPC so this page no longer owns provider-specific transport logic.
         if (painting.model.startsWith('imagen-')) {
           const requestId = uuid()
           activeImageRequestIdRef.current = requestId

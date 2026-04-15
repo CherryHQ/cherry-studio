@@ -1,3 +1,4 @@
+/** TODO(renderer/aiCore-cleanup): replace these temporary mirrored tool response types with shared/main-owned contracts once knowledge/web/memory tools stop depending on legacy aiCore definitions. */
 export interface KnowledgeSearchToolInput {
   additionalContext?: string
 }

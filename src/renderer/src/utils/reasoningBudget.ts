@@ -1,6 +1,7 @@
 import { findTokenLimit } from '@renderer/config/models'
 import { EFFORT_RATIO } from '@renderer/types'
 
+/** TODO(renderer/aiCore-cleanup): only `getThinkingBudget` is extracted here. Migrate or delete the remaining reasoning helpers from the old renderer aiCore module after code/CLI flows are fully decoupled. */
 const FALLBACK_TOKEN_LIMIT = { min: 1024, max: 16384 }
 
 function computeBudgetTokens(

@@ -11,6 +11,7 @@ import {
   isVertexProvider
 } from '@renderer/utils/provider'
 
+/** TODO(renderer/aiCore-cleanup): converge this host normalization helper with the remaining main/provider config formatter so we can delete the old aiCore provider config copy safely. */
 interface HostFormatter {
   match: (provider: Provider) => boolean
   format: (provider: Provider, appendApiVersion: boolean) => string

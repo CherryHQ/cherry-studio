@@ -82,6 +82,7 @@ export interface AiImageRequest extends AiBaseRequest {
   numInferenceSteps?: number
   guidanceScale?: number
   promptEnhancement?: boolean
+  /** TODO(renderer/aiCore-cleanup): wire personGeneration through to the underlying image runtime once the main image contract formally supports it end-to-end. */
   personGeneration?: string
 }
 
