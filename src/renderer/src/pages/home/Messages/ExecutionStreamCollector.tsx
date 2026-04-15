@@ -1,23 +1,24 @@
-/**
- * Headless component: runs useChat for one multi-model execution.
- *
- * Accumulates chunks filtered by executionId, reports messages to parent via callback.
- * Renders nothing — parent merges into adaptedMessages for existing Messages/MessageGroup rendering.
- */
-
 import { useChat } from '@ai-sdk/react'
+import { loggerService } from '@logger'
 import { ExecutionTransport } from '@renderer/transport/IpcChatTransport'
 import type { CherryUIMessage } from '@shared/data/types/message'
-import type { FC } from 'react'
 import { useEffect, useMemo } from 'react'
 
-interface Props {
+const logger = loggerService.withContext('ExecutionStreamCollector')
+
+interface ExecutionStreamCollectorProps {
   topicId: string
   executionId: string
-  onMessages: (executionId: string, messages: CherryUIMessage[]) => void
+  onMessagesChange: (executionId: string, messages: CherryUIMessage[]) => void
+  onDispose?: (executionId: string) => void
 }
 
-const ExecutionStreamCollector: FC<Props> = ({ topicId, executionId, onMessages }) => {
+export default function ExecutionStreamCollector({
+  topicId,
+  executionId,
+  onMessagesChange,
+  onDispose
+}: ExecutionStreamCollectorProps) {
   const transport = useMemo(() => new ExecutionTransport(topicId, executionId), [topicId, executionId])
 
   const { messages } = useChat<CherryUIMessage>({
@@ -25,15 +26,21 @@ const ExecutionStreamCollector: FC<Props> = ({ topicId, executionId, onMessages 
     transport,
     messages: [],
     resume: true,
-    experimental_throttle: 50
+    experimental_throttle: 50,
+    onError: (error) => {
+      logger.warn('Execution stream collector error', { topicId, executionId, error })
+    }
   })
 
-  // Report accumulated messages to parent
   useEffect(() => {
-    onMessages(executionId, messages)
-  }, [executionId, messages, onMessages])
+    onMessagesChange(executionId, messages)
+  }, [executionId, messages, onMessagesChange])
 
-  return null // Headless — rendering handled by parent's <Messages>
+  useEffect(() => {
+    return () => {
+      onDispose?.(executionId)
+    }
+  }, [executionId, onDispose])
+
+  return null
 }
-
-export default ExecutionStreamCollector

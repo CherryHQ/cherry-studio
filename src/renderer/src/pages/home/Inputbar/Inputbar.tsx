@@ -38,6 +38,7 @@ import {
 import { delay } from '@renderer/utils'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
+import { createUniqueModelId, isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { debounce } from 'lodash'
 import type { FC } from 'react'
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
@@ -68,7 +69,7 @@ interface Props {
   assistant: Assistant
   setActiveTopic: (topic: Topic) => void
   topic: Topic
-  onSend: (text: string, options?: { files?: FileMetadata[]; mentionedModels?: Model[] }) => void
+  onSend: (text: string, options?: { files?: FileMetadata[]; mentionedModels?: UniqueModelId[] }) => void
 }
 
 type ProviderActionHandlers = {
@@ -242,7 +243,12 @@ const InputbarInner: FC<InputbarInnerProps> = ({
     if (!text_) return
     onSendProp(text_, {
       files: files.length > 0 ? files : undefined,
-      mentionedModels: mentionedModels.length > 0 ? mentionedModels : undefined
+      mentionedModels:
+        mentionedModels.length > 0
+          ? mentionedModels.map((model) =>
+              isUniqueModelId(model.id) ? model.id : createUniqueModelId(model.provider, model.id)
+            )
+          : undefined
     })
     setText('')
     setFiles([])

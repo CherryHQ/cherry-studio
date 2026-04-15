@@ -62,7 +62,7 @@ export async function runBlocksToPartsMigration(
       const { parts } = transformBlocksToParts(blocks)
 
       // Update message: set data.parts, clear blocks
-      message.data = { ...(message.data ?? {}), parts }
+      message.data = { ...message.data, parts }
       message.blocks = []
       parsed.blocks = []
 

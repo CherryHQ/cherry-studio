@@ -26,11 +26,14 @@ function toUIMessage(shared: SharedMessage): CherryUIMessage {
   }
 }
 
-/** DB metadata keyed by message ID — for rendering fields not carried by UIMessage. */
-export type MessageMetadataMap = Record<
-  string,
-  { parentId?: string | null; modelId?: string; siblingsGroupId?: number; createdAt?: string }
->
+export interface MessageMetadata {
+  parentId: string | null
+  modelId?: string
+  siblingsGroupId?: number
+  createdAt: string
+}
+
+export type MessageMetadataMap = Record<string, MessageMetadata>
 
 function flattenBranchMessages(items: BranchMessage[]): SharedMessage[] {
   const result: SharedMessage[] = []
@@ -47,7 +50,6 @@ function flattenBranchMessages(items: BranchMessage[]): SharedMessage[] {
 
 export interface UseTopicMessagesV2Result {
   uiMessages: CherryUIMessage[]
-  /** DB metadata lookup — for fields not on UIMessage (parentId, modelId, siblingsGroupId). */
   metadataMap: MessageMetadataMap
   isLoading: boolean
   refresh: () => Promise<CherryUIMessage[]>
@@ -70,25 +72,27 @@ export function useTopicMessagesV2(topicId: string): UseTopicMessagesV2Result {
 
   const branchData = data as BranchMessagesResponse | undefined
 
-  const sharedMessages = useMemo(() => {
+  const uiMessages = useMemo<CherryUIMessage[]>(() => {
     if (!branchData?.items) return []
-    return flattenBranchMessages(branchData.items)
+    return flattenBranchMessages(branchData.items).map(toUIMessage)
   }, [branchData])
 
-  const uiMessages = useMemo<CherryUIMessage[]>(() => sharedMessages.map(toUIMessage), [sharedMessages])
-
   const metadataMap = useMemo<MessageMetadataMap>(() => {
-    const map: MessageMetadataMap = {}
-    for (const m of sharedMessages) {
-      map[m.id] = {
-        parentId: m.parentId,
-        modelId: m.modelId ?? undefined,
-        siblingsGroupId: m.siblingsGroupId || undefined,
-        createdAt: m.createdAt
-      }
-    }
-    return map
-  }, [sharedMessages])
+    if (!branchData?.items) return {}
+
+    const entries = flattenBranchMessages(branchData.items)
+    return Object.fromEntries(
+      entries.map((message) => [
+        message.id,
+        {
+          parentId: message.parentId,
+          modelId: message.modelId ?? undefined,
+          siblingsGroupId: message.siblingsGroupId || undefined,
+          createdAt: message.createdAt
+        }
+      ])
+    )
+  }, [branchData])
 
   const refresh = useCallback(async (): Promise<CherryUIMessage[]> => {
     const result = (await mutate()) as BranchMessagesResponse | undefined

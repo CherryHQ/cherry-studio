@@ -80,9 +80,9 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
   const setSelectedMessage = useCallback(
     (message: Message) => {
       // 前一个
-      void editMessage(selectedMessageId, { foldSelected: false })
+      editMessage(selectedMessageId, { foldSelected: false })
       // 当前选中的消息
-      void editMessage(message.id, { foldSelected: true })
+      editMessage(message.id, { foldSelected: true })
       setSelectedMessageIdState(message.id)
 
       setTimeoutTimer(
@@ -295,7 +295,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
             setMultiModelMessageStyle={(style) => {
               setMultiModelMessageStyle(style)
               messages.forEach((message) => {
-                void editMessage(message.id, { multiModelMessageStyle: style })
+                editMessage(message.id, { multiModelMessageStyle: style })
               })
             }}
             messages={messages}

@@ -43,7 +43,7 @@ const getAgentDraftCacheKey = (agentId: string) => `agent-session-draft-${agentI
 type Props = {
   agentId: string
   sessionId: string
-  sendMessage: (message?: { text: string } | undefined, options?: { body?: Record<string, unknown> }) => Promise<void>
+  sendMessage: (message?: { text: string }, options?: { body?: Record<string, unknown> }) => Promise<void>
   stop: () => Promise<void>
   status: string
 }

@@ -3,7 +3,7 @@ import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { IpcChatTransport } from '../IpcChatTransport'
+import { ExecutionTransport, IpcChatTransport } from '../IpcChatTransport'
 
 // ── Mock window.api.ai ──────────────────────────────────────────────
 
@@ -18,9 +18,13 @@ interface MockAiApi {
 
 function createMockAiApi() {
   const listeners = {
-    chunk: [] as Array<(data: { topicId: string; chunk: UIMessageChunk }) => void>,
-    done: [] as Array<(data: { topicId: string; status?: string }) => void>,
-    error: [] as Array<(data: { topicId: string; error: SerializedError }) => void>
+    chunk: [] as Array<(data: { topicId: string; executionId?: string; chunk: UIMessageChunk }) => void>,
+    done: [] as Array<
+      (data: { topicId: string; executionId?: string; isTopicDone?: boolean; status?: string }) => void
+    >,
+    error: [] as Array<
+      (data: { topicId: string; executionId?: string; isTopicDone?: boolean; error: SerializedError }) => void
+    >
   }
 
   const mockApi: MockAiApi = {
@@ -53,14 +57,16 @@ function createMockAiApi() {
   return {
     mockApi,
     listeners,
-    emitChunk: (topicId: string, chunk: UIMessageChunk) => {
-      for (const cb of [...listeners.chunk]) cb({ topicId, chunk })
+    emitChunk: (topicId: string, chunk: UIMessageChunk, executionId?: string) => {
+      for (const cb of [...listeners.chunk]) cb({ topicId, executionId, chunk })
     },
-    emitDone: (topicId: string) => {
-      for (const cb of [...listeners.done]) cb({ topicId, status: 'success' })
+    emitDone: (topicId: string, executionId?: string, isTopicDone?: boolean) => {
+      for (const cb of [...listeners.done]) cb({ topicId, executionId, isTopicDone, status: 'success' })
     },
-    emitError: (topicId: string, message: string) => {
-      for (const cb of [...listeners.error]) cb({ topicId, error: { name: 'Error', message, stack: null } })
+    emitError: (topicId: string, message: string, executionId?: string, isTopicDone?: boolean) => {
+      for (const cb of [...listeners.error]) {
+        cb({ topicId, executionId, isTopicDone, error: { name: 'Error', message, stack: null } })
+      }
     }
   }
 }
@@ -99,6 +105,12 @@ describe('IpcChatTransport', () => {
     const stream = await transport.sendMessages(baseOptions)
     expect(stream).toBeInstanceOf(ReadableStream)
     expect(mock.mockApi.streamOpen).toHaveBeenCalledOnce()
+    expect(mock.mockApi.streamOpen).toHaveBeenCalledWith(
+      expect.objectContaining({
+        topicId,
+        trigger: 'submit-message'
+      })
+    )
   })
 
   it('filters chunks by topicId', async () => {
@@ -135,6 +147,17 @@ describe('IpcChatTransport', () => {
 
     const { done: secondDone } = await reader.read()
     expect(secondDone).toBe(true)
+  })
+
+  it('primary stream ignores execution-scoped chunks', async () => {
+    const stream = await transport.sendMessages(baseOptions)
+    const reader = stream.getReader()
+
+    mock.emitChunk(topicId, { type: 'text-start', id: 'exec' } as UIMessageChunk, 'model-a')
+    mock.emitDone(topicId, undefined, true)
+
+    const { done } = await reader.read()
+    expect(done).toBe(true)
   })
 
   it('errors stream on error event', async () => {
@@ -206,7 +229,7 @@ describe('IpcChatTransport', () => {
   })
 
   it('reconnectToStream returns stream when attached', async () => {
-    mock.mockApi.streamAttach.mockResolvedValue({ status: 'attached', replayedChunks: 2 })
+    mock.mockApi.streamAttach.mockResolvedValue({ status: 'attached', bufferedChunks: [] })
 
     const stream = await transport.reconnectToStream({ chatId: topicId })
     expect(stream).toBeInstanceOf(ReadableStream)
@@ -221,5 +244,23 @@ describe('IpcChatTransport', () => {
     const reader = stream!.getReader()
     const { done } = await reader.read()
     expect(done).toBe(true)
+  })
+
+  it('execution transport only receives matching execution chunks', async () => {
+    const executionTransport = new ExecutionTransport(topicId, 'model-a')
+    const stream = await executionTransport.sendMessages()
+    const reader = stream.getReader()
+
+    mock.emitChunk(topicId, { type: 'text-start', id: 'ignored' } as UIMessageChunk, 'model-b')
+    mock.emitChunk(topicId, { type: 'text-start', id: 'accepted' } as UIMessageChunk, 'model-a')
+    mock.emitDone(topicId, 'model-b')
+    mock.emitDone(topicId, 'model-a')
+
+    const first = await reader.read()
+    expect(first.done).toBe(false)
+    expect(first.value).toEqual({ type: 'text-start', id: 'accepted' })
+
+    const second = await reader.read()
+    expect(second.done).toBe(true)
   })
 })

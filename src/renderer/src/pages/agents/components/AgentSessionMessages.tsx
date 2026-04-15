@@ -16,6 +16,7 @@ import type { Topic, TopicType as TopicTypeEnum } from '@renderer/types'
 import { TopicType } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import { Spin } from 'antd'
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import InfiniteScroll from 'react-infinite-scroll-component'
@@ -29,7 +30,7 @@ type Props = {
   agentId: string
   sessionId: string
   adaptedMessages: Message[]
-  partsMap: Record<string, import('@shared/data/types/message').CherryMessagePart[]>
+  partsMap: Record<string, CherryMessagePart[]>
   isLoading: boolean
 }
 

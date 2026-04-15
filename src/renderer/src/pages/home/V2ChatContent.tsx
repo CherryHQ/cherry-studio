@@ -5,13 +5,14 @@ import { isDev } from '@renderer/config/constant'
 import { ChatContextProvider, useChatContextProvider } from '@renderer/hooks/useChatContext'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import { type V2ChatOverrides, V2ChatOverridesProvider } from '@renderer/hooks/useMessageOperations'
-import type { MessageMetadataMap } from '@renderer/hooks/useTopicMessagesV2'
 import { useTopicMessagesV2 } from '@renderer/hooks/useTopicMessagesV2'
 import { fetchMcpTools } from '@renderer/services/ApiService'
-import type { Assistant, FileMetadata, Model, Topic } from '@renderer/types'
+import type { Assistant, FileMetadata, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
+import { AssistantMessageStatus } from '@renderer/types/newMessage'
 import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/assistant'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { UniqueModelId } from '@shared/data/types/model'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -22,16 +23,6 @@ import ExecutionStreamCollector from './Messages/ExecutionStreamCollector'
 import Messages from './Messages/Messages'
 
 const logger = loggerService.withContext('V2ChatContent')
-
-function dedupeMessagesById(messages: Message[]): Message[] {
-  const deduped = new Map<string, Message>()
-
-  for (const message of messages) {
-    deduped.set(message.id, message)
-  }
-
-  return Array.from(deduped.values())
-}
 
 interface Props {
   assistant: Assistant
@@ -92,7 +83,7 @@ const V2ChatContent: FC<Props> = ({ assistant, topic, setActiveTopic, mainHeight
 
 interface InnerProps extends Props {
   initialMessages: CherryUIMessage[]
-  metadataMap: MessageMetadataMap
+  metadataMap: ReturnType<typeof useTopicMessagesV2>['metadataMap']
   refresh: () => Promise<CherryUIMessage[]>
   activeNodeId: string | null
 }
@@ -119,105 +110,100 @@ const V2ChatContentInner: FC<InnerProps> = ({
     error,
     setMessages,
     streamingUIMessages,
-    activeExecutionIds,
-    seedActiveExecutionIds,
-    clearActiveExecutionIds
+    activeExecutionIds
   } = useChatWithHistory(topic.id, initialMessages, refresh, { assistantId: assistant.id }, metadataMap)
 
-  const isMultiModelStreaming = activeExecutionIds.length > 0
-
-  // Multi-model: collect messages from per-execution useChat instances
-  const [executionMessages, setExecutionMessages] = useState<Record<string, CherryUIMessage[]>>({})
-
-  const handleExecutionMessages = useCallback((executionId: string, msgs: CherryUIMessage[]) => {
-    setExecutionMessages((prev) => {
-      const prevMsgs = prev[executionId] ?? []
-
-      // Keep the last live payload for this execution. Some collectors can briefly
-      // emit an empty snapshot when they settle, which would collapse the multi-model group.
-      if (msgs.length === 0 && prevMsgs.length > 0) {
-        return prev
-      }
-
-      // Note: deep-equality on `msgs` is not worth it — AI SDK produces a fresh
-      // `parts` array on every chunk, so reference equality never short-circuits
-      // during streaming. Let React re-render; downstream memoisation handles it.
-      return { ...prev, [executionId]: msgs }
-    })
-  }, [])
+  const [executionMessagesById, setExecutionMessagesById] = useState<Record<string, CherryUIMessage[]>>({})
+  const executionCreatedAtRef = useRef<Record<string, string>>({})
 
   useEffect(() => {
-    setExecutionMessages((prev) => {
-      if (activeExecutionIds.length === 0) {
-        return Object.keys(prev).length === 0 ? prev : {}
-      }
+    if (activeExecutionIds.length === 0) {
+      setExecutionMessagesById({})
+      executionCreatedAtRef.current = {}
+      return
+    }
 
-      const next = Object.fromEntries(
-        activeExecutionIds
-          .filter((executionId) => executionId in prev)
-          .map((executionId) => [executionId, prev[executionId]])
-      )
-
-      return Object.keys(next).length === Object.keys(prev).length ? prev : next
-    })
+    setExecutionMessagesById((prev) =>
+      Object.fromEntries(Object.entries(prev).filter(([executionId]) => activeExecutionIds.includes(executionId)))
+    )
   }, [activeExecutionIds])
 
-  // Merge: base adaptedMessages + multi-model execution assistant messages
-  const mergedMessages = useMemo(() => {
-    if (!isMultiModelStreaming) return adaptedMessages
+  const currentAnchorUserMessageId = useMemo(() => {
+    for (let index = streamingUIMessages.length - 1; index >= 0; index--) {
+      const message = streamingUIMessages[index]
+      if (message.role === 'user') return message.id
+    }
 
-    // Find the last user message ID for askId linkage
-    const lastUser = adaptedMessages.findLast((m) => m.role === 'user')
+    for (let index = adaptedMessages.length - 1; index >= 0; index--) {
+      const message = adaptedMessages[index]
+      if (message.role === 'user') return message.id
+    }
 
-    // Extract latest assistant message from each execution
-    const executionAssistants: Message[] = activeExecutionIds.flatMap((execId) => {
-      const msgs = executionMessages[execId] ?? []
-      const lastAssistant = [...msgs].reverse().find((m) => m.role === 'assistant')
-      if (!lastAssistant) return []
-      return [
-        {
-          id: lastAssistant.id,
-          role: 'assistant' as const,
+    if (!activeNodeId) return undefined
+    return metadataMap[activeNodeId]?.parentId ?? activeNodeId
+  }, [activeNodeId, adaptedMessages, metadataMap, streamingUIMessages])
+
+  const handleExecutionMessagesChange = useCallback((executionId: string, messages: CherryUIMessage[]) => {
+    setExecutionMessagesById((prev) => ({ ...prev, [executionId]: messages }))
+  }, [])
+
+  const handleExecutionDispose = useCallback((executionId: string) => {
+    setExecutionMessagesById((prev) => {
+      if (!(executionId in prev)) return prev
+      const next = { ...prev }
+      delete next[executionId]
+      return next
+    })
+    delete executionCreatedAtRef.current[executionId]
+  }, [])
+
+  const executionOverlayMessages = useMemo<Message[]>(() => {
+    const overlaidMessages: Message[] = []
+
+    for (const executionId of activeExecutionIds) {
+      const messages = executionMessagesById[executionId] ?? []
+      for (const uiMessage of messages) {
+        if (uiMessage.role !== 'assistant') continue
+
+        const createdAt =
+          uiMessage.metadata?.createdAt ??
+          executionCreatedAtRef.current[uiMessage.id] ??
+          (executionCreatedAtRef.current[uiMessage.id] = new Date().toISOString())
+
+        overlaidMessages.push({
+          id: uiMessage.id,
+          role: 'assistant',
           assistantId: assistant.id,
           topicId: topic.id,
-          createdAt: lastAssistant.metadata?.createdAt ?? lastUser?.createdAt ?? '',
-          askId: lastUser?.id,
-          modelId: execId,
-          status: status === 'streaming' || status === 'submitted' ? ('processing' as any) : ('success' as any),
+          createdAt,
+          askId: currentAnchorUserMessageId,
+          modelId: executionId,
+          status:
+            status === 'streaming' || status === 'submitted'
+              ? AssistantMessageStatus.PROCESSING
+              : AssistantMessageStatus.SUCCESS,
           blocks: []
-        }
-      ]
-    })
-
-    // Remove any single-model assistant from adaptedMessages (useChat may have one)
-    // and append multi-model assistants
-    const withoutLiveAssistant = adaptedMessages.filter(
-      (m) =>
-        !(
-          m.role === 'assistant' &&
-          m.id &&
-          activeExecutionIds.some((execId) => (executionMessages[execId] ?? []).some((em) => em.id === m.id))
-        )
-    )
-    return dedupeMessagesById([...withoutLiveAssistant, ...executionAssistants])
-  }, [activeExecutionIds, adaptedMessages, executionMessages, isMultiModelStreaming, assistant.id, topic.id, status])
-
-  // Merge partsMap: base + multi-model execution parts
-  const mergedPartsMap = useMemo(() => {
-    if (!isMultiModelStreaming) return partsMap
-    const merged = { ...partsMap }
-    for (const executionId of activeExecutionIds) {
-      const msgs = executionMessages[executionId] ?? []
-      for (const msg of msgs) {
-        if (msg.parts?.length) merged[msg.id] = msg.parts as CherryMessagePart[]
+        })
       }
     }
-    return merged
-  }, [activeExecutionIds, partsMap, executionMessages, isMultiModelStreaming])
 
-  // Stable ref for streamingUIMessages — avoids recreating v2ChatOverrides on every chunk
-  const streamingUIMessagesRef = useRef(streamingUIMessages)
-  streamingUIMessagesRef.current = streamingUIMessages
+    return overlaidMessages
+  }, [activeExecutionIds, assistant.id, currentAnchorUserMessageId, executionMessagesById, status, topic.id])
+
+  const mergedMessages = useMemo(
+    () => [...adaptedMessages, ...executionOverlayMessages],
+    [adaptedMessages, executionOverlayMessages]
+  )
+
+  const mergedPartsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
+    const nextPartsMap = { ...partsMap }
+    for (const executionId of activeExecutionIds) {
+      for (const uiMessage of executionMessagesById[executionId] ?? []) {
+        nextPartsMap[uiMessage.id] = uiMessage.parts as CherryMessagePart[]
+      }
+    }
+    return nextPartsMap
+  }, [activeExecutionIds, executionMessagesById, partsMap])
 
   /** Delete a single message (reparent children to grandparent) and sync UI. */
   const handleDeleteMessage = useCallback(
@@ -312,28 +298,8 @@ const V2ChatContentInner: FC<InnerProps> = ({
 
   const v2ChatOverrides = useMemo<V2ChatOverrides>(
     () => ({
-      regenerate: async (messageId?: string) => {
-        // Don't delete old assistant — regenerate creates a new sibling version.
-        // Both share the same parentId (user message) → MessageGroup renders as siblings.
-        await regenerateWithCapabilities(messageId)
-      },
-      resend: async (messageId?: string) => {
-        if (messageId) {
-          try {
-            const msgs = streamingUIMessagesRef.current
-            const idx = msgs.findIndex((m) => m.id === messageId)
-            const nextAssistant = idx >= 0 ? msgs[idx + 1] : undefined
-            if (nextAssistant?.role === 'assistant') {
-              await dataApiService.delete(`/messages/${nextAssistant.id}`, { query: { cascade: true } })
-              const refreshed = await refresh()
-              setMessages(refreshed)
-            }
-          } catch (err) {
-            logger.warn('Failed to clean up old reply before resend', { messageId, err })
-          }
-        }
-        await regenerateWithCapabilities(messageId)
-      },
+      regenerate: async (messageId?: string) => regenerateWithCapabilities(messageId),
+      resend: async (messageId?: string) => regenerateWithCapabilities(messageId),
       deleteMessage: handleDeleteMessage,
       deleteMessageGroup: handleDeleteMessageGroup,
       pause: stop,
@@ -344,7 +310,6 @@ const V2ChatContentInner: FC<InnerProps> = ({
     }),
     [
       regenerateWithCapabilities,
-      setMessages,
       handleDeleteMessage,
       handleDeleteMessageGroup,
       stop,
@@ -363,17 +328,8 @@ const V2ChatContentInner: FC<InnerProps> = ({
   }, [topic])
 
   const handleSendV2 = useCallback(
-    async (text: string, options?: { files?: FileMetadata[]; mentionedModels?: Model[] }) => {
+    async (text: string, options?: { files?: FileMetadata[]; mentionedModels?: UniqueModelId[] }) => {
       await ensureTopicExists()
-      const mentionedModels = options?.mentionedModels
-      // Reset multi-model state from previous send
-      setExecutionMessages({})
-      if (mentionedModels && mentionedModels.length > 1) {
-        seedActiveExecutionIds(mentionedModels.map((m) => m.id))
-      } else {
-        clearActiveExecutionIds()
-      }
-
       let mcpToolIds: string[] | undefined
       try {
         mcpToolIds = await resolveMcpToolIds()
@@ -386,7 +342,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
           body: {
             parentAnchorId: activeNodeId ?? undefined,
             files: options?.files,
-            mentionedModels,
+            mentionedModels: options?.mentionedModels,
             mcpToolIds,
             ...capabilityBody
           }
@@ -416,10 +372,20 @@ const V2ChatContentInner: FC<InnerProps> = ({
                 <div
                   className="fixed top-5 right-50 z-50 px-4 py-1 text-xs opacity-50"
                   style={{ color: 'var(--color-text-3)' }}>
-                  [V2] {status} | {adaptedMessages.length} msgs
+                  [V2] {status} | {mergedMessages.length} msgs
                   {error && <span className="ml-2 text-red-500">{error.message}</span>}
                 </div>
               )}
+
+              {activeExecutionIds.map((executionId) => (
+                <ExecutionStreamCollector
+                  key={executionId}
+                  topicId={topic.id}
+                  executionId={executionId}
+                  onMessagesChange={handleExecutionMessagesChange}
+                  onDispose={handleExecutionDispose}
+                />
+              ))}
 
               <Messages
                 key={topic.id}
@@ -428,16 +394,6 @@ const V2ChatContentInner: FC<InnerProps> = ({
                 setActiveTopic={setActiveTopic}
                 messages={mergedMessages}
               />
-
-              {/* Headless collectors for multi-model: each runs useChat with filtered transport */}
-              {activeExecutionIds.map((execId) => (
-                <ExecutionStreamCollector
-                  key={execId}
-                  topicId={topic.id}
-                  executionId={execId}
-                  onMessages={handleExecutionMessages}
-                />
-              ))}
 
               <Inputbar assistant={assistant} topic={topic} setActiveTopic={setActiveTopic} onSend={handleSendV2} />
             </div>

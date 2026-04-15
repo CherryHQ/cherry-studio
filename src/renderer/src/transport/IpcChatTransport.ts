@@ -1,7 +1,6 @@
 import { loggerService } from '@logger'
 import type { AiChatRequestBody } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
 import type { ChatRequestOptions, ChatTransport, UIMessageChunk } from 'ai'
 
 const logger = loggerService.withContext('IpcChatTransport')
@@ -55,9 +54,9 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
       .streamOpen({
         topicId,
         trigger,
-        parentAnchorId: mergedBody.parentAnchorId || (trigger === 'regenerate-message' ? lastMessage?.id : undefined),
+        parentAnchorId: mergedBody.parentAnchorId || (trigger === 'regenerate-message' ? lastMessage?.id : (trigger === 'regenerate-message' ? lastMessage?.id : undefined)),
         userMessageParts: lastMessage ? lastMessage.parts : [],
-        mentionedModelIds: mergedBody.mentionedModels?.map((m) => m.id as UniqueModelId)
+        mentionedModelIds: mergedBody.mentionedModels
       })
       .catch((error: unknown) => {
         logger.error('streamOpen IPC failed', error instanceof Error ? error : new Error(String(error)))
@@ -133,18 +132,25 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
           controller.error(err)
         }
 
+        const matchesStream = (data: { topicId: string; executionId?: string; isTopicDone?: boolean }) => {
+          if (data.topicId !== topicId) return false
+          if (executionId) return data.executionId === executionId || !!data.isTopicDone
+          return !data.executionId || !!data.isTopicDone
+        }
+
         unsubscribers.push(
           window.api.ai.onStreamChunk((data) => {
             if (data.topicId !== topicId || isStreamClosed) return
             if (executionId && data.executionId !== executionId) return // per-execution filter
             if (!executionId && data.executionId) return // primary stream: skip multi-model chunks
+            if (isStreamClosed || !matchesStream(data)) return
             controller.enqueue(data.chunk)
           })
         )
 
         unsubscribers.push(
           window.api.ai.onStreamDone((data) => {
-            if (data.topicId !== topicId) return
+            if (!matchesStream(data)) return
             if (executionId && data.executionId !== executionId) return
             // Primary stream: close on topic-level done, skip per-execution done
             if (!executionId && isPerExecutionOnly(data)) return
@@ -154,9 +160,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
 
         unsubscribers.push(
           window.api.ai.onStreamError((data) => {
-            if (data.topicId !== topicId) return
-            if (executionId && data.executionId !== executionId) return
-            if (!executionId && data.executionId) return
+            if (!matchesStream(data)) return
             errorStream(new Error(data.error.message ?? 'Unknown stream error'))
           })
         )
@@ -189,11 +193,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
       }
     })
   }
-
-  /**
-   * Build a filtered listener stream for a specific execution (multi-model).
-   * Only receives chunks/done/error matching the executionId.
-   */
+if (data.topicId !== topicId) return
   buildExecutionStream(topicId: string, executionId: string): ReadableStream<UIMessageChunk> {
     return this.buildListenerStream(topicId, undefined, undefined, executionId)
   }
@@ -202,24 +202,17 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
 /** Shared singleton — IpcChatTransport is stateless, safe to reuse everywhere. */
 export const ipcChatTransport = new IpcChatTransport()
 
-/**
- * Per-execution transport for multi-model streaming.
- *
- * Does NOT send messages (the primary transport already sent the IPC).
- * sendMessages returns a filtered stream for this execution's chunks.
- * reconnectToStream also returns a filtered stream (for resume).
- */
 export class ExecutionTransport implements ChatTransport<CherryUIMessage> {
   constructor(
     private readonly topicId: string,
     private readonly executionId: string
   ) {}
 
-  async sendMessages(): Promise<ReadableStream<UIMessageChunk>> {
-    return ipcChatTransport.buildExecutionStream(this.topicId, this.executionId)
+  sendMessages(): Promise<ReadableStream<UIMessageChunk>> {
+    return Promise.resolve(ipcChatTransport.buildExecutionStream(this.topicId, this.executionId))
   }
 
-  async reconnectToStream(): Promise<ReadableStream<UIMessageChunk> | null> {
-    return ipcChatTransport.buildExecutionStream(this.topicId, this.executionId)
+  reconnectToStream(): Promise<ReadableStream<UIMessageChunk> | null> {
+    return Promise.resolve(ipcChatTransport.buildExecutionStream(this.topicId, this.executionId))
   }
 }

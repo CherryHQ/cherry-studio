@@ -12,7 +12,7 @@
 
 import { useChat } from '@ai-sdk/react'
 import { loggerService } from '@logger'
-import { ipcChatTransport, isPerExecutionOnly } from '@renderer/transport/IpcChatTransport'
+import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
 import type { Message } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, UserMessageStatus } from '@renderer/types/newMessage'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -35,13 +35,7 @@ export interface UseChatWithHistoryResult {
   error: Error | undefined
   setMessages: (messages: CherryUIMessage[] | ((messages: CherryUIMessage[]) => CherryUIMessage[])) => void
   streamingUIMessages: CherryUIMessage[]
-  /** Multi-model: active execution IDs during streaming. Empty for single-model. */
   activeExecutionIds: string[]
-  /** Add execution IDs to the active set (idempotent; dedupes). */
-  seedActiveExecutionIds: (executionIds: string[]) => void
-  /** Clear multi-model state (called on topic switch or new single-model send). */
-  clearActiveExecutionIds: () => void
-  /** The initialMessages passed through (for multi-model view to share history). */
   initialMessages: CherryUIMessage[]
 }
 
@@ -68,49 +62,34 @@ export function useChatWithHistory(
   // Stable ref for refresh to avoid re-subscribing IPC listeners
   const refreshRef = useRef(refresh)
   refreshRef.current = refresh
-  const terminalRefreshRef = useRef<Promise<void> | null>(null)
-  const liveCreatedAtRef = useRef<Record<string, string>>({})
+
+  const [activeExecutionIds, setActiveExecutionIds] = useState<string[]>([])
 
   const refreshAndReplace = useCallback(() => {
-    if (terminalRefreshRef.current) return terminalRefreshRef.current
-
-    const refreshPromise = refreshRef
+    void refreshRef
       .current()
       .then((refreshed) => {
         setMessages(refreshed)
-        // Do NOT clear activeExecutionIds here — ExecutionStreamCollectors
-        // hold the final messages and keep the multi-model view alive.
-        // Clearing happens on topic change or new message send.
+        setActiveExecutionIds([])
       })
       .catch((err) => {
         logger.warn('Failed to refresh messages after stream end', { topicId, err })
+        setActiveExecutionIds([])
       })
-      .finally(() => {
-        terminalRefreshRef.current = null
-      })
-
-    terminalRefreshRef.current = refreshPromise
-    return refreshPromise
   }, [setMessages, topicId])
-
-  useEffect(() => {
-    setActiveExecutionIds([])
-    terminalRefreshRef.current = null
-    liveCreatedAtRef.current = {}
-  }, [topicId])
 
   // On stream done/error: replace messages with DB truth.
   // Multi-model: skip per-execution events, only refresh when the topic is done.
   useEffect(() => {
     const doneUnsub = window.api.ai.onStreamDone((data) => {
       if (data.topicId !== topicId) return
-      if (isPerExecutionOnly(data)) return
-      void refreshAndReplace()
+      if (data.executionId && !data.isTopicDone) return
+      refreshAndReplace()
     })
     const errorUnsub = window.api.ai.onStreamError((data) => {
       if (data.topicId !== topicId) return
-      if (isPerExecutionOnly(data)) return
-      void refreshAndReplace()
+      if (data.executionId && !data.isTopicDone) return
+      refreshAndReplace()
     })
     return () => {
       doneUnsub()
@@ -118,32 +97,20 @@ export function useChatWithHistory(
     }
   }, [topicId, refreshAndReplace])
 
-  // Multi-model: track active executionIds from chunk events.
-  // Chunks with executionId indicate multi-model streaming.
-  const [activeExecutionIds, setActiveExecutionIds] = useState<string[]>([])
-  const seedActiveExecutionIds = useCallback((executionIds: string[]) => {
-    if (executionIds.length === 0) return
-    setActiveExecutionIds((prev) => {
-      const next = prev.length === 0 ? [...executionIds] : Array.from(new Set([...prev, ...executionIds]))
-      return next.length === prev.length && next.every((id, index) => id === prev[index]) ? prev : next
-    })
-  }, [])
-  const clearActiveExecutionIds = useCallback(() => setActiveExecutionIds([]), [])
-
   useEffect(() => {
     const seen = new Set<string>()
     const chunkUnsub = window.api.ai.onStreamChunk((data) => {
       if (data.topicId !== topicId || !data.executionId) return
       if (seen.has(data.executionId)) return
       seen.add(data.executionId)
-      seedActiveExecutionIds([data.executionId])
+      setActiveExecutionIds(Array.from(seen))
     })
-    // activeExecutionIds is cleared by refreshAndReplace (after DB refresh completes)
+
     return () => {
       chunkUnsub()
       seen.clear()
     }
-  }, [seedActiveExecutionIds, topicId])
+  }, [topicId])
 
   // ── Adapt UIMessage[] to renderer Message[] ──
 
@@ -152,20 +119,12 @@ export function useChatWithHistory(
     return messages.map((uiMsg) => {
       if (uiMsg.role === 'user') lastUserId = uiMsg.id
       const meta = metadataMap[uiMsg.id]
-      // Fallback timestamp for streaming messages without a DB createdAt yet.
-      // Ref mutation during render is safe here: `??=` guarantees idempotency —
-      // the same uiMsg.id always resolves to the first-assigned timestamp.
-      // The ref is reset on topic change (see useEffect above).
-      const createdAt =
-        meta?.createdAt ??
-        uiMsg.metadata?.createdAt ??
-        (liveCreatedAtRef.current[uiMsg.id] ??= new Date().toISOString())
       return {
         id: uiMsg.id,
         role: uiMsg.role,
         assistantId: context.assistantId,
         topicId,
-        createdAt,
+        createdAt: meta?.createdAt ?? uiMsg.metadata?.createdAt ?? '',
         askId: meta?.parentId ?? (uiMsg.role === 'assistant' ? lastUserId : undefined),
         modelId: meta?.modelId,
         siblingsGroupId: meta?.siblingsGroupId,
@@ -201,8 +160,6 @@ export function useChatWithHistory(
     setMessages,
     streamingUIMessages: messages,
     activeExecutionIds,
-    seedActiveExecutionIds,
-    clearActiveExecutionIds,
     initialMessages
   }
 }
