@@ -7,7 +7,6 @@ import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
 import {
   LEGACY_PAINTING_NAMESPACES,
-  type LegacyPaintingNamespace,
   type LegacyPaintingsState,
   transformLegacyPaintingRecord
 } from './mappings/PaintingMappings'
@@ -80,7 +79,7 @@ export class PaintingMigrator extends BaseMigrator {
 
         for (let index = 0; index < records.length; index++) {
           this.sourceCount++
-          const result = transformLegacyPaintingRecord(namespace as LegacyPaintingNamespace, records[index])
+          const result = transformLegacyPaintingRecord(namespace, records[index])
 
           if (!result.ok) {
             this.skippedCount++
@@ -147,8 +146,8 @@ export class PaintingMigrator extends BaseMigrator {
 
     try {
       // --- DEBUG: log what we're about to insert ---
-      const withFiles = this.preparedPaintings.filter((p) => p.fileIds && (p.fileIds as string[]).length > 0)
-      const withoutFiles = this.preparedPaintings.filter((p) => !p.fileIds || (p.fileIds as string[]).length === 0)
+      const withFiles = this.preparedPaintings.filter((p) => p.fileIds && p.fileIds.length > 0)
+      const withoutFiles = this.preparedPaintings.filter((p) => !p.fileIds || p.fileIds.length === 0)
       logger.info('[execute] insert summary', {
         total: this.preparedPaintings.length,
         withFileIds: withFiles.length,
