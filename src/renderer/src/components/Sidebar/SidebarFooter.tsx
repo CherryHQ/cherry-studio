@@ -23,7 +23,7 @@ type FooterProps = Omit<SidebarFooterProps, 'layout'>
 
 function IconFooter({ user, actions, extensionsLabel, onExtensionsClick }: FooterProps) {
   return (
-    <div className="flex flex-col items-center gap-1 px-1.5 py-2">
+    <div className="flex flex-col items-center gap-1 px-1.5 pt-2 pb-2.5 [-webkit-app-region:no-drag]">
       {extensionsLabel && (
         <SidebarTooltip content={extensionsLabel}>
           <button
@@ -46,7 +46,7 @@ function IconFooter({ user, actions, extensionsLabel, onExtensionsClick }: Foote
 
 function VerticalCardFooter({ user, actions, extensionsLabel, onExtensionsClick }: FooterProps) {
   return (
-    <div className="flex flex-col items-center gap-0 px-1 py-1.5">
+    <div className="flex flex-col items-center gap-0 px-1 pt-1 pb-3 [-webkit-app-region:no-drag]">
       {extensionsLabel && (
         <button
           type="button"
@@ -59,7 +59,7 @@ function VerticalCardFooter({ user, actions, extensionsLabel, onExtensionsClick 
       {actions}
       {user && (
         <div className="cursor-pointer" onClick={user.onClick}>
-          <UserAvatar user={user} className="mt-1 h-7 w-7" />
+          <UserAvatar user={user} className="h-7 w-7" />
         </div>
       )}
     </div>
@@ -68,12 +68,12 @@ function VerticalCardFooter({ user, actions, extensionsLabel, onExtensionsClick 
 
 function FullFooter({ user, actions, extensionsLabel, onExtensionsClick }: FooterProps) {
   return (
-    <div className="space-y-1 px-2 py-2">
+    <div className="space-y-1 px-2 py-2 [-webkit-app-region:no-drag]">
       {extensionsLabel && (
         <button
           type="button"
           onClick={onExtensionsClick}
-          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-[13px] text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
+          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.75 text-[13px] text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
           <Columns2 size={16} strokeWidth={1.6} />
           <span>{extensionsLabel}</span>
         </button>
@@ -85,11 +85,11 @@ function FullFooter({ user, actions, extensionsLabel, onExtensionsClick }: Foote
         <div
           className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 transition-colors hover:bg-accent/60"
           onClick={user.onClick}>
-          <UserAvatar user={user} className="h-7 w-7 flex-shrink-0" />
+          <UserAvatar user={user} className="h-7 w-7 shrink-0" />
           <div className="min-w-0 flex-1">
             <div className="truncate text-[13px] text-sidebar-foreground">{user.name}</div>
           </div>
-          <ChevronRight size={14} className="flex-shrink-0 text-muted-foreground" />
+          <ChevronRight size={14} className="shrink-0 text-muted-foreground" />
         </div>
       )}
     </div>
