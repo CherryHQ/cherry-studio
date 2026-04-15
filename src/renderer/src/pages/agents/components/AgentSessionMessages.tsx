@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import ContextMenu from '@renderer/components/ContextMenu'
 import { LoadingIcon } from '@renderer/components/Icons'
 import { useSession } from '@renderer/hooks/agents/useSession'
+import { ChatContextProvider, useChatContextProvider } from '@renderer/hooks/useChatContext'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -18,6 +19,7 @@ import type { Message } from '@renderer/types/newMessage'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { Spin } from 'antd'
+import type { PropsWithChildren } from 'react'
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import InfiniteScroll from 'react-infinite-scroll-component'
 import styled from 'styled-components'
@@ -145,44 +147,51 @@ const AgentSessionMessages = ({ agentId, sessionId, adaptedMessages, partsMap, i
 
   return (
     <PartsProvider value={partsMap}>
-      <MessagesContainer
-        id="messages"
-        className="messages-container"
-        ref={scrollContainerRef}
-        onScroll={handleScrollPosition}>
-        <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse' }}>
-          <InfiniteScroll
-            dataLength={displayMessages.length}
-            next={loadMoreMessages}
-            hasMore={hasMore}
-            loader={null}
-            scrollableTarget="messages"
-            inverse
-            style={{ overflow: 'visible' }}>
-            <ContextMenu>
-              <ScrollContainer>
-                {groupedMessages.length > 0 ? (
-                  groupedMessages.map(([key, groupMessages]) => (
-                    <MessageGroup key={key} messages={groupMessages} topic={derivedTopic} />
-                  ))
-                ) : !session ? (
-                  <div className="flex items-center justify-center py-5">
-                    <Spin size="small" />
-                  </div>
-                ) : null}
-                {isLoadingMore && (
-                  <LoaderContainer>
-                    <LoadingIcon color="var(--color-text-2)" />
-                  </LoaderContainer>
-                )}
-              </ScrollContainer>
-            </ContextMenu>
-          </InfiniteScroll>
-        </NarrowLayout>
-        {messageNavigation === 'anchor' && <MessageAnchorLine messages={displayMessages} />}
-      </MessagesContainer>
+      <AgentSessionChatContextBridge topic={derivedTopic}>
+        <MessagesContainer
+          id="messages"
+          className="messages-container"
+          ref={scrollContainerRef}
+          onScroll={handleScrollPosition}>
+          <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse' }}>
+            <InfiniteScroll
+              dataLength={displayMessages.length}
+              next={loadMoreMessages}
+              hasMore={hasMore}
+              loader={null}
+              scrollableTarget="messages"
+              inverse
+              style={{ overflow: 'visible' }}>
+              <ContextMenu>
+                <ScrollContainer>
+                  {groupedMessages.length > 0 ? (
+                    groupedMessages.map(([key, groupMessages]) => (
+                      <MessageGroup key={key} messages={groupMessages} topic={derivedTopic} />
+                    ))
+                  ) : !session ? (
+                    <div className="flex items-center justify-center py-5">
+                      <Spin size="small" />
+                    </div>
+                  ) : null}
+                  {isLoadingMore && (
+                    <LoaderContainer>
+                      <LoadingIcon color="var(--color-text-2)" />
+                    </LoaderContainer>
+                  )}
+                </ScrollContainer>
+              </ContextMenu>
+            </InfiniteScroll>
+          </NarrowLayout>
+          {messageNavigation === 'anchor' && <MessageAnchorLine messages={displayMessages} />}
+        </MessagesContainer>
+      </AgentSessionChatContextBridge>
     </PartsProvider>
   )
+}
+
+const AgentSessionChatContextBridge = ({ topic, children }: PropsWithChildren<{ topic: Topic }>) => {
+  const chatContextValue = useChatContextProvider(topic)
+  return <ChatContextProvider value={chatContextValue}>{children}</ChatContextProvider>
 }
 
 const FALLBACK_TIMESTAMP = '1970-01-01T00:00:00.000Z'
