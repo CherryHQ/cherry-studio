@@ -205,8 +205,6 @@ export const loadTopicMessagesThunk =
     }
 
     try {
-      dispatch(newMessagesActions.setTopicLoading({ topicId, loading: true }))
-
       const { messages, blocks } = await dbService.fetchMessages(topicId)
 
       logger.silly('Loaded messages via DbService', {
@@ -221,8 +219,6 @@ export const loadTopicMessagesThunk =
       dispatch(newMessagesActions.messagesReceived({ topicId, messages }))
     } catch (error) {
       logger.error(`Failed to load messages for topic ${topicId}:`, error as Error)
-    } finally {
-      dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
     }
   }
 

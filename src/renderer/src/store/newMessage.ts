@@ -28,34 +28,18 @@ const messagesAdapter = createEntityAdapter<Message>()
 export interface MessagesState extends EntityState<Message, string> {
   messageIdsByTopic: Record<string, string[]> // Map: topicId -> ordered message IDs
   currentTopicId: string | null
-  loadingByTopic: Record<string, boolean>
-  fulfilledByTopic: Record<string, boolean>
 }
 
 // 3. Define the Initial State
 const initialState: MessagesState = messagesAdapter.getInitialState({
   messageIdsByTopic: {},
-  currentTopicId: null,
-  loadingByTopic: {},
-  fulfilledByTopic: {}
+  currentTopicId: null
 })
 
 // Payload for receiving messages (used by loadTopicMessagesThunk)
 interface MessagesReceivedPayload {
   topicId: string
   messages: Message[]
-}
-
-// Payload for setting topic loading state
-interface SetTopicLoadingPayload {
-  topicId: string
-  loading: boolean
-}
-
-// Payload for setting topic fulfilled state
-interface SetTopicFulfilledPayload {
-  topicId: string
-  fulfilled: boolean
 }
 
 // 4. Create the Slice with Refactored Reducers
@@ -67,16 +51,7 @@ export const messagesSlice = createSlice({
       state.currentTopicId = action.payload
       if (action.payload && !(action.payload in state.messageIdsByTopic)) {
         state.messageIdsByTopic[action.payload] = []
-        state.loadingByTopic[action.payload] = false
       }
-    },
-    setTopicLoading(state, action: PayloadAction<SetTopicLoadingPayload>) {
-      const { topicId, loading } = action.payload
-      state.loadingByTopic[topicId] = loading
-    },
-    setTopicFulfilled(state, action: PayloadAction<SetTopicFulfilledPayload>) {
-      const { topicId, fulfilled } = action.payload
-      state.fulfilledByTopic[topicId] = fulfilled
     },
     messagesReceived(state, action: PayloadAction<MessagesReceivedPayload>) {
       const { topicId, messages } = action.payload

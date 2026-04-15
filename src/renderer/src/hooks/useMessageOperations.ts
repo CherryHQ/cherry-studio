@@ -2,7 +2,7 @@ import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import { usePartsMap } from '@renderer/pages/home/Messages/Blocks/V2Contexts'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { type Assistant, type Model, type Topic, type TranslateLanguageCode } from '@renderer/types'
+import { type Assistant, type Topic, type TranslateLanguageCode } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { createContext, use, useCallback } from 'react'
@@ -101,17 +101,6 @@ export function useMessageOperations(topic: Topic) {
     [v2]
   )
 
-  const appendAssistantResponse = useCallback(
-    async (existingAssistantMessage: Message, newModel: Model, _assistant: Assistant) => {
-      logger.warn('[appendAssistantResponse] Not yet supported in V2.', {
-        topicId: topic.id,
-        messageId: existingAssistantMessage.id,
-        modelId: newModel.id
-      })
-    },
-    [topic.id]
-  )
-
   /**
    * Initiates translation and returns an updater function.
    * TODO: Move translation persistence to Main side (dedicated IPC endpoint).
@@ -178,7 +167,6 @@ export function useMessageOperations(topic: Topic) {
     editMessage,
     resendMessage,
     regenerateAssistantMessage,
-    appendAssistantResponse,
     createNewContext,
     clearTopicMessages,
     pauseMessages,

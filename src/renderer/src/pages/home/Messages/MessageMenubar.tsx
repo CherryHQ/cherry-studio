@@ -8,8 +8,6 @@ import { CopyIcon, DeleteIcon, EditIcon, RefreshIcon } from '@renderer/component
 import InspectMessagePopup from '@renderer/components/Popups/InspectMessagePopup'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
-import { SelectChatModelPopup } from '@renderer/components/Popups/SelectModelPopup'
-import { isEmbeddingModel, isRerankModel, isVisionModel } from '@renderer/config/models'
 import type { MessageMenubarButtonId, MessageMenubarScope } from '@renderer/config/registry/messageMenubar'
 import { DEFAULT_MESSAGE_MENUBAR_SCOPE, getMessageMenubarConfig } from '@renderer/config/registry/messageMenubar'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
@@ -51,7 +49,6 @@ import { Dropdown, Popconfirm } from 'antd'
 import dayjs from 'dayjs'
 import type { TFunction } from 'i18next'
 import {
-  AtSign,
   Bug,
   Check,
   CirclePause,
@@ -119,7 +116,6 @@ type MessageMenubarButtonContext = {
   notesPath: string
   onCopy: (e: React.MouseEvent) => void
   onEdit: () => void | Promise<void>
-  onMentionModel: (e: React.MouseEvent) => void | Promise<void>
   onRegenerate: (e?: React.MouseEvent) => void | Promise<void>
   onUseful: (e: React.MouseEvent) => void
   setShowDeleteTooltip: Dispatch<SetStateAction<boolean>>
@@ -142,7 +138,6 @@ const MessageMenubar: FC<Props> = (props) => {
     isAssistantMessage,
     assistant,
     topic,
-    model,
     messageContainerRef,
     onUpdateUseful
   } = props
@@ -154,7 +149,7 @@ const MessageMenubar: FC<Props> = (props) => {
   const [showDeleteTooltip, setShowDeleteTooltip] = useState(false)
   const { translateLanguages } = useTranslate()
   // const assistantModel = assistant?.model
-  const { deleteMessage, resendMessage, regenerateAssistantMessage, getTranslationUpdater, appendAssistantResponse } =
+  const { deleteMessage, resendMessage, regenerateAssistantMessage, getTranslationUpdater } =
     useMessageOperations(topic)
 
   const [messageStyle] = usePreference('chat.message.style')
@@ -460,40 +455,6 @@ const MessageMenubar: FC<Props> = (props) => {
     void regenerateAssistantMessage(message, assistant)
   }
 
-  // 按条件筛选能够提及的模型，该函数仅在isAssistantMessage时会用到
-  const mentionModelFilter = useMemo(() => {
-    const defaultFilter = (model: Model) => !isEmbeddingModel(model) && !isRerankModel(model)
-
-    if (!isAssistantMessage) {
-      return defaultFilter
-    }
-    const relatedUserParts = message.askId ? partsMap?.[message.askId] : undefined
-    if (!relatedUserParts) {
-      return defaultFilter
-    }
-    const hasImageInput = relatedUserParts.some(
-      (part) =>
-        part.type === 'file' &&
-        'mediaType' in part &&
-        typeof part.mediaType === 'string' &&
-        part.mediaType.startsWith('image/')
-    )
-    if (hasImageInput) {
-      return (m: Model) => isVisionModel(m) && defaultFilter(m)
-    }
-    return defaultFilter
-  }, [isAssistantMessage, message.askId, partsMap])
-
-  const onMentionModel = useCallback(
-    async (e: React.MouseEvent) => {
-      e.stopPropagation()
-      const selectedModel = await SelectChatModelPopup.show({ model, filter: mentionModelFilter })
-      if (!selectedModel) return
-      void appendAssistantResponse(message, selectedModel, { ...assistant, model: selectedModel })
-    },
-    [appendAssistantResponse, assistant, mentionModelFilter, message, model]
-  )
-
   const onUseful = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
@@ -531,7 +492,6 @@ const MessageMenubar: FC<Props> = (props) => {
     notesPath,
     onCopy,
     onEdit,
-    onMentionModel,
     onRegenerate,
     onUseful,
     setShowDeleteTooltip,
@@ -682,19 +642,6 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
       <Tooltip content={t('common.regenerate')} delay={800}>
         <ActionButton className="message-action-button" onClick={onRegenerate} $softHoverBg={softHoverBg}>
           <RefreshIcon size={15} />
-        </ActionButton>
-      </Tooltip>
-    )
-  },
-  'assistant-mention-model': ({ isAssistantMessage, onMentionModel, softHoverBg, t }) => {
-    if (!isAssistantMessage) {
-      return null
-    }
-
-    return (
-      <Tooltip content={t('message.mention.title')} delay={800}>
-        <ActionButton className="message-action-button" onClick={onMentionModel} $softHoverBg={softHoverBg}>
-          <AtSign size={15} />
         </ActionButton>
       </Tooltip>
     )
