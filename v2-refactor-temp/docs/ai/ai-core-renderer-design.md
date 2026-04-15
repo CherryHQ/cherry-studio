@@ -220,17 +220,17 @@ const chat = useChat({
 
 Renderer 侧不再把 `BlockManager` / `ChunkType` / `AiSdkToChunkAdapter` 作为目标设计的一部分。
 
-### 4.6 Phase 3 需要删除的旧代码（2026-04-14 更新）
+### 4.6 Phase 3 需要删除的旧代码（2026-04-15 更新）
 
-普通聊天和 Agent 聊天主链均已完成。V2 聊天链路（`useChat` + `useChatWithHistory` + `IpcChatTransport`）不再依赖以下代码，但仍有非聊天功能引用：
+普通聊天和 Agent 聊天主链均已完成。V2 聊天链路（`useChat` + `useChatWithHistory` + `IpcChatTransport`）不再依赖以下代码：
 
-| 目录/文件 | 状态 | 仍被引用的位置 |
+| 目录/文件 | 状态 | 说明 |
 |---|---|---|
-| `src/renderer/src/aiCore/` (55 files) | ❌ 待删 | `ApiService`（`buildStreamTextParams`、`AiProvider`）、`KnowledgeService`（`AiProvider`、`getMessageContent`）、`ConversationService`（`convertMessagesToSdkMessages`）、Paintings 页面（`AiProvider`）、`CodeCliPage`（`AiProvider`）、`ProviderSetting`（`adaptProvider`）、工具渲染组件（tool type imports）、`messageThunk`（`AiSdkToChunkAdapter`） |
-| `src/renderer/src/services/messageStreaming/` (12 files) | ❌ 待删 | `messageThunk`、`ApiService`、`KnowledgeService`、一个集成测试 |
-| `src/renderer/src/types/chunk.ts` | ❌ 待删 | 同上，随 `messageStreaming` 一起清理 |
+| `src/renderer/src/services/messageStreaming/` (12 files) | ✅ 已删除 | 整目录连同 V1 消费方一并清理：`BlockManager` / `StreamingService` / `callbacks/*` 以及 `StreamProcessingService`、`ConversationService`、`ApiService.transformMessagesAndFetch/fetchChatCompletion/fetchImageGeneration/collectImagesFromMessages/getRotatedApiKey`、`KnowledgeService.injectUserMessageWithKnowledgeSearchPrompt/createKnowledgeReferencesBlock/getKnowledgeReferences`、`messageThunk` 流式部分（`sendMessage`、`resendMessageThunk`、`regenerateAssistantResponseThunk`、`initiateTranslationThunk`、`appendAssistantResponseThunk`、IM channel 流、block 节流器等）、`streamCallback.integration.test.ts`、`types/index.ts` 的 `FetchChatCompletionParams` 相关类型 |
+| `src/renderer/src/aiCore/` (55 files) | ❌ 待删 | 仍被非聊天功能引用：`ApiService`（`buildStreamTextParams`、`AiProvider`）、`KnowledgeService`（`AiProvider`）、Paintings 页面（`AiProvider`）、`CodeCliPage`（`AiProvider`）、`ProviderSetting`（`adaptProvider`）、工具渲染组件（tool type imports） |
+| `src/renderer/src/types/chunk.ts` | ❌ 待删 | 仍被 `aiCore/chunk/` 与 `aiCore/types/middlewareConfig.ts` 引用，随 `aiCore/` 一起清理 |
 
-**清理策略**：这些引用来自尚未迁移到 Main IPC 的旧 Renderer AI 调用（Paintings 图片生成、KnowledgeService embedding、ApiService 的 `fetchChatCompletion` 旧路径等）。当 Main 侧 `AiCompletionService` 的 `generateImage`、`listModels` 等 API 迁移完成、Renderer `ApiService` 中的 AI 调用全部替换为 `window.api.ai.*` IPC 调用后，这些目录可安全删除。
+**清理策略（剩余）**：`aiCore/` 还被未迁移到 Main IPC 的旧 Renderer AI 调用链引用（Paintings 图片生成、KnowledgeService embedding 构造、CodeCliPage 读 baseURL/apiKey、ProviderSetting `adaptProvider`、工具组件 type imports）。当这些调用切到 `window.api.ai.*` IPC 或 Renderer 本地 util 后，`aiCore/` 和 `types/chunk.ts` 可一并删除。
 
 **工具渲染组件的 type import**：`MessageWebSearch`、`MessageKnowledgeSearch`、`MessageMemorySearch` 从 `aiCore/tools/` import 输入输出类型定义，需先将这些类型提取到 `@shared` 或 `packages/shared/`。
 
@@ -525,11 +525,11 @@ Renderer 侧要求：
 - ~~任务 14：删除 `useLightweightAssistantFlow`~~ ✅ **已完成**
   文件已删除。快捷助手和划词助手已直接使用 `useChat`。
 
-- **新增 任务 15：清理 `src/renderer/src/aiCore/` 目录（55 个文件）**
-  说明：V2 聊天链路（主聊天 + 快捷助手 + 划词助手 + Agent）均不再依赖此目录。但仍有非聊天功能引用（`ApiService`、`KnowledgeService`、Paintings 页面、`CodeCliPage`、`ProviderSetting`、工具渲染组件 type imports）。需等 Main 侧 API 迁移完成后统一清理。详见 4.6 节。
+- **任务 15：清理 `src/renderer/src/aiCore/` 目录（55 个文件）**
+  状态：❌ 待做。V2 聊天链路（主聊天 + 快捷助手 + 划词助手 + Agent）均不再依赖此目录。但仍有非聊天功能引用（`ApiService`、`KnowledgeService`、Paintings 页面、`CodeCliPage`、`ProviderSetting`、工具渲染组件 type imports）。需等 Main 侧 API 迁移完成后统一清理。详见 4.6 节。
 
-- **新增 任务 16：清理 `src/renderer/src/services/messageStreaming/` 目录（12 个文件）**
-  说明：V2 链路不再使用。仍被 `messageThunk`、`ApiService`、`KnowledgeService` 引用。需等这些旧 AI 调用迁移到 Main IPC 后清理。
+- ~~任务 16：清理 `src/renderer/src/services/messageStreaming/` 目录（12 个文件）~~ ✅ **已完成（2026-04-15）**
+  连同 V1 消费方一并删除：`StreamProcessingService`、`ConversationService`、`ApiService` 中的 V1 chat 函数、`KnowledgeService` 中的 V1 injection 函数、`messageThunk` 流式部分、`streamCallback.integration.test.ts` 与 `FetchChatCompletionParams` 相关类型。`messageThunk.ts` 保留 `loadTopicMessagesThunk`、`renameAgentSessionIfNeeded`、`removeBlocksThunk` 三个外部仍引用的导出。
 
 #### 7.3.4 助手侧收尾判定（2026-04-14 更新）
 
@@ -862,8 +862,8 @@ Renderer 侧工作按以下顺序展开：
 | `useChat` 调用点已接入 `sendAutomaticallyWhen` | ❌ 未开始 |
 | tool approval 使用 AI SDK 原生 ToolUIPart | ❌ 未开始 |
 | Agent 步骤进度通过 `Ai_AgentStepProgress` 推送 | ❌ 未开始 |
-| `src/renderer/src/aiCore/` 已删除 | ❌ 待清理（聊天链路无依赖，非聊天功能仍引用） |
-| `src/renderer/src/services/messageStreaming/` 已删除 | ❌ 待清理（`messageThunk` 等仍引用） |
-| `useSessionStream.ts` 已删除 | ❌ 待清理（文件存在但已是死代码） |
+| `src/renderer/src/aiCore/` 已删除 | ❌ 待清理（聊天链路无依赖，非聊天功能仍引用：Paintings / CodeCliPage / ProviderSetting / KnowledgeService / 工具组件 type imports） |
+| `src/renderer/src/services/messageStreaming/` 已删除 | ✅ 已删除（整目录 12 文件；`BlockManager` / `StreamingService` / `callbacks/*` 连同 V1 消费方 `ApiService.transformMessagesAndFetch/fetchChatCompletion`、`ConversationService`、`StreamProcessingService`、`messageThunk` 流式部分、`streamCallback.integration.test.ts` 一起清理） |
+| `useSessionStream.ts` 已删除 | ✅ 已删除（连同 preload `agentSessionStream.subscribe/unsubscribe/abort/onChunk` 和对应 IpcChannel） |
 
 ---
