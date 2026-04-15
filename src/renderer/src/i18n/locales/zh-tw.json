@@ -490,6 +490,7 @@
       },
       "prompt": "提示設定",
       "skills": {
+        "addMore": "添加更多技能",
         "builtin": "內建",
         "noFilterResults": "沒有符合的技能",
         "noSkills": "未安裝任何技能。請前往「設定」>「技能」安裝技能。",

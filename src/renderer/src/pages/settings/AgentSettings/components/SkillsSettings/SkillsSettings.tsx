@@ -1,9 +1,9 @@
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
+import { TopView } from '@renderer/components/TopView'
 import { useInstalledSkills } from '@renderer/hooks/useSkills'
 import type { InstalledSkill, LocalSkill } from '@types'
-import type { CardProps } from 'antd'
-import { Card, Empty, Spin, Switch, Tag } from 'antd'
-import { Puzzle } from 'lucide-react'
+import { Button, Card, type CardProps, Empty, Spin, Switch, Tag } from 'antd'
+import { Plus, Puzzle } from 'lucide-react'
 import { type FC, memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -143,12 +143,23 @@ export const InstalledSkillsSettings: FC<AgentOrSessionSettingsProps> = ({ agent
       <SettingsItem divider={false}>
         <SettingsTitle
           contentAfter={
-            <CollapsibleSearchBar
-              onSearch={setFilter}
-              placeholder={t('agent.settings.skills.searchPlaceholder', 'Search skills...')}
-              tooltip={t('agent.settings.skills.searchPlaceholder', 'Search skills...')}
-              style={searchBarStyle}
-            />
+            <>
+              <CollapsibleSearchBar
+                onSearch={setFilter}
+                placeholder={t('agent.settings.skills.searchPlaceholder', 'Search skills...')}
+                tooltip={t('agent.settings.skills.searchPlaceholder', 'Search skills...')}
+                style={searchBarStyle}
+              />
+              <Button
+                icon={<Plus size={18} />}
+                style={{ marginLeft: 'auto' }}
+                onClick={() => {
+                  TopView.hide('AgentSettingsPopup')
+                  window.navigate('/settings/skills')
+                }}>
+                {t('agent.settings.skills.addMore', 'Add More Skills')}
+              </Button>
+            </>
           }>
           {t('agent.settings.skills.title', 'Installed Skills')}
         </SettingsTitle>
