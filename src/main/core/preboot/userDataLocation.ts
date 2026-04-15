@@ -8,12 +8,6 @@ import type { BootConfigSchema } from '@shared/data/bootConfig/bootConfigSchemas
 import { app } from 'electron'
 
 const logger = loggerService.withContext('Preboot')
-const DEV_USE_PROD_USER_DATA_ENV = 'CHERRY_STUDIO_DEV_USE_PROD_USER_DATA'
-
-function shouldUseProdUserDataInDev(): boolean {
-  const value = process.env[DEV_USE_PROD_USER_DATA_ENV]?.trim().toLowerCase() ?? ''
-  return value === '1' || value === 'true'
-}
 
 /**
  * Terminology — read this before editing
@@ -108,23 +102,11 @@ export function getNormalizedExecutablePath(): string {
  *
  * Dev (unpackaged) runs take a separate, much simpler branch: append a
  * 'Dev' suffix to Electron's default userData so the dev process can't
- * pollute production data. For migration debugging, developers can opt in
- * to reusing the production directory by setting
- * `CHERRY_STUDIO_DEV_USE_PROD_USER_DATA=1`.
- *
- * BootConfig and pending relocations do not apply in dev — they're
- * packaged-only concerns.
+ * pollute production data. BootConfig and pending relocations do not
+ * apply in dev — they're packaged-only concerns.
  */
 export function resolveUserDataLocation(): void {
   if (!app.isPackaged) {
-    if (shouldUseProdUserDataInDev()) {
-      logger.warn('dev mode is reusing production userData', {
-        env: DEV_USE_PROD_USER_DATA_ENV,
-        userDataPath: app.getPath('userData')
-      })
-      return
-    }
-
     // Dev mode: isolate dev data from production by appending 'Dev'.
     // Capture into a local before setPath so we log the value we wrote
     // (matches the local-variable pattern used by the portable branch).

@@ -492,7 +492,6 @@ const RightContent = styled.div`
   flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: 0;
 `
 
 const ContentArea = styled.div`
@@ -501,8 +500,6 @@ const ContentArea = styled.div`
   flex-direction: column;
   width: 100%;
   padding: 24px;
-  min-height: 0;
-  overflow-y: auto;
 `
 
 const Footer = styled.div`
