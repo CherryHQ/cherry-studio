@@ -7,6 +7,17 @@ import type { ChatRequestOptions, ChatTransport, UIMessageChunk } from 'ai'
 const logger = loggerService.withContext('IpcChatTransport')
 
 /**
+ * True when a stream event belongs to a single execution that finished but
+ * the topic still has other executions streaming.
+ *
+ * Consumers that only care about topic-level completion (refreshing from DB,
+ * closing the primary transport stream) should skip events matching this.
+ */
+export function isPerExecutionOnly(data: { executionId?: string; isTopicDone?: boolean }): boolean {
+  return !!data.executionId && !data.isTopicDone
+}
+
+/**
  * ChatTransport implementation that bridges Renderer ↔ Main AI streaming via Electron IPC.
  *
  * Uses `window.api.ai` preload API:
@@ -135,8 +146,8 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
           window.api.ai.onStreamDone((data) => {
             if (data.topicId !== topicId) return
             if (executionId && data.executionId !== executionId) return
-            // Primary stream: close on topic-level done; skip per-execution done
-            if (!executionId && data.executionId && !data.isTopicDone) return
+            // Primary stream: close on topic-level done, skip per-execution done
+            if (!executionId && isPerExecutionOnly(data)) return
             closeStream()
           })
         )

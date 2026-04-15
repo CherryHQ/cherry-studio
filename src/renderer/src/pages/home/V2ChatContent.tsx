@@ -120,7 +120,8 @@ const V2ChatContentInner: FC<InnerProps> = ({
     setMessages,
     streamingUIMessages,
     activeExecutionIds,
-    seedActiveExecutionIds
+    seedActiveExecutionIds,
+    clearActiveExecutionIds
   } = useChatWithHistory(topic.id, initialMessages, refresh, { assistantId: assistant.id }, metadataMap)
 
   const isMultiModelStreaming = activeExecutionIds.length > 0
@@ -138,13 +139,9 @@ const V2ChatContentInner: FC<InnerProps> = ({
         return prev
       }
 
-      if (
-        prevMsgs.length === msgs.length &&
-        prevMsgs.every((message, index) => message.id === msgs[index]?.id && message.parts === msgs[index]?.parts)
-      ) {
-        return prev
-      }
-
+      // Note: deep-equality on `msgs` is not worth it — AI SDK produces a fresh
+      // `parts` array on every chunk, so reference equality never short-circuits
+      // during streaming. Let React re-render; downstream memoisation handles it.
       return { ...prev, [executionId]: msgs }
     })
   }, [])
@@ -371,8 +368,11 @@ const V2ChatContentInner: FC<InnerProps> = ({
       const mentionedModels = options?.mentionedModels
       // Reset multi-model state from previous send
       setExecutionMessages({})
-      // Multi-model: seed execution IDs; single-model: clear previous multi-model state
-      seedActiveExecutionIds(mentionedModels && mentionedModels.length > 1 ? mentionedModels.map((m) => m.id) : [])
+      if (mentionedModels && mentionedModels.length > 1) {
+        seedActiveExecutionIds(mentionedModels.map((m) => m.id))
+      } else {
+        clearActiveExecutionIds()
+      }
 
       let mcpToolIds: string[] | undefined
       try {
@@ -393,7 +393,15 @@ const V2ChatContentInner: FC<InnerProps> = ({
         }
       )
     },
-    [activeNodeId, ensureTopicExists, sendMessage, resolveMcpToolIds, capabilityBody, seedActiveExecutionIds]
+    [
+      activeNodeId,
+      ensureTopicExists,
+      sendMessage,
+      resolveMcpToolIds,
+      capabilityBody,
+      seedActiveExecutionIds,
+      clearActiveExecutionIds
+    ]
   )
 
   return (
