@@ -1,46 +1,59 @@
-import { useProvider } from '@renderer/hooks/useProvider'
+import { useProvider } from '@renderer/data/hooks/useProviders'
+import { replaceEndpointConfigDomain } from '@renderer/utils/provider.v2'
 import { Select } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 
 interface CherryINSettingsProps {
   providerId: string
-  apiHost: string
-  setApiHost: (host: string) => void
 }
 
 const API_HOST_OPTIONS = [
   {
-    value: 'https://open.cherryin.cc',
+    value: 'open.cherryin.cc',
     labelKey: '加速域名',
     description: 'open.cherryin.cc'
   },
   {
-    value: 'https://open.cherryin.net',
+    value: 'open.cherryin.net',
     labelKey: '国际域名',
     description: 'open.cherryin.net'
   },
   {
-    value: 'https://open.cherryin.ai',
+    value: 'open.cherryin.ai',
     labelKey: '备用域名',
     description: 'open.cherryin.ai'
   }
 ]
 
-const CherryINSettings: FC<CherryINSettingsProps> = ({ providerId, apiHost, setApiHost }) => {
-  const { updateProvider } = useProvider(providerId)
+const CherryINSettings: FC<CherryINSettingsProps> = ({ providerId }) => {
+  const { provider, updateProvider } = useProvider(providerId)
+  const { t } = useTranslation()
+
+  const currentDomain = useMemo(() => {
+    if (!provider?.endpointConfigs) return API_HOST_OPTIONS[0].value
+    const firstConfig = Object.values(provider.endpointConfigs)[0]
+    const firstUrl = firstConfig?.baseUrl
+    if (!firstUrl) return API_HOST_OPTIONS[0].value
+    try {
+      return new URL(firstUrl).hostname
+    } catch {
+      return API_HOST_OPTIONS[0].value
+    }
+  }, [provider?.endpointConfigs])
 
   const getCurrentHost = useMemo(() => {
-    const matchedOption = API_HOST_OPTIONS.find((option) => apiHost?.includes(option.value.replace('https://', '')))
-    return matchedOption?.value ?? API_HOST_OPTIONS[0].value
-  }, [apiHost])
+    const matched = API_HOST_OPTIONS.find((option) => currentDomain.includes(option.value))
+    return matched?.value ?? API_HOST_OPTIONS[0].value
+  }, [currentDomain])
 
   const handleHostChange = useCallback(
-    (value: string) => {
-      setApiHost(value)
-      updateProvider({ apiHost: value, anthropicApiHost: value })
+    async (value: string) => {
+      const newEndpointConfigs = replaceEndpointConfigDomain(provider?.endpointConfigs, value)
+      await updateProvider({ endpointConfigs: newEndpointConfigs })
     },
-    [setApiHost, updateProvider]
+    [provider?.endpointConfigs, updateProvider]
   )
 
   const options = useMemo(
@@ -50,11 +63,11 @@ const CherryINSettings: FC<CherryINSettingsProps> = ({ providerId, apiHost, setA
         label: (
           <div className="flex flex-col gap-0.5">
             <span>{option.labelKey}</span>
-            <span className="text-[var(--color-text-3)] text-xs">{option.description}</span>
+            <span className="text-[var(--color-text-3)] text-xs">{t(option.description)}</span>
           </div>
         )
       })),
-    []
+    [t]
   )
 
   return (

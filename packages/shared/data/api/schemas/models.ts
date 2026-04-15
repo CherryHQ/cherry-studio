@@ -19,7 +19,7 @@ import {
 } from '../../types/model'
 
 /** Query parameters for listing models */
-const ListModelsQuerySchema = z.object({
+export const ListModelsQuerySchema = z.object({
   /** Filter by provider ID */
   providerId: z.string().optional(),
   /** Filter by capability (ModelCapability string value) */
@@ -30,7 +30,7 @@ const ListModelsQuerySchema = z.object({
 export type ListModelsQuery = z.infer<typeof ListModelsQuerySchema>
 
 /** DTO for creating a new model */
-const CreateModelDtoSchema = z.object({
+export const CreateModelDtoSchema = z.object({
   /** Provider ID */
   providerId: z.string(),
   /** Model ID (used in API calls) */
@@ -66,8 +66,13 @@ const CreateModelDtoSchema = z.object({
 })
 export type CreateModelDto = z.infer<typeof CreateModelDtoSchema>
 
+export const CreateModelsBatchDtoSchema = z.object({
+  items: z.array(CreateModelDtoSchema).min(1)
+})
+export type CreateModelsBatchDto = z.infer<typeof CreateModelsBatchDtoSchema>
+
 /** DTO for updating an existing model — CreateModelDto minus identity fields, all optional, plus status fields */
-const UpdateModelDtoSchema = CreateModelDtoSchema.omit({
+export const UpdateModelDtoSchema = CreateModelDtoSchema.omit({
   providerId: true,
   modelId: true,
   presetModelId: true
@@ -82,7 +87,7 @@ const UpdateModelDtoSchema = CreateModelDtoSchema.omit({
 export type UpdateModelDto = z.infer<typeof UpdateModelDtoSchema>
 
 /** DTO for resolving raw model IDs against registry presets */
-const EnrichModelsDtoSchema = z.object({
+export const EnrichModelsDtoSchema = z.object({
   /** Raw model IDs from SDK listModels() */
   models: z.array(
     z.object({
@@ -111,6 +116,13 @@ export interface ModelSchemas {
     POST: {
       body: CreateModelDto
       response: Model
+    }
+  }
+
+  '/models/batch': {
+    POST: {
+      body: CreateModelsBatchDto
+      response: Model[]
     }
   }
 

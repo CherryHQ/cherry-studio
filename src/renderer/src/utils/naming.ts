@@ -74,12 +74,15 @@ export const getBaseModelName = (id: string, delimiter: string = '/'): string =>
  * @returns {string} 小写的基础名称
  */
 export const getLowerBaseModelName = (id: string, delimiter: string = '/'): string => {
+  // Strip v2 UniqueModelId prefix ("providerId::modelId" → "modelId")
+  const strippedId = id.includes('::') ? id.slice(id.indexOf('::') + 2) : id
+
   // Normalize Fireworks model IDs: Fireworks replaces '.' with 'p' in version numbers
   // e.g. accounts/fireworks/models/deepseek-v3p2 -> deepseek-v3.2
   // e.g. accounts/fireworks/models/kimi-k2p5 -> kimi-k2.5
-  const normalizedId = id.toLowerCase().startsWith('accounts/fireworks/models/')
-    ? id.replace(/(\d)p(?=\d)/g, '$1.')
-    : id
+  const normalizedId = strippedId.toLowerCase().startsWith('accounts/fireworks/models/')
+    ? strippedId.replace(/(\d)p(?=\d)/g, '$1.')
+    : strippedId
 
   let baseModelName = getBaseModelName(normalizedId, delimiter).toLowerCase()
   // Remove suffix

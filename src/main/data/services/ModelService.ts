@@ -29,6 +29,16 @@ import { and, eq, inArray, type SQL } from 'drizzle-orm'
 
 const logger = loggerService.withContext('DataApi:ModelService')
 
+type CreateModelRegistryData = ModelLookupResult & {
+  reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>>
+  defaultChatEndpoint?: EndpointType
+}
+
+export interface BatchCreateModelInput {
+  dto: CreateModelDto
+  registryData?: CreateModelRegistryData
+}
+
 /**
  * Mapping from UpdateModelDto field → DB column for the update path.
  * Entries are either a shared key name, or [dtoKey, dbColumn] when names differ.
@@ -137,6 +147,30 @@ function rowToRuntimeModel(row: UserModel): Model {
 }
 
 class ModelService {
+  private buildCreateValues(dto: CreateModelDto, registryData?: CreateModelRegistryData): NewUserModel {
+    const presetModel = registryData?.presetModel ?? null
+    const registryOverride = registryData?.registryOverride ?? null
+    const reasoningFormatTypes = registryData?.reasoningFormatTypes
+    const defaultChatEndpoint = registryData?.defaultChatEndpoint
+
+    const dtoValues = dtoToNewUserModel(dto)
+
+    if (presetModel) {
+      const merged = mergeModelWithUser(
+        { ...dtoValues, presetModelId: presetModel.id },
+        registryOverride,
+        presetModel,
+        dto.providerId,
+        reasoningFormatTypes,
+        defaultChatEndpoint
+      )
+
+      return mergedModelToNewUserModel(dto.providerId, dto.modelId, presetModel.id, merged)
+    }
+
+    return { ...dtoValues, presetModelId: dto.presetModelId ?? null }
+  }
+
   /**
    * List models with optional filters
    */
@@ -197,55 +231,44 @@ class ModelService {
    *
    * @param registryData - Pre-looked-up registry data (caller provides to avoid circular dependency)
    */
-  async create(
-    dto: CreateModelDto,
-    registryData?: ModelLookupResult & {
-      reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>>
-      defaultChatEndpoint?: EndpointType
-    }
-  ): Promise<Model> {
+  async create(dto: CreateModelDto, registryData?: CreateModelRegistryData): Promise<Model> {
     const db = application.get('DbService').getDb()
+    const values = this.buildCreateValues(dto, registryData)
 
-    const presetModel = registryData?.presetModel ?? null
-    const registryOverride = registryData?.registryOverride ?? null
-    const reasoningFormatTypes = registryData?.reasoningFormatTypes
-    const defaultChatEndpoint = registryData?.defaultChatEndpoint
+    const [row] = await db.insert(userModelTable).values(values).returning()
 
-    // Build base DB row from DTO using the shared field map
-    const dtoValues = dtoToNewUserModel(dto)
-    let values: NewUserModel
-
-    if (presetModel) {
-      // Registry match found — merge DTO with preset data
-      const merged = mergeModelWithUser(
-        { ...dtoValues, presetModelId: presetModel.id },
-        registryOverride,
-        presetModel,
-        dto.providerId,
-        reasoningFormatTypes,
-        defaultChatEndpoint
-      )
-
-      values = mergedModelToNewUserModel(dto.providerId, dto.modelId, presetModel.id, merged)
-
+    if (values.presetModelId) {
       logger.info('Created model with registry enrichment', {
         providerId: dto.providerId,
         modelId: dto.modelId,
-        presetModelId: presetModel.id
+        presetModelId: values.presetModelId
       })
     } else {
-      // No registry match — store as custom model directly from DTO
-      values = { ...dtoValues, presetModelId: dto.presetModelId ?? null }
-
       logger.info('Created custom model (no registry match)', {
         providerId: dto.providerId,
         modelId: dto.modelId
       })
     }
 
-    const [row] = await db.insert(userModelTable).values(values).returning()
-
     return rowToRuntimeModel(row)
+  }
+
+  async batchCreate(items: BatchCreateModelInput[]): Promise<Model[]> {
+    if (items.length === 0) return []
+
+    const db = application.get('DbService').getDb()
+    const values = items.map(({ dto, registryData }) => this.buildCreateValues(dto, registryData))
+
+    const rows = await db.transaction(async (tx) => {
+      return await tx.insert(userModelTable).values(values).returning()
+    })
+
+    logger.info('Created models batch', {
+      count: rows.length,
+      providers: [...new Set(values.map((value) => value.providerId))]
+    })
+
+    return rows.map(rowToRuntimeModel)
   }
 
   /**

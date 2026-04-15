@@ -1,4 +1,5 @@
-import type { Model, Provider } from '@types'
+import type { Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 
 import type { SerializedError } from './error'
 
@@ -20,7 +21,7 @@ export interface ApiKeyConnectivity {
   status: HealthStatus
   checking?: boolean
   error?: SerializedError
-  model?: Model
+  modelName?: string
   latency?: number
 }
 

@@ -1,11 +1,13 @@
 import { Flex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
+import { useModelMutations } from '@data/hooks/useModels'
 import { TopView } from '@renderer/components/TopView'
 import { endpointTypeOptions } from '@renderer/config/endpointTypes'
-import { isNotSupportTextDeltaModel } from '@renderer/config/models'
 import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
-import { useProvider } from '@renderer/hooks/useProvider'
-import type { EndpointType, Model, Provider } from '@renderer/types'
+import type { CreateModelDto } from '@shared/data/api/schemas/models'
+import type { Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, parseUniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import type { FormProps } from 'antd'
 import { Form, Modal, Select } from 'antd'
 import { useState } from 'react'
@@ -24,13 +26,13 @@ interface Props extends ShowParams {
 type FieldType = {
   provider: string
   group?: string
-  endpointType?: EndpointType
+  endpointType?: number | string
 }
 
 const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels }) => {
   const [open, setOpen] = useState(true)
   const [form] = Form.useForm()
-  const { addModel } = useProvider(provider.id)
+  const { createModelsBatch } = useModelMutations()
   const { t } = useTranslation()
 
   const onOk = () => {
@@ -45,19 +47,23 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
     resolve({})
   }
 
-  const onAddModel = (values: FieldType) => {
-    batchModels.forEach((model) => {
-      addModel({
-        ...model,
-        endpoint_type: values.endpointType,
-        supported_text_delta: !isNotSupportTextDeltaModel(model)
-      })
+  const onAddModel = async (values: FieldType) => {
+    const dtos: CreateModelDto[] = batchModels.map((model) => {
+      const modelId = model.apiModelId ?? parseUniqueModelId(model.id).modelId
+      return {
+        providerId: provider.id,
+        modelId,
+        name: model.name,
+        group: model.group,
+        endpointTypes: values.endpointType ? [values.endpointType as EndpointType] : undefined
+      }
     })
+    await createModelsBatch(dtos)
     return true
   }
 
-  const onFinish: FormProps<FieldType>['onFinish'] = (values) => {
-    if (onAddModel(values)) {
+  const onFinish: FormProps<FieldType>['onFinish'] = async (values) => {
+    if (await onAddModel(values)) {
       resolve({})
     }
   }
@@ -81,7 +87,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
         className="mt-[25px]"
         onFinish={onFinish}
         initialValues={{
-          endpointType: 'openai'
+          endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
         }}>
         <Form.Item
           name="endpointType"

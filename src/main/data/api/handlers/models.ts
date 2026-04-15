@@ -9,7 +9,13 @@
 import { modelService } from '@data/services/ModelService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
-import type { ModelSchemas } from '@shared/data/api/schemas/models'
+import {
+  CreateModelDtoSchema,
+  CreateModelsBatchDtoSchema,
+  ListModelsQuerySchema,
+  type ModelSchemas,
+  UpdateModelDtoSchema
+} from '@shared/data/api/schemas/models'
 
 /**
  * Handler type for a specific model endpoint
@@ -26,12 +32,28 @@ export const modelHandlers: {
 } = {
   '/models': {
     GET: async ({ query }) => {
-      return await modelService.list(query ?? {})
+      const parsed = ListModelsQuerySchema.parse(query ?? {})
+      return await modelService.list(parsed)
     },
 
     POST: async ({ body }) => {
-      const registryData = await providerRegistryService.lookupModel(body.providerId, body.modelId)
-      return await modelService.create(body, registryData)
+      const parsed = CreateModelDtoSchema.parse(body)
+      const registryData = await providerRegistryService.lookupModel(parsed.providerId, parsed.modelId)
+      return await modelService.create(parsed, registryData)
+    }
+  },
+
+  '/models/batch': {
+    POST: async ({ body }) => {
+      const parsed = CreateModelsBatchDtoSchema.parse(body)
+      const items = await Promise.all(
+        parsed.items.map(async (dto) => ({
+          dto,
+          registryData: await providerRegistryService.lookupModel(dto.providerId, dto.modelId)
+        }))
+      )
+
+      return await modelService.batchCreate(items)
     }
   },
 
@@ -41,7 +63,8 @@ export const modelHandlers: {
     },
 
     PATCH: async ({ params, body }) => {
-      return await modelService.update(params.providerId, params.modelId, body)
+      const parsed = UpdateModelDtoSchema.parse(body)
+      return await modelService.update(params.providerId, params.modelId, parsed)
     },
 
     DELETE: async ({ params }) => {

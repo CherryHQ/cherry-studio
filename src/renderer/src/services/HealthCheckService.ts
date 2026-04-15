@@ -1,9 +1,12 @@
 import { loggerService } from '@logger'
-import type { Model, Provider } from '@renderer/types'
+import type { Model as V1Model } from '@renderer/types'
 import type { ApiKeyWithStatus, ModelCheckOptions, ModelWithStatus } from '@renderer/types/healthCheck'
 import { HealthStatus } from '@renderer/types/healthCheck'
 import { serializeHealthCheckError } from '@renderer/utils/error'
 import { aggregateApiKeyResults } from '@renderer/utils/healthCheck'
+import { toV1ProviderShim } from '@renderer/utils/v1ProviderShim'
+import type { Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 
 import { checkModel } from './ApiService'
 
@@ -20,8 +23,8 @@ export async function checkModelWithMultipleKeys(
 ): Promise<ApiKeyWithStatus[]> {
   const checkPromises = apiKeys.map(async (key) => {
     const startTime = Date.now()
-    // 如果 checkModel 抛出错误，让这个 promise 失败
-    await checkModel({ ...provider, apiKey: key }, model, timeout)
+    const v1Provider = toV1ProviderShim(provider, { apiKey: key, models: [model] })
+    await checkModel(v1Provider, model as unknown as V1Model, timeout)
     const latency = Date.now() - startTime
 
     return {

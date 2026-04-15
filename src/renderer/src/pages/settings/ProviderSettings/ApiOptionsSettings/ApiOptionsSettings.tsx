@@ -1,8 +1,7 @@
 import { ColFlex, RowFlex, Switch } from '@cherrystudio/ui'
 import { InfoTooltip } from '@cherrystudio/ui'
-import { useProvider } from '@renderer/hooks/useProvider'
-import { type AnthropicCacheControlSettings, type Provider } from '@renderer/types'
-import { isSupportAnthropicPromptCacheProvider } from '@renderer/utils/provider'
+import { useProvider } from '@renderer/data/hooks/useProviders'
+import { isAnthropicProvider, isAzureOpenAIProvider, isOpenAICompatibleProvider } from '@renderer/utils/provider.v2'
 import { Divider, InputNumber } from 'antd'
 import { startTransition, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -23,10 +22,10 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
   const { t } = useTranslation()
   const { provider, updateProvider } = useProvider(providerId)
 
-  const updateProviderTransition = useCallback(
-    (updates: Partial<Provider>) => {
+  const patchProvider = useCallback(
+    (updates: Record<string, unknown>) => {
       startTransition(() => {
-        updateProvider(updates)
+        void updateProvider(updates)
       })
     },
     [updateProvider]
@@ -39,58 +38,48 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
         label: t('settings.provider.api.options.developer_role.label'),
         tip: t('settings.provider.api.options.developer_role.help'),
         onChange: (checked: boolean) => {
-          updateProviderTransition({
-            apiOptions: { ...provider.apiOptions, isSupportDeveloperRole: checked }
-          })
+          patchProvider({ apiFeatures: { ...provider?.apiFeatures, developerRole: checked } })
         },
-        checked: !!provider.apiOptions?.isSupportDeveloperRole
+        checked: provider?.apiFeatures.developerRole ?? false
       },
       {
         key: 'openai_stream_options',
         label: t('settings.provider.api.options.stream_options.label'),
         tip: t('settings.provider.api.options.stream_options.help'),
         onChange: (checked: boolean) => {
-          updateProviderTransition({
-            apiOptions: { ...provider.apiOptions, isNotSupportStreamOptions: !checked }
-          })
+          patchProvider({ apiFeatures: { ...provider?.apiFeatures, streamOptions: checked } })
         },
-        checked: !provider.apiOptions?.isNotSupportStreamOptions
+        checked: provider?.apiFeatures.streamOptions ?? true
       },
       {
         key: 'openai_service_tier',
         label: t('settings.provider.api.options.service_tier.label'),
         tip: t('settings.provider.api.options.service_tier.help'),
         onChange: (checked: boolean) => {
-          updateProviderTransition({
-            apiOptions: { ...provider.apiOptions, isSupportServiceTier: checked }
-          })
+          patchProvider({ apiFeatures: { ...provider?.apiFeatures, serviceTier: checked } })
         },
-        checked: !!provider.apiOptions?.isSupportServiceTier
+        checked: provider?.apiFeatures.serviceTier ?? false
       },
       {
         key: 'openai_enable_thinking',
         label: t('settings.provider.api.options.enable_thinking.label'),
         tip: t('settings.provider.api.options.enable_thinking.help'),
         onChange: (checked: boolean) => {
-          updateProviderTransition({
-            apiOptions: { ...provider.apiOptions, isNotSupportEnableThinking: !checked }
-          })
+          patchProvider({ apiFeatures: { ...provider?.apiFeatures, enableThinking: checked } })
         },
-        checked: !provider.apiOptions?.isNotSupportEnableThinking
+        checked: provider?.apiFeatures.enableThinking ?? true
       },
       {
         key: 'openai_verbosity',
         label: t('settings.provider.api.options.verbosity.label'),
         tip: t('settings.provider.api.options.verbosity.help'),
         onChange: (checked: boolean) => {
-          updateProviderTransition({
-            apiOptions: { ...provider.apiOptions, isNotSupportVerbosity: !checked }
-          })
+          patchProvider({ apiFeatures: { ...provider?.apiFeatures, verbosity: checked } })
         },
-        checked: !provider.apiOptions?.isNotSupportVerbosity
+        checked: provider?.apiFeatures.verbosity ?? false
       }
     ],
-    [t, provider, updateProviderTransition]
+    [t, provider, patchProvider]
   )
 
   const options = useMemo(() => {
@@ -100,40 +89,42 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
         label: t('settings.provider.api.options.array_content.label'),
         tip: t('settings.provider.api.options.array_content.help'),
         onChange: (checked: boolean) => {
-          updateProviderTransition({
-            apiOptions: { ...provider.apiOptions, isNotSupportArrayContent: !checked }
-          })
+          patchProvider({ apiFeatures: { ...provider?.apiFeatures, arrayContent: checked } })
         },
-        checked: !provider.apiOptions?.isNotSupportArrayContent
+        checked: provider?.apiFeatures.arrayContent ?? true
       }
     ]
 
-    if (provider.type === 'openai' || provider.type === 'openai-response' || provider.type === 'azure-openai') {
+    if (provider && (isOpenAICompatibleProvider(provider) || isAzureOpenAIProvider(provider))) {
       items.push(...openAIOptions)
     }
 
     return items
-  }, [openAIOptions, provider.apiOptions, provider.type, t, updateProviderTransition])
+  }, [openAIOptions, provider, t, patchProvider])
 
-  const isSupportAnthropicPromptCache = isSupportAnthropicPromptCacheProvider(provider)
+  const isSupportAnthropicPromptCache = provider ? isAnthropicProvider(provider) : false
 
   const cacheSettings = useMemo(
     () =>
-      provider.anthropicCacheControl ?? {
+      provider?.settings?.cacheControl ?? {
+        enabled: false,
         tokenThreshold: 0,
         cacheSystemMessage: true,
         cacheLastNMessages: 0
       },
-    [provider.anthropicCacheControl]
+    [provider?.settings?.cacheControl]
   )
 
   const updateCacheSettings = useCallback(
-    (updates: Partial<AnthropicCacheControlSettings>) => {
-      updateProviderTransition({
-        anthropicCacheControl: { ...cacheSettings, ...updates }
+    (updates: Partial<typeof cacheSettings>) => {
+      patchProvider({
+        providerSettings: {
+          ...provider?.settings,
+          cacheControl: { ...cacheSettings, enabled: true, ...updates }
+        }
       })
     },
-    [cacheSettings, updateProviderTransition]
+    [cacheSettings, provider?.settings, patchProvider]
   )
 
   return (
@@ -166,7 +157,7 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
               style={{ width: 100 }}
             />
           </RowFlex>
-          {cacheSettings.tokenThreshold > 0 && (
+          {(cacheSettings.tokenThreshold ?? 0) > 0 && (
             <>
               <RowFlex className="justify-between">
                 <RowFlex className="items-center gap-2">

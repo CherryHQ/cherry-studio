@@ -1,5 +1,4 @@
 import store from '@renderer/store'
-import type { VertexProvider } from '@renderer/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { formatVertexApiHost, maskApiKey, routeToEndpoint, splitApiKeyString, validateApiHost } from '../api'
@@ -14,21 +13,6 @@ vi.mock('@renderer/store', () => {
 })
 
 const getStateMock = store.getState as unknown as ReturnType<typeof vi.fn>
-
-const createVertexProvider = (apiHost: string): VertexProvider => ({
-  id: 'vertex-provider',
-  type: 'vertexai',
-  name: 'Vertex AI',
-  apiKey: '',
-  apiHost,
-  models: [],
-  googleCredentials: {
-    privateKey: '',
-    clientEmail: ''
-  },
-  project: '',
-  location: ''
-})
 
 beforeEach(() => {
   getStateMock.mockReset()
@@ -202,19 +186,19 @@ describe('api', () => {
 
   describe('formatVertexApiHost', () => {
     it('builds default google endpoint when host absent', () => {
-      expect(formatVertexApiHost(createVertexProvider(''))).toBe(
+      expect(formatVertexApiHost('')).toBe(
         'https://us-central1-aiplatform.googleapis.com/v1/projects/test-project/locations/us-central1'
       )
     })
 
     it('prefers default endpoint when host ends with google domain', () => {
-      expect(formatVertexApiHost(createVertexProvider('https://aiplatform.googleapis.com'))).toBe(
+      expect(formatVertexApiHost('https://aiplatform.googleapis.com')).toBe(
         'https://us-central1-aiplatform.googleapis.com/v1/projects/test-project/locations/us-central1'
       )
     })
 
     it('appends api version to custom host', () => {
-      expect(formatVertexApiHost(createVertexProvider('https://custom.googleapis.com/vertex'))).toBe(
+      expect(formatVertexApiHost('https://custom.googleapis.com/vertex')).toBe(
         'https://custom.googleapis.com/vertex/v1'
       )
     })
@@ -231,7 +215,7 @@ describe('api', () => {
         }
       })
 
-      expect(formatVertexApiHost(createVertexProvider(''))).toBe(
+      expect(formatVertexApiHost('')).toBe(
         'https://aiplatform.googleapis.com/v1/projects/global-project/locations/global'
       )
     })

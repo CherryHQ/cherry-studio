@@ -5,8 +5,9 @@ import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import ProviderLogoPicker from '@renderer/components/ProviderLogoPicker'
 import { TopView } from '@renderer/components/TopView'
 import ImageStorage from '@renderer/services/ImageStorage'
-import type { Provider, ProviderType } from '@renderer/types'
 import { compressImage, generateColorFromChar, getForegroundColor } from '@renderer/utils'
+import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import { Divider, Dropdown, Form, Input, Modal, Popover, Select, Upload } from 'antd'
 import type { ItemType } from 'antd/es/menu/interface'
 import React, { useEffect, useRef, useState } from 'react'
@@ -15,16 +16,24 @@ import styled from 'styled-components'
 
 const logger = loggerService.withContext('AddProviderPopup')
 
+export interface AddProviderResult {
+  name: string
+  defaultChatEndpoint: EndpointType
+  logo?: string
+  logoFile?: File
+}
+
 interface Props {
   provider?: Provider
-  resolve: (result: { name: string; type: ProviderType; logo?: string; logoFile?: File }) => void
+  resolve: (result: AddProviderResult) => void
 }
 
 const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
   const [open, setOpen] = useState(true)
   const [name, setName] = useState(provider?.name || '')
-  const [type, setType] = useState<ProviderType>(provider?.type || 'openai')
-  const [displayType, setDisplayType] = useState<string>(provider?.type || 'openai')
+  const [selectedEndpoint, setSelectedEndpoint] = useState<EndpointType>(
+    provider?.defaultChatEndpoint ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+  )
   const [logo, setLogo] = useState<string | null>(null)
   const [logoPickerOpen, setLogoPickerOpen] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
@@ -49,23 +58,16 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
 
   const onOk = async () => {
     setOpen(false)
-
-    // 返回结果，但不包含文件对象，因为文件已经直接保存到 ImageStorage
-    const result = {
-      name: name.trim(),
-      type,
-      logo: logo || undefined
-    }
-    resolve(result)
+    resolve({ name: name.trim(), defaultChatEndpoint: selectedEndpoint, logo: logo || undefined })
   }
 
   const onCancel = () => {
     setOpen(false)
-    resolve({ name: '', type: 'openai' })
+    resolve({ name: '', defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS })
   }
 
   const onClose = () => {
-    resolve({ name: name.trim(), type, logo: logo || undefined })
+    resolve({ name: name.trim(), defaultChatEndpoint: selectedEndpoint, logo: logo || undefined })
   }
 
   const buttonDisabled = name.trim().length === 0
@@ -249,21 +251,14 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
         </Form.Item>
         <Form.Item label={t('settings.provider.add.type')} style={{ marginBottom: 0 }}>
           <Select
-            value={displayType}
-            onChange={(value: string) => {
-              setDisplayType(value)
-              // special case for cherryin-type, map to new-api internally
-              setType(value === 'cherryin-type' ? 'new-api' : (value as ProviderType))
-            }}
+            value={selectedEndpoint}
+            onChange={(value: EndpointType) => setSelectedEndpoint(value)}
             options={[
-              { label: 'OpenAI', value: 'openai' },
-              { label: 'OpenAI-Response', value: 'openai-response' },
-              { label: 'Gemini', value: 'gemini' },
-              { label: 'Anthropic', value: 'anthropic' },
-              { label: 'Azure OpenAI', value: 'azure-openai' },
-              { label: 'New API', value: 'new-api' },
-              { label: 'CherryIN', value: 'cherryin-type' },
-              { label: 'Ollama', value: 'ollama' }
+              { label: 'OpenAI', value: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS },
+              { label: 'OpenAI Responses', value: ENDPOINT_TYPE.OPENAI_RESPONSES },
+              { label: 'Anthropic', value: ENDPOINT_TYPE.ANTHROPIC_MESSAGES },
+              { label: 'Gemini', value: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT },
+              { label: 'Ollama', value: ENDPOINT_TYPE.OLLAMA_CHAT }
             ]}
           />
         </Form.Item>
@@ -317,12 +312,7 @@ export default class AddProviderPopup {
     TopView.hide('AddProviderPopup')
   }
   static show(provider?: Provider) {
-    return new Promise<{
-      name: string
-      type: ProviderType
-      logo?: string
-      logoFile?: File
-    }>((resolve) => {
+    return new Promise<AddProviderResult>((resolve) => {
       TopView.show(
         <PopupContainer
           provider={provider}

@@ -1,5 +1,4 @@
 import store from '@renderer/store'
-import type { VertexProvider } from '@renderer/types'
 import { formatApiHost, withoutTrailingSlash } from '@shared/utils'
 import { trim } from 'lodash'
 
@@ -17,8 +16,7 @@ export {
 export { formatAzureOpenAIApiHost, formatOllamaApiHost } from '@shared/aiCore/provider/utils'
 
 // NOTE: Since #13194, it depends on the store state in renderer, so it cannot be moved to shared now.
-export function formatVertexApiHost(provider: VertexProvider): string {
-  const { apiHost } = provider
+export function formatVertexApiHost(apiHost: string): string {
   const { projectId: project, location } = store.getState().llm.settings.vertexai
   const trimmedHost = withoutTrailingSlash(trim(apiHost))
   if (!trimmedHost || trimmedHost.endsWith('aiplatform.googleapis.com')) {

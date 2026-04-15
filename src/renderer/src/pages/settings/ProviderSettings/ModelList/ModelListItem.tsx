@@ -1,17 +1,18 @@
 import { Avatar, AvatarFallback, Button, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
-import { FreeTrialModelTag } from '@renderer/components/FreeTrialModelTag'
 import { type HealthResult, HealthStatusIndicator } from '@renderer/components/HealthStatusIndicator'
-import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
-import { getModelLogo } from '@renderer/config/models'
-import type { Model } from '@renderer/types'
+import { getModelLogo } from '@renderer/config/models/v2'
 import type { ModelWithStatus } from '@renderer/types/healthCheck'
 import { HealthStatus } from '@renderer/types/healthCheck'
 import { maskApiKey } from '@renderer/utils/api'
+import type { Model } from '@shared/data/types/model'
 import { Bolt, Minus } from 'lucide-react'
 import React, { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+
+import { FreeTrialModelTagV2 } from '../components/FreeTrialModelTagV2'
+import ModelIdWithTagsV2 from '../components/ModelIdWithTagsV2'
 
 interface ModelListItemProps {
   ref?: React.RefObject<HTMLDivElement>
@@ -79,7 +80,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({
               </Avatar>
             )
           })()}
-          <ModelIdWithTags
+          <ModelIdWithTagsV2
             model={model}
             showIdentifier={showIdentifier}
             style={{
@@ -88,7 +89,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({
               overflow: 'hidden'
             }}
           />
-          <FreeTrialModelTag model={model} />
+          <FreeTrialModelTagV2 modelId={model.id} providerId={model.providerId} />
         </RowFlex>
         <RowFlex className="items-center gap-1.5">
           <HealthStatusIndicator
