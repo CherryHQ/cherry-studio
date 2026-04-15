@@ -3159,6 +3159,7 @@
     },
     "generate_failed": "Nu s-a putut genera imaginea",
     "generated_image": "Imagine generată",
+    "generating": "Se generează",
     "go_to_settings": "Mergi la Setări",
     "guidance_scale": "Scară de ghidare",
     "guidance_scale_tip": "Classifier Free Guidance. Cât de fidel vrei să respecte modelul promptul tău când caută o imagine similară să-ți arate",

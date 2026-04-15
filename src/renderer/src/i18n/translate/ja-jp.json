@@ -3159,6 +3159,7 @@
     },
     "generate_failed": "画像の生成に失敗しました",
     "generated_image": "生成画像",
+    "generating": "生成中",
     "go_to_settings": "設定に移動",
     "guidance_scale": "ガイダンススケール",
     "guidance_scale_tip": "分類器なしのガイダンス。モデルが関連する画像を探す際にプロンプトにどれだけ従うかを制御します",

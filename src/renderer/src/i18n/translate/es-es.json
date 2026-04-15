@@ -3159,6 +3159,7 @@
     },
     "generate_failed": "Error al generar la imagen",
     "generated_image": "Generar imagen",
+    "generating": "Generando",
     "go_to_settings": "Ir a configuración",
     "guidance_scale": "Escala de guía",
     "guidance_scale_tip": "Sin clasificador de guía. Controla la medida en que el modelo sigue la sugerencia al buscar imágenes relacionadas",

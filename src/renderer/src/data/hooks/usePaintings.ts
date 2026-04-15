@@ -84,11 +84,14 @@ export function usePaintingList(scope: PaintingScope) {
   })
 
   const [items, setItems] = useState<PaintingAction[]>([])
+  const [hasHydrated, setHasHydrated] = useState(false)
   const patchTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
   const pendingCreatesRef = useRef<Map<string, { painting: PaintingAction; deleted?: boolean }>>(new Map())
 
   useEffect(() => {
     let cancelled = false
+
+    setHasHydrated(false)
 
     const syncFromRemote = async () => {
       const remoteItems = data?.items ?? []
@@ -104,6 +107,7 @@ export function usePaintingList(scope: PaintingScope) {
               }) as PaintingAction
           )
         })
+        setHasHydrated(true)
       }
     }
 
@@ -220,7 +224,7 @@ export function usePaintingList(scope: PaintingScope) {
   }, [])
 
   return useMemo(
-    () => ({ items, isLoading: isQueryLoading, add, remove, update, reorder }),
-    [items, isQueryLoading, add, remove, update, reorder]
+    () => ({ items, isLoading: isQueryLoading, hasHydrated, add, remove, update, reorder }),
+    [items, isQueryLoading, hasHydrated, add, remove, update, reorder]
   )
 }

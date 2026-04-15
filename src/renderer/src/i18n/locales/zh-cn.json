@@ -3159,6 +3159,7 @@
     },
     "generate_failed": "生成图像失败",
     "generated_image": "生成图片",
+    "generating": "生成中",
     "go_to_settings": "去设置",
     "guidance_scale": "引导比例",
     "guidance_scale_tip": "无分类器指导。控制模型在寻找相关图像时对提示词的遵循程度",

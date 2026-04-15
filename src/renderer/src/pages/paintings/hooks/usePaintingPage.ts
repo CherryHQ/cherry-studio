@@ -50,7 +50,7 @@ export function usePaintingPage<T extends PaintingAction = PaintingAction>({
   getDefaultPainting,
   onProviderChange
 }: UsePaintingPageOptions<T>): UsePaintingPageReturn<T> {
-  const { items, add, remove, update, reorder } = usePaintingList({ providerId, mode })
+  const { items, hasHydrated, add, remove, update, reorder } = usePaintingList({ providerId, mode })
   const paintings = items as T[]
 
   const [painting, setPainting] = useState<T>(paintings[0] || getDefaultPainting())
@@ -60,6 +60,7 @@ export function usePaintingPage<T extends PaintingAction = PaintingAction>({
   const [generating, setGenerating] = useCache('chat.generating')
   const [isTranslating, setIsTranslating] = useState(false)
   const [spaceClickCount, setSpaceClickCount] = useState(0)
+  const [hasInitialized, setHasInitialized] = useState(false)
   const spaceClickTimer = useRef<NodeJS.Timeout>(null)
 
   const providers = useAllProviders()
@@ -174,18 +175,29 @@ export function usePaintingPage<T extends PaintingAction = PaintingAction>({
   )
 
   useEffect(() => {
+    if (!hasHydrated || hasInitialized) {
+      return
+    }
+
     if (paintings.length === 0) {
       const newPainting = getDefaultPainting()
       add(newPainting)
       setPainting(newPainting)
+      setHasInitialized(true)
+      return
     }
 
+    setPainting((current) => paintings.find((item) => item.id === current.id) || paintings[0])
+    setHasInitialized(true)
+  }, [paintings, hasHydrated, hasInitialized, add, getDefaultPainting])
+
+  useEffect(() => {
     return () => {
       if (spaceClickTimer.current) {
         clearTimeout(spaceClickTimer.current)
       }
     }
-  }, [paintings.length, add, getDefaultPainting])
+  }, [])
 
   return {
     painting,

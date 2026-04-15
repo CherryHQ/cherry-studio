@@ -3159,6 +3159,7 @@
     },
     "generate_failed": "Fehler beim Generieren des Bildes",
     "generated_image": "Generiertes Bild",
+    "generating": "Wird generiert",
     "go_to_settings": "Zu Einstellungen",
     "guidance_scale": "Guidance-Skala",
     "guidance_scale_tip": "Classifier-free Guidance. Kontrolliert, wie genau das Modell dem Prompt folgt",

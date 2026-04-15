@@ -3159,6 +3159,7 @@
     },
     "generate_failed": "Falha ao gerar imagem",
     "generated_image": "Imagem gerada",
+    "generating": "Gerando",
     "go_to_settings": "Ir para configurações",
     "guidance_scale": "Escala de Direção",
     "guidance_scale_tip": "Sem direção do classificador. Controle o grau ao qual o modelo segue a palavra-chave ao procurar imagens relacionadas",
