@@ -12,6 +12,7 @@ import { topicService } from '@data/services/TopicService'
 import { messageService } from '@main/data/services/MessageService'
 import { agentService, sessionService } from '@main/services/agents'
 import { agentMessageRepository } from '@main/services/agents/database/sessionMessageRepository'
+import { topicNamingService } from '@main/services/TopicNamingService'
 import type { AiStreamOpenRequest, AiStreamOpenResponse } from '@shared/ai/transport'
 import type { Message } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
@@ -68,6 +69,11 @@ export class StreamRequestHandler {
           modelSnapshot
         })
 
+    const shouldAutoNameInitialTurn = !isRegenerate && !req.parentAnchorId
+    if (shouldAutoNameInitialTurn) {
+      void topicNamingService.maybeRenameFromFirstUserMessage(req.topicId, userMessage.id)
+    }
+
     // 3. Models (single or multi)
     const models = await this.resolveModels(req.mentionedModelIds, modelId)
     const isMultiModel = models.length > 1
@@ -110,7 +116,17 @@ export class StreamRequestHandler {
             name: model.name,
             provider: model.providerId
           },
-          siblingsGroupId
+          siblingsGroupId,
+          afterPersist: shouldAutoNameInitialTurn
+            ? async (finalMessage) => {
+                await topicNamingService.maybeRenameFromConversationSummary(
+                  req.topicId,
+                  assistantId,
+                  userMessage.id,
+                  finalMessage
+                )
+              }
+            : undefined
         })
       )
     }

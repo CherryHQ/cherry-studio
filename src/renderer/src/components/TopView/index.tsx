@@ -3,6 +3,7 @@ import { Box } from '@cherrystudio/ui'
 import TopViewMinappContainer from '@renderer/components/MinApp/TopViewMinappContainer'
 import { useAppInit } from '@renderer/hooks/useAppInit'
 import { useShortcuts } from '@renderer/hooks/useShortcuts'
+import { useTopicSync } from '@renderer/hooks/useTopicSync'
 import { message, Modal } from 'antd'
 import type { PropsWithChildren } from 'react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
@@ -41,6 +42,7 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
   const enableQuitFullScreen = shortcuts.find((item) => item.key === 'exit_fullscreen')?.enabled
 
   useAppInit()
+  useTopicSync()
 
   useEffect(() => {
     window.modal = modal

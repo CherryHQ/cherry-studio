@@ -144,4 +144,8 @@ export class AiService extends BaseService {
     }
     return last
   }
+
+  async generateText(request: AiGenerateRequest) {
+    return this.completionService.generateText(request)
+  }
 }

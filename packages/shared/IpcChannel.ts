@@ -499,6 +499,7 @@ export enum IpcChannel {
   Ai_Stream_Detach = 'ai:stream:detach',
   /** Renderer → Main: abort the active generation on a topic */
   Ai_Stream_Abort = 'ai:stream:abort',
+  Topic_Updated = 'topic:updated',
 
   // AI Non-streaming
   Ai_GenerateText = 'ai:generate-text',

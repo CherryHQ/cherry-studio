@@ -10,7 +10,6 @@ import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { autoRenameTopic } from '@renderer/hooks/useTopic'
 import SelectionBox from '@renderer/pages/home/Messages/SelectionBox'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getContextCount, getGroupedMessages } from '@renderer/services/MessagesService'
@@ -171,7 +170,6 @@ const Messages: React.FC<MessagesProps> = ({
           const newTopic = { ...created, messages: [] } as Topic
           addTopic(newTopic)
           setActiveTopic(newTopic)
-          void autoRenameTopic(assistant, newTopic.id)
         } catch (err) {
           logger.error('[NEW_BRANCH] Failed to create topic branch via DataApi', { topicId: topic.id, err })
           window.toast.error(t('message.branch.error'))
