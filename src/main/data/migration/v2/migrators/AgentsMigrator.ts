@@ -240,6 +240,7 @@ export class AgentsMigrator extends BaseMigrator {
       agents: 0,
       sessions: 0,
       skills: 0,
+      agent_skills: 0,
       scheduled_tasks: 0,
       task_run_logs: 0,
       channels: 0,

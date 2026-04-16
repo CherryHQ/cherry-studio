@@ -2,6 +2,7 @@ export type AgentsSourceTableName =
   | 'agents'
   | 'sessions'
   | 'skills'
+  | 'agent_skills'
   | 'scheduled_tasks'
   | 'task_run_logs'
   | 'channels'
@@ -31,7 +32,8 @@ export type AgentsTableMigrationSpec = {
   targetTable:
     | 'agents_agents'
     | 'agents_sessions'
-    | 'agents_skills'
+    | 'agents_global_skills'
+    | 'agents_agent_skills'
     | 'agents_tasks'
     | 'agents_task_run_logs'
     | 'agents_channels'
@@ -110,7 +112,7 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
   },
   {
     sourceTable: 'skills',
-    targetTable: 'agents_skills',
+    targetTable: 'agents_global_skills',
     columns: [
       'id',
       'name',
@@ -126,6 +128,20 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       'created_at',
       'updated_at'
     ]
+  },
+  {
+    sourceTable: 'agent_skills',
+    targetTable: 'agents_agent_skills',
+    columns: [
+      { name: 'agent_id', expr: 'agent_id' },
+      { name: 'skill_id', expr: 'skill_id' },
+      { name: 'is_enabled', expr: 'is_enabled' },
+      'created_at',
+      'updated_at'
+    ],
+    // Only import agent_skill rows whose agent and skill were both successfully
+    // migrated; orphaned rows would fail the FK checks.
+    whereClause: 'agent_id IN (SELECT id FROM agents_agents) AND skill_id IN (SELECT id FROM agents_global_skills)'
   },
   {
     sourceTable: 'scheduled_tasks',
@@ -236,8 +252,9 @@ export const AGENTS_TARGET_TABLE_DELETE_ORDER = [
   'agents_task_run_logs',
   'agents_channels',
   'agents_tasks',
+  'agents_agent_skills',
   'agents_sessions',
-  'agents_skills',
+  'agents_global_skills',
   'agents_agents'
 ] as const
 

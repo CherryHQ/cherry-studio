@@ -134,11 +134,49 @@ describe('AgentsDbMappings', () => {
     expect(channelsInsert).toContain('WHERE agent_id IS NULL OR agent_id IN (SELECT id FROM agents_legacy.agents)')
   })
 
+  it('maps agent_skills → agents_agent_skills with FK-safe WHERE clause', () => {
+    const schemaInfo = createEmptyAgentsSchemaInfo()
+    schemaInfo.agent_skills.exists = true
+    schemaInfo.agent_skills.columns = new Set(['agent_id', 'skill_id', 'is_enabled', 'created_at', 'updated_at'])
+
+    const statements = buildAgentsImportStatements('/tmp/agents.db', schemaInfo)
+    const agentSkillsInsert = statements.find((s) => s.includes('agents_agent_skills'))
+
+    expect(agentSkillsInsert).toContain(
+      'INSERT INTO agents_agent_skills (agent_id, skill_id, is_enabled, created_at, updated_at)'
+    )
+    expect(agentSkillsInsert).toContain('FROM agents_legacy.agent_skills')
+    expect(agentSkillsInsert).toContain('WHERE agent_id IN (SELECT id FROM agents_agents)')
+    expect(agentSkillsInsert).toContain('AND skill_id IN (SELECT id FROM agents_global_skills)')
+  })
+
+  it('maps skills → agents_global_skills', () => {
+    const schemaInfo = createEmptyAgentsSchemaInfo()
+    schemaInfo.skills.exists = true
+    schemaInfo.skills.columns = new Set([
+      'id',
+      'name',
+      'folder_name',
+      'source',
+      'content_hash',
+      'is_enabled',
+      'created_at',
+      'updated_at'
+    ])
+
+    const statements = buildAgentsImportStatements('/tmp/agents.db', schemaInfo)
+    const skillsInsert = statements.find((s) => s.includes('agents_global_skills'))
+
+    expect(skillsInsert).toContain('INSERT INTO agents_global_skills')
+    expect(skillsInsert).toContain('FROM agents_legacy.skills')
+  })
+
   it('exposes all source table names in dependency order', () => {
     expect(getAgentsSourceTableNames()).toEqual([
       'agents',
       'sessions',
       'skills',
+      'agent_skills',
       'scheduled_tasks',
       'task_run_logs',
       'channels',
@@ -153,13 +191,14 @@ describe('AgentsDbMappings', () => {
         agents: 2,
         sessions: 3,
         skills: 4,
-        scheduled_tasks: 5,
-        task_run_logs: 6,
-        channels: 7,
-        channel_task_subscriptions: 8,
-        session_messages: 9
+        agent_skills: 5,
+        scheduled_tasks: 6,
+        task_run_logs: 7,
+        channels: 8,
+        channel_task_subscriptions: 9,
+        session_messages: 10
       })
-    ).toBe(44)
+    ).toBe(54)
   })
 
   it('keeps the table spec list aligned with the source table names', () => {

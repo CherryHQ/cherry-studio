@@ -20,6 +20,19 @@ CREATE TABLE `agents_agents` (
 CREATE INDEX `agents_agents_name_idx` ON `agents_agents` (`name`);--> statement-breakpoint
 CREATE INDEX `agents_agents_type_idx` ON `agents_agents` (`type`);--> statement-breakpoint
 CREATE INDEX `agents_agents_sort_order_idx` ON `agents_agents` (`sort_order`);--> statement-breakpoint
+CREATE TABLE `agents_agent_skills` (
+	`agent_id` text NOT NULL,
+	`skill_id` text NOT NULL,
+	`is_enabled` integer DEFAULT false NOT NULL,
+	`created_at` integer,
+	`updated_at` integer,
+	PRIMARY KEY(`agent_id`, `skill_id`),
+	FOREIGN KEY (`agent_id`) REFERENCES `agents_agents`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`skill_id`) REFERENCES `agents_global_skills`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `agents_agent_skills_agent_id_idx` ON `agents_agent_skills` (`agent_id`);--> statement-breakpoint
+CREATE INDEX `agents_agent_skills_skill_id_idx` ON `agents_agent_skills` (`skill_id`);--> statement-breakpoint
 CREATE TABLE `agents_channel_task_subscriptions` (
 	`channel_id` text NOT NULL,
 	`task_id` text NOT NULL,
@@ -88,7 +101,7 @@ CREATE TABLE `agents_sessions` (
 CREATE INDEX `agents_sessions_agent_id_idx` ON `agents_sessions` (`agent_id`);--> statement-breakpoint
 CREATE INDEX `agents_sessions_model_idx` ON `agents_sessions` (`model`);--> statement-breakpoint
 CREATE INDEX `agents_sessions_sort_order_idx` ON `agents_sessions` (`sort_order`);--> statement-breakpoint
-CREATE TABLE `agents_skills` (
+CREATE TABLE `agents_global_skills` (
 	`id` text PRIMARY KEY NOT NULL,
 	`name` text NOT NULL,
 	`description` text,
@@ -104,9 +117,9 @@ CREATE TABLE `agents_skills` (
 	`updated_at` integer
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `agents_skills_folder_name_unique` ON `agents_skills` (`folder_name`);--> statement-breakpoint
-CREATE INDEX `agents_skills_source_idx` ON `agents_skills` (`source`);--> statement-breakpoint
-CREATE INDEX `agents_skills_is_enabled_idx` ON `agents_skills` (`is_enabled`);--> statement-breakpoint
+CREATE UNIQUE INDEX `agents_global_skills_folder_name_unique` ON `agents_global_skills` (`folder_name`);--> statement-breakpoint
+CREATE INDEX `agents_global_skills_source_idx` ON `agents_global_skills` (`source`);--> statement-breakpoint
+CREATE INDEX `agents_global_skills_is_enabled_idx` ON `agents_global_skills` (`is_enabled`);--> statement-breakpoint
 CREATE TABLE `agents_task_run_logs` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 	`task_id` text NOT NULL,

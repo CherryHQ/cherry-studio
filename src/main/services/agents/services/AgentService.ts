@@ -15,6 +15,7 @@ import { and, asc, count, desc, eq, isNull, sql } from 'drizzle-orm'
 import { BaseService } from '../BaseService'
 import {
   type AgentRow,
+  agentSkillsTable,
   agentsTable,
   channelsTable,
   type InsertAgentRow,
@@ -572,6 +573,7 @@ export class AgentService extends BaseService {
       const updatedAt = Date.now()
 
       await database.transaction(async (tx) => {
+        await tx.delete(agentSkillsTable).where(eq(agentSkillsTable.agentId, id))
         await tx.delete(scheduledTasksTable).where(eq(scheduledTasksTable.agentId, id))
         await tx.delete(sessionsTable).where(eq(sessionsTable.agentId, id))
         await tx.update(channelsTable).set({ agentId: null }).where(eq(channelsTable.agentId, id))

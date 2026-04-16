@@ -16,10 +16,12 @@ import type {
   SkillInstallOptions,
   SkillToggleOptions
 } from '@types'
+import { eq } from 'drizzle-orm'
 import { net } from 'electron'
 import StreamZip from 'node-stream-zip'
 
 import { agentsTable } from '../database/schema'
+import { AgentSkillRepository } from './AgentSkillRepository'
 import { SkillInstaller } from './SkillInstaller'
 import { SkillRepository } from './SkillRepository'
 
@@ -37,21 +39,23 @@ const MAX_FOLDER_NAME_LENGTH = 80
  * Skill management service.
  *
  * Skills are stored in `{dataPath}/Skills/{folderName}/` (inert global library).
- * When a skill is globally enabled (`agents_skills.is_enabled = true`), a symlink
- * is created at `{agentWorkspace}/.claude/skills/{folderName}/` for every agent
- * that has a resolvable workspace, making the skill discoverable by Claude Code.
+ * When enabled for a specific agent, a symlink is created at
+ * `{agentWorkspace}/.claude/skills/{folderName}/` pointing to the library,
+ * making the skill discoverable by Claude Code running against that workspace.
  *
- * Skill library metadata and global enablement state both live in `agents_skills`.
- * There is no per-agent junction table.
+ * Skill library metadata lives in `agents_global_skills`. Per-agent enablement
+ * state lives in the `agents_agent_skills` join table.
  */
 export class SkillService {
   private static instance: SkillService | null = null
 
   private readonly repository: SkillRepository
+  private readonly agentSkillRepository: AgentSkillRepository
   private readonly installer: SkillInstaller
 
   private constructor() {
     this.repository = SkillRepository.getInstance()
+    this.agentSkillRepository = AgentSkillRepository.getInstance()
     this.installer = new SkillInstaller()
     logger.info('SkillService initialized')
   }
@@ -68,80 +72,146 @@ export class SkillService {
   // ===========================================================================
 
   /**
-   * List installed skills with their global enablement state.
+   * List installed skills.
    *
-   * The `agentId` parameter is accepted for API compatibility but is no longer
-   * used — enablement is global, not per-agent.
+   * When `agentId` is provided, each skill's `isEnabled` field reflects the
+   * per-agent enablement state from `agents_agent_skills`. Without `agentId`,
+   * the field is forced to `false`.
    */
-  async list(_agentId?: string): Promise<InstalledSkill[]> {
-    return this.repository.list()
+  async list(agentId?: string): Promise<InstalledSkill[]> {
+    const skills = await this.repository.list()
+    if (!agentId) {
+      return skills.map((s) => ({ ...s, isEnabled: false }))
+    }
+
+    const agentSkillRows = await this.agentSkillRepository.getByAgentId(agentId)
+    const enabledMap = new Map<string, boolean>()
+    for (const row of agentSkillRows) {
+      enabledMap.set(row.skillId, row.isEnabled)
+    }
+    return skills.map((s) => ({ ...s, isEnabled: enabledMap.get(s.id) ?? false }))
   }
 
   /**
-   * Enable or disable a skill globally.
+   * Enable or disable a skill for a specific agent.
    *
-   * Updates `agents_skills.is_enabled` and creates / removes the corresponding
-   * symlink under every agent's `{agentWorkspace}/.claude/skills/`. The `agentId`
-   * field in options is accepted for API compatibility but is ignored.
+   * Updates the `agents_agent_skills` join row and creates / removes the
+   * corresponding symlink under `{agentWorkspace}/.claude/skills/`.
    */
   async toggle(options: SkillToggleOptions): Promise<InstalledSkill | null> {
-    const updated = await this.repository.toggleEnabled(options.skillId, options.isEnabled)
-    if (!updated) return null
+    const skill = await this.repository.getById(options.skillId)
+    if (!skill) return null
 
-    await this.syncSkillSymlinksForAllAgents(updated.folderName, options.isEnabled)
-    return updated
+    const workspace = await this.getAgentWorkspace(options.agentId)
+
+    await this.agentSkillRepository.upsert(options.agentId, options.skillId, options.isEnabled)
+
+    if (workspace) {
+      try {
+        if (options.isEnabled) {
+          await this.linkSkill(skill.folderName, workspace)
+        } else {
+          await this.unlinkSkill(skill.folderName, workspace)
+        }
+      } catch (error) {
+        // Roll back DB state so it stays consistent with the filesystem
+        await this.agentSkillRepository.upsert(options.agentId, options.skillId, !options.isEnabled).catch((e) => {
+          logger.error('Failed to roll back agent_skills after symlink error', {
+            agentId: options.agentId,
+            skillId: options.skillId,
+            error: e instanceof Error ? e.message : String(e)
+          })
+        })
+        logger.error('Failed to (un)link skill for agent', {
+          agentId: options.agentId,
+          skillId: options.skillId,
+          isEnabled: options.isEnabled,
+          error: error instanceof Error ? error.message : String(error)
+        })
+        throw error
+      }
+    } else {
+      logger.warn('Skipping skill symlink: agent has no resolvable workspace', {
+        agentId: options.agentId,
+        skillId: options.skillId
+      })
+    }
+
+    return { ...skill, isEnabled: options.isEnabled }
   }
 
   /**
-   * Link all globally-enabled skills into a freshly created agent's workspace.
+   * Seed skill enablement for a freshly created agent.
    *
-   * No DB writes — global enablement state already lives in `agents_skills`.
+   * Every skill marked `source = 'builtin'` is auto-enabled for the new agent.
    */
-  async initSkillsForAgent(_agentId: string, workspace: string | undefined): Promise<void> {
-    if (!workspace) return
-
+  async initSkillsForAgent(agentId: string, workspace: string | undefined): Promise<void> {
     const skills = await this.repository.list()
-    const enabledSkills = skills.filter((s) => s.isEnabled)
-    if (enabledSkills.length === 0) return
+    const builtinSkills = skills.filter((s) => s.source === 'builtin')
+    if (builtinSkills.length === 0) return
 
-    for (const skill of enabledSkills) {
+    for (const skill of builtinSkills) {
+      await this.agentSkillRepository.upsert(agentId, skill.id, true)
+      if (workspace) {
+        try {
+          await this.linkSkill(skill.folderName, workspace)
+        } catch (error) {
+          logger.warn('Failed to link builtin skill for new agent', {
+            agentId,
+            skillId: skill.id,
+            error: error instanceof Error ? error.message : String(error)
+          })
+        }
+      }
+    }
+    logger.info('Seeded builtin skills for agent', { agentId, count: builtinSkills.length })
+  }
+
+  /**
+   * Enable a skill across every existing agent and create per-workspace symlinks.
+   * Used when a new builtin skill is installed.
+   */
+  async enableForAllAgents(skillId: string, folderName: string): Promise<void> {
+    const database = await this.repository.getDatabase()
+    const agents = await database
+      .select({ id: agentsTable.id, accessiblePaths: agentsTable.accessiblePaths })
+      .from(agentsTable)
+
+    for (const agent of agents) {
+      await this.agentSkillRepository.upsert(agent.id, skillId, true)
+      const workspace = this.parseFirstAccessiblePath(agent.accessiblePaths)
+      if (!workspace || !(await directoryExists(workspace))) continue
       try {
-        await this.linkSkill(skill.folderName, workspace)
+        await this.linkSkill(folderName, workspace)
       } catch (error) {
-        logger.warn('Failed to link skill for new agent', {
-          skillId: skill.id,
+        logger.warn('Failed to link builtin skill for agent', {
+          agentId: agent.id,
+          skillId,
           error: error instanceof Error ? error.message : String(error)
         })
       }
     }
-    logger.info('Linked enabled skills for new agent', { count: enabledSkills.length })
+    logger.info('Enabled skill for all agents', { skillId, folderName, agentCount: agents.length })
   }
 
   /**
-   * Mark a skill as globally enabled and create workspace symlinks for every
-   * existing agent. Used when a new builtin skill is installed.
+   * Ensure the workspace's `.claude/skills/` directory matches the
+   * `agents_agent_skills` DB state for the given agent.
    */
-  async enableForAllAgents(skillId: string, folderName: string): Promise<void> {
-    await this.repository.toggleEnabled(skillId, true)
-    await this.syncSkillSymlinksForAllAgents(folderName, true)
-    logger.info('Enabled skill for all agents', { skillId, folderName })
-  }
-
-  /**
-   * Ensure the workspace's `.claude/skills/` directory matches the global
-   * enablement state. Called at session start to correct filesystem drift.
-   */
-  async reconcileAgentSkills(_agentId: string, workspace: string): Promise<void> {
+  async reconcileAgentSkills(agentId: string, workspace: string): Promise<void> {
     if (!workspace) return
-    const skills = await this.repository.list()
+    const agentSkillRows = await this.agentSkillRepository.getByAgentId(agentId)
 
-    for (const skill of skills) {
-      if (!skill.isEnabled) continue
+    for (const row of agentSkillRows) {
+      if (!row.isEnabled) continue
+      const skill = await this.repository.getById(row.skillId)
+      if (!skill) continue
       try {
         await this.linkSkill(skill.folderName, workspace)
       } catch (error) {
         logger.warn('Reconcile: failed to link skill', {
-          skillId: skill.id,
+          agentId,
+          skillId: row.skillId,
           error: error instanceof Error ? error.message : String(error)
         })
       }
@@ -192,9 +262,7 @@ export class SkillService {
 
   /**
    * Resolve the absolute path a skill with the given name would live at under
-   * the global Skills storage root. The name is sanitized using the same rules
-   * as installSkillDir, so callers can pre-create the directory and then pass
-   * the path to installFromDirectory for in-place registration.
+   * the global Skills storage root.
    */
   getSkillDirectory(name: string): string {
     return this.getSkillStoragePath(this.sanitizeFolderName(name))
@@ -206,10 +274,25 @@ export class SkillService {
       throw new Error(`Skill not found: ${skillId}`)
     }
 
-    // Remove symlinks from every agent workspace before deleting the skill record.
-    await this.syncSkillSymlinksForAllAgents(skill.folderName, false)
+    // Remove symlinks from every agent workspace that had this skill enabled,
+    // before we lose the join rows to the cascade delete below.
+    const agentSkillRows = await this.agentSkillRepository.getBySkillId(skillId)
+    for (const row of agentSkillRows) {
+      if (!row.isEnabled) continue
+      const workspace = await this.getAgentWorkspace(row.agentId)
+      if (!workspace) continue
+      try {
+        await this.unlinkSkill(skill.folderName, workspace)
+      } catch (error) {
+        logger.warn('Failed to unlink skill during uninstall', {
+          skillId,
+          agentId: row.agentId,
+          error: error instanceof Error ? error.message : String(error)
+        })
+      }
+    }
 
-    // Remove from global storage
+    // Remove from global storage; FK cascade on skill_id deletes agent_skills rows.
     const skillPath = this.getSkillStoragePath(skill.folderName)
     await this.installer.uninstall(skillPath)
     await this.repository.delete(skillId)
@@ -295,35 +378,6 @@ export class SkillService {
   // ===========================================================================
 
   /**
-   * Create or remove the symlink for `folderName` in every existing agent workspace.
-   * `link = true` → create symlink; `link = false` → remove symlink.
-   */
-  private async syncSkillSymlinksForAllAgents(folderName: string, link: boolean): Promise<void> {
-    const database = await this.repository.getDatabase()
-    const agents = await database
-      .select({ id: agentsTable.id, accessiblePaths: agentsTable.accessiblePaths })
-      .from(agentsTable)
-
-    for (const agent of agents) {
-      const workspace = this.parseFirstAccessiblePath(agent.accessiblePaths)
-      if (!workspace || !(await directoryExists(workspace))) continue
-      try {
-        if (link) {
-          await this.linkSkill(folderName, workspace)
-        } else {
-          await this.unlinkSkill(folderName, workspace)
-        }
-      } catch (error) {
-        logger.warn(`Failed to ${link ? 'link' : 'unlink'} skill for agent`, {
-          agentId: agent.id,
-          folderName,
-          error: error instanceof Error ? error.message : String(error)
-        })
-      }
-    }
-  }
-
-  /**
    * Create a symlink from `{workspace}/.claude/skills/{folderName}` →
    * global skills storage (`{dataPath}/Skills/{folderName}`).
    */
@@ -332,11 +386,8 @@ export class SkillService {
     const linkPath = this.getSkillLinkPath(folderName, workspace)
 
     try {
-      // Ensure .claude/skills/ directory exists
       await fs.promises.mkdir(path.dirname(linkPath), { recursive: true })
 
-      // Remove existing symlink if present; refuse to overwrite real directories
-      // to avoid destroying user-authored content.
       try {
         const stat = await fs.promises.lstat(linkPath)
         if (stat.isSymbolicLink()) {
@@ -391,7 +442,6 @@ export class SkillService {
   // ===========================================================================
 
   private async installFromClaudePlugins(identifier: string): Promise<InstalledSkill> {
-    // identifier: "owner/repo/directoryPath" e.g. "vercel-labs/agent-skills/skills/react-best-practices"
     const parts = identifier.split('/')
     if (parts.length < 3) {
       throw new Error(`Invalid claude-plugins identifier: ${identifier}`)
@@ -409,7 +459,6 @@ export class SkillService {
       const skillDir = await this.resolveSkillDirectory(tempDir, skillName, directoryPath)
       const installed = await this.installSkillDir(skillDir, 'marketplace', sourceUrl)
 
-      // Fire-and-forget install telemetry
       this.reportInstall(owner, repo, skillName).catch((err) => {
         logger.warn('Failed to report install', { error: err instanceof Error ? err.message : String(err) })
       })
@@ -421,7 +470,6 @@ export class SkillService {
   }
 
   private async installFromSkillsSh(identifier: string): Promise<InstalledSkill> {
-    // identifier: "owner/repo" or "owner/repo/skill-name"
     const parts = identifier.split('/')
     if (parts.length < 2) {
       throw new Error(`Invalid skills.sh identifier: ${identifier}`)
@@ -444,7 +492,6 @@ export class SkillService {
   }
 
   private async installFromClawhub(slug: string): Promise<InstalledSkill> {
-    // Fetch skill detail to get download URL
     const detailUrl = `https://api.clawhub.ai/api/v1/skills/${slug}`
     const detailResp = await net.fetch(detailUrl, {
       headers: { 'User-Agent': 'CherryStudio' }
@@ -454,7 +501,6 @@ export class SkillService {
       throw new Error(`clawhub detail failed: HTTP ${detailResp.status}`)
     }
 
-    // Download the skill zip
     const downloadUrl = `https://api.clawhub.ai/api/v1/skills/${slug}/download`
     const downloadResp = await net.fetch(downloadUrl, {
       headers: { 'User-Agent': 'CherryStudio' }
@@ -484,23 +530,13 @@ export class SkillService {
   // Core install logic
   // ===========================================================================
 
-  /**
-   * Install a skill from a directory containing SKILL.md into global-skills storage.
-   * Built-in skills are auto-linked; other sources default to disabled.
-   */
   private async installSkillDir(skillDir: string, source: string, sourceUrl: string | null): Promise<InstalledSkill> {
     const metadata = await parseSkillMetadata(skillDir, path.basename(skillDir), 'skills')
 
-    // In-place registration: when skillDir already lives directly under the global
-    // Skills storage root, preserve its existing basename as folderName so the
-    // destination resolves to the same path and SkillInstaller short-circuits the
-    // copy. This avoids sanitize drift between caller-chosen names and metadata.
     const skillsRoot = path.resolve(application.getPath('feature.agents.skills'))
     const isInPlace = path.resolve(path.dirname(skillDir)) === skillsRoot
-    // INVARIANT: isInPlace assumes basename was already sanitized by getSkillDirectory()
     const folderName = isInPlace ? path.basename(skillDir) : this.sanitizeFolderName(metadata.filename)
 
-    // Check for existing skill with same folder name
     const existing = await this.repository.getByFolderName(folderName)
 
     const contentHash = await this.installer.computeContentHash(skillDir)
@@ -512,7 +548,7 @@ export class SkillService {
     const tags = metadata.tags ? JSON.stringify(metadata.tags) : null
 
     if (existing) {
-      // Update metadata in-place to preserve the skill ID and its global isEnabled state.
+      // Update metadata in-place to preserve the skill ID and its agent_skills rows.
       await this.repository.updateMetadata(existing.id, {
         name: metadata.name,
         description: metadata.description ?? null,
@@ -540,15 +576,13 @@ export class SkillService {
       author: metadata.author ?? null,
       tags,
       contentHash,
-      // Builtins are globally enabled on install; others start disabled.
-      isEnabled: isBuiltin,
+      isEnabled: false,
       createdAt: now,
       updatedAt: now
     })
 
-    // Builtins ship with the app and should be active everywhere immediately.
     if (isBuiltin) {
-      await this.syncSkillSymlinksForAllAgents(folderName, true)
+      await this.enableForAllAgents(skill.id, folderName)
     }
 
     logger.info('Skill installed', { id, name: metadata.name, folderName, source })
@@ -638,19 +672,14 @@ export class SkillService {
     skillName: string | null,
     directoryPath: string | null
   ): Promise<string> {
-    // 1. Check explicit directory path
     if (directoryPath) {
       const resolved = path.resolve(repoDir, directoryPath)
       const skillMdPath = await findSkillMdPath(resolved)
       if (skillMdPath) return resolved
 
-      // directoryPath didn't resolve — fall through to search.
-      // This handles cases where the identifier is a skill name rather than a repo path
-      // (e.g. "react-best-practices" vs "skills/react-best-practices").
       logger.debug('SKILL.md not found at directoryPath, falling through to search', { directoryPath })
     }
 
-    // 2. Search for skill directories (only when no explicit path given)
     const candidates = await findAllSkillDirectories(repoDir, repoDir, 8)
 
     if (skillName) {
@@ -663,8 +692,6 @@ export class SkillService {
     }
 
     if (candidates.length > 1 && skillName) {
-      // Bidirectional fuzzy match: registry name may contain or be contained by folder name
-      // e.g. skillName="vercel-react-best-practices" vs folder="react-best-practices"
       const lowerName = skillName.toLowerCase()
       const fuzzy = candidates.find((c) => {
         const base = path.basename(c.folderPath).toLowerCase()
@@ -683,7 +710,6 @@ export class SkillService {
       return candidates[0].folderPath
     }
 
-    // 3. Check if the directory itself has SKILL.md
     const rootSkill = await findSkillMdPath(repoDir)
     if (rootSkill) return repoDir
 
@@ -694,14 +720,25 @@ export class SkillService {
   // Path helpers
   // ===========================================================================
 
-  /** Full path to a skill in global storage */
   private getSkillStoragePath(folderName: string): string {
     return path.join(application.getPath('feature.agents.skills'), folderName)
   }
 
-  /** Symlink location for a given agent workspace: `{workspace}/.claude/skills/{folderName}` */
   private getSkillLinkPath(folderName: string, workspace: string): string {
     return path.join(workspace, '.claude', 'skills', folderName)
+  }
+
+  private async getAgentWorkspace(agentId: string): Promise<string | undefined> {
+    const database = await this.repository.getDatabase()
+    const rows = await database
+      .select({ accessiblePaths: agentsTable.accessiblePaths })
+      .from(agentsTable)
+      .where(eq(agentsTable.id, agentId))
+      .limit(1)
+    const workspace = this.parseFirstAccessiblePath(rows[0]?.accessiblePaths)
+    if (!workspace) return undefined
+    if (!(await directoryExists(workspace))) return undefined
+    return workspace
   }
 
   private parseFirstAccessiblePath(serialized: string | null | undefined): string | undefined {
@@ -750,7 +787,6 @@ export class SkillService {
     const entries = await fs.promises.readdir(dir, { withFileTypes: true })
     const nodes: SkillFileNode[] = []
 
-    // Sort: directories first, then files, alphabetically
     const sorted = entries
       .filter((e) => !e.name.startsWith('.') && e.name !== 'node_modules')
       .sort((a, b) => {
