@@ -23,6 +23,13 @@ npm install @cherrystudio/ui
 npm install framer-motion react react-dom tailwindcss
 ```
 
+> 当前仓库内的推荐接入方式是通过包导出入口使用：
+> `@cherrystudio/ui`
+> `@cherrystudio/ui/components`
+> `@cherrystudio/ui/icons`
+> `@cherrystudio/ui/utils`
+> `@cherrystudio/ui/styles/*`
+
 ### 两种使用方式
 
 #### 方式 1：完整覆盖 ✨
@@ -115,22 +122,6 @@ npm install framer-motion react react-dom tailwindcss
 }} />
 ```
 
-### Provider 配置
-
-在你的 App 根组件中添加 HeroUI Provider：
-
-```tsx
-import { HeroUIProvider } from '@heroui/react'
-
-function App() {
-  return (
-    <HeroUIProvider>
-      {/* 你的应用内容 */}
-    </HeroUIProvider>
-  )
-}
-```
-
 ## 使用
 
 ### 基础组件
@@ -168,32 +159,34 @@ import { cn, formatFileSize } from '@cherrystudio/ui/utils'
 
 ```bash
 # 安装依赖
-yarn install
+pnpm install
 
 # 开发模式（监听文件变化）
-yarn dev
+pnpm dev
 
 # 构建
-yarn build
+pnpm build
 
 # 类型检查
-yarn type-check
+pnpm type-check
 
 # 运行测试
-yarn test
+pnpm test
 ```
 
 ## 目录结构
 
 ```text
 src/
-├── components/          # React 组件
-│   ├── Button/         # 按钮组件
-│   ├── Input/          # 输入框组件
-│   └── index.ts        # 组件导出
+├── components/
+│   ├── primitives/     # Primitive components
+│   ├── composites/     # Composite components
+│   ├── icons/          # Icon runtime exports and catalogs
+│   └── index.ts
 ├── hooks/              # React Hooks
+├── lib/                # Internal utilities
+├── styles/             # Tokens and theme entry files
 ├── utils/              # 工具函数
-├── types/              # 类型定义
 └── index.ts            # 主入口文件
 ```
 
