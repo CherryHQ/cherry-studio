@@ -1,19 +1,10 @@
 // Original: src/renderer/src/components/HorizontalScrollContainer/index.tsx
 import { ChevronRight } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
-import styled from 'styled-components'
+import * as React from 'react'
 
+import { cn } from '../../../lib/utils'
 import Scrollbar from '../Scrollbar'
 
-/**
- * 水平滚动容器
- * @param children 子元素
- * @param dependencies 依赖项
- * @param scrollDistance 滚动距离
- * @param className 类名
- * @param gap 间距
- * @param expandable 是否可展开
- */
 export interface HorizontalScrollContainerProps {
   children: React.ReactNode
   dependencies?: readonly unknown[]
@@ -31,49 +22,51 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
   gap = '8px',
   expandable = false
 }) => {
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const [canScroll, setCanScroll] = useState(false)
-  const [isExpanded, setIsExpanded] = useState(false)
-  const [isScrolledToEnd, setIsScrolledToEnd] = useState(false)
+  const scrollRef = React.useRef<HTMLDivElement>(null)
+  const [canScroll, setCanScroll] = React.useState(false)
+  const [isExpanded, setIsExpanded] = React.useState(false)
+  const [isScrolledToEnd, setIsScrolledToEnd] = React.useState(false)
 
   const handleScrollRight = (event: React.MouseEvent) => {
     scrollRef.current?.scrollBy({ left: scrollDistance, behavior: 'smooth' })
     event.stopPropagation()
   }
 
-  const handleContainerClick = (e: React.MouseEvent) => {
-    if (expandable) {
-      // 确保不是点击了其他交互元素（如 tag 的关闭按钮）
-      const target = e.target as HTMLElement
-      if (!target.closest('[data-no-expand]')) {
-        setIsExpanded(!isExpanded)
-      }
+  const handleContainerClick = (event: React.MouseEvent) => {
+    if (!expandable) {
+      return
+    }
+
+    const target = event.target as HTMLElement
+    if (!target.closest('[data-no-expand]')) {
+      setIsExpanded((value) => !value)
     }
   }
 
-  const checkScrollability = () => {
+  const checkScrollability = React.useCallback(() => {
     const scrollElement = scrollRef.current
-    if (scrollElement) {
-      const parentElement = scrollElement.parentElement
-      const availableWidth = parentElement ? parentElement.clientWidth : scrollElement.clientWidth
-
-      // 确保容器不会超出可用宽度
-      const canScrollValue = scrollElement.scrollWidth > Math.min(availableWidth, scrollElement.clientWidth)
-      setCanScroll(canScrollValue)
-
-      // 检查是否滚动到最右侧
-      if (canScrollValue) {
-        const isAtEnd = Math.abs(scrollElement.scrollLeft + scrollElement.clientWidth - scrollElement.scrollWidth) <= 1
-        setIsScrolledToEnd(isAtEnd)
-      } else {
-        setIsScrolledToEnd(false)
-      }
+    if (!scrollElement) {
+      return
     }
-  }
 
-  useEffect(() => {
+    const parentElement = scrollElement.parentElement
+    const availableWidth = parentElement ? parentElement.clientWidth : scrollElement.clientWidth
+    const canScrollValue = scrollElement.scrollWidth > Math.min(availableWidth, scrollElement.clientWidth)
+    setCanScroll(canScrollValue)
+
+    if (canScrollValue) {
+      const isAtEnd = Math.abs(scrollElement.scrollLeft + scrollElement.clientWidth - scrollElement.scrollWidth) <= 1
+      setIsScrolledToEnd(isAtEnd)
+    } else {
+      setIsScrolledToEnd(false)
+    }
+  }, [])
+
+  React.useEffect(() => {
     const scrollElement = scrollRef.current
-    if (!scrollElement) return
+    if (!scrollElement) {
+      return
+    }
 
     checkScrollability()
 
@@ -92,90 +85,40 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
       scrollElement.removeEventListener('scroll', handleScroll)
       window.removeEventListener('resize', checkScrollability)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, dependencies)
+  }, [checkScrollability, dependencies])
 
   return (
-    <Container
-      className={className}
-      $expandable={expandable}
-      $disableHoverButton={isScrolledToEnd}
-      onClick={expandable ? handleContainerClick : undefined}>
-      <ScrollContent ref={scrollRef} $gap={gap} $isExpanded={isExpanded} $expandable={expandable}>
-        {children}
-      </ScrollContent>
-      {canScroll && !isExpanded && !isScrolledToEnd && (
-        <ScrollButton onClick={handleScrollRight} className="scroll-right-button">
-          <ChevronRight size={14} />
-        </ScrollButton>
+    <div
+      className={cn(
+        'group/container relative flex max-w-full min-w-0 flex-1 items-center',
+        expandable ? 'cursor-pointer' : 'cursor-default',
+        className
       )}
-    </Container>
+      onClick={expandable ? handleContainerClick : undefined}>
+      <Scrollbar
+        ref={scrollRef}
+        className="flex min-w-0 flex-1 overflow-y-hidden"
+        style={{
+          gap,
+          overflowX: expandable && isExpanded ? 'hidden' : 'auto',
+          whiteSpace: expandable && isExpanded ? 'normal' : 'nowrap',
+          flexWrap: expandable && isExpanded ? 'wrap' : 'nowrap',
+          scrollbarWidth: 'none'
+        }}>
+        {children}
+      </Scrollbar>
+      {canScroll && !isExpanded && !isScrolledToEnd && (
+        <div
+          className={cn(
+            'scroll-right-button absolute top-1/2 right-2 z-[1] flex size-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full bg-[var(--color-background)] opacity-0 shadow-[0_6px_16px_0_rgba(0,0,0,0.08),0_3px_6px_-4px_rgba(0,0,0,0.12),0_9px_28px_8px_rgba(0,0,0,0.05)] transition-opacity',
+            !isScrolledToEnd && 'group-hover/container:opacity-100'
+          )}
+          onClick={handleScrollRight}>
+          <ChevronRight size={14} className="text-[var(--color-text-2)] hover:text-[var(--color-text)]" />
+        </div>
+      )}
+    </div>
   )
 }
-
-const Container = styled.div<{ $expandable?: boolean; $disableHoverButton?: boolean }>`
-  display: flex;
-  align-items: center;
-  flex: 1 1 auto;
-  min-width: 0;
-  max-width: 100%;
-  position: relative;
-  cursor: ${(props) => (props.$expandable ? 'pointer' : 'default')};
-
-  ${(props) =>
-    !props.$disableHoverButton &&
-    `
-    &:hover {
-      .scroll-right-button {
-        opacity: 1;
-      }
-    }
-  `}
-`
-
-const ScrollContent = styled(Scrollbar)<{
-  $gap: string
-  $isExpanded?: boolean
-  $expandable?: boolean
-}>`
-  display: flex;
-  overflow-x: ${(props) => (props.$expandable && props.$isExpanded ? 'hidden' : 'auto')};
-  overflow-y: hidden;
-  white-space: ${(props) => (props.$expandable && props.$isExpanded ? 'normal' : 'nowrap')};
-  gap: ${(props) => props.$gap};
-  flex-wrap: ${(props) => (props.$expandable && props.$isExpanded ? 'wrap' : 'nowrap')};
-
-  &::-webkit-scrollbar {
-    display: none;
-  }
-`
-
-const ScrollButton = styled.div`
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 1;
-  opacity: 0;
-  transition: opacity 0.2s ease-in-out;
-  cursor: pointer;
-  background: var(--color-background);
-  border-radius: 50%;
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow:
-    0 6px 16px 0 rgba(0, 0, 0, 0.08),
-    0 3px 6px -4px rgba(0, 0, 0, 0.12),
-    0 9px 28px 8px rgba(0, 0, 0, 0.05);
-  color: var(--color-text-2);
-
-  &:hover {
-    color: var(--color-text);
-    background: var(--color-list-item);
-  }
-`
 
 export default HorizontalScrollContainer
