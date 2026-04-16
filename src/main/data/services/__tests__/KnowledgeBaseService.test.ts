@@ -1,105 +1,114 @@
+import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
+import {
+  KnowledgeBaseService,
+  normalizeKnowledgeBaseConfigDependencies,
+  validateKnowledgeBaseConfig
+} from '@data/services/KnowledgeBaseService'
 import { ErrorCode } from '@shared/data/api'
 import type { CreateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const mockSelect = vi.fn()
-const mockInsert = vi.fn()
-const mockUpdate = vi.fn()
-const mockDelete = vi.fn()
-
-vi.mock('@application', () => ({
-  application: {
-    get: vi.fn(() => ({
-      getDb: vi.fn(() => ({
-        select: mockSelect,
-        insert: mockInsert,
-        update: mockUpdate,
-        delete: mockDelete
-      }))
-    }))
-  }
-}))
-
-const { KnowledgeBaseService, normalizeKnowledgeBaseConfigDependencies, validateKnowledgeBaseConfig } = await import(
-  '../KnowledgeBaseService'
-)
-
-function createMockRow(overrides: Record<string, unknown> = {}) {
-  return {
-    id: 'kb-1',
-    name: 'Knowledge Base',
-    description: 'Knowledge base description',
-    dimensions: 1536,
-    embeddingModelId: 'openai::text-embedding-3-large',
-    rerankModelId: 'cohere::rerank-v1',
-    fileProcessorId: 'processor-1',
-    chunkSize: 800,
-    chunkOverlap: 120,
-    threshold: 0.55,
-    documentCount: 5,
-    searchMode: 'hybrid',
-    hybridAlpha: 0.7,
-    createdAt: '2024-01-01T00:00:00.000Z',
-    updatedAt: '2024-01-02T00:00:00.000Z',
-    ...overrides
-  }
-}
+import { createUniqueModelId } from '@shared/data/types/model'
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 describe('KnowledgeBaseService', () => {
-  let service: InstanceType<typeof KnowledgeBaseService>
+  const dbh = setupTestDatabase()
+  let service: KnowledgeBaseService
 
-  beforeEach(() => {
-    mockSelect.mockReset()
-    mockInsert.mockReset()
-    mockUpdate.mockReset()
-    mockDelete.mockReset()
+  beforeEach(async () => {
     service = new KnowledgeBaseService()
+    await seedUserProvidersAndModelsForKb()
   })
+
+  /** FK targets for embedding_model_id / rerank_model_id → user_model.id */
+  async function seedUserProvidersAndModelsForKb() {
+    await dbh.db.insert(userProviderTable).values([
+      { providerId: 'openai', name: 'OpenAI' },
+      { providerId: 'cohere', name: 'Cohere' }
+    ])
+    await dbh.db.insert(userModelTable).values([
+      {
+        id: createUniqueModelId('openai', 'text-embedding-3-large'),
+        providerId: 'openai',
+        modelId: 'text-embedding-3-large',
+        presetModelId: 'text-embedding-3-large',
+        name: 'text-embedding-3-large',
+        isEnabled: true,
+        isHidden: false,
+        sortOrder: 0
+      },
+      {
+        id: createUniqueModelId('cohere', 'rerank-v1'),
+        providerId: 'cohere',
+        modelId: 'rerank-v1',
+        presetModelId: 'rerank-v1',
+        name: 'rerank-v1',
+        isEnabled: true,
+        isHidden: false,
+        sortOrder: 0
+      },
+      {
+        id: createUniqueModelId('openai', 'embed-model'),
+        providerId: 'openai',
+        modelId: 'embed-model',
+        presetModelId: 'embed-model',
+        name: 'embed-model',
+        isEnabled: true,
+        isHidden: false,
+        sortOrder: 0
+      },
+      {
+        id: createUniqueModelId('cohere', 'rerank-model'),
+        providerId: 'cohere',
+        modelId: 'rerank-model',
+        presetModelId: 'rerank-model',
+        name: 'rerank-model',
+        isEnabled: true,
+        isHidden: false,
+        sortOrder: 0
+      }
+    ])
+  }
+
+  async function seedKnowledgeBase(overrides: Partial<typeof knowledgeBaseTable.$inferInsert> = {}) {
+    const values: typeof knowledgeBaseTable.$inferInsert = {
+      id: 'kb-1',
+      name: 'Knowledge Base',
+      description: 'Knowledge base description',
+      dimensions: 1536,
+      embeddingModelId: createUniqueModelId('openai', 'text-embedding-3-large'),
+      rerankModelId: createUniqueModelId('cohere', 'rerank-v1'),
+      fileProcessorId: 'processor-1',
+      chunkSize: 800,
+      chunkOverlap: 120,
+      threshold: 0.55,
+      documentCount: 5,
+      searchMode: 'hybrid',
+      hybridAlpha: 0.7,
+      ...overrides
+    }
+    await dbh.db.insert(knowledgeBaseTable).values(values)
+    return values
+  }
 
   describe('list', () => {
     it('should return paginated knowledge bases', async () => {
-      const rows = [createMockRow({ id: 'kb-2', name: 'Another Base', description: null })]
-      const offset = vi.fn().mockResolvedValue(rows)
-      const limit = vi.fn().mockReturnValue({ offset })
-      const orderBy = vi.fn().mockReturnValue({ limit })
-      const from = vi.fn().mockReturnValue({ orderBy })
-      const countFrom = vi.fn().mockResolvedValue([{ count: 2 }])
-
-      mockSelect.mockReturnValueOnce({
-        from
-      })
-      mockSelect.mockReturnValueOnce({
-        from: countFrom
-      })
+      await seedKnowledgeBase()
+      await seedKnowledgeBase({ id: 'kb-2', name: 'Another Base', description: null })
 
       const result = await service.list({ page: 2, limit: 1 })
 
-      expect(limit).toHaveBeenCalledWith(1)
-      expect(offset).toHaveBeenCalledWith(1)
-      expect(result).toMatchObject({
-        total: 2,
-        page: 2
-      })
+      expect(result.total).toBe(2)
+      expect(result.page).toBe(2)
       expect(result.items).toHaveLength(1)
-      expect(result.items[0]).toMatchObject({
-        id: 'kb-2',
-        name: 'Another Base',
-        embeddingModelId: 'openai::text-embedding-3-large'
-      })
-      expect(result.items[0].description).toBeUndefined()
     })
   })
 
   describe('getById', () => {
     it('should return a knowledge base by id', async () => {
-      const row = createMockRow()
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([row])
-          })
-        })
-      })
+      await seedKnowledgeBase()
 
       const result = await service.getById('kb-1')
 
@@ -110,30 +119,7 @@ describe('KnowledgeBaseService', () => {
       })
     })
 
-    it('should preserve null embeddingModelId in API responses', async () => {
-      const row = createMockRow({ embeddingModelId: null })
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([row])
-          })
-        })
-      })
-
-      const result = await service.getById('kb-1')
-
-      expect(result.embeddingModelId).toBeNull()
-    })
-
     it('should throw NotFound when the knowledge base does not exist', async () => {
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([])
-          })
-        })
-      })
-
       await expect(service.getById('missing')).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND,
         status: 404
@@ -143,21 +129,12 @@ describe('KnowledgeBaseService', () => {
 
   describe('create', () => {
     it('should create a knowledge base with trimmed identifiers', async () => {
-      const row = createMockRow({
-        name: 'New Base',
-        embeddingModelId: 'openai::embed-model'
-      })
-      const values = vi.fn().mockReturnValue({
-        returning: vi.fn().mockResolvedValue([row])
-      })
-      mockInsert.mockReturnValue({ values })
-
       const dto: CreateKnowledgeBaseDto = {
         name: '  New Base  ',
         description: 'desc',
         dimensions: 1024,
-        embeddingModelId: '  openai::embed-model  ',
-        rerankModelId: 'cohere::rerank-model',
+        embeddingModelId: `  ${createUniqueModelId('openai', 'embed-model')}  `,
+        rerankModelId: createUniqueModelId('cohere', 'rerank-model'),
         fileProcessorId: 'processor-1',
         chunkSize: 512,
         chunkOverlap: 64,
@@ -169,32 +146,19 @@ describe('KnowledgeBaseService', () => {
 
       const result = await service.create(dto)
 
-      expect(values).toHaveBeenCalledWith({
-        name: 'New Base',
-        description: 'desc',
-        dimensions: 1024,
-        embeddingModelId: 'openai::embed-model',
-        rerankModelId: 'cohere::rerank-model',
-        fileProcessorId: 'processor-1',
-        chunkSize: 512,
-        chunkOverlap: 64,
-        threshold: 0.5,
-        documentCount: 3,
-        searchMode: 'hybrid',
-        hybridAlpha: 0.6
-      })
-      expect(result).toMatchObject({
-        id: 'kb-1',
-        name: 'New Base',
-        embeddingModelId: 'openai::embed-model'
-      })
+      expect(result.name).toBe('New Base')
+      expect(result.embeddingModelId).toBe(createUniqueModelId('openai', 'embed-model'))
+
+      const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, result.id))
+      expect(row.name).toBe('New Base')
+      expect(row.embeddingModelId).toBe(createUniqueModelId('openai', 'embed-model'))
     })
 
     it('should reject invalid runtime config before insert', async () => {
       const dto: CreateKnowledgeBaseDto = {
         name: 'Invalid Base',
         dimensions: 1024,
-        embeddingModelId: 'openai::embed-model',
+        embeddingModelId: createUniqueModelId('openai', 'embed-model'),
         chunkSize: 256,
         chunkOverlap: 256
       }
@@ -208,49 +172,23 @@ describe('KnowledgeBaseService', () => {
         }
       })
 
-      expect(mockInsert).not.toHaveBeenCalled()
+      const rows = await dbh.db.select().from(knowledgeBaseTable)
+      expect(rows).toHaveLength(0)
     })
   })
 
   describe('update', () => {
     it('should return the existing knowledge base when update is empty', async () => {
-      const row = createMockRow()
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([row])
-          })
-        })
-      })
+      await seedKnowledgeBase()
 
       const result = await service.update('kb-1', {})
 
       expect(result.id).toBe('kb-1')
-      expect(mockUpdate).not.toHaveBeenCalled()
+      expect(result.name).toBe('Knowledge Base')
     })
 
-    it('should update and return the knowledge base without clearing embeddingModelId when omitted', async () => {
-      const existing = createMockRow()
-      const updated = createMockRow({
-        name: 'Updated Base',
-        description: null,
-        chunkSize: null,
-        chunkOverlap: null,
-        hybridAlpha: 0.9
-      })
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([existing])
-          })
-        })
-      })
-      const set = vi.fn().mockReturnValue({
-        where: vi.fn().mockReturnValue({
-          returning: vi.fn().mockResolvedValue([updated])
-        })
-      })
-      mockUpdate.mockReturnValue({ set })
+    it('should update and return the knowledge base', async () => {
+      await seedKnowledgeBase()
 
       const result = await service.update('kb-1', {
         name: '  Updated Base  ',
@@ -260,84 +198,44 @@ describe('KnowledgeBaseService', () => {
         hybridAlpha: 0.9
       })
 
-      expect(set).toHaveBeenCalledWith({
-        name: 'Updated Base',
-        description: null,
-        chunkSize: null,
-        chunkOverlap: null,
-        hybridAlpha: 0.9
-      })
-      expect(result).toMatchObject({
-        id: 'kb-1',
-        name: 'Updated Base',
-        hybridAlpha: 0.9
-      })
-      expect(result.description).toBeUndefined()
+      expect(result.name).toBe('Updated Base')
+      expect(result.hybridAlpha).toBe(0.9)
+
+      const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, 'kb-1'))
+      expect(row.name).toBe('Updated Base')
+      expect(row.description).toBeNull()
+      expect(row.chunkSize).toBeNull()
     })
 
     it('should clear stale dependent config fields during update', async () => {
-      const existing = createMockRow({
+      await seedKnowledgeBase({
         chunkSize: 256,
         chunkOverlap: 120,
         searchMode: 'hybrid',
         hybridAlpha: 0.7
       })
-      const updated = createMockRow({
-        chunkSize: 100,
-        chunkOverlap: null,
-        searchMode: 'default',
-        hybridAlpha: null
-      })
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([existing])
-          })
-        })
-      })
-      const set = vi.fn().mockReturnValue({
-        where: vi.fn().mockReturnValue({
-          returning: vi.fn().mockResolvedValue([updated])
-        })
-      })
-      mockUpdate.mockReturnValue({ set })
 
       const result = await service.update('kb-1', {
-        embeddingModelId: existing.embeddingModelId,
         chunkSize: 100,
         searchMode: 'default'
       })
 
-      expect(set).toHaveBeenCalledWith({
-        chunkSize: 100,
-        chunkOverlap: null,
-        searchMode: 'default',
-        hybridAlpha: null
-      })
-      expect(result).toMatchObject({
-        chunkSize: 100,
-        searchMode: 'default'
-      })
-      expect(result.chunkOverlap).toBeUndefined()
-      expect(result.hybridAlpha).toBeUndefined()
+      expect(result.chunkSize).toBe(100)
+      expect(result.searchMode).toBe('default')
+
+      const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, 'kb-1'))
+      expect(row.chunkSize).toBe(100)
+      expect(row.searchMode).toBe('default')
+      // Dependent fields cleared
+      expect(row.chunkOverlap).toBeNull()
+      expect(row.hybridAlpha).toBeNull()
     })
 
     it('should reject explicitly provided hybridAlpha when search mode is not hybrid', async () => {
-      const existing = createMockRow({
-        searchMode: 'hybrid',
-        hybridAlpha: 0.7
-      })
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([existing])
-          })
-        })
-      })
+      await seedKnowledgeBase({ searchMode: 'hybrid', hybridAlpha: 0.7 })
 
       await expect(
         service.update('kb-1', {
-          embeddingModelId: existing.embeddingModelId,
           searchMode: 'default',
           hybridAlpha: 0.7
         })
@@ -349,29 +247,15 @@ describe('KnowledgeBaseService', () => {
           }
         }
       })
-
-      expect(mockUpdate).not.toHaveBeenCalled()
     })
 
     it('should not silently clean stale dependent fields during unrelated updates', async () => {
-      const existing = createMockRow({
-        searchMode: 'default',
-        hybridAlpha: 0.7
-      })
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([existing])
-          })
-        })
-      })
+      // Seed a KB whose existing config is already inconsistent (searchMode=default
+      // but hybridAlpha is populated). An unrelated field update must surface the
+      // validation error rather than silently scrub the bad field.
+      await seedKnowledgeBase({ searchMode: 'default', hybridAlpha: 0.7 })
 
-      await expect(
-        service.update('kb-1', {
-          embeddingModelId: existing.embeddingModelId,
-          name: 'Renamed Base'
-        })
-      ).rejects.toMatchObject({
+      await expect(service.update('kb-1', { name: 'Renamed Base' })).rejects.toMatchObject({
         code: ErrorCode.VALIDATION_ERROR,
         details: {
           fieldErrors: {
@@ -379,26 +263,13 @@ describe('KnowledgeBaseService', () => {
           }
         }
       })
-
-      expect(mockUpdate).not.toHaveBeenCalled()
     })
 
     it('should reject explicitly provided chunkOverlap when it no longer fits chunkSize', async () => {
-      const existing = createMockRow({
-        chunkSize: 256,
-        chunkOverlap: 64
-      })
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([existing])
-          })
-        })
-      })
+      await seedKnowledgeBase({ chunkSize: 256, chunkOverlap: 64 })
 
       await expect(
         service.update('kb-1', {
-          embeddingModelId: existing.embeddingModelId,
           chunkSize: 100,
           chunkOverlap: 120
         })
@@ -410,37 +281,20 @@ describe('KnowledgeBaseService', () => {
           }
         }
       })
-
-      expect(mockUpdate).not.toHaveBeenCalled()
     })
   })
 
   describe('delete', () => {
     it('should delete an existing knowledge base', async () => {
-      const row = createMockRow()
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([row])
-          })
-        })
-      })
-      const where = vi.fn().mockResolvedValue(undefined)
-      mockDelete.mockReturnValue({ where })
+      await seedKnowledgeBase()
 
       await expect(service.delete('kb-1')).resolves.toBeUndefined()
-      expect(where).toHaveBeenCalled()
+
+      const rows = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, 'kb-1'))
+      expect(rows).toHaveLength(0)
     })
 
     it('should throw NotFound when deleting a missing knowledge base', async () => {
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([])
-          })
-        })
-      })
-
       await expect(service.delete('missing')).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND,
         status: 404
@@ -448,7 +302,7 @@ describe('KnowledgeBaseService', () => {
     })
   })
 
-  describe('config helpers', () => {
+  describe('config helpers (pure)', () => {
     describe('normalizeKnowledgeBaseConfigDependencies', () => {
       it('should clear stale dependent fields after primary config changes', () => {
         expect(

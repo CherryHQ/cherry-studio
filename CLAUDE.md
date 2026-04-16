@@ -296,6 +296,7 @@ Several dependencies have patches in `patches/` — be careful when upgrading:
 - Coverage via v8 provider (`pnpm test:coverage`)
 - **Features without tests are not considered complete**
 - **Test Mocking**: Use the unified mock system — do NOT create ad-hoc mocks for `application`, services, or data layers. See [tests/__mocks__/README.md](tests/__mocks__/README.md) for available mocks, usage patterns, and best practices.
+- **Database Tests**: For any service/handler/seeder that reads or writes SQLite, use `setupTestDatabase()` from `@test-helpers/db` — it provides a real file-backed DB with production migrations. Do NOT hand-write `CREATE TABLE` SQL, override `@application`, or stub Drizzle chains. See [docs/references/testing/database-testing.md](docs/references/testing/database-testing.md).
 
 ## Important Notes
 
