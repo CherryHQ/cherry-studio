@@ -38,6 +38,8 @@ export type AgentsTableMigrationSpec = {
     | 'agents_channel_task_subscriptions'
     | 'agents_session_messages'
   columns: readonly AgentsColumnExpr[]
+  /** Optional WHERE clause appended to the SELECT to filter source rows */
+  whereClause?: string
 }
 
 export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] = [
@@ -58,6 +60,7 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       'allowed_tools',
       'configuration',
       { name: 'sort_order', expr: 'sort_order', fallbackExpr: '0' },
+      'deleted_at',
       {
         name: 'created_at',
         expr: "CAST(strftime('%s', created_at) AS INTEGER) * 1000",
@@ -99,7 +102,11 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
         expr: "CAST(strftime('%s', updated_at) AS INTEGER) * 1000",
         sourceColumn: 'updated_at'
       }
-    ]
+    ],
+    // Exclude sessions whose agent no longer exists — they would fail the
+    // post-migration PRAGMA foreign_key_check (agents_sessions.agent_id →
+    // agents_agents.id) and cause the entire migration to be marked failed.
+    whereClause: 'agent_id IN (SELECT id FROM agents_legacy.agents)'
   },
   {
     sourceTable: 'skills',
@@ -186,7 +193,10 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       'permission_mode',
       'created_at',
       'updated_at'
-    ]
+    ],
+    // Channels reference agents_agents and agents_sessions via FK; skip any
+    // channel whose agent was deleted and not present in the migrated set.
+    whereClause: 'agent_id IS NULL OR agent_id IN (SELECT id FROM agents_legacy.agents)'
   },
   {
     sourceTable: 'channel_task_subscriptions',
@@ -213,7 +223,10 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
         expr: "CAST(strftime('%s', updated_at) AS INTEGER) * 1000",
         sourceColumn: 'updated_at'
       }
-    ]
+    ],
+    // Only import messages whose session was successfully migrated; messages
+    // referencing a filtered-out session would fail the FK check.
+    whereClause: 'session_id IN (SELECT id FROM agents_sessions)'
   }
 ] as const
 
@@ -286,9 +299,10 @@ export function buildAgentsImportStatements(dbPath: string, schemaInfo: AgentsSc
       continue
     }
 
+    const whereClause = spec.whereClause ? ` WHERE ${spec.whereClause}` : ''
     statements.push(
       `INSERT INTO ${spec.targetTable} (${resolvedColumns.map((column) => column.insert).join(', ')}) ` +
-        `SELECT ${resolvedColumns.map((column) => column.select).join(', ')} FROM agents_legacy.${spec.sourceTable}`
+        `SELECT ${resolvedColumns.map((column) => column.select).join(', ')} FROM agents_legacy.${spec.sourceTable}${whereClause}`
     )
   }
 
