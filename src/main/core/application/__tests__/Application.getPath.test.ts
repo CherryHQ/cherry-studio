@@ -6,6 +6,11 @@ import fs from 'node:fs'
 import type * as PathRegistryModule from '@main/core/paths/pathRegistry'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('node:fs', async () => {
+  const { createNodeFsMock } = await import('@test-helpers/mocks/nodeFsMock')
+  return createNodeFsMock()
+})
+
 // Mock @main/core/paths/pathRegistry (the deep path used by Application.ts)
 // instead of the public @main/core/paths re-export. The public entry only
 // re-exports types — Application.ts imports the buildPathRegistry function

@@ -2,6 +2,11 @@ import fs from 'node:fs'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('node:fs', async () => {
+  const { createNodeFsMock } = await import('@test-helpers/mocks/nodeFsMock')
+  return createNodeFsMock()
+})
+
 const mockFs = vi.mocked(fs)
 
 const CONFIG_PATH = '/mock/home/.cherrystudio/config/config.json'

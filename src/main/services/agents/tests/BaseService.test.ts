@@ -5,6 +5,11 @@ import { describe, expect, it, vi } from 'vitest'
 
 import type { AgentModelField } from '../errors'
 
+vi.mock('node:fs', async () => {
+  const { createNodeFsMock } = await import('@test-helpers/mocks/nodeFsMock')
+  return createNodeFsMock()
+})
+
 const mockMcpApiService = {
   getServerInfo: vi.fn()
 }

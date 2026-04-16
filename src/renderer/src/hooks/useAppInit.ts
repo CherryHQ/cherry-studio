@@ -26,6 +26,7 @@ import { useTranslation } from 'react-i18next'
 import { useDefaultModel } from './useAssistant'
 import useFullScreenNotice from './useFullScreenNotice'
 import { useMinapps } from './useMinapps'
+import useNavBackgroundColor from './useNavBackgroundColor'
 import { useNavbarPosition } from './useNavbar'
 const logger = loggerService.withContext('useAppInit')
 
@@ -44,6 +45,7 @@ export function useAppInit() {
   const { setDefaultModel, setQuickModel, setTranslateModel } = useDefaultModel()
   const savedAvatar = useLiveQuery(() => db.settings.get('image://avatar'))
   const { theme } = useTheme()
+  const navBackgroundColor = useNavBackgroundColor()
 
   useEffect(() => {
     document.getElementById('spinner')?.remove()
@@ -111,12 +113,12 @@ export function useAppInit() {
     const isMacTransparentWindow = windowStyle === 'transparent' && isMac
 
     if (minappShow && isLeftNavbar) {
-      window.root.style.background = isMacTransparentWindow ? 'var(--color-background)' : 'var(--navbar-background)'
+      window.root.style.background = isMacTransparentWindow ? 'var(--color-background)' : navBackgroundColor
       return
     }
 
-    window.root.style.background = isMacTransparentWindow ? 'var(--navbar-background-mac)' : 'var(--navbar-background)'
-  }, [windowStyle, minappShow, theme, isLeftNavbar])
+    window.root.style.background = navBackgroundColor
+  }, [windowStyle, minappShow, theme, isLeftNavbar, navBackgroundColor])
 
   useEffect(() => {
     if (isLocalAi) {

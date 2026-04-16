@@ -5741,7 +5741,11 @@
     }
   },
   "tab": {
-    "new": "[to be translated]:New Tab"
+    "close": "[to be translated]:Close Tab",
+    "moveToFirst": "[to be translated]:Move to First",
+    "new": "[to be translated]:New Tab",
+    "pin": "[to be translated]:Pin Tab",
+    "unpin": "[to be translated]:Unpin Tab"
   },
   "title": {
     "apps": "Mini-Apps",
