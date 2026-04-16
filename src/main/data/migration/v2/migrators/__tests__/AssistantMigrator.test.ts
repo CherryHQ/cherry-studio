@@ -16,14 +16,20 @@ function createMockContext(reduxData: Record<string, unknown> = {}) {
     },
     db: {
       transaction: vi.fn(async (fn: (tx: any) => Promise<void>) => {
-        const valuesResult = { onConflictDoNothing: vi.fn().mockResolvedValue(undefined) }
-        // Make valuesResult also thenable so plain await works
-        Object.assign(valuesResult, {
-          then: (resolve: (v: unknown) => unknown) => Promise.resolve(undefined).then(resolve)
-        })
         const tx = {
           insert: vi.fn().mockReturnValue({
-            values: vi.fn().mockReturnValue(valuesResult)
+            values: vi.fn().mockImplementation(() => {
+              const returningResult = Promise.resolve([])
+              const onConflictResult = {
+                returning: vi.fn().mockResolvedValue([]),
+                then: (resolve: (v: unknown) => unknown) => returningResult.then(resolve)
+              }
+              return {
+                onConflictDoNothing: vi.fn().mockReturnValue(onConflictResult),
+                returning: vi.fn().mockResolvedValue([]),
+                then: (resolve: (v: unknown) => unknown) => Promise.resolve(undefined).then(resolve)
+              }
+            })
           }),
           select: vi.fn().mockReturnValue({
             from: vi.fn().mockReturnValue(
@@ -237,8 +243,12 @@ describe('AssistantMigrator', () => {
           insert: vi.fn().mockImplementation(() => ({
             values: vi.fn().mockImplementation((vals: unknown[]) => {
               allInsertedValues.push(vals)
+              const rows = Array.isArray(vals) ? vals : [vals]
               return {
-                onConflictDoNothing: vi.fn().mockResolvedValue(undefined),
+                onConflictDoNothing: vi.fn().mockReturnValue({
+                  returning: vi.fn().mockResolvedValue(rows.map((_: unknown, index) => ({ id: `inserted-${index}` }))),
+                  then: (r: (v: unknown) => unknown) => Promise.resolve(undefined).then(r)
+                }),
                 then: (r: (v: unknown) => unknown) => Promise.resolve(undefined).then(r)
               }
             })
@@ -294,9 +304,18 @@ describe('AssistantMigrator', () => {
           insert: vi.fn().mockImplementation((table) => ({
             values: vi.fn().mockImplementation((vals: unknown[]) => {
               allInsertedValues.push(vals)
+              const rows = Array.isArray(vals) ? vals : [vals]
               return {
-                onConflictDoNothing: vi.fn().mockImplementation(async () => {
+                onConflictDoNothing: vi.fn().mockImplementation(() => {
                   onConflictDoNothingCalls.push(table === entityTagTable ? 'entity_tag' : 'tag')
+                  return {
+                    returning: vi
+                      .fn()
+                      .mockResolvedValue(
+                        rows.map((_: unknown, index) => ({ id: `inserted-${index}`, tagId: `tag-${index}` }))
+                      ),
+                    then: (r: (v: unknown) => unknown) => Promise.resolve(undefined).then(r)
+                  }
                 }),
                 then: (r: (v: unknown) => unknown) => Promise.resolve(undefined).then(r)
               }

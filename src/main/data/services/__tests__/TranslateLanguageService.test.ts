@@ -39,6 +39,17 @@ describe('TranslateLanguageService', () => {
     it('should throw NotFound for non-existent langCode', async () => {
       await expect(translateLanguageService.getByLangCode('xx-xx')).rejects.toThrow()
     })
+
+    it('should surface timestamp anomalies instead of masking them', async () => {
+      await dbh.client.execute({
+        sql: `INSERT INTO translate_language (lang_code, value, emoji, created_at, updated_at) VALUES (?, ?, ?, NULL, NULL)`,
+        args: ['xx-xx', 'Broken', '🇯🇵']
+      })
+
+      await expect(translateLanguageService.getByLangCode('xx-xx')).rejects.toMatchObject({
+        code: ErrorCode.INTERNAL_SERVER_ERROR
+      })
+    })
   })
 
   describe('create', () => {

@@ -12,6 +12,7 @@
 
 import { application } from '@application'
 import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
+import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
@@ -128,31 +129,24 @@ export class TagService {
    * Create a new tag
    */
   async create(dto: CreateTagDto): Promise<Tag> {
-    try {
-      const [row] = await this.db
-        .insert(tagTable)
-        .values({
-          name: dto.name,
-          color: dto.color
-        })
-        .returning()
-
-      logger.info('Created tag', { id: row.id, name: row.name })
-
-      return rowToTag(row)
-    } catch (e: unknown) {
-      const translated = DataApiErrorFactory.translateSqliteError(e, {
-        entity: 'Tag',
-        uniqueConstraintMessages: {
-          name: `Tag with name '${dto.name}' already exists`
-        },
-        genericConflictMessage: 'Tag conflicts with existing data'
-      })
-      if (translated) {
-        throw translated
+    const [row] = await withSqliteErrors(
+      () =>
+        this.db
+          .insert(tagTable)
+          .values({
+            name: dto.name,
+            color: dto.color
+          })
+          .returning(),
+      {
+        ...defaultHandlersFor('Tag', dto.name),
+        unique: () => DataApiErrorFactory.conflict(`Tag with name '${dto.name}' already exists`, 'Tag')
       }
-      throw e
-    }
+    )
+
+    logger.info('Created tag', { id: row.id, name: row.name })
+
+    return rowToTag(row)
   }
 
   /**
@@ -167,32 +161,27 @@ export class TagService {
       return this.getById(id)
     }
 
-    try {
-      const [row] = await this.db.update(tagTable).set(updates).where(eq(tagTable.id, id)).returning()
-
-      if (!row) {
-        throw DataApiErrorFactory.notFound('Tag', id)
+    const [row] = await withSqliteErrors(
+      () => this.db.update(tagTable).set(updates).where(eq(tagTable.id, id)).returning(),
+      {
+        ...defaultHandlersFor('Tag', dto.name ?? id),
+        unique: () =>
+          DataApiErrorFactory.conflict(
+            dto.name !== undefined
+              ? `Tag with name '${dto.name}' already exists`
+              : 'Tag update conflicts with an existing tag',
+            'Tag'
+          )
       }
+    )
 
-      logger.info('Updated tag', { id, changes: Object.keys(dto) })
-
-      return rowToTag(row)
-    } catch (e: unknown) {
-      const translated = DataApiErrorFactory.translateSqliteError(e, {
-        entity: 'Tag',
-        uniqueConstraintMessages:
-          dto.name !== undefined
-            ? {
-                name: `Tag with name '${dto.name}' already exists`
-              }
-            : undefined,
-        genericConflictMessage: 'Tag update conflicts with an existing tag'
-      })
-      if (translated) {
-        throw translated
-      }
-      throw e
+    if (!row) {
+      throw DataApiErrorFactory.notFound('Tag', id)
     }
+
+    logger.info('Updated tag', { id, changes: Object.keys(dto) })
+
+    return rowToTag(row)
   }
 
   /**

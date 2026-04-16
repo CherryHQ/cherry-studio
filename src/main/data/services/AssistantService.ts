@@ -32,10 +32,29 @@ function createEmptyRelations(): AssistantRelationIds {
   }
 }
 
+function ensureAssistantTimestamp(
+  timestamp: number | null | undefined,
+  field: 'createdAt' | 'updatedAt',
+  assistantId: string
+): number {
+  if (timestamp == null) {
+    logger.warn('Assistant row has null timestamp', { id: assistantId, field })
+    throw DataApiErrorFactory.internal(
+      new Error(`Assistant row '${assistantId}' is missing ${field}`),
+      'AssistantService.rowToAssistant'
+    )
+  }
+
+  return timestamp
+}
+
 /**
  * Convert database row to Assistant entity
  */
 function rowToAssistant(row: AssistantRow, relations: AssistantRelationIds = createEmptyRelations()): Assistant {
+  const createdAt = ensureAssistantTimestamp(row.createdAt, 'createdAt', row.id)
+  const updatedAt = ensureAssistantTimestamp(row.updatedAt, 'updatedAt', row.id)
+
   return {
     id: row.id,
     name: row.name,
@@ -46,8 +65,8 @@ function rowToAssistant(row: AssistantRow, relations: AssistantRelationIds = cre
     modelId: (row.modelId ?? null) as UniqueModelId | null,
     mcpServerIds: relations.mcpServerIds,
     knowledgeBaseIds: relations.knowledgeBaseIds,
-    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
-    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : new Date().toISOString()
+    createdAt: new Date(createdAt).toISOString(),
+    updatedAt: new Date(updatedAt).toISOString()
   }
 }
 
@@ -244,6 +263,8 @@ export class AssistantDataService {
    * Soft-delete an assistant (sets deletedAt timestamp).
    * The row is preserved so topic.assistantId FK remains valid
    * and junction table data (mcpServers, knowledgeBases) is retained.
+   * Tag bindings are intentionally removed during delete, so restoring a
+   * soft-deleted assistant does not restore its previous tags.
    */
   async delete(id: string): Promise<void> {
     await this.getActiveRowById(id)
