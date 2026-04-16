@@ -269,8 +269,14 @@
   /* ==================== */
   /* Semantic Colors */
   /* ==================== */
-  --color-primary: oklch(0.77 0.208 146);
+  --cs-theme-primary: oklch(0.77 0.208 146);
+  --cs-user-font-family: initial;
+  --cs-user-code-font-family: initial;
+  --color-primary: var(--cs-theme-primary);
   --color-primary-hover: oklch(0.85 0.13 149);
+  --primary: var(--color-primary);
+  --color-primary-soft: color-mix(in srgb, var(--color-primary) 60%, transparent);
+  --color-primary-mute: color-mix(in srgb, var(--color-primary) 30%, transparent);
   --color-destructive: oklch(0.64 0.208 25);
   --color-destructive-hover: oklch(0.71 0.166 22);
   --color-background: oklch(0.98 0 0);
