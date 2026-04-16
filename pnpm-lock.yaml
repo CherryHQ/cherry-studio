@@ -374,7 +374,7 @@ importers:
         version: 0.1.3
       '@langchain/community':
         specifier: ^1.0.0
-        version: 1.1.1(3bba964449060bd176fc73da062d305c)
+        version: 1.1.1(c40fe12ad92000b94481e1dc04eb96c7)
       '@langchain/core':
         specifier: 1.0.2
         version: 1.0.2(patch_hash=8dc787a82cebafe8b23c8826f25f29aca64fc8b43a0a1878e0010782e4da96ed)(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-base@2.2.0(@opentelemetry/api@1.9.0))(openai@6.15.0(ws@8.20.0)(zod@4.3.4))
@@ -898,8 +898,8 @@ importers:
         specifier: ^8.1.0
         version: 8.2.0
       lodash:
-        specifier: ^4.17.21
-        version: 4.17.21
+        specifier: ^4.18.1
+        version: 4.18.1
       lru-cache:
         specifier: ^11.1.0
         version: 11.2.4
@@ -9259,12 +9259,6 @@ packages:
   lodash@3.10.1:
     resolution: {integrity: sha512-9mDDwqVIma6OZX79ZlDACZl8sBm0TEnkf99zV3iMA4GzkIT/9hiqP5mY0HoT1iNLCrKc/R1HByV+yJfRWVJryQ==}
 
-  lodash@4.17.21:
-    resolution: {integrity: sha512-v2kDEe57lecTulaDIuNTPy3Ry4gLGJ6Z1O3vE1krgXZNrsQ+LFTGHVxVjcXPs17LhbZVGedAJv8XZ1tvj5FvSg==}
-
-  lodash@4.17.23:
-    resolution: {integrity: sha512-LgVTMpQtIopCi79SJeDiP0TfWi5CNEc/L/aRdTh3yIvmZXTnheWpKjSZhnvMl8iXbC1tFg9gdHHDMLoV7CnG+w==}
-
   lodash@4.18.1:
     resolution: {integrity: sha512-dMInicTPVE8d1e5otfwmmjlxkZoUpiVLwyeTdUsi/Caj/gfzzblBcCE5sRHV/AsjuCmxWrte2TNGSYuCeCq+0Q==}
 
@@ -15248,7 +15242,7 @@ snapshots:
       - openai
       - ws
 
-  '@langchain/community@1.1.1(3bba964449060bd176fc73da062d305c)':
+  '@langchain/community@1.1.1(c40fe12ad92000b94481e1dc04eb96c7)':
     dependencies:
       '@browserbasehq/stagehand': 1.14.0(@playwright/test@1.57.0)(deepmerge@4.3.1)(dotenv@16.6.1)(encoding@0.1.13)(openai@6.15.0(ws@8.20.0)(zod@4.3.4))(zod@4.3.4)
       '@ibm-cloud/watsonx-ai': 1.7.5
@@ -15279,7 +15273,7 @@ snapshots:
       ignore: 5.3.2
       jsdom: 26.1.0
       jsonwebtoken: 9.0.3
-      lodash: 4.17.21
+      lodash: 4.18.1
       officeparser: 4.2.0
       pdf-parse: 2.4.5
       playwright: 1.57.0
@@ -15543,7 +15537,7 @@ snapshots:
     dependencies:
       debug: 4.4.3
       fs-extra: 9.1.0
-      lodash: 4.17.23
+      lodash: 4.18.1
       tmp-promise: 3.0.3
     transitivePeerDependencies:
       - supports-color
@@ -18736,7 +18730,7 @@ snapshots:
       graceful-fs: 4.2.11
       is-stream: 2.0.1
       lazystream: 1.0.1
-      lodash: 4.17.21
+      lodash: 4.18.1
       normalize-path: 3.0.0
       readable-stream: 4.7.0
 
@@ -20074,7 +20068,7 @@ snapshots:
     dependencies:
       core-js: 2.6.12
       kaiser: 0.0.4
-      lodash: 4.17.23
+      lodash: 4.18.1
       regenerator-runtime: 0.9.6
 
   eastasianwidth@0.2.0: {}
@@ -20635,7 +20629,7 @@ snapshots:
 
   express-validator@7.3.1:
     dependencies:
-      lodash: 4.17.21
+      lodash: 4.18.1
       validator: 13.15.26
 
   express@5.1.0:
@@ -22259,10 +22253,6 @@ snapshots:
   lodash.startcase@4.4.0: {}
 
   lodash@3.10.1: {}
-
-  lodash@4.17.21: {}
-
-  lodash@4.17.23: {}
 
   lodash@4.18.1: {}
 
@@ -24760,7 +24750,7 @@ snapshots:
   request-promise@3.0.0:
     dependencies:
       bluebird: 3.4.7
-      lodash: 4.17.23
+      lodash: 4.18.1
       request: 2.88.2
 
   request@2.88.2:
