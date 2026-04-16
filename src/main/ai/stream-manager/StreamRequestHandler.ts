@@ -7,12 +7,14 @@
  */
 
 import { assistantDataService } from '@data/services/AssistantService'
+import { modelService } from '@data/services/ModelService'
 import { topicService } from '@data/services/TopicService'
 import { messageService } from '@main/data/services/MessageService'
 import { agentService, sessionService } from '@main/services/agents'
 import { agentMessageRepository } from '@main/services/agents/database/sessionMessageRepository'
 import type { AiStreamOpenRequest, AiStreamOpenResponse } from '@shared/ai/transport'
 import type { Message } from '@shared/data/types/message'
+import type { Model } from '@shared/data/types/model'
 import { createUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
 import { extractAgentSessionId, isAgentSessionTopic } from '../provider/claudeCodeSettingsBuilder'
@@ -61,42 +63,72 @@ export class StreamRequestHandler {
           role: 'user',
           parentId: req.parentAnchorId,
           data: { parts: req.userMessageParts },
+          status: 'success',
           modelId,
           modelSnapshot
         })
 
     // 3. Models (single or multi)
-    const models = this.resolveModels(req.mentionedModelIds, modelId, providerId)
+    const models = await this.resolveModels(req.mentionedModelIds, modelId)
     const isMultiModel = models.length > 1
 
     // 4. Siblings group
     const siblingsGroupId = await this.resolveSiblingsGroupId(models, isRegenerate, userMessage.id)
 
-    // 5. Build listeners: 1 subscriber + N persistence listeners
+    // 5. Create one assistant placeholder per execution before streaming starts.
+    const assistantPlaceholders = await Promise.all(
+      models.map(async (model) => {
+        const placeholder = await messageService.create(req.topicId, {
+          role: 'assistant',
+          parentId: userMessage.id,
+          data: { parts: [] },
+          status: 'pending',
+          modelId: model.id,
+          modelSnapshot: {
+            id: model.apiModelId ?? parseUniqueModelId(model.id).modelId,
+            name: model.name,
+            provider: model.providerId
+          },
+          siblingsGroupId
+        })
+
+        return { model, placeholder }
+      })
+    )
+
+    // 6. Build listeners: 1 subscriber + N persistence listeners
     const listeners: StreamListener[] = [subscriber]
-    for (const model of models) {
+    for (const { model, placeholder } of assistantPlaceholders) {
       listeners.push(
         new PersistenceListener({
           topicId: req.topicId,
+          assistantMessageId: placeholder.id,
           parentUserMessageId: userMessage.id,
-          modelId: model.uniqueModelId,
-          modelSnapshot: { id: model.rawModelId, name: model.rawModelId, provider: model.providerId },
+          modelId: model.id,
+          modelSnapshot: {
+            id: model.apiModelId ?? parseUniqueModelId(model.id).modelId,
+            name: model.name,
+            provider: model.providerId
+          },
           siblingsGroupId
         })
       )
     }
 
-    // 6. Build requests in parallel + dispatch
+    // 7. Build requests in parallel + dispatch
     const requests = await Promise.all(
-      models.map(async (model) => ({
+      assistantPlaceholders.map(async ({ model, placeholder }) => ({
         model,
-        request: await manager.buildAiStreamRequest(req.topicId, assistantId, model.uniqueModelId, userMessage.id)
+        request: {
+          ...(await manager.buildAiStreamRequest(req.topicId, assistantId, model.id, userMessage.id)),
+          messageId: placeholder.id
+        }
       }))
     )
 
     manager.startExecution({
       topicId: req.topicId,
-      modelId: requests[0].model.uniqueModelId,
+      modelId: requests[0].model.id,
       request: requests[0].request,
       listeners,
       siblingsGroupId,
@@ -106,7 +138,7 @@ export class StreamRequestHandler {
     for (let i = 1; i < requests.length; i++) {
       manager.startExecution({
         topicId: req.topicId,
-        modelId: requests[i].model.uniqueModelId,
+        modelId: requests[i].model.id,
         request: requests[i].request,
         listeners: [],
         siblingsGroupId,
@@ -116,7 +148,7 @@ export class StreamRequestHandler {
 
     return {
       mode: 'started',
-      executionIds: isMultiModel ? models.map((m) => m.uniqueModelId) : undefined
+      executionIds: isMultiModel ? models.map((m) => m.id) : undefined
     }
   }
 
@@ -188,26 +220,25 @@ export class StreamRequestHandler {
   }
 
   // ── Helpers ──────────────────────────────────────────────────────
-
-  private resolveModels(
+  private async resolveModels(
     mentionedModelIds: UniqueModelId[] | undefined,
-    defaultModelId: UniqueModelId,
-    defaultProviderId: string
-  ) {
+    defaultModelId: UniqueModelId
+  ): Promise<Model[]> {
     if (mentionedModelIds?.length) {
-      return mentionedModelIds.map((id) => {
-        const sep = id.indexOf('::')
-        const pId = sep > 0 ? id.slice(0, sep) : defaultProviderId
-        const mId = sep > 0 ? id.slice(sep + 2) : id
-        return { uniqueModelId: createUniqueModelId(pId, mId), rawModelId: mId, providerId: pId }
-      })
+      return Promise.all(
+        mentionedModelIds.map(async (uniqueModelId) => {
+          const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+          return modelService.getByKey(providerId, modelId)
+        })
+      )
     }
-    const { providerId, modelId: rawModelId } = parseUniqueModelId(defaultModelId)
-    return [{ uniqueModelId: defaultModelId, rawModelId, providerId }]
+
+    const { providerId, modelId } = parseUniqueModelId(defaultModelId)
+    return [await modelService.getByKey(providerId, modelId)]
   }
 
   private async resolveSiblingsGroupId(
-    models: Array<{ uniqueModelId: UniqueModelId }>,
+    models: Model[],
     isRegenerate: boolean,
     userMessageId: string
   ): Promise<number | undefined> {

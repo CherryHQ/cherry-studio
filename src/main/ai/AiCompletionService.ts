@@ -165,6 +165,7 @@ export class AiCompletionService {
         providerId: sdkConfig.providerId,
         providerSettings: sdkConfig.providerSettings,
         modelId: sdkConfig.modelId,
+        messageId: request.messageId,
         plugins,
         tools,
         system,

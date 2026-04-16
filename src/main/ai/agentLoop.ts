@@ -140,6 +140,8 @@ export interface AgentLoopParams<T extends AppProviderKey = AppProviderKey> {
   providerId: T
   providerSettings: AppProviderSettingsMap[T]
   modelId: string
+  /** Optional stable id for the first assistant UIMessage emitted by this execution. */
+  messageId?: string
   plugins?: AiPlugin[]
   tools?: ToolSet
   system?: string
@@ -192,6 +194,7 @@ export function runAgentLoop<T extends AppProviderKey>(
     let totalSteps = 0
     let totalUsage = ZERO_USAGE
     let lastFinishReason = 'unknown'
+    let hasUsedProvidedMessageId = false
 
     while (!signal.aborted) {
       iterationNumber++
@@ -250,7 +253,15 @@ export function runAgentLoop<T extends AppProviderKey>(
       })
 
       // Stream → writer (transport channel)
-      const uiStream = result.toUIMessageStream({ generateMessageId: () => crypto.randomUUID() })
+      const uiStream = result.toUIMessageStream({
+        generateMessageId: () => {
+          if (!hasUsedProvidedMessageId && params.messageId) {
+            hasUsedProvidedMessageId = true
+            return params.messageId
+          }
+          return crypto.randomUUID()
+        }
+      })
       const reader = uiStream.getReader()
       try {
         while (true) {

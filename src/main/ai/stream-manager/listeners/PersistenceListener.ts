@@ -10,6 +10,8 @@ const logger = loggerService.withContext('PersistenceListener')
 
 export interface PersistenceListenerOptions {
   topicId: string
+  /** Placeholder assistant message id created before the stream starts. */
+  assistantMessageId: string
   /** Real SQLite id of the user message created by handleStreamRequest. */
   parentUserMessageId: string
   /** Model identifier (UniqueModelId). */
@@ -51,37 +53,39 @@ export class PersistenceListener implements StreamListener {
 
     const { finalMessage, status } = result
 
-    if (!finalMessage) {
-      logger.warn('onDone without finalMessage, skipping persistence', {
-        topicId: this.ctx.topicId,
-        status
-      })
-      return
-    }
-
     try {
-      await messageService.create(this.ctx.topicId, {
-        role: 'assistant',
-        parentId: this.ctx.parentUserMessageId,
-        modelId: this.ctx.modelId,
-        modelSnapshot: this.ctx.modelSnapshot,
-        traceId: this.ctx.traceId,
-        siblingsGroupId: this.ctx.siblingsGroupId,
-        data: { parts: finalMessage.parts },
+      await messageService.update(this.ctx.assistantMessageId, {
+        ...(finalMessage ? { data: { parts: finalMessage.parts } } : {}),
         status,
         stats:
           this.ctx.stats ??
-          (finalMessage.metadata?.totalTokens ? { totalTokens: finalMessage.metadata.totalTokens } : undefined)
+          (finalMessage?.metadata?.totalTokens ? { totalTokens: finalMessage.metadata.totalTokens } : undefined)
       })
 
-      logger.info('Assistant message persisted', { topicId: this.ctx.topicId, status })
+      if (!finalMessage) {
+        logger.warn('onDone without finalMessage, updated placeholder status only', {
+          topicId: this.ctx.topicId,
+          assistantMessageId: this.ctx.assistantMessageId,
+          status
+        })
+      }
+
+      logger.info('Assistant placeholder finalized', {
+        topicId: this.ctx.topicId,
+        assistantMessageId: this.ctx.assistantMessageId,
+        status
+      })
     } catch (err) {
-      logger.error('Failed to persist assistant message', { topicId: this.ctx.topicId, err })
+      logger.error('Failed to finalize assistant placeholder', {
+        topicId: this.ctx.topicId,
+        assistantMessageId: this.ctx.assistantMessageId,
+        err
+      })
       return
     }
 
     // Post-persist hook: only on success, best-effort
-    if (status === 'success' && this.ctx.afterPersist) {
+    if (status === 'success' && finalMessage && this.ctx.afterPersist) {
       try {
         await this.ctx.afterPersist(finalMessage)
       } catch (err) {
@@ -99,19 +103,22 @@ export class PersistenceListener implements StreamListener {
       const errorPart = { type: 'data-error' as const, data: { name: error.name, message: error.message } }
       const parts = [...(partialParts ?? []), errorPart]
 
-      await messageService.create(this.ctx.topicId, {
-        role: 'assistant',
-        parentId: this.ctx.parentUserMessageId,
-        modelId: this.ctx.modelId,
-        modelSnapshot: this.ctx.modelSnapshot,
-        traceId: this.ctx.traceId,
-        siblingsGroupId: this.ctx.siblingsGroupId,
+      await messageService.update(this.ctx.assistantMessageId, {
         data: { parts },
-        status: 'error'
+        status: 'error',
+        stats: this.ctx.stats
       })
-      logger.info('Error message persisted', { topicId: this.ctx.topicId, hasPartial: !!partialMessage })
+      logger.info('Assistant placeholder marked errored', {
+        topicId: this.ctx.topicId,
+        assistantMessageId: this.ctx.assistantMessageId,
+        hasPartial: !!partialMessage
+      })
     } catch (err) {
-      logger.error('Failed to persist error message', { topicId: this.ctx.topicId, err })
+      logger.error('Failed to persist assistant placeholder error', {
+        topicId: this.ctx.topicId,
+        assistantMessageId: this.ctx.assistantMessageId,
+        err
+      })
     }
   }
 
