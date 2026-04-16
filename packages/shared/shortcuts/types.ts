@@ -20,28 +20,6 @@ export type ShortcutDependencyPreferenceKey = Extract<PreferenceKeyType, `featur
 
 export type ShortcutKey = ShortcutPreferenceKey extends `shortcut.${infer Rest}` ? Rest : never
 
-export type ShortcutLabelKey =
-  | 'show_app'
-  | 'show_settings'
-  | 'toggle_sidebar'
-  | 'exit_fullscreen'
-  | 'zoom_in'
-  | 'zoom_out'
-  | 'zoom_reset'
-  | 'search_message'
-  | 'clear_topic'
-  | 'search_message_in_chat'
-  | 'toggle_new_context'
-  | 'copy_last_message'
-  | 'edit_last_user_message'
-  | 'select_model'
-  | 'new_topic'
-  | 'rename_topic'
-  | 'toggle_show_topics'
-  | 'mini_window'
-  | 'selection_assistant_toggle'
-  | 'selection_assistant_select_text'
-
 /** Static metadata for a single shortcut — the single source of truth for the shortcut system. */
 export interface ShortcutDefinition {
   /** Preference key in `shortcut.{category}.{name}` format for built-in shortcuts. Plugins use `shortcut.plugin.{pluginId}.{name}`. */
@@ -51,7 +29,7 @@ export interface ShortcutDefinition {
   /** Dot-separated category for UI grouping (e.g. `general`, `chat`, `topic`, `plugin.translator`). */
   category: ShortcutCategory
   /** i18n label key used by `getShortcutLabel()` for display. */
-  labelKey: ShortcutLabelKey
+  labelKey: string
   /** Whether users can modify the binding in settings. Defaults to `true`. */
   editable?: boolean
   /** Global shortcut — stays registered when the window loses focus. Aligns with Electron `globalShortcut`. */
