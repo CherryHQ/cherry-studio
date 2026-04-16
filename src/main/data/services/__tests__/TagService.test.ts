@@ -1,714 +1,340 @@
 import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
-import type { DbType } from '@data/db/types'
-import { createClient } from '@libsql/client'
+import { TagService, tagService } from '@data/services/TagService'
 import { DataApiError, ErrorCode } from '@shared/data/api'
-import { sql } from 'drizzle-orm'
-import { drizzle } from 'drizzle-orm/libsql'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { describe, expect, it } from 'vitest'
 
-import { TagService, tagService } from '../TagService'
-
-// ============================================================================
-// DB Mock Helpers
-// ============================================================================
-
-function createMockTagRow(overrides: Record<string, unknown> = {}) {
-  return {
-    id: 'tag-1',
-    name: 'work',
-    color: '#ff0000',
-    createdAt: 1700000000000,
-    updatedAt: 1700000000000,
-    ...overrides
-  }
-}
-
-/**
- * Creates a chainable mock that resolves to the given value when awaited.
- */
-function mockChain(resolvedValue: unknown) {
-  const thenable = {
-    then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) => {
-      return Promise.resolve(resolvedValue).then(resolve, reject)
-    }
-  }
-
-  const chain: any = new Proxy(thenable, {
-    get(target, prop) {
-      if (prop === 'then') return target.then
-      if (prop === 'catch' || prop === 'finally') {
-        return (...args: unknown[]) => Promise.resolve(resolvedValue)[prop as 'catch'](...(args as [any]))
-      }
-      return () => chain
-    }
-  })
-
-  return chain
-}
-
-/**
- * Creates a chainable mock that rejects with the given error when awaited.
- */
-function mockChainReject(error: Error) {
-  const thenable = {
-    then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) => {
-      return Promise.reject(error).then(resolve, reject)
-    }
-  }
-
-  const chain: any = new Proxy(thenable, {
-    get(target, prop) {
-      if (prop === 'then') return target.then
-      if (prop === 'catch' || prop === 'finally') {
-        return (...args: unknown[]) => Promise.reject(error)[prop as 'catch'](...(args as [any]))
-      }
-      return () => chain
-    }
-  })
-
-  return chain
-}
-
-/**
- * Creates a transaction mock that tracks data passed to .values() and .where().
- *
- * Usage:
- *   const tx = createTrackingTx([...existingRows])
- *   // after test:
- *   tx.insertedValues  — array of values() arguments
- *   tx.deleteCalls     — number of delete().where() invocations
- */
-function createTrackingTx(existingRows: Record<string, unknown>[] = []) {
-  const insertedValues: unknown[] = []
-  let deleteCalls = 0
-
-  const select = vi.fn(() => ({
-    from: () => ({
-      where: () => mockChain(existingRows)
-    })
-  }))
-
-  const insert = vi.fn(() => ({
-    values: (vals: unknown) => {
-      insertedValues.push(vals)
-      return mockChain(undefined)
-    }
-  }))
-
-  const del = vi.fn(() => ({
-    where: () => {
-      deleteCalls++
-      return mockChain(undefined)
-    }
-  }))
-
-  return {
-    select,
-    insert,
-    delete: del,
-    get insertedValues() {
-      return insertedValues
-    },
-    get deleteCalls() {
-      return deleteCalls
-    }
-  }
-}
-
-let mockDb: any
-let realDb: DbType | null = null
-let closeClient: (() => void) | undefined
-
-async function setupEntityTagDb() {
-  const client = createClient({ url: 'file::memory:' })
-  closeClient = () => client.close()
-  realDb = drizzle({ client, casing: 'snake_case' })
-  const db = realDb
-
-  await db.run(sql`PRAGMA foreign_keys = ON`)
-
-  await db.run(
-    sql.raw(`
-      CREATE TABLE tag (
-        id TEXT PRIMARY KEY NOT NULL,
-        name TEXT NOT NULL,
-        color TEXT,
-        created_at INTEGER,
-        updated_at INTEGER
-      )
-    `)
-  )
-
-  await db.run(
-    sql.raw(`
-      CREATE TABLE entity_tag (
-        entity_type TEXT NOT NULL,
-        entity_id TEXT NOT NULL,
-        tag_id TEXT NOT NULL REFERENCES tag(id) ON DELETE CASCADE,
-        created_at INTEGER,
-        updated_at INTEGER,
-        PRIMARY KEY (entity_type, entity_id, tag_id)
-      )
-    `)
-  )
-
-  return db
-}
-
-vi.mock('@application', async () => {
-  const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({
-    DbService: { getDb: () => mockDb }
-  })
-})
-
-// ============================================================================
-// Tests
-// ============================================================================
+const TAG_1 = '11111111-1111-4111-8111-111111111111'
+const TAG_2 = '22222222-2222-4222-8222-222222222222'
+const TAG_3 = '33333333-3333-4333-8333-333333333333'
+const ASSISTANT_1 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'
+const ASSISTANT_2 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2'
+const TOPIC_1 = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1'
 
 describe('TagService', () => {
-  beforeEach(() => {
-    mockDb = {
-      select: vi.fn(),
-      insert: vi.fn(),
-      update: vi.fn(),
-      delete: vi.fn(),
-      transaction: vi.fn()
-    }
-  })
+  const dbh = setupTestDatabase()
 
-  afterEach(() => {
-    closeClient?.()
-    closeClient = undefined
-    realDb = null
-  })
+  async function seedTags() {
+    await dbh.db.insert(tagTable).values([
+      { id: TAG_1, name: 'work', color: '#ff0000', createdAt: 1, updatedAt: 1 },
+      { id: TAG_2, name: 'personal', color: null, createdAt: 2, updatedAt: 2 },
+      { id: TAG_3, name: 'coding', color: '#00ff00', createdAt: 3, updatedAt: 3 }
+    ])
+  }
 
   it('should export a module-level singleton', () => {
     expect(tagService).toBeInstanceOf(TagService)
   })
 
-  // --------------------------------------------------------------------------
-  // rowToTag (tested indirectly via getById)
-  // --------------------------------------------------------------------------
-  describe('rowToTag mapping', () => {
-    it('should convert numeric timestamps to ISO strings', async () => {
-      mockDb.select.mockReturnValue(
-        mockChain([createMockTagRow({ createdAt: 1700000000000, updatedAt: 1700000000000 })])
-      )
+  describe('list', () => {
+    it('should return all tags ordered by name', async () => {
+      await seedTags()
 
-      const result = await tagService.getById('tag-1')
-      expect(result.createdAt).toBe(new Date(1700000000000).toISOString())
-      expect(result.updatedAt).toBe(new Date(1700000000000).toISOString())
+      const result = await tagService.list()
+
+      expect(result.map((tag) => tag.name)).toEqual(['coding', 'personal', 'work'])
+      expect(result[0]).toMatchObject({ id: TAG_3, color: '#00ff00' })
+      expect(result[1].color).toBeNull()
     })
 
-    it('should normalize null color to null', async () => {
-      mockDb.select.mockReturnValue(mockChain([createMockTagRow({ color: null })]))
+    it('should return an empty array when no tags exist', async () => {
+      await expect(tagService.list()).resolves.toEqual([])
+    })
+  })
 
-      const result = await tagService.getById('tag-1')
-      expect(result.color).toBeNull()
+  describe('getById', () => {
+    it('should return a fully mapped tag when found', async () => {
+      await seedTags()
+
+      const result = await tagService.getById(TAG_1)
+
+      expect(result).toMatchObject({
+        id: TAG_1,
+        name: 'work',
+        color: '#ff0000',
+        createdAt: new Date(1).toISOString(),
+        updatedAt: new Date(1).toISOString()
+      })
     })
 
-    it('should normalize undefined color to null', async () => {
-      mockDb.select.mockReturnValue(mockChain([createMockTagRow({ color: undefined })]))
-
-      const result = await tagService.getById('tag-1')
-      expect(result.color).toBeNull()
-    })
-
-    it('should preserve zero timestamps instead of treating them as missing', async () => {
-      mockDb.select.mockReturnValue(mockChain([createMockTagRow({ createdAt: 0, updatedAt: 0 })]))
-
-      const result = await tagService.getById('tag-1')
-      expect(result.createdAt).toBe(new Date(0).toISOString())
-      expect(result.updatedAt).toBe(new Date(0).toISOString())
+    it('should throw NOT_FOUND when tag does not exist', async () => {
+      await expect(tagService.getById(TAG_1)).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
     })
 
     it('should surface timestamp anomalies instead of masking them', async () => {
-      mockDb.select.mockReturnValue(mockChain([createMockTagRow({ createdAt: null, updatedAt: null })]))
+      await dbh.client.execute({
+        sql: `INSERT INTO tag (id, name, color, created_at, updated_at) VALUES (?, ?, ?, NULL, NULL)`,
+        args: [TAG_1, 'broken', '#ff0000']
+      })
 
-      await expect(tagService.getById('tag-1')).rejects.toMatchObject({
+      await expect(tagService.getById(TAG_1)).rejects.toMatchObject({
         code: ErrorCode.INTERNAL_SERVER_ERROR
       })
     })
   })
 
-  // --------------------------------------------------------------------------
-  // getById
-  // --------------------------------------------------------------------------
-  describe('getById', () => {
-    it('should return a fully mapped tag when found', async () => {
-      mockDb.select.mockReturnValue(mockChain([createMockTagRow()]))
-
-      const result = await tagService.getById('tag-1')
-      expect(result).toMatchObject({
-        id: 'tag-1',
-        name: 'work',
-        color: '#ff0000'
-      })
-      expect(typeof result.createdAt).toBe('string')
-      expect(typeof result.updatedAt).toBe('string')
-    })
-
-    it('should throw NOT_FOUND when tag does not exist', async () => {
-      mockDb.select.mockReturnValue(mockChain([]))
-
-      await expect(tagService.getById('non-existent')).rejects.toThrow(DataApiError)
-      await expect(tagService.getById('non-existent')).rejects.toMatchObject({
-        code: ErrorCode.NOT_FOUND
-      })
-    })
-  })
-
-  // --------------------------------------------------------------------------
-  // list
-  // --------------------------------------------------------------------------
-  describe('list', () => {
-    it('should return all tags mapped through rowToTag', async () => {
-      const rows = [createMockTagRow(), createMockTagRow({ id: 'tag-2', name: 'personal', color: null })]
-      mockDb.select.mockReturnValue(mockChain(rows))
-
-      const result = await tagService.list()
-      expect(result).toHaveLength(2)
-      expect(result[0]).toMatchObject({ id: 'tag-1', name: 'work', color: '#ff0000' })
-      expect(result[1]).toMatchObject({ id: 'tag-2', name: 'personal', color: null })
-    })
-
-    it('should return empty array when no tags exist', async () => {
-      mockDb.select.mockReturnValue(mockChain([]))
-
-      const result = await tagService.list()
-      expect(result).toEqual([])
-    })
-  })
-
-  // --------------------------------------------------------------------------
-  // create
-  // --------------------------------------------------------------------------
   describe('create', () => {
-    it('should call db.insert and return mapped tag', async () => {
-      const row = createMockTagRow()
-      mockDb.insert.mockReturnValue(mockChain([row]))
-
+    it('should create and persist a tag', async () => {
       const result = await tagService.create({ name: 'work', color: '#ff0000' })
-      expect(mockDb.insert).toHaveBeenCalledOnce()
-      expect(result).toMatchObject({ id: 'tag-1', name: 'work', color: '#ff0000' })
+
+      expect(result.name).toBe('work')
+      const [row] = await dbh.db.select().from(tagTable).where(eq(tagTable.id, result.id))
+      expect(row).toMatchObject({ name: 'work', color: '#ff0000' })
     })
 
     it('should throw CONFLICT when name already exists', async () => {
-      mockDb.insert.mockReturnValue(mockChainReject(new Error('UNIQUE constraint failed: tag.name')))
+      await seedTags()
 
       await expect(tagService.create({ name: 'work' })).rejects.toThrow(DataApiError)
       await expect(tagService.create({ name: 'work' })).rejects.toMatchObject({
-        code: ErrorCode.CONFLICT
+        code: ErrorCode.CONFLICT,
+        message: "Tag with name 'work' already exists"
       })
-    })
-
-    it('should re-throw non-unique DB errors as-is', async () => {
-      mockDb.insert.mockReturnValue(mockChainReject(new Error('connection lost')))
-
-      await expect(tagService.create({ name: 'work' })).rejects.toThrow('connection lost')
     })
   })
 
-  // --------------------------------------------------------------------------
-  // update
-  // --------------------------------------------------------------------------
   describe('update', () => {
-    it('should call db.update and return mapped tag', async () => {
-      const updated = createMockTagRow({ name: 'updated', color: '#00ff00' })
-      mockDb.update.mockReturnValue(mockChain([updated]))
+    it('should update and return a tag', async () => {
+      await seedTags()
 
-      const result = await tagService.update('tag-1', { name: 'updated', color: '#00ff00' })
-      expect(mockDb.update).toHaveBeenCalledOnce()
-      expect(result).toMatchObject({ name: 'updated', color: '#00ff00' })
+      const result = await tagService.update(TAG_1, { name: 'updated', color: '#0000ff' })
+
+      expect(result).toMatchObject({ name: 'updated', color: '#0000ff' })
+      const [row] = await dbh.db.select().from(tagTable).where(eq(tagTable.id, TAG_1))
+      expect(row).toMatchObject({ name: 'updated', color: '#0000ff' })
     })
 
-    it('should throw NOT_FOUND when no row returned', async () => {
-      mockDb.update.mockReturnValue(mockChain([]))
+    it('should support clearing color to null', async () => {
+      await seedTags()
 
-      await expect(tagService.update('non-existent', { name: 'x' })).rejects.toMatchObject({
+      const result = await tagService.update(TAG_1, { color: null })
+
+      expect(result.color).toBeNull()
+    })
+
+    it('should return the current row for an empty update payload', async () => {
+      await seedTags()
+
+      const result = await tagService.update(TAG_1, {})
+
+      expect(result).toMatchObject({ id: TAG_1, name: 'work' })
+    })
+
+    it('should throw NOT_FOUND when no row exists', async () => {
+      await expect(tagService.update(TAG_1, { name: 'x' })).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
     })
 
     it('should throw CONFLICT on duplicate name', async () => {
-      mockDb.update.mockReturnValue(mockChainReject(new Error('UNIQUE constraint failed: tag.name')))
+      await seedTags()
 
-      await expect(tagService.update('tag-1', { name: 'duplicate' })).rejects.toMatchObject({
-        code: ErrorCode.CONFLICT
-      })
-    })
-
-    it('should re-throw non-unique DB errors as-is', async () => {
-      mockDb.update.mockReturnValue(mockChainReject(new Error('disk full')))
-
-      await expect(tagService.update('tag-1', { name: 'x' })).rejects.toThrow('disk full')
-    })
-
-    it('should fall back to getById when dto is empty (no db.update call)', async () => {
-      mockDb.select.mockReturnValue(mockChain([createMockTagRow()]))
-
-      const result = await tagService.update('tag-1', {})
-      expect(mockDb.update).not.toHaveBeenCalled()
-      expect(result.id).toBe('tag-1')
-    })
-
-    it('should update when only color is provided', async () => {
-      const updated = createMockTagRow({ color: '#0000ff' })
-      mockDb.update.mockReturnValue(mockChain([updated]))
-
-      const result = await tagService.update('tag-1', { color: '#0000ff' })
-      expect(mockDb.update).toHaveBeenCalledOnce()
-      expect(result.color).toBe('#0000ff')
-    })
-
-    it('should use generic conflict message when name is not in dto', async () => {
-      mockDb.update.mockReturnValue(mockChainReject(new Error('UNIQUE constraint failed: tag.name')))
-
-      await expect(tagService.update('tag-1', { color: '#ff0000' })).rejects.toMatchObject({
+      await expect(tagService.update(TAG_1, { name: 'personal' })).rejects.toMatchObject({
         code: ErrorCode.CONFLICT,
-        message: 'Tag update conflicts with an existing tag'
+        message: "Tag with name 'personal' already exists"
       })
     })
   })
 
-  // --------------------------------------------------------------------------
-  // delete
-  // --------------------------------------------------------------------------
   describe('delete', () => {
-    it('should call db.delete and return void', async () => {
-      mockDb.delete.mockReturnValue(mockChain([{ id: 'tag-1' }]))
+    it('should delete a tag and cascade its entity bindings', async () => {
+      await seedTags()
+      await dbh.db.insert(entityTagTable).values({
+        entityType: 'assistant',
+        entityId: ASSISTANT_1,
+        tagId: TAG_1,
+        createdAt: 10,
+        updatedAt: 10
+      })
 
-      await expect(tagService.delete('tag-1')).resolves.toBeUndefined()
-      expect(mockDb.delete).toHaveBeenCalledOnce()
+      await expect(tagService.delete(TAG_1)).resolves.toBeUndefined()
+
+      expect(await dbh.db.select().from(tagTable)).toHaveLength(2)
+      expect(await dbh.db.select().from(entityTagTable)).toHaveLength(0)
     })
 
-    it('should throw NOT_FOUND when no row deleted', async () => {
-      mockDb.delete.mockReturnValue(mockChain([]))
-
-      await expect(tagService.delete('non-existent')).rejects.toMatchObject({
+    it('should throw NOT_FOUND when deleting a missing tag', async () => {
+      await expect(tagService.delete(TAG_1)).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
     })
   })
 
-  // --------------------------------------------------------------------------
-  // getTagsByEntity
-  // --------------------------------------------------------------------------
   describe('getTagsByEntity', () => {
-    it('should return mapped tags for an entity', async () => {
-      const rows = [createMockTagRow(), createMockTagRow({ id: 'tag-2', name: 'coding' })]
-      mockDb.select.mockReturnValue(mockChain(rows))
+    it('should return mapped tags for an entity ordered by tag name', async () => {
+      await seedTags()
+      await dbh.db.insert(entityTagTable).values([
+        { entityType: 'assistant', entityId: ASSISTANT_1, tagId: TAG_1, createdAt: 10, updatedAt: 10 },
+        { entityType: 'assistant', entityId: ASSISTANT_1, tagId: TAG_3, createdAt: 11, updatedAt: 11 }
+      ])
 
-      const result = await tagService.getTagsByEntity('assistant', 'ast-1')
-      expect(result).toHaveLength(2)
-      expect(result[0]).toMatchObject({ id: 'tag-1', name: 'work' })
-      expect(result[1]).toMatchObject({ id: 'tag-2', name: 'coding' })
+      const result = await tagService.getTagsByEntity('assistant', ASSISTANT_1)
+
+      expect(result.map((tag) => tag.name)).toEqual(['coding', 'work'])
     })
 
-    it('should return empty array when no tags for entity', async () => {
-      mockDb.select.mockReturnValue(mockChain([]))
-
-      const result = await tagService.getTagsByEntity('assistant', 'ast-1')
-      expect(result).toEqual([])
+    it('should return an empty array when the entity has no tags', async () => {
+      await expect(tagService.getTagsByEntity('assistant', ASSISTANT_1)).resolves.toEqual([])
     })
   })
 
-  // --------------------------------------------------------------------------
-  // syncEntityTags
-  // --------------------------------------------------------------------------
   describe('syncEntityTags', () => {
-    it('should remove old tags and add new ones (diff sync)', async () => {
-      // existing: [tag-old, tag-keep], desired: [tag-keep, tag-new]
-      const tx = createTrackingTx([{ tagId: 'tag-old' }, { tagId: 'tag-keep' }])
-      // tag existence check returns the new tag as valid
-      tx.select
-        .mockReturnValueOnce({
-          from: () => ({ where: () => mockChain([{ tagId: 'tag-old' }, { tagId: 'tag-keep' }]) })
-        })
-        .mockReturnValueOnce({ from: () => ({ where: () => mockChain([{ id: 'tag-new' }]) }) })
-
-      mockDb.transaction.mockImplementation(async (fn: (tx: any) => Promise<void>) => {
-        await fn(tx)
-      })
-
-      await tagService.syncEntityTags('assistant', 'ast-1', {
-        tagIds: ['tag-keep', 'tag-new']
-      })
-
-      // only tag-old should be removed
-      expect(tx.deleteCalls).toBe(1)
-      // only tag-new should be inserted, with correct entity context
-      expect(tx.insertedValues).toEqual([[{ entityType: 'assistant', entityId: 'ast-1', tagId: 'tag-new' }]])
-    })
-
-    it('should only insert when no existing tags (add-only)', async () => {
-      const tx = createTrackingTx([])
-      // tag existence check returns both tags as valid
-      tx.select
-        .mockReturnValueOnce({ from: () => ({ where: () => mockChain([]) }) })
-        .mockReturnValueOnce({ from: () => ({ where: () => mockChain([{ id: 'tag-a' }, { id: 'tag-b' }]) }) })
-
-      mockDb.transaction.mockImplementation(async (fn: (tx: any) => Promise<void>) => {
-        await fn(tx)
-      })
-
-      await tagService.syncEntityTags('topic', 'topic-1', {
-        tagIds: ['tag-a', 'tag-b']
-      })
-
-      expect(tx.deleteCalls).toBe(0)
-      expect(tx.insertedValues).toEqual([
-        [
-          { entityType: 'topic', entityId: 'topic-1', tagId: 'tag-a' },
-          { entityType: 'topic', entityId: 'topic-1', tagId: 'tag-b' }
-        ]
+    it('should diff associations and preserve createdAt for unchanged tags', async () => {
+      await seedTags()
+      await dbh.db.insert(entityTagTable).values([
+        { entityType: 'assistant', entityId: ASSISTANT_1, tagId: TAG_1, createdAt: 1000, updatedAt: 1000 },
+        { entityType: 'assistant', entityId: ASSISTANT_1, tagId: TAG_2, createdAt: 2000, updatedAt: 2000 }
       ])
+
+      await tagService.syncEntityTags('assistant', ASSISTANT_1, {
+        tagIds: [TAG_2, TAG_3]
+      })
+
+      const rows = (await dbh.db.select().from(entityTagTable)).filter(
+        (row) => row.entityType === 'assistant' && row.entityId === ASSISTANT_1
+      )
+
+      expect(rows).toHaveLength(2)
+      expect(rows).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ tagId: TAG_2, createdAt: 2000 }),
+          expect.objectContaining({ tagId: TAG_3 })
+        ])
+      )
+      expect(rows.find((row) => row.tagId === TAG_1)).toBeUndefined()
     })
 
-    it('should throw NOT_FOUND when a referenced tag does not exist', async () => {
-      const tx = createTrackingTx([])
-      // first select: existing entity-tags (empty)
-      // second select: tag existence check — tag-missing not found
-      tx.select
-        .mockReturnValueOnce({ from: () => ({ where: () => mockChain([]) }) })
-        .mockReturnValueOnce({ from: () => ({ where: () => mockChain([{ id: 'tag-ok' }]) }) })
-
-      mockDb.transaction.mockImplementation(async (fn: (tx: any) => Promise<void>) => {
-        await fn(tx)
+    it('should fail with NOT_FOUND and avoid partial writes for missing tags', async () => {
+      await seedTags()
+      await dbh.db.insert(entityTagTable).values({
+        entityType: 'assistant',
+        entityId: ASSISTANT_1,
+        tagId: TAG_1,
+        createdAt: 1000,
+        updatedAt: 1000
       })
 
       await expect(
-        tagService.syncEntityTags('assistant', 'ast-1', { tagIds: ['tag-ok', 'tag-missing'] })
+        tagService.syncEntityTags('assistant', ASSISTANT_1, {
+          tagIds: [TAG_2, '44444444-4444-4444-8444-444444444444']
+        })
       ).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND,
-        message: "Tag with id 'tag-missing' not found"
-      })
-    })
-
-    it('should report all missing tag ids together', async () => {
-      const tx = createTrackingTx([])
-      tx.select
-        .mockReturnValueOnce({ from: () => ({ where: () => mockChain([]) }) })
-        .mockReturnValueOnce({ from: () => ({ where: () => mockChain([{ id: 'tag-ok' }]) }) })
-
-      mockDb.transaction.mockImplementation(async (fn: (tx: any) => Promise<void>) => {
-        await fn(tx)
+        message: "Tag with id '44444444-4444-4444-8444-444444444444' not found"
       })
 
-      await expect(
-        tagService.syncEntityTags('assistant', 'ast-1', { tagIds: ['tag-missing-1', 'tag-ok', 'tag-missing-2'] })
-      ).rejects.toMatchObject({
-        code: ErrorCode.NOT_FOUND,
-        message: "Tag with id 'tag-missing-1, tag-missing-2' not found"
-      })
-    })
-
-    it('should only delete when desired is empty (remove-all)', async () => {
-      const tx = createTrackingTx([{ tagId: 'tag-1' }, { tagId: 'tag-2' }])
-
-      mockDb.transaction.mockImplementation(async (fn: (tx: any) => Promise<void>) => {
-        await fn(tx)
-      })
-
-      await tagService.syncEntityTags('assistant', 'ast-1', {
-        tagIds: []
-      })
-
-      expect(tx.deleteCalls).toBe(1)
-      expect(tx.insertedValues).toEqual([])
-    })
-
-    it('should skip both delete and insert when tags already match', async () => {
-      const tx = createTrackingTx([{ tagId: 'tag-1' }])
-
-      mockDb.transaction.mockImplementation(async (fn: (tx: any) => Promise<void>) => {
-        await fn(tx)
-      })
-
-      await tagService.syncEntityTags('assistant', 'ast-1', {
-        tagIds: ['tag-1']
-      })
-
-      expect(tx.deleteCalls).toBe(0)
-      expect(tx.insertedValues).toEqual([])
+      const rows = (await dbh.db.select().from(entityTagTable)).filter(
+        (row) => row.entityType === 'assistant' && row.entityId === ASSISTANT_1
+      )
+      expect(rows).toEqual([expect.objectContaining({ tagId: TAG_1, createdAt: 1000 })])
     })
   })
 
-  // --------------------------------------------------------------------------
-  // setEntities
-  // --------------------------------------------------------------------------
   describe('setEntities', () => {
-    it('should delete removed entities and insert only new ones', async () => {
-      const tx = createTrackingTx([
-        { entityType: 'assistant', entityId: 'ast-old' },
-        { entityType: 'topic', entityId: 'topic-keep' }
+    it('should diff entity bindings and preserve createdAt for unchanged rows', async () => {
+      await seedTags()
+      await dbh.db.insert(entityTagTable).values([
+        { entityType: 'assistant', entityId: ASSISTANT_1, tagId: TAG_1, createdAt: 1000, updatedAt: 1000 },
+        { entityType: 'topic', entityId: TOPIC_1, tagId: TAG_1, createdAt: 2000, updatedAt: 2000 }
       ])
-      tx.select
-        .mockReturnValueOnce({ from: () => ({ where: () => mockChain([{ id: 'tag-1' }]) }) })
-        .mockReturnValueOnce({
-          from: () => ({
-            where: () =>
-              mockChain([
-                { entityType: 'assistant', entityId: 'ast-old' },
-                { entityType: 'topic', entityId: 'topic-keep' }
-              ])
-          })
-        })
 
-      mockDb.transaction.mockImplementation(async (fn: (tx: any) => Promise<void>) => {
-        await fn(tx)
-      })
-
-      await tagService.setEntities('tag-1', {
+      await tagService.setEntities(TAG_1, {
         entities: [
-          { entityType: 'topic', entityId: 'topic-keep' },
-          { entityType: 'assistant', entityId: 'ast-new' }
+          { entityType: 'topic', entityId: TOPIC_1 },
+          { entityType: 'assistant', entityId: ASSISTANT_2 }
         ]
       })
 
-      expect(tx.deleteCalls).toBe(1)
-      expect(tx.insertedValues).toEqual([[{ entityType: 'assistant', entityId: 'ast-new', tagId: 'tag-1' }]])
+      const rows = (await dbh.db.select().from(entityTagTable)).filter((row) => row.tagId === TAG_1)
+
+      expect(rows).toHaveLength(2)
+      expect(rows).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ entityType: 'topic', entityId: TOPIC_1, createdAt: 2000 }),
+          expect.objectContaining({ entityType: 'assistant', entityId: ASSISTANT_2 })
+        ])
+      )
+      expect(rows.find((row) => row.entityId === ASSISTANT_1)).toBeUndefined()
     })
 
-    it('should skip delete and insert when entities already match', async () => {
-      const tx = createTrackingTx([{ entityType: 'assistant', entityId: 'ast-1' }])
-      tx.select
-        .mockReturnValueOnce({ from: () => ({ where: () => mockChain([{ id: 'tag-1' }]) }) })
-        .mockReturnValueOnce({
-          from: () => ({ where: () => mockChain([{ entityType: 'assistant', entityId: 'ast-1' }]) })
-        })
-
-      mockDb.transaction.mockImplementation(async (fn: (tx: any) => Promise<void>) => {
-        await fn(tx)
+    it('should remove all bindings when the entity list is empty', async () => {
+      await seedTags()
+      await dbh.db.insert(entityTagTable).values({
+        entityType: 'assistant',
+        entityId: ASSISTANT_1,
+        tagId: TAG_1,
+        createdAt: 1000,
+        updatedAt: 1000
       })
 
-      await tagService.setEntities('tag-1', {
-        entities: [{ entityType: 'assistant', entityId: 'ast-1' }]
-      })
+      await tagService.setEntities(TAG_1, { entities: [] })
 
-      expect(tx.deleteCalls).toBe(0)
-      expect(tx.insertedValues).toEqual([])
-    })
-
-    it('should remove all when entities list is empty', async () => {
-      const tx = createTrackingTx([
-        { entityType: 'assistant', entityId: 'ast-1' },
-        { entityType: 'topic', entityId: 'topic-1' }
-      ])
-      tx.select
-        .mockReturnValueOnce({ from: () => ({ where: () => mockChain([{ id: 'tag-1' }]) }) })
-        .mockReturnValueOnce({
-          from: () => ({
-            where: () =>
-              mockChain([
-                { entityType: 'assistant', entityId: 'ast-1' },
-                { entityType: 'topic', entityId: 'topic-1' }
-              ])
-          })
-        })
-
-      mockDb.transaction.mockImplementation(async (fn: (tx: any) => Promise<void>) => {
-        await fn(tx)
-      })
-
-      await tagService.setEntities('tag-1', { entities: [] })
-
-      // bulk delete all, no reinsert
-      expect(tx.deleteCalls).toBe(1)
-      expect(tx.insertedValues).toEqual([])
-    })
-
-    it('should throw NOT_FOUND when tag does not exist', async () => {
-      const tx = createTrackingTx([])
-      tx.select.mockReturnValueOnce({ from: () => ({ where: () => mockChain([]) }) })
-
-      mockDb.transaction.mockImplementation(async (fn: (tx: any) => Promise<void>) => {
-        await fn(tx)
-      })
-
-      await expect(tagService.setEntities('non-existent', { entities: [] })).rejects.toMatchObject({
-        code: ErrorCode.NOT_FOUND
-      })
+      const rows = (await dbh.db.select().from(entityTagTable)).filter((row) => row.tagId === TAG_1)
+      expect(rows).toEqual([])
     })
 
     it('should deduplicate duplicate desired entities before insert', async () => {
-      const tx = createTrackingTx([])
-      tx.select
-        .mockReturnValueOnce({ from: () => ({ where: () => mockChain([{ id: 'tag-1' }]) }) })
-        .mockReturnValueOnce({ from: () => ({ where: () => mockChain([]) }) })
+      await seedTags()
 
-      mockDb.transaction.mockImplementation(async (fn: (tx: any) => Promise<void>) => {
-        await fn(tx)
-      })
-
-      await tagService.setEntities('tag-1', {
+      await tagService.setEntities(TAG_1, {
         entities: [
-          { entityType: 'assistant', entityId: 'ast-1' },
-          { entityType: 'assistant', entityId: 'ast-1' }
+          { entityType: 'assistant', entityId: ASSISTANT_1 },
+          { entityType: 'assistant', entityId: ASSISTANT_1 }
         ]
       })
 
-      expect(tx.insertedValues).toEqual([[{ entityType: 'assistant', entityId: 'ast-1', tagId: 'tag-1' }]])
+      const rows = (await dbh.db.select().from(entityTagTable)).filter((row) => row.tagId === TAG_1)
+      expect(rows).toEqual([expect.objectContaining({ entityType: 'assistant', entityId: ASSISTANT_1, tagId: TAG_1 })])
+    })
+
+    it('should throw NOT_FOUND when the tag does not exist', async () => {
+      await expect(tagService.setEntities(TAG_1, { entities: [] })).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
     })
   })
 
-  // --------------------------------------------------------------------------
-  // removeEntityTags
-  // --------------------------------------------------------------------------
   describe('removeEntityTags', () => {
     it('should remove only tag rows for the target entity', async () => {
-      const db = await setupEntityTagDb()
-
-      await db.insert(tagTable).values([
-        { id: 'tag-1', name: 'work', createdAt: 1, updatedAt: 1 },
-        { id: 'tag-2', name: 'personal', createdAt: 1, updatedAt: 1 }
-      ])
-      await db.insert(entityTagTable).values([
-        { entityType: 'assistant', entityId: 'ast-1', tagId: 'tag-1', createdAt: 1, updatedAt: 1 },
-        { entityType: 'assistant', entityId: 'ast-2', tagId: 'tag-1', createdAt: 1, updatedAt: 1 },
-        { entityType: 'topic', entityId: 'topic-1', tagId: 'tag-2', createdAt: 1, updatedAt: 1 }
+      await seedTags()
+      await dbh.db.insert(entityTagTable).values([
+        { entityType: 'assistant', entityId: ASSISTANT_1, tagId: TAG_1, createdAt: 1, updatedAt: 1 },
+        { entityType: 'assistant', entityId: ASSISTANT_2, tagId: TAG_1, createdAt: 1, updatedAt: 1 },
+        { entityType: 'topic', entityId: TOPIC_1, tagId: TAG_2, createdAt: 1, updatedAt: 1 }
       ])
 
-      await tagService.removeEntityTags('assistant', 'ast-1', db)
+      await tagService.removeEntityTags('assistant', ASSISTANT_1)
 
-      const rows = await db.select().from(entityTagTable)
+      const rows = await dbh.db.select().from(entityTagTable)
       expect(rows).toEqual([
-        expect.objectContaining({ entityType: 'assistant', entityId: 'ast-2', tagId: 'tag-1' }),
-        expect.objectContaining({ entityType: 'topic', entityId: 'topic-1', tagId: 'tag-2' })
+        expect.objectContaining({ entityType: 'assistant', entityId: ASSISTANT_2, tagId: TAG_1 }),
+        expect.objectContaining({ entityType: 'topic', entityId: TOPIC_1, tagId: TAG_2 })
       ])
     })
   })
 
-  // --------------------------------------------------------------------------
-  // getTagIdsByEntities
-  // --------------------------------------------------------------------------
   describe('getTagIdsByEntities', () => {
-    it('should return map of entity IDs to tag IDs', async () => {
-      const rows = [
-        { entityId: 'ast-1', tagId: 'tag-1' },
-        { entityId: 'ast-1', tagId: 'tag-2' },
-        { entityId: 'ast-2', tagId: 'tag-1' }
-      ]
-      mockDb.select.mockReturnValue(mockChain(rows))
+    it('should return a map with stable per-entity ordering', async () => {
+      await seedTags()
+      await dbh.db.insert(entityTagTable).values([
+        { entityType: 'assistant', entityId: ASSISTANT_1, tagId: TAG_2, createdAt: 1000, updatedAt: 1000 },
+        { entityType: 'assistant', entityId: ASSISTANT_1, tagId: TAG_1, createdAt: 1000, updatedAt: 1000 },
+        { entityType: 'assistant', entityId: ASSISTANT_2, tagId: TAG_3, createdAt: 2000, updatedAt: 2000 }
+      ])
 
-      const result = await tagService.getTagIdsByEntities('assistant', ['ast-1', 'ast-2'])
-      expect(result.get('ast-1')).toEqual(['tag-1', 'tag-2'])
-      expect(result.get('ast-2')).toEqual(['tag-1'])
+      const result = await tagService.getTagIdsByEntities('assistant', [ASSISTANT_1, ASSISTANT_2, TOPIC_1])
+
+      expect(result.get(ASSISTANT_1)).toEqual([TAG_1, TAG_2])
+      expect(result.get(ASSISTANT_2)).toEqual([TAG_3])
+      expect(result.get(TOPIC_1)).toEqual([])
     })
 
-    it('should include entities with zero tags as empty arrays', async () => {
-      mockDb.select.mockReturnValue(mockChain([{ entityId: 'ast-1', tagId: 'tag-1' }]))
-
-      const result = await tagService.getTagIdsByEntities('assistant', ['ast-1', 'ast-2'])
-      expect(result.get('ast-1')).toEqual(['tag-1'])
-      expect(result.get('ast-2')).toEqual([])
-    })
-
-    it('should return empty map for empty input without querying DB', async () => {
+    it('should return an empty map for empty input without querying entity rows', async () => {
       const result = await tagService.getTagIdsByEntities('assistant', [])
       expect(result.size).toBe(0)
-      expect(mockDb.select).not.toHaveBeenCalled()
     })
   })
 })

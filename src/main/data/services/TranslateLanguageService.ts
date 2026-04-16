@@ -5,7 +5,6 @@
  */
 
 import { application } from '@application'
-import { isUniqueConstraintError } from '@data/db/errorUtils'
 import { translateLanguageTable } from '@data/db/schemas/translateLanguage'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
@@ -68,11 +67,15 @@ export class TranslateLanguageService {
       logger.info('Created translate language', { langCode })
       return rowToTranslateLanguage(row)
     } catch (e: unknown) {
-      // Drizzle wraps the libsql error in a DrizzleQueryError whose message
-      // reads "Failed query: insert into ..."; the actual UNIQUE text sits on
-      // `.cause`. `isUniqueConstraintError` walks the cause chain.
-      if (isUniqueConstraintError(e)) {
-        throw DataApiErrorFactory.conflict(`Language with code '${langCode}' already exists`, 'TranslateLanguage')
+      const translated = DataApiErrorFactory.translateSqliteError(e, {
+        entity: 'TranslateLanguage',
+        uniqueConstraintMessages: {
+          lang_code: `Language with code '${langCode}' already exists`
+        },
+        genericConflictMessage: 'TranslateLanguage conflicts with existing data'
+      })
+      if (translated) {
+        throw translated
       }
       throw e
     }

@@ -8,7 +8,17 @@
 import * as z from 'zod'
 
 import { AutoFields } from '../../types/index'
-import { type Tag, TaggableEntityType, TagSchema } from '../../types/tag'
+import {
+  EntityIdSchema as SharedEntityIdSchema,
+  type Tag,
+  TaggableEntityType,
+  TagIdSchema as SharedTagIdSchema,
+  TagSchema
+} from '../../types/tag'
+
+export const TAG_ASSOCIATION_MAX_ITEMS = 100
+export const TagIdSchema = SharedTagIdSchema
+export const EntityIdSchema = SharedEntityIdSchema
 
 // ============================================================================
 // DTO Derivation
@@ -32,17 +42,18 @@ export type UpdateTagDto = z.infer<typeof UpdateTagSchema>
 /**
  * Body for syncing tags on an entity (replace all tag associations)
  */
-const TagIdSchema = z.string().trim().min(1)
-
 export const TagEntityRefSchema = z.object({
   entityType: TaggableEntityType,
-  entityId: z.string().trim().min(1)
+  entityId: EntityIdSchema
 })
 
 export const SyncEntityTagsSchema = z.object({
-  tagIds: z.array(TagIdSchema).refine((tagIds) => new Set(tagIds).size === tagIds.length, {
-    message: 'Duplicate tag ids are not allowed'
-  })
+  tagIds: z
+    .array(TagIdSchema)
+    .max(TAG_ASSOCIATION_MAX_ITEMS)
+    .refine((tagIds) => new Set(tagIds).size === tagIds.length, {
+      message: 'Duplicate tag ids are not allowed'
+    })
 })
 export type SyncEntityTagsDto = z.infer<typeof SyncEntityTagsSchema>
 
@@ -52,6 +63,7 @@ export type SyncEntityTagsDto = z.infer<typeof SyncEntityTagsSchema>
 export const SetTagEntitiesSchema = z.object({
   entities: z
     .array(TagEntityRefSchema)
+    .max(TAG_ASSOCIATION_MAX_ITEMS)
     .refine(
       (entities) =>
         new Set(entities.map((entity) => `${entity.entityType}:${entity.entityId}`)).size === entities.length,

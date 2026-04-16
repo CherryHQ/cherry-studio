@@ -262,6 +262,17 @@ export interface ConflictErrorDetails {
   description?: string
 }
 
+export interface TranslateSqliteErrorOptions {
+  entity: string
+  uniqueConstraintMessages?: Record<string, string>
+  genericConflictMessage?: string
+  foreignKeyNotFound?: {
+    resource: string
+    id?: string
+  }
+  requestContext?: RequestContext
+}
+
 /**
  * Details for RESOURCE_LOCKED - which resource is locked.
  */
@@ -710,6 +721,42 @@ export class DataApiErrorFactory {
   }
 
   /**
+   * Translate a wrapped SQLite constraint error into a semantically useful DataApiError.
+   *
+   * Returns:
+   * - CONFLICT for UNIQUE constraint violations
+   * - NOT_FOUND for FOREIGN KEY violations when `foreignKeyNotFound` is provided
+   * - undefined when the error is not a recognized SQLite constraint error
+   */
+  static translateSqliteError(
+    error: unknown,
+    options: TranslateSqliteErrorOptions
+  ): DataApiError<ErrorCode.CONFLICT | ErrorCode.NOT_FOUND> | undefined {
+    if (hasSqliteConstraint(error, 'SQLITE_CONSTRAINT_UNIQUE', 'UNIQUE constraint failed')) {
+      const targets = extractSqliteConstraintTargets(error, 'UNIQUE constraint failed')
+      const mappedMessage = resolveUniqueConstraintMessage(targets, options.uniqueConstraintMessages)
+      return DataApiErrorFactory.conflict(
+        mappedMessage ?? options.genericConflictMessage ?? `${options.entity} conflicts with existing data`,
+        options.entity,
+        options.requestContext
+      )
+    }
+
+    if (
+      options.foreignKeyNotFound &&
+      hasSqliteConstraint(error, 'SQLITE_CONSTRAINT_FOREIGNKEY', 'FOREIGN KEY constraint failed')
+    ) {
+      return DataApiErrorFactory.notFound(
+        options.foreignKeyNotFound.resource,
+        options.foreignKeyNotFound.id,
+        options.requestContext
+      )
+    }
+
+    return undefined
+  }
+
+  /**
    * Create a data inconsistency error.
    * @param resource - The resource with inconsistent data
    * @param description - Description of the inconsistency
@@ -796,6 +843,76 @@ export class DataApiErrorFactory {
 // ============================================================================
 // Utility Functions
 // ============================================================================
+
+const SQLITE_CONSTRAINT_CAUSE_DEPTH = 5
+
+function walkSqliteErrorChain(error: unknown, visitor: (err: Error) => boolean): boolean {
+  let current: unknown = error
+
+  for (let depth = 0; depth < SQLITE_CONSTRAINT_CAUSE_DEPTH; depth++) {
+    if (!(current instanceof Error)) {
+      return false
+    }
+
+    if (visitor(current)) {
+      return true
+    }
+
+    current = (current as { cause?: unknown }).cause
+  }
+
+  return false
+}
+
+function hasSqliteConstraint(error: unknown, code: string, messageFragment: string): boolean {
+  return walkSqliteErrorChain(error, (err) => {
+    const sqliteCode = (err as { code?: string }).code
+    return sqliteCode === code || err.message.includes(messageFragment)
+  })
+}
+
+function extractSqliteConstraintTargets(error: unknown, prefix: string): string[] {
+  const messages: string[] = []
+
+  walkSqliteErrorChain(error, (err) => {
+    messages.push(err.message)
+    return false
+  })
+
+  for (const message of messages) {
+    const index = message.indexOf(`${prefix}: `)
+    if (index === -1) {
+      continue
+    }
+
+    return message
+      .slice(index + prefix.length + 2)
+      .split(',')
+      .map((target) => target.trim())
+      .filter(Boolean)
+  }
+
+  return []
+}
+
+function resolveUniqueConstraintMessage(targets: string[], messages?: Record<string, string>): string | undefined {
+  if (!messages || targets.length === 0) {
+    return undefined
+  }
+
+  const normalizedTargets = targets.map((target) => target.trim())
+  const shortTargets = normalizedTargets.map((target) => target.split('.').at(-1) ?? target)
+  const candidateKeys = [normalizedTargets.join(','), shortTargets.join(','), ...normalizedTargets, ...shortTargets]
+
+  for (const key of candidateKeys) {
+    const message = messages[key]
+    if (message) {
+      return message
+    }
+  }
+
+  return undefined
+}
 
 /**
  * Check if an error is a DataApiError instance.

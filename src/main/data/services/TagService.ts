@@ -141,8 +141,15 @@ export class TagService {
 
       return rowToTag(row)
     } catch (e: unknown) {
-      if (e instanceof Error && e.message.includes('UNIQUE constraint failed')) {
-        throw DataApiErrorFactory.conflict(`Tag with name '${dto.name}' already exists`, 'Tag')
+      const translated = DataApiErrorFactory.translateSqliteError(e, {
+        entity: 'Tag',
+        uniqueConstraintMessages: {
+          name: `Tag with name '${dto.name}' already exists`
+        },
+        genericConflictMessage: 'Tag conflicts with existing data'
+      })
+      if (translated) {
+        throw translated
       }
       throw e
     }
@@ -171,12 +178,18 @@ export class TagService {
 
       return rowToTag(row)
     } catch (e: unknown) {
-      if (e instanceof Error && e.message.includes('UNIQUE constraint failed')) {
-        const message =
+      const translated = DataApiErrorFactory.translateSqliteError(e, {
+        entity: 'Tag',
+        uniqueConstraintMessages:
           dto.name !== undefined
-            ? `Tag with name '${dto.name}' already exists`
-            : 'Tag update conflicts with an existing tag'
-        throw DataApiErrorFactory.conflict(message, 'Tag')
+            ? {
+                name: `Tag with name '${dto.name}' already exists`
+              }
+            : undefined,
+        genericConflictMessage: 'Tag update conflicts with an existing tag'
+      })
+      if (translated) {
+        throw translated
       }
       throw e
     }
