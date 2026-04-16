@@ -9,13 +9,13 @@ interface Props {
 }
 
 const NewContextButton: FC<Props> = ({ onNewContext }) => {
-  const newContextShortcut = useShortcutDisplay('toggle_new_context')
+  const newContextShortcut = useShortcutDisplay('chat.toggle_new_context')
   const { t } = useTranslation()
 
-  useShortcut('toggle_new_context', onNewContext)
+  useShortcut('chat.toggle_new_context', onNewContext)
 
   return (
-    <Tooltip content={t('chat.input.new.context', { Command: newContextShortcut })} closeDelay={0}>
+    <Tooltip content={t('chat.input.new.context', { Command: newContextShortcut })}>
       <ActionIconButton
         onClick={onNewContext}
         aria-label={t('chat.input.new.context', { Command: newContextShortcut })}

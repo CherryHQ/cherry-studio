@@ -3,10 +3,8 @@
  * This code is adapted from https://github.com/ThinkInAIXYZ/deepchat
  * Original file: src/main/presenter/anthropicOAuth.ts
  */
-import path from 'node:path'
-
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { getConfigDir } from '@main/utils/file'
 import * as crypto from 'crypto'
 import { net, shell } from 'electron'
 import { promises } from 'fs'
@@ -16,7 +14,7 @@ const logger = loggerService.withContext('AnthropicOAuth')
 
 // Constants
 const CLIENT_ID = '9d1c250a-e61b-44d9-88ed-5944d1962f5e'
-const CREDS_PATH = path.join(getConfigDir(), 'oauth', 'anthropic.json')
+const getCredsPath = () => application.getPath('feature.anthropic.oauth_file')
 
 // Types
 interface Credentials {
@@ -116,15 +114,15 @@ class AnthropicService extends Error {
 
   // 5. Save credentials
   private async saveCredentials(creds: Credentials): Promise<void> {
-    await promises.mkdir(dirname(CREDS_PATH), { recursive: true })
-    await promises.writeFile(CREDS_PATH, JSON.stringify(creds, null, 2))
-    await promises.chmod(CREDS_PATH, 0o600) // Read/write for owner only
+    await promises.mkdir(dirname(getCredsPath()), { recursive: true })
+    await promises.writeFile(getCredsPath(), JSON.stringify(creds, null, 2))
+    await promises.chmod(getCredsPath(), 0o600) // Read/write for owner only
   }
 
   // 6. Load credentials
   private async loadCredentials(): Promise<Credentials | null> {
     try {
-      const data = await promises.readFile(CREDS_PATH, 'utf-8')
+      const data = await promises.readFile(getCredsPath(), 'utf-8')
       return JSON.parse(data)
     } catch {
       return null
@@ -206,7 +204,7 @@ class AnthropicService extends Error {
   // 11. Clear stored credentials
   public async clearCredentials(): Promise<void> {
     try {
-      await promises.unlink(CREDS_PATH)
+      await promises.unlink(getCredsPath())
       logger.info('Credentials cleared')
     } catch (error) {
       // File doesn't exist, which is fine

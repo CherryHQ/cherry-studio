@@ -222,12 +222,17 @@ export function generateCitationTag(citation: Citation): string {
     title: citation.title || citation.hostname || '',
     content: citation.content?.substring(0, 200)
   }
-  const citationJson = encodeHTML(JSON.stringify(supData))
+  // encodeHTML only escapes &, <, >, ", ' — also escape | to prevent GFM table
+  // parser from treating it as a column separator inside table cells
+  const citationJson = encodeHTML(JSON.stringify(supData)).replace(/\|/g, '&#124;')
 
   // 判断是否为有效链接
   const isLink = citation.url && citation.url.startsWith('http')
 
+  // Escape | in URL to avoid breaking GFM table cell parsing
+  const safeUrl = isLink ? citation.url.replace(/\|/g, '%7C') : ''
+
   // 生成链接格式: [<sup data-citation='...'>N</sup>](url)
   // 或者生成空括号格式: [<sup data-citation='...'>N</sup>]()
-  return `[<sup data-citation='${citationJson}'>${citation.number}</sup>]` + (isLink ? `(${citation.url})` : '()')
+  return `[<sup data-citation='${citationJson}'>${citation.number}</sup>]` + (isLink ? `(${safeUrl})` : '()')
 }

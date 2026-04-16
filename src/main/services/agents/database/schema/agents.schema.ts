@@ -9,6 +9,7 @@ export const agentsTable = sqliteTable('agents', {
   type: text('type').notNull(),
   name: text('name').notNull(),
   description: text('description'),
+  deleted_at: text('deleted_at'),
   accessible_paths: text('accessible_paths'), // JSON array of directory paths the agent can access
 
   instructions: text('instructions'),

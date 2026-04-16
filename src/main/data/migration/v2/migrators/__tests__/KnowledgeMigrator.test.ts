@@ -3,6 +3,11 @@ import fs from 'node:fs'
 import { createClient } from '@libsql/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('node:fs', async () => {
+  const { createNodeFsMock } = await import('@test-helpers/mocks/nodeFsMock')
+  return createNodeFsMock()
+})
+
 const { loggerWarnMock } = vi.hoisted(() => ({
   loggerWarnMock: vi.fn()
 }))
@@ -59,11 +64,14 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     const createClientMock = createClient as unknown as { mockReturnValue: (value: unknown) => void }
     createClientMock.mockReturnValue({ execute, close })
 
-    const result = await migrator.resolveDimensionsForBase({
-      id: 'kb-legacy',
-      name: 'Legacy KB',
-      dimensions: 768
-    })
+    const result = await migrator.resolveDimensionsForBase(
+      {
+        id: 'kb-legacy',
+        name: 'Legacy KB',
+        dimensions: 768
+      },
+      '/mock/userData/Data/KnowledgeBase'
+    )
 
     expect(result).toEqual({ dimensions: 1024, reason: 'ok' })
     expect(execute).toHaveBeenCalledTimes(2)
@@ -77,10 +85,13 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     const existsSyncMock = fs.existsSync as unknown as { mockReturnValue: (value: boolean) => void }
     existsSyncMock.mockReturnValue(false)
 
-    const result = await migrator.resolveDimensionsForBase({
-      id: 'kb-missing',
-      name: 'Missing KB'
-    })
+    const result = await migrator.resolveDimensionsForBase(
+      {
+        id: 'kb-missing',
+        name: 'Missing KB'
+      },
+      '/mock/userData/Data/KnowledgeBase'
+    )
 
     expect(result).toEqual({ dimensions: null, reason: 'vector_db_missing' })
     expect(createClient).not.toHaveBeenCalled()
@@ -98,10 +109,13 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     const createClientMock = createClient as unknown as { mockReturnValue: (value: unknown) => void }
     createClientMock.mockReturnValue({ execute, close })
 
-    const result = await migrator.resolveDimensionsForBase({
-      id: 'kb-empty',
-      name: 'Empty KB'
-    })
+    const result = await migrator.resolveDimensionsForBase(
+      {
+        id: 'kb-empty',
+        name: 'Empty KB'
+      },
+      '/mock/userData/Data/KnowledgeBase'
+    )
 
     expect(result).toEqual({ dimensions: null, reason: 'vector_db_empty' })
     expect(execute).toHaveBeenCalledTimes(1)
@@ -123,10 +137,13 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     const createClientMock = createClient as unknown as { mockReturnValue: (value: unknown) => void }
     createClientMock.mockReturnValue({ execute, close })
 
-    const result = await migrator.resolveDimensionsForBase({
-      id: 'kb-invalid',
-      name: 'Invalid KB'
-    })
+    const result = await migrator.resolveDimensionsForBase(
+      {
+        id: 'kb-invalid',
+        name: 'Invalid KB'
+      },
+      '/mock/userData/Data/KnowledgeBase'
+    )
 
     expect(result).toEqual({ dimensions: null, reason: 'invalid_vector_dimensions' })
     expect(execute).toHaveBeenCalledTimes(2)
@@ -137,10 +154,13 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     const migrator = new KnowledgeMigrator() as any
     vi.spyOn(migrator, 'getLegacyKnowledgeDbPath').mockReturnValue(null)
 
-    const result = await migrator.resolveDimensionsForBase({
-      id: 'kb-invalid-path',
-      name: 'Invalid path KB'
-    })
+    const result = await migrator.resolveDimensionsForBase(
+      {
+        id: 'kb-invalid-path',
+        name: 'Invalid path KB'
+      },
+      '/mock/userData/Data/KnowledgeBase'
+    )
 
     expect(result).toEqual({ dimensions: null, reason: 'vector_db_invalid_path' })
     expect(createClient).not.toHaveBeenCalled()
@@ -158,10 +178,13 @@ describe('KnowledgeMigrator dimensions resolution', () => {
       isDirectory: () => true
     })
 
-    const result = await migrator.resolveDimensionsForBase({
-      id: 'kb-dir',
-      name: 'Directory KB'
-    })
+    const result = await migrator.resolveDimensionsForBase(
+      {
+        id: 'kb-dir',
+        name: 'Directory KB'
+      },
+      '/mock/userData/Data/KnowledgeBase'
+    )
 
     expect(result).toEqual({ dimensions: null, reason: 'legacy_vector_store_directory' })
     expect(createClient).not.toHaveBeenCalled()
@@ -184,10 +207,13 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     const createClientMock = createClient as unknown as { mockReturnValue: (value: unknown) => void }
     createClientMock.mockReturnValue({ execute, close })
 
-    const result = await migrator.resolveDimensionsForBase({
-      id: 'kb-close-error',
-      name: 'Close Error KB'
-    })
+    const result = await migrator.resolveDimensionsForBase(
+      {
+        id: 'kb-close-error',
+        name: 'Close Error KB'
+      },
+      '/mock/userData/Data/KnowledgeBase'
+    )
 
     expect(result).toEqual({ dimensions: 1024, reason: 'ok' })
     expect(migrator.warnings).toContain(
@@ -215,10 +241,13 @@ describe('KnowledgeMigrator dimensions resolution', () => {
       throw new Error('open failed')
     })
 
-    const result = await migrator.resolveDimensionsForBase({
-      id: 'kb-create-error',
-      name: 'Create Error KB'
-    })
+    const result = await migrator.resolveDimensionsForBase(
+      {
+        id: 'kb-create-error',
+        name: 'Create Error KB'
+      },
+      '/mock/userData/Data/KnowledgeBase'
+    )
 
     expect(result).toEqual({ dimensions: null, reason: 'vector_db_error' })
     expect(migrator.warnings).toContain(
@@ -234,6 +263,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     })
 
     const ctx = {
+      paths: { knowledgeBaseDir: '/mock/userData/Data/KnowledgeBase' },
       sources: {
         reduxState: {
           getCategory: vi.fn().mockReturnValue({
@@ -275,6 +305,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     })
 
     const ctx = {
+      paths: { knowledgeBaseDir: '/mock/userData/Data/KnowledgeBase' },
       sources: {
         reduxState: {
           getCategory: vi.fn().mockReturnValue({
@@ -316,6 +347,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     const migrator = new KnowledgeMigrator() as any
 
     const ctx = {
+      paths: { knowledgeBaseDir: '/mock/userData/Data/KnowledgeBase' },
       sources: {
         reduxState: {
           getCategory: vi.fn().mockReturnValue(undefined)
@@ -407,6 +439,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     })
 
     const ctx = {
+      paths: { knowledgeBaseDir: '/mock/userData/Data/KnowledgeBase' },
       sources: {
         reduxState: {
           getCategory: vi.fn().mockReturnValue({
@@ -463,6 +496,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     })
 
     const ctx = {
+      paths: { knowledgeBaseDir: '/mock/userData/Data/KnowledgeBase' },
       sources: {
         reduxState: {
           getCategory: vi.fn().mockReturnValue({
@@ -502,6 +536,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     })
 
     const ctx = {
+      paths: { knowledgeBaseDir: '/mock/userData/Data/KnowledgeBase' },
       sources: {
         reduxState: {
           getCategory: vi.fn().mockReturnValue({
@@ -553,6 +588,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     })
 
     const ctx = {
+      paths: { knowledgeBaseDir: '/mock/userData/Data/KnowledgeBase' },
       sources: {
         reduxState: {
           getCategory: vi.fn().mockReturnValue({
@@ -593,6 +629,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     })
 
     const ctx = {
+      paths: { knowledgeBaseDir: '/mock/userData/Data/KnowledgeBase' },
       sources: {
         reduxState: {
           getCategory: vi.fn().mockReturnValue({
@@ -651,6 +688,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     })
 
     const ctx = {
+      paths: { knowledgeBaseDir: '/mock/userData/Data/KnowledgeBase' },
       sources: {
         reduxState: {
           getCategory: vi.fn().mockReturnValue({
@@ -690,6 +728,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     })
 
     const ctx = {
+      paths: { knowledgeBaseDir: '/mock/userData/Data/KnowledgeBase' },
       sources: {
         reduxState: {
           getCategory: vi.fn().mockReturnValue({

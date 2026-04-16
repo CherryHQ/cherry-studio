@@ -1,8 +1,8 @@
+import { loggerService } from '@logger'
 import type { Request, Response } from 'express'
 import express from 'express'
 
-import { loggerService } from '../../services/LoggerService'
-import { mcpApiService } from '../services/mcp'
+import { getMcpApiService } from '../services/mcp'
 
 const logger = loggerService.withContext('ApiServerMCPRoutes')
 
@@ -42,18 +42,17 @@ const router = express.Router()
  *                 error:
  *                   $ref: '#/components/schemas/Error'
  */
-router.get('/', async (req: Request, res: Response) => {
+router.get('/', async (_req: Request, res: Response) => {
   try {
     logger.debug('Listing MCP servers')
-    const servers = await mcpApiService.getAllActiveServers()
-    const result: Record<string, { id: string; name: string; type: string; description?: string; url: string }> = {}
+    const servers = await getMcpApiService().getAllActiveServers()
+    const result: Record<string, { id: string; name: string; type: string; description?: string }> = {}
     for (const server of servers) {
       result[server.id] = {
         id: server.id,
         name: server.name,
-        type: 'streamableHttp',
-        description: server.description,
-        url: `${req.protocol}://${req.host}/v1/mcps/${server.id}/mcp`
+        type: server.type ?? 'stdio',
+        description: server.description
       }
     }
     return res.json({
@@ -117,7 +116,7 @@ router.get('/:server_id', async (req: Request, res: Response) => {
     logger.debug('Get MCP server info request received', {
       serverId: req.params.server_id
     })
-    const server = await mcpApiService.getServerInfo(req.params.server_id)
+    const server = await getMcpApiService().getServerInfo(req.params.server_id)
     if (!server) {
       logger.warn('MCP server not found', { serverId: req.params.server_id })
       return res.status(404).json({
@@ -144,63 +143,6 @@ router.get('/:server_id', async (req: Request, res: Response) => {
       }
     })
   }
-})
-
-/**
- * @swagger
- * /v1/mcps/{server_id}/mcp:
- *   post:
- *     summary: MCP protocol proxy
- *     description: Proxy endpoint for Model Context Protocol communication with a specific MCP server. Accepts all HTTP methods (GET, POST, DELETE, etc.).
- *     tags: [MCP]
- *     parameters:
- *       - in: path
- *         name: server_id
- *         required: true
- *         schema:
- *           type: string
- *         description: MCP server ID
- *     requestBody:
- *       description: MCP protocol request body (JSON-RPC format)
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *     responses:
- *       200:
- *         description: MCP protocol response
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *       404:
- *         description: MCP server not found
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 error:
- *                   $ref: '#/components/schemas/Error'
- */
-// Connect to MCP server
-router.all('/:server_id/mcp', async (req: Request, res: Response) => {
-  const server = await mcpApiService.getServerById(req.params.server_id)
-  if (!server) {
-    logger.warn('MCP server not found', { serverId: req.params.server_id })
-    return res.status(404).json({
-      success: false,
-      error: {
-        message: 'MCP server not found',
-        type: 'not_found',
-        code: 'server_not_found'
-      }
-    })
-  }
-  return await mcpApiService.handleRequest(req, res, server)
 })
 
 export { router as mcpRoutes }

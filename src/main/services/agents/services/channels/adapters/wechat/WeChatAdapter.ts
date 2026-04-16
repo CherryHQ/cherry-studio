@@ -1,7 +1,4 @@
-import path from 'node:path'
-
-import { application } from '@main/core/application'
-import { getDataPath } from '@main/utils'
+import { application } from '@application'
 import { IpcChannel } from '@shared/IpcChannel'
 import { parseDataUrl } from '@shared/utils'
 
@@ -27,7 +24,8 @@ class WeChatAdapter extends ChannelAdapter {
   constructor(config: ChannelAdapterConfig) {
     super(config)
     const { token_path, allowed_chat_ids } = config.channelConfig
-    this.tokenPath = (token_path as string) || path.join(getDataPath('Channels'), `weixin_bot_${config.channelId}.json`)
+    this.tokenPath =
+      (token_path as string) || application.getPath('feature.agents.channels', `weixin_bot_${config.channelId}.json`)
     const rawIds = allowed_chat_ids as string[] | undefined
     this.allowedChatIds = Array.isArray(rawIds) ? rawIds.map(String) : []
     this.notifyChatIds = [...this.allowedChatIds]

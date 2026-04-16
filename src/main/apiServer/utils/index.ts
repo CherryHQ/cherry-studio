@@ -1,6 +1,6 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { formatProviderApiHost } from '@main/aiCore/provider/providerConfig'
-import { application } from '@main/core/application'
 import { reduxService } from '@main/services/ReduxService'
 import { isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
 import type { ApiModel, Model, Provider, ProviderType } from '@types'

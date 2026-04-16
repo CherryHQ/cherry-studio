@@ -224,10 +224,9 @@ const SkillsSettings: FC = () => {
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [fileContent, setFileContent] = useState<string | null>(null)
   const [loadingContent, setLoadingContent] = useState(false)
-  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
+  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(() => new Set())
 
   // Search state (online registry)
-  const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const searchInputRef = useRef<HTMLInputElement>(null)
   const searchContainerRef = useRef<HTMLDivElement>(null)
@@ -237,7 +236,7 @@ const SkillsSettings: FC = () => {
 
   // Multi-select state
   const [multiSelectMode, setMultiSelectMode] = useState(false)
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
 
   // Search tab state
   const [searchTab, setSearchTab] = useState<SkillSearchSource>('claude-plugins.dev')
@@ -293,27 +292,18 @@ const SkillsSettings: FC = () => {
 
   // Close search dropdown on outside click (but not when clicking inside a modal)
   useEffect(() => {
-    if (!searchOpen) return
     const handler = (e: MouseEvent) => {
       const target = e.target as Node
       if (searchContainerRef.current && !searchContainerRef.current.contains(target)) {
         const modal = (target as Element).closest?.('.ant-modal-root, .ant-modal-wrap, .ant-modal')
         if (modal) return
-        setSearchOpen(false)
         setSearchQuery('')
         clear()
       }
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
-  }, [searchOpen, clear])
-
-  // Focus input when search opens
-  useEffect(() => {
-    if (searchOpen) {
-      setTimeout(() => searchInputRef.current?.focus(), 50)
-    }
-  }, [searchOpen])
+  }, [clear])
 
   // Filtered skills list
   const filteredSkills = useMemo(() => {
@@ -385,9 +375,7 @@ const SkillsSettings: FC = () => {
       title: t('settings.skills.confirmBatchUninstall', { count: toDelete.length }),
       centered: true,
       onOk: async () => {
-        for (const skill of toDelete) {
-          await uninstall(skill.id)
-        }
+        await Promise.all(toDelete.map((skill) => uninstall(skill.id)))
         setSelectedIds(new Set())
         setMultiSelectMode(false)
         setSelectedSkill(null)
@@ -459,16 +447,12 @@ const SkillsSettings: FC = () => {
     setSelectedSkill(null)
   }, [])
 
-  const selectedFileName = useMemo(() => {
-    if (!selectedFile) return null
-    const parts = selectedFile.split('/')
-    return parts[parts.length - 1]
-  }, [selectedFile])
+  const selectedFileName = selectedFile ? selectedFile.split('/').pop()! : null
 
   const handleCloseSearch = useCallback(() => {
-    setSearchOpen(false)
     setSearchQuery('')
     clear()
+    searchInputRef.current?.blur()
   }, [clear])
 
   const handleZipInstall = useCallback(
@@ -671,60 +655,51 @@ const SkillsSettings: FC = () => {
                   ) : null}
                 </DetailMeta>
               ) : null}
-              {searchOpen ? (
-                <SearchInputWrapper>
-                  <Input
-                    ref={searchInputRef as React.Ref<any>}
-                    size="small"
-                    placeholder={t('settings.skills.searchPlaceholder')}
-                    value={searchQuery}
-                    onChange={(e) => handleSearch(e.target.value)}
-                    suffix={<X size={12} style={CLOSE_ICON_STYLE} onClick={handleCloseSearch} />}
-                    prefix={<Search size={12} />}
-                  />
-                  {searching || results.length > 0 || (searchQuery && !searching) ? (
-                    <SearchDropdown>
-                      <SearchTabs>
-                        {SEARCH_SOURCES.map((source) => {
-                          const count = tabCounts.get(source) ?? 0
-                          return (
-                            <SearchTab key={source} $active={searchTab === source} onClick={() => setSearchTab(source)}>
-                              {source.replace('.dev', '').replace('.ai', '')}
-                              {count > 0 ? <TabCount>{count}</TabCount> : null}
-                            </SearchTab>
-                          )
-                        })}
-                      </SearchTabs>
-                      <SearchResultsScroll>
-                        {searching ? (
-                          <DropdownLoading>
-                            <Spin size="small" />
-                          </DropdownLoading>
-                        ) : null}
-                        {!searching && searchQuery && filteredResults.length === 0 ? (
-                          <DropdownEmpty>{t('settings.skills.noResults')}</DropdownEmpty>
-                        ) : null}
-                        {filteredResults.map((result) => (
-                          <SearchResultRow
-                            key={`${result.sourceRegistry}:${result.slug}`}
-                            result={result}
-                            isInstalling={isInstalling}
-                            onInstall={handleInstall}
-                            onPreview={setPreviewResult}
-                            installLabel={t('settings.skills.install')}
-                          />
-                        ))}
-                      </SearchResultsScroll>
-                    </SearchDropdown>
-                  ) : null}
-                </SearchInputWrapper>
-              ) : (
-                <Tooltip title={t('settings.skills.searchRegistryTitle')}>
-                  <SearchIconButton onClick={() => setSearchOpen(true)}>
-                    <Search size={16} />
-                  </SearchIconButton>
-                </Tooltip>
-              )}
+              <SearchInputWrapper>
+                <Input
+                  ref={searchInputRef as React.Ref<any>}
+                  placeholder={t('settings.skills.searchPlaceholder')}
+                  value={searchQuery}
+                  onChange={(e) => handleSearch(e.target.value)}
+                  suffix={searchQuery ? <X size={12} style={CLOSE_ICON_STYLE} onClick={handleCloseSearch} /> : <span />}
+                  prefix={<Search size={12} />}
+                />
+                {searching || results.length > 0 || (searchQuery && !searching) ? (
+                  <SearchDropdown>
+                    <SearchTabs>
+                      {SEARCH_SOURCES.map((source) => {
+                        const count = tabCounts.get(source) ?? 0
+                        return (
+                          <SearchTab key={source} $active={searchTab === source} onClick={() => setSearchTab(source)}>
+                            {source.replace('.dev', '').replace('.ai', '')}
+                            {count > 0 ? <TabCount>{count}</TabCount> : null}
+                          </SearchTab>
+                        )
+                      })}
+                    </SearchTabs>
+                    <SearchResultsScroll>
+                      {searching ? (
+                        <DropdownLoading>
+                          <Spin size="small" />
+                        </DropdownLoading>
+                      ) : null}
+                      {!searching && searchQuery && filteredResults.length === 0 ? (
+                        <DropdownEmpty>{t('settings.skills.noResults')}</DropdownEmpty>
+                      ) : null}
+                      {filteredResults.map((result) => (
+                        <SearchResultRow
+                          key={`${result.sourceRegistry}:${result.slug}`}
+                          result={result}
+                          isInstalling={isInstalling}
+                          onInstall={handleInstall}
+                          onPreview={setPreviewResult}
+                          installLabel={t('settings.skills.install')}
+                        />
+                      ))}
+                    </SearchResultsScroll>
+                  </SearchDropdown>
+                ) : null}
+              </SearchInputWrapper>
             </TopBarRight>
           </TopBar>
 
@@ -932,18 +907,6 @@ const DetailMeta = styled.div`
   display: flex;
   align-items: center;
   gap: 6px;
-`
-
-const SearchIconButton = styled.div`
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  color: var(--color-text-2);
-  &:hover {
-    background: var(--color-background-soft);
-  }
 `
 
 const SearchInputWrapper = styled.div`

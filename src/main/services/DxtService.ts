@@ -1,5 +1,5 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { getMcpDir, getTempDir } from '@main/utils/file'
 import * as fs from 'fs'
 import StreamZip from 'node-stream-zip'
 import * as os from 'os'
@@ -253,26 +253,35 @@ export interface ResolvedMcpConfig {
 }
 
 class DxtService {
-  private tempDir = path.join(getTempDir(), 'dxt_uploads')
-  private mcpDir = getMcpDir()
-
-  constructor() {
-    this.ensureDirectories()
+  // TODO(v2): Lazy getter is a workaround, not a fix.
+  //
+  // The real problem is that `DxtService` is instantiated as a
+  // module-local singleton in `ipc.ts`
+  // (`const dxtService = new DxtService()`), which is pulled into the
+  // static import graph of `src/main/index.ts`, BEFORE
+  // `application.bootstrap()` runs and builds the path registry. Field
+  // initializers like `private tempDir = application.getPath(...)`
+  // would throw "PATHS not initialized" at module-load time.
+  //
+  // Lazy getters defer the path lookup until first *access*, by which
+  // point bootstrap has finished — but the class itself is still being
+  // constructed too early. We've merely moved the path lookup out of
+  // construction; we have NOT solved the architectural issue.
+  //
+  // The proper v2 fix is to migrate `DxtService` into the lifecycle
+  // system: extend `BaseService`, add `@Injectable`, register in
+  // `serviceRegistry.ts`, and have callers resolve it via
+  // `application.get('DxtService')` instead of the `ipc.ts` singleton.
+  // Once that's done, the DI container will instantiate it inside
+  // `application.bootstrap()` after the path registry is built, and
+  // these getters can become plain field initializers (or move into
+  // `onInit`). Until then, keep them as getters — do NOT "simplify"
+  // them back to fields.
+  private get tempDir(): string {
+    return application.getPath('feature.dxt.uploads.temp')
   }
-
-  private ensureDirectories() {
-    try {
-      // Create temp directory
-      if (!fs.existsSync(this.tempDir)) {
-        fs.mkdirSync(this.tempDir, { recursive: true })
-      }
-      // Create MCP directory
-      if (!fs.existsSync(this.mcpDir)) {
-        fs.mkdirSync(this.mcpDir, { recursive: true })
-      }
-    } catch (error) {
-      logger.error('Failed to create directories:', error as Error)
-    }
+  private get mcpDir(): string {
+    return application.getPath('feature.mcp')
   }
 
   private async moveDirectory(source: string, destination: string): Promise<void> {

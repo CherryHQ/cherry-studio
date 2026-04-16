@@ -2,6 +2,7 @@
  * IPC handler for migration communication between Main and Renderer
  */
 
+import type { VersionBlockReason } from '@data/migration/v2/core/versionPolicy'
 import { loggerService } from '@logger'
 import BackupManager from '@main/services/BackupManager'
 import {
@@ -34,12 +35,12 @@ let currentProgress: MigrationProgress = {
 /**
  * Register all migration IPC handlers
  */
-export function registerMigrationIpcHandlers(): void {
+export function registerMigrationIpcHandlers(userDataPath: string): void {
   logger.info('Registering migration IPC handlers')
 
   // Get user data path
   ipcMain.handle(MigrationIpcChannels.GetUserDataPath, () => {
-    return app.getPath('userData')
+    return userDataPath
   })
 
   // Check if migration is needed
@@ -295,6 +296,20 @@ export function registerMigrationIpcHandlers(): void {
     }
   })
 
+  // Skip migration (version incompatible — user chose to use defaults)
+  ipcMain.handle(MigrationIpcChannels.SkipMigration, async () => {
+    try {
+      logger.info('User chose to skip migration and use defaults')
+      await migrationEngine.skipMigration()
+      migrationEngine.close()
+      void migrationWindowManager.restartApp()
+      return true
+    } catch (error) {
+      logger.error('Error skipping migration', error as Error)
+      throw error
+    }
+  })
+
   // Restart app
   ipcMain.handle(MigrationIpcChannels.Restart, async () => {
     try {
@@ -337,6 +352,21 @@ export function resetMigrationData(): void {
     stage: 'introduction',
     overallProgress: 0,
     currentMessage: 'Ready to start data migration',
+    migrators: []
+  }
+}
+
+/**
+ * Set the initial progress to version_incompatible stage.
+ * Must be called BEFORE registerMigrationIpcHandlers() so that the
+ * renderer picks up this state via the GetProgress IPC on mount.
+ */
+export function setVersionIncompatible(reason: VersionBlockReason, details: Record<string, string>): void {
+  currentProgress = {
+    stage: 'version_incompatible',
+    overallProgress: 0,
+    currentMessage: `Version incompatible: ${reason}`,
+    i18nMessage: { key: `migration.version_incompatible.${reason}`, params: details },
     migrators: []
   }
 }

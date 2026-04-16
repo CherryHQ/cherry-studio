@@ -268,7 +268,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
     )
   }, [displayMessages.length, hasMore, isLoadingMore, messages, setTimeoutTimer])
 
-  useShortcut('copy_last_message', () => {
+  useShortcut('chat.copy_last_message', () => {
     const lastMessage = last(messages)
     if (lastMessage) {
       void navigator.clipboard.writeText(getMainTextContent(lastMessage))
@@ -276,7 +276,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
     }
   })
 
-  useShortcut('edit_last_user_message', () => {
+  useShortcut('chat.edit_last_user_message', () => {
     const lastUserMessage = messagesRef.current.findLast((m) => m.role === 'user' && m.type !== 'clear')
     if (lastUserMessage) {
       void EventEmitter.emit(EVENT_NAMES.EDIT_MESSAGE, lastUserMessage.id)

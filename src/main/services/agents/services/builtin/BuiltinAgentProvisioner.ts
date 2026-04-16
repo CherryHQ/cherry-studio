@@ -8,9 +8,8 @@
  * The Claude Agent SDK auto-discovers skills from .claude/skills/ and
  * plugins from .claude/plugins.json, so no programmatic injection is needed.
  */
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
-import { getResourcePath } from '@main/utils'
 import fs from 'fs'
 import path from 'path'
 
@@ -77,7 +76,7 @@ export async function provisionBuiltinAgent(
     return undefined
   }
 
-  const resourceBase = path.join(getResourcePath(), 'builtin-agents')
+  const resourceBase = application.getPath('feature.agents.builtin')
   const templateDir = path.join(resourceBase, templateName)
 
   if (!fs.existsSync(templateDir)) {

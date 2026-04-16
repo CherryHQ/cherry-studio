@@ -6,14 +6,20 @@
     "incremental": true,
     "moduleResolution": "bundler",
     "paths": {
+      "@application": ["./src/main/core/application"],
+      "@cherrystudio/provider-registry": ["./packages/provider-registry/src/index.ts"],
+      "@cherrystudio/provider-registry/node": ["./packages/provider-registry/src/registry-loader.ts"],
       "@data/*": ["./src/main/data/*"],
-      "@logger": ["./src/main/services/LoggerService"],
+      "@logger": ["./src/main/core/logger/LoggerService"],
       "@main/*": ["./src/main/*"],
       "@mcp-trace/*": ["./packages/mcp-trace/*"],
       "@modelcontextprotocol/sdk/*": ["./node_modules/@modelcontextprotocol/sdk/dist/esm/*"],
       "@shared/*": ["./packages/shared/*"],
+      "@test-helpers/*": ["./tests/helpers/*"],
       "@test-mocks/*": ["./tests/__mocks__/*"],
-      "@types": ["./src/renderer/src/types/index.ts"]
+      "@types": ["./src/renderer/src/types/index.ts"],
+      "@vectorstores/libsql": ["./packages/vectorstores/libsql/src/index.ts"],
+      "@vectorstores/libsql/*": ["./packages/vectorstores/libsql/src/*"]
     },
     "tsBuildInfoFile": ".tsbuildinfo/tsconfig.node.tsbuildinfo",
     "types": ["electron-vite/node", "vitest/globals"],
@@ -29,7 +35,10 @@
     "src/renderer/src/services/traceApi.ts",
     "src/renderer/src/types/*",
     "packages/mcp-trace/**/*",
+    "packages/provider-registry/**/*",
     "packages/shared/**/*",
-    "tests/__mocks__/**/*"
+    "packages/vectorstores/**/*",
+    "tests/__mocks__/**/*",
+    "tests/helpers/**/*"
   ]
 }

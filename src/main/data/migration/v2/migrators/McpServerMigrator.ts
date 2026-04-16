@@ -11,14 +11,14 @@
  * - Dexie mcp:provider:*:servers (handled in separate PR)
  */
 
-import { type McpServerInsert, mcpServerTable } from '@data/db/schemas/mcpServer'
+import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import { sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
-import { transformMcpServer } from './mappings/McpServerMappings'
+import { type McpServerTransformResult, transformMcpServer } from './mappings/McpServerMappings'
 
 const logger = loggerService.withContext('McpServerMigrator')
 
@@ -28,11 +28,11 @@ export class McpServerMigrator extends BaseMigrator {
   readonly description = 'Migrate MCP server configurations from Redux to SQLite'
   readonly order = 1.5
 
-  private preparedRows: McpServerInsert[] = []
+  private preparedResults: McpServerTransformResult[] = []
   private skippedCount = 0
 
   override reset(): void {
-    this.preparedRows = []
+    this.preparedResults = []
     this.skippedCount = 0
   }
 
@@ -64,7 +64,7 @@ export class McpServerMigrator extends BaseMigrator {
           seenIds.add(s.id)
 
           try {
-            this.preparedRows.push(transformMcpServer(s, this.preparedRows.length))
+            this.preparedResults.push(transformMcpServer(s, this.preparedResults.length))
           } catch (err) {
             this.skippedCount++
             warnings.push(`Failed to transform server ${s.id}: ${(err as Error).message}`)
@@ -72,7 +72,7 @@ export class McpServerMigrator extends BaseMigrator {
           }
         }
 
-        if (this.skippedCount > 0 && this.preparedRows.length === 0 && servers.length > 0) {
+        if (this.skippedCount > 0 && this.preparedResults.length === 0 && servers.length > 0) {
           return {
             success: false,
             itemCount: 0,
@@ -82,13 +82,13 @@ export class McpServerMigrator extends BaseMigrator {
       }
 
       logger.info('Preparation completed', {
-        serverCount: this.preparedRows.length,
+        serverCount: this.preparedResults.length,
         skipped: this.skippedCount
       })
 
       return {
         success: true,
-        itemCount: this.preparedRows.length,
+        itemCount: this.preparedResults.length,
         warnings: warnings.length > 0 ? warnings : undefined
       }
     } catch (error) {
@@ -102,25 +102,34 @@ export class McpServerMigrator extends BaseMigrator {
   }
 
   async execute(ctx: MigrationContext): Promise<ExecuteResult> {
-    if (this.preparedRows.length === 0) {
+    if (this.preparedResults.length === 0) {
       return { success: true, processedCount: 0 }
     }
 
     try {
       let processed = 0
+      const rows = this.preparedResults.map((r) => r.row)
 
       const BATCH_SIZE = 100
       await ctx.db.transaction(async (tx) => {
-        for (let i = 0; i < this.preparedRows.length; i += BATCH_SIZE) {
-          const batch = this.preparedRows.slice(i, i + BATCH_SIZE)
+        for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+          const batch = rows.slice(i, i + BATCH_SIZE)
           await tx.insert(mcpServerTable).values(batch)
           processed += batch.length
         }
       })
 
+      // Share oldId → newId mapping so downstream migrators (e.g. AssistantMigrator)
+      // can remap legacy MCP server references to the new UUIDs
+      const idMapping = new Map<string, string>()
+      for (const result of this.preparedResults) {
+        idMapping.set(result.oldId, result.row.id!)
+      }
+      ctx.sharedData.set('mcpServerIdMapping', idMapping)
+
       this.reportProgress(100, `Migrated ${processed} items`, {
         key: 'migration.progress.migrated_mcp_servers',
-        params: { processed, total: this.preparedRows.length }
+        params: { processed, total: this.preparedResults.length }
       })
 
       logger.info('Execute completed', { processedCount: processed })
@@ -142,10 +151,10 @@ export class McpServerMigrator extends BaseMigrator {
       const serverCount = serverResult?.count ?? 0
       const errors: { key: string; message: string }[] = []
 
-      if (serverCount !== this.preparedRows.length) {
+      if (serverCount !== this.preparedResults.length) {
         errors.push({
           key: 'count_mismatch',
-          message: `Expected ${this.preparedRows.length} servers but found ${serverCount}`
+          message: `Expected ${this.preparedResults.length} servers but found ${serverCount}`
         })
       }
 
@@ -160,7 +169,7 @@ export class McpServerMigrator extends BaseMigrator {
         success: errors.length === 0,
         errors,
         stats: {
-          sourceCount: this.preparedRows.length,
+          sourceCount: this.preparedResults.length,
           targetCount: serverCount,
           skippedCount: this.skippedCount
         }
@@ -171,7 +180,7 @@ export class McpServerMigrator extends BaseMigrator {
         success: false,
         errors: [{ key: 'validation', message: error instanceof Error ? error.message : String(error) }],
         stats: {
-          sourceCount: this.preparedRows.length,
+          sourceCount: this.preparedResults.length,
           targetCount: 0,
           skippedCount: this.skippedCount
         }

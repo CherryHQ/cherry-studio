@@ -1,6 +1,6 @@
-import { application } from '@main/core/application'
+import { application } from '@application'
+import { loggerService } from '@logger'
 import PreprocessProvider from '@main/knowledge/preprocess/PreprocessProvider'
-import { loggerService } from '@main/services/LoggerService'
 import type { FileMetadata, KnowledgeBaseParams, KnowledgeItem } from '@types'
 
 const logger = loggerService.withContext('PreprocessingService')

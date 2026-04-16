@@ -4,9 +4,10 @@
  * langCode is the primary key (immutable after creation).
  */
 
+import { application } from '@application'
+import { isUniqueConstraintError } from '@data/db/errorUtils'
 import { translateLanguageTable } from '@data/db/schemas/translateLanguage'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateTranslateLanguageDto, UpdateTranslateLanguageDto } from '@shared/data/api/schemas/translate'
 import type { TranslateLanguage } from '@shared/data/types/translate'
@@ -67,7 +68,10 @@ export class TranslateLanguageService {
       logger.info('Created translate language', { langCode })
       return rowToTranslateLanguage(row)
     } catch (e: unknown) {
-      if (e instanceof Error && e.message.includes('UNIQUE constraint failed')) {
+      // Drizzle wraps the libsql error in a DrizzleQueryError whose message
+      // reads "Failed query: insert into ..."; the actual UNIQUE text sits on
+      // `.cause`. `isUniqueConstraintError` walks the cause chain.
+      if (isUniqueConstraintError(e)) {
         throw DataApiErrorFactory.conflict(`Language with code '${langCode}' already exists`, 'TranslateLanguage')
       }
       throw e

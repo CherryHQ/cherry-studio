@@ -7,15 +7,9 @@
 
 import * as z from 'zod'
 
+import { AutoFields } from '../../types/index'
 import { type MCPServer, MCPServerSchema, MCPServerTypeSchema } from '../../types/mcpServer'
 import type { OffsetPaginationResponse } from '../apiTypes'
-
-// ============================================================================
-// DTO Derivation
-// ============================================================================
-
-/** Fields auto-managed by the database layer, excluded from DTOs */
-const AutoFields = { id: true, createdAt: true, updatedAt: true } as const
 
 /**
  * DTO for creating a new MCP server.

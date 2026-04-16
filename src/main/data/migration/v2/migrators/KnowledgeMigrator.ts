@@ -18,7 +18,6 @@ import { pathToFileURL } from 'node:url'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { createClient, type Value as LibsqlValue } from '@libsql/client'
 import { loggerService } from '@logger'
-import { getDataPath } from '@main/utils'
 import { sanitizeFilename } from '@main/utils/file'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import type { FileMetadata } from '@shared/data/types/file'
@@ -131,8 +130,13 @@ export class KnowledgeMigrator extends BaseMigrator {
     this.seenItemIds = new Set<string>()
   }
 
-  private getLegacyKnowledgeDbPath(baseId: string): string | null {
-    const rootPath = path.resolve(getDataPath(), 'KnowledgeBase')
+  private getLegacyKnowledgeDbPath(baseId: string, knowledgeBaseDir: string): string | null {
+    // The knowledge base directory comes from MigrationPaths, which is resolved
+    // once at the migration gate entry by resolveMigrationPaths(). This avoids
+    // calling app.getPath('userData') directly (which would miss custom userData
+    // overrides from legacy config.json) and avoids the v2 path registry (which
+    // is not available during migration).
+    const rootPath = knowledgeBaseDir
     const sanitizedBaseId = sanitizeFilename(baseId, '_')
     const resolvedDbPath = path.resolve(rootPath, sanitizedBaseId)
     const relativePath = path.relative(rootPath, resolvedDbPath)
@@ -179,9 +183,10 @@ export class KnowledgeMigrator extends BaseMigrator {
   }
 
   private async resolveDimensionsForBase(
-    base: LegacyKnowledgeBaseWithIdentity
+    base: LegacyKnowledgeBaseWithIdentity,
+    knowledgeBaseDir: string
   ): Promise<{ dimensions: number | null; reason: DimensionResolutionReason }> {
-    const dbPath = this.getLegacyKnowledgeDbPath(base.id)
+    const dbPath = this.getLegacyKnowledgeDbPath(base.id, knowledgeBaseDir)
     if (!dbPath) {
       return { dimensions: null, reason: 'vector_db_invalid_path' }
     }
@@ -420,7 +425,7 @@ export class KnowledgeMigrator extends BaseMigrator {
           continue
         }
 
-        const resolvedDimensions = await this.resolveDimensionsForBase(validBase)
+        const resolvedDimensions = await this.resolveDimensionsForBase(validBase, ctx.paths.knowledgeBaseDir)
 
         if (resolvedDimensions.dimensions === null) {
           this.skippedCount += 1 + items.length

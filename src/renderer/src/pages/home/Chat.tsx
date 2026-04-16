@@ -60,7 +60,7 @@ const Chat: FC<Props> = (props) => {
     contentSearchRef.current?.disable()
   })
 
-  useShortcut('search_message_in_chat', () => {
+  useShortcut('chat.search_message', () => {
     try {
       const selectedText = window.getSelection()?.toString().trim()
       contentSearchRef.current?.enable(selectedText)
@@ -69,7 +69,7 @@ const Chat: FC<Props> = (props) => {
     }
   })
 
-  useShortcut('rename_topic', async () => {
+  useShortcut('topic.rename', async () => {
     const topic = props.activeTopic
     if (!topic) return
 
@@ -87,15 +87,17 @@ const Chat: FC<Props> = (props) => {
     }
   })
 
-  useShortcut('select_model', async () => {
+  useShortcut('chat.select_model', async () => {
     const modelFilter = (m: Model) => !isEmbeddingModel(m) && !isRerankModel(m)
-    const selectedModel = await SelectChatModelPopup.show({ model: assistant?.model, filter: modelFilter })
+    const selectedModel = await SelectChatModelPopup.show({
+      model: assistant?.model,
+      filter: modelFilter
+    })
     if (selectedModel) {
       const enabledWebSearch = isWebSearchModel(selectedModel)
       updateAssistant({
-        ...props.assistant,
         model: selectedModel,
-        enableWebSearch: enabledWebSearch && props.assistant.enableWebSearch
+        enableWebSearch: enabledWebSearch && assistant.enableWebSearch
       })
     }
   })

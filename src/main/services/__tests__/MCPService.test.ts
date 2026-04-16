@@ -8,7 +8,7 @@ vi.mock('@data/services/McpServerService', () => ({
   }
 }))
 
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: {
     get: vi.fn((name: string) => {
       if (name === 'WindowService') {
@@ -18,7 +18,8 @@ vi.mock('@main/core/application', () => ({
         return { has: vi.fn(() => false), get: vi.fn(), set: vi.fn(), delete: vi.fn() }
       }
       throw new Error(`[MockApplication] Unknown service: ${name}`)
-    })
+    }),
+    getPath: vi.fn((key: string, filename?: string) => (filename ? `/mock/${key}/${filename}` : `/mock/${key}`))
   }
 }))
 

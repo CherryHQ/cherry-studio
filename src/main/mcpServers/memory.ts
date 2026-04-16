@@ -1,5 +1,5 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { getConfigDir } from '@main/utils/file'
 import { TraceMethod } from '@mcp-trace/trace-core'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
@@ -10,7 +10,7 @@ import path from 'path'
 const logger = loggerService.withContext('MCPServer:Memory')
 
 // Define memory file path
-const defaultMemoryPath = path.join(getConfigDir(), 'memory.json')
+const getDefaultMemoryPath = () => application.getPath('feature.mcp.memory_file')
 
 // Interfaces remain the same
 interface Entity {
@@ -347,7 +347,7 @@ class MemoryServer {
       ? path.isAbsolute(envPath)
         ? envPath
         : path.resolve(envPath) // Use path.resolve for relative paths based on CWD
-      : defaultMemoryPath
+      : getDefaultMemoryPath()
 
     this.server = new Server(
       {

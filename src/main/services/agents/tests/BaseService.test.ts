@@ -5,14 +5,16 @@ import { describe, expect, it, vi } from 'vitest'
 
 import type { AgentModelField } from '../errors'
 
-vi.mock('@main/apiServer/services/mcp', () => ({
-  mcpApiService: {
-    getServerInfo: vi.fn()
-  }
-}))
+vi.mock('node:fs', async () => {
+  const { createNodeFsMock } = await import('@test-helpers/mocks/nodeFsMock')
+  return createNodeFsMock()
+})
 
-vi.mock('@main/utils', () => ({
-  getDataPath: () => '/mock/data'
+const mockMcpApiService = {
+  getServerInfo: vi.fn()
+}
+vi.mock('@main/apiServer/services/mcp', () => ({
+  getMcpApiService: vi.fn(() => mockMcpApiService)
 }))
 
 const mockValidateModelId = vi.fn()
@@ -162,7 +164,8 @@ describe('BaseService.validateAgentModels', () => {
 describe('BaseService.resolveAccessiblePaths', () => {
   const service = new TestBaseService()
   const testId = 'agent_1234567890_abcdefghi'
-  const defaultPath = path.join('/mock/data', 'Agents', 'abcdefghi')
+  // Matches the stub in tests/main.setup.ts → application.getPath('feature.agents.workspaces')
+  const defaultPath = path.join('/mock/feature.agents.workspaces', 'abcdefghi')
 
   it('assigns a default path when paths is undefined', () => {
     expect(service.resolve(undefined, testId)).toEqual([defaultPath])

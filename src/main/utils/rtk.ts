@@ -4,12 +4,13 @@ import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { HOME_CHERRY_DIR } from '@shared/config/constant'
 import { gte as semverGte } from 'semver'
 
 import { isWin } from '../constant'
-import { getResourcePath, toAsarUnpackedPath } from '.'
+import { toAsarUnpackedPath } from '.'
 
 const execFileAsync = promisify(execFile)
 const logger = loggerService.withContext('Utils:Rtk')
@@ -34,7 +35,7 @@ function isPlatformSupported(): boolean {
 }
 
 function getBundledBinariesDir(): string {
-  const dir = path.join(getResourcePath(), 'binaries', getPlatformKey())
+  const dir = path.join(application.getPath('app.root.resources.binaries'), getPlatformKey())
   return toAsarUnpackedPath(dir)
 }
 
@@ -44,7 +45,7 @@ function getUserBinDir(): string {
 
 /**
  * Extract bundled rtk binary to ~/.cherrystudio/bin/ if not already present or outdated.
- * Called once at app startup.
+ * Invoked during agent subsystem bootstrap.
  */
 export async function extractRtkBinaries(): Promise<void> {
   if (!isPlatformSupported()) {

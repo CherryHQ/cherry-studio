@@ -104,7 +104,8 @@ describe('ComplexPreferenceMappings', () => {
       expect(keys).toContain('chat.web_search.provider_overrides')
       expect(keys).toContain('feature.code_cli.overrides')
       expect(keys).toContain('feature.file_processing.overrides')
-      expect(keys.length).toBe(10) // 7 websearch compression + 1 provider overrides + 1 code_cli overrides + 1 file processing overrides
+      expect(keys).toContain('shortcut.general.zoom_in')
+      expect(keys.length).toBe(30)
     })
 
     it('should flatten target keys from all mappings', () => {
