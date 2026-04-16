@@ -7,11 +7,9 @@ import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import { type V2ChatOverrides, V2ChatOverridesProvider } from '@renderer/hooks/useMessageOperations'
 import { ensureTopicExists } from '@renderer/hooks/useTopicDataApi'
 import { useTopicMessagesV2 } from '@renderer/hooks/useTopicMessagesV2'
-import { fetchMcpTools } from '@renderer/services/ApiService'
 import type { Assistant, FileMetadata, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { AssistantMessageStatus } from '@renderer/types/newMessage'
-import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/assistant'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { FC, ReactNode } from 'react'
@@ -282,20 +280,12 @@ const V2ChatContentInner: FC<InnerProps> = ({
     ]
   )
 
-  /** Resolve MCP tool IDs asynchronously (requires IPC to list server tools). */
-  const resolveMcpToolIds = useCallback(async (): Promise<string[] | undefined> => {
-    if (!isPromptToolUse(assistant) && !isSupportedToolUse(assistant)) return undefined
-    const tools = await fetchMcpTools(assistant)
-    return tools.length > 0 ? tools.map((t) => t.id) : undefined
-  }, [assistant])
-
   /** Regenerate with capability body injected. */
   const regenerateWithCapabilities = useCallback(
     async (messageId?: string) => {
-      const mcpToolIds = await resolveMcpToolIds()
-      await regenerate({ messageId, body: { mcpToolIds, ...capabilityBody } })
+      await regenerate({ messageId, body: capabilityBody })
     },
-    [regenerate, resolveMcpToolIds, capabilityBody]
+    [regenerate, capabilityBody]
   )
 
   const v2ChatOverrides = useMemo<V2ChatOverrides>(
@@ -332,12 +322,6 @@ const V2ChatContentInner: FC<InnerProps> = ({
   const handleSendV2 = useCallback(
     async (text: string, options?: { files?: FileMetadata[]; mentionedModels?: UniqueModelId[] }) => {
       await ensureCurrentTopic()
-      let mcpToolIds: string[] | undefined
-      try {
-        mcpToolIds = await resolveMcpToolIds()
-      } catch (err) {
-        logger.warn('Failed to resolve MCP tool IDs, proceeding without tools', { err })
-      }
       void sendMessage(
         { text },
         {
@@ -345,13 +329,12 @@ const V2ChatContentInner: FC<InnerProps> = ({
             parentAnchorId: activeNodeId ?? undefined,
             files: options?.files,
             mentionedModels: options?.mentionedModels,
-            mcpToolIds,
             ...capabilityBody
           }
         }
       )
     },
-    [activeNodeId, ensureCurrentTopic, sendMessage, resolveMcpToolIds, capabilityBody]
+    [activeNodeId, ensureCurrentTopic, sendMessage, capabilityBody]
   )
 
   return (

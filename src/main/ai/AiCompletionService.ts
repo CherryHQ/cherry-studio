@@ -6,7 +6,7 @@ import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { downloadImageAsBase64 } from '@main/services/agents/services/channels/ChannelAdapter'
 import type { Assistant } from '@shared/data/types/assistant'
-import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type {
   ChatTransport,
   EmbeddingModelUsage,
@@ -25,10 +25,27 @@ import { extractAgentSessionId, isAgentSessionTopic } from './provider/claudeCod
 import { providerToAiSdkConfig } from './provider/config'
 import { listModels as listModelsFromProvider } from './services/listModels'
 import { registerMcpTools } from './tools/mcpTools'
+import { resolveAssistantMcpToolIds } from './tools/resolveAssistantMcpTools'
 import type { ToolRegistry } from './tools/ToolRegistry'
 import type { AppProviderSettingsMap } from './types'
 
 const logger = loggerService.withContext('AiCompletionService')
+
+/**
+ * Heuristic for detecting embedding / rerank models. Prefers explicit endpoint
+ * type metadata from the provider registry, falls back to a regex on model id
+ * to cover user-imported models that have not been classified yet.
+ */
+const EMBEDDING_MODEL_ID_REGEX =
+  /(?:^text-|embed|bge-|e5-|LLM2Vec|retrieval|uae-|gte-|jina-clip|jina-embeddings|voyage-)/i
+
+// TODO： move to shared
+function isEmbeddingModel(model: Model): boolean {
+  const endpointTypes = model.endpointTypes ?? []
+  if (endpointTypes.includes(ENDPOINT_TYPE.OPENAI_EMBEDDINGS)) return true
+  if (endpointTypes.includes(ENDPOINT_TYPE.JINA_RERANK)) return true
+  return EMBEDDING_MODEL_ID_REGEX.test(model.id)
+}
 
 type ChatTrigger = Parameters<ChatTransport<UIMessage>['sendMessages']>[0]['trigger']
 
@@ -322,15 +339,26 @@ export class AiCompletionService {
 
   // ── API validation ──
 
+  /**
+   * Validate that a provider/model pair is working by sending a minimal probe.
+   *
+   * Automatically dispatches to `embedMany` for embedding models and
+   * `generateText` otherwise — renderers do not need to know anything about
+   * model types to run a health check.
+   */
   async checkModel(request: AiBaseRequest & { timeout?: number }): Promise<{ latency: number }> {
+    const { model } = await this.getProviderAndModel(request)
     const start = performance.now()
     const timeout = request.timeout ?? 15000
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error('Check model timeout')), timeout)
     )
 
-    await Promise.race([this.generateText({ ...request, system: 'test', prompt: 'hi' }), timeoutPromise])
+    const probe = isEmbeddingModel(model)
+      ? this.embedMany({ ...request, values: ['test'] })
+      : this.generateText({ ...request, system: 'test', prompt: 'hi' })
 
+    await Promise.race([probe, timeoutPromise])
     return { latency: performance.now() - start }
   }
 
@@ -347,11 +375,17 @@ export class AiCompletionService {
       modelId: model.apiModelId ?? model.id
     }
 
-    // Register MCP tools on-demand, then resolve
-    if (request.mcpToolIds?.length) {
-      await registerMcpTools(this.toolRegistry, request.mcpToolIds)
+    // Resolve MCP tool IDs — if the caller did not pass an explicit list we
+    // derive one from the assistant's MCP config so renderers don't need to
+    // know anything about MCP tool discovery.
+    let mcpToolIds = request.mcpToolIds
+    if (!mcpToolIds && request.assistantId) {
+      mcpToolIds = await resolveAssistantMcpToolIds(request.assistantId)
     }
-    const tools = this.toolRegistry.resolve(request.mcpToolIds)
+    if (mcpToolIds?.length) {
+      await registerMcpTools(this.toolRegistry, mcpToolIds)
+    }
+    const tools = this.toolRegistry.resolve(mcpToolIds)
 
     const plugins = buildPlugins()
     const system = assistant?.prompt || undefined

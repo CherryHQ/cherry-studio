@@ -1090,8 +1090,6 @@ export class AiCompletionService {
       },
     })
 
-    // agent.generate() — 没有 tools 时就是单步 LLM 调用
-    // 有 tools 时 agent 自主决策多步调用后返回最终结果
     const result = await agent.generate({
       messages: request.messages ?? [],
       prompt: request.prompt,
