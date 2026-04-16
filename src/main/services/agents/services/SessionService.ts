@@ -110,7 +110,7 @@ export class SessionService extends BaseService {
     const agents = await database
       .select()
       .from(agentsTable)
-      .where(and(eq(agentsTable.id, agentId), isNull(agentsTable.deleted_at)))
+      .where(and(eq(agentsTable.id, agentId), isNull(agentsTable.deletedAt)))
       .limit(1)
     if (!agents[0]) {
       throw new Error('Agent not found')

@@ -88,7 +88,7 @@ export class SkillService {
     const agentSkillRows = await this.agentSkillRepository.getByAgentId(agentId)
     const enabledMap = new Map<string, boolean>()
     for (const row of agentSkillRows) {
-      enabledMap.set(row.skill_id, row.is_enabled)
+      enabledMap.set(row.skillId, row.isEnabled)
     }
     return skills.map((s) => ({ ...s, isEnabled: enabledMap.get(s.id) ?? false }))
   }
@@ -183,12 +183,12 @@ export class SkillService {
   async enableForAllAgents(skillId: string, folderName: string): Promise<void> {
     const database = await this.repository.getDatabase()
     const agents = await database
-      .select({ id: agentsTable.id, accessible_paths: agentsTable.accessible_paths })
+      .select({ id: agentsTable.id, accessiblePaths: agentsTable.accessiblePaths })
       .from(agentsTable)
 
     for (const agent of agents) {
       await this.agentSkillRepository.upsert(agent.id, skillId, true)
-      const workspace = this.parseFirstAccessiblePath(agent.accessible_paths)
+      const workspace = this.parseFirstAccessiblePath(agent.accessiblePaths)
       if (!workspace || !(await directoryExists(workspace))) continue
       try {
         await this.linkSkill(folderName, workspace)
@@ -216,8 +216,8 @@ export class SkillService {
 
     // Ensure enabled skills have symlinks
     for (const row of agentSkillRows) {
-      if (!row.is_enabled) continue
-      const skill = await this.repository.getById(row.skill_id)
+      if (!row.isEnabled) continue
+      const skill = await this.repository.getById(row.skillId)
       if (!skill) continue
       enabledFolders.add(skill.folderName)
       try {
@@ -225,7 +225,7 @@ export class SkillService {
       } catch (error) {
         logger.warn('Reconcile: failed to link skill', {
           agentId,
-          skillId: row.skill_id,
+          skillId: row.skillId,
           error: error instanceof Error ? error.message : String(error)
         })
       }
@@ -294,15 +294,15 @@ export class SkillService {
     // before we lose the join rows to the cascade delete below.
     const agentSkillRows = await this.agentSkillRepository.getBySkillId(skillId)
     for (const row of agentSkillRows) {
-      if (!row.is_enabled) continue
-      const workspace = await this.getAgentWorkspace(row.agent_id)
+      if (!row.isEnabled) continue
+      const workspace = await this.getAgentWorkspace(row.agentId)
       if (!workspace) continue
       try {
         await this.unlinkSkill(skill.folderName, workspace)
       } catch (error) {
         logger.warn('Failed to unlink skill during uninstall', {
           skillId,
-          agentId: row.agent_id,
+          agentId: row.agentId,
           error: error instanceof Error ? error.message : String(error)
         })
       }
@@ -786,11 +786,11 @@ export class SkillService {
   private async getAgentWorkspace(agentId: string): Promise<string | undefined> {
     const database = await this.repository.getDatabase()
     const rows = await database
-      .select({ accessible_paths: agentsTable.accessible_paths })
+      .select({ accessiblePaths: agentsTable.accessiblePaths })
       .from(agentsTable)
       .where(eq(agentsTable.id, agentId))
       .limit(1)
-    const workspace = this.parseFirstAccessiblePath(rows[0]?.accessible_paths)
+    const workspace = this.parseFirstAccessiblePath(rows[0]?.accessiblePaths)
     if (!workspace) return undefined
     // Workspace may reference a path from a different machine (e.g. restored backup).
     // Skip if it doesn't exist locally to avoid EACCES on mkdir.
