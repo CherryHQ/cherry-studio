@@ -20,7 +20,6 @@ export const DEFAULT_TOKENFLUX_PAINTING: TokenFluxPainting = {
   model: '',
   prompt: '',
   inputParams: {},
-  status: 'starting',
   generationId: undefined,
   files: []
 }
