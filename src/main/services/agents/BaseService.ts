@@ -221,6 +221,16 @@ export abstract class BaseService {
       }
     }
 
+    // Convert integer timestamps (Unix ms) to ISO datetime strings.
+    // The database stores timestamps as INTEGER (milliseconds since epoch),
+    // but the API schema expects ISO 8601 datetime strings.
+    const timestampFields = ['created_at', 'updated_at', 'run_at', 'next_run', 'last_run']
+    for (const field of timestampFields) {
+      if (typeof deserialized[field] === 'number' && deserialized[field] > 0) {
+        deserialized[field] = new Date(deserialized[field]).toISOString()
+      }
+    }
+
     for (const field of this.jsonFields) {
       if (deserialized[field] && typeof deserialized[field] === 'string') {
         try {
