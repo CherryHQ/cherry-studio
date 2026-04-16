@@ -1,6 +1,6 @@
+import { MenuItem, MenuList } from '@cherrystudio/ui'
 import { Icon } from '@iconify/react'
 import CodeViewer from '@renderer/components/CodeViewer'
-import ListItem from '@renderer/components/ListItem'
 import RichEditor from '@renderer/components/RichEditor'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useInstalledSkills, useSkillInstall, useSkillSearch } from '@renderer/hooks/useSkills'
@@ -40,7 +40,6 @@ import styled from 'styled-components'
 
 const { Dragger } = Upload
 
-const TITLE_STYLE = { fontWeight: 500 } as const
 const SEARCH_SOURCES: SkillSearchSource[] = ['claude-plugins.dev', 'skills.sh', 'clawhub.ai']
 const MARKDOWN_EXTENSIONS = new Set(['.md', '.mdx', '.markdown'])
 const ICON_STYLE_16 = { fontSize: 16, flexShrink: 0 } as const
@@ -320,6 +319,7 @@ const SkillsSettings: FC = () => {
   const filteredResults = useMemo(() => {
     return results.filter((r) => r.sourceRegistry === searchTab)
   }, [results, searchTab])
+  const selectedSkillId = selectedSkill?.id
 
   // Pre-compute tab counts in one pass (js-combine-iterations)
   const tabCounts = useMemo(() => {
@@ -494,144 +494,147 @@ const SkillsSettings: FC = () => {
     <Container>
       <MainContainer>
         {/* Left Panel */}
-        <MenuList>
-          {selectedSkill ? (
-            <>
-              <ListHeader>
-                <BackButton onClick={handleBack}>
-                  <ArrowLeft size={14} />
-                </BackButton>
-                <Typography.Text strong style={SKILL_NAME_STYLE}>
-                  {selectedSkill.name}
-                </Typography.Text>
-              </ListHeader>
-              <FileTreeContainer>
-                {fileTree.map((node) => (
-                  <FileTreeNode
-                    key={node.path}
-                    node={node}
-                    depth={0}
-                    expandedDirs={expandedDirs}
-                    selectedFile={selectedFile}
-                    onToggleDir={toggleDir}
-                    onSelectFile={setSelectedFile}
-                  />
-                ))}
-              </FileTreeContainer>
-            </>
-          ) : (
-            <>
-              <ListHeader>
-                {multiSelectMode ? (
-                  <>
-                    <Button
-                      type="text"
-                      size="small"
-                      danger
-                      disabled={selectedIds.size === 0}
-                      icon={<Trash2 size={14} />}
-                      onClick={handleBatchUninstall}>
-                      {selectedIds.size > 0 ? selectedIds.size : ''}
-                    </Button>
-                    <div style={FLEX_1_STYLE} />
-                    <Button type="text" size="small" onClick={exitMultiSelect}>
-                      <X size={14} />
-                    </Button>
-                  </>
-                ) : (
-                  <Typography.Text strong style={FONT_13_STYLE}>
-                    {t('settings.skills.installed')} ({skills.length})
+        <MenuScroll>
+          <SkillsMenuList>
+            {selectedSkill ? (
+              <>
+                <ListHeader>
+                  <BackButton onClick={handleBack}>
+                    <ArrowLeft size={14} />
+                  </BackButton>
+                  <Typography.Text strong style={SKILL_NAME_STYLE}>
+                    {selectedSkill.name}
                   </Typography.Text>
-                )}
-              </ListHeader>
+                </ListHeader>
+                <FileTreeContainer>
+                  {fileTree.map((node) => (
+                    <FileTreeNode
+                      key={node.path}
+                      node={node}
+                      depth={0}
+                      expandedDirs={expandedDirs}
+                      selectedFile={selectedFile}
+                      onToggleDir={toggleDir}
+                      onSelectFile={setSelectedFile}
+                    />
+                  ))}
+                </FileTreeContainer>
+              </>
+            ) : (
+              <>
+                <ListHeader>
+                  {multiSelectMode ? (
+                    <>
+                      <Button
+                        type="text"
+                        size="small"
+                        danger
+                        disabled={selectedIds.size === 0}
+                        icon={<Trash2 size={14} />}
+                        onClick={handleBatchUninstall}>
+                        {selectedIds.size > 0 ? selectedIds.size : ''}
+                      </Button>
+                      <div style={FLEX_1_STYLE} />
+                      <Button type="text" size="small" onClick={exitMultiSelect}>
+                        <X size={14} />
+                      </Button>
+                    </>
+                  ) : (
+                    <Typography.Text strong style={FONT_13_STYLE}>
+                      {t('settings.skills.installed')} ({skills.length})
+                    </Typography.Text>
+                  )}
+                </ListHeader>
 
-              <FilterContainer>
-                <Input
-                  size="small"
-                  placeholder={t('settings.skills.filterPlaceholder')}
-                  value={localFilter}
-                  onChange={(e) => setLocalFilter(e.target.value)}
-                  prefix={<Search size={12} style={SEARCH_PREFIX_STYLE} />}
-                  allowClear
-                />
-              </FilterContainer>
+                <FilterContainer>
+                  <Input
+                    size="small"
+                    placeholder={t('settings.skills.filterPlaceholder')}
+                    value={localFilter}
+                    onChange={(e) => setLocalFilter(e.target.value)}
+                    prefix={<Search size={12} style={SEARCH_PREFIX_STYLE} />}
+                    allowClear
+                  />
+                </FilterContainer>
 
-              {loading ? (
-                <SpinContainer>
-                  <Spin size="small" />
-                </SpinContainer>
-              ) : filteredSkills.length === 0 ? (
-                <EmptyHint>
-                  <Puzzle size={32} strokeWidth={1} style={EMPTY_ICON_STYLE} />
-                  <EmptyText>
-                    {localFilter ? t('settings.skills.noFilterResults') : t('settings.skills.noInstalled')}
-                  </EmptyText>
-                </EmptyHint>
-              ) : (
-                filteredSkills.map((skill) => {
-                  const isBuiltin = skill.source === 'builtin'
-                  if (multiSelectMode) {
+                {loading ? (
+                  <SpinContainer>
+                    <Spin size="small" />
+                  </SpinContainer>
+                ) : filteredSkills.length === 0 ? (
+                  <EmptyHint>
+                    <Puzzle size={32} strokeWidth={1} style={EMPTY_ICON_STYLE} />
+                    <EmptyText>
+                      {localFilter ? t('settings.skills.noFilterResults') : t('settings.skills.noInstalled')}
+                    </EmptyText>
+                  </EmptyHint>
+                ) : (
+                  filteredSkills.map((skill) => {
+                    const isBuiltin = skill.source === 'builtin'
+                    if (multiSelectMode) {
+                      return (
+                        <CheckboxItem
+                          key={skill.id}
+                          onClick={() =>
+                            setSelectedIds((prev) => {
+                              const next = new Set(prev)
+                              if (next.has(skill.id)) {
+                                next.delete(skill.id)
+                              } else if (!isBuiltin) {
+                                next.add(skill.id)
+                              }
+                              return next
+                            })
+                          }>
+                          <Checkbox checked={selectedIds.has(skill.id)} disabled={isBuiltin} style={NO_EVENTS_STYLE} />
+                          <CheckboxLabel $disabled={isBuiltin}>{skill.name}</CheckboxLabel>
+                        </CheckboxItem>
+                      )
+                    }
                     return (
-                      <CheckboxItem
+                      <Dropdown
                         key={skill.id}
-                        onClick={() =>
-                          setSelectedIds((prev) => {
-                            const next = new Set(prev)
-                            if (next.has(skill.id)) {
-                              next.delete(skill.id)
-                            } else if (!isBuiltin) {
-                              next.add(skill.id)
-                            }
-                            return next
-                          })
-                        }>
-                        <Checkbox checked={selectedIds.has(skill.id)} disabled={isBuiltin} style={NO_EVENTS_STYLE} />
-                        <CheckboxLabel $disabled={isBuiltin}>{skill.name}</CheckboxLabel>
-                      </CheckboxItem>
+                        trigger={['contextMenu']}
+                        menu={{
+                          items: [
+                            {
+                              key: 'multiSelect',
+                              label: t('settings.skills.multiSelect'),
+                              onClick: () => setMultiSelectMode(true)
+                            },
+                            ...(!isBuiltin
+                              ? [
+                                  { type: 'divider' as const, key: 'div' },
+                                  {
+                                    key: 'uninstall',
+                                    label: t('settings.skills.uninstall'),
+                                    danger: true,
+                                    icon: <Trash2 size={14} />,
+                                    onClick: () => handleContextMenuUninstall(skill)
+                                  }
+                                ]
+                              : [])
+                          ]
+                        }}>
+                        <div>
+                          <MenuItem
+                            label={skill.name}
+                            description={skill.description ?? undefined}
+                            descriptionLines={2}
+                            active={selectedSkillId === skill.id}
+                            onClick={() => setSelectedSkill(skill)}
+                            icon={<Puzzle size={16} />}
+                            className="rounded-xs font-medium"
+                          />
+                        </div>
+                      </Dropdown>
                     )
-                  }
-                  return (
-                    <Dropdown
-                      key={skill.id}
-                      trigger={['contextMenu']}
-                      menu={{
-                        items: [
-                          {
-                            key: 'multiSelect',
-                            label: t('settings.skills.multiSelect'),
-                            onClick: () => setMultiSelectMode(true)
-                          },
-                          ...(!isBuiltin
-                            ? [
-                                { type: 'divider' as const, key: 'div' },
-                                {
-                                  key: 'uninstall',
-                                  label: t('settings.skills.uninstall'),
-                                  danger: true,
-                                  icon: <Trash2 size={14} />,
-                                  onClick: () => handleContextMenuUninstall(skill)
-                                }
-                              ]
-                            : [])
-                        ]
-                      }}>
-                      <div>
-                        <ListItem
-                          title={skill.name}
-                          subtitle={skill.description ?? undefined}
-                          active={false}
-                          onClick={() => setSelectedSkill(skill)}
-                          icon={<Puzzle size={16} />}
-                          titleStyle={TITLE_STYLE}
-                        />
-                      </div>
-                    </Dropdown>
-                  )
-                })
-              )}
-            </>
-          )}
-        </MenuList>
+                  })
+                )}
+              </>
+            )}
+          </SkillsMenuList>
+        </MenuScroll>
 
         {/* Right Panel */}
         <RightContainer>
@@ -838,14 +841,21 @@ const MainContainer = styled.div`
   overflow: hidden;
 `
 
-const MenuList = styled(Scrollbar)`
+const SkillsMenuList = styled(MenuList)`
   display: flex;
   flex-direction: column;
-  gap: 5px;
   width: var(--settings-width);
+  min-height: 100%;
+  gap: 5px;
   padding: 12px;
-  border-right: 0.5px solid var(--color-border);
+  padding-bottom: 48px;
+  box-sizing: border-box;
+`
+
+const MenuScroll = styled(Scrollbar)`
+  width: var(--settings-width);
   height: calc(100vh - var(--navbar-height));
+  border-right: 0.5px solid var(--color-border);
 `
 
 const ListHeader = styled.div`

@@ -110,7 +110,7 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
     <Container>
       <Alert
         type={isUvInstalled ? 'success' : 'warning'}
-        style={{ borderRadius: 'var(--list-item-border-radius)' }}
+        style={{ borderRadius: 'var(--cs-radius-2xs)' }}
         description={
           <ColFlex>
             <SettingRow style={{ width: '100%' }}>
@@ -135,7 +135,7 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
       />
       <Alert
         type={isBunInstalled ? 'success' : 'warning'}
-        style={{ borderRadius: 'var(--list-item-border-radius)' }}
+        style={{ borderRadius: 'var(--cs-radius-2xs)' }}
         description={
           <ColFlex>
             <SettingRow style={{ width: '100%' }}>
