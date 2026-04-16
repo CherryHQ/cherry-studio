@@ -1,8 +1,7 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useAllProviders } from '@renderer/hooks/useProvider'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { setDefaultPaintingProvider } from '@renderer/store/settings'
-import type { PaintingProvider, SystemProviderId } from '@renderer/types'
+import type { SystemProviderId } from '@renderer/types'
 import { isNewApiProvider } from '@renderer/utils/provider'
 import type { FC } from 'react'
 import { useEffect, useMemo, useState } from 'react'
@@ -15,12 +14,12 @@ import { getValidPaintingOptions, resolvePaintingProvider } from './utils/provid
 const logger = loggerService.withContext('PaintingsPage')
 
 const BASE_OPTIONS: SystemProviderId[] = ['zhipu', 'aihubmix', 'silicon', 'dmxapi', 'tokenflux', 'ovms', 'ppio']
+const FALLBACK_PROVIDER = 'zhipu'
 
 const PaintingsPage: FC = () => {
-  const dispatch = useAppDispatch()
   const providers = useAllProviders()
-  const defaultPaintingProvider = useAppSelector((state) => state.settings.defaultPaintingProvider)
-  const [activeProvider, setActiveProvider] = useState<string>(defaultPaintingProvider)
+  const [defaultPaintingProvider, setDefaultPaintingProvider] = usePreference('feature.paintings.default_provider')
+  const [activeProvider, setActiveProvider] = useState<string>(defaultPaintingProvider || FALLBACK_PROVIDER)
   const [isOvmsSupported, setIsOvmsSupported] = useState(false)
   const [ovmsStatus, setOvmsStatus] = useState<'not-installed' | 'not-running' | 'running'>('not-running')
 
@@ -52,9 +51,9 @@ const PaintingsPage: FC = () => {
     }
 
     if (nextProvider && nextProvider !== defaultPaintingProvider) {
-      dispatch(setDefaultPaintingProvider(nextProvider as PaintingProvider))
+      void setDefaultPaintingProvider(nextProvider)
     }
-  }, [activeProvider, defaultPaintingProvider, dispatch, validOptions])
+  }, [activeProvider, defaultPaintingProvider, setDefaultPaintingProvider, validOptions])
 
   const handleProviderChange = (providerId: string) => {
     if (!validOptions.includes(providerId) || providerId === activeProvider) {
@@ -62,7 +61,7 @@ const PaintingsPage: FC = () => {
     }
 
     setActiveProvider(providerId)
-    dispatch(setDefaultPaintingProvider(providerId as PaintingProvider))
+    void setDefaultPaintingProvider(providerId)
   }
 
   const newApiDefinition = useMemo(() => createNewApiProvider(activeProvider || 'new-api'), [activeProvider])

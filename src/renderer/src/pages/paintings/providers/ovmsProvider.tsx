@@ -1,39 +1,15 @@
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
 import FileManager from '@renderer/services/FileManager'
-import type { FileMetadata, PaintingAction } from '@renderer/types'
-import { getErrorMessage, uuid } from '@renderer/utils'
+import type { PaintingCanvas } from '@renderer/types'
+import { uuid } from '@renderer/utils'
 
 import { SettingHelpLink } from '../../settings'
 import { createOvmsConfig, DEFAULT_OVMS_PAINTING, getOvmsModels, OVMS_MODELS } from '../config/ovmsConfig'
+import { processResult, runGeneration } from '../utils/runGeneration'
 import type { GenerateContext, PaintingProviderDefinition } from './types'
 
 const logger = loggerService.withContext('OvmsProvider')
-
-const downloadImages = async (urls: string[], t: (key: string) => string): Promise<FileMetadata[]> => {
-  const downloadedFiles = await Promise.all(
-    urls.map(async (url) => {
-      try {
-        if (!url?.trim()) {
-          logger.error('Image URL is empty, possibly due to prohibited prompt')
-          window.toast.warning(t('message.empty_url'))
-          return null
-        }
-        return await window.api.file.download(url)
-      } catch (error) {
-        logger.error(`Failed to download image: ${error}`)
-        if (
-          error instanceof Error &&
-          (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
-        ) {
-          window.toast.warning(t('message.empty_url'))
-        }
-        return null
-      }
-    })
-  )
-  return downloadedFiles.filter((file): file is FileMetadata => file !== null)
-}
 
 export const ovmsProvider: PaintingProviderDefinition = {
   providerId: 'ovms',
@@ -73,7 +49,7 @@ export const ovmsProvider: PaintingProviderDefinition = {
   promptDisabled: (painting, isLoading) => isLoading || !painting.model || painting.model === OVMS_MODELS[0]?.value,
 
   async onGenerate(ctx: GenerateContext) {
-    const { painting, provider, abortController, updatePaintingState, setIsLoading, setGenerating, t } = ctx
+    const { painting, provider, abortController, patchPainting, t } = ctx
 
     if (painting.files.length > 0) {
       const confirmed = await window.modal.confirm({
@@ -85,14 +61,11 @@ export const ovmsProvider: PaintingProviderDefinition = {
     }
 
     const prompt = painting.prompt || ''
-    updatePaintingState({ prompt } as Partial<PaintingAction>)
+    patchPainting({ prompt } as Partial<PaintingCanvas>)
 
     if (!painting.model || !painting.prompt) return
 
-    setIsLoading(true)
-    setGenerating(true)
-
-    try {
+    await runGeneration(ctx, async () => {
       const requestBody = {
         model: painting.model,
         prompt: painting.prompt,
@@ -121,32 +94,15 @@ export const ovmsProvider: PaintingProviderDefinition = {
 
       if (data.data && data.data.length > 0) {
         const base64s = data.data.filter((item: any) => item.b64_json).map((item: any) => item.b64_json)
-
         if (base64s.length > 0) {
-          const validFiles = await Promise.all(
-            base64s.map(async (base64: string) => window.api.file.saveBase64Image(base64))
-          )
-          await FileManager.addFiles(validFiles)
-          updatePaintingState({ files: validFiles, urls: [] } as Partial<PaintingAction>)
+          await processResult(ctx, { base64s })
         }
 
         const urls = data.data.filter((item: any) => item.url).map((item: any) => item.url)
         if (urls.length > 0) {
-          const validFiles = await downloadImages(urls, t)
-          await FileManager.addFiles(validFiles)
-          updatePaintingState({ files: validFiles, urls } as Partial<PaintingAction>)
+          await processResult(ctx, { urls })
         }
       }
-    } catch (error: unknown) {
-      if (error instanceof Error && error.name !== 'AbortError') {
-        window.modal.error({
-          content: getErrorMessage(error),
-          centered: true
-        })
-      }
-    } finally {
-      setIsLoading(false)
-      setGenerating(false)
-    }
+    })
   }
 }

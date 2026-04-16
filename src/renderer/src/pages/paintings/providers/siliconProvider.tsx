@@ -1,4 +1,3 @@
-import { loggerService } from '@logger'
 import { AiProvider } from '@renderer/aiCore'
 import ImageSize1_1 from '@renderer/assets/images/paintings/image-size-1-1.svg'
 import ImageSize1_2 from '@renderer/assets/images/paintings/image-size-1-2.svg'
@@ -8,13 +7,12 @@ import ImageSize9_16 from '@renderer/assets/images/paintings/image-size-9-16.svg
 import ImageSize16_9 from '@renderer/assets/images/paintings/image-size-16-9.svg'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import FileManager from '@renderer/services/FileManager'
-import type { FileMetadata, PaintingAction } from '@renderer/types'
-import { getErrorMessage, uuid } from '@renderer/utils'
+import type { PaintingCanvas } from '@renderer/types'
+import { uuid } from '@renderer/utils'
 
 import { checkProviderEnabled } from '../utils'
+import { runGeneration } from '../utils/runGeneration'
 import type { GenerateContext, PaintingProviderDefinition } from './types'
-
-const logger = loggerService.withContext('SiliconProvider')
 
 export const TEXT_TO_IMAGES_MODELS = [
   {
@@ -41,31 +39,6 @@ const IMAGE_SIZES = [
 ]
 
 const generateRandomSeed = () => Math.floor(Math.random() * 1000000).toString()
-
-const downloadImages = async (urls: string[], t: (key: string) => string): Promise<FileMetadata[]> => {
-  const downloadedFiles = await Promise.all(
-    urls.map(async (url) => {
-      try {
-        if (!url?.trim()) {
-          logger.error('Image URL is empty, possibly due to prohibited prompt')
-          window.toast.warning(t('message.empty_url'))
-          return null
-        }
-        return await window.api.file.download(url)
-      } catch (error) {
-        logger.error(`Failed to download image: ${error}`)
-        if (
-          error instanceof Error &&
-          (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
-        ) {
-          window.toast.warning(t('message.empty_url'))
-        }
-        return null
-      }
-    })
-  )
-  return downloadedFiles.filter((file): file is FileMetadata => file !== null)
-}
 
 export const siliconProvider: PaintingProviderDefinition = {
   providerId: 'silicon',
@@ -141,7 +114,6 @@ export const siliconProvider: PaintingProviderDefinition = {
 
   getDefaultPainting: () => ({
     id: uuid(),
-    urls: [],
     files: [],
     prompt: '',
     negativePrompt: '',
@@ -158,15 +130,7 @@ export const siliconProvider: PaintingProviderDefinition = {
   showTranslate: true,
 
   async onGenerate(ctx: GenerateContext) {
-    const {
-      painting: rawPainting,
-      provider,
-      abortController,
-      updatePaintingState,
-      setIsLoading,
-      setGenerating,
-      t
-    } = ctx
+    const { painting: rawPainting, provider, abortController, patchPainting, t } = ctx
     const painting = rawPainting as any
 
     await checkProviderEnabled(provider, t)
@@ -181,7 +145,7 @@ export const siliconProvider: PaintingProviderDefinition = {
     }
 
     const prompt = painting.prompt || ''
-    updatePaintingState({ prompt } as Partial<PaintingAction>)
+    patchPainting({ prompt } as Partial<PaintingCanvas>)
 
     const model = TEXT_TO_IMAGES_MODELS.find((m) => m.id === painting.model)
     const resolvedProvider = getProviderByModel(model)
@@ -196,13 +160,8 @@ export const siliconProvider: PaintingProviderDefinition = {
 
     if (!painting.model) return
 
-    setIsLoading(true)
-    setGenerating(true)
-
-    try {
+    await runGeneration(ctx, async () => {
       const AI = new AiProvider(resolvedProvider)
-
-      // numImages may be stored as string from iconRadio, convert to number
       const numImages = Number(painting.numImages) || 1
 
       const urls = await AI.generateImage({
@@ -219,21 +178,8 @@ export const siliconProvider: PaintingProviderDefinition = {
       })
 
       if (urls.length > 0) {
-        const validFiles = await downloadImages(urls, t)
-        await FileManager.addFiles(validFiles)
-        updatePaintingState({ files: validFiles, urls } as Partial<PaintingAction>)
+        return { urls }
       }
-    } catch (error: unknown) {
-      if (error instanceof Error && error.name !== 'AbortError') {
-        logger.error('Silicon image generation failed:', error)
-        window.modal.error({
-          content: getErrorMessage(error),
-          centered: true
-        })
-      }
-    } finally {
-      setIsLoading(false)
-      setGenerating(false)
-    }
+    })
   }
 }

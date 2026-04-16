@@ -28,7 +28,7 @@ export interface LegacyPaintingsState {
   [key: string]: unknown
 }
 
-export interface PaintingScope {
+export interface PaintingFilter {
   providerId: string
   mode: PaintingMode
 }
@@ -40,8 +40,7 @@ export interface NormalizedPaintingRow extends Omit<NewPaintingRow, 'sortOrder'>
   model: string | null
   prompt: string
   params: PaintingParams
-  fileIds: string[]
-  inputFileIds: string[]
+  files: { output: string[]; input: string[] }
   parentId: string | null
 }
 
@@ -106,10 +105,10 @@ function omitUndefinedValues(input: Record<string, unknown>): Record<string, unk
   return Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined))
 }
 
-export function getPaintingScope(
+export function getPaintingFilter(
   namespace: LegacyPaintingNamespace,
   record: LegacyPaintingRecord
-): PaintingScope | null {
+): PaintingFilter | null {
   switch (namespace) {
     case 'siliconflow_paintings':
       return { providerId: 'silicon', mode: 'generate' }
@@ -178,7 +177,7 @@ function buildInputFileIds(
 function buildParams(
   namespace: LegacyPaintingNamespace,
   record: LegacyPaintingRecord,
-  scope: PaintingScope,
+  scope: PaintingFilter,
   warnings: string[]
 ): Record<string, unknown> {
   const excludedKeys = new Set([
@@ -231,7 +230,7 @@ export function transformLegacyPaintingRecord(
   record: LegacyPaintingRecord
 ): PaintingTransformResult {
   const warnings: string[] = []
-  const scope = getPaintingScope(namespace, record)
+  const scope = getPaintingFilter(namespace, record)
 
   if (!scope) {
     return {
@@ -261,21 +260,21 @@ export function transformLegacyPaintingRecord(
     filesRaw: JSON.stringify(record.files)?.slice(0, 500)
   })
 
-  const fileIds = getFileIds(record.files)
+  const outputFileIds = getFileIds(record.files)
   const inputFileIds = buildInputFileIds(namespace, record, warnings)
   const params = buildParams(namespace, record, scope, warnings)
   const prompt = getString(record.prompt) ?? ''
   const hasTaskId = typeof params.taskId === 'string' && params.taskId.trim().length > 0
 
   logger.info(`[transform] ${namespace} id=${id} result`, {
-    fileIdsCount: fileIds.length,
-    fileIds: fileIds.slice(0, 5),
+    outputFileIdsCount: outputFileIds.length,
+    outputFileIds: outputFileIds.slice(0, 5),
     inputFileIdsCount: inputFileIds.length,
     promptLength: prompt.length,
     hasTaskId
   })
 
-  if (!prompt.trim() && fileIds.length === 0 && inputFileIds.length === 0 && !hasTaskId) {
+  if (!prompt.trim() && outputFileIds.length === 0 && inputFileIds.length === 0 && !hasTaskId) {
     return {
       ok: false,
       reason: 'empty_placeholder',
@@ -292,8 +291,7 @@ export function transformLegacyPaintingRecord(
       model: getNonEmptyString(record.model) ?? null,
       prompt,
       params,
-      fileIds,
-      inputFileIds,
+      files: { output: outputFileIds, input: inputFileIds },
       parentId: null
     },
     warnings

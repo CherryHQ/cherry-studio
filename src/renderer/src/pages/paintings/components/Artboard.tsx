@@ -1,19 +1,20 @@
 import { Button } from '@cherrystudio/ui'
 import ImageViewer from '@renderer/components/ImageViewer'
 import FileManager from '@renderer/services/FileManager'
-import type { Painting } from '@renderer/types'
+import type { PaintingCanvas } from '@renderer/types'
 import { motion } from 'framer-motion'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export interface ArtboardProps {
-  painting: Painting
+  painting: PaintingCanvas
   isLoading: boolean
   currentImageIndex: number
+  fallbackUrls?: string[]
   onPrevImage: () => void
   onNextImage: () => void
   onCancel: () => void
-  retry?: (painting: Painting) => void
+  retry?: (painting: PaintingCanvas) => void
   imageCover?: React.ReactNode
   loadText?: React.ReactNode
 }
@@ -37,7 +38,7 @@ const LoadingStateCard: FC<{ text: React.ReactNode; onCancel: () => void; cancel
           transition={{ duration: 1.5, repeat: Number.POSITIVE_INFINITY, ease: 'linear' }}
         />
       </div>
-      <div className="text-center text-[13px] font-medium text-foreground/85">{text}</div>
+      <div className="text-center font-medium text-[13px] text-foreground/85">{text}</div>
       <div className="h-1.5 w-36 overflow-hidden rounded-full bg-muted/60">
         <motion.div
           className="h-full w-16 rounded-full bg-primary"
@@ -56,6 +57,7 @@ const Artboard: FC<ArtboardProps> = ({
   painting,
   isLoading,
   currentImageIndex,
+  fallbackUrls = [],
   onPrevImage,
   onNextImage,
   onCancel,
@@ -109,10 +111,10 @@ const Artboard: FC<ArtboardProps> = ({
           </div>
         ) : (
           <div className="flex h-[var(--artboard-max)] w-[var(--artboard-max)] items-center justify-center rounded-[18px] border border-border/40 bg-muted/20 p-6 text-center">
-            {painting.urls.length > 0 && !isLoading ? (
+            {fallbackUrls.length > 0 && !isLoading ? (
               <div className="space-y-3">
                 <ul className="select-text list-none break-all p-0 text-left">
-                  {painting.urls.map((url, index) => (
+                  {fallbackUrls.map((url, index) => (
                     <li key={url || index} className="mb-2 text-[var(--color-text-secondary)]">
                       {url}
                     </li>

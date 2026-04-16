@@ -11,14 +11,15 @@ import {
   getPaintingsQualityOptionsLabel
 } from '@renderer/i18n/label'
 import FileManager from '@renderer/services/FileManager'
-import type { FileMetadata, PaintingAction } from '@renderer/types'
-import { getErrorMessage, uuid } from '@renderer/utils'
+import type { PaintingCanvas } from '@renderer/types'
+import { uuid } from '@renderer/utils'
 
 import { SettingHelpLink } from '../../settings'
 import type { BaseConfigItem } from '../components/PaintingConfigFieldRenderer'
 import PaintingsSectionTitle from '../components/PaintingsSectionTitle'
 import { DEFAULT_PAINTING, MODELS, SUPPORTED_MODELS } from '../config/NewApiConfig'
 import { checkProviderEnabled } from '../utils'
+import { processResult, runGeneration } from '../utils/runGeneration'
 import type { GenerateContext, PaintingProviderDefinition } from './types'
 
 const logger = loggerService.withContext('NewApiProvider')
@@ -41,31 +42,6 @@ function removeEditImageFile(providerId: string, index: number): void {
     providerId,
     current.filter((_, i) => i !== index)
   )
-}
-
-const downloadImages = async (urls: string[], t: (key: string) => string): Promise<FileMetadata[]> => {
-  const downloadedFiles = await Promise.all(
-    urls.map(async (url) => {
-      try {
-        if (!url?.trim()) {
-          logger.error('Image URL is empty, possibly due to prohibited prompt')
-          window.toast.warning(t('message.empty_url'))
-          return null
-        }
-        return await window.api.file.download(url)
-      } catch (error) {
-        logger.error(`Failed to download image: ${error}`)
-        if (
-          error instanceof Error &&
-          (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
-        ) {
-          window.toast.warning(t('message.empty_url'))
-        }
-        return null
-      }
-    })
-  )
-  return downloadedFiles.filter((file): file is FileMetadata => file !== null)
 }
 
 function getModelOptions(provider: {
@@ -245,7 +221,7 @@ export function createNewApiProvider(providerId: string): PaintingProviderDefini
 
     onModelChange: (modelId) => {
       const modelConfig = MODELS.find((m) => m.name === modelId)
-      const updates: Partial<PaintingAction> = { model: modelId }
+      const updates: Partial<PaintingCanvas> = { model: modelId }
 
       if (modelConfig?.imageSizes?.length) {
         updates.size = modelConfig.imageSizes[0].value
@@ -286,7 +262,7 @@ export function createNewApiProvider(providerId: string): PaintingProviderDefini
     },
 
     sidebarExtra: (state) => {
-      const { painting, mode, modelOptions, t, updatePaintingState } = state
+      const { painting, mode, modelOptions, t, patchPainting } = state
       const actualProviderId = painting.providerId || providerId
 
       // When no image-generation models are available, show guidance
@@ -327,7 +303,7 @@ export function createNewApiProvider(providerId: string): PaintingProviderDefini
                     files.forEach((file) => addEditImageFile(actualProviderId, file))
                     event.target.value = ''
                     // Force a re-render by touching painting state
-                    updatePaintingState({} as Partial<PaintingAction>)
+                    patchPainting({} as Partial<PaintingCanvas>)
                   }}
                 />
                 <img src={IcImageUp} alt={t('common.upload_image')} className="h-5 w-5" />
@@ -347,7 +323,7 @@ export function createNewApiProvider(providerId: string): PaintingProviderDefini
                         variant="outline"
                         onClick={() => {
                           removeEditImageFile(actualProviderId, idx)
-                          updatePaintingState({} as Partial<PaintingAction>)
+                          patchPainting({} as Partial<PaintingCanvas>)
                         }}>
                         {t('common.delete')}
                       </Button>
@@ -364,7 +340,7 @@ export function createNewApiProvider(providerId: string): PaintingProviderDefini
     },
 
     async onGenerate(ctx: GenerateContext) {
-      const { painting, provider, abortController, updatePaintingState, setIsLoading, setGenerating, t, mode } = ctx
+      const { painting, provider, abortController, patchPainting, t, mode } = ctx
 
       await checkProviderEnabled(provider, t)
 
@@ -378,7 +354,7 @@ export function createNewApiProvider(providerId: string): PaintingProviderDefini
       }
 
       const prompt = painting.prompt || ''
-      updatePaintingState({ prompt } as Partial<PaintingAction>)
+      patchPainting({ prompt } as Partial<PaintingCanvas>)
 
       const AI = new AiProvider(provider)
 
@@ -392,22 +368,18 @@ export function createNewApiProvider(providerId: string): PaintingProviderDefini
 
       if (!painting.model || !painting.prompt) return
 
-      setIsLoading(true)
-      setGenerating(true)
+      await runGeneration(ctx, async () => {
+        let body: string | FormData = ''
+        const headers: Record<string, string> = {
+          Authorization: `Bearer ${AI.getApiKey()}`
+        }
 
-      let body: string | FormData = ''
-      const headers: Record<string, string> = {
-        Authorization: `Bearer ${AI.getApiKey()}`
-      }
-
-      let url = provider.apiHost.replace(/\/v1$/, '') + `/v1/images/generations`
-      let editUrl = provider.apiHost.replace(/\/v1$/, '') + `/v1/images/edits`
-      if (provider.id === 'aionly') {
-        url = provider.apiHost.replace(/\/v1$/, '') + `/openai/v1/images/generations`
-        editUrl = provider.apiHost.replace(/\/v1$/, '') + `/openai/v1/images/edits`
-      }
-
-      try {
+        let url = provider.apiHost.replace(/\/v1$/, '') + `/v1/images/generations`
+        let editUrl = provider.apiHost.replace(/\/v1$/, '') + `/v1/images/edits`
+        if (provider.id === 'aionly') {
+          url = provider.apiHost.replace(/\/v1$/, '') + `/openai/v1/images/generations`
+          editUrl = provider.apiHost.replace(/\/v1$/, '') + `/openai/v1/images/edits`
+        }
         if (mode === 'generate') {
           const requestData = {
             prompt,
@@ -426,8 +398,6 @@ export function createNewApiProvider(providerId: string): PaintingProviderDefini
 
           if (editImages.length === 0) {
             window.toast.warning(t('paintings.image_file_required'))
-            setIsLoading(false)
-            setGenerating(false)
             return
           }
 
@@ -467,29 +437,13 @@ export function createNewApiProvider(providerId: string): PaintingProviderDefini
         const base64s = data.data.filter((item: any) => item.b64_json).map((item: any) => item.b64_json)
 
         if (urls.length > 0) {
-          const validFiles = await downloadImages(urls, t)
-          await FileManager.addFiles(validFiles)
-          updatePaintingState({ files: validFiles, urls } as Partial<PaintingAction>)
+          await processResult(ctx, { urls })
         }
 
         if (base64s?.length > 0) {
-          const validFiles = await Promise.all(
-            base64s.map(async (base64: string) => window.api.file.saveBase64Image(base64))
-          )
-          await FileManager.addFiles(validFiles)
-          updatePaintingState({ files: validFiles, urls: [] } as Partial<PaintingAction>)
+          await processResult(ctx, { base64s })
         }
-      } catch (error: unknown) {
-        if (error instanceof Error && error.name !== 'AbortError') {
-          window.modal.error({
-            content: getErrorMessage(error),
-            centered: true
-          })
-        }
-      } finally {
-        setIsLoading(false)
-        setGenerating(false)
-      }
+      })
     }
   }
 }

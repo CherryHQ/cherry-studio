@@ -1,4 +1,4 @@
-import type { PaintingAction } from '@renderer/types'
+import type { PaintingCanvas } from '@renderer/types'
 import { type FC, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -57,9 +57,9 @@ const PaintingPage: FC<PaintingPageProps> = ({ definition, Options, onProviderCh
     (modelId: string) => {
       if (definition.onModelChange) {
         const updates = definition.onModelChange(modelId, pageState.painting, modelOptions)
-        pageState.updatePaintingState({ model: modelId, ...updates } as Partial<PaintingAction>)
+        pageState.patchPainting({ model: modelId, ...updates } as Partial<PaintingCanvas>)
       } else {
-        pageState.updatePaintingState({ model: modelId } as Partial<PaintingAction>)
+        pageState.patchPainting({ model: modelId } as Partial<PaintingCanvas>)
       }
     },
     [definition, pageState, modelOptions]
@@ -81,11 +81,10 @@ const PaintingPage: FC<PaintingPageProps> = ({ definition, Options, onProviderCh
       value: mode,
       onChange: (value: string) => {
         setMode(value)
-        const newDefault = definition.getDefaultPainting(value, modelOptions)
-        pageState.setPainting(newDefault)
+        pageState.setSelectedPaintingId(undefined)
       }
     }
-  }, [definition, mode, t, modelOptions, pageState])
+  }, [definition, mode, t, pageState])
 
   // onGenerate wrapper
   const onGenerate = useCallback(async () => {
@@ -96,7 +95,8 @@ const PaintingPage: FC<PaintingPageProps> = ({ definition, Options, onProviderCh
       painting: pageState.painting,
       provider: pageState.provider,
       abortController: controller,
-      updatePaintingState: pageState.updatePaintingState,
+      patchPainting: pageState.patchPainting,
+      setFallbackUrls: pageState.setFallbackUrls,
       setIsLoading: pageState.setIsLoading,
       setGenerating: pageState.setGenerating,
       t,
@@ -114,10 +114,10 @@ const PaintingPage: FC<PaintingPageProps> = ({ definition, Options, onProviderCh
   const handleImageUpload = useCallback(
     (key: string, file: File) => {
       if (definition.onImageUpload) {
-        definition.onImageUpload(key, file, pageState.updatePaintingState as (updates: Partial<PaintingAction>) => void)
+        definition.onImageUpload(key, file, pageState.patchPainting as (updates: Partial<PaintingCanvas>) => void)
       }
     },
-    [definition, pageState.updatePaintingState]
+    [definition, pageState.patchPainting]
   )
 
   const getImagePreviewSrc = useCallback(
@@ -150,7 +150,7 @@ const PaintingPage: FC<PaintingPageProps> = ({ definition, Options, onProviderCh
       }
       configItems={configItems}
       painting={pageState.painting as Record<string, unknown>}
-      onConfigChange={(updates) => pageState.updatePaintingState(updates as Partial<PaintingAction>)}
+      onConfigChange={(updates) => pageState.patchPainting(updates as Partial<PaintingCanvas>)}
       onImageUpload={definition.onImageUpload ? handleImageUpload : undefined}
       getImagePreviewSrc={definition.getImagePreviewSrc ? getImagePreviewSrc : undefined}
       imagePlaceholder={definition.imagePlaceholder}
@@ -159,7 +159,7 @@ const PaintingPage: FC<PaintingPageProps> = ({ definition, Options, onProviderCh
         mode,
         modelOptions,
         isLoading: pageState.isLoading,
-        updatePaintingState: pageState.updatePaintingState,
+        patchPainting: pageState.patchPainting,
         t
       })}
     />

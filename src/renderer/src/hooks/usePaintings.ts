@@ -1,51 +1,167 @@
+import { dataApiService } from '@data/DataApiService'
+import { useQuery } from '@data/hooks/useDataApi'
+import { loggerService } from '@logger'
 import FileManager from '@renderer/services/FileManager'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { addPainting, removePainting, updatePainting, updatePaintings } from '@renderer/store/paintings'
-import type { PaintingAction, PaintingsState } from '@renderer/types'
+import type { PaintingCanvas } from '@renderer/types'
+import type { ListPaintingsQueryParams } from '@shared/data/api/schemas/paintings'
+import type { PaintingMode } from '@shared/data/types/painting'
+import { debounce } from 'lodash'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-export function usePaintings() {
-  const siliconflow_paintings = useAppSelector((state) => state.paintings.siliconflow_paintings)
-  const dmxapi_paintings = useAppSelector((state) => state.paintings.dmxapi_paintings)
-  const tokenflux_paintings = useAppSelector((state) => state.paintings.tokenflux_paintings)
-  const zhipu_paintings = useAppSelector((state) => state.paintings.zhipu_paintings)
-  const aihubmix_image_generate = useAppSelector((state) => state.paintings.aihubmix_image_generate)
-  const aihubmix_image_remix = useAppSelector((state) => state.paintings.aihubmix_image_remix)
-  const aihubmix_image_edit = useAppSelector((state) => state.paintings.aihubmix_image_edit)
-  const aihubmix_image_upscale = useAppSelector((state) => state.paintings.aihubmix_image_upscale)
-  const openai_image_generate = useAppSelector((state) => state.paintings.openai_image_generate)
-  const openai_image_edit = useAppSelector((state) => state.paintings.openai_image_edit)
-  const ovms_paintings = useAppSelector((state) => state.paintings.ovms_paintings)
-  const ppio_draw = useAppSelector((state) => state.paintings.ppio_draw)
-  const ppio_edit = useAppSelector((state) => state.paintings.ppio_edit)
-  const dispatch = useAppDispatch()
+import { toCanvases, toCreateDto, toUpdateDto } from './paintingCanvas'
 
-  return {
-    siliconflow_paintings,
-    dmxapi_paintings,
-    tokenflux_paintings,
-    zhipu_paintings,
-    aihubmix_image_generate,
-    aihubmix_image_remix,
-    aihubmix_image_edit,
-    aihubmix_image_upscale,
-    openai_image_generate,
-    openai_image_edit,
-    ovms_paintings,
-    ppio_draw,
-    ppio_edit,
-    addPainting: (namespace: keyof PaintingsState, painting: PaintingAction) => {
-      dispatch(addPainting({ namespace, painting }))
+const PATCH_DEBOUNCE_MS = 300
+const logger = loggerService.withContext('hooks/usePaintings')
+
+export interface PaintingFilter extends ListPaintingsQueryParams {
+  providerId: string
+  mode?: PaintingMode
+}
+
+export interface UsePaintingsResult {
+  items: PaintingCanvas[]
+  isLoading: boolean
+  isReady: boolean
+  createPainting: (painting: PaintingCanvas, createMode?: PaintingMode) => PaintingCanvas
+  deletePainting: (painting: PaintingCanvas) => Promise<void>
+  updatePainting: (painting: PaintingCanvas) => void
+  reorderPaintings: (paintings: PaintingCanvas[]) => void
+}
+
+// ─── Debounced Patch Queue ────────────────────────────────────────────
+
+type DebouncedPatch = ReturnType<typeof debounce<(painting: PaintingCanvas) => void>>
+
+function usePatchQueue() {
+  const ref = useRef(new Map<string, DebouncedPatch>())
+
+  useEffect(() => {
+    const debouncers = ref.current
+    return () => {
+      for (const d of debouncers.values()) d.cancel()
+      debouncers.clear()
+    }
+  }, [])
+
+  const schedule = useCallback((painting: PaintingCanvas) => {
+    const debouncers = ref.current
+    let d = debouncers.get(painting.id)
+    if (!d) {
+      d = debounce((latest: PaintingCanvas) => {
+        void dataApiService
+          .patch(`/paintings/${latest.id}` as '/paintings/:id', { body: toUpdateDto(latest) })
+          .catch((error) => logger.error('Failed to persist painting update', error as Error))
+      }, PATCH_DEBOUNCE_MS)
+      debouncers.set(painting.id, d)
+    }
+    d(painting)
+  }, [])
+
+  const cancel = useCallback((paintingId: string) => {
+    const d = ref.current.get(paintingId)
+    if (d) {
+      d.cancel()
+      ref.current.delete(paintingId)
+    }
+  }, [])
+
+  return { schedule, cancel }
+}
+
+// ─── Main Hook ────────────────────────────────────────────────────────
+
+export function usePaintings(filter: PaintingFilter): UsePaintingsResult {
+  const { data, isLoading } = useQuery('/paintings', {
+    query: filter
+  })
+
+  const [items, setItems] = useState<PaintingCanvas[]>([])
+  const [isReady, setIsReady] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    setIsReady(false)
+
+    void toCanvases(data?.items ?? []).then((hydrated) => {
+      if (!cancelled) {
+        setItems(hydrated)
+        setIsReady(true)
+      }
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [data])
+
+  const patchQueue = usePatchQueue()
+
+  const createPainting = useCallback(
+    (painting: PaintingCanvas, createMode?: PaintingMode) => {
+      setItems((current) => [painting, ...current.filter((p) => p.id !== painting.id)])
+
+      const dto = toCreateDto({
+        ...painting,
+        providerId: filter.providerId,
+        mode: createMode ?? filter.mode ?? 'generate'
+      })
+
+      void dataApiService
+        .post('/paintings', { body: dto })
+        .catch((error) => logger.error('Failed to create painting', error as Error))
+
       return painting
     },
-    removePainting: async (namespace: keyof PaintingsState, painting: PaintingAction) => {
-      void FileManager.deleteFiles(painting.files)
-      dispatch(removePainting({ namespace, painting }))
+    [filter.mode, filter.providerId]
+  )
+
+  const deletePainting = useCallback(
+    async (painting: PaintingCanvas) => {
+      void FileManager.deleteFiles(painting.files ?? [])
+
+      let snapshot: PaintingCanvas[] = []
+      setItems((current) => {
+        snapshot = current
+        return current.filter((p) => p.id !== painting.id)
+      })
+
+      patchQueue.cancel(painting.id)
+
+      try {
+        await dataApiService.delete(`/paintings/${painting.id}` as '/paintings/:id')
+      } catch (error) {
+        logger.error('Failed to delete painting', error as Error)
+        setItems(snapshot)
+      }
     },
-    updatePainting: (namespace: keyof PaintingsState, painting: PaintingAction) => {
-      dispatch(updatePainting({ namespace, painting }))
+    [patchQueue]
+  )
+
+  const updatePainting = useCallback(
+    (painting: PaintingCanvas) => {
+      setItems((current) => current.map((p) => (p.id === painting.id ? painting : p)))
+      patchQueue.schedule(painting)
     },
-    updatePaintings: (namespace: keyof PaintingsState, paintings: PaintingAction[]) => {
-      dispatch(updatePaintings({ namespace, paintings }))
-    }
-  }
+    [patchQueue]
+  )
+
+  const reorderPaintings = useCallback((paintings: PaintingCanvas[]) => {
+    let previousOrder: PaintingCanvas[] = []
+    setItems((current) => {
+      previousOrder = current
+      return paintings
+    })
+
+    void dataApiService
+      .post('/paintings/reorder', { body: { orderedIds: paintings.map((p) => p.id) } })
+      .catch((error) => {
+        logger.error('Failed to reorder paintings', error as Error)
+        setItems(previousOrder)
+      })
+  }, [])
+
+  return useMemo(
+    () => ({ items, isLoading, isReady, createPainting, deletePainting, updatePainting, reorderPaintings }),
+    [items, isLoading, isReady, createPainting, deletePainting, updatePainting, reorderPaintings]
+  )
 }

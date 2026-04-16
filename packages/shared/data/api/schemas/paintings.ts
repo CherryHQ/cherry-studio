@@ -1,5 +1,5 @@
 import type { Painting } from '@shared/data/types/painting'
-import { PaintingModeSchema, PaintingParamsSchema } from '@shared/data/types/painting'
+import { PaintingFilesSchema, PaintingModeSchema, PaintingParamsSchema } from '@shared/data/types/painting'
 import * as z from 'zod'
 
 export const PAINTINGS_DEFAULT_LIMIT = 20
@@ -27,8 +27,7 @@ export const CreatePaintingSchema = z
     model: OptionalNullableTrimmedStringSchema.optional(),
     prompt: z.string().optional(),
     params: PaintingParamsSchema.optional(),
-    fileIds: z.array(OptionalTrimmedStringSchema).optional(),
-    inputFileIds: z.array(OptionalTrimmedStringSchema).optional(),
+    files: PaintingFilesSchema.optional(),
     parentId: OptionalNullableTrimmedStringSchema.optional()
   })
   .strict()
@@ -39,8 +38,7 @@ export const UpdatePaintingSchema = z
     model: OptionalNullableTrimmedStringSchema.optional(),
     prompt: z.string().optional(),
     params: PaintingParamsSchema.optional(),
-    fileIds: z.array(OptionalTrimmedStringSchema).optional(),
-    inputFileIds: z.array(OptionalTrimmedStringSchema).optional(),
+    files: PaintingFilesSchema.optional(),
     parentId: OptionalNullableTrimmedStringSchema.optional()
   })
   .strict()

@@ -1,9 +1,7 @@
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
-import { loggerService } from '@logger'
 import { AiProvider } from '@renderer/aiCore'
 import FileManager from '@renderer/services/FileManager'
-import type { PaintingAction } from '@renderer/types'
-import { getErrorMessage, uuid } from '@renderer/utils'
+import { uuid } from '@renderer/utils'
 
 import { SettingHelpLink } from '../../settings'
 import {
@@ -15,9 +13,8 @@ import {
   ZHIPU_PAINTING_MODELS
 } from '../config/ZhipuConfig'
 import { checkProviderEnabled } from '../utils'
+import { runGeneration } from '../utils/runGeneration'
 import type { GenerateContext, PaintingProviderDefinition } from './types'
-
-const logger = loggerService.withContext('ZhipuProvider')
 
 export const zhipuProvider: PaintingProviderDefinition = {
   providerId: 'zhipu',
@@ -89,15 +86,7 @@ export const zhipuProvider: PaintingProviderDefinition = {
   },
 
   async onGenerate(ctx: GenerateContext) {
-    const {
-      painting: rawPainting,
-      provider,
-      abortController,
-      updatePaintingState,
-      setIsLoading,
-      setGenerating,
-      t
-    } = ctx
+    const { painting: rawPainting, provider, abortController, t } = ctx
     const painting = rawPainting as any
 
     await checkProviderEnabled(provider, t)
@@ -119,10 +108,7 @@ export const zhipuProvider: PaintingProviderDefinition = {
       await FileManager.deleteFiles(painting.files)
     }
 
-    setIsLoading(true)
-    setGenerating(true)
-
-    try {
+    await runGeneration(ctx, async () => {
       const aiProvider = new AiProvider(provider)
 
       let actualImageSize = painting.imageSize
@@ -166,7 +152,7 @@ export const zhipuProvider: PaintingProviderDefinition = {
         actualImageSize = `${customWidth}x${customHeight}`
       }
 
-      const request = {
+      const images = await aiProvider.generateImage({
         model: painting.model,
         prompt: painting.prompt,
         negativePrompt: painting.negativePrompt,
@@ -174,42 +160,11 @@ export const zhipuProvider: PaintingProviderDefinition = {
         batchSize: painting.numImages,
         quality: painting.quality,
         signal: abortController.signal
-      }
-
-      const images = await aiProvider.generateImage(request)
+      })
 
       if (images.length > 0) {
-        const downloadedFiles = await Promise.all(
-          images.map(async (image) => {
-            try {
-              return await window.api.file.saveBase64Image(image)
-            } catch (error) {
-              if (
-                error instanceof Error &&
-                (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
-              ) {
-                window.toast.warning(t('message.empty_url'))
-              }
-              return null
-            }
-          })
-        )
-
-        const validFiles = downloadedFiles.filter((file): file is any => file !== null)
-        await FileManager.addFiles(validFiles)
-        updatePaintingState({ files: validFiles } as Partial<PaintingAction>)
+        return { base64s: images }
       }
-    } catch (error: unknown) {
-      if (error instanceof Error && error.name !== 'AbortError') {
-        logger.error('Zhipu image generation failed:', error)
-        window.modal.error({
-          content: getErrorMessage(error),
-          centered: true
-        })
-      }
-    } finally {
-      setIsLoading(false)
-      setGenerating(false)
-    }
+    })
   }
 }

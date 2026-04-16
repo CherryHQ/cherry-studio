@@ -1,4 +1,4 @@
-import type { PaintingAction } from '@renderer/types'
+import type { PaintingCanvas } from '@renderer/types'
 import type { Provider } from '@renderer/types/provider'
 import type { PaintingMode } from '@shared/data/types/painting'
 import type { TFunction } from 'i18next'
@@ -7,18 +7,19 @@ import type { ReactNode } from 'react'
 import type { BaseConfigItem } from '../components/PaintingConfigFieldRenderer'
 import type { ModelConfig, ModelOption } from '../hooks/useModelLoader'
 
-export interface GenerateContext<T extends PaintingAction = PaintingAction> {
+export interface GenerateContext<T extends PaintingCanvas = PaintingCanvas> {
   painting: T
   provider: Provider
   abortController: AbortController
-  updatePaintingState: (updates: Partial<T>) => void
+  patchPainting: (updates: Partial<T>) => void
+  setFallbackUrls: (urls: string[]) => void
   setIsLoading: (v: boolean) => void
   setGenerating: (v: boolean) => void
   t: TFunction
   mode?: string
 }
 
-export interface PaintingProviderDefinition<T extends PaintingAction = PaintingAction> {
+export interface PaintingProviderDefinition<T extends PaintingCanvas = PaintingCanvas> {
   providerId: string
 
   // Modes (e.g., generate/edit/remix)
@@ -51,7 +52,7 @@ export interface PaintingProviderDefinition<T extends PaintingAction = PaintingA
   centerContent?: (state: any) => ReactNode
 
   // Image upload handling (for config items with type: 'image')
-  onImageUpload?: (key: string, file: File, updatePaintingState: (updates: Partial<T>) => void) => void
+  onImageUpload?: (key: string, file: File, patchPainting: (updates: Partial<T>) => void) => void
   getImagePreviewSrc?: (key: string, painting: T) => string | undefined
   imagePlaceholder?: ReactNode
 

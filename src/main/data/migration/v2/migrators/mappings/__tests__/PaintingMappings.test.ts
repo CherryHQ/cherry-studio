@@ -1,18 +1,18 @@
 import { describe, expect, it } from 'vitest'
 
-import { getPaintingScope, transformLegacyPaintingRecord } from '../PaintingMappings'
+import { getPaintingFilter, transformLegacyPaintingRecord } from '../PaintingMappings'
 
 describe('PaintingMappings', () => {
   it('maps DMXAPI edit and merge records into legacy granular modes', () => {
-    expect(getPaintingScope('dmxapi_paintings', { generationMode: 'edit' })).toEqual({
+    expect(getPaintingFilter('dmxapi_paintings', { generationMode: 'edit' })).toEqual({
       providerId: 'dmxapi',
       mode: 'edit'
     })
-    expect(getPaintingScope('dmxapi_paintings', { generationMode: 'merge' })).toEqual({
+    expect(getPaintingFilter('dmxapi_paintings', { generationMode: 'merge' })).toEqual({
       providerId: 'dmxapi',
       mode: 'merge'
     })
-    expect(getPaintingScope('dmxapi_paintings', { generationMode: 'generation' })).toEqual({
+    expect(getPaintingFilter('dmxapi_paintings', { generationMode: 'generation' })).toEqual({
       providerId: 'dmxapi',
       mode: 'generate'
     })
@@ -75,7 +75,7 @@ describe('PaintingMappings', () => {
     expect(result).toMatchObject({
       ok: true,
       value: {
-        inputFileIds: []
+        files: { input: [] }
       }
     })
     expect(result.warnings).toContain(

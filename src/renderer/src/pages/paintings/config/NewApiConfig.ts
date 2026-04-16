@@ -19,7 +19,6 @@ export const MODELS = [
 
 export const DEFAULT_PAINTING: GeneratePainting = {
   id: uuid(),
-  urls: [],
   files: [],
   model: '',
   prompt: '',

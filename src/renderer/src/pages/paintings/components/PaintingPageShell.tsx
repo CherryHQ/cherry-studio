@@ -3,7 +3,7 @@ import { Button, Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isMac } from '@renderer/config/constant'
-import type { Painting } from '@renderer/types'
+import type { PaintingCanvas } from '@renderer/types'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -52,7 +52,8 @@ const PaintingPageShell: FC<PaintingPageShellProps> = ({
     currentImageIndex,
     isLoading,
     isTranslating,
-    updatePaintingState,
+    fallbackUrls,
+    patchPainting,
     onSelectPainting,
     onDeletePainting,
     handleAddPainting,
@@ -101,6 +102,7 @@ const PaintingPageShell: FC<PaintingPageShellProps> = ({
               painting={painting}
               isLoading={isLoading}
               currentImageIndex={currentImageIndex}
+              fallbackUrls={fallbackUrls}
               onPrevImage={prevImage}
               onNextImage={nextImage}
               onCancel={onCancel}
@@ -113,14 +115,14 @@ const PaintingPageShell: FC<PaintingPageShellProps> = ({
             placeholder={
               promptPlaceholder ?? (isTranslating ? t('paintings.translating') : t('paintings.prompt_placeholder'))
             }
-            onPromptChange={(value) => updatePaintingState({ prompt: value })}
+            onPromptChange={(value) => patchPainting({ prompt: value })}
             onGenerate={onGenerate}
             onKeyDown={showTranslate ? handleKeyDown : undefined}
           />
         </div>
         <PaintingsList
-          paintings={paintings as Painting[]}
-          selectedPainting={painting as Painting}
+          paintings={paintings as PaintingCanvas[]}
+          selectedPainting={painting as PaintingCanvas}
           onSelectPainting={onSelectPainting}
           onDeletePainting={onDeletePainting}
           onNewPainting={handleAddPainting}

@@ -1,25 +1,27 @@
 import { useCache } from '@data/hooks/useCache'
-import { usePaintingList } from '@data/hooks/usePaintings'
 import { usePreference } from '@data/hooks/usePreference'
 import { LanguagesEnum } from '@renderer/config/translate'
+import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import { translateText } from '@renderer/services/TranslateService'
-import type { PaintingAction } from '@renderer/types'
+import type { PaintingCanvas } from '@renderer/types'
 import type { Provider } from '@renderer/types/provider'
 import type { PaintingMode } from '@shared/data/types/painting'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-export interface UsePaintingPageOptions<T extends PaintingAction = PaintingAction> {
+export interface UsePaintingPageOptions<T extends PaintingCanvas = PaintingCanvas> {
   providerId: string
   mode?: PaintingMode
   getDefaultPainting: () => T
   onProviderChange: (id: string) => void
 }
 
-export interface UsePaintingPageReturn<T extends PaintingAction = PaintingAction> {
+export interface UsePaintingPageReturn<T extends PaintingCanvas = PaintingCanvas> {
   painting: T
   setPainting: (p: T) => void
   paintings: T[]
+  selectedPaintingId: string | undefined
+  setSelectedPaintingId: (id: string | undefined) => void
   currentImageIndex: number
   isLoading: boolean
   setIsLoading: (v: boolean) => void
@@ -30,7 +32,9 @@ export interface UsePaintingPageReturn<T extends PaintingAction = PaintingAction
   setAbortController: (c: AbortController | null) => void
   provider: Provider
 
-  updatePaintingState: (updates: Partial<T>) => void
+  fallbackUrls: string[]
+  setFallbackUrls: (urls: string[]) => void
+  patchPainting: (updates: Partial<T>) => void
   onSelectPainting: (p: T) => void
   onDeletePainting: (p: T) => void
   handleAddPainting: () => T
@@ -44,78 +48,100 @@ export interface UsePaintingPageReturn<T extends PaintingAction = PaintingAction
   translate: () => Promise<void>
 }
 
-export function usePaintingPage<T extends PaintingAction = PaintingAction>({
+export function usePaintingPage<T extends PaintingCanvas = PaintingCanvas>({
   providerId,
   mode,
   getDefaultPainting,
   onProviderChange
 }: UsePaintingPageOptions<T>): UsePaintingPageReturn<T> {
-  const { items, hasHydrated, add, remove, update, reorder } = usePaintingList({ providerId, mode })
+  const { items, isReady, createPainting, deletePainting, updatePainting, reorderPaintings } = usePaintings({
+    providerId,
+    mode
+  })
   const paintings = items as T[]
 
-  const [painting, setPainting] = useState<T>(paintings[0] || getDefaultPainting())
+  const fallbackPainting = useMemo(() => getDefaultPainting(), [getDefaultPainting])
+  const [selectedPaintingId, setSelectedPaintingId] = useState<string>()
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
+  const [fallbackUrls, setFallbackUrls] = useState<string[]>([])
   const [abortController, setAbortController] = useState<AbortController | null>(null)
   const [generating, setGenerating] = useCache('chat.generating')
   const [isTranslating, setIsTranslating] = useState(false)
   const [spaceClickCount, setSpaceClickCount] = useState(0)
-  const [hasInitialized, setHasInitialized] = useState(false)
   const spaceClickTimer = useRef<NodeJS.Timeout>(null)
 
   const providers = useAllProviders()
   const [autoTranslateWithSpace] = usePreference('chat.input.translate.auto_translate_with_space')
 
   const provider = providers.find((p) => p.id === providerId)!
+  const selectedPainting = useMemo(
+    () => (selectedPaintingId ? paintings.find((item) => item.id === selectedPaintingId) : undefined),
+    [paintings, selectedPaintingId]
+  )
+  const painting = selectedPainting ?? paintings[0] ?? fallbackPainting
 
-  const updatePaintingState = useCallback(
+  const patchPainting = useCallback(
     (updates: Partial<T>) => {
       const updatedPainting = { ...painting, ...updates }
-      setPainting(updatedPainting)
-      update(updatedPainting)
+      if (paintings.some((p) => p.id === painting.id)) {
+        updatePainting(updatedPainting)
+      } else {
+        createPainting(updatedPainting)
+        setSelectedPaintingId(updatedPainting.id)
+      }
     },
-    [painting, update]
+    [painting, paintings, updatePainting, createPainting]
   )
 
   const onSelectPainting = useCallback(
     (p: T) => {
       if (generating) return
-      setPainting(p)
+      setSelectedPaintingId(p.id)
       setCurrentImageIndex(0)
+      setFallbackUrls([])
     },
     [generating]
   )
 
   const onDeletePainting = useCallback(
     (paintingToDelete: T) => {
+      const remaining = paintings.filter((item) => item.id !== paintingToDelete.id)
+
       if (paintingToDelete.id === painting.id) {
         const currentIndex = paintings.findIndex((p) => p.id === paintingToDelete.id)
 
         if (currentIndex > 0) {
-          setPainting(paintings[currentIndex - 1])
-        } else if (paintings.length > 1) {
-          setPainting(paintings[1])
+          setSelectedPaintingId(paintings[currentIndex - 1]?.id)
+        } else if (remaining.length > 0) {
+          setSelectedPaintingId(remaining[0]?.id)
+        } else {
+          setSelectedPaintingId(undefined)
         }
       }
 
-      void remove(paintingToDelete)
-
-      const remaining = paintings.filter((p) => p.id !== paintingToDelete.id)
-      if (remaining.length === 0) {
-        const newPainting = getDefaultPainting()
-        add(newPainting)
-        setPainting(newPainting)
-      }
+      void deletePainting(paintingToDelete)
     },
-    [painting, paintings, remove, add, getDefaultPainting]
+    [painting, paintings, deletePainting]
   )
 
   const handleAddPainting = useCallback(() => {
     const newPainting = getDefaultPainting()
-    const added = add(newPainting) as T
-    setPainting(added)
+    const added = createPainting(newPainting) as T
+    setSelectedPaintingId(added.id)
     return added
-  }, [add, getDefaultPainting])
+  }, [createPainting, getDefaultPainting])
+
+  const setPainting = useCallback(
+    (nextPainting: T) => {
+      setSelectedPaintingId(nextPainting.id)
+
+      if (paintings.some((item) => item.id === nextPainting.id)) {
+        updatePainting(nextPainting)
+      }
+    },
+    [paintings, updatePainting]
+  )
 
   const onCancel = useCallback(() => {
     abortController?.abort()
@@ -145,11 +171,11 @@ export function usePaintingPage<T extends PaintingAction = PaintingAction>({
     try {
       setIsTranslating(true)
       const translatedText = await translateText(painting.prompt, LanguagesEnum.enUS)
-      updatePaintingState({ prompt: translatedText } as Partial<T>)
+      patchPainting({ prompt: translatedText } as Partial<T>)
     } finally {
       setIsTranslating(false)
     }
-  }, [isTranslating, painting.prompt, updatePaintingState])
+  }, [isTranslating, painting.prompt, patchPainting])
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -175,21 +201,19 @@ export function usePaintingPage<T extends PaintingAction = PaintingAction>({
   )
 
   useEffect(() => {
-    if (!hasHydrated || hasInitialized) {
-      return
-    }
+    setSelectedPaintingId(undefined)
+    setCurrentImageIndex(0)
+    setFallbackUrls([])
+  }, [providerId, mode])
 
-    if (paintings.length === 0) {
-      const newPainting = getDefaultPainting()
-      add(newPainting)
-      setPainting(newPainting)
-      setHasInitialized(true)
-      return
-    }
+  useEffect(() => {
+    if (!isReady) return
+    if (paintings.length === 0) return
 
-    setPainting((current) => paintings.find((item) => item.id === current.id) || paintings[0])
-    setHasInitialized(true)
-  }, [paintings, hasHydrated, hasInitialized, add, getDefaultPainting])
+    setSelectedPaintingId((current) =>
+      current && paintings.some((p) => p.id === current) ? current : paintings[0]?.id
+    )
+  }, [isReady, paintings])
 
   useEffect(() => {
     return () => {
@@ -203,6 +227,8 @@ export function usePaintingPage<T extends PaintingAction = PaintingAction>({
     painting,
     setPainting,
     paintings,
+    selectedPaintingId,
+    setSelectedPaintingId,
     currentImageIndex,
     isLoading,
     setIsLoading,
@@ -213,7 +239,9 @@ export function usePaintingPage<T extends PaintingAction = PaintingAction>({
     setAbortController,
     provider,
 
-    updatePaintingState,
+    fallbackUrls,
+    setFallbackUrls,
+    patchPainting,
     onSelectPainting,
     onDeletePainting,
     handleAddPainting,
@@ -222,7 +250,7 @@ export function usePaintingPage<T extends PaintingAction = PaintingAction>({
     nextImage,
     handleProviderChange,
     handleKeyDown,
-    reorder: reorder as (paintings: T[]) => void,
+    reorder: reorderPaintings as (paintings: T[]) => void,
 
     translate
   }

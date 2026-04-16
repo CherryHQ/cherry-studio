@@ -23,8 +23,7 @@ function rowToPainting(row: typeof paintingTable.$inferSelect): Painting {
     model: row.model ?? null,
     prompt: row.prompt ?? '',
     params: row.params ?? {},
-    fileIds: row.fileIds ?? [],
-    inputFileIds: row.inputFileIds ?? [],
+    files: { output: row.files?.output ?? [], input: row.files?.input ?? [] },
     parentId: row.parentId ?? null,
     sortOrder: row.sortOrder ?? 0,
     createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
@@ -103,8 +102,7 @@ export class PaintingService {
           model: dto.model ?? null,
           prompt: dto.prompt ?? '',
           params: dto.params ?? {},
-          fileIds: dto.fileIds ?? [],
-          inputFileIds: dto.inputFileIds ?? [],
+          files: { output: dto.files?.output ?? [], input: dto.files?.input ?? [] },
           parentId: dto.parentId ?? null,
           sortOrder: (maxSortRow?.maxSortOrder ?? 0) + 1
         })
@@ -130,8 +128,7 @@ export class PaintingService {
     if (dto.model !== undefined) updates.model = dto.model
     if (dto.prompt !== undefined) updates.prompt = dto.prompt
     if (dto.params !== undefined) updates.params = dto.params
-    if (dto.fileIds !== undefined) updates.fileIds = dto.fileIds
-    if (dto.inputFileIds !== undefined) updates.inputFileIds = dto.inputFileIds
+    if (dto.files !== undefined) updates.files = dto.files
     if (dto.parentId !== undefined) updates.parentId = dto.parentId
 
     if (Object.keys(updates).length === 0) {

@@ -382,7 +382,6 @@ export const createModeConfigs = (): Record<PpioMode, PpioConfigItem[]> => {
 // 默认 painting 配置
 export const DEFAULT_PPIO_PAINTING: PpioPainting = {
   id: '',
-  urls: [],
   files: [],
   model: 'jimeng-txt2img-v3.1',
   prompt: '',

@@ -1,4 +1,4 @@
-import type { PaintingAction } from '@renderer/types'
+import type { PaintingCanvas } from '@renderer/types'
 
 import {
   ASPECT_RATIOS,
@@ -24,7 +24,7 @@ export type ConfigItem = {
     | 'title'
     | 'description'
     | 'image'
-  key?: keyof PaintingAction | 'commonModel'
+  key?: keyof PaintingCanvas | 'commonModel'
   title?: string
   tooltip?: string
   options?:
@@ -41,17 +41,17 @@ export type ConfigItem = {
       }>
     | ((
         config: ConfigItem,
-        painting: Partial<PaintingAction>
+        painting: Partial<PaintingCanvas>
       ) => Array<{ labelKey?: string; label?: string; value: string | number; icon?: string; onlyV2?: boolean }>)
   min?: number
   max?: number
   step?: number
   suffix?: React.ReactNode
   content?: string
-  disabled?: boolean | ((config: ConfigItem, painting: Partial<PaintingAction>) => boolean)
+  disabled?: boolean | ((config: ConfigItem, painting: Partial<PaintingCanvas>) => boolean)
   initialValue?: string | number
   required?: boolean
-  condition?: (painting: PaintingAction) => boolean
+  condition?: (painting: PaintingCanvas) => boolean
 }
 
 export type AihubmixMode = 'aihubmix_image_generate' | 'aihubmix_image_remix' | 'aihubmix_image_upscale'
@@ -413,7 +413,7 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
 }
 
 // 几种默认的绘画配置
-export const DEFAULT_PAINTING: PaintingAction = {
+export const DEFAULT_PAINTING: PaintingCanvas = {
   id: 'aihubmix_1',
   model: 'gemini-3-pro-image-preview',
   aspectRatio: 'ASPECT_1_1',
@@ -429,7 +429,6 @@ export const DEFAULT_PAINTING: PaintingAction = {
   imageFile: undefined,
   mask: undefined,
   files: [],
-  urls: [],
   renderingSpeed: 'DEFAULT',
   size: '1024x1024',
   background: 'auto',

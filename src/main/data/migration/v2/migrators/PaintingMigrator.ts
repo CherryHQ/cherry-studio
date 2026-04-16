@@ -146,19 +146,19 @@ export class PaintingMigrator extends BaseMigrator {
 
     try {
       // --- DEBUG: log what we're about to insert ---
-      const withFiles = this.preparedPaintings.filter((p) => p.fileIds && p.fileIds.length > 0)
-      const withoutFiles = this.preparedPaintings.filter((p) => !p.fileIds || p.fileIds.length === 0)
+      const withFiles = this.preparedPaintings.filter((p) => p.files && p.files.output.length > 0)
+      const withoutFiles = this.preparedPaintings.filter((p) => !p.files || p.files.output.length === 0)
       logger.info('[execute] insert summary', {
         total: this.preparedPaintings.length,
-        withFileIds: withFiles.length,
-        withoutFileIds: withoutFiles.length,
+        withFiles: withFiles.length,
+        withoutFiles: withoutFiles.length,
         sampleWithFiles:
           withFiles.length > 0
-            ? JSON.stringify({ id: withFiles[0].id, fileIds: withFiles[0].fileIds })?.slice(0, 300)
+            ? JSON.stringify({ id: withFiles[0].id, files: withFiles[0].files })?.slice(0, 300)
             : 'none',
         sampleWithoutFiles:
           withoutFiles.length > 0
-            ? JSON.stringify({ id: withoutFiles[0].id, fileIds: withoutFiles[0].fileIds })?.slice(0, 300)
+            ? JSON.stringify({ id: withoutFiles[0].id, files: withoutFiles[0].files })?.slice(0, 300)
             : 'none'
       })
 

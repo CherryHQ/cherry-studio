@@ -1,4 +1,4 @@
-import type { PaintingMode, PaintingParams } from '@shared/data/types/painting'
+import type { PaintingFiles, PaintingMode, PaintingParams } from '@shared/data/types/painting'
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
@@ -12,8 +12,7 @@ export const paintingTable = sqliteTable(
     model: text(),
     prompt: text().notNull().default(''),
     params: text({ mode: 'json' }).$type<PaintingParams>().notNull().default({}),
-    fileIds: text('file_ids', { mode: 'json' }).$type<string[]>().notNull().default([]),
-    inputFileIds: text('input_file_ids', { mode: 'json' }).$type<string[]>().notNull().default([]),
+    files: text({ mode: 'json' }).$type<PaintingFiles>().notNull().default({ output: [], input: [] }),
     parentId: text('parent_id'),
     sortOrder: integer().notNull().default(0),
     ...createUpdateTimestamps

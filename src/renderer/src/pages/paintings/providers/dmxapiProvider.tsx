@@ -1,6 +1,6 @@
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import FileManager from '@renderer/services/FileManager'
-import type { DmxapiPainting, FileMetadata } from '@renderer/types'
+import type { DmxapiPainting } from '@renderer/types'
 import { generationModeType } from '@renderer/types'
 import { convertToBase64, uuid } from '@renderer/utils'
 import type { PaintingMode } from '@shared/data/types/painting'
@@ -21,6 +21,7 @@ import {
   TOP_UP_URL
 } from '../config/DmxapiConfig'
 import { checkProviderEnabled } from '../utils'
+import { runGeneration } from '../utils/runGeneration'
 import type { GenerateContext, PaintingProviderDefinition } from './types'
 
 // Module-level state for uploaded image files (edit/merge modes)
@@ -156,31 +157,6 @@ function buildConfigFields(): any[] {
 }
 
 // Download images utility (handles both URL and base64)
-async function downloadImages(urls: string[], t: (key: string) => string): Promise<FileMetadata[]> {
-  const downloadedFiles = await Promise.all(
-    urls.map(async (url) => {
-      try {
-        if (!url?.trim()) {
-          window.toast.warning(t('message.empty_url'))
-          return null
-        }
-        if (url.startsWith('data:image')) {
-          return await window.api.file.saveBase64Image(url)
-        }
-        return await window.api.file.download(url, true)
-      } catch (error) {
-        if (
-          error instanceof Error &&
-          (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
-        ) {
-          window.toast.warning(t('message.empty_url'))
-        }
-        return null
-      }
-    })
-  )
-  return downloadedFiles.filter((file): file is FileMetadata => file !== null)
-}
 
 export const dmxapiProvider: PaintingProviderDefinition<DmxapiPainting> = {
   providerId: 'dmxapi',
@@ -295,7 +271,7 @@ export const dmxapiProvider: PaintingProviderDefinition<DmxapiPainting> = {
   },
 
   async onGenerate(ctx: GenerateContext<DmxapiPainting>) {
-    const { painting, provider, abortController, updatePaintingState, setIsLoading, setGenerating, t } = ctx
+    const { painting, provider, abortController, patchPainting, t } = ctx
     const mode = ctx.mode || generationModeType.GENERATION
 
     await checkProviderEnabled(provider, t)
@@ -315,7 +291,6 @@ export const dmxapiProvider: PaintingProviderDefinition<DmxapiPainting> = {
       return
     }
 
-    // Validate image files for edit/merge modes
     if (
       [generationModeType.EDIT, generationModeType.MERGE].includes(mode as generationModeType) &&
       fileMap.imageFiles.length === 0
@@ -324,10 +299,6 @@ export const dmxapiProvider: PaintingProviderDefinition<DmxapiPainting> = {
       return
     }
 
-    // Confirm regeneration if files exist
-    // NOTE: autoCreate feature from original page is simplified here.
-    // When autoCreate is true, the original page would create a new painting panel.
-    // In this provider architecture, we always replace the current painting's files.
     if (painting.files.length > 0) {
       const confirmed = await window.modal.confirm({
         content: t('paintings.regenerate.confirm'),
@@ -338,15 +309,11 @@ export const dmxapiProvider: PaintingProviderDefinition<DmxapiPainting> = {
     }
 
     const prompt = painting.prompt || ''
-    updatePaintingState({ prompt } as Partial<DmxapiPainting>)
+    patchPainting({ prompt } as Partial<DmxapiPainting>)
 
-    setIsLoading(true)
-    setGenerating(true)
-
-    try {
+    await runGeneration(ctx, async () => {
       const requestConfig = await prepareRequestConfig(prompt, painting, mode, provider, t)
 
-      // Call the API
       const headers: Record<string, string> = {
         Accept: 'application/json',
         Authorization: `Bearer ${provider.apiKey}`,
@@ -362,9 +329,9 @@ export const dmxapiProvider: PaintingProviderDefinition<DmxapiPainting> = {
       })
 
       if (!response.ok) {
-        if (response.status === 401) throw new Error('paintings.req_error_token')
-        if (response.status === 403) throw new Error('paintings.req_error_no_balance')
-        throw new Error('paintings.operation_failed')
+        if (response.status === 401) throw new Error(t('paintings.req_error_token'))
+        if (response.status === 403) throw new Error(t('paintings.req_error_no_balance'))
+        throw new Error(t('paintings.operation_failed'))
       }
 
       const data = await response.json()
@@ -375,28 +342,9 @@ export const dmxapiProvider: PaintingProviderDefinition<DmxapiPainting> = {
       })
 
       if (urls.length > 0) {
-        const validFiles = await downloadImages(urls, t)
-        if (validFiles.length > 0) {
-          await FileManager.addFiles(validFiles)
-          updatePaintingState({ files: validFiles, urls } as Partial<DmxapiPainting>)
-        } else {
-          window.toast.warning(t('paintings.req_error_text'))
-        }
+        return { urls, downloadOptions: { allowBase64DataUrls: true } }
       }
-    } catch (error) {
-      if (error instanceof Error && error.name !== 'AbortError') {
-        window.modal.error({
-          content:
-            error.message.startsWith('paintings.') || error.message.startsWith('error.')
-              ? t(error.message)
-              : t('paintings.req_error_text'),
-          centered: true
-        })
-      }
-    } finally {
-      setIsLoading(false)
-      setGenerating(false)
-    }
+    })
   }
 }
 

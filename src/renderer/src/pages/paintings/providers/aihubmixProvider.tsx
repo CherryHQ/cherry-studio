@@ -3,12 +3,13 @@ import { loggerService } from '@logger'
 import { AiProvider } from '@renderer/aiCore'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
 import FileManager from '@renderer/services/FileManager'
-import type { FileMetadata, PaintingAction } from '@renderer/types'
-import { getErrorMessage, uuid } from '@renderer/utils'
+import type { PaintingCanvas } from '@renderer/types'
+import { uuid } from '@renderer/utils'
 
 import { SettingHelpLink } from '../../settings'
 import { type AihubmixMode, createModeConfigs, DEFAULT_PAINTING } from '../config/aihubmixConfig'
 import { checkProviderEnabled } from '../utils'
+import { processResult, runGeneration } from '../utils/runGeneration'
 import type { GenerateContext, PaintingProviderDefinition } from './types'
 
 const logger = loggerService.withContext('AihubmixProvider')
@@ -26,33 +27,6 @@ const MODE_TO_CONFIG: Record<AihubmixPaintingMode, AihubmixMode> = {
   generate: 'aihubmix_image_generate',
   remix: 'aihubmix_image_remix',
   upscale: 'aihubmix_image_upscale'
-}
-
-const downloadImages = async (urls: string[], t: (key: string) => string): Promise<FileMetadata[]> => {
-  const downloadedFiles = await Promise.all(
-    urls.map(async (url) => {
-      try {
-        if (!url?.trim()) {
-          logger.error('Image URL is empty, possibly due to prohibited prompt')
-          window.toast.warning(t('message.empty_url'))
-          return null
-        }
-        return await window.api.file.download(url)
-      } catch (error) {
-        logger.error(`Failed to download image: ${error}`)
-        if (
-          error instanceof Error &&
-          (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
-        ) {
-          window.toast.warning(t('message.empty_url'))
-        } else {
-          window.toast.warning(t('paintings.proxy_required'))
-        }
-        return null
-      }
-    })
-  )
-  return downloadedFiles.filter((file): file is FileMetadata => file !== null)
 }
 
 // Build config fields keyed by UI mode name
@@ -137,20 +111,20 @@ export const aihubmixProvider: PaintingProviderDefinition = {
   },
 
   // Image upload handling
-  onImageUpload: (key, file, updatePaintingState) => {
+  onImageUpload: (key, file, patchPainting) => {
     const path = URL.createObjectURL(file)
     fileStore.set(path, file)
-    updatePaintingState({ [key]: path } as Partial<PaintingAction>)
+    patchPainting({ [key]: path } as Partial<PaintingCanvas>)
   },
 
   getImagePreviewSrc: (key, painting) => {
-    return painting[key as keyof PaintingAction] as string | undefined
+    return painting[key as keyof PaintingCanvas] as string | undefined
   },
 
   imagePlaceholder: <img src={IcImageUp} className="mt-2" />,
 
   async onGenerate(ctx: GenerateContext) {
-    const { painting, provider, abortController, updatePaintingState, setIsLoading, setGenerating, t } = ctx
+    const { painting, provider, abortController, patchPainting, t } = ctx
 
     await checkProviderEnabled(provider, t)
 
@@ -164,7 +138,7 @@ export const aihubmixProvider: PaintingProviderDefinition = {
     }
 
     const prompt = painting.prompt || ''
-    updatePaintingState({ prompt } as Partial<PaintingAction>)
+    patchPainting({ prompt } as Partial<PaintingCanvas>)
 
     if (!provider.apiKey) {
       window.modal.error({
@@ -176,18 +150,14 @@ export const aihubmixProvider: PaintingProviderDefinition = {
 
     if (!painting.model || !painting.prompt) return
 
-    setIsLoading(true)
-    setGenerating(true)
+    await runGeneration(ctx, async () => {
+      const mode = (ctx.mode || 'generate') as AihubmixPaintingMode
 
-    const mode = (ctx.mode || 'generate') as AihubmixPaintingMode
-
-    let body: string | FormData = ''
-    let headers: Record<string, string> = {
-      'Api-Key': provider.apiKey
-    }
-    let url = provider.apiHost + `/ideogram/` + MODE_TO_CONFIG[mode]
-
-    try {
+      let body: string | FormData = ''
+      let headers: Record<string, string> = {
+        'Api-Key': provider.apiKey
+      }
+      let url = provider.apiHost + `/ideogram/` + MODE_TO_CONFIG[mode]
       if (mode === 'generate') {
         if (painting.model.startsWith('imagen-')) {
           const AI = new AiProvider(provider)
@@ -199,9 +169,7 @@ export const aihubmixProvider: PaintingProviderDefinition = {
             personGeneration: painting.personGeneration
           })
           if (base64s?.length > 0) {
-            const validFiles = await Promise.all(base64s.map(async (base64) => window.api.file.saveBase64Image(base64)))
-            await FileManager.addFiles(validFiles)
-            updatePaintingState({ files: validFiles, urls: [] })
+            await processResult(ctx, { base64s })
           }
           return
         } else if (painting.model === 'gemini-3-pro-image-preview') {
@@ -258,11 +226,7 @@ export const aihubmixProvider: PaintingProviderDefinition = {
           })
 
           if (base64s.length > 0) {
-            const validFiles = await Promise.all(
-              base64s.map(async (base64: string) => window.api.file.saveBase64Image(base64))
-            )
-            await FileManager.addFiles(validFiles)
-            updatePaintingState({ files: validFiles, urls: [] })
+            await processResult(ctx, { base64s })
           }
           return
         } else if (painting.model === 'V_3') {
@@ -310,41 +274,24 @@ export const aihubmixProvider: PaintingProviderDefinition = {
             logger.silly(`${pair[0]}: ${pair[1]}`)
           }
 
-          const apiHeaders = { 'Api-Key': provider.apiKey }
+          const response = await fetch(`${provider.apiHost}/ideogram/v1/ideogram-v3/generate`, {
+            method: 'POST',
+            headers: { 'Api-Key': provider.apiKey },
+            body: formData
+          })
 
-          try {
-            const response = await fetch(`${provider.apiHost}/ideogram/v1/ideogram-v3/generate`, {
-              method: 'POST',
-              headers: apiHeaders,
-              body: formData
-            })
+          if (!response.ok) {
+            const errorData = await response.json()
+            logger.error('V3 API error:', errorData)
+            throw new Error(errorData.error?.message || t('paintings.generate_failed'))
+          }
 
-            if (!response.ok) {
-              const errorData = await response.json()
-              logger.error('V3 API error:', errorData)
-              throw new Error(errorData.error?.message || t('paintings.generate_failed'))
-            }
+          const data = await response.json()
+          logger.silly(`V3 API response: ${data}`)
+          const urls = data.data.map((item: any) => item.url)
 
-            const data = await response.json()
-            logger.silly(`V3 API response: ${data}`)
-            const urls = data.data.map((item: any) => item.url)
-
-            if (urls.length > 0) {
-              const validFiles = await downloadImages(urls, t)
-              await FileManager.addFiles(validFiles)
-              updatePaintingState({ files: validFiles, urls })
-            }
-            return
-          } catch (error: unknown) {
-            if (error instanceof Error && error.name !== 'AbortError') {
-              window.modal.error({
-                content: getErrorMessage(error),
-                centered: true
-              })
-            }
-          } finally {
-            setIsLoading(false)
-            setGenerating(false)
+          if (urls.length > 0) {
+            await processResult(ctx, { urls, downloadOptions: { showProxyWarning: true } })
           }
           return
         } else {
@@ -457,9 +404,7 @@ export const aihubmixProvider: PaintingProviderDefinition = {
           const urls = data.data.map((item: any) => item.url)
 
           if (urls.length > 0) {
-            const validFiles = await downloadImages(urls, t)
-            await FileManager.addFiles(validFiles)
-            updatePaintingState({ files: validFiles, urls })
+            await processResult(ctx, { urls, downloadOptions: { showProxyWarning: true } })
           }
           return
         } else {
@@ -525,40 +470,20 @@ export const aihubmixProvider: PaintingProviderDefinition = {
         logger.silly(`API response: ${data}`)
         if (data.output) {
           const base64s = data.output.b64_json.map((item: any) => item.bytesBase64)
-          const validFiles = await Promise.all(
-            base64s.map(async (base64: string) => window.api.file.saveBase64Image(base64))
-          )
-          await FileManager.addFiles(validFiles)
-          updatePaintingState({ files: validFiles, urls: [] })
+          await processResult(ctx, { base64s })
           return
         }
         const urls = data.data.filter((item: any) => item.url).map((item: any) => item.url)
         const base64s = data.data.filter((item: any) => item.b64_json).map((item: any) => item.b64_json)
 
         if (urls.length > 0) {
-          const validFiles = await downloadImages(urls, t)
-          await FileManager.addFiles(validFiles)
-          updatePaintingState({ files: validFiles, urls })
+          await processResult(ctx, { urls, downloadOptions: { showProxyWarning: true } })
         }
 
         if (base64s?.length > 0) {
-          const validFiles = await Promise.all(
-            base64s.map(async (base64: string) => window.api.file.saveBase64Image(base64))
-          )
-          await FileManager.addFiles(validFiles)
-          updatePaintingState({ files: validFiles, urls: [] })
+          await processResult(ctx, { base64s })
         }
       }
-    } catch (error: unknown) {
-      if (error instanceof Error && error.name !== 'AbortError') {
-        window.modal.error({
-          content: getErrorMessage(error),
-          centered: true
-        })
-      }
-    } finally {
-      setIsLoading(false)
-      setGenerating(false)
-    }
+    })
   }
 }

@@ -1,19 +1,19 @@
 import { ConfirmDialog } from '@cherrystudio/ui'
 import { DraggableList } from '@renderer/components/DraggableList'
 import FileManager from '@renderer/services/FileManager'
-import type { Painting } from '@renderer/types'
+import type { PaintingCanvas } from '@renderer/types'
 import { Plus, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface PaintingsListProps {
-  paintings: Painting[]
-  selectedPainting: Painting
-  onSelectPainting: (painting: Painting) => void
-  onDeletePainting: (painting: Painting) => void
+  paintings: PaintingCanvas[]
+  selectedPainting: PaintingCanvas
+  onSelectPainting: (painting: PaintingCanvas) => void
+  onDeletePainting: (painting: PaintingCanvas) => void
   onNewPainting: () => void
-  onReorder: (paintings: Painting[]) => void
+  onReorder: (paintings: PaintingCanvas[]) => void
 }
 
 const PaintingsList: FC<PaintingsListProps> = ({
@@ -26,7 +26,7 @@ const PaintingsList: FC<PaintingsListProps> = ({
 }) => {
   const { t } = useTranslation()
   const [dragging, setDragging] = useState(false)
-  const [pendingDelete, setPendingDelete] = useState<Painting | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<PaintingCanvas | null>(null)
 
   return (
     <>
@@ -47,7 +47,7 @@ const PaintingsList: FC<PaintingsListProps> = ({
           onUpdate={(value) => onReorder(value)}
           onDragStart={() => setDragging(true)}
           onDragEnd={() => setDragging(false)}>
-          {(item: Painting) => (
+          {(item: PaintingCanvas) => (
             <div key={item.id} className="group relative w-[76px] shrink-0">
               <button
                 type="button"

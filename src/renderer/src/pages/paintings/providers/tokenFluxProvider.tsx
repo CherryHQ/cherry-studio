@@ -13,7 +13,7 @@ import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import FileManager from '@renderer/services/FileManager'
 import type { TokenFluxPainting } from '@renderer/types'
-import { getErrorMessage, uuid } from '@renderer/utils'
+import { uuid } from '@renderer/utils'
 import type { TFunction } from 'i18next'
 import type { FC } from 'react'
 import { useEffect, useMemo, useState } from 'react'
@@ -25,6 +25,7 @@ import { DynamicFormRender } from '../components/DynamicFormRender'
 import PaintingsSectionTitle from '../components/PaintingsSectionTitle'
 import { DEFAULT_TOKENFLUX_PAINTING, type TokenFluxModel } from '../config/tokenFluxConfig'
 import { checkProviderEnabled } from '../utils'
+import { runGeneration } from '../utils/runGeneration'
 import TokenFluxService from '../utils/TokenFluxService'
 import type { GenerateContext, PaintingProviderDefinition } from './types'
 
@@ -41,12 +42,12 @@ function readI18nContext(property: Record<string, any>, key: string, lang: strin
 interface TokenFluxSidebarProps {
   painting: TokenFluxPainting
   isLoading: boolean
-  updatePaintingState: (updates: Partial<TokenFluxPainting>) => void
+  patchPainting: (updates: Partial<TokenFluxPainting>) => void
   modelOptions: Array<{ value: string; label: string; group?: string; [k: string]: any }>
   t: TFunction
 }
 
-const TokenFluxSidebar: FC<TokenFluxSidebarProps> = ({ painting, updatePaintingState, modelOptions, t }) => {
+const TokenFluxSidebar: FC<TokenFluxSidebarProps> = ({ painting, patchPainting, modelOptions, t }) => {
   const { i18n } = useTranslation()
   const lang = i18n.language.split('-')[0]
 
@@ -62,7 +63,7 @@ const TokenFluxSidebar: FC<TokenFluxSidebarProps> = ({ painting, updatePaintingS
 
   const handleFormFieldChange = (field: string, value: any) => {
     const newFormData = { ...formData, [field]: value }
-    updatePaintingState({ inputParams: newFormData })
+    patchPainting({ inputParams: newFormData })
   }
 
   return (
@@ -81,7 +82,7 @@ const TokenFluxSidebar: FC<TokenFluxSidebarProps> = ({ painting, updatePaintingS
       <Select
         value={painting.model || ''}
         onValueChange={(modelId: string) => {
-          updatePaintingState({ model: modelId, inputParams: {} })
+          patchPainting({ model: modelId, inputParams: {} })
         }}>
         <SelectTrigger className="mb-3 w-full">
           <SelectValue placeholder={t('paintings.select_model')} />
@@ -196,7 +197,7 @@ export const tokenFluxProvider: PaintingProviderDefinition<TokenFluxPainting> = 
   },
 
   async onGenerate(ctx: GenerateContext<TokenFluxPainting>) {
-    const { painting, provider, abortController, updatePaintingState, setIsLoading, setGenerating, t } = ctx
+    const { painting, provider, abortController, patchPainting, setFallbackUrls, t } = ctx
 
     await checkProviderEnabled(provider, t)
 
@@ -219,10 +220,7 @@ export const tokenFluxProvider: PaintingProviderDefinition<TokenFluxPainting> = 
       return
     }
 
-    setIsLoading(true)
-    setGenerating(true)
-
-    try {
+    await runGeneration(ctx, async () => {
       const tokenFluxService = new TokenFluxService(provider.apiHost, provider.apiKey)
       const formData = painting.inputParams || {}
 
@@ -235,7 +233,7 @@ export const tokenFluxProvider: PaintingProviderDefinition<TokenFluxPainting> = 
       }
 
       const inputParams = { prompt, ...formData }
-      updatePaintingState({
+      patchPainting({
         model: painting.model,
         prompt,
         status: 'processing',
@@ -245,27 +243,18 @@ export const tokenFluxProvider: PaintingProviderDefinition<TokenFluxPainting> = 
       const result = await tokenFluxService.generateAndWait(requestBody, {
         signal: abortController.signal,
         onStatusUpdate: (updates) => {
-          updatePaintingState(updates)
+          patchPainting(updates)
         }
       })
 
       if (result?.images && result.images.length > 0) {
         const urls = result.images.map((img: { url: string }) => img.url)
         const validFiles = await tokenFluxService.downloadImages(urls)
-        await FileManager.addFiles(validFiles)
-        updatePaintingState({ files: validFiles, urls, status: 'succeeded' })
+        patchPainting({ status: 'succeeded' })
+        setFallbackUrls(urls)
+        return { files: validFiles }
       }
-    } catch (error: unknown) {
-      if (error instanceof Error && error.name !== 'AbortError') {
-        window.modal.error({
-          content: getErrorMessage(error),
-          centered: true
-        })
-      }
-    } finally {
-      setIsLoading(false)
-      setGenerating(false)
-    }
+    })
   }
 }
 
@@ -277,7 +266,7 @@ export const tokenFluxProvider: PaintingProviderDefinition<TokenFluxPainting> = 
  * which requires provider.apiHost and apiKey at runtime.
  */
 const TokenFluxSidebarWrapper: FC<{ state: any }> = ({ state }) => {
-  const { painting, isLoading, updatePaintingState, t } = state
+  const { painting, isLoading, patchPainting, t } = state
   const [models, setModels] = useState<TokenFluxModel[]>([])
   const providers = useAllProviders()
   const provider = providers.find((p) => p.id === 'tokenflux')
@@ -308,7 +297,7 @@ const TokenFluxSidebarWrapper: FC<{ state: any }> = ({ state }) => {
     <TokenFluxSidebar
       painting={painting}
       isLoading={isLoading}
-      updatePaintingState={updatePaintingState}
+      patchPainting={patchPainting}
       modelOptions={modelOptions}
       t={t}
     />

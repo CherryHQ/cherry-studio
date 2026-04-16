@@ -1,10 +1,10 @@
-import type { PaintingAction } from '@renderer/types'
+import type { PaintingCanvas } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 
 // Configuration item type definition
 export type ConfigItem = {
   type: 'select' | 'radio' | 'slider' | 'input' | 'switch' | 'inputNumber' | 'textarea' | 'title' | 'description'
-  key?: keyof PaintingAction | 'commonModel'
+  key?: keyof PaintingCanvas | 'commonModel'
   title?: string
   tooltip?: string
   options?:
@@ -16,17 +16,17 @@ export type ConfigItem = {
       }>
     | ((
         config: ConfigItem,
-        painting: Partial<PaintingAction>
+        painting: Partial<PaintingCanvas>
       ) => Array<{ label: string; value: string | number; icon?: string }>)
   min?: number
   max?: number
   step?: number
   suffix?: React.ReactNode
   content?: string
-  disabled?: boolean | ((config: ConfigItem, painting: Partial<PaintingAction>) => boolean)
+  disabled?: boolean | ((config: ConfigItem, painting: Partial<PaintingCanvas>) => boolean)
   initialValue?: string | number | boolean
   required?: boolean
-  condition?: (painting: PaintingAction) => boolean
+  condition?: (painting: PaintingCanvas) => boolean
 }
 
 // Size options for OVMS
@@ -107,19 +107,18 @@ export const createOvmsConfig = (models?: Array<{ label: string; value: string }
 }
 
 // Default painting configuration for OVMS
-export const DEFAULT_OVMS_PAINTING: PaintingAction = {
+export const DEFAULT_OVMS_PAINTING: PaintingCanvas = {
   id: uuid(),
   model: '',
   prompt: '',
   size: '512x512',
   num_inference_steps: 4,
   rng_seed: 0,
-  files: [],
-  urls: []
+  files: []
 }
 
 // Function to create default painting with dynamic model
-export const createDefaultOvmsPainting = (models?: Array<{ label: string; value: string }>): PaintingAction => {
+export const createDefaultOvmsPainting = (models?: Array<{ label: string; value: string }>): PaintingCanvas => {
   const availableModels = models || OVMS_MODELS
   return {
     ...DEFAULT_OVMS_PAINTING,

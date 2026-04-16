@@ -1,11 +1,11 @@
 import { loggerService } from '@logger'
-import FileManager from '@renderer/services/FileManager'
-import type { FileMetadata, PaintingAction, PpioPainting } from '@renderer/types'
-import { getErrorMessage, uuid } from '@renderer/utils'
+import type { FileMetadata, PaintingCanvas, PpioPainting } from '@renderer/types'
+import { uuid } from '@renderer/utils'
 
 import { createModeConfigs, DEFAULT_PPIO_PAINTING, getModelsByMode, type PpioMode } from '../config/ppioConfig'
 import { checkProviderEnabled } from '../utils'
 import PpioService from '../utils/PpioService'
+import { runGeneration } from '../utils/runGeneration'
 import type { GenerateContext, PaintingProviderDefinition } from './types'
 
 const logger = loggerService.withContext('PpioProvider')
@@ -44,47 +44,34 @@ export const ppioProvider: PaintingProviderDefinition = {
     }
   },
 
-  onModelChange: (modelId: string) => ({ model: modelId }) as Partial<PaintingAction>,
+  onModelChange: (modelId: string) => ({ model: modelId }) as Partial<PaintingCanvas>,
 
   showTranslate: true,
 
   async onGenerate(ctx: GenerateContext) {
-    const { painting, provider, abortController, updatePaintingState, setIsLoading, setGenerating, t } = ctx
+    const { painting, provider, abortController, patchPainting, setFallbackUrls, t } = ctx
 
     await checkProviderEnabled(provider, t)
 
-    // Determine current mode from painting model
     const ppioPainting = painting as PpioPainting
     const isEditMode = getModelsByMode('ppio_edit').some((m) => m.id === ppioPainting.model)
 
-    // Edit mode requires an image
     if (isEditMode && !ppioPainting.imageFile) {
-      window.modal.error({
-        content: t('paintings.edit.image_required'),
-        centered: true
-      })
+      window.modal.error({ content: t('paintings.edit.image_required'), centered: true })
       return
     }
 
-    // Most models require a prompt (except tool models)
     const noPromptModels = ['image-upscaler', 'image-remove-background', 'image-eraser']
     if (!noPromptModels.includes(ppioPainting.model || '') && !ppioPainting.prompt?.trim()) {
-      window.modal.error({
-        content: t('paintings.prompt_required'),
-        centered: true
-      })
+      window.modal.error({ content: t('paintings.prompt_required'), centered: true })
       return
     }
 
     if (!provider.apiKey) {
-      window.modal.error({
-        content: t('error.no_api_key'),
-        centered: true
-      })
+      window.modal.error({ content: t('error.no_api_key'), centered: true })
       return
     }
 
-    // Confirm regeneration if images already exist
     if (painting.files && painting.files.length > 0) {
       const confirmed = await window.modal.confirm({
         content: t('paintings.regenerate.confirm'),
@@ -93,81 +80,61 @@ export const ppioProvider: PaintingProviderDefinition = {
       if (!confirmed) return
     }
 
-    setIsLoading(true)
-    setGenerating(true)
+    await runGeneration(ctx, async () => {
+      try {
+        const service = new PpioService(provider.apiKey)
 
-    try {
-      const service = new PpioService(provider.apiKey)
+        logger.info('Starting image generation', { model: ppioPainting.model })
 
-      logger.info('Starting image generation', { model: ppioPainting.model })
+        const result = await service.generate(ppioPainting)
 
-      const result = await service.generate(ppioPainting)
+        let imageUrls: string[] = []
 
-      let imageUrls: string[] = []
+        if (result.images) {
+          imageUrls = result.images
+        } else if (result.taskId) {
+          logger.info('Task created', { taskId: result.taskId })
+          patchPainting({ taskId: result.taskId, ppioStatus: 'processing' } as Partial<PaintingCanvas>)
 
-      if (result.images) {
-        // Sync API returns image URLs directly
-        imageUrls = result.images
-      } else if (result.taskId) {
-        // Async API requires polling
-        logger.info('Task created', { taskId: result.taskId })
-        updatePaintingState({ taskId: result.taskId, ppioStatus: 'processing' } as Partial<PaintingAction>)
-
-        const taskResult = await service.pollTaskResult(result.taskId, {
-          signal: abortController.signal,
-          onProgress: (progress) => {
-            logger.debug('Task progress', { progress })
-          }
-        })
-
-        logger.info('Task completed', taskResult)
-
-        if (taskResult.images && taskResult.images.length > 0) {
-          imageUrls = taskResult.images.map((img) => img.image_url)
-        }
-      }
-
-      // Download images
-      if (imageUrls.length > 0) {
-        const downloadedFiles = await Promise.all(
-          imageUrls.map(async (url) => {
-            try {
-              if (!url || url.trim() === '') {
-                logger.error('Empty image URL')
-                return null
-              }
-              return await window.api.file.download(url)
-            } catch (error) {
-              logger.error('Failed to download image:', error as Error)
-              return null
+          const taskResult = await service.pollTaskResult(result.taskId, {
+            signal: abortController.signal,
+            onProgress: (progress) => {
+              logger.debug('Task progress', { progress })
             }
           })
-        )
 
-        const validFiles = downloadedFiles.filter((file): file is FileMetadata => file !== null)
+          logger.info('Task completed', taskResult)
 
-        await FileManager.addFiles(validFiles)
+          if (taskResult.images && taskResult.images.length > 0) {
+            imageUrls = taskResult.images.map((img) => img.image_url)
+          }
+        }
 
-        updatePaintingState({
-          files: validFiles,
-          urls: imageUrls,
-          ppioStatus: 'succeeded'
-        } as Partial<PaintingAction>)
+        if (imageUrls.length > 0) {
+          const downloadedFiles = await Promise.all(
+            imageUrls.map(async (url) => {
+              try {
+                if (!url || url.trim() === '') {
+                  logger.error('Empty image URL')
+                  return null
+                }
+                return await window.api.file.download(url)
+              } catch (error) {
+                logger.error('Failed to download image:', error as Error)
+                return null
+              }
+            })
+          )
+
+          const validFiles = downloadedFiles.filter((file): file is FileMetadata => file !== null)
+          patchPainting({ ppioStatus: 'succeeded' } as Partial<PaintingCanvas>)
+          setFallbackUrls(imageUrls)
+          return { files: validFiles }
+        }
+      } catch (error) {
+        patchPainting({ ppioStatus: 'failed' } as Partial<PaintingCanvas>)
+        throw error
       }
-    } catch (error) {
-      logger.error('Image generation failed', error as Error)
-
-      if ((error as Error).message !== 'Task polling aborted') {
-        window.modal.error({
-          content: getErrorMessage(error),
-          centered: true
-        })
-      }
-
-      updatePaintingState({ ppioStatus: 'failed' } as Partial<PaintingAction>)
-    } finally {
-      setIsLoading(false)
-      setGenerating(false)
-    }
+    })
   }
 }

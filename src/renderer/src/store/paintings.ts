@@ -17,7 +17,7 @@
 import { loggerService } from '@logger'
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
-import type { PaintingAction, PaintingsState } from '@renderer/types'
+import type { PaintingCanvas, PaintingsState } from '@renderer/types'
 
 const logger = loggerService.withContext('Store:paintings')
 
@@ -50,7 +50,7 @@ const paintingsSlice = createSlice({
   reducers: {
     addPainting: (
       state: PaintingsState,
-      action: PayloadAction<{ namespace?: keyof PaintingsState; painting: PaintingAction }>
+      action: PayloadAction<{ namespace?: keyof PaintingsState; painting: PaintingCanvas }>
     ) => {
       const { namespace = 'paintings', painting } = action.payload
       if (state[namespace]) {
@@ -61,7 +61,7 @@ const paintingsSlice = createSlice({
     },
     removePainting: (
       state: PaintingsState,
-      action: PayloadAction<{ namespace?: keyof PaintingsState; painting: PaintingAction }>
+      action: PayloadAction<{ namespace?: keyof PaintingsState; painting: PaintingCanvas }>
     ) => {
       const { namespace = 'paintings', painting } = action.payload
       // @ts-ignore - TypeScript 无法正确推断数组元素类型与过滤条件的兼容性
@@ -69,7 +69,7 @@ const paintingsSlice = createSlice({
     },
     updatePainting: (
       state: PaintingsState,
-      action: PayloadAction<{ namespace?: keyof PaintingsState; painting: PaintingAction }>
+      action: PayloadAction<{ namespace?: keyof PaintingsState; painting: PaintingCanvas }>
     ) => {
       const { namespace = 'paintings', painting } = action.payload
 
@@ -82,7 +82,7 @@ const paintingsSlice = createSlice({
     },
     updatePaintings: (
       state: PaintingsState,
-      action: PayloadAction<{ namespace?: keyof PaintingsState; paintings: PaintingAction[] }>
+      action: PayloadAction<{ namespace?: keyof PaintingsState; paintings: PaintingCanvas[] }>
     ) => {
       const { namespace = 'paintings', paintings } = action.payload
       // @ts-ignore - TypeScript 无法正确推断数组元素类型与过滤条件的兼容性

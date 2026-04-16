@@ -1941,21 +1941,13 @@
           "autoincrement": false,
           "default": "'{}'"
         },
-        "file_ids": {
-          "name": "file_ids",
+        "files": {
+          "name": "files",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'[]'"
-        },
-        "input_file_ids": {
-          "name": "input_file_ids",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'[]'"
+          "default": "'{\"output\":[],\"input\":[]}'"
         },
         "parent_id": {
           "name": "parent_id",
