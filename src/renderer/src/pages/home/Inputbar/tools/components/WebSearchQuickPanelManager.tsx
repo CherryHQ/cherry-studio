@@ -1,14 +1,7 @@
 import { BaiduOutlined, GoogleOutlined } from '@ant-design/icons'
+import { Querit } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
-import {
-  BingLogo,
-  BochaLogo,
-  ExaLogo,
-  QueritLogo,
-  SearXNGLogo,
-  TavilyLogo,
-  ZhipuLogo
-} from '@renderer/components/Icons'
+import { BingLogo, BochaLogo, ExaLogo, SearXNGLogo, TavilyLogo, ZhipuLogo } from '@renderer/components/Icons'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
 import {
@@ -23,7 +16,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearchProviders'
 import type { ToolQuickPanelController, ToolRenderContext } from '@renderer/pages/home/Inputbar/types'
 import { getProviderByModel } from '@renderer/services/AssistantService'
-import WebSearchService from '@renderer/services/WebSearchService'
+import { webSearchService } from '@renderer/services/WebSearchService'
 import { getEffectiveMcpMode, type WebSearchProvider, type WebSearchProviderId } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
@@ -55,7 +48,7 @@ export const WebSearchProviderIcon = ({
     case 'searxng':
       return <SearXNGLogo className="icon" width={size} height={size} color={color} />
     case 'querit':
-      return <QueritLogo className="icon" width={size} height={size} color={color} />
+      return <Querit.Mono className="icon" width={size} height={size} color={color} />
     case 'local-baidu':
       return <BaiduOutlined size={size} style={{ color, fontSize: size }} />
     case 'local-bing':
@@ -143,14 +136,14 @@ export const useWebSearchPanelController = (assistantId: string, quickPanelContr
       ...providers
         .map((p) => ({
           label: p.name,
-          description: WebSearchService.isWebSearchEnabled(p.id)
+          description: webSearchService.isWebSearchEnabled(p.id)
             ? hasObjectKey(p, 'apiKey')
               ? t('settings.tool.websearch.apikey')
               : t('settings.tool.websearch.free')
             : t('chat.input.web_search.enable_content'),
           icon: <WebSearchProviderIcon size={13} pid={p.id} />,
           isSelected: p.id === assistant?.webSearchProviderId,
-          disabled: !WebSearchService.isWebSearchEnabled(p.id),
+          disabled: !webSearchService.isWebSearchEnabled(p.id),
           action: () => updateQuickPanelItem(p.id)
         }))
         .filter((item) => !item.disabled)

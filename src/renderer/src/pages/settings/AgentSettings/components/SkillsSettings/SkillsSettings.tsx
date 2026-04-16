@@ -1,8 +1,11 @@
+import { Switch } from '@cherrystudio/ui'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { TopView } from '@renderer/components/TopView'
 import { useInstalledSkills } from '@renderer/hooks/useSkills'
+import { useNavigate } from '@tanstack/react-router'
 import type { InstalledSkill, LocalSkill } from '@types'
-import { Button, Card, type CardProps, Empty, Spin, Switch, Tag } from 'antd'
+import type { CardProps } from 'antd'
+import { Button, Card, Empty, Spin, Tag } from 'antd'
 import { Plus, Puzzle } from 'lucide-react'
 import { type FC, memo, useCallback, useEffect, useEffectEvent, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -54,7 +57,7 @@ const SkillCard = memo<{
             </div>
           </div>
           {skill.source !== 'builtin' && (
-            <Switch checked={skill.isEnabled} loading={toggling} onChange={handleChange} size="small" />
+            <Switch checked={skill.isEnabled} loading={toggling} onCheckedChange={handleChange} size="sm" />
           )}
         </div>
       }
@@ -94,6 +97,7 @@ LocalSkillCard.displayName = 'LocalSkillCard'
  * for the current agent — toggling only affects this agent's workspace.
  */
 export const InstalledSkillsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase }) => {
+  const navigate = useNavigate()
   const { t } = useTranslation()
   // Skills are enabled per-agent, not per-session. When the settings popup is
   // opened from a session, `agentBase` is a session object and its parent
@@ -165,7 +169,7 @@ export const InstalledSkillsSettings: FC<AgentOrSessionSettingsProps> = ({ agent
                 style={{ marginLeft: 'auto' }}
                 onClick={() => {
                   TopView.hide('AgentSettingsPopup')
-                  window.navigate('/settings/skills')
+                  void navigate({ to: '/settings/skills' })
                 }}>
                 {t('agent.settings.skills.addMore', 'Add More Skills')}
               </Button>

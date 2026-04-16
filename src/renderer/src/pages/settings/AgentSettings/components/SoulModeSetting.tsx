@@ -1,10 +1,11 @@
+import { Switch } from '@cherrystudio/ui'
 import type {
   AgentBaseWithId,
   AgentConfiguration,
   UpdateAgentBaseForm,
   UpdateAgentFunctionUnion
 } from '@renderer/types'
-import { Switch, Tooltip } from 'antd'
+import { Tooltip } from 'antd'
 import { Info } from 'lucide-react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -49,7 +50,7 @@ export const SoulModeSetting = ({ base: agentBase, update }: SoulModeSettingProp
         }>
         {t('agent.settings.soulMode.title')}
       </SettingsTitle>
-      <Switch checked={soulEnabled} size="small" onChange={handleToggle} />
+      <Switch checked={soulEnabled} size="sm" onCheckedChange={handleToggle} />
     </SettingsItem>
   )
 }

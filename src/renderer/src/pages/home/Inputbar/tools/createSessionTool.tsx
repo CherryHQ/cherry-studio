@@ -17,7 +17,7 @@ const createSessionTool = defineTool({
 
   render: function CreateSessionRender(context) {
     const { t, assistant, session } = context
-    const newTopicShortcut = useShortcutDisplay('new_topic')
+    const newTopicShortcut = useShortcutDisplay('topic.new')
     const { apiServer } = useSettings()
     const sessionAgentId = session?.agentId
 
@@ -43,9 +43,11 @@ const createSessionTool = defineTool({
 
     return (
       <Tooltip placement="top" title={t('chat.input.new_topic', { Command: newTopicShortcut })}>
-        <ActionIconButton onClick={handleCreateSession} disabled={createSessionDisabled} loading={creatingSession}>
-          <MessageSquareDiff size={19} />
-        </ActionIconButton>
+        <ActionIconButton
+          onClick={handleCreateSession}
+          disabled={createSessionDisabled}
+          loading={creatingSession}
+          icon={<MessageSquareDiff size={19} />}></ActionIconButton>
       </Tooltip>
     )
   }

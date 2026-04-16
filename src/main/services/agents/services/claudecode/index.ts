@@ -9,7 +9,7 @@ import path from 'node:path'
 import type {
   CanUseTool,
   HookCallback,
-  McpHttpServerConfig,
+  McpServerConfig,
   Options,
   SDKMessage,
   SdkPluginConfig,
@@ -18,8 +18,9 @@ import type {
 } from '@anthropic-ai/claude-agent-sdk'
 import { query } from '@anthropic-ai/claude-agent-sdk'
 import type { Base64ImageSource, ContentBlockParam } from '@anthropic-ai/sdk/resources/messages/messages'
+import { application } from '@application'
+import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
-import { config as apiConfigService } from '@main/apiServer/config'
 import { validateModelId } from '@main/apiServer/utils'
 import { isWin } from '@main/constant'
 import AssistantServer from '@main/mcpServers/assistant'
@@ -34,6 +35,7 @@ import {
   getProxyProtocol
 } from '@main/services/proxy/nodeProxy'
 import { toAsarUnpackedPath } from '@main/utils'
+import { getAppLanguage } from '@main/utils/language'
 import { autoDiscoverGitBash, getBinaryPath } from '@main/utils/process'
 import { rtkRewrite } from '@main/utils/rtk'
 import getLoginShellEnvironment from '@main/utils/shell-env'
@@ -60,6 +62,7 @@ import { channelService } from '../ChannelService'
 import { PromptBuilder } from '../cherryclaw/prompt'
 import { sessionService } from '../SessionService'
 import { buildNamespacedToolCallId } from './claude-stream-state'
+import { createSdkMcpServerInstance } from './createSdkMcpServerInstance'
 import { promptForToolApproval } from './tool-permissions'
 import { ClaudeStreamState, transformSDKMessageToStreamParts } from './transform'
 
@@ -73,7 +76,7 @@ const shouldAutoApproveTools = process.env.CHERRY_AUTO_ALLOW_TOOLS === '1'
 const NO_RESUME_COMMANDS = ['/clear']
 
 const getLanguageInstruction = () => {
-  const lang = configManager.getLanguage()
+  const lang = getAppLanguage()
   return `
   IMPORTANT: You MUST use ${languageEnglishNameMap[lang]} language for ALL your outputs, including:
   (1) text responses, (2) tool call parameters like "description" fields, and (3) any user-facing content.
@@ -176,7 +179,6 @@ class ClaudeCodeService implements AgentServiceInterface {
       provider.apiKey = provider.id
     }
 
-    const apiConfig = await apiConfigService.get()
     const loginShellEnv = await getLoginShellEnvironment()
 
     // Auto-discover Git Bash path on Windows (already logs internally)
@@ -202,9 +204,9 @@ class ClaudeCodeService implements AgentServiceInterface {
       // prevent claude agent sdk using bedrock api
       CLAUDE_CODE_USE_BEDROCK: '0',
       // TODO: fix the proxy api server
-      // ANTHROPIC_API_KEY: apiConfig.apiKey,
-      // ANTHROPIC_AUTH_TOKEN: apiConfig.apiKey,
-      // ANTHROPIC_BASE_URL: `http://${apiConfig.host}:${apiConfig.port}/${modelInfo.provider.id}`,
+      // ANTHROPIC_API_KEY: apiConfig['feature.csaas.api_key'],
+      // ANTHROPIC_AUTH_TOKEN: apiConfig['feature.csaas.api_key'],
+      // ANTHROPIC_BASE_URL: `http://${apiConfig['feature.csaas.host']}:${apiConfig['feature.csaas.port']}/${modelInfo.provider.id}`,
       ANTHROPIC_API_KEY: provider.apiKey,
       ANTHROPIC_AUTH_TOKEN: provider.apiKey,
       ANTHROPIC_BASE_URL: anthropicBaseUrl,
@@ -216,11 +218,11 @@ class ClaudeCodeService implements AgentServiceInterface {
       ELECTRON_RUN_AS_NODE: '1',
       ELECTRON_NO_ATTACH_CONSOLE: '1',
       // Set CLAUDE_CONFIG_DIR to app's userData directory to avoid path encoding issues
-      // on Windows when the username contains non-ASCII characters (e.g., Chinese characters)
+      // on Windows when the username contains non-ASCII characters (e.g., Chinese characters).
       // This prevents the SDK from using the user's home directory which may have encoding problems.
       // Per-agent skills live in `<cwd>/.claude/skills/` and are picked up by the SDK's
       // project-level skill loading layer — no need to point CLAUDE_CONFIG_DIR at the workspace.
-      CLAUDE_CONFIG_DIR: path.join(app.getPath('userData'), '.claude'),
+      CLAUDE_CONFIG_DIR: application.getPath('feature.agents.claude.root'),
       ENABLE_TOOL_SEARCH: 'auto',
       CHERRY_STUDIO_BUN_PATH: bunPath,
       ...(customGitBashPath ? { CLAUDE_CODE_GIT_BASH_PATH: customGitBashPath } : {})
@@ -555,15 +557,14 @@ class ClaudeCodeService implements AgentServiceInterface {
     }
 
     if (session.mcps && session.mcps.length > 0) {
-      // mcp configs
-      const mcpList: Record<string, McpHttpServerConfig> = {}
+      // Use in-memory SDK transport instead of HTTP proxy for reliability
+      const mcpList: Record<string, McpServerConfig> = {}
       for (const mcpId of session.mcps) {
-        mcpList[mcpId] = {
-          type: 'http',
-          url: `http://${apiConfig.host}:${apiConfig.port}/v1/mcps/${mcpId}/mcp`,
-          headers: {
-            Authorization: `Bearer ${apiConfig.apiKey}`
-          }
+        try {
+          const sdkServer = await createSdkMcpServerInstance(mcpId)
+          mcpList[mcpId] = { type: 'sdk', name: mcpId, instance: sdkServer }
+        } catch (error) {
+          logger.error(`Failed to create SDK MCP bridge for ${mcpId}, skipping`, { error })
         }
       }
       options.mcpServers = mcpList
@@ -1073,19 +1074,20 @@ class ClaudeCodeService implements AgentServiceInterface {
 async function buildAssistantContext(): Promise<string> {
   const appVersion = app.getVersion()
   const platform = `${os.platform()} ${os.release()}`
-  const language = configManager.getLanguage()
-  const theme = configManager.getTheme()
-  const proxy = configManager.get<string>('proxy', '')
+  const language = application.get('PreferenceService').get('app.language')
+  const theme = application.get('PreferenceService').get('ui.theme_mode')
+  const proxy = application.get('PreferenceService').get('app.proxy.url')
 
   // Provider summary (no apiKey exposed)
+  // TODO: v2 refactor it
   const providers = configManager.get<Record<string, unknown>[]>('providers', [])
   const configuredProviders = providers
     .filter((p) => p.apiKey || p.enabled)
     .map((p) => `${p.name || p.id}(${(p.models as unknown[])?.length || 0} models)`)
 
   // MCP summary
-  const mcpServers = configManager.get<Record<string, unknown>[]>('mcpServers', [])
-  const activeMcp = mcpServers.filter((s) => s.isActive)
+  const mcpServers = (await mcpServerService.list({})).items
+  const activeMcp = (await mcpServerService.list({ isActive: true })).items
 
   // Network probe (parallel, 2s timeout each)
   const probeResults = await Promise.allSettled([

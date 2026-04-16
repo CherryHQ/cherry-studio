@@ -9,7 +9,7 @@ import NavigationService from './NavigationService'
 
 const logger = loggerService.withContext('TabsService')
 
-class TabsService {
+export class TabsService {
   private minAppsCache: LRUCache<string, MinAppType> | null = null
 
   /**
@@ -55,12 +55,12 @@ class TabsService {
 
       // 使用 NavigationService 导航到新的标签页
       if (NavigationService.navigate) {
-        NavigationService.navigate(lastTab.path)
+        void NavigationService.navigate({ to: lastTab.path })
       } else {
         logger.warn('Navigation service not ready, will navigate on next render')
         setTimeout(() => {
           if (NavigationService.navigate) {
-            NavigationService.navigate(lastTab.path)
+            void NavigationService.navigate({ to: lastTab.path })
           }
         }, 100)
       }
@@ -133,11 +133,11 @@ class TabsService {
 
     // 导航到对应页面
     if (NavigationService.navigate) {
-      NavigationService.navigate(tab.path)
+      void NavigationService.navigate({ to: tab.path })
     }
 
     return true
   }
 }
 
-export default new TabsService()
+export const tabsService = new TabsService()

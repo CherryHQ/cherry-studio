@@ -1,3 +1,4 @@
+import { useNavigate } from '@tanstack/react-router'
 import { Compass } from 'lucide-react'
 
 interface NavigateToolInput {
@@ -28,7 +29,6 @@ const ROUTE_LABELS: Record<string, { icon: string; label: string }> = {
   '/settings/data': { icon: '💾', label: 'Data' },
   '/settings/mcp': { icon: '🔌', label: 'MCP' },
   '/settings/websearch': { icon: '🔍', label: 'Web Search' },
-  '/settings/memory': { icon: '🧠', label: 'Memory' },
   '/settings/api-server': { icon: '🌐', label: 'API Server' },
   '/settings/docprocess': { icon: '📄', label: 'Doc Processing' },
   '/settings/quickphrase': { icon: '⚡', label: 'Quick Phrases' },
@@ -112,10 +112,10 @@ export function NavigateToolInline({
         : ''
   const isSuccess = outputText.includes('Navigated to')
 
+  const navigate = useNavigate()
+
   const handleClick = () => {
-    if (typeof window.navigate === 'function') {
-      window.navigate(fullPath)
-    }
+    void navigate({ to: basePath })
   }
 
   return (

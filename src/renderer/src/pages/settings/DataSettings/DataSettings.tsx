@@ -1,8 +1,8 @@
 import { CloudServerOutlined, CloudSyncOutlined, YuqueOutlined } from '@ant-design/icons'
+import { RowFlex } from '@cherrystudio/ui'
 import DividerWithText from '@renderer/components/DividerWithText'
 import { JoplinIcon, SiyuanIcon } from '@renderer/components/Icons'
 import { NutstoreIcon } from '@renderer/components/Icons/NutstoreIcons'
-import { HStack } from '@renderer/components/Layout'
 import ListItem from '@renderer/components/ListItem'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import ImportMenuOptions from '@renderer/pages/settings/DataSettings/ImportMenuSettings'
@@ -118,7 +118,7 @@ const DataSettings: FC = () => {
   )
 }
 
-const Container = styled(HStack)`
+const Container = styled(RowFlex)`
   flex: 1;
 `
 

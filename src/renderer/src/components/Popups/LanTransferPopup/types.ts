@@ -1,4 +1,4 @@
-import type { LanHandshakeAckMessage, LocalTransferPeer, LocalTransferState } from '@shared/config/types'
+import type { LanHandshakeAckMessage, LanTransferPeer, LanTransferState } from '@shared/config/types'
 
 // ==========================================
 // Transfer Status
@@ -35,7 +35,7 @@ export type HandshakeResult = {
 
 export interface LanTransferReducerState {
   open: boolean
-  lanState: LocalTransferState | null
+  lanState: LanTransferState | null
   lanHandshakePeerId: string | null
   lastHandshakeResult: HandshakeResult
   fileTransferState: Record<string, LanPeerTransferState>
@@ -48,7 +48,7 @@ export interface LanTransferReducerState {
 
 export type LanTransferAction =
   | { type: 'SET_OPEN'; payload: boolean }
-  | { type: 'SET_LAN_STATE'; payload: LocalTransferState | null }
+  | { type: 'SET_LAN_STATE'; payload: LanTransferState | null }
   | { type: 'SET_HANDSHAKE_PEER_ID'; payload: string | null }
   | { type: 'SET_HANDSHAKE_RESULT'; payload: HandshakeResult }
   | { type: 'SET_TEMP_BACKUP_PATH'; payload: string | null }
@@ -62,7 +62,7 @@ export type LanTransferAction =
 // ==========================================
 
 export interface LanDeviceCardProps {
-  service: LocalTransferPeer
+  service: LanTransferPeer
   transferState?: LanPeerTransferState
   isConnected: boolean
   handshakeInProgress: boolean

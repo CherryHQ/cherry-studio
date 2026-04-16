@@ -1,5 +1,5 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { windowService } from '@main/services/WindowService'
 import type { ChannelLogEntry, ChannelStatusEvent } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 
@@ -157,7 +157,7 @@ class ChannelManager {
   }
 
   private sendToRenderer(channel: string, data: unknown): void {
-    const mainWindow = windowService.getMainWindow()
+    const mainWindow = application.get('WindowService').getMainWindow()
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send(channel, data)
     }

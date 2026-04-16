@@ -1,6 +1,6 @@
+import { Button, ColFlex, Flex, RowFlex, Tooltip } from '@cherrystudio/ui'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { LoadingIcon, StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons'
-import { HStack } from '@renderer/components/Layout'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProvider'
@@ -15,7 +15,7 @@ import type { Model } from '@renderer/types'
 import { filterModelsByKeywords } from '@renderer/utils'
 import { getDuplicateModelNames } from '@renderer/utils/model'
 import { isNewApiProvider } from '@renderer/utils/provider'
-import { Button, Flex, Space, Spin, Tooltip } from 'antd'
+import { Space, Spin } from 'antd'
 import { groupBy, isEmpty, sortBy, toPairs } from 'lodash'
 import { Plus, RefreshCw } from 'lucide-react'
 import React, { memo, startTransition, useCallback, useEffect, useMemo, useState } from 'react'
@@ -115,16 +115,21 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
 
   const actionButtons = (
     <Space.Compact>
-      <Button onClick={onManageModel} icon={<RefreshCw size={16} />} disabled={isHealthChecking}>
+      <Button onClick={onManageModel} size="icon" disabled={isHealthChecking}>
+        <RefreshCw size={16} />
         {t('settings.models.manage.fetch_list')}
       </Button>
       {provider.id !== 'ovms' ? (
-        <Tooltip title={t('button.add')} mouseLeaveDelay={0}>
-          <Button onClick={onAddModel} icon={<Plus size={16} />} disabled={isHealthChecking} />
+        <Tooltip title={t('button.add')}>
+          <Button onClick={onAddModel} size="icon" disabled={isHealthChecking}>
+            <Plus size={16} />
+          </Button>
         </Tooltip>
       ) : (
-        <Tooltip title={t('button.download')} mouseLeaveDelay={0}>
-          <Button onClick={onDownloadModel} icon={<Plus size={16} />} />
+        <Tooltip title={t('button.download')}>
+          <Button onClick={onDownloadModel} size="icon">
+            <Plus size={16} />
+          </Button>
         </Tooltip>
       )}
     </Space.Compact>
@@ -133,26 +138,18 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   return (
     <>
       <SettingSubtitle style={{ marginBottom: 12 }}>
-        <HStack alignItems="center" justifyContent="space-between" style={{ width: '100%' }}>
-          <HStack alignItems="center" gap={8}>
+        <RowFlex className="items-center justify-between" style={{ width: '100%' }}>
+          <RowFlex className="items-center gap-2.5">
             <SettingSubtitle style={{ marginTop: 0 }}>{t('common.models')}</SettingSubtitle>
             <CustomTag color="#8c8c8c" size={10}>
               {modelCount}
             </CustomTag>
             {!hasNoModels && (
               <>
-                <Tooltip title={t('settings.models.check.button_caption')} mouseLeaveDelay={0}>
-                  <Button
-                    type="text"
-                    onClick={runHealthCheck}
-                    icon={
-                      <StreamlineGoodHealthAndWellBeing
-                        size={16}
-                        isActive={isHealthChecking}
-                        color="var(--color-icon)"
-                      />
-                    }
-                  />
+                <Tooltip title={t('settings.models.check.button_caption')}>
+                  <Button size="icon" onClick={runHealthCheck}>
+                    <StreamlineGoodHealthAndWellBeing size={16} isActive={isHealthChecking} color="var(--color-icon)" />
+                  </Button>
                 </Tooltip>
                 <CollapsibleSearchBar
                   onSearch={setSearchText}
@@ -161,14 +158,14 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
                 />
               </>
             )}
-          </HStack>
+          </RowFlex>
           {!hasNoModels && actionButtons}
-        </HStack>
+        </RowFlex>
       </SettingSubtitle>
       {hasNoModels && <div style={{ marginBottom: 12 }}>{actionButtons}</div>}
       <Spin spinning={isLoading} indicator={<LoadingIcon color="var(--color-text-2)" />}>
         {displayedModelGroups && !isEmpty(displayedModelGroups) && (
-          <Flex gap={12} vertical>
+          <ColFlex className="gap-3">
             {Object.keys(displayedModelGroups).map((group, i) => (
               <ModelListGroup
                 key={group}
@@ -182,10 +179,10 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
                 onRemoveGroup={() => displayedModelGroups[group].forEach((model) => removeModel(model))}
               />
             ))}
-          </Flex>
+          </ColFlex>
         )}
       </Spin>
-      <Flex justify="space-between" align="center">
+      <Flex className="items-center justify-between">
         {docsWebsite || modelsWebsite ? (
           <SettingHelpTextRow>
             <SettingHelpText>{t('settings.provider.docs_check')} </SettingHelpText>
@@ -204,7 +201,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
             <SettingHelpText>{t('settings.provider.docs_more_details')}</SettingHelpText>
           </SettingHelpTextRow>
         ) : (
-          <div style={{ height: 5 }} />
+          <div className="h-[5px]" />
         )}
       </Flex>
     </>

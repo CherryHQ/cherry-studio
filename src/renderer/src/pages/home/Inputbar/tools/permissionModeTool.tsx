@@ -111,7 +111,7 @@ const permissionModeTool = defineTool({
 
     return (
       <Tooltip placement="top" title={tooltipTitle}>
-        <ActionIconButton onClick={handleClick}>{getPermissionModeIcon(currentMode)}</ActionIconButton>
+        <ActionIconButton onClick={handleClick} icon={getPermissionModeIcon(currentMode)} />
       </Tooltip>
     )
   }

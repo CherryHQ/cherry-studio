@@ -1,0 +1,83 @@
+{
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "breakpoints": true,
+      "idx": 0,
+      "tag": "0000_init",
+      "version": "6",
+      "when": 1767272575118
+    },
+    {
+      "breakpoints": true,
+      "idx": 1,
+      "tag": "0001_futuristic_human_fly",
+      "version": "6",
+      "when": 1767455592181
+    },
+    {
+      "breakpoints": true,
+      "idx": 2,
+      "tag": "0002_tired_glorian",
+      "version": "6",
+      "when": 1772954746790
+    },
+    {
+      "breakpoints": true,
+      "idx": 3,
+      "tag": "0003_material_pestilence",
+      "version": "6",
+      "when": 1773896975667
+    },
+    {
+      "breakpoints": true,
+      "idx": 4,
+      "tag": "0004_volatile_madame_masque",
+      "version": "6",
+      "when": 1774262838467
+    },
+    {
+      "breakpoints": true,
+      "idx": 5,
+      "tag": "0005_shocking_sphinx",
+      "version": "6",
+      "when": 1774262838468
+    },
+    {
+      "breakpoints": true,
+      "idx": 6,
+      "tag": "0006_silly_screwball",
+      "version": "6",
+      "when": 1774697808332
+    },
+    {
+      "breakpoints": true,
+      "idx": 7,
+      "tag": "0007_steep_hedge_knight",
+      "version": "6",
+      "when": 1774622546141
+    },
+    {
+      "breakpoints": true,
+      "idx": 8,
+      "tag": "0008_wild_ultron",
+      "version": "6",
+      "when": 1775137534101
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1775543209395,
+      "tag": "0009_medical_giant_girl",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1775820970055,
+      "tag": "0010_pink_shaman",
+      "breakpoints": true
+    }
+  ],
+  "version": "7"
+}

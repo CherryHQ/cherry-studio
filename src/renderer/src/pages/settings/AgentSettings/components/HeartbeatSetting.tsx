@@ -1,10 +1,11 @@
+import { Switch } from '@cherrystudio/ui'
 import type {
   AgentBaseWithId,
   AgentConfiguration,
   UpdateAgentBaseForm,
   UpdateAgentFunctionUnion
 } from '@renderer/types'
-import { InputNumber, Switch, Tooltip } from 'antd'
+import { InputNumber, Tooltip } from 'antd'
 import { Info } from 'lucide-react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -47,7 +48,11 @@ export const HeartbeatSetting = ({ base: agentBase, update }: HeartbeatSettingPr
           }>
           {t('agent.cherryClaw.heartbeat.enabled')}
         </SettingsTitle>
-        <Switch checked={enabled} size="small" onChange={(checked) => updateConfig({ heartbeat_enabled: checked })} />
+        <Switch
+          checked={enabled}
+          size="sm"
+          onCheckedChange={(checked) => updateConfig({ heartbeat_enabled: checked })}
+        />
       </SettingsItem>
       {enabled && (
         <SettingsItem inline>

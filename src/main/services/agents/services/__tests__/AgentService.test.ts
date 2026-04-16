@@ -69,7 +69,7 @@ vi.mock('../../skills/SkillService', () => ({
   }
 }))
 
-import { AgentService } from '../AgentService'
+import { agentService } from '../AgentService'
 
 function createSelectQuery(rows: unknown[]) {
   return {
@@ -82,7 +82,7 @@ function createSelectQuery(rows: unknown[]) {
 }
 
 describe('AgentService built-in agent lifecycle', () => {
-  const service = AgentService.getInstance()
+  const service = agentService
 
   beforeEach(() => {
     vi.clearAllMocks()

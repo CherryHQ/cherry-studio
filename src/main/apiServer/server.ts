@@ -1,11 +1,10 @@
 import { createServer } from 'node:http'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { IpcChannel } from '@shared/IpcChannel'
 
-import { windowService } from '../services/WindowService'
-import { app } from './app'
-import { config } from './config'
+import { createApp } from './app'
 
 const logger = loggerService.withContext('ApiServer')
 
@@ -28,10 +27,13 @@ export class ApiServer {
       this.server = null
     }
 
-    // Load config
-    const { port, host } = await config.load()
+    // Load config from preference service
+    const preferenceService = application.get('PreferenceService')
+    const port = preferenceService.get('feature.csaas.port')
+    const host = preferenceService.get('feature.csaas.host')
 
     // Create server with Express app
+    const app = createApp()
     this.server = createServer(app)
     this.applyServerTimeouts(this.server)
 
@@ -41,7 +43,7 @@ export class ApiServer {
         logger.info('API server started', { host, port })
 
         // Notify renderer that API server is ready
-        const mainWindow = windowService.getMainWindow()
+        const mainWindow = application.get('WindowService').getMainWindow()
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send(IpcChannel.ApiServer_Ready)
         }
@@ -78,7 +80,6 @@ export class ApiServer {
 
   async restart(): Promise<void> {
     await this.stop()
-    await config.reload()
     await this.start()
   }
 
@@ -92,5 +93,3 @@ export class ApiServer {
     return result
   }
 }
-
-export const apiServer = new ApiServer()

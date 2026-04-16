@@ -2,8 +2,8 @@ import { randomUUID } from 'node:crypto'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { getDataPath } from '@main/utils'
 import { directoryExists } from '@main/utils/file'
 import { deleteDirectoryRecursive } from '@main/utils/fileOperations'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
@@ -17,7 +17,7 @@ import type {
   SkillToggleOptions
 } from '@types'
 import { eq } from 'drizzle-orm'
-import { app, net } from 'electron'
+import { net } from 'electron'
 import StreamZip from 'node-stream-zip'
 
 import { agentsTable } from '../database/schema'
@@ -566,7 +566,7 @@ export class SkillService {
     // Skills storage root, preserve its existing basename as folderName so the
     // destination resolves to the same path and SkillInstaller short-circuits the
     // copy. This avoids sanitize drift between caller-chosen names and metadata.
-    const skillsRoot = path.resolve(getDataPath('Skills'))
+    const skillsRoot = path.resolve(application.getPath('feature.agents.skills'))
     const isInPlace = path.resolve(path.dirname(skillDir)) === skillsRoot
     // INVARIANT: isInPlace assumes basename was already sanitized by getSkillDirectory()
     const folderName = isInPlace ? path.basename(skillDir) : this.sanitizeFolderName(metadata.filename)
@@ -770,7 +770,7 @@ export class SkillService {
 
   /** Full path to a skill in global storage */
   private getSkillStoragePath(folderName: string): string {
-    return path.join(getDataPath('Skills'), folderName)
+    return path.join(application.getPath('feature.agents.skills'), folderName)
   }
 
   /** Symlink location for a given agent workspace: `{workspace}/.claude/skills/{folderName}` */
@@ -824,7 +824,7 @@ export class SkillService {
   }
 
   private async createTempDir(prefix: string): Promise<string> {
-    const tempDir = path.join(app.getPath('temp'), 'cherry-studio', 'skill-install', `${prefix}-${Date.now()}`)
+    const tempDir = path.join(application.getPath('feature.agents.skills.install.temp'), `${prefix}-${Date.now()}`)
     await fs.promises.mkdir(tempDir, { recursive: true })
     return tempDir
   }

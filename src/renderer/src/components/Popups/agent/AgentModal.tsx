@@ -1,8 +1,9 @@
+import { HelpTooltip } from '@cherrystudio/ui'
+import { Switch } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import AnthropicProviderListPopover from '@renderer/components/AnthropicProviderListPopover'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { HelpTooltip } from '@renderer/components/TooltipIcons'
 import { TopView } from '@renderer/components/TopView'
 import { permissionModeCards } from '@renderer/config/agent'
 import { isWin } from '@renderer/config/constant'
@@ -22,7 +23,7 @@ import { AgentConfigurationSchema, isAgentType } from '@renderer/types'
 import { parseKeyValueString, serializeKeyValueString } from '@renderer/utils/env'
 import { getAnthropicSupportedProviders } from '@renderer/utils/provider'
 import type { GitBashPathInfo } from '@shared/config/constant'
-import { Button, Input, Modal, Select, Switch, Tooltip } from 'antd'
+import { Button, Input, Modal, Select, Tooltip } from 'antd'
 import { Info } from 'lucide-react'
 import type { ChangeEvent, FormEvent } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -462,7 +463,7 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
                     <Info size={16} className="text-foreground-400" />
                   </Tooltip>
                 </div>
-                <Switch checked={soulEnabled} size="small" onChange={onSoulModeChange} />
+                <Switch checked={soulEnabled} size="sm" onCheckedChange={onSoulModeChange} />
               </div>
             </FormItem>
 

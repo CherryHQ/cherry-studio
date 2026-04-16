@@ -1,21 +1,18 @@
-import Doc2xLogo from '@renderer/assets/images/ocr/doc2x.png'
-import MinerULogo from '@renderer/assets/images/ocr/mineru.jpg'
-import MistralLogo from '@renderer/assets/images/providers/mistral.png'
-import PaddleocrLogo from '@renderer/assets/images/providers/paddleocr.png'
+import { Doc2x, Mineru, Mistral, Paddleocr } from '@cherrystudio/ui/icons'
 import type { PreprocessProviderId } from '@renderer/types'
 
 export function getPreprocessProviderLogo(providerId: PreprocessProviderId) {
   switch (providerId) {
     case 'doc2x':
-      return Doc2xLogo
+      return Doc2x
     case 'mistral':
-      return MistralLogo
+      return Mistral
     case 'mineru':
-      return MinerULogo
+      return Mineru
     case 'open-mineru':
-      return MinerULogo
+      return Mineru
     case 'paddleocr':
-      return PaddleocrLogo
+      return Paddleocr
     default:
       return undefined
   }

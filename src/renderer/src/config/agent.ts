@@ -1,4 +1,5 @@
-import type { AgentBase, AgentConfiguration } from '@renderer/types'
+import { resolveProviderIcon } from '@cherrystudio/ui/icons'
+import type { AgentBase, AgentConfiguration, AgentType } from '@renderer/types'
 import type { PermissionModeCard } from '@renderer/types/agent'
 
 // base agent config. no default config for now.
@@ -23,7 +24,16 @@ export const DEFAULT_CHERRY_CLAW_CONFIG: Omit<AgentBase, 'model'> & { configurat
     heartbeat_enabled: true,
     heartbeat_interval: 30
   }
-} as const
+}
+
+export const getAgentTypeAvatar = (type: AgentType) => {
+  switch (type) {
+    case 'claude-code':
+      return resolveProviderIcon('anthropic')
+    default:
+      return undefined
+  }
+}
 
 export const permissionModeCards: PermissionModeCard[] = [
   {

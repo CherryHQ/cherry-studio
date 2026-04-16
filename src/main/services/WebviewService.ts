@@ -1,10 +1,11 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { t } from '@main/utils/locales'
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { getAppLanguage, t } from '@main/utils/language'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, dialog, session, shell, webContents } from 'electron'
 import { promises as fs } from 'fs'
 
-import { configManager } from './ConfigManager'
 import { isSafeExternalUrl } from './security'
 
 const logger = loggerService.withContext('WebviewService')
@@ -20,7 +21,7 @@ export function initSessionUserAgent() {
 
   wvSession.setUserAgent(newUA)
   wvSession.webRequest.onBeforeSendHeaders((details, cb) => {
-    const language = configManager.getLanguage()
+    const language = application.get('PreferenceService').get('app.language')
     const headers = {
       ...details.requestHeaders,
       'User-Agent': details.url.includes('google.com') ? originUA : newUA,
@@ -119,36 +120,96 @@ const attachKeyboardHandler = (contents: Electron.WebContents) => {
   })
 }
 
-export function initWebviewHotkeys() {
-  webContents.getAllWebContents().forEach((contents) => {
-    if (contents.isDestroyed()) return
-    attachKeyboardHandler(contents)
-  })
-
-  app.on('web-contents-created', (_, contents) => {
-    attachKeyboardHandler(contents)
-  })
-}
-
-/**
- * Print webview content to PDF
- * @param webviewId The webview webContents id
- * @returns Path to saved PDF file or null if user cancelled
- */
-export async function printWebviewToPDF(webviewId: number): Promise<string | null> {
-  const webview = webContents.fromId(webviewId)
-  if (!webview) {
-    throw new Error('Webview not found')
+@Injectable('WebviewService')
+@ServicePhase(Phase.WhenReady)
+export class WebviewService extends BaseService {
+  protected async onInit() {
+    this.initSessionUserAgent()
+    this.initWebviewHotkeys()
+    this.registerIpcHandlers()
   }
 
-  try {
-    // Get the page title for default filename
+  private registerIpcHandlers() {
+    this.ipcHandle(IpcChannel.Webview_SetOpenLinkExternal, (_, webviewId: number, isExternal: boolean) => {
+      const webview = webContents.fromId(webviewId)
+      if (!webview) return
+
+      webview.setWindowOpenHandler(({ url }) => {
+        if (isExternal) {
+          void shell.openExternal(url)
+          return { action: 'deny' as const }
+        } else {
+          return { action: 'allow' as const }
+        }
+      })
+    })
+
+    this.ipcHandle(IpcChannel.Webview_SetSpellCheckEnabled, (_, webviewId: number, isEnable: boolean) => {
+      const webview = webContents.fromId(webviewId)
+      if (!webview) return
+      webview.session.setSpellCheckerEnabled(isEnable)
+    })
+
+    this.ipcHandle(IpcChannel.Webview_PrintToPDF, async (_, webviewId: number) => {
+      return await this.printWebviewToPDF(webviewId)
+    })
+
+    this.ipcHandle(IpcChannel.Webview_SaveAsHTML, async (_, webviewId: number) => {
+      return await this.saveWebviewAsHTML(webviewId)
+    })
+  }
+
+  /**
+   * Initialize the useragent of the webview session.
+   * Removes CherryStudio and Electron from the useragent.
+   */
+  private initSessionUserAgent() {
+    const wvSession = session.fromPartition('persist:webview')
+    const originUA = wvSession.getUserAgent()
+    const newUA = originUA.replace(/CherryStudio\/\S+\s/, '').replace(/Electron\/\S+\s/, '')
+
+    wvSession.setUserAgent(newUA)
+    wvSession.webRequest.onBeforeSendHeaders((details, cb) => {
+      const language = getAppLanguage()
+      const headers = {
+        ...details.requestHeaders,
+        'User-Agent': details.url.includes('google.com') ? originUA : newUA,
+        'Accept-Language': `${language}, en;q=0.9, *;q=0.5`
+      }
+      cb({ requestHeaders: headers })
+    })
+    this.registerDisposable(() => wvSession.webRequest.onBeforeSendHeaders(null))
+  }
+
+  /**
+   * Attach keyboard hotkey handlers to all existing and future webviews.
+   */
+  private initWebviewHotkeys() {
+    webContents.getAllWebContents().forEach((contents) => {
+      if (contents.isDestroyed()) return
+      attachKeyboardHandler(contents)
+    })
+
+    const handler = (_: Electron.Event, contents: Electron.WebContents) => {
+      attachKeyboardHandler(contents)
+    }
+    app.on('web-contents-created', handler)
+    this.registerDisposable(() => app.removeListener('web-contents-created', handler))
+  }
+
+  /**
+   * Print webview content to PDF.
+   */
+  private async printWebviewToPDF(webviewId: number): Promise<string | null> {
+    const webview = webContents.fromId(webviewId)
+    if (!webview) {
+      throw new Error('Webview not found')
+    }
+
     const pageTitle = await webview.executeJavaScript('document.title || "webpage"').catch(() => 'webpage')
-    // Sanitize filename by removing invalid characters
     const sanitizedTitle = pageTitle.replace(/[<>:"/\\|?*]/g, '-').substring(0, 100)
     const defaultFilename = sanitizedTitle ? `${sanitizedTitle}.pdf` : `webpage-${Date.now()}.pdf`
 
-    // Show save dialog
     const { canceled, filePath } = await dialog.showSaveDialog({
       title: t('dialog.save_as_pdf'),
       defaultPath: defaultFilename,
@@ -159,7 +220,6 @@ export async function printWebviewToPDF(webviewId: number): Promise<string | nul
       return null
     }
 
-    // Generate PDF with settings to capture full page
     const pdfData = await webview.printToPDF({
       margins: {
         marginType: 'default'
@@ -170,34 +230,24 @@ export async function printWebviewToPDF(webviewId: number): Promise<string | nul
       preferCSSPageSize: true
     })
 
-    // Save PDF to file
     await fs.writeFile(filePath, pdfData)
 
     return filePath
-  } catch (error) {
-    throw new Error(`Failed to print to PDF: ${(error as Error).message}`)
-  }
-}
-
-/**
- * Save webview content as HTML
- * @param webviewId The webview webContents id
- * @returns Path to saved HTML file or null if user cancelled
- */
-export async function saveWebviewAsHTML(webviewId: number): Promise<string | null> {
-  const webview = webContents.fromId(webviewId)
-  if (!webview) {
-    throw new Error('Webview not found')
   }
 
-  try {
-    // Get the page title for default filename
+  /**
+   * Save webview content as HTML.
+   */
+  private async saveWebviewAsHTML(webviewId: number): Promise<string | null> {
+    const webview = webContents.fromId(webviewId)
+    if (!webview) {
+      throw new Error('Webview not found')
+    }
+
     const pageTitle = await webview.executeJavaScript('document.title || "webpage"').catch(() => 'webpage')
-    // Sanitize filename by removing invalid characters
     const sanitizedTitle = pageTitle.replace(/[<>:"/\\|?*]/g, '-').substring(0, 100)
     const defaultFilename = sanitizedTitle ? `${sanitizedTitle}.html` : `webpage-${Date.now()}.html`
 
-    // Show save dialog
     const { canceled, filePath } = await dialog.showSaveDialog({
       title: t('dialog.save_as_html'),
       defaultPath: defaultFilename,
@@ -211,7 +261,6 @@ export async function saveWebviewAsHTML(webviewId: number): Promise<string | nul
       return null
     }
 
-    // Get the HTML content with safe error handling
     const html = await webview.executeJavaScript(`
       (() => {
         try {
@@ -224,17 +273,17 @@ export async function saveWebviewAsHTML(webviewId: number): Promise<string | nul
             // Add PUBLIC identifier if publicId is present
             if (dt.publicId) {
               // Escape single quotes in publicId
-              const escapedPublicId = String(dt.publicId).replace(/'/g, "\\'");
+              const escapedPublicId = String(dt.publicId).replace(/'/g, "\\\\'");
               doctype += " PUBLIC '" + escapedPublicId + "'";
 
               // Add systemId if present (required when publicId is present)
               if (dt.systemId) {
-                const escapedSystemId = String(dt.systemId).replace(/'/g, "\\'");
+                const escapedSystemId = String(dt.systemId).replace(/'/g, "\\\\'");
                 doctype += " '" + escapedSystemId + "'";
               }
             } else if (dt.systemId) {
               // SYSTEM identifier (without PUBLIC)
-              const escapedSystemId = String(dt.systemId).replace(/'/g, "\\'");
+              const escapedSystemId = String(dt.systemId).replace(/'/g, "\\\\'");
               doctype += " SYSTEM '" + escapedSystemId + "'";
             }
 
@@ -248,11 +297,8 @@ export async function saveWebviewAsHTML(webviewId: number): Promise<string | nul
       })()
     `)
 
-    // Save HTML to file
     await fs.writeFile(filePath, html, 'utf-8')
 
     return filePath
-  } catch (error) {
-    throw new Error(`Failed to save as HTML: ${(error as Error).message}`)
   }
 }

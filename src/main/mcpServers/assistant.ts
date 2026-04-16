@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
@@ -200,9 +201,9 @@ class AssistantServer {
         locale: app.getLocale()
       },
       paths: {
-        userData: app.getPath('userData'),
-        logs: app.getPath('logs'),
-        temp: app.getPath('temp')
+        userData: application.getPath('app.userdata'),
+        logs: application.getPath('app.logs'),
+        temp: application.getPath('sys.temp')
       },
       runtime: {
         node: process.versions.node,
@@ -383,7 +384,7 @@ class AssistantServer {
     const lines = Math.min(Math.max(requestedLines || 50, 1), maxLines)
 
     try {
-      const logsDir = app.getPath('logs')
+      const logsDir = application.getPath('app.logs')
       if (!fs.existsSync(logsDir)) {
         return {
           content: [{ type: 'text' as const, text: `Logs directory not found: ${logsDir}` }],
@@ -440,7 +441,7 @@ class AssistantServer {
     const limit = Math.min(Math.max(requestedLines || 50, 1), maxEntries)
 
     try {
-      const logsDir = app.getPath('logs')
+      const logsDir = application.getPath('app.logs')
       if (!fs.existsSync(logsDir)) {
         return { content: [{ type: 'text' as const, text: 'Logs directory not found' }], isError: true }
       }
@@ -532,30 +533,32 @@ class AssistantServer {
 
   private async diagnoseConfig() {
     try {
+      // Default model info — still in electron-store (not yet migrated to v2)
       const { configManager } = await import('@main/services/ConfigManager')
-
-      // Default model info
       const defaultModel = configManager.get<Record<string, unknown>>('defaultModel', {})
       const topicNamingModel = configManager.get<Record<string, unknown>>('topicNamingModel', {})
 
+      const { application } = await import('@application')
+      const preferenceService = application.get('PreferenceService')
+
       const settings = {
-        language: configManager.getLanguage(),
-        theme: configManager.getTheme(),
-        proxy: configManager.get<string>('proxy', ''),
-        zoomFactor: configManager.getZoomFactor(),
+        language: preferenceService.get('app.language'),
+        theme: preferenceService.get('ui.theme_mode'),
+        proxy: preferenceService.get('app.proxy.url'),
+        zoomFactor: preferenceService.get('app.zoom_factor'),
         defaultModel: defaultModel
           ? { id: defaultModel.id, name: defaultModel.name, provider: defaultModel.provider }
           : null,
         topicNamingModel: topicNamingModel ? { id: topicNamingModel.id, name: topicNamingModel.name } : null,
-        tray: configManager.getTray(),
-        trayOnClose: configManager.getTrayOnClose(),
-        launchToTray: configManager.getLaunchToTray(),
-        autoUpdate: configManager.getAutoUpdate(),
-        enableQuickAssistant: configManager.getEnableQuickAssistant(),
-        selectionAssistantEnabled: configManager.getSelectionAssistantEnabled(),
-        enableDeveloperMode: configManager.getEnableDeveloperMode(),
-        disableHardwareAcceleration: configManager.getDisableHardwareAcceleration(),
-        useSystemTitleBar: configManager.getUseSystemTitleBar()
+        tray: preferenceService.get('app.tray.enabled'),
+        trayOnClose: preferenceService.get('app.tray.on_close'),
+        launchToTray: preferenceService.get('app.tray.on_launch'),
+        autoUpdate: preferenceService.get('app.dist.auto_update.enabled'),
+        enableQuickAssistant: preferenceService.get('feature.quick_assistant.enabled'),
+        selectionAssistantEnabled: preferenceService.get('feature.selection.enabled'),
+        enableDeveloperMode: preferenceService.get('app.developer_mode.enabled'),
+        disableHardwareAcceleration: preferenceService.get('BootConfig.app.disable_hardware_acceleration'),
+        useSystemTitleBar: preferenceService.get('app.use_system_title_bar')
       }
 
       return {

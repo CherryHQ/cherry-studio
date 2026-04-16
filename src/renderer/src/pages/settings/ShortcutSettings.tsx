@@ -1,447 +1,369 @@
-import { ClearOutlined, UndoOutlined } from '@ant-design/icons'
-import { HStack } from '@renderer/components/Layout'
-import { isMac, isWin } from '@renderer/config/constant'
+import { UndoOutlined } from '@ant-design/icons'
+import { Button, Input, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
+import { preferenceService } from '@data/PreferenceService'
+import { loggerService } from '@logger'
+import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useShortcuts } from '@renderer/hooks/useShortcuts'
+import { getAllShortcutDefaultPreferences, useAllShortcuts } from '@renderer/hooks/useShortcuts'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { getShortcutLabel } from '@renderer/i18n/label'
-import { useAppDispatch } from '@renderer/store'
-import { initialState, resetShortcuts, toggleShortcut, updateShortcut } from '@renderer/store/shortcuts'
-import type { Shortcut } from '@renderer/types'
-import type { InputRef } from 'antd'
-import { Button, Input, Switch, Table as AntTable, Tooltip } from 'antd'
-import type { ColumnsType } from 'antd/es/table'
-import type { FC } from 'react'
-import React, { useRef, useState } from 'react'
+import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
+import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
+import {
+  convertKeyToAccelerator,
+  formatKeyDisplay,
+  formatShortcutDisplay,
+  isValidShortcut
+} from '@shared/shortcuts/utils'
+import type { FC, KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingTitle } from '.'
+
+const logger = loggerService.withContext('ShortcutSettings')
+
+const isBindingEqual = (a: string[], b: string[]): boolean =>
+  a.length === b.length && a.every((key, index) => key === b[index])
+
+const keyCodeToAccelerator: Record<string, string> = {
+  Backquote: '`',
+  Period: '.',
+  NumpadEnter: 'Enter',
+  Space: 'Space',
+  Enter: 'Enter',
+  Backspace: 'Backspace',
+  Tab: 'Tab',
+  Delete: 'Delete'
+}
+
+const passthrough =
+  /^(Page(Up|Down)|Insert|Home|End|Arrow(Up|Down|Left|Right)|F([1-9]|1[0-9])|Slash|Semicolon|Bracket(Left|Right)|Backslash|Quote|Comma|Minus|Equal)$/
+
+const usableEndKeys = (code: string): string | null => {
+  if (/^Key[A-Z]$/.test(code) || /^(Digit|Numpad)\d$/.test(code)) return code.slice(-1)
+  if (keyCodeToAccelerator[code]) return keyCodeToAccelerator[code]
+  if (passthrough.test(code)) return code
+  return null
+}
 
 const ShortcutSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const dispatch = useAppDispatch()
-  const { shortcuts: originalShortcuts } = useShortcuts()
-  const inputRefs = useRef<Record<string, InputRef>>({})
+  const { shortcuts, updatePreference } = useAllShortcuts()
+  const inputRefs = useRef<Record<string, HTMLInputElement>>({})
   const [editingKey, setEditingKey] = useState<string | null>(null)
-  const { setTimeoutTimer } = useTimer()
+  const [pendingKeys, setPendingKeys] = useState<string[]>([])
+  const [conflictLabel, setConflictLabel] = useState<string | null>(null)
+  const [systemConflictKey, setSystemConflictKey] = useState<ShortcutPreferenceKey | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
 
-  //if shortcut is not available on all the platforms, block the shortcut here
-  const shortcuts = originalShortcuts
+  const visibleShortcuts = useMemo(() => {
+    const query = searchQuery.toLowerCase()
+    return shortcuts.filter((record) => {
+      if (!query) return true
+      const display =
+        record.preference.binding.length > 0
+          ? formatShortcutDisplay(record.preference.binding, isMac).toLowerCase()
+          : ''
+      return record.label.toLowerCase().includes(query) || display.includes(query)
+    })
+  }, [searchQuery, shortcuts])
 
-  const handleClear = (record: Shortcut) => {
-    dispatch(
-      updateShortcut({
-        ...record,
-        shortcut: []
+  const duplicateBindingLabels = useMemo(() => {
+    const lookup = new Map<string, { key: ShortcutPreferenceKey; label: string }>()
+
+    for (const shortcut of shortcuts) {
+      if (!shortcut.preference.enabled || !shortcut.preference.binding.length) continue
+      lookup.set(shortcut.preference.binding.map((key) => key.toLowerCase()).join('+'), {
+        key: shortcut.key,
+        label: shortcut.label
       })
-    )
+    }
+
+    return lookup
+  }, [shortcuts])
+
+  const clearEditingState = () => {
+    clearTimeoutTimer('conflict-clear')
+    setEditingKey(null)
+    setPendingKeys([])
+    setConflictLabel(null)
   }
 
-  const handleAddShortcut = (record: Shortcut) => {
-    setEditingKey(record.key)
+  const clearSystemConflict = (key?: ShortcutPreferenceKey) => {
+    setSystemConflictKey((currentKey) => {
+      if (!key || currentKey === key) {
+        return null
+      }
+      return currentKey
+    })
+  }
+
+  useEffect(() => {
+    return window.api.shortcut.onRegistrationConflict(({ key, hasConflict }) => {
+      setSystemConflictKey((currentKey) => {
+        if (hasConflict) {
+          return key
+        }
+        return currentKey === key ? null : currentKey
+      })
+
+      if (hasConflict) {
+        window.toast.error(t('settings.shortcuts.occupied_by_other_application'))
+      }
+    })
+  }, [t])
+
+  const handleAddShortcut = (key: ShortcutPreferenceKey) => {
+    clearEditingState()
+    setEditingKey(key)
     setTimeoutTimer(
-      'handleAddShortcut',
+      `focus-${key}`,
       () => {
-        inputRefs.current[record.key]?.focus()
+        inputRefs.current[key]?.focus()
       },
       0
     )
   }
 
-  const isShortcutModified = (record: Shortcut) => {
-    const defaultShortcut = initialState.shortcuts.find((s) => s.key === record.key)
-    return defaultShortcut?.shortcut.join('+') !== record.shortcut.join('+')
+  const handleUpdateFailure = (record: (typeof shortcuts)[number], error: unknown) => {
+    logger.error(`Failed to update shortcut preference: ${record.key}`, error as Error)
+    window.toast.error(t('settings.shortcuts.save_failed_with_name', { name: record.label }))
   }
 
-  const handleResetShortcut = (record: Shortcut) => {
-    const defaultShortcut = initialState.shortcuts.find((s) => s.key === record.key)
-    if (defaultShortcut) {
-      dispatch(
-        updateShortcut({
-          ...record,
-          shortcut: defaultShortcut.shortcut
-        })
-      )
-    }
-  }
-
-  const isValidShortcut = (keys: string[]): boolean => {
-    // OLD WAY FOR MODIFIER KEYS, KEEP THEM HERE FOR REFERENCE
-    // const hasModifier = keys.some((key) => ['Control', 'Ctrl', 'Command', 'Alt', 'Shift'].includes(key))
-    // const hasNonModifier = keys.some((key) => !['Control', 'Ctrl', 'Command', 'Alt', 'Shift'].includes(key))
-
-    // NEW WAY FOR MODIFIER KEYS
-    const hasModifier = keys.some((key) => ['CommandOrControl', 'Ctrl', 'Alt', 'Meta', 'Shift'].includes(key))
-    const hasNonModifier = keys.some((key) => !['CommandOrControl', 'Ctrl', 'Alt', 'Meta', 'Shift'].includes(key))
-
-    const hasFnKey = keys.some((key) => /^F\d+$/.test(key))
-
-    return (hasModifier && hasNonModifier && keys.length >= 2) || hasFnKey
-  }
-
-  const isDuplicateShortcut = (newShortcut: string[], currentKey: string): boolean => {
-    return shortcuts.some(
-      (s) => s.key !== currentKey && s.shortcut.length > 0 && s.shortcut.join('+') === newShortcut.join('+')
-    )
-  }
-
-  // how the shortcut is displayed in the UI
-  const formatShortcut = (shortcut: string[]): string => {
-    return shortcut
-      .map((key) => {
-        switch (key) {
-          // OLD WAY FOR MODIFIER KEYS, KEEP THEM HERE FOR REFERENCE
-          // case 'Control':
-          //   return isMac ? '⌃' : 'Ctrl'
-          // case 'Ctrl':
-          //   return isMac ? '⌃' : 'Ctrl'
-          // case 'Command':
-          //   return isMac ? '⌘' : isWin ? 'Win' : 'Super'
-          // case 'Alt':
-          //   return isMac ? '⌥' : 'Alt'
-          // case 'Shift':
-          //   return isMac ? '⇧' : 'Shift'
-          // case 'CommandOrControl':
-          //   return isMac ? '⌘' : 'Ctrl'
-
-          // new way for modifier keys
-          case 'CommandOrControl':
-            return isMac ? '⌘' : 'Ctrl'
-          case 'Ctrl':
-            return isMac ? '⌃' : 'Ctrl'
-          case 'Alt':
-            return isMac ? '⌥' : 'Alt'
-          case 'Meta':
-            return isMac ? '⌘' : isWin ? 'Win' : 'Super'
-          case 'Shift':
-            return isMac ? '⇧' : 'Shift'
-
-          // for backward compatibility with old data
-          case 'Command':
-          case 'Cmd':
-            return isMac ? '⌘' : 'Ctrl'
-          case 'Control':
-            return isMac ? '⌃' : 'Ctrl'
-
-          case 'ArrowUp':
-            return '↑'
-          case 'ArrowDown':
-            return '↓'
-          case 'ArrowLeft':
-            return '←'
-          case 'ArrowRight':
-            return '→'
-          case 'Slash':
-            return '/'
-          case 'Semicolon':
-            return ';'
-          case 'BracketLeft':
-            return '['
-          case 'BracketRight':
-            return ']'
-          case 'Backslash':
-            return '\\'
-          case 'Quote':
-            return "'"
-          case 'Comma':
-            return ','
-          case 'Minus':
-            return '-'
-          case 'Equal':
-            return '='
-          default:
-            return key.charAt(0).toUpperCase() + key.slice(1)
-        }
+  const handleResetShortcut = async (record: (typeof shortcuts)[number]) => {
+    try {
+      clearSystemConflict(record.key)
+      await updatePreference(record.key, {
+        binding: record.defaultPreference.binding,
+        enabled: record.defaultPreference.enabled
       })
-      .join(' + ')
-  }
-
-  const usableEndKeys = (event: React.KeyboardEvent): string | null => {
-    const { code } = event
-    // No lock keys
-    // Among the commonly used keys, not including: Escape, NumpadMultiply, NumpadDivide, NumpadSubtract, NumpadAdd, NumpadDecimal
-    // The react-hotkeys-hook library does not differentiate between `Digit` and `Numpad`
-    switch (code) {
-      case 'KeyA':
-      case 'KeyB':
-      case 'KeyC':
-      case 'KeyD':
-      case 'KeyE':
-      case 'KeyF':
-      case 'KeyG':
-      case 'KeyH':
-      case 'KeyI':
-      case 'KeyJ':
-      case 'KeyK':
-      case 'KeyL':
-      case 'KeyM':
-      case 'KeyN':
-      case 'KeyO':
-      case 'KeyP':
-      case 'KeyQ':
-      case 'KeyR':
-      case 'KeyS':
-      case 'KeyT':
-      case 'KeyU':
-      case 'KeyV':
-      case 'KeyW':
-      case 'KeyX':
-      case 'KeyY':
-      case 'KeyZ':
-      case 'Digit0':
-      case 'Digit1':
-      case 'Digit2':
-      case 'Digit3':
-      case 'Digit4':
-      case 'Digit5':
-      case 'Digit6':
-      case 'Digit7':
-      case 'Digit8':
-      case 'Digit9':
-      case 'Numpad0':
-      case 'Numpad1':
-      case 'Numpad2':
-      case 'Numpad3':
-      case 'Numpad4':
-      case 'Numpad5':
-      case 'Numpad6':
-      case 'Numpad7':
-      case 'Numpad8':
-      case 'Numpad9':
-        return code.slice(-1)
-      case 'Space':
-      case 'Enter':
-      case 'Backspace':
-      case 'Tab':
-      case 'Delete':
-      case 'PageUp':
-      case 'PageDown':
-      case 'Insert':
-      case 'Home':
-      case 'End':
-      case 'ArrowUp':
-      case 'ArrowDown':
-      case 'ArrowLeft':
-      case 'ArrowRight':
-      case 'F1':
-      case 'F2':
-      case 'F3':
-      case 'F4':
-      case 'F5':
-      case 'F6':
-      case 'F7':
-      case 'F8':
-      case 'F9':
-      case 'F10':
-      case 'F11':
-      case 'F12':
-      case 'F13':
-      case 'F14':
-      case 'F15':
-      case 'F16':
-      case 'F17':
-      case 'F18':
-      case 'F19':
-        return code
-      case 'Backquote':
-        return '`'
-      case 'Period':
-        return '.'
-      case 'NumpadEnter':
-        return 'Enter'
-      // The react-hotkeys-hook library does not handle the symbol strings for the following keys
-      case 'Slash':
-      case 'Semicolon':
-      case 'BracketLeft':
-      case 'BracketRight':
-      case 'Backslash':
-      case 'Quote':
-      case 'Comma':
-      case 'Minus':
-      case 'Equal':
-        return code
-      default:
-        return null
+      clearEditingState()
+    } catch (error) {
+      handleUpdateFailure(record, error)
     }
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent, record: Shortcut) => {
-    e.preventDefault()
+  const findDuplicateLabel = (keys: string[], currentKey: ShortcutPreferenceKey): string | null => {
+    const duplicate = duplicateBindingLabels.get(keys.map((key) => key.toLowerCase()).join('+'))
+    return duplicate && duplicate.key !== currentKey ? duplicate.label : null
+  }
+
+  const handleKeyDown = async (event: ReactKeyboardEvent, record: (typeof shortcuts)[number]) => {
+    event.preventDefault()
+
+    if (event.code === 'Escape') {
+      clearEditingState()
+      return
+    }
 
     const keys: string[] = []
 
-    // OLD WAY FOR MODIFIER KEYS, KEEP THEM HERE FOR REFERENCE
-    // if (e.ctrlKey) keys.push(isMac ? 'Control' : 'Ctrl')
-    // if (e.metaKey) keys.push('Command')
-    // if (e.altKey) keys.push('Alt')
-    // if (e.shiftKey) keys.push('Shift')
+    if (event.ctrlKey) keys.push(isMac ? 'Ctrl' : 'CommandOrControl')
+    if (event.altKey) keys.push('Alt')
+    if (event.metaKey) keys.push(isMac ? 'CommandOrControl' : 'Meta')
+    if (event.shiftKey) keys.push('Shift')
 
-    // NEW WAY FOR MODIFIER KEYS
-    // for capability across platforms, we transform the modifier keys to the really meaning keys
-    // mainly consider the habit of users on different platforms
-    if (e.ctrlKey) keys.push(isMac ? 'Ctrl' : 'CommandOrControl') // for win&linux, ctrl key is almost the same as command key in macOS
-    if (e.altKey) keys.push('Alt')
-    if (e.metaKey) keys.push(isMac ? 'CommandOrControl' : 'Meta') // for macOS, meta(Command) key is almost the same as Ctrl key in win&linux
-    if (e.shiftKey) keys.push('Shift')
-
-    const endKey = usableEndKeys(e)
+    const endKey = usableEndKeys(event.code)
     if (endKey) {
-      keys.push(endKey)
+      keys.push(convertKeyToAccelerator(endKey))
     }
+
+    // Always show real-time preview of pressed keys
+    setPendingKeys(keys)
 
     if (!isValidShortcut(keys)) {
+      // Clear conflict when user is still pressing modifier keys
+      setConflictLabel(null)
       return
     }
 
-    if (isDuplicateShortcut(keys, record.key)) {
+    const duplicate = findDuplicateLabel(keys, record.key)
+    if (duplicate) {
+      setConflictLabel(duplicate)
+      // Clear conflict hint after 2 seconds
+      clearTimeoutTimer('conflict-clear')
+      setTimeoutTimer('conflict-clear', () => setConflictLabel(null), 2000)
       return
     }
 
-    dispatch(updateShortcut({ ...record, shortcut: keys }))
-    setEditingKey(null)
+    setConflictLabel(null)
+    try {
+      clearSystemConflict(record.key)
+      await updatePreference(record.key, { binding: keys, enabled: true })
+      clearEditingState()
+    } catch (error) {
+      handleUpdateFailure(record, error)
+    }
   }
 
   const handleResetAllShortcuts = () => {
     window.modal.confirm({
       title: t('settings.shortcuts.reset_defaults_confirm'),
       centered: true,
-      onOk: () => dispatch(resetShortcuts())
+      onOk: async () => {
+        const updates: Record<string, PreferenceShortcutType> = getAllShortcutDefaultPreferences()
+
+        try {
+          clearSystemConflict()
+          await preferenceService.setMultiple(updates)
+        } catch (error) {
+          logger.error('Failed to reset all shortcuts to defaults', error as Error)
+          window.toast.error(t('settings.shortcuts.reset_defaults_failed'))
+        }
+      }
     })
   }
 
-  // 由于启用了showHeader = false，不再需要title字段
-  const columns: ColumnsType<Shortcut> = [
-    {
-      // title: t('settings.shortcuts.action'),
-      dataIndex: 'name',
-      key: 'name'
-    },
-    {
-      // title: t('settings.shortcuts.label'),
-      dataIndex: 'shortcut',
-      key: 'shortcut',
-      align: 'right',
-      render: (shortcut: string[], record: Shortcut) => {
-        const isEditing = editingKey === record.key
-        const shortcutConfig = shortcuts.find((s) => s.key === record.key)
-        const isEditable = shortcutConfig?.editable !== false
+  const renderShortcutCell = (record: (typeof shortcuts)[number]) => {
+    const isEditing = editingKey === record.key
+    const displayKeys = record.preference.binding
+    const displayShortcut = displayKeys.length > 0 ? formatShortcutDisplay(displayKeys, isMac) : ''
+    const isEditable = record.definition.editable !== false
+    const isBindingModified = !isBindingEqual(displayKeys, record.defaultPreference.binding)
+    const hasSystemConflict = systemConflictKey === record.key
+    const conflictMessage =
+      conflictLabel ?? (hasSystemConflict ? t('settings.shortcuts.occupied_by_other_application') : null)
 
-        return (
-          <HStack style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
-            <HStack alignItems="center" style={{ position: 'relative' }}>
-              {isEditing ? (
-                <ShortcutInput
-                  ref={(el) => {
-                    if (el) {
-                      inputRefs.current[record.key] = el
-                    }
-                  }}
-                  value={formatShortcut(shortcut)}
-                  placeholder={t('settings.shortcuts.press_shortcut')}
-                  onKeyDown={(e) => handleKeyDown(e, record)}
-                  onBlur={(e) => {
-                    const isUndoClick = e.relatedTarget?.closest('.shortcut-undo-icon')
-                    if (!isUndoClick) {
-                      setEditingKey(null)
-                    }
-                  }}
-                />
-              ) : (
-                <ShortcutText isEditable={isEditable} onClick={() => isEditable && handleAddShortcut(record)}>
-                  {shortcut.length > 0 ? formatShortcut(shortcut) : t('settings.shortcuts.press_shortcut')}
-                </ShortcutText>
-              )}
-            </HStack>
-          </HStack>
-        )
-      }
-    },
-    {
-      // title: t('settings.shortcuts.actions'),
-      key: 'actions',
-      align: 'right',
-      width: '70px',
-      render: (record: Shortcut) => (
-        <HStack style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
-          <Tooltip title={t('settings.shortcuts.reset_to_default')}>
-            <Button
-              icon={<UndoOutlined />}
-              size="small"
-              shape="circle"
-              onClick={() => handleResetShortcut(record)}
-              disabled={!isShortcutModified(record)}
-            />
-          </Tooltip>
-          <Tooltip title={t('settings.shortcuts.clear_shortcut')}>
-            <Button
-              icon={<ClearOutlined />}
-              size="small"
-              shape="circle"
-              onClick={() => handleClear(record)}
-              disabled={record.shortcut.length === 0 || !record.editable}
-            />
-          </Tooltip>
-        </HStack>
-      )
-    },
-    {
-      // title: t('settings.shortcuts.enabled'),
-      key: 'enabled',
-      align: 'right',
-      width: '50px',
-      render: (record: Shortcut) => (
-        <Switch size="small" checked={record.enabled} onChange={() => dispatch(toggleShortcut(record.key))} />
+    if (isEditing) {
+      const pendingDisplay = pendingKeys.length > 0 ? formatShortcutDisplay(pendingKeys, isMac) : ''
+      const hasConflict = conflictMessage !== null
+
+      return (
+        <div className="relative flex flex-col items-end">
+          <Input
+            ref={(el) => {
+              if (el) inputRefs.current[record.key] = el
+            }}
+            className={`h-7 w-36 text-center text-xs ${hasConflict ? 'border-red-500 focus-visible:ring-red-500/50' : ''}`}
+            value={pendingDisplay}
+            placeholder={t('settings.shortcuts.press_shortcut')}
+            onKeyDown={(event) => void handleKeyDown(event, record)}
+            onBlur={(event) => {
+              const isUndoClick = (event.relatedTarget as HTMLElement)?.closest('.shortcut-undo-icon')
+              if (!isUndoClick) {
+                clearEditingState()
+              }
+            }}
+          />
+          {hasConflict && (
+            <span className="absolute top-full right-0 mt-0.5 whitespace-nowrap text-red-500 text-xs">
+              {conflictLabel ? t('settings.shortcuts.conflict_with', { name: conflictLabel }) : conflictMessage}
+            </span>
+          )}
+        </div>
       )
     }
-  ]
+
+    if (displayShortcut) {
+      return (
+        <div className="relative flex flex-col items-end">
+          <RowFlex className="items-center justify-end gap-1.5">
+            {isBindingModified && (
+              <Tooltip content={t('settings.shortcuts.reset_to_default')}>
+                <UndoOutlined
+                  className="mr-1 cursor-pointer opacity-50 hover:opacity-100"
+                  onClick={() => {
+                    void handleResetShortcut(record)
+                  }}
+                />
+              </Tooltip>
+            )}
+            <RowFlex
+              className={`items-center gap-1 rounded-lg bg-white/5 px-2 py-1 ${hasSystemConflict ? 'border border-red-500' : ''} ${isEditable ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
+              onClick={() => isEditable && handleAddShortcut(record.key)}>
+              {displayKeys.map((key) => (
+                <kbd
+                  key={key}
+                  className="flex min-w-6 items-center justify-center rounded-md bg-white/10 px-1.5 py-0.5 text-xs">
+                  {formatKeyDisplay(key, isMac)}
+                </kbd>
+              ))}
+            </RowFlex>
+          </RowFlex>
+          {hasSystemConflict && (
+            <span className="absolute top-full right-0 mt-0.5 whitespace-nowrap text-red-500 text-xs">
+              {conflictMessage}
+            </span>
+          )}
+        </div>
+      )
+    }
+
+    return (
+      <div className="relative flex flex-col items-end">
+        <span
+          className={`rounded-lg bg-white/5 px-3 py-1 text-sm text-white/30 ${hasSystemConflict ? 'border border-red-500' : ''} ${isEditable ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
+          onClick={() => isEditable && handleAddShortcut(record.key)}>
+          {t('settings.shortcuts.press_shortcut')}
+        </span>
+        {hasSystemConflict && (
+          <span className="absolute top-full right-0 mt-0.5 whitespace-nowrap text-red-500 text-xs">
+            {conflictMessage}
+          </span>
+        )}
+      </div>
+    )
+  }
+
+  const renderShortcutRow = (record: (typeof shortcuts)[number], isLast: boolean) => {
+    const switchNode = (
+      <Switch
+        size="sm"
+        checked={record.preference.enabled}
+        disabled={!record.preference.binding.length}
+        onCheckedChange={() => {
+          clearSystemConflict(record.key)
+          updatePreference(record.key, { enabled: !record.preference.enabled }).catch((error) => {
+            handleUpdateFailure(record, error)
+          })
+        }}
+      />
+    )
+
+    return (
+      <div
+        key={record.key}
+        className={`grid grid-cols-[minmax(0,1fr)_14rem_2.5rem] items-center gap-3 py-3.5 ${isLast ? '' : 'border-white/10 border-b'}`}>
+        <span className="text-sm">{record.label}</span>
+        <div className="flex min-h-8 items-center justify-end">{renderShortcutCell(record)}</div>
+        <span className="flex w-10 justify-end">
+          {!record.preference.binding.length ? (
+            <Tooltip content={t('settings.shortcuts.bind_first_to_enable')}>
+              <span className="flex justify-end">{switchNode}</span>
+            </Tooltip>
+          ) : (
+            <span className="flex justify-end">{switchNode}</span>
+          )}
+        </span>
+      </div>
+    )
+  }
 
   return (
     <SettingContainer theme={theme}>
       <SettingGroup theme={theme} style={{ paddingBottom: 0 }}>
         <SettingTitle>{t('settings.shortcuts.title')}</SettingTitle>
         <SettingDivider style={{ marginBottom: 0 }} />
-        <Table
-          columns={columns as ColumnsType<unknown>}
-          dataSource={shortcuts.map((s) => ({ ...s, name: getShortcutLabel(s.key) }))}
-          pagination={false}
-          size="middle"
-          showHeader={false}
-        />
+        <div className="py-2">
+          <Input
+            className="max-w-65"
+            placeholder={t('settings.shortcuts.search_placeholder')}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+        <div className="flex flex-col">
+          {visibleShortcuts.map((record, index) => renderShortcutRow(record, index === visibleShortcuts.length - 1))}
+        </div>
         <SettingDivider style={{ marginBottom: 0 }} />
-        <HStack justifyContent="flex-end" padding="16px 0">
+        <RowFlex className="justify-end p-4">
           <Button onClick={handleResetAllShortcuts}>{t('settings.shortcuts.reset_defaults')}</Button>
-        </HStack>
+        </RowFlex>
       </SettingGroup>
     </SettingContainer>
   )
 }
-
-const Table = styled(AntTable)`
-  .ant-table {
-    background: transparent;
-  }
-
-  .ant-table-cell {
-    padding: 14px 0 !important;
-    background: transparent !important;
-  }
-
-  .ant-table-tbody > tr:last-child > td {
-    border-bottom: none;
-  }
-`
-
-const ShortcutInput = styled(Input)`
-  width: 120px;
-  text-align: center;
-`
-
-const ShortcutText = styled.span<{ isEditable: boolean }>`
-  cursor: ${({ isEditable }) => (isEditable ? 'pointer' : 'not-allowed')};
-  padding: 4px 11px;
-  opacity: ${({ isEditable }) => (isEditable ? 1 : 0.5)};
-`
 
 export default ShortcutSettings

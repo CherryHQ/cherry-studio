@@ -36,15 +36,7 @@ export type BuiltinAgentInitResult =
 export class AgentService extends BaseService {
   static readonly DEFAULT_AGENT_ID = CHERRY_CLAW_AGENT_ID
 
-  private static instance: AgentService | null = null
   private readonly modelFields: AgentModelField[] = ['model', 'plan_model', 'small_model']
-
-  static getInstance(): AgentService {
-    if (!AgentService.instance) {
-      AgentService.instance = new AgentService()
-    }
-    return AgentService.instance
-  }
 
   // Agent Methods
   async createAgent(req: CreateAgentRequest): Promise<CreateAgentResponse> {
@@ -574,4 +566,4 @@ export class AgentService extends BaseService {
   }
 }
 
-export const agentService = AgentService.getInstance()
+export const agentService = new AgentService()

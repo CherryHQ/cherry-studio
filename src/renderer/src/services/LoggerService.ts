@@ -19,8 +19,6 @@ const MAIN_LOG_LEVEL = LEVEL.WARN
  *   Chinese: `docs/technical/how-to-use-logger-zh.md`
  */
 class LoggerService {
-  private static instance: LoggerService
-
   // env variables, only used in dev mode
   // only affect console output, not affect logToMain
   private envLevel: LogLevel = LEVEL.NONE
@@ -33,7 +31,7 @@ class LoggerService {
   private module: string = ''
   private context: Record<string, any> = {}
 
-  private constructor() {
+  constructor() {
     if (IS_DEV) {
       if (
         window.electron?.process?.env?.CSLOGGER_RENDERER_LEVEL &&
@@ -61,16 +59,6 @@ class LoggerService {
         }
       }
     }
-  }
-
-  /**
-   * Get the singleton instance of LoggerService
-   */
-  public static getInstance(): LoggerService {
-    if (!LoggerService.instance) {
-      LoggerService.instance = new LoggerService()
-    }
-    return LoggerService.instance
   }
 
   /**
@@ -277,4 +265,4 @@ class LoggerService {
   }
 }
 
-export const loggerService = LoggerService.getInstance()
+export const loggerService = new LoggerService()

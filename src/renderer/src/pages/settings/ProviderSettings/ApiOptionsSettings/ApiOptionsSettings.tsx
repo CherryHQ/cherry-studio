@@ -1,9 +1,9 @@
-import { HStack } from '@renderer/components/Layout'
-import { InfoTooltip } from '@renderer/components/TooltipIcons'
+import { ColFlex, RowFlex, Switch } from '@cherrystudio/ui'
+import { InfoTooltip } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { type AnthropicCacheControlSettings, type Provider } from '@renderer/types'
 import { isSupportAnthropicPromptCacheProvider } from '@renderer/utils/provider'
-import { Divider, Flex, InputNumber, Switch } from 'antd'
+import { Divider, InputNumber } from 'antd'
 import { startTransition, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -137,27 +137,27 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
   )
 
   return (
-    <Flex vertical gap="middle">
+    <ColFlex className="gap-4">
       {options.map((item) => (
-        <HStack key={item.key} justifyContent="space-between">
-          <HStack alignItems="center" gap={6}>
+        <RowFlex key={item.key} className="justify-between">
+          <RowFlex className="items-center gap-2">
             <label style={{ cursor: 'pointer' }} htmlFor={item.key}>
               {item.label}
             </label>
-            <InfoTooltip title={item.tip}></InfoTooltip>
-          </HStack>
-          <Switch id={item.key} checked={item.checked} onChange={item.onChange} />
-        </HStack>
+            <InfoTooltip content={item.tip}></InfoTooltip>
+          </RowFlex>
+          <Switch id={item.key} checked={item.checked} onCheckedChange={item.onChange} />
+        </RowFlex>
       ))}
 
       {isSupportAnthropicPromptCache && (
         <>
           <Divider style={{ margin: '8px 0' }} />
-          <HStack justifyContent="space-between">
-            <HStack alignItems="center" gap={6}>
+          <RowFlex className="justify-between">
+            <RowFlex className="items-center gap-2">
               <span>{t('settings.provider.api.options.anthropic_cache.token_threshold')}</span>
               <InfoTooltip title={t('settings.provider.api.options.anthropic_cache.token_threshold_help')} />
-            </HStack>
+            </RowFlex>
             <InputNumber
               min={0}
               max={100000}
@@ -165,24 +165,24 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
               onChange={(v) => updateCacheSettings({ tokenThreshold: v ?? 0 })}
               style={{ width: 100 }}
             />
-          </HStack>
+          </RowFlex>
           {cacheSettings.tokenThreshold > 0 && (
             <>
-              <HStack justifyContent="space-between">
-                <HStack alignItems="center" gap={6}>
+              <RowFlex className="justify-between">
+                <RowFlex className="items-center gap-2">
                   <span>{t('settings.provider.api.options.anthropic_cache.cache_system')}</span>
                   <InfoTooltip title={t('settings.provider.api.options.anthropic_cache.cache_system_help')} />
-                </HStack>
+                </RowFlex>
                 <Switch
                   checked={cacheSettings.cacheSystemMessage}
-                  onChange={(v) => updateCacheSettings({ cacheSystemMessage: v })}
+                  onCheckedChange={(v) => updateCacheSettings({ cacheSystemMessage: v })}
                 />
-              </HStack>
-              <HStack justifyContent="space-between">
-                <HStack alignItems="center" gap={6}>
+              </RowFlex>
+              <RowFlex className="justify-between">
+                <RowFlex className="items-center gap-2">
                   <span>{t('settings.provider.api.options.anthropic_cache.cache_last_n')}</span>
                   <InfoTooltip title={t('settings.provider.api.options.anthropic_cache.cache_last_n_help')} />
-                </HStack>
+                </RowFlex>
                 <InputNumber
                   min={0}
                   max={10}
@@ -190,12 +190,12 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
                   onChange={(v) => updateCacheSettings({ cacheLastNMessages: v ?? 0 })}
                   style={{ width: 100 }}
                 />
-              </HStack>
+              </RowFlex>
             </>
           )}
         </>
       )}
-    </Flex>
+    </ColFlex>
   )
 }
 

@@ -2,13 +2,14 @@ import { createHash } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { parseSkillMetadata } from '@main/utils/markdownParser'
 import { app } from 'electron'
 
 import { SkillRepository } from '../services/agents/skills/SkillRepository'
 import { skillService } from '../services/agents/skills/SkillService'
-import { getDataPath, toAsarUnpackedPath } from '.'
+import { toAsarUnpackedPath } from '.'
 
 const logger = loggerService.withContext('builtinSkills')
 
@@ -33,8 +34,8 @@ const VERSION_FILE = '.version'
  */
 // TODO: v2-backup
 export async function installBuiltinSkills(): Promise<void> {
-  const resourceSkillsPath = toAsarUnpackedPath(path.join(app.getAppPath(), 'resources', 'skills'))
-  const globalSkillsPath = getDataPath('Skills')
+  const resourceSkillsPath = toAsarUnpackedPath(application.getPath('feature.agents.skills.builtin'))
+  const globalSkillsPath = application.getPath('feature.agents.skills')
   const appVersion = app.getVersion()
 
   try {

@@ -1,15 +1,15 @@
 import { loggerService } from '@logger'
+import { LogoAvatar } from '@renderer/components/Icons'
 import { allMinApps } from '@renderer/config/minapps'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
-import { useNavbarPosition } from '@renderer/hooks/useSettings'
-import TabsService from '@renderer/services/TabsService'
+import { useNavbarPosition } from '@renderer/hooks/useNavbar'
+import { tabsService } from '@renderer/services/TabsService'
 import { getWebviewLoaded, onWebviewStateChange, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
-import { Avatar } from 'antd'
+import { useNavigate, useParams } from '@tanstack/react-router'
 import type { WebviewTag } from 'electron'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
 import BeatLoader from 'react-spinners/BeatLoader'
 import styled from 'styled-components'
 
@@ -20,7 +20,7 @@ import WebviewSearch from './components/WebviewSearch'
 const logger = loggerService.withContext('MinAppPage')
 
 const MinAppPage: FC = () => {
-  const { appId } = useParams<{ appId: string }>()
+  const { appId } = useParams({ strict: false })
   const { isTopNavbar } = useNavbarPosition()
   const { openMinappKeepAlive, minAppsCache } = useMinappPopup()
   const { minapps } = useMinapps()
@@ -35,7 +35,7 @@ const MinAppPage: FC = () => {
   // Initialize TabsService with cache reference
   useEffect(() => {
     if (minAppsCache) {
-      TabsService.setMinAppsCache(minAppsCache)
+      tabsService.setMinAppsCache(minAppsCache)
     }
   }, [minAppsCache])
 
@@ -64,7 +64,7 @@ const MinAppPage: FC = () => {
   useEffect(() => {
     // If app not found, redirect to apps list
     if (!app) {
-      navigate('/apps')
+      void navigate({ to: '/app/minapp' })
       return
     }
 
@@ -72,7 +72,7 @@ const MinAppPage: FC = () => {
     // Only check once and only if we haven't already redirected
     if (!initialIsTopNavbar.current && !hasRedirected.current) {
       hasRedirected.current = true
-      navigate('/apps')
+      void navigate({ to: '/app/minapp' })
       // Open popup after navigation
       setTimeout(() => {
         openMinappKeepAlive(app)
@@ -99,7 +99,7 @@ const MinAppPage: FC = () => {
   const attachWebview = useCallback(() => {
     if (!app) return true // 没有 app 不再继续监控
     const selector = `webview[data-minapp-id="${app.id}"]`
-    const el = document.querySelector(selector) as WebviewTag | null
+    const el = document.querySelector<WebviewTag>(selector)
     if (!el) return false
 
     if (webviewRef.current === el) return true // 已附着
@@ -189,7 +189,7 @@ const MinAppPage: FC = () => {
       <WebviewSearch webviewRef={webviewRef} isWebviewReady={isReady} appId={app.id} />
       {!isReady && (
         <LoadingMask>
-          <Avatar src={app.logo} size={60} style={{ border: '1px solid var(--color-border)' }} />
+          <LogoAvatar logo={app.logo} size={60} />
           <BeatLoader color="var(--color-text-2)" size={8} style={{ marginTop: 12 }} />
         </LoadingMask>
       )}

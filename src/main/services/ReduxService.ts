@@ -14,11 +14,10 @@
  * - v2 Refactor PR   : https://github.com/CherryHQ/cherry-studio/pull/10162
  * --------------------------------------------------------------------------
  */
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { IpcChannel } from '@shared/IpcChannel'
 import { ipcMain } from 'electron'
-
-import { windowService } from './WindowService'
 
 type StoreValue = any
 
@@ -51,7 +50,7 @@ export class ReduxService {
   private async getWebContents(): Promise<Electron.WebContents> {
     await this.waitForStoreReady()
 
-    const mainWindow = windowService.getMainWindow()
+    const mainWindow = application.get('WindowService').getMainWindow()
 
     if (!mainWindow) {
       throw new Error('Main window is not available')

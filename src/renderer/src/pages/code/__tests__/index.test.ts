@@ -1,16 +1,16 @@
 import type { Model, Provider } from '@renderer/types'
-import { codeTools } from '@shared/config/constant'
+import { codeCLI } from '@shared/config/constant'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { generateToolEnvironment } from '../index'
 
-// Mock CodeToolsPage which is default export
-vi.mock('../CodeToolsPage', () => ({ default: () => null }))
+// Mock CodeCliPage which is default export
+vi.mock('../CodeCliPage', () => ({ default: () => null }))
 
-// Mock dependencies needed by CodeToolsPage
-vi.mock('@renderer/hooks/useCodeTools', () => ({
-  useCodeTools: () => ({
-    selectedCliTool: codeTools.qwenCode,
+// Mock dependencies needed by CodeCliPage
+vi.mock('@renderer/hooks/useCodeCli', () => ({
+  useCodeCli: () => ({
+    selectedCliTool: codeCLI.qwenCode,
     selectedModel: null,
     selectedTerminal: 'systemDefault',
     environmentVariables: '',
@@ -78,7 +78,7 @@ vi.mock('@renderer/utils/api', () => ({
 }))
 
 vi.mock('react-i18next', async (importOriginal) => {
-  const actual = (await importOriginal()) as { useTranslation: () => { t: (key: string) => string } }
+  const actual = (await importOriginal()) as Record<string, unknown>
   return {
     ...actual,
     useTranslation: () => ({ t: (key: string) => key })
@@ -112,7 +112,7 @@ describe('generateToolEnvironment', () => {
     const provider = createMockProvider('dashscope', 'https://dashscope.aliyuncs.com/compatible-mode')
 
     const { env } = generateToolEnvironment({
-      tool: codeTools.qwenCode,
+      tool: codeCLI.qwenCode,
       model,
       modelProvider: provider,
       apiKey: 'test-key',
@@ -127,7 +127,7 @@ describe('generateToolEnvironment', () => {
     const provider = createMockProvider('dashscope', 'https://dashscope.aliyuncs.com/compatible-mode/v1')
 
     const { env } = generateToolEnvironment({
-      tool: codeTools.qwenCode,
+      tool: codeCLI.qwenCode,
       model,
       modelProvider: provider,
       apiKey: 'test-key',
@@ -142,7 +142,7 @@ describe('generateToolEnvironment', () => {
     const provider = createMockProvider('dashscope', '')
 
     const { env } = generateToolEnvironment({
-      tool: codeTools.qwenCode,
+      tool: codeCLI.qwenCode,
       model,
       modelProvider: provider,
       apiKey: 'test-key',
@@ -157,7 +157,7 @@ describe('generateToolEnvironment', () => {
     const provider = createMockProvider('dashscope', 'https://dashscope.aliyuncs.com/v2')
 
     const { env } = generateToolEnvironment({
-      tool: codeTools.qwenCode,
+      tool: codeCLI.qwenCode,
       model,
       modelProvider: provider,
       apiKey: 'test-key',
@@ -172,7 +172,7 @@ describe('generateToolEnvironment', () => {
     const provider = createMockProvider('openai', 'https://api.openai.com')
 
     const { env } = generateToolEnvironment({
-      tool: codeTools.openaiCodex,
+      tool: codeCLI.openaiCodex,
       model,
       modelProvider: provider,
       apiKey: 'test-key',
@@ -187,7 +187,7 @@ describe('generateToolEnvironment', () => {
     const provider = createMockProvider('iflow', 'https://api.iflow.cn')
 
     const { env } = generateToolEnvironment({
-      tool: codeTools.iFlowCli,
+      tool: codeCLI.iFlowCli,
       model,
       modelProvider: provider,
       apiKey: 'test-key',
@@ -202,7 +202,7 @@ describe('generateToolEnvironment', () => {
     const provider = createMockProvider('dashscope', 'https://dashscope.aliyuncs.com/compatible-mode/')
 
     const { env } = generateToolEnvironment({
-      tool: codeTools.qwenCode,
+      tool: codeCLI.qwenCode,
       model,
       modelProvider: provider,
       apiKey: 'test-key',
@@ -217,7 +217,7 @@ describe('generateToolEnvironment', () => {
     const provider = createMockProvider('dashscope', 'https://dashscope.aliyuncs.com/v2beta')
 
     const { env } = generateToolEnvironment({
-      tool: codeTools.qwenCode,
+      tool: codeCLI.qwenCode,
       model,
       modelProvider: provider,
       apiKey: 'test-key',

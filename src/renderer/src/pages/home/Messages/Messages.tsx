@@ -1,3 +1,4 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import ContextMenu from '@renderer/components/ContextMenu'
 import { LoadingIcon } from '@renderer/components/Icons'
@@ -6,7 +7,6 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations, useTopicMessages } from '@renderer/hooks/useMessageOperations'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { autoRenameTopic } from '@renderer/hooks/useTopic'
@@ -63,7 +63,8 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
   const [isProcessingContext, setIsProcessingContext] = useState(false)
 
   const { addTopic } = useAssistant(assistant.id)
-  const { showPrompt, messageNavigation } = useSettings()
+  const [showPrompt] = usePreference('chat.message.show_prompt')
+  const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
   const messages = useTopicMessages(topic.id)
@@ -267,7 +268,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
     )
   }, [displayMessages.length, hasMore, isLoadingMore, messages, setTimeoutTimer])
 
-  useShortcut('copy_last_message', () => {
+  useShortcut('chat.copy_last_message', () => {
     const lastMessage = last(messages)
     if (lastMessage) {
       void navigator.clipboard.writeText(getMainTextContent(lastMessage))
@@ -275,7 +276,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
     }
   })
 
-  useShortcut('edit_last_user_message', () => {
+  useShortcut('chat.edit_last_user_message', () => {
     const lastUserMessage = messagesRef.current.findLast((m) => m.role === 'user' && m.type !== 'clear')
     if (lastUserMessage) {
       void EventEmitter.emit(EVENT_NAMES.EDIT_MESSAGE, lastUserMessage.id)

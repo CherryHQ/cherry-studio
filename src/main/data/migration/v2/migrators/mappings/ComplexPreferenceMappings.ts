@@ -1,0 +1,172 @@
+/**
+ * Complex Preference Mappings
+ *
+ * This module defines complex preference transformations that cannot be handled
+ * by simple one-to-one mappings. It supports:
+ *
+ * 1. Object splitting (1→N): One source object splits into multiple preference keys
+ * 2. Multi-source merging (N→1): Multiple sources merge into one or more targets
+ * 3. Value calculation/transformation: Values need computation or format conversion
+ * 4. Conditional mapping: Target keys determined by source values
+ *
+ * Usage:
+ * 1. Define transformation function in a colocated mapping file under `mappings/`
+ * 2. Add mapping configuration to COMPLEX_PREFERENCE_MAPPINGS below
+ * 3. Add target key definitions in target-key-definitions.json
+ *
+ * IMPORTANT: Ensure no conflicts between simple mappings and complex mappings.
+ * The system uses strict mode - conflicts will cause errors at runtime.
+ */
+
+import { flattenCompressionConfig, migrateWebSearchProviders } from '../transformers/PreferenceTransformers'
+import { transformCodeCli } from './CodeCliTransforms'
+import { mergeFileProcessingOverrides } from './FileProcessingOverrideMappings'
+import { SHORTCUT_TARGET_KEYS, transformShortcuts } from './ShortcutMappings'
+
+// ============================================================================
+// Type Definitions
+// ============================================================================
+
+/**
+ * Source definition for reading data from original storage
+ */
+export interface SourceDefinition {
+  /** Data source type */
+  source: 'electronStore' | 'redux' | 'dexie-settings' | 'localStorage'
+  /** Key path to read from source */
+  key: string
+  /** Redux category (required for redux source) */
+  category?: string
+}
+
+/**
+ * Transform result type - maps target keys to their values
+ */
+export type TransformResult = Record<string, unknown>
+
+/**
+ * Transform function signature
+ * @param sources - Collected source values keyed by source name
+ * @returns Record of targetKey -> value pairs
+ */
+export type TransformFunction = (sources: Record<string, unknown>) => TransformResult
+
+/**
+ * Complex mapping definition
+ */
+export interface ComplexMapping {
+  /** Unique identifier for this mapping (used for error reporting and tracking) */
+  id: string
+  /** Human-readable description of what this mapping does */
+  description: string
+  /** Source data definitions - key is the name used in transform function */
+  sources: Record<string, SourceDefinition>
+  /** Target preference keys that this mapping produces (for validation) */
+  targetKeys: string[]
+  /** Transformation function that converts sources to target values */
+  transform: TransformFunction
+}
+
+// ============================================================================
+// Complex Mappings Configuration
+// ============================================================================
+
+/**
+ * All complex preference mappings
+ *
+ * Add new complex mappings here. Each mapping must:
+ * 1. Have a unique id
+ * 2. Define all source data it needs
+ * 3. List all target keys it produces
+ * 4. Provide a transformation function
+ *
+ * Remember to also define the target keys in target-key-definitions.json!
+ */
+export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
+  // WebSearch provider overrides migration
+  {
+    id: 'websearch_providers_migrate',
+    description: 'Migrate websearch providers array into provider overrides',
+    sources: {
+      providers: { source: 'redux', category: 'websearch', key: 'providers' }
+    },
+    targetKeys: ['chat.web_search.provider_overrides'],
+    transform: migrateWebSearchProviders
+  },
+
+  // WebSearch compression config flattening
+  {
+    id: 'websearch_compression_flatten',
+    description: 'Flatten websearch compressionConfig object into separate preference keys',
+    sources: {
+      compressionConfig: { source: 'redux', category: 'websearch', key: 'compressionConfig' }
+    },
+    targetKeys: [
+      'chat.web_search.compression.method',
+      'chat.web_search.compression.cutoff_limit',
+      'chat.web_search.compression.cutoff_unit',
+      'chat.web_search.compression.rag_document_count',
+      'chat.web_search.compression.rag_embedding_model_id',
+      'chat.web_search.compression.rag_embedding_dimensions',
+      'chat.web_search.compression.rag_rerank_model_id'
+    ],
+    transform: flattenCompressionConfig
+  },
+
+  // CodeCLI layered preset overrides
+  {
+    id: 'code_cli_overrides',
+    description: 'Merge codeTools per-tool data (models, env vars, directories) into layered preset overrides',
+    sources: {
+      selectedModels: { source: 'redux', category: 'codeTools', key: 'selectedModels' },
+      environmentVariables: { source: 'redux', category: 'codeTools', key: 'environmentVariables' },
+      directories: { source: 'redux', category: 'codeTools', key: 'directories' },
+      currentDirectory: { source: 'redux', category: 'codeTools', key: 'currentDirectory' },
+      selectedCliTool: { source: 'redux', category: 'codeTools', key: 'selectedCliTool' },
+      selectedTerminal: { source: 'redux', category: 'codeTools', key: 'selectedTerminal' }
+    },
+    targetKeys: ['feature.code_cli.overrides'],
+    transform: transformCodeCli
+  },
+
+  // Shortcut preferences (legacy array → per-key PreferenceShortcutType)
+  {
+    id: 'shortcut_preferences_migrate',
+    description: 'Convert legacy shortcuts array into per-key { binding, enabled } preferences',
+    sources: {
+      shortcuts: { source: 'redux', category: 'shortcuts', key: 'shortcuts' }
+    },
+    targetKeys: [...SHORTCUT_TARGET_KEYS],
+    transform: transformShortcuts
+  },
+
+  // File processing overrides merging
+  {
+    id: 'file_processing_overrides_merge',
+    description: 'Merge legacy OCR and preprocess providers into file processing overrides',
+    sources: {
+      preprocessProviders: { source: 'redux', category: 'preprocess', key: 'providers' },
+      ocrProviders: { source: 'redux', category: 'ocr', key: 'providers' }
+    },
+    targetKeys: ['feature.file_processing.overrides'],
+    transform: mergeFileProcessingOverrides
+  }
+]
+
+// ============================================================================
+// Utility Functions
+// ============================================================================
+
+/**
+ * Get all target keys from complex mappings (for conflict detection)
+ */
+export function getComplexMappingTargetKeys(): string[] {
+  return COMPLEX_PREFERENCE_MAPPINGS.flatMap((m) => m.targetKeys)
+}
+
+/**
+ * Get complex mapping by id
+ */
+export function getComplexMappingById(id: string): ComplexMapping | undefined {
+  return COMPLEX_PREFERENCE_MAPPINGS.find((m) => m.id === id)
+}

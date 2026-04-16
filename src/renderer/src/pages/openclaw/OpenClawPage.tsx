@@ -1,4 +1,4 @@
-import OpenClawLogo from '@renderer/assets/images/providers/openclaw.svg'
+import { Openclaw } from '@cherrystudio/ui/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { CopyIcon } from '@renderer/components/Icons'
 import ModelSelector from '@renderer/components/ModelSelector'
@@ -14,7 +14,7 @@ import {
   setSelectedModelUniqId
 } from '@renderer/store/openclaw'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Alert, Avatar, Button, Result, Space, Spin } from 'antd'
+import { Alert, Button, Result, Space, Spin } from 'antd'
 import { Download, ExternalLink, Play, Square } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -36,14 +36,11 @@ interface TitleSectionProps {
 
 const TitleSection: FC<TitleSectionProps> = ({ title, description, clickable = false, docsUrl }) => (
   <div className="-mt-20 mb-8 flex flex-col items-center text-center">
-    <Avatar
-      src={OpenClawLogo}
-      size={64}
-      shape="square"
+    <div
       className={clickable ? 'cursor-pointer' : undefined}
-      style={{ borderRadius: 12 }}
-      onClick={clickable ? () => window.open(docsUrl ?? DEFAULT_DOCS_URL, '_blank') : undefined}
-    />
+      onClick={clickable ? () => window.open(docsUrl ?? DEFAULT_DOCS_URL, '_blank') : undefined}>
+      <Openclaw.Avatar size={64} shape="rounded" />
+    </div>
     <h1
       className={`mt-3 font-semibold text-2xl ${clickable ? 'cursor-pointer hover:text-(--color-primary)' : ''}`}
       style={{ color: 'var(--color-text-1)' }}
@@ -266,7 +263,7 @@ const OpenClawPage: FC = () => {
         id: 'openclaw-dashboard',
         name: 'OpenClaw',
         url: dashboardUrl,
-        logo: OpenClawLogo
+        logo: 'openclaw'
       })
 
       // Delay 500ms before updating UI state (wait for minapp animation)
@@ -302,7 +299,7 @@ const OpenClawPage: FC = () => {
       id: 'openclaw-dashboard',
       name: 'OpenClaw',
       url: dashboardUrl,
-      logo: OpenClawLogo
+      logo: 'openclaw'
     })
   }
 
@@ -343,7 +340,7 @@ const OpenClawPage: FC = () => {
       <div className="flex-1" />
       <div className="mx-auto min-h-fit w-130 shrink-0">
         <Result
-          icon={<Avatar src={OpenClawLogo} size={64} shape="square" style={{ borderRadius: 12 }} />}
+          icon={<Openclaw.Avatar size={64} shape="rounded" />}
           title={t(needsMigration ? 'openclaw.migration.title' : 'openclaw.not_installed.title')}
           subTitle={t(needsMigration ? 'openclaw.migration.description' : 'openclaw.not_installed.description')}
           extra={

@@ -1,4 +1,4 @@
-import store from '@renderer/store'
+import { cacheService } from '@data/CacheService'
 import type { AgentEntity, ListAgentsResponse, UpdateAgentForm } from '@renderer/types'
 import type { UpdateAgentBaseOptions, UpdateAgentFunction } from '@renderer/types/agent'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -11,11 +11,14 @@ import { useAgentClient } from './useAgentClient'
 export const useUpdateAgent = () => {
   const { t } = useTranslation()
   const client = useAgentClient()
-  const listKey = client.agentPaths.base
+  const listKey = client?.agentPaths.base
 
   const updateAgent: UpdateAgentFunction = useCallback(
     async (form: UpdateAgentForm, options?: UpdateAgentBaseOptions): Promise<AgentEntity | undefined> => {
       try {
+        if (!client || !listKey) {
+          throw new Error(t('apiServer.messages.notEnabled'))
+        }
         const itemKey = client.agentPaths.withId(form.id)
         // may change to optimistic update
         const result = await client.updateAgent(form)
@@ -31,8 +34,8 @@ export const useUpdateAgent = () => {
         // Backend syncs agent settings to all sessions (skipping user-customized fields).
         // Revalidate the active session's SWR cache so the UI picks up changes immediately.
         // Other sessions refresh via SWR stale-while-revalidate when navigated to.
-        // Using store.getState() instead of useSelector to avoid adding reactive deps to useCallback.
-        const { activeSessionIdMap } = store.getState().runtime.chat
+        // Using cacheService.get() instead of useCache to avoid adding reactive deps to useCallback.
+        const activeSessionIdMap = cacheService.get('agent.session.active_id_map') ?? {}
         const activeSessionId = activeSessionIdMap?.[form.id]
         if (activeSessionId) {
           const sessionKey = client.getSessionPaths(form.id).withId(activeSessionId)

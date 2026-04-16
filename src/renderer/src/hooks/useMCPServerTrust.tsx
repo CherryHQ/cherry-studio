@@ -3,19 +3,18 @@ import {
   ensureServerTrusted as ensureServerTrustedCore,
   getCommandPreview
 } from '@renderer/pages/settings/MCPSettings/utils'
-import type { MCPServer } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
+import type { MCPServer } from '@shared/data/types/mcpServer'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import { useMCPServers } from './useMCPServers'
 
 /**
  * Hook for handling MCP server trust verification
  * Binds UI (modal dialog) to the core trust verification logic
+ *
+ * @param updateServer - callback to persist trust changes for a server
  */
-export const useMCPServerTrust = () => {
-  const { updateMCPServer } = useMCPServers()
+export const useMCPServerTrust = (updateServer: (body: Partial<MCPServer>) => void) => {
   const { t } = useTranslation()
 
   /**
@@ -48,9 +47,9 @@ export const useMCPServerTrust = () => {
    */
   const ensureServerTrusted = useCallback(
     async (server: MCPServer): Promise<MCPServer | null> => {
-      return ensureServerTrustedCore(server, requestConfirm, updateMCPServer)
+      return ensureServerTrustedCore(server, requestConfirm, updateServer)
     },
-    [requestConfirm, updateMCPServer]
+    [requestConfirm, updateServer]
   )
 
   return { ensureServerTrusted }

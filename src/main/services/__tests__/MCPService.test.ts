@@ -1,18 +1,42 @@
-import type { MCPServer, MCPTool } from '@types'
+import type { MCPServer } from '@shared/data/types/mcpServer'
+import type { MCPTool } from '@types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@main/apiServer/utils/mcp', () => ({
-  getMCPServersFromRedux: vi.fn()
-}))
-
-vi.mock('@main/services/WindowService', () => ({
-  windowService: {
-    getMainWindow: vi.fn(() => null)
+vi.mock('@data/services/McpServerService', () => ({
+  mcpServerService: {
+    list: vi.fn()
   }
 }))
 
-import { getMCPServersFromRedux } from '@main/apiServer/utils/mcp'
-import mcpService from '@main/services/MCPService'
+vi.mock('@application', () => ({
+  application: {
+    get: vi.fn((name: string) => {
+      if (name === 'WindowService') {
+        return { getMainWindow: vi.fn(() => null) }
+      }
+      if (name === 'CacheService') {
+        return { has: vi.fn(() => false), get: vi.fn(), set: vi.fn(), delete: vi.fn() }
+      }
+      throw new Error(`[MockApplication] Unknown service: ${name}`)
+    }),
+    getPath: vi.fn((key: string, filename?: string) => (filename ? `/mock/${key}/${filename}` : `/mock/${key}`))
+  }
+}))
+
+vi.mock('@main/core/lifecycle', () => {
+  class MockBaseService {}
+
+  return {
+    BaseService: MockBaseService,
+    Injectable: () => (target: unknown) => target,
+    ServicePhase: () => (target: unknown) => target,
+    DependsOn: () => (target: unknown) => target,
+    Phase: { Background: 'background', WhenReady: 'whenReady', BeforeReady: 'beforeReady' }
+  }
+})
+
+import { mcpServerService } from '@data/services/McpServerService'
+import { MCPService } from '@main/services/MCPService'
 
 const baseInputSchema: { type: 'object'; properties: Record<string, unknown>; required: string[] } = {
   type: 'object',
@@ -32,8 +56,11 @@ const createTool = (overrides: Partial<MCPTool>): MCPTool => ({
 })
 
 describe('MCPService.listAllActiveServerTools', () => {
+  let mcpService: MCPService
+
   beforeEach(() => {
     vi.clearAllMocks()
+    mcpService = new MCPService()
   })
 
   afterEach(() => {
@@ -55,7 +82,7 @@ describe('MCPService.listAllActiveServerTools', () => {
       }
     ]
 
-    vi.mocked(getMCPServersFromRedux).mockResolvedValue(servers)
+    vi.mocked(mcpServerService.list).mockResolvedValue({ items: servers, total: servers.length, page: 1 })
 
     const listToolsSpy = vi.spyOn(mcpService as any, 'listToolsImpl').mockImplementation(async (server: any) => {
       if (server.id === 'alpha') {

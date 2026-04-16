@@ -494,4 +494,4 @@ class CherryINOAuthService {
   }
 }
 
-export default new CherryINOAuthService()
+export const cherryINOAuthService = new CherryINOAuthService()

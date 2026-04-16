@@ -1,3 +1,5 @@
+import { RowFlex } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
 import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -8,7 +10,7 @@ import { useAppDispatch } from '@renderer/store'
 import { setAgentssubscribeUrl } from '@renderer/store/settings'
 import type { AssistantPreset } from '@renderer/types'
 import { uuid } from '@renderer/utils'
-import { Button, Divider, Flex, Form, Input, Modal, Radio, Typography } from 'antd'
+import { Divider, Form, Input, Modal, Radio, Typography } from 'antd'
 import { HelpCircle } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -160,7 +162,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       centered>
       <Form form={form} onFinish={onFinish} layout="vertical">
         <Form.Item style={{ marginBottom: 0 }}>
-          <Flex align="center" gap={12} style={{ width: '100%' }}>
+          <RowFlex className="items-center gap-[12px]" style={{ width: '100%' }}>
             <Radio.Group value={importType} onChange={(e) => setImportType(e.target.value)}>
               <Radio.Button value="url">{t('assistants.presets.import.type.url')}</Radio.Button>
               <Radio.Button value="file">{t('assistants.presets.import.type.file')}</Radio.Button>
@@ -191,16 +193,16 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
               </>
             )}
 
-            <Button type="primary" onClick={onFinish} loading={loading} disabled={isImportDisabled}>
+            <Button variant="default" onClick={onFinish} loading={loading} disabled={isImportDisabled}>
               {t('assistants.presets.import.button')}
             </Button>
-          </Flex>
+          </RowFlex>
         </Form.Item>
       </Form>
 
       <Divider style={{ margin: '16px 0' }} />
 
-      <Flex align="center" gap={4}>
+      <RowFlex className="items-center gap-[4px]">
         <Typography.Text strong style={{ flexShrink: 0, fontSize: 16 }}>
           {t('assistants.presets.tag.agent')}
           {t('settings.tool.websearch.subscribe_add')}
@@ -212,9 +214,9 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           className="hover:!text-[var(--color-primary)] cursor-pointer transition-colors"
           style={{ flexShrink: 0 }}
         />
-      </Flex>
+      </RowFlex>
 
-      <Flex align="center" gap={12} style={{ marginTop: 10 }}>
+      <RowFlex className="items-center gap-[12px]" style={{ marginTop: 10 }}>
         <Input
           type="text"
           value={subscribeUrl}
@@ -222,10 +224,10 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           style={{ flex: 1 }}
           placeholder={t('settings.tool.websearch.subscribe_url')}
         />
-        <Button type="primary" onClick={handleSubscribe} loading={subscribeLoading} disabled={!subscribeUrl.trim()}>
+        <Button variant="default" onClick={handleSubscribe} loading={subscribeLoading} disabled={!subscribeUrl.trim()}>
           {isSubscribed ? t('common.unsubscribe') : t('common.subscribe')}
         </Button>
-      </Flex>
+      </RowFlex>
     </Modal>
   )
 }

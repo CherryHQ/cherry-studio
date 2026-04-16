@@ -1,19 +1,31 @@
+/**
+ * TODO [v2 refactor] 此文件存在以下架构问题，需要在 v2 重构中解决：
+ *
+ * 1. 文件过大 - 1100+ 行，难以维护
+ * 2. 职责混乱 - 类型定义、运行时常量、工具函数混在一起，违反单一职责原则
+ * 3. 工具函数不属于类型文件 - objectKeys, objectEntries, strip 等应移至 utils/
+ * 4. 运行时常量不属于类型文件 - EFFORT_RATIO, WebSearchProviderIds, BuiltinMCPServerNames 等应移至 constants/
+ * 5. 类型守卫应分离 - isThinkModelType, isWebSearchProviderId 等函数应独立到 typeGuards 文件
+ * 6. 部分类型应迁移到 packages/shared/data/types/ 以便 main/renderer 进程共享
+ */
 import type { LanguageModelV3Source } from '@ai-sdk/provider'
 import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 import type OpenAI from '@cherrystudio/openai'
 import type { GenerateImagesConfig, GroundingMetadata, PersonGeneration } from '@google/genai'
+export type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 import type { CSSProperties } from 'react'
 
 export * from './file'
 export * from './note'
 
+import type { TranslateLanguageCode } from '@shared/data/preference/preferenceTypes'
+import type { MCPServer } from '@shared/data/types/mcpServer'
 import * as z from 'zod'
 
 import type { StreamTextParams } from './aiCoreTypes'
 import type { Chunk } from './chunk'
 import type { FileMetadata } from './file'
 import type { KnowledgeBase, KnowledgeReference } from './knowledge'
-import type { MCPConfigSample, MCPServerInstallSource, McpServerType } from './mcp'
 import type { Message } from './newMessage'
 import type { BaseTool, MCPTool } from './tool'
 
@@ -57,7 +69,6 @@ export type Assistant = {
   knowledgeRecognition?: 'off' | 'on'
   regularPhrases?: QuickPhrase[] // Added for regular phrase
   tags?: string[] // 助手标签
-  enableMemory?: boolean
   // for translate. 更好的做法是定义base assistant，把 Assistant 作为多种不同定义 assistant 的联合类型，但重构代价太大
   content?: string
   targetLanguage?: TranslateLanguage
@@ -82,7 +93,7 @@ export const isTranslateAssistant = (assistant: Assistant): assistant is Transla
   return (assistant.model && assistant.targetLanguage && typeof assistant.content === 'string') !== undefined
 }
 
-export type AssistantsSortType = 'tags' | 'list'
+// export type AssistantsSortType = 'tags' | 'list'
 
 export type AssistantMessage = {
   role: 'user' | 'assistant'
@@ -182,12 +193,6 @@ export type AssistantSettings = {
   defaultModel?: Model
   customParameters?: AssistantSettingCustomParameters[]
   reasoning_effort: ReasoningEffortOption
-  /**
-   * Preserve the effective reasoning effort (not 'default') from the last use of a thinking model which supports thinking control,
-   * and restore it when switching back from a non-thinking or fixed reasoning model.
-   * FIXME: It should be managed by external cache service instead of being stored in the assistant
-   */
-  reasoning_effort_cache?: ReasoningEffortOption
   qwenThinkMode?: boolean
   toolUseMode: 'function' | 'prompt'
   maxToolCalls?: number
@@ -518,8 +523,7 @@ export type MinAppType = {
   supportedRegions?: MinAppRegion[]
   logo?: string
   url: string
-  // FIXME: It should be `bordered`
-  bodered?: boolean
+  bordered?: boolean
   background?: string
   style?: CSSProperties
   addTime?: string
@@ -538,18 +542,18 @@ export enum ThemeMode {
 }
 
 /** 有限的UI语言 */
-export type LanguageVarious =
-  | 'zh-CN'
-  | 'zh-TW'
-  | 'de-DE'
-  | 'el-GR'
-  | 'en-US'
-  | 'es-ES'
-  | 'fr-FR'
-  | 'ja-JP'
-  | 'pt-PT'
-  | 'ro-RO'
-  | 'ru-RU'
+// export type LanguageVarious =
+//   | 'zh-CN'
+//   | 'zh-TW'
+//   | 'de-DE'
+//   | 'el-GR'
+//   | 'en-US'
+//   | 'es-ES'
+//   | 'fr-FR'
+//   | 'ja-JP'
+//   | 'pt-PT'
+//   | 'ro-RO'
+//   | 'ru-RU'
 
 export type CodeStyleVarious = 'auto' | string
 
@@ -634,9 +638,7 @@ export type GenerateImageResponse = {
   images: string[]
 }
 
-// 为了支持自定义语言，设置为string别名
-/** zh-cn, en-us, etc. */
-export type TranslateLanguageCode = string
+export type { TranslateLanguageCode }
 
 // langCode应当能够唯一确认一种语言
 export type TranslateLanguage = {
@@ -676,18 +678,19 @@ export const isAutoDetectionMethod = (method: string): method is AutoDetectionMe
   return Object.hasOwn(AutoDetectionMethods, method)
 }
 
-export type SidebarIcon =
-  | 'assistants'
-  | 'agents'
-  | 'store'
-  | 'paintings'
-  | 'translate'
-  | 'minapp'
-  | 'knowledge'
-  | 'files'
-  | 'code_tools'
-  | 'notes'
-  | 'openclaw'
+// by fullex @ data refactor
+// export type SidebarIcon =
+//   | 'assistants'
+//   | 'agents'
+//   | 'store'
+//   | 'paintings'
+//   | 'translate'
+//   | 'minapp'
+//   | 'knowledge'
+//   | 'files'
+//   | 'code_tools'
+//   | 'notes'
+// | 'openclaw'
 
 export type ExternalToolResult = {
   mcpTools?: MCPTool[]
@@ -798,46 +801,7 @@ export interface MCPServerParameter {
   description: string
 }
 
-export interface MCPServer {
-  id: string // internal id
-  name: string // mcp name, generally as unique key
-  type?: McpServerType | 'inMemory'
-  description?: string
-  baseUrl?: string
-  command?: string
-  registryUrl?: string
-  args?: string[]
-  env?: Record<string, string>
-  headers?: Record<string, string> // Custom headers to be sent with requests to this server
-  provider?: string // Provider name for this server like ModelScope, Higress, etc.
-  providerUrl?: string // URL of the MCP server in provider's website or documentation
-  logoUrl?: string // URL of the MCP server's logo
-  tags?: string[] // List of tags associated with this server
-  longRunning?: boolean // Whether the server is long running
-  timeout?: number // Timeout in seconds for requests to this server, default is 60 seconds
-  dxtVersion?: string // Version of the DXT package
-  dxtPath?: string // Path where the DXT package was extracted
-  reference?: string // Reference link for the server, e.g., documentation or homepage
-  searchKey?: string
-  configSample?: MCPConfigSample
-  /** List of tool names that are disabled for this server */
-  disabledTools?: string[]
-  /** Whether to auto-approve tools for this server */
-  disabledAutoApproveTools?: string[]
-
-  /** 用于标记内置 MCP 是否需要配置 */
-  shouldConfig?: boolean
-  /** 用于标记服务器是否运行中 */
-  isActive: boolean
-  /** 标记 MCP 安装来源，例如 builtin/manual/protocol */
-  installSource?: MCPServerInstallSource
-  /** 指示用户是否已信任该 MCP */
-  isTrusted?: boolean
-  /** 首次标记为信任的时间戳 */
-  trustedAt?: number
-  /** 安装时间戳 */
-  installedAt?: number
-}
+export type { MCPServer } from '@shared/data/types/mcpServer'
 
 export type BuiltinMCPServer = MCPServer & {
   type: 'inMemory'
@@ -997,15 +961,6 @@ export interface Citation {
 }
 
 export type MathEngine = 'KaTeX' | 'MathJax' | 'none'
-
-export interface StoreSyncAction {
-  type: string
-  payload: any
-  meta?: {
-    fromSync?: boolean
-    source?: string
-  }
-}
 
 export type S3Config = {
   endpoint: string

@@ -1,7 +1,6 @@
+import { application } from '@application'
 import type { Notification } from '@types'
 import { Notification as ElectronNotification } from 'electron'
-
-import { windowService } from './WindowService'
 
 class NotificationService {
   public async sendNotification(notification: Notification) {
@@ -12,8 +11,8 @@ class NotificationService {
     })
 
     electronNotification.on('click', () => {
-      windowService.getMainWindow()?.show()
-      windowService.getMainWindow()?.webContents.send('notification-click', notification)
+      application.get('WindowService').getMainWindow()?.show()
+      application.get('WindowService').getMainWindow()?.webContents.send('notification-click', notification)
     })
 
     electronNotification.show()

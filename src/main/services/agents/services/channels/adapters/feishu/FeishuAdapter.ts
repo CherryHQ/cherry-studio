@@ -1,9 +1,9 @@
 import { Readable } from 'node:stream'
 import type { ReadableStream as NodeReadableStream } from 'node:stream/web'
 
+import { application } from '@application'
 import * as Lark from '@larksuiteoapi/node-sdk'
 import type { FeishuDomain } from '@main/services/agents/database/schema'
-import { windowService } from '@main/services/WindowService'
 import { IpcChannel } from '@shared/IpcChannel'
 
 import {
@@ -574,7 +574,7 @@ class FeishuAdapter extends ChannelAdapter {
     appId?: string,
     appSecret?: string
   ): void {
-    const mainWindow = windowService.getMainWindow()
+    const mainWindow = application.get('WindowService').getMainWindow()
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send(IpcChannel.Feishu_QrLogin, {
         channelId: this.channelId,

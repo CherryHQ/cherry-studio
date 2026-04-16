@@ -15,7 +15,6 @@
  * --------------------------------------------------------------------------
  */
 import { loggerService } from '@logger'
-import { LanguagesEnum } from '@renderer/config/translate'
 import type { LegacyMessage as OldMessage, Topic, TranslateLanguageCode } from '@renderer/types'
 import { FILE_TYPE, WEB_SEARCH_SOURCE } from '@renderer/types' // Import FileTypes enum
 import type {
@@ -361,10 +360,7 @@ export async function upgradeToV8(tx: Transaction): Promise<void> {
   }
 
   const settingsTable = tx.table('settings')
-  const defaultPair: [TranslateLanguageCode, TranslateLanguageCode] = [
-    LanguagesEnum.enUS.langCode,
-    LanguagesEnum.zhCN.langCode
-  ]
+  const defaultPair: [TranslateLanguageCode, TranslateLanguageCode] = ['en-us', 'zh-cn']
   const originSource = (await settingsTable.get('translate:source:language'))?.value
   const originTarget = (await settingsTable.get('translate:target:language'))?.value
   const originPair = (await settingsTable.get('translate:bidirectional:pair'))?.value
@@ -375,14 +371,14 @@ export async function upgradeToV8(tx: Transaction): Promise<void> {
   } else {
     newSource = langMap[originSource]
     if (!newSource) {
-      newSource = LanguagesEnum.enUS.langCode
+      newSource = 'en-us'
     }
   }
 
   logger.info('originTarget: %o', originTarget)
   newTarget = langMap[originTarget]
   if (!newTarget) {
-    newTarget = LanguagesEnum.zhCN.langCode
+    newTarget = 'zh-cn'
   }
 
   logger.info('originPair: %o', originPair)

@@ -1,3 +1,4 @@
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import {
   DEFAULT_CONTEXTCOUNT,
@@ -23,6 +24,7 @@ import type {
   TranslateAssistant,
   TranslateLanguage
 } from '@renderer/types'
+import type { CreateTopicDto } from '@shared/data/api/schemas/topics'
 import { v4 as uuid } from 'uuid'
 
 const logger = loggerService.withContext('AssistantService')
@@ -52,7 +54,6 @@ export const DEFAULT_ASSISTANT_SETTINGS = {
   defaultModel: undefined,
   customParameters: [],
   reasoning_effort: 'default',
-  reasoning_effort_cache: undefined,
   qwenThinkMode: undefined,
   // It would gracefully fallback to prompt if not supported by model.
   toolUseMode: 'function',
@@ -96,11 +97,11 @@ export function getDefaultAssistant(): Assistant {
  * @param _settings - Optional settings to override default assistant settings
  * @returns Configured translate assistant
  */
-export function getDefaultTranslateAssistant(
+export async function getDefaultTranslateAssistant(
   targetLanguage: TranslateLanguage,
   text: string,
   _settings?: Partial<AssistantSettings>
-): TranslateAssistant {
+): Promise<TranslateAssistant> {
   const model = getTranslateModel()
   const assistant: Assistant = getDefaultAssistant()
 
@@ -122,18 +123,20 @@ export function getDefaultTranslateAssistant(
     ..._settings
   } satisfies Partial<AssistantSettings>
 
-  const getTranslateContent = (model: Model, text: string, targetLanguage: TranslateLanguage): string => {
+  const getTranslateContent = async (
+    model: Model,
+    text: string,
+    targetLanguage: TranslateLanguage
+  ): Promise<string> => {
     if (isQwenMTModel(model)) {
       return text // QwenMT models handle raw text directly
     }
 
-    return store
-      .getState()
-      .settings.translateModelPrompt.replaceAll('{{target_language}}', targetLanguage.value)
-      .replaceAll('{{text}}', text)
+    const translateModelPrompt = await preferenceService.get('feature.translate.model_prompt')
+    return translateModelPrompt.replaceAll('{{target_language}}', targetLanguage.value).replaceAll('{{text}}', text)
   }
 
-  const content = getTranslateContent(model, text, targetLanguage)
+  const content = await getTranslateContent(model, text, targetLanguage)
   const translateAssistant = {
     ...assistant,
     model,
@@ -169,6 +172,14 @@ export function getDefaultTopic(assistantId: string): Topic {
     name: i18n.t('chat.default.topic.name'),
     messages: [],
     isNameManuallyEdited: false
+  }
+}
+
+// TODO: remove it in v2
+export function mapLegacyTopicToDto(topic: Topic): CreateTopicDto {
+  return {
+    name: topic.name,
+    assistantId: topic.assistantId
   }
 }
 

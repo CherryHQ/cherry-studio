@@ -1,5 +1,5 @@
+import { Button } from '@cherrystudio/ui'
 import { formatErrorMessage } from '@renderer/utils/error'
-import { Button } from 'antd'
 import { Alert, Space } from 'antd'
 import type { ComponentType, ReactNode } from 'react'
 import type { FallbackProps } from 'react-error-boundary'
@@ -24,10 +24,10 @@ const DefaultFallback: ComponentType<FallbackProps> = (props: FallbackProps): Re
         type="error"
         action={
           <Space>
-            <Button size="small" onClick={debug}>
+            <Button size="sm" onClick={debug}>
               {t('error.boundary.default.devtools')}
             </Button>
-            <Button size="small" onClick={reload}>
+            <Button size="sm" onClick={reload}>
               {t('error.boundary.default.reload')}
             </Button>
           </Space>

@@ -30,26 +30,10 @@ export interface PyodideExecutionResult {
  * Pyodide Web Worker 服务
  */
 class PyodideService {
-  private static instance: PyodideService | null = null
-
   private worker: Worker | null = null
   private initPromise: Promise<void> | null = null
   private initRetryCount: number = 0
   private resolvers: Map<string, { resolve: (value: any) => void; reject: (error: Error) => void }> = new Map()
-
-  private constructor() {
-    // 单例模式
-  }
-
-  /**
-   * 获取 PyodideService 单例实例
-   */
-  public static getInstance(): PyodideService {
-    if (!PyodideService.instance) {
-      PyodideService.instance = new PyodideService()
-    }
-    return PyodideService.instance
-  }
 
   /**
    * 初始化 Pyodide Worker
@@ -278,7 +262,7 @@ class PyodideService {
 }
 
 // 创建并导出单例实例
-export const pyodideService = PyodideService.getInstance()
+export const pyodideService = new PyodideService()
 
 // Set up IPC handler for main process requests
 if (typeof window !== 'undefined' && window.electron?.ipcRenderer) {

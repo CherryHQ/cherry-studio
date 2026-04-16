@@ -17,8 +17,6 @@ import { agentMessageRepository } from '../database/sessionMessageRepository'
 import type { AgentStreamEvent } from '../interfaces/AgentStreamInterface'
 import ClaudeCodeService from './claudecode'
 
-const claudeCodeService = new ClaudeCodeService()
-
 const logger = loggerService.withContext('SessionMessageService')
 
 type SessionStreamResult = {
@@ -113,14 +111,7 @@ class TextStreamAccumulator {
 }
 
 export class SessionMessageService extends BaseService {
-  private static instance: SessionMessageService | null = null
-
-  static getInstance(): SessionMessageService {
-    if (!SessionMessageService.instance) {
-      SessionMessageService.instance = new SessionMessageService()
-    }
-    return SessionMessageService.instance
-  }
+  private cc: ClaudeCodeService = new ClaudeCodeService()
 
   async sessionMessageExists(id: number): Promise<boolean> {
     const database = await this.getDatabase()
@@ -184,7 +175,7 @@ export class SessionMessageService extends BaseService {
     const agentSessionId = await this.getLastAgentSessionId(session.id)
     logger.debug('Session Message stream message data:', { message: req, session_id: agentSessionId })
 
-    const claudeStream = await claudeCodeService.invoke(
+    const claudeStream = await this.cc.invoke(
       req.content,
       session,
       abortController,
@@ -477,4 +468,4 @@ export class SessionMessageService extends BaseService {
   }
 }
 
-export const sessionMessageService = SessionMessageService.getInstance()
+export const sessionMessageService = new SessionMessageService()

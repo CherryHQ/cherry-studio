@@ -1,14 +1,13 @@
+import { Avatar, AvatarFallback, Button, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
 import { FreeTrialModelTag } from '@renderer/components/FreeTrialModelTag'
 import { type HealthResult, HealthStatusIndicator } from '@renderer/components/HealthStatusIndicator'
-import { HStack } from '@renderer/components/Layout'
 import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
 import { getModelLogo } from '@renderer/config/models'
 import type { Model } from '@renderer/types'
 import type { ModelWithStatus } from '@renderer/types/healthCheck'
 import { HealthStatus } from '@renderer/types/healthCheck'
 import { maskApiKey } from '@renderer/utils/api'
-import { Avatar, Button, Tooltip } from 'antd'
 import { Bolt, Minus } from 'lucide-react'
 import React, { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -69,10 +68,17 @@ const ModelListItem: React.FC<ModelListItemProps> = ({
   return (
     <>
       <ListItem ref={ref}>
-        <HStack alignItems="center" gap={10} style={{ flex: 1 }}>
-          <Avatar src={getModelLogo(model)} size={24}>
-            {model?.name?.[0]?.toUpperCase()}
-          </Avatar>
+        <RowFlex className="flex-1 items-center gap-2.5">
+          {(() => {
+            const Icon = getModelLogo(model)
+            return Icon ? (
+              <Icon.Avatar size={24} />
+            ) : (
+              <Avatar className="h-6 w-6">
+                <AvatarFallback>{model?.name?.[0]?.toUpperCase()}</AvatarFallback>
+              </Avatar>
+            )
+          })()}
           <ModelIdWithTags
             model={model}
             showIdentifier={showIdentifier}
@@ -83,23 +89,27 @@ const ModelListItem: React.FC<ModelListItemProps> = ({
             }}
           />
           <FreeTrialModelTag model={model} />
-        </HStack>
-        <HStack alignItems="center" gap={6}>
+        </RowFlex>
+        <RowFlex className="items-center gap-1.5">
           <HealthStatusIndicator
             results={healthResults}
             loading={isChecking}
             showLatency
             onErrorClick={handleErrorClick}
           />
-          <HStack alignItems="center" gap={0}>
-            <Tooltip title={t('models.edit')} mouseLeaveDelay={0}>
-              <Button type="text" onClick={handleEdit} disabled={disabled} icon={<Bolt size={14} />} />
+          <RowFlex className="items-center">
+            <Tooltip content={t('models.edit')}>
+              <Button variant="ghost" onClick={handleEdit} disabled={disabled} size="icon">
+                <Bolt size={14} />
+              </Button>
             </Tooltip>
-            <Tooltip title={t('settings.models.manage.remove_model')} mouseLeaveDelay={0}>
-              <Button type="text" onClick={handleRemove} disabled={disabled} icon={<Minus size={14} />} />
+            <Tooltip content={t('settings.models.manage.remove_model')}>
+              <Button variant="ghost" onClick={handleRemove} disabled={disabled} size="icon">
+                <Minus size={14} />
+              </Button>
             </Tooltip>
-          </HStack>
-        </HStack>
+          </RowFlex>
+        </RowFlex>
       </ListItem>
     </>
   )

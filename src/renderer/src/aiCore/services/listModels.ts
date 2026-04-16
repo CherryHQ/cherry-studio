@@ -9,6 +9,7 @@ import {
   getFromApi as aiSdkGetFromApi,
   zodSchema
 } from '@ai-sdk/provider-utils'
+import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import type { EndpointType, Model, Provider } from '@renderer/types'
 import { SystemProviderIds } from '@renderer/types'
@@ -86,16 +87,16 @@ function getApiKey(provider: Provider): string {
     return keys[0]
   }
 
-  const lastUsedKey = window.keyv.get(keyName)
+  const lastUsedKey = cacheService.getCasual<string>(keyName)
   if (!lastUsedKey) {
-    window.keyv.set(keyName, keys[0])
+    cacheService.setCasual(keyName, keys[0])
     return keys[0]
   }
 
   const currentIndex = keys.indexOf(lastUsedKey)
   const nextIndex = (currentIndex + 1) % keys.length
   const nextKey = keys[nextIndex]
-  window.keyv.set(keyName, nextKey)
+  cacheService.setCasual(keyName, nextKey)
 
   return nextKey
 }
@@ -199,7 +200,7 @@ const githubFetcher: ModelFetcher = {
         abortSignal: signal
       }).catch(() => ({ data: [] as { id: string; owned_by?: string }[] }))
     ])
-    const catalogModels = catalogResponse.map((m) =>
+    const registryModels = catalogResponse.map((m) =>
       toModel(m.id, provider, {
         name: m.name || m.id,
         description: pickPreferredString([m.summary, m.description]),
@@ -207,7 +208,7 @@ const githubFetcher: ModelFetcher = {
       })
     )
     const v1Models = v1Response.data.map((m) => toModel(m.id, provider, { owned_by: m.owned_by }))
-    return dedup([...catalogModels, ...v1Models], (m) => m.id)
+    return dedup([...registryModels, ...v1Models], (m) => m.id)
   }
 }
 

@@ -1,7 +1,8 @@
 import { createExecutor } from '@cherrystudio/ai-core'
 import type { generateImageResult } from '@cherrystudio/ai-core/core/runtime/types'
+import { cacheService } from '@data/CacheService'
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import { getEnableDeveloperMode } from '@renderer/hooks/useSettings'
 import { normalizeGatewayModels } from '@renderer/services/models/ModelAdapter'
 import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
 import type { StartSpanParams } from '@renderer/trace/types/ModelSpanEntity'
@@ -134,7 +135,7 @@ export default class AiProvider {
       params.messages = [...claudeCodeSystemMessage, ...(params.messages || [])]
     }
 
-    if (middlewareConfig.topicId && getEnableDeveloperMode()) {
+    if (middlewareConfig.topicId && (await preferenceService.get('app.developer_mode.enabled'))) {
       // TypeScript类型窄化：确保topicId是string类型
       const traceConfig = {
         ...middlewareConfig,
@@ -173,7 +174,7 @@ export default class AiProvider {
       toolNames: params.tools ? Object.keys(params.tools) : []
     })
 
-    const span = addSpan(traceParams)
+    const span = await addSpan(traceParams)
     if (!span) {
       logger.warn('Failed to create span, falling back to regular completions', {
         topicId: middlewareConfig.topicId,
@@ -243,7 +244,7 @@ export default class AiProvider {
     middlewareConfig: AiProviderConfig,
     providerConfig: ProviderConfig
   ): Promise<CompletionsResult> {
-    const plugins = buildPlugins({
+    const plugins = await buildPlugins({
       provider: this.actualProvider,
       model: this.model!,
       config: middlewareConfig
@@ -497,17 +498,17 @@ export default class AiProvider {
 
     // Multi-key rotation
     const keyName = `provider:${this.actualProvider.id}:last_used_key`
-    const lastUsedKey = window.keyv.get(keyName)
+    const lastUsedKey = cacheService.getCasual<string>(keyName)
 
     if (!lastUsedKey) {
-      window.keyv.set(keyName, keys[0])
+      cacheService.setCasual(keyName, keys[0])
       return keys[0]
     }
 
     const currentIndex = keys.indexOf(lastUsedKey)
     const nextIndex = (currentIndex + 1) % keys.length
     const nextKey = keys[nextIndex]
-    window.keyv.set(keyName, nextKey)
+    cacheService.setCasual(keyName, nextKey)
 
     return nextKey
   }

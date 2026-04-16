@@ -6,18 +6,7 @@ import { MistralService } from './MistralService'
 import { OpenaiService } from './OpenAIService'
 
 export class FileServiceManager {
-  private static instance: FileServiceManager
   private services: Map<string, BaseFileService> = new Map()
-
-  // oxlint-disable-next-line @typescript-eslint/no-empty-function
-  private constructor() {}
-
-  static getInstance(): FileServiceManager {
-    if (!this.instance) {
-      this.instance = new FileServiceManager()
-    }
-    return this.instance
-  }
 
   getService(provider: Provider): BaseFileService {
     const type = provider.type
@@ -43,3 +32,5 @@ export class FileServiceManager {
     return service
   }
 }
+
+export const fileServiceManager = new FileServiceManager()

@@ -1,4 +1,5 @@
 import { DeleteOutlined, EditOutlined, FileTextOutlined, PlusOutlined } from '@ant-design/icons'
+import { Switch } from '@cherrystudio/ui'
 import CopyButton from '@renderer/components/CopyButton'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
@@ -6,7 +7,7 @@ import { useChannels } from '@renderer/hooks/agents/useChannels'
 import { isSoulModeEnabled } from '@renderer/pages/settings/AgentSettings/shared'
 import type { AgentConfiguration } from '@renderer/types'
 import { getChannelTypeIcon } from '@renderer/utils/agentSession'
-import { Alert, Button, Empty, Input, Modal, Popconfirm, Select, Spin, Switch, Tag, Tooltip } from 'antd'
+import { Alert, Button, Empty, Input, Modal, Popconfirm, Select, Spin, Tag, Tooltip } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -320,7 +321,7 @@ const ChannelInstanceRow: FC<{
           <Button type="text" size="small" icon={<DeleteOutlined />} danger />
         </Tooltip>
       </Popconfirm>
-      <Switch checked={channel.isActive} size="small" onChange={onToggle} />
+      <Switch checked={channel.isActive} size="sm" onCheckedChange={onToggle} />
     </div>
   )
 }

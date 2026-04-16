@@ -1,5 +1,5 @@
-import { useAppDispatch } from '@renderer/store'
-import { setActiveAgentId, setActiveSessionIdAction } from '@renderer/store/runtime'
+import { cacheService } from '@renderer/data/CacheService'
+import { useCache } from '@renderer/data/hooks/useCache'
 import type { AddAgentForm, CreateAgentResponse, GetAgentResponse } from '@renderer/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { useCallback } from 'react'
@@ -7,7 +7,6 @@ import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
 
 import { useApiServer } from '../useApiServer'
-import { useRuntime } from '../useRuntime'
 import { useAgentClient } from './useAgentClient'
 
 type Result<T> =
@@ -23,11 +22,11 @@ type Result<T> =
 export const useAgents = () => {
   const { t } = useTranslation()
   const client = useAgentClient()
-  const key = client.agentPaths.base
+  const key = client?.agentPaths.base
   const { apiServerConfig, apiServerRunning } = useApiServer()
 
-  // Disable SWR fetching when server is not running by setting key to null
-  const swrKey = apiServerRunning ? key : null
+  // Disable SWR fetching when server auth is not ready
+  const swrKey = apiServerRunning && apiServerConfig.apiKey && key ? key : null
 
   const fetcher = useCallback(async () => {
     // API server will start on startup if enabled OR there are agents
@@ -37,19 +36,23 @@ export const useAgents = () => {
     if (!apiServerRunning) {
       throw new Error(t('agent.server.error.not_running'))
     }
+    if (!client) {
+      throw new Error(t('apiServer.messages.notEnabled'))
+    }
     const result = await client.listAgents({ sortBy: 'sort_order', orderBy: 'asc' })
     // NOTE: We only use the array for now. useUpdateAgent depends on this behavior.
     return result.data
   }, [apiServerConfig.enabled, apiServerRunning, client, t])
 
   const { data, error, isLoading, mutate } = useSWR(swrKey, fetcher)
-  const { chat } = useRuntime()
-  const { activeAgentId } = chat
-  const dispatch = useAppDispatch()
+  const [activeAgentId] = useCache('agent.active_id')
 
   const addAgent = useCallback(
     async (form: AddAgentForm): Promise<Result<CreateAgentResponse>> => {
       try {
+        if (!client) {
+          throw new Error(t('apiServer.messages.notEnabled'))
+        }
         const result = await client.createAgent(form)
         void mutate((prev) => [result, ...(prev ?? [])])
         window.toast.success(t('common.add_success'))
@@ -70,15 +73,15 @@ export const useAgents = () => {
   const deleteAgent = useCallback(
     async (id: string) => {
       try {
+        if (!client) {
+          throw new Error(t('apiServer.messages.notEnabled'))
+        }
         await client.deleteAgent(id)
-        dispatch(setActiveSessionIdAction({ agentId: id, sessionId: null }))
+        const currentMap = cacheService.get('agent.session.active_id_map') ?? {}
+        cacheService.set('agent.session.active_id_map', { ...currentMap, [id]: null })
         if (activeAgentId === id) {
           const newId = data?.filter((a) => a.id !== id).find(() => true)?.id
-          if (newId) {
-            dispatch(setActiveAgentId(newId))
-          } else {
-            dispatch(setActiveAgentId(null))
-          }
+          cacheService.set('agent.active_id', newId ?? null)
         }
         void mutate((prev) => prev?.filter((a) => a.id !== id) ?? [])
         window.toast.success(t('common.delete_success'))
@@ -86,11 +89,14 @@ export const useAgents = () => {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.delete.error.failed')))
       }
     },
-    [activeAgentId, client, data, dispatch, mutate, t]
+    [activeAgentId, client, data, mutate, t]
   )
 
   const getAgent = useCallback(
     async (id: string) => {
+      if (!client) {
+        return
+      }
       const result = await client.getAgent(id)
       void mutate((prev) => prev?.map((a) => (a.id === result.id ? result : a)) ?? [])
     },
@@ -103,6 +109,9 @@ export const useAgents = () => {
       // Optimistic update
       void mutate(reorderedList, false)
       try {
+        if (!client) {
+          throw new Error(t('apiServer.messages.notEnabled'))
+        }
         await client.reorderAgents(orderedIds)
       } catch (error) {
         void mutate()

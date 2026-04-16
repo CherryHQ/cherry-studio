@@ -46,4 +46,14 @@ export class NodeTracer {
   public static getTracer() {
     return this.defaultTracer
   }
+
+  /**
+   * Gracefully shut down the OpenTelemetry provider.
+   * Flushes pending spans and releases exporter resources.
+   */
+  static async shutdown() {
+    if (this.provider) {
+      await this.provider.shutdown()
+    }
+  }
 }

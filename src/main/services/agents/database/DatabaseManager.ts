@@ -56,26 +56,9 @@ enum InitState {
  * - Windows platform compatibility fixes
  */
 export class DatabaseManager {
-  private static instance: DatabaseManager | null = null
-
   private client: Client | null = null
   private db: LibSQLDatabase<typeof schema> | null = null
   private state: InitState = InitState.INITIALIZING
-
-  /**
-   * Get the singleton instance (database initialization starts automatically)
-   */
-  public static async getInstance(): Promise<DatabaseManager> {
-    if (DatabaseManager.instance) {
-      return DatabaseManager.instance
-    }
-
-    const instance = new DatabaseManager()
-    await instance.initialize()
-    DatabaseManager.instance = instance
-
-    return instance
-  }
 
   /**
    * Migrate agents.db from old path ({userData}/agents.db) to new path ({userData}/Data/agents.db).
@@ -216,23 +199,16 @@ export class DatabaseManager {
   }
 
   /**
-   * Close the database connection and reset the singleton.
+   * Close the database connection.
    * Must be called before deleting agents.db (e.g. during backup restore).
-   * After calling this, getInstance() will re-initialize a fresh connection.
    */
-  public static async close(): Promise<void> {
-    const instance = DatabaseManager.instance
-    if (!instance) {
-      return
-    }
-
-    // Detach singleton first so concurrent getInstance() creates a fresh connection
-    // instead of returning a stale instance with null client.
-    DatabaseManager.instance = null
-
-    if (instance.client) {
+  public async close(): Promise<void> {
+    if (this.client) {
       try {
-        instance.client.close()
+        this.client.close()
+        this.client = null
+        this.db = null
+        this.state = InitState.INITIALIZING
         logger.info('Database connection closed')
       } catch (error) {
         logger.warn('Failed to close database connection:', error as Error)
@@ -240,3 +216,5 @@ export class DatabaseManager {
     }
   }
 }
+
+export const databaseManager = new DatabaseManager()
