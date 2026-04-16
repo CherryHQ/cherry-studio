@@ -431,6 +431,12 @@ agentsRouter.post('/', validateAgent, handleValidationErrors, agentHandlers.crea
  */
 agentsRouter.get('/', validatePagination, handleValidationErrors, agentHandlers.listAgents)
 
+// Hide/show built-in agents — static routes must be before /:agentId
+agentsRouter.post('/restore-builtin', agentHandlers.handleRestoreBuiltinAgents)
+agentsRouter.post('/hide-builtin/:agentId', agentHandlers.handleHideBuiltinAgent)
+agentsRouter.post('/show-builtin/:agentId', agentHandlers.handleShowBuiltinAgent)
+agentsRouter.get('/hidden-builtin', agentHandlers.handleGetHiddenBuiltinAgents)
+
 /**
  * @swagger
  * /agents/{agentId}:
@@ -563,20 +569,6 @@ agentsRouter.patch('/:agentId', validateAgentId, validateAgentUpdate, handleVali
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 agentsRouter.delete('/:agentId', validateAgentId, handleValidationErrors, agentHandlers.deleteAgent)
-
-/**
- * @swagger
- * /agents/restore-builtin:
- *   post:
- *     summary: Restore dismissed built-in agents
- *     tags: [Agents]
- *     responses:
- *       200:
- *         description: Built-in agents restored successfully
- *       500:
- *         description: Internal server error
- */
-agentsRouter.post('/restore-builtin', agentHandlers.handleRestoreBuiltinAgents)
 
 // Create sessions router with agent context
 const createSessionsRouter = (): express.Router => {

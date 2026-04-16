@@ -1,6 +1,11 @@
 import { loggerService } from '@logger'
 import { AgentModelValidationError, agentService, sessionService } from '@main/services/agents'
-import { restoreBuiltinAgents } from '@main/services/agents/services/builtin/BuiltinAgentBootstrap'
+import {
+  getHiddenBuiltinAgents,
+  hideBuiltinAgent,
+  restoreBuiltinAgents,
+  showBuiltinAgent
+} from '@main/services/agents/services/builtin/BuiltinAgentBootstrap'
 import { channelManager } from '@main/services/agents/services/channels'
 import { schedulerService } from '@main/services/agents/services/SchedulerService'
 import type { CherryClawConfiguration, ListAgentsResponse } from '@types'
@@ -718,6 +723,61 @@ export const handleRestoreBuiltinAgents = async (_req: Request, res: Response): 
         message: 'Failed to restore builtin agents',
         type: 'internal_error',
         code: 'builtin_restore_failed'
+      }
+    })
+  }
+}
+
+/** Hide a built-in agent from the main agents list */
+export const handleHideBuiltinAgent = async (req: Request, res: Response): Promise<Response> => {
+  try {
+    const { agentId } = req.params
+    hideBuiltinAgent(agentId)
+    return res.json({ hiddenAgentId: agentId })
+  } catch (error: any) {
+    if (error.message?.startsWith('Not a builtin agent ID')) {
+      return res.status(400).json({
+        error: { message: error.message, type: 'invalid_request_error', code: 'not_builtin_agent' }
+      })
+    }
+    logger.error('Error hiding builtin agent', { error })
+    return res.status(500).json({
+      error: { message: 'Failed to hide builtin agent', type: 'internal_error', code: 'builtin_hide_failed' }
+    })
+  }
+}
+
+/** Show a hidden built-in agent back to the main agents list */
+export const handleShowBuiltinAgent = async (req: Request, res: Response): Promise<Response> => {
+  try {
+    const { agentId } = req.params
+    showBuiltinAgent(agentId)
+    return res.json({ shownAgentId: agentId })
+  } catch (error: any) {
+    if (error.message?.startsWith('Not a builtin agent ID')) {
+      return res.status(400).json({
+        error: { message: error.message, type: 'invalid_request_error', code: 'not_builtin_agent' }
+      })
+    }
+    logger.error('Error showing builtin agent', { error })
+    return res.status(500).json({
+      error: { message: 'Failed to show builtin agent', type: 'internal_error', code: 'builtin_show_failed' }
+    })
+  }
+}
+
+/** Get the list of hidden built-in agent IDs */
+export const handleGetHiddenBuiltinAgents = async (_req: Request, res: Response): Promise<Response> => {
+  try {
+    const hiddenAgentIds = getHiddenBuiltinAgents()
+    return res.json({ hiddenAgentIds })
+  } catch (error: any) {
+    logger.error('Error getting hidden builtin agents', { error })
+    return res.status(500).json({
+      error: {
+        message: 'Failed to get hidden builtin agents',
+        type: 'internal_error',
+        code: 'builtin_hidden_list_failed'
       }
     })
   }

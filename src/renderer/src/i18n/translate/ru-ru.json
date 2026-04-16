@@ -271,6 +271,9 @@
         "bypassPermissions": "Агенты CherryClaw по умолчанию работают в полностью автоматическом режиме. Все инструменты выполняются без запроса одобрения."
       }
     },
+    "default_section": {
+      "title": "[to be translated]:Default Agents"
+    },
     "delete": {
       "content": "Удаление этого агента приведёт к принудительному завершению и удалению всех сессий, связанных с ним. Вы уверены?",
       "error": {
@@ -317,6 +320,13 @@
       "placeholder": "Выберите путь к bash.exe",
       "success": "Git Bash успешно обнаружен!",
       "tooltip": "Для запуска агентов в Windows требуется Git Bash. Установите его с сайта git-scm.com, если он отсутствует."
+    },
+    "hide": {
+      "button": "[to be translated]:Hide",
+      "error": {
+        "failed": "[to be translated]:Failed to hide agent"
+      },
+      "success": "[to be translated]:Agent hidden successfully"
     },
     "input": {
       "placeholder": "Введите ваше сообщение здесь, отправьте с помощью {{key}} — @ выбрать путь, / выбрать команду",
@@ -575,6 +585,13 @@
           "title": "Предварительно одобренные инструменты"
         }
       }
+    },
+    "show": {
+      "button": "[to be translated]:Show",
+      "error": {
+        "failed": "[to be translated]:Failed to show agent"
+      },
+      "success": "[to be translated]:Agent shown successfully"
     },
     "sidebar_title": "Агенты",
     "todo": {

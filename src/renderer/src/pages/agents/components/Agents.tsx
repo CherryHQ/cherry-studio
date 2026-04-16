@@ -6,12 +6,11 @@ import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useApiServer } from '@renderer/hooks/useApiServer'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import type { AgentEntity } from '@renderer/types'
-import { Button, Tooltip } from 'antd'
-import { Undo2 } from 'lucide-react'
-import { memo, useCallback } from 'react'
+import { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import AgentItem from './AgentItem'
+import BuiltinAgentsSection from './BuiltinAgentsSection'
 
 interface AgentsProps {
   onSelectItem?: () => void
@@ -19,11 +18,31 @@ interface AgentsProps {
 
 const Agents = ({ onSelectItem }: AgentsProps) => {
   const { t } = useTranslation()
-  const { agents, deleteAgent, isLoading, error, reorderAgents, restoreBuiltinAgents } = useAgents()
+  const {
+    agents,
+    deleteAgent,
+    isLoading,
+    error,
+    reorderAgents,
+    hideAgent,
+    showAgent,
+    hiddenAgentIds,
+    isBuiltinAgentId
+  } = useAgents()
   const { apiServerRunning, startApiServer } = useApiServer()
   const { chat } = useRuntime()
   const { activeAgentId } = chat
   const { setActiveAgentId } = useActiveAgent()
+
+  // Filter agents: main list excludes hidden built-in agents
+  const visibleAgents = useMemo(() => {
+    return agents?.filter((a) => !hiddenAgentIds.includes(a.id)) ?? []
+  }, [agents, hiddenAgentIds])
+
+  // Hidden built-in agents for the collapsible section
+  const hiddenBuiltinAgents = useMemo(() => {
+    return agents?.filter((a) => hiddenAgentIds.includes(a.id)) ?? []
+  }, [agents, hiddenAgentIds])
 
   const handleAgentPress = useCallback(
     (agentId: string) => {
@@ -55,30 +74,35 @@ const Agents = ({ onSelectItem }: AgentsProps) => {
       <DraggableVirtualList
         className="agents-tab flex min-h-0 flex-1 flex-col"
         itemStyle={{ marginBottom: 8 }}
-        list={agents ?? []}
+        list={visibleAgents ?? []}
         estimateSize={() => 9 * 4}
         scrollerStyle={{ overflowX: 'hidden', padding: '12px 10px' }}
         onUpdate={reorderAgents}
-        itemKey={(index) => (agents ?? [])[index]?.id ?? index}
+        itemKey={(index) => (visibleAgents ?? [])[index]?.id ?? index}
         header={
           <div className="-mt-0.5 mb-1.5 flex items-center gap-1">
             <AddButton onClick={handleAddAgent}>{t('agent.sidebar_title')}</AddButton>
-            {agents && ['cherry-claw-default', 'cherry-assistant-default'].some((id) => !agents.some((a) => a.id === id)) && (
-              <Tooltip title={t('agent.restore.button')}>
-                <Button type="text" size="small" icon={<Undo2 size={14} />} onClick={() => void restoreBuiltinAgents()} />
-              </Tooltip>
-            )}
           </div>
         }>
         {(agent) => (
           <AgentItem
             agent={agent}
             isActive={agent.id === activeAgentId}
+            isBuiltin={isBuiltinAgentId(agent.id)}
+            onHide={(a) => hideAgent(a.id)}
             onDelete={() => deleteAgent(agent.id)}
             onPress={() => handleAgentPress(agent.id)}
           />
         )}
       </DraggableVirtualList>
+      {/* Collapsible section for hidden built-in agents */}
+      {hiddenAgentIds.length > 0 && (
+        <BuiltinAgentsSection
+          hiddenAgents={hiddenBuiltinAgents}
+          onShow={(agent) => showAgent(agent.id)}
+          isCollapsedDefault={true}
+        />
+      )}
     </div>
   )
 }

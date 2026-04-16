@@ -271,6 +271,9 @@
         "bypassPermissions": "Les agents CherryClaw fonctionnent en mode automatique complet par défaut. Tous les outils s'exécutent sans demander d'approbation."
       }
     },
+    "default_section": {
+      "title": "[to be translated]:Default Agents"
+    },
     "delete": {
       "content": "La suppression de cet Agent entraînera la terminaison forcée et la suppression de toutes les sessions associées. Êtes-vous certain ?",
       "error": {
@@ -317,6 +320,13 @@
       "placeholder": "Sélectionner le chemin de bash.exe",
       "success": "Git Bash détecté avec succès !",
       "tooltip": "Git Bash est nécessaire pour exécuter des agents sur Windows. Installez-le depuis git-scm.com s'il n'est pas disponible."
+    },
+    "hide": {
+      "button": "[to be translated]:Hide",
+      "error": {
+        "failed": "[to be translated]:Failed to hide agent"
+      },
+      "success": "[to be translated]:Agent hidden successfully"
     },
     "input": {
       "placeholder": "Entrez votre message ici, envoyez avec {{key}} - @ sélectionner le chemin, / sélectionner la commande",
@@ -575,6 +585,13 @@
           "title": "Outils pré-approuvés"
         }
       }
+    },
+    "show": {
+      "button": "[to be translated]:Show",
+      "error": {
+        "failed": "[to be translated]:Failed to show agent"
+      },
+      "success": "[to be translated]:Agent shown successfully"
     },
     "sidebar_title": "Agents",
     "todo": {

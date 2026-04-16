@@ -81,6 +81,35 @@ async function initCherryAssistant(): Promise<void> {
   }
 }
 
+// ── Hide/Show Built-in Agents ────────────────────────────────────────
+
+/** Get the list of hidden built-in agent IDs */
+export function getHiddenBuiltinAgents(): string[] {
+  return configManager.getDismissedBuiltinAgents()
+}
+
+/** Hide a built-in agent by adding its ID to the hidden list */
+export function hideBuiltinAgent(agentId: string): void {
+  if (!isBuiltinAgentId(agentId)) {
+    throw new Error(`Not a builtin agent ID: ${agentId}`)
+  }
+  const hidden = configManager.getDismissedBuiltinAgents()
+  if (!hidden.includes(agentId)) {
+    configManager.setDismissedBuiltinAgents([...hidden, agentId])
+  }
+  logger.info('Builtin agent hidden', { agentId })
+}
+
+/** Show a hidden built-in agent by removing its ID from the hidden list */
+export function showBuiltinAgent(agentId: string): void {
+  if (!isBuiltinAgentId(agentId)) {
+    throw new Error(`Not a builtin agent ID: ${agentId}`)
+  }
+  const hidden = configManager.getDismissedBuiltinAgents()
+  configManager.setDismissedBuiltinAgents(hidden.filter((id) => id !== agentId))
+  logger.info('Builtin agent shown', { agentId })
+}
+
 // ── Restore ─────────────────────────────────────────────────────────
 
 /**

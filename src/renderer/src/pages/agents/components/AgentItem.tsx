@@ -8,7 +8,7 @@ import type { AgentEntity } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import type { MenuProps } from 'antd'
 import { Dropdown, Tooltip } from 'antd'
-import { Bot, MoreVertical } from 'lucide-react'
+import { Bot, EyeOff, MoreVertical } from 'lucide-react'
 import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -17,11 +17,13 @@ import { useTranslation } from 'react-i18next'
 interface AgentItemProps {
   agent: AgentEntity
   isActive: boolean
+  isBuiltin?: boolean
+  onHide?: (agent: AgentEntity) => void
   onDelete: (agent: AgentEntity) => void
   onPress: () => void
 }
 
-const AgentItem = ({ agent, isActive, onDelete, onPress }: AgentItemProps) => {
+const AgentItem = ({ agent, isActive, isBuiltin = false, onHide, onDelete, onPress }: AgentItemProps) => {
   const { t } = useTranslation()
   const { clickAssistantToShowTopic, topicPosition, assistantIconType } = useSettings()
   const [isHovered, setIsHovered] = useState(false)
@@ -48,23 +50,32 @@ const AgentItem = ({ agent, isActive, onDelete, onPress }: AgentItemProps) => {
         icon: <EditIcon size={14} />,
         onClick: () => AgentSettingsPopup.show({ agentId: agent.id })
       },
-      {
-        label: t('common.delete'),
-        key: 'delete',
-        icon: <DeleteIcon size={14} className="lucide-custom" />,
-        danger: true,
-        onClick: () => {
-          window.modal.confirm({
-            title: t('agent.delete.title'),
-            content: t('agent.delete.content'),
-            centered: true,
-            okButtonProps: { danger: true },
-            onOk: () => onDelete(agent)
-          })
-        }
-      }
+      isBuiltin
+        ? {
+            label: t('agent.hide.button'),
+            key: 'hide',
+            icon: <EyeOff size={14} className="lucide-custom" />,
+            onClick: () => {
+              if (onHide) onHide(agent)
+            }
+          }
+        : {
+            label: t('common.delete'),
+            key: 'delete',
+            icon: <DeleteIcon size={14} className="lucide-custom" />,
+            danger: true,
+            onClick: () => {
+              window.modal.confirm({
+                title: t('agent.delete.title'),
+                content: t('agent.delete.content'),
+                centered: true,
+                okButtonProps: { danger: true },
+                onOk: () => onDelete(agent)
+              })
+            }
+          }
     ],
-    [t, agent, onDelete]
+    [t, agent, isBuiltin, onHide, onDelete]
   )
 
   return (

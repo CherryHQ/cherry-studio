@@ -271,6 +271,9 @@
         "bypassPermissions": "CherryClaw-Agenten laufen standardmäßig im Vollautomatikmodus. Alle Tools werden ohne Genehmigungsanfrage ausgeführt."
       }
     },
+    "default_section": {
+      "title": "[to be translated]:Default Agents"
+    },
     "delete": {
       "content": "Das Löschen dieses Agents wird alle Sitzungen unter diesem Agent zwangsweise beenden und löschen. Sind Sie sicher?",
       "error": {
@@ -317,6 +320,13 @@
       "placeholder": "Wählen Sie den Pfad zu bash.exe",
       "success": "Git Bash erfolgreich erkannt!",
       "tooltip": "Git Bash ist erforderlich, um Agenten unter Windows auszuführen. Installiere es von git-scm.com, falls es nicht verfügbar ist."
+    },
+    "hide": {
+      "button": "[to be translated]:Hide",
+      "error": {
+        "failed": "[to be translated]:Failed to hide agent"
+      },
+      "success": "[to be translated]:Agent hidden successfully"
     },
     "input": {
       "placeholder": "Gib hier deine Nachricht ein, senden mit {{key}} – @ Pfad auswählen, / Befehl auswählen",
@@ -575,6 +585,13 @@
           "title": "Vorab genehmigte Tools"
         }
       }
+    },
+    "show": {
+      "button": "[to be translated]:Show",
+      "error": {
+        "failed": "[to be translated]:Failed to show agent"
+      },
+      "success": "[to be translated]:Agent shown successfully"
     },
     "sidebar_title": "Agenten",
     "todo": {

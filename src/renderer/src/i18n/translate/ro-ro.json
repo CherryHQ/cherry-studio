@@ -271,6 +271,9 @@
         "bypassPermissions": "Agenții CherryClaw rulează în mod automat complet în mod implicit. Toate instrumentele se execută fără a solicita aprobare."
       }
     },
+    "default_section": {
+      "title": "[to be translated]:Default Agents"
+    },
     "delete": {
       "content": "Ștergerea agentului va opri forțat și va șterge toate sesiunile asociate cu agentul. Ești sigur?",
       "error": {
@@ -317,6 +320,13 @@
       "placeholder": "Selectează calea bash.exe",
       "success": "Git Bash a fost detectat cu succes!",
       "tooltip": "Git Bash este necesar pentru a rula agenți pe Windows. Instalează-l de pe git-scm.com dacă nu este disponibil."
+    },
+    "hide": {
+      "button": "[to be translated]:Hide",
+      "error": {
+        "failed": "[to be translated]:Failed to hide agent"
+      },
+      "success": "[to be translated]:Agent hidden successfully"
     },
     "input": {
       "placeholder": "Introdu mesajul aici, trimite cu {{key}} - @ selectează calea, / selectează comanda",
@@ -575,6 +585,13 @@
           "title": "Instrumente pre-aprobate"
         }
       }
+    },
+    "show": {
+      "button": "[to be translated]:Show",
+      "error": {
+        "failed": "[to be translated]:Failed to show agent"
+      },
+      "success": "[to be translated]:Agent shown successfully"
     },
     "sidebar_title": "Agenți",
     "todo": {

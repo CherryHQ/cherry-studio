@@ -2,13 +2,16 @@ import { useAppDispatch } from '@renderer/store'
 import { setActiveAgentId, setActiveSessionIdAction } from '@renderer/store/runtime'
 import type { AddAgentForm, CreateAgentResponse, GetAgentResponse } from '@renderer/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
 
 import { useApiServer } from '../useApiServer'
 import { useRuntime } from '../useRuntime'
 import { useAgentClient } from './useAgentClient'
+
+const BUILTIN_AGENT_IDS = ['cherry-claw-default', 'cherry-assistant-default'] as const
+const isBuiltinAgentId = (id: string): boolean => BUILTIN_AGENT_IDS.includes(id as (typeof BUILTIN_AGENT_IDS)[number])
 
 type Result<T> =
   | {
@@ -46,6 +49,26 @@ export const useAgents = () => {
   const { chat } = useRuntime()
   const { activeAgentId } = chat
   const dispatch = useAppDispatch()
+
+  // Hidden builtin agents state — fetched separately from agents list
+  const [hiddenAgentIds, setHiddenAgentIds] = useState<string[]>([])
+
+  // Fetch hidden agent IDs on mount and when server is running
+  const fetchHiddenIds = useCallback(async () => {
+    if (!apiServerRunning) return
+    try {
+      const ids = await client.getHiddenBuiltinAgents()
+      setHiddenAgentIds(ids)
+    } catch {
+      // Graceful fallback — treat as empty list
+      setHiddenAgentIds([])
+    }
+  }, [apiServerRunning, client])
+
+  // Fetch hidden IDs when SWR key becomes valid (server running)
+  if (apiServerRunning && hiddenAgentIds.length === 0 && !error) {
+    void fetchHiddenIds()
+  }
 
   const addAgent = useCallback(
     async (form: AddAgentForm): Promise<Result<CreateAgentResponse>> => {
@@ -116,11 +139,40 @@ export const useAgents = () => {
     try {
       await client.restoreBuiltinAgents()
       void mutate()
+      setHiddenAgentIds([])
       window.toast.success(t('agent.restore.success'))
     } catch (error) {
       window.toast.error(formatErrorMessageWithPrefix(error, t('agent.restore.error.failed')))
     }
   }, [client, mutate, t])
+
+  const hideAgent = useCallback(
+    async (id: string) => {
+      if (!isBuiltinAgentId(id)) return
+      try {
+        await client.hideBuiltinAgent(id)
+        setHiddenAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
+        window.toast.success(t('agent.hide.success'))
+      } catch (error) {
+        window.toast.error(formatErrorMessageWithPrefix(error, t('agent.hide.error.failed')))
+      }
+    },
+    [client, t]
+  )
+
+  const showAgent = useCallback(
+    async (id: string) => {
+      if (!isBuiltinAgentId(id)) return
+      try {
+        await client.showBuiltinAgent(id)
+        setHiddenAgentIds((prev) => prev.filter((hId) => hId !== id))
+        window.toast.success(t('agent.show.success'))
+      } catch (error) {
+        window.toast.error(formatErrorMessageWithPrefix(error, t('agent.show.error.failed')))
+      }
+    },
+    [client, t]
+  )
 
   return {
     agents: data,
@@ -130,6 +182,10 @@ export const useAgents = () => {
     deleteAgent,
     getAgent,
     reorderAgents,
-    restoreBuiltinAgents
+    restoreBuiltinAgents,
+    hideAgent,
+    showAgent,
+    hiddenAgentIds,
+    isBuiltinAgentId
   }
 }

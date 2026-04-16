@@ -200,6 +200,36 @@ export class AgentApiClient {
     }
   }
 
+  public async hideBuiltinAgent(id: string): Promise<string> {
+    const url = `${this.agentPaths.base}/hide-builtin/${id}`
+    try {
+      const response = await this.axios.post(url)
+      return response.data?.hiddenAgentId ?? id
+    } catch (error) {
+      throw processError(error, 'Failed to hide builtin agent.')
+    }
+  }
+
+  public async showBuiltinAgent(id: string): Promise<string> {
+    const url = `${this.agentPaths.base}/show-builtin/${id}`
+    try {
+      const response = await this.axios.post(url)
+      return response.data?.shownAgentId ?? id
+    } catch (error) {
+      throw processError(error, 'Failed to show builtin agent.')
+    }
+  }
+
+  public async getHiddenBuiltinAgents(): Promise<string[]> {
+    const url = `${this.agentPaths.base}/hidden-builtin`
+    try {
+      const response = await this.axios.get(url)
+      return response.data?.hiddenAgentIds ?? []
+    } catch (error) {
+      throw processError(error, 'Failed to get hidden builtin agents.')
+    }
+  }
+
   public async updateAgent(form: UpdateAgentForm): Promise<UpdateAgentResponse> {
     const url = this.agentPaths.withId(form.id)
     try {

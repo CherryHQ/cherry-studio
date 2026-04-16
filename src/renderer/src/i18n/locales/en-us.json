@@ -271,6 +271,9 @@
         "bypassPermissions": "CherryClaw agents run with Full Auto Mode by default. All tools execute without asking for approval."
       }
     },
+    "default_section": {
+      "title": "Default Agents"
+    },
     "delete": {
       "content": "Deleting the agent will forcibly stop and delete all sessions associated with the agent. Are you sure?",
       "error": {
@@ -317,6 +320,13 @@
       "placeholder": "Select bash.exe path",
       "success": "Git Bash detected successfully!",
       "tooltip": "Git Bash is required to run agents on Windows. Install from git-scm.com if not available."
+    },
+    "hide": {
+      "button": "Hide",
+      "error": {
+        "failed": "Failed to hide agent"
+      },
+      "success": "Agent hidden successfully"
     },
     "input": {
       "placeholder": "Enter your message here, send with {{key}} - @ select path, / select command",
@@ -575,6 +585,13 @@
           "title": "Pre-approved Tools"
         }
       }
+    },
+    "show": {
+      "button": "Show",
+      "error": {
+        "failed": "Failed to show agent"
+      },
+      "success": "Agent shown successfully"
     },
     "sidebar_title": "Agents",
     "todo": {

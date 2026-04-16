@@ -158,3 +158,59 @@ describe('dismissed builtin agents integration', () => {
     expect(mockSetDismissed).toHaveBeenCalledWith([])
   })
 })
+
+describe('hide/show builtin agents', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetDismissed.mockReturnValue([])
+  })
+
+  it('hideBuiltinAgent adds ID to dismissed list', async () => {
+    const { hideBuiltinAgent } = await import('../BuiltinAgentBootstrap')
+
+    hideBuiltinAgent('cherry-claw-default')
+
+    expect(mockSetDismissed).toHaveBeenCalledWith(['cherry-claw-default'])
+  })
+
+  it('hideBuiltinAgent does not duplicate IDs', async () => {
+    mockGetDismissed.mockReturnValue(['cherry-claw-default'])
+    const { hideBuiltinAgent } = await import('../BuiltinAgentBootstrap')
+
+    hideBuiltinAgent('cherry-claw-default')
+
+    // Should not call set if already in list (or should set same list)
+    expect(mockSetDismissed).not.toHaveBeenCalled()
+  })
+
+  it('hideBuiltinAgent throws for non-builtin IDs', async () => {
+    const { hideBuiltinAgent } = await import('../BuiltinAgentBootstrap')
+
+    expect(() => hideBuiltinAgent('custom-agent-123')).toThrow('Not a builtin agent ID: custom-agent-123')
+  })
+
+  it('showBuiltinAgent removes ID from dismissed list', async () => {
+    mockGetDismissed.mockReturnValue(['cherry-claw-default', 'cherry-assistant-default'])
+    const { showBuiltinAgent } = await import('../BuiltinAgentBootstrap')
+
+    showBuiltinAgent('cherry-claw-default')
+
+    expect(mockSetDismissed).toHaveBeenCalledWith(['cherry-assistant-default'])
+  })
+
+  it('showBuiltinAgent throws for non-builtin IDs', async () => {
+    const { showBuiltinAgent } = await import('../BuiltinAgentBootstrap')
+
+    expect(() => showBuiltinAgent('custom-agent-123')).toThrow('Not a builtin agent ID: custom-agent-123')
+  })
+
+  it('getHiddenBuiltinAgents returns dismissed list', async () => {
+    mockGetDismissed.mockReturnValue(['cherry-claw-default'])
+    const { getHiddenBuiltinAgents } = await import('../BuiltinAgentBootstrap')
+
+    const result = getHiddenBuiltinAgents()
+
+    expect(result).toEqual(['cherry-claw-default'])
+    expect(mockGetDismissed).toHaveBeenCalled()
+  })
+})

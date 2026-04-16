@@ -271,6 +271,9 @@
         "bypassPermissions": "CherryClaw Agent 默认以全自动模式运行。所有工具执行时不会请求批准。"
       }
     },
+    "default_section": {
+      "title": "默认智能体"
+    },
     "delete": {
       "content": "删除该 Agent 将强制终止并删除该 Agent 下的所有会话。您确定吗？",
       "error": {
@@ -317,6 +320,13 @@
       "placeholder": "选择 bash.exe 路径",
       "success": "成功检测到 Git Bash！",
       "tooltip": "在 Windows 上运行智能体需要 Git Bash。如果未安装，请从 git-scm.com 下载安装。"
+    },
+    "hide": {
+      "button": "隐藏",
+      "error": {
+        "failed": "隐藏智能体失败"
+      },
+      "success": "智能体已隐藏"
     },
     "input": {
       "placeholder": "在这里输入消息，按 {{key}} 发送 - @ 选择路径， / 选择命令",
@@ -575,6 +585,13 @@
           "title": "预授权工具"
         }
       }
+    },
+    "show": {
+      "button": "显示",
+      "error": {
+        "failed": "显示智能体失败"
+      },
+      "success": "智能体已显示"
     },
     "sidebar_title": "智能体",
     "todo": {
