@@ -1,9 +1,12 @@
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { messageService } from '@data/services/MessageService'
 import { BlockType, type MessageData } from '@shared/data/types/message'
+import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 function mainText(content: string): MessageData {
   return { blocks: [{ type: BlockType.MAIN_TEXT, content, createdAt: 0 }] }
@@ -11,6 +14,36 @@ function mainText(content: string): MessageData {
 
 describe('MessageService', () => {
   const dbh = setupTestDatabase()
+
+  beforeEach(async () => {
+    await dbh.db.insert(userProviderTable).values([
+      { providerId: 'provider-a', name: 'Provider A' },
+      { providerId: 'provider-b', name: 'Provider B' }
+    ])
+
+    await dbh.db.insert(userModelTable).values([
+      {
+        id: createUniqueModelId('provider-a', 'model-A'),
+        providerId: 'provider-a',
+        modelId: 'model-A',
+        presetModelId: 'model-A',
+        name: 'model-A',
+        isEnabled: true,
+        isHidden: false,
+        sortOrder: 0
+      },
+      {
+        id: createUniqueModelId('provider-b', 'model-B'),
+        providerId: 'provider-b',
+        modelId: 'model-B',
+        presetModelId: 'model-B',
+        name: 'model-B',
+        isEnabled: true,
+        isHidden: false,
+        sortOrder: 0
+      }
+    ])
+  })
 
   /**
    * Build a small message tree with a multi-model siblings group.
@@ -43,7 +76,7 @@ describe('MessageService', () => {
         data: mainText('reply A'),
         status: 'success',
         siblingsGroupId: 1,
-        modelId: 'model-A',
+        modelId: createUniqueModelId('provider-a', 'model-A'),
         createdAt: 200,
         updatedAt: 200
       },
@@ -55,7 +88,7 @@ describe('MessageService', () => {
         data: mainText('reply B'),
         status: 'success',
         siblingsGroupId: 1,
-        modelId: 'model-B',
+        modelId: createUniqueModelId('provider-b', 'model-B'),
         createdAt: 210,
         updatedAt: 210
       },
@@ -86,7 +119,7 @@ describe('MessageService', () => {
       const a2Item = result.items.find((i) => i.message.id === 'm-a2')!
       expect(a2Item.message.parentId).toBe('m-root')
       expect(a2Item.message.siblingsGroupId).toBe(1)
-      expect(a2Item.message.modelId).toBe('model-B')
+      expect(a2Item.message.modelId).toBe(createUniqueModelId('provider-b', 'model-B'))
 
       // Sibling (a1) should be surfaced via the siblings batch query
       expect(a2Item.siblingsGroup).toBeDefined()
@@ -141,7 +174,7 @@ describe('MessageService', () => {
       expect(path[0].parentId).toBeNull()
       expect(path[1].parentId).toBe('m-root')
       expect(path[1].siblingsGroupId).toBe(1)
-      expect(path[1].modelId).toBe('model-B')
+      expect(path[1].modelId).toBe(createUniqueModelId('provider-b', 'model-B'))
       expect(path[2].parentId).toBe('m-a2')
     })
   })

@@ -6,6 +6,7 @@ import { BaseService, Emitter, type Event, Injectable, Phase, Priority, ServiceP
 import type { WindowType } from '@main/core/window/types'
 import {
   type ManagedWindow,
+  type OpenWindowArgs,
   type PoolConfig,
   type PoolState,
   VALID_WINDOW_TYPES,
@@ -109,11 +110,7 @@ export class WindowManager extends BaseService {
       if (!VALID_WINDOW_TYPES.has(type)) {
         throw new Error(`Invalid window type: ${type}`)
       }
-      const windowId = this.open(type as WindowType)
-      if (initData !== undefined) {
-        this.setInitData(windowId, initData)
-      }
-      return windowId
+      return this.open(type as WindowType, initData !== undefined ? { initData } : undefined)
     })
 
     this.ipcHandle(IpcChannel.WindowManager_GetInitData, (event) => {
@@ -181,20 +178,37 @@ export class WindowManager extends BaseService {
   /**
    * Open a window (lifecycle-aware).
    * - Singleton: shows and focuses existing, creates if not found
-   * - Pooled: takes from pool or creates new; recycled windows get a reset IPC
+   * - Pooled: takes from pool or creates new; recycled windows get a Reused IPC
    * - Default: always creates a new window
+   *
+   * When `args.initData` is provided:
+   * - The data is synchronously written into the init-data store before this
+   *   method returns, so `getInitData(windowId)` always sees the fresh value.
+   * - For **reuse** paths (singleton reopen / pool recycle), the data is ALSO
+   *   pushed to the renderer via `IpcChannel.WindowManager_Reused` as the event
+   *   payload. Fresh-window paths do not fire the event (renderer is not yet
+   *   ready to listen).
+   *
    * @param type - Window type to open
-   * @param options - Optional configuration overrides
+   * @param args - Optional `{ initData, options }` — both fields optional
    * @returns Window ID (UUID)
    */
-  public open(type: WindowType, options?: Partial<WindowOptions>): string {
+  public open<T = unknown>(type: WindowType, args?: OpenWindowArgs<T>): string {
     const metadata = getWindowTypeMetadata(type)
 
     if (metadata.lifecycle === 'singleton') {
       const existing = this.findWindowByType(type)
       if (existing) {
-        existing.window.show()
-        existing.window.focus()
+        // Singleton reuse: push initData to renderer BEFORE show/focus, so the
+        // UI updates in the same frame the window is re-activated.
+        this.applyReusedInitData(existing, args?.initData)
+
+        // Respect show: false — consumer manages visibility itself.
+        // Only show/focus when show is 'auto' (default) or true.
+        if (metadata.show !== false) {
+          existing.window.show()
+          existing.window.focus()
+        }
         return existing.id
       }
     }
@@ -202,24 +216,29 @@ export class WindowManager extends BaseService {
     if (metadata.lifecycle === 'pooled') {
       const state = this.pools.get(type)
       if (state?.suspended) {
-        return this.createWindow(type, options)
+        return this.createWindow(type, args)
       }
-      return this.openPooled(type, metadata.poolConfig, options)
+      return this.openPooled(type, metadata.poolConfig, args)
     }
 
-    return this.createWindow(type, options)
+    return this.createWindow(type, args)
   }
 
   /**
    * Force create a new window.
    * - Singleton windows: throws error if already exists
    * - Other types: always creates a new window
+   *
+   * Because `create()` never reuses an existing window, it never fires a
+   * `WindowManager_Reused` event — only `setInitData` is called so the renderer
+   * can read the payload via cold-start `getInitData` once it mounts.
+   *
    * @param type - Window type to create
-   * @param options - Optional configuration overrides
+   * @param args - Optional `{ initData, options }` — both fields optional
    * @returns Window ID (UUID)
    * @throws Error if singleton window already exists
    */
-  public create(type: WindowType, options?: Partial<WindowOptions>): string {
+  public create<T = unknown>(type: WindowType, args?: OpenWindowArgs<T>): string {
     const metadata = getWindowTypeMetadata(type)
 
     if (metadata.lifecycle === 'singleton') {
@@ -229,7 +248,7 @@ export class WindowManager extends BaseService {
       }
     }
 
-    const windowId = this.createWindow(type, options)
+    const windowId = this.createWindow(type, args)
 
     if (metadata.lifecycle === 'pooled') {
       const state = this.getOrCreatePoolState(type)
@@ -246,6 +265,22 @@ export class WindowManager extends BaseService {
     }
 
     return windowId
+  }
+
+  /**
+   * Apply init data to a window that is being re-used (singleton reopen or
+   * pool recycle). Writes to the init-data store and pushes the same payload
+   * to the renderer via `WindowManager_Reused` so the renderer can update
+   * in-place without a round-trip.
+   *
+   * No-op when `data === undefined` — never fire empty Reused events.
+   */
+  private applyReusedInitData(managed: ManagedWindow, data: unknown): void {
+    if (data === undefined) return
+    this.setInitData(managed.id, data)
+    if (!managed.window.isDestroyed()) {
+      managed.window.webContents.send(IpcChannel.WindowManager_Reused, data)
+    }
   }
 
   /**
@@ -514,9 +549,13 @@ export class WindowManager extends BaseService {
 
   /**
    * Open a pooled window: recycle from idle pool or create fresh.
-   * Recycled windows receive WINDOW_POOL_RESET IPC and a synthetic ready-to-show event.
+   *
+   * Recycled windows:
+   * - Receive `WindowManager_Reused` IPC **only when** `args.initData` is
+   *   provided — the event payload is that initData. No data → no event.
+   * - Are shown/focused immediately based on metadata `show` behavior.
    */
-  private openPooled(type: WindowType, poolConfig: PoolConfig, options?: Partial<WindowOptions>): string {
+  private openPooled<T>(type: WindowType, poolConfig: PoolConfig, args?: OpenWindowArgs<T>): string {
     const state = this.getOrCreatePoolState(type)
 
     // Try to find a healthy idle window
@@ -534,10 +573,11 @@ export class WindowManager extends BaseService {
       }
 
       // Reset native geometry state to match fresh-creation config
-      this.resetPooledWindowGeometry(candidate.window, type, options)
+      this.resetPooledWindowGeometry(candidate.window, type, args?.options)
 
-      // Notify renderer to reset state
-      candidate.window.webContents.send(IpcChannel.WindowManager_PoolReset)
+      // Push initData into the store and send it in the Reused event payload.
+      // No-op when initData is undefined — we never fire empty Reused events.
+      this.applyReusedInitData(candidate, args?.initData)
 
       // Show recycled window based on metadata
       const showBehavior = getWindowTypeMetadata(type).show ?? 'auto'
@@ -545,15 +585,6 @@ export class WindowManager extends BaseService {
         candidate.window.show()
         candidate.window.focus()
       }
-
-      // Synthetic ready-to-show for recycled windows.
-      // Uses setImmediate (libuv CHECK phase) to guarantee the caller's
-      // .once('ready-to-show', cb) is attached before the event fires.
-      setImmediate(() => {
-        if (!candidate.window.isDestroyed()) {
-          candidate.window.emit('ready-to-show', { recycled: true })
-        }
-      })
 
       state.lastOpenAt = Date.now()
       logger.debug('Window recycled from pool', {
@@ -566,7 +597,7 @@ export class WindowManager extends BaseService {
     }
 
     // Fresh path: create new window and track in pool
-    const windowId = this.createWindow(type, options)
+    const windowId = this.createWindow(type, args)
     state.managed.add(windowId)
     state.lastOpenAt = Date.now()
 
@@ -642,16 +673,13 @@ export class WindowManager extends BaseService {
       return
     }
 
-    if (!managed.window.isDestroyed()) {
-      managed.window.hide()
-    }
-
-    // Clear session-scoped init data
-    this.initDataStore.delete(windowId)
-
-    // Excess capacity: destroy immediately instead of pooling
+    // Excess capacity: destroy immediately instead of pooling.
     if (state.managed.size > poolConfig.maxSize) {
+      if (!managed.window.isDestroyed()) {
+        managed.window.hide()
+      }
       this.destroyWindow(managed.window)
+      this.initDataStore.delete(windowId)
       logger.debug('Pool over maxSize - window destroyed on release', {
         windowId,
         type,
@@ -661,6 +689,13 @@ export class WindowManager extends BaseService {
       this.updateDockVisibility()
       return
     }
+
+    if (!managed.window.isDestroyed()) {
+      managed.window.hide()
+    }
+
+    // Clear session-scoped init data (after subscribers have had a chance to read it)
+    this.initDataStore.delete(windowId)
 
     state.idle.push(windowId)
     logger.debug('Window released to pool', {
@@ -807,14 +842,14 @@ export class WindowManager extends BaseService {
    * 5. loadWindowContent() — load HTML (ready-to-show may fire after this)
    *
    * @param type - Window type to create
-   * @param options - Optional configuration overrides
+   * @param args - Optional `{ initData, options }`; initData is stored synchronously before returning
    * @param suppressAutoShow - When true, skip auto-show handler (used for pool idle windows)
    * @returns Window ID (UUID)
    */
-  private createWindow(type: WindowType, options?: Partial<WindowOptions>, suppressAutoShow = false): string {
+  private createWindow<T>(type: WindowType, args?: OpenWindowArgs<T>, suppressAutoShow = false): string {
     const metadata = getWindowTypeMetadata(type)
     const windowId = uuidv4()
-    const config = mergeWindowConfig(type, options)
+    const config = mergeWindowConfig(type, args?.options)
     const showBehavior = metadata.show ?? 'auto'
 
     // Resolve preload path
@@ -857,12 +892,12 @@ export class WindowManager extends BaseService {
     // 2. Setup event listeners
     this.setupWindowListeners(windowId, window)
 
-    // Auto-show on ready-to-show (suppressed for pool idle windows)
+    // Auto-show on ready-to-show (suppressed for pool idle windows).
+    // Windows with show: false opt out entirely — their owner drives visibility
+    // on its own schedule (see e.g. SelectionService.processAction).
     if (showBehavior === 'auto' && !suppressAutoShow) {
       window.once('ready-to-show', () => {
-        if (!window.isDestroyed()) {
-          window.show()
-        }
+        if (!window.isDestroyed()) window.show()
       })
     }
 
@@ -884,7 +919,20 @@ export class WindowManager extends BaseService {
     // 4. Fire event — domain services inject behavior HERE (before content loads)
     this._onWindowCreated.fire(managedWindow)
 
-    // 5. Load content (skip if htmlPath is empty — domain service handles loading)
+    // 4a. Apply declarative platform quirks (method-slot monkey-patches).
+    // Runs AFTER onWindowCreated so domain-service listeners attach first; the quirk
+    // wrappers then transparently apply around any subsequent hide()/show()/close().
+    this.applyQuirks(managedWindow)
+
+    // 5. Store initData synchronously — renderer's cold-start `getInitData`
+    //    invoke (fired after mount) is guaranteed to see the fresh value.
+    //    Never fire WindowManager_Reused for fresh windows: the renderer is
+    //    not yet ready to listen. Fresh windows must PULL via getInitData.
+    if (args?.initData !== undefined) {
+      this.setInitData(windowId, args.initData)
+    }
+
+    // 6. Load content (skip if htmlPath is empty — domain service handles loading)
     if (metadata.htmlPath) {
       this.loadWindowContent(windowId, window, metadata.htmlPath)
     }
@@ -994,6 +1042,94 @@ export class WindowManager extends BaseService {
         logger.error('Failed to load window content', { windowId, filePath, error: String(err) })
       })
     }
+  }
+
+  // ─── Platform quirks ──────────────────────────────────────────
+
+  /**
+   * Apply declarative OS quirks to a freshly-created window by monkey-patching
+   * the native instance methods. Consumers continue calling `window.hide()` /
+   * `window.show()` as usual; the wrappers transparently run the pre/post hooks.
+   *
+   * The native method is captured via `.bind(w)` so inner Electron C++ bindings
+   * still see the correct `this`; other properties (`webContents`, EventEmitter
+   * `.on/.once`, etc.) remain untouched.
+   */
+  private applyQuirks(managed: ManagedWindow): void {
+    const q = managed.metadata.quirks
+    if (!q) return
+    const w = managed.window
+
+    // [macOS] Exit-path methods (hide/close): preserve HEAD's ordering —
+    //   focus-down (begin guard) → native hide/close → sendInputEvent → 50ms restore (end guard)
+    if (isMac && (q.macRestoreFocusOnHide || q.macClearHoverOnHide)) {
+      const originalHide = w.hide.bind(w)
+      const originalClose = w.close.bind(w)
+
+      w.hide = () => {
+        const guard = q.macRestoreFocusOnHide ? this.beginMacFocusGuard() : null
+        originalHide()
+        if (q.macClearHoverOnHide && !w.isDestroyed()) {
+          // [macOS] hacky way — because the window may not be a FOCUSED window,
+          // the hover status remains on next show. Send a synthetic mouseMove
+          // at (-1, -1) to force the hover state off.
+          w.webContents.sendInputEvent({ type: 'mouseMove', x: -1, y: -1 })
+        }
+        if (guard) this.endMacFocusGuard(guard)
+      }
+
+      // close only wraps the focus dance; hover clearing would be meaningless
+      // because webContents is about to be destroyed.
+      if (q.macRestoreFocusOnHide) {
+        w.close = () => {
+          const guard = this.beginMacFocusGuard()
+          originalClose()
+          this.endMacFocusGuard(guard)
+        }
+      }
+    }
+
+    // [macOS] Show-path methods (show/showInactive): post-hook re-applies alwaysOnTop level.
+    if (isMac && q.macReapplyAlwaysOnTop) {
+      const level = q.macReapplyAlwaysOnTop === true ? 'floating' : q.macReapplyAlwaysOnTop
+      const originalShow = w.show.bind(w)
+      const originalShowInactive = w.showInactive.bind(w)
+      w.show = () => {
+        originalShow()
+        if (!w.isDestroyed()) w.setAlwaysOnTop(true, level)
+      }
+      w.showInactive = () => {
+        originalShowInactive()
+        if (!w.isDestroyed()) w.setAlwaysOnTop(true, level)
+      }
+    }
+  }
+
+  // [macOS] a HACKY way
+  // make sure other windows do not bring to front when the window is hidden
+  // get all focusable windows and set them to not focusable
+  private beginMacFocusGuard(): BrowserWindow[] {
+    const focusableWindows: BrowserWindow[] = []
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (!window.isDestroyed() && window.isVisible()) {
+        if (window.isFocusable()) {
+          focusableWindows.push(window)
+          window.setFocusable(false)
+        }
+      }
+    }
+    return focusableWindows
+  }
+
+  // set them back to focusable after 50ms
+  private endMacFocusGuard(focusableWindows: BrowserWindow[]): void {
+    setTimeout(() => {
+      for (const window of focusableWindows) {
+        if (!window.isDestroyed()) {
+          window.setFocusable(true)
+        }
+      }
+    }, 50)
   }
 
   // ─── macOS Dock visibility ────────────────────────────────────

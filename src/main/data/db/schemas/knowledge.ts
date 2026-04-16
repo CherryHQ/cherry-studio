@@ -8,6 +8,7 @@ import { sql } from 'drizzle-orm'
 import { check, foreignKey, index, integer, real, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, uuidPrimaryKey, uuidPrimaryKeyOrdered } from './_columnHelpers'
+import { userModelTable } from './userModel'
 
 /**
  * knowledge_base table - Knowledge base metadata
@@ -20,11 +21,11 @@ export const knowledgeBaseTable = sqliteTable(
     description: text(),
     dimensions: integer().notNull(),
 
-    // Embedding model configuration
-    embeddingModelId: text().notNull(),
+    // Embedding model: FK to user_model(id) — UniqueModelId "providerId::modelId"
+    embeddingModelId: text().references(() => userModelTable.id, { onDelete: 'set null' }),
 
-    // Rerank model configuration
-    rerankModelId: text(),
+    // Rerank model: FK to user_model(id) — UniqueModelId "providerId::modelId"
+    rerankModelId: text().references(() => userModelTable.id, { onDelete: 'set null' }),
 
     // File processing processor ID
     fileProcessorId: text(),

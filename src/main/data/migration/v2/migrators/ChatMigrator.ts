@@ -53,6 +53,7 @@
 
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
+import { userModelTable } from '@data/db/schemas/userModel'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import { eq, sql } from 'drizzle-orm'
@@ -74,6 +75,7 @@ import {
   transformMessage,
   transformTopic
 } from './mappings/ChatMappings'
+import { resolveModelReference } from './transformers/ModelTransformers'
 
 const logger = loggerService.withContext('ChatMigrator')
 
@@ -124,6 +126,8 @@ export class ChatMigrator extends BaseMigrator {
   private orphanedAssistantTopics = 0
   // Valid assistant IDs from AssistantMigrator (for FK validation)
   private validAssistantIds: Set<string> | null = null
+  // Valid model IDs from ProviderModelMigrator/SQLite for FK validation
+  private validModelIds: Set<string> | null = null
   // Track seen message IDs to handle duplicates across topics
   private seenMessageIds = new Set<string>()
   // Block statistics for diagnostics
@@ -145,6 +149,7 @@ export class ChatMigrator extends BaseMigrator {
     this.blockStats = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
     this.promotedToRootCount = 0
     this.validAssistantIds = null
+    this.validModelIds = null
   }
 
   /**
@@ -157,6 +162,28 @@ export class ChatMigrator extends BaseMigrator {
    * 4. Count topics and estimate message count
    * 5. Validate sample data for integrity
    */
+
+  private sanitizeMessageModelReferences(messages: NewMessage[]): number {
+    let droppedModelRefs = 0
+
+    for (const message of messages) {
+      const resolution = resolveModelReference(message.modelId ?? null, this.validModelIds)
+      if (resolution.kind === 'resolved') {
+        message.modelId = resolution.modelId
+        continue
+      }
+
+      if (resolution.kind === 'dangling') {
+        droppedModelRefs += 1
+        logger.warn(`Dropping dangling message model ref: message=${message.id}, model=${resolution.modelId}`)
+      }
+
+      message.modelId = null
+    }
+
+    return droppedModelRefs
+  }
+
   async prepare(ctx: MigrationContext): Promise<PrepareResult> {
     const warnings: string[] = []
 
@@ -291,6 +318,9 @@ export class ChatMigrator extends BaseMigrator {
       if (!this.validAssistantIds) {
         throw new Error('validAssistantIds not set in sharedData. AssistantMigrator must run before ChatMigrator.')
       }
+      this.validModelIds = ctx.db?.select
+        ? new Set((await ctx.db.select({ id: userModelTable.id }).from(userModelTable)).map((row) => row.id))
+        : null
 
       // Process topics in batches
       await topicReader.readInBatches<OldTopic>(TOPIC_BATCH_SIZE, async (topics, batchIndex) => {
@@ -341,6 +371,11 @@ export class ChatMigrator extends BaseMigrator {
                 msg.parentId = idRemapping.get(msg.parentId)!
               }
             }
+          }
+
+          const droppedMessageModelRefs = this.sanitizeMessageModelReferences(allMessages)
+          if (droppedMessageModelRefs > 0) {
+            logger.info(`Filtered ${droppedMessageModelRefs} dangling message model references`)
           }
 
           // @libsql/client creates new DB connections after each transaction()
