@@ -3,16 +3,8 @@ import { IpcChannel } from '@shared/IpcChannel'
 import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 
+import type { AiStreamManager } from './AiStreamManager'
 import type { CherryUIMessage, StreamTarget } from './types'
-
-// Minimal interface to avoid circular import with AiStreamManager.
-interface ManagerCallbacks {
-  onChunk(topicId: string, modelId: UniqueModelId, chunk: UIMessageChunk): void
-  onExecutionDone(topicId: string, modelId: UniqueModelId, status?: 'success' | 'paused'): Promise<void>
-  onExecutionError(topicId: string, modelId: UniqueModelId, error: SerializedError): Promise<void>
-  shouldStopExecution(topicId: string, modelId: UniqueModelId): boolean
-  setExecutionFinalMessage(topicId: string, modelId: UniqueModelId, message: CherryUIMessage): void
-}
 
 /**
  * StreamTarget adapter that routes executeStream output back to AiStreamManager.
@@ -26,7 +18,7 @@ interface ManagerCallbacks {
  */
 export class InternalStreamTarget implements StreamTarget {
   constructor(
-    private readonly manager: ManagerCallbacks,
+    private readonly manager: AiStreamManager,
     private readonly topicId: string,
     private readonly modelId: UniqueModelId
   ) {}
