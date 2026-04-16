@@ -69,6 +69,7 @@ export type Assistant = {
   knowledgeRecognition?: 'off' | 'on'
   regularPhrases?: QuickPhrase[] // Added for regular phrase
   tags?: string[] // 助手标签
+  enableMemory?: boolean
   // for translate. 更好的做法是定义base assistant，把 Assistant 作为多种不同定义 assistant 的联合类型，但重构代价太大
   content?: string
   targetLanguage?: TranslateLanguage
@@ -340,17 +341,16 @@ export type Suggestion = {
   content: string
 }
 
-export type PaintingParams = {
+/** Common fields shared by all painting runtime sub-types */
+interface PaintingCanvasBase {
   id: string
-  urls: string[]
   files: FileMetadata[]
-  // provider that this painting belongs to (for new-api family separation)
   providerId?: string
 }
 
 export type PaintingProvider = 'zhipu' | 'aihubmix' | 'silicon' | 'dmxapi' | 'new-api' | 'ovms' | 'cherryin' | 'ppio'
 
-export interface Painting extends PaintingParams {
+export interface SiliconPainting extends PaintingCanvasBase {
   model?: string
   prompt?: string
   negativePrompt?: string
@@ -362,7 +362,7 @@ export interface Painting extends PaintingParams {
   promptEnhancement?: boolean
 }
 
-export interface GeneratePainting extends PaintingParams {
+export interface GeneratePainting extends PaintingCanvasBase {
   model: string
   prompt: string
   aspectRatio?: string
@@ -385,7 +385,7 @@ export interface GeneratePainting extends PaintingParams {
   imageSize?: string
 }
 
-export interface EditPainting extends PaintingParams {
+export interface EditPainting extends PaintingCanvasBase {
   imageFile: string
   mask: FileMetadata
   model: string
@@ -397,7 +397,7 @@ export interface EditPainting extends PaintingParams {
   renderingSpeed?: string
 }
 
-export interface RemixPainting extends PaintingParams {
+export interface RemixPainting extends PaintingCanvasBase {
   imageFile: string
   model: string
   prompt: string
@@ -411,7 +411,7 @@ export interface RemixPainting extends PaintingParams {
   renderingSpeed?: string
 }
 
-export interface ScalePainting extends PaintingParams {
+export interface ScalePainting extends PaintingCanvasBase {
   imageFile: string
   prompt: string
   resemblance?: number
@@ -428,7 +428,7 @@ export enum generationModeType {
   MERGE = 'merge'
 }
 
-export interface DmxapiPainting extends PaintingParams {
+export interface DmxapiPainting extends PaintingCanvasBase {
   model?: string
   prompt?: string
   n?: number
@@ -442,7 +442,7 @@ export interface DmxapiPainting extends PaintingParams {
   extend_params?: Record<string, unknown>
 }
 
-export interface TokenFluxPainting extends PaintingParams {
+export interface TokenFluxPainting extends PaintingCanvasBase {
   generationId?: string
   model?: string
   prompt?: string
@@ -450,7 +450,7 @@ export interface TokenFluxPainting extends PaintingParams {
   status?: 'starting' | 'processing' | 'succeeded' | 'failed' | 'cancelled'
 }
 
-export interface OvmsPainting extends PaintingParams {
+export interface OvmsPainting extends PaintingCanvasBase {
   model?: string
   prompt?: string
   size?: string
@@ -460,26 +460,27 @@ export interface OvmsPainting extends PaintingParams {
   response_format?: 'url' | 'b64_json'
 }
 
-export interface PpioPainting extends PaintingParams {
+export interface PpioPainting extends PaintingCanvasBase {
   model?: string
   prompt?: string
   size?: string
   width?: number
   height?: number
-  ppioSeed?: number // 使用 ppioSeed 避免与其他 Painting 类型的 seed (string) 冲突
+  ppioSeed?: number
   usePreLlm?: boolean
   addWatermark?: boolean
   taskId?: string
   ppioStatus?: 'pending' | 'processing' | 'succeeded' | 'failed'
-  // Edit 模式相关
-  imageFile?: string // 输入图像 URL 或 base64
-  ppioMask?: string // 遮罩图像 URL 或 base64（用于擦除功能）
-  resolution?: string // 高清化分辨率
-  outputFormat?: string // 输出格式
+  imageFile?: string
+  ppioMask?: string
+  resolution?: string
+  outputFormat?: string
 }
 
-export type PaintingAction = Partial<
-  GeneratePainting &
+/** Merged runtime painting type — hydrated from Painting record, consumed by renderer */
+export type PaintingCanvas = Partial<
+  SiliconPainting &
+    GeneratePainting &
     RemixPainting &
     EditPainting &
     ScalePainting &
@@ -488,25 +489,25 @@ export type PaintingAction = Partial<
     OvmsPainting &
     PpioPainting
 > &
-  PaintingParams
+  PaintingCanvasBase
 
 export interface PaintingsState {
   // SiliconFlow
-  siliconflow_paintings: Painting[]
+  siliconflow_paintings: SiliconPainting[]
   // DMXAPI
   dmxapi_paintings: DmxapiPainting[]
   // TokenFlux
   tokenflux_paintings: TokenFluxPainting[]
   // Zhipu
-  zhipu_paintings: Painting[]
+  zhipu_paintings: SiliconPainting[]
   // Aihubmix
-  aihubmix_image_generate: Partial<GeneratePainting> & PaintingParams[]
-  aihubmix_image_remix: Partial<RemixPainting> & PaintingParams[]
-  aihubmix_image_edit: Partial<EditPainting> & PaintingParams[]
-  aihubmix_image_upscale: Partial<ScalePainting> & PaintingParams[]
+  aihubmix_image_generate: Partial<GeneratePainting> & PaintingCanvasBase[]
+  aihubmix_image_remix: Partial<RemixPainting> & PaintingCanvasBase[]
+  aihubmix_image_edit: Partial<EditPainting> & PaintingCanvasBase[]
+  aihubmix_image_upscale: Partial<ScalePainting> & PaintingCanvasBase[]
   // OpenAI
-  openai_image_generate: Partial<GeneratePainting> & PaintingParams[]
-  openai_image_edit: Partial<EditPainting> & PaintingParams[]
+  openai_image_generate: Partial<GeneratePainting> & PaintingCanvasBase[]
+  openai_image_edit: Partial<EditPainting> & PaintingCanvasBase[]
   // OVMS
   ovms_paintings: OvmsPainting[]
   // PPIO

@@ -1,10 +1,10 @@
 {
   "metadata": {
     "version": "2.0.0",
-    "lastUpdated": "2026-04-07T11:48:08.913Z",
-    "totalItems": 407,
-    "classified": 300,
-    "pending": 101,
+    "lastUpdated": "2026-03-23T08:30:00.000Z",
+    "totalItems": 406,
+    "classified": 278,
+    "pending": 122,
     "deleted": 0
   },
   "classifications": {
@@ -394,7 +394,7 @@
               "category": "preferences",
               "defaultValue": 1536,
               "originalKey": "embedderDimensions",
-              "status": "pending",
+              "status": "classified",
               "targetKey": "feature.memory.embedder_dimensions",
               "type": "number"
             },
@@ -402,7 +402,7 @@
               "category": "preferences",
               "defaultValue": true,
               "originalKey": "isAutoDimensions",
-              "status": "pending",
+              "status": "classified",
               "targetKey": "feature.memory.auto_dimensions",
               "type": "boolean"
             },
@@ -410,7 +410,7 @@
               "category": "preferences",
               "defaultValue": "VALUE: MEMORY_FACT_EXTRACTION_PROMPT",
               "originalKey": "customFactExtractionPrompt",
-              "status": "pending",
+              "status": "classified",
               "targetKey": "feature.memory.fact_extraction_prompt",
               "type": "string"
             },
@@ -418,7 +418,7 @@
               "category": "preferences",
               "defaultValue": "VALUE: MEMORY_UPDATE_SYSTEM_PROMPT",
               "originalKey": "customUpdateMemoryPrompt",
-              "status": "pending",
+              "status": "classified",
               "targetKey": "feature.memory.update_memory_prompt",
               "type": "string"
             }
@@ -428,7 +428,7 @@
           "originalKey": "currentUserId",
           "type": "string",
           "defaultValue": "default-user",
-          "status": "pending",
+          "status": "classified",
           "category": "preferences",
           "targetKey": "feature.memory.current_user_id"
         },
@@ -436,7 +436,7 @@
           "originalKey": "globalMemoryEnabled",
           "type": "boolean",
           "defaultValue": false,
-          "status": "pending",
+          "status": "classified",
           "category": "preferences",
           "targetKey": "feature.memory.enabled"
         }
@@ -525,96 +525,104 @@
           "originalKey": "siliconflow_paintings",
           "type": "array",
           "defaultValue": [],
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "user_data",
           "targetKey": null
         },
         {
           "originalKey": "dmxapi_paintings",
           "type": "array",
           "defaultValue": [],
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "user_data",
           "targetKey": null
         },
         {
           "originalKey": "tokenflux_paintings",
           "type": "array",
           "defaultValue": [],
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "user_data",
           "targetKey": null
         },
         {
           "originalKey": "zhipu_paintings",
           "type": "array",
           "defaultValue": [],
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "user_data",
           "targetKey": null
         },
         {
           "originalKey": "aihubmix_image_generate",
           "type": "array",
           "defaultValue": [],
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "user_data",
           "targetKey": null
         },
         {
           "originalKey": "aihubmix_image_remix",
           "type": "array",
           "defaultValue": [],
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "user_data",
           "targetKey": null
         },
         {
           "originalKey": "aihubmix_image_edit",
           "type": "array",
           "defaultValue": [],
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "user_data",
           "targetKey": null
         },
         {
           "originalKey": "aihubmix_image_upscale",
           "type": "array",
           "defaultValue": [],
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "user_data",
           "targetKey": null
         },
         {
           "originalKey": "openai_image_generate",
           "type": "array",
           "defaultValue": [],
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "user_data",
           "targetKey": null
         },
         {
           "originalKey": "openai_image_edit",
           "type": "array",
           "defaultValue": [],
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "user_data",
           "targetKey": null
         },
         {
           "originalKey": "ovms_paintings",
           "type": "array",
           "defaultValue": [],
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "user_data",
           "targetKey": null
         },
         {
           "originalKey": "ppio_draw",
           "type": "array",
           "defaultValue": [],
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "user_data",
+          "targetKey": null
+        },
+        {
+          "originalKey": "ppio_edit",
+          "type": "array",
+          "defaultValue": [],
+          "status": "classified",
+          "category": "user_data",
           "targetKey": null
         }
       ],
@@ -649,14 +657,6 @@
           "originalKey": "loadingMap",
           "type": "string",
           "defaultValue": {},
-          "status": "pending",
-          "category": null,
-          "targetKey": null
-        },
-        {
-          "originalKey": "apiServerRunning",
-          "type": "boolean",
-          "defaultValue": false,
           "status": "pending",
           "category": null,
           "targetKey": null
@@ -2477,276 +2477,236 @@
             {
               "category": "preferences",
               "defaultValue": {
-                "binding": [
-                  "CommandOrControl",
-                  "="
-                ],
-                "enabled": true
+                "editable": false,
+                "enabled": true,
+                "key": ["CommandOrControl", "="],
+                "system": true
               },
               "originalKey": "zoom_in",
               "status": "classified",
-              "targetKey": "shortcut.general.zoom_in",
-              "type": "PreferenceTypes.PreferenceShortcutType"
+              "targetKey": "shortcut.app.zoom_in",
+              "type": "object"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "binding": [
-                  "CommandOrControl",
-                  "-"
-                ],
-                "enabled": true
+                "editable": false,
+                "enabled": true,
+                "key": ["CommandOrControl", "-"],
+                "system": true
               },
               "originalKey": "zoom_out",
               "status": "classified",
-              "targetKey": "shortcut.general.zoom_out",
-              "type": "PreferenceTypes.PreferenceShortcutType"
+              "targetKey": "shortcut.app.zoom_out",
+              "type": "object"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "binding": [
-                  "CommandOrControl",
-                  "0"
-                ],
-                "enabled": true
+                "editable": false,
+                "enabled": true,
+                "key": ["CommandOrControl", "0"],
+                "system": true
               },
               "originalKey": "zoom_reset",
               "status": "classified",
-              "targetKey": "shortcut.general.zoom_reset",
-              "type": "PreferenceTypes.PreferenceShortcutType"
+              "targetKey": "shortcut.app.zoom_reset",
+              "type": "object"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "binding": [
-                  "CommandOrControl",
-                  ","
-                ],
-                "enabled": true
+                "editable": false,
+                "enabled": true,
+                "key": ["CommandOrControl", ","],
+                "system": true
               },
               "originalKey": "show_settings",
               "status": "classified",
-              "targetKey": "shortcut.general.show_settings",
-              "type": "PreferenceTypes.PreferenceShortcutType"
+              "targetKey": "shortcut.app.show_settings",
+              "type": "object"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "binding": [],
-                "enabled": false
+                "editable": true,
+                "enabled": true,
+                "key": [],
+                "system": true
               },
               "originalKey": "show_app",
               "status": "classified",
-              "targetKey": "shortcut.general.show_main_window",
-              "type": "PreferenceTypes.PreferenceShortcutType"
+              "targetKey": "shortcut.app.show_main_window",
+              "type": "object"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "binding": [
-                  "CommandOrControl",
-                  "E"
-                ],
-                "enabled": false
+                "editable": true,
+                "enabled": false,
+                "key": ["CommandOrControl", "E"],
+                "system": true
               },
               "originalKey": "mini_window",
               "status": "classified",
-              "targetKey": "shortcut.feature.quick_assistant.toggle_window",
-              "type": "PreferenceTypes.PreferenceShortcutType"
+              "targetKey": "shortcut.app.show_mini_window",
+              "type": "object"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "binding": [],
-                "enabled": false
+                "editable": true,
+                "enabled": false,
+                "key": [],
+                "system": true
               },
               "originalKey": "selection_assistant_toggle",
               "status": "classified",
-              "targetKey": "shortcut.feature.selection.toggle_enabled",
-              "type": "PreferenceTypes.PreferenceShortcutType"
+              "targetKey": "shortcut.selection.toggle_enabled",
+              "type": "object"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "binding": [],
-                "enabled": false
+                "editable": true,
+                "enabled": false,
+                "key": [],
+                "system": true
               },
               "originalKey": "selection_assistant_select_text",
               "status": "classified",
-              "targetKey": "shortcut.feature.selection.get_text",
-              "type": "PreferenceTypes.PreferenceShortcutType"
+              "targetKey": "shortcut.selection.get_text",
+              "type": "object"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "binding": [
-                  "CommandOrControl",
-                  "N"
-                ],
-                "enabled": true
+                "editable": true,
+                "enabled": true,
+                "key": ["CommandOrControl", "N"],
+                "system": false
               },
               "originalKey": "new_topic",
               "status": "classified",
               "targetKey": "shortcut.topic.new",
-              "type": "PreferenceTypes.PreferenceShortcutType"
+              "type": "object"
             },
             {
-              "category": "preferences",
+              "category": null,
               "defaultValue": {
-                "binding": [
-                  "CommandOrControl",
-                  "T"
-                ],
-                "enabled": false
+                "editable": true,
+                "enabled": false,
+                "key": ["CommandOrControl", "T"],
+                "system": false
               },
               "originalKey": "rename_topic",
-              "status": "classified",
-              "targetKey": "shortcut.topic.rename",
-              "type": "PreferenceTypes.PreferenceShortcutType"
+              "status": "pending",
+              "targetKey": null,
+              "type": "object"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "binding": [
-                  "CommandOrControl",
-                  "]"
-                ],
-                "enabled": true
-              },
-              "originalKey": "toggle_show_topics",
-              "status": "classified",
-              "targetKey": "shortcut.topic.toggle_show_topics",
-              "type": "PreferenceTypes.PreferenceShortcutType"
-            },
-            {
-              "category": "preferences",
-              "defaultValue": {
-                "binding": [
-                  "CommandOrControl",
-                  "["
-                ],
-                "enabled": true
+                "editable": true,
+                "enabled": true,
+                "key": ["CommandOrControl", "["],
+                "system": false
               },
               "originalKey": "toggle_show_assistants",
               "status": "classified",
-              "targetKey": "shortcut.general.toggle_sidebar",
-              "type": "PreferenceTypes.PreferenceShortcutType"
+              "targetKey": "shortcut.app.toggle_show_assistants",
+              "type": "object"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "binding": [
-                  "CommandOrControl",
-                  "Shift",
-                  "C"
-                ],
-                "enabled": false
+                "editable": true,
+                "enabled": false,
+                "key": ["CommandOrControl", "Shift", "C"],
+                "system": false
               },
               "originalKey": "copy_last_message",
               "status": "classified",
               "targetKey": "shortcut.chat.copy_last_message",
-              "type": "PreferenceTypes.PreferenceShortcutType"
+              "type": "object"
             },
             {
-              "category": "preferences",
+              "category": null,
               "defaultValue": {
-                "binding": [
-                  "CommandOrControl",
-                  "Shift",
-                  "E"
-                ],
-                "enabled": false
+                "editable": true,
+                "enabled": false,
+                "key": ["CommandOrControl", "Shift", "E"],
+                "system": false
               },
               "originalKey": "edit_last_user_message",
-              "status": "classified",
-              "targetKey": "shortcut.chat.edit_last_user_message",
-              "type": "PreferenceTypes.PreferenceShortcutType"
+              "status": "pending",
+              "targetKey": null,
+              "type": "object"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "binding": [
-                  "CommandOrControl",
-                  "F"
-                ],
-                "enabled": true
+                "editable": true,
+                "enabled": true,
+                "key": ["CommandOrControl", "F"],
+                "system": false
               },
               "originalKey": "search_message_in_chat",
               "status": "classified",
               "targetKey": "shortcut.chat.search_message",
-              "type": "PreferenceTypes.PreferenceShortcutType"
+              "type": "object"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "binding": [
-                  "CommandOrControl",
-                  "Shift",
-                  "F"
-                ],
-                "enabled": true
+                "editable": true,
+                "enabled": true,
+                "key": ["CommandOrControl", "Shift", "F"],
+                "system": false
               },
               "originalKey": "search_message",
               "status": "classified",
-              "targetKey": "shortcut.general.search",
-              "type": "PreferenceTypes.PreferenceShortcutType"
+              "targetKey": "shortcut.app.search_message",
+              "type": "object"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "binding": [
-                  "CommandOrControl",
-                  "L"
-                ],
-                "enabled": true
+                "editable": true,
+                "enabled": true,
+                "key": ["CommandOrControl", "L"],
+                "system": false
               },
               "originalKey": "clear_topic",
               "status": "classified",
               "targetKey": "shortcut.chat.clear",
-              "type": "PreferenceTypes.PreferenceShortcutType"
+              "type": "object"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "binding": [
-                  "CommandOrControl",
-                  "K"
-                ],
-                "enabled": true
+                "editable": true,
+                "enabled": true,
+                "key": ["CommandOrControl", "K"],
+                "system": false
               },
               "originalKey": "toggle_new_context",
               "status": "classified",
               "targetKey": "shortcut.chat.toggle_new_context",
-              "type": "PreferenceTypes.PreferenceShortcutType"
+              "type": "object"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "binding": [
-                  "CommandOrControl",
-                  "Shift",
-                  "M"
-                ],
-                "enabled": true
-              },
-              "originalKey": "select_model",
-              "status": "classified",
-              "targetKey": "shortcut.chat.select_model",
-              "type": "PreferenceTypes.PreferenceShortcutType"
-            },
-            {
-              "category": "preferences",
-              "defaultValue": {
-                "binding": [
-                  "Escape"
-                ],
-                "enabled": true
+                "editable": false,
+                "enabled": true,
+                "key": ["Escape"],
+                "system": true
               },
               "originalKey": "exit_fullscreen",
               "status": "classified",
-              "targetKey": "shortcut.general.exit_fullscreen",
-              "type": "PreferenceTypes.PreferenceShortcutType"
+              "targetKey": "shortcut.app.exit_fullscreen",
+              "type": "object"
             }
           ]
         }
@@ -2807,10 +2767,6 @@
         {
           "originalKey": "settings",
           "type": "object",
-          "defaultValue": null,
-          "status": "pending",
-          "category": null,
-          "targetKey": null,
           "children": [
             {
               "originalKey": "autoCopy",
@@ -2821,14 +2777,6 @@
               "targetKey": "feature.translate.page.auto_copy"
             }
           ]
-        },
-        {
-          "originalKey": "autoCopy",
-          "type": "boolean",
-          "defaultValue": false,
-          "status": "classified",
-          "category": "preferences",
-          "targetKey": "feature.translate.page.auto_copy"
         }
       ],
       "websearch": [
@@ -2912,7 +2860,8 @@
           "defaultValue": "codeTools.qwenCode",
           "status": "classified",
           "category": "preferences",
-          "targetKey": null
+          "targetKey": null,
+          "note": "complex mapping: determines which tool gets enabled: true"
         },
         {
           "originalKey": "selectedModels",
@@ -2921,6 +2870,7 @@
           "status": "classified",
           "category": "preferences",
           "targetKey": null,
+          "note": "complex mapping: Model objects → modelId strings per tool",
           "children": [
             {
               "category": "preferences",
@@ -2970,6 +2920,7 @@
           "status": "classified",
           "category": "preferences",
           "targetKey": null,
+          "note": "complex mapping: per-tool env vars → overrides.envVars",
           "children": [
             {
               "category": "preferences",
@@ -3003,7 +2954,8 @@
           "defaultValue": [],
           "status": "classified",
           "category": "preferences",
-          "targetKey": null
+          "targetKey": null,
+          "note": "complex mapping: global dirs → assigned to selected tool override"
         },
         {
           "originalKey": "currentDirectory",
@@ -3011,7 +2963,8 @@
           "defaultValue": "",
           "status": "classified",
           "category": "preferences",
-          "targetKey": null
+          "targetKey": null,
+          "note": "complex mapping: global currentDir → assigned to selected tool override"
         },
         {
           "originalKey": "selectedTerminal",
@@ -3019,7 +2972,8 @@
           "defaultValue": null,
           "status": "classified",
           "category": "preferences",
-          "targetKey": null
+          "targetKey": null,
+          "note": "complex mapping: global terminal → assigned to selected tool override (non-default only)"
         }
       ],
       "ocr": [
@@ -3226,6 +3180,16 @@
           "targetKey": "app.zoom_factor"
         }
       ],
+      "Shortcuts": [
+        {
+          "originalKey": "Shortcuts",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "pending",
+          "category": "preferences",
+          "targetKey": null
+        }
+      ],
       "ClickTrayToShowQuickAssistant": [
         {
           "originalKey": "ClickTrayToShowQuickAssistant",
@@ -3418,31 +3382,21 @@
       ]
     },
     "localStorage": {
-      "persist:cherry-studio": [
-        {
-          "originalKey": "persist:cherry-studio",
-          "type": "string",
-          "defaultValue": "data.localStorage['persist:cherry-studio']",
-          "status": "pending",
-          "category": null,
-          "targetKey": null
-        }
-      ],
-      "onboarding-completed": [
-        {
-          "originalKey": "onboarding-completed",
-          "type": "string",
-          "defaultValue": null,
-          "status": "pending",
-          "category": null,
-          "targetKey": null
-        }
-      ],
       "memory_currentUserId": [
         {
           "originalKey": "memory_currentUserId",
           "type": "string",
           "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        }
+      ],
+      "persist:cherry-studio": [
+        {
+          "originalKey": "persist:cherry-studio",
+          "type": "string",
+          "defaultValue": "data.localStorage['persist:cherry-studio']",
           "status": "pending",
           "category": null,
           "targetKey": null
@@ -3494,10 +3448,7 @@
         {
           "originalKey": "translate:bidirectional:pair",
           "type": "PreferenceTypes.TranslateBidirectionalPair",
-          "defaultValue": [
-            "zh-cn",
-            "en-us"
-          ],
+          "defaultValue": ["zh-cn", "en-us"],
           "status": "classified",
           "category": "preferences",
           "targetKey": "feature.translate.page.bidirectional_pair"
@@ -3584,7 +3535,9 @@
           "defaultValue": null,
           "status": "classified",
           "category": "user_data",
-          "targetKey": null
+          "targetTable": "translate_history",
+          "targetKey": null,
+          "notes": "Migrated via TranslateMigrator to SQLite translate_history table"
         }
       ],
       "quick_phrases": [
@@ -3614,7 +3567,9 @@
           "defaultValue": null,
           "status": "classified",
           "category": "user_data",
-          "targetKey": null
+          "targetTable": "translate_language",
+          "targetKey": null,
+          "notes": "Migrated via TranslateMigrator to SQLite translate_language table"
         }
       ]
     }

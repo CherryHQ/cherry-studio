@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-04-16T03:52:21.706Z
+ * Generated at: 2026-04-16T06:51:11.658Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in packages/shared/data/preferences.ts
@@ -689,6 +689,32 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'feature.selection.action_items'
     }
   ],
+  memory: [
+    {
+      originalKey: 'memoryConfig.embedderDimensions',
+      targetKey: 'feature.memory.embedder_dimensions'
+    },
+    {
+      originalKey: 'memoryConfig.isAutoDimensions',
+      targetKey: 'feature.memory.auto_dimensions'
+    },
+    {
+      originalKey: 'memoryConfig.customFactExtractionPrompt',
+      targetKey: 'feature.memory.fact_extraction_prompt'
+    },
+    {
+      originalKey: 'memoryConfig.customUpdateMemoryPrompt',
+      targetKey: 'feature.memory.update_memory_prompt'
+    },
+    {
+      originalKey: 'currentUserId',
+      targetKey: 'feature.memory.current_user_id'
+    },
+    {
+      originalKey: 'globalMemoryEnabled',
+      targetKey: 'feature.memory.enabled'
+    }
+  ],
   nutstore: [
     {
       originalKey: 'nutstoreToken',
@@ -724,59 +750,47 @@ export const REDUX_STORE_MAPPINGS = {
   shortcuts: [
     {
       originalKey: 'shortcuts.zoom_in',
-      targetKey: 'shortcut.general.zoom_in'
+      targetKey: 'shortcut.app.zoom_in'
     },
     {
       originalKey: 'shortcuts.zoom_out',
-      targetKey: 'shortcut.general.zoom_out'
+      targetKey: 'shortcut.app.zoom_out'
     },
     {
       originalKey: 'shortcuts.zoom_reset',
-      targetKey: 'shortcut.general.zoom_reset'
+      targetKey: 'shortcut.app.zoom_reset'
     },
     {
       originalKey: 'shortcuts.show_settings',
-      targetKey: 'shortcut.general.show_settings'
+      targetKey: 'shortcut.app.show_settings'
     },
     {
       originalKey: 'shortcuts.show_app',
-      targetKey: 'shortcut.general.show_main_window'
+      targetKey: 'shortcut.app.show_main_window'
     },
     {
       originalKey: 'shortcuts.mini_window',
-      targetKey: 'shortcut.feature.quick_assistant.toggle_window'
+      targetKey: 'shortcut.app.show_mini_window'
     },
     {
       originalKey: 'shortcuts.selection_assistant_toggle',
-      targetKey: 'shortcut.feature.selection.toggle_enabled'
+      targetKey: 'shortcut.selection.toggle_enabled'
     },
     {
       originalKey: 'shortcuts.selection_assistant_select_text',
-      targetKey: 'shortcut.feature.selection.get_text'
+      targetKey: 'shortcut.selection.get_text'
     },
     {
       originalKey: 'shortcuts.new_topic',
       targetKey: 'shortcut.topic.new'
     },
     {
-      originalKey: 'shortcuts.rename_topic',
-      targetKey: 'shortcut.topic.rename'
-    },
-    {
-      originalKey: 'shortcuts.toggle_show_topics',
-      targetKey: 'shortcut.topic.toggle_show_topics'
-    },
-    {
       originalKey: 'shortcuts.toggle_show_assistants',
-      targetKey: 'shortcut.general.toggle_sidebar'
+      targetKey: 'shortcut.app.toggle_show_assistants'
     },
     {
       originalKey: 'shortcuts.copy_last_message',
       targetKey: 'shortcut.chat.copy_last_message'
-    },
-    {
-      originalKey: 'shortcuts.edit_last_user_message',
-      targetKey: 'shortcut.chat.edit_last_user_message'
     },
     {
       originalKey: 'shortcuts.search_message_in_chat',
@@ -784,7 +798,7 @@ export const REDUX_STORE_MAPPINGS = {
     },
     {
       originalKey: 'shortcuts.search_message',
-      targetKey: 'shortcut.general.search'
+      targetKey: 'shortcut.app.search_message'
     },
     {
       originalKey: 'shortcuts.clear_topic',
@@ -795,12 +809,8 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'shortcut.chat.toggle_new_context'
     },
     {
-      originalKey: 'shortcuts.select_model',
-      targetKey: 'shortcut.chat.select_model'
-    },
-    {
       originalKey: 'shortcuts.exit_fullscreen',
-      targetKey: 'shortcut.general.exit_fullscreen'
+      targetKey: 'shortcut.app.exit_fullscreen'
     }
   ],
   translate: [
@@ -927,11 +937,11 @@ export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetK
 /**
  * 映射统计:
  * - ElectronStore项: 1
- * - Redux Store项: 205
- * - Redux分类: settings, selectionStore, nutstore, preprocess, shortcuts, translate, websearch, ocr, note
+ * - Redux Store项: 207
+ * - Redux分类: settings, selectionStore, memory, nutstore, preprocess, shortcuts, translate, websearch, ocr, note
  * - DexieSettings项: 7
  * - localStorage项: 0
- * - 总配置项: 213
+ * - 总配置项: 215
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)
