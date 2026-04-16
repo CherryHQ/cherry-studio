@@ -1,8 +1,10 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useAllProviders } from '@renderer/hooks/useProvider'
+import NavigationService from '@renderer/services/NavigationService'
 import type { SystemProviderId } from '@renderer/types'
 import { isNewApiProvider } from '@renderer/utils/provider'
+import { useNavigate } from '@tanstack/react-router'
 import type { FC } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 
@@ -17,6 +19,11 @@ const BASE_OPTIONS: SystemProviderId[] = ['zhipu', 'aihubmix', 'silicon', 'dmxap
 const FALLBACK_PROVIDER = 'zhipu'
 
 const PaintingsPage: FC = () => {
+  const navigate = useNavigate()
+  useEffect(() => {
+    NavigationService.setNavigate(navigate)
+  }, [navigate])
+
   const providers = useAllProviders()
   const [defaultPaintingProvider, setDefaultPaintingProvider] = usePreference('feature.paintings.default_provider')
   const [activeProvider, setActiveProvider] = useState<string>(defaultPaintingProvider || FALLBACK_PROVIDER)

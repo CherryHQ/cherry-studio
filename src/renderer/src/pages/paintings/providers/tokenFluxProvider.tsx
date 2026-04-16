@@ -271,14 +271,12 @@ const TokenFluxSidebarWrapper: FC<{ state: any }> = ({ state }) => {
   const providers = useAllProviders()
   const provider = providers.find((p) => p.id === 'tokenflux')
 
-  // Fetch models from the API
   useEffect(() => {
-    if (!provider?.apiHost || !provider?.apiKey) return
-
-    const service = new TokenFluxService(provider.apiHost, provider.apiKey)
-    void service.fetchModels().then((fetchedModels) => {
-      setModels(fetchedModels)
-    })
+    const service = new TokenFluxService(provider?.apiHost ?? '', provider?.apiKey ?? '')
+    void service
+      .fetchModels()
+      .then(setModels)
+      .catch(() => setModels([]))
   }, [provider?.apiHost, provider?.apiKey])
 
   // Convert to ModelOption-like objects with _raw for full model data

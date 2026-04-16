@@ -325,7 +325,8 @@ export function PaintingConfigFieldRenderer({
       return (
         <RadioGroup
           value={value}
-          className={`grid grid-cols-${columns} gap-2`}
+          className="grid gap-2"
+          style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
           onValueChange={(nextValue) => onChange({ [fieldKey]: nextValue })}>
           {options.map((option) => (
             <label
