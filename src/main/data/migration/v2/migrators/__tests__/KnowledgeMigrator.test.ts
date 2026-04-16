@@ -3,6 +3,11 @@ import fs from 'node:fs'
 import { createClient } from '@libsql/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('node:fs', async () => {
+  const { createNodeFsMock } = await import('@test-helpers/mocks/nodeFsMock')
+  return createNodeFsMock()
+})
+
 const { loggerWarnMock } = vi.hoisted(() => ({
   loggerWarnMock: vi.fn()
 }))

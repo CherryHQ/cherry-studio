@@ -64,7 +64,7 @@ function toInArgs(params: unknown[]): InArgs {
 
 /**
  * Provides support for writing and querying vector data in libSQL/Turso.
- * Uses native libSQL vector operations for similarity search.
+ * Uses native libSQL vector operations for similarity search without ANN indexes.
  */
 export class LibSQLVectorStore extends BaseVectorStore {
   storesText: boolean = true
@@ -183,15 +183,6 @@ export class LibSQLVectorStore extends BaseVectorStore {
       args: []
     }
     await client.execute(collectionIndexStatement)
-
-    const vectorIndexStatement: InStatement = {
-      sql: `
-          CREATE INDEX IF NOT EXISTS idx_${this.tableName}_vector
-          ON ${this.tableName} (libsql_vector_idx(embeddings, 'metric=cosine'))
-        `,
-      args: []
-    }
-    await client.execute(vectorIndexStatement)
 
     // Create FTS5 virtual table for full-text search (bm25/hybrid modes)
     const ftsTableName = `${this.tableName}_fts`
@@ -569,22 +560,16 @@ export class LibSQLVectorStore extends BaseVectorStore {
 
     const { where, params } = this.buildWhereClause(query, 't')
     const vectorJson = `[${queryEmbedding.join(',')}]`
-    const indexName = `idx_${this.tableName}_vector`
-
-    // Use vector_top_k for efficient ANN search with vector index
-    // Fetch more candidates to account for filtering
-    const prefetch = where ? max * 5 : max
 
     const vectorStatement: InStatement = {
       sql: `
         SELECT t.*, vector_distance_cos(t.embeddings, vector32(?)) as distance
-        FROM vector_top_k('${indexName}', vector32(?), ${prefetch}) AS v
-        JOIN ${this.tableName} t ON t.rowid = v.id
+        FROM ${this.tableName} t
         ${where}
         ORDER BY distance
         LIMIT ${max}
       `,
-      args: toInArgs([vectorJson, vectorJson, ...params])
+      args: toInArgs([vectorJson, ...params])
     }
 
     const vectorResults = await this.clientInstance.execute(vectorStatement)

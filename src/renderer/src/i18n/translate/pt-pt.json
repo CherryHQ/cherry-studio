@@ -5554,10 +5554,10 @@
     "shortcuts": {
       "action": "Ação",
       "actions": "operação",
-      "bind_first_to_enable": "Primeiro associe um atalho para alterar seu estado de ativação",
+      "bind_first_to_enable": "Primeiro, vincule um atalho para alterar o seu estado ativado",
       "clear_shortcut": "Limpar atalho",
       "clear_topic": "Limpar mensagem",
-      "conflict_with": "Já utilizado por \"{{name}}\"",
+      "conflict_with": "Já usado por \"{{name}}\"",
       "copy_last_message": "Copiar a última mensagem",
       "edit_last_user_message": "Editar última mensagem do usuário",
       "enabled": "ativar",
@@ -5585,7 +5585,7 @@
       "title": "Atalhos",
       "toggle_new_context": "Limpar contexto",
       "toggle_show_topics": "Alternar exibição de tópicos",
-      "toggle_sidebar": "Alternar barra lateral",
+      "toggle_sidebar": "Alternar Barra Lateral",
       "zoom_in": "Ampliar interface",
       "zoom_out": "Diminuir interface",
       "zoom_reset": "Redefinir zoom"
@@ -5854,7 +5854,11 @@
     }
   },
   "tab": {
-    "new": "Nova Aba"
+    "close": "Fechar Aba",
+    "moveToFirst": "Mover para o Primeiro",
+    "new": "Nova Aba",
+    "pin": "Fixar Aba",
+    "unpin": "Desafixar Aba"
   },
   "title": {
     "apps": "Miniaplicativos",

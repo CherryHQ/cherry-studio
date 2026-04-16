@@ -1,68 +1,39 @@
+import { translateLanguageTable } from '@data/db/schemas/translateLanguage'
+import { TranslateLanguageSeeder } from '@data/db/seeding/seeders/translateLanguageSeeder'
 import { BUILTIN_TRANSLATE_LANGUAGES } from '@shared/data/presets/translate-languages'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const mockSelect = vi.fn()
-const mockInsert = vi.fn()
-
-vi.mock('@data/db/schemas/translateLanguage', () => ({
-  translateLanguageTable: { langCode: 'lang_code' }
-}))
-
-const { TranslateLanguageSeeder } = await import('../translateLanguageSeeder')
-
-function createMockDb() {
-  return {
-    select: mockSelect,
-    insert: mockInsert
-  }
-}
+import { setupTestDatabase } from '@test-helpers/db'
+import { describe, expect, it } from 'vitest'
 
 describe('TranslateLanguageSeeder', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
+  const dbh = setupTestDatabase()
 
   it('should insert all builtin languages into empty table', async () => {
-    mockSelect.mockReturnValue({
-      from: vi.fn().mockResolvedValue([])
-    })
-    const valuesArg = vi.fn().mockResolvedValue(undefined)
-    mockInsert.mockReturnValue({ values: valuesArg })
-
     const seed = new TranslateLanguageSeeder()
-    await seed.run(createMockDb() as any)
+    await seed.run(dbh.db)
 
-    expect(mockInsert).toHaveBeenCalledTimes(1)
-    expect(valuesArg).toHaveBeenCalledWith(BUILTIN_TRANSLATE_LANGUAGES)
+    const rows = await dbh.db.select().from(translateLanguageTable)
+    expect(rows).toHaveLength(BUILTIN_TRANSLATE_LANGUAGES.length)
   })
 
   it('should only insert missing languages when some exist', async () => {
-    const existingCodes = [{ langCode: 'en-us' }, { langCode: 'zh-cn' }]
-    mockSelect.mockReturnValue({
-      from: vi.fn().mockResolvedValue(existingCodes)
-    })
-    const valuesArg = vi.fn().mockResolvedValue(undefined)
-    mockInsert.mockReturnValue({ values: valuesArg })
+    const preExisting = [...BUILTIN_TRANSLATE_LANGUAGES.slice(0, 2)]
+    await dbh.db.insert(translateLanguageTable).values(preExisting)
 
     const seed = new TranslateLanguageSeeder()
-    await seed.run(createMockDb() as any)
+    await seed.run(dbh.db)
 
-    expect(mockInsert).toHaveBeenCalledTimes(1)
-    const inserted = valuesArg.mock.calls[0][0] as typeof BUILTIN_TRANSLATE_LANGUAGES
-    expect(inserted).toHaveLength(BUILTIN_TRANSLATE_LANGUAGES.length - 2)
-    expect(inserted.find((l) => l.langCode === 'en-us')).toBeUndefined()
-    expect(inserted.find((l) => l.langCode === 'zh-cn')).toBeUndefined()
+    const rows = await dbh.db.select().from(translateLanguageTable)
+    expect(rows).toHaveLength(BUILTIN_TRANSLATE_LANGUAGES.length)
   })
 
-  it('should not insert when all languages exist', async () => {
-    const allCodes = BUILTIN_TRANSLATE_LANGUAGES.map((l) => ({ langCode: l.langCode }))
-    mockSelect.mockReturnValue({
-      from: vi.fn().mockResolvedValue(allCodes)
-    })
+  it('should not modify existing rows when all languages exist', async () => {
+    await dbh.db.insert(translateLanguageTable).values([...BUILTIN_TRANSLATE_LANGUAGES])
+    const beforeCount = (await dbh.db.select().from(translateLanguageTable)).length
 
     const seed = new TranslateLanguageSeeder()
-    await seed.run(createMockDb() as any)
+    await seed.run(dbh.db)
 
-    expect(mockInsert).not.toHaveBeenCalled()
+    const afterCount = (await dbh.db.select().from(translateLanguageTable)).length
+    expect(afterCount).toBe(beforeCount)
   })
 })

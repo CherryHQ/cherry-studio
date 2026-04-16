@@ -5554,7 +5554,7 @@
     "shortcuts": {
       "action": "Действие",
       "actions": "操作",
-      "bind_first_to_enable": "Сначала назначьте сочетание клавиш, чтобы изменить его состояние включения",
+      "bind_first_to_enable": "Сначала назначьте сочетание клавиш, чтобы изменить его состояние включения.",
       "clear_shortcut": "Очистить сочетание клавиш",
       "clear_topic": "Очистить все сообщения",
       "conflict_with": "Уже используется \"{{name}}\"",
@@ -5573,10 +5573,10 @@
       "reset_defaults_failed": "Не удалось сбросить сочетания клавиш к значениям по умолчанию",
       "reset_to_default": "Сбросить настройки по умолчанию",
       "save_failed": "Не удалось сохранить ярлык",
-      "save_failed_with_name": "Не удалось сохранить ярлык: {{name}}",
+      "save_failed_with_name": "[to be translated]:Failed to save shortcut: {{name}}",
       "search_message": "Поиск сообщения",
       "search_message_in_chat": "Поиск сообщения в текущем диалоге",
-      "search_placeholder": "Поиск ярлыков...",
+      "search_placeholder": "[to be translated]:Search shortcuts...",
       "select_model": "Select Model",
       "selection_assistant_select_text": "Помощник выделения: выделить текст",
       "selection_assistant_toggle": "Переключить помощник выделения",
@@ -5585,7 +5585,7 @@
       "title": "Горячие клавиши",
       "toggle_new_context": "Очистить контекст",
       "toggle_show_topics": "Переключить отображение топиков",
-      "toggle_sidebar": "Переключить боковую панель",
+      "toggle_sidebar": "[to be translated]:Toggle Sidebar",
       "zoom_in": "Увеличить",
       "zoom_out": "Уменьшить",
       "zoom_reset": "Сбросить масштаб"
@@ -5854,7 +5854,11 @@
     }
   },
   "tab": {
-    "new": "Новая вкладка"
+    "close": "[to be translated]:Close Tab",
+    "moveToFirst": "[to be translated]:Move to First",
+    "new": "[to be translated]:New Tab",
+    "pin": "[to be translated]:Pin Tab",
+    "unpin": "[to be translated]:Unpin Tab"
   },
   "title": {
     "apps": "Приложения",

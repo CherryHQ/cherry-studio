@@ -15,6 +15,7 @@
       "@mcp-trace/*": ["./packages/mcp-trace/*"],
       "@modelcontextprotocol/sdk/*": ["./node_modules/@modelcontextprotocol/sdk/dist/esm/*"],
       "@shared/*": ["./packages/shared/*"],
+      "@test-helpers/*": ["./tests/helpers/*"],
       "@test-mocks/*": ["./tests/__mocks__/*"],
       "@types": ["./src/renderer/src/types/index.ts"],
       "@vectorstores/libsql": ["./packages/vectorstores/libsql/src/index.ts"],
@@ -37,6 +38,7 @@
     "packages/provider-registry/**/*",
     "packages/shared/**/*",
     "packages/vectorstores/**/*",
-    "tests/__mocks__/**/*"
+    "tests/__mocks__/**/*",
+    "tests/helpers/**/*"
   ]
 }

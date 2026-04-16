@@ -5554,7 +5554,7 @@
     "shortcuts": {
       "action": "Action",
       "actions": "操作",
-      "bind_first_to_enable": "Associez d'abord un raccourci pour modifier son état activé",
+      "bind_first_to_enable": "Liez d'abord un raccourci pour modifier son état activé",
       "clear_shortcut": "Effacer raccourci clavier",
       "clear_topic": "Vider les messages",
       "conflict_with": "Déjà utilisé par \"{{name}}\"",
@@ -5854,7 +5854,11 @@
     }
   },
   "tab": {
-    "new": "Nouvel onglet"
+    "close": "Fermer l'onglet",
+    "moveToFirst": "Déplacer vers le premier",
+    "new": "Nouvel onglet",
+    "pin": "Épingler l'onglet",
+    "unpin": "Détacher l'onglet"
   },
   "title": {
     "apps": "Mini-programmes",

@@ -5554,10 +5554,10 @@
     "shortcuts": {
       "action": "Acción",
       "actions": "operación",
-      "bind_first_to_enable": "Primero asigna un atajo para cambiar su estado de habilitación.",
+      "bind_first_to_enable": "Primero vincula un atajo para cambiar su estado de activación",
       "clear_shortcut": "Borrar atajo",
       "clear_topic": "Vaciar mensaje",
-      "conflict_with": "Ya usado por \"{{name}}\"",
+      "conflict_with": "Ya utilizado por \"{{name}}\"",
       "copy_last_message": "Copiar el último mensaje",
       "edit_last_user_message": "Editar último mensaje de usuario",
       "enabled": "habilitar",
@@ -5570,7 +5570,7 @@
       "rename_topic": "Renombrar tema",
       "reset_defaults": "Restablecer atajos predeterminados",
       "reset_defaults_confirm": "¿Está seguro de querer restablecer todos los atajos?",
-      "reset_defaults_failed": "No se pudieron restablecer los atajos a los valores predeterminados",
+      "reset_defaults_failed": "Error al restablecer los atajos a los valores predeterminados",
       "reset_to_default": "Restablecer a predeterminado",
       "save_failed": "Error al guardar el acceso directo",
       "save_failed_with_name": "Error al guardar el acceso directo: {{name}}",
@@ -5854,7 +5854,11 @@
     }
   },
   "tab": {
-    "new": "Nueva pestaña"
+    "close": "Cerrar pestaña",
+    "moveToFirst": "Mover al primero",
+    "new": "Nueva pestaña",
+    "pin": "Anclar pestaña",
+    "unpin": "Desanclar pestaña"
   },
   "title": {
     "apps": "Aplicaciones",

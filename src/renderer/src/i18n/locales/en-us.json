@@ -5854,7 +5854,11 @@
     }
   },
   "tab": {
-    "new": "New Tab"
+    "close": "Close Tab",
+    "moveToFirst": "Move to First",
+    "new": "New Tab",
+    "pin": "Pin Tab",
+    "unpin": "Unpin Tab"
   },
   "title": {
     "apps": "Apps",
