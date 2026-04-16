@@ -3,8 +3,8 @@
     "version": "2.0.0",
     "lastUpdated": "2026-04-07T11:48:08.913Z",
     "totalItems": 407,
-    "classified": 300,
-    "pending": 101,
+    "classified": 301,
+    "pending": 100,
     "deleted": 0
   },
   "classifications": {
@@ -2304,9 +2304,9 @@
           "originalKey": "defaultPaintingProvider",
           "type": "string",
           "defaultValue": "zhipu",
-          "status": "pending",
-          "category": "cache",
-          "targetKey": null
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.paintings.default_provider"
         },
         {
           "originalKey": "s3",

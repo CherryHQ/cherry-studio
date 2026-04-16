@@ -579,6 +579,10 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'data.backup.local.skip_backup_file'
     },
     {
+      originalKey: 'defaultPaintingProvider',
+      targetKey: 'feature.paintings.default_provider'
+    },
+    {
       originalKey: 's3.endpoint',
       targetKey: 'data.backup.s3.endpoint'
     },
