@@ -14,7 +14,6 @@ describe('AssistantMappings', () => {
         settings: { temperature: 0.7 },
         mcpMode: 'prompt',
         enableWebSearch: true,
-        enableMemory: true,
         model: { id: 'gpt-4', provider: 'openai', name: 'GPT-4' },
         defaultModel: { id: 'gpt-3.5', provider: 'openai', name: 'GPT-3.5' },
         mcpServers: [{ id: 'srv-1' }, { id: 'srv-2' }],
@@ -30,7 +29,7 @@ describe('AssistantMappings', () => {
         emoji: '🤖',
         description: 'A test assistant',
         modelId: 'openai::gpt-4',
-        settings: { temperature: 0.7, mcpMode: 'prompt', enableWebSearch: true, enableMemory: true }
+        settings: { temperature: 0.7, mcpMode: 'prompt', enableWebSearch: true }
       })
       expect(result.mcpServers).toStrictEqual([
         { assistantId: 'ast-1', mcpServerId: 'srv-1' },
@@ -128,14 +127,13 @@ describe('AssistantMappings', () => {
         description: null,
         settings: undefined,
         mcpMode: null,
-        enableWebSearch: undefined,
-        enableMemory: null
+        enableWebSearch: undefined
       })
 
       expect(result.assistant.prompt).toBeNull()
       expect(result.assistant.emoji).toBeNull()
       expect(result.assistant.description).toBeNull()
-      // mcpMode/enableWebSearch/enableMemory are merged into settings
+      // mcpMode/enableWebSearch are merged into settings
       expect(result.assistant.settings).toBeNull()
       expect(result.tags).toStrictEqual([])
     })

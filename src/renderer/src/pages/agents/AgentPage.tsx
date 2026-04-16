@@ -32,7 +32,8 @@ const AgentPage = () => {
   const { apiServerConfig, apiServerRunning, apiServerLoading } = useApiServer()
   const { t } = useTranslation()
 
-  useShortcut('toggle_show_assistants', () => {
+  // TODO: Replace with sidebar toggle logic once the new sidebar UI is implemented
+  useShortcut('general.toggle_sidebar', () => {
     if (topicPosition === 'left') {
       void toggleShowAssistants()
       return
@@ -41,7 +42,7 @@ const AgentPage = () => {
     void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
   })
 
-  useShortcut('toggle_show_topics', () => {
+  useShortcut('topic.toggle_show_topics', () => {
     if (topicPosition === 'right') {
       void toggleShowTopics()
     } else {

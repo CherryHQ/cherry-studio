@@ -4,7 +4,6 @@ import { McpLogo } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
 import {
-  Brain,
   CalendarClock,
   Cloud,
   Command,
@@ -92,12 +91,6 @@ const SettingsPage: FC = () => {
               label={t('settings.tool.websearch.title')}
               active={isActive('/settings/websearch')}
               onClick={() => go('/settings/websearch')}
-            />
-            <MenuItem
-              icon={<Brain size={18} />}
-              label={t('memory.title')}
-              active={isActive('/settings/memory')}
-              onClick={() => go('/settings/memory')}
             />
             <MenuItem
               icon={<Server size={18} />}
