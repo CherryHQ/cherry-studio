@@ -1,23 +1,19 @@
-import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
+import { ConfirmDialog } from '@cherrystudio/ui'
 import { DraggableList } from '@renderer/components/DraggableList'
-import Scrollbar from '@renderer/components/Scrollbar'
-import { usePaintings } from '@renderer/hooks/usePaintings'
 import FileManager from '@renderer/services/FileManager'
-import type { Painting, PaintingsState } from '@renderer/types'
-import { classNames } from '@renderer/utils'
-import { Popconfirm } from 'antd'
+import type { PaintingCanvas } from '@renderer/types'
+import { Plus, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface PaintingsListProps {
-  paintings: Painting[]
-  selectedPainting: Painting
-  onSelectPainting: (painting: Painting) => void
-  onDeletePainting: (painting: Painting) => void
+  paintings: PaintingCanvas[]
+  selectedPainting: PaintingCanvas
+  onSelectPainting: (painting: PaintingCanvas) => void
+  onDeletePainting: (painting: PaintingCanvas) => void
   onNewPainting: () => void
-  namespace: keyof PaintingsState
+  onReorder: (paintings: PaintingCanvas[]) => void
 }
 
 const PaintingsList: FC<PaintingsListProps> = ({
@@ -26,131 +22,81 @@ const PaintingsList: FC<PaintingsListProps> = ({
   onSelectPainting,
   onDeletePainting,
   onNewPainting,
-  namespace
+  onReorder
 }) => {
   const { t } = useTranslation()
   const [dragging, setDragging] = useState(false)
-  const { updatePaintings } = usePaintings()
+  const [pendingDelete, setPendingDelete] = useState<PaintingCanvas | null>(null)
 
   return (
-    <Container style={{ paddingBottom: dragging ? 80 : 10 }}>
-      {!dragging && (
-        <NewPaintingButton onClick={onNewPainting}>
-          <PlusOutlined />
-        </NewPaintingButton>
-      )}
-      <DraggableList
-        list={paintings}
-        onUpdate={(value) => updatePaintings(namespace, value)}
-        onDragStart={() => setDragging(true)}
-        onDragEnd={() => setDragging(false)}>
-        {(item: Painting) => (
-          <CanvasWrapper key={item.id}>
-            <Canvas
-              className={classNames(selectedPainting.id === item.id && 'selected')}
-              onClick={() => onSelectPainting(item)}>
-              {item.files[0] && <ThumbnailImage src={FileManager.getFileUrl(item.files[0])} alt="" />}
-            </Canvas>
-            <DeleteButton>
-              <Popconfirm
-                title={t('paintings.button.delete.image.confirm')}
-                onConfirm={() => onDeletePainting(item)}
-                okButtonProps={{ danger: true }}
-                placement="left">
-                <DeleteOutlined />
-              </Popconfirm>
-            </DeleteButton>
-          </CanvasWrapper>
+    <>
+      <div
+        className="flex h-[calc(100vh-var(--navbar-height))] max-w-[108px] shrink-0 flex-col items-center gap-2.5 overflow-y-auto overflow-x-hidden border-border border-l bg-muted/15 p-2.5"
+        style={{ paddingBottom: dragging ? 80 : 12 }}>
+        {!dragging && (
+          <button
+            type="button"
+            onClick={onNewPainting}
+            className="flex h-[76px] w-[76px] shrink-0 items-center justify-center rounded-[0.75rem] border border-border/80 border-dashed bg-muted/25 text-muted-foreground transition-colors hover:border-primary/50 hover:bg-muted/40 hover:text-primary">
+            <Plus size={18} strokeWidth={1.75} />
+          </button>
         )}
-      </DraggableList>
-    </Container>
+
+        <DraggableList
+          list={paintings}
+          onUpdate={(value) => onReorder(value)}
+          onDragStart={() => setDragging(true)}
+          onDragEnd={() => setDragging(false)}>
+          {(item: PaintingCanvas) => (
+            <div key={item.id} className="group relative w-[76px] shrink-0">
+              <button
+                type="button"
+                className={`relative h-[76px] w-[76px] overflow-hidden rounded-[0.75rem] border transition-all ${
+                  selectedPainting.id === item.id
+                    ? 'border-primary ring-2 ring-primary/25'
+                    : 'border-transparent bg-muted/30 hover:bg-muted/45'
+                }`}
+                onClick={() => onSelectPainting(item)}>
+                {item.files[0] ? (
+                  <img
+                    src={FileManager.getFileUrl(item.files[0])}
+                    alt=""
+                    className="block h-full w-full object-cover"
+                  />
+                ) : (
+                  <span className="block h-full w-full bg-muted/20" aria-hidden />
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPendingDelete(item)}
+                className="absolute top-1.5 right-1.5 flex size-6 items-center justify-center rounded-full border border-border/60 bg-background/90 text-destructive opacity-0 shadow-sm backdrop-blur-sm transition-opacity hover:bg-background group-hover:opacity-100">
+                <Trash2 size={12} />
+              </button>
+            </div>
+          )}
+        </DraggableList>
+      </div>
+
+      <ConfirmDialog
+        open={Boolean(pendingDelete)}
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null)
+        }}
+        title={t('paintings.button.delete.image.confirm')}
+        confirmText={t('common.delete')}
+        cancelText={t('common.cancel')}
+        destructive
+        onConfirm={() => {
+          if (pendingDelete) {
+            onDeletePainting(pendingDelete)
+          }
+          setPendingDelete(null)
+        }}
+      />
+    </>
   )
 }
-
-const Container = styled(Scrollbar)`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  padding: 10px;
-  background-color: var(--color-background);
-  max-width: 100px;
-  border-left: 0.5px solid var(--color-border);
-  height: calc(100vh - var(--navbar-height));
-  overflow-x: hidden;
-`
-
-const CanvasWrapper = styled.div`
-  position: relative;
-
-  &:hover {
-    .delete-button {
-      opacity: 1;
-    }
-  }
-`
-
-const Canvas = styled.div`
-  width: 80px;
-  height: 80px;
-  background-color: var(--color-background-soft);
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-  border: 1px solid var(--color-background-soft);
-  overflow: hidden;
-  position: relative;
-
-  &.selected {
-    border: 1px solid var(--color-primary);
-  }
-
-  &:hover {
-    background-color: var(--color-background-mute);
-  }
-`
-
-const ThumbnailImage = styled.img`
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-`
-
-const DeleteButton = styled.div.attrs({ className: 'delete-button' })`
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  opacity: 0;
-  transition: opacity 0.2s ease;
-  border-radius: 50%;
-  padding: 4px;
-  cursor: pointer;
-  color: var(--color-error);
-  background-color: var(--color-background-soft);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-`
-
-const NewPaintingButton = styled.div`
-  width: 80px;
-  height: 80px;
-  min-height: 80px;
-  background-color: var(--color-background-soft);
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-  border: 1px dashed var(--color-border);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-text-2);
-
-  &:hover {
-    background-color: var(--color-background-mute);
-    border-color: var(--color-primary);
-    color: var(--color-primary);
-  }
-`
 
 export default PaintingsList

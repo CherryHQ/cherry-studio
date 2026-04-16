@@ -1,13 +1,10 @@
-import { DeleteOutlined } from '@ant-design/icons'
-import { Button } from '@cherrystudio/ui'
+import { Button, ConfirmDialog } from '@cherrystudio/ui'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import type { FileMetadata } from '@renderer/types'
-import { Popconfirm, Upload } from 'antd'
-import type { RcFile, UploadProps } from 'antd/es/upload'
-import React from 'react'
+import { Trash2 } from 'lucide-react'
+import React, { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface ImageUploaderProps {
   fileMap: {
@@ -30,174 +27,107 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
 }) => {
   const { theme } = useTheme()
   const { t } = useTranslation()
+  const [pendingDeleteIndex, setPendingDeleteIndex] = useState<number | null>(null)
+  const imageFiles = fileMap.imageFiles || []
 
-  const handleBeforeUpload = (file: RcFile, index?: number) => {
-    onAddImage(file, index)
-    return false // 阻止默认上传行为
-  }
-
-  // 自定义上传请求，不执行任何网络请求
-  const customRequest: UploadProps['customRequest'] = ({ onSuccess }) => {
-    if (onSuccess) {
-      onSuccess('ok' as any)
-    }
-  }
+  const uploadSlots = useMemo(() => {
+    const paths = fileMap.paths || []
+    return paths.map((src, index) => ({ src, index }))
+  }, [fileMap.paths])
 
   return (
     <>
-      <HeaderContainer>
-        {fileMap.imageFiles && fileMap.imageFiles.length > 0 && (
+      <div className="mb-2 flex items-center">
+        {imageFiles.length > 0 && (
           <Button size="sm" onClick={onClearImages}>
             {t('common.clear_all')}
           </Button>
         )}
-      </HeaderContainer>
+      </div>
 
-      <UploadImageList>
-        {fileMap.paths && fileMap.paths.length > 0 ? (
-          <>
-            {fileMap.paths.map((src, index) => (
-              <UploadImageItem key={index}>
-                <ImageUploadButton
-                  accept="image/png, image/jpeg"
-                  maxCount={1}
-                  multiple={false}
-                  showUploadList={false}
-                  listType="picture-card"
-                  action=""
-                  customRequest={customRequest}
-                  beforeUpload={(file) => {
-                    handleBeforeUpload(file, index)
-                  }}>
-                  <ImagePreview>
-                    <img src={src} alt={`${t('common.image_preview')} ${index + 1}`} />
-                  </ImagePreview>
-                </ImageUploadButton>
-                <Popconfirm
-                  title={t('paintings.button.delete.image.confirm')}
-                  okText={t('common.confirm')}
-                  cancelText={t('common.cancel')}
-                  onConfirm={() => onDeleteImage(index)}>
-                  <DeleteButton>
-                    <DeleteOutlined />
-                  </DeleteButton>
-                </Popconfirm>
-              </UploadImageItem>
-            ))}
-          </>
-        ) : (
-          ''
-        )}
+      <div className="flex flex-wrap">
+        {uploadSlots.map(({ src, index }) => (
+          <div key={index} className="relative mr-1 mb-1 h-[45%] w-[45%]">
+            <label className="block h-full w-full cursor-pointer">
+              <input
+                type="file"
+                accept="image/png,image/jpeg"
+                className="hidden"
+                onChange={(event) => {
+                  const file = event.target.files?.[0]
+                  if (file) {
+                    onAddImage(file, index)
+                  }
+                  event.target.value = ''
+                }}
+              />
+              <div className="relative h-full w-full overflow-hidden rounded-md">
+                <img
+                  src={src}
+                  alt={`${t('common.image_preview')} ${index + 1}`}
+                  className="h-full w-full object-cover"
+                />
+                <div className="absolute inset-0 hidden items-center justify-center bg-black/50 text-white hover:flex">
+                  点击替换
+                </div>
+              </div>
+            </label>
 
-        {fileMap.imageFiles && fileMap.imageFiles.length < maxImages ? (
-          <UploadImageItem>
-            <ImageUploadButton
-              multiple={false}
-              accept="image/png, image/jpeg"
-              maxCount={1}
-              showUploadList={false}
-              listType="picture-card"
-              action=""
-              customRequest={customRequest}
-              beforeUpload={(file) => {
-                handleBeforeUpload(file)
-              }}>
-              <ImageSizeImage src={IcImageUp} theme={theme} />
-            </ImageUploadButton>
-          </UploadImageItem>
-        ) : (
-          ''
+            <button
+              type="button"
+              onClick={() => setPendingDeleteIndex(index)}
+              className="absolute top-1 right-1 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white opacity-80 transition-opacity hover:opacity-100">
+              <Trash2 size={14} />
+            </button>
+          </div>
+        ))}
+
+        {imageFiles.length < maxImages && (
+          <div className="relative mr-1 mb-1 h-[45%] w-[45%]">
+            <label className="flex h-full w-full cursor-pointer items-center justify-center rounded-md border border-border border-dashed bg-muted/20 hover:bg-muted/30">
+              <input
+                type="file"
+                accept="image/png,image/jpeg"
+                className="hidden"
+                onChange={(event) => {
+                  const file = event.target.files?.[0]
+                  if (file) {
+                    onAddImage(file)
+                  }
+                  event.target.value = ''
+                }}
+              />
+              <img
+                src={IcImageUp}
+                alt={t('common.upload_image')}
+                className="mt-2"
+                style={{ filter: theme === 'dark' ? 'invert(100%)' : 'none' }}
+              />
+            </label>
+          </div>
         )}
-      </UploadImageList>
+      </div>
+
+      <ConfirmDialog
+        open={pendingDeleteIndex !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingDeleteIndex(null)
+          }
+        }}
+        title={t('paintings.button.delete.image.confirm')}
+        confirmText={t('common.confirm')}
+        cancelText={t('common.cancel')}
+        destructive
+        onConfirm={() => {
+          if (pendingDeleteIndex !== null) {
+            onDeleteImage(pendingDeleteIndex)
+          }
+          setPendingDeleteIndex(null)
+        }}
+      />
     </>
   )
 }
-
-// 样式组件
-const HeaderContainer = styled.div`
-  display: flex;
-  align-items: center;
-  margin-bottom: 10px;
-`
-
-const ImageUploadButton = styled(Upload)`
-  & .ant-upload.ant-upload-select,
-  .ant-upload-list-item-container {
-    width: 100% !important;
-    height: 100% !important;
-    aspect-ratio: 1 !important;
-  }
-  margin-bottom: 5px;
-`
-
-const ImagePreview = styled.div`
-  width: 100%;
-  height: 100%;
-  position: relative;
-  border-radius: 6px;
-  overflow: hidden;
-
-  img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  &:hover::after {
-    content: '点击替换';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.5);
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-  }
-`
-
-const ImageSizeImage = styled.img<{ theme: string }>`
-  filter: ${({ theme }) => (theme === 'dark' ? 'invert(100%)' : 'none')};
-  margin-top: 8px;
-`
-
-const UploadImageList = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-`
-
-const UploadImageItem = styled.div`
-  width: 45%;
-  height: 45%;
-  margin-bottom: 5px;
-  margin-right: 5px;
-  position: relative;
-`
-
-const DeleteButton = styled.button`
-  position: absolute;
-  top: 5px;
-  right: 5px;
-  background-color: rgba(0, 0, 0, 0.6);
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  opacity: 0.7;
-  transition: opacity 0.3s ease;
-  z-index: 10;
-
-  &:hover {
-    opacity: 1;
-  }
-`
 
 export default ImageUploader

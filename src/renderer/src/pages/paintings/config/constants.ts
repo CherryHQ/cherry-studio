@@ -9,7 +9,7 @@ export const ASPECT_RATIOS = [
     ]
   },
   {
-    labelKey: 'paintings.aspect_ratios.landscape',
+    labelKey: 'paintings.aspect_ratios.portrait',
     options: [
       {
         label: '1:2',

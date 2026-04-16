@@ -22,6 +22,5 @@ export const DEFAULT_TOKENFLUX_PAINTING: TokenFluxPainting = {
   inputParams: {},
   status: 'starting',
   generationId: undefined,
-  urls: [],
   files: []
 }
