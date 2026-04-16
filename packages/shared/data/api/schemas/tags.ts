@@ -32,8 +32,17 @@ export type UpdateTagDto = z.infer<typeof UpdateTagSchema>
 /**
  * Body for syncing tags on an entity (replace all tag associations)
  */
+const TagIdSchema = z.string().trim().min(1)
+
+export const TagEntityRefSchema = z.object({
+  entityType: TaggableEntityType,
+  entityId: z.string().trim().min(1)
+})
+
 export const SyncEntityTagsSchema = z.object({
-  tagIds: z.array(z.string().min(1))
+  tagIds: z.array(TagIdSchema).refine((tagIds) => new Set(tagIds).size === tagIds.length, {
+    message: 'Duplicate tag ids are not allowed'
+  })
 })
 export type SyncEntityTagsDto = z.infer<typeof SyncEntityTagsSchema>
 
@@ -41,12 +50,13 @@ export type SyncEntityTagsDto = z.infer<typeof SyncEntityTagsSchema>
  * Body for bulk setting entities on a tag
  */
 export const SetTagEntitiesSchema = z.object({
-  entities: z.array(
-    z.object({
-      entityType: TaggableEntityType,
-      entityId: z.string().min(1)
-    })
-  )
+  entities: z
+    .array(TagEntityRefSchema)
+    .refine(
+      (entities) =>
+        new Set(entities.map((entity) => `${entity.entityType}:${entity.entityId}`)).size === entities.length,
+      { message: 'Duplicate entity bindings are not allowed' }
+    )
 })
 export type SetTagEntitiesDto = z.infer<typeof SetTagEntitiesSchema>
 

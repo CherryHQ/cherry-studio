@@ -1,5 +1,6 @@
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
+import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
 import type { DbType } from '@data/db/types'
 import { createClient } from '@libsql/client'
 import { ErrorCode } from '@shared/data/api'
@@ -112,6 +113,31 @@ async function setupDb() {
       created_at INTEGER,
       updated_at INTEGER,
       PRIMARY KEY (assistant_id, knowledge_base_id)
+    )
+  `)
+  )
+
+  await db.run(
+    sql.raw(`
+    CREATE TABLE tag (
+      id TEXT PRIMARY KEY NOT NULL,
+      name TEXT NOT NULL,
+      color TEXT,
+      created_at INTEGER,
+      updated_at INTEGER
+    )
+  `)
+  )
+
+  await db.run(
+    sql.raw(`
+    CREATE TABLE entity_tag (
+      entity_type TEXT NOT NULL,
+      entity_id TEXT NOT NULL,
+      tag_id TEXT NOT NULL REFERENCES tag(id) ON DELETE CASCADE,
+      created_at INTEGER,
+      updated_at INTEGER,
+      PRIMARY KEY (entity_type, entity_id, tag_id)
     )
   `)
   )
@@ -487,6 +513,18 @@ describe('AssistantDataService', () => {
 
       const rows = await db.select().from(assistantTable)
       expect(rows).toHaveLength(1)
+    })
+
+    it('should remove entity_tag rows for the deleted assistant', async () => {
+      const db = realDb!
+      await db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
+      await db.insert(tagTable).values({ id: 'tag-1', name: 'work' })
+      await db.insert(entityTagTable).values({ entityType: 'assistant', entityId: 'ast-1', tagId: 'tag-1' })
+
+      await assistantDataService.delete('ast-1')
+
+      const tagRows = await db.select().from(entityTagTable)
+      expect(tagRows).toHaveLength(0)
     })
 
     it('should throw NOT_FOUND when deleting non-existent assistant', async () => {

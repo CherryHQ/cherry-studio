@@ -1,5 +1,10 @@
+import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
+import type { DbType } from '@data/db/types'
+import { createClient } from '@libsql/client'
 import { DataApiError, ErrorCode } from '@shared/data/api'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { sql } from 'drizzle-orm'
+import { drizzle } from 'drizzle-orm/libsql'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { TagService, tagService } from '../TagService'
 
@@ -111,6 +116,44 @@ function createTrackingTx(existingRows: Record<string, unknown>[] = []) {
 }
 
 let mockDb: any
+let realDb: DbType | null = null
+let closeClient: (() => void) | undefined
+
+async function setupEntityTagDb() {
+  const client = createClient({ url: 'file::memory:' })
+  closeClient = () => client.close()
+  realDb = drizzle({ client, casing: 'snake_case' })
+  const db = realDb
+
+  await db.run(sql`PRAGMA foreign_keys = ON`)
+
+  await db.run(
+    sql.raw(`
+      CREATE TABLE tag (
+        id TEXT PRIMARY KEY NOT NULL,
+        name TEXT NOT NULL,
+        color TEXT,
+        created_at INTEGER,
+        updated_at INTEGER
+      )
+    `)
+  )
+
+  await db.run(
+    sql.raw(`
+      CREATE TABLE entity_tag (
+        entity_type TEXT NOT NULL,
+        entity_id TEXT NOT NULL,
+        tag_id TEXT NOT NULL REFERENCES tag(id) ON DELETE CASCADE,
+        created_at INTEGER,
+        updated_at INTEGER,
+        PRIMARY KEY (entity_type, entity_id, tag_id)
+      )
+    `)
+  )
+
+  return db
+}
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -132,6 +175,12 @@ describe('TagService', () => {
       delete: vi.fn(),
       transaction: vi.fn()
     }
+  })
+
+  afterEach(() => {
+    closeClient?.()
+    closeClient = undefined
+    realDb = null
   })
 
   it('should export a module-level singleton', () => {
@@ -166,13 +215,20 @@ describe('TagService', () => {
       expect(result.color).toBeNull()
     })
 
-    it('should fallback to current time when timestamps are null', async () => {
-      const before = new Date().toISOString()
-      mockDb.select.mockReturnValue(mockChain([createMockTagRow({ createdAt: null, updatedAt: null })]))
+    it('should preserve zero timestamps instead of treating them as missing', async () => {
+      mockDb.select.mockReturnValue(mockChain([createMockTagRow({ createdAt: 0, updatedAt: 0 })]))
 
       const result = await tagService.getById('tag-1')
-      expect(result.createdAt >= before).toBe(true)
-      expect(result.updatedAt >= before).toBe(true)
+      expect(result.createdAt).toBe(new Date(0).toISOString())
+      expect(result.updatedAt).toBe(new Date(0).toISOString())
+    })
+
+    it('should surface timestamp anomalies instead of masking them', async () => {
+      mockDb.select.mockReturnValue(mockChain([createMockTagRow({ createdAt: null, updatedAt: null })]))
+
+      await expect(tagService.getById('tag-1')).rejects.toMatchObject({
+        code: ErrorCode.INTERNAL_SERVER_ERROR
+      })
     })
   })
 
@@ -424,7 +480,28 @@ describe('TagService', () => {
 
       await expect(
         tagService.syncEntityTags('assistant', 'ast-1', { tagIds: ['tag-ok', 'tag-missing'] })
-      ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+      ).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        message: "Tag with id 'tag-missing' not found"
+      })
+    })
+
+    it('should report all missing tag ids together', async () => {
+      const tx = createTrackingTx([])
+      tx.select
+        .mockReturnValueOnce({ from: () => ({ where: () => mockChain([]) }) })
+        .mockReturnValueOnce({ from: () => ({ where: () => mockChain([{ id: 'tag-ok' }]) }) })
+
+      mockDb.transaction.mockImplementation(async (fn: (tx: any) => Promise<void>) => {
+        await fn(tx)
+      })
+
+      await expect(
+        tagService.syncEntityTags('assistant', 'ast-1', { tagIds: ['tag-missing-1', 'tag-ok', 'tag-missing-2'] })
+      ).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        message: "Tag with id 'tag-missing-1, tag-missing-2' not found"
+      })
     })
 
     it('should only delete when desired is empty (remove-all)', async () => {
@@ -462,14 +539,22 @@ describe('TagService', () => {
   // setEntities
   // --------------------------------------------------------------------------
   describe('setEntities', () => {
-    it('should delete all existing and reinsert desired entities', async () => {
-      // getById mock
-      mockDb.select.mockReturnValue(mockChain([createMockTagRow()]))
-
+    it('should delete removed entities and insert only new ones', async () => {
       const tx = createTrackingTx([
         { entityType: 'assistant', entityId: 'ast-old' },
         { entityType: 'topic', entityId: 'topic-keep' }
       ])
+      tx.select
+        .mockReturnValueOnce({ from: () => ({ where: () => mockChain([{ id: 'tag-1' }]) }) })
+        .mockReturnValueOnce({
+          from: () => ({
+            where: () =>
+              mockChain([
+                { entityType: 'assistant', entityId: 'ast-old' },
+                { entityType: 'topic', entityId: 'topic-keep' }
+              ])
+          })
+        })
 
       mockDb.transaction.mockImplementation(async (fn: (tx: any) => Promise<void>) => {
         await fn(tx)
@@ -482,20 +567,17 @@ describe('TagService', () => {
         ]
       })
 
-      // delete-all-then-reinsert: 1 bulk delete, then reinsert all desired
       expect(tx.deleteCalls).toBe(1)
-      expect(tx.insertedValues).toEqual([
-        [
-          { entityType: 'topic', entityId: 'topic-keep', tagId: 'tag-1' },
-          { entityType: 'assistant', entityId: 'ast-new', tagId: 'tag-1' }
-        ]
-      ])
+      expect(tx.insertedValues).toEqual([[{ entityType: 'assistant', entityId: 'ast-new', tagId: 'tag-1' }]])
     })
 
-    it('should delete and reinsert even when entities already match', async () => {
-      mockDb.select.mockReturnValue(mockChain([createMockTagRow()]))
-
+    it('should skip delete and insert when entities already match', async () => {
       const tx = createTrackingTx([{ entityType: 'assistant', entityId: 'ast-1' }])
+      tx.select
+        .mockReturnValueOnce({ from: () => ({ where: () => mockChain([{ id: 'tag-1' }]) }) })
+        .mockReturnValueOnce({
+          from: () => ({ where: () => mockChain([{ entityType: 'assistant', entityId: 'ast-1' }]) })
+        })
 
       mockDb.transaction.mockImplementation(async (fn: (tx: any) => Promise<void>) => {
         await fn(tx)
@@ -505,18 +587,26 @@ describe('TagService', () => {
         entities: [{ entityType: 'assistant', entityId: 'ast-1' }]
       })
 
-      // always deletes all and reinserts
-      expect(tx.deleteCalls).toBe(1)
-      expect(tx.insertedValues).toEqual([[{ entityType: 'assistant', entityId: 'ast-1', tagId: 'tag-1' }]])
+      expect(tx.deleteCalls).toBe(0)
+      expect(tx.insertedValues).toEqual([])
     })
 
     it('should remove all when entities list is empty', async () => {
-      mockDb.select.mockReturnValue(mockChain([createMockTagRow()]))
-
       const tx = createTrackingTx([
         { entityType: 'assistant', entityId: 'ast-1' },
         { entityType: 'topic', entityId: 'topic-1' }
       ])
+      tx.select
+        .mockReturnValueOnce({ from: () => ({ where: () => mockChain([{ id: 'tag-1' }]) }) })
+        .mockReturnValueOnce({
+          from: () => ({
+            where: () =>
+              mockChain([
+                { entityType: 'assistant', entityId: 'ast-1' },
+                { entityType: 'topic', entityId: 'topic-1' }
+              ])
+          })
+        })
 
       mockDb.transaction.mockImplementation(async (fn: (tx: any) => Promise<void>) => {
         await fn(tx)
@@ -530,11 +620,36 @@ describe('TagService', () => {
     })
 
     it('should throw NOT_FOUND when tag does not exist', async () => {
-      mockDb.select.mockReturnValue(mockChain([]))
+      const tx = createTrackingTx([])
+      tx.select.mockReturnValueOnce({ from: () => ({ where: () => mockChain([]) }) })
+
+      mockDb.transaction.mockImplementation(async (fn: (tx: any) => Promise<void>) => {
+        await fn(tx)
+      })
 
       await expect(tagService.setEntities('non-existent', { entities: [] })).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
+    })
+
+    it('should deduplicate duplicate desired entities before insert', async () => {
+      const tx = createTrackingTx([])
+      tx.select
+        .mockReturnValueOnce({ from: () => ({ where: () => mockChain([{ id: 'tag-1' }]) }) })
+        .mockReturnValueOnce({ from: () => ({ where: () => mockChain([]) }) })
+
+      mockDb.transaction.mockImplementation(async (fn: (tx: any) => Promise<void>) => {
+        await fn(tx)
+      })
+
+      await tagService.setEntities('tag-1', {
+        entities: [
+          { entityType: 'assistant', entityId: 'ast-1' },
+          { entityType: 'assistant', entityId: 'ast-1' }
+        ]
+      })
+
+      expect(tx.insertedValues).toEqual([[{ entityType: 'assistant', entityId: 'ast-1', tagId: 'tag-1' }]])
     })
   })
 
@@ -542,11 +657,26 @@ describe('TagService', () => {
   // removeEntityTags
   // --------------------------------------------------------------------------
   describe('removeEntityTags', () => {
-    it('should call db.delete with correct entity filter', async () => {
-      mockDb.delete.mockReturnValue(mockChain(undefined))
+    it('should remove only tag rows for the target entity', async () => {
+      const db = await setupEntityTagDb()
 
-      await tagService.removeEntityTags('assistant', 'ast-1')
-      expect(mockDb.delete).toHaveBeenCalledOnce()
+      await db.insert(tagTable).values([
+        { id: 'tag-1', name: 'work', createdAt: 1, updatedAt: 1 },
+        { id: 'tag-2', name: 'personal', createdAt: 1, updatedAt: 1 }
+      ])
+      await db.insert(entityTagTable).values([
+        { entityType: 'assistant', entityId: 'ast-1', tagId: 'tag-1', createdAt: 1, updatedAt: 1 },
+        { entityType: 'assistant', entityId: 'ast-2', tagId: 'tag-1', createdAt: 1, updatedAt: 1 },
+        { entityType: 'topic', entityId: 'topic-1', tagId: 'tag-2', createdAt: 1, updatedAt: 1 }
+      ])
+
+      await tagService.removeEntityTags('assistant', 'ast-1', db)
+
+      const rows = await db.select().from(entityTagTable)
+      expect(rows).toEqual([
+        expect.objectContaining({ entityType: 'assistant', entityId: 'ast-2', tagId: 'tag-1' }),
+        expect.objectContaining({ entityType: 'topic', entityId: 'topic-1', tagId: 'tag-2' })
+      ])
     })
   })
 

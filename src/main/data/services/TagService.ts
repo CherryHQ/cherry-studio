@@ -4,39 +4,103 @@
  * Provides business logic for:
  * - Tag CRUD operations
  * - Entity-tag association management (get by entity, sync, bulk set)
+ *
+ * IMPORTANT: `entity_tag` is polymorphic and has no FK to assistant/topic/session tables.
+ * Callers deleting tagged entities must invoke `removeEntityTags()` as part of their delete workflow.
+ * TODO(v2): Wire session cleanup through this helper once the session table is migrated into the v2 data layer.
  */
 
 import { application } from '@application'
 import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
+import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateTagDto, SetTagEntitiesDto, SyncEntityTagsDto, UpdateTagDto } from '@shared/data/api/schemas/tags'
 import type { Tag, TaggableEntityType } from '@shared/data/types/tag'
-import { and, asc, eq, inArray } from 'drizzle-orm'
+import { and, asc, eq, inArray, or, type SQL } from 'drizzle-orm'
 
 const logger = loggerService.withContext('DataApi:TagService')
 
 type TagRow = typeof tagTable.$inferSelect
+type EntityBinding = SetTagEntitiesDto['entities'][number]
+
+function ensureTagTimestamp(
+  timestamp: number | null | undefined,
+  field: 'createdAt' | 'updatedAt',
+  tagId: string
+): number {
+  if (timestamp == null) {
+    logger.warn('Tag row has null timestamp', { id: tagId, field })
+    throw DataApiErrorFactory.internal(new Error(`Tag row '${tagId}' is missing ${field}`), 'TagService.rowToTag')
+  }
+
+  return timestamp
+}
+
+function entityBindingKey(entity: { entityType: string; entityId: string }): string {
+  return `${entity.entityType}:${entity.entityId}`
+}
+
+function dedupeEntityBindings(entities: EntityBinding[]): EntityBinding[] {
+  const uniqueEntities = new Map<string, EntityBinding>()
+
+  for (const entity of entities) {
+    const key = entityBindingKey(entity)
+    if (!uniqueEntities.has(key)) {
+      uniqueEntities.set(key, entity)
+    }
+  }
+
+  return [...uniqueEntities.values()]
+}
+
+function buildEntityBindingCondition(entities: Array<{ entityType: string; entityId: string }>): SQL | undefined {
+  const conditions = entities.map((entity) =>
+    and(eq(entityTagTable.entityType, entity.entityType), eq(entityTagTable.entityId, entity.entityId))
+  )
+
+  if (conditions.length === 0) {
+    return undefined
+  }
+
+  return conditions.length === 1 ? conditions[0] : or(...conditions)
+}
 
 /**
  * Convert database row to Tag entity
  */
 function rowToTag(row: TagRow): Tag {
-  if (!row.createdAt || !row.updatedAt) {
-    logger.warn('Tag row has null timestamp, falling back to current time', { id: row.id })
-  }
+  const createdAt = ensureTagTimestamp(row.createdAt, 'createdAt', row.id)
+  const updatedAt = ensureTagTimestamp(row.updatedAt, 'updatedAt', row.id)
+
   return {
     id: row.id,
     name: row.name,
     color: row.color ?? null,
-    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
-    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : new Date().toISOString()
+    createdAt: new Date(createdAt).toISOString(),
+    updatedAt: new Date(updatedAt).toISOString()
   }
 }
 
 export class TagService {
   private get db() {
     return application.get('DbService').getDb()
+  }
+
+  private async assertTagsExist(tx: Pick<DbType, 'select'>, tagIds: string[]): Promise<void> {
+    const uniqueTagIds = [...new Set(tagIds)]
+
+    if (uniqueTagIds.length === 0) {
+      return
+    }
+
+    const existingTags = await tx.select({ id: tagTable.id }).from(tagTable).where(inArray(tagTable.id, uniqueTagIds))
+    const existingTagIds = new Set(existingTags.map((tag) => tag.id))
+    const missingTagIds = uniqueTagIds.filter((tagId) => !existingTagIds.has(tagId))
+
+    if (missingTagIds.length > 0) {
+      throw DataApiErrorFactory.notFound('Tag', missingTagIds.join(', '))
+    }
   }
 
   /**
@@ -156,7 +220,7 @@ export class TagService {
    * Performs diff-based sync: only deletes removed and inserts added associations.
    */
   async syncEntityTags(entityType: TaggableEntityType, entityId: string, dto: SyncEntityTagsDto): Promise<void> {
-    const { tagIds } = dto
+    const desiredTagIds = [...new Set(dto.tagIds)]
 
     await this.db.transaction(async (tx) => {
       const existing = await tx
@@ -164,11 +228,11 @@ export class TagService {
         .from(entityTagTable)
         .where(and(eq(entityTagTable.entityType, entityType), eq(entityTagTable.entityId, entityId)))
 
-      const existingIds = new Set(existing.map((r) => r.tagId))
-      const desiredIds = new Set(tagIds)
+      const existingIds = new Set(existing.map((row) => row.tagId))
+      const desiredIds = new Set(desiredTagIds)
 
-      const toRemove = existing.filter((r) => !desiredIds.has(r.tagId)).map((r) => r.tagId)
-      const toAdd = tagIds.filter((id) => !existingIds.has(id))
+      const toRemove = existing.filter((row) => !desiredIds.has(row.tagId)).map((row) => row.tagId)
+      const toAdd = desiredTagIds.filter((tagId) => !existingIds.has(tagId))
 
       if (toRemove.length > 0) {
         await tx
@@ -183,37 +247,50 @@ export class TagService {
       }
 
       if (toAdd.length > 0) {
-        const existingTags = await tx.select({ id: tagTable.id }).from(tagTable).where(inArray(tagTable.id, toAdd))
-        const existingTagIds = new Set(existingTags.map((t) => t.id))
-        const missing = toAdd.filter((id) => !existingTagIds.has(id))
-        if (missing.length > 0) {
-          throw DataApiErrorFactory.notFound('Tag', missing[0])
-        }
+        await this.assertTagsExist(tx, toAdd)
         await tx.insert(entityTagTable).values(toAdd.map((tagId) => ({ entityType, entityId, tagId })))
       }
     })
 
-    logger.info('Synced entity tags', { entityType, entityId, tagCount: tagIds.length })
+    logger.info('Synced entity tags', { entityType, entityId, tagCount: desiredTagIds.length })
   }
 
   /**
    * Bulk set entities for a tag (replace all entity associations for this tag).
-   * Uses delete-all-then-reinsert strategy within a transaction.
+   * Performs diff-based sync to preserve unchanged association timestamps.
    */
   async setEntities(tagId: string, dto: SetTagEntitiesDto): Promise<void> {
-    await this.getById(tagId)
+    const desiredEntities = dedupeEntityBindings(dto.entities)
 
     await this.db.transaction(async (tx) => {
-      await tx.delete(entityTagTable).where(eq(entityTagTable.tagId, tagId))
+      const [tag] = await tx.select({ id: tagTable.id }).from(tagTable).where(eq(tagTable.id, tagId)).limit(1)
 
-      if (dto.entities.length > 0) {
-        await tx
-          .insert(entityTagTable)
-          .values(dto.entities.map((e) => ({ entityType: e.entityType, entityId: e.entityId, tagId })))
+      if (!tag) {
+        throw DataApiErrorFactory.notFound('Tag', tagId)
+      }
+
+      const existing = await tx
+        .select({ entityType: entityTagTable.entityType, entityId: entityTagTable.entityId })
+        .from(entityTagTable)
+        .where(eq(entityTagTable.tagId, tagId))
+
+      const existingKeys = new Set(existing.map((entity) => entityBindingKey(entity)))
+      const desiredKeys = new Set(desiredEntities.map((entity) => entityBindingKey(entity)))
+
+      const toRemove = existing.filter((entity) => !desiredKeys.has(entityBindingKey(entity)))
+      const toAdd = desiredEntities.filter((entity) => !existingKeys.has(entityBindingKey(entity)))
+
+      const deleteCondition = buildEntityBindingCondition(toRemove)
+      if (deleteCondition) {
+        await tx.delete(entityTagTable).where(and(eq(entityTagTable.tagId, tagId), deleteCondition))
+      }
+
+      if (toAdd.length > 0) {
+        await tx.insert(entityTagTable).values(toAdd.map((entity) => ({ ...entity, tagId })))
       }
     })
 
-    logger.info('Set tag entities', { tagId, entityCount: dto.entities.length })
+    logger.info('Set tag entities', { tagId, entityCount: desiredEntities.length })
   }
 
   /**
@@ -221,8 +298,12 @@ export class TagService {
    * Must be called by entity services (AssistantService, TopicService, etc.)
    * when deleting an entity, since entity_tag has no FK to entity tables.
    */
-  async removeEntityTags(entityType: TaggableEntityType, entityId: string): Promise<void> {
-    await this.db
+  async removeEntityTags(
+    entityType: TaggableEntityType,
+    entityId: string,
+    db: Pick<DbType, 'delete'> = this.db
+  ): Promise<void> {
+    await db
       .delete(entityTagTable)
       .where(and(eq(entityTagTable.entityType, entityType), eq(entityTagTable.entityId, entityId)))
 
