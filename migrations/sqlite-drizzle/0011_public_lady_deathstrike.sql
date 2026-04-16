@@ -20,19 +20,6 @@ CREATE TABLE `agents_agents` (
 CREATE INDEX `agents_agents_name_idx` ON `agents_agents` (`name`);--> statement-breakpoint
 CREATE INDEX `agents_agents_type_idx` ON `agents_agents` (`type`);--> statement-breakpoint
 CREATE INDEX `agents_agents_sort_order_idx` ON `agents_agents` (`sort_order`);--> statement-breakpoint
-CREATE TABLE `agents_agent_skills` (
-	`agent_id` text NOT NULL,
-	`skill_id` text NOT NULL,
-	`is_enabled` integer DEFAULT false NOT NULL,
-	`created_at` integer,
-	`updated_at` integer,
-	PRIMARY KEY(`agent_id`, `skill_id`),
-	FOREIGN KEY (`agent_id`) REFERENCES `agents_agents`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`skill_id`) REFERENCES `agents_skills`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
-CREATE INDEX `agents_agent_skills_agent_id_idx` ON `agents_agent_skills` (`agent_id`);--> statement-breakpoint
-CREATE INDEX `agents_agent_skills_skill_id_idx` ON `agents_agent_skills` (`skill_id`);--> statement-breakpoint
 CREATE TABLE `agents_channel_task_subscriptions` (
 	`channel_id` text NOT NULL,
 	`task_id` text NOT NULL,

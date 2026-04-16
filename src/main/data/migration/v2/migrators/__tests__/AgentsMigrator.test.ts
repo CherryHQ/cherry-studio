@@ -127,20 +127,20 @@ describe('AgentsMigrator', () => {
 
     const get = vi
       .fn()
-      .mockResolvedValueOnce({ count: 1 })
-      .mockResolvedValueOnce({ count: 1 })
-      .mockResolvedValueOnce({ count: 3 })
-      .mockResolvedValueOnce({ count: 4 })
-      .mockResolvedValueOnce({ count: 5 })
-      .mockResolvedValueOnce({ count: 6 })
-      .mockResolvedValueOnce({ count: 7 })
-      .mockResolvedValueOnce({ count: 8 })
+      .mockResolvedValueOnce({ count: 0 }) // agents_agents (expected 1 → mismatch, no WHERE)
+      .mockResolvedValueOnce({ count: 2 }) // agents_sessions
+      .mockResolvedValueOnce({ count: 3 }) // agents_skills
+      .mockResolvedValueOnce({ count: 4 }) // agents_tasks
+      .mockResolvedValueOnce({ count: 5 }) // agents_task_run_logs
+      .mockResolvedValueOnce({ count: 6 }) // agents_channels
+      .mockResolvedValueOnce({ count: 7 }) // agents_channel_task_subscriptions
+      .mockResolvedValueOnce({ count: 8 }) // agents_session_messages
 
     await migrator.prepare(createMigrationContext())
     const result = await migrator.validate(createMigrationContext({ db: { get } }))
 
     expect(result.success).toBe(false)
-    expect(result.errors[0]?.key).toBe('agents_sessions_count_mismatch')
+    expect(result.errors[0]?.key).toBe('agents_agents_count_mismatch')
     expect(result.stats.sourceCount).toBe(36)
     expect(result.stats.targetCount).toBe(35)
   })
