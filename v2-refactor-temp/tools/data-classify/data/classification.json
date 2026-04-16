@@ -428,7 +428,7 @@
           "originalKey": "currentUserId",
           "type": "string",
           "defaultValue": "default-user",
-          "status": "classified",
+          "status": "pending",
           "category": "preferences",
           "targetKey": "feature.memory.current_user_id"
         },
@@ -436,7 +436,7 @@
           "originalKey": "globalMemoryEnabled",
           "type": "boolean",
           "defaultValue": false,
-          "status": "classified",
+          "status": "pending",
           "category": "preferences",
           "targetKey": "feature.memory.enabled"
         }
