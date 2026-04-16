@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-04-13T03:21:18.293Z
+ * Generated at: 2026-04-16T02:45:27.996Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in packages/shared/data/preferences.ts
@@ -689,32 +689,6 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'feature.selection.action_items'
     }
   ],
-  memory: [
-    {
-      originalKey: 'memoryConfig.embedderDimensions',
-      targetKey: 'feature.memory.embedder_dimensions'
-    },
-    {
-      originalKey: 'memoryConfig.isAutoDimensions',
-      targetKey: 'feature.memory.auto_dimensions'
-    },
-    {
-      originalKey: 'memoryConfig.customFactExtractionPrompt',
-      targetKey: 'feature.memory.fact_extraction_prompt'
-    },
-    {
-      originalKey: 'memoryConfig.customUpdateMemoryPrompt',
-      targetKey: 'feature.memory.update_memory_prompt'
-    },
-    {
-      originalKey: 'currentUserId',
-      targetKey: 'feature.memory.current_user_id'
-    },
-    {
-      originalKey: 'globalMemoryEnabled',
-      targetKey: 'feature.memory.enabled'
-    }
-  ],
   nutstore: [
     {
       originalKey: 'nutstoreToken',
@@ -937,11 +911,11 @@ export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetK
 /**
  * 映射统计:
  * - ElectronStore项: 1
- * - Redux Store项: 207
- * - Redux分类: settings, selectionStore, memory, nutstore, preprocess, shortcuts, translate, websearch, ocr, note
+ * - Redux Store项: 201
+ * - Redux分类: settings, selectionStore, nutstore, preprocess, shortcuts, translate, websearch, ocr, note
  * - DexieSettings项: 7
  * - localStorage项: 0
- * - 总配置项: 215
+ * - 总配置项: 209
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)

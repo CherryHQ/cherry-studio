@@ -381,66 +381,7 @@
           "targetKey": null
         }
       ],
-      "memory": [
-        {
-          "originalKey": "memoryConfig",
-          "type": "unknown",
-          "defaultValue": "defaultMemoryConfig",
-          "status": "pending",
-          "category": null,
-          "targetKey": null,
-          "children": [
-            {
-              "category": "preferences",
-              "defaultValue": 1536,
-              "originalKey": "embedderDimensions",
-              "status": "classified",
-              "targetKey": "feature.memory.embedder_dimensions",
-              "type": "number"
-            },
-            {
-              "category": "preferences",
-              "defaultValue": true,
-              "originalKey": "isAutoDimensions",
-              "status": "classified",
-              "targetKey": "feature.memory.auto_dimensions",
-              "type": "boolean"
-            },
-            {
-              "category": "preferences",
-              "defaultValue": "VALUE: MEMORY_FACT_EXTRACTION_PROMPT",
-              "originalKey": "customFactExtractionPrompt",
-              "status": "classified",
-              "targetKey": "feature.memory.fact_extraction_prompt",
-              "type": "string"
-            },
-            {
-              "category": "preferences",
-              "defaultValue": "VALUE: MEMORY_UPDATE_SYSTEM_PROMPT",
-              "originalKey": "customUpdateMemoryPrompt",
-              "status": "classified",
-              "targetKey": "feature.memory.update_memory_prompt",
-              "type": "string"
-            }
-          ]
-        },
-        {
-          "originalKey": "currentUserId",
-          "type": "string",
-          "defaultValue": "default-user",
-          "status": "classified",
-          "category": "preferences",
-          "targetKey": "feature.memory.current_user_id"
-        },
-        {
-          "originalKey": "globalMemoryEnabled",
-          "type": "boolean",
-          "defaultValue": false,
-          "status": "classified",
-          "category": "preferences",
-          "targetKey": "feature.memory.enabled"
-        }
-      ],
+      "memory": [],
       "messageBlock": [],
       "migrate": [],
       "minapps": [
