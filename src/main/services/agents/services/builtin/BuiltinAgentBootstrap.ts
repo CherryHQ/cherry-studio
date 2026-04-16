@@ -85,19 +85,38 @@ async function initCherryAssistant(): Promise<void> {
 
 /**
  * Restore previously dismissed built-in agents.
- * Clears the dismissed list and recreates any missing agents.
+ * Clears the dismissed list and recreates any missing agents sequentially.
  * Returns IDs of agents that were actually created.
  */
 export async function restoreBuiltinAgents(): Promise<string[]> {
-  // Clear dismissed list so bootstrap won't skip them
+  // Clear dismissed list so init methods won't skip them
   configManager.setDismissedBuiltinAgents([])
 
+  // Re-init each builtin agent sequentially to avoid race conditions
+  const cherryClawId = await agentService.initDefaultCherryClawAgent()
+  const cherryAssistantId = await agentService.initBuiltinAgent({
+    id: CHERRY_ASSISTANT_AGENT_ID,
+    builtinRole: 'assistant',
+    provisionWorkspace: provisionBuiltinAgent
+  })
+
+  // Also ensure sessions and heartbeat for newly created agents
+  if (cherryClawId) {
+    const { total: clawSessions } = await sessionService.listSessions(cherryClawId, { limit: 1 })
+    if (clawSessions === 0) {
+      await sessionService.createSession(cherryClawId, {})
+    }
+    await schedulerService.ensureHeartbeatTask(cherryClawId, 30)
+  }
+
+  if (cherryAssistantId) {
+    const { total: assistantSessions } = await sessionService.listSessions(cherryAssistantId, { limit: 1 })
+    if (assistantSessions === 0) {
+      await sessionService.createSession(cherryAssistantId, {})
+    }
+  }
+
   const restoredIds: string[] = []
-
-  // Re-run bootstrap — the init methods will create missing agents
-  await bootstrapBuiltinAgents()
-
-  // Check which agents now exist
   for (const id of BUILTIN_AGENT_IDS) {
     const exists = await agentService.agentExists(id)
     if (exists) {

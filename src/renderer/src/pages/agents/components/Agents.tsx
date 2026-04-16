@@ -63,7 +63,7 @@ const Agents = ({ onSelectItem }: AgentsProps) => {
         header={
           <div className="-mt-0.5 mb-1.5 flex items-center gap-1">
             <AddButton onClick={handleAddAgent}>{t('agent.sidebar_title')}</AddButton>
-            {agents && agents.length === 0 && (
+            {agents && ['cherry-claw-default', 'cherry-assistant-default'].some((id) => !agents.some((a) => a.id === id)) && (
               <Tooltip title={t('agent.restore.button')}>
                 <Button type="text" size="small" icon={<Undo2 size={14} />} onClick={() => void restoreBuiltinAgents()} />
               </Tooltip>

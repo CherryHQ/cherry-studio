@@ -1338,6 +1338,35 @@
         }
       }
     },
+    "/agents/restore-builtin": {
+      "post": {
+        "summary": "Restore dismissed built-in agents",
+        "tags": ["Agents"],
+        "responses": {
+          "200": {
+            "description": "Built-in agents restored successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "restoredAgentIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/agents": {
       "post": {
         "summary": "Create a new agent",
