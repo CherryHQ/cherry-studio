@@ -1,7 +1,10 @@
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { KnowledgeItemService } from '@data/services/KnowledgeItemService'
 import { ErrorCode } from '@shared/data/api'
 import type { CreateKnowledgeItemsDto, UpdateKnowledgeItemDto } from '@shared/data/api/schemas/knowledges'
+import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq, sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -12,13 +15,27 @@ describe('KnowledgeItemService', () => {
 
   beforeEach(async () => {
     service = new KnowledgeItemService()
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'openai',
+      name: 'OpenAI'
+    })
+    await dbh.db.insert(userModelTable).values({
+      id: createUniqueModelId('openai', 'text-embedding-3-large'),
+      providerId: 'openai',
+      modelId: 'text-embedding-3-large',
+      presetModelId: 'text-embedding-3-large',
+      name: 'text-embedding-3-large',
+      isEnabled: true,
+      isHidden: false,
+      sortOrder: 0
+    })
     // Seed a knowledge base so FK-constrained inserts pass and
     // knowledgeBaseService.getById('kb-1') resolves the existing row.
     await dbh.db.insert(knowledgeBaseTable).values({
       id: 'kb-1',
       name: 'KB',
       dimensions: 1024,
-      embeddingModelId: 'openai::text-embedding-3-large'
+      embeddingModelId: createUniqueModelId('openai', 'text-embedding-3-large')
     })
   })
 
