@@ -356,7 +356,7 @@
     "katex": "0.16.22",
     "ky": "1.8.1",
     "linguist-languages": "^8.1.0",
-    "lodash": "^4.17.21",
+    "lodash": "^4.18.1",
     "lru-cache": "^11.1.0",
     "lucide-react": "^0.525.0",
     "macos-release": "^3.4.0",
