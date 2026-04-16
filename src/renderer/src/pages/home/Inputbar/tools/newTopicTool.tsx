@@ -16,7 +16,7 @@ const newTopicTool = defineTool({
 
   render: function NewTopicRender(context) {
     const { actions, t } = context
-    const newTopicShortcut = useShortcutDisplay('new_topic')
+    const newTopicShortcut = useShortcutDisplay('topic.new')
 
     return (
       <Tooltip

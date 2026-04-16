@@ -93,6 +93,12 @@ function getCreateKnowledgeItemGroupingErrors(
 }
 
 function rowToKnowledgeItem(row: typeof knowledgeItemTable.$inferSelect): KnowledgeItem {
+  // Drizzle's `text({ mode: 'json' })` decoder already ran by the time we
+  // get here, so `row.data` is either the decoded object, null (missing
+  // blob), or in the legacy/bad-typing case a raw string. The JSON-parse
+  // branch exists for defence-in-depth; the awaitKnowledgeItemRead wrapper
+  // on the query side is what actually catches corrupt-blob SyntaxError
+  // before it ever reaches this converter.
   const parseJson = <T>(value: T | string | null | undefined, context?: string): T | null => {
     if (value == null) return null
     if (typeof value === 'string') {
@@ -127,6 +133,28 @@ function rowToKnowledgeItem(row: typeof knowledgeItemTable.$inferSelect): Knowle
   } as KnowledgeItem
 }
 
+/**
+ * Run a knowledge_item read query and translate any Drizzle JSON-decode
+ * SyntaxError into a domain-typed DATA_INCONSISTENT response.
+ *
+ * Rationale: Drizzle's `text({ mode: 'json' })` calls JSON.parse as part of
+ * row materialisation. If a `data` blob in the DB is corrupt (bit rot, manual
+ * SQL edit, bad migration), the `await db.select()` call throws a bare
+ * SyntaxError from inside the driver, *before* rowToKnowledgeItem runs. The
+ * service would then leak `SyntaxError: Expected property name or '}' ...`
+ * to callers instead of a DataApiError. Wrapping the read here converts it.
+ */
+async function awaitKnowledgeItemRead<T>(fn: () => PromiseLike<T>, context: string): Promise<T> {
+  try {
+    return await fn()
+  } catch (e) {
+    if (e instanceof SyntaxError) {
+      throw DataApiErrorFactory.dataInconsistent('KnowledgeItem', `Corrupted data in knowledge item ${context}`)
+    }
+    throw e
+  }
+}
+
 export class KnowledgeItemService {
   private get db() {
     const dbService = application.get('DbService')
@@ -148,13 +176,17 @@ export class KnowledgeItemService {
 
     const where = conditions.length === 1 ? conditions[0] : and(...conditions)
     const [rows, [{ count }]] = await Promise.all([
-      this.db
-        .select()
-        .from(knowledgeItemTable)
-        .where(where)
-        .orderBy(desc(knowledgeItemTable.createdAt), desc(knowledgeItemTable.id))
-        .limit(limit)
-        .offset(offset),
+      awaitKnowledgeItemRead(
+        () =>
+          this.db
+            .select()
+            .from(knowledgeItemTable)
+            .where(where)
+            .orderBy(desc(knowledgeItemTable.createdAt), desc(knowledgeItemTable.id))
+            .limit(limit)
+            .offset(offset),
+        `in base '${baseId}'`
+      ),
       this.db.select({ count: sql<number>`count(*)` }).from(knowledgeItemTable).where(where)
     ])
 
@@ -224,7 +256,10 @@ export class KnowledgeItemService {
   }
 
   async getById(id: string): Promise<KnowledgeItem> {
-    const [row] = await this.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1)
+    const [row] = await awaitKnowledgeItemRead(
+      () => this.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1),
+      `'${id}'`
+    )
 
     if (!row) {
       throw DataApiErrorFactory.notFound('KnowledgeItem', id)
@@ -240,10 +275,14 @@ export class KnowledgeItemService {
       return []
     }
 
-    const rows = await this.db
-      .select()
-      .from(knowledgeItemTable)
-      .where(and(eq(knowledgeItemTable.baseId, baseId), inArray(knowledgeItemTable.id, uniqueItemIds)))
+    const rows = await awaitKnowledgeItemRead(
+      () =>
+        this.db
+          .select()
+          .from(knowledgeItemTable)
+          .where(and(eq(knowledgeItemTable.baseId, baseId), inArray(knowledgeItemTable.id, uniqueItemIds))),
+      `in base '${baseId}'`
+    )
 
     const itemsById = new Map(rows.map((row) => [row.id, rowToKnowledgeItem(row)]))
 

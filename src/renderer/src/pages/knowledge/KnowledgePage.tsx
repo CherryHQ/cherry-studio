@@ -93,7 +93,7 @@ const KnowledgePage: FC = () => {
     [deleteKnowledgeBase, handleEditKnowledgeBase, renameKnowledgeBase, t]
   )
 
-  useShortcut('search_message', () => {
+  useShortcut('general.search', () => {
     if (selectedBase) {
       void KnowledgeSearchPopup.show({ base: selectedBase }).then()
     }

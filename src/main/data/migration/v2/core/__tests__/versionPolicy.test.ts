@@ -5,6 +5,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { VersionCheckInput, VersionCheckResult } from '../versionPolicy'
 import { checkUpgradePathCompatibility, readPreviousVersion } from '../versionPolicy'
 
+vi.mock('node:fs', async () => {
+  const { createNodeFsMock } = await import('@test-helpers/mocks/nodeFsMock')
+  return createNodeFsMock()
+})
+
 // ── checkUpgradePathCompatibility ──────────────────────────────────
 
 describe('checkUpgradePathCompatibility', () => {

@@ -44,7 +44,8 @@ export default defineConfig({
         '@vectorstores/libsql': resolve('packages/vectorstores/libsql/src/index.ts'),
         '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
         '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
-        '@test-mocks': resolve('tests/__mocks__')
+        '@test-mocks': resolve('tests/__mocks__'),
+        '@test-helpers': resolve('tests/helpers')
       }
     },
     build: {

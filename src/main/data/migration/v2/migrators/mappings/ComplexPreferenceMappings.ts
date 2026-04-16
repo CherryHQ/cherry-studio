@@ -22,6 +22,7 @@ import { flattenCompressionConfig, migrateWebSearchProviders } from '../transfor
 import { transformCodeCli } from './CodeCliTransforms'
 import { mergeFileProcessingOverrides } from './FileProcessingOverrideMappings'
 import { transformLlmModelIds } from './LlmModelTransforms'
+import { SHORTCUT_TARGET_KEYS, transformShortcuts } from './ShortcutMappings'
 
 // ============================================================================
 // Type Definitions
@@ -127,6 +128,17 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     },
     targetKeys: ['feature.code_cli.overrides'],
     transform: transformCodeCli
+  },
+
+  // Shortcut preferences (legacy array → per-key PreferenceShortcutType)
+  {
+    id: 'shortcut_preferences_migrate',
+    description: 'Convert legacy shortcuts array into per-key { binding, enabled } preferences',
+    sources: {
+      shortcuts: { source: 'redux', category: 'shortcuts', key: 'shortcuts' }
+    },
+    targetKeys: [...SHORTCUT_TARGET_KEYS],
+    transform: transformShortcuts
   },
 
   // File processing overrides merging

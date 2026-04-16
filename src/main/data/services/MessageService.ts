@@ -42,11 +42,16 @@ const PREVIEW_LENGTH = 50
 const DEFAULT_LIMIT = 20
 
 /**
- * Convert database row to Message entity
+ * Convert database row to Message entity.
  *
- * Note: When using raw SQL queries (db.all with sql``), Drizzle ORM does NOT
- * automatically parse JSON columns. This function handles both parsed objects
- * (from ORM queries) and JSON strings (from raw SQL queries).
+ * Expects camelCase keys — only ORM-channel results match.
+ * Raw SQL via `db.all(sql\`...\`)` returns snake_case columns and CANNOT be
+ * passed here directly. See docs/references/data/database-patterns.md →
+ * "Raw SQL Queries & Recursive CTEs" for the recommended CTE-for-IDs +
+ * ORM-for-rows pattern used by getTree, getBranchMessages, getPathToNode.
+ *
+ * Also handles JSON columns: ORM returns parsed objects; the parseJson
+ * helper covers any legacy code path that still hands in JSON strings.
  */
 function rowToMessage(row: typeof messageTable.$inferSelect): Message {
   // Handle JSON strings from raw SQL queries (db.all with sql``)
@@ -167,16 +172,38 @@ export class MessageService {
     // Use a large depth for unlimited (-1)
     const maxDepth = depth === -1 ? 999 : depth
 
-    const treeRows = await db.all<typeof messageTable.$inferSelect & { tree_depth: number }>(sql`
+    // Recursive CTE returns ID + depth only (single-word columns are
+    // casing-safe). Full rows are fetched via ORM below for camelCase mapping.
+    // See docs/references/data/database-patterns.md.
+    const treeDepthRows = await db.all<{ id: string; tree_depth: number }>(sql`
       WITH RECURSIVE tree AS (
-        SELECT *, 0 as tree_depth FROM message WHERE id = ${rootId} AND deleted_at IS NULL
+        SELECT id, 0 as tree_depth FROM message WHERE id = ${rootId} AND deleted_at IS NULL
         UNION ALL
-        SELECT m.*, t.tree_depth + 1 FROM message m
+        SELECT m.id, t.tree_depth + 1 FROM message m
         INNER JOIN tree t ON m.parent_id = t.id
         WHERE t.tree_depth < ${maxDepth} AND m.deleted_at IS NULL
       )
-      SELECT * FROM tree
+      SELECT id, tree_depth FROM tree
     `)
+
+    const depthByCteId = new Map(treeDepthRows.map((r) => [r.id, r.tree_depth]))
+    const baseTreeRows =
+      treeDepthRows.length === 0
+        ? []
+        : await db
+            .select()
+            .from(messageTable)
+            .where(
+              inArray(
+                messageTable.id,
+                treeDepthRows.map((r) => r.id)
+              )
+            )
+
+    const treeRows: Array<typeof messageTable.$inferSelect & { treeDepth: number }> = baseTreeRows.map((r) => ({
+      ...r,
+      treeDepth: depthByCteId.get(r.id)!
+    }))
 
     // Also fetch active path nodes that might be beyond depth limit
     const treeNodeIds = new Set(treeRows.map((r) => r.id))
@@ -187,7 +214,7 @@ export class MessageService {
         .select()
         .from(messageTable)
         .where(and(inArray(messageTable.id, missingActivePathIds), isNull(messageTable.deletedAt)))
-      treeRows.push(...additionalRows.map((r) => ({ ...r, tree_depth: maxDepth + 1 })))
+      treeRows.push(...additionalRows.map((r) => ({ ...r, treeDepth: maxDepth + 1 })))
     }
 
     // Also need children of active path nodes for proper tree building
@@ -209,7 +236,7 @@ export class MessageService {
 
       for (const row of childrenRows) {
         if (!treeNodeIds.has(row.id)) {
-          treeRows.push({ ...row, tree_depth: maxDepth + 1 })
+          treeRows.push({ ...row, treeDepth: maxDepth + 1 })
           treeNodeIds.add(row.id)
         }
       }
@@ -222,7 +249,7 @@ export class MessageService {
 
       for (const row of childrenRows) {
         if (!treeNodeIds.has(row.id)) {
-          treeRows.push({ ...row, tree_depth: maxDepth + 1 })
+          treeRows.push({ ...row, treeDepth: maxDepth + 1 })
           treeNodeIds.add(row.id)
         }
       }
@@ -240,7 +267,7 @@ export class MessageService {
     for (const row of treeRows) {
       const message = rowToMessage(row)
       messagesById.set(message.id, message)
-      depthMap.set(message.id, row.tree_depth)
+      depthMap.set(message.id, row.treeDepth)
 
       const parentId = message.parentId || 'root'
       if (!childrenMap.has(parentId)) {
@@ -352,21 +379,30 @@ export class MessageService {
       return { items: [], nextCursor: undefined, activeNodeId: null }
     }
 
-    // Use recursive CTE to get path from nodeId to root (single query)
-    const pathMessages = await db.all<typeof messageTable.$inferSelect>(sql`
+    // Use recursive CTE to collect path IDs from nodeId to root (single-column
+    // result is casing-safe), then fetch full rows via ORM to get camelCase
+    // mapping. See docs/references/data/database-patterns.md.
+    const pathIdRows = await db.all<{ id: string }>(sql`
       WITH RECURSIVE path AS (
-        SELECT * FROM message WHERE id = ${nodeId} AND deleted_at IS NULL
+        SELECT id, parent_id FROM message WHERE id = ${nodeId} AND deleted_at IS NULL
         UNION ALL
-        SELECT m.* FROM message m
+        SELECT m.id, m.parent_id FROM message m
         INNER JOIN path p ON m.id = p.parent_id
         WHERE m.deleted_at IS NULL
       )
-      SELECT * FROM path
+      SELECT id FROM path
     `)
 
-    if (pathMessages.length === 0) {
+    if (pathIdRows.length === 0) {
       throw DataApiErrorFactory.notFound('Message', nodeId)
     }
+
+    const pathIds = pathIdRows.map((r) => r.id)
+    const pathRows = await db.select().from(messageTable).where(inArray(messageTable.id, pathIds))
+
+    // Preserve CTE order (nodeId → root); ORM IN-list does not guarantee order.
+    const pathOrder = new Map(pathIds.map((id, i) => [id, i]))
+    const pathMessages = pathRows.sort((a, b) => pathOrder.get(a.id)! - pathOrder.get(b.id)!)
 
     // Reverse to get root->nodeId order
     const fullPath = pathMessages.reverse()
@@ -801,24 +837,31 @@ export class MessageService {
   async getPathToNode(nodeId: string): Promise<Message[]> {
     const db = application.get('DbService').getDb()
 
-    // Use recursive CTE to get all ancestors in one query
-    const result = await db.all<typeof messageTable.$inferSelect>(sql`
+    // Recursive CTE collects ancestor IDs (single-column, casing-safe);
+    // full rows fetched via ORM for camelCase mapping.
+    const ancestorIdRows = await db.all<{ id: string }>(sql`
       WITH RECURSIVE ancestors AS (
-        SELECT * FROM message WHERE id = ${nodeId} AND deleted_at IS NULL
+        SELECT id, parent_id FROM message WHERE id = ${nodeId} AND deleted_at IS NULL
         UNION ALL
-        SELECT m.* FROM message m
+        SELECT m.id, m.parent_id FROM message m
         INNER JOIN ancestors a ON m.id = a.parent_id
         WHERE m.deleted_at IS NULL
       )
-      SELECT * FROM ancestors
+      SELECT id FROM ancestors
     `)
 
-    if (result.length === 0) {
+    if (ancestorIdRows.length === 0) {
       throw DataApiErrorFactory.notFound('Message', nodeId)
     }
 
-    // Result is from nodeId to root, reverse to get root to nodeId
-    return result.reverse().map(rowToMessage)
+    const ancestorIds = ancestorIdRows.map((r) => r.id)
+    const ancestorRows = await db.select().from(messageTable).where(inArray(messageTable.id, ancestorIds))
+
+    // Preserve CTE order (nodeId → root) before reversing to root → nodeId.
+    const ancestorOrder = new Map(ancestorIds.map((id, i) => [id, i]))
+    const ordered = ancestorRows.sort((a, b) => ancestorOrder.get(a.id)! - ancestorOrder.get(b.id)!)
+
+    return ordered.reverse().map(rowToMessage)
   }
 }
 
