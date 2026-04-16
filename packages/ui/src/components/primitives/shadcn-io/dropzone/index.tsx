@@ -1,12 +1,13 @@
 'use client'
 
 import { Button } from '@cherrystudio/ui/components/primitives/button'
-import { cn } from '@cherrystudio/ui/lib/utils'
 import { UploadIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { createContext, use } from 'react'
 import type { DropEvent, DropzoneOptions, FileRejection } from 'react-dropzone'
 import { useDropzone } from 'react-dropzone'
+
+import { cn } from '../../../../lib/utils'
 
 type DropzoneContextType = {
   src?: File[]
@@ -60,7 +61,8 @@ export const Dropzone = ({
     disabled,
     onDrop: (acceptedFiles, fileRejections, event) => {
       if (fileRejections.length > 0) {
-        const message = fileRejections.at(0)?.errors.at(0)?.message
+        const firstRejection = fileRejections[0]
+        const message = firstRejection?.errors[0]?.message ?? 'File upload rejected'
         onError?.(new Error(message))
         return
       }

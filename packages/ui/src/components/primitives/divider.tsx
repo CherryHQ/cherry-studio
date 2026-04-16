@@ -1,7 +1,8 @@
 'use client'
 
-import { cn } from '@cherrystudio/ui/lib/utils'
 import * as React from 'react'
+
+import { cn } from '../../lib/utils'
 
 interface DividerProps extends React.HTMLAttributes<HTMLDivElement> {
   orientation?: 'horizontal' | 'vertical'

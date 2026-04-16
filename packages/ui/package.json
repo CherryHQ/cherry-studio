@@ -7,7 +7,7 @@
   "types": "dist/index.d.ts",
   "react-native": "dist/index.js",
   "scripts": {
-    "build": "tsdown",
+    "build": "tsdown && mkdir -p dist/styles && cp -R src/styles/. dist/styles/",
     "dev": "tsc -w",
     "clean": "rm -rf dist",
     "test": "vitest run",
@@ -154,15 +154,15 @@
       "default": "./dist/utils/index.js"
     },
     "./icons": {
-      "types": "./dist/components/icons/index.d.ts",
-      "react-native": "./dist/components/icons/index.js",
-      "import": "./dist/components/icons/index.mjs",
-      "require": "./dist/components/icons/index.js",
-      "default": "./dist/components/icons/index.js"
+      "types": "./dist/icons/index.d.ts",
+      "react-native": "./dist/icons/index.js",
+      "import": "./dist/icons/index.mjs",
+      "require": "./dist/icons/index.js",
+      "default": "./dist/icons/index.js"
     },
-    "./styles": "./src/styles/index.css",
-    "./styles/tokens.css": "./src/styles/tokens.css",
-    "./styles/theme.css": "./src/styles/theme.css",
-    "./styles/index.css": "./src/styles/index.css"
+    "./styles": "./dist/styles/index.css",
+    "./styles/tokens.css": "./dist/styles/tokens.css",
+    "./styles/theme.css": "./dist/styles/theme.css",
+    "./styles/index.css": "./dist/styles/index.css"
   }
 }

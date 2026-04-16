@@ -5,10 +5,11 @@ import {
   DialogHeader,
   DialogTitle
 } from '@cherrystudio/ui/components/primitives/dialog'
-import { cn } from '@cherrystudio/ui/lib/utils'
 import { Command as CommandPrimitive } from 'cmdk'
 import { SearchIcon } from 'lucide-react'
 import * as React from 'react'
+
+import { cn } from '../../lib/utils'
 
 function Command({ className, ...props }: React.ComponentProps<typeof CommandPrimitive>) {
   return (

@@ -1,5 +1,6 @@
-import { cn } from '@cherrystudio/ui/lib/utils'
 import React, { memo } from 'react'
+
+import { cn } from '../../../lib/utils'
 
 interface EmojiAvatarProps {
   children: string

@@ -1,9 +1,10 @@
-import { cn } from '@cherrystudio/ui/lib/utils'
 import { composeEventHandlers } from '@radix-ui/primitive'
 import { useCallbackRef } from '@radix-ui/react-use-callback-ref'
 import { useControllableState } from '@radix-ui/react-use-controllable-state'
 import { cva } from 'class-variance-authority'
 import * as React from 'react'
+
+import { cn } from '../../lib/utils'
 
 /* -------------------------------------------------------------------------------------------------
  * Variants

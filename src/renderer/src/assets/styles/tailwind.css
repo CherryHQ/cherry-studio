@@ -1,8 +1,8 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
-@import '../../../../../packages/ui/src/styles/theme.css';
-@source '../../../../../packages/ui/src/components/**/*.{js,ts,jsx,tsx}';
+@import '@cherrystudio/ui/styles/theme.css';
+@source '../../../../../packages/ui/dist/**/*.{js,mjs}';
 @custom-variant dark (&:is(.dark *));
 
 /* 如需自定义:

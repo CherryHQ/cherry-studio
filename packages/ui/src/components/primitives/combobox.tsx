@@ -10,10 +10,11 @@ import {
   CommandList
 } from '@cherrystudio/ui/components/primitives/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui/components/primitives/popover'
-import { cn } from '@cherrystudio/ui/lib/utils'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { Check, ChevronDown, X } from 'lucide-react'
 import * as React from 'react'
+
+import { cn } from '../../lib/utils'
 
 // ==================== Variants ====================
 

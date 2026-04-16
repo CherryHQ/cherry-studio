@@ -1,3 +1,5 @@
+export { cn } from '../lib/utils'
+
 /**
  * Public utility functions for external consumers.
  *
