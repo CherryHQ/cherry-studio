@@ -216,10 +216,10 @@ export class AgentService extends BaseService {
         const workspace = resolvedPaths[0]
         const agentConfig = workspace ? await provisionWorkspace(workspace, builtinRole) : undefined
         if (agentConfig && (agentConfig.description || agentConfig.instructions)) {
-          const updateData: Partial<InsertAgentRow> = { updated_at: new Date().toISOString() }
+          const updateData: UpdateAgentRequest = {}
           if (agentConfig.description) updateData.description = agentConfig.description
           if (agentConfig.instructions) updateData.instructions = agentConfig.instructions
-          await database.update(agentsTable).set(updateData).where(eq(agentsTable.id, id))
+          await this.updateAgent(id, updateData)
         }
         return { agentId: id }
       }
