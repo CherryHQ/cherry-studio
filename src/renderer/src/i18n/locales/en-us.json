@@ -490,6 +490,7 @@
       },
       "prompt": "Prompt Settings",
       "skills": {
+        "addMore": "Add More Skills",
         "builtin": "Built-in",
         "noFilterResults": "No matching skills",
         "noSkills": "No skills installed. Install skills from Settings > Skills.",

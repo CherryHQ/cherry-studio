@@ -198,14 +198,20 @@ class SkillsServer {
     const installed = await skillService.install({
       installSource: `claude-plugins:${identifier}`
     })
-    const enabled = await skillService.toggle({ skillId: installed.id, isEnabled: true })
+    // Enable the freshly-installed skill for the CURRENT agent only. Other
+    // agents remain untouched — skill enablement is per-agent.
+    const enabled = await skillService.toggle({
+      skillId: installed.id,
+      agentId: this.agentId,
+      isEnabled: true
+    })
 
     logger.info('Skill installed via tool', { agentId: this.agentId, identifier, name: installed.name })
     return {
       content: [
         {
           type: 'text' as const,
-          text: `Skill installed${enabled?.isEnabled ? ' and enabled' : ' (warning: failed to enable)'}:\n  Name: ${installed.name}\n  Description: ${installed.description ?? 'N/A'}\n  Folder: ${installed.folderName}\n  Enabled: ${enabled?.isEnabled ?? false}`
+          text: `Skill installed${enabled?.isEnabled ? ' and enabled for this agent' : ' (warning: failed to enable)'}:\n  Name: ${installed.name}\n  Description: ${installed.description ?? 'N/A'}\n  Folder: ${installed.folderName}\n  Enabled: ${enabled?.isEnabled ?? false}`
         }
       ]
     }
@@ -224,7 +230,7 @@ class SkillsServer {
   }
 
   private async listSkills() {
-    const skills = await skillService.list()
+    const skills = await skillService.list(this.agentId)
 
     if (skills.length === 0) {
       return { content: [{ type: 'text' as const, text: 'No skills installed.' }] }
@@ -338,7 +344,13 @@ class SkillsServer {
     }
 
     const installed = await skillService.installFromDirectory({ directoryPath: skillDir })
-    const enabled = await skillService.toggle({ skillId: installed.id, isEnabled: true })
+    // Same per-agent scope as installSkill above — register only enables the
+    // skill for the current agent, not globally.
+    const enabled = await skillService.toggle({
+      skillId: installed.id,
+      agentId: this.agentId,
+      isEnabled: true
+    })
 
     logger.info('Skill registered via tool', {
       agentId: this.agentId,
@@ -350,7 +362,7 @@ class SkillsServer {
         {
           type: 'text' as const,
           text: [
-            `Skill "${installed.name}" registered${enabled?.isEnabled ? ' and enabled' : ' (warning: failed to enable)'}.`,
+            `Skill "${installed.name}" registered${enabled?.isEnabled ? ' and enabled for this agent' : ' (warning: failed to enable)'}.`,
             `  Folder: ${installed.folderName}`,
             `  Description: ${installed.description ?? 'N/A'}`,
             `  Enabled: ${enabled?.isEnabled ?? false}`
