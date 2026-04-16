@@ -29,7 +29,6 @@ const ROUTE_LABELS: Record<string, { icon: string; label: string }> = {
   '/settings/data': { icon: '💾', label: 'Data' },
   '/settings/mcp': { icon: '🔌', label: 'MCP' },
   '/settings/websearch': { icon: '🔍', label: 'Web Search' },
-  '/settings/memory': { icon: '🧠', label: 'Memory' },
   '/settings/api-server': { icon: '🌐', label: 'API Server' },
   '/settings/docprocess': { icon: '📄', label: 'Doc Processing' },
   '/settings/quickphrase': { icon: '⚡', label: 'Quick Phrases' },

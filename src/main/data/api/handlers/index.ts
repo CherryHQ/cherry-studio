@@ -22,6 +22,7 @@ import { messageHandlers } from './messages'
 import { miniappHandlers } from './miniapps'
 import { modelHandlers } from './models'
 import { providerHandlers } from './providers'
+import { temporaryChatHandlers } from './temporaryChats'
 import { topicHandlers } from './topics'
 import { translateHandlers } from './translate'
 
@@ -37,6 +38,7 @@ export const apiHandlers: ApiImplementation = {
   ...fileProcessingHandlers,
   ...topicHandlers,
   ...messageHandlers,
+  ...temporaryChatHandlers,
   ...modelHandlers,
   ...providerHandlers,
   ...knowledgeHandlers,

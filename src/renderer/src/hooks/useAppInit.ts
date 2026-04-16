@@ -8,9 +8,7 @@ import db from '@renderer/databases'
 import { useAppUpdateHandler, useAppUpdateState } from '@renderer/hooks/useAppUpdate'
 import i18n, { setDayjsLocale } from '@renderer/i18n'
 import { knowledgeQueue } from '@renderer/queue/KnowledgeQueue'
-import { memoryService } from '@renderer/services/MemoryService'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { selectMemoryConfig } from '@renderer/store/memory'
+import { useAppDispatch } from '@renderer/store'
 import {
   type ToolPermissionRequestPayload,
   type ToolPermissionResultPayload,
@@ -47,15 +45,12 @@ export function useAppInit() {
   const { setDefaultModel, setQuickModel, setTranslateModel } = useDefaultModel()
   const savedAvatar = useLiveQuery(() => db.settings.get('image://avatar'))
   const { theme } = useTheme()
-  const memoryConfig = useAppSelector(selectMemoryConfig)
   const navBackgroundColor = useNavBackgroundColor()
 
   useEffect(() => {
     document.getElementById('spinner')?.remove()
     // eslint-disable-next-line no-restricted-syntax
     console.timeEnd('init')
-
-    // MemoryService is initialized at module level via export const
   }, [])
 
   useEffect(() => {
@@ -255,11 +250,6 @@ export function useAppInit() {
   useEffect(() => {
     // TODO: init data collection
   }, [enableDataCollection])
-
-  // Update memory service configuration when it changes
-  useEffect(() => {
-    memoryService.updateConfig().catch((error) => logger.error('Failed to update memory config:', error))
-  }, [memoryConfig])
 
   useEffect(() => {
     void checkDataLimit()

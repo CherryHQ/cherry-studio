@@ -35,17 +35,17 @@ interface Params {
   quickPanel: ToolQuickPanelApi
   quickPanelController: ToolQuickPanelController
   accessiblePaths: string[]
+  agentId?: string
   setText: React.Dispatch<React.SetStateAction<string>>
 }
 
 export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'button') => {
-  const { quickPanel, quickPanelController, accessiblePaths, setText } = params
+  const { quickPanel, quickPanelController, accessiblePaths, agentId, setText } = params
   const { registerTrigger, registerRootMenu } = quickPanel
   const { open, close, updateList, isVisible, symbol } = quickPanelController
   const { t } = useTranslation()
 
-  const { skills, loading: skillsLoading } = useInstalledSkills()
-  const enabledSkills = useMemo(() => skills.filter((s) => s.isEnabled), [skills])
+  const { skills: enabledSkills, loading: skillsLoading } = useInstalledSkills(agentId)
 
   const [fileList, setFileList] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(false)

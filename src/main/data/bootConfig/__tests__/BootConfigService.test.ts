@@ -3,12 +3,13 @@ import fs from 'node:fs'
 import { DefaultBootConfig } from '@shared/data/bootConfig/bootConfigSchemas'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mockFs = vi.mocked(fs)
+vi.mock('node:fs', async () => {
+  const { createNodeFsMock } = await import('@test-helpers/mocks/nodeFsMock')
+  return createNodeFsMock()
+})
 
-// The global mock from main.setup.ts does not include renameSync,
-// so we add it here for the atomic-save tests.
-;(mockFs as Record<string, unknown>).renameSync = vi.fn()
-const mockRenameSync = (mockFs as unknown as { renameSync: ReturnType<typeof vi.fn> }).renameSync
+const mockFs = vi.mocked(fs)
+const mockRenameSync = mockFs.renameSync
 
 const CONFIG_PATH = '/mock/home/.cherrystudio/boot-config.json'
 const TEMP_PATH = `${CONFIG_PATH}.tmp`

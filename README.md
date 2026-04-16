@@ -123,7 +123,6 @@ We're actively working on the following features and improvements:
 
 - Selection Assistant with smart content selection enhancement
 - Deep Research with advanced research capabilities
-- Memory System with global context awareness
 - Document Preprocessing with improved document handling
 - MCP Marketplace for Model Context Protocol ecosystem
 
