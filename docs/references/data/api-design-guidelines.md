@@ -321,6 +321,27 @@ if (error instanceof DataApiError && error.isRetryable) {
 }
 ```
 
+### SQLite Constraint Translation
+
+When a Service writes to the database, SQLite constraint violations (UNIQUE,
+FOREIGN KEY, CHECK, NOT NULL) come out as `DrizzleQueryError` with the real
+error buried in the `.cause` chain. Translate them to `DataApiError` with
+`withSqliteErrors` from `src/main/data/db/sqliteErrors.ts`:
+
+```typescript
+import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
+
+const [row] = await withSqliteErrors(
+  () => this.db.insert(tagTable).values(dto).returning(),
+  defaultHandlersFor('Tag', dto.name)
+)
+```
+
+`defaultHandlersFor` covers the common CRUD case (UNIQUE → 409, FK → 404,
+CHECK / NOT NULL → 422). Spread and override any specific kind when needed.
+Any unrecognized error is rethrown unchanged — see the file's JSDoc for the
+full API contract and the "do not replace pre-validation" discipline note.
+
 ## Naming Conventions Summary
 
 | Element | Case | Example |

@@ -4,6 +4,7 @@ import { check, foreignKey, index, integer, sqliteTable, text } from 'drizzle-or
 
 import { createUpdateDeleteTimestamps, uuidPrimaryKeyOrdered } from './_columnHelpers'
 import { topicTable } from './topic'
+import { userModelTable } from './userModel'
 
 /**
  * Message table - stores chat messages with tree structure
@@ -33,8 +34,8 @@ export const messageTable = sqliteTable(
     // Group ID for siblings (0 = normal branch)
     siblingsGroupId: integer().default(0),
     // Assistant info is derived via topic → assistant FK chain; not stored on message.
-    // Model identifier — TODO(model-table-merge): add FK to model table (ON DELETE SET NULL)
-    modelId: text(),
+    // Model identifier: FK to user_model(id) — UniqueModelId "providerId::modelId"
+    modelId: text().references(() => userModelTable.id, { onDelete: 'set null' }),
     // Snapshot of model at message creation time
     modelSnapshot: text({ mode: 'json' }).$type<ModelSnapshot>(),
     // Trace for tracking
