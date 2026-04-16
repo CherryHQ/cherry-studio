@@ -1,17 +1,17 @@
 {
-  "date": "2026-04-15",
-  "generated_at": "2026-04-15T00:00:00Z",
+  "date": "2026-04-16",
+  "generated_at": "2026-04-16T00:00:00Z",
   "source": "GitHub API via MCP tools",
   "open_issues": {
-    "total": 746,
+    "total": 766,
     "unlabeled": 70,
-    "unlabeled_pct": 9.4,
+    "unlabeled_pct": 9.1,
     "p1_count": 4,
     "bug_count": 168
   },
   "open_prs": {
-    "total": 239,
-    "to_main": 180,
+    "total": 238,
+    "to_main": 179,
     "to_v2": 56,
     "to_other": 3
   },
@@ -20,7 +20,10 @@
     {
       "number": 13608,
       "title": "[Bug]: xiaomi mimo response only displays the last line",
-      "labels": ["P1", "Models"],
+      "labels": [
+        "P1",
+        "Models"
+      ],
       "created_at": "2026-03-18",
       "updated_at": "2026-03-19",
       "url": "https://github.com/CherryHQ/cherry-studio/issues/13608",
@@ -29,7 +32,10 @@
     {
       "number": 13193,
       "title": "[Bug]: Azure OpenAI Resource not found - defaults to responses API instead of chat/completions",
-      "labels": ["P1", "Models"],
+      "labels": [
+        "P1",
+        "Models"
+      ],
       "created_at": "2026-03-04",
       "updated_at": "2026-03-05",
       "url": "https://github.com/CherryHQ/cherry-studio/issues/13193",
@@ -38,7 +44,11 @@
     {
       "number": 13105,
       "title": "[Bug]: In version 1.7.19, when sending PDF files directly in the chat box, almost all models cannot read PDF files",
-      "labels": ["P1", "Models", "inactive"],
+      "labels": [
+        "P1",
+        "Models",
+        "inactive"
+      ],
       "created_at": "2026-02-28",
       "updated_at": "2026-04-07",
       "url": "https://github.com/CherryHQ/cherry-studio/issues/13105",
@@ -47,7 +57,10 @@
     {
       "number": 12966,
       "title": "[URGENT] Unanswered Critical Security Advisory (GHSA-qmgw-45x4-3626) - Pending Triage for 8 Days",
-      "labels": ["BUG", "P1"],
+      "labels": [
+        "BUG",
+        "P1"
+      ],
       "created_at": "2026-02-19",
       "updated_at": "2026-03-25",
       "url": "https://github.com/CherryHQ/cherry-studio/issues/12966",
@@ -76,18 +89,18 @@
   },
   "issue_age_distribution": {
     "method": "search by last-updated date",
-    "active_7d": 188,
+    "active_7d": 208,
     "aging_8_30d": 404,
     "stale_31_90d": 132,
     "zombie_90d_plus": 3,
-    "active_pct": 25.2,
-    "aging_pct": 54.2,
-    "stale_pct": 17.7,
+    "active_pct": 27.2,
+    "aging_pct": 52.7,
+    "stale_pct": 17.2,
     "zombie_pct": 0.4
   },
   "v2_branch_summary": {
-    "merged_total": 85,
-    "merged_30d": 52,
+    "merged_total": 87,
+    "merged_30d": 54,
     "open_prs": 56,
     "open_drafts": 18,
     "open_ready": 38,

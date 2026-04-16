@@ -1,32 +1,32 @@
 {
-  "date": "2026-04-15",
-  "generated_at": "2026-04-15T00:00:00Z",
-  "total_open_issues": 746,
+  "date": "2026-04-16",
+  "generated_at": "2026-04-16T00:00:00Z",
+  "total_open_issues": 766,
   "health_buckets": {
     "active": {
-      "count": 188,
-      "pct": 25.2,
-      "definition": "updated within last 7 days (>2026-04-08)"
+      "count": 208,
+      "pct": 27.2,
+      "definition": "updated within last 7 days (>2026-04-09)"
     },
     "aging": {
       "count": 404,
-      "pct": 54.2,
-      "definition": "updated 8-30 days ago (2026-03-16 to 2026-04-07)"
+      "pct": 52.7,
+      "definition": "updated 8-30 days ago (2026-03-17 to 2026-04-08)"
     },
     "stale": {
       "count": 132,
-      "pct": 17.7,
-      "definition": "updated 31-90 days ago (2026-01-16 to 2026-03-15)"
+      "pct": 17.2,
+      "definition": "updated 31-90 days ago (2026-01-17 to 2026-03-16)"
     },
     "zombie": {
       "count": 3,
       "pct": 0.4,
-      "definition": "updated 90+ days ago (before 2026-01-16)"
+      "definition": "updated 90+ days ago (before 2026-01-17)"
     }
   },
   "triage_metrics": {
     "unlabeled": 70,
-    "unlabeled_pct": 9.4,
+    "unlabeled_pct": 9.1,
     "p1_open": 4,
     "p1_unassigned": 3,
     "bug_open": 168
@@ -35,7 +35,7 @@
     {
       "number": 13608,
       "title": "xiaomi mimo response only displays the last line",
-      "age_days": 27,
+      "age_days": 28,
       "status": "aging",
       "assignee": null,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/13608"
@@ -43,7 +43,7 @@
     {
       "number": 13193,
       "title": "Azure OpenAI defaults to responses API - Resource not found",
-      "age_days": 41,
+      "age_days": 42,
       "status": "stale",
       "assignee": "DeJeune",
       "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"
@@ -51,7 +51,7 @@
     {
       "number": 13105,
       "title": "PDF files cannot be read in v1.7.19",
-      "age_days": 46,
+      "age_days": 47,
       "status": "stale",
       "assignee": null,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/13105"
@@ -59,7 +59,7 @@
     {
       "number": 12966,
       "title": "[URGENT] Critical Security Advisory GHSA-qmgw-45x4-3626",
-      "age_days": 55,
+      "age_days": 56,
       "status": "stale",
       "assignee": null,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/12966"
