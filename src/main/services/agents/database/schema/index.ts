@@ -8,6 +8,7 @@
  */
 
 export * from './agents.schema'
+export * from './agentSkills.schema'
 export * from './channels.schema'
 export * from './messages.schema'
 export * from './migrations.schema'

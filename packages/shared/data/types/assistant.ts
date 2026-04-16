@@ -68,8 +68,6 @@ export const AssistantSettingsSchema = z.object({
   // -- Context sources --
   /** @default false */
   enableWebSearch: z.boolean().default(false),
-  /** @default false */
-  enableMemory: z.boolean().default(false),
 
   /** User-defined model parameters (e.g. {"top_k": 40, "repetition_penalty": 1.1}).
    *  Discriminated union on `type` ensures `value` is type-safe:
@@ -108,7 +106,6 @@ export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = {
   maxToolCalls: 20,
   enableMaxToolCalls: true,
   enableWebSearch: false,
-  enableMemory: false,
   customParameters: []
 }
 

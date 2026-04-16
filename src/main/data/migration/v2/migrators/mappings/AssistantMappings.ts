@@ -107,7 +107,6 @@ export interface OldAssistant {
   mcpServers?: OldMcpServer[] | null
   knowledge_bases?: OldKnowledgeBase[] | null
   enableWebSearch?: boolean | null
-  enableMemory?: boolean | null
   tags?: string[] | null
 }
 
@@ -177,7 +176,6 @@ export function transformAssistant(source: OldAssistant): AssistantTransformResu
   // Migrate top-level fields into settings (skip null/undefined)
   if (source.mcpMode != null) legacySettings.mcpMode = source.mcpMode
   if (source.enableWebSearch != null) legacySettings.enableWebSearch = source.enableWebSearch
-  if (source.enableMemory != null) legacySettings.enableMemory = source.enableMemory
 
   return {
     assistant: {

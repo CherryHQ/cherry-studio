@@ -18,6 +18,7 @@ export const agentsAgentsTable = sqliteTable(
     allowedTools: text(),
     configuration: text(),
     sortOrder: integer().notNull().default(0),
+    deletedAt: text(),
     ...createUpdateTimestamps
   },
   (t) => [

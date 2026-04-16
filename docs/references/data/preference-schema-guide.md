@@ -37,7 +37,7 @@ All preference keys MUST follow the format: `namespace.sub.key_name`
    - `feature.quick_assistant.enabled` (not `feature.quickAssistant.enabled`)
 
 3. **Boolean Naming**: Use positive names with `.enabled` suffix for toggles
-   - `feature.memory.enabled` (not `feature.memory.disabled`)
+   - `feature.quick_assistant.enabled` (not `feature.quick_assistant.disabled`)
    - `app.spell_check.enabled`
 
 ### Examples
@@ -46,7 +46,7 @@ All preference keys MUST follow the format: `namespace.sub.key_name`
 | ------------------------- | ---------------------- | ---------------------- |
 | `app.user.avatar`         | `userAvatar`           | Missing dot separator  |
 | `chat.multi_select_mode`  | `chat.multiSelectMode` | camelCase not allowed  |
-| `feature.memory.enabled`  | `Feature.memory`       | Uppercase not allowed  |
+| `feature.quick_assistant.enabled` | `Feature.quickAssistant` | camelCase not allowed |
 
 ## Design Principles
 
@@ -74,7 +74,7 @@ Only use object values when the data is frequently read/written as a whole unit.
 
 ```typescript
 // Acceptable: Shortcut config is always read/written together
-'shortcut.app.show_main_window': { key: string[], enabled: boolean, ... }
+'shortcut.general.show_main_window': { binding: string[], enabled: boolean }
 ```
 
 **Rule of thumb:** If you find yourself frequently accessing just one property of an object, split it into separate keys.

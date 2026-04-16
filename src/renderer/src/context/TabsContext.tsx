@@ -14,9 +14,16 @@ const DEFAULT_TAB: Tab = {
   id: 'home',
   type: 'route',
   url: '/home',
-  title: getDefaultRouteTitle('/home'),
+  title: '',
   lastAccessTime: Date.now(),
   isDormant: false
+}
+
+function withLocalizedRouteTitle(tab: Tab): Tab {
+  if (tab.type !== 'route') {
+    return tab
+  }
+  return { ...tab, title: getDefaultRouteTitle(tab.url) }
 }
 
 /**
@@ -118,9 +125,10 @@ export function TabsProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
-  // Merge tabs: home + pinned + normal
+  // Merge tabs: home + pinned + normal (route titles follow current i18n language)
   const tabs = useMemo(() => {
-    return [DEFAULT_TAB, ...(pinnedTabs || []), ...normalTabs]
+    const home = withLocalizedRouteTitle({ ...DEFAULT_TAB })
+    return [home, ...(pinnedTabs || []).map(withLocalizedRouteTitle), ...normalTabs.map(withLocalizedRouteTitle)]
   }, [pinnedTabs, normalTabs])
 
   /**

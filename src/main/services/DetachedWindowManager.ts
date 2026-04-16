@@ -43,6 +43,7 @@ type DetachedWindowState = {
 export class DetachedWindowManager extends BaseService {
   private windows: Map<string, BrowserWindow> = new Map()
   private windowState: Map<string, DetachedWindowState> = new Map()
+  private windowUrls: Map<string, string> = new Map()
 
   protected async onInit() {
     this.registerIpcHandlers()
@@ -296,9 +297,11 @@ export class DetachedWindowManager extends BaseService {
 
     win.on('closed', () => {
       this.windows.delete(tabId)
+      this.windowUrls.delete(tabId)
     })
 
     this.windows.set(tabId, win)
+    this.windowUrls.set(tabId, url)
     logger.info(`Created detached window for tab ${tabId}`, payload)
 
     return win
