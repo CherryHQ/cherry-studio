@@ -41,7 +41,7 @@ function rowToAssistant(row: AssistantRow, relations: AssistantRelationIds = cre
     emoji: row.emoji ?? '🌟',
     description: row.description ?? '',
     settings: row.settings ?? DEFAULT_ASSISTANT_SETTINGS,
-    modelId: (row.modelId as UniqueModelId) ?? null,
+    modelId: (row.modelId ?? null) as UniqueModelId | null,
     mcpServerIds: relations.mcpServerIds,
     knowledgeBaseIds: relations.knowledgeBaseIds,
     createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
@@ -175,7 +175,7 @@ export class AssistantDataService {
           prompt: dto.prompt,
           emoji: dto.emoji,
           description: dto.description,
-          modelId: dto.modelId,
+          modelId: dto.modelId ?? null,
           settings: dto.settings
         })
         .returning()
