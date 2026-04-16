@@ -493,8 +493,13 @@ export class AgentService extends BaseService {
   }
 
   async deleteAgent(id: string): Promise<boolean> {
-    // Record dismissal if this is a builtin agent
-    if (isBuiltinAgentId(id)) {
+    const database = await this.getDatabase()
+    const result = await database.delete(agentsTable).where(eq(agentsTable.id, id))
+
+    const deleted = result.rowsAffected > 0
+
+    // Record dismissal only after successful deletion
+    if (deleted && isBuiltinAgentId(id)) {
       const dismissed = configManager.getDismissedBuiltinAgents()
       if (!dismissed.includes(id)) {
         configManager.setDismissedBuiltinAgents([...dismissed, id])
@@ -502,10 +507,7 @@ export class AgentService extends BaseService {
       }
     }
 
-    const database = await this.getDatabase()
-    const result = await database.delete(agentsTable).where(eq(agentsTable.id, id))
-
-    return result.rowsAffected > 0
+    return deleted
   }
 
   async agentExists(id: string): Promise<boolean> {

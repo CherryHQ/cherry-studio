@@ -2,7 +2,7 @@ import { useAppDispatch } from '@renderer/store'
 import { setActiveAgentId, setActiveSessionIdAction } from '@renderer/store/runtime'
 import type { AddAgentForm, CreateAgentResponse, GetAgentResponse } from '@renderer/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
 
@@ -65,10 +65,12 @@ export const useAgents = () => {
     }
   }, [apiServerRunning, client])
 
-  // Fetch hidden IDs when SWR key becomes valid (server running)
-  if (apiServerRunning && hiddenAgentIds.length === 0 && !error) {
-    void fetchHiddenIds()
-  }
+  // Fetch hidden IDs once when API server becomes available
+  useEffect(() => {
+    if (apiServerRunning) {
+      void fetchHiddenIds()
+    }
+  }, [apiServerRunning, fetchHiddenIds])
 
   const addAgent = useCallback(
     async (form: AddAgentForm): Promise<Result<CreateAgentResponse>> => {

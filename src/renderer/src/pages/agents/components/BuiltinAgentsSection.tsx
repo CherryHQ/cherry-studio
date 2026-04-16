@@ -9,19 +9,23 @@ import { useTranslation } from 'react-i18next'
 
 interface BuiltinAgentsSectionProps {
   hiddenAgents: AgentEntity[]
+  orphanedCount: number
   onShow: (agent: AgentEntity) => void
+  onRestoreOrphaned?: () => void
   isCollapsedDefault?: boolean
 }
 
 export const BuiltinAgentsSection: FC<BuiltinAgentsSectionProps> = ({
   hiddenAgents,
+  orphanedCount,
   onShow,
+  onRestoreOrphaned,
   isCollapsedDefault = false
 }) => {
   const { t } = useTranslation()
   const [isCollapsed, setIsCollapsed] = useState(isCollapsedDefault)
 
-  if (hiddenAgents.length === 0) return null
+  if (hiddenAgents.length === 0 && orphanedCount === 0) return null
 
   return (
     <div className="px-2.5 pb-2">
@@ -43,6 +47,21 @@ export const BuiltinAgentsSection: FC<BuiltinAgentsSectionProps> = ({
               onShow={() => onShow(agent)}
             />
           ))}
+          {orphanedCount > 0 && (
+            <div
+              className={cn(
+                'flex h-8 items-center justify-between rounded-lg px-2',
+                'text-(--color-text-secondary) text-[13px]'
+              )}
+            >
+              <span>{t('agent.default_section.orphaned', { count: orphanedCount })}</span>
+              <Tooltip title={t('agent.restore.button')}>
+                <Button type="text" size="small" onClick={onRestoreOrphaned}>
+                  <span className="text-[13px]">{t('agent.restore.button')}</span>
+                </Button>
+              </Tooltip>
+            </div>
+          )}
         </div>
       )}
     </div>

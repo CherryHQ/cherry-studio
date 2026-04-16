@@ -27,7 +27,8 @@ const Agents = ({ onSelectItem }: AgentsProps) => {
     hideAgent,
     showAgent,
     hiddenAgentIds,
-    isBuiltinAgentId
+    isBuiltinAgentId,
+    restoreBuiltinAgents
   } = useAgents()
   const { apiServerRunning, startApiServer } = useApiServer()
   const { chat } = useRuntime()
@@ -43,6 +44,16 @@ const Agents = ({ onSelectItem }: AgentsProps) => {
   const hiddenBuiltinAgents = useMemo(() => {
     return agents?.filter((a) => hiddenAgentIds.includes(a.id)) ?? []
   }, [agents, hiddenAgentIds])
+
+  // Orphaned hidden IDs: in hidden list but deleted from DB (no matching agent)
+  const { orphanedCount, handleRestoreOrphaned } = useMemo(() => {
+    const hiddenIdsWithAgent = new Set((agents ?? []).map((a) => a.id))
+    const orphaned = hiddenAgentIds.filter((id) => !hiddenIdsWithAgent.has(id))
+    return {
+      orphanedCount: orphaned.length,
+      handleRestoreOrphaned: () => restoreBuiltinAgents()
+    }
+  }, [agents, hiddenAgentIds, restoreBuiltinAgents])
 
   const handleAgentPress = useCallback(
     (agentId: string) => {
@@ -96,10 +107,12 @@ const Agents = ({ onSelectItem }: AgentsProps) => {
         )}
       </DraggableVirtualList>
       {/* Collapsible section for hidden built-in agents */}
-      {hiddenAgentIds.length > 0 && (
+      {(hiddenAgentIds.length > 0 || orphanedCount > 0) && (
         <BuiltinAgentsSection
           hiddenAgents={hiddenBuiltinAgents}
+          orphanedCount={orphanedCount}
           onShow={(agent) => showAgent(agent.id)}
+          onRestoreOrphaned={handleRestoreOrphaned}
           isCollapsedDefault={true}
         />
       )}

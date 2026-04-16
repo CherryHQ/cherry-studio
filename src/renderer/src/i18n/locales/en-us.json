@@ -272,6 +272,7 @@
       }
     },
     "default_section": {
+      "orphaned": "{{count}} deleted default agent(s)",
       "title": "Default Agents"
     },
     "delete": {

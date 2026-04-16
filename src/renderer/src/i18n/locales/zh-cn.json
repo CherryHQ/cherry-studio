@@ -272,6 +272,7 @@
       }
     },
     "default_section": {
+      "orphaned": "{{count}} 个已删除的默认智能体",
       "title": "默认智能体"
     },
     "delete": {

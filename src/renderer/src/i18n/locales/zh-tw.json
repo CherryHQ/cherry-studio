@@ -272,6 +272,7 @@
       }
     },
     "default_section": {
+      "orphaned": "{{count}} 個已刪除的預設智能體",
       "title": "[to be translated]:Default Agents"
     },
     "delete": {
