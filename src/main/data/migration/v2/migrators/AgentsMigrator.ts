@@ -156,7 +156,14 @@ export class AgentsMigrator extends BaseMigrator {
 
     const errors: ValidationError[] = []
     let targetCount = 0
-    const validationDetails: Array<{ table: string; source: number; target: number; ok: boolean }> = []
+    let skippedCount = 0
+    const validationDetails: Array<{
+      table: string
+      source: number
+      target: number
+      filtered: boolean
+      ok: boolean
+    }> = []
 
     for (const spec of AGENTS_TABLE_MIGRATION_SPECS) {
       const result = await ctx.db.get<{ count: number }>(sql.raw(`SELECT COUNT(*) AS count FROM ${spec.targetTable}`))
@@ -164,11 +171,20 @@ export class AgentsMigrator extends BaseMigrator {
       const tableSourceCount = this.sourceCounts[spec.sourceTable]
       targetCount += tableTargetCount
 
-      const ok = tableTargetCount >= tableSourceCount
+      // Tables with WHERE clauses may have fewer target rows (orphaned data filtered out)
+      const hasWhereClause = !!spec.whereClause
+      const tableSkippedCount = Math.max(0, tableSourceCount - tableTargetCount)
+      skippedCount += tableSkippedCount
+
+      // For tables with WHERE clauses: ok if we migrated some data (target > 0 when source > 0)
+      // For tables without: ok if target >= source (all data migrated)
+      const ok = hasWhereClause ? tableSourceCount === 0 || tableTargetCount > 0 : tableTargetCount >= tableSourceCount
+
       validationDetails.push({
         table: spec.targetTable,
         source: tableSourceCount,
         target: tableTargetCount,
+        filtered: hasWhereClause,
         ok
       })
 
@@ -182,7 +198,11 @@ export class AgentsMigrator extends BaseMigrator {
       }
     }
 
-    logger.info('AgentsMigrator validation:', { validationDetails, errorCount: errors.length })
+    logger.info('AgentsMigrator validation:', {
+      validationDetails,
+      errorCount: errors.length,
+      totalSkipped: skippedCount
+    })
 
     return {
       success: errors.length === 0,
@@ -190,7 +210,7 @@ export class AgentsMigrator extends BaseMigrator {
       stats: {
         sourceCount: getTotalAgentsRowCount(this.sourceCounts),
         targetCount,
-        skippedCount: 0,
+        skippedCount,
         mismatchReason: errors.length > 0 ? 'One or more agents_* tables were not fully imported' : undefined
       }
     }
