@@ -1,5 +1,6 @@
+import { useCache } from '@data/hooks/useCache'
 import type { PaintingCanvas } from '@renderer/types'
-import { type FC, useCallback, useMemo, useRef, useState } from 'react'
+import { type FC, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import PaintingPageShell from './components/PaintingPageShell'
@@ -8,6 +9,11 @@ import type { ModelConfig, ModelOption } from './hooks/useModelLoader'
 import { useModelLoader } from './hooks/useModelLoader'
 import { usePaintingPage } from './hooks/usePaintingPage'
 import type { GenerateContext, PaintingProviderDefinition } from './providers/types'
+import {
+  clearPaintingAbortController,
+  getPaintingModeCacheKey,
+  registerPaintingAbortController
+} from './utils/paintingRuntime'
 
 interface PaintingPageProps {
   definition: PaintingProviderDefinition
@@ -17,7 +23,17 @@ interface PaintingPageProps {
 
 const PaintingPage: FC<PaintingPageProps> = ({ definition, Options, onProviderChange }) => {
   const { t } = useTranslation()
-  const [mode, setMode] = useState(definition.defaultMode || definition.modes?.[0]?.value || 'generate')
+  const [mode, setMode] = useCache(
+    getPaintingModeCacheKey(definition.providerId),
+    definition.defaultMode || definition.modes?.[0]?.value || 'generate'
+  )
+
+  useEffect(() => {
+    const allowedModes = definition.modes?.map((item) => item.value)
+    if (allowedModes && !allowedModes.includes(mode)) {
+      setMode(definition.defaultMode || allowedModes[0] || 'generate')
+    }
+  }, [definition.defaultMode, definition.modes, mode, setMode])
 
   // Resolve model config (may depend on mode)
   const modelConfig: ModelConfig = useMemo(() => {
@@ -81,24 +97,23 @@ const PaintingPage: FC<PaintingPageProps> = ({ definition, Options, onProviderCh
       value: mode,
       onChange: (value: string) => {
         setMode(value)
-        pageState.setSelectedPaintingId(undefined)
       }
     }
-  }, [definition, mode, t, pageState])
+  }, [definition, mode, t, setMode])
 
   // onGenerate wrapper
   const onGenerate = useCallback(async () => {
     const controller = new AbortController()
-    pageState.setAbortController(controller)
+    const targetPaintingId = pageState.painting.id
+    registerPaintingAbortController(targetPaintingId, controller)
 
     const ctx: GenerateContext = {
       painting: pageState.painting,
       provider: pageState.provider,
       abortController: controller,
-      patchPainting: pageState.patchPainting,
-      setFallbackUrls: pageState.setFallbackUrls,
-      setIsLoading: pageState.setIsLoading,
-      setGenerating: pageState.setGenerating,
+      patchPainting: (updates) => pageState.patchPaintingById(targetPaintingId, updates),
+      setFallbackUrls: (urls) => pageState.setFallbackUrlsForPainting(targetPaintingId, urls),
+      setIsLoading: (value) => pageState.setIsLoadingForPainting(targetPaintingId, value),
       t,
       mode
     }
@@ -106,7 +121,7 @@ const PaintingPage: FC<PaintingPageProps> = ({ definition, Options, onProviderCh
     try {
       await definition.onGenerate(ctx)
     } finally {
-      pageState.setAbortController(null)
+      clearPaintingAbortController(targetPaintingId, controller)
     }
   }, [definition, pageState, t, mode])
 

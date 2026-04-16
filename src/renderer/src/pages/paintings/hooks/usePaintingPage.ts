@@ -9,6 +9,16 @@ import type { Provider } from '@renderer/types/provider'
 import type { PaintingMode } from '@shared/data/types/painting'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import {
+  abortPaintingGeneration,
+  clearPaintingAbortController,
+  clearPaintingRuntimeState,
+  getPaintingSelectionCacheKey,
+  setPaintingFallbackUrls,
+  setPaintingLoading,
+  usePaintingRuntime
+} from '../utils/paintingRuntime'
+
 export interface UsePaintingPageOptions<T extends PaintingCanvas = PaintingCanvas> {
   providerId: string
   mode?: PaintingMode
@@ -26,15 +36,14 @@ export interface UsePaintingPageReturn<T extends PaintingCanvas = PaintingCanvas
   isLoading: boolean
   setIsLoading: (v: boolean) => void
   isTranslating: boolean
-  generating: boolean | undefined
-  setGenerating: (v: boolean) => void
-  abortController: AbortController | null
-  setAbortController: (c: AbortController | null) => void
   provider: Provider
 
   fallbackUrls: string[]
   setFallbackUrls: (urls: string[]) => void
+  setFallbackUrlsForPainting: (paintingId: string, urls: string[]) => void
+  setIsLoadingForPainting: (paintingId: string, value: boolean) => void
   patchPainting: (updates: Partial<T>) => void
+  patchPaintingById: (paintingId: string, updates: Partial<T>) => void
   onSelectPainting: (p: T) => void
   onDeletePainting: (p: T) => void
   handleAddPainting: () => T
@@ -61,12 +70,12 @@ export function usePaintingPage<T extends PaintingCanvas = PaintingCanvas>({
   const paintings = items as T[]
 
   const fallbackPainting = useMemo(() => getDefaultPainting(), [getDefaultPainting])
-  const [selectedPaintingId, setSelectedPaintingId] = useState<string>()
+  const selectionScope = useMemo(() => `${providerId}_${mode ?? 'default'}`, [providerId, mode])
+  const [cachedSelectedPaintingId, setCachedSelectedPaintingId] = useCache(
+    getPaintingSelectionCacheKey(selectionScope),
+    null
+  )
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
-  const [isLoading, setIsLoading] = useState(false)
-  const [fallbackUrls, setFallbackUrls] = useState<string[]>([])
-  const [abortController, setAbortController] = useState<AbortController | null>(null)
-  const [generating, setGenerating] = useCache('chat.generating')
   const [isTranslating, setIsTranslating] = useState(false)
   const [spaceClickCount, setSpaceClickCount] = useState(0)
   const spaceClickTimer = useRef<NodeJS.Timeout>(null)
@@ -75,38 +84,83 @@ export function usePaintingPage<T extends PaintingCanvas = PaintingCanvas>({
   const [autoTranslateWithSpace] = usePreference('chat.input.translate.auto_translate_with_space')
 
   const provider = providers.find((p) => p.id === providerId)!
+  const selectedPaintingId = cachedSelectedPaintingId ?? undefined
+  const setSelectedPaintingId = useCallback(
+    (id: string | undefined) => {
+      setCachedSelectedPaintingId(id ?? null)
+    },
+    [setCachedSelectedPaintingId]
+  )
   const selectedPainting = useMemo(
     () => (selectedPaintingId ? paintings.find((item) => item.id === selectedPaintingId) : undefined),
     [paintings, selectedPaintingId]
   )
   const painting = selectedPainting ?? paintings[0] ?? fallbackPainting
+  const [paintingRuntime] = usePaintingRuntime(painting.id)
+  const isLoading = paintingRuntime.isLoading
+  const fallbackUrls = paintingRuntime.fallbackUrls
 
-  const patchPainting = useCallback(
-    (updates: Partial<T>) => {
-      const updatedPainting = { ...painting, ...updates }
-      if (paintings.some((p) => p.id === painting.id)) {
+  const setIsLoading = useCallback(
+    (value: boolean) => {
+      setPaintingLoading(painting.id, value)
+    },
+    [painting.id]
+  )
+
+  const setIsLoadingForPainting = useCallback((paintingId: string, value: boolean) => {
+    setPaintingLoading(paintingId, value)
+  }, [])
+
+  const setFallbackUrls = useCallback(
+    (urls: string[]) => {
+      setPaintingFallbackUrls(painting.id, urls)
+    },
+    [painting.id]
+  )
+
+  const setFallbackUrlsForPainting = useCallback((paintingId: string, urls: string[]) => {
+    setPaintingFallbackUrls(paintingId, urls)
+  }, [])
+
+  const patchPaintingById = useCallback(
+    (paintingId: string, updates: Partial<T>) => {
+      const targetPainting =
+        paintings.find((item) => item.id === paintingId) ??
+        (painting.id === paintingId ? painting : ({ id: paintingId, files: [] } as T))
+      const updatedPainting = { ...targetPainting, ...updates }
+
+      if (paintings.some((p) => p.id === paintingId)) {
         updatePainting(updatedPainting)
       } else {
         createPainting(updatedPainting)
         setSelectedPaintingId(updatedPainting.id)
       }
     },
-    [painting, paintings, updatePainting, createPainting]
+    [painting, paintings, updatePainting, createPainting, setSelectedPaintingId]
+  )
+
+  const patchPainting = useCallback(
+    (updates: Partial<T>) => {
+      patchPaintingById(painting.id, updates)
+    },
+    [painting.id, patchPaintingById]
   )
 
   const onSelectPainting = useCallback(
     (p: T) => {
-      if (generating) return
       setSelectedPaintingId(p.id)
       setCurrentImageIndex(0)
-      setFallbackUrls([])
     },
-    [generating]
+    [setSelectedPaintingId]
   )
 
   const onDeletePainting = useCallback(
     (paintingToDelete: T) => {
       const remaining = paintings.filter((item) => item.id !== paintingToDelete.id)
+
+      abortPaintingGeneration(paintingToDelete.id)
+      clearPaintingAbortController(paintingToDelete.id)
+      clearPaintingRuntimeState(paintingToDelete.id)
 
       if (paintingToDelete.id === painting.id) {
         const currentIndex = paintings.findIndex((p) => p.id === paintingToDelete.id)
@@ -122,15 +176,16 @@ export function usePaintingPage<T extends PaintingCanvas = PaintingCanvas>({
 
       void deletePainting(paintingToDelete)
     },
-    [painting, paintings, deletePainting]
+    [painting, paintings, deletePainting, setSelectedPaintingId]
   )
 
   const handleAddPainting = useCallback(() => {
     const newPainting = getDefaultPainting()
     const added = createPainting(newPainting) as T
     setSelectedPaintingId(added.id)
+    setCurrentImageIndex(0)
     return added
-  }, [createPainting, getDefaultPainting])
+  }, [createPainting, getDefaultPainting, setSelectedPaintingId])
 
   const setPainting = useCallback(
     (nextPainting: T) => {
@@ -140,12 +195,12 @@ export function usePaintingPage<T extends PaintingCanvas = PaintingCanvas>({
         updatePainting(nextPainting)
       }
     },
-    [paintings, updatePainting]
+    [paintings, updatePainting, setSelectedPaintingId]
   )
 
   const onCancel = useCallback(() => {
-    abortController?.abort()
-  }, [abortController])
+    abortPaintingGeneration(painting.id)
+  }, [painting.id])
 
   const prevImage = useCallback(() => {
     setCurrentImageIndex((prev) => (prev - 1 + (painting.files?.length || 1)) % (painting.files?.length || 1))
@@ -201,19 +256,20 @@ export function usePaintingPage<T extends PaintingCanvas = PaintingCanvas>({
   )
 
   useEffect(() => {
-    setSelectedPaintingId(undefined)
     setCurrentImageIndex(0)
-    setFallbackUrls([])
   }, [providerId, mode])
 
   useEffect(() => {
     if (!isReady) return
-    if (paintings.length === 0) return
+    if (paintings.length === 0) {
+      setSelectedPaintingId(undefined)
+      return
+    }
 
-    setSelectedPaintingId((current) =>
-      current && paintings.some((p) => p.id === current) ? current : paintings[0]?.id
-    )
-  }, [isReady, paintings])
+    if (!selectedPaintingId || !paintings.some((p) => p.id === selectedPaintingId)) {
+      setSelectedPaintingId(paintings[0]?.id)
+    }
+  }, [isReady, paintings, selectedPaintingId, setSelectedPaintingId])
 
   useEffect(() => {
     return () => {
@@ -233,15 +289,14 @@ export function usePaintingPage<T extends PaintingCanvas = PaintingCanvas>({
     isLoading,
     setIsLoading,
     isTranslating,
-    generating: generating as boolean | undefined,
-    setGenerating,
-    abortController,
-    setAbortController,
     provider,
 
     fallbackUrls,
     setFallbackUrls,
+    setFallbackUrlsForPainting,
+    setIsLoadingForPainting,
     patchPainting,
+    patchPaintingById,
     onSelectPainting,
     onDeletePainting,
     handleAddPainting,

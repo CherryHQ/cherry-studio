@@ -14,7 +14,6 @@ export interface GenerateContext<T extends PaintingCanvas = PaintingCanvas> {
   patchPainting: (updates: Partial<T>) => void
   setFallbackUrls: (urls: string[]) => void
   setIsLoading: (v: boolean) => void
-  setGenerating: (v: boolean) => void
   t: TFunction
   mode?: string
 }

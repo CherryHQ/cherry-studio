@@ -8,6 +8,7 @@ import type { PaintingMode } from '@shared/data/types/painting'
 import { debounce } from 'lodash'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import { isPaintingLoading } from '../pages/paintings/utils/paintingRuntime'
 import { toCanvases, toCreateDto, toUpdateDto } from './paintingCanvas'
 
 const PATCH_DEBOUNCE_MS = 300
@@ -71,7 +72,7 @@ function usePatchQueue() {
 // ─── Main Hook ────────────────────────────────────────────────────────
 
 export function usePaintings(filter: PaintingFilter): UsePaintingsResult {
-  const { data, isLoading } = useQuery('/paintings', {
+  const { data, isLoading, refetch } = useQuery('/paintings', {
     query: filter
   })
 
@@ -93,6 +94,20 @@ export function usePaintings(filter: PaintingFilter): UsePaintingsResult {
       cancelled = true
     }
   }, [data])
+
+  useEffect(() => {
+    if (!items.some((item) => isPaintingLoading(item))) {
+      return
+    }
+
+    const timer = setInterval(() => {
+      refetch()
+    }, 2000)
+
+    return () => {
+      clearInterval(timer)
+    }
+  }, [items, refetch])
 
   const patchQueue = usePatchQueue()
 

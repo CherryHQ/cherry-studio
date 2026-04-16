@@ -7,6 +7,8 @@ import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { isPaintingLoading, usePaintingRuntime } from '../utils/paintingRuntime'
+
 interface PaintingsListProps {
   paintings: PaintingCanvas[]
   selectedPainting: PaintingCanvas
@@ -14,6 +16,55 @@ interface PaintingsListProps {
   onDeletePainting: (painting: PaintingCanvas) => void
   onNewPainting: () => void
   onReorder: (paintings: PaintingCanvas[]) => void
+}
+
+interface PaintingListItemProps {
+  painting: PaintingCanvas
+  selected: boolean
+  onSelect: (painting: PaintingCanvas) => void
+  onDelete: (painting: PaintingCanvas) => void
+}
+
+const PaintingListItem: FC<PaintingListItemProps> = ({ painting, selected, onSelect, onDelete }) => {
+  const [runtimeState] = usePaintingRuntime(painting.id)
+  const loading = isPaintingLoading(painting, runtimeState)
+
+  return (
+    <div className="group relative w-[76px] shrink-0">
+      <button
+        type="button"
+        className={`relative h-[76px] w-[76px] overflow-hidden rounded-[0.75rem] border transition-all ${
+          selected ? 'border-primary ring-2 ring-primary/25' : 'border-transparent bg-muted/30 hover:bg-muted/45'
+        }`}
+        onClick={() => onSelect(painting)}>
+        {painting.files[0] ? (
+          <img src={FileManager.getFileUrl(painting.files[0])} alt="" className="block h-full w-full object-cover" />
+        ) : (
+          <span className="block h-full w-full bg-muted/20" aria-hidden />
+        )}
+
+        {loading && (
+          <>
+            <div className="absolute inset-0 bg-background/10 backdrop-blur-[1px]" />
+            <div className="absolute top-1.5 left-1.5 flex items-center gap-1 rounded-full bg-background/88 px-1.5 py-1 shadow-sm">
+              <span className="size-2 animate-pulse rounded-full bg-primary" />
+              <span className="size-3 animate-spin rounded-full border border-primary/35 border-t-primary" />
+            </div>
+            <div className="absolute right-0 bottom-0 left-0 h-1.5 overflow-hidden bg-black/10">
+              <div className="h-full w-8 animate-[painting-list-loading_1.2s_ease-in-out_infinite] rounded-full bg-primary/75" />
+            </div>
+          </>
+        )}
+      </button>
+
+      <button
+        type="button"
+        onClick={() => onDelete(painting)}
+        className="absolute top-1.5 right-1.5 flex size-6 items-center justify-center rounded-full border border-border/60 bg-background/90 text-destructive opacity-0 shadow-sm backdrop-blur-sm transition-opacity hover:bg-background group-hover:opacity-100">
+        <Trash2 size={12} />
+      </button>
+    </div>
+  )
 }
 
 const PaintingsList: FC<PaintingsListProps> = ({
@@ -48,36 +99,23 @@ const PaintingsList: FC<PaintingsListProps> = ({
           onDragStart={() => setDragging(true)}
           onDragEnd={() => setDragging(false)}>
           {(item: PaintingCanvas) => (
-            <div key={item.id} className="group relative w-[76px] shrink-0">
-              <button
-                type="button"
-                className={`relative h-[76px] w-[76px] overflow-hidden rounded-[0.75rem] border transition-all ${
-                  selectedPainting.id === item.id
-                    ? 'border-primary ring-2 ring-primary/25'
-                    : 'border-transparent bg-muted/30 hover:bg-muted/45'
-                }`}
-                onClick={() => onSelectPainting(item)}>
-                {item.files[0] ? (
-                  <img
-                    src={FileManager.getFileUrl(item.files[0])}
-                    alt=""
-                    className="block h-full w-full object-cover"
-                  />
-                ) : (
-                  <span className="block h-full w-full bg-muted/20" aria-hidden />
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setPendingDelete(item)}
-                className="absolute top-1.5 right-1.5 flex size-6 items-center justify-center rounded-full border border-border/60 bg-background/90 text-destructive opacity-0 shadow-sm backdrop-blur-sm transition-opacity hover:bg-background group-hover:opacity-100">
-                <Trash2 size={12} />
-              </button>
-            </div>
+            <PaintingListItem
+              key={item.id}
+              painting={item}
+              selected={selectedPainting.id === item.id}
+              onSelect={onSelectPainting}
+              onDelete={setPendingDelete}
+            />
           )}
         </DraggableList>
       </div>
+
+      <style>{`
+        @keyframes painting-list-loading {
+          0% { transform: translateX(-150%); }
+          100% { transform: translateX(320%); }
+        }
+      `}</style>
 
       <ConfirmDialog
         open={Boolean(pendingDelete)}

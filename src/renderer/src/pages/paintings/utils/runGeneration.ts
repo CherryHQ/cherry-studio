@@ -39,10 +39,9 @@ export async function runGeneration(
   ctx: GenerateContext,
   generate: (ctx: GenerateContext) => Promise<GenerationResult | void>
 ): Promise<void> {
-  const { setIsLoading, setGenerating, t } = ctx
+  const { setIsLoading } = ctx
 
   setIsLoading(true)
-  setGenerating(true)
 
   try {
     const result = await generate(ctx)
@@ -59,6 +58,5 @@ export async function runGeneration(
     }
   } finally {
     setIsLoading(false)
-    setGenerating(false)
   }
 }

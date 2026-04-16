@@ -121,6 +121,11 @@ export type UseCacheSchema = {
   'chat.generating': boolean
   'chat.web_search.searching': boolean
 
+  // Paintings runtime state
+  'painting.runtime.${paintingId}': CacheValueTypes.PaintingRuntimeState
+  'painting.selection.${scope}': string | null
+  'painting.mode.${providerId}': string
+
   // Minapp management
   'minapp.opened_keep_alive': CacheValueTypes.CacheMinAppType[]
   'minapp.current_id': string
@@ -190,6 +195,12 @@ export const DefaultUseCache: UseCacheSchema = {
   'chat.selected_message_ids': [],
   'chat.generating': false,
   'chat.web_search.searching': false,
+  'painting.runtime.${paintingId}': {
+    isLoading: false,
+    fallbackUrls: []
+  },
+  'painting.selection.${scope}': null,
+  'painting.mode.${providerId}': 'generate',
 
   // Minapp management
   'minapp.opened_keep_alive': [],

@@ -22,6 +22,11 @@ export type CacheActiveSearches = Record<string, WebSearchStatus>
 export type CacheMinAppType = MinAppType
 export type CacheTopic = Topic
 
+export interface PaintingRuntimeState {
+  isLoading: boolean
+  fallbackUrls: string[]
+}
+
 /**
  * Tab type for browser-like tabs
  *
