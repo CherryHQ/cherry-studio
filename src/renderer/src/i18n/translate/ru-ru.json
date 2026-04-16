@@ -5573,10 +5573,10 @@
       "reset_defaults_failed": "Не удалось сбросить сочетания клавиш к значениям по умолчанию",
       "reset_to_default": "Сбросить настройки по умолчанию",
       "save_failed": "Не удалось сохранить ярлык",
-      "save_failed_with_name": "[to be translated]:Failed to save shortcut: {{name}}",
+      "save_failed_with_name": "Не удалось сохранить ярлык: {{name}}",
       "search_message": "Поиск сообщения",
       "search_message_in_chat": "Поиск сообщения в текущем диалоге",
-      "search_placeholder": "[to be translated]:Search shortcuts...",
+      "search_placeholder": "Поисковые ярлыки...",
       "select_model": "Select Model",
       "selection_assistant_select_text": "Помощник выделения: выделить текст",
       "selection_assistant_toggle": "Переключить помощник выделения",
@@ -5585,7 +5585,7 @@
       "title": "Горячие клавиши",
       "toggle_new_context": "Очистить контекст",
       "toggle_show_topics": "Переключить отображение топиков",
-      "toggle_sidebar": "[to be translated]:Toggle Sidebar",
+      "toggle_sidebar": "Свернуть боковую панель",
       "zoom_in": "Увеличить",
       "zoom_out": "Уменьшить",
       "zoom_reset": "Сбросить масштаб"
@@ -5854,11 +5854,11 @@
     }
   },
   "tab": {
-    "close": "[to be translated]:Close Tab",
-    "moveToFirst": "[to be translated]:Move to First",
-    "new": "[to be translated]:New Tab",
-    "pin": "[to be translated]:Pin Tab",
-    "unpin": "[to be translated]:Unpin Tab"
+    "close": "Закрыть вкладку",
+    "moveToFirst": "Перейти к первому",
+    "new": "Новая вкладка",
+    "pin": "Закрепить вкладку",
+    "unpin": "Открепить вкладку"
   },
   "title": {
     "apps": "Приложения",
