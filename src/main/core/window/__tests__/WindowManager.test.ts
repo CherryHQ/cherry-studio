@@ -213,6 +213,20 @@ vi.mock('../windowRegistry', () => {
       lifecycle: 'singleton',
       htmlPath: 'windows/singleton/index.html',
       defaultConfig: {}
+    },
+    singletonHidden: {
+      type: 'singletonHidden',
+      lifecycle: 'singleton',
+      show: false,
+      htmlPath: 'windows/singletonHidden/index.html',
+      defaultConfig: {}
+    },
+    alwaysOnTopPool: {
+      type: 'alwaysOnTopPool',
+      lifecycle: 'pooled',
+      poolConfig,
+      htmlPath: 'windows/alwaysOnTopPool/index.html',
+      defaultConfig: { width: 400, height: 300, alwaysOnTop: true }
     }
   }
   return {
@@ -321,6 +335,19 @@ describe('WindowManager', () => {
       expect(id2).not.toBe(id1)
       expect(createdWindows).toHaveLength(2)
     })
+
+    it('does NOT show/focus existing singleton when metadata.show is false', () => {
+      const id1 = wm.open('singletonHidden' as never)
+      const win = createdWindows[0]
+      win.show.mockClear()
+      win.focus.mockClear()
+
+      const id2 = wm.open('singletonHidden' as never)
+
+      expect(id2).toBe(id1)
+      expect(win.show).not.toHaveBeenCalled()
+      expect(win.focus).not.toHaveBeenCalled()
+    })
   })
 
   // ─── Pooled lifecycle ──────────────────────────────────
@@ -391,14 +418,32 @@ describe('WindowManager', () => {
     })
 
     describe('open() — recycled path', () => {
-      it('recycles idle window and sends WINDOW_POOL_RESET', () => {
+      it('recycles idle window without firing Reused when no initData is provided', () => {
         const id1 = wm.open('pooled' as never)
         wm.close(id1)
 
         const id2 = wm.open('pooled' as never)
 
         expect(id2).toBe(id1)
-        expect(createdWindows[0].webContents.send).toHaveBeenCalledWith('window-manager:pool-reset')
+        // No initData → no Reused event. Empty Reused events are a dormant foot-gun.
+        const reusedCalls = createdWindows[0].webContents.send.mock.calls.filter(
+          (call) => call[0] === 'window-manager:reused'
+        )
+        expect(reusedCalls).toHaveLength(0)
+        expect(createdWindows).toHaveLength(1)
+      })
+
+      it('recycles idle window and sends Reused event with initData payload', () => {
+        const id1 = wm.open('pooled' as never)
+        wm.close(id1)
+
+        const data = { action: 'translate', text: 'hello' }
+        const id2 = wm.open('pooled' as never, { initData: data })
+
+        expect(id2).toBe(id1)
+        expect(createdWindows[0].webContents.send).toHaveBeenCalledWith('window-manager:reused', data)
+        // And the init-data store must be readable synchronously after open() returns.
+        expect(wm.getInitData(id2)).toEqual(data)
         expect(createdWindows).toHaveLength(1)
       })
 
@@ -430,19 +475,18 @@ describe('WindowManager', () => {
         expect(win.focus).not.toHaveBeenCalled()
       })
 
-      it('emits synthetic ready-to-show with { recycled: true } via setImmediate', async () => {
+      it('does not emit synthetic ready-to-show on recycle (uses dedicated event instead)', () => {
         const id = wm.open('pooled' as never)
         wm.close(id)
 
-        const readyPromise = new Promise<{ recycled?: boolean }>((resolve) => {
-          const win = wm.getWindow(id) as unknown as MockBrowserWindow
-          win.once('ready-to-show', (info: { recycled?: boolean }) => resolve(info))
-        })
+        const win = wm.getWindow(id) as unknown as MockBrowserWindow
+        win.emit.mockClear()
 
         wm.open('pooled' as never)
 
-        const info = await readyPromise
-        expect(info).toEqual({ recycled: true })
+        // Verify no one manually emitted a 'ready-to-show' event
+        const readyToShowEmits = win.emit.mock.calls.filter((call) => call[0] === 'ready-to-show')
+        expect(readyToShowEmits).toHaveLength(0)
       })
 
       it('skips unhealthy idle windows', () => {
@@ -665,6 +709,84 @@ describe('WindowManager', () => {
       wm.close(id)
       simulateWindowClosed(wm, id)
       expect(wm.getInitData(id)).toBeNull()
+    })
+
+    describe('open({ initData })', () => {
+      it('atomically opens a window and stores init data', () => {
+        const data = { action: 'translate', text: 'hello' }
+        const id = wm.open('default' as never, { initData: data })
+
+        expect(id).toBe('test-uuid-1')
+        expect(wm.getWindow(id)).toBeDefined()
+        expect(wm.getInitData(id)).toEqual(data)
+      })
+
+      it('accepts both initData and options in the same call', () => {
+        const id = wm.open('pooled' as never, { initData: { foo: 'bar' }, options: { width: 800 } })
+        expect(wm.getInitData(id)).toEqual({ foo: 'bar' })
+        expect(createdWindows).toHaveLength(1)
+      })
+
+      it('works for pooled recycled path — Reused payload carries the new init data', () => {
+        const firstId = wm.open('pooled' as never, { initData: { version: 1 } })
+        expect(wm.getInitData(firstId)).toEqual({ version: 1 })
+
+        wm.close(firstId) // pool release clears init data
+
+        const win = createdWindows[0]
+        win.webContents.send.mockClear()
+
+        const secondId = wm.open('pooled' as never, { initData: { version: 2 } })
+        expect(secondId).toBe(firstId) // recycled
+        expect(wm.getInitData(secondId)).toEqual({ version: 2 })
+        expect(win.webContents.send).toHaveBeenCalledWith('window-manager:reused', { version: 2 })
+      })
+
+      it('fresh window paths do not fire Reused (pooled new / singleton first / default / create)', () => {
+        // default: fresh
+        const a = wm.open('default' as never, { initData: { a: 1 } })
+        // singleton: first time → fresh
+        const b = wm.open('singleton' as never, { initData: { b: 2 } })
+        // pooled: fresh (no idle yet)
+        const c = wm.open('pooled' as never, { initData: { c: 3 } })
+        // create() path: always fresh
+        const d = wm.create('default' as never, { initData: { d: 4 } })
+
+        expect(wm.getInitData(a)).toEqual({ a: 1 })
+        expect(wm.getInitData(b)).toEqual({ b: 2 })
+        expect(wm.getInitData(c)).toEqual({ c: 3 })
+        expect(wm.getInitData(d)).toEqual({ d: 4 })
+
+        for (const win of createdWindows) {
+          const reusedCalls = win.webContents.send.mock.calls.filter((call) => call[0] === 'window-manager:reused')
+          expect(reusedCalls).toHaveLength(0)
+        }
+      })
+    })
+
+    describe('open({ initData }) — singleton reuse', () => {
+      it('fires Reused event with new initData on singleton re-open', () => {
+        const id1 = wm.open('singleton' as never, { initData: { version: 1 } })
+        const win = createdWindows[0]
+        win.webContents.send.mockClear()
+
+        const id2 = wm.open('singleton' as never, { initData: { version: 2 } })
+
+        expect(id2).toBe(id1)
+        expect(wm.getInitData(id2)).toEqual({ version: 2 })
+        expect(win.webContents.send).toHaveBeenCalledWith('window-manager:reused', { version: 2 })
+      })
+
+      it('does NOT fire Reused on singleton re-open when no initData provided', () => {
+        wm.open('singleton' as never)
+        const win = createdWindows[0]
+        win.webContents.send.mockClear()
+
+        wm.open('singleton' as never)
+
+        const reusedCalls = win.webContents.send.mock.calls.filter((call) => call[0] === 'window-manager:reused')
+        expect(reusedCalls).toHaveLength(0)
+      })
     })
   })
 
