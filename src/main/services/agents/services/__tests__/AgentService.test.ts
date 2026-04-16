@@ -127,7 +127,7 @@ describe('AgentService built-in agent lifecycle', () => {
 
     expect(deleted).toBe(true)
     expect(database.transaction).toHaveBeenCalledTimes(1)
-    expect(txDelete).toHaveBeenCalledTimes(3)
+    expect(txDelete).toHaveBeenCalledTimes(2)
     expect(txUpdate).toHaveBeenCalledTimes(2)
     expect(database.delete).not.toHaveBeenCalled()
     expect(txUpdateSet).toHaveBeenCalledWith(expect.objectContaining({ agentId: null }))

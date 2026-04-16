@@ -16,12 +16,10 @@ import type {
   SkillInstallOptions,
   SkillToggleOptions
 } from '@types'
-import { eq } from 'drizzle-orm'
 import { net } from 'electron'
 import StreamZip from 'node-stream-zip'
 
 import { agentsTable } from '../database/schema'
-import { AgentSkillRepository } from './AgentSkillRepository'
 import { SkillInstaller } from './SkillInstaller'
 import { SkillRepository } from './SkillRepository'
 
@@ -39,24 +37,21 @@ const MAX_FOLDER_NAME_LENGTH = 80
  * Skill management service.
  *
  * Skills are stored in `{dataPath}/Skills/{folderName}/` (inert global library).
- * When enabled **for a specific agent**, a symlink is created at
- * `{agentWorkspace}/.claude/skills/{folderName}/` pointing to the library,
- * making the skill discoverable by Claude Code running against that workspace.
+ * When a skill is globally enabled (`agents_skills.is_enabled = true`), a symlink
+ * is created at `{agentWorkspace}/.claude/skills/{folderName}/` for every agent
+ * that has a resolvable workspace, making the skill discoverable by Claude Code.
  *
- * Skill library metadata lives in the `skills` table. Per-agent enablement
- * state lives in the `agent_skills` join table. The legacy `skills.is_enabled`
- * column is kept for schema compatibility only and is no longer read or written.
+ * Skill library metadata and global enablement state both live in `agents_skills`.
+ * There is no per-agent junction table.
  */
 export class SkillService {
   private static instance: SkillService | null = null
 
   private readonly repository: SkillRepository
-  private readonly agentSkillRepository: AgentSkillRepository
   private readonly installer: SkillInstaller
 
   private constructor() {
     this.repository = SkillRepository.getInstance()
-    this.agentSkillRepository = AgentSkillRepository.getInstance()
     this.installer = new SkillInstaller()
     logger.info('SkillService initialized')
   }
@@ -73,159 +68,80 @@ export class SkillService {
   // ===========================================================================
 
   /**
-   * List installed skills.
+   * List installed skills with their global enablement state.
    *
-   * When `agentId` is provided, each skill's `isEnabled` field reflects the
-   * per-agent enablement state from `agent_skills`. Without `agentId`, the
-   * field is forced to `false` — the legacy global flag is ignored.
+   * The `agentId` parameter is accepted for API compatibility but is no longer
+   * used — enablement is global, not per-agent.
    */
-  async list(agentId?: string): Promise<InstalledSkill[]> {
-    const skills = await this.repository.list()
-    if (!agentId) {
-      return skills.map((s) => ({ ...s, isEnabled: false }))
-    }
-
-    const agentSkillRows = await this.agentSkillRepository.getByAgentId(agentId)
-    const enabledMap = new Map<string, boolean>()
-    for (const row of agentSkillRows) {
-      enabledMap.set(row.skillId, row.isEnabled)
-    }
-    return skills.map((s) => ({ ...s, isEnabled: enabledMap.get(s.id) ?? false }))
+  async list(_agentId?: string): Promise<InstalledSkill[]> {
+    return this.repository.list()
   }
 
   /**
-   * Enable or disable a skill for a specific agent.
+   * Enable or disable a skill globally.
    *
-   * Updates the `agent_skills` join row and creates / removes the
-   * corresponding symlink under `{agentWorkspace}/.claude/skills/`.
+   * Updates `agents_skills.is_enabled` and creates / removes the corresponding
+   * symlink under every agent's `{agentWorkspace}/.claude/skills/`. The `agentId`
+   * field in options is accepted for API compatibility but is ignored.
    */
   async toggle(options: SkillToggleOptions): Promise<InstalledSkill | null> {
-    const skill = await this.repository.getById(options.skillId)
-    if (!skill) return null
+    const updated = await this.repository.toggleEnabled(options.skillId, options.isEnabled)
+    if (!updated) return null
 
-    const workspace = await this.getAgentWorkspace(options.agentId)
+    await this.syncSkillSymlinksForAllAgents(updated.folderName, options.isEnabled)
+    return updated
+  }
 
-    // Update DB first. On a well-known workspace we keep the row in sync even
-    // if filesystem ops fail below, so a retry / reconcile can recover.
-    await this.agentSkillRepository.upsert(options.agentId, options.skillId, options.isEnabled)
+  /**
+   * Link all globally-enabled skills into a freshly created agent's workspace.
+   *
+   * No DB writes — global enablement state already lives in `agents_skills`.
+   */
+  async initSkillsForAgent(_agentId: string, workspace: string | undefined): Promise<void> {
+    if (!workspace) return
 
-    if (workspace) {
+    const skills = await this.repository.list()
+    const enabledSkills = skills.filter((s) => s.isEnabled)
+    if (enabledSkills.length === 0) return
+
+    for (const skill of enabledSkills) {
       try {
-        if (options.isEnabled) {
-          await this.linkSkill(skill.folderName, workspace)
-        } else {
-          await this.unlinkSkill(skill.folderName, workspace)
-        }
+        await this.linkSkill(skill.folderName, workspace)
       } catch (error) {
-        // Roll back DB state so it stays consistent with the filesystem
-        await this.agentSkillRepository.upsert(options.agentId, options.skillId, !options.isEnabled).catch((e) => {
-          logger.error('Failed to roll back agent_skills after symlink error', {
-            agentId: options.agentId,
-            skillId: options.skillId,
-            error: e instanceof Error ? e.message : String(e)
-          })
-        })
-        logger.error('Failed to (un)link skill for agent', {
-          agentId: options.agentId,
-          skillId: options.skillId,
-          isEnabled: options.isEnabled,
+        logger.warn('Failed to link skill for new agent', {
+          skillId: skill.id,
           error: error instanceof Error ? error.message : String(error)
         })
-        throw error
       }
-    } else {
-      logger.warn('Skipping skill symlink: agent has no resolvable workspace', {
-        agentId: options.agentId,
-        skillId: options.skillId
-      })
     }
-
-    return { ...skill, isEnabled: options.isEnabled }
+    logger.info('Linked enabled skills for new agent', { count: enabledSkills.length })
   }
 
   /**
-   * Seed skill enablement for a freshly created agent.
-   *
-   * Every skill marked `source = 'builtin'` is auto-enabled for the new
-   * agent — they ship with Cherry Studio and users expect them to work
-   * everywhere. Other skills default to disabled.
-   */
-  async initSkillsForAgent(agentId: string, workspace: string | undefined): Promise<void> {
-    const skills = await this.repository.list()
-    const builtinSkills = skills.filter((s) => s.source === 'builtin')
-    if (builtinSkills.length === 0) return
-
-    for (const skill of builtinSkills) {
-      await this.agentSkillRepository.upsert(agentId, skill.id, true)
-      if (workspace) {
-        try {
-          await this.linkSkill(skill.folderName, workspace)
-        } catch (error) {
-          logger.warn('Failed to link builtin skill for new agent', {
-            agentId,
-            skillId: skill.id,
-            error: error instanceof Error ? error.message : String(error)
-          })
-        }
-      }
-    }
-    logger.info('Seeded builtin skills for agent', { agentId, count: builtinSkills.length })
-  }
-
-  /**
-   * Enable a skill across every existing agent and create per-workspace symlinks.
-   * Used when a new builtin skill lands (e.g. during startup seeding or app upgrade)
-   * — builtins are meant to be ambiently available everywhere.
-   *
-   * Public because `installBuiltinSkills` inserts skills via the repository
-   * directly and then needs to fan out the enablement afterwards.
+   * Mark a skill as globally enabled and create workspace symlinks for every
+   * existing agent. Used when a new builtin skill is installed.
    */
   async enableForAllAgents(skillId: string, folderName: string): Promise<void> {
-    const database = await this.repository.getDatabase()
-    const agents = await database
-      .select({ id: agentsTable.id, accessiblePaths: agentsTable.accessiblePaths })
-      .from(agentsTable)
-
-    for (const agent of agents) {
-      await this.agentSkillRepository.upsert(agent.id, skillId, true)
-      const workspace = this.parseFirstAccessiblePath(agent.accessiblePaths)
-      if (!workspace || !(await directoryExists(workspace))) continue
-      try {
-        await this.linkSkill(folderName, workspace)
-      } catch (error) {
-        logger.warn('Failed to link builtin skill for agent', {
-          agentId: agent.id,
-          skillId,
-          error: error instanceof Error ? error.message : String(error)
-        })
-      }
-    }
-    logger.info('Enabled skill for all agents', { skillId, folderName, agentCount: agents.length })
+    await this.repository.toggleEnabled(skillId, true)
+    await this.syncSkillSymlinksForAllAgents(folderName, true)
+    logger.info('Enabled skill for all agents', { skillId, folderName })
   }
 
   /**
-   * Ensure the workspace's `.claude/skills/` directory matches the `agent_skills`
-   * DB state for the given agent. Called at session start so that external
-   * file-system drift (user moved the workspace, manually deleted links, etc.)
-   * gets corrected automatically.
+   * Ensure the workspace's `.claude/skills/` directory matches the global
+   * enablement state. Called at session start to correct filesystem drift.
    */
-  async reconcileAgentSkills(agentId: string, workspace: string): Promise<void> {
+  async reconcileAgentSkills(_agentId: string, workspace: string): Promise<void> {
     if (!workspace) return
-    const agentSkillRows = await this.agentSkillRepository.getByAgentId(agentId)
-    const enabledFolders = new Set<string>()
+    const skills = await this.repository.list()
 
-    // Ensure enabled skills have symlinks
-    for (const row of agentSkillRows) {
-      if (!row.isEnabled) continue
-      const skill = await this.repository.getById(row.skillId)
-      if (!skill) continue
-      enabledFolders.add(skill.folderName)
+    for (const skill of skills) {
+      if (!skill.isEnabled) continue
       try {
         await this.linkSkill(skill.folderName, workspace)
       } catch (error) {
         logger.warn('Reconcile: failed to link skill', {
-          agentId,
-          skillId: row.skillId,
+          skillId: skill.id,
           error: error instanceof Error ? error.message : String(error)
         })
       }
@@ -290,28 +206,12 @@ export class SkillService {
       throw new Error(`Skill not found: ${skillId}`)
     }
 
-    // Remove symlinks from every agent workspace that had this skill enabled,
-    // before we lose the join rows to the cascade delete below.
-    const agentSkillRows = await this.agentSkillRepository.getBySkillId(skillId)
-    for (const row of agentSkillRows) {
-      if (!row.isEnabled) continue
-      const workspace = await this.getAgentWorkspace(row.agentId)
-      if (!workspace) continue
-      try {
-        await this.unlinkSkill(skill.folderName, workspace)
-      } catch (error) {
-        logger.warn('Failed to unlink skill during uninstall', {
-          skillId,
-          agentId: row.agentId,
-          error: error instanceof Error ? error.message : String(error)
-        })
-      }
-    }
+    // Remove symlinks from every agent workspace before deleting the skill record.
+    await this.syncSkillSymlinksForAllAgents(skill.folderName, false)
 
     // Remove from global storage
     const skillPath = this.getSkillStoragePath(skill.folderName)
     await this.installer.uninstall(skillPath)
-    // FK cascade on skill_id deletes agent_skills rows automatically.
     await this.repository.delete(skillId)
     logger.info('Skill uninstalled', { skillId, folderName: skill.folderName })
   }
@@ -393,6 +293,35 @@ export class SkillService {
   // ===========================================================================
   // Symlink management
   // ===========================================================================
+
+  /**
+   * Create or remove the symlink for `folderName` in every existing agent workspace.
+   * `link = true` → create symlink; `link = false` → remove symlink.
+   */
+  private async syncSkillSymlinksForAllAgents(folderName: string, link: boolean): Promise<void> {
+    const database = await this.repository.getDatabase()
+    const agents = await database
+      .select({ id: agentsTable.id, accessiblePaths: agentsTable.accessiblePaths })
+      .from(agentsTable)
+
+    for (const agent of agents) {
+      const workspace = this.parseFirstAccessiblePath(agent.accessiblePaths)
+      if (!workspace || !(await directoryExists(workspace))) continue
+      try {
+        if (link) {
+          await this.linkSkill(folderName, workspace)
+        } else {
+          await this.unlinkSkill(folderName, workspace)
+        }
+      } catch (error) {
+        logger.warn(`Failed to ${link ? 'link' : 'unlink'} skill for agent`, {
+          agentId: agent.id,
+          folderName,
+          error: error instanceof Error ? error.message : String(error)
+        })
+      }
+    }
+  }
 
   /**
    * Create a symlink from `{workspace}/.claude/skills/{folderName}` →
@@ -583,8 +512,7 @@ export class SkillService {
     const tags = metadata.tags ? JSON.stringify(metadata.tags) : null
 
     if (existing) {
-      // Update metadata in-place to preserve the skill ID and its agent_skills
-      // rows — a delete+insert would cascade-drop per-agent enablement state.
+      // Update metadata in-place to preserve the skill ID and its global isEnabled state.
       await this.repository.updateMetadata(existing.id, {
         name: metadata.name,
         description: metadata.description ?? null,
@@ -612,17 +540,15 @@ export class SkillService {
       author: metadata.author ?? null,
       tags,
       contentHash,
-      // Legacy column: no longer consumed. Per-agent state lives in agent_skills.
-      isEnabled: false,
+      // Builtins are globally enabled on install; others start disabled.
+      isEnabled: isBuiltin,
       createdAt: now,
       updatedAt: now
     })
 
-    // Built-in skills are auto-enabled for every existing agent — they ship
-    // with the app and users expect them to work without manual opt-in.
-    // For non-builtin sources, enablement happens per-agent via toggle().
+    // Builtins ship with the app and should be active everywhere immediately.
     if (isBuiltin) {
-      await this.enableForAllAgents(skill.id, folderName)
+      await this.syncSkillSymlinksForAllAgents(folderName, true)
     }
 
     logger.info('Skill installed', { id, name: metadata.name, folderName, source })
@@ -776,26 +702,6 @@ export class SkillService {
   /** Symlink location for a given agent workspace: `{workspace}/.claude/skills/{folderName}` */
   private getSkillLinkPath(folderName: string, workspace: string): string {
     return path.join(workspace, '.claude', 'skills', folderName)
-  }
-
-  /**
-   * Resolve an agent's primary workspace (`accessible_paths[0]`) for symlink
-   * operations. Returns `undefined` when the agent has no usable workspace
-   * — callers should skip filesystem work in that case.
-   */
-  private async getAgentWorkspace(agentId: string): Promise<string | undefined> {
-    const database = await this.repository.getDatabase()
-    const rows = await database
-      .select({ accessiblePaths: agentsTable.accessiblePaths })
-      .from(agentsTable)
-      .where(eq(agentsTable.id, agentId))
-      .limit(1)
-    const workspace = this.parseFirstAccessiblePath(rows[0]?.accessiblePaths)
-    if (!workspace) return undefined
-    // Workspace may reference a path from a different machine (e.g. restored backup).
-    // Skip if it doesn't exist locally to avoid EACCES on mkdir.
-    if (!(await directoryExists(workspace))) return undefined
-    return workspace
   }
 
   private parseFirstAccessiblePath(serialized: string | null | undefined): string | undefined {
