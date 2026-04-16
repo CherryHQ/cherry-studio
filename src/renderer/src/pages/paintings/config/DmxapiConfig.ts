@@ -62,7 +62,6 @@ export const TOP_UP_URL = 'https://www.dmxapi.cn/topup'
 
 export const DEFAULT_PAINTING: DmxapiPainting = {
   id: uuid(),
-  urls: [],
   files: [],
   prompt: '',
   image_size: '1328x1328',

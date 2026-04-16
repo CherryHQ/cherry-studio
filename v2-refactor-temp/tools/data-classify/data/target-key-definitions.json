@@ -41,6 +41,13 @@
       "description": "Complex migration: merge redux/preprocess.providers and redux/ocr.providers into file processing overrides"
     },
     {
+      "targetKey": "feature.paintings.default_provider",
+      "type": "string",
+      "defaultValue": "zhipu",
+      "status": "classified",
+      "description": "Paintings default provider preference (v2 new, non-migration)"
+    },
+    {
       "targetKey": "chat.web_search.compression.cutoff_limit",
       "type": "number",
       "defaultValue": null,
