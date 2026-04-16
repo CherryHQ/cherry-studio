@@ -181,6 +181,8 @@ export enum IpcChannel {
   Windows_IsMaximized = 'window:is-maximized',
   Windows_MaximizedChanged = 'window:maximized-changed',
   Windows_NavigateToAbout = 'window:navigate-to-about',
+  Windows_NavigateToSettings = 'window:navigate-to-settings',
+  Shortcut_RegistrationConflict = 'shortcut:registration-conflict',
 
   // Tab
   Tab_Attach = 'tab:attach',
@@ -260,8 +262,6 @@ export enum IpcChannel {
   FileService_Retrieve = 'file-service:retrieve',
 
   Export_Word = 'export:word',
-
-  Shortcuts_Update = 'shortcuts:update',
 
   // backup
   Backup_Backup = 'backup:backup',

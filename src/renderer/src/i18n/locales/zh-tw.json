@@ -5448,8 +5448,10 @@
     "shortcuts": {
       "action": "操作",
       "actions": "操作",
+      "bind_first_to_enable": "請先綁定快捷鍵，再調整啟用狀態",
       "clear_shortcut": "清除快捷鍵",
       "clear_topic": "清除所有訊息",
+      "conflict_with": "已被「{{name}}」使用",
       "copy_last_message": "複製上一則訊息",
       "edit_last_user_message": "編輯最後一則使用者訊息",
       "enabled": "啟用",
@@ -5457,13 +5459,18 @@
       "label": "按鍵",
       "mini_window": "快捷助手",
       "new_topic": "新增話題",
+      "occupied_by_other_application": "此快捷鍵已被系統或其他應用程式占用",
       "press_shortcut": "按下快捷鍵",
       "rename_topic": "重新命名話題",
       "reset_defaults": "重設預設快捷鍵",
       "reset_defaults_confirm": "確定要重設所有快捷鍵嗎？",
+      "reset_defaults_failed": "重設快捷鍵失敗",
       "reset_to_default": "重設為預設",
+      "save_failed": "儲存快捷鍵失敗",
+      "save_failed_with_name": "儲存快捷鍵失敗：{{name}}",
       "search_message": "搜尋訊息",
       "search_message_in_chat": "在目前對話中搜尋訊息",
+      "search_placeholder": "搜尋捷徑...",
       "select_model": "選擇模型",
       "selection_assistant_select_text": "劃詞助手：取詞",
       "selection_assistant_toggle": "開關劃詞助手",
@@ -5471,8 +5478,8 @@
       "show_settings": "開啟設定",
       "title": "快捷鍵",
       "toggle_new_context": "清除上下文",
-      "toggle_show_assistants": "切換助手顯示",
       "toggle_show_topics": "切換話題顯示",
+      "toggle_sidebar": "切換側邊欄",
       "zoom_in": "放大介面",
       "zoom_out": "縮小介面",
       "zoom_reset": "重設縮放"
@@ -5741,11 +5748,11 @@
     }
   },
   "tab": {
-    "close": "[to be translated]:Close Tab",
-    "moveToFirst": "[to be translated]:Move to First",
+    "close": "關閉分頁",
+    "moveToFirst": "移至第一個",
     "new": "新標籤頁",
-    "pin": "[to be translated]:Pin Tab",
-    "unpin": "[to be translated]:Unpin Tab"
+    "pin": "釘選分頁",
+    "unpin": "取消固定分頁"
   },
   "title": {
     "apps": "小程式",

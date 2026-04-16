@@ -5448,8 +5448,10 @@
     "shortcuts": {
       "action": "Acción",
       "actions": "operación",
+      "bind_first_to_enable": "Primero vincula un atajo para cambiar su estado de activación",
       "clear_shortcut": "Borrar atajo",
       "clear_topic": "Vaciar mensaje",
+      "conflict_with": "Ya utilizado por \"{{name}}\"",
       "copy_last_message": "Copiar el último mensaje",
       "edit_last_user_message": "Editar último mensaje de usuario",
       "enabled": "habilitar",
@@ -5457,13 +5459,18 @@
       "label": "Tecla",
       "mini_window": "Asistente rápido",
       "new_topic": "Nuevo tema",
+      "occupied_by_other_application": "Este atajo ya está en uso por el sistema u otra aplicación",
       "press_shortcut": "Presionar atajo",
       "rename_topic": "Renombrar tema",
       "reset_defaults": "Restablecer atajos predeterminados",
       "reset_defaults_confirm": "¿Está seguro de querer restablecer todos los atajos?",
+      "reset_defaults_failed": "Error al restablecer los atajos a los valores predeterminados",
       "reset_to_default": "Restablecer a predeterminado",
+      "save_failed": "Error al guardar el acceso directo",
+      "save_failed_with_name": "Error al guardar el acceso directo: {{name}}",
       "search_message": "Buscar mensaje",
       "search_message_in_chat": "Buscar mensajes en la conversación actual",
+      "search_placeholder": "Buscar accesos directos...",
       "select_model": "Select Model",
       "selection_assistant_select_text": "Asistente de selección de texto: obtener palabras",
       "selection_assistant_toggle": "Activar/desactivar el asistente de selección de texto",
@@ -5471,8 +5478,8 @@
       "show_settings": "Abrir configuración",
       "title": "Atajos",
       "toggle_new_context": "Limpiar contexto",
-      "toggle_show_assistants": "Alternar visibilidad de asistentes",
       "toggle_show_topics": "Alternar visibilidad de temas",
+      "toggle_sidebar": "Alternar barra lateral",
       "zoom_in": "Ampliar interfaz",
       "zoom_out": "Reducir interfaz",
       "zoom_reset": "Restablecer zoom"
@@ -5741,11 +5748,11 @@
     }
   },
   "tab": {
-    "close": "[to be translated]:Close Tab",
-    "moveToFirst": "[to be translated]:Move to First",
-    "new": "[to be translated]:New Tab",
-    "pin": "[to be translated]:Pin Tab",
-    "unpin": "[to be translated]:Unpin Tab"
+    "close": "Cerrar pestaña",
+    "moveToFirst": "Mover al primero",
+    "new": "Nueva pestaña",
+    "pin": "Anclar pestaña",
+    "unpin": "Desanclar pestaña"
   },
   "title": {
     "apps": "Aplicaciones",

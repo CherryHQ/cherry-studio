@@ -5448,8 +5448,10 @@
     "shortcuts": {
       "action": "操作",
       "actions": "操作",
+      "bind_first_to_enable": "ショートカットを最初に割り当てて、その有効状態を変更してください",
       "clear_shortcut": "ショートカットをクリア",
       "clear_topic": "メッセージを消去",
+      "conflict_with": "すでに「{{name}}」によって使用されています",
       "copy_last_message": "最後のメッセージをコピー",
       "edit_last_user_message": "最後のユーザーメッセージを編集",
       "enabled": "有効化",
@@ -5457,13 +5459,18 @@
       "label": "キー",
       "mini_window": "クイックアシスタント",
       "new_topic": "新しいトピック",
+      "occupied_by_other_application": "このショートカットは既にシステムまたは別のアプリケーションで使用されています",
       "press_shortcut": "ショートカットを押す",
       "rename_topic": "トピックの名前を変更",
       "reset_defaults": "デフォルトのショートカットをリセット",
       "reset_defaults_confirm": "すべてのショートカットをリセットしてもよろしいですか？",
+      "reset_defaults_failed": "ショートカットをデフォルトにリセットできませんでした",
       "reset_to_default": "デフォルトにリセット",
+      "save_failed": "ショートカットの保存に失敗しました",
+      "save_failed_with_name": "ショートカットの保存に失敗しました: {{name}}",
       "search_message": "メッセージを検索",
       "search_message_in_chat": "現在のチャットでメッセージを検索",
+      "search_placeholder": "検索のショートカット...",
       "select_model": "Select Model",
       "selection_assistant_select_text": "選択アシスタント：テキストを選択",
       "selection_assistant_toggle": "選択アシスタントを切り替え",
@@ -5471,8 +5478,8 @@
       "show_settings": "設定を開く",
       "title": "ショートカット",
       "toggle_new_context": "コンテキストをクリア",
-      "toggle_show_assistants": "アシスタントの表示を切り替え",
       "toggle_show_topics": "トピックの表示を切り替え",
+      "toggle_sidebar": "サイドバーを切り替える",
       "zoom_in": "ズームイン",
       "zoom_out": "ズームアウト",
       "zoom_reset": "ズームをリセット"
@@ -5741,11 +5748,11 @@
     }
   },
   "tab": {
-    "close": "[to be translated]:Close Tab",
-    "moveToFirst": "[to be translated]:Move to First",
-    "new": "[to be translated]:New Tab",
-    "pin": "[to be translated]:Pin Tab",
-    "unpin": "[to be translated]:Unpin Tab"
+    "close": "タブを閉じる",
+    "moveToFirst": "先頭へ移動",
+    "new": "新しいタブ",
+    "pin": "タブをピン留め",
+    "unpin": "タブを固定解除"
   },
   "title": {
     "apps": "アプリ",

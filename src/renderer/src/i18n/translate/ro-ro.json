@@ -5448,8 +5448,10 @@
     "shortcuts": {
       "action": "Acțiune",
       "actions": "Comandă",
+      "bind_first_to_enable": "Asociază mai întâi o comandă rapidă pentru a-i schimba starea de activare",
       "clear_shortcut": "Șterge comanda rapidă",
       "clear_topic": "Șterge mesajele",
+      "conflict_with": "Deja folosit de \"{{name}}\"",
       "copy_last_message": "Copiază ultimul mesaj",
       "edit_last_user_message": "Editează ultimul mesaj al utilizatorului",
       "enabled": "Activează",
@@ -5457,13 +5459,18 @@
       "label": "Tastă",
       "mini_window": "Asistent rapid",
       "new_topic": "Subiect nou",
+      "occupied_by_other_application": "Această comandă rapidă este deja utilizată de sistem sau de o altă aplicație",
       "press_shortcut": "Apasă comanda rapidă",
       "rename_topic": "Redenumește subiectul",
       "reset_defaults": "Resetează la implicite",
       "reset_defaults_confirm": "Ești sigur că vrei să resetezi toate comenzile rapide?",
+      "reset_defaults_failed": "Nu s-a reușit resetarea comenzilor rapide la valorile implicite",
       "reset_to_default": "Resetează la implicit",
+      "save_failed": "Nu s-a putut salva comanda rapidă",
+      "save_failed_with_name": "Nu s-a putut salva comanda rapidă: {{name}}",
       "search_message": "Caută mesaj",
       "search_message_in_chat": "Caută mesaj în chat-ul curent",
+      "search_placeholder": "Căutare comenzi rapide...",
       "select_model": "Select Model",
       "selection_assistant_select_text": "Asistent de selecție: Selectează text",
       "selection_assistant_toggle": "Comută Asistentul de selecție",
@@ -5471,8 +5478,8 @@
       "show_settings": "Deschide setările",
       "title": "Comenzi rapide de la tastatură",
       "toggle_new_context": "Șterge contextul",
-      "toggle_show_assistants": "Comută asistenții",
       "toggle_show_topics": "Comută subiectele",
+      "toggle_sidebar": "Comutare bară laterală",
       "zoom_in": "Mărește",
       "zoom_out": "Micșorează",
       "zoom_reset": "Resetează zoom-ul"
@@ -5741,11 +5748,11 @@
     }
   },
   "tab": {
-    "close": "[to be translated]:Close Tab",
-    "moveToFirst": "[to be translated]:Move to First",
-    "new": "[to be translated]:New Tab",
-    "pin": "[to be translated]:Pin Tab",
-    "unpin": "[to be translated]:Unpin Tab"
+    "close": "Închide fila",
+    "moveToFirst": "Mută la început",
+    "new": "Filă nouă",
+    "pin": "Fixează fila",
+    "unpin": "Anulați fixarea filei"
   },
   "title": {
     "apps": "Aplicații",

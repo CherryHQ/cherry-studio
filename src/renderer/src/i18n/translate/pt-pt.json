@@ -5448,8 +5448,10 @@
     "shortcuts": {
       "action": "Ação",
       "actions": "operação",
+      "bind_first_to_enable": "Primeiro, vincule um atalho para alterar o seu estado ativado",
       "clear_shortcut": "Limpar atalho",
       "clear_topic": "Limpar mensagem",
+      "conflict_with": "Já usado por \"{{name}}\"",
       "copy_last_message": "Copiar a última mensagem",
       "edit_last_user_message": "Editar última mensagem do usuário",
       "enabled": "ativar",
@@ -5457,13 +5459,18 @@
       "label": "Tecla",
       "mini_window": "Atalho de assistente",
       "new_topic": "Novo tópico",
+      "occupied_by_other_application": "Este atalho já está sendo usado pelo sistema ou por outro aplicativo",
       "press_shortcut": "Pressionar atalho",
       "rename_topic": "Renomear tópico",
       "reset_defaults": "Redefinir atalhos padrão",
       "reset_defaults_confirm": "Tem certeza de que deseja redefinir todos os atalhos?",
+      "reset_defaults_failed": "Falha ao redefinir atalhos para os padrões",
       "reset_to_default": "Redefinir para padrão",
+      "save_failed": "Falha ao salvar atalho",
+      "save_failed_with_name": "Falha ao salvar atalho: {{name}}",
       "search_message": "Pesquisar mensagem",
       "search_message_in_chat": "Pesquisar mensagens nesta conversa",
+      "search_placeholder": "Atalhos de pesquisa...",
       "select_model": "Select Model",
       "selection_assistant_select_text": "Assistente de seleção de texto: selecionar texto",
       "selection_assistant_toggle": "Ativar/desativar assistente de seleção de texto",
@@ -5471,8 +5478,8 @@
       "show_settings": "Abrir configurações",
       "title": "Atalhos",
       "toggle_new_context": "Limpar contexto",
-      "toggle_show_assistants": "Alternar exibição de assistentes",
       "toggle_show_topics": "Alternar exibição de tópicos",
+      "toggle_sidebar": "Alternar Barra Lateral",
       "zoom_in": "Ampliar interface",
       "zoom_out": "Diminuir interface",
       "zoom_reset": "Redefinir zoom"
@@ -5741,11 +5748,11 @@
     }
   },
   "tab": {
-    "close": "[to be translated]:Close Tab",
-    "moveToFirst": "[to be translated]:Move to First",
-    "new": "[to be translated]:New Tab",
-    "pin": "[to be translated]:Pin Tab",
-    "unpin": "[to be translated]:Unpin Tab"
+    "close": "Fechar Aba",
+    "moveToFirst": "Mover para o Primeiro",
+    "new": "Nova Aba",
+    "pin": "Fixar Aba",
+    "unpin": "Desafixar Aba"
   },
   "title": {
     "apps": "Miniaplicativos",

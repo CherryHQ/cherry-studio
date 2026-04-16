@@ -28,6 +28,7 @@ import type {
 import type { KnowledgeSearchResult as KnowledgeVectorSearchResult } from '@shared/data/types/knowledge'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
 import { IpcChannel } from '@shared/IpcChannel'
+import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
 import type {
   FileListResponse,
   FileMetadata,
@@ -44,7 +45,6 @@ import type {
   Provider,
   RestartApiServerStatusResult,
   S3Config,
-  Shortcut,
   StartApiServerStatusResult,
   StopApiServerStatusResult,
   SupportedOcrFile,
@@ -88,6 +88,12 @@ type DirectoryListOptions = {
   includeDirectories?: boolean
   maxEntries?: number
   searchPattern?: string
+}
+
+type ShortcutRegistrationConflictPayload = {
+  key: ShortcutPreferenceKey
+  accelerator?: string
+  hasConflict: boolean
 }
 
 export function tracedInvoke(channel: string, spanContext: SpanContext | undefined, ...args: any[]) {
@@ -295,9 +301,6 @@ const api = {
     getFiles: (vaultName: string) => ipcRenderer.invoke(IpcChannel.Obsidian_GetFiles, vaultName)
   },
   openPath: (path: string) => ipcRenderer.invoke(IpcChannel.Open_Path, path),
-  shortcuts: {
-    update: (shortcuts: Shortcut[]) => ipcRenderer.invoke(IpcChannel.Shortcuts_Update, shortcuts)
-  },
   knowledgeBase: {
     create: (base: KnowledgeBaseParams, context?: SpanContext) =>
       tracedInvoke(IpcChannel.KnowledgeBase_Create, context, base),
@@ -795,6 +798,16 @@ const api = {
     onMaximizedChange: (callback: (isMaximized: boolean) => void): (() => void) => {
       const channel = IpcChannel.Windows_MaximizedChanged
       const listener = (_: Electron.IpcRendererEvent, isMaximized: boolean) => callback(isMaximized)
+      ipcRenderer.on(channel, listener)
+      return () => {
+        ipcRenderer.removeListener(channel, listener)
+      }
+    }
+  },
+  shortcut: {
+    onRegistrationConflict: (callback: (payload: ShortcutRegistrationConflictPayload) => void): (() => void) => {
+      const channel = IpcChannel.Shortcut_RegistrationConflict
+      const listener = (_: Electron.IpcRendererEvent, payload: ShortcutRegistrationConflictPayload) => callback(payload)
       ipcRenderer.on(channel, listener)
       return () => {
         ipcRenderer.removeListener(channel, listener)

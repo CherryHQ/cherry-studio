@@ -306,6 +306,11 @@ export class PreferencesMigrator extends BaseMigrator {
     // Process Redux mappings
     for (const [category, mappings] of Object.entries(REDUX_STORE_MAPPINGS)) {
       for (const mapping of mappings) {
+        // Shortcut entries are handled by a complex mapping because the legacy
+        // Redux source stores them as an array, which cannot be read via
+        // `reduxState.get(category, key)`. See ShortcutMappings.ts.
+        if (mapping.targetKey.startsWith('shortcut.')) continue
+
         const defaultValue = DefaultPreferences.default[mapping.targetKey] ?? null
         items.push({
           originalKey: mapping.originalKey,
@@ -353,9 +358,10 @@ export class PreferencesMigrator extends BaseMigrator {
       keys.push(mapping.targetKey)
     }
 
-    // Collect from Redux mappings
+    // Collect from Redux mappings (excluding shortcuts — handled by complex mapping)
     for (const mappings of Object.values(REDUX_STORE_MAPPINGS)) {
       for (const mapping of mappings) {
+        if (mapping.targetKey.startsWith('shortcut.')) continue
         keys.push(mapping.targetKey)
       }
     }

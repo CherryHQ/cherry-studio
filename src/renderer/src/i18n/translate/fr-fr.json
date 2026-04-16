@@ -5448,8 +5448,10 @@
     "shortcuts": {
       "action": "Action",
       "actions": "操作",
+      "bind_first_to_enable": "Liez d'abord un raccourci pour modifier son état activé",
       "clear_shortcut": "Effacer raccourci clavier",
       "clear_topic": "Vider les messages",
+      "conflict_with": "Déjà utilisé par \"{{name}}\"",
       "copy_last_message": "Copier le dernier message",
       "edit_last_user_message": "Éditer le dernier message utilisateur",
       "enabled": "activer",
@@ -5457,13 +5459,18 @@
       "label": "Touche",
       "mini_window": "Assistant rapide",
       "new_topic": "Nouveau sujet",
+      "occupied_by_other_application": "Ce raccourci est déjà utilisé par le système ou une autre application",
       "press_shortcut": "Appuyer sur raccourci clavier",
       "rename_topic": "Renommer le sujet",
       "reset_defaults": "Réinitialiser raccourcis par défaut",
       "reset_defaults_confirm": "Êtes-vous sûr de vouloir réinitialiser tous les raccourcis clavier ?",
+      "reset_defaults_failed": "Échec de la réinitialisation des raccourcis aux valeurs par défaut",
       "reset_to_default": "Réinitialiser aux valeurs par défaut",
+      "save_failed": "Échec de l’enregistrement du raccourci",
+      "save_failed_with_name": "Échec de l’enregistrement du raccourci : {{name}}",
       "search_message": "Rechercher un message",
       "search_message_in_chat": "Rechercher un message dans la conversation actuelle",
+      "search_placeholder": "Raccourcis de recherche...",
       "select_model": "Select Model",
       "selection_assistant_select_text": "Assistant de sélection de texte : extraire le texte",
       "selection_assistant_toggle": "Activer/désactiver l'assistant de sélection de texte",
@@ -5471,8 +5478,8 @@
       "show_settings": "Ouvrir les paramètres",
       "title": "Raccourcis",
       "toggle_new_context": "Effacer le contexte",
-      "toggle_show_assistants": "Basculer l'affichage des assistants",
       "toggle_show_topics": "Basculer l'affichage des sujets",
+      "toggle_sidebar": "Basculer la barre latérale",
       "zoom_in": "Agrandir l'interface",
       "zoom_out": "Réduire l'interface",
       "zoom_reset": "Réinitialiser le zoom"
@@ -5741,11 +5748,11 @@
     }
   },
   "tab": {
-    "close": "[to be translated]:Close Tab",
-    "moveToFirst": "[to be translated]:Move to First",
-    "new": "[to be translated]:New Tab",
-    "pin": "[to be translated]:Pin Tab",
-    "unpin": "[to be translated]:Unpin Tab"
+    "close": "Fermer l'onglet",
+    "moveToFirst": "Déplacer vers le premier",
+    "new": "Nouvel onglet",
+    "pin": "Épingler l'onglet",
+    "unpin": "Détacher l'onglet"
   },
   "title": {
     "apps": "Mini-programmes",

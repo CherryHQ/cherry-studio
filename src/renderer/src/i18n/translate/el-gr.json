@@ -5448,8 +5448,10 @@
     "shortcuts": {
       "action": "Ενέργεια",
       "actions": "Λειτουργία",
+      "bind_first_to_enable": "Δέστε πρώτα μια συντόμευση για να αλλάξετε την κατάσταση ενεργοποίησής της",
       "clear_shortcut": "Καθαρισμός συντομού πλήκτρου",
       "clear_topic": "Άδειασμα μηνυμάτων",
+      "conflict_with": "Ήδη χρησιμοποιείται από τον \"{{name}}\"",
       "copy_last_message": "Αντιγραφή του τελευταίου μηνύματος",
       "edit_last_user_message": "Επεξεργασία του τελευταίου μηνύματος χρήστη",
       "enabled": "ενεργοποίηση",
@@ -5457,13 +5459,18 @@
       "label": "Πλήκτρο",
       "mini_window": "Συντομεύστε επιχειρηματικά",
       "new_topic": "Νέο θέμα",
+      "occupied_by_other_application": "Αυτή η συντόμευση χρησιμοποιείται ήδη από το σύστημα ή από άλλη εφαρμογή",
       "press_shortcut": "Πάτησε το συντομού πλήκτρου",
       "rename_topic": "Μετονομασία θέματος",
       "reset_defaults": "Επαναφορά στα προεπιλεγμένα συντομού πλήκτρα",
       "reset_defaults_confirm": "Θέλετε να επαναφέρετε όλα τα συντομού πλήκτρα στις προεπιλεγμένες τιμές;",
+      "reset_defaults_failed": "Αποτυχία επαναφοράς των συντομεύσεων στις προεπιλογές",
       "reset_to_default": "Επαναφορά στις προεπιλεγμένες",
+      "save_failed": "Αποτυχία αποθήκευσης της συντόμευσης",
+      "save_failed_with_name": "Αποτυχία αποθήκευσης συντόμευσης: {{name}}",
       "search_message": "Αναζήτηση μηνυμάτων",
       "search_message_in_chat": "Αναζήτηση μηνύματος στην τρέχουσα συνομιλία",
+      "search_placeholder": "Συντομεύσεις αναζήτησης...",
       "select_model": "Select Model",
       "selection_assistant_select_text": "Βοηθός επιλογής κειμένου: επιλογή λέξης",
       "selection_assistant_toggle": "Εναλλαγή βοηθού επιλογής κειμένου",
@@ -5471,8 +5478,8 @@
       "show_settings": "Άνοιγμα των ρυθμίσεων",
       "title": "Συντομοί δρομολόγια",
       "toggle_new_context": "Άδειασμα σενάριων",
-      "toggle_show_assistants": "Εναλλαγή εμφάνισης βοηθών",
       "toggle_show_topics": "Εναλλαγή εμφάνισης θεμάτων",
+      "toggle_sidebar": "Εναλλαγή πλευρικής γραμμής",
       "zoom_in": "Μεγέθυνση εμφάνισης",
       "zoom_out": "Σμικρύνση εμφάνισης",
       "zoom_reset": "Επαναφορά εμφάνισης"
@@ -5741,11 +5748,11 @@
     }
   },
   "tab": {
-    "close": "[to be translated]:Close Tab",
-    "moveToFirst": "[to be translated]:Move to First",
-    "new": "[to be translated]:New Tab",
-    "pin": "[to be translated]:Pin Tab",
-    "unpin": "[to be translated]:Unpin Tab"
+    "close": "Κλείσιμο Καρτέλας",
+    "moveToFirst": "Μετακίνηση στο Πρώτο",
+    "new": "Νέα Καρτέλα",
+    "pin": "Καρφίτσωμα καρτέλας",
+    "unpin": "Ξεκαρφίτσωση Καρτέλας"
   },
   "title": {
     "apps": "Εφαρμογές",
