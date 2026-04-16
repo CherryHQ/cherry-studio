@@ -332,6 +332,13 @@
         "failed": "Error al reordenar los agentes"
       }
     },
+    "restore": {
+      "button": "[to be translated]:Restore Default Agents",
+      "error": {
+        "failed": "[to be translated]:Failed to restore default agents"
+      },
+      "success": "[to be translated]:Default agents restored successfully"
+    },
     "server": {
       "error": {
         "not_running": "El servidor de API está habilitado pero no funciona correctamente."

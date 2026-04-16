@@ -50,7 +50,8 @@ export enum ConfigKeys {
   EnableDeveloperMode = 'enableDeveloperMode',
   ClientId = 'clientId',
   GitBashPath = 'gitBashPath',
-  GitBashPathSource = 'gitBashPathSource' // 'manual' | 'auto' | null
+  GitBashPathSource = 'gitBashPathSource', // 'manual' | 'auto' | null
+  DismissedBuiltinAgents = 'dismissedBuiltinAgents' // IDs of builtin agents deleted by user
 }
 
 export class ConfigManager {
@@ -262,6 +263,14 @@ export class ConfigManager {
 
   setAndNotify(key: string, value: unknown) {
     this.set(key, value, true)
+  }
+
+  getDismissedBuiltinAgents(): string[] {
+    return this.get<string[]>(ConfigKeys.DismissedBuiltinAgents, [])
+  }
+
+  setDismissedBuiltinAgents(ids: string[]): void {
+    this.set(ConfigKeys.DismissedBuiltinAgents, ids)
   }
 
   getEnableDeveloperMode(): boolean {

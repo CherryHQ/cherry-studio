@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { AgentModelValidationError, agentService, sessionService } from '@main/services/agents'
+import { restoreBuiltinAgents } from '@main/services/agents/services/builtin/BuiltinAgentBootstrap'
 import { channelManager } from '@main/services/agents/services/channels'
 import { schedulerService } from '@main/services/agents/services/SchedulerService'
 import type { CherryClawConfiguration, ListAgentsResponse } from '@types'
@@ -681,6 +682,42 @@ export const reorderAgents = async (req: Request, res: Response): Promise<Respon
         message: 'Failed to reorder agents',
         type: 'internal_error',
         code: 'agent_reorder_failed'
+      }
+    })
+  }
+}
+
+/**
+ * @swagger
+ * /agents/restore-builtin:
+ *   post:
+ *     summary: Restore dismissed built-in agents
+ *     tags: [Agents]
+ *     responses:
+ *       200:
+ *         description: Built-in agents restored
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 restoredAgentIds:
+ *                   type: array
+ *                   items:
+ *                     type: string
+ */
+export const handleRestoreBuiltinAgents = async (_req: Request, res: Response): Promise<Response> => {
+  try {
+    const restoredAgentIds = await restoreBuiltinAgents()
+    logger.info('Restored builtin agents', { restoredAgentIds })
+    return res.json({ restoredAgentIds })
+  } catch (error: any) {
+    logger.error('Error restoring builtin agents', { error })
+    return res.status(500).json({
+      error: {
+        message: 'Failed to restore builtin agents',
+        type: 'internal_error',
+        code: 'builtin_restore_failed'
       }
     })
   }

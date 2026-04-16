@@ -332,6 +332,13 @@
         "failed": "智能体排序失败"
       }
     },
+    "restore": {
+      "button": "恢复默认智能体",
+      "error": {
+        "failed": "恢复默认智能体失败"
+      },
+      "success": "默认智能体已成功恢复"
+    },
     "server": {
       "error": {
         "not_running": "API 服务器已启用但未正常运行。"

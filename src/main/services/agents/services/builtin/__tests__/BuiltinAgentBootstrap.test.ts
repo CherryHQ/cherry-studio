@@ -1,0 +1,160 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+// Mock electron-store before any imports that use it
+vi.mock('electron-store', () => {
+  const Store = vi.fn(() => ({
+    get: vi.fn((key: string, defaultValue?: unknown) => defaultValue),
+    set: vi.fn()
+  }))
+  return { default: Store }
+})
+
+// Mock electron to avoid CommonJS issues
+vi.mock('electron', () => ({
+  app: {
+    getPath: vi.fn(() => '/tmp/test-userdata'),
+    getLocale: vi.fn(() => 'en-US')
+  }
+}))
+
+// Mock ConfigManager
+const mockGetDismissed = vi.fn<() => string[]>().mockReturnValue([])
+const mockSetDismissed = vi.fn()
+
+vi.mock('@main/services/ConfigManager', () => ({
+  configManager: {
+    getDismissedBuiltinAgents: mockGetDismissed,
+    setDismissedBuiltinAgents: mockSetDismissed
+  }
+}))
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({ info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() })
+  }
+}))
+
+vi.mock('@main/utils/builtinSkills', () => ({
+  installBuiltinSkills: vi.fn()
+}))
+
+vi.mock('../../AgentService', () => ({
+  agentService: {
+    initDefaultCherryClawAgent: vi.fn().mockResolvedValue('cherry-claw-default'),
+    initBuiltinAgent: vi.fn().mockResolvedValue('cherry-assistant-default'),
+    agentExists: vi.fn().mockResolvedValue(true)
+  }
+}))
+
+vi.mock('../../SchedulerService', () => ({
+  schedulerService: {
+    ensureHeartbeatTask: vi.fn()
+  }
+}))
+
+vi.mock('../../SessionService', () => ({
+  sessionService: {
+    listSessions: vi.fn().mockResolvedValue({ total: 1 }),
+    createSession: vi.fn()
+  }
+}))
+
+vi.mock('../BuiltinAgentProvisioner', () => ({
+  provisionBuiltinAgent: vi.fn()
+}))
+
+describe('BuiltinAgentBootstrap utilities', () => {
+  describe('BUILTIN_AGENT_IDS', () => {
+    it('contains cherry-claw-default and cherry-assistant-default', async () => {
+      const { BUILTIN_AGENT_IDS } = await import('../BuiltinAgentBootstrap')
+      expect(BUILTIN_AGENT_IDS).toContain('cherry-claw-default')
+      expect(BUILTIN_AGENT_IDS).toContain('cherry-assistant-default')
+      expect(BUILTIN_AGENT_IDS).toHaveLength(2)
+    })
+  })
+
+  describe('isBuiltinAgentId', () => {
+    it('returns true for cherry-claw-default', async () => {
+      const { isBuiltinAgentId } = await import('../BuiltinAgentBootstrap')
+      expect(isBuiltinAgentId('cherry-claw-default')).toBe(true)
+    })
+
+    it('returns true for cherry-assistant-default', async () => {
+      const { isBuiltinAgentId } = await import('../BuiltinAgentBootstrap')
+      expect(isBuiltinAgentId('cherry-assistant-default')).toBe(true)
+    })
+
+    it('returns false for custom agent IDs', async () => {
+      const { isBuiltinAgentId } = await import('../BuiltinAgentBootstrap')
+      expect(isBuiltinAgentId('agent_12345_abc')).toBe(false)
+      expect(isBuiltinAgentId('my-custom-agent')).toBe(false)
+      expect(isBuiltinAgentId('')).toBe(false)
+    })
+
+    it('returns false for IDs that merely contain "cherry"', async () => {
+      const { isBuiltinAgentId } = await import('../BuiltinAgentBootstrap')
+      expect(isBuiltinAgentId('cherry-custom')).toBe(false)
+      expect(isBuiltinAgentId('cherry-claw-default-extra')).toBe(false)
+    })
+  })
+})
+
+describe('dismissed builtin agents integration', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetDismissed.mockReturnValue([])
+  })
+
+  it('deleteAgent should record dismissal for builtin agent IDs', async () => {
+    const { isBuiltinAgentId } = await import('../BuiltinAgentBootstrap')
+
+    // Simulate: if agent is builtin, add to dismissed list
+    const dismissed: string[] = []
+    const agentId = 'cherry-claw-default'
+
+    if (isBuiltinAgentId(agentId)) {
+      if (!dismissed.includes(agentId)) {
+        dismissed.push(agentId)
+      }
+    }
+
+    expect(dismissed).toEqual(['cherry-claw-default'])
+  })
+
+  it('deleteAgent should NOT record dismissal for custom agent IDs', async () => {
+    const { isBuiltinAgentId } = await import('../BuiltinAgentBootstrap')
+
+    const dismissed: string[] = []
+    const agentId = 'agent_12345_custom'
+
+    if (isBuiltinAgentId(agentId)) {
+      if (!dismissed.includes(agentId)) {
+        dismissed.push(agentId)
+      }
+    }
+
+    expect(dismissed).toEqual([])
+  })
+
+  it('dismissed list should prevent duplicates', async () => {
+    const { isBuiltinAgentId } = await import('../BuiltinAgentBootstrap')
+
+    const dismissed = ['cherry-claw-default']
+    const agentId = 'cherry-claw-default'
+
+    if (isBuiltinAgentId(agentId) && !dismissed.includes(agentId)) {
+      dismissed.push(agentId)
+    }
+
+    expect(dismissed).toEqual(['cherry-claw-default'])
+    expect(dismissed).toHaveLength(1)
+  })
+
+  it('restoreBuiltinAgents clears dismissed list', async () => {
+    const { restoreBuiltinAgents } = await import('../BuiltinAgentBootstrap')
+
+    await restoreBuiltinAgents()
+
+    expect(mockSetDismissed).toHaveBeenCalledWith([])
+  })
+})

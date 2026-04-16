@@ -190,6 +190,16 @@ export class AgentApiClient {
     }
   }
 
+  public async restoreBuiltinAgents(): Promise<string[]> {
+    const url = `${this.agentPaths.base}/restore-builtin`
+    try {
+      const response = await this.axios.post(url)
+      return response.data?.restoredAgentIds ?? []
+    } catch (error) {
+      throw processError(error, 'Failed to restore builtin agents.')
+    }
+  }
+
   public async updateAgent(form: UpdateAgentForm): Promise<UpdateAgentResponse> {
     const url = this.agentPaths.withId(form.id)
     try {

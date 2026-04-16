@@ -332,6 +332,13 @@
         "failed": "エージェントの並び替えに失敗しました"
       }
     },
+    "restore": {
+      "button": "[to be translated]:Restore Default Agents",
+      "error": {
+        "failed": "[to be translated]:Failed to restore default agents"
+      },
+      "success": "[to be translated]:Default agents restored successfully"
+    },
     "server": {
       "error": {
         "not_running": "APIサーバーは有効になっていますが、正常に動作していません。"

@@ -6,6 +6,7 @@
  * the main entry point (`src/main/index.ts`).
  */
 import { loggerService } from '@logger'
+import { configManager } from '@main/services/ConfigManager'
 import { installBuiltinSkills } from '@main/utils/builtinSkills'
 
 import { agentService } from '../AgentService'
@@ -14,6 +15,12 @@ import { sessionService } from '../SessionService'
 import { provisionBuiltinAgent } from './BuiltinAgentProvisioner'
 
 const logger = loggerService.withContext('BuiltinAgentBootstrap')
+
+/** All builtin agent IDs — single source of truth for dismiss/restore logic */
+export const BUILTIN_AGENT_IDS = ['cherry-claw-default', 'cherry-assistant-default'] as const
+
+/** Check if an agent ID belongs to a builtin agent */
+export const isBuiltinAgentId = (id: string): boolean => BUILTIN_AGENT_IDS.includes(id as (typeof BUILTIN_AGENT_IDS)[number])
 
 /**
  * Initialize all built-in skills and agents. Safe to call multiple times (idempotent).
@@ -72,4 +79,32 @@ async function initCherryAssistant(): Promise<void> {
   } catch (error) {
     logger.warn('Failed to init Cherry Assistant agent:', error as Error)
   }
+}
+
+// ── Restore ─────────────────────────────────────────────────────────
+
+/**
+ * Restore previously dismissed built-in agents.
+ * Clears the dismissed list and recreates any missing agents.
+ * Returns IDs of agents that were actually created.
+ */
+export async function restoreBuiltinAgents(): Promise<string[]> {
+  // Clear dismissed list so bootstrap won't skip them
+  configManager.setDismissedBuiltinAgents([])
+
+  const restoredIds: string[] = []
+
+  // Re-run bootstrap — the init methods will create missing agents
+  await bootstrapBuiltinAgents()
+
+  // Check which agents now exist
+  for (const id of BUILTIN_AGENT_IDS) {
+    const exists = await agentService.agentExists(id)
+    if (exists) {
+      restoredIds.push(id)
+    }
+  }
+
+  logger.info('Restored builtin agents', { restoredIds })
+  return restoredIds
 }

@@ -6,6 +6,8 @@ import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useApiServer } from '@renderer/hooks/useApiServer'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import type { AgentEntity } from '@renderer/types'
+import { Button, Tooltip } from 'antd'
+import { Undo2 } from 'lucide-react'
 import { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -17,7 +19,7 @@ interface AgentsProps {
 
 const Agents = ({ onSelectItem }: AgentsProps) => {
   const { t } = useTranslation()
-  const { agents, deleteAgent, isLoading, error, reorderAgents } = useAgents()
+  const { agents, deleteAgent, isLoading, error, reorderAgents, restoreBuiltinAgents } = useAgents()
   const { apiServerRunning, startApiServer } = useApiServer()
   const { chat } = useRuntime()
   const { activeAgentId } = chat
@@ -59,8 +61,13 @@ const Agents = ({ onSelectItem }: AgentsProps) => {
         onUpdate={reorderAgents}
         itemKey={(index) => (agents ?? [])[index]?.id ?? index}
         header={
-          <div className="-mt-0.5 mb-1.5">
+          <div className="-mt-0.5 mb-1.5 flex items-center gap-1">
             <AddButton onClick={handleAddAgent}>{t('agent.sidebar_title')}</AddButton>
+            {agents && agents.length === 0 && (
+              <Tooltip title={t('agent.restore.button')}>
+                <Button type="text" size="small" icon={<Undo2 size={14} />} onClick={() => void restoreBuiltinAgents()} />
+              </Tooltip>
+            )}
           </div>
         }>
         {(agent) => (

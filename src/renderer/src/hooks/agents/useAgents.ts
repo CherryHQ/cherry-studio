@@ -112,6 +112,16 @@ export const useAgents = () => {
     [client, mutate, t]
   )
 
+  const restoreBuiltinAgents = useCallback(async () => {
+    try {
+      await client.restoreBuiltinAgents()
+      void mutate()
+      window.toast.success(t('agent.restore.success'))
+    } catch (error) {
+      window.toast.error(formatErrorMessageWithPrefix(error, t('agent.restore.error.failed')))
+    }
+  }, [client, mutate, t])
+
   return {
     agents: data,
     error,
@@ -119,6 +129,7 @@ export const useAgents = () => {
     addAgent,
     deleteAgent,
     getAgent,
-    reorderAgents
+    reorderAgents,
+    restoreBuiltinAgents
   }
 }

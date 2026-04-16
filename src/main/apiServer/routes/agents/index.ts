@@ -564,6 +564,20 @@ agentsRouter.patch('/:agentId', validateAgentId, validateAgentUpdate, handleVali
  */
 agentsRouter.delete('/:agentId', validateAgentId, handleValidationErrors, agentHandlers.deleteAgent)
 
+/**
+ * @swagger
+ * /agents/restore-builtin:
+ *   post:
+ *     summary: Restore dismissed built-in agents
+ *     tags: [Agents]
+ *     responses:
+ *       200:
+ *         description: Built-in agents restored successfully
+ *       500:
+ *         description: Internal server error
+ */
+agentsRouter.post('/restore-builtin', agentHandlers.handleRestoreBuiltinAgents)
+
 // Create sessions router with agent context
 const createSessionsRouter = (): express.Router => {
   const sessionsRouter = express.Router({ mergeParams: true })

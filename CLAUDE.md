@@ -326,3 +326,10 @@ Do not introduce new features to these files. Bug fixes only.
 - URL sanitization via `strict-url-sanitise`
 - IP validation via `ipaddr.js` (API server)
 - `express-validator` for API server request validation
+
+## Active Technologies
+- TypeScript ~5.8 (strict mode) + Electron 38, electron-store (via ConfigManager), Vitest 3 (006-fix-builtin-agents-persist)
+- electron-store (via existing ConfigManager singleton) — no DB schema changes (006-fix-builtin-agents-persist)
+
+## Recent Changes
+- 006-fix-builtin-agents-persist: Added TypeScript ~5.8 (strict mode) + Electron 38, electron-store (via ConfigManager), Vitest 3

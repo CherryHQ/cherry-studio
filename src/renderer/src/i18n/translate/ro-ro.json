@@ -332,6 +332,13 @@
         "failed": "Nu s-a reușit reordonarea agenților"
       }
     },
+    "restore": {
+      "button": "[to be translated]:Restore Default Agents",
+      "error": {
+        "failed": "[to be translated]:Failed to restore default agents"
+      },
+      "success": "[to be translated]:Default agents restored successfully"
+    },
     "server": {
       "error": {
         "not_running": "Serverul API este activat, dar nu rulează corect."
