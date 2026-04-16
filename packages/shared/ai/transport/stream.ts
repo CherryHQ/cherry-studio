@@ -10,15 +10,20 @@ import type { SerializedError } from '../../types/error'
 export interface StreamChunkPayload {
   topicId: string
   /** Multi-model: source model that produced this chunk. Frontend demuxes by this. */
-  executionId?: string
+  executionId?: UniqueModelId
   chunk: UIMessageChunk
+}
+
+/** Topic stream has started and can be attached to from any window. */
+export interface StreamStartedPayload {
+  topicId: string
 }
 
 /** Stream ended. */
 export interface StreamDonePayload {
   topicId: string
   /** Multi-model: which model's execution finished. */
-  executionId?: string
+  executionId?: UniqueModelId
   /** 'success' = natural completion; 'paused' = user-initiated abort with partial output. */
   status: 'success' | 'paused'
   /** True when ALL executions in the topic are done. */
@@ -29,7 +34,7 @@ export interface StreamDonePayload {
 export interface StreamErrorPayload {
   topicId: string
   /** Multi-model: which model's execution errored. */
-  executionId?: string
+  executionId?: UniqueModelId
   /** True when the topic has no remaining streaming executions. */
   isTopicDone?: boolean
   error: SerializedError
@@ -74,7 +79,7 @@ export interface AiStreamAbortRequest {
 /** Result of an attach attempt. */
 export type AiStreamAttachResponse =
   | { status: 'not-found' }
-  | { status: 'attached'; bufferedChunks: UIMessageChunk[] }
+  | { status: 'attached'; bufferedChunks: StreamChunkPayload[] }
   | { status: 'done'; finalMessage: CherryUIMessage }
   | { status: 'error'; error: SerializedError }
 
@@ -82,5 +87,5 @@ export type AiStreamAttachResponse =
 export interface AiStreamOpenResponse {
   mode: 'started' | 'steered'
   /** Multi-model: execution IDs for frontend to create per-model streams. */
-  executionIds?: string[]
+  executionIds?: UniqueModelId[]
 }

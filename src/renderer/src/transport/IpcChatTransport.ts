@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
-import type { AiChatRequestBody } from '@shared/ai/transport'
+import type { AiChatRequestBody, StreamChunkPayload } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
+import type { UniqueModelId } from '@shared/data/types/model'
 import type { ChatRequestOptions, ChatTransport, UIMessageChunk } from 'ai'
 
 const logger = loggerService.withContext('IpcChatTransport')
@@ -12,7 +13,7 @@ const logger = loggerService.withContext('IpcChatTransport')
  * Consumers that only care about topic-level completion (refreshing from DB,
  * closing the primary transport stream) should skip events matching this.
  */
-export function isPerExecutionOnly(data: { executionId?: string; isTopicDone?: boolean }): boolean {
+export function isPerExecutionOnly(data: { executionId?: UniqueModelId; isTopicDone?: boolean }): boolean {
   return !!data.executionId && !data.isTopicDone
 }
 
@@ -97,9 +98,9 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
    */
   private buildListenerStream(
     topicId: string,
-    initialChunks?: UIMessageChunk[],
+    initialChunks?: StreamChunkPayload[],
     abortSignal?: AbortSignal,
-    executionId?: string
+    executionId?: UniqueModelId
   ): ReadableStream<UIMessageChunk> {
     const unsubscribers: Array<() => void> = []
     let isCleaned = false
@@ -115,7 +116,9 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
       start(controller) {
         // Drain buffered chunks from attach response (no IPC race — chunks in response)
         if (initialChunks) {
-          for (const chunk of initialChunks) controller.enqueue(chunk)
+          for (const data of initialChunks) {
+            if (matchesStream(data)) controller.enqueue(data.chunk)
+          }
         }
 
         const closeStream = () => {
@@ -132,7 +135,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
           controller.error(err)
         }
 
-        const matchesStream = (data: { topicId: string; executionId?: string; isTopicDone?: boolean }) => {
+        function matchesStream(data: { topicId: string; executionId?: UniqueModelId; isTopicDone?: boolean }) {
           if (data.topicId !== topicId) return false
           if (executionId) return data.executionId === executionId || !!data.isTopicDone
           return !data.executionId || !!data.isTopicDone
@@ -193,8 +196,27 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
       }
     })
   }
-  buildExecutionStream(topicId: string, executionId: string): ReadableStream<UIMessageChunk> {
+  buildExecutionStream(topicId: string, executionId: UniqueModelId): ReadableStream<UIMessageChunk> {
     return this.buildListenerStream(topicId, undefined, undefined, executionId)
+  }
+
+  async reconnectExecutionStream(
+    topicId: string,
+    executionId: UniqueModelId
+  ): Promise<ReadableStream<UIMessageChunk> | null> {
+    const result = await window.api.ai.streamAttach({ topicId })
+
+    if (result.status === 'not-found') return null
+    if (result.status === 'done') {
+      return new ReadableStream<UIMessageChunk>({ start: (c) => c.close() })
+    }
+    if (result.status === 'error') {
+      return new ReadableStream<UIMessageChunk>({
+        start: (c) => c.error(new Error(result.error.message ?? 'Stream error'))
+      })
+    }
+
+    return this.buildListenerStream(topicId, result.bufferedChunks, undefined, executionId)
   }
 }
 
@@ -204,7 +226,7 @@ export const ipcChatTransport = new IpcChatTransport()
 export class ExecutionTransport implements ChatTransport<CherryUIMessage> {
   constructor(
     private readonly topicId: string,
-    private readonly executionId: string
+    private readonly executionId: UniqueModelId
   ) {}
 
   sendMessages(): Promise<ReadableStream<UIMessageChunk>> {
@@ -212,6 +234,6 @@ export class ExecutionTransport implements ChatTransport<CherryUIMessage> {
   }
 
   reconnectToStream(): Promise<ReadableStream<UIMessageChunk> | null> {
-    return Promise.resolve(ipcChatTransport.buildExecutionStream(this.topicId, this.executionId))
+    return ipcChatTransport.reconnectExecutionStream(this.topicId, this.executionId)
   }
 }

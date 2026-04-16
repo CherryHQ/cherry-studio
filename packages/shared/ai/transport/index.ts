@@ -20,5 +20,6 @@ export type {
   AiStreamOpenResponse,
   StreamChunkPayload,
   StreamDonePayload,
-  StreamErrorPayload
+  StreamErrorPayload,
+  StreamStartedPayload
 } from './stream'

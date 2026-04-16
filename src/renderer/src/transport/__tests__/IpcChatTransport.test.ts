@@ -1,4 +1,6 @@
+import type { StreamChunkPayload } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
+import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -18,12 +20,12 @@ interface MockAiApi {
 
 function createMockAiApi() {
   const listeners = {
-    chunk: [] as Array<(data: { topicId: string; executionId?: string; chunk: UIMessageChunk }) => void>,
+    chunk: [] as Array<(data: { topicId: string; executionId?: UniqueModelId; chunk: UIMessageChunk }) => void>,
     done: [] as Array<
-      (data: { topicId: string; executionId?: string; isTopicDone?: boolean; status?: string }) => void
+      (data: { topicId: string; executionId?: UniqueModelId; isTopicDone?: boolean; status?: string }) => void
     >,
     error: [] as Array<
-      (data: { topicId: string; executionId?: string; isTopicDone?: boolean; error: SerializedError }) => void
+      (data: { topicId: string; executionId?: UniqueModelId; isTopicDone?: boolean; error: SerializedError }) => void
     >
   }
 
@@ -57,13 +59,13 @@ function createMockAiApi() {
   return {
     mockApi,
     listeners,
-    emitChunk: (topicId: string, chunk: UIMessageChunk, executionId?: string) => {
+    emitChunk: (topicId: string, chunk: UIMessageChunk, executionId?: UniqueModelId) => {
       for (const cb of [...listeners.chunk]) cb({ topicId, executionId, chunk })
     },
-    emitDone: (topicId: string, executionId?: string, isTopicDone?: boolean) => {
+    emitDone: (topicId: string, executionId?: UniqueModelId, isTopicDone?: boolean) => {
       for (const cb of [...listeners.done]) cb({ topicId, executionId, isTopicDone, status: 'success' })
     },
-    emitError: (topicId: string, message: string, executionId?: string, isTopicDone?: boolean) => {
+    emitError: (topicId: string, message: string, executionId?: UniqueModelId, isTopicDone?: boolean) => {
       for (const cb of [...listeners.error]) {
         cb({ topicId, executionId, isTopicDone, error: { name: 'Error', message, stack: null } })
       }
@@ -153,7 +155,7 @@ describe('IpcChatTransport', () => {
     const stream = await transport.sendMessages(baseOptions)
     const reader = stream.getReader()
 
-    mock.emitChunk(topicId, { type: 'text-start', id: 'exec' } as UIMessageChunk, 'model-a')
+    mock.emitChunk(topicId, { type: 'text-start', id: 'exec' } as UIMessageChunk, 'provider-a::model-a')
     mock.emitDone(topicId, undefined, true)
 
     const { done } = await reader.read()
@@ -235,6 +237,32 @@ describe('IpcChatTransport', () => {
     expect(stream).toBeInstanceOf(ReadableStream)
   })
 
+  it('execution reconnect replays only matching buffered chunks', async () => {
+    mock.mockApi.streamAttach.mockResolvedValue({
+      status: 'attached',
+      bufferedChunks: [
+        {
+          topicId,
+          executionId: 'provider-b::model-b',
+          chunk: { type: 'text-start', id: 'ignored' } as UIMessageChunk
+        },
+        {
+          topicId,
+          executionId: 'provider-a::model-a',
+          chunk: { type: 'text-start', id: 'accepted' } as UIMessageChunk
+        }
+      ] satisfies StreamChunkPayload[]
+    })
+
+    const executionTransport = new ExecutionTransport(topicId, 'provider-a::model-a')
+    const stream = await executionTransport.reconnectToStream()
+    const reader = stream!.getReader()
+
+    const first = await reader.read()
+    expect(first.done).toBe(false)
+    expect(first.value).toEqual({ type: 'text-start', id: 'accepted' })
+  })
+
   it('reconnectToStream returns closed stream when done', async () => {
     mock.mockApi.streamAttach.mockResolvedValue({ status: 'done', finalMessage: {} })
 
@@ -247,14 +275,14 @@ describe('IpcChatTransport', () => {
   })
 
   it('execution transport only receives matching execution chunks', async () => {
-    const executionTransport = new ExecutionTransport(topicId, 'model-a')
+    const executionTransport = new ExecutionTransport(topicId, 'provider-a::model-a')
     const stream = await executionTransport.sendMessages()
     const reader = stream.getReader()
 
-    mock.emitChunk(topicId, { type: 'text-start', id: 'ignored' } as UIMessageChunk, 'model-b')
-    mock.emitChunk(topicId, { type: 'text-start', id: 'accepted' } as UIMessageChunk, 'model-a')
-    mock.emitDone(topicId, 'model-b')
-    mock.emitDone(topicId, 'model-a')
+    mock.emitChunk(topicId, { type: 'text-start', id: 'ignored' } as UIMessageChunk, 'provider-b::model-b')
+    mock.emitChunk(topicId, { type: 'text-start', id: 'accepted' } as UIMessageChunk, 'provider-a::model-a')
+    mock.emitDone(topicId, 'provider-b::model-b')
+    mock.emitDone(topicId, 'provider-a::model-a')
 
     const first = await reader.read()
     expect(first.done).toBe(false)

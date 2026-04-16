@@ -48,22 +48,65 @@ export function useChatWithHistory(
   context: { assistantId: string },
   metadataMap: MessageMetadataMap = {}
 ): UseChatWithHistoryResult {
-  const { messages, setMessages, stop, status, error, sendMessage, regenerate } = useChat<CherryUIMessage>({
-    id: topicId,
-    transport: ipcChatTransport,
-    messages: initialMessages,
-    resume: true,
-    experimental_throttle: 50,
-    onError: (streamError) => {
-      logger.error('AI stream error', { topicId, streamError })
-    }
-  })
+  const { messages, setMessages, stop, status, error, sendMessage, regenerate, resumeStream } =
+    useChat<CherryUIMessage>({
+      id: topicId,
+      transport: ipcChatTransport,
+      messages: initialMessages,
+      experimental_throttle: 50,
+      onError: (streamError) => {
+        logger.error('AI stream error', { topicId, streamError })
+      }
+    })
 
   // Stable ref for refresh to avoid re-subscribing IPC listeners
   const refreshRef = useRef(refresh)
   refreshRef.current = refresh
 
   const [activeExecutionIds, setActiveExecutionIds] = useState<string[]>([])
+  const resumeInFlightRef = useRef<Promise<void> | null>(null)
+
+  const resumeActiveStream = useCallback(
+    (reason: 'mount' | 'started-event') => {
+      if (status === 'streaming' || status === 'submitted') return
+      if (resumeInFlightRef.current) return
+
+      resumeInFlightRef.current = (async () => {
+        if (reason === 'started-event') {
+          try {
+            const refreshed = await refreshRef.current()
+            setMessages(refreshed)
+          } catch (err) {
+            logger.warn('Failed to refresh messages before resuming stream', { topicId, err })
+          }
+        }
+
+        await resumeStream()
+      })()
+        .catch((err) => {
+          logger.warn('Failed to resume active stream', { topicId, reason, err })
+        })
+        .finally(() => {
+          resumeInFlightRef.current = null
+        })
+    },
+    [resumeStream, setMessages, status, topicId]
+  )
+
+  useEffect(() => {
+    resumeActiveStream('mount')
+  }, [resumeActiveStream])
+
+  useEffect(() => {
+    const startedUnsub = window.api.ai.onStreamStarted((data) => {
+      if (data.topicId !== topicId) return
+      resumeActiveStream('started-event')
+    })
+
+    return () => {
+      startedUnsub()
+    }
+  }, [resumeActiveStream, topicId])
 
   const refreshAndReplace = useCallback(() => {
     void refreshRef

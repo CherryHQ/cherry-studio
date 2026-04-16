@@ -440,9 +440,9 @@ describe('AiStreamManager', () => {
       expect(response).toEqual({
         status: 'attached',
         bufferedChunks: [
-          { type: 'text-start', id: 'p1' },
-          { type: 'text-delta', id: 'p1', delta: 'hello' },
-          { type: 'text-end', id: 'p1' }
+          { topicId: 'a', executionId: undefined, chunk: { type: 'text-start', id: 'p1' } },
+          { topicId: 'a', executionId: undefined, chunk: { type: 'text-delta', id: 'p1', delta: 'hello' } },
+          { topicId: 'a', executionId: undefined, chunk: { type: 'text-end', id: 'p1' } }
         ]
       })
     })

@@ -1,3 +1,4 @@
+import type { StreamChunkPayload } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
@@ -17,7 +18,8 @@ export type {
   AiStreamOpenResponse,
   StreamChunkPayload,
   StreamDonePayload,
-  StreamErrorPayload
+  StreamErrorPayload,
+  StreamStartedPayload
 } from '@shared/ai/transport'
 export type { CherryUIMessageChunk } from '@shared/data/types/message'
 
@@ -145,7 +147,7 @@ export interface ActiveStream {
   /** Steering queue — shared, drained by all active executions. */
   pendingMessages: PendingMessageQueue
   /** Chunk buffer for reconnect replay — interleaved from all executions. */
-  buffer: UIMessageChunk[]
+  buffer: StreamChunkPayload[]
 
   /** Topic-level status, derived from executions. */
   status: 'streaming' | 'done' | 'error' | 'aborted'

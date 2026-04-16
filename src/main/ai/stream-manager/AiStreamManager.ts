@@ -156,6 +156,7 @@ export class AiStreamManager extends BaseService {
       isMultiModel: input.isMultiModel ?? false
     }
     this.activeStreams.set(input.topicId, stream)
+    this.broadcastStreamStarted(input.topicId)
     return stream
   }
 
@@ -196,7 +197,7 @@ export class AiStreamManager extends BaseService {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return false
     stream.listeners.set(listener.id, listener)
-    for (const chunk of stream.buffer) listener.onChunk(chunk)
+    for (const chunk of stream.buffer) listener.onChunk(chunk.chunk, chunk.executionId)
     return true
   }
 
@@ -229,11 +230,15 @@ export class AiStreamManager extends BaseService {
     const stream = this.activeStreams.get(topicId)
     if (!stream || stream.status !== 'streaming') return
 
+    const sourceModelId = stream.isMultiModel ? modelId : undefined
     if (stream.buffer.length < this.config.maxBufferChunks) {
-      stream.buffer.push(chunk)
+      stream.buffer.push({
+        topicId,
+        executionId: sourceModelId,
+        chunk
+      })
     }
 
-    const sourceModelId = stream.isMultiModel ? modelId : undefined
     const dead: string[] = []
     for (const [id, listener] of stream.listeners) {
       if (!listener.isAlive()) {
@@ -385,6 +390,16 @@ export class AiStreamManager extends BaseService {
 
   private handleDetach(sender: Electron.WebContents, req: AiStreamDetachRequest): void {
     this.removeListener(req.topicId, `wc:${sender.id}:${req.topicId}`)
+  }
+
+  private broadcastStreamStarted(topicId: string): void {
+    const windowService = application.get('WindowService')
+    const windows = typeof windowService.getAllWindows === 'function' ? windowService.getAllWindows() : []
+    for (const window of windows) {
+      const wc = window.webContents
+      if (wc.isDestroyed()) continue
+      wc.send(IpcChannel.Ai_StreamStarted, { topicId })
+    }
   }
 
   // ── Internal helpers ──────────────────────────────────────────────

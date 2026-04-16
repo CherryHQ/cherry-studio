@@ -1,11 +1,16 @@
+import type { StreamChunkPayload } from '@shared/ai/transport'
 import type { UIMessageChunk } from 'ai'
 
-type PendingDelta =
-  | Extract<UIMessageChunk, { type: 'text-delta' }>
-  | Extract<UIMessageChunk, { type: 'reasoning-delta' }>
+type PendingDelta = StreamChunkPayload & {
+  chunk: Extract<UIMessageChunk, { type: 'text-delta' }> | Extract<UIMessageChunk, { type: 'reasoning-delta' }>
+}
 
-export function buildCompactReplay(buffer: readonly UIMessageChunk[]): UIMessageChunk[] {
-  const compact: UIMessageChunk[] = []
+function toPendingDelta(chunk: StreamChunkPayload): PendingDelta {
+  return chunk as PendingDelta
+}
+
+export function buildCompactReplay(buffer: readonly StreamChunkPayload[]): StreamChunkPayload[] {
+  const compact: StreamChunkPayload[] = []
   let pending: PendingDelta | undefined
 
   const flushPending = () => {
@@ -15,31 +20,45 @@ export function buildCompactReplay(buffer: readonly UIMessageChunk[]): UIMessage
   }
 
   for (const chunk of buffer) {
-    switch (chunk.type) {
+    switch (chunk.chunk.type) {
       case 'text-delta': {
-        if (pending?.type === 'text-delta' && pending.id === chunk.id) {
+        if (
+          pending?.chunk.type === 'text-delta' &&
+          pending.chunk.id === chunk.chunk.id &&
+          pending.executionId === chunk.executionId
+        ) {
           pending = {
             ...pending,
-            delta: pending.delta + chunk.delta,
-            providerMetadata: chunk.providerMetadata ?? pending.providerMetadata
+            chunk: {
+              ...pending.chunk,
+              delta: pending.chunk.delta + chunk.chunk.delta,
+              providerMetadata: chunk.chunk.providerMetadata ?? pending.chunk.providerMetadata
+            }
           }
         } else {
           flushPending()
-          pending = { ...chunk }
+          pending = toPendingDelta(chunk)
         }
         break
       }
 
       case 'reasoning-delta': {
-        if (pending?.type === 'reasoning-delta' && pending.id === chunk.id) {
+        if (
+          pending?.chunk.type === 'reasoning-delta' &&
+          pending.chunk.id === chunk.chunk.id &&
+          pending.executionId === chunk.executionId
+        ) {
           pending = {
             ...pending,
-            delta: pending.delta + chunk.delta,
-            providerMetadata: chunk.providerMetadata ?? pending.providerMetadata
+            chunk: {
+              ...pending.chunk,
+              delta: pending.chunk.delta + chunk.chunk.delta,
+              providerMetadata: chunk.chunk.providerMetadata ?? pending.chunk.providerMetadata
+            }
           }
         } else {
           flushPending()
-          pending = { ...chunk }
+          pending = toPendingDelta(chunk)
         }
         break
       }

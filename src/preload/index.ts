@@ -12,7 +12,8 @@ import type {
   AiStreamOpenResponse,
   StreamChunkPayload,
   StreamDonePayload,
-  StreamErrorPayload
+  StreamErrorPayload,
+  StreamStartedPayload
 } from '@shared/ai/transport'
 import type { GitBashPathInfo, TerminalConfig } from '@shared/config/constant'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
@@ -828,6 +829,11 @@ const api = {
   },
   ai: {
     // ── Stream push listeners ──
+    onStreamStarted: (callback: (data: StreamStartedPayload) => void) => {
+      const listener = (_: Electron.IpcRendererEvent, data: StreamStartedPayload) => callback(data)
+      ipcRenderer.on(IpcChannel.Ai_StreamStarted, listener)
+      return () => ipcRenderer.removeListener(IpcChannel.Ai_StreamStarted, listener)
+    },
     onStreamChunk: (callback: (data: StreamChunkPayload) => void) => {
       const listener = (_: Electron.IpcRendererEvent, data: StreamChunkPayload) => callback(data)
       ipcRenderer.on(IpcChannel.Ai_StreamChunk, listener)
