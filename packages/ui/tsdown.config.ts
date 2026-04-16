@@ -13,12 +13,5 @@ export default defineConfig({
   clean: true,
   dts: true,
   tsconfig: 'tsconfig.json',
-  external: [
-    'react',
-    'react-dom',
-    'framer-motion',
-    'tailwindcss',
-    // 保留 styled-components 作为外部依赖（迁移期间）
-    'styled-components'
-  ]
+  external: ['react', 'react-dom', 'framer-motion', 'tailwindcss']
 })

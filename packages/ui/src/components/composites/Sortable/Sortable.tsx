@@ -31,8 +31,8 @@ import {
 } from '@dnd-kit/sortable'
 import React, { useCallback, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import styled from 'styled-components'
 
+import { cn } from '../../../lib/utils'
 import { ItemRenderer } from './ItemRenderer'
 import { SortableItem } from './SortableItem'
 import type { RenderItemType } from './types'
@@ -187,12 +187,16 @@ function Sortable<T>({
       onDragCancel={handleDragCancel}
       modifiers={modifiers}>
       <SortableContext items={itemIds} strategy={strategy}>
-        <ListWrapper
-          className={className}
+        <div
+          className={cn(
+            layout === 'grid'
+              ? 'grid w-full grid-cols-[repeat(auto-fill,minmax(280px,1fr))] max-md:grid-cols-1'
+              : cn('flex items-center', horizontal ? 'flex-row' : 'flex-col'),
+            className
+          )}
           data-layout={layout}
           data-direction={horizontal ? 'horizontal' : 'vertical'}
-          $gap={gap}
-          style={listStyle}>
+          style={{ ...listStyle, gap }}>
           {items.map((item, index) => (
             <SortableItem
               key={itemIds[index]}
@@ -205,7 +209,7 @@ function Sortable<T>({
               itemStyle={itemStyle}
             />
           ))}
-        </ListWrapper>
+        </div>
       </SortableContext>
 
       {useDragOverlay &&
@@ -218,32 +222,5 @@ function Sortable<T>({
     </DndContext>
   )
 }
-
-const ListWrapper = styled.div<{ $gap?: number | string }>`
-  gap: ${({ $gap }) => $gap};
-
-  &[data-layout='grid'] {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    width: 100%;
-
-    @media (max-width: 768px) {
-      grid-template-columns: 1fr;
-    }
-  }
-
-  &[data-layout='list'] {
-    display: flex;
-    align-items: center;
-  }
-
-  &[data-layout='list'][data-direction='horizontal'] {
-    flex-direction: row;
-  }
-
-  &[data-layout='list'][data-direction='vertical'] {
-    flex-direction: column;
-  }
-`
 
 export default Sortable

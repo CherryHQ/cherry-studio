@@ -2,9 +2,7 @@ import type { DraggableSyntheticListeners } from '@dnd-kit/core'
 import type { Transform } from '@dnd-kit/utilities'
 import { CSS } from '@dnd-kit/utilities'
 import React, { useEffect } from 'react'
-import styled from 'styled-components'
 
-import { cn } from '../../../lib/utils'
 import type { RenderItemType } from './types'
 
 interface ItemRendererProps<T> {
@@ -53,64 +51,33 @@ export function ItemRenderer<T>({
   } as React.CSSProperties
 
   return (
-    <ItemWrapper
+    <div
       ref={ref}
       data-index={index}
-      className={cn({ dragOverlay: dragOverlay })}
-      style={{ ...style, ...itemStyle }}>
-      <DraggableItem
-        className={cn({ dragging: dragging, dragOverlay: dragOverlay, ghost: ghost })}
+      className="box-border origin-top-left touch-manipulation"
+      style={{
+        ...style,
+        ...itemStyle,
+        ...(dragOverlay ? ({ '--scale': 1.02, zIndex: 999, position: 'relative' } as React.CSSProperties) : {})
+      }}>
+      <div
+        style={
+          {
+            position: 'relative',
+            boxSizing: 'border-box',
+            touchAction: 'manipulation',
+            transformOrigin: '50% 50%',
+            transform: dragOverlay ? 'scale(var(--scale))' : 'scale(var(--scale, 1))',
+            zIndex: dragging && !dragOverlay ? 0 : undefined,
+            opacity: dragging && !dragOverlay ? (ghost ? 0.25 : 0) : 1,
+            cursor: dragOverlay ? 'inherit' : 'pointer',
+            pointerEvents: dragOverlay ? 'none' : undefined
+          } as React.CSSProperties
+        }
         {...listeners}
         {...props}>
         {renderItem(item, { dragging: !!dragging })}
-      </DraggableItem>
-    </ItemWrapper>
+      </div>
+    </div>
   )
 }
-
-const ItemWrapper = styled.div`
-  box-sizing: border-box;
-  transform-origin: 0 0;
-  touch-action: manipulation;
-
-  &.dragOverlay {
-    --scale: 1.02;
-    z-index: 999;
-    position: relative;
-  }
-`
-
-const DraggableItem = styled.div`
-  position: relative;
-  box-sizing: border-box;
-  cursor: pointer; /* default cursor for items */
-  touch-action: manipulation;
-  transform-origin: 50% 50%;
-  transform: scale(var(--scale, 1));
-
-  &.dragging:not(.dragOverlay) {
-    z-index: 0;
-    opacity: 0.25;
-
-    &:not(.ghost) {
-      opacity: 0;
-    }
-  }
-
-  &.dragOverlay {
-    cursor: inherit;
-    animation: pop 200ms cubic-bezier(0.18, 0.67, 0.6, 1.22);
-    transform: scale(var(--scale));
-    opacity: 1;
-    pointer-events: none; /* prevent pointer events on drag overlay */
-  }
-
-  @keyframes pop {
-    0% {
-      transform: scale(1);
-    }
-    100% {
-      transform: scale(var(--scale));
-    }
-  }
-`
