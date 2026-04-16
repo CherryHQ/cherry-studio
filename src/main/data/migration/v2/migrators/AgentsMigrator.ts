@@ -38,6 +38,7 @@ export class AgentsMigrator extends BaseMigrator {
     const dbPath = this.resolveSourceDbPath(reader)
 
     if (!dbPath) {
+      logger.info('No legacy agents.db found at prepare phase')
       return {
         success: true,
         itemCount: 0,
@@ -47,6 +48,16 @@ export class AgentsMigrator extends BaseMigrator {
 
     this.sourceSchemaInfo = await reader.inspectSchema()
     this.sourceCounts = await reader.countRows(this.sourceSchemaInfo)
+
+    // Debug: Log schema detection results
+    logger.info('AgentsMigrator prepare:', {
+      dbPath,
+      tablesDetected: Object.entries(this.sourceSchemaInfo)
+        .filter(([, v]) => v.exists)
+        .map(([k]) => k),
+      rowCounts: this.sourceCounts,
+      totalRows: getTotalAgentsRowCount(this.sourceCounts)
+    })
 
     return {
       success: true,
@@ -68,7 +79,21 @@ export class AgentsMigrator extends BaseMigrator {
       this.sourceCounts = await reader.countRows(this.sourceSchemaInfo)
     }
 
+    // Debug logging: show source schema detection and counts
+    logger.info('Source schema detected:', {
+      dbPath,
+      tableExists: Object.fromEntries(Object.entries(this.sourceSchemaInfo).map(([k, v]) => [k, v.exists])),
+      sourceCounts: this.sourceCounts
+    })
+
     const statements = buildAgentsImportStatements(dbPath, this.sourceSchemaInfo)
+
+    // Debug logging: show generated SQL statements
+    logger.info('Generated SQL statements:', {
+      statementCount: statements.length,
+      statements: statements.map((s, i) => ({ index: i, sql: s.substring(0, 200) }))
+    })
+
     const [attachStatement, ...remainingStatements] = statements
     let isAttached = false
     let transactionStarted = false
@@ -82,12 +107,15 @@ export class AgentsMigrator extends BaseMigrator {
       for (const statement of remainingStatements.filter(
         (statement) => statement !== 'DETACH DATABASE agents_legacy'
       )) {
+        logger.debug('Executing SQL:', { sql: statement.substring(0, 200) })
         await ctx.db.run(sql.raw(statement))
       }
 
       await ctx.db.run(sql.raw('COMMIT'))
       transactionStarted = false
+      logger.info('Agents migration transaction committed successfully')
     } catch (error) {
+      logger.error('Agents migration execute failed:', error as Error)
       if (transactionStarted) {
         await ctx.db.run(sql.raw('ROLLBACK'))
       }
@@ -128,6 +156,7 @@ export class AgentsMigrator extends BaseMigrator {
 
     const errors: ValidationError[] = []
     let targetCount = 0
+    const validationDetails: Array<{ table: string; source: number; target: number; ok: boolean }> = []
 
     for (const spec of AGENTS_TABLE_MIGRATION_SPECS) {
       const result = await ctx.db.get<{ count: number }>(sql.raw(`SELECT COUNT(*) AS count FROM ${spec.targetTable}`))
@@ -135,7 +164,15 @@ export class AgentsMigrator extends BaseMigrator {
       const tableSourceCount = this.sourceCounts[spec.sourceTable]
       targetCount += tableTargetCount
 
-      if (tableTargetCount < tableSourceCount) {
+      const ok = tableTargetCount >= tableSourceCount
+      validationDetails.push({
+        table: spec.targetTable,
+        source: tableSourceCount,
+        target: tableTargetCount,
+        ok
+      })
+
+      if (!ok) {
         errors.push({
           key: `${spec.targetTable}_count_mismatch`,
           expected: tableSourceCount,
@@ -144,6 +181,8 @@ export class AgentsMigrator extends BaseMigrator {
         })
       }
     }
+
+    logger.info('AgentsMigrator validation:', { validationDetails, errorCount: errors.length })
 
     return {
       success: errors.length === 0,
