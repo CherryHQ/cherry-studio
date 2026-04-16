@@ -32,15 +32,27 @@ vi.mock('../utils', () => ({
   toAsarUnpackedPath: vi.fn((filePath: string) => filePath)
 }))
 
-const mockRepo = {
-  getByFolderName: vi.fn(),
-  delete: vi.fn(),
-  insert: vi.fn()
-}
+// vi.mock factories are hoisted above top-level declarations, so use
+// `vi.hoisted` to give the factories safe references to the mock fns.
+const { mockRepo, mockEnableForAllAgents } = vi.hoisted(() => ({
+  mockRepo: {
+    getByFolderName: vi.fn(),
+    delete: vi.fn(),
+    insert: vi.fn(),
+    updateMetadata: vi.fn()
+  },
+  mockEnableForAllAgents: vi.fn()
+}))
 
 vi.mock('../services/agents/skills/SkillRepository', () => ({
   SkillRepository: {
     getInstance: () => mockRepo
+  }
+}))
+
+vi.mock('../services/agents/skills/SkillService', () => ({
+  skillService: {
+    enableForAllAgents: mockEnableForAllAgents
   }
 }))
 
@@ -89,10 +101,6 @@ describe('installBuiltinSkills', () => {
     vi.mocked(fs.mkdir).mockResolvedValue(undefined as any)
     vi.mocked(fs.cp).mockResolvedValue(undefined)
     vi.mocked(fs.writeFile).mockResolvedValue(undefined)
-    // ensureSymlink: readlink fails (no existing link)
-    vi.mocked(fs.readlink).mockRejectedValueOnce(new Error('ENOENT'))
-    vi.mocked(fs.rm).mockRejectedValueOnce(new Error('ENOENT'))
-    vi.mocked(fs.symlink).mockResolvedValue(undefined)
     // computeHash: SKILL.md read
     vi.mocked(fs.readFile).mockResolvedValueOnce('# My Skill' as any)
 
@@ -105,19 +113,21 @@ describe('installBuiltinSkills', () => {
       { recursive: true }
     )
     expect(fs.writeFile).toHaveBeenCalledWith(path.join(globalSkillsPath, 'my-skill', '.version'), '2.0.0', 'utf-8')
+    // With the per-agent model no global symlink is created — skills are
+    // linked per-agent via SkillService.enableForAllAgents.
+    expect(fs.symlink).not.toHaveBeenCalled()
   })
 
-  it('should register built-in skill in DB', async () => {
+  it('should register built-in skill in DB with legacy is_enabled=false and fan out to agents', async () => {
     vi.mocked(fs.access).mockResolvedValueOnce(undefined)
     vi.mocked(fs.readdir).mockResolvedValueOnce([{ name: 'my-skill', isDirectory: () => true }] as any)
     vi.mocked(fs.readFile).mockRejectedValueOnce(new Error('ENOENT')) // .version
     vi.mocked(fs.mkdir).mockResolvedValue(undefined as any)
     vi.mocked(fs.cp).mockResolvedValue(undefined)
     vi.mocked(fs.writeFile).mockResolvedValue(undefined)
-    vi.mocked(fs.readlink).mockRejectedValueOnce(new Error('ENOENT'))
-    vi.mocked(fs.rm).mockRejectedValueOnce(new Error('ENOENT'))
-    vi.mocked(fs.symlink).mockResolvedValue(undefined)
     vi.mocked(fs.readFile).mockResolvedValueOnce('# My Skill' as any) // computeHash
+
+    mockRepo.insert.mockResolvedValueOnce({ id: 'new-skill-id', folderName: 'my-skill' })
 
     await installBuiltinSkills()
 
@@ -126,9 +136,12 @@ describe('installBuiltinSkills', () => {
       expect.objectContaining({
         folder_name: 'my-skill',
         source: 'builtin',
-        is_enabled: true
+        // Legacy column — deliberately false in the new per-agent model.
+        is_enabled: false
       })
     )
+    // First install of this builtin → fan out to every existing agent.
+    expect(mockEnableForAllAgents).toHaveBeenCalledWith('new-skill-id', 'my-skill')
   })
 
   it('should skip skills that are already up to date', async () => {
@@ -136,9 +149,6 @@ describe('installBuiltinSkills', () => {
     vi.mocked(fs.readdir).mockResolvedValueOnce([{ name: 'my-skill', isDirectory: () => true }] as any)
     // .version file returns current app version
     vi.mocked(fs.readFile).mockResolvedValueOnce('2.0.0' as any)
-    // ensureSymlink: symlink already points to correct target
-    vi.mocked(fs.mkdir).mockResolvedValue(undefined as any)
-    vi.mocked(fs.readlink).mockResolvedValueOnce(path.join(globalSkillsPath, 'my-skill'))
     // DB already has the skill
     mockRepo.getByFolderName.mockResolvedValueOnce({ id: 'existing', isEnabled: true })
 
@@ -147,6 +157,8 @@ describe('installBuiltinSkills', () => {
     expect(fs.cp).not.toHaveBeenCalled()
     // Should not re-insert since files are up to date and DB row exists
     expect(mockRepo.insert).not.toHaveBeenCalled()
+    // And should not re-fan-out — user per-agent choices are preserved.
+    expect(mockEnableForAllAgents).not.toHaveBeenCalled()
   })
 
   it('should update skills when app version is newer', async () => {
@@ -157,9 +169,6 @@ describe('installBuiltinSkills', () => {
     vi.mocked(fs.mkdir).mockResolvedValue(undefined as any)
     vi.mocked(fs.cp).mockResolvedValue(undefined)
     vi.mocked(fs.writeFile).mockResolvedValue(undefined)
-    vi.mocked(fs.readlink).mockRejectedValueOnce(new Error('ENOENT'))
-    vi.mocked(fs.rm).mockRejectedValueOnce(new Error('ENOENT'))
-    vi.mocked(fs.symlink).mockResolvedValue(undefined)
     vi.mocked(fs.readFile).mockResolvedValueOnce('# My Skill' as any) // computeHash
 
     await installBuiltinSkills()
@@ -172,16 +181,13 @@ describe('installBuiltinSkills', () => {
     expect(fs.writeFile).toHaveBeenCalledWith(path.join(globalSkillsPath, 'my-skill', '.version'), '2.0.0', 'utf-8')
   })
 
-  it('should preserve enabled state when updating existing built-in skill', async () => {
+  it('should not fan out to all agents when updating an existing built-in skill', async () => {
     vi.mocked(fs.access).mockResolvedValueOnce(undefined)
     vi.mocked(fs.readdir).mockResolvedValueOnce([{ name: 'my-skill', isDirectory: () => true }] as any)
     vi.mocked(fs.readFile).mockResolvedValueOnce('1.0.0' as any) // older version
     vi.mocked(fs.mkdir).mockResolvedValue(undefined as any)
     vi.mocked(fs.cp).mockResolvedValue(undefined)
     vi.mocked(fs.writeFile).mockResolvedValue(undefined)
-    vi.mocked(fs.readlink).mockRejectedValueOnce(new Error('ENOENT'))
-    vi.mocked(fs.rm).mockRejectedValueOnce(new Error('ENOENT'))
-    vi.mocked(fs.symlink).mockResolvedValue(undefined)
     vi.mocked(fs.readFile).mockResolvedValueOnce('# My Skill' as any) // computeHash
 
     mockRepo.getByFolderName.mockResolvedValueOnce({
@@ -192,13 +198,18 @@ describe('installBuiltinSkills', () => {
 
     await installBuiltinSkills()
 
-    expect(mockRepo.delete).toHaveBeenCalledWith('existing-id')
-    expect(mockRepo.insert).toHaveBeenCalledWith(
+    // Existing builtin: update metadata in-place (preserves skill ID and agent_skills rows).
+    expect(mockRepo.updateMetadata).toHaveBeenCalledWith(
+      'existing-id',
       expect.objectContaining({
-        is_enabled: false,
-        created_at: 1000
+        name: 'Test Skill'
       })
     )
+    // Must NOT delete+insert — that would cascade-drop agent_skills rows.
+    expect(mockRepo.delete).not.toHaveBeenCalled()
+    expect(mockRepo.insert).not.toHaveBeenCalled()
+    // Existing builtin: do NOT re-fan-out; per-agent state survives the metadata refresh.
+    expect(mockEnableForAllAgents).not.toHaveBeenCalled()
   })
 
   it('should skip entries with path traversal in name', async () => {
@@ -224,14 +235,14 @@ describe('installBuiltinSkills', () => {
     expect(fs.cp).not.toHaveBeenCalled()
   })
 
-  it('should register DB row even when files are up to date but row is missing', async () => {
+  it('should register DB row and fan out even when files are up to date but row is missing', async () => {
     vi.mocked(fs.access).mockResolvedValueOnce(undefined)
     vi.mocked(fs.readdir).mockResolvedValueOnce([{ name: 'my-skill', isDirectory: () => true }] as any)
     vi.mocked(fs.readFile).mockResolvedValueOnce('2.0.0' as any) // up to date
     vi.mocked(fs.mkdir).mockResolvedValue(undefined as any)
-    vi.mocked(fs.readlink).mockResolvedValueOnce(path.join(globalSkillsPath, 'my-skill'))
     mockRepo.getByFolderName.mockResolvedValueOnce(null) // but missing from DB
     vi.mocked(fs.readFile).mockResolvedValueOnce('# My Skill' as any) // computeHash
+    mockRepo.insert.mockResolvedValueOnce({ id: 'reinserted-id', folderName: 'my-skill' })
 
     await installBuiltinSkills()
 
@@ -244,5 +255,7 @@ describe('installBuiltinSkills', () => {
         source: 'builtin'
       })
     )
+    // And since the row was missing, we fan out so existing agents get it.
+    expect(mockEnableForAllAgents).toHaveBeenCalledWith('reinserted-id', 'my-skill')
   })
 })

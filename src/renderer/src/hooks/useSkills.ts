@@ -3,9 +3,14 @@ import type { InstalledSkill, SkillSearchResult } from '@types'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 /**
- * Hook to manage globally installed skills.
+ * Hook to manage installed skills.
+ *
+ * Pass `agentId` to get per-agent enablement state and to scope toggle calls
+ * to that agent. Without `agentId`, the hook returns the global skill library
+ * with `isEnabled` forced to false — callers without an agent context (e.g.
+ * the global Settings → Skills page) should rely on uninstall only.
  */
-export function useInstalledSkills() {
+export function useInstalledSkills(agentId?: string) {
   const [skills, setSkills] = useState<InstalledSkill[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -14,7 +19,7 @@ export function useInstalledSkills() {
     setLoading(true)
     setError(null)
     try {
-      const result = await window.api.skill.list()
+      const result = await window.api.skill.list(agentId)
       if (result.success) {
         setSkills(result.data)
       } else {
@@ -25,7 +30,7 @@ export function useInstalledSkills() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [agentId])
 
   useEffect(() => {
     void refresh()
@@ -33,8 +38,14 @@ export function useInstalledSkills() {
 
   const toggle = useCallback(
     async (skillId: string, isEnabled: boolean) => {
+      if (!agentId) {
+        // Without an agent context there is nothing to toggle — per-agent
+        // enablement has no target. Callers that want to toggle must scope
+        // to an agent.
+        return false
+      }
       try {
-        const result = await window.api.skill.toggle({ skillId, isEnabled })
+        const result = await window.api.skill.toggle({ skillId, agentId, isEnabled })
         if (result.success) {
           await refresh()
         }
@@ -43,7 +54,7 @@ export function useInstalledSkills() {
         return false
       }
     },
-    [refresh]
+    [agentId, refresh]
   )
 
   const uninstall = useCallback(
