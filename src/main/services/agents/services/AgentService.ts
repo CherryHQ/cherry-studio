@@ -569,14 +569,15 @@ export class AgentService extends BaseService {
     }
 
     if (isBuiltinAgentId(id)) {
-      const now = new Date().toISOString()
+      const deletedAt = new Date().toISOString()
+      const updatedAt = Date.now()
 
       await database.transaction(async (tx) => {
         await tx.delete(agentSkillsTable).where(eq(agentSkillsTable.agentId, id))
         await tx.delete(scheduledTasksTable).where(eq(scheduledTasksTable.agentId, id))
         await tx.delete(sessionsTable).where(eq(sessionsTable.agentId, id))
         await tx.update(channelsTable).set({ agentId: null }).where(eq(channelsTable.agentId, id))
-        await tx.update(agentsTable).set({ deletedAt: now, updatedAt: now }).where(eq(agentsTable.id, id))
+        await tx.update(agentsTable).set({ deletedAt, updatedAt }).where(eq(agentsTable.id, id))
       })
 
       return true

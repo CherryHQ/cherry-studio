@@ -134,7 +134,7 @@ describe('AgentService built-in agent lifecycle', () => {
     expect(txUpdateSet).toHaveBeenCalledWith(
       expect.objectContaining({
         deletedAt: expect.any(String),
-        updatedAt: expect.any(String)
+        updatedAt: expect.any(Number)
       })
     )
   })

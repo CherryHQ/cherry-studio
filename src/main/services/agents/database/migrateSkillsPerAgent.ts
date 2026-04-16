@@ -26,7 +26,7 @@ export async function runSkillsPerAgentMigration(db: LibSQLDatabase<typeof schem
   skillsSeeded: number
   symlinksCreated: number
 }> {
-  const enabledSkills = await db.select().from(skillsTable).where(eq(skillsTable.is_enabled, true))
+  const enabledSkills = await db.select().from(skillsTable).where(eq(skillsTable.isEnabled, true))
   if (enabledSkills.length === 0) {
     logger.info('No legacy-enabled skills to migrate')
     return { agentsProcessed: 0, skillsSeeded: 0, symlinksCreated: 0 }
@@ -46,7 +46,7 @@ export async function runSkillsPerAgentMigration(db: LibSQLDatabase<typeof schem
   let symlinksCreated = 0
 
   for (const agent of agents) {
-    const workspace = parseFirstAccessiblePath(agent.accessible_paths)
+    const workspace = parseFirstAccessiblePath(agent.accessiblePaths)
 
     for (const skill of enabledSkills) {
       // Insert (or update) the join row as enabled.
@@ -54,15 +54,15 @@ export async function runSkillsPerAgentMigration(db: LibSQLDatabase<typeof schem
       await db
         .insert(agentSkillsTable)
         .values({
-          agent_id: agent.id,
-          skill_id: skill.id,
-          is_enabled: true,
-          created_at: now,
-          updated_at: now
+          agentId: agent.id,
+          skillId: skill.id,
+          isEnabled: true,
+          createdAt: now,
+          updatedAt: now
         })
         .onConflictDoUpdate({
-          target: [agentSkillsTable.agent_id, agentSkillsTable.skill_id],
-          set: { is_enabled: true, updated_at: now }
+          target: [agentSkillsTable.agentId, agentSkillsTable.skillId],
+          set: { isEnabled: true, updatedAt: now }
         })
       skillsSeeded++
 
@@ -76,8 +76,8 @@ export async function runSkillsPerAgentMigration(db: LibSQLDatabase<typeof schem
         )
         if (!wsExists) continue
 
-        const target = path.join(getSkillsStorageRoot(), skill.folder_name)
-        const linkPath = path.join(workspace, '.claude', 'skills', skill.folder_name)
+        const target = path.join(getSkillsStorageRoot(), skill.folderName)
+        const linkPath = path.join(workspace, '.claude', 'skills', skill.folderName)
         await fs.mkdir(path.dirname(linkPath), { recursive: true })
 
         let existingIsCorrect = false
