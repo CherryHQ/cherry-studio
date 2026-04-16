@@ -422,6 +422,31 @@ describe('AiStreamManager', () => {
   // ── grace period ────────────────────────────────────────────────
 
   describe('grace period', () => {
+    it('handleAttach returns compact replay chunks', () => {
+      mgr.startExecution({
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('l:a')]
+      })
+      mgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p1' } as UIMessageChunk)
+      mgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'hel' } as UIMessageChunk)
+      mgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'lo' } as UIMessageChunk)
+      mgr.onChunk('a', 'provider-a::model-a', { type: 'text-end', id: 'p1' } as UIMessageChunk)
+
+      const sender = { id: 1, isDestroyed: () => false, send: vi.fn() }
+      const response = (mgr as any).handleAttach(sender, { topicId: 'a' })
+
+      expect(response).toEqual({
+        status: 'attached',
+        bufferedChunks: [
+          { type: 'text-start', id: 'p1' },
+          { type: 'text-delta', id: 'p1', delta: 'hello' },
+          { type: 'text-end', id: 'p1' }
+        ]
+      })
+    })
+
     it('stream remains accessible during grace period', async () => {
       const l = new FakeListener('l:a')
       mgr.startExecution({ topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [l] })

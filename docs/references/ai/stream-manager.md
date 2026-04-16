@@ -261,7 +261,7 @@ Renderer                           Main
    useChat mount → transport.reconnectToStream()
 3. streamAttach(IPC) ──────────→ handleAttach(sender, { topicId })
                                     │
-                                    ├─ streaming: 注册新 listener + 回放缓存
+                                    ├─ streaming: 注册新 listener + 回放压缩后的缓存 chunks
                                     ├─ done: 返回 finalMessage
                                     └─ error: 返回 error
 ```
@@ -290,7 +290,7 @@ streamOpen(topicA)
                                      打开 topicA
                                      streamAttach({ topicId: 'topicA' })
                                        → 注册 WebContentsListener(B, topicA)
-                                       → 回放缓存
+                                       → 回放压缩后的缓存 chunks
 
 chunk 到达 → 广播:
   WebContentsListener(A) → A         WebContentsListener(B) → B
@@ -458,7 +458,7 @@ const persistenceListener = new PersistenceListener({
 | 所有窗口关闭 + `backgroundMode='abort'` | `shouldStopStream()` 返回 true,流被中止 |
 | 多窗口查看同一 topic | 各窗口独立的 WebContentsListener,同时接收 chunks |
 | 同一窗口重复 Attach | listener id 稳定,addListener 执行 upsert |
-| Buffer 溢出 | 超过 maxBufferChunks 后停止缓存(不停止流) |
+| 中途订阅 | attach 返回压缩后的 bufferedChunks，随后继续接 live tail |
 | Main 进程重启 | activeStreams 清空,Renderer 通过数据库读取 |
 
 ## 设计备注

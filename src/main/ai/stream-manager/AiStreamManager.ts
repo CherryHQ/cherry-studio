@@ -18,6 +18,7 @@ import type { UIMessageChunk } from 'ai'
 
 import type { AiStreamRequest } from '../AiCompletionService'
 import { PendingMessageQueue } from '../PendingMessageQueue'
+import { buildCompactReplay } from './buildCompactReplay'
 import { InternalStreamTarget } from './InternalStreamTarget'
 import { WebContentsListener } from './listeners/WebContentsListener'
 import { streamRequestHandler } from './StreamRequestHandler'
@@ -376,10 +377,10 @@ export class AiStreamManager extends BaseService {
       return { status: 'error', error: firstExec?.error! }
     }
 
-    // Register listener for future live chunks (no buffer replay — chunks returned in response)
+    // Register listener for future live chunks; reconnect receives a compact replay of buffered chunks.
     const listener = new WebContentsListener(sender, req.topicId)
     stream.listeners.set(listener.id, listener)
-    return { status: 'attached', bufferedChunks: [...stream.buffer] }
+    return { status: 'attached', bufferedChunks: buildCompactReplay(stream.buffer) }
   }
 
   private handleDetach(sender: Electron.WebContents, req: AiStreamDetachRequest): void {
