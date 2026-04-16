@@ -274,10 +274,10 @@ function convertDataPartToBlock(
         ...base,
         type: MessageBlockType.ERROR,
         error: {
+          ...data,
           name: data.name ?? null,
           message: data.message ?? null,
-          stack: null,
-          ...(data.code != null && { code: data.code })
+          stack: data.stack ?? null
         }
       }
       return block

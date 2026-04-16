@@ -74,8 +74,10 @@ export function blockToPart(block: MessageBlock): CherryMessagePart | null {
       return {
         type: 'data-error',
         data: {
+          ...(block.error ?? {}),
           name: block.error?.name ?? undefined,
           message: block.error?.message ?? undefined,
+          stack: block.error?.stack ?? null,
           code: block.error?.code
         }
       } as CherryMessagePart

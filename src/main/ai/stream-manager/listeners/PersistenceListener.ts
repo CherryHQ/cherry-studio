@@ -100,7 +100,7 @@ export class PersistenceListener implements StreamListener {
     try {
       // Combine partial streamed content with error part
       const partialParts = (partialMessage?.parts ?? []) as MessageData['parts']
-      const errorPart = { type: 'data-error' as const, data: { name: error.name, message: error.message } }
+      const errorPart = { type: 'data-error' as const, data: { ...error } }
       const parts = [...(partialParts ?? []), errorPart]
 
       await messageService.update(this.ctx.assistantMessageId, {

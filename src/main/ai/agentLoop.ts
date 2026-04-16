@@ -252,6 +252,8 @@ export function runAgentLoop<T extends AppProviderKey>(
         abortSignal: signal
       })
 
+      let capturedStreamError: unknown
+
       // Stream → writer (transport channel)
       const uiStream = result.toUIMessageStream({
         generateMessageId: () => {
@@ -260,17 +262,32 @@ export function runAgentLoop<T extends AppProviderKey>(
             return params.messageId
           }
           return crypto.randomUUID()
+        },
+        onError: (error) => {
+          capturedStreamError ??= error
+          return error instanceof Error ? error.message : String(error)
         }
       })
       const reader = uiStream.getReader()
+      let readError: unknown
       try {
         while (true) {
           const { done, value } = await reader.read()
           if (done || signal.aborted) break
           await writer.write(value)
         }
+      } catch (error) {
+        readError = error
       } finally {
         reader.releaseLock()
+      }
+
+      if (capturedStreamError) {
+        throw capturedStreamError
+      }
+
+      if (readError) {
+        throw readError
       }
 
       // ◆ AI SDK: resolve all promised fields after stream ends

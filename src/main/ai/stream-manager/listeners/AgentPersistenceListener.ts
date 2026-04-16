@@ -63,7 +63,7 @@ export class AgentPersistenceListener implements StreamListener {
     try {
       const now = new Date().toISOString()
       const partialParts = (partialMessage?.parts ?? []) as CherryMessagePart[]
-      const errorPart = { type: 'data-error' as const, data: { name: error.name, message: error.message } }
+      const errorPart = { type: 'data-error' as const, data: { ...error } }
 
       await agentMessageRepository.persistAssistantMessage({
         sessionId: this.ctx.sessionId,

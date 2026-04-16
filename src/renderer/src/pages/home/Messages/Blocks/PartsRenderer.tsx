@@ -263,10 +263,10 @@ function renderPart(part: CherryMessagePart, partId: string, message: Message, i
           key={partId}
           partId={partId}
           error={{
+            ...rawData,
             name: rawData.name ?? null,
             message: rawData.message ?? null,
-            stack: null,
-            ...(rawData.code != null && { code: rawData.code })
+            stack: rawData.stack ?? null
           }}
           message={message}
         />

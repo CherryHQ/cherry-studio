@@ -323,6 +323,30 @@ describe('partToBlock', () => {
       expect((block as any).error.code).toBe('429')
     })
 
+    it('should preserve structured API error details when present', () => {
+      const part = {
+        type: 'data-error',
+        data: {
+          name: 'AI_APICallError',
+          message: 'Unauthorized',
+          stack: 'stack',
+          cause: 'null',
+          url: 'https://api.example.com/chat/completions',
+          requestBodyValues: { model: 'qwen' },
+          statusCode: 401,
+          responseHeaders: { 'content-type': 'application/json' },
+          responseBody: '{"error":"Invalid signature"}',
+          isRetryable: false,
+          data: null
+        }
+      } as unknown as CherryMessagePart
+
+      const block = callPartToBlock(part)
+      expect((block as any).error.statusCode).toBe(401)
+      expect((block as any).error.responseBody).toBe('{"error":"Invalid signature"}')
+      expect((block as any).error.url).toBe('https://api.example.com/chat/completions')
+    })
+
     it('should not include code key when code is undefined', () => {
       const part = {
         type: 'data-error',

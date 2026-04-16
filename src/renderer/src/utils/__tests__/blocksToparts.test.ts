@@ -157,6 +157,31 @@ describe('blockToPart', () => {
       expect(part.data.name).toBe('RateLimit')
       expect(part.data.message).toBe('Too many requests')
     })
+
+    it('should preserve structured API error fields', () => {
+      const block = makeBlock({
+        type: MessageBlockType.ERROR,
+        error: {
+          name: 'AI_APICallError',
+          message: 'Unauthorized',
+          stack: 'stack',
+          cause: 'null',
+          statusCode: 401,
+          responseBody: '{"error":"Invalid signature"}',
+          responseHeaders: { 'content-type': 'application/json' },
+          requestBodyValues: { model: 'qwen' },
+          url: 'https://api.example.com/chat/completions',
+          isRetryable: false,
+          data: null
+        }
+      })
+      const part = blockToPart(block) as any
+
+      expect(part.type).toBe('data-error')
+      expect(part.data.statusCode).toBe(401)
+      expect(part.data.responseBody).toBe('{"error":"Invalid signature"}')
+      expect(part.data.url).toBe('https://api.example.com/chat/completions')
+    })
   })
 
   describe('TRANSLATION', () => {

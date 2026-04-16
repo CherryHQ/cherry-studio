@@ -18,14 +18,17 @@
  * - data-code (code blocks)
  */
 
+import type { SerializedError } from '../../types/error'
+
 // ============================================================================
 // Custom DataUIPart data shapes
 // ============================================================================
 
-/** Error data — replaces ErrorBlock */
-export interface ErrorPartData {
+/** Error data — replaces ErrorBlock. May carry the full serialized error payload. */
+export type ErrorPartData = Partial<SerializedError> & {
   name?: string | null
   message?: string | null
+  stack?: string | null
   code?: string
 }
 
