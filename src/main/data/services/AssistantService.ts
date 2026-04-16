@@ -205,13 +205,10 @@ export class AssistantDataService {
     }
 
     // Strip relation fields — these are synced to junction tables, not assistant columns
-    const { mcpServerIds, knowledgeBaseIds, modelId: dtoModelId, ...columnFields } = dto
+    const { mcpServerIds, knowledgeBaseIds, ...columnFields } = dto
     const updates = Object.fromEntries(Object.entries(columnFields).filter(([, v]) => v !== undefined)) as Partial<
       typeof assistantTable.$inferInsert
     >
-    if (dtoModelId !== undefined) {
-      updates.modelId = dtoModelId ?? null
-    }
     const hasColumnUpdates = Object.keys(updates).length > 0
     const hasRelationUpdates = mcpServerIds !== undefined || knowledgeBaseIds !== undefined
 

@@ -125,7 +125,7 @@ export const KnowledgeBaseSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
   dimensions: z.number().int().positive(),
-  embeddingModelId: z.string().min(1),
+  embeddingModelId: z.string().min(1).nullable(),
   rerankModelId: z.string().optional(),
   fileProcessorId: z.string().optional(),
   chunkSize: KnowledgeChunkSizeSchema.optional(),

@@ -292,6 +292,52 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     expect(result.warnings?.some((warning: string) => warning.includes('Skipped knowledge base kb-empty'))).toBe(true)
   })
 
+  it('prepare preserves knowledge base and clears dangling model references', async () => {
+    const migrator = new KnowledgeMigrator() as any
+    vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({
+      dimensions: 1024,
+      reason: 'ok'
+    })
+
+    const ctx = {
+      paths: { knowledgeBaseDir: '/mock/userData/Data/KnowledgeBase' },
+      sources: {
+        reduxState: {
+          getCategory: vi.fn().mockReturnValue({
+            bases: [
+              {
+                id: 'kb-dangling-model',
+                name: 'Dangling KB',
+                model: { id: 'qwen', name: 'qwen', provider: 'cherryai' },
+                rerankModel: { id: 'rerank', name: 'rerank', provider: 'cherryai' },
+                items: []
+              }
+            ]
+          })
+        },
+        dexieExport: {
+          tableExists: vi.fn().mockResolvedValue(false),
+          readTable: vi.fn()
+        }
+      },
+      db: {
+        select: vi.fn().mockReturnValue({
+          from: vi.fn().mockResolvedValue([{ id: 'openai::text-embedding-3-small' }])
+        })
+      }
+    } as any
+
+    const result = await migrator.prepare(ctx)
+
+    expect(result.success).toBe(true)
+    expect(migrator.preparedBases).toHaveLength(1)
+    expect(migrator.preparedBases[0].embeddingModelId).toBeNull()
+    expect(migrator.preparedBases[0].rerankModelId).toBeNull()
+    expect(result.warnings?.some((warning: string) => warning.includes('dangling embedding model reference'))).toBe(
+      true
+    )
+  })
+
   it('prepare skips base and items when legacy knowledge store path is a directory', async () => {
     const migrator = new KnowledgeMigrator() as any
     vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({
@@ -575,7 +621,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     expect(statusById.get('i-failed-with-unique-id')).toBe('completed')
   })
 
-  it('prepare skips base and items when embedding model is missing', async () => {
+  it('prepare preserves base and items when embedding model is missing', async () => {
     const migrator = new KnowledgeMigrator() as any
     vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({
       dimensions: 1024,
@@ -609,11 +655,14 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     const result = await migrator.prepare(ctx)
 
     expect(result.success).toBe(true)
-    expect(migrator.preparedBases).toHaveLength(0)
-    expect(migrator.preparedItems).toHaveLength(0)
-    expect(migrator.skippedCount).toBe(3)
+    expect(migrator.preparedBases).toHaveLength(1)
+    expect(migrator.preparedItems).toHaveLength(2)
+    expect(migrator.skippedCount).toBe(0)
     expect(migrator.sourceCount).toBe(3)
-    expect(result.warnings?.some((warning: string) => warning.includes('embedding_model_missing'))).toBe(true)
+    expect(migrator.preparedBases[0].embeddingModelId).toBeNull()
+    expect(
+      result.warnings?.some((warning: string) => warning.includes('missing embedding model reference was cleared'))
+    ).toBe(true)
   })
 
   it('prepare skips duplicate base ids and duplicate item ids with warnings', async () => {

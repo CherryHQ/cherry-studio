@@ -28,7 +28,7 @@ describe('KnowledgeMappings', () => {
     expect(inferKnowledgeItemStatus({} as any)).toBe('idle')
   })
 
-  it('transformKnowledgeBase returns embedding_model_missing when model is unavailable', () => {
+  it('transformKnowledgeBase preserves the knowledge base when model is unavailable', () => {
     expect(
       transformKnowledgeBase(
         {
@@ -38,8 +38,13 @@ describe('KnowledgeMappings', () => {
         1024
       )
     ).toStrictEqual({
-      ok: false,
-      reason: 'embedding_model_missing'
+      ok: true,
+      value: expect.objectContaining({
+        id: 'kb-1',
+        name: 'KB 1',
+        embeddingModelId: null,
+        rerankModelId: null
+      })
     })
   })
 

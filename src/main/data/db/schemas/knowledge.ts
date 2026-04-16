@@ -22,9 +22,7 @@ export const knowledgeBaseTable = sqliteTable(
     dimensions: integer().notNull(),
 
     // Embedding model: FK to user_model(id) — UniqueModelId "providerId::modelId"
-    embeddingModelId: text()
-      .notNull()
-      .references(() => userModelTable.id, { onDelete: 'restrict' }),
+    embeddingModelId: text().references(() => userModelTable.id, { onDelete: 'set null' }),
 
     // Rerank model: FK to user_model(id) — UniqueModelId "providerId::modelId"
     rerankModelId: text().references(() => userModelTable.id, { onDelete: 'set null' }),

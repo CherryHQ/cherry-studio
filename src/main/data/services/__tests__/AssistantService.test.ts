@@ -50,6 +50,22 @@ async function setupDb() {
   // Assistant table
   await db.run(
     sql.raw(`
+    CREATE TABLE user_model (
+      id TEXT PRIMARY KEY NOT NULL
+    )
+  `)
+  )
+
+  await db.run(
+    sql.raw(`
+    INSERT INTO user_model (id) VALUES
+      ('openai::gpt-4'),
+      ('anthropic::claude-3')
+  `)
+  )
+
+  await db.run(
+    sql.raw(`
     CREATE TABLE assistant (
       id TEXT PRIMARY KEY NOT NULL,
       name TEXT NOT NULL,
@@ -60,7 +76,8 @@ async function setupDb() {
       settings TEXT,
       created_at INTEGER,
       updated_at INTEGER,
-      deleted_at INTEGER
+      deleted_at INTEGER,
+      FOREIGN KEY (model_id) REFERENCES user_model(id) ON DELETE SET NULL
     )
   `)
   )

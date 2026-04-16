@@ -102,7 +102,7 @@ function rowToKnowledgeBase(row: typeof knowledgeBaseTable.$inferSelect): Knowle
     name: row.name,
     description: row.description ?? undefined,
     dimensions: row.dimensions,
-    embeddingModelId: row.embeddingModelId,
+    embeddingModelId: row.embeddingModelId ?? null,
     rerankModelId: row.rerankModelId ?? undefined,
     fileProcessorId: row.fileProcessorId ?? undefined,
     chunkSize: row.chunkSize ?? undefined,
@@ -185,6 +185,13 @@ export class KnowledgeBaseService {
     const updates: Partial<typeof knowledgeBaseTable.$inferInsert> = {}
     if (dto.name !== undefined) updates.name = dto.name.trim()
     if (dto.description !== undefined) updates.description = dto.description
+
+    if (dto.embeddingModelId !== undefined) {
+      const nextEmbeddingModelId = dto.embeddingModelId.trim()
+      if (nextEmbeddingModelId !== (existing.embeddingModelId ?? null)) {
+        updates.embeddingModelId = nextEmbeddingModelId
+      }
+    }
     if (dto.rerankModelId !== undefined) {
       updates.rerankModelId = dto.rerankModelId ?? null
     }

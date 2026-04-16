@@ -37,6 +37,7 @@ describe('Knowledge base schemas', () => {
 
   it('rejects invalid numeric tuning fields in update schema', () => {
     const result = UpdateKnowledgeBaseSchema.safeParse({
+      embeddingModelId: 'openai::text-embedding-3-small',
       chunkSize: -10,
       chunkOverlap: -1,
       threshold: 1.1,
@@ -91,4 +92,23 @@ describe('Knowledge base schemas', () => {
       }).success
     ).toBe(false)
   })
+})
+
+it('allows migrated knowledge bases to have a null embedding model id', () => {
+  const result = KnowledgeBaseSchema.safeParse({
+    id: 'kb-null-model',
+    name: 'KB nullable model',
+    dimensions: 1024,
+    embeddingModelId: null,
+    createdAt: '2026-04-10T00:00:00.000Z',
+    updatedAt: '2026-04-10T00:00:00.000Z'
+  })
+
+  expect(result.success).toBe(true)
+})
+
+it('keeps embeddingModelId optional in patch schema but rejects null clears', () => {
+  expect(UpdateKnowledgeBaseSchema.safeParse({ embeddingModelId: 'openai::text-embedding-3-small' }).success).toBe(true)
+  expect(UpdateKnowledgeBaseSchema.safeParse({ embeddingModelId: null }).success).toBe(false)
+  expect(UpdateKnowledgeBaseSchema.safeParse({}).success).toBe(true)
 })

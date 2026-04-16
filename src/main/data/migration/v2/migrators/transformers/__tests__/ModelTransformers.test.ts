@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { legacyModelToUniqueId } from '../ModelTransformers'
+import { legacyModelToUniqueId, resolveLegacyModelReference, resolveModelReference } from '../ModelTransformers'
 
 describe('legacyModelToUniqueId', () => {
   describe('happy path', () => {
@@ -83,20 +83,24 @@ describe('legacyModelToUniqueId', () => {
   })
 
   describe('fallback parameter', () => {
-    it('should use fallback when model is null', () => {
-      expect(legacyModelToUniqueId(null, 'raw-model-id')).toBe('raw-model-id')
+    it('should use fallback when model is null and fallback is already a UniqueModelId', () => {
+      expect(legacyModelToUniqueId(null, 'openai::raw-model-id')).toBe('openai::raw-model-id')
     })
 
-    it('should use fallback when model is undefined', () => {
-      expect(legacyModelToUniqueId(undefined, 'raw-model-id')).toBe('raw-model-id')
+    it('should use fallback when model is undefined and fallback is already a UniqueModelId', () => {
+      expect(legacyModelToUniqueId(undefined, 'openai::raw-model-id')).toBe('openai::raw-model-id')
     })
 
-    it('should use fallback when model has missing fields', () => {
-      expect(legacyModelToUniqueId({ id: 'gpt-4' }, 'raw-model-id')).toBe('raw-model-id')
+    it('should use fallback when model has missing fields and fallback is already a UniqueModelId', () => {
+      expect(legacyModelToUniqueId({ id: 'gpt-4' }, 'openai::raw-model-id')).toBe('openai::raw-model-id')
     })
 
     it('should ignore fallback when model is valid', () => {
       expect(legacyModelToUniqueId({ id: 'gpt-4', provider: 'openai' }, 'raw-model-id')).toBe('openai::gpt-4')
+    })
+
+    it('should discard fallback when it is not a UniqueModelId', () => {
+      expect(legacyModelToUniqueId(null, 'raw-model-id')).toBeNull()
     })
 
     it('should return null for empty fallback', () => {
@@ -110,5 +114,56 @@ describe('legacyModelToUniqueId', () => {
     it('should return null when no fallback provided', () => {
       expect(legacyModelToUniqueId(null)).toBeNull()
     })
+  })
+})
+
+describe('resolveModelReference', () => {
+  it('returns missing when candidate is null', () => {
+    expect(resolveModelReference(null, new Set(['openai::gpt-4']))).toEqual({ kind: 'missing' })
+  })
+
+  it('returns resolved when candidate exists in migrated model set', () => {
+    expect(resolveModelReference('openai::gpt-4', new Set(['openai::gpt-4']))).toEqual({
+      kind: 'resolved',
+      modelId: 'openai::gpt-4'
+    })
+  })
+
+  it('returns dangling when candidate is missing from migrated model set', () => {
+    expect(resolveModelReference('openai::gpt-4', new Set(['anthropic::claude-3']))).toEqual({
+      kind: 'dangling',
+      modelId: 'openai::gpt-4'
+    })
+  })
+
+  it('treats candidate as resolved when no validation set is provided', () => {
+    expect(resolveModelReference('openai::gpt-4')).toEqual({
+      kind: 'resolved',
+      modelId: 'openai::gpt-4'
+    })
+  })
+})
+
+describe('resolveLegacyModelReference', () => {
+  it('returns resolved for a valid migrated legacy model', () => {
+    expect(
+      resolveLegacyModelReference({ id: 'gpt-4', provider: 'openai' }, undefined, new Set(['openai::gpt-4']))
+    ).toEqual({
+      kind: 'resolved',
+      modelId: 'openai::gpt-4'
+    })
+  })
+
+  it('returns dangling for a legacy model that was not migrated', () => {
+    expect(
+      resolveLegacyModelReference({ id: 'qwen', provider: 'cherryai' }, undefined, new Set(['openai::gpt-4']))
+    ).toEqual({
+      kind: 'dangling',
+      modelId: 'cherryai::qwen'
+    })
+  })
+
+  it('returns missing when legacy model reference is absent', () => {
+    expect(resolveLegacyModelReference(null, null, new Set(['openai::gpt-4']))).toEqual({ kind: 'missing' })
   })
 })

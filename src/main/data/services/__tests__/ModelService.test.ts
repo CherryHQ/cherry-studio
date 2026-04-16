@@ -220,6 +220,7 @@ describe('ModelService.create', () => {
     await modelService.create(dto, registryData)
 
     const vals = capturedInsertValues as Record<string, unknown>
+    expect(vals.id).toBe('openai::gpt-4o')
     expect(vals.name).toBe('GPT-4o')
     expect(vals.capabilities).toEqual(['function-call'])
     expect(vals.contextWindow).toBe(128_000)

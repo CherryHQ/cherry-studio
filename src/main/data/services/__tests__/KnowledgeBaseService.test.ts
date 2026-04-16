@@ -110,6 +110,21 @@ describe('KnowledgeBaseService', () => {
       })
     })
 
+    it('should preserve null embeddingModelId in API responses', async () => {
+      const row = createMockRow({ embeddingModelId: null })
+      mockSelect.mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue([row])
+          })
+        })
+      })
+
+      const result = await service.getById('kb-1')
+
+      expect(result.embeddingModelId).toBeNull()
+    })
+
     it('should throw NotFound when the knowledge base does not exist', async () => {
       mockSelect.mockReturnValue({
         from: vi.fn().mockReturnValue({
@@ -214,7 +229,7 @@ describe('KnowledgeBaseService', () => {
       expect(mockUpdate).not.toHaveBeenCalled()
     })
 
-    it('should update and return the knowledge base', async () => {
+    it('should update and return the knowledge base without clearing embeddingModelId when omitted', async () => {
       const existing = createMockRow()
       const updated = createMockRow({
         name: 'Updated Base',
@@ -288,6 +303,7 @@ describe('KnowledgeBaseService', () => {
       mockUpdate.mockReturnValue({ set })
 
       const result = await service.update('kb-1', {
+        embeddingModelId: existing.embeddingModelId,
         chunkSize: 100,
         searchMode: 'default'
       })
@@ -321,6 +337,7 @@ describe('KnowledgeBaseService', () => {
 
       await expect(
         service.update('kb-1', {
+          embeddingModelId: existing.embeddingModelId,
           searchMode: 'default',
           hybridAlpha: 0.7
         })
@@ -351,6 +368,7 @@ describe('KnowledgeBaseService', () => {
 
       await expect(
         service.update('kb-1', {
+          embeddingModelId: existing.embeddingModelId,
           name: 'Renamed Base'
         })
       ).rejects.toMatchObject({
@@ -380,6 +398,7 @@ describe('KnowledgeBaseService', () => {
 
       await expect(
         service.update('kb-1', {
+          embeddingModelId: existing.embeddingModelId,
           chunkSize: 100,
           chunkOverlap: 120
         })

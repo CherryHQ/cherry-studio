@@ -7,7 +7,12 @@
  * and pre-composed ID passthrough.
  */
 
-import { createUniqueModelId, UNIQUE_MODEL_ID_SEPARATOR, type UniqueModelId } from '@shared/data/types/model'
+import {
+  createUniqueModelId,
+  isUniqueModelId,
+  UNIQUE_MODEL_ID_SEPARATOR,
+  type UniqueModelId
+} from '@shared/data/types/model'
 
 /**
  * Shape of a legacy model object. All fields optional to handle
@@ -31,17 +36,17 @@ export interface LegacyModelRef {
  *
  * @param model - Legacy model object (may be null/undefined/incomplete)
  * @param fallback - Optional raw string fallback (e.g. oldMessage.modelId)
- * @returns UniqueModelId when conversion succeeds, raw fallback string, or null
+ * @returns UniqueModelId when conversion succeeds, otherwise null
  */
 export function legacyModelToUniqueId(model: LegacyModelRef | null | undefined): UniqueModelId | null
 export function legacyModelToUniqueId(
   model: LegacyModelRef | null | undefined,
   fallback: string | null | undefined
-): string | null
+): UniqueModelId | null
 export function legacyModelToUniqueId(
   model: LegacyModelRef | null | undefined,
   fallback?: string | null
-): string | null {
+): UniqueModelId | null {
   if (model != null && typeof model === 'object') {
     const providerId = typeof model.provider === 'string' ? model.provider.trim() : ''
     const modelId = typeof model.id === 'string' ? model.id.trim() : ''
@@ -55,10 +60,50 @@ export function legacyModelToUniqueId(
     }
   }
 
-  // Apply optional fallback (for cases like ChatMappings where a raw modelId exists)
-  if (typeof fallback === 'string' && fallback.length > 0) {
-    return fallback
+  if (typeof fallback === 'string') {
+    const trimmedFallback = fallback.trim()
+    if (trimmedFallback && isUniqueModelId(trimmedFallback)) {
+      return trimmedFallback
+    }
   }
 
   return null
+}
+
+export type ModelReferenceResolution =
+  | { kind: 'resolved'; modelId: UniqueModelId }
+  | { kind: 'missing' }
+  | { kind: 'dangling'; modelId: UniqueModelId }
+
+/**
+ * Validate a candidate UniqueModelId against the migrated user_model set.
+ *
+ * If `validModelIds` is omitted/null, the candidate is treated as resolved.
+ * This keeps the helper pure while allowing light-weight unit tests that do not
+ * wire a database-backed validation set.
+ */
+export function resolveModelReference(
+  modelId: string | null | undefined,
+  validModelIds?: ReadonlySet<string> | null
+): ModelReferenceResolution {
+  if (!modelId) {
+    return { kind: 'missing' }
+  }
+
+  if (validModelIds && !validModelIds.has(modelId)) {
+    return { kind: 'dangling', modelId: modelId as UniqueModelId }
+  }
+
+  return { kind: 'resolved', modelId: modelId as UniqueModelId }
+}
+
+/**
+ * Resolve a legacy model reference all the way to a validated migrated model ID.
+ */
+export function resolveLegacyModelReference(
+  model: LegacyModelRef | null | undefined,
+  fallback?: string | null,
+  validModelIds?: ReadonlySet<string> | null
+): ModelReferenceResolution {
+  return resolveModelReference(legacyModelToUniqueId(model, fallback), validModelIds)
 }
