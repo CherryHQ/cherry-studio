@@ -181,8 +181,9 @@ export class AssistantMigrator extends BaseMigrator {
         const assistantTagNames = new Map<string, string[]>()
         for (const r of this.preparedResults) {
           if (r.tags.length > 0) {
-            assistantTagNames.set(r.assistant.id as string, r.tags)
-            for (const t of r.tags) uniqueTagNames.add(t)
+            const dedupedTags = [...new Set(r.tags)]
+            assistantTagNames.set(r.assistant.id as string, dedupedTags)
+            for (const t of dedupedTags) uniqueTagNames.add(t)
           }
         }
 
@@ -210,7 +211,10 @@ export class AssistantMigrator extends BaseMigrator {
           }
 
           for (let i = 0; i < entityTagRows.length; i += BATCH_SIZE) {
-            await tx.insert(entityTagTable).values(entityTagRows.slice(i, i + BATCH_SIZE))
+            await tx
+              .insert(entityTagTable)
+              .values(entityTagRows.slice(i, i + BATCH_SIZE))
+              .onConflictDoNothing()
           }
 
           logger.info(`Migrated ${uniqueTagNames.size} unique tags and ${entityTagRows.length} tag associations`)

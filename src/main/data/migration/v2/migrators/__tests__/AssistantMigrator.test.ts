@@ -1,3 +1,4 @@
+import { entityTagTable } from '@data/db/schemas/tagging'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ReduxStateReader } from '../../utils/ReduxStateReader'
@@ -267,6 +268,55 @@ describe('AssistantMigrator', () => {
           expect.objectContaining({ entityType: 'assistant', entityId: 'ast-2', tagId: 'tag-3' })
         ])
       )
+    })
+
+    it('should deduplicate duplicate tags on one assistant before inserting entity_tag rows', async () => {
+      const assistantsWithDuplicateTags = [{ id: 'ast-1', name: 'Tagged One', tags: ['work', 'work', 'coding'] }]
+      const ctx = createMockContext({ assistants: { assistants: assistantsWithDuplicateTags, presets: [] } })
+
+      const allInsertedValues: unknown[][] = []
+      const onConflictDoNothingCalls: string[] = []
+      const mockTagRows = [
+        { id: 'tag-1', name: 'work' },
+        { id: 'tag-2', name: 'coding' }
+      ]
+
+      ctx.db.transaction = vi.fn(async (fn: (tx: any) => Promise<void>) => {
+        const tx = {
+          insert: vi.fn().mockImplementation((table) => ({
+            values: vi.fn().mockImplementation((vals: unknown[]) => {
+              allInsertedValues.push(vals)
+              return {
+                onConflictDoNothing: vi.fn().mockImplementation(async () => {
+                  onConflictDoNothingCalls.push(table === entityTagTable ? 'entity_tag' : 'tag')
+                }),
+                then: (r: (v: unknown) => unknown) => Promise.resolve(undefined).then(r)
+              }
+            })
+          })),
+          select: vi.fn().mockReturnValue({
+            from: vi.fn().mockResolvedValue(mockTagRows)
+          })
+        }
+        await fn(tx)
+      }) as any
+
+      await migrator.prepare(ctx as any)
+      const result = await migrator.execute(ctx as any)
+
+      expect(result.success).toBe(true)
+
+      const entityTagInserts = allInsertedValues
+        .flat()
+        .filter((v: any) => v && typeof v === 'object' && 'entityType' in v)
+      expect(entityTagInserts).toHaveLength(2)
+      expect(entityTagInserts).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ entityType: 'assistant', entityId: 'ast-1', tagId: 'tag-1' }),
+          expect.objectContaining({ entityType: 'assistant', entityId: 'ast-1', tagId: 'tag-2' })
+        ])
+      )
+      expect(onConflictDoNothingCalls).toEqual(expect.arrayContaining(['tag', 'entity_tag']))
     })
 
     it('should drop dangling mcpServer refs not present in mapping', async () => {
