@@ -1,4 +1,12 @@
 import { getThinkingBudget } from '@renderer/aiCore/utils/reasoning'
+import ClaudeCodeIcon from '@renderer/assets/images/code-cli/claude-code.svg'
+import GeminiCliIcon from '@renderer/assets/images/code-cli/gemini-cli.svg'
+import GithubCopilotCliIcon from '@renderer/assets/images/code-cli/github-copilot-cli.svg'
+import IflowCliIcon from '@renderer/assets/images/code-cli/iflow-cli.svg'
+import KimiCliIcon from '@renderer/assets/images/code-cli/kimi-cli.svg'
+import OpenCodeIcon from '@renderer/assets/images/code-cli/open-code.svg'
+import OpenaiCodexIcon from '@renderer/assets/images/code-cli/openai-codex.svg'
+import QwenCodeIcon from '@renderer/assets/images/code-cli/qwen-code.svg'
 import {
   isReasoningModel,
   isSupportedReasoningEffortModel,
@@ -27,16 +35,15 @@ export interface ToolEnvironmentConfig {
   }
 }
 
-// CLI 工具选项
 export const CLI_TOOLS = [
-  { value: codeCLI.claudeCode, label: 'Claude Code' },
-  { value: codeCLI.qwenCode, label: 'Qwen Code' },
-  { value: codeCLI.geminiCli, label: 'Gemini CLI' },
-  { value: codeCLI.openaiCodex, label: 'OpenAI Codex' },
-  { value: codeCLI.iFlowCli, label: 'iFlow CLI' },
-  { value: codeCLI.githubCopilotCli, label: 'GitHub Copilot CLI' },
-  { value: codeCLI.kimiCli, label: 'Kimi CLI' },
-  { value: codeCLI.openCode, label: 'OpenCode' }
+  { value: codeCLI.claudeCode, label: 'Claude Code', icon: ClaudeCodeIcon },
+  { value: codeCLI.qwenCode, label: 'Qwen Code', icon: QwenCodeIcon },
+  { value: codeCLI.geminiCli, label: 'Gemini CLI', icon: GeminiCliIcon },
+  { value: codeCLI.openaiCodex, label: 'OpenAI Codex', icon: OpenaiCodexIcon },
+  { value: codeCLI.iFlowCli, label: 'iFlow CLI', icon: IflowCliIcon },
+  { value: codeCLI.githubCopilotCli, label: 'GitHub Copilot CLI', icon: GithubCopilotCliIcon },
+  { value: codeCLI.kimiCli, label: 'Kimi CLI', icon: KimiCliIcon },
+  { value: codeCLI.openCode, label: 'OpenCode', icon: OpenCodeIcon }
 ]
 
 export const GEMINI_SUPPORTED_PROVIDERS = ['aihubmix', 'dmxapi', 'new-api', 'cherryin']
