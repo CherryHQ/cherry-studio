@@ -17,6 +17,7 @@
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
+import { userModelTable } from '@data/db/schemas/userModel'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import { sql } from 'drizzle-orm'
@@ -24,6 +25,7 @@ import { sql } from 'drizzle-orm'
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
 import { type AssistantTransformResult, type OldAssistant, transformAssistant } from './mappings/AssistantMappings'
+import { resolveModelReference } from './transformers/ModelTransformers'
 
 const logger = loggerService.withContext('AssistantMigrator')
 
@@ -134,11 +136,29 @@ export class AssistantMigrator extends BaseMigrator {
       let processed = 0
 
       const BATCH_SIZE = 100
+      const assistantRows = this.preparedResults.map((r) => r.assistant)
+      const existingModelIds = new Set(
+        (await ctx.db.select({ id: userModelTable.id }).from(userModelTable)).map((row) => row.id)
+      )
+      let droppedAssistantModelRefs = 0
+      const sanitizedAssistantRows = assistantRows.map((row) => {
+        const resolution = resolveModelReference(row.modelId ?? null, existingModelIds)
+        if (resolution.kind === 'resolved') {
+          return { ...row, modelId: resolution.modelId }
+        }
+
+        if (resolution.kind === 'dangling') {
+          droppedAssistantModelRefs++
+          logger.warn(`Dropping dangling assistant model ref: assistant=${row.id}, model=${resolution.modelId}`)
+        }
+
+        return { ...row, modelId: null }
+      })
+
       await ctx.db.transaction(async (tx) => {
         // Insert assistant rows
-        const assistantRows = this.preparedResults.map((r) => r.assistant)
-        for (let i = 0; i < assistantRows.length; i += BATCH_SIZE) {
-          const batch = assistantRows.slice(i, i + BATCH_SIZE)
+        for (let i = 0; i < sanitizedAssistantRows.length; i += BATCH_SIZE) {
+          const batch = sanitizedAssistantRows.slice(i, i + BATCH_SIZE)
           await tx.insert(assistantTable).values(batch)
           processed += batch.length
         }
@@ -169,6 +189,9 @@ export class AssistantMigrator extends BaseMigrator {
         }
         if (allMcpServerRows.length !== mcpServerRows.length) {
           logger.info(`Filtered ${allMcpServerRows.length - mcpServerRows.length} dangling mcp_server references`)
+        }
+        if (droppedAssistantModelRefs > 0) {
+          logger.info(`Filtered ${droppedAssistantModelRefs} dangling assistant model references`)
         }
 
         const knowledgeBaseRows = this.preparedResults.flatMap((r) => r.knowledgeBases)

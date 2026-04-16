@@ -1,4 +1,6 @@
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import {
   KnowledgeBaseService,
   normalizeKnowledgeBaseConfigDependencies,
@@ -6,6 +8,7 @@ import {
 } from '@data/services/KnowledgeBaseService'
 import { ErrorCode } from '@shared/data/api'
 import type { CreateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
+import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -14,9 +17,60 @@ describe('KnowledgeBaseService', () => {
   const dbh = setupTestDatabase()
   let service: KnowledgeBaseService
 
-  beforeEach(() => {
+  beforeEach(async () => {
     service = new KnowledgeBaseService()
+    await seedUserProvidersAndModelsForKb()
   })
+
+  /** FK targets for embedding_model_id / rerank_model_id → user_model.id */
+  async function seedUserProvidersAndModelsForKb() {
+    await dbh.db.insert(userProviderTable).values([
+      { providerId: 'openai', name: 'OpenAI' },
+      { providerId: 'cohere', name: 'Cohere' }
+    ])
+    await dbh.db.insert(userModelTable).values([
+      {
+        id: createUniqueModelId('openai', 'text-embedding-3-large'),
+        providerId: 'openai',
+        modelId: 'text-embedding-3-large',
+        presetModelId: 'text-embedding-3-large',
+        name: 'text-embedding-3-large',
+        isEnabled: true,
+        isHidden: false,
+        sortOrder: 0
+      },
+      {
+        id: createUniqueModelId('cohere', 'rerank-v1'),
+        providerId: 'cohere',
+        modelId: 'rerank-v1',
+        presetModelId: 'rerank-v1',
+        name: 'rerank-v1',
+        isEnabled: true,
+        isHidden: false,
+        sortOrder: 0
+      },
+      {
+        id: createUniqueModelId('openai', 'embed-model'),
+        providerId: 'openai',
+        modelId: 'embed-model',
+        presetModelId: 'embed-model',
+        name: 'embed-model',
+        isEnabled: true,
+        isHidden: false,
+        sortOrder: 0
+      },
+      {
+        id: createUniqueModelId('cohere', 'rerank-model'),
+        providerId: 'cohere',
+        modelId: 'rerank-model',
+        presetModelId: 'rerank-model',
+        name: 'rerank-model',
+        isEnabled: true,
+        isHidden: false,
+        sortOrder: 0
+      }
+    ])
+  }
 
   async function seedKnowledgeBase(overrides: Partial<typeof knowledgeBaseTable.$inferInsert> = {}) {
     const values: typeof knowledgeBaseTable.$inferInsert = {
@@ -24,8 +78,8 @@ describe('KnowledgeBaseService', () => {
       name: 'Knowledge Base',
       description: 'Knowledge base description',
       dimensions: 1536,
-      embeddingModelId: 'text-embedding-3-large',
-      rerankModelId: 'rerank-v1',
+      embeddingModelId: createUniqueModelId('openai', 'text-embedding-3-large'),
+      rerankModelId: createUniqueModelId('cohere', 'rerank-v1'),
       fileProcessorId: 'processor-1',
       chunkSize: 800,
       chunkOverlap: 120,
@@ -79,8 +133,8 @@ describe('KnowledgeBaseService', () => {
         name: '  New Base  ',
         description: 'desc',
         dimensions: 1024,
-        embeddingModelId: '  embed-model  ',
-        rerankModelId: 'rerank-model',
+        embeddingModelId: `  ${createUniqueModelId('openai', 'embed-model')}  `,
+        rerankModelId: createUniqueModelId('cohere', 'rerank-model'),
         fileProcessorId: 'processor-1',
         chunkSize: 512,
         chunkOverlap: 64,
@@ -93,18 +147,18 @@ describe('KnowledgeBaseService', () => {
       const result = await service.create(dto)
 
       expect(result.name).toBe('New Base')
-      expect(result.embeddingModelId).toBe('embed-model')
+      expect(result.embeddingModelId).toBe(createUniqueModelId('openai', 'embed-model'))
 
       const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, result.id))
       expect(row.name).toBe('New Base')
-      expect(row.embeddingModelId).toBe('embed-model')
+      expect(row.embeddingModelId).toBe(createUniqueModelId('openai', 'embed-model'))
     })
 
     it('should reject invalid runtime config before insert', async () => {
       const dto: CreateKnowledgeBaseDto = {
         name: 'Invalid Base',
         dimensions: 1024,
-        embeddingModelId: 'embed-model',
+        embeddingModelId: createUniqueModelId('openai', 'embed-model'),
         chunkSize: 256,
         chunkOverlap: 256
       }

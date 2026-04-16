@@ -50,7 +50,56 @@ export interface PoolConfig {
  * Combines Electron's native configuration with custom overrides.
  * `show` is omitted — use `WindowTypeMetadataBase.show` instead.
  */
-export type WindowOptions = Omit<BrowserWindowConstructorOptions, 'show'>
+export interface WindowOptions extends Omit<BrowserWindowConstructorOptions, 'show'> {
+  /**
+   * Per-platform overrides deeply merged into the base options for the matching platform.
+   * Only the branch matching the current runtime (mac/win/linux) is applied; unmatched
+   * branches are ignored. The `platformOverrides` field itself is stripped before the
+   * result is passed to `new BrowserWindow(...)` so it never leaks into Electron.
+   */
+  platformOverrides?: {
+    mac?: Partial<Omit<WindowOptions, 'platformOverrides'>>
+    win?: Partial<Omit<WindowOptions, 'platformOverrides'>>
+    linux?: Partial<Omit<WindowOptions, 'platformOverrides'>>
+  }
+}
+
+/**
+ * Platform quirks — opt-in OS-specific workarounds that WindowManager applies
+ * automatically at the right lifecycle moments by monkey-patching the BrowserWindow
+ * instance methods (`hide`/`close`/`show`/`showInactive`).
+ *
+ * Each quirk is empirically derived from hard-won experience in SelectionService;
+ * enabling it in a window's metadata is a declarative replacement for hand-rolling
+ * the same dance at every call site.
+ */
+export interface WindowQuirks {
+  /**
+   * [macOS] a HACKY way
+   * make sure other windows do not bring to front when the window is hidden or closed.
+   *
+   * Before invoking the native `hide()`/`close()`, iterates every visible focusable
+   * window and calls `setFocusable(false)` on it, then restores them 50ms later.
+   */
+  macRestoreFocusOnHide?: boolean
+
+  /**
+   * [macOS] hacky way
+   * Because the window may not be a FOCUSED window, the hover status will remain
+   * when next time show. After invoking the native `hide()`, send a synthetic
+   * mouseMove event at (-1, -1) to the window so the hover status disappears.
+   */
+  macClearHoverOnHide?: boolean
+
+  /**
+   * [macOS] set the window to always on top (highest level)
+   * should set every time the window is shown.
+   *
+   * After invoking `show()` or `showInactive()`, re-apply `setAlwaysOnTop(true, level)`
+   * so that the level configured here takes effect on the freshly-shown window.
+   */
+  macReapplyAlwaysOnTop?: 'screen-saver' | 'floating' | true
+}
 
 /** Common fields shared by all window type metadata variants */
 interface WindowTypeMetadataBase {
@@ -84,6 +133,11 @@ interface WindowTypeMetadataBase {
    * @default 'standard'
    */
   preload?: 'standard' | 'simplest' | 'none'
+  /**
+   * Opt-in OS-specific quirks applied by WindowManager via method-slot monkey-patches.
+   * See `WindowQuirks` for each flag's semantics.
+   */
+  quirks?: WindowQuirks
 }
 
 /**
@@ -127,6 +181,32 @@ export interface WindowInfo {
   isFocused: boolean
   /** Creation timestamp */
   createdAt: number
+}
+
+/**
+ * Arguments for `WindowManager.open()` / `create()`.
+ *
+ * Both fields are optional — callers can pass any combination:
+ *   wm.open(type)
+ *   wm.open(type, { initData })
+ *   wm.open(type, { options })
+ *   wm.open(type, { initData, options })
+ *
+ * When `initData` is provided, the value is:
+ *   - synchronously written into `initDataStore` before `open()` returns
+ *     (so renderer `getInitData` invokes always see the fresh value);
+ *   - for reuse paths (pool recycle / singleton reopen), also pushed to the
+ *     renderer via `IpcChannel.WindowManager_Reused` as the event payload.
+ *
+ * Never pushed for fresh-window paths (pooled new / default / singleton first /
+ * `create()` — all create paths), because the renderer is not yet ready to
+ * receive IPC during those moments.
+ */
+export interface OpenWindowArgs<T = unknown> {
+  /** Optional payload stored for the window; retrievable by the renderer via `getInitData`. */
+  initData?: T
+  /** Optional BrowserWindow configuration overrides. */
+  options?: Partial<WindowOptions>
 }
 
 /** Runtime state for a single pool type */

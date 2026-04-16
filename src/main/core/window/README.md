@@ -53,9 +53,9 @@ WindowManager
 | Feature | Description |
 |---------|-------------|
 | Lifecycle modes | `default`, `singleton`, `pooled` — covers all window patterns |
-| `onWindowCreated` / `onWindowDestroyed` events | `Emitter<ManagedWindow>` — domain services inject behavior via hooks |
+| Window lifecycle hooks (`onWindowCreated` / `onWindowDestroyed`) | Domain services inject behavior at creation and clean up on destruction via typed `Emitter<ManagedWindow>` events |
 | `broadcast()` / `broadcastToType()` | IPC fan-out to all or type-filtered windows |
-| `setInitData()` / `getInitData()` | One-shot renderer init payload (consumed once) |
+| `open({ initData })` / `create({ initData })` / `setInitData()` / `getInitData()` | Init payload passed atomically on open/create; automatically pushed to renderer via `WindowManager_Reused` on reuse paths |
 | `suspendPool()` / `resumePool()` | Pause pool tracking without destroying in-use windows |
 | macOS Dock visibility management | Automatic based on visible windows and `showInDock` metadata |
 | `setTitleBarOverlay()` | Batch update overlay on all applicable windows |
@@ -169,7 +169,7 @@ const id2 = wm.open(WindowType.Main) // shows + focuses, id2 === id1
 
 ### `pooled` — Elastic Pool with Recycle/Release
 
-Windows are reused rather than destroyed. `close()` hides the window and returns it to the idle queue. `open()` recycles an idle window (sending `WINDOW_POOL_RESET` IPC) or creates fresh if the pool is empty.
+Windows are reused rather than destroyed. `close()` hides the window and returns it to the idle queue. `open()` recycles an idle window (sending `WindowManager_Reused` IPC with the new init data as payload, when provided) or creates fresh if the pool is empty.
 
 **Use for**: frequently opened/closed windows where creation cost is high (e.g., screenshot overlay, selection actions).
 
@@ -252,18 +252,54 @@ The timer is demand-driven: started on first `releaseToPool()`, stopped when no 
 
 Persistence is the caller's responsibility. On restart, the owning service should call `suspendPool()` in its `onInit()` if the pool should remain suspended — this is guaranteed to run before `onAllReady()` (where eager warmup fires).
 
-### WINDOW_POOL_RESET IPC
+### `WindowManager_Reused` IPC
 
-When a pooled window is recycled, the renderer receives `IpcChannel.WindowManager_PoolReset`. The renderer **must** reset all component state and re-fetch initialization data:
+When a **re-used** window (pool recycle or singleton reopen) is handed back to a caller and the caller supplied `initData`, the renderer receives `IpcChannel.WindowManager_Reused` with that init data as the event payload:
 
 ```typescript
-useEffect(() => {
-  return window.ipc.on(IpcChannels.WINDOW_POOL_RESET, () => {
-    setState(initialState)
-    window.ipc.invoke(IpcChannels.WINDOW_GET_INIT_DATA).then(setData)
-  })
-}, [])
+window.electron?.ipcRenderer.on(IpcChannel.WindowManager_Reused, (_event, payload) => {
+  // payload is exactly the object passed as `open({ initData })`
+})
 ```
+
+Rules:
+
+- Fired only when the window is being **re-used** AND the caller provided `initData`. Fresh windows never receive this event (the renderer is not yet ready to listen — use cold-start `getInitData` instead).
+- No "empty" Reused events. No `initData` → no event.
+- The same payload is simultaneously written into the init-data store, so `getInitData(windowId)` reflects the new value synchronously once `open()` returns.
+
+**Recommended usage** in the renderer: don't handle these two paths by hand — use the `useWindowInitData` hook (below), which encapsulates both cold-start invoke and re-use payload delivery into a single React hook.
+
+### Renderer: `useWindowInitData` hook
+
+`src/renderer/src/core/hooks/useWindowInitData.ts` provides the canonical way for any managed window to consume its init data across both creation paths:
+
+```typescript
+import { useWindowInitData } from '@renderer/core/hooks/useWindowInitData'
+
+const MyWindowApp: FC = () => {
+  const data = useWindowInitData<MyInitData>()
+  if (!data) return null
+  return <ControlledContent data={data} />
+}
+```
+
+- On mount: pulls via `WindowManager_GetInitData` invoke (cold-start path).
+- On re-use: receives the `WindowManager_Reused` payload (PUSH path, zero round-trip).
+- Per-session state resets should live inside the child component in `useEffect([data.someStableId], …)`, so the DOM stays continuous across recycles — never use `key={resetKey}` to forcibly remount; that reintroduces the flash this contract was designed to eliminate.
+
+Pooled windows that are **visually sensitive** to showing stale content or empty chrome (e.g. transparent hiddenInset frames on macOS where empty content reveals the native traffic-light buttons) can wrap their own `.show()` call in a short "reveal" sequence that briefly `setOpacity(0) + showInactive()` lets Chromium resume compositor paint, then `setOpacity(1)` after a settle window. See `SelectionService.processAction` for a reference implementation. This concern is domain-specific and not part of the generic `WindowManager` contract.
+
+### Comparison with dearo's original WindowManager
+
+This WindowManager was derived from the reference implementation in `~/dearo/dearo`. The init-data path here differs in three ways, all for the same reason: we ship smaller transparent-frame windows on macOS where an empty-DOM frame between `.show()` and first paint is immediately visible as a traffic-light flash.
+
+| Aspect | dearo | this fork |
+| --- | --- | --- |
+| `open()` accepts `initData` | no — two-step `open` + `setInitData` | yes — `open(type, { initData, options })`, atomic |
+| Recycle notification | `WINDOW_POOL_RESET`, signal-only `() => void` | `WindowManager_Reused`, payload = the initData |
+| Event coverage | pool recycle only | pool recycle + singleton reopen |
+| Renderer delivery | manual `on(reset) + invoke(getInitData)` per window | `useWindowInitData` hook, zero IPC round-trip |
 
 ## Domain Service Integration
 
@@ -401,8 +437,18 @@ The `createWindow()` method follows a strict 5-step execution order:
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
-| `setInitData` | `(windowId: string, data: unknown) => void` | Store one-shot initialization data for a window. |
+| `open<T>` | `(type: WindowType, args?: { initData?: T, options?: Partial<WindowOptions> }) => string` | When `args.initData` is supplied, written atomically to the store before the method returns; also pushed to the renderer as the `WindowManager_Reused` payload on reuse paths. |
+| `create<T>` | `(type: WindowType, args?: { initData?: T, options?: Partial<WindowOptions> }) => string` | Same atomicity as `open`, but never fires `Reused` (all create paths are fresh creation). |
+| `setInitData` | `(windowId: string, data: unknown) => void` | Low-level primitive. Prefer the `open/create` args form in new code. |
 | `getInitData` | `(windowId: string) => unknown \| null` | Retrieve initialization data. Cleared on pool release. |
+
+**Timing contract:**
+
+- **Cold start** (fresh creation): `createWindow` writes `initData` to the store synchronously before returning, so any `getInitData` invoke from the renderer (after React mounts) sees the fresh value. The renderer should use the `useWindowInitData` hook described above — it handles the invoke on mount automatically.
+- **Reuse** (pool recycle / singleton reopen): `open()` simultaneously writes to the store AND fires `WindowManager_Reused` with the same payload. The `useWindowInitData` hook updates its state directly from the event payload — no round-trip.
+- **No initData** on a reuse call: the event is NOT fired. No "empty Reused" events — the hook therefore never needs a fallback invoke.
+
+`webContents.send` is fire-and-forget and does not buffer messages sent before the renderer registers listeners. This is exactly why fresh windows can't use PUSH — they still must PULL via `getInitData` on mount.
 
 ### Pool Management
 
@@ -419,10 +465,103 @@ The `createWindow()` method follows a strict 5-step execution order:
 
 ### Events
 
+The four-event lifecycle forms a complete loop for pooled windows:
+
+```
+Created ──▶ [Released ──▶ Recycled ──▶ Released ──▶ ...] ──▶ Destroyed
+```
+
+For non-pooled windows, only `Created` and `Destroyed` fire.
+
 | Event | Type | Description |
 |-------|------|-------------|
-| `onWindowCreated` | `Event<ManagedWindow>` | Fires when a new window is created (before content loads). |
+| `onWindowCreated` | `Event<ManagedWindow>` | Fires when a new window is created (before content loads). Fresh-path only for pooled windows. |
 | `onWindowDestroyed` | `Event<ManagedWindow>` | Fires when a window is truly destroyed (not on pool release). |
+
+Pool lifecycle (hide → idle, idle → recycle) has no dedicated events — side effects on `hide`/`close`/`show` should be expressed as declarative [Platform Quirks](#platform-quirks), and per-session data on recycle is delivered via the `WindowManager_Reused` IPC payload (see [Init Data](#init-data)).
+
+**Usage notes for pooled windows:**
+
+- **Do NOT set `paintWhenInitiallyHidden: false`** on pooled windows — it suppresses the native `ready-to-show` event, breaking the pool's fresh-window auto-show path (`showBehavior === 'auto'` listens for `ready-to-show`). It is NOT an acceptable workaround for "show only when content ready" — use `show: false` + consumer-driven show for that, or rely on the reuse-path `Reused` payload to ensure the renderer has data before `.show()` is called.
+- **macOS focus / hover / always-on-top workarounds** are declarative — see [Platform Quirks](#platform-quirks) below.
+
+## Platform Quirks
+
+Some OS-specific behaviors are tedious to hand-roll at every call site (e.g. the macOS focus dance around `hide()`). WindowManager ships these as **declarative opt-in flags** under `WindowTypeMetadata.quirks`. When set, the manager transparently monkey-patches the corresponding `BrowserWindow` instance methods so business code continues calling `window.hide()` / `window.show()` as usual.
+
+### Available Quirks
+
+| Quirk | Patches | Behavior |
+|---|---|---|
+| `macRestoreFocusOnHide: boolean` | `hide()`, `close()` | Before invoking the native method, iterate every visible focusable `BrowserWindow` and `setFocusable(false)`; restore them 50ms later. Prevents other windows from being brought to the front when this one disappears. |
+| `macClearHoverOnHide: boolean` | `hide()` | After invoking the native `hide()`, send `webContents.sendInputEvent({ type: 'mouseMove', x: -1, y: -1 })` to clear any residual hover state. |
+| `macReapplyAlwaysOnTop: 'screen-saver' \| 'floating' \| true` | `show()`, `showInactive()` | After invoking the native method, call `setAlwaysOnTop(true, level)` (defaulting to `'floating'` when `true`). Compensates for macOS level resets between hide/show. |
+
+All quirks are macOS-only: on other platforms the methods are left untouched, and `window.hide === originalHide` (identity preserved).
+
+### Example
+
+```typescript
+[WindowType.SelectionToolbar]: {
+  type: WindowType.SelectionToolbar,
+  lifecycle: 'singleton',
+  show: false,
+  quirks: {
+    macRestoreFocusOnHide: true,
+    macClearHoverOnHide: true,
+    macReapplyAlwaysOnTop: 'screen-saver',
+  },
+  defaultConfig: { /* ... */ }
+}
+```
+
+With that in place, `this.toolbarWindow.hide()` from the domain service will:
+1. Snapshot every visible focusable window and call `setFocusable(false)` on them.
+2. Invoke the native `hide()`.
+3. Send the synthetic `mouseMove(-1, -1)` to clear hover.
+4. Schedule `setFocusable(true)` restoration for the snapshot after 50ms.
+
+The domain service carries none of this code.
+
+### Implementation Notes
+
+- `w.hide.bind(w)` captures the native method with `this` correctly bound, so Electron's C++ bindings continue to see the real `BrowserWindow`.
+- EventEmitter behavior (`.on('hide', ...)`, `.once('close', ...)`) is untouched — the quirks patch only the method slots, not the emitter wiring.
+- Quirks run *after* `onWindowCreated` fires, so domain-service listeners attach before quirk wrappers are in place. Wrappers then compose on top of any pre-existing listeners.
+- Quirks are applied per-window at creation time; there is no runtime toggle.
+
+## Platform Overrides
+
+Static `BrowserWindowConstructorOptions` that differ per OS go in `defaultConfig.platformOverrides`. Only the branch matching the current runtime is deep-merged into the final config; unmatched branches are discarded, and the `platformOverrides` field itself is stripped before reaching `new BrowserWindow(...)`.
+
+```typescript
+defaultConfig: {
+  width: 350, height: 43,
+  frame: false, transparent: true,
+  platformOverrides: {
+    mac: { type: 'panel', hiddenInMissionControl: true, acceptFirstMouse: true },
+    win: { type: 'toolbar', focusable: false },
+    linux: { type: 'toolbar' } // focusable is set at runtime by the domain service
+  },
+  webPreferences: { /* ... */ }
+}
+```
+
+Precedence (later wins) when merging inside `mergeWindowConfig`:
+
+1. `baseConfig` (registry `defaultConfig`)
+2. `baseConfig.platformOverrides[currentPlatform]`
+3. Caller-provided `overrides` (via `wm.open(type, overrides)`)
+4. Caller-provided `overrides.platformOverrides[currentPlatform]`
+
+`webPreferences` is deep-merged in the same order.
+
+### When to Use `platformOverrides` vs `quirks`
+
+- **`platformOverrides`** — *static* options you'd otherwise write as `...(isMac ? {...} : {...})` inside `defaultConfig`. No runtime behavior.
+- **`quirks`** — *runtime* method-call hooks (hide/show pre/post). No static options.
+
+The two are composable: a window can declare both. Selection's toolbar does — `platformOverrides` configures `type: 'panel'` on macOS, while `quirks` wires up the three macOS hide/show hooks.
 
 ## Migration Guide
 
@@ -537,6 +676,6 @@ If your window needs custom show timing, set `show: false` in the registry and m
 - [ ] Moved domain logic from constructor to `onWindowCreated` hook
 - [ ] Replaced direct `BrowserWindow` references with WindowManager API calls
 - [ ] Removed manual `ready-to-show` handling (if using `show: 'auto'`)
-- [ ] If pooled: added `WINDOW_POOL_RESET` handler in the renderer
+- [ ] If the window consumes init data: replaced hand-rolled `getInitData` + reset IPC wiring with the `useWindowInitData` hook
 - [ ] If pooled: configured `PoolConfig` with appropriate min/max/warmup/decay values
 - [ ] Verified `onWindowDestroyed` cleanup in the domain service

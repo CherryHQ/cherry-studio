@@ -204,13 +204,22 @@ describe('transformMessage', () => {
     expect(result.modelId).toBe('openai::gpt-4')
   })
 
-  it('falls back to raw modelId when model object is missing', () => {
+  it('keeps fallback modelId only when it is already a UniqueModelId', () => {
+    const oldMsg: OldMessage = { ...msg('m1', 'assistant'), modelId: 'openai::raw-model-id' }
+    const blocks: OldBlock[] = [mainTextBlock('b1', 'm1', 'hello')]
+
+    const result = transformMessage(oldMsg, null, 0, blocks, 'topic-1')
+
+    expect(result.modelId).toBe('openai::raw-model-id')
+  })
+
+  it('drops fallback modelId when model object is missing and fallback is not a UniqueModelId', () => {
     const oldMsg: OldMessage = { ...msg('m1', 'assistant'), modelId: 'raw-model-id' }
     const blocks: OldBlock[] = [mainTextBlock('b1', 'm1', 'hello')]
 
     const result = transformMessage(oldMsg, null, 0, blocks, 'topic-1')
 
-    expect(result.modelId).toBe('raw-model-id')
+    expect(result.modelId).toBeNull()
   })
 
   it('returns null modelId when both model and modelId are missing', () => {
