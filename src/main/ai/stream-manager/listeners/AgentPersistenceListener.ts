@@ -13,7 +13,7 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import type { SerializedError } from '@shared/types/error'
 import type { UIMessage } from 'ai'
 
-import type { StreamDoneResult, StreamListener } from '../types'
+import type { StreamDoneResult, StreamListener, StreamPausedResult } from '../types'
 
 const logger = loggerService.withContext('AgentPersistenceListener')
 
@@ -34,16 +34,16 @@ export class AgentPersistenceListener implements StreamListener {
   }
 
   onChunk(): void {
-    // Persistence only writes on onDone.
+    // Persistence only writes on terminal events.
   }
 
   async onDone(result: StreamDoneResult): Promise<void> {
-    const { finalMessage, status } = result
+    const { finalMessage } = result
 
     if (!finalMessage) {
       logger.warn('onDone without finalMessage, skipping agent persistence', {
         sessionId: this.ctx.sessionId,
-        status
+        status: 'success'
       })
       return
     }
@@ -53,34 +53,42 @@ export class AgentPersistenceListener implements StreamListener {
       // Note: for agent sessions, the user message was already sent as part of the request.
       // We persist the assistant response here.
       await this.persistAssistantMessage(finalMessage)
-      logger.info('Agent assistant message persisted', { sessionId: this.ctx.sessionId, status })
+      logger.info('Agent assistant message persisted', { sessionId: this.ctx.sessionId, status: 'success' })
     } catch (err) {
       logger.error('Failed to persist agent message', { sessionId: this.ctx.sessionId, err })
     }
   }
 
+  async onPaused(result: StreamPausedResult): Promise<void> {
+    const { finalMessage } = result
+
+    if (!finalMessage) {
+      logger.warn('onPaused without finalMessage, skipping agent persistence', {
+        sessionId: this.ctx.sessionId
+      })
+      return
+    }
+
+    try {
+      await this.persistAssistantMessage(finalMessage, 'paused')
+      logger.info('Agent paused message persisted', { sessionId: this.ctx.sessionId })
+    } catch (err) {
+      logger.error('Failed to persist paused agent message', { sessionId: this.ctx.sessionId, err })
+    }
+  }
+
   async onError(error: SerializedError, partialMessage?: UIMessage): Promise<void> {
     try {
-      const now = new Date().toISOString()
       const partialParts = (partialMessage?.parts ?? []) as CherryMessagePart[]
       const errorPart = { type: 'data-error' as const, data: { ...error } }
 
-      await agentMessageRepository.persistAssistantMessage({
-        sessionId: this.ctx.sessionId,
-        agentSessionId: this.ctx.agentSessionId ?? '',
-        payload: {
-          message: {
-            id: partialMessage?.id || crypto.randomUUID(),
-            role: 'assistant',
-            assistantId: this.ctx.agentId,
-            topicId: `agent-session:${this.ctx.sessionId}`,
-            createdAt: now,
-            status: 'error',
-            data: { parts: [...partialParts, errorPart] }
-          },
-          blocks: []
-        }
-      })
+      const finalMessage = {
+        id: partialMessage?.id ?? crypto.randomUUID(),
+        role: 'assistant' as const,
+        parts: [...partialParts, errorPart] as UIMessage['parts']
+      } as UIMessage
+
+      await this.persistAssistantMessage(finalMessage, 'error')
       logger.info('Agent error message persisted', { sessionId: this.ctx.sessionId, hasPartial: !!partialMessage })
     } catch (err) {
       logger.error('Failed to persist agent error message', { sessionId: this.ctx.sessionId, err })
@@ -91,7 +99,10 @@ export class AgentPersistenceListener implements StreamListener {
     return true
   }
 
-  private async persistAssistantMessage(finalMessage: UIMessage): Promise<void> {
+  private async persistAssistantMessage(
+    finalMessage: UIMessage,
+    status: 'success' | 'paused' | 'error' = 'success'
+  ): Promise<void> {
     const now = new Date().toISOString()
 
     await agentMessageRepository.persistAssistantMessage({
@@ -104,7 +115,7 @@ export class AgentPersistenceListener implements StreamListener {
           assistantId: this.ctx.agentId,
           topicId: `agent-session:${this.ctx.sessionId}`,
           createdAt: now,
-          status: 'success',
+          status,
           data: { parts: finalMessage.parts as CherryMessagePart[] }
         },
         blocks: []

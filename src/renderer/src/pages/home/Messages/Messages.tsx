@@ -4,12 +4,12 @@ import { loggerService } from '@logger'
 import ContextMenu from '@renderer/components/ContextMenu'
 import { LoadingIcon } from '@renderer/components/Icons'
 import { LOAD_MORE_COUNT } from '@renderer/config/constant'
-import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { useTopicMutations } from '@renderer/hooks/useTopicDataApi'
 import SelectionBox from '@renderer/pages/home/Messages/SelectionBox'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getContextCount, getGroupedMessages } from '@renderer/services/MessagesService'
@@ -63,7 +63,7 @@ const Messages: React.FC<MessagesProps> = ({
   const [displayMessages, setDisplayMessages] = useState<Message[]>([])
   const [hasMore, setHasMore] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
-  const { addTopic } = useAssistant(assistant.id)
+  const { createTopic } = useTopicMutations()
   const [showPrompt] = usePreference('chat.message.show_prompt')
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const { t } = useTranslation()
@@ -160,15 +160,12 @@ const Messages: React.FC<MessagesProps> = ({
         const sourceMessage = currentMessages[index]
 
         try {
-          const created = await dataApiService.post('/topics', {
-            body: {
-              name: topic.name,
-              assistantId: assistant.id,
-              sourceNodeId: sourceMessage.id
-            }
+          const created = await createTopic({
+            name: topic.name,
+            assistantId: assistant.id,
+            sourceNodeId: sourceMessage.id
           })
           const newTopic = { ...created, messages: [] } as Topic
-          addTopic(newTopic)
           setActiveTopic(newTopic)
         } catch (err) {
           logger.error('[NEW_BRANCH] Failed to create topic branch via DataApi', { topicId: topic.id, err })

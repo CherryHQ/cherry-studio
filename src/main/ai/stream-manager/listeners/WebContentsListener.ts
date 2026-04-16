@@ -8,7 +8,8 @@ import type {
   StreamDonePayload,
   StreamDoneResult,
   StreamErrorPayload,
-  StreamListener
+  StreamListener,
+  StreamPausedResult
 } from '../types'
 
 /**
@@ -40,6 +41,16 @@ export class WebContentsListener implements StreamListener {
   }
 
   onDone(result: StreamDoneResult): void {
+    if (this.wc.isDestroyed()) return
+    this.wc.send(IpcChannel.Ai_StreamDone, {
+      topicId: this.topicId,
+      executionId: result.modelId,
+      status: result.status,
+      isTopicDone: result.isTopicDone
+    } satisfies StreamDonePayload)
+  }
+
+  onPaused(result: StreamPausedResult): void {
     if (this.wc.isDestroyed()) return
     this.wc.send(IpcChannel.Ai_StreamDone, {
       topicId: this.topicId,

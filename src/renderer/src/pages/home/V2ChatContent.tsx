@@ -5,6 +5,7 @@ import { isDev } from '@renderer/config/constant'
 import { ChatContextProvider, useChatContextProvider } from '@renderer/hooks/useChatContext'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import { type V2ChatOverrides, V2ChatOverridesProvider } from '@renderer/hooks/useMessageOperations'
+import { ensureTopicExists } from '@renderer/hooks/useTopicDataApi'
 import { useTopicMessagesV2 } from '@renderer/hooks/useTopicMessagesV2'
 import { fetchMcpTools } from '@renderer/services/ApiService'
 import type { Assistant, FileMetadata, Topic } from '@renderer/types'
@@ -16,7 +17,6 @@ import type { UniqueModelId } from '@shared/data/types/model'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { ensureChatTopicPersisted } from './chatPersistence'
 import Inputbar from './Inputbar/Inputbar'
 import { PartsProvider, RefreshProvider } from './Messages/Blocks'
 import ExecutionStreamCollector from './Messages/ExecutionStreamCollector'
@@ -179,9 +179,11 @@ const V2ChatContentInner: FC<InnerProps> = ({
           askId: currentAnchorUserMessageId,
           modelId: executionId,
           status:
-            status === 'streaming' || status === 'submitted'
-              ? AssistantMessageStatus.PROCESSING
-              : AssistantMessageStatus.SUCCESS,
+            status === 'submitted'
+              ? AssistantMessageStatus.PENDING
+              : status === 'streaming'
+                ? AssistantMessageStatus.PROCESSING
+                : AssistantMessageStatus.SUCCESS,
           blocks: []
         })
       }
@@ -321,15 +323,15 @@ const V2ChatContentInner: FC<InnerProps> = ({
   )
 
   const ensuredTopicIds = useRef(new Set<string>())
-  const ensureTopicExists = useCallback(async () => {
+  const ensureCurrentTopic = useCallback(async () => {
     if (ensuredTopicIds.current.has(topic.id)) return
-    await ensureChatTopicPersisted(topic)
+    await ensureTopicExists({ id: topic.id, name: topic.name, assistantId: topic.assistantId })
     ensuredTopicIds.current.add(topic.id)
   }, [topic])
 
   const handleSendV2 = useCallback(
     async (text: string, options?: { files?: FileMetadata[]; mentionedModels?: UniqueModelId[] }) => {
-      await ensureTopicExists()
+      await ensureCurrentTopic()
       let mcpToolIds: string[] | undefined
       try {
         mcpToolIds = await resolveMcpToolIds()
@@ -349,7 +351,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
         }
       )
     },
-    [activeNodeId, ensureTopicExists, sendMessage, resolveMcpToolIds, capabilityBody]
+    [activeNodeId, ensureCurrentTopic, sendMessage, resolveMcpToolIds, capabilityBody]
   )
 
   return (

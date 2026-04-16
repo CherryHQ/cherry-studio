@@ -1,7 +1,7 @@
 import { LoadingIcon } from '@renderer/components/Icons'
 import db from '@renderer/databases'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
-import { selectTopicsMap } from '@renderer/store/assistants'
+import { useAllTopics } from '@renderer/hooks/useTopicDataApi'
 import type { Topic } from '@renderer/types'
 import { type Message, MessageBlockType } from '@renderer/types/newMessage'
 import {
@@ -15,7 +15,6 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import type { FC } from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
 const { Text, Title } = Typography
@@ -195,8 +194,14 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
   const [searchTerms, setSearchTerms] = useState<string[]>(splitKeywordsToTerms(keywords))
 
   const topics = useLiveQuery(() => db.topics.toArray(), [])
-  // FIXME: db 中没有 topic.name 等信息，只能从 store 获取
-  const storeTopicsMap = useSelector(selectTopicsMap)
+  const { rendererTopics: allTopics } = useAllTopics()
+  const storeTopicsMap = useMemo(() => {
+    const map = new Map<string, Topic>()
+    for (const t of allTopics) {
+      map.set(t.id, t)
+    }
+    return map
+  }, [allTopics])
 
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [searchStats, setSearchStats] = useState({ count: 0, time: 0 })

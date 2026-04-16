@@ -65,10 +65,17 @@ export function useChatWithHistory(
 
   const [activeExecutionIds, setActiveExecutionIds] = useState<string[]>([])
   const resumeInFlightRef = useRef<Promise<void> | null>(null)
+  const latestAssistantMessageId = useMemo(() => {
+    for (let index = messages.length - 1; index >= 0; index--) {
+      const message = messages[index]
+      if (message.role === 'assistant') return message.id
+    }
+    return undefined
+  }, [messages])
 
   const resumeActiveStream = useCallback(
     (reason: 'mount' | 'started-event') => {
-      if (status === 'streaming' || status === 'submitted') return
+      if (reason === 'mount' && (status === 'streaming' || status === 'submitted')) return
       if (resumeInFlightRef.current) return
 
       resumeInFlightRef.current = (async () => {
@@ -79,6 +86,10 @@ export function useChatWithHistory(
           } catch (err) {
             logger.warn('Failed to refresh messages before resuming stream', { topicId, err })
           }
+        }
+
+        if (status === 'streaming' || status === 'submitted') {
+          return
         }
 
         await resumeStream()
@@ -174,13 +185,15 @@ export function useChatWithHistory(
         status:
           uiMsg.role === 'user'
             ? UserMessageStatus.SUCCESS
-            : status === 'streaming' || status === 'submitted'
-              ? AssistantMessageStatus.PROCESSING
-              : AssistantMessageStatus.SUCCESS,
+            : uiMsg.id === latestAssistantMessageId && status === 'submitted'
+              ? AssistantMessageStatus.PENDING
+              : uiMsg.id === latestAssistantMessageId && status === 'streaming'
+                ? AssistantMessageStatus.PROCESSING
+                : ((meta?.status as AssistantMessageStatus | undefined) ?? AssistantMessageStatus.SUCCESS),
         blocks: []
       }
     })
-  }, [messages, context.assistantId, topicId, status, metadataMap])
+  }, [messages, context.assistantId, topicId, status, metadataMap, latestAssistantMessageId])
 
   // ── PartsMap (direct from messages, no merge) ──
 

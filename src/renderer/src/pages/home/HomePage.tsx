@@ -80,18 +80,11 @@ const HomePage: FC = () => {
     (newAssistant: Assistant) => {
       if (newAssistant.id === activeAssistant?.id) return
       _setActiveAssistant(newAssistant)
-      const newTopic = newAssistant.topics[0]
-      _setActiveTopic((prev) => (newTopic?.id === prev.id ? prev : newTopic))
     },
-    [_setActiveTopic, activeAssistant?.id]
+    [activeAssistant?.id]
   )
 
-  const setActiveTopic = useCallback(
-    (newTopic: Topic) => {
-      _setActiveTopic((prev) => (newTopic?.id === prev.id ? prev : newTopic))
-    },
-    [_setActiveTopic]
-  )
+  const setActiveTopic = _setActiveTopic
 
   useEffect(() => {
     NavigationService.setNavigate(navigate)
@@ -111,6 +104,10 @@ const HomePage: FC = () => {
       void window.api.window.resetMinimumSize()
     }
   }, [showAssistants, showTopics, topicPosition])
+
+  if (!activeTopic) {
+    return <Container id="home-page" />
+  }
 
   return (
     <Container id="home-page">

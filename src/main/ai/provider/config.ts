@@ -102,7 +102,7 @@ function resolveEffectiveEndpoint(
   // 3. Effective endpoint
   const endpointType = modelEndpoint ?? providerDefault
 
-  return { endpointType, baseUrl: getBaseUrl(provider) }
+  return { endpointType, baseUrl: getBaseUrl(provider, endpointType) }
 }
 
 /**
@@ -368,7 +368,7 @@ async function buildCherryinConfig(ctx: BuilderContext): Promise<ProviderConfig>
   try {
     const cherryinProvider = await providerService.getByProviderId(SystemProviderIds.cherryin)
     anthropicBaseURL = formatApiHost(cherryinProvider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl)
-    geminiBaseURL = getBaseUrl(cherryinProvider)
+    geminiBaseURL = formatApiHost(getBaseUrl(cherryinProvider, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT), true, 'v1beta')
   } catch {
     // CherryIn provider may not exist
   }

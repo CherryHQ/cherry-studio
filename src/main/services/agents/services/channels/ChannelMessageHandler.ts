@@ -560,6 +560,9 @@ export class ChannelMessageHandler {
       onDone() {
         resolveExecution(accumulatedText.trim())
       },
+      onPaused() {
+        resolveExecution(accumulatedText.trim())
+      },
       onError(error) {
         rejectExecution(new Error(error.message ?? 'Execution failed'))
       },

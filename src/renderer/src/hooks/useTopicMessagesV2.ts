@@ -31,6 +31,7 @@ export interface MessageMetadata {
   modelId?: string
   siblingsGroupId?: number
   createdAt: string
+  status: SharedMessage['status']
 }
 
 export type MessageMetadataMap = Record<string, MessageMetadata>
@@ -88,7 +89,8 @@ export function useTopicMessagesV2(topicId: string): UseTopicMessagesV2Result {
           parentId: message.parentId,
           modelId: message.modelId ?? undefined,
           siblingsGroupId: message.siblingsGroupId || undefined,
-          createdAt: message.createdAt
+          createdAt: message.createdAt,
+          status: message.status
         }
       ])
     )

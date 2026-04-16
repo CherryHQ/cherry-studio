@@ -14,7 +14,7 @@ import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateTopicDto, UpdateTopicDto } from '@shared/data/api/schemas/topics'
 import type { Topic } from '@shared/data/types/topic'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, asc, desc, eq, isNull } from 'drizzle-orm'
 
 import { messageService } from './MessageService'
 
@@ -57,6 +57,32 @@ export class TopicService {
     }
 
     return rowToTopic(row)
+  }
+
+  /**
+   * List topics (excludes soft-deleted rows).
+   * Order: pinned first, then pinned order, sort order, then most recently updated.
+   * TODO: add condition
+   */
+  async list(assistantId?: string): Promise<Topic[]> {
+    const db = application.get('DbService').getDb()
+
+    const where = assistantId
+      ? and(eq(topicTable.assistantId, assistantId), isNull(topicTable.deletedAt))
+      : isNull(topicTable.deletedAt)
+
+    const rows = await db
+      .select()
+      .from(topicTable)
+      .where(where)
+      .orderBy(
+        desc(topicTable.isPinned),
+        asc(topicTable.pinnedOrder),
+        asc(topicTable.sortOrder),
+        desc(topicTable.updatedAt)
+      )
+
+    return rows.map(rowToTopic)
   }
 
   /**
@@ -170,6 +196,11 @@ export class TopicService {
 
   /**
    * Delete a topic and all its messages (hard delete)
+   *
+   * TODO: Clean up associated files (images, attachments) from disk.
+   * Previously handled by renderer-side `safeDeleteFiles` via Dexie blocks.
+   * Now that messages live in SQLite, file cleanup should happen here
+   * by scanning message data for file references before deletion.
    */
   async delete(id: string): Promise<void> {
     const db = application.get('DbService').getDb()

@@ -1,6 +1,5 @@
 import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
-import { loggerService } from '@logger'
 import {
   isAutoEnableImageGenerationModel,
   isGenerateImageModel,
@@ -44,15 +43,12 @@ import type { FC } from 'react'
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ensureChatTopicPersisted } from '../chatPersistence'
 import { InputbarCore } from './components/InputbarCore'
 import InputbarTools from './InputbarTools'
 import KnowledgeBaseInput from './KnowledgeBaseInput'
 import MentionModelsInput from './MentionModelsInput'
 import { getInputbarConfig } from './registry'
 import TokenCount from './TokenCount'
-
-const logger = loggerService.withContext('Inputbar')
 
 const INPUTBAR_DRAFT_CACHE_KEY = 'inputbar-draft'
 const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000 // 24 hours
@@ -292,14 +288,12 @@ const InputbarInner: FC<InputbarInnerProps> = ({
 
   const addNewTopic = useCallback(async () => {
     const newTopic = getDefaultTopic(assistant.id)
-    await ensureChatTopicPersisted(newTopic)
-    logger.silly('create topic in sqlite', { id: newTopic.id })
 
     if (assistant.defaultModel) {
       setModel(assistant.defaultModel)
     }
 
-    addTopic(newTopic)
+    await addTopic(newTopic)
     setActiveTopic(newTopic)
 
     setTimeoutTimer('addNewTopic', () => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)

@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import type { ChannelAdapter } from '@main/services/agents/services/channels/ChannelAdapter'
 import type { SerializedError } from '@shared/types/error'
 
-import type { StreamDoneResult, StreamListener } from '../types'
+import type { StreamDoneResult, StreamListener, StreamPausedResult } from '../types'
 
 const logger = loggerService.withContext('ChannelAdapterListener')
 
@@ -48,12 +48,29 @@ export class ChannelAdapterListener implements StreamListener {
       // Let adapter finalize its streaming UI first (e.g. close Feishu card)
       const handled = await this.adapter.onStreamComplete(this.platformChatId, text)
       if (!handled) {
-        // Fallback: send a regular text message
-        const suffix = result.status === 'paused' ? '\n\n_(stopped)_' : ''
-        await this.adapter.sendMessage(this.platformChatId, text + suffix)
+        await this.adapter.sendMessage(this.platformChatId, text)
       }
     } catch (err) {
       logger.error('Failed to deliver message to channel', {
+        channelId: this.adapter.channelId,
+        chatId: this.platformChatId,
+        err
+      })
+    }
+  }
+
+  // oxlint-disable-next-line no-unused-vars
+  async onPaused(_result: StreamPausedResult): Promise<void> {
+    const text = this.accumulatedText.trim()
+    if (!text) return
+
+    try {
+      const handled = await this.adapter.onStreamComplete(this.platformChatId, text)
+      if (!handled) {
+        await this.adapter.sendMessage(this.platformChatId, text + '\n\n_(stopped)_')
+      }
+    } catch (err) {
+      logger.error('Failed to deliver paused message to channel', {
         channelId: this.adapter.channelId,
         chatId: this.platformChatId,
         err

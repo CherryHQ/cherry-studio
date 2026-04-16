@@ -4,7 +4,7 @@ import type { UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { InternalStreamTarget } from '../InternalStreamTarget'
-import type { StreamDoneResult, StreamListener } from '../types'
+import type { StreamDoneResult, StreamListener, StreamPausedResult } from '../types'
 
 // ── Fake listener ───────────────────────────────────────────────────
 
@@ -12,9 +12,11 @@ class FakeListener implements StreamListener {
   readonly id: string
   chunks: UIMessageChunk[] = []
   doneResults: StreamDoneResult[] = []
+  pausedResults: StreamPausedResult[] = []
   errors: SerializedError[] = []
   alive = true
   onDoneImpl?: (result: StreamDoneResult) => void | Promise<void>
+  onPausedImpl?: (result: StreamPausedResult) => void | Promise<void>
 
   constructor(id: string) {
     this.id = id
@@ -27,6 +29,11 @@ class FakeListener implements StreamListener {
   onDone(result: StreamDoneResult): void | Promise<void> {
     this.doneResults.push(result)
     return this.onDoneImpl?.(result)
+  }
+
+  onPaused(result: StreamPausedResult): void | Promise<void> {
+    this.pausedResults.push(result)
+    return this.onPausedImpl?.(result)
   }
 
   onError(error: SerializedError): void {
@@ -302,6 +309,7 @@ describe('AiStreamManager', () => {
       await mgr.onDone('a', 'paused')
 
       expect(stream.status).toBe('aborted')
+      expect((stream.listeners.get('l:a') as FakeListener).pausedResults).toHaveLength(1)
     })
 
     it('isolates listener errors — one throw does not block others', async () => {

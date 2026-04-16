@@ -25,6 +25,14 @@ export const topicHandlers: {
   }
 } = {
   '/topics': {
+    GET: async ({ query }) => {
+      const assistantId = query?.assistantId
+      if (typeof assistantId !== 'string' || assistantId.length === 0) {
+        return await topicService.list()
+      }
+      return await topicService.list(assistantId)
+    },
+
     POST: async ({ body }) => {
       const topic = await topicService.create(body)
       if (body.sourceNodeId) {

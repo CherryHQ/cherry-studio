@@ -8,30 +8,24 @@ import {
 } from '@renderer/config/models'
 import { cacheService } from '@renderer/data/CacheService'
 import { db } from '@renderer/databases'
+import { useTopicMutations } from '@renderer/hooks/useTopicDataApi'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   addAssistant,
-  addTopic,
   insertAssistant,
-  removeAllTopics,
   removeAssistant,
-  removeTopic,
   setModel,
   updateAssistant,
   updateAssistants,
   updateAssistantSettings as _updateAssistantSettings,
-  updateDefaultAssistant,
-  updateTopic,
-  updateTopics
+  updateDefaultAssistant
 } from '@renderer/store/assistants'
 import { setDefaultModel, setQuickModel, setTranslateModel } from '@renderer/store/llm'
 import type { Assistant, AssistantSettings, Model, ThinkingOption, Topic } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import { TopicManager } from './useTopic'
 
 export function useAssistants() {
   const { t } = useTranslation()
@@ -67,9 +61,6 @@ export function useAssistants() {
     },
     removeAssistant: (id: string) => {
       dispatch(removeAssistant({ id }))
-      const assistant = assistants.find((a) => a.id === id)
-      const topics = assistant?.topics || []
-      topics.forEach(({ id }) => TopicManager.removeTopic(id))
     }
   }
 }
@@ -78,20 +69,21 @@ export function useAssistant(id: string) {
   const assistant = useAppSelector((state) => state.assistants.assistants.find((a) => a.id === id) as Assistant)
   const dispatch = useAppDispatch()
   const { defaultModel } = useDefaultModel()
+  const {
+    createTopic,
+    updateTopic: patchTopic,
+    deleteTopic,
+    deleteAllTopics,
+    batchUpdateTopics,
+    moveTopic: moveTopicApi
+  } = useTopicMutations()
 
   const model = useMemo(() => assistant?.model ?? assistant?.defaultModel ?? defaultModel, [assistant, defaultModel])
   if (assistant && !model) {
     throw new Error(`Assistant model is not set for assistant with name: ${assistant?.name ?? 'unknown'}`)
   }
 
-  const normalizedTopics = useMemo(
-    () => (Array.isArray(assistant?.topics) ? assistant.topics : []),
-    [assistant?.topics]
-  )
-  const assistantWithModel = useMemo(
-    () => ({ ...assistant, model, topics: normalizedTopics }),
-    [assistant, model, normalizedTopics]
-  )
+  const assistantWithModel = useMemo(() => ({ ...assistant, model }), [assistant, model])
 
   const settingsRef = useRef(assistant?.settings)
 
@@ -120,12 +112,9 @@ export function useAssistant(id: string) {
           const cache = cacheService.get(cacheKey) as ThinkingOption | undefined
           let fallbackOption: ThinkingOption
 
-          // 选项不支持时，首先尝试恢复到上次使用的值
           if (cache && supportedOptions.includes(cache)) {
             fallbackOption = cache
           } else {
-            // 灵活回退到支持的值
-            // 注意：这里假设可用的options不会为空
             const enableThinking = currentReasoningEffort !== undefined
             fallbackOption = enableThinking
               ? MODEL_SUPPORTED_REASONING_EFFORT[modelType][0]
@@ -156,15 +145,14 @@ export function useAssistant(id: string) {
   return {
     assistant: assistantWithModel,
     model,
-    addTopic: (topic: Topic) => dispatch(addTopic({ assistantId: assistant.id, topic })),
-    removeTopic: (topic: Topic) => {
-      void TopicManager.removeTopic(topic.id)
-      dispatch(removeTopic({ assistantId: assistant.id, topic }))
+    addTopic: async (topic: Topic) => {
+      await createTopic({ id: topic.id, name: topic.name, assistantId: topic.assistantId })
     },
-    moveTopic: (topic: Topic, toAssistant: Assistant) => {
-      dispatch(addTopic({ assistantId: toAssistant.id, topic: { ...topic, assistantId: toAssistant.id } }))
-      dispatch(removeTopic({ assistantId: assistant.id, topic }))
-      // update topic messages in database
+    removeTopic: async (topic: Topic) => {
+      await deleteTopic(topic.id)
+    },
+    moveTopic: async (topic: Topic, toAssistant: Assistant) => {
+      await moveTopicApi(topic.id, toAssistant.id)
       void db.topics
         .where('id')
         .equals(topic.id)
@@ -177,9 +165,24 @@ export function useAssistant(id: string) {
           }
         })
     },
-    updateTopic: (topic: Topic) => dispatch(updateTopic({ assistantId: assistant.id, topic })),
-    updateTopics: (topics: Topic[]) => dispatch(updateTopics({ assistantId: assistant.id, topics })),
-    removeAllTopics: () => dispatch(removeAllTopics({ assistantId: assistant.id })),
+    updateTopic: async (topic: Topic) => {
+      await patchTopic(topic.id, {
+        name: topic.name,
+        isNameManuallyEdited: topic.isNameManuallyEdited,
+        isPinned: topic.pinned
+      })
+    },
+    updateTopics: async (topics: Topic[]) => {
+      await batchUpdateTopics(
+        topics.map((t, i) => ({
+          id: t.id,
+          dto: { name: t.name, isPinned: t.pinned, sortOrder: i }
+        }))
+      )
+    },
+    removeAllTopics: async () => {
+      await deleteAllTopics(assistant.id)
+    },
     setModel: useCallback(
       (model: Model) => assistant && dispatch(setModel({ assistantId: assistant?.id, model })),
       [assistant, dispatch]

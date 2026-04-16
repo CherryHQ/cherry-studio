@@ -1,7 +1,7 @@
 import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 
-import type { StreamDoneResult, StreamListener } from '../types'
+import type { StreamDoneResult, StreamListener, StreamPausedResult } from '../types'
 
 /**
  * StreamListener that writes UIMessageChunk to an HTTP SSE response.
@@ -42,6 +42,13 @@ export class SSEListener implements StreamListener {
 
   // oxlint-disable-next-line no-unused-vars
   onDone(_result: StreamDoneResult): void {
+    if (!this.alive()) return
+    this.write('data: [DONE]\n\n')
+    this.end()
+  }
+
+  // oxlint-disable-next-line no-unused-vars
+  onPaused(_result: StreamPausedResult): void {
     if (!this.alive()) return
     this.write('data: [DONE]\n\n')
     this.end()

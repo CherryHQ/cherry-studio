@@ -23,7 +23,7 @@ export type {
 } from '@shared/ai/transport'
 export type { CherryUIMessageChunk } from '@shared/data/types/message'
 
-// ── StreamDoneResult ────────────────────────────────────────────────
+// ── Stream Terminal Results ────────────────────────────────────────
 
 /**
  * Terminal state passed to each listener when a stream ends.
@@ -33,8 +33,23 @@ export type { CherryUIMessageChunk } from '@shared/data/types/message'
  */
 export interface StreamDoneResult {
   finalMessage?: CherryUIMessage
-  /** 'success' = natural completion; 'paused' = abort path with partial result. */
-  status: 'success' | 'paused'
+  /** 'success' = natural completion. */
+  status: 'success'
+  /** Which model's execution finished. */
+  modelId?: UniqueModelId
+  /** True when ALL executions in the topic are done. */
+  isTopicDone?: boolean
+}
+
+/**
+ * Terminal state for a paused execution.
+ *
+ * Distinct from onDone/onError so listeners can treat user/lifecycle aborts
+ * as a separate semantic path from successful completion and hard failure.
+ */
+export interface StreamPausedResult {
+  finalMessage?: CherryUIMessage
+  status: 'paused'
   /** Which model's execution finished. */
   modelId?: UniqueModelId
   /** True when ALL executions in the topic are done. */
@@ -74,8 +89,10 @@ export interface StreamListener {
 
   /** Receives each chunk. sourceModelId identifies the producing model (set for multi-model). */
   onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId): void
-  /** Called when one execution ends (success or paused). */
+  /** Called when one execution completes successfully. */
   onDone(result: StreamDoneResult): void | Promise<void>
+  /** Called when one execution is paused/aborted with partial output preserved. */
+  onPaused(result: StreamPausedResult): void | Promise<void>
   /** Called when one execution errors. partialMessage contains content streamed before the error. */
   onError(
     error: SerializedError,

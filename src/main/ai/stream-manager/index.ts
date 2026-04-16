@@ -15,5 +15,6 @@ export type {
   StreamDoneResult,
   StreamErrorPayload,
   StreamListener,
+  StreamPausedResult,
   StreamTarget
 } from './types'

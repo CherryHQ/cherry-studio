@@ -94,7 +94,7 @@ export class AiStreamManager extends BaseService {
       const stream = this.activeStreams.get(topicId)
       if (!stream) continue
       for (const exec of stream.executions.values()) {
-        donePromises.push(this.broadcastExecutionDone(stream, exec, 'paused'))
+        donePromises.push(this.broadcastExecutionPaused(stream, exec, true))
       }
     }
     await Promise.allSettled(donePromises)
@@ -255,24 +255,37 @@ export class AiStreamManager extends BaseService {
   }
 
   /** Called when one execution finishes. Topic-level done only when ALL executions finished. */
-  async onExecutionDone(
-    topicId: string,
-    modelId: UniqueModelId,
-    status: 'success' | 'paused' = 'success'
-  ): Promise<void> {
+  async onExecutionDone(topicId: string, modelId: UniqueModelId): Promise<void> {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return
 
     const exec = stream.executions.get(modelId)
     if (!exec || exec.status !== 'streaming') return
 
-    exec.status = status === 'paused' ? 'aborted' : 'done'
+    exec.status = 'done'
 
     // Compute topic status first so listeners get isTopicDone
     stream.status = this.computeTopicStatus(stream)
     const isTopicDone = stream.status !== 'streaming'
 
-    await this.broadcastExecutionDone(stream, exec, status, isTopicDone)
+    await this.broadcastExecutionDone(stream, exec, isTopicDone)
+
+    if (isTopicDone) {
+      this.scheduleReap(topicId)
+    }
+  }
+
+  async onExecutionPaused(topicId: string, modelId: UniqueModelId): Promise<void> {
+    const stream = this.activeStreams.get(topicId)
+    if (!stream) return
+
+    const exec = stream.executions.get(modelId)
+    if (!exec || exec.status !== 'aborted') return
+
+    stream.status = this.computeTopicStatus(stream)
+    const isTopicDone = stream.status !== 'streaming'
+
+    await this.broadcastExecutionPaused(stream, exec, isTopicDone)
 
     if (isTopicDone) {
       this.scheduleReap(topicId)
@@ -337,7 +350,14 @@ export class AiStreamManager extends BaseService {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return
     const firstModelId = stream.executions.keys().next().value
-    if (firstModelId) await this.onExecutionDone(topicId, firstModelId, status)
+    if (!firstModelId) return
+    if (status === 'paused') {
+      const exec = stream.executions.get(firstModelId)
+      if (exec) exec.status = 'aborted'
+      await this.onExecutionPaused(topicId, firstModelId)
+      return
+    }
+    await this.onExecutionDone(topicId, firstModelId)
   }
 
   /** Convenience: onError for the first (or only) execution. */
@@ -426,7 +446,7 @@ export class AiStreamManager extends BaseService {
         // Normal return after abort: signal was aborted but no error thrown.
         // Persist partial content as 'paused' so it survives app restart.
         if (exec.abortController.signal.aborted && exec.status === 'aborted') {
-          await this.onExecutionDone(topicId, modelId, 'paused')
+          await this.onExecutionPaused(topicId, modelId)
         }
       })
       .catch((err: unknown) => this.onExecutionError(topicId, modelId, serializeError(err)))
@@ -435,18 +455,38 @@ export class AiStreamManager extends BaseService {
   }
 
   /** Broadcast done for a single execution to all topic listeners. */
-  private async broadcastExecutionDone(
-    stream: ActiveStream,
-    exec: StreamExecution,
-    status: 'success' | 'paused',
-    isTopicDone = true
-  ): Promise<void> {
-    const result: StreamDoneResult = { finalMessage: exec.finalMessage, status, modelId: exec.modelId, isTopicDone }
+  private async broadcastExecutionDone(stream: ActiveStream, exec: StreamExecution, isTopicDone = true): Promise<void> {
+    const result: StreamDoneResult = {
+      finalMessage: exec.finalMessage,
+      status: 'success',
+      modelId: exec.modelId,
+      isTopicDone
+    }
     for (const [id, listener] of stream.listeners) {
       try {
         await listener.onDone(result)
       } catch (err) {
         logger.warn('Listener onDone threw', { topicId: stream.topicId, listenerId: id, err })
+      }
+    }
+  }
+
+  private async broadcastExecutionPaused(
+    stream: ActiveStream,
+    exec: StreamExecution,
+    isTopicDone = true
+  ): Promise<void> {
+    const result = {
+      finalMessage: exec.finalMessage,
+      status: 'paused' as const,
+      modelId: exec.modelId,
+      isTopicDone
+    }
+    for (const [id, listener] of stream.listeners) {
+      try {
+        await listener.onPaused(result)
+      } catch (err) {
+        logger.warn('Listener onPaused threw', { topicId: stream.topicId, listenerId: id, err })
       }
     }
   }

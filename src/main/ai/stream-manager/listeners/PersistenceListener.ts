@@ -4,7 +4,7 @@ import type { MessageData, MessageStats, ModelSnapshot } from '@shared/data/type
 import type { SerializedError } from '@shared/types/error'
 import type { UIMessage } from 'ai'
 
-import type { StreamDoneResult, StreamListener } from '../types'
+import type { StreamDoneResult, StreamListener, StreamPausedResult } from '../types'
 
 const logger = loggerService.withContext('PersistenceListener')
 
@@ -44,19 +44,19 @@ export class PersistenceListener implements StreamListener {
   }
 
   onChunk(): void {
-    // Persistence only writes on onDone, not per-chunk.
+    // Persistence only writes on terminal events, not per-chunk.
   }
 
   async onDone(result: StreamDoneResult): Promise<void> {
     // Multi-model: only persist for our own model's execution
     if (result.modelId && this.ctx.modelId && result.modelId !== this.ctx.modelId) return
 
-    const { finalMessage, status } = result
+    const { finalMessage } = result
 
     try {
       await messageService.update(this.ctx.assistantMessageId, {
         ...(finalMessage ? { data: { parts: finalMessage.parts } } : {}),
-        status,
+        status: 'success',
         stats:
           this.ctx.stats ??
           (finalMessage?.metadata?.totalTokens ? { totalTokens: finalMessage.metadata.totalTokens } : undefined)
@@ -66,14 +66,14 @@ export class PersistenceListener implements StreamListener {
         logger.warn('onDone without finalMessage, updated placeholder status only', {
           topicId: this.ctx.topicId,
           assistantMessageId: this.ctx.assistantMessageId,
-          status
+          status: 'success'
         })
       }
 
       logger.info('Assistant placeholder finalized', {
         topicId: this.ctx.topicId,
         assistantMessageId: this.ctx.assistantMessageId,
-        status
+        status: 'success'
       })
     } catch (err) {
       logger.error('Failed to finalize assistant placeholder', {
@@ -85,12 +85,39 @@ export class PersistenceListener implements StreamListener {
     }
 
     // Post-persist hook: only on success, best-effort
-    if (status === 'success' && finalMessage && this.ctx.afterPersist) {
+    if (finalMessage && this.ctx.afterPersist) {
       try {
         await this.ctx.afterPersist(finalMessage)
       } catch (err) {
         logger.warn('afterPersist hook failed', { topicId: this.ctx.topicId, err })
       }
+    }
+  }
+
+  async onPaused(result: StreamPausedResult): Promise<void> {
+    if (result.modelId && this.ctx.modelId && result.modelId !== this.ctx.modelId) return
+
+    const { finalMessage } = result
+
+    try {
+      await messageService.update(this.ctx.assistantMessageId, {
+        ...(finalMessage ? { data: { parts: finalMessage.parts } } : {}),
+        status: 'paused',
+        stats:
+          this.ctx.stats ??
+          (finalMessage?.metadata?.totalTokens ? { totalTokens: finalMessage.metadata.totalTokens } : undefined)
+      })
+
+      logger.info('Assistant placeholder paused', {
+        topicId: this.ctx.topicId,
+        assistantMessageId: this.ctx.assistantMessageId
+      })
+    } catch (err) {
+      logger.error('Failed to persist paused assistant placeholder', {
+        topicId: this.ctx.topicId,
+        assistantMessageId: this.ctx.assistantMessageId,
+        err
+      })
     }
   }
 

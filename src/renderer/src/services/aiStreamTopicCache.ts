@@ -10,7 +10,7 @@ const logger = loggerService.withContext('aiStreamTopicCache')
  */
 export function useAiStreamTopicCache(): void {
   useEffect(() => {
-    const unsubscribeChunk = window.api.ai.onStreamChunk(({ topicId }) => {
+    const markTopicLoading = (topicId: string) => {
       const loadingKey = `topic.stream.loading.${topicId}` as const
       const fulfilledKey = `topic.stream.fulfilled.${topicId}` as const
       if (!cacheService.get(loadingKey)) {
@@ -20,10 +20,19 @@ export function useAiStreamTopicCache(): void {
       if (cacheService.get(fulfilledKey)) {
         cacheService.set(fulfilledKey, false)
       }
+    }
+
+    const unsubscribeStarted = window.api.ai.onStreamStarted(({ topicId }) => {
+      markTopicLoading(topicId)
     })
 
-    const unsubscribeDone = window.api.ai.onStreamDone(({ topicId }) => {
+    const unsubscribeChunk = window.api.ai.onStreamChunk(({ topicId }) => {
+      markTopicLoading(topicId)
+    })
+
+    const unsubscribeDone = window.api.ai.onStreamDone(({ topicId, status }) => {
       const loadingKey = `topic.stream.loading.${topicId}` as const
+      const fulfilledKey = `topic.stream.fulfilled.${topicId}` as const
       if (cacheService.get(loadingKey)) {
         cacheService.set(loadingKey, false)
         cacheService.set(
@@ -31,7 +40,7 @@ export function useAiStreamTopicCache(): void {
           Math.max(0, (cacheService.get('topic.stream.active_count') || 0) - 1)
         )
       }
-      cacheService.set(`topic.stream.fulfilled.${topicId}` as const, true)
+      cacheService.set(fulfilledKey, status === 'success')
     })
 
     const unsubscribeError = window.api.ai.onStreamError(({ topicId, error }) => {
@@ -47,6 +56,7 @@ export function useAiStreamTopicCache(): void {
     })
 
     return () => {
+      unsubscribeStarted()
       unsubscribeChunk()
       unsubscribeDone()
       unsubscribeError()

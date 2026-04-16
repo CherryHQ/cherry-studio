@@ -1,28 +1,66 @@
 import { cacheService } from '@data/CacheService'
-import { loggerService } from '@logger'
-import db from '@renderer/databases'
+import { dataApiService } from '@data/DataApiService'
+import { mapApiTopicToRendererTopic, useTopicsByAssistant } from '@renderer/hooks/useTopicDataApi'
+import { fetchMessagesFromDataApi } from '@renderer/services/db/DataApiMessageDataSource'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { safeDeleteFiles } from '@renderer/services/MessagesService'
 import store from '@renderer/store'
-import { selectMessagesForTopic } from '@renderer/store/newMessage'
-import { loadTopicMessagesThunk } from '@renderer/store/thunk/messageThunk'
-import type { Assistant, FileMetadata, Topic } from '@renderer/types'
-import type { FileMessageBlock, ImageMessageBlock } from '@renderer/types/newMessage'
-import { MessageBlockType } from '@renderer/types/newMessage'
-import { find } from 'lodash'
-import { useEffect, useState } from 'react'
+import { upsertManyBlocks } from '@renderer/store/messageBlock'
+import type { Message, Topic } from '@renderer/types'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
-import { useAssistant } from './useAssistant'
+let _activeTopicId: string | undefined
 
-let _activeTopic: Topic
-
-const logger = loggerService.withContext('useTopic')
-
+/**
+ * Manages the currently-selected topic for an assistant.
+ *
+ * Design: the UI state holds only `activeTopicId` (string). The `activeTopic`
+ * object is derived from `topics` at render time, with a short-lived `pendingTopic`
+ * fallback to handle optimistic creation before SWR refreshes.
+ *
+ * This avoids the "stale topic object" / "topic not yet in SWR cache" races that
+ * used to silently switch the user back to an old topic.
+ */
 export function useActiveTopic(assistantId: string, topic?: Topic) {
-  const { assistant } = useAssistant(assistantId)
-  const [activeTopic, setActiveTopic] = useState(topic || _activeTopic || assistant?.topics[0])
+  const { rendererTopics: topics, isLoading } = useTopicsByAssistant(assistantId)
+  const [activeTopicId, setActiveTopicId] = useState<string | undefined>(topic?.id ?? _activeTopicId)
+  // Holds the last Topic object passed to setActiveTopic, used as fallback when
+  // the newly-added topic is not yet in `topics` (SWR still refetching).
+  const [pendingTopic, setPendingTopic] = useState<Topic | undefined>(topic)
 
-  _activeTopic = activeTopic
+  const activeTopic = useMemo<Topic | undefined>(() => {
+    if (!activeTopicId) return pendingTopic ?? topics[0]
+    const fromList = topics.find((t) => t.id === activeTopicId)
+    if (fromList) return fromList
+    if (pendingTopic?.id === activeTopicId) return pendingTopic
+    return undefined
+  }, [activeTopicId, topics, pendingTopic])
+
+  _activeTopicId = activeTopicId
+
+  const setActiveTopic = useCallback((next: Topic) => {
+    setActiveTopicId((prev) => (prev === next.id ? prev : next.id))
+    setPendingTopic(next)
+  }, [])
+
+  // When no topic is selected yet and the list has loaded, pick the first one
+  useEffect(() => {
+    if (!activeTopicId && topics.length > 0) {
+      setActiveTopicId(topics[0].id)
+    }
+  }, [activeTopicId, topics])
+
+  // If the active topic was deleted (existed in list before, now gone), fall back
+  // to the first remaining topic. `pendingTopic` mismatch means it's neither
+  // in the list nor a recent optimistic add — i.e. truly deleted.
+  useEffect(() => {
+    if (!activeTopicId || topics.length === 0) return
+    const found = topics.some((t) => t.id === activeTopicId)
+    const isPending = pendingTopic?.id === activeTopicId
+    if (!found && !isPending) {
+      setActiveTopicId(topics[0].id)
+      setPendingTopic(topics[0])
+    }
+  }, [activeTopicId, topics, pendingTopic])
 
   useEffect(() => {
     if (activeTopic) {
@@ -30,48 +68,14 @@ export function useActiveTopic(assistantId: string, topic?: Topic) {
     }
   }, [activeTopic])
 
-  useEffect(() => {
-    // activeTopic not in assistant.topics
-    // 确保 assistant 和 assistant.topics 存在，避免在数据未完全加载时访问属性
-    if (
-      assistant &&
-      assistant.topics &&
-      Array.isArray(assistant.topics) &&
-      assistant.topics.length > 0 &&
-      !find(assistant.topics, { id: activeTopic?.id })
-    ) {
-      setActiveTopic(assistant.topics[0])
-    }
-  }, [activeTopic?.id, assistant])
-
-  useEffect(() => {
-    if (!assistant?.topics?.length || !activeTopic) {
-      return
-    }
-
-    const latestTopic = assistant.topics.find((item) => item.id === activeTopic.id)
-    if (latestTopic && latestTopic !== activeTopic) {
-      setActiveTopic(latestTopic)
-    }
-  }, [assistant?.topics, activeTopic])
-
-  return { activeTopic, setActiveTopic }
+  return { activeTopic, setActiveTopic, isLoading }
 }
 
-export function useTopic(assistant: Assistant, topicId?: string) {
-  return assistant?.topics.find((topic) => topic.id === topicId)
-}
-
-export function getTopic(assistant: Assistant, topicId: string) {
-  return assistant?.topics.find((topic) => topic.id === topicId)
-}
-
-export async function getTopicById(topicId: string) {
-  const assistants = store.getState().assistants.assistants
-  const topics = assistants.map((assistant) => assistant.topics).flat()
-  const topic = topics.find((topic) => topic.id === topicId)
-  const messages = await TopicManager.getTopicMessages(topicId)
-  return { ...topic, messages } as Topic
+export async function getTopicById(topicId: string): Promise<Topic> {
+  const apiTopic = await dataApiService.get(`/topics/${topicId}`)
+  const topic = mapApiTopicToRendererTopic(apiTopic)
+  const messages = await getTopicMessages(topicId)
+  return { ...topic, messages }
 }
 
 /**
@@ -111,70 +115,20 @@ export const finishTopicRenaming = (topicId: string) => {
   }, 700)
 }
 
-// Convert class to object with functions since class only has static methods
-// 只有静态方法,没必要用class，可以export {}
-export const TopicManager = {
-  async getTopic(id: string) {
-    return await db.topics.get(id)
-  },
-
-  async getAllTopics() {
-    return await db.topics.toArray()
-  },
-
-  /**
-   * 加载并返回指定话题的消息
-   */
-  async getTopicMessages(id: string) {
-    await store.dispatch(loadTopicMessagesThunk(id))
-    return selectMessagesForTopic(store.getState(), id)
-  },
-
-  async removeTopic(id: string) {
-    await TopicManager.clearTopicMessages(id)
-    await db.topics.delete(id)
-  },
-
-  async clearTopicMessages(id: string): Promise<void> {
-    // 暂存需要删除的文件信息
-    let filesToDelete: FileMetadata[] = []
-
-    try {
-      await db.transaction('rw', [db.topics, db.message_blocks], async () => {
-        const topic = await db.topics.get(id)
-
-        if (!topic || !topic.messages || topic.messages.length === 0) {
-          return
-        }
-
-        const blockIds = topic.messages.flatMap((message) => message.blocks || [])
-
-        if (blockIds.length > 0) {
-          // 删除 block 之前先从 DB 里找出来
-          const blocks = await db.message_blocks.where('id').anyOf(blockIds).toArray()
-
-          // 提取文件元数据
-          filesToDelete = blocks
-            .filter(
-              (block): block is ImageMessageBlock | FileMessageBlock =>
-                block.type === MessageBlockType.IMAGE || block.type === MessageBlockType.FILE
-            )
-            .map((block) => block.file)
-            .filter((file) => file !== undefined)
-
-          await db.message_blocks.bulkDelete(blockIds)
-        }
-
-        await db.topics.update(id, { messages: [] })
-      })
-    } catch (dbError) {
-      logger.error(`Failed to clear database records for topic ${id}:`, dbError as Error)
-      throw dbError
-    }
-
-    // 删除文件
-    if (filesToDelete.length > 0) {
-      await safeDeleteFiles(filesToDelete)
-    }
+/**
+ * Load and return all messages for a topic.
+ *
+ * Fetches directly from DataApi (SQLite) and hydrates the renderer's
+ * message-blocks Redux slice so downstream `findAllBlocks` /
+ * `getMainTextContent` keep working without extra wiring.
+ *
+ * Used by one-off consumers (export, knowledge analysis, topic rename
+ * pre-check). The main chat UI reads messages via `useTopicMessagesV2`.
+ */
+export async function getTopicMessages(id: string): Promise<Message[]> {
+  const { messages, blocks } = await fetchMessagesFromDataApi(id)
+  if (blocks.length > 0) {
+    store.dispatch(upsertManyBlocks(blocks))
   }
+  return messages
 }

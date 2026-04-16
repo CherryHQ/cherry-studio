@@ -1,15 +1,27 @@
 import { providerService } from '@data/services/ProviderService'
+import type { EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { defaultAppHeaders } from '@shared/utils'
 
-export function getBaseUrl(provider: Provider): string {
-  const ep = provider.defaultChatEndpoint
-  if (ep && provider.endpointConfigs?.[ep]?.baseUrl) {
-    return provider.endpointConfigs[ep].baseUrl
+/**
+ * Resolve base URL from provider endpoint configs.
+ *
+ * When `preferredEndpoint` is set (e.g. from `model.endpointTypes[0]` for relay providers),
+ * its config wins over `defaultChatEndpoint` so per-model routing matches the actual request path.
+ */
+export function getBaseUrl(provider: Provider, preferredEndpoint?: EndpointType | null): string {
+  const configs = provider.endpointConfigs
+  if (preferredEndpoint && configs?.[preferredEndpoint]?.baseUrl) {
+    return configs[preferredEndpoint].baseUrl
   }
 
-  if (provider.endpointConfigs) {
-    for (const config of Object.values(provider.endpointConfigs)) {
+  const ep = provider.defaultChatEndpoint
+  if (ep && configs?.[ep]?.baseUrl) {
+    return configs[ep].baseUrl
+  }
+
+  if (configs) {
+    for (const config of Object.values(configs)) {
       if (config?.baseUrl) return config.baseUrl
     }
   }
