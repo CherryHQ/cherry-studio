@@ -44,16 +44,9 @@ const PaintingListItem: FC<PaintingListItemProps> = ({ painting, selected, onSel
         )}
 
         {loading && (
-          <>
-            <div className="absolute inset-0 bg-background/10 backdrop-blur-[1px]" />
-            <div className="absolute top-1.5 left-1.5 flex items-center gap-1 rounded-full bg-background/88 px-1.5 py-1 shadow-sm">
-              <span className="size-2 animate-pulse rounded-full bg-primary" />
-              <span className="size-3 animate-spin rounded-full border border-primary/35 border-t-primary" />
-            </div>
-            <div className="absolute right-0 bottom-0 left-0 h-1.5 overflow-hidden bg-black/10">
-              <div className="h-full w-8 animate-[painting-list-loading_1.2s_ease-in-out_infinite] rounded-full bg-primary/75" />
-            </div>
-          </>
+          <div className="pointer-events-none absolute right-0 bottom-0 left-0 h-1 overflow-hidden bg-black/8">
+            <div className="h-full w-8 animate-[painting-list-loading_1.2s_ease-in-out_infinite] rounded-full bg-primary/75" />
+          </div>
         )}
       </button>
 
