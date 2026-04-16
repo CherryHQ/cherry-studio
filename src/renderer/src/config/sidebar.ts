@@ -12,7 +12,7 @@ import type { SidebarIcon } from '@shared/data/preference/preferenceTypes'
 //   'store',
 //   'paintings',
 //   'translate',
-//   'minapp',
+//   'miniapp',
 //   'knowledge',
 //   'files',
 //   'code_tools',

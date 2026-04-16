@@ -339,11 +339,13 @@ export interface PreferenceSchemas {
     // target-key-definitions/complex/complex
     'feature.file_processing.overrides': PreferenceTypes.FileProcessorOverrides
     // redux/settings/maxKeepAliveMinapps
-    'feature.minapp.max_keep_alive': number
+    'feature.miniapp.max_keep_alive': number
     // redux/settings/minappsOpenLinkExternal
-    'feature.minapp.open_link_external': boolean
+    'feature.miniapp.open_link_external': boolean
+    // redux/settings/minAppRegion
+    'feature.miniapp.region': PreferenceTypes.MiniAppRegionFilter
     // redux/settings/showOpenedMinappsInSidebar
-    'feature.minapp.show_opened_in_sidebar': boolean
+    'feature.miniapp.show_opened_in_sidebar': boolean
     // redux/note/settings.defaultEditMode
     'feature.notes.default_edit_mode': string
     // redux/note/settings.defaultViewMode
@@ -468,9 +470,9 @@ export interface PreferenceSchemas {
     'ui.custom_css': string
     // redux/settings/navbarPosition
     'ui.navbar.position': 'left' | 'top'
-    // redux/settings/sidebarIcons.disabled
+    // target-key-definitions/complex/complex
     'ui.sidebar.icons.invisible': PreferenceTypes.SidebarIcon[]
-    // redux/settings/sidebarIcons.visible
+    // target-key-definitions/complex/complex
     'ui.sidebar.icons.visible': PreferenceTypes.SidebarIcon[]
     // redux/settings/theme
     'ui.theme_mode': PreferenceTypes.ThemeMode
@@ -639,9 +641,10 @@ export const DefaultPreferences: PreferenceSchemas = {
     'feature.file_processing.default_markdown_conversion': null,
     'feature.file_processing.default_text_extraction': null,
     'feature.file_processing.overrides': {} as PreferenceTypes.FileProcessorOverrides,
-    'feature.minapp.max_keep_alive': 3,
-    'feature.minapp.open_link_external': false,
-    'feature.minapp.show_opened_in_sidebar': true,
+    'feature.miniapp.max_keep_alive': 3,
+    'feature.miniapp.open_link_external': false,
+    'feature.miniapp.region': 'auto',
+    'feature.miniapp.show_opened_in_sidebar': true,
     'feature.notes.default_edit_mode': 'preview',
     'feature.notes.default_view_mode': 'edit',
     'feature.notes.font_family': 'default',
@@ -738,7 +741,7 @@ export const DefaultPreferences: PreferenceSchemas = {
       'store',
       'paintings',
       'translate',
-      'minapp',
+      'miniapp',
       'knowledge',
       'files',
       'code_tools',

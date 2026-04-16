@@ -2,7 +2,7 @@
 // overhaul (#12858). The imports below are a stop-gap to keep tests green - each mini-app
 // now receives a CompoundIcon from @cherrystudio/ui/icons instead of a deleted image URL.
 // A proper design should decouple mini-app icon resolution (e.g. a dedicated registry or
-// a `resolveMinAppIcon` helper) rather than hard-coding CompoundIcon references here.
+// a `resolveMiniAppIcon` helper) rather than hard-coding CompoundIcon references here.
 
 import type { CompoundIcon } from '@cherrystudio/ui'
 import { ModelIcons } from '@cherrystudio/ui/icons'
@@ -65,39 +65,60 @@ import {
   Zhipu
 } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
-import type { MinAppType } from '@renderer/types'
 import { ORIGIN_DEFAULT_MIN_APPS as SHARED_PRESETS } from '@shared/data/presets/miniapps'
 
-const logger = loggerService.withContext('Config:minapps')
+/**
+ * Legacy mini-app entity type used by the deprecated Redux slice and config layer.
+ * The v2 MiniApp entity lives in @shared/data/types/miniapp.
+ */
+export type MiniAppType = {
+  id: string
+  name: string
+  nameKey?: string
+  supportedRegions?: string[]
+  logo?: string
+  url: string
+  bordered?: boolean
+  background?: string
+  style?: Record<string, unknown>
+  addTime?: string
+  type?: 'Custom' | 'Default'
+}
 
-// 加载自定义小程序
-const loadCustomMiniApp = async (): Promise<MinAppType[]> => {
+const logger = loggerService.withContext('Config:miniapps')
+
+// Load custom miniapps
+const loadCustomMiniApp = async (): Promise<MiniAppType[]> => {
   try {
     let content: string
     try {
-      content = await window.api.file.read('custom-minapps.json')
+      content = await window.api.file.read('custom-miniapps.json')
     } catch (error: any) {
       // I6: Only create empty file on ENOENT; for other errors, log and return empty
       if (error?.code === 'ENOENT' || error?.message?.includes('no such file')) {
         content = '[]'
-        await window.api.file.writeWithId('custom-minapps.json', content)
+        await window.api.file.writeWithId('custom-miniapps.json', content)
       } else {
         logger.error('Failed to read custom mini apps file:', error as Error)
         return []
       }
     }
 
-    const customApps = JSON.parse(content)
+    const customApps: unknown = JSON.parse(content)
     const now = new Date().toISOString()
 
-    return customApps.map((app: any) => ({
-      ...app,
-      type: 'Custom',
-      // Custom apps can use image URLs directly or icon keys
-      logo: app.logo && app.logo !== '' ? app.logo : 'application',
-      addTime: app.addTime || now,
-      supportedRegions: ['CN', 'Global']
-    }))
+    if (!Array.isArray(customApps)) return []
+
+    return (customApps as Partial<MiniAppType>[])
+      .filter((app): app is MiniAppType => typeof app.id === 'string')
+      .map((app) => ({
+        ...app,
+        type: 'Custom' as const,
+        // Custom apps can use image URLs directly or icon keys
+        logo: app.logo && app.logo !== '' ? app.logo : 'application',
+        addTime: app.addTime || now,
+        supportedRegions: ['CN', 'Global'] as const
+      }))
   } catch (error) {
     logger.error('Failed to load custom mini apps:', error as Error)
     return []
@@ -105,7 +126,7 @@ const loadCustomMiniApp = async (): Promise<MinAppType[]> => {
 }
 
 // I13: Derive renderer preset list from the shared single source of truth
-const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = SHARED_PRESETS.map((app) => ({
+const ORIGIN_DEFAULT_MIN_APPS: MiniAppType[] = SHARED_PRESETS.map((app) => ({
   id: app.id,
   name: app.name,
   nameKey: app.nameKey,
@@ -118,13 +139,9 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = SHARED_PRESETS.map((app) => ({
 }))
 
 // All mini apps: built-in defaults + custom apps loaded from user config
-let allMinApps = [...ORIGIN_DEFAULT_MIN_APPS, ...(await loadCustomMiniApp())]
+const allMiniApps = [...ORIGIN_DEFAULT_MIN_APPS, ...(await loadCustomMiniApp())]
 
-function updateAllMinApps(apps: MinAppType[]) {
-  allMinApps = apps
-}
-
-export { allMinApps, loadCustomMiniApp, ORIGIN_DEFAULT_MIN_APPS, updateAllMinApps }
+export { allMiniApps, ORIGIN_DEFAULT_MIN_APPS }
 
 export function getMiniAppsLogo(LogoId: string | undefined): CompoundIcon | undefined {
   if (!LogoId) {

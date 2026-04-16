@@ -1,14 +1,10 @@
-import { InfoCircleOutlined, UndoOutlined } from '@ant-design/icons' // 导入重置图标和Info图标
+import { InfoCircleOutlined, UndoOutlined } from '@ant-design/icons'
 import { Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
-import { allMinApps } from '@renderer/config/minapps'
-import { useMinapps } from '@renderer/hooks/useMinapps'
+import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { SettingDescription, SettingDivider, SettingRowTitle, SettingTitle } from '@renderer/pages/settings'
-import type { RootState } from '@renderer/store'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { setMinAppRegion } from '@renderer/store/settings'
-import type { MinAppRegionFilter } from '@renderer/types'
+import type { MiniAppRegionFilter } from '@shared/data/types/miniapp'
 import { Flex, Slider } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -17,73 +13,72 @@ import styled from 'styled-components'
 
 import MiniAppIconsManager from './MiniAppIconsManager'
 
-// 默认小程序缓存数量
+// Default max keep-alive miniapp count
 const DEFAULT_MAX_KEEPALIVE = 3
 
 // Region selector component with defensive default value
 const RegionSelector: FC = () => {
   const { t } = useTranslation()
-  const dispatch = useAppDispatch()
-  const minAppRegion = useAppSelector((state: RootState) => state.settings.minAppRegion) ?? 'auto'
+  const [miniAppRegion = 'auto', setMiniAppRegion] = usePreference('feature.miniapp.region')
 
-  const onMinAppRegionChange = (value: MinAppRegionFilter) => {
-    dispatch(setMinAppRegion(value))
+  const onMiniAppRegionChange = (value: MiniAppRegionFilter) => {
+    void setMiniAppRegion(value)
   }
 
-  const minAppRegionOptions: { value: MinAppRegionFilter; label: string }[] = [
+  const miniAppRegionOptions: { value: MiniAppRegionFilter; label: string }[] = [
     { value: 'auto', label: t('settings.miniapps.region.auto') },
     { value: 'CN', label: t('settings.miniapps.region.cn') },
     { value: 'Global', label: t('settings.miniapps.region.global') }
   ]
 
-  return <Selector size={14} value={minAppRegion} onChange={onMinAppRegionChange} options={minAppRegionOptions} />
+  return <Selector size={14} value={miniAppRegion} onChange={onMiniAppRegionChange} options={miniAppRegionOptions} />
 }
 
 const MiniAppSettings: FC = () => {
   const { t } = useTranslation()
 
-  const [maxKeepAliveMinapps, setMaxKeepAliveMinapps] = usePreference('feature.minapp.max_keep_alive')
-  const [showOpenedMinappsInSidebar, setShowOpenedMinappsInSidebar] = usePreference(
-    'feature.minapp.show_opened_in_sidebar'
+  const [maxKeepAliveMiniApps, setMaxKeepAliveMiniApps] = usePreference('feature.miniapp.max_keep_alive')
+  const [showOpenedMiniAppsInSidebar, setShowOpenedMiniAppsInSidebar] = usePreference(
+    'feature.miniapp.show_opened_in_sidebar'
   )
-  const [minappsOpenLinkExternal, setMinappsOpenLinkExternal] = usePreference('feature.minapp.open_link_external')
+  const [openLinkExternal, setOpenLinkExternal] = usePreference('feature.miniapp.open_link_external')
 
-  const { minapps, disabled, updateMinapps, updateDisabledMinapps } = useMinapps()
+  const { miniapps, disabled, updateMiniApps, updateDisabledMiniApps } = useMiniApps()
 
-  const [visibleMiniApps, setVisibleMiniApps] = useState(minapps)
+  const [visibleMiniApps, setVisibleMiniApps] = useState(miniapps)
   const [disabledMiniApps, setDisabledMiniApps] = useState(disabled || [])
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
 
-  // 当 store 数据变化时（例如切换地区）同步本地状态
+  // Sync local state when store data changes (e.g. switching regions)
   useEffect(() => {
-    setVisibleMiniApps(minapps)
+    setVisibleMiniApps(miniapps)
     setDisabledMiniApps(disabled || [])
-  }, [minapps, disabled])
+  }, [miniapps, disabled])
 
-  const handleResetMinApps = useCallback(() => {
-    // 仅重置为当前地区可见的应用，以避免混淆
-    setVisibleMiniApps(minapps)
+  const handleResetMiniApps = useCallback(() => {
+    // Only reset to apps visible in the current region to avoid confusion
+    setVisibleMiniApps(miniapps)
     setDisabledMiniApps([])
-    updateMinapps(allMinApps)
-    updateDisabledMinapps([])
-  }, [minapps, updateDisabledMinapps, updateMinapps])
+    void updateMiniApps(miniapps)
+    void updateDisabledMiniApps([])
+  }, [miniapps, updateDisabledMiniApps, updateMiniApps])
 
-  const handleSwapMinApps = useCallback(() => {
+  const handleSwapMiniApps = useCallback(() => {
     const temp = visibleMiniApps
     setVisibleMiniApps(disabledMiniApps)
     setDisabledMiniApps(temp)
   }, [disabledMiniApps, visibleMiniApps])
 
-  // 恢复默认缓存数量
+  // Restore default cache count
   const handleResetCacheLimit = useCallback(() => {
-    void setMaxKeepAliveMinapps(DEFAULT_MAX_KEEPALIVE)
+    void setMaxKeepAliveMiniApps(DEFAULT_MAX_KEEPALIVE)
     window.toast.info(t('settings.miniapps.cache_change_notice'))
-  }, [t, setMaxKeepAliveMinapps])
+  }, [t, setMaxKeepAliveMiniApps])
 
-  // 处理缓存数量变更
+  // Handle cache count change
   const handleCacheChange = useCallback(
     (value: number) => {
-      void setMaxKeepAliveMinapps(value)
+      void setMaxKeepAliveMiniApps(value)
 
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current)
@@ -94,10 +89,10 @@ const MiniAppSettings: FC = () => {
         debounceTimerRef.current = null
       }, 500)
     },
-    [t, setMaxKeepAliveMinapps]
+    [t, setMaxKeepAliveMiniApps]
   )
 
-  // 组件卸载时清除定时器
+  // Clear timer on unmount
   useEffect(() => {
     return () => {
       if (debounceTimerRef.current) {
@@ -110,8 +105,8 @@ const MiniAppSettings: FC = () => {
     <Container>
       <SettingTitle style={{ display: 'flex', flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' }}>
         <ButtonWrapper>
-          <Button onClick={handleSwapMinApps}>{t('common.swap')}</Button>
-          <Button onClick={handleResetMinApps}>{t('common.reset')}</Button>
+          <Button onClick={handleSwapMiniApps}>{t('common.swap')}</Button>
+          <Button onClick={handleResetMiniApps}>{t('common.reset')}</Button>
         </ButtonWrapper>
       </SettingTitle>
       <BorderedContainer>
@@ -123,7 +118,7 @@ const MiniAppSettings: FC = () => {
         />
       </BorderedContainer>
       <SettingDivider />
-      {/* 小程序地区设置 */}
+      {/* Miniapp region setting */}
       <SettingRow style={{ height: 40, alignItems: 'center' }}>
         <Flex align="center" gap={4}>
           <SettingRowTitle>{t('settings.miniapps.region.title')}</SettingRowTitle>
@@ -138,10 +133,10 @@ const MiniAppSettings: FC = () => {
         <SettingLabelGroup>
           <SettingRowTitle>{t('settings.miniapps.open_link_external.title')}</SettingRowTitle>
         </SettingLabelGroup>
-        <Switch checked={minappsOpenLinkExternal} onCheckedChange={(checked) => setMinappsOpenLinkExternal(checked)} />
+        <Switch checked={openLinkExternal} onCheckedChange={(checked) => setOpenLinkExternal(checked)} />
       </SettingRow>
       <SettingDivider />
-      {/* 缓存小程序数量设置 */}
+      {/* Cached miniapp count setting */}
       <SettingRow>
         <SettingLabelGroup>
           <SettingRowTitle>{t('settings.miniapps.cache_title')}</SettingRowTitle>
@@ -157,7 +152,7 @@ const MiniAppSettings: FC = () => {
             <Slider
               min={1}
               max={10}
-              value={maxKeepAliveMinapps}
+              value={maxKeepAliveMiniApps}
               onChange={handleCacheChange}
               marks={{
                 1: '1',
@@ -176,8 +171,8 @@ const MiniAppSettings: FC = () => {
           <SettingDescription>{t('settings.miniapps.sidebar_description')}</SettingDescription>
         </SettingLabelGroup>
         <Switch
-          checked={showOpenedMinappsInSidebar}
-          onCheckedChange={(checked) => setShowOpenedMinappsInSidebar(checked)}
+          checked={showOpenedMiniAppsInSidebar}
+          onCheckedChange={(checked) => setShowOpenedMiniAppsInSidebar(checked)}
         />
       </SettingRow>
     </Container>
@@ -191,7 +186,7 @@ const Container = styled.div`
   padding-top: 10px;
 `
 
-// 修改和新增样式
+// SettingRow styles
 const SettingRow = styled.div`
   display: flex;
   align-items: flex-start;
@@ -204,7 +199,7 @@ const SettingLabelGroup = styled.div`
   flex: 1;
 `
 
-// 新增控件容器，包含滑块和恢复默认按钮
+// Slider and reset button container
 const CacheSettingControls = styled.div`
   display: flex;
   flex-direction: column;
@@ -231,14 +226,14 @@ const SliderWithResetContainer = styled.div`
   }
 `
 
-// 重置按钮样式
+// Reset button styles
 const ResetButton = styled.button`
   display: flex;
   align-items: center;
   justify-content: center;
   width: 28px;
   height: 28px;
-  min-width: 28px; /* 确保不会被压缩 */
+  min-width: 28px; /* Prevent shrinking */
   border-radius: 4px;
   border: 1px solid var(--color-border);
   background-color: var(--color-bg-1);
@@ -264,7 +259,7 @@ const ButtonWrapper = styled.div`
   gap: 8px;
 `
 
-// 新增: 带边框的容器组件
+// Bordered container component
 const BorderedContainer = styled.div`
   border: 1px solid var(--color-border);
   border-radius: 8px;

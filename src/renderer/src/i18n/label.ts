@@ -177,7 +177,7 @@ export const getThemeModeLabel = (key: string): string => {
 //   store: t('assistants.presets.title'),
 //   paintings: t('paintings.title'),
 //   translate: t('translate.title'),
-//   minapp: t('minapp.title'),
+//   miniapp: t('miniapp.title'),
 //   knowledge: t('knowledge.title'),
 //   files: t('files.title'),
 //   code_tools: t('code.title'),
@@ -190,7 +190,7 @@ const sidebarIconKeyMap = {
   store: 'assistants.presets.title',
   paintings: 'paintings.title',
   translate: 'translate.title',
-  minapp: 'minapp.title',
+  miniapp: 'miniapp.title',
   knowledge: 'knowledge.title',
   files: 'files.title',
   code_tools: 'code.title',
@@ -287,7 +287,7 @@ const miniappsStatusKeyMap = {
   disabled: 'settings.miniapps.disabled'
 } as const
 
-export const getMiniappsStatusLabel = (key: string): string => {
+export const getMiniAppsStatusLabel = (key: string): string => {
   return getLabel(miniappsStatusKeyMap, key)
 }
 

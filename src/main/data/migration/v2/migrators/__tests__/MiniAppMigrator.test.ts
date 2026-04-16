@@ -39,7 +39,7 @@ describe('MiniAppMigrator', () => {
   })
 
   describe('prepare', () => {
-    it('should return success with 0 items when no minapps state', async () => {
+    it('should return success with 0 items when no miniapps state', async () => {
       const ctx = createMockContext({}) as any
       const result = await migrator.prepare(ctx)
 
@@ -47,7 +47,7 @@ describe('MiniAppMigrator', () => {
       expect(result.itemCount).toBe(0)
     })
 
-    it('should return success with 0 items when minapps is null', async () => {
+    it('should return success with 0 items when miniapps is null', async () => {
       const ctx = createMockContext({ minapps: null }) as any
       const result = await migrator.prepare(ctx)
 
@@ -299,18 +299,17 @@ describe('MiniAppMigrator', () => {
 
       await migrator.prepare(ctx)
 
-      // Mock db to return matching count
+      // Mock db to return matching count and 0 bad rows
       const validateCtx = {
         ...ctx,
         db: {
           select: vi.fn().mockReturnThis(),
           from: vi.fn().mockReturnThis(),
-          get: vi.fn().mockResolvedValue({ count: 2 }),
-          limit: vi.fn().mockReturnThis(),
-          all: vi.fn().mockResolvedValue([
-            { appId: 'app1', name: 'App 1', url: 'https://1.com' },
-            { appId: 'app2', name: 'App 2', url: 'https://2.com' }
-          ])
+          where: vi.fn().mockReturnThis(),
+          get: vi
+            .fn()
+            .mockResolvedValueOnce({ count: 2 }) // total count
+            .mockResolvedValueOnce({ count: 0 }) // bad rows count
         }
       }
 
@@ -339,9 +338,11 @@ describe('MiniAppMigrator', () => {
         db: {
           select: vi.fn().mockReturnThis(),
           from: vi.fn().mockReturnThis(),
-          get: vi.fn().mockResolvedValue({ count: 0 }), // mismatch
-          limit: vi.fn().mockReturnThis(),
-          all: vi.fn().mockResolvedValue([])
+          where: vi.fn().mockReturnThis(),
+          get: vi
+            .fn()
+            .mockResolvedValueOnce({ count: 0 }) // total count (mismatch)
+            .mockResolvedValueOnce({ count: 0 }) // bad rows count
         }
       }
 
@@ -366,20 +367,18 @@ describe('MiniAppMigrator', () => {
         db: {
           select: vi.fn().mockReturnThis(),
           from: vi.fn().mockReturnThis(),
-          get: vi.fn().mockResolvedValue({ count: 1 }),
-          limit: vi.fn().mockReturnThis(),
-          all: vi.fn().mockResolvedValue([
-            { appId: '', name: 'App 1', url: 'https://1.com' }, // missing appId
-            { appId: 'app2', name: '', url: 'https://2.com' }, // missing name
-            { appId: 'app3', name: 'App 3', url: '' } // missing url
-          ])
+          where: vi.fn().mockReturnThis(),
+          get: vi
+            .fn()
+            .mockResolvedValueOnce({ count: 1 }) // total count
+            .mockResolvedValueOnce({ count: 3 }) // 3 bad rows with empty fields
         }
       }
 
       const result = await migrator.validate(validateCtx)
 
       expect(result.success).toBe(false)
-      expect(result.errors?.some((e) => e.message.includes('Missing required field'))).toBe(true)
+      expect(result.errors?.some((e) => e.message.includes('empty'))).toBe(true)
     })
 
     it('should handle validation db errors', async () => {

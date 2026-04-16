@@ -1,7 +1,7 @@
-import { miniappTable } from '@data/db/schemas/miniapp'
+import { miniAppTable } from '@data/db/schemas/miniapp'
 import { MiniAppService } from '@data/services/MiniAppService'
 import { ErrorCode } from '@shared/data/api'
-import type { CreateMiniappDto, UpdateMiniappDto } from '@shared/data/api/schemas/miniapps'
+import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniapps'
 import { ORIGIN_DEFAULT_MIN_APPS } from '@shared/data/presets/miniapps'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
@@ -15,8 +15,8 @@ describe('MiniAppService', () => {
     service = new MiniAppService()
   })
 
-  async function seedCustomApp(overrides: Partial<typeof miniappTable.$inferInsert> = {}) {
-    const values: typeof miniappTable.$inferInsert = {
+  async function seedCustomApp(overrides: Partial<typeof miniAppTable.$inferInsert> = {}) {
+    const values: typeof miniAppTable.$inferInsert = {
       appId: 'custom-app',
       name: 'Custom App',
       url: 'https://custom.app',
@@ -27,12 +27,12 @@ describe('MiniAppService', () => {
       bordered: false,
       ...overrides
     }
-    await dbh.db.insert(miniappTable).values(values)
+    await dbh.db.insert(miniAppTable).values(values)
     return values
   }
 
-  async function seedDefaultAppPref(appId: string, overrides: Partial<typeof miniappTable.$inferInsert> = {}) {
-    const values: typeof miniappTable.$inferInsert = {
+  async function seedDefaultAppPref(appId: string, overrides: Partial<typeof miniAppTable.$inferInsert> = {}) {
+    const values: typeof miniAppTable.$inferInsert = {
       appId,
       name: 'PlaceholderName',
       url: 'https://placeholder.test',
@@ -41,7 +41,7 @@ describe('MiniAppService', () => {
       sortOrder: 0,
       ...overrides
     }
-    await dbh.db.insert(miniappTable).values(values)
+    await dbh.db.insert(miniAppTable).values(values)
     return values
   }
 
@@ -136,7 +136,7 @@ describe('MiniAppService', () => {
 
   describe('create', () => {
     it('should create a custom miniapp', async () => {
-      const dto: CreateMiniappDto = {
+      const dto: CreateMiniAppDto = {
         appId: 'new-app',
         name: 'New App',
         url: 'https://new.app',
@@ -151,9 +151,10 @@ describe('MiniAppService', () => {
       expect(result.name).toBe('New App')
       expect(result.type).toBe('custom')
 
-      const [row] = await dbh.db.select().from(miniappTable).where(eq(miniappTable.appId, 'new-app'))
+      const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'new-app'))
       expect(row.name).toBe('New App')
       expect(row.status).toBe('enabled')
+      expect(row.sortOrder).toBe(ORIGIN_DEFAULT_MIN_APPS.length)
     })
 
     it('should reject creation if appId is a builtin app', async () => {
@@ -189,13 +190,32 @@ describe('MiniAppService', () => {
         status: 409
       })
     })
+
+    it('should assign the next sort order after existing custom apps', async () => {
+      await seedCustomApp({ appId: 'app-a', name: 'A', sortOrder: 100 })
+      await seedCustomApp({ appId: 'app-b', name: 'B', sortOrder: 7 })
+
+      const result = await service.create({
+        appId: 'ordered-app',
+        name: 'Ordered App',
+        url: 'https://ordered.app',
+        logo: 'ordered-logo',
+        bordered: false,
+        supportedRegions: ['CN']
+      })
+
+      expect(result.sortOrder).toBe(101)
+
+      const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'ordered-app'))
+      expect(row.sortOrder).toBe(101)
+    })
   })
 
   describe('update', () => {
     it('should update all fields for a custom miniapp', async () => {
       await seedCustomApp()
 
-      const dto: UpdateMiniappDto = {
+      const dto: UpdateMiniAppDto = {
         name: 'Updated App',
         url: 'https://updated.app',
         status: 'disabled'
@@ -207,7 +227,7 @@ describe('MiniAppService', () => {
       expect(result.url).toBe('https://updated.app')
       expect(result.status).toBe('disabled')
 
-      const [row] = await dbh.db.select().from(miniappTable).where(eq(miniappTable.appId, 'custom-app'))
+      const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'custom-app'))
       expect(row.name).toBe('Updated App')
       expect(row.status).toBe('disabled')
     })
@@ -217,7 +237,7 @@ describe('MiniAppService', () => {
 
       expect(result.status).toBe('pinned')
 
-      const [row] = await dbh.db.select().from(miniappTable).where(eq(miniappTable.appId, 'openai'))
+      const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'openai'))
       expect(row.status).toBe('pinned')
       expect(row.type).toBe('default')
     })
@@ -243,7 +263,7 @@ describe('MiniAppService', () => {
 
       await expect(service.delete('custom-app')).resolves.toBeUndefined()
 
-      const rows = await dbh.db.select().from(miniappTable).where(eq(miniappTable.appId, 'custom-app'))
+      const rows = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'custom-app'))
       expect(rows).toHaveLength(0)
     })
 
@@ -255,7 +275,7 @@ describe('MiniAppService', () => {
         status: 422
       })
 
-      const rows = await dbh.db.select().from(miniappTable).where(eq(miniappTable.appId, 'openai'))
+      const rows = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'openai'))
       expect(rows).toHaveLength(1)
     })
   })
@@ -270,8 +290,8 @@ describe('MiniAppService', () => {
         { appId: 'app-2', sortOrder: 1 }
       ])
 
-      const [row1] = await dbh.db.select().from(miniappTable).where(eq(miniappTable.appId, 'app-1'))
-      const [row2] = await dbh.db.select().from(miniappTable).where(eq(miniappTable.appId, 'app-2'))
+      const [row1] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'app-1'))
+      const [row2] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'app-2'))
       expect(row1.sortOrder).toBe(0)
       expect(row2.sortOrder).toBe(1)
     })
@@ -279,7 +299,7 @@ describe('MiniAppService', () => {
     it('should ensure DB rows exist for builtin apps during reorder', async () => {
       await service.reorder([{ appId: 'openai', sortOrder: 3 }])
 
-      const [row] = await dbh.db.select().from(miniappTable).where(eq(miniappTable.appId, 'openai'))
+      const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'openai'))
       expect(row).toBeDefined()
       expect(row.sortOrder).toBe(3)
       expect(row.type).toBe('default')
@@ -298,7 +318,7 @@ describe('MiniAppService', () => {
 
       await service.resetDefaults()
 
-      const rows = await dbh.db.select().from(miniappTable)
+      const rows = await dbh.db.select().from(miniAppTable)
       expect(rows.some((r) => r.type === 'default')).toBe(false)
       expect(rows.some((r) => r.appId === 'custom-app')).toBe(true)
     })

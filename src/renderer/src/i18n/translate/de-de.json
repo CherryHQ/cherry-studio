@@ -2121,7 +2121,7 @@
   },
   "launchpad": {
     "apps": "Apps",
-    "minapps": "Mini-Apps"
+    "miniapps": "Mini-Apps"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2476,7 +2476,7 @@
       "rag_failed": "RAG fehlgeschlagen, leere Ergebnisse zurückgegeben..."
     }
   },
-  "minapp": {
+  "miniapp": {
     "add_to_launchpad": "Zu Launchpad hinzufügen",
     "add_to_sidebar": "Zur Seitenleiste hinzufügen",
     "popup": {
@@ -2509,7 +2509,7 @@
     },
     "title": "Mini-Apps"
   },
-  "minapps": {
+  "miniapps": {
     "ant-ling": "Ant Ling",
     "baichuan": "Baixiaoying",
     "baidu-ai-search": "Baidu AI Suche",
@@ -4521,7 +4521,7 @@
         "knowledge": {
           "icon": "Wissens-Symbol anzeigen"
         },
-        "minapp": {
+        "miniapp": {
           "icon": "Mini-App-Symbol anzeigen"
         },
         "painting": {

@@ -25,7 +25,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     resolve({})
   }
 
-  MinappSettingsPopup.hide = onCancel
+  MiniAppSettingsPopup.hide = onCancel
 
   return (
     <Modal
@@ -43,9 +43,9 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   )
 }
 
-const TopViewKey = 'MinappSettingsPopup'
+const TopViewKey = 'MiniAppSettingsPopup'
 
-export default class MinappSettingsPopup {
+export default class MiniAppSettingsPopup {
   static topviewId = 0
   static hide() {
     TopView.hide(TopViewKey)

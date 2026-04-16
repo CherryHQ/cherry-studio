@@ -16,7 +16,7 @@
  */
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
-import type { MinAppRegion } from '@renderer/types'
+import type { MiniAppRegion } from '@shared/data/types/miniapp'
 
 // export interface ChatState {
 //   isMultiSelectMode: boolean
@@ -72,7 +72,7 @@ export interface RuntimeState {
   // chat: ChatState
   // websearch: WebSearchState
   /** Detected region from IP lookup (not persisted, re-detected on each app start) */
-  detectedRegion: MinAppRegion | null
+  detectedRegion: MiniAppRegion | null
   /** Query whether a task is processing or not. undefined and false share same semantics.  */
   loadingMap: Record<string, boolean>
   // Migrated from useApiServer, it's global state now
@@ -222,7 +222,7 @@ const runtimeSlice = createSlice({
       const { id } = action.payload
       delete state.loadingMap[id]
     },
-    setDetectedRegion: (state, action: PayloadAction<MinAppRegion | null>) => {
+    setDetectedRegion: (state, action: PayloadAction<MiniAppRegion | null>) => {
       state.detectedRegion = action.payload
     },
     setApiServerRunningAction: (state, action: PayloadAction<boolean>) => {

@@ -1,3 +1,5 @@
+import type { MiniAppRegion } from '@shared/data/types/miniapp'
+
 import type * as CacheValueTypes from './cacheValueTypes'
 
 /**
@@ -121,11 +123,12 @@ export type UseCacheSchema = {
   'chat.generating': boolean
   'chat.web_search.searching': boolean
 
-  // Minapp management
-  'minapp.opened_keep_alive': CacheValueTypes.CacheMinAppType[]
-  'minapp.current_id': string
-  'minapp.show': boolean
-  'minapp.opened_oneoff': CacheValueTypes.CacheMinAppType | null
+  // MiniApp management
+  'miniapp.opened_keep_alive': CacheValueTypes.CacheMiniAppType[]
+  'miniapp.current_id': string
+  'miniapp.show': boolean
+  'miniapp.opened_oneoff': CacheValueTypes.CacheMiniAppType | null
+  'miniapp.detected_region': MiniAppRegion | null
 
   // Topic management
   'topic.active': CacheValueTypes.CacheTopic | null
@@ -191,11 +194,12 @@ export const DefaultUseCache: UseCacheSchema = {
   'chat.generating': false,
   'chat.web_search.searching': false,
 
-  // Minapp management
-  'minapp.opened_keep_alive': [],
-  'minapp.current_id': '',
-  'minapp.show': false,
-  'minapp.opened_oneoff': null,
+  // MiniApp management
+  'miniapp.opened_keep_alive': [],
+  'miniapp.current_id': '',
+  'miniapp.show': false,
+  'miniapp.opened_oneoff': null,
+  'miniapp.detected_region': null,
 
   // Topic management
   'topic.active': null,

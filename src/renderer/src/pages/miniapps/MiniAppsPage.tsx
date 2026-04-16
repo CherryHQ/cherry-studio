@@ -1,8 +1,8 @@
 import { Button } from '@cherrystudio/ui'
 import { Navbar, NavbarMain } from '@renderer/components/app/Navbar'
-import App from '@renderer/components/MinApp/MinApp'
+import App from '@renderer/components/MiniApp/MiniApp'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { useMinapps } from '@renderer/hooks/useMinapps'
+import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { Input } from 'antd'
 import { Search, SettingsIcon } from 'lucide-react'
@@ -11,20 +11,20 @@ import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import MinappSettingsPopup from './MiniappSettings/MinappSettingsPopup'
+import MiniAppSettingsPopup from './MiniAppSettings/MiniAppSettingsPopup'
 import NewAppButton from './NewAppButton'
 
 const AppsPage: FC = () => {
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
-  const { minapps } = useMinapps()
+  const { miniapps } = useMiniApps()
   const { isTopNavbar } = useNavbarPosition()
 
   const filteredApps = search
-    ? minapps.filter(
+    ? miniapps.filter(
         (app) => app.name.toLowerCase().includes(search.toLowerCase()) || app.url.includes(search.toLowerCase())
       )
-    : minapps
+    : miniapps
 
   // Calculate the required number of lines
   const itemsPerRow = Math.floor(930 / 115) // Maximum width divided by the width of each item (including spacing)
@@ -41,7 +41,7 @@ const AppsPage: FC = () => {
     <Container onContextMenu={handleContextMenu}>
       <Navbar>
         <NavbarMain>
-          {t('minapp.title')}
+          {t('miniapp.title')}
           <Input
             placeholder={t('common.search')}
             className="nodrag"
@@ -56,7 +56,7 @@ const AppsPage: FC = () => {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          <Button variant="ghost" className="nodrag" onClick={MinappSettingsPopup.show}>
+          <Button variant="ghost" className="nodrag" onClick={MiniAppSettingsPopup.show}>
             <SettingsIcon size={18} color="var(--color-text-2)" />
           </Button>
         </NavbarMain>
@@ -75,7 +75,7 @@ const AppsPage: FC = () => {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
-                <Button variant="ghost" className="nodrag" onClick={() => MinappSettingsPopup.show()}>
+                <Button variant="ghost" className="nodrag" onClick={() => MiniAppSettingsPopup.show()}>
                   <SettingsIcon size={18} color="var(--color-text-2)" />
                 </Button>
               </HeaderContainer>
@@ -83,7 +83,7 @@ const AppsPage: FC = () => {
             <AppsContainerWrapper>
               <AppsContainer style={{ height: containerHeight }}>
                 {filteredApps.map((app) => (
-                  <App key={app.id} app={app} />
+                  <App key={app.appId} app={app} />
                 ))}
                 <NewAppButton />
               </AppsContainer>

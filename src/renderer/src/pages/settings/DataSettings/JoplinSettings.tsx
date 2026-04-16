@@ -4,7 +4,7 @@ import { Button } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
+import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { Space } from 'antd'
 import { Input } from 'antd'
 import type { FC } from 'react'
@@ -24,7 +24,7 @@ const JoplinSettings: FC = () => {
     void setJoplinToken(e.target.value)
   }
 
-  const { openSmartMinapp } = useMinappPopup()
+  const { openSmartMiniApp } = useMiniAppPopup()
 
   const handleJoplinUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     void setJoplinUrl(e.target.value)
@@ -70,8 +70,8 @@ const JoplinSettings: FC = () => {
   }
 
   const handleJoplinHelpClick = () => {
-    openSmartMinapp({
-      id: 'joplin-help',
+    openSmartMiniApp({
+      appId: 'joplin-help',
       name: 'Joplin Help',
       url: 'https://joplinapp.org/help/apps/clipper',
       logo: AppLogo

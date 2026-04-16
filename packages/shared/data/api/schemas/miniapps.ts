@@ -21,7 +21,7 @@ const MiniAppRegionSchema = z.enum(['CN', 'Global'])
 /**
  * Zod schema for creating a new custom miniapp
  */
-export const CreateMiniappSchema = z.object({
+export const CreateMiniAppSchema = z.object({
   appId: z.string().min(1),
   name: z.string().min(1),
   url: z.string().min(1),
@@ -31,12 +31,12 @@ export const CreateMiniappSchema = z.object({
   background: z.string().nullable().optional(),
   configuration: z.unknown().nullable().optional()
 })
-export type CreateMiniappDto = z.infer<typeof CreateMiniappSchema>
+export type CreateMiniAppDto = z.infer<typeof CreateMiniAppSchema>
 
 /**
  * Zod schema for updating an existing miniapp
  */
-export const UpdateMiniappSchema = z.object({
+export const UpdateMiniAppSchema = z.object({
   name: z.string().min(1).optional(),
   url: z.string().min(1).optional(),
   logo: z.string().optional(),
@@ -46,12 +46,12 @@ export const UpdateMiniappSchema = z.object({
   supportedRegions: z.array(MiniAppRegionSchema).optional(),
   configuration: z.unknown().nullable().optional()
 })
-export type UpdateMiniappDto = z.infer<typeof UpdateMiniappSchema>
+export type UpdateMiniAppDto = z.infer<typeof UpdateMiniAppSchema>
 
 /**
  * Zod schema for batch reordering miniapps
  */
-export const ReorderMiniappsSchema = z.object({
+export const ReorderMiniAppsSchema = z.object({
   items: z.array(
     z.object({
       appId: z.string().min(1),
@@ -59,16 +59,16 @@ export const ReorderMiniappsSchema = z.object({
     })
   )
 })
-export type ReorderMiniappsDto = z.infer<typeof ReorderMiniappsSchema>
+export type ReorderMiniAppsDto = z.infer<typeof ReorderMiniAppsSchema>
 
 /**
  * Query parameters for listing miniapps
  */
-export const ListMiniappsQuerySchema = z.object({
+export const ListMiniAppsQuerySchema = z.object({
   status: MiniAppStatusSchema.optional(),
   type: MiniAppTypeSchema.optional()
 })
-export type ListMiniappsQuery = z.infer<typeof ListMiniappsQuerySchema>
+export type ListMiniAppsQuery = z.infer<typeof ListMiniAppsQuerySchema>
 
 // ============================================================================
 // API Schema Definitions
@@ -77,9 +77,9 @@ export type ListMiniappsQuery = z.infer<typeof ListMiniappsQuerySchema>
 /**
  * MiniApp API Schema definitions
  */
-export interface MiniappSchemas {
+export interface MiniAppSchemas {
   /**
-   * Miniapps collection endpoint
+   * MiniApps collection endpoint
    * @example GET /miniapps?status=enabled
    * @example POST /miniapps { "appId": "my-app", "name": "My App", "url": "https://example.com" }
    * @example PATCH /miniapps { "items": [{ "appId": "qwen", "sortOrder": 1 }] }
@@ -87,17 +87,17 @@ export interface MiniappSchemas {
   '/miniapps': {
     /** Get all miniapps (optionally filtered by status/type) */
     GET: {
-      query?: ListMiniappsQuery
+      query?: ListMiniAppsQuery
       response: OffsetPaginationResponse<MiniApp>
     }
     /** Create a new miniapp (for custom apps or default app preference rows) */
     POST: {
-      body: CreateMiniappDto
+      body: CreateMiniAppDto
       response: MiniApp
     }
     /** Batch reorder miniapps */
     PATCH: {
-      body: ReorderMiniappsDto
+      body: ReorderMiniAppsDto
       response: void
     }
   }
@@ -108,21 +108,21 @@ export interface MiniappSchemas {
    * @example PATCH /miniapps/qwen { "status": "disabled" }
    * @example DELETE /miniapps/qwen
    */
-  '/miniapps/:id': {
+  '/miniapps/:appId': {
     /** Get a miniapp by appId */
     GET: {
-      params: { id: string }
+      params: { appId: string }
       response: MiniApp
     }
     /** Update a miniapp */
     PATCH: {
-      params: { id: string }
-      body: UpdateMiniappDto
+      params: { appId: string }
+      body: UpdateMiniAppDto
       response: MiniApp
     }
     /** Delete a miniapp */
     DELETE: {
-      params: { id: string }
+      params: { appId: string }
       response: void
     }
   }
@@ -130,9 +130,9 @@ export interface MiniappSchemas {
   /**
    * Reset all builtin (default) app preferences to factory defaults.
    * Removes all DB preference rows for type='default', restoring original status/sortOrder.
-   * @example DELETE /miniapps/defaults
+   * @example DELETE /miniapps/_actions/reset-defaults
    */
-  '/miniapps/defaults': {
+  '/miniapps/_actions/reset-defaults': {
     /** Reset all default app preferences to builtin defaults */
     DELETE: {
       response: void

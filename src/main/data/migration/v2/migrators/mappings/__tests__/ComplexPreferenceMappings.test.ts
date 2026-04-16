@@ -105,7 +105,9 @@ describe('ComplexPreferenceMappings', () => {
       expect(keys).toContain('feature.code_cli.overrides')
       expect(keys).toContain('feature.file_processing.overrides')
       expect(keys).toContain('shortcut.general.zoom_in')
-      expect(keys.length).toBe(30)
+      expect(keys).toContain('ui.sidebar.icons.visible')
+      expect(keys).toContain('ui.sidebar.icons.invisible')
+      expect(keys.length).toBe(32)
     })
 
     it('should flatten target keys from all mappings', () => {

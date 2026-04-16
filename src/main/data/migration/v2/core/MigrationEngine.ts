@@ -9,7 +9,7 @@ import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/s
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { messageTable } from '@data/db/schemas/message'
-import { miniappTable } from '@data/db/schemas/miniapp'
+import { miniAppTable } from '@data/db/schemas/miniapp'
 import { preferenceTable } from '@data/db/schemas/preference'
 import { topicTable } from '@data/db/schemas/topic'
 import { translateHistoryTable } from '@data/db/schemas/translateHistory'
@@ -298,7 +298,7 @@ export class MigrationEngine {
       { table: assistantKnowledgeBaseTable, name: 'assistant_knowledge_base' }, // Junction: clear before assistant
       { table: assistantTable, name: 'assistant' },
       { table: mcpServerTable, name: 'mcp_server' },
-      { table: miniappTable, name: 'miniapp' },
+      { table: miniAppTable, name: 'miniapp' },
       { table: preferenceTable, name: 'preference' },
       { table: translateHistoryTable, name: 'translate_history' },
       { table: translateLanguageTable, name: 'translate_language' },
@@ -325,7 +325,7 @@ export class MigrationEngine {
     await db.delete(assistantKnowledgeBaseTable) // FK → assistant
     await db.delete(assistantTable)
     await db.delete(mcpServerTable)
-    await db.delete(miniappTable)
+    await db.delete(miniAppTable)
     await db.delete(preferenceTable)
     await db.delete(translateHistoryTable)
     await db.delete(translateLanguageTable)

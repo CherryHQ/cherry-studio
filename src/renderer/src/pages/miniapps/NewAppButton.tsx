@@ -1,9 +1,8 @@
 import { PlusOutlined, UploadOutlined } from '@ant-design/icons'
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { loadCustomMiniApp, ORIGIN_DEFAULT_MIN_APPS, updateAllMinApps } from '@renderer/config/minapps'
-import { useMinapps } from '@renderer/hooks/useMinapps'
-import type { MinAppType } from '@renderer/types'
+import { useMiniApps } from '@renderer/hooks/useMiniApps'
+import { ORIGIN_DEFAULT_MIN_APPS } from '@shared/data/presets/miniapps'
 import { Form, Input, Modal, Radio, Upload } from 'antd'
 import type { UploadFile } from 'antd/es/upload/interface'
 import type { FC } from 'react'
@@ -23,7 +22,7 @@ const NewAppButton: FC<Props> = ({ size = 60 }) => {
   const [fileList, setFileList] = useState<UploadFile[]>([])
   const [logoType, setLogoType] = useState<'url' | 'file'>('url')
   const [form] = Form.useForm()
-  const { minapps, updateMinapps } = useMinapps()
+  const { miniapps, disabled, pinned, createCustomMiniApp } = useMiniApps()
 
   const handleLogoTypeChange = (e: any) => {
     setLogoType(e.target.value)
@@ -33,36 +32,30 @@ const NewAppButton: FC<Props> = ({ size = 60 }) => {
 
   const handleAddCustomApp = async (values: any) => {
     try {
-      const content = await window.api.file.read('custom-minapps.json')
-      const customApps = JSON.parse(content)
-
-      // Check for duplicate ID
-      if (customApps.some((app: MinAppType) => app.id === values.id)) {
-        window.toast.error(t('settings.miniapps.custom.duplicate_ids', { ids: values.id }))
-        return
-      }
-      if (ORIGIN_DEFAULT_MIN_APPS.some((app: MinAppType) => app.id === values.id)) {
+      // Check for duplicate ID against builtin presets
+      if (ORIGIN_DEFAULT_MIN_APPS.some((app) => app.id === values.id)) {
         window.toast.error(t('settings.miniapps.custom.conflicting_ids', { ids: values.id }))
         return
       }
+      // Check for duplicate ID against existing apps in DB
+      const existingAppIds = new Set([...miniapps, ...disabled, ...pinned].map((a) => a.appId))
+      if (existingAppIds.has(values.id)) {
+        window.toast.error(t('settings.miniapps.custom.duplicate_ids', { ids: values.id }))
+        return
+      }
 
-      const newApp: MinAppType = {
-        id: values.id,
+      await createCustomMiniApp({
+        appId: values.id,
         name: values.name,
         url: values.url,
-        logo: form.getFieldValue('logo') || '',
-        type: 'Custom',
-        addTime: new Date().toISOString()
-      }
-      customApps.push(newApp)
-      await window.api.file.writeWithId('custom-minapps.json', JSON.stringify(customApps, null, 2))
+        logo: form.getFieldValue('logo') || 'application',
+        bordered: false,
+        supportedRegions: ['CN', 'Global']
+      })
       window.toast.success(t('settings.miniapps.custom.save_success'))
       setIsModalVisible(false)
       form.resetFields()
       setFileList([])
-      const reloadedApps = [...ORIGIN_DEFAULT_MIN_APPS, ...(await loadCustomMiniApp())]
-      updateAllMinApps(reloadedApps)
-      updateMinapps([...minapps, newApp])
     } catch (error) {
       window.toast.error(t('settings.miniapps.custom.save_error'))
       logger.error('Failed to save custom mini app:', error as Error)

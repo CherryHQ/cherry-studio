@@ -19,7 +19,7 @@ import { fileProcessingHandlers } from './fileProcessing'
 import { knowledgeHandlers } from './knowledges'
 import { mcpServerHandlers } from './mcpServers'
 import { messageHandlers } from './messages'
-import { miniappHandlers } from './miniapps'
+import { miniAppHandlers } from './miniapps'
 import { modelHandlers } from './models'
 import { providerHandlers } from './providers'
 import { temporaryChatHandlers } from './temporaryChats'
@@ -44,5 +44,5 @@ export const apiHandlers: ApiImplementation = {
   ...knowledgeHandlers,
   ...translateHandlers,
   ...mcpServerHandlers,
-  ...miniappHandlers
+  ...miniAppHandlers
 }

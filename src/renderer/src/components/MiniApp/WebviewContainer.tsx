@@ -7,7 +7,7 @@ const logger = loggerService.withContext('WebviewContainer')
 
 /**
  * WebviewContainer is a component that renders a webview element.
- * It is used in the MinAppPopupContainer component.
+ * It is used in the MiniAppPopupContainer component.
  * The webcontent can be remain in memory
  */
 const WebviewContainer = memo(
@@ -26,7 +26,7 @@ const WebviewContainer = memo(
   }) => {
     const webviewRef = useRef<WebviewTag | null>(null)
     const [enableSpellCheck] = usePreference('app.spell_check.enabled')
-    const [minappsOpenLinkExternal] = usePreference('feature.minapp.open_link_external')
+    const [openLinkExternal] = usePreference('feature.miniapp.open_link_external')
 
     const setRef = (appid: string) => {
       onSetRefCallback(appid, null)
@@ -78,7 +78,7 @@ const WebviewContainer = memo(
         if (webviewId) {
           void window.api?.webview?.setSpellCheckEnabled?.(webviewId, enableSpellCheck)
           // Set link opening behavior for this webview
-          void window.api?.webview?.setOpenLinkExternal?.(webviewId, minappsOpenLinkExternal)
+          void window.api?.webview?.setOpenLinkExternal?.(webviewId, openLinkExternal)
         }
       }
 
@@ -160,13 +160,13 @@ const WebviewContainer = memo(
         const webviewId = webviewRef.current.getWebContentsId()
         if (webviewId) {
           void window.api?.webview?.setSpellCheckEnabled?.(webviewId, enableSpellCheck)
-          void window.api?.webview?.setOpenLinkExternal?.(webviewId, minappsOpenLinkExternal)
+          void window.api?.webview?.setOpenLinkExternal?.(webviewId, openLinkExternal)
         }
       } catch (error) {
         // WebView may not be ready yet, settings will be applied in dom-ready event
         logger.debug(`WebView ${appid} not ready for settings update`)
       }
-    }, [appid, minappsOpenLinkExternal, enableSpellCheck])
+    }, [appid, openLinkExternal, enableSpellCheck])
 
     const WebviewStyle: React.CSSProperties = {
       width: '100%',
@@ -179,7 +179,7 @@ const WebviewContainer = memo(
       <webview
         key={appid}
         ref={setRef(appid)}
-        data-minapp-id={appid}
+        data-miniapp-id={appid}
         style={WebviewStyle}
         allowpopups={'true' as any}
         partition="persist:webview"

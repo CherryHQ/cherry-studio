@@ -1,71 +1,71 @@
 /**
- * Miniapp API Handlers
+ * MiniApp API Handlers
  *
  * Implements all miniapp-related API endpoints including:
- * - Miniapp CRUD operations
+ * - MiniApp CRUD operations
  * - Reordering
  *
  * All input validation happens here at the system boundary.
  */
 
-import { miniappService } from '@data/services/MiniAppService'
+import { miniAppService } from '@data/services/MiniAppService'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
-import type { MiniappSchemas } from '@shared/data/api/schemas/miniapps'
+import type { MiniAppSchemas } from '@shared/data/api/schemas/miniapps'
 import {
-  CreateMiniappSchema,
-  ListMiniappsQuerySchema,
-  ReorderMiniappsSchema,
-  UpdateMiniappSchema
+  CreateMiniAppSchema,
+  ListMiniAppsQuerySchema,
+  ReorderMiniAppsSchema,
+  UpdateMiniAppSchema
 } from '@shared/data/api/schemas/miniapps'
 
 /**
  * Handler type for a specific miniapp endpoint
  */
-type MiniappHandler<Path extends keyof MiniappSchemas, Method extends ApiMethods<Path>> = ApiHandler<Path, Method>
+type MiniAppHandler<Path extends keyof MiniAppSchemas, Method extends ApiMethods<Path>> = ApiHandler<Path, Method>
 
 /**
- * Miniapp API handlers implementation
+ * MiniApp API handlers implementation
  */
-export const miniappHandlers: {
-  [Path in keyof MiniappSchemas]: {
-    [Method in keyof MiniappSchemas[Path]]: MiniappHandler<Path, Method & ApiMethods<Path>>
+export const miniAppHandlers: {
+  [Path in keyof MiniAppSchemas]: {
+    [Method in keyof MiniAppSchemas[Path]]: MiniAppHandler<Path, Method & ApiMethods<Path>>
   }
 } = {
   '/miniapps': {
     GET: async ({ query }) => {
-      const parsed = ListMiniappsQuerySchema.parse(query ?? {})
-      return await miniappService.list(parsed)
+      const parsed = ListMiniAppsQuerySchema.parse(query ?? {})
+      return await miniAppService.list(parsed)
     },
     POST: async ({ body }) => {
-      const parsed = CreateMiniappSchema.parse(body)
-      return await miniappService.create(parsed)
+      const parsed = CreateMiniAppSchema.parse(body)
+      return await miniAppService.create(parsed)
     },
     PATCH: async ({ body }) => {
-      const parsed = ReorderMiniappsSchema.parse(body)
-      await miniappService.reorder(parsed.items)
+      const parsed = ReorderMiniAppsSchema.parse(body)
+      await miniAppService.reorder(parsed.items)
       return undefined
     }
   },
 
-  '/miniapps/:id': {
+  '/miniapps/:appId': {
     GET: async ({ params }) => {
-      return await miniappService.getByAppId(params.id)
+      return await miniAppService.getByAppId(params.appId)
     },
 
     PATCH: async ({ params, body }) => {
-      const parsed = UpdateMiniappSchema.parse(body)
-      return await miniappService.update(params.id, parsed)
+      const parsed = UpdateMiniAppSchema.parse(body)
+      return await miniAppService.update(params.appId, parsed)
     },
 
     DELETE: async ({ params }) => {
-      await miniappService.delete(params.id)
+      await miniAppService.delete(params.appId)
       return undefined
     }
   },
 
-  '/miniapps/defaults': {
+  '/miniapps/_actions/reset-defaults': {
     DELETE: async () => {
-      await miniappService.resetDefaults()
+      await miniAppService.resetDefaults()
       return undefined
     }
   }

@@ -363,14 +363,6 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'chat.message.confirm_regenerate'
     },
     {
-      originalKey: 'sidebarIcons.visible',
-      targetKey: 'ui.sidebar.icons.visible'
-    },
-    {
-      originalKey: 'sidebarIcons.disabled',
-      targetKey: 'ui.sidebar.icons.invisible'
-    },
-    {
       originalKey: 'narrowMode',
       targetKey: 'chat.narrow_mode'
     },
@@ -476,15 +468,19 @@ export const REDUX_STORE_MAPPINGS = {
     },
     {
       originalKey: 'maxKeepAliveMinapps',
-      targetKey: 'feature.minapp.max_keep_alive'
+      targetKey: 'feature.miniapp.max_keep_alive'
     },
     {
       originalKey: 'showOpenedMinappsInSidebar',
-      targetKey: 'feature.minapp.show_opened_in_sidebar'
+      targetKey: 'feature.miniapp.show_opened_in_sidebar'
     },
     {
       originalKey: 'minappsOpenLinkExternal',
-      targetKey: 'feature.minapp.open_link_external'
+      targetKey: 'feature.miniapp.open_link_external'
+    },
+    {
+      originalKey: 'minAppRegion',
+      targetKey: 'feature.miniapp.region'
     },
     {
       originalKey: 'enableSpellCheck',

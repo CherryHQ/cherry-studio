@@ -1,12 +1,11 @@
 import { loggerService } from '@logger'
-import MinAppIcon from '@renderer/components/Icons/MinAppIcon'
+import MiniAppIcon from '@renderer/components/Icons/MiniAppIcon'
 import IndicatorLight from '@renderer/components/IndicatorLight'
 import MarqueeText from '@renderer/components/MarqueeText'
-import { loadCustomMiniApp, ORIGIN_DEFAULT_MIN_APPS, updateAllMinApps } from '@renderer/config/minapps'
-import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
-import { useMinapps } from '@renderer/hooks/useMinapps'
+import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
+import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
-import type { MinAppType } from '@renderer/types'
+import type { MiniApp } from '@shared/data/types/miniapp'
 import { useNavigate } from '@tanstack/react-router'
 import type { MenuProps } from 'antd'
 import { Dropdown } from 'antd'
@@ -15,7 +14,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 interface Props {
-  app: MinAppType
+  app: MiniApp
   onClick?: () => void
   size?: number
   isLast?: boolean
@@ -23,28 +22,29 @@ interface Props {
 
 const logger = loggerService.withContext('App')
 
-const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
-  const { openMinappKeepAlive } = useMinappPopup()
+const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
+  const { openMiniAppKeepAlive } = useMiniAppPopup()
   const { t } = useTranslation()
   const {
-    minapps,
+    miniapps,
     pinned,
     disabled,
-    openedKeepAliveMinapps,
-    currentMinappId,
-    minappShow,
-    setOpenedKeepAliveMinapps,
-    updateMinapps,
-    updateDisabledMinapps,
-    updatePinnedMinapps
-  } = useMinapps()
+    openedKeepAliveMiniApps,
+    currentMiniAppId,
+    miniAppShow,
+    setOpenedKeepAliveMiniApps,
+    updateMiniApps,
+    updateDisabledMiniApps,
+    updatePinnedMiniApps,
+    removeCustomMiniApp
+  } = useMiniApps()
   const navigate = useNavigate()
-  const isPinned = pinned.some((p) => p.id === app.id)
-  const isVisible = minapps.some((m) => m.id === app.id)
+  const isPinned = pinned.some((p) => p.appId === app.appId)
+  const isVisible = miniapps.some((m) => m.appId === app.appId)
   // Pinned apps should always be visible regardless of region/locale filtering
   const shouldShow = isVisible || isPinned
-  const isActive = minappShow && currentMinappId === app.id
-  const isOpened = openedKeepAliveMinapps.some((item) => item.id === app.id)
+  const isActive = miniAppShow && currentMiniAppId === app.appId
+  const isOpened = openedKeepAliveMiniApps.some((item) => item.appId === app.appId)
   const { isTopNavbar } = useNavbarPosition()
 
   // Calculate display name
@@ -52,11 +52,11 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
 
   const handleClick = () => {
     if (isTopNavbar) {
-      // 顶部导航栏：导航到小程序页面
-      void navigate({ to: '/app/minapp/$appId', params: { appId: app.id } })
+      // Top navbar: navigate to the miniapp page
+      void navigate({ to: '/app/miniapp/$appId', params: { appId: app.appId } })
     } else {
-      // 侧边导航栏：保持原有弹窗行为
-      openMinappKeepAlive(app)
+      // Side navbar: keep the original popup behavior
+      openMiniAppKeepAlive(app)
     }
     onClick?.()
   }
@@ -66,48 +66,43 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
       key: 'togglePin',
       label: isPinned
         ? isTopNavbar
-          ? t('minapp.remove_from_launchpad')
-          : t('minapp.remove_from_sidebar')
+          ? t('miniapp.remove_from_launchpad')
+          : t('miniapp.remove_from_sidebar')
         : isTopNavbar
-          ? t('minapp.add_to_launchpad')
-          : t('minapp.add_to_sidebar'),
+          ? t('miniapp.add_to_launchpad')
+          : t('miniapp.add_to_sidebar'),
       onClick: () => {
-        const newPinned = isPinned ? pinned.filter((item) => item.id !== app.id) : [...pinned, app]
-        updatePinnedMinapps(newPinned)
+        const newPinned = isPinned ? pinned.filter((item) => item.appId !== app.appId) : [...pinned, app]
+        void updatePinnedMiniApps(newPinned)
       }
     },
-    {
-      key: 'hide',
-      label: t('minapp.sidebar.hide.title'),
-      onClick: () => {
-        const newMinapps = minapps.filter((item) => item.id !== app.id)
-        updateMinapps(newMinapps)
-        const newDisabled = [...(disabled || []), app]
-        updateDisabledMinapps(newDisabled)
-        updatePinnedMinapps(pinned.filter((item) => item.id !== app.id))
-        // 更新 openedKeepAliveMinapps
-        const newOpenedKeepAliveMinapps = openedKeepAliveMinapps.filter((item) => item.id !== app.id)
-        setOpenedKeepAliveMinapps(newOpenedKeepAliveMinapps)
-      }
-    },
-    ...(app.type === 'Custom'
+    ...(!isPinned
+      ? [
+          {
+            key: 'hide',
+            label: t('miniapp.sidebar.hide.title'),
+            onClick: () => {
+              const newMiniApps = miniapps.filter((item) => item.appId !== app.appId)
+              void updateMiniApps(newMiniApps)
+              const newDisabled = [...(disabled || []), app]
+              void updateDisabledMiniApps(newDisabled)
+              // Update openedKeepAliveMiniApps
+              const newOpenedKeepAliveMiniApps = openedKeepAliveMiniApps.filter((item) => item.appId !== app.appId)
+              setOpenedKeepAliveMiniApps(newOpenedKeepAliveMiniApps)
+            }
+          }
+        ]
+      : []),
+    ...(app.type === 'custom'
       ? [
           {
             key: 'removeCustom',
-            label: t('minapp.sidebar.remove_custom.title'),
+            label: t('miniapp.sidebar.remove_custom.title'),
             danger: true,
             onClick: async () => {
               try {
-                const content = await window.api.file.read('custom-minapps.json')
-                const customApps = JSON.parse(content)
-                const updatedApps = customApps.filter((customApp: MinAppType) => customApp.id !== app.id)
-                await window.api.file.writeWithId('custom-minapps.json', JSON.stringify(updatedApps, null, 2))
+                await removeCustomMiniApp(app.appId)
                 window.toast.success(t('settings.miniapps.custom.remove_success'))
-                const reloadedApps = [...ORIGIN_DEFAULT_MIN_APPS, ...(await loadCustomMiniApp())]
-                updateAllMinApps(reloadedApps)
-                updateMinapps(minapps.filter((item) => item.id !== app.id))
-                updatePinnedMinapps(pinned.filter((item) => item.id !== app.id))
-                updateDisabledMinapps(disabled.filter((item) => item.id !== app.id))
               } catch (error) {
                 window.toast.error(t('settings.miniapps.custom.remove_error'))
                 logger.error('Failed to remove custom mini app:', error as Error)
@@ -126,7 +121,7 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
     <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']}>
       <Container onClick={handleClick}>
         <IconContainer>
-          <MinAppIcon size={size} app={app} />
+          <MiniAppIcon size={size} app={app} />
           {isOpened && (
             <StyledIndicator>
               <IndicatorLight color="#22c55e" size={6} animation={!isActive} />
@@ -177,4 +172,4 @@ const AppTitle = styled.div`
   max-width: 80px;
 `
 
-export default MinApp
+export default MiniApp
