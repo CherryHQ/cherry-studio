@@ -298,4 +298,19 @@ export interface PoolState {
    * avoid accounting drift between scheduling and actual window creation.
    */
   inflightCreates: number
+  /**
+   * Pre-computed pool config values, populated once at PoolState creation and
+   * never mutated. Caching them on the state lets `poolGcTick` skip per-tick
+   * `getWindowTypeMetadata` lookups, `?? 0` coalescing, and `* 1000` arithmetic.
+   */
+  /** `cfg.standbySize ?? 0` — inactivity-trim floor. */
+  readonly standbyFloor: number
+  /** `max(standbySize, recycleMinSize) ?? 0` — decay floor. */
+  readonly decayFloor: number
+  /** `cfg.inactivityTimeout * 1000` (0 means feature disabled). */
+  readonly inactivityTimeoutMs: number
+  /** `cfg.decayInterval * 1000` (0 means feature disabled). */
+  readonly decayIntervalMs: number
+  /** True when both inactivity and decay are disabled — GC tick can skip this pool entirely. */
+  readonly gcDisabled: boolean
 }
