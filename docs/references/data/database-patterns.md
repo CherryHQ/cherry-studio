@@ -235,6 +235,59 @@ return this.getById(id);
 The schema supports soft delete via `deletedAt` field (see `createUpdateDeleteTimestamps`).
 Business logic can choose to use soft delete or hard delete based on requirements.
 
+## Raw SQL Queries & Recursive CTEs
+
+Drizzle's `casing: 'snake_case'` only applies to the ORM channel
+(`db.select()`, `db.insert()`, `db.update()`). Raw SQL via `db.all(sql\`...\`)`
+returns SQLite's native snake_case columns with **no runtime mapping** — the
+TypeScript generic on `db.all<T>()` is a compile-time assertion only. So
+`db.all<typeof messageTable.$inferSelect>(sql\`SELECT * FROM message\`)` lies
+to the type system: at runtime `row.parentId` is `undefined`; the actual key
+is `parent_id`.
+
+Recursive CTEs (`WITH RECURSIVE`) are the main reason raw SQL is needed —
+Drizzle does not yet support them in the query builder.
+
+### Pattern: CTE for IDs, ORM for rows
+
+Keep raw SQL minimal. Use the CTE to compute the **set of IDs** you need
+(single-word column, casing-safe), then fetch full rows through the ORM where
+camelCase mapping is automatic and fully type-safe.
+
+```typescript
+// Step 1 — recursive CTE returns ID-only
+const idRows = await db.all<{ id: string }>(sql`
+  WITH RECURSIVE ancestors AS (
+    SELECT id, parent_id FROM message WHERE id = ${nodeId} AND deleted_at IS NULL
+    UNION ALL
+    SELECT m.id, m.parent_id FROM message m
+    INNER JOIN ancestors a ON m.id = a.parent_id
+    WHERE m.deleted_at IS NULL
+  )
+  SELECT id FROM ancestors
+`)
+const ids = idRows.map((r) => r.id)
+
+// Step 2 — fetch full rows via ORM (auto camelCase)
+const rows = ids.length > 0
+  ? await db.select().from(messageTable).where(inArray(messageTable.id, ids))
+  : []
+
+// Step 3 — restore CTE order (IN-list does not preserve order)
+const order = new Map(ids.map((id, i) => [id, i]))
+rows.sort((a, b) => order.get(a.id)! - order.get(b.id)!)
+```
+
+If the CTE computes a derived value (e.g. `tree_depth`), select it alongside
+`id` — single-word aliases are also casing-safe — and join it back via a `Map`.
+
+**Don't** `SELECT *` with raw SQL or write a snake→camel helper to patch the
+output: both bypass Drizzle's type-safety and let future schema changes drift
+silently.
+
+Reference implementations: `MessageService.getTree` / `getBranchMessages` /
+`getPathToNode`, `KnowledgeItemService.getCascadeIdsInBase`.
+
 ## Custom SQL
 
 Drizzle cannot manage triggers and virtual tables (e.g., FTS5). These are defined in `customSql.ts` and run automatically after every migration.

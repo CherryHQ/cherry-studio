@@ -229,3 +229,37 @@ describe('ChatMigrator.prepareTopicData', () => {
     expect(msgMap.get('a2')?.parentId).toBe('u1')
   })
 })
+
+describe('ChatMigrator model reference sanitization', () => {
+  it('nulls out dangling migrated message model ids', () => {
+    const migrator = new ChatMigrator() as unknown as Record<string, unknown>
+    migrator['validModelIds'] = new Set(['openai::gpt-4'])
+
+    const messages: NewMessage[] = [
+      {
+        id: 'm1',
+        parentId: null,
+        topicId: 't1',
+        role: 'assistant',
+        data: { blocks: [] },
+        searchableText: null,
+        status: 'success',
+        siblingsGroupId: 0,
+        modelId: 'cherryai::qwen',
+        modelSnapshot: null,
+        traceId: null,
+        stats: null,
+        createdAt: 1,
+        updatedAt: 1
+      }
+    ]
+
+    const dropped = (migrator['sanitizeMessageModelReferences'] as (messages: NewMessage[]) => number).call(
+      migrator,
+      messages
+    )
+
+    expect(dropped).toBe(1)
+    expect(messages[0].modelId).toBeNull()
+  })
+})

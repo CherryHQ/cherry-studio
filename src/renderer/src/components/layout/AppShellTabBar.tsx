@@ -1,22 +1,21 @@
-import { loggerService } from '@logger'
+import { Tooltip } from '@cherrystudio/ui'
 import { isMac } from '@renderer/config/constant'
+import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { cn, uuid } from '@renderer/utils'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
-import { IpcChannel } from '@shared/IpcChannel'
 import { Home, Plus, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import type { Tab } from '../../hooks/useTabs'
 import { ShellTabBarActions, useShellTabBarLayout } from './ShellTabBarActions'
-
-const logger = loggerService.withContext('AppShellTabBar')
+import { TabContextMenu } from './TabContextMenu'
+import { getTabIcon } from './tabIcons'
+import { useTabDrag } from './useTabDrag'
 
 const HOME_TAB_ID = 'home'
-const DRAG_THRESHOLD = 5
-const DETACH_THRESHOLD = 30
-const TAB_GAP = 12
 
-type DragMode = 'pending' | 'reorder' | 'detach'
+// ─── Props ────────────────────────────────────────────────────────────────────
 
 type AppShellTabBarProps = {
   tabs: Tab[]
@@ -25,188 +24,232 @@ type AppShellTabBarProps = {
   closeTab: (id: string) => void
   addTab: (tab: Tab) => void
   reorderTabs: (type: 'pinned' | 'normal', oldIndex: number, newIndex: number) => void
+  pinTab: (id: string) => void
+  unpinTab: (id: string) => void
   isDetached?: boolean
 }
 
-const TabCornerRight = () => (
-  <svg
-    aria-hidden
-    className="absolute right-0 bottom-0 size-3 translate-x-full text-background"
-    viewBox="0 0 12 12"
-    xmlns="http://www.w3.org/2000/svg">
-    <path d="M0 0V12H12C5.37258 12 0 6.62742 0 0Z" fill="currentColor" />
-  </svg>
+interface ContextMenuState {
+  tabId: string
+  x: number
+  y: number
+}
+
+// ─── Drag item props (grouped to reduce sub-component prop count) ─────────────
+
+interface DragItemProps {
+  isDragging: boolean
+  isGhost: boolean
+  noTransition: boolean
+  translateX: number
+  onPointerDown: (e: React.PointerEvent) => void
+}
+
+interface TabToneProps {
+  activeClass: string
+  hoverClass: string
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+const Separator = () => <div className="mx-0.5 h-4 w-px shrink-0 bg-border/50" />
+
+const HomeTabButton = ({
+  isActive,
+  onClick,
+  onContextMenu,
+  tooltip,
+  tone
+}: {
+  isActive: boolean
+  onClick: () => void
+  onContextMenu: (e: React.MouseEvent) => void
+  tooltip: string
+  tone: TabToneProps
+}) => (
+  <Tooltip placement="bottom" content={tooltip} delay={600}>
+    <button
+      type="button"
+      onClick={onClick}
+      onContextMenu={onContextMenu}
+      className={cn(
+        'flex h-8 w-8 shrink-0 cursor-default items-center justify-center rounded-full transition-colors duration-150 [-webkit-app-region:no-drag]',
+        isActive ? tone.activeClass : tone.hoverClass
+      )}>
+      <Home size={14} strokeWidth={1.6} />
+    </button>
+  </Tooltip>
 )
 
-const TabCornerLeft = () => (
-  <svg
-    aria-hidden
-    className="-translate-x-full absolute bottom-0 left-0 size-3 text-background"
-    viewBox="0 0 12 12"
-    xmlns="http://www.w3.org/2000/svg">
-    <path d="M12 0V12H0C6.62742 12 12 6.62742 12 0Z" fill="currentColor" />
-  </svg>
-)
-
-const HomeTab = ({ isActive, onClick }: { isActive: boolean; onClick: () => void }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    className={cn(
-      'flex shrink-0 items-center justify-center rounded-[12px] p-[8px] [-webkit-app-region:no-drag]',
-      isActive ? 'bg-background text-foreground' : 'bg-[rgba(107,114,128,0.1)] text-foreground/80'
-    )}
-    title="Home">
-    <Home className="size-5" />
-  </button>
-)
-
-const TabContent = ({
+const PinnedTabButton = ({
   tab,
   isActive,
-  isDragging,
-  onClose,
-  showClose = true
+  onSelect,
+  onContextMenu,
+  drag,
+  tabRef,
+  tone
 }: {
   tab: Tab
   isActive: boolean
-  isDragging?: boolean
-  onClose?: () => void
-  showClose?: boolean
-}) => (
-  <>
-    {isActive && (
-      <>
-        <TabCornerLeft />
-        <TabCornerRight />
-      </>
-    )}
-    <span
-      className={cn(
-        'flex size-5 shrink-0 items-center justify-center text-foreground/80',
-        isActive && '@[48px]:flex hidden'
-      )}>
-      {tab.icon || <Home className="size-5" />}
-    </span>
-    <span
-      className="@[45px]:block hidden min-w-0 flex-1 whitespace-nowrap text-left font-medium text-sm leading-4"
-      style={{ maskImage: 'linear-gradient(to right, black 80%, transparent 100%)' }}>
-      {tab.title}
-    </span>
-    {isActive && onClose && !isDragging && showClose && (
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={(event) => {
-          event.stopPropagation()
-          onClose()
+  onSelect: () => void
+  onContextMenu: (e: React.MouseEvent) => void
+  drag: DragItemProps
+  tabRef: (el: HTMLButtonElement | null) => void
+  tone: TabToneProps
+}) => {
+  const Icon = getTabIcon(tab)
+  return (
+    <Tooltip placement="bottom" content={tab.title} delay={600}>
+      <button
+        ref={tabRef}
+        data-tab-id={tab.id}
+        type="button"
+        onPointerDown={drag.onPointerDown}
+        onClick={onSelect}
+        onContextMenu={onContextMenu}
+        title={tab.title}
+        style={{
+          transform: `translateX(${drag.translateX}px)`,
+          transition: drag.isDragging || drag.noTransition ? 'none' : 'transform 200ms ease',
+          zIndex: drag.isDragging ? 50 : 'auto',
+          opacity: drag.isGhost ? 0.3 : 1
         }}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.stopPropagation()
-            onClose()
-          }
-        }}
-        className="ml-auto flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-sm hover:bg-muted-foreground/20">
-        <X className="size-4" />
-      </div>
-    )}
-  </>
-)
+        className={cn(
+          'flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-150',
+          drag.isDragging ? 'cursor-grabbing' : 'cursor-default',
+          isActive ? tone.activeClass : tone.hoverClass
+        )}>
+        <Icon size={14} strokeWidth={1.6} />
+      </button>
+    </Tooltip>
+  )
+}
 
-const TabItem = ({
+// Threshold below which the right-side X is hidden and icon-overlay X is used instead
+const NARROW_TAB_THRESHOLD = 64
+
+const NormalTabButton = ({
   tab,
   isActive,
   onSelect,
   onClose,
+  onContextMenu,
   showClose = true,
-  isDragging,
-  isGhost,
-  noTransition,
-  translateX,
-  onPointerDown,
-  tabRef
+  drag,
+  tabRef,
+  tone
 }: {
   tab: Tab
   isActive: boolean
   onSelect: () => void
   onClose: () => void
+  onContextMenu: (e: React.MouseEvent) => void
   showClose?: boolean
-  isDragging: boolean
-  isGhost: boolean
-  noTransition: boolean
-  translateX: number
-  onPointerDown: (e: React.PointerEvent) => void
+  drag: DragItemProps
   tabRef: (el: HTMLButtonElement | null) => void
+  tone: TabToneProps
 }) => {
+  const Icon = getTabIcon(tab)
+  const isCloseable = tab.id !== HOME_TAB_ID
+  const btnRef = useRef<HTMLButtonElement | null>(null)
+  const [isNarrow, setIsNarrow] = useState(false)
+
+  useEffect(() => {
+    const el = btnRef.current
+    if (!el) return
+    const ro = new ResizeObserver(([entry]) => {
+      setIsNarrow(entry.contentRect.width < NARROW_TAB_THRESHOLD)
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  const setRefs = useCallback(
+    (el: HTMLButtonElement | null) => {
+      btnRef.current = el
+      tabRef(el)
+    },
+    [tabRef]
+  )
+
+  const showRightClose = isCloseable && showClose && !isNarrow
+  const showIconOverlayClose = isCloseable && showClose && isNarrow
+
   return (
     <button
-      ref={tabRef}
+      ref={setRefs}
       data-tab-id={tab.id}
       type="button"
-      onPointerDown={onPointerDown}
+      onPointerDown={drag.onPointerDown}
       onClick={onSelect}
+      onContextMenu={onContextMenu}
       style={{
-        transform: `translateX(${translateX}px)`,
-        transition: isDragging || noTransition ? 'none' : 'transform 200ms ease',
-        zIndex: isDragging ? 50 : 'auto',
-        opacity: isGhost ? 0.3 : 1
+        transform: `translateX(${drag.translateX}px)`,
+        transition: drag.isDragging || drag.noTransition ? 'none' : 'transform 200ms ease',
+        zIndex: drag.isDragging ? 50 : 'auto',
+        opacity: drag.isGhost ? 0.3 : 1
       }}
       className={cn(
-        '@container group relative flex h-full min-w-[40px] max-w-[200px] flex-1 items-center gap-2 px-3 py-0.5 [-webkit-app-region:no-drag]',
-        isDragging ? 'cursor-grabbing' : 'cursor-grab',
-        isActive
-          ? 'rounded-t-xs bg-background text-foreground'
-          : 'rounded-2xs text-foreground-secondary hover:bg-gray-500/10 hover:text-foreground'
+        'group relative flex h-[30px] min-w-[40px] max-w-[160px] flex-1 items-center gap-1.5 rounded-[10px] transition-all duration-150 [-webkit-app-region:no-drag]',
+        showRightClose ? 'pr-1 pl-2' : 'px-2',
+        drag.isDragging ? 'cursor-grabbing' : 'cursor-default',
+        isActive ? tone.activeClass : tone.hoverClass
       )}>
-      <TabContent tab={tab} isActive={isActive} isDragging={isDragging} onClose={onClose} showClose={showClose} />
-    </button>
-  )
-}
-
-const PinnedTab = ({
-  tab,
-  isActive,
-  onSelect,
-  isDragging,
-  isGhost,
-  noTransition,
-  translateX,
-  onPointerDown
-}: {
-  tab: Tab
-  isActive: boolean
-  onSelect: () => void
-  isDragging: boolean
-  isGhost: boolean
-  noTransition: boolean
-  translateX: number
-  onPointerDown: (e: React.PointerEvent) => void
-}) => {
-  const fallback = tab.title.slice(0, 1).toUpperCase()
-
-  return (
-    <button
-      data-tab-id={tab.id}
-      type="button"
-      onPointerDown={onPointerDown}
-      onClick={onSelect}
-      style={{
-        transform: `translateX(${translateX}px)`,
-        transition: isDragging || noTransition ? 'none' : 'transform 200ms ease',
-        zIndex: isDragging ? 50 : 'auto',
-        opacity: isGhost ? 0.3 : 1
-      }}
-      className={cn(
-        'flex size-7 items-center justify-center rounded-[8px] p-1',
-        isDragging ? 'cursor-grabbing' : 'cursor-grab',
-        isActive ? 'hover:bg-background' : 'hover:bg-gray-500/10'
+      {/* Icon — on narrow tabs, X overlay replaces icon on hover (Chrome-style) */}
+      <div className="relative flex h-[13px] w-[13px] shrink-0 items-center justify-center">
+        <Icon size={13} strokeWidth={1.6} className={cn(showIconOverlayClose && 'group-hover:hidden')} />
+        {showIconOverlayClose && (
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={(e) => {
+              e.stopPropagation()
+              onClose()
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.stopPropagation()
+                onClose()
+              }
+            }}
+            className="absolute inset-0 hidden cursor-pointer items-center justify-center rounded-sm group-hover:flex">
+            <X size={11} />
+          </div>
+        )}
+      </div>
+      <span
+        className="min-w-0 flex-1 truncate text-left font-medium text-[11px] leading-none"
+        style={{ maskImage: 'linear-gradient(to right, black 80%, transparent 100%)' }}>
+        {tab.title}
+      </span>
+      {/* Right-side close button — only on wide tabs */}
+      {showRightClose && (
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={(e) => {
+            e.stopPropagation()
+            onClose()
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.stopPropagation()
+              onClose()
+            }
+          }}
+          className={cn(
+            'ml-auto flex h-[18px] w-[18px] shrink-0 cursor-pointer items-center justify-center rounded-sm transition-all duration-150 hover:bg-foreground/10',
+            isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+          )}>
+          <X size={10} />
+        </div>
       )}
-      title={tab.title}>
-      <span className="flex size-5 items-center justify-center text-foreground/80">{tab.icon || fallback}</span>
     </button>
   )
 }
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 export const AppShellTabBar = ({
   tabs,
@@ -215,9 +258,30 @@ export const AppShellTabBar = ({
   closeTab,
   addTab,
   reorderTabs,
+  pinTab,
+  unpinTab,
   isDetached = false
 }: AppShellTabBarProps) => {
+  const { t } = useTranslation()
+  const isMacTransparentWindow = useMacTransparentWindow()
   const { rightPaddingClass } = useShellTabBarLayout(isDetached)
+  const tabTone = useMemo<TabToneProps>(
+    () =>
+      isMacTransparentWindow
+        ? {
+            activeClass:
+              'border border-black/8 bg-white/78 text-sidebar-foreground backdrop-blur-sm dark:border-white/14 dark:bg-white/16 dark:text-sidebar-foreground',
+            hoverClass:
+              'text-muted-foreground hover:bg-black/6 hover:text-sidebar-foreground hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28)] dark:hover:bg-white/6 dark:hover:text-sidebar-foreground dark:hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]'
+          }
+        : {
+            activeClass: 'bg-black/8 text-sidebar-foreground dark:bg-sidebar-accent dark:text-sidebar-foreground',
+            hoverClass:
+              'text-muted-foreground hover:bg-white hover:text-sidebar-foreground dark:hover:bg-white/10 dark:hover:text-sidebar-foreground'
+          },
+    [isMacTransparentWindow]
+  )
+
   const { homeTab, pinnedTabs, normalTabs } = useMemo(() => {
     const pinned: Tab[] = []
     const normal: Tab[] = []
@@ -233,333 +297,56 @@ export const AppShellTabBar = ({
     return { homeTab: home, pinnedTabs: pinned, normalTabs: normal }
   }, [tabs])
 
-  // Drag render state
-  const [dragState, setDragState] = useState<{
-    tabId: string
-    mode: DragMode
-    insertIndex: number
-  } | null>(null)
+  // ─── Context menu ───────────────────────────────────────────────────────────
 
-  // Prevent animation flicker after reorder (disable transition for one frame)
-  const [settling, setSettling] = useState(false)
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
 
-  // High-frequency data (does not trigger re-render)
-  const dragRef = useRef({
-    pointerId: 0,
-    startX: 0,
-    startY: 0,
-    currentX: 0,
-    tabType: 'normal' as 'pinned' | 'normal',
-    detachedCreated: false,
-    tabClosed: false,
-    originalRects: new Map<string, { left: number; width: number }>(),
-    grabOffsetX: 0,
-    grabOffsetY: 0
-  })
+  const handleContextMenu = useCallback((e: React.MouseEvent, tabId: string) => {
+    if (tabId === HOME_TAB_ID) return
+    e.preventDefault()
+    setContextMenu({ tabId, x: e.clientX, y: e.clientY })
+  }, [])
 
-  // Prevent onClick from firing after drag ends
-  const didDragRef = useRef(false)
+  const contextMenuTab = contextMenu ? tabs.find((t) => t.id === contextMenu.tabId) : undefined
 
-  const tabBarRef = useRef<HTMLDivElement>(null)
-  const tabRefs = useRef<Map<string, HTMLButtonElement>>(new Map())
-  const rafId = useRef<number | null>(null)
-
-  // settling recovery
-  useEffect(() => {
-    if (settling) {
-      const id = requestAnimationFrame(() => setSettling(false))
-      return () => cancelAnimationFrame(id)
-    }
-    return undefined
-  }, [settling])
-
-  // Calculate insert index using original positions (skip the dragged tab)
-  const calculateInsertIndex = useCallback(
-    (clientX: number, dragTabId: string): number => {
-      const list = dragRef.current.tabType === 'pinned' ? pinnedTabs : normalTabs
-      const rects = dragRef.current.originalRects
-      for (let i = 0; i < list.length; i++) {
-        if (list[i].id === dragTabId) continue
-        const rect = rects.get(list[i].id)
-        if (rect) {
-          if (clientX < rect.left + rect.width / 2) {
-            return i
-          }
-        }
-      }
-      return list.length
-    },
-    [normalTabs, pinnedTabs]
-  )
-
-  // Calculate translateX for each tab
-  const getTranslateX = useCallback(
-    (tabId: string, tabType: 'pinned' | 'normal'): number => {
-      if (!dragState || dragState.mode !== 'reorder' || dragRef.current.tabType !== tabType) return 0
-
-      const list = tabType === 'pinned' ? pinnedTabs : normalTabs
-      const draggedIndex = list.findIndex((t) => t.id === dragState.tabId)
-      const currentIndex = list.findIndex((t) => t.id === tabId)
-      const { insertIndex } = dragState
-
-      if (tabId === dragState.tabId) {
-        return dragRef.current.currentX - dragRef.current.startX
-      }
-
-      const draggedRect = dragRef.current.originalRects.get(dragState.tabId)
-      if (!draggedRect) return 0
-      const draggedWidth = draggedRect.width + TAB_GAP
-
-      if (draggedIndex < insertIndex) {
-        if (currentIndex > draggedIndex && currentIndex < insertIndex) {
-          return -draggedWidth
-        }
-      } else if (draggedIndex > insertIndex) {
-        if (currentIndex >= insertIndex && currentIndex < draggedIndex) {
-          return draggedWidth
-        }
-      }
-
-      return 0
-    },
-    [dragState, pinnedTabs, normalTabs]
-  )
-
-  // pointerdown
-  const handlePointerDown = useCallback(
-    (e: React.PointerEvent, tab: Tab, tabType: 'pinned' | 'normal') => {
-      if (e.button !== 0) return
-      if ((e.target as HTMLElement).closest('[role="button"]')) return
-
-      const target = e.currentTarget as HTMLElement
-      target.setPointerCapture(e.pointerId)
-
-      const list = tabType === 'pinned' ? pinnedTabs : normalTabs
-      const index = list.findIndex((t) => t.id === tab.id)
-
-      // Store original positions of all tabs
-      const originalRects = new Map<string, { left: number; width: number }>()
-      for (const t of list) {
-        const el = tabRefs.current.get(t.id)
-        if (el) {
-          const rect = el.getBoundingClientRect()
-          originalRects.set(t.id, { left: rect.left, width: rect.width })
-        }
-      }
-
-      dragRef.current = {
-        pointerId: e.pointerId,
-        startX: e.clientX,
-        startY: e.clientY,
-        currentX: e.clientX,
-        tabType,
-        detachedCreated: false,
-        tabClosed: false,
-        originalRects,
-        grabOffsetX: e.screenX - window.screenX,
-        grabOffsetY: e.screenY - window.screenY
-      }
-
-      didDragRef.current = false
-
-      setDragState({
-        tabId: tab.id,
-        mode: 'pending',
-        insertIndex: index
-      })
-    },
-    [pinnedTabs, normalTabs]
-  )
-
-  // onClick debounce: prevent selection after drag ends
-  const handleTabClick = useCallback(
+  const handlePinToggle = useCallback(
     (tabId: string) => {
-      if (didDragRef.current) {
-        didDragRef.current = false
-        return
+      const tab = tabs.find((t) => t.id === tabId)
+      if (!tab) return
+      if (tab.isPinned) {
+        unpinTab(tabId)
+      } else {
+        pinTab(tabId)
       }
-      setActiveTab(tabId)
     },
-    [setActiveTab]
+    [tabs, pinTab, unpinTab]
   )
 
-  // Document-level pointermove / pointerup
-  useEffect(() => {
-    if (!dragState) return
-
-    const onMove = (e: PointerEvent) => {
-      if (e.pointerId !== dragRef.current.pointerId) return
-
-      dragRef.current.currentX = e.clientX
-      const deltaX = e.clientX - dragRef.current.startX
-      const deltaY = e.clientY - dragRef.current.startY
-
-      // Detached window: dragging tab = dragging the entire window
-      if (isDetached) {
-        const pastThreshold = Math.abs(deltaX) > DRAG_THRESHOLD || Math.abs(deltaY) > DRAG_THRESHOLD
-        if (dragState.mode === 'pending' && pastThreshold) {
-          setDragState((prev) => (prev ? { ...prev, mode: 'detach' } : null))
-        }
-        // Use pastThreshold as fallback to avoid losing the first frame due to mode still being pending in closure
-        if (dragState.mode === 'detach' || pastThreshold) {
-          if (rafId.current === null) {
-            rafId.current = requestAnimationFrame(() => {
-              window.electron.ipcRenderer.send(IpcChannel.Tab_MoveWindow, {
-                tabId: dragState.tabId,
-                x: e.screenX - dragRef.current.grabOffsetX,
-                y: e.screenY - dragRef.current.grabOffsetY
-              })
-              rafId.current = null
-            })
-          }
-        }
-        return
+  const handleMoveToFirst = useCallback(
+    (tabId: string) => {
+      const tab = tabs.find((t) => t.id === tabId)
+      if (!tab) return
+      const list = tab.isPinned ? pinnedTabs : normalTabs
+      const currentIndex = list.findIndex((t) => t.id === tabId)
+      if (currentIndex > 0) {
+        reorderTabs(tab.isPinned ? 'pinned' : 'normal', currentIndex, 0)
       }
+    },
+    [tabs, pinnedTabs, normalTabs, reorderTabs]
+  )
 
-      // Main window logic
-      const tabBarRect = tabBarRef.current?.getBoundingClientRect()
-      if (!tabBarRect) return
+  // ─── Drag logic (extracted to useTabDrag) ──────────────────────────────────
 
-      const isOutsideTabBar =
-        e.clientY < tabBarRect.top - DETACH_THRESHOLD || e.clientY > tabBarRect.bottom + DETACH_THRESHOLD
+  const { tabBarRef, tabRefs, noTransition, getTranslateX, handlePointerDown, handleTabClick, isDragging, isGhost } =
+    useTabDrag({ pinnedTabs, normalTabs, isDetached, reorderTabs, closeTab, setActiveTab })
 
-      if (dragState.mode === 'pending') {
-        if (isOutsideTabBar && Math.abs(deltaY) > DETACH_THRESHOLD) {
-          setDragState((prev) => (prev ? { ...prev, mode: 'detach' } : null))
-        } else if (Math.abs(deltaX) > DRAG_THRESHOLD) {
-          setDragState((prev) => (prev ? { ...prev, mode: 'reorder' } : null))
-        }
-      } else if (dragState.mode === 'reorder') {
-        if (isOutsideTabBar) {
-          setDragState((prev) => (prev ? { ...prev, mode: 'detach' } : null))
-        } else {
-          if (rafId.current === null) {
-            rafId.current = requestAnimationFrame(() => {
-              const newInsertIndex = calculateInsertIndex(dragRef.current.currentX, dragState.tabId)
-              setDragState((prev) => (prev ? { ...prev, insertIndex: newInsertIndex } : null))
-              rafId.current = null
-            })
-          }
-        }
-      }
-
-      // Detach mode: create/move window
-      if (dragState.mode === 'detach' || (isOutsideTabBar && Math.abs(deltaY) > DETACH_THRESHOLD)) {
-        if (!dragRef.current.detachedCreated) {
-          const allTabs = [...pinnedTabs, ...normalTabs]
-          const tab = allTabs.find((t) => t.id === dragState.tabId)
-          if (tab) {
-            window.electron.ipcRenderer.send(IpcChannel.Tab_Detach, {
-              ...tab,
-              x: e.screenX - 400,
-              y: e.screenY - 20
-            })
-            dragRef.current.detachedCreated = true
-            closeTab(dragState.tabId)
-            dragRef.current.tabClosed = true
-            didDragRef.current = true
-          }
-        } else if (!dragRef.current.tabClosed) {
-          // Tab has been unmounted by closeTab, only update reorder state when not closed
-        } else {
-          // Tab has been closed, only need to move the new window
-          if (rafId.current === null) {
-            rafId.current = requestAnimationFrame(() => {
-              window.electron.ipcRenderer.send(IpcChannel.Tab_MoveWindow, {
-                tabId: dragState.tabId,
-                x: e.screenX - 400,
-                y: e.screenY - 20
-              })
-              rafId.current = null
-            })
-          }
-        }
-      }
-    }
-
-    const onUp = (e: PointerEvent) => {
-      if (e.pointerId !== dragRef.current.pointerId) return
-
-      const el = tabRefs.current.get(dragState.tabId)
-      if (el) {
-        try {
-          el.releasePointerCapture(dragRef.current.pointerId)
-        } catch {
-          // Element may have been unmounted
-        }
-      }
-
-      // Detached window: try to attach back to main window on pointer up
-      if (isDetached && dragState.mode === 'detach') {
-        didDragRef.current = true
-        const allTabs = [...pinnedTabs, ...normalTabs]
-        const tab = allTabs.find((t) => t.id === dragState.tabId)
-        if (tab) {
-          window.electron.ipcRenderer
-            .invoke(IpcChannel.Tab_TryAttach, {
-              tab,
-              screenX: e.screenX,
-              screenY: e.screenY
-            })
-            .catch((err: unknown) => {
-              logger.debug(
-                'Tab_TryAttach failed, window stays detached',
-                err instanceof Error ? err : new Error(String(err))
-              )
-            })
-        }
-        setDragState(null)
-        if (rafId.current !== null) {
-          cancelAnimationFrame(rafId.current)
-          rafId.current = null
-        }
-        return
-      }
-
-      if (dragState.mode === 'reorder') {
-        didDragRef.current = true
-        const list = dragRef.current.tabType === 'pinned' ? pinnedTabs : normalTabs
-        const oldIndex = list.findIndex((t) => t.id === dragState.tabId)
-        if (oldIndex !== -1 && oldIndex !== dragState.insertIndex) {
-          const adjustedIndex = oldIndex < dragState.insertIndex ? dragState.insertIndex - 1 : dragState.insertIndex
-          if (oldIndex !== adjustedIndex) {
-            setSettling(true)
-            reorderTabs(dragRef.current.tabType, oldIndex, adjustedIndex)
-          }
-        }
-      } else if (dragState.mode === 'detach') {
-        if (!dragRef.current.tabClosed && dragRef.current.tabType === 'normal') {
-          closeTab(dragState.tabId)
-        }
-        window.electron.ipcRenderer.send(IpcChannel.Tab_DragEnd)
-      }
-
-      if (rafId.current !== null) {
-        cancelAnimationFrame(rafId.current)
-        rafId.current = null
-      }
-      setDragState(null)
-    }
-
-    document.addEventListener('pointermove', onMove)
-    document.addEventListener('pointerup', onUp)
-
-    return () => {
-      document.removeEventListener('pointermove', onMove)
-      document.removeEventListener('pointerup', onUp)
-      if (rafId.current !== null) {
-        cancelAnimationFrame(rafId.current)
-        rafId.current = null
-      }
-    }
-  }, [dragState, pinnedTabs, normalTabs, calculateInsertIndex, reorderTabs, closeTab, isDetached])
+  // ─── Action handlers ────────────────────────────────────────────────────────
 
   const handleHomeClick = () => {
     if (homeTab) {
       setActiveTab(homeTab.id)
       return
     }
-
     addTab({
       id: HOME_TAB_ID,
       type: 'route',
@@ -577,72 +364,123 @@ export const AppShellTabBar = ({
     })
   }
 
-  const noTransition = settling
+  // ─── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <header
-      ref={tabBarRef}
-      className={cn(
-        'relative flex h-10 w-full items-center gap-[4px] bg-neutral-100 [-webkit-app-region:drag] dark:bg-neutral-900',
-        rightPaddingClass,
-        isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-4'
-      )}>
-      {!isDetached && <HomeTab isActive={activeTabId === HOME_TAB_ID} onClick={handleHomeClick} />}
+    <>
+      <header
+        ref={tabBarRef}
+        className={cn(
+          'relative flex h-11 w-full select-none items-center gap-1 [-webkit-app-region:drag]',
+          isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar',
+          rightPaddingClass,
+          isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-3'
+        )}>
+        {/* Home tab */}
+        {!isDetached && (
+          <HomeTabButton
+            isActive={activeTabId === HOME_TAB_ID}
+            onClick={handleHomeClick}
+            onContextMenu={(e) => handleContextMenu(e, HOME_TAB_ID)}
+            tooltip={t('title.home')}
+            tone={tabTone}
+          />
+        )}
+        {!isDetached && (pinnedTabs.length > 0 || normalTabs.length > 0) && <Separator />}
 
-      {pinnedTabs.length > 0 && (
-        <div className="flex shrink-0 items-center gap-[2px] rounded-[12px] border border-border px-[12px] py-[4px] [-webkit-app-region:no-drag]">
-          {pinnedTabs.map((tab) => (
-            <PinnedTab
+        {/* Tabs scrollable area — empty space stays draggable; only interactive elements override */}
+        <div className="flex flex-1 items-center gap-1 overflow-x-auto px-1 [&::-webkit-scrollbar]:hidden">
+          {/* Pinned tabs */}
+          {pinnedTabs.length > 0 && (
+            <div className="flex shrink-0 items-center gap-0 rounded-full bg-sidebar-accent/50 p-0 [-webkit-app-region:no-drag]">
+              {pinnedTabs.map((tab) => (
+                <PinnedTabButton
+                  key={tab.id}
+                  tab={tab}
+                  isActive={tab.id === activeTabId}
+                  onSelect={() => handleTabClick(tab.id)}
+                  onContextMenu={(e) => handleContextMenu(e, tab.id)}
+                  tone={tabTone}
+                  drag={{
+                    isDragging: isDragging(tab.id),
+                    isGhost: isGhost(tab.id),
+                    noTransition,
+                    translateX: getTranslateX(tab.id, 'pinned'),
+                    onPointerDown: (e) => handlePointerDown(e, tab, 'pinned')
+                  }}
+                  tabRef={(el) => {
+                    if (el) {
+                      tabRefs.current.set(tab.id, el)
+                    } else {
+                      tabRefs.current.delete(tab.id)
+                    }
+                  }}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Separator before normal tabs */}
+          {!isDetached && pinnedTabs.length > 0 && normalTabs.length > 0 && <Separator />}
+
+          {/* Normal tabs */}
+          {normalTabs.map((tab) => (
+            <NormalTabButton
               key={tab.id}
               tab={tab}
               isActive={tab.id === activeTabId}
               onSelect={() => handleTabClick(tab.id)}
-              isDragging={dragState?.tabId === tab.id && dragState?.mode === 'reorder'}
-              isGhost={dragState?.tabId === tab.id && dragState?.mode === 'detach'}
-              noTransition={noTransition}
-              translateX={getTranslateX(tab.id, 'pinned')}
-              onPointerDown={(e) => handlePointerDown(e, tab, 'pinned')}
+              onClose={() => closeTab(tab.id)}
+              onContextMenu={(e) => handleContextMenu(e, tab.id)}
+              showClose={!isDetached}
+              tone={tabTone}
+              drag={{
+                isDragging: isDragging(tab.id),
+                isGhost: isGhost(tab.id),
+                noTransition,
+                translateX: getTranslateX(tab.id, 'normal'),
+                onPointerDown: (e) => handlePointerDown(e, tab, 'normal')
+              }}
+              tabRef={(el) => {
+                if (el) {
+                  tabRefs.current.set(tab.id, el)
+                } else {
+                  tabRefs.current.delete(tab.id)
+                }
+              }}
             />
           ))}
+
+          {/* New tab button — sticky so it hugs the last tab but never scrolls away */}
+          {!isDetached && (
+            <button
+              type="button"
+              onClick={handleAddTab}
+              className={cn(
+                'sticky right-0 ml-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors [-webkit-app-region:no-drag] hover:bg-sidebar-accent hover:text-sidebar-foreground',
+                isMacTransparentWindow ? 'bg-white/60 backdrop-blur-sm dark:bg-black/40' : 'bg-sidebar'
+              )}
+              title={t('tab.new')}>
+              <Plus size={14} />
+            </button>
+          )}
         </div>
+
+        <ShellTabBarActions isDetached={isDetached} />
+      </header>
+
+      {/* Right-click context menu */}
+      {contextMenu && contextMenuTab && contextMenuTab.id !== HOME_TAB_ID && (
+        <TabContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          isPinned={!!contextMenuTab.isPinned}
+          onMoveToFirst={() => handleMoveToFirst(contextMenu.tabId)}
+          onPin={() => handlePinToggle(contextMenu.tabId)}
+          onClose={() => closeTab(contextMenu.tabId)}
+          onDismiss={() => setContextMenu(null)}
+        />
       )}
-
-      <div className="relative flex h-full flex-1 flex-nowrap items-center gap-3 overflow-hidden">
-        {normalTabs.map((tab) => (
-          <TabItem
-            key={tab.id}
-            tab={tab}
-            isActive={tab.id === activeTabId}
-            onSelect={() => handleTabClick(tab.id)}
-            onClose={() => closeTab(tab.id)}
-            showClose={!isDetached}
-            isDragging={dragState?.tabId === tab.id && dragState?.mode === 'reorder'}
-            isGhost={dragState?.tabId === tab.id && dragState?.mode === 'detach'}
-            noTransition={noTransition}
-            translateX={getTranslateX(tab.id, 'normal')}
-            onPointerDown={(e) => handlePointerDown(e, tab, 'normal')}
-            tabRef={(el) => {
-              if (el) {
-                tabRefs.current.set(tab.id, el)
-              } else {
-                tabRefs.current.delete(tab.id)
-              }
-            }}
-          />
-        ))}
-
-        {!isDetached && (
-          <button
-            type="button"
-            onClick={handleAddTab}
-            className="flex shrink-0 items-center justify-center p-[8px] [-webkit-app-region:no-drag] hover:bg-[rgba(107,114,128,0.1)]"
-            title="New Tab">
-            <Plus className="size-5" />
-          </button>
-        )}
-      </div>
-
-      <ShellTabBarActions isDetached={isDetached} />
-    </header>
+    </>
   )
 }

@@ -82,7 +82,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const [userName] = usePreference('app.user.name')
   const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
   const [showOpenedInSidebar] = usePreference('feature.minapp.show_opened_in_sidebar')
-  const { tabs, activeTab, activeTabId, updateTab, openTab } = useTabs()
+  const { activeTab, updateTab, openTab } = useTabs()
   const { defaultPaintingProvider } = useSettings()
 
   // Sidebar width — persisted across restarts
@@ -166,7 +166,8 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   const handleNavigate = useCallback(
     async (menuItemId: string) => {
-      const path = getMenuPath(menuItemId as SidebarIconType, defaultPaintingProvider)
+      const menuId = menuItemId as SidebarIconType
+      const path = getMenuPath(menuId, defaultPaintingProvider)
       if (!path) return
 
       try {
@@ -175,19 +176,18 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
         return
       }
 
-      const hasUserTabsInTabBar = tabs.some((tab) => tab.id !== 'home')
-      if (!hasUserTabsInTabBar) {
-        openTab(path, {
-          forceNew: true,
-          title: getDefaultRouteTitle(path)
-        })
+      if (activeTab?.isPinned) {
+        openTab(path, { forceNew: true, title: getDefaultRouteTitle(path) })
         return
       }
-      if (activeTabId) {
-        updateTab(activeTabId, { url: path, title: getDefaultRouteTitle(path) })
+
+      if (activeTab && activeTab.id !== 'home') {
+        updateTab(activeTab.id, { url: path, title: getDefaultRouteTitle(path) })
+      } else {
+        openTab(path, { forceNew: true, title: getDefaultRouteTitle(path) })
       }
     },
-    [tabs, activeTabId, updateTab, openTab, defaultPaintingProvider]
+    [activeTab, updateTab, openTab, defaultPaintingProvider]
   )
 
   // Common props shared between normal and floating sidebar
@@ -205,7 +205,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   }
 
   return (
-    <div ref={ref} id="app-sidebar" className="h-full [-webkit-app-region:no-drag]">
+    <div ref={ref} id="app-sidebar" className="relative h-full [-webkit-app-region:no-drag]">
       <UISidebar width={sidebarWidth} setWidth={setSidebarWidth} onHoverChange={setHoverVisible} {...sidebarProps} />
       {hoverVisible && layout === 'hidden' && (
         <UISidebar

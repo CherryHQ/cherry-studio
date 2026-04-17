@@ -34,13 +34,21 @@ function createMockContext(reduxData: Record<string, unknown> = {}) {
         await fn(tx)
         return tx
       }),
-      select: vi.fn().mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          get: vi.fn().mockResolvedValue({ count: 0 }),
-          limit: vi.fn().mockReturnValue({
-            all: vi.fn().mockResolvedValue([])
+      select: vi.fn().mockImplementation((arg) => {
+        if (arg && typeof arg === 'object' && 'id' in arg) {
+          return {
+            from: vi.fn().mockResolvedValue([{ id: 'openai::gpt-4' }])
+          }
+        }
+
+        return {
+          from: vi.fn().mockReturnValue({
+            get: vi.fn().mockResolvedValue({ count: 0 }),
+            limit: vi.fn().mockReturnValue({
+              all: vi.fn().mockResolvedValue([])
+            })
           })
-        })
+        }
       })
     },
     sharedData: new Map(),
@@ -280,6 +288,38 @@ describe('AssistantMigrator', () => {
 
       expect(result.success).toBe(true)
       expect(ctx.db.transaction).toHaveBeenCalled()
+    })
+
+    it('should null out dangling assistant model refs not present in user_model', async () => {
+      const assistantsWithDanglingModel = [
+        { id: 'ast-1', name: 'Dangling Model', model: { id: 'qwen', provider: 'cherryai' } }
+      ]
+      const ctx = createMockContext({ assistants: { assistants: assistantsWithDanglingModel, presets: [] } })
+      const insertedBatches: any[] = []
+
+      ctx.db.transaction = vi.fn(async (fn: (tx: any) => Promise<void>) => {
+        const tx = {
+          insert: vi.fn().mockReturnValue({
+            values: vi.fn().mockImplementation((vals: unknown[]) => {
+              insertedBatches.push(vals)
+              return {
+                onConflictDoNothing: vi.fn().mockResolvedValue(undefined),
+                then: (resolve: (v: unknown) => unknown) => Promise.resolve(undefined).then(resolve)
+              }
+            })
+          }),
+          select: vi.fn().mockReturnValue({
+            from: vi.fn().mockResolvedValue([])
+          })
+        }
+        await fn(tx)
+      }) as any
+
+      await migrator.prepare(ctx as any)
+      const result = await migrator.execute(ctx as any)
+
+      expect(result.success).toBe(true)
+      expect(insertedBatches[0][0]).toMatchObject({ id: 'ast-1', modelId: null })
     })
   })
 

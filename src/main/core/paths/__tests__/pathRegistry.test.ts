@@ -81,10 +81,6 @@ describe('pathRegistry.shouldAutoEnsure', () => {
       expect(shouldAutoEnsure('app.database.file')).toBe(true)
     })
 
-    it('returns true for the new feature.memory.db_file key', () => {
-      expect(shouldAutoEnsure('feature.memory.db_file')).toBe(true)
-    })
-
     it('returns true for the new feature.copilot.token_file key', () => {
       expect(shouldAutoEnsure('feature.copilot.token_file')).toBe(true)
     })

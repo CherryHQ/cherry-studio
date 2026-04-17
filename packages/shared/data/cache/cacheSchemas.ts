@@ -260,7 +260,7 @@ export type RendererPersistCacheSchema = {
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.tab.pinned_tabs': [],
   'ui.sidebar.docked_tabs': [],
-  'ui.sidebar.width': 200,
+  'ui.sidebar.width': 65,
   'feature.mcp.is_uv_installed': false,
   'feature.mcp.is_bun_installed': false,
   'ui.assistant.multi_model_ids': {}

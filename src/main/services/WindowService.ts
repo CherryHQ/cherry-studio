@@ -210,7 +210,7 @@ export class WindowService extends BaseService {
         ? {
             titleBarStyle: 'hidden',
             titleBarOverlay: nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight,
-            trafficLightPosition: { x: 13, y: 13 }
+            trafficLightPosition: { x: 13, y: 16 }
           }
         : {
             // On Linux, allow using system title bar if setting is enabled

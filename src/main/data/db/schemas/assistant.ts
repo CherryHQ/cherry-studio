@@ -2,6 +2,7 @@ import type { AssistantSettings } from '@shared/data/types/assistant'
 import { index, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateDeleteTimestamps, uuidPrimaryKey } from './_columnHelpers'
+import { userModelTable } from './userModel'
 
 /**
  * Assistant table - stores user-configured assistant definitions
@@ -17,9 +18,8 @@ export const assistantTable = sqliteTable(
     prompt: text().default(''),
     emoji: text(),
     description: text().default(''),
-    // Default/primary model for this assistant (composite format: "provider::modelId")
-    // TODO(model-table-merge): Add FK to model table — .references(() => modelTable.id, { onDelete: 'set null' })
-    modelId: text(),
+    // Default/primary model: FK to user_model(id) — UniqueModelId "providerId::modelId"
+    modelId: text().references(() => userModelTable.id, { onDelete: 'set null' }),
     /** JSON blob: inference params + context source toggles */
     settings: text({ mode: 'json' }).$type<AssistantSettings>(),
     ...createUpdateDeleteTimestamps

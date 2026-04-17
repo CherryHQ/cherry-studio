@@ -50,3 +50,25 @@ export const myTable = sqliteTable('my_table', {
   ...createUpdateTimestamps
 })
 ```
+
+### Error Translation
+
+`sqliteErrors.ts` translates SQLite constraint violations raised by Drizzle
+into `DataApiError` (UNIQUE → 409, FK → 404, CHECK / NOT NULL → 422). It
+exposes three APIs:
+
+- `classifySqliteError(e)` — walks the `.cause` chain and returns a
+  discriminated union describing the violation (or `null` for non-constraint
+  errors).
+- `withSqliteErrors(op, handlers)` — runs `op` and routes any recognized
+  violation through the matching handler; constraint kinds without a handler
+  (and non-SQLite errors) are rethrown unchanged by construction.
+- `defaultHandlersFor(resource, identifier)` — a complete set of sensible
+  default handlers for the common CRUD case. Spread to override any specific
+  kind.
+
+Prefer `defaultHandlersFor` and spread-override only when you need a
+different message or the opposite FK semantic (e.g. `invalidOperation` for
+`ON DELETE RESTRICT` scenarios). The handlers are a **TOCTOU fallback, not a
+replacement for application-level pre-validation** — see the file header for
+the full discipline note.
