@@ -1,109 +1,107 @@
 {
-  "date": "2026-04-16",
-  "generated_at": "2026-04-16T00:00:00Z",
-  "source": "GitHub API via MCP tools",
-  "open_issues": {
-    "total": 766,
-    "unlabeled": 70,
-    "unlabeled_pct": 9.1,
-    "p1_count": 4,
-    "bug_count": 168
-  },
-  "open_prs": {
-    "total": 238,
-    "to_main": 179,
-    "to_v2": 56,
-    "to_other": 3
-  },
-  "closed_issues_30d": 163,
-  "p1_issues": [
-    {
-      "number": 13608,
-      "title": "[Bug]: xiaomi mimo response only displays the last line",
-      "labels": [
-        "P1",
-        "Models"
-      ],
-      "created_at": "2026-03-18",
-      "updated_at": "2026-03-19",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13608",
-      "assignee": null
+  "generated_at": "2026-04-17T17:00:00Z",
+  "snapshot_date": "2026-04-17",
+  "data_source": "GitHub API via MCP tools",
+  "repository": "CherryHQ/cherry-studio",
+  "issues": {
+    "open_total": 783,
+    "closed_last_30d": 160,
+    "no_label_count_sample": 13,
+    "no_label_pct_sample": 13.0,
+    "note": "no_label figures based on most-recent-100 sample",
+    "health_distribution": {
+      "active_lt7d": 248,
+      "aging_7_30d": 400,
+      "stale_30_90d": 132,
+      "zombie_gt90d": 3,
+      "total": 783,
+      "note": "Computed via date-range searches (updated: filter)"
     },
-    {
-      "number": 13193,
-      "title": "[Bug]: Azure OpenAI Resource not found - defaults to responses API instead of chat/completions",
-      "labels": [
-        "P1",
-        "Models"
-      ],
-      "created_at": "2026-03-04",
-      "updated_at": "2026-03-05",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13193",
-      "assignee": "DeJeune"
+    "closure_stats": {
+      "avg_time_to_close_days": 13.6,
+      "closed_within_1d": 45,
+      "closed_after_7d": 36,
+      "sample_size": 100
     },
-    {
-      "number": 13105,
-      "title": "[Bug]: In version 1.7.19, when sending PDF files directly in the chat box, almost all models cannot read PDF files",
-      "labels": [
-        "P1",
-        "Models",
-        "inactive"
-      ],
-      "created_at": "2026-02-28",
-      "updated_at": "2026-04-07",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13105",
-      "assignee": null
+    "top_labels": [
+      {"label": "Models", "count": 31},
+      {"label": "inactive", "count": 27},
+      {"label": "UI/UX", "count": 18},
+      {"label": "Data", "count": 8},
+      {"label": "MCP", "count": 8},
+      {"label": "Assistant", "count": 7},
+      {"label": "needs-repro", "count": 5},
+      {"label": "Performance", "count": 3},
+      {"label": "Connectivity", "count": 3},
+      {"label": "OpenClaw", "count": 3},
+      {"label": "RAG", "count": 2},
+      {"label": "v2", "count": 2},
+      {"label": "help wanted", "count": 2},
+      {"label": "discussion", "count": 2},
+      {"label": "BUG", "count": 2},
+      {"label": "Settings", "count": 2},
+      {"label": "feature", "count": 2},
+      {"label": "Planned", "count": 1},
+      {"label": "needs-more-info", "count": 1},
+      {"label": "needs-triage", "count": 1}
+    ],
+    "p1_issues": [
+      {
+        "number": 12966,
+        "title": "[URGENT] Unanswered Critical Security Advisory (GHSA-qmgw-45x4-3626) - Pending Triage for 8 Days",
+        "labels": ["BUG", "P1"],
+        "created_at": "2026-02-19T16:12:01Z",
+        "updated_at": "2026-03-25T06:23:45Z",
+        "days_inactive": 23,
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/12966"
+      },
+      {
+        "number": 13193,
+        "title": "[Bug]: Azure OpenAI uses responses API instead of chat completions (Resource not found)",
+        "labels": ["P1", "Models"],
+        "assignee": "DeJeune",
+        "created_at": "2026-03-04T05:07:40Z",
+        "updated_at": "2026-03-05T08:47:59Z",
+        "days_inactive": 43,
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"
+      },
+      {
+        "number": 13608,
+        "title": "[Bug]: xiaomi mimo response only displays the last line",
+        "labels": ["P1", "Models"],
+        "created_at": "2026-03-18T14:34:38Z",
+        "updated_at": "2026-03-19T14:22:09Z",
+        "days_inactive": 29,
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/13608"
+      }
+    ],
+    "newest_issues": [
+      {"number": 14355, "title": "[Bug]: 思维链处理有误", "created_at": "2026-04-17T16:13:53Z", "labels": ["Models"]},
+      {"number": 14354, "title": "[Bug]: Ollama model list fails when families field is null", "created_at": "2026-04-17T15:43:23Z", "labels": ["Models"]},
+      {"number": 14353, "title": "[Feature]: On the Subsequent Development of Knowledge Base Features", "created_at": "2026-04-17T14:17:24Z", "labels": ["RAG"]},
+      {"number": 14350, "title": "[Bug]: Infinite loop repeatedly outputting error messages", "created_at": "2026-04-17T12:58:21Z", "labels": ["needs-repro"]},
+      {"number": 14347, "title": "[Bug]: Selection Assistant not working normally in Ctrl+Alt+C mode", "created_at": "2026-04-17T10:16:47Z", "labels": ["UI/UX"]}
+    ]
+  },
+  "pull_requests": {
+    "open_total": 241,
+    "open_sample_100": {
+      "by_base": {"main": 70, "v2": 29, "feat/agents-main-db-migration": 1},
+      "draft_count": 14,
+      "age_health": {
+        "fresh_lt7d": 45,
+        "aging_7_30d": 55,
+        "stale_30_90d": 0,
+        "zombie_gt90d": 0,
+        "note": "Based on most-recent-100 sample"
+      }
     },
-    {
-      "number": 12966,
-      "title": "[URGENT] Unanswered Critical Security Advisory (GHSA-qmgw-45x4-3626) - Pending Triage for 8 Days",
-      "labels": [
-        "BUG",
-        "P1"
-      ],
-      "created_at": "2026-02-19",
-      "updated_at": "2026-03-25",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/12966",
-      "assignee": null
-    }
-  ],
-  "label_distribution_sample": {
-    "note": "Based on top-200 recently-updated open issues",
-    "inactive": 96,
-    "BUG": 58,
-    "Models": 41,
-    "UI/UX": 35,
-    "discussion": 23,
-    "MCP": 22,
-    "Assistant": 23,
-    "help_wanted": 21,
-    "Data": 17,
-    "feature": 15,
-    "needs-repro": 14,
-    "Connectivity": 7,
-    "RAG": 10,
-    "v2": 3,
-    "OpenClaw": 7,
-    "Agent": 2,
-    "P2": 2
-  },
-  "issue_age_distribution": {
-    "method": "search by last-updated date",
-    "active_7d": 208,
-    "aging_8_30d": 404,
-    "stale_31_90d": 132,
-    "zombie_90d_plus": 3,
-    "active_pct": 27.2,
-    "aging_pct": 52.7,
-    "stale_pct": 17.2,
-    "zombie_pct": 0.4
-  },
-  "v2_branch_summary": {
-    "merged_total": 87,
-    "merged_30d": 54,
-    "open_prs": 56,
-    "open_drafts": 18,
-    "open_ready": 38,
-    "closed_unmerged": 30
+    "newest_prs": [
+      {"number": 14352, "title": "hotfix: Custom params not passed to Gemini API when using NewAPI/AiHubMix", "base": "main", "author": "ELDment", "created_at": "2026-04-17T13:40:08Z"},
+      {"number": 14351, "title": "refactor(translate): rebuild translate page on @cherrystudio", "base": "v2", "author": "zhangjiadi225", "created_at": "2026-04-17T13:28:56Z"},
+      {"number": 14349, "title": "fix(anthropic): support Claude Opus 4.7", "base": "main", "author": "DeJeune", "created_at": "2026-04-17T11:08:36Z"},
+      {"number": 14348, "title": "fix(mcp): delegate connect timeout to SDK to restore slow SSE connections", "base": "main", "author": "DeJeune", "created_at": "2026-04-17T10:22:11Z"},
+      {"number": 14346, "title": "fix(api-server): rotate comma-separated provider API keys", "base": "main", "author": "DeJeune", "created_at": "2026-04-17T10:09:24Z"}
+    ]
   }
 }

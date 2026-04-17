@@ -1,227 +1,136 @@
 {
-  "date": "2026-04-16",
-  "generated_at": "2026-04-16T00:00:00Z",
-  "branch": "v2",
-  "summary": {
-    "merged_total": 87,
-    "merged_30d": 54,
-    "open_prs": 56,
-    "open_drafts": 18,
-    "open_ready": 38,
-    "closed_unmerged": 30
+  "generated_at": "2026-04-17T17:00:00Z",
+  "snapshot_date": "2026-04-17",
+  "repository": "CherryHQ/cherry-studio",
+  "v2_branch_status": {
+    "description": "v2 branch — full data & UI refactoring. main branch is under code freeze (hotfix/* only).",
+    "merged_prs_total": 90,
+    "open_prs_count": 29,
+    "draft_prs_in_v2": 2,
+    "recent_7d_merges": 19,
+    "merge_velocity_by_week": [
+      {"week": "2026-W15 (Apr 7-13)", "count": 9},
+      {"week": "2026-W14 (Mar 31-Apr 6)", "count": 13},
+      {"week": "2026-W13 (Mar 24-30)", "count": 14},
+      {"week": "2026-W12 (Mar 17-23)", "count": 16},
+      {"week": "2026-W11 (Mar 10-16)", "count": 5},
+      {"week": "2026-W10 (Mar 3-9)", "count": 5},
+      {"week": "2026-W09 (Feb 24-Mar 2)", "count": 2},
+      {"week": "2026-W04 (Jan 20-26)", "count": 3}
+    ]
   },
-  "recent_merges_30d": [
-    {
-      "number": 14257,
-      "merged_at": "2026-04-16",
-      "title": "refactor(data): unify legacy model ID conversion and add FK references"
-    },
-    {
-      "number": 14251,
-      "merged_at": "2026-04-16",
-      "title": "refactor: remove memory module from v2"
-    },
-    {
-      "number": 14086,
-      "merged_at": "2026-04-16",
-      "title": "refactor: migrate shortcut system to Preference architecture"
-    },
-    {
-      "number": 14280,
-      "merged_at": "2026-04-15",
-      "title": "fix(v2): remove knowledge libsql vector indexes"
-    },
-    {
-      "number": 14240,
-      "merged_at": "2026-04-14",
-      "title": "feat(sidebar): implement tab bar UI with drag, pin, and context menu"
-    },
-    {
-      "number": 13851,
-      "merged_at": "2026-04-13",
-      "title": "feat(v2): decouple assistant from topic with dedicated table and migration"
-    },
-    {
-      "number": 14220,
-      "merged_at": "2026-04-13",
-      "title": "refactor: move rtk extraction into agent bootstrap service"
-    },
-    {
-      "number": 14180,
-      "merged_at": "2026-04-11",
-      "title": "fix: remove libsql_vector_idx"
-    },
-    {
-      "number": 14090,
-      "merged_at": "2026-04-10",
-      "title": "feat(v2): knowledge service backend"
-    },
-    {
-      "number": 14167,
-      "merged_at": "2026-04-10",
-      "title": "docs: move provider-registry.md to provider-model directory"
-    },
-    {
-      "number": 14166,
-      "merged_at": "2026-04-10",
-      "title": "fix(data): log non-NotFound errors in getEffectiveReasoningConfig"
-    },
-    {
-      "number": 14115,
-      "merged_at": "2026-04-10",
-      "title": "feat(data): provider/model data migration and registry service (backend only)"
-    },
-    {
-      "number": 14163,
-      "merged_at": "2026-04-10",
-      "title": "docs: add design system specifications (DESIGN.md)"
-    },
-    {
-      "number": 13954,
-      "merged_at": "2026-04-10",
-      "title": "feat(sidebar): rewrite sidebar with Tailwind/shadcn UI and fix missing routes"
-    },
-    {
-      "number": 14147,
-      "merged_at": "2026-04-10",
-      "title": "refactor: replace HTTP MCP proxy with in-memory SDK transport for Claude Agent"
-    },
-    {
-      "number": 12474,
-      "merged_at": "2026-04-10",
-      "title": "feat(tabs): implement browser-like tab system with detach/attach support"
-    },
-    {
-      "number": 14143,
-      "merged_at": "2026-04-10",
-      "title": "fix: restore agents UI routing, auth, and message sending"
-    },
-    {
-      "number": 14138,
-      "merged_at": "2026-04-09",
-      "title": "docs: consolidate bilingual docs, add link checker and architecture overview"
-    },
-    {
-      "number": 14058,
-      "merged_at": "2026-04-07",
-      "title": "feat(ui): add Skeleton component"
-    },
-    {
-      "number": 13563,
-      "merged_at": "2026-04-07",
-      "title": "refactor(ui): migrate Tooltip from HeroUI to shadcn/Radix UI"
-    },
-    {
-      "number": 14037,
-      "merged_at": "2026-04-05",
-      "title": "feat: add PopoverConfirm component"
-    },
-    {
-      "number": 14017,
-      "merged_at": "2026-04-05",
-      "title": "fix(i18n): update conversation title length constraint from 10 chars to 100"
-    },
-    {
-      "number": 14032,
-      "merged_at": "2026-04-04",
-      "title": "feat(aiCore): add createAgent factory for ToolLoopAgent with plugin pipeline"
-    }
+  "top_contributors": [
+    {"author": "DeJeune", "merged_prs": 27, "role": "Core — AI SDK & data layer"},
+    {"author": "EurFelux", "merged_prs": 23, "role": "Core — provider & model integration"},
+    {"author": "eeee0717", "merged_prs": 15, "role": "Backend — file processing & DB"},
+    {"author": "alephpiece", "merged_prs": 4, "role": "UI"},
+    {"author": "kangfenmao", "merged_prs": 3, "role": "Architecture lead"},
+    {"author": "jidan745le", "merged_prs": 3, "role": "Data layer & sidebar"},
+    {"author": "vaayne", "merged_prs": 3, "role": "Agents & bootstrap"},
+    {"author": "kovsu", "merged_prs": 3, "role": "UI"},
+    {"author": "MyPrototypeWhat", "merged_prs": 2, "role": "UI"},
+    {"author": "SherlockShemol", "merged_prs": 2, "role": "Features"}
   ],
-  "open_prs_sample": [
-    {
-      "number": 14315,
-      "state": "ready",
-      "created_at": "2026-04-16",
-      "title": "refactor(code): redesign Code Tools page with tool grid and drawer UI"
-    },
-    {
-      "number": 14313,
-      "state": "draft",
-      "created_at": "2026-04-16",
-      "title": "feat(data): migrate paintings to v2 data architecture"
-    },
-    {
-      "number": 14309,
-      "state": "ready",
-      "created_at": "2026-04-16",
-      "title": "refactor(settings): unify settings list item and action button patterns"
-    },
-    {
-      "number": 14269,
-      "state": "ready",
-      "created_at": "2026-04-15",
-      "title": "feat(data): add domain hooks for models/providers and batch model API"
-    },
-    {
-      "number": 14262,
-      "state": "ready",
-      "created_at": "2026-04-14",
-      "title": "feat(minapp): add category-based display with cross-category drag-and-drop"
-    },
-    {
-      "number": 14261,
-      "state": "ready",
-      "created_at": "2026-04-14",
-      "title": "feat(anthropic): improve prompt caching with incremental strategy"
-    },
-    {
-      "number": 14257,
-      "state": "ready",
-      "created_at": "2026-04-14",
-      "title": "refactor(data): unify legacy model ID conversion and add FK references"
-    },
-    {
-      "number": 14251,
-      "state": "draft",
-      "created_at": "2026-04-14",
-      "title": "refactor: remove memory module from v2"
-    },
+  "recent_merges": [
     {
       "number": 14234,
-      "state": "ready",
-      "created_at": "2026-04-13",
-      "title": "feat(data): add Tag entity DataApi with CRUD and entity-tag association"
+      "title": "feat(data): add Tag entity DataApi with CRUD and entity-tag relations",
+      "author": "DeJeune",
+      "merged_at": "2026-04-17T10:11:35Z",
+      "category": "data-layer"
     },
     {
       "number": 14229,
-      "state": "ready",
-      "created_at": "2026-04-13",
-      "title": "feat(migration): migrate llm model preferences to v2 with UniqueModelId"
+      "title": "feat(migration): migrate llm model preferences to v2 with UnionPreference",
+      "author": "DeJeune",
+      "merged_at": "2026-04-17T10:07:15Z",
+      "category": "migration"
     },
     {
-      "number": 14210,
-      "state": "draft",
-      "created_at": "2026-04-12",
-      "title": "feat: add v2 painting data foundation"
+      "number": 14257,
+      "title": "refactor(data): unify legacy model ID conversion and add FK constraints",
+      "author": "DeJeune",
+      "merged_at": "2026-04-16T13:50:29Z",
+      "category": "data-layer"
     },
     {
-      "number": 14174,
-      "state": "ready",
-      "created_at": "2026-04-11",
-      "title": "refactor(v2): remove local web search backend"
+      "number": 14251,
+      "title": "refactor: remove memory module from v2",
+      "author": "kangfenmao",
+      "merged_at": "2026-04-16T05:22:31Z",
+      "category": "architecture"
     },
     {
-      "number": 14159,
-      "state": "ready",
-      "created_at": "2026-04-10",
-      "title": "feat: migrate agents storage to v2 main database"
+      "number": 14086,
+      "title": "refactor: migrate shortcut system to Preference architecture",
+      "author": "kangfenmao",
+      "merged_at": "2026-04-16T03:38:22Z",
+      "category": "architecture"
+    },
+    {
+      "number": 14280,
+      "title": "fix(v2): remove knowledge libsql vector indexes",
+      "author": "eeee0717",
+      "merged_at": "2026-04-15T13:42:57Z",
+      "category": "database"
+    },
+    {
+      "number": 14240,
+      "title": "feat(sidebar): implement tab bar UI with drag, pin, and context menu",
+      "author": "jidan745le",
+      "merged_at": "2026-04-14T14:50:42Z",
+      "category": "ui"
+    },
+    {
+      "number": 13851,
+      "title": "feat(v2): decouple assistant from topic with dedicated table",
+      "author": "DeJeune",
+      "merged_at": "2026-04-13T04:55:06Z",
+      "category": "data-layer"
+    },
+    {
+      "number": 14220,
+      "title": "refactor: move rtk extraction into agent bootstrap service",
+      "author": "vaayne",
+      "merged_at": "2026-04-13T03:39:20Z",
+      "category": "agents"
+    },
+    {
+      "number": 14180,
+      "title": "fix: remove libsql_vector_idx",
+      "author": "eeee0717",
+      "merged_at": "2026-04-11T09:55:57Z",
+      "category": "database"
     }
   ],
-  "active_feature_areas": [
-    "Data layer migration (providers, models, tags, preferences)",
-    "Sidebar rewrite with Tailwind/shadcn UI",
-    "Tab system (browser-like with detach/attach)",
-    "Knowledge service backend",
-    "AI streaming pipeline (blocks-to-parts)",
-    "Agent system refactor (MCP transport, routing, auth)",
-    "UI components (Skeleton, PopoverConfirm, Tooltip migration)",
-    "Prompt caching improvements (Anthropic incremental strategy)",
-    "MiniApp category display",
-    "File processing backend"
+  "open_v2_prs": [
+    {"number": 14351, "title": "refactor(translate): rebuild translate page on @cherrystudio", "author": "zhangjiadi225", "draft": false},
+    {"number": 14328, "title": "refactor: stabilize ui package boundaries and theme contract", "author": "kangfenmao", "draft": false},
+    {"number": 14315, "title": "refactor(code): redesign Code Tools page with tool grid", "author": "zhangjiadi225", "draft": false},
+    {"number": 14313, "title": "feat(data): migrate paintings to v2 data architecture", "author": "jidan745le", "draft": true},
+    {"number": 14309, "title": "refactor(settings): unify settings list item and action button", "author": "kangfenmao", "draft": false},
+    {"number": 14269, "title": "feat(data): add domain hooks for models/providers and batch operations", "author": "jidan745le", "draft": false},
+    {"number": 14159, "title": "feat: migrate agents storage to v2 main database", "author": "vaayne", "draft": false},
+    {"number": 14071, "title": "feat(ai): add V2 AI streaming pipeline and blocks-to-parts mapping", "author": "DeJeune", "draft": true},
+    {"number": 14049, "title": "refactor(miniapp): migrate to v2 data layer", "author": "chengcheng84", "draft": false},
+    {"number": 13968, "title": "feat(v2): add main-side file processing backend", "author": "eeee0717", "draft": false}
   ],
-  "velocity": {
-    "merges_last_7d": 22,
-    "merges_last_30d": 54,
-    "avg_merges_per_day_30d": 1.8
+  "main_hotfix_prs_today": [
+    {"number": 14352, "title": "hotfix: Custom params not passed to Gemini API when using NewAPI/AiHubMix", "author": "ELDment"},
+    {"number": 14349, "title": "fix(anthropic): support Claude Opus 4.7", "author": "DeJeune"},
+    {"number": 14348, "title": "fix(mcp): delegate connect timeout to SDK to restore slow SSE connections", "author": "DeJeune"},
+    {"number": 14346, "title": "fix(api-server): rotate comma-separated provider API keys", "author": "DeJeune"},
+    {"number": 14337, "title": "fix(agent): include globally installed skills for agents", "author": "Raymond8196"}
+  ],
+  "v2_progress_areas": {
+    "data_layer": "Active — Tag API, UnionPreference, model ID unification, FK constraints",
+    "migration": "Active — LLM preferences, assistant-topic decoupling migrated",
+    "ui": "Active — Tab bar, settings list, code tools page, translate page rebuilds in progress",
+    "agents": "Active — bootstrap service refactor, SQLite migration underway",
+    "ai_streaming": "In progress (draft PR #14071) — V2 streaming pipeline & blocks-to-parts",
+    "file_processing": "Open PR #13968 — main-side file processing backend",
+    "miniapp": "Open PR #14049 — miniapp data layer migration",
+    "paintings": "Draft PR #14313 — paintings data architecture migration",
+    "memory_module": "Removed from v2 scope (merged #14251)"
   }
 }

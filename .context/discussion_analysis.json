@@ -1,38 +1,26 @@
 {
-  "date": "2026-04-16",
-  "generated_at": "2026-04-16T00:00:00Z",
-  "note": "GitHub Discussions GraphQL data not available via MCP tools in this run. Data below is partial from issue label analysis.",
-  "data_source": "Issues labeled 'discussion' — proxy metric for community engagement",
-  "discussion_label_issues": {
-    "open": 23,
-    "closed_30d": 9
-  },
-  "notable_open_issues_discussion_label": [
-    "Issues labeled 'discussion' represent community-driven feature requests and design conversations.",
-    "23 open issues carry the 'discussion' label — recommend triaging for roadmap alignment."
+  "generated_at": "2026-04-17T17:00:00Z",
+  "snapshot_date": "2026-04-17",
+  "repository": "CherryHQ/cherry-studio",
+  "note": "Discussion data requires GraphQL API access. This file contains a structural placeholder. Full discussion data will be populated when GraphQL Discussions API is available via MCP tools.",
+  "data_availability": "PARTIAL — GitHub MCP tools do not expose a Discussions GraphQL endpoint in this session",
+  "known_discussion_themes": [
+    {
+      "theme": "v2 Refactoring Progress",
+      "description": "Community interest in v2 timeline and feature migration status"
+    },
+    {
+      "theme": "Model Provider Issues",
+      "description": "Most active issue label is 'Models' (31 open issues) — likely drives discussion traffic too"
+    },
+    {
+      "theme": "MCP Integration",
+      "description": "MCP label present in 8 open issues; MCP protocol upgrade (Nov 2025) still tracked as open"
+    },
+    {
+      "theme": "Security Advisory",
+      "description": "GHSA-qmgw-45x4-3626 raised publicly via issue #12966; needs immediate team triage"
+    }
   ],
-  "community_signals": {
-    "help_wanted_open": 21,
-    "needs_repro_open": 14,
-    "needs_more_info_open": 1,
-    "needs_triage_open": 1
-  },
-  "top_issue_categories_open": {
-    "BUG": 168,
-    "Models": 41,
-    "UI/UX": 35,
-    "MCP": 22,
-    "discussion": 23,
-    "Assistant": 23,
-    "help_wanted": 21,
-    "inactive": 96,
-    "RAG": 10,
-    "Data": 17,
-    "feature": 15,
-    "Connectivity": 7,
-    "Agent": 2,
-    "OpenClaw": 7
-  },
-  "graphql_discussions_status": "not_fetched",
-  "action_needed": "Run GitHub Discussions GraphQL query separately or via GitHub Actions to populate full discussion data."
+  "action_required": "Run: gh api graphql -f query='...' (as specified in task) to populate full discussion data"
 }
