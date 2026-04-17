@@ -43,7 +43,7 @@ interface ProviderExtensionConfigBase<
    * Provider 变体配置
    * 用于注册同一 provider 的不同模式
    */
-  variants?: readonly ProviderVariant<TSettings, TProvider>[]
+  variants?: readonly ProviderVariant<TSettings, TProvider, any>[]
 
   /**
    * Tool factory 映射

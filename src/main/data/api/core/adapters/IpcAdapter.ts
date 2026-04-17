@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import type { Disposable } from '@main/core/lifecycle'
 import { toDataApiError } from '@shared/data/api/apiErrors'
 import type { DataRequest, DataResponse } from '@shared/data/api/apiTypes'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -9,18 +10,34 @@ import type { ApiServer } from '../ApiServer'
 const logger = loggerService.withContext('DataApi:IpcAdapter')
 
 /**
- * IPC Adapter for Electron environment
- * Handles IPC communication and forwards requests to ApiServer
+ * IPC transport adapter for Electron environment.
+ *
+ * ## Why a separate adapter instead of BaseService.ipcHandle()?
+ *
+ * ApiServer is designed as a transport-agnostic request processor — it only
+ * knows DataRequest → DataResponse, with no dependency on Electron IPC.
+ *
+ * Adapters are the bridge between a specific transport and ApiServer:
+ * - **IpcAdapter** (this file): bridges Electron IPC ↔ ApiServer
+ * - **HttpAdapter** (planned): will bridge Express HTTP ↔ ApiServer
+ *
+ * If these handlers were registered directly via BaseService.ipcHandle() in
+ * DataApiService, the transport-specific protocol conversion (error wrapping,
+ * serialization) would leak into the coordinator, and adding a new transport
+ * would require modifying DataApiService internals.
+ *
+ * Each adapter implements Disposable so DataApiService can track cleanup via
+ * registerDisposable() — no manual teardown code needed.
  */
-export class IpcAdapter {
+export class IpcAdapter implements Disposable {
   private initialized = false
 
   constructor(private apiServer: ApiServer) {}
 
   /**
-   * Setup IPC handlers
+   * Register IPC handlers to bridge renderer requests to ApiServer
    */
-  setupHandlers(): void {
+  setup(): void {
     if (this.initialized) {
       logger.warn('IPC handlers already initialized')
       return
@@ -75,9 +92,9 @@ export class IpcAdapter {
   }
 
   /**
-   * Remove IPC handlers
+   * Remove IPC handlers — implements Disposable for automatic lifecycle cleanup
    */
-  removeHandlers(): void {
+  dispose(): void {
     if (!this.initialized) {
       return
     }
@@ -90,12 +107,5 @@ export class IpcAdapter {
 
     this.initialized = false
     logger.debug('IPC handlers removed')
-  }
-
-  /**
-   * Check if handlers are initialized
-   */
-  isInitialized(): boolean {
-    return this.initialized
   }
 }

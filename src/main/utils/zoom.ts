@@ -1,4 +1,4 @@
-import { application } from '@main/core/application'
+import { application } from '@application'
 import type { BrowserWindow } from 'electron'
 
 export function handleZoomFactor(wins: BrowserWindow[], delta: number, reset: boolean = false) {

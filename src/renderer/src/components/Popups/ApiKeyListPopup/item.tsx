@@ -140,13 +140,13 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
 
               <Flex className="items-center gap-0">
                 {showHealthCheck && (
-                  <Tooltip content={t('settings.provider.check')} closeDelay={0}>
+                  <Tooltip content={t('settings.provider.check')}>
                     <Button variant="ghost" onClick={onCheck} disabled={disabled} size="icon">
                       <StreamlineGoodHealthAndWellBeing size={18} isActive={keyStatus.checking} />
                     </Button>
                   </Tooltip>
                 )}
-                <Tooltip content={t('common.edit')} closeDelay={0}>
+                <Tooltip content={t('common.edit')}>
                   <Button variant="ghost" onClick={handleEdit} disabled={disabled} size="icon">
                     <EditIcon size={16} />
                   </Button>
@@ -158,7 +158,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
                   okText={t('common.confirm')}
                   cancelText={t('common.cancel')}
                   okButtonProps={{ color: 'danger' }}>
-                  <Tooltip content={t('common.delete')} closeDelay={0}>
+                  <Tooltip content={t('common.delete')}>
                     <Button variant="ghost" disabled={disabled} size="icon">
                       <Minus size={16} />
                     </Button>

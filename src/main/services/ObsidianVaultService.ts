@@ -15,6 +15,24 @@ interface FileInfo {
   name: string
 }
 
+/**
+ * Path-registry exemption:
+ *
+ * This class is constructed synchronously at module top level by `src/main/ipc.ts`
+ * (`new ObsidianVaultService()`), which runs during ESM import resolution — before
+ * `main/index.ts` calls `application.initPathRegistry()`. Replacing the `app.getPath(...)`
+ * calls in the constructor / helpers below with `application.getPath(...)` would throw
+ * `called before application.initPathRegistry() ran` during module load.
+ *
+ * The registry already exposes equivalent keys (`external.obsidian.config_file`,
+ * `sys.home`). The migration path is to defer path resolution to first-use via a
+ * lazy getter, or to move the top-level `new ObsidianVaultService()` in `ipc.ts`
+ * into `registerIpc()` so construction happens after the registry is initialized.
+ * Either approach enables a clean switch to `application.getPath(...)`.
+ *
+ * Until that refactor, keep `app.getPath(...)` here. See `KnowledgeService.ts` for
+ * a similar exemption.
+ */
 class ObsidianVaultService {
   private obsidianConfigPath: string
 

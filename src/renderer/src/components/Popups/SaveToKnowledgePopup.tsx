@@ -373,7 +373,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
                       {option.count}
                     </CustomTag>
                     <span>{option.label}</span>
-                    <HelpTooltip content={option.description} closeDelay={0} />
+                    <HelpTooltip content={option.description} />
                   </Flex>
                   {selectedTypes.includes(option.type) && <Check size={16} color={TAG_COLORS.SELECTED} />}
                 </ContentTypeItem>

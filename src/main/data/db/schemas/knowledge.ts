@@ -1,6 +1,6 @@
 import type {
-  ItemStatus,
   KnowledgeItemData,
+  KnowledgeItemStatus,
   KnowledgeItemType,
   KnowledgeSearchMode
 } from '@shared/data/types/knowledge'
@@ -8,6 +8,7 @@ import { sql } from 'drizzle-orm'
 import { check, foreignKey, index, integer, real, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, uuidPrimaryKey, uuidPrimaryKeyOrdered } from './_columnHelpers'
+import { userModelTable } from './userModel'
 
 /**
  * knowledge_base table - Knowledge base metadata
@@ -20,11 +21,11 @@ export const knowledgeBaseTable = sqliteTable(
     description: text(),
     dimensions: integer().notNull(),
 
-    // Embedding model configuration
-    embeddingModelId: text().notNull(),
+    // Embedding model: FK to user_model(id) — UniqueModelId "providerId::modelId"
+    embeddingModelId: text().references(() => userModelTable.id, { onDelete: 'set null' }),
 
-    // Rerank model configuration
-    rerankModelId: text(),
+    // Rerank model: FK to user_model(id) — UniqueModelId "providerId::modelId"
+    rerankModelId: text().references(() => userModelTable.id, { onDelete: 'set null' }),
 
     // File processing processor ID
     fileProcessorId: text(),
@@ -72,7 +73,7 @@ export const knowledgeItemTable = sqliteTable(
     data: text({ mode: 'json' }).$type<KnowledgeItemData>().notNull(),
 
     // Processing status
-    status: text().$type<ItemStatus>().notNull().default('idle'),
+    status: text().$type<KnowledgeItemStatus>().notNull().default('idle'),
     error: text(),
 
     ...createUpdateTimestamps
@@ -81,7 +82,7 @@ export const knowledgeItemTable = sqliteTable(
     check('knowledge_item_type_check', sql`${t.type} IN ('file', 'url', 'note', 'sitemap', 'directory')`),
     check(
       'knowledge_item_status_check',
-      sql`${t.status} IN ('idle', 'pending', 'ocr', 'read', 'embed', 'completed', 'failed')`
+      sql`${t.status} IN ('idle', 'pending', 'file_processing', 'read', 'embed', 'completed', 'failed')`
     ),
     // Enforce that group owners live inside the same knowledge base.
     foreignKey({ columns: [t.baseId, t.groupId], foreignColumns: [t.baseId, t.id] }).onDelete('cascade'),

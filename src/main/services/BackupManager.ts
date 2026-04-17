@@ -14,9 +14,9 @@
  * - v2 Refactor PR   : https://github.com/CherryHQ/cherry-studio/pull/10162
  * --------------------------------------------------------------------------
  */
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
-import { application } from '@main/core/application'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { WebDavConfig } from '@types'
 import type { S3Config } from '@types'
@@ -27,7 +27,6 @@ import StreamZip from 'node-stream-zip'
 import * as path from 'path'
 import type { CreateDirectoryOptions, FileStat } from 'webdav'
 
-import { getDataPath } from '../utils'
 import { resolveAndValidatePath } from '../utils/file'
 import S3Storage from './S3Storage'
 import WebDav from './WebDav'
@@ -66,15 +65,30 @@ class BackupManager {
   static async handleStartupRestore(): Promise<void> {
     const userDataPath = app.getPath('userData')
 
+    // BackupManager is v1 legacy and intentionally does NOT consume the v2
+    // path registry — every path it touches is hand-rolled from
+    // app.getPath('userData'). Two reasons:
+    //
+    //   1. handleStartupRestore (this method) runs from src/main/index.ts
+    //      BEFORE application.bootstrap() — it has to move restore markers
+    //      off disk before any service grabs file handles. Calling
+    //      application.getPath() pre-bootstrap throws.
+    //   2. The whole class is scheduled for v2 refactor (see the file
+    //      header). Until that lands, mixing v1 instantiation with v2 path
+    //      lookups just creates timing footguns. Stay self-contained.
+    //
+    // Application.ts:132-137 explicitly carves out this exception for
+    // "legacy backup restore" pipelines.
+
     // Define restore paths
     const indexedDBRestore = path.join(userDataPath, 'IndexedDB.restore')
     const localStorageRestore = path.join(userDataPath, 'Local Storage.restore')
-    const dataRestore = getDataPath() + '.restore'
+    const dataRestore = path.join(userDataPath, 'Data') + '.restore'
 
     // Define target paths
     const indexedDBDest = path.join(userDataPath, 'IndexedDB')
     const localStorageDest = path.join(userDataPath, 'Local Storage')
-    const dataDest = getDataPath()
+    const dataDest = path.join(userDataPath, 'Data')
 
     try {
       // Check if any restore markers exist
@@ -833,11 +847,15 @@ class BackupManager {
    * Create a empty restore data path, it will be reset after app relaunch
    */
   public async resetData() {
+    // Hand-rolled {userData}/Data — BackupManager bypasses the v2 path
+    // registry entirely. See handleStartupRestore above for the rationale.
+    const dataPath = path.join(app.getPath('userData'), 'Data')
+
     if (!isWin) {
-      return await fs.remove(getDataPath()).catch(() => {})
+      return await fs.remove(dataPath).catch(() => {})
     }
 
-    const dataRestorePath = getDataPath() + '.restore'
+    const dataRestorePath = dataPath + '.restore'
     await fs.remove(dataRestorePath).catch(() => {})
     await fs.ensureDir(dataRestorePath)
   }

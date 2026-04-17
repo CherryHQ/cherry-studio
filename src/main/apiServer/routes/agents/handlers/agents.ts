@@ -17,7 +17,6 @@ function syncSchedulerIfNeeded(agentId: string, agent: { configuration?: unknown
   if (!config.heartbeat_enabled && !config.scheduler_enabled) return
 
   void schedulerService.syncScheduler()
-  void channelManager.syncAgent(agentId)
   schedulerService.ensureHeartbeatTask(agentId, config.heartbeat_interval ?? 30).catch((err) => {
     logger.warn('Failed to sync heartbeat task', {
       agentId,
@@ -597,8 +596,8 @@ export const deleteAgent = async (req: Request, res: Response): Promise<Response
       })
     }
 
-    // Sync channels after deletion so syncAgent finds no agent and disconnects adapters
-    void channelManager.syncAgent(agentId)
+    // Disconnect all channel adapters for the deleted agent
+    void channelManager.disconnectAgent(agentId)
 
     logger.info('Agent deleted', { agentId })
     return res.status(204).send()

@@ -1,6 +1,6 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { isDev } from '@main/constant'
-import { application } from '@main/core/application'
 import { BaseService, DependsOn, Injectable, ServicePhase } from '@main/core/lifecycle'
 import { Phase } from '@main/core/lifecycle'
 import { bootConfigService } from '@main/data/bootConfig'

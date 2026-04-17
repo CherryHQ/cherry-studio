@@ -167,8 +167,7 @@ const CustomNode: FC<{ data: any }> = ({ data }) => {
         </TooltipContent>
       }
       classNames={{ content: 'bg-[#000000d8] text-gray-200 text-sm' }}
-      delay={300}
-      closeDelay={100}>
+      delay={300}>
       <CustomNodeContainer
         style={{
           borderColor,

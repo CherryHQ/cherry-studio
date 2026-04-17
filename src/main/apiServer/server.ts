@@ -1,10 +1,10 @@
 import { createServer } from 'node:http'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import { IpcChannel } from '@shared/IpcChannel'
 
-import { app } from './app'
+import { createApp } from './app'
 
 const logger = loggerService.withContext('ApiServer')
 
@@ -33,6 +33,7 @@ export class ApiServer {
     const host = preferenceService.get('feature.csaas.host')
 
     // Create server with Express app
+    const app = createApp()
     this.server = createServer(app)
     this.applyServerTimeouts(this.server)
 

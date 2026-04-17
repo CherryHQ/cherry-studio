@@ -1,7 +1,7 @@
 import { type Client } from '@libsql/client'
 import { loggerService } from '@logger'
-import { getResourcePath } from '@main/utils'
 import { type LibSQLDatabase } from 'drizzle-orm/libsql'
+import { app } from 'electron'
 import fs from 'fs'
 import path from 'path'
 
@@ -22,6 +22,7 @@ interface MigrationJournal {
   }>
 }
 
+// TODO(v2): MigrationService will be removed in v2 — agents DB migrations handled by main DbService
 export class MigrationService {
   private db: LibSQLDatabase<typeof schema>
   private client: Client
@@ -30,7 +31,7 @@ export class MigrationService {
   constructor(db: LibSQLDatabase<typeof schema>, client: Client) {
     this.db = db
     this.client = client
-    this.migrationDir = path.join(getResourcePath(), 'database', 'drizzle')
+    this.migrationDir = path.join(app.getAppPath(), 'resources', 'database', 'drizzle')
   }
 
   async runMigrations(): Promise<void> {

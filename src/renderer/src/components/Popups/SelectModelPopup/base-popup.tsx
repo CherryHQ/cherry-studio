@@ -226,7 +226,7 @@ const SelectModelPopupView: React.FC<Props> = ({
         type: 'group',
         name: getFancyProviderName(provider),
         actions: canNavigateToSettings && (
-          <Tooltip content={t('navigate.provider_settings')} delay={500} closeDelay={0}>
+          <Tooltip content={t('navigate.provider_settings')} delay={500}>
             <Settings2
               size={12}
               color="var(--color-text)"

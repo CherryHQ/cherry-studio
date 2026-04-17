@@ -19,7 +19,7 @@ vi.mock('@data/PreferenceService', async () => {
 })
 
 // Mock application using unified factory
-vi.mock('@main/core/application', async () => {
+vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   const result = mockApplicationFactory()
   const originalGet = result.application.get.getMockImplementation()!
@@ -101,7 +101,7 @@ vi.mock('electron-updater', () => ({
 }))
 
 // Import after mocks
-import { application } from '@main/core/application'
+import { application } from '@application'
 import { UpdateMirror } from '@shared/config/constant'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { app, net } from 'electron'

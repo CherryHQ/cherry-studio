@@ -8,6 +8,7 @@ on:
   push:
     branches:
       - main
+      - v2
   pull_request:
     branches:
       - main
@@ -91,7 +92,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CI: true
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false  || github.head_ref == 'v2'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
 
     steps:
       - name: Check out Git repository

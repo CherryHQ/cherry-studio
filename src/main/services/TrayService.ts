@@ -1,5 +1,5 @@
+import { application } from '@application'
 import { isLinux, isMac, isWin } from '@main/constant'
-import { application } from '@main/core/application'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getI18n } from '@main/utils/language'
 import type { MenuItemConstructorOptions } from 'electron'

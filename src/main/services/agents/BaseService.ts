@@ -1,7 +1,7 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { mcpApiService } from '@main/apiServer/services/mcp'
+import { getMcpApiService } from '@main/apiServer/services/mcp'
 import { type ModelValidationError, validateModelId } from '@main/apiServer/utils'
-import { getDataPath } from '@main/utils'
 import { buildFunctionCallToolName } from '@shared/mcp'
 import type { AgentType, SlashCommand, SystemProviderId, Tool } from '@types'
 import { objectKeys } from '@types'
@@ -58,7 +58,7 @@ export abstract class BaseService {
     if (ids && ids.length > 0) {
       for (const id of ids) {
         try {
-          const server = await mcpApiService.getServerInfo(id)
+          const server = await getMcpApiService().getServerInfo(id)
           if (server) {
             server.tools.forEach((tool) => {
               const canonicalId = buildFunctionCallToolName(server.name, tool.name)
@@ -275,7 +275,7 @@ export abstract class BaseService {
   protected resolveAccessiblePaths(paths: string[] | undefined, id: string): string[] {
     if (!paths || paths.length === 0) {
       const shortId = id.substring(id.length - 9)
-      paths = [path.join(getDataPath(), 'Agents', shortId)]
+      paths = [path.join(application.getPath('feature.agents.workspaces'), shortId)]
     }
     return this.ensurePathsExist(paths)
   }

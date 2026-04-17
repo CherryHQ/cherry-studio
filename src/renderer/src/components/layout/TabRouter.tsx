@@ -24,6 +24,7 @@ export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
     return createRouter({ routeTree, history })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab.id])
+
   // Sync internal navigation back to tab state
   useEffect(() => {
     return router.subscribe('onResolved', ({ toLocation }) => {
@@ -44,7 +45,7 @@ export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
 
   return (
     <Activity mode={isActive ? 'visible' : 'hidden'}>
-      <div className="h-full w-full">
+      <div className="flex h-full min-h-0 w-full flex-1 flex-col">
         <RouterProvider router={router} />
       </div>
     </Activity>
