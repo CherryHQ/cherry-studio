@@ -358,7 +358,11 @@ export class AiService extends BaseService {
 
   // ── Non-streaming text generation (agent.generate) ──
 
-  async generateText(request: AiGenerateRequest, extensions: AiGenerateExtensions = {}): Promise<AiGenerateResult> {
+  async generateText(
+    request: AiGenerateRequest,
+    extensions: AiGenerateExtensions = {},
+    signal?: AbortSignal
+  ): Promise<AiGenerateResult> {
     logger.info('generateText started', { assistantId: request.assistantId })
 
     const { sdkConfig, tools, plugins, system, options, model } = await this.buildAgentParams(request)
@@ -383,10 +387,14 @@ export class AiService extends BaseService {
       }
     })
 
-    // prompt and messages are mutually exclusive in AI SDK
-    const result = request.prompt
-      ? await agent.generate({ prompt: request.prompt })
-      : await agent.generate({ messages: request.messages ?? [] })
+    // prompt and messages are mutually exclusive in AI SDK.
+    // When a signal is provided, forward it via `abortSignal` so the underlying
+    // HTTP work can be cancelled (e.g. by `checkModel`'s timeout).
+    const generateParams = request.prompt
+      ? { prompt: request.prompt, ...(signal ? { abortSignal: signal } : {}) }
+      : { messages: request.messages ?? [], ...(signal ? { abortSignal: signal } : {}) }
+
+    const result = await agent.generate(generateParams)
 
     this.trackUsage(model, result.usage)
     return { text: result.text, usage: result.usage }
@@ -466,14 +474,15 @@ export class AiService extends BaseService {
 
   // ── Embedding ──
 
-  async embedMany(request: AiEmbedRequest): Promise<AiEmbedResult> {
+  async embedMany(request: AiEmbedRequest, signal?: AbortSignal): Promise<AiEmbedResult> {
     logger.info('embedMany started', { assistantId: request.assistantId, count: request.values.length })
 
     const { sdkConfig, model } = await this.buildAgentParams(request)
 
     const result = await aiCoreEmbedMany<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
       model: sdkConfig.modelId,
-      values: request.values
+      values: request.values,
+      ...(signal ? { abortSignal: signal } : {})
     })
 
     this.trackUsage(model, { inputTokens: result.usage?.tokens ?? 0, outputTokens: 0 })
@@ -505,16 +514,30 @@ export class AiService extends BaseService {
     const { model } = await this.getProviderAndModel(request)
     const start = performance.now()
     const timeout = request.timeout ?? 15000
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('Check model timeout')), timeout)
-    )
+
+    // Wire an AbortController through the probe so that when the timeout wins
+    // the race, we also cancel the underlying HTTP work (otherwise tokens keep
+    // burning server-side). Always clear the timer on both success and failure
+    // paths so it cannot keep the event loop alive.
+    const controller = new AbortController()
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutHandle = setTimeout(() => {
+        controller.abort(new Error('Check model timeout'))
+        reject(new Error('Check model timeout'))
+      }, timeout)
+    })
 
     const probe = isEmbeddingModel(model)
-      ? this.embedMany({ ...request, values: ['test'] })
-      : this.generateText({ ...request, system: 'test', prompt: 'hi' })
+      ? this.embedMany({ ...request, values: ['test'] }, controller.signal)
+      : this.generateText({ ...request, system: 'test', prompt: 'hi' }, undefined, controller.signal)
 
-    await Promise.race([probe, timeoutPromise])
-    return { latency: performance.now() - start }
+    try {
+      await Promise.race([probe, timeoutPromise])
+      return { latency: performance.now() - start }
+    } finally {
+      if (timeoutHandle) clearTimeout(timeoutHandle)
+    }
   }
 
   // ── Shared agent parameter resolution ──
