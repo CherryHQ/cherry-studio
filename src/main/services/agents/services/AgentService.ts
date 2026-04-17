@@ -1,6 +1,5 @@
 import { loggerService } from '@logger'
 import { modelsService } from '@main/apiServer/services/models'
-import { configManager } from '@main/services/ConfigManager'
 import type {
   AgentEntity,
   CreateAgentRequest,
@@ -16,7 +15,6 @@ import { asc, count, desc, eq, sql } from 'drizzle-orm'
 import { BaseService } from '../BaseService'
 import { type AgentRow, agentsTable, type InsertAgentRow, sessionsTable } from '../database/schema'
 import type { AgentModelField } from '../errors'
-import { isBuiltinAgentId } from './builtin/BuiltinAgentBootstrap'
 import { seedWorkspaceTemplates } from './cherryclaw/seedWorkspace'
 
 const logger = loggerService.withContext('AgentService')
@@ -164,13 +162,6 @@ export class AgentService extends BaseService {
   }): Promise<string | null> {
     const { id, builtinRole, provisionWorkspace } = opts
     try {
-      // Skip if user has previously dismissed this builtin agent
-      const dismissed = configManager.getDismissedBuiltinAgents()
-      if (dismissed.includes(id)) {
-        logger.info(`Skipping built-in ${builtinRole} creation — user previously deleted it`, { id })
-        return null
-      }
-
       const database = await this.getDatabase()
       const existing = await database
         .select({ id: agentsTable.id })
@@ -262,13 +253,6 @@ export class AgentService extends BaseService {
   async initDefaultCherryClawAgent(): Promise<string | null> {
     const id = AgentService.DEFAULT_AGENT_ID
     try {
-      // Skip if user has previously dismissed this builtin agent
-      const dismissed = configManager.getDismissedBuiltinAgents()
-      if (dismissed.includes(id)) {
-        logger.info('Skipping CherryClaw creation — user previously deleted it', { id })
-        return null
-      }
-
       const database = await this.getDatabase()
       const existing = await database
         .select({ id: agentsTable.id })
@@ -496,18 +480,7 @@ export class AgentService extends BaseService {
     const database = await this.getDatabase()
     const result = await database.delete(agentsTable).where(eq(agentsTable.id, id))
 
-    const deleted = result.rowsAffected > 0
-
-    // Record dismissal only after successful deletion
-    if (deleted && isBuiltinAgentId(id)) {
-      const dismissed = configManager.getDismissedBuiltinAgents()
-      if (!dismissed.includes(id)) {
-        configManager.setDismissedBuiltinAgents([...dismissed, id])
-        logger.info('Recorded builtin agent dismissal', { id })
-      }
-    }
-
-    return deleted
+    return result.rowsAffected > 0
   }
 
   async agentExists(id: string): Promise<boolean> {

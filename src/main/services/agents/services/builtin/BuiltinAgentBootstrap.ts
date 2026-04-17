@@ -113,46 +113,14 @@ export function showBuiltinAgent(agentId: string): void {
 // ── Restore ─────────────────────────────────────────────────────────
 
 /**
- * Restore previously dismissed built-in agents.
- * Clears the dismissed list and recreates any missing agents sequentially.
- * Returns IDs of agents that were actually created.
+ * Unhide all built-in agents. Since init methods now always ensure agents
+ * exist in DB, this only needs to clear the hidden list.
+ * Returns IDs that were unhidden.
  */
 export async function restoreBuiltinAgents(): Promise<string[]> {
-  // Clear dismissed list so init methods won't skip them
+  const previouslyHidden = configManager.getDismissedBuiltinAgents()
   configManager.setDismissedBuiltinAgents([])
 
-  // Re-init each builtin agent sequentially to avoid race conditions
-  const cherryClawId = await agentService.initDefaultCherryClawAgent()
-  const cherryAssistantId = await agentService.initBuiltinAgent({
-    id: CHERRY_ASSISTANT_AGENT_ID,
-    builtinRole: 'assistant',
-    provisionWorkspace: provisionBuiltinAgent
-  })
-
-  // Also ensure sessions and heartbeat for newly created agents
-  if (cherryClawId) {
-    const { total: clawSessions } = await sessionService.listSessions(cherryClawId, { limit: 1 })
-    if (clawSessions === 0) {
-      await sessionService.createSession(cherryClawId, {})
-    }
-    await schedulerService.ensureHeartbeatTask(cherryClawId, 30)
-  }
-
-  if (cherryAssistantId) {
-    const { total: assistantSessions } = await sessionService.listSessions(cherryAssistantId, { limit: 1 })
-    if (assistantSessions === 0) {
-      await sessionService.createSession(cherryAssistantId, {})
-    }
-  }
-
-  const restoredIds: string[] = []
-  for (const id of BUILTIN_AGENT_IDS) {
-    const exists = await agentService.agentExists(id)
-    if (exists) {
-      restoredIds.push(id)
-    }
-  }
-
-  logger.info('Restored builtin agents', { restoredIds })
-  return restoredIds
+  logger.info('Restored builtin agents (unhidden)', { restoredIds: previouslyHidden })
+  return previouslyHidden
 }
