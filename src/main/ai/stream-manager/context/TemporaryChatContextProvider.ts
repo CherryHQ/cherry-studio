@@ -16,14 +16,14 @@
 import { assistantDataService } from '@data/services/AssistantService'
 import { loggerService } from '@logger'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
-import type { AiStreamOpenRequest, AiStreamOpenResponse } from '@shared/ai/transport'
+import type { AiStreamOpenRequest } from '@shared/ai/transport'
 import { parseUniqueModelId } from '@shared/data/types/model'
 
-import type { AiStreamRequest } from '../../AiCompletionService'
-import type { AiStreamManager } from '../AiStreamManager'
-import { TemporaryPersistenceListener } from '../listeners/TemporaryPersistenceListener'
+import type { AiStreamRequest } from '../../AiService'
+import { PersistenceListener } from '../listeners/PersistenceListener'
+import { TemporaryChatBackend } from '../persistence/backends/TemporaryChatBackend'
 import type { CherryUIMessage, StreamListener } from '../types'
-import type { ChatContextProvider } from './ChatContextProvider'
+import type { ChatContextProvider, PreparedDispatch } from './ChatContextProvider'
 import { resolveModels } from './modelResolution'
 
 const logger = loggerService.withContext('TemporaryChatContextProvider')
@@ -35,11 +35,7 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
     return temporaryChatService.hasTopic(topicId)
   }
 
-  async handle(
-    manager: AiStreamManager,
-    subscriber: StreamListener,
-    req: AiStreamOpenRequest
-  ): Promise<AiStreamOpenResponse> {
+  async prepareDispatch(subscriber: StreamListener, req: AiStreamOpenRequest): Promise<PreparedDispatch> {
     if (req.trigger === 'regenerate-message') {
       throw new Error('regenerate-message is not supported for temporary chats (immutable append-only)')
     }
@@ -90,15 +86,20 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       parts: m.data.parts ?? []
     }))
 
-    // 3. Build listeners: subscriber (WebContents) + TemporaryPersistenceListener.
+    // 3. Build listeners: subscriber (WebContents) + PersistenceListener wrapping
+    //    the in-memory temporary-chat backend.
     const listeners: StreamListener[] = [
       subscriber,
-      new TemporaryPersistenceListener({ topicId: req.topicId, modelId: model.id, modelSnapshot })
+      new PersistenceListener({
+        topicId: req.topicId,
+        modelId: model.id,
+        backend: new TemporaryChatBackend({ topicId: req.topicId, modelId: model.id, modelSnapshot })
+      })
     ]
 
-    // 4. Dispatch single execution. No pre-allocated `messageId`: AI SDK generates
-    //    one for the Renderer-visible streaming UIMessage; service-side message id
-    //    is independent and generated on append.
+    // 4. Hand off to the dispatcher. No pre-allocated `messageId`: AI SDK
+    //    generates one for the Renderer-visible streaming UIMessage; the
+    //    service-side message id is independent and generated on append.
     const streamRequest: AiStreamRequest = {
       chatId: req.topicId,
       trigger: 'submit-message',
@@ -107,15 +108,12 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       messages: history
     }
 
-    manager.startExecution({
+    return {
       topicId: req.topicId,
-      modelId: model.id,
-      request: streamRequest,
+      models: [{ modelId: model.id, request: streamRequest }],
       listeners,
       isMultiModel: false
-    })
-
-    return { mode: 'started' }
+    }
   }
 }
 

@@ -53,7 +53,7 @@ import {
   SOUL_MODE_DISALLOWED_TOOLS
 } from '@shared/agents/claudecode/constants'
 import { languageEnglishNameMap } from '@shared/config/languages'
-import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { createUniqueModelId, isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { GetAgentSessionResponse } from '@types'
 import { app } from 'electron'
@@ -85,6 +85,46 @@ export function extractAgentSessionId(topicId: string): string {
     throw new Error(`Not an agent session topicId: ${topicId}`)
   }
   return topicId.slice(AGENT_SESSION_PREFIX.length)
+}
+
+/** Build the topic id for an agent session. */
+export function buildAgentSessionTopicId(sessionId: string): string {
+  return `${AGENT_SESSION_PREFIX}${sessionId}`
+}
+
+/**
+ * Parse `session.model` into a `UniqueModelId` (`"providerId::modelId"`).
+ *
+ * The agents DB stores the model string in canonical `providerId::modelId`
+ * form after `data_0003`. Some legacy rows and test fixtures still use the
+ * single-colon form `providerId:modelId`; this helper handles both so
+ * scheduler / channel / stream-manager call sites never hand-roll string
+ * splitting again. Historically three different sites did, and two of
+ * them used `indexOf(':')` which silently corrupts the `::` form by
+ * leaving a leading colon on the model id.
+ */
+export function parseAgentSessionModel(sessionModel: string): UniqueModelId {
+  if (!sessionModel) {
+    throw new Error('parseAgentSessionModel: empty session.model')
+  }
+
+  // Canonical `providerId::modelId` — the shared type guard narrows the
+  // string to `UniqueModelId` without a second parse round-trip.
+  if (isUniqueModelId(sessionModel)) {
+    return sessionModel
+  }
+
+  // Legacy single-colon `providerId:modelId`. A model id that itself
+  // contains colons (e.g. `anthropic:claude:latest`) is ambiguous; we
+  // split on the first `:` which matches the previous behaviour.
+  const singleIdx = sessionModel.indexOf(':')
+  if (singleIdx > 0) {
+    const providerId = sessionModel.slice(0, singleIdx)
+    const rawModelId = sessionModel.slice(singleIdx + 1)
+    return createUniqueModelId(providerId, rawModelId)
+  }
+
+  throw new Error(`parseAgentSessionModel: cannot parse "${sessionModel}" — expected "providerId::modelId"`)
 }
 
 /**
@@ -236,9 +276,10 @@ async function buildEnvironment(
   // API key and base URL are injected by the provider layer (ClaudeCodeProviderSettings),
   // not set here. This function only builds session-specific env vars.
 
-  // session.model is UniqueModelId ("providerId::modelId") after data_0003 migration.
+  // session.model is UniqueModelId ("providerId::modelId") after data_0003 migration;
+  // the helper also accepts the legacy single-colon form so older fixtures still parse.
   // Try DB lookup for apiModelId (may differ from raw ID), fall back to raw if not registered.
-  const { providerId, modelId: rawModelId } = parseUniqueModelId(session.model as UniqueModelId)
+  const { providerId, modelId: rawModelId } = parseUniqueModelId(parseAgentSessionModel(session.model))
   let apiModelId = rawModelId
   try {
     const model = await modelService.getByKey(providerId, rawModelId)

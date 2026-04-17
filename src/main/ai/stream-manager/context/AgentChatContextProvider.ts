@@ -5,24 +5,24 @@
  *  - read their state from the agents DB (via agentService / sessionService)
  *  - persist messages through agentMessageRepository, not MessageService
  *  - resolve the model from the session record, not the assistant
- *  - submit via `manager.send` (agent steering semantics) instead of per-model
- *    `startExecution` fan-out
+ *  - always submit a single model (no `@mention` fan-out) and pass a
+ *    `userMessage` so `manager.send` steers into any in-flight session.
  */
 
-import { loggerService } from '@logger'
 import { agentService, sessionService } from '@main/services/agents'
 import { agentMessageRepository } from '@main/services/agents/database/sessionMessageRepository'
-import type { AiStreamOpenRequest, AiStreamOpenResponse } from '@shared/ai/transport'
+import type { AiStreamOpenRequest } from '@shared/ai/transport'
 import type { Message } from '@shared/data/types/message'
-import { createUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
-import { extractAgentSessionId, isAgentSessionTopic } from '../../provider/claudeCodeSettingsBuilder'
-import type { AiStreamManager } from '../AiStreamManager'
-import { AgentPersistenceListener } from '../listeners/AgentPersistenceListener'
+import {
+  extractAgentSessionId,
+  isAgentSessionTopic,
+  parseAgentSessionModel
+} from '../../provider/claudeCodeSettingsBuilder'
+import { PersistenceListener } from '../listeners/PersistenceListener'
+import { AgentMessageBackend } from '../persistence/backends/AgentMessageBackend'
 import type { StreamListener } from '../types'
-import type { ChatContextProvider } from './ChatContextProvider'
-
-const logger = loggerService.withContext('AgentChatContextProvider')
+import type { ChatContextProvider, PreparedDispatch } from './ChatContextProvider'
 
 export class AgentChatContextProvider implements ChatContextProvider {
   readonly name = 'agent-session'
@@ -31,11 +31,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
     return isAgentSessionTopic(topicId)
   }
 
-  async handle(
-    manager: AiStreamManager,
-    subscriber: StreamListener,
-    req: AiStreamOpenRequest
-  ): Promise<AiStreamOpenResponse> {
+  async prepareDispatch(subscriber: StreamListener, req: AiStreamOpenRequest): Promise<PreparedDispatch> {
     const sessionId = extractAgentSessionId(req.topicId)
 
     const { agents } = await agentService.listAgents()
@@ -46,9 +42,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
     }
     if (!session) throw new Error(`Agent session not found: ${sessionId}`)
 
-    // TODO： fix this after agent model refactor to v2
-    const { providerId, modelId: rawModelId } = parseUniqueModelId(session.model as UniqueModelId)
-    const uniqueModelId = createUniqueModelId(providerId, rawModelId)
+    const uniqueModelId = parseAgentSessionModel(session.model)
 
     const userText =
       req.userMessageParts
@@ -75,27 +69,33 @@ export class AgentChatContextProvider implements ChatContextProvider {
       }
     })
 
-    const agentPersistenceListener = new AgentPersistenceListener({
-      sessionId,
-      agentId: session.agent_id
-    })
-
-    const result = manager.send({
+    const agentPersistenceListener = new PersistenceListener({
       topicId: req.topicId,
       modelId: uniqueModelId,
-      request: {
-        chatId: req.topicId,
-        trigger: 'submit-message',
-        assistantId: session.agent_id,
-        uniqueModelId,
-        messages: [{ id: userMessageId, role: 'user', parts: [{ type: 'text', text: userText }] }]
-      },
-      userMessage: { id: userMessageId, topicId: req.topicId, role: 'user' } as Message,
-      listeners: [subscriber, agentPersistenceListener]
+      backend: new AgentMessageBackend({ sessionId, agentId: session.agent_id })
     })
 
-    logger.debug('Agent session stream dispatched', { sessionId, mode: result.mode })
-    return { mode: result.mode }
+    return {
+      topicId: req.topicId,
+      models: [
+        {
+          modelId: uniqueModelId,
+          request: {
+            chatId: req.topicId,
+            trigger: 'submit-message',
+            assistantId: session.agent_id,
+            uniqueModelId,
+            messages: [{ id: userMessageId, role: 'user', parts: [{ type: 'text', text: userText }] }]
+          }
+        }
+      ],
+      // Passing userMessage means the dispatcher's `manager.send` can steer
+      // the new prompt into any in-flight Claude Code session on this topic
+      // via the pending queue.
+      userMessage: { id: userMessageId, topicId: req.topicId, role: 'user' } as Message,
+      listeners: [subscriber, agentPersistenceListener],
+      isMultiModel: false
+    }
   }
 }
 

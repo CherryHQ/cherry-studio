@@ -1,7 +1,7 @@
 import { assistantDataService } from '@data/services/AssistantService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
-import type { AiGenerateRequest } from '@main/ai/AiCompletionService'
+import type { AiGenerateRequest } from '@main/ai/AiService'
 import { application } from '@main/core/application'
 import { messageService } from '@main/data/services/MessageService'
 import type { Message, MessageData, UIMessage } from '@shared/data/types/message'

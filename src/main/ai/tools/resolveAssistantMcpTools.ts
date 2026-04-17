@@ -8,7 +8,7 @@
  *   4. Ask MCPService to list tools per server, filter out disabled ones
  *   5. Return the flattened list of tool IDs
  *
- * Called by `AiCompletionService` when a request does not carry explicit
+ * Called by `AiService` when a request does not carry explicit
  * `mcpToolIds` — renderers no longer need to resolve tools themselves.
  */
 

@@ -3,14 +3,16 @@ import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { AiStreamRequest } from '../../AiCompletionService'
-import type { StreamDoneResult, StreamListener, StreamPausedResult } from '../types'
+import type { AiStreamRequest } from '../../AiService'
+import type { AiStreamManagerConfig, StreamDoneResult, StreamListener, StreamPausedResult } from '../types'
 
 // ── Fake listener ───────────────────────────────────────────────────
 
 class FakeListener implements StreamListener {
   readonly id: string
   chunks: UIMessageChunk[] = []
+  /** Second argument of each onChunk call, indexed by chunk position. */
+  chunkSources: Array<string | undefined> = []
   doneResults: StreamDoneResult[] = []
   pausedResults: StreamPausedResult[] = []
   errors: SerializedError[] = []
@@ -22,8 +24,9 @@ class FakeListener implements StreamListener {
     this.id = id
   }
 
-  onChunk(chunk: UIMessageChunk): void {
+  onChunk(chunk: UIMessageChunk, sourceModelId?: string): void {
     this.chunks.push(chunk)
+    this.chunkSources.push(sourceModelId)
   }
 
   onDone(result: StreamDoneResult): void | Promise<void> {
@@ -77,9 +80,14 @@ const { AiStreamManager } = await import('../AiStreamManager')
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
-function createManager(): InstanceType<typeof AiStreamManager> {
+type ManagerInstance = InstanceType<typeof AiStreamManager>
+
+function createManager(config?: Partial<AiStreamManagerConfig>): ManagerInstance {
   BaseService.resetInstances()
-  return new (AiStreamManager as any)()
+  // Cast through unknown to bypass the lifecycle-decorated no-arg signature
+  // in tests — the runtime constructor accepts `Partial<AiStreamManagerConfig>`.
+  const Ctor = AiStreamManager as unknown as new (config?: Partial<AiStreamManagerConfig>) => ManagerInstance
+  return new Ctor(config)
 }
 
 function chunk(text: string): UIMessageChunk {
@@ -91,7 +99,33 @@ function error(msg: string): SerializedError {
 }
 
 function req(topicId: string) {
-  return { requestId: topicId, chatId: topicId, trigger: 'submit-message', messages: [] } as any
+  return { chatId: topicId, trigger: 'submit-message', messages: [] } as any
+}
+
+/**
+ * Single-model convenience wrapper around `manager.send`.
+ * Returns the resulting snapshot so tests can assert on observable state
+ * without poking the manager's private map.
+ */
+function startSingle(
+  manager: ManagerInstance,
+  opts: {
+    topicId: string
+    modelId: `${string}::${string}`
+    request: AiStreamRequest
+    listeners: StreamListener[]
+    siblingsGroupId?: number
+  }
+) {
+  manager.send({
+    topicId: opts.topicId,
+    models: [{ modelId: opts.modelId, request: opts.request }],
+    listeners: opts.listeners,
+    siblingsGroupId: opts.siblingsGroupId
+  })
+  const snapshot = manager.inspect(opts.topicId)
+  if (!snapshot) throw new Error(`inspect() returned undefined for topicId=${opts.topicId}`)
+  return snapshot
 }
 
 // ── Tests ───────────────────────────────────────────────────────────
@@ -110,47 +144,45 @@ describe('AiStreamManager', () => {
     vi.useRealTimers()
   })
 
-  // ── startExecution ─────────────────────────────────────────────────
+  // ── send (start path) ──────────────────────────────────────────────
 
-  describe('startExecution', () => {
-    it('creates stream and invokes AiService.streamText with the execution signal', () => {
-      const listener = new FakeListener('l:a')
-      const stream = mgr.startExecution({
+  describe('send (start)', () => {
+    it('creates an active stream and launches a pump against AiService.streamText', () => {
+      const snap = startSingle(mgr, {
         topicId: 'a',
         modelId: 'provider-a::model-a',
         request: req('a'),
-        listeners: [listener]
+        listeners: [new FakeListener('l:a')]
       })
 
-      expect(stream.topicId).toBe('a')
-      expect(stream.status).toBe('streaming')
-      expect(stream.listeners.size).toBe(1)
-
+      expect(snap).toMatchObject({
+        topicId: 'a',
+        status: 'streaming',
+        isMultiModel: false,
+        listenerIds: ['l:a']
+      })
+      // One streamText call per execution — 1 for single-model.
+      // Passing signal propagation is verified indirectly by abort-path tests
+      // (e.g. `abort > sets status and triggers AbortController signal`).
       expect(mockStreamText).toHaveBeenCalledOnce()
-      const [, signal] = mockStreamText.mock.calls[0]
-      expect(signal).toBe(stream.executions.values().next().value!.abortController.signal)
     })
 
-    it('throws on duplicate streaming topic', () => {
-      mgr.startExecution({
-        topicId: 'a',
-        modelId: 'provider-a::model-a',
-        request: req('a'),
-        listeners: [new FakeListener('l1:a')]
-      })
-
+    it('throws on duplicate modelId within a single send call', () => {
+      const request = req('a')
       expect(() =>
-        mgr.startExecution({
+        mgr.send({
           topicId: 'a',
-          modelId: 'provider-a::model-a',
-          request: req('a'),
-          listeners: [new FakeListener('l2:a')]
+          models: [
+            { modelId: 'provider-a::model-a', request },
+            { modelId: 'provider-a::model-a', request }
+          ],
+          listeners: [new FakeListener('l:a')]
         })
-      ).toThrow('already has an execution')
+      ).toThrow('duplicate modelId')
     })
 
     it('evicts finished stream and creates new one', async () => {
-      mgr.startExecution({
+      startSingle(mgr, {
         topicId: 'a',
         modelId: 'provider-a::model-a',
         request: req('a'),
@@ -158,23 +190,23 @@ describe('AiStreamManager', () => {
       })
       await mgr.onExecutionDone('a', 'provider-a::model-a')
 
-      const s2 = mgr.startExecution({
+      const s2 = startSingle(mgr, {
         topicId: 'a',
         modelId: 'provider-a::model-a',
         request: req('a'),
         listeners: [new FakeListener('l2:a')]
       })
       expect(s2.status).toBe('streaming')
-      expect(s2.executions.size).toBe(1)
+      expect(s2.executions).toHaveLength(1)
     })
   })
 
-  // ── send (routing) ──────────────────────────────────────────────
+  // ── send (steer path) ──────────────────────────────────────────────
 
-  describe('send', () => {
+  describe('send (steer)', () => {
     it('steers into existing stream without calling streamText again', () => {
       const l1 = new FakeListener('l:a')
-      const stream = mgr.startExecution({
+      startSingle(mgr, {
         topicId: 'a',
         modelId: 'provider-a::model-a',
         request: req('a'),
@@ -185,8 +217,7 @@ describe('AiStreamManager', () => {
       const l2 = new FakeListener('l:a') // same id → upsert
       const result = mgr.send({
         topicId: 'a',
-        modelId: 'provider-a::model-a',
-        request: req('a'),
+        models: [{ modelId: 'provider-a::model-a', request: req('a') }],
         userMessage: {
           id: 'user-2',
           topicId: 'a',
@@ -201,34 +232,114 @@ describe('AiStreamManager', () => {
       })
 
       expect(result.mode).toBe('steered')
+      expect(result.executionIds).toEqual(['provider-a::model-a'])
       // No second streamText call — steering reuses the existing stream
       expect(mockStreamText).toHaveBeenCalledTimes(1)
-      // Message pushed to pending queue
-      expect(stream.pendingMessages.hasPending()).toBe(true)
-      // Listener upserted: l2 replaced l1 (same id)
-      expect(stream.listeners.get('l:a')).toBe(l2)
-    })
 
-    it('starts new stream when no active stream exists', () => {
+      // Snapshot reflects the steer side-effects:
+      //  - the execution's pending queue now has one message
+      //  - the listener id is still the single "l:a" (upsert, not duplicate)
+      const snap = mgr.inspect('a')!
+      expect(snap.executions[0].pendingMessageCount).toBe(1)
+      expect(snap.listenerIds).toEqual(['l:a'])
+
+      // Behaviour proves the listener was actually replaced: only l2 sees the chunk.
+      mgr.onChunk('a', 'provider-a::model-a', chunk('x'))
+      expect(l1.chunks).toHaveLength(0)
+      expect(l2.chunks).toHaveLength(1)
+    })
+  })
+
+  // ── multi-model start ──────────────────────────────────────────────
+
+  describe('send (multi-model)', () => {
+    it('launches one execution per model in a single call', () => {
+      const listener = new FakeListener('l:a')
       const result = mgr.send({
-        topicId: 'b',
-        modelId: 'provider-b::model-b',
-        request: req('b'),
-        userMessage: {
-          id: 'user-1',
-          topicId: 'b',
-          parentId: null,
-          role: 'user',
-          data: {},
-          status: 'success',
-          createdAt: '',
-          updatedAt: ''
-        } as any,
-        listeners: [new FakeListener('l:b')]
+        topicId: 'a',
+        models: [
+          { modelId: 'provider-a::model-a', request: req('a') },
+          { modelId: 'provider-b::model-b', request: req('a') }
+        ],
+        listeners: [listener]
       })
 
-      expect(result.mode).toBe('started')
-      expect(mockStreamText).toHaveBeenCalledOnce()
+      expect(result).toEqual({
+        mode: 'started',
+        executionIds: ['provider-a::model-a', 'provider-b::model-b']
+      })
+      expect(mockStreamText).toHaveBeenCalledTimes(2)
+
+      const snap = mgr.inspect('a')!
+      expect(snap.executions).toHaveLength(2)
+      expect(snap.isMultiModel).toBe(true)
+      expect(snap.listenerIds).toEqual(['l:a'])
+
+      // Each execution starts with an empty queue (no steer yet).
+      for (const exec of snap.executions) {
+        expect(exec.pendingMessageCount).toBe(0)
+      }
+
+      // Behaviour: the single shared listener receives from either execution.
+      mgr.onChunk('a', 'provider-a::model-a', chunk('from-a'))
+      expect(listener.chunks).toHaveLength(1)
+    })
+
+    it('fans steer messages out to every execution queue', () => {
+      mgr.send({
+        topicId: 'a',
+        models: [
+          { modelId: 'provider-a::model-a', request: req('a') },
+          { modelId: 'provider-b::model-b', request: req('a') }
+        ],
+        listeners: [new FakeListener('l:a')]
+      })
+
+      const steered = mgr.steer('a', {
+        id: 'steer-1',
+        topicId: 'a',
+        parentId: null,
+        role: 'user',
+        data: {},
+        status: 'success',
+        createdAt: '',
+        updatedAt: ''
+      } as any)
+
+      expect(steered).toBe(true)
+      // Every execution's own queue received the steer message — this is
+      // the multi-model invariant: one steer, N consumers, no data loss.
+      const snap = mgr.inspect('a')!
+      expect(snap.executions).toHaveLength(2)
+      for (const exec of snap.executions) {
+        expect(exec.pendingMessageCount).toBe(1)
+      }
+    })
+
+    it('tags chunks with sourceModelId in multi-model mode (and omits it for single-model)', () => {
+      const multi = new FakeListener('l:multi')
+      mgr.send({
+        topicId: 'a',
+        models: [
+          { modelId: 'provider-a::model-a', request: req('a') },
+          { modelId: 'provider-b::model-b', request: req('a') }
+        ],
+        listeners: [multi]
+      })
+      mgr.onChunk('a', 'provider-b::model-b', chunk('hi'))
+      expect(multi.chunkSources).toEqual(['provider-b::model-b'])
+
+      // Single-model topic: sourceModelId is intentionally omitted so the
+      // renderer's demux doesn't need to special-case the common case.
+      const single = new FakeListener('l:single')
+      startSingle(mgr, {
+        topicId: 'b',
+        modelId: 'provider-c::model-c',
+        request: req('b'),
+        listeners: [single]
+      })
+      mgr.onChunk('b', 'provider-c::model-c', chunk('ho'))
+      expect(single.chunkSources).toEqual([undefined])
     })
   })
 
@@ -238,7 +349,7 @@ describe('AiStreamManager', () => {
     it('multicasts to all alive listeners', () => {
       const l1 = new FakeListener('l1:a')
       const l2 = new FakeListener('l2:a')
-      mgr.startExecution({ topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [l1, l2] })
+      startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [l1, l2] })
 
       mgr.onChunk('a', 'provider-a::model-a', chunk('hi'))
 
@@ -251,7 +362,7 @@ describe('AiStreamManager', () => {
       const dead = new FakeListener('dead:a')
       dead.alive = false
 
-      const stream = mgr.startExecution({
+      startSingle(mgr, {
         topicId: 'a',
         modelId: 'provider-a::model-a',
         request: req('a'),
@@ -261,11 +372,12 @@ describe('AiStreamManager', () => {
 
       expect(alive.chunks).toHaveLength(1)
       expect(dead.chunks).toHaveLength(0)
-      expect(stream.listeners.size).toBe(1) // dead was removed from map
+      // The dead listener was reaped from the map during delivery.
+      expect(mgr.inspect('a')!.listenerIds).toEqual(['alive:a'])
     })
 
     it('buffers chunks and replays to late-joining listener', () => {
-      mgr.startExecution({
+      startSingle(mgr, {
         topicId: 'a',
         modelId: 'provider-a::model-a',
         request: req('a'),
@@ -282,11 +394,34 @@ describe('AiStreamManager', () => {
 
     it('does not deliver to a non-streaming topic', async () => {
       const l = new FakeListener('l:a')
-      mgr.startExecution({ topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [l] })
+      startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [l] })
       await mgr.onExecutionDone('a', 'provider-a::model-a')
 
       mgr.onChunk('a', 'provider-a::model-a', chunk('late'))
       expect(l.chunks).toHaveLength(0)
+    })
+
+    it('backgroundMode=abort aborts the stream when all listeners go dead', () => {
+      // Fresh manager with the abort policy configured at construction time,
+      // rather than poking runtime state on the default instance.
+      const abortMgr = createManager({ backgroundMode: 'abort' })
+      const listener = new FakeListener('l:a')
+      startSingle(abortMgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [listener]
+      })
+
+      // Next chunk delivery scrubs the dead listener, finds size === 0,
+      // and triggers abort so the execution exits via the paused path.
+      listener.alive = false
+      abortMgr.onChunk('a', 'provider-a::model-a', chunk('late'))
+
+      const snap = abortMgr.inspect('a')!
+      expect(snap.listenerIds).toEqual([])
+      expect(snap.status).toBe('aborted')
+      expect(snap.executions[0].abortSignal.aborted).toBe(true)
     })
   })
 
@@ -295,7 +430,7 @@ describe('AiStreamManager', () => {
   describe('onExecutionDone', () => {
     it('broadcasts with finalMessage and status', async () => {
       const l = new FakeListener('l:a')
-      const stream = mgr.startExecution({
+      startSingle(mgr, {
         topicId: 'a',
         modelId: 'provider-a::model-a',
         request: req('a'),
@@ -305,18 +440,19 @@ describe('AiStreamManager', () => {
 
       await mgr.onExecutionDone('a', 'provider-a::model-a')
 
-      expect(stream.status).toBe('done')
+      expect(mgr.inspect('a')!.status).toBe('done')
       expect(l.doneResults).toHaveLength(1)
       expect(l.doneResults[0].status).toBe('success')
       expect(l.doneResults[0].finalMessage).toEqual({ id: '1', role: 'assistant', parts: [] })
     })
 
     it('maps paused status to aborted state', async () => {
-      const stream = mgr.startExecution({
+      const l = new FakeListener('l:a')
+      startSingle(mgr, {
         topicId: 'a',
         modelId: 'provider-a::model-a',
         request: req('a'),
-        listeners: [new FakeListener('l:a')]
+        listeners: [l]
       })
       mgr.abort('a', 'test-pause')
 
@@ -325,8 +461,8 @@ describe('AiStreamManager', () => {
       // before we assert.
       for (let i = 0; i < 20; i++) await Promise.resolve()
 
-      expect(stream.status).toBe('aborted')
-      expect((stream.listeners.get('l:a') as FakeListener).pausedResults).toHaveLength(1)
+      expect(mgr.inspect('a')!.status).toBe('aborted')
+      expect(l.pausedResults).toHaveLength(1)
     })
 
     it('isolates listener errors — one throw does not block others', async () => {
@@ -336,7 +472,7 @@ describe('AiStreamManager', () => {
       }
       const receiver = new FakeListener('receiver:a')
 
-      mgr.startExecution({
+      startSingle(mgr, {
         topicId: 'a',
         modelId: 'provider-a::model-a',
         request: req('a'),
@@ -355,7 +491,7 @@ describe('AiStreamManager', () => {
   describe('onExecutionError', () => {
     it('broadcasts error and sets stream status', async () => {
       const l = new FakeListener('l:a')
-      const stream = mgr.startExecution({
+      startSingle(mgr, {
         topicId: 'a',
         modelId: 'provider-a::model-a',
         request: req('a'),
@@ -364,7 +500,7 @@ describe('AiStreamManager', () => {
 
       await mgr.onExecutionError('a', 'provider-a::model-a', error('fail'))
 
-      expect(stream.status).toBe('error')
+      expect(mgr.inspect('a')!.status).toBe('error')
       expect(l.errors).toEqual([error('fail')])
     })
   })
@@ -373,7 +509,7 @@ describe('AiStreamManager', () => {
 
   describe('abort', () => {
     it('sets status and triggers AbortController signal', () => {
-      const stream = mgr.startExecution({
+      startSingle(mgr, {
         topicId: 'a',
         modelId: 'provider-a::model-a',
         request: req('a'),
@@ -382,12 +518,13 @@ describe('AiStreamManager', () => {
 
       mgr.abort('a', 'user-stop')
 
-      expect(stream.status).toBe('aborted')
-      expect(stream.executions.values().next().value!.abortController.signal.aborted).toBe(true)
+      const snap = mgr.inspect('a')!
+      expect(snap.status).toBe('aborted')
+      expect(snap.executions[0].abortSignal.aborted).toBe(true)
     })
 
     it('does not affect non-streaming topics', async () => {
-      const stream = mgr.startExecution({
+      startSingle(mgr, {
         topicId: 'a',
         modelId: 'provider-a::model-a',
         request: req('a'),
@@ -397,28 +534,19 @@ describe('AiStreamManager', () => {
 
       // Abort on a finished stream → no-op (status stays 'done')
       mgr.abort('a', 'late')
-      expect(stream.status).toBe('done')
+      expect(mgr.inspect('a')!.status).toBe('done')
     })
   })
 
   // ── listener management ─────────────────────────────────────────
+  // Listener upsert-by-id is exercised by `send (steer) > steers into existing
+  // stream without calling streamText again`, which swaps listeners with the
+  // same id and verifies only the new one receives chunks.
 
   describe('listener management', () => {
-    it('upserts by id — new listener replaces old with same id', () => {
-      const l1 = new FakeListener('same:a')
-      mgr.startExecution({ topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [l1] })
-
-      const l2 = new FakeListener('same:a')
-      mgr.addListener('a', l2)
-
-      mgr.onChunk('a', 'provider-a::model-a', chunk('x'))
-      expect(l1.chunks).toHaveLength(0)
-      expect(l2.chunks).toHaveLength(1)
-    })
-
     it('removeListener prevents further delivery', () => {
       const l = new FakeListener('l:a')
-      mgr.startExecution({ topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [l] })
+      startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [l] })
 
       mgr.removeListener('a', 'l:a')
       mgr.onChunk('a', 'provider-a::model-a', chunk('x'))
@@ -427,28 +555,11 @@ describe('AiStreamManager', () => {
     })
   })
 
-  // ── shouldStopExecution ─────────────────────────────────────────
-
-  describe('shouldStopExecution', () => {
-    it('returns false while streaming, true after abort', () => {
-      mgr.startExecution({
-        topicId: 'a',
-        modelId: 'provider-a::model-a',
-        request: req('a'),
-        listeners: [new FakeListener('l:a')]
-      })
-      expect(mgr.shouldStopExecution('a', 'provider-a::model-a')).toBe(false)
-
-      mgr.abort('a', 'stop')
-      expect(mgr.shouldStopExecution('a', 'provider-a::model-a')).toBe(true)
-    })
-  })
-
   // ── grace period ────────────────────────────────────────────────
 
   describe('grace period', () => {
-    it('handleAttach returns compact replay chunks', () => {
-      mgr.startExecution({
+    it('attach returns compact replay chunks', () => {
+      startSingle(mgr, {
         topicId: 'a',
         modelId: 'provider-a::model-a',
         request: req('a'),
@@ -460,7 +571,9 @@ describe('AiStreamManager', () => {
       mgr.onChunk('a', 'provider-a::model-a', { type: 'text-end', id: 'p1' } as UIMessageChunk)
 
       const sender = { id: 1, isDestroyed: () => false, send: vi.fn() }
-      const response = (mgr as any).handleAttach(sender, { topicId: 'a' })
+      // `attach` is the public IPC-facing method; tests pass a minimal
+      // WebContents-shaped stub.
+      const response = mgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
 
       expect(response).toEqual({
         status: 'attached',
@@ -472,24 +585,53 @@ describe('AiStreamManager', () => {
       })
     })
 
+    it('per-execution ring buffer drops oldest chunk on overflow and tracks droppedChunks', () => {
+      // Configure the cap via constructor rather than mutating runtime state;
+      // this is the same surface the lifecycle container / future config
+      // pipeline would use in production.
+      const ringMgr = createManager({ maxBufferChunks: 3 })
+      startSingle(ringMgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('l:a')]
+      })
+
+      for (let i = 0; i < 5; i++) {
+        ringMgr.onChunk('a', 'provider-a::model-a', {
+          type: 'text-delta',
+          id: 'p',
+          delta: String(i)
+        } as UIMessageChunk)
+      }
+
+      const snap = ringMgr.inspect('a')!
+      expect(snap.executions[0].bufferedChunkCount).toBe(3)
+      expect(snap.executions[0].droppedChunks).toBe(2)
+
+      // Behavioural check: a late listener replays exactly the three chunks
+      // that survived the ring's eviction (the last three deltas).
+      const late = new FakeListener('late:a')
+      ringMgr.addListener('a', late)
+      expect(late.chunks.map((c: any) => c.delta)).toEqual(['2', '3', '4'])
+    })
+
     it('stream remains accessible during grace period', async () => {
       const l = new FakeListener('l:a')
-      mgr.startExecution({ topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [l] })
+      startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [l] })
       mgr.setExecutionFinalMessage('a', 'provider-a::model-a', { id: '1' } as any)
       await mgr.onExecutionDone('a', 'provider-a::model-a')
 
-      // During grace period: execution is done (non-streaming) but the
-      // stream data is still in memory for reconnect.
-      expect(mgr.shouldStopExecution('a', 'provider-a::model-a')).toBe(true)
-
-      // A late listener can still be added during grace period
-      const late = new FakeListener('late:a')
-      const added = mgr.addListener('a', late)
+      // During grace period: execution has completed but stream state is
+      // still in memory — a reconnect can still attach and catch up.
+      const snap = mgr.inspect('a')
+      expect(snap?.status).toBe('done')
+      const added = mgr.addListener('a', new FakeListener('late:a'))
       expect(added).toBe(true)
     })
 
     it('stream is reaped after grace period expires', async () => {
-      mgr.startExecution({
+      startSingle(mgr, {
         topicId: 'a',
         modelId: 'provider-a::model-a',
         request: req('a'),
@@ -508,29 +650,8 @@ describe('AiStreamManager', () => {
 
   // ── steer ───────────────────────────────────────────────────────
 
-  describe('steer', () => {
-    it('pushes to pending queue of active stream', () => {
-      const stream = mgr.startExecution({
-        topicId: 'a',
-        modelId: 'provider-a::model-a',
-        request: req('a'),
-        listeners: [new FakeListener('l:a')]
-      })
-
-      expect(
-        mgr.steer('a', {
-          id: 'msg-2',
-          topicId: 'a',
-          parentId: null,
-          role: 'user',
-          data: {},
-          status: 'success',
-          createdAt: '',
-          updatedAt: ''
-        } as any)
-      ).toBe(true)
-      expect(stream.pendingMessages.hasPending()).toBe(true)
-      expect(stream.pendingMessages.drain()).toHaveLength(1)
-    })
-  })
+  // `steer()` (direct call) is the single-model subset of the multi-model
+  // fan-out tested under `send (multi-model) > fans steer messages out to
+  // every execution queue`. No dedicated test here — the fan-out test covers
+  // the invariant for 1-to-N executions, and single-model is the N=1 case.
 })

@@ -25,10 +25,10 @@ vi.mock('@shared/data/types/model', () => ({
   createUniqueModelId: vi.fn((providerId: string, modelId: string) => `${providerId}::${modelId}`)
 }))
 
-const mockStartExecution = vi.fn()
+const { mockSend } = vi.hoisted(() => ({ mockSend: vi.fn() }))
 vi.mock('@main/core/application', () => ({
   application: {
-    get: vi.fn().mockReturnValue({ startExecution: mockStartExecution })
+    get: vi.fn().mockReturnValue({ send: mockSend })
   }
 }))
 
@@ -70,12 +70,13 @@ describe('SchedulerService', () => {
   beforeEach(async () => {
     vi.useFakeTimers()
     vi.resetModules()
-    // Default: startExecution triggers sentinel onDone immediately
-    mockStartExecution.mockImplementation(({ listeners }) => {
+    // Default: send() triggers sentinel onDone immediately
+    mockSend.mockImplementation(({ listeners }) => {
       const sentinel = listeners.find((l: { id: string }) => l.id.startsWith('scheduler:'))
       if (sentinel) {
         sentinel.onDone({ status: 'success' })
       }
+      return { mode: 'started', executionIds: [] }
     })
     SchedulerServiceModule = await import('../SchedulerService')
   })

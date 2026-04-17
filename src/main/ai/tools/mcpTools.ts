@@ -2,7 +2,7 @@
  * MCP tool registration: converts MCPTool definitions into AI SDK tool() instances.
  *
  * Flow:
- * 1. AiCompletionService calls registerMcpTools() with mcpToolIds from the request
+ * 1. AiService calls registerMcpTools() with mcpToolIds from the request
  * 2. MCPService.listTools() fetches tool definitions from MCP servers
  * 3. createMcpTool() wraps each as an AI SDK tool with execute → MCPService.callTool()
  * 4. needsApproval set per-tool based on server.disabledAutoApproveTools

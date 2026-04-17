@@ -3,7 +3,7 @@
  *
  * TODO (Step 2 Phase C): These stubs exist because the original renderer code
  * fetches data from Redux store / renderer services. In Main process, this data
- * should come from BuildContext (injected by AiCompletionService).
+ * should come from BuildContext (injected by AiService).
  *
  * When BuildContext is implemented:
  * 1. Remove these stubs

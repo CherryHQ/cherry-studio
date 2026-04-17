@@ -6,7 +6,7 @@ import type { Assistant, MCPTool, Message } from '@types'
  *
  * Note: provider and model are NOT in this interface.
  * They are intrinsic properties of the AI execution context,
- * injected internally by AiCompletionService.
+ * injected internally by AiService.
  *
  * Migrated from renderer — removed `onChunk` callback (replaced by ReadableStream<UIMessageChunk>).
  */

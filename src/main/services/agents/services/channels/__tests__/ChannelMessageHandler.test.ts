@@ -35,10 +35,10 @@ vi.mock('@shared/data/types/model', () => ({
   createUniqueModelId: vi.fn((providerId: string, modelId: string) => `${providerId}::${modelId}`)
 }))
 
-const mockStartExecution = vi.fn()
+const { mockSend } = vi.hoisted(() => ({ mockSend: vi.fn() }))
 vi.mock('@main/core/application', () => ({
   application: {
-    get: vi.fn().mockReturnValue({ startExecution: mockStartExecution })
+    get: vi.fn().mockReturnValue({ send: mockSend })
   }
 }))
 
@@ -51,13 +51,13 @@ vi.mock('../../ChannelService', () => ({
 }))
 
 /**
- * Helper: configure mockStartExecution to simulate streaming chunks then calling onDone.
+ * Helper: configure mockSend to simulate streaming chunks then calling onDone.
  *
  * Finds the sentinel listener (id starting with 'channel-completion:') from the
  * listeners array, feeds it chunks, then calls onDone to resolve the execution promise.
  */
 function simulateStream(parts: Array<{ type: string; text?: string }>) {
-  mockStartExecution.mockImplementationOnce(
+  mockSend.mockImplementationOnce(
     ({
       listeners
     }: {
@@ -70,6 +70,7 @@ function simulateStream(parts: Array<{ type: string; text?: string }>) {
         }
         sentinel.onDone({ status: 'success' })
       }
+      return { mode: 'started', executionIds: [] }
     }
   )
 }
@@ -238,10 +239,11 @@ describe('ChannelMessageHandler', () => {
       command: 'compact'
     })
 
-    // Verify startExecution was called with the correct structure
-    expect(mockStartExecution).toHaveBeenCalledWith(
+    // Verify send() was called with the correct structure
+    expect(mockSend).toHaveBeenCalledWith(
       expect.objectContaining({
         topicId: 'agent-session:session-1',
+        models: expect.arrayContaining([expect.objectContaining({ modelId: expect.any(String) })]),
         listeners: expect.arrayContaining([
           expect.objectContaining({ id: expect.stringContaining('channel-completion:') })
         ])

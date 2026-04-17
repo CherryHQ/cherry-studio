@@ -14,7 +14,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { type SerializedError, serializeError } from '@shared/types/error'
 import { readUIMessageStream, type UIMessageChunk } from 'ai'
 
-import type { AiStreamRequest } from '../AiCompletionService'
+import type { AiStreamRequest } from '../AiService'
 import { PendingMessageQueue } from '../PendingMessageQueue'
 import { buildCompactReplay } from './buildCompactReplay'
 import { dispatchStreamRequest } from './context'
@@ -23,12 +23,73 @@ import type {
   ActiveStream,
   AiStreamManagerConfig,
   CherryUIMessage,
+  StreamChunkPayload,
   StreamDoneResult,
   StreamExecution,
   StreamListener
 } from './types'
 
 const logger = loggerService.withContext('AiStreamManager')
+
+/** A single model's request inside a `send()` call. */
+export interface SendModelSpec {
+  modelId: UniqueModelId
+  request: AiStreamRequest
+}
+
+/** Input for `AiStreamManager.send`. */
+export interface SendInput {
+  topicId: string
+  /** One entry per execution. `models.length > 1` → multi-model topic. */
+  models: ReadonlyArray<SendModelSpec>
+  /** All listeners (subscriber + per-execution persistence + etc). Upserted by id. */
+  listeners: StreamListener[]
+  /** Pushed into the shared pending queue when an active stream exists (steer). */
+  userMessage?: Message
+  /** Shared group id across executions so parallel responses render as siblings. */
+  siblingsGroupId?: number
+}
+
+/** Result of `AiStreamManager.send`. */
+export interface SendResult {
+  mode: 'started' | 'steered'
+  /**
+   * `started` → the freshly launched execution ids.
+   * `steered` → the execution ids already running on the topic.
+   */
+  executionIds: UniqueModelId[]
+}
+
+// ── Inspection snapshots ───────────────────────────────────────────
+//
+// `inspect()` returns read-only snapshots so diagnostics, UI surfaces,
+// and tests can query manager state without poking the private
+// `activeStreams` map. Mutating the snapshot does not mutate the manager.
+
+export interface ExecutionSnapshot {
+  readonly modelId: UniqueModelId
+  readonly status: StreamExecution['status']
+  /** Signal belonging to the execution's AbortController (observer-only). */
+  readonly abortSignal: AbortSignal
+  readonly pendingMessageCount: number
+  readonly bufferedChunkCount: number
+  readonly droppedChunks: number
+  readonly siblingsGroupId?: number
+}
+
+export interface TopicSnapshot {
+  readonly topicId: string
+  readonly status: ActiveStream['status']
+  readonly isMultiModel: boolean
+  readonly listenerIds: readonly string[]
+  readonly executions: readonly ExecutionSnapshot[]
+}
+
+const DEFAULT_CONFIG: AiStreamManagerConfig = {
+  gracePeriodMs: 30_000,
+  backgroundMode: 'continue',
+  maxBufferChunks: 10_000
+}
 
 /**
  * Active-stream registry for AI streaming.
@@ -41,11 +102,18 @@ const logger = loggerService.withContext('AiStreamManager')
 @ServicePhase(Phase.WhenReady)
 export class AiStreamManager extends BaseService {
   private readonly activeStreams = new Map<string, ActiveStream>()
+  private readonly config: AiStreamManagerConfig
 
-  private readonly config: AiStreamManagerConfig = {
-    gracePeriodMs: 30_000,
-    backgroundMode: 'continue',
-    maxBufferChunks: 10_000
+  /**
+   * The lifecycle container invokes this with no arguments (falling back
+   * to `DEFAULT_CONFIG`). Tests and future configuration surfaces may
+   * construct the service with a partial override — useful for shrinking
+   * `maxBufferChunks` in overflow tests or exercising the
+   * `backgroundMode: 'abort'` path.
+   */
+  constructor(config: Partial<AiStreamManagerConfig> = {}) {
+    super()
+    this.config = { ...DEFAULT_CONFIG, ...config }
   }
 
   protected async onInit(): Promise<void> {
@@ -55,11 +123,11 @@ export class AiStreamManager extends BaseService {
     })
 
     this.ipcHandle(IpcChannel.Ai_Stream_Attach, (event, req: AiStreamAttachRequest) => {
-      return this.handleAttach(event.sender, req)
+      return this.attach(event.sender, req)
     })
 
     this.ipcHandle(IpcChannel.Ai_Stream_Detach, (event, req: AiStreamDetachRequest) => {
-      this.handleDetach(event.sender, req)
+      this.detach(event.sender, req)
     })
 
     this.ipcHandle(IpcChannel.Ai_Stream_Abort, (_, req: AiStreamAbortRequest) => {
@@ -97,94 +165,84 @@ export class AiStreamManager extends BaseService {
     await Promise.allSettled(donePromises)
   }
 
-  // ── Public: start execution ───────────────────────────────────────
+  // ── Public: unified send ──────────────────────────────────────────
 
   /**
-   * Start a new execution for a topic.
+   * The single entry point for "dispatch a stream request for a topic".
    *
-   * Single-model: creates a new ActiveStream with one execution.
-   * Multi-model: can add an execution to an existing streaming ActiveStream.
+   * Behaviour is chosen from the topic's current active-stream state:
+   *  - Topic has an active streaming stream → **steer**: push the optional
+   *    `userMessage` into the shared pending queue and upsert every listener.
+   *    The running executions will consume the queue between iterations.
+   *    `models` is intentionally ignored in this path (we do not spin up new
+   *    executions mid-flight).
+   *  - Otherwise → **start**: evict any grace-period stream, create a new
+   *    ActiveStream, and launch one execution per entry in `models`. Multi-model
+   *    is detected from `models.length > 1` — callers no longer pass a flag.
    *
-   * @param modelId - The model id for this execution. Must come from the resolved
-   *                  assistant config, not a magic string.
+   * `executionIds` in the result reflects the executions the caller can
+   * observe: in `started` mode it is the freshly launched set; in `steered`
+   * mode it is the set already running on the topic.
    */
-  startExecution(input: {
-    topicId: string
-    modelId: UniqueModelId
-    request: AiStreamRequest
-    listeners: StreamListener[]
-    siblingsGroupId?: number
-    isMultiModel?: boolean
-  }): ActiveStream {
+  send(input: SendInput): SendResult {
     const existing = this.activeStreams.get(input.topicId)
 
-    if (existing) {
-      if (existing.status === 'streaming') {
-        // Multi-model: add execution to existing active stream
-        if (existing.executions.has(input.modelId)) {
-          throw new Error(`Topic ${input.topicId} already has an execution for model ${input.modelId}`)
-        }
-        const requestWithQueue = { ...input.request, pendingMessages: existing.pendingMessages }
-        const exec = this.createAndLaunchExecution(
-          input.topicId,
-          input.modelId,
-          requestWithQueue,
-          input.siblingsGroupId
-        )
-        existing.executions.set(input.modelId, exec)
-        for (const listener of input.listeners) existing.listeners.set(listener.id, listener)
-        return existing
+    if (existing && existing.status === 'streaming') {
+      // Steer path: fan the user message out to every execution's own queue
+      // so heterogeneous consumers (agentLoop `drain()`, Claude Code
+      // `AsyncIterable.next()`) each see it instead of racing for a single
+      // shared copy.
+      if (input.userMessage) {
+        for (const exec of existing.executions.values()) exec.pendingMessages.push(input.userMessage)
       }
-      // Grace period: evict finished stream, inherit sourceSessionId
-      this.evictStream(input.topicId)
+      for (const listener of input.listeners) this.addListener(input.topicId, listener)
+      return {
+        mode: 'steered',
+        executionIds: [...existing.executions.keys()]
+      }
     }
 
-    // Create queue first so it can be passed to the execution
-    const pendingMessages = new PendingMessageQueue()
-    const requestWithQueue = { ...input.request, pendingMessages }
-    const exec = this.createAndLaunchExecution(input.topicId, input.modelId, requestWithQueue, input.siblingsGroupId)
+    // If a stream in a non-streaming state (e.g., grace-period state) already exists,
+    // the old stream needs to be evicted before starting a new stream
+    // to ensure that multiple active streams do not exist simultaneously in the same topic.
+    if (existing) this.evictStream(input.topicId)
+
+    if (input.models.length === 0) {
+      throw new Error(`send() requires at least one model when starting a new stream (topicId=${input.topicId})`)
+    }
+
+    const isMultiModel = input.models.length > 1
+    const executions = new Map<UniqueModelId, StreamExecution>()
+
+    for (const { modelId, request } of input.models) {
+      if (executions.has(modelId)) {
+        throw new Error(`send() got duplicate modelId ${modelId} for topic ${input.topicId}`)
+      }
+      const exec = this.createAndLaunchExecution(input.topicId, modelId, request, input.siblingsGroupId)
+      executions.set(modelId, exec)
+    }
+
     const stream: ActiveStream = {
       topicId: input.topicId,
-      executions: new Map([[input.modelId, exec]]),
+      executions,
       listeners: new Map(input.listeners.map((l) => [l.id, l])),
-      pendingMessages,
-      buffer: [],
       status: 'streaming',
-      isMultiModel: input.isMultiModel ?? false
+      isMultiModel
     }
     this.activeStreams.set(input.topicId, stream)
     this.broadcastStreamStarted(input.topicId)
-    return stream
-  }
 
-  /**
-   * Unified "send message for a topic" entry point.
-   *
-   * - Topic has active streaming → steer (push to pendingMessages + add listeners)
-   * - Otherwise → startExecution (single-model)
-   */
-  send(input: {
-    topicId: string
-    modelId: UniqueModelId
-    request: AiStreamRequest
-    userMessage: Message
-    listeners: StreamListener[]
-  }): { mode: 'started' | 'steered' } {
-    const existing = this.activeStreams.get(input.topicId)
-    if (existing?.status === 'streaming') {
-      existing.pendingMessages.push(input.userMessage)
-      for (const listener of input.listeners) this.addListener(input.topicId, listener)
-      return { mode: 'steered' }
+    return {
+      mode: 'started',
+      executionIds: input.models.map((m) => m.modelId)
     }
-    this.startExecution(input)
-    return { mode: 'started' }
   }
 
-  /** Push a steering message into a running stream. */
+  /** Push a steering message into every running execution of a topic. */
   steer(topicId: string, message: Message): boolean {
     const stream = this.activeStreams.get(topicId)
     if (!stream || stream.status !== 'streaming') return false
-    stream.pendingMessages.push(message)
+    for (const exec of stream.executions.values()) exec.pendingMessages.push(message)
     return true
   }
 
@@ -194,7 +252,13 @@ export class AiStreamManager extends BaseService {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return false
     stream.listeners.set(listener.id, listener)
-    for (const chunk of stream.buffer) listener.onChunk(chunk.chunk, chunk.executionId)
+    // Replay buffered chunks from every execution's ring buffer so late
+    // listeners catch up. Ordering within a single execution is preserved;
+    // across executions chunks are interleaved in the order we see each
+    // execution's buffer (acceptable: the Renderer demuxes by executionId).
+    for (const exec of stream.executions.values()) {
+      for (const chunk of exec.buffer) listener.onChunk(chunk.chunk, chunk.executionId)
+    }
     return true
   }
 
@@ -210,8 +274,8 @@ export class AiStreamManager extends BaseService {
     const stream = this.activeStreams.get(topicId)
     if (!stream || stream.status !== 'streaming') return
     logger.info('Aborting stream', { topicId, reason })
-    stream.pendingMessages.close()
     for (const exec of stream.executions.values()) {
+      exec.pendingMessages.close()
       if (exec.status === 'streaming') {
         exec.status = 'aborted'
         exec.abortController.abort(reason)
@@ -230,15 +294,25 @@ export class AiStreamManager extends BaseService {
     const stream = this.activeStreams.get(topicId)
     if (!stream || stream.status !== 'streaming') return
 
-    const sourceModelId = stream.isMultiModel ? modelId : undefined
-    if (stream.buffer.length < this.config.maxBufferChunks) {
-      stream.buffer.push({
-        topicId,
-        executionId: sourceModelId,
-        chunk
-      })
-    }
+    const exec = stream.executions.get(modelId)
+    if (!exec) return
 
+    const sourceModelId = stream.isMultiModel ? modelId : undefined
+
+    // Ring-buffer into *this execution's* buffer so a chatty model cannot
+    // push a slower model's replay out of a shared topic-level buffer.
+    // Overflow drops the oldest chunk and bumps droppedChunks so late
+    // attach / logs can tell replay is lossy.
+    if (exec.buffer.length >= this.config.maxBufferChunks) {
+      exec.buffer.shift()
+      exec.droppedChunks += 1
+    }
+    exec.buffer.push({ topicId, executionId: sourceModelId, chunk })
+
+    // Chunk delivery is synchronous by contract (listeners must not block
+    // the pump). We inline the liveness scrub here rather than routing
+    // through the async `dispatchToListeners` helper so dead listeners
+    // are reaped before the next onChunk / attach runs.
     const dead: string[] = []
     for (const [id, listener] of stream.listeners) {
       if (!listener.isAlive()) {
@@ -248,10 +322,18 @@ export class AiStreamManager extends BaseService {
       try {
         listener.onChunk(chunk, sourceModelId)
       } catch (err) {
-        logger.warn('Listener onChunk threw', { topicId, listenerId: id, err })
+        logger.warn('Listener threw', { topicId, listenerId: id, event: 'onChunk', err })
       }
     }
     for (const id of dead) stream.listeners.delete(id)
+
+    // Background mode enforcement: when all subscribers are gone and the
+    // configured policy is `abort`, drive the stream through the standard
+    // aborted → paused path so partial output is persisted as `paused`
+    // rather than mistakenly flagged as `success` or lingering forever.
+    if (stream.listeners.size === 0 && this.config.backgroundMode === 'abort') {
+      this.abort(topicId, 'no-subscribers')
+    }
   }
 
   /** Called when one execution finishes. Topic-level done only when ALL executions finished. */
@@ -306,31 +388,13 @@ export class AiStreamManager extends BaseService {
     stream.status = this.computeTopicStatus(stream)
     const isTopicDone = stream.status !== 'streaming'
 
-    for (const [id, listener] of stream.listeners) {
-      try {
-        await listener.onError(error, exec.finalMessage, exec.modelId, isTopicDone)
-      } catch (err) {
-        logger.warn('Listener onError threw', { topicId, listenerId: id, err })
-      }
-    }
+    await this.dispatchToListeners(stream, 'onError', (listener) =>
+      listener.onError(error, exec.finalMessage, exec.modelId, isTopicDone)
+    )
 
     if (isTopicDone) {
       this.scheduleReap(topicId)
     }
-  }
-
-  /** Check if a specific execution should stop. */
-  shouldStopExecution(topicId: string, modelId: UniqueModelId): boolean {
-    const stream = this.activeStreams.get(topicId)
-    if (!stream) return true
-
-    const exec = stream.executions.get(modelId)
-    if (!exec) return true
-    if (exec.status !== 'streaming') return true
-    if (exec.abortController.signal.aborted) return true
-    if (stream.listeners.size === 0 && this.config.backgroundMode === 'abort') return true
-
-    return false
   }
 
   /** Set finalMessage on a specific execution. */
@@ -341,9 +405,45 @@ export class AiStreamManager extends BaseService {
     if (exec) exec.finalMessage = message
   }
 
-  // ── Attach / Detach (simple registry ops, stay here) ───────────
+  // ── Public: inspection snapshot ───────────────────────────────────
 
-  private handleAttach(sender: Electron.WebContents, req: AiStreamAttachRequest): AiStreamAttachResponse {
+  /**
+   * Read-only snapshot of a topic's state. Returns `undefined` when the
+   * topic has no active stream (either never opened or already reaped
+   * past its grace period). Callers should treat the snapshot as
+   * immutable — the returned objects are not live views.
+   */
+  inspect(topicId: string): TopicSnapshot | undefined {
+    const stream = this.activeStreams.get(topicId)
+    if (!stream) return undefined
+
+    const executions: ExecutionSnapshot[] = []
+    for (const exec of stream.executions.values()) {
+      executions.push({
+        modelId: exec.modelId,
+        status: exec.status,
+        abortSignal: exec.abortController.signal,
+        pendingMessageCount: exec.pendingMessages.list().length,
+        bufferedChunkCount: exec.buffer.length,
+        droppedChunks: exec.droppedChunks,
+        siblingsGroupId: exec.siblingsGroupId
+      })
+    }
+
+    return {
+      topicId: stream.topicId,
+      status: stream.status,
+      isMultiModel: stream.isMultiModel,
+      listenerIds: [...stream.listeners.keys()],
+      executions
+    }
+  }
+
+  // ── Public: attach / detach ──────────────────────────────────────
+  // Registered as IPC handlers in `onInit`. Public so tests can drive
+  // the same code path with a fake `WebContents`-shaped sender.
+
+  attach(sender: Electron.WebContents, req: AiStreamAttachRequest): AiStreamAttachResponse {
     const stream = this.activeStreams.get(req.topicId)
     if (!stream) return { status: 'not-found' }
 
@@ -357,19 +457,35 @@ export class AiStreamManager extends BaseService {
       return { status: 'error', error: firstExec?.error! }
     }
 
-    // Register listener for future live chunks; reconnect receives a compact replay of buffered chunks.
+    // Register listener for future live chunks; reconnect receives a compact
+    // replay of every execution's buffered chunks, concatenated in a stable
+    // execution-iteration order. Each execution is compacted in isolation so
+    // text-delta / reasoning-delta merging never crosses execution boundaries.
     const listener = new WebContentsListener(sender, req.topicId)
     stream.listeners.set(listener.id, listener)
-    return { status: 'attached', bufferedChunks: buildCompactReplay(stream.buffer) }
+
+    const totalDropped = [...stream.executions.values()].reduce((sum, exec) => sum + exec.droppedChunks, 0)
+    if (totalDropped > 0) {
+      logger.warn('attach: replay has gaps due to buffer overflow', {
+        topicId: req.topicId,
+        droppedChunks: totalDropped
+      })
+    }
+
+    const bufferedChunks: StreamChunkPayload[] = []
+    for (const exec of stream.executions.values()) {
+      bufferedChunks.push(...buildCompactReplay(exec.buffer))
+    }
+    return { status: 'attached', bufferedChunks }
   }
 
-  private handleDetach(sender: Electron.WebContents, req: AiStreamDetachRequest): void {
+  detach(sender: Electron.WebContents, req: AiStreamDetachRequest): void {
     this.removeListener(req.topicId, `wc:${sender.id}:${req.topicId}`)
   }
 
   private broadcastStreamStarted(topicId: string): void {
     const windowService = application.get('WindowService')
-    const windows = typeof windowService.getAllWindows === 'function' ? windowService.getAllWindows() : []
+    const windows = windowService.getAllWindows()
     for (const window of windows) {
       const wc = window.webContents
       if (wc.isDestroyed()) continue
@@ -396,14 +512,21 @@ export class AiStreamManager extends BaseService {
     request: AiStreamRequest,
     siblingsGroupId?: number
   ): StreamExecution {
+    // Each execution gets its own pending queue and replay ring buffer;
+    // steering fan-out happens at the manager level (see `send` / `steer`).
+    const pendingMessages = new PendingMessageQueue()
     const exec: StreamExecution = {
       modelId,
       abortController: new AbortController(),
       status: 'streaming',
+      pendingMessages,
+      buffer: [],
+      droppedChunks: 0,
       siblingsGroupId
     }
+    const requestWithQueue: AiStreamRequest = { ...request, pendingMessages }
 
-    void this.runExecutionPump(topicId, modelId, request, exec).catch((err) => {
+    void this.runExecutionPump(topicId, modelId, requestWithQueue, exec).catch((err) => {
       // Defensive: runExecutionPump handles its own errors, but if it throws
       // synchronously (e.g. aiService.streamText fails before returning a stream),
       // funnel it into the standard error path.
@@ -518,13 +641,7 @@ export class AiStreamManager extends BaseService {
       modelId: exec.modelId,
       isTopicDone
     }
-    for (const [id, listener] of stream.listeners) {
-      try {
-        await listener.onDone(result)
-      } catch (err) {
-        logger.warn('Listener onDone threw', { topicId: stream.topicId, listenerId: id, err })
-      }
-    }
+    await this.dispatchToListeners(stream, 'onDone', (listener) => listener.onDone(result))
   }
 
   private async broadcastExecutionPaused(
@@ -538,13 +655,37 @@ export class AiStreamManager extends BaseService {
       modelId: exec.modelId,
       isTopicDone
     }
+    await this.dispatchToListeners(stream, 'onPaused', (listener) => listener.onPaused(result))
+  }
+
+  /**
+   * Single-point dispatch for terminal events (`onDone` / `onPaused` /
+   * `onError`). Mirrors the liveness policy of `onChunk`:
+   *  - skips dead listeners and removes them from the map
+   *  - catches sync/async throws so one bad listener cannot starve the rest
+   *  - tags log lines with the event name for easy triage
+   *
+   * Unlike `onChunk`, terminal dispatch awaits each listener so that
+   * `PersistenceListener` writes complete before `scheduleReap` runs.
+   */
+  private async dispatchToListeners(
+    stream: ActiveStream,
+    event: 'onDone' | 'onPaused' | 'onError',
+    invoke: (listener: StreamListener) => void | Promise<void>
+  ): Promise<void> {
+    const dead: string[] = []
     for (const [id, listener] of stream.listeners) {
+      if (!listener.isAlive()) {
+        dead.push(id)
+        continue
+      }
       try {
-        await listener.onPaused(result)
+        await invoke(listener)
       } catch (err) {
-        logger.warn('Listener onPaused threw', { topicId: stream.topicId, listenerId: id, err })
+        logger.warn('Listener threw', { topicId: stream.topicId, listenerId: id, event, err })
       }
     }
+    for (const id of dead) stream.listeners.delete(id)
   }
 
   /**

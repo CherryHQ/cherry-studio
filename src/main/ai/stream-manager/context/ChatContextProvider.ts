@@ -1,19 +1,52 @@
 /**
- * ChatContextProvider — resolves an `Ai_Stream_Open` request into an executing stream.
+ * ChatContextProvider — produces a ready-to-dispatch bundle for a single
+ * `Ai_Stream_Open` request.
  *
- * `dispatchStreamRequest` (see `./dispatch.ts`) picks the first provider whose
- * `canHandle(topicId)` is true and delegates the whole pipeline to it (context
- * resolution, user message persistence, listener assembly, execution dispatch).
+ * `dispatchStreamRequest` (see `./dispatch.ts`) picks the first provider
+ * whose `canHandle(topicId)` is true, asks it to `prepareDispatch`, and
+ * then calls `manager.send(...)` itself. Providers no longer own the
+ * `send` call — the dispatcher does — which means:
  *
- * The registry pattern replaces the old `if (isAgentSessionTopic) else normal` switch —
- * adding a new topic namespace (e.g. `temp:` for temporary chats) only requires adding
- * a new provider, never modifying the dispatcher.
+ *  - provider tests can assert on the returned `PreparedDispatch` shape
+ *    without mocking any manager method;
+ *  - the liveness / steer / multi-model fan-out contract lives in exactly
+ *    one place (AiStreamManager), not replicated across providers;
+ *  - adding a new chat topology (e.g. "inbox:", "shared-agent:") only
+ *    requires writing a provider, never touching the dispatcher.
  */
 
-import type { AiStreamOpenRequest, AiStreamOpenResponse } from '@shared/ai/transport'
+import type { AiStreamOpenRequest } from '@shared/ai/transport'
+import type { Message } from '@shared/data/types/message'
+import type { UniqueModelId } from '@shared/data/types/model'
 
-import type { AiStreamManager } from '../AiStreamManager'
+import type { AiStreamRequest } from '../../AiService'
 import type { StreamListener } from '../types'
+
+/**
+ * The bundle a provider produces so the dispatcher can call `manager.send`
+ * in a single, uniform way.
+ */
+export interface PreparedDispatch {
+  topicId: string
+  /** One entry per execution the provider wants to launch. */
+  models: ReadonlyArray<{ modelId: UniqueModelId; request: AiStreamRequest }>
+  /** Subscriber + per-execution PersistenceListeners, already assembled. */
+  listeners: StreamListener[]
+  /**
+   * Pushed into the shared pending queue when the topic already has an
+   * active stream (steer path). Providers that do not support cross-open
+   * steering leave this undefined.
+   */
+  userMessage?: Message
+  /** Shared sibling group for multi-model parallel responses. */
+  siblingsGroupId?: number
+  /**
+   * True when the provider intends to surface `executionIds` back to the
+   * Renderer (multi-model UI). Single-model topics set this to false so
+   * the response schema stays backwards compatible.
+   */
+  isMultiModel: boolean
+}
 
 export interface ChatContextProvider {
   /** Stable identifier for logging / diagnostics. */
@@ -21,13 +54,15 @@ export interface ChatContextProvider {
 
   /**
    * Return true if this provider owns the given topicId namespace.
-   * Implementations should be synchronous and side-effect free — they run on every request.
+   * Implementations must be synchronous and side-effect free — they run
+   * on every request.
    */
   canHandle(topicId: string): boolean
 
   /**
-   * Resolve context, persist inputs, build listeners, and dispatch executions
-   * against the manager. Must return the `Ai_Stream_Open` response.
+   * Resolve context, persist user inputs, allocate placeholders, and
+   * assemble the listener set + per-model requests. The dispatcher calls
+   * `manager.send(...)` with the returned bundle.
    */
-  handle(manager: AiStreamManager, subscriber: StreamListener, req: AiStreamOpenRequest): Promise<AiStreamOpenResponse>
+  prepareDispatch(subscriber: StreamListener, req: AiStreamOpenRequest): Promise<PreparedDispatch>
 }

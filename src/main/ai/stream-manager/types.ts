@@ -102,6 +102,12 @@ export interface StreamListener {
  * Single-model (common case): ActiveStream.executions has 1 entry.
  * Multi-model (@gpt-4o @claude-sonnet): N entries, each running independently
  * but sharing the same topic listeners and siblingsGroupId.
+ *
+ * Each execution owns its own `pendingMessages` queue. Steering pushes
+ * fan out to *every* execution so that, e.g., a Claude Code session and a
+ * normal agent loop listening to the same topic both see every steer message.
+ * This avoids the race where a single shared queue hands one steer message
+ * to whichever consumer calls `next()` first.
  */
 export interface StreamExecution {
   /** Model id for this execution (also the key in ActiveStream.executions). Format: "providerId::modelId". */
@@ -109,6 +115,18 @@ export interface StreamExecution {
   /** Independent abort — aborting one model doesn't stop others in multi-model. */
   abortController: AbortController
   status: 'streaming' | 'done' | 'error' | 'aborted'
+  /** Per-execution steering queue. Manager fans steer pushes out to every execution. */
+  pendingMessages: PendingMessageQueue
+  /**
+   * Per-execution chunk ring buffer for reconnect replay. Capped at
+   * `AiStreamManagerConfig.maxBufferChunks`; when full, the oldest entry
+   * is dropped and `droppedChunks` is incremented so late attach is aware
+   * there were gaps. Each execution keeps its own so a chatty model can
+   * never starve a slower one's replay (the old topic-level buffer did).
+   */
+  buffer: StreamChunkPayload[]
+  /** Count of chunks dropped from this execution's ring buffer due to overflow. */
+  droppedChunks: number
   /** Full UIMessage for this execution, set by upstream via setFinalMessage. */
   finalMessage?: CherryUIMessage
   error?: SerializedError
@@ -148,10 +166,6 @@ export interface ActiveStream {
 
   /** All consumers. Key = listener.id. Shared across all executions. */
   listeners: Map<string, StreamListener>
-  /** Steering queue — shared, drained by all active executions. */
-  pendingMessages: PendingMessageQueue
-  /** Chunk buffer for reconnect replay — interleaved from all executions. */
-  buffer: StreamChunkPayload[]
 
   /** Topic-level status, derived from executions. */
   status: 'streaming' | 'done' | 'error' | 'aborted'

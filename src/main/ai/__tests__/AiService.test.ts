@@ -1,3 +1,4 @@
+import { BaseService } from '@main/core/lifecycle/BaseService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockGenerateImage = vi.fn()
@@ -13,39 +14,41 @@ vi.mock('@cherrystudio/ai-core', () => ({
   generateImage: (...args: unknown[]) => mockGenerateImage(...args)
 }))
 
-import { AiCompletionService } from '../AiCompletionService'
-import { ToolRegistry } from '../tools/ToolRegistry'
+const { AiService } = await import('../AiService')
 
-describe('AiCompletionService', () => {
-  const createService = () => new AiCompletionService(new ToolRegistry())
+/**
+ * Instantiate `AiService` directly (without going through the lifecycle
+ * container) so unit tests can drive its methods in isolation.
+ */
+function createService(): InstanceType<typeof AiService> {
+  BaseService.resetInstances()
+  return new (AiService as any)()
+}
 
+describe('AiService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('should manage active requests', () => {
+  it('manages the image-request lifecycle: register → abort → remove', () => {
     const service = createService()
-    const controller = new AbortController()
+    const ctrl = new AbortController()
 
-    service.registerRequest('req-1', controller)
+    // abort() against an unknown id is a no-op (no throw).
+    expect(() => service.abort('never-registered')).not.toThrow()
+
+    // register + abort → signal is aborted.
+    service.registerRequest('req-1', ctrl)
     service.abort('req-1')
+    expect(ctrl.signal.aborted).toBe(true)
 
-    expect(controller.signal.aborted).toBe(true)
-  })
-
-  it('should handle abort for non-existent request gracefully', () => {
-    const service = createService()
-    service.abort('non-existent')
-  })
-
-  it('should remove request after completion', () => {
-    const service = createService()
-    const controller = new AbortController()
-
-    service.registerRequest('req-1', controller)
-    service.removeRequest('req-1')
-    service.abort('req-1')
-    expect(controller.signal.aborted).toBe(false)
+    // After removeRequest(), abort() on the same id has no effect —
+    // the controller is detached so stray abort calls can't retro-cancel.
+    const ctrl2 = new AbortController()
+    service.registerRequest('req-2', ctrl2)
+    service.removeRequest('req-2')
+    service.abort('req-2')
+    expect(ctrl2.signal.aborted).toBe(false)
   })
 
   it('normalizes base64 and url images from ai-core generateImage', async () => {

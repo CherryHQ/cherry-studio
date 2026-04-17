@@ -1,8 +1,6 @@
 import type { AiStreamOpenRequest } from '@shared/ai/transport'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { AiStreamManager } from '../../AiStreamManager'
-
 // ── Service mocks ────────────────────────────────────────────────────
 
 const getTopicMock = vi.fn()
@@ -30,17 +28,9 @@ vi.mock('@main/data/services/ModelService', () => ({
 }))
 
 const { TemporaryChatContextProvider } = await import('../TemporaryChatContextProvider')
-const { TemporaryPersistenceListener } = await import('../../listeners/TemporaryPersistenceListener')
+const { PersistenceListener } = await import('../../listeners/PersistenceListener')
 
 // ── Helpers ──────────────────────────────────────────────────────────
-
-function makeManager() {
-  return {
-    startExecution: vi.fn().mockReturnValue({ topicId: 'temp:1' })
-  } as unknown as AiStreamManager & {
-    startExecution: ReturnType<typeof vi.fn>
-  }
-}
 
 function makeSubscriber() {
   return {
@@ -108,31 +98,28 @@ describe('TemporaryChatContextProvider', () => {
 
   it('rejects regenerate-message — temp chats are immutable append-only', async () => {
     await expect(
-      provider.handle(makeManager(), makeSubscriber(), openReq({ trigger: 'regenerate-message' }))
+      provider.prepareDispatch(makeSubscriber(), openReq({ trigger: 'regenerate-message' }))
     ).rejects.toThrow(/regenerate-message is not supported/i)
   })
 
   it('throws when topic does not exist', async () => {
     getTopicMock.mockReturnValueOnce(null)
-    await expect(provider.handle(makeManager(), makeSubscriber(), openReq())).rejects.toThrow(
-      /Temporary topic not found/i
-    )
+    await expect(provider.prepareDispatch(makeSubscriber(), openReq())).rejects.toThrow(/Temporary topic not found/i)
   })
 
   it('throws when topic has no assistantId', async () => {
     getTopicMock.mockReturnValueOnce({ id: 'temp:1', assistantId: null })
-    await expect(provider.handle(makeManager(), makeSubscriber(), openReq())).rejects.toThrow(
-      /no assistantId configured/i
-    )
+    await expect(provider.prepareDispatch(makeSubscriber(), openReq())).rejects.toThrow(/no assistantId configured/i)
   })
 
-  it('appends the user message, then starts a single execution with a TemporaryPersistenceListener', async () => {
-    const manager = makeManager()
+  it('appends the user message, then returns a PreparedDispatch with a TemporaryChatBackend listener', async () => {
     const subscriber = makeSubscriber()
 
-    const resp = await provider.handle(manager, subscriber, openReq())
+    const prepared = await provider.prepareDispatch(subscriber, openReq())
 
-    expect(resp).toEqual({ mode: 'started' })
+    expect(prepared.topicId).toBe('temp:1')
+    expect(prepared.isMultiModel).toBe(false)
+    expect(prepared.userMessage).toBeUndefined()
 
     // user message was appended (service allocates the id)
     expect(appendMessageMock).toHaveBeenCalledTimes(1)
@@ -141,34 +128,36 @@ describe('TemporaryChatContextProvider', () => {
     expect(userInput.role).toBe('user')
     expect(userInput.id).toBeUndefined()
 
-    expect(manager.startExecution).toHaveBeenCalledTimes(1)
-    const args = manager.startExecution.mock.calls[0][0]
-    expect(args.topicId).toBe('temp:1')
-    expect(args.modelId).toBe('openai::gpt-4o')
-    expect(args.isMultiModel).toBe(false)
+    expect(prepared.models).toHaveLength(1)
+    expect(prepared.models[0].modelId).toBe('openai::gpt-4o')
 
-    const listeners = args.listeners as unknown[]
+    const listeners = prepared.listeners
     expect(listeners).toHaveLength(2)
     expect(listeners[0]).toBe(subscriber)
-    expect(listeners[1]).toBeInstanceOf(TemporaryPersistenceListener)
+    // Persistence is strategy-based: a PersistenceListener wrapping the
+    // in-memory temp backend. We assert via the public `backendKind` getter
+    // rather than reaching into private fields.
+    const persist = listeners[1]
+    expect(persist).toBeInstanceOf(PersistenceListener)
+    expect((persist as InstanceType<typeof PersistenceListener>).backendKind).toBe('temp')
 
     // history was built from listMessages (post-append) → 1 user message visible to AI SDK
-    expect(args.request.messages).toHaveLength(1)
-    expect(args.request.messages[0].role).toBe('user')
+    const request = prepared.models[0].request
+    expect(request.messages).toBeDefined()
+    expect(request.messages!).toHaveLength(1)
+    expect(request.messages![0].role).toBe('user')
     // No pre-allocated messageId: AI SDK generates it for the streaming UIMessage
-    expect(args.request.messageId).toBeUndefined()
+    expect(request.messageId).toBeUndefined()
   })
 
   it('ignores mentionedModelIds — temp chats are single-model only', async () => {
-    const manager = makeManager()
-    await provider.handle(
-      manager,
+    const prepared = await provider.prepareDispatch(
       makeSubscriber(),
       openReq({ mentionedModelIds: ['openai::gpt-4o', 'anthropic::claude-sonnet'] })
     )
 
-    // Only the assistant default model was resolved, single execution dispatched
+    // Only the assistant default model was resolved, single execution planned.
     expect(getByKeyMock).toHaveBeenCalledTimes(1)
-    expect(manager.startExecution).toHaveBeenCalledTimes(1)
+    expect(prepared.models).toHaveLength(1)
   })
 })

@@ -1,10 +1,16 @@
 /**
- * Dispatch an `Ai_Stream_Open` request to the first `ChatContextProvider`
- * that claims the topic via `canHandle`.
+ * Dispatch an `Ai_Stream_Open` request:
  *
- * Adding a new topic namespace only requires inserting a new provider into
- * `providers` (before `persistentChatContextProvider`, which matches everything
- * as the fallback).
+ *   1. pick the first `ChatContextProvider` whose `canHandle(topicId)` matches
+ *   2. let it `prepareDispatch` (resolve context, persist user input, build
+ *      listeners / per-model requests)
+ *   3. call `manager.send(...)` exactly once with the prepared bundle
+ *   4. shape the `AiStreamOpenResponse`
+ *
+ * Keeping the `manager.send` call on this single code path means:
+ *  - providers never see the manager (simpler to test)
+ *  - the steer / start / multi-model fan-out contract is enforced here
+ *  - adding a new topic namespace only requires adding a provider
  */
 
 import { loggerService } from '@logger'
@@ -38,6 +44,20 @@ export async function dispatchStreamRequest(
   if (!provider) {
     throw new Error(`No ChatContextProvider can handle topicId: ${req.topicId}`)
   }
+
   logger.debug('Dispatching stream request', { topicId: req.topicId, provider: provider.name })
-  return provider.handle(manager, subscriber, req)
+
+  const prepared = await provider.prepareDispatch(subscriber, req)
+  const result = manager.send({
+    topicId: prepared.topicId,
+    models: prepared.models,
+    listeners: prepared.listeners,
+    userMessage: prepared.userMessage,
+    siblingsGroupId: prepared.siblingsGroupId
+  })
+
+  return {
+    mode: result.mode,
+    executionIds: prepared.isMultiModel ? result.executionIds : undefined
+  }
 }

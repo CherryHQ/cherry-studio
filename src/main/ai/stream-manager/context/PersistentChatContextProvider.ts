@@ -7,7 +7,6 @@
  *  - create one `pending` assistant placeholder per execution
  *  - build the conversation history from the tree path
  *  - assemble per-execution PersistenceListeners
- *  - dispatch N executions against AiStreamManager
  *
  * This provider intentionally handles "any topicId that isn't claimed by another provider".
  * Keep it last in the dispatcher providers array (see `./dispatch.ts`).
@@ -17,14 +16,14 @@ import { assistantDataService } from '@data/services/AssistantService'
 import { topicService } from '@data/services/TopicService'
 import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
-import type { AiStreamOpenRequest, AiStreamOpenResponse } from '@shared/ai/transport'
-import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import type { AiStreamOpenRequest } from '@shared/ai/transport'
+import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
-import type { AiStreamRequest } from '../../AiCompletionService'
-import type { AiStreamManager } from '../AiStreamManager'
+import type { AiStreamRequest } from '../../AiService'
 import { PersistenceListener } from '../listeners/PersistenceListener'
+import { MessageServiceBackend } from '../persistence/backends/MessageServiceBackend'
 import type { CherryUIMessage, StreamListener } from '../types'
-import type { ChatContextProvider } from './ChatContextProvider'
+import type { ChatContextProvider, PreparedDispatch } from './ChatContextProvider'
 import { resolveModels, resolvePersistentSiblingsGroupId } from './modelResolution'
 
 export class PersistentChatContextProvider implements ChatContextProvider {
@@ -35,11 +34,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     return true
   }
 
-  async handle(
-    manager: AiStreamManager,
-    subscriber: StreamListener,
-    req: AiStreamOpenRequest
-  ): Promise<AiStreamOpenResponse> {
+  async prepareDispatch(subscriber: StreamListener, req: AiStreamOpenRequest): Promise<PreparedDispatch> {
     // 1. Resolve context
     const topic = await topicService.getById(req.topicId)
     const assistantId = topic?.assistantId
@@ -92,72 +87,62 @@ export class PersistentChatContextProvider implements ChatContextProvider {
             name: model.name,
             provider: model.providerId
           },
-          siblingsGroupId
+          siblingsGroupId,
+          // TODO: replace with traceId from request after v2 refactor
+          traceId: crypto.randomUUID()
         })
 
         return { model, placeholder }
       })
     )
 
-    // 6. Build listeners: 1 subscriber + N persistence listeners
+    // 6. Build listeners: 1 subscriber + N persistence listeners (one per model).
+    //    Each listener wraps a MessageServiceBackend that finalizes a single
+    //    placeholder. Auto-rename (the only afterPersist hook today) is attached
+    //    to *one* backend so it fires exactly once even in multi-model turns.
     const listeners: StreamListener[] = [subscriber]
-    for (const { model, placeholder } of assistantPlaceholders) {
+    for (let i = 0; i < assistantPlaceholders.length; i++) {
+      const { model, placeholder } = assistantPlaceholders[i]
+      const attachAutoRename = shouldAutoNameInitialTurn && i === 0
       listeners.push(
         new PersistenceListener({
           topicId: req.topicId,
-          assistantMessageId: placeholder.id,
-          parentUserMessageId: userMessage.id,
           modelId: model.id,
-          modelSnapshot: {
-            id: model.apiModelId ?? parseUniqueModelId(model.id).modelId,
-            name: model.name,
-            provider: model.providerId
-          },
-          siblingsGroupId,
-          afterPersist: shouldAutoNameInitialTurn
-            ? async (finalMessage) => {
-                await topicNamingService.maybeRenameFromConversationSummary(
-                  req.topicId,
-                  assistantId,
-                  userMessage.id,
-                  finalMessage
-                )
-              }
-            : undefined
+          backend: new MessageServiceBackend({
+            assistantMessageId: placeholder.id,
+            modelSnapshot: {
+              id: model.apiModelId ?? parseUniqueModelId(model.id).modelId,
+              name: model.name,
+              provider: model.providerId
+            },
+            afterPersist: attachAutoRename
+              ? async (finalMessage) => {
+                  await topicNamingService.maybeRenameFromConversationSummary(
+                    req.topicId,
+                    assistantId,
+                    userMessage.id,
+                    finalMessage
+                  )
+                }
+              : undefined
+          })
         })
       )
     }
 
-    // 7. Build requests + dispatch
+    // 7. Build per-model requests. The dispatcher runs `manager.send` itself.
     const history = await this.buildHistory(userMessage.id)
-    const requests = assistantPlaceholders.map(({ model, placeholder }) => ({
-      model,
+    const models_ = assistantPlaceholders.map(({ model, placeholder }) => ({
+      modelId: model.id,
       request: this.buildStreamRequest(req.topicId, assistantId, model.id, history, placeholder.id)
     }))
 
-    manager.startExecution({
+    return {
       topicId: req.topicId,
-      modelId: requests[0].model.id,
-      request: requests[0].request,
+      models: models_,
       listeners,
       siblingsGroupId,
       isMultiModel
-    })
-
-    for (let i = 1; i < requests.length; i++) {
-      manager.startExecution({
-        topicId: req.topicId,
-        modelId: requests[i].model.id,
-        request: requests[i].request,
-        listeners: [],
-        siblingsGroupId,
-        isMultiModel
-      })
-    }
-
-    return {
-      mode: 'started',
-      executionIds: isMultiModel ? models.map((m: Model) => m.id) : undefined
     }
   }
 

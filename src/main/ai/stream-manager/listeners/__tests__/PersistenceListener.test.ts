@@ -1,4 +1,14 @@
+/**
+ * Behavior tests for the observer half of PersistenceListener.
+ *
+ * These tests use `TemporaryChatBackend` as a convenient concrete backend
+ * — the observer protocol (modelId filtering, error-part assembly,
+ * skip-when-no-finalMessage, swallow-errors) is identical regardless of
+ * which backend is wired in.
+ */
+
 import type { CherryUIMessage } from '@shared/data/types/message'
+import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 import type { UIMessage } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -11,7 +21,8 @@ vi.mock('@main/data/services/TemporaryChatService', () => ({
   }
 }))
 
-const { TemporaryPersistenceListener } = await import('../TemporaryPersistenceListener')
+const { PersistenceListener } = await import('../PersistenceListener')
+const { TemporaryChatBackend } = await import('../../persistence/backends/TemporaryChatBackend')
 
 function makeFinalMessage(partsText = 'hello'): CherryUIMessage {
   return {
@@ -21,18 +32,26 @@ function makeFinalMessage(partsText = 'hello'): CherryUIMessage {
   } as unknown as CherryUIMessage
 }
 
-describe('TemporaryPersistenceListener', () => {
+function makeListener(modelId?: UniqueModelId) {
+  return new PersistenceListener({
+    topicId: 'temp:abc',
+    modelId,
+    backend: new TemporaryChatBackend({
+      topicId: 'temp:abc',
+      modelId,
+      modelSnapshot: { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' }
+    })
+  })
+}
+
+describe('PersistenceListener + TemporaryChatBackend', () => {
   beforeEach(() => {
     appendMessageMock.mockReset()
     appendMessageMock.mockResolvedValue({ id: 'msg-a' })
   })
 
   it('appends the assistant message on onDone with status=success', async () => {
-    const listener = new TemporaryPersistenceListener({
-      topicId: 'temp:abc',
-      modelId: 'openai::gpt-4o',
-      modelSnapshot: { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' }
-    })
+    const listener = makeListener('openai::gpt-4o')
 
     await listener.onDone({ finalMessage: makeFinalMessage(), status: 'success', modelId: 'openai::gpt-4o' })
 
@@ -42,15 +61,12 @@ describe('TemporaryPersistenceListener', () => {
     expect(payload.role).toBe('assistant')
     expect(payload.status).toBe('success')
     expect(payload.modelId).toBe('openai::gpt-4o')
-    // No `id` field — the service allocates it
+    // The service allocates the DB id; the listener/backend must not leak the UIMessage id.
     expect(payload.id).toBeUndefined()
   })
 
   it('multi-model filter: skips events from a different execution', async () => {
-    const listener = new TemporaryPersistenceListener({
-      topicId: 'temp:abc',
-      modelId: 'openai::gpt-4o'
-    })
+    const listener = makeListener('openai::gpt-4o')
 
     await listener.onDone({
       finalMessage: makeFinalMessage(),
@@ -62,7 +78,7 @@ describe('TemporaryPersistenceListener', () => {
   })
 
   it('onPaused writes status=paused', async () => {
-    const listener = new TemporaryPersistenceListener({ topicId: 'temp:abc' })
+    const listener = makeListener()
 
     await listener.onPaused({ finalMessage: makeFinalMessage(), status: 'paused' })
 
@@ -71,7 +87,7 @@ describe('TemporaryPersistenceListener', () => {
   })
 
   it('onError appends a message with an error part + status=error', async () => {
-    const listener = new TemporaryPersistenceListener({ topicId: 'temp:abc' })
+    const listener = makeListener()
 
     const err: SerializedError = { name: 'Error', message: 'boom', stack: null }
     const partial = {
@@ -91,7 +107,7 @@ describe('TemporaryPersistenceListener', () => {
   })
 
   it('skips persistence when onDone arrives without a finalMessage', async () => {
-    const listener = new TemporaryPersistenceListener({ topicId: 'temp:abc' })
+    const listener = makeListener()
 
     await listener.onDone({ finalMessage: undefined, status: 'success' })
 
@@ -100,7 +116,7 @@ describe('TemporaryPersistenceListener', () => {
 
   it('swallows append errors so stream teardown is not disrupted', async () => {
     appendMessageMock.mockRejectedValueOnce(new Error('write failed'))
-    const listener = new TemporaryPersistenceListener({ topicId: 'temp:abc' })
+    const listener = makeListener()
 
     await expect(listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })).resolves.toBeUndefined()
   })

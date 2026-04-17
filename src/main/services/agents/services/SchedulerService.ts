@@ -1,8 +1,8 @@
 import { loggerService } from '@logger'
+import { buildAgentSessionTopicId, parseAgentSessionModel } from '@main/ai/provider/claudeCodeSettingsBuilder'
 import { ChannelAdapterListener, type StreamListener } from '@main/ai/stream-manager'
 import type { AiStreamManager } from '@main/ai/stream-manager/AiStreamManager'
 import { application } from '@main/core/application'
-import { createUniqueModelId } from '@shared/data/types/model'
 import type { CherryClawConfiguration, ScheduledTaskEntity } from '@types'
 
 import { agentService } from './AgentService'
@@ -299,23 +299,24 @@ class SchedulerService {
       listeners.push(sentinel)
 
       // Start execution via AiStreamManager
-      const topicId = `agent-session:${session.id}`
-      const colonIdx = session.model.indexOf(':')
-      const providerId = session.model.slice(0, colonIdx > 0 ? colonIdx : undefined)
-      const rawModelId = colonIdx > 0 ? session.model.slice(colonIdx + 1) : session.model
-      const uniqueModelId = createUniqueModelId(providerId, rawModelId)
+      const topicId = buildAgentSessionTopicId(session.id)
+      const uniqueModelId = parseAgentSessionModel(session.model)
 
       const aiStreamManager = application.get('AiStreamManager') as unknown as AiStreamManager
-      aiStreamManager.startExecution({
+      aiStreamManager.send({
         topicId,
-        modelId: uniqueModelId,
-        request: {
-          chatId: topicId,
-          trigger: 'submit-message',
-          assistantId: session.agent_id,
-          uniqueModelId,
-          messages: [{ id: crypto.randomUUID(), role: 'user', parts: [{ type: 'text', text: fullPrompt }] }]
-        },
+        models: [
+          {
+            modelId: uniqueModelId,
+            request: {
+              chatId: topicId,
+              trigger: 'submit-message',
+              assistantId: session.agent_id,
+              uniqueModelId,
+              messages: [{ id: crypto.randomUUID(), role: 'user', parts: [{ type: 'text', text: fullPrompt }] }]
+            }
+          }
+        ],
         listeners
       })
 
