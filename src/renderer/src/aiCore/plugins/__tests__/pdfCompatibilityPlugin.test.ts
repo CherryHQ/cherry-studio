@@ -7,8 +7,7 @@ vi.mock('i18next', () => ({
 }))
 
 vi.mock('@renderer/config/models', () => ({
-  isAnthropicModel: vi.fn(() => false),
-  isGeminiModel: vi.fn(() => false)
+  isAnthropicModel: vi.fn(() => false)
 }))
 
 vi.mock('@renderer/config/models/openai', () => ({
@@ -34,7 +33,7 @@ vi.stubGlobal('window', {
   }
 })
 
-import { isAnthropicModel, isGeminiModel } from '@renderer/config/models'
+import { isAnthropicModel } from '@renderer/config/models'
 import { isOpenAILLMModel } from '@renderer/config/models/openai'
 
 import { createPdfCompatibilityPlugin } from '../pdfCompatibilityPlugin'
@@ -84,7 +83,6 @@ describe('pdfCompatibilityPlugin', () => {
     vi.clearAllMocks()
     vi.mocked(isOpenAILLMModel).mockReturnValue(false)
     vi.mocked(isAnthropicModel).mockReturnValue(false)
-    vi.mocked(isGeminiModel).mockReturnValue(false)
   })
 
   it('should pass through for OpenAI model on any provider type', async () => {
@@ -113,9 +111,30 @@ describe('pdfCompatibilityPlugin', () => {
     expect(mockExtractPdfText).not.toHaveBeenCalled()
   })
 
-  it('should pass through for Gemini model on any provider type', async () => {
-    vi.mocked(isGeminiModel).mockReturnValue(true)
-    const provider = makeProvider('my-aggregator', 'new-api')
+  it('should convert PDF for Gemini model accessed through non-Gemini provider (e.g., GitHub Copilot)', async () => {
+    // A Gemini-named model through GitHub Copilot (type: 'openai') uses OpenAI-compatible
+    // format which does NOT support native PDF file parts (would cause 400 "type has to be
+    // either 'image_url' or 'text'" errors). PDF must be converted to text.
+    const provider = makeProvider('copilot', 'openai')
+    mockExtractPdfText.mockResolvedValue('Extracted PDF content')
+
+    const params = {
+      prompt: [{ role: 'user' as const, content: [makeTextPart('Hello'), makePdfFilePart('report.pdf')] }]
+    } as unknown as LanguageModelV3CallOptions
+
+    const result = await runMiddleware(provider, params)
+    expect(mockExtractPdfText).toHaveBeenCalledWith('base64pdfdata')
+    expect(result.prompt[0]).toMatchObject({
+      role: 'user',
+      content: [
+        { type: 'text', text: 'Hello' },
+        { type: 'text', text: 'report.pdf\nExtracted PDF content' }
+      ]
+    })
+  })
+
+  it('should pass through for Gemini model on native Gemini provider', async () => {
+    const provider = makeProvider('gemini', 'gemini')
 
     const params = {
       prompt: [{ role: 'user' as const, content: [makeTextPart('Hello'), makePdfFilePart()] }]

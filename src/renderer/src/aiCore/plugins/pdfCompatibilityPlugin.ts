@@ -7,7 +7,7 @@
 import type { LanguageModelV3FilePart, LanguageModelV3Message } from '@ai-sdk/provider'
 import { definePlugin } from '@cherrystudio/ai-core/core/plugins'
 import { loggerService } from '@logger'
-import { isAnthropicModel, isGeminiModel } from '@renderer/config/models'
+import { isAnthropicModel } from '@renderer/config/models'
 import { isOpenAILLMModel } from '@renderer/config/models/openai'
 import type { Model, Provider, ProviderType } from '@renderer/types'
 import { extractPdfText } from '@shared/utils/pdf'
@@ -39,10 +39,15 @@ function isPdfFilePart(part: ContentPart): part is LanguageModelV3FilePart & { m
 }
 
 function supportsNativePdf(provider: Provider, model: Model): boolean {
-  // OpenAI, Claude, and Gemini models always support native PDF regardless of provider
-  if (isOpenAILLMModel(model) || isAnthropicModel(model) || isGeminiModel(model)) {
+  // OpenAI and Anthropic models support native PDF via their respective APIs
+  if (isOpenAILLMModel(model) || isAnthropicModel(model)) {
     return true
   }
+  // Check provider type for Gemini and other native providers.
+  // Gemini-named models accessed through non-native providers (e.g., GitHub Copilot
+  // using the OpenAI-compatible format) do NOT support native PDF file parts and will
+  // fail with a 400 "type has to be either 'image_url' or 'text'" error.
+  // Native Gemini providers ('gemini', 'vertexai') are already covered by PDF_NATIVE_PROVIDER_TYPES.
   if (PDF_NATIVE_PROVIDER_TYPES.has(provider.type)) {
     return true
   }
