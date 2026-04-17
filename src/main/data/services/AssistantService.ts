@@ -43,8 +43,8 @@ function rowToAssistant(row: AssistantRow, relations: AssistantRelationIds = cre
     modelId: (row.modelId ?? null) as UniqueModelId | null,
     mcpServerIds: relations.mcpServerIds,
     knowledgeBaseIds: relations.knowledgeBaseIds,
-    createdAt: new Date(row.createdAt!).toISOString(),
-    updatedAt: new Date(row.updatedAt!).toISOString()
+    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
+    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : new Date().toISOString()
   }
 }
 

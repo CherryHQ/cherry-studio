@@ -20,8 +20,8 @@ function rowToTranslateLanguage(row: typeof translateLanguageTable.$inferSelect)
     langCode: row.langCode,
     value: row.value,
     emoji: row.emoji,
-    createdAt: new Date(row.createdAt!).toISOString(),
-    updatedAt: new Date(row.updatedAt!).toISOString()
+    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
+    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : new Date().toISOString()
   }
 }
 
