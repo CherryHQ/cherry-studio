@@ -11,15 +11,13 @@ import type {
 import type { Message } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
-import type { SerializedError } from '@shared/types/error'
-import { serializeError } from '@shared/types/error'
-import type { UIMessageChunk } from 'ai'
+import { type SerializedError, serializeError } from '@shared/types/error'
+import { readUIMessageStream, type UIMessageChunk } from 'ai'
 
 import type { AiStreamRequest } from '../AiCompletionService'
 import { PendingMessageQueue } from '../PendingMessageQueue'
 import { buildCompactReplay } from './buildCompactReplay'
 import { dispatchStreamRequest } from './context'
-import { InternalStreamTarget } from './InternalStreamTarget'
 import { WebContentsListener } from './listeners/WebContentsListener'
 import type {
   ActiveStream,
@@ -222,7 +220,10 @@ export class AiStreamManager extends BaseService {
     stream.status = 'aborted'
   }
 
-  // ── InternalStreamTarget callbacks ────────────────────────────────
+  // ── Execution pump callbacks ──────────────────────────────────────
+  // These are driven internally by createAndLaunchExecution's pump loop.
+  // They remain public because tests and (historically) external adapters
+  // may invoke them directly to simulate chunk/done/error flow.
 
   /** Broadcast chunk to all listeners. Multi-model: includes sourceModelId for frontend demux. */
   onChunk(topicId: string, modelId: UniqueModelId, chunk: UIMessageChunk): void {
@@ -340,51 +341,6 @@ export class AiStreamManager extends BaseService {
     if (exec) exec.finalMessage = message
   }
 
-  // ── Backward-compat (single-execution convenience) ─────────────────
-  // Used by tests that operate on single-model topics.
-  // These delegate to the first execution in the topic's executions Map.
-
-  /** Convenience: onDone for the first (or only) execution. */
-  async onDone(topicId: string, status: 'success' | 'paused' = 'success'): Promise<void> {
-    const stream = this.activeStreams.get(topicId)
-    if (!stream) return
-    const firstModelId = stream.executions.keys().next().value
-    if (!firstModelId) return
-    if (status === 'paused') {
-      const exec = stream.executions.get(firstModelId)
-      if (exec) exec.status = 'aborted'
-      await this.onExecutionPaused(topicId, firstModelId)
-      return
-    }
-    await this.onExecutionDone(topicId, firstModelId)
-  }
-
-  /** Convenience: onError for the first (or only) execution. */
-  async onError(topicId: string, error: SerializedError): Promise<void> {
-    const stream = this.activeStreams.get(topicId)
-    if (!stream) return
-    const firstModelId = stream.executions.keys().next().value
-    if (firstModelId) await this.onExecutionError(topicId, firstModelId, error)
-  }
-
-  /** Convenience: shouldStopStream checks if ANY execution is still running. */
-  shouldStopStream(topicId: string): boolean {
-    const stream = this.activeStreams.get(topicId)
-    if (!stream || stream.status !== 'streaming') return true
-    for (const exec of stream.executions.values()) {
-      if (exec.status === 'streaming' && !exec.abortController.signal.aborted) return false
-    }
-    return true
-  }
-
-  /** Convenience: setFinalMessage on the first (or only) execution. */
-  setStreamFinalMessage(topicId: string, message: CherryUIMessage): void {
-    const stream = this.activeStreams.get(topicId)
-    if (!stream) return
-    const firstModelId = stream.executions.keys().next().value
-    if (firstModelId) this.setExecutionFinalMessage(topicId, firstModelId, message)
-  }
-
   // ── Attach / Detach (simple registry ops, stay here) ───────────
 
   private handleAttach(sender: Electron.WebContents, req: AiStreamAttachRequest): AiStreamAttachResponse {
@@ -423,7 +379,17 @@ export class AiStreamManager extends BaseService {
 
   // ── Internal helpers ──────────────────────────────────────────────
 
-  /** Create a StreamExecution and launch executeStream for it. */
+  /**
+   * Create a StreamExecution and launch its pump loop.
+   *
+   * The pump:
+   *  - pulls `UIMessageChunk`s from `AiService.streamText`
+   *  - `tee()`s one branch into `readUIMessageStream` to accumulate the final
+   *    `UIMessage` (needed for persistence and `attach → done` replies)
+   *  - forwards chunks via `onChunk` on every read
+   *  - signals `onExecutionDone` / `onExecutionPaused` / `onExecutionError`
+   *    at terminal state depending on the abort signal and execution status
+   */
   private createAndLaunchExecution(
     topicId: string,
     modelId: UniqueModelId,
@@ -437,20 +403,111 @@ export class AiStreamManager extends BaseService {
       siblingsGroupId
     }
 
-    const target = new InternalStreamTarget(this, topicId, modelId)
-    const aiService = application.get('AiService')
-    void aiService
-      .executeStream(target, request, exec.abortController.signal)
-      .then(async () => {
-        // Normal return after abort: signal was aborted but no error thrown.
-        // Persist partial content as 'paused' so it survives app restart.
-        if (exec.abortController.signal.aborted && exec.status === 'aborted') {
-          await this.onExecutionPaused(topicId, modelId)
-        }
-      })
-      .catch((err: unknown) => this.onExecutionError(topicId, modelId, serializeError(err)))
+    void this.runExecutionPump(topicId, modelId, request, exec).catch((err) => {
+      // Defensive: runExecutionPump handles its own errors, but if it throws
+      // synchronously (e.g. aiService.streamText fails before returning a stream),
+      // funnel it into the standard error path.
+      void this.onExecutionError(topicId, modelId, serializeError(err))
+    })
 
     return exec
+  }
+
+  private async runExecutionPump(
+    topicId: string,
+    modelId: UniqueModelId,
+    request: AiStreamRequest,
+    exec: StreamExecution
+  ): Promise<void> {
+    const aiService = application.get('AiService')
+    const signal = exec.abortController.signal
+
+    let stream: ReadableStream<UIMessageChunk>
+    try {
+      stream = aiService.streamText(request, signal)
+    } catch (err) {
+      if (!signal.aborted) logger.error('streamText threw synchronously', { topicId, modelId, err })
+      await this.onExecutionError(topicId, modelId, serializeError(err))
+      return
+    }
+
+    const [forBroadcast, forAccum] = stream.tee()
+    const broadcastReader = forBroadcast.getReader()
+    // readFinalMessage observes `signal` itself and cancels its own reader;
+    // that also cancels `forAccum` upstream. Here we only need to wake up
+    // the broadcast reader when the execution aborts.
+    const finalMessagePromise = this.readFinalMessage(forAccum, signal).catch(() => undefined)
+
+    const onAbort = () => {
+      void broadcastReader.cancel(signal.reason).catch(() => {})
+    }
+    if (signal.aborted) onAbort()
+    else signal.addEventListener('abort', onAbort, { once: true })
+
+    try {
+      while (true) {
+        const { done, value } = await broadcastReader.read()
+        if (done) break
+        this.onChunk(topicId, modelId, value)
+      }
+
+      const finalMessage = await finalMessagePromise
+      if (finalMessage) this.setExecutionFinalMessage(topicId, modelId, finalMessage)
+
+      if (signal.aborted && exec.status === 'aborted') {
+        await this.onExecutionPaused(topicId, modelId)
+      } else {
+        await this.onExecutionDone(topicId, modelId)
+      }
+    } catch (err) {
+      const partial = await finalMessagePromise
+      if (partial) this.setExecutionFinalMessage(topicId, modelId, partial)
+
+      if (signal.aborted) {
+        logger.debug('Execution aborted', { topicId, modelId, reason: signal.reason })
+      } else {
+        logger.error('Execution pump error', { topicId, modelId, err })
+      }
+      await this.onExecutionError(topicId, modelId, serializeError(err))
+    } finally {
+      signal.removeEventListener('abort', onAbort)
+      broadcastReader.releaseLock()
+    }
+  }
+
+  /**
+   * Consume a UIMessageChunk stream via AI SDK's readUIMessageStream,
+   * returning the last accumulated UIMessage (or undefined if the stream
+   * produced nothing or was cancelled before a message materialized).
+   *
+   * Accepts an AbortSignal so the accumulator can release its own reader
+   * when the execution is aborted — cancelling the chunkStream directly
+   * won't work once readUIMessageStream has locked it.
+   */
+  private async readFinalMessage(
+    chunkStream: ReadableStream<UIMessageChunk>,
+    signal: AbortSignal
+  ): Promise<CherryUIMessage | undefined> {
+    const uiStream = readUIMessageStream({ stream: chunkStream })
+    const reader = uiStream.getReader()
+    const onAbort = () => {
+      void reader.cancel(signal.reason).catch(() => {})
+    }
+    if (signal.aborted) onAbort()
+    else signal.addEventListener('abort', onAbort, { once: true })
+
+    let last: CherryUIMessage | undefined
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        last = value as CherryUIMessage
+      }
+    } finally {
+      signal.removeEventListener('abort', onAbort)
+      reader.releaseLock()
+    }
+    return last
   }
 
   /** Broadcast done for a single execution to all topic listeners. */

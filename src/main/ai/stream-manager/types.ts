@@ -5,6 +5,9 @@ import type { SerializedError } from '@shared/types/error'
 import type { UIMessage, UIMessageChunk } from 'ai'
 
 import type { PendingMessageQueue } from '../PendingMessageQueue'
+// Note: `StreamTarget` was removed after AiStreamManager took over the pump
+// loop directly from AiService. Chunk forwarding is now internal to the
+// manager; external consumers subscribe via the `StreamListener` interface.
 
 // ── Re-export shared types for consumers ────────────────────────────
 
@@ -54,22 +57,6 @@ export interface StreamPausedResult {
   modelId?: UniqueModelId
   /** True when ALL executions in the topic are done. */
   isTopicDone?: boolean
-}
-
-// ── StreamTarget ────────────────────────────────────────────────────
-
-/**
- * Minimal subset of `Electron.WebContents` that `AiService.executeStream` uses.
- *
- * Uses `UIMessageChunk` (wide AI SDK type) rather than `CherryUIMessageChunk`
- * because `AiCompletionService.streamText` produces the generic AI SDK chunks.
- * Cherry-specific narrowing is done at the consumption site, not the transport layer.
- */
-export interface StreamTarget {
-  send(channel: string, payload: { chunk?: UIMessageChunk; error?: SerializedError; [key: string]: unknown }): void
-  isDestroyed(): boolean
-  /** Optional: upstream writes the full UIMessage here before signaling done. */
-  setFinalMessage?(message: CherryUIMessage): void
 }
 
 // ── StreamListener ──────────────────────────────────────────────────

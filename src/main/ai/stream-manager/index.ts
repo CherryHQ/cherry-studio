@@ -1,5 +1,4 @@
 export { AiStreamManager } from './AiStreamManager'
-export { InternalStreamTarget } from './InternalStreamTarget'
 export { ChannelAdapterListener } from './listeners/ChannelAdapterListener'
 export { SSEListener } from './listeners/SSEListener'
 export type {
@@ -15,6 +14,5 @@ export type {
   StreamDoneResult,
   StreamErrorPayload,
   StreamListener,
-  StreamPausedResult,
-  StreamTarget
+  StreamPausedResult
 } from './types'

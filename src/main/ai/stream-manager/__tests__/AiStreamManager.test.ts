@@ -3,7 +3,7 @@ import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { InternalStreamTarget } from '../InternalStreamTarget'
+import type { AiStreamRequest } from '../../AiCompletionService'
 import type { StreamDoneResult, StreamListener, StreamPausedResult } from '../types'
 
 // ── Fake listener ───────────────────────────────────────────────────
@@ -51,11 +51,24 @@ vi.mock('@main/data/services/MessageService', () => ({
   messageService: { create: vi.fn().mockResolvedValue({ id: 'msg-001' }) }
 }))
 
-const mockExecuteStream = vi.fn().mockResolvedValue(undefined)
+// Default mock: never-closing stream so the pump parks in `reader.read()`
+// and tests can drive terminal state (onExecutionDone / onExecutionError /
+// abort + onExecutionPaused) explicitly.
+function pendingStream(): ReadableStream<UIMessageChunk> {
+  return new ReadableStream<UIMessageChunk>({
+    start() {
+      // Intentionally no enqueue / close. Cancel is a no-op.
+    }
+  })
+}
+
+const mockStreamText = vi.fn<(request: AiStreamRequest, signal: AbortSignal) => ReadableStream<UIMessageChunk>>(() =>
+  pendingStream()
+)
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({ AiService: { executeStream: mockExecuteStream } })
+  return mockApplicationFactory({ AiService: { streamText: mockStreamText } })
 })
 
 // ── Import after mocks ──────────────────────────────────────────────
@@ -90,6 +103,7 @@ describe('AiStreamManager', () => {
     vi.useFakeTimers()
     mgr = createManager()
     vi.clearAllMocks()
+    mockStreamText.mockImplementation(() => pendingStream())
   })
 
   afterEach(() => {
@@ -99,7 +113,7 @@ describe('AiStreamManager', () => {
   // ── startExecution ─────────────────────────────────────────────────
 
   describe('startExecution', () => {
-    it('creates stream and calls executeStream with correct args', () => {
+    it('creates stream and invokes AiService.streamText with the execution signal', () => {
       const listener = new FakeListener('l:a')
       const stream = mgr.startExecution({
         topicId: 'a',
@@ -112,10 +126,8 @@ describe('AiStreamManager', () => {
       expect(stream.status).toBe('streaming')
       expect(stream.listeners.size).toBe(1)
 
-      // Verify executeStream received InternalStreamTarget + the manager's signal
-      expect(mockExecuteStream).toHaveBeenCalledOnce()
-      const [target, , signal] = mockExecuteStream.mock.calls[0]
-      expect(target).toBeInstanceOf(InternalStreamTarget)
+      expect(mockStreamText).toHaveBeenCalledOnce()
+      const [, signal] = mockStreamText.mock.calls[0]
       expect(signal).toBe(stream.executions.values().next().value!.abortController.signal)
     })
 
@@ -144,7 +156,7 @@ describe('AiStreamManager', () => {
         request: req('a'),
         listeners: [new FakeListener('l1:a')]
       })
-      await mgr.onDone('a', 'success')
+      await mgr.onExecutionDone('a', 'provider-a::model-a')
 
       const s2 = mgr.startExecution({
         topicId: 'a',
@@ -160,7 +172,7 @@ describe('AiStreamManager', () => {
   // ── send (routing) ──────────────────────────────────────────────
 
   describe('send', () => {
-    it('steers into existing stream without calling executeStream again', () => {
+    it('steers into existing stream without calling streamText again', () => {
       const l1 = new FakeListener('l:a')
       const stream = mgr.startExecution({
         topicId: 'a',
@@ -168,7 +180,7 @@ describe('AiStreamManager', () => {
         request: req('a'),
         listeners: [l1]
       })
-      expect(mockExecuteStream).toHaveBeenCalledTimes(1)
+      expect(mockStreamText).toHaveBeenCalledTimes(1)
 
       const l2 = new FakeListener('l:a') // same id → upsert
       const result = mgr.send({
@@ -189,8 +201,8 @@ describe('AiStreamManager', () => {
       })
 
       expect(result.mode).toBe('steered')
-      // No second executeStream call — steering reuses the existing stream
-      expect(mockExecuteStream).toHaveBeenCalledTimes(1)
+      // No second streamText call — steering reuses the existing stream
+      expect(mockStreamText).toHaveBeenCalledTimes(1)
       // Message pushed to pending queue
       expect(stream.pendingMessages.hasPending()).toBe(true)
       // Listener upserted: l2 replaced l1 (same id)
@@ -216,7 +228,7 @@ describe('AiStreamManager', () => {
       })
 
       expect(result.mode).toBe('started')
-      expect(mockExecuteStream).toHaveBeenCalledOnce()
+      expect(mockStreamText).toHaveBeenCalledOnce()
     })
   })
 
@@ -271,16 +283,16 @@ describe('AiStreamManager', () => {
     it('does not deliver to a non-streaming topic', async () => {
       const l = new FakeListener('l:a')
       mgr.startExecution({ topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [l] })
-      await mgr.onDone('a')
+      await mgr.onExecutionDone('a', 'provider-a::model-a')
 
       mgr.onChunk('a', 'provider-a::model-a', chunk('late'))
       expect(l.chunks).toHaveLength(0)
     })
   })
 
-  // ── onDone ──────────────────────────────────────────────────────
+  // ── onExecutionDone ─────────────────────────────────────────────
 
-  describe('onDone', () => {
+  describe('onExecutionDone', () => {
     it('broadcasts with finalMessage and status', async () => {
       const l = new FakeListener('l:a')
       const stream = mgr.startExecution({
@@ -289,9 +301,9 @@ describe('AiStreamManager', () => {
         request: req('a'),
         listeners: [l]
       })
-      mgr.setStreamFinalMessage('a', { id: '1', role: 'assistant', parts: [] } as any)
+      mgr.setExecutionFinalMessage('a', 'provider-a::model-a', { id: '1', role: 'assistant', parts: [] } as any)
 
-      await mgr.onDone('a', 'success')
+      await mgr.onExecutionDone('a', 'provider-a::model-a')
 
       expect(stream.status).toBe('done')
       expect(l.doneResults).toHaveLength(1)
@@ -306,7 +318,12 @@ describe('AiStreamManager', () => {
         request: req('a'),
         listeners: [new FakeListener('l:a')]
       })
-      await mgr.onDone('a', 'paused')
+      mgr.abort('a', 'test-pause')
+
+      // abort() cancels the pump's stream readers, so the pump loop exits and
+      // calls onExecutionPaused. Drain microtasks so the broadcast lands
+      // before we assert.
+      for (let i = 0; i < 20; i++) await Promise.resolve()
 
       expect(stream.status).toBe('aborted')
       expect((stream.listeners.get('l:a') as FakeListener).pausedResults).toHaveLength(1)
@@ -325,7 +342,7 @@ describe('AiStreamManager', () => {
         request: req('a'),
         listeners: [thrower, receiver]
       })
-      await mgr.onDone('a', 'success')
+      await mgr.onExecutionDone('a', 'provider-a::model-a')
 
       // Both listeners received onDone despite thrower throwing
       expect(thrower.doneResults).toHaveLength(1)
@@ -333,9 +350,9 @@ describe('AiStreamManager', () => {
     })
   })
 
-  // ── onError ─────────────────────────────────────────────────────
+  // ── onExecutionError ────────────────────────────────────────────
 
-  describe('onError', () => {
+  describe('onExecutionError', () => {
     it('broadcasts error and sets stream status', async () => {
       const l = new FakeListener('l:a')
       const stream = mgr.startExecution({
@@ -345,7 +362,7 @@ describe('AiStreamManager', () => {
         listeners: [l]
       })
 
-      await mgr.onError('a', error('fail'))
+      await mgr.onExecutionError('a', 'provider-a::model-a', error('fail'))
 
       expect(stream.status).toBe('error')
       expect(l.errors).toEqual([error('fail')])
@@ -376,7 +393,7 @@ describe('AiStreamManager', () => {
         request: req('a'),
         listeners: [new FakeListener('l:a')]
       })
-      await mgr.onDone('a')
+      await mgr.onExecutionDone('a', 'provider-a::model-a')
 
       // Abort on a finished stream → no-op (status stays 'done')
       mgr.abort('a', 'late')
@@ -410,9 +427,9 @@ describe('AiStreamManager', () => {
     })
   })
 
-  // ── shouldStopStream ────────────────────────────────────────────
+  // ── shouldStopExecution ─────────────────────────────────────────
 
-  describe('shouldStopStream', () => {
+  describe('shouldStopExecution', () => {
     it('returns false while streaming, true after abort', () => {
       mgr.startExecution({
         topicId: 'a',
@@ -420,10 +437,10 @@ describe('AiStreamManager', () => {
         request: req('a'),
         listeners: [new FakeListener('l:a')]
       })
-      expect(mgr.shouldStopStream('a')).toBe(false)
+      expect(mgr.shouldStopExecution('a', 'provider-a::model-a')).toBe(false)
 
       mgr.abort('a', 'stop')
-      expect(mgr.shouldStopStream('a')).toBe(true)
+      expect(mgr.shouldStopExecution('a', 'provider-a::model-a')).toBe(true)
     })
   })
 
@@ -458,12 +475,12 @@ describe('AiStreamManager', () => {
     it('stream remains accessible during grace period', async () => {
       const l = new FakeListener('l:a')
       mgr.startExecution({ topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [l] })
-      mgr.setStreamFinalMessage('a', { id: '1' } as any)
-      await mgr.onDone('a', 'success')
+      mgr.setExecutionFinalMessage('a', 'provider-a::model-a', { id: '1' } as any)
+      await mgr.onExecutionDone('a', 'provider-a::model-a')
 
-      // During grace period: shouldStopStream returns true (stream ended)
-      // but the stream data is still in memory for reconnect
-      expect(mgr.shouldStopStream('a')).toBe(true)
+      // During grace period: execution is done (non-streaming) but the
+      // stream data is still in memory for reconnect.
+      expect(mgr.shouldStopExecution('a', 'provider-a::model-a')).toBe(true)
 
       // A late listener can still be added during grace period
       const late = new FakeListener('late:a')
@@ -478,7 +495,7 @@ describe('AiStreamManager', () => {
         request: req('a'),
         listeners: [new FakeListener('l:a')]
       })
-      await mgr.onDone('a', 'success')
+      await mgr.onExecutionDone('a', 'provider-a::model-a')
 
       // Advance past grace period (default 30s)
       vi.advanceTimersByTime(31_000)
