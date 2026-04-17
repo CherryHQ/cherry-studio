@@ -102,6 +102,7 @@ export class MigrationEngine {
   /**
    * Check if migration is needed
    */
+  //TODO 不能仅仅判断数据库，如果是全新安装，而不是升级上来的用户，其实并不需要迁移，但是按现在的逻辑，还是会进行迁移，这不正确
   async needsMigration(): Promise<boolean> {
     const db = this.getDb()
     const status = await db.select().from(appStateTable).where(eq(appStateTable.key, MIGRATION_V2_STATUS)).get()
@@ -112,7 +113,7 @@ export class MigrationEngine {
     }
 
     // No migration status record — check if this is a fresh install or an upgrade.
-    if (!(await this.hasLegacyData())) {
+    if (!this.hasLegacyData()) {
       logger.info('Fresh install detected (no legacy data found), skipping migration')
       await this.markCompleted()
       return false
@@ -132,26 +133,11 @@ export class MigrationEngine {
    * by v2, causing false positives. Prefer to over-trigger (empty-
    * data migration completes safely) rather than miss a real upgrade.
    */
-  private async hasLegacyData(): Promise<boolean> {
+  private hasLegacyData(): boolean {
     const legacyStore = new Store({ cwd: this.paths.userData })
-    const hasElectronStore = legacyStore.size > 0
+    const hasData = legacyStore.size > 0
 
-    // Check for agents.db at canonical or fallback location
-    let hasAgentsDb = false
-    try {
-      await fs.access(this.paths.legacyAgentDbFile)
-      hasAgentsDb = true
-    } catch {
-      try {
-        await fs.access(this.paths.legacyAgentDbFallbackFile)
-        hasAgentsDb = true
-      } catch {
-        // Neither file exists
-      }
-    }
-
-    const hasData = hasElectronStore || hasAgentsDb
-    logger.info('Legacy data detection', { hasElectronStore, hasAgentsDb })
+    logger.info('Legacy data detection', { hasElectronStore: hasData })
     return hasData
   }
 
