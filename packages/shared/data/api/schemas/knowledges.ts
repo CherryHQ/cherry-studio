@@ -43,6 +43,7 @@ export const UpdateKnowledgeBaseSchema = z
   .object({
     name: z.string().trim().min(1).optional(),
     description: z.string().nullable().optional(),
+    embeddingModelId: z.string().trim().min(1).optional(),
     rerankModelId: z.string().nullable().optional(),
     fileProcessorId: z.string().nullable().optional(),
     chunkSize: KnowledgeChunkSizeSchema.nullable().optional(),

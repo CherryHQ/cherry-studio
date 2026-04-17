@@ -1,158 +1,86 @@
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
-import type { DbType } from '@data/db/types'
-import { createClient } from '@libsql/client'
+import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
+import { mcpServerTable } from '@data/db/schemas/mcpServer'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
+import { AssistantDataService, assistantDataService } from '@data/services/AssistantService'
 import { ErrorCode } from '@shared/data/api'
-import { sql } from 'drizzle-orm'
-import { drizzle } from 'drizzle-orm/libsql'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-// ============================================================================
-// DB Setup
-// ============================================================================
-
-let realDb: DbType | null = null
-let closeClient: (() => void) | undefined
-
-vi.mock('@main/core/application', () => ({
-  application: {
-    get: vi.fn(() => ({
-      getDb: vi.fn(() => realDb)
-    }))
-  }
-}))
-
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: () => ({
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn()
-    })
-  }
-}))
-
-const { AssistantDataService, assistantDataService } = await import('../AssistantService')
-
-async function setupDb() {
-  const client = createClient({ url: 'file::memory:' })
-  closeClient = () => client.close()
-  realDb = drizzle({ client, casing: 'snake_case' })
-  const db = realDb
-
-  await db.run(sql`PRAGMA foreign_keys = ON`)
-
-  // libsql creates a separate connection for transactions on in-memory DBs,
-  // losing the schema. Bypass by executing the callback on the main connection.
-  ;(db as any).transaction = async (fn: (tx: any) => Promise<any>) => fn(db)
-
-  // Assistant table
-  await db.run(
-    sql.raw(`
-    CREATE TABLE assistant (
-      id TEXT PRIMARY KEY NOT NULL,
-      name TEXT NOT NULL,
-      prompt TEXT DEFAULT '',
-      emoji TEXT,
-      description TEXT DEFAULT '',
-      model_id TEXT,
-      settings TEXT,
-      created_at INTEGER,
-      updated_at INTEGER,
-      deleted_at INTEGER
-    )
-  `)
-  )
-
-  // MCP server stub (FK target for junction)
-  await db.run(
-    sql.raw(`
-    CREATE TABLE mcp_server (
-      id TEXT PRIMARY KEY NOT NULL,
-      name TEXT NOT NULL,
-      created_at INTEGER,
-      updated_at INTEGER
-    )
-  `)
-  )
-
-  // Knowledge base stub (FK target for junction)
-  await db.run(
-    sql.raw(`
-    CREATE TABLE knowledge_base (
-      id TEXT PRIMARY KEY NOT NULL,
-      name TEXT NOT NULL,
-      dimensions INTEGER NOT NULL,
-      embedding_model_id TEXT NOT NULL,
-      created_at INTEGER,
-      updated_at INTEGER
-    )
-  `)
-  )
-
-  // Junction tables
-  await db.run(
-    sql.raw(`
-    CREATE TABLE assistant_mcp_server (
-      assistant_id TEXT NOT NULL REFERENCES assistant(id) ON DELETE CASCADE,
-      mcp_server_id TEXT NOT NULL REFERENCES mcp_server(id) ON DELETE CASCADE,
-      created_at INTEGER,
-      updated_at INTEGER,
-      PRIMARY KEY (assistant_id, mcp_server_id)
-    )
-  `)
-  )
-
-  await db.run(
-    sql.raw(`
-    CREATE TABLE assistant_knowledge_base (
-      assistant_id TEXT NOT NULL REFERENCES assistant(id) ON DELETE CASCADE,
-      knowledge_base_id TEXT NOT NULL REFERENCES knowledge_base(id) ON DELETE CASCADE,
-      created_at INTEGER,
-      updated_at INTEGER,
-      PRIMARY KEY (assistant_id, knowledge_base_id)
-    )
-  `)
-  )
-
-  return db
-}
-
-// ============================================================================
-// Tests
-// ============================================================================
+import { createUniqueModelId } from '@shared/data/types/model'
+import { setupTestDatabase } from '@test-helpers/db'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 describe('AssistantDataService', () => {
+  const dbh = setupTestDatabase()
+
   beforeEach(async () => {
-    await setupDb()
+    await seedModelRefs()
   })
 
-  afterEach(() => {
-    closeClient?.()
-    closeClient = undefined
-    realDb = null
-  })
+  async function seedModelRefs() {
+    await dbh.db.insert(userProviderTable).values([
+      { providerId: 'openai', name: 'OpenAI' },
+      { providerId: 'anthropic', name: 'Anthropic' }
+    ])
+
+    await dbh.db.insert(userModelTable).values([
+      {
+        id: createUniqueModelId('openai', 'gpt-4'),
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        presetModelId: 'gpt-4',
+        name: 'GPT-4',
+        isEnabled: true,
+        isHidden: false,
+        sortOrder: 0
+      },
+      {
+        id: createUniqueModelId('anthropic', 'claude-3'),
+        providerId: 'anthropic',
+        modelId: 'claude-3',
+        presetModelId: 'claude-3',
+        name: 'Claude 3',
+        isEnabled: true,
+        isHidden: false,
+        sortOrder: 0
+      },
+      {
+        id: createUniqueModelId('openai', 'text-embedding-3-large'),
+        providerId: 'openai',
+        modelId: 'text-embedding-3-large',
+        presetModelId: 'text-embedding-3-large',
+        name: 'text-embedding-3-large',
+        isEnabled: true,
+        isHidden: false,
+        sortOrder: 0
+      }
+    ])
+  }
+
+  async function seedMcpServer(id = 'srv-1', name = 'MCP') {
+    await dbh.db.insert(mcpServerTable).values({ id, name })
+  }
+
+  async function seedKnowledgeBase(id = 'kb-1') {
+    await dbh.db.insert(knowledgeBaseTable).values({
+      id,
+      name: 'KB',
+      dimensions: 1024,
+      embeddingModelId: createUniqueModelId('openai', 'text-embedding-3-large')
+    })
+  }
 
   it('should export a module-level singleton', () => {
     expect(assistantDataService).toBeInstanceOf(AssistantDataService)
   })
 
-  // --------------------------------------------------------------------------
-  // getById
-  // --------------------------------------------------------------------------
   describe('getById', () => {
     it('should return an assistant with relation ids when found', async () => {
-      const db = realDb!
-      await db.insert(assistantTable).values({ id: 'ast-1', name: 'test', modelId: 'openai::gpt-4' })
-      await db.run(sql.raw(`INSERT INTO mcp_server (id, name) VALUES ('srv-1', 'MCP')`))
-      await db.run(
-        sql.raw(
-          `INSERT INTO knowledge_base (id, name, dimensions, embedding_model_id) VALUES ('kb-1', 'KB', 1024, 'openai::text-embedding-3-large')`
-        )
-      )
-      await db.insert(assistantMcpServerTable).values({ assistantId: 'ast-1', mcpServerId: 'srv-1' })
-      await db.insert(assistantKnowledgeBaseTable).values({ assistantId: 'ast-1', knowledgeBaseId: 'kb-1' })
+      await dbh.db.insert(assistantTable).values({ id: 'ast-1', name: 'test', modelId: 'openai::gpt-4' })
+      await seedMcpServer()
+      await seedKnowledgeBase()
+      await dbh.db.insert(assistantMcpServerTable).values({ assistantId: 'ast-1', mcpServerId: 'srv-1' })
+      await dbh.db.insert(assistantKnowledgeBaseTable).values({ assistantId: 'ast-1', knowledgeBaseId: 'kb-1' })
 
       const result = await assistantDataService.getById('ast-1')
 
@@ -165,16 +93,14 @@ describe('AssistantDataService', () => {
     })
 
     it('should return null modelId when not set', async () => {
-      const db = realDb!
-      await db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
+      await dbh.db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
 
       const result = await assistantDataService.getById('ast-1')
       expect(result.modelId).toBeNull()
     })
 
     it('should apply default values for nullable fields', async () => {
-      const db = realDb!
-      await db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
+      await dbh.db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
 
       const result = await assistantDataService.getById('ast-1')
       expect(result.prompt).toBe('')
@@ -185,18 +111,16 @@ describe('AssistantDataService', () => {
     })
 
     it('should return soft-deleted assistant when includeDeleted is true', async () => {
-      const db = realDb!
-      await db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
-      await db.update(assistantTable).set({ deletedAt: Date.now() })
+      await dbh.db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
+      await dbh.db.update(assistantTable).set({ deletedAt: Date.now() })
 
       const result = await assistantDataService.getById('ast-1', { includeDeleted: true })
       expect(result.id).toBe('ast-1')
     })
 
     it('should NOT return soft-deleted assistant by default', async () => {
-      const db = realDb!
-      await db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
-      await db.update(assistantTable).set({ deletedAt: Date.now() })
+      await dbh.db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
+      await dbh.db.update(assistantTable).set({ deletedAt: Date.now() })
 
       await expect(assistantDataService.getById('ast-1')).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
@@ -210,18 +134,14 @@ describe('AssistantDataService', () => {
     })
   })
 
-  // --------------------------------------------------------------------------
-  // list
-  // --------------------------------------------------------------------------
   describe('list', () => {
     it('should return all assistants with relation ids', async () => {
-      const db = realDb!
-      await db.insert(assistantTable).values([
+      await dbh.db.insert(assistantTable).values([
         { id: 'ast-1', name: 'first', modelId: 'openai::gpt-4', createdAt: 100 },
         { id: 'ast-2', name: 'second', modelId: 'anthropic::claude-3', createdAt: 200 }
       ])
-      await db.run(sql.raw(`INSERT INTO mcp_server (id, name) VALUES ('srv-1', 'MCP')`))
-      await db.insert(assistantMcpServerTable).values({ assistantId: 'ast-2', mcpServerId: 'srv-1' })
+      await seedMcpServer()
+      await dbh.db.insert(assistantMcpServerTable).values({ assistantId: 'ast-2', mcpServerId: 'srv-1' })
 
       const result = await assistantDataService.list({})
 
@@ -233,8 +153,7 @@ describe('AssistantDataService', () => {
     })
 
     it('should exclude soft-deleted assistants', async () => {
-      const db = realDb!
-      await db.insert(assistantTable).values([
+      await dbh.db.insert(assistantTable).values([
         { id: 'ast-1', name: 'active' },
         { id: 'ast-2', name: 'deleted', deletedAt: Date.now() }
       ])
@@ -246,8 +165,7 @@ describe('AssistantDataService', () => {
     })
 
     it('should filter by id', async () => {
-      const db = realDb!
-      await db.insert(assistantTable).values([
+      await dbh.db.insert(assistantTable).values([
         { id: 'ast-1', name: 'first' },
         { id: 'ast-2', name: 'second' }
       ])
@@ -258,13 +176,12 @@ describe('AssistantDataService', () => {
     })
 
     it('should respect page and limit parameters', async () => {
-      const db = realDb!
       const values = Array.from({ length: 5 }, (_, i) => ({
         id: `ast-${i}`,
         name: `assistant-${i}`,
         createdAt: i * 100
       }))
-      await db.insert(assistantTable).values(values)
+      await dbh.db.insert(assistantTable).values(values)
 
       const result = await assistantDataService.list({ page: 2, limit: 2 })
       expect(result.page).toBe(2)
@@ -275,8 +192,7 @@ describe('AssistantDataService', () => {
     })
 
     it('should order by createdAt ascending', async () => {
-      const db = realDb!
-      await db.insert(assistantTable).values([
+      await dbh.db.insert(assistantTable).values([
         { id: 'ast-new', name: 'new', createdAt: 300 },
         { id: 'ast-old', name: 'old', createdAt: 100 },
         { id: 'ast-mid', name: 'mid', createdAt: 200 }
@@ -287,9 +203,6 @@ describe('AssistantDataService', () => {
     })
   })
 
-  // --------------------------------------------------------------------------
-  // create
-  // --------------------------------------------------------------------------
   describe('create', () => {
     it('should create and return assistant with generated id', async () => {
       const result = await assistantDataService.create({ name: 'test-assistant' })
@@ -301,22 +214,16 @@ describe('AssistantDataService', () => {
     })
 
     it('should persist assistant to database', async () => {
-      const db = realDb!
       const created = await assistantDataService.create({ name: 'test-assistant' })
 
-      const [row] = await db.select().from(assistantTable)
+      const [row] = await dbh.db.select().from(assistantTable)
       expect(row.id).toBe(created.id)
       expect(row.name).toBe('test-assistant')
     })
 
     it('should sync junction rows when relation ids are provided', async () => {
-      const db = realDb!
-      await db.run(sql.raw(`INSERT INTO mcp_server (id, name) VALUES ('srv-1', 'MCP')`))
-      await db.run(
-        sql.raw(
-          `INSERT INTO knowledge_base (id, name, dimensions, embedding_model_id) VALUES ('kb-1', 'KB', 1024, 'model')`
-        )
-      )
+      await seedMcpServer()
+      await seedKnowledgeBase()
 
       const result = await assistantDataService.create({
         name: 'test-assistant',
@@ -328,9 +235,8 @@ describe('AssistantDataService', () => {
       expect(result.mcpServerIds).toEqual(['srv-1'])
       expect(result.knowledgeBaseIds).toEqual(['kb-1'])
 
-      // Verify junction rows in DB
-      const mcpRows = await db.select().from(assistantMcpServerTable)
-      const kbRows = await db.select().from(assistantKnowledgeBaseTable)
+      const mcpRows = await dbh.db.select().from(assistantMcpServerTable)
+      const kbRows = await dbh.db.select().from(assistantKnowledgeBaseTable)
       expect(mcpRows).toHaveLength(1)
       expect(kbRows).toHaveLength(1)
       expect(mcpRows[0].assistantId).toBe(result.id)
@@ -349,32 +255,26 @@ describe('AssistantDataService', () => {
     })
   })
 
-  // --------------------------------------------------------------------------
-  // update
-  // --------------------------------------------------------------------------
   describe('update', () => {
     it('should update and return assistant', async () => {
-      const db = realDb!
-      await db.insert(assistantTable).values({ id: 'ast-1', name: 'original' })
+      await dbh.db.insert(assistantTable).values({ id: 'ast-1', name: 'original' })
 
       const result = await assistantDataService.update('ast-1', { name: 'updated-name' })
       expect(result.name).toBe('updated-name')
     })
 
     it('should persist update to database', async () => {
-      const db = realDb!
-      await db.insert(assistantTable).values({ id: 'ast-1', name: 'original' })
+      await dbh.db.insert(assistantTable).values({ id: 'ast-1', name: 'original' })
 
       await assistantDataService.update('ast-1', { name: 'updated-name' })
 
-      const [row] = await db.select().from(assistantTable)
+      const [row] = await dbh.db.select().from(assistantTable)
       expect(row.name).toBe('updated-name')
     })
 
     it('should not pass relation fields to the column update', async () => {
-      const db = realDb!
-      await db.insert(assistantTable).values({ id: 'ast-1', name: 'original' })
-      await db.run(sql.raw(`INSERT INTO mcp_server (id, name) VALUES ('srv-1', 'MCP')`))
+      await dbh.db.insert(assistantTable).values({ id: 'ast-1', name: 'original' })
+      await seedMcpServer()
 
       const result = await assistantDataService.update('ast-1', {
         name: 'updated',
@@ -384,66 +284,53 @@ describe('AssistantDataService', () => {
       expect(result.name).toBe('updated')
       expect(result.mcpServerIds).toEqual(['srv-1'])
 
-      // Verify junction row created
-      const mcpRows = await db.select().from(assistantMcpServerTable)
+      const mcpRows = await dbh.db.select().from(assistantMcpServerTable)
       expect(mcpRows).toHaveLength(1)
     })
 
     it('should handle relation-only updates without modifying assistant columns', async () => {
-      const db = realDb!
-      await db.insert(assistantTable).values({ id: 'ast-1', name: 'original', modelId: 'openai::gpt-4' })
-      await db.run(sql.raw(`INSERT INTO mcp_server (id, name) VALUES ('srv-1', 'MCP')`))
-      await db.run(
-        sql.raw(
-          `INSERT INTO knowledge_base (id, name, dimensions, embedding_model_id) VALUES ('kb-1', 'KB', 1024, 'model')`
-        )
-      )
+      await dbh.db.insert(assistantTable).values({ id: 'ast-1', name: 'original', modelId: 'openai::gpt-4' })
+      await seedMcpServer()
+      await seedKnowledgeBase()
 
       const result = await assistantDataService.update('ast-1', {
         mcpServerIds: ['srv-1'],
         knowledgeBaseIds: ['kb-1']
       })
 
-      // Relations updated
       expect(result.mcpServerIds).toEqual(['srv-1'])
       expect(result.knowledgeBaseIds).toEqual(['kb-1'])
 
-      // Column data unchanged
-      const [row] = await db.select().from(assistantTable)
+      const [row] = await dbh.db.select().from(assistantTable)
       expect(row.name).toBe('original')
       expect(row.modelId).toBe('openai::gpt-4')
     })
 
     it('should replace existing junction rows on relation update', async () => {
-      const db = realDb!
-      await db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
-      await db.run(sql.raw(`INSERT INTO mcp_server (id, name) VALUES ('srv-1', 'MCP1'), ('srv-2', 'MCP2')`))
-      await db.insert(assistantMcpServerTable).values({ assistantId: 'ast-1', mcpServerId: 'srv-1' })
+      await dbh.db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
+      await seedMcpServer('srv-1', 'MCP1')
+      await seedMcpServer('srv-2', 'MCP2')
+      await dbh.db.insert(assistantMcpServerTable).values({ assistantId: 'ast-1', mcpServerId: 'srv-1' })
 
       await assistantDataService.update('ast-1', { mcpServerIds: ['srv-2'] })
 
-      const mcpRows = await db.select().from(assistantMcpServerTable)
+      const mcpRows = await dbh.db.select().from(assistantMcpServerTable)
       expect(mcpRows).toHaveLength(1)
       expect(mcpRows[0].mcpServerId).toBe('srv-2')
     })
 
     it('should preserve junction createdAt for unchanged relations on PATCH', async () => {
-      const db = realDb!
-      await db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
-      await db.run(sql.raw(`INSERT INTO mcp_server (id, name) VALUES ('srv-1', 'MCP1'), ('srv-2', 'MCP2')`))
-      // Insert with known createdAt
-      await db.run(
-        sql.raw(
-          `INSERT INTO assistant_mcp_server (assistant_id, mcp_server_id, created_at) VALUES ('ast-1', 'srv-1', 1000)`
-        )
-      )
+      await dbh.db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
+      await seedMcpServer('srv-1', 'MCP1')
+      await seedMcpServer('srv-2', 'MCP2')
+      await dbh.db
+        .insert(assistantMcpServerTable)
+        .values({ assistantId: 'ast-1', mcpServerId: 'srv-1', createdAt: 1000 })
 
-      // Update: keep srv-1, add srv-2
       await assistantDataService.update('ast-1', { mcpServerIds: ['srv-1', 'srv-2'] })
 
-      const mcpRows = await db.select().from(assistantMcpServerTable)
+      const mcpRows = await dbh.db.select().from(assistantMcpServerTable)
       expect(mcpRows).toHaveLength(2)
-      // srv-1's createdAt should be preserved (not reset)
       const srv1Row = mcpRows.find((r) => r.mcpServerId === 'srv-1')
       expect(srv1Row?.createdAt).toBe(1000)
     })
@@ -455,8 +342,7 @@ describe('AssistantDataService', () => {
     })
 
     it('should throw validation error when name is set to empty', async () => {
-      const db = realDb!
-      await db.insert(assistantTable).values({ id: 'ast-1', name: 'original' })
+      await dbh.db.insert(assistantTable).values({ id: 'ast-1', name: 'original' })
 
       await expect(assistantDataService.update('ast-1', { name: '' })).rejects.toMatchObject({
         code: ErrorCode.VALIDATION_ERROR
@@ -464,28 +350,23 @@ describe('AssistantDataService', () => {
     })
   })
 
-  // --------------------------------------------------------------------------
-  // delete
-  // --------------------------------------------------------------------------
   describe('delete', () => {
     it('should soft-delete by setting deletedAt timestamp', async () => {
-      const db = realDb!
-      await db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
+      await dbh.db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
 
       await assistantDataService.delete('ast-1')
 
-      const [row] = await db.select().from(assistantTable)
+      const [row] = await dbh.db.select().from(assistantTable)
       expect(row.deletedAt).toBeTruthy()
       expect(typeof row.deletedAt).toBe('number')
     })
 
     it('should not physically remove the row', async () => {
-      const db = realDb!
-      await db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
+      await dbh.db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
 
       await assistantDataService.delete('ast-1')
 
-      const rows = await db.select().from(assistantTable)
+      const rows = await dbh.db.select().from(assistantTable)
       expect(rows).toHaveLength(1)
     })
 
@@ -496,8 +377,7 @@ describe('AssistantDataService', () => {
     })
 
     it('should throw NOT_FOUND when deleting already-deleted assistant', async () => {
-      const db = realDb!
-      await db.insert(assistantTable).values({ id: 'ast-1', name: 'test', deletedAt: Date.now() })
+      await dbh.db.insert(assistantTable).values({ id: 'ast-1', name: 'test', deletedAt: Date.now() })
 
       await expect(assistantDataService.delete('ast-1')).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
@@ -505,43 +385,36 @@ describe('AssistantDataService', () => {
     })
   })
 
-  // --------------------------------------------------------------------------
-  // DB constraints
-  // --------------------------------------------------------------------------
   describe('db constraints', () => {
     it('should cascade-delete junction rows when assistant is physically deleted', async () => {
-      const db = realDb!
-      await db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
-      await db.run(sql.raw(`INSERT INTO mcp_server (id, name) VALUES ('srv-1', 'MCP')`))
-      await db.insert(assistantMcpServerTable).values({ assistantId: 'ast-1', mcpServerId: 'srv-1' })
+      await dbh.db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
+      await seedMcpServer()
+      await dbh.db.insert(assistantMcpServerTable).values({ assistantId: 'ast-1', mcpServerId: 'srv-1' })
 
-      // Physical delete (not soft-delete)
-      await db.run(sql.raw(`DELETE FROM assistant WHERE id = 'ast-1'`))
+      await dbh.client.execute({ sql: 'DELETE FROM assistant WHERE id = ?', args: ['ast-1'] })
 
-      const mcpRows = await db.select().from(assistantMcpServerTable)
+      const mcpRows = await dbh.db.select().from(assistantMcpServerTable)
       expect(mcpRows).toHaveLength(0)
     })
 
     it('should cascade-delete junction rows when mcp_server is deleted', async () => {
-      const db = realDb!
-      await db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
-      await db.run(sql.raw(`INSERT INTO mcp_server (id, name) VALUES ('srv-1', 'MCP')`))
-      await db.insert(assistantMcpServerTable).values({ assistantId: 'ast-1', mcpServerId: 'srv-1' })
+      await dbh.db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
+      await seedMcpServer()
+      await dbh.db.insert(assistantMcpServerTable).values({ assistantId: 'ast-1', mcpServerId: 'srv-1' })
 
-      await db.run(sql.raw(`DELETE FROM mcp_server WHERE id = 'srv-1'`))
+      await dbh.client.execute({ sql: 'DELETE FROM mcp_server WHERE id = ?', args: ['srv-1'] })
 
-      const mcpRows = await db.select().from(assistantMcpServerTable)
+      const mcpRows = await dbh.db.select().from(assistantMcpServerTable)
       expect(mcpRows).toHaveLength(0)
     })
 
     it('should reject duplicate junction rows', async () => {
-      const db = realDb!
-      await db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
-      await db.run(sql.raw(`INSERT INTO mcp_server (id, name) VALUES ('srv-1', 'MCP')`))
-      await db.insert(assistantMcpServerTable).values({ assistantId: 'ast-1', mcpServerId: 'srv-1' })
+      await dbh.db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
+      await seedMcpServer()
+      await dbh.db.insert(assistantMcpServerTable).values({ assistantId: 'ast-1', mcpServerId: 'srv-1' })
 
       await expect(
-        db.insert(assistantMcpServerTable).values({ assistantId: 'ast-1', mcpServerId: 'srv-1' })
+        dbh.db.insert(assistantMcpServerTable).values({ assistantId: 'ast-1', mcpServerId: 'srv-1' })
       ).rejects.toThrow()
     })
   })

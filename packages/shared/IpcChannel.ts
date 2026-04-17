@@ -181,6 +181,8 @@ export enum IpcChannel {
   Windows_IsMaximized = 'window:is-maximized',
   Windows_MaximizedChanged = 'window:maximized-changed',
   Windows_NavigateToAbout = 'window:navigate-to-about',
+  Windows_NavigateToSettings = 'window:navigate-to-settings',
+  Shortcut_RegistrationConflict = 'shortcut:registration-conflict',
 
   // Tab
   Tab_Attach = 'tab:attach',
@@ -264,8 +266,6 @@ export enum IpcChannel {
   FileService_Retrieve = 'file-service:retrieve',
 
   Export_Word = 'export:word',
-
-  Shortcuts_Update = 'shortcuts:update',
 
   // backup
   Backup_Backup = 'backup:backup',
@@ -356,24 +356,8 @@ export enum IpcChannel {
   Selection_ActionWindowClose = 'selection:action-window-close',
   Selection_ActionWindowMinimize = 'selection:action-window-minimize',
   Selection_ActionWindowPin = 'selection:action-window-pin',
-  // [Windows only] Electron bug workaround - can be removed once https://github.com/electron/electron/issues/48554 is fixed
-  Selection_ActionWindowResize = 'selection:action-window-resize',
   Selection_ProcessAction = 'selection:process-action',
-  Selection_UpdateActionData = 'selection:update-action-data',
   Selection_GetLinuxEnvInfo = 'selection:get-linux-env-info',
-
-  // Memory
-  Memory_Add = 'memory:add',
-  Memory_Search = 'memory:search',
-  Memory_List = 'memory:list',
-  Memory_Delete = 'memory:delete',
-  Memory_Update = 'memory:update',
-  Memory_Get = 'memory:get',
-  Memory_SetConfig = 'memory:set-config',
-  Memory_DeleteUser = 'memory:delete-user',
-  Memory_DeleteAllMemoriesForUser = 'memory:delete-all-memories-for-user',
-  Memory_GetUsersList = 'memory:get-users-list',
-  Memory_MigrateMemoryDb = 'memory:migrate-memory-db',
 
   // Data: Preference
   Preference_Get = 'preference:get',
@@ -503,5 +487,9 @@ export enum IpcChannel {
   WindowManager_Maximize = 'window-manager:maximize',
   WindowManager_Focus = 'window-manager:focus',
   WindowManager_GetInitData = 'window-manager:get-init-data',
-  WindowManager_PoolReset = 'window-manager:pool-reset'
+  // Fired when a managed window is re-used (pooled recycle or singleton reopen).
+  // Event payload: the optional initData passed to open() — present only when the
+  // caller supplied it; main never fires this event for fresh window creation or
+  // when reuse happens without new initData.
+  WindowManager_Reused = 'window-manager:reused'
 }
