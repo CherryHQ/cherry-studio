@@ -11,7 +11,7 @@ const IGNORED_FILES = new Set([
   path.join(RENDERER_DIR, 'assets/styles/legacy-vars.css')
 ])
 
-const LEGACY_VARS = [
+export const LEGACY_VARS = [
   '--color-text-1',
   '--color-text-2',
   '--color-text-3',
@@ -80,7 +80,7 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-function shouldIgnoreFile(filePath: string): boolean {
+export function shouldIgnoreFile(filePath: string): boolean {
   if (IGNORED_FILES.has(filePath)) return true
   const fileName = path.basename(filePath)
   return IGNORED_FILE_PATTERNS.some((pattern) => pattern.test(fileName))
@@ -118,20 +118,29 @@ export function isCommentLine(line: string): boolean {
   return trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*') || trimmed.startsWith('*/')
 }
 
+export function findLegacyVarsInLine(line: string): string[] {
+  if (isCommentLine(line)) return []
+
+  const matches = line.matchAll(OCCURRENCE_PATTERN)
+  const variables: string[] = []
+
+  for (const match of matches) {
+    const variable = match[1]
+    if (!variable || !LEGACY_VAR_SET.has(variable as (typeof LEGACY_VARS)[number])) continue
+    if (isVariableDefinitionLine(line, variable)) continue
+    variables.push(variable)
+  }
+
+  return variables
+}
+
 export function findLegacyVarHitsInContent(content: string, filePath: string): Finding[] {
   const lines = content.split(/\r?\n/)
   const findings: Finding[] = []
 
   for (let index = 0; index < lines.length; index++) {
     const line = lines[index]
-    if (isCommentLine(line)) continue
-    const matches = line.matchAll(OCCURRENCE_PATTERN)
-
-    for (const match of matches) {
-      const variable = match[1]
-      if (!variable || !LEGACY_VAR_SET.has(variable as (typeof LEGACY_VARS)[number])) continue
-      if (isVariableDefinitionLine(line, variable)) continue
-
+    for (const variable of findLegacyVarsInLine(line)) {
       findings.push({
         file: filePath,
         line: index + 1,
@@ -198,4 +207,6 @@ function main(): void {
   }
 }
 
-main()
+if (require.main === module) {
+  main()
+}
