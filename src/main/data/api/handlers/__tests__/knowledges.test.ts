@@ -222,12 +222,27 @@ describe('knowledgeHandlers', () => {
       expect(updateKnowledgeBaseMock).not.toHaveBeenCalled()
     })
 
-    it('should reject embeddingModelId updates before calling the service', async () => {
+    it('should allow embeddingModelId updates and normalize them before calling the service', async () => {
+      updateKnowledgeBaseMock.mockResolvedValueOnce({ id: 'kb-1', embeddingModelId: 'new-model' })
+
       await expect(
         knowledgeHandlers['/knowledge-bases/:id'].PATCH({
           params: { id: 'kb-1' },
           body: {
-            embeddingModelId: 'new-model'
+            embeddingModelId: '  new-model  '
+          }
+        })
+      ).resolves.toMatchObject({ id: 'kb-1' })
+
+      expect(updateKnowledgeBaseMock).toHaveBeenCalledWith('kb-1', { embeddingModelId: 'new-model' })
+    })
+
+    it('should reject null embeddingModelId clears before calling the service', async () => {
+      await expect(
+        knowledgeHandlers['/knowledge-bases/:id'].PATCH({
+          params: { id: 'kb-1' },
+          body: {
+            embeddingModelId: null
           }
         } as never)
       ).rejects.toHaveProperty('name', 'ZodError')

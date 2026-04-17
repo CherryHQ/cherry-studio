@@ -3,11 +3,11 @@ import { loggerService } from '@logger'
 import { SELECTION_FINETUNED_LIST, SELECTION_PREDEFINED_BLACKLIST } from '@main/configs/SelectionConfig'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { WindowType } from '@main/core/window/types'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, BrowserWindow, clipboard, screen, systemPreferences } from 'electron'
-import { join } from 'path'
 import type {
   KeyboardEventData,
   MouseEventData,
@@ -60,10 +60,11 @@ export class SelectionService extends BaseService implements Activatable {
 
   private unsubscriberForChangeListeners: (() => void)[] = []
 
+  // Toolbar window is managed by WindowManager (singleton). We cache the BrowserWindow
+  // reference here because there are ~20 usage sites across this file — the cache avoids
+  // querying WindowManager at each call site. Kept in sync via onWindowCreated/Destroyed.
   private toolbarWindow: BrowserWindow | null = null
-  private actionWindows = new Set<BrowserWindow>()
-  private preloadedActionWindows: BrowserWindow[] = []
-  private readonly PRELOAD_ACTION_WINDOW_COUNT = 1
+  private toolbarWindowId: string | null = null
 
   private isHideByMouseKeyListenerActive: boolean = false
   private isCtrlkeyListenerActive: boolean = false
@@ -171,8 +172,17 @@ export class SelectionService extends BaseService implements Activatable {
     }
 
     try {
-      this.createToolbarWindow()
-      void this.initPreloadedActionWindows()
+      const wm = application.get('WindowManager')
+
+      // Resume the action pool in case a prior deactivate/activate cycle suspended it.
+      // With registry warmup: 'eager', the pool auto-creates idle windows at app start,
+      // so the first user-triggered action recycles instantly instead of going through
+      // the fresh-path (create + load HTML + wait for React to mount).
+      wm.resumePool(WindowType.SelectionAction)
+
+      // Open the toolbar (singleton) — registry's show: false ensures no auto-show here,
+      // showToolbarAtPosition controls positioning and visibility.
+      this.toolbarWindowId = wm.open(WindowType.SelectionToolbar)
 
       this.selectionHook!.on('error', (error: { message: string }) => {
         this.logError('Error in SelectionHook:', error as Error)
@@ -201,6 +211,45 @@ export class SelectionService extends BaseService implements Activatable {
   protected async onInit(): Promise<void> {
     this.initZoomFactor()
     this.registerIpcHandlers()
+
+    const wm = application.get('WindowManager')
+
+    // Inject behavior into newly-created Selection windows.
+    // onWindowCreated fires synchronously before content loads, so listeners here attach
+    // before the renderer can start sending IPC messages.
+    this.registerDisposable(
+      wm.onWindowCreated((managed) => {
+        if (managed.type === WindowType.SelectionToolbar) {
+          // Cache the BrowserWindow reference for the ~20 downstream call sites
+          // (showToolbarAtPosition, hideToolbar, processTextSelection, etc.)
+          this.toolbarWindow = managed.window
+          this.setupToolbarBehavior(managed.window)
+        } else if (managed.type === WindowType.SelectionAction) {
+          //remember the action window size
+          managed.window.on('resized', () => {
+            if (managed.window.isDestroyed()) return
+            if (this.isRemeberWinSize) {
+              this.lastActionWindowSize = {
+                width: managed.window.getBounds().width,
+                height: managed.window.getBounds().height
+              }
+            }
+          })
+        }
+      })
+    )
+
+    // Destruction: keep the cached toolbar reference in sync.
+    // The macOS focus dance on hide/close is handled by the macRestoreFocusOnHide quirk
+    // (see WindowManager.applyQuirks) — no subscription needed here.
+    this.registerDisposable(
+      wm.onWindowDestroyed((managed) => {
+        if (managed.type === WindowType.SelectionToolbar && managed.id === this.toolbarWindowId) {
+          this.toolbarWindow = null
+          this.toolbarWindowId = null
+        }
+      })
+    )
 
     const preferenceService = application.get('PreferenceService')
     this.registerDisposable({
@@ -406,96 +455,47 @@ export class SelectionService extends BaseService implements Activatable {
   }
 
   /**
-   * Create and configure the toolbar window
-   * Sets up window properties, event handlers, and loads the toolbar UI
-   * @param readyCallback Optional callback when window is ready to show
+   * Attach toolbar-specific runtime behavior to a freshly-created SelectionToolbar window.
+   * Invoked from the WindowManager.onWindowCreated hook registered in onInit().
+   *
+   * Window configuration (frame, transparent, type: 'panel', focusable default, etc.) lives
+   * in windowRegistry.ts alongside the full platform-specific commentary. This method only
+   * handles behavior that depends on runtime state (e.g., Wayland detection) or event wiring.
    */
-  private createToolbarWindow(readyCallback?: () => void): void {
-    if (this.isToolbarAlive()) return
-
-    const { toolbarWidth, toolbarHeight } = this.getToolbarRealSize()
-
-    this.toolbarWindow = new BrowserWindow({
-      width: toolbarWidth,
-      height: toolbarHeight,
-      show: false,
-      frame: false,
-      transparent: true,
-      alwaysOnTop: true,
-      skipTaskbar: true,
-      autoHideMenuBar: true,
-      resizable: false,
-      minimizable: false,
-      maximizable: false,
-      fullscreenable: false, // [macOS] must be false
-      movable: true,
-      hasShadow: false,
-      thickFrame: false,
-      roundedCorners: true,
-
-      // Platform specific settings
-      //   [macOS] DO NOT set focusable to false — it causes other windows to bring to front together.
-      //           type 'panel' conflicts with some settings and triggers the warning
-      //           `NSWindow does not support nonactivating panel styleMask 0x80`,
-      //           but it still works correctly on fullscreen apps, so we keep it.
-      //   [Windows/Linux X11] focusable: false prevents toolbar from stealing focus.
-      //           On Linux X11 this also makes the window stop interacting with WM (stays on top).
-      //   [Linux Wayland] focusable: true enables blur events for outside-click hiding.
-      //           With focusable: false on XWayland, blur never fires and there is no reliable
-      //           way to detect outside clicks (selection-hook coordinates use a different
-      //           coordinate space than Electron's getBounds on Wayland).
-      ...(isMac ? { type: 'panel' } : { type: 'toolbar', focusable: this.isLinuxWaylandDisplay }),
-      hiddenInMissionControl: true, // [macOS only]
-      acceptFirstMouse: true, // [macOS only]
-
-      webPreferences: {
-        preload: join(__dirname, '../preload/index.js'),
-        contextIsolation: true,
-        nodeIntegration: false,
-        sandbox: false,
-        devTools: isDev ? true : false
-      }
-    })
+  private setupToolbarBehavior(window: BrowserWindow): void {
+    // [Linux Wayland] focusable must be true on Wayland to receive blur events for
+    // outside-click hiding. onWindowCreated fires before loadURL(), so setFocusable()
+    // here takes effect before the window is shown. The full platform rationale is
+    // documented in windowRegistry.ts under SelectionToolbar's defaultConfig.
+    if (isLinux) {
+      window.setFocusable(this.isLinuxWaylandDisplay)
+    }
 
     // Hide when losing focus
-    this.toolbarWindow.on('blur', () => {
-      if (this.toolbarWindow!.isVisible()) {
+    window.on('blur', () => {
+      if (window.isVisible()) {
         this.hideToolbar()
       }
     })
 
-    // Clean up when closed
-    this.toolbarWindow.on('closed', () => {
-      this.toolbarWindow = null
-    })
-
     // Add show/hide event listeners
-    this.toolbarWindow.on('show', () => {
-      this.toolbarWindow?.webContents.send(IpcChannel.Selection_ToolbarVisibilityChange, true)
+    window.on('show', () => {
+      window.webContents.send(IpcChannel.Selection_ToolbarVisibilityChange, true)
     })
 
-    this.toolbarWindow.on('hide', () => {
-      this.toolbarWindow?.webContents.send(IpcChannel.Selection_ToolbarVisibilityChange, false)
+    window.on('hide', () => {
+      window.webContents.send(IpcChannel.Selection_ToolbarVisibilityChange, false)
     })
 
     /** uncomment to open dev tools in dev mode */
     // if (isDev) {
-    //   this.toolbarWindow.once('ready-to-show', () => {
-    //     this.toolbarWindow!.webContents.openDevTools({ mode: 'detach' })
+    //   window.once('ready-to-show', () => {
+    //     window.webContents.openDevTools({ mode: 'detach' })
     //   })
     // }
 
-    if (readyCallback) {
-      this.toolbarWindow.once('ready-to-show', readyCallback)
-    }
-
-    /** get ready to load the toolbar window */
-
-    if (isDev && process.env['ELECTRON_RENDERER_URL']) {
-      void this.toolbarWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/selectionToolbar.html')
-    } else {
-      void this.toolbarWindow.loadFile(join(__dirname, '../renderer/selectionToolbar.html'))
-    }
+    // Note: there is no 'closed' listener here — WindowManager fires onWindowDestroyed
+    // which is handled in onInit() to clear toolbarWindowId/toolbarWindow.
   }
 
   /**
@@ -505,9 +505,18 @@ export class SelectionService extends BaseService implements Activatable {
    */
   private showToolbarAtPosition(point: Point, orientation: RelativeOrientation, programName: string): void {
     if (!this.isToolbarAlive()) {
-      this.createToolbarWindow(() => {
-        this.showToolbarAtPosition(point, orientation, programName)
-      })
+      // Toolbar was destroyed (e.g., crash recovery). Re-open via WindowManager — the
+      // onWindowCreated handler will call setupToolbarBehavior() and update toolbarWindow.
+      // After ready-to-show, retry positioning. If the caller is in a tight loop, the
+      // recursive retry will converge as soon as the renderer finishes loading.
+      const wm = application.get('WindowManager')
+      this.toolbarWindowId = wm.open(WindowType.SelectionToolbar)
+      const newToolbar = wm.getWindow(this.toolbarWindowId)
+      if (newToolbar) {
+        newToolbar.once('ready-to-show', () => {
+          this.showToolbarAtPosition(point, orientation, programName)
+        })
+      }
       return
     }
 
@@ -523,9 +532,8 @@ export class SelectionService extends BaseService implements Activatable {
       y: posY
     })
 
-    //set the window to always on top (highest level)
-    //should set every time the window is shown
-    this.toolbarWindow!.setAlwaysOnTop(true, 'screen-saver')
+    // setAlwaysOnTop(true, 'screen-saver') is re-applied by the macReapplyAlwaysOnTop
+    // quirk after every show()/showInactive() call (see WindowManager.applyQuirks).
 
     if (!isMac) {
       this.toolbarWindow!.show()
@@ -586,50 +594,11 @@ export class SelectionService extends BaseService implements Activatable {
 
     this.stopHideByMouseKeyListener()
 
-    // [Windows] just hide the toolbar window is enough
-    if (!isMac) {
-      this.toolbarWindow!.hide()
-      return
-    }
-
-    /************************************************
-     * [macOS] the following code is only for macOS
-     *************************************************/
-
-    // [macOS] a HACKY way
-    // make sure other windows do not bring to front when toolbar is hidden
-    // get all focusable windows and set them to not focusable
-    const focusableWindows: BrowserWindow[] = []
-    for (const window of BrowserWindow.getAllWindows()) {
-      if (!window.isDestroyed() && window.isVisible()) {
-        if (window.isFocusable()) {
-          focusableWindows.push(window)
-          window.setFocusable(false)
-        }
-      }
-    }
-
+    // On macOS, the toolbar's hide() call is wrapped by WindowManager's applyQuirks:
+    //   - macRestoreFocusOnHide guards focus (setFocusable(false) on all visible windows, restored after 50ms)
+    //   - macClearHoverOnHide sends a synthetic mouseMove(-1,-1) to clear any residual hover state
+    // so this call site remains a plain .hide() on every platform.
     this.toolbarWindow!.hide()
-
-    // set them back to focusable after 50ms
-    setTimeout(() => {
-      for (const window of focusableWindows) {
-        if (!window.isDestroyed()) {
-          window.setFocusable(true)
-        }
-      }
-    }, 50)
-
-    // [macOS] hacky way
-    // Because toolbar is not a FOCUSED window, so the hover status will remain when next time show
-    // so we just send mouseMove event to the toolbar window to make the hover status disappear
-    this.toolbarWindow!.webContents.sendInputEvent({
-      type: 'mouseMove',
-      x: -1,
-      y: -1
-    })
-
-    return
   }
 
   /**
@@ -1159,73 +1128,14 @@ export class SelectionService extends BaseService implements Activatable {
   }
 
   /**
-   * Create a preloaded action window for quick response
-   * Action windows handle specific operations on selected text
-   * @returns Configured BrowserWindow instance
-   */
-  private createPreloadedActionWindow(): BrowserWindow {
-    const preloadedActionWindow = new BrowserWindow({
-      width: this.isRemeberWinSize ? this.lastActionWindowSize.width : this.ACTION_WINDOW_WIDTH,
-      height: this.isRemeberWinSize ? this.lastActionWindowSize.height : this.ACTION_WINDOW_HEIGHT,
-      minWidth: 300,
-      minHeight: 200,
-      frame: false,
-      transparent: true,
-      autoHideMenuBar: true,
-      titleBarStyle: 'hidden', // [macOS]
-      trafficLightPosition: { x: 12, y: 9 }, // [macOS]
-      hasShadow: false,
-      thickFrame: false,
-      show: false,
-      webPreferences: {
-        preload: join(__dirname, '../preload/index.js'),
-        contextIsolation: true,
-        nodeIntegration: false,
-        sandbox: false,
-        devTools: true
-      }
-    })
-
-    // Load the base URL without action data
-    if (isDev && process.env['ELECTRON_RENDERER_URL']) {
-      void preloadedActionWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/selectionAction.html')
-    } else {
-      void preloadedActionWindow.loadFile(join(__dirname, '../renderer/selectionAction.html'))
-    }
-
-    return preloadedActionWindow
-  }
-
-  /**
-   * Initialize preloaded action windows
-   * Creates a pool of windows at startup for faster response
-   */
-  private async initPreloadedActionWindows(): Promise<void> {
-    try {
-      // Create initial pool of preloaded windows
-      for (let i = 0; i < this.PRELOAD_ACTION_WINDOW_COUNT; i++) {
-        await this.pushNewActionWindow()
-      }
-    } catch (error) {
-      this.logError('Failed to initialize preloaded windows:', error as Error)
-    }
-  }
-
-  /**
-   * Close all preloaded action windows
-   */
-  private closePreloadedActionWindows(): void {
-    for (const actionWindow of this.preloadedActionWindows) {
-      if (!actionWindow.isDestroyed()) {
-        actionWindow.destroy()
-      }
-    }
-  }
-
-  /**
    * Release all activation-scoped resources.
    * Uses stop() + removeAllListeners() instead of cleanup() to preserve the native instance
    * for efficient reactivation. Safe to call even if onActivate() never ran or partially ran.
+   *
+   * Note on action windows: we intentionally DO NOT destroy in-use action windows —
+   * users may still be reading those results. The WindowManager pool is suspended
+   * (idle windows destroyed, no further warmup), but in-use windows stay alive until
+   * the user closes them (suspendPool only destroys idle, never managed).
    */
   private releaseActivationResources(): void {
     if (this.selectionHook) {
@@ -1244,80 +1154,20 @@ export class SelectionService extends BaseService implements Activatable {
 
     this.isCtrlkeyListenerActive = false
     this.isHideByMouseKeyListenerActive = false
+    this.lastCtrlkeyDownTime = 0
 
-    if (this.toolbarWindow && !this.toolbarWindow.isDestroyed()) {
-      this.toolbarWindow.close()
+    const wm = application.get('WindowManager')
+
+    // Destroy toolbar (singleton — not pooled)
+    if (this.toolbarWindowId) {
+      wm.destroy(this.toolbarWindowId)
+      // toolbarWindow / toolbarWindowId are cleared by the onWindowDestroyed handler in onInit().
     }
-    this.toolbarWindow = null
 
-    this.closePreloadedActionWindows()
-  }
-
-  /**
-   * Preload a new action window asynchronously
-   * This method is called after popping a window to ensure we always have windows ready
-   */
-  private async pushNewActionWindow(): Promise<void> {
-    try {
-      const actionWindow = this.createPreloadedActionWindow()
-      this.preloadedActionWindows.push(actionWindow)
-    } catch (error) {
-      this.logError('Failed to push new action window:', error as Error)
-    }
-  }
-
-  /**
-   * Pop an action window from the preloadedActionWindows queue
-   * Immediately returns a window and asynchronously creates a new one
-   * @returns {BrowserWindow} The action window
-   */
-  private popActionWindow(): BrowserWindow {
-    // Get a window from the preloaded queue or create a new one if empty
-    const actionWindow = this.preloadedActionWindows.pop() || this.createPreloadedActionWindow()
-
-    // Set up event listeners for this instance
-    actionWindow.on('closed', () => {
-      this.actionWindows.delete(actionWindow)
-
-      // [macOS] a HACKY way
-      // make sure other windows do not bring to front when action window is closed
-      if (isMac) {
-        const focusableWindows: BrowserWindow[] = []
-        for (const window of BrowserWindow.getAllWindows()) {
-          if (!window.isDestroyed() && window.isVisible()) {
-            if (window.isFocusable()) {
-              focusableWindows.push(window)
-              window.setFocusable(false)
-            }
-          }
-        }
-        setTimeout(() => {
-          for (const window of focusableWindows) {
-            if (!window.isDestroyed()) {
-              window.setFocusable(true)
-            }
-          }
-        }, 50)
-      }
-    })
-
-    //remember the action window size
-    actionWindow.on('resized', () => {
-      if (actionWindow.isDestroyed()) return
-      if (this.isRemeberWinSize) {
-        this.lastActionWindowSize = {
-          width: actionWindow.getBounds().width,
-          height: actionWindow.getBounds().height
-        }
-      }
-    })
-
-    this.actionWindows.add(actionWindow)
-
-    // Asynchronously create a new preloaded window
-    void this.pushNewActionWindow()
-
-    return actionWindow
+    // Suspend the action pool — destroys idle windows and disables further warmup until
+    // resumePool() is called on next activate. In-use windows are NOT destroyed here,
+    // preserving user-visible results.
+    wm.suspendPool(WindowType.SelectionAction)
   }
 
   /**
@@ -1326,9 +1176,29 @@ export class SelectionService extends BaseService implements Activatable {
    * @param isFullScreen [macOS] only macOS has the available isFullscreen mode
    */
   public processAction(actionItem: SelectionActionItem, isFullScreen: boolean = false): void {
-    const actionWindow = this.popActionWindow()
+    const wm = application.get('WindowManager')
 
-    actionWindow.webContents.send(IpcChannel.Selection_UpdateActionData, actionItem)
+    // open({ initData }) atomically stores the action payload and, for the
+    // pool-recycle path, emits WindowManager_Reused with the same payload so
+    // the renderer can update in-place. For recycled windows the renderer has
+    // been mounted and its listener registered since warmup, so the DOM is
+    // ready on the next tick. For fresh windows the renderer mounts,
+    // `useWindowInitData` pulls the payload via `getInitData`, and React
+    // paints before the user notices. This mirrors the behavior of the
+    // pre-WindowManager SelectionService: push data, then show immediately.
+    const windowId = wm.open(WindowType.SelectionAction, {
+      initData: actionItem,
+      options: {
+        width: this.isRemeberWinSize ? this.lastActionWindowSize.width : this.ACTION_WINDOW_WIDTH,
+        height: this.isRemeberWinSize ? this.lastActionWindowSize.height : this.ACTION_WINDOW_HEIGHT
+      }
+    })
+
+    const actionWindow = wm.getWindow(windowId)
+    if (!actionWindow) {
+      this.logError(`Failed to get action window ${windowId}`)
+      return
+    }
 
     this.showActionWindow(actionWindow, isFullScreen)
   }
@@ -1471,9 +1341,22 @@ export class SelectionService extends BaseService implements Activatable {
     }, 50)
   }
 
+  /**
+   * Close an action window via WindowManager.
+   * For pooled windows, WindowManager intercepts the close and hides the window back
+   * into the idle pool. The macRestoreFocusOnHide quirk applies the macOS focus dance
+   * automatically at the hide/close call site.
+   */
   public closeActionWindow(actionWindow: BrowserWindow): void {
     if (actionWindow.isDestroyed()) return
-    actionWindow.close()
+    const wm = application.get('WindowManager')
+    const windowId = wm.getWindowId(actionWindow)
+    if (windowId) {
+      wm.close(windowId)
+    } else {
+      // Fallback for untracked windows (should not happen in normal flow)
+      actionWindow.close()
+    }
   }
 
   public minimizeActionWindow(actionWindow: BrowserWindow): void {
@@ -1484,57 +1367,6 @@ export class SelectionService extends BaseService implements Activatable {
   public pinActionWindow(actionWindow: BrowserWindow, isPinned: boolean): void {
     if (actionWindow.isDestroyed()) return
     actionWindow.setAlwaysOnTop(isPinned)
-  }
-
-  /**
-   * [Windows only] Manual window resize handler
-   *
-   * ELECTRON BUG WORKAROUND:
-   * In Electron, when using `frame: false` + `transparent: true`, the native window
-   * resize functionality is broken on Windows. This is a known Electron bug.
-   * See: https://github.com/electron/electron/issues/48554
-   *
-   * This method can be removed once the Electron bug is fixed.
-   */
-  public resizeActionWindow(actionWindow: BrowserWindow, deltaX: number, deltaY: number, direction: string): void {
-    if (actionWindow.isDestroyed()) return
-    const bounds = actionWindow.getBounds()
-    const minWidth = 300
-    const minHeight = 200
-
-    let { x, y, width, height } = bounds
-
-    // Handle horizontal resize
-    if (direction.includes('e')) {
-      width = Math.max(minWidth, width + deltaX)
-    }
-    if (direction.includes('w')) {
-      const newWidth = Math.max(minWidth, width - deltaX)
-      if (newWidth !== width) {
-        x = x + (width - newWidth)
-        width = newWidth
-      }
-    }
-
-    // Handle vertical resize
-    if (direction.includes('s')) {
-      height = Math.max(minHeight, height + deltaY)
-    }
-    if (direction.includes('n')) {
-      const newHeight = Math.max(minHeight, height - deltaY)
-      if (newHeight !== height) {
-        y = y + (height - newHeight)
-        height = newHeight
-      }
-    }
-
-    actionWindow.setBounds({ x, y, width, height })
-
-    // [Windows only] Update remembered window size for custom resize
-    // setBounds() may not trigger the 'resized' event, so we need to update manually
-    if (this.isRemeberWinSize) {
-      this.lastActionWindowSize = { width, height }
-    }
   }
 
   /**
@@ -1615,38 +1447,38 @@ export class SelectionService extends BaseService implements Activatable {
       }
     )
 
+    // Helper: resolve an action window from an IPC event via WindowManager.
+    // Falls back to BrowserWindow.fromWebContents if the window is not tracked by WM
+    // (e.g., race conditions during deactivate), matching the pre-migration behavior.
+    const resolveActionWindow = (event: Electron.IpcMainInvokeEvent): BrowserWindow | null => {
+      const wm = application.get('WindowManager')
+      const windowId = wm.getWindowIdByWebContents(event.sender)
+      if (windowId) {
+        return wm.getWindow(windowId) ?? null
+      }
+      return BrowserWindow.fromWebContents(event.sender)
+    }
+
     this.ipcHandle(IpcChannel.Selection_ActionWindowClose, (event) => {
-      const actionWindow = BrowserWindow.fromWebContents(event.sender)
+      const actionWindow = resolveActionWindow(event)
       if (actionWindow && !actionWindow.isDestroyed()) {
         this.closeActionWindow(actionWindow)
       }
     })
 
     this.ipcHandle(IpcChannel.Selection_ActionWindowMinimize, (event) => {
-      const actionWindow = BrowserWindow.fromWebContents(event.sender)
+      const actionWindow = resolveActionWindow(event)
       if (actionWindow && !actionWindow.isDestroyed()) {
         this.minimizeActionWindow(actionWindow)
       }
     })
 
     this.ipcHandle(IpcChannel.Selection_ActionWindowPin, (event, isPinned: boolean) => {
-      const actionWindow = BrowserWindow.fromWebContents(event.sender)
+      const actionWindow = resolveActionWindow(event)
       if (actionWindow && !actionWindow.isDestroyed()) {
         this.pinActionWindow(actionWindow, isPinned)
       }
     })
-
-    // [Windows only] Electron bug workaround - can be removed once fixed
-    // See: https://github.com/electron/electron/issues/48554
-    this.ipcHandle(
-      IpcChannel.Selection_ActionWindowResize,
-      (event, deltaX: number, deltaY: number, direction: string) => {
-        const actionWindow = BrowserWindow.fromWebContents(event.sender)
-        if (actionWindow && !actionWindow.isDestroyed()) {
-          this.resizeActionWindow(actionWindow, deltaX, deltaY, direction)
-        }
-      }
-    )
 
     if (isLinux) {
       this.ipcHandle(IpcChannel.Selection_GetLinuxEnvInfo, () => {

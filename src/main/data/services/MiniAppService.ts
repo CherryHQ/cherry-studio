@@ -15,6 +15,7 @@
 import { application } from '@application'
 import { type MiniAppInsert, type MiniAppRegion, type MiniAppSelect } from '@data/db/schemas/miniapp'
 import { type MiniAppKind, type MiniAppStatus, miniAppTable } from '@data/db/schemas/miniapp'
+import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
@@ -206,18 +207,18 @@ export class MiniAppService {
   }
 
   /**
-   * Create a new custom miniapp
+   * Create a new custom miniapp.
+   *
+   * The builtin-conflict check is application-level (SQLite has no knowledge
+   * of builtin app IDs), so it must stay in code. DB-level uniqueness of
+   * custom appIds is enforced by the UNIQUE PRIMARY KEY on miniappTable.appId
+   * and translated to a 409 CONFLICT via withSqliteErrors — no select-then-
+   * insert pre-check is used, so two concurrent creates with the same appId
+   * yield one 201 and one 409 instead of one 201 and one 500.
    */
   async create(dto: CreateMiniAppDto): Promise<MiniApp> {
-    // Check if appId already exists (both in DB and builtin)
     if (builtinMiniAppMap.has(dto.appId)) {
       throw DataApiErrorFactory.conflict(`MiniApp with appId "${dto.appId}" is a builtin app and cannot be recreated`)
-    }
-
-    const existing = await this.db.select().from(miniAppTable).where(eq(miniAppTable.appId, dto.appId)).limit(1)
-
-    if (existing.length > 0) {
-      throw DataApiErrorFactory.conflict(`MiniApp with appId "${dto.appId}" already exists`)
     }
 
     // Calculate next sortOrder: max of builtin apps count and existing DB apps max sortOrder
@@ -231,22 +232,26 @@ export class MiniAppService {
     const maxDbSortOrder = maxSortOrderResult[0]?.maxSortOrder ?? 0
     const nextSortOrder = Math.max(builtinCount, maxDbSortOrder + 1)
 
-    const [row] = await this.db
-      .insert(miniAppTable)
-      .values({
-        appId: dto.appId,
-        name: dto.name,
-        url: dto.url,
-        logo: dto.logo,
-        type: 'custom',
-        status: 'enabled',
-        sortOrder: nextSortOrder,
-        bordered: dto.bordered,
-        background: dto.background,
-        supportedRegions: dto.supportedRegions,
-        configuration: dto.configuration
-      })
-      .returning()
+    const [row] = await withSqliteErrors(
+      () =>
+        this.db
+          .insert(miniAppTable)
+          .values({
+            appId: dto.appId,
+            name: dto.name,
+            url: dto.url,
+            logo: dto.logo,
+            type: 'custom',
+            status: 'enabled',
+            sortOrder: nextSortOrder,
+            bordered: dto.bordered,
+            background: dto.background,
+            supportedRegions: dto.supportedRegions,
+            configuration: dto.configuration
+          })
+          .returning(),
+      defaultHandlersFor('MiniApp', dto.appId)
+    )
 
     if (!row) {
       throw DataApiErrorFactory.internal(new Error('Insert returned no rows'), 'MiniApp.create')

@@ -545,6 +545,14 @@ const api = {
       }
     }
   },
+  windowManager: {
+    // Retrieve init data that the main process stored for this window via
+    // wm.setInitData() or wm.open({ initData }). Returns null when no data was set or when
+    // the sender window is not managed by WindowManager (e.g., detached devtools).
+    // Renderers that also need to update on reuse should prefer the useWindowInitData
+    // hook (core/hooks/useWindowInitData), which also listens for WindowManager_Reused.
+    getInitData: <T = unknown>(): Promise<T | null> => ipcRenderer.invoke(IpcChannel.WindowManager_GetInitData)
+  },
   selection: {
     hideToolbar: () => ipcRenderer.invoke(IpcChannel.Selection_ToolbarHide),
     writeToClipboard: (text: string) => ipcRenderer.invoke(IpcChannel.Selection_WriteToClipboard, text),
@@ -555,9 +563,6 @@ const api = {
     closeActionWindow: () => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowClose),
     minimizeActionWindow: () => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowMinimize),
     pinActionWindow: (isPinned: boolean) => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowPin, isPinned),
-    // [Windows only] Electron bug workaround - can be removed once https://github.com/electron/electron/issues/48554 is fixed
-    resizeActionWindow: (deltaX: number, deltaY: number, direction: string) =>
-      ipcRenderer.invoke(IpcChannel.Selection_ActionWindowResize, deltaX, deltaY, direction),
     getLinuxEnvInfo: () => ipcRenderer.invoke(IpcChannel.Selection_GetLinuxEnvInfo)
   },
   agentTools: {

@@ -352,10 +352,7 @@ export enum IpcChannel {
   Selection_ActionWindowClose = 'selection:action-window-close',
   Selection_ActionWindowMinimize = 'selection:action-window-minimize',
   Selection_ActionWindowPin = 'selection:action-window-pin',
-  // [Windows only] Electron bug workaround - can be removed once https://github.com/electron/electron/issues/48554 is fixed
-  Selection_ActionWindowResize = 'selection:action-window-resize',
   Selection_ProcessAction = 'selection:process-action',
-  Selection_UpdateActionData = 'selection:update-action-data',
   Selection_GetLinuxEnvInfo = 'selection:get-linux-env-info',
 
   // Data: Preference
@@ -486,5 +483,9 @@ export enum IpcChannel {
   WindowManager_Maximize = 'window-manager:maximize',
   WindowManager_Focus = 'window-manager:focus',
   WindowManager_GetInitData = 'window-manager:get-init-data',
-  WindowManager_PoolReset = 'window-manager:pool-reset'
+  // Fired when a managed window is re-used (pooled recycle or singleton reopen).
+  // Event payload: the optional initData passed to open() — present only when the
+  // caller supplied it; main never fires this event for fresh window creation or
+  // when reuse happens without new initData.
+  WindowManager_Reused = 'window-manager:reused'
 }

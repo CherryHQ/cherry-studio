@@ -96,7 +96,11 @@ vi.mock('../../utils/embed', () => ({
 }))
 
 vi.mock('../../utils/model', () => ({
-  getEmbedModel: getEmbedModelMock
+  getEmbedModel: getEmbedModelMock,
+  getKnowledgeBaseEmbeddingModelMissingMessage: vi.fn(
+    (baseId: string) =>
+      `Knowledge base ${baseId} has no embedding model configured. Select a new embedding model before indexing or searching.`
+  )
 }))
 
 const { KnowledgeRuntimeService } = await import('..')
@@ -298,6 +302,27 @@ describe('KnowledgeRuntimeService', () => {
     expect(vectorStoreQueryMock).not.toHaveBeenCalled()
   })
 
+  it('fails search with a clear error when the knowledge base has no embedding model configured', async () => {
+    const service = new KnowledgeRuntimeService()
+    const base = {
+      ...createBase(),
+      embeddingModelId: null
+    }
+
+    getEmbedModelMock.mockImplementationOnce(() => {
+      throw new Error(
+        'Knowledge base kb-1 has no embedding model configured. Select a new embedding model before indexing or searching.'
+      )
+    })
+
+    await expect(service.search(base, 'hello')).rejects.toThrow(
+      'Knowledge base kb-1 has no embedding model configured. Select a new embedding model before indexing or searching.'
+    )
+
+    expect(embedManyMock).not.toHaveBeenCalled()
+    expect(createVectorStoreMock).not.toHaveBeenCalled()
+  })
+
   it('marks directory items as failed instead of completed', async () => {
     const service = new KnowledgeRuntimeService()
     const base = createBase()
@@ -321,6 +346,37 @@ describe('KnowledgeRuntimeService', () => {
     expect(knowledgeItemUpdateMock).not.toHaveBeenCalledWith(item.id, {
       status: 'completed',
       error: null
+    })
+  })
+
+  it('fails items before reading documents when the knowledge base has no embedding model configured', async () => {
+    const service = new KnowledgeRuntimeService()
+    const base = {
+      ...createBase(),
+      embeddingModelId: null
+    }
+    const item = createNoteItem('note-no-model')
+
+    getEmbedModelMock.mockImplementationOnce(() => {
+      throw new Error(
+        'Knowledge base kb-1 has no embedding model configured. Select a new embedding model before indexing or searching.'
+      )
+    })
+
+    await expect(service.addItems(base, [item])).rejects.toThrow(
+      'Knowledge base kb-1 has no embedding model configured. Select a new embedding model before indexing or searching.'
+    )
+
+    expect(loadKnowledgeItemDocumentsMock).not.toHaveBeenCalled()
+    expect(createVectorStoreMock).not.toHaveBeenCalled()
+    expect(knowledgeItemUpdateMock).toHaveBeenCalledWith(item.id, {
+      status: 'pending',
+      error: null
+    })
+    expect(knowledgeItemUpdateMock).toHaveBeenCalledWith(item.id, {
+      status: 'failed',
+      error:
+        'Knowledge base kb-1 has no embedding model configured. Select a new embedding model before indexing or searching.'
     })
   })
 

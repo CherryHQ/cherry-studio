@@ -79,17 +79,10 @@
       "breakpoints": true
     },
     {
-      "idx": 7,
+      "idx": 11,
       "version": "6",
-      "when": 1774622546141,
-      "tag": "0007_steep_hedge_knight",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "6",
-      "when": 1775137534101,
-      "tag": "0008_wild_ultron",
+      "when": 1776180491685,
+      "tag": "0011_outgoing_silver_sable",
       "breakpoints": true
     }
   ],

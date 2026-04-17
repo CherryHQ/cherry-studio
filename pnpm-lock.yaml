@@ -356,13 +356,13 @@ importers:
         version: 3.1.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.8.3)
       '@electron-toolkit/preload':
         specifier: ^3.0.0
-        version: 3.0.2(electron@40.8.0)
+        version: 3.0.2(electron@41.2.1)
       '@electron-toolkit/tsconfig':
         specifier: ^1.0.1
         version: 1.0.1(@types/node@24.10.4)
       '@electron-toolkit/utils':
         specifier: ^3.0.0
-        version: 3.0.0(electron@40.8.0)
+        version: 3.0.0(electron@41.2.1)
       '@electron/notarize':
         specifier: ^2.5.0
         version: 2.5.0
@@ -799,8 +799,8 @@ importers:
         specifier: ^0.44.5
         version: 0.44.7(@libsql/client@0.15.15(patch_hash=735d1026dd9899a96d0e514ae92133da32447a436ff39216106dde0fec6e1f78))(@opentelemetry/api@1.9.0)
       electron:
-        specifier: 40.8.0
-        version: 40.8.0
+        specifier: 41.2.1
+        version: 41.2.1
       electron-builder:
         specifier: 26.8.1
         version: 26.8.1(electron-builder-squirrel-windows@26.1.0)
@@ -9018,8 +9018,8 @@ packages:
     resolution: {integrity: sha512-bO3y10YikuUwUuDUQRM4KfwNkKhnpVO7IPdbsrejwN9/AABJzzTQ4GeHwyzNSrVO+tEH3/Np255a3sVZpZDjvg==}
     engines: {node: '>=8.0.0'}
 
-  electron@40.8.0:
-    resolution: {integrity: sha512-WoPq0Nr9Yx3g7T6VnJXdwa/rr2+VRyH3a+K+ezfMKBlf6WjxE/LmhMQabKbb6yjm9RbZhJBRcYyoLph421O2mQ==}
+  electron@41.2.1:
+    resolution: {integrity: sha512-teeRThiYGTPKf/2yOW7zZA1bhb91KEQ4yLBPOg7GxpmnkLFLugKgQaAKOrCgdzwsXh/5mFIfmkm+4+wACJKwaA==}
     engines: {node: '>= 12.20.55'}
     hasBin: true
 
@@ -16657,17 +16657,17 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@electron-toolkit/preload@3.0.2(electron@40.8.0)':
+  '@electron-toolkit/preload@3.0.2(electron@41.2.1)':
     dependencies:
-      electron: 40.8.0
+      electron: 41.2.1
 
   '@electron-toolkit/tsconfig@1.0.1(@types/node@24.10.4)':
     dependencies:
       '@types/node': 24.10.4
 
-  '@electron-toolkit/utils@3.0.0(electron@40.8.0)':
+  '@electron-toolkit/utils@3.0.0(electron@41.2.1)':
     dependencies:
-      electron: 40.8.0
+      electron: 41.2.1
 
   '@electron/asar@3.4.1':
     dependencies:
@@ -23524,7 +23524,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  electron@40.8.0:
+  electron@41.2.1:
     dependencies:
       '@electron/get': 2.0.3
       '@types/node': 24.10.4
