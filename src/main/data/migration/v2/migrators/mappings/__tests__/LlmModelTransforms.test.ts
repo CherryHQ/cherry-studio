@@ -1,65 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
-import { extractUniqueModelId, transformLlmModelIds } from '../LlmModelTransforms'
+import { transformLlmModelIds } from '../LlmModelTransforms'
 
 describe('LlmModelTransforms', () => {
-  describe('extractUniqueModelId', () => {
-    it('creates UniqueModelId from a valid Model object', () => {
-      const model = { id: 'gpt-4', provider: 'openai', name: 'GPT-4' }
-      expect(extractUniqueModelId(model)).toBe('openai::gpt-4')
-    })
-
-    it('handles model with extra fields', () => {
-      const model = { id: 'claude-3-opus', provider: 'anthropic', name: 'Claude 3 Opus', group: 'Claude' }
-      expect(extractUniqueModelId(model)).toBe('anthropic::claude-3-opus')
-    })
-
-    it('returns null for null input', () => {
-      expect(extractUniqueModelId(null)).toBeNull()
-    })
-
-    it('returns null for undefined input', () => {
-      expect(extractUniqueModelId(undefined)).toBeNull()
-    })
-
-    it('returns null for non-object input', () => {
-      expect(extractUniqueModelId('string')).toBeNull()
-      expect(extractUniqueModelId(123)).toBeNull()
-    })
-
-    it('returns null when provider is missing', () => {
-      expect(extractUniqueModelId({ id: 'gpt-4' })).toBeNull()
-    })
-
-    it('returns null when id is missing', () => {
-      expect(extractUniqueModelId({ provider: 'openai' })).toBeNull()
-    })
-
-    it('returns null when provider is empty string', () => {
-      expect(extractUniqueModelId({ id: 'gpt-4', provider: '' })).toBeNull()
-    })
-
-    it('returns null when id is empty string', () => {
-      expect(extractUniqueModelId({ id: '', provider: 'openai' })).toBeNull()
-    })
-
-    it('returns null for empty object', () => {
-      expect(extractUniqueModelId({})).toBeNull()
-    })
-
-    it('returns null when provider contains "::"', () => {
-      expect(extractUniqueModelId({ id: 'gpt-4', provider: 'o::p' })).toBeNull()
-    })
-
-    it('returns id as-is when already in UniqueModelId format', () => {
-      expect(extractUniqueModelId({ id: 'openai::gpt-4', provider: 'openai' })).toBe('openai::gpt-4')
-    })
-
-    it('trims whitespace around provider and id', () => {
-      expect(extractUniqueModelId({ id: ' gpt-4 ', provider: ' openai ' })).toBe('openai::gpt-4')
-    })
-  })
-
   describe('transformLlmModelIds', () => {
     it('transforms all 4 model fields to UniqueModelIds', () => {
       const sources = {
@@ -115,6 +58,22 @@ describe('LlmModelTransforms', () => {
 
       expect(result['chat.default_model_id']).toBeNull()
       expect(result['topic.naming.model_id']).toBeNull()
+    })
+
+    it('uses shared model conversion behavior for passthrough, trimming, and invalid providers', () => {
+      const result = transformLlmModelIds({
+        defaultModel: { id: ' openai::gpt-4 ', provider: 'openai' },
+        topicNamingModel: { id: ' gpt-4o-mini ', provider: ' openai ' },
+        quickModel: { id: 'gpt-4', provider: 'o::p' },
+        translateModel: 'not-an-object'
+      })
+
+      expect(result).toEqual({
+        'chat.default_model_id': 'openai::gpt-4',
+        'topic.naming.model_id': 'openai::gpt-4o-mini',
+        'feature.quick_assistant.model_id': null,
+        'feature.translate.model_id': null
+      })
     })
   })
 })

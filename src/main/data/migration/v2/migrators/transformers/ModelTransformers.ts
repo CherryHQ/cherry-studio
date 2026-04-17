@@ -56,6 +56,9 @@ export function legacyModelToUniqueId(
       if (modelId.includes(UNIQUE_MODEL_ID_SEPARATOR)) {
         return modelId as UniqueModelId
       }
+      if (providerId.includes(UNIQUE_MODEL_ID_SEPARATOR)) {
+        return null
+      }
       return createUniqueModelId(providerId, modelId)
     }
   }
