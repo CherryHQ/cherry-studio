@@ -148,32 +148,83 @@ export class ApiServer {
     return null
   }
 
-  /**
-   * Extract path parameters from URL
-   */
+  // Extract path parameters from URL.
+  //
+  // Supports two param forms:
+  //   - Plain: `:name` matches exactly one path segment.
+  //   - Greedy: `:name` + `*` (trailing star) matches one-or-more consecutive
+  //     path segments, joined with `/`. Greedy may appear as the last segment,
+  //     OR in the middle anchored by static / plain-param trailing segments.
+  //     A pattern may contain at most one greedy param; a second greedy is
+  //     rejected defensively to keep matching unambiguous. Greedy does NOT
+  //     match zero segments.
+  //
+  // NOTE: Intentionally NOT calling decodeURIComponent() anywhere in this
+  // function, including for greedy captures. Path params (IDs) in this project
+  // are raw strings — keeping them untouched acts as implicit validation and
+  // preserves embedded `/`, `::`, `%`, etc. verbatim. See also the docs at
+  // docs/references/data/api-design-guidelines.md § "Greedy Tail Parameters".
   private extractPathParams(pattern: string, path: string): Record<string, string> | null {
     const patternParts = pattern.split('/')
     const pathParts = path.split('/')
 
-    if (patternParts.length !== pathParts.length) {
-      return null
+    const isGreedy = (part: string) => part.startsWith(':') && part.endsWith('*') && part.length > 2
+
+    // Locate the greedy segment (if any) and reject patterns with more than one.
+    let greedyIdx = -1
+    for (let i = 0; i < patternParts.length; i++) {
+      if (isGreedy(patternParts[i])) {
+        if (greedyIdx !== -1) return null
+        greedyIdx = i
+      }
     }
 
+    // Fast path: no greedy → strict length + classic matching.
+    if (greedyIdx === -1) {
+      if (patternParts.length !== pathParts.length) return null
+      const params: Record<string, string> = {}
+      for (let i = 0; i < patternParts.length; i++) {
+        if (patternParts[i].startsWith(':')) {
+          params[patternParts[i].slice(1)] = pathParts[i]
+        } else if (patternParts[i] !== pathParts[i]) {
+          return null
+        }
+      }
+      return params
+    }
+
+    // Greedy path: anchor leading + trailing static/plain segments, capture
+    // the middle. Greedy captures at least one segment, so path length must
+    // be >= pattern length.
+    if (pathParts.length < patternParts.length) return null
+
+    const trailingLen = patternParts.length - greedyIdx - 1
+    const greedyEnd = pathParts.length - trailingLen // exclusive
     const params: Record<string, string> = {}
 
-    for (let i = 0; i < patternParts.length; i++) {
+    // Match leading fixed part.
+    for (let i = 0; i < greedyIdx; i++) {
       if (patternParts[i].startsWith(':')) {
-        const paramName = patternParts[i].slice(1)
-        // NOTE: Intentionally NOT calling decodeURIComponent() here.
-        // Path params (IDs) in this project are nanoid/UUID-style strings with no
-        // URL-encoded characters. Keeping them raw acts as implicit validation —
-        // any caller passing percent-encoded or special characters will simply
-        // fail to match, preventing unexpected ID formats from reaching services.
-        params[paramName] = pathParts[i]
+        params[patternParts[i].slice(1)] = pathParts[i]
       } else if (patternParts[i] !== pathParts[i]) {
         return null
       }
     }
+
+    // Match trailing fixed part (anchors the greedy capture).
+    for (let t = 0; t < trailingLen; t++) {
+      const patternPart = patternParts[greedyIdx + 1 + t]
+      const pathPart = pathParts[greedyEnd + t]
+      if (patternPart.startsWith(':')) {
+        params[patternPart.slice(1)] = pathPart
+      } else if (patternPart !== pathPart) {
+        return null
+      }
+    }
+
+    // Greedy capture (guaranteed ≥1 segment by the length check above).
+    const greedyName = patternParts[greedyIdx].slice(1, -1)
+    params[greedyName] = pathParts.slice(greedyIdx, greedyEnd).join('/')
 
     return params
   }

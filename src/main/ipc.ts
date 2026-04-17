@@ -244,7 +244,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   // get cache size
   ipcMain.handle(IpcChannel.App_GetCacheSize, async () => {
-    const cachePath = application.getPath('app.userdata.cache')
+    const cachePath = application.getPath('app.session.cache')
     logger.info(`Calculating cache size for path: ${cachePath}`)
 
     try {
