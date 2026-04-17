@@ -50,11 +50,23 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const inputBarRef = useRef<HTMLDivElement>(null)
   const featureMenusRef = useRef<FeatureMenusRef>(null)
 
-  // Synchronous store read — avoids pulling in react-redux `<Provider>` which is
+  // Synchronous store read — avoids pulling in react-redux `<Provider>`, which is
   // intentionally absent from the mini window (see MiniWindowApp). The store is
-  // rehydrated via PersistGate before this component mounts, so `getAssistantById`
-  // returns stable data; mini window config changes land from the main window via
-  // preference updates that force a full window remount.
+  // rehydrated by PersistGate before this component mounts, so `getAssistantById`
+  // returns stable data.
+  //
+  // Why not DataApi `useQuery('/assistants/:id')` (endpoints already exist):
+  //  - Downstream (`<InputBar>` → `<ModelAvatar model={...} />`) expects a fully
+  //    populated `Model` object. DataApi's Assistant carries only `modelId`, so
+  //    going that route means a second `useQuery('/models/:providerId/:modelId')`
+  //    and reshaping the result to match — the change would fan out to
+  //    ModelAvatar / InputBar and other consumers.
+  //  - A mini window session keeps a single assistant config for its whole
+  //    lifetime. Config changes originate in the main window (QuickAssistantSettings)
+  //    and only take effect on the next open; no live reactivity is needed here.
+  //
+  // Full DataApi migration is a follow-up once downstream components have been
+  // converted off the monolithic Assistant/Model shape.
   const currentAssistant = useMemo(() => {
     const base = (quickAssistantId && getAssistantById(quickAssistantId)) || getDefaultAssistant()
     return { ...base, model: base.model ?? getDefaultModel() }

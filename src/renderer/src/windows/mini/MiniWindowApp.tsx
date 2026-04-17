@@ -36,10 +36,14 @@ function MiniWindowContent(): React.ReactElement {
 }
 
 /**
- * No react-redux `<Provider>`: assistant data reads via DataApi (useQuery),
- * the remaining legacy synchronous accesses (e.g. `getTranslateModel()` reading
- * `store.getState().llm`) only need the store singleton to be rehydrated.
- * PersistGate waits for that rehydration.
+ * No react-redux `<Provider>` — the mini window intentionally stays Redux-Provider-free
+ * (continuation of b5343606a). All legacy `state.*` accesses below are routed through
+ * synchronous helpers (`getAssistantById`, `getDefaultModel`, `getTranslateModel` in
+ * `AssistantService`), which read `store.getState()` directly. That only requires the
+ * store singleton to be rehydrated, which `<PersistGate>` below waits for.
+ *
+ * Why not migrate further to DataApi `useQuery('/assistants/:id')`: see the design note
+ * above `currentAssistant` in HomeWindow.
  */
 function MiniWindow(): React.ReactElement {
   return (
