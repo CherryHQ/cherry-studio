@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "41811d34-23f3-465a-9a09-75fe47c8180f",
+  "id": "bf7b5d7e-1cd6-403c-8858-9ad07ed4e1dd",
   "prevId": "a947c27c-3d23-43b7-8846-3a82fcbbdee6",
   "tables": {
     "app_state": {
@@ -1129,13 +1129,13 @@
           "columns": ["status", "sort_order"],
           "isUnique": false
         },
-        "mini_app_type_idx": {
-          "name": "mini_app_type_idx",
+        "mini_app_kind_idx": {
+          "name": "mini_app_kind_idx",
           "columns": ["type"],
           "isUnique": false
         },
-        "mini_app_status_type_idx": {
-          "name": "mini_app_status_type_idx",
+        "mini_app_status_kind_idx": {
+          "name": "mini_app_status_kind_idx",
           "columns": ["status", "type"],
           "isUnique": false
         }
@@ -1148,8 +1148,8 @@
           "name": "mini_app_status_check",
           "value": "\"mini_app\".\"status\" IN ('enabled', 'disabled', 'pinned')"
         },
-        "mini_app_type_check": {
-          "name": "mini_app_type_check",
+        "mini_app_kind_check": {
+          "name": "mini_app_kind_check",
           "value": "\"mini_app\".\"type\" IN ('default', 'custom')"
         }
       }

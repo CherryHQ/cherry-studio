@@ -5,7 +5,7 @@ import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { tabsService } from '@renderer/services/TabsService'
 import { getWebviewLoaded, onWebviewStateChange, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
-import type { MiniApp } from '@shared/data/types/miniapp'
+import type { MiniApp } from '@shared/data/types/miniApp'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import type { WebviewTag } from 'electron'
 import type { FC } from 'react'
@@ -98,7 +98,7 @@ const MiniAppPage: FC = () => {
 
   const attachWebview = useCallback(() => {
     if (!app) return true // No app — stop monitoring
-    const selector = `webview[data-miniapp-id="${app.appId}"]`
+    const selector = `webview[data-miniapp-id="${CSS.escape(app.appId)}"]`
     const el = document.querySelector<WebviewTag>(selector)
     if (!el) return false
 

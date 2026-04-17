@@ -43,7 +43,7 @@ import type {
   SidebarIcon
 } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
-import type { MiniAppRegionFilter } from '@shared/data/types/miniapp'
+import type { MiniAppRegionFilter } from '@shared/data/types/miniApp'
 import { v4 as uuid } from 'uuid'
 
 import type { RemoteSyncState } from './backup'

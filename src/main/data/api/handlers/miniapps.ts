@@ -10,13 +10,13 @@
 
 import { miniAppService } from '@data/services/MiniAppService'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
-import type { MiniAppSchemas } from '@shared/data/api/schemas/miniapps'
+import type { MiniAppSchemas } from '@shared/data/api/schemas/miniApps'
 import {
   CreateMiniAppSchema,
   ListMiniAppsQuerySchema,
   ReorderMiniAppsSchema,
   UpdateMiniAppSchema
-} from '@shared/data/api/schemas/miniapps'
+} from '@shared/data/api/schemas/miniApps'
 
 /**
  * Handler type for a specific miniapp endpoint

@@ -57,10 +57,10 @@ export const miniAppTable = sqliteTable(
   },
   (t) => [
     index('mini_app_status_sort_idx').on(t.status, t.sortOrder),
-    index('mini_app_type_idx').on(t.type),
-    index('mini_app_status_type_idx').on(t.status, t.type),
+    index('mini_app_kind_idx').on(t.type),
+    index('mini_app_status_kind_idx').on(t.status, t.type),
     check('mini_app_status_check', sql`${t.status} IN ('enabled', 'disabled', 'pinned')`),
-    check('mini_app_type_check', sql`${t.type} IN ('default', 'custom')`)
+    check('mini_app_kind_check', sql`${t.type} IN ('default', 'custom')`)
   ]
 )
 

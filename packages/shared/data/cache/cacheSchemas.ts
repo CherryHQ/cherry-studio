@@ -1,4 +1,4 @@
-import type { MiniAppRegion } from '@shared/data/types/miniapp'
+import type { MiniAppRegion } from '@shared/data/types/miniApp'
 
 import type * as CacheValueTypes from './cacheValueTypes'
 

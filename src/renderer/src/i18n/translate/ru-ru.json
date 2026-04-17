@@ -2507,7 +2507,8 @@
         "title": "Удалить пользовательское приложение"
       }
     },
-    "title": "Встроенные приложения"
+    "title": "Встроенные приложения",
+    "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
   "miniapps": {
     "ant-ling": "Ant Ling",

@@ -65,32 +65,32 @@
       "when": 1775137534101
     },
     {
+      "breakpoints": true,
       "idx": 9,
-      "version": "6",
-      "when": 1775543209395,
       "tag": "0009_medical_giant_girl",
-      "breakpoints": true
+      "version": "6",
+      "when": 1775543209395
     },
     {
+      "breakpoints": true,
       "idx": 10,
-      "version": "6",
-      "when": 1775820970055,
       "tag": "0010_pink_shaman",
-      "breakpoints": true
+      "version": "6",
+      "when": 1775820970055
     },
     {
+      "breakpoints": true,
       "idx": 11,
-      "version": "6",
-      "when": 1776180491685,
       "tag": "0011_outgoing_silver_sable",
-      "breakpoints": true
+      "version": "6",
+      "when": 1776180491685
     },
     {
+      "breakpoints": true,
       "idx": 12,
+      "tag": "0012_mysterious_lizard",
       "version": "6",
-      "when": 1776428575499,
-      "tag": "0012_striped_hex",
-      "breakpoints": true
+      "when": 1776431726825
     }
   ],
   "version": "7"

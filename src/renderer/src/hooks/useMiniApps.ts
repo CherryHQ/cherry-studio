@@ -3,10 +3,11 @@ import { useCache } from '@data/hooks/useCache'
 import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import type { CreateMiniAppDto, ReorderMiniAppsDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniapps'
-import { ORIGIN_DEFAULT_MINI_APPS } from '@shared/data/presets/miniapps'
-import type { MiniApp } from '@shared/data/types/miniapp'
-import type { MiniAppRegion } from '@shared/data/types/miniapp'
+import i18n from '@renderer/i18n'
+import type { CreateMiniAppDto, ReorderMiniAppsDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
+import { ORIGIN_DEFAULT_MINI_APPS } from '@shared/data/presets/mini-apps'
+import type { MiniApp } from '@shared/data/types/miniApp'
+import type { MiniAppRegion } from '@shared/data/types/miniApp'
 import { useCallback, useEffect, useMemo } from 'react'
 
 /**
@@ -93,6 +94,33 @@ const detectUserRegion = async (): Promise<MiniAppRegion> => {
 // Module-level logger to avoid recreating on every render (rerender-defer-reads)
 const logger = loggerService.withContext('useMiniApps')
 
+/**
+ * Process Promise.allSettled results: throw on partial failures so callers
+ * can distinguish "all succeeded" from "partially failed", and invalidate
+ * the cache to resync UI with DB after partial failures.
+ */
+async function settleAndInvalidate(
+  results: PromiseSettledResult<MiniApp>[],
+  invalidate: (path: string) => Promise<void>,
+  label: string
+): Promise<MiniApp[]> {
+  const fulfilled = results.filter((r): r is PromiseFulfilledResult<MiniApp> => r.status === 'fulfilled')
+  const rejected = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+
+  if (rejected.length > 0) {
+    logger.error(`${label}: ${rejected.length} of ${results.length} updates failed`, {
+      failures: rejected.map((f) => f.reason)
+    })
+    // Resync UI with DB — partial failures leave local state drifting
+    await invalidate('/mini-apps')
+    const err = new Error(i18n.t('miniapp.update_partial_failure', { failed: rejected.length, total: results.length }))
+    err.name = 'PartialFailureError'
+    throw err
+  }
+
+  return fulfilled.map((r) => r.value)
+}
+
 export const useMiniApps = () => {
   // === Data (DataApi) ===
   const { data, isLoading, mutate: refetch } = useQuery('/mini-apps')
@@ -166,7 +194,7 @@ export const useMiniApps = () => {
   // Dynamic-path PATCH/DELETE via dataApiService (useMutation requires ConcreteApiPaths, not templates)
   const patchApp = useCallback(
     async (appId: string, body: UpdateMiniAppDto) => {
-      const result = await dataApiService.patch(`/mini-apps/${appId}`, { body })
+      const result = await dataApiService.patch(`/mini-apps/${encodeURIComponent(appId)}`, { body })
       await invalidate('/mini-apps')
       return result
     },
@@ -175,7 +203,7 @@ export const useMiniApps = () => {
 
   const deleteApp = useCallback(
     async (appId: string) => {
-      const result = await dataApiService.delete(`/mini-apps/${appId}`)
+      const result = await dataApiService.delete(`/mini-apps/${encodeURIComponent(appId)}`)
       await invalidate('/mini-apps')
       return result
     },
@@ -204,16 +232,9 @@ export const useMiniApps = () => {
       return Promise.allSettled([
         ...toEnable.map((a) => patchApp(a.appId, { status: 'enabled' })),
         ...toDisable.map((a) => patchApp(a.appId, { status: 'disabled' }))
-      ]).then((results) => {
-        const failed = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected')
-        if (failed.length > 0) {
-          logger.error('Failed to update miniapps', { failures: failed.map((f) => f.reason) })
-          window.toast?.error('Failed to update miniapps')
-        }
-        return results.filter((r): r is PromiseFulfilledResult<MiniApp> => r.status === 'fulfilled').map((r) => r.value)
-      })
+      ]).then((results) => settleAndInvalidate(results, invalidate, 'updateMiniApps'))
     },
-    [enabled, effectiveRegion, patchApp]
+    [enabled, effectiveRegion, patchApp, invalidate]
   )
 
   // Write: Update disabled apps (backward-compat) ===
@@ -230,16 +251,9 @@ export const useMiniApps = () => {
       return Promise.allSettled([
         ...toDisable.map((a) => patchApp(a.appId, { status: 'disabled' })),
         ...toEnable.map((a) => patchApp(a.appId, { status: 'enabled' }))
-      ]).then((results) => {
-        const failed = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected')
-        if (failed.length > 0) {
-          logger.error('Failed to update disabled miniapps', { failures: failed.map((f) => f.reason) })
-          window.toast?.error('Failed to update miniapps')
-        }
-        return results.filter((r): r is PromiseFulfilledResult<MiniApp> => r.status === 'fulfilled').map((r) => r.value)
-      })
+      ]).then((results) => settleAndInvalidate(results, invalidate, 'updateDisabledMiniApps'))
     },
-    [disabled, effectiveRegion, patchApp]
+    [disabled, effectiveRegion, patchApp, invalidate]
   )
 
   // Write: Update pinned apps (backward-compat) ===
@@ -254,16 +268,9 @@ export const useMiniApps = () => {
       return Promise.allSettled([
         ...toPin.map((a) => patchApp(a.appId, { status: 'pinned' })),
         ...toUnpin.map((a) => patchApp(a.appId, { status: 'enabled' }))
-      ]).then((results) => {
-        const failed = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected')
-        if (failed.length > 0) {
-          logger.error('Failed to update pinned miniapps', { failures: failed.map((f) => f.reason) })
-          window.toast?.error('Failed to update miniapps')
-        }
-        return results.filter((r): r is PromiseFulfilledResult<MiniApp> => r.status === 'fulfilled').map((r) => r.value)
-      })
+      ]).then((results) => settleAndInvalidate(results, invalidate, 'updatePinnedMiniApps'))
     },
-    [pinned, patchApp]
+    [pinned, patchApp, invalidate]
   )
 
   // === V2-style mutations ===

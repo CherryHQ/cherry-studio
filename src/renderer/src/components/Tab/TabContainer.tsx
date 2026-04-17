@@ -17,7 +17,7 @@ import type { Tab } from '@renderer/store/tabs'
 import { addTab, removeTab, setActiveTab, setTabs } from '@renderer/store/tabs'
 import { classNames } from '@renderer/utils'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import type { MiniApp } from '@shared/data/types/miniapp'
+import type { MiniApp } from '@shared/data/types/miniApp'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import type { LRUCache } from 'lru-cache'
 import {

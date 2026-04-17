@@ -2507,7 +2507,8 @@
         "title": "Delete Custom App"
       }
     },
-    "title": "MiniApp"
+    "title": "MiniApp",
+    "update_partial_failure": "{{failed}} of {{total}} updates failed"
   },
   "miniapps": {
     "ant-ling": "Ant Ling",

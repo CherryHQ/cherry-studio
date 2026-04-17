@@ -2507,7 +2507,8 @@
         "title": "删除自定义应用"
       }
     },
-    "title": "小程序"
+    "title": "小程序",
+    "update_partial_failure": "{{failed}}/{{total}} 项更新失败"
   },
   "miniapps": {
     "ant-ling": "蚂蚁百灵",

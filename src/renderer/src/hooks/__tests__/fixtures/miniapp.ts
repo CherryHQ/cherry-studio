@@ -1,4 +1,4 @@
-import type { MiniApp, MiniAppRegion } from '@shared/data/types/miniapp'
+import type { MiniApp, MiniAppRegion } from '@shared/data/types/miniApp'
 
 /**
  * Shared test fixtures for MiniApp-related hooks.

@@ -5,7 +5,7 @@
  * API only manages user preferences for default apps and full CRUD for custom apps.
  */
 
-import type { MiniApp } from '@shared/data/types/miniapp'
+import type { MiniApp } from '@shared/data/types/miniApp'
 import * as z from 'zod'
 
 import type { OffsetPaginationResponse } from '../apiTypes'
@@ -22,7 +22,7 @@ const MiniAppRegionSchema = z.enum(['CN', 'Global'])
  * Zod schema for creating a new custom miniapp
  */
 export const CreateMiniAppSchema = z.object({
-  appId: z.string().min(1),
+  appId: z.string().regex(/^[A-Za-z0-9_-]+$/, 'appId can only contain letters, numbers, underscore, and hyphen'),
   name: z.string().min(1),
   url: z.string().min(1),
   logo: z.string().min(1),
@@ -54,7 +54,7 @@ export type UpdateMiniAppDto = z.infer<typeof UpdateMiniAppSchema>
 export const ReorderMiniAppsSchema = z.object({
   items: z.array(
     z.object({
-      appId: z.string().min(1),
+      appId: z.string().regex(/^[A-Za-z0-9_-]+$/, 'appId can only contain letters, numbers, underscore, and hyphen'),
       sortOrder: z.number().int()
     })
   )

@@ -19,9 +19,9 @@ import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
-import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniapps'
-import { type BuiltinMiniAppDefinition, ORIGIN_DEFAULT_MINI_APPS } from '@shared/data/presets/miniapps'
-import type { MiniApp, MiniAppId } from '@shared/data/types/miniapp'
+import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
+import { type BuiltinMiniAppDefinition, ORIGIN_DEFAULT_MINI_APPS } from '@shared/data/presets/mini-apps'
+import type { MiniApp, MiniAppId } from '@shared/data/types/miniApp'
 import { and, asc, desc, eq, inArray, type SQL } from 'drizzle-orm'
 
 const logger = loggerService.withContext('DataApi:MiniAppService')
@@ -273,11 +273,7 @@ export class MiniAppService {
   async update(appId: string, dto: UpdateMiniAppDto): Promise<MiniApp> {
     const existing = await this.getByAppId(appId)
 
-    if (existing.type === 'default') {
-      // For builtin apps, only allow updating preference fields
-      await this.ensureDefaultAppPref(appId)
-    }
-
+    // Build updates map before any side effects
     const updates: Partial<MiniAppInsert> = {}
 
     if (existing.type === 'default') {
@@ -295,6 +291,7 @@ export class MiniAppService {
       if (dto.configuration !== undefined) updates.configuration = dto.configuration
     }
 
+    // Validate before touching the DB (prevents ghost row on ensureDefaultAppPref)
     const appliedChanges = Object.keys(updates)
     if (appliedChanges.length === 0) {
       throw DataApiErrorFactory.validation(
@@ -303,7 +300,17 @@ export class MiniAppService {
       )
     }
 
-    const [row] = await this.db.update(miniAppTable).set(updates).where(eq(miniAppTable.appId, appId)).returning()
+    let row: MiniAppSelect | undefined
+
+    if (existing.type === 'default') {
+      // Atomic: ensure preference row + update in one transaction
+      await this.db.transaction(async (tx) => {
+        await this.ensureDefaultAppPref(appId, tx)
+        ;[row] = await tx.update(miniAppTable).set(updates).where(eq(miniAppTable.appId, appId)).returning()
+      })
+    } else {
+      ;[row] = await this.db.update(miniAppTable).set(updates).where(eq(miniAppTable.appId, appId)).returning()
+    }
 
     if (!row) {
       throw DataApiErrorFactory.notFound('MiniApp', appId)
@@ -411,12 +418,16 @@ export class MiniAppService {
 
   /**
    * Ensure a DB preference row exists for a builtin app.
+   * Accepts an optional transaction so callers can make this atomic with
+   * subsequent writes (e.g. update).
    */
-  private async ensureDefaultAppPref(appId: string): Promise<void> {
+  private async ensureDefaultAppPref(appId: string, tx?: any): Promise<void> {
     const builtinDef = builtinMiniAppMap.get(appId)
     if (!builtinDef) return
 
-    await this.db
+    const db = tx ?? this.db
+
+    await db
       .insert(miniAppTable)
       .values({
         appId: builtinDef.id,

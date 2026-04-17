@@ -3,7 +3,7 @@
  */
 
 import type { MiniAppInsert, MiniAppRegion, MiniAppStatus } from '@data/db/schemas/miniapp'
-import { ORIGIN_DEFAULT_MINI_APPS } from '@shared/data/presets/miniapps'
+import { ORIGIN_DEFAULT_MINI_APPS } from '@shared/data/presets/mini-apps'
 
 function toNullable<T>(value: unknown): T | null {
   return (value ?? null) as T | null
