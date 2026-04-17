@@ -8,7 +8,7 @@ import type {
   AiStreamDetachRequest,
   AiStreamOpenRequest
 } from '@shared/ai/transport'
-import type { CherryUIMessageChunk, Message } from '@shared/data/types/message'
+import type { Message } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import { type SerializedError, serializeError } from '@shared/types/error'
@@ -554,11 +554,14 @@ export class AiStreamManager extends BaseService {
     const aiService = application.get('AiService')
     const signal = exec.abortController.signal
 
-    let stream: ReadableStream<CherryUIMessageChunk>
+    let stream: ReadableStream<UIMessageChunk>
     try {
-      stream = aiService.streamText(request, signal)
+      // Pre-stream errors (provider/model resolution, agent param build) reject
+      // the Promise before any stream is created; they route straight to the
+      // standard error path without a half-open stream to tear down.
+      stream = await aiService.streamText(request, signal)
     } catch (err) {
-      if (!signal.aborted) logger.error('streamText threw synchronously', { topicId, modelId, err })
+      if (!signal.aborted) logger.error('streamText failed before stream start', { topicId, modelId, err })
       await this.onExecutionError(topicId, modelId, serializeError(err))
       return
     }
@@ -627,10 +630,15 @@ export class AiStreamManager extends BaseService {
    * `readUIMessageStream` has locked it.
    */
   private async accumulateFinalMessage(
-    chunkStream: ReadableStream<CherryUIMessageChunk>,
+    chunkStream: ReadableStream<UIMessageChunk>,
     exec: StreamExecution
   ): Promise<void> {
     const signal = exec.abortController.signal
+    // `readUIMessageStream<CherryUIMessage>` does the narrowing from wide
+    // `UIMessageChunk` input to `CherryUIMessage` output — that is the single
+    // point where transport-level width meets Cherry-level shape. Upstream
+    // (pump, AiService) stay on the wide AI SDK type so an unexpected
+    // `data-*` variant from a provider / MCP tool can't be silently cast.
     const uiStream = readUIMessageStream<CherryUIMessage>({ stream: chunkStream })
     const reader = uiStream.getReader()
     const onAbort = () => {

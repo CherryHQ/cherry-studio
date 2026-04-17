@@ -26,7 +26,6 @@ import type { ClaudeCodeProviderSettings } from './provider/claude-code/types'
 import { extractAgentSessionId, isAgentSessionTopic } from './provider/claudeCodeSettingsBuilder'
 import { providerToAiSdkConfig } from './provider/config'
 import { listModels as listModelsFromProvider } from './services/listModels'
-import type { CherryUIMessageChunk } from './stream-manager/types'
 import { registerMcpTools } from './tools/mcpTools'
 import { resolveAssistantMcpToolIds } from './tools/resolveAssistantMcpTools'
 import { ToolRegistry } from './tools/ToolRegistry'
@@ -206,32 +205,19 @@ export class AiService extends BaseService {
 
   /**
    * Start a streaming chat request and return the raw AI SDK UIMessageChunk
-   * stream. The caller (AiStreamManager) owns the read loop, multicast,
-   * final-message accumulation, and terminal dispatching.
+   * stream directly from `runAgentLoop`. The caller (AiStreamManager) owns
+   * the read loop, multicast, final-message accumulation, and terminal
+   * dispatching.
+   *
+   * Errors split cleanly by phase:
+   *  - pre-stream (resolving the assistant, building agent params) → the
+   *    returned Promise rejects before any stream exists;
+   *  - mid-stream (provider failure, tool error, abort) → the stream
+   *    itself errors and the caller's reader.read() rejects.
    */
-  streamText(request: AiStreamRequest, signal: AbortSignal): ReadableStream<CherryUIMessageChunk> {
+  async streamText(request: AiStreamRequest, signal: AbortSignal): Promise<ReadableStream<UIMessageChunk>> {
     logger.info('streamText started', { chatId: request.chatId })
 
-    const { readable, writable } = new TransformStream<CherryUIMessageChunk>()
-    const writer = writable.getWriter()
-
-    this.resolveAndStream(request, signal, writer).catch(async (error) => {
-      if (signal.aborted) {
-        logger.debug('streamText aborted', { chatId: request.chatId, reason: signal.reason })
-      } else {
-        logger.error('streamText failed', { error })
-      }
-      await writer.abort(error).catch(() => {})
-    })
-
-    return readable
-  }
-
-  private async resolveAndStream(
-    request: AiStreamRequest,
-    signal: AbortSignal,
-    writer: WritableStreamDefaultWriter<UIMessageChunk>
-  ): Promise<void> {
     const { sdkConfig, tools, plugins, system, options, model } = await this.buildAgentParams(request)
 
     // Wire steeringSource for Claude Code: PendingMessageQueue is AsyncIterable<Message>
@@ -243,7 +229,7 @@ export class AiService extends BaseService {
       }
     }
 
-    const stream = runAgentLoop(
+    return runAgentLoop(
       {
         providerId: sdkConfig.providerId,
         providerSettings: sdkConfig.providerSettings,
@@ -261,18 +247,6 @@ export class AiService extends BaseService {
       request.messages ?? [],
       signal
     )
-
-    const reader = stream.getReader()
-    try {
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done || signal.aborted) break
-        await writer.write(value)
-      }
-      await writer.close()
-    } finally {
-      reader.releaseLock()
-    }
   }
 
   // ── Non-streaming text generation (agent.generate) ──

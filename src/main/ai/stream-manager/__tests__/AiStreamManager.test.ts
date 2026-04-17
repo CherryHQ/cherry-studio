@@ -90,9 +90,9 @@ function controlledStream(): {
   }
 }
 
-const mockStreamText = vi.fn<(request: AiStreamRequest, signal: AbortSignal) => ReadableStream<UIMessageChunk>>(() =>
-  pendingStream()
-)
+const mockStreamText = vi.fn<
+  (request: AiStreamRequest, signal: AbortSignal) => Promise<ReadableStream<UIMessageChunk>>
+>(async () => pendingStream())
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -162,7 +162,7 @@ describe('AiStreamManager', () => {
     vi.useFakeTimers()
     mgr = createManager()
     vi.clearAllMocks()
-    mockStreamText.mockImplementation(() => pendingStream())
+    mockStreamText.mockImplementation(async () => pendingStream())
   })
 
   afterEach(() => {
@@ -678,7 +678,7 @@ describe('AiStreamManager', () => {
       vi.useRealTimers()
 
       const controlled = controlledStream()
-      mockStreamText.mockImplementationOnce(() => controlled.stream)
+      mockStreamText.mockImplementationOnce(async () => controlled.stream)
 
       const listener = new FakeListener('l:a')
       startSingle(mgr, {
