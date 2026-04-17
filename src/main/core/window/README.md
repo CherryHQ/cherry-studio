@@ -236,7 +236,7 @@ The invariant `idle ⊆ managed` holds throughout. A window enters `managed` on 
 
 ### GC Timer
 
-A single shared `setInterval` (120s) runs two checks per pool type, in priority order:
+A single shared `setInterval` (60s) runs two checks per pool type, in priority order:
 
 1. **Inactivity timeout** (checked first): If `now - lastOpenAt > inactivityTimeout`, trim the idle queue down to `standbySize` (destroy the oldest excess). `recycleMinSize` is NOT preserved — prolonged inactivity means the recycle buffer is stale.
 2. **Decay** (only when inactivity did not fire): If `idle.length > max(standbySize, recycleMinSize)` and enough time has passed since both the last `open()` and the last decay, destroy one idle window from the front.
