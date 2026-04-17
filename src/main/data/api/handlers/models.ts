@@ -10,6 +10,7 @@ import { modelService } from '@data/services/ModelService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
 import type { ModelSchemas } from '@shared/data/api/schemas/models'
+import { parseUniqueModelId } from '@shared/data/types/model'
 
 /**
  * Handler type for a specific model endpoint
@@ -35,17 +36,20 @@ export const modelHandlers: {
     }
   },
 
-  '/models/:providerId/:modelId': {
+  '/models/:uniqueModelId*': {
     GET: async ({ params }) => {
-      return await modelService.getByKey(params.providerId, params.modelId)
+      const { providerId, modelId } = parseUniqueModelId(params.uniqueModelId)
+      return await modelService.getByKey(providerId, modelId)
     },
 
     PATCH: async ({ params, body }) => {
-      return await modelService.update(params.providerId, params.modelId, body)
+      const { providerId, modelId } = parseUniqueModelId(params.uniqueModelId)
+      return await modelService.update(providerId, modelId, body)
     },
 
     DELETE: async ({ params }) => {
-      await modelService.delete(params.providerId, params.modelId)
+      const { providerId, modelId } = parseUniqueModelId(params.uniqueModelId)
+      await modelService.delete(providerId, modelId)
       return undefined
     }
   }
