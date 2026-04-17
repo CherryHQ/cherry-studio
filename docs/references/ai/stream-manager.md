@@ -516,10 +516,56 @@ Persistent / Temporary / Agent 三种存储路径**共享同一个 `PersistenceL
 
 `AiService` 是 lifecycle 服务：
 
-- **Streaming**：`streamText(request, signal)` → `ReadableStream<UIMessageChunk>`，被 `AiStreamManager.runExecutionPump` 消费
+- **Streaming**：`streamText(request, signal)` → `Promise<ReadableStream<UIMessageChunk>>`，被 `AiStreamManager.runExecutionPump` 消费
 - **非流式 IPC gateway**：`generateText` / `checkModel` / `embedMany` / `generateImage` / `listModels` / `abortImage`，在 `onInit` 里注册为 IPC handler
 
-`AiStreamManager` 通过 `application.get('AiService').streamText(...)` 调用，不再经过 `InternalStreamTarget` 的 channel-switch。
+`AiStreamManager` 通过 `await application.get('AiService').streamText(...)` 调用。pre-stream 错误（provider/model 解析、agent 参数构建）从 Promise reject 抛出；mid-stream 错误从返回的 stream 自身 error 传播 —— 两条错误路径不会混在一起。
+
+### Per-call extensions（AiService 层，stream-manager 不参与）
+
+`AiService.streamText` 和 `generateText` 各自接受一个可选的第三参数，用于**per-call tuning** —— 某一次调用想改的 hooks / options / plugins / tools：
+
+```typescript
+// AiService.ts
+async streamText(
+  request: AiStreamRequest,
+  signal: AbortSignal,
+  extensions?: AiStreamExtensions
+): Promise<ReadableStream<UIMessageChunk>>
+
+export interface AiStreamExtensions {
+  hooks?: AgentLoopHooks
+  optionsOverride?: Partial<AgentOptions>
+  extraPlugins?: AiPlugin[]
+  extraTools?: ToolSet
+}
+```
+
+**设计原则 — 三条路径互不干涉**：
+
+| 路径 | 用途 | 走哪里 |
+|---|---|---|
+| **per-call tuning** | 某次调用真的需要不同的 toolChoice / providerOptions / debug hook | `AiService.streamText(req, signal, ext)` 第三参数 |
+| **cross-cutting behavior**（未来） | 全局 trace、自动重命名、用量统计 | 独立的 Plugin Registry 层（尚未实现）—— AiService 从 registry 拉 hook，不走第三参数 |
+| **topic dispatch** | 发消息到 topic、多播、persistence、reconnect | `AiStreamManager.send({...})` —— stream-manager **完全不感知 SDK 类型** |
+
+**关键分层**：`SendModelSpec` **不含** extensions 字段，stream-manager 的 pump 里调 `aiService.streamText(req, signal)` 也不传第三参数。理由：
+- Provider / Scheduler / Channel 这些 stream-manager 的调用方只负责构造请求数据，对 AI 调用行为无意见
+- 谁要 per-call tuning（例如某个 standalone API endpoint），**直接调 `AiService.streamText(req, signal, ext)`**，绕过 stream-manager（它们本来就不需要 multicast / persistence / attach）
+- stream-manager 的 transport schema 里因此没有任何 SDK 特定类型，AI SDK 升级（`AgentLoopHooks` 加新字段）不会波及 dispatch 代码
+
+**扩展点详细**：
+
+| 字段 | 类型 | 语义 |
+|---|---|---|
+| `hooks` | `AgentLoopHooks` | agentLoop 的 iteration 钩子。仅 `AiStreamExtensions` 有（generateText 无 iteration 模型） |
+| `optionsOverride` | `Partial<AgentOptions>` | AI SDK agent settings 覆盖层，shallow-merge 在 assistant 默认之上 |
+| `extraPlugins` | `AiPlugin[]` | 追加到内建 plugin 之后。顺序敏感 —— caller plugins 在 Cherry 的 reasoning / simulate-streaming 等之后跑 |
+| `extraTools` | `ToolSet` | 合并到解析后的 ToolSet。Cherry 的 MCP / assistant 工具在名字冲突时获胜（caller 只填补空位） |
+
+`onFinish` 的 compose 行为：**内建 token tracker 永远先跑**，caller 的 `onFinish` 之后跑，caller 抛错被日志吞掉，不影响内建 analytics。其他有返回值的 hook（`prepareStep` / `onError` / `beforeIteration` / `afterIteration`）由 caller 接管 —— AiService 目前在这些 hook 上没有内建行为需要保留。
+
+这套 surface 直接转发 agentLoop 的契约，不做 Cherry 自定义 wrapper。当 AI SDK 升级 `AgentLoopHooks` / `AgentOptions` 时消费方需要跟着升级 —— 采用更保守的 wrapper 会以降低表达力为代价，目前未采用。未来引入完整 Plugin Registry 时，它是独立新层，与本节的 per-call extensions 并行共存，互不干扰。
 
 ## Grace Period & Reconnect
 

@@ -559,6 +559,10 @@ export class AiStreamManager extends BaseService {
       // Pre-stream errors (provider/model resolution, agent param build) reject
       // the Promise before any stream is created; they route straight to the
       // standard error path without a half-open stream to tear down.
+      // NB: `AiService.streamText` also accepts a third `extensions` argument
+      // for per-call hooks / options overrides. stream-manager intentionally
+      // does not forward them — callers that need per-call tuning call
+      // `aiService.streamText` directly without going through stream-manager.
       stream = await aiService.streamText(request, signal)
     } catch (err) {
       if (!signal.aborted) logger.error('streamText failed before stream start', { topicId, modelId, err })

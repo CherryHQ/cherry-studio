@@ -1,3 +1,4 @@
+import type { AiPlugin } from '@cherrystudio/ai-core'
 import { createAgent, embedMany as aiCoreEmbedMany, generateImage as aiCoreGenerateImage } from '@cherrystudio/ai-core'
 import { assistantDataService } from '@data/services/AssistantService'
 import { loggerService } from '@logger'
@@ -19,7 +20,7 @@ import type {
   UIMessageChunk
 } from 'ai'
 
-import { type AgentOptions, runAgentLoop } from './agentLoop'
+import { type AgentLoopHooks, type AgentOptions, runAgentLoop } from './agentLoop'
 import type { PendingMessageQueue } from './PendingMessageQueue'
 import { buildPlugins } from './plugins/PluginBuilder'
 import type { ClaudeCodeProviderSettings } from './provider/claude-code/types'
@@ -49,6 +50,20 @@ function isEmbeddingModel(model: Model): boolean {
   return EMBEDDING_MODEL_ID_REGEX.test(model.id)
 }
 
+/**
+ * Merge caller-supplied extra tools into the Cherry-resolved ToolSet.
+ * Cherry's resolved entries (MCP + assistant config) win on name conflict
+ * so callers can fill in gaps without shadowing managed tools. Returns
+ * `undefined` when neither side has any tools, which is the shape the
+ * AI SDK expects for "no tools" — passing an empty object can trip some
+ * provider plugins that check `tools != null`.
+ */
+function mergeTools(base: ToolSet | undefined, extra: ToolSet | undefined): ToolSet | undefined {
+  if (!extra) return base
+  if (!base) return extra
+  return { ...extra, ...base }
+}
+
 type ChatTrigger = Parameters<ChatTransport<UIMessage>['sendMessages']>[0]['trigger']
 
 // ── Request types ──────────────────────────────────────────────────
@@ -61,7 +76,7 @@ export interface AiBaseRequest {
   mcpToolIds?: string[]
 }
 
-/** Streaming chat request. */
+/** Streaming chat request — pure transport data. Serialisable across IPC. */
 export interface AiStreamRequest extends AiBaseRequest {
   /** Used by AiService for chunk routing. In AiStreamManager path this is set to topicId. */
   chatId: string
@@ -73,12 +88,66 @@ export interface AiStreamRequest extends AiBaseRequest {
   pendingMessages?: PendingMessageQueue
 }
 
-/** Non-streaming text generation request. */
+/** Non-streaming text generation request — pure transport data. */
 export interface AiGenerateRequest extends AiBaseRequest {
   system?: string
   prompt?: string
   messages?: ModelMessage[]
 }
+
+// ── SDK extensions ─────────────────────────────────────────────────
+//
+// Extensions carry non-serialisable behaviour (hooks, plugin references,
+// live `ToolSet` entries) that callers want to attach to a particular
+// streamText / generateText invocation. They are passed as an extra
+// argument rather than baked into the request shape so:
+//
+//  - transport payloads (IPC, stream-manager dispatch) stay pure data;
+//  - stream-manager treats extensions as an opaque passthrough — it does
+//    not need to import `AgentLoopHooks` / `AgentOptions` to wire them;
+//  - SDK evolution (AI SDK adding a new hook) never ripples through the
+//    Request types that IPC / Renderer / Provider code sees.
+
+/** Extensions for `streamText`. */
+export interface AiStreamExtensions {
+  /**
+   * Agent-loop hooks supplied by the caller. See `AgentLoopHooks` for the
+   * full list of extension points (onStart / beforeIteration / prepareStep
+   * / onStepFinish / afterIteration / onFinish / onError).
+   *
+   * `onFinish` composes with the built-in token tracker — the internal
+   * hook fires first, then the caller's `onFinish`; caller errors are
+   * logged but never cancel the internal analytics. Other value-returning
+   * hooks (`prepareStep`, `onError`, `beforeIteration`, `afterIteration`)
+   * are handed to the caller as-is — AiService has no internal behaviour
+   * on those paths today.
+   */
+  hooks?: AgentLoopHooks
+
+  /**
+   * AI SDK agent options override. Shallow-merged over the defaults built
+   * from `assistant.settings`. Use to force `toolChoice`, attach
+   * `providerOptions` / `telemetry`, tweak temperature per-call, etc.
+   */
+  optionsOverride?: Partial<AgentOptions>
+
+  /**
+   * Extra AiPlugins appended after the built-in plugin set. Plugin order
+   * is significant — caller plugins run after Cherry's built-ins (reasoning,
+   * simulate-streaming, etc).
+   */
+  extraPlugins?: AiPlugin[]
+
+  /**
+   * Extra tools merged into the resolved ToolSet. Cherry-resolved tools
+   * (MCP + assistant config) win on name conflict — caller entries only
+   * fill in names the registry does not already cover.
+   */
+  extraTools?: ToolSet
+}
+
+/** Extensions for `generateText`. Same shape as `AiStreamExtensions` minus `hooks` (no iteration model). */
+export type AiGenerateExtensions = Omit<AiStreamExtensions, 'hooks'>
 
 /** Result of non-streaming text generation. */
 export interface AiGenerateResult {
@@ -215,7 +284,11 @@ export class AiService extends BaseService {
    *  - mid-stream (provider failure, tool error, abort) → the stream
    *    itself errors and the caller's reader.read() rejects.
    */
-  async streamText(request: AiStreamRequest, signal: AbortSignal): Promise<ReadableStream<UIMessageChunk>> {
+  async streamText(
+    request: AiStreamRequest,
+    signal: AbortSignal,
+    extensions: AiStreamExtensions = {}
+  ): Promise<ReadableStream<UIMessageChunk>> {
     logger.info('streamText started', { chatId: request.chatId })
 
     const { sdkConfig, tools, plugins, system, options, model } = await this.buildAgentParams(request)
@@ -229,42 +302,84 @@ export class AiService extends BaseService {
       }
     }
 
+    // Compose caller-supplied extensions over the built-ins.
+    const mergedPlugins = extensions.extraPlugins?.length ? [...plugins, ...extensions.extraPlugins] : plugins
+    const mergedTools = mergeTools(tools, extensions.extraTools)
+    const mergedOptions: AgentOptions = extensions.optionsOverride
+      ? { ...options, ...extensions.optionsOverride }
+      : options
+    const mergedHooks = this.composeHooks(model, extensions.hooks)
+
     return runAgentLoop(
       {
         providerId: sdkConfig.providerId,
         providerSettings: sdkConfig.providerSettings,
         modelId: sdkConfig.modelId,
         messageId: request.messageId,
-        plugins,
-        tools,
+        plugins: mergedPlugins,
+        tools: mergedTools,
         system,
-        options,
+        options: mergedOptions,
         pendingMessages: request.pendingMessages,
-        hooks: {
-          onFinish: (result) => this.trackUsage(model, result.totalUsage)
-        }
+        hooks: mergedHooks
       },
       request.messages ?? [],
       signal
     )
   }
 
+  /**
+   * Merge the caller's `AgentLoopHooks` with AiService's internal hooks.
+   *
+   * - `onFinish` is **always** composed: the internal token tracker fires
+   *   first, then the caller's `onFinish`. Caller errors are logged but
+   *   never prevent the internal analytics from completing.
+   * - For the value-returning hooks (`prepareStep`, `onError`,
+   *   `beforeIteration`, `afterIteration`) the caller hook takes over
+   *   entirely — AiService has no internal behaviour to preserve there.
+   * - For fire-and-forget hooks (`onStart`, `onStepFinish`) the caller
+   *   hook is passed through; no internal hook exists today.
+   */
+  private composeHooks(model: Model, callerHooks?: AgentLoopHooks): AgentLoopHooks {
+    const callerOnFinish = callerHooks?.onFinish
+    return {
+      ...callerHooks,
+      onFinish: (result) => {
+        this.trackUsage(model, result.totalUsage)
+        if (!callerOnFinish) return
+        try {
+          callerOnFinish(result)
+        } catch (err) {
+          logger.warn('caller onFinish hook threw', { err })
+        }
+      }
+    }
+  }
+
   // ── Non-streaming text generation (agent.generate) ──
 
-  async generateText(request: AiGenerateRequest): Promise<AiGenerateResult> {
+  async generateText(request: AiGenerateRequest, extensions: AiGenerateExtensions = {}): Promise<AiGenerateResult> {
     logger.info('generateText started', { assistantId: request.assistantId })
 
     const { sdkConfig, tools, plugins, system, options, model } = await this.buildAgentParams(request)
+
+    // Same extension points as streamText minus `hooks` — `agent.generate`
+    // has no iteration model, so per-iteration hooks would have no effect.
+    const mergedPlugins = extensions.extraPlugins?.length ? [...plugins, ...extensions.extraPlugins] : plugins
+    const mergedTools = mergeTools(tools, extensions.extraTools)
+    const mergedOptions: AgentOptions = extensions.optionsOverride
+      ? { ...options, ...extensions.optionsOverride }
+      : options
 
     const agent = await createAgent<AppProviderSettingsMap, typeof sdkConfig.providerId, ToolSet>({
       providerId: sdkConfig.providerId,
       providerSettings: sdkConfig.providerSettings,
       modelId: sdkConfig.modelId,
-      plugins,
+      plugins: mergedPlugins,
       agentSettings: {
-        tools,
+        tools: mergedTools,
         instructions: request.system ?? system,
-        ...options
+        ...mergedOptions
       }
     })
 
