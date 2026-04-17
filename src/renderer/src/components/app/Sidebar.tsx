@@ -82,7 +82,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const [userName] = usePreference('app.user.name')
   const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
   const [showOpenedInSidebar] = usePreference('feature.miniapp.show_opened_in_sidebar')
-  const { tabs, activeTab, activeTabId, updateTab, openTab } = useTabs()
+  const { activeTab, updateTab, openTab } = useTabs()
   const { defaultPaintingProvider } = useSettings()
 
   // Sidebar width — persisted across restarts
