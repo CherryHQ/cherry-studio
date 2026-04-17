@@ -5,6 +5,7 @@ import type { Provider } from '@types'
 import { loggerService } from '../../services/LoggerService'
 import type { ModelValidationError } from '../utils'
 import { validateModelId } from '../utils'
+import { getRotatedApiKey } from '../utils/apiKeyRotation'
 
 const logger = loggerService.withContext('ChatCompletionService')
 
@@ -69,7 +70,7 @@ export class ChatCompletionService {
 
     const client = new OpenAI({
       baseURL: provider.apiHost,
-      apiKey: provider.apiKey
+      apiKey: getRotatedApiKey(provider)
     })
 
     return {

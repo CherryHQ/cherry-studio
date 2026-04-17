@@ -10,6 +10,7 @@ import type { KnowledgeBase, KnowledgeBaseParams, Provider } from '@types'
 import type { Response } from 'express'
 import type * as z from 'zod'
 
+import { getRotatedApiKey } from '../../utils/apiKeyRotation'
 import type { ValidationRequest } from '../agents/validators/zodValidator'
 import type { KnowledgeSearchSchema } from './validators/zodSchemas'
 
@@ -143,7 +144,7 @@ async function getProviderConfig(providerId: string): Promise<{ apiKey: string; 
   baseURL = baseURL.replace(/#$/, '')
 
   return {
-    apiKey: provider.apiKey || '',
+    apiKey: getRotatedApiKey(provider),
     baseURL
   }
 }
