@@ -182,6 +182,10 @@ export function runAgentLoop<T extends AppProviderKey>(
   const hooks = params.hooks ?? {}
   const opts = params.options ?? {}
 
+  // Shared between the loop body and the terminal `.catch`, so a mid-loop
+  // throw can report the real iteration number to hooks.onError.
+  let iterationNumber = 0
+
   ;(async () => {
     // ★ onStart
     await hooks.onStart?.()
@@ -190,7 +194,6 @@ export function runAgentLoop<T extends AppProviderKey>(
     // Converted once at entry, then directly appended (no lossy round-trips).
     let messages = initialMessages
     let modelMessages = await convertToModelMessages(initialMessages)
-    let iterationNumber = 0
     let totalSteps = 0
     let totalUsage = ZERO_USAGE
     let lastFinishReason = 'unknown'
@@ -409,7 +412,7 @@ export function runAgentLoop<T extends AppProviderKey>(
     .catch(async (err) => {
       params.pendingMessages?.close()
       if (!signal.aborted) {
-        const action = await hooks.onError?.({ iterationNumber: 0, error: err })
+        const action = await hooks.onError?.({ iterationNumber, error: err })
         if (action !== 'retry') {
           logger.error('agentLoop error', err)
         }
