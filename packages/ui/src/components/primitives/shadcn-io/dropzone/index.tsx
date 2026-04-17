@@ -1,6 +1,5 @@
 'use client'
 
-import { Button } from '@cherrystudio/ui/components/primitives/button'
 import { UploadIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { createContext, use } from 'react'
@@ -8,6 +7,7 @@ import type { DropEvent, DropzoneOptions, FileRejection } from 'react-dropzone'
 import { useDropzone } from 'react-dropzone'
 
 import { cn } from '../../../../lib/utils'
+import { Button } from '../../button'
 
 type DropzoneContextType = {
   src?: File[]

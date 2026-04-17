@@ -1,12 +1,11 @@
-import { Button } from '@cherrystudio/ui/components/primitives/button'
-import type { InputProps } from '@cherrystudio/ui/components/primitives/input'
-import { Input } from '@cherrystudio/ui/components/primitives/input'
-import type { TextareaInputProps } from '@cherrystudio/ui/components/primitives/textarea'
-import * as Textarea from '@cherrystudio/ui/components/primitives/textarea'
 import { cva, type VariantProps } from 'class-variance-authority'
 import * as React from 'react'
 
 import { cn } from '../../lib/utils'
+import { Button } from './button'
+import { Input, type InputProps } from './input'
+import type { TextareaInputProps } from './textarea'
+import * as Textarea from './textarea'
 
 function InputGroup({ className, ...props }: React.ComponentProps<'div'>) {
   return (

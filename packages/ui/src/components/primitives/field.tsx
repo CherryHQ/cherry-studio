@@ -1,9 +1,9 @@
-import { Label } from '@cherrystudio/ui/components/primitives/label'
-import { Separator } from '@cherrystudio/ui/components/primitives/separator'
 import { cva, type VariantProps } from 'class-variance-authority'
 import * as React from 'react'
 
 import { cn } from '../../lib/utils'
+import { Label } from './label'
+import { Separator } from './separator'
 
 function FieldSet({ className, ...props }: React.ComponentProps<'fieldset'>) {
   return (

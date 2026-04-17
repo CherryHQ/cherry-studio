@@ -29,6 +29,9 @@ npm install framer-motion react react-dom tailwindcss
 > `@cherrystudio/ui/icons`
 > `@cherrystudio/ui/utils`
 > `@cherrystudio/ui/styles/*`
+>
+> Inside `packages/ui/src`, do not route internal imports back through `@cherrystudio/ui/*`.
+> Use relative imports so the public package contract stays clearly separated from internal implementation wiring.
 
 ### Two Integration Modes
 
@@ -190,9 +193,26 @@ pnpm type-check
 pnpm test
 ```
 
+## Package Surface
+
+The `packages/ui` workspace contains both runtime code and development-only assets.
+
+- Runtime surface:
+  - `src/`
+  - `dist/` build output
+  - package export entry points declared in `package.json`
+- Development assets:
+  - `stories/` and `.storybook/`
+  - `scripts/` used for icon and theme generation
+  - `icons/` source assets used by the generation pipeline
+  - `docs/` for migration and reference material
+
+Only the runtime surface should be treated as consumable package API.
+
 ## Directory Structure
 
 ```text
+docs/                    # Migration plans and reference docs
 src/
 ├── components/
 │   ├── primitives/     # Primitive components
@@ -203,7 +223,10 @@ src/
 ├── lib/                # Internal utilities
 ├── styles/             # Tokens and theme entry files
 ├── utils/              # Utility functions
-└── index.ts            # Main entry point
+└── index.ts            # Main runtime entry point
+scripts/                # Theme and icon generation tooling
+stories/                # Storybook stories and sandbox usage
+icons/                  # Raw icon assets for code generation
 ```
 
 ## Components
