@@ -53,24 +53,22 @@ export const useAgents = () => {
   // Hidden builtin agents state — fetched separately from agents list
   const [hiddenAgentIds, setHiddenAgentIds] = useState<string[]>([])
 
-  // Fetch hidden agent IDs on mount and when server is running
-  const fetchHiddenIds = useCallback(async () => {
+  // Fetch hidden agent IDs once when API server becomes available
+  useEffect(() => {
     if (!apiServerRunning) return
-    try {
-      const ids = await client.getHiddenBuiltinAgents()
-      setHiddenAgentIds(ids)
-    } catch {
-      // Graceful fallback — treat as empty list
-      setHiddenAgentIds([])
+    let cancelled = false
+    void (async () => {
+      try {
+        const ids = await client.getHiddenBuiltinAgents()
+        if (!cancelled) setHiddenAgentIds(ids)
+      } catch {
+        if (!cancelled) setHiddenAgentIds([])
+      }
+    })()
+    return () => {
+      cancelled = true
     }
   }, [apiServerRunning, client])
-
-  // Fetch hidden IDs once when API server becomes available
-  useEffect(() => {
-    if (apiServerRunning) {
-      void fetchHiddenIds()
-    }
-  }, [apiServerRunning, fetchHiddenIds])
 
   const addAgent = useCallback(
     async (form: AddAgentForm): Promise<Result<CreateAgentResponse>> => {

@@ -46,14 +46,14 @@ const Agents = ({ onSelectItem }: AgentsProps) => {
   }, [agents, hiddenAgentIds])
 
   // Orphaned hidden IDs: in hidden list but deleted from DB (no matching agent)
-  const { orphanedCount, handleRestoreOrphaned } = useMemo(() => {
-    const hiddenIdsWithAgent = new Set((agents ?? []).map((a) => a.id))
-    const orphaned = hiddenAgentIds.filter((id) => !hiddenIdsWithAgent.has(id))
-    return {
-      orphanedCount: orphaned.length,
-      handleRestoreOrphaned: () => restoreBuiltinAgents()
-    }
-  }, [agents, hiddenAgentIds, restoreBuiltinAgents])
+  const orphanedCount = useMemo(() => {
+    const agentIds = new Set((agents ?? []).map((a) => a.id))
+    return hiddenAgentIds.filter((id) => isBuiltinAgentId(id) && !agentIds.has(id)).length
+  }, [agents, hiddenAgentIds, isBuiltinAgentId])
+
+  const handleRestoreOrphaned = useCallback(() => {
+    void restoreBuiltinAgents()
+  }, [restoreBuiltinAgents])
 
   const handleAgentPress = useCallback(
     (agentId: string) => {
