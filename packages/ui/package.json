@@ -7,13 +7,14 @@
   "types": "dist/index.d.ts",
   "react-native": "dist/index.js",
   "scripts": {
-    "build": "tsdown && mkdir -p dist/styles && cp -R src/styles/. dist/styles/",
+    "build": "pnpm theme:build && tsdown && mkdir -p dist/styles && cp -R src/styles/. dist/styles/",
     "dev": "tsc -w",
     "clean": "rm -rf dist",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint src --ext .ts,.tsx --fix",
     "type-check": "tsc --noEmit -p tsconfig.json --composite false",
+    "theme:build": "tsx scripts/build-theme-css.ts",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "icons:generate": "tsx scripts/generate-icons.ts --type=icons",
@@ -157,9 +158,9 @@
       "require": "./dist/icons/index.js",
       "default": "./dist/icons/index.js"
     },
-    "./styles": "./dist/styles/index.css",
+    "./styles": "./dist/styles/tokens.css",
     "./styles/tokens.css": "./dist/styles/tokens.css",
     "./styles/theme.css": "./dist/styles/theme.css",
-    "./styles/index.css": "./dist/styles/index.css"
+    "./styles/index.css": "./dist/styles/tokens.css"
   }
 }

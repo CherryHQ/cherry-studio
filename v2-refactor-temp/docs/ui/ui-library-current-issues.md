@@ -361,6 +361,20 @@
 2. theme 负责“语义映射”，不负责用户配置读写
 3. runtime override 只改 contract 明确开放的变量
 
+CSS 变量分层约定：
+
+1. `--cs-*` 是 design token namespace，来源于 `tokens/*`
+2. `--color-*`、`--radius-*`、`--font-*` 是公开 theme contract，默认给组件和外部消费方使用
+3. `--cs-theme-*` 是 runtime override input，只用于运行时覆写入口
+4. `--primary` 这类变量属于 compatibility alias，只为兼容 shadcn / Tailwind 生态保留，不作为新代码首选
+
+外部消费规则：
+
+1. 普通业务包默认只依赖 `@cherrystudio/ui/styles/theme.css`
+2. 普通业务包优先使用 `--color-*` 等公开 contract，不直接绑定 `--cs-brand-500` 这类 primitive token
+3. 只有明确需要 token 层能力的设计系统配套包，才允许直接依赖 `@cherrystudio/ui/styles/tokens.css`
+4. 运行时主题逻辑只允许写入 `--cs-theme-*` 这类受控入口变量，不直接写派生后的 `--color-*` 结果变量
+
 阶段产出：
 
 1. 一份主题 contract 文档

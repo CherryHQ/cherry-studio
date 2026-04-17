@@ -122,6 +122,22 @@ npm install framer-motion react react-dom tailwindcss
 }} />
 ```
 
+### CSS 变量规则
+
+为避免 token、theme 和 runtime override 混用，建议遵循以下约定：
+
+1. `--cs-*` 是 design token namespace，来源于 `tokens/*`
+2. `--color-*`、`--radius-*`、`--font-*` 是公开 theme contract，默认给组件和外部消费方使用
+3. `--cs-theme-*` 是 runtime override input，只用于运行时覆写入口
+4. `--primary` 这类变量属于 compatibility alias，只为兼容 shadcn / Tailwind 生态保留，不作为新代码首选
+
+默认消费规则：
+
+1. 普通业务包默认依赖 `@cherrystudio/ui/styles/theme.css`
+2. 普通业务包优先使用 `--color-*` 等公开 contract，不直接绑定 `--cs-brand-500` 这类 primitive token
+3. 只有明确需要 token 层能力的设计系统配套包，才建议直接依赖 `@cherrystudio/ui/styles/tokens.css`
+4. 运行时主题逻辑只写 `--cs-theme-*` 这类受控入口变量，不直接写派生后的 `--color-*` 结果变量
+
 ## 使用
 
 ### 基础组件
