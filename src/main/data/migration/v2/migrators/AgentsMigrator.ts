@@ -12,7 +12,8 @@ import {
   type AgentsTableRowCounts,
   buildAgentsImportStatements,
   createEmptyAgentsSchemaInfo,
-  getTotalAgentsRowCount
+  getTotalAgentsRowCount,
+  quoteSqlitePath
 } from './mappings/AgentsDbMappings'
 
 const logger = loggerService.withContext('AgentsMigrator')
@@ -160,42 +161,54 @@ export class AgentsMigrator extends BaseMigrator {
     const validationDetails: Array<{
       table: string
       source: number
+      expected: number
       target: number
       filtered: boolean
       ok: boolean
     }> = []
 
-    for (const spec of AGENTS_TABLE_MIGRATION_SPECS) {
-      const result = await ctx.db.get<{ count: number }>(sql.raw(`SELECT COUNT(*) AS count FROM ${spec.targetTable}`))
-      const tableTargetCount = Number(result?.count ?? 0)
-      const tableSourceCount = this.sourceCounts[spec.sourceTable]
-      targetCount += tableTargetCount
+    await ctx.db.run(sql.raw(`ATTACH DATABASE ${quoteSqlitePath(dbPath)} AS agents_legacy`))
 
-      // Tables with WHERE clauses may have fewer target rows (orphaned data filtered out)
-      const hasWhereClause = !!spec.whereClause
-      const tableSkippedCount = Math.max(0, tableSourceCount - tableTargetCount)
-      skippedCount += tableSkippedCount
+    try {
+      for (const spec of AGENTS_TABLE_MIGRATION_SPECS) {
+        const targetResult = await ctx.db.get<{ count: number }>(
+          sql.raw(`SELECT COUNT(*) AS count FROM ${spec.targetTable}`)
+        )
+        const tableTargetCount = Number(targetResult?.count ?? 0)
+        const tableSourceCount = this.sourceCounts[spec.sourceTable]
+        const expectedResult = await ctx.db.get<{ count: number }>(
+          sql.raw(
+            `SELECT COUNT(*) AS count FROM agents_legacy.${spec.sourceTable}${spec.whereClause ? ` WHERE ${spec.whereClause}` : ''}`
+          )
+        )
+        const tableExpectedCount = Number(expectedResult?.count ?? 0)
+        targetCount += tableTargetCount
 
-      // For tables with WHERE clauses: ok if we migrated some data (target > 0 when source > 0)
-      // For tables without: ok if target >= source (all data migrated)
-      const ok = hasWhereClause ? tableSourceCount === 0 || tableTargetCount > 0 : tableTargetCount >= tableSourceCount
+        const hasWhereClause = !!spec.whereClause
+        const tableSkippedCount = Math.max(0, tableSourceCount - tableExpectedCount)
+        skippedCount += tableSkippedCount
+        const ok = tableTargetCount >= tableExpectedCount
 
-      validationDetails.push({
-        table: spec.targetTable,
-        source: tableSourceCount,
-        target: tableTargetCount,
-        filtered: hasWhereClause,
-        ok
-      })
-
-      if (!ok) {
-        errors.push({
-          key: `${spec.targetTable}_count_mismatch`,
-          expected: tableSourceCount,
-          actual: tableTargetCount,
-          message: `${spec.targetTable} count too low: expected ${tableSourceCount}, got ${tableTargetCount}`
+        validationDetails.push({
+          table: spec.targetTable,
+          source: tableSourceCount,
+          expected: tableExpectedCount,
+          target: tableTargetCount,
+          filtered: hasWhereClause,
+          ok
         })
+
+        if (!ok) {
+          errors.push({
+            key: `${spec.targetTable}_count_mismatch`,
+            expected: tableExpectedCount,
+            actual: tableTargetCount,
+            message: `${spec.targetTable} count too low: expected ${tableExpectedCount}, got ${tableTargetCount}`
+          })
+        }
       }
+    } finally {
+      await ctx.db.run(sql.raw('DETACH DATABASE agents_legacy'))
     }
 
     logger.info('AgentsMigrator validation:', {

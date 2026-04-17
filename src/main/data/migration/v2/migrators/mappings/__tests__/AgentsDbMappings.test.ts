@@ -111,7 +111,7 @@ describe('AgentsDbMappings', () => {
     expect(messagesInsert).toContain('WHERE session_id IN (SELECT id FROM agents_sessions)')
   })
 
-  it('appends WHERE clause for channels to exclude orphaned agent references', () => {
+  it('appends WHERE clause for channels to exclude orphaned agent and session references', () => {
     const schemaInfo = createEmptyAgentsSchemaInfo()
     schemaInfo.channels.exists = true
     schemaInfo.channels.columns = new Set([
@@ -131,7 +131,8 @@ describe('AgentsDbMappings', () => {
     const statements = buildAgentsImportStatements('/tmp/agents.db', schemaInfo)
     const channelsInsert = statements.find((s) => s.includes('agents_channels'))
 
-    expect(channelsInsert).toContain('WHERE agent_id IS NULL OR agent_id IN (SELECT id FROM agents_legacy.agents)')
+    expect(channelsInsert).toContain('(agent_id IS NULL OR agent_id IN (SELECT id FROM agents_legacy.agents))')
+    expect(channelsInsert).toContain('(session_id IS NULL OR session_id IN (SELECT id FROM agents_sessions))')
   })
 
   it('maps agent_skills → agents_agent_skills with FK-safe WHERE clause', () => {

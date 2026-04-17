@@ -122,30 +122,44 @@ describe('AgentsMigrator', () => {
     expect(getExecutedSql(run).at(-1)).toBe('DETACH DATABASE agents_legacy')
   })
 
-  it('validate fails when imported table counts are lower than the source counts', async () => {
+  it('validate fails when imported table counts are lower than the expected filtered counts', async () => {
     vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue('/mock/feature.agents.db_file')
     vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockResolvedValue(createSchemaInfo() as never)
     vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockResolvedValue(createCounts())
 
     const get = vi
       .fn()
-      .mockResolvedValueOnce({ count: 0 }) // agents_agents (expected 1 → mismatch, no WHERE)
-      .mockResolvedValueOnce({ count: 2 }) // agents_sessions (has WHERE)
-      .mockResolvedValueOnce({ count: 3 }) // agents_global_skills
-      .mockResolvedValueOnce({ count: 4 }) // agents_agent_skills (has WHERE)
-      .mockResolvedValueOnce({ count: 5 }) // agents_tasks
-      .mockResolvedValueOnce({ count: 6 }) // agents_task_run_logs
-      .mockResolvedValueOnce({ count: 7 }) // agents_channels (has WHERE)
-      .mockResolvedValueOnce({ count: 8 }) // agents_channel_task_subscriptions
-      .mockResolvedValueOnce({ count: 9 }) // agents_session_messages (has WHERE)
+      .mockResolvedValueOnce({ count: 0 }) // agents_agents target (expected 1 → mismatch)
+      .mockResolvedValueOnce({ count: 1 }) // agents_agents expected
+      .mockResolvedValueOnce({ count: 2 }) // agents_sessions target
+      .mockResolvedValueOnce({ count: 2 }) // agents_sessions expected
+      .mockResolvedValueOnce({ count: 3 }) // agents_global_skills target
+      .mockResolvedValueOnce({ count: 3 }) // agents_global_skills expected
+      .mockResolvedValueOnce({ count: 4 }) // agents_agent_skills target
+      .mockResolvedValueOnce({ count: 4 }) // agents_agent_skills expected
+      .mockResolvedValueOnce({ count: 5 }) // agents_tasks target
+      .mockResolvedValueOnce({ count: 5 }) // agents_tasks expected
+      .mockResolvedValueOnce({ count: 6 }) // agents_task_run_logs target
+      .mockResolvedValueOnce({ count: 6 }) // agents_task_run_logs expected
+      .mockResolvedValueOnce({ count: 6 }) // agents_channels target (expected 7 → mismatch)
+      .mockResolvedValueOnce({ count: 7 }) // agents_channels expected
+      .mockResolvedValueOnce({ count: 8 }) // agents_channel_task_subscriptions target
+      .mockResolvedValueOnce({ count: 8 }) // agents_channel_task_subscriptions expected
+      .mockResolvedValueOnce({ count: 9 }) // agents_session_messages target
+      .mockResolvedValueOnce({ count: 9 }) // agents_session_messages expected
+
+    const run = vi.fn().mockResolvedValue(undefined)
 
     await migrator.prepare(createMigrationContext())
-    const result = await migrator.validate(createMigrationContext({ db: { get } }))
+    const result = await migrator.validate(createMigrationContext({ db: { get, run } }))
 
     expect(result.success).toBe(false)
-    expect(result.errors[0]?.key).toBe('agents_agents_count_mismatch')
+    expect(result.errors.map((error) => error.key)).toEqual([
+      'agents_agents_count_mismatch',
+      'agents_channels_count_mismatch'
+    ])
     expect(result.stats.sourceCount).toBe(45)
-    expect(result.stats.targetCount).toBe(44)
+    expect(result.stats.targetCount).toBe(43)
   })
 
   it('resolves the legacy db path once and reuses it across phases', async () => {
@@ -164,5 +178,20 @@ describe('AgentsMigrator', () => {
     await migrator.validate(migrationContext)
 
     expect(resolvePath).toHaveBeenCalledTimes(1)
+  })
+
+  it('validate attaches the legacy db to compare against expected filtered counts', async () => {
+    vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue('/mock/feature.agents.db_file')
+    vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockResolvedValue(createSchemaInfo() as never)
+    vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockResolvedValue(createCounts())
+
+    const run = vi.fn().mockResolvedValue(undefined)
+    const get = vi.fn().mockResolvedValue({ count: 1 })
+
+    await migrator.prepare(createMigrationContext())
+    await migrator.validate(createMigrationContext({ db: { run, get } }))
+
+    expect(getExecutedSql(run)[0]).toBe("ATTACH DATABASE '/mock/feature.agents.db_file' AS agents_legacy")
+    expect(getExecutedSql(run).at(-1)).toBe('DETACH DATABASE agents_legacy')
   })
 })

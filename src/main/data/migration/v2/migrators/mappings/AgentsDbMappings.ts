@@ -211,8 +211,10 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       'updated_at'
     ],
     // Channels reference agents_agents and agents_sessions via FK; skip any
-    // channel whose agent was deleted and not present in the migrated set.
-    whereClause: 'agent_id IS NULL OR agent_id IN (SELECT id FROM agents_legacy.agents)'
+    // channel whose agent was deleted or whose session was filtered out.
+    whereClause:
+      '(agent_id IS NULL OR agent_id IN (SELECT id FROM agents_legacy.agents)) AND ' +
+      '(session_id IS NULL OR session_id IN (SELECT id FROM agents_sessions))'
   },
   {
     sourceTable: 'channel_task_subscriptions',
