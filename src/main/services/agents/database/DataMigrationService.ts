@@ -49,7 +49,17 @@ const DATA_MIGRATIONS: DataMigration[] = [
   },
   {
     version: 10002,
-    tag: 'data_0002_blocks_to_parts',
+    tag: 'data_0002_skills_per_agent',
+    description: 'Seed agent_skills from legacy skills.is_enabled and create per-agent symlinks',
+    migrate: async (db) => {
+      const { runSkillsPerAgentMigration } = await import('./migrateSkillsPerAgent')
+      const result = await runSkillsPerAgentMigration(db)
+      logger.info('Skills per-agent migration result', result)
+    }
+  },
+  {
+    version: 10003,
+    tag: 'data_0003_blocks_to_parts',
     description: 'Convert agent session messages from blocks[] to parts[] format',
     migrate: async (db) => {
       const { runBlocksToPartsMigration } = await import('./migrateBlocksToParts')
@@ -66,8 +76,8 @@ const DATA_MIGRATIONS: DataMigration[] = [
     }
   },
   {
-    version: 10003,
-    tag: 'data_0003_model_id_format',
+    version: 10004,
+    tag: 'data_0004_model_id_format',
     description: 'Convert model IDs from providerId:modelId to UniqueModelId providerId::modelId',
     migrate: async (db) => {
       const { runModelIdFormatMigration } = await import('./migrateModelIdFormat')

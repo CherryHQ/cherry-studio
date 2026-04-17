@@ -50,12 +50,45 @@ const Chat: FC<Props> = (props) => {
     contentSearchRef.current?.disable()
   })
 
-  useShortcut('search_message_in_chat', () => {
+  useShortcut('chat.search_message', () => {
     try {
       const selectedText = window.getSelection()?.toString().trim()
       contentSearchRef.current?.enable(selectedText)
     } catch (error) {
       logger.error('Error enabling content search:', error as Error)
+    }
+  })
+
+  useShortcut('topic.rename', async () => {
+    const topic = props.activeTopic
+    if (!topic) return
+
+    void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
+
+    const name = await PromptPopup.show({
+      title: t('chat.topics.edit.title'),
+      message: '',
+      defaultValue: topic.name || '',
+      extraNode: <div style={{ color: 'var(--color-text-3)', marginTop: 8 }}>{t('chat.topics.edit.title_tip')}</div>
+    })
+    if (name && topic.name !== name) {
+      const updatedTopic = { ...topic, name, isNameManuallyEdited: true }
+      await updateTopic(updatedTopic as Topic)
+    }
+  })
+
+  useShortcut('chat.select_model', async () => {
+    const modelFilter = (m: Model) => !isEmbeddingModel(m) && !isRerankModel(m)
+    const selectedModel = await SelectChatModelPopup.show({
+      model: assistant?.model,
+      filter: modelFilter
+    })
+    if (selectedModel) {
+      const enabledWebSearch = isWebSearchModel(selectedModel)
+      updateAssistant({
+        model: selectedModel,
+        enableWebSearch: enabledWebSearch && assistant.enableWebSearch
+      })
     }
   })
 
@@ -86,39 +119,6 @@ const Chat: FC<Props> = (props) => {
       })
     })
   }
-
-  useShortcut('rename_topic', async () => {
-    const topic = props.activeTopic
-    if (!topic) return
-
-    void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
-
-    const name = await PromptPopup.show({
-      title: t('chat.topics.edit.title'),
-      message: '',
-      defaultValue: topic.name || '',
-      extraNode: <div style={{ color: 'var(--color-text-3)', marginTop: 8 }}>{t('chat.topics.edit.title_tip')}</div>
-    })
-    if (name && topic.name !== name) {
-      const updatedTopic = { ...topic, name, isNameManuallyEdited: true }
-      await updateTopic(updatedTopic as Topic)
-    }
-  })
-
-  useShortcut('select_model', async () => {
-    const modelFilter = (m: Model) => !isEmbeddingModel(m) && !isRerankModel(m)
-    const selectedModel = await SelectChatModelPopup.show({
-      model: assistant?.model,
-      filter: modelFilter
-    })
-    if (selectedModel) {
-      const enabledWebSearch = isWebSearchModel(selectedModel)
-      updateAssistant({
-        model: selectedModel,
-        enableWebSearch: enabledWebSearch && assistant.enableWebSearch
-      })
-    }
-  })
 
   const mainHeight = isTopNavbar ? 'calc(100vh - var(--navbar-height) - 6px)' : 'calc(100vh - var(--navbar-height))'
 

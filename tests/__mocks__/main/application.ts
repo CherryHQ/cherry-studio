@@ -68,7 +68,9 @@ export function createMockApplication(overrides: ServiceOverrides = {}) {
     registerAll: vi.fn(),
     initPathRegistry: vi.fn(),
     bootstrap: vi.fn().mockResolvedValue(undefined),
-    isReady: vi.fn(() => true)
+    isReady: vi.fn(() => true),
+    // Tests can mutate `application.isQuitting = true` to exercise quit-aware code paths.
+    isQuitting: false
   }
 }
 

@@ -336,7 +336,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({
   }, [resizeTextArea, addNewTopic, clearTopic, onNewContext, setText, handleToggleExpanded, actionsRef])
 
   useShortcut(
-    'new_topic',
+    'topic.new',
     () => {
       void addNewTopic()
       void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
@@ -345,7 +345,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({
     { preventDefault: true, enableOnFormTags: true }
   )
 
-  useShortcut('clear_topic', clearTopic, {
+  useShortcut('chat.clear', clearTopic, {
     preventDefault: true,
     enableOnFormTags: true
   })

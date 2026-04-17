@@ -68,10 +68,11 @@ import type {
   TranslationBlock,
   VideoBlock
 } from '@shared/data/types/message'
-import { createUniqueModelId } from '@shared/data/types/model'
 import type { CherryDataPartTypes, CherryProviderMetadata } from '@shared/data/types/uiParts'
 import type { FileMetadata } from '@types'
 import type { ProviderMetadata, SourceUrlUIPart } from 'ai'
+
+import { legacyModelToUniqueId } from '../transformers/ModelTransformers'
 
 // ============================================================================
 // Old Type Definitions (Source Data Structures)
@@ -546,14 +547,7 @@ export function transformMessage(
     searchableText: searchableText || null,
     status: normalizeStatus(oldMessage.status),
     siblingsGroupId,
-    // Build UniqueModelId (provider::modelId) from full model object when available.
-    // Falls back to raw modelId (lacks provider prefix) for incomplete legacy data.
-    modelId: (() => {
-      if (oldMessage.model?.provider && oldMessage.model?.id) {
-        return createUniqueModelId(oldMessage.model.provider, oldMessage.model.id)
-      }
-      return oldMessage.modelId || null
-    })(),
+    modelId: legacyModelToUniqueId(oldMessage.model, oldMessage.modelId),
     // Snapshot of model at message creation time for historical display
     modelSnapshot: buildModelSnapshot(oldMessage.model),
     traceId: oldMessage.traceId || null,

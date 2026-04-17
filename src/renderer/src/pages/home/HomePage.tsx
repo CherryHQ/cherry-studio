@@ -42,7 +42,8 @@ const HomePage: FC = () => {
 
   _activeAssistant = activeAssistant
 
-  useShortcut('toggle_show_assistants', () => {
+  // TODO: Replace with sidebar toggle logic once the new sidebar UI is implemented
+  useShortcut('general.toggle_sidebar', () => {
     if (topicPosition === 'right') {
       void toggleShowAssistants()
       return
@@ -59,7 +60,7 @@ const HomePage: FC = () => {
     void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
   })
 
-  useShortcut('toggle_show_topics', () => {
+  useShortcut('topic.toggle_show_topics', () => {
     if (topicPosition === 'right') {
       void toggleShowTopics()
       return

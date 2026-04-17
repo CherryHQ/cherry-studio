@@ -1,77 +1,53 @@
+import { miniappTable } from '@data/db/schemas/miniapp'
+import { MiniAppService } from '@data/services/MiniAppService'
 import { ErrorCode } from '@shared/data/api'
 import type { CreateMiniappDto, UpdateMiniappDto } from '@shared/data/api/schemas/miniapps'
 import { ORIGIN_DEFAULT_MIN_APPS } from '@shared/data/presets/miniapps'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const mockSelect = vi.fn()
-const mockInsert = vi.fn()
-const mockUpdate = vi.fn()
-const mockDelete = vi.fn()
-const mockTransaction = vi.fn()
-
-vi.mock('@application', () => ({
-  application: {
-    get: vi.fn(() => ({
-      getDb: vi.fn(() => ({
-        select: mockSelect,
-        insert: mockInsert,
-        update: mockUpdate,
-        delete: mockDelete,
-        transaction: mockTransaction
-      }))
-    }))
-  }
-}))
-
-const { MiniAppService } = await import('../MiniAppService')
-
-function createMockRow(overrides: Record<string, unknown> = {}) {
-  return {
-    appId: 'custom-app',
-    name: 'Custom App',
-    url: 'https://custom.app',
-    logo: 'application',
-    type: 'custom' as const,
-    status: 'enabled' as const,
-    sortOrder: 0,
-    bordered: false,
-    background: null,
-    supportedRegions: null,
-    configuration: null,
-    nameKey: null,
-    createdAt: '2024-01-01T00:00:00.000Z',
-    updatedAt: '2024-01-02T00:00:00.000Z',
-    ...overrides
-  }
-}
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 describe('MiniAppService', () => {
-  let service: InstanceType<typeof MiniAppService>
+  const dbh = setupTestDatabase()
+  let service: MiniAppService
 
   beforeEach(() => {
-    mockSelect.mockReset()
-    mockInsert.mockReset()
-    mockUpdate.mockReset()
-    mockDelete.mockReset()
-    mockTransaction.mockReset()
     service = new MiniAppService()
   })
 
+  async function seedCustomApp(overrides: Partial<typeof miniappTable.$inferInsert> = {}) {
+    const values: typeof miniappTable.$inferInsert = {
+      appId: 'custom-app',
+      name: 'Custom App',
+      url: 'https://custom.app',
+      logo: 'application',
+      type: 'custom',
+      status: 'enabled',
+      sortOrder: 0,
+      bordered: false,
+      ...overrides
+    }
+    await dbh.db.insert(miniappTable).values(values)
+    return values
+  }
+
+  async function seedDefaultAppPref(appId: string, overrides: Partial<typeof miniappTable.$inferInsert> = {}) {
+    const values: typeof miniappTable.$inferInsert = {
+      appId,
+      name: 'PlaceholderName',
+      url: 'https://placeholder.test',
+      type: 'default',
+      status: 'enabled',
+      sortOrder: 0,
+      ...overrides
+    }
+    await dbh.db.insert(miniappTable).values(values)
+    return values
+  }
+
   describe('getByAppId', () => {
     it('should return a builtin miniapp merged with DB preferences', async () => {
-      const dbRow = createMockRow({
-        appId: 'openai',
-        type: 'default' as const,
-        status: 'disabled' as const,
-        sortOrder: 10
-      })
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([dbRow])
-          })
-        })
-      })
+      await seedDefaultAppPref('openai', { status: 'disabled', sortOrder: 10 })
 
       const result = await service.getByAppId('openai')
 
@@ -84,14 +60,6 @@ describe('MiniAppService', () => {
     })
 
     it('should return builtin with defaults when no DB row exists', async () => {
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([])
-          })
-        })
-      })
-
       const result = await service.getByAppId('gemini')
 
       expect(result.appId).toBe('gemini')
@@ -101,14 +69,7 @@ describe('MiniAppService', () => {
     })
 
     it('should return a custom miniapp from DB', async () => {
-      const row = createMockRow()
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([row])
-          })
-        })
-      })
+      await seedCustomApp()
 
       const result = await service.getByAppId('custom-app')
 
@@ -118,14 +79,6 @@ describe('MiniAppService', () => {
     })
 
     it('should throw NotFound for nonexistent custom app', async () => {
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([])
-          })
-        })
-      })
-
       await expect(service.getByAppId('nonexistent')).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND,
         status: 404
@@ -135,37 +88,18 @@ describe('MiniAppService', () => {
 
   describe('list', () => {
     it('should return merged builtin and custom apps', async () => {
-      const customRow = createMockRow()
-      mockSelect.mockReturnValueOnce({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            orderBy: vi.fn().mockResolvedValue([customRow])
-          })
-        })
-      })
-      mockSelect.mockReturnValueOnce({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue([])
-        })
-      })
+      await seedCustomApp()
 
       const result = await service.list({})
 
-      // Should include all builtin apps + custom apps
+      // Should include all builtin apps + the one custom app
       expect(result.items.length).toBeGreaterThan(ORIGIN_DEFAULT_MIN_APPS.length)
       expect(result.total).toBe(result.items.length)
       expect(result.page).toBe(1)
     })
 
     it('should filter by type=custom', async () => {
-      const customRow = createMockRow()
-      mockSelect.mockReturnValueOnce({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            orderBy: vi.fn().mockResolvedValue([customRow])
-          })
-        })
-      })
+      await seedCustomApp()
 
       const result = await service.list({ type: 'custom' })
 
@@ -175,19 +109,6 @@ describe('MiniAppService', () => {
     })
 
     it('should filter by type=default', async () => {
-      mockSelect.mockReturnValueOnce({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            orderBy: vi.fn().mockResolvedValue([])
-          })
-        })
-      })
-      mockSelect.mockReturnValueOnce({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue([])
-        })
-      })
-
       const result = await service.list({ type: 'default' })
 
       expect(result.items.length).toBe(ORIGIN_DEFAULT_MIN_APPS.length)
@@ -195,54 +116,19 @@ describe('MiniAppService', () => {
     })
 
     it('should filter by status', async () => {
-      const prefRow = createMockRow({
-        appId: 'openai',
-        type: 'default' as const,
-        status: 'disabled' as const
-      })
-      mockSelect.mockReturnValueOnce({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            orderBy: vi.fn().mockResolvedValue([])
-          })
-        })
-      })
-      mockSelect.mockReturnValueOnce({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue([prefRow])
-        })
-      })
+      await seedDefaultAppPref('openai', { status: 'disabled' })
 
       const result = await service.list({ status: 'disabled' })
 
-      // Only apps with disabled status should be returned
       expect(result.items.every((item) => item.status === 'disabled')).toBe(true)
     })
 
     it('should sort items by status priority then sortOrder', async () => {
-      const customRow1 = createMockRow({ appId: 'a', sortOrder: 2 })
-      const prefRow = createMockRow({
-        appId: 'openai',
-        type: 'default' as const,
-        status: 'pinned' as const,
-        sortOrder: 5
-      })
-      mockSelect.mockReturnValueOnce({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            orderBy: vi.fn().mockResolvedValue([customRow1])
-          })
-        })
-      })
-      mockSelect.mockReturnValueOnce({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue([prefRow])
-        })
-      })
+      await seedCustomApp({ appId: 'a', name: 'A', sortOrder: 2 })
+      await seedDefaultAppPref('openai', { status: 'pinned', sortOrder: 5 })
 
       const result = await service.list({})
 
-      // Pinned should come before enabled
       const pinnedIndex = result.items.findIndex((item) => item.status === 'pinned')
       const enabledIndex = result.items.findIndex((item) => item.status === 'enabled')
       expect(pinnedIndex).toBeLessThan(enabledIndex)
@@ -251,21 +137,6 @@ describe('MiniAppService', () => {
 
   describe('create', () => {
     it('should create a custom miniapp', async () => {
-      const row = createMockRow({ name: 'New App' })
-      const values = vi.fn().mockReturnValue({
-        returning: vi.fn().mockResolvedValue([row])
-      })
-      mockInsert.mockReturnValue({ values })
-
-      // Mock the duplicate check
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([])
-          })
-        })
-      })
-
       const dto: CreateMiniappDto = {
         appId: 'new-app',
         name: 'New App',
@@ -277,19 +148,13 @@ describe('MiniAppService', () => {
 
       const result = await service.create(dto)
 
-      expect(values).toHaveBeenCalledWith(
-        expect.objectContaining({
-          appId: 'new-app',
-          name: 'New App',
-          url: 'https://new.app',
-          logo: 'custom-logo',
-          type: 'custom',
-          status: 'enabled',
-          sortOrder: 0
-        })
-      )
-      expect(result.appId).toBe('custom-app')
+      expect(result.appId).toBe('new-app')
       expect(result.name).toBe('New App')
+      expect(result.type).toBe('custom')
+
+      const [row] = await dbh.db.select().from(miniappTable).where(eq(miniappTable.appId, 'new-app'))
+      expect(row.name).toBe('New App')
+      expect(row.status).toBe('enabled')
     })
 
     it('should reject creation if appId is a builtin app', async () => {
@@ -309,14 +174,7 @@ describe('MiniAppService', () => {
     })
 
     it('should reject creation if appId already exists in DB', async () => {
-      const existing = createMockRow()
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([existing])
-          })
-        })
-      })
+      await seedCustomApp()
 
       await expect(
         service.create({
@@ -336,36 +194,7 @@ describe('MiniAppService', () => {
 
   describe('update', () => {
     it('should update all fields for a custom miniapp', async () => {
-      const existing = createMockRow()
-      const updated = createMockRow({
-        name: 'Updated App',
-        url: 'https://updated.app',
-        status: 'disabled' as const
-      })
-
-      // First call: getByAppId
-      // Second call: update returning
-      mockSelect.mockReturnValueOnce({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([existing])
-          })
-        })
-      })
-      mockSelect.mockReturnValueOnce({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([])
-          })
-        })
-      })
-
-      const set = vi.fn().mockReturnValue({
-        where: vi.fn().mockReturnValue({
-          returning: vi.fn().mockResolvedValue([updated])
-        })
-      })
-      mockUpdate.mockReturnValue({ set })
+      await seedCustomApp()
 
       const dto: UpdateMiniappDto = {
         name: 'Updated App',
@@ -375,116 +204,34 @@ describe('MiniAppService', () => {
 
       const result = await service.update('custom-app', dto)
 
-      expect(set).toHaveBeenCalledWith(
-        expect.objectContaining({
-          name: 'Updated App',
-          url: 'https://updated.app',
-          status: 'disabled'
-        })
-      )
       expect(result.name).toBe('Updated App')
+      expect(result.url).toBe('https://updated.app')
+      expect(result.status).toBe('disabled')
+
+      const [row] = await dbh.db.select().from(miniappTable).where(eq(miniappTable.appId, 'custom-app'))
+      expect(row.name).toBe('Updated App')
+      expect(row.status).toBe('disabled')
     })
 
     it('should only allow preference fields for default apps', async () => {
-      const existing = createMockRow({
-        appId: 'openai',
-        type: 'default' as const
-      })
-      const updated = createMockRow({
-        appId: 'openai',
-        type: 'default' as const,
-        status: 'pinned' as const
-      })
-
-      // Mock select for DB query (check existing pref)
-      mockSelect.mockReturnValueOnce({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([])
-          })
-        })
-      })
-      // Mock select for getByAppId
-      mockSelect.mockReturnValueOnce({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([existing])
-          })
-        })
-      })
-      // Mock insert for ensureDefaultAppPref
-      const values = vi.fn().mockReturnValue({
-        onConflictDoNothing: vi.fn().mockResolvedValue(undefined)
-      })
-      mockInsert.mockReturnValue({ values })
-
-      const set = vi.fn().mockReturnValue({
-        where: vi.fn().mockReturnValue({
-          returning: vi.fn().mockResolvedValue([updated])
-        })
-      })
-      mockUpdate.mockReturnValue({ set })
-
       const result = await service.update('openai', { status: 'pinned' })
 
-      expect(set).toHaveBeenCalledWith(
-        expect.objectContaining({
-          status: 'pinned'
-        })
-      )
       expect(result.status).toBe('pinned')
+
+      // A default-app pref row should have been upserted
+      const [row] = await dbh.db.select().from(miniappTable).where(eq(miniappTable.appId, 'openai'))
+      expect(row.status).toBe('pinned')
+      expect(row.type).toBe('default')
     })
 
-    it('should reject empty updates for default apps', async () => {
-      const existing = createMockRow({
-        appId: 'openai',
-        type: 'default' as const
-      })
-
-      mockSelect.mockReturnValueOnce({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([])
-          })
-        })
-      })
-      mockSelect.mockReturnValueOnce({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([existing])
-          })
-        })
-      })
-      mockSelect.mockReturnValueOnce({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([])
-          })
-        })
-      })
-      const values = vi.fn().mockReturnValue({
-        onConflictDoNothing: vi.fn().mockResolvedValue(undefined)
-      })
-      mockInsert.mockReturnValue({ values })
-
-      // Trying to update non-preference field on a default app
+    it('should reject non-preference field updates for default apps', async () => {
       await expect(service.update('openai', { name: 'New Name' })).rejects.toMatchObject({
         code: ErrorCode.VALIDATION_ERROR,
         status: 422
       })
-
-      expect(mockUpdate).not.toHaveBeenCalled()
     })
 
     it('should reject update of nonexistent app', async () => {
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([])
-          })
-        })
-      })
-
       await expect(service.update('nonexistent', { name: 'New Name' })).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND,
         status: 404
@@ -494,169 +241,69 @@ describe('MiniAppService', () => {
 
   describe('delete', () => {
     it('should delete a custom miniapp', async () => {
-      const existing = createMockRow()
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([existing])
-          })
-        })
-      })
-      const where = vi.fn().mockResolvedValue(undefined)
-      mockDelete.mockReturnValue({ where })
+      await seedCustomApp()
 
       await expect(service.delete('custom-app')).resolves.toBeUndefined()
-      expect(where).toHaveBeenCalled()
+
+      const rows = await dbh.db.select().from(miniappTable).where(eq(miniappTable.appId, 'custom-app'))
+      expect(rows).toHaveLength(0)
     })
 
     it('should reject deletion of default apps', async () => {
-      const existing = createMockRow({
-        appId: 'openai',
-        type: 'default' as const
-      })
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([existing])
-          })
-        })
-      })
+      await seedDefaultAppPref('openai')
 
       await expect(service.delete('openai')).rejects.toMatchObject({
         code: ErrorCode.VALIDATION_ERROR,
         status: 422
       })
 
-      expect(mockDelete).not.toHaveBeenCalled()
+      // Row should remain
+      const rows = await dbh.db.select().from(miniappTable).where(eq(miniappTable.appId, 'openai'))
+      expect(rows).toHaveLength(1)
     })
   })
 
   describe('reorder', () => {
     it('should batch update sort orders in a transaction', async () => {
-      const txUpdate = vi.fn().mockReturnValue({
-        set: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            returning: vi.fn().mockResolvedValue([{ appId: 'app-1' }])
-          })
-        })
-      })
-      const txSelect = vi.fn().mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue([{ appId: 'app-1' }])
-        })
-      })
-      const txInsert = vi.fn().mockReturnValue({
-        values: vi.fn().mockReturnValue({
-          onConflictDoNothing: vi.fn().mockResolvedValue(undefined)
-        })
-      })
-      const txDb = {
-        update: txUpdate,
-        select: txSelect,
-        insert: txInsert
-      }
-
-      mockTransaction.mockImplementation(async (fn) => {
-        await fn(txDb)
-      })
+      await seedCustomApp({ appId: 'app-1', name: 'A1', sortOrder: 5 })
+      await seedCustomApp({ appId: 'app-2', name: 'A2', sortOrder: 7 })
 
       await service.reorder([
         { appId: 'app-1', sortOrder: 0 },
         { appId: 'app-2', sortOrder: 1 }
       ])
 
-      expect(mockTransaction).toHaveBeenCalledTimes(1)
-      expect(txUpdate).toHaveBeenCalledTimes(2)
+      const [row1] = await dbh.db.select().from(miniappTable).where(eq(miniappTable.appId, 'app-1'))
+      const [row2] = await dbh.db.select().from(miniappTable).where(eq(miniappTable.appId, 'app-2'))
+      expect(row1.sortOrder).toBe(0)
+      expect(row2.sortOrder).toBe(1)
     })
 
     it('should ensure DB rows exist for builtin apps during reorder', async () => {
-      const txUpdate = vi.fn().mockReturnValue({
-        set: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            returning: vi.fn().mockResolvedValue([{ appId: 'openai' }])
-          })
-        })
-      })
-      const txSelect = vi.fn().mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue([])
-        })
-      })
-      const txInsert = vi.fn().mockReturnValue({
-        values: vi.fn().mockReturnValue({
-          onConflictDoNothing: vi.fn().mockResolvedValue(undefined)
-        })
-      })
-      const txDb = {
-        update: txUpdate,
-        select: txSelect,
-        insert: txInsert
-      }
+      await service.reorder([{ appId: 'openai', sortOrder: 3 }])
 
-      mockTransaction.mockImplementation(async (fn) => {
-        await fn(txDb)
-      })
-
-      await service.reorder([{ appId: 'openai', sortOrder: 0 }])
-
-      // Should insert missing builtin app pref rows
-      expect(txInsert).toHaveBeenCalled()
+      const [row] = await dbh.db.select().from(miniappTable).where(eq(miniappTable.appId, 'openai'))
+      expect(row).toBeDefined()
+      expect(row.sortOrder).toBe(3)
+      expect(row.type).toBe('default')
     })
 
-    it('should log skipped non-existent app IDs', async () => {
-      const txUpdate = vi.fn().mockReturnValue({
-        set: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            returning: vi.fn().mockResolvedValue([])
-          })
-        })
-      })
-      const txSelect = vi.fn().mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue([])
-        })
-      })
-      const txInsert = vi.fn().mockReturnValue({
-        values: vi.fn().mockReturnValue({
-          onConflictDoNothing: vi.fn().mockResolvedValue(undefined)
-        })
-      })
-      const txDb = {
-        update: txUpdate,
-        select: txSelect,
-        insert: txInsert
-      }
-
-      mockTransaction.mockImplementation(async (fn) => {
-        await fn(txDb)
-      })
-
-      // Should not throw, just logs warning
+    it('should not throw for non-existent app IDs', async () => {
       await expect(service.reorder([{ appId: 'nonexistent', sortOrder: 0 }])).resolves.toBeUndefined()
     })
   })
 
   describe('resetDefaults', () => {
-    it('should delete all default app preference rows', async () => {
-      const where = vi.fn().mockResolvedValue(undefined)
-      mockDelete.mockReturnValue({ where })
-
-      await expect(service.resetDefaults()).resolves.toBeUndefined()
-
-      // Should call delete with type='default' condition
-      expect(mockDelete).toHaveBeenCalled()
-      expect(where).toHaveBeenCalled()
-    })
-
-    it('should only target default type rows, not custom', async () => {
-      const where = vi.fn().mockResolvedValue(undefined)
-      mockDelete.mockReturnValue({ where })
+    it('should delete all default app preference rows but preserve custom ones', async () => {
+      await seedCustomApp()
+      await seedDefaultAppPref('openai')
+      await seedDefaultAppPref('gemini', { status: 'pinned' })
 
       await service.resetDefaults()
 
-      // Verify mockDelete was called exactly once with the correct scope
-      expect(mockDelete).toHaveBeenCalledTimes(1)
-      expect(where).toHaveBeenCalledTimes(1)
+      const rows = await dbh.db.select().from(miniappTable)
+      expect(rows.some((r) => r.type === 'default')).toBe(false)
+      expect(rows.some((r) => r.appId === 'custom-app')).toBe(true)
     })
   })
 })

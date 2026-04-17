@@ -1,8 +1,8 @@
 // import { loggerService } from '@logger'
 import { Box } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import TopViewMinappContainer from '@renderer/components/MinApp/TopViewMinappContainer'
 import { useAppInit } from '@renderer/hooks/useAppInit'
-import { useShortcuts } from '@renderer/hooks/useShortcuts'
 import { useTopicSync } from '@renderer/hooks/useTopicDataApi'
 import { message, Modal } from 'antd'
 import type { PropsWithChildren } from 'react'
@@ -38,8 +38,8 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
 
   const [modal, modalContextHolder] = Modal.useModal()
   const [messageApi, messageContextHolder] = message.useMessage()
-  const { shortcuts } = useShortcuts()
-  const enableQuitFullScreen = shortcuts.find((item) => item.key === 'exit_fullscreen')?.enabled
+  const [exitFullscreenPref] = usePreference('shortcut.general.exit_fullscreen')
+  const enableQuitFullScreen = exitFullscreenPref?.enabled !== false
 
   useAppInit()
   useTopicSync()

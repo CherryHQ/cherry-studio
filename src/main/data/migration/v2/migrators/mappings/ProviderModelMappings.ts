@@ -12,7 +12,7 @@ import {
 import type { NewUserModel } from '@data/db/schemas/userModel'
 import type { NewUserProvider } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
-import type { RuntimeModelPricing } from '@shared/data/types/model'
+import { createUniqueModelId, type RuntimeModelPricing } from '@shared/data/types/model'
 import type {
   ApiFeatures,
   ApiKeyEntry,
@@ -383,6 +383,7 @@ export function transformModel(legacy: LegacyModel, providerId: string, sortOrde
     legacy.capabilities?.some((capability) => capability.isUserSelected !== undefined) ?? false
 
   return {
+    id: createUniqueModelId(providerId, legacy.id),
     providerId,
     modelId: legacy.id,
     presetModelId: normalizeModelId(legacy.id),

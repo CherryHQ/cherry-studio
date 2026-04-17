@@ -1,97 +1,19 @@
 /**
  * Tests for ModelService — field mapping, update behavior, and create merge logic.
- * Uses the unified mock system per CLAUDE.md testing guidelines.
  */
 
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
+import { modelService, UPDATE_MODEL_FIELD_MAP } from '@data/services/ModelService'
 import type { UpdateModelDto } from '@shared/data/api/schemas/models'
-import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createUniqueModelId } from '@shared/data/types/model'
+import { setupTestDatabase } from '@test-helpers/db'
+import { and, eq } from 'drizzle-orm'
+import { describe, expect, it, vi } from 'vitest'
 
-import { UPDATE_MODEL_FIELD_MAP } from '../ModelService'
-
-// ─────────────────────────────────────────────────────────────────────────────
-// DB mock that captures insert/update arguments
-// ─────────────────────────────────────────────────────────────────────────────
-
-let capturedInsertValues: unknown = null
-let capturedUpdateSet: unknown = null
-
-function createCapturingMockDb(selectResults: unknown[][] = [[]]) {
-  let selectCallIndex = 0
-
-  const makeChainable = (): unknown => {
-    const obj: Record<string, unknown> = {}
-
-    for (const method of ['from', 'where', 'limit', 'onConflictDoUpdate', 'all', 'get', 'returning']) {
-      obj[method] = vi.fn(() => makeChainable())
-    }
-
-    obj.select = vi.fn(() => makeChainable())
-
-    obj.insert = vi.fn(() => {
-      const insertChain: Record<string, unknown> = {}
-      insertChain.values = vi.fn((vals: unknown) => {
-        capturedInsertValues = vals
-        const returnChain: Record<string, unknown> = {}
-        returnChain.returning = vi.fn(() => {
-          const thenable: Record<string, unknown> = {}
-          thenable.then = (resolve: (v: unknown) => void) => resolve([capturedInsertValues])
-          return thenable
-        })
-        returnChain.onConflictDoUpdate = vi.fn(() => returnChain)
-        returnChain.then = (resolve: (v: unknown) => void) => resolve([capturedInsertValues])
-        return returnChain
-      })
-      return insertChain
-    })
-
-    obj.update = vi.fn(() => {
-      const updateChain: Record<string, unknown> = {}
-      updateChain.set = vi.fn((vals: unknown) => {
-        capturedUpdateSet = vals
-        const setChain: Record<string, unknown> = {}
-        setChain.where = vi.fn(() => {
-          const whereChain: Record<string, unknown> = {}
-          whereChain.returning = vi.fn(() => {
-            const thenable: Record<string, unknown> = {}
-            thenable.then = (resolve: (v: unknown) => void) =>
-              resolve([{ ...(selectResults[0]?.[0] as object), ...(capturedUpdateSet as object) }])
-            return thenable
-          })
-          return whereChain
-        })
-        return setChain
-      })
-      return updateChain
-    })
-
-    obj.transaction = vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(makeChainable()))
-    obj.then = (resolve: (v: unknown) => void) => {
-      const result = selectResults[selectCallIndex] ?? []
-      selectCallIndex++
-      resolve(result)
-    }
-
-    return obj
-  }
-
-  return makeChainable()
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Mocks
-// ─────────────────────────────────────────────────────────────────────────────
-
-vi.mock('@application', async () => {
-  const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory()
-})
-
-vi.mock('../ProviderRegistryService', () => ({
+vi.mock('@data/services/ProviderRegistryService', () => ({
   providerRegistryService: {}
 }))
-
-const { modelService } = await import('../ModelService')
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FIELD_MAP completeness — prevents forgetting to map new DTO fields
@@ -135,56 +57,59 @@ describe('UPDATE_MODEL_FIELD_MAP completeness', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('ModelService.update', () => {
-  const existingRow = {
-    providerId: 'openai',
-    modelId: 'gpt-4o',
-    presetModelId: 'gpt-4o',
-    name: 'GPT-4o',
-    description: null,
-    group: null,
-    capabilities: ['function-call'],
-    inputModalities: ['text'],
-    outputModalities: ['text'],
-    endpointTypes: null,
-    contextWindow: 128_000,
-    maxOutputTokens: 4096,
-    supportsStreaming: true,
-    reasoning: null,
-    parameters: null,
-    pricing: null,
-    isEnabled: true,
-    isHidden: false,
-    sortOrder: 0,
-    notes: null,
-    userOverrides: null,
-    customEndpointUrl: null,
-    isDeprecated: false,
-    createdAt: null,
-    updatedAt: null
+  const dbh = setupTestDatabase()
+
+  async function seedExistingModel() {
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'openai',
+      name: 'OpenAI'
+    })
+    await dbh.db.insert(userModelTable).values({
+      id: createUniqueModelId('openai', 'gpt-4o'),
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      presetModelId: 'gpt-4o',
+      name: 'GPT-4o',
+      capabilities: ['function-call'],
+      inputModalities: ['text'],
+      outputModalities: ['text'],
+      contextWindow: 128_000,
+      maxOutputTokens: 4096,
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false,
+      sortOrder: 0
+    })
   }
 
-  beforeEach(() => {
-    capturedUpdateSet = null
-    MockMainDbServiceUtils.setDb(createCapturingMockDb([[existingRow]]))
-  })
-
   it('only writes provided fields — partial update does not clear others', async () => {
+    await seedExistingModel()
+
     await modelService.update('openai', 'gpt-4o', { name: 'New Name' })
 
-    const set = capturedUpdateSet as Record<string, unknown>
-    expect(set.name).toBe('New Name')
-    expect(set.description).toBeUndefined()
-    expect(set.capabilities).toBeUndefined()
-    expect(set.contextWindow).toBeUndefined()
+    const [row] = await dbh.db
+      .select()
+      .from(userModelTable)
+      .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'gpt-4o')))
+
+    expect(row.name).toBe('New Name')
+    expect(row.capabilities).toEqual(['function-call'])
+    expect(row.contextWindow).toBe(128_000)
+    expect(row.maxOutputTokens).toBe(4096)
   })
 
   it('parameterSupport DTO key maps to parameters DB column', async () => {
+    await seedExistingModel()
+
     const params = { temperature: { supported: true } } as any
     await modelService.update('openai', 'gpt-4o', { parameterSupport: params })
 
-    const set = capturedUpdateSet as Record<string, unknown>
-    expect(set.parameters).toEqual(params)
-    expect(set.parameterSupport).toBeUndefined()
+    const [row] = await dbh.db
+      .select()
+      .from(userModelTable)
+      .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'gpt-4o')))
+
+    expect(row.parameters).toEqual(params)
   })
 })
 
@@ -193,12 +118,14 @@ describe('ModelService.update', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('ModelService.create', () => {
-  beforeEach(() => {
-    capturedInsertValues = null
-    MockMainDbServiceUtils.setDb(createCapturingMockDb())
-  })
+  const dbh = setupTestDatabase()
 
   it('null DTO fields do not clobber preset during merge', async () => {
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'openai',
+      name: 'OpenAI'
+    })
+
     const dto = {
       providerId: 'openai',
       modelId: 'gpt-4o'
@@ -217,11 +144,19 @@ describe('ModelService.create', () => {
       registryOverride: null
     }
 
-    await modelService.create(dto, registryData)
+    const created = await modelService.create(dto, registryData)
 
-    const vals = capturedInsertValues as Record<string, unknown>
-    expect(vals.name).toBe('GPT-4o')
-    expect(vals.capabilities).toEqual(['function-call'])
-    expect(vals.contextWindow).toBe(128_000)
+    expect(created.name).toBe('GPT-4o')
+    expect(created.capabilities).toEqual(['function-call'])
+    expect(created.contextWindow).toBe(128_000)
+
+    const [row] = await dbh.db
+      .select()
+      .from(userModelTable)
+      .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'gpt-4o')))
+
+    expect(row.name).toBe('GPT-4o')
+    expect(row.capabilities).toEqual(['function-call'])
+    expect(row.contextWindow).toBe(128_000)
   })
 })

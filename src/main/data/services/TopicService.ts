@@ -17,12 +17,10 @@ import type { Topic } from '@shared/data/types/topic'
 import { and, asc, desc, eq, isNull } from 'drizzle-orm'
 
 import { messageService } from './MessageService'
+import { tagService } from './TagService'
 
 const logger = loggerService.withContext('DataApi:TopicService')
 
-/**
- * Convert database row to Topic entity
- */
 function rowToTopic(row: typeof topicTable.$inferSelect): Topic {
   return {
     id: row.id,
@@ -208,11 +206,14 @@ export class TopicService {
     // Verify topic exists
     await this.getById(id)
 
-    // Hard delete all messages first (due to foreign key)
-    await db.delete(messageTable).where(eq(messageTable.topicId, id))
+    await db.transaction(async (tx) => {
+      // Hard delete all messages first (due to foreign key)
+      await tx.delete(messageTable).where(eq(messageTable.topicId, id))
+      await tagService.removeEntityTags('topic', id, tx)
 
-    // Hard delete topic
-    await db.delete(topicTable).where(eq(topicTable.id, id))
+      // Hard delete topic
+      await tx.delete(topicTable).where(eq(topicTable.id, id))
+    })
 
     logger.info('Deleted topic', { id })
   }

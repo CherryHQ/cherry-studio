@@ -2,6 +2,7 @@ import { useChat } from '@ai-sdk/react'
 import { loggerService } from '@logger'
 import { ExecutionTransport } from '@renderer/transport/IpcChatTransport'
 import type { CherryUIMessage } from '@shared/data/types/message'
+import type { UniqueModelId } from '@shared/data/types/model'
 import { useEffect, useMemo } from 'react'
 
 const logger = loggerService.withContext('ExecutionStreamCollector')
@@ -19,7 +20,7 @@ export default function ExecutionStreamCollector({
   onMessagesChange,
   onDispose
 }: ExecutionStreamCollectorProps) {
-  const transport = useMemo(() => new ExecutionTransport(topicId, executionId), [topicId, executionId])
+  const transport = useMemo(() => new ExecutionTransport(topicId, executionId as UniqueModelId), [topicId, executionId])
 
   const { messages } = useChat<CherryUIMessage>({
     id: `${topicId}:${executionId}`,

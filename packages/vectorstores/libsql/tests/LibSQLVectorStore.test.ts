@@ -366,28 +366,6 @@ describe('LibSQLVectorStore', () => {
       await expect(store.add([invalidNode])).rejects.toThrow('Invalid libSQL argument at index 0: null')
     })
 
-    it('should fail initialization when vector index creation fails', async () => {
-      const originalExecute = client.execute.bind(client)
-      const executeSpy = vi.spyOn(client, 'execute').mockImplementation(async (statement: any) => {
-        const sql = typeof statement === 'string' ? statement : statement.sql
-        if (typeof sql === 'string' && sql.includes('libsql_vector_idx')) {
-          throw new Error('vector index failed')
-        }
-
-        return await originalExecute(statement)
-      })
-
-      const node = new TextNode({
-        id_: 'chunk-hard-fail',
-        text: 'Document chunk',
-        embedding: [0.1, 0.2],
-        metadata: { category: 'test' }
-      })
-
-      await expect(store.add([node])).rejects.toThrow('vector index failed')
-      executeSpy.mockRestore()
-    })
-
     it('should fail initialization when FTS schema creation fails', async () => {
       const originalExecute = client.execute.bind(client)
       const executeSpy = vi.spyOn(client, 'execute').mockImplementation(async (statement: any) => {

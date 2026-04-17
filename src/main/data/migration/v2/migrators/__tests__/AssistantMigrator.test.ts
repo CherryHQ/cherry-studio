@@ -1,3 +1,4 @@
+import { entityTagTable } from '@data/db/schemas/tagging'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ReduxStateReader } from '../../utils/ReduxStateReader'
@@ -15,14 +16,20 @@ function createMockContext(reduxData: Record<string, unknown> = {}) {
     },
     db: {
       transaction: vi.fn(async (fn: (tx: any) => Promise<void>) => {
-        const valuesResult = { onConflictDoNothing: vi.fn().mockResolvedValue(undefined) }
-        // Make valuesResult also thenable so plain await works
-        Object.assign(valuesResult, {
-          then: (resolve: (v: unknown) => unknown) => Promise.resolve(undefined).then(resolve)
-        })
         const tx = {
           insert: vi.fn().mockReturnValue({
-            values: vi.fn().mockReturnValue(valuesResult)
+            values: vi.fn().mockImplementation(() => {
+              const returningResult = Promise.resolve([])
+              const onConflictResult = {
+                returning: vi.fn().mockResolvedValue([]),
+                then: (resolve: (v: unknown) => unknown) => returningResult.then(resolve)
+              }
+              return {
+                onConflictDoNothing: vi.fn().mockReturnValue(onConflictResult),
+                returning: vi.fn().mockResolvedValue([]),
+                then: (resolve: (v: unknown) => unknown) => Promise.resolve(undefined).then(resolve)
+              }
+            })
           }),
           select: vi.fn().mockReturnValue({
             from: vi.fn().mockReturnValue(
@@ -34,13 +41,21 @@ function createMockContext(reduxData: Record<string, unknown> = {}) {
         await fn(tx)
         return tx
       }),
-      select: vi.fn().mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          get: vi.fn().mockResolvedValue({ count: 0 }),
-          limit: vi.fn().mockReturnValue({
-            all: vi.fn().mockResolvedValue([])
+      select: vi.fn().mockImplementation((arg) => {
+        if (arg && typeof arg === 'object' && 'id' in arg) {
+          return {
+            from: vi.fn().mockResolvedValue([{ id: 'openai::gpt-4' }])
+          }
+        }
+
+        return {
+          from: vi.fn().mockReturnValue({
+            get: vi.fn().mockResolvedValue({ count: 0 }),
+            limit: vi.fn().mockReturnValue({
+              all: vi.fn().mockResolvedValue([])
+            })
           })
-        })
+        }
       })
     },
     sharedData: new Map(),
@@ -228,8 +243,12 @@ describe('AssistantMigrator', () => {
           insert: vi.fn().mockImplementation(() => ({
             values: vi.fn().mockImplementation((vals: unknown[]) => {
               allInsertedValues.push(vals)
+              const rows = Array.isArray(vals) ? vals : [vals]
               return {
-                onConflictDoNothing: vi.fn().mockResolvedValue(undefined),
+                onConflictDoNothing: vi.fn().mockReturnValue({
+                  returning: vi.fn().mockResolvedValue(rows.map((_: unknown, index) => ({ id: `inserted-${index}` }))),
+                  then: (r: (v: unknown) => unknown) => Promise.resolve(undefined).then(r)
+                }),
                 then: (r: (v: unknown) => unknown) => Promise.resolve(undefined).then(r)
               }
             })
@@ -269,6 +288,64 @@ describe('AssistantMigrator', () => {
       )
     })
 
+    it('should deduplicate duplicate tags on one assistant before inserting entity_tag rows', async () => {
+      const assistantsWithDuplicateTags = [{ id: 'ast-1', name: 'Tagged One', tags: ['work', 'work', 'coding'] }]
+      const ctx = createMockContext({ assistants: { assistants: assistantsWithDuplicateTags, presets: [] } })
+
+      const allInsertedValues: unknown[][] = []
+      const onConflictDoNothingCalls: string[] = []
+      const mockTagRows = [
+        { id: 'tag-1', name: 'work' },
+        { id: 'tag-2', name: 'coding' }
+      ]
+
+      ctx.db.transaction = vi.fn(async (fn: (tx: any) => Promise<void>) => {
+        const tx = {
+          insert: vi.fn().mockImplementation((table) => ({
+            values: vi.fn().mockImplementation((vals: unknown[]) => {
+              allInsertedValues.push(vals)
+              const rows = Array.isArray(vals) ? vals : [vals]
+              return {
+                onConflictDoNothing: vi.fn().mockImplementation(() => {
+                  onConflictDoNothingCalls.push(table === entityTagTable ? 'entity_tag' : 'tag')
+                  return {
+                    returning: vi
+                      .fn()
+                      .mockResolvedValue(
+                        rows.map((_: unknown, index) => ({ id: `inserted-${index}`, tagId: `tag-${index}` }))
+                      ),
+                    then: (r: (v: unknown) => unknown) => Promise.resolve(undefined).then(r)
+                  }
+                }),
+                then: (r: (v: unknown) => unknown) => Promise.resolve(undefined).then(r)
+              }
+            })
+          })),
+          select: vi.fn().mockReturnValue({
+            from: vi.fn().mockResolvedValue(mockTagRows)
+          })
+        }
+        await fn(tx)
+      }) as any
+
+      await migrator.prepare(ctx as any)
+      const result = await migrator.execute(ctx as any)
+
+      expect(result.success).toBe(true)
+
+      const entityTagInserts = allInsertedValues
+        .flat()
+        .filter((v: any) => v && typeof v === 'object' && 'entityType' in v)
+      expect(entityTagInserts).toHaveLength(2)
+      expect(entityTagInserts).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ entityType: 'assistant', entityId: 'ast-1', tagId: 'tag-1' }),
+          expect.objectContaining({ entityType: 'assistant', entityId: 'ast-1', tagId: 'tag-2' })
+        ])
+      )
+      expect(onConflictDoNothingCalls).toEqual(expect.arrayContaining(['tag', 'entity_tag']))
+    })
+
     it('should drop dangling mcpServer refs not present in mapping', async () => {
       const assistantsWithMcp = [
         { id: 'ast-1', name: 'Mixed MCP', mcpServers: [{ id: 'known-srv' }, { id: 'unknown-srv' }] }
@@ -280,6 +357,38 @@ describe('AssistantMigrator', () => {
 
       expect(result.success).toBe(true)
       expect(ctx.db.transaction).toHaveBeenCalled()
+    })
+
+    it('should null out dangling assistant model refs not present in user_model', async () => {
+      const assistantsWithDanglingModel = [
+        { id: 'ast-1', name: 'Dangling Model', model: { id: 'qwen', provider: 'cherryai' } }
+      ]
+      const ctx = createMockContext({ assistants: { assistants: assistantsWithDanglingModel, presets: [] } })
+      const insertedBatches: any[] = []
+
+      ctx.db.transaction = vi.fn(async (fn: (tx: any) => Promise<void>) => {
+        const tx = {
+          insert: vi.fn().mockReturnValue({
+            values: vi.fn().mockImplementation((vals: unknown[]) => {
+              insertedBatches.push(vals)
+              return {
+                onConflictDoNothing: vi.fn().mockResolvedValue(undefined),
+                then: (resolve: (v: unknown) => unknown) => Promise.resolve(undefined).then(resolve)
+              }
+            })
+          }),
+          select: vi.fn().mockReturnValue({
+            from: vi.fn().mockResolvedValue([])
+          })
+        }
+        await fn(tx)
+      }) as any
+
+      await migrator.prepare(ctx as any)
+      const result = await migrator.execute(ctx as any)
+
+      expect(result.success).toBe(true)
+      expect(insertedBatches[0][0]).toMatchObject({ id: 'ast-1', modelId: null })
     })
   })
 

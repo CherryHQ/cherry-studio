@@ -95,12 +95,14 @@ export class AgentChatContextProvider implements ChatContextProvider {
       userMessage: {
         id: userMessageId,
         topicId: req.topicId,
+        parentId: null,
         role: 'user',
-        assistantId: session.agent_id,
-        createdAt,
+        data: { parts: userMessageParts },
         status: 'success',
-        data: { parts: userMessageParts }
-      } as Message,
+        siblingsGroupId: 0,
+        createdAt,
+        updatedAt: createdAt
+      } satisfies Message,
       listeners: [subscriber, agentPersistenceListener],
       isMultiModel: false
     }
