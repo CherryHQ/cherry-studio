@@ -35,7 +35,7 @@ const ProviderOAuth: FC<Props> = ({ providerId }) => {
   const { provider, updateProvider } = useProvider(providerId)
 
   const setApiKey = (newKey: string) => {
-    updateProvider({ apiKey: newKey })
+    updateProvider({ apiKey: newKey, enabled: true })
   }
 
   let providerWebsite =

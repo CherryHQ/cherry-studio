@@ -46,12 +46,12 @@ const LocalBackupSettings: React.FC = () => {
   const [appInfo, setAppInfo] = useState<AppInfo>()
 
   useEffect(() => {
-    window.api.getAppInfo().then(setAppInfo)
+    void window.api.getAppInfo().then(setAppInfo)
   }, [])
 
   useEffect(() => {
     if (localBackupDirSetting) {
-      window.api.resolvePath(localBackupDirSetting).then(setResolvedLocalBackupDir)
+      void window.api.resolvePath(localBackupDirSetting).then(setResolvedLocalBackupDir)
     }
   }, [localBackupDirSetting])
 

@@ -9,11 +9,11 @@ import { getLowerBaseModelName, isUserSelectedModelType } from '@renderer/utils'
 
 import { isEmbeddingModel, isRerankModel } from './embedding'
 import {
+  isGPT5FamilyModel,
   isGPT5ProModel,
   isGPT5SeriesModel,
   isGPT51CodexMaxModel,
   isGPT51SeriesModel,
-  isGPT52ProModel,
   isGPT52SeriesModel,
   isOpenAIDeepResearchModel,
   isOpenAIOpenWeightModel,
@@ -41,21 +41,32 @@ export const REASONING_REGEX =
 // TODO: refactor this. too many identical options
 export const MODEL_SUPPORTED_REASONING_EFFORT = {
   default: ['low', 'medium', 'high'] as const,
+  // Constrains effort on reasoning for reasoning models. Currently supported values are (none, minimal, low, medium, high, and xhigh).
+  // Reducing reasoning effort can result in faster responses and fewer tokens used on reasoning in a response.
+  // • (gpt-5.1) defaults to none, which does not perform reasoning.
+  //   The supported reasoning values for (gpt-5.1) are (none, low, medium, and high). Tool calls are supported for all reasoning values in (gpt-5.1).
+  // • All models before (gpt-5.1) default to medium reasoning effort, and do not support (none).
+  // • The (gpt-5-pro) model defaults to (and only supports) (high reasoning effort).
+  // • xhigh is supported for all models after (gpt-5.1-codex-max).
   o: ['low', 'medium', 'high'] as const,
   openai_deep_research: ['medium'] as const,
   gpt5: ['minimal', 'low', 'medium', 'high'] as const,
   gpt5_codex: ['low', 'medium', 'high'] as const,
   gpt5_1: ['none', 'low', 'medium', 'high'] as const,
-  gpt5_1_codex: ['none', 'medium', 'high'] as const,
-  gpt5_1_codex_max: ['none', 'medium', 'high', 'xhigh'] as const,
+  gpt5_1_codex: ['medium', 'high'] as const,
+  gpt5_1_codex_max: ['medium', 'high', 'xhigh'] as const,
+  gpt5_2_codex: ['low', 'medium', 'high', 'xhigh'] as const,
+  // Fallback for GPT-5.2+ base models and GPT-5.3+ codex models
   gpt5_2: ['none', 'low', 'medium', 'high', 'xhigh'] as const,
   gpt5pro: ['high'] as const,
+  // Fallback for GPT-5.2+ pro models
   gpt52pro: ['medium', 'high', 'xhigh'] as const,
   gpt_oss: ['low', 'medium', 'high'] as const,
   grok: ['low', 'high'] as const,
   grok4_fast: ['auto'] as const,
   gemini2_flash: ['low', 'medium', 'high', 'auto'] as const,
   gemini2_pro: ['low', 'medium', 'high', 'auto'] as const,
+  // Also Gemini 3.1 Flash(-lite)
   gemini3_flash: ['minimal', 'low', 'medium', 'high'] as const,
   gemini3_pro: ['low', 'high'] as const,
   gemini3_1_pro: ['low', 'medium', 'high'] as const,
@@ -70,6 +81,8 @@ export const MODEL_SUPPORTED_REASONING_EFFORT = {
   perplexity: ['low', 'medium', 'high'] as const,
   deepseek_hybrid: ['auto'] as const,
   kimi_k2_5: ['none', 'auto'] as const,
+  // Claude 3.7, 4.0, 4.5 reasoning models
+  claude: ['low', 'medium', 'high'] as const,
   // Claude 4.6 supports low, medium, high, xhigh (xhigh is mapped to max in API)
   claude46: ['low', 'medium', 'high', 'xhigh'] as const
 } as const satisfies ReasoningEffortConfig
@@ -84,6 +97,7 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   gpt5_codex: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt5_codex] as const,
   gpt5_1: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt5_1] as const,
   gpt5_1_codex: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt5_1_codex] as const,
+  gpt5_2_codex: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt5_2_codex] as const,
   gpt5_2: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt5_2] as const,
   gpt5_1_codex_max: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt5_1_codex_max] as const,
   gpt52pro: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt52pro] as const,
@@ -106,6 +120,7 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   perplexity: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.perplexity] as const,
   deepseek_hybrid: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.deepseek_hybrid] as const,
   kimi_k2_5: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.kimi_k2_5] as const,
+  claude: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.claude] as const,
   claude46: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.claude46] as const
 } as const
 
@@ -113,29 +128,42 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
 const _getThinkModelType = (model: Model): ThinkingModelType => {
   let thinkingModelType: ThinkingModelType = 'default'
   const modelId = getLowerBaseModelName(model.id)
-  if (isOpenAIDeepResearchModel(model)) {
+  if (isClaudeReasoningModel(model)) {
+    thinkingModelType = 'claude'
+    // 4.7 reuses the 4.6 effort list (low/medium/high/xhigh); provider-level
+    // mapping still distinguishes them (4.7 sends native 'xhigh', 4.6 sends 'max').
+    if (isClaude46SeriesModel(model) || isClaude47SeriesModel(model)) {
+      thinkingModelType = 'claude46'
+    }
+  } else if (isOpenAIDeepResearchModel(model)) {
     return 'openai_deep_research'
-  } else if (isGPT51SeriesModel(model)) {
-    if (modelId.includes('codex')) {
-      thinkingModelType = 'gpt5_1_codex'
-      if (isGPT51CodexMaxModel(model)) {
-        thinkingModelType = 'gpt5_1_codex_max'
+  } else if (isGPT5FamilyModel(model)) {
+    if (isGPT51SeriesModel(model)) {
+      if (modelId.includes('codex')) {
+        thinkingModelType = 'gpt5_1_codex'
+        if (isGPT51CodexMaxModel(model)) {
+          thinkingModelType = 'gpt5_1_codex_max'
+        }
+      } else {
+        thinkingModelType = 'gpt5_1'
+      }
+    } else if (isGPT52SeriesModel(model) && modelId.includes('codex')) {
+      thinkingModelType = 'gpt5_2_codex'
+    } else if (isGPT5SeriesModel(model)) {
+      if (modelId.includes('codex')) {
+        thinkingModelType = 'gpt5_codex'
+      } else {
+        thinkingModelType = 'gpt5'
+        if (isGPT5ProModel(model)) {
+          thinkingModelType = 'gpt5pro'
+        }
       }
     } else {
-      thinkingModelType = 'gpt5_1'
-    }
-  } else if (isGPT52SeriesModel(model)) {
-    thinkingModelType = 'gpt5_2'
-    if (isGPT52ProModel(model)) {
-      thinkingModelType = 'gpt52pro'
-    }
-  } else if (isGPT5SeriesModel(model)) {
-    if (modelId.includes('codex')) {
-      thinkingModelType = 'gpt5_codex'
-    } else {
-      thinkingModelType = 'gpt5'
-      if (isGPT5ProModel(model)) {
-        thinkingModelType = 'gpt5pro'
+      // GPT-5.2+ non-codex models (also serves as fallback for unknown future sub-versions)
+      if (modelId.includes('-pro')) {
+        thinkingModelType = 'gpt52pro'
+      } else {
+        thinkingModelType = 'gpt5_2'
       }
     }
   } else if (isOpenAIOpenWeightModel(model)) {
@@ -183,10 +211,6 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
     thinkingModelType = 'mimo'
   } else if (isSupportedThinkingTokenKimiModel(model)) {
     thinkingModelType = 'kimi_k2_5'
-  } else if (isClaude46SeriesModel(model) || isClaude47SeriesModel(model)) {
-    // 4.7 reuses the 4.6 effort list (low/medium/high/xhigh); provider-level
-    // mapping still distinguishes them (4.7 sends native 'xhigh', 4.6 sends 'max').
-    thinkingModelType = 'claude46'
   }
   return thinkingModelType
 }
@@ -430,8 +454,8 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
     return false
   }
 
-  // qwen 3.5 series models, all support
-  if (modelId.startsWith('qwen3.5')) {
+  // qwen 3.5~3.9 series models, all support
+  if (/^qwen3\.[5-9]/.test(modelId)) {
     return true
   }
 
@@ -443,9 +467,9 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
   //    In the global deployment environment, qwen-max still points to the non-reasoning snapshot from 2025-09-23,
   //    whereas in mainland China, qwen-max has been updated to the latest 2026-01-23 snapshot, which supports reasoning control. - 2026-03-05
   const MAX_REGEX = /^(?:qwen3-max(?!-2025-09-23)|qwen-max-latest)(?:-|$)/i
-  const PLUS_REGEX = /^qwen(?:3\.5)?-plus(?:-|$)/i
-  const FLASH_REGEX = /^qwen(?:3\.5)?-flash(?:-|$)/i
-  const TURBO_REGEX = /^qwen(?:3\.5)?-turbo(?:-|$)/i
+  const PLUS_REGEX = /^qwen(?:3\.[5-9])?-plus(?:-|$)/i
+  const FLASH_REGEX = /^qwen(?:3\.[5-9])?-flash(?:-|$)/i
+  const TURBO_REGEX = /^qwen(?:3\.[5-9])?-turbo(?:-|$)/i
   // open-weight qwen3 models with numeric size (e.g. qwen3-8b, qwen3-72b)
   const QWEN3_OPEN_REGEX = /^qwen3-\d/i
 
@@ -571,14 +595,24 @@ export const isSupportedReasoningEffortPerplexityModel = (model: Model): boolean
   return modelId.includes('sonar-deep-research')
 }
 
+/**
+ * Checks whether a Zhipu model supports thinking token control.
+ *
+ * Matches model IDs containing:
+ * - `glm5` or `glm-5` (GLM-5 series)
+ * - `glm-4.5`, `glm-4.6`, `glm-4.7` (GLM-4.x advanced series)
+ *
+ * Note: GLM-Z1 reasoning models are NOT included here — they are covered
+ * by {@link isZhipuReasoningModel} instead.
+ */
 export const isSupportedThinkingTokenZhipuModel = (model: Model): boolean => {
   const modelId = getLowerBaseModelName(model.id, '/')
-  return ['glm-5', 'glm-4.5', 'glm-4.6', 'glm-4.7'].some((id) => modelId.includes(id))
+  return /glm-?5|glm-4\.[567]/.test(modelId)
 }
 
 export const isSupportedThinkingTokenMiMoModel = (model: Model): boolean => {
   const modelId = getLowerBaseModelName(model.id, '/')
-  return ['mimo-v2-flash'].some((id) => modelId.includes(id))
+  return ['mimo-v2-flash', 'mimo-v2-pro', 'mimo-v2-omni'].some((id) => modelId.includes(id))
 }
 
 /**
@@ -731,7 +765,9 @@ export function isReasoningModel(model?: Model): boolean {
     modelId.includes('magistral') ||
     modelId.includes('pangu-pro-moe') ||
     modelId.includes('seed-oss') ||
-    modelId.includes('deepseek-v3.2-speciale')
+    modelId.includes('deepseek-v3.2-speciale') ||
+    modelId.includes('gemma-4') ||
+    modelId.includes('gemma4')
   ) {
     return true
   }
@@ -760,8 +796,8 @@ const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
   'qwen-flash.*$': { min: 0, max: 81_920 },
   // qwen3-max series (reasoning models, equivalent to qwen-plus for thinking budget)
   'qwen3-max(-.*)?$': { min: 0, max: 81_920 },
-  // Qwen3.5 series (max thinking budget: 81920)
-  '^qwen3\\.5': { min: 0, max: 81_920 },
+  // Qwen3.5+ series (max thinking budget: 81920)
+  '^qwen3\\.[5-9]': { min: 0, max: 81_920 },
   'qwen3-(?!max).*$': { min: 1024, max: 38_912 },
 
   // Claude models (supports AWS Bedrock 'anthropic.' prefix, GCP Vertex AI '@' separator, and '-v1:0' suffix)
@@ -790,7 +826,12 @@ const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
 
   // Baichuan models
   'baichuan-m2$': { min: 0, max: 30_000 },
-  'baichuan-m3$': { min: 0, max: 30_000 }
+  'baichuan-m3$': { min: 0, max: 30_000 },
+
+  // Gemma 4 models (GenAI: gemma-4-*, Ollama: gemma4:*)
+  'gemma-?4[:-]?e[24]b': { min: 1024, max: 8192 },
+  'gemma-?4[:-]?26b': { min: 1024, max: 30720 },
+  'gemma-?4[:-]?31b': { min: 1024, max: 30720 }
 }
 
 export const findTokenLimit = (modelId: string): { min: number; max: number } | undefined => {

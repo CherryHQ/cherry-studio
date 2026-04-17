@@ -96,8 +96,32 @@ Cherry Studio {version} - {简短中文标题}
 - Component tags should be short: `[Chat]`, `[Models]`, `[Agent]`, `[MCP]`, `[Settings]`, `[Data]`, `[Build]`, etc.
 - Chinese translations should be natural, not machine-literal.
 - Do NOT include commit hashes or PR numbers.
-- Omit purely internal commits (refactor, CI, docs) with no user-facing impact.
 - Read the **existing** release notes in `electron-builder.yml` as a style reference before writing.
+
+**IMPORTANT: User-Focused Content Only**
+
+Release notes are for **end users**, not developers. Exclude anything users don't care about:
+
+- **EXCLUDE** internal refactoring, code cleanup, or architecture changes
+- **EXCLUDE** CI/CD, build tooling, or test infrastructure changes
+- **EXCLUDE** dependency updates (unless they add user-visible features)
+- **EXCLUDE** documentation updates
+- **EXCLUDE** developer experience improvements
+- **EXCLUDE** technical debt fixes with no user-visible impact
+- **EXCLUDE** overly technical descriptions (e.g., "fix race condition in Redux middleware")
+
+**INCLUDE** only changes that users will notice:
+- New features they can use
+- Bug fixes that affected their workflow
+- UI/UX improvements they can see
+- Performance improvements they can feel
+- Security fixes (simplified, without implementation details)
+
+**Keep descriptions simple and non-technical:**
+- ❌ "Fix streaming race condition causing partial tool response status in Redux state"
+- ✅ "Fix tool status not stopping when aborting"
+- ❌ "Auto-convert reasoning_effort to reasoningEffort for OpenAI-compatible providers"
+- ✅ "Fix deep thinking mode not working with some providers"
 
 ### Step 4: Update Files
 

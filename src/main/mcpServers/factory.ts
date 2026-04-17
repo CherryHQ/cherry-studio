@@ -9,6 +9,7 @@ import DiDiMcpServer from './didi-mcp'
 import DifyKnowledgeServer from './dify-knowledge'
 import FetchServer from './fetch'
 import FileSystemServer from './filesystem'
+import { resolveFilesystemBaseDir } from './filesystem/config'
 import HubServer from './hub'
 import MemoryServer from './memory'
 import PythonServer from './python'
@@ -37,7 +38,7 @@ export function createInMemoryMCPServer(
       return new FetchServer().server
     }
     case BuiltinMCPServerNames.filesystem: {
-      return new FileSystemServer(envs.WORKSPACE_ROOT).server
+      return new FileSystemServer(resolveFilesystemBaseDir(args, envs)).server
     }
     case BuiltinMCPServerNames.difyKnowledge: {
       const difyKey = envs.DIFY_KEY

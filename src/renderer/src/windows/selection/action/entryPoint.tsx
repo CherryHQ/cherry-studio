@@ -26,7 +26,7 @@ loggerService.initWindowSource('SelectionActionWindow')
  */
 function initKeyv() {
   window.keyv = new KeyvStorage()
-  window.keyv.init()
+  void window.keyv.init()
 }
 
 initKeyv()

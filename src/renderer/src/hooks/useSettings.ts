@@ -53,39 +53,39 @@ export function useSettings() {
     setLaunch(isLaunchOnBoot: boolean | undefined, isLaunchToTray: boolean | undefined = undefined) {
       if (isLaunchOnBoot !== undefined) {
         dispatch(setLaunchOnBoot(isLaunchOnBoot))
-        window.api.setLaunchOnBoot(isLaunchOnBoot)
+        void window.api.setLaunchOnBoot(isLaunchOnBoot)
       }
 
       if (isLaunchToTray !== undefined) {
         dispatch(setLaunchToTray(isLaunchToTray))
-        window.api.setLaunchToTray(isLaunchToTray)
+        void window.api.setLaunchToTray(isLaunchToTray)
       }
     },
 
     setTray(isShowTray: boolean | undefined, isTrayOnClose: boolean | undefined = undefined) {
       if (isShowTray !== undefined) {
         dispatch(_setTray(isShowTray))
-        window.api.setTray(isShowTray)
+        void window.api.setTray(isShowTray)
       }
       if (isTrayOnClose !== undefined) {
         dispatch(setTrayOnClose(isTrayOnClose))
-        window.api.setTrayOnClose(isTrayOnClose)
+        void window.api.setTrayOnClose(isTrayOnClose)
       }
     },
 
     setAutoCheckUpdate(isAutoUpdate: boolean) {
       dispatch(_setAutoCheckUpdate(isAutoUpdate))
-      window.api.setAutoUpdate(isAutoUpdate)
+      void window.api.setAutoUpdate(isAutoUpdate)
     },
 
     setTestPlan(isTestPlan: boolean) {
       dispatch(_setTestPlan(isTestPlan))
-      window.api.setTestPlan(isTestPlan)
+      void window.api.setTestPlan(isTestPlan)
     },
 
     setTestChannel(channel: UpgradeChannel) {
       dispatch(_setTestChannel(channel))
-      window.api.setTestChannel(channel)
+      void window.api.setTestChannel(channel)
     },
 
     setTheme(theme: ThemeMode) {
@@ -117,11 +117,11 @@ export function useSettings() {
     },
     setDisableHardwareAcceleration(disableHardwareAcceleration: boolean) {
       dispatch(setDisableHardwareAcceleration(disableHardwareAcceleration))
-      window.api.setDisableHardwareAcceleration(disableHardwareAcceleration)
+      void window.api.setDisableHardwareAcceleration(disableHardwareAcceleration)
     },
     setUseSystemTitleBar(useSystemTitleBar: boolean) {
       dispatch(_setUseSystemTitleBar(useSystemTitleBar))
-      window.api.setUseSystemTitleBar(useSystemTitleBar)
+      void window.api.setUseSystemTitleBar(useSystemTitleBar)
     }
   }
 }
@@ -147,7 +147,7 @@ export const useEnableDeveloperMode = () => {
     enableDeveloperMode,
     setEnableDeveloperMode: (enableDeveloperMode: boolean) => {
       dispatch(setEnableDeveloperMode(enableDeveloperMode))
-      window.api.config.set('enableDeveloperMode', enableDeveloperMode)
+      void window.api.config.set('enableDeveloperMode', enableDeveloperMode)
     }
   }
 }

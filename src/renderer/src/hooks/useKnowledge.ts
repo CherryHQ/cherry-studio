@@ -101,7 +101,7 @@ export const useKnowledge = (baseId: string) => {
       dispatch(updateNotes({ baseId, item: updatedNote }))
     }
     const noteItem = base?.items.find((item) => item.id === noteId)
-    noteItem && refreshItem(noteItem)
+    void (noteItem && refreshItem(noteItem))
   }
 
   // 获取笔记内容
@@ -297,7 +297,7 @@ export const useKnowledge = (baseId: string) => {
 
   useEffect(() => {
     const notes = base?.items.filter(isKnowledgeNoteItem) ?? []
-    runAsyncFunction(async () => {
+    void runAsyncFunction(async () => {
       const newNoteItems = await Promise.all(
         notes.map(async (item) => {
           const note = await db.knowledge_notes.get(item.id)

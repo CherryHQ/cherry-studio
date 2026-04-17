@@ -74,7 +74,7 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpand
   }, [getCurrentNoteContent, activeNode])
 
   const handleShowSettings = useCallback(() => {
-    GeneralPopup.show({
+    void GeneralPopup.show({
       title: t('notes.settings.title'),
       content: <NotesSettings />,
       footer: null,
@@ -161,9 +161,9 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpand
       ),
       onClick: () => {
         if (item.copyAction) {
-          handleCopyContent()
+          void handleCopyContent()
         } else if (item.exportToWordAction) {
-          handleExportToWord()
+          void handleExportToWord()
         } else if (item.showSettingsPopup) {
           handleShowSettings()
         } else if (item.action) {

@@ -1,5 +1,5 @@
 // Import types and enums needed for testing
-import type { ImageMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
+import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -33,9 +33,7 @@ vi.mock('@renderer/utils/messageUtils/find', () => ({
   }),
   // Add mock for findImageBlocks if needed by addImageFileToContents
   findImageBlocks: vi.fn((message: Message & { _fullBlocks?: MessageBlock[] }) => {
-    return (
-      (message._fullBlocks?.filter((b) => b.type === MessageBlockType.IMAGE) as ImageMessageBlock[] | undefined) || []
-    )
+    return message._fullBlocks?.filter((b) => b.type === MessageBlockType.IMAGE) || []
   })
   // Add mocks for other find functions if needed
 }))

@@ -31,7 +31,10 @@ vi.mock('@renderer/utils/mcp-tools', () => ({
 }))
 
 vi.mock('@renderer/utils/userConfirmation', () => ({
-  requestToolConfirmation: vi.fn(async () => true)
+  requestToolConfirmation: vi.fn(async () => true),
+  sendToolApprovalNotification: vi.fn(),
+  setToolIdToNameMapping: vi.fn(),
+  confirmSameNameTools: vi.fn()
 }))
 
 describe('mcp utils', () => {

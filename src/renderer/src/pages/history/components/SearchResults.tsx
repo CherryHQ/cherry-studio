@@ -268,16 +268,20 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
   }, [searchResults, sortOrder])
 
   const highlightText = (text: string) => {
+    // Escape HTML entities to prevent XSS from LLM response content
+    const escapeHtml = (s: string) =>
+      s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+    const safeText = escapeHtml(text)
     const highlightRegex = buildKeywordUnionRegex(searchTerms, { matchMode, flags: 'gi' })
     if (!highlightRegex) {
-      return <span dangerouslySetInnerHTML={{ __html: text }} />
+      return <span dangerouslySetInnerHTML={{ __html: safeText }} />
     }
-    const highlightedText = text.replace(highlightRegex, (match) => `<mark>${match}</mark>`)
+    const highlightedText = safeText.replace(highlightRegex, (match) => `<mark>${match}</mark>`)
     return <span dangerouslySetInnerHTML={{ __html: highlightedText }} />
   }
 
   useEffect(() => {
-    onSearch()
+    void onSearch()
   }, [onSearch])
 
   useEffect(() => {

@@ -5,4 +5,4 @@
 - 不要直接在 `.claude/skills` 下创建新 skill。
 - 所有 skill 仅在 `.agents/skills` 中创建和维护。
 - 更新 `.agents/skills/public-skills.txt` 后，执行 `pnpm skills:sync`。
-- `pnpm skills:check` 会校验 `.claude/skills/<skill>/SKILL.md` 与 `.agents/skills/<skill>/SKILL.md` 内容一致。
+- `pnpm skills:check` 会校验 `.claude/skills/<skill>` 是指向 `.agents/skills/<skill>` 的有效符号链接。

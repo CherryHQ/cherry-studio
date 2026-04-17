@@ -17,7 +17,7 @@
 import { loggerService } from '@logger'
 import store from '@renderer/store'
 import type { AgentPersistedMessage } from '@renderer/types/agent'
-import type { MainTextMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
+import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockType } from '@renderer/types/newMessage'
 import { IpcChannel } from '@shared/IpcChannel'
 import { throttle } from 'lodash'
@@ -51,7 +51,10 @@ const streamingMessageCache = new LRUCache<
  */
 const messagePersistThrottlers = new LRUCache<string, ReturnType<typeof throttle>>({
   max: 100,
-  ttl: 1000 * 60 * 5
+  ttl: 1000 * 60 * 5,
+  dispose: (throttler) => {
+    throttler.cancel()
+  }
 })
 
 /**
@@ -216,8 +219,8 @@ export class AgentMessageDataSource implements MessageDataSource {
       // Extract thoughtSignatures from blocks' metadata for Gemini persistence
       const thoughtSignatures: Record<string, string> = {}
       for (const block of blocks) {
-        if (block.type === MessageBlockType.MAIN_TEXT && (block as MainTextMessageBlock).metadata?.thoughtSignature) {
-          thoughtSignatures[block.id] = (block as MainTextMessageBlock).metadata!.thoughtSignature
+        if (block.type === MessageBlockType.MAIN_TEXT && block.metadata?.thoughtSignature) {
+          thoughtSignatures[block.id] = block.metadata.thoughtSignature
         }
       }
 

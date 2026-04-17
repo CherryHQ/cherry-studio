@@ -106,13 +106,13 @@ const GeneralSettings: FC = () => {
   const onSelectLanguage = (value: LanguageVarious) => {
     dispatch(setLanguage(value))
     localStorage.setItem('language', value)
-    window.api.setLanguage(value)
-    i18n.changeLanguage(value)
+    void window.api.setLanguage(value)
+    void i18n.changeLanguage(value)
   }
 
   const handleSpellCheckChange = (checked: boolean) => {
     dispatch(setEnableSpellCheck(checked))
-    window.api.setEnableSpellCheck(checked)
+    void window.api.setEnableSpellCheck(checked)
   }
 
   const onSetProxyUrl = () => {
@@ -149,7 +149,8 @@ const GeneralSettings: FC = () => {
     { value: 'es-ES', label: 'Español', flag: '🇪🇸' },
     { value: 'fr-FR', label: 'Français', flag: '🇫🇷' },
     { value: 'pt-PT', label: 'Português', flag: '🇵🇹' },
-    { value: 'ro-RO', label: 'Română', flag: '🇷🇴' }
+    { value: 'ro-RO', label: 'Română', flag: '🇷🇴' },
+    { value: 'vi-VN', label: 'Tiếng Việt', flag: '🇻🇳' }
   ]
 
   const notificationSettings = useSelector((state: RootState) => state.settings.notification)
@@ -161,7 +162,7 @@ const GeneralSettings: FC = () => {
 
   const handleSpellCheckLanguagesChange = (selectedLanguages: string[]) => {
     dispatch(setSpellCheckLanguages(selectedLanguages))
-    window.api.setSpellCheckLanguages(selectedLanguages)
+    void window.api.setSpellCheckLanguages(selectedLanguages)
   }
 
   const handleHardwareAccelerationChange = (checked: boolean) => {
@@ -183,7 +184,7 @@ const GeneralSettings: FC = () => {
         setTimeoutTimer(
           'handleHardwareAccelerationChange',
           () => {
-            window.api.relaunchApp()
+            void window.api.relaunchApp()
           },
           500
         )
@@ -349,7 +350,7 @@ const GeneralSettings: FC = () => {
             value={enableDataCollection}
             onChange={(v) => {
               dispatch(setEnableDataCollection(v))
-              window.api.config.set('enableDataCollection', v)
+              void window.api.config.set('enableDataCollection', v)
             }}
           />
         </SettingRow>

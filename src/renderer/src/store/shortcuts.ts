@@ -167,15 +167,15 @@ const shortcutsSlice = createSlice({
   reducers: {
     updateShortcut: (state, action: PayloadAction<Shortcut>) => {
       state.shortcuts = state.shortcuts.map((s) => (s.key === action.payload.key ? action.payload : s))
-      window.api.shortcuts.update(getSerializableShortcuts(state.shortcuts))
+      void window.api.shortcuts.update(getSerializableShortcuts(state.shortcuts))
     },
     toggleShortcut: (state, action: PayloadAction<string>) => {
       state.shortcuts = state.shortcuts.map((s) => (s.key === action.payload ? { ...s, enabled: !s.enabled } : s))
-      window.api.shortcuts.update(getSerializableShortcuts(state.shortcuts))
+      void window.api.shortcuts.update(getSerializableShortcuts(state.shortcuts))
     },
     resetShortcuts: (state) => {
       state.shortcuts = initialState.shortcuts
-      window.api.shortcuts.update(getSerializableShortcuts(state.shortcuts))
+      void window.api.shortcuts.update(getSerializableShortcuts(state.shortcuts))
     }
   }
 })

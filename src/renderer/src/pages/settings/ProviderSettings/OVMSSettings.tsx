@@ -19,7 +19,7 @@ const OVMSSettings: FC = () => {
       const status = await window.api.ovms.getStatus()
       setOvmsStatus(status)
     }
-    checkStatus()
+    void checkStatus()
   }, [])
 
   const installOvms = async () => {

@@ -15,6 +15,7 @@ const MAX_SCROLLER_HEIGHT = 390
 interface ModelListGroupProps {
   groupName: string
   models: Model[]
+  duplicateModelNames: Set<string>
   /** 使用 Map 实现 O(1) 查找，替代原来的数组线性搜索 */
   modelStatusMap: Map<string, ModelWithStatus>
   defaultOpen: boolean
@@ -27,6 +28,7 @@ interface ModelListGroupProps {
 const ModelListGroup: React.FC<ModelListGroupProps> = ({
   groupName,
   models,
+  duplicateModelNames,
   modelStatusMap,
   defaultOpen,
   disabled,
@@ -91,6 +93,7 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
             <ModelListItem
               model={model}
               modelStatus={modelStatusMap.get(model.id)}
+              showIdentifier={duplicateModelNames.has(model.name)}
               onEdit={onEditModel}
               onRemove={onRemoveModel}
               disabled={disabled}

@@ -1,27 +1,62 @@
 {
-  "version": "7",
   "dialect": "sqlite",
   "entries": [
     {
+      "breakpoints": true,
       "idx": 0,
-      "version": "6",
-      "when": 1758091173882,
       "tag": "0000_confused_wendigo",
-      "breakpoints": true
+      "version": "6",
+      "when": 1758091173882
     },
     {
+      "breakpoints": true,
       "idx": 1,
-      "version": "6",
-      "when": 1758187378775,
       "tag": "0001_woozy_captain_flint",
+      "version": "6",
+      "when": 1758187378775
+    },
+    {
+      "breakpoints": true,
+      "idx": 2,
+      "tag": "0002_wealthy_naoko",
+      "version": "6",
+      "when": 1762526423527
+    },
+    {
+      "breakpoints": true,
+      "idx": 3,
+      "tag": "0003_slippery_wild_pack",
+      "version": "6",
+      "when": 1773483572773
+    },
+    {
+      "breakpoints": true,
+      "idx": 4,
+      "tag": "0004_busy_giant_girl",
+      "version": "6",
+      "when": 1775029551647
+    },
+    {
+      "breakpoints": true,
+      "idx": 5,
+      "tag": "0005_normal_doomsday",
+      "version": "6",
+      "when": 1775032005049
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1776154617146,
+      "tag": "0006_famous_fallen_one",
       "breakpoints": true
     },
     {
-      "idx": 2,
+      "idx": 7,
       "version": "6",
-      "when": 1762526423527,
-      "tag": "0002_wealthy_naoko",
+      "when": 1776236285350,
+      "tag": "0007_strange_galactus",
       "breakpoints": true
     }
-  ]
+  ],
+  "version": "7"
 }

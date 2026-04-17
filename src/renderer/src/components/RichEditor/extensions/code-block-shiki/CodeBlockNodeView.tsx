@@ -35,7 +35,7 @@ const CodeBlockNodeView: FC<ReactNodeViewProps> = (props) => {
       }
     }
 
-    loadLanguageOptions()
+    void loadLanguageOptions()
   }, [])
 
   // Handle language change

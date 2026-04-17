@@ -128,7 +128,7 @@ export function createStreamProcessor(callbacks: StreamProcessorCallbacks = {}) 
           break
         }
         case ChunkType.EXTERNEL_TOOL_COMPLETE: {
-          if (callbacks.onExternalToolComplete) callbacks.onExternalToolComplete(data.external_tool)
+          if (callbacks.onExternalToolComplete) void callbacks.onExternalToolComplete(data.external_tool)
           break
         }
         case ChunkType.LLM_WEB_SEARCH_IN_PROGRESS: {

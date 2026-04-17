@@ -5,7 +5,6 @@ import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import type { QuickPanelListItem, QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
-import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useInputbarTools } from '@renderer/pages/home/Inputbar/context/InputbarToolsProvider'
 import type {
   InputbarScope,
@@ -22,6 +21,7 @@ import type {
 import { getToolsForScope } from '@renderer/pages/home/Inputbar/types'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { selectToolOrderForScope, setIsCollapsed, setToolOrder } from '@renderer/store/inputTools'
+import type { Assistant, Model } from '@renderer/types'
 import type { InputBarToolType } from '@renderer/types/chat'
 import { classNames } from '@renderer/utils'
 import { Divider, Dropdown } from 'antd'
@@ -34,7 +34,8 @@ import styled from 'styled-components'
 
 export interface InputbarToolsNewProps {
   scope: InputbarScope
-  assistantId: string
+  assistant: Assistant
+  model: Model
   session?: ToolContext['session']
 }
 
@@ -49,10 +50,9 @@ const DraggablePortal = ({ children, isDragging }: { children: React.ReactNode; 
   return isDragging ? createPortal(children, document.body) : children
 }
 
-const InputbarTools = ({ scope, assistantId, session }: InputbarToolsNewProps) => {
+const InputbarTools = ({ scope, assistant, model, session }: InputbarToolsNewProps) => {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
-  const { assistant, model } = useAssistant(assistantId)
   const toolsContext = useInputbarTools()
   const quickPanelContext = useQuickPanel()
   const quickPanelApiCacheRef = useRef(new Map<string, ToolQuickPanelApi>())

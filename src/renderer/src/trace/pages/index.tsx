@@ -129,7 +129,7 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, modelName
         }, 300)
       }
     }
-    handleShowTrace()
+    void handleShowTrace()
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current)

@@ -27,7 +27,7 @@ const updateWindowSize = () => {
     logger.error('Root element not found')
     return
   }
-  window.api?.selection.determineToolbarSize(rootElement.scrollWidth, rootElement.scrollHeight)
+  void window.api?.selection.determineToolbarSize(rootElement.scrollWidth, rootElement.scrollHeight)
 }
 
 /**
@@ -181,7 +181,7 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
   }, [demo, isCompact, actionItems])
 
   useEffect(() => {
-    !demo && i18n.changeLanguage(language || navigator.language || defaultLanguage)
+    void (!demo && i18n.changeLanguage(language || navigator.language || defaultLanguage))
   }, [language, demo])
 
   useEffect(() => {
@@ -260,8 +260,8 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
       actionString = customUrl.replace('{{queryString}}', encodeURIComponent(selectedText))
     }
 
-    window.api?.openWebsite(actionString)
-    window.api?.selection.hideToolbar()
+    void window.api?.openWebsite(actionString)
+    void window.api?.selection.hideToolbar()
   }, [])
 
   /**
@@ -269,15 +269,15 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
    */
   const handleQuote = (action: ActionItem) => {
     if (action.selectedText) {
-      window.api?.quoteToMainWindow(action.selectedText)
-      window.api?.selection.hideToolbar()
+      void window.api?.quoteToMainWindow(action.selectedText)
+      void window.api?.selection.hideToolbar()
     }
   }
 
   const handleDefaultAction = (action: ActionItem) => {
     // [macOS] only macOS has the available isFullscreen mode
-    window.api?.selection.processAction(action, isFullScreen.current)
-    window.api?.selection.hideToolbar()
+    void window.api?.selection.processAction(action, isFullScreen.current)
+    void window.api?.selection.hideToolbar()
   }
 
   const handleAction = useCallback(
@@ -289,7 +289,7 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
 
       switch (action.id) {
         case 'copy':
-          handleCopy()
+          void handleCopy()
           break
         case 'search':
           handleSearch(newAction)

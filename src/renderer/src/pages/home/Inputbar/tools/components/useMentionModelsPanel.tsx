@@ -254,7 +254,7 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
               setText((currentText) => {
                 const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement | null
                 const caret = textArea ? (textArea.selectionStart ?? currentText.length) : currentText.length
-                return removeAtSymbolAndText(currentText, caret, searchText || '', trigger?.position!)
+                return removeAtSymbolAndText(currentText, caret, searchText || '', trigger?.position)
               })
             }
           }

@@ -48,7 +48,7 @@ const PermissionModeDisplay: FC<Props> = ({ session, agentId }) => {
   const modeConfig = useMemo(() => getPermissionModeConfig(permissionMode), [permissionMode])
 
   const handleClick = () => {
-    SessionSettingsPopup.show({
+    void SessionSettingsPopup.show({
       agentId,
       sessionId: session.id,
       tab: 'permission-mode'

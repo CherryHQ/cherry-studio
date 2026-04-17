@@ -138,7 +138,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
       EventEmitter.on(EVENT_NAMES.EXPORT_TOPIC_IMAGE, async () => {
         const imageData = await captureScrollableAsDataURL(scrollContainerRef)
         if (imageData) {
-          window.api.file.saveImage(removeSpecialCharactersForFileName(topic.name), imageData)
+          void window.api.file.saveImage(removeSpecialCharactersForFileName(topic.name), imageData)
         }
       }),
       EventEmitter.on(EVENT_NAMES.NEW_CONTEXT, async () => {
@@ -189,7 +189,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
           // 3. Set the new topic as active
           setActiveTopic(newTopic)
           // 4. Trigger auto-rename for the new topic
-          autoRenameTopic(assistant, newTopic.id)
+          void autoRenameTopic(assistant, newTopic.id)
         } else {
           // Optional: Handle cloning failure (e.g., show an error message)
           // You might want to remove the added topic if cloning fails
@@ -241,8 +241,8 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
   }, [assistant, dispatch, scrollToBottom, topic, isProcessingContext])
 
   useEffect(() => {
-    runAsyncFunction(async () => {
-      EventEmitter.emit(EVENT_NAMES.ESTIMATED_TOKEN_COUNT, {
+    void runAsyncFunction(async () => {
+      void EventEmitter.emit(EVENT_NAMES.ESTIMATED_TOKEN_COUNT, {
         tokensCount: await estimateHistoryTokens(assistant, messages),
         contextCount: getContextCount(assistant, messages)
       })
@@ -270,7 +270,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
   useShortcut('copy_last_message', () => {
     const lastMessage = last(messages)
     if (lastMessage) {
-      navigator.clipboard.writeText(getMainTextContent(lastMessage))
+      void navigator.clipboard.writeText(getMainTextContent(lastMessage))
       window.toast.success(t('message.copy.success'))
     }
   })
@@ -278,7 +278,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
   useShortcut('edit_last_user_message', () => {
     const lastUserMessage = messagesRef.current.findLast((m) => m.role === 'user' && m.type !== 'clear')
     if (lastUserMessage) {
-      EventEmitter.emit(EVENT_NAMES.EDIT_MESSAGE, lastUserMessage.id)
+      void EventEmitter.emit(EVENT_NAMES.EDIT_MESSAGE, lastUserMessage.id)
     }
   })
 
@@ -349,13 +349,14 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
 }
 
 const computeDisplayMessages = (messages: Message[], startIndex: number, displayCount: number) => {
-  const reversedMessages = [...messages].reverse()
-
-  // 如果剩余消息数量小于 displayCount，直接返回所有剩余消息
-  if (reversedMessages.length - startIndex <= displayCount) {
-    return reversedMessages.slice(startIndex)
+  // 如果剩余消息数量小于 displayCount，直接返回所有剩余消息的倒序切片
+  if (messages.length - startIndex <= displayCount) {
+    const result: Message[] = []
+    for (let i = messages.length - 1 - startIndex; i >= 0; i--) {
+      result.push(messages[i])
+    }
+    return result
   }
-
   const userIdSet = new Set() // 用户消息 id 集合
   const assistantIdSet = new Set() // 助手消息 askId 集合
   const displayMessages: Message[] = []
@@ -376,9 +377,9 @@ const computeDisplayMessages = (messages: Message[], startIndex: number, display
     displayMessages.push(message)
   }
 
-  // 遍历消息直到满足显示数量要求
-  for (let i = startIndex; i < reversedMessages.length && userIdSet.size + assistantIdSet.size < displayCount; i++) {
-    processMessage(reversedMessages[i])
+  // 直接在原数组上倒序遍历，跳过前 startIndex 个，避免全量拷贝和 reverse()
+  for (let i = messages.length - 1 - startIndex; i >= 0 && userIdSet.size + assistantIdSet.size < displayCount; i--) {
+    processMessage(messages[i])
   }
 
   return displayMessages

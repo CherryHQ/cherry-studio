@@ -7,7 +7,9 @@
         "invalid_agent": "无效的 Agent"
       },
       "model": {
-        "tooltip": "目前，只有支持 Anthropic 端点的模型可用于 Agent 功能。"
+        "supported_providers": "支持的服务商",
+        "tooltip": "目前，只有支持 Anthropic 端点的模型可用于 Agent 功能。",
+        "view_providers": "查看支持的服务商"
       },
       "title": "添加 Agent",
       "type": {
@@ -26,6 +28,249 @@
       "submit": "提交",
       "title": "来自 Agent 的问题"
     },
+    "cherryClaw": {
+      "channels": {
+        "add": "添加",
+        "bindAgent": "绑定 Agent",
+        "chatIdsAutoTrackHint": "留空时系统将自动追踪：需要先在对应平台上主动给 Bot 发送一条消息，系统才会记录 Chat ID 用于后续通知。",
+        "comingSoon": "即将推出",
+        "connected": "已连接",
+        "connecting": "连接中",
+        "deleteConfirm": "确定删除频道「{{name}}」？",
+        "description": "将您的 Agent 连接到消息平台。",
+        "disconnected": "已断开",
+        "discord": {
+          "botToken": "Bot Token",
+          "botTokenPlaceholder": "输入您的 Discord 机器人 Token",
+          "channelIds": "允许的频道 ID",
+          "channelIdsHint": "格式：channel:id 或 dm:id。留空表示允许所有。",
+          "channelIdsPlaceholder": "channel:123456789, dm:987654321",
+          "description": "通过 Discord 机器人使用 WebSocket 网关接收和回复消息。",
+          "title": "Discord",
+          "whoamiTip": "💡 提示：发送 /whoami 给机器人即可获取正确格式的频道 ID。"
+        },
+        "error": "错误",
+        "feishu": {
+          "appId": "应用ID",
+          "appIdPlaceholder": "输入你的飞书应用 ID",
+          "appSecret": "应用密钥",
+          "appSecretPlaceholder": "输入你的飞书应用密钥",
+          "chatIds": "允许的聊天 ID",
+          "chatIdsHint": "逗号分隔的聊天 ID。留空则允许所有聊天。",
+          "chatIdsPlaceholder": "oc_xxxxx，oc_yyyyy",
+          "connected": "已连接",
+          "description": "通过 WebSocket 使用飞书/ Lark 机器人接收并回复消息。",
+          "domain": "域名",
+          "domainFeishu": "飞书（中国）",
+          "domainLark": "飞书（国际版）",
+          "encryptKey": "加密密钥",
+          "encryptKeyPlaceholder": "请输入来自你飞书应用的加密密钥",
+          "loginHint": "未配置凭证。启用频道后将自动开始扫码注册，或手动输入 App ID 和 App Secret。",
+          "qrExpired": "二维码已过期，请重新切换频道开关重试。",
+          "qrHint": "等待扫描二维码...",
+          "qrScanHint": "打开手机飞书，扫描二维码以创建机器人应用。",
+          "qrTitle": "飞书扫码注册",
+          "title": "飞书",
+          "verificationToken": "验证令牌",
+          "verificationTokenPlaceholder": "输入您飞书应用中的验证令牌"
+        },
+        "logs": "日志",
+        "noInstances": "暂无 {{type}} 频道，点击「+ 添加」创建。",
+        "noLogs": "暂无日志",
+        "notifyReceiver": "接收任务通知",
+        "notifyReceiverHint": "将定时任务结果发送到此频道。",
+        "qq": {
+          "appId": "App ID",
+          "appIdPlaceholder": "输入您的 QQ 机器人 App ID",
+          "chatIds": "允许的会话 ID",
+          "chatIdsHint": "格式：c2c:openid, group:groupid, channel:channelid。留空表示允许所有。",
+          "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
+          "clientSecret": "Client Secret",
+          "clientSecretPlaceholder": "输入您的 QQ 机器人 Client Secret",
+          "description": "通过 QQ 机器人官方 API 接收和回复消息。",
+          "title": "QQ",
+          "whoamiTip": "💡 提示：发送 /whoami 给机器人即可获取正确格式的会话 ID。"
+        },
+        "security": {
+          "inheritFromAgent": "继承智能体设置",
+          "permissionMode": "频道权限模式",
+          "permissionModeHint": "覆盖此频道消息的智能体权限模式。选择「继承」则使用智能体默认设置。"
+        },
+        "selectAgent": "选择要绑定的 Agent",
+        "slack": {
+          "appToken": "应用级别 Token",
+          "appTokenPlaceholder": "xapp-...",
+          "botToken": "Bot Token",
+          "botTokenPlaceholder": "xoxb-...",
+          "channelIds": "允许的频道 ID",
+          "channelIdsHint": "Slack 频道 ID。留空表示允许所有。",
+          "channelIdsPlaceholder": "C01234567, D89012345",
+          "description": "通过 Slack 机器人使用 Socket Mode 接收和回复消息。",
+          "title": "Slack",
+          "whoamiTip": "💡 提示：发送 /whoami 给机器人即可获取频道 ID。"
+        },
+        "soulModeRequired": "该智能体尚未开启自主模式，频道功能将无法使用。请在智能体设置中开启自主模式。",
+        "tab": "频道",
+        "telegram": {
+          "botToken": "Bot Token",
+          "botTokenPlaceholder": "输入您的 Telegram 机器人 Token",
+          "chatIds": "允许的会话 ID",
+          "chatIdsHint": "用逗号分隔。留空表示允许所有会话。",
+          "chatIdsPlaceholder": "123456789, 987654321",
+          "description": "通过 Telegram 机器人使用长轮询方式接收和回复消息。",
+          "title": "Telegram"
+        },
+        "title": "频道",
+        "wechat": {
+          "addAccount": "添加微信账号",
+          "chatIds": "允许的用户 ID",
+          "chatIdsHint": "用逗号分隔。留空表示允许所有用户。",
+          "chatIdsPlaceholder": "wxid_abc123, wxid_def456",
+          "connected": "已登录",
+          "description": "通过微信 iLink Bot API 接收和回复消息。",
+          "disconnected": "未登录",
+          "loginHint": "首次登录需要扫描二维码，启用频道后将自动弹出二维码。",
+          "qrHint": "请使用手机微信扫描二维码完成登录。",
+          "qrTitle": "微信扫码登录",
+          "title": "微信",
+          "whoamiTip": "提示：在微信中发送 /whoami 可获取用户 ID。"
+        }
+      },
+      "heartbeat": {
+        "enabled": "启用心跳",
+        "enabledHelper": "启用后，如果工作区存在 heartbeat.md 文件，调度器会按配置的间隔读取其内容并发送到主会话。",
+        "interval": "间隔（分钟）",
+        "intervalHelper": "心跳运行的频率，单位为分钟。"
+      },
+      "sandbox": {
+        "description": "使用操作系统级沙箱限制 Agent 的文件系统和网络访问，仅限于工作区目录。",
+        "helper": "将文件系统和命令访问限制在工作区路径内。",
+        "label": "沙箱模式"
+      },
+      "scheduler": {
+        "cron": {
+          "helper": "标准 cron 表达式（例如 '*/30 * * * *' 表示每 30 分钟）。",
+          "label": "Cron 表达式",
+          "placeholder": "*/30 * * * *"
+        },
+        "description": "调度器按计划自动触发 Agent 运行。",
+        "enabled": "启用调度器",
+        "enabledHelper": "启用后，Agent 将根据配置的计划自动运行。",
+        "errors": {
+          "invalidCron": "无效的 cron 表达式",
+          "invalidDelay": "延迟必须是正数",
+          "invalidInterval": "间隔必须是正数"
+        },
+        "interval": {
+          "helper": "Agent 运行的频率，单位为秒。",
+          "label": "间隔（秒）"
+        },
+        "lastRun": "上次运行",
+        "never": "从未",
+        "nextRun": "下次运行",
+        "oneTime": {
+          "helper": "Agent 运行前的一次性延迟，单位为秒。",
+          "label": "延迟（秒）"
+        },
+        "status": {
+          "running": "运行中",
+          "stopped": "已停止",
+          "tickInProgress": "执行中"
+        },
+        "tab": "调度器",
+        "title": "调度器配置",
+        "type": {
+          "cron": "Cron 表达式",
+          "interval": "固定间隔",
+          "label": "调度类型",
+          "one-time": "一次性延迟"
+        }
+      },
+      "soul": {
+        "description": "灵魂定义了 Agent 的个性和基础行为。它从工作区根目录的 soul.md 文件中读取。",
+        "empty": "在工作区根目录未找到 soul.md 文件。创建一个来定义 Agent 的个性。",
+        "enabled": "启用灵魂",
+        "enabledHelper": "启用后，Agent 会从工作区根目录读取 soul.md 并将其添加到系统提示词前面。",
+        "fileLabel": "soul.md",
+        "preview": "灵魂预览",
+        "tab": "灵魂",
+        "title": "灵魂配置"
+      },
+      "tasks": {
+        "add": "添加任务",
+        "cancel": "取消",
+        "channels": {
+          "label": "发送到频道",
+          "noActiveChatIds": "所选频道当前无可用的接收目标（Chat ID），任务结果可能无法送达。请先在对应平台上给 Bot 发送一条消息。",
+          "placeholder": "选择接收结果的频道"
+        },
+        "cronPlaceholder": "例如 0 9 * * *（每天上午 9 点）",
+        "delete": {
+          "confirm": "确定要删除此任务吗？",
+          "label": "删除"
+        },
+        "edit": "编辑",
+        "empty": "暂无定时任务。添加一个开始吧。",
+        "intervalPlaceholder": "间隔（分钟）",
+        "intervalUnit": "分钟",
+        "lastRun": "上次运行",
+        "logs": {
+          "duration": "耗时",
+          "empty": "暂无运行历史。",
+          "error": "错误",
+          "justNow": "刚刚",
+          "label": "运行历史",
+          "result": "结果",
+          "runAt": "运行时间",
+          "running": "运行中...",
+          "search": "搜索运行记录...",
+          "status": "状态",
+          "success": "成功",
+          "viewSession": "查看会话"
+        },
+        "name": {
+          "label": "名称",
+          "placeholder": "例如：每日代码审查"
+        },
+        "nextRun": "下次运行",
+        "oncePlaceholder": "选择日期和时间",
+        "pause": "暂停",
+        "prompt": {
+          "expand": "展开编辑器",
+          "label": "提示词",
+          "placeholder": "此任务运行时 Agent 应该做什么？"
+        },
+        "resume": "恢复",
+        "run": "运行",
+        "runTriggered": "任务已触发",
+        "save": "保存",
+        "scheduleType": {
+          "cron": "Cron",
+          "interval": "间隔",
+          "label": "调度类型",
+          "once": "一次性"
+        },
+        "scheduleValue": "调度值",
+        "status": {
+          "active": "活跃",
+          "completed": "已完成",
+          "paused": "已暂停"
+        },
+        "tab": "任务",
+        "time": {
+          "hoursAgo": "{{count}}小时前",
+          "minutesAgo": "{{count}}分钟前"
+        },
+        "timeout": {
+          "label": "超时时间",
+          "placeholder": "无限制"
+        },
+        "title": "定时任务"
+      },
+      "warning": {
+        "bypassPermissions": "CherryClaw Agent 默认以全自动模式运行。所有工具执行时不会请求批准。"
+      }
+    },
     "delete": {
       "content": "删除该 Agent 将强制终止并删除该 Agent 下的所有会话。您确定吗？",
       "error": {
@@ -35,6 +280,10 @@
     },
     "edit": {
       "title": "编辑 Agent"
+    },
+    "empty": {
+      "description": "创建一个 Agent，让 AI 帮你处理复杂任务",
+      "title": "还没有 Agent"
     },
     "get": {
       "error": {
@@ -70,11 +319,17 @@
       "tooltip": "在 Windows 上运行智能体需要 Git Bash。如果未安装，请从 git-scm.com 下载安装。"
     },
     "input": {
-      "placeholder": "在这里输入消息，按 {{key}} 发送 - @ 选择路径， / 选择命令"
+      "placeholder": "在这里输入消息，按 {{key}} 发送 - @ 选择路径， / 选择命令",
+      "soul_placeholder": "帮我连接微信"
     },
     "list": {
       "error": {
         "failed": "获取智能体列表失败"
+      }
+    },
+    "reorder": {
+      "error": {
+        "failed": "智能体排序失败"
       }
     },
     "server": {
@@ -127,6 +382,11 @@
       },
       "label_one": "会话",
       "label_other": "会话",
+      "reorder": {
+        "error": {
+          "failed": "会话排序失败"
+        }
+      },
       "update": {
         "error": {
           "failed": "更新会话失败"
@@ -135,6 +395,11 @@
     },
     "settings": {
       "advance": {
+        "envVars": {
+          "description": "为智能体运行时设置自定义环境变量。",
+          "helper": "输入自定义环境变量（每行一个，格式：KEY=value）",
+          "label": "环境变量"
+        },
         "maxTurns": {
           "description": "设定代理自动执行的请求/回复轮次数。",
           "helper": "数值越高可自主运行越久；数值越低更易控制。",
@@ -182,15 +447,15 @@
           "title": "安装插件"
         },
         "installed": {
-          "empty": "尚未安装任何插件。浏览可用插件以开始使用。",
-          "title": "已安装插件"
+          "empty": "尚未安装任何技能。浏览可用技能以开始使用。",
+          "title": "已安装技能"
         },
         "installing": "安装中...",
         "plugin_upload": {
           "all_failed": "全部 {{failed}} 个组件安装失败",
           "error": "安装失败",
-          "format_hint": "支持插件包格式（.claude-plugin/plugin.json）",
-          "hint": "拖拽插件 ZIP 到此处，或点击选择文件",
+          "format_hint": "支持技能包格式（.claude-plugin/plugin.json）",
+          "hint": "拖拽技能 ZIP 到此处，或点击选择文件",
           "invalid_format": "请上传 ZIP 格式的文件",
           "partial_success": "已安装 {{installed}} 个组件，{{failed}} 个失败",
           "select_folder": "选择文件夹",
@@ -224,6 +489,21 @@
         "uninstalling": "卸载中..."
       },
       "prompt": "提示词设置",
+      "skills": {
+        "addMore": "添加更多技能",
+        "builtin": "内置",
+        "noFilterResults": "没有匹配的技能",
+        "noSkills": "暂无已安装的技能。前往 设置 > 技能 安装技能。",
+        "searchPlaceholder": "搜索技能...",
+        "tab": "技能",
+        "title": "已安装技能"
+      },
+      "soulMode": {
+        "description": "启用后，Agent 将使用工作区灵魂文件构建自定义系统提示词，注入自主任务管理工具，并禁用不适合自主运行的交互式工具。",
+        "disabledBadge": "自主模式已禁用",
+        "disabledTooltip": "该工具在自主模式开启时被自动禁用",
+        "title": "自主模式"
+      },
       "tooling": {
         "mcp": {
           "description": "连接 MCP 服务器即可解锁更多可在上方预先授权的工具。",
@@ -280,14 +560,16 @@
       },
       "toolsMcp": {
         "mcp": {
+          "tab": "MCP",
           "title": "MCP 服务器"
         },
         "tab": "工具",
         "tools": {
-          "title": "工具"
+          "title": "预授权工具"
         }
       }
     },
+    "sidebar_title": "智能体",
     "todo": {
       "panel": {
         "title": "已完成 {{completed}}/{{total}} 个任务"
@@ -321,7 +603,7 @@
       "executing": "正在执行...",
       "expired": "已过期",
       "inputPreview": "工具输入预览",
-      "pending": "等待中 ({{seconds}}秒)",
+      "pending": "等待审批",
       "permissionExpired": "权限请求已过期。等待新指令...",
       "requiresElevatedPermissions": "此工具需要更高权限。",
       "suggestion": {
@@ -367,6 +649,9 @@
         "TodoWrite": {
           "description": "创建和管理结构化任务列表"
         },
+        "ToolSearch": {
+          "description": "从大型工具库中动态发现延迟加载的工具"
+        },
         "WebFetch": {
           "description": "从指定 URL 获取内容"
         },
@@ -388,7 +673,11 @@
       }
     },
     "warning": {
-      "enable_server": "请启用 API 服务器以使用智能体功能"
+      "enable_and_start": "启用并启动",
+      "enable_server": "请启用 API 服务器以使用智能体功能",
+      "enable_server_description": "智能体功能需要启用 API 服务器。你可以直接启用，或前往设置页面进行配置。",
+      "server_not_running": "API 服务器已启用但未运行，请检查服务器配置。",
+      "server_not_running_description": "智能体功能需要 API 服务器运行。你可以直接启动服务器，或前往设置页面检查配置。"
     }
   },
   "apiServer": {
@@ -614,6 +903,10 @@
           "tip": "助手将调用大模型的意图识别能力，判断是否需要调用知识库进行回答，该功能将依赖模型的能力"
         }
       },
+      "max_tool_calls": {
+        "label": "最大工具调用次数",
+        "tip": "单次对话中允许的最大工具调用次数。较高的值支持更复杂的多步操作，但可能增加 Token 消耗和响应时间。"
+      },
       "mcp": {
         "description": "默认启用的 MCP 服务器",
         "enableFirst": "请先在 MCP 设置中启用此服务器",
@@ -705,6 +998,7 @@
     "progress": {
       "completed": "备份完成",
       "compressing": "压缩文件...",
+      "copying_database": "复制数据库...",
       "copying_files": "复制文件... {{progress}}%",
       "preparing": "准备备份...",
       "preparing_compression": "准备压缩...",
@@ -742,6 +1036,7 @@
       }
     },
     "alerts": {
+      "create_agent": "请创建一个智能体以开始使用",
       "create_session": "请创建会话",
       "select_agent": "请选择智能体"
     },
@@ -857,7 +1152,11 @@
         "collapse": "折叠",
         "collapse_in": "加入折叠",
         "collapse_out": "移出折叠",
-        "expand": "展开"
+        "expand": "展开",
+        "file_not_found": "文件不存在: {{path}}",
+        "open_file": "打开文件",
+        "open_file_error": "无法打开文件: {{path}}",
+        "reveal_in_finder": "在文件管理器中显示"
       },
       "topics": "话题",
       "translate": "翻译成 {{target_language}}",
@@ -1156,6 +1455,8 @@
             "content": "确定要删除选中的 {{count}} 个话题吗？此操作不可撤销。",
             "title": "删除话题"
           },
+          "error": "删除失败，请重试",
+          "partial_success": "成功删除 {{successCount}} 个，失败 {{failedCount}} 个",
           "success": "已删除 {{count}} 个话题"
         },
         "deselect_all": "取消全选",
@@ -1351,6 +1652,7 @@
     "off": "关闭",
     "on": "启用",
     "open": "打开",
+    "open_in": "在 {{name}} 中打开",
     "paste": "粘贴",
     "placeholders": {
       "select": {
@@ -1378,6 +1680,7 @@
     "selected": "已选择",
     "selectedItems": "已选择 {{count}} 项",
     "selectedMessages": "选中 {{count}} 条消息",
+    "sessions": "会话",
     "settings": "设置",
     "sort": {
       "pinyin": {
@@ -1457,6 +1760,31 @@
     "data": "数据",
     "detail": "错误详情",
     "details": "详细信息",
+    "diagnosis": {
+      "ai_button": "AI 诊断",
+      "ai_done": "已诊断",
+      "ai_loading": "正在诊断",
+      "ai_result": "AI 诊断结果",
+      "auth": "API Key 无效，请检查并重新配置",
+      "content": "消息内容被安全系统拦截，请修改后重试",
+      "context_length": "对话上下文过长，请清理历史消息或开启新对话",
+      "deprecated": "该模型已下线或弃用，请更换其他模型",
+      "go_to_settings": "前往设置",
+      "knowledge": "知识库向量化失败",
+      "mcp": "MCP 服务器连接失败，请检查服务是否已启动",
+      "model": "模型不存在或你没有访问权限",
+      "model_conflict": "诊断模型与出错模型相同，无法进行诊断",
+      "network": "无法连接到服务器，请检查网络或代理设置",
+      "ocr": "OCR 识别引擎未初始化，请检查 OCR 设置",
+      "parse": "AI 返回的格式异常，请重试或更换模型",
+      "payload": "请求内容过大，请减少发送的文件或文本量",
+      "proxy": "代理或 SSL 证书错误，请检查代理和网络设置",
+      "quota": "账户额度已用完，请充值或更换服务商",
+      "server": "服务器异常，建议稍后重试",
+      "stream": "响应传输中断，请检查网络稳定性或重试",
+      "unknown": "发生了一个错误",
+      "view_details": "查看详情"
+    },
     "errors": "错误",
     "finishReason": "结束原因",
     "functionality": "功能",
@@ -1487,7 +1815,6 @@
     "originalError": "原错误",
     "originalMessage": "原消息",
     "parameter": "参数",
-    "pause_placeholder": "已中断",
     "prompt": "提示词",
     "provider": "提供商",
     "providerId": "提供商 ID",
@@ -1501,6 +1828,7 @@
     "requestBody": "请求内容",
     "requestBodyValues": "请求体",
     "requestUrl": "请求路径",
+    "request_timeout": "请求超时",
     "response": "响应",
     "responseBody": "响应内容",
     "responseHeaders": "响应首部",
@@ -1510,6 +1838,7 @@
     "status": "状态码",
     "statusCode": "状态码",
     "statusText": "状态文本",
+    "stream_paused": "已中断",
     "text": "文本",
     "toolInput": "工具输入",
     "toolName": "工具名",
@@ -1988,6 +2317,10 @@
         "export": "导出 Excel 失败"
       },
       "fetchTopicName": "话题命名失败",
+      "file": {
+        "process_failed": "文件 {{name}} 无法处理",
+        "text_extraction_failed": "无法从 {{name}} 中提取文本"
+      },
       "get_embedding_dimensions": "获取嵌入维度失败",
       "invalid": {
         "api": {
@@ -2147,6 +2480,7 @@
     "tools": {
       "abort_failed": "工具调用中断失败",
       "aborted": "工具调用已中断",
+      "approvalRequired": "工具 \"{{tool}}\" 需要审批",
       "autoApproveEnabled": "此工具已启用自动批准",
       "cancelled": "已取消",
       "completed": "已完成",
@@ -2230,6 +2564,11 @@
       }
     },
     "warning": {
+      "file": {
+        "pdf_exceeds_limit": "PDF 文件 {{name}} 超出大小限制 ({{limit}})，将回退为文本提取",
+        "pdf_text_extraction_failed": "无法从 PDF {{name}} 中提取文本",
+        "pdf_upload_failed": "上传 PDF {{name}} 失败，将回退为文本提取"
+      },
       "rate": {
         "limit": "发送过于频繁，请等待 {{seconds}} 秒后再尝试"
       }
@@ -2283,7 +2622,10 @@
     "dangbei": "当贝AI",
     "doubao": "豆包",
     "hailuo": "海螺",
+    "ima": "ima",
     "metaso": "秘塔AI搜索",
+    "minimax-agent": "MiniMax Agent",
+    "minimax-global": "MiniMax Agent 海外版",
     "nami-ai": "纳米AI",
     "nami-ai-search": "纳米AI搜索",
     "qwen": "通义千问",
@@ -2561,6 +2903,27 @@
     },
     "title": "Ollama"
   },
+  "onboarding": {
+    "select_model": {
+      "change_later": "您可以随时在设置中更改",
+      "start": "开始使用",
+      "subtitle": "为每个场景选择默认模型",
+      "title": "选择你的默认模型"
+    },
+    "skip": "跳过引导",
+    "toast": {
+      "connected": "成功连接 CherryIN"
+    },
+    "welcome": {
+      "login_cherryin": "登录 CherryIN",
+      "or_continue_with": "或使用其他方式",
+      "other_provider": "选择其他服务商",
+      "select_other_provider": "选择其他服务商",
+      "setup_hint": "请您先至少配置一个服务商，以获得最佳使用体验",
+      "subtitle": "使用 CherryIN 服务商可畅享顶级 AI 服务",
+      "title": "欢迎使用 Cherry Studio"
+    }
+  },
   "openclaw": {
     "checking_installation": "正在检查 OpenClaw 安装状态...",
     "description": "使用 Cherry Studio 服务商为 OpenClaw 提供支持，OpenClaw 是您的个人 AI 助手，可在 WhatsApp、Telegram、Slack、Discord 等平台上使用。",
@@ -2583,6 +2946,11 @@
     },
     "install_progress": "安装进度",
     "installed_at": "OpenClaw 安装路径",
+    "migration": {
+      "description": "检测到通过 npm 安装的旧版本 OpenClaw，请重新安装以获取最新官方版本。",
+      "install_button": "重新安装 OpenClaw",
+      "title": "OpenClaw 需要更新"
+    },
     "model_config": {
       "auth_token": "认证令牌",
       "auth_token_hint": "网关认证令牌（必填）。留空时将自动生成。",
@@ -2618,6 +2986,7 @@
       "windows_title": "Windows"
     },
     "quick_actions": {
+      "check_update": "检查更新",
       "open_dashboard": "打开控制面板",
       "title": "快捷操作",
       "uninstall": "卸载",
@@ -2644,6 +3013,16 @@
     "uninstalling": {
       "description": "正在卸载 OpenClaw，请稍候...",
       "title": "正在卸载 OpenClaw"
+    },
+    "update": {
+      "available": "发现新版本：v{{latest}}（当前版本：v{{current}}）",
+      "checking": "正在检查更新...",
+      "confirm_button": "立即更新",
+      "failed": "检查更新失败",
+      "modal_title": "OpenClaw 更新",
+      "success": "更新成功！",
+      "up_to_date": "已是最新版本（v{{current}}）",
+      "updating": "更新中..."
     }
   },
   "ovms": {
@@ -2955,11 +3334,11 @@
       "tools": "工具"
     },
     "install": "安装",
-    "install_plugins_from_browser": "浏览可用插件以开始使用",
+    "install_plugins_from_browser": "浏览可用技能以开始使用",
     "installing": "安装中...",
     "name": "名称",
     "no_description": "无描述",
-    "no_installed_plugins": "尚未安装任何插件",
+    "no_installed_plugins": "尚未安装任何技能",
     "no_results": "未找到插件",
     "no_results_skills": "未找到技能",
     "search_placeholder": "搜索插件...",
@@ -3045,6 +3424,7 @@
     "longcat": "龙猫",
     "mimo": "Xiaomi MiMo",
     "minimax": "MiniMax",
+    "minimax-global": "MiniMax 海外版",
     "mistral": "Mistral",
     "modelscope": "ModelScope 魔搭",
     "moonshot": "月之暗面",
@@ -3057,7 +3437,7 @@
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "perplexity": "Perplexity",
-    "ph8": "PH8 大模型开放平台",
+    "ph8": "PH8",
     "poe": "Poe",
     "ppio": "PPIO 派欧云",
     "qiniu": "七牛云 AI 推理",
@@ -3072,6 +3452,7 @@
     "voyageai": "Voyage AI",
     "xirang": "天翼云息壤",
     "yi": "零一万物",
+    "zai": "Z.ai",
     "zhinao": "360 智脑",
     "zhipu": "智谱开放平台"
   },
@@ -3088,7 +3469,10 @@
       "extracting": "解压备份...",
       "preparing": "准备恢复...",
       "reading_data": "读取数据...",
-      "title": "恢复进度"
+      "restoring_data": "恢复文件...",
+      "restoring_database": "恢复数据库...",
+      "title": "恢复进度",
+      "validating": "验证备份..."
     },
     "title": "数据恢复"
   },
@@ -3394,6 +3778,19 @@
           "windows": "请输入应用的执行文件名，每行一个，不区分大小写，可以模糊匹配。例如：chrome.exe、weixin.exe、Cherry Studio.exe等"
         }
       },
+      "linux": {
+        "compositor_incompatible": "当前桌面环境不支持划词功能，请切换到 X11 模式以获得完整体验。",
+        "filter_warning_text": "Wayland 模式下不生效",
+        "input_group_fail": "未获取，请执行 `sudo usermod -aG input $USER` 并重新登录生效",
+        "input_group_label": "input 组权限：",
+        "input_group_pass": "已获取",
+        "wayland_checklist_subtitle": "确认以下条件已满足，以尽可能优化 Wayland 下的体验：",
+        "wayland_description": "当前为 Wayland 模式，受系统限制，部分桌面环境下工具栏只能显示在屏幕中央，无法跟随选中文本定位。建议切换到 X11 模式以获得完整体验。",
+        "wayland_title": "Wayland 模式提示",
+        "xwayland_fail": "未启用，请使用 `--ozone-platform=x11` 参数启动 Cherry Studio",
+        "xwayland_label": "XWayland 模式：",
+        "xwayland_pass": "已启用"
+      },
       "search_modal": {
         "custom": {
           "name": {
@@ -3427,6 +3824,7 @@
           "ctrlkey_note": "划词后，再 长按 Ctrl 键，才显示工具栏",
           "description": "划词后，触发取词并显示工具栏的方式",
           "description_note": {
+            "linux": "若使用了 xmodmap 或 xremap 等按键映射工具对修饰键进行了重映射，可能导致部分应用无法划词。",
             "mac": "若使用了快捷键或键盘映射工具对 ⌘ 键进行了重映射，可能导致部分应用无法划词。",
             "windows": "少数应用不支持通过 Ctrl 键划词。若使用了AHK等按键映射工具对 Ctrl 键进行了重映射，可能导致部分应用无法划词。"
           },
@@ -3560,6 +3958,10 @@
       "model_params": "模型参数",
       "title": "默认助手"
     },
+    "channels": {
+      "description": "将 Agent 连接到 Telegram、飞书、Discord 等消息平台。",
+      "title": "频道"
+    },
     "data": {
       "app_data": {
         "copy_data_option": "复制数据，会自动重启后将原始目录数据复制到新目录",
@@ -3641,7 +4043,15 @@
           "button": "选择备份文件"
         },
         "content": "导出部分数据，包括聊天记录、设置。请注意，备份过程可能需要一些时间，感谢您的耐心等待。",
+        "file": {
+          "button": "导出到文件",
+          "content": "将数据导出为备份文件，可在手机上通过文件方式导入。",
+          "export_failed": "导出失败",
+          "export_success": "导出成功",
+          "title": "导出为文件"
+        },
         "lan": {
+          "button": "开始传输",
           "connected": "连接成功",
           "connection_failed": "连接失败",
           "content": "请确保电脑和手机处于同一网络以使用局域网传输。",
@@ -4368,6 +4778,7 @@
         "dify_knowledge": "Dify 的 MCP 服务器实现，提供了一个简单的 API 来与 Dify 进行交互。需要配置 Dify Key",
         "fetch": "用于获取 URL 网页内容的 MCP 服务器",
         "filesystem": "实现文件系统操作的模型上下文协议（MCP）的 Node.js 服务器。需要配置允许访问的目录",
+        "flomo": "连接 flomo 通过 AI 快速记录笔记和想法。需要 flomo 账号授权。",
         "mcp_auto_install": "自动安装 MCP 服务（测试版）",
         "memory": "基于本地知识图谱的持久性记忆基础实现。这使得模型能够在不同对话间记住用户的相关信息。需要配置 MEMORY_FILE_PATH 环境变量。",
         "no": "无描述",
@@ -4432,6 +4843,7 @@
         "glama": "Glama MCP 服务器目录",
         "higress": "Higress MCP 服务器",
         "mcpso": "MCP 服务器发现平台",
+        "mcpworld": "百度旗下MCP聚合平台网站",
         "modelscope": "魔搭社区 MCP 服务器",
         "official": "官方 MCP 服务器集合",
         "pulsemcp": "Pulse MCP 服务器",
@@ -4740,6 +5152,7 @@
           "label": "添加列表中的模型"
         },
         "add_whole_group": "添加整个分组",
+        "fetch_list": "获取模型列表",
         "refetch_list": "重新获取模型列表",
         "remove_listed": "移除列表中的模型",
         "remove_model": "移除模型",
@@ -4856,6 +5269,7 @@
         "logout_failed": "退出登录失败，请重试",
         "logout_success": "成功退出 Anthropic 登录",
         "oauth": "网页 OAuth",
+        "oauth_disabled_warning": "Anthropic 目前已暂停通过 OAuth 使用 Claude，此认证方式暂时不可用，请先使用 API 密钥。",
         "start_auth": "开始授权",
         "submit_code": "完成登录"
       },
@@ -5016,6 +5430,11 @@
       },
       "docs_check": "查看",
       "docs_more_details": "获取更多详情",
+      "filter": {
+        "agent": "支持 Agent",
+        "all": "全部服务商"
+      },
+      "filter_agent": "筛选支持 Agent 的服务商",
       "get_api_key": "点击这里获取密钥",
       "misc": "其他",
       "no_models_for_check": "没有可以被检测的模型（例如对话模型）",
@@ -5124,6 +5543,14 @@
       "titleLabel": "标题",
       "titlePlaceholder": "请输入短语标题"
     },
+    "scheduledTasks": {
+      "description": "管理所有 Agent 的定时任务。任务将按照配置的时间计划自动运行。",
+      "noAgents": "定时任务需要开启灵魂模式或无权限模式的 Agent 才能运行。请先在 Agent 设置中启用。",
+      "noAgentsTip": "提示：你也可以直接在对话中让 Agent 创建定时任务。",
+      "noTasks": "暂无定时任务。点击「+ 添加」为某个 Agent 创建任务。",
+      "selectTask": "选择一个任务以查看详情",
+      "title": "定时任务"
+    },
     "shortcuts": {
       "action": "操作",
       "actions": "操作",
@@ -5155,6 +5582,41 @@
       "zoom_in": "放大界面",
       "zoom_out": "缩小界面",
       "zoom_reset": "重置缩放"
+    },
+    "skills": {
+      "author": "作者",
+      "batchUninstallSuccess": "已卸载 {{count}} 个技能",
+      "builtin": "内置",
+      "confirmBatchUninstall": "确定要卸载选中的 {{count}} 个技能吗？",
+      "confirmUninstall": "确定要卸载此技能吗？",
+      "directory": "文件夹",
+      "dropHint": "或将 ZIP 文件或文件夹拖放到此处",
+      "emptyDesc": "通过 ZIP、文件夹安装，或在线搜索注册表来扩展 Agent 的能力。",
+      "emptyTip": "提示：你也可以让 Agent 帮你安装技能。",
+      "emptyTitle": "未选择技能",
+      "filterPlaceholder": "筛选技能...",
+      "install": "安装",
+      "installFailed": "技能安装失败：{{name}}",
+      "installFromDirectory": "从文件夹安装",
+      "installFromZip": "从 ZIP 文件安装",
+      "installSuccess": "技能已安装：{{name}}",
+      "installed": "已安装",
+      "invalidFormat": "仅支持 ZIP 文件和文件夹",
+      "localInstall": "本地安装",
+      "multiSelect": "多选",
+      "noFilterResults": "没有匹配的技能",
+      "noInstalled": "暂无已安装的技能",
+      "noResults": "未找到技能",
+      "noSkillFile": "未找到 SKILL.md 文件",
+      "searchPlaceholder": "发现更多技能...",
+      "searchRegistryTitle": "在线搜索技能注册表",
+      "searchTitle": "搜索技能",
+      "selectFile": "选择一个文件查看",
+      "title": "技能",
+      "uninstall": "卸载",
+      "uninstallSuccess": "技能已卸载：{{name}}",
+      "viewSource": "查看源码",
+      "zip": "ZIP"
     },
     "theme": {
       "color_primary": "主题颜色",

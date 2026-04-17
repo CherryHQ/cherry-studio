@@ -50,7 +50,7 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
           metadata: { rawMcpToolResponse: toolResponse }
         })
         toolBlockId = toolBlock.id
-        blockManager.handleBlockTransition(toolBlock, MessageBlockType.TOOL)
+        void blockManager.handleBlockTransition(toolBlock, MessageBlockType.TOOL)
         toolCallIdToBlockIdMap.set(toolResponse.id, toolBlock.id)
       } else {
         logger.warn(
@@ -83,7 +83,7 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
             metadata: { rawMcpToolResponse: toolResponse }
           })
           toolBlockId = toolBlock.id
-          blockManager.handleBlockTransition(toolBlock, MessageBlockType.TOOL)
+          void blockManager.handleBlockTransition(toolBlock, MessageBlockType.TOOL)
           toolCallIdToBlockIdMap.set(toolResponse.id, toolBlock.id)
           existingBlockId = toolBlock.id
         }
@@ -136,7 +136,8 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
         const mergedToolResponse: MCPToolResponse | NormalToolResponse = {
           ...(existingResponse ?? toolResponse),
           ...toolResponse,
-          arguments: mergedArguments
+          arguments: mergedArguments,
+          partialArguments: undefined // Strip redundant streaming buffer to free memory
         }
 
         const changes: Partial<ToolMessageBlock> = {
@@ -166,7 +167,7 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
             }
           )
           citationBlockId = citationBlock.id
-          blockManager.handleBlockTransition(citationBlock, MessageBlockType.CITATION)
+          void blockManager.handleBlockTransition(citationBlock, MessageBlockType.CITATION)
         }
         if (toolResponse.tool.name === 'builtin_knowledge_search' && toolResponse.response) {
           const citationBlock = createCitationBlock(
@@ -177,7 +178,7 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
             }
           )
           citationBlockId = citationBlock.id
-          blockManager.handleBlockTransition(citationBlock, MessageBlockType.CITATION)
+          void blockManager.handleBlockTransition(citationBlock, MessageBlockType.CITATION)
         }
       } else {
         logger.warn(

@@ -93,6 +93,7 @@ export enum IpcChannel {
   Mcp_CheckConnectivity = 'mcp:check-connectivity',
   Mcp_UploadDxt = 'mcp:upload-dxt',
   Mcp_AbortTool = 'mcp:abort-tool',
+  Mcp_ResolveHubTool = 'mcp:resolve-hub-tool',
   Mcp_GetServerVersion = 'mcp:get-server-version',
   Mcp_Progress = 'mcp:progress',
   Mcp_GetServerLogs = 'mcp:get-server-logs',
@@ -107,6 +108,26 @@ export enum IpcChannel {
   AgentToolPermission_Request = 'agent-tool-permission:request',
   AgentToolPermission_Response = 'agent-tool-permission:response',
   AgentToolPermission_Result = 'agent-tool-permission:result',
+
+  // Agent session stream (IM channel -> renderer real-time)
+  AgentSessionStream_Subscribe = 'agent-session-stream:subscribe',
+  AgentSessionStream_Unsubscribe = 'agent-session-stream:unsubscribe',
+  AgentSessionStream_Abort = 'agent-session-stream:abort',
+  AgentSessionStream_Chunk = 'agent-session-stream:chunk',
+  AgentSession_Changed = 'agent-session:changed',
+
+  // WeChat channel
+  WeChat_QrLogin = 'wechat:qr-login',
+  WeChat_HasCredentials = 'wechat:has-credentials',
+
+  // Feishu channel
+  Feishu_QrLogin = 'feishu:qr-login',
+
+  // Channel status & logs
+  Channel_StatusChange = 'channel:status-change',
+  Channel_Log = 'channel:log',
+  Channel_GetLogs = 'channel:get-logs',
+  Channel_GetStatuses = 'channel:get-statuses',
 
   //copilot
   Copilot_GetAuthMessage = 'copilot:get-auth-message',
@@ -216,6 +237,9 @@ export enum IpcChannel {
   File_BatchUploadMarkdown = 'file:batchUploadMarkdown',
   File_ShowInFolder = 'file:showInFolder',
 
+  // PDF
+  Pdf_ExtractText = 'pdf:extractText',
+
   // file service
   FileService_Upload = 'file-service:upload',
   FileService_List = 'file-service:list',
@@ -245,7 +269,7 @@ export enum IpcChannel {
   Backup_DeleteS3File = 'backup:deleteS3File',
   Backup_CheckS3Connection = 'backup:checkS3Connection',
   Backup_CreateLanTransferBackup = 'backup:createLanTransferBackup',
-  Backup_DeleteTempBackup = 'backup:deleteTempBackup',
+  Backup_DeleteLanTransferBackup = 'backup:deleteLanTransferBackup',
 
   // zip
   Zip_Compress = 'zip:compress',
@@ -312,10 +336,9 @@ export enum IpcChannel {
   Selection_ActionWindowClose = 'selection:action-window-close',
   Selection_ActionWindowMinimize = 'selection:action-window-minimize',
   Selection_ActionWindowPin = 'selection:action-window-pin',
-  // [Windows only] Electron bug workaround - can be removed once https://github.com/electron/electron/issues/48554 is fixed
-  Selection_ActionWindowResize = 'selection:action-window-resize',
   Selection_ProcessAction = 'selection:process-action',
   Selection_UpdateActionData = 'selection:update-action-data',
+  Selection_GetLinuxEnvInfo = 'selection:get-linux-env-info',
 
   // Memory
   Memory_Add = 'memory:add',
@@ -389,14 +412,16 @@ export enum IpcChannel {
   // CherryAI
   Cherryai_GetSignature = 'cherryai:get-signature',
 
-  // Claude Code Plugins
-  ClaudeCodePlugin_Install = 'claudeCodePlugin:install',
-  ClaudeCodePlugin_Uninstall = 'claudeCodePlugin:uninstall',
-  ClaudeCodePlugin_UninstallPackage = 'claudeCodePlugin:uninstall-package',
-  ClaudeCodePlugin_ListInstalled = 'claudeCodePlugin:list-installed',
-  ClaudeCodePlugin_WriteContent = 'claudeCodePlugin:write-content',
-  ClaudeCodePlugin_InstallFromZip = 'claudeCodePlugin:install-from-zip',
-  ClaudeCodePlugin_InstallFromDirectory = 'claudeCodePlugin:install-from-directory',
+  // Global Skills
+  Skill_List = 'skill:list',
+  Skill_Install = 'skill:install',
+  Skill_Uninstall = 'skill:uninstall',
+  Skill_Toggle = 'skill:toggle',
+  Skill_InstallFromZip = 'skill:install-from-zip',
+  Skill_InstallFromDirectory = 'skill:install-from-directory',
+  Skill_ReadFile = 'skill:read-file',
+  Skill_ListFiles = 'skill:list-files',
+  Skill_ListLocal = 'skill:list-local',
 
   // Local Transfer
   LocalTransfer_ListServices = 'local-transfer:list',
@@ -411,21 +436,18 @@ export enum IpcChannel {
 
   // OpenClaw
   OpenClaw_CheckInstalled = 'openclaw:check-installed',
-  OpenClaw_CheckNodeVersion = 'openclaw:check-node-version',
-  OpenClaw_CheckGitAvailable = 'openclaw:check-git-available',
-  OpenClaw_GetNodeDownloadUrl = 'openclaw:get-node-download-url',
-  OpenClaw_GetGitDownloadUrl = 'openclaw:get-git-download-url',
   OpenClaw_Install = 'openclaw:install',
   OpenClaw_Uninstall = 'openclaw:uninstall',
   OpenClaw_InstallProgress = 'openclaw:install-progress',
   OpenClaw_StartGateway = 'openclaw:start-gateway',
   OpenClaw_StopGateway = 'openclaw:stop-gateway',
-  OpenClaw_RestartGateway = 'openclaw:restart-gateway',
   OpenClaw_GetStatus = 'openclaw:get-status',
   OpenClaw_CheckHealth = 'openclaw:check-health',
   OpenClaw_GetDashboardUrl = 'openclaw:get-dashboard-url',
   OpenClaw_SyncConfig = 'openclaw:sync-config',
   OpenClaw_GetChannels = 'openclaw:get-channels',
+  OpenClaw_CheckUpdate = 'openclaw:check-update',
+  OpenClaw_PerformUpdate = 'openclaw:perform-update',
 
   // Analytics
   Analytics_TrackTokenUsage = 'analytics:track-token-usage'

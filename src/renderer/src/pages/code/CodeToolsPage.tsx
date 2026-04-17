@@ -1,33 +1,29 @@
-import AiProvider from '@renderer/aiCore'
+import { AiProvider } from '@renderer/aiCore'
+import AnthropicProviderListPopover from '@renderer/components/AnthropicProviderListPopover'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import ModelSelector from '@renderer/components/ModelSelector'
 import { isMac, isWin } from '@renderer/config/constant'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
-import { getProviderLogo } from '@renderer/config/providers'
 import { useCodeTools } from '@renderer/hooks/useCodeTools'
-import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
+import { useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { getProviderLabel } from '@renderer/i18n/label'
 import { getAssistantSettings, getProviderByModel } from '@renderer/services/AssistantService'
 import { loggerService } from '@renderer/services/LoggerService'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setIsBunInstalled } from '@renderer/store/mcp'
 import type { EndpointType, Model } from '@renderer/types'
-import { getClaudeSupportedProviders } from '@renderer/utils/provider'
 import type { TerminalConfig } from '@shared/config/constant'
 import { codeTools, terminalApps } from '@shared/config/constant'
-import { isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
-import { Alert, Avatar, Button, Checkbox, Input, Popover, Select, Space, Tooltip } from 'antd'
-import { ArrowUpRight, Download, FolderOpen, HelpCircle, Terminal, X } from 'lucide-react'
+import { CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS, isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
+import { Alert, Button, Checkbox, Input, Select, Space, Tooltip } from 'antd'
+import { Download, FolderOpen, Terminal, X } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link } from 'react-router-dom'
 import styled from 'styled-components'
 
 import {
-  CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS,
   CLI_TOOL_PROVIDER_MAP,
   CLI_TOOLS,
   generateToolEnvironment,
@@ -40,7 +36,6 @@ const logger = loggerService.withContext('CodeToolsPage')
 const CodeToolsPage: FC = () => {
   const { t } = useTranslation()
   const { providers } = useProviders()
-  const allProviders = useAllProviders()
   const dispatch = useAppDispatch()
   const isBunInstalled = useAppSelector((state) => state.mcp.isBunInstalled)
   const {
@@ -95,9 +90,9 @@ const CodeToolsPage: FC = () => {
         if (m.provider === 'silicon') {
           return isSiliconAnthropicCompatibleModel(m.id)
         }
-        // Check if model belongs to an anthropic type provider (including custom providers)
-        const anthropicProvider = providers.find((p) => p.id === m.provider)
-        if (anthropicProvider?.type === 'anthropic') {
+        // Check if model belongs to an anthropic type provider or has anthropicApiHost
+        const modelProvider = providers.find((p) => p.id === m.provider)
+        if (modelProvider?.type === 'anthropic' || modelProvider?.anthropicApiHost) {
           return true
         }
         return m.id.includes('claude') || CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS.includes(m.provider)
@@ -285,8 +280,17 @@ const CodeToolsPage: FC = () => {
       terminal: selectedTerminal
     }
 
-    window.api.codeTools.run(selectedCliTool, modelId, currentDirectory, env, runOptions)
-    window.toast.success(t('code.launch.success'))
+    try {
+      const result = await window.api.codeTools.run(selectedCliTool, modelId, currentDirectory, env, runOptions)
+      if (result && result.success) {
+        window.toast.success(t('code.launch.success'))
+      } else {
+        window.toast.error(result?.message || t('code.launch.error'))
+      }
+    } catch (error) {
+      logger.error('codeTools.run failed:', error as Error)
+      window.toast.error(t('code.launch.error'))
+    }
   }
 
   // 设置终端自定义路径
@@ -306,7 +310,7 @@ const CodeToolsPage: FC = () => {
         setTerminalCustomPaths((prev) => ({ ...prev, [terminalId]: path }))
         window.toast.success(t('code.custom_path_set'))
         // Reload terminals to reflect changes
-        loadAvailableTerminals()
+        void loadAvailableTerminals()
       }
     } catch (error) {
       logger.error('Failed to set custom terminal path:', error as Error)
@@ -343,12 +347,12 @@ const CodeToolsPage: FC = () => {
 
   // 页面加载时检查 bun 安装状态
   useEffect(() => {
-    checkBunInstallation()
+    void checkBunInstallation()
   }, [checkBunInstallation])
 
   // 页面加载时获取可用终端
   useEffect(() => {
-    loadAvailableTerminals()
+    void loadAvailableTerminals()
   }, [loadAvailableTerminals])
 
   return (
@@ -407,48 +411,7 @@ const CodeToolsPage: FC = () => {
               <SettingsItem>
                 <div className="settings-label">
                   {t('code.model')}
-                  {selectedCliTool === 'claude-code' && (
-                    <Popover
-                      content={
-                        <div style={{ width: 200 }}>
-                          <div style={{ marginBottom: 8, fontWeight: 500 }}>{t('code.supported_providers')}</div>
-                          <div
-                            style={{
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: 8
-                            }}>
-                            {getClaudeSupportedProviders(allProviders).map((provider) => {
-                              return (
-                                <Link
-                                  key={provider.id}
-                                  style={{
-                                    color: 'var(--color-text)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 4
-                                  }}
-                                  to={`/settings/provider?id=${provider.id}`}>
-                                  <ProviderLogo shape="square" src={getProviderLogo(provider.id)} size={20} />
-                                  {getProviderLabel(provider.id)}
-                                  <ArrowUpRight size={14} />
-                                </Link>
-                              )
-                            })}
-                          </div>
-                        </div>
-                      }
-                      trigger="hover"
-                      placement="right">
-                      <HelpCircle
-                        size={14}
-                        style={{
-                          color: 'var(--color-text-3)',
-                          cursor: 'pointer'
-                        }}
-                      />
-                    </Popover>
-                  )}
+                  {selectedCliTool === 'claude-code' && <AnthropicProviderListPopover />}
                 </div>
                 <ModelSelector
                   providers={availableProviders}
@@ -654,10 +617,6 @@ const SettingsItem = styled.div`
 
 const BunInstallAlert = styled.div`
   margin-bottom: 24px;
-`
-
-const ProviderLogo = styled(Avatar)`
-  border-radius: 4px;
 `
 
 export default CodeToolsPage

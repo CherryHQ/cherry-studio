@@ -2,7 +2,6 @@ import { useProvider } from '@renderer/hooks/useProvider'
 import { Select } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 interface CherryINSettingsProps {
   providerId: string
@@ -30,7 +29,6 @@ const API_HOST_OPTIONS = [
 
 const CherryINSettings: FC<CherryINSettingsProps> = ({ providerId, apiHost, setApiHost }) => {
   const { updateProvider } = useProvider(providerId)
-  const { t } = useTranslation()
 
   const getCurrentHost = useMemo(() => {
     const matchedOption = API_HOST_OPTIONS.find((option) => apiHost?.includes(option.value.replace('https://', '')))
@@ -52,11 +50,11 @@ const CherryINSettings: FC<CherryINSettingsProps> = ({ providerId, apiHost, setA
         label: (
           <div className="flex flex-col gap-0.5">
             <span>{option.labelKey}</span>
-            <span className="text-[var(--color-text-3)] text-xs">{t(option.description)}</span>
+            <span className="text-[var(--color-text-3)] text-xs">{option.description}</span>
           </div>
         )
       })),
-    [t]
+    []
   )
 
   return (

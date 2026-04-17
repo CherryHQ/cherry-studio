@@ -5,16 +5,18 @@ import { is } from '@electron-toolkit/utils'
 import { loggerService } from '@logger'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { getFilesDir } from '@main/utils/file'
+import { getWindowsBackgroundMaterial } from '@main/utils/windowUtil'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, BrowserWindow, nativeImage, nativeTheme, screen, shell } from 'electron'
 import windowStateKeeper from 'electron-window-state'
-import { join } from 'path'
+import path, { join } from 'path'
 
 import iconPath from '../../../build/icon.png?asset'
 import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
 import { configManager } from './ConfigManager'
 import { contextMenu } from './ContextMenu'
+import { isSafeExternalUrl } from './security'
 import { initSessionUserAgent } from './WebviewService'
 
 const DEFAULT_MINIWINDOW_WIDTH = 550
@@ -56,6 +58,12 @@ export class WindowService {
       fullScreen: false,
       maximize: false
     })
+    const windowsBackgroundMaterial = getWindowsBackgroundMaterial()
+    let mainWindowBackgroundColor: string | undefined
+
+    if (!isMac && !windowsBackgroundMaterial) {
+      mainWindowBackgroundColor = nativeTheme.shouldUseDarkColors ? '#181818' : '#FFFFFF'
+    }
 
     this.mainWindow = new BrowserWindow({
       x: mainWindowState.x,
@@ -75,13 +83,14 @@ export class WindowService {
         ? {
             titleBarStyle: 'hidden',
             titleBarOverlay: nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight,
-            trafficLightPosition: { x: 8, y: 13 }
+            trafficLightPosition: { x: 13, y: 13 }
           }
         : {
             // On Linux, allow using system title bar if setting is enabled
             frame: isLinux && configManager.getUseSystemTitleBar() ? true : false
           }),
-      backgroundColor: isMac ? undefined : nativeTheme.shouldUseDarkColors ? '#181818' : '#FFFFFF',
+      ...(windowsBackgroundMaterial ? { backgroundMaterial: windowsBackgroundMaterial } : {}),
+      ...(mainWindowBackgroundColor ? { backgroundColor: mainWindowBackgroundColor } : {}),
       darkTheme: nativeTheme.shouldUseDarkColors,
       ...(isLinux ? { icon: linuxIcon } : {}),
       webPreferences: {
@@ -184,7 +193,7 @@ export class WindowService {
       const isLaunchToTray = configManager.getLaunchToTray()
       if (!isLaunchToTray) {
         //[mac]hacky-fix: miniWindow set visibleOnFullScreen:true will cause dock icon disappeared
-        app.dock?.show()
+        void app.dock?.show()
         mainWindow.show()
       }
     })
@@ -271,7 +280,11 @@ export class WindowService {
       }
 
       event.preventDefault()
-      shell.openExternal(url)
+      if (isSafeExternalUrl(url)) {
+        void shell.openExternal(url)
+      } else {
+        logger.warn(`Blocked navigation to untrusted URL scheme: ${url}`)
+      }
     })
 
     mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -286,7 +299,7 @@ export class WindowService {
         'https://console.aihubmix.com/statistics',
         'https://dash.302.ai/sso/login',
         'https://dash.302.ai/charge',
-        'https://www.aiionly.com/login'
+        'https://maas.aiionly.com/login'
       ]
 
       if (oauthProviderUrls.some((link) => url.startsWith(link))) {
@@ -302,11 +315,22 @@ export class WindowService {
 
       if (url.includes('http://file/')) {
         const fileName = url.replace('http://file/', '')
+        if (!fileName) {
+          logger.warn('Blocked empty file name in http://file/ URL')
+          return { action: 'deny' }
+        }
         const storageDir = getFilesDir()
-        const filePath = storageDir + '/' + fileName
-        shell.openPath(filePath).catch((err) => logger.error('Failed to open file:', err))
+        const filePath = path.resolve(storageDir, fileName)
+        // Prevent path traversal: ensure resolved path is within storageDir
+        if (!filePath.startsWith(path.resolve(storageDir) + path.sep)) {
+          logger.warn(`Blocked path traversal attempt: ${fileName}`)
+        } else {
+          shell.openPath(filePath).catch((err) => logger.error('Failed to open file:', err))
+        }
+      } else if (isSafeExternalUrl(details.url)) {
+        void shell.openExternal(details.url)
       } else {
-        shell.openExternal(details.url)
+        logger.warn(`Blocked shell.openExternal for untrusted URL scheme: ${details.url}`)
       }
 
       return { action: 'deny' }
@@ -335,10 +359,10 @@ export class WindowService {
 
   private loadMainWindowContent(mainWindow: BrowserWindow) {
     if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+      void mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
       // mainWindow.webContents.openDevTools()
     } else {
-      mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+      void mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
     }
   }
 
@@ -392,7 +416,7 @@ export class WindowService {
         mainWindow.once('show', () => {
           //restore the window can hide by cmd+h when the window is shown again
           // https://github.com/electron/electron/pull/47970
-          app.dock?.show()
+          void app.dock?.show()
         })
       }
     })
@@ -579,9 +603,9 @@ export class WindowService {
     })
 
     if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      this.miniWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/miniWindow.html')
+      void this.miniWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/miniWindow.html')
     } else {
-      this.miniWindow.loadFile(join(__dirname, '../renderer/miniWindow.html'))
+      void this.miniWindow.loadFile(join(__dirname, '../renderer/miniWindow.html'))
     }
 
     return this.miniWindow

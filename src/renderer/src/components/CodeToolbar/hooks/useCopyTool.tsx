@@ -32,7 +32,7 @@ export const useCopyTool = ({ showPreviewTools, previewRef, onCopySource, setToo
 
   const handleCopyImage = useCallback(() => {
     try {
-      previewRef.current?.copy()
+      void previewRef.current?.copy()
       setCopiedImageTemporarily(true)
     } catch (error) {
       setCopiedImageTemporarily(false)

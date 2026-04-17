@@ -154,6 +154,29 @@ describe('isFunctionCallingModel', () => {
     expect(isFunctionCallingModel(createModel({ id: 'qwen3.5-397b-a17b', provider: 'dashscope' }))).toBe(true)
   })
 
+  describe('MiniMax M2.x Models', () => {
+    it('supports minimax-m2 base model', () => {
+      expect(isFunctionCallingModel(createModel({ id: 'minimax-m2', provider: 'minimax' }))).toBe(true)
+    })
+
+    it('supports minimax-m2.1 model', () => {
+      expect(isFunctionCallingModel(createModel({ id: 'minimax-m2.1', provider: 'minimax' }))).toBe(true)
+    })
+
+    it('supports minimax-m2.7 model', () => {
+      expect(isFunctionCallingModel(createModel({ id: 'minimax-m2.7', provider: 'minimax' }))).toBe(true)
+    })
+
+    it('supports minimax-m2.7-highspeed model with suffix', () => {
+      expect(isFunctionCallingModel(createModel({ id: 'minimax-m2.7-highspeed', provider: 'minimax' }))).toBe(true)
+    })
+
+    it('supports MiniMax-M2.7 with capital letters', () => {
+      expect(isFunctionCallingModel(createModel({ id: 'MiniMax-M2.7', provider: 'minimax' }))).toBe(true)
+      expect(isFunctionCallingModel(createModel({ id: 'MiniMax-M2.7-highspeed', provider: 'minimax' }))).toBe(true)
+    })
+  })
+
   describe('Doubao Seed 2.0 Models', () => {
     it('should identify doubao-seed-2-0-pro-260215 as function calling model', () => {
       const model: Model = {
@@ -203,6 +226,37 @@ describe('isFunctionCallingModel', () => {
         group: 'Doubao-Seed-2.0'
       }
       expect(isFunctionCallingModel(model)).toBe(true)
+    })
+  })
+
+  describe('Gemma 4 Models', () => {
+    it('detects Gemma 4 GenAI format as function calling', () => {
+      expect(isFunctionCallingModel(createModel({ id: 'gemma-4-e2b' }))).toBe(true)
+      expect(isFunctionCallingModel(createModel({ id: 'gemma-4-e4b' }))).toBe(true)
+      expect(isFunctionCallingModel(createModel({ id: 'gemma-4-26b-moe' }))).toBe(true)
+      expect(isFunctionCallingModel(createModel({ id: 'gemma-4-31b' }))).toBe(true)
+    })
+
+    it('detects Gemma 4 Ollama format as function calling', () => {
+      expect(isFunctionCallingModel(createModel({ id: 'gemma4' }))).toBe(true)
+      expect(isFunctionCallingModel(createModel({ id: 'gemma4:e2b' }))).toBe(true)
+      expect(isFunctionCallingModel(createModel({ id: 'gemma4:31b' }))).toBe(true)
+      expect(isFunctionCallingModel(createModel({ id: 'gemma4:latest' }))).toBe(true)
+    })
+
+    it('detects Gemma 4 with provider prefix', () => {
+      expect(isFunctionCallingModel(createModel({ id: 'google/gemma-4-31b' }))).toBe(true)
+      expect(isFunctionCallingModel(createModel({ id: 'openrouter/gemma-4-e2b' }))).toBe(true)
+    })
+
+    it('does NOT detect Gemma 2 as function calling (no regression)', () => {
+      expect(isFunctionCallingModel(createModel({ id: 'gemma-2b' }))).toBe(false)
+      expect(isFunctionCallingModel(createModel({ id: 'gemma-2-27b-it' }))).toBe(false)
+    })
+
+    it('does NOT detect Gemma 3 as function calling (no regression)', () => {
+      expect(isFunctionCallingModel(createModel({ id: 'gemma-3-27b' }))).toBe(false)
+      expect(isFunctionCallingModel(createModel({ id: 'gemma-3n-e4b-it' }))).toBe(false)
     })
   })
 })

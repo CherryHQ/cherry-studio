@@ -10,6 +10,7 @@ import type { Chunk, ProviderMetadata } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import { ProviderSpecificError } from '@renderer/types/provider-specific-error'
 import { formatErrorMessage, isAbortError } from '@renderer/utils/error'
+import type { IdleTimeoutHandle } from '@renderer/utils/IdleTimeoutController'
 import { convertLinks, flushLinkConverterBuffer } from '@renderer/utils/linkConverter'
 import type { ClaudeCodeRawValue } from '@shared/agents/claudecode/types'
 import { AISDKError, type TextStreamPart, type ToolSet } from 'ai'
@@ -32,6 +33,8 @@ export class AiSdkToChunkAdapter {
   private firstTokenTimestamp: number | null = null
   private hasTextContent = false
   private getSessionWasCleared?: () => boolean
+  private providerId?: string
+  private idleTimeout?: IdleTimeoutHandle
 
   constructor(
     private onChunk: (chunk: Chunk) => void,
@@ -39,13 +42,17 @@ export class AiSdkToChunkAdapter {
     accumulate?: boolean,
     enableWebSearch?: boolean,
     onSessionUpdate?: (sessionId: string) => void,
-    getSessionWasCleared?: () => boolean
+    getSessionWasCleared?: () => boolean,
+    providerId?: string,
+    idleTimeout?: IdleTimeoutHandle
   ) {
     this.toolCallHandler = new ToolCallChunkHandler(onChunk, mcpTools)
     this.accumulate = accumulate
     this.enableWebSearch = enableWebSearch || false
     this.onSessionUpdate = onSessionUpdate
     this.getSessionWasCleared = getSessionWasCleared
+    this.providerId = providerId
+    this.idleTimeout = idleTimeout
   }
 
   private markFirstTokenIfNeeded() {
@@ -65,18 +72,19 @@ export class AiSdkToChunkAdapter {
    * @returns 最终的文本内容
    */
   async processStream(aiSdkResult: any): Promise<string> {
-    try {
-      // 如果是流式且有 fullStream
-      if (aiSdkResult.fullStream) {
-        await this.readFullStream(aiSdkResult.fullStream)
-      }
+    // The stream is the single source of truth for abort handling.
+    // Both AI SDK (resilient stream) and the agent pipeline (withAbortStreamPart)
+    // guarantee: abort → enqueue { type: 'abort' } → close gracefully.
+    // convertAndEmitChunk processes the abort part and emits ChunkType.ERROR → onError.
+    if (aiSdkResult.fullStream) {
+      await this.readFullStream(aiSdkResult.fullStream)
+    }
 
-      // 使用 streamResult.text 获取最终结果
+    try {
       return await aiSdkResult.text
     } catch (error: any) {
-      // abort 时，AI SDK 通常会先通过流发送 'abort' chunk（在 readFullStream 中 convertAndEmitChunk
-      // 转为 ERROR chunk 发出）。随后 aiSdkResult.text 会抛出 AbortError
-      // 这里捕获它以避免 transformMessagesAndFetch 的 catch 再次发送重复的 ERROR chunk
+      // The text promise rejects when no steps completed (e.g. abort during thinking).
+      // The abort was already handled via the 'abort' stream part above.
       if (isAbortError(error)) {
         return ''
       }
@@ -107,6 +115,9 @@ export class AiSdkToChunkAdapter {
       while (true) {
         const { done, value } = await reader.read()
 
+        // Reset idle timeout on every chunk received from the stream
+        this.idleTimeout?.reset()
+
         if (done) {
           // Flush any remaining content from link converter buffer if web search is enabled
           if (this.enableWebSearch) {
@@ -128,6 +139,8 @@ export class AiSdkToChunkAdapter {
     } finally {
       reader.releaseLock()
       this.resetTimingState()
+      // Clean up the idle timeout timer when the stream ends
+      this.idleTimeout?.cleanup()
     }
   }
 
@@ -293,25 +306,6 @@ export class AiSdkToChunkAdapter {
         this.toolCallHandler.handleToolResult(chunk)
         break
 
-      // === 步骤相关事件 ===
-      // case 'start':
-      //   this.onChunk({
-      //     type: ChunkType.LLM_RESPONSE_CREATED
-      //   })
-      //   break
-      // case 'start-step':
-      //   this.onChunk({
-      //     type: ChunkType.BLOCK_CREATED
-      //   })
-      //   break
-      // case 'step-finish':
-      //   this.onChunk({
-      //     type: ChunkType.TEXT_COMPLETE,
-      //     text: final.text || '' // TEXT_COMPLETE 需要 text 字段
-      //   })
-      //   final.text = ''
-      //   break
-
       case 'finish-step': {
         const { providerMetadata, finishReason } = chunk
         // googel web search
@@ -324,7 +318,7 @@ export class AiSdkToChunkAdapter {
             }
           })
         } else if (final.webSearchResults.length) {
-          const providerName = Object.keys(providerMetadata || {})[0]
+          const providerName: string | undefined = Object.keys(providerMetadata || {})[0] || this.providerId
           const sourceMap: Record<string, WebSearchSource> = {
             [WEB_SEARCH_SOURCE.OPENAI]: WEB_SEARCH_SOURCE.OPENAI_RESPONSE,
             [WEB_SEARCH_SOURCE.ANTHROPIC]: WEB_SEARCH_SOURCE.ANTHROPIC,
@@ -335,9 +329,10 @@ export class AiSdkToChunkAdapter {
             [WEB_SEARCH_SOURCE.HUNYUAN]: WEB_SEARCH_SOURCE.HUNYUAN,
             [WEB_SEARCH_SOURCE.ZHIPU]: WEB_SEARCH_SOURCE.ZHIPU,
             [WEB_SEARCH_SOURCE.GROK]: WEB_SEARCH_SOURCE.GROK,
+            xai: WEB_SEARCH_SOURCE.GROK,
             [WEB_SEARCH_SOURCE.WEBSEARCH]: WEB_SEARCH_SOURCE.WEBSEARCH
           }
-          const source = sourceMap[providerName] || WEB_SEARCH_SOURCE.AISDK
+          const source = (providerName && sourceMap[providerName]) || WEB_SEARCH_SOURCE.AISDK
 
           this.onChunk({
             type: ChunkType.LLM_WEB_SEARCH_COMPLETE,

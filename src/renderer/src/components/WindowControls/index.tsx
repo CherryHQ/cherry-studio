@@ -54,7 +54,7 @@ const WindowControls: React.FC = () => {
 
   useEffect(() => {
     // Check initial maximized state
-    window.api.windowControls.isMaximized().then(setIsMaximized)
+    void window.api.windowControls.isMaximized().then(setIsMaximized)
 
     // Listen for maximized state changes
     const unsubscribe = window.api.windowControls.onMaximizedChange(setIsMaximized)
@@ -75,19 +75,19 @@ const WindowControls: React.FC = () => {
   }
 
   const handleMinimize = () => {
-    window.api.windowControls.minimize()
+    void window.api.windowControls.minimize()
   }
 
   const handleMaximize = () => {
     if (isMaximized) {
-      window.api.windowControls.unmaximize()
+      void window.api.windowControls.unmaximize()
     } else {
-      window.api.windowControls.maximize()
+      void window.api.windowControls.maximize()
     }
   }
 
   const handleClose = () => {
-    window.api.windowControls.close()
+    void window.api.windowControls.close()
   }
 
   return (

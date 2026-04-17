@@ -22,6 +22,7 @@ import {
   MessageSquare,
   Monitor,
   Moon,
+  MousePointerClick,
   NotepadText,
   Palette,
   Settings,
@@ -126,10 +127,11 @@ const MainMenus: FC = () => {
   const { theme } = useTheme()
 
   const isRoute = (path: string): string => (pathname === path && !minappShow ? 'active' : '')
-  const isRoutes = (path: string): string => (pathname.startsWith(path) && !minappShow ? 'active' : '')
+  const isRoutes = (path: string): string => (pathname.startsWith(path) && path !== '/' && !minappShow ? 'active' : '')
 
   const iconMap = {
     assistants: <MessageSquare size={18} className="icon" />,
+    agents: <MousePointerClick size={18} className="icon" />,
     store: <Sparkle size={18} className="icon" />,
     paintings: <Palette size={18} className="icon" />,
     translate: <Languages size={18} className="icon" />,
@@ -143,6 +145,7 @@ const MainMenus: FC = () => {
 
   const pathMap = {
     assistants: '/',
+    agents: '/agents',
     store: '/store',
     paintings: `/paintings/${defaultPaintingProvider}`,
     translate: '/translate',

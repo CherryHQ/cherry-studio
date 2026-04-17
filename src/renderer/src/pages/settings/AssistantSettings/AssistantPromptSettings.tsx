@@ -35,11 +35,7 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
   const editorRef = useRef<RichEditorRef>(null)
 
   useEffect(() => {
-    const updateTokenCount = async () => {
-      const count = await estimateTextTokens(prompt)
-      setTokenCount(count)
-    }
-    updateTokenCount()
+    setTokenCount(estimateTextTokens(prompt))
   }, [prompt])
 
   const processedPrompt = usePromptProcessor({

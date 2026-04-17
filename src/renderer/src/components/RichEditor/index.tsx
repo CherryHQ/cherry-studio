@@ -6,7 +6,7 @@ import { EditorContent } from '@tiptap/react'
 import { Tooltip } from 'antd'
 import { t } from 'i18next'
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, GripVertical, Plus, Trash2 } from 'lucide-react'
-import React, { useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 
 import Scrollbar from '../Scrollbar'
@@ -247,6 +247,15 @@ const RichEditor = ({
 
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const contentSearchRef = useRef<ContentSearchRef>(null)
+  const contentSearchFilter = useMemo<NodeFilter>(
+    () => ({
+      acceptNode(node) {
+        const inEditor = node.parentElement?.closest('.ProseMirror')
+        return inEditor ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
+      }
+    }),
+    []
+  )
 
   const onKeyDownEditor = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -568,7 +577,10 @@ const RichEditor = ({
           scrollContainer={scrollContainerRef}
         />
       )}
-      <Scrollbar ref={scrollContainerRef} style={{ flex: 1, display: 'flex' }}>
+      <Scrollbar
+        ref={scrollContainerRef}
+        className="rich-editor-content"
+        style={{ flex: 1, display: 'flex', minHeight: 0 }}>
         <StyledEditorContent>
           <PlusButton editor={editor} onElementClick={handlePlusButtonClick}>
             <Tooltip title={t('richEditor.plusButton')}>
@@ -587,12 +599,7 @@ const RichEditor = ({
         <ContentSearch
           ref={contentSearchRef}
           searchTarget={scrollContainerRef as React.RefObject<HTMLElement>}
-          filter={{
-            acceptNode(node) {
-              const inEditor = (node as Node).parentElement?.closest('.ProseMirror')
-              return inEditor ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
-            }
-          }}
+          filter={contentSearchFilter}
           includeUser={false}
           onIncludeUserChange={() => {}}
           showUserToggle={false}

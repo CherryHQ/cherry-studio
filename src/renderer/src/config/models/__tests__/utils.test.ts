@@ -2,18 +2,7 @@ import { isEmbeddingModel, isRerankModel } from '@renderer/config/models/embeddi
 import type { Model } from '@renderer/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import {
-  isGPT5ProModel,
-  isGPT5SeriesModel,
-  isGPT5SeriesReasoningModel,
-  isGPT51SeriesModel,
-  isOpenAIChatCompletionOnlyModel,
-  isOpenAILLMModel,
-  isOpenAIModel,
-  isOpenAIOpenWeightModel,
-  isOpenAIReasoningModel,
-  isSupportVerbosityModel
-} from '../openai'
+import { isOpenAIReasoningModel } from '../openai'
 import { isQwenMTModel } from '../qwen'
 import {
   agentModelFilter,
@@ -132,119 +121,49 @@ describe('model utils', () => {
     openAIWebSearchOnlyMock.mockReturnValue(false)
   })
 
-  describe('OpenAI model detection', () => {
-    describe('isOpenAILLMModel', () => {
-      it('returns false for undefined model', () => {
-        expect(isOpenAILLMModel(undefined as unknown as Model)).toBe(false)
-      })
-
-      it('returns false for image generation models', () => {
-        expect(isOpenAILLMModel(createModel({ id: 'gpt-4o-image' }))).toBe(false)
-      })
-
-      it('returns true for reasoning models', () => {
-        reasoningMock.mockReturnValueOnce(true)
-        expect(isOpenAILLMModel(createModel({ id: 'o1-preview' }))).toBe(true)
-      })
-
-      it('returns true for GPT-prefixed models', () => {
-        expect(isOpenAILLMModel(createModel({ id: 'GPT-5-turbo' }))).toBe(true)
-      })
-    })
-
-    describe('isOpenAIModel', () => {
-      it('detects models via GPT prefix', () => {
-        expect(isOpenAIModel(createModel({ id: 'gpt-4.1' }))).toBe(true)
-      })
-
-      it('detects models via reasoning support', () => {
-        reasoningMock.mockReturnValueOnce(true)
-        expect(isOpenAIModel(createModel({ id: 'o3' }))).toBe(true)
-      })
-    })
-
-    describe('isOpenAIChatCompletionOnlyModel', () => {
-      it('identifies chat-completion-only models', () => {
-        expect(isOpenAIChatCompletionOnlyModel(createModel({ id: 'gpt-4o-search-preview' }))).toBe(true)
-        expect(isOpenAIChatCompletionOnlyModel(createModel({ id: 'o1-mini' }))).toBe(true)
-      })
-
-      it('returns false for general models', () => {
-        expect(isOpenAIChatCompletionOnlyModel(createModel({ id: 'gpt-4o' }))).toBe(false)
-      })
-    })
-  })
-
-  describe('GPT-5 family detection', () => {
-    describe('isGPT5SeriesModel', () => {
-      it('returns true for GPT-5 models', () => {
-        expect(isGPT5SeriesModel(createModel({ id: 'gpt-5-preview' }))).toBe(true)
-      })
-
-      it('returns false for GPT-5.1 models', () => {
-        expect(isGPT5SeriesModel(createModel({ id: 'gpt-5.1-preview' }))).toBe(false)
-      })
-    })
-
-    describe('isGPT51SeriesModel', () => {
-      it('returns true for GPT-5.1 models', () => {
-        expect(isGPT51SeriesModel(createModel({ id: 'gpt-5.1-mini' }))).toBe(true)
-      })
-    })
-
-    describe('isGPT5SeriesReasoningModel', () => {
-      it('returns true for GPT-5 reasoning models', () => {
-        expect(isGPT5SeriesReasoningModel(createModel({ id: 'gpt-5' }))).toBe(true)
-      })
-      it('returns false for gpt-5-chat', () => {
-        expect(isGPT5SeriesReasoningModel(createModel({ id: 'gpt-5-chat' }))).toBe(false)
-      })
-    })
-
-    describe('isGPT5ProModel', () => {
-      it('returns true for GPT-5 Pro models', () => {
-        expect(isGPT5ProModel(createModel({ id: 'gpt-5-pro' }))).toBe(true)
-      })
-
-      it('returns false for non-Pro GPT-5 models', () => {
-        expect(isGPT5ProModel(createModel({ id: 'gpt-5-preview' }))).toBe(false)
-      })
-    })
-  })
-
   describe('Verbosity support', () => {
-    describe('isSupportVerbosityModel', () => {
-      it('returns true for GPT-5 models', () => {
-        expect(isSupportVerbosityModel(createModel({ id: 'gpt-5' }))).toBe(true)
-      })
-
-      it('returns false for GPT-5 chat models', () => {
-        expect(isSupportVerbosityModel(createModel({ id: 'gpt-5-chat' }))).toBe(false)
-      })
-
-      it('returns true for GPT-5.1 models', () => {
-        expect(isSupportVerbosityModel(createModel({ id: 'gpt-5.1-preview' }))).toBe(true)
-      })
-    })
-
     describe('getModelSupportedVerbosity', () => {
-      it('returns only "high" for GPT-5 Pro models', () => {
-        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5-pro' }))).toEqual([undefined, null, 'high'])
-        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5-pro-2025-10-06' }))).toEqual([
-          undefined,
-          null,
-          'high'
-        ])
+      const allLevels = [undefined, null, 'low', 'medium', 'high']
+      const mediumOnly = [undefined, null, 'medium']
+
+      it('GPT-5 models', () => {
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5' }))).toEqual(allLevels)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5-mini' }))).toEqual(allLevels)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5-nano' }))).toEqual(allLevels)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5-pro' }))).toEqual(allLevels)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5-chat' }))).toEqual(mediumOnly)
       })
 
-      it('returns all levels for non-Pro GPT-5 models', () => {
-        const previewModel = createModel({ id: 'gpt-5-preview' })
-        expect(getModelSupportedVerbosity(previewModel)).toEqual([undefined, null, 'low', 'medium', 'high'])
+      it('GPT-5.1 models', () => {
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.1' }))).toEqual(allLevels)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.1-chat-latest' }))).toEqual(mediumOnly)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.1-codex' }))).toEqual(mediumOnly)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.1-codex-mini' }))).toEqual(mediumOnly)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.1-codex-max' }))).toEqual(mediumOnly)
       })
 
-      it('returns all levels for GPT-5.1 models', () => {
-        const gpt51Model = createModel({ id: 'gpt-5.1-preview' })
-        expect(getModelSupportedVerbosity(gpt51Model)).toEqual([undefined, null, 'low', 'medium', 'high'])
+      it('GPT-5.2 models', () => {
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.2' }))).toEqual(allLevels)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.2-pro' }))).toEqual(allLevels)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.2-codex' }))).toEqual(mediumOnly)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.2-chat-latest' }))).toEqual(mediumOnly)
+      })
+
+      it('GPT-5.3 models', () => {
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.3-codex' }))).toEqual(allLevels)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.3-chat-latest' }))).toEqual(mediumOnly)
+      })
+
+      it('GPT-5.4 models', () => {
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.4' }))).toEqual(allLevels)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.4-pro' }))).toEqual(allLevels)
+      })
+
+      it('future GPT-5.5+ models fallback correctly', () => {
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.5' }))).toEqual(allLevels)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.5-pro' }))).toEqual(allLevels)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.5-codex' }))).toEqual(allLevels)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.5-chat-latest' }))).toEqual(mediumOnly)
       })
 
       it('returns only undefined for non-GPT-5 models', () => {
@@ -598,12 +517,6 @@ describe('model utils', () => {
         expect(isQwenMTModel(createModel({ id: 'qwen-mt-plus' }))).toBe(true)
       })
     })
-
-    describe('isOpenAIOpenWeightModel', () => {
-      it('detects OpenAI open weight models', () => {
-        expect(isOpenAIOpenWeightModel(createModel({ id: 'gpt-oss-free' }))).toBe(true)
-      })
-    })
   })
 
   describe('System message support', () => {
@@ -833,6 +746,37 @@ describe('model utils', () => {
       it('returns false for undefined and null', () => {
         expect(isClaude47SeriesModel(undefined as unknown as Model)).toBe(false)
         expect(isClaude47SeriesModel(null as unknown as Model)).toBe(false)
+      })
+    })
+  })
+
+  describe('Gemma 4 Model Detection', () => {
+    describe('isGemmaModel', () => {
+      it('detects Gemma 4 GenAI format', () => {
+        expect(isGemmaModel(createModel({ id: 'gemma-4-e2b' }))).toBe(true)
+        expect(isGemmaModel(createModel({ id: 'gemma-4-e4b' }))).toBe(true)
+        expect(isGemmaModel(createModel({ id: 'gemma-4-26b-moe' }))).toBe(true)
+        expect(isGemmaModel(createModel({ id: 'gemma-4-31b' }))).toBe(true)
+      })
+
+      it('detects Gemma 4 Ollama format', () => {
+        expect(isGemmaModel(createModel({ id: 'gemma4' }))).toBe(true)
+        expect(isGemmaModel(createModel({ id: 'gemma4:e2b' }))).toBe(true)
+        expect(isGemmaModel(createModel({ id: 'gemma4:e4b' }))).toBe(true)
+        expect(isGemmaModel(createModel({ id: 'gemma4:26b' }))).toBe(true)
+        expect(isGemmaModel(createModel({ id: 'gemma4:31b' }))).toBe(true)
+        expect(isGemmaModel(createModel({ id: 'gemma4:latest' }))).toBe(true)
+      })
+
+      it('detects Gemma 4 with provider prefix', () => {
+        expect(isGemmaModel(createModel({ id: 'google/gemma-4-31b' }))).toBe(true)
+        expect(isGemmaModel(createModel({ id: 'openrouter/gemma-4-31b' }))).toBe(true)
+      })
+
+      it('still detects earlier Gemma versions', () => {
+        expect(isGemmaModel(createModel({ id: 'gemma-2b' }))).toBe(true)
+        expect(isGemmaModel(createModel({ id: 'gemma-2-27b-it' }))).toBe(true)
+        expect(isGemmaModel(createModel({ id: 'gemma-3-27b' }))).toBe(true)
       })
     })
   })

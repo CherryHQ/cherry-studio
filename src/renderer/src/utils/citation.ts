@@ -123,18 +123,28 @@ export function normalizeCitationMarks(
       break
     }
     case WEB_SEARCH_SOURCE.GEMINI: {
-      // Gemini 格式: 根据metadata添加 [cite:N]
+      // Gemini 格式: 根据 startIndex/endIndex 精确插入 [cite:N]
+      // 注意: Gemini API 的 endIndex 是 UTF-8 字节偏移，需要转换为字符偏移
       const firstCitation = Array.from(citationMap.values())[0]
       if (firstCitation?.metadata) {
-        const textReplacements = new Map<string, string>()
+        const encoder = new TextEncoder()
+        const contentBytes = encoder.encode(content)
 
-        // 收集所有需要替换的文本
+        // 将 UTF-8 字节偏移转换为 JS 字符偏移
+        const byteOffsetToCharOffset = (byteOffset: number): number => {
+          const decoder = new TextDecoder()
+          return decoder.decode(contentBytes.slice(0, byteOffset)).length
+        }
+
+        // 收集所有需要插入的位置和标签
+        const insertions: Array<{ position: number; tag: string }> = []
+
         firstCitation.metadata.forEach((support: GroundingSupport) => {
-          if (!support.groundingChunkIndices || !support.segment?.text) return
+          if (!support.groundingChunkIndices || !support.segment) return
+          const { endIndex } = support.segment
+          if (endIndex == null) return
 
-          const citationNums = support.groundingChunkIndices
-          const text = support.segment.text
-          const basicTag = citationNums
+          const tag = support.groundingChunkIndices
             .map((citationNum) => {
               const citation = citationMap.get(citationNum + 1)
               return citation ? `[cite:${citationNum + 1}]` : ''
@@ -142,17 +152,29 @@ export function normalizeCitationMarks(
             .filter(Boolean)
             .join('')
 
-          if (basicTag) {
-            textReplacements.set(text, `${text}${basicTag}`)
+          if (tag) {
+            const charPos = byteOffsetToCharOffset(endIndex)
+            insertions.push({ position: charPos, tag })
           }
         })
 
-        // 一次性应用所有替换
-        textReplacements.forEach((replacement, originalText) => {
-          const escapedText = originalText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-          applyReplacements(new RegExp(escapedText, 'g'), () => replacement)
-        })
+        // 按位置降序排列，从后往前插入避免偏移
+        insertions.sort((a, b) => b.position - a.position)
+
+        for (const { position, tag } of insertions) {
+          if (!shouldSkip(position)) {
+            content = content.slice(0, position) + tag + content.slice(position)
+          }
+        }
       }
+      break
+    }
+    case WEB_SEARCH_SOURCE.GROK: {
+      // Grok 格式: [[N]](url) → [cite:N]
+      applyReplacements(/\[\[(\d+)\]\]\([^)]*\)/g, (match) => {
+        const citationNum = parseInt(match[1], 10)
+        return citationMap.has(citationNum) ? `[cite:${citationNum}]` : null
+      })
       break
     }
     default: {
@@ -200,12 +222,17 @@ export function generateCitationTag(citation: Citation): string {
     title: citation.title || citation.hostname || '',
     content: citation.content?.substring(0, 200)
   }
-  const citationJson = encodeHTML(JSON.stringify(supData))
+  // encodeHTML only escapes &, <, >, ", ' — also escape | to prevent GFM table
+  // parser from treating it as a column separator inside table cells
+  const citationJson = encodeHTML(JSON.stringify(supData)).replace(/\|/g, '&#124;')
 
   // 判断是否为有效链接
   const isLink = citation.url && citation.url.startsWith('http')
 
+  // Escape | in URL to avoid breaking GFM table cell parsing
+  const safeUrl = isLink ? citation.url.replace(/\|/g, '%7C') : ''
+
   // 生成链接格式: [<sup data-citation='...'>N</sup>](url)
   // 或者生成空括号格式: [<sup data-citation='...'>N</sup>]()
-  return `[<sup data-citation='${citationJson}'>${citation.number}</sup>]` + (isLink ? `(${citation.url})` : '()')
+  return `[<sup data-citation='${citationJson}'>${citation.number}</sup>]` + (isLink ? `(${safeUrl})` : '()')
 }

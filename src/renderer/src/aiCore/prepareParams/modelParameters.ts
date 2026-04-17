@@ -3,6 +3,7 @@
  * 处理温度、TopP、超时等基础参数的获取逻辑
  */
 
+import { loggerService } from '@logger'
 import {
   isClaude46SeriesModel,
   isClaude47SeriesModel,
@@ -19,86 +20,116 @@ import {
   getAssistantSettings,
   getProviderByModel
 } from '@renderer/services/AssistantService'
-import type { Assistant, Model } from '@renderer/types'
-import { defaultTimeout } from '@shared/config/constant'
+import { type Assistant, type Model } from '@renderer/types'
+import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 
 import { getThinkingBudget } from '../utils/reasoning'
 
+const logger = loggerService.withContext('modelParameters')
+
 /**
  * Retrieves the temperature parameter, adapting it based on assistant.settings and model capabilities.
- * - Disabled for Claude reasoning models when reasoning effort is set.
+ * - Disabled when enableTemperature is off.
+ * - Disabled unconditionally for Claude Opus 4.7 (rejects sampling params with HTTP 400).
+ * - Disabled for Claude reasoning models when reasoning effort is set (excluding 'default' and 'none').
  * - Disabled for models that do not support temperature.
- * - Disabled for Claude 4.5 reasoning models when TopP is enabled and temperature is disabled.
- * Otherwise, returns the temperature value if the assistant has temperature enabled.
-
+ * - Clamped to 1 for models with max temperature of 1.
+ * Otherwise, returns the temperature value.
  */
 export function getTemperature(assistant: Assistant, model: Model): number | undefined {
+  const enableTemperature = assistant.settings?.enableTemperature ?? DEFAULT_ASSISTANT_SETTINGS.enableTemperature
+  if (!enableTemperature) {
+    return undefined
+  }
+
   // Claude Opus 4.7 rejects sampling params (temperature/top_p/top_k) with HTTP 400
   // regardless of reasoning settings. See Vercel AI SDK PR #14529.
   if (isClaude47SeriesModel(model)) {
+    logger.info(`Model ${model.id} rejects sampling parameters, disabling temperature`)
     return undefined
   }
-  if (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model)) {
+
+  // Thinking isn't compatible with temperature or top_k modifications as well as forced tool use.
+  // See: https://platform.claude.com/docs/en/build-with-claude/extended-thinking#feature-compatibility
+  if (
+    isClaudeReasoningModel(model) &&
+    assistant.settings?.reasoning_effort &&
+    assistant.settings.reasoning_effort !== 'default' &&
+    assistant.settings.reasoning_effort !== 'none'
+  ) {
+    logger.info(`Model ${model.id} does not support reasoning with temperature, disabling temperature`)
     return undefined
   }
 
   if (!isSupportTemperatureModel(model, assistant)) {
+    logger.info(`Model ${model.id} does not support temperature, disabling temperature`)
     return undefined
   }
 
-  if (
-    isTemperatureTopPMutuallyExclusiveModel(model) &&
-    assistant.settings?.enableTopP &&
-    !assistant.settings?.enableTemperature
-  ) {
-    return undefined
+  let temperature = assistant.settings?.temperature ?? DEFAULT_ASSISTANT_SETTINGS.temperature
+
+  if (isMaxTemperatureOneModel(model) && temperature > 1) {
+    logger.info(`Model ${model.id} has max temperature of 1, clamping temperature from ${temperature} to 1`)
+    temperature = 1
   }
 
-  return getTemperatureValue(assistant, model)
-}
-
-function getTemperatureValue(assistant: Assistant, model: Model): number | undefined {
-  const assistantSettings = getAssistantSettings(assistant)
-  let temperature = assistantSettings?.temperature
-  if (temperature && isMaxTemperatureOneModel(model)) {
-    temperature = Math.min(1, temperature)
+  if (isTemperatureTopPMutuallyExclusiveModel(model) && assistant.settings?.enableTopP) {
+    logger.info(`Model ${model.id} only accepts one of temperature and topP, both enabled; keeping temperature`)
   }
 
-  // FIXME: assistant.settings.enableTemperature should be always a boolean value.
-  const enableTemperature = assistantSettings?.enableTemperature ?? DEFAULT_ASSISTANT_SETTINGS.enableTemperature
-  return enableTemperature ? temperature : undefined
+  return temperature
 }
 
 /**
  * Retrieves the TopP parameter, adapting it based on assistant.settings and model capabilities.
- * - Disabled for Claude reasoning models when reasoning effort is set.
+ * - Disabled when enableTopP is off.
+ * - Disabled unconditionally for Claude Opus 4.7 (rejects sampling params with HTTP 400).
  * - Disabled for models that do not support TopP.
- * - Disabled for Claude 4.5 reasoning models when temperature is explicitly enabled.
- * Otherwise, returns the TopP value if the assistant has TopP enabled.
+ * - Disabled for mutually exclusive models when temperature is enabled.
+ * - Clamped to [0.95, 1] for Claude reasoning models with reasoning effort set (excluding 'default' and 'none').
+ * Otherwise, returns the TopP value.
  */
 export function getTopP(assistant: Assistant, model: Model): number | undefined {
+  const enableTopP = assistant.settings?.enableTopP ?? DEFAULT_ASSISTANT_SETTINGS.enableTopP
+  if (!enableTopP) {
+    return undefined
+  }
+
   // Claude Opus 4.7 rejects sampling params unconditionally (see getTemperature).
   if (isClaude47SeriesModel(model)) {
+    logger.info(`Model ${model.id} rejects sampling parameters, disabling topP`)
     return undefined
   }
-  if (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model)) {
-    return undefined
-  }
+
   if (!isSupportTopPModel(model, assistant)) {
+    logger.info(`Model ${model.id} does not support topP, disabling topP.`)
     return undefined
   }
+
   if (isTemperatureTopPMutuallyExclusiveModel(model) && assistant.settings?.enableTemperature) {
+    logger.info(`Model ${model.id} only accepts one of temperature and topP, disabling topP.`)
     return undefined
   }
 
-  return getTopPValue(assistant)
-}
+  let topP = assistant.settings?.topP ?? DEFAULT_ASSISTANT_SETTINGS.topP
 
-function getTopPValue(assistant: Assistant): number | undefined {
-  const assistantSettings = getAssistantSettings(assistant)
-  // FIXME: assistant.settings.enableTopP should be always a boolean value.
-  const enableTopP = assistantSettings.enableTopP ?? DEFAULT_ASSISTANT_SETTINGS.enableTopP
-  return enableTopP ? assistantSettings?.topP : undefined
+  // When thinking is enabled, the topP should be between 0.95 and 1
+  // See: https://platform.claude.com/docs/en/build-with-claude/extended-thinking#feature-compatibility
+  // NOTE: It depends on the behavior that extended thinking defaults to off, so we clamp the topP value also when reasoning is not 'default'
+  if (
+    isClaudeReasoningModel(model) &&
+    assistant.settings?.reasoning_effort &&
+    assistant.settings.reasoning_effort !== 'default' &&
+    assistant.settings.reasoning_effort !== 'none'
+  ) {
+    const clampedTopP = Math.max(0.95, Math.min(topP, 1))
+    if (clampedTopP !== topP) {
+      logger.info(`Claude Model ${model.id} has reasoning enabled, clamping topP from ${topP} to ${clampedTopP}`)
+    }
+    topP = clampedTopP
+  }
+
+  return topP
 }
 
 /**
@@ -108,7 +139,7 @@ export function getTimeout(model: Model): number {
   if (isSupportedFlexServiceTier(model)) {
     return 15 * 1000 * 60
   }
-  return defaultTimeout
+  return DEFAULT_TIMEOUT
 }
 
 export function getMaxTokens(assistant: Assistant, model: Model): number | undefined {
@@ -125,8 +156,8 @@ export function getMaxTokens(assistant: Assistant, model: Model): number | undef
 
   const provider = getProviderByModel(model)
   // Claude 4.6 / 4.7 use adaptive thinking and do not send budgetTokens, so the
-  // AI SDK does not add budget back to maxOutputTokens. Subtracting here would
-  // incorrectly shrink max_tokens.
+  // AI SDK does not add budget back to maxOutputTokens. Skip the subtraction to avoid
+  // incorrectly reducing max_tokens.
   if (
     isSupportedThinkingTokenClaudeModel(model) &&
     !isClaude46SeriesModel(model) &&

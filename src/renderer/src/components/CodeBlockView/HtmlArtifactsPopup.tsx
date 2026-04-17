@@ -145,7 +145,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
       if (to === 'file') {
         const dataUrl = await captureScrollableIframeAsDataURL(previewFrameRef)
         if (dataUrl) {
-          window.api.file.saveImage(fileName, dataUrl)
+          void window.api.file.saveImage(fileName, dataUrl)
         }
       }
       if (to === 'clipboard') {

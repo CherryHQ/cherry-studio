@@ -1,6 +1,6 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
-import AiProvider from '@renderer/aiCore'
+import { AiProvider } from '@renderer/aiCore'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
@@ -198,7 +198,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
               })
             )
             await FileManager.addFiles(validFiles)
-            updatePaintingState({ files: validFiles, urls: validFiles.map((file) => file.name) })
+            updatePaintingState({ files: validFiles, urls: [] })
           }
           return
         } else if (painting.model === 'gemini-3-pro-image-preview') {
@@ -266,7 +266,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
               })
             )
             await FileManager.addFiles(validFiles)
-            updatePaintingState({ files: validFiles, urls: validFiles.map((file) => file.name) })
+            updatePaintingState({ files: validFiles, urls: [] })
           }
           return
         } else if (painting.model === 'V_3') {
@@ -551,7 +551,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             })
           )
           await FileManager.addFiles(validFiles)
-          updatePaintingState({ files: validFiles, urls: validFiles.map((file) => file.name) })
+          updatePaintingState({ files: validFiles, urls: [] })
           return
         }
         const urls = data.data.filter((item) => item.url).map((item) => item.url)
@@ -570,7 +570,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             })
           )
           await FileManager.addFiles(validFiles)
-          updatePaintingState({ files: validFiles, urls: validFiles.map((file) => file.name) })
+          updatePaintingState({ files: validFiles, urls: [] })
         }
       }
     } catch (error: unknown) {
@@ -625,7 +625,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
     }
 
-    removePainting(mode, paintingToDelete)
+    void removePainting(mode, paintingToDelete)
   }
 
   const translate = async () => {
@@ -663,7 +663,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       if (spaceClickCount === 2) {
         setSpaceClickCount(0)
         setIsTranslating(true)
-        translate()
+        void translate()
       }
     }
   }

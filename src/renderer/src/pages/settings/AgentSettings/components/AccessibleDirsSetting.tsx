@@ -20,7 +20,7 @@ export const AccessibleDirsSetting = ({ base, update }: AccessibleDirsSettingPro
   const updateAccessiblePaths = useCallback(
     (accessible_paths: UpdateAgentBaseForm['accessible_paths']) => {
       if (!base) return
-      update({ id: base.id, accessible_paths })
+      void update({ id: base.id, accessible_paths })
     },
     [base, update]
   )
@@ -75,9 +75,19 @@ export const AccessibleDirsSetting = ({ base, update }: AccessibleDirsSettingPro
               title={path}>
               {path}
             </span>
-            <Button size="small" type="text" danger onClick={() => removeAccessiblePath(path)}>
-              {t('common.delete')}
-            </Button>
+            <Tooltip
+              title={
+                base.accessible_paths.length <= 1 ? t('agent.session.accessible_paths.error.at_least_one') : undefined
+              }>
+              <Button
+                size="small"
+                type="text"
+                danger
+                disabled={base.accessible_paths.length <= 1}
+                onClick={() => removeAccessiblePath(path)}>
+                {t('common.delete')}
+              </Button>
+            </Tooltip>
           </li>
         ))}
       </ul>

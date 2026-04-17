@@ -21,9 +21,9 @@ export function useAttachment() {
         if (ext?.startsWith('.')) {
           ext = ext.replace('.', '')
         }
-        TextFilePreviewPopup.show(content, title, ext)
+        void TextFilePreviewPopup.show(content, title, ext)
       } else {
-        window.api.file.openPath(path)
+        void window.api.file.openPath(path)
       }
     } catch (err) {
       logger.error(`Error opening ${path}:`, err as Error)

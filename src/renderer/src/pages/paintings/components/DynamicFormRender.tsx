@@ -73,7 +73,7 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
             accept="image/*"
             showUploadList={false}
             beforeUpload={(file) => {
-              handleImageUpload(propertyName, file, onChange)
+              void handleImageUpload(propertyName, file, onChange)
               return false
             }}>
             <Button

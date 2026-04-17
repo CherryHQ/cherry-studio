@@ -25,15 +25,12 @@ export function ToolPermissionRequestCard({ toolResponse }: Props) {
     if (approval.isExecuting) {
       return { color: 'primary', text: t('message.tools.invoking'), showLoading: true }
     }
-    if (approval.isExpired) {
-      return { color: 'error', text: t('agent.toolPermission.expired'), showLoading: false }
-    }
     return {
       color: 'warning',
-      text: t('agent.toolPermission.pending', { seconds: approval.remainingSeconds }),
+      text: t('agent.toolPermission.pending'),
       showLoading: true
     }
-  }, [approval.isExecuting, approval.isExpired, approval.remainingSeconds, t])
+  }, [approval.isExecuting, t])
 
   const renderToolContent = useCallback((): React.ReactNode => {
     const toolName = toolResponse.tool?.name ?? ''
@@ -86,12 +83,6 @@ export function ToolPermissionRequestCard({ toolResponse }: Props) {
         <ActionsBar>
           <ToolApprovalActionsComponent {...approval} />
         </ActionsBar>
-      )}
-
-      {approval.isExpired && !approval.isSubmitting && !approval.isExecuting && (
-        <div className="px-3 pb-2 text-center text-danger-500 text-xs">
-          {t('agent.toolPermission.permissionExpired')}
-        </div>
       )}
     </Container>
   )

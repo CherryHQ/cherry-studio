@@ -68,7 +68,10 @@ vi.mock('electron', () => {
       getPrimaryDisplay: vi.fn(),
       getAllDisplays: vi.fn()
     },
-    Notification: vi.fn()
+    Notification: vi.fn(),
+    net: {
+      fetch: vi.fn()
+    }
   }
 
   return { __esModule: true, ...mock, default: mock }
@@ -105,6 +108,20 @@ vi.mock('winston-daily-rotate-file', () => {
     on: vi.fn(),
     log: vi.fn()
   }))
+})
+
+// Mock electron-store to avoid file system operations
+vi.mock('electron-store', () => {
+  return {
+    default: vi.fn().mockImplementation(() => ({
+      get: vi.fn((key: string, defaultValue?: unknown) => defaultValue),
+      set: vi.fn(),
+      delete: vi.fn(),
+      clear: vi.fn(),
+      has: vi.fn(() => false),
+      store: {}
+    }))
+  }
 })
 
 // Mock Node.js modules

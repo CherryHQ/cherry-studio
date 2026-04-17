@@ -589,7 +589,7 @@ class KnowledgeService {
     const subTasks = getSubtasksUntilMaximumLoad()
     if (subTasks.length > 0) {
       const subTaskPromises = subTasks.map(({ taskPromise }) => taskPromise())
-      Promise.all(subTaskPromises).then(() => {
+      void Promise.all(subTaskPromises).then(() => {
         subTasks.forEach(({ resolve }) => resolve())
       })
     }
@@ -627,7 +627,7 @@ class KnowledgeService {
           })()
 
           if (task) {
-            this.appendProcessingQueue(task).then(() => {
+            void this.appendProcessingQueue(task).then(() => {
               resolve(task.loaderDoneReturn!)
             })
             this.processingQueueHandle()

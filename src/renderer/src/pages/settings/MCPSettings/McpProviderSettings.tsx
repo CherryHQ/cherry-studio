@@ -47,7 +47,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
       }
     }
 
-    loadServersFromDb()
+    void loadServersFromDb()
   }, [provider.key])
 
   // Sort servers: servers with logo first, then by name

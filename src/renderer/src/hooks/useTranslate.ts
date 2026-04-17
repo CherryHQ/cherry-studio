@@ -27,7 +27,7 @@ export default function useTranslate() {
   const dispatch = useDispatch()
 
   useEffect(() => {
-    runAsyncFunction(async () => {
+    void runAsyncFunction(async () => {
       const options = await getTranslateOptions()
       setTranslateLanguages(options)
       setIsLoaded(true)

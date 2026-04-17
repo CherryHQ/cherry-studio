@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 30">
+  <style>
+    .bg { fill: #2D2D2D; }
+    .fg { fill: #FFFFFF; }
+  </style>
+  <path class="bg" d="M30,30H0V0h30V30z"/>
+  <path class="fg" d="M15.47,7.1l-1.3,1.85c-0.2,0.29-0.54,0.47-0.9,0.47h-7.1V7.09C6.16,7.1,15.47,7.1,15.47,7.1z"/>
+  <polygon class="fg" points="24.3,7.1 13.14,22.91 5.7,22.91 16.86,7.1"/>
+  <path class="fg" d="M14.53,22.91l1.31-1.86c0.2-0.29,0.54-0.47,0.9-0.47h7.09v2.33H14.53z"/>
+</svg>

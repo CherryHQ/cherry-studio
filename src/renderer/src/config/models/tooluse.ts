@@ -26,15 +26,20 @@ export const FUNCTION_CALLING_MODELS = [
   'glm-5(?:-[\\w-]+)?',
   'learnlm(?:-[\\w-]+)?',
   'gemini(?:-[\\w-]+)?', // 提前排除了gemini的嵌入模型
+  'gemma-?4(?:[-.\\w]+)?',
   'grok-3(?:-[\\w-]+)?',
+  'grok-4(?:-[\\w-]+)?',
   'doubao-seed-1[.-][68](?:-[\\w-]+)?',
   'doubao-seed-2[.-]0(?:-[\\w-]+)?',
   'doubao-seed-code(?:-[\\w-]+)?',
   'kimi-k2(?:-[\\w-]+)?',
   'ling-\\w+(?:-[\\w-]+)?',
   'ring-\\w+(?:-[\\w-]+)?',
-  'minimax-m2(?:.1)?',
-  'mimo-v2-flash'
+  'minimax-m2(?:\\.\\d+)?(?:-[\\w-]+)?',
+  'mimo-v2-flash',
+  'mimo-v2-pro',
+  'mimo-v2-omni',
+  'glm-5v-turbo'
 ] as const
 
 const FUNCTION_CALLING_EXCLUDED_MODELS = [

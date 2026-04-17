@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
 import { useAppDispatch } from '@renderer/store'
-import { setActiveSessionIdAction, setActiveTopicOrSessionAction } from '@renderer/store/runtime'
+import { setActiveSessionIdAction } from '@renderer/store/runtime'
 import type { CreateSessionForm } from '@renderer/types'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -36,7 +36,6 @@ export const useCreateDefaultSession = (agentId: string | null) => {
 
       if (created) {
         dispatch(setActiveSessionIdAction({ agentId, sessionId: created.id }))
-        dispatch(setActiveTopicOrSessionAction('session'))
       }
 
       return created

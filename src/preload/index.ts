@@ -6,13 +6,14 @@ import type { SpanContext } from '@opentelemetry/api'
 import type { GitBashPathInfo, TerminalConfig, UpgradeChannel } from '@shared/config/constant'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import type {
+  CodeToolsRunResult,
   FileChangeEvent,
   LanClientEvent,
   LanFileCompleteMessage,
   LanHandshakeAckMessage,
   LocalTransferConnectPayload,
   LocalTransferState,
-  NodeCheckResult,
+  OperationResult,
   WebviewKeyEvent
 } from '@shared/config/types'
 import type { MCPServerLogEntry } from '@shared/config/types'
@@ -50,20 +51,17 @@ import type { OpenDialogOptions } from 'electron'
 import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
 import type { CreateDirectoryOptions } from 'webdav'
 
-import type {
-  InstalledPlugin,
-  InstallFromDirectoryOptions,
-  InstallFromSourceResult,
-  InstallFromZipOptions,
-  InstallPluginOptions,
-  PluginMetadata,
-  PluginResult,
-  UninstallPluginOptions,
-  UninstallPluginPackageOptions,
-  UninstallPluginPackageResult,
-  WritePluginContentOptions
-} from '../renderer/src/types/plugin'
 import type { ActionItem } from '../renderer/src/types/selectionTypes'
+import type {
+  InstalledSkill,
+  LocalSkill,
+  SkillFileNode,
+  SkillInstallFromDirectoryOptions,
+  SkillInstallFromZipOptions,
+  SkillInstallOptions,
+  SkillResult,
+  SkillToggleOptions
+} from '../renderer/src/types/skill'
 
 // OpenClaw types
 type OpenClawGatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
@@ -71,8 +69,6 @@ type OpenClawGatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
 interface OpenClawHealthInfo {
   status: 'healthy' | 'unhealthy'
   gatewayPort: number
-  uptime?: number
-  version?: string
 }
 
 interface OpenClawChannelInfo {
@@ -173,11 +169,11 @@ const api = {
     decompress: (text: Buffer) => ipcRenderer.invoke(IpcChannel.Zip_Decompress, text)
   },
   backup: {
-    backup: (filename: string, content: string, path: string, skipBackupFile: boolean) =>
-      ipcRenderer.invoke(IpcChannel.Backup_Backup, filename, content, path, skipBackupFile),
     restore: (path: string) => ipcRenderer.invoke(IpcChannel.Backup_Restore, path),
-    backupToWebdav: (data: string, webdavConfig: WebDavConfig) =>
-      ipcRenderer.invoke(IpcChannel.Backup_BackupToWebdav, data, webdavConfig),
+    // Direct backup methods (copy IndexedDB/LocalStorage directories directly)
+    backup: (fileName: string, destinationPath: string, skipBackupFile: boolean) =>
+      ipcRenderer.invoke(IpcChannel.Backup_Backup, fileName, destinationPath, skipBackupFile),
+    backupToWebdav: (webdavConfig: WebDavConfig) => ipcRenderer.invoke(IpcChannel.Backup_BackupToWebdav, webdavConfig),
     restoreFromWebdav: (webdavConfig: WebDavConfig) =>
       ipcRenderer.invoke(IpcChannel.Backup_RestoreFromWebdav, webdavConfig),
     listWebdavFiles: (webdavConfig: WebDavConfig) =>
@@ -188,11 +184,8 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Backup_CreateDirectory, webdavConfig, path, options),
     deleteWebdavFile: (fileName: string, webdavConfig: WebDavConfig) =>
       ipcRenderer.invoke(IpcChannel.Backup_DeleteWebdavFile, fileName, webdavConfig),
-    backupToLocalDir: (
-      data: string,
-      fileName: string,
-      localConfig: { localBackupDir?: string; skipBackupFile?: boolean }
-    ) => ipcRenderer.invoke(IpcChannel.Backup_BackupToLocalDir, data, fileName, localConfig),
+    backupToLocalDir: (fileName: string, localConfig: { localBackupDir?: string; skipBackupFile?: boolean }) =>
+      ipcRenderer.invoke(IpcChannel.Backup_BackupToLocalDir, fileName, localConfig),
     restoreFromLocalBackup: (fileName: string, localBackupDir?: string) =>
       ipcRenderer.invoke(IpcChannel.Backup_RestoreFromLocalBackup, fileName, localBackupDir),
     listLocalBackupFiles: (localBackupDir?: string) =>
@@ -201,17 +194,16 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Backup_DeleteLocalBackupFile, fileName, localBackupDir),
     checkWebdavConnection: (webdavConfig: WebDavConfig) =>
       ipcRenderer.invoke(IpcChannel.Backup_CheckConnection, webdavConfig),
-
-    backupToS3: (data: string, s3Config: S3Config) => ipcRenderer.invoke(IpcChannel.Backup_BackupToS3, data, s3Config),
+    backupToS3: (s3Config: S3Config) => ipcRenderer.invoke(IpcChannel.Backup_BackupToS3, s3Config),
     restoreFromS3: (s3Config: S3Config) => ipcRenderer.invoke(IpcChannel.Backup_RestoreFromS3, s3Config),
     listS3Files: (s3Config: S3Config) => ipcRenderer.invoke(IpcChannel.Backup_ListS3Files, s3Config),
     deleteS3File: (fileName: string, s3Config: S3Config) =>
       ipcRenderer.invoke(IpcChannel.Backup_DeleteS3File, fileName, s3Config),
     checkS3Connection: (s3Config: S3Config) => ipcRenderer.invoke(IpcChannel.Backup_CheckS3Connection, s3Config),
-    createLanTransferBackup: (data: string): Promise<string> =>
-      ipcRenderer.invoke(IpcChannel.Backup_CreateLanTransferBackup, data),
-    deleteTempBackup: (filePath: string): Promise<boolean> =>
-      ipcRenderer.invoke(IpcChannel.Backup_DeleteTempBackup, filePath)
+    createLanTransferBackup: (data: string, destinationPath?: string): Promise<string> =>
+      ipcRenderer.invoke(IpcChannel.Backup_CreateLanTransferBackup, data, destinationPath),
+    deleteLanTransferBackup: (filePath: string): Promise<boolean> =>
+      ipcRenderer.invoke(IpcChannel.Backup_DeleteLanTransferBackup, filePath)
   },
   file: {
     select: (options?: OpenDialogOptions): Promise<FileMetadata[] | null> =>
@@ -285,6 +277,10 @@ const api = {
   fs: {
     read: (pathOrUrl: string, encoding?: BufferEncoding) => ipcRenderer.invoke(IpcChannel.Fs_Read, pathOrUrl, encoding),
     readText: (pathOrUrl: string): Promise<string> => ipcRenderer.invoke(IpcChannel.Fs_ReadText, pathOrUrl)
+  },
+  pdf: {
+    extractText: (data: Uint8Array | ArrayBuffer | string): Promise<string> =>
+      ipcRenderer.invoke(IpcChannel.Pdf_ExtractText, data)
   },
   export: {
     toWord: (markdown: string, fileName: string) => ipcRenderer.invoke(IpcChannel.Export_Word, markdown, fileName)
@@ -417,6 +413,8 @@ const api = {
       return ipcRenderer.invoke(IpcChannel.Mcp_UploadDxt, buffer, file.name)
     },
     abortTool: (callId: string) => ipcRenderer.invoke(IpcChannel.Mcp_AbortTool, callId),
+    resolveHubTool: (nameOrId: string): Promise<{ serverId: string; toolName: string } | null> =>
+      ipcRenderer.invoke(IpcChannel.Mcp_ResolveHubTool, nameOrId),
     getServerVersion: (server: MCPServer): Promise<string | null> =>
       ipcRenderer.invoke(IpcChannel.Mcp_GetServerVersion, server),
     getServerLogs: (server: MCPServer): Promise<MCPServerLogEntry[]> =>
@@ -434,7 +432,19 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Python_Execute, script, context, timeout)
   },
   shell: {
-    openExternal: (url: string, options?: Electron.OpenExternalOptions) => shell.openExternal(url, options)
+    openExternal: (url: string, options?: Electron.OpenExternalOptions) => {
+      // Defense-in-depth: validate URL scheme before forwarding to shell.openExternal
+      const ALLOWED_PROTOCOLS = ['http:', 'https:', 'mailto:']
+      try {
+        const parsed = new URL(url)
+        if (!ALLOWED_PROTOCOLS.includes(parsed.protocol)) {
+          return Promise.reject(new Error(`Blocked openExternal for untrusted URL scheme: ${parsed.protocol}`))
+        }
+      } catch {
+        return Promise.reject(new Error('Blocked openExternal for invalid URL'))
+      }
+      return shell.openExternal(url, options)
+    }
   },
   copilot: {
     getAuthMessage: (headers?: Record<string, string>) =>
@@ -527,9 +537,7 @@ const api = {
     closeActionWindow: () => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowClose),
     minimizeActionWindow: () => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowMinimize),
     pinActionWindow: (isPinned: boolean) => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowPin, isPinned),
-    // [Windows only] Electron bug workaround - can be removed once https://github.com/electron/electron/issues/48554 is fixed
-    resizeActionWindow: (deltaX: number, deltaY: number, direction: string) =>
-      ipcRenderer.invoke(IpcChannel.Selection_ActionWindowResize, deltaX, deltaY, direction)
+    getLinuxEnvInfo: () => ipcRenderer.invoke(IpcChannel.Selection_GetLinuxEnvInfo)
   },
   agentTools: {
     respondToPermission: (payload: {
@@ -539,6 +547,132 @@ const api = {
       message?: string
       updatedPermissions?: PermissionUpdate[]
     }) => ipcRenderer.invoke(IpcChannel.AgentToolPermission_Response, payload)
+  },
+  agentSessionStream: {
+    subscribe: (sessionId: string) => ipcRenderer.invoke(IpcChannel.AgentSessionStream_Subscribe, { sessionId }),
+    unsubscribe: (sessionId: string) => ipcRenderer.invoke(IpcChannel.AgentSessionStream_Unsubscribe, { sessionId }),
+    abort: (sessionId: string) => ipcRenderer.invoke(IpcChannel.AgentSessionStream_Abort, { sessionId }),
+    onChunk: (
+      callback: (chunk: {
+        sessionId: string
+        agentId: string
+        type: string
+        chunk?: any
+        error?: any
+        userMessage?: {
+          chatId: string
+          userId: string
+          userName: string
+          text: string
+          images?: Array<{ data: string; media_type: string }>
+          files?: Array<{ filename: string; media_type: string; size: number }>
+        }
+      }) => void
+    ): (() => void) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        chunk: {
+          sessionId: string
+          agentId: string
+          type: string
+          chunk?: any
+          error?: any
+          userMessage?: {
+            chatId: string
+            userId: string
+            userName: string
+            text: string
+            images?: Array<{ data: string; media_type: string }>
+            files?: Array<{ filename: string; media_type: string; size: number }>
+          }
+        }
+      ) => {
+        callback(chunk)
+      }
+      ipcRenderer.on(IpcChannel.AgentSessionStream_Chunk, listener)
+      return () => ipcRenderer.off(IpcChannel.AgentSessionStream_Chunk, listener)
+    },
+    onSessionChanged: (
+      callback: (data: { agentId: string; sessionId: string; headless?: boolean }) => void
+    ): (() => void) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        data: { agentId: string; sessionId: string; headless?: boolean }
+      ) => {
+        callback(data)
+      }
+      ipcRenderer.on(IpcChannel.AgentSession_Changed, listener)
+      return () => ipcRenderer.off(IpcChannel.AgentSession_Changed, listener)
+    }
+  },
+  wechat: {
+    onQrLogin: (
+      callback: (data: { channelId: string; agentId: string; url: string; status: string; userId?: string }) => void
+    ): (() => void) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        data: { channelId: string; agentId: string; url: string; status: string; userId?: string }
+      ) => {
+        callback(data)
+      }
+      ipcRenderer.on(IpcChannel.WeChat_QrLogin, listener)
+      return () => ipcRenderer.off(IpcChannel.WeChat_QrLogin, listener)
+    },
+    hasCredentials: (channelId: string): Promise<{ exists: boolean; userId?: string }> =>
+      ipcRenderer.invoke(IpcChannel.WeChat_HasCredentials, channelId)
+  },
+  feishu: {
+    onQrLogin: (
+      callback: (data: {
+        channelId: string
+        agentId: string
+        url: string
+        status: string
+        appId?: string
+        appSecret?: string
+      }) => void
+    ): (() => void) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        data: { channelId: string; agentId: string; url: string; status: string; appId?: string; appSecret?: string }
+      ) => {
+        callback(data)
+      }
+      ipcRenderer.on(IpcChannel.Feishu_QrLogin, listener)
+      return () => ipcRenderer.off(IpcChannel.Feishu_QrLogin, listener)
+    }
+  },
+  channel: {
+    onLog: (
+      callback: (log: { timestamp: number; level: string; message: string; channelId: string }) => void
+    ): (() => void) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        log: { timestamp: number; level: string; message: string; channelId: string }
+      ) => {
+        callback(log)
+      }
+      ipcRenderer.on(IpcChannel.Channel_Log, listener)
+      return () => ipcRenderer.off(IpcChannel.Channel_Log, listener)
+    },
+    onStatusChange: (
+      callback: (status: { channelId: string; connected: boolean; error?: string }) => void
+    ): (() => void) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        status: { channelId: string; connected: boolean; error?: string }
+      ) => {
+        callback(status)
+      }
+      ipcRenderer.on(IpcChannel.Channel_StatusChange, listener)
+      return () => ipcRenderer.off(IpcChannel.Channel_StatusChange, listener)
+    },
+    getLogs: (
+      channelId: string
+    ): Promise<Array<{ timestamp: number; level: string; message: string; channelId: string }>> =>
+      ipcRenderer.invoke(IpcChannel.Channel_GetLogs, channelId),
+    getStatuses: (): Promise<Array<{ channelId: string; connected: boolean; error?: string }>> =>
+      ipcRenderer.invoke(IpcChannel.Channel_GetStatuses)
   },
   quoteToMainWindow: (text: string) => ipcRenderer.invoke(IpcChannel.App_QuoteToMain, text),
   setDisableHardwareAcceleration: (isDisable: boolean) =>
@@ -580,7 +714,8 @@ const api = {
       directory: string,
       env: Record<string, string>,
       options?: { autoUpdateToLatest?: boolean; terminal?: string }
-    ) => ipcRenderer.invoke(IpcChannel.CodeTools_Run, cliTool, model, directory, env, options),
+    ): Promise<CodeToolsRunResult> =>
+      ipcRenderer.invoke(IpcChannel.CodeTools_Run, cliTool, model, directory, env, options),
     getAvailableTerminals: (): Promise<TerminalConfig[]> =>
       ipcRenderer.invoke(IpcChannel.CodeTools_GetAvailableTerminals),
     setCustomTerminalPath: (terminalId: string, path: string): Promise<void> =>
@@ -629,21 +764,24 @@ const api = {
       }
     }
   },
-  claudeCodePlugin: {
-    install: (options: InstallPluginOptions): Promise<PluginResult<PluginMetadata>> =>
-      ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_Install, options),
-    uninstall: (options: UninstallPluginOptions): Promise<PluginResult<void>> =>
-      ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_Uninstall, options),
-    uninstallPackage: (options: UninstallPluginPackageOptions): Promise<PluginResult<UninstallPluginPackageResult>> =>
-      ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_UninstallPackage, options),
-    listInstalled: (agentId: string): Promise<PluginResult<InstalledPlugin[]>> =>
-      ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_ListInstalled, agentId),
-    writeContent: (options: WritePluginContentOptions): Promise<PluginResult<void>> =>
-      ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_WriteContent, options),
-    installFromZip: (options: InstallFromZipOptions): Promise<PluginResult<InstallFromSourceResult>> =>
-      ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_InstallFromZip, options),
-    installFromDirectory: (options: InstallFromDirectoryOptions): Promise<PluginResult<InstallFromSourceResult>> =>
-      ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_InstallFromDirectory, options)
+  skill: {
+    list: (agentId?: string): Promise<SkillResult<InstalledSkill[]>> =>
+      ipcRenderer.invoke(IpcChannel.Skill_List, agentId),
+    install: (options: SkillInstallOptions): Promise<SkillResult<InstalledSkill>> =>
+      ipcRenderer.invoke(IpcChannel.Skill_Install, options),
+    uninstall: (skillId: string): Promise<SkillResult<void>> => ipcRenderer.invoke(IpcChannel.Skill_Uninstall, skillId),
+    toggle: (options: SkillToggleOptions): Promise<SkillResult<InstalledSkill | null>> =>
+      ipcRenderer.invoke(IpcChannel.Skill_Toggle, options),
+    installFromZip: (options: SkillInstallFromZipOptions): Promise<SkillResult<InstalledSkill>> =>
+      ipcRenderer.invoke(IpcChannel.Skill_InstallFromZip, options),
+    installFromDirectory: (options: SkillInstallFromDirectoryOptions): Promise<SkillResult<InstalledSkill>> =>
+      ipcRenderer.invoke(IpcChannel.Skill_InstallFromDirectory, options),
+    readSkillFile: (skillId: string, filename: string): Promise<SkillResult<string | null>> =>
+      ipcRenderer.invoke(IpcChannel.Skill_ReadFile, skillId, filename),
+    listFiles: (skillId: string): Promise<SkillResult<SkillFileNode[]>> =>
+      ipcRenderer.invoke(IpcChannel.Skill_ListFiles, skillId),
+    listLocal: (workdir: string): Promise<SkillResult<LocalSkill[]>> =>
+      ipcRenderer.invoke(IpcChannel.Skill_ListLocal, workdir)
   },
   localTransfer: {
     getState: (): Promise<LocalTransferState> => ipcRenderer.invoke(IpcChannel.LocalTransfer_ListServices),
@@ -673,28 +811,27 @@ const api = {
     cancelTransfer: (): Promise<void> => ipcRenderer.invoke(IpcChannel.LocalTransfer_CancelTransfer)
   },
   openclaw: {
-    checkInstalled: (): Promise<{ installed: boolean; path: string | null }> =>
+    checkInstalled: (): Promise<{ installed: boolean; path: string | null; needsMigration: boolean }> =>
       ipcRenderer.invoke(IpcChannel.OpenClaw_CheckInstalled),
-    checkNodeVersion: (): Promise<NodeCheckResult> => ipcRenderer.invoke(IpcChannel.OpenClaw_CheckNodeVersion),
-    checkGitAvailable: (): Promise<{ available: boolean; path: string | null }> =>
-      ipcRenderer.invoke(IpcChannel.OpenClaw_CheckGitAvailable),
-    getNodeDownloadUrl: (): Promise<string> => ipcRenderer.invoke(IpcChannel.OpenClaw_GetNodeDownloadUrl),
-    getGitDownloadUrl: (): Promise<string> => ipcRenderer.invoke(IpcChannel.OpenClaw_GetGitDownloadUrl),
-    install: (): Promise<{ success: boolean; message: string }> => ipcRenderer.invoke(IpcChannel.OpenClaw_Install),
-    uninstall: (): Promise<{ success: boolean; message: string }> => ipcRenderer.invoke(IpcChannel.OpenClaw_Uninstall),
-    startGateway: (port?: number): Promise<{ success: boolean; message: string }> =>
+    install: (): Promise<OperationResult> => ipcRenderer.invoke(IpcChannel.OpenClaw_Install),
+    uninstall: (): Promise<OperationResult> => ipcRenderer.invoke(IpcChannel.OpenClaw_Uninstall),
+    startGateway: (port?: number): Promise<OperationResult> =>
       ipcRenderer.invoke(IpcChannel.OpenClaw_StartGateway, port),
-    stopGateway: (): Promise<{ success: boolean; message: string }> =>
-      ipcRenderer.invoke(IpcChannel.OpenClaw_StopGateway),
-    restartGateway: (): Promise<{ success: boolean; message: string }> =>
-      ipcRenderer.invoke(IpcChannel.OpenClaw_RestartGateway),
+    stopGateway: (): Promise<OperationResult> => ipcRenderer.invoke(IpcChannel.OpenClaw_StopGateway),
     getStatus: (): Promise<{ status: OpenClawGatewayStatus; port: number }> =>
       ipcRenderer.invoke(IpcChannel.OpenClaw_GetStatus),
     checkHealth: (): Promise<OpenClawHealthInfo> => ipcRenderer.invoke(IpcChannel.OpenClaw_CheckHealth),
     getDashboardUrl: (): Promise<string> => ipcRenderer.invoke(IpcChannel.OpenClaw_GetDashboardUrl),
-    syncConfig: (provider: Provider, primaryModel: Model): Promise<{ success: boolean; message: string }> =>
+    syncConfig: (provider: Provider, primaryModel: Model): Promise<OperationResult> =>
       ipcRenderer.invoke(IpcChannel.OpenClaw_SyncConfig, provider, primaryModel),
-    getChannels: (): Promise<OpenClawChannelInfo[]> => ipcRenderer.invoke(IpcChannel.OpenClaw_GetChannels)
+    getChannels: (): Promise<OpenClawChannelInfo[]> => ipcRenderer.invoke(IpcChannel.OpenClaw_GetChannels),
+    checkUpdate: (): Promise<{
+      hasUpdate: boolean
+      currentVersion: string | null
+      latestVersion: string | null
+      message?: string
+    }> => ipcRenderer.invoke(IpcChannel.OpenClaw_CheckUpdate),
+    performUpdate: (): Promise<OperationResult> => ipcRenderer.invoke(IpcChannel.OpenClaw_PerformUpdate)
   },
   analytics: {
     trackTokenUsage: (data: TokenUsageData) => ipcRenderer.invoke(IpcChannel.Analytics_TrackTokenUsage, data)

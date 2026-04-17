@@ -334,7 +334,7 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      onGenerate()
+      void onGenerate()
     }
 
     if (e.key === ' ' && autoTranslateWithSpace && !painting.prompt?.trim()) {
@@ -350,7 +350,7 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
 
       if (spaceClickCount >= 2) {
         e.preventDefault()
-        handleTranslate()
+        void handleTranslate()
         setSpaceClickCount(0)
       }
     }

@@ -27,7 +27,7 @@ export function usePromptProcessor({ prompt, modelName }: PromptProcessor): stri
       }
     }
 
-    processPrompt()
+    void processPrompt()
   }, [prompt, modelName])
 
   return processedPrompt

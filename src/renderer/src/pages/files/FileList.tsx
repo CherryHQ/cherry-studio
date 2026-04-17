@@ -65,7 +65,7 @@ const FileList: React.FC<FileItemProps> = ({ id, list, files }) => {
                         cancelText: t('common.cancel'),
                         centered: true,
                         onOk: () => {
-                          handleDelete(file.id, t)
+                          void handleDelete(file.id, t)
                         },
                         icon: <ExclamationCircleOutlined style={{ color: 'red' }} />
                       })

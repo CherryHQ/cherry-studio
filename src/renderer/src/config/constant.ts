@@ -7,6 +7,10 @@ export const DEFAULT_KNOWLEDGE_THRESHOLD = 0.0
 export const DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT = 1
 export const DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE = true
 
+// Max tool calls validation constants
+export const MIN_TOOL_CALLS = 1
+export const MAX_TOOL_CALLS = 100
+
 export const platform = window.electron?.process?.platform
 export const isMac = platform === 'darwin'
 export const isWin = platform === 'win32' || platform === 'win64'

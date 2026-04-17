@@ -9,7 +9,7 @@ import { MemoryProcessor } from '../../services/MemoryProcessor'
  * 🧠 基础记忆搜索工具
  * AI 可以主动调用的简单记忆搜索
  */
-export const memorySearchTool = () => {
+export const memorySearchTool = (assistantId: string) => {
   return tool({
     description: 'Search through conversation memories and stored facts for relevant context',
     inputSchema: z.object({
@@ -29,7 +29,7 @@ export const memorySearchTool = () => {
       }
 
       const currentUserId = selectCurrentUserId(store.getState())
-      const processorConfig = MemoryProcessor.getProcessorConfig(memoryConfig, 'default', currentUserId)
+      const processorConfig = MemoryProcessor.getProcessorConfig(memoryConfig, assistantId, currentUserId)
 
       const memoryProcessor = new MemoryProcessor()
       const relevantMemories = await memoryProcessor.searchRelevantMemories(query, processorConfig, limit)
