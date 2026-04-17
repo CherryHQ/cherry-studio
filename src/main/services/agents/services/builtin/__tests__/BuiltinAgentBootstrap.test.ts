@@ -99,66 +99,6 @@ describe('BuiltinAgentBootstrap utilities', () => {
   })
 })
 
-describe('dismissed builtin agents integration', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockGetDismissed.mockReturnValue([])
-  })
-
-  it('deleteAgent should record dismissal for builtin agent IDs', async () => {
-    const { isBuiltinAgentId } = await import('../BuiltinAgentBootstrap')
-
-    // Simulate: if agent is builtin, add to dismissed list
-    const dismissed: string[] = []
-    const agentId = 'cherry-claw-default'
-
-    if (isBuiltinAgentId(agentId)) {
-      if (!dismissed.includes(agentId)) {
-        dismissed.push(agentId)
-      }
-    }
-
-    expect(dismissed).toEqual(['cherry-claw-default'])
-  })
-
-  it('deleteAgent should NOT record dismissal for custom agent IDs', async () => {
-    const { isBuiltinAgentId } = await import('../BuiltinAgentBootstrap')
-
-    const dismissed: string[] = []
-    const agentId = 'agent_12345_custom'
-
-    if (isBuiltinAgentId(agentId)) {
-      if (!dismissed.includes(agentId)) {
-        dismissed.push(agentId)
-      }
-    }
-
-    expect(dismissed).toEqual([])
-  })
-
-  it('dismissed list should prevent duplicates', async () => {
-    const { isBuiltinAgentId } = await import('../BuiltinAgentBootstrap')
-
-    const dismissed = ['cherry-claw-default']
-    const agentId = 'cherry-claw-default'
-
-    if (isBuiltinAgentId(agentId) && !dismissed.includes(agentId)) {
-      dismissed.push(agentId)
-    }
-
-    expect(dismissed).toEqual(['cherry-claw-default'])
-    expect(dismissed).toHaveLength(1)
-  })
-
-  it('restoreBuiltinAgents clears dismissed list', async () => {
-    const { restoreBuiltinAgents } = await import('../BuiltinAgentBootstrap')
-
-    await restoreBuiltinAgents()
-
-    expect(mockSetDismissed).toHaveBeenCalledWith([])
-  })
-})
-
 describe('hide/show builtin agents', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -212,5 +152,13 @@ describe('hide/show builtin agents', () => {
 
     expect(result).toEqual(['cherry-claw-default'])
     expect(mockGetDismissed).toHaveBeenCalled()
+  })
+
+  it('restoreBuiltinAgents clears hidden list', async () => {
+    const { restoreBuiltinAgents } = await import('../BuiltinAgentBootstrap')
+
+    await restoreBuiltinAgents()
+
+    expect(mockSetDismissed).toHaveBeenCalledWith([])
   })
 })

@@ -51,7 +51,7 @@ export enum ConfigKeys {
   ClientId = 'clientId',
   GitBashPath = 'gitBashPath',
   GitBashPathSource = 'gitBashPathSource', // 'manual' | 'auto' | null
-  DismissedBuiltinAgents = 'dismissedBuiltinAgents' // IDs of builtin agents deleted by user
+  DismissedBuiltinAgents = 'dismissedBuiltinAgents' // IDs of builtin agents hidden by user
 }
 
 export class ConfigManager {

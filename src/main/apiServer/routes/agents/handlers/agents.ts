@@ -700,7 +700,7 @@ export const reorderAgents = async (req: Request, res: Response): Promise<Respon
  *     tags: [Agents]
  *     responses:
  *       200:
- *         description: Built-in agents restored
+ *         description: Built-in agents restored successfully
  *         content:
  *           application/json:
  *             schema:
@@ -710,6 +710,8 @@ export const reorderAgents = async (req: Request, res: Response): Promise<Respon
  *                   type: array
  *                   items:
  *                     type: string
+ *       500:
+ *         description: Internal server error
  */
 export const handleRestoreBuiltinAgents = async (_req: Request, res: Response): Promise<Response> => {
   try {
