@@ -35,7 +35,7 @@
     "test:watch": "vitest"
   },
   "peerDependencies": {
-    "@ai-sdk/anthropic": "^3.0.48",
+    "@ai-sdk/anthropic": "^3.0.71",
     "@ai-sdk/google": "^3.0.33",
     "@ai-sdk/openai": "^3.0.36",
     "@ai-sdk/openai-compatible": "^2.0.30"
