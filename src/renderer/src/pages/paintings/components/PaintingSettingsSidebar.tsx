@@ -13,8 +13,8 @@ import type { FC, ReactNode } from 'react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { BaseConfigItem } from './PaintingConfigFieldRenderer'
-import { PaintingConfigFieldRenderer } from './PaintingConfigFieldRenderer'
+import { PaintingFieldRenderer } from '../form/PaintingFieldRenderer'
+import type { BaseConfigItem } from '../providers/shared/providerFieldSchema'
 import PaintingsSectionTitle from './PaintingsSectionTitle'
 import ProviderSelect from './ProviderSelect'
 
@@ -140,7 +140,7 @@ const PaintingSettingsSidebar: FC<PaintingSettingsSidebarProps> = ({
                 {item.tooltip && <InfoTooltip content={t(item.tooltip)} />}
               </PaintingsSectionTitle>
             )}
-            <PaintingConfigFieldRenderer
+            <PaintingFieldRenderer
               item={item}
               painting={painting}
               translate={t}

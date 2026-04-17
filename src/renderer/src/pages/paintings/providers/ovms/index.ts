@@ -1,0 +1,1 @@
+export { ovmsProvider } from './provider'

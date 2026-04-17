@@ -1,28 +1,28 @@
 import { ConfirmDialog } from '@cherrystudio/ui'
 import { DraggableList } from '@renderer/components/DraggableList'
 import FileManager from '@renderer/services/FileManager'
-import type { PaintingCanvas } from '@renderer/types'
 import { Plus, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { isPaintingLoading, usePaintingRuntime } from '../utils/paintingRuntime'
+import { isPaintingLoading, usePaintingRuntime } from '../model/runtime/paintingRuntimeStore'
+import type { PaintingData } from '../model/types/paintingData'
 
 interface PaintingsListProps {
-  paintings: PaintingCanvas[]
-  selectedPainting: PaintingCanvas
-  onSelectPainting: (painting: PaintingCanvas) => void
-  onDeletePainting: (painting: PaintingCanvas) => void
+  paintings: PaintingData[]
+  selectedPainting: PaintingData
+  onSelectPainting: (painting: PaintingData) => void
+  onDeletePainting: (painting: PaintingData) => void
   onNewPainting: () => void
-  onReorder: (paintings: PaintingCanvas[]) => void
+  onReorder: (paintings: PaintingData[]) => void
 }
 
 interface PaintingListItemProps {
-  painting: PaintingCanvas
+  painting: PaintingData
   selected: boolean
-  onSelect: (painting: PaintingCanvas) => void
-  onDelete: (painting: PaintingCanvas) => void
+  onSelect: (painting: PaintingData) => void
+  onDelete: (painting: PaintingData) => void
 }
 
 const PaintingListItem: FC<PaintingListItemProps> = ({ painting, selected, onSelect, onDelete }) => {
@@ -70,7 +70,7 @@ const PaintingsList: FC<PaintingsListProps> = ({
 }) => {
   const { t } = useTranslation()
   const [dragging, setDragging] = useState(false)
-  const [pendingDelete, setPendingDelete] = useState<PaintingCanvas | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<PaintingData | null>(null)
 
   return (
     <>
@@ -91,7 +91,7 @@ const PaintingsList: FC<PaintingsListProps> = ({
           onUpdate={(value) => onReorder(value)}
           onDragStart={() => setDragging(true)}
           onDragEnd={() => setDragging(false)}>
-          {(item: PaintingCanvas) => (
+          {(item: PaintingData) => (
             <PaintingListItem
               key={item.id}
               painting={item}

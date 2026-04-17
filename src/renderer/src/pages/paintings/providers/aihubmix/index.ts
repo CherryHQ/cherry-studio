@@ -1,0 +1,1 @@
+export { aihubmixProvider } from './provider'

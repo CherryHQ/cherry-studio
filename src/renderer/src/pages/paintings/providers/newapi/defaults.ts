@@ -1,0 +1,2 @@
+export { DEFAULT_PAINTING, MODELS, SUPPORTED_MODELS } from './config'
+export { DEFAULT_PAINTING as DEFAULT_NEW_API_PAINTING } from './config'

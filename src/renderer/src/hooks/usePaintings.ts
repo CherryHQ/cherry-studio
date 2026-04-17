@@ -1,15 +1,20 @@
-import { dataApiService } from '@data/DataApiService'
 import { useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import FileManager from '@renderer/services/FileManager'
-import type { PaintingCanvas } from '@renderer/types'
 import type { ListPaintingsQueryParams } from '@shared/data/api/schemas/paintings'
 import type { PaintingMode } from '@shared/data/types/painting'
 import { debounce } from 'lodash'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { isPaintingLoading } from '../pages/paintings/utils/paintingRuntime'
-import { toCanvases, toCreateDto, toUpdateDto } from './paintingCanvas'
+import { recordsToPaintingDataList } from '../pages/paintings/model/mappers/recordToPaintingData'
+import { isPaintingLoading } from '../pages/paintings/model/runtime/paintingRuntimeStore'
+import {
+  createPaintingRecord,
+  deletePaintingRecord,
+  reorderPaintingRecords,
+  updatePaintingRecord
+} from '../pages/paintings/model/services/paintingCollectionService'
+import type { PaintingData } from '../pages/paintings/model/types/paintingData'
 
 const PATCH_DEBOUNCE_MS = 300
 const logger = loggerService.withContext('hooks/usePaintings')
@@ -20,18 +25,18 @@ export interface PaintingFilter extends ListPaintingsQueryParams {
 }
 
 export interface UsePaintingsResult {
-  items: PaintingCanvas[]
+  items: PaintingData[]
   isLoading: boolean
   isReady: boolean
-  createPainting: (painting: PaintingCanvas, createMode?: PaintingMode) => PaintingCanvas
-  deletePainting: (painting: PaintingCanvas) => Promise<void>
-  updatePainting: (painting: PaintingCanvas) => void
-  reorderPaintings: (paintings: PaintingCanvas[]) => void
+  createPainting: (painting: PaintingData, createMode?: PaintingMode) => PaintingData
+  deletePainting: (painting: PaintingData) => Promise<void>
+  updatePainting: (painting: PaintingData) => void
+  reorderPaintings: (paintings: PaintingData[]) => void
 }
 
 // ─── Debounced Patch Queue ────────────────────────────────────────────
 
-type DebouncedPatch = ReturnType<typeof debounce<(painting: PaintingCanvas) => void>>
+type DebouncedPatch = ReturnType<typeof debounce<(painting: PaintingData) => void>>
 
 function usePatchQueue() {
   const ref = useRef(new Map<string, DebouncedPatch>())
@@ -44,14 +49,14 @@ function usePatchQueue() {
     }
   }, [])
 
-  const schedule = useCallback((painting: PaintingCanvas) => {
+  const schedule = useCallback((painting: PaintingData) => {
     const debouncers = ref.current
     let d = debouncers.get(painting.id)
     if (!d) {
-      d = debounce((latest: PaintingCanvas) => {
-        void dataApiService
-          .patch(`/paintings/${latest.id}` as '/paintings/:id', { body: toUpdateDto(latest) })
-          .catch((error) => logger.error('Failed to persist painting update', error as Error))
+      d = debounce((latest: PaintingData) => {
+        void updatePaintingRecord(latest).catch((error) =>
+          logger.error('Failed to persist painting update', error as Error)
+        )
       }, PATCH_DEBOUNCE_MS)
       debouncers.set(painting.id, d)
     }
@@ -76,14 +81,14 @@ export function usePaintings(filter: PaintingFilter): UsePaintingsResult {
     query: filter
   })
 
-  const [items, setItems] = useState<PaintingCanvas[]>([])
+  const [items, setItems] = useState<PaintingData[]>([])
   const [isReady, setIsReady] = useState(false)
 
   useEffect(() => {
     let cancelled = false
     setIsReady(false)
 
-    void toCanvases(data?.items ?? []).then((hydrated) => {
+    void recordsToPaintingDataList(data?.items ?? []).then((hydrated) => {
       if (!cancelled) {
         setItems(hydrated)
         setIsReady(true)
@@ -112,18 +117,13 @@ export function usePaintings(filter: PaintingFilter): UsePaintingsResult {
   const patchQueue = usePatchQueue()
 
   const createPainting = useCallback(
-    (painting: PaintingCanvas, createMode?: PaintingMode) => {
+    (painting: PaintingData, createMode?: PaintingMode) => {
       setItems((current) => [painting, ...current.filter((p) => p.id !== painting.id)])
 
-      const dto = toCreateDto({
-        ...painting,
+      void createPaintingRecord(painting, {
         providerId: filter.providerId,
         mode: createMode ?? filter.mode ?? 'generate'
-      })
-
-      void dataApiService
-        .post('/paintings', { body: dto })
-        .catch((error) => logger.error('Failed to create painting', error as Error))
+      }).catch((error) => logger.error('Failed to create painting', error as Error))
 
       return painting
     },
@@ -131,10 +131,10 @@ export function usePaintings(filter: PaintingFilter): UsePaintingsResult {
   )
 
   const deletePainting = useCallback(
-    async (painting: PaintingCanvas) => {
+    async (painting: PaintingData) => {
       void FileManager.deleteFiles(painting.files ?? [])
 
-      let snapshot: PaintingCanvas[] = []
+      let snapshot: PaintingData[] = []
       setItems((current) => {
         snapshot = current
         return current.filter((p) => p.id !== painting.id)
@@ -143,7 +143,7 @@ export function usePaintings(filter: PaintingFilter): UsePaintingsResult {
       patchQueue.cancel(painting.id)
 
       try {
-        await dataApiService.delete(`/paintings/${painting.id}` as '/paintings/:id')
+        await deletePaintingRecord(painting.id)
       } catch (error) {
         logger.error('Failed to delete painting', error as Error)
         setItems(snapshot)
@@ -153,26 +153,24 @@ export function usePaintings(filter: PaintingFilter): UsePaintingsResult {
   )
 
   const updatePainting = useCallback(
-    (painting: PaintingCanvas) => {
+    (painting: PaintingData) => {
       setItems((current) => current.map((p) => (p.id === painting.id ? painting : p)))
       patchQueue.schedule(painting)
     },
     [patchQueue]
   )
 
-  const reorderPaintings = useCallback((paintings: PaintingCanvas[]) => {
-    let previousOrder: PaintingCanvas[] = []
+  const reorderPaintings = useCallback((paintings: PaintingData[]) => {
+    let previousOrder: PaintingData[] = []
     setItems((current) => {
       previousOrder = current
       return paintings
     })
 
-    void dataApiService
-      .post('/paintings/reorder', { body: { orderedIds: paintings.map((p) => p.id) } })
-      .catch((error) => {
-        logger.error('Failed to reorder paintings', error as Error)
-        setItems(previousOrder)
-      })
+    void reorderPaintingRecords(paintings.map((p) => p.id)).catch((error) => {
+      logger.error('Failed to reorder paintings', error as Error)
+      setItems(previousOrder)
+    })
   }, [])
 
   return useMemo(

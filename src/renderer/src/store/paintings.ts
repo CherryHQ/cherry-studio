@@ -17,11 +17,28 @@
 import { loggerService } from '@logger'
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
-import type { PaintingCanvas, PaintingsState } from '@renderer/types'
+import type { PaintingData } from '@renderer/pages/paintings/model/types/paintingData'
 
 const logger = loggerService.withContext('Store:paintings')
 
-const initialState: PaintingsState = {
+type LegacyPaintingsNamespace =
+  | 'siliconflow_paintings'
+  | 'dmxapi_paintings'
+  | 'tokenflux_paintings'
+  | 'zhipu_paintings'
+  | 'aihubmix_image_generate'
+  | 'aihubmix_image_remix'
+  | 'aihubmix_image_edit'
+  | 'aihubmix_image_upscale'
+  | 'openai_image_generate'
+  | 'openai_image_edit'
+  | 'ovms_paintings'
+  | 'ppio_draw'
+  | 'ppio_edit'
+
+type LegacyPaintingsState = Record<LegacyPaintingsNamespace, PaintingData[]>
+
+const initialState: LegacyPaintingsState = {
   // SiliconFlow
   siliconflow_paintings: [],
   // DMXAPI
@@ -49,10 +66,10 @@ const paintingsSlice = createSlice({
   initialState,
   reducers: {
     addPainting: (
-      state: PaintingsState,
-      action: PayloadAction<{ namespace?: keyof PaintingsState; painting: PaintingCanvas }>
+      state: LegacyPaintingsState,
+      action: PayloadAction<{ namespace?: LegacyPaintingsNamespace; painting: PaintingData }>
     ) => {
-      const { namespace = 'paintings', painting } = action.payload
+      const { namespace = 'siliconflow_paintings', painting } = action.payload
       if (state[namespace]) {
         state[namespace].unshift(painting)
       } else {
@@ -60,18 +77,17 @@ const paintingsSlice = createSlice({
       }
     },
     removePainting: (
-      state: PaintingsState,
-      action: PayloadAction<{ namespace?: keyof PaintingsState; painting: PaintingCanvas }>
+      state: LegacyPaintingsState,
+      action: PayloadAction<{ namespace?: LegacyPaintingsNamespace; painting: PaintingData }>
     ) => {
-      const { namespace = 'paintings', painting } = action.payload
-      // @ts-ignore - TypeScript 无法正确推断数组元素类型与过滤条件的兼容性
+      const { namespace = 'siliconflow_paintings', painting } = action.payload
       state[namespace] = state[namespace].filter((c) => c.id !== painting.id)
     },
     updatePainting: (
-      state: PaintingsState,
-      action: PayloadAction<{ namespace?: keyof PaintingsState; painting: PaintingCanvas }>
+      state: LegacyPaintingsState,
+      action: PayloadAction<{ namespace?: LegacyPaintingsNamespace; painting: PaintingData }>
     ) => {
-      const { namespace = 'paintings', painting } = action.payload
+      const { namespace = 'siliconflow_paintings', painting } = action.payload
 
       const existingIndex = state[namespace].findIndex((c) => c.id === painting.id)
       if (existingIndex !== -1) {
@@ -81,11 +97,10 @@ const paintingsSlice = createSlice({
       }
     },
     updatePaintings: (
-      state: PaintingsState,
-      action: PayloadAction<{ namespace?: keyof PaintingsState; paintings: PaintingCanvas[] }>
+      state: LegacyPaintingsState,
+      action: PayloadAction<{ namespace?: LegacyPaintingsNamespace; paintings: PaintingData[] }>
     ) => {
-      const { namespace = 'paintings', paintings } = action.payload
-      // @ts-ignore - TypeScript 无法正确推断数组元素类型与过滤条件的兼容性
+      const { namespace = 'siliconflow_paintings', paintings } = action.payload
       state[namespace] = paintings
     }
   }

@@ -23,7 +23,6 @@ import type {
   MathEngine,
   MinAppRegionFilter,
   OpenAIServiceTier,
-  PaintingProvider,
   S3Config,
   TranslateLanguageCode
 } from '@renderer/types'
@@ -244,7 +243,7 @@ export interface SettingsState {
   localBackupSyncInterval: number
   localBackupMaxBackups: number
   localBackupSkipBackupFile: boolean
-  defaultPaintingProvider: PaintingProvider
+  defaultPaintingProvider: string
   s3: S3Config
   // Developer mode
   enableDeveloperMode: boolean
@@ -868,7 +867,7 @@ const settingsSlice = createSlice({
     // setLocalBackupSkipBackupFile: (state, action: PayloadAction<boolean>) => {
     //   state.localBackupSkipBackupFile = action.payload
     // },
-    setDefaultPaintingProvider: (state, action: PayloadAction<PaintingProvider>) => {
+    setDefaultPaintingProvider: (state, action: PayloadAction<string>) => {
       state.defaultPaintingProvider = action.payload
     },
     // setS3: (state, action: PayloadAction<S3Config>) => {

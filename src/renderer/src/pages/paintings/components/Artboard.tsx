@@ -1,20 +1,21 @@
 import { Button } from '@cherrystudio/ui'
 import ImageViewer from '@renderer/components/ImageViewer'
 import FileManager from '@renderer/services/FileManager'
-import type { PaintingCanvas } from '@renderer/types'
 import { motion } from 'framer-motion'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { PaintingData } from '../model/types/paintingData'
+
 export interface ArtboardProps {
-  painting: PaintingCanvas
+  painting: PaintingData
   isLoading: boolean
   currentImageIndex: number
   fallbackUrls?: string[]
   onPrevImage: () => void
   onNextImage: () => void
   onCancel: () => void
-  retry?: (painting: PaintingCanvas) => void
+  retry?: (painting: PaintingData) => void
   imageCover?: React.ReactNode
   loadText?: React.ReactNode
 }
