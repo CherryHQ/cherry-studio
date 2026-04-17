@@ -1,5 +1,7 @@
 import { loggerService } from '@logger'
 import type { ChannelAdapter } from '@main/services/agents/services/channels/ChannelAdapter'
+import type { UniqueModelId } from '@shared/data/types/model'
+import type { UIMessageChunk } from 'ai'
 
 import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../types'
 
@@ -21,7 +23,7 @@ export class ChannelAdapterListener implements StreamListener {
     this.id = `channel:${adapter.channelId}:${this.platformChatId}`
   }
 
-  onChunk(chunk: { type: string; delta?: string; [key: string]: unknown }): void {
+  onChunk(chunk: UIMessageChunk, _sourceModelId?: UniqueModelId): void {
     // Accumulate text for adapters that don't support streaming updates.
     // Adapters with streaming support (e.g. Feishu card editing) get updates
     // via onTextUpdate — called here on every text-delta.
