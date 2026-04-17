@@ -9,6 +9,7 @@
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
+import { statsToMetrics, statsToUsage } from '@renderer/utils/messageStats'
 import { mapMessageStatusToBlockStatus, partToBlock } from '@renderer/utils/partsToBlocks'
 import { ErrorCode } from '@shared/data/api/apiErrors'
 import type { BranchMessagesResponse, Message as SharedMessage } from '@shared/data/types/message'
@@ -112,17 +113,8 @@ function convertSharedMessage(
     modelId: shared.modelId ?? undefined,
     traceId: shared.traceId ?? undefined,
     ...(shared.stats && {
-      usage: {
-        prompt_tokens: shared.stats.promptTokens ?? 0,
-        completion_tokens: shared.stats.completionTokens ?? 0,
-        total_tokens: shared.stats.totalTokens ?? 0
-      },
-      metrics: {
-        completion_tokens: shared.stats.completionTokens ?? 0,
-        time_completion_millsec: shared.stats.timeCompletionMs ?? 0,
-        time_first_token_millsec: shared.stats.timeFirstTokenMs,
-        time_thinking_millsec: shared.stats.timeThinkingMs
-      }
+      usage: statsToUsage(shared.stats),
+      metrics: statsToMetrics(shared.stats)
     })
   }
 

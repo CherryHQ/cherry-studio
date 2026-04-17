@@ -15,6 +15,7 @@ import { loggerService } from '@logger'
 import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
 import type { Message } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, UserMessageStatus } from '@renderer/types/newMessage'
+import { statsToMetrics, statsToUsage } from '@renderer/utils/messageStats'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { ChatRequestOptions, ChatStatus } from 'ai'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -173,6 +174,13 @@ export function useChatWithHistory(
     return messages.map((uiMsg) => {
       if (uiMsg.role === 'user') lastUserId = uiMsg.id
       const meta = metadataMap[uiMsg.id]
+      // Stats come from DB via metadataMap; during live streaming the
+      // UIMessage carries no stats yet (timings are only computed at
+      // persist time), so `usage` / `metrics` light up when the
+      // `refreshAndReplace` after `onStreamDone` pulls fresh metadata.
+      // TODO: adaptedMessages also doesn't populate `message.model` —
+      // MessageTokens needs it for price calculation. Unrelated to stats
+      // projection; track as a follow-up.
       return {
         id: uiMsg.id,
         role: uiMsg.role,
@@ -190,6 +198,7 @@ export function useChatWithHistory(
               : uiMsg.id === latestAssistantMessageId && status === 'streaming'
                 ? AssistantMessageStatus.PROCESSING
                 : ((meta?.status as AssistantMessageStatus | undefined) ?? AssistantMessageStatus.SUCCESS),
+        ...(meta?.stats && { usage: statsToUsage(meta.stats), metrics: statsToMetrics(meta.stats) }),
         blocks: []
       }
     })

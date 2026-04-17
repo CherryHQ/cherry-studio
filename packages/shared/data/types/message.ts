@@ -17,6 +17,55 @@ import type { CherryDataPartTypes } from './uiParts'
 /**
  * Message Statistics - combines token usage and performance metrics
  * Replaces the separate `usage` and `metrics` fields
+ *
+ * TODO(message-stats-redesign): This schema is flat, OpenAI-legacy-named, and
+ * does not cover the actual modalities / billing dimensions we ship today.
+ * Known gaps, to be addressed in a dedicated follow-up:
+ *
+ *  1. Naming drift vs AI SDK v5
+ *     - `promptTokens` / `completionTokens` → should be `inputTokens` / `outputTokens`
+ *     - `thoughtsTokens` is Gemini-only phrasing; AI SDK uses `reasoningTokens`
+ *
+ *  2. Cache accounting entirely missing
+ *     - AI SDK `inputTokenDetails` has `noCacheTokens` / `cacheReadTokens` / `cacheWriteTokens`
+ *     - Claude prompt caching and Gemini context caching are currently folded
+ *       into a single `promptTokens`, so users can't see cache hit-rate or
+ *       audit premium-rate cache writes
+ *
+ *  3. Output breakdown missing
+ *     - AI SDK `outputTokenDetails` has `textTokens` / `reasoningTokens`;
+ *       we only have a single `thoughtsTokens` patch
+ *
+ *  4. Non-text modalities not modelled
+ *     - Embedding (single `tokens` field, no output concept)
+ *     - Image generation (real billing is image count × size × quality, not tokens)
+ *     - Audio (OpenAI audio tokens, Gemini per-second)
+ *     - Video (Gemini, per-second or token-equivalent)
+ *
+ *  5. Cost auditability
+ *     - Single `cost: number` loses per-bucket breakdown
+ *     - No pricing snapshot — if provider pricing changes, historical
+ *       stats drift. Need `{ costBreakdown, pricingSnapshot }` pair
+ *
+ * Target shape (draft):
+ *   interface MessageStats {
+ *     language?: LanguageUsage         // inputTokens, outputTokens, totalTokens,
+ *                                      // inputBreakdown{noCache,cacheRead,cacheWrite},
+ *                                      // outputBreakdown{text,reasoning}
+ *     embedding?: EmbeddingUsage       // tokens, vectorCount
+ *     image?: ImageUsage               // imageCount, size, quality, (tokens?)
+ *     audio?: AudioUsage               // inputAmount/unit, outputAmount/unit
+ *     video?: VideoUsage               // inputSeconds, (tokens?)
+ *     timings?: { timeFirstTokenMs, timeCompletionMs, timeThinkingMs }
+ *     cost?: number                    // aggregate
+ *     costBreakdown?: Partial<Record<CostBucket, number>>
+ *     pricingSnapshot?: { rates, capturedAt }
+ *   }
+ *
+ * Redesign touches: renderer usage UI, DB column readers (old rows still
+ * have promptTokens/completionTokens — need fallback), pricing subsystem,
+ * V1/V2 migration. Tracked as a separate PR series so this layer isn't
+ * rushed alongside stream-manager changes.
  */
 export interface MessageStats {
   // Token consumption (from API response)
@@ -64,8 +113,34 @@ export interface MessageData {
 
 // ── Cherry-specific UI message types ────────────────────────────────
 
+/**
+ * Metadata carried on a streamed `CherryUIMessage`.
+ *
+ * These fields mirror the token columns on `MessageStats` so that once the
+ * accumulator writes a snapshot into `exec.finalMessage.metadata`, the
+ * persistence backend can translate it 1:1 into the DB `stats` column
+ * without inventing extra plumbing. Keep the names aligned with the
+ * legacy `MessageStats` shape (promptTokens / completionTokens / ...)
+ * until the redesign tracked in `MessageStats` lands — the same names on
+ * both sides make `statsFromMetadata()` a trivial projection.
+ */
+export interface CherryUIMessageMetadata {
+  /** Total tokens reported by the provider (mirrors `MessageStats.totalTokens`). */
+  totalTokens?: number
+  /** Input / prompt tokens (AI SDK `inputTokens`, legacy `promptTokens`). */
+  promptTokens?: number
+  /** Output / completion tokens (AI SDK `outputTokens`, legacy `completionTokens`). */
+  completionTokens?: number
+  /**
+   * Reasoning / thinking tokens — AI SDK `outputTokenDetails.reasoningTokens`
+   * (Gemini thoughts, Anthropic extended thinking, OpenAI o-series).
+   */
+  thoughtsTokens?: number
+  createdAt?: string
+}
+
 /** Cherry Studio's UIMessage with custom metadata and data part types. */
-export type CherryUIMessage = UIMessage<{ totalTokens?: number; createdAt?: string }, CherryDataPartTypes>
+export type CherryUIMessage = UIMessage<CherryUIMessageMetadata, CherryDataPartTypes>
 
 /** Cherry Studio's UIMessageChunk — inferred from CherryUIMessage. */
 export type CherryUIMessageChunk = InferUIMessageChunk<CherryUIMessage>

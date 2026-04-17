@@ -208,6 +208,22 @@ interface StreamExecution {
   error?: SerializedError
   siblingsGroupId?: number
   sourceSessionId?: string
+
+  // Transport-side timings owned by the pump — chunk-shape-agnostic.
+  // Semantic timings (firstTextAt / reasoning*) live on the listener
+  // that cares; see "Stats composition" below.
+  timings: TransportTimings
+}
+
+interface TransportTimings {
+  readonly startedAt: number  // pump entry
+  completedAt?: number        // pump loop exit (try / catch 兜底)
+}
+
+interface SemanticTimings {
+  firstTextAt?: number          // first text-delta chunk (TTFT endpoint)
+  reasoningStartedAt?: number   // first reasoning-* chunk
+  reasoningEndedAt?: number     // first non-reasoning chunk after reasoning
 }
 ```
 
@@ -216,6 +232,40 @@ Topic-level 状态从 executions 派生：
 - 全部 done → `'done'`
 - 全部 aborted → `'aborted'`
 - 有 error 且无 streaming → `'error'`
+
+### Stats composition — tokens + timings → MessageStats
+
+**Ownership 分层**（关键不变式：manager 不 peek chunk payload）：
+
+| 字段来源 | 拥有者 | 采集点 |
+|---|---|---|
+| `TransportTimings.startedAt` | `AiStreamManager` | `createAndLaunchExecution` 构造 execution 时 |
+| `TransportTimings.completedAt` | `AiStreamManager` | pump try 块主循环退出 / catch 块 `??=` 兜底 |
+| `SemanticTimings.firstTextAt` | `PersistenceListener` | 自己 `onChunk` 里看见第一个 `text-delta` |
+| `SemanticTimings.reasoningStartedAt/EndedAt` | `PersistenceListener` | 自己 `onChunk` 里观察 `reasoning-*` 边界 |
+| Token metadata | `agentLoop.messageMetadata` | `finish` chunk 上把 AI SDK `LanguageModelUsage` 投影到 `CherryUIMessageMetadata` |
+
+AiStreamManager 对 chunk 形状保持 agnostic —— 只做 multicast / reconnect / abort / steering / persist 触发，不判断 "什么是文本 / 推理"。这样 AI SDK chunk 类型变化（vNext 改名等）只影响 `PersistenceListener`，manager 稳定。
+
+**最终合成**：`statsFromTerminal(finalMessage, mergedTimings)` 一处 projection，listener 把自己维护的 `SemanticTimings` 与 `result.timings`（transport）合并后调用：
+
+```typescript
+// PersistenceListener 内部
+const mergedTimings = { ...result.timings, ...this.semanticTimings }
+const stats = statsFromTerminal(finalMessage, mergedTimings)
+await this.opts.backend.persistAssistant({ finalMessage, status, modelId, stats })
+```
+
+投影的 `MessageStats` 字段：
+
+| 字段 | 来源 |
+|---|---|
+| `totalTokens / promptTokens / completionTokens / thoughtsTokens` | `finalMessage.metadata.*` |
+| `timeFirstTokenMs` | `round(firstTextAt - startedAt)` |
+| `timeCompletionMs` | `round(completedAt - startedAt)` |
+| `timeThinkingMs` | **不投影** —— wall-clock `reasoningEndedAt - reasoningStartedAt` 可能包含中间 tool 执行时间，精确拆分见 `stream-stats-followup` TODO |
+
+Backend 不自己派生 stats，只写 `input.stats` —— 三个 backend 共享同一条 projection 路径，避免重复。
 
 ## AiStreamManager 公开 API
 

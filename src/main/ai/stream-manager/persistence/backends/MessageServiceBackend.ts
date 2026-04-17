@@ -18,7 +18,12 @@ import type { PersistAssistantInput, PersistenceBackend } from '../PersistenceBa
 export interface MessageServiceBackendOptions {
   /** Placeholder assistant message id created before the stream started. */
   assistantMessageId: string
-  /** Explicit stats override. If omitted, derived from `finalMessage.metadata.totalTokens`. */
+  /**
+   * Explicit stats override. If present it wins over `input.stats` — used
+   * by callers that already computed stats elsewhere (e.g. replaying a
+   * persisted partial). Normally undefined; listener-composed stats flows
+   * through `input.stats`.
+   */
   stats?: MessageStats
   /** Kept for parity with the listener signature; unused by the storage write. */
   modelSnapshot?: ModelSnapshot
@@ -35,20 +40,12 @@ export class MessageServiceBackend implements PersistenceBackend {
   }
 
   async persistAssistant(input: PersistAssistantInput): Promise<void> {
-    const { finalMessage, status } = input
+    const { finalMessage, status, stats } = input
     const parts = (finalMessage?.parts ?? []) as CherryMessagePart[]
     await messageService.update(this.opts.assistantMessageId, {
       data: { parts },
       status,
-      stats: this.opts.stats ?? statsFromMetadata(finalMessage)
+      stats: this.opts.stats ?? stats
     })
   }
-}
-
-function statsFromMetadata(finalMessage: CherryUIMessage | undefined): MessageStats | undefined {
-  const meta = finalMessage?.metadata
-  if (meta && typeof meta === 'object' && 'totalTokens' in meta) {
-    return { totalTokens: (meta as { totalTokens: number }).totalTokens }
-  }
-  return undefined
 }

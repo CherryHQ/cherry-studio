@@ -712,6 +712,25 @@ describe('AiStreamManager', () => {
 
       const parts = (snap.executions[0].finalMessage?.parts ?? []) as Array<{ type: string; text?: string }>
       expect(parts.some((p) => p.type === 'text' && p.text === 'hello')).toBe(true)
+
+      // Transport-side timings are the only thing the manager tracks —
+      // `startedAt` is always set on pump entry and `completedAt` when the
+      // broadcast loop exits. Semantic timings (firstTextAt, reasoning*)
+      // live on listeners that inspect chunk payloads; the manager itself
+      // is chunk-shape-agnostic. Ordering invariants are the stable
+      // contract; exact numbers depend on real-timer drift.
+      const timings = snap.executions[0].timings
+      expect(timings.startedAt).toBeGreaterThan(0)
+      expect(timings.completedAt).toBeGreaterThanOrEqual(timings.startedAt)
+      // Proof of the new layering: no semantic field leaks into the
+      // transport-owned `exec.timings` — keeps manager robust to AI SDK
+      // chunk shape changes.
+      expect(timings).not.toHaveProperty('firstTextAt')
+      expect(timings).not.toHaveProperty('reasoningStartedAt')
+
+      // The same timings land in the terminal result the listener received
+      // (snapshot copy, so equal-but-not-same-reference is expected).
+      expect(listener.doneResults[0].timings).toEqual(timings)
     })
   })
 })

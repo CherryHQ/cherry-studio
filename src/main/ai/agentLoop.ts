@@ -255,6 +255,62 @@ export function runAgentLoop<T extends AppProviderKey>(
       let capturedStreamError: unknown
 
       // Stream → writer (transport channel)
+      //
+      // `messageMetadata` is the single AI SDK hook that injects usage /
+      // finish info into the emitted UIMessage. Without it, consumers of
+      // `readUIMessageStream` (including Cherry's PersistenceBackend) see
+      // `UIMessage.metadata === undefined` and cannot populate `stats`.
+      //
+      // We project AI SDK v5 usage names onto the legacy Cherry names used
+      // by `MessageStats` / `CherryUIMessageMetadata`:
+      //   inputTokens                         → promptTokens
+      //   outputTokens                        → completionTokens
+      //   totalTokens                         → totalTokens
+      //   outputTokenDetails.reasoningTokens  → thoughtsTokens
+      //
+      // We emit on the `finish` boundary so the captured usage reflects
+      // the iteration's final tally; multi-iteration loops overwrite
+      // with the last iteration's totals (sufficient for single-turn
+      // persistence today — full cross-iteration aggregation and the
+      // cache / modality breakdown are tracked in `MessageStats`'s
+      // redesign TODO).
+      //
+      // TODO(stream-stats-followup): Two gaps remain for `MessageStats`.
+      //
+      // 1. Usage on error/abort paths
+      //    This callback only fires on `finish` chunks. When the stream
+      //    fails mid-flight the AI SDK emits `error` or `abort` chunks
+      //    instead — neither carries usage, so nothing lands in
+      //    UIMessage.metadata even when the provider has already billed
+      //    the prompt tokens. Fix: in the per-iteration `finally` below,
+      //    salvage `result.totalUsage` (with a `.catch(() => undefined)`
+      //    guard + signal-aware timeout) and inject it as a
+      //    `{ type: 'message-metadata' }` UIMessageChunk on the writer.
+      //    `readUIMessageStream` merges that chunk into the accumulated
+      //    message, giving us usage even on the error/abort paths.
+      //
+      // 2. `timeThinkingMs` — pure reasoning vs tool-exec time
+      //    `ExecutionTimings.reasoningStartedAt / reasoningEndedAt` (set
+      //    by the pump) is wall-clock and may include tool execution
+      //    time that interleaves reasoning and text chunks. We currently
+      //    DO NOT project it onto `MessageStats.timeThinkingMs` to avoid
+      //    a polluted value in the DB.
+      //
+      //    Precise separation path: expose `onToolCallStart` /
+      //    `onToolCallFinish` on `AgentLoopHooks` (AI SDK `agentSettings`
+      //    already supports them — see `OnToolCallFinishEvent.durationMs`
+      //    for the native tool-execution measurement). AiService's
+      //    `composeHooks` attaches an internal hook that accumulates
+      //    `durationMs` for tool calls whose start timestamp falls inside
+      //    `[reasoningStartedAt, reasoningEndedAt]`, writing the sum back
+      //    onto `exec.timings.toolMsDuringReasoning`. `statsFromTerminal`
+      //    then computes
+      //    `timeThinkingMs = (reasoningEnded - reasoningStarted) - toolMsDuringReasoning`.
+      //
+      //    Alternative path: enable AI SDK `experimental_telemetry` and
+      //    read `ai.response.msToFirstChunk` / per-tool span durations
+      //    from the OTEL trace (Cherry's `packages/mcp-trace/` is the
+      //    existing OTEL receiver). That sidesteps manual accumulation.
       const uiStream = result.toUIMessageStream({
         generateMessageId: () => {
           if (!hasUsedProvidedMessageId && params.messageId) {
@@ -262,6 +318,17 @@ export function runAgentLoop<T extends AppProviderKey>(
             return params.messageId
           }
           return crypto.randomUUID()
+        },
+        messageMetadata: ({ part }) => {
+          if (part.type !== 'finish') return undefined
+          const usage = part.totalUsage
+          if (!usage) return undefined
+          return {
+            totalTokens: usage.totalTokens,
+            promptTokens: usage.inputTokens,
+            completionTokens: usage.outputTokens,
+            thoughtsTokens: usage.outputTokenDetails?.reasoningTokens
+          }
         },
         onError: (error) => {
           capturedStreamError ??= error

@@ -6,7 +6,7 @@
  */
 
 import { useQuery } from '@renderer/data/hooks/useDataApi'
-import type { CherryUIMessage } from '@shared/data/types/message'
+import type { CherryUIMessage, MessageStats } from '@shared/data/types/message'
 import type { BranchMessage, BranchMessagesResponse, Message as SharedMessage } from '@shared/data/types/message'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
@@ -32,6 +32,16 @@ export interface MessageMetadata {
   siblingsGroupId?: number
   createdAt: string
   status: SharedMessage['status']
+  /**
+   * Persisted stats (tokens + durations). Kept in the metadataMap — not
+   * on `CherryUIMessage.metadata` — because metadata on the UI message
+   * only carries the subset agentLoop's `messageMetadata` callback
+   * writes during streaming (tokens on `finish`), whereas the full
+   * `MessageStats` (including time* fields computed at persist time)
+   * only exists in the DB. Routing through metadataMap keeps the two
+   * sources disjoint and avoids synthesising half-filled stats mid-stream.
+   */
+  stats?: MessageStats
 }
 
 export type MessageMetadataMap = Record<string, MessageMetadata>
@@ -90,7 +100,8 @@ export function useTopicMessagesV2(topicId: string): UseTopicMessagesV2Result {
           modelId: message.modelId ?? undefined,
           siblingsGroupId: message.siblingsGroupId || undefined,
           createdAt: message.createdAt,
-          status: message.status
+          status: message.status,
+          stats: message.stats ?? undefined
         }
       ])
     )

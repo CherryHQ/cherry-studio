@@ -35,6 +35,45 @@ export type { CherryUIMessageChunk } from '@shared/data/types/message'
 // "partialMessage for error": they are the same object, differing only
 // in whether the stream completed or was interrupted.
 
+/**
+ * Monotonic timestamps captured by the pump for one execution.
+ *
+ * Split by ownership so `AiStreamManager` stays chunk-shape-agnostic:
+ *  - `TransportTimings` — owned by the manager's pump. Only tracks
+ *    pump-lifecycle events (entry, loop exit) that the transport layer
+ *    can observe without inspecting chunk payloads.
+ *  - `SemanticTimings` — owned by the consumer that cares (today
+ *    `PersistenceListener`). Tracks AI-SDK-specific chunk transitions
+ *    (first `text-delta`, reasoning boundaries). Lives on the listener
+ *    side so the manager never hardcodes `chunk.type === 'text-delta'`.
+ *
+ * `statsFromTerminal` accepts the merged union — the listener combines
+ * its own `SemanticTimings` with the `TransportTimings` it received via
+ * `StreamDoneResult` / `StreamPausedResult` / `StreamErrorResult`.
+ *
+ * All fields are `performance.now()` values (milliseconds, fractional,
+ * unaffected by wall-clock adjustments).
+ */
+export interface TransportTimings {
+  /** Pump entry — set once before any chunk is read. */
+  readonly startedAt: number
+  /** Pump loop exit — covers done / paused / error. */
+  completedAt?: number
+}
+
+export interface SemanticTimings {
+  /** First `text-delta` chunk — TTFT measurement endpoint. */
+  firstTextAt?: number
+  /** First `reasoning-*` chunk — thinking phase start. */
+  reasoningStartedAt?: number
+  /**
+   * End of reasoning phase. Listener sets this on the first non-reasoning
+   * chunk after reasoning started; if the execution finishes while still
+   * in reasoning, `statsFromTerminal` falls back to `completedAt`.
+   */
+  reasoningEndedAt?: number
+}
+
 /** Terminal state passed to `onDone`. */
 export interface StreamDoneResult {
   finalMessage?: CherryUIMessage
@@ -44,6 +83,8 @@ export interface StreamDoneResult {
   modelId?: UniqueModelId
   /** True when ALL executions in the topic are done. */
   isTopicDone?: boolean
+  /** Transport-side timings captured by the pump. Listeners merge their own `SemanticTimings`. */
+  timings?: TransportTimings
 }
 
 /**
@@ -59,6 +100,7 @@ export interface StreamPausedResult {
   modelId?: UniqueModelId
   /** True when ALL executions in the topic are done. */
   isTopicDone?: boolean
+  timings?: TransportTimings
 }
 
 /**
@@ -74,6 +116,7 @@ export interface StreamErrorResult {
   status: 'error'
   modelId?: UniqueModelId
   isTopicDone?: boolean
+  timings?: TransportTimings
 }
 
 // ── StreamListener ──────────────────────────────────────────────────
@@ -154,6 +197,12 @@ export interface StreamExecution {
   siblingsGroupId?: number
   /** Backend-specific resume token (ClaudeCodeService). */
   sourceSessionId?: string
+  /**
+   * Transport-side timings owned by the pump. Semantic timings
+   * (`firstTextAt` / `reasoning*`) live on the listener that cares — the
+   * manager never inspects chunk payloads.
+   */
+  timings: TransportTimings
 }
 
 // ── ActiveStream ────────────────────────────────────────────────────

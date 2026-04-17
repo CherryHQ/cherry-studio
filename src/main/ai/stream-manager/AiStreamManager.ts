@@ -27,7 +27,8 @@ import type {
   StreamDoneResult,
   StreamErrorResult,
   StreamExecution,
-  StreamListener
+  StreamListener,
+  TransportTimings
 } from './types'
 
 const logger = loggerService.withContext('AiStreamManager')
@@ -82,6 +83,12 @@ export interface ExecutionSnapshot {
    * carry the same reference. `undefined` until the first snapshot lands.
    */
   readonly finalMessage?: CherryUIMessage
+  /**
+   * Transport-side timings (`startedAt` / `completedAt`). Semantic
+   * timings live on the listener that cares — the manager is
+   * chunk-shape-agnostic by design.
+   */
+  readonly timings: TransportTimings
 }
 
 export interface TopicSnapshot {
@@ -304,6 +311,11 @@ export class AiStreamManager extends BaseService {
     const exec = stream.executions.get(modelId)
     if (!exec) return
 
+    // Intentionally chunk-shape-agnostic: the manager only observes the
+    // transport envelope (modelId, buffer bookkeeping, fan-out). Any
+    // semantic timing (first text, reasoning boundaries) is the job of
+    // the listener that cares — see `PersistenceListener.onChunk`.
+
     const sourceModelId = stream.isMultiModel ? modelId : undefined
 
     // Ring-buffer into *this execution's* buffer so a chatty model cannot
@@ -400,7 +412,8 @@ export class AiStreamManager extends BaseService {
       finalMessage: exec.finalMessage,
       status: 'error',
       modelId: exec.modelId,
-      isTopicDone
+      isTopicDone,
+      timings: { ...exec.timings }
     }
     await this.dispatchToListeners(stream, 'onError', (listener) => listener.onError(result))
 
@@ -431,7 +444,8 @@ export class AiStreamManager extends BaseService {
         bufferedChunkCount: exec.buffer.length,
         droppedChunks: exec.droppedChunks,
         siblingsGroupId: exec.siblingsGroupId,
-        finalMessage: exec.finalMessage
+        finalMessage: exec.finalMessage,
+        timings: { ...exec.timings }
       })
     }
 
@@ -531,7 +545,8 @@ export class AiStreamManager extends BaseService {
       pendingMessages,
       buffer: [],
       droppedChunks: 0,
-      siblingsGroupId
+      siblingsGroupId,
+      timings: { startedAt: performance.now() }
     }
     const requestWithQueue: AiStreamRequest = { ...request, pendingMessages }
 
@@ -595,6 +610,11 @@ export class AiStreamManager extends BaseService {
         this.onChunk(topicId, modelId, value)
       }
 
+      // Close the completion timestamp *before* draining the accumulator —
+      // the provider's stream has already ended; accumulator drain is
+      // purely internal bookkeeping and shouldn't inflate TTFT-style stats.
+      exec.timings.completedAt = performance.now()
+
       // Let the accumulator drain any chunks still queued behind the
       // broadcast reader, so `exec.finalMessage` reflects the latest
       // yield before we fire the terminal event.
@@ -610,6 +630,7 @@ export class AiStreamManager extends BaseService {
       // few more chunks before the stream errored. `exec.finalMessage` will
       // be whatever it managed to capture (possibly undefined if the stream
       // errored before yielding anything).
+      exec.timings.completedAt ??= performance.now()
       await accumulator
 
       if (signal.aborted) {
@@ -669,7 +690,10 @@ export class AiStreamManager extends BaseService {
       finalMessage: exec.finalMessage,
       status: 'success',
       modelId: exec.modelId,
-      isTopicDone
+      isTopicDone,
+      // Snapshot timings so listeners see a stable copy even if the
+      // execution object is mutated after dispatch.
+      timings: { ...exec.timings }
     }
     await this.dispatchToListeners(stream, 'onDone', (listener) => listener.onDone(result))
   }
@@ -683,7 +707,8 @@ export class AiStreamManager extends BaseService {
       finalMessage: exec.finalMessage,
       status: 'paused' as const,
       modelId: exec.modelId,
-      isTopicDone
+      isTopicDone,
+      timings: { ...exec.timings }
     }
     await this.dispatchToListeners(stream, 'onPaused', (listener) => listener.onPaused(result))
   }

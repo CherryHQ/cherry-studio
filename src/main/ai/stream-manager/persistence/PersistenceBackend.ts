@@ -14,10 +14,23 @@
  * before calling the backend, so backends never need to know how to
  * synthesise an error-shaped UIMessage — they just persist whatever
  * accumulated parts they receive with the right status.
+ *
+ * Stats composition (tokens + timings → `MessageStats`) also lives in
+ * the listener — backends receive the final `stats` ready-to-store and
+ * never repeat the projection logic.
  */
 
-import type { CherryUIMessage } from '@shared/data/types/message'
+import type { CherryUIMessage, MessageStats } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
+
+import type { SemanticTimings, TransportTimings } from '../types'
+
+/**
+ * Merged timings for stats projection. `TransportTimings` comes from the
+ * stream-manager pump; `SemanticTimings` comes from the listener that
+ * observes chunk payloads (today `PersistenceListener`).
+ */
+export type StatsTimings = TransportTimings & SemanticTimings
 
 export interface PersistAssistantInput {
   /**
@@ -29,6 +42,12 @@ export interface PersistAssistantInput {
   status: 'success' | 'paused' | 'error'
   /** Set when the topic is multi-model, so backends can tell executions apart. */
   modelId?: UniqueModelId
+  /**
+   * Composed `MessageStats` ready to persist. Produced by the listener via
+   * `statsFromTerminal(finalMessage, timings)`; backends write it as-is
+   * without any per-backend projection logic.
+   */
+  stats?: MessageStats
 }
 
 export interface PersistenceBackend {
@@ -44,4 +63,51 @@ export interface PersistenceBackend {
    * listener (best-effort, never retried).
    */
   afterPersist?(finalMessage: CherryUIMessage): Promise<void>
+}
+
+/**
+ * Project terminal data onto `MessageStats`:
+ *  - token counts come from `finalMessage.metadata` (agentLoop's
+ *    `messageMetadata` callback populates these on the `finish` chunk;
+ *    see `CherryUIMessageMetadata` for the field mapping);
+ *  - durations come from the merged `StatsTimings` (monotonic
+ *    `performance.now()` deltas, rounded to integer milliseconds).
+ *    Transport fields (`startedAt` / `completedAt`) are filled by the
+ *    stream-manager pump; semantic fields (`firstTextAt` /
+ *    `reasoning*`) are filled by the calling listener — see
+ *    `PersistenceListener` for the canonical producer.
+ *
+ * `timeThinkingMs` is intentionally **not** projected: the underlying
+ * `reasoningStartedAt` → `reasoningEndedAt` wall-clock can include tool
+ * execution time that interleaves reasoning and text chunks. Writing a
+ * polluted "thinking time" to the DB would be worse than leaving the
+ * column empty — see the `stream-stats-followup` TODO in `agentLoop.ts`
+ * for the precise subtraction path using AI SDK's
+ * `onToolCallFinish.durationMs`.
+ */
+export function statsFromTerminal(
+  finalMessage: CherryUIMessage | undefined,
+  timings: StatsTimings | undefined
+): MessageStats | undefined {
+  const stats: MessageStats = {}
+
+  const meta = finalMessage?.metadata
+  if (meta && typeof meta === 'object') {
+    if (typeof meta.totalTokens === 'number') stats.totalTokens = meta.totalTokens
+    if (typeof meta.promptTokens === 'number') stats.promptTokens = meta.promptTokens
+    if (typeof meta.completionTokens === 'number') stats.completionTokens = meta.completionTokens
+    if (typeof meta.thoughtsTokens === 'number') stats.thoughtsTokens = meta.thoughtsTokens
+  }
+
+  if (timings) {
+    if (timings.firstTextAt != null) {
+      stats.timeFirstTokenMs = Math.round(timings.firstTextAt - timings.startedAt)
+    }
+    if (timings.completedAt != null) {
+      stats.timeCompletionMs = Math.round(timings.completedAt - timings.startedAt)
+    }
+    // timeThinkingMs deliberately omitted — see doc comment above.
+  }
+
+  return Object.keys(stats).length > 0 ? stats : undefined
 }
