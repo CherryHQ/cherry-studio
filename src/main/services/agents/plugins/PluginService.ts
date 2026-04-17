@@ -1,6 +1,7 @@
 import * as crypto from 'node:crypto'
 
 import { loggerService } from '@logger'
+import { getDataPath } from '@main/utils'
 import { directoryExists, fileExists, isPathInside, pathExists } from '@main/utils/file'
 import { deleteDirectoryRecursive } from '@main/utils/fileOperations'
 import {
@@ -691,6 +692,18 @@ export class PluginService {
 
     const plugins = await this.listInstalledFromCache(workdir)
 
+    // Also include globally installed plugins from the default workspace
+    const defaultWorkdir = this.getDefaultWorkdir(agent.id)
+    if (defaultWorkdir !== workdir && (await directoryExists(defaultWorkdir))) {
+      const globalPlugins = await this.listInstalledFromCache(defaultWorkdir)
+      const existingNames = new Set(plugins.map((p) => p.metadata.name))
+      for (const gp of globalPlugins) {
+        if (!existingNames.has(gp.metadata.name)) {
+          plugins.push(gp)
+        }
+      }
+    }
+
     logger.debug('Listed installed plugins from cache', {
       agentId,
       count: plugins.length
@@ -709,6 +722,7 @@ export class PluginService {
     const workdir = this.getWorkdirOrThrow(agent, agentId)
     await this.validateWorkdir(agent, workdir)
 
+    // Collect plugins from custom workdir
     const installedPlugins = await this.listInstalledFromCache(workdir)
     const packageNames = new Set<string>()
 
@@ -716,10 +730,6 @@ export class PluginService {
       if (plugin.metadata.packageName) {
         packageNames.add(this.sanitizeFolderName(plugin.metadata.packageName))
       }
-    }
-
-    if (packageNames.size === 0) {
-      return []
     }
 
     const pluginPaths: string[] = []
@@ -732,6 +742,25 @@ export class PluginService {
         pluginPaths.push(pluginPath)
       } else {
         logger.warn('Skipping plugin without manifest', { pluginPath, manifestPath })
+      }
+    }
+
+    // Also include plugin packages from the default workspace
+    const defaultWorkdir = this.getDefaultWorkdir(agent.id)
+    if (defaultWorkdir !== workdir && (await directoryExists(defaultWorkdir))) {
+      const globalPlugins = await this.listInstalledFromCache(defaultWorkdir)
+      for (const plugin of globalPlugins) {
+        if (plugin.metadata.packageName) {
+          const folderName = this.sanitizeFolderName(plugin.metadata.packageName)
+          if (!packageNames.has(folderName)) {
+            packageNames.add(folderName)
+            const pluginPath = path.join(defaultWorkdir, '.claude', 'plugins', folderName)
+            const manifestPath = path.join(pluginPath, '.claude-plugin', 'plugin.json')
+            if (await fileExists(manifestPath)) {
+              pluginPaths.push(pluginPath)
+            }
+          }
+        }
       }
     }
 
@@ -1583,6 +1612,15 @@ export class PluginService {
       } as PluginError
     }
     return workdir
+  }
+
+  /**
+   * Get the default workspace path for an agent (where globally installed plugins reside).
+   * Mirrors BaseService.resolveAccessiblePaths default logic.
+   */
+  private getDefaultWorkdir(agentId: string): string {
+    const shortId = agentId.substring(agentId.length - 9)
+    return path.join(getDataPath(), 'Agents', shortId)
   }
 
   /**
