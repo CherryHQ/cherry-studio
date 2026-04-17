@@ -5,6 +5,16 @@
  * - Tag CRUD operations
  * - Entity-tag association management (get by entity, sync, bulk set)
  *
+ * USAGE GUIDANCE (read before wiring new call sites):
+ * - Tag DataApi (handlers/tags.ts) is for managing tags themselves: create, rename,
+ *   delete, and CRUD-ing entity↔tag associations from UI flows that directly manage tags.
+ * - TagService (this class) backs that DataApi and is also the canonical place for
+ *   entity services to keep associations in sync on create/update/delete.
+ * - For READ paths that only need "entity X with its tags" (lists, cards, badges),
+ *   DO NOT call TagService.getTagsByEntity per entity. JOIN `entity_tag` + `tag` inline
+ *   in the owning entity's query (single round-trip). That is the fastest and correct
+ *   pattern; TagService reads are scoped to tag-management flows.
+ *
  * IMPORTANT: `entity_tag` is polymorphic and has no FK to assistant/topic/session tables.
  * Callers deleting tagged entities must invoke `removeEntityTags()` as part of their delete workflow.
  * TODO(v2): Wire session cleanup through this helper once the session table is migrated into the v2 data layer.
