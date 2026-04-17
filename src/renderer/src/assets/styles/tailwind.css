@@ -3,7 +3,7 @@
 @import '@cherrystudio/ui/styles/theme.css';
 @import './legacy-vars.css';
 
-@source '../../../../../packages/ui/dist/**/*.{js,mjs}';
+@source '../../../../../packages/ui/src/**/*.{js,ts,jsx,tsx}';
 @custom-variant dark (&:is(.dark *));
 
 /*
