@@ -32,6 +32,27 @@ import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 const logger = loggerService.withContext('DataApi:MessageService')
 
 /**
+ * Input for `reserveAssistantTurn` — one "chat turn" reservation.
+ *
+ * Placeholders have `parentId` and `siblingsGroupId` intentionally omitted:
+ * both are derived by the reservation (placeholders always hang off the user
+ * message, and share the turn's group).
+ */
+export interface ReserveAssistantTurnInput {
+  topicId: string
+  userMessage: { mode: 'create'; dto: CreateMessageDto } | { mode: 'existing'; id: string }
+  /** If set, placeholders use this group and existing children with groupId=0 are backfilled. */
+  siblingsGroupId?: number
+  placeholders: Array<Omit<CreateMessageDto, 'parentId' | 'siblingsGroupId' | 'setAsActive'>>
+}
+
+export interface ReserveAssistantTurnResult {
+  userMessage: Message
+  /** In the same order as `input.placeholders`. */
+  placeholders: Message[]
+}
+
+/**
  * Preview length for tree nodes
  */
 const PREVIEW_LENGTH = 50
@@ -647,6 +668,140 @@ export class MessageService {
       logger.info('Created message', { id: row.id, topicId, role: dto.role, setAsActive: dto.setAsActive !== false })
 
       return rowToMessage(row)
+    })
+  }
+
+  /**
+   * Atomically reserve an assistant turn: insert (or resolve) one user message,
+   * optionally backfill existing siblings with groupId=0, and insert N assistant
+   * placeholders as children, then point topic.activeNodeId at the last placeholder.
+   *
+   * The whole operation runs in a single DB transaction, so a failure anywhere
+   * rolls back everything — callers don't need compensation logic. Designed for
+   * the AI Stream reservation phase where multi-model / regenerate turns must be
+   * written as one unit to avoid orphaned user messages or pending placeholders.
+   *
+   * User message handling:
+   * - `mode: 'create'`: caller supplies a CreateMessageDto; parentId must be null
+   *   (for root) or an existing message id in this topic. Auto-resolve is not
+   *   supported here — this API is for chat reservation, not general inserts.
+   * - `mode: 'existing'`: caller supplies the id of an already-persisted user
+   *   message (regenerate scenario).
+   *
+   * Siblings backfill: if `siblingsGroupId` is provided, any existing children
+   * of the user message whose `siblingsGroupId = 0` are backfilled to it. This
+   * is a no-op when there are no existing children (fresh turn) or when they
+   * already belong to a group (inherit case).
+   */
+  async reserveAssistantTurn(input: ReserveAssistantTurnInput): Promise<ReserveAssistantTurnResult> {
+    const db = application.get('DbService').getDb()
+
+    return await db.transaction(async (tx) => {
+      // Validate topic
+      const [topic] = await tx.select().from(topicTable).where(eq(topicTable.id, input.topicId)).limit(1)
+      if (!topic) {
+        throw DataApiErrorFactory.notFound('Topic', input.topicId)
+      }
+
+      // 1. Resolve user message — insert new, or fetch existing
+      let userMessage: Message
+      if (input.userMessage.mode === 'create') {
+        const dto = input.userMessage.dto
+        let resolvedParentId: string | null
+
+        if (dto.parentId === undefined || dto.parentId === null) {
+          // Explicit/default root: enforce single-root invariant
+          const [existingRoot] = await tx
+            .select({ id: messageTable.id })
+            .from(messageTable)
+            .where(and(eq(messageTable.topicId, input.topicId), isNull(messageTable.parentId)))
+            .limit(1)
+          if (existingRoot) {
+            throw DataApiErrorFactory.invalidOperation('create root message', 'Topic already has a root message')
+          }
+          resolvedParentId = null
+        } else {
+          const [parent] = await tx.select().from(messageTable).where(eq(messageTable.id, dto.parentId)).limit(1)
+          if (!parent) {
+            throw DataApiErrorFactory.notFound('Message', dto.parentId)
+          }
+          if (parent.topicId !== input.topicId) {
+            throw DataApiErrorFactory.invalidOperation('create message', 'Parent message does not belong to this topic')
+          }
+          resolvedParentId = dto.parentId
+        }
+
+        const [row] = await tx
+          .insert(messageTable)
+          .values({
+            topicId: input.topicId,
+            parentId: resolvedParentId,
+            role: dto.role,
+            data: dto.data,
+            status: dto.status ?? 'pending',
+            siblingsGroupId: dto.siblingsGroupId ?? 0,
+            modelId: dto.modelId,
+            modelSnapshot: dto.modelSnapshot,
+            traceId: dto.traceId,
+            stats: dto.stats
+          })
+          .returning()
+        userMessage = rowToMessage(row)
+      } else {
+        const [row] = await tx.select().from(messageTable).where(eq(messageTable.id, input.userMessage.id)).limit(1)
+        if (!row) {
+          throw DataApiErrorFactory.notFound('Message', input.userMessage.id)
+        }
+        if (row.topicId !== input.topicId) {
+          throw DataApiErrorFactory.invalidOperation(
+            'reserve assistant turn',
+            'User message does not belong to this topic'
+          )
+        }
+        userMessage = rowToMessage(row)
+      }
+
+      // 2. Backfill siblings with groupId=0 under the user message
+      if (input.siblingsGroupId != null) {
+        await tx
+          .update(messageTable)
+          .set({ siblingsGroupId: input.siblingsGroupId })
+          .where(and(eq(messageTable.parentId, userMessage.id), eq(messageTable.siblingsGroupId, 0)))
+      }
+
+      // 3. Insert placeholders (preserving input order)
+      const placeholders: Message[] = []
+      for (const p of input.placeholders) {
+        const [row] = await tx
+          .insert(messageTable)
+          .values({
+            topicId: input.topicId,
+            parentId: userMessage.id,
+            role: p.role,
+            data: p.data,
+            status: p.status ?? 'pending',
+            siblingsGroupId: input.siblingsGroupId ?? 0,
+            modelId: p.modelId,
+            modelSnapshot: p.modelSnapshot,
+            traceId: p.traceId,
+            stats: p.stats
+          })
+          .returning()
+        placeholders.push(rowToMessage(row))
+      }
+
+      // 4. Point activeNodeId at the last placeholder (or user message if N=0)
+      const newActiveNodeId = placeholders.at(-1)?.id ?? userMessage.id
+      await tx.update(topicTable).set({ activeNodeId: newActiveNodeId }).where(eq(topicTable.id, input.topicId))
+
+      logger.info('Reserved assistant turn', {
+        topicId: input.topicId,
+        userMessageId: userMessage.id,
+        placeholderIds: placeholders.map((p) => p.id),
+        siblingsGroupId: input.siblingsGroupId
+      })
+
+      return { userMessage, placeholders }
     })
   }
 

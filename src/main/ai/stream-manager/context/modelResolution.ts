@@ -26,11 +26,12 @@ export async function resolveModels(
 }
 
 /**
- * Compute the siblingsGroupId for this turn.
+ * Compute the siblingsGroupId for this turn. Pure read — no writes.
  *
  * - Multi-model: always a fresh group id so parallel responses are rendered as siblings.
- * - Regenerate: inherit existing sibling group if present, otherwise allocate a new one
- *   and backfill existing children so the new response joins the group.
+ * - Regenerate: inherit existing sibling group if present, otherwise allocate a new one.
+ *   The actual backfill of existing children with `siblingsGroupId = 0` is handled
+ *   atomically inside `messageService.reserveAssistantTurn`.
  * - Single-model fresh turn: undefined (no sibling grouping needed).
  *
  * Persistent-topic only helper; temporary topics have no branching / siblings concept.
@@ -45,11 +46,5 @@ export async function resolvePersistentSiblingsGroupId(
 
   const children = await messageService.getChildrenByParentId(userMessageId)
   const existingGroup = children.find((m) => m.siblingsGroupId > 0)?.siblingsGroupId
-  const groupId = existingGroup ?? Date.now()
-  for (const child of children) {
-    if (child.siblingsGroupId === 0) {
-      await messageService.updateSiblingsGroupId(child.id, groupId)
-    }
-  }
-  return groupId
+  return existingGroup ?? Date.now()
 }
