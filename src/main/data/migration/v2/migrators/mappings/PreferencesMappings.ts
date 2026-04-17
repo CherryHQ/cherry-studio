@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-04-16T03:52:21.706Z
+ * Generated at: 2026-04-17T13:24:59.272Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in packages/shared/data/preferences.ts
@@ -689,6 +689,76 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'feature.selection.action_items'
     }
   ],
+  memory: [
+    {
+      originalKey: 'globalMemoryEnabled',
+      targetKey: 'feature.memory.enabled'
+    },
+    {
+      originalKey: 'memoryProvider',
+      targetKey: 'feature.memory.provider'
+    },
+    {
+      originalKey: 'memoryBankStrategy',
+      targetKey: 'feature.memory.bank_strategy'
+    },
+    {
+      originalKey: 'currentUserId',
+      targetKey: 'feature.memory.current_user_id'
+    },
+    {
+      originalKey: 'autoRetainDebounceMs',
+      targetKey: 'feature.memory.auto_retain_debounce_ms'
+    },
+    {
+      originalKey: 'autoRetainBatchSize',
+      targetKey: 'feature.memory.auto_retain_batch_size'
+    },
+    {
+      originalKey: 'hindsightBaseUrl',
+      targetKey: 'feature.memory.hindsight.base_url'
+    },
+    {
+      originalKey: 'hindsightApiKey',
+      targetKey: 'feature.memory.hindsight.api_key'
+    },
+    {
+      originalKey: 'hindsightDefaultBankPrefix',
+      targetKey: 'feature.memory.hindsight.default_bank_prefix'
+    },
+    {
+      originalKey: 'hindsightReflectEnabled',
+      targetKey: 'feature.memory.hindsight.reflect_enabled'
+    },
+    {
+      originalKey: 'hindsightTimeoutMs',
+      targetKey: 'feature.memory.hindsight.timeout_ms'
+    },
+    {
+      originalKey: 'libsqlEmbedderModel',
+      targetKey: 'feature.memory.libsql.embedder_model'
+    },
+    {
+      originalKey: 'libsqlEmbedderDimensions',
+      targetKey: 'feature.memory.libsql.embedder_dimensions'
+    },
+    {
+      originalKey: 'libsqlAutoDimensions',
+      targetKey: 'feature.memory.libsql.auto_dimensions'
+    },
+    {
+      originalKey: 'libsqlSimilarityThreshold',
+      targetKey: 'feature.memory.libsql.similarity_threshold'
+    },
+    {
+      originalKey: 'customFactExtractionPrompt',
+      targetKey: 'feature.memory.libsql.fact_extraction_prompt'
+    },
+    {
+      originalKey: 'customUpdateMemoryPrompt',
+      targetKey: 'feature.memory.libsql.update_memory_prompt'
+    }
+  ],
   nutstore: [
     {
       originalKey: 'nutstoreToken',
@@ -927,11 +997,11 @@ export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetK
 /**
  * 映射统计:
  * - ElectronStore项: 1
- * - Redux Store项: 205
- * - Redux分类: settings, selectionStore, nutstore, preprocess, shortcuts, translate, websearch, ocr, note
+ * - Redux Store项: 222
+ * - Redux分类: settings, selectionStore, memory, nutstore, preprocess, shortcuts, translate, websearch, ocr, note
  * - DexieSettings项: 7
  * - localStorage项: 0
- * - 总配置项: 213
+ * - 总配置项: 230
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)

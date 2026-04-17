@@ -928,6 +928,11 @@
         "noServersAvailable": "無可用 MCP 伺服器。請在設定中新增伺服器",
         "title": "MCP 設定"
       },
+      "memory": {
+        "enable": "為此助手啟用記憶",
+        "enable_description": "啟用後，此助手將保留對話記憶，並在聊天時喚回相關上下文。",
+        "not_configured": "記憶功能未啟用。請先在 設定 → 記憶 中啟用它。"
+      },
       "model": "模型設定",
       "more": "助手設定",
       "prompt": "提示詞設定",
@@ -4885,6 +4890,67 @@
       "updateSuccess": "伺服器更新成功",
       "url": "URL",
       "user": "使用者"
+    },
+    "memory": {
+      "auto_retain_description": "對話輪次在防抖間隔後批次儲存。調整以平衡延遲和 API 呼叫頻率。",
+      "auto_retain_title": "自動儲存調校",
+      "bank_strategy": "記憶範圍",
+      "batch_size": "批次大小",
+      "browser": {
+        "confirm_delete_all": "確認刪除所有記憶？此操作無法復原。",
+        "delete_all": "全部刪除",
+        "empty": "尚無儲存的記憶。",
+        "loading": "正在載入記憶…",
+        "reflect_btn": "反思",
+        "reflect_description": "讓 Hindsight 分析並綜合儲存記憶中的洞見。",
+        "reflect_error": "反思失敗，請檢查伺服器連線。",
+        "reflect_placeholder": "例如：我的主要偏好是什麼？",
+        "reflect_title": "反思",
+        "refresh": "重新整理",
+        "search_placeholder": "篩選記憶…"
+      },
+      "browser_title": "記憶瀏覽器",
+      "coming_soon": "[to be translated]:Coming soon",
+      "debounce_ms": "防抖間隔（毫秒）",
+      "enabled": "啟用記憶",
+      "enabled_description": "允許 Cherry Studio 保留對話上下文，並在聊天時喚回相關記憶。",
+      "hindsight": {
+        "api_key": "API 金鑰",
+        "api_key_placeholder": "本機伺服器可留空",
+        "bank_prefix": "Bank 前綴",
+        "base_url": "伺服器 URL",
+        "base_url_hint": "[to be translated]:Base URL only — do not include /mcp/... paths or a trailing slash. Examples: http://localhost:8888 (local Docker) or https://api.hindsight.example.com (Cloud).",
+        "description": "連接至自託管的 Hindsight 伺服器或 Hindsight Cloud。",
+        "reflect_enabled": "在記憶瀏覽器中啟用 Reflect",
+        "test_connection": "測試連線",
+        "test_error": "連線失敗，請檢查 URL 和 API 金鑰。",
+        "test_ok": "連線成功",
+        "testing": "測試中…",
+        "timeout": "請求逾時（毫秒）",
+        "title": "Hindsight 伺服器"
+      },
+      "libsql": {
+        "auto_dimensions": "自動偵測維度",
+        "description": "使用向量搜尋將記憶儲存在本機裝置上。",
+        "embedder_dimensions": "嵌入維度",
+        "embedder_model": "嵌入模型 ID",
+        "embedder_model_placeholder": "例如 text-embedding-3-small",
+        "similarity_threshold": "相似度閾值",
+        "title": "內建提供商（LibSQL）"
+      },
+      "provider": "記憶提供商",
+      "provider_hindsight": "Hindsight",
+      "provider_libsql": "內建 (LibSQL)",
+      "provider_off": "已停用",
+      "provider_off_tip": "請選擇一個提供商開始使用。Hindsight 提供具有實體追蹤和時序推理能力的先進長期記憶。",
+      "provider_title": "提供商",
+      "scope_title": "範圍與身份",
+      "strategy_global": "全域（共享）",
+      "strategy_per_assistant": "按助手",
+      "strategy_per_topic": "按話題",
+      "strategy_per_user": "按使用者",
+      "title": "記憶",
+      "user_id": "目前使用者 ID"
     },
     "messages": {
       "divider": {

@@ -484,5 +484,18 @@ export enum IpcChannel {
   WindowManager_Maximize = 'window-manager:maximize',
   WindowManager_Focus = 'window-manager:focus',
   WindowManager_GetInitData = 'window-manager:get-init-data',
-  WindowManager_PoolReset = 'window-manager:pool-reset'
+  WindowManager_PoolReset = 'window-manager:pool-reset',
+
+  // Memory
+  Memory_Add = 'memory:add',
+  Memory_Search = 'memory:search',
+  Memory_Reflect = 'memory:reflect',
+  Memory_List = 'memory:list',
+  Memory_Get = 'memory:get',
+  Memory_Update = 'memory:update',
+  Memory_Delete = 'memory:delete',
+  Memory_DeleteAll = 'memory:delete-all',
+  Memory_Capabilities = 'memory:capabilities',
+  Memory_HealthCheck = 'memory:health-check',
+  Memory_ListUsers = 'memory:list-users'
 }

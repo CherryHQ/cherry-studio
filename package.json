@@ -97,6 +97,7 @@
     "@paymoapp/electron-shutdown-handler": "1.1.2",
     "@vectorstores/core": "^0.1.8",
     "@vectorstores/libsql": "workspace:*",
+    "@vectorize-io/hindsight-client": "^0.5.2",
     "@vectorstores/readers": "^0.1.8",
     "cron-parser": "^5.0.8",
     "drizzle-zod": "^0.8.3",

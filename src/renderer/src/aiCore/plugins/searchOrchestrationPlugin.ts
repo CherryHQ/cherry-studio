@@ -13,8 +13,10 @@ import {
   type StreamTextParams,
   type StreamTextResult
 } from '@cherrystudio/ai-core'
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { getDefaultModel, getProviderByModel } from '@renderer/services/AssistantService'
+import { autoRetainScheduler } from '@renderer/services/memory/AutoRetainScheduler'
 import type { Assistant } from '@renderer/types'
 import type { ExtractResults } from '@renderer/utils/extract'
 import { extractInfoFromXML } from '@renderer/utils/extract'
@@ -29,6 +31,7 @@ import { generateText } from 'ai'
 import { isEmpty } from 'lodash'
 
 import { knowledgeSearchTool } from '../tools/KnowledgeSearchTool'
+import { memorySearchTool } from '../tools/MemorySearchTool'
 import { webSearchToolWithPreExtractedKeywords } from '../tools/WebSearchTool'
 
 const logger = loggerService.withContext('SearchOrchestrationPlugin')
@@ -288,6 +291,16 @@ export const searchOrchestrationPlugin = (
           }
         }
 
+        // 🧠 Memory search tool configuration
+        const memoryEnabled = await preferenceService.get('feature.memory.enabled')
+        const memoryProvider = await preferenceService.get('feature.memory.provider')
+        const shouldMemorySearch = memoryEnabled && memoryProvider !== 'off' && assistant.settings?.enableMemory
+
+        if (shouldMemorySearch) {
+          const userId = await preferenceService.get('feature.memory.current_user_id')
+          params.tools['builtin_memory_search'] = memorySearchTool(userId, assistant.id, topicId)
+        }
+
         // logger.info('🔧 Tools configured:', Object.keys(params.tools))
         return params
       } catch (error) {
@@ -298,6 +311,23 @@ export const searchOrchestrationPlugin = (
 
     onRequestEnd: async (context) => {
       try {
+        // 🧠 Memory auto-retain: schedule conversation turn for storage.
+        const memoryEnabled = await preferenceService.get('feature.memory.enabled')
+        const memoryProvider = await preferenceService.get('feature.memory.provider')
+        const assistantSettings = assistant.settings
+
+        if (memoryEnabled && memoryProvider !== 'off' && assistantSettings?.enableMemory) {
+          const lastUserMsg = userMessages[context.requestId]
+          if (lastUserMsg) {
+            const content = getMessageContent(lastUserMsg)
+            const debounceMs = (await preferenceService.get('feature.memory.auto_retain_debounce_ms')) ?? 1500
+            const batchSize = (await preferenceService.get('feature.memory.auto_retain_batch_size')) ?? 8
+            const userId = await preferenceService.get('feature.memory.current_user_id')
+
+            autoRetainScheduler.schedule(content, { userId, agentId: assistant.id, topicId }, debounceMs, batchSize)
+          }
+        }
+
         // 清理缓存
         delete intentAnalysisResults[context.requestId]
         delete userMessages[context.requestId]

@@ -3081,24 +3081,26 @@ const migrateConfig = {
   '189': (state: RootState) => {
     try {
       // void window.api.memory.migrateMemoryDb()
+
+      const legacyState = state as any
       // @ts-ignore
-      const memoryLlmApiClient = state?.memory?.memoryConfig?.llmApiClient
+      const memoryLlmApiClient = legacyState?.memory?.memoryConfig?.llmApiClient
       // @ts-ignore
-      const memoryEmbeddingApiClient = state?.memory?.memoryConfig?.embedderApiClient
+      const memoryEmbeddingApiClient = legacyState?.memory?.memoryConfig?.embedderApiClient
 
       if (memoryLlmApiClient) {
-        state.memory.memoryConfig.llmModel = getModel(memoryLlmApiClient.model, memoryLlmApiClient.provider)
+        legacyState.memory.memoryConfig.llmModel = getModel(memoryLlmApiClient.model, memoryLlmApiClient.provider)
         // @ts-ignore
-        delete state.memory.memoryConfig.llmApiClient
+        delete legacyState.memory.memoryConfig.llmApiClient
       }
 
       if (memoryEmbeddingApiClient) {
-        state.memory.memoryConfig.embeddingModel = getModel(
+        legacyState.memory.memoryConfig.embeddingModel = getModel(
           memoryEmbeddingApiClient.model,
           memoryEmbeddingApiClient.provider
         )
         // @ts-ignore
-        delete state.memory.memoryConfig.embedderApiClient
+        delete legacyState.memory.memoryConfig.embedderApiClient
       }
       return state
     } catch (error) {

@@ -928,6 +928,11 @@
         "noServersAvailable": "No MCP servers available. Add servers in settings",
         "title": "MCP Settings"
       },
+      "memory": {
+        "enable": "Enable Memory for this Assistant",
+        "enable_description": "When enabled, this assistant will retain conversation memories and recall relevant context during chat.",
+        "not_configured": "Memory is not enabled. Enable it in Settings → Memory first."
+      },
       "model": "Model Settings",
       "more": "Assistant Settings",
       "prompt": "Prompt Settings",
@@ -4885,6 +4890,67 @@
       "updateSuccess": "Server updated successfully",
       "url": "URL",
       "user": "User"
+    },
+    "memory": {
+      "auto_retain_description": "Conversation turns are batched and retained after a debounce interval.",
+      "auto_retain_title": "Auto-Retain Tuning",
+      "bank_strategy": "Memory Scope",
+      "batch_size": "Batch Size",
+      "browser": {
+        "confirm_delete_all": "Delete all memories? This cannot be undone.",
+        "delete_all": "Delete All",
+        "empty": "No memories stored yet.",
+        "loading": "Loading memories…",
+        "reflect_btn": "Reflect",
+        "reflect_description": "Ask Hindsight to analyse and synthesise insights from stored memories.",
+        "reflect_error": "Reflect failed. Check server connection.",
+        "reflect_placeholder": "e.g. What are my key preferences?",
+        "reflect_title": "Reflect",
+        "refresh": "Refresh",
+        "search_placeholder": "Filter memories…"
+      },
+      "browser_title": "Memory Browser",
+      "coming_soon": "Coming soon",
+      "debounce_ms": "Debounce Interval (ms)",
+      "enabled": "Enable Memory",
+      "enabled_description": "Allow Cherry Studio to retain conversation context and recall relevant memories during chat.",
+      "hindsight": {
+        "api_key": "API Key",
+        "api_key_placeholder": "Leave empty for local server",
+        "bank_prefix": "Bank Prefix",
+        "base_url": "Server URL",
+        "base_url_hint": "Base URL only — do not include /mcp/... paths or a trailing slash. Examples: http://localhost:8888 (local Docker) or https://api.hindsight.example.com (Cloud).",
+        "description": "Connect to a self-hosted Hindsight server or Hindsight Cloud.",
+        "reflect_enabled": "Enable Reflect in Memory Browser",
+        "test_connection": "Test Connection",
+        "test_error": "Connection failed. Check URL and API key.",
+        "test_ok": "Connected",
+        "testing": "Testing…",
+        "timeout": "Request Timeout (ms)",
+        "title": "Hindsight Server"
+      },
+      "libsql": {
+        "auto_dimensions": "Auto-detect Dimensions",
+        "description": "Local memory stored on this device using vector search.",
+        "embedder_dimensions": "Embedding Dimensions",
+        "embedder_model": "Embedding Model ID",
+        "embedder_model_placeholder": "e.g. text-embedding-3-small",
+        "similarity_threshold": "Similarity Threshold",
+        "title": "Built-in Provider (LibSQL)"
+      },
+      "provider": "Memory Provider",
+      "provider_hindsight": "Hindsight",
+      "provider_libsql": "Built-in (LibSQL)",
+      "provider_off": "Disabled",
+      "provider_off_tip": "Select a provider to get started. Hindsight offers state-of-the-art long-term memory with entity tracking and temporal reasoning.",
+      "provider_title": "Provider",
+      "scope_title": "Scope & Identity",
+      "strategy_global": "Global (shared)",
+      "strategy_per_assistant": "Per Assistant",
+      "strategy_per_topic": "Per Topic",
+      "strategy_per_user": "Per User",
+      "title": "Memory",
+      "user_id": "Current User ID"
     },
     "messages": {
       "divider": {

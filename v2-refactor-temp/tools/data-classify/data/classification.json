@@ -383,62 +383,140 @@
       ],
       "memory": [
         {
-          "originalKey": "memoryConfig",
-          "type": "unknown",
-          "defaultValue": "defaultMemoryConfig",
-          "status": "pending",
-          "category": null,
-          "targetKey": null,
-          "children": [
-            {
-              "category": "preferences",
-              "defaultValue": 1536,
-              "originalKey": "embedderDimensions",
-              "status": "pending",
-              "targetKey": "feature.memory.embedder_dimensions",
-              "type": "number"
-            },
-            {
-              "category": "preferences",
-              "defaultValue": true,
-              "originalKey": "isAutoDimensions",
-              "status": "pending",
-              "targetKey": "feature.memory.auto_dimensions",
-              "type": "boolean"
-            },
-            {
-              "category": "preferences",
-              "defaultValue": "VALUE: MEMORY_FACT_EXTRACTION_PROMPT",
-              "originalKey": "customFactExtractionPrompt",
-              "status": "pending",
-              "targetKey": "feature.memory.fact_extraction_prompt",
-              "type": "string"
-            },
-            {
-              "category": "preferences",
-              "defaultValue": "VALUE: MEMORY_UPDATE_SYSTEM_PROMPT",
-              "originalKey": "customUpdateMemoryPrompt",
-              "status": "pending",
-              "targetKey": "feature.memory.update_memory_prompt",
-              "type": "string"
-            }
-          ]
+          "originalKey": "globalMemoryEnabled",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.memory.enabled"
+        },
+        {
+          "originalKey": "memoryProvider",
+          "type": "string",
+          "defaultValue": "off",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.memory.provider"
+        },
+        {
+          "originalKey": "memoryBankStrategy",
+          "type": "string",
+          "defaultValue": "per_user",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.memory.bank_strategy"
         },
         {
           "originalKey": "currentUserId",
           "type": "string",
           "defaultValue": "default-user",
-          "status": "pending",
+          "status": "classified",
           "category": "preferences",
           "targetKey": "feature.memory.current_user_id"
         },
         {
-          "originalKey": "globalMemoryEnabled",
-          "type": "boolean",
-          "defaultValue": false,
-          "status": "pending",
+          "originalKey": "autoRetainDebounceMs",
+          "type": "number",
+          "defaultValue": 1500,
+          "status": "classified",
           "category": "preferences",
-          "targetKey": "feature.memory.enabled"
+          "targetKey": "feature.memory.auto_retain_debounce_ms"
+        },
+        {
+          "originalKey": "autoRetainBatchSize",
+          "type": "number",
+          "defaultValue": 8,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.memory.auto_retain_batch_size"
+        },
+        {
+          "originalKey": "hindsightBaseUrl",
+          "type": "string",
+          "defaultValue": "http://localhost:8888",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.memory.hindsight.base_url"
+        },
+        {
+          "originalKey": "hindsightApiKey",
+          "type": "string",
+          "defaultValue": "",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.memory.hindsight.api_key"
+        },
+        {
+          "originalKey": "hindsightDefaultBankPrefix",
+          "type": "string",
+          "defaultValue": "cherry",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.memory.hindsight.default_bank_prefix"
+        },
+        {
+          "originalKey": "hindsightReflectEnabled",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.memory.hindsight.reflect_enabled"
+        },
+        {
+          "originalKey": "hindsightTimeoutMs",
+          "type": "number",
+          "defaultValue": 10000,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.memory.hindsight.timeout_ms"
+        },
+        {
+          "originalKey": "libsqlEmbedderModel",
+          "type": "string",
+          "defaultValue": "",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.memory.libsql.embedder_model"
+        },
+        {
+          "originalKey": "libsqlEmbedderDimensions",
+          "type": "number",
+          "defaultValue": 1536,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.memory.libsql.embedder_dimensions"
+        },
+        {
+          "originalKey": "libsqlAutoDimensions",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.memory.libsql.auto_dimensions"
+        },
+        {
+          "originalKey": "libsqlSimilarityThreshold",
+          "type": "number",
+          "defaultValue": 0.85,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.memory.libsql.similarity_threshold"
+        },
+        {
+          "originalKey": "customFactExtractionPrompt",
+          "type": "string",
+          "defaultValue": "",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.memory.libsql.fact_extraction_prompt"
+        },
+        {
+          "originalKey": "customUpdateMemoryPrompt",
+          "type": "string",
+          "defaultValue": "",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.memory.libsql.update_memory_prompt"
         }
       ],
       "messageBlock": [],

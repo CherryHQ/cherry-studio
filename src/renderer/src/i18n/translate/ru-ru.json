@@ -928,6 +928,11 @@
         "noServersAvailable": "Нет доступных серверов MCP. Добавьте серверы в настройках",
         "title": "Настройки MCP"
       },
+      "memory": {
+        "enable": "[to be translated]:Enable Memory for this Assistant",
+        "enable_description": "[to be translated]:When enabled, this assistant will retain conversation memories and recall relevant context during chat.",
+        "not_configured": "[to be translated]:Memory is not enabled. Enable it in Settings → Memory first."
+      },
       "model": "Настройки модели",
       "more": "Настройки ассистента",
       "prompt": "Настройки промптов",
@@ -4885,6 +4890,67 @@
       "updateSuccess": "Сервер успешно обновлен",
       "url": "URL",
       "user": "Пользователь"
+    },
+    "memory": {
+      "auto_retain_description": "[to be translated]:Conversation turns are batched and retained after a debounce interval.",
+      "auto_retain_title": "[to be translated]:Auto-Retain Tuning",
+      "bank_strategy": "[to be translated]:Memory Scope",
+      "batch_size": "[to be translated]:Batch Size",
+      "browser": {
+        "confirm_delete_all": "[to be translated]:Delete all memories? This cannot be undone.",
+        "delete_all": "[to be translated]:Delete All",
+        "empty": "[to be translated]:No memories stored yet.",
+        "loading": "[to be translated]:Loading memories…",
+        "reflect_btn": "[to be translated]:Reflect",
+        "reflect_description": "[to be translated]:Ask Hindsight to analyse and synthesise insights from stored memories.",
+        "reflect_error": "[to be translated]:Reflect failed. Check server connection.",
+        "reflect_placeholder": "[to be translated]:e.g. What are my key preferences?",
+        "reflect_title": "[to be translated]:Reflect",
+        "refresh": "[to be translated]:Refresh",
+        "search_placeholder": "[to be translated]:Filter memories…"
+      },
+      "browser_title": "[to be translated]:Memory Browser",
+      "coming_soon": "[to be translated]:Coming soon",
+      "debounce_ms": "[to be translated]:Debounce Interval (ms)",
+      "enabled": "[to be translated]:Enable Memory",
+      "enabled_description": "[to be translated]:Allow Cherry Studio to retain conversation context and recall relevant memories during chat.",
+      "hindsight": {
+        "api_key": "[to be translated]:API Key",
+        "api_key_placeholder": "[to be translated]:Leave empty for local server",
+        "bank_prefix": "[to be translated]:Bank Prefix",
+        "base_url": "[to be translated]:Server URL",
+        "base_url_hint": "[to be translated]:Base URL only — do not include /mcp/... paths or a trailing slash. Examples: http://localhost:8888 (local Docker) or https://api.hindsight.example.com (Cloud).",
+        "description": "[to be translated]:Connect to a self-hosted Hindsight server or Hindsight Cloud.",
+        "reflect_enabled": "[to be translated]:Enable Reflect in Memory Browser",
+        "test_connection": "[to be translated]:Test Connection",
+        "test_error": "[to be translated]:Connection failed. Check URL and API key.",
+        "test_ok": "[to be translated]:Connected",
+        "testing": "[to be translated]:Testing…",
+        "timeout": "[to be translated]:Request Timeout (ms)",
+        "title": "[to be translated]:Hindsight Server"
+      },
+      "libsql": {
+        "auto_dimensions": "[to be translated]:Auto-detect Dimensions",
+        "description": "[to be translated]:Local memory stored on this device using vector search.",
+        "embedder_dimensions": "[to be translated]:Embedding Dimensions",
+        "embedder_model": "[to be translated]:Embedding Model ID",
+        "embedder_model_placeholder": "[to be translated]:e.g. text-embedding-3-small",
+        "similarity_threshold": "[to be translated]:Similarity Threshold",
+        "title": "[to be translated]:Built-in Provider (LibSQL)"
+      },
+      "provider": "[to be translated]:Memory Provider",
+      "provider_hindsight": "[to be translated]:Hindsight",
+      "provider_libsql": "[to be translated]:Built-in (LibSQL)",
+      "provider_off": "[to be translated]:Disabled",
+      "provider_off_tip": "[to be translated]:Select a provider to get started. Hindsight offers state-of-the-art long-term memory with entity tracking and temporal reasoning.",
+      "provider_title": "[to be translated]:Provider",
+      "scope_title": "[to be translated]:Scope & Identity",
+      "strategy_global": "[to be translated]:Global (shared)",
+      "strategy_per_assistant": "[to be translated]:Per Assistant",
+      "strategy_per_topic": "[to be translated]:Per Topic",
+      "strategy_per_user": "[to be translated]:Per User",
+      "title": "[to be translated]:Memory",
+      "user_id": "[to be translated]:Current User ID"
     },
     "messages": {
       "divider": {

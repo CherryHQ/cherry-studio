@@ -24,6 +24,7 @@ import { Route as SettingsQuickAssistantRouteImport } from './routes/settings/qu
 import { Route as SettingsProviderRouteImport } from './routes/settings/provider'
 import { Route as SettingsNotesRouteImport } from './routes/settings/notes'
 import { Route as SettingsModelRouteImport } from './routes/settings/model'
+import { Route as SettingsMemoryRouteImport } from './routes/settings/memory'
 import { Route as SettingsMcpRouteImport } from './routes/settings/mcp'
 import { Route as SettingsGeneralRouteImport } from './routes/settings/general'
 import { Route as SettingsDocprocessRouteImport } from './routes/settings/docprocess'
@@ -131,6 +132,11 @@ const SettingsNotesRoute = SettingsNotesRouteImport.update({
 const SettingsModelRoute = SettingsModelRouteImport.update({
   id: '/model',
   path: '/model',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsMemoryRoute = SettingsMemoryRouteImport.update({
+  id: '/memory',
+  path: '/memory',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsMcpRoute = SettingsMcpRouteImport.update({
@@ -319,6 +325,7 @@ export interface FileRoutesByFullPath {
   '/settings/docprocess': typeof SettingsDocprocessRoute
   '/settings/general': typeof SettingsGeneralRoute
   '/settings/mcp': typeof SettingsMcpRouteWithChildren
+  '/settings/memory': typeof SettingsMemoryRoute
   '/settings/model': typeof SettingsModelRoute
   '/settings/notes': typeof SettingsNotesRoute
   '/settings/provider': typeof SettingsProviderRoute
@@ -366,6 +373,7 @@ export interface FileRoutesByTo {
   '/settings/display': typeof SettingsDisplayRoute
   '/settings/docprocess': typeof SettingsDocprocessRoute
   '/settings/general': typeof SettingsGeneralRoute
+  '/settings/memory': typeof SettingsMemoryRoute
   '/settings/model': typeof SettingsModelRoute
   '/settings/notes': typeof SettingsNotesRoute
   '/settings/provider': typeof SettingsProviderRoute
@@ -415,6 +423,7 @@ export interface FileRoutesById {
   '/settings/docprocess': typeof SettingsDocprocessRoute
   '/settings/general': typeof SettingsGeneralRoute
   '/settings/mcp': typeof SettingsMcpRouteWithChildren
+  '/settings/memory': typeof SettingsMemoryRoute
   '/settings/model': typeof SettingsModelRoute
   '/settings/notes': typeof SettingsNotesRoute
   '/settings/provider': typeof SettingsProviderRoute
@@ -466,6 +475,7 @@ export interface FileRouteTypes {
     | '/settings/docprocess'
     | '/settings/general'
     | '/settings/mcp'
+    | '/settings/memory'
     | '/settings/model'
     | '/settings/notes'
     | '/settings/provider'
@@ -513,6 +523,7 @@ export interface FileRouteTypes {
     | '/settings/display'
     | '/settings/docprocess'
     | '/settings/general'
+    | '/settings/memory'
     | '/settings/model'
     | '/settings/notes'
     | '/settings/provider'
@@ -561,6 +572,7 @@ export interface FileRouteTypes {
     | '/settings/docprocess'
     | '/settings/general'
     | '/settings/mcp'
+    | '/settings/memory'
     | '/settings/model'
     | '/settings/notes'
     | '/settings/provider'
@@ -701,6 +713,13 @@ declare module '@tanstack/react-router' {
       path: '/model'
       fullPath: '/settings/model'
       preLoaderRoute: typeof SettingsModelRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/memory': {
+      id: '/settings/memory'
+      path: '/memory'
+      fullPath: '/settings/memory'
+      preLoaderRoute: typeof SettingsMemoryRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/mcp': {
@@ -1015,6 +1034,7 @@ interface SettingsRouteChildren {
   SettingsDocprocessRoute: typeof SettingsDocprocessRoute
   SettingsGeneralRoute: typeof SettingsGeneralRoute
   SettingsMcpRoute: typeof SettingsMcpRouteWithChildren
+  SettingsMemoryRoute: typeof SettingsMemoryRoute
   SettingsModelRoute: typeof SettingsModelRoute
   SettingsNotesRoute: typeof SettingsNotesRoute
   SettingsProviderRoute: typeof SettingsProviderRoute
@@ -1037,6 +1057,7 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsDocprocessRoute: SettingsDocprocessRoute,
   SettingsGeneralRoute: SettingsGeneralRoute,
   SettingsMcpRoute: SettingsMcpRouteWithChildren,
+  SettingsMemoryRoute: SettingsMemoryRoute,
   SettingsModelRoute: SettingsModelRoute,
   SettingsNotesRoute: SettingsNotesRoute,
   SettingsProviderRoute: SettingsProviderRoute,

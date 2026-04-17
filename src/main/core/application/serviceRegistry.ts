@@ -14,6 +14,7 @@ import { KnowledgeOrchestrationService, KnowledgeRuntimeService } from '@main/se
 import { KnowledgeVectorStoreService } from '@main/services/knowledge/vectorstore/KnowledgeVectorStoreService'
 import { LanTransferService } from '@main/services/lanTransfer'
 import { MCPService } from '@main/services/MCPService'
+import { MemoryService } from '@main/services/memory/MemoryService'
 import { NodeTraceService } from '@main/services/NodeTraceService'
 import { OcrService } from '@main/services/ocr/OcrService'
 import { OpenClawService } from '@main/services/OpenClawService'
@@ -87,6 +88,7 @@ export const services = {
   KnowledgeOrchestrationService,
   KnowledgeVectorStoreService,
   KnowledgeRuntimeService,
+  MemoryService,
   AgentBootstrapService,
   ApiServerService,
   AppUpdaterService

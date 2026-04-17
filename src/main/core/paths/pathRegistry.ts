@@ -116,6 +116,9 @@ export function buildPathRegistry() {
     'feature.agents.workspaces': path.join(appUserDataData, 'Agents'), // per-agent workspace parent
     'feature.agents.builtin': path.join(appRootResources, 'builtin-agents'), // bundled agent templates (read-only)
 
+    // Memory
+    'feature.memory.db_file': path.join(appUserDataData, 'memory.db'),
+
     // Files / Notes / Knowledgebase
     'feature.files.data': path.join(appUserDataData, 'Files'),
     'feature.notes.data': path.join(appUserDataData, 'Notes'),

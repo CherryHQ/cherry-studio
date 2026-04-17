@@ -197,6 +197,7 @@ export type AssistantSettings = {
   toolUseMode: 'function' | 'prompt'
   maxToolCalls?: number
   enableMaxToolCalls?: boolean
+  enableMemory?: boolean
 }
 
 export type AssistantPreset = Omit<Assistant, 'model'> & {

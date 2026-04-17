@@ -69,6 +69,11 @@ export const AssistantSettingsSchema = z.object({
   /** @default false */
   enableWebSearch: z.boolean().default(false),
 
+  /** Enable memory retrieval and auto-retain for this assistant.
+   *  Requires global memory to be enabled (feature.memory.enabled).
+   *  @default false */
+  enableMemory: z.boolean().default(false),
+
   /** User-defined model parameters (e.g. {"top_k": 40, "repetition_penalty": 1.1}).
    *  Discriminated union on `type` ensures `value` is type-safe:
    *  - `string` → string value, rendered as text input
@@ -106,6 +111,7 @@ export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = {
   maxToolCalls: 20,
   enableMaxToolCalls: true,
   enableWebSearch: false,
+  enableMemory: false,
   customParameters: []
 }
 

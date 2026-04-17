@@ -28,6 +28,18 @@ import type {
 import type { KnowledgeSearchResult as KnowledgeVectorSearchResult } from '@shared/data/types/knowledge'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
 import { IpcChannel } from '@shared/IpcChannel'
+import type {
+  AddMemoryOptions,
+  MemoryDeleteAllOptions,
+  MemoryItem,
+  MemoryListOptions,
+  MemoryProviderCapabilities,
+  MemorySearchOptions,
+  MemorySearchResult,
+  MemoryUser,
+  ReflectOptions,
+  ReflectResult
+} from '@shared/memory'
 import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
 import type {
   FileListResponse,
@@ -360,6 +372,25 @@ const api = {
       ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_DeleteItems, { baseId, itemIds }),
     search: (baseId: string, query: string): Promise<KnowledgeVectorSearchResult[]> =>
       ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_Search, { baseId, query })
+  },
+  memory: {
+    capabilities: (): Promise<MemoryProviderCapabilities> => ipcRenderer.invoke(IpcChannel.Memory_Capabilities),
+    healthCheck: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.Memory_HealthCheck),
+    add: (content: string | string[], options?: AddMemoryOptions): Promise<MemoryItem[]> =>
+      ipcRenderer.invoke(IpcChannel.Memory_Add, { content, options }),
+    search: (query: string, options?: MemorySearchOptions): Promise<MemorySearchResult> =>
+      ipcRenderer.invoke(IpcChannel.Memory_Search, { query, options }),
+    reflect: (query: string, options?: Partial<ReflectOptions>): Promise<ReflectResult> =>
+      ipcRenderer.invoke(IpcChannel.Memory_Reflect, { query, options }),
+    list: (options?: MemoryListOptions): Promise<MemoryItem[]> =>
+      ipcRenderer.invoke(IpcChannel.Memory_List, { options }),
+    get: (id: string): Promise<MemoryItem | null> => ipcRenderer.invoke(IpcChannel.Memory_Get, { id }),
+    update: (id: string, memory: string, metadata?: Record<string, unknown>): Promise<MemoryItem> =>
+      ipcRenderer.invoke(IpcChannel.Memory_Update, { id, memory, metadata }),
+    delete: (id: string): Promise<void> => ipcRenderer.invoke(IpcChannel.Memory_Delete, { id }),
+    deleteAll: (options?: MemoryDeleteAllOptions): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.Memory_DeleteAll, { options }),
+    listUsers: (): Promise<MemoryUser[]> => ipcRenderer.invoke(IpcChannel.Memory_ListUsers)
   },
   window: {
     setMinimumSize: (width: number, height: number) =>
