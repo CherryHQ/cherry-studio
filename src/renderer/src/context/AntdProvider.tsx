@@ -10,6 +10,7 @@ import jaJP from 'antd/locale/ja_JP'
 import ptPT from 'antd/locale/pt_PT'
 import roRO from 'antd/locale/ro_RO'
 import ruRU from 'antd/locale/ru_RU'
+import viVN from 'antd/locale/vi_VN'
 import zhCN from 'antd/locale/zh_CN'
 import zhTW from 'antd/locale/zh_TW'
 import type { FC, PropsWithChildren } from 'react'
@@ -144,6 +145,8 @@ function getAntdLocale(language: LanguageVarious) {
       return ptPT
     case 'ro-RO':
       return roRO
+    case 'vi-VN':
+      return viVN
     default:
       return zhCN
   }

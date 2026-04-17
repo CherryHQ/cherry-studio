@@ -53,6 +53,7 @@ import type {
   AgentStreamEvent,
   AgentThinkingOptions
 } from '../../interfaces/AgentStreamInterface'
+import { skillService } from '../../skills/SkillService'
 import { agentService } from '../AgentService'
 import { isProvisioned, provisionBuiltinAgent } from '../builtin/BuiltinAgentProvisioner'
 import { channelService } from '../ChannelService'
@@ -120,6 +121,19 @@ class ClaudeCodeService implements AgentServiceInterface {
         error: new Error('No accessible paths defined for the agent session')
       })
       return aiStream
+    }
+
+    // Sync per-agent skill symlinks in this workspace with the `agent_skills`
+    // DB state before we spin up the SDK. This repairs drift from external
+    // edits (user deleted a symlink, workspace was moved, etc.) so Claude
+    // Code sees exactly the set of skills the agent should have enabled.
+    try {
+      await skillService.reconcileAgentSkills(session.agent_id, cwd)
+    } catch (error) {
+      logger.warn('Failed to reconcile agent skills before session start', {
+        agentId: session.agent_id,
+        error: error instanceof Error ? error.message : String(error)
+      })
     }
 
     // Validate model info
@@ -203,7 +217,9 @@ class ClaudeCodeService implements AgentServiceInterface {
       ELECTRON_NO_ATTACH_CONSOLE: '1',
       // Set CLAUDE_CONFIG_DIR to app's userData directory to avoid path encoding issues
       // on Windows when the username contains non-ASCII characters (e.g., Chinese characters)
-      // This prevents the SDK from using the user's home directory which may have encoding problems
+      // This prevents the SDK from using the user's home directory which may have encoding problems.
+      // Per-agent skills live in `<cwd>/.claude/skills/` and are picked up by the SDK's
+      // project-level skill loading layer — no need to point CLAUDE_CONFIG_DIR at the workspace.
       CLAUDE_CONFIG_DIR: path.join(app.getPath('userData'), '.claude'),
       ENABLE_TOOL_SEARCH: 'auto',
       CHERRY_STUDIO_BUN_PATH: bunPath,
