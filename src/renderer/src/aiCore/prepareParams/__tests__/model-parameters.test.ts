@@ -158,6 +158,18 @@ describe('modelParameters', () => {
 
       expect(getTemperature(assistant, model)).toBe(0.8)
     })
+
+    it('always returns undefined for Claude Opus 4.7 (rejects sampling parameters)', () => {
+      const assistant = createAssistant({ enableTemperature: true, temperature: 0.5 })
+      const model = createModel({
+        id: 'claude-opus-4-7',
+        name: 'Claude Opus 4.7',
+        provider: 'anthropic',
+        group: 'Claude 4.7'
+      })
+
+      expect(getTemperature(assistant, model)).toBeUndefined()
+    })
   })
 
   describe('getTopP', () => {
@@ -197,6 +209,18 @@ describe('modelParameters', () => {
     it('returns undefined when TopP is disabled', () => {
       const assistant = createAssistant({ enableTopP: false, topP: 0.5 })
       const model = createModel({ id: 'gpt-4o', provider: 'openai', group: 'openai' })
+
+      expect(getTopP(assistant, model)).toBeUndefined()
+    })
+
+    it('always returns undefined for Claude Opus 4.7 (rejects sampling parameters)', () => {
+      const assistant = createAssistant({ enableTopP: true, topP: 0.95 })
+      const model = createModel({
+        id: 'claude-opus-4-7',
+        name: 'Claude Opus 4.7',
+        provider: 'anthropic',
+        group: 'Claude 4.7'
+      })
 
       expect(getTopP(assistant, model)).toBeUndefined()
     })

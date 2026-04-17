@@ -388,3 +388,16 @@ export function isClaude46SeriesModel(model: Model | undefined | null): boolean 
   const regex = /(?:anthropic\.)?claude-(?:opus|sonnet)-4[.-]6(?:[@\-:][\w\-:]+)?$/i
   return regex.test(modelId)
 }
+
+/**
+ * Check if the model is Claude Opus 4.7.
+ * 4.7 rejects temperature/top_p/top_k and natively supports xhigh reasoning effort.
+ */
+export function isClaude47SeriesModel(model: Model | undefined | null): boolean {
+  if (!model) {
+    return false
+  }
+  const modelId = getLowerBaseModelName(model.id, '/')
+  const regex = /(?:anthropic\.)?claude-opus-4[.-]7(?:[@\-:][\w\-:]+)?$/i
+  return regex.test(modelId)
+}

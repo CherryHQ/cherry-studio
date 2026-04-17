@@ -408,18 +408,24 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
         usage
       })
 
-      const thinkingParams = assistant.model
+      const rawThinkingParams = assistant.model
         ? getAnthropicReasoningParams(
             { ...assistant, settings: { ...assistant.settings, reasoning_effort: reasoningEffort } },
             assistant.model
           )
         : {}
+      // Claude Agent SDK (used by agent sessions) does not yet support 'xhigh' effort
+      // or the 'display' field on adaptive thinking — narrow them here.
+      const agentEffort = rawThinkingParams.effort === 'xhigh' ? 'max' : rawThinkingParams.effort
+      const agentThinking =
+        rawThinkingParams.thinking?.type === 'adaptive' ? { type: 'adaptive' as const } : rawThinkingParams.thinking
 
       dispatch(
         dispatchSendMessage(userMessage, userMessageBlocks, assistant, sessionTopicId, {
           agentId,
           sessionId,
-          ...thinkingParams
+          ...(agentEffort ? { effort: agentEffort } : {}),
+          ...(agentThinking ? { thinking: agentThinking } : {})
         })
       )
 

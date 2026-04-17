@@ -4,6 +4,8 @@
  */
 
 import {
+  isClaude46SeriesModel,
+  isClaude47SeriesModel,
   isClaudeReasoningModel,
   isMaxTemperatureOneModel,
   isSupportedFlexServiceTier,
@@ -31,6 +33,11 @@ import { getThinkingBudget } from '../utils/reasoning'
 
  */
 export function getTemperature(assistant: Assistant, model: Model): number | undefined {
+  // Claude Opus 4.7 rejects sampling params (temperature/top_p/top_k) with HTTP 400
+  // regardless of reasoning settings. See Vercel AI SDK PR #14529.
+  if (isClaude47SeriesModel(model)) {
+    return undefined
+  }
   if (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model)) {
     return undefined
   }
@@ -70,6 +77,10 @@ function getTemperatureValue(assistant: Assistant, model: Model): number | undef
  * Otherwise, returns the TopP value if the assistant has TopP enabled.
  */
 export function getTopP(assistant: Assistant, model: Model): number | undefined {
+  // Claude Opus 4.7 rejects sampling params unconditionally (see getTemperature).
+  if (isClaude47SeriesModel(model)) {
+    return undefined
+  }
   if (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model)) {
     return undefined
   }
@@ -113,7 +124,15 @@ export function getMaxTokens(assistant: Assistant, model: Model): number | undef
   }
 
   const provider = getProviderByModel(model)
-  if (isSupportedThinkingTokenClaudeModel(model) && ['anthropic', 'aws-bedrock'].includes(provider.type)) {
+  // Claude 4.6 / 4.7 use adaptive thinking and do not send budgetTokens, so the
+  // AI SDK does not add budget back to maxOutputTokens. Subtracting here would
+  // incorrectly shrink max_tokens.
+  if (
+    isSupportedThinkingTokenClaudeModel(model) &&
+    !isClaude46SeriesModel(model) &&
+    !isClaude47SeriesModel(model) &&
+    ['anthropic', 'aws-bedrock'].includes(provider.type)
+  ) {
     const { reasoning_effort: reasoningEffort } = assistantSettings
     const budget = getThinkingBudget(maxTokens, reasoningEffort, model.id)
     if (budget) {
