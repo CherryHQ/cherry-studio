@@ -490,6 +490,7 @@
       },
       "prompt": "Configuración de indicaciones",
       "skills": {
+        "addMore": "Añadir más habilidades",
         "builtin": "Incorporado",
         "noFilterResults": "Sin habilidades coincidentes",
         "noSkills": "No hay habilidades instaladas. Instala habilidades desde Ajustes > Habilidades.",
@@ -5607,7 +5608,7 @@
       "noInstalled": "Sin habilidades instaladas",
       "noResults": "Sin habilidades encontradas",
       "noSkillFile": "No se encontró SKILL.md",
-      "searchPlaceholder": "Buscar habilidades en los registros...",
+      "searchPlaceholder": "Descubrir más habilidades...",
       "searchRegistryTitle": "Buscar registros de habilidades en línea",
       "searchTitle": "Habilidades de búsqueda",
       "selectFile": "Selecciona un archivo para ver",

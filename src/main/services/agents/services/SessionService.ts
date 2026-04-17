@@ -13,7 +13,7 @@ import {
   type ListOptions,
   type UpdateSessionRequest
 } from '@types'
-import { and, asc, count, desc, eq, type SQL, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, isNull, type SQL, sql } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
 import { agentsTable, type InsertSessionRow, type SessionRow, sessionsTable } from '../database/schema'
@@ -114,7 +114,11 @@ export class SessionService extends BaseService {
     // The database foreign key constraint will handle this
 
     const database = await this.getDatabase()
-    const agents = await database.select().from(agentsTable).where(eq(agentsTable.id, agentId)).limit(1)
+    const agents = await database
+      .select()
+      .from(agentsTable)
+      .where(and(eq(agentsTable.id, agentId), isNull(agentsTable.deleted_at)))
+      .limit(1)
     if (!agents[0]) {
       throw new Error('Agent not found')
     }

@@ -490,6 +490,7 @@
       },
       "prompt": "提示設定",
       "skills": {
+        "addMore": "添加更多技能",
         "builtin": "內建",
         "noFilterResults": "沒有符合的技能",
         "noSkills": "未安裝任何技能。請前往「設定」>「技能」安裝技能。",
@@ -5607,7 +5608,7 @@
       "noInstalled": "暫無已安裝的技能",
       "noResults": "未找到技能",
       "noSkillFile": "未找到 SKILL.md 檔案",
-      "searchPlaceholder": "跨登錄檔搜尋技能...",
+      "searchPlaceholder": "發現更多技能...",
       "searchRegistryTitle": "在線搜尋技能登錄檔",
       "searchTitle": "搜尋技能",
       "selectFile": "選擇一個檔案查看",

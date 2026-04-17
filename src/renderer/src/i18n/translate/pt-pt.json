@@ -490,6 +490,7 @@
       },
       "prompt": "Configurações de Prompt",
       "skills": {
+        "addMore": "Adicionar Mais Skills",
         "builtin": "Integrado",
         "noFilterResults": "Nenhuma habilidade correspondente",
         "noSkills": "Nenhuma habilidade instalada. Instale habilidades em Configurações > Habilidades.",
@@ -5607,7 +5608,7 @@
       "noInstalled": "Nenhuma habilidade instalada",
       "noResults": "Nenhuma habilidade encontrada",
       "noSkillFile": "Nenhum SKILL.md encontrado",
-      "searchPlaceholder": "Pesquisar competências nos registros...",
+      "searchPlaceholder": "Descobrir mais competências...",
       "searchRegistryTitle": "Procure registros de habilidades online",
       "searchTitle": "Habilidades de Pesquisa",
       "selectFile": "Selecione um arquivo para visualizar",

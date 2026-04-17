@@ -490,6 +490,7 @@
       },
       "prompt": "プロンプト設定",
       "skills": {
+        "addMore": "スキルを追加",
         "builtin": "組み込み",
         "noFilterResults": "一致するスキルがありません",
         "noSkills": "スキルがインストールされていません。設定 > スキルからスキルをインストールしてください。",
@@ -5607,7 +5608,7 @@
       "noInstalled": "スキルがインストールされていません",
       "noResults": "スキルが見つかりません",
       "noSkillFile": "SKILL.mdが見つかりません",
-      "searchPlaceholder": "レジストリ全体でスキルを検索...",
+      "searchPlaceholder": "さらにスキルを見つける...",
       "searchRegistryTitle": "オンラインでスキルレジストリを検索してください",
       "searchTitle": "検索スキル",
       "selectFile": "ファイルを選択して表示",

@@ -73,7 +73,7 @@ asarUnpack:
   - out/proxy/**
   - resources/**
   - "**/*.{metal,exp,lib}"
-  - "node_modules/@img/sharp-libvips-*/**"
+  - "node_modules/@img/sharp-*/**"
 
 win:
   executableName: Cherry Studio
@@ -142,7 +142,7 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.9.0 - CherryClaw Agent & Skills System
+    Cherry Studio 1.9.1 - CherryClaw Agent & Skills System
 
     ⚠️ Breaking Changes
     - [Agents] "Plugins" system renamed to "Skills". Plugin marketplace has been replaced by a unified Skills management interface
@@ -188,7 +188,7 @@ releaseInfo:
     - [Agent] Improve session switch experience
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.9.0 - CherryClaw 智能体与技能系统
+    Cherry Studio 1.9.1 - CherryClaw 智能体与技能系统
 
     ⚠️ 破坏性变更
     - [智能体] "插件"系统更名为"技能（Skills）"，插件市场已替换为统一的技能管理界面
