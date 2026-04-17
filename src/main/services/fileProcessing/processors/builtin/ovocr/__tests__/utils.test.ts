@@ -1,8 +1,43 @@
+import type * as NodeFs from 'node:fs'
 import fs from 'node:fs'
+import type * as NodeOs from 'node:os'
 import os from 'node:os'
 
 import { application } from '@application'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { existsSyncMock, mkdtempSyncMock, cpusMock } = vi.hoisted(() => ({
+  existsSyncMock: vi.fn(),
+  mkdtempSyncMock: vi.fn(),
+  cpusMock: vi.fn()
+}))
+
+vi.mock('node:fs', async () => {
+  const actual = await vi.importActual<typeof NodeFs>('node:fs')
+  const mocked = {
+    ...actual,
+    existsSync: existsSyncMock,
+    mkdtempSync: mkdtempSyncMock
+  }
+
+  return {
+    ...mocked,
+    default: mocked
+  }
+})
+
+vi.mock('node:os', async () => {
+  const actual = await vi.importActual<typeof NodeOs>('node:os')
+  const mocked = {
+    ...actual,
+    cpus: cpusMock
+  }
+
+  return {
+    ...mocked,
+    default: mocked
+  }
+})
 
 vi.mock('@main/constant', () => ({
   isWin: true
