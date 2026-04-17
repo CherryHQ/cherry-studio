@@ -120,10 +120,8 @@ export async function restoreBuiltinAgents(): Promise<string[]> {
   const previouslyHidden = configManager.getDismissedBuiltinAgents()
   configManager.setDismissedBuiltinAgents([])
 
-  // Re-run init for each builtin to recreate any missing rows
-  // Init methods are idempotent — skip if agent already exists
-  await initCherryClaw()
-  await initCherryAssistant()
+  // Re-run init for each builtin to recreate any missing rows (parallel — different rows)
+  await Promise.all([initCherryClaw(), initCherryAssistant()])
 
   // Collect IDs of agents that now exist in DB
   const restoredIds: string[] = []
@@ -134,6 +132,11 @@ export async function restoreBuiltinAgents(): Promise<string[]> {
     }
   }
 
-  logger.info('Restored builtin agents', { restoredIds, previouslyHidden })
+  if (restoredIds.length === 0 && previouslyHidden.length > 0) {
+    logger.warn('Restore completed but no builtin agents confirmed in DB', { previouslyHidden })
+  } else {
+    logger.info('Restored builtin agents', { restoredIds, previouslyHidden })
+  }
+
   return restoredIds
 }

@@ -161,4 +161,28 @@ describe('hide/show builtin agents', () => {
 
     expect(mockSetDismissed).toHaveBeenCalledWith([])
   })
+
+  it('restoreBuiltinAgents returns IDs of agents confirmed in DB', async () => {
+    const { agentService } = await import('../../AgentService')
+    const { restoreBuiltinAgents } = await import('../BuiltinAgentBootstrap')
+
+    const result = await restoreBuiltinAgents()
+
+    expect(agentService.agentExists).toHaveBeenCalledTimes(2)
+    expect(result).toEqual(['cherry-claw-default', 'cherry-assistant-default'])
+  })
+
+  it('restoreBuiltinAgents returns only existing IDs when some inits fail', async () => {
+    const { agentService } = await import('../../AgentService')
+    const { restoreBuiltinAgents } = await import('../BuiltinAgentBootstrap')
+
+    // CherryClaw exists but Cherry Assistant does not
+    vi.mocked(agentService.agentExists)
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false)
+
+    const result = await restoreBuiltinAgents()
+
+    expect(result).toEqual(['cherry-claw-default'])
+  })
 })
