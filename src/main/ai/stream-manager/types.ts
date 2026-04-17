@@ -198,6 +198,13 @@ export interface StreamExecution {
   /** Backend-specific resume token (ClaudeCodeService). */
   sourceSessionId?: string
   /**
+   * Resolves when the pump loop for this execution has completed (success,
+   * error, or abort). Attached by `AiStreamManager.createAndLaunchExecution`
+   * and awaited by `onStop` so graceful shutdown can wait for the pump's
+   * terminal persistence path without re-broadcasting `onPaused` itself.
+   */
+  pumpPromise: Promise<void>
+  /**
    * Transport-side timings owned by the pump. Semantic timings
    * (`firstTextAt` / `reasoning*`) live on the listener that cares — the
    * manager never inspects chunk payloads.

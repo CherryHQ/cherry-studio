@@ -152,8 +152,15 @@ export class AiStreamManager extends BaseService {
   }
 
   /**
-   * Graceful shutdown: abort all active streams so PersistenceListener
-   * can persist partial results before the process exits.
+   * Graceful shutdown: abort every active stream so each pump can run its
+   * own terminal path (`onExecutionPaused` → `broadcastExecutionPaused` →
+   * `PersistenceListener.onPaused`), then await each pump's promise so
+   * persistence is complete before the process exits.
+   *
+   * We intentionally do NOT re-broadcast `onPaused` from here — doing so
+   * would double-dispatch against the pump's own terminal event and
+   * cause append-only backends (temporary chats, agent session messages)
+   * to write the same assistant turn twice.
    */
   protected async onStop(): Promise<void> {
     const activeTopics = [...this.activeStreams.entries()]
@@ -163,20 +170,17 @@ export class AiStreamManager extends BaseService {
     if (activeTopics.length === 0) return
     logger.info('Stopping active streams on shutdown', { count: activeTopics.length })
 
-    for (const topicId of activeTopics) {
-      this.abort(topicId, 'app-shutdown')
-    }
-
-    // Wait for all PersistenceListeners to finish persisting partial results
-    const donePromises: Promise<void>[] = []
+    const pumpPromises: Promise<void>[] = []
     for (const topicId of activeTopics) {
       const stream = this.activeStreams.get(topicId)
       if (!stream) continue
       for (const exec of stream.executions.values()) {
-        donePromises.push(this.broadcastExecutionPaused(stream, exec, true))
+        pumpPromises.push(exec.pumpPromise)
       }
+      this.abort(topicId, 'app-shutdown')
     }
-    await Promise.allSettled(donePromises)
+
+    await Promise.allSettled(pumpPromises)
   }
 
   // ── Public: unified send ──────────────────────────────────────────
@@ -538,6 +542,9 @@ export class AiStreamManager extends BaseService {
     // Each execution gets its own pending queue and replay ring buffer;
     // steering fan-out happens at the manager level (see `send` / `steer`).
     const pendingMessages = new PendingMessageQueue()
+    // `pumpPromise` is overwritten right after launch — we need a stable
+    // object reference to hang the promise on inside the arrow function
+    // below, so initialise to a resolved sentinel.
     const exec: StreamExecution = {
       modelId,
       abortController: new AbortController(),
@@ -546,15 +553,16 @@ export class AiStreamManager extends BaseService {
       buffer: [],
       droppedChunks: 0,
       siblingsGroupId,
-      timings: { startedAt: performance.now() }
+      timings: { startedAt: performance.now() },
+      pumpPromise: Promise.resolve()
     }
     const requestWithQueue: AiStreamRequest = { ...request, pendingMessages }
 
-    void this.runExecutionPump(topicId, modelId, requestWithQueue, exec).catch((err) => {
+    exec.pumpPromise = this.runExecutionPump(topicId, modelId, requestWithQueue, exec).catch((err) => {
       // Defensive: runExecutionPump handles its own errors, but if it throws
-      // synchronously (e.g. aiService.streamText fails before returning a stream),
-      // funnel it into the standard error path.
-      void this.onExecutionError(topicId, modelId, serializeError(err))
+      // synchronously (e.g. aiService.streamText fails before returning a
+      // stream), funnel it into the standard error path.
+      return this.onExecutionError(topicId, modelId, serializeError(err))
     })
 
     return exec
