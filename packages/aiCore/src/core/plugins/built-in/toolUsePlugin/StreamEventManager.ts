@@ -111,20 +111,29 @@ export class StreamEventManager {
     recursiveParams: Partial<TParams>,
     context: AiRequestContext<TParams, StreamTextResult>
   ): Promise<void> {
-    // try {
-    // 重置工具执行状态，准备处理新的步骤
-    context.hasExecutedToolsInCurrentStep = false
+    try {
+      // 重置工具执行状态，准备处理新的步骤
+      context.hasExecutedToolsInCurrentStep = false
 
-    const recursiveResult = await context.recursiveCall(recursiveParams)
+      const recursiveResult = await context.recursiveCall(recursiveParams)
 
-    if (hasFullStream(recursiveResult)) {
-      await this.pipeRecursiveStream(controller, recursiveResult.fullStream)
-    } else {
-      console.warn('[MCP Prompt] No fullstream found in recursive result:', recursiveResult)
+      if (hasFullStream(recursiveResult)) {
+        await this.pipeRecursiveStream(controller, recursiveResult.fullStream)
+      } else {
+        console.warn('[MCP Prompt] No fullstream found in recursive result:', recursiveResult)
+      }
+    } catch (error) {
+      console.error('[MCP Prompt] Recursive call failed:', error)
+      // 发送 error 与 finish-step 事件，避免流因异常被吞掉而 UI 静默挂起
+      controller.enqueue({ type: 'error', error })
+      controller.enqueue({
+        type: 'finish-step',
+        finishReason: 'error',
+        response: undefined,
+        usage: undefined,
+        providerMetadata: undefined
+      })
     }
-    // } catch (error) {
-    //   this.handleRecursiveCallError(controller, error, stepId)
-    // }
   }
 
   /**
