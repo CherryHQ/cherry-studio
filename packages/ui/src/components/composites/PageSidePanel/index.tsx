@@ -11,6 +11,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { AnimatePresence, motion } from 'framer-motion'
 import { XIcon } from 'lucide-react'
 import * as React from 'react'
+import { useEffect, useRef } from 'react'
 
 type PageSidePanelPlacement = 'left' | 'right'
 
@@ -48,6 +49,20 @@ function PageSidePanel({
   closeButtonClassName
 }: PageSidePanelProps) {
   const hasHeader = !!header || showCloseButton
+  const panelRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLElement | null>(null)
+
+  useEffect(() => {
+    if (open) {
+      triggerRef.current = document.activeElement as HTMLElement | null
+      requestAnimationFrame(() => {
+        panelRef.current?.focus()
+      })
+    } else {
+      triggerRef.current?.focus()
+      triggerRef.current = null
+    }
+  }, [open])
 
   return (
     <AnimatePresence>
@@ -64,14 +79,21 @@ function PageSidePanel({
             onClick={onClose}
           />
           <motion.aside
+            ref={panelRef}
             key="panel"
+            role="dialog"
+            aria-modal="true"
+            tabIndex={-1}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') onClose()
+            }}
             initial={{ x: side === 'right' ? '100%' : '-100%' }}
             animate={{ x: 0 }}
             exit={{ x: side === 'right' ? '100%' : '-100%' }}
             transition={{ type: 'spring', damping: 30, stiffness: 350 }}
             data-slot="page-side-panel"
             className={cn(
-              'absolute top-2 bottom-2 z-50 flex w-100 flex-col overflow-hidden rounded-xs border border-border/30 bg-card text-card-foreground shadow-2xl',
+              'absolute top-2 bottom-2 z-50 flex w-100 flex-col overflow-hidden rounded-xs border border-border/30 bg-card text-card-foreground shadow-2xl outline-none',
               side === 'right' ? 'right-2' : 'left-2',
               contentClassName
             )}>

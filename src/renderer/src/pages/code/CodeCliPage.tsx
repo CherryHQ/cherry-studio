@@ -391,7 +391,13 @@ const CodeCliPage: FC = () => {
 
   const handleSelectTool = async (tool: codeCLI) => {
     if (tool !== selectedCliTool) {
-      await setCliTool(tool)
+      try {
+        await setCliTool(tool)
+      } catch (err) {
+        logger.error('Failed to set CLI tool:', err as Error)
+        window.toast.error(t('common.error'))
+        return
+      }
     }
     setDrawerOpen(true)
   }
