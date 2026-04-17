@@ -30,6 +30,12 @@ type AppProviderKey = StringKeys<AppProviderSettingsMap>
 
 export interface IterationContext {
   iterationNumber: number
+  /**
+   * Conversation view as UIMessage[] — grows each iteration with an empty
+   * assistant placeholder + any steering user messages drained between
+   * iterations. Hooks that need the actual assistant response content should
+   * consult `IterationResult.messages` inside `afterIteration`.
+   */
   messages: UIMessage[]
   totalSteps: number
 }
@@ -398,6 +404,20 @@ export function runAgentLoop<T extends AppProviderKey>(
         role: 'user' as const,
         parts: msg.data?.parts ?? []
       }))
+
+      // Mirror the iteration's growth onto `messages` so next iteration's
+      // `hooks.beforeIteration({ messages, … })` sees an up-to-date
+      // conversation view. We use `response.id` for the assistant turn and
+      // leave `parts` empty — hooks that need the assistant response should
+      // consult `IterationResult.messages` (ModelMessage[]) inside
+      // `afterIteration`; `ctx.messages` is a conversation-shape context,
+      // not a transcript.
+      const assistantPlaceholderUI: UIMessage = {
+        id: response.id,
+        role: 'assistant',
+        parts: []
+      }
+      messages = [...messages, assistantPlaceholderUI, ...pendingAsUI]
       modelMessages = [...modelMessages, ...response.messages, ...(await convertToModelMessages(pendingAsUI))]
     }
 
