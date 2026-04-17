@@ -127,22 +127,24 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       macRestoreFocusOnHide: true
     },
     poolConfig: {
-      // Keep at least one mounted idle window at all times so the next user
-      // action recycles instantly, matching the legacy pre-WindowManager
-      // behavior where SelectionService manually preloaded a single action
-      // window and immediately recreated one after each use.
-      minIdle: 1,
-      initialSize: 1,
-      // Allow a small burst for concurrent actions (legacy code hit this too
-      // when a second action fired while the first was still open).
-      maxSize: 3,
-      warmup: 'eager',
-      // Never decay below minIdle and never idle-timeout to zero: the whole
-      // point of this pool is to keep the renderer process hot between
-      // actions. Explicit suspend/resume is handled by SelectionService on
-      // activate/deactivate.
-      decayInterval: 0,
-      idleTimeout: 0
+      // Producer axis: always keep one pre-warmed idle window. On every open(),
+      // an async setImmediate replacement is scheduled so the next action recycles
+      // instantly — matching the legacy pre-WindowManager behavior where
+      // SelectionService manually preloaded a single action window and
+      // immediately recreated one after each use.
+      standbySize: 1,
+      // Consumer axis: allow a small burst of concurrent action windows to be
+      // recycled for reuse (legacy code hit this when a second action fired
+      // while the first was still open). Beyond 3, close destroys.
+      recycleMaxSize: 3,
+      // Burst cleanup: after the pool grew above standbySize due to bursts,
+      // shed one extra idle window per minute back down toward standbySize.
+      decayInterval: 60,
+      // Full idle release: after 5 minutes of no action, trim the recycle
+      // buffer down to the standby window. standbySize is preserved as a
+      // permanent availability commitment.
+      inactivityTimeout: 300,
+      warmup: 'eager'
     },
     defaultConfig: {
       width: 500,
