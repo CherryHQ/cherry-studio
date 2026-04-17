@@ -113,14 +113,27 @@ export function showBuiltinAgent(agentId: string): void {
 // ── Restore ─────────────────────────────────────────────────────────
 
 /**
- * Unhide all built-in agents. Since init methods now always ensure agents
- * exist in DB, this only needs to clear the hidden list.
- * Returns IDs that were unhidden.
+ * Unhide all built-in agents and recreate any missing DB rows.
+ * Returns IDs of agents confirmed to exist in DB after restore.
  */
 export async function restoreBuiltinAgents(): Promise<string[]> {
   const previouslyHidden = configManager.getDismissedBuiltinAgents()
   configManager.setDismissedBuiltinAgents([])
 
-  logger.info('Restored builtin agents (unhidden)', { restoredIds: previouslyHidden })
-  return previouslyHidden
+  // Re-run init for each builtin to recreate any missing rows
+  // Init methods are idempotent — skip if agent already exists
+  await initCherryClaw()
+  await initCherryAssistant()
+
+  // Collect IDs of agents that now exist in DB
+  const restoredIds: string[] = []
+  for (const id of BUILTIN_AGENT_IDS) {
+    const exists = await agentService.agentExists(id)
+    if (exists) {
+      restoredIds.push(id)
+    }
+  }
+
+  logger.info('Restored builtin agents', { restoredIds, previouslyHidden })
+  return restoredIds
 }

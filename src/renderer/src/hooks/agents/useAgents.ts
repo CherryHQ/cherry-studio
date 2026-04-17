@@ -123,8 +123,14 @@ export const useAgents = () => {
   const reorderAgents = useCallback(
     async (reorderedList: GetAgentResponse[]) => {
       const orderedIds = reorderedList.map((a) => a.id)
-      // Optimistic update
-      void mutate(reorderedList, false)
+      // Optimistic update: preserve hidden agents that are not in the reordered visible list
+      void mutate((prev) => {
+        if (!prev) return reorderedList
+        const reorderedIds = new Set(orderedIds)
+        // Keep hidden agents that were not part of the reorder
+        const preserved = prev.filter((a) => !reorderedIds.has(a.id))
+        return [...reorderedList, ...preserved]
+      }, false)
       try {
         await client.reorderAgents(orderedIds)
       } catch (error) {
