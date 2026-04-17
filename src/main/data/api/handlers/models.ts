@@ -8,6 +8,7 @@
 
 import { modelService } from '@data/services/ModelService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
+import { loggerService } from '@logger'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
 import {
   CreateModelDtoSchema,
@@ -21,6 +22,8 @@ import {
  * Handler type for a specific model endpoint
  */
 type ModelHandler<Path extends keyof ModelSchemas, Method extends ApiMethods<Path>> = ApiHandler<Path, Method>
+
+const logger = loggerService.withContext('DataApi:ModelHandlers')
 
 /**
  * Model API handlers implementation
@@ -38,7 +41,16 @@ export const modelHandlers: {
 
     POST: async ({ body }) => {
       const parsed = CreateModelDtoSchema.parse(body)
-      const registryData = await providerRegistryService.lookupModel(parsed.providerId, parsed.modelId)
+      let registryData
+      try {
+        registryData = await providerRegistryService.lookupModel(parsed.providerId, parsed.modelId)
+      } catch (error) {
+        logger.warn('Registry lookup failed during create, falling back to custom', {
+          providerId: parsed.providerId,
+          modelId: parsed.modelId,
+          error
+        })
+      }
       return await modelService.create(parsed, registryData)
     }
   },
@@ -47,10 +59,24 @@ export const modelHandlers: {
     POST: async ({ body }) => {
       const parsed = CreateModelsBatchDtoSchema.parse(body)
       const items = await Promise.all(
-        parsed.items.map(async (dto) => ({
-          dto,
-          registryData: await providerRegistryService.lookupModel(dto.providerId, dto.modelId)
-        }))
+        parsed.items.map(async (dto) => {
+          try {
+            return {
+              dto,
+              registryData: await providerRegistryService.lookupModel(dto.providerId, dto.modelId)
+            }
+          } catch (error) {
+            logger.warn('Registry lookup failed during batch create, falling back to custom', {
+              providerId: dto.providerId,
+              modelId: dto.modelId,
+              error
+            })
+            return {
+              dto,
+              registryData: undefined
+            }
+          }
+        })
       )
 
       return await modelService.batchCreate(items)

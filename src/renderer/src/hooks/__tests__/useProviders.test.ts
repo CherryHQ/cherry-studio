@@ -3,8 +3,10 @@ import { mockUseInvalidateCache, mockUseMutation, mockUseQuery } from '@test-moc
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { mockRendererLoggerService } from '../../../../../tests/__mocks__/RendererLoggerService'
 import {
   useProvider,
+  useProviderActions,
   useProviderApiKeys,
   useProviderAuthConfig,
   useProviderMutations,
@@ -152,6 +154,8 @@ describe('useProviders', () => {
 
   it('should revalidate on reorder failure', async () => {
     const mockMutate = vi.fn().mockResolvedValue(undefined)
+    const error = new Error('Network error')
+    const loggerSpy = vi.spyOn(mockRendererLoggerService, 'warn').mockImplementation(() => {})
     mockUseQuery.mockImplementation(() => ({
       data: mockProviderList,
       isLoading: false,
@@ -160,17 +164,17 @@ describe('useProviders', () => {
       refetch: vi.fn(),
       mutate: mockMutate
     }))
-    mockDataApiService.patch.mockRejectedValue(new Error('Network error'))
+    mockDataApiService.patch.mockRejectedValue(error)
 
     const { result } = renderHook(() => useProviders())
 
     await act(async () => {
-      await result.current.reorderProviders([mockProvider2, mockProvider1])
+      await expect(result.current.reorderProviders([mockProvider2, mockProvider1])).rejects.toThrow('Network error')
     })
 
-    // Should still revalidate on error (rollback)
     const revalidateCalls = mockMutate.mock.calls.filter((call: any[]) => call.length === 0)
     expect(revalidateCalls.length).toBeGreaterThanOrEqual(1)
+    expect(loggerSpy).toHaveBeenCalledWith('Failed to reorder providers, reverting optimistic state', error)
   })
 })
 
@@ -194,6 +198,12 @@ describe('useProvider', () => {
     expect(result.current.provider).toEqual(mockProvider1)
     expect(result.current.isLoading).toBe(false)
     expect(mockUseQuery).toHaveBeenCalledWith('/providers/openai')
+  })
+
+  it('should encode provider IDs in detail queries', () => {
+    renderHook(() => useProvider('custom/provider name'))
+
+    expect(mockUseQuery).toHaveBeenCalledWith('/providers/custom%2Fprovider%20name')
   })
 
   it('should include mutation functions', () => {
@@ -225,6 +235,16 @@ describe('useProviderMutations', () => {
     expect(deleteCall).toBeDefined()
     expect(deleteCall![1]).toBe('/providers/openai')
     expect(deleteCall![2]).toEqual({ refresh: ['/providers'] })
+  })
+
+  it('should encode provider IDs in mutation paths', () => {
+    renderHook(() => useProviderMutations('custom/provider name'))
+
+    const patchCall = mockUseMutation.mock.calls.find((c: any[]) => c[0] === 'PATCH')
+    const deleteCall = mockUseMutation.mock.calls.find((c: any[]) => c[0] === 'DELETE')
+
+    expect(patchCall![1]).toBe('/providers/custom%2Fprovider%20name')
+    expect(deleteCall![1]).toBe('/providers/custom%2Fprovider%20name')
   })
 
   it('should call patchTrigger when updateProvider is invoked', async () => {
@@ -282,6 +302,24 @@ describe('useProviderMutations', () => {
     expect(mockInvalidate).toHaveBeenCalledWith('/providers/openai/auth-config')
   })
 
+  it('should log and rethrow updateProvider errors', async () => {
+    const error = new Error('Patch failed')
+    const loggerSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
+    mockUseMutation.mockImplementation(() => ({
+      trigger: vi.fn().mockRejectedValue(error),
+      isLoading: false,
+      error: undefined
+    }))
+
+    const { result } = renderHook(() => useProviderMutations('openai'))
+
+    await act(async () => {
+      await expect(result.current.updateProvider({ isEnabled: false })).rejects.toThrow('Patch failed')
+    })
+
+    expect(loggerSpy).toHaveBeenCalledWith('Failed to update provider', { providerId: 'openai', error })
+  })
+
   it('should post API key and invalidate related caches', async () => {
     const mockInvalidate = vi.fn().mockResolvedValue(undefined)
     mockUseInvalidateCache.mockImplementation(() => mockInvalidate)
@@ -297,6 +335,30 @@ describe('useProviderMutations', () => {
       body: { key: 'sk-test-key', label: 'My Key' }
     })
     expect(mockInvalidate).toHaveBeenCalledWith(['/providers/openai', '/providers/openai/api-keys', '/providers'])
+  })
+
+  it('should encode provider and key IDs in API key paths', async () => {
+    const mockInvalidate = vi.fn().mockResolvedValue(undefined)
+    mockUseInvalidateCache.mockImplementation(() => mockInvalidate)
+    mockDataApiService.post.mockResolvedValue({})
+    mockDataApiService.delete.mockResolvedValue({})
+
+    const { result } = renderHook(() => useProviderMutations('custom/provider name'))
+
+    await act(async () => {
+      await result.current.addApiKey('sk-test-key', 'My Key')
+      await result.current.deleteApiKey('key/123')
+    })
+
+    expect(mockDataApiService.post).toHaveBeenCalledWith('/providers/custom%2Fprovider%20name/api-keys', {
+      body: { key: 'sk-test-key', label: 'My Key' }
+    })
+    expect(mockDataApiService.delete).toHaveBeenCalledWith('/providers/custom%2Fprovider%20name/api-keys/key%2F123')
+    expect(mockInvalidate).toHaveBeenCalledWith([
+      '/providers/custom%2Fprovider%20name',
+      '/providers/custom%2Fprovider%20name/api-keys',
+      '/providers'
+    ])
   })
 
   it('should delete API key and invalidate related caches', async () => {
@@ -337,6 +399,12 @@ describe('useProviderAuthConfig', () => {
     expect(result.current.isLoading).toBe(false)
     expect(mockUseQuery).toHaveBeenCalledWith('/providers/vertexai/auth-config')
   })
+
+  it('should encode provider IDs for auth config queries', () => {
+    renderHook(() => useProviderAuthConfig('custom/provider name'))
+
+    expect(mockUseQuery).toHaveBeenCalledWith('/providers/custom%2Fprovider%20name/auth-config')
+  })
 })
 
 describe('useProviderApiKeys', () => {
@@ -361,6 +429,12 @@ describe('useProviderApiKeys', () => {
     expect(result.current.isLoading).toBe(false)
     expect(mockUseQuery).toHaveBeenCalledWith('/providers/openai/api-keys')
   })
+
+  it('should encode provider IDs for api key queries', () => {
+    renderHook(() => useProviderApiKeys('custom/provider name'))
+
+    expect(mockUseQuery).toHaveBeenCalledWith('/providers/custom%2Fprovider%20name/api-keys')
+  })
 })
 
 describe('useProviderRegistryModels', () => {
@@ -384,5 +458,71 @@ describe('useProviderRegistryModels', () => {
     expect(result.current.data).toEqual(mockModels)
     expect(result.current.isLoading).toBe(false)
     expect(mockUseQuery).toHaveBeenCalledWith('/providers/openai/registry-models')
+  })
+
+  it('should encode provider IDs for registry model queries', () => {
+    renderHook(() => useProviderRegistryModels('custom/provider name'))
+
+    expect(mockUseQuery).toHaveBeenCalledWith('/providers/custom%2Fprovider%20name/registry-models')
+  })
+})
+
+describe('useProviderActions', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('should encode provider IDs for dynamic provider actions', async () => {
+    const mockInvalidate = vi.fn().mockResolvedValue(undefined)
+    mockUseInvalidateCache.mockImplementation(() => mockInvalidate)
+    mockDataApiService.patch.mockResolvedValue({})
+    mockDataApiService.delete.mockResolvedValue({})
+
+    const { result } = renderHook(() => useProviderActions())
+
+    await act(async () => {
+      await result.current.patchProviderById('custom/provider name', { isEnabled: false })
+      await result.current.deleteProviderById('custom/provider name')
+    })
+
+    expect(mockDataApiService.patch).toHaveBeenCalledWith('/providers/custom%2Fprovider%20name', {
+      body: { isEnabled: false }
+    })
+    expect(mockDataApiService.delete).toHaveBeenCalledWith('/providers/custom%2Fprovider%20name')
+    expect(mockInvalidate).toHaveBeenCalledWith('/providers')
+  })
+
+  it('should log and rethrow patchProviderById errors', async () => {
+    const error = new Error('Patch failed')
+    const loggerSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
+    const mockInvalidate = vi.fn().mockResolvedValue(undefined)
+    mockUseInvalidateCache.mockImplementation(() => mockInvalidate)
+    mockDataApiService.patch.mockRejectedValue(error)
+
+    const { result } = renderHook(() => useProviderActions())
+
+    await act(async () => {
+      await expect(result.current.patchProviderById('openai', { isEnabled: false })).rejects.toThrow('Patch failed')
+    })
+
+    expect(loggerSpy).toHaveBeenCalledWith('Failed to patch provider', { providerId: 'openai', error })
+    expect(mockInvalidate).not.toHaveBeenCalled()
+  })
+
+  it('should log and rethrow deleteProviderById errors', async () => {
+    const error = new Error('Delete failed')
+    const loggerSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
+    const mockInvalidate = vi.fn().mockResolvedValue(undefined)
+    mockUseInvalidateCache.mockImplementation(() => mockInvalidate)
+    mockDataApiService.delete.mockRejectedValue(error)
+
+    const { result } = renderHook(() => useProviderActions())
+
+    await act(async () => {
+      await expect(result.current.deleteProviderById('openai')).rejects.toThrow('Delete failed')
+    })
+
+    expect(loggerSpy).toHaveBeenCalledWith('Failed to delete provider', { providerId: 'openai', error })
+    expect(mockInvalidate).not.toHaveBeenCalled()
   })
 })

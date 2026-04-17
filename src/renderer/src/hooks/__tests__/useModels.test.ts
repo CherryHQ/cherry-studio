@@ -3,6 +3,7 @@ import { mockUseInvalidateCache, mockUseMutation, mockUseQuery } from '@test-moc
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { mockRendererLoggerService } from '../../../../../tests/__mocks__/RendererLoggerService'
 import { useModelMutations, useModels } from '../useModels'
 
 // ─── Mock data ────────────────────────────────────────────────────────
@@ -73,17 +74,29 @@ describe('useModels', () => {
     expect(mockUseQuery).toHaveBeenCalledWith('/models', { query: { providerId: 'openai' } })
   })
 
-  it('should pass enabled option separately from query params', () => {
+  it('should pass enabled as a query parameter for filtering', () => {
     renderHook(() => useModels({ enabled: false }))
 
-    expect(mockUseQuery).toHaveBeenCalledWith('/models', { enabled: false })
+    expect(mockUseQuery).toHaveBeenCalledWith('/models', { query: { enabled: false } })
   })
 
-  it('should pass both providerId and enabled', () => {
+  it('should pass both providerId and enabled as query parameters', () => {
     renderHook(() => useModels({ providerId: 'openai', enabled: true }))
 
     expect(mockUseQuery).toHaveBeenCalledWith('/models', {
-      query: { providerId: 'openai' },
+      query: { providerId: 'openai', enabled: true }
+    })
+  })
+
+  it('should disable SWR request when fetchEnabled is false', () => {
+    renderHook(() => useModels(undefined, { fetchEnabled: false }))
+    expect(mockUseQuery).toHaveBeenCalledWith('/models', { enabled: false })
+  })
+
+  it('should pass query params AND control SWR independently', () => {
+    renderHook(() => useModels({ providerId: 'openai', enabled: false }, { fetchEnabled: true }))
+    expect(mockUseQuery).toHaveBeenCalledWith('/models', {
+      query: { providerId: 'openai', enabled: false },
       enabled: true
     })
   })
@@ -137,6 +150,36 @@ describe('useModelMutations', () => {
     })
 
     expect(mockTrigger).toHaveBeenCalledWith({ body: dto })
+  })
+
+  it('should log and rethrow createModel errors', async () => {
+    const error = new Error('Create failed')
+    const loggerSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
+    mockUseMutation
+      .mockImplementationOnce(() => ({
+        trigger: vi.fn().mockRejectedValue(error),
+        isLoading: false,
+        error: undefined
+      }))
+      .mockImplementationOnce(() => ({
+        trigger: vi.fn(),
+        isLoading: false,
+        error: undefined
+      }))
+
+    const { result } = renderHook(() => useModelMutations())
+
+    await act(async () => {
+      await expect(result.current.createModel({ providerId: 'openai', modelId: 'gpt-5' })).rejects.toThrow(
+        'Create failed'
+      )
+    })
+
+    expect(loggerSpy).toHaveBeenCalledWith('Failed to create model', {
+      providerId: 'openai',
+      modelId: 'gpt-5',
+      error
+    })
   })
 
   it('should call batch create trigger when createModelsBatch is invoked', async () => {
@@ -198,6 +241,27 @@ describe('useModelMutations', () => {
       body: { isEnabled: false }
     })
     expect(mockInvalidate).toHaveBeenCalledWith('/models')
+  })
+
+  it('should log and rethrow deleteModel errors', async () => {
+    const mockInvalidate = vi.fn().mockResolvedValue(undefined)
+    const error = new Error('Delete failed')
+    const loggerSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
+    mockUseInvalidateCache.mockImplementation(() => mockInvalidate)
+    mockDataApiService.delete.mockRejectedValue(error)
+
+    const { result } = renderHook(() => useModelMutations())
+
+    await act(async () => {
+      await expect(result.current.deleteModel('openai', 'gpt-4o')).rejects.toThrow('Delete failed')
+    })
+
+    expect(loggerSpy).toHaveBeenCalledWith('Failed to delete model', {
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      error
+    })
+    expect(mockInvalidate).not.toHaveBeenCalled()
   })
 
   it('should encode model ID in path correctly', async () => {
