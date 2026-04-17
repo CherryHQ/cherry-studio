@@ -1,7 +1,6 @@
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { messageService } from '@main/data/services/MessageService'
 import type {
   AiStreamAbortRequest,
   AiStreamAttachRequest,
@@ -19,9 +18,9 @@ import type { UIMessageChunk } from 'ai'
 import type { AiStreamRequest } from '../AiCompletionService'
 import { PendingMessageQueue } from '../PendingMessageQueue'
 import { buildCompactReplay } from './buildCompactReplay'
+import { dispatchStreamRequest } from './context'
 import { InternalStreamTarget } from './InternalStreamTarget'
 import { WebContentsListener } from './listeners/WebContentsListener'
-import { streamRequestHandler } from './StreamRequestHandler'
 import type {
   ActiveStream,
   AiStreamManagerConfig,
@@ -54,7 +53,7 @@ export class AiStreamManager extends BaseService {
   protected async onInit(): Promise<void> {
     this.ipcHandle(IpcChannel.Ai_Stream_Open, async (event, req: AiStreamOpenRequest) => {
       const subscriber = new WebContentsListener(event.sender, req.topicId)
-      return streamRequestHandler.handle(this, subscriber, req)
+      return dispatchStreamRequest(this, subscriber, req)
     })
 
     this.ipcHandle(IpcChannel.Ai_Stream_Attach, (event, req: AiStreamAttachRequest) => {
@@ -531,36 +530,5 @@ export class AiStreamManager extends BaseService {
     if (!stream) return
     if (stream.reapTimer) clearTimeout(stream.reapTimer)
     this.activeStreams.delete(topicId)
-  }
-
-  /**
-   * Build AiStreamRequest by reading message history from DB and attaching resolved model info.
-   *
-   * Reads the path from root to the just-persisted user message (parentUserMessageId),
-   * converts Message[] to UIMessage[] for the AI SDK, and constructs the full request.
-   */
-  async buildAiStreamRequest(
-    topicId: string,
-    assistantId: string,
-    uniqueModelId: UniqueModelId,
-    parentUserMessageId: string
-  ): Promise<AiStreamRequest> {
-    // Read conversation history: root → ... → user message (linear path)
-    const messagePath = await messageService.getPathToNode(parentUserMessageId)
-
-    // Convert Message[] → UIMessage[] for AI SDK
-    const messages: CherryUIMessage[] = messagePath.map((msg) => ({
-      id: msg.id,
-      role: msg.role as CherryUIMessage['role'],
-      parts: msg.data.parts ?? []
-    }))
-
-    return {
-      chatId: topicId,
-      trigger: 'submit-message',
-      assistantId,
-      uniqueModelId,
-      messages
-    }
   }
 }

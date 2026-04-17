@@ -193,7 +193,7 @@ describe('TemporaryChatService', () => {
   describe('return shape', () => {
     it('createTopic returns Topic with activeNodeId=null and ISO timestamps', async () => {
       const topic = await service.createTopic({ name: 'hello', assistantId: 'asst_1' })
-      expect(topic.id).toMatch(/^[0-9a-f-]{36}$/)
+      expect(topic.id).toMatch(/^temp:[0-9a-f-]{36}$/)
       expect(topic.name).toBe('hello')
       expect(topic.assistantId).toBe('asst_1')
       expect(topic.activeNodeId).toBeNull()

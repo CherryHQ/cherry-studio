@@ -3,18 +3,13 @@ import { LoadingOutlined } from '@ant-design/icons'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
+import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { PartsProvider } from '@renderer/pages/home/Messages/Blocks'
 import MessageContent from '@renderer/pages/home/Messages/MessageContent'
-import {
-  getAssistantById,
-  getDefaultAssistant,
-  getDefaultModel,
-  getDefaultTopic
-} from '@renderer/services/AssistantService'
+import { getAssistantById, getDefaultAssistant, getDefaultModel } from '@renderer/services/AssistantService'
 import { pauseTrace } from '@renderer/services/SpanManagerService'
 import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
 import { AssistantMessageStatus } from '@renderer/types/newMessage'
-import { buildAssistantRuntimeOverrides } from '@renderer/utils/assistantRuntimeOverrides'
 import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -47,7 +42,8 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
     }
   }, [action.assistantId])
 
-  const activeTopic = useMemo(() => getDefaultTopic(activeAssistant.id), [activeAssistant.id])
+  // Temporary in-memory topic — never touches SQLite, released on unmount.
+  const { topicId: temporaryTopicId, ready } = useTemporaryTopic(activeAssistant.id)
 
   const promptContent = useMemo(() => {
     let userContent = ''
@@ -86,7 +82,9 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
     sendMessage,
     stop: stopChat
   } = useChat<CherryUIMessage>({
-    id: activeTopic.id,
+    // Once the temporary topic id arrives, the chat reinitializes with it.
+    // Before that we use a stable placeholder so `useChat` doesn't thrash across renders.
+    id: temporaryTopicId ?? 'pending-temp',
     transport: ipcChatTransport,
     experimental_throttle: 50,
     onError: (err) => {
@@ -102,29 +100,33 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
     }
   }, [status, scrollToBottom])
 
-  const partsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
-    const map: Record<string, CherryMessagePart[]> = {}
-    for (const m of chatMessages) map[m.id] = m.parts as CherryMessagePart[]
-    return map
-  }, [chatMessages])
-
   const latestAssistantUIMsg = useMemo(() => chatMessages.findLast((m) => m.role === 'assistant'), [chatMessages])
 
+  // Only the latest assistant message is rendered — mapping all chatMessages is wasted work.
+  const partsMap = useMemo<Record<string, CherryMessagePart[]>>(
+    () =>
+      latestAssistantUIMsg ? { [latestAssistantUIMsg.id]: latestAssistantUIMsg.parts as CherryMessagePart[] } : {},
+    [latestAssistantUIMsg]
+  )
+
+  // Minimum shape required by MessageContent / PartsRenderer for a single non-attachment assistant turn.
+  // topicId / assistantId / blocks are never read in this codepath; createdAt is only consulted for
+  // file-attachment parts (absent in temporary topics), so a stable empty string is fine.
   const latestAssistantMessage = useMemo(() => {
     if (!latestAssistantUIMsg) return null
     return {
       id: latestAssistantUIMsg.id,
-      role: latestAssistantUIMsg.role as 'assistant',
-      assistantId: activeAssistant.id,
-      topicId: activeTopic.id,
-      createdAt: new Date().toISOString(),
+      role: 'assistant' as const,
+      assistantId: '',
+      topicId: '',
+      createdAt: '',
       status:
         status === 'streaming' || status === 'submitted'
           ? AssistantMessageStatus.PROCESSING
           : AssistantMessageStatus.SUCCESS,
       blocks: []
     }
-  }, [latestAssistantUIMsg, activeAssistant.id, activeTopic.id, status])
+  }, [latestAssistantUIMsg, status])
 
   const content = useMemo(
     () => (latestAssistantUIMsg ? getTextFromParts(latestAssistantUIMsg.parts as CherryMessagePart[]) : ''),
@@ -135,23 +137,14 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
   const error = completionError
 
   const fetchResult = useCallback(() => {
+    if (!ready || !temporaryTopicId) return
     logger.debug('Before process message', { assistant: activeAssistant })
     setCompletionError(null)
     setIsPreparing(true)
-    void sendMessage(
-      { text: promptContent },
-      {
-        body: {
-          topicId: activeTopic.id,
-          assistantId: activeAssistant.id,
-          providerId: activeAssistant.model?.provider,
-          modelId: activeAssistant.model?.id,
-          mcpToolIds: [],
-          assistantOverrides: buildAssistantRuntimeOverrides(activeAssistant)
-        }
-      }
-    )
-  }, [activeAssistant, activeTopic.id, promptContent, sendMessage])
+    // topicId comes from useChat id; Main resolves assistant/model from topic.assistantId.
+    // No body fields are read by IpcChatTransport for this codepath.
+    void sendMessage({ text: promptContent })
+  }, [activeAssistant, ready, temporaryTopicId, promptContent, sendMessage])
 
   useEffect(() => {
     fetchResult()
@@ -159,7 +152,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
 
   const handlePause = () => {
     void stopChat()
-    void pauseTrace(activeTopic.id)
+    if (temporaryTopicId) void pauseTrace(temporaryTopicId)
   }
 
   const handleRegenerate = () => {

@@ -24,6 +24,15 @@ import type { Topic } from '@shared/data/types/topic'
 import { eq } from 'drizzle-orm'
 import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
 
+/**
+ * Prefix identifying a temporary topic id (for log readability / debugging).
+ *
+ * NOTE: Routing (e.g. which ChatContextProvider owns this topic) must NOT rely
+ * on the prefix alone. After `persist()`, the id survives in SQLite with the
+ * same prefix — routing must check `hasTopic()` against the service state.
+ */
+export const TEMPORARY_TOPIC_PREFIX = 'temp:'
+
 const logger = loggerService.withContext('DataApi:TemporaryChatService')
 
 const VALID_ROLES: readonly MessageRole[] = ['user', 'assistant', 'system']
@@ -72,7 +81,7 @@ export class TemporaryChatService {
     }
     const now = Date.now()
     const row: TemporaryTopicRow = {
-      id: uuidv4(),
+      id: `${TEMPORARY_TOPIC_PREFIX}${uuidv4()}`,
       name: dto.name ?? null,
       isNameManuallyEdited: false,
       assistantId: dto.assistantId ?? null,
@@ -129,6 +138,23 @@ export class TemporaryChatService {
     const list = this.messages.get(topicId)!
     list.push(row)
     return rowToMessage(row)
+  }
+
+  /**
+   * Main-process internal API — test whether a topicId is currently managed
+   * by this service. Routing helpers (e.g. TemporaryChatContextProvider)
+   * use this instead of prefix matching so that post-`persist()` ids (which
+   * retain the `temp:` prefix but no longer live in memory) correctly fall
+   * through to the persistent path.
+   */
+  hasTopic(topicId: string): boolean {
+    return this.topics.has(topicId)
+  }
+
+  /** Main-process internal API — read-only topic accessor (returns ISO-timestamp Topic). */
+  getTopic(topicId: string): Topic | null {
+    const row = this.topics.get(topicId)
+    return row ? rowToTopic(row) : null
   }
 
   async listMessages(topicId: string): Promise<Message[]> {

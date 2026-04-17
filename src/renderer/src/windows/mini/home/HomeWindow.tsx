@@ -3,13 +3,11 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import i18n from '@renderer/i18n'
-import { getDefaultTopic } from '@renderer/services/AssistantService'
+import { getAssistantById, getDefaultAssistant, getDefaultModel } from '@renderer/services/AssistantService'
 import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
-import type { Topic } from '@renderer/types'
 import { AssistantMessageStatus, UserMessageStatus } from '@renderer/types/newMessage'
-import { buildAssistantRuntimeOverrides } from '@renderer/utils/assistantRuntimeOverrides'
 import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
 import { defaultLanguage } from '@shared/config/constant'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
@@ -47,19 +45,28 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const [userInputText, setUserInputText] = useState('')
   const [clipboardText, setClipboardText] = useState('')
   const [isPinned, setIsPinned] = useState(false)
-  const [currentTopic, setCurrentTopic] = useState<Topic | null>(null)
 
   const lastClipboardTextRef = useRef<string | null>(null)
   const inputBarRef = useRef<HTMLDivElement>(null)
   const featureMenusRef = useRef<FeatureMenusRef>(null)
 
-  const { assistant: currentAssistant } = useAssistant(quickAssistantId)
+  // Synchronous store read — avoids pulling in react-redux `<Provider>` which is
+  // intentionally absent from the mini window (see MiniWindowApp). The store is
+  // rehydrated via PersistGate before this component mounts, so `getAssistantById`
+  // returns stable data; mini window config changes land from the main window via
+  // preference updates that force a full window remount.
+  const currentAssistant = useMemo(() => {
+    const base = (quickAssistantId && getAssistantById(quickAssistantId)) || getDefaultAssistant()
+    return { ...base, model: base.model ?? getDefaultModel() }
+  }, [quickAssistantId])
 
-  useEffect(() => {
-    setCurrentTopic(getDefaultTopic(currentAssistant.id))
-  }, [currentAssistant.id])
-
-  const topic = currentTopic ?? getDefaultTopic(currentAssistant.id)
+  // Lease a temporary topic for the quick-assistant conversation.
+  // Lifecycle is tied to this component; resetting the conversation drops and leases a new one.
+  const {
+    topicId: temporaryTopicId,
+    ready: isTopicReady,
+    reset: resetTemporaryTopic
+  } = useTemporaryTopic(currentAssistant.id)
 
   const referenceText = clipboardText || userInputText
 
@@ -72,7 +79,6 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
   const [isPreparing, setIsPreparing] = useState(false)
   const [flowError, setFlowError] = useState<string | null>(null)
-  const timestampCacheRef = useRef(new Map<string, string>())
 
   const {
     messages: chatMessages,
@@ -81,7 +87,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     stop: stopChat,
     setMessages
   } = useChat<CherryUIMessage>({
-    id: topic.id,
+    id: temporaryTopicId ?? 'pending-temp',
     transport: ipcChatTransport,
     experimental_throttle: 50,
     onError: (err) => {
@@ -100,39 +106,26 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     return map
   }, [chatMessages])
 
+  // Minimum shape required by MessageContent / PartsRenderer.
+  // topicId / assistantId / blocks are never read in this codepath; createdAt is only consulted
+  // for file-attachment parts (absent in temporary topics), so a stable empty string is fine.
   const adaptedMessages = useMemo(() => {
-    const cache = timestampCacheRef.current
-    const activeIds = new Set<string>()
     const latestAssistantId = chatMessages.findLast((m) => m.role === 'assistant')?.id
-
-    const result = chatMessages.map((m) => {
-      activeIds.add(m.id)
-      let ts = cache.get(m.id)
-      if (!ts) {
-        ts = new Date().toISOString()
-        cache.set(m.id, ts)
-      }
-      return {
-        id: m.id,
-        role: m.role as 'user' | 'assistant',
-        assistantId: currentAssistant.id,
-        topicId: topic.id,
-        createdAt: ts,
-        status:
-          m.role === 'user'
-            ? UserMessageStatus.SUCCESS
-            : m.id === latestAssistantId && (status === 'streaming' || status === 'submitted')
-              ? AssistantMessageStatus.PROCESSING
-              : AssistantMessageStatus.SUCCESS,
-        blocks: []
-      }
-    })
-
-    for (const key of cache.keys()) {
-      if (!activeIds.has(key)) cache.delete(key)
-    }
-    return result
-  }, [chatMessages, currentAssistant.id, topic.id, status])
+    return chatMessages.map((m) => ({
+      id: m.id,
+      role: m.role as 'user' | 'assistant',
+      assistantId: '',
+      topicId: '',
+      createdAt: '',
+      status:
+        m.role === 'user'
+          ? UserMessageStatus.SUCCESS
+          : m.id === latestAssistantId && (status === 'streaming' || status === 'submitted')
+            ? AssistantMessageStatus.PROCESSING
+            : AssistantMessageStatus.SUCCESS,
+      blocks: []
+    }))
+  }, [chatMessages, status])
 
   const latestAssistantUIMsg = useMemo(() => chatMessages.findLast((m) => m.role === 'assistant'), [chatMessages])
 
@@ -217,32 +210,22 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const handleSendMessage = useCallback(
     async (prompt?: string) => {
       if (isEmpty(userContent)) return
+      if (!isTopicReady || !temporaryTopicId) return
 
       try {
         setFlowError(null)
         setIsFirstMessage(false)
         setUserInputText('')
         setIsPreparing(true)
-        void sendMessage(
-          { text: [prompt, userContent].filter(Boolean).join('\n\n') },
-          {
-            body: {
-              topicId: topic.id,
-              assistantId: currentAssistant.id,
-              providerId: currentAssistant.model?.provider,
-              modelId: currentAssistant.model?.id,
-              mcpToolIds: [],
-              assistantOverrides: buildAssistantRuntimeOverrides(currentAssistant)
-            }
-          }
-        )
+        // topicId comes from useChat id; Main resolves assistant/model from topic.assistantId.
+        void sendMessage({ text: [prompt, userContent].filter(Boolean).join('\n\n') })
       } catch (streamError) {
         const resolvedError = streamError instanceof Error ? streamError : new Error('An error occurred')
         setFlowError(resolvedError.message)
         logger.error('Error fetching result:', resolvedError)
       }
     },
-    [currentAssistant, sendMessage, topic.id, userContent]
+    [sendMessage, temporaryTopicId, isTopicReady, userContent]
   )
 
   const handlePause = useCallback(() => {
@@ -250,9 +233,10 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   }, [stopChat])
 
   const resetConversation = useCallback(() => {
-    setCurrentTopic(getDefaultTopic(currentAssistant.id))
+    // Drop the current temporary topic and let useTemporaryTopic lease a fresh one.
+    resetTemporaryTopic()
     clear()
-  }, [clear, currentAssistant.id])
+  }, [clear, resetTemporaryTopic])
 
   const handleEsc = useCallback(() => {
     if (isLoading) {

@@ -1,0 +1,122 @@
+/**
+ * TemporaryChatContextProvider — owns in-memory temporary chat topics.
+ *
+ * Contract:
+ *  - Topic state lives in TemporaryChatService (Main-process Map, never touches SQLite).
+ *  - Messages append sequentially and are immutable once written (no tree, no siblings,
+ *    no placeholder/update workflow).
+ *  - On stream start: append the user message.
+ *  - On stream terminate: TemporaryPersistenceListener appends the assistant message.
+ *
+ * Routing is state-based (`hasTopic`) not prefix-based — after `persist()`, ids retain
+ * the `temp:` prefix but are no longer owned by this provider; they should fall through
+ * to the persistent provider.
+ */
+
+import { assistantDataService } from '@data/services/AssistantService'
+import { loggerService } from '@logger'
+import { temporaryChatService } from '@main/data/services/TemporaryChatService'
+import type { AiStreamOpenRequest, AiStreamOpenResponse } from '@shared/ai/transport'
+import { parseUniqueModelId } from '@shared/data/types/model'
+
+import type { AiStreamRequest } from '../../AiCompletionService'
+import type { AiStreamManager } from '../AiStreamManager'
+import { TemporaryPersistenceListener } from '../listeners/TemporaryPersistenceListener'
+import type { CherryUIMessage, StreamListener } from '../types'
+import type { ChatContextProvider } from './ChatContextProvider'
+import { resolveModels } from './modelResolution'
+
+const logger = loggerService.withContext('TemporaryChatContextProvider')
+
+export class TemporaryChatContextProvider implements ChatContextProvider {
+  readonly name = 'temporary'
+
+  canHandle(topicId: string): boolean {
+    return temporaryChatService.hasTopic(topicId)
+  }
+
+  async handle(
+    manager: AiStreamManager,
+    subscriber: StreamListener,
+    req: AiStreamOpenRequest
+  ): Promise<AiStreamOpenResponse> {
+    if (req.trigger === 'regenerate-message') {
+      throw new Error('regenerate-message is not supported for temporary chats (immutable append-only)')
+    }
+
+    const topic = temporaryChatService.getTopic(req.topicId)
+    if (!topic) throw new Error(`Temporary topic not found: ${req.topicId}`)
+
+    const assistantId = topic.assistantId
+    if (!assistantId) throw new Error(`Temporary topic ${req.topicId} has no assistantId configured`)
+
+    const assistant = await assistantDataService.getById(assistantId)
+    if (!assistant.modelId) throw new Error(`Assistant ${assistantId} has no model configured`)
+
+    // Multi-model isn't supported: TemporaryChatService forbids non-zero siblingsGroupId.
+    // Temporary chats are "quick assistant / selection action" scenarios — @mentions
+    // are ignored here intentionally, using the assistant default model only.
+    if (req.mentionedModelIds?.length) {
+      logger.warn('Ignoring mentionedModelIds for temporary chat — single-model only', {
+        topicId: req.topicId,
+        mentioned: req.mentionedModelIds
+      })
+    }
+    const models = await resolveModels(undefined, assistant.modelId)
+    const model = models[0]
+    const { modelId: rawModelId, providerId } = parseUniqueModelId(model.id)
+    const modelSnapshot = {
+      id: model.apiModelId ?? rawModelId,
+      name: model.name,
+      provider: providerId
+    }
+
+    // 1. Append the user message first so `history` (= listMessages) includes it.
+    //    The service generates the id internally — temporary topics are window-local,
+    //    so no cross-process id alignment is required (see TemporaryPersistenceListener docstring).
+    await temporaryChatService.appendMessage(req.topicId, {
+      role: 'user',
+      data: { parts: req.userMessageParts },
+      status: 'success',
+      modelId: model.id,
+      modelSnapshot
+    })
+
+    // 2. Read the full linear history.
+    const prior = await temporaryChatService.listMessages(req.topicId)
+    const history: CherryUIMessage[] = prior.map((m) => ({
+      id: m.id,
+      role: m.role as CherryUIMessage['role'],
+      parts: m.data.parts ?? []
+    }))
+
+    // 3. Build listeners: subscriber (WebContents) + TemporaryPersistenceListener.
+    const listeners: StreamListener[] = [
+      subscriber,
+      new TemporaryPersistenceListener({ topicId: req.topicId, modelId: model.id, modelSnapshot })
+    ]
+
+    // 4. Dispatch single execution. No pre-allocated `messageId`: AI SDK generates
+    //    one for the Renderer-visible streaming UIMessage; service-side message id
+    //    is independent and generated on append.
+    const streamRequest: AiStreamRequest = {
+      chatId: req.topicId,
+      trigger: 'submit-message',
+      assistantId,
+      uniqueModelId: model.id,
+      messages: history
+    }
+
+    manager.startExecution({
+      topicId: req.topicId,
+      modelId: model.id,
+      request: streamRequest,
+      listeners,
+      isMultiModel: false
+    })
+
+    return { mode: 'started' }
+  }
+}
+
+export const temporaryChatContextProvider = new TemporaryChatContextProvider()

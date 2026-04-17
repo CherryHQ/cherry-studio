@@ -158,7 +158,7 @@ describe('Temporary Chat end-to-end (handler → persist → persistent readback
       )
     )
     expect(topic.activeNodeId).toBeNull()
-    expect(topic.id).toMatch(/^[0-9a-f-]{36}$/)
+    expect(topic.id).toMatch(/^temp:[0-9a-f-]{36}$/)
 
     // 2. Append 4 messages: user / assistant / user / assistant.
     const m1 = unwrap<Message>(

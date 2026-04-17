@@ -71,14 +71,24 @@ AI SDK `useChat` 内部通过 `useRef` 持有 `Chat` 实例。组件 unmount →
 
 ```
 src/main/ai/stream-manager/
-├── types.ts                    所有接口和 IPC payload 定义
-├── InternalStreamTarget.ts     AiService 的 StreamTarget 适配器
-├── AiStreamManager.ts          lifecycle 服务(多播 + 生命周期管理)
+├── types.ts                        所有接口和 IPC payload 定义
+├── InternalStreamTarget.ts         AiService 的 StreamTarget 适配器
+├── AiStreamManager.ts              lifecycle 服务(多播 + 生命周期管理)
+├── context/                        按 topicId 命名空间分发的 Provider
+│   ├── ChatContextProvider.ts          Provider 接口定义
+│   ├── dispatch.ts                     Ai_Stream_Open → canHandle 命中的 Provider
+│   ├── PersistentChatContextProvider.ts  裸 uuid → SQLite (MessageService)
+│   ├── TemporaryChatContextProvider.ts   内存 (TemporaryChatService)
+│   ├── AgentChatContextProvider.ts       `agent-session:` → agents DB
+│   └── modelResolution.ts              resolveModels / resolveSiblingsGroupId 共享
 ├── listeners/
 │   ├── WebContentsListener.ts      将 chunks 分发到 Renderer 窗口
 │   ├── PersistenceListener.ts      流结束时将 assistant 消息写入 SQLite
-│   └── ChannelAdapterListener.ts   将回复文本发送到 Discord / Slack / 飞书
-└── index.ts                    barrel export
+│   ├── TemporaryPersistenceListener.ts   流结束时将 assistant 消息 append 到 TemporaryChatService
+│   ├── AgentPersistenceListener.ts       流结束时写入 agents DB
+│   ├── ChannelAdapterListener.ts   将回复文本发送到 Discord / Slack / 飞书
+│   └── SSEListener.ts              API Server 的 SSE transport
+└── index.ts                        barrel export
 ```
 
 ## StreamListener: 观察者接口
@@ -95,13 +105,16 @@ interface StreamListener {
 }
 ```
 
-### 三个内置实现
+### 内置实现
 
 | Listener | 职责 | id | isAlive | onChunk | onDone |
 |---|---|---|---|---|---|
 | **WebContentsListener** | 将 chunks 分发到 Renderer | `wc:${wc.id}:${topicId}` | `!wc.isDestroyed()` | `wc.send(Ai_StreamChunk)` | `wc.send(Ai_StreamDone)` |
-| **PersistenceListener** | 流结束时写入 SQLite | `persistence:${topicId}` | 始终为 `true` | 不处理 | `messageService.create` + `afterPersist` 钩子 |
+| **PersistenceListener** | 流结束时写入 SQLite（update pending placeholder） | `persistence:${topicId}:${modelId}` | 始终为 `true` | 不处理 | `messageService.update` + `afterPersist` 钩子 |
+| **TemporaryPersistenceListener** | 流结束时 append 到内存（简化模式） | `temp-persistence:${topicId}:${modelId}` | 始终为 `true` | 不处理 | `temporaryChatService.appendMessageWithId` |
+| **AgentPersistenceListener** | 流结束时写入 agents DB | `agent-persistence:${sessionId}` | 始终为 `true` | 不处理 | `agentMessageRepository.persistAssistantMessage` |
 | **ChannelAdapterListener** | 将文本发送到 IM 平台 | `channel:${channelId}:${chatId}` | `adapter.connected` | 累积文本 + `onTextUpdate` | `onStreamComplete` / `sendMessage` |
+| **SSEListener** | API Server SSE 透传 | `sse:${uuid}` | `!res.writableEnded` | `res.write` | `res.write [DONE]` |
 
 ### 为什么 Listener id 按 topicId 构造
 
@@ -378,6 +391,57 @@ aiStreamManager.startExecution({
 | `Ai_StreamError` | `{ topicId, error }` | SerializedError |
 
 **所有通信均以 topicId 为唯一 key。**
+
+## ChatContextProvider: 按 topicId 命名空间分发
+
+`Ai_Stream_Open` 请求进入 Main 后,由 `dispatchStreamRequest`（`context/dispatch.ts`，内联的模块级函数）转交给对应的 `ChatContextProvider`:
+
+```typescript
+interface ChatContextProvider {
+  readonly name: string
+  canHandle(topicId: string): boolean
+  handle(manager, subscriber, req): Promise<AiStreamOpenResponse>
+}
+```
+
+所有"解析 topic → 写 user message → 组装 listeners → 调用 `startExecution`"的业务逻辑都收敛在各自的 Provider 里。`AiStreamManager` 完全不感知 topic 类型,它只是一个按 `topicId` 管理 ActiveStream 的注册表。
+
+### 内置 Provider
+
+| Provider | canHandle | 数据层 | User 消息 | Assistant 消息 | 备注 |
+|---|---|---|---|---|---|
+| **AgentChatContextProvider** | `topicId.startsWith('agent-session:')` | `agentMessageRepository` | 预先写入 | `AgentPersistenceListener` onDone 写入 | 用 `manager.send` 触发(支持 steering) |
+| **TemporaryChatContextProvider** | `temporaryChatService.hasTopic(topicId)` | `TemporaryChatService` 内存 Map | append (status=success) | `TemporaryPersistenceListener` onDone `appendMessageWithId` | 单模型,不支持 regenerate / 多模型 |
+| **PersistentChatContextProvider** | `true` (默认兜底) | `messageService` + SQLite | 事务写入（`create`） | `PersistenceListener` onDone `update` pending placeholder | 支持多模型、regenerate、自动重命名 |
+
+路由顺序固定（见 `context/dispatch.ts` 中的 `providers` 数组）:Agent → Temporary → Persistent。临时 Provider 的 `canHandle` **不用前缀判断**而用 `hasTopic()` —— persist 后 `temp:` 前缀的 id 仍留在 SQLite,但不再属于临时 Provider,这种"归属权"的交接只能通过 service 状态准确表达。
+
+### 简化 vs 完整持久化路径
+
+| | Persistent | Temporary |
+|---|---|---|
+| user message | 流开始前事务写入 SQLite | 流开始前 `appendMessageWithId` (内存) |
+| assistant placeholder | 流开始前写入 `status: pending` | **不创建** |
+| 流进行中 | Renderer 直接订阅 chunks,placeholder 已可见 | Renderer 直接订阅 chunks,尚无 DB 行 |
+| 流结束 | `PersistenceListener.onDone` → `messageService.update` | `TemporaryPersistenceListener.onDone` → `temporaryChatService.appendMessageWithId` |
+| 预分配 id | placeholder 的 SQLite 主键 | Provider 在 `handle` 中用 `crypto.randomUUID()` 预分配,传给 `AiStreamRequest.messageId` |
+
+Temp 选择"流结束一把 append"是因为临时话题天然不可变、不支持分支、不需要让用户在生成期间看到一条 pending DB 行。这简化了 service:不必新增 `update` 方法,`appendMessage` 既是唯一的写路径也是唯一的状态迁移。
+
+### Renderer 侧接入
+
+前端通过 `useTemporaryTopic(assistantId)` 租用临时 topic:
+
+```typescript
+const { topicId, ready, reset } = useTemporaryTopic(assistant.id)
+
+useChat({ id: topicId ?? 'pending-temp', transport: ipcChatTransport, ... })
+
+// 发送消息时检查 ready, ready 为 true 前不发送。
+// 组件 unmount 或 reset() 时自动 DELETE /temporary/topics/:id。
+```
+
+典型场景:划词助手(ActionGeneral / ActionTranslate)、迷你窗快速提问(HomeWindow)。这些场景**不应**出现在用户的正式聊天历史里。
 
 ## AiService 集成
 

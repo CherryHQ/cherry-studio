@@ -7,15 +7,15 @@ import CopyButton from '@renderer/components/CopyButton'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import { LanguagesEnum, UNKNOWN } from '@renderer/config/translate'
 import db from '@renderer/databases'
+import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { PartsProvider } from '@renderer/pages/home/Messages/Blocks'
 import MessageContent from '@renderer/pages/home/Messages/MessageContent'
-import { getDefaultTopic, getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
+import { getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
 import { pauseTrace } from '@renderer/services/SpanManagerService'
 import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
-import type { Assistant, Topic, TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
+import type { Assistant, TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
 import { AssistantMessageStatus } from '@renderer/types/newMessage'
-import { buildAssistantRuntimeOverrides } from '@renderer/utils/assistantRuntimeOverrides'
 import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
 import { detectLanguage } from '@renderer/utils/translate'
 import { defaultLanguage } from '@shared/config/constant'
@@ -61,7 +61,8 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const [initialized, setInitialized] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [activeAssistant, setActiveAssistant] = useState<Assistant | null>(null)
-  const [activeTopic, setActiveTopic] = useState<Topic | null>(null)
+  // Temporary in-memory topic leased for this translate session.
+  const { topicId: temporaryTopicId, ready: isTopicReady } = useTemporaryTopic(activeAssistant?.id)
 
   // Use useRef for values that shouldn't trigger re-renders
   const targetLangRef = useRef(targetLanguage)
@@ -115,12 +116,10 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     await updateLanguagePair()
     logger.silly('[initialize] UpdateLanguagePair completed.')
 
-    // Initialize assistant
+    // Initialize assistant — topic is leased asynchronously via useTemporaryTopic.
     const currentAssistant = await getDefaultTranslateAssistant(targetLangRef.current, action.selectedText)
 
-    // Initialize topic
     setActiveAssistant(currentAssistant)
-    setActiveTopic(getDefaultTopic(currentAssistant.id))
     setInitialized(true)
   }, [action.selectedText, initialized, isLanguagesLoaded, updateLanguagePair])
 
@@ -142,7 +141,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     stop: stopChat,
     setMessages
   } = useChat<CherryUIMessage>({
-    id: activeTopic?.id ?? 'selection-translate',
+    id: temporaryTopicId ?? 'pending-temp',
     transport: ipcChatTransport,
     experimental_throttle: 50,
     onError: (err) => {
@@ -158,29 +157,33 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     }
   }, [status, scrollToBottom])
 
-  const partsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
-    const map: Record<string, CherryMessagePart[]> = {}
-    for (const m of chatMessages) map[m.id] = m.parts as CherryMessagePart[]
-    return map
-  }, [chatMessages])
-
   const latestAssistantUIMsg = useMemo(() => chatMessages.findLast((m) => m.role === 'assistant'), [chatMessages])
 
+  // Only the latest assistant message is rendered — mapping all chatMessages is wasted work.
+  const partsMap = useMemo<Record<string, CherryMessagePart[]>>(
+    () =>
+      latestAssistantUIMsg ? { [latestAssistantUIMsg.id]: latestAssistantUIMsg.parts as CherryMessagePart[] } : {},
+    [latestAssistantUIMsg]
+  )
+
+  // Minimum shape required by MessageContent / PartsRenderer for a single non-attachment assistant turn.
+  // topicId / assistantId / blocks are never read in this codepath; createdAt is only consulted for
+  // file-attachment parts (absent in temporary topics), so a stable empty string is fine.
   const latestAssistantMessage = useMemo(() => {
     if (!latestAssistantUIMsg) return null
     return {
       id: latestAssistantUIMsg.id,
-      role: latestAssistantUIMsg.role as 'assistant',
-      assistantId: activeAssistant?.id ?? '',
-      topicId: activeTopic?.id ?? 'selection-translate',
-      createdAt: new Date().toISOString(),
+      role: 'assistant' as const,
+      assistantId: '',
+      topicId: '',
+      createdAt: '',
       status:
         status === 'streaming' || status === 'submitted'
           ? AssistantMessageStatus.PROCESSING
           : AssistantMessageStatus.SUCCESS,
       blocks: []
     }
-  }, [latestAssistantUIMsg, activeAssistant?.id, activeTopic?.id, status])
+  }, [latestAssistantUIMsg, status])
 
   const content = useMemo(
     () => (latestAssistantUIMsg ? getTextFromParts(latestAssistantUIMsg.parts as CherryMessagePart[]) : ''),
@@ -198,7 +201,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   }, [stopChat, setMessages])
 
   const fetchResult = useCallback(async () => {
-    if (!activeTopic || !action.selectedText || !initialized) return
+    if (!isTopicReady || !temporaryTopicId || !action.selectedText || !initialized) return
     clear()
     setDetectError(null)
 
@@ -233,20 +236,19 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
 
     setCompletionError(null)
     setIsPreparing(true)
-    void sendMessage(
-      { text: assistant.content },
-      {
-        body: {
-          topicId: activeTopic.id,
-          assistantId: assistant.id,
-          providerId: assistant.model?.provider,
-          modelId: assistant.model?.id,
-          mcpToolIds: [],
-          assistantOverrides: buildAssistantRuntimeOverrides(assistant)
-        }
-      }
-    )
-  }, [action, activeTopic, alterLanguage, clear, getLanguageByLangcode, initialized, sendMessage, targetLanguage])
+    // topicId comes from useChat id; Main resolves assistant/model from topic.assistantId.
+    void sendMessage({ text: assistant.content })
+  }, [
+    action,
+    temporaryTopicId,
+    isTopicReady,
+    alterLanguage,
+    clear,
+    getLanguageByLangcode,
+    initialized,
+    sendMessage,
+    targetLanguage
+  ])
 
   useEffect(() => {
     void fetchResult()
@@ -337,7 +339,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
 
   const handlePause = () => {
     void stopChat()
-    if (activeTopic?.id) void pauseTrace(activeTopic.id)
+    if (temporaryTopicId) void pauseTrace(temporaryTopicId)
   }
 
   const handleRegenerate = () => {
