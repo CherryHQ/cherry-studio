@@ -5,7 +5,6 @@ import type { Provider } from '@types'
 import { loggerService } from '../../services/LoggerService'
 import type { ModelValidationError } from '../utils'
 import { validateModelId } from '../utils'
-import { getRotatedApiKey } from '../utils/apiKeyRotation'
 
 const logger = loggerService.withContext('ChatCompletionService')
 
@@ -68,9 +67,13 @@ export class ChatCompletionService {
 
     const modelId = modelValidation.modelId!
 
+    // If multiple API keys are configured (comma-separated), use the first one.
+    // Matches the main-process convention in OpenClawService.
+    const apiKey = provider.apiKey ? provider.apiKey.split(',')[0].trim() : ''
+
     const client = new OpenAI({
       baseURL: provider.apiHost,
-      apiKey: getRotatedApiKey(provider)
+      apiKey
     })
 
     return {
