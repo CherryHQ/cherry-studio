@@ -282,13 +282,13 @@ export const getMcpProviderDescriptionLabel = (key: string): string => {
   return getLabel(mcpProviderDescriptionKeyMap, key)
 }
 
-const miniappsStatusKeyMap = {
+const miniAppsStatusKeyMap = {
   visible: 'settings.miniapps.visible',
   disabled: 'settings.miniapps.disabled'
 } as const
 
 export const getMiniAppsStatusLabel = (key: string): string => {
-  return getLabel(miniappsStatusKeyMap, key)
+  return getLabel(miniAppsStatusKeyMap, key)
 }
 
 const httpMessageKeyMap = {

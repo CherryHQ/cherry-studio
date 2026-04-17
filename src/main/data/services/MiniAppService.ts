@@ -211,7 +211,7 @@ export class MiniAppService {
    *
    * The builtin-conflict check is application-level (SQLite has no knowledge
    * of builtin app IDs), so it must stay in code. DB-level uniqueness of
-   * custom appIds is enforced by the UNIQUE PRIMARY KEY on miniappTable.appId
+   * custom appIds is enforced by the UNIQUE PRIMARY KEY on miniAppTable.appId
    * and translated to a 409 CONFLICT via withSqliteErrors — no select-then-
    * insert pre-check is used, so two concurrent creates with the same appId
    * yield one 201 and one 409 instead of one 201 and one 500.

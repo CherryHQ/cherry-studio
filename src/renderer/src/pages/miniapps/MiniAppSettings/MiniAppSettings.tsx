@@ -118,7 +118,7 @@ const MiniAppSettings: FC = () => {
         />
       </BorderedContainer>
       <SettingDivider />
-      {/* Miniapp region setting */}
+      {/* MiniApp region setting */}
       <SettingRow style={{ height: 40, alignItems: 'center' }}>
         <Flex align="center" gap={4}>
           <SettingRowTitle>{t('settings.miniapps.region.title')}</SettingRowTitle>
