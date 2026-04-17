@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-04-16T03:52:21.706Z
+ * Generated at: 2026-04-17T10:58:08.259Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in packages/shared/data/preferences.ts
@@ -685,6 +685,12 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'feature.selection.action_items'
     }
   ],
+  llm: [
+    {
+      originalKey: 'quickAssistantId',
+      targetKey: 'feature.quick_assistant.assistant_id'
+    }
+  ],
   nutstore: [
     {
       originalKey: 'nutstoreToken',
@@ -715,88 +721,6 @@ export const REDUX_STORE_MAPPINGS = {
     {
       originalKey: 'defaultProvider',
       targetKey: 'feature.file_processing.default_markdown_conversion'
-    }
-  ],
-  shortcuts: [
-    {
-      originalKey: 'shortcuts.zoom_in',
-      targetKey: 'shortcut.general.zoom_in'
-    },
-    {
-      originalKey: 'shortcuts.zoom_out',
-      targetKey: 'shortcut.general.zoom_out'
-    },
-    {
-      originalKey: 'shortcuts.zoom_reset',
-      targetKey: 'shortcut.general.zoom_reset'
-    },
-    {
-      originalKey: 'shortcuts.show_settings',
-      targetKey: 'shortcut.general.show_settings'
-    },
-    {
-      originalKey: 'shortcuts.show_app',
-      targetKey: 'shortcut.general.show_main_window'
-    },
-    {
-      originalKey: 'shortcuts.mini_window',
-      targetKey: 'shortcut.feature.quick_assistant.toggle_window'
-    },
-    {
-      originalKey: 'shortcuts.selection_assistant_toggle',
-      targetKey: 'shortcut.feature.selection.toggle_enabled'
-    },
-    {
-      originalKey: 'shortcuts.selection_assistant_select_text',
-      targetKey: 'shortcut.feature.selection.get_text'
-    },
-    {
-      originalKey: 'shortcuts.new_topic',
-      targetKey: 'shortcut.topic.new'
-    },
-    {
-      originalKey: 'shortcuts.rename_topic',
-      targetKey: 'shortcut.topic.rename'
-    },
-    {
-      originalKey: 'shortcuts.toggle_show_topics',
-      targetKey: 'shortcut.topic.toggle_show_topics'
-    },
-    {
-      originalKey: 'shortcuts.toggle_show_assistants',
-      targetKey: 'shortcut.general.toggle_sidebar'
-    },
-    {
-      originalKey: 'shortcuts.copy_last_message',
-      targetKey: 'shortcut.chat.copy_last_message'
-    },
-    {
-      originalKey: 'shortcuts.edit_last_user_message',
-      targetKey: 'shortcut.chat.edit_last_user_message'
-    },
-    {
-      originalKey: 'shortcuts.search_message_in_chat',
-      targetKey: 'shortcut.chat.search_message'
-    },
-    {
-      originalKey: 'shortcuts.search_message',
-      targetKey: 'shortcut.general.search'
-    },
-    {
-      originalKey: 'shortcuts.clear_topic',
-      targetKey: 'shortcut.chat.clear'
-    },
-    {
-      originalKey: 'shortcuts.toggle_new_context',
-      targetKey: 'shortcut.chat.toggle_new_context'
-    },
-    {
-      originalKey: 'shortcuts.select_model',
-      targetKey: 'shortcut.chat.select_model'
-    },
-    {
-      originalKey: 'shortcuts.exit_fullscreen',
-      targetKey: 'shortcut.general.exit_fullscreen'
     }
   ],
   translate: [
@@ -923,11 +847,11 @@ export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetK
 /**
  * 映射统计:
  * - ElectronStore项: 1
- * - Redux Store项: 205
- * - Redux分类: settings, selectionStore, nutstore, preprocess, shortcuts, translate, websearch, ocr, note
+ * - Redux Store项: 185
+ * - Redux分类: settings, selectionStore, llm, nutstore, preprocess, translate, websearch, ocr, note
  * - DexieSettings项: 7
  * - localStorage项: 0
- * - 总配置项: 213
+ * - 总配置项: 193
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)

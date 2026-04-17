@@ -28,6 +28,7 @@ import type { MessageSchemas } from './messages'
 import type { MiniAppSchemas } from './miniapps'
 import type { ModelSchemas } from './models'
 import type { ProviderSchemas } from './providers'
+import type { TagSchemas } from './tags'
 import type { TemporaryChatSchemas } from './temporaryChats'
 import type { TopicSchemas } from './topics'
 import type { TranslateSchemas } from './translate'
@@ -56,5 +57,6 @@ export type ApiSchemas = AssertValidSchemas<
     MCPServerSchemas &
     KnowledgeSchemas &
     MiniAppSchemas &
-    AssistantSchemas
+    AssistantSchemas &
+    TagSchemas
 >
