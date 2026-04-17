@@ -291,8 +291,8 @@ class SchedulerService {
         onPaused() {
           resolveExecution(accumulatedText.trim())
         },
-        onError(error) {
-          rejectExecution(new Error(error.message ?? 'Execution failed'))
+        onError(result) {
+          rejectExecution(new Error(result.error.message ?? 'Execution failed'))
         },
         isAlive: () => !abortController.signal.aborted
       }

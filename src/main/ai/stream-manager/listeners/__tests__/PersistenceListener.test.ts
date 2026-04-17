@@ -86,24 +86,40 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     expect(appendMessageMock.mock.calls[0][1].status).toBe('paused')
   })
 
-  it('onError appends a message with an error part + status=error', async () => {
+  it('onError folds the error into finalMessage.parts and persists as status=error', async () => {
     const listener = makeListener()
 
     const err: SerializedError = { name: 'Error', message: 'boom', stack: null }
-    const partial = {
+    const finalMessage = {
       id: 'partial-id',
       role: 'assistant',
       parts: [{ type: 'text', text: 'so far so good' }]
     } as unknown as UIMessage
 
-    await listener.onError(err, partial)
+    await listener.onError({ status: 'error', error: err, finalMessage: finalMessage as CherryUIMessage })
+
+    expect(appendMessageMock).toHaveBeenCalledTimes(1)
+    const payload = appendMessageMock.mock.calls[0][1]
+    expect(payload.status).toBe('error')
+    // The listener — not the backend — is responsible for appending the
+    // error part; the backend just persists whatever `parts` it receives.
+    const parts = payload.data.parts as Array<{ type: string }>
+    expect(parts.some((p) => p.type === 'text')).toBe(true)
+    expect(parts.some((p) => p.type === 'data-error')).toBe(true)
+  })
+
+  it('onError with no accumulated content still persists a single error part', async () => {
+    const listener = makeListener()
+    const err: SerializedError = { name: 'Error', message: 'boom', stack: null }
+
+    await listener.onError({ status: 'error', error: err })
 
     expect(appendMessageMock).toHaveBeenCalledTimes(1)
     const payload = appendMessageMock.mock.calls[0][1]
     expect(payload.status).toBe('error')
     const parts = payload.data.parts as Array<{ type: string }>
-    expect(parts.some((p) => p.type === 'data-error')).toBe(true)
-    expect(parts.some((p) => p.type === 'text')).toBe(true)
+    expect(parts).toHaveLength(1)
+    expect(parts[0]).toEqual({ type: 'data-error', data: err })
   })
 
   it('skips persistence when onDone arrives without a finalMessage', async () => {

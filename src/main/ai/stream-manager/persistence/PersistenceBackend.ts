@@ -7,30 +7,27 @@
  *  - `TemporaryChatBackend`     — in-memory topic (Temporary topics)
  *  - `AgentMessageBackend`      — agents DB `session_messages` (Agent sessions)
  *
- * The listener handles the observer protocol (filter by modelId, combine
- * partial + error parts, logging). Backends only do the final write —
- * making it trivial to add a fourth store (e.g. an outbox for the API
- * server) without duplicating the listener boilerplate.
+ * `success` / `paused` / `error` are the three terminal statuses of an
+ * execution, and they all share a single accumulated `finalMessage`
+ * (produced by the manager's pump via `readUIMessageStream`). The
+ * listener is responsible for attaching an error part to the message
+ * before calling the backend, so backends never need to know how to
+ * synthesise an error-shaped UIMessage — they just persist whatever
+ * accumulated parts they receive with the right status.
  */
 
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
-import type { SerializedError } from '@shared/types/error'
-import type { UIMessage } from 'ai'
 
 export interface PersistAssistantInput {
-  /** Always present for success/paused terminal events. */
-  finalMessage: CherryUIMessage
-  status: 'success' | 'paused'
-  /** Set when the topic is multi-model, so a backend can tell executions apart. */
-  modelId?: UniqueModelId
-}
-
-export interface PersistErrorInput {
-  error: SerializedError
-  /** Streamed content before the error (if any). */
-  partialMessage?: UIMessage
-  /** Set when the topic is multi-model. */
+  /**
+   * Accumulated UIMessage for this execution. May be undefined when the
+   * stream errored before producing any chunks. Backends that cannot
+   * persist an empty message should ignore those cases and warn.
+   */
+  finalMessage?: CherryUIMessage
+  status: 'success' | 'paused' | 'error'
+  /** Set when the topic is multi-model, so backends can tell executions apart. */
   modelId?: UniqueModelId
 }
 
@@ -38,11 +35,8 @@ export interface PersistenceBackend {
   /** Human-readable tag for logging/diagnostics (e.g. "sqlite", "temp", "agents-db"). */
   readonly kind: string
 
-  /** Persist a successful or paused assistant message. */
+  /** Persist the terminal assistant turn in any of the three statuses. */
   persistAssistant(input: PersistAssistantInput): Promise<void>
-
-  /** Persist an error (optionally with the partial content that streamed before it). */
-  persistError(input: PersistErrorInput): Promise<void>
 
   /**
    * Optional post-success hook. Called only after `persistAssistant` with

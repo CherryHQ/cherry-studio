@@ -1,13 +1,13 @@
 import type { UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
-import type { SerializedError } from '@shared/types/error'
-import type { UIMessage, UIMessageChunk } from 'ai'
+import type { UIMessageChunk } from 'ai'
 
 import type {
   StreamChunkPayload,
   StreamDonePayload,
   StreamDoneResult,
   StreamErrorPayload,
+  StreamErrorResult,
   StreamListener,
   StreamPausedResult
 } from '../types'
@@ -60,13 +60,16 @@ export class WebContentsListener implements StreamListener {
     } satisfies StreamDonePayload)
   }
 
-  onError(error: SerializedError, _partialMessage?: UIMessage, modelId?: UniqueModelId, isTopicDone?: boolean): void {
+  onError(result: StreamErrorResult): void {
     if (this.wc.isDestroyed()) return
+    // We don't forward `result.finalMessage` here yet — the renderer keeps
+    // its own accumulated state from the chunk stream. Plumbing partial
+    // content through the IPC payload is a future optimisation.
     this.wc.send(IpcChannel.Ai_StreamError, {
       topicId: this.topicId,
-      executionId: modelId,
-      isTopicDone,
-      error
+      executionId: result.modelId,
+      isTopicDone: result.isTopicDone,
+      error: result.error
     } satisfies StreamErrorPayload)
   }
 

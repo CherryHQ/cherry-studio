@@ -26,6 +26,7 @@ import type { ClaudeCodeProviderSettings } from './provider/claude-code/types'
 import { extractAgentSessionId, isAgentSessionTopic } from './provider/claudeCodeSettingsBuilder'
 import { providerToAiSdkConfig } from './provider/config'
 import { listModels as listModelsFromProvider } from './services/listModels'
+import type { CherryUIMessageChunk } from './stream-manager/types'
 import { registerMcpTools } from './tools/mcpTools'
 import { resolveAssistantMcpToolIds } from './tools/resolveAssistantMcpTools'
 import { ToolRegistry } from './tools/ToolRegistry'
@@ -208,10 +209,10 @@ export class AiService extends BaseService {
    * stream. The caller (AiStreamManager) owns the read loop, multicast,
    * final-message accumulation, and terminal dispatching.
    */
-  streamText(request: AiStreamRequest, signal: AbortSignal): ReadableStream<UIMessageChunk> {
+  streamText(request: AiStreamRequest, signal: AbortSignal): ReadableStream<CherryUIMessageChunk> {
     logger.info('streamText started', { chatId: request.chatId })
 
-    const { readable, writable } = new TransformStream<UIMessageChunk>()
+    const { readable, writable } = new TransformStream<CherryUIMessageChunk>()
     const writer = writable.getWriter()
 
     this.resolveAndStream(request, signal, writer).catch(async (error) => {

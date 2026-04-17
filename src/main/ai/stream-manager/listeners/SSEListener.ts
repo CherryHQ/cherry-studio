@@ -1,7 +1,6 @@
-import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 
-import type { StreamDoneResult, StreamListener, StreamPausedResult } from '../types'
+import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../types'
 
 /**
  * StreamListener that writes UIMessageChunk to an HTTP SSE response.
@@ -54,9 +53,9 @@ export class SSEListener implements StreamListener {
     this.end()
   }
 
-  onError(error: SerializedError): void {
+  onError(result: StreamErrorResult): void {
     if (!this.alive()) return
-    this.write(`data: ${JSON.stringify({ type: 'error', error })}\n\n`)
+    this.write(`data: ${JSON.stringify({ type: 'error', error: result.error })}\n\n`)
     this.end()
   }
 

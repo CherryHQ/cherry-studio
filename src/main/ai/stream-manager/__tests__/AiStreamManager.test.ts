@@ -4,7 +4,13 @@ import type { UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AiStreamRequest } from '../../AiService'
-import type { AiStreamManagerConfig, StreamDoneResult, StreamListener, StreamPausedResult } from '../types'
+import type {
+  AiStreamManagerConfig,
+  StreamDoneResult,
+  StreamErrorResult,
+  StreamListener,
+  StreamPausedResult
+} from '../types'
 
 // ── Fake listener ───────────────────────────────────────────────────
 
@@ -15,7 +21,7 @@ class FakeListener implements StreamListener {
   chunkSources: Array<string | undefined> = []
   doneResults: StreamDoneResult[] = []
   pausedResults: StreamPausedResult[] = []
-  errors: SerializedError[] = []
+  errorResults: StreamErrorResult[] = []
   alive = true
   onDoneImpl?: (result: StreamDoneResult) => void | Promise<void>
   onPausedImpl?: (result: StreamPausedResult) => void | Promise<void>
@@ -39,8 +45,8 @@ class FakeListener implements StreamListener {
     return this.onPausedImpl?.(result)
   }
 
-  onError(error: SerializedError): void {
-    this.errors.push(error)
+  onError(result: StreamErrorResult): void {
+    this.errorResults.push(result)
   }
 
   isAlive(): boolean {
@@ -63,6 +69,25 @@ function pendingStream(): ReadableStream<UIMessageChunk> {
       // Intentionally no enqueue / close. Cancel is a no-op.
     }
   })
+}
+
+/** A stream whose feed is driven from the test body (enqueue / close). */
+function controlledStream(): {
+  stream: ReadableStream<UIMessageChunk>
+  enqueue: (chunk: UIMessageChunk) => void
+  close: () => void
+} {
+  let controller!: ReadableStreamDefaultController<UIMessageChunk>
+  const stream = new ReadableStream<UIMessageChunk>({
+    start(c) {
+      controller = c
+    }
+  })
+  return {
+    stream,
+    enqueue: (chunk) => controller.enqueue(chunk),
+    close: () => controller.close()
+  }
 }
 
 const mockStreamText = vi.fn<(request: AiStreamRequest, signal: AbortSignal) => ReadableStream<UIMessageChunk>>(() =>
@@ -428,23 +453,11 @@ describe('AiStreamManager', () => {
   // ── onExecutionDone ─────────────────────────────────────────────
 
   describe('onExecutionDone', () => {
-    it('broadcasts with finalMessage and status', async () => {
-      const l = new FakeListener('l:a')
-      startSingle(mgr, {
-        topicId: 'a',
-        modelId: 'provider-a::model-a',
-        request: req('a'),
-        listeners: [l]
-      })
-      mgr.setExecutionFinalMessage('a', 'provider-a::model-a', { id: '1', role: 'assistant', parts: [] } as any)
-
-      await mgr.onExecutionDone('a', 'provider-a::model-a')
-
-      expect(mgr.inspect('a')!.status).toBe('done')
-      expect(l.doneResults).toHaveLength(1)
-      expect(l.doneResults[0].status).toBe('success')
-      expect(l.doneResults[0].finalMessage).toEqual({ id: '1', role: 'assistant', parts: [] })
-    })
+    // The "dispatches finalMessage to listeners" behaviour is covered by
+    // `live finalMessage accumulation > writes exec.finalMessage via the
+    // accumulator before the terminal event fires` — that test drives a
+    // real stream end-to-end and asserts listener.doneResults[0].finalMessage
+    // is the same reference the manager holds.
 
     it('maps paused status to aborted state', async () => {
       const l = new FakeListener('l:a')
@@ -501,7 +514,8 @@ describe('AiStreamManager', () => {
       await mgr.onExecutionError('a', 'provider-a::model-a', error('fail'))
 
       expect(mgr.inspect('a')!.status).toBe('error')
-      expect(l.errors).toEqual([error('fail')])
+      expect(l.errorResults).toHaveLength(1)
+      expect(l.errorResults[0]).toMatchObject({ status: 'error', error: error('fail') })
     })
   })
 
@@ -619,7 +633,6 @@ describe('AiStreamManager', () => {
     it('stream remains accessible during grace period', async () => {
       const l = new FakeListener('l:a')
       startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [l] })
-      mgr.setExecutionFinalMessage('a', 'provider-a::model-a', { id: '1' } as any)
       await mgr.onExecutionDone('a', 'provider-a::model-a')
 
       // During grace period: execution has completed but stream state is
@@ -654,4 +667,51 @@ describe('AiStreamManager', () => {
   // fan-out tested under `send (multi-model) > fans steer messages out to
   // every execution queue`. No dedicated test here — the fan-out test covers
   // the invariant for 1-to-N executions, and single-model is the N=1 case.
+
+  // ── live finalMessage accumulation ──────────────────────────────
+
+  describe('live finalMessage accumulation', () => {
+    it('writes exec.finalMessage via the accumulator before the terminal event fires', async () => {
+      // readUIMessageStream relies on real microtask / timer scheduling
+      // internally; fake timers starve its reader loop. Use real timers
+      // for this test only — the afterEach swaps fake timers back in.
+      vi.useRealTimers()
+
+      const controlled = controlledStream()
+      mockStreamText.mockImplementationOnce(() => controlled.stream)
+
+      const listener = new FakeListener('l:a')
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [listener]
+      })
+
+      // Feed a complete message — the AI SDK stream shape requires both
+      // message-level `start` / `finish` boundaries and the text-part
+      // triplet for readUIMessageStream to yield a UIMessage snapshot.
+      controlled.enqueue({ type: 'start' } as UIMessageChunk)
+      controlled.enqueue({ type: 'text-start', id: 'p1' } as UIMessageChunk)
+      controlled.enqueue({ type: 'text-delta', id: 'p1', delta: 'hello' } as UIMessageChunk)
+      controlled.enqueue({ type: 'text-end', id: 'p1' } as UIMessageChunk)
+      controlled.enqueue({ type: 'finish' } as UIMessageChunk)
+      controlled.close()
+
+      // Let the tee → accumulator → terminal chain drain on real timers.
+      await new Promise((resolve) => setTimeout(resolve, 50))
+
+      const snap = mgr.inspect('a')!
+      expect(snap.status).toBe('done')
+
+      // The terminal event received the same finalMessage that inspect()
+      // now reports — proof that the accumulator wrote before the terminal
+      // broadcast rather than after it.
+      expect(listener.doneResults).toHaveLength(1)
+      expect(listener.doneResults[0].finalMessage).toBe(snap.executions[0].finalMessage)
+
+      const parts = (snap.executions[0].finalMessage?.parts ?? []) as Array<{ type: string; text?: string }>
+      expect(parts.some((p) => p.type === 'text' && p.text === 'hello')).toBe(true)
+    })
+  })
 })

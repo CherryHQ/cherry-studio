@@ -4,12 +4,16 @@
  *
  * Created by the Persistent chat context provider, one per execution (so
  * multi-model turns produce N placeholders, N backends, N update calls).
+ *
+ * The listener is responsible for folding any error into
+ * `finalMessage.parts` before calling us, so we only need a single
+ * storage path shared by success / paused / error.
  */
 
 import { messageService } from '@main/data/services/MessageService'
 import type { CherryMessagePart, CherryUIMessage, MessageStats, ModelSnapshot } from '@shared/data/types/message'
 
-import type { PersistAssistantInput, PersistenceBackend, PersistErrorInput } from '../PersistenceBackend'
+import type { PersistAssistantInput, PersistenceBackend } from '../PersistenceBackend'
 
 export interface MessageServiceBackendOptions {
   /** Placeholder assistant message id created before the stream started. */
@@ -32,26 +36,17 @@ export class MessageServiceBackend implements PersistenceBackend {
 
   async persistAssistant(input: PersistAssistantInput): Promise<void> {
     const { finalMessage, status } = input
+    const parts = (finalMessage?.parts ?? []) as CherryMessagePart[]
     await messageService.update(this.opts.assistantMessageId, {
-      data: { parts: finalMessage.parts as CherryMessagePart[] },
+      data: { parts },
       status,
       stats: this.opts.stats ?? statsFromMetadata(finalMessage)
     })
   }
-
-  async persistError(input: PersistErrorInput): Promise<void> {
-    const partialParts = (input.partialMessage?.parts ?? []) as CherryMessagePart[]
-    const errorPart = { type: 'data-error' as const, data: { ...input.error } }
-    await messageService.update(this.opts.assistantMessageId, {
-      data: { parts: [...partialParts, errorPart] },
-      status: 'error',
-      stats: this.opts.stats
-    })
-  }
 }
 
-function statsFromMetadata(finalMessage: CherryUIMessage): MessageStats | undefined {
-  const meta = finalMessage.metadata
+function statsFromMetadata(finalMessage: CherryUIMessage | undefined): MessageStats | undefined {
+  const meta = finalMessage?.metadata
   if (meta && typeof meta === 'object' && 'totalTokens' in meta) {
     return { totalTokens: (meta as { totalTokens: number }).totalTokens }
   }

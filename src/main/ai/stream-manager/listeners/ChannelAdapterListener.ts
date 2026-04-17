@@ -1,8 +1,7 @@
 import { loggerService } from '@logger'
 import type { ChannelAdapter } from '@main/services/agents/services/channels/ChannelAdapter'
-import type { SerializedError } from '@shared/types/error'
 
-import type { StreamDoneResult, StreamListener, StreamPausedResult } from '../types'
+import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../types'
 
 const logger = loggerService.withContext('ChannelAdapterListener')
 
@@ -78,9 +77,9 @@ export class ChannelAdapterListener implements StreamListener {
     }
   }
 
-  async onError(error: SerializedError): Promise<void> {
+  async onError(result: StreamErrorResult): Promise<void> {
     try {
-      await this.adapter.sendMessage(this.platformChatId, `Error: ${error.message ?? 'Unknown error'}`)
+      await this.adapter.sendMessage(this.platformChatId, `Error: ${result.error.message ?? 'Unknown error'}`)
     } catch (err) {
       logger.error('Failed to deliver error to channel', {
         channelId: this.adapter.channelId,

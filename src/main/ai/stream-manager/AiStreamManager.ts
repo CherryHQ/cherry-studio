@@ -8,7 +8,7 @@ import type {
   AiStreamDetachRequest,
   AiStreamOpenRequest
 } from '@shared/ai/transport'
-import type { Message } from '@shared/data/types/message'
+import type { CherryUIMessageChunk, Message } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import { type SerializedError, serializeError } from '@shared/types/error'
@@ -25,6 +25,7 @@ import type {
   CherryUIMessage,
   StreamChunkPayload,
   StreamDoneResult,
+  StreamErrorResult,
   StreamExecution,
   StreamListener
 } from './types'
@@ -75,6 +76,12 @@ export interface ExecutionSnapshot {
   readonly bufferedChunkCount: number
   readonly droppedChunks: number
   readonly siblingsGroupId?: number
+  /**
+   * Latest accumulated UIMessage. Populated live by the pump's
+   * `readUIMessageStream` accumulator; terminal events (`onDone` etc.)
+   * carry the same reference. `undefined` until the first snapshot lands.
+   */
+  readonly finalMessage?: CherryUIMessage
 }
 
 export interface TopicSnapshot {
@@ -388,21 +395,18 @@ export class AiStreamManager extends BaseService {
     stream.status = this.computeTopicStatus(stream)
     const isTopicDone = stream.status !== 'streaming'
 
-    await this.dispatchToListeners(stream, 'onError', (listener) =>
-      listener.onError(error, exec.finalMessage, exec.modelId, isTopicDone)
-    )
+    const result: StreamErrorResult = {
+      error,
+      finalMessage: exec.finalMessage,
+      status: 'error',
+      modelId: exec.modelId,
+      isTopicDone
+    }
+    await this.dispatchToListeners(stream, 'onError', (listener) => listener.onError(result))
 
     if (isTopicDone) {
       this.scheduleReap(topicId)
     }
-  }
-
-  /** Set finalMessage on a specific execution. */
-  setExecutionFinalMessage(topicId: string, modelId: UniqueModelId, message: CherryUIMessage): void {
-    const stream = this.activeStreams.get(topicId)
-    if (!stream) return
-    const exec = stream.executions.get(modelId)
-    if (exec) exec.finalMessage = message
   }
 
   // ── Public: inspection snapshot ───────────────────────────────────
@@ -426,7 +430,8 @@ export class AiStreamManager extends BaseService {
         pendingMessageCount: exec.pendingMessages.list().length,
         bufferedChunkCount: exec.buffer.length,
         droppedChunks: exec.droppedChunks,
-        siblingsGroupId: exec.siblingsGroupId
+        siblingsGroupId: exec.siblingsGroupId,
+        finalMessage: exec.finalMessage
       })
     }
 
@@ -500,11 +505,15 @@ export class AiStreamManager extends BaseService {
    *
    * The pump:
    *  - pulls `UIMessageChunk`s from `AiService.streamText`
-   *  - `tee()`s one branch into `readUIMessageStream` to accumulate the final
-   *    `UIMessage` (needed for persistence and `attach → done` replies)
-   *  - forwards chunks via `onChunk` on every read
+   *  - `tee()`s the chunk stream into two branches:
+   *      • broadcast — forwarded chunk-by-chunk via `onChunk`
+   *      • accumulator — a background task that drives `readUIMessageStream`
+   *        and writes each yielded snapshot straight to `exec.finalMessage`.
+   *        At any point in time `exec.finalMessage` is "whatever has been
+   *        accumulated so far" — terminal handlers (done / paused / error)
+   *        just read it; there is no separate promise to await for partial.
    *  - signals `onExecutionDone` / `onExecutionPaused` / `onExecutionError`
-   *    at terminal state depending on the abort signal and execution status
+   *    at terminal state depending on the abort signal and execution status.
    */
   private createAndLaunchExecution(
     topicId: string,
@@ -545,7 +554,7 @@ export class AiStreamManager extends BaseService {
     const aiService = application.get('AiService')
     const signal = exec.abortController.signal
 
-    let stream: ReadableStream<UIMessageChunk>
+    let stream: ReadableStream<CherryUIMessageChunk>
     try {
       stream = aiService.streamText(request, signal)
     } catch (err) {
@@ -556,10 +565,15 @@ export class AiStreamManager extends BaseService {
 
     const [forBroadcast, forAccum] = stream.tee()
     const broadcastReader = forBroadcast.getReader()
-    // readFinalMessage observes `signal` itself and cancels its own reader;
-    // that also cancels `forAccum` upstream. Here we only need to wake up
-    // the broadcast reader when the execution aborts.
-    const finalMessagePromise = this.readFinalMessage(forAccum, signal).catch(() => undefined)
+
+    // Background accumulator: keeps `exec.finalMessage` live. Every UIMessage
+    // that `readUIMessageStream` yields is the "current cumulative message";
+    // the accumulator writes the latest snapshot straight onto the execution.
+    // Errors here are swallowed — by the time the accumulator errors, the
+    // broadcast path has already decided the terminal status, and whatever
+    // accumulated up to the last successful yield is preserved in
+    // `exec.finalMessage`.
+    const accumulator = this.accumulateFinalMessage(forAccum, exec).catch(() => {})
 
     const onAbort = () => {
       void broadcastReader.cancel(signal.reason).catch(() => {})
@@ -574,8 +588,10 @@ export class AiStreamManager extends BaseService {
         this.onChunk(topicId, modelId, value)
       }
 
-      const finalMessage = await finalMessagePromise
-      if (finalMessage) this.setExecutionFinalMessage(topicId, modelId, finalMessage)
+      // Let the accumulator drain any chunks still queued behind the
+      // broadcast reader, so `exec.finalMessage` reflects the latest
+      // yield before we fire the terminal event.
+      await accumulator
 
       if (signal.aborted && exec.status === 'aborted') {
         await this.onExecutionPaused(topicId, modelId)
@@ -583,8 +599,11 @@ export class AiStreamManager extends BaseService {
         await this.onExecutionDone(topicId, modelId)
       }
     } catch (err) {
-      const partial = await finalMessagePromise
-      if (partial) this.setExecutionFinalMessage(topicId, modelId, partial)
+      // Even on error we wait for the accumulator — it may have processed a
+      // few more chunks before the stream errored. `exec.finalMessage` will
+      // be whatever it managed to capture (possibly undefined if the stream
+      // errored before yielding anything).
+      await accumulator
 
       if (signal.aborted) {
         logger.debug('Execution aborted', { topicId, modelId, reason: signal.reason })
@@ -599,19 +618,20 @@ export class AiStreamManager extends BaseService {
   }
 
   /**
-   * Consume a UIMessageChunk stream via AI SDK's readUIMessageStream,
-   * returning the last accumulated UIMessage (or undefined if the stream
-   * produced nothing or was cancelled before a message materialized).
+   * Drive AI SDK's `readUIMessageStream` and write each yielded snapshot
+   * onto `exec.finalMessage`, so the field is always "latest accumulated"
+   * rather than being set once at the very end.
    *
-   * Accepts an AbortSignal so the accumulator can release its own reader
-   * when the execution is aborted — cancelling the chunkStream directly
-   * won't work once readUIMessageStream has locked it.
+   * Observes `exec.abortController.signal` to cancel its own reader —
+   * cancelling the upstream chunkStream directly does not work once
+   * `readUIMessageStream` has locked it.
    */
-  private async readFinalMessage(
-    chunkStream: ReadableStream<UIMessageChunk>,
-    signal: AbortSignal
-  ): Promise<CherryUIMessage | undefined> {
-    const uiStream = readUIMessageStream({ stream: chunkStream })
+  private async accumulateFinalMessage(
+    chunkStream: ReadableStream<CherryUIMessageChunk>,
+    exec: StreamExecution
+  ): Promise<void> {
+    const signal = exec.abortController.signal
+    const uiStream = readUIMessageStream<CherryUIMessage>({ stream: chunkStream })
     const reader = uiStream.getReader()
     const onAbort = () => {
       void reader.cancel(signal.reason).catch(() => {})
@@ -619,18 +639,16 @@ export class AiStreamManager extends BaseService {
     if (signal.aborted) onAbort()
     else signal.addEventListener('abort', onAbort, { once: true })
 
-    let last: CherryUIMessage | undefined
     try {
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
-        last = value as CherryUIMessage
+        exec.finalMessage = value
       }
     } finally {
       signal.removeEventListener('abort', onAbort)
       reader.releaseLock()
     }
-    return last
   }
 
   /** Broadcast done for a single execution to all topic listeners. */

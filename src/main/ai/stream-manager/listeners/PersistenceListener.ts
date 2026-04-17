@@ -3,8 +3,13 @@
  *
  * This class is storage-agnostic: it runs the observer-side protocol
  * (filtering by `modelId` so multi-model topics persist per execution,
- * combining partial + error parts, logging) and delegates the actual
- * write to a `PersistenceBackend` strategy.
+ * attaching an error part onto the accumulated message, logging) and
+ * delegates the actual write to a `PersistenceBackend` strategy.
+ *
+ * All three terminal callbacks (`onDone` / `onPaused` / `onError`) hand
+ * the same `{ finalMessage, status }` shape to the backend — the listener
+ * handles the only status-specific detail, which is folding the error
+ * into `finalMessage.parts` so backends never see raw `SerializedError`.
  *
  * Three built-in backends:
  *  - `MessageServiceBackend`  — persistent (SQLite) chats
@@ -13,13 +18,12 @@
  */
 
 import { loggerService } from '@logger'
-import type { CherryUIMessage } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
-import type { UIMessage } from 'ai'
 
 import type { PersistenceBackend } from '../persistence/PersistenceBackend'
-import type { StreamDoneResult, StreamListener, StreamPausedResult } from '../types'
+import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../types'
 
 const logger = loggerService.withContext('PersistenceListener')
 
@@ -61,22 +65,13 @@ export class PersistenceListener implements StreamListener {
     await this.persistAssistant(result.finalMessage, 'paused')
   }
 
-  async onError(error: SerializedError, partialMessage?: UIMessage, modelId?: UniqueModelId): Promise<void> {
-    if (!this.owns(modelId)) return
-    try {
-      await this.opts.backend.persistError({ error, partialMessage, modelId })
-      logger.info('Assistant error persisted', {
-        backend: this.opts.backend.kind,
-        topicId: this.opts.topicId,
-        hasPartial: !!partialMessage
-      })
-    } catch (err) {
-      logger.error('Failed to persist assistant error', {
-        backend: this.opts.backend.kind,
-        topicId: this.opts.topicId,
-        err
-      })
-    }
+  async onError(result: StreamErrorResult): Promise<void> {
+    if (!this.owns(result.modelId)) return
+    // Fold the error into the accumulated message once, here, so every
+    // backend's `persistAssistant` sees a uniform UIMessage shape and
+    // never has to synthesise one from raw `SerializedError`.
+    const withErrorPart = mergeErrorIntoMessage(result.finalMessage, result.error)
+    await this.persistAssistant(withErrorPart, 'error')
   }
 
   isAlive(): boolean {
@@ -89,9 +84,9 @@ export class PersistenceListener implements StreamListener {
 
   private async persistAssistant(
     finalMessage: CherryUIMessage | undefined,
-    status: 'success' | 'paused'
+    status: 'success' | 'paused' | 'error'
   ): Promise<void> {
-    if (!finalMessage) {
+    if (!finalMessage && status !== 'error') {
       logger.warn('Terminal event without finalMessage, skipping persistence', {
         backend: this.opts.backend.kind,
         topicId: this.opts.topicId,
@@ -122,7 +117,7 @@ export class PersistenceListener implements StreamListener {
     }
 
     // Post-persist hook is best-effort — failures never propagate.
-    if (status === 'success' && this.opts.backend.afterPersist) {
+    if (status === 'success' && finalMessage && this.opts.backend.afterPersist) {
       try {
         await this.opts.backend.afterPersist(finalMessage)
       } catch (err) {
@@ -134,4 +129,20 @@ export class PersistenceListener implements StreamListener {
       }
     }
   }
+}
+
+/**
+ * Fold a `SerializedError` into the accumulated `finalMessage` as a
+ * trailing `data-error` part. Returns a synthetic message when the
+ * stream errored before producing any chunks.
+ */
+function mergeErrorIntoMessage(base: CherryUIMessage | undefined, error: SerializedError): CherryUIMessage {
+  const baseParts = (base?.parts ?? []) as CherryMessagePart[]
+  const errorPart: CherryMessagePart = { type: 'data-error', data: { ...error } }
+  return {
+    id: base?.id ?? crypto.randomUUID(),
+    role: 'assistant',
+    parts: [...baseParts, errorPart],
+    ...(base?.metadata ? { metadata: base.metadata } : {})
+  } as CherryUIMessage
 }

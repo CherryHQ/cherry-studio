@@ -2,7 +2,7 @@ import type { StreamChunkPayload } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
-import type { UIMessage, UIMessageChunk } from 'ai'
+import type { UIMessageChunk } from 'ai'
 
 import type { PendingMessageQueue } from '../PendingMessageQueue'
 // Note: `StreamTarget` was removed after AiStreamManager took over the pump
@@ -27,13 +27,15 @@ export type {
 export type { CherryUIMessageChunk } from '@shared/data/types/message'
 
 // ── Stream Terminal Results ────────────────────────────────────────
+//
+// All three terminal results share the same conceptual payload — an
+// optional accumulated `finalMessage` plus the status-specific extras.
+// Keeping the shape uniform means listeners (and persistence backends)
+// never need to distinguish "finalMessage for success/paused" from
+// "partialMessage for error": they are the same object, differing only
+// in whether the stream completed or was interrupted.
 
-/**
- * Terminal state passed to each listener when a stream ends.
- *
- * Distinguishes "completed normally" from "user aborted mid-flight with partial
- * output" — preserving the v1 `ChatSession.handleFinish` success/paused semantics.
- */
+/** Terminal state passed to `onDone`. */
 export interface StreamDoneResult {
   finalMessage?: CherryUIMessage
   /** 'success' = natural completion. */
@@ -59,11 +61,27 @@ export interface StreamPausedResult {
   isTopicDone?: boolean
 }
 
+/**
+ * Terminal state for an errored execution.
+ *
+ * `finalMessage` carries whatever accumulated before the error (same shape
+ * and lifecycle as the success/paused case — what used to be called
+ * "partialMessage" is just a `finalMessage` that happened to end early).
+ */
+export interface StreamErrorResult {
+  error: SerializedError
+  finalMessage?: CherryUIMessage
+  status: 'error'
+  modelId?: UniqueModelId
+  isTopicDone?: boolean
+}
+
 // ── StreamListener ──────────────────────────────────────────────────
 
 /**
  * Consumer abstraction. AiStreamManager dispatches to listeners uniformly —
- * it never inspects a listener's concrete type.
+ * it never inspects a listener's concrete type. All three terminal
+ * callbacks take a single result object of the matching shape.
  */
 export interface StreamListener {
   /**
@@ -80,13 +98,8 @@ export interface StreamListener {
   onDone(result: StreamDoneResult): void | Promise<void>
   /** Called when one execution is paused/aborted with partial output preserved. */
   onPaused(result: StreamPausedResult): void | Promise<void>
-  /** Called when one execution errors. partialMessage contains content streamed before the error. */
-  onError(
-    error: SerializedError,
-    partialMessage?: UIMessage,
-    modelId?: UniqueModelId,
-    isTopicDone?: boolean
-  ): void | Promise<void>
+  /** Called when one execution errors. `result.finalMessage` holds whatever accumulated before the error. */
+  onError(result: StreamErrorResult): void | Promise<void>
   /**
    * Liveness check. Returning `false` causes the listener to be immediately
    * removed from the listeners Map.
@@ -127,7 +140,14 @@ export interface StreamExecution {
   buffer: StreamChunkPayload[]
   /** Count of chunks dropped from this execution's ring buffer due to overflow. */
   droppedChunks: number
-  /** Full UIMessage for this execution, set by upstream via setFinalMessage. */
+  /**
+   * Latest accumulated `UIMessage` for this execution. Written live by the
+   * pump's `readUIMessageStream` accumulator on every snapshot yield —
+   * terminal handlers (`onExecutionDone` / `onExecutionPaused` /
+   * `onExecutionError`) read it as-is without awaiting any extra promise.
+   * Undefined until the first snapshot lands (e.g. the stream errored
+   * before producing any chunks).
+   */
   finalMessage?: CherryUIMessage
   error?: SerializedError
   /** Multi-model: shared group id so parallel responses appear as siblings in UI. */
