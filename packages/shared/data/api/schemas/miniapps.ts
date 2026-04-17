@@ -80,11 +80,11 @@ export type ListMiniAppsQuery = z.infer<typeof ListMiniAppsQuerySchema>
 export interface MiniAppSchemas {
   /**
    * MiniApps collection endpoint
-   * @example GET /miniapps?status=enabled
-   * @example POST /miniapps { "appId": "my-app", "name": "My App", "url": "https://example.com" }
-   * @example PATCH /miniapps { "items": [{ "appId": "qwen", "sortOrder": 1 }] }
+   * @example GET /mini-apps?status=enabled
+   * @example POST /mini-apps { "appId": "my-app", "name": "My App", "url": "https://example.com" }
+   * @example PATCH /mini-apps { "items": [{ "appId": "qwen", "sortOrder": 1 }] }
    */
-  '/miniapps': {
+  '/mini-apps': {
     /** Get all miniapps (optionally filtered by status/type) */
     GET: {
       query?: ListMiniAppsQuery
@@ -104,11 +104,11 @@ export interface MiniAppSchemas {
 
   /**
    * Individual miniapp endpoint
-   * @example GET /miniapps/qwen
-   * @example PATCH /miniapps/qwen { "status": "disabled" }
-   * @example DELETE /miniapps/qwen
+   * @example GET /mini-apps/qwen
+   * @example PATCH /mini-apps/qwen { "status": "disabled" }
+   * @example DELETE /mini-apps/qwen
    */
-  '/miniapps/:appId': {
+  '/mini-apps/:appId': {
     /** Get a miniapp by appId */
     GET: {
       params: { appId: string }
@@ -130,9 +130,9 @@ export interface MiniAppSchemas {
   /**
    * Reset all builtin (default) app preferences to factory defaults.
    * Removes all DB preference rows for type='default', restoring original status/sortOrder.
-   * @example DELETE /miniapps/_actions/reset-defaults
+   * @example DELETE /mini-apps/_actions/reset-defaults
    */
-  '/miniapps/_actions/reset-defaults': {
+  '/mini-apps/_actions/reset-defaults': {
     /** Reset all default app preferences to builtin defaults */
     DELETE: {
       response: void

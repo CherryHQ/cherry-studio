@@ -2,7 +2,7 @@ import { miniAppTable } from '@data/db/schemas/miniapp'
 import { miniAppService } from '@data/services/MiniAppService'
 import { ErrorCode } from '@shared/data/api'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniapps'
-import { ORIGIN_DEFAULT_MIN_APPS } from '@shared/data/presets/miniapps'
+import { ORIGIN_DEFAULT_MINI_APPS } from '@shared/data/presets/miniapps'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
@@ -87,7 +87,7 @@ describe('MiniAppService', () => {
 
       const result = await miniAppService.list({})
 
-      expect(result.items.length).toBeGreaterThan(ORIGIN_DEFAULT_MIN_APPS.length)
+      expect(result.items.length).toBeGreaterThan(ORIGIN_DEFAULT_MINI_APPS.length)
       expect(result.total).toBe(result.items.length)
       expect(result.page).toBe(1)
     })
@@ -105,7 +105,7 @@ describe('MiniAppService', () => {
     it('should filter by type=default', async () => {
       const result = await miniAppService.list({ type: 'default' })
 
-      expect(result.items.length).toBe(ORIGIN_DEFAULT_MIN_APPS.length)
+      expect(result.items.length).toBe(ORIGIN_DEFAULT_MINI_APPS.length)
       expect(result.items.every((item) => item.type === 'default')).toBe(true)
     })
 
@@ -149,7 +149,7 @@ describe('MiniAppService', () => {
       const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'new-app'))
       expect(row.name).toBe('New App')
       expect(row.status).toBe('enabled')
-      expect(row.sortOrder).toBe(ORIGIN_DEFAULT_MIN_APPS.length)
+      expect(row.sortOrder).toBe(ORIGIN_DEFAULT_MINI_APPS.length)
     })
 
     it('should reject creation if appId is a builtin app', async () => {

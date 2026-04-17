@@ -4,7 +4,7 @@ import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataAp
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { CreateMiniAppDto, ReorderMiniAppsDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniapps'
-import { ORIGIN_DEFAULT_MIN_APPS } from '@shared/data/presets/miniapps'
+import { ORIGIN_DEFAULT_MINI_APPS } from '@shared/data/presets/miniapps'
 import type { MiniApp } from '@shared/data/types/miniapp'
 import type { MiniAppRegion } from '@shared/data/types/miniapp'
 import { useCallback, useEffect, useMemo } from 'react'
@@ -46,7 +46,7 @@ const filterByRegion = (apps: MiniApp[], region: MiniAppRegion): MiniApp[] => {
 }
 
 // Build preset index map once for O(1) lookups (js-index-maps)
-const presetById = new Map(ORIGIN_DEFAULT_MIN_APPS.map((p) => [p.id, p]))
+const presetById = new Map(ORIGIN_DEFAULT_MINI_APPS.map((p) => [p.id, p]))
 
 // Merge DB data with preset display fields (logo, background, bordered, nameKey)
 const mergeWithPreset = (app: MiniApp): MiniApp => {
@@ -95,7 +95,7 @@ const logger = loggerService.withContext('useMiniApps')
 
 export const useMiniApps = () => {
   // === Data (DataApi) ===
-  const { data, isLoading, mutate: refetch } = useQuery('/miniapps')
+  const { data, isLoading, mutate: refetch } = useQuery('/mini-apps')
   const rawApps: MiniApp[] = useMemo(() => data?.items ?? [], [data])
 
   // Merge with preset and partition by status in single pass (js-combine-iterations)
@@ -115,8 +115,8 @@ export const useMiniApps = () => {
   }, [rawApps])
 
   // === Region (Preference + Cache) ===
-  const [miniAppRegionSetting] = usePreference('feature.miniapp.region')
-  const [detectedRegion, setDetectedRegion] = useCache('miniapp.detected_region')
+  const [miniAppRegionSetting] = usePreference('feature.mini_app.region')
+  const [detectedRegion, setDetectedRegion] = useCache('mini_app.detected_region')
 
   const effectiveRegion: MiniAppRegion =
     miniAppRegionSetting === 'auto'
@@ -155,10 +155,10 @@ export const useMiniApps = () => {
   const pinnedApps = pinned
 
   // === UI State Cache (unchanged) ===
-  const [openedKeepAliveMiniApps, setOpenedKeepAliveMiniApps] = useCache('miniapp.opened_keep_alive')
-  const [currentMiniAppId, setCurrentMiniAppId] = useCache('miniapp.current_id')
-  const [miniAppShow, setMiniAppShow] = useCache('miniapp.show')
-  const [openedOneOffMiniApp, setOpenedOneOffMiniApp] = useCache('miniapp.opened_oneoff')
+  const [openedKeepAliveMiniApps, setOpenedKeepAliveMiniApps] = useCache('mini_app.opened_keep_alive')
+  const [currentMiniAppId, setCurrentMiniAppId] = useCache('mini_app.current_id')
+  const [miniAppShow, setMiniAppShow] = useCache('mini_app.show')
+  const [openedOneOffMiniApp, setOpenedOneOffMiniApp] = useCache('mini_app.opened_oneoff')
 
   // === Mutations (DataApi) ===
   const invalidate = useInvalidateCache()
@@ -166,8 +166,8 @@ export const useMiniApps = () => {
   // Dynamic-path PATCH/DELETE via dataApiService (useMutation requires ConcreteApiPaths, not templates)
   const patchApp = useCallback(
     async (appId: string, body: UpdateMiniAppDto) => {
-      const result = await dataApiService.patch(`/miniapps/${appId}`, { body })
-      await invalidate('/miniapps')
+      const result = await dataApiService.patch(`/mini-apps/${appId}`, { body })
+      await invalidate('/mini-apps')
       return result
     },
     [invalidate]
@@ -175,19 +175,19 @@ export const useMiniApps = () => {
 
   const deleteApp = useCallback(
     async (appId: string) => {
-      const result = await dataApiService.delete(`/miniapps/${appId}`)
-      await invalidate('/miniapps')
+      const result = await dataApiService.delete(`/mini-apps/${appId}`)
+      await invalidate('/mini-apps')
       return result
     },
     [invalidate]
   )
 
   // Fixed-path mutations (useMutation with auto-refresh)
-  const { trigger: postMiniApp } = useMutation('POST', '/miniapps', {
-    refresh: ['/miniapps']
+  const { trigger: postMiniApp } = useMutation('POST', '/mini-apps', {
+    refresh: ['/mini-apps']
   })
-  const { trigger: reorderMiniAppsApi } = useMutation('PATCH', '/miniapps', {
-    refresh: ['/miniapps']
+  const { trigger: reorderMiniAppsApi } = useMutation('PATCH', '/mini-apps', {
+    refresh: ['/mini-apps']
   })
 
   // === Write: Update enabled apps (backward-compat) ===

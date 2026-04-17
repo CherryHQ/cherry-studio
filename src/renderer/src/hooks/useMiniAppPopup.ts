@@ -79,7 +79,7 @@ export const useMiniAppPopup = () => {
     setCurrentMiniAppId,
     setMiniAppShow
   } = useMiniApps()
-  const [maxKeepAliveMiniApps] = usePreference('feature.miniapp.max_keep_alive')
+  const [maxKeepAliveMiniApps] = usePreference('feature.mini_app.max_keep_alive')
   const { isTopNavbar } = useNavbarPosition()
 
   // Update the ref on every render so callbacks always have latest setters

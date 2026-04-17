@@ -19,7 +19,7 @@ const DEFAULT_MAX_KEEPALIVE = 3
 // Region selector component with defensive default value
 const RegionSelector: FC = () => {
   const { t } = useTranslation()
-  const [miniAppRegion = 'auto', setMiniAppRegion] = usePreference('feature.miniapp.region')
+  const [miniAppRegion = 'auto', setMiniAppRegion] = usePreference('feature.mini_app.region')
 
   const onMiniAppRegionChange = (value: MiniAppRegionFilter) => {
     void setMiniAppRegion(value)
@@ -37,11 +37,11 @@ const RegionSelector: FC = () => {
 const MiniAppSettings: FC = () => {
   const { t } = useTranslation()
 
-  const [maxKeepAliveMiniApps, setMaxKeepAliveMiniApps] = usePreference('feature.miniapp.max_keep_alive')
+  const [maxKeepAliveMiniApps, setMaxKeepAliveMiniApps] = usePreference('feature.mini_app.max_keep_alive')
   const [showOpenedMiniAppsInSidebar, setShowOpenedMiniAppsInSidebar] = usePreference(
-    'feature.miniapp.show_opened_in_sidebar'
+    'feature.mini_app.show_opened_in_sidebar'
   )
-  const [openLinkExternal, setOpenLinkExternal] = usePreference('feature.miniapp.open_link_external')
+  const [openLinkExternal, setOpenLinkExternal] = usePreference('feature.mini_app.open_link_external')
 
   const { miniapps, disabled, updateMiniApps, updateDisabledMiniApps } = useMiniApps()
 

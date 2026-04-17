@@ -1588,7 +1588,7 @@
                 "store",
                 "paintings",
                 "translate",
-                "miniapp",
+                "mini_app",
                 "knowledge",
                 "files",
                 "code_tools",
@@ -1618,7 +1618,7 @@
             "store",
             "paintings",
             "translate",
-            "miniapp",
+            "mini_app",
             "knowledge",
             "files",
             "code_tools",
@@ -1882,7 +1882,7 @@
           "defaultValue": 3,
           "status": "classified",
           "category": "preferences",
-          "targetKey": "feature.miniapp.max_keep_alive"
+          "targetKey": "feature.mini_app.max_keep_alive"
         },
         {
           "originalKey": "showOpenedMinappsInSidebar",
@@ -1890,7 +1890,7 @@
           "defaultValue": true,
           "status": "classified",
           "category": "preferences",
-          "targetKey": "feature.miniapp.show_opened_in_sidebar"
+          "targetKey": "feature.mini_app.show_opened_in_sidebar"
         },
         {
           "originalKey": "minappsOpenLinkExternal",
@@ -1898,7 +1898,7 @@
           "defaultValue": false,
           "status": "classified",
           "category": "preferences",
-          "targetKey": "feature.miniapp.open_link_external"
+          "targetKey": "feature.mini_app.open_link_external"
         },
         {
           "originalKey": "minAppRegion",
@@ -1906,7 +1906,7 @@
           "defaultValue": "auto",
           "status": "classified",
           "category": "preferences",
-          "targetKey": "feature.miniapp.region"
+          "targetKey": "feature.mini_app.region"
         },
         {
           "originalKey": "enableDataCollection",

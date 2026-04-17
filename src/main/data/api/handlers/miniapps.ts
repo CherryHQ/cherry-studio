@@ -31,7 +31,7 @@ export const miniAppHandlers: {
     [Method in keyof MiniAppSchemas[Path]]: MiniAppHandler<Path, Method & ApiMethods<Path>>
   }
 } = {
-  '/miniapps': {
+  '/mini-apps': {
     GET: async ({ query }) => {
       const parsed = ListMiniAppsQuerySchema.parse(query ?? {})
       return await miniAppService.list(parsed)
@@ -47,7 +47,7 @@ export const miniAppHandlers: {
     }
   },
 
-  '/miniapps/:appId': {
+  '/mini-apps/:appId': {
     GET: async ({ params }) => {
       return await miniAppService.getByAppId(params.appId)
     },
@@ -63,7 +63,7 @@ export const miniAppHandlers: {
     }
   },
 
-  '/miniapps/_actions/reset-defaults': {
+  '/mini-apps/_actions/reset-defaults': {
     DELETE: async () => {
       await miniAppService.resetDefaults()
       return undefined

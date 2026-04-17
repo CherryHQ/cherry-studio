@@ -19,7 +19,7 @@ import MiniAppIcon from '../Icons/MiniAppIcon'
 export const SidebarOpenedMiniAppTabs: FC = () => {
   const { miniAppShow, openedKeepAliveMiniApps, currentMiniAppId } = useMiniApps()
   const { openMiniAppKeepAlive, hideMiniAppPopup, closeMiniApp, closeAllMiniApps } = useMiniAppPopup()
-  const [showOpenedMiniAppsInSidebar] = usePreference('feature.miniapp.show_opened_in_sidebar')
+  const [showOpenedMiniAppsInSidebar] = usePreference('feature.mini_app.show_opened_in_sidebar')
   const { theme } = useTheme()
   const { t } = useTranslation()
   const { isLeftNavbar } = useNavbarPosition()

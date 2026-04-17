@@ -22,7 +22,7 @@ const MiniAppFullPageView: FC<Props> = ({ app }) => {
   const webviewRef = useRef<WebviewTag | null>(null)
   const [isReady, setIsReady] = useState(false)
   const [currentUrl, setCurrentUrl] = useState<string | null>(null)
-  const [openLinkExternal] = usePreference('feature.miniapp.open_link_external')
+  const [openLinkExternal] = usePreference('feature.mini_app.open_link_external')
 
   // Debug: log isReady state changes
   useEffect(() => {

@@ -17,7 +17,7 @@ export type MiniAppKind = 'default' | 'custom'
 export type MiniAppRegion = 'CN' | 'Global'
 
 export const miniAppTable = sqliteTable(
-  'miniapp',
+  'mini_app',
   {
     appId: text('app_id').primaryKey(),
     // Display name
@@ -56,11 +56,11 @@ export const miniAppTable = sqliteTable(
     ...createUpdateTimestamps
   },
   (t) => [
-    index('miniapp_status_sort_idx').on(t.status, t.sortOrder),
-    index('miniapp_type_idx').on(t.type),
-    index('miniapp_status_type_idx').on(t.status, t.type),
-    check('miniapp_status_check', sql`${t.status} IN ('enabled', 'disabled', 'pinned')`),
-    check('miniapp_type_check', sql`${t.type} IN ('default', 'custom')`)
+    index('mini_app_status_sort_idx').on(t.status, t.sortOrder),
+    index('mini_app_type_idx').on(t.type),
+    index('mini_app_status_type_idx').on(t.status, t.type),
+    check('mini_app_status_check', sql`${t.status} IN ('enabled', 'disabled', 'pinned')`),
+    check('mini_app_type_check', sql`${t.type} IN ('default', 'custom')`)
   ]
 )
 

@@ -341,13 +341,13 @@ export interface PreferenceSchemas {
     // target-key-definitions/complex/complex
     'feature.file_processing.overrides': PreferenceTypes.FileProcessorOverrides
     // redux/settings/maxKeepAliveMinapps
-    'feature.miniapp.max_keep_alive': number
+    'feature.mini_app.max_keep_alive': number
     // redux/settings/minappsOpenLinkExternal
-    'feature.miniapp.open_link_external': boolean
+    'feature.mini_app.open_link_external': boolean
     // redux/settings/minAppRegion
-    'feature.miniapp.region': PreferenceTypes.MiniAppRegionFilter
+    'feature.mini_app.region': PreferenceTypes.MiniAppRegionFilter
     // redux/settings/showOpenedMinappsInSidebar
-    'feature.miniapp.show_opened_in_sidebar': boolean
+    'feature.mini_app.show_opened_in_sidebar': boolean
     // redux/note/settings.defaultEditMode
     'feature.notes.default_edit_mode': string
     // redux/note/settings.defaultViewMode
@@ -652,10 +652,10 @@ export const DefaultPreferences: PreferenceSchemas = {
     'feature.file_processing.default_markdown_conversion': null,
     'feature.file_processing.default_text_extraction': null,
     'feature.file_processing.overrides': {} as PreferenceTypes.FileProcessorOverrides,
-    'feature.miniapp.max_keep_alive': 3,
-    'feature.miniapp.open_link_external': false,
-    'feature.miniapp.region': 'auto',
-    'feature.miniapp.show_opened_in_sidebar': true,
+    'feature.mini_app.max_keep_alive': 3,
+    'feature.mini_app.open_link_external': false,
+    'feature.mini_app.region': 'auto',
+    'feature.mini_app.show_opened_in_sidebar': true,
     'feature.notes.default_edit_mode': 'preview',
     'feature.notes.default_view_mode': 'edit',
     'feature.notes.font_family': 'default',
@@ -755,7 +755,7 @@ export const DefaultPreferences: PreferenceSchemas = {
       'store',
       'paintings',
       'translate',
-      'miniapp',
+      'mini_app',
       'knowledge',
       'files',
       'code_tools',

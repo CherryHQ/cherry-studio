@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, test, vi } from 'vitest'
 // Add this before the test suites
 vi.mock('@renderer/config/miniapps', () => {
   return {
-    ORIGIN_DEFAULT_MIN_APPS: [],
+    ORIGIN_DEFAULT_MINI_APPS: [],
     allMiniApps: []
   }
 })

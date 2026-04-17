@@ -26,7 +26,7 @@ const WebviewContainer = memo(
   }) => {
     const webviewRef = useRef<WebviewTag | null>(null)
     const [enableSpellCheck] = usePreference('app.spell_check.enabled')
-    const [openLinkExternal] = usePreference('feature.miniapp.open_link_external')
+    const [openLinkExternal] = usePreference('feature.mini_app.open_link_external')
 
     const setRef = (appid: string) => {
       onSetRefCallback(appid, null)

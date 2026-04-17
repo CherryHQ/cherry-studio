@@ -2,7 +2,7 @@ import { PlusOutlined, UploadOutlined } from '@ant-design/icons'
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
-import { ORIGIN_DEFAULT_MIN_APPS } from '@shared/data/presets/miniapps'
+import { ORIGIN_DEFAULT_MINI_APPS } from '@shared/data/presets/miniapps'
 import { Form, Input, Modal, Radio, Upload } from 'antd'
 import type { UploadFile } from 'antd/es/upload/interface'
 import type { FC } from 'react'
@@ -33,7 +33,7 @@ const NewAppButton: FC<Props> = ({ size = 60 }) => {
   const handleAddCustomApp = async (values: any) => {
     try {
       // Check for duplicate ID against builtin presets
-      if (ORIGIN_DEFAULT_MIN_APPS.some((app) => app.id === values.id)) {
+      if (ORIGIN_DEFAULT_MINI_APPS.some((app) => app.id === values.id)) {
         window.toast.error(t('settings.miniapps.custom.conflicting_ids', { ids: values.id }))
         return
       }

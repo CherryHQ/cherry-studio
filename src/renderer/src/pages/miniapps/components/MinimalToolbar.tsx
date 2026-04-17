@@ -42,7 +42,7 @@ interface Props {
 const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOpenDevTools }) => {
   const { t } = useTranslation()
   const { pinned, updatePinnedMiniApps, allApps } = useMiniApps()
-  const [openLinkExternal, setOpenLinkExternal] = usePreference('feature.miniapp.open_link_external')
+  const [openLinkExternal, setOpenLinkExternal] = usePreference('feature.mini_app.open_link_external')
   const navigate = useNavigate()
   const [canGoBack, setCanGoBack] = useState(false)
   const [canGoForward, setCanGoForward] = useState(false)

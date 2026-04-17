@@ -291,7 +291,7 @@ const TitleBar = ({
 
 /** The main container for MiniApp popup */
 const MiniAppPopupContainer: React.FC = () => {
-  const [openLinkExternal, setOpenLinkExternal] = usePreference('feature.miniapp.open_link_external')
+  const [openLinkExternal, setOpenLinkExternal] = usePreference('feature.mini_app.open_link_external')
   const { closeMiniApp, hideMiniAppPopup } = useMiniAppPopup()
   const {
     pinned,

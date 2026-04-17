@@ -20,17 +20,19 @@ import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniapps'
-import { type BuiltinMiniAppDefinition, ORIGIN_DEFAULT_MIN_APPS } from '@shared/data/presets/miniapps'
+import { type BuiltinMiniAppDefinition, ORIGIN_DEFAULT_MINI_APPS } from '@shared/data/presets/miniapps'
 import type { MiniApp, MiniAppId } from '@shared/data/types/miniapp'
 import { and, asc, desc, eq, inArray, type SQL } from 'drizzle-orm'
 
 const logger = loggerService.withContext('DataApi:MiniAppService')
 
 // Build lookup structures from the shared preset data (id -> appId mapping)
-const builtinMiniAppMap = new Map<string, BuiltinMiniAppDefinition>(ORIGIN_DEFAULT_MIN_APPS.map((app) => [app.id, app]))
+const builtinMiniAppMap = new Map<string, BuiltinMiniAppDefinition>(
+  ORIGIN_DEFAULT_MINI_APPS.map((app) => [app.id, app])
+)
 
 const builtinMiniAppDefaultSortOrder = new Map<string, number>(
-  ORIGIN_DEFAULT_MIN_APPS.map((app, index) => [app.id, index])
+  ORIGIN_DEFAULT_MINI_APPS.map((app, index) => [app.id, index])
 )
 
 /**
