@@ -9,7 +9,7 @@
  *    `userMessage` so `manager.send` steers into any in-flight session.
  */
 
-import { agentService, sessionService } from '@main/services/agents'
+import { sessionService } from '@main/services/agents'
 import { agentMessageRepository } from '@main/services/agents/database/sessionMessageRepository'
 import type { AiStreamOpenRequest } from '@shared/ai/transport'
 import type { Message } from '@shared/data/types/message'
@@ -34,12 +34,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
   async prepareDispatch(subscriber: StreamListener, req: AiStreamOpenRequest): Promise<PreparedDispatch> {
     const sessionId = extractAgentSessionId(req.topicId)
 
-    const { agents } = await agentService.listAgents()
-    let session: Awaited<ReturnType<typeof sessionService.getSession>> = null
-    for (const agent of agents) {
-      session = await sessionService.getSession(agent.id, sessionId)
-      if (session) break
-    }
+    const session = await sessionService.getById(sessionId)
     if (!session) throw new Error(`Agent session not found: ${sessionId}`)
 
     const uniqueModelId = parseAgentSessionModel(session.model)
@@ -50,8 +45,11 @@ export class AgentChatContextProvider implements ChatContextProvider {
         .map((p) => p.text)
         .join('\n') || ''
 
-    // Persist user message to agents DB
     const userMessageId = crypto.randomUUID()
+    const userMessageParts = req.userMessageParts ?? [{ type: 'text', text: userText }]
+    const createdAt = new Date().toISOString()
+
+    // Persist user message to agents DB
     await agentMessageRepository.persistUserMessage({
       sessionId,
       agentSessionId: '',
@@ -61,9 +59,9 @@ export class AgentChatContextProvider implements ChatContextProvider {
           role: 'user',
           assistantId: session.agent_id,
           topicId: req.topicId,
-          createdAt: new Date().toISOString(),
+          createdAt,
           status: 'success',
-          data: { parts: req.userMessageParts ?? [{ type: 'text', text: userText }] }
+          data: { parts: userMessageParts }
         },
         blocks: []
       }
@@ -91,8 +89,18 @@ export class AgentChatContextProvider implements ChatContextProvider {
       ],
       // Passing userMessage means the dispatcher's `manager.send` can steer
       // the new prompt into any in-flight Claude Code session on this topic
-      // via the pending queue.
-      userMessage: { id: userMessageId, topicId: req.topicId, role: 'user' } as Message,
+      // via the pending queue. `data.parts` MUST be populated — downstream
+      // consumers (Claude Code steeringSource, agentLoop pending drain) read
+      // `msg.data?.parts`; a message without it is silently dropped.
+      userMessage: {
+        id: userMessageId,
+        topicId: req.topicId,
+        role: 'user',
+        assistantId: session.agent_id,
+        createdAt,
+        status: 'success',
+        data: { parts: userMessageParts }
+      } as Message,
       listeners: [subscriber, agentPersistenceListener],
       isMultiModel: false
     }
