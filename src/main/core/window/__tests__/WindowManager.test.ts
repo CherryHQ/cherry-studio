@@ -165,17 +165,39 @@ vi.mock('electron', () => {
 // ─── Mock: windowRegistry ──────────────────────────────────
 
 const poolConfig = {
-  minIdle: 0,
+  recycleMinSize: 0,
   initialSize: 1,
-  maxSize: 4,
+  recycleMaxSize: 4,
   warmup: 'lazy' as const,
   decayInterval: 300,
-  idleTimeout: 1800
+  inactivityTimeout: 1800
 }
 
 const eagerPoolConfig = {
   ...poolConfig,
   warmup: 'eager' as const
+}
+
+// Scenario ②: pure standby pool. standbySize only, no recycling.
+const standbyOnlyPoolConfig = {
+  standbySize: 1,
+  warmup: 'eager' as const
+}
+
+// Scenario ④: hybrid pool with both standby and recycle axes.
+const hybridPoolConfig = {
+  standbySize: 1,
+  recycleMinSize: 1,
+  recycleMaxSize: 3,
+  decayInterval: 60,
+  inactivityTimeout: 300,
+  warmup: 'eager' as const
+}
+
+// Lazy + standby: defers standby creation until first open().
+const lazyStandbyPoolConfig = {
+  standbySize: 1,
+  warmup: 'lazy' as const
 }
 
 vi.mock('../windowRegistry', () => {
@@ -227,6 +249,27 @@ vi.mock('../windowRegistry', () => {
       poolConfig,
       htmlPath: 'windows/alwaysOnTopPool/index.html',
       defaultConfig: { width: 400, height: 300, alwaysOnTop: true }
+    },
+    standbyOnly: {
+      type: 'standbyOnly',
+      lifecycle: 'pooled',
+      poolConfig: standbyOnlyPoolConfig,
+      htmlPath: 'windows/standbyOnly/index.html',
+      defaultConfig: { width: 400, height: 300 }
+    },
+    hybrid: {
+      type: 'hybrid',
+      lifecycle: 'pooled',
+      poolConfig: hybridPoolConfig,
+      htmlPath: 'windows/hybrid/index.html',
+      defaultConfig: { width: 400, height: 300 }
+    },
+    lazyStandby: {
+      type: 'lazyStandby',
+      lifecycle: 'pooled',
+      poolConfig: lazyStandbyPoolConfig,
+      htmlPath: 'windows/lazyStandby/index.html',
+      defaultConfig: { width: 400, height: 300 }
     }
   }
   return {
@@ -267,7 +310,13 @@ describe('WindowManager', () => {
     void wm._doInit()
   })
 
-  afterEach(() => {
+  afterEach(async () => {
+    // Destroy the WM so any pending standby setImmediate callbacks see
+    // `state.suspended=true` and bail out — otherwise they'd create windows
+    // in the next test's shared `createdWindows` array.
+    await wm._doDestroy()
+    // Flush pending microtasks/immediates so leaked callbacks run and bail.
+    await new Promise<void>((resolve) => setImmediate(resolve))
     vi.clearAllMocks()
   })
 
@@ -360,7 +409,7 @@ describe('WindowManager', () => {
         expect(createdWindows).toHaveLength(1)
       })
 
-      it('creates multiple windows up to maxSize', () => {
+      it('creates multiple windows up to recycleMaxSize', () => {
         const ids = Array.from({ length: 4 }, () => wm.open('pooled' as never))
         expect(ids).toHaveLength(4)
         expect(createdWindows).toHaveLength(4)
@@ -400,11 +449,11 @@ describe('WindowManager', () => {
         expect(win.hide).not.toHaveBeenCalled()
       })
 
-      it('destroys excess windows when managed exceeds maxSize', () => {
+      it('destroys excess windows when managed exceeds recycleMaxSize', () => {
         const ids = Array.from({ length: 5 }, () => wm.open('pooled' as never))
         expect(createdWindows).toHaveLength(5)
 
-        // managed=5 > maxSize=4, should destroy instead of pooling
+        // managed=5 > recycleMaxSize=4, should destroy instead of pooling
         wm.close(ids[0])
         expect(createdWindows[0].destroy).toHaveBeenCalled()
 
@@ -561,6 +610,189 @@ describe('WindowManager', () => {
         // After resume, close should pool (not destroy)
         expect(createdWindows[0].destroy).not.toHaveBeenCalled()
         expect(createdWindows[0].hide).toHaveBeenCalled()
+      })
+    })
+
+    // ─── Standby (producer axis) ──────────────────────────
+    describe('standbySize — active pre-warming', () => {
+      /** Flush any pending setImmediate callbacks so standby replenishment lands. */
+      const flushImmediate = () => new Promise<void>((resolve) => setImmediate(resolve))
+
+      /**
+       * Boot the pool lifecycle (triggers onAllReady which eager-warms all
+       * eager pools across the mock registry). Returns the baseline window count
+       * so subsequent delta assertions are clean.
+       */
+      const bootEagerPools = async (): Promise<number> => {
+        await wm._doAllReady()
+        return createdWindows.length
+      }
+
+      describe('scenario ② — standby-only (no recycling)', () => {
+        it('eagerly warms up to standbySize on boot', async () => {
+          const before = createdWindows.length
+          await wm._doAllReady()
+          // Standby-only + hybrid + eagerPooled each create 1 on boot.
+          // We care only about standbyOnly: check that AT LEAST one extra exists
+          // and that calling open() on standbyOnly succeeds without creating another.
+          expect(createdWindows.length).toBeGreaterThan(before)
+          // Opening should recycle (no new window created synchronously).
+          const baseline = createdWindows.length
+          wm.open('standbyOnly' as never)
+          expect(createdWindows.length).toBe(baseline)
+        })
+
+        it('open() pops the standby window and schedules async replenishment', async () => {
+          const baseline = await bootEagerPools()
+
+          wm.open('standbyOnly' as never)
+          // Immediately after open(): no new window yet — replenish is async.
+          expect(createdWindows.length).toBe(baseline)
+
+          await flushImmediate()
+          // Standby replenishment landed.
+          expect(createdWindows.length).toBe(baseline + 1)
+        })
+
+        it('close() destroys the window when recycling is disabled', async () => {
+          await bootEagerPools()
+          const id = wm.open('standbyOnly' as never)
+          const win = wm.getWindow(id) as unknown as MockBrowserWindow
+
+          wm.close(id)
+
+          expect(win.destroy).toHaveBeenCalled()
+          expect(win.hide).toHaveBeenCalled()
+        })
+
+        it('three rapid opens: first zero-wait, 2nd/3rd sync fallback; one replenish queued', async () => {
+          const baseline = await bootEagerPools()
+
+          const id1 = wm.open('standbyOnly' as never)
+          const id2 = wm.open('standbyOnly' as never)
+          const id3 = wm.open('standbyOnly' as never)
+
+          expect(id1).not.toBe(id2)
+          expect(id2).not.toBe(id3)
+          // First open popped the warm standby (no new window).
+          // Second/third opens each synchronously created a fresh window because idle was empty.
+          expect(createdWindows.length).toBe(baseline + 2)
+
+          await flushImmediate()
+          // After setImmediate fires, exactly ONE replenish ran (dedup via inflightCreates);
+          // so we gained exactly one more window.
+          expect(createdWindows.length).toBe(baseline + 3)
+        })
+      })
+
+      describe('scenario ④ — hybrid (standby + recycle)', () => {
+        it('pops standby and replenishes; close recycles within recycleMaxSize', async () => {
+          const baseline = await bootEagerPools()
+
+          const id = wm.open('hybrid' as never)
+          const win = wm.getWindow(id) as unknown as MockBrowserWindow
+
+          await flushImmediate()
+          // Standby replenished (one new window).
+          expect(createdWindows.length).toBe(baseline + 1)
+
+          wm.close(id)
+          // managed (2 windows in hybrid pool) ≤ recycleMaxSize=3 → recycle (hide, not destroy).
+          expect(win.destroy).not.toHaveBeenCalled()
+          expect(win.hide).toHaveBeenCalled()
+        })
+
+        it('close destroys when managed+inflight exceeds recycleMaxSize', async () => {
+          await bootEagerPools()
+          // Pool has standbySize=1 already. Open 3 more to exhaust beyond recycleMaxSize=3.
+          const id1 = wm.open('hybrid' as never)
+          const id2 = wm.open('hybrid' as never)
+          const id3 = wm.open('hybrid' as never)
+          await flushImmediate()
+
+          // id1 used the standby; id2/id3 sync-created. Replenish created one standby window.
+          // Pool state: in-use = {id1, id2, id3}, idle = 1 standby, managed.size = 4 > recycleMaxSize=3.
+          wm.close(id1)
+          const win1 = wm.getWindow(id1) as unknown as MockBrowserWindow
+          // managed + inflight > 3 → destroy the closing window.
+          expect(win1.destroy).toHaveBeenCalled()
+          expect([id2, id3].every((x) => typeof x === 'string')).toBe(true)
+        })
+      })
+
+      describe('lazy + standbySize', () => {
+        it('first open() on lazyStandby sync-creates; standby replenishes after', async () => {
+          // Baseline AFTER eager warmup of OTHER pools (lazyStandby is lazy, so it's not warmed).
+          const baseline = await bootEagerPools()
+
+          const id = wm.open('lazyStandby' as never)
+          expect(id).toBeDefined()
+          // First open synchronously created one new window (no idle was available).
+          expect(createdWindows.length).toBe(baseline + 1)
+
+          await flushImmediate()
+          // Standby replenishment created a second window for the next call.
+          expect(createdWindows.length).toBe(baseline + 2)
+        })
+      })
+
+      describe('suspend during inflight replenish', () => {
+        it('pending setImmediate callback short-circuits when pool suspended before execution', async () => {
+          const baseline = await bootEagerPools()
+
+          // Trigger replenish: open pops standby and schedules setImmediate.
+          wm.open('standbyOnly' as never)
+          // Suspend the pool BEFORE the immediate fires. This destroys idle windows
+          // (none in standbyOnly right now — we just popped the only one) and sets suspended=true.
+          wm.suspendPool('standbyOnly' as never)
+          await flushImmediate()
+
+          // The scheduled replenish saw suspended=true and short-circuited:
+          // no new window was created during flushImmediate.
+          expect(createdWindows.length).toBe(baseline)
+        })
+      })
+
+      describe('inactivityTimeout trims idle to standbySize, preserves standby', () => {
+        it('trimIdleToFloor destroys (idle.length - standbySize) oldest idle windows', async () => {
+          await bootEagerPools()
+
+          // Grow the hybrid pool's idle queue beyond standbySize=1 by opening +
+          // closing two windows (recycleMaxSize=3 allows recycling).
+          const id1 = wm.open('hybrid' as never)
+          const id2 = wm.open('hybrid' as never)
+          await flushImmediate()
+
+          wm.close(id1)
+          wm.close(id2)
+
+          // Force inactivity by rewinding lastOpenAt past inactivityTimeout (300s).
+          const pools = (wm as unknown as { pools: Map<string, { lastOpenAt: number; idle: string[] }> }).pools
+          const state = pools.get('hybrid')
+          expect(state).toBeDefined()
+          const idleBefore = state!.idle.length
+          const expectedDestroys = Math.max(0, idleBefore - 1) // standbySize = 1
+          state!.lastOpenAt = Date.now() - 10_000_000
+
+          // Snapshot destroy-call counts for idle windows before the tick.
+          const idleIdsBefore = [...state!.idle]
+          const destroyCallsBefore = idleIdsBefore.map((id) => {
+            const win = wm.getWindow(id) as unknown as MockBrowserWindow | undefined
+            return win?.destroy.mock.calls.length ?? 0
+          })
+
+          // Trigger a GC tick manually.
+          ;(wm as unknown as { poolGcTick: () => void }).poolGcTick()
+
+          // Verify: the trim destroyed exactly (idleBefore - standbySize) windows
+          // from the FRONT of the idle queue (oldest first).
+          const destroyCallsAfter = idleIdsBefore.map((id) => {
+            const win = wm.getWindow(id) as unknown as MockBrowserWindow | undefined
+            return win?.destroy.mock.calls.length ?? 0
+          })
+          const newlyDestroyed = destroyCallsAfter.filter((after, i) => after > destroyCallsBefore[i]).length
+          expect(newlyDestroyed).toBe(expectedDestroys)
+        })
       })
     })
   })
@@ -786,6 +1018,16 @@ describe('WindowManager', () => {
 
         const reusedCalls = win.webContents.send.mock.calls.filter((call) => call[0] === 'window-manager:reused')
         expect(reusedCalls).toHaveLength(0)
+      })
+
+      it('clears stale initData on singleton re-open without initData', () => {
+        const id1 = wm.open('singleton' as never, { initData: { version: 1 } })
+        expect(wm.getInitData(id1)).toEqual({ version: 1 })
+
+        const id2 = wm.open('singleton' as never)
+
+        expect(id2).toBe(id1)
+        expect(wm.getInitData(id2)).toBeNull()
       })
     })
   })
