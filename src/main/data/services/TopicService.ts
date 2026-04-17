@@ -21,29 +21,7 @@ import { tagService } from './TagService'
 
 const logger = loggerService.withContext('DataApi:TopicService')
 
-function ensureTopicTimestamp(
-  timestamp: number | null | undefined,
-  field: 'createdAt' | 'updatedAt',
-  topicId: string
-): number {
-  if (timestamp == null) {
-    logger.warn('Topic row has null timestamp', { id: topicId, field })
-    throw DataApiErrorFactory.internal(
-      new Error(`Topic row '${topicId}' is missing ${field}`),
-      'TopicService.rowToTopic'
-    )
-  }
-
-  return timestamp
-}
-
-/**
- * Convert database row to Topic entity
- */
 function rowToTopic(row: typeof topicTable.$inferSelect): Topic {
-  const createdAt = ensureTopicTimestamp(row.createdAt, 'createdAt', row.id)
-  const updatedAt = ensureTopicTimestamp(row.updatedAt, 'updatedAt', row.id)
-
   return {
     id: row.id,
     name: row.name,
@@ -54,8 +32,8 @@ function rowToTopic(row: typeof topicTable.$inferSelect): Topic {
     sortOrder: row.sortOrder ?? 0,
     isPinned: row.isPinned ?? false,
     pinnedOrder: row.pinnedOrder ?? 0,
-    createdAt: new Date(createdAt).toISOString(),
-    updatedAt: new Date(updatedAt).toISOString()
+    createdAt: new Date(row.createdAt!).toISOString(),
+    updatedAt: new Date(row.updatedAt!).toISOString()
   }
 }
 

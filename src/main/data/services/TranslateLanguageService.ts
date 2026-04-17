@@ -15,32 +15,13 @@ import { asc, eq } from 'drizzle-orm'
 
 const logger = loggerService.withContext('DataApi:TranslateLanguageService')
 
-function ensureTranslateLanguageTimestamp(
-  timestamp: number | null | undefined,
-  field: 'createdAt' | 'updatedAt',
-  langCode: string
-): number {
-  if (timestamp == null) {
-    logger.warn('Translate language row has null timestamp', { langCode, field })
-    throw DataApiErrorFactory.internal(
-      new Error(`TranslateLanguage row '${langCode}' is missing ${field}`),
-      'TranslateLanguageService.rowToTranslateLanguage'
-    )
-  }
-
-  return timestamp
-}
-
 function rowToTranslateLanguage(row: typeof translateLanguageTable.$inferSelect): TranslateLanguage {
-  const createdAt = ensureTranslateLanguageTimestamp(row.createdAt, 'createdAt', row.langCode)
-  const updatedAt = ensureTranslateLanguageTimestamp(row.updatedAt, 'updatedAt', row.langCode)
-
   return {
     langCode: row.langCode,
     value: row.value,
     emoji: row.emoji,
-    createdAt: new Date(createdAt).toISOString(),
-    updatedAt: new Date(updatedAt).toISOString()
+    createdAt: new Date(row.createdAt!).toISOString(),
+    updatedAt: new Date(row.updatedAt!).toISOString()
   }
 }
 

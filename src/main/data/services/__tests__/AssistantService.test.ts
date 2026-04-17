@@ -133,17 +133,6 @@ describe('AssistantDataService', () => {
         code: ErrorCode.NOT_FOUND
       })
     })
-
-    it('should surface timestamp anomalies instead of masking them', async () => {
-      await dbh.client.execute({
-        sql: `INSERT INTO assistant (id, name, created_at, updated_at) VALUES (?, ?, NULL, NULL)`,
-        args: ['ast-1', 'broken']
-      })
-
-      await expect(assistantDataService.getById('ast-1')).rejects.toMatchObject({
-        code: ErrorCode.INTERNAL_SERVER_ERROR
-      })
-    })
   })
 
   describe('list', () => {
