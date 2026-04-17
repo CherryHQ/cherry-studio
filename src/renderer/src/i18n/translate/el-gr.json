@@ -5858,17 +5858,22 @@
       "reading": "Διαβάζοντας το περιεχόμενο του αρχείου..."
     },
     "history": {
+      "back": "[to be translated]:Back to list",
       "clear": "Καθαρισμός ιστορικού",
       "clear_description": "Η διαγραφή του ιστορικού θα διαγράψει όλα τα απομνημονεύματα μετάφρασης. Θέλετε να συνεχίσετε;",
+      "copy_target": "[to be translated]:Copy result",
       "delete": "Διαγραφή του ιστορικού μετάφρασης",
       "empty": "δεν υπάρχουν απομνημονεύματα μετάφρασης",
       "error": {
         "delete": "Αποτυχία διαγραφής",
         "save": "Αποτυχία αποθήκευσης του ιστορικού μεταφράσεων"
       },
-      "search": {
-        "placeholder": "Αναζήτηση ιστορικού μεταφράσεων"
+      "filter": {
+        "starred": "[to be translated]:Only starred"
       },
+      "reuse": "[to be translated]:Reuse",
+      "source": "[to be translated]:Source",
+      "target": "[to be translated]:Target",
       "title": "Ιστορικό μετάφρασης"
     },
     "info": {
@@ -5905,6 +5910,7 @@
       "scroll_sync": "Ρύθμιση συγχρονισμού κύλισης",
       "title": "Ρυθμίσεις μετάφρασης"
     },
+    "source_language": "[to be translated]:Source Language",
     "stop": "Σταματήστε τη μετάφραση",
     "success": {
       "custom": {

@@ -5858,17 +5858,22 @@
       "reading": "Чтение содержимого файла..."
     },
     "history": {
+      "back": "[to be translated]:Back to list",
       "clear": "Очистить историю",
       "clear_description": "Очистка истории удалит все записи переводов. Продолжить?",
+      "copy_target": "[to be translated]:Copy result",
       "delete": "Удалить историю переводов",
       "empty": "История переводов отсутствует",
       "error": {
         "delete": "Удаление не удалось",
         "save": "Не удалось сохранить историю переводов"
       },
-      "search": {
-        "placeholder": "Поиск истории переводов"
+      "filter": {
+        "starred": "[to be translated]:Only starred"
       },
+      "reuse": "[to be translated]:Reuse",
+      "source": "[to be translated]:Source",
+      "target": "[to be translated]:Target",
       "title": "История переводов"
     },
     "info": {
@@ -5905,6 +5910,7 @@
       "scroll_sync": "Настройки синхронизации прокрутки",
       "title": "Настройки перевода"
     },
+    "source_language": "[to be translated]:Source Language",
     "stop": "Остановить перевод",
     "success": {
       "custom": {

@@ -236,7 +236,9 @@ export const createOutputScrollHandler = (
   isScrollSyncEnabled: boolean
 ) => {
   return (e: React.UIEvent<HTMLDivElement>) => {
-    const inputEl = textAreaRef.current?.resizableTextArea?.textArea
+    const current = textAreaRef.current
+    const inputEl: HTMLTextAreaElement | null | undefined =
+      current?.resizableTextArea?.textArea ?? (current instanceof HTMLTextAreaElement ? current : null)
     if (!isScrollSyncEnabled || !inputEl || isProgrammaticScrollRef.current) return
     handleScrollSync(e.currentTarget, inputEl, isProgrammaticScrollRef)
   }

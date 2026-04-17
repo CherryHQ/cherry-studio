@@ -1,10 +1,5 @@
-import { PlusOutlined, SendOutlined, SwapOutlined } from '@ant-design/icons'
-import { Button, Flex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
-import { CopyIcon } from '@renderer/components/Icons'
-import LanguageSelect from '@renderer/components/LanguageSelect'
-import ModelSelectButton from '@renderer/components/ModelSelectButton'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
 import { LanguagesEnum, UNKNOWN } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
@@ -19,7 +14,6 @@ import useTranslate from '@renderer/hooks/useTranslate'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import { saveTranslateHistory, translateText } from '@renderer/services/TranslateService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
-// import { setTranslateAbortKey, setTranslating as setTranslatingAction } from '@renderer/store/runtime'
 import { setTranslatedContent as setTranslatedContentAction, setTranslateInput } from '@renderer/store/translate'
 import type { FileMetadata, SupportedOcrFile } from '@renderer/types'
 import {
@@ -41,16 +35,17 @@ import {
 } from '@renderer/utils/translate'
 import { documentExts } from '@shared/config/constant'
 import { imageExts, MB, textExts } from '@shared/config/constant'
-import { FloatButton, Popover, Typography } from 'antd'
-import type { TextAreaRef } from 'antd/es/input/TextArea'
-import TextArea from 'antd/es/input/TextArea'
 import { isEmpty, throttle } from 'lodash'
-import { Check, CirclePause, FolderClock, Settings2, UploadIcon } from 'lucide-react'
+import { History, Languages, SlidersHorizontal } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
+import IconButton from './components/IconButton'
+import TranslateInputPane from './components/TranslateInputPane'
+import TranslateLanguageBar from './components/TranslateLanguageBar'
+import TranslateModelSelect from './components/TranslateModelSelect'
+import TranslateOutputPane from './components/TranslateOutputPane'
 import TranslateHistoryList from './TranslateHistory'
 import TranslateSettings from './TranslateSettings'
 
@@ -61,7 +56,6 @@ let _sourceLanguage: TranslateLanguage | 'auto' = 'auto'
 let _targetLanguage = LanguagesEnum.enUS
 
 const TranslatePage: FC = () => {
-  // hooks
   const { t } = useTranslation()
   const { translateModel, setTranslateModel } = useDefaultModel()
   const { prompt, getLanguageByLangcode, settings } = useTranslate()
@@ -71,11 +65,10 @@ const TranslatePage: FC = () => {
   const { ocr } = useOcr()
   const { setTimeoutTimer } = useTimer()
 
-  // states
-  // const [text, setText] = useState(_text)
   const [renderedMarkdown, setRenderedMarkdown] = useState<string>('')
   const [copied, setCopied] = useTemporaryValue(false, 2000)
-  const [historyDrawerVisible, setHistoryDrawerVisible] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [isScrollSyncEnabled, setIsScrollSyncEnabled] = useState(false)
   const [isBidirectional, setIsBidirectional] = useState(false)
   const [enableMarkdown, setEnableMarkdown] = useState(false)
@@ -83,24 +76,18 @@ const TranslatePage: FC = () => {
     LanguagesEnum.enUS,
     LanguagesEnum.zhCN
   ])
-  const [settingsVisible, setSettingsVisible] = useState(false)
   const [detectedLanguage, setDetectedLanguage] = useState<TranslateLanguage | null>(null)
   const [sourceLanguage, setSourceLanguage] = useState<TranslateLanguage | 'auto'>(_sourceLanguage)
   const [targetLanguage, setTargetLanguage] = useState<TranslateLanguage>(_targetLanguage)
   const [autoDetectionMethod, setAutoDetectionMethod] = useState<AutoDetectionMethod>('franc')
   const [isProcessing, setIsProcessing] = useState(false)
-
   const [translating, setTranslating] = useState(false)
   const [abortKey, setTranslateAbortKey] = useState<string>('')
-  // redux states
+
   const text = useAppSelector((state) => state.translate.translateInput)
   const translatedContent = useAppSelector((state) => state.translate.translatedContent)
-  // const translating = useAppSelector((state) => state.runtime.translating)
-  // const abortKey = useAppSelector((state) => state.runtime.translateAbortKey)
 
-  // ref
-  const contentContainerRef = useRef<HTMLDivElement>(null)
-  const textAreaRef = useRef<TextAreaRef>(null)
+  const textAreaRef = useRef<HTMLTextAreaElement>(null)
   const outputTextRef = useRef<HTMLDivElement>(null)
   const isProgrammaticScroll = useRef(false)
 
@@ -109,16 +96,15 @@ const TranslatePage: FC = () => {
   _sourceLanguage = sourceLanguage
   _targetLanguage = targetLanguage
 
-  // 控制翻译模型切换
   const handleModelChange = (model: Model) => {
     setTranslateModel(model)
     void db.settings.put({ id: 'translate:model', value: model.id })
   }
 
-  // 控制翻译状态
   const setText = useCallback(
     (input: string) => {
       dispatch(setTranslateInput(input))
+      if (isEmpty(input)) dispatch(setTranslatedContentAction(''))
     },
     [dispatch]
   )
@@ -130,23 +116,15 @@ const TranslatePage: FC = () => {
     [dispatch]
   )
 
-  // const setTranslating = useCallback(
-  //   (translating: boolean) => {
-  //     dispatch(setTranslatingAction(translating))
-  //   },
-  //   [dispatch]
-  // )
-
-  // 控制复制行为
   const copy = useCallback(
-    async (text: string) => {
-      await navigator.clipboard.writeText(text)
+    async (value: string) => {
+      await navigator.clipboard.writeText(value)
       setCopied(true)
     },
     [setCopied]
   )
 
-  const onCopy = useCallback(async () => {
+  const onCopyOutput = useCallback(async () => {
     try {
       await copy(translatedContent)
     } catch (error) {
@@ -155,15 +133,19 @@ const TranslatePage: FC = () => {
     }
   }, [copy, t, translatedContent])
 
-  /**
-   * 翻译文本并保存历史记录，包含完整的异常处理，不会抛出异常
-   * @param text - 需要翻译的文本
-   * @param actualSourceLanguage - 源语言
-   * @param actualTargetLanguage - 目标语言
-   */
+  const onCopyInput = useCallback(async () => {
+    if (!text) return
+    try {
+      await copy(text)
+    } catch (error) {
+      logger.error('Failed to copy source text:', error as Error)
+      window.toast.error(t('common.copy_failed'))
+    }
+  }, [copy, t, text])
+
   const translate = useCallback(
     async (
-      text: string,
+      rawText: string,
       actualSourceLanguage: TranslateLanguage,
       actualTargetLanguage: TranslateLanguage
     ): Promise<void> => {
@@ -173,11 +155,16 @@ const TranslatePage: FC = () => {
         }
 
         let translated: string
-        const abortKey = uuid()
-        setTranslateAbortKey(abortKey)
+        const nextAbortKey = uuid()
+        setTranslateAbortKey(nextAbortKey)
 
         try {
-          translated = await translateText(text, actualTargetLanguage, throttle(setTranslatedContent, 100), abortKey)
+          translated = await translateText(
+            rawText,
+            actualTargetLanguage,
+            throttle(setTranslatedContent, 100),
+            nextAbortKey
+          )
         } catch (e) {
           if (isAbortError(e)) {
             window.toast.info(t('translate.info.aborted'))
@@ -201,7 +188,7 @@ const TranslatePage: FC = () => {
         }
 
         try {
-          await saveTranslateHistory(text, translated, actualSourceLanguage.langCode, actualTargetLanguage.langCode)
+          await saveTranslateHistory(rawText, translated, actualSourceLanguage.langCode, actualTargetLanguage.langCode)
         } catch (e) {
           logger.error('Failed to save translate history', e as Error)
           window.toast.error(formatErrorMessageWithPrefix(e, t('translate.history.error.save')))
@@ -211,10 +198,9 @@ const TranslatePage: FC = () => {
         window.toast.error(formatErrorMessageWithPrefix(e, t('translate.error.unknown')))
       }
     },
-    [autoCopy, copy, setTimeoutTimer, setTranslatedContent, setTranslating, t, translating]
+    [autoCopy, copy, setTimeoutTimer, setTranslatedContent, t, translating]
   )
 
-  // 控制翻译按钮是否可用
   const couldTranslate = useMemo(() => {
     return !(
       !text.trim() ||
@@ -226,7 +212,6 @@ const TranslatePage: FC = () => {
     )
   }, [bidirectionalPair, isBidirectional, isProcessing, sourceLanguage, targetLanguage.langCode, text])
 
-  // 控制翻译按钮，翻译前进行校验
   const onTranslate = useCallback(async () => {
     if (!couldTranslate) return
     if (!text.trim()) return
@@ -238,7 +223,6 @@ const TranslatePage: FC = () => {
     setTranslating(true)
 
     try {
-      // 确定源语言：如果用户选择了特定语言，使用用户选择的；如果选择'auto'，则自动检测
       let actualSourceLanguage: TranslateLanguage
       if (sourceLanguage === 'auto') {
         actualSourceLanguage = getLanguageByLangcode(await detectLanguage(text))
@@ -278,7 +262,6 @@ const TranslatePage: FC = () => {
     couldTranslate,
     getLanguageByLangcode,
     isBidirectional,
-    setTranslating,
     sourceLanguage,
     t,
     targetLanguage,
@@ -287,38 +270,34 @@ const TranslatePage: FC = () => {
     translateModel
   ])
 
-  // 控制停止翻译
-  const onAbort = async () => {
+  const onAbort = useCallback(() => {
     if (!abortKey || !abortKey.trim()) {
       logger.error('Failed to abort. Invalid abortKey.')
       return
     }
     abortCompletion(abortKey)
-  }
+  }, [abortKey])
 
-  // 控制双向翻译切换
   const toggleBidirectional = (value: boolean) => {
     setIsBidirectional(value)
     void db.settings.put({ id: 'translate:bidirectional:enabled', value })
   }
 
-  // 控制历史记录点击
-  const onHistoryItemClick = (
-    history: TranslateHistory & { _sourceLanguage: TranslateLanguage; _targetLanguage: TranslateLanguage }
-  ) => {
-    setText(history.sourceText)
-    setTranslatedContent(history.targetText)
-    if (history._sourceLanguage === UNKNOWN) {
-      setSourceLanguage('auto')
-    } else {
-      setSourceLanguage(history._sourceLanguage)
-    }
-    setTargetLanguage(history._targetLanguage)
-    setHistoryDrawerVisible(false)
-  }
+  const onHistoryItemClick = useCallback(
+    (history: TranslateHistory & { _sourceLanguage: TranslateLanguage; _targetLanguage: TranslateLanguage }) => {
+      setText(history.sourceText)
+      setTranslatedContent(history.targetText)
+      if (history._sourceLanguage === UNKNOWN) {
+        setSourceLanguage('auto')
+      } else {
+        setSourceLanguage(history._sourceLanguage)
+      }
+      setTargetLanguage(history._targetLanguage)
+      setHistoryOpen(false)
+    },
+    [setText, setTranslatedContent]
+  )
 
-  // 控制语言切换按钮
-  /** 与自动检测相关的交换条件检查 */
   const couldExchangeAuto = useMemo(
     () =>
       (sourceLanguage === 'auto' && detectedLanguage && detectedLanguage.langCode !== UNKNOWN.langCode) ||
@@ -326,7 +305,7 @@ const TranslatePage: FC = () => {
     [detectedLanguage, sourceLanguage]
   )
 
-  const couldExchange = useMemo(() => couldExchangeAuto && !isBidirectional, [couldExchangeAuto, isBidirectional])
+  const couldExchange = useMemo(() => !!couldExchangeAuto && !isBidirectional, [couldExchangeAuto, isBidirectional])
 
   const handleExchange = useCallback(() => {
     if (sourceLanguage === 'auto' && !couldExchangeAuto) {
@@ -348,12 +327,6 @@ const TranslatePage: FC = () => {
   }, [couldExchangeAuto, detectedLanguage, sourceLanguage, t, targetLanguage])
 
   useEffect(() => {
-    isEmpty(text) && setTranslatedContent('')
-  }, [setTranslatedContent, text])
-
-  // Render markdown content when result or enableMarkdown changes
-  // 控制Markdown渲染
-  useEffect(() => {
     if (enableMarkdown && translatedContent) {
       let isMounted = true
       void shikiMarkdownIt(translatedContent).then((rendered) => {
@@ -370,15 +343,15 @@ const TranslatePage: FC = () => {
     }
   }, [enableMarkdown, shikiMarkdownIt, translatedContent])
 
-  // 控制设置加载
   useEffect(() => {
     void runAsyncFunction(async () => {
       const targetLang = await db.settings.get({ id: 'translate:target:language' })
-      targetLang && setTargetLanguage(getLanguageByLangcode(targetLang.value))
+      if (targetLang) setTargetLanguage(getLanguageByLangcode(targetLang.value))
 
       const sourceLang = await db.settings.get({ id: 'translate:source:language' })
-      sourceLang &&
+      if (sourceLang) {
         setSourceLanguage(sourceLang.value === 'auto' ? sourceLang.value : getLanguageByLangcode(sourceLang.value))
+      }
 
       const bidirectionalPairSetting = await db.settings.get({ id: 'translate:bidirectional:pair' })
       if (bidirectionalPairSetting) {
@@ -423,7 +396,6 @@ const TranslatePage: FC = () => {
     })
   }, [getLanguageByLangcode])
 
-  // 控制设置同步
   const updateAutoDetectionMethod = async (method: AutoDetectionMethod) => {
     try {
       await db.settings.put({ id: 'translate:detect:method', value: method })
@@ -434,7 +406,6 @@ const TranslatePage: FC = () => {
     }
   }
 
-  // 控制Enter触发翻译
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const isEnterPressed = e.key === 'Enter'
     if (isEnterPressed && !e.nativeEvent.isComposing && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
@@ -443,47 +414,15 @@ const TranslatePage: FC = () => {
     }
   }
 
-  // 控制双向滚动
   const handleInputScroll = createInputScrollHandler(outputTextRef, isProgrammaticScroll, isScrollSyncEnabled)
   const handleOutputScroll = createOutputScrollHandler(textAreaRef, isProgrammaticScroll, isScrollSyncEnabled)
 
-  // 获取目标语言显示
-  const getLanguageDisplay = () => {
-    try {
-      if (isBidirectional) {
-        return (
-          <Flex className="min-w-40 items-center">
-            <BidirectionalLanguageDisplay>
-              {`${bidirectionalPair[0].label()} ⇆ ${bidirectionalPair[1].label()}`}
-            </BidirectionalLanguageDisplay>
-          </Flex>
-        )
-      }
-    } catch (error) {
-      logger.error('Error getting language display:', error as Error)
-      setBidirectionalPair([LanguagesEnum.enUS, LanguagesEnum.zhCN])
-    }
-
-    return (
-      <LanguageSelect
-        style={{ width: 200 }}
-        value={targetLanguage.langCode}
-        onChange={(value) => {
-          setTargetLanguage(getLanguageByLangcode(value))
-          void db.settings.put({ id: 'translate:target:language', value })
-        }}
-      />
-    )
-  }
-
-  // 控制模型选择器
   const modelPredicate = useCallback(
     (m: Model) => !isEmbeddingModel(m) && !isRerankModel(m) && !isTextToImageModel(m),
     []
   )
 
-  // 控制token估计
-  const tokenCount = useMemo(() => estimateTextTokens(text + prompt), [prompt, text])
+  const tokenCount = text ? estimateTextTokens(text + prompt) : 0
 
   const readFile = useCallback(
     async (file: FileMetadata) => {
@@ -491,13 +430,11 @@ const TranslatePage: FC = () => {
         try {
           const fileExtension = getFileExtension(file.path)
 
-          // Check if file is supported format (text file or document file)
           let isText: boolean
           const isDocument: boolean = documentExts.includes(fileExtension)
 
           if (!isDocument) {
             try {
-              // For non-document files, check if it's a text file
               isText = await isTextFile(file.path)
             } catch (e) {
               logger.error('Failed to check file type.', e as Error)
@@ -514,7 +451,6 @@ const TranslatePage: FC = () => {
             return
           }
 
-          // File size check - document files allowed to be larger
           const maxSize = isDocument ? 20 * MB : 5 * MB
           if (file.size > maxSize) {
             window.toast.error(t('translate.files.error.too_large') + ` (0 ~ ${maxSize / MB} MB)`)
@@ -524,10 +460,8 @@ const TranslatePage: FC = () => {
           let result: string
           try {
             if (isDocument) {
-              // Use the new document reading API
               result = await window.api.file.readExternal(file.path, true)
             } else {
-              // Read text file
               result = await window.api.fs.readText(file.path)
             }
             setText(text + result)
@@ -554,12 +488,9 @@ const TranslatePage: FC = () => {
     [ocr, setText, text]
   )
 
-  // 统一的文件处理
   const processFile = useCallback(
     async (file: FileMetadata) => {
-      // extensible, only image for now
       const shouldOCR = isSupportedOcrFile(file)
-
       if (shouldOCR) {
         await ocrFile(file)
       } else {
@@ -569,7 +500,6 @@ const TranslatePage: FC = () => {
     [ocrFile, readFile]
   )
 
-  // 点击上传文件按钮
   const handleSelectFile = useCallback(async () => {
     if (selecting) return
     setIsProcessing(true)
@@ -592,7 +522,6 @@ const TranslatePage: FC = () => {
     (files: FileMetadata[] | FileList): FileMetadata | File | null => {
       if (files.length === 0) return null
       if (files.length > 1) {
-        // 多文件上传时显示提示信息
         window.toast.error(t('translate.files.error.multiple'))
         return null
       }
@@ -601,22 +530,12 @@ const TranslatePage: FC = () => {
     [t]
   )
 
-  // 拖动上传文件
-  const {
-    isDragging,
-    setIsDragging,
-    handleDragEnter,
-    handleDragLeave,
-    handleDragOver,
-    handleDrop: preventDrop
-  } = useDrag<HTMLDivElement>()
+  const { handleDragEnter, handleDragLeave, handleDragOver, handleDrop: preventDrop } = useDrag<HTMLDivElement>()
 
   const onDrop = useCallback(
     async (e: React.DragEvent<HTMLDivElement>) => {
       setIsProcessing(true)
-      setIsDragging(false)
       const process = async () => {
-        // const supportedFiles = await filterSupportedFiles(_files, extensions)
         const data = await getTextFromDropEvent(e).catch((err) => {
           logger.error('getTextFromDropEvent', err)
           window.toast.error(t('translate.files.error.unknown'))
@@ -642,37 +561,28 @@ const TranslatePage: FC = () => {
       await process()
       setIsProcessing(false)
     },
-    [getSingleFile, processFile, setIsDragging, setText, t, text]
+    [getSingleFile, processFile, setText, t, text]
   )
 
-  const {
-    isDragging: isDraggingOnInput,
-    handleDragEnter: handleDragEnterInput,
-    handleDragLeave: handleDragLeaveInput,
-    handleDragOver: handleDragOverInput,
-    handleDrop
-  } = useDrag<HTMLDivElement>(onDrop)
-
-  // 粘贴上传文件
   const onPaste = useCallback(
     async (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
       if (isProcessing) return
       setIsProcessing(true)
-      // logger.debug('event', event)
       const clipboardText = event.clipboardData.getData('text')
       if (!isEmpty(clipboardText)) {
-        // depend default. this branch is only for preventing files when clipboard contains text
+        // default behaviour; no-op
       } else if (event.clipboardData.files && event.clipboardData.files.length > 0) {
         event.preventDefault()
         const files = event.clipboardData.files
         const file = getSingleFile(files) as File
-        if (!file) return
+        if (!file) {
+          setIsProcessing(false)
+          return
+        }
         try {
-          // 使用新的API获取文件路径
           const filePath = window.api.file.getPathForFile(file)
           let selectedFile: FileMetadata | null
 
-          // 如果没有路径，可能是剪贴板中的图像数据
           if (!filePath) {
             if (file.type.startsWith('image/')) {
               const tempFilePath = await window.api.file.createTempFile(file.name)
@@ -682,15 +592,16 @@ const TranslatePage: FC = () => {
               selectedFile = await window.api.file.get(tempFilePath)
             } else {
               window.toast.info(t('common.file.not_supported', { type: getFileExtension(filePath) }))
+              setIsProcessing(false)
               return
             }
           } else {
-            // 有路径的情况
             selectedFile = await window.api.file.get(filePath)
           }
 
           if (!selectedFile) {
             window.toast.error(t('translate.files.error.unknown'))
+            setIsProcessing(false)
             return
           }
           await processFile(selectedFile)
@@ -703,9 +614,10 @@ const TranslatePage: FC = () => {
     },
     [getSingleFile, isProcessing, processFile, t]
   )
+
   return (
-    <Container
-      id="translate-page"
+    <div
+      className="flex min-w-0 flex-1 flex-col"
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
@@ -713,356 +625,108 @@ const TranslatePage: FC = () => {
       <Navbar>
         <NavbarCenter style={{ borderRight: 'none', gap: 10 }}>{t('translate.title')}</NavbarCenter>
       </Navbar>
-      <ContentContainer id="content-container" ref={contentContainerRef} $historyDrawerVisible={historyDrawerVisible}>
-        <TranslateHistoryList
-          onHistoryItemClick={onHistoryItemClick}
-          isOpen={historyDrawerVisible}
-          onClose={() => setHistoryDrawerVisible(false)}
-        />
-        <OperationBar>
-          <InnerOperationBar style={{ justifyContent: 'flex-start' }}>
-            <Button
-              className="nodrag"
-              variant="ghost"
-              size="icon"
-              onClick={() => setHistoryDrawerVisible(!historyDrawerVisible)}>
-              <FolderClock size={18} />
-            </Button>
-            <LanguageSelect
-              showSearch
-              style={{ width: 200 }}
-              value={sourceLanguage !== 'auto' ? sourceLanguage.langCode : 'auto'}
-              optionFilterProp="label"
-              onChange={(value) => {
-                if (value !== 'auto') setSourceLanguage(getLanguageByLangcode(value))
-                else setSourceLanguage('auto')
-                void db.settings.put({ id: 'translate:source:language', value })
-              }}
-              extraOptionsBefore={[
-                {
-                  value: 'auto',
-                  label: detectedLanguage
-                    ? `${t('translate.detected.language')} (${detectedLanguage.label()})`
-                    : t('translate.detected.language')
-                }
-              ]}
-            />
-            <Tooltip content={t('translate.exchange.label')} placement="bottom">
-              <Button
-                variant="ghost"
-                size="icon"
-                style={{ margin: '0 -2px' }}
-                onClick={handleExchange}
-                disabled={!couldExchange}>
-                <SwapOutlined />
-              </Button>
-            </Tooltip>
-            {getLanguageDisplay()}
-            <TranslateButton
-              translating={translating}
-              onTranslate={onTranslate}
-              couldTranslate={couldTranslate}
-              onAbort={onAbort}
-            />
-          </InnerOperationBar>
-          <InnerOperationBar style={{ justifyContent: 'flex-end' }}>
-            <ModelSelectButton
+
+      <div className="relative flex h-[calc(100vh-var(--navbar-height))] min-h-0 min-w-0 flex-1 flex-col">
+        <div className="flex h-11 shrink-0 items-center justify-between px-4">
+          <div className="flex min-w-0 items-center gap-2 text-xs">
+            <Languages size={14} className="shrink-0 text-muted-foreground" />
+            <span className="shrink-0 text-foreground">{t('translate.title')}</span>
+            <span className="shrink-0 text-foreground-muted">·</span>
+            <TranslateModelSelect
               model={translateModel}
               onSelectModel={handleModelChange}
               modelFilter={modelPredicate}
-              tooltipProps={{ placement: 'bottom' }}
             />
-            <Button variant="ghost" size="icon" onClick={() => setSettingsVisible(true)}>
-              <Settings2 size={18} />
-            </Button>
-          </InnerOperationBar>
-        </OperationBar>
-        <AreaContainer>
-          <InputContainer
-            style={isDraggingOnInput ? { border: '2px dashed var(--color-primary)' } : undefined}
-            onDragEnter={handleDragEnterInput}
-            onDragLeave={handleDragLeaveInput}
-            onDragOver={handleDragOverInput}
-            onDrop={handleDrop}>
-            {(isDragging || isDraggingOnInput) && (
-              <InputContainerDraggingHintContainer>
-                <UploadIcon color="var(--color-text-3)" />
-                {t('translate.files.drag_text')}
-              </InputContainerDraggingHintContainer>
-            )}
-            <FloatButton
-              style={{ position: 'absolute', left: 10, bottom: 10, width: 35, height: 35 }}
-              className="float-button"
-              icon={<PlusOutlined />}
-              tooltip={t('common.upload_files')}
-              shape="circle"
-              type="primary"
-              onClick={handleSelectFile}
-            />
-            <Textarea
-              ref={textAreaRef}
-              variant="borderless"
-              placeholder={t('translate.input.placeholder')}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={onKeyDown}
-              onScroll={handleInputScroll}
-              onPaste={onPaste}
-              disabled={translating}
-              spellCheck={false}
-              allowClear
-            />
-            <Footer>
-              <Popover content={t('chat.input.estimated_tokens.tip')}>
-                <Typography.Text style={{ color: 'var(--color-text-3)', paddingRight: 8 }}>
-                  {tokenCount}
-                </Typography.Text>
-              </Popover>
-            </Footer>
-          </InputContainer>
-
-          <OutputContainer>
-            <CopyButton
-              variant="ghost"
-              size="icon-sm"
-              className="copy-button"
-              onClick={onCopy}
-              disabled={!translatedContent}>
-              {copied ? <Check size={16} color="var(--color-primary)" /> : <CopyIcon size={16} />}
-            </CopyButton>
-            <OutputText ref={outputTextRef} onScroll={handleOutputScroll} className={'selectable'}>
-              {!translatedContent ? (
-                <div style={{ color: 'var(--color-text-3)', userSelect: 'none' }}>
-                  {t('translate.output.placeholder')}
-                </div>
-              ) : enableMarkdown ? (
-                <div className="markdown" dangerouslySetInnerHTML={{ __html: renderedMarkdown }} />
-              ) : (
-                <div className="plain">{translatedContent}</div>
-              )}
-            </OutputText>
-          </OutputContainer>
-        </AreaContainer>
-      </ContentContainer>
-
-      <TranslateSettings
-        visible={settingsVisible}
-        onClose={() => setSettingsVisible(false)}
-        isScrollSyncEnabled={isScrollSyncEnabled}
-        setIsScrollSyncEnabled={setIsScrollSyncEnabled}
-        isBidirectional={isBidirectional}
-        setIsBidirectional={toggleBidirectional}
-        enableMarkdown={enableMarkdown}
-        setEnableMarkdown={setEnableMarkdown}
-        bidirectionalPair={bidirectionalPair}
-        setBidirectionalPair={setBidirectionalPair}
-        translateModel={translateModel}
-        autoDetectionMethod={autoDetectionMethod}
-        setAutoDetectionMethod={updateAutoDetectionMethod}
-      />
-    </Container>
-  )
-}
-
-const Container = styled.div`
-  flex: 1;
-`
-
-const ContentContainer = styled.div<{ $historyDrawerVisible: boolean }>`
-  height: calc(100vh - var(--navbar-height));
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  flex: 1;
-  padding: 12px;
-  position: relative;
-  [navbar-position='left'] & {
-    padding: 12px 16px;
-  }
-`
-
-const AreaContainer = styled.div`
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  flex: 1;
-  gap: 8px;
-`
-
-const InputContainer = styled.div`
-  position: relative;
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  padding: 10px 5px;
-  border: 1px solid var(--color-border-soft);
-  border-radius: 10px;
-  height: calc(100vh - var(--navbar-height) - 70px);
-  overflow: hidden;
-  .float-button {
-    opacity: 0;
-    transition: opacity 0.2s ease-in-out;
-  }
-
-  &:hover {
-    .float-button {
-      opacity: 1;
-    }
-  }
-`
-
-const InputContainerDraggingHintContainer = styled.div`
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  top: 0;
-  left: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-text-3);
-`
-
-const Textarea = styled(TextArea)`
-  display: flex;
-  flex: 1;
-  border-radius: 0;
-  .ant-input {
-    resize: none;
-    padding: 5px 16px;
-  }
-  .ant-input-clear-icon {
-    font-size: 16px;
-  }
-`
-
-const Footer = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-`
-
-const OutputContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-height: 0;
-  position: relative;
-  background-color: var(--color-background-soft);
-  border-radius: 10px;
-  padding: 10px 5px;
-  height: calc(100vh - var(--navbar-height) - 70px);
-  overflow: hidden;
-
-  & > div > .markdown > pre {
-    background-color: var(--color-background-mute) !important;
-  }
-
-  &:hover .copy-button {
-    opacity: 1;
-    visibility: visible;
-  }
-`
-
-const CopyButton = styled(Button)`
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 10;
-  opacity: 0;
-  visibility: hidden;
-  transition:
-    opacity 0.2s ease-in-out,
-    visibility 0.2s ease-in-out;
-`
-
-const OutputText = styled.div`
-  min-height: 0;
-  flex: 1;
-  padding: 5px 16px;
-  overflow-y: auto;
-
-  .plain {
-    white-space: pre-wrap;
-    overflow-wrap: break-word;
-  }
-
-  .markdown {
-    /* for shiki code block overflow */
-    .line * {
-      white-space: pre-wrap;
-      overflow-wrap: break-word;
-    }
-  }
-`
-
-const TranslateButton = ({
-  translating,
-  onTranslate,
-  couldTranslate,
-  onAbort
-}: {
-  translating: boolean
-  onTranslate: () => void
-  couldTranslate: boolean
-  onAbort: () => void
-}) => {
-  const { t } = useTranslation()
-  return (
-    <Tooltip
-      delay={500}
-      placement="bottom"
-      content={
-        <div style={{ textAlign: 'center' }}>
-          Enter: {t('translate.button.translate')}
-          <br />
-          Shift + Enter: {t('translate.tooltip.newline')}
+          </div>
+          <div className="flex items-center gap-1">
+            <IconButton
+              size="md"
+              active={historyOpen}
+              onClick={() => setHistoryOpen((v) => !v)}
+              aria-label={t('translate.history.title')}
+              aria-pressed={historyOpen}>
+              <History size={14} strokeWidth={1.6} />
+            </IconButton>
+            <IconButton
+              size="md"
+              active={settingsOpen}
+              onClick={() => setSettingsOpen((v) => !v)}
+              aria-label={t('translate.settings.title')}
+              aria-pressed={settingsOpen}>
+              <SlidersHorizontal size={14} strokeWidth={1.6} />
+            </IconButton>
+          </div>
         </div>
-      }>
-      {!translating && (
-        <Button onClick={onTranslate} disabled={!couldTranslate}>
-          <SendOutlined />
-          {t('translate.button.translate')}
-        </Button>
-      )}
-      {translating && (
-        <Button variant="destructive" onClick={onAbort}>
-          <CirclePause size={14} />
-          {t('common.stop')}
-        </Button>
-      )}
-    </Tooltip>
+
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col p-4 pt-0">
+          <div className="flex max-h-[calc(100vh-var(--navbar-height)-60px)] min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xs border border-border/50 bg-card shadow-sm">
+            <TranslateLanguageBar
+              sourceLanguage={sourceLanguage}
+              onSourceChange={setSourceLanguage}
+              targetLanguage={targetLanguage}
+              onTargetChange={setTargetLanguage}
+              detectedLanguage={detectedLanguage}
+              isBidirectional={isBidirectional}
+              bidirectionalPair={bidirectionalPair}
+              couldExchange={couldExchange}
+              onExchange={handleExchange}
+            />
+            <div className="flex min-h-0 min-w-0 flex-1">
+              <TranslateInputPane
+                ref={textAreaRef}
+                text={text}
+                onTextChange={setText}
+                onKeyDown={onKeyDown}
+                onScroll={handleInputScroll}
+                onPaste={onPaste}
+                onDrop={onDrop}
+                onSelectFile={handleSelectFile}
+                onCopy={onCopyInput}
+                disabled={translating}
+                selecting={selecting}
+                tokenCount={tokenCount}
+              />
+              <div className="my-3 w-px shrink-0 bg-border/20" />
+              <TranslateOutputPane
+                ref={outputTextRef}
+                translatedContent={translatedContent}
+                renderedMarkdown={renderedMarkdown}
+                enableMarkdown={enableMarkdown}
+                translating={translating}
+                copied={copied}
+                couldTranslate={couldTranslate}
+                onCopy={onCopyOutput}
+                onTranslate={onTranslate}
+                onAbort={onAbort}
+                onScroll={handleOutputScroll}
+              />
+            </div>
+          </div>
+        </div>
+
+        <TranslateHistoryList
+          isOpen={historyOpen}
+          onClose={() => setHistoryOpen(false)}
+          onHistoryItemClick={onHistoryItemClick}
+        />
+
+        <TranslateSettings
+          visible={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+          isScrollSyncEnabled={isScrollSyncEnabled}
+          setIsScrollSyncEnabled={setIsScrollSyncEnabled}
+          isBidirectional={isBidirectional}
+          setIsBidirectional={toggleBidirectional}
+          enableMarkdown={enableMarkdown}
+          setEnableMarkdown={setEnableMarkdown}
+          bidirectionalPair={bidirectionalPair}
+          setBidirectionalPair={setBidirectionalPair}
+          autoDetectionMethod={autoDetectionMethod}
+          setAutoDetectionMethod={updateAutoDetectionMethod}
+        />
+      </div>
+    </div>
   )
 }
-
-const BidirectionalLanguageDisplay = styled.div`
-  padding: 4px 11px;
-  border-radius: 6px;
-  background-color: var(--color-background);
-  border: 1px solid var(--color-border);
-  font-size: 14px;
-  width: 100%;
-  text-align: center;
-`
-
-const OperationBar = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: 4px;
-  padding-bottom: 4px;
-`
-
-const InnerOperationBar = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-  overflow: hidden;
-`
 
 export default TranslatePage

@@ -5858,17 +5858,22 @@
       "reading": "Lendo o conteúdo do arquivo..."
     },
     "history": {
+      "back": "[to be translated]:Back to list",
       "clear": "Limpar Histórico",
       "clear_description": "Limpar histórico irá deletar todos os registros de tradução. Deseja continuar?",
+      "copy_target": "[to be translated]:Copy result",
       "delete": "Apagar histórico de traduções",
       "empty": "Nenhum histórico de tradução disponível",
       "error": {
         "delete": "Falha ao excluir",
         "save": "Falha ao guardar o histórico de traduções"
       },
-      "search": {
-        "placeholder": "Pesquisar histórico de tradução"
+      "filter": {
+        "starred": "[to be translated]:Only starred"
       },
+      "reuse": "[to be translated]:Reuse",
+      "source": "[to be translated]:Source",
+      "target": "[to be translated]:Target",
       "title": "Histórico de Tradução"
     },
     "info": {
@@ -5905,6 +5910,7 @@
       "scroll_sync": "Configuração de Sincronização de Rolagem",
       "title": "Configurações de Tradução"
     },
+    "source_language": "[to be translated]:Source Language",
     "stop": "Parar Tradução",
     "success": {
       "custom": {

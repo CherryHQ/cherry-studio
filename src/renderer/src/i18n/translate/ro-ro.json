@@ -5858,17 +5858,22 @@
       "reading": "Se citește conținutul fișierului..."
     },
     "history": {
+      "back": "[to be translated]:Back to list",
       "clear": "Golește istoricul",
       "clear_description": "Golirea istoricului va șterge tot istoricul traducerilor, continui?",
+      "copy_target": "[to be translated]:Copy result",
       "delete": "Șterge istoricul traducerilor",
       "empty": "Niciun istoric de traducere",
       "error": {
         "delete": "Ștergerea a eșuat",
         "save": "Salvarea istoricului traducerilor a eșuat"
       },
-      "search": {
-        "placeholder": "Caută în istoricul traducerilor"
+      "filter": {
+        "starred": "[to be translated]:Only starred"
       },
+      "reuse": "[to be translated]:Reuse",
+      "source": "[to be translated]:Source",
+      "target": "[to be translated]:Target",
       "title": "Istoric traduceri"
     },
     "info": {
@@ -5905,6 +5910,7 @@
       "scroll_sync": "Setări sincronizare derulare",
       "title": "Setări traducere"
     },
+    "source_language": "[to be translated]:Source Language",
     "stop": "Oprește traducerea",
     "success": {
       "custom": {

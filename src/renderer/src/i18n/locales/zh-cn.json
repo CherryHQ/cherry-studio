@@ -5858,17 +5858,22 @@
       "reading": "读取文件内容中..."
     },
     "history": {
+      "back": "返回列表",
       "clear": "清空历史",
       "clear_description": "清空历史将删除所有翻译历史记录，是否继续？",
+      "copy_target": "复制译文",
       "delete": "删除翻译历史",
       "empty": "暂无翻译历史",
       "error": {
         "delete": "删除失败",
         "save": "保存翻译历史失败"
       },
-      "search": {
-        "placeholder": "搜索翻译历史"
+      "filter": {
+        "starred": "仅显示收藏"
       },
+      "reuse": "使用此翻译",
+      "source": "原文",
+      "target": "译文",
       "title": "翻译历史"
     },
     "info": {
@@ -5905,6 +5910,7 @@
       "scroll_sync": "滚动同步设置",
       "title": "翻译设置"
     },
+    "source_language": "源语言",
     "stop": "停止翻译",
     "success": {
       "custom": {
