@@ -59,6 +59,7 @@ import { v4 as uuidv4 } from 'uuid'
 import DxtService from './DxtService'
 import { CallBackServer } from './mcp/oauth/callback'
 import { McpOAuthClientProvider } from './mcp/oauth/provider'
+import { JsonFileStorage } from './mcp/oauth/storage'
 import { ServerLogBuffer } from './mcp/ServerLogBuffer'
 
 // Generic type for caching wrapped functions
@@ -268,6 +269,13 @@ export class MCPService extends BaseService {
     return this.serverLogs.get(this.getServerKey(server))
   }
 
+  private getServerUrlHash(server: MCPServer): string {
+    return crypto
+      .createHash('md5')
+      .update(server.baseUrl || '')
+      .digest('hex')
+  }
+
   async initClient(server: MCPServer): Promise<Client> {
     const serverKey = this.getServerKey(server)
 
@@ -318,10 +326,7 @@ export class MCPService extends BaseService {
 
         // let transport: StdioClientTransport | SSEClientTransport | InMemoryTransport | StreamableHTTPClientTransport
         const authProvider = new McpOAuthClientProvider({
-          serverUrlHash: crypto
-            .createHash('md5')
-            .update(server.baseUrl || '')
-            .digest('hex')
+          serverUrlHash: this.getServerUrlHash(server)
         })
 
         const initTransport = async (): Promise<
@@ -798,6 +803,19 @@ export class MCPService extends BaseService {
     const existingClient = this.clients.get(serverKey)
     if (existingClient) {
       await this.closeClient(serverKey)
+    }
+
+    // Clear OAuth token for this server
+    const serverUrlHash = this.getServerUrlHash(server)
+    const oauthStorage = new JsonFileStorage(
+      serverUrlHash,
+      path.join(os.homedir(), HOME_CHERRY_DIR, 'config', 'mcp', 'oauth')
+    )
+    try {
+      await oauthStorage.clear()
+      getServerLogger(server).debug(`Cleared OAuth token for server`)
+    } catch (error) {
+      getServerLogger(server).error(`Failed to clear OAuth token`, error as Error)
     }
 
     // If this is a DXT server, cleanup its directory
