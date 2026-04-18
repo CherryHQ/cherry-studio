@@ -205,7 +205,7 @@ describe('WindowService Windows hide behavior', () => {
 
   it('minimizes before hiding the main window from the show/hide shortcut', async () => {
     const mainWindow = createMockMainWindow()
-    ;(windowService as any).mainWindow = mainWindow
+    windowService.mainWindow = mainWindow
 
     windowService.toggleMainWindow()
 
@@ -219,7 +219,7 @@ describe('WindowService Windows hide behavior', () => {
 
   it('minimizes before hiding the main window when closing to tray', async () => {
     const mainWindow = createMockMainWindow()
-    ;(windowService as any).setupWindowLifecycleEvents(mainWindow)
+    windowService.setupWindowLifecycleEvents(mainWindow)
 
     const closeHandler = mainWindow.getListener('close')
     expect(closeHandler).toBeDefined()
@@ -245,7 +245,7 @@ describe('WindowService Windows hide behavior', () => {
   it('restores and refocuses a minimized main window when reopening', () => {
     const mainWindow = createMockMainWindow()
     mainWindow.isMinimized = vi.fn(() => true)
-    ;(windowService as any).mainWindow = mainWindow
+    windowService.mainWindow = mainWindow
 
     windowService.showMainWindow()
 
