@@ -1375,6 +1375,13 @@
         "tip": "Valor predeterminado es 1, cuanto menor sea el valor, el contenido generado por la IA será menos variado pero más fácil de entender; cuanto mayor sea el valor, el vocabulario y la variedad de la respuesta de la IA serán mayores"
       }
     },
+    "sideQuestion": {
+      "count": "pregunta(s)",
+      "empty": "Haz preguntas adicionales sin usar el contexto de la sesión",
+      "help": "La Pregunta Lateral es una ventana independiente de preguntas y respuestas que no consume el contexto de la sesión actual del Agente. Puedes hacer preguntas adicionales sobre cualquier mensaje sin afectar la conversación principal.",
+      "placeholder": "Escribe tu pregunta...",
+      "title": "Pregunta Lateral"
+    },
     "suggestions": {
       "title": "Preguntas sugeridas"
     },

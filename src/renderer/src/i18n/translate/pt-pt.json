@@ -1375,6 +1375,13 @@
         "tip": "Valor padrão é 1, quanto menor o valor, mais monótono será o conteúdo gerado pela IA, mas também mais fácil de entender; quanto maior o valor, maior será o vocabulário usado pela IA e mais diversificado será o conteúdo"
       }
     },
+    "sideQuestion": {
+      "count": "pergunta(s)",
+      "empty": "Faça perguntas adicionais sem usar o contexto da sessão",
+      "help": "A Pergunta Lateral é uma janela independente de perguntas e respostas que não consome o contexto da sessão atual do Agente. Pode fazer perguntas adicionais sobre qualquer mensagem sem afetar a conversa principal.",
+      "placeholder": "Escreva a sua pergunta...",
+      "title": "Pergunta Lateral"
+    },
     "suggestions": {
       "title": "Perguntas sugeridas"
     },

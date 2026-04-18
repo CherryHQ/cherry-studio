@@ -1375,6 +1375,13 @@
         "tip": "Default value is 1, the smaller the value, the less variety in the answers, the easier to understand, the larger the value, the larger the range of the AI's vocabulary, the more diverse"
       }
     },
+    "sideQuestion": {
+      "count": "question(s)",
+      "empty": "Ask follow-up questions without using the session's context",
+      "help": "Side Question is an independent Q&A window that does not consume the current Agent session's context. You can freely ask additional questions about any message without affecting the main conversation.",
+      "placeholder": "Type your question...",
+      "title": "Side Question"
+    },
     "suggestions": {
       "title": "Suggested Questions"
     },

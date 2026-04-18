@@ -1375,6 +1375,13 @@
         "tip": "Valeur par défaut : 1. Plus la valeur est faible, plus le contenu généré par l'IA est monotone mais facile à comprendre ; plus la valeur est élevée, plus le vocabulaire et la diversité de la réponse de l'IA sont grands"
       }
     },
+    "sideQuestion": {
+      "count": "question(s)",
+      "empty": "Posez des questions complémentaires sans utiliser le contexte de la session",
+      "help": "La Question Annexe est une fenêtre de questions-réponses indépendante qui ne consomme pas le contexte de la session Agent en cours. Vous pouvez librement poser des questions supplémentaires sur n'importe quel message sans affecter la conversation principale.",
+      "placeholder": "Saisissez votre question...",
+      "title": "Question Annexe"
+    },
     "suggestions": {
       "title": "Questions suggérées"
     },
