@@ -5858,17 +5858,22 @@
       "reading": "讀取檔案內容中..."
     },
     "history": {
+      "back": "返回列表",
       "clear": "清空歷史",
       "clear_description": "清空歷史將刪除所有翻譯歷史記錄，是否繼續？",
+      "copy_target": "複製譯文",
       "delete": "刪除翻譯歷史",
       "empty": "翻譯歷史為空",
       "error": {
         "delete": "刪除失敗",
         "save": "儲存翻譯歷史失敗"
       },
-      "search": {
-        "placeholder": "搜尋翻譯歷史"
+      "filter": {
+        "starred": "僅顯示收藏"
       },
+      "reuse": "使用此翻譯",
+      "source": "原文",
+      "target": "譯文",
       "title": "翻譯歷史"
     },
     "info": {
@@ -5905,6 +5910,7 @@
       "scroll_sync": "滾動同步設定",
       "title": "翻譯設定"
     },
+    "source_language": "來源語言",
     "stop": "停止翻譯",
     "success": {
       "custom": {

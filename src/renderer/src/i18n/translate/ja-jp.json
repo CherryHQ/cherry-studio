@@ -5858,17 +5858,22 @@
       "reading": "ファイルの内容を読み込んでいます..."
     },
     "history": {
+      "back": "[to be translated]:Back to list",
       "clear": "履歴をクリア",
       "clear_description": "履歴をクリアすると、すべての翻訳履歴が削除されます。続行しますか？",
+      "copy_target": "[to be translated]:Copy result",
       "delete": "翻訳履歴を削除する",
       "empty": "翻訳履歴がありません",
       "error": {
         "delete": "削除に失敗しました",
         "save": "保存翻訳履歴に失敗しました"
       },
-      "search": {
-        "placeholder": "翻訳履歴を検索する"
+      "filter": {
+        "starred": "[to be translated]:Only starred"
       },
+      "reuse": "[to be translated]:Reuse",
+      "source": "[to be translated]:Source",
+      "target": "[to be translated]:Target",
       "title": "翻訳履歴"
     },
     "info": {
@@ -5905,6 +5910,7 @@
       "scroll_sync": "スクロール同期設定",
       "title": "翻訳設定"
     },
+    "source_language": "[to be translated]:Source Language",
     "stop": "翻訳を停止",
     "success": {
       "custom": {

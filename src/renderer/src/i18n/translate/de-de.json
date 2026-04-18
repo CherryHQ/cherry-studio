@@ -5858,17 +5858,22 @@
       "reading": "Dateiinhalt wird gelesen..."
     },
     "history": {
+      "back": "[to be translated]:Back to list",
       "clear": "Verlauf löschen",
       "clear_description": "Verlauf löschen entfernt alle Übersetzungshistorien. Fortfahren?",
+      "copy_target": "[to be translated]:Copy result",
       "delete": "Übersetzungshistorie löschen",
       "empty": "Keine Übersetzungshistorie",
       "error": {
         "delete": "Löschen fehlgeschlagen",
         "save": "Speichern der Übersetzungshistorie fehlgeschlagen"
       },
-      "search": {
-        "placeholder": "Übersetzungshistorie durchsuchen"
+      "filter": {
+        "starred": "[to be translated]:Only starred"
       },
+      "reuse": "[to be translated]:Reuse",
+      "source": "[to be translated]:Source",
+      "target": "[to be translated]:Target",
       "title": "Übersetzungsverlauf"
     },
     "info": {
@@ -5905,6 +5910,7 @@
       "scroll_sync": "Scroll-Synchronisierungs-Einstellungen",
       "title": "Übersetzungseinstellungen"
     },
+    "source_language": "[to be translated]:Source Language",
     "stop": "Übersetzung stoppen",
     "success": {
       "custom": {

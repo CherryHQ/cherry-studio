@@ -5858,17 +5858,22 @@
       "reading": "Reading file content..."
     },
     "history": {
+      "back": "Back to list",
       "clear": "Clear History",
       "clear_description": "Clear history will delete all translation history, continue?",
+      "copy_target": "Copy result",
       "delete": "Delete translation history",
       "empty": "No translation history",
       "error": {
         "delete": "Deletion failed",
         "save": "Failed to save translation history"
       },
-      "search": {
-        "placeholder": "Search translation history"
+      "filter": {
+        "starred": "Only starred"
       },
+      "reuse": "Reuse",
+      "source": "Source",
+      "target": "Target",
       "title": "Translation History"
     },
     "info": {
@@ -5905,6 +5910,7 @@
       "scroll_sync": "Scroll Sync Settings",
       "title": "Translation Settings"
     },
+    "source_language": "Source Language",
     "stop": "Stop Translation",
     "success": {
       "custom": {
