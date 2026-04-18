@@ -20,7 +20,6 @@ import {
   isOpenAIDeepResearchModel,
   isOpenAIModel,
   isOpenAIOpenWeightModel,
-  isOpenAIReasoningModel,
   isQwen35to39Model,
   isQwenAlwaysThinkModel,
   isQwenReasoningModel,
@@ -208,70 +207,6 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     }
 
     logger.warn(`Model ${model.id} doesn't match any disable reasoning behavior. Fallback to empty reasoning param.`)
-    return {}
-  }
-
-  // reasoningEffort有效的情况
-  // https://creator.poe.com/docs/external-applications/openai-compatible-api#additional-considerations
-  // Poe provider - supports custom bot parameters via extra_body
-  if (provider.id === SystemProviderIds.poe) {
-    if (isOpenAIReasoningModel(model)) {
-      return {
-        extra_body: {
-          reasoning_effort: reasoningEffort === 'auto' ? 'medium' : reasoningEffort
-        }
-      }
-    }
-
-    // Claude models use thinking_budget parameter in extra_body
-    if (isSupportedThinkingTokenClaudeModel(model)) {
-      const effortRatio = EFFORT_RATIO[reasoningEffort]
-      const tokenLimit = findTokenLimit(model.id)
-      const maxTokens = assistant.settings?.maxTokens
-
-      if (!tokenLimit) {
-        logger.warn(
-          `No token limit configuration found for Claude model "${model.id}" on Poe provider. ` +
-            `Reasoning effort setting "${reasoningEffort}" will not be applied.`
-        )
-        return {}
-      }
-
-      let budgetTokens = Math.floor((tokenLimit.max - tokenLimit.min) * effortRatio + tokenLimit.min)
-      budgetTokens = Math.floor(Math.max(1024, Math.min(budgetTokens, (maxTokens || DEFAULT_MAX_TOKENS) * effortRatio)))
-
-      return {
-        extra_body: {
-          thinking_budget: budgetTokens
-        }
-      }
-    }
-
-    // Gemini models use thinking_budget parameter in extra_body
-    if (isSupportedThinkingTokenGeminiModel(model)) {
-      const effortRatio = EFFORT_RATIO[reasoningEffort]
-      const tokenLimit = findTokenLimit(model.id)
-      let budgetTokens: number | undefined
-      if (tokenLimit && reasoningEffort !== 'auto') {
-        budgetTokens = Math.floor((tokenLimit.max - tokenLimit.min) * effortRatio + tokenLimit.min)
-      } else if (!tokenLimit && reasoningEffort !== 'auto') {
-        logger.warn(
-          `No token limit configuration found for Gemini model "${model.id}" on Poe provider. ` +
-            `Using auto (-1) instead of requested effort "${reasoningEffort}".`
-        )
-      }
-      return {
-        extra_body: {
-          thinking_budget: budgetTokens ?? -1
-        }
-      }
-    }
-
-    // Poe reasoning model not in known categories (GPT-5, Claude, Gemini)
-    logger.warn(
-      `Poe provider reasoning model "${model.id}" does not match known categories ` +
-        `(GPT-5, Claude, Gemini). Reasoning effort setting "${reasoningEffort}" will not be applied.`
-    )
     return {}
   }
 

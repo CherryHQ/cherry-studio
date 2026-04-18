@@ -210,6 +210,9 @@ export function buildProviderOptions(
     case SystemProviderIds.gateway:
       providerSpecificOptions = buildAIGatewayOptions(assistant, model, capabilities, serviceTier, textVerbosity)
       break
+    case 'poe':
+      providerSpecificOptions = buildPoeProviderOptions(assistant, model, capabilities, serviceTier, textVerbosity)
+      break
     case 'deepseek':
     case 'openrouter':
     case 'openai-compatible':
@@ -485,6 +488,22 @@ function buildCherryInProviderOptions(
     default:
       return buildGenericProviderOptions('cherryin', assistant, model, capabilities)
   }
+}
+
+function buildPoeProviderOptions(
+  assistant: Assistant,
+  model: Model,
+  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>,
+  serviceTier: OpenAIServiceTier,
+  textVerbosity: OpenAIVerbosity
+): Record<string, OpenAIResponsesProviderOptions | AnthropicProviderOptions> {
+  if (isAnthropicModel(model)) {
+    return buildAnthropicProviderOptions(assistant, model, capabilities)
+  }
+  if (isOpenAIModel(model)) {
+    return buildOpenAIProviderOptions(assistant, model, capabilities, serviceTier, textVerbosity)
+  }
+  return buildGenericProviderOptions('poe', assistant, model, capabilities)
 }
 
 /**
