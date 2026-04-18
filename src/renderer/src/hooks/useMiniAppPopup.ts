@@ -1,4 +1,5 @@
 import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import NavigationService from '@renderer/services/NavigationService'
 import { tabsService } from '@renderer/services/TabsService'
@@ -8,6 +9,8 @@ import { LRUCache } from 'lru-cache'
 import { useCallback, useEffect, useRef } from 'react'
 
 import { useNavbarPosition } from './useNavbar'
+
+const logger = loggerService.withContext('useMiniAppPopup')
 
 /** Brand a raw string as MiniAppId. Safe — caller controls the string. */
 function brandId(raw: string): MiniAppId {
@@ -93,25 +96,33 @@ export const useMiniAppPopup = () => {
     return new LRUCache<string, MiniApp>({
       max: maxKeepAliveMiniApps ?? 10,
       disposeAfter: (_value, key) => {
-        // Clean up WebView state when app is disposed from cache
-        clearWebviewState(key)
+        try {
+          // Clean up WebView state when app is disposed from cache
+          clearWebviewState(key)
 
-        // Close corresponding tab if it exists
-        const tabs = tabsService.getTabs()
-        const tabToClose = tabs.find((tab) => tab.path === `/app/mini-app/${key}`)
-        if (tabToClose) {
-          tabsService.closeTab(tabToClose.id)
-        }
+          // Close corresponding tab if it exists
+          const tabs = tabsService.getTabs()
+          const tabToClose = tabs.find((tab) => tab.path === `/app/mini-app/${key}`)
+          if (tabToClose) {
+            tabsService.closeTab(tabToClose.id)
+          }
 
-        // Update cache state using ref (always has latest setter)
-        if (callbacksRef.current && sharedCache) {
-          callbacksRef.current.setOpenedKeepAliveMiniApps(Array.from(sharedCache.values()))
+          // Update cache state using ref (always has latest setter)
+          if (callbacksRef.current && sharedCache) {
+            callbacksRef.current.setOpenedKeepAliveMiniApps(Array.from(sharedCache.values()))
+          }
+        } catch (error) {
+          logger.error('Error in LRU disposeAfter callback', error as Error)
         }
       },
       onInsert: () => {
-        // Update cache state using ref (always has latest setter)
-        if (callbacksRef.current && sharedCache) {
-          callbacksRef.current.setOpenedKeepAliveMiniApps(Array.from(sharedCache.values()))
+        try {
+          // Update cache state using ref (always has latest setter)
+          if (callbacksRef.current && sharedCache) {
+            callbacksRef.current.setOpenedKeepAliveMiniApps(Array.from(sharedCache.values()))
+          }
+        } catch (error) {
+          logger.error('Error in LRU onInsert callback', error as Error)
         }
       },
       updateAgeOnGet: true,

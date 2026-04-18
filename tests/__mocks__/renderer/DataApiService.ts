@@ -245,8 +245,15 @@ export const createMockDataApiService = (customBehavior: Partial<ReturnType<type
   return mockService
 }
 
+// Store custom responses and errors for different paths
+const customResponses = new Map<string, { path: ConcreteApiPaths; response: any }>()
+const errorResponses = new Map<string, { path: ConcreteApiPaths; error: Error }>()
+
 // Default mock instance
 export const mockDataApiService = createMockDataApiService()
+
+// Named export to match actual DataApiService.ts
+export const dataApiService = mockDataApiService
 
 // Singleton instance mock
 export const MockDataApiService = {
@@ -336,17 +343,29 @@ export const MockDataApiUtils = {
       }
     })
     mockDataApiService._resetMockState()
+    customResponses.clear()
+    errorResponses.clear()
   },
 
   /**
    * Set custom response for a specific path and method
    */
   setCustomResponse: (path: ConcreteApiPaths, method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', response: any) => {
+    const key = `${method}:${path}`
+    customResponses.set(key, { path, response })
+    errorResponses.delete(key) // Remove any existing error for this path
+
     const methodFn = mockDataApiService[method.toLowerCase() as 'get' | 'post' | 'put' | 'patch' | 'delete']
     if (vi.isMockFunction(methodFn)) {
       methodFn.mockImplementation(async (requestPath: string) => {
-        if (requestPath === path) {
-          return response
+        const checkKey = `${method}:${requestPath}`
+        const customResponse = customResponses.get(checkKey)
+        if (customResponse) {
+          return customResponse.response
+        }
+        const errorResponse = errorResponses.get(checkKey)
+        if (errorResponse) {
+          throw errorResponse.error
         }
         return getMockDataForPath(requestPath as ConcreteApiPaths, method)
       })
@@ -357,11 +376,21 @@ export const MockDataApiUtils = {
    * Set error response for a specific path and method
    */
   setErrorResponse: (path: ConcreteApiPaths, method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', error: Error) => {
+    const key = `${method}:${path}`
+    errorResponses.set(key, { path, error })
+    customResponses.delete(key) // Remove any existing custom response for this path
+
     const methodFn = mockDataApiService[method.toLowerCase() as 'get' | 'post' | 'put' | 'patch' | 'delete']
     if (vi.isMockFunction(methodFn)) {
       methodFn.mockImplementation(async (requestPath: string) => {
-        if (requestPath === path) {
-          throw error
+        const checkKey = `${method}:${requestPath}`
+        const customResponse = customResponses.get(checkKey)
+        if (customResponse) {
+          return customResponse.response
+        }
+        const errorResponse = errorResponses.get(checkKey)
+        if (errorResponse) {
+          throw errorResponse.error
         }
         return getMockDataForPath(requestPath as ConcreteApiPaths, method)
       })

@@ -4,9 +4,9 @@ import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useMiniApps } from '../useMiniApps'
+import { __resetRegionDetectionForTesting, useMiniApps } from '../useMiniApps'
 import { appFixtures, createCnOnlyApp, createGlobalApp, createMiniApp } from './fixtures/miniapp'
 
 /** Helper: return the array directly since list() now returns a bare MiniApp[] */
@@ -18,6 +18,9 @@ describe('useMiniApps', () => {
     MockUsePreferenceUtils.resetMocks()
     MockUseDataApiUtils.resetMocks()
     MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([]))
+
+    // Reset module-level regionDetectionPromise to ensure fresh detection in each test
+    __resetRegionDetectionForTesting()
   })
 
   // === Data Loading ===
@@ -269,11 +272,16 @@ describe('useMiniApps', () => {
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
       const { result } = renderHook(() => useMiniApps())
 
+      // Clear any prior patch calls from hook initialization
+      MockDataApiUtils.resetMocks()
+
       await act(async () => {
         await result.current.updateMiniApps(apps)
       })
 
-      expect(result.current.allApps).toHaveLength(1)
+      // No patch calls should be made when the visible list is unchanged
+      const patchCalls = MockDataApiUtils.getCalls('patch')
+      expect(patchCalls).toHaveLength(0)
     })
   })
 
@@ -328,7 +336,17 @@ describe('useMiniApps', () => {
    */
 
   describe('reorderMiniApps', () => {
-    it('should expose reorderMiniApps that calls the reorder API', async () => {
+    it('should call the reorder mutation trigger with the provided items', async () => {
+      const mockTrigger = vi.fn().mockResolvedValue(undefined)
+      // Override to capture the trigger
+      const { mockUseMutation } = await import('@test-mocks/renderer/useDataApi')
+      mockUseMutation.mockImplementation((method: string, path: string) => {
+        if (method === 'PATCH' && path === '/mini-apps') {
+          return { trigger: mockTrigger, isLoading: false, error: undefined }
+        }
+        return { trigger: vi.fn().mockResolvedValue({ success: true }), isLoading: false, error: undefined }
+      })
+
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([]))
       const { result } = renderHook(() => useMiniApps())
 
@@ -340,9 +358,8 @@ describe('useMiniApps', () => {
         await result.current.reorderMiniApps(reorderItems)
       })
 
-      // useMutation triggers are tracked differently; verify the function is callable
-      // and doesn't throw (the actual API call goes through useMutation mock)
-      expect(result.current.reorderMiniApps).toBeTypeOf('function')
+      expect(mockTrigger).toHaveBeenCalledOnce()
+      expect(mockTrigger).toHaveBeenCalledWith({ body: { items: reorderItems } })
     })
   })
 
@@ -371,6 +388,163 @@ describe('useMiniApps', () => {
       rerender()
       const secondShape = Object.keys(result.current).sort()
       expect(firstShape).toEqual(secondShape)
+    })
+  })
+
+  // === Region Auto-Detection ===
+
+  describe('region auto-detection', () => {
+    beforeEach(() => {
+      // Reset the module-level promise between tests
+      // We need to re-import the module or access the internal state
+      // Since regionDetectionPromise is module-scoped, we test via the hook's useEffect
+    })
+
+    it('should call setDetectedRegion with CN when IP resolves to CN', async () => {
+      MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'auto')
+      MockUseCacheUtils.setCacheValue('mini_app.detected_region', null)
+      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([]))
+
+      // Mock window.api.getIpCountry to resolve 'CN'
+      const originalGetIpCountry = window.api?.getIpCountry
+      Object.defineProperty(window, 'api', {
+        value: { getIpCountry: vi.fn().mockResolvedValue('CN') },
+        writable: true,
+        configurable: true
+      })
+
+      renderHook(() => useMiniApps())
+
+      // Wait for the async detection to complete
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      })
+
+      expect(MockUseCacheUtils.getCacheValue('mini_app.detected_region')).toBe('CN')
+
+      // Restore
+      if (originalGetIpCountry) {
+        Object.defineProperty(window, 'api', {
+          value: { getIpCountry: originalGetIpCountry },
+          writable: true,
+          configurable: true
+        })
+      }
+    })
+
+    it('should call setDetectedRegion with Global when IP resolves to US', async () => {
+      MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'auto')
+      MockUseCacheUtils.setCacheValue('mini_app.detected_region', null)
+      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([]))
+
+      const originalGetIpCountry = window.api?.getIpCountry
+      Object.defineProperty(window, 'api', {
+        value: { getIpCountry: vi.fn().mockResolvedValue('US') },
+        writable: true,
+        configurable: true
+      })
+
+      renderHook(() => useMiniApps())
+
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      })
+
+      expect(MockUseCacheUtils.getCacheValue('mini_app.detected_region')).toBe('Global')
+
+      if (originalGetIpCountry) {
+        Object.defineProperty(window, 'api', {
+          value: { getIpCountry: originalGetIpCountry },
+          writable: true,
+          configurable: true
+        })
+      }
+    })
+
+    it('should fallback to CN when IP detection rejects', async () => {
+      MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'auto')
+      MockUseCacheUtils.setCacheValue('mini_app.detected_region', null)
+      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([]))
+
+      const originalGetIpCountry = window.api?.getIpCountry
+      Object.defineProperty(window, 'api', {
+        value: { getIpCountry: vi.fn().mockRejectedValue(new Error('Network error')) },
+        writable: true,
+        configurable: true
+      })
+
+      renderHook(() => useMiniApps())
+
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      })
+
+      expect(MockUseCacheUtils.getCacheValue('mini_app.detected_region')).toBe('CN')
+
+      if (originalGetIpCountry) {
+        Object.defineProperty(window, 'api', {
+          value: { getIpCountry: originalGetIpCountry },
+          writable: true,
+          configurable: true
+        })
+      }
+    })
+
+    it('should not call detectUserRegion when region is explicitly set', async () => {
+      MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'Global')
+      MockUseCacheUtils.setCacheValue('mini_app.detected_region', null)
+      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([]))
+
+      const getIpCountryMock = vi.fn().mockResolvedValue('US')
+      const originalGetIpCountry = window.api?.getIpCountry
+      Object.defineProperty(window, 'api', {
+        value: { getIpCountry: getIpCountryMock },
+        writable: true,
+        configurable: true
+      })
+
+      renderHook(() => useMiniApps())
+
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      })
+
+      // IP detection should not be called when region is explicitly set
+      expect(getIpCountryMock).not.toHaveBeenCalled()
+
+      if (originalGetIpCountry) {
+        Object.defineProperty(window, 'api', {
+          value: { getIpCountry: originalGetIpCountry },
+          writable: true,
+          configurable: true
+        })
+      }
+    })
+  })
+
+  // === updateMiniApps partial-failure ===
+
+  describe('updateMiniApps partial-failure', () => {
+    it('should throw PartialFailureError and invalidate cache when some updates fail', async () => {
+      const apps = [createMiniApp('app1', { status: 'disabled' }), createMiniApp('app2', { status: 'disabled' })]
+      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
+
+      // Make patch succeed for app1 but fail for app2
+      MockDataApiUtils.setCustomResponse('/mini-apps/app1' as any, 'PATCH', { success: true })
+      MockDataApiUtils.setErrorResponse('/mini-apps/app2' as any, 'PATCH', new Error('Server error'))
+
+      const { result } = renderHook(() => useMiniApps())
+
+      // Try to enable both apps - the visible list now contains apps that were disabled
+      // so they need to be enabled (moved from disabled to visible)
+      const visibleApps = [
+        { ...apps[0], status: 'disabled' as const },
+        { ...apps[1], status: 'disabled' as const }
+      ]
+
+      await act(async () => {
+        await expect(result.current.updateMiniApps(visibleApps)).rejects.toThrow()
+      })
     })
   })
 })

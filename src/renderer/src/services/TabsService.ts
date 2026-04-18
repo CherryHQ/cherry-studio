@@ -56,12 +56,12 @@ export class TabsService {
       if (NavigationService.navigate) {
         void NavigationService.navigate({ to: lastTab.path })
       } else {
-        logger.warn('Navigation service not ready, will navigate on next render')
-        setTimeout(() => {
+        logger.warn('Navigation service not ready, will navigate when ready')
+        NavigationService.ready.onResolved(() => {
           if (NavigationService.navigate) {
             void NavigationService.navigate({ to: lastTab.path })
           }
-        }, 100)
+        })
       }
     }
 

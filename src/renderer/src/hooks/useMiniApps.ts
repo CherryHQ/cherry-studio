@@ -48,6 +48,13 @@ const filterByRegion = (apps: MiniApp[], region: MiniAppRegion): MiniApp[] => {
 // Module-level promise to ensure only one IP detection request is made
 let regionDetectionPromise: Promise<MiniAppRegion> | null = null
 
+/**
+ * @only_for_testing - Reset module-level region detection state between tests
+ */
+export const __resetRegionDetectionForTesting = () => {
+  regionDetectionPromise = null
+}
+
 // Detect user region via IPC call to main process (cached at module level)
 const detectUserRegion = async (): Promise<MiniAppRegion> => {
   // Return existing promise if detection is already in progress
@@ -62,7 +69,12 @@ const detectUserRegion = async (): Promise<MiniAppRegion> => {
     } catch (err) {
       // Default to CN so mainland China users — the primary audience — never
       // silently lose access to region-restricted apps they expect.
-      loggerService.withContext('detectUserRegion').warn('Region detection failed, falling back to CN', err as Error)
+      const error = err as Error
+      loggerService.withContext('detectUserRegion').error('Region detection failed, falling back to CN', {
+        error: error.message,
+        stack: error.stack,
+        fallback: 'CN'
+      })
       return 'CN'
     }
   })()
@@ -143,7 +155,12 @@ export const useMiniApps = () => {
         if (!cancelled) setDetectedRegion(region)
       })
       .catch((err) => {
-        logger.warn('Region detection failed in effect, falling back to CN', err as Error)
+        const error = err as Error
+        loggerService.withContext('useMiniApps').error('Region detection failed in effect, falling back to CN', {
+          error: error.message,
+          stack: error.stack,
+          fallback: 'CN'
+        })
         if (!cancelled) setDetectedRegion('CN')
       })
     return () => {

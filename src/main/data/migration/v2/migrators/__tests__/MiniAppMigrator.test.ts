@@ -97,6 +97,47 @@ describe('MiniAppMigrator', () => {
       expect(result.itemCount).toBe(1)
     })
 
+    it('should deduplicate apps appearing in all three status groups, keeping pinned', async () => {
+      const ctx = createTestContext(
+        {
+          minapps: {
+            enabled: [{ id: 'app1', name: 'Enabled', url: 'https://1.com' }],
+            disabled: [{ id: 'app1', name: 'Disabled', url: 'https://1.com' }],
+            pinned: [{ id: 'app1', name: 'Pinned', url: 'https://1.com' }]
+          }
+        },
+        dbh.db
+      ) as any
+
+      await migrator.prepare(ctx)
+      await migrator.execute(ctx)
+
+      const rows = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'app1'))
+      expect(rows).toHaveLength(1)
+      expect(rows[0].status).toBe('pinned')
+      expect(rows[0].name).toBe('Pinned')
+    })
+
+    it('should keep enabled over disabled when no pinned entry exists', async () => {
+      const ctx = createTestContext(
+        {
+          minapps: {
+            enabled: [{ id: 'app1', name: 'Enabled', url: 'https://1.com' }],
+            disabled: [{ id: 'app1', name: 'Disabled', url: 'https://1.com' }]
+          }
+        },
+        dbh.db
+      ) as any
+
+      await migrator.prepare(ctx)
+      await migrator.execute(ctx)
+
+      const rows = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'app1'))
+      expect(rows).toHaveLength(1)
+      expect(rows[0].status).toBe('enabled')
+      expect(rows[0].name).toBe('Enabled')
+    })
+
     it('should skip apps without valid id', async () => {
       const ctx = createTestContext(
         {

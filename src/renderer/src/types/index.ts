@@ -655,20 +655,6 @@ export const isAutoDetectionMethod = (method: string): method is AutoDetectionMe
   return Object.hasOwn(AutoDetectionMethods, method)
 }
 
-// by fullex @ data refactor
-// export type SidebarIcon =
-//   | 'assistants'
-//   | 'agents'
-//   | 'store'
-//   | 'paintings'
-//   | 'translate'
-//   | 'miniapp'
-//   | 'knowledge'
-//   | 'files'
-//   | 'code_tools'
-//   | 'notes'
-// | 'openclaw'
-
 export type ExternalToolResult = {
   mcpTools?: MCPTool[]
   toolUse?: MCPToolResponse[]

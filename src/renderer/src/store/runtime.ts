@@ -56,14 +56,7 @@ export interface RuntimeState {
   // generating: boolean
   // translating: boolean
   // translateAbortKey?: string
-  // /** whether the minapp popup is shown */
-  // minappShow: boolean
-  // /** the minapps that are opened and should be keep alive */
-  // openedKeepAliveMinapps: MinAppType[]
-  // /** the minapp that is opened for one time */
-  // openedOneOffMinapp: MinAppType | null
-  // /** the current minapp id */
-  // currentMinappId: string
+
   // searching: boolean
   // filesPath: string
   // resourcesPath: string
@@ -146,15 +139,7 @@ const runtimeSlice = createSlice({
     // setTranslateAbortKey: (state, action: PayloadAction<string>) => {
     //   state.translateAbortKey = action.payload
     // },
-    // setMinappShow: (state, action: PayloadAction<boolean>) => {
-    //   state.minappShow = action.payload
-    // },
-    // setOpenedKeepAliveMinapps: (state, action: PayloadAction<MinAppType[]>) => {
-    //   state.openedKeepAliveMinapps = action.payload
-    // },
-    // setOpenedOneOffMinapp: (state, action: PayloadAction<MinAppType | null>) => {
-    //   state.openedOneOffMinapp = action.payload
-    // },
+
     // setCurrentMinappId: (state, action: PayloadAction<string>) => {
     //   state.currentMinappId = action.payload
     // },

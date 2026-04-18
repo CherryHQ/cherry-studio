@@ -134,6 +134,70 @@ describe('MiniAppMappings', () => {
       expect(empty.supportedRegions).toBeNull()
     })
 
+    it('should normalize supportedRegions with only-invalid entries to null', () => {
+      const result = transformMiniApp(
+        createSource({ supportedRegions: ['Invalid', 'EU'] }),
+        'enabled' as MiniAppStatus,
+        0
+      )
+      expect(result.supportedRegions).toBeNull()
+    })
+
+    it('should handle non-array supportedRegions gracefully', () => {
+      const stringRegion = transformMiniApp(createSource({ supportedRegions: 'CN' }), 'enabled' as MiniAppStatus, 0)
+      expect(stringRegion.supportedRegions).toBeNull()
+
+      const nullRegion = transformMiniApp(createSource({ supportedRegions: null }), 'enabled' as MiniAppStatus, 0)
+      expect(nullRegion.supportedRegions).toBeNull()
+
+      const undefinedRegion = transformMiniApp(createSource(), 'enabled' as MiniAppStatus, 0)
+      expect(undefinedRegion.supportedRegions).toBeNull()
+    })
+
+    it('should prefer bordered over bodered (typo) when both exist', () => {
+      const source = createSource({ bodered: false, bordered: true })
+      const result = transformMiniApp(source, 'enabled' as MiniAppStatus, 0)
+      // bodered ?? bordered: bodered is false (falsy), so falls through to bordered
+      expect(result.bordered).toBe(true)
+    })
+
+    it('should use bodered value when bordered is absent', () => {
+      const source = createSource({ bodered: false })
+      const result = transformMiniApp(source, 'enabled' as MiniAppStatus, 0)
+      expect(result.bordered).toBe(false)
+    })
+
+    it('should default bordered to true when neither field is present', () => {
+      const source = createSource()
+      const result = transformMiniApp(source, 'enabled' as MiniAppStatus, 0)
+      expect(result.bordered).toBe(true)
+    })
+
+    it('should handle logo as React component ref (object)', () => {
+      const result = transformMiniApp(
+        {
+          id: 'unknown-app',
+          name: 'Unknown',
+          url: 'https://unknown.com',
+          logo: { $$typeof: Symbol.for('react.element') }
+        },
+        'enabled' as MiniAppStatus,
+        0
+      )
+      // Non-string logo → falls back to BUILTIN_APP_LOGO_MAP or DEFAULT_LOGO_KEY
+      expect(result.logo).toBe('application')
+    })
+
+    it('should preserve data URI logos for custom apps', () => {
+      const dataUri = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjwvc3ZnPg=='
+      const result = transformMiniApp(
+        createSource({ id: 'my-custom-app', logo: dataUri }),
+        'enabled' as MiniAppStatus,
+        0
+      )
+      expect(result.logo).toBe(dataUri)
+    })
+
     it('should handle all status values', () => {
       const statuses: MiniAppStatus[] = ['enabled', 'disabled', 'pinned']
       for (const status of statuses) {

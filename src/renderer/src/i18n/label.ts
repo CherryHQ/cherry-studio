@@ -172,18 +172,6 @@ export const getThemeModeLabel = (key: string): string => {
   return getLabel(themeModeKeyMap, key)
 }
 
-// const sidebarIconKeyMap = {
-//   assistants: t('assistants.title'),
-//   store: t('assistants.presets.title'),
-//   paintings: t('paintings.title'),
-//   translate: t('translate.title'),
-//   miniapp: t('miniapp.title'),
-//   knowledge: t('knowledge.title'),
-//   files: t('files.title'),
-//   code_tools: t('code.title'),
-//   notes: t('notes.title')
-// } as const
-
 const sidebarIconKeyMap = {
   assistants: 'assistants.title',
   agents: 'agent.sidebar_title',

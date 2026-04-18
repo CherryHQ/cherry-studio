@@ -86,11 +86,11 @@
       "when": 1776180491685
     },
     {
+      "breakpoints": true,
       "idx": 12,
-      "version": "6",
-      "when": 1776479143520,
       "tag": "0012_funny_the_hunter",
-      "breakpoints": true
+      "version": "6",
+      "when": 1776479143520
     }
   ],
   "version": "7"
