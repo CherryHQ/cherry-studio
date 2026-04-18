@@ -18,7 +18,6 @@ import { type MiniAppKind, type MiniAppStatus, miniAppTable } from '@data/db/sch
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
-import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
 import { type BuiltinMiniAppDefinition, ORIGIN_DEFAULT_MINI_APPS } from '@shared/data/presets/mini-apps'
 import type { MiniApp, MiniAppId } from '@shared/data/types/miniApp'
@@ -72,7 +71,7 @@ function rowToMiniApp(row: MiniAppSelect): MiniApp {
   return {
     ...clean,
     appId: brandId(clean.appId),
-    type: clean.type,
+    kind: clean.kind,
     status: clean.status,
     sortOrder: clean.sortOrder ?? 0,
     supportedRegions: parseRegions(clean.supportedRegions),
@@ -88,7 +87,7 @@ function rowToMiniApp(row: MiniAppSelect): MiniApp {
 function builtinToMiniApp(def: BuiltinMiniAppDefinition, dbRow?: MiniAppSelect): MiniApp {
   return {
     appId: brandId(def.id),
-    type: 'default',
+    kind: 'default',
     status: dbRow ? dbRow.status : 'enabled',
     sortOrder: dbRow ? (dbRow.sortOrder ?? 0) : (builtinMiniAppDefaultSortOrder.get(def.id) ?? 0),
     name: def.name,
@@ -134,11 +133,10 @@ export class MiniAppService {
   /**
    * List all miniapps with optional filters.
    * Merges builtin apps (from hardcoded definitions + DB prefs) with custom apps (from DB).
-   * Returns OffsetPaginationResponse for consistency with other list endpoints.
    */
-  async list(query: { status?: MiniAppStatus; type?: MiniAppKind }): Promise<OffsetPaginationResponse<MiniApp>> {
+  async list(query: { status?: MiniAppStatus; type?: MiniAppKind }): Promise<MiniApp[]> {
     // Load all custom apps from DB (always from DB)
-    const customConditions: SQL[] = [eq(miniAppTable.type, 'custom')]
+    const customConditions: SQL[] = [eq(miniAppTable.kind, 'custom')]
     if (query.status !== undefined) {
       customConditions.push(eq(miniAppTable.status, query.status))
     }
@@ -151,12 +149,7 @@ export class MiniAppService {
       .orderBy(asc(miniAppTable.status), asc(miniAppTable.sortOrder))
 
     if (query.type === 'custom') {
-      const items = customRows.map(rowToMiniApp)
-      return {
-        items,
-        total: items.length,
-        page: 1
-      }
+      return customRows.map(rowToMiniApp)
     }
 
     // Load DB preference rows for all builtin apps
@@ -165,7 +158,7 @@ export class MiniAppService {
         ? await this.db
             .select()
             .from(miniAppTable)
-            .where(and(eq(miniAppTable.type, 'default')))
+            .where(and(eq(miniAppTable.kind, 'default')))
         : []
 
     const prefMap = new Map<string, MiniAppSelect>()
@@ -201,11 +194,7 @@ export class MiniAppService {
       return a.sortOrder - b.sortOrder
     })
 
-    return {
-      items: allItems,
-      total: allItems.length,
-      page: 1
-    }
+    return allItems
   }
 
   /**
@@ -223,7 +212,7 @@ export class MiniAppService {
       throw DataApiErrorFactory.conflict(`MiniApp with appId "${dto.appId}" is a builtin app and cannot be recreated`)
     }
 
-    // Calculate next sortOrder: max of builtin apps count and existing DB apps max sortOrder
+    // Calculate next sortOrder: offset by builtin apps count to avoid collisions
     const builtinCount = builtinMiniAppMap.size
     const maxSortOrderResult = await this.db
       .select({ maxSortOrder: miniAppTable.sortOrder })
@@ -231,8 +220,8 @@ export class MiniAppService {
       .orderBy(desc(miniAppTable.sortOrder))
       .limit(1)
 
-    const maxDbSortOrder = maxSortOrderResult[0]?.maxSortOrder ?? 0
-    const nextSortOrder = Math.max(builtinCount, maxDbSortOrder + 1)
+    const maxDbSortOrder = maxSortOrderResult[0]?.maxSortOrder ?? builtinCount - 1
+    const nextSortOrder = maxDbSortOrder + 1
 
     const [row] = await withSqliteErrors(
       () =>
@@ -243,7 +232,7 @@ export class MiniAppService {
             name: dto.name,
             url: dto.url,
             logo: dto.logo,
-            type: 'custom',
+            kind: 'custom',
             status: 'enabled',
             sortOrder: nextSortOrder,
             bordered: dto.bordered,
@@ -276,7 +265,7 @@ export class MiniAppService {
     // Build updates map before any side effects
     const updates: Partial<MiniAppInsert> = {}
 
-    if (existing.type === 'default') {
+    if (existing.kind === 'default') {
       // Only preference fields for default apps
       if (dto.status !== undefined) updates.status = dto.status
     } else {
@@ -295,21 +284,28 @@ export class MiniAppService {
     const appliedChanges = Object.keys(updates)
     if (appliedChanges.length === 0) {
       throw DataApiErrorFactory.validation(
-        { _root: [`No updatable fields provided for ${existing.type} miniapp "${appId}"`] },
+        { _root: [`No updatable fields provided for ${existing.kind} miniapp "${appId}"`] },
         `No applicable fields to update`
       )
     }
 
     let row: MiniAppSelect | undefined
 
-    if (existing.type === 'default') {
+    if (existing.kind === 'default') {
       // Atomic: ensure preference row + update in one transaction
-      await this.db.transaction(async (tx) => {
-        await this.ensureDefaultAppPref(appId, tx)
-        ;[row] = await tx.update(miniAppTable).set(updates).where(eq(miniAppTable.appId, appId)).returning()
-      })
+      await withSqliteErrors(
+        () =>
+          this.db.transaction(async (tx) => {
+            await this.ensureDefaultAppPref(appId, tx)
+            ;[row] = await tx.update(miniAppTable).set(updates).where(eq(miniAppTable.appId, appId)).returning()
+          }),
+        defaultHandlersFor('MiniApp', appId)
+      )
     } else {
-      ;[row] = await this.db.update(miniAppTable).set(updates).where(eq(miniAppTable.appId, appId)).returning()
+      ;[row] = await withSqliteErrors(
+        () => this.db.update(miniAppTable).set(updates).where(eq(miniAppTable.appId, appId)).returning(),
+        defaultHandlersFor('MiniApp', appId)
+      )
     }
 
     if (!row) {
@@ -333,13 +329,16 @@ export class MiniAppService {
   async delete(appId: string): Promise<void> {
     const existing = await this.getByAppId(appId)
 
-    if (existing.type === 'default') {
+    if (existing.kind === 'default') {
       throw DataApiErrorFactory.validation({
         appId: [`Cannot delete default miniapp "${appId}". Use status update to disable it instead.`]
       })
     }
 
-    await this.db.delete(miniAppTable).where(eq(miniAppTable.appId, appId))
+    await withSqliteErrors(
+      () => this.db.delete(miniAppTable).where(eq(miniAppTable.appId, appId)),
+      defaultHandlersFor('MiniApp', appId)
+    )
 
     logger.info('Deleted miniapp', { appId })
   }
@@ -347,61 +346,68 @@ export class MiniAppService {
   /**
    * Batch reorder miniapps.
    */
-  async reorder(items: Array<{ appId: string; sortOrder: number }>): Promise<void> {
-    await this.db.transaction(async (tx) => {
-      // Batch-ensure DB rows exist for all builtin apps in the reorder list
-      const builtinAppIds = items.map((item) => item.appId).filter((id) => builtinMiniAppMap.has(id))
+  async reorder(items: Array<{ appId: string; sortOrder: number }>): Promise<{ skipped: string[] }> {
+    let skipped: string[] = []
 
-      if (builtinAppIds.length > 0) {
-        // Batch-query existing rows for builtin apps
-        const existingRows = await tx
-          .select({ appId: miniAppTable.appId })
-          .from(miniAppTable)
-          .where(inArray(miniAppTable.appId, builtinAppIds))
+    await withSqliteErrors(
+      () =>
+        this.db.transaction(async (tx) => {
+          // Batch-ensure DB rows exist for all builtin apps in the reorder list
+          const builtinAppIds = items.map((item) => item.appId).filter((id) => builtinMiniAppMap.has(id))
 
-        const existingSet = new Set(existingRows.map((r) => r.appId))
-        const missingIds = builtinAppIds.filter((id) => !existingSet.has(id))
+          if (builtinAppIds.length > 0) {
+            // Batch-query existing rows for builtin apps
+            const existingRows = await tx
+              .select({ appId: miniAppTable.appId })
+              .from(miniAppTable)
+              .where(inArray(miniAppTable.appId, builtinAppIds))
 
-        // Batch-insert missing builtin app preference rows
-        if (missingIds.length > 0) {
-          const valuesToInsert = missingIds.map((id) => {
-            const def = builtinMiniAppMap.get(id)!
-            return {
-              appId: brandId(def.id),
-              name: def.name,
-              url: def.url,
-              logo: def.logo ?? null,
-              type: 'default' as const,
-              status: 'enabled' as const,
-              sortOrder: builtinMiniAppDefaultSortOrder.get(def.id) ?? 0,
-              bordered: def.bordered,
-              background: def.background,
-              supportedRegions: def.supportedRegions,
-              nameKey: def.nameKey
+            const existingSet = new Set(existingRows.map((r) => r.appId))
+            const missingIds = builtinAppIds.filter((id) => !existingSet.has(id))
+
+            // Batch-insert missing builtin app preference rows
+            if (missingIds.length > 0) {
+              const valuesToInsert = missingIds.map((id) => {
+                const def = builtinMiniAppMap.get(id)!
+                return {
+                  appId: brandId(def.id),
+                  name: def.name,
+                  url: def.url,
+                  logo: def.logo ?? null,
+                  kind: 'default' as const,
+                  status: 'enabled' as const,
+                  sortOrder: builtinMiniAppDefaultSortOrder.get(def.id) ?? 0,
+                  bordered: def.bordered,
+                  background: def.background,
+                  supportedRegions: def.supportedRegions,
+                  nameKey: def.nameKey
+                }
+              })
+              await tx.insert(miniAppTable).values(valuesToInsert)
             }
-          })
-          await tx.insert(miniAppTable).values(valuesToInsert)
-        }
-      }
+          }
 
-      // Update sort orders
-      const skipped: string[] = []
-      for (const item of items) {
-        const result = await tx
-          .update(miniAppTable)
-          .set({ sortOrder: item.sortOrder })
-          .where(eq(miniAppTable.appId, item.appId))
-          .returning({ appId: miniAppTable.appId })
-        if (result.length === 0) {
-          skipped.push(item.appId)
-        }
-      }
-      if (skipped.length > 0) {
-        logger.warn('Reorder skipped non-existent app IDs', { skipped })
-      }
-    })
+          // Update sort orders
+          skipped = []
+          for (const item of items) {
+            const result = await tx
+              .update(miniAppTable)
+              .set({ sortOrder: item.sortOrder })
+              .where(eq(miniAppTable.appId, item.appId))
+              .returning({ appId: miniAppTable.appId })
+            if (result.length === 0) {
+              skipped.push(item.appId)
+            }
+          }
+          if (skipped.length > 0) {
+            logger.warn('Reorder skipped non-existent app IDs', { skipped })
+          }
+        }),
+      defaultHandlersFor('MiniApp', 'multiple')
+    )
 
-    logger.info('Reordered miniapps', { count: items.length })
+    logger.info('Reordered miniapps', { count: items.length, skipped: skipped.length })
+    return { skipped }
   }
 
   /**
@@ -410,7 +416,10 @@ export class MiniAppService {
    * list/get calls will fall back to hardcoded builtin definitions.
    */
   async resetDefaults(): Promise<void> {
-    await this.db.delete(miniAppTable).where(eq(miniAppTable.type, 'default'))
+    await withSqliteErrors(
+      () => this.db.delete(miniAppTable).where(eq(miniAppTable.kind, 'default')),
+      defaultHandlersFor('MiniApp', 'defaults')
+    )
     logger.info('Reset all default app preferences to factory defaults')
   }
 
@@ -427,22 +436,26 @@ export class MiniAppService {
 
     const db = tx ?? this.db
 
-    await db
-      .insert(miniAppTable)
-      .values({
-        appId: builtinDef.id,
-        name: builtinDef.name,
-        url: builtinDef.url,
-        logo: builtinDef.logo ?? null,
-        type: 'default',
-        status: 'enabled',
-        sortOrder: builtinMiniAppDefaultSortOrder.get(builtinDef.id) ?? 0,
-        bordered: builtinDef.bordered,
-        background: builtinDef.background,
-        supportedRegions: builtinDef.supportedRegions,
-        nameKey: builtinDef.nameKey
-      })
-      .onConflictDoNothing()
+    await withSqliteErrors(
+      () =>
+        db
+          .insert(miniAppTable)
+          .values({
+            appId: builtinDef.id,
+            name: builtinDef.name,
+            url: builtinDef.url,
+            logo: builtinDef.logo ?? null,
+            kind: 'default',
+            status: 'enabled',
+            sortOrder: builtinMiniAppDefaultSortOrder.get(builtinDef.id) ?? 0,
+            bordered: builtinDef.bordered,
+            background: builtinDef.background,
+            supportedRegions: builtinDef.supportedRegions,
+            nameKey: builtinDef.nameKey
+          })
+          .onConflictDoNothing(),
+      defaultHandlersFor('MiniApp', appId)
+    )
 
     logger.debug('Ensured default app preference row', { appId })
   }

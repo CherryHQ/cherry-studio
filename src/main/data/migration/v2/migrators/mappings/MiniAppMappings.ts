@@ -78,7 +78,7 @@ export function transformMiniApp(
     name: toRequired<string>(source.name, ''),
     url: toRequired<string>(source.url, ''),
     logo,
-    type: normalizeType(source.type),
+    kind: normalizeType(source.type),
     status,
     sortOrder,
     // v2 fix: Handle typo 'bodered' → 'bordered' during migration

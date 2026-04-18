@@ -25,7 +25,7 @@ describe('MiniAppMappings', () => {
       expect(result.name).toBe('Test App')
       expect(result.url).toBe('https://test.com')
       expect(result.logo).toBe('https://logo.png')
-      expect(result.type).toBe('default')
+      expect(result.kind).toBe('default')
       expect(result.status).toBe('enabled')
       expect(result.sortOrder).toBe(0)
       expect(result.bordered).toBe(true)

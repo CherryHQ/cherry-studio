@@ -6,6 +6,11 @@
  * - Reordering
  *
  * All input validation happens here at the system boundary.
+ *
+ * TODO(I1): Two endpoints deviate from api-design-guidelines:
+ *   - PATCH /mini-apps (batch reorder) should be PUT /mini-apps/order
+ *   - DELETE /mini-apps/_actions/reset-defaults should be POST /mini-apps/defaults/reset
+ * Hold until a unified reorder spec is finalized.
  */
 
 import { miniAppService } from '@data/services/MiniAppService'

@@ -124,7 +124,7 @@ async function settleAndInvalidate(
 export const useMiniApps = () => {
   // === Data (DataApi) ===
   const { data, isLoading, mutate: refetch } = useQuery('/mini-apps')
-  const rawApps: MiniApp[] = useMemo(() => data?.items ?? [], [data])
+  const rawApps: MiniApp[] = useMemo(() => data ?? [], [data])
 
   // Merge with preset and partition by status in single pass (js-combine-iterations)
   const { allApps, enabled, disabled, pinned } = useMemo(() => {

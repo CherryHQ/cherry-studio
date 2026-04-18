@@ -5,27 +5,41 @@
  * (status, sortOrder) for them. Custom apps store full data + preferences.
  */
 
+import * as z from 'zod'
+
 export type MiniAppId = string & { readonly __brand: unique symbol }
 
 // Region types
 export type MiniAppRegion = 'CN' | 'Global'
 export type MiniAppRegionFilter = 'auto' | MiniAppRegion
 
-export interface MiniApp {
-  appId: MiniAppId
-  type: 'default' | 'custom'
-  status: 'enabled' | 'disabled' | 'pinned'
-  sortOrder: number
-  name: string
-  url: string
-  logo?: string
-  bordered?: boolean
-  background?: string
-  supportedRegions?: MiniAppRegion[]
-  configuration?: unknown
-  nameKey?: string
+// Status and type enums
+export const MiniAppStatusSchema = z.enum(['enabled', 'disabled', 'pinned'])
+export type MiniAppStatus = z.infer<typeof MiniAppStatusSchema>
 
-  // Timestamps
-  createdAt?: string
-  updatedAt?: string
-}
+export const MiniAppKindSchema = z.enum(['default', 'custom'])
+export type MiniAppKind = z.infer<typeof MiniAppKindSchema>
+
+export const MiniAppRegionSchema = z.enum(['CN', 'Global'])
+
+/**
+ * MiniApp entity schema
+ */
+export const MiniAppSchema = z.object({
+  appId: z.string(),
+  kind: MiniAppKindSchema,
+  status: MiniAppStatusSchema,
+  sortOrder: z.number(),
+  name: z.string(),
+  url: z.string(),
+  logo: z.string().optional(),
+  bordered: z.boolean().optional(),
+  background: z.string().optional(),
+  supportedRegions: z.array(MiniAppRegionSchema).optional(),
+  configuration: z.unknown().optional(),
+  nameKey: z.string().optional(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional()
+})
+
+export type MiniApp = z.infer<typeof MiniAppSchema>

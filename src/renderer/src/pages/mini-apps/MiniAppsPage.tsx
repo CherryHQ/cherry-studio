@@ -65,12 +65,11 @@ const AppsPage: FC = () => {
         <MainContainer>
           <RightContainer>
             {isTopNavbar && (
-              <HeaderContainer>
+              <div className="flex h-15 w-full flex-row items-center justify-center gap-2.5">
                 <Input
                   placeholder={t('common.search')}
-                  className="nodrag"
+                  className="nodrag border-none bg-muted"
                   style={{ width: '30%', borderRadius: 15 }}
-                  variant="filled"
                   suffix={<Search size={18} />}
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -78,7 +77,7 @@ const AppsPage: FC = () => {
                 <Button variant="ghost" className="nodrag" onClick={() => MiniAppSettingsPopup.show()}>
                   <SettingsIcon size={18} color="var(--color-text-2)" />
                 </Button>
-              </HeaderContainer>
+              </div>
             )}
             <AppsContainerWrapper>
               <AppsContainer style={{ height: containerHeight }}>
@@ -111,15 +110,15 @@ const ContentContainer = styled.div`
   height: 100%;
 `
 
-const HeaderContainer = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  height: 60px;
-  width: 100%;
-  gap: 10px;
-`
+// const HeaderContainer = styled.div`
+//   display: flex;
+//   flex-direction: row;
+//   justify-content: center;
+//   align-items: center;
+//   height: 60px;
+//   width: 100%;
+//   gap: 10px;
+// `
 
 const MainContainer = styled.div`
   display: flex;

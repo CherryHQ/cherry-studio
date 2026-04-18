@@ -274,7 +274,7 @@ describe('MiniAppMigrator', () => {
         appId: 'app1',
         name: 'Existing',
         url: 'https://existing.com',
-        type: 'custom',
+        kind: 'custom',
         status: 'enabled'
       })
 

@@ -28,7 +28,7 @@ vi.mock('@renderer/config/miniapps', () => ({
 describe('MiniAppIcon', () => {
   const mockApp = {
     appId: 'test-app-1' as any,
-    type: 'default' as const,
+    kind: 'default' as const,
     status: 'enabled' as const,
     sortOrder: 0,
     name: 'Test App',
@@ -68,7 +68,7 @@ describe('MiniAppIcon', () => {
   it('should return null when app is not found in allMiniApps', () => {
     const unknownApp = {
       appId: 'unknown-app' as any,
-      type: 'default' as const,
+      kind: 'default' as const,
       status: 'enabled' as const,
       sortOrder: 0,
       name: 'Unknown App',

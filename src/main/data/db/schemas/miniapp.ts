@@ -28,8 +28,8 @@ export const miniAppTable = sqliteTable(
     // Logo URL or base64 data
     logo: text(),
 
-    // App type: default (system) or custom (user-added)
-    type: text().$type<MiniAppKind>().notNull().default('custom'),
+    // App kind: default (system) or custom (user-added)
+    kind: text().$type<MiniAppKind>().notNull().default('custom'),
 
     // User status for this app
     status: text().$type<MiniAppStatus>().notNull().default('enabled'),
@@ -57,10 +57,10 @@ export const miniAppTable = sqliteTable(
   },
   (t) => [
     index('mini_app_status_sort_idx').on(t.status, t.sortOrder),
-    index('mini_app_kind_idx').on(t.type),
-    index('mini_app_status_kind_idx').on(t.status, t.type),
+    index('mini_app_kind_idx').on(t.kind),
+    index('mini_app_status_kind_idx').on(t.status, t.kind),
     check('mini_app_status_check', sql`${t.status} IN ('enabled', 'disabled', 'pinned')`),
-    check('mini_app_kind_check', sql`${t.type} IN ('default', 'custom')`)
+    check('mini_app_kind_check', sql`${t.kind} IN ('default', 'custom')`)
   ]
 )
 

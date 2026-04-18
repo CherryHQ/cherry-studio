@@ -14,7 +14,7 @@ function brandId(raw: string): MiniAppId {
   return raw as MiniAppId
 }
 
-type MiniAppInput = Omit<MiniApp, 'appId' | 'type' | 'status' | 'sortOrder'> & {
+type MiniAppInput = Omit<MiniApp, 'appId' | 'kind' | 'status' | 'sortOrder'> & {
   appId: string
 }
 
@@ -22,7 +22,7 @@ function toMiniApp(input: MiniAppInput): MiniApp {
   return {
     ...input,
     appId: brandId(input.appId),
-    type: 'default',
+    kind: 'default',
     status: 'enabled',
     sortOrder: 0
   }

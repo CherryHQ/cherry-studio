@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "ceca2c61-e6f2-49d1-b9c7-e7c6c94cbff0",
-  "prevId": "06b58aff-1332-4170-be6b-45a53d5e3cda",
+  "id": "e17c2116-6254-4961-a132-2f42bc440639",
+  "prevId": "a947c27c-3d23-43b7-8846-3a82fcbbdee6",
   "tables": {
     "app_state": {
       "name": "app_state",
@@ -132,7 +132,17 @@
           "isUnique": false
         }
       },
-      "foreignKeys": {},
+      "foreignKeys": {
+        "assistant_model_id_user_model_id_fk": {
+          "name": "assistant_model_id_user_model_id_fk",
+          "tableFrom": "assistant",
+          "tableTo": "user_model",
+          "columnsFrom": ["model_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
@@ -355,7 +365,7 @@
           "name": "embedding_model_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "rerank_model_id": {
@@ -430,7 +440,26 @@
         }
       },
       "indexes": {},
-      "foreignKeys": {},
+      "foreignKeys": {
+        "knowledge_base_embedding_model_id_user_model_id_fk": {
+          "name": "knowledge_base_embedding_model_id_user_model_id_fk",
+          "tableFrom": "knowledge_base",
+          "tableTo": "user_model",
+          "columnsFrom": ["embedding_model_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "knowledge_base_rerank_model_id_user_model_id_fk": {
+          "name": "knowledge_base_rerank_model_id_user_model_id_fk",
+          "tableFrom": "knowledge_base",
+          "tableTo": "user_model",
+          "columnsFrom": ["rerank_model_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
@@ -554,7 +583,7 @@
         },
         "knowledge_item_status_check": {
           "name": "knowledge_item_status_check",
-          "value": "\"knowledge_item\".\"status\" IN ('idle', 'pending', 'ocr', 'read', 'embed', 'completed', 'failed')"
+          "value": "\"knowledge_item\".\"status\" IN ('idle', 'pending', 'file_processing', 'read', 'embed', 'completed', 'failed')"
         }
       }
     },
@@ -956,6 +985,15 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
+        "message_model_id_user_model_id_fk": {
+          "name": "message_model_id_user_model_id_fk",
+          "tableFrom": "message",
+          "tableTo": "user_model",
+          "columnsFrom": ["model_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
         "message_parent_id_message_id_fk": {
           "name": "message_parent_id_message_id_fk",
           "tableFrom": "message",
@@ -979,8 +1017,8 @@
         }
       }
     },
-    "miniapp": {
-      "name": "miniapp",
+    "mini_app": {
+      "name": "mini_app",
       "columns": {
         "app_id": {
           "name": "app_id",
@@ -1010,8 +1048,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "type": {
-          "name": "type",
+        "kind": {
+          "name": "kind",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -1086,19 +1124,19 @@
         }
       },
       "indexes": {
-        "miniapp_status_sort_idx": {
-          "name": "miniapp_status_sort_idx",
+        "mini_app_status_sort_idx": {
+          "name": "mini_app_status_sort_idx",
           "columns": ["status", "sort_order"],
           "isUnique": false
         },
-        "miniapp_type_idx": {
-          "name": "miniapp_type_idx",
-          "columns": ["type"],
+        "mini_app_kind_idx": {
+          "name": "mini_app_kind_idx",
+          "columns": ["kind"],
           "isUnique": false
         },
-        "miniapp_status_type_idx": {
-          "name": "miniapp_status_type_idx",
-          "columns": ["status", "type"],
+        "mini_app_status_kind_idx": {
+          "name": "mini_app_status_kind_idx",
+          "columns": ["status", "kind"],
           "isUnique": false
         }
       },
@@ -1106,13 +1144,13 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
-        "miniapp_status_check": {
-          "name": "miniapp_status_check",
-          "value": "\"miniapp\".\"status\" IN ('enabled', 'disabled', 'pinned')"
+        "mini_app_status_check": {
+          "name": "mini_app_status_check",
+          "value": "\"mini_app\".\"status\" IN ('enabled', 'disabled', 'pinned')"
         },
-        "miniapp_type_check": {
-          "name": "miniapp_type_check",
-          "value": "\"miniapp\".\"type\" IN ('default', 'custom')"
+        "mini_app_kind_check": {
+          "name": "mini_app_kind_check",
+          "value": "\"mini_app\".\"kind\" IN ('default', 'custom')"
         }
       }
     },
@@ -1572,6 +1610,13 @@
     "user_model": {
       "name": "user_model",
       "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
         "provider_id": {
           "name": "provider_id",
           "type": "text",
@@ -1767,15 +1812,25 @@
           "name": "user_model_provider_sort_idx",
           "columns": ["provider_id", "sort_order"],
           "isUnique": false
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "user_model_provider_id_model_id_pk": {
+        },
+        "user_model_provider_model_unique": {
+          "name": "user_model_provider_model_unique",
           "columns": ["provider_id", "model_id"],
-          "name": "user_model_provider_id_model_id_pk"
+          "isUnique": true
         }
       },
+      "foreignKeys": {
+        "user_model_provider_id_user_provider_provider_id_fk": {
+          "name": "user_model_provider_id_user_provider_provider_id_fk",
+          "tableFrom": "user_model",
+          "tableTo": "user_provider",
+          "columnsFrom": ["provider_id"],
+          "columnsTo": ["provider_id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
@@ -1899,8 +1954,12 @@
   "enums": {},
   "_meta": {
     "schemas": {},
-    "tables": {},
-    "columns": {}
+    "tables": {
+      "\"miniapp\"": "\"mini_app\""
+    },
+    "columns": {
+      "\"mini_app\".\"type\"": "\"mini_app\".\"kind\""
+    }
   },
   "internal": {
     "indexes": {}

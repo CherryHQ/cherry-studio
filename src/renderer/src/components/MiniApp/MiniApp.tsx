@@ -93,7 +93,7 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
           }
         ]
       : []),
-    ...(app.type === 'custom'
+    ...(app.kind === 'custom'
       ? [
           {
             key: 'removeCustom',

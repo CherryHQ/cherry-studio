@@ -9,8 +9,8 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { useMiniApps } from '../useMiniApps'
 import { appFixtures, createCnOnlyApp, createGlobalApp, createMiniApp } from './fixtures/miniapp'
 
-/** Helper: create a paginated response matching OffsetPaginationResponse<MiniApp> */
-const paginated = (items: MiniApp[]) => ({ items, total: items.length, page: 1 })
+/** Helper: return the array directly since list() now returns a bare MiniApp[] */
+const paginated = (items: MiniApp[]) => items
 
 describe('useMiniApps', () => {
   beforeEach(() => {

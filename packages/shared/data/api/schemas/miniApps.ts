@@ -6,17 +6,8 @@
  */
 
 import type { MiniApp } from '@shared/data/types/miniApp'
+import { MiniAppKindSchema, MiniAppRegionSchema, MiniAppStatusSchema } from '@shared/data/types/miniApp'
 import * as z from 'zod'
-
-import type { OffsetPaginationResponse } from '../apiTypes'
-
-// ============================================================================
-// Zod Schemas for runtime validation
-// ============================================================================
-
-const MiniAppStatusSchema = z.enum(['enabled', 'disabled', 'pinned'])
-const MiniAppTypeSchema = z.enum(['default', 'custom'])
-const MiniAppRegionSchema = z.enum(['CN', 'Global'])
 
 /**
  * Zod schema for creating a new custom miniapp
@@ -66,7 +57,7 @@ export type ReorderMiniAppsDto = z.infer<typeof ReorderMiniAppsSchema>
  */
 export const ListMiniAppsQuerySchema = z.object({
   status: MiniAppStatusSchema.optional(),
-  type: MiniAppTypeSchema.optional()
+  type: MiniAppKindSchema.optional()
 })
 export type ListMiniAppsQuery = z.infer<typeof ListMiniAppsQuerySchema>
 
@@ -83,12 +74,17 @@ export interface MiniAppSchemas {
    * @example GET /mini-apps?status=enabled
    * @example POST /mini-apps { "appId": "my-app", "name": "My App", "url": "https://example.com" }
    * @example PATCH /mini-apps { "items": [{ "appId": "qwen", "sortOrder": 1 }] }
+   *
+   * TODO(I1): PATCH /mini-apps for batch reorder conflicts with the convention
+   * "PATCH = partial update of one resource". Per the api-design-guidelines
+   * decision tree, this should become PUT /mini-apps/order with body { items: [...] }.
+   * Hold until a unified reorder spec is finalized.
    */
   '/mini-apps': {
     /** Get all miniapps (optionally filtered by status/type) */
     GET: {
       query?: ListMiniAppsQuery
-      response: OffsetPaginationResponse<MiniApp>
+      response: MiniApp[]
     }
     /** Create a new miniapp (for custom apps or default app preference rows) */
     POST: {
@@ -130,6 +126,11 @@ export interface MiniAppSchemas {
   /**
    * Reset all builtin (default) app preferences to factory defaults.
    * Removes all DB preference rows for type='default', restoring original status/sortOrder.
+   *
+   * TODO(I1): DELETE is semantically a resource deletion, but this endpoint is
+   * really a reset action. Consider POST /mini-apps/defaults/reset instead.
+   * Hold until a unified reorder spec is finalized.
+   *
    * @example DELETE /mini-apps/_actions/reset-defaults
    */
   '/mini-apps/_actions/reset-defaults': {

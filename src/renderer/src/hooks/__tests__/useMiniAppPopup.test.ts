@@ -40,8 +40,8 @@ import { _resetMiniAppsCache, useMiniAppPopup } from '../useMiniAppPopup'
 import { useMiniApps } from '../useMiniApps'
 import { createMiniApp } from './fixtures/miniapp'
 
-/** Helper: create a paginated response matching OffsetPaginationResponse<MiniApp> */
-const paginated = (items: MiniApp[]) => ({ items, total: items.length, page: 1 })
+/** Helper: create a plain array response matching MiniApp[] */
+const miniAppList = (items: MiniApp[]) => items
 
 /**
  * Combined hook for testing - useMiniAppPopup uses useMiniApps internally,
@@ -65,7 +65,7 @@ describe('useMiniAppPopup', () => {
     MockUseCacheUtils.resetMocks()
     MockUsePreferenceUtils.resetMocks()
     MockUseDataApiUtils.resetMocks()
-    MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([]))
+    MockUseDataApiUtils.mockQueryData('/mini-apps', miniAppList([]))
     mockClearWebviewState.mockClear()
     mockNavigate!.mockClear()
     mockGetTabs.mockClear().mockReturnValue([])
@@ -221,7 +221,7 @@ describe('useMiniAppPopup', () => {
   describe('openMiniAppById', () => {
     it('should find and open an app by its appId as one-off', async () => {
       const apps = [createMiniApp('app1'), createMiniApp('app2'), createMiniApp('app3')]
-      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
+      MockUseDataApiUtils.mockQueryData('/mini-apps', miniAppList(apps))
       MockUseCacheUtils.setCacheValue('mini_app.opened_oneoff', null)
       MockUseCacheUtils.setCacheValue('mini_app.show', false)
       const { result } = renderHook(() => useTestMiniAppPopup())
@@ -238,7 +238,7 @@ describe('useMiniAppPopup', () => {
 
     it('should do nothing if app id is not found', async () => {
       const apps = [createMiniApp('app1')]
-      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
+      MockUseDataApiUtils.mockQueryData('/mini-apps', miniAppList(apps))
       MockUseCacheUtils.setCacheValue('mini_app.opened_oneoff', null)
       const { result } = renderHook(() => useTestMiniAppPopup())
 
@@ -251,7 +251,7 @@ describe('useMiniAppPopup', () => {
 
     it('should open as keep-alive when keepAlive=true', async () => {
       const apps = [createMiniApp('app1')]
-      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
+      MockUseDataApiUtils.mockQueryData('/mini-apps', miniAppList(apps))
       MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', [])
       const { result } = renderHook(() => useTestMiniAppPopup())
 
@@ -447,7 +447,7 @@ describe('useMiniAppPopup', () => {
       // Check cache values directly since mock useCache doesn't trigger re-renders
       expect(MockUseCacheUtils.getCacheValue('mini_app.show')).toBe(true)
       expect(MockUseCacheUtils.getCacheValue('mini_app.current_id')).toBe('top-nav-app')
-      expect(mockNavigate).toHaveBeenCalledWith({ to: '/app/miniapp/top-nav-app' })
+      expect(mockNavigate).toHaveBeenCalledWith({ to: '/app/mini-app/top-nav-app' })
     })
 
     it('should not navigate again if app is already in cache (top navbar)', async () => {
@@ -563,7 +563,7 @@ describe('useMiniAppPopup', () => {
     it('should close corresponding tab when app is evicted', async () => {
       MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.max_keep_alive', 1)
       MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', [])
-      mockGetTabs.mockReturnValue([{ id: 'tab-1', path: '/app/miniapp/evict-app1' }])
+      mockGetTabs.mockReturnValue([{ id: 'tab-1', path: '/app/mini-app/evict-app1' }])
 
       const { result } = renderHook(() => useTestMiniAppPopup())
 

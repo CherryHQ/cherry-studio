@@ -16,81 +16,67 @@
       "when": 1767455592181
     },
     {
-      "breakpoints": true,
       "idx": 2,
+      "version": "6",
+      "when": 1772954746790,
       "tag": "0002_tired_glorian",
-      "version": "6",
-      "when": 1772954746790
+      "breakpoints": true
     },
     {
-      "breakpoints": true,
       "idx": 3,
+      "version": "6",
+      "when": 1773896975667,
       "tag": "0003_material_pestilence",
-      "version": "6",
-      "when": 1773896975667
+      "breakpoints": true
     },
     {
-      "breakpoints": true,
       "idx": 4,
+      "version": "6",
+      "when": 1774262838467,
       "tag": "0004_volatile_madame_masque",
-      "version": "6",
-      "when": 1774262838467
+      "breakpoints": true
     },
     {
-      "breakpoints": true,
       "idx": 5,
+      "version": "6",
+      "when": 1774262838468,
       "tag": "0005_shocking_sphinx",
-      "version": "6",
-      "when": 1774262838468
+      "breakpoints": true
     },
     {
-      "breakpoints": true,
       "idx": 6,
+      "version": "6",
+      "when": 1774697808332,
       "tag": "0006_silly_screwball",
-      "version": "6",
-      "when": 1774697808332
+      "breakpoints": true
     },
     {
-      "breakpoints": true,
       "idx": 7,
+      "version": "6",
+      "when": 1774697808333,
       "tag": "0007_steep_hedge_knight",
-      "version": "6",
-      "when": 1774622546141
+      "breakpoints": true
     },
     {
-      "breakpoints": true,
       "idx": 8,
+      "version": "6",
+      "when": 1775137534101,
       "tag": "0008_wild_ultron",
-      "version": "6",
-      "when": 1775137534101
+      "breakpoints": true
     },
     {
-      "breakpoints": true,
       "idx": 9,
+      "version": "6",
+      "when": 1775543209395,
       "tag": "0009_medical_giant_girl",
-      "version": "6",
-      "when": 1775543209395
+      "breakpoints": true
     },
     {
-      "breakpoints": true,
       "idx": 10,
-      "tag": "0010_pink_shaman",
       "version": "6",
-      "when": 1775820970055
-    },
-    {
-      "breakpoints": true,
-      "idx": 11,
-      "tag": "0011_outgoing_silver_sable",
-      "version": "6",
-      "when": 1776180491685
-    },
-    {
-      "breakpoints": true,
-      "idx": 12,
-      "tag": "0012_mysterious_lizard",
-      "version": "6",
-      "when": 1776431726825
+      "when": 1776477558055,
+      "tag": "0010_lucky_silver_centurion",
+      "breakpoints": true
     }
   ],
   "version": "7"
