@@ -38,11 +38,22 @@ vi.mock('path', async () => {
 })
 
 // Use vi.hoisted to define mocks that are available during hoisting
-const { mockLogger } = vi.hoisted(() => ({
+const { mockLogger, mockApp } = vi.hoisted(() => ({
   mockLogger: {
     info: vi.fn(),
     warn: vi.fn(),
-    error: vi.fn()
+    error: vi.fn(),
+    debug: vi.fn()
+  },
+  mockApp: {
+    getPath: vi.fn((key: string) => {
+      if (key === 'temp') return '/tmp'
+      if (key === 'userData') return '/mock/userData'
+      return '/mock/unknown'
+    }),
+    getVersion: vi.fn(() => '1.9.1'),
+    relaunch: vi.fn(),
+    exit: vi.fn()
   }
 }))
 
@@ -53,13 +64,11 @@ vi.mock('@logger', () => ({
 }))
 
 vi.mock('electron', () => ({
-  app: {
-    getPath: vi.fn((key: string) => {
-      if (key === 'temp') return '/tmp'
-      if (key === 'userData') return '/mock/userData'
-      return '/mock/unknown'
-    })
-  }
+  app: mockApp
+}))
+
+vi.mock('../../utils/fileOperations', () => ({
+  copyDirectoryRecursive: vi.fn()
 }))
 
 vi.mock('fs-extra', () => ({
@@ -71,9 +80,14 @@ vi.mock('fs-extra', () => ({
     readdir: vi.fn(),
     stat: vi.fn(),
     readFile: vi.fn(),
+    readJson: vi.fn(),
+    writeJson: vi.fn(),
     writeFile: vi.fn(),
     createWriteStream: vi.fn(),
-    createReadStream: vi.fn()
+    createReadStream: vi.fn(),
+    promises: {
+      mkdir: vi.fn()
+    }
   },
   pathExists: vi.fn(),
   remove: vi.fn(),
@@ -82,8 +96,33 @@ vi.mock('fs-extra', () => ({
   readdir: vi.fn(),
   stat: vi.fn(),
   readFile: vi.fn(),
+  readJson: vi.fn(),
+  writeJson: vi.fn(),
   writeFile: vi.fn(),
-  createWriteStream: vi.fn(),
+  createWriteStream: vi.fn(() => {
+    const listeners: Record<string, Array<(...args: unknown[]) => void>> = {}
+
+    const stream = {
+      on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+        listeners[event] ??= []
+        listeners[event].push(handler)
+        return stream
+      }),
+      emit: vi.fn((event: string, ...args: unknown[]) => {
+        for (const handler of listeners[event] ?? []) {
+          handler(...args)
+        }
+        return true
+      }),
+      write: vi.fn(() => true),
+      end: vi.fn(() => {
+        stream.emit('finish')
+        stream.emit('close')
+      })
+    }
+
+    return stream
+  }),
   createReadStream: vi.fn()
 }))
 
@@ -106,7 +145,21 @@ vi.mock('../../utils', () => ({
 }))
 
 vi.mock('archiver', () => ({
-  default: vi.fn()
+  default: vi.fn(() => {
+    let pipedOutput: { emit?: (event: string, ...args: unknown[]) => void } | null = null
+
+    return {
+      on: vi.fn(),
+      pipe: vi.fn((output: { emit?: (event: string, ...args: unknown[]) => void }) => {
+        pipedOutput = output
+        return output
+      }),
+      directory: vi.fn(),
+      finalize: vi.fn(async () => {
+        pipedOutput?.emit?.('close')
+      })
+    }
+  })
 }))
 
 vi.mock('node-stream-zip', () => ({
@@ -116,6 +169,7 @@ vi.mock('node-stream-zip', () => ({
 // Import after mocks
 import * as fs from 'fs-extra'
 
+import { copyDirectoryRecursive } from '../../utils/fileOperations'
 import BackupManager from '../BackupManager'
 
 describe('BackupManager.deleteLanTransferBackup - Security Tests', () => {
@@ -306,6 +360,135 @@ describe('BackupManager.deleteLanTransferBackup - Security Tests', () => {
 
       // path.normalize handles double slashes
       expect(result).toBe(true)
+    })
+  })
+
+  describe('Directory Copy Helpers', () => {
+    it('should skip symlinks while copying directories with progress', async () => {
+      const entries = [
+        {
+          name: 'linked-skill',
+          isDirectory: () => false,
+          isSymbolicLink: () => true,
+          isFile: () => false
+        },
+        {
+          name: 'settings.json',
+          isDirectory: () => false,
+          isSymbolicLink: () => false,
+          isFile: () => true
+        }
+      ]
+
+      vi.mocked(fs.readdir).mockResolvedValue(entries as never)
+      vi.mocked(fs.stat).mockImplementation((filePath) => {
+        const size = String(filePath).includes('settings.json') ? 32 : 999
+        return { size } as never
+      })
+      vi.mocked(fs.copy).mockResolvedValue(undefined as never)
+
+      const progressUpdates: number[] = []
+      await (backupManager as any).copyDirWithProgress('/source', '/dest', (size: number) => {
+        progressUpdates.push(size)
+      })
+
+      expect(fs.copy).toHaveBeenCalledTimes(1)
+      expect(fs.copy).toHaveBeenCalledWith('/source/settings.json', '/dest/settings.json')
+      expect(fs.copy).not.toHaveBeenCalledWith('/source/linked-skill', '/dest/linked-skill')
+      expect(progressUpdates).toEqual([32])
+    })
+
+    it('should ignore symlinks when calculating directory size', async () => {
+      const entries = [
+        {
+          name: 'linked-skill',
+          isDirectory: () => false,
+          isSymbolicLink: () => true,
+          isFile: () => false
+        },
+        {
+          name: 'settings.json',
+          isDirectory: () => false,
+          isSymbolicLink: () => false,
+          isFile: () => true
+        }
+      ]
+
+      vi.mocked(fs.readdir).mockResolvedValue(entries as never)
+      vi.mocked(fs.stat).mockImplementation((filePath) => {
+        if (String(filePath).includes('settings.json')) {
+          return { size: 32 } as never
+        }
+
+        return { size: 999 } as never
+      })
+
+      const totalSize = await (backupManager as any).getDirSize('/source')
+
+      expect(totalSize).toBe(32)
+      expect(fs.stat).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('Direct Backup Flow', () => {
+    it('should use symlink-safe directory copies for local backup databases', async () => {
+      vi.mocked(fs.ensureDir).mockResolvedValue(undefined as never)
+      vi.mocked(fs.pathExists).mockImplementation(async (targetPath) => {
+        return String(targetPath).includes('IndexedDB') || String(targetPath).includes('Local Storage')
+      })
+      vi.mocked(fs.writeJson).mockResolvedValue(undefined as never)
+      vi.mocked(fs.remove).mockResolvedValue(undefined as never)
+      vi.mocked(copyDirectoryRecursive).mockResolvedValue(undefined as never)
+
+      const backupPath = await backupManager.backupToLocalDir({} as Electron.IpcMainInvokeEvent, 'backup.zip', {
+        localBackupDir: '/mock/backup'
+      })
+
+      expect(backupPath).toBe('/mock/backup/backup.zip')
+      expect(copyDirectoryRecursive).toHaveBeenCalledTimes(2)
+      expect(copyDirectoryRecursive).toHaveBeenCalledWith(
+        '/mock/userData/IndexedDB',
+        '/tmp/cherry-studio/backup/temp/IndexedDB'
+      )
+      expect(copyDirectoryRecursive).toHaveBeenCalledWith(
+        '/mock/userData/Local Storage',
+        '/tmp/cherry-studio/backup/temp/Local Storage'
+      )
+      expect(fs.copy).not.toHaveBeenCalled()
+    })
+
+    it('should use symlink-safe directory copies when restoring database directories', async () => {
+      const restoreSuffix = process.platform === 'win32' ? '.restore' : ''
+
+      vi.mocked(fs.readJson).mockResolvedValue({
+        version: 6,
+        timestamp: Date.now(),
+        appName: 'Cherry Studio',
+        appVersion: '1.9.1',
+        platform: process.platform,
+        arch: process.arch
+      } as never)
+      vi.mocked(fs.pathExists).mockImplementation(async (targetPath) => {
+        const target = String(targetPath)
+        return target.includes('IndexedDB') || target.includes('Local Storage')
+      })
+      vi.mocked(fs.remove).mockResolvedValue(undefined as never)
+      vi.mocked(copyDirectoryRecursive).mockResolvedValue(undefined as never)
+
+      await (backupManager as any).restoreDirect()
+
+      expect(copyDirectoryRecursive).toHaveBeenCalledTimes(2)
+      expect(copyDirectoryRecursive).toHaveBeenCalledWith(
+        '/tmp/cherry-studio/backup/temp/IndexedDB',
+        `/mock/userData/IndexedDB${restoreSuffix}`
+      )
+      expect(copyDirectoryRecursive).toHaveBeenCalledWith(
+        '/tmp/cherry-studio/backup/temp/Local Storage',
+        `/mock/userData/Local Storage${restoreSuffix}`
+      )
+      expect(mockApp.relaunch).toHaveBeenCalled()
+      expect(mockApp.exit).toHaveBeenCalledWith(0)
+      expect(fs.copy).not.toHaveBeenCalled()
     })
   })
 })
