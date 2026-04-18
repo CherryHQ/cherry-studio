@@ -142,14 +142,18 @@ export class MiniAppService {
     }
     const customWhere = and(...customConditions)
 
-    const customRows = await this.db
-      .select()
-      .from(miniAppTable)
-      .where(customWhere)
-      .orderBy(asc(miniAppTable.status), asc(miniAppTable.sortOrder))
+    const customRows = await this.db.select().from(miniAppTable).where(customWhere).orderBy(asc(miniAppTable.sortOrder))
 
     if (query.type === 'custom') {
-      return customRows.map(rowToMiniApp)
+      const items = customRows.map(rowToMiniApp)
+      // Sort by status priority: pinned=0, enabled=1, disabled=2
+      const statusOrder = (s: MiniApp['status']) => (s === 'pinned' ? 0 : s === 'enabled' ? 1 : 2)
+      items.sort((a, b) => {
+        const diff = statusOrder(a.status) - statusOrder(b.status)
+        if (diff !== 0) return diff
+        return a.sortOrder - b.sortOrder
+      })
+      return items
     }
 
     // Load DB preference rows for all builtin apps

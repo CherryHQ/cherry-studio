@@ -82,7 +82,8 @@ export function transformMiniApp(
     status,
     sortOrder,
     // v2 fix: Handle typo 'bodered' → 'bordered' during migration
-    bordered: toRequired(source.bodered ?? source.bordered, true),
+    // Prefer the correctly spelled 'bordered' field; fall back to the typo field
+    bordered: toRequired(source.bordered ?? source.bodered, true),
     background: toNullable<string>(source.background),
     supportedRegions: toNullableRegions(source.supportedRegions),
     nameKey: toNullable<string>(source.nameKey)

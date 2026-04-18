@@ -326,13 +326,14 @@ describe('MiniAppService', () => {
       })
     })
 
-    it('should ignore undefined fields in update for custom app', async () => {
+    it('should reject update when all fields are undefined for custom app', async () => {
       await seedCustomApp({ name: 'Original' })
 
-      const result = await miniAppService.update('custom-app', { name: undefined } as any)
-
-      // name should remain unchanged since undefined fields are not applied
-      expect(result.name).toBe('Original')
+      // Passing only undefined fields means no applicable changes, which should reject
+      await expect(miniAppService.update('custom-app', { name: undefined } as any)).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        status: 422
+      })
     })
 
     it('should reject empty update for default app', async () => {
