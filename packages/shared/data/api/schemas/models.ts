@@ -19,7 +19,7 @@ import {
 } from '../../types/model'
 
 /** Query parameters for listing models */
-const ListModelsQuerySchema = z.object({
+export const ListModelsQuerySchema = z.object({
   /** Filter by provider ID */
   providerId: z.string().optional(),
   /** Filter by capability (ModelCapability string value) */
@@ -30,11 +30,11 @@ const ListModelsQuerySchema = z.object({
 export type ListModelsQuery = z.infer<typeof ListModelsQuerySchema>
 
 /** DTO for creating a new model */
-const CreateModelDtoSchema = z.object({
+export const CreateModelDtoSchema = z.object({
   /** Provider ID */
-  providerId: z.string(),
+  providerId: z.string().min(1),
   /** Model ID (used in API calls) */
-  modelId: z.string(),
+  modelId: z.string().min(1),
   /** Associated preset model ID */
   presetModelId: z.string().optional(),
   /** Display name */
@@ -52,9 +52,9 @@ const CreateModelDtoSchema = z.object({
   /** Endpoint types */
   endpointTypes: z.array(z.enum(objectValues(ENDPOINT_TYPE))).optional(),
   /** Context window size */
-  contextWindow: z.number().optional(),
+  contextWindow: z.number().int().positive().optional(),
   /** Maximum output tokens */
-  maxOutputTokens: z.number().optional(),
+  maxOutputTokens: z.number().int().positive().optional(),
   /** Streaming support */
   supportsStreaming: z.boolean().optional(),
   /** Reasoning configuration */
@@ -66,8 +66,15 @@ const CreateModelDtoSchema = z.object({
 })
 export type CreateModelDto = z.infer<typeof CreateModelDtoSchema>
 
+export const MODELS_BATCH_MAX_ITEMS = 100
+
+export const CreateModelsBatchDtoSchema = z.object({
+  items: z.array(CreateModelDtoSchema).min(1).max(MODELS_BATCH_MAX_ITEMS)
+})
+export type CreateModelsBatchDto = z.infer<typeof CreateModelsBatchDtoSchema>
+
 /** DTO for updating an existing model — CreateModelDto minus identity fields, all optional, plus status fields */
-const UpdateModelDtoSchema = CreateModelDtoSchema.omit({
+export const UpdateModelDtoSchema = CreateModelDtoSchema.omit({
   providerId: true,
   modelId: true,
   presetModelId: true
@@ -76,17 +83,17 @@ const UpdateModelDtoSchema = CreateModelDtoSchema.omit({
   .extend({
     isEnabled: z.boolean().optional(),
     isHidden: z.boolean().optional(),
-    sortOrder: z.number().optional(),
+    sortOrder: z.number().int().optional(),
     notes: z.string().optional()
   })
 export type UpdateModelDto = z.infer<typeof UpdateModelDtoSchema>
 
 /** DTO for resolving raw model IDs against registry presets */
-const EnrichModelsDtoSchema = z.object({
+export const EnrichModelsDtoSchema = z.object({
   /** Raw model IDs from SDK listModels() */
   models: z.array(
     z.object({
-      modelId: z.string()
+      modelId: z.string().min(1)
     })
   )
 })
@@ -111,6 +118,13 @@ export interface ModelSchemas {
     POST: {
       body: CreateModelDto
       response: Model
+    }
+  }
+
+  '/models/batch': {
+    POST: {
+      body: CreateModelsBatchDto
+      response: Model[]
     }
   }
 
