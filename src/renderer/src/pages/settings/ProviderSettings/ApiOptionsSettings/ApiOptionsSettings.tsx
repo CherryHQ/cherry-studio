@@ -2,8 +2,9 @@ import { ColFlex, RowFlex, Switch } from '@cherrystudio/ui'
 import { InfoTooltip } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { type AnthropicCacheControlSettings, type Provider } from '@renderer/types'
+import { isLegacyCacheSettings } from '@renderer/types/provider'
 import { isSupportAnthropicPromptCacheProvider } from '@renderer/utils/provider'
-import { Divider, InputNumber } from 'antd'
+import { Divider, Select } from 'antd'
 import { startTransition, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -117,15 +118,14 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
 
   const isSupportAnthropicPromptCache = isSupportAnthropicPromptCacheProvider(provider)
 
-  const cacheSettings = useMemo(
-    () =>
-      provider.anthropicCacheControl ?? {
-        tokenThreshold: 0,
-        cacheSystemMessage: true,
-        cacheLastNMessages: 0
-      },
-    [provider.anthropicCacheControl]
-  )
+  const cacheSettings = useMemo<AnthropicCacheControlSettings>(() => {
+    const raw = provider.anthropicCacheControl
+    if (!raw) return { enabled: false, ttl: 'ephemeral' }
+    if (isLegacyCacheSettings(raw)) {
+      return { enabled: raw.tokenThreshold > 0, ttl: 'ephemeral' }
+    }
+    return raw
+  }, [provider.anthropicCacheControl])
 
   const updateCacheSettings = useCallback(
     (updates: Partial<AnthropicCacheControlSettings>) => {
@@ -144,7 +144,7 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
             <label style={{ cursor: 'pointer' }} htmlFor={item.key}>
               {item.label}
             </label>
-            <InfoTooltip content={item.tip}></InfoTooltip>
+            <InfoTooltip title={item.tip} />
           </RowFlex>
           <Switch id={item.key} checked={item.checked} onCheckedChange={item.onChange} />
         </RowFlex>
@@ -155,43 +155,30 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
           <Divider style={{ margin: '8px 0' }} />
           <RowFlex className="justify-between">
             <RowFlex className="items-center gap-2">
-              <span>{t('settings.provider.api.options.anthropic_cache.token_threshold')}</span>
-              <InfoTooltip title={t('settings.provider.api.options.anthropic_cache.token_threshold_help')} />
+              <span>{t('settings.provider.api.options.anthropic_cache.prompt_caching')}</span>
+              <InfoTooltip title={t('settings.provider.api.options.anthropic_cache.prompt_caching_help')} />
             </RowFlex>
-            <InputNumber
-              min={0}
-              max={100000}
-              value={cacheSettings.tokenThreshold}
-              onChange={(v) => updateCacheSettings({ tokenThreshold: v ?? 0 })}
-              style={{ width: 100 }}
-            />
+            <Switch checked={cacheSettings.enabled} onCheckedChange={(v) => updateCacheSettings({ enabled: v })} />
           </RowFlex>
-          {cacheSettings.tokenThreshold > 0 && (
-            <>
-              <RowFlex className="justify-between">
-                <RowFlex className="items-center gap-2">
-                  <span>{t('settings.provider.api.options.anthropic_cache.cache_system')}</span>
-                  <InfoTooltip title={t('settings.provider.api.options.anthropic_cache.cache_system_help')} />
-                </RowFlex>
-                <Switch
-                  checked={cacheSettings.cacheSystemMessage}
-                  onCheckedChange={(v) => updateCacheSettings({ cacheSystemMessage: v })}
-                />
+          {cacheSettings.enabled && (
+            <RowFlex className="justify-between">
+              <RowFlex className="items-center gap-2">
+                <span>{t('settings.provider.api.options.anthropic_cache.ttl')}</span>
+                <InfoTooltip title={t('settings.provider.api.options.anthropic_cache.ttl_help')} />
               </RowFlex>
-              <RowFlex className="justify-between">
-                <RowFlex className="items-center gap-2">
-                  <span>{t('settings.provider.api.options.anthropic_cache.cache_last_n')}</span>
-                  <InfoTooltip title={t('settings.provider.api.options.anthropic_cache.cache_last_n_help')} />
-                </RowFlex>
-                <InputNumber
-                  min={0}
-                  max={10}
-                  value={cacheSettings.cacheLastNMessages}
-                  onChange={(v) => updateCacheSettings({ cacheLastNMessages: v ?? 0 })}
-                  style={{ width: 100 }}
-                />
-              </RowFlex>
-            </>
+              <Select
+                value={cacheSettings.ttl || 'ephemeral'}
+                onChange={(v) => updateCacheSettings({ ttl: v })}
+                style={{ width: 120 }}
+                options={[
+                  {
+                    value: 'ephemeral',
+                    label: t('settings.provider.api.options.anthropic_cache.ttl_5min')
+                  },
+                  { value: '1h', label: t('settings.provider.api.options.anthropic_cache.ttl_1h') }
+                ]}
+              />
+            </RowFlex>
           )}
         </>
       )}

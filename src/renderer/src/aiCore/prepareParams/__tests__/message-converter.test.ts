@@ -44,7 +44,12 @@ vi.mock('@renderer/utils/messageUtils/find', () => ({
   findFileBlocks: (message: Message) => (message as MockableMessage).__mockFileBlocks ?? [],
   findImageBlocks: (message: Message) => (message as MockableMessage).__mockImageBlocks ?? [],
   findThinkingBlocks: (message: Message) => (message as MockableMessage).__mockThinkingBlocks ?? [],
-  findMainTextBlocks: (message: Message) => (message as MockableMessage).__mockMainTextBlocks ?? []
+  findMainTextBlocks: (message: Message) => (message as MockableMessage).__mockMainTextBlocks ?? [],
+  findAllBlocks: () => []
+}))
+
+vi.mock('../../responseMessageCache', () => ({
+  getResponseMessages: () => undefined
 }))
 
 import { convertMessagesToSdkMessages, convertMessageToSdkParam, stripMarkdownBase64Images } from '../messageConverter'

@@ -197,6 +197,7 @@ export async function transformMessagesAndFetch(
       messages: modelMessages,
       assistant: assistant,
       topicId: request.topicId,
+      assistantMessageId: request.assistantMsgId,
       allowedTools: request.allowedTools,
       requestOptions: request.options,
       uiMessages,
@@ -218,6 +219,7 @@ export async function fetchChatCompletion({
   requestOptions,
   onChunkReceived,
   topicId,
+  assistantMessageId,
   uiMessages,
   allowedTools
 }: FetchChatCompletionParams) {
@@ -279,6 +281,7 @@ export async function fetchChatCompletion({
   const middlewareConfig: AiSdkMiddlewareConfig = {
     streamOutput: assistant.settings?.streamOutput ?? true,
     onChunk: onChunkReceived,
+    assistantMessageId,
     enableReasoning: capabilities.enableReasoning,
     isPromptToolUse: usePromptToolUse,
     isSupportedToolUse: isSupportedToolUse(assistant),

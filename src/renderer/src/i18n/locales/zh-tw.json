@@ -5194,8 +5194,14 @@
             "cache_last_n_help": "快取最後 N 則對話訊息（排除系統訊息）",
             "cache_system": "快取系統訊息",
             "cache_system_help": "是否快取系統提示",
+            "prompt_caching": "提示快取",
+            "prompt_caching_help": "啟用 Anthropic 提示快取以降低重複對話的成本。在系統提示和對話歷史上使用策略性快取斷點，實現平滑的增量快取增長。",
             "token_threshold": "快取權杖閾值",
-            "token_threshold_help": "超過此標記數量的訊息將被快取。設為 0 以停用快取。"
+            "token_threshold_help": "超過此標記數量的訊息將被快取。設為 0 以停用快取。",
+            "ttl": "快取時長",
+            "ttl_1h": "1 小時",
+            "ttl_5min": "5 分鐘",
+            "ttl_help": "快取內容的保留時間。5 分鐘為預設選項；1 小時有額外費用但快取保持更久。"
           },
           "array_content": {
             "help": "該供應商是否支援 message 的 content 欄位為 array 類型",

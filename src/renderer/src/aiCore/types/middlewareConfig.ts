@@ -14,6 +14,7 @@ export interface AiSdkMiddlewareConfig {
   streamOutput: boolean
   onChunk?: (chunk: Chunk) => void
   assistant?: Assistant
+  assistantMessageId?: string
   enableReasoning: boolean
   isPromptToolUse: boolean
   isSupportedToolUse: boolean

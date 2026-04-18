@@ -254,6 +254,9 @@ export type Usage = OpenAI.Completions.CompletionUsage & {
   thoughts_tokens?: number
   // OpenRouter specific fields
   cost?: number
+  // Anthropic prompt caching fields
+  cache_read_tokens?: number
+  cache_creation_tokens?: number
 }
 
 export type Metrics = {
@@ -1183,6 +1186,7 @@ type BaseParams = {
   requestOptions?: FetchChatCompletionRequestOptions
   onChunkReceived: (chunk: Chunk) => void
   topicId?: string // 添加 topicId 参数
+  assistantMessageId?: string
   allowedTools?: string[]
   uiMessages?: Message[]
 }

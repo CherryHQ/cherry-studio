@@ -54,10 +54,12 @@ const MessageTokens: React.FC<MessageTokensProps> = ({ message }) => {
     return null
   }
 
+  const fmt = (n: number): string => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n))
+
   if (message.role === 'user') {
     return (
       <MessageMetadata className="message-tokens" onClick={locateMessage}>
-        {`Tokens: ${message?.usage?.total_tokens}`}
+        {`Tokens: ${fmt(message?.usage?.total_tokens ?? 0)}`}
       </MessageMetadata>
     )
   }
@@ -75,12 +77,17 @@ const MessageTokens: React.FC<MessageTokensProps> = ({ message }) => {
       })
     }
 
+    const cacheReadTokens = message?.usage?.cache_read_tokens ?? 0
+
     const tokensInfo = (
       <span className="tokens">
         Tokens:
-        <span>{message?.usage?.total_tokens}</span>
-        <span>↑{message?.usage?.prompt_tokens}</span>
-        <span>↓{message?.usage?.completion_tokens}</span>
+        <span>{fmt(message?.usage?.total_tokens ?? 0)}</span>
+        <span>
+          ↑{fmt(message?.usage?.prompt_tokens ?? 0)}
+          {cacheReadTokens > 0 && ` (${fmt(cacheReadTokens)} cached)`}
+        </span>
+        <span>↓{fmt(message?.usage?.completion_tokens ?? 0)}</span>
         <span>{getPriceString()}</span>
       </span>
     )
