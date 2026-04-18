@@ -6,6 +6,7 @@ import {
   isVisionModel,
   isWebSearchModel
 } from '@renderer/config/models'
+import { getProviderLabel, hasProviderLabel } from '@renderer/i18n/label'
 import type { AdaptedApiModel, ApiModel, Model, ModelTag } from '@renderer/types'
 import { objectKeys } from '@renderer/types'
 
@@ -70,6 +71,37 @@ export function isFreeModel(model: Model) {
   }
 
   return (model.id + model.name).toLocaleLowerCase().includes('free')
+}
+
+const MODEL_GROUP_DISPLAY_ALIASES: Record<string, string> = {
+  'black-forest-labs': 'Black Forest Labs',
+  'deepseek-ai': 'DeepSeek',
+  cartesia: 'Cartesia',
+  google: 'Google',
+  hexgrad: 'Hexgrad',
+  mistralai: 'Mistral AI',
+  qwen: 'Qwen',
+  'x-ai': 'xAI',
+  xai: 'xAI'
+}
+
+export function getModelGroupDisplayName(group: string): string {
+  const trimmedGroup = group.trim()
+
+  if (!trimmedGroup) {
+    return ''
+  }
+
+  if (hasProviderLabel(trimmedGroup)) {
+    return getProviderLabel(trimmedGroup)
+  }
+
+  const alias = MODEL_GROUP_DISPLAY_ALIASES[trimmedGroup.toLowerCase()]
+  if (alias) {
+    return alias
+  }
+
+  return trimmedGroup
 }
 
 export const getDuplicateModelNames = <T extends Pick<Model, 'name'>>(models: T[]): Set<string> => {
