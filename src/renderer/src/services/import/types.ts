@@ -1,5 +1,5 @@
 import type { Assistant, Topic } from '@renderer/types'
-import type { MainTextMessageBlock, Message } from '@renderer/types/newMessage'
+import type { Message, MessageBlock } from '@renderer/types/newMessage'
 
 /**
  * Import result containing parsed data
@@ -7,7 +7,7 @@ import type { MainTextMessageBlock, Message } from '@renderer/types/newMessage'
 export interface ImportResult {
   topics: Topic[]
   messages: Message[]
-  blocks: MainTextMessageBlock[]
+  blocks: MessageBlock[]
   metadata?: Record<string, unknown>
 }
 
@@ -20,6 +20,25 @@ export interface ImportResponse {
   topicsCount: number
   messagesCount: number
   error?: string
+}
+
+/**
+ * Import options that can be passed to importers
+ */
+export interface ImportOptions {
+  /**
+   * For Claude imports: import all branches (edit history, regenerations) instead of just the main branch
+   */
+  importAllBranches?: boolean
+}
+
+/**
+ * Model bucket used during streaming/batch imports to group conversations by model
+ */
+export interface ModelBucket {
+  assistantId: string
+  modelLabel: string
+  topicRefs: Topic[]
 }
 
 /**
@@ -46,7 +65,16 @@ export interface ConversationImporter {
    * Parse file content and convert to unified format
    * @param fileContent - Raw file content (usually JSON string)
    * @param assistantId - ID of the assistant to associate with
+   * @param options - Optional import options
    * @returns Parsed topics, messages, and blocks
    */
-  parse(fileContent: string, assistantId: string): Promise<ImportResult>
+  parse(fileContent: string, assistantId: string, options?: ImportOptions): Promise<ImportResult>
+
+  /**
+   * Optional: Extract model bucket info for grouping conversations during batch imports.
+   * If implemented, ImportService will create separate assistants for each unique model key.
+   * @param fileContent - Raw file content to analyze
+   * @returns { key: model identifier, label: display name } or null if not applicable
+   */
+  getModelBucket?(fileContent: string): { key: string; label: string } | null
 }
