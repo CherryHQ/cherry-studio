@@ -16,17 +16,19 @@ vi.mock('@data/PreferenceService', async () => {
   return MockMainPreferenceServiceExport
 })
 
-const { windowServiceMock, selectionServiceMock, globalShortcutMock } = vi.hoisted(() => ({
+const { windowServiceMock, selectionServiceMock, quickAssistantServiceMock, globalShortcutMock } = vi.hoisted(() => ({
   windowServiceMock: {
     getMainWindow: vi.fn(),
     onMainWindowCreated: vi.fn(),
     showMainWindow: vi.fn(),
-    toggleMainWindow: vi.fn(),
-    toggleMiniWindow: vi.fn()
+    toggleMainWindow: vi.fn()
   },
   selectionServiceMock: {
     toggleEnabled: vi.fn(),
     processSelectTextByShortcut: vi.fn()
+  },
+  quickAssistantServiceMock: {
+    toggleQuickWindow: vi.fn()
   },
   globalShortcutMock: {
     register: vi.fn(),
@@ -38,7 +40,8 @@ vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
     WindowService: windowServiceMock,
-    SelectionService: selectionServiceMock
+    SelectionService: selectionServiceMock,
+    QuickAssistantService: quickAssistantServiceMock
   } as any)
 })
 

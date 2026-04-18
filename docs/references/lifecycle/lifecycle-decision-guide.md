@@ -172,3 +172,18 @@ Does the service need to be entirely excluded on some platforms?
 2. **Request-scoped ≠ long-lived** — `BackupManager` creates S3 connections inside `backup()` and releases on return. That's request-scoped. No lifecycle needed.
 3. **"Depends on PreferenceService"** — not a lifecycle concern. Any code can call `application.get('PreferenceService')`. Only register if the service itself owns resources.
 4. **Using `@Conditional` for runtime conditions** — `@Conditional` is evaluated once at boot. For conditions that change at runtime (user preferences, events), use `Activatable` instead.
+5. **Redundant cross-phase `@DependsOn`** — WhenReady services do not need `@DependsOn('PreferenceService')` or `@DependsOn('DbService')`. Phase ordering is enforced by the container; BeforeReady is always ready before WhenReady starts. Only declare `@DependsOn` for same-phase services.
+
+   ```typescript
+   // ❌ Redundant — PreferenceService is BeforeReady, guaranteed ready
+   @Injectable('WindowService')
+   @ServicePhase(Phase.WhenReady)
+   @DependsOn('PreferenceService')   // <-- remove this
+   export class WindowService extends BaseService { ... }
+
+   // ✅ Correct — only declare same-phase deps
+   @Injectable('AgentBootstrapService')
+   @ServicePhase(Phase.WhenReady)
+   @DependsOn('ApiServerService')    // ApiServerService is also WhenReady
+   export class AgentBootstrapService extends BaseService { ... }
+   ```

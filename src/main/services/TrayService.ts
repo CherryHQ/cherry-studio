@@ -64,7 +64,7 @@ export class TrayService extends BaseService implements Activatable {
       const clickTrayToShowQuickAssistant = preferenceService.get('feature.quick_assistant.click_tray_to_show')
 
       if (quickAssistantEnabled && clickTrayToShowQuickAssistant) {
-        application.get('WindowService').showMiniWindow()
+        application.get('QuickAssistantService').showQuickWindow()
       } else {
         application.get('WindowService').showMainWindow()
       }
@@ -94,7 +94,7 @@ export class TrayService extends BaseService implements Activatable {
       },
       quickAssistantEnabled && {
         label: trayLocale.show_mini_window,
-        click: () => application.get('WindowService').showMiniWindow()
+        click: () => application.get('QuickAssistantService').showQuickWindow()
       },
       (isWin || isMac) && {
         label: selectionLocale.name + (selectionAssistantEnabled ? ' - On' : ' - Off'),

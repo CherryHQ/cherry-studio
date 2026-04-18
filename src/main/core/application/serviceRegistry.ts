@@ -22,6 +22,7 @@ import { PowerMonitorService } from '@main/services/PowerMonitorService'
 import { ProtocolService } from '@main/services/ProtocolService'
 import { ProxyManager } from '@main/services/ProxyManager'
 import { PythonService } from '@main/services/PythonService'
+import { QuickAssistantService } from '@main/services/QuickAssistantService'
 import { SearchService } from '@main/services/SearchService'
 import { SelectionService } from '@main/services/SelectionService'
 import { ShortcutService } from '@main/services/ShortcutService'
@@ -81,6 +82,7 @@ export const services = {
   TrayService,
   WebviewService,
   WindowService,
+  QuickAssistantService,
   MCPService,
   OpenClawService,
   SearchService,

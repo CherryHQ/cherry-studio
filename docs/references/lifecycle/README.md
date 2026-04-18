@@ -60,15 +60,24 @@ For the full decision framework with examples, condition tables, and common mist
 
 ---
 
+## Cross-Phase Dependencies Are Automatic
+
+WhenReady services do **not** need to `@DependsOn` BeforeReady services (`PreferenceService`, `DbService`, `CacheService`, `DataApiService`). The lifecycle container guarantees BeforeReady completes before any WhenReady service starts. Declaring these dependencies is redundant, creates misleading noise in the dependency graph, and may confuse future readers about same-phase coupling. **Only use `@DependsOn` for services within the same phase, or for WhenReady → WhenReady dependencies.**
+
+See [Dependency Rules](./lifecycle-overview.md#dependency-rules) for the full matrix and [Common Mistakes](./lifecycle-decision-guide.md#common-mistakes) for a code-level example.
+
+---
+
 ## Common Anti-patterns
 
-| Wrong Choice                                | Why It's Wrong                                                  | Correct Choice                          |
-| ------------------------------------------- | --------------------------------------------------------------- | --------------------------------------- |
-| Using lifecycle for `ExportService`         | No `onInit`/`onStop` needed — all work is method-scoped         | **Direct-import singleton**             |
-| Using lifecycle for `MessageRepository`     | Just wraps DB queries; the DB connection belongs to `DbService` | **Direct-import singleton**             |
-| Using direct-import for `CacheService`      | Owns a GC timer that needs cleanup on shutdown                  | **Lifecycle**                           |
-| Manual `getInstance()` singleton            | Lifecycle container manages singletons automatically            | **`@Injectable` + `application.get()`** |
-| Calling `application.get()` at module scope | Runs before bootstrap — service not yet registered              | **Call inside `onInit()` or methods**   |
+| Wrong Choice                                                                       | Why It's Wrong                                                                                                    | Correct Choice                                                          |
+| ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Using lifecycle for `ExportService`                                                | No `onInit`/`onStop` needed — all work is method-scoped                                                           | **Direct-import singleton**                                             |
+| Using lifecycle for `MessageRepository`                                            | Just wraps DB queries; the DB connection belongs to `DbService`                                                   | **Direct-import singleton**                                             |
+| Using direct-import for `CacheService`                                             | Owns a GC timer that needs cleanup on shutdown                                                                    | **Lifecycle**                                                           |
+| Manual `getInstance()` singleton                                                   | Lifecycle container manages singletons automatically                                                              | **`@Injectable` + `application.get()`**                                 |
+| Calling `application.get()` at module scope                                        | Runs before bootstrap — service not yet registered                                                                | **Call inside `onInit()` or methods**                                   |
+| Redundant `@DependsOn` on cross-phase deps (e.g. WhenReady → `PreferenceService`)  | BeforeReady phase is guaranteed to finish before WhenReady starts — declaration is noise and mis-signals coupling | **Omit `@DependsOn` for cross-phase deps; only declare same-phase deps** |
 
 ---
 
