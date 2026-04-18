@@ -354,14 +354,16 @@ export class ClaudeCodeLanguageModel implements LanguageModelV3 {
     return this.settings.env?.ANTHROPIC_MODEL ?? this.modelId
   }
 
-  // ── Steering ────────────────────────────────────────────────────
+  // ── Mid-stream message injection ────────────────────────────────
 
   /**
-   * Map an AsyncIterable<string> (steering messages from PendingMessageQueue)
-   * to an AsyncIterable<SDKUserMessage> for query.streamInput().
+   * Map an `AsyncIterable<Message>` (follow-up messages from
+   * `PendingMessageQueue`, injected via `AiStreamManager.injectMessage`)
+   * into the `AsyncIterable<SDKUserMessage>` shape that Claude Agent
+   * SDK's `query.streamInput()` expects.
    */
-  private async *mapSteeringToSdkMessages(
-    source: NonNullable<ClaudeCodeSettings['steeringSource']>
+  private async *mapInjectedMessagesToSdk(
+    source: NonNullable<ClaudeCodeSettings['injectedMessageSource']>
   ): AsyncIterable<SDKUserMessage> {
     for await (const message of source) {
       const parts = message.data?.parts
@@ -394,7 +396,7 @@ export class ClaudeCodeLanguageModel implements LanguageModelV3 {
     // Spread all settings (which are already Omit<Options, managed fields>),
     // then overlay provider-managed fields.
     // oxlint-disable-next-line no-unused-vars
-    const { maxToolResultSize: _mts, steeringSource: _ss, ...settingsRest } = this.settings
+    const { maxToolResultSize: _mts, injectedMessageSource: _ims, ...settingsRest } = this.settings
 
     const opts: Partial<Options> = {
       ...settingsRest,
@@ -721,9 +723,9 @@ export class ClaudeCodeLanguageModel implements LanguageModelV3 {
 
           const response = query({ prompt: sdkPrompt, options: queryOptions })
 
-          // Pipe steering messages to SDK's streamInput for mid-turn injection
-          if (this.settings.steeringSource) {
-            void response.streamInput(this.mapSteeringToSdkMessages(this.settings.steeringSource))
+          // Pipe injected follow-up messages into the SDK's streamInput for mid-turn injection
+          if (this.settings.injectedMessageSource) {
+            void response.streamInput(this.mapInjectedMessagesToSdk(this.settings.injectedMessageSource))
           }
 
           for await (const message of response) {

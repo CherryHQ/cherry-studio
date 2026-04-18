@@ -38,12 +38,13 @@ export type ClaudeCodeSettings = Omit<Options, 'model' | 'abortController' | 'pr
   /** Maximum size (chars) for tool results in client stream. @default 10000 */
   maxToolResultSize?: number
   /**
-   * Async iterable of steering messages injected mid-stream.
-   * The language model extracts text from each Message and feeds it to
-   * query.streamInput() as SDKUserMessage for mid-turn injection.
-   * Set by AiStreamManager — backed by PendingMessageQueue (which is AsyncIterable).
+   * Async iterable of follow-up messages injected mid-stream. The
+   * language model extracts text from each Message and forwards it to
+   * the Claude Agent SDK's `query.streamInput()` as an `SDKUserMessage`
+   * for mid-turn injection. Set by AiStreamManager — backed by
+   * `PendingMessageQueue` (which implements AsyncIterable).
    */
-  steeringSource?: AsyncIterable<Message>
+  injectedMessageSource?: AsyncIterable<Message>
 }
 
 /**

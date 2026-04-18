@@ -1,12 +1,13 @@
 import type { Message } from '@shared/data/types/message'
 
 /**
- * Queue for steering messages injected mid-stream.
+ * Queue of follow-up messages injected mid-stream by
+ * `AiStreamManager.injectMessage`.
  *
  * Supports three consumption modes:
- * - drain(): batch drain for agentLoop outer loop iterations
- * - AsyncIterable: streaming consumption for Claude Code's query.streamInput()
- * - list/remove/reorder: UI-driven queue management
+ * - `drain()`: batch drain used by agentLoop between outer iterations
+ * - AsyncIterable: streaming consumption for Claude Code's `query.streamInput()`
+ * - list / remove / reorder: UI-driven queue management
  */
 export class PendingMessageQueue {
   private messages: Message[] = []
@@ -71,7 +72,7 @@ export class PendingMessageQueue {
     this.messages = reordered
   }
 
-  // ── AsyncIterable (for steeringSource → query.streamInput) ──
+  // ── AsyncIterable (for Claude Code's injectedMessageSource → query.streamInput) ──
 
   /** Stop the async iterator. No more messages will be yielded. */
   close(): void {

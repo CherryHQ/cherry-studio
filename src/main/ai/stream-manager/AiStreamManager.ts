@@ -49,7 +49,11 @@ export interface SendInput {
   models: ReadonlyArray<SendModelSpec>
   /** All listeners (subscriber + per-execution persistence + etc). Upserted by id. */
   listeners: StreamListener[]
-  /** Pushed into the shared pending queue when an active stream exists (steer). */
+  /**
+   * Follow-up user message to inject into every existing execution's
+   * queue when a live stream already exists for this topic. Ignored on
+   * the `started` path.
+   */
   userMessage?: Message
   /** Shared group id across executions so parallel responses render as siblings. */
   siblingsGroupId?: number
@@ -57,10 +61,15 @@ export interface SendInput {
 
 /** Result of `AiStreamManager.send`. */
 export interface SendResult {
-  mode: 'started' | 'steered'
   /**
-   * `started` → the freshly launched execution ids.
-   * `steered` → the execution ids already running on the topic.
+   * `'started'`  — a new stream and its executions were created.
+   * `'injected'` — a stream was already live; `userMessage` was pushed
+   *                 into every running execution's pending queue.
+   */
+  mode: 'started' | 'injected'
+  /**
+   * `started`  → the freshly launched execution ids.
+   * `injected` → the execution ids already running on the topic.
    */
   executionIds: UniqueModelId[]
 }
@@ -81,7 +90,7 @@ export interface ExecutionSnapshot {
   readonly droppedChunks: number
   readonly siblingsGroupId?: number
   /**
-   * Latest accumulated UIMessage. Populated live by the pump's
+   * Latest accumulated UIMessage. Populated live by the execution loop's
    * `readUIMessageStream` accumulator; terminal events (`onDone` etc.)
    * carry the same reference. `undefined` until the first snapshot lands.
    */
@@ -168,13 +177,13 @@ export class AiStreamManager extends BaseService {
   }
 
   /**
-   * Graceful shutdown: abort every active stream so each pump can run its
+   * Graceful shutdown: abort every active stream so each execution loop runs its
    * own terminal path (`onExecutionPaused` → `broadcastExecutionPaused` →
-   * `PersistenceListener.onPaused`), then await each pump's promise so
+   * `PersistenceListener.onPaused`), then await each execution loop's promise so
    * persistence is complete before the process exits.
    *
    * We intentionally do NOT re-broadcast `onPaused` from here — doing so
-   * would double-dispatch against the pump's own terminal event and
+   * would double-dispatch against the execution loop's own terminal event and
    * cause append-only backends (temporary chats, agent session messages)
    * to write the same assistant turn twice.
    */
@@ -186,17 +195,17 @@ export class AiStreamManager extends BaseService {
     if (activeTopics.length === 0) return
     logger.info('Stopping active streams on shutdown', { count: activeTopics.length })
 
-    const pumpPromises: Promise<void>[] = []
+    const loopPromises: Promise<void>[] = []
     for (const topicId of activeTopics) {
       const stream = this.activeStreams.get(topicId)
       if (!stream) continue
       for (const exec of stream.executions.values()) {
-        pumpPromises.push(exec.pumpPromise)
+        loopPromises.push(exec.loopPromise)
       }
       this.abort(topicId, 'app-shutdown')
     }
 
-    await Promise.allSettled(pumpPromises)
+    await Promise.allSettled(loopPromises)
   }
 
   // ── Public: unified send ──────────────────────────────────────────
@@ -205,33 +214,34 @@ export class AiStreamManager extends BaseService {
    * The single entry point for "dispatch a stream request for a topic".
    *
    * Behaviour is chosen from the topic's current active-stream state:
-   *  - Topic has an active streaming stream → **steer**: push the optional
-   *    `userMessage` into the shared pending queue and upsert every listener.
-   *    The running executions will consume the queue between iterations.
-   *    `models` is intentionally ignored in this path (we do not spin up new
-   *    executions mid-flight).
+   *  - Topic has a live stream (pending or streaming) → **inject**: push
+   *    the optional `userMessage` into every execution's own pending
+   *    queue and upsert every listener. The running executions will
+   *    consume their queues between iterations. `models` is intentionally
+   *    ignored in this path (we do not spin up new executions mid-flight).
    *  - Otherwise → **start**: evict any grace-period stream, create a new
-   *    ActiveStream, and launch one execution per entry in `models`. Multi-model
-   *    is detected from `models.length > 1` — callers no longer pass a flag.
+   *    ActiveStream, and launch one execution per entry in `models`.
+   *    Multi-model is detected from `models.length > 1` — callers no
+   *    longer pass a flag.
    *
    * `executionIds` in the result reflects the executions the caller can
-   * observe: in `started` mode it is the freshly launched set; in `steered`
-   * mode it is the set already running on the topic.
+   * observe: in `started` mode it is the freshly launched set; in
+   * `injected` mode it is the set already running on the topic.
    */
   send(input: SendInput): SendResult {
     const existing = this.activeStreams.get(input.topicId)
 
     if (existing && isLiveStatus(existing.status)) {
-      // Steer path: fan the user message out to every execution's own queue
-      // so heterogeneous consumers (agentLoop `drain()`, Claude Code
-      // `AsyncIterable.next()`) each see it instead of racing for a single
-      // shared copy.
+      // Inject path: fan the user message out to every execution's own
+      // queue so heterogeneous consumers (agentLoop `drain()`, Claude
+      // Code `AsyncIterable.next()`) each see it, instead of racing for
+      // a single shared copy.
       if (input.userMessage) {
         for (const exec of existing.executions.values()) exec.pendingMessages.push(input.userMessage)
       }
       for (const listener of input.listeners) this.addListener(input.topicId, listener)
       return {
-        mode: 'steered',
+        mode: 'injected',
         executionIds: [...existing.executions.keys()]
       }
     }
@@ -278,8 +288,15 @@ export class AiStreamManager extends BaseService {
     }
   }
 
-  /** Push a steering message into every running execution of a topic. */
-  steer(topicId: string, message: Message): boolean {
+  /**
+   * Inject a follow-up message into every running execution of a topic.
+   * Used when a new user message arrives while a stream is still live on
+   * this topic: each execution receives its own copy on its own queue so
+   * heterogeneous consumers (agentLoop `drain()`, Claude Code
+   * `AsyncIterable.next()`) each see the message instead of racing for a
+   * single shared queue. Returns `false` if the topic has no live stream.
+   */
+  injectMessage(topicId: string, message: Message): boolean {
     const stream = this.activeStreams.get(topicId)
     if (!stream || !isLiveStatus(stream.status)) return false
     for (const exec of stream.executions.values()) exec.pendingMessages.push(message)
@@ -324,8 +341,9 @@ export class AiStreamManager extends BaseService {
     stream.status = 'aborted'
   }
 
-  // ── Execution pump callbacks ──────────────────────────────────────
-  // These are driven internally by createAndLaunchExecution's pump loop.
+  // ── Execution loop callbacks ──────────────────────────────────────
+  // These are driven internally by the loop started in
+  // `createAndLaunchExecution`.
   // They remain public because tests and (historically) external adapters
   // may invoke them directly to simulate chunk/done/error flow.
 
@@ -363,9 +381,9 @@ export class AiStreamManager extends BaseService {
     exec.buffer.push({ topicId, executionId: sourceModelId, chunk })
 
     // Chunk delivery is synchronous by contract (listeners must not block
-    // the pump). We inline the liveness scrub here rather than routing
+    // the execution loop). We inline the liveness scrub here rather than routing
     // through the async `dispatchToListeners` helper so dead listeners
-    // are reaped before the next onChunk / attach runs.
+    // are removed before the next onChunk / attach runs.
     const dead: string[] = []
     for (const [id, listener] of stream.listeners) {
       if (!listener.isAlive()) {
@@ -407,7 +425,7 @@ export class AiStreamManager extends BaseService {
 
     if (isTopicDone) {
       this.broadcastTopicStatus(topicId, stream.status)
-      this.scheduleReap(topicId)
+      this.scheduleCleanup(topicId)
     }
   }
 
@@ -425,7 +443,7 @@ export class AiStreamManager extends BaseService {
 
     if (isTopicDone) {
       this.broadcastTopicStatus(topicId, stream.status)
-      this.scheduleReap(topicId)
+      this.scheduleCleanup(topicId)
     }
   }
 
@@ -455,7 +473,7 @@ export class AiStreamManager extends BaseService {
 
     if (isTopicDone) {
       this.broadcastTopicStatus(topicId, stream.status)
-      this.scheduleReap(topicId)
+      this.scheduleCleanup(topicId)
     }
   }
 
@@ -463,9 +481,9 @@ export class AiStreamManager extends BaseService {
 
   /**
    * Read-only snapshot of a topic's state. Returns `undefined` when the
-   * topic has no active stream (either never opened or already reaped
-   * past its grace period). Callers should treat the snapshot as
-   * immutable — the returned objects are not live views.
+   * topic has no active stream (either never opened, or the grace period
+   * expired and the stream was cleaned up). Callers should treat the
+   * snapshot as immutable — the returned objects are not live views.
    */
   inspect(topicId: string): TopicSnapshot | undefined {
     const stream = this.activeStreams.get(topicId)
@@ -547,10 +565,10 @@ export class AiStreamManager extends BaseService {
    * done / aborted / error. Callers are responsible for updating
    * `stream.status` first so the broadcast reflects the committed state.
    *
-   * The grace-period reap does NOT broadcast — cache mirrors retain the
-   * last terminal status until a local consumer (e.g. the active-topic
-   * `useEffect` in `Topics.tsx`) evicts it, mirroring the pre-refactor
-   * "fulfilled flag sticks until the user sees it" behaviour.
+   * The grace-period cleanup does NOT broadcast — cache mirrors retain
+   * the last terminal status until a local consumer (e.g. the
+   * active-topic `useEffect` in `Topics.tsx`) evicts it, mirroring the
+   * pre-refactor "fulfilled flag sticks until the user sees it" behaviour.
    */
   private broadcastTopicStatus(topicId: string, status: TopicStreamStatus): void {
     const windowService = application.get('WindowService')
@@ -584,8 +602,8 @@ export class AiStreamManager extends BaseService {
    * Snapshot of every currently-tracked topic's status and its
    * `activeExecutionIds`. Used by freshly mounted renderer hooks to
    * bootstrap their view before the push channel starts delivering
-   * deltas. Idle topics (already reaped) are intentionally absent from
-   * the map — consumers treat "missing key" as "no active stream".
+   * deltas. Topics whose grace period has already expired are absent
+   * from the map — consumers treat "missing key" as "no active stream".
    */
   getTopicStatuses(): Record<string, TopicStatusSnapshotEntry> {
     const result: Record<string, TopicStatusSnapshotEntry> = {}
@@ -601,9 +619,9 @@ export class AiStreamManager extends BaseService {
   // ── Internal helpers ──────────────────────────────────────────────
 
   /**
-   * Create a StreamExecution and launch its pump loop.
+   * Create a StreamExecution and launch its execution loop.
    *
-   * The pump:
+   * The loop:
    *  - pulls `UIMessageChunk`s from `AiService.streamText`
    *  - `tee()`s the chunk stream into two branches:
    *      • broadcast — forwarded chunk-by-chunk via `onChunk`
@@ -622,9 +640,10 @@ export class AiStreamManager extends BaseService {
     siblingsGroupId?: number
   ): StreamExecution {
     // Each execution gets its own pending queue and replay ring buffer;
-    // steering fan-out happens at the manager level (see `send` / `steer`).
+    // message-injection fan-out happens at the manager level (see
+    // `send` / `injectMessage`).
     const pendingMessages = new PendingMessageQueue()
-    // `pumpPromise` is overwritten right after launch — we need a stable
+    // `loopPromise` is overwritten right after launch — we need a stable
     // object reference to hang the promise on inside the arrow function
     // below, so initialise to a resolved sentinel.
     const exec: StreamExecution = {
@@ -636,21 +655,21 @@ export class AiStreamManager extends BaseService {
       droppedChunks: 0,
       siblingsGroupId,
       timings: { startedAt: performance.now() },
-      pumpPromise: Promise.resolve()
+      loopPromise: Promise.resolve()
     }
     const requestWithQueue: AiStreamRequest = { ...request, pendingMessages }
 
-    exec.pumpPromise = this.runExecutionPump(topicId, modelId, requestWithQueue, exec).catch((err) => {
-      // Defensive: runExecutionPump handles its own errors, but if it throws
-      // synchronously (e.g. aiService.streamText fails before returning a
-      // stream), funnel it into the standard error path.
+    exec.loopPromise = this.runExecutionLoop(topicId, modelId, requestWithQueue, exec).catch((err) => {
+      // Defensive: runExecutionLoop handles its own errors, but if it
+      // throws synchronously (e.g. aiService.streamText fails before
+      // returning a stream), funnel it into the standard error path.
       return this.onExecutionError(topicId, modelId, serializeError(err))
     })
 
     return exec
   }
 
-  private async runExecutionPump(
+  private async runExecutionLoop(
     topicId: string,
     modelId: UniqueModelId,
     request: AiStreamRequest,
@@ -726,7 +745,7 @@ export class AiStreamManager extends BaseService {
       if (signal.aborted) {
         logger.debug('Execution aborted', { topicId, modelId, reason: signal.reason })
       } else {
-        logger.error('Execution pump error', { topicId, modelId, err })
+        logger.error('Execution loop error', { topicId, modelId, err })
       }
       await this.onExecutionError(topicId, modelId, serializeError(err))
     } finally {
@@ -752,7 +771,7 @@ export class AiStreamManager extends BaseService {
     // `readUIMessageStream<CherryUIMessage>` does the narrowing from wide
     // `UIMessageChunk` input to `CherryUIMessage` output — that is the single
     // point where transport-level width meets Cherry-level shape. Upstream
-    // (pump, AiService) stay on the wide AI SDK type so an unexpected
+    // (execution loop, AiService) stay on the wide AI SDK type so an unexpected
     // `data-*` variant from a provider / MCP tool can't be silently cast.
     const uiStream = readUIMessageStream<CherryUIMessage>({ stream: chunkStream })
     const reader = uiStream.getReader()
@@ -811,7 +830,7 @@ export class AiStreamManager extends BaseService {
    *  - tags log lines with the event name for easy triage
    *
    * Unlike `onChunk`, terminal dispatch awaits each listener so that
-   * `PersistenceListener` writes complete before `scheduleReap` runs.
+   * `PersistenceListener` writes complete before `scheduleCleanup` runs.
    */
   private async dispatchToListeners(
     stream: ActiveStream,
@@ -864,26 +883,34 @@ export class AiStreamManager extends BaseService {
     return 'done'
   }
 
-  private scheduleReap(topicId: string): void {
+  /**
+   * After a stream reaches a terminal state, keep it in `activeStreams` for
+   * `gracePeriodMs` so late reconnects can still retrieve `finalMessage` via
+   * `attach`, then delete the entry. No status broadcast is emitted — cache
+   * mirrors retain the last terminal value until a local consumer evicts it,
+   * and `getTopicStatuses()` simply stops reporting this topic once it's
+   * removed, so freshly mounted observers start clean.
+   */
+  private scheduleCleanup(topicId: string): void {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return
-    stream.reapAt = Date.now() + this.config.gracePeriodMs
-    stream.reapTimer = setTimeout(() => {
+    stream.expiresAt = Date.now() + this.config.gracePeriodMs
+    stream.cleanupTimer = setTimeout(() => {
       if (this.activeStreams.get(topicId) === stream) {
         this.activeStreams.delete(topicId)
-        // No status broadcast on reap — cache mirrors keep the terminal
-        // state (`done` / `error` / `aborted`) until a local consumer
-        // evicts it. `getTopicStatuses()` will simply omit this topic
-        // now that it's gone from `activeStreams`, so any freshly
-        // mounted observer starts clean.
       }
     }, this.config.gracePeriodMs)
   }
 
+  /**
+   * Immediately remove a stream from `activeStreams`, cancelling any pending
+   * cleanup timer. Used by `send` when the caller wants to start a new stream
+   * on a topic whose previous stream is still sitting in the grace period.
+   */
   private evictStream(topicId: string): void {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return
-    if (stream.reapTimer) clearTimeout(stream.reapTimer)
+    if (stream.cleanupTimer) clearTimeout(stream.cleanupTimer)
     this.activeStreams.delete(topicId)
   }
 }

@@ -9,7 +9,7 @@
  *
  * Keeping the `manager.send` call on this single code path means:
  *  - providers never see the manager (simpler to test)
- *  - the steer / start / multi-model fan-out contract is enforced here
+ *  - the inject / start / multi-model fan-out contract is enforced here
  *  - adding a new topic namespace only requires adding a provider
  */
 

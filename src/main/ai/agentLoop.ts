@@ -32,9 +32,9 @@ export interface IterationContext {
   iterationNumber: number
   /**
    * Conversation view as UIMessage[] — grows each iteration with an empty
-   * assistant placeholder + any steering user messages drained between
-   * iterations. Hooks that need the actual assistant response content should
-   * consult `IterationResult.messages` inside `afterIteration`.
+   * assistant placeholder plus any injected follow-up user messages drained
+   * between iterations. Hooks that need the actual assistant response
+   * content should consult `IterationResult.messages` inside `afterIteration`.
    */
   messages: UIMessage[]
   totalSteps: number
@@ -86,7 +86,7 @@ export interface AgentLoopHooks {
   /** Before each outer loop iteration. Use for: compileContext, memory recall, otel iteration span */
   beforeIteration?: (ctx: IterationContext) => Promise<BeforeIterationResult | void> | BeforeIterationResult | void
 
-  /** Forwarded to AI SDK prepareStep. Use for: steering drain, tail pruning */
+  /** Forwarded to AI SDK prepareStep. Use for: draining injected messages, tail pruning */
   prepareStep?: PrepareStepFunction
 
   /** Forwarded to AI SDK onStepFinish. Use for: progress push, otel step span */
@@ -154,7 +154,12 @@ export interface AgentLoopParams<T extends AppProviderKey = AppProviderKey> {
   /** AI SDK agent settings (model params, tool choice, provider options, etc.) */
   options?: AgentOptions
   hooks?: AgentLoopHooks
-  /** Session-isolated steering queue. Drained between iterations to append user messages. */
+  /**
+   * Session-isolated queue of follow-up messages injected mid-stream
+   * (via `AiStreamManager.injectMessage`). Drained between iterations
+   * so the next iteration's conversation view includes any new user
+   * messages that arrived during the previous one.
+   */
   pendingMessages?: PendingMessageQueue
 }
 
@@ -300,7 +305,7 @@ export function runAgentLoop<T extends AppProviderKey>(
       //
       // 2. `timeThinkingMs` — pure reasoning vs tool-exec time
       //    `ExecutionTimings.reasoningStartedAt / reasoningEndedAt` (set
-      //    by the pump) is wall-clock and may include tool execution
+      //    by the execution loop) is wall-clock and may include tool execution
       //    time that interleaves reasoning and text chunks. We currently
       //    DO NOT project it onto `MessageStats.timeThinkingMs` to avoid
       //    a polluted value in the DB.
@@ -394,7 +399,7 @@ export function runAgentLoop<T extends AppProviderKey>(
       // Continue if afterIteration explicitly returns true
       if (shouldContinue === true) continue
 
-      // Before breaking, drain pending steering messages into the conversation
+      // Before breaking, drain injected follow-up messages into the conversation
       const pending = params.pendingMessages?.drain() ?? []
       if (pending.length === 0) break
 

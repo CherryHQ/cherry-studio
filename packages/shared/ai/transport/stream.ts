@@ -48,8 +48,9 @@ export interface TopicStatusChangedPayload {
 
 /**
  * Snapshot entry returned by `Ai_Topic_GetStatuses` — mirrors the push
- * payload minus `topicId` (the map key). Reaped topics are absent from
- * the map so freshly-mounted observers start clean without stale data.
+ * payload minus `topicId` (the map key). Topics whose grace period has
+ * already expired are absent from the map so freshly-mounted observers
+ * start clean without stale data.
  */
 export interface TopicStatusSnapshotEntry {
   status: TopicStreamStatus
@@ -122,7 +123,13 @@ export type AiStreamAttachResponse =
 
 /** Result of an open attempt. */
 export interface AiStreamOpenResponse {
-  mode: 'started' | 'steered'
+  /**
+   * `'started'`  — a brand new stream was created on this topic.
+   * `'injected'` — a stream was already live on this topic; the new
+   *                 message was injected into every running execution
+   *                 via `AiStreamManager.injectMessage`.
+   */
+  mode: 'started' | 'injected'
   /** Multi-model: execution IDs for frontend to create per-model streams. */
   executionIds?: UniqueModelId[]
 }

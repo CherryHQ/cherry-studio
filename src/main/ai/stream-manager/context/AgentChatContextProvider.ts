@@ -6,7 +6,8 @@
  *  - persist messages through agentMessageRepository, not MessageService
  *  - resolve the model from the session record, not the assistant
  *  - always submit a single model (no `@mention` fan-out) and pass a
- *    `userMessage` so `manager.send` steers into any in-flight session.
+ *    `userMessage` so `manager.send` injects it into any in-flight
+ *    session on this topic.
  */
 
 import { sessionService } from '@main/services/agents'
@@ -87,11 +88,12 @@ export class AgentChatContextProvider implements ChatContextProvider {
           }
         }
       ],
-      // Passing userMessage means the dispatcher's `manager.send` can steer
-      // the new prompt into any in-flight Claude Code session on this topic
-      // via the pending queue. `data.parts` MUST be populated — downstream
-      // consumers (Claude Code steeringSource, agentLoop pending drain) read
-      // `msg.data?.parts`; a message without it is silently dropped.
+      // Passing userMessage means the dispatcher's `manager.send` can
+      // inject the new prompt into any in-flight Claude Code session
+      // on this topic via the pending queue. `data.parts` MUST be
+      // populated — downstream consumers (Claude Code injection source,
+      // agentLoop pending-message drain) read `msg.data?.parts`; a
+      // message without it is silently dropped.
       userMessage: {
         id: userMessageId,
         topicId: req.topicId,

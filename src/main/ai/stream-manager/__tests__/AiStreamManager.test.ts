@@ -60,7 +60,7 @@ vi.mock('@main/data/services/MessageService', () => ({
   messageService: { create: vi.fn().mockResolvedValue({ id: 'msg-001' }) }
 }))
 
-// Default mock: never-closing stream so the pump parks in `reader.read()`
+// Default mock: never-closing stream so the execution loop parks in `reader.read()`
 // and tests can drive terminal state (onExecutionDone / onExecutionError /
 // abort + onExecutionPaused) explicitly.
 function pendingStream(): ReadableStream<UIMessageChunk> {
@@ -193,7 +193,7 @@ describe('AiStreamManager', () => {
   // ── send (start path) ──────────────────────────────────────────────
 
   describe('send (start)', () => {
-    it('creates an active stream and launches a pump against AiService.streamText', () => {
+    it('creates an active stream and launches an execution loop against AiService.streamText', () => {
       const snap = startSingle(mgr, {
         topicId: 'a',
         modelId: 'provider-a::model-a',
@@ -249,10 +249,10 @@ describe('AiStreamManager', () => {
     })
   })
 
-  // ── send (steer path) ──────────────────────────────────────────────
+  // ── send (inject path) ─────────────────────────────────────────────
 
-  describe('send (steer)', () => {
-    it('steers into existing stream without calling streamText again', () => {
+  describe('send (inject)', () => {
+    it('injects into existing stream without calling streamText again', () => {
       const l1 = new FakeListener('l:a')
       startSingle(mgr, {
         topicId: 'a',
@@ -279,12 +279,12 @@ describe('AiStreamManager', () => {
         listeners: [l2]
       })
 
-      expect(result.mode).toBe('steered')
+      expect(result.mode).toBe('injected')
       expect(result.executionIds).toEqual(['provider-a::model-a'])
-      // No second streamText call — steering reuses the existing stream
+      // No second streamText call — message injection reuses the existing stream
       expect(mockStreamText).toHaveBeenCalledTimes(1)
 
-      // Snapshot reflects the steer side-effects:
+      // Snapshot reflects the inject side-effects:
       //  - the execution's pending queue now has one message
       //  - the listener id is still the single "l:a" (upsert, not duplicate)
       const snap = mgr.inspect('a')!
@@ -323,7 +323,7 @@ describe('AiStreamManager', () => {
       expect(snap.isMultiModel).toBe(true)
       expect(snap.listenerIds).toEqual(['l:a'])
 
-      // Each execution starts with an empty queue (no steer yet).
+      // Each execution starts with an empty queue (no injected message yet).
       for (const exec of snap.executions) {
         expect(exec.pendingMessageCount).toBe(0)
       }
@@ -333,7 +333,7 @@ describe('AiStreamManager', () => {
       expect(listener.chunks).toHaveLength(1)
     })
 
-    it('fans steer messages out to every execution queue', () => {
+    it('fans injected messages out to every execution queue', () => {
       mgr.send({
         topicId: 'a',
         models: [
@@ -343,8 +343,8 @@ describe('AiStreamManager', () => {
         listeners: [new FakeListener('l:a')]
       })
 
-      const steered = mgr.steer('a', {
-        id: 'steer-1',
+      const injected = mgr.injectMessage('a', {
+        id: 'inject-1',
         topicId: 'a',
         parentId: null,
         role: 'user',
@@ -354,9 +354,9 @@ describe('AiStreamManager', () => {
         updatedAt: ''
       } as any)
 
-      expect(steered).toBe(true)
-      // Every execution's own queue received the steer message — this is
-      // the multi-model invariant: one steer, N consumers, no data loss.
+      expect(injected).toBe(true)
+      // Every execution's own queue received the injected message — this
+      // is the multi-model invariant: one inject, N consumers, no data loss.
       const snap = mgr.inspect('a')!
       expect(snap.executions).toHaveLength(2)
       for (const exec of snap.executions) {
@@ -420,7 +420,7 @@ describe('AiStreamManager', () => {
 
       expect(alive.chunks).toHaveLength(1)
       expect(dead.chunks).toHaveLength(0)
-      // The dead listener was reaped from the map during delivery.
+      // The dead listener was removed from the map during delivery.
       expect(mgr.inspect('a')!.listenerIds).toEqual(['alive:a'])
     })
 
@@ -492,7 +492,7 @@ describe('AiStreamManager', () => {
       })
       mgr.abort('a', 'test-pause')
 
-      // abort() cancels the pump's stream readers, so the pump loop exits and
+      // abort() cancels the tee reader(s), so the execution loop exits and
       // calls onExecutionPaused. Drain microtasks so the broadcast lands
       // before we assert.
       for (let i = 0; i < 20; i++) await Promise.resolve()
@@ -576,9 +576,9 @@ describe('AiStreamManager', () => {
   })
 
   // ── listener management ─────────────────────────────────────────
-  // Listener upsert-by-id is exercised by `send (steer) > steers into existing
-  // stream without calling streamText again`, which swaps listeners with the
-  // same id and verifies only the new one receives chunks.
+  // Listener upsert-by-id is exercised by `send (inject) > injects into
+  // existing stream without calling streamText again`, which swaps listeners
+  // with the same id and verifies only the new one receives chunks.
 
   describe('listener management', () => {
     it('removeListener prevents further delivery', () => {
@@ -666,7 +666,7 @@ describe('AiStreamManager', () => {
       expect(added).toBe(true)
     })
 
-    it('stream is reaped after grace period expires', async () => {
+    it('stream is cleaned up after grace period expires', async () => {
       startSingle(mgr, {
         topicId: 'a',
         modelId: 'provider-a::model-a',
@@ -684,12 +684,13 @@ describe('AiStreamManager', () => {
     })
   })
 
-  // ── steer ───────────────────────────────────────────────────────
+  // ── injectMessage ───────────────────────────────────────────────
 
-  // `steer()` (direct call) is the single-model subset of the multi-model
-  // fan-out tested under `send (multi-model) > fans steer messages out to
-  // every execution queue`. No dedicated test here — the fan-out test covers
-  // the invariant for 1-to-N executions, and single-model is the N=1 case.
+  // `injectMessage()` (direct call) is the single-model subset of the
+  // multi-model fan-out tested under
+  // `send (multi-model) > fans injected messages out to every execution
+  // queue`. No dedicated test here — the fan-out test covers the invariant
+  // for 1-to-N executions, and single-model is the N=1 case.
 
   // ── live finalMessage accumulation ──────────────────────────────
 
@@ -737,7 +738,7 @@ describe('AiStreamManager', () => {
       expect(parts.some((p) => p.type === 'text' && p.text === 'hello')).toBe(true)
 
       // Transport-side timings are the only thing the manager tracks —
-      // `startedAt` is always set on pump entry and `completedAt` when the
+      // `startedAt` is always set on execution-loop entry and `completedAt` when the
       // broadcast loop exits. Semantic timings (firstTextAt, reasoning*)
       // live on listeners that inspect chunk payloads; the manager itself
       // is chunk-shape-agnostic. Ordering invariants are the stable
@@ -772,7 +773,7 @@ describe('AiStreamManager', () => {
         .map(([, payload]) => (payload as { status: string }).status)
     }
 
-    it('broadcasts pending on send, streaming on first chunk, done on terminal; reap is silent', async () => {
+    it('broadcasts pending on send, streaming on first chunk, done on terminal; grace-period cleanup is silent', async () => {
       const { send: sendA } = makeFakeWindow()
       const { send: sendB } = makeFakeWindow()
       startSingle(mgr, {
@@ -796,7 +797,7 @@ describe('AiStreamManager', () => {
       await mgr.onExecutionDone('t', 'p::m')
       expect(statusSequence(sendA)).toEqual(['pending', 'streaming', 'done'])
 
-      // Grace-period reap is silent — no status broadcast fires. Cache
+      // Grace-period cleanup is silent — no status broadcast fires. Cache
       // mirrors retain the `done` value until a local consumer evicts it.
       vi.advanceTimersByTime(31_000)
       expect(statusSequence(sendA)).toEqual(['pending', 'streaming', 'done'])
@@ -914,13 +915,13 @@ describe('AiStreamManager', () => {
 
       // B completes: topic terminal. Since A had errored, topic status
       // is 'error'. All execs are terminal → activeExecutionIds: [].
-      const deltasBeforeReap = deltas().length
+      const deltasBeforeCleanup = deltas().length
       await mgr.onExecutionDone('t', 'p::b')
       expect(deltas().at(-1)).toEqual({ status: 'error', activeExecutionIds: [] })
 
-      // Grace-period reap is silent — no extra delta after the terminal one.
+      // Grace-period cleanup is silent — no extra delta after the terminal one.
       vi.advanceTimersByTime(31_000)
-      expect(deltas().length).toBe(deltasBeforeReap + 1)
+      expect(deltas().length).toBe(deltasBeforeCleanup + 1)
     })
   })
 
@@ -953,7 +954,7 @@ describe('AiStreamManager', () => {
         b: { status: 'done', activeExecutionIds: [] }
       })
 
-      // After the grace period the reaped topic drops out of the snapshot.
+      // After the grace period the cleaned-up topic drops out of the snapshot.
       vi.advanceTimersByTime(31_000)
       expect(mgr.getTopicStatuses()).toEqual({
         a: { status: 'pending', activeExecutionIds: ['p::m'] }

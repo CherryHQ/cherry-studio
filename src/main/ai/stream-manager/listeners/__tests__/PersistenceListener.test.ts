@@ -116,8 +116,8 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
       parts: [{ type: 'text', text: 'hi' }]
     } as unknown as CherryUIMessage
 
-    // Transport timings come from the manager's pump and only carry
-    // pump-lifecycle events. Semantic fields above must NOT appear here.
+    // Transport timings come from the manager's execution loop and only
+    // carry loop-lifecycle events. Semantic fields above must NOT appear here.
     await listener.onDone({
       finalMessage,
       status: 'success',

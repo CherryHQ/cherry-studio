@@ -9,7 +9,8 @@ import { useEffect } from 'react'
  * `Ai_Topic_GetStatuses` (snapshot on mount) plus `Ai_TopicStatusChanged`
  * (pushed deltas). Terminal states (`done` / `error` / `aborted`) stick
  * in the cache until a local consumer (e.g. the active-topic `useEffect`
- * in `Topics.tsx`) evicts them — Main does not broadcast a reap signal.
+ * in `Topics.tsx`) evicts them — Main does not broadcast any signal on
+ * grace-period cleanup.
  */
 export function useAiStreamTopicCache(): void {
   useEffect(() => {

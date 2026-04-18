@@ -84,7 +84,12 @@ export interface AiStreamRequest extends AiBaseRequest {
   messageId?: string
   messages?: UIMessage[]
   knowledgeBaseIds?: string[]
-  /** Session-isolated steering queue. Set by AiStreamManager, consumed by agentLoop / Claude Code steeringSource. */
+  /**
+   * Session-isolated queue of follow-up messages injected mid-stream.
+   * Set by `AiStreamManager` (one per execution); consumed by either
+   * `agentLoop` (between iterations via `drain()`) or the Claude Code
+   * provider (as `injectedMessageSource`).
+   */
   pendingMessages?: PendingMessageQueue
 }
 
@@ -213,8 +218,9 @@ export interface AiEmbedResult {
  * Two categories of work, sharing provider/model resolution + tool registry:
  *
  * - **Streaming**: `streamText(request, signal)` — returns a raw
- *   `UIMessageChunk` stream that `AiStreamManager` pumps (multicast,
- *   finalMessage accumulation, abort/pause semantics all live there).
+ *   `UIMessageChunk` stream that `AiStreamManager` drives through its
+ *   execution loop (multicast, finalMessage accumulation, abort/pause
+ *   semantics all live there).
  * - **Non-streaming** (IPC-facing): `generateText`, `generateImage`,
  *   `embedMany`, `listModels`, `checkModel`. Registered as IPC handlers
  *   directly; renderers call them via the `window.api.ai.*` bridge.
@@ -293,12 +299,12 @@ export class AiService extends BaseService {
 
     const { sdkConfig, tools, plugins, system, options, model } = await this.buildAgentParams(request)
 
-    // Wire steeringSource for Claude Code: PendingMessageQueue is AsyncIterable<Message>
+    // Wire injectedMessageSource for Claude Code: PendingMessageQueue implements AsyncIterable<Message>
     if (request.pendingMessages && sdkConfig.providerId === 'claude-code') {
       const ccSettings = sdkConfig.providerSettings as ClaudeCodeProviderSettings
       ccSettings.defaultSettings = {
         ...ccSettings.defaultSettings,
-        steeringSource: request.pendingMessages
+        injectedMessageSource: request.pendingMessages
       }
     }
 

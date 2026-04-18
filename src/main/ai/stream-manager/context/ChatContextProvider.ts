@@ -9,8 +9,9 @@
  *
  *  - provider tests can assert on the returned `PreparedDispatch` shape
  *    without mocking any manager method;
- *  - the liveness / steer / multi-model fan-out contract lives in exactly
- *    one place (AiStreamManager), not replicated across providers;
+ *  - the liveness / message-injection / multi-model fan-out contract
+ *    lives in exactly one place (AiStreamManager), not replicated
+ *    across providers;
  *  - adding a new chat topology (e.g. "inbox:", "shared-agent:") only
  *    requires writing a provider, never touching the dispatcher.
  */
@@ -33,9 +34,9 @@ export interface PreparedDispatch {
   /** Subscriber + per-execution PersistenceListeners, already assembled. */
   listeners: StreamListener[]
   /**
-   * Pushed into the shared pending queue when the topic already has an
-   * active stream (steer path). Providers that do not support cross-open
-   * steering leave this undefined.
+   * Follow-up user message to inject into the active stream when the
+   * topic already has one running (inject path). Providers that do not
+   * support mid-stream message injection leave this undefined.
    */
   userMessage?: Message
   /** Shared sibling group for multi-model parallel responses. */

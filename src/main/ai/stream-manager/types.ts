@@ -5,9 +5,10 @@ import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 
 import type { PendingMessageQueue } from '../PendingMessageQueue'
-// Note: `StreamTarget` was removed after AiStreamManager took over the pump
-// loop directly from AiService. Chunk forwarding is now internal to the
-// manager; external consumers subscribe via the `StreamListener` interface.
+// Note: `StreamTarget` was removed after AiStreamManager took over the
+// per-execution loop directly from AiService. Chunk forwarding is now
+// internal to the manager; external consumers subscribe via the
+// `StreamListener` interface.
 
 // ── Re-export shared types for consumers ────────────────────────────
 
@@ -37,12 +38,12 @@ export type { CherryUIMessageChunk } from '@shared/data/types/message'
 // in whether the stream completed or was interrupted.
 
 /**
- * Monotonic timestamps captured by the pump for one execution.
+ * Monotonic timestamps captured by the execution loop for one execution.
  *
  * Split by ownership so `AiStreamManager` stays chunk-shape-agnostic:
- *  - `TransportTimings` — owned by the manager's pump. Only tracks
- *    pump-lifecycle events (entry, loop exit) that the transport layer
- *    can observe without inspecting chunk payloads.
+ *  - `TransportTimings` — owned by the manager's execution loop. Only
+ *    tracks loop-lifecycle events (loop entry, loop exit) that the
+ *    transport layer can observe without inspecting chunk payloads.
  *  - `SemanticTimings` — owned by the consumer that cares (today
  *    `PersistenceListener`). Tracks AI-SDK-specific chunk transitions
  *    (first `text-delta`, reasoning boundaries). Lives on the listener
@@ -56,9 +57,9 @@ export type { CherryUIMessageChunk } from '@shared/data/types/message'
  * unaffected by wall-clock adjustments).
  */
 export interface TransportTimings {
-  /** Pump entry — set once before any chunk is read. */
+  /** Execution loop entry — set once before any chunk is read. */
   readonly startedAt: number
-  /** Pump loop exit — covers done / paused / error. */
+  /** Execution loop exit — covers done / paused / error. */
   completedAt?: number
 }
 
@@ -84,7 +85,7 @@ export interface StreamDoneResult {
   modelId?: UniqueModelId
   /** True when ALL executions in the topic are done. */
   isTopicDone?: boolean
-  /** Transport-side timings captured by the pump. Listeners merge their own `SemanticTimings`. */
+  /** Transport-side timings captured by the execution loop. Listeners merge their own `SemanticTimings`. */
   timings?: TransportTimings
 }
 
@@ -160,11 +161,12 @@ export interface StreamListener {
  * Multi-model (@gpt-4o @claude-sonnet): N entries, each running independently
  * but sharing the same topic listeners and siblingsGroupId.
  *
- * Each execution owns its own `pendingMessages` queue. Steering pushes
- * fan out to *every* execution so that, e.g., a Claude Code session and a
- * normal agent loop listening to the same topic both see every steer message.
- * This avoids the race where a single shared queue hands one steer message
- * to whichever consumer calls `next()` first.
+ * Each execution owns its own `pendingMessages` queue. Follow-up user
+ * messages injected via `AiStreamManager.injectMessage` are fanned out
+ * to *every* execution's queue, so that e.g. a Claude Code session and
+ * a normal agent loop listening to the same topic each see the message.
+ * Per-execution queues avoid the race where a single shared queue hands
+ * one message to whichever consumer calls `next()` first.
  */
 export interface StreamExecution {
   /** Model id for this execution (also the key in ActiveStream.executions). Format: "providerId::modelId". */
@@ -172,7 +174,7 @@ export interface StreamExecution {
   /** Independent abort — aborting one model doesn't stop others in multi-model. */
   abortController: AbortController
   status: 'streaming' | 'done' | 'error' | 'aborted'
-  /** Per-execution steering queue. Manager fans steer pushes out to every execution. */
+  /** Per-execution queue for injected follow-up messages (populated by `injectMessage` fan-out). */
   pendingMessages: PendingMessageQueue
   /**
    * Per-execution chunk ring buffer for reconnect replay. Capped at
@@ -185,12 +187,12 @@ export interface StreamExecution {
   /** Count of chunks dropped from this execution's ring buffer due to overflow. */
   droppedChunks: number
   /**
-   * Latest accumulated `UIMessage` for this execution. Written live by the
-   * pump's `readUIMessageStream` accumulator on every snapshot yield —
-   * terminal handlers (`onExecutionDone` / `onExecutionPaused` /
-   * `onExecutionError`) read it as-is without awaiting any extra promise.
-   * Undefined until the first snapshot lands (e.g. the stream errored
-   * before producing any chunks).
+   * Latest accumulated `UIMessage` for this execution. Written live by
+   * the execution loop's `readUIMessageStream` accumulator on every
+   * snapshot yield — terminal handlers (`onExecutionDone` /
+   * `onExecutionPaused` / `onExecutionError`) read it as-is without
+   * awaiting any extra promise. Undefined until the first snapshot
+   * lands (e.g. the stream errored before producing any chunks).
    */
   finalMessage?: CherryUIMessage
   error?: SerializedError
@@ -199,16 +201,17 @@ export interface StreamExecution {
   /** Backend-specific resume token (ClaudeCodeService). */
   sourceSessionId?: string
   /**
-   * Resolves when the pump loop for this execution has completed (success,
-   * error, or abort). Attached by `AiStreamManager.createAndLaunchExecution`
-   * and awaited by `onStop` so graceful shutdown can wait for the pump's
-   * terminal persistence path without re-broadcasting `onPaused` itself.
+   * Resolves when the execution loop for this execution has completed
+   * (success, error, or abort). Attached by
+   * `AiStreamManager.createAndLaunchExecution` and awaited by `onStop`
+   * so graceful shutdown can wait for the loop's terminal persistence
+   * path without re-broadcasting `onPaused` itself.
    */
-  pumpPromise: Promise<void>
+  loopPromise: Promise<void>
   /**
-   * Transport-side timings owned by the pump. Semantic timings
-   * (`firstTextAt` / `reasoning*`) live on the listener that cares — the
-   * manager never inspects chunk payloads.
+   * Transport-side timings owned by the execution loop. Semantic
+   * timings (`firstTextAt` / `reasoning*`) live on the listener that
+   * cares — the manager never inspects chunk payloads.
    */
   timings: TransportTimings
 }
@@ -253,7 +256,7 @@ export interface ActiveStream {
    * translation layer. `'pending'` is set at `send()` and flips to
    * `'streaming'` on the first chunk from any execution; terminal values
    * (`done` / `error` / `aborted`) are derived from executions by
-   * `computeTopicStatus`. The grace-period reap is silent — there is no
+   * `computeTopicStatus`. The grace-period cleanup is silent — there is no
    * push notification when the ActiveStream is deleted from the manager;
    * renderer cache mirrors retain the last terminal value until a local
    * consumer evicts it.
@@ -263,10 +266,10 @@ export interface ActiveStream {
   /** Static flag set at creation. Determines whether onChunk includes sourceModelId. */
   isMultiModel: boolean
 
-  /** Grace-period reap timestamp (ms since epoch). */
-  reapAt?: number
-  /** Timer handle for `scheduleReap`, so `evictStream` can cancel it. */
-  reapTimer?: ReturnType<typeof setTimeout>
+  /** Grace-period expiry timestamp (ms since epoch). After this point the cleanup timer fires. */
+  expiresAt?: number
+  /** Timer handle set by `scheduleCleanup`, so `evictStream` can cancel it. */
+  cleanupTimer?: ReturnType<typeof setTimeout>
 }
 
 // ── Config ──────────────────────────────────────────────────────────

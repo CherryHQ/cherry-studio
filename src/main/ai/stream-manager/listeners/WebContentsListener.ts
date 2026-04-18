@@ -19,7 +19,8 @@ import type {
  * AiStreamManager (isMultiModel → sourceModelId tag) and downstream by
  * the frontend transport (matchesStream). One instance per topic per window.
  *
- * ID: `wc:${wc.id}:${topicId}` — steering upserts, no duplicate dispatch.
+ * ID: `wc:${wc.id}:${topicId}` — ID is stable across re-attach so
+ * `addListener` upserts rather than registering a duplicate.
  */
 export class WebContentsListener implements StreamListener {
   readonly id: string

@@ -81,7 +81,7 @@ describe('useAiStreamTopicCache', () => {
     expect(cacheService.get('topic.stream.executions.x')).toBeUndefined()
   })
 
-  it('retains the terminal status — Main never broadcasts a reap signal', async () => {
+  it('retains the terminal status — Main never broadcasts after grace-period cleanup', async () => {
     getStatusesMock.mockResolvedValue({
       x: { status: 'done', activeExecutionIds: [] }
     })
@@ -90,7 +90,7 @@ describe('useAiStreamTopicCache', () => {
     })
     expect(cacheService.get('topic.stream.status.x')).toBe('done')
 
-    // No further delta arrives after grace-period reap on Main — the
+    // No further delta arrives after grace-period cleanup on Main — the
     // cache mirror intentionally keeps the `done` badge visible until a
     // local consumer (e.g. active-topic `useEffect`) evicts it.
     expect(cacheService.get('topic.stream.status.x')).toBe('done')

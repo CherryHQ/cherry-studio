@@ -173,7 +173,7 @@ export type UseCacheSchema = {
   'message.streaming.chat_session.${topicId}': any // { chat: Chat<CherryUIMessage> } (renderer memory-only)
   /**
    * Topic-level stream status mirrored from Main's `AiStreamManager`.
-   * Absence of the key means "no active stream" (the reap timer fired
+   * Absence of the key means "no active stream" (the cleanup timer fired
    * or the topic was never opened in this session). Populated by
    * `aiStreamTopicCache` via the `Ai_TopicStatusChanged` push channel.
    */

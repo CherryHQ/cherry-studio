@@ -9,7 +9,7 @@
  *
  * `success` / `paused` / `error` are the three terminal statuses of an
  * execution, and they all share a single accumulated `finalMessage`
- * (produced by the manager's pump via `readUIMessageStream`). The
+ * (produced by the manager's execution loop via `readUIMessageStream`). The
  * listener is responsible for attaching an error part to the message
  * before calling the backend, so backends never need to know how to
  * synthesise an error-shaped UIMessage — they just persist whatever
@@ -27,7 +27,7 @@ import type { SemanticTimings, TransportTimings } from '../types'
 
 /**
  * Merged timings for stats projection. `TransportTimings` comes from the
- * stream-manager pump; `SemanticTimings` comes from the listener that
+ * stream-manager execution loop; `SemanticTimings` comes from the listener that
  * observes chunk payloads (today `PersistenceListener`).
  */
 export type StatsTimings = TransportTimings & SemanticTimings
@@ -73,7 +73,7 @@ export interface PersistenceBackend {
  *  - durations come from the merged `StatsTimings` (monotonic
  *    `performance.now()` deltas, rounded to integer milliseconds).
  *    Transport fields (`startedAt` / `completedAt`) are filled by the
- *    stream-manager pump; semantic fields (`firstTextAt` /
+ *    stream-manager execution loop; semantic fields (`firstTextAt` /
  *    `reasoning*`) are filled by the calling listener — see
  *    `PersistenceListener` for the canonical producer.
  *
