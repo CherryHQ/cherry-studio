@@ -6,6 +6,24 @@ vi.mock('i18next', () => ({
   default: { t: (key: string, opts?: Record<string, unknown>) => `${key}${opts ? JSON.stringify(opts) : ''}` }
 }))
 
+vi.mock('@renderer/store', () => ({
+  default: {
+    getState: () => ({
+      preprocess: {
+        defaultProvider: 'paddleocr',
+        providers: [
+          {
+            id: 'paddleocr',
+            name: 'PaddleOCR',
+            apiHost: 'https://paddleocr.example.com',
+            apiKey: 'test-token'
+          }
+        ]
+      }
+    })
+  }
+}))
+
 vi.mock('@renderer/config/models', () => ({
   isAnthropicModel: vi.fn(() => false),
   isGeminiModel: vi.fn(() => false)
@@ -172,6 +190,49 @@ describe('pdfCompatibilityPlugin', () => {
       content: [
         { type: 'text', text: 'Hello' },
         { type: 'text', text: 'report.pdf\nExtracted PDF content' }
+      ]
+    })
+  })
+
+  it('should prefer the default preprocess provider for stored PDF files', async () => {
+    const provider = makeProvider('ollama', 'ollama')
+    const pdfPart = makePdfFilePart('scan.pdf') as any
+    Object.defineProperty(pdfPart, '__cherryStudioChatFile', {
+      value: {
+        id: 'file-1',
+        name: 'file-1.pdf',
+        origin_name: 'scan.pdf',
+        path: '/tmp/scan.pdf',
+        size: 1024,
+        ext: '.pdf',
+        type: 'document',
+        created_at: '2024-01-01T00:00:00.000Z',
+        count: 1
+      },
+      enumerable: false
+    })
+    ;(window.api as any).file = {
+      readForChat: vi.fn().mockResolvedValue('OCR text')
+    }
+
+    const params = {
+      prompt: [{ role: 'user' as const, content: [makeTextPart('Hello'), pdfPart] }]
+    } as unknown as LanguageModelV3CallOptions
+
+    const result = await runMiddleware(provider, params)
+
+    expect((window.api as any).file.readForChat).toHaveBeenCalledWith(pdfPart.__cherryStudioChatFile, {
+      id: 'paddleocr',
+      name: 'PaddleOCR',
+      apiHost: 'https://paddleocr.example.com',
+      apiKey: 'test-token'
+    })
+    expect(mockExtractPdfText).not.toHaveBeenCalled()
+    expect(result.prompt[0]).toMatchObject({
+      role: 'user',
+      content: [
+        { type: 'text', text: 'Hello' },
+        { type: 'text', text: 'scan.pdf\nOCR text' }
       ]
     })
   })
