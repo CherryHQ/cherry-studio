@@ -144,7 +144,7 @@ const AgentChatInner = ({
             />
             <div className="mt-auto px-4.5 pb-2">
               <NarrowLayout>
-                <PinnedTodoPanel topicId={sessionTopicId} />
+                <PinnedTodoPanel messages={chat.adaptedMessages} partsMap={chat.partsMap} />
               </NarrowLayout>
             </div>
             {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}

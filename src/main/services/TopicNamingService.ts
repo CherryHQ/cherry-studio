@@ -2,8 +2,10 @@ import { assistantDataService } from '@data/services/AssistantService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import type { AiGenerateRequest } from '@main/ai/AiService'
+import { parseAgentSessionModel } from '@main/ai/provider/claudeCodeSettingsBuilder'
 import { application } from '@main/core/application'
 import { messageService } from '@main/data/services/MessageService'
+import { sessionService } from '@main/services/agents'
 import type { Message, MessageData, UIMessage } from '@shared/data/types/message'
 import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Topic } from '@shared/data/types/topic'
@@ -18,6 +20,7 @@ const FALLBACK_MODEL_ID = createUniqueModelId('cherryai', 'qwen')
 
 const summaryLocks = new Set<string>()
 const summaryNamedTopics = new Set<string>()
+const agentSessionRenameLocks = new Set<string>()
 
 type StructuredMessage = {
   role: string
@@ -116,7 +119,12 @@ export class TopicNamingService {
         }
       ]
 
-      const title = await this.generateSummaryTitle(assistantId, buildStructuredConversation(structuredConversation))
+      const uniqueModelId = await this.resolveNamingModelId(assistantId)
+      const title = await this.generateSummaryTitle(
+        assistantId,
+        uniqueModelId,
+        buildStructuredConversation(structuredConversation)
+      )
       if (!title) return
 
       await this.renameTopic(topic, title)
@@ -147,10 +155,71 @@ export class TopicNamingService {
       files: getFileNamesFromMessage(message)
     }))
 
-    const title = await this.generateSummaryTitle(assistantId, buildStructuredConversation(structuredConversation))
+    const uniqueModelId = await this.resolveNamingModelId(assistantId)
+    const title = await this.generateSummaryTitle(
+      assistantId,
+      uniqueModelId,
+      buildStructuredConversation(structuredConversation)
+    )
     if (!title) return
 
     await this.renameTopic(topic, title)
+  }
+
+  /**
+   * Rename an agent session's name based on the first user+assistant exchange.
+   *
+   * Mirrors {@link maybeRenameFromConversationSummary} but targets the agents
+   * DB (`session.name`) rather than `topics.name`, uses the session's own
+   * model for summarization, and broadcasts `AgentSession_Updated` so
+   * renderer SWR caches can refresh.
+   *
+   * @param sessionId  Cherry Studio session id.
+   * @param userText   Plain text of the user turn (already in memory —
+   *                   callers pass it from `req.userMessageParts` to avoid a
+   *                   DB round-trip).
+   * @param finalMessage Accumulated assistant UIMessage for this turn.
+   */
+  async maybeRenameAgentSession(
+    agentId: string,
+    sessionId: string,
+    userText: string,
+    finalMessage: UIMessage
+  ): Promise<void> {
+    const enabled = application.get('PreferenceService').get('topic.naming.enabled')
+    if (!enabled) return
+    if (agentSessionRenameLocks.has(sessionId)) return
+
+    agentSessionRenameLocks.add(sessionId)
+    try {
+      const session = await sessionService.getSession(agentId, sessionId).catch(() => null)
+      if (!session) return
+
+      const structuredConversation: StructuredMessage[] = [
+        { role: 'user', mainText: cleanMarkdownImages(userText) },
+        { role: finalMessage.role, mainText: cleanMarkdownImages(getMainTextContentFromUiMessage(finalMessage)) }
+      ]
+
+      const uniqueModelId = parseAgentSessionModel(session.model)
+      const title = await this.generateSummaryTitle(
+        agentId,
+        uniqueModelId,
+        buildStructuredConversation(structuredConversation)
+      )
+      if (!title) return
+
+      const nextName = removeSpecialCharactersForTopicName(title)
+      if (!nextName || nextName === (session.name ?? '').trim()) return
+
+      const updated = await sessionService.updateSession(agentId, sessionId, { name: nextName })
+      if (updated) {
+        this.broadcastAgentSessionUpdated(updated.id, agentId, updated.name ?? nextName)
+      }
+    } catch (error) {
+      logger.warn('Failed to auto-rename agent session', error as Error)
+    } finally {
+      agentSessionRenameLocks.delete(sessionId)
+    }
   }
 
   private async getTopic(topicId: string): Promise<Topic | null> {
@@ -165,11 +234,15 @@ export class TopicNamingService {
     return response.items.map((item) => item.message)
   }
 
-  private async generateSummaryTitle(assistantId: string, prompt: string): Promise<string | null> {
+  private async generateSummaryTitle(
+    assistantId: string,
+    uniqueModelId: UniqueModelId,
+    prompt: string
+  ): Promise<string | null> {
     const systemPrompt = this.resolveNamingPrompt()
     const request: AiGenerateRequest = {
       assistantId,
-      uniqueModelId: await this.resolveNamingModelId(assistantId),
+      uniqueModelId,
       system: systemPrompt,
       prompt
     }
@@ -211,6 +284,17 @@ export class TopicNamingService {
       const wc = window.webContents
       if (wc.isDestroyed()) continue
       wc.send(IpcChannel.Topic_Updated, topic)
+    }
+  }
+
+  private broadcastAgentSessionUpdated(sessionId: string, agentId: string, name: string): void {
+    const windowService = application.get('WindowService')
+    const windows = typeof windowService.getAllWindows === 'function' ? windowService.getAllWindows() : []
+    const payload = { sessionId, agentId, name }
+    for (const window of windows) {
+      const wc = window.webContents
+      if (wc.isDestroyed()) continue
+      wc.send(IpcChannel.AgentSession_Updated, payload)
     }
   }
 }

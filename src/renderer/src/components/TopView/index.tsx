@@ -2,6 +2,7 @@
 import { Box } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import TopViewMinappContainer from '@renderer/components/MinApp/TopViewMinappContainer'
+import { useAgentSessionSync } from '@renderer/hooks/agents/useAgentSessionSync'
 import { useAppInit } from '@renderer/hooks/useAppInit'
 import { useTopicSync } from '@renderer/hooks/useTopicDataApi'
 import { message, Modal } from 'antd'
@@ -43,6 +44,7 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
 
   useAppInit()
   useTopicSync()
+  useAgentSessionSync()
 
   useEffect(() => {
     window.modal = modal

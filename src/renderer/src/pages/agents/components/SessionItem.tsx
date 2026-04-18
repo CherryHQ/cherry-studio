@@ -8,18 +8,15 @@ import { useCache } from '@renderer/data/hooks/useCache'
 import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { finishTopicRenaming, startTopicRenaming } from '@renderer/hooks/useTopic'
 import { SessionSettingsPopup } from '@renderer/pages/settings/AgentSettings'
 import { SessionLabel } from '@renderer/pages/settings/AgentSettings/shared'
-import { useAppDispatch } from '@renderer/store'
-import { loadTopicMessagesThunk, renameAgentSessionIfNeeded } from '@renderer/store/thunk/messageThunk'
 import type { AgentSessionEntity } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { MenuProps } from 'antd'
 import { Dropdown } from 'antd'
-import { MenuIcon, Sparkles, XIcon } from 'lucide-react'
+import { MenuIcon, XIcon } from 'lucide-react'
 import React, { memo, startTransition, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -44,7 +41,6 @@ const SessionItem = ({ session, agentId, channelType, onDelete, onPress }: Sessi
   const { setTimeoutTimer } = useTimer()
   const [_targetSession, setTargetSession] = useState<AgentSessionEntity>(session)
   const targetSession = useDeferredValue(_targetSession)
-  const dispatch = useAppDispatch()
 
   const { isEditing, isSaving, startEdit, inputProps } = useInPlaceEdit({
     onSave: async (value) => {
@@ -134,24 +130,6 @@ const SessionItem = ({ session, agentId, channelType, onDelete, onPress }: Sessi
         }
       },
       {
-        label: t('chat.topics.auto_rename'),
-        key: 'auto-rename',
-        icon: <Sparkles size={14} />,
-        onClick: async () => {
-          const agentSession = {
-            agentId: agentId,
-            sessionId: targetSession.id
-          }
-          void dispatch(loadTopicMessagesThunk(sessionTopicId))
-          try {
-            startTopicRenaming(sessionTopicId)
-            await renameAgentSessionIfNeeded(agentSession, sessionTopicId)
-          } finally {
-            finishTopicRenaming(sessionTopicId)
-          }
-        }
-      },
-      {
         label: t('settings.topic.position.label'),
         key: 'topic-position',
         icon: <MenuIcon size={14} />,
@@ -178,7 +156,7 @@ const SessionItem = ({ session, agentId, channelType, onDelete, onPress }: Sessi
         }
       }
     ],
-    [agentId, dispatch, onDelete, session.id, sessionTopicId, setTopicPosition, t, targetSession.id]
+    [agentId, onDelete, session.id, sessionTopicId, setTopicPosition, t, targetSession.id]
   )
 
   return (

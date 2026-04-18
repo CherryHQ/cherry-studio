@@ -9,7 +9,7 @@
 
 import { buildAgentSessionTopicId } from '@main/ai/provider/claudeCodeSettingsBuilder'
 import { agentMessageRepository } from '@main/services/agents/database/sessionMessageRepository'
-import type { CherryMessagePart } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
 import type { PersistAssistantInput, PersistenceBackend } from '../PersistenceBackend'
 
@@ -20,12 +20,17 @@ export interface AgentMessageBackendOptions {
   agentId: string
   /** Claude Code / SDK session token for resume; empty string when unknown. */
   agentSessionId?: string
+  /** Post-success hook — typically session auto-rename. */
+  afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
 }
 
 export class AgentMessageBackend implements PersistenceBackend {
   readonly kind = 'agents-db'
+  readonly afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
 
-  constructor(private readonly opts: AgentMessageBackendOptions) {}
+  constructor(private readonly opts: AgentMessageBackendOptions) {
+    this.afterPersist = opts.afterPersist
+  }
 
   async persistAssistant(input: PersistAssistantInput): Promise<void> {
     const { finalMessage, status } = input

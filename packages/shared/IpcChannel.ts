@@ -497,6 +497,7 @@ export enum IpcChannel {
    */
   Ai_Topic_GetStatuses = 'ai:topic:get-statuses',
   Topic_Updated = 'topic:updated',
+  AgentSession_Updated = 'agent-session:updated',
 
   // AI Non-streaming
   Ai_GenerateText = 'ai:generate-text',

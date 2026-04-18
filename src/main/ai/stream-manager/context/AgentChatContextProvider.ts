@@ -12,6 +12,7 @@
 
 import { sessionService } from '@main/services/agents'
 import { agentMessageRepository } from '@main/services/agents/database/sessionMessageRepository'
+import { topicNamingService } from '@main/services/TopicNamingService'
 import type { AiStreamOpenRequest } from '@shared/ai/transport'
 import type { Message } from '@shared/data/types/message'
 
@@ -71,7 +72,13 @@ export class AgentChatContextProvider implements ChatContextProvider {
     const agentPersistenceListener = new PersistenceListener({
       topicId: req.topicId,
       modelId: uniqueModelId,
-      backend: new AgentMessageBackend({ sessionId, agentId: session.agent_id })
+      backend: new AgentMessageBackend({
+        sessionId,
+        agentId: session.agent_id,
+        afterPersist: async (finalMessage) => {
+          await topicNamingService.maybeRenameAgentSession(session.agent_id, sessionId, userText, finalMessage)
+        }
+      })
     })
 
     return {
