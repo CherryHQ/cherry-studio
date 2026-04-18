@@ -370,6 +370,20 @@ export class WindowService {
     return this.mainWindow
   }
 
+  private hideMainWindowWithFocusRestore(mainWindow: BrowserWindow) {
+    if (isWin) {
+      mainWindow.minimize()
+      setImmediate(() => {
+        if (!mainWindow.isDestroyed()) {
+          mainWindow.hide()
+        }
+      })
+      return
+    }
+
+    mainWindow.hide()
+  }
+
   private setupWindowLifecycleEvents(mainWindow: BrowserWindow) {
     mainWindow.on('close', (event) => {
       // save data before when close window
@@ -407,7 +421,7 @@ export class WindowService {
         event.preventDefault()
       }
 
-      mainWindow.hide()
+      this.hideMainWindowWithFocusRestore(mainWindow)
 
       //for mac users, should hide dock icon if close to tray
       if (isMac && isTrayOnClose) {
@@ -440,6 +454,7 @@ export class WindowService {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       if (this.mainWindow.isMinimized()) {
         this.mainWindow.restore()
+        this.mainWindow.focus()
         return
       }
 
@@ -508,7 +523,7 @@ export class WindowService {
       if (this.mainWindow.isFocused()) {
         // if tray is enabled, hide the main window, else do nothing
         if (configManager.getTray()) {
-          this.mainWindow.hide()
+          this.hideMainWindowWithFocusRestore(this.mainWindow)
           app.dock?.hide()
         }
       } else {
