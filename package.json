@@ -84,7 +84,7 @@
     "ci": "pnpm ci:basic-check && pnpm ci:test-check"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "0.2.81",
+    "@anthropic-ai/claude-agent-sdk": "0.2.112",
     "@expo/sudo-prompt": "^9.3.2",
     "@larksuiteoapi/node-sdk": "^1.59.0",
     "@libsql/client": "0.14.0",
@@ -114,7 +114,7 @@
     "@agentic/searxng": "^7.3.3",
     "@agentic/tavily": "^7.3.3",
     "@ai-sdk/amazon-bedrock": "^4.0.87",
-    "@ai-sdk/anthropic": "^3.0.58",
+    "@ai-sdk/anthropic": "^3.0.71",
     "@ai-sdk/azure": "^3.0.50",
     "@ai-sdk/cerebras": "^2.0.39",
     "@ai-sdk/cohere": "^3.0.25",

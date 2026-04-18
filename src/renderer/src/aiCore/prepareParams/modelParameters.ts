@@ -6,6 +6,7 @@
 import { loggerService } from '@logger'
 import {
   isClaude46SeriesModel,
+  isClaude47SeriesModel,
   isClaudeReasoningModel,
   isMaxTemperatureOneModel,
   isSupportedFlexServiceTier,
@@ -29,6 +30,7 @@ const logger = loggerService.withContext('modelParameters')
 /**
  * Retrieves the temperature parameter, adapting it based on assistant.settings and model capabilities.
  * - Disabled when enableTemperature is off.
+ * - Disabled unconditionally for Claude Opus 4.7 (rejects sampling params with HTTP 400).
  * - Disabled for Claude reasoning models when reasoning effort is set (excluding 'default' and 'none').
  * - Disabled for models that do not support temperature.
  * - Clamped to 1 for models with max temperature of 1.
@@ -37,6 +39,13 @@ const logger = loggerService.withContext('modelParameters')
 export function getTemperature(assistant: Assistant, model: Model): number | undefined {
   const enableTemperature = assistant.settings?.enableTemperature ?? DEFAULT_ASSISTANT_SETTINGS.enableTemperature
   if (!enableTemperature) {
+    return undefined
+  }
+
+  // Claude Opus 4.7 rejects sampling params (temperature/top_p/top_k) with HTTP 400
+  // regardless of reasoning settings. See Vercel AI SDK PR #14529.
+  if (isClaude47SeriesModel(model)) {
+    logger.info(`Model ${model.id} rejects sampling parameters, disabling temperature`)
     return undefined
   }
 
@@ -74,6 +83,7 @@ export function getTemperature(assistant: Assistant, model: Model): number | und
 /**
  * Retrieves the TopP parameter, adapting it based on assistant.settings and model capabilities.
  * - Disabled when enableTopP is off.
+ * - Disabled unconditionally for Claude Opus 4.7 (rejects sampling params with HTTP 400).
  * - Disabled for models that do not support TopP.
  * - Disabled for mutually exclusive models when temperature is enabled.
  * - Clamped to [0.95, 1] for Claude reasoning models with reasoning effort set (excluding 'default' and 'none').
@@ -82,6 +92,12 @@ export function getTemperature(assistant: Assistant, model: Model): number | und
 export function getTopP(assistant: Assistant, model: Model): number | undefined {
   const enableTopP = assistant.settings?.enableTopP ?? DEFAULT_ASSISTANT_SETTINGS.enableTopP
   if (!enableTopP) {
+    return undefined
+  }
+
+  // Claude Opus 4.7 rejects sampling params unconditionally (see getTemperature).
+  if (isClaude47SeriesModel(model)) {
+    logger.info(`Model ${model.id} rejects sampling parameters, disabling topP`)
     return undefined
   }
 
@@ -139,11 +155,13 @@ export function getMaxTokens(assistant: Assistant, model: Model): number | undef
   }
 
   const provider = getProviderByModel(model)
-  // Claude 4.6 uses adaptive thinking (no budgetTokens), so the AI SDK does not add budget back
-  // to maxOutputTokens. Skip the subtraction to avoid incorrectly reducing max_tokens.
+  // Claude 4.6 / 4.7 use adaptive thinking and do not send budgetTokens, so the
+  // AI SDK does not add budget back to maxOutputTokens. Skip the subtraction to avoid
+  // incorrectly reducing max_tokens.
   if (
     isSupportedThinkingTokenClaudeModel(model) &&
     !isClaude46SeriesModel(model) &&
+    !isClaude47SeriesModel(model) &&
     ['anthropic', 'aws-bedrock'].includes(provider.type)
   ) {
     const { reasoning_effort: reasoningEffort } = assistantSettings
