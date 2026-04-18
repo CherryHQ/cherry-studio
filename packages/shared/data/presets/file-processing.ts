@@ -248,7 +248,7 @@ export const FILE_PROCESSOR_PRESET_MAP = {
         inputs: ['image'],
         output: 'text',
         apiHost: 'https://paddleocr.aistudio-app.com/',
-        modelId: 'PP-OCRv5'
+        modelId: 'PaddleOCR-VL-1.5'
       },
       {
         feature: 'markdown_conversion',
@@ -272,7 +272,8 @@ export const FILE_PROCESSOR_PRESET_MAP = {
         feature: 'markdown_conversion',
         inputs: ['document'],
         output: 'markdown',
-        apiHost: 'https://mineru.net'
+        apiHost: 'https://mineru.net',
+        modelId: 'pipeline'
       }
     ]
   },
@@ -283,7 +284,8 @@ export const FILE_PROCESSOR_PRESET_MAP = {
         feature: 'markdown_conversion',
         inputs: ['document'],
         output: 'markdown',
-        apiHost: 'https://v2.doc2x.noedgeai.com'
+        apiHost: 'https://v2.doc2x.noedgeai.com',
+        modelId: 'v3-2026'
       }
     ]
   },
@@ -294,13 +296,6 @@ export const FILE_PROCESSOR_PRESET_MAP = {
         feature: 'text_extraction',
         inputs: ['image'],
         output: 'text',
-        apiHost: 'https://api.mistral.ai',
-        modelId: 'mistral-ocr-latest'
-      },
-      {
-        feature: 'markdown_conversion',
-        inputs: ['document'],
-        output: 'markdown',
         apiHost: 'https://api.mistral.ai',
         modelId: 'mistral-ocr-latest'
       }

@@ -3,7 +3,11 @@ import { vi } from 'vitest'
 import { MockMainCacheServiceExport } from './CacheService'
 import { MockMainDataApiServiceExport } from './DataApiService'
 import { MockMainDbServiceExport } from './DbService'
+import { MockMainDoc2xRuntimeServiceExport } from './Doc2xRuntimeService'
+import { MockMainFileProcessingRuntimeServiceExport } from './FileProcessingRuntimeService'
+import { MockMainOpenMineruRuntimeServiceExport } from './OpenMineruRuntimeService'
 import { MockMainPreferenceServiceExport } from './PreferenceService'
+import { MockMainTesseractRuntimeServiceExport } from './TesseractRuntimeService'
 
 /**
  * Unified mock application factory for main process testing.
@@ -35,6 +39,10 @@ export const defaultServiceInstances = {
   CacheService: MockMainCacheServiceExport.cacheService,
   DataApiService: MockMainDataApiServiceExport.dataApiService,
   DbService: MockMainDbServiceExport.dbService,
+  FileProcessingRuntimeService: MockMainFileProcessingRuntimeServiceExport.fileProcessingRuntimeService,
+  Doc2xRuntimeService: MockMainDoc2xRuntimeServiceExport.doc2xRuntimeService,
+  TesseractRuntimeService: MockMainTesseractRuntimeServiceExport.tesseractRuntimeService,
+  OpenMineruRuntimeService: MockMainOpenMineruRuntimeServiceExport.openMineruRuntimeService,
   WindowService: mockWindowService
 } as const
 

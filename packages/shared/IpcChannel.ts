@@ -206,6 +206,10 @@ export enum IpcChannel {
   KnowledgeRuntime_DeleteItems = 'knowledge-runtime:delete-items',
   KnowledgeRuntime_Search = 'knowledge-runtime:search',
 
+  FileProcessing_ExtractText = 'file-processing:extract-text',
+  FileProcessing_StartMarkdownConversionTask = 'file-processing:start-markdown-conversion-task',
+  FileProcessing_GetMarkdownConversionTaskResult = 'file-processing:get-markdown-conversion-task-result',
+
   //file
   File_Open = 'file:open',
   File_OpenPath = 'file:openPath',
