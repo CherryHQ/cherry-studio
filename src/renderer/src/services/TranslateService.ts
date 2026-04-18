@@ -8,7 +8,6 @@ import type {
 import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import { readyToAbort } from '@renderer/utils/abortController'
-import { trackTokenUsage } from '@renderer/utils/analytics'
 import { isAbortError } from '@renderer/utils/error'
 import { languageDtoToVo } from '@renderer/utils/translate'
 import type {
@@ -63,15 +62,11 @@ export const translateText = async (
 
   let translatedText = ''
   let completed = false
-  const model = assistant.model
   const onChunk = (chunk: Chunk) => {
     if (chunk.type === ChunkType.TEXT_DELTA) {
       translatedText = chunk.text
     } else if (chunk.type === ChunkType.TEXT_COMPLETE) {
       completed = true
-    } else if (chunk.type === ChunkType.BLOCK_COMPLETE) {
-      const usage = chunk.response?.usage
-      trackTokenUsage({ usage, model })
     } else if (chunk.type === ChunkType.ERROR) {
       error = chunk.error
       if (isAbortError(chunk.error)) {

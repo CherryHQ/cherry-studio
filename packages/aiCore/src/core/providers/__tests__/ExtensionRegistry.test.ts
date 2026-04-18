@@ -922,4 +922,159 @@ describe('ExtensionRegistry', () => {
       expect(ext?.config.name).toBe('openai')
     })
   })
+
+  describe('getToolFactory', () => {
+    it('should return variant-level toolFactory for variant provider', () => {
+      const variantFactory = vi.fn()
+      const baseFactory = vi.fn()
+
+      registry.register(
+        new ProviderExtension({
+          name: 'azure',
+          create: createMockProviderV3,
+          toolFactories: {
+            webSearch: baseFactory
+          },
+          variants: [
+            {
+              suffix: 'anthropic',
+              name: 'Azure Anthropic',
+              transform: () => createMockProviderV3(),
+              toolFactories: {
+                webSearch: variantFactory
+              }
+            }
+          ]
+        })
+      )
+
+      const factory = registry.getToolFactory('azure-anthropic', 'webSearch')
+      expect(factory).toBe(variantFactory)
+    })
+
+    it('should fall back to base toolFactory when variant has no override', () => {
+      const baseFactory = vi.fn()
+
+      registry.register(
+        new ProviderExtension({
+          name: 'azure',
+          create: createMockProviderV3,
+          toolFactories: {
+            webSearch: baseFactory
+          },
+          variants: [
+            {
+              suffix: 'responses',
+              name: 'Azure Responses',
+              transform: () => createMockProviderV3()
+            }
+          ]
+        })
+      )
+
+      const factory = registry.getToolFactory('azure-responses', 'webSearch')
+      expect(factory).toBe(baseFactory)
+    })
+
+    it('should return undefined for unsupported capability', () => {
+      registry.register(
+        new ProviderExtension({
+          name: 'test',
+          create: createMockProviderV3,
+          toolFactories: {
+            webSearch: vi.fn()
+          }
+        })
+      )
+
+      expect(registry.getToolFactory('test', 'fileSearch')).toBeUndefined()
+    })
+  })
+
+  describe('getToolProvider (via resolveToolCapability)', () => {
+    it('should return variant-transformed provider for variant IDs', async () => {
+      const baseProvider = createMockProviderV3({ provider: 'azure-base' })
+      const variantProvider = createMockProviderV3({ provider: 'anthropic-variant' })
+      const transformSpy = vi.fn().mockReturnValue(variantProvider)
+      const factorySpy = vi.fn().mockReturnValue(() => ({ tools: {} }))
+
+      registry.register(
+        new ProviderExtension({
+          name: 'azure',
+          create: () => baseProvider,
+          variants: [
+            {
+              suffix: 'anthropic',
+              name: 'Azure Anthropic',
+              transform: transformSpy,
+              toolFactories: {
+                webSearch: factorySpy
+              }
+            }
+          ]
+        })
+      )
+
+      const result = await registry.resolveToolCapability('azure-anthropic', 'webSearch')
+      expect(result).toBeDefined()
+      // The factory should receive the variant-transformed provider
+      expect(result!.provider).toBe(variantProvider)
+      expect(transformSpy).toHaveBeenCalled()
+    })
+
+    it('should return base provider for non-variant IDs', async () => {
+      const baseProvider = createMockProviderV3({ provider: 'azure-base' })
+      const factorySpy = vi.fn().mockReturnValue(() => ({ tools: {} }))
+
+      registry.register(
+        new ProviderExtension({
+          name: 'azure',
+          create: () => baseProvider,
+          toolFactories: {
+            webSearch: factorySpy
+          }
+        })
+      )
+
+      const result = await registry.resolveToolCapability('azure', 'webSearch')
+      expect(result).toBeDefined()
+      expect(result!.provider).toBe(baseProvider)
+    })
+  })
+
+  describe('urlContext key mapping regression', () => {
+    it('should map urlContext factory to urlContext key (not webSearch)', () => {
+      // Regression: urlContext factory was previously mapped to { tools: { webSearch: ... } }
+      // instead of { tools: { urlContext: ... } }
+      const mockTool = { type: 'tool' }
+      const mockProvider = {
+        ...createMockProviderV3(),
+        tools: {
+          webFetch_20260209: vi.fn().mockReturnValue(mockTool)
+        }
+      }
+
+      const urlContextFactory = (provider: any) => (config: any) => ({
+        tools: { urlContext: provider.tools.webFetch_20260209(config) }
+      })
+
+      registry.register(
+        new ProviderExtension({
+          name: 'anthropic',
+          create: () => mockProvider as any,
+          toolFactories: {
+            urlContext: urlContextFactory as any
+          }
+        })
+      )
+
+      const factory = registry.getToolFactory('anthropic', 'urlContext')
+      expect(factory).toBeDefined()
+
+      const innerFactory = factory!(mockProvider as any)
+      const result = innerFactory({})
+      expect(result.tools).toHaveProperty('urlContext')
+      expect(result.tools).not.toHaveProperty('webSearch')
+    })
+  })
 })

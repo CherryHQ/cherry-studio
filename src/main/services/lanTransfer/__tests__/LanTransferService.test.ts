@@ -35,7 +35,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: {
     get: vi.fn((name: string) => {
       if (name === 'WindowService') {

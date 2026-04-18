@@ -15,7 +15,7 @@
 
 import { translateHistoryTable } from '@data/db/schemas/translateHistory'
 import { translateLanguageTable } from '@data/db/schemas/translateLanguage'
-import TranslateLanguageSeed from '@data/db/seeding/translateLanguageSeeding'
+import { TranslateLanguageSeeder } from '@data/db/seeding/seeders/translateLanguageSeeder'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import { sql } from 'drizzle-orm'
@@ -211,7 +211,7 @@ export class TranslateMigrator extends BaseMigrator {
       }
 
       // ── Seed builtin languages (history FK requires them to exist) ──
-      await new TranslateLanguageSeed().migrate(db)
+      await new TranslateLanguageSeeder().run(db)
 
       // ── Migrate translate history (batched) ──
       if (this.historySourceCount > 0) {

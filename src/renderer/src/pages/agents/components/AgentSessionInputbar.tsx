@@ -1,4 +1,5 @@
 import { cacheService } from '@data/CacheService'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { getAnthropicReasoningParams } from '@renderer/aiCore/utils/reasoning'
 import type { QuickPanelTriggerInfo } from '@renderer/components/QuickPanel'
@@ -6,10 +7,10 @@ import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/Qu
 import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useSession } from '@renderer/hooks/agents/useSession'
+import { useApiServer } from '@renderer/hooks/useApiServer'
 import { useInputText } from '@renderer/hooks/useInputText'
 import { selectNewTopicLoading } from '@renderer/hooks/useMessageOperations'
 import { getModel } from '@renderer/hooks/useModel'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useTextareaResize } from '@renderer/hooks/useTextareaResize'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { InputbarCore } from '@renderer/pages/home/Inputbar/components/InputbarCore'
@@ -172,7 +173,8 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
     customHeight,
     setCustomHeight
   } = useTextareaResize({ maxHeight: 500, minHeight: 30 })
-  const { sendMessageShortcut, apiServer } = useSettings()
+  const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
+  const { apiServerConfig, apiServerRunning } = useApiServer()
 
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
@@ -334,7 +336,7 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
     }
   }, [config.enableQuickPanel, toolsRegistry])
 
-  const sendDisabled = (inputEmpty && files.length === 0) || !apiServer.enabled
+  const sendDisabled = (inputEmpty && files.length === 0) || !apiServerConfig.enabled || !apiServerRunning
 
   const streamingAskIds = useMemo(() => {
     if (!topicMessages) {

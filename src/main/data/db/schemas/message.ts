@@ -1,10 +1,10 @@
-import type { MessageData, MessageStats } from '@shared/data/types/message'
-import type { AssistantMeta, ModelMeta } from '@shared/data/types/meta'
+import type { MessageData, MessageStats, ModelSnapshot } from '@shared/data/types/message'
 import { sql } from 'drizzle-orm'
 import { check, foreignKey, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateDeleteTimestamps, uuidPrimaryKeyOrdered } from './_columnHelpers'
 import { topicTable } from './topic'
+import { userModelTable } from './userModel'
 
 /**
  * Message table - stores chat messages with tree structure
@@ -25,26 +25,20 @@ export const messageTable = sqliteTable(
       .references(() => topicTable.id, { onDelete: 'cascade' }),
     // Message role: user, assistant, system
     role: text().notNull(),
-    // Main content - contains blocks[], mentions, etc.
+    // Main content - contains blocks[] (inline JSON)
     data: text({ mode: 'json' }).$type<MessageData>().notNull(),
     // Searchable text extracted from data.blocks (populated by trigger, used for FTS5)
     searchableText: text(),
-
     // Final status: SUCCESS, ERROR, PAUSED
     status: text().notNull(),
-
     // Group ID for siblings (0 = normal branch)
     siblingsGroupId: integer().default(0),
-    // FK to assistant
-    assistantId: text(),
-    // Preserved assistant info for display
-    assistantMeta: text({ mode: 'json' }).$type<AssistantMeta>(),
-    // Model identifier
-    modelId: text(),
-    // Preserved model info (provider, name)
-    modelMeta: text({ mode: 'json' }).$type<ModelMeta>(),
-    // Trace ID for tracking
-
+    // Assistant info is derived via topic → assistant FK chain; not stored on message.
+    // Model identifier: FK to user_model(id) — UniqueModelId "providerId::modelId"
+    modelId: text().references(() => userModelTable.id, { onDelete: 'set null' }),
+    // Snapshot of model at message creation time
+    modelSnapshot: text({ mode: 'json' }).$type<ModelSnapshot>(),
+    // Trace for tracking
     traceId: text(),
     // Statistics: token usage, performance metrics, etc.
     stats: text({ mode: 'json' }).$type<MessageStats>(),

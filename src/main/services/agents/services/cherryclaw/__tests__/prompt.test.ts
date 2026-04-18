@@ -252,4 +252,144 @@ describe('PromptBuilder', () => {
       expect(result).toContain('<user>')
     })
   })
+
+  describe('buildToolGuidance', () => {
+    it('returns skills, memory, and web sections without claw by default', () => {
+      const result = builder.buildToolGuidance()
+
+      expect(result).toContain('## Skills')
+      expect(result).toContain('mcp__skills__skills')
+      expect(result).toContain('## Workspace Memory')
+      expect(result).toContain('mcp__agent-memory__memory')
+      expect(result).toContain('## Web Search & Browser Strategy')
+      expect(result).toContain('mcp__exa__web_search_exa')
+      expect(result).not.toContain('## CherryClaw Tools')
+      expect(result).not.toContain('mcp__claw__cron')
+      expect(result).not.toContain('mcp__claw__notify')
+      expect(result).not.toContain('mcp__claw__config')
+    })
+
+    it('includes claw section when hasClaw is true', () => {
+      const result = builder.buildToolGuidance({ hasClaw: true })
+
+      expect(result).toContain('## CherryClaw Tools')
+      expect(result).toContain('mcp__claw__cron')
+      expect(result).toContain('mcp__claw__notify')
+      expect(result).toContain('mcp__claw__config')
+      // Skills, memory, and web are still included
+      expect(result).toContain('mcp__skills__skills')
+      expect(result).toContain('mcp__agent-memory__memory')
+      expect(result).toContain('## Web Search & Browser Strategy')
+    })
+
+    it('places claw guidance before skills/memory when present', () => {
+      const result = builder.buildToolGuidance({ hasClaw: true })
+
+      const clawIdx = result.indexOf('## CherryClaw Tools')
+      const skillsIdx = result.indexOf('## Skills')
+      const memoryIdx = result.indexOf('## Workspace Memory')
+      const webIdx = result.indexOf('## Web Search & Browser Strategy')
+
+      expect(clawIdx).toBeGreaterThanOrEqual(0)
+      expect(clawIdx).toBeLessThan(skillsIdx)
+      expect(skillsIdx).toBeLessThan(memoryIdx)
+      expect(memoryIdx).toBeLessThan(webIdx)
+    })
+
+    it('teaches when to act for skills (init/register and patching)', () => {
+      const result = builder.buildToolGuidance()
+
+      expect(result).toMatch(/init.*register|register.*init/)
+      expect(result).toMatch(/edit.*in place|patch|outdated/i)
+    })
+
+    it('teaches when to act for memory (search-before-ask, FACT vs JOURNAL)', () => {
+      const result = builder.buildToolGuidance()
+
+      expect(result).toMatch(/search.*before|before.*ask/i)
+      expect(result).toContain('FACT.md')
+      expect(result).toContain('JOURNAL')
+      expect(result).toMatch(/6 months|durable/i)
+    })
+
+    it('returns the same content soul-mode buildSystemPrompt embeds (with claw)', async () => {
+      setupFiles({})
+      const soulPrompt = await builder.buildSystemPrompt('/workspace')
+      const guidance = builder.buildToolGuidance({ hasClaw: true })
+
+      // The Soul prompt should embed every section the with-claw guidance has.
+      expect(soulPrompt).toContain('## CherryClaw Tools')
+      expect(soulPrompt).toContain('## Skills')
+      expect(soulPrompt).toContain('## Workspace Memory')
+      expect(soulPrompt).toContain('## Web Search & Browser Strategy')
+      // And the guidance string is a contiguous substring of the soul prompt.
+      expect(soulPrompt).toContain(guidance)
+    })
+  })
+
+  describe('buildFactsSection', () => {
+    it('returns undefined when no FACT.md exists', async () => {
+      setupFiles({})
+
+      const result = await builder.buildFactsSection('/workspace')
+
+      expect(result).toBeUndefined()
+    })
+
+    it('wraps memory/FACT.md content in a Workspace Knowledge block', async () => {
+      setupFiles({
+        '/workspace/memory/FACT.md': '- Project: cherry-studio\n- Build tool: pnpm + electron-vite'
+      })
+
+      const result = await builder.buildFactsSection('/workspace')
+
+      expect(result).toBeDefined()
+      expect(result).toContain('## Workspace Knowledge')
+      expect(result).toContain('<facts>')
+      expect(result).toContain('Project: cherry-studio')
+      expect(result).toContain('Build tool: pnpm + electron-vite')
+      expect(result).toContain('</facts>')
+      // The agent should also be told to keep updating FACT.md
+      expect(result).toContain('mcp__agent-memory__memory')
+      expect(result).toContain('action="update"')
+    })
+
+    it('resolves FACT.md case-insensitively', async () => {
+      setupFiles({
+        '/workspace/memory/fact.md': '- lowercase filename'
+      })
+
+      const result = await builder.buildFactsSection('/workspace')
+
+      expect(result).toBeDefined()
+      expect(result).toContain('lowercase filename')
+    })
+
+    it('returns undefined when FACT.md exists but is empty', async () => {
+      setupFiles({
+        '/workspace/memory/FACT.md': ''
+      })
+
+      const result = await builder.buildFactsSection('/workspace')
+
+      expect(result).toBeUndefined()
+    })
+
+    it('does not include SOUL.md or USER.md content (those are Soul-only)', async () => {
+      setupFiles({
+        '/workspace/SOUL.md': 'Warm but direct.',
+        '/workspace/user.md': 'Name: V',
+        '/workspace/memory/FACT.md': 'Build tool: pnpm'
+      })
+
+      const result = await builder.buildFactsSection('/workspace')
+
+      expect(result).toBeDefined()
+      expect(result).toContain('Build tool: pnpm')
+      expect(result).not.toContain('Warm but direct')
+      expect(result).not.toContain('Name: V')
+      expect(result).not.toContain('<soul>')
+      expect(result).not.toContain('<user>')
+    })
+  })
 })

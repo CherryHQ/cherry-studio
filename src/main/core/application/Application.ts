@@ -111,11 +111,50 @@ export class Application {
   }
 
   /**
+   * Initialize the path registry by building it from current Electron path
+   * state and storing it as a frozen snapshot in this Application instance.
+   *
+   * Timing contract:
+   *   - MUST be called AFTER `resolveUserDataLocation()` so that all
+   *     `app.setPath('userData', ...)` calls have completed.
+   *   - MUST be called BEFORE `bootstrap()` — `bootstrap()` asserts the
+   *     registry is initialized and refuses to start otherwise.
+   *
+   * Naming note: the underlying `buildPathRegistry()` is the constructor
+   * that does the actual `Object.freeze()`. This method is the *installer*
+   * that places the built registry into the Application instance.
+   *
+   * Single-call enforced — repeated invocation throws to surface misuse
+   * (e.g. accidentally calling it from both main/index.ts and a test).
+   * Tests that need a fresh registry should use `__setPathMapForTesting()`
+   * instead, which bypasses this guard for test isolation.
+   *
+   * LoggerService and BootConfigService bypass this registry and read
+   * paths directly via `paths/constants.ts` (`LOGS_DIR`, `BOOT_CONFIG_PATH`);
+   * one-shot startup pipelines (migration, legacy backup restore) carry
+   * their own ad-hoc path logic and do not consume the registry either.
+   */
+  public initPathRegistry(): void {
+    if (this.pathMap !== null) {
+      throw new Error('initPathRegistry() called twice — path registry is already initialized')
+    }
+    this.pathMap = buildPathRegistry()
+    logger.debug(`Path registry initialized with ${Object.keys(this.pathMap).length} entries`)
+  }
+
+  /**
    * Bootstrap the application
    * Initializes services in three phases with maximum parallelization:
    * 1. Background: fire-and-forget, independent services
    * 2. BeforeReady: services that don't need Electron API (parallel with app.whenReady)
    * 3. WhenReady: services that require Electron API
+   *
+   * Precondition: `initPathRegistry()` must have been called from the
+   * preboot phase in `main/index.ts`. This is enforced by an entry-point
+   * assertion below — there is no silent fallback initialization, so any
+   * code path that reaches `bootstrap()` without first calling
+   * `initPathRegistry()` fails fast with a clear error pointing at the
+   * fix location.
    */
   public async bootstrap(): Promise<void> {
     if (this.isBootstrapped) {
@@ -123,20 +162,23 @@ export class Application {
       return
     }
 
+    // Path registry must be initialized by preboot — see initPathRegistry()
+    // for the timing contract. We do not auto-initialize here on purpose:
+    // a silent fallback would mask the case where main/index.ts forgot to
+    // call initPathRegistry() and would push the failure to the first
+    // getPath() call deep inside service startup, where the diagnostic
+    // is much harder to read.
+    if (this.pathMap === null) {
+      throw new Error(
+        'Path registry not initialized. Call application.initPathRegistry() ' +
+          'after resolveUserDataLocation() in main/index.ts before invoking bootstrap().'
+      )
+    }
+
     // Register signal and quit handlers FIRST, before anything else,
     // so Ctrl+C and app quit are handled even during early bootstrap stages
     this.setupSignalHandlers()
     this.setupQuitHandlers()
-
-    // Freeze the path registry. From this line onward, application.getPath()
-    // is callable; any earlier call would have thrown. The caller (index.ts)
-    // is responsible for completing all app.setPath() calls before invoking
-    // bootstrap(). LoggerService and BootConfigService bypass this registry
-    // and read paths directly via paths/constants.ts (LOGS_DIR, BOOT_CONFIG_PATH);
-    // one-shot startup pipelines (migration, legacy backup restore) carry
-    // their own ad-hoc path logic and do not consume the registry either.
-    this.pathMap = buildPathRegistry()
-    logger.debug(`Path registry frozen with ${Object.keys(this.pathMap).length} entries`)
 
     logger.info('Bootstrapping...')
 
@@ -167,8 +209,15 @@ export class Application {
 
       this.isBootstrapped = true
 
-      // 4. Wait for Background to finish, then notify all services
+      // 4. Wait for Background to finish, then notify all services.
+      // ServiceInitError = fail-fast service failure → must propagate to
+      // handleFatalServiceError() via the outer catch block.
+      // Non-ServiceInitError = graceful/unexpected failure in a background
+      // service — log and continue, as background services are non-critical.
       await backgroundPromise.catch((err) => {
+        if (err instanceof ServiceInitError) {
+          throw err
+        }
         logger.error('Background phase failed:', err)
       })
       await this.lifecycleManager.allReady()
@@ -515,7 +564,11 @@ export class Application {
    */
   public quit(): void {
     if (this._isQuitting) {
-      logger.warn('Already quitting')
+      // Re-kick app.quit(): if a prior quit stalled (e.g. a BrowserWindow close
+      // handler preventDefault'd and broke the chain), this gives the user a
+      // second chance to exit via the menu without resorting to `kill -9`.
+      logger.warn('Already quitting — re-triggering app.quit() in case a previous attempt stalled')
+      app.quit()
       return
     }
     logger.info('Quitting application...')
@@ -610,12 +663,12 @@ export class Application {
    * `src/main/core/paths/README.md` for naming conventions, namespace
    * taxonomy, and usage guidelines.
    *
-   * Callable only after `Application.bootstrap()` has begun. Earlier
-   * calls throw — the path registry is frozen as the first step inside
-   * `bootstrap()`, so any consumer that runs before then is a contract
-   * violation and must be either deferred (into a service `onStart()`)
-   * or migrated to a special-case path source (e.g. `paths/constants.ts`
-   * for code that must run before the registry exists).
+   * Callable only after `application.initPathRegistry()` has been invoked
+   * from the preboot phase in `main/index.ts`. Earlier calls throw — any
+   * consumer that runs before then is a contract violation and must be
+   * either deferred (into a service `onStart()`) or migrated to a
+   * special-case path source (e.g. `paths/constants.ts` for code that
+   * must run before the registry exists).
    *
    * @param key      Dotted path key (e.g. 'feature.files.data', 'cherry.bin').
    *                 Type-checked at compile time against the path registry.
@@ -630,9 +683,9 @@ export class Application {
   public getPath(key: PathKey, filename?: string): string {
     if (this.pathMap === null) {
       throw new Error(
-        `application.getPath('${key}') called before Application.bootstrap() ran. ` +
-          `Ensure all app.setPath() calls finish, then invoke application.bootstrap() ` +
-          `before any service uses the path registry.`
+        `application.getPath('${key}') called before application.initPathRegistry() ran. ` +
+          `Ensure all app.setPath() calls finish, then invoke application.initPathRegistry() ` +
+          `from main/index.ts preboot before any service uses the path registry.`
       )
     }
 

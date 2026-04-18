@@ -4,10 +4,6 @@ import path from 'node:path'
 
 import { app } from 'electron'
 
-export function getResourcePath() {
-  return path.join(app.getAppPath(), 'resources')
-}
-
 export function toAsarUnpackedPath(filePath: string): string {
   if (!app.isPackaged) {
     return filePath

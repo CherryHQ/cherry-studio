@@ -9,6 +9,9 @@
 | Knowledge bases + lightweight items | Redux `knowledge.bases` | `ReduxStateReader.getCategory('knowledge')` |
 | Full note content | Dexie `knowledge_notes` | `knowledge_notes.json` |
 | File metadata fallback | Dexie `files` | `files.json` |
+| Legacy vector databases | Filesystem | `ctx.paths.knowledgeBaseDir/{baseId}` (via `MigrationPaths`) |
+
+> **Note**: The legacy vector DB path comes from `ctx.paths.knowledgeBaseDir`, which is pre-computed by `MigrationPaths` from the resolved v1 userData directory. Do NOT call `app.getPath('userData')` directly — see `migration/v2/README.md` Path Safety section.
 
 ## Target Tables
 

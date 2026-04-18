@@ -16,13 +16,13 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
+import { userModelTable } from '@data/db/schemas/userModel'
 import { createClient, type Value as LibsqlValue } from '@libsql/client'
 import { loggerService } from '@logger'
 import { sanitizeFilename } from '@main/utils/file'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import type { FileMetadata } from '@shared/data/types/file'
 import { sql } from 'drizzle-orm'
-import { app } from 'electron'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
@@ -37,6 +37,7 @@ import {
   transformKnowledgeBase,
   transformKnowledgeItem
 } from './mappings/KnowledgeMappings'
+import { resolveModelReference } from './transformers/ModelTransformers'
 
 const logger = loggerService.withContext('KnowledgeMigrator')
 
@@ -131,16 +132,13 @@ export class KnowledgeMigrator extends BaseMigrator {
     this.seenItemIds = new Set<string>()
   }
 
-  private getLegacyKnowledgeDbPath(baseId: string): string | null {
-    // KnowledgeMigrator is a v2 migration pipeline (`src/main/data/migration/v2/`)
-    // and runs before the v2 path registry is available. Application.ts:132-137
-    // explicitly carves out this exception: "one-shot startup pipelines
-    // (migration, legacy backup restore) carry their own ad-hoc path logic and
-    // do not consume the registry". So we hand-roll {userData}/Data/KnowledgeBase
-    // here instead of routing through application.getPath('feature.knowledgebase.data')
-    // — calling the registry pre-bootstrap would throw. This must also stay in
-    // sync with KnowledgeService.storageDir which uses the same v1 path layout.
-    const rootPath = path.join(app.getPath('userData'), 'Data', 'KnowledgeBase')
+  private getLegacyKnowledgeDbPath(baseId: string, knowledgeBaseDir: string): string | null {
+    // The knowledge base directory comes from MigrationPaths, which is resolved
+    // once at the migration gate entry by resolveMigrationPaths(). This avoids
+    // calling app.getPath('userData') directly (which would miss custom userData
+    // overrides from legacy config.json) and avoids the v2 path registry (which
+    // is not available during migration).
+    const rootPath = knowledgeBaseDir
     const sanitizedBaseId = sanitizeFilename(baseId, '_')
     const resolvedDbPath = path.resolve(rootPath, sanitizedBaseId)
     const relativePath = path.relative(rootPath, resolvedDbPath)
@@ -187,9 +185,10 @@ export class KnowledgeMigrator extends BaseMigrator {
   }
 
   private async resolveDimensionsForBase(
-    base: LegacyKnowledgeBaseWithIdentity
+    base: LegacyKnowledgeBaseWithIdentity,
+    knowledgeBaseDir: string
   ): Promise<{ dimensions: number | null; reason: DimensionResolutionReason }> {
-    const dbPath = this.getLegacyKnowledgeDbPath(base.id)
+    const dbPath = this.getLegacyKnowledgeDbPath(base.id, knowledgeBaseDir)
     if (!dbPath) {
       return { dimensions: null, reason: 'vector_db_invalid_path' }
     }
@@ -403,6 +402,9 @@ export class KnowledgeMigrator extends BaseMigrator {
       const { noteIds, fileIds } = this.collectLookupIds(bases)
       const noteById = await this.loadNoteLookup(ctx, noteIds)
       const filesById = await this.loadFileLookup(ctx, fileIds)
+      const validModelIds = ctx.db?.select
+        ? new Set((await ctx.db.select({ id: userModelTable.id }).from(userModelTable)).map((row) => row.id))
+        : null
 
       for (const base of bases) {
         this.sourceCount += 1
@@ -428,7 +430,7 @@ export class KnowledgeMigrator extends BaseMigrator {
           continue
         }
 
-        const resolvedDimensions = await this.resolveDimensionsForBase(validBase)
+        const resolvedDimensions = await this.resolveDimensionsForBase(validBase, ctx.paths.knowledgeBaseDir)
 
         if (resolvedDimensions.dimensions === null) {
           this.skippedCount += 1 + items.length
@@ -440,19 +442,33 @@ export class KnowledgeMigrator extends BaseMigrator {
         }
 
         const baseResult = transformKnowledgeBase(validBase, resolvedDimensions.dimensions)
-        if (!baseResult.ok) {
-          this.skippedCount += 1 + items.length
-          this.sourceCount += items.length
-          const warningMessage = `Skipped knowledge base ${validBase.id}: ${baseResult.reason}`
+        const preparedBase = { ...baseResult.value }
+
+        const embeddingResolution = resolveModelReference(preparedBase.embeddingModelId ?? null, validModelIds)
+        if (embeddingResolution.kind === 'resolved') {
+          preparedBase.embeddingModelId = embeddingResolution.modelId
+        } else {
+          preparedBase.embeddingModelId = null
+          const warningMessage =
+            embeddingResolution.kind === 'dangling'
+              ? `Knowledge base ${validBase.id}: dangling embedding model reference ${embeddingResolution.modelId} was cleared`
+              : `Knowledge base ${validBase.id}: missing embedding model reference was cleared`
           logger.warn(warningMessage)
           this.warnings.push(warningMessage)
-          continue
         }
 
-        this.seenBaseIds.add(baseResult.value.id!)
-        this.preparedBases.push(baseResult.value)
+        const rerankResolution = resolveModelReference(preparedBase.rerankModelId ?? null, validModelIds)
+        preparedBase.rerankModelId = rerankResolution.kind === 'resolved' ? rerankResolution.modelId : null
+        if (rerankResolution.kind === 'dangling') {
+          const warningMessage = `Knowledge base ${validBase.id}: dangling rerank model reference ${rerankResolution.modelId} was cleared`
+          logger.warn(warningMessage)
+          this.warnings.push(warningMessage)
+        }
 
-        const invalidConfigWarning = getInvalidKnowledgeBaseConfigWarning(validBase, baseResult.value)
+        this.seenBaseIds.add(preparedBase.id!)
+        this.preparedBases.push(preparedBase)
+
+        const invalidConfigWarning = getInvalidKnowledgeBaseConfigWarning(validBase, preparedBase)
         if (invalidConfigWarning) {
           logger.warn(invalidConfigWarning)
           this.warnings.push(invalidConfigWarning)

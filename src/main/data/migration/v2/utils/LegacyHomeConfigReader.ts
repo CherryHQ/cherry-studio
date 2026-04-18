@@ -1,12 +1,12 @@
 import fs from 'node:fs'
-import os from 'node:os'
-import path from 'node:path'
 
-import { HOME_CHERRY_DIR } from '@shared/config/constant'
 import { app } from 'electron'
 
 /**
- * Reader for the legacy v1 home config file at ~/.cherrystudio/config/config.json.
+ * Reader for the legacy v1 home config file (typically ~/.cherrystudio/config/config.json).
+ *
+ * The file path is injected via the constructor rather than computed internally,
+ * so callers control where the config file is located.
  *
  * Responsibilities:
  *   - Synchronously read and parse the file at construction time.
@@ -35,7 +35,7 @@ import { app } from 'electron'
 export class LegacyHomeConfigReader {
   private readonly userDataPath: Record<string, string> | null
 
-  constructor() {
+  constructor(private readonly configFilePath: string) {
     this.userDataPath = this.loadSync()
   }
 
@@ -53,7 +53,7 @@ export class LegacyHomeConfigReader {
   }
 
   private loadSync(): Record<string, string> | null {
-    const filePath = path.join(os.homedir(), HOME_CHERRY_DIR, 'config', 'config.json')
+    const filePath = this.configFilePath
 
     let raw: string
     try {

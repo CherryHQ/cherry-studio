@@ -14,9 +14,9 @@
  * - v2 Refactor PR   : https://github.com/CherryHQ/cherry-studio/pull/10162
  * --------------------------------------------------------------------------
  */
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
-import { application } from '@main/core/application'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { WebDavConfig } from '@types'
 import type { S3Config } from '@types'

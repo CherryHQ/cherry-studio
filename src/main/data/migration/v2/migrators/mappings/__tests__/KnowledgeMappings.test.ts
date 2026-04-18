@@ -1,12 +1,8 @@
 import { FILE_TYPE } from '@shared/data/types/file'
 import { describe, expect, it } from 'vitest'
 
-import {
-  inferKnowledgeItemStatus,
-  toCompositeModelId,
-  transformKnowledgeBase,
-  transformKnowledgeItem
-} from '../KnowledgeMappings'
+import { legacyModelToUniqueId } from '../../transformers/ModelTransformers'
+import { inferKnowledgeItemStatus, transformKnowledgeBase, transformKnowledgeItem } from '../KnowledgeMappings'
 
 const fileMetadata = {
   id: 'file-1',
@@ -21,11 +17,9 @@ const fileMetadata = {
 }
 
 describe('KnowledgeMappings', () => {
-  it('toCompositeModelId builds provider::modelId and preserves precomposed ids', () => {
-    expect(toCompositeModelId({ id: 'BAAI/bge-m3', name: 'bge', provider: 'silicon' })).toBe('silicon::BAAI/bge-m3')
-    expect(toCompositeModelId({ id: 'silicon::BAAI/bge-m3', name: 'bge', provider: 'silicon' })).toBe(
-      'silicon::BAAI/bge-m3'
-    )
+  it('legacyModelToUniqueId builds provider::modelId and preserves precomposed ids', () => {
+    expect(legacyModelToUniqueId({ id: 'BAAI/bge-m3', provider: 'silicon' })).toBe('silicon::BAAI/bge-m3')
+    expect(legacyModelToUniqueId({ id: 'silicon::BAAI/bge-m3', provider: 'silicon' })).toBe('silicon::BAAI/bge-m3')
   })
 
   it('inferKnowledgeItemStatus only trusts uniqueId', () => {
@@ -34,7 +28,7 @@ describe('KnowledgeMappings', () => {
     expect(inferKnowledgeItemStatus({} as any)).toBe('idle')
   })
 
-  it('transformKnowledgeBase returns embedding_model_missing when model is unavailable', () => {
+  it('transformKnowledgeBase preserves the knowledge base when model is unavailable', () => {
     expect(
       transformKnowledgeBase(
         {
@@ -44,8 +38,13 @@ describe('KnowledgeMappings', () => {
         1024
       )
     ).toStrictEqual({
-      ok: false,
-      reason: 'embedding_model_missing'
+      ok: true,
+      value: expect.objectContaining({
+        id: 'kb-1',
+        name: 'KB 1',
+        embeddingModelId: null,
+        rerankModelId: null
+      })
     })
   })
 
@@ -67,6 +66,7 @@ describe('KnowledgeMappings', () => {
       value: expect.objectContaining({
         id: 'kb-soft-limit-config',
         name: 'KB soft limit config',
+        embeddingModelId: 'silicon::BAAI/bge-m3',
         chunkSize: 80,
         chunkOverlap: 40,
         documentCount: 100
@@ -93,11 +93,50 @@ describe('KnowledgeMappings', () => {
       value: expect.objectContaining({
         id: 'kb-invalid-config',
         name: 'KB invalid config',
+        embeddingModelId: 'silicon::BAAI/bge-m3',
         chunkSize: 200,
         chunkOverlap: undefined,
         threshold: undefined,
         documentCount: undefined,
         searchMode: 'default'
+      })
+    })
+  })
+
+  it('transformKnowledgeBase writes split rerank model columns', () => {
+    const result = transformKnowledgeBase(
+      {
+        id: 'kb-rerank',
+        name: 'KB with rerank',
+        model: { id: 'BAAI/bge-m3', name: 'bge', provider: 'silicon' },
+        rerankModel: { id: 'BAAI/bge-reranker', name: 'reranker', provider: 'silicon' }
+      },
+      1024
+    )
+
+    expect(result).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        embeddingModelId: 'silicon::BAAI/bge-m3',
+        rerankModelId: 'silicon::BAAI/bge-reranker'
+      })
+    })
+  })
+
+  it('transformKnowledgeBase sets rerank columns to null when no rerank model', () => {
+    const result = transformKnowledgeBase(
+      {
+        id: 'kb-no-rerank',
+        name: 'KB no rerank',
+        model: { id: 'BAAI/bge-m3', name: 'bge', provider: 'silicon' }
+      },
+      1024
+    )
+
+    expect(result).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        rerankModelId: null
       })
     })
   })
@@ -220,8 +259,8 @@ describe('KnowledgeMappings', () => {
         groupId: null,
         type: 'directory',
         data: {
-          path: '/tmp/docs',
-          recursive: true
+          name: 'docs',
+          path: '/tmp/docs'
         },
         status: 'idle',
         error: null,

@@ -43,7 +43,8 @@ no longer imported anywhere. It will be removed in a follow-up cleanup PR.
 
 | Module | Description | Reference Docs |
 |--------|-------------|----------------|
-| `application/` | Application singleton, service registry, bootstrap orchestration | [Lifecycle Reference](../../../docs/en/references/lifecycle/README.md) |
-| `lifecycle/` | IoC container, service lifecycle management, phased bootstrap | [Lifecycle Reference](../../../docs/en/references/lifecycle/README.md) |
+| `application/` | Application singleton, service registry, bootstrap orchestration | [Lifecycle Reference](../../../docs/references/lifecycle/README.md) |
+| `lifecycle/` | IoC container, service lifecycle management, phased bootstrap | [Lifecycle Reference](../../../docs/references/lifecycle/README.md) |
+| `logger/` | Winston-based logging service (preboot singleton, consumed via `@logger` alias) | [logging.md](../../../docs/guides/logging.md) |
 | `paths/` | Path registry: single source of truth for all main-process filesystem paths | [paths/README.md](./paths/README.md) |
 | `preboot/` | Pre-bootstrap synchronous setup (userData resolution, etc.) | [preboot/README.md](./preboot/README.md) |

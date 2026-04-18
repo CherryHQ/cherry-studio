@@ -48,14 +48,20 @@ class SimpleMappingGenerator {
     const sources = ['electronStore', 'redux', 'localStorage', 'dexieSettings']
 
     // 递归提取项目，包括children (保持现有逻辑)
-    const extractItems = (items, source, category, parentKey = '') => {
+    const extractItems = (items, source, category, parentKey = '', parentItem = null) => {
       if (!Array.isArray(items)) return
 
       items.forEach((item) => {
         // 处理有children的项目
         if (item.children && Array.isArray(item.children)) {
           console.log(`处理children项: ${source}/${category}/${item.originalKey}`)
-          extractItems(item.children, source, category, `${parentKey}${item.originalKey}.`)
+          extractItems(item.children, source, category, `${parentKey}${item.originalKey}.`, item)
+          return
+        }
+
+        // Array-backed preferences need complex mappings; skip them here so
+        // the generator does not emit conflicting simple mappings.
+        if (parentItem?.type === 'array') {
           return
         }
 

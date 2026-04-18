@@ -1,5 +1,5 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import { toAsarUnpackedPath } from '@main/utils'
 import {
   checkName,

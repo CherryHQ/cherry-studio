@@ -87,7 +87,7 @@ vi.mock('fs-extra', () => ({
   createReadStream: vi.fn()
 }))
 
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: {
     get: vi.fn((name: string) => {
       if (name === 'WindowService') {

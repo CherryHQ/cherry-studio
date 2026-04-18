@@ -3,8 +3,8 @@
  * This code is adapted from https://github.com/ThinkInAIXYZ/deepchat
  * Original file: src/main/presenter/anthropicOAuth.ts
  */
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import * as crypto from 'crypto'
 import { net, shell } from 'electron'
 import { promises } from 'fs'

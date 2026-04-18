@@ -16,6 +16,7 @@
 
 import { isWin } from '@main/constant'
 
+// [v2] should move to somewhere else
 export const titleBarOverlayDark = {
   height: 42,
   color: isWin ? 'rgba(0,0,0,0.02)' : 'rgba(255,255,255,0)',
@@ -27,5 +28,3 @@ export const titleBarOverlayLight = {
   color: 'rgba(255,255,255,0)',
   symbolColor: '#000'
 }
-
-global.CHERRYAI_CLIENT_SECRET = import.meta.env.MAIN_VITE_CHERRYAI_CLIENT_SECRET

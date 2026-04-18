@@ -6,6 +6,11 @@ import fs from 'node:fs'
 import type * as PathRegistryModule from '@main/core/paths/pathRegistry'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('node:fs', async () => {
+  const { createNodeFsMock } = await import('@test-helpers/mocks/nodeFsMock')
+  return createNodeFsMock()
+})
+
 // Mock @main/core/paths/pathRegistry (the deep path used by Application.ts)
 // instead of the public @main/core/paths re-export. The public entry only
 // re-exports types — Application.ts imports the buildPathRegistry function
@@ -36,7 +41,6 @@ vi.mock('@main/core/paths/pathRegistry', async () => {
         // Cherry-owned files (auto-ensure dirname only)
         'feature.copilot.token_file': '/mock/home/.cherrystudio/config/.copilot_token',
         'app.database.file': '/mock/userData/cherrystudio.sqlite',
-        'feature.memory.db_file': '/mock/userData/Data/Memory/memories.db',
         // NO_ENSURE — exact key entries (build artifacts)
         'app.exe_file': '/mock/install/CherryStudio',
         'app.extra_resources': '/mock/resources',
@@ -50,10 +54,11 @@ vi.mock('@main/core/paths/pathRegistry', async () => {
 import { Application } from '@main/core/application/Application'
 import { buildPathRegistry } from '@main/core/paths/pathRegistry'
 
-// Bypass the global mock of '@main/core/application' (which exports a stub
+// Bypass the global mock of '@application' (which exports a stub
 // `application` proxy with a no-op bootstrap) by importing the real
 // Application class directly via its file path. The global mock only
-// intercepts the directory/index path.
+// intercepts the directory/index path, leaving `Application.ts` reachable
+// via the `@main/*` alias.
 
 describe('Application.getPath', () => {
   const app = Application.getInstance()
@@ -102,10 +107,12 @@ describe('Application.getPath', () => {
   })
 
   describe('pre-bootstrap throw guard', () => {
-    it('throws a clear error when pathMap is null (pre-bootstrap)', () => {
-      // Temporarily reset pathMap to simulate the pre-bootstrap state.
+    it('throws a clear error when pathMap is null (pre-initPathRegistry)', () => {
+      // Temporarily reset pathMap to simulate the pre-initPathRegistry state.
       app.__setPathMapForTesting(null)
-      expect(() => app.getPath('feature.files.data')).toThrowError(/called before Application\.bootstrap\(\) ran/)
+      expect(() => app.getPath('feature.files.data')).toThrowError(
+        /called before application\.initPathRegistry\(\) ran/
+      )
       // Restore the mock for any subsequent test that runs in the same
       // describe (the beforeEach also restores it, but we want this case
       // to leave the state clean for any in-flight observation).
@@ -139,14 +146,6 @@ describe('Application.getPath', () => {
       app.getPath('app.database.file')
       expect(fs.mkdirSync).toHaveBeenCalledTimes(1)
       expect(fs.mkdirSync).toHaveBeenCalledWith('/mock/userData', { recursive: true })
-    })
-
-    it('mkdirs path.dirname(base) for a key whose name ends with "db_file"', () => {
-      app.getPath('feature.memory.db_file')
-      expect(fs.mkdirSync).toHaveBeenCalledTimes(1)
-      // Verifies the consumer's "zero-burden" promise: the parent dir is
-      // ensured so the caller can drop a SQLite file straight at this path.
-      expect(fs.mkdirSync).toHaveBeenCalledWith('/mock/userData/Data/Memory', { recursive: true })
     })
 
     it('does not mkdir for keys in the NO_ENSURE exact list (app.exe_file)', () => {
