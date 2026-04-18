@@ -796,6 +796,17 @@ class CodeToolsService {
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
+
+      // Detect bun "failed to remap" error on Windows
+      if (isWin && errorMessage.includes('Bun failed to remap')) {
+        const retryMessage = `Failed to update ${cliTool} due to bun global install issue on Windows. Try running 'bun install --force' in the project root manually.`
+        logger.error(retryMessage, error as Error)
+        return {
+          success: false,
+          message: retryMessage
+        }
+      }
+
       const failureMessage = `Failed to update ${cliTool}: ${errorMessage}`
       logger.error(failureMessage, error as Error)
       return {
@@ -944,6 +955,15 @@ class CodeToolsService {
       baseCommand = `${uvPath} tool run ${packageName}`
     }
 
+    // Special handling for claude-code on Windows: use bunx to avoid bun global install issues
+    // This avoids the "Bun failed to remap" error on Windows
+    if (useBunxForClaudeCode) {
+      const registryUrl = await this.getNpmRegistryUrl()
+      const bunxCmd = `"${bunPath}" -y ${packageName} --prefix .`
+      baseCommand = `set "BUN_INSTALL=${bunInstallPath}" && set "NPM_CONFIG_REGISTRY=${registryUrl}" && ${bunxCmd}`
+      logger.debug('Using bunx command for claude-code:', baseCommand)
+    }
+
     // Special handling for qwen-code: add --auth-type openai for version >= 0.12.3
     if (cliTool === codeTools.qwenCode) {
       // Use semver for proper version comparison (handles v-prefix, prereleases, etc.)
@@ -1004,11 +1024,19 @@ class CodeToolsService {
 
     const bunInstallPath = path.join(os.homedir(), HOME_CHERRY_DIR)
 
+    // Special handling for claude-code: use bunx on Windows to avoid bun global install issues
+    // See: https://github.com/CherryHQ/cherry-studio/issues/14367
+    const useBunxForClaudeCode = cliTool === codeTools.claudeCode && platform === 'win32'
+
+    if (useBunxForClaudeCode) {
+      logger.info('Using bunx to run claude-code on Windows to avoid global install issues')
+    }
+
     // Special handling for kimi-cli: uvx handles installation automatically
     if (cliTool === codeTools.kimiCli) {
       // uvx will automatically download and run kimi-cli, no need to install
       // Just use the base command directly
-    } else if (isInstalled) {
+    } else if (useBunxForClaudeCode || isInstalled) {
       // If already installed, run executable directly (with optional update message)
       if (updateMessage) {
         // updateMessage already has escaped dynamic content, && connectors are intentional
