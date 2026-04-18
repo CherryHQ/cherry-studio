@@ -107,6 +107,10 @@ export const getProviderLabel = (id: string): string => {
   return getLabel(providerKeyMap, id)
 }
 
+export const hasProviderLabel = (id: string): boolean => {
+  return Object.prototype.hasOwnProperty.call(providerKeyMap, id)
+}
+
 const backupProgressKeyMap = {
   completed: 'backup.progress.completed',
   compressing: 'backup.progress.compressing',

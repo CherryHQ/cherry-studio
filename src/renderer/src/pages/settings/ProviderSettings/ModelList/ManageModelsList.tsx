@@ -6,6 +6,7 @@ import { getModelLogoById } from '@renderer/config/models'
 import FileItem from '@renderer/pages/files/FileItem'
 import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiBatchAddModelPopup'
 import type { Model, Provider } from '@renderer/types'
+import { getModelGroupDisplayName } from '@renderer/utils/model'
 import { isNewApiProvider } from '@renderer/utils/provider'
 import { Button, Flex, Tooltip } from 'antd'
 import { Avatar } from 'antd'
@@ -162,7 +163,9 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
                     strokeWidth={1.5}
                     style={{ transform: isCollapsed ? 'rotate(0deg)' : 'rotate(90deg)' }}
                   />
-                  <span style={{ fontWeight: 'bold', fontSize: '14px' }}>{row.groupName}</span>
+                  <span style={{ fontWeight: 'bold', fontSize: '14px' }}>
+                    {getModelGroupDisplayName(row.groupName)}
+                  </span>
                   <CustomTag color="#02B96B" size={10}>
                     {row.models.length}
                   </CustomTag>
