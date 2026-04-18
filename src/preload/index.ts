@@ -587,20 +587,6 @@ const api = {
       updatedPermissions?: PermissionUpdate[]
     }) => ipcRenderer.invoke(IpcChannel.AgentToolPermission_Response, payload)
   },
-  agentSessionStream: {
-    onSessionChanged: (
-      callback: (data: { agentId: string; sessionId: string; headless?: boolean }) => void
-    ): (() => void) => {
-      const listener = (
-        _event: Electron.IpcRendererEvent,
-        data: { agentId: string; sessionId: string; headless?: boolean }
-      ) => {
-        callback(data)
-      }
-      ipcRenderer.on(IpcChannel.AgentSession_Changed, listener)
-      return () => ipcRenderer.off(IpcChannel.AgentSession_Changed, listener)
-    }
-  },
   wechat: {
     onQrLogin: (
       callback: (data: { channelId: string; agentId: string; url: string; status: string; userId?: string }) => void
