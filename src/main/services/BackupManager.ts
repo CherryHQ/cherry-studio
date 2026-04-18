@@ -28,6 +28,7 @@ import type { CreateDirectoryOptions, FileStat } from 'webdav'
 
 import { getDataPath } from '../utils'
 import { resolveAndValidatePath } from '../utils/file'
+import { copyDirectoryRecursive } from '../utils/fileOperations'
 import S3Storage from './S3Storage'
 import WebDav from './WebDav'
 import { windowService } from './WindowService'
@@ -165,7 +166,7 @@ class BackupManager {
       const indexedDBSource = path.join(userDataPath, 'IndexedDB')
       const indexedDBDest = path.join(this.tempDir, 'IndexedDB')
       if (await fs.pathExists(indexedDBSource)) {
-        await fs.copy(indexedDBSource, indexedDBDest)
+        await copyDirectoryRecursive(indexedDBSource, indexedDBDest)
       } else {
         logger.debug('[backupDirect] IndexedDB directory not found, skipping')
       }
@@ -173,7 +174,7 @@ class BackupManager {
       const localStorageSource = path.join(userDataPath, 'Local Storage')
       const localStorageDest = path.join(this.tempDir, 'Local Storage')
       if (await fs.pathExists(localStorageSource)) {
-        await fs.copy(localStorageSource, localStorageDest)
+        await copyDirectoryRecursive(localStorageSource, localStorageDest)
       } else {
         logger.debug('[backupDirect] Local Storage directory not found, skipping')
       }
@@ -327,7 +328,7 @@ class BackupManager {
             const fullPath = path.join(dirPath, item.name)
             if (item.isDirectory()) {
               await calculateTotals(fullPath)
-            } else {
+            } else if (item.isFile()) {
               totalEntries++
               const stats = await fs.stat(fullPath)
               totalBytes += stats.size
@@ -588,12 +589,12 @@ class BackupManager {
       // Always remove target directory first to ensure clean overwrite
       if (await fs.pathExists(indexedDBSource)) {
         await fs.remove(indexedDBDest).catch(() => {})
-        await fs.copy(indexedDBSource, indexedDBDest)
+        await copyDirectoryRecursive(indexedDBSource, indexedDBDest)
       }
 
       if (await fs.pathExists(localStorageSource)) {
         await fs.remove(localStorageDest).catch(() => {})
-        await fs.copy(localStorageSource, localStorageDest)
+        await copyDirectoryRecursive(localStorageSource, localStorageDest)
       }
 
       onProgress({ stage: 'restoring_database', progress: 65, total: 100 })
@@ -822,7 +823,7 @@ class BackupManager {
       const fullPath = path.join(dirPath, item.name)
       if (item.isDirectory()) {
         size += await this.getDirSize(fullPath)
-      } else {
+      } else if (item.isFile()) {
         const stats = await fs.stat(fullPath)
         size += stats.size
       }
@@ -941,7 +942,7 @@ class BackupManager {
       for (const item of items) {
         if (item.isDirectory()) {
           count += await countFiles(path.join(dir, item.name))
-        } else {
+        } else if (item.isFile()) {
           count++
         }
       }
@@ -961,7 +962,7 @@ class BackupManager {
         if (item.isDirectory()) {
           await fs.ensureDir(destPath)
           await copyDir(sourcePath, destPath)
-        } else {
+        } else if (item.isFile()) {
           const stats = await fs.stat(sourcePath)
           await fs.copy(sourcePath, destPath)
           processedFiles++
