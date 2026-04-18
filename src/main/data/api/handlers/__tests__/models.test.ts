@@ -1,4 +1,4 @@
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory, ErrorCode } from '@shared/data/api'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { listMock, createMock, getByKeyMock, updateMock, deleteMock, lookupModelMock } = vi.hoisted(() => ({
@@ -64,6 +64,16 @@ describe('modelHandlers', () => {
       expect(createMock).toHaveBeenCalledWith(body, registryData)
       expect(result).toBe(createdModel)
     })
+
+    it('does not call modelService.create when lookupModel rejects', async () => {
+      lookupModelMock.mockRejectedValueOnce(new Error('registry down'))
+
+      await expect(
+        modelHandlers['/models'].POST({ body: { providerId: 'openai', modelId: 'gpt-4' } } as never)
+      ).rejects.toThrow(/registry down/)
+
+      expect(createMock).not.toHaveBeenCalled()
+    })
   })
 
   describe('/models/:uniqueModelId*', () => {
@@ -103,10 +113,34 @@ describe('modelHandlers', () => {
       expect(result).toBeUndefined()
     })
 
-    it('rejects an id missing the :: separator before touching the service', async () => {
+    it('splits on the FIRST :: when the modelId itself contains ::', async () => {
+      const model = { id: 'openai::ns::model' }
+      getByKeyMock.mockResolvedValueOnce(model)
+
+      await modelHandlers['/models/:uniqueModelId*'].GET({
+        params: { uniqueModelId: 'openai::ns::model' }
+      } as never)
+
+      expect(getByKeyMock).toHaveBeenCalledWith('openai', 'ns::model')
+    })
+
+    it.each([
+      ['empty modelId', 'openai::', 'openai', ''],
+      ['empty providerId', '::gpt-4', '', 'gpt-4']
+    ])('passes %s through to the service (contract pinned)', async (_label, uniqueModelId, providerId, modelId) => {
+      getByKeyMock.mockResolvedValueOnce(null)
+
+      await modelHandlers['/models/:uniqueModelId*'].GET({
+        params: { uniqueModelId }
+      } as never)
+
+      expect(getByKeyMock).toHaveBeenCalledWith(providerId, modelId)
+    })
+
+    it('rejects an id missing the :: separator with a 422 validation error', async () => {
       await expect(
         modelHandlers['/models/:uniqueModelId*'].GET({ params: { uniqueModelId: 'no-separator' } } as never)
-      ).rejects.toThrow(/Invalid UniqueModelId/)
+      ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
 
       expect(getByKeyMock).not.toHaveBeenCalled()
     })
