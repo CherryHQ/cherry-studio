@@ -84,9 +84,11 @@ Key points:
 
 - Runs after both BeforeReady and `app.whenReady()` have completed.
 - Full access to Electron APIs (`BrowserWindow`, `Tray`, `screen`, `nativeTheme`, `dialog`, `globalShortcut`, etc.).
-- Can depend on other WhenReady services. No need to `@DependsOn` BeforeReady services — they are guaranteed to be ready before the WhenReady phase starts.
+- Can depend on other WhenReady services.
 - Best for: window management, tray, system shortcuts, theme management, IPC handlers that need Electron APIs.
 - This is the default phase — if you omit `@ServicePhase`, the service is placed here.
+
+> **⚠️ Cross-phase dependencies are automatic.** BeforeReady services (`PreferenceService`, `DbService`, `CacheService`, `DataApiService`) are guaranteed to finish before WhenReady starts. Do **not** declare `@DependsOn('PreferenceService')` (or similar) on a WhenReady service — it is redundant and misleading. Only use `@DependsOn` for same-phase coupling.
 
 **Background** — Fire-and-forget
 
@@ -103,6 +105,8 @@ Key points:
 | BeforeReady | BeforeReady            | Background, WhenReady  |
 | Background  | Background             | BeforeReady, WhenReady |
 | WhenReady   | BeforeReady, WhenReady | Background             |
+
+**Cross-phase dependencies are implicit** — the "Can Depend On" column means those services are guaranteed to be ready, **not** that you should declare them via `@DependsOn`. Reserve `@DependsOn` for same-phase ordering; cross-phase readiness is enforced automatically by `LifecycleManager.startPhase()`.
 
 **Invalid dependencies are auto-corrected** with a warning log:
 ```
