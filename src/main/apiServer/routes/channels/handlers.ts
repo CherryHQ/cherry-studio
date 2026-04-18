@@ -18,9 +18,7 @@ export const createChannel = async (req: Request, res: Response): Promise<Respon
       permissionMode: permission_mode
     })
 
-    if (channel.agentId) {
-      await channelManager.syncAgent(channel.agentId)
-    }
+    await channelManager.syncChannel(channel.id)
 
     logger.info('Channel created', { channelId: channel.id, type })
     return res.status(201).json(channel)
@@ -95,9 +93,7 @@ export const updateChannel = async (req: Request, res: Response): Promise<Respon
       })
     }
 
-    if (channel.agentId) {
-      await channelManager.syncAgent(channel.agentId)
-    }
+    await channelManager.syncChannel(channelId)
 
     logger.info('Channel updated', { channelId })
     return res.json(channel)
@@ -125,12 +121,9 @@ export const deleteChannel = async (req: Request, res: Response): Promise<Respon
       })
     }
 
-    const agentId = channel.agentId
     await channelService.deleteChannel(channelId)
 
-    if (agentId) {
-      await channelManager.syncAgent(agentId)
-    }
+    await channelManager.disconnectChannel(channelId)
 
     logger.info('Channel deleted', { channelId })
     return res.status(204).send()

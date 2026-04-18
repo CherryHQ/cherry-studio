@@ -490,6 +490,7 @@
       },
       "prompt": "Paramètres de l'invite",
       "skills": {
+        "addMore": "Ajouter plus de compétences",
         "builtin": "Intégré",
         "noFilterResults": "Aucune compétence correspondante",
         "noSkills": "Aucune compétence installée. Installez des compétences depuis Paramètres > Compétences.",
@@ -5607,7 +5608,7 @@
       "noInstalled": "Aucune compétence installée",
       "noResults": "Aucune compétence trouvée",
       "noSkillFile": "Aucun SKILL.md trouvé",
-      "searchPlaceholder": "Rechercher des compétences dans les registres...",
+      "searchPlaceholder": "Découvrir plus de compétences...",
       "searchRegistryTitle": "Rechercher des registres de compétences en ligne",
       "searchTitle": "Compétences de recherche",
       "selectFile": "Sélectionner un fichier à afficher",

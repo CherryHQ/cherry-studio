@@ -54,6 +54,7 @@ import type { StreamProcessorCallbacks } from './StreamProcessingService'
 // FIXME: 这里太多重复逻辑，需要重构
 
 const logger = loggerService.withContext('ApiService')
+const SUMMARY_REQUEST_TIMEOUT_MS = 15_000
 
 /**
  * Get the MCP servers to use based on the assistant's MCP mode.
@@ -284,6 +285,15 @@ export async function fetchChatCompletion({
     knowledgeRecognition: assistant.knowledgeRecognition
   }
 
+  // Wrap onChunkReceived to automatically track token usage on completion
+  const originalOnChunk = middlewareConfig.onChunk
+  middlewareConfig.onChunk = (chunk: Chunk) => {
+    if (chunk.type === ChunkType.BLOCK_COMPLETE) {
+      trackTokenUsage({ usage: chunk.response?.usage, model: assistant?.model, source: 'chat' })
+    }
+    originalOnChunk?.(chunk)
+  }
+
   // --- Call AI Completions ---
   await AI.completions(modelId, aiSdkParams, {
     ...middlewareConfig,
@@ -484,7 +494,9 @@ export async function fetchMessagesSummary({
     system: prompt,
     prompt: conversation,
     providerOptions,
-    ...standardParams
+    ...standardParams,
+    abortSignal: AbortSignal.timeout(SUMMARY_REQUEST_TIMEOUT_MS),
+    maxRetries: 0
   }
 
   const middlewareConfig: AiSdkMiddlewareConfig = {
@@ -566,7 +578,9 @@ export async function fetchNoteSummary({ content, assistant }: { content: string
 
   const llmMessages = {
     system: prompt,
-    prompt: purifiedContent
+    prompt: purifiedContent,
+    abortSignal: AbortSignal.timeout(SUMMARY_REQUEST_TIMEOUT_MS),
+    maxRetries: 0
   }
 
   const middlewareConfig: AiSdkMiddlewareConfig = {
@@ -705,7 +719,7 @@ export function hasApiKey(provider: Provider) {
  * Get rotated API key for providers that support multiple keys
  * Returns empty string for providers that don't require API keys
  */
-function getRotatedApiKey(provider: Provider): string {
+export function getRotatedApiKey(provider: Provider): string {
   // Handle providers that don't require API keys
   if (!provider.apiKey || provider.apiKey.trim() === '') {
     return ''

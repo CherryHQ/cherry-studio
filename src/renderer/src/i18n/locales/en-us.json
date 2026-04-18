@@ -490,6 +490,7 @@
       },
       "prompt": "Prompt Settings",
       "skills": {
+        "addMore": "Add More Skills",
         "builtin": "Built-in",
         "noFilterResults": "No matching skills",
         "noSkills": "No skills installed. Install skills from Settings > Skills.",
@@ -5607,7 +5608,7 @@
       "noInstalled": "No skills installed",
       "noResults": "No skills found",
       "noSkillFile": "No SKILL.md found",
-      "searchPlaceholder": "Search skills across registries...",
+      "searchPlaceholder": "Discover more skills...",
       "searchRegistryTitle": "Search skill registries online",
       "searchTitle": "Search Skills",
       "selectFile": "Select a file to view",

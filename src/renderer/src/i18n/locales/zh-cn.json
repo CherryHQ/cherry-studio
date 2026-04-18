@@ -490,6 +490,7 @@
       },
       "prompt": "提示词设置",
       "skills": {
+        "addMore": "添加更多技能",
         "builtin": "内置",
         "noFilterResults": "没有匹配的技能",
         "noSkills": "暂无已安装的技能。前往 设置 > 技能 安装技能。",
@@ -5607,7 +5608,7 @@
       "noInstalled": "暂无已安装的技能",
       "noResults": "未找到技能",
       "noSkillFile": "未找到 SKILL.md 文件",
-      "searchPlaceholder": "跨注册表搜索技能...",
+      "searchPlaceholder": "发现更多技能...",
       "searchRegistryTitle": "在线搜索技能注册表",
       "searchTitle": "搜索技能",
       "selectFile": "选择一个文件查看",

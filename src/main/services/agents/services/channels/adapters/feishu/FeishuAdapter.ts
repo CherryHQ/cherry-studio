@@ -477,7 +477,7 @@ class FeishuAdapter extends ChannelAdapter {
       // Return without connecting. The base class background branch will call
       // markConnected via .then(), but we override that below: checkReady()
       // returned false, so we explicitly mark as NOT connected. The adapter
-      // will be recreated by syncAgent once credentials arrive.
+      // will be recreated by syncChannel once credentials arrive.
       this.startRegistrationInBackground()
       return
     }

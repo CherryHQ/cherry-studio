@@ -550,6 +550,7 @@ export type LanguageVarious =
   | 'pt-PT'
   | 'ro-RO'
   | 'ru-RU'
+  | 'vi-VN'
 
 export type CodeStyleVarious = 'auto' | string
 
@@ -956,6 +957,7 @@ export interface MCPToolResultContent {
 
 export interface MCPCallToolResponse {
   content: MCPToolResultContent[]
+  structuredContent?: unknown
   isError?: boolean
 }
 

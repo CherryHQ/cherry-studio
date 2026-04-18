@@ -26,7 +26,12 @@ import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 import { customProvider } from 'ai'
 
 import type { OpenRouterSearchConfig } from '../../plugins/built-in/webSearchPlugin'
-import type { ExtensionConfigToIdResolutionMap, ExtractExtensionIds, UnionToIntersection } from '../types'
+import type {
+  ExtensionConfigToIdResolutionMap,
+  ExtractExtensionIds,
+  ProviderVariant,
+  UnionToIntersection
+} from '../types'
 import { extensionRegistry } from './ExtensionRegistry'
 import type { ProviderExtensionConfig } from './ProviderExtension'
 import { ProviderExtension } from './ProviderExtension'
@@ -40,12 +45,12 @@ const AnthropicExtension = ProviderExtension.create({
   create: createAnthropic,
   toolFactories: {
     webSearch:
-      (provider) => (config: NonNullable<Parameters<AnthropicProvider['tools']['webSearch_20250305']>[0]>) => ({
-        tools: { webSearch: provider.tools.webSearch_20250305(config) }
+      (provider) => (config: NonNullable<Parameters<AnthropicProvider['tools']['webSearch_20260209']>[0]>) => ({
+        tools: { webSearch: provider.tools.webSearch_20260209(config) }
       }),
     urlContext:
       (provider) => (config: NonNullable<Parameters<AnthropicProvider['tools']['webFetch_20260209']>[0]>) => ({
-        tools: { webSearch: provider.tools.webFetch_20260209(config) }
+        tools: { urlContext: provider.tools.webFetch_20260209(config) }
       })
   }
 } as const satisfies ProviderExtensionConfig<AnthropicProviderSettings, AnthropicProvider, 'anthropic'>)
@@ -78,13 +83,16 @@ const AzureExtension = ProviderExtension.create({
     {
       suffix: 'responses',
       name: 'Azure OpenAI Responses',
-      transform: (provider) =>
-        customProvider({
-          fallbackProvider: {
-            ...provider,
-            languageModel: (modelId: string) => provider.responses(modelId)
-          }
-        })
+      // AI SDK defaults to responses API, so createAzure(settings) without
+      // the chat override (used in base `create`) gives us Responses API behavior.
+      transform: (_provider, settings) => createAzure(settings),
+      toolFactories: {
+        webSearch:
+          (provider: AzureOpenAIProvider) =>
+          (config: NonNullable<Parameters<AzureOpenAIProvider['tools']['webSearchPreview']>[0]>) => ({
+            tools: { webSearch: provider.tools.webSearchPreview(config) }
+          })
+      }
     },
     // Azure 上的 Claude 模型走 Anthropic SDK
     // https://platform.claude.com/docs/en/build-with-claude/claude-in-microsoft-foundry
@@ -96,8 +104,18 @@ const AzureExtension = ProviderExtension.create({
           baseURL: (settings?.baseURL ?? '') + '/anthropic/v1',
           apiKey: settings?.apiKey ?? '',
           headers: settings?.headers
-        })
-    }
+        }),
+      toolFactories: {
+        webSearch:
+          (provider) => (config: NonNullable<Parameters<AnthropicProvider['tools']['webSearch_20260209']>[0]>) => ({
+            tools: { webSearch: provider.tools.webSearch_20260209(config) }
+          }),
+        urlContext:
+          (provider) => (config: NonNullable<Parameters<AnthropicProvider['tools']['webFetch_20260209']>[0]>) => ({
+            tools: { urlContext: provider.tools.webFetch_20260209(config) }
+          })
+      }
+    } satisfies ProviderVariant<AzureOpenAIProviderSettings, AzureOpenAIProvider, AnthropicProvider>
   ] as const
 } as const satisfies ProviderExtensionConfig<AzureOpenAIProviderSettings, AzureOpenAIProvider, 'azure'>)
 

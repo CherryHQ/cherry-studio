@@ -34,7 +34,6 @@ const SelectModelButton: FC<Props> = ({ assistant }) => {
       timerRef.current = setTimeout(() => {
         const enabledWebSearch = isWebSearchModel(selectedModel)
         updateAssistant({
-          ...assistant,
           model: selectedModel,
           enableWebSearch: enabledWebSearch && assistant.enableWebSearch
         })
