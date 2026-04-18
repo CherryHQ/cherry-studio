@@ -1,0 +1,18 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`TextBadge > should match snapshot 1`] = `
+.c0 {
+  font-size: 12px;
+  color: var(--color-primary);
+  background: var(--color-primary-bg);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+<span
+  class="c0"
+>
+  Feature
+</span>
+`;
