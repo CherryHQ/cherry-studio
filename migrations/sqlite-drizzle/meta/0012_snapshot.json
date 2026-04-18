@@ -1,16 +1,20 @@
 {
   "_meta": {
-    "columns": {},
+    "columns": {
+      "\"mini_app\".\"type\"": "\"mini_app\".\"kind\""
+    },
     "schemas": {},
-    "tables": {}
+    "tables": {
+      "\"miniapp\"": "\"mini_app\""
+    }
   },
   "dialect": "sqlite",
   "enums": {},
-  "id": "a947c27c-3d23-43b7-8846-3a82fcbbdee6",
+  "id": "2dfec262-17ca-4af1-8503-a0478dbe4d53",
   "internal": {
     "indexes": {}
   },
-  "prevId": "ceca2c61-e6f2-49d1-b9c7-e7c6c94cbff0",
+  "prevId": "a947c27c-3d23-43b7-8846-3a82fcbbdee6",
   "tables": {
     "app_state": {
       "checkConstraints": {},
@@ -1091,15 +1095,15 @@
       "name": "message",
       "uniqueConstraints": {}
     },
-    "miniapp": {
+    "mini_app": {
       "checkConstraints": {
-        "miniapp_status_check": {
-          "name": "miniapp_status_check",
-          "value": "\"miniapp\".\"status\" IN ('enabled', 'disabled', 'pinned')"
+        "mini_app_kind_check": {
+          "name": "mini_app_kind_check",
+          "value": "\"mini_app\".\"kind\" IN ('default', 'custom')"
         },
-        "miniapp_type_check": {
-          "name": "miniapp_type_check",
-          "value": "\"miniapp\".\"type\" IN ('default', 'custom')"
+        "mini_app_status_check": {
+          "name": "mini_app_status_check",
+          "value": "\"mini_app\".\"status\" IN ('enabled', 'disabled', 'pinned')"
         }
       },
       "columns": {
@@ -1138,6 +1142,14 @@
           "notNull": false,
           "primaryKey": false,
           "type": "integer"
+        },
+        "kind": {
+          "autoincrement": false,
+          "default": "'custom'",
+          "name": "kind",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
         },
         "logo": {
           "autoincrement": false,
@@ -1183,14 +1195,6 @@
           "primaryKey": false,
           "type": "text"
         },
-        "type": {
-          "autoincrement": false,
-          "default": "'custom'",
-          "name": "type",
-          "notNull": true,
-          "primaryKey": false,
-          "type": "text"
-        },
         "updated_at": {
           "autoincrement": false,
           "name": "updated_at",
@@ -1209,23 +1213,23 @@
       "compositePrimaryKeys": {},
       "foreignKeys": {},
       "indexes": {
-        "miniapp_status_sort_idx": {
+        "mini_app_kind_idx": {
+          "columns": ["kind"],
+          "isUnique": false,
+          "name": "mini_app_kind_idx"
+        },
+        "mini_app_status_kind_idx": {
+          "columns": ["status", "kind"],
+          "isUnique": false,
+          "name": "mini_app_status_kind_idx"
+        },
+        "mini_app_status_sort_idx": {
           "columns": ["status", "sort_order"],
           "isUnique": false,
-          "name": "miniapp_status_sort_idx"
-        },
-        "miniapp_status_type_idx": {
-          "columns": ["status", "type"],
-          "isUnique": false,
-          "name": "miniapp_status_type_idx"
-        },
-        "miniapp_type_idx": {
-          "columns": ["type"],
-          "isUnique": false,
-          "name": "miniapp_type_idx"
+          "name": "mini_app_status_sort_idx"
         }
       },
-      "name": "miniapp",
+      "name": "mini_app",
       "uniqueConstraints": {}
     },
     "preference": {
