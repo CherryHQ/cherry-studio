@@ -119,7 +119,7 @@ const IMAGE_ENHANCEMENT_MODELS = [
   'gpt-image-1',
   'gemini-2.5-flash-image(?:-[\\w-]+)?',
   'gemini-2.0-flash-preview-image-generation',
-  'gemini-3(?:\\.\\d+)?-pro-image(?:-[\\w-]+)?'
+  'gemini-3(?:\\.\\d+)?-(?:flash|pro)-image(?:-[\\w-]+)?'
 ]
 
 const IMAGE_ENHANCEMENT_MODELS_REGEX = new RegExp(IMAGE_ENHANCEMENT_MODELS.join('|'), 'i')
@@ -129,7 +129,7 @@ const DEDICATED_IMAGE_MODEL_REGEX = new RegExp(DEDICATED_IMAGE_MODELS.join('|'),
 // Models that should auto-enable image generation button when selected
 const AUTO_ENABLE_IMAGE_MODELS = [
   'gemini-2.5-flash-image(?:-[\\w-]+)?',
-  'gemini-3(?:\\.\\d+)?-pro-image(?:-[\\w-]+)?',
+  'gemini-3(?:\\.\\d+)?-(?:flash|pro)-image(?:-[\\w-]+)?',
   ...DEDICATED_IMAGE_MODELS
 ]
 
@@ -147,7 +147,7 @@ const OPENAI_TOOL_USE_IMAGE_GENERATION_MODELS = [
 
 const OPENAI_IMAGE_GENERATION_MODELS = [...OPENAI_TOOL_USE_IMAGE_GENERATION_MODELS, 'gpt-image-1']
 
-const MODERN_IMAGE_MODELS = ['gemini-3(?:\\.\\d+)?-pro-image(?:-[\\w-]+)?']
+const MODERN_IMAGE_MODELS = ['gemini-3(?:\\.\\d+)?-(?:flash|pro)-image(?:-[\\w-]+)?']
 
 const GENERATE_IMAGE_MODELS = [
   'gemini-2.0-flash-exp(?:-[\\w-]+)?',
