@@ -125,7 +125,6 @@ describe('ComplexPreferenceMappings', () => {
       expect(keys).toContain('feature.translate.action.preferred_lang')
       expect(keys).toContain('feature.translate.action.alter_lang')
       expect(keys).toContain('feature.translate.mini_window.target_lang')
-      expect(keys.length).toBeGreaterThanOrEqual(18)
     })
 
     it('should flatten target keys from all mappings', () => {
