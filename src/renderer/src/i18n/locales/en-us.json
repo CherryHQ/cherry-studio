@@ -4304,6 +4304,7 @@
           "label": "Maximum Backups",
           "unlimited": "Unlimited"
         },
+        "pinned": "Pinned",
         "region": {
           "label": "Region",
           "placeholder": "Region, e.g: us-east-1"
@@ -4962,6 +4963,14 @@
       "disabled": "Hidden Mini Apps",
       "display_title": "Mini App Display Settings",
       "empty": "Drag mini apps from the left to hide them",
+      "category_columns": {
+        "description": "Number of columns for category display",
+        "title": "Category Columns"
+      },
+      "icon_only": {
+        "description": "Display mini apps as icons without labels",
+        "title": "Icon-Only Mode"
+      },
       "open_link_external": {
         "title": "Open new-window links in browser"
       },
