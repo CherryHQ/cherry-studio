@@ -133,6 +133,17 @@ vi.mock('electron-window-state', () => ({
   default: vi.fn(() => ({ manage: vi.fn(), isMaximized: false }))
 }))
 
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: vi.fn(() => ({
+      debug: vi.fn(),
+      error: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn()
+    }))
+  }
+}))
+
 import { configManager } from '../ConfigManager'
 
 type MockMainWindow = {
@@ -151,6 +162,7 @@ type MockMainWindow = {
   isFullScreen: ReturnType<typeof vi.fn>
   isVisible: ReturnType<typeof vi.fn>
   isFocused: ReturnType<typeof vi.fn>
+  getListener: (event: string) => ((...args: any[]) => void) | undefined
 }
 
 const flushImmediate = () => new Promise<void>((resolve) => setImmediate(resolve))
@@ -187,8 +199,7 @@ describe('WindowService Windows hide behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    return import('../../../../tests/main.setup').then(async () => {
-      const electron = await import('electron')
+    return import('electron').then(async (electron) => {
       app = electron.app
       windowService = (await import('../WindowService')).windowService
 
