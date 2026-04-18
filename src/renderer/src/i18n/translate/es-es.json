@@ -490,6 +490,7 @@
       },
       "prompt": "Configuración de indicaciones",
       "skills": {
+        "addMore": "Añadir más habilidades",
         "builtin": "Incorporado",
         "noFilterResults": "Sin habilidades coincidentes",
         "noSkills": "No hay habilidades instaladas. Instala habilidades desde Ajustes > Habilidades.",
