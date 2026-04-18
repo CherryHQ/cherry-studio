@@ -1,4 +1,5 @@
 import crypto from 'node:crypto'
+import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -6,6 +7,7 @@ import { loggerService } from '@logger'
 import { getMCPServersFromRedux } from '@main/apiServer/utils/mcp'
 import { createInMemoryMCPServer } from '@main/mcpServers/factory'
 import { makeSureDirExists, removeEnvProxy } from '@main/utils'
+import { getConfigDir } from '@main/utils/file'
 import { findCommandInShellEnv, getBinaryName, getBinaryPath, isBinaryExists } from '@main/utils/process'
 import getLoginShellEnvironment from '@main/utils/shell-env'
 import { TraceMethod, withSpanFunc } from '@mcp-trace/trace-core'
@@ -782,6 +784,21 @@ class McpService {
     const existingClient = this.clients.get(serverKey)
     if (existingClient) {
       await this.closeClient(serverKey)
+    }
+
+    // Cleanup OAuth token file for this server
+    if (server.baseUrl) {
+      try {
+        const serverUrlHash = crypto.createHash('md5').update(server.baseUrl).digest('hex')
+        const oauthFilePath = path.join(getConfigDir(), 'mcp', 'oauth', `${serverUrlHash}_oauth.json`)
+        await fs.unlink(oauthFilePath)
+        getServerLogger(server).debug(`Cleaned up OAuth token file`)
+      } catch (error) {
+        // Ignore ENOENT - file may not exist if server never used OAuth
+        if (error instanceof Error && 'code' in error && (error as NodeJS.ErrnoException).code !== 'ENOENT') {
+          getServerLogger(server).error(`Failed to cleanup OAuth token file`, error as Error)
+        }
+      }
     }
 
     // If this is a DXT server, cleanup its directory
