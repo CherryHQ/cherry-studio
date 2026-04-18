@@ -30,6 +30,7 @@ vi.mock('@shared/utils', () => ({
 }))
 
 const { listModels } = await import('../listModels')
+const { OllamaTagsResponseSchema } = await import('../schemas')
 
 // === Real API response fixtures (captured 2026-03-19) ===
 
@@ -385,6 +386,62 @@ describe('listModels', () => {
       mockGetFromApi.mockResolvedValue({ value: duped })
       const models = await listModels(makeProvider({ id: 'aihubmix' }))
       expect(models).toHaveLength(2)
+    })
+  })
+
+  describe('Ollama', () => {
+    it('should accept null families in Ollama tags schema', () => {
+      const parsed = OllamaTagsResponseSchema.parse({
+        models: [
+          {
+            name: 'glm-5:cloud',
+            model: 'glm-5:cloud',
+            details: {
+              parent_model: '',
+              format: '',
+              family: '',
+              families: null,
+              parameter_size: '',
+              quantization_level: ''
+            }
+          }
+        ]
+      })
+
+      expect(parsed.models[0].details?.families).toBeUndefined()
+    })
+
+    it('should accept null families in real Ollama tag responses', async () => {
+      mockGetFromApi.mockResolvedValue({
+        value: {
+          models: [
+            {
+              name: 'glm-5:cloud',
+              model: 'glm-5:cloud',
+              details: {
+                parent_model: '',
+                format: '',
+                family: '',
+                families: null,
+                parameter_size: '',
+                quantization_level: ''
+              }
+            },
+            {
+              name: 'qwen3.5:9b',
+              model: 'qwen3.5:9b',
+              details: {
+                family: 'qwen35',
+                families: ['qwen35']
+              }
+            }
+          ]
+        }
+      })
+
+      const models = await listModels(makeProvider({ id: 'ollama', type: 'ollama', apiHost: 'http://localhost:11434' }))
+      assertValidModels(models)
+      expect(models.map((m) => m.id)).toEqual(['glm-5:cloud', 'qwen3.5:9b'])
     })
   })
 
