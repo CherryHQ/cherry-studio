@@ -106,7 +106,7 @@ type ValidateResponses<T> = {
  * @example
  * ```typescript
  * // In schemas/index.ts
- * export type ApiSchemas = AssertValidSchemas<TestSchemas & BatchSchemas>
+ * export type ApiSchemas = AssertValidSchemas<TopicSchemas & MessageSchemas>
  *
  * // Invalid method will cause error:
  * // Type 'never' is not assignable to type...

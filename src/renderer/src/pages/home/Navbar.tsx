@@ -31,7 +31,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
   const { showAssistants, toggleShowAssistants } = useShowAssistants()
   const { showTopics, toggleShowTopics } = useShowTopics()
 
-  useShortcut('search_message', () => {
+  useShortcut('general.search', () => {
     void SearchPopup.show()
   })
 

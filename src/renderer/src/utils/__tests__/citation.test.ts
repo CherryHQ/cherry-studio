@@ -551,6 +551,34 @@ Numbered list:
       expect(result).toContain('6</sup>]()')
     })
 
+    it('should escape pipe characters in title to prevent GFM table cell breakage', () => {
+      const citation: Citation = {
+        number: 1,
+        url: 'https://example.com',
+        title: 'Foo | Bar | Baz'
+      }
+
+      const result = generateCitationTag(citation)
+
+      // The | in title must be escaped as &#124; inside data-citation attribute
+      expect(result).not.toContain('Foo | Bar')
+      expect(result).toContain('&#124;')
+    })
+
+    it('should escape pipe characters in URL to prevent GFM table cell breakage', () => {
+      const citation: Citation = {
+        number: 1,
+        url: 'https://example.com/path?a=1|b=2',
+        title: 'Test'
+      }
+
+      const result = generateCitationTag(citation)
+
+      // The | in URL must be percent-encoded as %7C
+      expect(result).toContain('%7C')
+      expect(result).not.toMatch(/\]\(https:\/\/example\.com\/path\?a=1\|/)
+    })
+
     it('should truncate content to 200 characters in data-citation', () => {
       const longContent = 'a'.repeat(300)
       const citation: Citation = {

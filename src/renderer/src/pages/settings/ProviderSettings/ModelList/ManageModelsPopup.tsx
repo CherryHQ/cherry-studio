@@ -240,7 +240,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
             {isAllFilteredInProvider ? <ListMinus size={18} /> : <ListPlus size={18} />}
           </Button>
         </Tooltip>
-        <Tooltip content={t('settings.models.manage.refetch_list')} closeDelay={0}>
+        <Tooltip content={t('settings.models.manage.refetch_list')}>
           <Button variant="ghost" size="icon-lg" onClick={() => loadModels(provider)} disabled={loadingModels}>
             <RefreshCcw size={16} />
           </Button>

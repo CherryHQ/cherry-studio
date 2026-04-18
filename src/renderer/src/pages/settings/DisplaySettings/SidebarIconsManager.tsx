@@ -117,7 +117,7 @@ const SidebarIconsManager: FC<SidebarIconsManagerProps> = ({
         files: <Folder size={16} />,
         notes: <NotepadText size={16} />,
         code_tools: <Code size={16} />,
-        openclaw: <OpenClawSidebarIcon style={{ width: 16, height: 16 }} />
+        openclaw: <OpenClawSidebarIcon size={16} />
       }) satisfies Record<SidebarIcon, ReactNode>,
     []
   )

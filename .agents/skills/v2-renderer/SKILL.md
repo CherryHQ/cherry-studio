@@ -561,8 +561,8 @@ See `v2-data-api` skill, "Adding a Preference Key" section. Note that `preferenc
 
 ## Documentation References
 
-- `docs/en/references/data/README.md` - System selection guide
-- `docs/en/references/data/data-api-in-renderer.md` - DataApi hooks and patterns
-- `docs/en/references/data/preference-usage.md` - Preference hooks and service
-- `docs/en/references/data/cache-overview.md` - Cache architecture
-- `docs/en/references/data/cache-usage.md` - Cache hooks and patterns
+- `docs/references/data/README.md` - System selection guide
+- `docs/references/data/data-api-in-renderer.md` - DataApi hooks and patterns
+- `docs/references/data/preference-usage.md` - Preference hooks and service
+- `docs/references/data/cache-overview.md` - Cache architecture
+- `docs/references/data/cache-usage.md` - Cache hooks and patterns

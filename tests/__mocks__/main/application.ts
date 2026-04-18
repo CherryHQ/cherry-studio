@@ -9,13 +9,13 @@ import { MockMainPreferenceServiceExport } from './PreferenceService'
  * Unified mock application factory for main process testing.
  *
  * Usage in vi.mock():
- *   vi.mock('@main/core/application', async () => {
+ *   vi.mock('@application', async () => {
  *     const { mockApplicationFactory } = await import('@test-mocks/main/application')
  *     return mockApplicationFactory()
  *   })
  *
  * With service overrides:
- *   vi.mock('@main/core/application', async () => {
+ *   vi.mock('@application', async () => {
  *     const { mockApplicationFactory } = await import('@test-mocks/main/application')
  *     return mockApplicationFactory({
  *       DbService: { getDb: () => customMockDb }
@@ -55,14 +55,23 @@ export function createMockApplication(overrides: ServiceOverrides = {}) {
       }
       throw new Error(`[MockApplication] Unknown service: ${name}`)
     }),
+    // Deterministic stub for path lookups — returns "/mock/<key>" (or
+    // "/mock/<key>/<filename>") so tests that instantiate services with
+    // class field initializers like `application.getPath('feature.xxx')`
+    // don't blow up. Override per-test with vi.spyOn if you need a
+    // specific value.
+    getPath: vi.fn((key: string, filename?: string) => (filename ? `/mock/${key}/${filename}` : `/mock/${key}`)),
     registerAll: vi.fn(),
+    initPathRegistry: vi.fn(),
     bootstrap: vi.fn().mockResolvedValue(undefined),
-    isReady: vi.fn(() => true)
+    isReady: vi.fn(() => true),
+    // Tests can mutate `application.isQuitting = true` to exercise quit-aware code paths.
+    isQuitting: false
   }
 }
 
 /**
- * Create the full mock module for vi.mock('@main/core/application', ...).
+ * Create the full mock module for vi.mock('@application', ...).
  * Returns { application, serviceList }.
  */
 export function mockApplicationFactory(overrides: ServiceOverrides = {}) {

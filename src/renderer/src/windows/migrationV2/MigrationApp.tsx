@@ -92,6 +92,7 @@ const MigrationApp: React.FC = () => {
       case 'completed':
         return 3
       case 'error':
+      case 'version_incompatible':
         return -1
       default:
         return 0
@@ -143,6 +144,8 @@ const MigrationApp: React.FC = () => {
         return <CheckCircle2 size={48} color="var(--color-primary)" />
       case 'error':
         return <AlertTriangle size={48} color="#ff4d4f" />
+      case 'version_incompatible':
+        return <AlertTriangle size={48} color="#faad14" />
       default:
         return <Rocket size={48} color="var(--color-primary)" />
     }
@@ -219,6 +222,32 @@ const MigrationApp: React.FC = () => {
             </Space>
           </ButtonRow>
         )
+      case 'version_incompatible':
+        return (
+          <ButtonRow>
+            <Select value={i18n.language} onValueChange={handleLanguageChange}>
+              <SelectTrigger size="sm" style={{ width: 100 }}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="zh-CN">中文</SelectItem>
+                <SelectItem value="en-US">English</SelectItem>
+              </SelectContent>
+            </Select>
+            <Space>
+              <Button onClick={actions.cancel}>{t('migration.buttons.close')}</Button>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  if (window.confirm(t('migration.version_incompatible.confirm_ignore'))) {
+                    void actions.skipMigration()
+                  }
+                }}>
+                {t('migration.buttons.ignore_migration')}
+              </Button>
+            </Space>
+          </ButtonRow>
+        )
       default:
         return null
     }
@@ -232,37 +261,56 @@ const MigrationApp: React.FC = () => {
       </Header>
 
       <MainContent>
-        <LeftSidebar>
-          <StepsContainer>
-            <Steps
-              direction="vertical"
-              current={currentStep}
-              status={stepStatus}
-              size="small"
-              items={[
-                { title: t('migration.stages.introduction') },
-                { title: t('migration.stages.backup') },
-                { title: t('migration.stages.migration') },
-                { title: t('migration.stages.completed') }
-              ]}
-            />
-          </StepsContainer>
-          <LanguageSelectorContainer>
-            <Select value={i18n.language} onValueChange={handleLanguageChange}>
-              <SelectTrigger size="sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="zh-CN">中文</SelectItem>
-                <SelectItem value="en-US">English</SelectItem>
-              </SelectContent>
-            </Select>
-          </LanguageSelectorContainer>
-        </LeftSidebar>
+        {progress.stage !== 'version_incompatible' && (
+          <LeftSidebar>
+            <StepsContainer>
+              <Steps
+                direction="vertical"
+                current={currentStep}
+                status={stepStatus}
+                size="small"
+                items={[
+                  { title: t('migration.stages.introduction') },
+                  { title: t('migration.stages.backup') },
+                  { title: t('migration.stages.migration') },
+                  { title: t('migration.stages.completed') }
+                ]}
+              />
+            </StepsContainer>
+            <LanguageSelectorContainer>
+              <Select value={i18n.language} onValueChange={handleLanguageChange}>
+                <SelectTrigger size="sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="zh-CN">中文</SelectItem>
+                  <SelectItem value="en-US">English</SelectItem>
+                </SelectContent>
+              </Select>
+            </LanguageSelectorContainer>
+          </LeftSidebar>
+        )}
 
         <RightContent>
           <ContentArea>
             <InfoIcon>{getCurrentStepIcon()}</InfoIcon>
+
+            {progress.stage === 'version_incompatible' && (
+              <InfoCard>
+                <InfoTitle style={{ marginTop: 16, marginBottom: 16 }}>
+                  {t('migration.version_incompatible.title')}
+                </InfoTitle>
+                <InfoDescription style={{ maxWidth: 560, textAlign: 'left' }}>
+                  {t('migration.version_incompatible.preamble')}
+                  <br />
+                  <br />
+                  {getProgressMessage()}
+                  <br />
+                  <br />
+                  {t('migration.version_incompatible.ignore_hint')}
+                </InfoDescription>
+              </InfoCard>
+            )}
 
             {progress.stage === 'introduction' && (
               <InfoCard>

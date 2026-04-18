@@ -2,9 +2,9 @@ import fs from 'node:fs'
 import { arch } from 'node:os'
 import path from 'node:path'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/constant'
-import { application } from '@main/core/application'
 import { generateSignature } from '@main/integration/cherryai'
 import { anthropicService } from '@main/services/AnthropicService'
 import { getIpCountry } from '@main/utils/ipService'
@@ -37,25 +37,15 @@ import { externalAppsService } from './services/ExternalAppsService'
 import { fileStorage as fileManager } from './services/FileStorage'
 import FileService from './services/FileSystemService'
 import { knowledgeService } from './services/KnowledgeService'
-import { memoryService } from './services/memory/MemoryService'
 import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
 import { fileServiceManager } from './services/remotefile/FileServiceManager'
 import { isSafeExternalUrl } from './services/security'
 import { vertexAIService } from './services/VertexAIService'
-import { calculateDirectorySize, getDataPath, getResourcePath } from './utils'
+import { calculateDirectorySize } from './utils'
 import { decrypt, encrypt } from './utils/aes'
-import {
-  getCacheDir,
-  getConfigDir,
-  getFilesDir,
-  getNotesDir,
-  hasWritePermission,
-  isPathInside,
-  untildify
-} from './utils/file'
-import { updateAppDataConfig } from './utils/init'
+import { hasWritePermission, isPathInside, untildify } from './utils/file'
 import { getCpuName, getDeviceType, getHostname } from './utils/system'
 import { compress, decompress } from './utils/zip'
 
@@ -64,7 +54,6 @@ const logger = loggerService.withContext('IPC')
 const backupManager = new BackupManager()
 const exportService = new ExportService()
 const obsidianVaultService = new ObsidianVaultService()
-// vertexAIService and memoryService are now imported as named exports
 const dxtService = new DxtService()
 
 export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
@@ -82,16 +71,16 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.App_Info, () => ({
     version: app.getVersion(),
     isPackaged: app.isPackaged,
-    appPath: app.getAppPath(),
-    filesPath: getFilesDir(),
-    notesPath: getNotesDir(),
-    configPath: getConfigDir(),
-    appDataPath: app.getPath('userData'),
-    resourcesPath: getResourcePath(),
+    appPath: application.getPath('app.root'),
+    filesPath: application.getPath('feature.files.data'),
+    notesPath: application.getPath('feature.notes.data'),
+    configPath: application.getPath('cherry.config'),
+    appDataPath: application.getPath('app.userdata'),
+    resourcesPath: application.getPath('app.root.resources'),
     logsPath: logger.getLogsDir(),
     arch: arch(),
     isPortable: isWin && 'PORTABLE_EXECUTABLE_DIR' in process.env,
-    installPath: path.dirname(app.getPath('exe'))
+    installPath: application.getPath('app.install')
   }))
 
   ipcMain.handle(IpcChannel.App_Reload, () => mainWindow.reload())
@@ -255,7 +244,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   // get cache size
   ipcMain.handle(IpcChannel.App_GetCacheSize, async () => {
-    const cachePath = getCacheDir()
+    const cachePath = application.getPath('app.session.cache')
     logger.info(`Calculating cache size for path: ${cachePath}`)
 
     try {
@@ -297,9 +286,20 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   })
 
   // Set app data path
+  //
+  // TODO(v2): This handler is incompatible with the frozen path registry
+  // established by Application.bootstrap(). Calling app.setPath('userData')
+  // here mutates Electron's path while application.getPath('app.userdata')
+  // keeps returning the boot-time value until the renderer triggers a
+  // relaunch (which it currently always does — see BasicDataSettings.tsx
+  // L186/203/322). When the v1 path-change flow is migrated to
+  // BootConfigService, redesign this handler so the app data path can only
+  // be changed via boot-config + restart, eliminating the divergence window.
   ipcMain.handle(IpcChannel.App_SetAppDataPath, async (_, filePath: string) => {
-    updateAppDataConfig(filePath)
-    app.setPath('userData', filePath)
+    // updateAppDataConfig(filePath)
+    // app.setPath('userData', filePath)
+    // TODO: will refactor in v2
+    return filePath
   })
 
   ipcMain.handle(IpcChannel.App_GetDataPathFromArgs, () => {
@@ -542,20 +542,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.KnowledgeBase_Rerank, knowledgeService.rerank.bind(knowledgeService))
 
   // memory
-  ipcMain.handle(IpcChannel.Memory_Add, (_, messages, config) => memoryService.add(messages, config))
-  ipcMain.handle(IpcChannel.Memory_Search, (_, query, config) => memoryService.search(query, config))
-  ipcMain.handle(IpcChannel.Memory_List, (_, config) => memoryService.list(config))
-  ipcMain.handle(IpcChannel.Memory_Delete, (_, id) => memoryService.delete(id))
-  ipcMain.handle(IpcChannel.Memory_Update, (_, id, memory, metadata) => memoryService.update(id, memory, metadata))
-  ipcMain.handle(IpcChannel.Memory_Get, (_, memoryId) => memoryService.get(memoryId))
-  ipcMain.handle(IpcChannel.Memory_SetConfig, (_, config) => memoryService.setConfig(config))
-  ipcMain.handle(IpcChannel.Memory_DeleteUser, (_, userId) => memoryService.deleteUser(userId))
-  ipcMain.handle(IpcChannel.Memory_DeleteAllMemoriesForUser, (_, userId) =>
-    memoryService.deleteAllMemoriesForUser(userId)
-  )
-  ipcMain.handle(IpcChannel.Memory_GetUsersList, () => memoryService.getUsersList())
-  ipcMain.handle(IpcChannel.Memory_MigrateMemoryDb, () => memoryService.migrateMemoryDb())
-
   // VertexAI
   ipcMain.handle(IpcChannel.VertexAI_GetAuthHeaders, async (_, params) => {
     return vertexAIService.getAuthHeaders(params)
@@ -685,9 +671,9 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.Cherryai_GetSignature, (_, params) => generateSignature(params))
 
   // Global Skills
-  ipcMain.handle(IpcChannel.Skill_List, async () => {
+  ipcMain.handle(IpcChannel.Skill_List, async (_, agentId?: string) => {
     try {
-      const data = await skillService.list()
+      const data = await skillService.list(agentId)
       return { success: true, data }
     } catch (error) {
       logger.error('Failed to list skills', { error })
@@ -717,6 +703,16 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   ipcMain.handle(IpcChannel.Skill_Toggle, async (_, options) => {
     try {
+      if (
+        !options ||
+        typeof options.skillId !== 'string' ||
+        !options.skillId ||
+        typeof options.agentId !== 'string' ||
+        !options.agentId ||
+        typeof options.isEnabled !== 'boolean'
+      ) {
+        return { success: false, error: 'Invalid toggle options' }
+      }
       const data = await skillService.toggle(options)
       return { success: true, data }
     } catch (error) {
@@ -767,6 +763,9 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   ipcMain.handle(IpcChannel.Skill_ListLocal, async (_, workdir: string) => {
     try {
+      if (!workdir || typeof workdir !== 'string') {
+        return { success: false, error: 'Invalid workdir' }
+      }
       const data = await skillService.listLocal(workdir)
       return { success: true, data }
     } catch (error) {
@@ -781,7 +780,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   // WeChat
   ipcMain.handle(IpcChannel.WeChat_HasCredentials, async (_, channelId: string) => {
-    const tokenPath = path.join(getDataPath('Channels'), `weixin_bot_${channelId}.json`)
+    const tokenPath = application.getPath('feature.agents.channels', `weixin_bot_${channelId}.json`)
     try {
       const raw = await fs.promises.readFile(tokenPath, 'utf8')
       const parsed = JSON.parse(raw)

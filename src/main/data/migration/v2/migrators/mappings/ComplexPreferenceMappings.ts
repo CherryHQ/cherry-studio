@@ -21,6 +21,8 @@
 import { flattenCompressionConfig, migrateWebSearchProviders } from '../transformers/PreferenceTransformers'
 import { transformCodeCli } from './CodeCliTransforms'
 import { mergeFileProcessingOverrides } from './FileProcessingOverrideMappings'
+import { transformLlmModelIds } from './LlmModelTransforms'
+import { SHORTCUT_TARGET_KEYS, transformShortcuts } from './ShortcutMappings'
 
 // ============================================================================
 // Type Definitions
@@ -128,6 +130,17 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     transform: transformCodeCli
   },
 
+  // Shortcut preferences (legacy array → per-key PreferenceShortcutType)
+  {
+    id: 'shortcut_preferences_migrate',
+    description: 'Convert legacy shortcuts array into per-key { binding, enabled } preferences',
+    sources: {
+      shortcuts: { source: 'redux', category: 'shortcuts', key: 'shortcuts' }
+    },
+    targetKeys: [...SHORTCUT_TARGET_KEYS],
+    transform: transformShortcuts
+  },
+
   // File processing overrides merging
   {
     id: 'file_processing_overrides_merge',
@@ -138,6 +151,25 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     },
     targetKeys: ['feature.file_processing.overrides'],
     transform: mergeFileProcessingOverrides
+  },
+
+  // LLM model ID migration (Model object → UniqueModelId)
+  {
+    id: 'llm_model_ids_to_unique',
+    description: 'Convert legacy LLM Model objects (provider + id) into UniqueModelId format (provider::modelId)',
+    sources: {
+      defaultModel: { source: 'redux', category: 'llm', key: 'defaultModel' },
+      topicNamingModel: { source: 'redux', category: 'llm', key: 'topicNamingModel' },
+      quickModel: { source: 'redux', category: 'llm', key: 'quickModel' },
+      translateModel: { source: 'redux', category: 'llm', key: 'translateModel' }
+    },
+    targetKeys: [
+      'chat.default_model_id',
+      'topic.naming.model_id',
+      'feature.quick_assistant.model_id',
+      'feature.translate.model_id'
+    ],
+    transform: transformLlmModelIds
   }
 ]
 

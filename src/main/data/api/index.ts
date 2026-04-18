@@ -16,9 +16,6 @@ export { IpcAdapter } from './core/adapters/IpcAdapter'
 // Handlers (new type-safe system)
 export { apiHandlers } from './handlers'
 
-// Services (still used by handlers)
-export { TestService } from '@data/services/TestService'
-
 // Re-export types for convenience
 export type {
   CursorPaginationParams,
@@ -34,4 +31,3 @@ export type {
   ServiceOptions,
   SortParams
 } from '@shared/data/api/apiTypes'
-export type { CreateTestItemDto, TestItem, UpdateTestItemDto } from '@shared/data/api/schemas/test'

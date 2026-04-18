@@ -13,13 +13,27 @@ export const KNOWLEDGE_ITEM_TYPES = ['file', 'url', 'note', 'sitemap', 'director
 export const KnowledgeItemTypeSchema = z.enum(KNOWLEDGE_ITEM_TYPES)
 export type KnowledgeItemType = z.infer<typeof KnowledgeItemTypeSchema>
 
-export const KNOWLEDGE_ITEM_STATUSES = ['idle', 'pending', 'ocr', 'read', 'embed', 'completed', 'failed'] as const
-export const ItemStatusSchema = z.enum(KNOWLEDGE_ITEM_STATUSES)
-export type ItemStatus = z.infer<typeof ItemStatusSchema>
+export const KNOWLEDGE_ITEM_STATUSES = [
+  'idle',
+  'pending',
+  'file_processing',
+  'read',
+  'embed',
+  'completed',
+  'failed'
+] as const
+export const KnowledgeItemStatusSchema = z.enum(KNOWLEDGE_ITEM_STATUSES)
+export type KnowledgeItemStatus = z.infer<typeof KnowledgeItemStatusSchema>
 
 export const KNOWLEDGE_SEARCH_MODES = ['default', 'bm25', 'hybrid'] as const
 export const KnowledgeSearchModeSchema = z.enum(KNOWLEDGE_SEARCH_MODES)
 export type KnowledgeSearchMode = z.infer<typeof KnowledgeSearchModeSchema>
+
+export const KnowledgeChunkSizeSchema = z.number().int().positive()
+export const KnowledgeChunkOverlapSchema = z.number().int().min(0)
+export const KnowledgeThresholdSchema = z.number().min(0).max(1)
+export const KnowledgeDocumentCountSchema = z.number().int().positive()
+export const KnowledgeHybridAlphaSchema = z.number().min(0).max(1)
 
 /**
  * Temporary schema mirroring the current FileMetadata shape.
@@ -78,8 +92,8 @@ export type SitemapItemData = z.infer<typeof SitemapItemDataSchema>
  * Directory item data.
  */
 export const DirectoryItemDataSchema = z.object({
-  path: z.string().trim().min(1),
-  recursive: z.boolean()
+  name: z.string().trim().min(1),
+  path: z.string().trim().min(1)
 })
 export type DirectoryItemData = z.infer<typeof DirectoryItemDataSchema>
 
@@ -111,15 +125,15 @@ export const KnowledgeBaseSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
   dimensions: z.number().int().positive(),
-  embeddingModelId: z.string().min(1),
+  embeddingModelId: z.string().min(1).nullable(),
   rerankModelId: z.string().optional(),
   fileProcessorId: z.string().optional(),
-  chunkSize: z.number().optional(),
-  chunkOverlap: z.number().optional(),
-  threshold: z.number().optional(),
-  documentCount: z.number().optional(),
+  chunkSize: KnowledgeChunkSizeSchema.optional(),
+  chunkOverlap: KnowledgeChunkOverlapSchema.optional(),
+  threshold: KnowledgeThresholdSchema.optional(),
+  documentCount: KnowledgeDocumentCountSchema.optional(),
   searchMode: KnowledgeSearchModeSchema.optional(),
-  hybridAlpha: z.number().optional(),
+  hybridAlpha: KnowledgeHybridAlphaSchema.optional(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
 })
@@ -129,8 +143,8 @@ const KnowledgeItemBaseSchema = z.object({
   id: z.string(),
   baseId: z.string(),
   groupId: z.string().nullable().optional(),
-  status: ItemStatusSchema,
-  error: z.string().nullable().optional(),
+  status: KnowledgeItemStatusSchema,
+  error: z.string().nullable(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
 })
@@ -171,6 +185,6 @@ export const KnowledgeSearchResultSchema = z.object({
   score: z.number(),
   metadata: z.record(z.string(), z.unknown()),
   itemId: z.string().optional(),
-  chunkId: z.string().optional()
+  chunkId: z.string()
 })
 export type KnowledgeSearchResult = z.infer<typeof KnowledgeSearchResultSchema>

@@ -9,16 +9,7 @@ import iconv from 'iconv-lite'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { readTextFileWithAutoEncoding, resolveAndValidatePath } from '../file'
-import {
-  getAllFiles,
-  getAppConfigDir,
-  getConfigDir,
-  getFilesDir,
-  getFileType,
-  getTempDir,
-  isPathInside,
-  untildify
-} from '../file'
+import { getAllFiles, getFileType, isPathInside, untildify } from '../file'
 
 // Mock dependencies
 vi.mock('node:fs')
@@ -220,39 +211,6 @@ describe('file', () => {
 
       // Since the function doesn't have error handling, we expect it to propagate
       expect(() => getAllFiles('/nonexistent')).toThrow('Directory not found')
-    })
-  })
-
-  describe('getTempDir', () => {
-    it('should return correct temp directory path', () => {
-      const tempDir = getTempDir()
-      expect(tempDir).toBe('/mock/temp/CherryStudio')
-    })
-  })
-
-  describe('getFilesDir', () => {
-    it('should return correct files directory path', () => {
-      const filesDir = getFilesDir()
-      expect(filesDir).toBe('/mock/userData/Data/Files')
-    })
-  })
-
-  describe('getConfigDir', () => {
-    it('should return correct config directory path', () => {
-      const configDir = getConfigDir()
-      expect(configDir).toBe('/mock/home/.cherrystudio/config')
-    })
-  })
-
-  describe('getAppConfigDir', () => {
-    it('should return correct app config directory path', () => {
-      const appConfigDir = getAppConfigDir('test-app')
-      expect(appConfigDir).toBe('/mock/home/.cherrystudio/config/test-app')
-    })
-
-    it('should handle empty app name', () => {
-      const appConfigDir = getAppConfigDir('')
-      expect(appConfigDir).toBe('/mock/home/.cherrystudio/config/')
     })
   })
 

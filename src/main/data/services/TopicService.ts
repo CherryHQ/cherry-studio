@@ -7,30 +7,26 @@
  * - Active node switching
  */
 
+import { application } from '@application'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateTopicDto, UpdateTopicDto } from '@shared/data/api/schemas/topics'
 import type { Topic } from '@shared/data/types/topic'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 
 import { messageService } from './MessageService'
+import { tagService } from './TagService'
 
 const logger = loggerService.withContext('DataApi:TopicService')
 
-/**
- * Convert database row to Topic entity
- */
 function rowToTopic(row: typeof topicTable.$inferSelect): Topic {
   return {
     id: row.id,
     name: row.name,
     isNameManuallyEdited: row.isNameManuallyEdited ?? false,
     assistantId: row.assistantId,
-    assistantMeta: row.assistantMeta,
-    prompt: row.prompt,
     activeNodeId: row.activeNodeId,
     groupId: row.groupId,
     sortOrder: row.sortOrder ?? 0,
@@ -48,7 +44,11 @@ export class TopicService {
   async getById(id: string): Promise<Topic> {
     const db = application.get('DbService').getDb()
 
-    const [row] = await db.select().from(topicTable).where(eq(topicTable.id, id)).limit(1)
+    const [row] = await db
+      .select()
+      .from(topicTable)
+      .where(and(eq(topicTable.id, id), isNull(topicTable.deletedAt)))
+      .limit(1)
 
     if (!row) {
       throw DataApiErrorFactory.notFound('Topic', id)
@@ -65,61 +65,54 @@ export class TopicService {
 
     // If forking from existing node, copy the path
     if (dto.sourceNodeId) {
-      // Verify source node exists
-      try {
-        await messageService.getById(dto.sourceNodeId)
-      } catch {
-        throw DataApiErrorFactory.notFound('Message', dto.sourceNodeId)
-      }
+      // Verify source node exists (let NOT_FOUND propagate naturally)
+      await messageService.getById(dto.sourceNodeId)
 
       // Get path from root to source node
       const path = await messageService.getPathToNode(dto.sourceNodeId)
 
-      // Create new topic first using returning() to get the id
-      const [topicRow] = await db
-        .insert(topicTable)
-        .values({
-          name: dto.name,
-          assistantId: dto.assistantId,
-          assistantMeta: dto.assistantMeta,
-          prompt: dto.prompt,
-          groupId: dto.groupId
-        })
-        .returning()
-
-      const topicId = topicRow.id
-
-      // Copy messages with new IDs using returning()
-      const idMapping = new Map<string, string>()
-      let activeNodeId: string | null = null
-
-      for (const message of path) {
-        const newParentId = message.parentId ? idMapping.get(message.parentId) || null : null
-
-        const [messageRow] = await db
-          .insert(messageTable)
+      // Wrap fork in transaction for atomicity
+      const topicId = await db.transaction(async (tx) => {
+        const [topicRow] = await tx
+          .insert(topicTable)
           .values({
-            topicId,
-            parentId: newParentId,
-            role: message.role,
-            data: message.data,
-            status: message.status,
-            siblingsGroupId: 0, // Simplify multi-model to normal node
-            assistantId: message.assistantId,
-            assistantMeta: message.assistantMeta,
-            modelId: message.modelId,
-            modelMeta: message.modelMeta,
-            traceId: null,
-            stats: null
+            name: dto.name,
+            assistantId: dto.assistantId,
+            groupId: dto.groupId
           })
           .returning()
 
-        idMapping.set(message.id, messageRow.id)
-        activeNodeId = messageRow.id
-      }
+        const id = topicRow.id
 
-      // Update topic with active node
-      await db.update(topicTable).set({ activeNodeId }).where(eq(topicTable.id, topicId))
+        // Copy messages with new IDs
+        const idMapping = new Map<string, string>()
+        let activeNodeId: string | null = null
+
+        for (const message of path) {
+          const newParentId = message.parentId ? idMapping.get(message.parentId) || null : null
+
+          const [messageRow] = await tx
+            .insert(messageTable)
+            .values({
+              topicId: id,
+              parentId: newParentId,
+              role: message.role,
+              data: message.data,
+              status: message.status,
+              siblingsGroupId: 0,
+              modelId: message.modelId,
+              traceId: null,
+              stats: null
+            })
+            .returning()
+
+          idMapping.set(message.id, messageRow.id)
+          activeNodeId = messageRow.id
+        }
+
+        await tx.update(topicTable).set({ activeNodeId }).where(eq(topicTable.id, id))
+        return id
+      })
 
       logger.info('Created topic by forking', {
         id: topicId,
@@ -135,8 +128,6 @@ export class TopicService {
         .values({
           name: dto.name,
           assistantId: dto.assistantId,
-          assistantMeta: dto.assistantMeta,
-          prompt: dto.prompt,
           groupId: dto.groupId
         })
         .returning()
@@ -162,8 +153,6 @@ export class TopicService {
     if (dto.name !== undefined) updates.name = dto.name
     if (dto.isNameManuallyEdited !== undefined) updates.isNameManuallyEdited = dto.isNameManuallyEdited
     if (dto.assistantId !== undefined) updates.assistantId = dto.assistantId
-    if (dto.assistantMeta !== undefined) updates.assistantMeta = dto.assistantMeta
-    if (dto.prompt !== undefined) updates.prompt = dto.prompt
     if (dto.groupId !== undefined) updates.groupId = dto.groupId
     if (dto.sortOrder !== undefined) updates.sortOrder = dto.sortOrder
     if (dto.isPinned !== undefined) updates.isPinned = dto.isPinned
@@ -185,11 +174,14 @@ export class TopicService {
     // Verify topic exists
     await this.getById(id)
 
-    // Hard delete all messages first (due to foreign key)
-    await db.delete(messageTable).where(eq(messageTable.topicId, id))
+    await db.transaction(async (tx) => {
+      // Hard delete all messages first (due to foreign key)
+      await tx.delete(messageTable).where(eq(messageTable.topicId, id))
+      await tagService.removeEntityTags('topic', id, tx)
 
-    // Hard delete topic
-    await db.delete(topicTable).where(eq(topicTable.id, id))
+      // Hard delete topic
+      await tx.delete(topicTable).where(eq(topicTable.id, id))
+    })
 
     logger.info('Deleted topic', { id })
   }

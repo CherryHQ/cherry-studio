@@ -20,7 +20,11 @@ export default defineConfig({
           name: 'main',
           environment: 'node',
           setupFiles: ['tests/main.setup.ts'],
-          include: ['src/main/**/*.{test,spec}.{ts,tsx}', 'src/main/**/__tests__/**/*.{test,spec}.{ts,tsx}'],
+          include: [
+            'src/main/**/*.{test,spec}.{ts,tsx}',
+            'src/main/**/__tests__/**/*.{test,spec}.{ts,tsx}',
+            'tests/helpers/**/__tests__/**/*.{test,spec}.{ts,tsx}'
+          ],
           benchmark: {
             include: ['src/main/**/*.bench.{ts,tsx}', 'src/main/**/__tests__/**/*.bench.{ts,tsx}']
           }
@@ -88,6 +92,18 @@ export default defineConfig({
           benchmark: {
             include: ['packages/shared/**/*.bench.{ts,tsx}', 'packages/shared/**/__tests__/**/*.bench.{ts,tsx}']
           }
+        }
+      },
+      // vectorstores 包单元测试配置
+      {
+        extends: true,
+        test: {
+          name: 'vectorstores',
+          environment: 'node',
+          include: [
+            'packages/vectorstores/**/*.{test,spec}.{ts,tsx}',
+            'packages/vectorstores/**/__tests__/**/*.{test,spec}.{ts,tsx}'
+          ]
         }
       },
       // packages/ui 单元测试配置

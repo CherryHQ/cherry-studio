@@ -1,18 +1,15 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { loggerService } from '@logger'
-import { application } from '@main/core/application'
-import { getFileExt, getTempDir } from '@main/utils/file'
+import { application } from '@application'
+import { getFileExt } from '@main/utils/file'
 import type { FileMetadata, PreprocessProvider, PreprocessReadPdfResult } from '@types'
 import { PDFDocument } from 'pdf-lib'
-
-const logger = loggerService.withContext('BasePreprocessProvider')
 
 export default abstract class BasePreprocessProvider {
   protected provider: PreprocessProvider
   protected userId?: string
-  public storageDir = path.join(getTempDir(), 'preprocess')
+  public storageDir = application.getPath('feature.preprocess.temp')
 
   constructor(provider: PreprocessProvider, userId?: string) {
     if (!provider) {
@@ -20,17 +17,6 @@ export default abstract class BasePreprocessProvider {
     }
     this.provider = provider
     this.userId = userId
-    this.ensureDirectories()
-  }
-
-  private ensureDirectories() {
-    try {
-      if (!fs.existsSync(this.storageDir)) {
-        fs.mkdirSync(this.storageDir, { recursive: true })
-      }
-    } catch (error) {
-      logger.error('Failed to create directories:', error as Error)
-    }
   }
 
   abstract parseFile(sourceId: string, file: FileMetadata): Promise<{ processedFile: FileMetadata }>

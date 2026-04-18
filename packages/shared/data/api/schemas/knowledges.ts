@@ -2,22 +2,26 @@
  * Knowledge API DTOs and schema contracts.
  */
 
+import type { OffsetPaginationResponse } from '@shared/data/api'
 import {
   DirectoryItemDataSchema,
   FileItemDataSchema,
   FileMetadataSchema,
-  ItemStatusSchema,
   type KnowledgeBase,
+  KnowledgeChunkOverlapSchema,
+  KnowledgeChunkSizeSchema,
+  KnowledgeDocumentCountSchema,
+  KnowledgeHybridAlphaSchema,
   type KnowledgeItem,
+  KnowledgeItemStatusSchema,
   KnowledgeItemTypeSchema,
   KnowledgeSearchModeSchema,
+  KnowledgeThresholdSchema,
   NoteItemDataSchema,
   SitemapItemDataSchema,
   UrlItemDataSchema
 } from '@shared/data/types/knowledge'
 import * as z from 'zod'
-
-import type { OffsetPaginationResponse } from '../apiTypes'
 
 export const CreateKnowledgeBaseSchema = z.object({
   name: z.string().trim().min(1),
@@ -26,12 +30,12 @@ export const CreateKnowledgeBaseSchema = z.object({
   embeddingModelId: z.string().trim().min(1),
   rerankModelId: z.string().optional(),
   fileProcessorId: z.string().optional(),
-  chunkSize: z.number().optional(),
-  chunkOverlap: z.number().optional(),
-  threshold: z.number().optional(),
-  documentCount: z.number().optional(),
+  chunkSize: KnowledgeChunkSizeSchema.optional(),
+  chunkOverlap: KnowledgeChunkOverlapSchema.optional(),
+  threshold: KnowledgeThresholdSchema.optional(),
+  documentCount: KnowledgeDocumentCountSchema.optional(),
   searchMode: KnowledgeSearchModeSchema.optional(),
-  hybridAlpha: z.number().optional()
+  hybridAlpha: KnowledgeHybridAlphaSchema.optional()
 })
 export type CreateKnowledgeBaseDto = z.infer<typeof CreateKnowledgeBaseSchema>
 
@@ -39,14 +43,15 @@ export const UpdateKnowledgeBaseSchema = z
   .object({
     name: z.string().trim().min(1).optional(),
     description: z.string().nullable().optional(),
+    embeddingModelId: z.string().trim().min(1).optional(),
     rerankModelId: z.string().nullable().optional(),
     fileProcessorId: z.string().nullable().optional(),
-    chunkSize: z.number().nullable().optional(),
-    chunkOverlap: z.number().nullable().optional(),
-    threshold: z.number().nullable().optional(),
-    documentCount: z.number().nullable().optional(),
+    chunkSize: KnowledgeChunkSizeSchema.nullable().optional(),
+    chunkOverlap: KnowledgeChunkOverlapSchema.nullable().optional(),
+    threshold: KnowledgeThresholdSchema.nullable().optional(),
+    documentCount: KnowledgeDocumentCountSchema.nullable().optional(),
     searchMode: KnowledgeSearchModeSchema.nullable().optional(),
-    hybridAlpha: z.number().nullable().optional()
+    hybridAlpha: KnowledgeHybridAlphaSchema.nullable().optional()
   })
   .strict()
 export type UpdateKnowledgeBaseDto = z.infer<typeof UpdateKnowledgeBaseSchema>
@@ -55,7 +60,7 @@ export {
   DirectoryItemDataSchema,
   FileItemDataSchema,
   FileMetadataSchema,
-  ItemStatusSchema,
+  KnowledgeItemStatusSchema,
   KnowledgeItemTypeSchema,
   KnowledgeSearchModeSchema,
   NoteItemDataSchema,
@@ -63,42 +68,83 @@ export {
   UrlItemDataSchema
 }
 
+const CreateKnowledgeItemBaseSchema = z
+  .object({
+    ref: z.string().trim().min(1).optional(),
+    groupId: z.string().nullable().optional(),
+    groupRef: z.string().trim().min(1).optional()
+  })
+  .strict()
+
+type CreateKnowledgeItemReferenceInput = z.input<typeof CreateKnowledgeItemBaseSchema>
+
+function validateCreateKnowledgeItemReferences(item: CreateKnowledgeItemReferenceInput, ctx: z.RefinementCtx): void {
+  if (item.groupId != null && item.groupRef != null) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['groupRef'],
+      message: 'Knowledge items cannot specify both groupId and groupRef'
+    })
+  }
+}
+
+export function getCreateKnowledgeItemsReferenceErrors(
+  items: CreateKnowledgeItemReferenceInput[]
+): Record<string, string[]> {
+  const refs = new Set<string>()
+  const duplicateRefs = new Set<string>()
+  const missingGroupRefs = new Set<string>()
+
+  for (const item of items) {
+    if (item.ref) {
+      if (refs.has(item.ref)) {
+        duplicateRefs.add(item.ref)
+      } else {
+        refs.add(item.ref)
+      }
+    }
+  }
+
+  for (const item of items) {
+    if (item.groupId == null && item.groupRef && !refs.has(item.groupRef)) {
+      missingGroupRefs.add(item.groupRef)
+    }
+  }
+
+  const fieldErrors: Record<string, string[]> = {}
+
+  if (duplicateRefs.size > 0) {
+    fieldErrors.ref = [`Duplicate knowledge item refs in request batch: ${[...duplicateRefs].join(', ')}`]
+  }
+
+  if (missingGroupRefs.size > 0) {
+    fieldErrors.groupRef = [`Knowledge item group ref not found in request batch: ${[...missingGroupRefs].join(', ')}`]
+  }
+
+  return fieldErrors
+}
+
 export const CreateKnowledgeItemSchema = z.discriminatedUnion('type', [
-  z
-    .object({
-      groupId: z.string().nullable().optional(),
-      type: z.literal('file'),
-      data: FileItemDataSchema
-    })
-    .strict(),
-  z
-    .object({
-      groupId: z.string().nullable().optional(),
-      type: z.literal('url'),
-      data: UrlItemDataSchema
-    })
-    .strict(),
-  z
-    .object({
-      groupId: z.string().nullable().optional(),
-      type: z.literal('note'),
-      data: NoteItemDataSchema
-    })
-    .strict(),
-  z
-    .object({
-      groupId: z.string().nullable().optional(),
-      type: z.literal('sitemap'),
-      data: SitemapItemDataSchema
-    })
-    .strict(),
-  z
-    .object({
-      groupId: z.string().nullable().optional(),
-      type: z.literal('directory'),
-      data: DirectoryItemDataSchema
-    })
-    .strict()
+  CreateKnowledgeItemBaseSchema.extend({
+    type: z.literal('file'),
+    data: FileItemDataSchema
+  }).superRefine(validateCreateKnowledgeItemReferences),
+  CreateKnowledgeItemBaseSchema.extend({
+    type: z.literal('url'),
+    data: UrlItemDataSchema
+  }).superRefine(validateCreateKnowledgeItemReferences),
+  CreateKnowledgeItemBaseSchema.extend({
+    type: z.literal('note'),
+    data: NoteItemDataSchema
+  }).superRefine(validateCreateKnowledgeItemReferences),
+  CreateKnowledgeItemBaseSchema.extend({
+    type: z.literal('sitemap'),
+    data: SitemapItemDataSchema
+  }).superRefine(validateCreateKnowledgeItemReferences),
+  CreateKnowledgeItemBaseSchema.extend({
+    type: z.literal('directory'),
+    data: DirectoryItemDataSchema
+  }).superRefine(validateCreateKnowledgeItemReferences)
 ])
 export type CreateKnowledgeItemDto = z.infer<typeof CreateKnowledgeItemSchema>
 
@@ -109,9 +155,23 @@ export const KNOWLEDGE_BASES_DEFAULT_PAGE = 1
 export const KNOWLEDGE_BASES_DEFAULT_LIMIT = 20
 export const KNOWLEDGE_BASES_MAX_LIMIT = 100
 
-export const CreateKnowledgeItemsSchema = z.object({
-  items: z.array(CreateKnowledgeItemSchema).min(1).max(KNOWLEDGE_ITEMS_MAX_LIMIT)
-})
+export const CreateKnowledgeItemsSchema = z
+  .object({
+    items: z.array(CreateKnowledgeItemSchema).min(1).max(KNOWLEDGE_ITEMS_MAX_LIMIT)
+  })
+  .superRefine((value, ctx) => {
+    const fieldErrors = getCreateKnowledgeItemsReferenceErrors(value.items)
+
+    for (const [field, messages] of Object.entries(fieldErrors)) {
+      for (const message of messages) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['items', field],
+          message
+        })
+      }
+    }
+  })
 export type CreateKnowledgeItemsDto = z.infer<typeof CreateKnowledgeItemsSchema>
 
 export const UpdateKnowledgeItemDataSchema = z.union([
@@ -125,7 +185,7 @@ export const UpdateKnowledgeItemDataSchema = z.union([
 export const UpdateKnowledgeItemSchema = z
   .object({
     data: UpdateKnowledgeItemDataSchema.optional(),
-    status: ItemStatusSchema.optional(),
+    status: KnowledgeItemStatusSchema.optional(),
     error: z.string().nullable().optional()
   })
   .strict()
