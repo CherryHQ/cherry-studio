@@ -1,23 +1,22 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-// Mock electron-store before any imports that use it
-vi.mock('electron-store', () => {
-  const Store = vi.fn(() => ({
-    get: vi.fn((key: string, defaultValue?: unknown) => defaultValue),
-    set: vi.fn()
-  }))
-  return { default: Store }
-})
-
-// Mock electron to avoid CommonJS issues
-vi.mock('electron', () => ({
-  app: {
-    getPath: vi.fn(() => '/tmp/test-userdata'),
-    getLocale: vi.fn(() => 'en-US')
-  }
+const {
+  mockInstallBuiltinSkills,
+  mockInitDefaultCherryClawAgent,
+  mockInitBuiltinAgent,
+  mockListSessions,
+  mockCreateSession,
+  mockEnsureHeartbeatTask
+} = vi.hoisted(() => ({
+  mockInstallBuiltinSkills: vi.fn(),
+  mockInitDefaultCherryClawAgent: vi.fn(),
+  mockInitBuiltinAgent: vi.fn(),
+  mockListSessions: vi.fn(),
+  mockCreateSession: vi.fn(),
+  mockEnsureHeartbeatTask: vi.fn()
 }))
 
-// Mock ConfigManager
+// Mock ConfigManager for hide/show/restore tests
 const mockGetDismissed = vi.fn<() => string[]>().mockReturnValue([])
 const mockSetDismissed = vi.fn()
 
@@ -35,33 +34,88 @@ vi.mock('@logger', () => ({
 }))
 
 vi.mock('@main/utils/builtinSkills', () => ({
-  installBuiltinSkills: vi.fn()
+  installBuiltinSkills: mockInstallBuiltinSkills
 }))
 
 vi.mock('../../AgentService', () => ({
   agentService: {
-    initDefaultCherryClawAgent: vi.fn().mockResolvedValue('cherry-claw-default'),
-    initBuiltinAgent: vi.fn().mockResolvedValue('cherry-assistant-default'),
+    initDefaultCherryClawAgent: mockInitDefaultCherryClawAgent,
+    initBuiltinAgent: mockInitBuiltinAgent,
     agentExists: vi.fn().mockResolvedValue(true)
-  }
-}))
-
-vi.mock('../../SchedulerService', () => ({
-  schedulerService: {
-    ensureHeartbeatTask: vi.fn()
   }
 }))
 
 vi.mock('../../SessionService', () => ({
   sessionService: {
-    listSessions: vi.fn().mockResolvedValue({ total: 1 }),
-    createSession: vi.fn()
+    listSessions: mockListSessions,
+    createSession: mockCreateSession
+  }
+}))
+
+vi.mock('../../SchedulerService', () => ({
+  schedulerService: {
+    ensureHeartbeatTask: mockEnsureHeartbeatTask
   }
 }))
 
 vi.mock('../BuiltinAgentProvisioner', () => ({
   provisionBuiltinAgent: vi.fn()
 }))
+
+// ── Bootstrap tests (from main) ─────────────────────────────────────
+
+describe('bootstrapBuiltinAgents', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.useFakeTimers()
+    vi.resetModules()
+    mockInstallBuiltinSkills.mockResolvedValue(undefined)
+    mockListSessions.mockResolvedValue({ total: 0 })
+    mockCreateSession.mockResolvedValue({ id: 'session_1' })
+    mockEnsureHeartbeatTask.mockResolvedValue(undefined)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('retries built-in bootstrap when no model is available yet', async () => {
+    mockInitDefaultCherryClawAgent
+      .mockResolvedValueOnce({ agentId: null, skippedReason: 'no_model' })
+      .mockResolvedValueOnce({ agentId: 'cherry-claw-default' })
+    mockInitBuiltinAgent.mockResolvedValue({ agentId: null, skippedReason: 'deleted' })
+
+    const { bootstrapBuiltinAgents } = await import('../BuiltinAgentBootstrap')
+
+    await bootstrapBuiltinAgents()
+    expect(mockInitDefaultCherryClawAgent).toHaveBeenCalledTimes(1)
+    expect(mockCreateSession).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(5000)
+
+    expect(mockInitDefaultCherryClawAgent).toHaveBeenCalledTimes(2)
+    expect(mockListSessions).toHaveBeenCalledWith('cherry-claw-default', { limit: 1 })
+    expect(mockCreateSession).toHaveBeenCalledWith('cherry-claw-default', {})
+    expect(mockEnsureHeartbeatTask).toHaveBeenCalledWith('cherry-claw-default', 30)
+  })
+
+  it('does not retry built-in agents deleted by the user', async () => {
+    mockInitDefaultCherryClawAgent.mockResolvedValue({ agentId: null, skippedReason: 'deleted' })
+    mockInitBuiltinAgent.mockResolvedValue({ agentId: null, skippedReason: 'deleted' })
+
+    const { bootstrapBuiltinAgents } = await import('../BuiltinAgentBootstrap')
+
+    await bootstrapBuiltinAgents()
+    await vi.advanceTimersByTimeAsync(60000)
+
+    expect(mockInitDefaultCherryClawAgent).toHaveBeenCalledTimes(1)
+    expect(mockInitBuiltinAgent).toHaveBeenCalledTimes(1)
+    expect(mockCreateSession).not.toHaveBeenCalled()
+    expect(mockEnsureHeartbeatTask).not.toHaveBeenCalled()
+  })
+})
+
+// ── Utility tests (our branch) ──────────────────────────────────────
 
 describe('BuiltinAgentBootstrap utilities', () => {
   describe('BUILTIN_AGENT_IDS', () => {
@@ -99,6 +153,8 @@ describe('BuiltinAgentBootstrap utilities', () => {
   })
 })
 
+// ── Hide/Show/Restore tests (our branch) ────────────────────────────
+
 describe('hide/show builtin agents', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -119,7 +175,6 @@ describe('hide/show builtin agents', () => {
 
     hideBuiltinAgent('cherry-claw-default')
 
-    // Should not call set if already in list (or should set same list)
     expect(mockSetDismissed).not.toHaveBeenCalled()
   })
 
@@ -176,7 +231,6 @@ describe('hide/show builtin agents', () => {
     const { agentService } = await import('../../AgentService')
     const { restoreBuiltinAgents } = await import('../BuiltinAgentBootstrap')
 
-    // CherryClaw exists but Cherry Assistant does not
     vi.mocked(agentService.agentExists)
       .mockResolvedValueOnce(true)
       .mockResolvedValueOnce(false)
