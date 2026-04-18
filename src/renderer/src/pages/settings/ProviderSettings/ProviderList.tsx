@@ -1,4 +1,4 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, MenuItem } from '@cherrystudio/ui'
 import type { DropResult } from '@hello-pangea/dnd'
 import { loggerService } from '@logger'
 import {
@@ -22,7 +22,6 @@ import { Check, Filter, GripVertical, PlusIcon, Search, UserPen } from 'lucide-r
 import type { FC } from 'react'
 import { startTransition, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 import useSWRImmutable from 'swr/immutable'
 
 import AddProviderPopup from './AddProviderPopup'
@@ -104,7 +103,7 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
       const provider = providers.find((p) => p.id === providerId)
       if (provider) {
         setSelectedProvider(provider)
-        // 滚动到选中的 provider
+        // Scroll to the selected provider
         const index = providers.findIndex((p) => p.id === providerId)
         if (index >= 0) {
           setTimeoutTimer(
@@ -157,7 +156,7 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
       window.toast.success(t('settings.models.provider_key_added', { provider: displayName }))
     }
 
-    // 检查 URL 参数
+    // Check URL parameters
     const addProviderData = search.addProviderData
     if (!addProviderData) {
       return
@@ -275,7 +274,7 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
           okText: t('common.delete'),
           centered: true,
           onOk: async () => {
-            // 删除provider前先清理其logo
+            // Remove the provider logo before deleting the provider
             if (provider.id) {
               try {
                 await ImageStorage.remove(`provider-${provider.id}`)
@@ -305,8 +304,8 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
     if (isSystemProvider(provider)) {
       return [noteMenu]
     } else if (provider.isSystem) {
-      // 这里是处理数据中存在新版本删掉的系统提供商的情况
-      // 未来期望能重构一下，不要依赖isSystem字段
+      // Handle legacy system providers that were removed in newer versions but still exist in stored data
+      // This should ideally be refactored in the future to avoid relying on the isSystem field
       return [noteMenu, deleteMenu]
     } else {
       return menus
@@ -350,14 +349,14 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
   )
 
   return (
-    <Container className="selectable">
-      <ProviderListContainer>
-        <AddButtonWrapper>
+    <div className="selectable flex w-full flex-row justify-between">
+      <div className="flex min-w-[calc(var(--settings-width)+10px)] flex-col border-r border-r-(--color-border) pb-1.25">
+        <div className="flex h-12.5 flex-row items-center justify-center px-2 py-2.5">
           <Input
             type="text"
             placeholder={t('settings.provider.search')}
             value={searchText}
-            style={{ borderRadius: 'var(--list-item-border-radius)', height: 35 }}
+            style={{ borderRadius: 10, height: 35 }}
             prefix={<Search size={14} />}
             suffix={
               <Dropdown
@@ -378,12 +377,12 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
                   ]
                 }}
                 trigger={['click']}>
-                <FilterButton>
+                <div className="flex h-5.5 w-5.5 cursor-pointer items-center justify-center rounded-sm">
                   <Filter
                     size={14}
-                    className={agentFilterEnabled ? 'text-[var(--color-primary)]' : 'text-[var(--color-text-3)]'}
+                    className={agentFilterEnabled ? 'text-(--color-primary)' : 'text-(--color-text-3)'}
                   />
-                </FilterButton>
+                </div>
               </Dropdown>
             }
             onChange={(e) => setSearchText(e.target.value)}
@@ -396,12 +395,13 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
             allowClear
             disabled={dragging}
           />
-        </AddButtonWrapper>
+        </div>
         <DraggableVirtualList
           ref={listRef}
           list={filteredProviders}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
+          disableInteractiveElementBlocking
           estimateSize={useCallback(() => 40, [])}
           itemKey={itemKey}
           overscan={3}
@@ -415,131 +415,50 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
           itemContainerStyle={{ paddingBottom: 5 }}>
           {(provider) => (
             <Dropdown menu={{ items: getDropdownMenus(provider) }} trigger={['contextMenu']}>
-              <ProviderListItem
+              <MenuItem
                 key={provider.id}
-                className={provider.id === selectedProvider?.id ? 'active' : ''}
-                onClick={() => setSelectedProvider(provider)}>
-                <DragHandle>
-                  <GripVertical size={12} />
-                </DragHandle>
-                <ProviderAvatar
-                  style={{
-                    width: 24,
-                    height: 24
-                  }}
-                  provider={provider}
-                  customLogos={providerLogos}
-                />
-                <ProviderItemName className="text-nowrap">{getFancyProviderName(provider)}</ProviderItemName>
-                {provider.enabled && (
-                  <Tag color="green" style={{ marginLeft: 'auto', marginRight: 0, borderRadius: 16 }}>
-                    ON
-                  </Tag>
-                )}
-              </ProviderListItem>
+                className="w-full cursor-pointer select-none overflow-hidden rounded-[10px] text-[14px] data-[active=true]:font-semibold"
+                label={getFancyProviderName(provider)}
+                active={provider.id === selectedProvider?.id}
+                onClick={() => setSelectedProvider(provider)}
+                icon={
+                  <div className="flex items-center">
+                    <div className="mr-0.5 flex w-3 cursor-grab items-center justify-center text-(--color-text-3) opacity-0 transition-opacity duration-200 ease-in-out active:cursor-grabbing group-hover:opacity-100">
+                      <GripVertical size={12} />
+                    </div>
+                    <ProviderAvatar
+                      style={{
+                        width: 24,
+                        height: 24
+                      }}
+                      provider={provider}
+                      customLogos={providerLogos}
+                    />
+                  </div>
+                }
+                suffix={
+                  provider.enabled ? (
+                    <Tag color="green" style={{ marginLeft: 'auto', marginRight: 0, borderRadius: 16 }}>
+                      ON
+                    </Tag>
+                  ) : undefined
+                }
+              />
             </Dropdown>
           )}
         </DraggableVirtualList>
-        <AddButtonWrapper>
-          <Button
-            size="sm"
-            style={{ width: '100%', borderRadius: 'var(--list-item-border-radius)' }}
-            onClick={onAddProvider}
-            disabled={dragging}>
+        <div className="flex h-12.5 flex-row items-center justify-center px-2 py-2.5">
+          <Button size="sm" style={{ width: '100%', borderRadius: 10 }} onClick={onAddProvider} disabled={dragging}>
             <PlusIcon size={16} />
             {t('button.add')}
           </Button>
-        </AddButtonWrapper>
-      </ProviderListContainer>
+        </div>
+      </div>
       <ProviderSetting providerId={selectedProvider.id} key={selectedProvider.id} isOnboarding={isOnboarding} />
-    </Container>
+    </div>
   )
 }
 
-const Container = styled.div`
-  width: 100%;
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-`
-
-const ProviderListContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  min-width: calc(var(--settings-width) + 10px);
-  padding-bottom: 5px;
-  border-right: 0.5px solid var(--color-border);
-`
-
-const ProviderListItem = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  padding: 5px 10px;
-  width: 100%;
-  border-radius: var(--list-item-border-radius);
-  font-size: 14px;
-  transition: all 0.2s ease-in-out;
-  border: 0.5px solid transparent;
-  user-select: none;
-  cursor: pointer;
-  &:hover {
-    background: var(--color-background-soft);
-  }
-  &.active {
-    background: var(--color-background-soft);
-    border: 0.5px solid var(--color-border);
-    font-weight: bold !important;
-  }
-`
-
-const DragHandle = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-left: -8px;
-  width: 12px;
-  color: var(--color-text-3);
-  opacity: 0;
-  transition: opacity 0.2s ease-in-out;
-  cursor: grab;
-
-  ${ProviderListItem}:hover & {
-    opacity: 1;
-  }
-
-  &:active {
-    cursor: grabbing;
-  }
-`
-
-const ProviderItemName = styled.div`
-  margin-left: 10px;
-  font-weight: 500;
-`
-
-const AddButtonWrapper = styled.div`
-  height: ${BUTTON_WRAPPER_HEIGHT}px;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  padding: 10px 8px;
-`
-
-const FilterButton = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 4px;
-  cursor: pointer;
-`
-
-const CheckPlaceholder = styled.span`
-  display: inline-block;
-  width: 14px;
-  height: 14px;
-`
+const CheckPlaceholder = () => <span className="inline-block h-3.5 w-3.5" />
 
 export default ProviderList
