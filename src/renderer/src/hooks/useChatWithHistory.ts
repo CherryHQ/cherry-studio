@@ -11,18 +11,26 @@
  */
 
 import { useChat } from '@ai-sdk/react'
+import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
 import type { Message } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, UserMessageStatus } from '@renderer/types/newMessage'
 import { statsToMetrics, statsToUsage } from '@renderer/utils/messageStats'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { UniqueModelId } from '@shared/data/types/model'
 import type { ChatRequestOptions, ChatStatus } from 'ai'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 import type { MessageMetadataMap } from './useTopicMessagesV2'
 
 const logger = loggerService.withContext('useChatWithHistory')
+
+// Module-level empty-array constant so the `?? []` fallback in
+// `activeExecutionIds` keeps a stable reference when the cache is
+// undefined. Prevents downstream memos / effects from invalidating on
+// every render while no stream is active.
+const EMPTY_EXECUTIONS: readonly UniqueModelId[] = Object.freeze([])
 
 // ── Return type ──
 
@@ -36,7 +44,7 @@ export interface UseChatWithHistoryResult {
   error: Error | undefined
   setMessages: (messages: CherryUIMessage[] | ((messages: CherryUIMessage[]) => CherryUIMessage[])) => void
   streamingUIMessages: CherryUIMessage[]
-  activeExecutionIds: string[]
+  activeExecutionIds: readonly UniqueModelId[]
   initialMessages: CherryUIMessage[]
 }
 
@@ -64,7 +72,13 @@ export function useChatWithHistory(
   const refreshRef = useRef(refresh)
   refreshRef.current = refresh
 
-  const [activeExecutionIds, setActiveExecutionIds] = useState<string[]>([])
+  // Active execution IDs for this topic are mirrored from Main's
+  // `AiStreamManager` via the topic-status push channel (see
+  // `aiStreamTopicCache`). Absence / empty cache value means "no
+  // executions currently running".
+  const [activeExecutionIdsFromCache] = useCache(`topic.stream.executions.${topicId}` as const)
+  const activeExecutionIds = activeExecutionIdsFromCache ?? EMPTY_EXECUTIONS
+
   const resumeInFlightRef = useRef<Promise<void> | null>(null)
   const latestAssistantMessageId = useMemo(() => {
     for (let index = messages.length - 1; index >= 0; index--) {
@@ -110,13 +124,19 @@ export function useChatWithHistory(
   }, [resumeActiveStream])
 
   useEffect(() => {
-    const startedUnsub = window.api.ai.onStreamStarted((data) => {
+    // Trigger reattach when Main notifies that a new stream has been
+    // created on this topic. The `pending` transition uniquely marks
+    // "send() just created a new ActiveStream" — subsequent deltas
+    // (streaming / done / error / aborted / idle) describe an ongoing
+    // lifecycle and must not retrigger a reattach.
+    const unsub = window.api.ai.topic.onStatusChanged((data) => {
       if (data.topicId !== topicId) return
+      if (data.status !== 'pending') return
       resumeActiveStream('started-event')
     })
 
     return () => {
-      startedUnsub()
+      unsub()
     }
   }, [resumeActiveStream, topicId])
 
@@ -125,11 +145,9 @@ export function useChatWithHistory(
       .current()
       .then((refreshed) => {
         setMessages(refreshed)
-        setActiveExecutionIds([])
       })
       .catch((err) => {
         logger.warn('Failed to refresh messages after stream end', { topicId, err })
-        setActiveExecutionIds([])
       })
   }, [setMessages, topicId])
 
@@ -151,21 +169,6 @@ export function useChatWithHistory(
       errorUnsub()
     }
   }, [topicId, refreshAndReplace])
-
-  useEffect(() => {
-    const seen = new Set<string>()
-    const chunkUnsub = window.api.ai.onStreamChunk((data) => {
-      if (data.topicId !== topicId || !data.executionId) return
-      if (seen.has(data.executionId)) return
-      seen.add(data.executionId)
-      setActiveExecutionIds(Array.from(seen))
-    })
-
-    return () => {
-      chunkUnsub()
-      seen.clear()
-    }
-  }, [topicId])
 
   // ── Adapt UIMessage[] to renderer Message[] ──
 

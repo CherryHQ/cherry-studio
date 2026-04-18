@@ -1,3 +1,4 @@
+import type { TopicStatusChangedPayload } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -11,12 +12,11 @@ vi.mock('@ai-sdk/react', () => ({
 }))
 
 describe('useChatWithHistory', () => {
-  const startedListeners: Array<(data: { topicId: string }) => void> = []
+  const statusListeners: Array<(data: TopicStatusChangedPayload) => void> = []
   const doneListeners: Array<(data: { topicId: string; executionId?: string; isTopicDone?: boolean }) => void> = []
   const errorListeners: Array<
     (data: { topicId: string; executionId?: string; isTopicDone?: boolean; error: { message: string } }) => void
   > = []
-  const chunkListeners: Array<(data: { topicId: string; executionId?: string }) => void> = []
 
   const resumeStream = vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
   const setMessages = vi.fn()
@@ -27,10 +27,9 @@ describe('useChatWithHistory', () => {
   const refreshedMessages = [{ id: 'user-1', role: 'user', parts: [] }] as unknown as CherryUIMessage[]
 
   beforeEach(() => {
-    startedListeners.length = 0
+    statusListeners.length = 0
     doneListeners.length = 0
     errorListeners.length = 0
-    chunkListeners.length = 0
 
     resumeStream.mockClear()
     setMessages.mockClear()
@@ -53,13 +52,6 @@ describe('useChatWithHistory', () => {
       ...originalApi,
       ai: {
         ...originalApi.ai,
-        onStreamStarted: vi.fn((cb: (data: { topicId: string }) => void) => {
-          startedListeners.push(cb)
-          return () => {
-            const index = startedListeners.indexOf(cb)
-            if (index >= 0) startedListeners.splice(index, 1)
-          }
-        }),
         onStreamDone: vi.fn((cb: (data: { topicId: string; executionId?: string; isTopicDone?: boolean }) => void) => {
           doneListeners.push(cb)
           return () => {
@@ -83,13 +75,16 @@ describe('useChatWithHistory', () => {
             }
           }
         ),
-        onStreamChunk: vi.fn((cb: (data: { topicId: string; executionId?: string }) => void) => {
-          chunkListeners.push(cb)
-          return () => {
-            const index = chunkListeners.indexOf(cb)
-            if (index >= 0) chunkListeners.splice(index, 1)
-          }
-        })
+        topic: {
+          ...originalApi.ai?.topic,
+          onStatusChanged: vi.fn((cb: (data: TopicStatusChangedPayload) => void) => {
+            statusListeners.push(cb)
+            return () => {
+              const index = statusListeners.indexOf(cb)
+              if (index >= 0) statusListeners.splice(index, 1)
+            }
+          })
+        }
       }
     }
   })
@@ -108,8 +103,9 @@ describe('useChatWithHistory', () => {
       expect(resumeStream).toHaveBeenCalledTimes(1)
     })
 
-    for (const listener of startedListeners) {
-      listener({ topicId: 'other-topic' })
+    // Status change on a different topic must not trigger reattach.
+    for (const listener of statusListeners) {
+      listener({ topicId: 'other-topic', status: 'pending', activeExecutionIds: [] })
     }
 
     await waitFor(() => {
@@ -117,8 +113,19 @@ describe('useChatWithHistory', () => {
     })
     expect(refresh).not.toHaveBeenCalled()
 
-    for (const listener of startedListeners) {
-      listener({ topicId: 'topic-1' })
+    // Non-`pending` deltas on our topic must not retrigger reattach
+    // (streaming / done / error / aborted / idle describe ongoing
+    // lifecycle, not a brand-new stream creation).
+    for (const listener of statusListeners) {
+      listener({ topicId: 'topic-1', status: 'streaming', activeExecutionIds: ['p::m'] })
+    }
+    await waitFor(() => {
+      expect(resumeStream).toHaveBeenCalledTimes(1)
+    })
+
+    // `pending` on our topic = new ActiveStream created → reattach.
+    for (const listener of statusListeners) {
+      listener({ topicId: 'topic-1', status: 'pending', activeExecutionIds: ['p::m'] })
     }
 
     await waitFor(() => {

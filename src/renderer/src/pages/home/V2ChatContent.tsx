@@ -121,8 +121,9 @@ const V2ChatContentInner: FC<InnerProps> = ({
       return
     }
 
+    const activeSet = new Set<string>(activeExecutionIds)
     setExecutionMessagesById((prev) =>
-      Object.fromEntries(Object.entries(prev).filter(([executionId]) => activeExecutionIds.includes(executionId)))
+      Object.fromEntries(Object.entries(prev).filter(([executionId]) => activeSet.has(executionId)))
     )
   }, [activeExecutionIds])
 

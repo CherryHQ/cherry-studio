@@ -8,6 +8,7 @@ import type {
   AiStreamDetachRequest,
   AiStreamOpenRequest,
   TopicStatusChangedPayload,
+  TopicStatusSnapshotEntry,
   TopicStreamStatus
 } from '@shared/ai/transport'
 import type { Message } from '@shared/data/types/message'
@@ -265,7 +266,10 @@ export class AiStreamManager extends BaseService {
       isMultiModel
     }
     this.activeStreams.set(input.topicId, stream)
-    this.broadcastStreamStarted(input.topicId)
+    // The `'pending'` delta is the single "a new ActiveStream just
+    // appeared on this topic" signal — consumers that need to attach
+    // (e.g. `useChatWithHistory.resumeActiveStream`) subscribe to it
+    // instead of a separate `Ai_StreamStarted` channel.
     this.broadcastTopicStatus(input.topicId, 'pending')
 
     return {
@@ -535,28 +539,24 @@ export class AiStreamManager extends BaseService {
     this.removeListener(req.topicId, `wc:${sender.id}:${req.topicId}`)
   }
 
-  private broadcastStreamStarted(topicId: string): void {
-    const windowService = application.get('WindowService')
-    const windows = windowService.getAllWindows()
-    for (const window of windows) {
-      const wc = window.webContents
-      if (wc.isDestroyed()) continue
-      wc.send(IpcChannel.Ai_StreamStarted, { topicId })
-    }
-  }
-
   /**
    * Broadcast a topic-level status transition to every window. Unlike the
    * per-listener terminal events (`Ai_StreamDone` / `Ai_StreamError`), this
    * channel is unconditional — observer windows that never called `attach`
    * still learn when a topic transitions between pending / streaming /
-   * done / aborted / error / idle. Callers are responsible for updating
+   * done / aborted / error. Callers are responsible for updating
    * `stream.status` first so the broadcast reflects the committed state.
+   *
+   * The grace-period reap does NOT broadcast — cache mirrors retain the
+   * last terminal status until a local consumer (e.g. the active-topic
+   * `useEffect` in `Topics.tsx`) evicts it, mirroring the pre-refactor
+   * "fulfilled flag sticks until the user sees it" behaviour.
    */
-  private broadcastTopicStatus(topicId: string, status: TopicStreamStatus | 'idle'): void {
+  private broadcastTopicStatus(topicId: string, status: TopicStreamStatus): void {
     const windowService = application.get('WindowService')
     const windows = windowService.getAllWindows()
-    const payload: TopicStatusChangedPayload = { topicId, status }
+    const activeExecutionIds = this.collectActiveExecutionIds(topicId)
+    const payload: TopicStatusChangedPayload = { topicId, status, activeExecutionIds }
     for (const window of windows) {
       const wc = window.webContents
       if (wc.isDestroyed()) continue
@@ -565,16 +565,35 @@ export class AiStreamManager extends BaseService {
   }
 
   /**
-   * Snapshot of every currently-tracked topic's status. Used by freshly
-   * mounted renderer hooks to bootstrap their view before the push
-   * channel starts delivering deltas. Idle topics (already reaped) are
-   * intentionally absent from the map — consumers treat "missing key" as
-   * "no active stream".
+   * Executions still in their non-terminal phase (`exec.status ===
+   * 'streaming'`, which is set at launch and cleared by `done` / `error`
+   * / `aborted`). Returns `[]` when the topic is absent from
+   * `activeStreams` or when every execution has hit a terminal state.
    */
-  getTopicStatuses(): Record<string, TopicStreamStatus> {
-    const result: Record<string, TopicStreamStatus> = {}
+  private collectActiveExecutionIds(topicId: string): UniqueModelId[] {
+    const stream = this.activeStreams.get(topicId)
+    if (!stream) return []
+    const ids: UniqueModelId[] = []
+    for (const [modelId, exec] of stream.executions) {
+      if (exec.status === 'streaming') ids.push(modelId)
+    }
+    return ids
+  }
+
+  /**
+   * Snapshot of every currently-tracked topic's status and its
+   * `activeExecutionIds`. Used by freshly mounted renderer hooks to
+   * bootstrap their view before the push channel starts delivering
+   * deltas. Idle topics (already reaped) are intentionally absent from
+   * the map — consumers treat "missing key" as "no active stream".
+   */
+  getTopicStatuses(): Record<string, TopicStatusSnapshotEntry> {
+    const result: Record<string, TopicStatusSnapshotEntry> = {}
     for (const [topicId, stream] of this.activeStreams) {
-      result[topicId] = stream.status
+      result[topicId] = {
+        status: stream.status,
+        activeExecutionIds: this.collectActiveExecutionIds(topicId)
+      }
     }
     return result
   }
@@ -852,11 +871,11 @@ export class AiStreamManager extends BaseService {
     stream.reapTimer = setTimeout(() => {
       if (this.activeStreams.get(topicId) === stream) {
         this.activeStreams.delete(topicId)
-        // Tell observer windows the stream is fully gone so they can drop
-        // their cached status. Without this, a cache mirror populated
-        // via the push channel would retain the terminal state (`done` /
-        // `error` / …) forever even though the topic is idle.
-        this.broadcastTopicStatus(topicId, 'idle')
+        // No status broadcast on reap — cache mirrors keep the terminal
+        // state (`done` / `error` / `aborted`) until a local consumer
+        // evicts it. `getTopicStatuses()` will simply omit this topic
+        // now that it's gone from `activeStreams`, so any freshly
+        // mounted observer starts clean.
       }
     }, this.config.gracePeriodMs)
   }

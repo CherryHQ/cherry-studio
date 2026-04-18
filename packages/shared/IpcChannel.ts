@@ -471,7 +471,6 @@ export enum IpcChannel {
   Analytics_TrackTokenUsage = 'analytics:track-token-usage',
 
   // AI Stream (AiStreamManager)
-  Ai_StreamStarted = 'ai:stream-started',
   Ai_StreamChunk = 'ai:stream-chunk',
   Ai_StreamDone = 'ai:stream-done',
   Ai_StreamError = 'ai:stream-error',

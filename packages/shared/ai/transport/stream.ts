@@ -14,11 +14,6 @@ export interface StreamChunkPayload {
   chunk: UIMessageChunk
 }
 
-/** Topic stream has started and can be attached to from any window. */
-export interface StreamStartedPayload {
-  topicId: string
-}
-
 /**
  * Topic-level lifecycle state, broadcast to all windows so observers
  * (sidebars, backup gate, etc.) can track whether a topic is currently
@@ -36,13 +31,29 @@ export type TopicStreamStatus =
   | 'error' // at least one execution errored with isTopicDone
 
 /**
- * Payload of the topic-status push event. `'idle'` is a transport-only
- * sentinel used when the grace-period timer reaps the stream — it signals
- * "forget this topic" to cache mirrors. It is never stored.
+ * Payload of the topic-status push event.
+ *
+ * `activeExecutionIds` names every execution still in its non-terminal
+ * phase (`exec.status === 'streaming'` — set at launch, cleared only by
+ * `done` / `error` / `aborted`). Carried alongside the status so
+ * renderers don't need to re-derive it by subscribing to
+ * `onStreamChunk` and deduping. Empty when every execution has hit a
+ * terminal state.
  */
 export interface TopicStatusChangedPayload {
   topicId: string
-  status: TopicStreamStatus | 'idle'
+  status: TopicStreamStatus
+  activeExecutionIds: UniqueModelId[]
+}
+
+/**
+ * Snapshot entry returned by `Ai_Topic_GetStatuses` — mirrors the push
+ * payload minus `topicId` (the map key). Reaped topics are absent from
+ * the map so freshly-mounted observers start clean without stale data.
+ */
+export interface TopicStatusSnapshotEntry {
+  status: TopicStreamStatus
+  activeExecutionIds: UniqueModelId[]
 }
 
 /** Stream ended. */

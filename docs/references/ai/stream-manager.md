@@ -497,11 +497,10 @@ aiStreamManager.send({
 
 | Channel | Payload | 说明 |
 |---|---|---|
-| `Ai_StreamStarted` | `{ topicId }` | 广播给所有窗口；保留以兼容旧消费方，新代码用 `Ai_TopicStatusChanged: pending` |
 | `Ai_StreamChunk` | `{ topicId, executionId?, chunk }` | 多模型时带 `executionId`，单模型 undefined；**仅发给 attach 过的窗口** |
 | `Ai_StreamDone` | `{ topicId, executionId?, status, isTopicDone }` | `status ∈ { 'success', 'paused' }` 区分正常完成 / 用户 abort；**仅发给 attach 过的窗口** |
 | `Ai_StreamError` | `{ topicId, executionId?, isTopicDone, error }` | SerializedError；**仅发给 attach 过的窗口** |
-| `Ai_TopicStatusChanged` | `{ topicId, status }` | 广播给所有窗口，`status ∈ { 'pending', 'streaming', 'done', 'aborted', 'error', 'idle' }`；观察者不需要 attach 即可跟踪 topic 状态 |
+| `Ai_TopicStatusChanged` | `{ topicId, status, activeExecutionIds }` | 广播给所有窗口，`status ∈ { 'pending', 'streaming', 'done', 'aborted', 'error' }`；观察者不需要 attach 即可跟踪 topic 状态。`pending` 还兼任 "新 stream 创建" 的通知（旧 `Ai_StreamStarted` 已下线）。**grace-period reap 不广播** — cache 镜像保留终态直到本地消费者清理 |
 
 **所有通信均以 topicId 为唯一 key**；多模型场景下 `executionId` 区分 chunks 来源。
 

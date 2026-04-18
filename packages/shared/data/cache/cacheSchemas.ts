@@ -1,4 +1,5 @@
 import type { TopicStreamStatus } from '../../ai/transport'
+import type { UniqueModelId } from '../types/model'
 import type * as CacheValueTypes from './cacheValueTypes'
 
 /**
@@ -177,6 +178,14 @@ export type UseCacheSchema = {
    * `aiStreamTopicCache` via the `Ai_TopicStatusChanged` push channel.
    */
   'topic.stream.status.${topicId}': TopicStreamStatus | undefined
+  /**
+   * Execution IDs (UniqueModelId) currently producing chunks for a
+   * topic. Mirrored alongside `topic.stream.status` from the same push
+   * payload — lets per-execution consumers (e.g. `useChatWithHistory`)
+   * skip re-deriving from `onStreamChunk`. Absent when the topic has no
+   * active stream or when no execution has produced a chunk yet.
+   */
+  'topic.stream.executions.${topicId}': UniqueModelId[] | undefined
   'message.ui.${messageId}': { foldSelected?: boolean; multiModelMessageStyle?: string; useful?: boolean }
 }
 
@@ -241,6 +250,7 @@ export const DefaultUseCache: UseCacheSchema = {
   'message.streaming.siblings_counter.${topicId}': 0,
   'message.streaming.chat_session.${topicId}': null,
   'topic.stream.status.${topicId}': undefined,
+  'topic.stream.executions.${topicId}': undefined,
   'message.ui.${messageId}': {}
 }
 

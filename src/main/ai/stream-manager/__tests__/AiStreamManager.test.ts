@@ -97,8 +97,8 @@ const mockStreamText = vi.fn<
 /**
  * Fake WindowService used by broadcast-path tests. Tests push real-ish
  * `{ webContents: { send } }` shapes via `fakeWindows.push(...)`; the
- * manager's `broadcastTopicStatus` / `broadcastStreamStarted` helpers
- * will walk this list and call `send` on each.
+ * manager's `broadcastTopicStatus` helper will walk this list and
+ * call `send` on each.
  */
 const fakeWindows: Array<{ webContents: { isDestroyed: () => boolean; send: ReturnType<typeof vi.fn> } }> = []
 const fakeWindowService = {
@@ -772,7 +772,7 @@ describe('AiStreamManager', () => {
         .map(([, payload]) => (payload as { status: string }).status)
     }
 
-    it('broadcasts pending on send, streaming on first chunk, done on terminal, idle on reap', async () => {
+    it('broadcasts pending on send, streaming on first chunk, done on terminal; reap is silent', async () => {
       const { send: sendA } = makeFakeWindow()
       const { send: sendB } = makeFakeWindow()
       startSingle(mgr, {
@@ -796,9 +796,10 @@ describe('AiStreamManager', () => {
       await mgr.onExecutionDone('t', 'p::m')
       expect(statusSequence(sendA)).toEqual(['pending', 'streaming', 'done'])
 
-      // Grace-period reap emits `idle` so observer caches can drop the key.
+      // Grace-period reap is silent — no status broadcast fires. Cache
+      // mirrors retain the `done` value until a local consumer evicts it.
       vi.advanceTimersByTime(31_000)
-      expect(statusSequence(sendA)).toEqual(['pending', 'streaming', 'done', 'idle'])
+      expect(statusSequence(sendA)).toEqual(['pending', 'streaming', 'done'])
     })
 
     it('broadcasts aborted when the user stops the stream', async () => {
@@ -871,6 +872,56 @@ describe('AiStreamManager', () => {
       expect(statusSequence(aliveSend)).toEqual(['pending'])
       expect(deadSend).not.toHaveBeenCalled()
     })
+
+    it('carries activeExecutionIds in every status delta', async () => {
+      const { send } = makeFakeWindow()
+      mgr.send({
+        topicId: 't',
+        models: [
+          { modelId: 'p::a', request: req('t') },
+          { modelId: 'p::b', request: req('t') }
+        ],
+        listeners: [new FakeListener('l:t')]
+      })
+
+      /** Extract status + activeExecutionIds from our channel (topicId stripped). */
+      const deltas = () =>
+        send.mock.calls
+          .filter(([channel]) => channel === 'ai:topic-status-changed')
+          .map(([, payload]) => {
+            const { status, activeExecutionIds } = payload as {
+              status: string
+              activeExecutionIds: string[]
+            }
+            return { status, activeExecutionIds }
+          })
+
+      // On send all executions are launched → both listed as active.
+      expect(deltas()).toEqual([{ status: 'pending', activeExecutionIds: ['p::a', 'p::b'] }])
+
+      // Per-execution terminals that don't take the topic terminal do NOT
+      // re-broadcast (topic still live). Renderer cache retains the
+      // launch-time exec list, matching the old onStreamChunk semantics.
+      await mgr.onExecutionError('t', 'p::a', error('boom'))
+      expect(deltas()).toHaveLength(1)
+
+      // First chunk flips topic → 'streaming'. `collectActiveExecutionIds`
+      // filters by `exec.status === 'streaming'`, so p::a (now 'error')
+      // is dropped even though the broadcast itself is driven by the
+      // topic transition, not the per-exec terminal.
+      mgr.onChunk('t', 'p::b', chunk('x'))
+      expect(deltas().at(-1)).toEqual({ status: 'streaming', activeExecutionIds: ['p::b'] })
+
+      // B completes: topic terminal. Since A had errored, topic status
+      // is 'error'. All execs are terminal → activeExecutionIds: [].
+      const deltasBeforeReap = deltas().length
+      await mgr.onExecutionDone('t', 'p::b')
+      expect(deltas().at(-1)).toEqual({ status: 'error', activeExecutionIds: [] })
+
+      // Grace-period reap is silent — no extra delta after the terminal one.
+      vi.advanceTimersByTime(31_000)
+      expect(deltas().length).toBe(deltasBeforeReap + 1)
+    })
   })
 
   // ── getTopicStatuses snapshot ────────────────────────────────────
@@ -891,14 +942,22 @@ describe('AiStreamManager', () => {
       })
       mgr.onChunk('b', 'p::m', chunk('hi'))
 
-      expect(mgr.getTopicStatuses()).toEqual({ a: 'pending', b: 'streaming' })
+      expect(mgr.getTopicStatuses()).toEqual({
+        a: { status: 'pending', activeExecutionIds: ['p::m'] },
+        b: { status: 'streaming', activeExecutionIds: ['p::m'] }
+      })
 
       await mgr.onExecutionDone('b', 'p::m')
-      expect(mgr.getTopicStatuses()).toEqual({ a: 'pending', b: 'done' })
+      expect(mgr.getTopicStatuses()).toEqual({
+        a: { status: 'pending', activeExecutionIds: ['p::m'] },
+        b: { status: 'done', activeExecutionIds: [] }
+      })
 
       // After the grace period the reaped topic drops out of the snapshot.
       vi.advanceTimersByTime(31_000)
-      expect(mgr.getTopicStatuses()).toEqual({ a: 'pending' })
+      expect(mgr.getTopicStatuses()).toEqual({
+        a: { status: 'pending', activeExecutionIds: ['p::m'] }
+      })
     })
   })
 })

@@ -22,7 +22,6 @@ export type {
   StreamChunkPayload,
   StreamDonePayload,
   StreamErrorPayload,
-  StreamStartedPayload,
   TopicStatusChangedPayload,
   TopicStreamStatus
 } from '@shared/ai/transport'
@@ -254,9 +253,10 @@ export interface ActiveStream {
    * translation layer. `'pending'` is set at `send()` and flips to
    * `'streaming'` on the first chunk from any execution; terminal values
    * (`done` / `error` / `aborted`) are derived from executions by
-   * `computeTopicStatus`. The transport-only `'idle'` sentinel is *not*
-   * part of this union — it exists solely on the push payload to signal
-   * "stream reaped", and is never stored on an ActiveStream.
+   * `computeTopicStatus`. The grace-period reap is silent — there is no
+   * push notification when the ActiveStream is deleted from the manager;
+   * renderer cache mirrors retain the last terminal value until a local
+   * consumer evicts it.
    */
   status: TopicStreamStatus
 
