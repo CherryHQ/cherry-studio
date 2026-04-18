@@ -205,19 +205,10 @@ export function buildProviderOptions(
     case SystemProviderIds.ollama:
       providerSpecificOptions = buildOllamaProviderOptions(assistant, model, capabilities)
       break
-    case SystemProviderIds.gateway:
-      providerSpecificOptions = buildAIGatewayOptions(assistant, model, capabilities, serviceTier, textVerbosity)
-      break
     case 'newapi':
     case 'aihubmix':
-      providerSpecificOptions = buildProxyProviderOptions(
-        rawProviderId,
-        assistant,
-        model,
-        capabilities,
-        serviceTier,
-        textVerbosity
-      )
+    case SystemProviderIds.gateway:
+      providerSpecificOptions = buildAIGatewayOptions(assistant, model, capabilities, serviceTier, textVerbosity)
       break
     case 'deepseek':
     case 'openrouter':
@@ -494,33 +485,6 @@ function buildCherryInProviderOptions(
     default:
       return buildGenericProviderOptions('cherryin', assistant, model, capabilities)
   }
-}
-
-/**
- * Build providerOptions for proxy providers (newapi, aihubmix) that route to different backends.
- * These providers use model ID to determine the actual backend, not provider.type.
- */
-function buildProxyProviderOptions(
-  rawProviderId: string,
-  assistant: Assistant,
-  model: Model,
-  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>,
-  serviceTier: OpenAIServiceTier,
-  textVerbosity: OpenAIVerbosity
-): Record<string, OpenAIResponsesProviderOptions | AnthropicProviderOptions | GoogleGenerativeAIProviderOptions> {
-  if (isGeminiModel(model)) {
-    return buildGeminiProviderOptions(assistant, model, capabilities)
-  }
-  if (isAnthropicModel(model)) {
-    return buildAnthropicProviderOptions(assistant, model, capabilities)
-  }
-  if (isOpenAIModel(model)) {
-    return buildOpenAIProviderOptions(assistant, model, capabilities, serviceTier, textVerbosity)
-  }
-  if (isGrokModel(model)) {
-    return buildXAIProviderOptions(assistant, model, capabilities)
-  }
-  return buildGenericProviderOptions(rawProviderId, assistant, model, capabilities)
 }
 
 /**
