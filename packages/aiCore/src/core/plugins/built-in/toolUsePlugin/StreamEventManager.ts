@@ -11,11 +11,29 @@ import type { AiSdkUsage } from '../../../providers/types'
 import type { AiRequestContext, StreamTextParams, StreamTextResult } from '../../types'
 import type { StreamController } from './ToolExecutor'
 
+const RECURSIVE_STREAM_TIMEOUT_MS = 120_000
+
+type RecursiveStreamChunk = {
+  type: string
+  [key: string]: unknown
+}
+
 /**
- * 类型守卫：检查对象是否是有效的流结果（包含 ReadableStream 类型的 fullStream）
+ * 类型守卫：检查对象是否是有效的流结果（包含可读取的 fullStream）
  */
-function hasFullStream(obj: unknown): obj is StreamTextResult & { fullStream: ReadableStream } {
-  return typeof obj === 'object' && obj !== null && 'fullStream' in obj && obj.fullStream instanceof ReadableStream
+function isReadableStreamLike(stream: unknown): stream is ReadableStream {
+  return (
+    typeof stream === 'object' && stream !== null && typeof (stream as { getReader?: unknown }).getReader === 'function'
+  )
+}
+
+function hasFullStream(obj: unknown): obj is StreamTextResult & { fullStream: ReadableStream<RecursiveStreamChunk> } {
+  return (
+    typeof obj === 'object' &&
+    obj !== null &&
+    'fullStream' in obj &&
+    isReadableStreamLike((obj as { fullStream?: unknown }).fullStream)
+  )
 }
 
 /**
@@ -111,30 +129,36 @@ export class StreamEventManager {
     recursiveParams: Partial<TParams>,
     context: AiRequestContext<TParams, StreamTextResult>
   ): Promise<void> {
-    // try {
-    // 重置工具执行状态，准备处理新的步骤
-    context.hasExecutedToolsInCurrentStep = false
+    try {
+      context.hasExecutedToolsInCurrentStep = false
 
-    const recursiveResult = await context.recursiveCall(recursiveParams)
+      const recursiveResult = await context.recursiveCall(recursiveParams)
 
-    if (hasFullStream(recursiveResult)) {
-      await this.pipeRecursiveStream(controller, recursiveResult.fullStream)
-    } else {
-      console.warn('[MCP Prompt] No fullstream found in recursive result:', recursiveResult)
+      if (hasFullStream(recursiveResult)) {
+        await this.pipeRecursiveStream(controller, recursiveResult.fullStream)
+      } else {
+        throw new Error('Recursive result did not include a readable fullStream')
+      }
+    } catch (error) {
+      console.error('[MCP Prompt] Recursive call failed:', error)
+      controller.enqueue({
+        type: 'error',
+        error: error instanceof Error ? error : new Error(String(error))
+      })
     }
-    // } catch (error) {
-    //   this.handleRecursiveCallError(controller, error, stepId)
-    // }
   }
 
   /**
    * 将递归流的数据传递到当前流
    */
-  private async pipeRecursiveStream(controller: StreamController, recursiveStream: ReadableStream): Promise<void> {
+  private async pipeRecursiveStream(
+    controller: StreamController,
+    recursiveStream: ReadableStream<RecursiveStreamChunk>
+  ): Promise<void> {
     const reader = recursiveStream.getReader()
     try {
       while (true) {
-        const { done, value } = await reader.read()
+        const { done, value } = await this.readRecursiveStreamChunk(reader)
         if (done) {
           break
         }
@@ -148,8 +172,44 @@ export class StreamEventManager {
 
         controller.enqueue(value)
       }
+    } catch (error) {
+      try {
+        await reader.cancel(error)
+      } catch {
+        // Ignore cancellation errors after the stream has already failed.
+      }
+      console.error('[MCP Prompt] Error piping recursive stream:', error)
+      controller.enqueue({
+        type: 'error',
+        error: error instanceof Error ? error : new Error(String(error))
+      })
     } finally {
       reader.releaseLock()
+    }
+  }
+
+  /**
+   * 读取递归流的下一块数据，并在长时间无进展时中断。
+   */
+  private async readRecursiveStreamChunk(
+    reader: ReadableStreamDefaultReader<RecursiveStreamChunk>
+  ): Promise<ReadableStreamReadResult<RecursiveStreamChunk>> {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
+
+    try {
+      return await Promise.race([
+        reader.read(),
+        new Promise<never>((_, reject) => {
+          timeoutId = setTimeout(
+            () => reject(new Error('Recursive stream read timed out')),
+            RECURSIVE_STREAM_TIMEOUT_MS
+          )
+        })
+      ])
+    } finally {
+      if (timeoutId !== undefined) {
+        clearTimeout(timeoutId)
+      }
     }
   }
 
