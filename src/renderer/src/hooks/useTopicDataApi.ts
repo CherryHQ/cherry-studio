@@ -176,27 +176,6 @@ export function useTopicMutations() {
 }
 
 /**
- * Ensure a topic exists in the data store. Creates it if not found (get-or-create).
- *
- * **Transition helper**: During Redux → DataApi migration, topics created via Redux
- * may not yet exist in SQLite. This function bridges the gap by lazily persisting
- * them on first access. Once migration is complete, call sites should switch to
- * explicit `createTopic` and this function can be removed.
- */
-export async function ensureTopicExists(dto: CreateTopicDto): Promise<ApiTopic> {
-  if (dto.id) {
-    try {
-      return await dataApiService.get(`/topics/${dto.id}`)
-    } catch {
-      // not found — fall through to create
-    }
-  }
-  const topic = await dataApiService.post('/topics', { body: dto })
-  logger.info('Persisted topic to SQLite', { topicId: topic.id })
-  return topic
-}
-
-/**
  * Listens for topic updates from the main process (e.g. auto-rename)
  * and invalidates the SWR topic cache so UI reflects the change.
  */

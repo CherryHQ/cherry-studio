@@ -146,7 +146,7 @@ export function useAssistant(id: string) {
     assistant: assistantWithModel,
     model,
     addTopic: async (topic: Topic) => {
-      await createTopic({ id: topic.id, name: topic.name, assistantId: topic.assistantId })
+      return await createTopic({ name: topic.name, assistantId: topic.assistantId })
     },
     removeTopic: async (topic: Topic) => {
       await deleteTopic(topic.id)

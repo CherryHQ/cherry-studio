@@ -8,7 +8,6 @@ import V2ChatContent from '../V2ChatContent'
 
 const mockUseChatWithHistory = vi.fn()
 const mockUseTopicMessagesV2 = vi.fn()
-const mockEnsureTopicExists = vi.fn()
 let capturedOnSend: ((text: string) => Promise<void> | void) | undefined
 
 vi.mock('@renderer/hooks/useChatContext', () => ({
@@ -35,10 +34,6 @@ vi.mock('@renderer/services/ApiService', () => ({
 vi.mock('@renderer/utils/assistant', () => ({
   isPromptToolUse: vi.fn(() => false),
   isSupportedToolUse: vi.fn(() => false)
-}))
-
-vi.mock('@renderer/hooks/useTopicDataApi', () => ({
-  ensureTopicExists: (...args: unknown[]) => mockEnsureTopicExists(...args)
 }))
 
 vi.mock('../Inputbar/Inputbar', () => ({
@@ -130,8 +125,6 @@ describe('V2ChatContent', () => {
   } as any
 
   beforeEach(() => {
-    mockEnsureTopicExists.mockReset().mockResolvedValue({ id: 'topic-1', name: 'Topic 1' })
-
     mockUseTopicMessagesV2.mockReturnValue({
       uiMessages: [createUiMessage('history-user', 'user'), createUiMessage('history-assistant', 'assistant')],
       metadataMap: {

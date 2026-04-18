@@ -5,7 +5,6 @@ import { isDev } from '@renderer/config/constant'
 import { ChatContextProvider, useChatContextProvider } from '@renderer/hooks/useChatContext'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import { type V2ChatOverrides, V2ChatOverridesProvider } from '@renderer/hooks/useMessageOperations'
-import { ensureTopicExists } from '@renderer/hooks/useTopicDataApi'
 import { useTopicMessagesV2 } from '@renderer/hooks/useTopicMessagesV2'
 import type { Assistant, FileMetadata, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
@@ -313,16 +312,8 @@ const V2ChatContentInner: FC<InnerProps> = ({
     ]
   )
 
-  const ensuredTopicIds = useRef(new Set<string>())
-  const ensureCurrentTopic = useCallback(async () => {
-    if (ensuredTopicIds.current.has(topic.id)) return
-    await ensureTopicExists({ id: topic.id, name: topic.name, assistantId: topic.assistantId })
-    ensuredTopicIds.current.add(topic.id)
-  }, [topic])
-
   const handleSendV2 = useCallback(
     async (text: string, options?: { files?: FileMetadata[]; mentionedModels?: UniqueModelId[] }) => {
-      await ensureCurrentTopic()
       void sendMessage(
         { text },
         {
@@ -335,7 +326,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
         }
       )
     },
-    [activeNodeId, ensureCurrentTopic, sendMessage, capabilityBody]
+    [activeNodeId, sendMessage, capabilityBody]
   )
 
   return (

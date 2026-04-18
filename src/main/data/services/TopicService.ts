@@ -152,7 +152,6 @@ export class TopicService {
       const [row] = await db
         .insert(topicTable)
         .values({
-          ...(dto.id && { id: dto.id }),
           name: dto.name,
           assistantId: dto.assistantId,
           groupId: dto.groupId

@@ -14,8 +14,6 @@ import type { Topic } from '@shared/data/types/topic'
  * DTO for creating a new topic
  */
 export interface CreateTopicDto {
-  /** Optional client-generated ID. When provided, the server uses this ID instead of generating one. */
-  id?: string
   /** Topic name */
   name?: string
   /** Associated assistant ID */
