@@ -1,39 +1,31 @@
+import { loggerService } from '@logger'
+import { useToolApprovalRespond } from '@renderer/hooks/ToolApprovalContext'
+import { usePartsMap } from '@renderer/pages/home/Messages/Blocks'
 import type { MCPToolResponse, NormalToolResponse } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
+import { useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 
-import { getToolResponseFromBlock } from '../toolResponse'
-import { useAgentToolApproval } from './useAgentToolApproval'
-import { useMcpToolApproval } from './useMcpToolApproval'
+import { APPROVAL_REQUESTED, APPROVAL_RESPONDED, findToolPartByCallId, getToolResponseFromBlock } from '../toolResponse'
+
+const logger = loggerService.withContext('useToolApproval')
 
 /**
- * Unified tool approval state
+ * Unified tool approval state. AI-SDK-v6 `ToolUIPart.state` drives every
+ * field — MCP and Claude-Agent tools no longer diverge at the hook layer;
+ * the bridge decides transport-specific dispatch internally.
  */
 export interface ToolApprovalState {
-  /** Whether the tool is waiting for user confirmation */
   isWaiting: boolean
-  /** Whether the tool is currently executing after approval */
   isExecuting: boolean
-  /** Whether a submission is in progress (Agent only) */
   isSubmitting: boolean
-  /** Tool input from permission request (Agent only) */
   input?: Record<string, unknown>
 }
 
-/**
- * Unified tool approval actions
- */
 export interface ToolApprovalActions {
-  /** Confirm/approve the tool execution */
   confirm: () => void | Promise<void>
-  /** Cancel/deny the tool execution */
   cancel: () => void | Promise<void>
-  /** Auto-approve this tool for future calls (if available) */
   autoApprove?: () => void | Promise<void>
-}
-
-export interface UseToolApprovalOptions {
-  /** Force a specific approval type */
-  forceType?: 'mcp' | 'agent'
 }
 
 type ToolApprovalTarget = ToolMessageBlock | MCPToolResponse | NormalToolResponse
@@ -49,40 +41,62 @@ function resolveToolResponse(target: ToolApprovalTarget): MCPToolResponse | Norm
   return target
 }
 
-/**
- * Unified hook for tool approval - automatically selects between MCP and Agent approval
- * based on the tool type in the block metadata.
- *
- * @param block - The tool message block
- * @param options - Optional configuration
- * @returns Unified approval state and actions
- */
-export function useToolApproval(
-  target: ToolApprovalTarget,
-  options: UseToolApprovalOptions = {}
-): ToolApprovalState & ToolApprovalActions {
-  const { forceType } = options
-
-  const toolResponse = resolveToolResponse(target)
-  const tool = toolResponse?.tool
-
-  const isMcpTool =
-    forceType === 'mcp' ||
-    (forceType !== 'agent' && (tool?.type === 'mcp' || tool?.type === 'builtin' || tool?.type === 'provider'))
-  const mcpApproval = useMcpToolApproval(isMcpTool ? (toolResponse as MCPToolResponse | undefined) : undefined)
-  const agentApproval = useAgentToolApproval(undefined, {
-    toolCallId: (toolResponse as NormalToolResponse)?.toolCallId
-  })
-
-  return isMcpTool ? mcpApproval : agentApproval
+const IDLE: ToolApprovalState & ToolApprovalActions = {
+  isWaiting: false,
+  isExecuting: false,
+  isSubmitting: false,
+  confirm: () => {},
+  cancel: () => {}
 }
 
 /**
- * Determine if a block needs approval (either MCP or Agent)
+ * Read approval state off the active `ToolUIPart` for a given tool call
+ * and expose confirm/cancel that route through the shared bridge.
+ *
+ * The bridge internally branches on `providerMetadata.cherry.transport`:
+ * Claude-Agent approvals also fire `Ai_ToolApproval_Respond` IPC to
+ * unblock the blocking server-side `canUseTool` on the same stream.
  */
+export function useToolApproval(target: ToolApprovalTarget): ToolApprovalState & ToolApprovalActions {
+  const { t } = useTranslation()
+  const partsMap = usePartsMap()
+  const respondToolApproval = useToolApprovalRespond()
+
+  const toolResponse = resolveToolResponse(target)
+  const toolCallId = toolResponse?.toolCallId ?? toolResponse?.id ?? ''
+  const match = useMemo(() => findToolPartByCallId(partsMap, toolCallId), [partsMap, toolCallId])
+
+  const respond = useCallback(
+    async (approved: boolean) => {
+      if (!match?.approvalId || !respondToolApproval) return
+      try {
+        await respondToolApproval({
+          match,
+          approved,
+          reason: approved ? undefined : t('message.tools.denied', 'User denied tool execution')
+        })
+      } catch (error) {
+        logger.error('Tool approval response failed', error as Error)
+        window.toast?.error?.(t('message.tools.approvalError', 'Failed to send approval'))
+      }
+    },
+    [match, respondToolApproval, t]
+  )
+
+  if (!match?.approvalId) return IDLE
+
+  return {
+    isWaiting: match.state === APPROVAL_REQUESTED,
+    // `input-available` = SDK has inputs, tool about to run (post-approval).
+    isExecuting: match.state === APPROVAL_RESPONDED || match.state === 'input-available',
+    isSubmitting: false,
+    input: match.input as Record<string, unknown> | undefined,
+    confirm: () => void respond(true),
+    cancel: () => void respond(false)
+  }
+}
+
+/** Whether a tool block is awaiting user approval (for grouped-header display). */
 export function isBlockWaitingApproval(block: ToolMessageBlock): boolean {
   return getToolResponseFromBlock(block)?.status === 'pending'
 }
-
-export { useAgentToolApproval, type UseAgentToolApprovalOptions } from './useAgentToolApproval'
-export { useMcpToolApproval } from './useMcpToolApproval'
