@@ -224,7 +224,7 @@ const SkillsSettings: FC = () => {
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [fileContent, setFileContent] = useState<string | null>(null)
   const [loadingContent, setLoadingContent] = useState(false)
-  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
+  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(() => new Set())
 
   // Search state (online registry)
   const [searchQuery, setSearchQuery] = useState('')
@@ -236,7 +236,7 @@ const SkillsSettings: FC = () => {
 
   // Multi-select state
   const [multiSelectMode, setMultiSelectMode] = useState(false)
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
 
   // Search tab state
   const [searchTab, setSearchTab] = useState<SkillSearchSource>('claude-plugins.dev')
@@ -375,9 +375,7 @@ const SkillsSettings: FC = () => {
       title: t('settings.skills.confirmBatchUninstall', { count: toDelete.length }),
       centered: true,
       onOk: async () => {
-        for (const skill of toDelete) {
-          await uninstall(skill.id)
-        }
+        await Promise.all(toDelete.map((skill) => uninstall(skill.id)))
         setSelectedIds(new Set())
         setMultiSelectMode(false)
         setSelectedSkill(null)
@@ -449,11 +447,7 @@ const SkillsSettings: FC = () => {
     setSelectedSkill(null)
   }, [])
 
-  const selectedFileName = useMemo(() => {
-    if (!selectedFile) return null
-    const parts = selectedFile.split('/')
-    return parts[parts.length - 1]
-  }, [selectedFile])
+  const selectedFileName = selectedFile ? selectedFile.split('/').pop()! : null
 
   const handleCloseSearch = useCallback(() => {
     setSearchQuery('')

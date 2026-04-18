@@ -3,6 +3,38 @@ name: skill-creator
 description: Create new skills, modify and improve existing skills, and measure skill performance. Use when users want to create a skill from scratch, edit, or optimize an existing skill, run evals to test a skill, benchmark skill performance with variance analysis, or optimize a skill's description for better triggering accuracy.
 ---
 
+## Cherry Studio workflow (READ FIRST — overrides packaging / install steps below)
+
+You are running inside Cherry Studio. Skills live in a managed global registry,
+so you do **not** write files to `.claude/skills/` or to
+`~/Library/Application Support/.../Skills/` directly, and you should **ignore**
+any `package_skill.py` / `.skill` packaging steps mentioned later in this file
+(they apply to Claude Code / Claude.ai, not here).
+
+**The flow for creating a new skill is exactly two tool calls:**
+
+1. Call the `skills` tool with `action="init"` and `name="<skill-folder-name>"`.
+   It returns an absolute directory path. Write `SKILL.md` and any supporting
+   files (`scripts/`, `references/`, `assets/`) **directly into that directory**.
+2. When the skill is ready, call `skills` with `action="register"` and the same
+   `name`. The skill is registered into the global skill list and enabled for
+   the current session automatically. You can re-edit files in place and call
+   `register` again at any time to refresh — the live symlink picks up file
+   content changes immediately, so mid-iteration edits work without ceremony.
+
+Use the same `<skill-folder-name>` for both `init` and `register` calls. The
+`name:` field inside your `SKILL.md` frontmatter becomes the display name and
+may differ from the folder name (e.g. `name: My Cool Skill` with folder
+`my-cool-skill`).
+
+Eval / test workspaces (`<skill-name>-workspace/`, `iteration-*/`, etc.) from
+the evaluation loop described below should be created **outside** the skill
+directory — e.g. as a sibling under the user's workspace — so they don't end up
+bundled into the registered skill. The evaluation loop itself still applies;
+only the packaging and install mechanics change.
+
+---
+
 # Skill Creator
 
 A skill for creating new skills and iteratively improving them.

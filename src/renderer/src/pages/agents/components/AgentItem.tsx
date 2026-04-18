@@ -2,7 +2,7 @@ import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import MarqueeText from '@renderer/components/MarqueeText'
 import { useSettings } from '@renderer/hooks/useSettings'
 import AgentSettingsPopup from '@renderer/pages/settings/AgentSettings/AgentSettingsPopup'
-import { AgentLabel, isSoulModeEnabled } from '@renderer/pages/settings/AgentSettings/shared'
+import { AgentLabel } from '@renderer/pages/settings/AgentSettings/shared'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { AgentEntity } from '@renderer/types'
 import { cn } from '@renderer/utils'
@@ -81,7 +81,6 @@ const AgentItem = ({ agent, isActive, onDelete, onPress }: AgentItemProps) => {
           <MarqueeText className="flex min-w-0 flex-1">
             <AgentLabel agent={agent} hideIcon={assistantIconType === 'none'} />
           </MarqueeText>
-          {isSoulModeEnabled(agent.configuration) && <SoulTag>SOUL</SoulTag>}
           {(isActive || isHovered) && (
             <Dropdown
               menu={{ items: menuItems }}
@@ -142,16 +141,6 @@ export const BotIcon: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ ...pro
     </Tooltip>
   )
 }
-
-export const SoulTag: React.FC<React.HTMLAttributes<HTMLSpanElement>> = ({ className, ...props }) => (
-  <span
-    className={cn(
-      'shrink-0 rounded-md bg-purple-500/15 px-1.5 py-0.5 font-medium text-[10px] text-purple-600 leading-none dark:text-purple-400',
-      className
-    )}
-    {...props}
-  />
-)
 
 export const SessionCount: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
   <div
