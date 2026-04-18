@@ -19,6 +19,32 @@ export interface StreamStartedPayload {
   topicId: string
 }
 
+/**
+ * Topic-level lifecycle state, broadcast to all windows so observers
+ * (sidebars, backup gate, etc.) can track whether a topic is currently
+ * producing content without having to attach a chunk listener.
+ *
+ * Distinct from per-message `AssistantMessageStatus` (persisted in SQLite
+ * per assistant reply) — this describes the ActiveStream, which is
+ * ephemeral and lives only while AiStreamManager has an entry for the topic.
+ */
+export type TopicStreamStatus =
+  | 'pending' // ActiveStream created; no chunk has arrived yet from any execution
+  | 'streaming' // at least one chunk has arrived; content is flowing
+  | 'done' // all executions completed successfully
+  | 'aborted' // user stopped; partial content may exist
+  | 'error' // at least one execution errored with isTopicDone
+
+/**
+ * Payload of the topic-status push event. `'idle'` is a transport-only
+ * sentinel used when the grace-period timer reaps the stream — it signals
+ * "forget this topic" to cache mirrors. It is never stored.
+ */
+export interface TopicStatusChangedPayload {
+  topicId: string
+  status: TopicStreamStatus | 'idle'
+}
+
 /** Stream ended. */
 export interface StreamDonePayload {
   topicId: string

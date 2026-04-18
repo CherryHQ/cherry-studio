@@ -80,7 +80,6 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
   const [, setGenerating] = useCache('chat.generating')
 
   const [renamingTopics] = useCache('topic.renaming')
-  const [streamActiveCount] = useCache('topic.stream.active_count', 0)
   const [newlyRenamedTopics] = useCache('topic.newly_renamed')
 
   const borderRadius = showTopicTime ? 12 : 'var(--list-item-border-radius)'
@@ -109,20 +108,14 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
     }
   })
 
-  const isPending = useCallback(
-    (topicId: string) => cacheService.get(`topic.stream.loading.${topicId}` as const) || false,
-    // Re-evaluate when any stream starts/ends (active_count changes trigger re-render)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [streamActiveCount]
-  )
-  const isFulfilled = useCallback(
-    (topicId: string) => cacheService.get(`topic.stream.fulfilled.${topicId}` as const) || false,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [streamActiveCount]
-  )
-
   useEffect(() => {
-    cacheService.set(`topic.stream.fulfilled.${activeTopic.id}` as const, false)
+    // Clear the fulfilled badge for the active topic — Main still holds
+    // the `done` status during the grace period, so we need to locally
+    // mark it as consumed when the user opens the topic.
+    const key = `topic.stream.status.${activeTopic.id}` as const
+    if (cacheService.get(key) === 'done') {
+      cacheService.set(key, undefined)
+    }
   }, [activeTopic.id])
 
   const isRenaming = useCallback(
@@ -629,8 +622,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
                         ? 'not-allowed'
                         : 'pointer'
                 }}>
-                {isPending(topic.id) && !isActive && <PendingIndicator />}
-                {isFulfilled(topic.id) && !isActive && <FulfilledIndicator />}
+                {!isActive && <TopicStreamIndicator topicId={topic.id} />}
                 <TopicNameContainer>
                   {isManageMode && (
                     <SelectIcon className={!canSelect ? 'disabled' : ''}>
@@ -813,6 +805,19 @@ const TopicEditInput = styled.input`
   outline: none;
   padding: 0;
 `
+
+/**
+ * Reads the per-topic stream status reactively. Lives as a sub-component
+ * so each row's `useCache` hook subscribes only to its own key — changes
+ * to one topic don't re-render the siblings, and we avoid the old
+ * `streamActiveCount` tripwire.
+ */
+const TopicStreamIndicator = ({ topicId }: { topicId: string }) => {
+  const [status] = useCache(`topic.stream.status.${topicId}` as const)
+  if (status === 'pending' || status === 'streaming') return <PendingIndicator />
+  if (status === 'done') return <FulfilledIndicator />
+  return null
+}
 
 const PendingIndicator = styled.div.attrs({
   className: 'animation-pulse'

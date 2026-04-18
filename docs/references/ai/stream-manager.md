@@ -458,6 +458,8 @@ chunk 到达:
   WebContentsListener(B) → B 渲染   (同一 chunk, 双窗口同步)
 ```
 
+**Topic status 不需要 attach**：只关心"这个 topic 现在在不在跑"的观察者（sidebar loading dot、Topics 列表等）不必注册 `WebContentsListener`。`Ai_TopicStatusChanged` 是广播到**所有**窗口的，`Ai_Topic_GetStatuses` 又能提供 zero-side-effect 的初始快照；观察者只需监听这两个通道即可保持同步。`Ai_Stream_Attach` 只在需要实时 chunk（例如 Renderer 渲染正在生成的消息）时才用。
+
 ### Channel / Agent 集成
 
 Channel 和 Agent scheduler 在 Main 内部直接调 `AiStreamManager.send`（不走 IPC）：
@@ -489,17 +491,25 @@ aiStreamManager.send({
 | `Ai_Stream_Attach` | `{ topicId }` | `AiStreamAttachResponse` | 订阅流状态；streaming 时返回 compact replay |
 | `Ai_Stream_Detach` | `{ topicId }` | void | 取消订阅（流继续执行） |
 | `Ai_Stream_Abort` | `{ topicId }` | void | 终止当前生成 |
+| `Ai_Topic_GetStatuses` | — | `Record<topicId, TopicStreamStatus>` | 一次性快照，用于窗口 mount 时初始化 status 视图；零副作用（不注册 listener、不分配 replay） |
 
 ### Push channels (Main → Renderer)
 
 | Channel | Payload | 说明 |
 |---|---|---|
-| `Ai_StreamStarted` | `{ topicId }` | 广播给所有窗口；sidebar loading 状态同步 |
-| `Ai_StreamChunk` | `{ topicId, executionId?, chunk }` | 多模型时带 `executionId`，单模型 undefined |
-| `Ai_StreamDone` | `{ topicId, executionId?, status, isTopicDone }` | `status ∈ { 'success', 'paused' }` 区分正常完成 / 用户 abort |
-| `Ai_StreamError` | `{ topicId, executionId?, isTopicDone, error }` | SerializedError |
+| `Ai_StreamStarted` | `{ topicId }` | 广播给所有窗口；保留以兼容旧消费方，新代码用 `Ai_TopicStatusChanged: pending` |
+| `Ai_StreamChunk` | `{ topicId, executionId?, chunk }` | 多模型时带 `executionId`，单模型 undefined；**仅发给 attach 过的窗口** |
+| `Ai_StreamDone` | `{ topicId, executionId?, status, isTopicDone }` | `status ∈ { 'success', 'paused' }` 区分正常完成 / 用户 abort；**仅发给 attach 过的窗口** |
+| `Ai_StreamError` | `{ topicId, executionId?, isTopicDone, error }` | SerializedError；**仅发给 attach 过的窗口** |
+| `Ai_TopicStatusChanged` | `{ topicId, status }` | 广播给所有窗口，`status ∈ { 'pending', 'streaming', 'done', 'aborted', 'error', 'idle' }`；观察者不需要 attach 即可跟踪 topic 状态 |
 
 **所有通信均以 topicId 为唯一 key**；多模型场景下 `executionId` 区分 chunks 来源。
+
+**Topic status vs message status**：两种状态不要混淆。
+- **Topic stream status**（`Ai_TopicStatusChanged` / `Ai_Topic_GetStatuses` 暴露）：每个 topic 一个，`AiStreamManager.ActiveStream.status` 为 source of truth，只在 ActiveStream 存活期（+ grace period）内有值。`pending` 表示"已创建流但还没收到第一个 chunk"，`streaming` 表示"至少一个 chunk 到了，内容正在产生"。
+- **Assistant message status**（`AssistantMessageStatus`：`PENDING` / `PROCESSING` / `SUCCESS` / `ERROR`）：每条 assistant 消息一个，SQLite 持久化，由 `PersistenceListener.onDone/onError` 写入。多模型下一个 topic 状态转一次，但 N 条消息各自转一次。
+
+Cache schema 的路径前缀也把两者分开：`topic.stream.status.${topicId}` 明确表示"这是关于 ActiveStream 的"，不会与 message 行的状态字段搞混。
 
 ## ChatContextProvider: 按 topicId 命名空间分发
 

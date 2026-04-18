@@ -13,7 +13,9 @@ import type {
   StreamChunkPayload,
   StreamDonePayload,
   StreamErrorPayload,
-  StreamStartedPayload
+  StreamStartedPayload,
+  TopicStatusChangedPayload,
+  TopicStreamStatus
 } from '@shared/ai/transport'
 import type { GitBashPathInfo, TerminalConfig } from '@shared/config/constant'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
@@ -853,6 +855,20 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Ai_Stream_Attach, req),
     streamDetach: (req: AiStreamDetachRequest): Promise<void> => ipcRenderer.invoke(IpcChannel.Ai_Stream_Detach, req),
     streamAbort: (req: AiStreamAbortRequest): Promise<void> => ipcRenderer.invoke(IpcChannel.Ai_Stream_Abort, req),
+
+    // ── Topic-level status snapshot + deltas ──
+    // Broadcast to every window (not just attached listeners) so sidebar
+    // indicators, the backup gate, etc. can track topic streaming state
+    // without calling `streamAttach`.
+    topic: {
+      getStatuses: (): Promise<Record<string, TopicStreamStatus>> =>
+        ipcRenderer.invoke(IpcChannel.Ai_Topic_GetStatuses),
+      onStatusChanged: (callback: (data: TopicStatusChangedPayload) => void) => {
+        const listener = (_: Electron.IpcRendererEvent, data: TopicStatusChangedPayload) => callback(data)
+        ipcRenderer.on(IpcChannel.Ai_TopicStatusChanged, listener)
+        return () => ipcRenderer.removeListener(IpcChannel.Ai_TopicStatusChanged, listener)
+      }
+    },
 
     // ── Non-streaming operations ──
     // All use uniqueModelId ("providerId::modelId") instead of separate providerId/modelId.

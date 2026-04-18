@@ -94,9 +94,29 @@ const mockStreamText = vi.fn<
   (request: AiStreamRequest, signal: AbortSignal) => Promise<ReadableStream<UIMessageChunk>>
 >(async () => pendingStream())
 
+/**
+ * Fake WindowService used by broadcast-path tests. Tests push real-ish
+ * `{ webContents: { send } }` shapes via `fakeWindows.push(...)`; the
+ * manager's `broadcastTopicStatus` / `broadcastStreamStarted` helpers
+ * will walk this list and call `send` on each.
+ */
+const fakeWindows: Array<{ webContents: { isDestroyed: () => boolean; send: ReturnType<typeof vi.fn> } }> = []
+const fakeWindowService = {
+  getMainWindow: vi.fn(() => null),
+  getAllWindows: vi.fn(() => fakeWindows),
+  showMainWindow: vi.fn()
+}
+
+function makeFakeWindow() {
+  const send = vi.fn()
+  const window = { webContents: { isDestroyed: () => false, send } }
+  fakeWindows.push(window)
+  return { window, send }
+}
+
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({ AiService: { streamText: mockStreamText } })
+  return mockApplicationFactory({ AiService: { streamText: mockStreamText }, WindowService: fakeWindowService })
 })
 
 // ── Import after mocks ──────────────────────────────────────────────
@@ -163,6 +183,7 @@ describe('AiStreamManager', () => {
     mgr = createManager()
     vi.clearAllMocks()
     mockStreamText.mockImplementation(async () => pendingStream())
+    fakeWindows.length = 0
   })
 
   afterEach(() => {
@@ -180,9 +201,11 @@ describe('AiStreamManager', () => {
         listeners: [new FakeListener('l:a')]
       })
 
+      // Topics start in `pending` — the initial state before any chunk has
+      // flowed from the provider. `onChunk` flips this to `streaming`.
       expect(snap).toMatchObject({
         topicId: 'a',
-        status: 'streaming',
+        status: 'pending',
         isMultiModel: false,
         listenerIds: ['l:a']
       })
@@ -221,7 +244,7 @@ describe('AiStreamManager', () => {
         request: req('a'),
         listeners: [new FakeListener('l2:a')]
       })
-      expect(s2.status).toBe('streaming')
+      expect(s2.status).toBe('pending')
       expect(s2.executions).toHaveLength(1)
     })
   })
@@ -731,6 +754,151 @@ describe('AiStreamManager', () => {
       // The same timings land in the terminal result the listener received
       // (snapshot copy, so equal-but-not-same-reference is expected).
       expect(listener.doneResults[0].timings).toEqual(timings)
+    })
+  })
+
+  // ── Topic status broadcast ──────────────────────────────────────
+  //
+  // These tests cover the `Ai_TopicStatusChanged` push channel — the new
+  // surface that lets every window track topic state without attaching a
+  // chunk listener. Each test wires one or more fake WebContents via
+  // `makeFakeWindow()` and asserts the sequence of `send` calls.
+
+  describe('topic status broadcast', () => {
+    /** Filter captured `send` calls to just our channel and extract the payload status. */
+    function statusSequence(send: ReturnType<typeof vi.fn>): string[] {
+      return send.mock.calls
+        .filter(([channel]) => channel === 'ai:topic-status-changed')
+        .map(([, payload]) => (payload as { status: string }).status)
+    }
+
+    it('broadcasts pending on send, streaming on first chunk, done on terminal, idle on reap', async () => {
+      const { send: sendA } = makeFakeWindow()
+      const { send: sendB } = makeFakeWindow()
+      startSingle(mgr, {
+        topicId: 't',
+        modelId: 'p::m',
+        request: req('t'),
+        listeners: [new FakeListener('l:t')]
+      })
+      expect(statusSequence(sendA)).toEqual(['pending'])
+      expect(statusSequence(sendB)).toEqual(['pending'])
+
+      // First chunk flips pending → streaming for every window.
+      mgr.onChunk('t', 'p::m', chunk('hi'))
+      expect(statusSequence(sendA)).toEqual(['pending', 'streaming'])
+      expect(statusSequence(sendB)).toEqual(['pending', 'streaming'])
+
+      // Subsequent chunks do NOT re-broadcast streaming.
+      mgr.onChunk('t', 'p::m', chunk('ho'))
+      expect(statusSequence(sendA)).toEqual(['pending', 'streaming'])
+
+      await mgr.onExecutionDone('t', 'p::m')
+      expect(statusSequence(sendA)).toEqual(['pending', 'streaming', 'done'])
+
+      // Grace-period reap emits `idle` so observer caches can drop the key.
+      vi.advanceTimersByTime(31_000)
+      expect(statusSequence(sendA)).toEqual(['pending', 'streaming', 'done', 'idle'])
+    })
+
+    it('broadcasts aborted when the user stops the stream', async () => {
+      const { send } = makeFakeWindow()
+      startSingle(mgr, {
+        topicId: 't',
+        modelId: 'p::m',
+        request: req('t'),
+        listeners: [new FakeListener('l:t')]
+      })
+      mgr.abort('t', 'user-stop')
+      // Drain microtasks so `onExecutionPaused` resolves and the terminal
+      // broadcast lands.
+      for (let i = 0; i < 20; i++) await Promise.resolve()
+
+      expect(statusSequence(send)).toEqual(['pending', 'aborted'])
+    })
+
+    it('broadcasts error when an execution errors before any chunk', async () => {
+      const { send } = makeFakeWindow()
+      startSingle(mgr, {
+        topicId: 't',
+        modelId: 'p::m',
+        request: req('t'),
+        listeners: [new FakeListener('l:t')]
+      })
+      await mgr.onExecutionError('t', 'p::m', error('boom'))
+
+      // pending → error directly; we never fabricate a `streaming` transition
+      // when no chunks ever flowed.
+      expect(statusSequence(send)).toEqual(['pending', 'error'])
+    })
+
+    it('multi-model: flips on first chunk from any execution and stays pending if an execution errors before any chunks', async () => {
+      const { send } = makeFakeWindow()
+      mgr.send({
+        topicId: 't',
+        models: [
+          { modelId: 'p::a', request: req('t') },
+          { modelId: 'p::b', request: req('t') }
+        ],
+        listeners: [new FakeListener('l:t')]
+      })
+      // Initial pending broadcast.
+      expect(statusSequence(send)).toEqual(['pending'])
+
+      // Execution A errors before any chunk flowed on either execution.
+      // Topic is still pending (B is live, no chunks yet) — no spurious
+      // `streaming` transition should be broadcast.
+      await mgr.onExecutionError('t', 'p::a', error('early'))
+      expect(statusSequence(send)).toEqual(['pending'])
+      expect(mgr.inspect('t')!.status).toBe('pending')
+
+      // First chunk from B flips the topic.
+      mgr.onChunk('t', 'p::b', chunk('x'))
+      expect(statusSequence(send)).toEqual(['pending', 'streaming'])
+    })
+
+    it('skips destroyed WebContents', () => {
+      const { send: aliveSend } = makeFakeWindow()
+      const deadSend = vi.fn()
+      fakeWindows.push({ webContents: { isDestroyed: () => true, send: deadSend } })
+      startSingle(mgr, {
+        topicId: 't',
+        modelId: 'p::m',
+        request: req('t'),
+        listeners: [new FakeListener('l:t')]
+      })
+
+      expect(statusSequence(aliveSend)).toEqual(['pending'])
+      expect(deadSend).not.toHaveBeenCalled()
+    })
+  })
+
+  // ── getTopicStatuses snapshot ────────────────────────────────────
+
+  describe('getTopicStatuses', () => {
+    it('returns a map of every tracked topic by current status', async () => {
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'p::m',
+        request: req('a'),
+        listeners: [new FakeListener('l:a')]
+      })
+      startSingle(mgr, {
+        topicId: 'b',
+        modelId: 'p::m',
+        request: req('b'),
+        listeners: [new FakeListener('l:b')]
+      })
+      mgr.onChunk('b', 'p::m', chunk('hi'))
+
+      expect(mgr.getTopicStatuses()).toEqual({ a: 'pending', b: 'streaming' })
+
+      await mgr.onExecutionDone('b', 'p::m')
+      expect(mgr.getTopicStatuses()).toEqual({ a: 'pending', b: 'done' })
+
+      // After the grace period the reaped topic drops out of the snapshot.
+      vi.advanceTimersByTime(31_000)
+      expect(mgr.getTopicStatuses()).toEqual({ a: 'pending' })
     })
   })
 })

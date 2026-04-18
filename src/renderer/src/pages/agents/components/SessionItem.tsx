@@ -95,16 +95,23 @@ const SessionItem = ({ session, agentId, channelType, onDelete, onPress }: Sessi
 
   const isActive = activeSessionId === session.id
   const sessionTopicId = buildAgentSessionTopicId(session.id)
-  const [isPending] = useCache(`topic.stream.loading.${sessionTopicId}` as const, false)
-  const [isFulfilled] = useCache(`topic.stream.fulfilled.${sessionTopicId}` as const, false)
+  const [streamStatus] = useCache(`topic.stream.status.${sessionTopicId}` as const)
+  // `pending` (request sent, waiting for provider) and `streaming` (chunks
+  // flowing) both mean "busy" from the sidebar's perspective. If a future
+  // design wants to distinguish them (spinner vs pulse), split here.
+  const isPending = streamStatus === 'pending' || streamStatus === 'streaming'
+  const isFulfilled = streamStatus === 'done'
   const [renamingTopics] = useCache('topic.renaming')
   const [newlyRenamedTopics] = useCache('topic.newly_renamed')
   const isRenaming = renamingTopics.includes(sessionTopicId)
   const isNewlyRenamed = newlyRenamedTopics.includes(sessionTopicId)
 
   useEffect(() => {
+    // Clear the fulfilled badge when the user opens the session — Main
+    // still holds the `done` status during the grace period, so we need
+    // to locally mark it as consumed.
     if (isFulfilled && activeSessionId === session.id) {
-      cacheService.set(`topic.stream.fulfilled.${sessionTopicId}` as const, false)
+      cacheService.set(`topic.stream.status.${sessionTopicId}` as const, undefined)
     }
   }, [activeSessionId, isFulfilled, session.id, sessionTopicId])
 

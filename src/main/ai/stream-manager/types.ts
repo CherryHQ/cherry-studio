@@ -1,4 +1,4 @@
-import type { StreamChunkPayload } from '@shared/ai/transport'
+import type { StreamChunkPayload, TopicStreamStatus } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
@@ -22,7 +22,9 @@ export type {
   StreamChunkPayload,
   StreamDonePayload,
   StreamErrorPayload,
-  StreamStartedPayload
+  StreamStartedPayload,
+  TopicStatusChangedPayload,
+  TopicStreamStatus
 } from '@shared/ai/transport'
 export type { CherryUIMessageChunk } from '@shared/data/types/message'
 
@@ -224,8 +226,11 @@ export interface StreamExecution {
  *  - Single-model: executions has 1 entry
  *  - Multi-model: executions has N entries (one per @mentioned model)
  *
- * Topic-level status is derived from executions:
- *  - Any execution streaming → 'streaming'
+ * Topic-level status is derived from executions, with an initial
+ * `'pending'` phase that covers the window between stream creation and
+ * the first chunk arriving:
+ *  - Initial (just after `send()`) → 'pending'
+ *  - First chunk from any execution → 'streaming'
  *  - All executions done → 'done'
  *  - Any execution errored (none streaming) → 'error'
  *  - All executions aborted → 'aborted'
@@ -243,8 +248,17 @@ export interface ActiveStream {
   /** All consumers. Key = listener.id. Shared across all executions. */
   listeners: Map<string, StreamListener>
 
-  /** Topic-level status, derived from executions. */
-  status: 'streaming' | 'done' | 'error' | 'aborted'
+  /**
+   * Topic-level lifecycle phase — the same enum the `Ai_TopicStatusChanged`
+   * IPC surface carries, so renderer mirrors can be populated without a
+   * translation layer. `'pending'` is set at `send()` and flips to
+   * `'streaming'` on the first chunk from any execution; terminal values
+   * (`done` / `error` / `aborted`) are derived from executions by
+   * `computeTopicStatus`. The transport-only `'idle'` sentinel is *not*
+   * part of this union — it exists solely on the push payload to signal
+   * "stream reaped", and is never stored on an ActiveStream.
+   */
+  status: TopicStreamStatus
 
   /** Static flag set at creation. Determines whether onChunk includes sourceModelId. */
   isMultiModel: boolean

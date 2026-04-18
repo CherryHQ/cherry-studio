@@ -1,3 +1,4 @@
+import type { TopicStreamStatus } from '../../ai/transport'
 import type * as CacheValueTypes from './cacheValueTypes'
 
 /**
@@ -169,9 +170,13 @@ export type UseCacheSchema = {
   'message.streaming.block.${blockId}': any // MessageBlock
   'message.streaming.siblings_counter.${topicId}': number
   'message.streaming.chat_session.${topicId}': any // { chat: Chat<CherryUIMessage> } (renderer memory-only)
-  'topic.stream.loading.${topicId}': boolean
-  'topic.stream.fulfilled.${topicId}': boolean
-  'topic.stream.active_count': number
+  /**
+   * Topic-level stream status mirrored from Main's `AiStreamManager`.
+   * Absence of the key means "no active stream" (the reap timer fired
+   * or the topic was never opened in this session). Populated by
+   * `aiStreamTopicCache` via the `Ai_TopicStatusChanged` push channel.
+   */
+  'topic.stream.status.${topicId}': TopicStreamStatus | undefined
   'message.ui.${messageId}': { foldSelected?: boolean; multiModelMessageStyle?: string; useful?: boolean }
 }
 
@@ -235,9 +240,7 @@ export const DefaultUseCache: UseCacheSchema = {
   'message.streaming.block.${blockId}': null,
   'message.streaming.siblings_counter.${topicId}': 0,
   'message.streaming.chat_session.${topicId}': null,
-  'topic.stream.loading.${topicId}': false,
-  'topic.stream.fulfilled.${topicId}': false,
-  'topic.stream.active_count': 0,
+  'topic.stream.status.${topicId}': undefined,
   'message.ui.${messageId}': {}
 }
 

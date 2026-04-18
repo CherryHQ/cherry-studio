@@ -1,65 +1,39 @@
 import { cacheService } from '@data/CacheService'
-import { loggerService } from '@logger'
 import { useEffect } from 'react'
 
-const logger = loggerService.withContext('aiStreamTopicCache')
-
 /**
- * Subscribes to Main-side AI stream IPC events and mirrors each topic's
- * streaming state into Cache, so sidebar/topic UI can read it via useCache.
+ * Mirrors Main's topic-level stream status into Cache so sidebar/topic
+ * UI can read it via `useCache`.
+ *
+ * Main is the source of truth — the hook does nothing more than relay
+ * `Ai_Topic_GetStatuses` (snapshot on mount) plus `Ai_TopicStatusChanged`
+ * (pushed deltas). Absence of a key means "no active stream" for that
+ * topic; an explicit `'idle'` delta is how Main tells us to forget a
+ * topic once its grace-period timer has reaped the ActiveStream.
  */
 export function useAiStreamTopicCache(): void {
   useEffect(() => {
-    const markTopicLoading = (topicId: string) => {
-      const loadingKey = `topic.stream.loading.${topicId}` as const
-      const fulfilledKey = `topic.stream.fulfilled.${topicId}` as const
-      if (!cacheService.get(loadingKey)) {
-        cacheService.set(loadingKey, true)
-        cacheService.set('topic.stream.active_count', (cacheService.get('topic.stream.active_count') || 0) + 1)
-      }
-      if (cacheService.get(fulfilledKey)) {
-        cacheService.set(fulfilledKey, false)
-      }
-    }
+    let cancelled = false
 
-    const unsubscribeStarted = window.api.ai.onStreamStarted(({ topicId }) => {
-      markTopicLoading(topicId)
+    void window.api.ai.topic.getStatuses().then((snapshot) => {
+      if (cancelled) return
+      for (const [topicId, status] of Object.entries(snapshot)) {
+        cacheService.set(`topic.stream.status.${topicId}` as const, status)
+      }
     })
 
-    const unsubscribeChunk = window.api.ai.onStreamChunk(({ topicId }) => {
-      markTopicLoading(topicId)
-    })
-
-    const unsubscribeDone = window.api.ai.onStreamDone(({ topicId, status }) => {
-      const loadingKey = `topic.stream.loading.${topicId}` as const
-      const fulfilledKey = `topic.stream.fulfilled.${topicId}` as const
-      if (cacheService.get(loadingKey)) {
-        cacheService.set(loadingKey, false)
-        cacheService.set(
-          'topic.stream.active_count',
-          Math.max(0, (cacheService.get('topic.stream.active_count') || 0) - 1)
-        )
+    const unsubscribe = window.api.ai.topic.onStatusChanged(({ topicId, status }) => {
+      const key = `topic.stream.status.${topicId}` as const
+      if (status === 'idle') {
+        cacheService.set(key, undefined)
+        return
       }
-      cacheService.set(fulfilledKey, status === 'success')
-    })
-
-    const unsubscribeError = window.api.ai.onStreamError(({ topicId, error }) => {
-      logger.warn('AI stream ended with error', { topicId, error })
-      const loadingKey = `topic.stream.loading.${topicId}` as const
-      if (cacheService.get(loadingKey)) {
-        cacheService.set(loadingKey, false)
-        cacheService.set(
-          'topic.stream.active_count',
-          Math.max(0, (cacheService.get('topic.stream.active_count') || 0) - 1)
-        )
-      }
+      cacheService.set(key, status)
     })
 
     return () => {
-      unsubscribeStarted()
-      unsubscribeChunk()
-      unsubscribeDone()
-      unsubscribeError()
+      cancelled = true
+      unsubscribe()
     }
   }, [])
 }

@@ -6,7 +6,9 @@ import type {
   AiStreamAttachRequest,
   AiStreamAttachResponse,
   AiStreamDetachRequest,
-  AiStreamOpenRequest
+  AiStreamOpenRequest,
+  TopicStatusChangedPayload,
+  TopicStreamStatus
 } from '@shared/ai/transport'
 import type { Message } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -106,6 +108,17 @@ const DEFAULT_CONFIG: AiStreamManagerConfig = {
 }
 
 /**
+ * Both `pending` and `streaming` are topic states where the ActiveStream
+ * is producing (or about to produce) content. Callers that want to gate
+ * "is this topic still live?" should use this predicate instead of
+ * comparing against `'streaming'` directly — otherwise the pre-first-chunk
+ * window would be mis-classified as inactive.
+ */
+function isLiveStatus(status: ActiveStream['status']): boolean {
+  return status === 'pending' || status === 'streaming'
+}
+
+/**
  * Active-stream registry for AI streaming.
  *
  * Keyed by `topicId` — one topic has at most one ActiveStream at any time.
@@ -148,6 +161,8 @@ export class AiStreamManager extends BaseService {
       this.abort(req.topicId, 'user-requested')
     })
 
+    this.ipcHandle(IpcChannel.Ai_Topic_GetStatuses, () => this.getTopicStatuses())
+
     logger.info('AiStreamManager initialized')
   }
 
@@ -164,7 +179,7 @@ export class AiStreamManager extends BaseService {
    */
   protected async onStop(): Promise<void> {
     const activeTopics = [...this.activeStreams.entries()]
-      .filter(([, s]) => s.status === 'streaming')
+      .filter(([, s]) => isLiveStatus(s.status))
       .map(([topicId]) => topicId)
 
     if (activeTopics.length === 0) return
@@ -205,7 +220,7 @@ export class AiStreamManager extends BaseService {
   send(input: SendInput): SendResult {
     const existing = this.activeStreams.get(input.topicId)
 
-    if (existing && existing.status === 'streaming') {
+    if (existing && isLiveStatus(existing.status)) {
       // Steer path: fan the user message out to every execution's own queue
       // so heterogeneous consumers (agentLoop `drain()`, Claude Code
       // `AsyncIterable.next()`) each see it instead of racing for a single
@@ -244,11 +259,14 @@ export class AiStreamManager extends BaseService {
       topicId: input.topicId,
       executions,
       listeners: new Map(input.listeners.map((l) => [l.id, l])),
-      status: 'streaming',
+      // Start in `pending` — the pre-first-chunk window. `onChunk` flips
+      // this to `streaming` as soon as any execution produces content.
+      status: 'pending',
       isMultiModel
     }
     this.activeStreams.set(input.topicId, stream)
     this.broadcastStreamStarted(input.topicId)
+    this.broadcastTopicStatus(input.topicId, 'pending')
 
     return {
       mode: 'started',
@@ -259,7 +277,7 @@ export class AiStreamManager extends BaseService {
   /** Push a steering message into every running execution of a topic. */
   steer(topicId: string, message: Message): boolean {
     const stream = this.activeStreams.get(topicId)
-    if (!stream || stream.status !== 'streaming') return false
+    if (!stream || !isLiveStatus(stream.status)) return false
     for (const exec of stream.executions.values()) exec.pendingMessages.push(message)
     return true
   }
@@ -290,7 +308,7 @@ export class AiStreamManager extends BaseService {
   /** Abort all executions in a topic. */
   abort(topicId: string, reason: string): void {
     const stream = this.activeStreams.get(topicId)
-    if (!stream || stream.status !== 'streaming') return
+    if (!stream || !isLiveStatus(stream.status)) return
     logger.info('Aborting stream', { topicId, reason })
     for (const exec of stream.executions.values()) {
       exec.pendingMessages.close()
@@ -310,10 +328,18 @@ export class AiStreamManager extends BaseService {
   /** Broadcast chunk to all listeners. Multi-model: includes sourceModelId for frontend demux. */
   onChunk(topicId: string, modelId: UniqueModelId, chunk: UIMessageChunk): void {
     const stream = this.activeStreams.get(topicId)
-    if (!stream || stream.status !== 'streaming') return
+    if (!stream || !isLiveStatus(stream.status)) return
 
     const exec = stream.executions.get(modelId)
     if (!exec) return
+
+    // First chunk from any execution promotes the topic out of `pending`
+    // and into `streaming`. Observers (sidebar indicators, etc) can now
+    // distinguish "waiting for the provider" from "content is flowing".
+    if (stream.status === 'pending') {
+      stream.status = 'streaming'
+      this.broadcastTopicStatus(topicId, 'streaming')
+    }
 
     // Intentionally chunk-shape-agnostic: the manager only observes the
     // transport envelope (modelId, buffer bookkeeping, fan-out). Any
@@ -371,11 +397,12 @@ export class AiStreamManager extends BaseService {
 
     // Compute topic status first so listeners get isTopicDone
     stream.status = this.computeTopicStatus(stream)
-    const isTopicDone = stream.status !== 'streaming'
+    const isTopicDone = !isLiveStatus(stream.status)
 
     await this.broadcastExecutionDone(stream, exec, isTopicDone)
 
     if (isTopicDone) {
+      this.broadcastTopicStatus(topicId, stream.status)
       this.scheduleReap(topicId)
     }
   }
@@ -388,11 +415,12 @@ export class AiStreamManager extends BaseService {
     if (!exec || exec.status !== 'aborted') return
 
     stream.status = this.computeTopicStatus(stream)
-    const isTopicDone = stream.status !== 'streaming'
+    const isTopicDone = !isLiveStatus(stream.status)
 
     await this.broadcastExecutionPaused(stream, exec, isTopicDone)
 
     if (isTopicDone) {
+      this.broadcastTopicStatus(topicId, stream.status)
       this.scheduleReap(topicId)
     }
   }
@@ -409,7 +437,7 @@ export class AiStreamManager extends BaseService {
     exec.error = error
 
     stream.status = this.computeTopicStatus(stream)
-    const isTopicDone = stream.status !== 'streaming'
+    const isTopicDone = !isLiveStatus(stream.status)
 
     const result: StreamErrorResult = {
       error,
@@ -422,6 +450,7 @@ export class AiStreamManager extends BaseService {
     await this.dispatchToListeners(stream, 'onError', (listener) => listener.onError(result))
 
     if (isTopicDone) {
+      this.broadcastTopicStatus(topicId, stream.status)
       this.scheduleReap(topicId)
     }
   }
@@ -514,6 +543,40 @@ export class AiStreamManager extends BaseService {
       if (wc.isDestroyed()) continue
       wc.send(IpcChannel.Ai_StreamStarted, { topicId })
     }
+  }
+
+  /**
+   * Broadcast a topic-level status transition to every window. Unlike the
+   * per-listener terminal events (`Ai_StreamDone` / `Ai_StreamError`), this
+   * channel is unconditional — observer windows that never called `attach`
+   * still learn when a topic transitions between pending / streaming /
+   * done / aborted / error / idle. Callers are responsible for updating
+   * `stream.status` first so the broadcast reflects the committed state.
+   */
+  private broadcastTopicStatus(topicId: string, status: TopicStreamStatus | 'idle'): void {
+    const windowService = application.get('WindowService')
+    const windows = windowService.getAllWindows()
+    const payload: TopicStatusChangedPayload = { topicId, status }
+    for (const window of windows) {
+      const wc = window.webContents
+      if (wc.isDestroyed()) continue
+      wc.send(IpcChannel.Ai_TopicStatusChanged, payload)
+    }
+  }
+
+  /**
+   * Snapshot of every currently-tracked topic's status. Used by freshly
+   * mounted renderer hooks to bootstrap their view before the push
+   * channel starts delivering deltas. Idle topics (already reaped) are
+   * intentionally absent from the map — consumers treat "missing key" as
+   * "no active stream".
+   */
+  getTopicStatuses(): Record<string, TopicStreamStatus> {
+    const result: Record<string, TopicStreamStatus> = {}
+    for (const [topicId, stream] of this.activeStreams) {
+      result[topicId] = stream.status
+    }
+    return result
   }
 
   // ── Internal helpers ──────────────────────────────────────────────
@@ -753,10 +816,17 @@ export class AiStreamManager extends BaseService {
 
   /**
    * Derive topic-level status from its executions.
-   * - Any execution streaming → 'streaming'
+   * - Any execution streaming → preserve `pending` if no chunk has
+   *   landed yet, otherwise `streaming`
    * - All done → 'done'
    * - Any error (none streaming) → 'error'
    * - All aborted → 'aborted'
+   *
+   * The `pending` preservation matters for multi-model topics: one
+   * execution can error before any chunk from any model flowed, while
+   * another is still live. Returning `'streaming'` in that case would
+   * silently advance the topic past its pre-first-chunk state without
+   * ever broadcasting the `streaming` transition.
    */
   private computeTopicStatus(stream: ActiveStream): ActiveStream['status'] {
     let hasStreaming = false
@@ -769,7 +839,7 @@ export class AiStreamManager extends BaseService {
       if (exec.status !== 'aborted') allAborted = false
     }
 
-    if (hasStreaming) return 'streaming'
+    if (hasStreaming) return stream.status === 'pending' ? 'pending' : 'streaming'
     if (allAborted) return 'aborted'
     if (hasError) return 'error'
     return 'done'
@@ -782,6 +852,11 @@ export class AiStreamManager extends BaseService {
     stream.reapTimer = setTimeout(() => {
       if (this.activeStreams.get(topicId) === stream) {
         this.activeStreams.delete(topicId)
+        // Tell observer windows the stream is fully gone so they can drop
+        // their cached status. Without this, a cache mirror populated
+        // via the push channel would retain the terminal state (`done` /
+        // `error` / …) forever even though the topic is idle.
+        this.broadcastTopicStatus(topicId, 'idle')
       }
     }, this.config.gracePeriodMs)
   }
