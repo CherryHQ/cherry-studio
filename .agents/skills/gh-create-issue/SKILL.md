@@ -14,6 +14,7 @@ Use this skill when the user requests to create an issue. Must follow the reposi
 Analyze the user's request to determine the issue type:
 - If the user describes a problem, error, crash, or something not working -> Bug Report
 - If the user requests a new feature, enhancement, or additional support -> Feature Request
+- If the user describes a work item, maintenance, documentation, CI/CD, or other actionable items -> Task
 - If the user is asking a question or needs help with something -> Questions & Discussion
 - Otherwise -> Others
 
@@ -21,8 +22,11 @@ Analyze the user's request to determine the issue type:
 
 ### Step 2: Read the Selected Template
 
-1. Read the corresponding template file from `.github/ISSUE_TEMPLATE/` directory.
+1. Read the corresponding template file:
+   - For Bug Report, Feature Request, Questions & Discussion, and Others: read from `.github/ISSUE_TEMPLATE/` directory.
+   - For Task: read from `.github/TASK_TEMPLATE.yml` (not in `ISSUE_TEMPLATE/` — this template is only used by this skill, not shown to external users).
 2. Identify required fields (`validations.required: true`), title prefix (`title`), and labels (`labels`, if present).
+3. Check if the template has a `type` field (e.g., `type: Bug`, `type: Feature`, `type: Task`). This will be used in Step 5 to set the issue type.
 
 ### Step 3: Collect Information
 
@@ -42,9 +46,9 @@ Preview the temp file content. **Show the file path** (e.g., `/tmp/gh-issue-body
 
 ### Step 5: Create Issue
 
-Use `gh issue create` command to create the issue.
+#### When the template has a `type` field
 
-Use a unique temp file for the body:
+Use `gh cherry issue create` to create the issue with the type set automatically:
 
 ```bash
 issue_body_file="$(mktemp /tmp/gh-issue-body-XXXXXX).md"
@@ -53,7 +57,27 @@ cat > "$issue_body_file" <<'EOF'
 EOF
 ```
 
-Create the issue using values from the selected template:
+```bash
+gh cherry issue create -t "<title_with_template_prefix>" --body-file "$issue_body_file" -T "<type_from_template>"
+```
+
+If the selected template includes labels, append one `--label` per label:
+
+```bash
+gh cherry issue create -t "<title_with_template_prefix>" --body-file "$issue_body_file" -T "<type_from_template>" --label "<label_1>" --label "<label_2>"
+```
+
+> **Prerequisite**: The `gh-cherry` extension must be installed.
+> Before using `gh cherry`, check if it's available by running `gh cherry --help`.
+> If not installed, prompt the user to install it:
+> ```bash
+> gh extension install EurFelux/gh-cherry
+> ```
+> If the user declines installation, fall back to `gh issue create` (see below) and warn that the issue type was not set.
+
+#### When the template has no `type` field
+
+Use `gh issue create` command to create the issue:
 
 ```bash
 gh issue create --title "<title_with_template_prefix>" --body-file "$issue_body_file"
@@ -65,7 +89,7 @@ If the selected template includes labels, append one `--label` per label:
 gh issue create --title "<title_with_template_prefix>" --body-file "$issue_body_file" --label "<label_1_from_template>" --label "<label_2_from_template>"
 ```
 
-If the selected template has no labels, do not pass `--label`.
+#### Other options
 
 You may use `--template` as a starting point (use the exact template name from the repository):
 
@@ -79,6 +103,8 @@ Use the `--web` flag to open the creation page in browser when complex formattin
 gh issue create --web
 ```
 
+#### Cleanup
+
 Clean up the temp file after creation:
 
 ```bash
@@ -87,7 +113,7 @@ rm -f "$issue_body_file"
 
 ## Notes
 
-- Must read template files under `.github/ISSUE_TEMPLATE/` to ensure following the correct format.
+- Must read template files under `.github/ISSUE_TEMPLATE/` (or `.github/TASK_TEMPLATE.yml` for Task) to ensure following the correct format.
 - Treat template files as the only source of truth. Do not hardcode title prefixes or labels in this skill.
 - Title must be clear and concise, avoid vague terms like "a suggestion" or "stuck".
 - Provide as much detail as possible to help developers understand and resolve the issue.
