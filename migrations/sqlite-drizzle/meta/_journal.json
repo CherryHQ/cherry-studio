@@ -77,6 +77,13 @@
       "when": 1776477558055,
       "tag": "0010_lucky_silver_centurion",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1776478427501,
+      "tag": "0011_ambitious_marvex",
+      "breakpoints": true
     }
   ],
   "version": "7"

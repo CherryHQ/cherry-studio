@@ -5,7 +5,6 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
 import type { CreateMiniAppDto, ReorderMiniAppsDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
-import { ORIGIN_DEFAULT_MINI_APPS } from '@shared/data/presets/mini-apps'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import type { MiniAppRegion } from '@shared/data/types/miniApp'
 import { useCallback, useEffect, useMemo } from 'react'
@@ -44,23 +43,6 @@ const isVisibleForRegion = (app: MiniApp, region: MiniAppRegion): boolean => {
 // Filter apps by region
 const filterByRegion = (apps: MiniApp[], region: MiniAppRegion): MiniApp[] => {
   return apps.filter((app) => isVisibleForRegion(app, region))
-}
-
-// Build preset index map once for O(1) lookups (js-index-maps)
-const presetById = new Map(ORIGIN_DEFAULT_MINI_APPS.map((p) => [p.id, p]))
-
-// Merge DB data with preset display fields (logo, background, bordered, nameKey)
-const mergeWithPreset = (app: MiniApp): MiniApp => {
-  const preset = presetById.get(app.appId)
-  if (!preset) return app
-  return {
-    ...app,
-    nameKey: app.nameKey ?? preset.nameKey,
-    logo: app.logo ?? preset.logo,
-    bordered: app.bordered ?? preset.bordered,
-    background: app.background ?? preset.background,
-    supportedRegions: app.supportedRegions ?? preset.supportedRegions
-  }
 }
 
 // Module-level promise to ensure only one IP detection request is made
@@ -126,14 +108,13 @@ export const useMiniApps = () => {
   const { data, isLoading, mutate: refetch } = useQuery('/mini-apps')
   const rawApps: MiniApp[] = useMemo(() => data ?? [], [data])
 
-  // Merge with preset and partition by status in single pass (js-combine-iterations)
+  // Partition by status in single pass (js-combine-iterations)
   const { allApps, enabled, disabled, pinned } = useMemo(() => {
     const all: MiniApp[] = []
     const ena: MiniApp[] = []
     const dis: MiniApp[] = []
     const pin: MiniApp[] = []
-    for (const raw of rawApps) {
-      const app = mergeWithPreset(raw)
+    for (const app of rawApps) {
       all.push(app)
       if (app.status === 'enabled') ena.push(app)
       else if (app.status === 'disabled') dis.push(app)

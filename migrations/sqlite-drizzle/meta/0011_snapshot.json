@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "a947c27c-3d23-43b7-8846-3a82fcbbdee6",
-  "prevId": "ceca2c61-e6f2-49d1-b9c7-e7c6c94cbff0",
+  "id": "013b8c69-be15-4c81-b767-aa624f3e1f12",
+  "prevId": "a947c27c-3d23-43b7-8846-3a82fcbbdee6",
   "tables": {
     "app_state": {
       "name": "app_state",
@@ -1017,8 +1017,8 @@
         }
       }
     },
-    "miniapp": {
-      "name": "miniapp",
+    "mini_app": {
+      "name": "mini_app",
       "columns": {
         "app_id": {
           "name": "app_id",
@@ -1048,8 +1048,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "type": {
-          "name": "type",
+        "kind": {
+          "name": "kind",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -1124,19 +1124,19 @@
         }
       },
       "indexes": {
-        "miniapp_status_sort_idx": {
-          "name": "miniapp_status_sort_idx",
+        "mini_app_status_sort_idx": {
+          "name": "mini_app_status_sort_idx",
           "columns": ["status", "sort_order"],
           "isUnique": false
         },
-        "miniapp_type_idx": {
-          "name": "miniapp_type_idx",
-          "columns": ["type"],
+        "mini_app_kind_idx": {
+          "name": "mini_app_kind_idx",
+          "columns": ["kind"],
           "isUnique": false
         },
-        "miniapp_status_type_idx": {
-          "name": "miniapp_status_type_idx",
-          "columns": ["status", "type"],
+        "mini_app_status_kind_idx": {
+          "name": "mini_app_status_kind_idx",
+          "columns": ["status", "kind"],
           "isUnique": false
         }
       },
@@ -1144,13 +1144,13 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
-        "miniapp_status_check": {
-          "name": "miniapp_status_check",
-          "value": "\"miniapp\".\"status\" IN ('enabled', 'disabled', 'pinned')"
+        "mini_app_status_check": {
+          "name": "mini_app_status_check",
+          "value": "\"mini_app\".\"status\" IN ('enabled', 'disabled', 'pinned')"
         },
-        "miniapp_type_check": {
-          "name": "miniapp_type_check",
-          "value": "\"miniapp\".\"type\" IN ('default', 'custom')"
+        "mini_app_kind_check": {
+          "name": "mini_app_kind_check",
+          "value": "\"mini_app\".\"kind\" IN ('default', 'custom')"
         }
       }
     },
@@ -1954,8 +1954,12 @@
   "enums": {},
   "_meta": {
     "schemas": {},
-    "tables": {},
-    "columns": {}
+    "tables": {
+      "\"miniapp\"": "\"mini_app\""
+    },
+    "columns": {
+      "\"mini_app\".\"type\"": "\"mini_app\".\"kind\""
+    }
   },
   "internal": {
     "indexes": {}
