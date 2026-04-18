@@ -1723,6 +1723,109 @@ export const appendAssistantResponseThunk =
   }
 
 /**
+ * Inserts a pair of user and assistant messages after a specified message.
+ * Creates messages with default content and persists to DB and Redux.
+ * @param topicId The ID of the topic
+ * @param afterMessageId The ID of the message after which to insert
+ * @param assistantId The ID of the assistant
+ */
+export const insertMessagesThunk =
+  (topicId: string, afterMessageId: string, assistantId: string) =>
+  async (dispatch: AppDispatch, getState: () => RootState): Promise<void> => {
+    try {
+      const state = getState()
+      const topicMessages = selectMessagesForTopic(state, topicId)
+
+      if (!topicMessages || topicMessages.length === 0) {
+        logger.error(`[insertMessagesThunk] Topic ${topicId} not found or is empty.`)
+        return
+      }
+
+      // Find the index of the message after which to insert
+      const afterMessageIndex = topicMessages.findIndex((msg) => msg.id === afterMessageId)
+      if (afterMessageIndex === -1) {
+        logger.error(`[insertMessagesThunk] Message ${afterMessageId} not found in topic ${topicId}.`)
+        return
+      }
+
+      const insertIndex = afterMessageIndex + 1
+      const now = new Date().toISOString()
+
+      // Create user message with block
+      const userMessageId = uuid()
+      const userBlockId = uuid()
+      const userBlock: MessageBlock = {
+        id: userBlockId,
+        messageId: userMessageId,
+        type: MessageBlockType.MAIN_TEXT,
+        content: '新用户消息',
+        status: MessageBlockStatus.SUCCESS,
+        createdAt: now
+      }
+      const userMessage: Message = {
+        id: userMessageId,
+        role: 'user',
+        assistantId,
+        topicId,
+        createdAt: now,
+        status: UserMessageStatus.SUCCESS,
+        blocks: [userBlockId]
+      }
+
+      // Create assistant message with block
+      const assistantMessageId = uuid()
+      const assistantBlockId = uuid()
+      const assistantBlock: MessageBlock = {
+        id: assistantBlockId,
+        messageId: assistantMessageId,
+        type: MessageBlockType.MAIN_TEXT,
+        content: '新助手消息',
+        status: MessageBlockStatus.SUCCESS,
+        createdAt: now
+      }
+      const assistantMessage: Message = {
+        id: assistantMessageId,
+        role: 'assistant',
+        assistantId,
+        topicId,
+        createdAt: now,
+        status: AssistantMessageStatus.SUCCESS,
+        blocks: [assistantBlockId],
+        askId: userMessageId
+      }
+
+      // Add blocks to Redux
+      dispatch(upsertOneBlock(userBlock))
+      dispatch(upsertOneBlock(assistantBlock))
+
+      // Insert messages to Redux at the correct position
+      dispatch(
+        newMessagesActions.insertMessageAtIndex({
+          topicId,
+          message: userMessage,
+          index: insertIndex
+        })
+      )
+      dispatch(
+        newMessagesActions.insertMessageAtIndex({
+          topicId,
+          message: assistantMessage,
+          index: insertIndex + 1
+        })
+      )
+
+      // Persist to database
+      await saveMessageAndBlocksToDB(topicId, userMessage, [userBlock], insertIndex)
+      await saveMessageAndBlocksToDB(topicId, assistantMessage, [assistantBlock], insertIndex + 1)
+
+      logger.info(`[insertMessagesThunk] Inserted messages after ${afterMessageId} at index ${insertIndex}`)
+    } catch (error) {
+      logger.error(`[insertMessagesThunk] Error inserting messages:`, error as Error)
+      throw error
+    }
+  }
+
+/**
  * Clones messages from a source topic up to a specified index into a *pre-existing* new topic.
  * Generates new unique IDs for all cloned messages and blocks.
  * Updates the DB and Redux message/block state for the new topic.

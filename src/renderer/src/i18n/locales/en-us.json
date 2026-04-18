@@ -1199,6 +1199,10 @@
       }
     },
     "message": {
+      "insert": {
+        "label": "Insert Messages",
+        "success": "Messages inserted"
+      },
       "new": {
         "branch": {
           "created": "New Branch Created",
