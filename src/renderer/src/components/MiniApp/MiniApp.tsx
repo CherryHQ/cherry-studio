@@ -53,7 +53,7 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
   const handleClick = () => {
     if (isTopNavbar) {
       // Top navbar: navigate to the miniapp page
-      void navigate({ to: '/app/miniapp/$appId', params: { appId: app.appId } })
+      void navigate({ to: '/app/mini-app/$appId', params: { appId: app.appId } })
     } else {
       // Side navbar: keep the original popup behavior
       openMiniAppKeepAlive(app)

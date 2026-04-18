@@ -64,7 +64,7 @@ const MiniAppPage: FC = () => {
   useEffect(() => {
     // If app not found, redirect to apps list
     if (!app) {
-      void navigate({ to: '/app/miniapp' })
+      void navigate({ to: '/app/mini-app' })
       return
     }
 
@@ -72,7 +72,7 @@ const MiniAppPage: FC = () => {
     // Only check once and only if we haven't already redirected
     if (!initialIsTopNavbar.current && !hasRedirected.current) {
       hasRedirected.current = true
-      void navigate({ to: '/app/miniapp' })
+      void navigate({ to: '/app/mini-app' })
       // Open popup after navigation
       setTimeout(() => {
         openMiniAppKeepAlive(app)

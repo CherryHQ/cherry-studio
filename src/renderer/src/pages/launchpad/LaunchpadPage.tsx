@@ -19,7 +19,7 @@ const LaunchpadPage: FC = () => {
     {
       icon: <LayoutGrid size={32} className="icon" />,
       text: t('title.apps'),
-      path: '/app/miniapp',
+      path: '/app/mini-app',
       bgColor: 'linear-gradient(135deg, #8B5CF6, #A855F7)' // 小程序：紫色，代表多功能和灵活性
     },
     {

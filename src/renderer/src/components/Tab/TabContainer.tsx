@@ -136,8 +136,8 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
   const getTabId = (path: string): string => {
     if (path === '/') return 'home'
     const segments = path.split('/')
-    // Handle miniapp paths: /app/miniapp/appId -> miniapp:appId
-    if (segments[1] === 'app' && segments[2] === 'miniapp' && segments[3]) {
+    // Handle miniapp paths: /app/mini-app/appId -> miniapp:appId
+    if (segments[1] === 'app' && segments[2] === 'mini-app' && segments[3]) {
       return `miniapp:${segments[3]}`
     }
     return segments[1] // 获取第一个路径段作为 id

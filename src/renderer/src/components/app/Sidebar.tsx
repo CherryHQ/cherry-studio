@@ -41,7 +41,7 @@ const routePrefixMap: Record<SidebarIconType, string> = {
   store: '/app/assistant',
   paintings: '/app/paintings',
   translate: '/app/translate',
-  mini_app: '/app/miniapp',
+  mini_app: '/app/mini-app',
   knowledge: '/app/knowledge',
   files: '/app/files',
   code_tools: '/app/code',
