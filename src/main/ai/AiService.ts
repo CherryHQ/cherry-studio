@@ -22,6 +22,7 @@ import type {
 } from 'ai'
 
 import { type AgentLoopHooks, type AgentOptions, runAgentLoop } from './agentLoop'
+import { resolveCapabilities } from './capabilities'
 import type { PendingMessageQueue } from './PendingMessageQueue'
 import { buildPlugins } from './plugins/PluginBuilder'
 import type { ClaudeCodeProviderSettings } from './provider/claude-code/types'
@@ -592,7 +593,11 @@ export class AiService extends BaseService {
     }
     const tools = this.toolRegistry.resolve(mcpToolIds)
 
-    const plugins = buildPlugins()
+    const capabilities = assistant ? resolveCapabilities(model, provider, assistant) : undefined
+    const plugins =
+      assistant && capabilities
+        ? buildPlugins({ provider, model, assistant, capabilities, mcpToolIds, topicId: chatId })
+        : []
     const system = assistant?.prompt || undefined
 
     // Extract model parameters from assistant settings
