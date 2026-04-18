@@ -2,9 +2,11 @@ import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import { isDev } from '@renderer/config/constant'
+import { ToolApprovalProvider } from '@renderer/hooks/ToolApprovalContext'
 import { ChatContextProvider, useChatContextProvider } from '@renderer/hooks/useChatContext'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import { type V2ChatOverrides, V2ChatOverridesProvider } from '@renderer/hooks/useMessageOperations'
+import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
 import { useTopicMessagesV2 } from '@renderer/hooks/useTopicMessagesV2'
 import type { Assistant, FileMetadata, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
@@ -107,8 +109,11 @@ const V2ChatContentInner: FC<InnerProps> = ({
     error,
     setMessages,
     streamingUIMessages,
-    activeExecutionIds
+    activeExecutionIds,
+    addToolApprovalResponse
   } = useChatWithHistory(topic.id, initialMessages, refresh, { assistantId: assistant.id }, metadataMap)
+
+  const respondToToolApproval = useToolApprovalBridge({ addToolApprovalResponse })
 
   const [executionMessagesById, setExecutionMessagesById] = useState<Record<string, CherryUIMessage[]>>({})
   const executionCreatedAtRef = useRef<Record<string, string>>({})
@@ -333,40 +338,42 @@ const V2ChatContentInner: FC<InnerProps> = ({
     <V2ChatOverridesProvider value={v2ChatOverrides}>
       <RefreshProvider value={refresh}>
         <PartsProvider value={mergedPartsMap}>
-          <ChatContextBridge topic={topic}>
-            <div
-              className="flex flex-1 flex-col justify-between"
-              style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>
-              {isDev && (
-                <div
-                  className="fixed top-5 right-50 z-50 px-4 py-1 text-xs opacity-50"
-                  style={{ color: 'var(--color-text-3)' }}>
-                  [V2] {status} | {mergedMessages.length} msgs
-                  {error && <span className="ml-2 text-red-500">{error.message}</span>}
-                </div>
-              )}
+          <ToolApprovalProvider value={respondToToolApproval}>
+            <ChatContextBridge topic={topic}>
+              <div
+                className="flex flex-1 flex-col justify-between"
+                style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>
+                {isDev && (
+                  <div
+                    className="fixed top-5 right-50 z-50 px-4 py-1 text-xs opacity-50"
+                    style={{ color: 'var(--color-text-3)' }}>
+                    [V2] {status} | {mergedMessages.length} msgs
+                    {error && <span className="ml-2 text-red-500">{error.message}</span>}
+                  </div>
+                )}
 
-              {activeExecutionIds.map((executionId) => (
-                <ExecutionStreamCollector
-                  key={executionId}
-                  topicId={topic.id}
-                  executionId={executionId}
-                  onMessagesChange={handleExecutionMessagesChange}
-                  onDispose={handleExecutionDispose}
+                {activeExecutionIds.map((executionId) => (
+                  <ExecutionStreamCollector
+                    key={executionId}
+                    topicId={topic.id}
+                    executionId={executionId}
+                    onMessagesChange={handleExecutionMessagesChange}
+                    onDispose={handleExecutionDispose}
+                  />
+                ))}
+
+                <Messages
+                  key={topic.id}
+                  assistant={assistant}
+                  topic={topic}
+                  setActiveTopic={setActiveTopic}
+                  messages={mergedMessages}
                 />
-              ))}
 
-              <Messages
-                key={topic.id}
-                assistant={assistant}
-                topic={topic}
-                setActiveTopic={setActiveTopic}
-                messages={mergedMessages}
-              />
-
-              <Inputbar assistant={assistant} topic={topic} setActiveTopic={setActiveTopic} onSend={handleSendV2} />
-            </div>
-          </ChatContextBridge>
+                <Inputbar assistant={assistant} topic={topic} setActiveTopic={setActiveTopic} onSend={handleSendV2} />
+              </div>
+            </ChatContextBridge>
+          </ToolApprovalProvider>
         </PartsProvider>
       </RefreshProvider>
     </V2ChatOverridesProvider>

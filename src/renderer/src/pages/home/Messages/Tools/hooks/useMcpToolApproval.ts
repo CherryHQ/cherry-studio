@@ -1,62 +1,32 @@
-import { dataApiService } from '@data/DataApiService'
-import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
-import { useMCPServers } from '@renderer/hooks/useMCPServers'
+import { loggerService } from '@logger'
+import { useToolApprovalRespond } from '@renderer/hooks/ToolApprovalContext'
+import { usePartsMap } from '@renderer/pages/home/Messages/Blocks'
 import type { MCPToolResponse } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
-import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
-import {
-  cancelToolAction,
-  confirmToolAction,
-  isToolPending,
-  onToolPendingChange
-} from '@renderer/utils/userConfirmation'
-import type { MCPServer } from '@shared/data/types/mcpServer'
-import { useCallback, useEffect, useReducer, useState } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { getToolResponseFromBlock } from '../toolResponse'
+import { APPROVAL_REQUESTED, APPROVAL_RESPONDED, findToolPartByCallId, getToolResponseFromBlock } from '../toolResponse'
 import type { ToolApprovalActions, ToolApprovalState } from './useToolApproval'
+
+const logger = loggerService.withContext('useMcpToolApproval')
 
 function isToolMessageBlock(target: MCPToolResponse | ToolMessageBlock): target is ToolMessageBlock {
   return 'messageId' in target && 'toolId' in target
 }
 
 /**
- * Resolve a hub tool (invoke/exec) to the underlying server and tool name.
- * Returns null if the tool is not a hub tool or resolution fails.
- */
-async function resolveHubToolServer(
-  tool: { serverId: string; name: string },
-  toolResponse: MCPToolResponse | undefined,
-  mcpServers: MCPServer[]
-): Promise<{ server: MCPServer; toolName: string } | null> {
-  if (tool.serverId !== 'hub' || (tool.name !== 'invoke' && tool.name !== 'exec')) {
-    return null
-  }
-  const toolArgs = toolResponse?.arguments as Record<string, unknown> | undefined
-  const underlyingToolName = toolArgs?.name as string | undefined
-  if (!underlyingToolName) return null
-
-  try {
-    const resolved = await window.api.mcp.resolveHubTool(underlyingToolName)
-    if (!resolved) return null
-    const server = mcpServers.find((s) => s.id === resolved.serverId)
-    if (!server) return null
-    return { server, toolName: resolved.toolName }
-  } catch {
-    return null
-  }
-}
-
-/**
- * Hook for MCP tool approval logic.
+ * MCP tool approval — `needsApproval` on the tool definition causes AI
+ * SDK v6 to emit a `ToolUIPart { state: 'approval-requested' }`. This
+ * hook reads that state and routes confirm/deny through the bridge
+ * (`chat.addToolApprovalResponse` → `sendAutomaticallyWhen` → resend).
  */
 export function useMcpToolApproval(
   target?: MCPToolResponse | ToolMessageBlock
 ): ToolApprovalState & ToolApprovalActions {
   const { t } = useTranslation()
-  const { mcpServers } = useMCPServers()
-  const { agent } = useActiveAgent()
+  const partsMap = usePartsMap()
+  const respondToolApproval = useToolApprovalRespond()
 
   const toolResponse: MCPToolResponse | undefined =
     target == null
@@ -65,125 +35,37 @@ export function useMcpToolApproval(
         ? ((getToolResponseFromBlock(target) as MCPToolResponse | null) ?? undefined)
         : target
 
-  const tool = toolResponse?.tool
-  const id = toolResponse?.id ?? ''
-  const status = toolResponse?.status
+  const toolCallId = toolResponse?.toolCallId ?? toolResponse?.id ?? ''
+  const match = useMemo(() => findToolPartByCallId(partsMap, toolCallId), [partsMap, toolCallId])
 
-  // Force re-render when requestToolConfirmation() is called for this tool.
-  // The resolver Map is not React state, so we need this subscription
-  // to detect when the execution layer has registered a pending approval.
-  const [, forceUpdate] = useReducer((x: number) => x + 1, 0)
-  useEffect(() => {
-    if (!id) return
-    return onToolPendingChange((toolId) => {
-      if (toolId === id) forceUpdate()
-    })
-  }, [id])
-
-  // Treat both 'pending' and 'streaming' as pending states.
-  // During streaming, the tool execution layer may have already called
-  // requestToolConfirmation() before tool-input-end fires, so we check
-  // isToolPending() to detect this race condition.
-  const isPending = status === 'pending' || (status === 'streaming' && !!id && isToolPending(id))
-
-  // For hub invoke/exec tools, resolve the underlying server asynchronously
-  // so the UI auto-approve state matches the execution layer's decision.
-  const [hubResolvedAutoApproved, setHubResolvedAutoApproved] = useState(false)
-  useEffect(() => {
-    if (!tool || tool.serverId !== 'hub' || (tool.name !== 'invoke' && tool.name !== 'exec')) {
-      setHubResolvedAutoApproved(false)
-      return
-    }
-    let cancelled = false
-    void resolveHubToolServer(tool, toolResponse, mcpServers).then((result) => {
-      if (cancelled) return
-      if (result) {
-        setHubResolvedAutoApproved(!result.server.disabledAutoApproveTools?.includes(result.toolName))
-      } else {
-        setHubResolvedAutoApproved(false)
+  const respond = useCallback(
+    async (approved: boolean) => {
+      if (!match?.approvalId || !respondToolApproval) return
+      try {
+        await respondToolApproval({
+          match,
+          approved,
+          reason: approved ? undefined : t('message.tools.denied', 'User denied tool execution')
+        })
+      } catch (error) {
+        logger.error('MCP tool approval response failed', error as Error)
+        window.toast?.error?.(t('message.tools.approvalError', 'Failed to send approval'))
       }
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [tool, toolResponse, mcpServers])
+    },
+    [match, respondToolApproval, t]
+  )
 
-  const isAutoApproved = (() => {
-    if (!tool) return false
-    // Check basic auto-approve (built-in, agent allowed_tools, server-level)
-    const basicApproved = isToolAutoApproved(
-      tool,
-      mcpServers.find((s) => s.id === tool.serverId),
-      agent?.allowed_tools
-    )
-    if (basicApproved) return true
-    // For hub invoke/exec, use the async-resolved underlying server result
-    return hubResolvedAutoApproved
-  })()
-
-  const [isConfirmed, setIsConfirmed] = useState(isAutoApproved)
-
-  // Compute approval states
-  const isWaiting = isPending && !isAutoApproved && !isConfirmed
-  const isExecuting = isPending && (isAutoApproved || isConfirmed)
-
-  const confirm = useCallback(() => {
-    setIsConfirmed(true)
-    confirmToolAction(id)
-  }, [id])
-
-  const cancel = useCallback(() => {
-    cancelToolAction(id)
-  }, [id])
-
-  const autoApprove = useCallback(async () => {
-    if (!tool || !tool.name) {
-      return
-    }
-
-    // Try to resolve hub tools to the underlying server
-    const hubResult = await resolveHubToolServer(tool, toolResponse, mcpServers)
-
-    // Determine which server and tool name to update
-    const server = hubResult?.server ?? mcpServers.find((s) => s.id === tool.serverId)
-    const toolNameToApprove = hubResult?.toolName ?? tool.name
-
-    if (!server) {
-      // Even if we can't persist auto-approve, confirm the current tool
-      setIsConfirmed(true)
-      confirmToolAction(id)
-      return
-    }
-
-    let disabledAutoApproveTools = [...(server.disabledAutoApproveTools || [])]
-
-    // Remove tool from disabledAutoApproveTools to enable auto-approve
-    disabledAutoApproveTools = disabledAutoApproveTools.filter((name) => name !== toolNameToApprove)
-
-    try {
-      await dataApiService.patch(`/mcp-servers/${server.id}`, {
-        body: { disabledAutoApproveTools }
-      })
-      window.toast.success(t('message.tools.autoApproveEnabled', 'Auto-approve enabled for this tool'))
-    } catch {
-      window.toast.error(t('message.tools.autoApproveError', 'Failed to enable auto-approve'))
-    }
-
-    // Confirm the current tool regardless — the tool action should proceed
-    setIsConfirmed(true)
-    confirmToolAction(id)
-  }, [tool, toolResponse, mcpServers, id, t])
+  if (!match?.approvalId) {
+    return { isWaiting: false, isExecuting: false, isSubmitting: false, confirm: () => {}, cancel: () => {} }
+  }
 
   return {
-    // State
-    isWaiting,
-    isExecuting,
+    isWaiting: match.state === APPROVAL_REQUESTED,
+    // `input-available` = SDK has inputs, tool's about to run (post-approval).
+    isExecuting: match.state === APPROVAL_RESPONDED || match.state === 'input-available',
     isSubmitting: false,
-    input: undefined,
-
-    // Actions
-    confirm,
-    cancel,
-    autoApprove: isWaiting ? autoApprove : undefined
+    input: match.input as Record<string, unknown> | undefined,
+    confirm: () => void respond(true),
+    cancel: () => void respond(false)
   }
 }

@@ -395,8 +395,15 @@ export class ClaudeCodeLanguageModel implements LanguageModelV3 {
   ): Options {
     // Spread all settings (which are already Omit<Options, managed fields>),
     // then overlay provider-managed fields.
-    // oxlint-disable-next-line no-unused-vars
-    const { maxToolResultSize: _mts, injectedMessageSource: _ims, ...settingsRest } = this.settings
+    const {
+      // oxlint-disable-next-line no-unused-vars
+      maxToolResultSize: _mts,
+      // oxlint-disable-next-line no-unused-vars
+      injectedMessageSource: _ims,
+      // oxlint-disable-next-line no-unused-vars
+      approvalEmitter: _approvalEmitter,
+      ...settingsRest
+    } = this.settings
 
     const opts: Partial<Options> = {
       ...settingsRest,
@@ -704,6 +711,14 @@ export class ClaudeCodeLanguageModel implements LanguageModelV3 {
           warnings: []
         }
 
+        // Wire the approval-emitter holder (if present) so canUseTool can
+        // inject `tool-approval-request` parts into this stream. Reset in
+        // finally to prevent use-after-close.
+        const approvalEmitter = this.settings.approvalEmitter
+        if (approvalEmitter) {
+          approvalEmitter.emit = (event) => controller.enqueue(event)
+        }
+
         try {
           controller.enqueue({ type: 'stream-start', warnings })
 
@@ -777,6 +792,10 @@ export class ClaudeCodeLanguageModel implements LanguageModelV3 {
         } finally {
           if (options.abortSignal && abortListener) {
             options.abortSignal.removeEventListener('abort', abortListener)
+          }
+          if (approvalEmitter) {
+            approvalEmitter.emit = undefined
+            approvalEmitter.dispose?.()
           }
         }
       },

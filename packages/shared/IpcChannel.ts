@@ -106,10 +106,6 @@ export enum IpcChannel {
   AgentMessage_PersistExchange = 'agent-message:persist-exchange',
   AgentMessage_GetHistory = 'agent-message:get-history',
 
-  AgentToolPermission_Request = 'agent-tool-permission:request',
-  AgentToolPermission_Response = 'agent-tool-permission:response',
-  AgentToolPermission_Result = 'agent-tool-permission:result',
-
   // WeChat channel
   WeChat_QrLogin = 'wechat:qr-login',
   WeChat_HasCredentials = 'wechat:has-credentials',
@@ -486,6 +482,13 @@ export enum IpcChannel {
   Ai_Stream_Detach = 'ai:stream:detach',
   /** Renderer → Main: abort the active generation on a topic */
   Ai_Stream_Abort = 'ai:stream:abort',
+  /**
+   * Renderer → Main: resolve a pending tool-approval request emitted as a
+   * `ToolUIPart { state: 'approval-requested' }`. Payload:
+   * `{ approvalId, approved, reason? }`. Main dispatches to
+   * `ToolApprovalRegistry` which unblocks the provider's `canUseTool`.
+   */
+  Ai_ToolApproval_Respond = 'ai:tool-approval:respond',
   /**
    * Renderer → Main: snapshot of every active topic's current status.
    * Zero side effects — no listener is registered and no replay is

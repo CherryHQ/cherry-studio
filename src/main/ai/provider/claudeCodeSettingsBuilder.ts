@@ -13,6 +13,7 @@
  */
 
 import { fork } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import * as fs from 'node:fs'
 import { createRequire } from 'node:module'
 import os from 'node:os'
@@ -23,6 +24,7 @@ import type {
   HookCallback,
   HookJSONOutput,
   McpServerConfig,
+  PermissionResult,
   SdkPluginConfig,
   SpawnedProcess
 } from '@anthropic-ai/claude-agent-sdk'
@@ -40,8 +42,9 @@ import { isProvisioned, provisionBuiltinAgent } from '@main/services/agents/serv
 import { channelService } from '@main/services/agents/services/ChannelService'
 import { PromptBuilder } from '@main/services/agents/services/cherryclaw/prompt'
 import { createSdkMcpServerInstance } from '@main/services/agents/services/claudecode/createSdkMcpServerInstance'
-import { promptForToolApproval } from '@main/services/agents/services/claudecode/tool-permissions'
+import { toolApprovalRegistry } from '@main/services/agents/services/claudecode/ToolApprovalRegistry'
 import { getNodeProxyConfigFromEnvironment, getProxyEnvironment } from '@main/services/proxy/nodeProxy'
+import { shouldAutoApprove } from '@main/services/toolApproval/autoApprovePolicy'
 import { toAsarUnpackedPath } from '@main/utils'
 import { getAppLanguage } from '@main/utils/language'
 import { autoDiscoverGitBash, getBinaryPath } from '@main/utils/process'
@@ -58,13 +61,11 @@ import type { Provider } from '@shared/data/types/provider'
 import type { GetAgentSessionResponse } from '@types'
 import { app } from 'electron'
 
-import type { ClaudeCodeSettings } from './claude-code'
+import type { ClaudeCodeSettings, ToolApprovalEmitterHolder } from './claude-code'
 
 const logger = loggerService.withContext('ClaudeCodeSettingsBuilder')
 const require_ = createRequire(import.meta.url)
 const promptBuilder = new PromptBuilder()
-const DEFAULT_AUTO_ALLOW_TOOLS = new Set(['Read', 'Glob', 'Grep'])
-const shouldAutoApproveTools = process.env.CHERRY_AUTO_ALLOW_TOOLS === '1'
 
 // ── Topic ID convention ──────────────────────────────────────────────
 
@@ -213,8 +214,17 @@ export async function buildClaudeCodeSessionSettings(
   // 3. Plugins
   const plugins = await discoverPlugins(cwd, session.agent_id)
 
-  // 4. Tool permissions
-  const { canUseTool, hooks, allowedTools, disallowedTools } = buildToolPermissions(session)
+  // 4. Tool permissions — shared emitter holder between settings and
+  // `canUseTool` so the language model's stream controller can populate
+  // `emit` per-stream (see `claude-code-language-model.ts` doStream).
+  // `dispose` drops any approval still pending for this session when the
+  // stream exits abnormally.
+  const approvalEmitter: ToolApprovalEmitterHolder = {
+    dispose: () => {
+      toolApprovalRegistry.abort(session.id, 'stream-ended')
+    }
+  }
+  const { canUseTool, hooks, allowedTools, disallowedTools } = buildToolPermissions(session, approvalEmitter)
 
   // 5. System prompt
   const systemPrompt = await buildSystemPrompt(session, cwd)
@@ -246,6 +256,7 @@ export async function buildClaudeCodeSessionSettings(
     plugins,
     canUseTool,
     hooks,
+    approvalEmitter,
     ...(mcpServers ? { mcpServers, strictMcpConfig: true } : {}),
     ...(options?.thinkingOptions?.effort ? { effort: options.thinkingOptions.effort } : {}),
     ...(options?.thinkingOptions?.thinking ? { thinking: options.thinkingOptions.thinking } : {}),
@@ -364,50 +375,49 @@ async function discoverPlugins(cwd: string, agentId: string): Promise<SdkPluginC
   }
 }
 
-function buildToolPermissions(session: GetAgentSessionResponse) {
-  const sessionAllowedTools = new Set<string>(session.allowed_tools ?? [])
-  const autoAllowTools = new Set<string>([...DEFAULT_AUTO_ALLOW_TOOLS, ...sessionAllowedTools])
-  const normalizeToolName = (name: string) => (name.startsWith('builtin_') ? name.slice('builtin_'.length) : name)
+function buildToolPermissions(session: GetAgentSessionResponse, approvalEmitter: ToolApprovalEmitterHolder) {
   const soulEnabled = session.configuration?.soul_enabled === true
   const isAssistant = session.configuration?.builtin_role === 'assistant'
 
   const canUseTool: CanUseTool = async (toolName, input, opts) => {
-    if (shouldAutoApproveTools) {
-      return { behavior: 'allow', updatedInput: input }
-    }
     if (opts.signal.aborted) {
       return { behavior: 'deny', message: 'Tool request was cancelled' }
     }
-    const normalized = normalizeToolName(toolName)
-    if (autoAllowTools.has(toolName) || autoAllowTools.has(normalized)) {
+    if (
+      shouldAutoApprove({
+        toolKind: 'claude-agent',
+        toolName,
+        agentAllowedTools: session.allowed_tools,
+        permissionMode: session.configuration?.permission_mode
+      })
+    ) {
       return { behavior: 'allow', updatedInput: input }
     }
-    return promptForToolApproval(toolName, input, {
-      ...opts,
-      toolCallId: buildNamespacedToolCallId(session.id, opts.toolUseID)
-    })
-  }
 
-  const preToolUseHook: HookCallback = async (input, toolUseID, opts): Promise<HookJSONOutput> => {
-    if (!input || input.hook_event_name !== 'PreToolUse') return {}
-    if (opts?.signal?.aborted) return {}
-
-    const toolName = String((input as Record<string, unknown>).tool_name ?? '')
-    const normalized = normalizeToolName(toolName)
-    if (toolUseID) {
-      const bypassAll = (input as Record<string, unknown>).permission_mode === 'bypassPermissions'
-      const autoAllowed = autoAllowTools.has(toolName) || autoAllowTools.has(normalized)
-      if (bypassAll || autoAllowed) {
-        const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
-        const toolInput = (input as Record<string, unknown>).tool_input
-        await promptForToolApproval(toolName, isRecord(toolInput) ? toolInput : {}, {
-          signal: opts.signal,
-          toolCallId: buildNamespacedToolCallId(session.id, toolUseID),
-          autoApprove: true
-        })
-      }
+    const namespacedToolCallId = buildNamespacedToolCallId(session.id, opts.toolUseID)
+    const approvalId = randomUUID()
+    const emit = approvalEmitter.emit
+    if (!emit) {
+      logger.warn('Approval requested but no emitter bound — denying', { approvalId, toolName })
+      return { behavior: 'deny', message: 'Approval emitter not ready' }
     }
-    return {}
+    return new Promise<PermissionResult>((resolve) => {
+      toolApprovalRegistry.register({
+        approvalId,
+        sessionId: session.id,
+        toolCallId: namespacedToolCallId,
+        toolName,
+        originalInput: input,
+        signal: opts.signal,
+        resolve
+      })
+      emit({
+        type: 'tool-approval-request',
+        approvalId,
+        toolCallId: namespacedToolCallId,
+        providerMetadata: { cherry: { transport: 'claude-agent', toolName } }
+      })
+    })
   }
 
   const rtkRewriteHook: HookCallback = async (input): Promise<HookJSONOutput> => {
@@ -425,7 +435,7 @@ function buildToolPermissions(session: GetAgentSessionResponse) {
 
   return {
     canUseTool,
-    hooks: { PreToolUse: [{ hooks: [rtkRewriteHook, preToolUseHook] }] },
+    hooks: { PreToolUse: [{ hooks: [rtkRewriteHook] }] },
     allowedTools: session.allowed_tools,
     disallowedTools: [
       ...GLOBALLY_DISALLOWED_TOOLS,

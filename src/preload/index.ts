@@ -1,4 +1,3 @@
-import type { PermissionUpdate } from '@anthropic-ai/claude-agent-sdk'
 import type { TokenUsageData } from '@cherrystudio/analytics-client'
 import { electronAPI } from '@electron-toolkit/preload'
 import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
@@ -578,15 +577,6 @@ const api = {
     pinActionWindow: (isPinned: boolean) => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowPin, isPinned),
     getLinuxEnvInfo: () => ipcRenderer.invoke(IpcChannel.Selection_GetLinuxEnvInfo)
   },
-  agentTools: {
-    respondToPermission: (payload: {
-      requestId: string
-      behavior: 'allow' | 'deny'
-      updatedInput?: Record<string, unknown>
-      message?: string
-      updatedPermissions?: PermissionUpdate[]
-    }) => ipcRenderer.invoke(IpcChannel.AgentToolPermission_Response, payload)
-  },
   wechat: {
     onQrLogin: (
       callback: (data: { channelId: string; agentId: string; url: string; status: string; userId?: string }) => void
@@ -896,7 +886,28 @@ const api = {
       providerId?: string
       assistantId?: string
     }): Promise<Array<{ id: string; name: string; provider: string; group: string; [key: string]: unknown }>> =>
-      ipcRenderer.invoke(IpcChannel.Ai_ListModels, request)
+      ipcRenderer.invoke(IpcChannel.Ai_ListModels, request),
+
+    // ── Tool approval (v6 ToolUIPart native flow) ──
+    toolApproval: {
+      /**
+       * Resolve a pending tool-approval request that was emitted as a
+       * `ToolUIPart { state: 'approval-requested' }`. Renderer calls this
+       * after `chat.addToolApprovalResponse(...)` to unblock the provider's
+       * `canUseTool` via `ToolApprovalRegistry` on Main.
+       *
+       * `updatedInput` lets Claude-Agent tools like `AskUserQuestion`
+       * return user-supplied values back into the same tool call — the
+       * Agent SDK's `canUseTool` resolves with `{behavior:'allow', updatedInput}`
+       * so the tool receives the answers as its final input.
+       */
+      respond: (payload: {
+        approvalId: string
+        approved: boolean
+        reason?: string
+        updatedInput?: Record<string, unknown>
+      }): Promise<{ ok: boolean }> => ipcRenderer.invoke(IpcChannel.Ai_ToolApproval_Respond, payload)
+    }
   },
   apiServer: {
     getStatus: (): Promise<GetApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_GetStatus),

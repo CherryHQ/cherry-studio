@@ -7,6 +7,7 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { downloadImageAsBase64 } from '@main/services/agents/services/channels/ChannelAdapter'
+import { toolApprovalRegistry } from '@main/services/agents/services/claudecode/ToolApprovalRegistry'
 import type { Assistant } from '@shared/data/types/assistant'
 import { ENDPOINT_TYPE, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -274,6 +275,26 @@ export class AiService extends BaseService {
     this.ipcHandle(IpcChannel.Ai_ListModels, async (_, request: AiBaseRequest) => {
       return this.listModels(request)
     })
+
+    this.ipcHandle(
+      IpcChannel.Ai_ToolApproval_Respond,
+      async (
+        _,
+        payload: {
+          approvalId: string
+          approved: boolean
+          reason?: string
+          updatedInput?: Record<string, unknown>
+        }
+      ) => {
+        const ok = toolApprovalRegistry.dispatch(payload.approvalId, {
+          approved: payload.approved,
+          reason: payload.reason,
+          updatedInput: payload.updatedInput
+        })
+        return { ok }
+      }
+    )
   }
 
   // ── Streaming chat (agent.stream) ──

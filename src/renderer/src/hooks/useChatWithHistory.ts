@@ -17,6 +17,7 @@ import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
 import type { Message } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, UserMessageStatus } from '@renderer/types/newMessage'
 import { statsToMetrics, statsToUsage } from '@renderer/utils/messageStats'
+import { cherryApprovalPredicate } from '@renderer/utils/toolApprovalPredicate'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ChatRequestOptions, ChatStatus } from 'ai'
@@ -46,6 +47,13 @@ export interface UseChatWithHistoryResult {
   streamingUIMessages: CherryUIMessage[]
   activeExecutionIds: readonly UniqueModelId[]
   initialMessages: CherryUIMessage[]
+  /**
+   * AI SDK v6 native tool-approval response. Flips a `ToolUIPart` from
+   * `approval-requested` to `approval-responded` on the local message.
+   * For Claude Agent approvals the caller must also unblock Main via
+   * `window.api.ai.toolApproval.respond` (see `useToolApprovalBridge`).
+   */
+  addToolApprovalResponse: (args: { id: string; approved: boolean; reason?: string }) => void | PromiseLike<void>
 }
 
 // ── Hook ──
@@ -57,12 +65,13 @@ export function useChatWithHistory(
   context: { assistantId: string },
   metadataMap: MessageMetadataMap = {}
 ): UseChatWithHistoryResult {
-  const { messages, setMessages, stop, status, error, sendMessage, regenerate, resumeStream } =
+  const { messages, setMessages, stop, status, error, sendMessage, regenerate, resumeStream, addToolApprovalResponse } =
     useChat<CherryUIMessage>({
       id: topicId,
       transport: ipcChatTransport,
       messages: initialMessages,
       experimental_throttle: 50,
+      sendAutomaticallyWhen: cherryApprovalPredicate,
       onError: (streamError) => {
         logger.error('AI stream error', { topicId, streamError })
       }
@@ -228,6 +237,7 @@ export function useChatWithHistory(
     setMessages,
     streamingUIMessages: messages,
     activeExecutionIds,
-    initialMessages
+    initialMessages,
+    addToolApprovalResponse
   }
 }

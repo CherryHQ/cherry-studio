@@ -1,8 +1,6 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@cherrystudio/ui'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
-import { useAppSelector } from '@renderer/store'
-import type { ToolPermissionEntry } from '@renderer/store/toolPermissions'
-import { isToolPending } from '@renderer/utils/userConfirmation'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import { Wrench } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
@@ -13,8 +11,9 @@ import { getEffectiveStatus, type ToolStatus } from '../Tools/MessageAgentTools/
 import MessageTools from '../Tools/MessageTools'
 import ToolApprovalActionsComponent from '../Tools/ToolApprovalActions'
 import ToolHeader from '../Tools/ToolHeader'
-import type { ToolRenderItem, ToolResponseLike } from '../Tools/toolResponse'
+import { isToolPartAwaitingApproval, type ToolRenderItem, type ToolResponseLike } from '../Tools/toolResponse'
 import BlockErrorFallback from './BlockErrorFallback'
+import { usePartsMap } from './V2Contexts'
 
 // ============ Types & Helpers ============
 
@@ -26,30 +25,20 @@ function isCompletedStatus(status: ToolResponseLike['status'] | undefined): bool
   return status === 'done' || status === 'error' || status === 'cancelled'
 }
 
-// Calculate actual waiting state for a tool item (not depending on hooks)
-function getItemIsWaiting(item: ToolRenderItem, agentPermissions: Record<string, ToolPermissionEntry>): boolean {
-  const toolResponse = item.toolResponse
-  if (toolResponse.status !== 'pending') return false
-
-  const tool = toolResponse.tool
-  if (tool?.type === 'mcp') {
-    // MCP tools: check the global confirmation queue
-    return isToolPending(toolResponse.id)
-  } else {
-    // Agent tools: check Redux store for pending permission
-    const permission = Object.values(agentPermissions).find((p) => p.toolCallId === toolResponse.toolCallId)
-    return permission?.status === 'pending'
-  }
+// Calculate actual waiting state for a tool item (not depending on hooks).
+// AI-SDK-v6 ToolUIPart state (`approval-requested`) is the sole source of truth.
+function getItemIsWaiting(item: ToolRenderItem, partsMap: Record<string, CherryMessagePart[]> | null): boolean {
+  if (item.toolResponse.status !== 'pending') return false
+  return isToolPartAwaitingApproval(partsMap, item.toolResponse.toolCallId)
 }
 
 // Get effective UI status for an item
 function getItemEffectiveStatus(
   item: ToolRenderItem,
-  agentPermissions: Record<string, ToolPermissionEntry>
+  partsMap: Record<string, CherryMessagePart[]> | null
 ): ToolStatus {
-  const toolResponse = item.toolResponse
-  const isWaiting = getItemIsWaiting(item, agentPermissions)
-  return getEffectiveStatus(toolResponse?.status, isWaiting)
+  const isWaiting = getItemIsWaiting(item, partsMap)
+  return getEffectiveStatus(item.toolResponse?.status, isWaiting)
 }
 
 // Animation variants for smooth header transitions
@@ -87,7 +76,7 @@ interface GroupHeaderContentProps {
 
 const GroupHeaderContent = React.memo(({ items, allCompleted }: GroupHeaderContentProps) => {
   const { t } = useTranslation()
-  const agentPermissions = useAppSelector((state) => state.toolPermissions.requests)
+  const partsMap = usePartsMap()
 
   if (allCompleted) {
     return (
@@ -99,7 +88,7 @@ const GroupHeaderContent = React.memo(({ items, allCompleted }: GroupHeaderConte
   }
 
   // Find items actually waiting for approval (using effective status)
-  const waitingItems = items.filter((item) => getItemEffectiveStatus(item, agentPermissions) === 'waiting')
+  const waitingItems = items.filter((item) => getItemEffectiveStatus(item, partsMap) === 'waiting')
 
   // Prioritize showing waiting items that need approval
   const lastWaitingItem = waitingItems[waitingItems.length - 1]
@@ -121,7 +110,7 @@ const GroupHeaderContent = React.memo(({ items, allCompleted }: GroupHeaderConte
 
   // Find running items (invoking or streaming)
   const runningItems = items.filter((item) => {
-    const status = getItemEffectiveStatus(item, agentPermissions)
+    const status = getItemEffectiveStatus(item, partsMap)
     return status === 'invoking' || status === 'streaming'
   })
 

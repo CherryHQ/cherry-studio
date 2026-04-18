@@ -1,6 +1,15 @@
 import type { BaseTool, MCPTool, MCPToolResponse, MCPToolResponseStatus, NormalToolResponse } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import type { UIMessagePart } from 'ai'
+import { isToolUIPart } from 'ai'
+
+/** AI-SDK-v6 ToolUIPart approval-state string literals. */
+export const APPROVAL_REQUESTED = 'approval-requested'
+export const APPROVAL_RESPONDED = 'approval-responded'
+
+/** Cherry provider-metadata tag identifying Claude-Agent-sourced approvals. */
+export const CLAUDE_AGENT_TRANSPORT = 'claude-agent'
 
 type ToolType = 'mcp' | 'builtin' | 'provider'
 
@@ -191,4 +200,53 @@ export function buildToolRenderItemFromBlock(block: ToolMessageBlock): ToolRende
   const toolResponse = getToolResponseFromBlock(block)
   if (!toolResponse) return null
   return { id: block.id, toolResponse }
+}
+
+/** Matched `ToolUIPart` plus decoded approval fields. */
+export type ToolApprovalMatch = {
+  part: CherryMessagePart
+  state: string
+  approvalId?: string
+  transport?: string
+  input?: unknown
+}
+
+/**
+ * Locate the `ToolUIPart` in PartsContext matching `toolCallId`. Used by
+ * every approval card + waiting-state check — AI-SDK-v6 is the sole
+ * source of truth for approval state post-V2 migration.
+ */
+export function findToolPartByCallId(
+  partsMap: Record<string, CherryMessagePart[]> | null | undefined,
+  toolCallId: string | undefined
+): ToolApprovalMatch | null {
+  if (!partsMap || !toolCallId) return null
+  for (const parts of Object.values(partsMap)) {
+    for (const part of parts) {
+      if (!isToolUIPart(part as UIMessagePart<never, never>)) continue
+      const p = part as unknown as {
+        toolCallId?: string
+        state?: string
+        input?: unknown
+        approval?: { id?: string }
+        providerMetadata?: { cherry?: { transport?: string } }
+      }
+      if (p.toolCallId !== toolCallId) continue
+      return {
+        part,
+        state: p.state ?? '',
+        approvalId: p.approval?.id,
+        transport: p.providerMetadata?.cherry?.transport,
+        input: p.input
+      }
+    }
+  }
+  return null
+}
+
+export function isToolPartAwaitingApproval(
+  partsMap: Record<string, CherryMessagePart[]> | null | undefined,
+  toolCallId: string | undefined
+): boolean {
+  return findToolPartByCallId(partsMap, toolCallId)?.state === APPROVAL_REQUESTED
 }

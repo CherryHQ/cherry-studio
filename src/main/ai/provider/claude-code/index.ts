@@ -9,4 +9,4 @@ export type { ClaudeCodeLanguageModelOptions, ClaudeCodeModelId } from './claude
 export { ClaudeCodeLanguageModel } from './claude-code-language-model'
 export type { ClaudeCodeProvider } from './claude-code-provider'
 export { createClaudeCode } from './claude-code-provider'
-export type { ClaudeCodeProviderSettings, ClaudeCodeSettings } from './types'
+export type { ClaudeCodeProviderSettings, ClaudeCodeSettings, ToolApprovalEmitterHolder } from './types'

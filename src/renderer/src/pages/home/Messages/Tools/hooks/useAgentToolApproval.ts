@@ -1,12 +1,12 @@
-import type { PermissionUpdate } from '@anthropic-ai/claude-agent-sdk'
 import { loggerService } from '@logger'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { selectPendingPermission, toolPermissionsActions } from '@renderer/store/toolPermissions'
+import { useToolApprovalRespond } from '@renderer/hooks/ToolApprovalContext'
+import { usePartsMap } from '@renderer/pages/home/Messages/Blocks'
 import type { NormalToolResponse } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { APPROVAL_REQUESTED, APPROVAL_RESPONDED, findToolPartByCallId } from '../toolResponse'
 import type { ToolApprovalActions, ToolApprovalState } from './useToolApproval'
 
 const logger = loggerService.withContext('useAgentToolApproval')
@@ -17,112 +17,49 @@ export interface UseAgentToolApprovalOptions {
 }
 
 /**
- * Hook for Agent tool approval logic
- * Can be used with:
- * - A ToolMessageBlock (extracts toolCallId from metadata)
- * - A direct toolCallId via options
+ * Claude-Agent-SDK tool approval — driven by the `ToolUIPart.approval`
+ * state embedded in the current chat's messages, with decisions routed
+ * through the shared bridge (`Ai_ToolApproval_Respond` IPC).
  */
 export function useAgentToolApproval(
   block?: ToolMessageBlock | null,
   options: UseAgentToolApprovalOptions = {}
 ): ToolApprovalState & ToolApprovalActions {
   const { t } = useTranslation()
-  const dispatch = useAppDispatch()
+  const partsMap = usePartsMap()
+  const respondToolApproval = useToolApprovalRespond()
 
   const toolResponse = block?.metadata?.rawMcpToolResponse as NormalToolResponse | undefined
   const toolCallId = options.toolCallId ?? toolResponse?.toolCallId ?? ''
+  const match = useMemo(() => findToolPartByCallId(partsMap, toolCallId), [partsMap, toolCallId])
 
-  const request = useAppSelector((state) => selectPendingPermission(state.toolPermissions, toolCallId))
-
-  const isSubmittingAllow = request?.status === 'submitting-allow'
-  const isSubmittingDeny = request?.status === 'submitting-deny'
-  const isSubmitting = isSubmittingAllow || isSubmittingDeny
-  const isInvoking = request?.status === 'invoking'
-  const isPending = request?.status === 'pending'
-
-  const handleDecision = useCallback(
-    async (
-      behavior: 'allow' | 'deny',
-      extra?: {
-        updatedInput?: Record<string, unknown>
-        updatedPermissions?: PermissionUpdate[]
-        message?: string
-      }
-    ) => {
-      if (!request) return
-
-      logger.debug('Submitting agent tool permission decision', {
-        requestId: request.requestId,
-        toolName: request.toolName,
-        behavior
-      })
-
-      dispatch(toolPermissionsActions.submissionSent({ requestId: request.requestId, behavior }))
-
+  const respond = useCallback(
+    async (approved: boolean) => {
+      if (!match?.approvalId || !respondToolApproval) return
       try {
-        const payload = {
-          requestId: request.requestId,
-          behavior,
-          ...(behavior === 'allow'
-            ? {
-                updatedInput: extra?.updatedInput ?? request.input,
-                updatedPermissions: extra?.updatedPermissions
-              }
-            : {
-                message: extra?.message ?? t('agent.toolPermission.defaultDenyMessage')
-              })
-        }
-
-        const response = await window.api.agentTools.respondToPermission(payload)
-
-        if (!response?.success) {
-          throw new Error('Renderer response rejected by main process')
-        }
-
-        logger.debug('Tool permission decision acknowledged by main process', {
-          requestId: request.requestId,
-          behavior
+        await respondToolApproval({
+          match,
+          approved,
+          reason: approved ? undefined : t('agent.toolPermission.defaultDenyMessage')
         })
       } catch (error) {
-        logger.error('Failed to send tool permission response', error as Error)
+        logger.error('Tool approval response failed', error as Error)
         window.toast?.error?.(t('agent.toolPermission.error.sendFailed'))
-        dispatch(toolPermissionsActions.submissionFailed({ requestId: request.requestId }))
       }
     },
-    [dispatch, request, t]
+    [match, respondToolApproval, t]
   )
 
-  const confirm = useCallback(() => {
-    void handleDecision('allow')
-  }, [handleDecision])
-
-  const cancel = useCallback(() => {
-    void handleDecision('deny')
-  }, [handleDecision])
-
-  // Auto-approve with suggestions if available
-  const autoApprove = useCallback(() => {
-    if (request?.suggestions?.length) {
-      void handleDecision('allow', { updatedPermissions: request.suggestions })
-    }
-  }, [handleDecision, request?.suggestions])
-
-  // Determine isWaiting - only when pending
-  const isWaiting = !!request && isPending
-  // isExecuting - when invoking or submitting allow
-  const isExecuting = isInvoking || isSubmittingAllow
+  if (!match?.approvalId) {
+    return { isWaiting: false, isExecuting: false, isSubmitting: false, confirm: () => {}, cancel: () => {} }
+  }
 
   return {
-    // State
-    isWaiting,
-    isExecuting,
-    isSubmitting,
-    // Agent-specific: input from permission request
-    input: request?.input,
-
-    // Actions
-    confirm,
-    cancel,
-    autoApprove: request?.suggestions?.length ? autoApprove : undefined
+    isWaiting: match.state === APPROVAL_REQUESTED,
+    isExecuting: match.state === APPROVAL_RESPONDED,
+    isSubmitting: false,
+    input: match.input as Record<string, unknown> | undefined,
+    confirm: () => void respond(true),
+    cancel: () => void respond(false)
   }
 }

@@ -12,6 +12,7 @@
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { mcpServerService } from '@main/data/services/McpServerService'
+import { shouldAutoApprove } from '@main/services/toolApproval/autoApprovePolicy'
 import type { MCPCallToolResponse, MCPServer, MCPTool } from '@types'
 import type { JSONSchema7, Tool } from 'ai'
 import { jsonSchema } from 'ai'
@@ -22,16 +23,28 @@ const logger = loggerService.withContext('mcpTools')
 
 /**
  * Convert an MCPTool definition into a RegisteredTool for the ToolRegistry.
- * @param disabledAutoApproveTools - tool names that require user approval on this server
+ *
+ * The `needsApproval` function delegates to `autoApprovePolicy` — single
+ * source of truth shared with Claude Agent SDK's `canUseTool` wrapper. When
+ * AI SDK v6 calls the predicate before executing, we emit a
+ * `tool-approval-request` chunk automatically; the renderer flips the
+ * `ToolUIPart` via `chat.addToolApprovalResponse` and `sendAutomaticallyWhen`
+ * fires a new turn where `execute()` runs (or an `output-denied` part is
+ * emitted on deny).
+ *
+ * @param disabledAutoApproveTools - server's explicit opt-out list
  */
-function createMcpTool(mcpTool: MCPTool, disabledAutoApproveTools?: string[]): RegisteredTool {
-  const requiresApproval = disabledAutoApproveTools?.includes(mcpTool.name) ?? false
-
+function createMcpTool(mcpTool: MCPTool, disabledAutoApproveTools?: readonly string[]): RegisteredTool {
   const mcpToolDef: Tool = {
     type: 'function',
     description: mcpTool.description || mcpTool.name,
     inputSchema: jsonSchema(mcpTool.inputSchema as JSONSchema7),
-    needsApproval: requiresApproval,
+    needsApproval: async () =>
+      !shouldAutoApprove({
+        toolKind: 'mcp',
+        toolName: mcpTool.name,
+        serverDisabledAutoApprove: disabledAutoApproveTools
+      }),
     execute: async (args: Record<string, unknown>, { toolCallId }) => {
       const mcpService = application.get('MCPService')
       const result: MCPCallToolResponse = await mcpService.callTool({

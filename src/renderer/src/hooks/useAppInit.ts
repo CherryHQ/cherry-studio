@@ -1,6 +1,5 @@
 import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
-import { loggerService } from '@logger'
 import { isMac } from '@renderer/config/constant'
 import { isLocalAi } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -8,31 +7,19 @@ import db from '@renderer/databases'
 import { useAppUpdateHandler, useAppUpdateState } from '@renderer/hooks/useAppUpdate'
 import i18n, { setDayjsLocale } from '@renderer/i18n'
 import { knowledgeQueue } from '@renderer/queue/KnowledgeQueue'
-import { useAppDispatch } from '@renderer/store'
-import {
-  type ToolPermissionRequestPayload,
-  type ToolPermissionResultPayload,
-  toolPermissionsActions
-} from '@renderer/store/toolPermissions'
 import { delay, runAsyncFunction } from '@renderer/utils'
 import { checkDataLimit } from '@renderer/utils'
-import { sendToolApprovalNotification } from '@renderer/utils/userConfirmation'
 import { defaultLanguage } from '@shared/config/constant'
-import { IpcChannel } from '@shared/IpcChannel'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useDefaultModel } from './useAssistant'
 import useFullScreenNotice from './useFullScreenNotice'
 import { useMinapps } from './useMinapps'
 import useNavBackgroundColor from './useNavBackgroundColor'
 import { useNavbarPosition } from './useNavbar'
-const logger = loggerService.withContext('useAppInit')
 
 export function useAppInit() {
-  const { t } = useTranslation()
-  const dispatch = useAppDispatch()
   const [language] = usePreference('app.language')
   const [windowStyle] = usePreference('ui.window_style')
   const [customCss] = usePreference('ui.custom_css')
@@ -155,97 +142,6 @@ export function useAppInit() {
       document.head.appendChild(customCssElement)
     }
   }, [customCss])
-
-  useEffect(() => {
-    if (!window.electron?.ipcRenderer) return
-
-    const requestListener = async (_event: Electron.IpcRendererEvent, payload: ToolPermissionRequestPayload) => {
-      logger.debug('Renderer received tool permission request', {
-        requestId: payload.requestId,
-        toolName: payload.toolName,
-        suggestionCount: payload.suggestions.length,
-        autoApprove: payload.autoApprove
-      })
-
-      if (payload.autoApprove) {
-        logger.debug('Auto-approving tool permission request', {
-          requestId: payload.requestId,
-          toolName: payload.toolName
-        })
-
-        try {
-          const response = await window.api.agentTools.respondToPermission({
-            requestId: payload.requestId,
-            behavior: 'allow',
-            updatedInput: payload.input,
-            updatedPermissions: payload.suggestions
-          })
-
-          if (!response?.success) {
-            throw new Error('Auto-approval response rejected by main process')
-          }
-
-          logger.debug('Auto-approval acknowledged by main process', {
-            requestId: payload.requestId,
-            toolName: payload.toolName
-          })
-        } catch (error) {
-          logger.error('Failed to send auto-approval response', error as Error)
-          // Fall through to add to store for manual approval
-          dispatch(toolPermissionsActions.requestReceived(payload))
-        }
-        return
-      }
-
-      dispatch(toolPermissionsActions.requestReceived(payload))
-
-      // Send system notification for agent tool approval
-      sendToolApprovalNotification(payload.toolName)
-    }
-
-    const resultListener = (_event: Electron.IpcRendererEvent, payload: ToolPermissionResultPayload) => {
-      logger.debug('Renderer received tool permission result', {
-        requestId: payload.requestId,
-        behavior: payload.behavior,
-        reason: payload.reason
-      })
-      dispatch(toolPermissionsActions.requestResolved(payload))
-
-      if (payload.behavior === 'deny') {
-        const message =
-          payload.reason === 'timeout'
-            ? (payload.message ?? t('agent.toolPermission.toast.timeout'))
-            : (payload.message ?? t('agent.toolPermission.toast.denied'))
-
-        if (payload.reason === 'no-window') {
-          logger.debug('Displaying deny toast for tool permission', {
-            requestId: payload.requestId,
-            behavior: payload.behavior,
-            reason: payload.reason
-          })
-          window.toast?.error?.(message)
-        } else if (payload.reason === 'timeout') {
-          logger.debug('Displaying timeout toast for tool permission', {
-            requestId: payload.requestId
-          })
-          window.toast?.warning?.(message)
-        } else {
-          logger.debug('Displaying info toast for tool permission deny', {
-            requestId: payload.requestId,
-            reason: payload.reason
-          })
-          window.toast?.info?.(message)
-        }
-      }
-    }
-
-    const removeListeners = [
-      window.electron.ipcRenderer.on(IpcChannel.AgentToolPermission_Request, requestListener),
-      window.electron.ipcRenderer.on(IpcChannel.AgentToolPermission_Result, resultListener)
-    ]
-
-    return () => removeListeners.forEach((removeListener) => removeListener())
-  }, [dispatch, t])
 
   useEffect(() => {
     // TODO: init data collection
