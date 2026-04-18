@@ -4,6 +4,7 @@ import type { RootState } from '@renderer/store'
 import { selectFormattedCitationsByBlockId } from '@renderer/store/messageBlock'
 import { type Model } from '@renderer/types'
 import type { MainTextMessageBlock, Message } from '@renderer/types/newMessage'
+import { detectBidiDirFromText } from '@renderer/utils/bidi'
 import { determineCitationSource, withCitationTags } from '@renderer/utils/citation'
 import { Flex } from 'antd'
 import React, { useCallback } from 'react'
@@ -21,7 +22,7 @@ interface Props {
 
 const MainTextBlock: React.FC<Props> = ({ block, citationBlockId, role, mentions = [] }) => {
   // Use the passed citationBlockId directly in the selector
-  const { renderInputMessageAsMarkdown } = useSettings()
+  const { renderInputMessageAsMarkdown, experimentalRtlTextFix } = useSettings()
 
   const rawCitations = useSelector((state: RootState) => selectFormattedCitationsByBlockId(state, citationBlockId))
 
@@ -51,7 +52,10 @@ const MainTextBlock: React.FC<Props> = ({ block, citationBlockId, role, mentions
         </Flex>
       )}
       {role === 'user' && !renderInputMessageAsMarkdown ? (
-        <p className="markdown" style={{ whiteSpace: 'pre-wrap' }}>
+        <p
+          className="markdown"
+          style={{ whiteSpace: 'pre-wrap' }}
+          dir={experimentalRtlTextFix ? detectBidiDirFromText(block.content) : undefined}>
           {block.content}
         </p>
       ) : (
