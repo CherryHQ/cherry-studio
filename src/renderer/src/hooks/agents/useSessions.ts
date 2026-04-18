@@ -19,13 +19,13 @@ export const useSessions = (agentId: string | null, pageSize = DEFAULT_SESSION_P
   const client = useAgentClient()
 
   const getKey = (pageIndex: number, previousPageData: ListAgentSessionsResponse | null) => {
-    if (!agentId) return null
+    if (!agentId || !client) return null
     if (previousPageData && previousPageData.data.length < pageSize) return null
     return [client.getSessionPaths(agentId).base, pageIndex, pageSize]
   }
 
   const fetcher = async ([, pageIndex, pageLimit]: [string, number, number]) => {
-    if (!agentId) throw new Error('No active agent.')
+    if (!agentId || !client) throw new Error('No active agent.')
     return await client.listSessions(agentId, {
       limit: pageLimit,
       offset: pageIndex * pageLimit
@@ -61,7 +61,7 @@ export const useSessions = (agentId: string | null, pageSize = DEFAULT_SESSION_P
 
   const createSession = useCallback(
     async (form: CreateSessionForm): Promise<CreateAgentSessionResponse | null> => {
-      if (!agentId) return null
+      if (!agentId || !client) return null
       try {
         const result = await client.createSession(agentId, form)
         void mutate(
@@ -89,7 +89,7 @@ export const useSessions = (agentId: string | null, pageSize = DEFAULT_SESSION_P
 
   const getSession = useCallback(
     async (id: string): Promise<GetAgentSessionResponse | null> => {
-      if (!agentId) return null
+      if (!agentId || !client) return null
       try {
         const result = await client.getSession(agentId, id)
         void mutate(
@@ -111,7 +111,7 @@ export const useSessions = (agentId: string | null, pageSize = DEFAULT_SESSION_P
 
   const deleteSession = useCallback(
     async (id: string): Promise<boolean> => {
-      if (!agentId) return false
+      if (!agentId || !client) return false
       try {
         await client.deleteSession(agentId, id)
         void mutate(
@@ -137,7 +137,7 @@ export const useSessions = (agentId: string | null, pageSize = DEFAULT_SESSION_P
 
   const reorderSessions = useCallback(
     async (reorderedList: AgentSessionEntity[]) => {
-      if (!agentId) return
+      if (!agentId || !client) return
       const orderedIds = reorderedList.map((s) => s.id)
       // Optimistic update: replace all pages with single page containing reordered list
       void mutate(

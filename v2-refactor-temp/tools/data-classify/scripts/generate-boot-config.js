@@ -36,6 +36,44 @@ const MANUAL_BOOT_CONFIG_ITEMS = [
       'Migrated from v1 ~/.cherrystudio/config/config.json on first v1→v2 run',
       "via the 'configfile' source in BootConfigMigrator."
     ]
+  },
+  {
+    source: 'preboot',
+    sourceCategory: 'transient',
+    originalKey: 'userDataRelocation',
+    targetKey: 'temp.user_data_relocation',
+    type:
+      "\n    | { status: 'pending'; from: string; to: string }" +
+      "\n    | { status: 'failed'; from: string; to: string; error: string; failedAt: string }" +
+      '\n    | null',
+    defaultValue: null,
+    jsdoc: [
+      'In-flight relocation of the Electron userData directory tree',
+      "(the directory returned by `app.getPath('userData')`).",
+      '',
+      'Lives under the `temp.*` top-level namespace — reserved for ephemeral',
+      'runtime state: single in-flight operations meant to be cleared once',
+      'consumed. **Never** backed up or synced: restoring a stale temp.* entry',
+      'on a different machine or at a different time can cause silent data',
+      'corruption (e.g. re-executing a relocation that already happened).',
+      '',
+      'Lifecycle:',
+      '  - null: no relocation in progress (default).',
+      "  - { status: 'pending', from, to }: an IPC handler wrote this request",
+      '    and the next preboot should execute the copy.',
+      "  - { status: 'failed', from, to, error, failedAt }: a previous preboot",
+      '    attempted the copy and it failed. The record stays in BootConfig',
+      '    until a renderer recovery flow lets the user retry, abandon, or',
+      '    investigate. The app continues running on the previous userData',
+      '    location until then.',
+      '',
+      'Note: "userData" here means the Electron OS directory',
+      "(app.getPath('userData')), not the colloquial sense of user content.",
+      'The copy includes everything under that directory — user files,',
+      'Chromium runtime state, logs, etc.',
+      '',
+      'Consumer: src/main/core/preboot/userDataLocation.ts'
+    ]
   }
 ]
 

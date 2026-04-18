@@ -27,7 +27,7 @@ export const useAgentSessionInitializer = () => {
    */
   const initializeAgentSession = useCallback(
     async (agentId: string) => {
-      if (!agentId) return
+      if (!agentId || !client) return
 
       try {
         // Check if this agent has already been initialized (key exists in map)

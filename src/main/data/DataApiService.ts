@@ -57,8 +57,9 @@ export class DataApiService extends BaseService {
       // API handlers are already registered during ApiServer initialization
       logger.debug('API handlers initialized with type-safe routing')
 
-      // Setup IPC handlers
-      this.ipcAdapter.setupHandlers()
+      // Setup IPC adapter and register for automatic lifecycle cleanup
+      this.ipcAdapter.setup()
+      this.registerDisposable(this.ipcAdapter)
 
       logger.info('Data API system initialized successfully')
 
@@ -66,20 +67,6 @@ export class DataApiService extends BaseService {
       this.logSystemInfo()
     } catch (error) {
       logger.error('Failed to initialize Data API system', error as Error)
-      throw error
-    }
-  }
-
-  protected async onStop(): Promise<void> {
-    try {
-      logger.info('Shutting down Data API system...')
-
-      // Remove IPC handlers
-      this.ipcAdapter.removeHandlers()
-
-      logger.info('Data API system shutdown complete')
-    } catch (error) {
-      logger.error('Error during Data API shutdown', error as Error)
       throw error
     }
   }
@@ -113,7 +100,6 @@ export class DataApiService extends BaseService {
 
     return {
       initialized: true,
-      ipcInitialized: this.ipcAdapter.isInitialized(),
       ...systemInfo
     }
   }

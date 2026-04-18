@@ -2,7 +2,7 @@
 
 The `BootConfigMigrator` migrates early-boot configuration from legacy storage into `bootConfigService` — the synchronous, file-based config used by code that runs before the lifecycle system takes over (e.g. Chromium flags, custom userData directory).
 
-Unlike other migrators, it writes to a **file-based store** (`~/.cherrystudio/boot-config.json`) rather than a SQLite table. See [Boot Config Overview](../../../../../docs/en/references/data/boot-config-overview.md) for why this system exists.
+Unlike other migrators, it writes to a **file-based store** (`~/.cherrystudio/boot-config.json`) rather than a SQLite table. See [Boot Config Overview](../../../../../../docs/references/data/boot-config-overview.md) for why this system exists.
 
 ## Data Sources
 
@@ -68,14 +68,16 @@ Returns `null` (not `{}`) when no data is present (missing file / parse error / 
 - `mappings/BootConfigMappings.ts` — auto-generated mappings for the 4 classification-driven sources. The `targetKey: BootConfigKey` type annotation (emitted by `generate-migration.js`) provides the regen safety net: if a key is removed from the schema, mapping references fail to compile.
 - `../../../../../packages/shared/data/bootConfig/bootConfigSchemas.ts` — fully auto-generated schema (classification keys + `MANUAL_BOOT_CONFIG_ITEMS` from `generate-boot-config.js`). Single `BootConfigSchema` interface, single `DefaultBootConfig` const.
 
-## Known Limitation: AppImage / Windows Portable Executable Path
+## AppImage / Windows Portable Executable Path
 
 On AppImage Linux and Windows portable builds, v1's `init.ts:51-60` writes a **special** `executablePath` into `config.json`:
 
 - AppImage: `path.dirname(APPIMAGE) + '/cherry-studio.appimage'`
 - Windows portable: `PORTABLE_EXECUTABLE_DIR + '/cherry-studio-portable.exe'`
 
-These differ from `app.getPath('exe')`. `LegacyHomeConfigReader` does NOT reproduce this normalization — array entries are migrated verbatim with their original `executablePath` key, and the legacy-string fallback uses raw `app.getPath('exe')`. This is harmless for the current PR because nothing yet **reads** `app.user_data_path`. The follow-up PR that rewires `initAppDataDir()` to consume the migrated record **must** apply the same exe-path normalization on the read side, otherwise AppImage/portable users' migrated entries will never match the lookup key.
+These differ from `app.getPath('exe')`. `LegacyHomeConfigReader` does NOT reproduce this normalization — array entries are migrated verbatim with their original `executablePath` key, and the legacy-string fallback uses raw `app.getPath('exe')`.
+
+**Migration-time impact is resolved**: `resolveMigrationPaths()` in `core/MigrationPaths.ts` performs its own legacy config detection using `getNormalizedExecutablePath()` (from `userDataLocation.ts`), which correctly normalizes AppImage/portable exe paths. This runs before the migration engine starts, ensuring the correct userData is used for all migration operations. `LegacyHomeConfigReader` still uses raw `app.getPath('exe')` for the BootConfig migration write, but the consumer side (`resolveUserDataLocation()`) also uses the normalized path for lookup, so both sides match for array-format entries. For string-format entries, `LegacyHomeConfigReader` keys by raw exe while the preboot lookup uses normalized exe — this mismatch is harmless because `resolveMigrationPaths()` has already pre-written the correct normalized-key entry to boot-config.json.
 
 ## Code Quality
 

@@ -1,4 +1,4 @@
-import { application } from '@main/core/application'
+import { application } from '@application'
 import { app } from 'electron'
 import macosRelease from 'macos-release'
 import os from 'os'

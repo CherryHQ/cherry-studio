@@ -1,7 +1,7 @@
+import { loggerService } from '@logger'
 import type { Request, Response } from 'express'
 
 import { agentService } from '../../../../services/agents'
-import { loggerService } from '../../../../services/LoggerService'
 
 const logger = loggerService.withContext('ApiServerMiddleware')
 

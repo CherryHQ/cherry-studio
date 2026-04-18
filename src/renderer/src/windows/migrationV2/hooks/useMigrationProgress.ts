@@ -119,6 +119,10 @@ export function useMigrationActions() {
     return window.electron.ipcRenderer.invoke(MigrationIpcChannels.Restart)
   }, [])
 
+  const skipMigration = useCallback(() => {
+    return window.electron.ipcRenderer.invoke(MigrationIpcChannels.SkipMigration)
+  }, [])
+
   return {
     proceedToBackup,
     confirmBackup,
@@ -126,6 +130,7 @@ export function useMigrationActions() {
     startMigration,
     retry,
     cancel,
-    restart
+    restart,
+    skipMigration
   }
 }

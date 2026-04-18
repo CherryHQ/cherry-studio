@@ -7,11 +7,10 @@
  */
 
 import fs from 'node:fs'
-import os from 'node:os'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
-import { HOME_CHERRY_DIR } from '@shared/config/constant'
+import { BOOT_CONFIG_PATH } from '@main/core/paths/constants'
 import type { BootConfigSchema } from '@shared/data/bootConfig/bootConfigSchemas'
 import { DefaultBootConfig } from '@shared/data/bootConfig/bootConfigSchemas'
 import type { BootConfigKey } from '@shared/data/bootConfig/bootConfigTypes'
@@ -48,7 +47,9 @@ export class BootConfigService {
     // Stored under ~/.cherrystudio/ rather than userData so that:
     // 1. It survives a custom appDataPath setting (boot config decides where userData is, not the other way around).
     // 2. It can be read before initAppDataDir() rewrites the userData path.
-    this.filePath = path.join(os.homedir(), HOME_CHERRY_DIR, 'boot-config.json')
+    // BOOT_CONFIG_PATH is sourced from @main/core/paths/constants — a zero-dependency
+    // module specifically extracted so this service can avoid heavier imports.
+    this.filePath = BOOT_CONFIG_PATH
     this.config = this.loadSync()
   }
 

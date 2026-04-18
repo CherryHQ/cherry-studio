@@ -18,7 +18,6 @@ vi.mock('@renderer/services/AssistantService', () => ({
     defaultModel: undefined,
     customParameters: [],
     reasoning_effort: 'default',
-    reasoning_effort_cache: undefined,
     qwenThinkMode: undefined,
     toolUseMode: 'function',
     maxToolCalls: 20,
@@ -37,7 +36,6 @@ vi.mock('@renderer/services/AssistantService', () => ({
     defaultModel: assistant.defaultModel,
     customParameters: assistant.settings?.customParameters ?? [],
     reasoning_effort: assistant.settings?.reasoning_effort ?? 'default',
-    reasoning_effort_cache: assistant.settings?.reasoning_effort_cache,
     qwenThinkMode: assistant.settings?.qwenThinkMode
   }),
   getProviderByModel: (model: Model) => ({ id: model.provider, type: model.provider, models: [] })

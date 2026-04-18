@@ -13,7 +13,6 @@
  * import type { ApiSchemas, DataRequest } from '@shared/data/api'
  *
  * // Domain DTOs directly from schema files
- * import type { TestItem, CreateTestItemDto } from '@shared/data/api/schemas/test'
  * import type { Topic, CreateTopicDto } from '@shared/data/api/schemas/topics'
  * import type { Message, CreateMessageDto } from '@shared/data/api/schemas/messages'
  * import type { TranslateHistory, CreateTranslateHistoryDto } from '@shared/data/api/schemas/translate'
@@ -21,12 +20,16 @@
  */
 
 import type { AssertValidSchemas } from '../apiTypes'
+import type { AssistantSchemas } from './assistants'
 import type { FileProcessingSchemas } from './fileProcessing'
 import type { KnowledgeSchemas } from './knowledges'
 import type { MCPServerSchemas } from './mcpServers'
 import type { MessageSchemas } from './messages'
 import type { MiniappSchemas } from './miniapps'
-import type { TestSchemas } from './test'
+import type { ModelSchemas } from './models'
+import type { ProviderSchemas } from './providers'
+import type { TagSchemas } from './tags'
+import type { TemporaryChatSchemas } from './temporaryChats'
 import type { TopicSchemas } from './topics'
 import type { TranslateSchemas } from './translate'
 
@@ -44,12 +47,16 @@ import type { TranslateSchemas } from './translate'
  */
 
 export type ApiSchemas = AssertValidSchemas<
-  TestSchemas &
-    TopicSchemas &
+  TopicSchemas &
     MessageSchemas &
+    TemporaryChatSchemas &
+    ModelSchemas &
+    ProviderSchemas &
     TranslateSchemas &
     FileProcessingSchemas &
     MCPServerSchemas &
     KnowledgeSchemas &
-    MiniappSchemas
+    MiniappSchemas &
+    AssistantSchemas &
+    TagSchemas
 >

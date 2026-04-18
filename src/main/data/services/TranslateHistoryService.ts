@@ -2,9 +2,9 @@
  * Translate History Service - handles translate history CRUD
  */
 
+import { application } from '@application'
 import { translateHistoryTable } from '@data/db/schemas/translateHistory'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
 import type {

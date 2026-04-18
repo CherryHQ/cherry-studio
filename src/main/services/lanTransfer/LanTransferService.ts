@@ -1,8 +1,8 @@
 import * as crypto from 'node:crypto'
 import { createConnection, type Socket } from 'node:net'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type {
   LanClientEvent,

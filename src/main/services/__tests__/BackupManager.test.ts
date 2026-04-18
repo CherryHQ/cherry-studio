@@ -87,14 +87,18 @@ vi.mock('fs-extra', () => ({
   createReadStream: vi.fn()
 }))
 
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: {
     get: vi.fn((name: string) => {
       if (name === 'WindowService') {
         return { getMainWindow: vi.fn() }
       }
       throw new Error(`[MockApplication] Unknown service: ${name}`)
-    })
+    }),
+    // Mirrors tests/__mocks__/main/application.ts so that BackupManager methods
+    // calling application.getPath('app.userdata.data') still work in this test
+    // (this file overrides the global application mock from main.setup.ts).
+    getPath: vi.fn((key: string, filename?: string) => (filename ? `/mock/${key}/${filename}` : `/mock/${key}`))
   }
 }))
 
@@ -104,10 +108,6 @@ vi.mock('../WebDav', () => ({
 
 vi.mock('../S3Storage', () => ({
   default: vi.fn()
-}))
-
-vi.mock('../../utils', () => ({
-  getDataPath: vi.fn(() => '/mock/data')
 }))
 
 vi.mock('archiver', () => ({

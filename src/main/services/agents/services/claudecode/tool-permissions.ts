@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
 
 import type { PermissionResult, PermissionUpdate } from '@anthropic-ai/claude-agent-sdk'
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import { IpcChannel } from '@shared/IpcChannel'
 import { ipcMain } from 'electron'
 

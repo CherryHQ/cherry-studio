@@ -51,6 +51,9 @@ export { default as EditableNumber } from './composites/EditableNumber'
 export { HelpTooltip, type IconTooltipProps, InfoTooltip, WarnTooltip } from './composites/IconTooltips'
 // ImageToolButton
 export { default as ImageToolButton } from './composites/ImageToolButton'
+// MenuList
+export type { MenuDividerProps, MenuItemProps, MenuListProps } from './composites/MenuList'
+export { MenuDivider, MenuItem, menuItemVariants, MenuList } from './composites/MenuList'
 // Sortable
 export {
   CompositeInput,

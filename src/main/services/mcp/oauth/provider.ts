@@ -1,7 +1,5 @@
-import path from 'node:path'
-
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { getConfigDir } from '@main/utils/file'
 import type { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth'
 import type {
   OAuthClientInformation,
@@ -21,7 +19,7 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
   public readonly config: Required<OAuthProviderOptions>
 
   constructor(options: OAuthProviderOptions) {
-    const configDir = path.join(getConfigDir(), 'mcp', 'oauth')
+    const configDir = application.getPath('feature.mcp.oauth')
     this.config = {
       serverUrlHash: options.serverUrlHash,
       callbackPort: options.callbackPort || 12346,

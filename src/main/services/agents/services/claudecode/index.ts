@@ -9,7 +9,7 @@ import path from 'node:path'
 import type {
   CanUseTool,
   HookCallback,
-  McpHttpServerConfig,
+  McpServerConfig,
   Options,
   SDKMessage,
   SdkPluginConfig,
@@ -18,14 +18,16 @@ import type {
 } from '@anthropic-ai/claude-agent-sdk'
 import { query } from '@anthropic-ai/claude-agent-sdk'
 import type { Base64ImageSource, ContentBlockParam } from '@anthropic-ai/sdk/resources/messages/messages'
+import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { validateModelId } from '@main/apiServer/utils'
 import { isWin } from '@main/constant'
-import { application } from '@main/core/application'
 import AssistantServer from '@main/mcpServers/assistant'
 import BrowserServer from '@main/mcpServers/browser/server'
 import ClawServer from '@main/mcpServers/claw'
+import SkillsServer from '@main/mcpServers/skills'
+import WorkspaceMemoryServer from '@main/mcpServers/workspaceMemory'
 import { configManager } from '@main/services/ConfigManager'
 import {
   getNodeProxyConfigFromEnvironment,
@@ -53,12 +55,14 @@ import type {
   AgentStreamEvent,
   AgentThinkingOptions
 } from '../../interfaces/AgentStreamInterface'
+import { skillService } from '../../skills/SkillService'
 import { agentService } from '../AgentService'
 import { isProvisioned, provisionBuiltinAgent } from '../builtin/BuiltinAgentProvisioner'
 import { channelService } from '../ChannelService'
 import { PromptBuilder } from '../cherryclaw/prompt'
 import { sessionService } from '../SessionService'
 import { buildNamespacedToolCallId } from './claude-stream-state'
+import { createSdkMcpServerInstance } from './createSdkMcpServerInstance'
 import { promptForToolApproval } from './tool-permissions'
 import { ClaudeStreamState, transformSDKMessageToStreamParts } from './transform'
 
@@ -122,6 +126,19 @@ class ClaudeCodeService implements AgentServiceInterface {
       return aiStream
     }
 
+    // Sync per-agent skill symlinks in this workspace with the `agent_skills`
+    // DB state before we spin up the SDK. This repairs drift from external
+    // edits (user deleted a symlink, workspace was moved, etc.) so Claude
+    // Code sees exactly the set of skills the agent should have enabled.
+    try {
+      await skillService.reconcileAgentSkills(session.agent_id, cwd)
+    } catch (error) {
+      logger.warn('Failed to reconcile agent skills before session start', {
+        agentId: session.agent_id,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
+
     // Validate model info
     const modelInfo = await validateModelId(session.model)
     if (!modelInfo.valid) {
@@ -162,11 +179,6 @@ class ClaudeCodeService implements AgentServiceInterface {
       provider.apiKey = provider.id
     }
 
-    const apiConfig = application.get('PreferenceService').getMultiple({
-      host: 'feature.csaas.host',
-      port: 'feature.csaas.port',
-      apiKey: 'feature.csaas.api_key'
-    })
     const loginShellEnv = await getLoginShellEnvironment()
 
     // Auto-discover Git Bash path on Windows (already logs internally)
@@ -206,9 +218,11 @@ class ClaudeCodeService implements AgentServiceInterface {
       ELECTRON_RUN_AS_NODE: '1',
       ELECTRON_NO_ATTACH_CONSOLE: '1',
       // Set CLAUDE_CONFIG_DIR to app's userData directory to avoid path encoding issues
-      // on Windows when the username contains non-ASCII characters (e.g., Chinese characters)
-      // This prevents the SDK from using the user's home directory which may have encoding problems
-      CLAUDE_CONFIG_DIR: path.join(app.getPath('userData'), '.claude'),
+      // on Windows when the username contains non-ASCII characters (e.g., Chinese characters).
+      // This prevents the SDK from using the user's home directory which may have encoding problems.
+      // Per-agent skills live in `<cwd>/.claude/skills/` and are picked up by the SDK's
+      // project-level skill loading layer — no need to point CLAUDE_CONFIG_DIR at the workspace.
+      CLAUDE_CONFIG_DIR: application.getPath('feature.agents.claude.root'),
       ENABLE_TOOL_SEARCH: 'auto',
       CHERRY_STUDIO_BUN_PATH: bunPath,
       ...(customGitBashPath ? { CLAUDE_CODE_GIT_BASH_PATH: customGitBashPath } : {})
@@ -422,6 +436,21 @@ class ClaudeCodeService implements AgentServiceInterface {
       | undefined
     const isAssistant = builtinRole === 'assistant'
 
+    // For non-Soul, non-Assistant agents we still want the model to know how
+    // to use the skills + memory MCP servers we inject for everyone, plus the
+    // shared web tool strategy. This is a lightweight strategy suffix that
+    // sits on top of the SDK's `claude_code` preset rather than replacing it.
+    // Soul agents already get the full guidance via `soulSystemPrompt`, and
+    // Cherry Assistant has its own specialized prompt path.
+    const nonSoulToolGuidance = !soulEnabled && !isAssistant ? promptBuilder.buildToolGuidance() : ''
+
+    // Recall side of the cross-session learning loop for non-Soul agents:
+    // load `memory/FACT.md` (written via the memory tool in previous sessions)
+    // back into the system prompt so the agent remembers what it learned.
+    // Soul agents already get this via `soulSystemPrompt`'s memories section.
+    const nonSoulFactsRecall =
+      !soulEnabled && !isAssistant && cwd ? await promptBuilder.buildFactsSection(cwd) : undefined
+
     // Provision built-in agent workspace (copy skills/plugins to working directory)
     if (builtinRole && cwd && !isProvisioned(cwd)) {
       const agentConfig = await provisionBuiltinAgent(cwd, builtinRole)
@@ -452,6 +481,11 @@ class ClaudeCodeService implements AgentServiceInterface {
       pathToClaudeCodeExecutable: this.claudeExecutablePath,
       spawnClaudeCodeProcess: (spawnOptions) => {
         const childEnv = { ...spawnOptions.env } as NodeJS.ProcessEnv
+
+        // Ensure the child process can resolve native modules (e.g. @img/sharp)
+        // that live in asar.unpacked alongside the SDK
+        childEnv.NODE_PATH = toAsarUnpackedPath(path.join(app.getAppPath(), 'node_modules'))
+
         let execArgv = process.execArgv
 
         const activeProxyConfig = getNodeProxyConfigFromEnvironment(childEnv)
@@ -483,20 +517,16 @@ class ClaudeCodeService implements AgentServiceInterface {
         return child as unknown as SpawnedProcess
       },
       systemPrompt: assistantSystemPrompt
-        ? `${assistantSystemPrompt}\n\n${getLanguageInstruction()}`
+        ? assistantSystemPrompt
         : soulSystemPrompt
           ? `${soulSystemPrompt}${channelSecurityBlock}\n\n${getLanguageInstruction()}`
-          : session.instructions
-            ? {
-                type: 'preset',
-                preset: 'claude_code',
-                append: `${session.instructions}${channelSecurityBlock}\n\n${getLanguageInstruction()}`
-              }
-            : {
-                type: 'preset',
-                preset: 'claude_code',
-                append: `${channelSecurityBlock}\n\n${getLanguageInstruction()}`
-              },
+          : {
+              type: 'preset',
+              preset: 'claude_code',
+              append:
+                [nonSoulToolGuidance, nonSoulFactsRecall, session.instructions].filter(Boolean).join('\n\n') +
+                `${channelSecurityBlock}\n\n${getLanguageInstruction()}`
+            },
       // Built-in agents skip CLAUDE.md loading to save tokens
       settingSources: builtinRole ? [] : ['project', 'local'],
       includePartialMessages: true,
@@ -527,15 +557,14 @@ class ClaudeCodeService implements AgentServiceInterface {
     }
 
     if (session.mcps && session.mcps.length > 0) {
-      // mcp configs
-      const mcpList: Record<string, McpHttpServerConfig> = {}
+      // Use in-memory SDK transport instead of HTTP proxy for reliability
+      const mcpList: Record<string, McpServerConfig> = {}
       for (const mcpId of session.mcps) {
-        mcpList[mcpId] = {
-          type: 'http',
-          url: `http://${apiConfig.host}:${apiConfig.port}/v1/mcps/${mcpId}/mcp`,
-          headers: {
-            Authorization: `Bearer ${apiConfig.apiKey}`
-          }
+        try {
+          const sdkServer = await createSdkMcpServerInstance(mcpId)
+          mcpList[mcpId] = { type: 'sdk', name: mcpId, instance: sdkServer }
+        } catch (error) {
+          logger.error(`Failed to create SDK MCP bridge for ${mcpId}, skipping`, { error })
         }
       }
       options.mcpServers = mcpList
@@ -553,13 +582,53 @@ class ClaudeCodeService implements AgentServiceInterface {
       url: 'https://mcp.exa.ai/mcp'
     }
 
+    // Inject skills MCP for all agents — managing Claude skills (search / install
+    // / list / remove / init / register) is a generally useful capability and is
+    // not coupled to Soul Mode's autonomous-agent semantics.
+    const skillsServer = new SkillsServer(session.agent_id)
+    options.mcpServers.skills = { type: 'sdk', name: 'skills', instance: skillsServer.mcpServer }
+    // Auto-approve via Cherry Studio's own permission gate. The SDK whitelist
+    // (`options.allowedTools`) takes glob patterns, but `canUseTool` checks
+    // `autoAllowTools` with exact string matching, so we have to add the full
+    // tool names there too — otherwise non-Soul agents (which do not run in
+    // bypassPermissions mode) get an approval prompt for every call.
+    autoAllowTools.add('mcp__skills__skills')
+    if (Array.isArray(options.allowedTools) && options.allowedTools.length > 0) {
+      if (!options.allowedTools.includes('mcp__skills__*')) {
+        options.allowedTools = [...options.allowedTools, 'mcp__skills__*']
+      }
+    }
+
+    // Inject agent workspace memory MCP for all agents — cross-session FACT.md /
+    // JOURNAL.jsonl in the agent's workspace. Distinct from the user-opt-in
+    // built-in `memory-server` (knowledge graph). Any agent with a stable
+    // workspace benefits from this.
+    const workspaceMemoryServer = new WorkspaceMemoryServer(session.agent_id)
+    options.mcpServers['agent-memory'] = {
+      type: 'sdk',
+      name: 'agent-memory',
+      instance: workspaceMemoryServer.mcpServer
+    }
+    autoAllowTools.add('mcp__agent-memory__memory')
+    if (Array.isArray(options.allowedTools) && options.allowedTools.length > 0) {
+      if (!options.allowedTools.includes('mcp__agent-memory__*')) {
+        options.allowedTools = [...options.allowedTools, 'mcp__agent-memory__*']
+      }
+    }
+
     if (soulEnabled) {
       // Find the channel that owns this session (if any) for context-aware cron defaults
       const sourceChannelId = await this.resolveSourceChannel(session.agent_id, session.id)
       const clawServer = new ClawServer(session.agent_id, sourceChannelId)
       options.mcpServers.claw = { type: 'sdk', name: 'claw', instance: clawServer.mcpServer }
 
-      // Ensure claw MCP tools are in allowed_tools whitelist
+      // Auto-approve claw MCP tools at both layers (see skills/memory above
+      // for the SDK-glob vs canUseTool-exact-match rationale). Soul agents
+      // typically run in bypassPermissions, so this is defense in depth, but
+      // it lets claw also work for any future non-bypass Soul session.
+      autoAllowTools.add('mcp__claw__cron')
+      autoAllowTools.add('mcp__claw__notify')
+      autoAllowTools.add('mcp__claw__config')
       if (Array.isArray(options.allowedTools) && options.allowedTools.length > 0) {
         if (!options.allowedTools.includes('mcp__claw__*')) {
           options.allowedTools = [...options.allowedTools, 'mcp__claw__*']
@@ -577,7 +646,10 @@ class ClaudeCodeService implements AgentServiceInterface {
       const assistantServer = new AssistantServer()
       options.mcpServers.assistant = { type: 'sdk', name: 'assistant', instance: assistantServer.mcpServer }
 
-      // Auto-approve assistant MCP tools
+      // Auto-approve assistant MCP tools at both layers (see skills/memory
+      // above for the SDK-glob vs canUseTool-exact-match rationale).
+      autoAllowTools.add('mcp__assistant__navigate')
+      autoAllowTools.add('mcp__assistant__diagnose')
       if (Array.isArray(options.allowedTools) && options.allowedTools.length > 0) {
         if (!options.allowedTools.includes('mcp__assistant__*')) {
           options.allowedTools = [...options.allowedTools, 'mcp__assistant__*']

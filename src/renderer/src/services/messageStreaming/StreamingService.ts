@@ -577,7 +577,6 @@ class StreamingService {
       data: { blocks: [] },
       status: 'pending',
       siblingsGroupId,
-      assistantId,
       modelId,
       traceId
     }

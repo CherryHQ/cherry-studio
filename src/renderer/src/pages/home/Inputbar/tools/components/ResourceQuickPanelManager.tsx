@@ -24,6 +24,7 @@ const ResourceQuickPanelManager = ({ context }: ManagerProps) => {
       quickPanel,
       quickPanelController,
       accessiblePaths,
+      agentId: session?.agentId,
       setText: onTextChange as React.Dispatch<React.SetStateAction<string>>
     },
     'manager'
