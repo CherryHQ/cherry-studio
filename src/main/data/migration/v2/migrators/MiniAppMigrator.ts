@@ -3,7 +3,7 @@
  */
 
 import type { MiniAppInsert, MiniAppStatus } from '@data/db/schemas/miniapp'
-import { miniappTable } from '@data/db/schemas/miniapp'
+import { miniAppTable } from '@data/db/schemas/miniapp'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import { sql } from 'drizzle-orm'
@@ -22,15 +22,18 @@ export class MiniAppMigrator extends BaseMigrator {
 
   private preparedRows: MiniAppInsert[] = []
   private skippedCount = 0
+  private originalSourceCount = 0
 
   override reset(): void {
     this.preparedRows = []
     this.skippedCount = 0
+    this.originalSourceCount = 0
   }
 
   async prepare(ctx: MigrationContext): Promise<PrepareResult> {
     this.preparedRows = []
     this.skippedCount = 0
+    this.originalSourceCount = 0
 
     try {
       const warnings: string[] = []
@@ -41,7 +44,7 @@ export class MiniAppMigrator extends BaseMigrator {
       }>('minapps')
 
       if (!state) {
-        logger.info('No minapps state found, skipping migration')
+        logger.info('No miniapps state found, skipping migration')
         return { success: true, itemCount: 0 }
       }
 
@@ -51,6 +54,9 @@ export class MiniAppMigrator extends BaseMigrator {
         { data: state.disabled ?? [], status: 'disabled' },
         { data: state.pinned ?? [], status: 'pinned' }
       ]
+
+      // Calculate original source count (total apps before filtering/deduplication)
+      this.originalSourceCount = groups.reduce((total, group) => total + group.data.length, 0)
 
       // Track seen IDs to detect duplicates across groups
       // A pinned app also appears in enabled — prefer the pinned status (higher priority)
@@ -74,6 +80,13 @@ export class MiniAppMigrator extends BaseMigrator {
 
           try {
             const row = transformMiniApp(app, status, i)
+
+            // Skip rows with empty required fields (ghost apps)
+            if (!row.name || !row.url) {
+              this.skippedCount++
+              warnings.push(`Skipped ${status} app ${app.id}: missing name or url`)
+              continue
+            }
 
             // If already seen with same or higher priority, keep existing
             // If seen with lower priority, replace (e.g. enabled -> pinned)
@@ -146,7 +159,7 @@ export class MiniAppMigrator extends BaseMigrator {
       await ctx.db.transaction(async (tx) => {
         for (let i = 0; i < this.preparedRows.length; i += BATCH_SIZE) {
           const batch = this.preparedRows.slice(i, i + BATCH_SIZE)
-          await tx.insert(miniappTable).values(batch)
+          await tx.insert(miniAppTable).values(batch)
           processed += batch.length
         }
       })
@@ -171,7 +184,7 @@ export class MiniAppMigrator extends BaseMigrator {
 
   async validate(ctx: MigrationContext): Promise<ValidateResult> {
     try {
-      const result = await ctx.db.select({ count: sql<number>`count(*)` }).from(miniappTable).get()
+      const result = await ctx.db.select({ count: sql<number>`count(*)` }).from(miniAppTable).get()
       const appCount = result?.count ?? 0
       const errors: { key: string; message: string }[] = []
 
@@ -182,22 +195,25 @@ export class MiniAppMigrator extends BaseMigrator {
         })
       }
 
-      // Sample validation: check required fields
-      const sample = await ctx.db.select().from(miniappTable).limit(5).all()
-      for (const app of sample) {
-        if (!app.appId || !app.name || !app.url) {
-          errors.push({
-            key: app.appId ?? 'unknown',
-            message: 'Missing required field (appId, name, or url)'
-          })
-        }
+      // Full validation: check for rows with empty required fields
+      const badRows = await ctx.db
+        .select({ count: sql<number>`count(*)` })
+        .from(miniAppTable)
+        .where(sql`${miniAppTable.appId} = '' OR ${miniAppTable.name} = '' OR ${miniAppTable.url} = ''`)
+        .get()
+      const badCount = badRows?.count ?? 0
+      if (badCount > 0) {
+        errors.push({
+          key: 'empty_fields',
+          message: `Found ${badCount} rows with empty appId, name, or url`
+        })
       }
 
       return {
         success: errors.length === 0,
         errors,
         stats: {
-          sourceCount: this.preparedRows.length,
+          sourceCount: this.originalSourceCount,
           targetCount: appCount,
           skippedCount: this.skippedCount
         }
@@ -208,7 +224,7 @@ export class MiniAppMigrator extends BaseMigrator {
         success: false,
         errors: [{ key: 'validation', message: error instanceof Error ? error.message : String(error) }],
         stats: {
-          sourceCount: this.preparedRows.length,
+          sourceCount: this.originalSourceCount,
           targetCount: 0,
           skippedCount: this.skippedCount
         }

@@ -2121,7 +2121,7 @@
   },
   "launchpad": {
     "apps": "アプリ",
-    "minapps": "アプリ"
+    "miniapps": "アプリ"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2476,7 +2476,7 @@
       "rag_failed": "RAGが失敗しました。空の結果を返します..."
     }
   },
-  "minapp": {
+  "miniapp": {
     "add_to_launchpad": "スタート画面に追加",
     "add_to_sidebar": "サイドバーに追加",
     "popup": {
@@ -2507,9 +2507,10 @@
         "title": "カスタムアプリを削除"
       }
     },
-    "title": "ミニアプリ"
+    "title": "ミニアプリ",
+    "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
-  "minapps": {
+  "miniapps": {
     "ant-ling": "Ant Ling",
     "baichuan": "百小應",
     "baidu-ai-search": "百度AI検索",
@@ -4521,7 +4522,7 @@
         "knowledge": {
           "icon": "ナレッジのアイコンを表示"
         },
-        "minapp": {
+        "miniapp": {
           "icon": "ミニアプリのアイコンを表示"
         },
         "painting": {

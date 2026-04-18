@@ -2121,7 +2121,7 @@
   },
   "launchpad": {
     "apps": "Приложения",
-    "minapps": "Приложения"
+    "miniapps": "Приложения"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2476,7 +2476,7 @@
       "rag_failed": "RAG не удалось, возвращается пустой результат..."
     }
   },
-  "minapp": {
+  "miniapp": {
     "add_to_launchpad": "Добавить в стартовый экран",
     "add_to_sidebar": "Добавить в боковую панель",
     "popup": {
@@ -2507,9 +2507,10 @@
         "title": "Удалить пользовательское приложение"
       }
     },
-    "title": "Встроенные приложения"
+    "title": "Встроенные приложения",
+    "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
-  "minapps": {
+  "miniapps": {
     "ant-ling": "Ant Ling",
     "baichuan": "Байчжан",
     "baidu-ai-search": "Baidu AI Search",
@@ -4521,7 +4522,7 @@
         "knowledge": {
           "icon": "Показывать иконку знаний"
         },
-        "minapp": {
+        "miniapp": {
           "icon": "Показывать иконку мини-приложения"
         },
         "painting": {

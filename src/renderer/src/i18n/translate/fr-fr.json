@@ -2121,7 +2121,7 @@
   },
   "launchpad": {
     "apps": "Applications",
-    "minapps": "Mini-applications"
+    "miniapps": "Mini-applications"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2476,7 +2476,7 @@
       "rag_failed": "Échec de la RAG, retour d'un résultat vide..."
     }
   },
-  "minapp": {
+  "miniapp": {
     "add_to_launchpad": "Ajouter au tableau de bord",
     "add_to_sidebar": "Ajouter à la barre latérale",
     "popup": {
@@ -2507,9 +2507,10 @@
         "title": "Supprimer l'application personnalisée"
       }
     },
-    "title": "Mini-programme"
+    "title": "Mini-programme",
+    "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
-  "minapps": {
+  "miniapps": {
     "ant-ling": "Ant Ling",
     "baichuan": "Baichuan",
     "baidu-ai-search": "Baidu AI Search",
@@ -4521,7 +4522,7 @@
         "knowledge": {
           "icon": "Afficher l'icône des connaissances"
         },
-        "minapp": {
+        "miniapp": {
           "icon": "Afficher l'icône des applications minimisées"
         },
         "painting": {

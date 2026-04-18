@@ -2121,7 +2121,7 @@
   },
   "launchpad": {
     "apps": "Εφαρμογές",
-    "minapps": "Μικρές εφαρμογές"
+    "miniapps": "Μικρές εφαρμογές"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2476,7 +2476,7 @@
       "rag_failed": "Το RAG απέτυχε, επιστρέφεται κενό αποτέλεσμα..."
     }
   },
-  "minapp": {
+  "miniapp": {
     "add_to_launchpad": "Προσθήκη στο Launchpad",
     "add_to_sidebar": "Προσθήκη στην πλευρική μπάρα",
     "popup": {
@@ -2507,9 +2507,10 @@
         "title": "Διαγραφή προσαρμοσμένης εφαρμογής"
       }
     },
-    "title": "Μικρόπρογραμμα"
+    "title": "Μικρόπρογραμμα",
+    "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
-  "minapps": {
+  "miniapps": {
     "ant-ling": "Ant Ling",
     "baichuan": "Baichuan",
     "baidu-ai-search": "Baidu AI Search",
@@ -4521,7 +4522,7 @@
         "knowledge": {
           "icon": "Εμφάνιση εικονιδίου γνώσης"
         },
-        "minapp": {
+        "miniapp": {
           "icon": "Εμφάνιση εικονιδίου μικροπρογραμμάτων"
         },
         "painting": {

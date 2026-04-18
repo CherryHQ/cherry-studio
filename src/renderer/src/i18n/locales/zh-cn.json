@@ -2121,7 +2121,7 @@
   },
   "launchpad": {
     "apps": "应用",
-    "minapps": "小程序"
+    "miniapps": "小程序"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2476,7 +2476,7 @@
       "rag_failed": "RAG 失败，返回空结果..."
     }
   },
-  "minapp": {
+  "miniapp": {
     "add_to_launchpad": "添加到启动台",
     "add_to_sidebar": "添加到侧边栏",
     "popup": {
@@ -2507,9 +2507,10 @@
         "title": "删除自定义应用"
       }
     },
-    "title": "小程序"
+    "title": "小程序",
+    "update_partial_failure": "{{failed}}/{{total}} 项更新失败"
   },
-  "minapps": {
+  "miniapps": {
     "ant-ling": "蚂蚁百灵",
     "baichuan": "百小应",
     "baidu-ai-search": "百度AI搜索",
@@ -4521,7 +4522,7 @@
         "knowledge": {
           "icon": "显示知识图标"
         },
-        "minapp": {
+        "miniapp": {
           "icon": "显示小程序图标"
         },
         "painting": {

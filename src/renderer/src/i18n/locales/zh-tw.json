@@ -2121,7 +2121,7 @@
   },
   "launchpad": {
     "apps": "應用",
-    "minapps": "小程式"
+    "miniapps": "小程式"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2476,7 +2476,7 @@
       "rag_failed": "RAG 失敗，回傳空結果..."
     }
   },
-  "minapp": {
+  "miniapp": {
     "add_to_launchpad": "新增到啟動台",
     "add_to_sidebar": "新增到側邊欄",
     "popup": {
@@ -2507,9 +2507,10 @@
         "title": "刪除自訂小工具"
       }
     },
-    "title": "小工具"
+    "title": "小工具",
+    "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
-  "minapps": {
+  "miniapps": {
     "ant-ling": "Ant Ling",
     "baichuan": "百小應",
     "baidu-ai-search": "百度 AI 搜尋",
@@ -4521,7 +4522,7 @@
         "knowledge": {
           "icon": "顯示知識圖示"
         },
-        "minapp": {
+        "miniapp": {
           "icon": "顯示小工具圖示"
         },
         "painting": {

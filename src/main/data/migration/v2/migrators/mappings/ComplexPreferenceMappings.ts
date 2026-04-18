@@ -141,6 +141,25 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     transform: transformShortcuts
   },
 
+  // Sidebar icons: rewrite 'minapp' → 'mini_app' (v1→v2 rename)
+  {
+    id: 'sidebar_icons_rename',
+    description: "Rewrite legacy 'minapp' icon key to 'mini_app' in sidebar icon arrays",
+    sources: {
+      visible: { source: 'redux', category: 'settings', key: 'sidebarIcons.visible' },
+      disabled: { source: 'redux', category: 'settings', key: 'sidebarIcons.disabled' }
+    },
+    targetKeys: ['ui.sidebar.icons.visible', 'ui.sidebar.icons.invisible'],
+    transform: (sources) => {
+      const rewrite = (arr: unknown): unknown =>
+        Array.isArray(arr) ? arr.map((v) => (v === 'minapp' ? 'mini_app' : v)) : arr
+      return {
+        'ui.sidebar.icons.visible': rewrite(sources.visible),
+        'ui.sidebar.icons.invisible': rewrite(sources.disabled)
+      }
+    }
+  },
+
   // File processing overrides merging
   {
     id: 'file_processing_overrides_merge',

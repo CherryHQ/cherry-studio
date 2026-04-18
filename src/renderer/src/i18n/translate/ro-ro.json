@@ -2121,7 +2121,7 @@
   },
   "launchpad": {
     "apps": "Aplicații",
-    "minapps": "Mini-aplicații"
+    "miniapps": "Mini-aplicații"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2476,15 +2476,15 @@
       "rag_failed": "RAG a eșuat, se returnează rezultate goale..."
     }
   },
-  "minapp": {
+  "miniapp": {
     "add_to_launchpad": "Adaugă în Launchpad",
     "add_to_sidebar": "Adaugă în bara laterală",
     "popup": {
-      "close": "Închide MinApp",
+      "close": "Închide MiniApp",
       "devtools": "Instrumente dezvoltator",
       "goBack": "Mergi înapoi",
       "goForward": "Mergi înainte",
-      "minimize": "Minimizează MinApp",
+      "minimize": "Minimizează MiniApp",
       "openExternal": "Deschide în browser",
       "open_link_external_off": "Curent: Deschide linkurile în fereastra implicită",
       "open_link_external_on": "Curent: Deschide linkurile în browser",
@@ -2507,9 +2507,10 @@
         "title": "Șterge aplicația personalizată"
       }
     },
-    "title": "MinApp"
+    "title": "MiniApp",
+    "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
-  "minapps": {
+  "miniapps": {
     "ant-ling": "Ant Ling",
     "baichuan": "Baichuan",
     "baidu-ai-search": "Baidu AI Search",
@@ -3904,7 +3905,7 @@
       },
       "clear_cache": {
         "button": "Golește memoria cache",
-        "confirm": "Golirea memoriei cache va șterge datele cache ale aplicației, inclusiv datele minapp. Această acțiune este ireversibilă, continui?",
+        "confirm": "Golirea memoriei cache va șterge datele cache ale aplicației, inclusiv datele miniapp. Această acțiune este ireversibilă, continui?",
         "error": "Eroare la golirea memoriei cache",
         "success": "Memoria cache a fost golită",
         "title": "Golește memoria cache"
@@ -4521,8 +4522,8 @@
         "knowledge": {
           "icon": "Afișează pictograma Cunoștințe"
         },
-        "minapp": {
-          "icon": "Afișează pictograma MinApp"
+        "miniapp": {
+          "icon": "Afișează pictograma MiniApp"
         },
         "painting": {
           "icon": "Afișează pictograma Imagini"

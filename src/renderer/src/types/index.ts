@@ -12,11 +12,9 @@ import type { LanguageModelV3Source } from '@ai-sdk/provider'
 import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 import type OpenAI from '@cherrystudio/openai'
 import type { GenerateImagesConfig, GroundingMetadata, PersonGeneration } from '@google/genai'
-export type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
-import type { CSSProperties } from 'react'
-
 export * from './file'
 export * from './note'
+export type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 
 import type { TranslateLanguageCode } from '@shared/data/preference/preferenceTypes'
 import type { MCPServer } from '@shared/data/types/mcpServer'
@@ -514,27 +512,6 @@ export interface PaintingsState {
   ppio_edit: PpioPainting[]
 }
 
-export type MinAppType = {
-  id: string
-  name: string
-  /** i18n key for translatable names */
-  nameKey?: string
-  /** Regions where this app is available. If includes 'Global', shown to international users. */
-  supportedRegions?: MinAppRegion[]
-  logo?: string
-  url: string
-  bordered?: boolean
-  background?: string
-  style?: CSSProperties
-  addTime?: string
-  type?: 'Custom' | 'Default' // Added the 'type' property
-}
-
-/** Region types for miniapps visibility */
-export type MinAppRegion = 'CN' | 'Global'
-
-export type MinAppRegionFilter = 'auto' | MinAppRegion
-
 export enum ThemeMode {
   light = 'light',
   dark = 'dark',
@@ -677,20 +654,6 @@ export type AutoDetectionMethod = keyof typeof AutoDetectionMethods
 export const isAutoDetectionMethod = (method: string): method is AutoDetectionMethod => {
   return Object.hasOwn(AutoDetectionMethods, method)
 }
-
-// by fullex @ data refactor
-// export type SidebarIcon =
-//   | 'assistants'
-//   | 'agents'
-//   | 'store'
-//   | 'paintings'
-//   | 'translate'
-//   | 'minapp'
-//   | 'knowledge'
-//   | 'files'
-//   | 'code_tools'
-//   | 'notes'
-// | 'openclaw'
 
 export type ExternalToolResult = {
   mcpTools?: MCPTool[]

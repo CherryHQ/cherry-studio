@@ -22,7 +22,7 @@ import {
   DEFAULT_TEMPERATURE,
   isMac
 } from '@renderer/config/constant'
-import { allMinApps } from '@renderer/config/minapps'
+import { allMiniApps } from '@renderer/config/miniapps'
 import { isFunctionCallingModel, isNotSupportTextDeltaModel, qwenModel, SYSTEM_MODELS } from '@renderer/config/models'
 import { BUILTIN_OCR_PROVIDERS, BUILTIN_OCR_PROVIDERS_MAP, DEFAULT_OCR_PROVIDER } from '@renderer/config/ocr'
 import { SYSTEM_PROVIDERS } from '@renderer/config/providers'
@@ -95,7 +95,7 @@ function removeMiniAppFromState(state: RootState, id: string) {
 
 function addMiniApp(state: RootState, id: string) {
   if (state.minapps) {
-    const app = allMinApps.find((app) => app.id === id)
+    const app = allMiniApps.find((app) => app.id === id)
     if (app) {
       if (!state.minapps.enabled.find((app) => app.id === id)) {
         state.minapps.enabled.push(app)
@@ -1073,7 +1073,7 @@ const migrateConfig = {
 
       if (state.minapps) {
         appIds.forEach((id) => {
-          const app = allMinApps.find((app) => app.id === id)
+          const app = allMiniApps.find((app) => app.id === id)
           if (app) {
             state.minapps.enabled.push(app)
           }

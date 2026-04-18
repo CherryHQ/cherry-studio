@@ -12,12 +12,12 @@ import { createUpdateTimestamps } from './_columnHelpers'
 
 export type MiniAppStatus = 'enabled' | 'disabled' | 'pinned'
 
-export type MiniAppType = 'default' | 'custom'
+export type MiniAppKind = 'default' | 'custom'
 
 export type MiniAppRegion = 'CN' | 'Global'
 
-export const miniappTable = sqliteTable(
-  'miniapp',
+export const miniAppTable = sqliteTable(
+  'mini_app',
   {
     appId: text('app_id').primaryKey(),
     // Display name
@@ -28,8 +28,8 @@ export const miniappTable = sqliteTable(
     // Logo URL or base64 data
     logo: text(),
 
-    // App type: default (system) or custom (user-added)
-    type: text().$type<MiniAppType>().notNull().default('custom'),
+    // App kind: default (system) or custom (user-added)
+    kind: text().$type<MiniAppKind>().notNull().default('custom'),
 
     // User status for this app
     status: text().$type<MiniAppStatus>().notNull().default('enabled'),
@@ -56,13 +56,13 @@ export const miniappTable = sqliteTable(
     ...createUpdateTimestamps
   },
   (t) => [
-    index('miniapp_status_sort_idx').on(t.status, t.sortOrder),
-    index('miniapp_type_idx').on(t.type),
-    index('miniapp_status_type_idx').on(t.status, t.type),
-    check('miniapp_status_check', sql`${t.status} IN ('enabled', 'disabled', 'pinned')`),
-    check('miniapp_type_check', sql`${t.type} IN ('default', 'custom')`)
+    index('mini_app_status_sort_idx').on(t.status, t.sortOrder),
+    index('mini_app_kind_idx').on(t.kind),
+    index('mini_app_status_kind_idx').on(t.status, t.kind),
+    check('mini_app_status_check', sql`${t.status} IN ('enabled', 'disabled', 'pinned')`),
+    check('mini_app_kind_check', sql`${t.kind} IN ('default', 'custom')`)
   ]
 )
 
-export type MiniAppSelect = typeof miniappTable.$inferSelect
-export type MiniAppInsert = typeof miniappTable.$inferInsert
+export type MiniAppSelect = typeof miniAppTable.$inferSelect
+export type MiniAppInsert = typeof miniAppTable.$inferInsert

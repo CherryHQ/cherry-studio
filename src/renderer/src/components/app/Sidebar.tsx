@@ -2,8 +2,8 @@ import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { AppLogo } from '@renderer/config/env'
 import useAvatar from '@renderer/hooks/useAvatar'
-import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
-import { useMinapps } from '@renderer/hooks/useMinapps'
+import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
+import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { modelGenerating } from '@renderer/hooks/useModel'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { getSidebarIconLabel } from '@renderer/i18n/label'
@@ -41,7 +41,7 @@ const routePrefixMap: Record<SidebarIconType, string> = {
   store: '/app/assistant',
   paintings: '/app/paintings',
   translate: '/app/translate',
-  minapp: '/app/minapp',
+  mini_app: '/app/mini-app',
   knowledge: '/app/knowledge',
   files: '/app/files',
   code_tools: '/app/code',
@@ -55,7 +55,7 @@ const iconMap: Record<SidebarIconType, SidebarMenuItem['icon']> = {
   store: Sparkle,
   paintings: Palette,
   translate: Languages,
-  minapp: LayoutGrid,
+  mini_app: LayoutGrid,
   knowledge: FileSearch,
   files: Folder,
   code_tools: Code,
@@ -81,7 +81,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const { t } = useTranslation()
   const [userName] = usePreference('app.user.name')
   const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
-  const [showOpenedInSidebar] = usePreference('feature.minapp.show_opened_in_sidebar')
+  const [showOpenedInSidebar] = usePreference('feature.mini_app.show_opened_in_sidebar')
   const { activeTab, updateTab, openTab } = useTabs()
   const { defaultPaintingProvider } = useSettings()
 
@@ -107,32 +107,32 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   )
 
   // MiniApp tabs — bridge v1 popup system data to v2 sidebar UI
-  const { openedKeepAliveMinapps, currentMinappId, minappShow } = useMinapps()
-  const { openMinappKeepAlive } = useMinappPopup()
+  const { openedKeepAliveMiniApps, currentMiniAppId, miniAppShow } = useMiniApps()
+  const { openMiniAppKeepAlive } = useMiniAppPopup()
 
   const activeMiniAppTabs = useMemo<SidebarMiniAppTab[]>(() => {
     if (!showOpenedInSidebar) return []
-    return openedKeepAliveMinapps.map((app) => ({
+    return openedKeepAliveMiniApps.map((app) => ({
       type: 'miniapp',
-      id: app.id,
+      id: app.appId,
       title: app.name,
       miniApp: {
-        id: app.id,
+        id: app.appId,
         color: app.background,
         url: app.url,
         logo: app.logo as SidebarMiniApp['logo']
       }
     }))
-  }, [showOpenedInSidebar, openedKeepAliveMinapps])
+  }, [showOpenedInSidebar, openedKeepAliveMiniApps])
 
   const handleMiniAppTabClick = useCallback(
     (tabId: string) => {
-      const app = openedKeepAliveMinapps.find((a) => a.id === tabId)
+      const app = openedKeepAliveMiniApps.find((a) => a.appId === tabId)
       if (app) {
-        openMinappKeepAlive(app)
+        openMiniAppKeepAlive(app)
       }
     },
-    [openedKeepAliveMinapps, openMinappKeepAlive]
+    [openedKeepAliveMiniApps, openMiniAppKeepAlive]
   )
 
   // Floating sidebar (hover reveal when hidden)
@@ -155,7 +155,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
             id: icon,
             label: getSidebarIconLabel(icon),
             icon: Icon,
-            ...(icon === 'minapp' ? { miniAppTabs: activeMiniAppTabs } : {})
+            ...(icon === 'mini_app' ? { miniAppTabs: activeMiniAppTabs } : {})
           }
         ]
       }),
@@ -197,7 +197,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     title: 'Cherry Studio',
     logo: APP_LOGO,
     user: sidebarUser,
-    activeTabId: minappShow ? currentMinappId : undefined,
+    activeTabId: miniAppShow ? currentMiniAppId : undefined,
     dockedTabs: [],
     onItemClick: handleNavigate,
     onMiniAppTabClick: handleMiniAppTabClick,

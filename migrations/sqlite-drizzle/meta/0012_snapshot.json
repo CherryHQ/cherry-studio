@@ -1,0 +1,1967 @@
+{
+  "_meta": {
+    "columns": {
+      "\"mini_app\".\"type\"": "\"mini_app\".\"kind\""
+    },
+    "schemas": {},
+    "tables": {
+      "\"miniapp\"": "\"mini_app\""
+    }
+  },
+  "dialect": "sqlite",
+  "enums": {},
+  "id": "2dfec262-17ca-4af1-8503-a0478dbe4d53",
+  "internal": {
+    "indexes": {}
+  },
+  "prevId": "a947c27c-3d23-43b7-8846-3a82fcbbdee6",
+  "tables": {
+    "app_state": {
+      "checkConstraints": {},
+      "columns": {
+        "created_at": {
+          "autoincrement": false,
+          "name": "created_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "description": {
+          "autoincrement": false,
+          "name": "description",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "key": {
+          "autoincrement": false,
+          "name": "key",
+          "notNull": true,
+          "primaryKey": true,
+          "type": "text"
+        },
+        "updated_at": {
+          "autoincrement": false,
+          "name": "updated_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "value": {
+          "autoincrement": false,
+          "name": "value",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "foreignKeys": {},
+      "indexes": {},
+      "name": "app_state",
+      "uniqueConstraints": {}
+    },
+    "assistant": {
+      "checkConstraints": {},
+      "columns": {
+        "created_at": {
+          "autoincrement": false,
+          "name": "created_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "deleted_at": {
+          "autoincrement": false,
+          "name": "deleted_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "description": {
+          "autoincrement": false,
+          "default": "''",
+          "name": "description",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "emoji": {
+          "autoincrement": false,
+          "name": "emoji",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "id": {
+          "autoincrement": false,
+          "name": "id",
+          "notNull": true,
+          "primaryKey": true,
+          "type": "text"
+        },
+        "model_id": {
+          "autoincrement": false,
+          "name": "model_id",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "name": {
+          "autoincrement": false,
+          "name": "name",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "prompt": {
+          "autoincrement": false,
+          "default": "''",
+          "name": "prompt",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "settings": {
+          "autoincrement": false,
+          "name": "settings",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "updated_at": {
+          "autoincrement": false,
+          "name": "updated_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "foreignKeys": {
+        "assistant_model_id_user_model_id_fk": {
+          "columnsFrom": ["model_id"],
+          "columnsTo": ["id"],
+          "name": "assistant_model_id_user_model_id_fk",
+          "onDelete": "set null",
+          "onUpdate": "no action",
+          "tableFrom": "assistant",
+          "tableTo": "user_model"
+        }
+      },
+      "indexes": {
+        "assistant_created_at_idx": {
+          "columns": ["created_at"],
+          "isUnique": false,
+          "name": "assistant_created_at_idx"
+        }
+      },
+      "name": "assistant",
+      "uniqueConstraints": {}
+    },
+    "assistant_knowledge_base": {
+      "checkConstraints": {},
+      "columns": {
+        "assistant_id": {
+          "autoincrement": false,
+          "name": "assistant_id",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "created_at": {
+          "autoincrement": false,
+          "name": "created_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "knowledge_base_id": {
+          "autoincrement": false,
+          "name": "knowledge_base_id",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "updated_at": {
+          "autoincrement": false,
+          "name": "updated_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        }
+      },
+      "compositePrimaryKeys": {
+        "assistant_knowledge_base_assistant_id_knowledge_base_id_pk": {
+          "columns": ["assistant_id", "knowledge_base_id"],
+          "name": "assistant_knowledge_base_assistant_id_knowledge_base_id_pk"
+        }
+      },
+      "foreignKeys": {
+        "assistant_knowledge_base_assistant_id_assistant_id_fk": {
+          "columnsFrom": ["assistant_id"],
+          "columnsTo": ["id"],
+          "name": "assistant_knowledge_base_assistant_id_assistant_id_fk",
+          "onDelete": "cascade",
+          "onUpdate": "no action",
+          "tableFrom": "assistant_knowledge_base",
+          "tableTo": "assistant"
+        },
+        "assistant_knowledge_base_knowledge_base_id_knowledge_base_id_fk": {
+          "columnsFrom": ["knowledge_base_id"],
+          "columnsTo": ["id"],
+          "name": "assistant_knowledge_base_knowledge_base_id_knowledge_base_id_fk",
+          "onDelete": "cascade",
+          "onUpdate": "no action",
+          "tableFrom": "assistant_knowledge_base",
+          "tableTo": "knowledge_base"
+        }
+      },
+      "indexes": {},
+      "name": "assistant_knowledge_base",
+      "uniqueConstraints": {}
+    },
+    "assistant_mcp_server": {
+      "checkConstraints": {},
+      "columns": {
+        "assistant_id": {
+          "autoincrement": false,
+          "name": "assistant_id",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "created_at": {
+          "autoincrement": false,
+          "name": "created_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "mcp_server_id": {
+          "autoincrement": false,
+          "name": "mcp_server_id",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "updated_at": {
+          "autoincrement": false,
+          "name": "updated_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        }
+      },
+      "compositePrimaryKeys": {
+        "assistant_mcp_server_assistant_id_mcp_server_id_pk": {
+          "columns": ["assistant_id", "mcp_server_id"],
+          "name": "assistant_mcp_server_assistant_id_mcp_server_id_pk"
+        }
+      },
+      "foreignKeys": {
+        "assistant_mcp_server_assistant_id_assistant_id_fk": {
+          "columnsFrom": ["assistant_id"],
+          "columnsTo": ["id"],
+          "name": "assistant_mcp_server_assistant_id_assistant_id_fk",
+          "onDelete": "cascade",
+          "onUpdate": "no action",
+          "tableFrom": "assistant_mcp_server",
+          "tableTo": "assistant"
+        },
+        "assistant_mcp_server_mcp_server_id_mcp_server_id_fk": {
+          "columnsFrom": ["mcp_server_id"],
+          "columnsTo": ["id"],
+          "name": "assistant_mcp_server_mcp_server_id_mcp_server_id_fk",
+          "onDelete": "cascade",
+          "onUpdate": "no action",
+          "tableFrom": "assistant_mcp_server",
+          "tableTo": "mcp_server"
+        }
+      },
+      "indexes": {},
+      "name": "assistant_mcp_server",
+      "uniqueConstraints": {}
+    },
+    "entity_tag": {
+      "checkConstraints": {},
+      "columns": {
+        "created_at": {
+          "autoincrement": false,
+          "name": "created_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "entity_id": {
+          "autoincrement": false,
+          "name": "entity_id",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "entity_type": {
+          "autoincrement": false,
+          "name": "entity_type",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "tag_id": {
+          "autoincrement": false,
+          "name": "tag_id",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "updated_at": {
+          "autoincrement": false,
+          "name": "updated_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        }
+      },
+      "compositePrimaryKeys": {
+        "entity_tag_entity_type_entity_id_tag_id_pk": {
+          "columns": ["entity_type", "entity_id", "tag_id"],
+          "name": "entity_tag_entity_type_entity_id_tag_id_pk"
+        }
+      },
+      "foreignKeys": {
+        "entity_tag_tag_id_tag_id_fk": {
+          "columnsFrom": ["tag_id"],
+          "columnsTo": ["id"],
+          "name": "entity_tag_tag_id_tag_id_fk",
+          "onDelete": "cascade",
+          "onUpdate": "no action",
+          "tableFrom": "entity_tag",
+          "tableTo": "tag"
+        }
+      },
+      "indexes": {
+        "entity_tag_tag_id_idx": {
+          "columns": ["tag_id"],
+          "isUnique": false,
+          "name": "entity_tag_tag_id_idx"
+        }
+      },
+      "name": "entity_tag",
+      "uniqueConstraints": {}
+    },
+    "group": {
+      "checkConstraints": {},
+      "columns": {
+        "created_at": {
+          "autoincrement": false,
+          "name": "created_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "entity_type": {
+          "autoincrement": false,
+          "name": "entity_type",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "id": {
+          "autoincrement": false,
+          "name": "id",
+          "notNull": true,
+          "primaryKey": true,
+          "type": "text"
+        },
+        "name": {
+          "autoincrement": false,
+          "name": "name",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "sort_order": {
+          "autoincrement": false,
+          "default": 0,
+          "name": "sort_order",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "updated_at": {
+          "autoincrement": false,
+          "name": "updated_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "foreignKeys": {},
+      "indexes": {
+        "group_entity_sort_idx": {
+          "columns": ["entity_type", "sort_order"],
+          "isUnique": false,
+          "name": "group_entity_sort_idx"
+        }
+      },
+      "name": "group",
+      "uniqueConstraints": {}
+    },
+    "knowledge_base": {
+      "checkConstraints": {
+        "knowledge_base_search_mode_check": {
+          "name": "knowledge_base_search_mode_check",
+          "value": "\"knowledge_base\".\"search_mode\" IN ('default', 'bm25', 'hybrid') OR \"knowledge_base\".\"search_mode\" IS NULL"
+        }
+      },
+      "columns": {
+        "chunk_overlap": {
+          "autoincrement": false,
+          "name": "chunk_overlap",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "chunk_size": {
+          "autoincrement": false,
+          "name": "chunk_size",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "created_at": {
+          "autoincrement": false,
+          "name": "created_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "description": {
+          "autoincrement": false,
+          "name": "description",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "dimensions": {
+          "autoincrement": false,
+          "name": "dimensions",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "document_count": {
+          "autoincrement": false,
+          "name": "document_count",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "embedding_model_id": {
+          "autoincrement": false,
+          "name": "embedding_model_id",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "file_processor_id": {
+          "autoincrement": false,
+          "name": "file_processor_id",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "hybrid_alpha": {
+          "autoincrement": false,
+          "name": "hybrid_alpha",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "real"
+        },
+        "id": {
+          "autoincrement": false,
+          "name": "id",
+          "notNull": true,
+          "primaryKey": true,
+          "type": "text"
+        },
+        "name": {
+          "autoincrement": false,
+          "name": "name",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "rerank_model_id": {
+          "autoincrement": false,
+          "name": "rerank_model_id",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "search_mode": {
+          "autoincrement": false,
+          "name": "search_mode",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "threshold": {
+          "autoincrement": false,
+          "name": "threshold",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "real"
+        },
+        "updated_at": {
+          "autoincrement": false,
+          "name": "updated_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "foreignKeys": {
+        "knowledge_base_embedding_model_id_user_model_id_fk": {
+          "columnsFrom": ["embedding_model_id"],
+          "columnsTo": ["id"],
+          "name": "knowledge_base_embedding_model_id_user_model_id_fk",
+          "onDelete": "set null",
+          "onUpdate": "no action",
+          "tableFrom": "knowledge_base",
+          "tableTo": "user_model"
+        },
+        "knowledge_base_rerank_model_id_user_model_id_fk": {
+          "columnsFrom": ["rerank_model_id"],
+          "columnsTo": ["id"],
+          "name": "knowledge_base_rerank_model_id_user_model_id_fk",
+          "onDelete": "set null",
+          "onUpdate": "no action",
+          "tableFrom": "knowledge_base",
+          "tableTo": "user_model"
+        }
+      },
+      "indexes": {},
+      "name": "knowledge_base",
+      "uniqueConstraints": {}
+    },
+    "knowledge_item": {
+      "checkConstraints": {
+        "knowledge_item_status_check": {
+          "name": "knowledge_item_status_check",
+          "value": "\"knowledge_item\".\"status\" IN ('idle', 'pending', 'file_processing', 'read', 'embed', 'completed', 'failed')"
+        },
+        "knowledge_item_type_check": {
+          "name": "knowledge_item_type_check",
+          "value": "\"knowledge_item\".\"type\" IN ('file', 'url', 'note', 'sitemap', 'directory')"
+        }
+      },
+      "columns": {
+        "base_id": {
+          "autoincrement": false,
+          "name": "base_id",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "created_at": {
+          "autoincrement": false,
+          "name": "created_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "data": {
+          "autoincrement": false,
+          "name": "data",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "error": {
+          "autoincrement": false,
+          "name": "error",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "group_id": {
+          "autoincrement": false,
+          "name": "group_id",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "id": {
+          "autoincrement": false,
+          "name": "id",
+          "notNull": true,
+          "primaryKey": true,
+          "type": "text"
+        },
+        "status": {
+          "autoincrement": false,
+          "default": "'idle'",
+          "name": "status",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "type": {
+          "autoincrement": false,
+          "name": "type",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "updated_at": {
+          "autoincrement": false,
+          "name": "updated_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "foreignKeys": {
+        "knowledge_item_base_id_group_id_knowledge_item_base_id_id_fk": {
+          "columnsFrom": ["base_id", "group_id"],
+          "columnsTo": ["base_id", "id"],
+          "name": "knowledge_item_base_id_group_id_knowledge_item_base_id_id_fk",
+          "onDelete": "cascade",
+          "onUpdate": "no action",
+          "tableFrom": "knowledge_item",
+          "tableTo": "knowledge_item"
+        },
+        "knowledge_item_base_id_knowledge_base_id_fk": {
+          "columnsFrom": ["base_id"],
+          "columnsTo": ["id"],
+          "name": "knowledge_item_base_id_knowledge_base_id_fk",
+          "onDelete": "cascade",
+          "onUpdate": "no action",
+          "tableFrom": "knowledge_item",
+          "tableTo": "knowledge_base"
+        }
+      },
+      "indexes": {
+        "knowledge_item_baseId_id_unique": {
+          "columns": ["base_id", "id"],
+          "isUnique": true,
+          "name": "knowledge_item_baseId_id_unique"
+        },
+        "knowledge_item_base_group_created_idx": {
+          "columns": ["base_id", "group_id", "created_at"],
+          "isUnique": false,
+          "name": "knowledge_item_base_group_created_idx"
+        },
+        "knowledge_item_base_type_created_idx": {
+          "columns": ["base_id", "type", "created_at"],
+          "isUnique": false,
+          "name": "knowledge_item_base_type_created_idx"
+        }
+      },
+      "name": "knowledge_item",
+      "uniqueConstraints": {}
+    },
+    "mcp_server": {
+      "checkConstraints": {
+        "mcp_server_install_source_check": {
+          "name": "mcp_server_install_source_check",
+          "value": "\"mcp_server\".\"install_source\" IS NULL OR \"mcp_server\".\"install_source\" IN ('builtin', 'manual', 'protocol', 'unknown')"
+        },
+        "mcp_server_type_check": {
+          "name": "mcp_server_type_check",
+          "value": "\"mcp_server\".\"type\" IS NULL OR \"mcp_server\".\"type\" IN ('stdio', 'sse', 'streamableHttp', 'inMemory')"
+        }
+      },
+      "columns": {
+        "args": {
+          "autoincrement": false,
+          "name": "args",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "base_url": {
+          "autoincrement": false,
+          "name": "base_url",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "command": {
+          "autoincrement": false,
+          "name": "command",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "config_sample": {
+          "autoincrement": false,
+          "name": "config_sample",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "created_at": {
+          "autoincrement": false,
+          "name": "created_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "description": {
+          "autoincrement": false,
+          "name": "description",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "disabled_auto_approve_tools": {
+          "autoincrement": false,
+          "name": "disabled_auto_approve_tools",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "disabled_tools": {
+          "autoincrement": false,
+          "name": "disabled_tools",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "dxt_path": {
+          "autoincrement": false,
+          "name": "dxt_path",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "dxt_version": {
+          "autoincrement": false,
+          "name": "dxt_version",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "env": {
+          "autoincrement": false,
+          "name": "env",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "headers": {
+          "autoincrement": false,
+          "name": "headers",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "id": {
+          "autoincrement": false,
+          "name": "id",
+          "notNull": true,
+          "primaryKey": true,
+          "type": "text"
+        },
+        "install_source": {
+          "autoincrement": false,
+          "name": "install_source",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "installed_at": {
+          "autoincrement": false,
+          "name": "installed_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "is_active": {
+          "autoincrement": false,
+          "default": false,
+          "name": "is_active",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "is_trusted": {
+          "autoincrement": false,
+          "name": "is_trusted",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "logo_url": {
+          "autoincrement": false,
+          "name": "logo_url",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "long_running": {
+          "autoincrement": false,
+          "name": "long_running",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "name": {
+          "autoincrement": false,
+          "name": "name",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "provider": {
+          "autoincrement": false,
+          "name": "provider",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "provider_url": {
+          "autoincrement": false,
+          "name": "provider_url",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "reference": {
+          "autoincrement": false,
+          "name": "reference",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "registry_url": {
+          "autoincrement": false,
+          "name": "registry_url",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "search_key": {
+          "autoincrement": false,
+          "name": "search_key",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "should_config": {
+          "autoincrement": false,
+          "name": "should_config",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "sort_order": {
+          "autoincrement": false,
+          "default": 0,
+          "name": "sort_order",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "tags": {
+          "autoincrement": false,
+          "name": "tags",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "timeout": {
+          "autoincrement": false,
+          "name": "timeout",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "trusted_at": {
+          "autoincrement": false,
+          "name": "trusted_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "type": {
+          "autoincrement": false,
+          "name": "type",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "updated_at": {
+          "autoincrement": false,
+          "name": "updated_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "foreignKeys": {},
+      "indexes": {
+        "mcp_server_is_active_idx": {
+          "columns": ["is_active"],
+          "isUnique": false,
+          "name": "mcp_server_is_active_idx"
+        },
+        "mcp_server_name_idx": {
+          "columns": ["name"],
+          "isUnique": false,
+          "name": "mcp_server_name_idx"
+        },
+        "mcp_server_sort_order_idx": {
+          "columns": ["sort_order"],
+          "isUnique": false,
+          "name": "mcp_server_sort_order_idx"
+        }
+      },
+      "name": "mcp_server",
+      "uniqueConstraints": {}
+    },
+    "message": {
+      "checkConstraints": {
+        "message_role_check": {
+          "name": "message_role_check",
+          "value": "\"message\".\"role\" IN ('user', 'assistant', 'system')"
+        },
+        "message_status_check": {
+          "name": "message_status_check",
+          "value": "\"message\".\"status\" IN ('pending', 'success', 'error', 'paused')"
+        }
+      },
+      "columns": {
+        "created_at": {
+          "autoincrement": false,
+          "name": "created_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "data": {
+          "autoincrement": false,
+          "name": "data",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "deleted_at": {
+          "autoincrement": false,
+          "name": "deleted_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "id": {
+          "autoincrement": false,
+          "name": "id",
+          "notNull": true,
+          "primaryKey": true,
+          "type": "text"
+        },
+        "model_id": {
+          "autoincrement": false,
+          "name": "model_id",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "model_snapshot": {
+          "autoincrement": false,
+          "name": "model_snapshot",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "parent_id": {
+          "autoincrement": false,
+          "name": "parent_id",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "role": {
+          "autoincrement": false,
+          "name": "role",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "searchable_text": {
+          "autoincrement": false,
+          "name": "searchable_text",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "siblings_group_id": {
+          "autoincrement": false,
+          "default": 0,
+          "name": "siblings_group_id",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "stats": {
+          "autoincrement": false,
+          "name": "stats",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "status": {
+          "autoincrement": false,
+          "name": "status",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "topic_id": {
+          "autoincrement": false,
+          "name": "topic_id",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "trace_id": {
+          "autoincrement": false,
+          "name": "trace_id",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "updated_at": {
+          "autoincrement": false,
+          "name": "updated_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "foreignKeys": {
+        "message_model_id_user_model_id_fk": {
+          "columnsFrom": ["model_id"],
+          "columnsTo": ["id"],
+          "name": "message_model_id_user_model_id_fk",
+          "onDelete": "set null",
+          "onUpdate": "no action",
+          "tableFrom": "message",
+          "tableTo": "user_model"
+        },
+        "message_parent_id_message_id_fk": {
+          "columnsFrom": ["parent_id"],
+          "columnsTo": ["id"],
+          "name": "message_parent_id_message_id_fk",
+          "onDelete": "set null",
+          "onUpdate": "no action",
+          "tableFrom": "message",
+          "tableTo": "message"
+        },
+        "message_topic_id_topic_id_fk": {
+          "columnsFrom": ["topic_id"],
+          "columnsTo": ["id"],
+          "name": "message_topic_id_topic_id_fk",
+          "onDelete": "cascade",
+          "onUpdate": "no action",
+          "tableFrom": "message",
+          "tableTo": "topic"
+        }
+      },
+      "indexes": {
+        "message_parent_id_idx": {
+          "columns": ["parent_id"],
+          "isUnique": false,
+          "name": "message_parent_id_idx"
+        },
+        "message_topic_created_idx": {
+          "columns": ["topic_id", "created_at"],
+          "isUnique": false,
+          "name": "message_topic_created_idx"
+        },
+        "message_trace_id_idx": {
+          "columns": ["trace_id"],
+          "isUnique": false,
+          "name": "message_trace_id_idx"
+        }
+      },
+      "name": "message",
+      "uniqueConstraints": {}
+    },
+    "mini_app": {
+      "checkConstraints": {
+        "mini_app_kind_check": {
+          "name": "mini_app_kind_check",
+          "value": "\"mini_app\".\"kind\" IN ('default', 'custom')"
+        },
+        "mini_app_status_check": {
+          "name": "mini_app_status_check",
+          "value": "\"mini_app\".\"status\" IN ('enabled', 'disabled', 'pinned')"
+        }
+      },
+      "columns": {
+        "app_id": {
+          "autoincrement": false,
+          "name": "app_id",
+          "notNull": true,
+          "primaryKey": true,
+          "type": "text"
+        },
+        "background": {
+          "autoincrement": false,
+          "name": "background",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "bordered": {
+          "autoincrement": false,
+          "default": true,
+          "name": "bordered",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "configuration": {
+          "autoincrement": false,
+          "name": "configuration",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "created_at": {
+          "autoincrement": false,
+          "name": "created_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "kind": {
+          "autoincrement": false,
+          "default": "'custom'",
+          "name": "kind",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "logo": {
+          "autoincrement": false,
+          "name": "logo",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "name": {
+          "autoincrement": false,
+          "name": "name",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "name_key": {
+          "autoincrement": false,
+          "name": "name_key",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "sort_order": {
+          "autoincrement": false,
+          "default": 0,
+          "name": "sort_order",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "status": {
+          "autoincrement": false,
+          "default": "'enabled'",
+          "name": "status",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "supported_regions": {
+          "autoincrement": false,
+          "name": "supported_regions",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "updated_at": {
+          "autoincrement": false,
+          "name": "updated_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "url": {
+          "autoincrement": false,
+          "name": "url",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "foreignKeys": {},
+      "indexes": {
+        "mini_app_kind_idx": {
+          "columns": ["kind"],
+          "isUnique": false,
+          "name": "mini_app_kind_idx"
+        },
+        "mini_app_status_kind_idx": {
+          "columns": ["status", "kind"],
+          "isUnique": false,
+          "name": "mini_app_status_kind_idx"
+        },
+        "mini_app_status_sort_idx": {
+          "columns": ["status", "sort_order"],
+          "isUnique": false,
+          "name": "mini_app_status_sort_idx"
+        }
+      },
+      "name": "mini_app",
+      "uniqueConstraints": {}
+    },
+    "preference": {
+      "checkConstraints": {},
+      "columns": {
+        "created_at": {
+          "autoincrement": false,
+          "name": "created_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "key": {
+          "autoincrement": false,
+          "name": "key",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "scope": {
+          "autoincrement": false,
+          "default": "'default'",
+          "name": "scope",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "updated_at": {
+          "autoincrement": false,
+          "name": "updated_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "value": {
+          "autoincrement": false,
+          "name": "value",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        }
+      },
+      "compositePrimaryKeys": {
+        "preference_scope_key_pk": {
+          "columns": ["scope", "key"],
+          "name": "preference_scope_key_pk"
+        }
+      },
+      "foreignKeys": {},
+      "indexes": {},
+      "name": "preference",
+      "uniqueConstraints": {}
+    },
+    "tag": {
+      "checkConstraints": {},
+      "columns": {
+        "color": {
+          "autoincrement": false,
+          "name": "color",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "created_at": {
+          "autoincrement": false,
+          "name": "created_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "id": {
+          "autoincrement": false,
+          "name": "id",
+          "notNull": true,
+          "primaryKey": true,
+          "type": "text"
+        },
+        "name": {
+          "autoincrement": false,
+          "name": "name",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "updated_at": {
+          "autoincrement": false,
+          "name": "updated_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "foreignKeys": {},
+      "indexes": {
+        "tag_name_unique": {
+          "columns": ["name"],
+          "isUnique": true,
+          "name": "tag_name_unique"
+        }
+      },
+      "name": "tag",
+      "uniqueConstraints": {}
+    },
+    "topic": {
+      "checkConstraints": {},
+      "columns": {
+        "active_node_id": {
+          "autoincrement": false,
+          "name": "active_node_id",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "assistant_id": {
+          "autoincrement": false,
+          "name": "assistant_id",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "created_at": {
+          "autoincrement": false,
+          "name": "created_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "deleted_at": {
+          "autoincrement": false,
+          "name": "deleted_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "group_id": {
+          "autoincrement": false,
+          "name": "group_id",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "id": {
+          "autoincrement": false,
+          "name": "id",
+          "notNull": true,
+          "primaryKey": true,
+          "type": "text"
+        },
+        "is_name_manually_edited": {
+          "autoincrement": false,
+          "default": false,
+          "name": "is_name_manually_edited",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "is_pinned": {
+          "autoincrement": false,
+          "default": false,
+          "name": "is_pinned",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "name": {
+          "autoincrement": false,
+          "name": "name",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "pinned_order": {
+          "autoincrement": false,
+          "default": 0,
+          "name": "pinned_order",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "sort_order": {
+          "autoincrement": false,
+          "default": 0,
+          "name": "sort_order",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "updated_at": {
+          "autoincrement": false,
+          "name": "updated_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "foreignKeys": {
+        "topic_assistant_id_assistant_id_fk": {
+          "columnsFrom": ["assistant_id"],
+          "columnsTo": ["id"],
+          "name": "topic_assistant_id_assistant_id_fk",
+          "onDelete": "set null",
+          "onUpdate": "no action",
+          "tableFrom": "topic",
+          "tableTo": "assistant"
+        },
+        "topic_group_id_group_id_fk": {
+          "columnsFrom": ["group_id"],
+          "columnsTo": ["id"],
+          "name": "topic_group_id_group_id_fk",
+          "onDelete": "set null",
+          "onUpdate": "no action",
+          "tableFrom": "topic",
+          "tableTo": "group"
+        }
+      },
+      "indexes": {
+        "topic_assistant_id_idx": {
+          "columns": ["assistant_id"],
+          "isUnique": false,
+          "name": "topic_assistant_id_idx"
+        },
+        "topic_group_sort_idx": {
+          "columns": ["group_id", "sort_order"],
+          "isUnique": false,
+          "name": "topic_group_sort_idx"
+        },
+        "topic_group_updated_idx": {
+          "columns": ["group_id", "updated_at"],
+          "isUnique": false,
+          "name": "topic_group_updated_idx"
+        },
+        "topic_is_pinned_idx": {
+          "columns": ["is_pinned", "pinned_order"],
+          "isUnique": false,
+          "name": "topic_is_pinned_idx"
+        },
+        "topic_updated_at_idx": {
+          "columns": ["updated_at"],
+          "isUnique": false,
+          "name": "topic_updated_at_idx"
+        }
+      },
+      "name": "topic",
+      "uniqueConstraints": {}
+    },
+    "translate_history": {
+      "checkConstraints": {},
+      "columns": {
+        "created_at": {
+          "autoincrement": false,
+          "name": "created_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "id": {
+          "autoincrement": false,
+          "name": "id",
+          "notNull": true,
+          "primaryKey": true,
+          "type": "text"
+        },
+        "source_language": {
+          "autoincrement": false,
+          "name": "source_language",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "source_text": {
+          "autoincrement": false,
+          "name": "source_text",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "star": {
+          "autoincrement": false,
+          "default": false,
+          "name": "star",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "target_language": {
+          "autoincrement": false,
+          "name": "target_language",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "target_text": {
+          "autoincrement": false,
+          "name": "target_text",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "updated_at": {
+          "autoincrement": false,
+          "name": "updated_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "foreignKeys": {
+        "translate_history_source_language_translate_language_lang_code_fk": {
+          "columnsFrom": ["source_language"],
+          "columnsTo": ["lang_code"],
+          "name": "translate_history_source_language_translate_language_lang_code_fk",
+          "onDelete": "set null",
+          "onUpdate": "no action",
+          "tableFrom": "translate_history",
+          "tableTo": "translate_language"
+        },
+        "translate_history_target_language_translate_language_lang_code_fk": {
+          "columnsFrom": ["target_language"],
+          "columnsTo": ["lang_code"],
+          "name": "translate_history_target_language_translate_language_lang_code_fk",
+          "onDelete": "set null",
+          "onUpdate": "no action",
+          "tableFrom": "translate_history",
+          "tableTo": "translate_language"
+        }
+      },
+      "indexes": {
+        "translate_history_created_at_idx": {
+          "columns": ["created_at"],
+          "isUnique": false,
+          "name": "translate_history_created_at_idx"
+        },
+        "translate_history_star_created_at_idx": {
+          "columns": ["star", "created_at"],
+          "isUnique": false,
+          "name": "translate_history_star_created_at_idx"
+        }
+      },
+      "name": "translate_history",
+      "uniqueConstraints": {}
+    },
+    "translate_language": {
+      "checkConstraints": {},
+      "columns": {
+        "created_at": {
+          "autoincrement": false,
+          "name": "created_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "emoji": {
+          "autoincrement": false,
+          "name": "emoji",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "lang_code": {
+          "autoincrement": false,
+          "name": "lang_code",
+          "notNull": true,
+          "primaryKey": true,
+          "type": "text"
+        },
+        "updated_at": {
+          "autoincrement": false,
+          "name": "updated_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "value": {
+          "autoincrement": false,
+          "name": "value",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "foreignKeys": {},
+      "indexes": {},
+      "name": "translate_language",
+      "uniqueConstraints": {}
+    },
+    "user_model": {
+      "checkConstraints": {},
+      "columns": {
+        "capabilities": {
+          "autoincrement": false,
+          "name": "capabilities",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "context_window": {
+          "autoincrement": false,
+          "name": "context_window",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "created_at": {
+          "autoincrement": false,
+          "name": "created_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "custom_endpoint_url": {
+          "autoincrement": false,
+          "name": "custom_endpoint_url",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "description": {
+          "autoincrement": false,
+          "name": "description",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "endpoint_types": {
+          "autoincrement": false,
+          "name": "endpoint_types",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "group": {
+          "autoincrement": false,
+          "name": "group",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "id": {
+          "autoincrement": false,
+          "name": "id",
+          "notNull": true,
+          "primaryKey": true,
+          "type": "text"
+        },
+        "input_modalities": {
+          "autoincrement": false,
+          "name": "input_modalities",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "is_deprecated": {
+          "autoincrement": false,
+          "default": false,
+          "name": "is_deprecated",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "is_enabled": {
+          "autoincrement": false,
+          "default": true,
+          "name": "is_enabled",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "is_hidden": {
+          "autoincrement": false,
+          "default": false,
+          "name": "is_hidden",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "max_output_tokens": {
+          "autoincrement": false,
+          "name": "max_output_tokens",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "model_id": {
+          "autoincrement": false,
+          "name": "model_id",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "name": {
+          "autoincrement": false,
+          "name": "name",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "notes": {
+          "autoincrement": false,
+          "name": "notes",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "output_modalities": {
+          "autoincrement": false,
+          "name": "output_modalities",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "parameters": {
+          "autoincrement": false,
+          "name": "parameters",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "preset_model_id": {
+          "autoincrement": false,
+          "name": "preset_model_id",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "pricing": {
+          "autoincrement": false,
+          "name": "pricing",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "provider_id": {
+          "autoincrement": false,
+          "name": "provider_id",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "reasoning": {
+          "autoincrement": false,
+          "name": "reasoning",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "sort_order": {
+          "autoincrement": false,
+          "default": 0,
+          "name": "sort_order",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "supports_streaming": {
+          "autoincrement": false,
+          "name": "supports_streaming",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "updated_at": {
+          "autoincrement": false,
+          "name": "updated_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "user_overrides": {
+          "autoincrement": false,
+          "name": "user_overrides",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "foreignKeys": {
+        "user_model_provider_id_user_provider_provider_id_fk": {
+          "columnsFrom": ["provider_id"],
+          "columnsTo": ["provider_id"],
+          "name": "user_model_provider_id_user_provider_provider_id_fk",
+          "onDelete": "cascade",
+          "onUpdate": "no action",
+          "tableFrom": "user_model",
+          "tableTo": "user_provider"
+        }
+      },
+      "indexes": {
+        "user_model_preset_idx": {
+          "columns": ["preset_model_id"],
+          "isUnique": false,
+          "name": "user_model_preset_idx"
+        },
+        "user_model_provider_enabled_idx": {
+          "columns": ["provider_id", "is_enabled"],
+          "isUnique": false,
+          "name": "user_model_provider_enabled_idx"
+        },
+        "user_model_provider_model_unique": {
+          "columns": ["provider_id", "model_id"],
+          "isUnique": true,
+          "name": "user_model_provider_model_unique"
+        },
+        "user_model_provider_sort_idx": {
+          "columns": ["provider_id", "sort_order"],
+          "isUnique": false,
+          "name": "user_model_provider_sort_idx"
+        }
+      },
+      "name": "user_model",
+      "uniqueConstraints": {}
+    },
+    "user_provider": {
+      "checkConstraints": {},
+      "columns": {
+        "api_features": {
+          "autoincrement": false,
+          "name": "api_features",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "api_keys": {
+          "autoincrement": false,
+          "default": "'[]'",
+          "name": "api_keys",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "auth_config": {
+          "autoincrement": false,
+          "name": "auth_config",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "created_at": {
+          "autoincrement": false,
+          "name": "created_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "default_chat_endpoint": {
+          "autoincrement": false,
+          "name": "default_chat_endpoint",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "endpoint_configs": {
+          "autoincrement": false,
+          "name": "endpoint_configs",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "is_enabled": {
+          "autoincrement": false,
+          "default": true,
+          "name": "is_enabled",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "name": {
+          "autoincrement": false,
+          "name": "name",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "preset_provider_id": {
+          "autoincrement": false,
+          "name": "preset_provider_id",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "provider_id": {
+          "autoincrement": false,
+          "name": "provider_id",
+          "notNull": true,
+          "primaryKey": true,
+          "type": "text"
+        },
+        "provider_settings": {
+          "autoincrement": false,
+          "name": "provider_settings",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "sort_order": {
+          "autoincrement": false,
+          "default": 0,
+          "name": "sort_order",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "updated_at": {
+          "autoincrement": false,
+          "name": "updated_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "foreignKeys": {},
+      "indexes": {
+        "user_provider_enabled_sort_idx": {
+          "columns": ["is_enabled", "sort_order"],
+          "isUnique": false,
+          "name": "user_provider_enabled_sort_idx"
+        },
+        "user_provider_preset_idx": {
+          "columns": ["preset_provider_id"],
+          "isUnique": false,
+          "name": "user_provider_preset_idx"
+        }
+      },
+      "name": "user_provider",
+      "uniqueConstraints": {}
+    }
+  },
+  "version": "6",
+  "views": {}
+}

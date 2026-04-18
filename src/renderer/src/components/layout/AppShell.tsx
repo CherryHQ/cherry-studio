@@ -10,7 +10,7 @@ import Sidebar from '../app/Sidebar'
 import { AppShellTabBar } from './AppShellTabBar'
 import { TabRouter } from './TabRouter'
 
-// Mock Webview component (TODO: Replace with actual MinApp/Webview)
+// Mock Webview component (TODO: Replace with actual MiniApp/Webview)
 const WebviewContainer = ({ url, isActive }: { url: string; isActive: boolean }) => (
   <Activity mode={isActive ? 'visible' : 'hidden'}>
     <div className="flex h-full w-full flex-col items-center justify-center bg-background">

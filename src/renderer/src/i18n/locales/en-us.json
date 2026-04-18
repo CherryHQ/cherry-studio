@@ -2121,7 +2121,7 @@
   },
   "launchpad": {
     "apps": "Apps",
-    "minapps": "Minapps"
+    "miniapps": "MiniApps"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2476,15 +2476,15 @@
       "rag_failed": "RAG failed, returning empty results..."
     }
   },
-  "minapp": {
+  "miniapp": {
     "add_to_launchpad": "Add to Launchpad",
     "add_to_sidebar": "Add to Sidebar",
     "popup": {
-      "close": "Close MinApp",
+      "close": "Close MiniApp",
       "devtools": "Developer Tools",
       "goBack": "Go Back",
       "goForward": "Go Forward",
-      "minimize": "Minimize MinApp",
+      "minimize": "Minimize MiniApp",
       "openExternal": "Open in Browser",
       "open_link_external_off": "Current: Open links in default window",
       "open_link_external_on": "Current: Open links in browser",
@@ -2507,9 +2507,10 @@
         "title": "Delete Custom App"
       }
     },
-    "title": "MinApp"
+    "title": "MiniApp",
+    "update_partial_failure": "{{failed}} of {{total}} updates failed"
   },
-  "minapps": {
+  "miniapps": {
     "ant-ling": "Ant Ling",
     "baichuan": "Baichuan",
     "baidu-ai-search": "Baidu AI Search",
@@ -3904,7 +3905,7 @@
       },
       "clear_cache": {
         "button": "Clear Cache",
-        "confirm": "Clearing the cache will delete application cache data, including minapp data. This action is irreversible, continue?",
+        "confirm": "Clearing the cache will delete application cache data, including miniapp data. This action is irreversible, continue?",
         "error": "Error clearing cache",
         "success": "Cache cleared",
         "title": "Clear Cache"
@@ -4521,8 +4522,8 @@
         "knowledge": {
           "icon": "Show Knowledge icon"
         },
-        "minapp": {
-          "icon": "Show MinApp icon"
+        "miniapp": {
+          "icon": "Show MiniApp icon"
         },
         "painting": {
           "icon": "Show Painting icon"
