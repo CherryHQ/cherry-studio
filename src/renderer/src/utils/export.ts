@@ -269,9 +269,10 @@ const createBaseMarkdown = (
   excludeCitations: boolean = false,
   normalizeCitations: boolean = true
 ): { titleSection: string; reasoningSection: string; contentSection: string; citation: string } => {
-  const { forceDollarMathInMarkdown } = store.getState().settings
-  const roleText = getRoleText(message.role, message.model?.name, message.model?.provider)
-  const titleSection = `## ${roleText}`
+  const { forceDollarMathInMarkdown, showTimestampInMarkdown } = store.getState().settings  
+  const roleText = getRoleText(message.role, message.model?.name, message.model?.provider)  
+  const timestamp = showTimestampInMarkdown ? ` (${dayjs(message.createdAt).format('YYYY-MM-DD HH:mm')})` : ''  
+  const titleSection = `## ${roleText}${timestamp}`
   let reasoningSection = ''
 
   if (includeReasoning) {
