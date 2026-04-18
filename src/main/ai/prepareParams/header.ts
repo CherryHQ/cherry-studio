@@ -1,7 +1,7 @@
-import { isClaude4SeriesModel, isClaude45ReasoningModel } from '@shared/config/models'
-import { isAwsBedrockProvider, isVertexProvider } from '@shared/config/providerChecks'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { isClaude4SeriesModel, isClaude45ReasoningModel } from '@shared/utils/model'
+import { isAwsBedrockProvider, isVertexProvider } from '@shared/utils/provider'
 import type { Assistant } from '@types'
 
 const INTERLEAVED_THINKING_HEADER = 'interleaved-thinking-2025-05-14'

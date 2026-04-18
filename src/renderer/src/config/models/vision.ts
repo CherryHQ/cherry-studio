@@ -1,268 +1,64 @@
-import { getProviderByModel } from '@renderer/services/AssistantService'
 import type { Model } from '@renderer/types'
-import { getLowerBaseModelName, isUserSelectedModelType } from '@renderer/utils'
+import { isUserSelectedModelType } from '@renderer/utils'
+import {
+  isEditImageModel as sharedIsEditImageModel,
+  isGenerateImageModel as sharedIsGenerateImageModel,
+  isTextToImageModel as sharedIsTextToImageModel,
+  isVisionModel as sharedIsVisionModel
+} from '@shared/utils/model'
 
-import { isEmbeddingModel, isRerankModel } from './embedding'
-import { isFunctionCallingModel } from './tooluse'
-
-// Vision models
-const visionAllowedModels = [
-  'llava',
-  'moondream',
-  'minicpm',
-  'gemini-1\\.5',
-  'gemini-2\\.0',
-  'gemini-2\\.5',
-  'gemini-3(?:\\.\\d)?-(?:flash|pro)(?:-preview)?',
-  'gemini-(flash|pro|flash-lite)-latest',
-  'gemini-exp',
-  'claude-3',
-  'claude-haiku-4',
-  'claude-sonnet-4',
-  'claude-opus-4',
-  'vision',
-  'glm-4(?:\\.\\d+)?v(?:-[\\w-]+)?',
-  'qwen-vl',
-  'qwen2-vl',
-  'qwen2.5-vl',
-  'qwen3-vl',
-  'qwen3\\.[5-9](?:-[\\w-]+)?',
-  'qwen2.5-omni',
-  'qwen3-omni(?:-[\\w-]+)?',
-  'qvq',
-  'internvl2',
-  'grok-vision-beta',
-  'grok-4(?:-[\\w-]+)?',
-  'pixtral',
-  'gpt-4(?:-[\\w-]+)',
-  'gpt-4.1(?:-[\\w-]+)?',
-  'gpt-4o(?:-[\\w-]+)?',
-  'gpt-4.5(?:-[\\w-]+)',
-  'gpt-5(?:-[\\w-]+)?',
-  'chatgpt-4o(?:-[\\w-]+)?',
-  'o1(?:-[\\w-]+)?',
-  'o3(?:-[\\w-]+)?',
-  'o4(?:-[\\w-]+)?',
-  'deepseek-vl(?:[\\w-]+)?',
-  'kimi-k2.5',
-  'kimi-latest',
-  'gemma-?[3-4](?:[-.\\w]+)?',
-  'doubao-seed-1[.-][68](?:-[\\w-]+)?',
-  'doubao-seed-2[.-]0(?:-[\\w-]+)?',
-  'doubao-seed-code(?:-[\\w-]+)?',
-  'kimi-thinking-preview',
-  `gemma3(?:[-:\\w]+)?`,
-  'kimi-vl-a3b-thinking(?:-[\\w-]+)?',
-  'llama-guard-4(?:-[\\w-]+)?',
-  'llama-4(?:-[\\w-]+)?',
-  'step-1o(?:.*vision)?',
-  'step-1v(?:-[\\w-]+)?',
-  'qwen-omni(?:-[\\w-]+)?',
-  'mistral-large-(2512|latest)',
-  'mistral-medium-(2508|latest)',
-  'mistral-small-(2506|latest)',
-  'mimo-v2-omni(?:-[\\w-]+)?',
-  'glm-5v-turbo'
-]
-
-const visionExcludedModels = [
-  'gpt-4-\\d+-preview',
-  'gpt-4-turbo-preview',
-  'gpt-4-32k',
-  'gpt-4-\\d+',
-  'o1-mini',
-  'o3-mini',
-  'o1-preview',
-  'AIDC-AI/Marco-o1'
-]
-const VISION_REGEX = new RegExp(
-  `\\b(?!(?:${visionExcludedModels.join('|')})\\b)(${visionAllowedModels.join('|')})\\b`,
-  'i'
-)
-
-// All dedicated image generation models (only generate images, no text chat capability)
-// These models need:
-// 1. Route to dedicated image generation API
-// 2. Exclude from reasoning/websearch/tooluse selection
-const DEDICATED_IMAGE_MODELS = [
-  // OpenAI series
-  'dall-e(?:-[\\w-]+)?',
-  'gpt-image(?:-[\\w-]+)?',
-  // xAI
-  'grok-2-image(?:-[\\w-]+)?',
-  // Google
-  'imagen(?:-[\\w-]+)?',
-  // Stable Diffusion series
-  'flux(?:-[\\w-]+)?',
-  'stable-?diffusion(?:-[\\w-]+)?',
-  'stabilityai(?:-[\\w-]+)?',
-  'sd-[\\w-]+',
-  'sdxl(?:-[\\w-]+)?',
-  // zhipu
-  'cogview(?:-[\\w-]+)?',
-  // Alibaba
-  'qwen-image(?:-[\\w-]+)?',
-  // Others
-  'janus(?:-[\\w-]+)?',
-  'midjourney(?:-[\\w-]+)?',
-  'mj-[\\w-]+',
-  'z-image(?:-[\\w-]+)?',
-  'longcat-image(?:-[\\w-]+)?',
-  'hunyuanimage(?:-[\\w-]+)?',
-  'seedream(?:-[\\w-]+)?',
-  'kandinsky(?:-[\\w-]+)?'
-]
-
-const IMAGE_ENHANCEMENT_MODELS = [
-  'grok-2-image(?:-[\\w-]+)?',
-  'qwen-image-edit',
-  'gpt-image-1',
-  'gemini-2.5-flash-image(?:-[\\w-]+)?',
-  'gemini-2.0-flash-preview-image-generation',
-  'gemini-3(?:\\.\\d+)?-pro-image(?:-[\\w-]+)?'
-]
-
-const IMAGE_ENHANCEMENT_MODELS_REGEX = new RegExp(IMAGE_ENHANCEMENT_MODELS.join('|'), 'i')
-
-const DEDICATED_IMAGE_MODEL_REGEX = new RegExp(DEDICATED_IMAGE_MODELS.join('|'), 'i')
-
-// Models that should auto-enable image generation button when selected
-const AUTO_ENABLE_IMAGE_MODELS = [
-  'gemini-2.5-flash-image(?:-[\\w-]+)?',
-  'gemini-3(?:\\.\\d+)?-pro-image(?:-[\\w-]+)?',
-  ...DEDICATED_IMAGE_MODELS
-]
-
-const AUTO_ENABLE_IMAGE_MODELS_REGEX = new RegExp(AUTO_ENABLE_IMAGE_MODELS.join('|'), 'i')
-
-const OPENAI_TOOL_USE_IMAGE_GENERATION_MODELS = [
-  'o3',
-  'gpt-4o',
-  'gpt-4o-mini',
-  'gpt-4.1',
-  'gpt-4.1-mini',
-  'gpt-4.1-nano',
-  'gpt-5'
-]
-
-const OPENAI_IMAGE_GENERATION_MODELS = [...OPENAI_TOOL_USE_IMAGE_GENERATION_MODELS, 'gpt-image-1']
-
-const MODERN_IMAGE_MODELS = ['gemini-3(?:\\.\\d+)?-pro-image(?:-[\\w-]+)?']
-
-const GENERATE_IMAGE_MODELS = [
-  'gemini-2.0-flash-exp(?:-[\\w-]+)?',
-  'gemini-2.5-flash-image(?:-[\\w-]+)?',
-  'gemini-2.0-flash-preview-image-generation',
-  ...MODERN_IMAGE_MODELS,
-  ...DEDICATED_IMAGE_MODELS
-]
-
-const OPENAI_IMAGE_GENERATION_MODELS_REGEX = new RegExp(OPENAI_IMAGE_GENERATION_MODELS.join('|'), 'i')
-
-const GENERATE_IMAGE_MODELS_REGEX = new RegExp(GENERATE_IMAGE_MODELS.join('|'), 'i')
-
-const MODERN_GENERATE_IMAGE_MODELS_REGEX = new RegExp(MODERN_IMAGE_MODELS.join('|'), 'i')
+import { toSharedCompatModel } from './_bridge'
 
 /**
- * Check if the model is a dedicated image generation model
- * Dedicated image generation models can only generate images, no text chat capability
- *
- * These models need:
- * 1. Route to dedicated image generation API
- * 2. Exclude from reasoning/websearch/tooluse selection
+ * Dedicated / text-to-image model = `IMAGE_GENERATION` without `REASONING`.
+ * Registry / bridge populate both capabilities.
  */
-export function isDedicatedImageModel(model: Model): boolean {
-  if (!model) return false
-  const modelId = getLowerBaseModelName(model.id)
-  return DEDICATED_IMAGE_MODEL_REGEX.test(modelId)
-}
+export const isDedicatedImageModel = (model: Model): boolean => sharedIsTextToImageModel(toSharedCompatModel(model))
 
-// Backward compatible aliases
+/** Backward-compatible alias. */
 export const isDedicatedImageGenerationModel = isDedicatedImageModel
 
-export const isAutoEnableImageGenerationModel = (model: Model): boolean => {
-  if (!model) return false
-
-  const modelId = getLowerBaseModelName(model.id)
-  return AUTO_ENABLE_IMAGE_MODELS_REGEX.test(modelId)
-}
-
-/**
- * 判断模型是否支持对话式的图片生成
- * @param model
- * @returns
- */
-export function isGenerateImageModel(model: Model): boolean {
-  if (!model || isEmbeddingModel(model) || isRerankModel(model)) {
-    return false
-  }
-
-  const provider = getProviderByModel(model)
-
-  if (!provider) {
-    return false
-  }
-
-  const modelId = getLowerBaseModelName(model.id, '/')
-
-  if (provider.type === 'openai-response') {
-    return OPENAI_IMAGE_GENERATION_MODELS_REGEX.test(modelId) || GENERATE_IMAGE_MODELS_REGEX.test(modelId)
-  }
-
-  return GENERATE_IMAGE_MODELS_REGEX.test(modelId)
-}
-
-// TODO: refine the regex
-/**
- * 判断模型是否支持纯图片生成（不支持通过工具调用）
- * @param model
- * @returns
- */
-export function isPureGenerateImageModel(model: Model): boolean {
-  if (!isGenerateImageModel(model) && !isTextToImageModel(model)) {
-    return false
-  }
-
-  if (isFunctionCallingModel(model)) {
-    return false
-  }
-
-  const modelId = getLowerBaseModelName(model.id)
-  if (GENERATE_IMAGE_MODELS_REGEX.test(modelId) && !MODERN_GENERATE_IMAGE_MODELS_REGEX.test(modelId)) {
-    return true
-  }
-
-  return !OPENAI_TOOL_USE_IMAGE_GENERATION_MODELS.some((m) => modelId.includes(m))
-}
-
-// Backward compatible alias - now uses unified dedicated image model detection
+/** Backward-compatible alias — dedicated image models are text→image. */
 export const isTextToImageModel = isDedicatedImageModel
 
 /**
- * 判断模型是否支持图片增强（包括编辑、增强、修复等）
- * @param model
+ * Image editing model — `IMAGE_GENERATION` + IMAGE input modality. The
+ * bridge populates `inputModalities: [IMAGE]` whenever a v1 id matches
+ * vision / image-edit inference, so shared's check is authoritative.
  */
-export function isImageEnhancementModel(model: Model): boolean {
-  const modelId = getLowerBaseModelName(model.id)
-  return IMAGE_ENHANCEMENT_MODELS_REGEX.test(modelId)
-}
+export const isEditImageModel = (model: Model): boolean => sharedIsEditImageModel(toSharedCompatModel(model))
 
+/** @deprecated Use `isEditImageModel`. */
+export const isImageEnhancementModel = isEditImageModel
+
+/**
+ * @deprecated v1 legacy. v2 moves image generation to tool calls — the
+ * chat model stays a general LLM and invokes an image tool, so there's no
+ * per-model "this model IS an image generator" toggle to auto-flip. Remove
+ * this along with the Inputbar auto-toggle side-effect when v2 lands.
+ */
+export const isAutoEnableImageGenerationModel = (model: Model): boolean =>
+  sharedIsGenerateImageModel(toSharedCompatModel(model))
+
+/**
+ * Chat-style image generation. Reads shared's `IMAGE_GENERATION` capability.
+ */
+export const isGenerateImageModel = (model: Model): boolean =>
+  !!model && sharedIsGenerateImageModel(toSharedCompatModel(model))
+
+/**
+ * Pure image generator — can produce images without also acting as a chat /
+ * tool-call model. Equivalent to `isTextToImageModel` (IMAGE_GEN && !REASONING).
+ */
+export const isPureGenerateImageModel = isTextToImageModel
+
+/**
+ * Vision-capable model. Reads shared's IMAGE_RECOGNITION / IMAGE input-
+ * modality capabilities. User preference override sits on top.
+ */
 export function isVisionModel(model: Model): boolean {
-  if (!model || isEmbeddingModel(model) || isRerankModel(model)) {
-    return false
-  }
-  // 新添字段 copilot-vision-request 后可使用 vision
-  // if (model.provider === 'copilot') {
-  //   return false
-  // }
-  if (isUserSelectedModelType(model, 'vision') !== undefined) {
-    return isUserSelectedModelType(model, 'vision')!
-  }
-
-  const modelId = getLowerBaseModelName(model.id)
-  if (model.provider === 'doubao' || modelId.includes('doubao')) {
-    return VISION_REGEX.test(model.name) || VISION_REGEX.test(modelId) || false
-  }
-
-  return VISION_REGEX.test(modelId) || IMAGE_ENHANCEMENT_MODELS_REGEX.test(modelId) || false
+  if (!model) return false
+  const override = isUserSelectedModelType(model, 'vision')
+  if (override !== undefined) return override
+  return sharedIsVisionModel(toSharedCompatModel(model))
 }

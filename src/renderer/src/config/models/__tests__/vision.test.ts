@@ -81,27 +81,11 @@ describe('vision helpers', () => {
   })
 
   describe('isGenerateImageModel', () => {
-    it('returns false for embedding/rerank models or missing providers', () => {
-      embeddingMock.mockReturnValueOnce(true)
-      expect(isGenerateImageModel(createModel({ id: 'gpt-image-1' }))).toBe(false)
-
-      embeddingMock.mockReturnValue(false)
-      rerankMock.mockReturnValueOnce(true)
-      expect(isGenerateImageModel(createModel({ id: 'gpt-image-1' }))).toBe(false)
-
-      rerankMock.mockReturnValue(false)
-      providerMock.mockReturnValueOnce(undefined as any)
-      expect(isGenerateImageModel(createModel({ id: 'gpt-image-1' }))).toBe(false)
-    })
-
-    it('detects OpenAI and third-party generative image models', () => {
-      expect(isGenerateImageModel(createModel({ id: 'gpt-4o-mini' }))).toBe(true)
-
-      providerMock.mockReturnValue({ type: 'custom' } as any)
+    it('detects third-party generative image models via capability', () => {
       expect(isGenerateImageModel(createModel({ id: 'gemini-2.5-flash-image' }))).toBe(true)
     })
 
-    it('returns false when openai-response model is not on allow list', () => {
+    it('returns false for non-image models', () => {
       expect(isGenerateImageModel(createModel({ id: 'gpt-4.2-experimental' }))).toBe(false)
     })
   })
@@ -138,11 +122,7 @@ describe('vision helpers', () => {
 })
 
 describe('isVisionModel', () => {
-  it('returns false for embedding/rerank models and honors overrides', () => {
-    embeddingMock.mockReturnValueOnce(true)
-    expect(isVisionModel(createModel({ id: 'gpt-4o' }))).toBe(false)
-
-    embeddingMock.mockReturnValue(false)
+  it('honors user-preference override', () => {
     const disabled = createModel({
       id: 'gpt-4o',
       capabilities: [{ type: 'vision', isUserSelected: false }]
@@ -156,24 +136,12 @@ describe('isVisionModel', () => {
     expect(isVisionModel(forced)).toBe(true)
   })
 
-  it('matches doubao models by name and general regexes by id', () => {
-    const doubao = createModel({
-      id: 'custom-id',
-      provider: 'doubao',
-      name: 'Doubao-Seed-1-6-Lite-251015'
-    })
-    expect(isVisionModel(doubao)).toBe(true)
-
+  it('detects vision via id', () => {
     expect(isVisionModel(createModel({ id: 'gpt-4o-mini' }))).toBe(true)
   })
 
   it('leverages image enhancement regex when standard vision regex does not match', () => {
     expect(isVisionModel(createModel({ id: 'qwen-image-edit' }))).toBe(true)
-  })
-
-  it('returns false for doubao models that fail regex checks', () => {
-    const doubao = createModel({ id: 'doubao-standard', provider: 'doubao', name: 'basic' })
-    expect(isVisionModel(doubao)).toBe(false)
   })
 
   describe('Gemini Models', () => {
@@ -395,16 +363,6 @@ describe('Doubao Seed 2.0 Models', () => {
     const model: Model = {
       id: 'doubao-seed-2-0-mini-260215',
       name: 'doubao-seed-2-0-mini',
-      provider: 'doubao',
-      group: 'Doubao-Seed-2.0'
-    }
-    expect(isVisionModel(model)).toBe(true)
-  })
-
-  it('should identify doubao-seed-2.0 models by provider and name', () => {
-    const model: Model = {
-      id: 'custom-id',
-      name: 'doubao-seed-2.0-pro-260215',
       provider: 'doubao',
       group: 'Doubao-Seed-2.0'
     }

@@ -19,8 +19,8 @@ import {
 import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
-import { isOpenAIChatCompletionOnlyModel, isOpenAILLMModel } from '@shared/config/models'
 import type { Model } from '@shared/data/types/model'
+import { isOpenAIChatCompletionOnlyModel, isOpenAILLMModel } from '@shared/utils/model'
 
 export const AIHUBMIX_PROVIDER_NAME = 'aihubmix' as const
 const APP_CODE_HEADER = { 'APP-Code': 'MLTG2087' }

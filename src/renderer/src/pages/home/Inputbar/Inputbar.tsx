@@ -410,7 +410,10 @@ const InputbarInner: FC<InputbarInnerProps> = ({
       updateAssistant({ ...assistant, webSearchProviderId: undefined })
     }
 
-    // Auto-enable/disable image generation based on model capabilities
+    // v1 legacy: auto-enable/disable image generation when the user switches
+    // to a model that IS an image generator. v2 moves image gen to tool
+    // calls — a general chat model invokes an image tool, so this side-
+    // effect goes away (the toggle disappears, no per-model flip needed).
     if (isGenerateImageModel(model)) {
       if (isAutoEnableImageGenerationModel(model) && !assistant.enableGenerateImage) {
         updateAssistant({ ...assistant, enableGenerateImage: true })

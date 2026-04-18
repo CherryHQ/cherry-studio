@@ -6,6 +6,9 @@ import type { XaiProviderOptions } from '@ai-sdk/xai'
 import type OpenAI from '@cherrystudio/openai'
 import { loggerService } from '@logger'
 import { DEFAULT_MAX_TOKENS } from '@shared/config/constants'
+import type { Model } from '@shared/data/types/model'
+import { parseUniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import {
   findTokenLimit,
   GEMINI_FLASH_MODEL_REGEX,
@@ -39,11 +42,8 @@ import {
   isSupportedThinkingTokenQwenModel,
   isSupportedThinkingTokenZhipuModel,
   isSupportNoneReasoningEffortModel
-} from '@shared/config/models'
-import { isSupportEnableThinkingProvider } from '@shared/config/providerChecks'
-import type { Model } from '@shared/data/types/model'
-import { parseUniqueModelId } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
+} from '@shared/utils/model'
+import { isSupportEnableThinkingProvider } from '@shared/utils/provider'
 import type { Assistant, ReasoningEffortOption } from '@types'
 import { EFFORT_RATIO, isSystemProviderId, SystemProviderIds } from '@types'
 import { toInteger } from 'lodash'

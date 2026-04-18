@@ -4,18 +4,6 @@ import type { GoogleGenerativeAIProviderOptions } from '@ai-sdk/google'
 import type { OpenAIResponsesProviderOptions } from '@ai-sdk/openai'
 import type { XaiProviderOptions } from '@ai-sdk/xai'
 import { loggerService } from '@logger'
-import {
-  getModelSupportedVerbosity,
-  isAnthropicModel,
-  isGeminiModel,
-  isGrokModel,
-  isOpenAIModel,
-  isQwenMTModel,
-  isReasoningModel,
-  isSupportFlexServiceTierModel,
-  isSupportVerbosityModel
-} from '@shared/config/models'
-import { isSupportServiceTierProvider, isSupportVerbosityProvider } from '@shared/config/providerChecks'
 import type { Model } from '@shared/data/types/model'
 import {
   type GroqServiceTier,
@@ -27,6 +15,18 @@ import {
   type Provider,
   type ServiceTier
 } from '@shared/data/types/provider'
+import {
+  getModelSupportedVerbosity,
+  isAnthropicModel,
+  isGeminiModel,
+  isGrokModel,
+  isOpenAIModel,
+  isQwenMTModel,
+  isReasoningModel,
+  isSupportFlexServiceTierModel,
+  isSupportVerbosityModel
+} from '@shared/utils/model'
+import { isSupportServiceTierProvider, isSupportVerbosityProvider } from '@shared/utils/provider'
 import { type Assistant, isTranslateAssistant, SystemProviderIds } from '@types'
 import type { JSONValue } from 'ai'
 import { t } from 'i18next'

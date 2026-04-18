@@ -6,8 +6,8 @@
 
 import type { ReasoningPart } from '@ai-sdk/provider-utils'
 import { loggerService } from '@logger'
-import { isVisionModel } from '@shared/config/models'
 import { parseDataUrl } from '@shared/utils'
+import { isVisionModel } from '@shared/utils/model'
 import type { Message, Model } from '@types'
 import type { FileMessageBlock, ImageMessageBlock, MainTextMessageBlock, ThinkingMessageBlock } from '@types/newMessage'
 import type {

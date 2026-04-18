@@ -15,7 +15,7 @@ import {
   isSupportTemperatureModel,
   isSupportTopPModel,
   isTemperatureTopPMutuallyExclusiveModel
-} from '@shared/config/models'
+} from '@shared/utils/model'
 import { type Assistant, type Model } from '@types'
 
 import { getThinkingBudget } from '../utils/reasoning'

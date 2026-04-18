@@ -11,6 +11,7 @@ import { extensionRegistry } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
 import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@shared/config/constants'
+import type { Provider } from '@shared/data/types/provider'
 import {
   isAnthropicModel,
   isFixedReasoningModel,
@@ -23,9 +24,8 @@ import {
   isSupportedReasoningEffortModel,
   isSupportedThinkingTokenModel,
   isWebSearchModel
-} from '@shared/config/models'
-import { isAIGatewayProvider, isAwsBedrockProvider, isSupportUrlContextProvider } from '@shared/config/providerChecks'
-import type { Provider } from '@shared/data/types/provider'
+} from '@shared/utils/model'
+import { isAIGatewayProvider, isAwsBedrockProvider, isSupportUrlContextProvider } from '@shared/utils/provider'
 import { type Assistant, getEffectiveMcpMode, type MCPTool, SystemProviderIds } from '@types'
 import type { StreamTextParams } from '@types/aiCoreTypes'
 import type { ModelMessage } from 'ai'

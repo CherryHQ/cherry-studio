@@ -3,9 +3,9 @@
  * 检查不同模型支持的功能（PDF输入、图片输入、大文件上传等）
  */
 
-import { isVisionModel } from '@shared/config/models'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { isVisionModel } from '@shared/utils/model'
 import type { FileType } from '@types'
 import { FILE_TYPE } from '@types'
 

@@ -1,7 +1,7 @@
 // @ts-nocheck — TODO (Step 2 Phase C): Remove after BuildContext refactor. Current file has renderer-stub type mismatches.
 import type { WebSearchPluginConfig } from '@cherrystudio/ai-core/core/plugins/built-in/webSearchPlugin'
-import { isOpenAIDeepResearchModel, isOpenAIWebSearchChatCompletionOnlyModel } from '@shared/config/models'
 import type { Model } from '@shared/data/types/model'
+import { isOpenAIDeepResearchModel, isOpenAIWebSearchChatCompletionOnlyModel } from '@shared/utils/model'
 
 import type { AppProviderId } from '../types'
 // TODO (Step 2 Phase C): Extract websearch config type to shared
@@ -10,11 +10,11 @@ import type { CherryWebSearchConfig } from './stubs'
 import { mapRegexToPatterns } from './stubs'
 
 export function getWebSearchParams(model: Model): Record<string, any> {
-  if (model.provider === 'hunyuan') {
+  if (model.providerId === 'hunyuan') {
     return { enable_enhancement: true, citation: true, search_info: true }
   }
 
-  if (model.provider === 'dashscope') {
+  if (model.providerId === 'dashscope') {
     return {
       enable_search: true,
       search_options: {
@@ -24,7 +24,7 @@ export function getWebSearchParams(model: Model): Record<string, any> {
   }
 
   // https://creator.poe.com/docs/external-applications/openai-compatible-api#using-custom-parameters-with-extra_body
-  if (model.provider === 'poe') {
+  if (model.providerId === 'poe') {
     return {
       extra_body: {
         web_search: true
