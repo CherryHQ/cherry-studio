@@ -2,15 +2,18 @@ import { configManager } from '@main/services/ConfigManager'
 import { execFileSync, spawn } from 'child_process'
 import { EventEmitter } from 'events'
 import fs from 'fs'
+import os from 'os'
 import path from 'path'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   autoDiscoverGitBash,
+  decodeBufferFromShell,
   findCommandInShellEnv,
   findExecutable,
   findGitBash,
   findViaMise,
+  getBinaryPath,
   validateGitBashPath
 } from '../process'
 
@@ -1375,5 +1378,67 @@ describe('findCommandInShellEnv', () => {
       const result = await resultPromise
       expect(result).toBeNull()
     })
+  })
+})
+
+// Tests for decodeBufferFromShell
+// These tests run on all platforms but test Windows-specific behavior via mocking
+describe('decodeBufferFromShell', () => {
+  // Note: The actual implementation checks `isWin` at module load time
+  // For non-Windows, it always returns UTF-8 decoded string
+  // For Windows, it uses chardet + iconv
+
+  describe('on non-Windows platforms', () => {
+    // On non-Windows, the function simply returns buf.toString('utf8')
+    // We can't easily mock the isWin constant, so we just verify the behavior works
+    it('should decode UTF-8 buffer correctly', () => {
+      const utf8String = 'Hello, 世界!'
+      const buf = Buffer.from(utf8String, 'utf8')
+
+      const result = decodeBufferFromShell(buf)
+
+      // On all platforms, UTF-8 should work
+      expect(result).toBe(utf8String)
+    })
+
+    it('should handle ASCII content', () => {
+      const asciiString = 'Simple ASCII text'
+      const buf = Buffer.from(asciiString, 'utf8')
+
+      const result = decodeBufferFromShell(buf)
+
+      expect(result).toBe(asciiString)
+    })
+  })
+})
+
+// Tests for getBinaryPath
+describe('getBinaryPath', () => {
+  const mockHomedir = '/home/testuser'
+  const expectedBinDir = '/home/testuser/.cherrystudio/bin'
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+
+    // Mock os.homedir to return a consistent test home directory
+    vi.spyOn(os, 'homedir').mockReturnValue(mockHomedir)
+
+    // Default: directory exists
+    vi.mocked(fs.existsSync).mockReturnValue(true)
+    vi.mocked(path.join).mockImplementation((...args) => args.join('/'))
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('should return bin directory when called without name', async () => {
+    const result = await getBinaryPath()
+    expect(result).toBe(expectedBinDir)
+  })
+
+  it('should return path with binary name', async () => {
+    const result = await getBinaryPath('uvx')
+    expect(result).toBe(`${expectedBinDir}/uvx`)
   })
 })

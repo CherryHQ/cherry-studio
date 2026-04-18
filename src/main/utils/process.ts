@@ -10,7 +10,7 @@ import path from 'path'
 
 import { isWin } from '../constant'
 import { ConfigKeys, configManager } from '../services/ConfigManager'
-import { getResourcePath } from '.'
+import { getResourcePath, makeSureDirExists } from '.'
 import getShellEnv, { refreshShellEnv } from './shell-env'
 
 const logger = loggerService.withContext('Utils:Process')
@@ -51,15 +51,39 @@ export async function getBinaryName(name: string): Promise<string> {
   return name
 }
 
-export async function getBinaryPath(name?: string): Promise<string> {
-  if (!name) {
-    return path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
-  }
+// Cached binary directory path
+let _binDir: string | null = null
 
+/**
+ * Get the binary directory path, creating it if necessary.
+ * Uses lazy initialization with directory creation.
+ * @throws Error if directory cannot be created due to permission issues
+ */
+async function getBinDir(): Promise<string> {
+  if (_binDir === null) {
+    const binDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
+    const result = makeSureDirExists(binDir)
+    if (!result.success) {
+      throw result.error
+    }
+    _binDir = binDir
+  }
+  return _binDir
+}
+
+/**
+ * Get the full path to a binary file in the bin directory.
+ * The bin directory is created automatically if it doesn't exist.
+ * @param name - Optional binary name (without extension on Windows)
+ * @returns Full path to the binary or the bin directory if no name provided
+ */
+export async function getBinaryPath(name?: string): Promise<string> {
+  const binDir = await getBinDir()
+  if (!name) {
+    return binDir
+  }
   const binaryName = await getBinaryName(name)
-  const binariesDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
-  const binariesDirExists = fs.existsSync(binariesDir)
-  return binariesDirExists ? path.join(binariesDir, binaryName) : binaryName
+  return path.join(binDir, binaryName)
 }
 
 export async function isBinaryExists(name: string): Promise<boolean> {
@@ -444,7 +468,7 @@ export function crossPlatformSpawn(
 export function decodeBufferFromShell(buf: Buffer): string {
   if (!isWin) return buf.toString('utf8')
   const detected = chardet.detect(buf)
-  if (detected && detected !== 'UTF-8') {
+  if (detected && !detected.toLowerCase().startsWith('utf')) {
     try {
       return iconv.decode(buf, detected)
     } catch {

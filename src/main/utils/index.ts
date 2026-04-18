@@ -82,10 +82,32 @@ export const runAsyncFunction = async (fn: () => Promise<void>) => {
   await fn()
 }
 
-export function makeSureDirExists(dir: string) {
+/**
+ * Ensure a directory exists, creating it if necessary.
+ * Returns an object indicating success/failure with optional error details.
+ * @param dir - The directory path to ensure exists
+ * @returns An object with success status and optional error
+ */
+export function makeSureDirExists(dir: string): { success: boolean; error?: Error } {
   if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true })
+    try {
+      fs.mkdirSync(dir, { recursive: true })
+      return { success: true }
+    } catch (error) {
+      const err = error as NodeJS.ErrnoException
+      // EACCES: permission denied, EPERM: operation not permitted
+      if (err.code === 'EACCES' || err.code === 'EPERM') {
+        return {
+          success: false,
+          error: new Error(
+            `Permission denied: cannot create directory "${dir}". Please run as administrator or check directory permissions.`
+          )
+        }
+      }
+      return { success: false, error: err }
+    }
   }
+  return { success: true }
 }
 
 export async function calculateDirectorySize(directoryPath: string): Promise<number> {
