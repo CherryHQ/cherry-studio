@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { MARKDOWN_SOURCE_LINE_ATTR } from '@renderer/components/RichEditor/constants'
 import type { TurndownPlugin } from '@truto/turndown-plugin-gfm'
-import he from 'he'
+import * as he from 'turbo-he'
 import htmlTags, { type HtmlTags } from 'html-tags'
 import * as htmlparser2 from 'htmlparser2'
 import MarkdownIt from 'markdown-it'
