@@ -6,7 +6,7 @@ import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } fro
 import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
-import { app, BrowserWindow, nativeImage, nativeTheme, screen, shell } from 'electron'
+import { app, BrowserWindow, nativeImage, nativeTheme, shell } from 'electron'
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer'
 import windowStateKeeper from 'electron-window-state'
 import path, { join } from 'path'
@@ -15,9 +15,6 @@ import iconPath from '../../../build/icon.png?asset'
 import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
 import { contextMenu } from './ContextMenu'
 import { isSafeExternalUrl } from './security'
-
-const DEFAULT_MINIWINDOW_WIDTH = 550
-const DEFAULT_MINIWINDOW_HEIGHT = 400
 
 const logger = loggerService.withContext('WindowService')
 
@@ -31,11 +28,6 @@ export class WindowService extends BaseService {
   public readonly onMainWindowCreated: Event<BrowserWindow>
 
   private mainWindow: BrowserWindow | null = null
-  private miniWindow: BrowserWindow | null = null
-  private isPinnedMiniWindow: boolean = false
-  //hacky-fix: store the focused status of mainWindow before miniWindow shows
-  //to restore the focus status when miniWindow hides
-  private wasMainWindowFocused: boolean = false
   private lastRendererProcessCrashTime: number = 0
 
   constructor() {
@@ -161,12 +153,6 @@ export class WindowService extends BaseService {
       return this.resolveIpcSenderWindow(event.sender).isMaximized()
     })
 
-    this.ipcHandle(IpcChannel.MiniWindow_Show, () => this.showMiniWindow())
-    this.ipcHandle(IpcChannel.MiniWindow_Hide, () => this.hideMiniWindow())
-    this.ipcHandle(IpcChannel.MiniWindow_Close, () => this.closeMiniWindow())
-    this.ipcHandle(IpcChannel.MiniWindow_Toggle, () => this.toggleMiniWindow())
-    this.ipcHandle(IpcChannel.MiniWindow_SetPin, (_, isPinned: boolean) => this.setPinMiniWindow(isPinned))
-
     this.ipcHandle(IpcChannel.App_QuoteToMain, (_, text: string) => this.quoteToMainWindow(text))
   }
 
@@ -232,12 +218,6 @@ export class WindowService extends BaseService {
     })
 
     this.setupMainWindow(this.mainWindow, mainWindowState)
-
-    //preload miniWindow to resolve series of issues about miniWindow in Mac
-    const enableQuickAssistant = preferenceService.get('feature.quick_assistant.enabled')
-    if (enableQuickAssistant && !this.miniWindow) {
-      this.miniWindow = this.createMiniWindow(true)
-    }
 
     this._onMainWindowCreated.fire(this.mainWindow)
 
@@ -556,19 +536,9 @@ export class WindowService extends BaseService {
     mainWindow.on('closed', () => {
       this.mainWindow = null
     })
-
-    mainWindow.on('show', () => {
-      if (this.miniWindow && !this.miniWindow.isDestroyed()) {
-        this.miniWindow.hide()
-      }
-    })
   }
 
   public showMainWindow() {
-    if (this.miniWindow && !this.miniWindow.isDestroyed()) {
-      this.miniWindow.hide()
-    }
-
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       if (this.mainWindow.isMinimized()) {
         this.mainWindow.restore()
@@ -650,205 +620,6 @@ export class WindowService extends BaseService {
     }
 
     this.showMainWindow()
-  }
-
-  public createMiniWindow(isPreload: boolean = false): BrowserWindow {
-    if (this.miniWindow && !this.miniWindow.isDestroyed()) {
-      return this.miniWindow
-    }
-
-    const miniWindowState = windowStateKeeper({
-      defaultWidth: DEFAULT_MINIWINDOW_WIDTH,
-      defaultHeight: DEFAULT_MINIWINDOW_HEIGHT,
-      file: 'miniWindow-state.json'
-    })
-
-    this.miniWindow = new BrowserWindow({
-      x: miniWindowState.x,
-      y: miniWindowState.y,
-      width: miniWindowState.width,
-      height: miniWindowState.height,
-      minWidth: 350,
-      minHeight: 380,
-      maxWidth: 1024,
-      maxHeight: 768,
-      show: false,
-      autoHideMenuBar: true,
-      transparent: isMac,
-      vibrancy: 'under-window',
-      visualEffectState: 'followWindow',
-      frame: false,
-      alwaysOnTop: true,
-      useContentSize: true,
-      ...(isMac ? { type: 'panel' } : {}),
-      skipTaskbar: true,
-      resizable: true,
-      minimizable: false,
-      maximizable: false,
-      fullscreenable: false,
-      webPreferences: {
-        preload: join(__dirname, '../preload/index.js'),
-        sandbox: false,
-        webSecurity: false,
-        webviewTag: true
-      }
-    })
-
-    this.setupWebContentsHandlers(this.miniWindow)
-
-    miniWindowState.manage(this.miniWindow)
-
-    //miniWindow should show in current desktop
-    this.miniWindow?.setVisibleOnAllWorkspaces(true, {
-      visibleOnFullScreen: true
-    })
-    //make miniWindow always on top of fullscreen apps with level set
-    //[mac] level higher than 'floating' will cover the pinyin input method
-    this.miniWindow.setAlwaysOnTop(true, 'floating')
-
-    this.miniWindow.on('ready-to-show', () => {
-      if (isPreload) {
-        return
-      }
-
-      this.wasMainWindowFocused = this.mainWindow?.isFocused() || false
-      this.miniWindow?.center()
-      this.miniWindow?.show()
-    })
-
-    this.miniWindow.on('blur', () => {
-      if (!this.isPinnedMiniWindow) {
-        this.hideMiniWindow()
-      }
-    })
-
-    this.miniWindow.on('closed', () => {
-      this.miniWindow = null
-    })
-
-    this.miniWindow.on('hide', () => {
-      this.miniWindow?.webContents.send(IpcChannel.HideMiniWindow)
-    })
-
-    this.miniWindow.on('show', () => {
-      this.miniWindow?.webContents.send(IpcChannel.ShowMiniWindow)
-    })
-
-    if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      void this.miniWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/miniWindow.html')
-    } else {
-      void this.miniWindow.loadFile(join(__dirname, '../renderer/miniWindow.html'))
-    }
-
-    return this.miniWindow
-  }
-
-  public showMiniWindow() {
-    const enableQuickAssistant = application.get('PreferenceService').get('feature.quick_assistant.enabled')
-
-    if (!enableQuickAssistant) {
-      return
-    }
-
-    if (this.miniWindow && !this.miniWindow.isDestroyed()) {
-      this.wasMainWindowFocused = this.mainWindow?.isFocused() || false
-
-      // [Windows] hacky fix
-      // the window is minimized only when in Windows platform
-      // because it's a workaround for Windows, see `hideMiniWindow()`
-      if (this.miniWindow?.isMinimized()) {
-        // don't let the window being seen before we finish adjusting the position across screens
-        this.miniWindow?.setOpacity(0)
-        // DO NOT use `restore()` here, Electron has the bug with screens of different scale factor
-        // We have to use `show()` here, then set the position and bounds
-        this.miniWindow?.show()
-      }
-
-      const miniWindowBounds = this.miniWindow.getBounds()
-
-      // Check if miniWindow is on the same screen as mouse cursor
-      const cursorDisplay = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
-      const miniWindowDisplay = screen.getDisplayNearestPoint(miniWindowBounds)
-
-      // Show the miniWindow on the cursor's screen center
-      // If miniWindow is not on the same screen as cursor, move it to cursor's screen center
-      if (cursorDisplay.id !== miniWindowDisplay.id) {
-        const workArea = cursorDisplay.bounds
-
-        // use current window size to avoid the bug of Electron with screens of different scale factor
-        const currentBounds = this.miniWindow.getBounds()
-        const miniWindowWidth = currentBounds.width
-        const miniWindowHeight = currentBounds.height
-
-        // move to the center of the cursor's screen
-        const miniWindowX = Math.round(workArea.x + (workArea.width - miniWindowWidth) / 2)
-        const miniWindowY = Math.round(workArea.y + (workArea.height - miniWindowHeight) / 2)
-
-        this.miniWindow.setPosition(miniWindowX, miniWindowY, false)
-        this.miniWindow.setBounds({
-          x: miniWindowX,
-          y: miniWindowY,
-          width: miniWindowWidth,
-          height: miniWindowHeight
-        })
-      }
-
-      this.miniWindow?.setOpacity(1)
-      this.miniWindow?.show()
-
-      return
-    }
-
-    if (!this.miniWindow || this.miniWindow.isDestroyed()) {
-      this.miniWindow = this.createMiniWindow()
-    }
-
-    this.miniWindow.show()
-  }
-
-  public hideMiniWindow() {
-    if (!this.miniWindow || this.miniWindow.isDestroyed()) {
-      return
-    }
-
-    //[macOs/Windows] hacky fix
-    // previous window(not self-app) should be focused again after miniWindow hide
-    // this workaround is to make previous window focused again after miniWindow hide
-    if (isWin) {
-      this.miniWindow.setOpacity(0) // don't show the minimizing animation
-      this.miniWindow.minimize()
-      return
-    } else if (isMac) {
-      this.miniWindow.hide()
-      const majorVersion = parseInt(process.getSystemVersion().split('.')[0], 10)
-      if (majorVersion >= 26) {
-        // on macOS 26+, the popup of the mimiWindow would not change the focus to previous application.
-        return
-      }
-      if (!this.wasMainWindowFocused) {
-        app.hide()
-      }
-      return
-    }
-
-    this.miniWindow.hide()
-  }
-
-  public closeMiniWindow() {
-    this.miniWindow?.close()
-  }
-
-  public toggleMiniWindow() {
-    if (this.miniWindow && !this.miniWindow.isDestroyed() && this.miniWindow.isVisible()) {
-      this.hideMiniWindow()
-      return
-    }
-
-    this.showMiniWindow()
-  }
-
-  public setPinMiniWindow(isPinned: boolean) {
-    this.isPinnedMiniWindow = isPinned
   }
 
   /**
