@@ -572,6 +572,21 @@ export class AgentService extends BaseService {
 
     return !!result
   }
+
+  /**
+   * Clear soft-delete markers (deleted_at) for built-in agent rows.
+   * Called by restoreBuiltinAgents before re-init so soft-deleted agents can be recreated.
+   */
+  async clearBuiltinDeletedAt(ids: readonly string[]): Promise<void> {
+    const database = await this.getDatabase()
+    for (const id of ids) {
+      const row = await this.findAgentRow(id, { includeDeleted: true })
+      if (row?.deleted_at) {
+        await database.update(agentsTable).set({ deleted_at: null, updated_at: new Date().toISOString() }).where(eq(agentsTable.id, id))
+        logger.info('Cleared soft-delete marker for builtin agent', { id })
+      }
+    }
+  }
 }
 
 export const agentService = AgentService.getInstance()

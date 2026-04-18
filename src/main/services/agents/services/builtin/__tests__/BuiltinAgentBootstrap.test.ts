@@ -41,7 +41,8 @@ vi.mock('../../AgentService', () => ({
   agentService: {
     initDefaultCherryClawAgent: mockInitDefaultCherryClawAgent,
     initBuiltinAgent: mockInitBuiltinAgent,
-    agentExists: vi.fn().mockResolvedValue(true)
+    agentExists: vi.fn().mockResolvedValue(true),
+    clearBuiltinDeletedAt: vi.fn().mockResolvedValue(undefined)
   }
 }))
 
@@ -199,6 +200,15 @@ describe('hide/show builtin agents', () => {
     expect(() => showBuiltinAgent('custom-agent-123')).toThrow('Not a builtin agent ID: custom-agent-123')
   })
 
+  it('showBuiltinAgent on empty hidden list does not throw', async () => {
+    mockGetDismissed.mockReturnValue([])
+    const { showBuiltinAgent } = await import('../BuiltinAgentBootstrap')
+
+    showBuiltinAgent('cherry-claw-default')
+
+    expect(mockSetDismissed).toHaveBeenCalledWith([])
+  })
+
   it('getHiddenBuiltinAgents returns dismissed list', async () => {
     mockGetDismissed.mockReturnValue(['cherry-claw-default'])
     const { getHiddenBuiltinAgents } = await import('../BuiltinAgentBootstrap')
@@ -238,5 +248,20 @@ describe('hide/show builtin agents', () => {
     const result = await restoreBuiltinAgents()
 
     expect(result).toEqual(['cherry-claw-default'])
+  })
+
+  it('restoreBuiltinAgents clears soft-delete markers before re-init', async () => {
+    const { agentService } = await import('../../AgentService')
+    const { restoreBuiltinAgents } = await import('../BuiltinAgentBootstrap')
+
+    await restoreBuiltinAgents()
+
+    expect(agentService.clearBuiltinDeletedAt).toHaveBeenCalledWith(
+      expect.arrayContaining(['cherry-claw-default', 'cherry-assistant-default'])
+    )
+    // clearBuiltinDeletedAt should be called before init methods
+    const clearCallOrder = vi.mocked(agentService.clearBuiltinDeletedAt).mock.invocationCallOrder[0]
+    const initCallOrder = vi.mocked(agentService.agentExists).mock.invocationCallOrder[0]
+    expect(clearCallOrder).toBeLessThan(initCallOrder)
   })
 })

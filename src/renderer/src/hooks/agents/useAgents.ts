@@ -6,12 +6,11 @@ import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
 
+import { isBuiltinAgentId } from '@shared/agents/builtin'
+
 import { useApiServer } from '../useApiServer'
 import { useRuntime } from '../useRuntime'
 import { useAgentClient } from './useAgentClient'
-
-const BUILTIN_AGENT_IDS = ['cherry-claw-default', 'cherry-assistant-default'] as const
-const isBuiltinAgentId = (id: string): boolean => BUILTIN_AGENT_IDS.includes(id as (typeof BUILTIN_AGENT_IDS)[number])
 
 type Result<T> =
   | {

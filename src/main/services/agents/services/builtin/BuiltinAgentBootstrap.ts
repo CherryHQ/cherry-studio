@@ -13,7 +13,7 @@ import type { BuiltinAgentInitResult } from '../AgentService'
 import { agentService } from '../AgentService'
 import { schedulerService } from '../SchedulerService'
 import { sessionService } from '../SessionService'
-import { CHERRY_ASSISTANT_AGENT_ID, CHERRY_CLAW_AGENT_ID } from './BuiltinAgentIds'
+import { BUILTIN_AGENT_IDS, CHERRY_ASSISTANT_AGENT_ID, CHERRY_CLAW_AGENT_ID, isBuiltinAgentId } from './BuiltinAgentIds'
 import { provisionBuiltinAgent } from './BuiltinAgentProvisioner'
 
 const logger = loggerService.withContext('BuiltinAgentBootstrap')
@@ -21,11 +21,8 @@ const RETRY_DELAYS_MS = [5000, 15000, 30000]
 const retryAttempts = new Map<string, number>()
 const retryTimers = new Map<string, NodeJS.Timeout>()
 
-/** All builtin agent IDs — single source of truth for dismiss/restore logic */
-export const BUILTIN_AGENT_IDS = ['cherry-claw-default', 'cherry-assistant-default'] as const
-
-/** Check if an agent ID belongs to a builtin agent */
-export const isBuiltinAgentId = (id: string): boolean => BUILTIN_AGENT_IDS.includes(id as (typeof BUILTIN_AGENT_IDS)[number])
+// Re-export for consumers that import from this module
+export { BUILTIN_AGENT_IDS, isBuiltinAgentId }
 
 /**
  * Initialize all built-in skills and agents. Safe to call multiple times (idempotent).
@@ -155,8 +152,8 @@ export function hideBuiltinAgent(agentId: string): void {
   const hidden = configManager.getDismissedBuiltinAgents()
   if (!hidden.includes(agentId)) {
     configManager.setDismissedBuiltinAgents([...hidden, agentId])
+    logger.info('Builtin agent hidden', { agentId })
   }
-  logger.info('Builtin agent hidden', { agentId })
 }
 
 /** Show a hidden built-in agent by removing its ID from the hidden list */
@@ -179,17 +176,15 @@ export async function restoreBuiltinAgents(): Promise<string[]> {
   const previouslyHidden = configManager.getDismissedBuiltinAgents()
   configManager.setDismissedBuiltinAgents([])
 
+  // Clear soft-delete markers so re-init can recreate rows
+  await agentService.clearBuiltinDeletedAt(BUILTIN_AGENT_IDS)
+
   // Re-run init for each builtin to recreate any missing rows (parallel — different rows)
   await Promise.all([initCherryClaw(), initCherryAssistant()])
 
-  // Collect IDs of agents that now exist in DB
-  const restoredIds: string[] = []
-  for (const id of BUILTIN_AGENT_IDS) {
-    const exists = await agentService.agentExists(id)
-    if (exists) {
-      restoredIds.push(id)
-    }
-  }
+  // Collect IDs of agents that now exist in DB (parallel checks)
+  const existsResults = await Promise.all(BUILTIN_AGENT_IDS.map((id) => agentService.agentExists(id)))
+  const restoredIds = BUILTIN_AGENT_IDS.filter((_, i) => existsResults[i])
 
   if (restoredIds.length === 0 && previouslyHidden.length > 0) {
     logger.warn('Restore completed but no builtin agents confirmed in DB', { previouslyHidden })
