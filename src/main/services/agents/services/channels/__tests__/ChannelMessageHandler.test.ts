@@ -1,9 +1,8 @@
 import { EventEmitter } from 'events'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { agentService } from '../../AgentService'
 import { channelService } from '../../ChannelService'
-import { sessionMessageService } from '../../SessionMessageService'
 import { sessionService } from '../../SessionService'
 import { channelMessageHandler } from '../ChannelMessageHandler'
 
@@ -32,9 +31,14 @@ vi.mock('../../SessionService', () => ({
   }
 }))
 
-vi.mock('../../SessionMessageService', () => ({
-  sessionMessageService: {
-    createSessionMessage: vi.fn()
+vi.mock('@shared/data/types/model', () => ({
+  createUniqueModelId: vi.fn((providerId: string, modelId: string) => `${providerId}::${modelId}`)
+}))
+
+const { mockSend } = vi.hoisted(() => ({ mockSend: vi.fn() }))
+vi.mock('@main/core/application', () => ({
+  application: {
+    get: vi.fn().mockReturnValue({ send: mockSend })
   }
 }))
 
@@ -46,29 +50,29 @@ vi.mock('../../ChannelService', () => ({
   }
 }))
 
-vi.mock('../SessionStreamBus', () => ({
-  sessionStreamBus: {
-    publish: vi.fn(),
-    subscribe: vi.fn(),
-    cleanup: vi.fn(),
-    hasSubscribers: vi.fn().mockReturnValue(false)
-  }
-}))
-
-vi.mock('../sessionStreamIpc', () => ({
-  broadcastSessionChanged: vi.fn()
-}))
-
-function createMockStream(parts: Array<{ type: string; text?: string }>) {
-  const stream = new ReadableStream({
-    start(controller) {
-      for (const part of parts) {
-        controller.enqueue(part)
+/**
+ * Helper: configure mockSend to simulate streaming chunks then calling onDone.
+ *
+ * Finds the sentinel listener (id starting with 'channel-completion:') from the
+ * listeners array, feeds it chunks, then calls onDone to resolve the execution promise.
+ */
+function simulateStream(parts: Array<{ type: string; text?: string }>) {
+  mockSend.mockImplementationOnce(
+    ({
+      listeners
+    }: {
+      listeners: Array<{ id: string; onChunk: (chunk: unknown) => void; onDone: (result: { status: string }) => void }>
+    }) => {
+      const sentinel = listeners.find((l) => l.id.startsWith('channel-completion:'))
+      if (sentinel) {
+        for (const part of parts) {
+          sentinel.onChunk(part)
+        }
+        sentinel.onDone({ status: 'success' })
       }
-      controller.close()
+      return { mode: 'started', executionIds: [] }
     }
-  })
-  return { stream, completion: Promise.resolve({}) }
+  )
 }
 
 function createMockAdapter(overrides: Record<string, unknown> = {}) {
@@ -76,11 +80,13 @@ function createMockAdapter(overrides: Record<string, unknown> = {}) {
   adapter.agentId = overrides.agentId ?? 'agent-1'
   adapter.channelId = overrides.channelId ?? 'channel-1'
   adapter.channelType = overrides.channelType ?? 'telegram'
+  adapter.connected = true
   adapter.sendMessage = vi.fn().mockResolvedValue(undefined)
   adapter.sendTypingIndicator = vi.fn().mockResolvedValue(undefined)
   adapter.onTextUpdate = vi.fn().mockResolvedValue(undefined)
   adapter.onStreamComplete = vi.fn().mockResolvedValue(false)
   adapter.onStreamError = vi.fn().mockResolvedValue(undefined)
+  adapter.notifyChatIds = []
   return adapter
 }
 
@@ -118,22 +124,19 @@ describe('ChannelMessageHandler', () => {
       id: 'session-1',
       agent_id: 'agent-1',
       agent_type: 'claude-code',
+      model: 'openai:gpt-4',
       accessible_paths: ['/tmp/test-workspace'],
       configuration: {}
     }
 
     vi.mocked(sessionService.createSession).mockResolvedValueOnce(session as any)
-    vi.mocked(sessionMessageService.createSessionMessage).mockResolvedValueOnce(
-      createMockStream([
-        // Turn 1: cumulative text-delta within block
-        { type: 'text-delta', text: 'Hello ' },
-        { type: 'text-delta', text: 'Hello world!' },
-        { type: 'text-end' },
-        // Turn 2: new block after tool use
-        { type: 'text-delta', text: 'Done.' },
-        { type: 'text-end' }
-      ]) as any
-    )
+    simulateStream([
+      { type: 'text-delta', text: 'Hello ' },
+      { type: 'text-delta', text: 'world!' },
+      { type: 'text-end' },
+      { type: 'text-delta', text: '\n\nDone.' },
+      { type: 'text-end' }
+    ])
 
     await handleIncomingAndFlush(adapter, {
       chatId: 'chat-1',
@@ -142,6 +145,7 @@ describe('ChannelMessageHandler', () => {
       text: 'Hi'
     })
 
+    // The sentinel accumulates all text-delta chunks and trims the result
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Hello world!\n\nDone.')
   })
 
@@ -151,15 +155,14 @@ describe('ChannelMessageHandler', () => {
       id: 'session-1',
       agent_id: 'agent-1',
       agent_type: 'claude-code',
+      model: 'openai:gpt-4',
       accessible_paths: ['/tmp/test-workspace'],
       configuration: {}
     }
 
     adapter.onStreamComplete.mockResolvedValueOnce(true)
     vi.mocked(sessionService.createSession).mockResolvedValueOnce(session as any)
-    vi.mocked(sessionMessageService.createSessionMessage).mockResolvedValueOnce(
-      createMockStream([{ type: 'text-delta', text: 'Hello world!' }]) as any
-    )
+    simulateStream([{ type: 'text-delta', text: 'Hello world!' }])
 
     await handleIncomingAndFlush(adapter, {
       chatId: 'chat-1',
@@ -178,6 +181,7 @@ describe('ChannelMessageHandler', () => {
       id: 'session-1',
       agent_id: 'agent-1',
       agent_type: 'claude-code',
+      model: 'openai:gpt-4',
       accessible_paths: ['/tmp/test-workspace'],
       configuration: {}
     }
@@ -185,9 +189,7 @@ describe('ChannelMessageHandler', () => {
     vi.mocked(sessionService.createSession).mockResolvedValueOnce(session as any)
 
     const longText = 'A'.repeat(5000)
-    vi.mocked(sessionMessageService.createSessionMessage).mockResolvedValueOnce(
-      createMockStream([{ type: 'text-delta', text: longText }]) as any
-    )
+    simulateStream([{ type: 'text-delta', text: longText }])
 
     await handleIncomingAndFlush(adapter, {
       chatId: 'chat-1',
@@ -222,14 +224,13 @@ describe('ChannelMessageHandler', () => {
       id: 'session-1',
       agent_id: 'agent-1',
       agent_type: 'claude-code',
+      model: 'openai:gpt-4',
       accessible_paths: ['/tmp/test-workspace'],
       configuration: {}
     }
 
     vi.mocked(sessionService.createSession).mockResolvedValueOnce(session as any)
-    vi.mocked(sessionMessageService.createSessionMessage).mockResolvedValueOnce(
-      createMockStream([{ type: 'text-delta', text: 'Compacted.' }]) as any
-    )
+    simulateStream([{ type: 'text-delta', text: 'Compacted.' }])
 
     await channelMessageHandler.handleCommand(adapter, {
       chatId: 'chat-1',
@@ -238,11 +239,15 @@ describe('ChannelMessageHandler', () => {
       command: 'compact'
     })
 
-    expect(sessionMessageService.createSessionMessage).toHaveBeenCalledWith(
-      session,
-      { content: '/compact' },
-      expect.any(AbortController),
-      { persist: true }
+    // Verify send() was called with the correct structure
+    expect(mockSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        topicId: 'agent-session:session-1',
+        models: expect.arrayContaining([expect.objectContaining({ modelId: expect.any(String) })]),
+        listeners: expect.arrayContaining([
+          expect.objectContaining({ id: expect.stringContaining('channel-completion:') })
+        ])
+      })
     )
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Compacted.')
   })
@@ -293,6 +298,7 @@ describe('ChannelMessageHandler', () => {
       id: 'new-session',
       agent_id: 'agent-1',
       agent_type: 'claude-code',
+      model: 'openai:gpt-4',
       accessible_paths: ['/tmp/test-workspace'],
       configuration: {}
     }
@@ -308,9 +314,7 @@ describe('ChannelMessageHandler', () => {
 
     // Now send a message — should use the tracked session
     vi.mocked(sessionService.getSession).mockResolvedValueOnce(newSession as any)
-    vi.mocked(sessionMessageService.createSessionMessage).mockResolvedValueOnce(
-      createMockStream([{ type: 'text-delta', text: 'OK' }]) as any
-    )
+    simulateStream([{ type: 'text-delta', text: 'OK' }])
 
     await handleIncomingAndFlush(adapter, {
       chatId: 'chat-1',
@@ -328,15 +332,14 @@ describe('ChannelMessageHandler', () => {
       id: 'session-1',
       agent_id: 'agent-1',
       agent_type: 'claude-code',
+      model: 'openai:gpt-4',
       accessible_paths: ['/tmp/test-workspace'],
       configuration: {}
     }
 
     // First interaction creates a session
     vi.mocked(sessionService.createSession).mockResolvedValueOnce(session1 as any)
-    vi.mocked(sessionMessageService.createSessionMessage).mockResolvedValueOnce(
-      createMockStream([{ type: 'text-delta', text: 'R1' }]) as any
-    )
+    simulateStream([{ type: 'text-delta', text: 'R1' }])
 
     await handleIncomingAndFlush(adapter, {
       chatId: 'chat-1',
@@ -355,9 +358,7 @@ describe('ChannelMessageHandler', () => {
       permissionMode: null
     } as any)
     vi.mocked(sessionService.getSession).mockResolvedValueOnce(session1 as any)
-    vi.mocked(sessionMessageService.createSessionMessage).mockResolvedValueOnce(
-      createMockStream([{ type: 'text-delta', text: 'R2' }]) as any
-    )
+    simulateStream([{ type: 'text-delta', text: 'R2' }])
 
     await handleIncomingAndFlush(adapter, {
       chatId: 'chat-1',

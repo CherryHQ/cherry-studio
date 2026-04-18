@@ -61,6 +61,7 @@ export interface InputbarCoreProps {
   // Toolbar sections
   leftToolbar?: React.ReactNode
   rightToolbar?: React.ReactNode
+  primaryActionMode?: 'send' | 'pause'
 
   // Preview sections (attachments, mentions, etc.)
   topContent?: React.ReactNode
@@ -117,6 +118,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
   handleSendMessage,
   leftToolbar,
   rightToolbar,
+  primaryActionMode = 'send',
   topContent,
   pinnedContent,
   forceEnableQuickPanelTriggers
@@ -610,22 +612,24 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
         isLoading={isTranslating}
       />
     )
-    extras.push(<SendMessageButton sendMessage={handleSendMessage} disabled={isSendDisabled} />)
 
-    if (isLoading) {
+    if (primaryActionMode === 'pause' && onPause) {
       extras.push(
         <Tooltip key="pause" placement="top" title={t('chat.input.pause')} mouseLeaveDelay={0} arrow>
           <ActionIconButton
             onClick={onPause}
+            aria-label={t('chat.input.pause')}
             style={{ marginRight: -2 }}
             icon={<CirclePause size={20} color="var(--color-error)" />}
           />
         </Tooltip>
       )
+    } else {
+      extras.push(<SendMessageButton key="send" sendMessage={handleSendMessage} disabled={isSendDisabled} />)
     }
 
     return <>{extras}</>
-  }, [text, onTranslated, isTranslating, handleSendMessage, isSendDisabled, isLoading, t, onPause])
+  }, [text, onTranslated, isTranslating, primaryActionMode, onPause, handleSendMessage, isSendDisabled, t])
 
   const quickPanelElement = config.enableQuickPanel ? <QuickPanelView setInputText={setText} /> : null
 

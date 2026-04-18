@@ -1,5 +1,4 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
-import { AiProvider } from '@renderer/aiCore'
 import AnthropicProviderListPopover from '@renderer/components/AnthropicProviderListPopover'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import ModelSelector from '@renderer/components/ModelSelector'
@@ -14,6 +13,8 @@ import { loggerService } from '@renderer/services/LoggerService'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { useAppSelector } from '@renderer/store'
 import type { EndpointType, Model } from '@renderer/types'
+import { getRotatedProviderApiKey } from '@renderer/utils/providerAuth'
+import { formatProviderApiHost } from '@renderer/utils/providerHost'
 import type { TerminalConfig } from '@shared/config/constant'
 import { codeCLI, terminalApps } from '@shared/config/constant'
 import { CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS, isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
@@ -263,9 +264,9 @@ const CodeCliPage: FC = () => {
     if (!resolvedModel) return null
 
     const modelProvider = getProviderByModel(resolvedModel)
-    const aiProvider = new AiProvider(modelProvider)
-    const baseUrl = aiProvider.getBaseURL()
-    const apiKey = aiProvider.getApiKey()
+    const actualProvider = formatProviderApiHost(modelProvider)
+    const baseUrl = actualProvider.apiHost
+    const apiKey = getRotatedProviderApiKey(actualProvider)
 
     // 生成工具特定的环境变量
     const { env: toolEnv } = generateToolEnvironment({

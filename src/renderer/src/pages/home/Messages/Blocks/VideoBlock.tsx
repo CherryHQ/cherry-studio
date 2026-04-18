@@ -8,7 +8,14 @@ interface Props {
 }
 
 const VideoBlock: React.FC<Props> = ({ block }) => {
-  return <MessageVideo block={block} />
+  return (
+    <MessageVideo
+      url={block.url}
+      filePath={block.filePath}
+      videoPath={block.metadata?.video?.path}
+      startTime={block.metadata?.startTime}
+    />
+  )
 }
 
 export default React.memo(VideoBlock)

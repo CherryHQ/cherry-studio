@@ -1,6 +1,5 @@
 import type { TokenUsage } from '@mcp-trace/trace-core'
 import type { Span } from '@opentelemetry/api'
-import type { CompletionsResult } from '@renderer/aiCore/types'
 import { endSpan } from '@renderer/services/SpanManagerService'
 
 export class CompletionsResultHandler {
@@ -11,22 +10,11 @@ export class CompletionsResultHandler {
   private modelName?: string
 
   constructor(data: any, span: Span, topicId: string, modelName?: string) {
-    this.data = data && this.isCompletionsResult(data) ? { ...data, finishText: data.getText() } : data
+    this.data = data
     this.span = span
     this.topicId = topicId
     this.tokenUsage = this.getUsage(data)
     this.modelName = modelName
-  }
-
-  isCompletionsResult(data: any): data is CompletionsResult {
-    return (
-      data !== null &&
-      typeof data === 'object' &&
-      typeof data.getText === 'function' &&
-      (data.rawOutput === undefined || typeof data.rawOutput === 'object') &&
-      (data.stream === undefined || typeof data.stream === 'object') &&
-      (data.controller === undefined || data.controller instanceof AbortController)
-    )
   }
 
   getUsage(data?: any): TokenUsage | undefined {

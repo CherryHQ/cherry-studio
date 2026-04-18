@@ -4,7 +4,6 @@ import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { AiProvider } from '@renderer/aiCore'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -34,6 +33,7 @@ import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
 import { type ConfigItem, createModeConfigs, DEFAULT_PAINTING } from './config/aihubmixConfig'
 import { checkProviderEnabled } from './utils'
+import { persistGeneratedImages } from './utils/persistGeneratedImages'
 
 const logger = loggerService.withContext('AihubmixPage')
 
@@ -66,6 +66,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   const [abortController, setAbortController] = useState<AbortController | null>(null)
+  const activeImageRequestIdRef = useRef<string | null>(null)
   const [spaceClickCount, setSpaceClickCount] = useState(0)
   const [isTranslating, setIsTranslating] = useState(false)
   const [fileMap, setFileMap] = useState<{ [key: string]: FileMetadata }>({})
@@ -178,24 +179,37 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     try {
       if (mode === 'aihubmix_image_generate') {
+        // TODO(renderer/aiCore-cleanup): the remaining Gemini/Ideogram/custom fetch branches should move behind main AI/image IPC so this page no longer owns provider-specific transport logic.
         if (painting.model.startsWith('imagen-')) {
-          const AI = new AiProvider(aihubmixProvider)
-          const base64s = await AI.generateImage({
-            prompt,
-            model: painting.model,
-            imageSize: painting.aspectRatio?.replace('ASPECT_', '').replace('_', ':') || '1:1',
-            batchSize: painting.model.startsWith('imagen-4.0-ultra-generate') ? 1 : painting.numberOfImages || 1,
-            personGeneration: painting.personGeneration
+          const requestId = uuid()
+          activeImageRequestIdRef.current = requestId
+
+          const result = await window.api.ai.generateImage({
+            requestId,
+            payload: {
+              uniqueModelId: `${aihubmixProvider.id}::${painting.model}`,
+              prompt,
+              size: painting.aspectRatio?.replace('ASPECT_', '').replace('_', ':') || '1:1',
+              n: painting.model.startsWith('imagen-4.0-ultra-generate') ? 1 : painting.numberOfImages || 1,
+              personGeneration: painting.personGeneration
+            }
           })
-          if (base64s?.length > 0) {
-            const validFiles = await Promise.all(
-              base64s.map(async (base64) => {
-                return await window.api.file.saveBase64Image(base64)
-              })
-            )
+
+          if (activeImageRequestIdRef.current !== requestId) {
+            return
+          }
+
+          if (result.images.length > 0) {
+            const validFiles = await persistGeneratedImages(result.images)
+
+            if (activeImageRequestIdRef.current !== requestId) {
+              return
+            }
+
             await FileManager.addFiles(validFiles)
             updatePaintingState({ files: validFiles, urls: [] })
           }
+
           return
         } else if (painting.model === 'gemini-3-pro-image-preview') {
           const geminiUrl = `${aihubmixProvider.apiHost}/gemini/v1beta/models/gemini-3-pro-image-preview:streamGenerateContent`
@@ -572,6 +586,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
     } catch (error: unknown) {
       handleError(error)
     } finally {
+      activeImageRequestIdRef.current = null
       setIsLoading(false)
       setGenerating(false)
       setAbortController(null)
@@ -593,6 +608,10 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const onCancel = () => {
     abortController?.abort()
+    if (activeImageRequestIdRef.current) {
+      void window.api.ai.abortImageGeneration({ requestId: activeImageRequestIdRef.current })
+      activeImageRequestIdRef.current = null
+    }
   }
 
   const nextImage = () => {

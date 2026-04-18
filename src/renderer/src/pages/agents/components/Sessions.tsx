@@ -5,9 +5,6 @@ import { useCache } from '@renderer/data/hooks/useCache'
 import { useAgentClient } from '@renderer/hooks/agents/useAgentClient'
 import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
-import { useAppDispatch } from '@renderer/store'
-import { newMessagesActions } from '@renderer/store/newMessage'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { Alert, Button, Spin } from 'antd'
 import { motion } from 'framer-motion'
@@ -41,7 +38,6 @@ const Sessions = ({ agentId, onSelectItem }: SessionsProps) => {
   } = useSessions(agentId)
   const [activeSessionIdMap] = useCache('agent.session.active_id_map')
 
-  const dispatch = useAppDispatch()
   const { createDefaultSession, creatingSession } = useCreateDefaultSession(agentId)
   const listRef = useRef<DraggableVirtualListRef>(null)
   const client = useAgentClient()
@@ -139,17 +135,6 @@ const Sessions = ({ agentId, onSelectItem }: SessionsProps) => {
       setActiveSessionId(agentId, sessions[0].id)
     }
   }, [isLoading, sessions, activeSessionId, agentId, setActiveSessionId])
-
-  useEffect(() => {
-    if (activeSessionId) {
-      dispatch(
-        newMessagesActions.setTopicFulfilled({
-          topicId: buildAgentSessionTopicId(activeSessionId),
-          fulfilled: false
-        })
-      )
-    }
-  }, [activeSessionId, dispatch])
 
   if (isLoading) {
     return (

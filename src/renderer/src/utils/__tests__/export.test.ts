@@ -1,4 +1,5 @@
 // Import Message, MessageBlock, and necessary enums
+import { getTopicMessages } from '@renderer/hooks/useTopic'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { afterEach, beforeEach, describe, expect, it, test, vi } from 'vitest'
@@ -64,11 +65,9 @@ vi.mock('@renderer/utils/messageUtils/find', () => ({
   })
 }))
 
-// Mock TopicManager for dynamic import
+// Mock getTopicMessages for dynamic import
 vi.mock('@renderer/hooks/useTopic', () => ({
-  TopicManager: {
-    getTopicMessages: vi.fn()
-  }
+  getTopicMessages: vi.fn()
 }))
 
 // PreferenceService is now mocked globally in tests/renderer.setup.ts
@@ -435,16 +434,8 @@ describe('export', () => {
   })
 
   describe('formatMessageAsPlainText (via topicToPlainText)', () => {
-    beforeEach(async () => {
+    beforeEach(() => {
       vi.clearAllMocks()
-      vi.resetModules()
-
-      // Re-mock TopicManager for this test suite
-      vi.doMock('@renderer/hooks/useTopic', () => ({
-        TopicManager: {
-          getTopicMessages: vi.fn()
-        }
-      }))
     })
 
     it('should format user and assistant messages correctly to plain text with roles', async () => {
@@ -463,9 +454,8 @@ describe('export', () => {
         updatedAt: '',
         type: TopicType.Chat
       }
-      // Mock TopicManager.getTopicMessages to return the expected messages
-      const { TopicManager } = await import('@renderer/hooks/useTopic')
-      ;(TopicManager.getTopicMessages as any).mockResolvedValue([userMsg, assistantMsg])
+      // Mock getTopicMessages to return the expected messages
+      ;(getTopicMessages as any).mockResolvedValue([userMsg, assistantMsg])
       // Specific mock for this test to check formatting
       ;(markdownToPlainText as any).mockImplementation((str: string) => str.replace(/[#*]/g, ''))
 
@@ -536,16 +526,8 @@ describe('export', () => {
   })
 
   describe('messagesToPlainText (via topicToPlainText)', () => {
-    beforeEach(async () => {
-      vi.clearAllMocks() // Clear mocks before each test in this suite
-      vi.resetModules() // Reset module cache
-
-      // Re-import and re-mock TopicManager to ensure clean state
-      vi.doMock('@renderer/hooks/useTopic', () => ({
-        TopicManager: {
-          getTopicMessages: vi.fn()
-        }
-      }))
+    beforeEach(() => {
+      vi.clearAllMocks()
     })
 
     it('should join multiple formatted plain text messages with double newlines', async () => {
@@ -564,9 +546,8 @@ describe('export', () => {
         updatedAt: '',
         type: TopicType.Chat
       }
-      // Mock TopicManager.getTopicMessages to return the expected messages
-      const { TopicManager } = await import('@renderer/hooks/useTopic')
-      ;(TopicManager.getTopicMessages as any).mockResolvedValue([msg1, msg2])
+      // Mock getTopicMessages to return the expected messages
+      ;(getTopicMessages as any).mockResolvedValue([msg1, msg2])
       ;(markdownToPlainText as any).mockImplementation((str: string) => str) // Pass-through
 
       const plainText = await topicToPlainText(testTopic)
@@ -600,9 +581,8 @@ describe('export', () => {
         updatedAt: '',
         type: TopicType.Chat
       }
-      // Mock TopicManager.getTopicMessages to return the expected messages
-      const { TopicManager } = await import('@renderer/hooks/useTopic')
-      ;(TopicManager.getTopicMessages as any).mockResolvedValue([msgWithEmpty])
+      // Mock getTopicMessages to return the expected messages
+      ;(getTopicMessages as any).mockResolvedValue([msgWithEmpty])
       ;(markdownToPlainText as any).mockImplementation((str: string) => str)
 
       const result = await topicToPlainText(testTopic)
@@ -622,9 +602,8 @@ describe('export', () => {
         updatedAt: '',
         type: TopicType.Chat
       }
-      // Mock TopicManager.getTopicMessages to return the expected messages
-      const { TopicManager } = await import('@renderer/hooks/useTopic')
-      ;(TopicManager.getTopicMessages as any).mockResolvedValue([msgWithSpecial])
+      // Mock getTopicMessages to return the expected messages
+      ;(getTopicMessages as any).mockResolvedValue([msgWithSpecial])
       ;(markdownToPlainText as any).mockImplementation((str: string) => str)
 
       const result = await topicToPlainText(testTopic)
@@ -649,9 +628,8 @@ describe('export', () => {
         updatedAt: '',
         type: TopicType.Chat
       }
-      // Mock TopicManager.getTopicMessages to return the expected messages
-      const { TopicManager } = await import('@renderer/hooks/useTopic')
-      ;(TopicManager.getTopicMessages as any).mockResolvedValue([msg1, msg2])
+      // Mock getTopicMessages to return the expected messages
+      ;(getTopicMessages as any).mockResolvedValue([msg1, msg2])
       ;(markdownToPlainText as any).mockImplementation((str: string) => str.replace(/[#*_]/g, ''))
 
       const result = await topicToPlainText(testTopic)
@@ -671,9 +649,8 @@ describe('export', () => {
         updatedAt: '',
         type: TopicType.Chat
       }
-      // Mock TopicManager.getTopicMessages to return empty array
-      const { TopicManager } = await import('@renderer/hooks/useTopic')
-      ;(TopicManager.getTopicMessages as any).mockResolvedValue([])
+      // Mock getTopicMessages to return empty array
+      ;(getTopicMessages as any).mockResolvedValue([])
       ;(markdownToPlainText as any).mockImplementation((str: string) => str.replace(/[#*_]/g, ''))
 
       const result = await topicToPlainText(testTopic)
@@ -691,9 +668,8 @@ describe('export', () => {
         updatedAt: '',
         type: TopicType.Chat
       }
-      // Mock TopicManager.getTopicMessages to return empty array for null case
-      const { TopicManager } = await import('@renderer/hooks/useTopic')
-      ;(TopicManager.getTopicMessages as any).mockResolvedValue([])
+      // Mock getTopicMessages to return empty array for null case
+      ;(getTopicMessages as any).mockResolvedValue([])
 
       const result = await topicToPlainText(testTopic)
       expect(result).toBe('Null Messages Topic')

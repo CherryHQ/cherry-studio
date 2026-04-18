@@ -1,27 +1,21 @@
+import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import ContextMenu from '@renderer/components/ContextMenu'
 import { LoadingIcon } from '@renderer/components/Icons'
 import { LOAD_MORE_COUNT } from '@renderer/config/constant'
-import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
-import { useMessageOperations, useTopicMessages } from '@renderer/hooks/useMessageOperations'
+import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { autoRenameTopic } from '@renderer/hooks/useTopic'
+import { useTopicMutations } from '@renderer/hooks/useTopicDataApi'
 import SelectionBox from '@renderer/pages/home/Messages/SelectionBox'
-import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { getContextCount, getGroupedMessages, getUserMessage } from '@renderer/services/MessagesService'
+import { getContextCount, getGroupedMessages } from '@renderer/services/MessagesService'
 import { estimateHistoryTokens } from '@renderer/services/TokenService'
-import store, { useAppDispatch } from '@renderer/store'
-import { messageBlocksSelectors, updateOneBlock } from '@renderer/store/messageBlock'
-import { newMessagesActions } from '@renderer/store/newMessage'
-import { saveMessageAndBlocksToDB, updateMessageAndBlocksThunk } from '@renderer/store/thunk/messageThunk'
 import type { Assistant, Topic } from '@renderer/types'
-import type { MessageBlock } from '@renderer/types/newMessage'
-import { type Message, MessageBlockType } from '@renderer/types/newMessage'
+import type { Message } from '@renderer/types/newMessage'
 import {
   captureScrollableAsBlob,
   captureScrollableAsDataURL,
@@ -30,13 +24,14 @@ import {
 } from '@renderer/utils'
 import { updateCodeBlock } from '@renderer/utils/markdown'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
-import { isTextLikeBlock } from '@renderer/utils/messageUtils/is'
+import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import { last } from 'lodash'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import InfiniteScroll from 'react-infinite-scroll-component'
-import styled from 'styled-components'
 
+import { resolvePartFromParts, usePartsMap } from './Blocks'
 import MessageAnchorLine from './MessageAnchorLine'
 import MessageGroup from './MessageGroup'
 import NarrowLayout from './NarrowLayout'
@@ -49,36 +44,46 @@ interface MessagesProps {
   setActiveTopic: (topic: Topic) => void
   onComponentUpdate?(): void
   onFirstUpdate?(): void
+  messages: Message[]
 }
 
 const logger = loggerService.withContext('Messages')
 
-const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, onComponentUpdate, onFirstUpdate }) => {
+const Messages: React.FC<MessagesProps> = ({
+  assistant,
+  topic,
+  setActiveTopic,
+  onComponentUpdate,
+  onFirstUpdate,
+  messages
+}) => {
   const { containerRef: scrollContainerRef, handleScroll: handleScrollPosition } = useScrollPosition(
     `topic-${topic.id}`
   )
   const [displayMessages, setDisplayMessages] = useState<Message[]>([])
   const [hasMore, setHasMore] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
-  const [isProcessingContext, setIsProcessingContext] = useState(false)
-
-  const { addTopic } = useAssistant(assistant.id)
+  const { createTopic } = useTopicMutations()
   const [showPrompt] = usePreference('chat.message.show_prompt')
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const { t } = useTranslation()
-  const dispatch = useAppDispatch()
-  const messages = useTopicMessages(topic.id)
-  const { displayCount, clearTopicMessages, deleteMessage, createTopicBranch } = useMessageOperations(topic)
+  const partsMap = usePartsMap()
+  const { displayCount, clearTopicMessages } = useMessageOperations(topic)
   const { setTimeoutTimer } = useTimer()
 
   const { isMultiSelectMode, handleSelectMessage } = useChatContext(topic)
 
   const messageElements = useRef<Map<string, HTMLElement>>(new Map())
   const messagesRef = useRef<Message[]>(messages)
+  const partsMapRef = useRef(partsMap)
 
   useEffect(() => {
     messagesRef.current = messages
   }, [messages])
+
+  useEffect(() => {
+    partsMapRef.current = partsMap
+  }, [partsMap])
 
   const registerMessageElement = useCallback((id: string, element: HTMLElement | null) => {
     if (element) {
@@ -108,7 +113,6 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
   const clearTopic = useCallback(
     async (data: Topic) => {
       if (data && data.id !== topic.id) {
-        await clearTopicMessages(data.id)
         return
       }
 
@@ -142,61 +146,30 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
           void window.api.file.saveImage(removeSpecialCharactersForFileName(topic.name), imageData)
         }
       }),
-      EventEmitter.on(EVENT_NAMES.NEW_CONTEXT, async () => {
-        if (isProcessingContext) return
-        setIsProcessingContext(true)
-
-        try {
-          const messages = messagesRef.current
-
-          if (messages.length === 0) {
-            return
-          }
-
-          const lastMessage = last(messages)
-
-          if (lastMessage?.type === 'clear') {
-            await deleteMessage(lastMessage.id)
-            scrollToBottom()
-            return
-          }
-
-          const { message: clearMessage } = getUserMessage({ assistant, topic, type: 'clear' })
-          dispatch(newMessagesActions.addMessage({ topicId: topic.id, message: clearMessage }))
-          await saveMessageAndBlocksToDB(topic.id, clearMessage, [])
-
-          scrollToBottom()
-        } finally {
-          setIsProcessingContext(false)
-        }
+      EventEmitter.on(EVENT_NAMES.NEW_CONTEXT, () => {
+        logger.info('[NEW_CONTEXT] Not yet implemented in V2.')
       }),
       EventEmitter.on(EVENT_NAMES.NEW_BRANCH, async (index: number) => {
-        const newTopic = getDefaultTopic(assistant.id)
-        newTopic.name = topic.name
         const currentMessages = messagesRef.current
 
-        if (index < 0 || index > currentMessages.length) {
+        if (index < 0 || index >= currentMessages.length) {
           logger.error(`[NEW_BRANCH] Invalid branch index: ${index}`)
           return
         }
 
-        // 1. Add the new topic to Redux store FIRST
-        addTopic(newTopic)
+        const sourceMessage = currentMessages[index]
 
-        // 2. Call the thunk to clone messages and update DB
-        const success = await createTopicBranch(topic.id, currentMessages.length - index, newTopic)
-
-        if (success) {
-          // 3. Set the new topic as active
+        try {
+          const created = await createTopic({
+            name: topic.name,
+            assistantId: assistant.id,
+            sourceNodeId: sourceMessage.id
+          })
+          const newTopic = { ...created, messages: [] } as Topic
           setActiveTopic(newTopic)
-          // 4. Trigger auto-rename for the new topic
-          void autoRenameTopic(assistant, newTopic.id)
-        } else {
-          // Optional: Handle cloning failure (e.g., show an error message)
-          // You might want to remove the added topic if cloning fails
-          // removeTopic(newTopic.id); // Assuming you have a removeTopic function
-          logger.error(`[NEW_BRANCH] Failed to create topic branch for topic ${newTopic.id}`)
-          window.toast.error(t('message.branch.error')) // Example error message
+        } catch (err) {
+          logger.error('[NEW_BRANCH] Failed to create topic branch via DataApi', { topicId: topic.id, err })
+          window.toast.error(t('message.branch.error'))
         }
       }),
       EventEmitter.on(
@@ -204,32 +177,28 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
         async (data: { msgBlockId: string; codeBlockId: string; newContent: string }) => {
           const { msgBlockId, codeBlockId, newContent } = data
 
-          const msgBlock = messageBlocksSelectors.selectById(store.getState(), msgBlockId)
-
-          // FIXME: 目前 error block 没有 content
-          if (msgBlock && isTextLikeBlock(msgBlock) && msgBlock.type !== MessageBlockType.ERROR) {
-            try {
-              const updatedRaw = updateCodeBlock(msgBlock.content, codeBlockId, newContent)
-              const updatedBlock: MessageBlock = {
-                ...msgBlock,
-                content: updatedRaw,
-                updatedAt: new Date().toISOString()
-              }
-
-              dispatch(updateOneBlock({ id: msgBlockId, changes: { content: updatedRaw } }))
-              await dispatch(updateMessageAndBlocksThunk(topic.id, null, [updatedBlock]))
-
+          try {
+            const resolved = partsMapRef.current && resolvePartFromParts(partsMapRef.current, msgBlockId)
+            if (resolved && resolved.part.type === 'text') {
+              const textPart = resolved.part as { text?: string }
+              const updatedText = updateCodeBlock(textPart.text || '', codeBlockId, newContent)
+              const allParts = [...(partsMapRef.current![resolved.messageId] || [])]
+              allParts[resolved.index] = { ...resolved.part, text: updatedText } as CherryMessagePart
+              await dataApiService.patch(`/messages/${resolved.messageId}`, {
+                body: { data: { parts: allParts } }
+              })
               window.toast.success(t('code_block.edit.save.success'))
-            } catch (error) {
-              logger.error(
-                `Failed to save code block ${codeBlockId} content to message block ${msgBlockId}:`,
-                error as Error
-              )
-              window.toast.error(t('code_block.edit.save.failed.label'))
+              return
             }
-          } else {
+
             logger.error(
-              `Failed to save code block ${codeBlockId} content to message block ${msgBlockId}: no such message block or the block doesn't have a content field`
+              `Failed to save code block ${codeBlockId} content to message block ${msgBlockId}: unable to resolve part`
+            )
+            window.toast.error(t('code_block.edit.save.failed.label'))
+          } catch (error) {
+            logger.error(
+              `Failed to save code block ${codeBlockId} content to message block ${msgBlockId}:`,
+              error as Error
             )
             window.toast.error(t('code_block.edit.save.failed.label'))
           }
@@ -239,7 +208,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
 
     return () => unsubscribes.forEach((unsub) => unsub())
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assistant, dispatch, scrollToBottom, topic, isProcessingContext])
+  }, [assistant, scrollToBottom, topic])
 
   useEffect(() => {
     void runAsyncFunction(async () => {
@@ -271,7 +240,9 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
   useShortcut('chat.copy_last_message', () => {
     const lastMessage = last(messages)
     if (lastMessage) {
-      void navigator.clipboard.writeText(getMainTextContent(lastMessage))
+      const parts = partsMap?.[lastMessage.id]
+      const text = parts ? getTextFromParts(parts) : getMainTextContent(lastMessage)
+      void navigator.clipboard.writeText(text)
       window.toast.success(t('message.copy.success'))
     }
   })
@@ -328,9 +299,11 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
                 />
               ))}
               {isLoadingMore && (
-                <LoaderContainer>
+                <div
+                  className="pointer-events-none flex w-full justify-center py-2.5"
+                  style={{ background: 'var(--color-background)' }}>
                   <LoadingIcon color="var(--color-text-2)" />
-                </LoaderContainer>
+                </div>
               )}
             </ScrollContainer>
           </ContextMenu>
@@ -385,14 +358,5 @@ const computeDisplayMessages = (messages: Message[], startIndex: number, display
 
   return displayMessages
 }
-
-const LoaderContainer = styled.div`
-  display: flex;
-  justify-content: center;
-  padding: 10px;
-  width: 100%;
-  background: var(--color-background);
-  pointer-events: none;
-`
 
 export default Messages

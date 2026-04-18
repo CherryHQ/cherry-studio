@@ -1,13 +1,14 @@
 import { loggerService } from '@logger'
+import { buildAgentSessionTopicId, parseAgentSessionModel } from '@main/ai/provider/claudeCodeSettingsBuilder'
+import { ChannelAdapterListener, type StreamListener } from '@main/ai/stream-manager'
+import type { AiStreamManager } from '@main/ai/stream-manager/AiStreamManager'
+import { application } from '@main/core/application'
 import type { CherryClawConfiguration, ScheduledTaskEntity } from '@types'
 
 import { agentService } from './AgentService'
-import type { ChannelAdapter } from './channels'
 import { channelManager } from './channels/ChannelManager'
-import { broadcastSessionChanged } from './channels/sessionStreamIpc'
 import { channelService } from './ChannelService'
 import { readHeartbeat } from './cherryclaw/heartbeat'
-import { sessionMessageService } from './SessionMessageService'
 import { sessionService } from './SessionService'
 import { taskService } from './TaskService'
 
@@ -260,31 +261,66 @@ class SchedulerService {
         logger.debug('Created new session for task', { taskId: task.id, sessionId })
       }
 
-      // Send as user message (triggers agent response)
-      const { stream, completion } = await sessionMessageService.createSessionMessage(
-        session,
-        { content: fullPrompt },
-        abortController,
-        { persist: true }
-      )
-
-      // Collect the response text and stream to subscribed channels only
-      const targetAdapters = subscribedChannels
+      // Build listeners: ChannelAdapterListener per subscribed channel + completion sentinel
+      const listeners: StreamListener[] = subscribedChannels
         .map((ch) => {
           const adapter = channelManager.getAdapter(ch.id)
-          logger.info('Task stream channel check', {
-            channelId: ch.id,
-            hasAdapter: !!adapter,
-            notifyChatIds: adapter?.notifyChatIds ?? []
-          })
-          return adapter
+          if (!adapter) return undefined
+          return adapter.notifyChatIds.map((chatId) => new ChannelAdapterListener(adapter, chatId))
         })
-        .filter((a) => a !== undefined)
-      const responseText = await this.collectAndStreamResponse(stream, targetAdapters)
-      await completion
+        .flat()
+        .filter((l) => l !== undefined)
 
-      // Notify renderer so the session list refreshes and messages can be loaded
-      broadcastSessionChanged(task.agent_id, sessionId, true)
+      // Completion tracking via sentinel listener
+      let resolveExecution!: (text: string) => void
+      let rejectExecution!: (err: unknown) => void
+      const executionDone = new Promise<string>((resolve, reject) => {
+        resolveExecution = resolve
+        rejectExecution = reject
+      })
+      let accumulatedText = ''
+      const sentinel: StreamListener = {
+        id: `scheduler:${task.id}`,
+        onChunk(chunk) {
+          const c = chunk as { type: string; text?: string }
+          if (c.type === 'text-delta' && c.text) accumulatedText += c.text
+        },
+        onDone() {
+          resolveExecution(accumulatedText.trim())
+        },
+        onPaused() {
+          resolveExecution(accumulatedText.trim())
+        },
+        onError(result) {
+          rejectExecution(new Error(result.error.message ?? 'Execution failed'))
+        },
+        isAlive: () => !abortController.signal.aborted
+      }
+      listeners.push(sentinel)
+
+      // Start execution via AiStreamManager
+      const topicId = buildAgentSessionTopicId(session.id)
+      const uniqueModelId = parseAgentSessionModel(session.model)
+
+      const aiStreamManager = application.get('AiStreamManager') as unknown as AiStreamManager
+      aiStreamManager.send({
+        topicId,
+        models: [
+          {
+            modelId: uniqueModelId,
+            request: {
+              chatId: topicId,
+              trigger: 'submit-message',
+              assistantId: session.agent_id,
+              uniqueModelId,
+              messages: [{ id: crypto.randomUUID(), role: 'user', parts: [{ type: 'text', text: fullPrompt }] }]
+            }
+          }
+        ],
+        listeners
+      })
+
+      const responseText = await executionDone
 
       // Check if the task was aborted (e.g. by timeout)
       if (abortController.signal.aborted) {
@@ -334,75 +370,6 @@ class SchedulerService {
     // Send error notification or final response to channels
     if (error) {
       await this.notifyTaskError(task, durationMs, error, subscribedChannels)
-    }
-  }
-
-  /**
-   * Collect the stream response text and simultaneously stream to channel adapters.
-   * Mirrors the logic in ChannelMessageHandler.collectStreamResponse.
-   */
-  private async collectAndStreamResponse(stream: ReadableStream, adapters: ChannelAdapter[]): Promise<string> {
-    const reader = stream.getReader()
-    let completedText = ''
-    let currentBlockText = ''
-
-    // Pick the first notifyChatId from each adapter for streaming
-    const adapterChats = adapters.flatMap((a) => a.notifyChatIds.map((chatId) => ({ adapter: a, chatId })))
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        // Skip user message echoes
-        const rawType = value.providerMetadata?.raw?.type
-        if (rawType === 'user') continue
-
-        switch (value.type) {
-          case 'text-delta':
-            if (value.text) {
-              currentBlockText = value.text
-              const fullText = completedText + currentBlockText
-              // Stream to all channel adapters
-              for (const { adapter, chatId } of adapterChats) {
-                adapter.onTextUpdate(chatId, fullText).catch(() => {})
-              }
-            }
-            break
-          case 'text-end':
-            if (currentBlockText) {
-              completedText += currentBlockText + '\n\n'
-              currentBlockText = ''
-            }
-            break
-        }
-      }
-
-      const finalText = (completedText + currentBlockText).replace(/\n+$/, '')
-
-      // Finalize streaming on all adapters, fall back to sendMessage if not handled
-      for (const { adapter, chatId } of adapterChats) {
-        try {
-          const handled = await adapter.onStreamComplete(chatId, finalText)
-          if (!handled && finalText) {
-            await adapter.sendMessage(chatId, finalText)
-          }
-        } catch (err) {
-          logger.warn('Failed to send task response to channel', {
-            channelId: adapter.channelId,
-            chatId,
-            error: err instanceof Error ? err.message : String(err)
-          })
-        }
-      }
-
-      return finalText
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error)
-      for (const { adapter, chatId } of adapterChats) {
-        adapter.onStreamError(chatId, errorMsg).catch(() => {})
-      }
-      throw error
     }
   }
 

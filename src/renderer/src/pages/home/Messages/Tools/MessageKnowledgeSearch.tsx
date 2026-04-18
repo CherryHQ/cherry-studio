@@ -1,7 +1,7 @@
-import type { KnowledgeSearchToolInput, KnowledgeSearchToolOutput } from '@renderer/aiCore/tools/KnowledgeSearchTool'
 import Spinner from '@renderer/components/Spinner'
 import i18n from '@renderer/i18n'
 import type { NormalToolResponse } from '@renderer/types'
+import type { KnowledgeSearchToolInput, KnowledgeSearchToolOutput } from '@renderer/types/toolResponses'
 import { Typography } from 'antd'
 import { FileSearch } from 'lucide-react'
 import styled from 'styled-components'

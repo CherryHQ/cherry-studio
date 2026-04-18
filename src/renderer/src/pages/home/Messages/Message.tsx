@@ -11,17 +11,15 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageModelId } from '@renderer/services/MessagesService'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { estimateMessageUsage } from '@renderer/services/TokenService'
 import type { Assistant, Topic } from '@renderer/types'
-import type { Message, MessageBlock } from '@renderer/types/newMessage'
+import type { Message } from '@renderer/types/newMessage'
 import { classNames, cn } from '@renderer/utils'
 import { scrollIntoView } from '@renderer/utils/dom'
 import { isMessageProcessing } from '@renderer/utils/messageUtils/is'
-import { Divider } from 'antd'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Dispatch, FC, SetStateAction } from 'react'
 import React, { memo, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import MessageContent from './MessageContent'
 import MessageEditor from './MessageEditor'
@@ -77,7 +75,7 @@ const MessageItem: FC<Props> = ({
   const [messageStyle] = usePreference('chat.message.style')
   const [showMessageOutline] = usePreference('chat.message.show_outline')
 
-  const { editMessageBlocks, resendUserMessageWithEdit, editMessage } = useMessageOperations(topic)
+  const { editMessageParts, resendUserMessageWithEditParts } = useMessageOperations(topic)
   const messageContainerRef = useRef<HTMLDivElement>(null)
   const { editingMessageId, startEditing, stopEditing } = useMessageEditing()
   const { setTimeoutTimer } = useTimer()
@@ -94,29 +92,27 @@ const MessageItem: FC<Props> = ({
   }, [isEditing])
 
   const handleEditSave = useCallback(
-    async (blocks: MessageBlock[]) => {
+    async (parts: CherryMessagePart[]) => {
       try {
-        await editMessageBlocks(message.id, blocks)
-        const usage = await estimateMessageUsage(message)
-        void editMessage(message.id, { usage: usage })
+        await editMessageParts(message.id, parts)
         stopEditing()
       } catch (error) {
-        logger.error('Failed to save message blocks:', error as Error)
+        logger.error('Failed to save message parts:', error as Error)
       }
     },
-    [message, editMessageBlocks, stopEditing, editMessage]
+    [message.id, editMessageParts, stopEditing]
   )
 
   const handleEditResend = useCallback(
-    async (blocks: MessageBlock[]) => {
+    async (parts: CherryMessagePart[]) => {
       try {
-        await resendUserMessageWithEdit(message, blocks, assistant)
         stopEditing()
+        await resendUserMessageWithEditParts(message, parts)
       } catch (error) {
-        logger.error('Failed to resend message:', error as Error)
+        logger.error('Failed to resend message with parts:', error as Error)
       }
     },
-    [message, resendUserMessageWithEdit, assistant, stopEditing]
+    [message, resendUserMessageWithEditParts, stopEditing]
   )
 
   const handleEditCancel = useCallback(() => {
@@ -174,28 +170,27 @@ const MessageItem: FC<Props> = ({
 
   if (message.type === 'clear') {
     return (
-      <NewContextMessage
-        isMultiSelectMode={isMultiSelectMode}
-        className="clear-context-divider"
+      <div
+        className={cn('clear-context-divider flex-1 cursor-pointer', isMultiSelectMode && 'cursor-default')}
         onClick={() => {
-          if (isMultiSelectMode) {
-            return
-          }
+          if (isMultiSelectMode) return
           void EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
         }}>
-        <Divider dashed style={{ padding: '0 20px' }} plain>
-          {t('chat.message.new.context')}
-        </Divider>
-      </NewContextMessage>
+        <div className="mx-5 my-0 flex items-center gap-2 text-[var(--color-text-3)] text-sm">
+          <hr className="flex-1 border-[var(--color-border)] border-dashed" />
+          <span>{t('chat.message.new.context')}</span>
+          <hr className="flex-1 border-[var(--color-border)] border-dashed" />
+        </div>
+      </div>
     )
   }
 
   return (
     <WrapperContainer isMultiSelectMode={isMultiSelectMode}>
-      <MessageContainer
+      <div
         key={message.id}
         className={classNames({
-          message: true,
+          'message relative flex w-full flex-col rounded-[10px] p-[10px] pb-0 transition-colors duration-300 [transform:translateZ(0)] [will-change:transform] [&:hover_.menubar]:opacity-100 [&_.menubar.show]:opacity-100 [&_.menubar]:opacity-0 [&_.menubar]:transition-opacity [&_.menubar]:duration-200': true,
           'message-assistant': isAssistantMessage,
           'message-user': !isAssistantMessage
         })}
@@ -211,7 +206,6 @@ const MessageItem: FC<Props> = ({
         {isEditing && (
           <MessageEditor
             message={message}
-            topicId={topic.id}
             onSave={handleEditSave}
             onResend={handleEditResend}
             onCancel={handleEditCancel}
@@ -222,8 +216,8 @@ const MessageItem: FC<Props> = ({
             {!isMultiSelectMode && message.role === 'assistant' && showMessageOutline && (
               <MessageOutline message={message} />
             )}
-            <MessageContentContainer
-              className="message-content-container"
+            <Scrollbar
+              className="message-content-container mt-0 max-w-full overflow-y-auto pl-[46px]"
               style={{
                 fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
                 fontSize,
@@ -232,9 +226,9 @@ const MessageItem: FC<Props> = ({
               <MessageErrorBoundary>
                 <MessageContent message={message} />
               </MessageErrorBoundary>
-            </MessageContentContainer>
+            </Scrollbar>
             {showMenubar && (
-              <MessageFooter className="MessageFooter">
+              <div className="MessageFooter mt-[3px] ml-[46px] flex items-center justify-between gap-2.5">
                 <HorizontalScrollContainer
                   classNames={{
                     content: cn(
@@ -256,63 +250,13 @@ const MessageItem: FC<Props> = ({
                     onUpdateUseful={onUpdateUseful}
                   />
                 </HorizontalScrollContainer>
-              </MessageFooter>
+              </div>
             )}
           </>
         )}
-      </MessageContainer>
+      </div>
     </WrapperContainer>
   )
 }
-
-const MessageContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  position: relative;
-  transition: background-color 0.3s ease;
-  transform: translateZ(0);
-  will-change: transform;
-  padding: 10px;
-  padding-bottom: 0;
-  border-radius: 10px;
-  .menubar {
-    opacity: 0;
-    transition: opacity 0.2s ease;
-    transform: translateZ(0);
-    will-change: opacity;
-    &.show {
-      opacity: 1;
-    }
-  }
-  &:hover {
-    .menubar {
-      opacity: 1;
-    }
-  }
-`
-
-const MessageContentContainer = styled(Scrollbar)`
-  max-width: 100%;
-  padding-left: 46px;
-  margin-top: 0;
-  overflow-y: auto;
-`
-
-const MessageFooter = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-left: 46px;
-  margin-top: 3px;
-`
-
-const NewContextMessage = styled.div<{ isMultiSelectMode: boolean }>`
-  cursor: pointer;
-  flex: 1;
-
-  ${({ isMultiSelectMode }) => isMultiSelectMode && 'cursor: default;'}
-`
 
 export default memo(MessageItem)

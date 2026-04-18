@@ -26,6 +26,7 @@ import { MockMainPreferenceServiceExport } from './PreferenceService'
 /** Minimal WindowService mock for tests that access application.get('WindowService') */
 const mockWindowService = {
   getMainWindow: vi.fn(() => null),
+  getAllWindows: vi.fn(() => []),
   showMainWindow: vi.fn()
 }
 
@@ -38,8 +39,11 @@ export const defaultServiceInstances = {
   WindowService: mockWindowService
 } as const
 
-/** Type for per-service overrides */
-export type ServiceOverrides = Partial<Record<keyof typeof defaultServiceInstances, unknown>>
+/**
+ * Type for per-service overrides.
+ * Known services get type hints; unknown services accepted via index signature.
+ */
+export type ServiceOverrides = Partial<Record<keyof typeof defaultServiceInstances, unknown>> & Record<string, unknown>
 
 /**
  * Create a mock application object with optional service overrides.

@@ -76,14 +76,6 @@ describe('isEmbeddingModel', () => {
     })
     expect(isEmbeddingModel(model)).toBe(true)
   })
-
-  it('returns false for anthropic provider models', () => {
-    const model = createModel({
-      id: 'text-embedding-ada-002',
-      provider: 'anthropic'
-    })
-    expect(isEmbeddingModel(model)).toBe(false)
-  })
 })
 
 describe('isRerankModel', () => {

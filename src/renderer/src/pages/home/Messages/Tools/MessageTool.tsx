@@ -1,5 +1,4 @@
 import type { NormalToolResponse } from '@renderer/types'
-import type { ToolMessageBlock } from '@renderer/types/newMessage'
 
 import { MessageAgentTools } from './MessageAgentTools'
 import { AgentToolsType } from './MessageAgentTools/types'
@@ -7,7 +6,7 @@ import { MessageKnowledgeSearchToolTitle } from './MessageKnowledgeSearch'
 import { MessageWebSearchToolTitle } from './MessageWebSearch'
 
 interface Props {
-  block: ToolMessageBlock
+  toolResponse: NormalToolResponse
 }
 const builtinToolsPrefix = 'builtin_'
 const agentMcpToolsPrefix = 'mcp__'
@@ -40,12 +39,7 @@ const ChooseTool = (toolResponse: NormalToolResponse): React.ReactNode | null =>
   return null
 }
 
-export default function MessageTool({ block }: Props) {
-  // FIXME: 语义错误，这里已经不是 MCP tool 了,更改rawMcpToolResponse需要改用户数据, 所以暂时保留
-  const toolResponse = block.metadata?.rawMcpToolResponse as NormalToolResponse
-
-  if (!toolResponse) return null
-
+export default function MessageTool({ toolResponse }: Props) {
   const toolRenderer = ChooseTool(toolResponse)
 
   if (!toolRenderer) return null

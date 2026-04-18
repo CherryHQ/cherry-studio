@@ -7,6 +7,7 @@
  */
 
 import { topicService } from '@data/services/TopicService'
+import { topicNamingService } from '@main/services/TopicNamingService'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
 import type { TopicSchemas } from '@shared/data/api/schemas/topics'
 
@@ -24,8 +25,21 @@ export const topicHandlers: {
   }
 } = {
   '/topics': {
+    GET: async ({ query }) => {
+      const assistantId = query?.assistantId
+      if (typeof assistantId !== 'string' || assistantId.length === 0) {
+        return await topicService.list()
+      }
+      return await topicService.list(assistantId)
+    },
+
     POST: async ({ body }) => {
-      return await topicService.create(body)
+      const topic = await topicService.create(body)
+      if (body.sourceNodeId) {
+        await topicNamingService.maybeRenameForkedTopic(topic.id, topic.assistantId)
+        return await topicService.getById(topic.id)
+      }
+      return topic
     }
   },
 

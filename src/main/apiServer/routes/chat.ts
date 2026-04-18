@@ -40,15 +40,15 @@ const mapChatCompletionError = (error: unknown): { status: number; body: ErrorRe
   }
 
   if (error instanceof ChatCompletionModelError) {
-    logger.warn('Chat completion model error', error.error)
+    logger.warn('Chat completion model error', { message: error.message })
 
     return {
       status: 400,
       body: {
         error: {
-          message: error.error.message,
+          message: error.message,
           type: 'invalid_request_error',
-          code: error.error.code
+          code: 'model_error'
         }
       }
     }

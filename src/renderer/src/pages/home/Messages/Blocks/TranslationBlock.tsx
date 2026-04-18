@@ -1,14 +1,29 @@
-import type { TranslationMessageBlock } from '@renderer/types/newMessage'
-import React from 'react'
+import { MessageBlockStatus } from '@renderer/types/newMessage'
+import React, { useMemo } from 'react'
 
-import MessageTranslate from '../MessageTranslate'
+import type { MarkdownSource } from '../../Markdown/Markdown'
+import MessageTranslate from './MessageTranslate'
 
 interface Props {
-  block: TranslationMessageBlock
+  /** Stable ID for heading prefix */
+  id: string
+  /** Translated content (markdown) */
+  content: string
+  /** Whether this block is currently streaming */
+  isStreaming: boolean
 }
 
-const TranslationBlock: React.FC<Props> = ({ block }) => {
-  return <MessageTranslate block={block} />
+const TranslationBlock: React.FC<Props> = ({ id, content, isStreaming }) => {
+  const markdownSource = useMemo<MarkdownSource>(
+    () => ({
+      id,
+      content,
+      status: isStreaming ? MessageBlockStatus.STREAMING : MessageBlockStatus.SUCCESS
+    }),
+    [id, content, isStreaming]
+  )
+
+  return <MessageTranslate block={markdownSource} />
 }
 
 export default React.memo(TranslationBlock)

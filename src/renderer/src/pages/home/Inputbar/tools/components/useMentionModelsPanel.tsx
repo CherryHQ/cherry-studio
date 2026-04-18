@@ -105,7 +105,10 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
         setMentionedModels((prev) => {
           const modelId = getModelUniqId(model)
           const exists = prev.some((m) => getModelUniqId(m) === modelId)
-          return exists ? prev.filter((m) => getModelUniqId(m) !== modelId) : [...prev, model]
+          if (exists) return prev.filter((m) => getModelUniqId(m) !== modelId)
+          // Normalize id to UniqueModelId (providerId::modelId) for backend consumption
+          const normalized = { ...model, id: model.id.includes('::') ? model.id : `${model.provider}::${model.id}` }
+          return [...prev, normalized]
         })
         hasModelActionRef.current = true
       }

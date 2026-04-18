@@ -8,7 +8,6 @@ import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Assistant } from '@renderer/types'
 import { cn, uuid } from '@renderer/utils'
-import { hasTopicPendingRequests } from '@renderer/utils/queue'
 import type { AssistantTabSortType } from '@shared/data/preference/preferenceTypes'
 import type { MenuProps } from 'antd'
 import { Dropdown } from 'antd'
@@ -28,7 +27,7 @@ import {
   Tags
 } from 'lucide-react'
 import type { FC, PropsWithChildren } from 'react'
-import { memo, useCallback, useEffect, useMemo, useState } from 'react'
+import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import * as tinyPinyin from 'tiny-pinyin'
 
@@ -70,18 +69,7 @@ const AssistantItem: FC<AssistantItemProps> = ({
   const { removeAllTopics } = useAssistant(assistant.id)
   const { assistants, updateAssistants } = useAssistants()
 
-  const [isPending, setIsPending] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
-
-  useEffect(() => {
-    if (isActive) {
-      setIsPending(false)
-      return
-    }
-
-    const hasPending = assistant.topics.some((topic) => hasTopicPendingRequests(topic.id))
-    setIsPending(hasPending)
-  }, [isActive, assistant.topics])
 
   // Local sort functions
   const localSortByPinyinAsc = useCallback(() => {
@@ -164,11 +152,7 @@ const AssistantItem: FC<AssistantItemProps> = ({
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}>
         <AssistantNameRow className="name" title={fullAssistantName}>
-          <AssistantAvatar
-            assistant={assistant}
-            size={24}
-            className={isPending && !isActive ? 'animation-pulse' : ''}
-          />
+          <AssistantAvatar assistant={assistant} size={24} />
           <AssistantName className="text-nowrap">{assistantName}</AssistantName>
         </AssistantNameRow>
         {(isActive || isHovered) && (

@@ -20,6 +20,8 @@ import type { EnrichModelsDto } from './models'
 export interface ListProvidersQuery {
   /** Filter by enabled status */
   enabled?: boolean
+  /** Filter by endpoint type */
+  endpointType?: EndpointType
 }
 
 /** Shared editable fields between Create and Update DTOs */

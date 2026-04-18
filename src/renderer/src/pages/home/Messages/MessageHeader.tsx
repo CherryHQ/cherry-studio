@@ -1,5 +1,4 @@
-import { RowFlex } from '@cherrystudio/ui'
-import { Avatar, AvatarFallback, AvatarImage, EmojiAvatar, Tooltip } from '@cherrystudio/ui'
+import { Avatar, AvatarFallback, AvatarImage, Checkbox, EmojiAvatar, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import UserPopup from '@renderer/components/Popups/UserPopup'
 import { APP_NAME, AppLogo, isLocalAi } from '@renderer/config/env'
@@ -17,13 +16,11 @@ import { getModelName } from '@renderer/services/ModelService'
 import type { Assistant, Model, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { firstLetter, isEmoji, removeLeadingEmoji } from '@renderer/utils'
-import { Checkbox } from 'antd'
 import dayjs from 'dayjs'
 import { Sparkle } from 'lucide-react'
 import type { FC } from 'react'
 import { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import MessageTokens from './MessageTokens'
 
@@ -93,7 +90,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
   }, [isBubbleStyle, isUserMessage, isMultiSelectMode])
 
   return (
-    <Container className="message-header">
+    <div className="message-header relative mb-2.5 flex items-center gap-2.5">
       {isAssistantMessage ? (
         ModelIcon ? (
           <div onClick={showMiniApp} className="cursor-pointer">
@@ -128,72 +125,42 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
           )}
         </>
       )}
-      <UserWrap>
+      <div className="flex flex-1 flex-col justify-between">
         <RowFlex className="items-center" style={{ justifyContent: userNameJustifyContent }}>
-          <UserName isBubbleStyle={isBubbleStyle} theme={theme}>
+          <span
+            className="font-semibold text-sm"
+            style={{
+              color: isBubbleStyle && theme === 'dark' ? 'white' : 'var(--color-text)'
+            }}>
             {username}
-          </UserName>
+          </span>
           {isGroupContextMessage && (
             <Tooltip content={t('chat.message.useful.tip')}>
               <Sparkle fill="var(--color-primary)" strokeWidth={0} size={18} />
             </Tooltip>
           )}
         </RowFlex>
-        <InfoWrap className="message-header-info-wrap text-(--color-text-3) text-[10px]">
-          <MessageTime>{dayjs(message?.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</MessageTime>
+        <div className="message-header-info-wrap flex items-center gap-1 text-(--color-text-3) text-[10px]">
+          <div>{dayjs(message?.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</div>
           {isBubbleStyle && message.usage !== undefined && (
             <>
               |
               <MessageTokens message={message} />
             </>
           )}
-        </InfoWrap>
-      </UserWrap>
+        </div>
+      </div>
       {isMultiSelectMode && (
         <Checkbox
           checked={isSelected}
-          onChange={(e) => handleSelectMessage(message.id, e.target.checked)}
-          style={{ position: 'absolute', right: 0, top: 0 }}
+          onCheckedChange={(checked) => handleSelectMessage(message.id, checked === true)}
+          className="absolute top-0 right-0"
         />
       )}
-    </Container>
+    </div>
   )
 })
 
 MessageHeader.displayName = 'MessageHeader'
-
-const Container = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 10px;
-  position: relative;
-  margin-bottom: 10px;
-`
-
-const UserWrap = styled.div`
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  flex: 1;
-`
-
-const InfoWrap = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 4px;
-`
-
-const UserName = styled.span<{ isBubbleStyle?: boolean; theme?: string }>`
-  font-size: 14px;
-  font-weight: 600;
-  color: ${(props) => (props.isBubbleStyle && props.theme === 'dark' ? 'white' : 'var(--color-text)')};
-`
-
-const MessageTime = styled.div`
-  font-size: 10px;
-  color: var(--color-text-3);
-`
 
 export default MessageHeader

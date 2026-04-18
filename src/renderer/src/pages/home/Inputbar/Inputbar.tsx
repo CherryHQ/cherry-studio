@@ -1,7 +1,5 @@
 import { cacheService } from '@data/CacheService'
-import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
-import { loggerService } from '@logger'
 import {
   isAutoEnableImageGenerationModel,
   isGenerateImageModel,
@@ -14,7 +12,7 @@ import {
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useInputText } from '@renderer/hooks/useInputText'
-import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
+import { useMessageOperations, useRequestStatus, useTopicLoading } from '@renderer/hooks/useMessageOperations'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTextareaResize } from '@renderer/hooks/useTextareaResize'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -24,15 +22,10 @@ import {
   useInputbarToolsInternalDispatch,
   useInputbarToolsState
 } from '@renderer/pages/home/Inputbar/context/InputbarToolsProvider'
-import { getDefaultTopic, mapLegacyTopicToDto } from '@renderer/services/AssistantService'
+import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import FileManager from '@renderer/services/FileManager'
-import { checkRateLimit, getUserMessage } from '@renderer/services/MessagesService'
-import { spanManagerService } from '@renderer/services/SpanManagerService'
-import { estimateTextTokens as estimateTxtTokens, estimateUserPromptUsage } from '@renderer/services/TokenService'
+import { estimateTextTokens as estimateTxtTokens } from '@renderer/services/TokenService'
 import { webSearchService } from '@renderer/services/WebSearchService'
-import { useAppDispatch } from '@renderer/store'
-import { sendMessage as _sendMessage } from '@renderer/store/thunk/messageThunk'
 import {
   type Assistant,
   type FileMetadata,
@@ -41,10 +34,10 @@ import {
   type Topic,
   TopicType
 } from '@renderer/types'
-import type { MessageInputBaseParams } from '@renderer/types/newMessage'
 import { delay } from '@renderer/utils'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
+import { createUniqueModelId, isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { debounce } from 'lodash'
 import type { FC } from 'react'
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
@@ -56,8 +49,6 @@ import KnowledgeBaseInput from './KnowledgeBaseInput'
 import MentionModelsInput from './MentionModelsInput'
 import { getInputbarConfig } from './registry'
 import TokenCount from './TokenCount'
-
-const logger = loggerService.withContext('Inputbar')
 
 const INPUTBAR_DRAFT_CACHE_KEY = 'inputbar-draft'
 const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000 // 24 hours
@@ -74,6 +65,7 @@ interface Props {
   assistant: Assistant
   setActiveTopic: (topic: Topic) => void
   topic: Topic
+  onSend: (text: string, options?: { files?: FileMetadata[]; mentionedModels?: UniqueModelId[] }) => void
 }
 
 type ProviderActionHandlers = {
@@ -89,7 +81,7 @@ interface InputbarInnerProps extends Props {
   actionsRef: React.RefObject<ProviderActionHandlers>
 }
 
-const Inputbar: FC<Props> = ({ assistant: initialAssistant, setActiveTopic, topic }) => {
+const Inputbar: FC<Props> = ({ assistant: initialAssistant, setActiveTopic, topic, onSend: onSendProp }) => {
   const actionsRef = useRef<ProviderActionHandlers>({
     resizeTextArea: () => {},
     addNewTopic: () => {},
@@ -129,12 +121,19 @@ const Inputbar: FC<Props> = ({ assistant: initialAssistant, setActiveTopic, topi
         setActiveTopic={setActiveTopic}
         topic={topic}
         actionsRef={actionsRef}
+        onSend={onSendProp}
       />
     </InputbarToolsProvider>
   )
 }
 
-const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, setActiveTopic, topic, actionsRef }) => {
+const InputbarInner: FC<InputbarInnerProps> = ({
+  assistant: initialAssistant,
+  setActiveTopic,
+  topic,
+  actionsRef,
+  onSend: onSendProp
+}) => {
   const scope = topic.type ?? TopicType.Chat
   const config = getInputbarConfig(scope)
 
@@ -168,8 +167,8 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
 
   const { t } = useTranslation()
   const { pauseMessages } = useMessageOperations(topic)
-  const loading = useTopicLoading(topic)
-  const dispatch = useAppDispatch()
+  const loading = useTopicLoading()
+  const requestStatus = useRequestStatus()
   const isVisionAssistant = useMemo(() => isVisionModel(model), [model])
   const isGenerateImageAssistant = useMemo(() => isGenerateImageModel(model), [model])
   const { setTimeoutTimer } = useTimer()
@@ -236,59 +235,22 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
       })
 
   const sendMessage = useCallback(async () => {
-    if (checkRateLimit(assistant)) {
-      return
-    }
-
-    logger.info('Starting to send message')
-
-    const parent = await spanManagerService.startTrace(
-      { topicId: topic.id, name: 'sendMessage', inputs: text },
-      mentionedModels.length > 0 ? mentionedModels : [assistant.model]
-    )
-    void EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: topic.id, traceId: parent?.spanContext().traceId })
-
-    try {
-      const uploadedFiles = await FileManager.uploadFiles(files)
-
-      const baseUserMessage: MessageInputBaseParams = { assistant, topic, content: text }
-      if (uploadedFiles) {
-        baseUserMessage.files = uploadedFiles
-      }
-      if (mentionedModels.length) {
-        baseUserMessage.mentions = mentionedModels
-      }
-
-      baseUserMessage.usage = await estimateUserPromptUsage(baseUserMessage)
-
-      const { message, blocks } = getUserMessage(baseUserMessage)
-      message.traceId = parent?.spanContext().traceId
-
-      void dispatch(_sendMessage(message, blocks, assistant, topic.id))
-
-      setText('')
-      setFiles([])
-      setTimeoutTimer('sendMessage_1', () => setText(''), 500)
-      setTimeoutTimer('sendMessage_2', () => resizeTextArea(), 0)
-      // Restore focus to textarea after sending to maintain IME state (fcitx5 issue)
-      focusTextarea()
-    } catch (error) {
-      logger.warn('Failed to send message:', error as Error)
-      parent?.recordException(error as Error)
-    }
-  }, [
-    assistant,
-    topic,
-    text,
-    mentionedModels,
-    files,
-    dispatch,
-    setText,
-    setFiles,
-    setTimeoutTimer,
-    resizeTextArea,
-    focusTextarea
-  ])
+    const text_ = text.trim()
+    if (!text_) return
+    onSendProp(text_, {
+      files: files.length > 0 ? files : undefined,
+      mentionedModels:
+        mentionedModels.length > 0
+          ? mentionedModels.map((model) =>
+              isUniqueModelId(model.id) ? model.id : createUniqueModelId(model.provider, model.id)
+            )
+          : undefined
+    })
+    setText('')
+    setFiles([])
+    setTimeoutTimer('sendMessage', () => resizeTextArea(), 0)
+    focusTextarea()
+  }, [onSendProp, text, mentionedModels, files, setText, setFiles, setTimeoutTimer, resizeTextArea, focusTextarea])
 
   const tokenCountProps = useMemo(() => {
     if (!config.showTokenCount || estimateTokenCount === undefined || !showInputEstimatedTokens) {
@@ -327,21 +289,12 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
   const addNewTopic = useCallback(async () => {
     const newTopic = getDefaultTopic(assistant.id)
 
-    // Create topic via Data API and use server-returned data
-    const createdTopic = await dataApiService.post('/topics', {
-      body: mapLegacyTopicToDto(newTopic)
-    })
-
-    logger.silly('create topic in sqlite', { id: createdTopic.id })
-
     if (assistant.defaultModel) {
       setModel(assistant.defaultModel)
     }
 
-    // @ts-ignore TODO: #13748
-    addTopic(createdTopic)
-    // @ts-ignore
-    setActiveTopic(createdTopic)
+    await addTopic(newTopic)
+    setActiveTopic(newTopic)
 
     setTimeoutTimer('addNewTopic', () => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
   }, [addTopic, assistant.defaultModel, assistant.id, setActiveTopic, setModel, setTimeoutTimer])
@@ -457,7 +410,10 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
       updateAssistant({ ...assistant, webSearchProviderId: undefined })
     }
 
-    // Auto-enable/disable image generation based on model capabilities
+    // v1 legacy: auto-enable/disable image generation when the user switches
+    // to a model that IS an image generator. v2 moves image gen to tool
+    // calls — a general chat model invokes an image tool, so this side-
+    // effect goes away (the toggle disappears, no per-model flip needed).
     if (isGenerateImageModel(model)) {
       if (isAutoEnableImageGenerationModel(model) && !assistant.enableGenerateImage) {
         updateAssistant({ ...assistant, enableGenerateImage: true })
@@ -521,6 +477,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
       handleSendMessage={sendMessage}
       leftToolbar={leftToolbar}
       rightToolbar={rightToolbar}
+      primaryActionMode={requestStatus === 'submitted' || requestStatus === 'streaming' ? 'pause' : 'send'}
       topContent={topContent}
     />
   )

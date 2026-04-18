@@ -1,5 +1,7 @@
+import { ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
+import { modelService } from '@data/services/ModelService'
+import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { modelsService } from '@main/apiServer/services/models'
 import type {
   AgentEntity,
   CreateAgentRequest,
@@ -216,8 +218,10 @@ export class AgentService extends BaseService {
         return { agentId: id }
       }
 
-      const modelsRes = await modelsService.getModels({ providerType: 'anthropic', limit: 1 })
-      const firstModel = modelsRes.data?.[0]
+      const providers = await providerService.list({ endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES })
+      const modelArrays = await Promise.all(providers.map((p) => modelService.list({ providerId: p.id })))
+      const models = modelArrays.flat()
+      const firstModel = models[0]
       if (!firstModel) {
         logger.info(`No Anthropic-compatible models available yet — skipping ${builtinRole} creation`)
         return { agentId: null, skippedReason: 'no_model' }
@@ -307,8 +311,10 @@ export class AgentService extends BaseService {
         return { agentId: id }
       }
 
-      const modelsRes = await modelsService.getModels({ providerType: 'anthropic', limit: 1 })
-      const firstModel = modelsRes.data?.[0]
+      const providers = await providerService.list({ endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES })
+      const modelArrays = await Promise.all(providers.map((p) => modelService.list({ providerId: p.id })))
+      const models = modelArrays.flat()
+      const firstModel = models[0]
       if (!firstModel) {
         logger.info('No Anthropic-compatible models available yet — skipping default CherryClaw creation')
         return { agentId: null, skippedReason: 'no_model' }

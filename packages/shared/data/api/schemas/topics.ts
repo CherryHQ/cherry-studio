@@ -76,6 +76,11 @@ export interface TopicSchemas {
    * @example POST /topics { "name": "New Topic", "assistantId": "asst_123" }
    */
   '/topics': {
+    /** List non-deleted topics. Optionally filter by assistant. */
+    GET: {
+      query: { assistantId?: string }
+      response: Topic[]
+    }
     /** Create a new topic (optionally fork from existing node) */
     POST: {
       body: CreateTopicDto

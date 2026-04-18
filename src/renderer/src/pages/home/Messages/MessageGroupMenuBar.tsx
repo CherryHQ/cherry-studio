@@ -14,12 +14,14 @@ import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { AssistantMessageStatus } from '@renderer/types/newMessage'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { FC } from 'react'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import { usePartsMap } from './Blocks'
 import MessageGroupModelList from './MessageGroupModelList'
 import MessageGroupSettings from './MessageGroupSettings'
 
@@ -41,6 +43,8 @@ const MessageGroupMenuBar: FC<Props> = ({
   topic
 }) => {
   const { t } = useTranslation()
+  const partsMap = usePartsMap()
+
   const { deleteGroupMessages, regenerateAssistantMessage } = useMessageOperations(topic)
   const { assistant } = useAssistant(messages[0]?.assistantId)
 
@@ -63,7 +67,8 @@ const MessageGroupMenuBar: FC<Props> = ({
   const isFailedMessage = (m: Message) => {
     if (m.role !== 'assistant') return false
     const isError = (m.status || '').toLowerCase() === 'error'
-    const content = getMainTextContent(m)
+    const parts = partsMap?.[m.id]
+    const content = parts ? getTextFromParts(parts) : getMainTextContent(m)
     const noContent = !content || content.trim().length === 0
     const noBlocks = !m.blocks || m.blocks.length === 0
     return isError || noContent || noBlocks

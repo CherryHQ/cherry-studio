@@ -110,13 +110,6 @@ export enum IpcChannel {
   AgentToolPermission_Response = 'agent-tool-permission:response',
   AgentToolPermission_Result = 'agent-tool-permission:result',
 
-  // Agent session stream (IM channel -> renderer real-time)
-  AgentSessionStream_Subscribe = 'agent-session-stream:subscribe',
-  AgentSessionStream_Unsubscribe = 'agent-session-stream:unsubscribe',
-  AgentSessionStream_Abort = 'agent-session-stream:abort',
-  AgentSessionStream_Chunk = 'agent-session-stream:chunk',
-  AgentSession_Changed = 'agent-session:changed',
-
   // WeChat channel
   WeChat_QrLogin = 'wechat:qr-login',
   WeChat_HasCredentials = 'wechat:has-credentials',
@@ -473,6 +466,42 @@ export enum IpcChannel {
 
   // Analytics
   Analytics_TrackTokenUsage = 'analytics:track-token-usage',
+
+  // AI Stream (AiStreamManager)
+  Ai_StreamChunk = 'ai:stream-chunk',
+  Ai_StreamDone = 'ai:stream-done',
+  Ai_StreamError = 'ai:stream-error',
+  /**
+   * Main → all windows: topic-level lifecycle changed
+   * (pending / streaming / done / aborted / error / idle).
+   * Broadcast to every window so observers can track state without
+   * attaching a chunk listener. See `TopicStatusChangedPayload`.
+   */
+  Ai_TopicStatusChanged = 'ai:topic-status-changed',
+  /** Renderer → Main: send message (AiStreamManager routes to start or steer) */
+  Ai_Stream_Open = 'ai:stream:open',
+  /** Renderer → Main: subscribe to a topic's stream state */
+  Ai_Stream_Attach = 'ai:stream:attach',
+  /** Renderer → Main: unsubscribe from a topic (stream continues in Main) */
+  Ai_Stream_Detach = 'ai:stream:detach',
+  /** Renderer → Main: abort the active generation on a topic */
+  Ai_Stream_Abort = 'ai:stream:abort',
+  /**
+   * Renderer → Main: snapshot of every active topic's current status.
+   * Zero side effects — no listener is registered and no replay is
+   * allocated. Used by windows to bootstrap on mount before the
+   * `Ai_TopicStatusChanged` deltas start flowing.
+   */
+  Ai_Topic_GetStatuses = 'ai:topic:get-statuses',
+  Topic_Updated = 'topic:updated',
+
+  // AI Non-streaming
+  Ai_GenerateText = 'ai:generate-text',
+  Ai_CheckModel = 'ai:check-model',
+  Ai_EmbedMany = 'ai:embed-many',
+  Ai_GenerateImage = 'ai:generate-image',
+  Ai_AbortImage = 'ai:abort-image',
+  Ai_ListModels = 'ai:list-models',
 
   // WindowManager
   WindowManager_Open = 'window-manager:open',

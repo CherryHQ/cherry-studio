@@ -1,23 +1,22 @@
 import { useSharedCache } from '@data/hooks/useCache'
 import type { GroundingMetadata } from '@google/genai'
 import Spinner from '@renderer/components/Spinner'
-import type { RootState } from '@renderer/store'
-import { selectFormattedCitationsByBlockId } from '@renderer/store/messageBlock'
+import { formatCitationsFromBlock } from '@renderer/store/messageBlock'
 import { WEB_SEARCH_SOURCE } from '@renderer/types'
 import { type CitationMessageBlock, MessageBlockStatus } from '@renderer/types/newMessage'
 import React, { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSelector } from 'react-redux'
-import styled from 'styled-components'
 
 import CitationsList from '../CitationsList'
 
+/**
+ * @deprecated Legacy block component.
+ * V2 parts rendering handles citations in PartsRenderer/MainTextBlock.
+ */
 function CitationBlock({ block }: { block: CitationMessageBlock }) {
   const { t } = useTranslation()
-  const formattedCitations = useSelector((state: RootState) => selectFormattedCitationsByBlockId(state, block.id))
-  // const { websearch } = useSelector((state: RootState) => state.runtime)
-  const message = useSelector((state: RootState) => state.messages.entities[block.messageId])
-  const userMessageId = message?.askId || block.messageId // 如果没有 askId 则回退到 messageId
+  const formattedCitations = formatCitationsFromBlock(block)
+  const userMessageId = block.messageId
   const [activeSearches] = useSharedCache('chat.web_search.active_searches')
 
   const hasGeminiBlock = block.response?.source === WEB_SEARCH_SOURCE.GEMINI
@@ -68,7 +67,8 @@ function CitationBlock({ block }: { block: CitationMessageBlock }) {
         (hasGeminiBlock ? (
           <>
             <CitationsList citations={formattedCitations} />
-            <SearchEntryPoint
+            <div
+              className="mx-0.5 my-2 hidden md:block [&_.carousel]:whitespace-normal [&_.carousel_.chip]:m-0 [&_.carousel_.chip]:ml-[5px]"
               dangerouslySetInnerHTML={{
                 __html:
                   (block.response?.results as GroundingMetadata)?.searchEntryPoint?.renderedContent
@@ -94,19 +94,5 @@ function CitationBlock({ block }: { block: CitationMessageBlock }) {
     </>
   )
 }
-
-const SearchEntryPoint = styled.div`
-  margin: 10px 2px;
-  @media (max-width: 768px) {
-    display: none;
-  }
-  .carousel {
-    white-space: normal;
-    .chip {
-      margin: 0;
-      margin-left: 5px;
-    }
-  }
-`
 
 export default React.memo(CitationBlock)

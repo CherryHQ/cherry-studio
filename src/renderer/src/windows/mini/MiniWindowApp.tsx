@@ -3,9 +3,8 @@ import '@renderer/databases'
 import { usePreference } from '@data/hooks/usePreference'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { getToastUtilities } from '@renderer/components/TopView/toast'
-import store, { persistor } from '@renderer/store'
+import { persistor } from '@renderer/store'
 import { useEffect } from 'react'
-import { Provider } from 'react-redux'
 import { PersistGate } from 'redux-persist/integration/react'
 
 import AntdProvider from '../../context/AntdProvider'
@@ -13,7 +12,9 @@ import { CodeStyleProvider } from '../../context/CodeStyleProvider'
 import { ThemeProvider } from '../../context/ThemeProvider'
 import HomeWindow from './home/HomeWindow'
 
-// Inner component that uses the hook after Redux is initialized
+// Initialize toast once at module level (advanced-init-once)
+window.toast = getToastUtilities()
+
 function MiniWindowContent(): React.ReactElement {
   const [customCss] = usePreference('ui.custom_css')
 
@@ -34,25 +35,30 @@ function MiniWindowContent(): React.ReactElement {
   return <HomeWindow />
 }
 
+/**
+ * No react-redux `<Provider>` — the mini window intentionally stays Redux-Provider-free
+ * (continuation of b5343606a). All legacy `state.*` accesses below are routed through
+ * synchronous helpers (`getAssistantById`, `getDefaultModel`, `getTranslateModel` in
+ * `AssistantService`), which read `store.getState()` directly. That only requires the
+ * store singleton to be rehydrated, which `<PersistGate>` below waits for.
+ *
+ * Why not migrate further to DataApi `useQuery('/assistants/:id')`: see the design note
+ * above `currentAssistant` in HomeWindow.
+ */
 function MiniWindow(): React.ReactElement {
-  useEffect(() => {
-    window.toast = getToastUtilities()
-  }, [])
-
   return (
-    <Provider store={store}>
+    // TODO: remove this persistgate after v2 refactor
+    <PersistGate loading={null} persistor={persistor}>
       <ThemeProvider>
         <AntdProvider>
           <CodeStyleProvider>
-            <PersistGate loading={null} persistor={persistor}>
-              <ErrorBoundary>
-                <MiniWindowContent />
-              </ErrorBoundary>
-            </PersistGate>
+            <ErrorBoundary>
+              <MiniWindowContent />
+            </ErrorBoundary>
           </CodeStyleProvider>
         </AntdProvider>
       </ThemeProvider>
-    </Provider>
+    </PersistGate>
   )
 }
 

@@ -1,3 +1,4 @@
+import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -26,6 +27,16 @@ interface Props {
   registerMessageElement?: (id: string, element: HTMLElement | null) => void
 }
 
+/**
+ * Read initial message UI state from cache (one-time, used for useState initializer).
+ */
+const getMessageUiFromCache = (messageId: string) =>
+  (cacheService.get(`message.ui.${messageId}` as const) || {}) as {
+    foldSelected?: boolean
+    multiModelMessageStyle?: string
+    useful?: boolean
+  }
+
 const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
   const messageLength = messages.length
 
@@ -39,13 +50,14 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
 
   const isGrouped = isMultiSelectMode ? false : messageLength > 1 && messages.every((m) => m.role === 'assistant')
 
-  // States
+  // States — initialize from Cache, then tracked in React state
   const [_multiModelMessageStyle, setMultiModelMessageStyle] = useState<MultiModelMessageStyle>(
-    messages[0].multiModelMessageStyle || multiModelMessageStyleSetting
+    () =>
+      (getMessageUiFromCache(messages[0]?.id).multiModelMessageStyle as MultiModelMessageStyle) ||
+      multiModelMessageStyleSetting
   )
   const [selectedIndex, setSelectedIndex] = useState(messageLength - 1)
 
-  // 对于单模型消息，采用简单的样式，避免 overflow 影响内部的 sticky 效果
   const multiModelMessageStyle = useMemo(
     () => (messageLength < 2 ? 'fold' : _multiModelMessageStyle),
     [_multiModelMessageStyle, messageLength]
@@ -53,21 +65,25 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
 
   const isGrid = multiModelMessageStyle === 'grid'
 
-  const selectedMessageId = useMemo(() => {
+  // Track selected and useful message IDs in React state
+  const [selectedMessageId, setSelectedMessageIdState] = useState<string>(() => {
     if (messages.length === 1) return messages[0]?.id
-    const selectedMessage = messages.find((message) => message.foldSelected)
-    if (selectedMessage) {
-      return selectedMessage.id
-    }
-    return messages[0]?.id
-  }, [messages])
+    const selected = messages.find((m) => getMessageUiFromCache(m.id).foldSelected)
+    return selected?.id ?? messages[0]?.id
+  })
+
+  const [usefulMessageId, setUsefulMessageIdState] = useState<string | null>(() => {
+    const useful = messages.find((m) => getMessageUiFromCache(m.id).useful)
+    return useful?.id ?? null
+  })
 
   const setSelectedMessage = useCallback(
     (message: Message) => {
       // 前一个
-      void editMessage(selectedMessageId, { foldSelected: false })
+      editMessage(selectedMessageId, { foldSelected: false })
       // 当前选中的消息
-      void editMessage(message.id, { foldSelected: true })
+      editMessage(message.id, { foldSelected: true })
+      setSelectedMessageIdState(message.id)
 
       setTimeoutTimer(
         'setSelectedMessage',
@@ -166,35 +182,31 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
         logger.error("the message to update doesn't exist in this group")
         return
       }
-      if (message.useful) {
-        void editMessage(msgId, { useful: undefined })
-        return
+      if (usefulMessageId === msgId) {
+        editMessage(msgId, { useful: undefined })
+        setUsefulMessageIdState(null)
       } else {
-        const toResetUsefulMsgs = messages.filter((msg) => msg.id !== msgId && msg.useful)
-        toResetUsefulMsgs.forEach(async (msg) => {
-          void editMessage(msg.id, {
-            useful: undefined
-          })
-        })
-        void editMessage(msgId, { useful: true })
+        // Reset previous useful message
+        if (usefulMessageId) {
+          editMessage(usefulMessageId, { useful: undefined })
+        }
+        editMessage(msgId, { useful: true })
+        setUsefulMessageIdState(msgId)
       }
     },
-    [editMessage, messages]
+    [editMessage, messages, usefulMessageId]
   )
 
   const groupContextMessageId = useMemo(() => {
-    // NOTE: 旧数据可能存在一组消息有多个useful的情况，只取第一个，不再另作迁移
-    // find first useful
-    const usefulMsg = messages.find((msg) => msg.useful)
-    if (usefulMsg) {
-      return usefulMsg.id
+    if (usefulMessageId && messages.some((msg) => msg.id === usefulMessageId)) {
+      return usefulMessageId
     } else if (messages.length > 0) {
       return messages[0].id
     } else {
       logger.warn('Empty message group')
       return ''
     }
-  }, [messages])
+  }, [messages, usefulMessageId])
 
   const renderMessage = useCallback(
     (message: Message & { index: number }) => {
@@ -283,7 +295,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
             setMultiModelMessageStyle={(style) => {
               setMultiModelMessageStyle(style)
               messages.forEach((message) => {
-                void editMessage(message.id, { multiModelMessageStyle: style })
+                editMessage(message.id, { multiModelMessageStyle: style })
               })
             }}
             messages={messages}

@@ -22,8 +22,6 @@ import type { TranslateLanguageCode } from '@shared/data/preference/preferenceTy
 import type { MCPServer } from '@shared/data/types/mcpServer'
 import * as z from 'zod'
 
-import type { StreamTextParams } from './aiCoreTypes'
-import type { Chunk } from './chunk'
 import type { FileMetadata } from './file'
 import type { KnowledgeBase, KnowledgeReference } from './knowledge'
 import type { Message } from './newMessage'
@@ -1171,36 +1169,6 @@ export type HexColor = string
 export const isHexColor = (value: string): value is HexColor => {
   return /^#([0-9A-F]{3}){1,2}$/i.test(value)
 }
-
-export type FetchChatCompletionRequestOptions = {
-  signal?: AbortSignal
-  timeout?: number
-  headers?: Record<string, string>
-}
-
-type BaseParams = {
-  assistant: Assistant
-  requestOptions?: FetchChatCompletionRequestOptions
-  onChunkReceived: (chunk: Chunk) => void
-  topicId?: string // 添加 topicId 参数
-  allowedTools?: string[]
-  uiMessages?: Message[]
-}
-
-type MessagesParams = BaseParams & {
-  messages: StreamTextParams['messages']
-  prompt?: never
-}
-
-type PromptParams = BaseParams & {
-  messages?: never
-  // prompt: Just use string for convinience. Native prompt type unite more types, including messages type.
-  // we craete a non-intersecting prompt type to discriminate them.
-  // see https://github.com/vercel/ai/issues/8363
-  prompt: string
-}
-
-export type FetchChatCompletionParams = MessagesParams | PromptParams
 
 // More specific than NonNullable
 export type NotUndefined<T> = Exclude<T, undefined>

@@ -1,26 +1,48 @@
-import type OpenAI from '@cherrystudio/openai'
-import { isEmbeddingModel, isRerankModel } from '@renderer/config/models/embedding'
 import type { Assistant } from '@renderer/types'
-import { type Model, SystemProviderIds } from '@renderer/types'
+import { type Model } from '@renderer/types'
 import type { OpenAIVerbosity, ValidOpenAIVerbosity } from '@renderer/types/aiCoreTypes'
 import { getLowerBaseModelName } from '@renderer/utils'
+import {
+  GEMINI_FLASH_MODEL_REGEX as SHARED_GEMINI_FLASH_MODEL_REGEX,
+  isAnthropicModel as sharedIsAnthropicModel,
+  isClaude46SeriesModel as sharedIsClaude46SeriesModel,
+  isGemini3FlashModel as sharedIsGemini3FlashModel,
+  isGemini3Model as sharedIsGemini3Model,
+  isGemini3ProModel as sharedIsGemini3ProModel,
+  isGemini3ThinkingTokenModel as sharedIsGemini3ThinkingTokenModel,
+  isGemini31FlashLiteModel as sharedIsGemini31FlashLiteModel,
+  isGemini31ProModel as sharedIsGemini31ProModel,
+  isGeminiModel as sharedIsGeminiModel,
+  isGemmaModel as sharedIsGemmaModel,
+  isGrokModel as sharedIsGrokModel,
+  isKimi25Model as sharedIsKimi25Model,
+  isMaxTemperatureOneModel as sharedIsMaxTemperatureOneModel,
+  isMoonshotModel as sharedIsMoonshotModel,
+  isNotSupportSystemMessageModel as sharedIsNotSupportSystemMessageModel,
+  isNotSupportTextDeltaModel as sharedIsNotSupportTextDeltaModel,
+  isSupportFlexServiceTierModel as sharedIsSupportFlexServiceTierModel,
+  isSupportTemperatureModel as sharedIsSupportTemperatureModel,
+  isSupportTopPModel as sharedIsSupportTopPModel,
+  isTemperatureTopPMutuallyExclusiveModel as sharedIsTemperatureTopPMutuallyExclusiveModel,
+  isZhipuModel as sharedIsZhipuModel
+} from '@shared/utils/model'
 
+import { toSharedCompatModel } from './_bridge'
+import { isEmbeddingModel, isRerankModel } from './embedding'
 import {
   isGPT5FamilyModel,
   isGPT5SeriesModel,
   isGPT51SeriesModel,
   isGPT52SeriesModel,
-  isOpenAIChatCompletionOnlyModel,
-  isOpenAIOpenWeightModel,
-  isOpenAIReasoningModel,
   isSupportVerbosityModel
 } from './openai'
-import { isQwenMTModel } from './qwen'
-import { isClaude45ReasoningModel } from './reasoning'
 import { isGenerateImageModel, isTextToImageModel, isVisionModel } from './vision'
-export const NOT_SUPPORTED_REGEX = /(?:^tts|whisper|speech)/i
-export const GEMINI_FLASH_MODEL_REGEX = new RegExp('gemini.*-flash.*$', 'i')
 
+// ── Re-exports (public API preserved) ─────────────────────────────────────
+export const GEMINI_FLASH_MODEL_REGEX = SHARED_GEMINI_FLASH_MODEL_REGEX
+export const NOT_SUPPORTED_REGEX = /(?:^tts|whisper|speech)/i
+
+// ── Renderer-only utility: id vs name fallback pattern ─────────────────────
 export const withModelIdAndNameAsId = <T>(model: Model, fn: (model: Model) => T): { idResult: T; nameResult: T } => {
   const modelWithNameAsId = { ...model, id: model.name }
   return {
@@ -29,387 +51,150 @@ export const withModelIdAndNameAsId = <T>(model: Model, fn: (model: Model) => T)
   }
 }
 
-export function isSupportFlexServiceTierModel(model: Model): boolean {
-  if (!model) {
-    return false
-  }
-  const modelId = getLowerBaseModelName(model.id)
-  return (
-    (modelId.includes('o3') && !modelId.includes('o3-mini')) || modelId.includes('o4-mini') || modelId.includes('gpt-5')
-  )
-}
+// ── Service-tier / endpoint support ────────────────────────────────────────
+export const isSupportFlexServiceTierModel = (model: Model): boolean =>
+  sharedIsSupportFlexServiceTierModel(toSharedCompatModel(model))
 
-export function isSupportedFlexServiceTier(model: Model): boolean {
-  return isSupportFlexServiceTierModel(model)
-}
+export const isSupportedFlexServiceTier = isSupportFlexServiceTierModel
 
-export function isSupportedModel(model: OpenAI.Models.Model): boolean {
-  if (!model) {
-    return false
-  }
+// ── Temperature / top_p support ───────────────────────────────────────────
+// Delegates to shared's capability-based checks (read `parameterSupport`
+// from the schema). The `assistant` parameter is retained on the signature
+// because a small number of callers still pass it, but the v1 SKU-specific
+// branching (OpenAI reasoning / chat-only / QwenMT / Kimi K2.5) is gone —
+// those will come back once the v2 registry populates `parameterSupport`.
 
-  const modelId = getLowerBaseModelName(model.id)
-
-  return !NOT_SUPPORTED_REGEX.test(modelId)
-}
-
-/**
- * Check if the model supports temperature parameter
- * @param model - The model to check
- * @returns true if the model supports temperature parameter
- */
-export function isSupportTemperatureModel(model: Model | undefined | null, assistant?: Assistant): boolean {
-  if (!model) {
-    return false
-  }
-
-  // OpenAI reasoning models (except open weight) don't support temperature
-  if (isOpenAIReasoningModel(model) && !isOpenAIOpenWeightModel(model)) {
-    if (isGPT52SeriesModel(model) && assistant?.settings?.reasoning_effort === 'none') {
-      return true
-    }
-    return false
-  }
-
-  // OpenAI chat completion only models don't support temperature
-  if (isOpenAIChatCompletionOnlyModel(model)) {
-    return false
-  }
-
-  // Qwen MT models don't support temperature
-  if (isQwenMTModel(model)) {
-    return false
-  }
-
-  // Kimi K2.5 doesn't support custom temperature
-  if (isKimi25Model(model)) {
-    return false
-  }
-
-  return true
-}
-
-/**
- * Check if the model supports top_p parameter
- * @param model - The model to check
- * @returns true if the model supports top_p parameter
- */
-export function isSupportTopPModel(model: Model | undefined | null, assistant?: Assistant): boolean {
-  if (!model) {
-    return false
-  }
-
-  // OpenAI reasoning models (except open weight) don't support top_p
-  if (isOpenAIReasoningModel(model) && !isOpenAIOpenWeightModel(model)) {
-    if (isGPT52SeriesModel(model) && assistant?.settings?.reasoning_effort === 'none') {
-      return true
-    }
-    return false
-  }
-
-  // OpenAI chat completion only models don't support top_p
-  if (isOpenAIChatCompletionOnlyModel(model)) {
-    return false
-  }
-
-  // Qwen MT models don't support top_p
-  if (isQwenMTModel(model)) {
-    return false
-  }
-
-  // Kimi K2.5 only accepts top_p=0.95
-  if (isKimi25Model(model)) {
-    return false
-  }
-
-  return true
-}
-
-/**
- * Check if the model enforces mutual exclusivity between temperature and top_p parameters.
- * Currently only Claude 4.5 reasoning models require this constraint.
- * @param model - The model to check
- * @returns true if temperature and top_p are mutually exclusive for this model
- */
-export function isTemperatureTopPMutuallyExclusiveModel(model: Model | undefined | null): boolean {
+export function isSupportTemperatureModel(model: Model | undefined | null, _assistant?: Assistant): boolean {
   if (!model) return false
-  return isClaude45ReasoningModel(model)
+  return sharedIsSupportTemperatureModel(toSharedCompatModel(model))
 }
 
-export function isGemmaModel(model?: Model): boolean {
-  if (!model) {
-    return false
-  }
-
-  const modelId = getLowerBaseModelName(model.id)
-  return modelId.includes('gemma-') || modelId.includes('gemma4') || model.group === 'Gemma'
+export function isSupportTopPModel(model: Model | undefined | null, _assistant?: Assistant): boolean {
+  if (!model) return false
+  return sharedIsSupportTopPModel(toSharedCompatModel(model))
 }
 
-export function isZhipuModel(model: Model): boolean {
-  const modelId = getLowerBaseModelName(model.id)
-  return modelId.includes('glm') || model.provider === SystemProviderIds.zhipu
+export const isTemperatureTopPMutuallyExclusiveModel = (model: Model | undefined | null): boolean => {
+  if (!model) return false
+  return sharedIsTemperatureTopPMutuallyExclusiveModel(toSharedCompatModel(model))
 }
 
-export function isMoonshotModel(model: Model): boolean {
-  const modelId = getLowerBaseModelName(model.id)
-  return ['moonshot', 'kimi'].some((m) => modelId.includes(m))
-}
+// ── Family checks (delegated to shared) ─────────────────────────────────
+export const isGemmaModel = (model?: Model): boolean => (model ? sharedIsGemmaModel(toSharedCompatModel(model)) : false)
 
-export function isKimi25Model(model: Model | undefined | null): boolean {
-  if (!model) {
-    return false
-  }
-  const modelId = getLowerBaseModelName(model.id)
-  return modelId.includes('kimi-k2.5')
-}
+export const isZhipuModel = (model: Model): boolean => sharedIsZhipuModel(toSharedCompatModel(model))
 
+export const isMoonshotModel = (model: Model): boolean => sharedIsMoonshotModel(toSharedCompatModel(model))
+
+export const isKimi25Model = (model: Model | undefined | null): boolean =>
+  model ? sharedIsKimi25Model(toSharedCompatModel(model)) : false
+
+export const isAnthropicModel = (model?: Model): boolean =>
+  model ? sharedIsAnthropicModel(toSharedCompatModel(model)) : false
+
+export const isGeminiModel = (model: Model): boolean => sharedIsGeminiModel(toSharedCompatModel(model))
+
+export const isGrokModel = (model: Model): boolean => sharedIsGrokModel(toSharedCompatModel(model))
+
+export const isGemini3Model = (model: Model): boolean => sharedIsGemini3Model(toSharedCompatModel(model))
+
+export const isGemini3ThinkingTokenModel = (model: Model): boolean =>
+  sharedIsGemini3ThinkingTokenModel(toSharedCompatModel(model))
+
+export const isGemini3FlashModel = (model: Model | undefined | null): boolean =>
+  model ? sharedIsGemini3FlashModel(toSharedCompatModel(model)) : false
+
+export const isGemini31FlashLiteModel = (model: Model | undefined | null): boolean =>
+  model ? sharedIsGemini31FlashLiteModel(toSharedCompatModel(model)) : false
+
+export const isGemini3ProModel = (model: Model | undefined | null): boolean =>
+  model ? sharedIsGemini3ProModel(toSharedCompatModel(model)) : false
+
+export const isGemini31ProModel = (model: Model | undefined | null): boolean =>
+  model ? sharedIsGemini31ProModel(toSharedCompatModel(model)) : false
+
+export const isClaude46SeriesModel = (model: Model | undefined | null): boolean =>
+  model ? sharedIsClaude46SeriesModel(toSharedCompatModel(model)) : false
+
+export const isMaxTemperatureOneModel = (model: Model): boolean =>
+  sharedIsMaxTemperatureOneModel(toSharedCompatModel(model))
+
+export const isNotSupportTextDeltaModel = (model: Model): boolean =>
+  sharedIsNotSupportTextDeltaModel(toSharedCompatModel(model))
+
+export const isNotSupportSystemMessageModel = (model: Model): boolean =>
+  sharedIsNotSupportSystemMessageModel(toSharedCompatModel(model))
+
+// ── Collections ─────────────────────────────────────────────────────────
+// Use the renderer's own inference-based vision/image checks (which honour
+// user preferences). Shared's schema-driven equivalents would crash on v1
+// Model (no `capabilities` populated).
+export const isVisionModels = (models: Model[]): boolean => models.every(isVisionModel)
+
+export const isGenerateImageModels = (models: Model[]): boolean => models.every(isGenerateImageModel)
+
+// ── Renderer-only data grouping ─────────────────────────────────────────
 /**
  * 按 Qwen 系列模型分组
- * @param models 模型列表
- * @returns 分组后的模型
  */
 export function groupQwenModels(models: Model[]): Record<string, Model[]> {
   return models.reduce(
     (groups, model) => {
       const modelId = getLowerBaseModelName(model.id)
-      // 匹配 Qwen 系列模型的前缀
       const prefixMatch = modelId.match(/^(qwen(?:\d+\.\d+|2(?:\.\d+)?|-\d+b|-(?:max|coder|vl)))/i)
-      // 匹配 qwen2.5、qwen2、qwen-7b、qwen-max、qwen-coder 等
       const groupKey = prefixMatch ? prefixMatch[1] : model.group || '其他'
-
-      if (!groups[groupKey]) {
-        groups[groupKey] = []
-      }
+      if (!groups[groupKey]) groups[groupKey] = []
       groups[groupKey].push(model)
-
       return groups
     },
     {} as Record<string, Model[]>
   )
 }
 
-// 模型集合功能测试
-export const isVisionModels = (models: Model[]) => {
-  return models.every((model) => isVisionModel(model))
-}
-
-export const isGenerateImageModels = (models: Model[]) => {
-  return models.every((model) => isGenerateImageModel(model))
-}
-
-export const isAnthropicModel = (model?: Model): boolean => {
-  if (!model) {
-    return false
-  }
-
-  const modelId = getLowerBaseModelName(model.id)
-  return modelId.startsWith('claude')
-}
-
-const NOT_SUPPORT_TEXT_DELTA_MODEL_REGEX = new RegExp('qwen-mt-(?:turbo|plus)')
-
-export const isNotSupportTextDeltaModel = (model: Model): boolean => {
-  const modelId = getLowerBaseModelName(model.id)
-  return NOT_SUPPORT_TEXT_DELTA_MODEL_REGEX.test(modelId)
-}
-
-export const isNotSupportSystemMessageModel = (model: Model): boolean => {
-  return isQwenMTModel(model) || isGemmaModel(model)
-}
-
-// Verbosity settings is only supported by GPT-5 and newer models
+// ── Renderer-only: verbosity (uses OpenAIVerbosity type) ─────────────────
 const MODEL_SUPPORTED_VERBOSITY: readonly {
   readonly validator: (model: Model) => boolean
   readonly values: readonly ValidOpenAIVerbosity[]
 }[] = [
-  // Filter out models that do not support verbosity
   {
     validator: (model: Model) => !isSupportVerbosityModel(model),
     values: []
   },
-  // Either only one value is supported(medium), or [low, medium, high]
   {
     validator: (model: Model) => {
       const modelId = getLowerBaseModelName(model.id)
-      // chat variant: only medium is supported
-      if (modelId.includes('chat')) {
-        return false
-      }
-      // codex variant: only medium is supported before 5.3-codex
-      // Since 5.3-codex, all levels are supported.
+      if (modelId.includes('chat')) return false
       if (modelId.includes('codex')) {
-        if (isGPT5SeriesModel(model) || isGPT51SeriesModel(model) || isGPT52SeriesModel(model)) {
-          return false
-        }
+        if (isGPT5SeriesModel(model) || isGPT51SeriesModel(model) || isGPT52SeriesModel(model)) return false
         return true
       }
-      // pro variant: all support
       return isGPT5FamilyModel(model)
     },
     values: ['low', 'medium', 'high']
   },
-  // Fallback to medium
   {
     validator: isGPT5FamilyModel,
     values: ['medium']
   }
 ]
 
-/**
- * Returns the list of supported verbosity levels for the given model.
- * If the model is not a GPT-5 family model, only `[undefined]` is returned.
- *
- * Verbosity levels are version-aware:
- * - GPT-5 pro: `[low, medium, high]`
- * - GPT-5 chat / old codex (5.1/5.2): `[medium]` only
- * - GPT-5.3+ codex: `[low, medium, high]`
- * - Other GPT-5 family models: `[low, medium, high]`
- *
- * @param model - The model to check
- * @returns An array of supported verbosity levels, always including `undefined` as the first element and `null` when applicable
- */
 export const getModelSupportedVerbosity = (model: Model | undefined | null): OpenAIVerbosity[] => {
-  if (!model || !isSupportVerbosityModel(model)) {
-    return [undefined]
-  }
-
+  if (!model || !isSupportVerbosityModel(model)) return [undefined]
   let supportedValues: ValidOpenAIVerbosity[] = []
-
   for (const { validator, values } of MODEL_SUPPORTED_VERBOSITY) {
     if (validator(model)) {
       supportedValues = [null, ...values]
       break
     }
   }
-
   return [undefined, ...supportedValues]
 }
 
-export const isGeminiModel = (model: Model) => {
-  const modelId = getLowerBaseModelName(model.id)
-  return modelId.includes('gemini')
-}
-
-export const isGrokModel = (model: Model) => {
-  const modelId = getLowerBaseModelName(model.id)
-  return modelId.includes('grok')
-}
-
+// ── Renderer-only constants ──────────────────────────────────────────────
 // zhipu 视觉推理模型用这组 special token 标记推理结果
 export const ZHIPU_RESULT_TOKENS = ['<|begin_of_box|>', '<|end_of_box|>'] as const
 
+// ── Agent filter (composes local renderer functions) ─────────────────────
 export const agentModelFilter = (model: Model): boolean => {
   return !isEmbeddingModel(model) && !isRerankModel(model) && !isTextToImageModel(model)
-}
-
-export const isMaxTemperatureOneModel = (model: Model): boolean => {
-  if (isZhipuModel(model) || isAnthropicModel(model) || isMoonshotModel(model)) {
-    return true
-  }
-  return false
-}
-
-// major version, including 3.x
-export const isGemini3Model = (model: Model) => {
-  const modelId = getLowerBaseModelName(model.id)
-  return modelId.includes('gemini-3')
-}
-
-// major version, including 3.x
-export const isGemini3ThinkingTokenModel = (model: Model) => {
-  const modelId = getLowerBaseModelName(model.id)
-  return isGemini3Model(model) && !modelId.includes('image')
-}
-
-/**
- * Check if the model is a Gemini 3 Flash model
- * Matches: gemini-3-flash, gemini-3-flash-preview, gemini-3-flash-preview-09-2025, gemini-flash-latest (alias)
- * Excludes: gemini-3-flash-image-preview, 3.x flash versions
- * @param model - The model to check
- * @returns true if the model is a Gemini 3 Flash model
- */
-export const isGemini3FlashModel = (model: Model | undefined | null): boolean => {
-  if (!model) {
-    return false
-  }
-  const modelId = getLowerBaseModelName(model.id)
-  // Check for gemini-flash-latest alias (currently points to gemini-3-flash, may change in future)
-  if (modelId === 'gemini-flash-latest') {
-    return true
-  }
-  // Check for gemini-3-flash with optional suffixes, excluding image variants
-  return /gemini-3-flash(?!-image)(?:-[\w-]+)*$/i.test(modelId)
-}
-
-/**
- * Check if the model is a Gemini 3.1 Flash Lite model
- * Matches: gemini-3.1-flash-lite-preview, gemini-3.1-flash-lite-preview-06-2025
- * @param model - The model to check
- * @returns true if the model is a Gemini 3.1 Flash Lite model
- */
-export const isGemini31FlashLiteModel = (model: Model | undefined | null): boolean => {
-  if (!model) {
-    return false
-  }
-  const modelId = getLowerBaseModelName(model.id)
-  return /gemini-3\.1-flash-lite(?:-[\w-]+)*$/i.test(modelId)
-}
-
-/**
- * Check if the model is a Gemini 3 Pro model
- * Matches: gemini-3-pro, gemini-3-pro-preview, gemini-3-pro-preview-09-2025, gemini-pro-latest (alias)
- * Excludes: gemini-3-pro-image-preview, 3.x pro versions
- * @param model - The model to check
- * @returns true if the model is a Gemini 3 Pro model
- */
-export const isGemini3ProModel = (model: Model | undefined | null): boolean => {
-  if (!model) {
-    return false
-  }
-  const modelId = getLowerBaseModelName(model.id)
-
-  // Check for gemini-3-pro with optional suffixes, excluding image variants
-  return /gemini-3-pro(?!-image)(?:-[\w-]+)*$/i.test(modelId)
-}
-
-/**
- * Check if the model is a Gemini 3.1 Pro model
- * Matches: gemini-3.1-pro, gemini-3.1-pro-preview, gemini-3.1-pro-preview-09-2025, gemini-3.1-pro-latest (alias)
- * Excludes: gemini-3.1-pro-image-preview
- * @param model - The model to check
- * @returns
- */
-export const isGemini31ProModel = (model: Model | undefined | null): boolean => {
-  if (!model) {
-    return false
-  }
-  const modelId = getLowerBaseModelName(model.id)
-  // Check for gemini-pro-latest alias (currently points to gemini-3.1-pro, may change in future)
-  if (modelId === 'gemini-pro-latest') {
-    return true
-  }
-  // Check for gemini-3.1-pro with optional suffixes, excluding image variants
-  return /gemini-3.1-pro(?!-image)(?:-[\w-]+)*$/i.test(modelId)
-}
-
-/**
- * Check if the model is Claude Opus 4.6
- * Supports various formats including:
- * - Direct API: claude-opus-4-6
- * - AWS Bedrock: anthropic.claude-opus-4-6-v1
- * - GCP Vertex AI: claude-opus-4-6
- * @param model - The model to check
- * @returns true if the model is Claude 4.6 series model
- */
-export function isClaude46SeriesModel(model: Model | undefined | null): boolean {
-  if (!model) {
-    return false
-  }
-  const modelId = getLowerBaseModelName(model.id, '/')
-  // Supports various formats:
-  // - Direct API: claude-opus-4-6, claude-opus-4.6
-  // - AWS Bedrock: anthropic.claude-opus-4-6-v1
-  // - GCP Vertex AI: claude-opus-4-6
-  const regex = /(?:anthropic\.)?claude-(?:opus|sonnet)-4[.-]6(?:[@\-:][\w\-:]+)?$/i
-  return regex.test(modelId)
 }

@@ -481,6 +481,10 @@ export class WindowService extends BaseService {
     return this.mainWindow
   }
 
+  public getAllWindows(): BrowserWindow[] {
+    return BrowserWindow.getAllWindows().filter((window) => !window.isDestroyed())
+  }
+
   private setupWindowLifecycleEvents(mainWindow: BrowserWindow) {
     mainWindow.on('close', (event) => {
       // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring

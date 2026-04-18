@@ -24,7 +24,6 @@ import type {
   TranslateAssistant,
   TranslateLanguage
 } from '@renderer/types'
-import type { CreateTopicDto } from '@shared/data/api/schemas/topics'
 import { v4 as uuid } from 'uuid'
 
 const logger = loggerService.withContext('AssistantService')
@@ -175,14 +174,6 @@ export function getDefaultTopic(assistantId: string): Topic {
   }
 }
 
-// TODO: remove it in v2
-export function mapLegacyTopicToDto(topic: Topic): CreateTopicDto {
-  return {
-    name: topic.name,
-    assistantId: topic.assistantId
-  }
-}
-
 export function getDefaultProvider() {
   return getProviderByModel(getDefaultModel())
 }
@@ -277,6 +268,7 @@ export function getAssistantById(id: string) {
 export async function createAssistantFromAgent(agent: AssistantPreset) {
   const assistantId = uuid()
   const topic = getDefaultTopic(assistantId)
+  const resolvedDefaultModel = agent.defaultModel ?? getDefaultModel()
 
   const assistant: Assistant = {
     ...agent,
@@ -284,7 +276,8 @@ export async function createAssistantFromAgent(agent: AssistantPreset) {
     name: agent.name,
     emoji: agent.emoji,
     topics: [topic],
-    model: agent.defaultModel,
+    model: agent.defaultModel ?? resolvedDefaultModel,
+    defaultModel: resolvedDefaultModel,
     type: 'assistant',
     regularPhrases: agent.regularPhrases || [], // Ensured regularPhrases
     settings: agent.settings || DEFAULT_ASSISTANT_SETTINGS

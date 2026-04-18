@@ -25,11 +25,19 @@ import { CopyIcon } from './Icons'
 
 interface ImageViewerProps extends AntImageProps {
   src: string
+  enableContextMenuTools?: boolean
+  enablePreviewTools?: boolean
 }
 
 const logger = loggerService.withContext('ImageViewer')
 
-const ImageViewer: React.FC<ImageViewerProps> = ({ src, style, ...props }) => {
+const ImageViewer: React.FC<ImageViewerProps> = ({
+  src,
+  style,
+  enableContextMenuTools = true,
+  enablePreviewTools = true,
+  ...props
+}) => {
   const { t } = useTranslation()
 
   // 复制图片到剪贴板
@@ -98,37 +106,53 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ src, style, ...props }) => {
     ]
   }
 
+  const imageNode = (
+    <AntImage
+      src={src}
+      style={style}
+      onContextMenu={(e) => e.stopPropagation()}
+      {...props}
+      preview={
+        props.preview === false
+          ? false
+          : {
+              mask: typeof props.preview === 'object' ? props.preview.mask : false,
+              ...(typeof props.preview === 'object' ? props.preview : {}),
+              ...(enablePreviewTools
+                ? {
+                    toolbarRender: (
+                      _,
+                      {
+                        transform: { scale },
+                        actions: { onFlipY, onFlipX, onRotateLeft, onRotateRight, onZoomOut, onZoomIn, onReset }
+                      }
+                    ) => (
+                      <ToolbarWrapper size={12} className="toolbar-wrapper">
+                        <SwapOutlined rotate={90} onClick={onFlipY} />
+                        <SwapOutlined onClick={onFlipX} />
+                        <RotateLeftOutlined onClick={onRotateLeft} />
+                        <RotateRightOutlined onClick={onRotateRight} />
+                        <ZoomOutOutlined disabled={scale === 1} onClick={onZoomOut} />
+                        <ZoomInOutlined disabled={scale === 50} onClick={onZoomIn} />
+                        <UndoOutlined onClick={onReset} />
+                        <CopyOutlined onClick={() => handleCopyImage(src)} />
+                        <DownloadOutlined onClick={() => download(src)} />
+                      </ToolbarWrapper>
+                    )
+                  }
+                : {})
+            }
+      }
+    />
+  )
+
+  if (!enableContextMenuTools) {
+    return imageNode
+  }
+
   return (
     <Dropdown menu={{ items: getContextMenuItems(src) }} trigger={['contextMenu']}>
-      <AntImage
-        src={src}
-        style={style}
-        onContextMenu={(e) => e.stopPropagation()}
-        {...props}
-        preview={{
-          mask: typeof props.preview === 'object' ? props.preview.mask : false,
-          ...(typeof props.preview === 'object' ? props.preview : {}),
-          toolbarRender: (
-            _,
-            {
-              transform: { scale },
-              actions: { onFlipY, onFlipX, onRotateLeft, onRotateRight, onZoomOut, onZoomIn, onReset }
-            }
-          ) => (
-            <ToolbarWrapper size={12} className="toolbar-wrapper">
-              <SwapOutlined rotate={90} onClick={onFlipY} />
-              <SwapOutlined onClick={onFlipX} />
-              <RotateLeftOutlined onClick={onRotateLeft} />
-              <RotateRightOutlined onClick={onRotateRight} />
-              <ZoomOutOutlined disabled={scale === 1} onClick={onZoomOut} />
-              <ZoomInOutlined disabled={scale === 50} onClick={onZoomIn} />
-              <UndoOutlined onClick={onReset} />
-              <CopyOutlined onClick={() => handleCopyImage(src)} />
-              <DownloadOutlined onClick={() => download(src)} />
-            </ToolbarWrapper>
-          )
-        }}
-      />
+      {imageNode}
     </Dropdown>
   )
 }

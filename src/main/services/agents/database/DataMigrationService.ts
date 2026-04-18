@@ -34,7 +34,6 @@ const DATA_MIGRATIONS: DataMigration[] = [
     tag: 'data_0001_fix_block_references',
     description: 'Fix missing block IDs in message.blocks array',
     migrate: async (db) => {
-      // Dynamic import to avoid circular dependency
       const { runBlockReferencesMigration } = await import('./migrateBlockReferences')
       const result = await runBlockReferencesMigration(db)
       logger.info('Block references migration result', {
@@ -56,6 +55,34 @@ const DATA_MIGRATIONS: DataMigration[] = [
       const { runSkillsPerAgentMigration } = await import('./migrateSkillsPerAgent')
       const result = await runSkillsPerAgentMigration(db)
       logger.info('Skills per-agent migration result', result)
+    }
+  },
+  {
+    version: 10003,
+    tag: 'data_0003_blocks_to_parts',
+    description: 'Convert agent session messages from blocks[] to parts[] format',
+    migrate: async (db) => {
+      const { runBlocksToPartsMigration } = await import('./migrateBlocksToParts')
+      const result = await runBlocksToPartsMigration(db)
+      logger.info('Blocks→Parts migration result', {
+        totalMessages: result.totalMessages,
+        messagesConverted: result.messagesConverted,
+        messagesSkipped: result.messagesSkipped,
+        errors: result.errors.length
+      })
+      if (result.errors.length > 0) {
+        logger.warn('Some messages failed to migrate', { errors: result.errors })
+      }
+    }
+  },
+  {
+    version: 10004,
+    tag: 'data_0004_model_id_format',
+    description: 'Convert model IDs from providerId:modelId to UniqueModelId providerId::modelId',
+    migrate: async (db) => {
+      const { runModelIdFormatMigration } = await import('./migrateModelIdFormat')
+      const result = await runModelIdFormatMigration(db)
+      logger.info('Model ID format migration result', result)
     }
   }
 ]

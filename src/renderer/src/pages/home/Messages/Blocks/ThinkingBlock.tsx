@@ -1,31 +1,48 @@
 import { CheckOutlined } from '@ant-design/icons'
-import { Tooltip } from '@cherrystudio/ui'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import ThinkingEffect from '@renderer/components/ThinkingEffect'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
-import { MessageBlockStatus, type ThinkingMessageBlock } from '@renderer/types/newMessage'
-import { Collapse } from 'antd'
+import { MessageBlockStatus } from '@renderer/types/newMessage'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
+import type { MarkdownSource } from '../../Markdown/Markdown'
 import Markdown from '../../Markdown/Markdown'
+import ThinkingEffect from './ThinkingEffect'
+import { useScrollAnchor } from './useScrollAnchor'
 
 const logger = loggerService.withContext('ThinkingBlock')
+
 interface Props {
-  block: ThinkingMessageBlock
+  /** Stable ID for heading prefix and block identity tracking */
+  id: string
+  /** Markdown content to render */
+  content: string
+  /** Whether this block is currently streaming */
+  isStreaming: boolean
+  /** Thinking duration in milliseconds */
+  thinkingMs: number
 }
 
-const ThinkingBlock: React.FC<Props> = ({ block }) => {
+const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, thinkingMs }) => {
+  const block = useMemo<MarkdownSource>(
+    () => ({
+      id,
+      content,
+      status: isStreaming ? MessageBlockStatus.STREAMING : MessageBlockStatus.SUCCESS
+    }),
+    [id, content, isStreaming]
+  )
   const [copied, setCopied] = useTemporaryValue(false, 2000)
   const { t } = useTranslation()
   const [messageFont] = usePreference('chat.message.font')
   const [fontSize] = usePreference('chat.message.font_size')
   const [thoughtAutoCollapse] = usePreference('chat.message.thought.auto_collapse')
-  const [activeKey, setActiveKey] = useState<'thought' | ''>(thoughtAutoCollapse ? '' : 'thought')
+  const [activeKey, setActiveKey] = useState<string>(thoughtAutoCollapse ? '' : 'thought')
+  const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
 
-  const isThinking = useMemo(() => block.status === MessageBlockStatus.STREAMING, [block.status])
+  const isThinking = isStreaming
 
   useEffect(() => {
     if (thoughtAutoCollapse) {
@@ -36,9 +53,9 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
   }, [isThinking, thoughtAutoCollapse])
 
   const copyThought = useCallback(() => {
-    if (block.content) {
+    if (content) {
       navigator.clipboard
-        .writeText(block.content)
+        .writeText(content)
         .then(() => {
           window.toast.success({ title: t('message.copied'), key: 'copy-message' })
           setCopied(true)
@@ -48,60 +65,56 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
           window.toast.error({ title: t('message.copy.failed'), key: 'copy-message-error' })
         })
     }
-  }, [block.content, setCopied, t])
+  }, [content, setCopied, t])
 
-  if (!block.content) {
+  if (!content) {
     return null
   }
 
   return (
-    <CollapseContainer
-      activeKey={activeKey}
-      size="small"
-      onChange={() => setActiveKey((key) => (key ? '' : 'thought'))}
-      className="message-thought-container"
-      ghost
-      items={[
-        {
-          key: 'thought',
-          label: (
-            <ThinkingEffect
-              expanded={activeKey === 'thought'}
-              isThinking={isThinking}
-              thinkingTimeText={
-                <ThinkingTimeSeconds blockThinkingTime={block.thinking_millsec} isThinking={isThinking} />
-              }
-              content={block.content}
-            />
-          ),
-          children: (
-            //  FIXME: 临时兼容
-            <ThinkingContent
-              style={{
-                fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
-                fontSize
-              }}>
-              {!isThinking && (
-                <Tooltip content={t('common.copy')} delay={800}>
-                  <ActionButton
-                    className="message-action-button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      copyThought()
-                    }}
-                    aria-label={t('common.copy')}>
-                    {!copied && <i className="iconfont icon-copy"></i>}
-                    {copied && <CheckOutlined style={{ color: 'var(--color-primary)' }} />}
-                  </ActionButton>
-                </Tooltip>
-              )}
-              <Markdown block={block} />
-            </ThinkingContent>
-          ),
-          showArrow: false
-        }
-      ]}
-    />
+    <Accordion
+      ref={anchorRef}
+      type="single"
+      collapsible
+      value={activeKey}
+      onValueChange={(value) => withScrollAnchor(() => setActiveKey(value))}
+      className="message-thought-container mb-3.75">
+      <AccordionItem value="thought" className="border-0 first:border-t-0">
+        <AccordionTrigger className="p-0 hover:no-underline [&>svg]:hidden">
+          <ThinkingEffect
+            expanded={activeKey === 'thought'}
+            isThinking={isThinking}
+            thinkingTimeText={<ThinkingTimeSeconds blockThinkingTime={thinkingMs} isThinking={isThinking} />}
+            content={content}
+          />
+        </AccordionTrigger>
+        <AccordionContent className="rounded-b-xl border-(--color-border) border-x-[0.5px] border-b-[0.5px] border-solid px-4 pt-4 pb-4">
+          {/* FIXME: 临时兼容 */}
+          <div
+            className="relative"
+            style={{
+              fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
+              fontSize
+            }}>
+            {!isThinking && (
+              <Tooltip content={t('common.copy')} delay={800}>
+                <button
+                  className="message-action-button -right-3 -top-3 absolute ml-auto flex cursor-pointer items-center justify-center border-none bg-transparent p-1 text-(--color-text-2) opacity-60 transition-all duration-300 hover:text-(--color-text) hover:opacity-100 focus-visible:outline-(--color-primary) focus-visible:outline-2 focus-visible:outline-offset-2 [&_.iconfont]:text-sm"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    copyThought()
+                  }}
+                  aria-label={t('common.copy')}>
+                  {!copied && <i className="iconfont icon-copy"></i>}
+                  {copied && <CheckOutlined style={{ color: 'var(--color-primary)' }} />}
+                </button>
+              </Tooltip>
+            )}
+            <Markdown block={block} />
+          </div>
+        </AccordionContent>
+      </AccordionItem>
+    </Accordion>
   )
 }
 
@@ -110,9 +123,6 @@ const normalizeThinkingTime = (value?: number) => (typeof value === 'number' && 
 const ThinkingTimeSeconds = memo(
   ({ blockThinkingTime, isThinking }: { blockThinkingTime: number; isThinking: boolean }) => {
     const { t } = useTranslation()
-    // Initialize to 0 so the local timer always starts fresh when thinking begins.
-    // The actual blockThinkingTime is only applied once thinking completes (isThinking = false),
-    // which prevents a race condition from inflating the initial display value.
     const [displayTime, setDisplayTime] = useState(isThinking ? 0 : normalizeThinkingTime(blockThinkingTime))
 
     const timer = useRef<NodeJS.Timeout | null>(null)
@@ -129,7 +139,10 @@ const ThinkingTimeSeconds = memo(
           clearInterval(timer.current)
           timer.current = null
         }
-        setDisplayTime(normalizeThinkingTime(blockThinkingTime))
+        const normalized = normalizeThinkingTime(blockThinkingTime)
+        if (normalized > 0) {
+          setDisplayTime(normalized)
+        }
       }
 
       return () => {
@@ -154,54 +167,5 @@ const ThinkingTimeSeconds = memo(
         })
   }
 )
-
-const CollapseContainer = styled(Collapse)`
-  margin-bottom: 15px;
-  .ant-collapse-header {
-    padding: 0 !important;
-  }
-  .ant-collapse-content-box {
-    padding: 16px !important;
-    border-width: 0 0.5px 0.5px 0.5px;
-    border-style: solid;
-    border-color: var(--color-border);
-    border-radius: 0 0 12px 12px;
-  }
-`
-
-const ThinkingContent = styled.div`
-  position: relative;
-`
-
-const ActionButton = styled.button`
-  background: none;
-  border: none;
-  color: var(--color-text-2);
-  cursor: pointer;
-  padding: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-left: auto;
-  opacity: 0.6;
-  transition: all 0.3s;
-  position: absolute;
-  right: -12px;
-  top: -12px;
-
-  &:hover {
-    opacity: 1;
-    color: var(--color-text);
-  }
-
-  &:focus-visible {
-    outline: 2px solid var(--color-primary);
-    outline-offset: 2px;
-  }
-
-  .iconfont {
-    font-size: 14px;
-  }
-`
 
 export default memo(ThinkingBlock)

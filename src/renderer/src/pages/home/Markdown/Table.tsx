@@ -2,8 +2,6 @@ import { Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { CopyIcon } from '@renderer/components/Icons'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
-import store from '@renderer/store'
-import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import { exportTableToExcel } from '@renderer/utils/exportExcel'
 import { Check, FileSpreadsheet } from 'lucide-react'
 import MarkdownIt from 'markdown-it'
@@ -11,6 +9,8 @@ import React, { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import type { Node } from 'unist'
+
+import { useMarkdownBlockContext } from './Markdown'
 
 const logger = loggerService.withContext('Table')
 
@@ -26,9 +26,10 @@ interface Props {
 const Table: React.FC<Props> = ({ children, node, blockId }) => {
   const { t } = useTranslation()
   const [copied, setCopied] = useTemporaryValue(false, 2000)
+  const mdCtx = useMarkdownBlockContext()
 
   const handleCopyTable = useCallback(async () => {
-    const tableMarkdown = extractTableMarkdown(blockId ?? '', node?.position)
+    const tableMarkdown = extractTableMarkdown(blockId ?? '', node?.position, mdCtx?.content)
     if (!tableMarkdown) {
       window.toast?.error(t('message.error.table.invalid'))
       return
@@ -51,10 +52,10 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
       logger.error('Failed to copy table to clipboard', { error })
       window.toast?.error(t('message.copy.failed'))
     }
-  }, [blockId, node?.position, setCopied, t])
+  }, [blockId, node?.position, setCopied, t, mdCtx?.content])
 
   const handleExportExcel = useCallback(async () => {
-    const tableMarkdown = extractTableMarkdown(blockId ?? '', node?.position)
+    const tableMarkdown = extractTableMarkdown(blockId ?? '', node?.position, mdCtx?.content)
     if (!tableMarkdown) {
       window.toast?.error(t('message.error.table.invalid'))
       return
@@ -69,7 +70,7 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
       logger.error('Failed to export table to Excel', { error })
       window.toast?.error(t('message.error.excel.export'))
     }
-  }, [blockId, node?.position, t])
+  }, [blockId, node?.position, t, mdCtx?.content])
 
   return (
     <TableWrapper className="table-wrapper">
@@ -94,16 +95,14 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
  * 从原始 Markdown 内容中提取表格源代码
  * @param blockId 消息块 ID
  * @param position 表格节点的位置信息
+ * @param markdownContent 原始 markdown 内容（来自 MarkdownBlockContext）
  * @returns 源代码
  */
-export function extractTableMarkdown(blockId: string, position: any): string {
-  if (!position || !blockId) return ''
-
-  const block = messageBlocksSelectors.selectById(store.getState(), blockId)
-  if (!block || !('content' in block) || typeof block.content !== 'string') return ''
+export function extractTableMarkdown(_blockId: string, position: any, markdownContent?: string): string {
+  if (!position || !markdownContent) return ''
 
   const { start, end } = position
-  const lines = block.content.split('\n')
+  const lines = markdownContent.split('\n')
 
   // 提取表格对应的行（行号从1开始，数组索引从0开始）
   const tableLines = lines.slice(start.line - 1, end.line)

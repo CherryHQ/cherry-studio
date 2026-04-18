@@ -190,6 +190,16 @@ export class SessionService extends BaseService {
     }
 
     const session = this.deserializeJsonFields(result[0]) as GetAgentSessionResponse
+    return this.enrichSession(session, agentId)
+  }
+
+  /**
+   * Shared enrichment: populate `tools` / `allowed_tools` / `slash_commands`
+   * onto a deserialized session row. Reused by `getSession` (agent-scoped
+   * lookup) and `getById` (session-id-only lookup) so both entry points
+   * return identical shapes.
+   */
+  private async enrichSession(session: GetAgentSessionResponse, agentId: string): Promise<GetAgentSessionResponse> {
     const { tools, legacyIdMap } = await this.listMcpTools(session.agent_type, session.mcps)
     session.tools = tools
     session.allowed_tools = this.normalizeAllowedTools(session.allowed_tools, session.tools, legacyIdMap)
@@ -201,6 +211,25 @@ export class SessionService extends BaseService {
     }
 
     return session
+  }
+
+  /**
+   * Look up a session by its primary key alone, without knowing which agent
+   * owns it. Returns the same enriched shape as `getSession`. Use this when
+   * the session id is the only identifier available (e.g. streaming
+   * dispatch from a topicId like `agent-session:<id>`) — it saves an
+   * O(N-agents) `listAgents()` + per-agent `getSession` scan.
+   */
+  async getById(id: string): Promise<GetAgentSessionResponse | null> {
+    const database = await this.getDatabase()
+    const result = await database.select().from(sessionsTable).where(eq(sessionsTable.id, id)).limit(1)
+
+    if (!result[0]) {
+      return null
+    }
+
+    const session = this.deserializeJsonFields(result[0]) as GetAgentSessionResponse
+    return this.enrichSession(session, session.agent_id)
   }
 
   async listSessions(

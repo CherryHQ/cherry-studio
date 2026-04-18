@@ -1,32 +1,20 @@
+import { useChat } from '@ai-sdk/react'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import i18n from '@renderer/i18n'
-import { fetchChatCompletion } from '@renderer/services/ApiService'
-import { getDefaultTopic } from '@renderer/services/AssistantService'
-import { ConversationService } from '@renderer/services/ConversationService'
-import { getAssistantMessage, getUserMessage } from '@renderer/services/MessagesService'
-import store, { useAppSelector } from '@renderer/store'
-import { updateOneBlock, upsertManyBlocks, upsertOneBlock } from '@renderer/store/messageBlock'
-import { newMessagesActions, selectMessagesForTopic } from '@renderer/store/newMessage'
-import { cancelThrottledBlockUpdate, throttledBlockUpdate } from '@renderer/store/thunk/messageThunk'
-import type { Topic } from '@renderer/types'
-import type { Chunk } from '@renderer/types/chunk'
-import { ChunkType } from '@renderer/types/chunk'
-import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
-import { abortCompletion } from '@renderer/utils/abortController'
-import { isAbortError } from '@renderer/utils/error'
-import { createMainTextBlock, createThinkingBlock } from '@renderer/utils/messageUtils/create'
-import { getMainTextContent } from '@renderer/utils/messageUtils/find'
-import { replacePromptVariables } from '@renderer/utils/prompt'
+import { getAssistantById, getDefaultAssistant, getDefaultModel } from '@renderer/services/AssistantService'
+import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
+import { AssistantMessageStatus, UserMessageStatus } from '@renderer/types/newMessage'
+import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
 import { defaultLanguage } from '@shared/config/constant'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Divider } from 'antd'
-import { cloneDeep, isEmpty } from 'lodash'
-import { last } from 'lodash'
+import { isEmpty } from 'lodash'
 import type { FC } from 'react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -42,40 +30,57 @@ import InputBar from './components/InputBar'
 
 const logger = loggerService.withContext('HomeWindow')
 
+type MiniRoute = 'home' | 'chat' | 'translate' | 'summary' | 'explanation'
+
 const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const [readClipboardAtStartup] = usePreference('feature.quick_assistant.read_clipboard_at_startup')
+  const [quickAssistantId] = usePreference('feature.quick_assistant.assistant_id')
   const [language] = usePreference('app.language')
   const [windowStyle] = usePreference('ui.window_style')
   const { theme } = useTheme()
   const { t } = useTranslation()
 
-  const [route, setRoute] = useState<'home' | 'chat' | 'translate' | 'summary' | 'explanation'>('home')
+  const [route, setRoute] = useState<MiniRoute>('home')
   const [isFirstMessage, setIsFirstMessage] = useState(true)
-
   const [userInputText, setUserInputText] = useState('')
-
   const [clipboardText, setClipboardText] = useState('')
-  const lastClipboardTextRef = useRef<string | null>(null)
-
   const [isPinned, setIsPinned] = useState(false)
 
-  // Indicator for loading(thinking/streaming)
-  const [isLoading, setIsLoading] = useState(false)
-  // Indicator for whether the first message is outputted
-  const [isOutputted, setIsOutputted] = useState(false)
-
-  const [error, setError] = useState<string | null>(null)
-
-  const { quickAssistantId } = useAppSelector((state) => state.llm)
-  const { assistant: currentAssistant } = useAssistant(quickAssistantId)
-
-  const currentTopic = useRef<Topic>(getDefaultTopic(currentAssistant.id))
-  const currentAskId = useRef('')
-
+  const lastClipboardTextRef = useRef<string | null>(null)
   const inputBarRef = useRef<HTMLDivElement>(null)
   const featureMenusRef = useRef<FeatureMenusRef>(null)
 
-  const referenceText = useMemo(() => clipboardText || userInputText, [clipboardText, userInputText])
+  // Synchronous store read — avoids pulling in react-redux `<Provider>`, which is
+  // intentionally absent from the mini window (see MiniWindowApp). The store is
+  // rehydrated by PersistGate before this component mounts, so `getAssistantById`
+  // returns stable data.
+  //
+  // Why not DataApi `useQuery('/assistants/:id')` (endpoints already exist):
+  //  - Downstream (`<InputBar>` → `<ModelAvatar model={...} />`) expects a fully
+  //    populated `Model` object. DataApi's Assistant carries only `modelId`, so
+  //    going that route means a second `useQuery('/models/:providerId/:modelId')`
+  //    and reshaping the result to match — the change would fan out to
+  //    ModelAvatar / InputBar and other consumers.
+  //  - A mini window session keeps a single assistant config for its whole
+  //    lifetime. Config changes originate in the main window (QuickAssistantSettings)
+  //    and only take effect on the next open; no live reactivity is needed here.
+  //
+  // Full DataApi migration is a follow-up once downstream components have been
+  // converted off the monolithic Assistant/Model shape.
+  const currentAssistant = useMemo(() => {
+    const base = (quickAssistantId && getAssistantById(quickAssistantId)) || getDefaultAssistant()
+    return { ...base, model: base.model ?? getDefaultModel() }
+  }, [quickAssistantId])
+
+  // Lease a temporary topic for the quick-assistant conversation.
+  // Lifecycle is tied to this component; resetting the conversation drops and leases a new one.
+  const {
+    topicId: temporaryTopicId,
+    ready: isTopicReady,
+    reset: resetTemporaryTopic
+  } = useTemporaryTopic(currentAssistant.id)
+
+  const referenceText = clipboardText || userInputText
 
   const userContent = useMemo(() => {
     if (isFirstMessage) {
@@ -84,28 +89,93 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     return userInputText.trim()
   }, [isFirstMessage, referenceText, userInputText])
 
+  const [isPreparing, setIsPreparing] = useState(false)
+  const [flowError, setFlowError] = useState<string | null>(null)
+
+  const {
+    messages: chatMessages,
+    status,
+    sendMessage,
+    stop: stopChat,
+    setMessages
+  } = useChat<CherryUIMessage>({
+    id: temporaryTopicId ?? 'pending-temp',
+    transport: ipcChatTransport,
+    experimental_throttle: 50,
+    onError: (err) => {
+      setIsPreparing(false)
+      setFlowError(err.message)
+    }
+  })
+
+  useEffect(() => {
+    if (status === 'streaming') setIsPreparing(false)
+  }, [status])
+
+  const partsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
+    const map: Record<string, CherryMessagePart[]> = {}
+    for (const m of chatMessages) map[m.id] = m.parts as CherryMessagePart[]
+    return map
+  }, [chatMessages])
+
+  // Minimum shape required by MessageContent / PartsRenderer.
+  // topicId / assistantId / blocks are never read in this codepath; createdAt is only consulted
+  // for file-attachment parts (absent in temporary topics), so a stable empty string is fine.
+  const adaptedMessages = useMemo(() => {
+    const latestAssistantId = chatMessages.findLast((m) => m.role === 'assistant')?.id
+    return chatMessages.map((m) => ({
+      id: m.id,
+      role: m.role as 'user' | 'assistant',
+      assistantId: '',
+      topicId: '',
+      createdAt: '',
+      status:
+        m.role === 'user'
+          ? UserMessageStatus.SUCCESS
+          : m.id === latestAssistantId && (status === 'streaming' || status === 'submitted')
+            ? AssistantMessageStatus.PROCESSING
+            : AssistantMessageStatus.SUCCESS,
+      blocks: []
+    }))
+  }, [chatMessages, status])
+
+  const latestAssistantUIMsg = useMemo(() => chatMessages.findLast((m) => m.role === 'assistant'), [chatMessages])
+
+  const content = useMemo(
+    () => (latestAssistantUIMsg ? getTextFromParts(latestAssistantUIMsg.parts as CherryMessagePart[]) : ''),
+    [latestAssistantUIMsg]
+  )
+
+  const isStreaming = status === 'streaming' || status === 'submitted'
+
+  const clear = useCallback(() => {
+    void stopChat()
+    setMessages([])
+    setFlowError(null)
+    setIsPreparing(false)
+  }, [stopChat, setMessages])
+
+  const isLoading = isPreparing || isStreaming
+  const isOutputted = adaptedMessages.some((message) => message.role === 'assistant')
+
   useEffect(() => {
     void i18n.changeLanguage(language || navigator.language || defaultLanguage)
   }, [language])
 
-  // Reset state when switching to home route
   useEffect(() => {
     if (route === 'home') {
       setIsFirstMessage(true)
-      setError(null)
+      setFlowError(null)
+      clear()
     }
-  }, [route])
+  }, [route, clear])
 
   const focusInput = useCallback(() => {
-    if (inputBarRef.current) {
-      const input = inputBarRef.current.querySelector('input')
-      if (input) {
-        input.focus()
-      }
-    }
+    if (!inputBarRef.current) return
+    const input = inputBarRef.current.querySelector('input')
+    input?.focus()
   }, [])
 
-  // Use useCallback with stable dependencies to avoid infinite loops
   const readClipboard = useCallback(async () => {
     if (!readClipboardAtStartup || !document.hasFocus()) return
 
@@ -115,9 +185,8 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
         lastClipboardTextRef.current = text
         setClipboardText(text.trim())
       }
-    } catch (error) {
-      // Silently handle clipboard read errors (common in some environments)
-      logger.warn('Failed to read clipboard:', error as Error)
+    } catch (clipboardError) {
+      logger.warn('Failed to read clipboard:', clipboardError as Error)
     }
   }, [readClipboardAtStartup])
 
@@ -150,12 +219,62 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
   const handleCloseWindow = useCallback(() => window.api.miniWindow.hide(), [])
 
+  const handleSendMessage = useCallback(
+    async (prompt?: string) => {
+      if (isEmpty(userContent)) return
+      if (!isTopicReady || !temporaryTopicId) return
+
+      try {
+        setFlowError(null)
+        setIsFirstMessage(false)
+        setUserInputText('')
+        setIsPreparing(true)
+        // topicId comes from useChat id; Main resolves assistant/model from topic.assistantId.
+        void sendMessage({ text: [prompt, userContent].filter(Boolean).join('\n\n') })
+      } catch (streamError) {
+        const resolvedError = streamError instanceof Error ? streamError : new Error('An error occurred')
+        setFlowError(resolvedError.message)
+        logger.error('Error fetching result:', resolvedError)
+      }
+    },
+    [sendMessage, temporaryTopicId, isTopicReady, userContent]
+  )
+
+  const handlePause = useCallback(() => {
+    void stopChat()
+  }, [stopChat])
+
+  const resetConversation = useCallback(() => {
+    // Drop the current temporary topic and let useTemporaryTopic lease a fresh one.
+    resetTemporaryTopic()
+    clear()
+  }, [clear, resetTemporaryTopic])
+
+  const handleEsc = useCallback(() => {
+    if (isLoading) {
+      handlePause()
+      return
+    }
+
+    if (route === 'home') {
+      void handleCloseWindow()
+      return
+    }
+
+    resetConversation()
+    featureMenusRef.current?.resetSelectedIndex()
+    setFlowError(null)
+    setRoute('home')
+    setUserInputText('')
+  }, [handleCloseWindow, handlePause, isLoading, resetConversation, route])
+
+  const handleCopy = useCallback(() => {
+    if (!content) return
+    void navigator.clipboard.writeText(content)
+    window.toast.success(t('message.copy.success'))
+  }, [content, t])
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    // 使用非直接输入法时（例如中文、日文输入法），存在输入法键入过程
-    // 键入过程不应有任何响应
-    // 例子，中文输入法候选词过程使用`Enter`直接上屏字母，日文输入法候选词过程使用`Enter`输入假名
-    // 输入法可以`Esc`终止候选词过程
-    // 这两个例子的`Enter`和`Esc`快捷助手都不应该响应
     if (e.nativeEvent.isComposing || e.key === 'Process') {
       return
     }
@@ -163,49 +282,37 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     switch (e.code) {
       case 'Enter':
       case 'NumpadEnter':
-        {
-          if (isLoading) return
-
-          e.preventDefault()
-          if (userContent) {
-            if (route === 'home') {
-              featureMenusRef.current?.useFeature()
-            } else {
-              // Currently text input is only available in 'chat' mode
-              setRoute('chat')
-              void handleSendMessage()
-              focusInput()
-            }
+        if (isLoading) return
+        e.preventDefault()
+        if (userContent) {
+          if (route === 'home') {
+            featureMenusRef.current?.useFeature()
+          } else {
+            setRoute('chat')
+            void handleSendMessage()
+            focusInput()
           }
         }
         break
       case 'Backspace':
-        {
-          if (userInputText.length === 0) {
-            void clearClipboard()
-          }
+        if (userInputText.length === 0) {
+          void clearClipboard()
         }
         break
       case 'ArrowUp':
-        {
-          if (route === 'home') {
-            e.preventDefault()
-            featureMenusRef.current?.prevFeature()
-          }
+        if (route === 'home') {
+          e.preventDefault()
+          featureMenusRef.current?.prevFeature()
         }
         break
       case 'ArrowDown':
-        {
-          if (route === 'home') {
-            e.preventDefault()
-            featureMenusRef.current?.nextFeature()
-          }
+        if (route === 'home') {
+          e.preventDefault()
+          featureMenusRef.current?.nextFeature()
         }
         break
       case 'Escape':
-        {
-          handleEsc()
-        }
+        handleEsc()
         break
     }
   }
@@ -214,304 +321,13 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     setUserInputText(e.target.value)
   }
 
-  const handleError = (error: Error) => {
-    setIsLoading(false)
-    setError(error.message)
-  }
-
-  const handleSendMessage = useCallback(
-    async (prompt?: string) => {
-      if (isEmpty(userContent) || !currentTopic.current) {
-        return
-      }
-
-      try {
-        const topicId = currentTopic.current.id
-
-        const { message: userMessage, blocks } = getUserMessage({
-          content: [prompt, userContent].filter(Boolean).join('\n\n'),
-          assistant: currentAssistant,
-          topic: currentTopic.current
-        })
-
-        store.dispatch(newMessagesActions.addMessage({ topicId, message: userMessage }))
-        store.dispatch(upsertManyBlocks(blocks))
-
-        const assistantMessage = getAssistantMessage({
-          assistant: currentAssistant,
-          topic: currentTopic.current
-        })
-        assistantMessage.askId = userMessage.id
-        currentAskId.current = userMessage.id
-
-        store.dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
-
-        const allMessagesForTopic = selectMessagesForTopic(store.getState(), topicId)
-        const userMessageIndex = allMessagesForTopic.findIndex((m) => m?.id === userMessage.id)
-
-        const messagesForContext = allMessagesForTopic
-          .slice(0, userMessageIndex + 1)
-          .filter((m) => m && !m.status?.includes('ing'))
-
-        let blockId: string | null = null
-        let thinkingBlockId: string | null = null
-        let thinkingStartTime: number | null = null
-
-        const resolveThinkingDuration = (duration?: number) => {
-          if (typeof duration === 'number' && Number.isFinite(duration)) {
-            return duration
-          }
-          if (thinkingStartTime !== null) {
-            return Math.max(0, performance.now() - thinkingStartTime)
-          }
-          return 0
-        }
-
-        setIsLoading(true)
-        setIsOutputted(false)
-        setError(null)
-
-        setIsFirstMessage(false)
-        setUserInputText('')
-
-        const newAssistant = cloneDeep(currentAssistant)
-        if (!newAssistant.settings) {
-          newAssistant.settings = {}
-        }
-        newAssistant.settings.streamOutput = true
-        // 显式关闭这些功能
-        newAssistant.webSearchProviderId = undefined
-        newAssistant.mcpServers = undefined
-        newAssistant.knowledge_bases = undefined
-        // replace prompt vars
-        newAssistant.prompt = await replacePromptVariables(currentAssistant.prompt, currentAssistant?.model.name)
-        // logger.debug('newAssistant', newAssistant)
-
-        const { modelMessages, uiMessages } = await ConversationService.prepareMessagesForModel(
-          messagesForContext,
-          newAssistant
-        )
-
-        await fetchChatCompletion({
-          messages: modelMessages,
-          assistant: newAssistant,
-          requestOptions: {},
-          topicId,
-          uiMessages: uiMessages,
-          onChunkReceived: (chunk: Chunk) => {
-            switch (chunk.type) {
-              case ChunkType.THINKING_START:
-                {
-                  setIsOutputted(true)
-                  thinkingStartTime = performance.now()
-                  if (thinkingBlockId) {
-                    store.dispatch(
-                      updateOneBlock({ id: thinkingBlockId, changes: { status: MessageBlockStatus.STREAMING } })
-                    )
-                  } else {
-                    const block = createThinkingBlock(assistantMessage.id, '', {
-                      status: MessageBlockStatus.STREAMING
-                    })
-                    thinkingBlockId = block.id
-                    store.dispatch(
-                      newMessagesActions.updateMessage({
-                        topicId,
-                        messageId: assistantMessage.id,
-                        updates: { blockInstruction: { id: block.id } }
-                      })
-                    )
-                    store.dispatch(upsertOneBlock(block))
-                  }
-                }
-                break
-              case ChunkType.THINKING_DELTA:
-                {
-                  setIsOutputted(true)
-                  if (thinkingBlockId) {
-                    if (thinkingStartTime === null) {
-                      thinkingStartTime = performance.now()
-                    }
-                    const thinkingDuration = resolveThinkingDuration(chunk.thinking_millsec)
-                    throttledBlockUpdate(thinkingBlockId, {
-                      content: chunk.text,
-                      thinking_millsec: thinkingDuration
-                    })
-                  }
-                }
-                break
-              case ChunkType.THINKING_COMPLETE:
-                {
-                  if (thinkingBlockId) {
-                    const thinkingDuration = resolveThinkingDuration(chunk.thinking_millsec)
-                    cancelThrottledBlockUpdate(thinkingBlockId)
-                    store.dispatch(
-                      updateOneBlock({
-                        id: thinkingBlockId,
-                        changes: { status: MessageBlockStatus.SUCCESS, thinking_millsec: thinkingDuration }
-                      })
-                    )
-                  }
-                  thinkingStartTime = null
-                  thinkingBlockId = null
-                }
-                break
-              case ChunkType.TEXT_START:
-                {
-                  setIsOutputted(true)
-                  if (blockId) {
-                    store.dispatch(updateOneBlock({ id: blockId, changes: { status: MessageBlockStatus.STREAMING } }))
-                  } else {
-                    const block = createMainTextBlock(assistantMessage.id, '', {
-                      status: MessageBlockStatus.STREAMING
-                    })
-                    blockId = block.id
-                    store.dispatch(
-                      newMessagesActions.updateMessage({
-                        topicId,
-                        messageId: assistantMessage.id,
-                        updates: { blockInstruction: { id: block.id } }
-                      })
-                    )
-                    store.dispatch(upsertOneBlock(block))
-                  }
-                }
-                break
-              case ChunkType.TEXT_DELTA:
-                {
-                  setIsOutputted(true)
-                  if (blockId) {
-                    throttledBlockUpdate(blockId, { content: chunk.text })
-                  }
-                }
-                break
-
-              case ChunkType.TEXT_COMPLETE:
-                {
-                  if (blockId) {
-                    cancelThrottledBlockUpdate(blockId)
-                    store.dispatch(
-                      updateOneBlock({
-                        id: blockId,
-                        changes: { content: chunk.text, status: MessageBlockStatus.SUCCESS }
-                      })
-                    )
-                  }
-                }
-                break
-              case ChunkType.ERROR: {
-                //stop the thinking timer
-                const isAborted = isAbortError(chunk.error)
-                const possibleBlockId = thinkingBlockId || blockId
-                if (possibleBlockId) {
-                  store.dispatch(
-                    updateOneBlock({
-                      id: possibleBlockId,
-                      changes: {
-                        status: isAborted ? MessageBlockStatus.PAUSED : MessageBlockStatus.ERROR
-                      }
-                    })
-                  )
-                  store.dispatch(
-                    newMessagesActions.updateMessage({
-                      topicId,
-                      messageId: assistantMessage.id,
-                      updates: {
-                        status: isAborted ? AssistantMessageStatus.PAUSED : AssistantMessageStatus.SUCCESS
-                      }
-                    })
-                  )
-                }
-                if (!isAborted) {
-                  throw new Error(chunk.error.message)
-                }
-                thinkingStartTime = null
-                thinkingBlockId = null
-              }
-              //fall through
-              case ChunkType.BLOCK_COMPLETE:
-                setIsLoading(false)
-                setIsOutputted(true)
-                currentAskId.current = ''
-                store.dispatch(
-                  newMessagesActions.updateMessage({
-                    topicId,
-                    messageId: assistantMessage.id,
-                    updates: { status: AssistantMessageStatus.SUCCESS }
-                  })
-                )
-                break
-            }
-          }
-        })
-      } catch (err) {
-        if (isAbortError(err)) return
-        handleError(err instanceof Error ? err : new Error('An error occurred'))
-        logger.error('Error fetching result:', err as Error)
-      } finally {
-        setIsLoading(false)
-        setIsOutputted(true)
-        currentAskId.current = ''
-      }
-    },
-    [userContent, currentAssistant]
-  )
-
-  const handlePause = useCallback(() => {
-    if (currentAskId.current) {
-      abortCompletion(currentAskId.current)
-      setIsLoading(false)
-      setIsOutputted(true)
-      currentAskId.current = ''
-    }
-  }, [])
-
-  const handleEsc = useCallback(() => {
-    if (isLoading) {
-      handlePause()
-    } else {
-      if (route === 'home') {
-        void handleCloseWindow()
-      } else {
-        // Clear the topic messages to reduce memory usage
-        if (currentTopic.current) {
-          store.dispatch(newMessagesActions.clearTopicMessages(currentTopic.current.id))
-        }
-
-        // Reset the topic
-        currentTopic.current = getDefaultTopic(currentAssistant.id)
-
-        // Reset selection only after using a feature and returning to home.
-        featureMenusRef.current?.resetSelectedIndex()
-        setError(null)
-        setRoute('home')
-        setUserInputText('')
-      }
-    }
-  }, [isLoading, route, handleCloseWindow, currentAssistant.id, handlePause])
-
-  const handleCopy = useCallback(() => {
-    if (!currentTopic.current) return
-
-    const messages = selectMessagesForTopic(store.getState(), currentTopic.current.id)
-    const lastMessage = last(messages)
-
-    if (lastMessage) {
-      const content = getMainTextContent(lastMessage)
-      void navigator.clipboard.writeText(content)
-      window.toast.success(t('message.copy.success'))
-    }
-  }, [currentTopic, t])
-
   const backgroundColor = useMemo(() => {
-    // ONLY MAC: when transparent style + light theme: use vibrancy effect
-    // because the dark style under mac's vibrancy effect has not been implemented
     if (isMac && windowStyle === 'transparent' && theme === ThemeMode.light) {
       return 'transparent'
     }
     return 'var(--color-background)'
   }, [windowStyle, theme])
 
-  // Memoize placeholder text
   const inputPlaceholder = useMemo(() => {
     if (referenceText && route === 'home') {
       return t('miniwindow.input.placeholder.title')
@@ -521,7 +337,6 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     })
   }, [referenceText, route, t, quickAssistantId, currentAssistant])
 
-  // Memoize footer props
   const baseFooterProps = useMemo(
     () => ({
       route,
@@ -562,10 +377,11 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
           <ChatWindow
             route={route}
             assistant={currentAssistant}
-            topic={currentTopic.current}
             isOutputted={isOutputted}
+            messages={adaptedMessages}
+            partsMap={partsMap}
           />
-          {error && <ErrorMsg>{error}</ErrorMsg>}
+          {flowError && <ErrorMsg>{flowError}</ErrorMsg>}
 
           <Divider style={{ margin: '10px 0' }} />
           <Footer key="footer" {...baseFooterProps} onCopy={handleCopy} />
@@ -581,7 +397,6 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
         </Container>
       )
 
-    // Home
     default:
       return (
         <Container style={{ backgroundColor }} $draggable={draggable}>
@@ -630,7 +445,6 @@ const Container = styled.div<{ $draggable: boolean }>`
 const Main = styled.main`
   display: flex;
   flex-direction: column;
-
   flex: 1;
   overflow: hidden;
 `

@@ -7,14 +7,12 @@ import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { useActiveTopic } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import NavigationService from '@renderer/services/NavigationService'
-import { newMessagesActions } from '@renderer/store/newMessage'
 import type { Assistant, Topic } from '@renderer/types'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
-import { startTransition, useCallback, useEffect, useState } from 'react'
-import { useDispatch } from 'react-redux'
+import { useCallback, useEffect, useState } from 'react'
 import styled from 'styled-components'
 
 import Chat from './Chat'
@@ -41,7 +39,6 @@ const HomePage: FC = () => {
   const [topicPosition] = usePreference('topic.position')
   const { setShowAssistants, toggleShowAssistants } = useShowAssistants()
   const { toggleShowTopics } = useShowTopics()
-  const dispatch = useDispatch()
 
   _activeAssistant = activeAssistant
 
@@ -83,25 +80,12 @@ const HomePage: FC = () => {
   const setActiveAssistant = useCallback(
     (newAssistant: Assistant) => {
       if (newAssistant.id === activeAssistant?.id) return
-      startTransition(() => {
-        _setActiveAssistant(newAssistant)
-        // 同步更新 active topic，避免不必要的重新渲染
-        const newTopic = newAssistant.topics[0]
-        _setActiveTopic((prev) => (newTopic?.id === prev.id ? prev : newTopic))
-      })
+      _setActiveAssistant(newAssistant)
     },
-    [_setActiveTopic, activeAssistant?.id]
+    [activeAssistant?.id]
   )
 
-  const setActiveTopic = useCallback(
-    (newTopic: Topic) => {
-      startTransition(() => {
-        _setActiveTopic((prev) => (newTopic?.id === prev.id ? prev : newTopic))
-        dispatch(newMessagesActions.setTopicFulfilled({ topicId: newTopic.id, fulfilled: false }))
-      })
-    },
-    [_setActiveTopic, dispatch]
-  )
+  const setActiveTopic = _setActiveTopic
 
   useEffect(() => {
     NavigationService.setNavigate(navigate)
@@ -121,6 +105,10 @@ const HomePage: FC = () => {
       void window.api.window.resetMinimumSize()
     }
   }, [showAssistants, showTopics, topicPosition])
+
+  if (!activeTopic) {
+    return <Container id="home-page" />
+  }
 
   return (
     <Container id="home-page">

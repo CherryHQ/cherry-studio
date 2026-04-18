@@ -3,6 +3,8 @@ import { useCache } from '@renderer/data/hooks/useCache'
 import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
+import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
+import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
@@ -12,6 +14,7 @@ import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { Alert, Spin } from 'antd'
 import { AnimatePresence, motion } from 'motion/react'
 import type { PropsWithChildren } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { PinnedTodoPanel } from '../home/Inputbar/components/PinnedTodoPanel'
@@ -86,34 +89,77 @@ const AgentChat = () => {
   }
 
   return (
-    <Container
-      // AgentChat doesn't support multi-select
-      // But we want to apply the message style for consistency
-      className={cn(messageStyle, { 'multi-select-mode': isMultiSelectMode })}>
+    <AgentChatInner
+      agentId={activeAgentId}
+      sessionId={activeSessionId}
+      activeAgent={activeAgent}
+      showRightSessions={showRightSessions}
+      messageNavigation={messageNavigation}
+      messageStyle={messageStyle}
+      isMultiSelectMode={isMultiSelectMode}
+    />
+  )
+}
+
+// ── Inner: mounted only when agentId + sessionId are resolved ──
+
+interface InnerProps {
+  agentId: string
+  sessionId: string
+  activeAgent: ReturnType<typeof useActiveAgent>['agent']
+  showRightSessions: boolean
+  messageNavigation: string
+  messageStyle: string
+  isMultiSelectMode: boolean
+}
+
+const AgentChatInner = ({
+  agentId,
+  sessionId,
+  activeAgent,
+  showRightSessions,
+  messageNavigation,
+  messageStyle,
+  isMultiSelectMode
+}: InnerProps) => {
+  const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
+  const { messages: initialMessages, isLoading, refresh } = useAgentSessionParts(sessionId)
+  const chat = useChatWithHistory(sessionTopicId, initialMessages, refresh, { assistantId: agentId })
+
+  return (
+    <Container className={cn(messageStyle, { 'multi-select-mode': isMultiSelectMode })}>
       <QuickPanelProvider>
-        {/* Main Chat */}
         <div className="flex min-w-0 flex-1 flex-col">
-          {/* Header */}
           <div className="flex h-fit w-full min-w-0">
             {activeAgent && <AgentChatNavbar className="min-w-0" activeAgent={activeAgent} />}
           </div>
 
-          {/* Messages */}
           <div className="translate-z-0 relative flex w-full flex-1 flex-col justify-between overflow-y-auto overflow-x-hidden">
-            <AgentSessionMessages agentId={activeAgentId} sessionId={activeSessionId} />
+            <AgentSessionMessages
+              agentId={agentId}
+              sessionId={sessionId}
+              adaptedMessages={chat.adaptedMessages}
+              partsMap={chat.partsMap}
+              isLoading={isLoading}
+            />
             <div className="mt-auto px-4.5 pb-2">
               <NarrowLayout>
-                <PinnedTodoPanel topicId={buildAgentSessionTopicId(activeSessionId)} />
+                <PinnedTodoPanel topicId={sessionTopicId} />
               </NarrowLayout>
             </div>
             {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
           </div>
-          {/* Inputbar */}
-          <AgentSessionInputbar agentId={activeAgentId} sessionId={activeSessionId} />
+
+          <AgentSessionInputbar
+            agentId={agentId}
+            sessionId={sessionId}
+            sendMessage={chat.sendMessage}
+            stop={chat.stop}
+            status={chat.status}
+          />
         </div>
       </QuickPanelProvider>
 
-      {/* Sessions Panel */}
       <AnimatePresence initial={false}>
         {showRightSessions && (
           <motion.div
@@ -124,7 +170,7 @@ const AgentChat = () => {
             transition={{ duration: 0.3, ease: 'easeInOut' }}
             className="overflow-hidden">
             <div className="flex h-full w-(--assistants-width) flex-col overflow-hidden">
-              <Sessions agentId={activeAgentId} />
+              <Sessions agentId={agentId} />
             </div>
           </motion.div>
         )}

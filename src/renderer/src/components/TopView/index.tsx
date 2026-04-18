@@ -3,6 +3,7 @@ import { Box } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import TopViewMinappContainer from '@renderer/components/MinApp/TopViewMinappContainer'
 import { useAppInit } from '@renderer/hooks/useAppInit'
+import { useTopicSync } from '@renderer/hooks/useTopicDataApi'
 import { message, Modal } from 'antd'
 import type { PropsWithChildren } from 'react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
@@ -41,6 +42,7 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
   const enableQuitFullScreen = exitFullscreenPref?.enabled !== false
 
   useAppInit()
+  useTopicSync()
 
   useEffect(() => {
     window.modal = modal

@@ -1,6 +1,6 @@
 import AssistantAvatar from '@renderer/components/Avatar/AssistantAvatar'
 import { modelGenerating } from '@renderer/hooks/useModel'
-import { TopicManager } from '@renderer/hooks/useTopic'
+import { useTopicMutations } from '@renderer/hooks/useTopicDataApi'
 import type { Assistant, Topic } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import { Dropdown, Tooltip } from 'antd'
@@ -67,6 +67,7 @@ export function useTopicManageMode(): TopicManageModeState {
 interface TopicManagePanelProps {
   assistant: Assistant
   assistants: Assistant[]
+  topics: Topic[]
   activeTopic: Topic
   setActiveTopic: (topic: Topic) => void
   updateTopics: (topics: Topic[]) => void
@@ -81,6 +82,7 @@ interface TopicManagePanelProps {
 export const TopicManagePanel: React.FC<TopicManagePanelProps> = ({
   assistant,
   assistants,
+  topics,
   activeTopic,
   setActiveTopic,
   updateTopics,
@@ -89,15 +91,16 @@ export const TopicManagePanel: React.FC<TopicManagePanelProps> = ({
   filteredTopics
 }) => {
   const { t } = useTranslation()
+  const { deleteTopic } = useTopicMutations()
   const { isManageMode, selectedIds, searchText, exitManageMode, setSelectedIds, setSearchText } = manageState
   const [isSearchMode, setIsSearchMode] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   // Topics that can be selected (non-pinned, and filtered when in search mode)
   const selectableTopics = useMemo(() => {
-    const baseTopics = isSearchMode ? filteredTopics : assistant.topics
+    const baseTopics = isSearchMode ? filteredTopics : topics
     return (baseTopics ?? []).filter((topic) => !topic.pinned)
-  }, [assistant.topics, filteredTopics, isSearchMode])
+  }, [topics, filteredTopics, isSearchMode])
 
   // Check if all selectable topics are selected
   const isAllSelected = useMemo(() => {
@@ -125,7 +128,7 @@ export const TopicManagePanel: React.FC<TopicManagePanelProps> = ({
   const handleDeleteSelected = useCallback(async () => {
     if (selectedIds.size === 0) return
 
-    const remainingTopics = assistant.topics.filter((topic) => !selectedIds.has(topic.id))
+    const remainingTopics = topics.filter((topic) => !selectedIds.has(topic.id))
     if (remainingTopics.length === 0) {
       window.toast.error(t('chat.topics.manage.error.at_least_one'))
       return
@@ -144,15 +147,14 @@ export const TopicManagePanel: React.FC<TopicManagePanelProps> = ({
 
     const idsArray = Array.from(selectedIds)
 
-    // Delete DB records and files
-    const results = await Promise.allSettled(idsArray.map((id) => TopicManager.removeTopic(id).then(() => id)))
+    const results = await Promise.allSettled(idsArray.map((id) => deleteTopic(id).then(() => id)))
 
     // Filter successful ids
     const successfulIds = new Set(
       results.filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled').map((r) => r.value)
     )
 
-    const actualRemainingTopics = assistant.topics.filter((topic) => !successfulIds.has(topic.id))
+    const actualRemainingTopics = topics.filter((topic) => !successfulIds.has(topic.id))
     updateTopics(actualRemainingTopics)
 
     // Switch to first remaining topic if current topic was deleted
@@ -173,7 +175,7 @@ export const TopicManagePanel: React.FC<TopicManagePanelProps> = ({
       window.toast.error(t('chat.topics.manage.delete.error'))
     }
     exitManageMode()
-  }, [selectedIds, assistant.topics, activeTopic.id, setActiveTopic, t, exitManageMode, updateTopics])
+  }, [selectedIds, topics, activeTopic.id, setActiveTopic, t, exitManageMode, updateTopics])
 
   // Handle move selected topics to another assistant
   const handleMoveSelected = useCallback(
@@ -183,7 +185,7 @@ export const TopicManagePanel: React.FC<TopicManagePanelProps> = ({
       const targetAssistant = assistants.find((a) => a.id === targetAssistantId)
       if (!targetAssistant) return
 
-      const remainingTopics = assistant.topics.filter((topic) => !selectedIds.has(topic.id))
+      const remainingTopics = topics.filter((topic) => !selectedIds.has(topic.id))
       if (remainingTopics.length === 0) {
         window.toast.error(t('chat.topics.manage.error.at_least_one'))
         return
@@ -193,7 +195,7 @@ export const TopicManagePanel: React.FC<TopicManagePanelProps> = ({
 
       const movedCount = selectedIds.size
       for (const id of selectedIds) {
-        const topic = assistant.topics.find((t) => t.id === id)
+        const topic = topics.find((t) => t.id === id)
         if (topic) {
           moveTopic(topic, targetAssistant)
         }
@@ -207,7 +209,7 @@ export const TopicManagePanel: React.FC<TopicManagePanelProps> = ({
       window.toast.success(t('chat.topics.manage.move.success', { count: movedCount }))
       exitManageMode()
     },
-    [selectedIds, assistant.topics, assistants, moveTopic, activeTopic.id, setActiveTopic, t, exitManageMode]
+    [selectedIds, topics, assistants, moveTopic, activeTopic.id, setActiveTopic, t, exitManageMode]
   )
 
   // Enter search mode

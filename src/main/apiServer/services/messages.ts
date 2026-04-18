@@ -1,9 +1,11 @@
-import type Anthropic from '@anthropic-ai/sdk'
+import Anthropic from '@anthropic-ai/sdk'
 import type { MessageCreateParams, MessageStreamEvent } from '@anthropic-ai/sdk/resources'
+import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { anthropicService } from '@main/services/AnthropicService'
-import { buildClaudeCodeSystemMessage, getSdkClient } from '@shared/anthropic'
-import type { Provider } from '@types'
+import { buildClaudeCodeSystemMessage } from '@shared/anthropic'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import type { Response } from 'express'
 
 const logger = loggerService.withContext('MessagesService')
@@ -97,12 +99,38 @@ export class MessagesService {
   }
 
   async getClient(provider: Provider, extraHeaders?: Record<string, string | string[]>): Promise<Anthropic> {
-    // Create Anthropic client for the provider
+    const anthropicConfig = provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+    const baseURL = anthropicConfig?.baseUrl || 'https://api.anthropic.com'
+
     if (provider.authType === 'oauth') {
       const oauthToken = await anthropicService.getValidAccessToken()
-      return getSdkClient(provider, oauthToken, extraHeaders)
+      if (!oauthToken) throw new Error('OAuth token is not available')
+      return new Anthropic({
+        authToken: oauthToken,
+        baseURL: 'https://api.anthropic.com',
+        dangerouslyAllowBrowser: true,
+        defaultHeaders: {
+          'Content-Type': 'application/json',
+          'anthropic-version': '2023-06-01',
+          ...extraHeaders
+        }
+      })
     }
-    return getSdkClient(provider, null, extraHeaders)
+
+    const apiKey = await providerService.getRotatedApiKey(provider.id)
+    // Flatten string[] headers to string for Anthropic SDK compatibility
+    const flatHeaders: Record<string, string> = {}
+    if (extraHeaders) {
+      for (const [k, v] of Object.entries(extraHeaders)) {
+        flatHeaders[k] = Array.isArray(v) ? v.join(', ') : v
+      }
+    }
+    return new Anthropic({
+      apiKey,
+      baseURL,
+      dangerouslyAllowBrowser: true,
+      defaultHeaders: flatHeaders
+    })
   }
 
   prepareHeaders(headers: Record<string, string | string[] | undefined>): Record<string, string | string[]> {
@@ -136,7 +164,7 @@ export class MessagesService {
     }
 
     // Add Claude Code system message for OAuth providers
-    if (provider.type === 'anthropic' && provider.authType === 'oauth') {
+    if (provider.authType === 'oauth') {
       anthropicRequest.system = buildClaudeCodeSystemMessage(request.system)
     }
 
@@ -211,8 +239,8 @@ export class MessagesService {
         error: streamError,
         provider: provider.id,
         model: request.model,
-        apiHost: provider.apiHost,
-        anthropicApiHost: provider.anthropicApiHost
+        apiHost: provider.id,
+        anthropicApiHost: provider.presetProviderId
       })
       writeSse(undefined, {
         type: 'error',
@@ -299,8 +327,8 @@ export class MessagesService {
 
     logger.info('Processing anthropic messages request', {
       provider: provider.id,
-      apiHost: provider.apiHost,
-      anthropicApiHost: provider.anthropicApiHost,
+      apiHost: provider.id,
+      anthropicApiHost: provider.presetProviderId,
       model: anthropicRequest.model,
       stream: !!anthropicRequest.stream,
       // systemPrompt: JSON.stringify(!!request.system),

@@ -4,7 +4,6 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { extractRtkBinaries } from '../utils/rtk'
 import { bootstrapBuiltinAgents } from './agents/services/builtin/BuiltinAgentBootstrap'
 import { channelManager } from './agents/services/channels'
-import { registerSessionStreamIpc } from './agents/services/channels/sessionStreamIpc'
 import { schedulerService } from './agents/services/SchedulerService'
 
 const logger = loggerService.withContext('AgentBootstrapService')
@@ -28,9 +27,6 @@ export class AgentBootstrapService extends BaseService {
 
     await schedulerService.restoreSchedulers()
     logger.info('Schedulers restored')
-
-    registerSessionStreamIpc()
-    logger.info('Session stream IPC registered')
 
     await channelManager.start()
     logger.info('Channel manager started')

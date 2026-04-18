@@ -4,10 +4,11 @@
  *
  * WARNING: Any null value will be converted to undefined from api.
  */
+import type { CherryMessagePart } from '@shared/data/types/message'
 import type { ModelMessage, TextStreamPart } from 'ai'
 import * as z from 'zod'
 
-import type { Message, MessageBlock } from './newMessage'
+import type { MessageBlock } from './newMessage'
 import { PluginMetadataSchema } from './plugin'
 
 // ------------------ Core enums and helper types ------------------
@@ -233,9 +234,32 @@ export const AgentSessionMessageEntitySchema = z.object({
 
 export type AgentSessionMessageEntity = z.infer<typeof AgentSessionMessageEntitySchema>
 
+/**
+ * V2 persisted message format for agent sessions.
+ * After blocks→parts migration, `blocks` is empty and content is in `message.data.parts`.
+ *
+ * @deprecated Legacy `message.blocks: string[]` and top-level `blocks: MessageBlock[]` are
+ * retained for backward compatibility with un-migrated data. New writes should use `data.parts`.
+ */
 export interface AgentPersistedMessage {
-  message: Message
+  message: AgentPersistedMessageContent
+  /** @deprecated Empty after blocks→parts migration. */
   blocks: MessageBlock[]
+}
+
+/** Message content stored in agent session_messages. Compatible with both old (blocks) and new (parts) formats. */
+export interface AgentPersistedMessageContent {
+  id: string
+  role: string
+  assistantId?: string
+  topicId?: string
+  createdAt?: string
+  status?: string
+  /** @deprecated Use data.parts for new messages. */
+  blocks?: string[]
+  /** V2 message data with parts. */
+  data?: { parts?: CherryMessagePart[] }
+  [key: string]: unknown
 }
 
 export interface AgentMessageUserPersistPayload {

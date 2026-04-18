@@ -138,6 +138,7 @@
     "@ai-sdk/perplexity": "^3.0.23",
     "@ai-sdk/provider": "^3.0.8",
     "@ai-sdk/provider-utils": "^4.0.19",
+    "@ai-sdk/react": "^3.0.147",
     "@ai-sdk/test-server": "^1.0.3",
     "@ai-sdk/togetherai": "^2.0.39",
     "@ai-sdk/xai": "^3.0.75",

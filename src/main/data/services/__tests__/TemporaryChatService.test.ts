@@ -96,9 +96,9 @@ describe('TemporaryChatService', () => {
   describe('return shape', () => {
     it('createTopic returns Topic with activeNodeId=null and ISO timestamps', async () => {
       // Note: we do NOT set assistantId here because FK enforcement is ON
-      // and the assistant table starts empty. The original test used FK OFF.
+      // and the assistant table starts empty.
       const topic = await service.createTopic({ name: 'hello' })
-      expect(topic.id).toMatch(/^[0-9a-f-]{36}$/)
+      expect(topic.id).toMatch(/^temp:[0-9a-f-]{36}$/)
       expect(topic.name).toBe('hello')
       expect(topic.activeNodeId).toBeNull()
       expect(topic.isPinned).toBe(false)
@@ -143,10 +143,12 @@ describe('TemporaryChatService', () => {
       const topic = await service.createTopic({ name: 'T' })
       await service.appendMessage(topic.id, { role: 'user', data: mainText('a') })
       const list1 = await service.listMessages(topic.id)
-      const block = list1[0].data.blocks[0]
+      expect(list1).toHaveLength(1)
+      const block = list1[0].data.blocks![0]
       if (block.type === BlockType.MAIN_TEXT) block.content = 'mutated'
       const list2 = await service.listMessages(topic.id)
-      const fresh = list2[0].data.blocks[0]
+      expect(list2).toHaveLength(1)
+      const fresh = list2[0].data.blocks![0]
       expect(fresh.type).toBe(BlockType.MAIN_TEXT)
       if (fresh.type === BlockType.MAIN_TEXT) {
         expect(fresh.content).toBe('a')

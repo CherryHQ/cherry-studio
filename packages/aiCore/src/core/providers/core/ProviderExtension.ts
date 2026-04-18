@@ -161,10 +161,13 @@ export class ProviderExtension<
         return 'default'
       }
 
+      const seen = new WeakSet()
       const stableStringify = (obj: any): string => {
         if (obj === null || obj === undefined) return 'null'
         if (typeof obj === 'function') return '"[function]"'
         if (typeof obj !== 'object') return JSON.stringify(obj)
+        if (seen.has(obj)) return '"[circular]"'
+        seen.add(obj)
         if (Array.isArray(obj)) return `[${obj.map(stableStringify).join(',')}]`
 
         const keys = Object.keys(obj).sort()

@@ -3,6 +3,19 @@ import type { TokenUsageData } from '@cherrystudio/analytics-client'
 import { electronAPI } from '@electron-toolkit/preload'
 import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import type { SpanContext } from '@opentelemetry/api'
+import type {
+  AiStreamAbortRequest,
+  AiStreamAttachRequest,
+  AiStreamAttachResponse,
+  AiStreamDetachRequest,
+  AiStreamOpenRequest,
+  AiStreamOpenResponse,
+  StreamChunkPayload,
+  StreamDonePayload,
+  StreamErrorPayload,
+  TopicStatusChangedPayload,
+  TopicStatusSnapshotEntry
+} from '@shared/ai/transport'
 import type { GitBashPathInfo, TerminalConfig } from '@shared/config/constant'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import type {
@@ -574,73 +587,6 @@ const api = {
       updatedPermissions?: PermissionUpdate[]
     }) => ipcRenderer.invoke(IpcChannel.AgentToolPermission_Response, payload)
   },
-  agentSessionStream: {
-    subscribe: (sessionId: string) =>
-      ipcRenderer.invoke(IpcChannel.AgentSessionStream_Subscribe, {
-        sessionId
-      }),
-    unsubscribe: (sessionId: string) =>
-      ipcRenderer.invoke(IpcChannel.AgentSessionStream_Unsubscribe, {
-        sessionId
-      }),
-    abort: (sessionId: string) => ipcRenderer.invoke(IpcChannel.AgentSessionStream_Abort, { sessionId }),
-    onChunk: (
-      callback: (chunk: {
-        sessionId: string
-        agentId: string
-        type: string
-        chunk?: any
-        error?: any
-        userMessage?: {
-          chatId: string
-          userId: string
-          userName: string
-          text: string
-          images?: Array<{ data: string; media_type: string }>
-          files?: Array<{ filename: string; media_type: string; size: number }>
-        }
-      }) => void
-    ): (() => void) => {
-      const listener = (
-        _event: Electron.IpcRendererEvent,
-        chunk: {
-          sessionId: string
-          agentId: string
-          type: string
-          chunk?: any
-          error?: any
-          userMessage?: {
-            chatId: string
-            userId: string
-            userName: string
-            text: string
-            images?: Array<{ data: string; media_type: string }>
-            files?: Array<{
-              filename: string
-              media_type: string
-              size: number
-            }>
-          }
-        }
-      ) => {
-        callback(chunk)
-      }
-      ipcRenderer.on(IpcChannel.AgentSessionStream_Chunk, listener)
-      return () => ipcRenderer.off(IpcChannel.AgentSessionStream_Chunk, listener)
-    },
-    onSessionChanged: (
-      callback: (data: { agentId: string; sessionId: string; headless?: boolean }) => void
-    ): (() => void) => {
-      const listener = (
-        _event: Electron.IpcRendererEvent,
-        data: { agentId: string; sessionId: string; headless?: boolean }
-      ) => {
-        callback(data)
-      }
-      ipcRenderer.on(IpcChannel.AgentSession_Changed, listener)
-      return () => ipcRenderer.off(IpcChannel.AgentSession_Changed, listener)
-    }
-  },
   wechat: {
     onQrLogin: (
       callback: (data: { channelId: string; agentId: string; url: string; status: string; userId?: string }) => void
@@ -863,6 +809,94 @@ const api = {
       ipcRenderer.on(channel, listener)
       return () => ipcRenderer.off(channel, listener)
     }
+  },
+  ai: {
+    // ── Stream push listeners ──
+    onStreamChunk: (callback: (data: StreamChunkPayload) => void) => {
+      const listener = (_: Electron.IpcRendererEvent, data: StreamChunkPayload) => callback(data)
+      ipcRenderer.on(IpcChannel.Ai_StreamChunk, listener)
+      return () => ipcRenderer.removeListener(IpcChannel.Ai_StreamChunk, listener)
+    },
+    onStreamDone: (callback: (data: StreamDonePayload) => void) => {
+      const listener = (_: Electron.IpcRendererEvent, data: StreamDonePayload) => callback(data)
+      ipcRenderer.on(IpcChannel.Ai_StreamDone, listener)
+      return () => ipcRenderer.removeListener(IpcChannel.Ai_StreamDone, listener)
+    },
+    onStreamError: (callback: (data: StreamErrorPayload) => void) => {
+      const listener = (_: Electron.IpcRendererEvent, data: StreamErrorPayload) => callback(data)
+      ipcRenderer.on(IpcChannel.Ai_StreamError, listener)
+      return () => ipcRenderer.removeListener(IpcChannel.Ai_StreamError, listener)
+    },
+
+    // ── Stream control ──
+    streamOpen: (req: AiStreamOpenRequest): Promise<AiStreamOpenResponse> =>
+      ipcRenderer.invoke(IpcChannel.Ai_Stream_Open, req),
+    streamAttach: (req: AiStreamAttachRequest): Promise<AiStreamAttachResponse> =>
+      ipcRenderer.invoke(IpcChannel.Ai_Stream_Attach, req),
+    streamDetach: (req: AiStreamDetachRequest): Promise<void> => ipcRenderer.invoke(IpcChannel.Ai_Stream_Detach, req),
+    streamAbort: (req: AiStreamAbortRequest): Promise<void> => ipcRenderer.invoke(IpcChannel.Ai_Stream_Abort, req),
+
+    // ── Topic-level status snapshot + deltas ──
+    // Broadcast to every window (not just attached listeners) so sidebar
+    // indicators, the backup gate, etc. can track topic streaming state
+    // without calling `streamAttach`.
+    topic: {
+      getStatuses: (): Promise<Record<string, TopicStatusSnapshotEntry>> =>
+        ipcRenderer.invoke(IpcChannel.Ai_Topic_GetStatuses),
+      onStatusChanged: (callback: (data: TopicStatusChangedPayload) => void) => {
+        const listener = (_: Electron.IpcRendererEvent, data: TopicStatusChangedPayload) => callback(data)
+        ipcRenderer.on(IpcChannel.Ai_TopicStatusChanged, listener)
+        return () => ipcRenderer.removeListener(IpcChannel.Ai_TopicStatusChanged, listener)
+      }
+    },
+
+    // ── Non-streaming operations ──
+    // All use uniqueModelId ("providerId::modelId") instead of separate providerId/modelId.
+    generateText: (request: {
+      assistantId?: string
+      uniqueModelId?: string
+      system?: string
+      prompt?: string
+      messages?: unknown[]
+      mcpToolIds?: string[]
+    }): Promise<{ text: string; usage?: unknown }> => ipcRenderer.invoke(IpcChannel.Ai_GenerateText, request),
+    checkModel: (request: { uniqueModelId?: string; timeout?: number }): Promise<{ latency: number }> =>
+      ipcRenderer.invoke(IpcChannel.Ai_CheckModel, request),
+    embedMany: (request: {
+      uniqueModelId?: string
+      values: string[]
+    }): Promise<{ embeddings: number[][]; usage?: unknown }> => ipcRenderer.invoke(IpcChannel.Ai_EmbedMany, request),
+    generateImage: (request: {
+      requestId: string
+      payload: {
+        uniqueModelId?: string
+        prompt: string
+        inputImages?: string[]
+        mask?: string
+        n?: number
+        size?: string
+        negativePrompt?: string
+        seed?: number
+        quality?: string
+        numInferenceSteps?: number
+        guidanceScale?: number
+        promptEnhancement?: boolean
+        personGeneration?: string
+      }
+    }): Promise<{
+      images: Array<{
+        kind: 'base64'
+        data: string
+        mediaType?: string
+      }>
+    }> => ipcRenderer.invoke(IpcChannel.Ai_GenerateImage, request),
+    abortImageGeneration: (request: { requestId: string }): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.Ai_AbortImage, request),
+    listModels: (request: {
+      providerId?: string
+      assistantId?: string
+    }): Promise<Array<{ id: string; name: string; provider: string; group: string; [key: string]: unknown }>> =>
+      ipcRenderer.invoke(IpcChannel.Ai_ListModels, request)
   },
   apiServer: {
     getStatus: (): Promise<GetApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_GetStatus),

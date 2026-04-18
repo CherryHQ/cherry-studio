@@ -1,7 +1,6 @@
 import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { getAnthropicReasoningParams } from '@renderer/aiCore/utils/reasoning'
 import type { QuickPanelTriggerInfo } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
@@ -9,7 +8,6 @@ import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useSession } from '@renderer/hooks/agents/useSession'
 import { useApiServer } from '@renderer/hooks/useApiServer'
 import { useInputText } from '@renderer/hooks/useInputText'
-import { selectNewTopicLoading } from '@renderer/hooks/useMessageOperations'
 import { getModel } from '@renderer/hooks/useModel'
 import { useTextareaResize } from '@renderer/hooks/useTextareaResize'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -26,25 +24,15 @@ import type { ToolContext } from '@renderer/pages/home/Inputbar/types'
 import { TopicType } from '@renderer/pages/home/Inputbar/types'
 import { isSoulModeEnabled } from '@renderer/pages/settings/AgentSettings/shared'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { pauseTrace } from '@renderer/services/SpanManagerService'
-import { estimateUserPromptUsage } from '@renderer/services/TokenService'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { newMessagesActions, selectMessagesForTopic } from '@renderer/store/newMessage'
-import { sendMessage as dispatchSendMessage } from '@renderer/store/thunk/messageThunk'
-import type { Assistant, Message, ThinkingOption } from '@renderer/types'
+import type { Assistant, ThinkingOption } from '@renderer/types'
 import type { FileMetadata } from '@renderer/types'
-import type { MessageBlock } from '@renderer/types/newMessage'
-import { MessageBlockStatus } from '@renderer/types/newMessage'
-import { abortCompletion } from '@renderer/utils/abortController'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
-import { createMainTextBlock, createMessage } from '@renderer/utils/messageUtils/create'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import type { FC } from 'react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
-import { v4 as uuid } from 'uuid'
 
 const logger = loggerService.withContext('AgentSessionInputbar')
 
@@ -55,9 +43,18 @@ const getAgentDraftCacheKey = (agentId: string) => `agent-session-draft-${agentI
 type Props = {
   agentId: string
   sessionId: string
+  sendMessage: (message?: { text: string }, options?: { body?: Record<string, unknown> }) => Promise<void>
+  stop: () => Promise<void>
+  status: string
 }
 
-const AgentSessionInputbar = ({ agentId, sessionId }: Props) => {
+const AgentSessionInputbar = ({
+  agentId,
+  sessionId,
+  sendMessage: chatSendMessage,
+  stop: chatStop,
+  status: chatStatus
+}: Props) => {
   const { session } = useSession(agentId, sessionId)
   // FIXME: 不应该使用ref将action传到context提供给tool，权宜之计
   const actionsRef = useRef({
@@ -132,6 +129,9 @@ const AgentSessionInputbar = ({ agentId, sessionId }: Props) => {
         sessionId={sessionId}
         sessionData={sessionData}
         actionsRef={actionsRef}
+        chatSendMessage={chatSendMessage}
+        chatStop={chatStop}
+        chatStatus={chatStatus}
       />
     </InputbarToolsProvider>
   )
@@ -147,9 +147,21 @@ interface InnerProps {
     onTextChange: (updater: React.SetStateAction<string> | ((prev: string) => string)) => void
     toggleExpanded: (nextState?: boolean) => void
   }>
+  chatSendMessage: Props['sendMessage']
+  chatStop: Props['stop']
+  chatStatus: Props['status']
 }
 
-const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, sessionId, sessionData, actionsRef }) => {
+const AgentSessionInputbarInner: FC<InnerProps> = ({
+  assistant,
+  agentId,
+  sessionId,
+  sessionData,
+  actionsRef,
+  chatSendMessage,
+  chatStop,
+  chatStatus
+}) => {
   const { agent: agentBase } = useAgent(agentId)
   const scope = TopicType.Session
   const config = getInputbarConfig(scope)
@@ -186,10 +198,7 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
   const { setCouldAddImageFile } = useInputbarToolsInternalDispatch()
 
   const { setTimeoutTimer } = useTimer()
-  const dispatch = useAppDispatch()
   const sessionTopicId = buildAgentSessionTopicId(sessionId)
-  const topicMessages = useAppSelector((state) => selectMessagesForTopic(state, sessionTopicId))
-  const loading = useAppSelector((state) => selectNewTopicLoading(state, sessionTopicId))
 
   // Calculate vision and image generation support
   const isVisionAssistant = useMemo(() => (assistant.model ? isVisionModel(assistant.model) : false), [assistant.model])
@@ -338,46 +347,12 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
 
   const sendDisabled = (inputEmpty && files.length === 0) || !apiServerConfig.enabled || !apiServerRunning
 
-  const streamingAskIds = useMemo(() => {
-    if (!topicMessages) {
-      return []
-    }
-
-    const askIdSet = new Set<string>()
-    for (const message of topicMessages) {
-      if (!message) continue
-      if (message.status === 'processing' || message.status === 'pending') {
-        if (message.askId) {
-          askIdSet.add(message.askId)
-        } else if (message.id) {
-          askIdSet.add(message.id)
-        }
-      }
-    }
-
-    return Array.from(askIdSet)
-  }, [topicMessages])
-
-  const canAbort = loading && streamingAskIds.length > 0
+  const isStreaming = chatStatus === 'streaming' || chatStatus === 'submitted'
 
   const abortAgentSession = useCallback(async () => {
-    if (!streamingAskIds.length) {
-      logger.debug('No active agent session streams to abort', { sessionTopicId })
-      return
-    }
-
-    logger.info('Aborting agent session message generation', {
-      sessionTopicId,
-      askIds: streamingAskIds
-    })
-
-    for (const askId of streamingAskIds) {
-      abortCompletion(askId)
-    }
-
-    void pauseTrace(sessionTopicId)
-    dispatch(newMessagesActions.setTopicLoading({ topicId: sessionTopicId, loading: false }))
-  }, [dispatch, sessionTopicId, streamingAskIds])
+    logger.info('Aborting agent session', { sessionTopicId })
+    await chatStop()
+  }, [chatStop, sessionTopicId])
 
   const sendMessage = useCallback(async () => {
     if (sendDisabled) {
@@ -387,8 +362,6 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
     logger.info('Starting to send message')
 
     try {
-      const userMessageId = uuid()
-
       // For agent sessions, append file paths to the text content instead of uploading files
       let messageText = text
       if (files.length > 0) {
@@ -396,45 +369,15 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
         messageText = text ? `${text}\n\nAttached files:\n${filePaths}` : `Attached files:\n${filePaths}`
       }
 
-      const mainBlock = createMainTextBlock(userMessageId, messageText, {
-        status: MessageBlockStatus.SUCCESS
-      })
-      const userMessageBlocks: MessageBlock[] = [mainBlock]
-
-      // Calculate token usage for the user message
-      const usage = await estimateUserPromptUsage({ content: text })
-
-      const userMessage: Message = createMessage('user', sessionTopicId, agentId, {
-        id: userMessageId,
-        blocks: userMessageBlocks.map((block) => block?.id),
-        model: assistant.model,
-        modelId: assistant.model?.id,
-        usage
-      })
-
-      const thinkingParams = assistant.model
-        ? getAnthropicReasoningParams(
-            { ...assistant, settings: { ...assistant.settings, reasoning_effort: reasoningEffort } },
-            assistant.model
-          )
-        : {}
-
-      void dispatch(
-        dispatchSendMessage(userMessage, userMessageBlocks, assistant, sessionTopicId, {
-          agentId,
-          sessionId,
-          ...thinkingParams
-        })
-      )
+      void chatSendMessage({ text: messageText }, { body: { agentId, sessionId } })
 
       // Emit event to trigger scroll to bottom in AgentSessionMessages
       void EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: sessionTopicId })
 
-      // Clear text and files after successful send (draft is cleared automatically via onChange)
+      // Clear text and files after successful send
       setText('')
       setFiles([])
       setTimeoutTimer('agentSession_sendMessage', () => setText(''), 500)
-      // Restore focus to textarea after sending to maintain IME state (fcitx5 issue)
       focusTextarea()
     } catch (error) {
       logger.warn('Failed to send message:', error as Error)
@@ -442,17 +385,15 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
   }, [
     sendDisabled,
     agentId,
-    dispatch,
-    assistant,
     sessionId,
     sessionTopicId,
+    chatSendMessage,
     setText,
     setFiles,
     setTimeoutTimer,
     text,
     files,
-    focusTextarea,
-    reasoningEffort
+    focusTextarea
   ])
 
   useEffect(() => {
@@ -514,7 +455,7 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
       placeholder={placeholderText}
       supportedExts={supportedExts}
       onPause={abortAgentSession}
-      isLoading={canAbort}
+      isLoading={isStreaming}
       handleSendMessage={sendMessage}
       leftToolbar={leftToolbar}
       forceEnableQuickPanelTriggers

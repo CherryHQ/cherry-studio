@@ -5,7 +5,7 @@ import { HealthStatus } from '@renderer/types/healthCheck'
 import { serializeHealthCheckError } from '@renderer/utils/error'
 import { aggregateApiKeyResults } from '@renderer/utils/healthCheck'
 
-import { checkModel } from './ApiService'
+import { checkApi } from './ApiService'
 
 const logger = loggerService.withContext('HealthCheckService')
 
@@ -19,10 +19,8 @@ export async function checkModelWithMultipleKeys(
   timeout?: number
 ): Promise<ApiKeyWithStatus[]> {
   const checkPromises = apiKeys.map(async (key) => {
-    const startTime = Date.now()
-    // 如果 checkModel 抛出错误，让这个 promise 失败
-    await checkModel({ ...provider, apiKey: key }, model, timeout)
-    const latency = Date.now() - startTime
+    // 失败时 checkApi 抛错，由 Promise.allSettled 捕获
+    const { latency } = await checkApi({ ...provider, apiKey: key }, model, timeout)
 
     return {
       key,

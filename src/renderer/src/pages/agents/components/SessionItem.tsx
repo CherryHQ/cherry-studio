@@ -1,4 +1,5 @@
 import { Tooltip } from '@cherrystudio/ui'
+import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import MarqueeText from '@renderer/components/MarqueeText'
@@ -10,8 +11,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { finishTopicRenaming, startTopicRenaming } from '@renderer/hooks/useTopic'
 import { SessionSettingsPopup } from '@renderer/pages/settings/AgentSettings'
 import { SessionLabel } from '@renderer/pages/settings/AgentSettings/shared'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { newMessagesActions } from '@renderer/store/newMessage'
+import { useAppDispatch } from '@renderer/store'
 import { loadTopicMessagesThunk, renameAgentSessionIfNeeded } from '@renderer/store/thunk/messageThunk'
 import type { AgentSessionEntity } from '@renderer/types'
 import { classNames } from '@renderer/utils'
@@ -94,26 +94,26 @@ const SessionItem = ({ session, agentId, channelType, onDelete, onPress }: Sessi
   }
 
   const isActive = activeSessionId === session.id
-  const topicLoadingQuery = useAppSelector((state) => state.messages.loadingByTopic)
-  const topicFulfilledQuery = useAppSelector((state) => state.messages.fulfilledByTopic)
   const sessionTopicId = buildAgentSessionTopicId(session.id)
-  const isPending = useMemo(() => topicLoadingQuery[sessionTopicId], [sessionTopicId, topicLoadingQuery])
-  const isFulfilled = useMemo(() => topicFulfilledQuery[sessionTopicId], [sessionTopicId, topicFulfilledQuery])
+  const [streamStatus] = useCache(`topic.stream.status.${sessionTopicId}` as const)
+  // `pending` (request sent, waiting for provider) and `streaming` (chunks
+  // flowing) both mean "busy" from the sidebar's perspective. If a future
+  // design wants to distinguish them (spinner vs pulse), split here.
+  const isPending = streamStatus === 'pending' || streamStatus === 'streaming'
+  const isFulfilled = streamStatus === 'done'
   const [renamingTopics] = useCache('topic.renaming')
   const [newlyRenamedTopics] = useCache('topic.newly_renamed')
   const isRenaming = renamingTopics.includes(sessionTopicId)
   const isNewlyRenamed = newlyRenamedTopics.includes(sessionTopicId)
 
   useEffect(() => {
+    // Clear the fulfilled badge when the user opens the session — Main
+    // still holds the `done` status during the grace period, so we need
+    // to locally mark it as consumed.
     if (isFulfilled && activeSessionId === session.id) {
-      dispatch(
-        newMessagesActions.setTopicFulfilled({
-          topicId: sessionTopicId,
-          fulfilled: false
-        })
-      )
+      cacheService.set(`topic.stream.status.${sessionTopicId}` as const, undefined)
     }
-  }, [activeSessionId, dispatch, isFulfilled, session.id, sessionTopicId])
+  }, [activeSessionId, isFulfilled, session.id, sessionTopicId])
 
   const channelIcon = getChannelTypeIcon(channelType)
 

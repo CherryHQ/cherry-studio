@@ -767,9 +767,14 @@ export async function startAutoSync(immediate = false, type?: BackupType) {
       return
     }
 
-    // Check if any topic is currently streaming/loading
-    const state = store.getState()
-    const anyTopicLoading = Object.values(state.messages.loadingByTopic).some((loading) => loading === true)
+    // Check if any topic is currently streaming. Authoritative state
+    // lives in Main's `AiStreamManager`; the cache mirror would require
+    // enumerating keys, which the cacheService API doesn't expose. A
+    // direct IPC snapshot is cheap and can't drift.
+    const topicStatuses = await window.api.ai.topic.getStatuses()
+    const anyTopicLoading = Object.values(topicStatuses).some(
+      ({ status }) => status === 'pending' || status === 'streaming'
+    )
 
     if (anyTopicLoading) {
       logger.info(`${logPrefix} Streaming in progress, deferring backup`)

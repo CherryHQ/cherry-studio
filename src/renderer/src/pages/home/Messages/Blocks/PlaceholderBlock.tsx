@@ -1,27 +1,17 @@
-import { MessageBlockStatus, MessageBlockType, type PlaceholderMessageBlock } from '@renderer/types/newMessage'
 import React from 'react'
 import { BeatLoader } from 'react-spinners'
-import styled from 'styled-components'
 
 interface PlaceholderBlockProps {
-  block: PlaceholderMessageBlock
+  isProcessing: boolean
 }
-const PlaceholderBlock: React.FC<PlaceholderBlockProps> = ({ block }) => {
-  if (block.status === MessageBlockStatus.PROCESSING && block.type === MessageBlockType.UNKNOWN) {
+const PlaceholderBlock: React.FC<PlaceholderBlockProps> = ({ isProcessing }) => {
+  if (isProcessing) {
     return (
-      <MessageContentLoading>
+      <div className="-mt-1.25 mb-1.25 flex h-8 flex-row items-center">
         <BeatLoader color="var(--color-text-1)" size={8} speedMultiplier={0.8} />
-      </MessageContentLoading>
+      </div>
     )
   }
   return null
 }
-const MessageContentLoading = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  height: 32px;
-  margin-top: -5px;
-  margin-bottom: 5px;
-`
 export default React.memo(PlaceholderBlock)

@@ -4,8 +4,8 @@ import LanguageSelect from '@renderer/components/LanguageSelect'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { LanguagesEnum } from '@renderer/config/translate'
 import db from '@renderer/databases'
-import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import useTranslate from '@renderer/hooks/useTranslate'
+import { getTranslateModel } from '@renderer/services/AssistantService'
 import { translateText } from '@renderer/services/TranslateService'
 import type { TranslateLanguage } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
@@ -28,7 +28,6 @@ let _targetLanguage = (await db.settings.get({ id: 'translate:target:language' }
 const Translate: FC<Props> = ({ text }) => {
   const [result, setResult] = useState('')
   const [targetLanguage, setTargetLanguage] = useState<TranslateLanguage>(_targetLanguage)
-  const { translateModel } = useDefaultModel()
   const { t } = useTranslation()
   const translatingRef = useRef(false)
   const { getLanguageByLangcode } = useTranslate()
@@ -36,7 +35,9 @@ const Translate: FC<Props> = ({ text }) => {
   _targetLanguage = targetLanguage
 
   const translate = useCallback(async () => {
-    if (!text.trim() || !translateModel) return
+    // translateModel read synchronously — mini window has no <Provider>, but the
+    // underlying `state.llm.translateModel` is hydrated by PersistGate before mount.
+    if (!text.trim() || !getTranslateModel()) return
 
     if (translatingRef.current) return
 
@@ -51,7 +52,7 @@ const Translate: FC<Props> = ({ text }) => {
     } finally {
       translatingRef.current = false
     }
-  }, [text, targetLanguage, translateModel])
+  }, [text, targetLanguage])
 
   useEffect(() => {
     void runAsyncFunction(async () => {

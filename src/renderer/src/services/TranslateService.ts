@@ -3,21 +3,15 @@ import { db } from '@renderer/databases'
 import type {
   AssistantSettings,
   CustomTranslateLanguage,
-  FetchChatCompletionRequestOptions,
   ReasoningEffortOption,
   TranslateHistory,
   TranslateLanguage,
   TranslateLanguageCode
 } from '@renderer/types'
-import type { Chunk } from '@renderer/types/chunk'
-import { ChunkType } from '@renderer/types/chunk'
 import { uuid } from '@renderer/utils'
-import { readyToAbort } from '@renderer/utils/abortController'
-import { isAbortError } from '@renderer/utils/error'
-import { NoOutputGeneratedError } from 'ai'
+import { createUniqueModelId } from '@shared/data/types/model'
 import { t } from 'i18next'
 
-import { fetchChatCompletion } from './ApiService'
 import { getDefaultTranslateAssistant } from './AssistantService'
 
 const logger = loggerService.withContext('TranslateService')
@@ -31,7 +25,7 @@ type TranslateOptions = {
  * @param text - 需要翻译的文本内容
  * @param targetLanguage - 目标语言
  * @param onResponse - 流式输出的回调函数，用于实时获取翻译结果
- * @param abortKey - 用于控制 abort 的键
+ * @param _abortKey - 用于控制 abort 的键（TODO: 接入 IPC abort）
  * @returns 返回翻译后的文本
  * @throws {Error} 翻译中止或失败时抛出异常
  */
@@ -39,56 +33,32 @@ export const translateText = async (
   text: string,
   targetLanguage: TranslateLanguage,
   onResponse?: (text: string, isComplete: boolean) => void,
-  abortKey?: string,
+  _abortKey?: string,
   options?: TranslateOptions
 ) => {
-  let error
   const assistantSettings: Partial<AssistantSettings> | undefined = options
     ? { reasoning_effort: options?.reasoningEffort }
     : undefined
   const assistant = await getDefaultTranslateAssistant(targetLanguage, text, assistantSettings)
 
-  const signal = abortKey ? readyToAbort(abortKey) : undefined
-
-  let translatedText = ''
-  let completed = false
-  const onChunk = (chunk: Chunk) => {
-    if (chunk.type === ChunkType.TEXT_DELTA) {
-      translatedText = chunk.text
-    } else if (chunk.type === ChunkType.TEXT_COMPLETE) {
-      completed = true
-    } else if (chunk.type === ChunkType.ERROR) {
-      error = chunk.error
-      if (isAbortError(chunk.error)) {
-        completed = true
-      }
-    }
-    onResponse?.(translatedText, completed)
+  const model = assistant.model
+  if (!model) {
+    throw new Error(t('translate.error.empty'))
   }
 
-  const requestOptions = {
-    signal
-  } satisfies FetchChatCompletionRequestOptions
+  // TODO: Restore streaming support for translation. Currently using non-streaming
+  // generateText because the legacy streamText IPC was removed. To add streaming back,
+  // either use AiStreamManager with an ephemeral topicId, or add a dedicated lightweight
+  // streaming IPC that doesn't require topic persistence.
+  const { text: result } = await window.api.ai.generateText({
+    uniqueModelId: createUniqueModelId(model.provider, model.id),
+    assistantId: assistant.id,
+    prompt: assistant.content
+  })
 
-  try {
-    await fetchChatCompletion({
-      prompt: assistant.content,
-      assistant,
-      requestOptions,
-      onChunkReceived: onChunk
-    })
-  } catch (e) {
-    // dismiss no output generated error. it will be thrown when aborted.
-    if (!NoOutputGeneratedError.isInstance(e)) {
-      throw e
-    }
-  }
+  onResponse?.(result, true)
 
-  if (error !== undefined && !isAbortError(error)) {
-    throw error
-  }
-
-  const trimmedText = translatedText.trim()
+  const trimmedText = result.trim()
 
   if (!trimmedText) {
     return Promise.reject(new Error(t('translate.error.empty')))
@@ -110,7 +80,6 @@ export const addCustomLanguage = async (
   emoji: string,
   langCode: string
 ): Promise<CustomTranslateLanguage> => {
-  // 按langcode判重
   const existing = await db.translate_languages.where('langCode').equals(langCode).first()
   if (existing) {
     logger.error(`Custom language ${langCode} exists.`)

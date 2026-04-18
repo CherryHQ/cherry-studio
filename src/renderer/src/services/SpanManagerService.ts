@@ -363,18 +363,12 @@ export async function withSpanResult<F extends (...args: any) => any>(
   }
 }
 
-export const spanManagerService = new SpanManagerService()
-export const webTracer = trace.getTracer('CherryStudio', '1.0.0')
+const spanManagerService = new SpanManagerService()
+const webTracer = trace.getTracer('CherryStudio', '1.0.0')
 export const addSpan = spanManagerService.addSpan.bind(spanManagerService)
-export const startTrace = spanManagerService.startTrace.bind(spanManagerService)
-export const endTrace = spanManagerService.endTrace.bind(spanManagerService)
 export const endSpan = spanManagerService.endSpan.bind(spanManagerService)
 export const currentSpan = spanManagerService.getCurrentSpan.bind(spanManagerService)
-export const addTokenUsage = spanManagerService.addTokenUsage.bind(spanManagerService)
 export const pauseTrace = spanManagerService.finishModelTrace.bind(spanManagerService)
-export const appendTrace = spanManagerService.appendTrace.bind(spanManagerService)
-export const appendMessageTrace = spanManagerService.appendMessageTrace.bind(spanManagerService)
-export const restartTrace = spanManagerService.restartTrace.bind(spanManagerService)
 
 EventEmitter.on(EVENT_NAMES.SEND_MESSAGE, ({ topicId, traceId }) => {
   void window.api.trace.openWindow(topicId, traceId, false)

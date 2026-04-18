@@ -1,17 +1,16 @@
 /**
- * TODO: Temporary compatibility layer — remove after message type migration.
+ * Temporary compatibility layer — remove after renderer adopts UIMessage.parts rendering.
  *
- * This module bridges the Data API (shared types) and the renderer (legacy types)
- * by converting SharedMessage → renderer Message + MessageBlock[].
+ * Converts Data API SharedMessage (with data.parts in AI SDK UIMessage format)
+ * into renderer legacy Message + MessageBlock[] for existing rendering components.
  *
- * Once the renderer adopts shared types directly (Message from @shared/data/types/message),
- * this conversion layer and the separate MessageBlock store become unnecessary.
- * The renderer should consume Data API responses as-is without re-shaping.
+ * Once the renderer reads UIMessage.parts directly, this module becomes unnecessary.
  */
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
-import { MessageBlockStatus } from '@renderer/types/newMessage'
+import { statsToMetrics, statsToUsage } from '@renderer/utils/messageStats'
+import { mapMessageStatusToBlockStatus, partToBlock } from '@renderer/utils/partsToBlocks'
 import { ErrorCode } from '@shared/data/api/apiErrors'
 import type { BranchMessagesResponse, Message as SharedMessage } from '@shared/data/types/message'
 
@@ -57,10 +56,9 @@ export async function fetchMessagesFromDataApi(topicId: string): Promise<{
       messageCount: messages.length,
       blockCount: blocks.length
     })
-
     return { messages, blocks }
-  } catch (error: any) {
-    if (error?.code === ErrorCode.NOT_FOUND) {
+  } catch (error: unknown) {
+    if (error instanceof Object && 'code' in error && error.code === ErrorCode.NOT_FOUND) {
       logger.debug(`Topic ${topicId} not found in Data API, returning empty`)
       return { messages: [], blocks: [] }
     }
@@ -72,8 +70,9 @@ export async function fetchMessagesFromDataApi(topicId: string): Promise<{
 /**
  * Convert a shared Message (Data API) to renderer Message + MessageBlock[].
  *
- * Block data was written from renderer format (minus id/status/messageId),
- * so we restore those fields with deterministic IDs based on messageId + index.
+ * Messages are stored in data.parts (AI SDK UIMessage.parts format).
+ * Parts are converted back to renderer MessageBlock[] with deterministic IDs
+ * based on messageId + index.
  */
 function convertSharedMessage(
   shared: SharedMessage,
@@ -84,21 +83,21 @@ function convertSharedMessage(
 } {
   const rendererBlocks: MessageBlock[] = []
   const blockIds: string[] = []
-  const dataBlocks = shared.data?.blocks || []
 
-  for (let i = 0; i < dataBlocks.length; i++) {
-    const { type, createdAt, ...rest } = dataBlocks[i] as Record<string, any>
+  // data.parts is the canonical storage format after v2 migration.
+  // TODO: Remove this compatibility layer when renderer adopts UIMessage.parts rendering
+  const dataParts = shared.data?.parts || []
+  const status = mapMessageStatusToBlockStatus(shared.status)
+
+  for (let i = 0; i < dataParts.length; i++) {
+    const part = dataParts[i]
     const blockId = `${shared.id}-block-${i}`
-    blockIds.push(blockId)
 
-    rendererBlocks.push({
-      ...rest,
-      id: blockId,
-      messageId: shared.id,
-      type,
-      status: mapBlockStatus(shared.status),
-      createdAt: typeof createdAt === 'number' ? new Date(createdAt).toISOString() : createdAt || shared.createdAt
-    } as MessageBlock)
+    const block = partToBlock(part, blockId, shared.id, shared.createdAt, status)
+    if (block) {
+      blockIds.push(blockId)
+      rendererBlocks.push(block)
+    }
   }
 
   const message: Message = {
@@ -114,34 +113,10 @@ function convertSharedMessage(
     modelId: shared.modelId ?? undefined,
     traceId: shared.traceId ?? undefined,
     ...(shared.stats && {
-      usage: {
-        prompt_tokens: shared.stats.promptTokens ?? 0,
-        completion_tokens: shared.stats.completionTokens ?? 0,
-        total_tokens: shared.stats.totalTokens ?? 0
-      },
-      metrics: {
-        completion_tokens: shared.stats.completionTokens ?? 0,
-        time_completion_millsec: shared.stats.timeCompletionMs ?? 0,
-        time_first_token_millsec: shared.stats.timeFirstTokenMs,
-        time_thinking_millsec: shared.stats.timeThinkingMs
-      }
+      usage: statsToUsage(shared.stats),
+      metrics: statsToMetrics(shared.stats)
     })
   }
 
   return { message, blocks: rendererBlocks }
-}
-
-function mapBlockStatus(messageStatus: string): MessageBlockStatus {
-  switch (messageStatus) {
-    case 'success':
-      return MessageBlockStatus.SUCCESS
-    case 'error':
-      return MessageBlockStatus.ERROR
-    case 'paused':
-      return MessageBlockStatus.PAUSED
-    case 'pending':
-      return MessageBlockStatus.PENDING
-    default:
-      return MessageBlockStatus.SUCCESS
-  }
 }
