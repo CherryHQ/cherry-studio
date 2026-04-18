@@ -11,6 +11,14 @@ import { buildProviderBuiltinWebSearchConfig, getWebSearchParams } from '../webs
 
 // Mock dependencies
 vi.mock('@renderer/config/models', () => ({
+  SYSTEM_MODELS: {
+    defaultModel: [
+      { id: 'default-1', name: 'Default 1' },
+      { id: 'default-2', name: 'Default 2' },
+      { id: 'default-3', name: 'Default 3' }
+    ]
+  },
+  qwenModel: { id: 'qwen-max', provider: 'dashscope' },
   isOpenAIWebSearchChatCompletionOnlyModel: vi.fn((model) => model?.id?.includes('o1-pro') ?? false),
   isOpenAIDeepResearchModel: vi.fn((model) => model?.id?.includes('o3-mini') ?? false)
 }))
@@ -65,22 +73,6 @@ describe('websearch utils', () => {
 
       expect(result).toEqual({
         web_search_options: {}
-      })
-    })
-
-    it('should return extra_body with web_search for poe provider', () => {
-      const model: Model = {
-        id: 'Gemini-3-Flash',
-        name: 'Gemini 3 Flash',
-        provider: 'poe'
-      } as Model
-
-      const result = getWebSearchParams(model)
-
-      expect(result).toEqual({
-        extra_body: {
-          web_search: true
-        }
       })
     })
 
@@ -347,6 +339,47 @@ describe('websearch utils', () => {
                 max_results: 75
               }
             ]
+          }
+        })
+      })
+    })
+
+    describe('poe provider', () => {
+      it('should resolve Poe Claude models to anthropic search config', () => {
+        const model: Model = {
+          id: 'claude-sonnet-4.6',
+          name: 'Claude Sonnet 4.6',
+          provider: 'poe'
+        } as Model
+
+        const result = buildProviderBuiltinWebSearchConfig('poe', defaultWebSearchConfig, model)
+
+        expect(result).toEqual({
+          poe: {
+            downstreamProviderId: 'anthropic',
+            anthropic: {
+              maxUses: 50,
+              blockedDomains: undefined
+            }
+          }
+        })
+      })
+
+      it('should resolve Poe GPT models to responses search config', () => {
+        const model: Model = {
+          id: 'gpt-5.4',
+          name: 'GPT 5.4',
+          provider: 'poe'
+        } as Model
+
+        const result = buildProviderBuiltinWebSearchConfig('poe', defaultWebSearchConfig, model)
+
+        expect(result).toEqual({
+          poe: {
+            downstreamProviderId: 'openai',
+            openai: {
+              searchContextSize: 'medium'
+            }
           }
         })
       })
