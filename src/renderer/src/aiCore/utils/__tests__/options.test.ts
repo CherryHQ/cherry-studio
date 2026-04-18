@@ -1123,6 +1123,54 @@ describe('options utils', () => {
         })
       })
 
+      it('should build Google options for Gemini models through newapi', () => {
+        const newapiProvider: Provider = {
+          id: 'newapi',
+          name: 'NewAPI',
+          type: 'openai',
+          models: [] as Model[]
+        } as Provider
+
+        const geminiModel: Model = {
+          id: 'gemini-3.1-flash-image-preview',
+          name: 'Gemini 3.1 Flash Image Preview',
+          provider: 'newapi'
+        } as Model
+
+        const result = buildProviderOptions(mockAssistant, geminiModel, newapiProvider, {
+          enableReasoning: false,
+          enableWebSearch: false,
+          enableGenerateImage: false
+        })
+
+        expect(result.providerOptions).toHaveProperty('google')
+        expect(result.providerOptions).not.toHaveProperty('newapi')
+      })
+
+      it('should build Google options for Gemini models through aihubmix', () => {
+        const aihubmixProvider: Provider = {
+          id: 'aihubmix',
+          name: 'AiHubMix',
+          type: 'openai',
+          models: [] as Model[]
+        } as Provider
+
+        const geminiModel: Model = {
+          id: 'gemini-3.1-flash-image-preview',
+          name: 'Gemini 3.1 Flash Image Preview',
+          provider: 'aihubmix'
+        } as Model
+
+        const result = buildProviderOptions(mockAssistant, geminiModel, aihubmixProvider, {
+          enableReasoning: false,
+          enableWebSearch: false,
+          enableGenerateImage: false
+        })
+
+        expect(result.providerOptions).toHaveProperty('google')
+        expect(result.providerOptions).not.toHaveProperty('aihubmix')
+      })
+
       // Note: For proxy providers like aihubmix/newapi, users should write AI SDK provider ID (google/anthropic)
       // instead of the Cherry Studio provider ID for custom parameters to work correctly
 
