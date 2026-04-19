@@ -1,9 +1,15 @@
+import { SpanStatusCode, trace } from '@opentelemetry/api'
+import {
+  BasicTracerProvider,
+  InMemorySpanExporter,
+  SimpleSpanProcessor
+} from '@opentelemetry/sdk-trace-base'
 import type {
   ResolvedWebSearchProvider,
   WebSearchExecutionConfig,
   WebSearchResponse
 } from '@shared/data/types/webSearch'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   createWebSearchProviderMock,
@@ -472,6 +478,69 @@ describe('WebSearchService', () => {
     expect(loggerWarnMock).toHaveBeenCalledWith('Failed to clear web search status', {
       requestId: 'req-clear-failed',
       error: 'cache cleanup failed'
+    })
+  })
+
+  describe('tracing', () => {
+    const exporter = new InMemorySpanExporter()
+    const provider = new BasicTracerProvider({
+      spanProcessors: [new SimpleSpanProcessor(exporter)]
+    })
+
+    beforeAll(() => {
+      provider.register()
+    })
+
+    afterAll(async () => {
+      await provider.shutdown()
+      trace.disable()
+    })
+
+    beforeEach(() => {
+      exporter.reset()
+    })
+
+    it('emits a WebSearch span with inputs/outputs/tag on success', async () => {
+      createWebSearchProviderMock.mockReturnValue({
+        search: vi.fn().mockResolvedValue({
+          query: 'hello',
+          results: [{ title: 'T', content: 'C', url: 'https://example.com' }]
+        } satisfies WebSearchResponse)
+      })
+
+      await webSearchService.search({
+        providerId: 'tavily',
+        questions: ['hello'],
+        requestId: 'req-trace-ok'
+      })
+
+      const spans = exporter.getFinishedSpans()
+      expect(spans).toHaveLength(1)
+      expect(spans[0].name).toBe('WebSearch')
+      expect(spans[0].attributes.tags).toBe('WebSearch')
+      expect(String(spans[0].attributes.inputs)).toContain('req-trace-ok')
+      expect(String(spans[0].attributes.outputs)).toContain('https://example.com')
+      expect(spans[0].status.code).toBe(SpanStatusCode.OK)
+    })
+
+    it('records exception and marks span ERROR when provider fails', async () => {
+      createWebSearchProviderMock.mockReturnValue({
+        search: vi.fn().mockRejectedValue(new Error('provider boom'))
+      })
+
+      await expect(
+        webSearchService.search({
+          providerId: 'tavily',
+          questions: ['hello'],
+          requestId: 'req-trace-err'
+        })
+      ).rejects.toThrow('provider boom')
+
+      const spans = exporter.getFinishedSpans()
+      expect(spans).toHaveLength(1)
+      expect(spans[0].name).toBe('WebSearch')
+      expect(spans[0].status.code).toBe(SpanStatusCode.ERROR)
+      expect(spans[0].events.some((e) => e.name === 'exception')).toBe(true)
     })
   })
 })

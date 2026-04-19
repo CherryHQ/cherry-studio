@@ -1,7 +1,13 @@
 import type * as LifecycleModule from '@main/core/lifecycle'
 import { getDependencies, getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { SpanStatusCode, trace } from '@opentelemetry/api'
+import {
+  BasicTracerProvider,
+  InMemorySpanExporter,
+  SimpleSpanProcessor
+} from '@opentelemetry/sdk-trace-base'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   appGetMock,
@@ -388,5 +394,66 @@ describe('KnowledgeOrchestrationService', () => {
 
     expect(knowledgeItemCreateManyMock).not.toHaveBeenCalled()
     expect(runtimeAddItemsMock).not.toHaveBeenCalled()
+  })
+
+  describe('tracing', () => {
+    const exporter = new InMemorySpanExporter()
+    const provider = new BasicTracerProvider({
+      spanProcessors: [new SimpleSpanProcessor(exporter)]
+    })
+
+    beforeAll(() => {
+      provider.register()
+    })
+
+    afterAll(async () => {
+      await provider.shutdown()
+      trace.disable()
+    })
+
+    beforeEach(() => {
+      exporter.reset()
+    })
+
+    it('emits a Knowledge.search span with inputs/outputs/tag on success', async () => {
+      const service = new KnowledgeOrchestrationService()
+      const base = createBase()
+      const results = [
+        {
+          pageContent: 'hello',
+          score: 0.9,
+          metadata: { itemId: 'note-1' },
+          itemId: 'note-1',
+          chunkId: 'chunk-1'
+        }
+      ]
+      knowledgeBaseGetByIdMock.mockResolvedValue(base)
+      runtimeSearchMock.mockResolvedValue(results)
+
+      await service.search(base.id, 'hello')
+
+      const spans = exporter.getFinishedSpans()
+      expect(spans).toHaveLength(1)
+      expect(spans[0].name).toBe('Knowledge.search')
+      expect(spans[0].attributes.tags).toBe('Knowledge')
+      expect(String(spans[0].attributes.inputs)).toContain('hello')
+      expect(String(spans[0].attributes.outputs)).toContain('note-1')
+      expect(spans[0].status.code).toBe(SpanStatusCode.OK)
+    })
+
+    it('records exception and marks span ERROR when runtime fails', async () => {
+      const service = new KnowledgeOrchestrationService()
+      const base = createBase()
+      knowledgeBaseGetByIdMock.mockResolvedValue(base)
+      runtimeSearchMock.mockRejectedValue(new Error('runtime boom'))
+
+      await expect(service.search(base.id, 'hello')).rejects.toThrow('runtime boom')
+
+      const spans = exporter.getFinishedSpans()
+      expect(spans).toHaveLength(1)
+      expect(spans[0].name).toBe('Knowledge.search')
+      expect(spans[0].status.code).toBe(SpanStatusCode.ERROR)
+      expect(spans[0].events.some((e) => e.name === 'exception')).toBe(true)
+    })
   })
 })

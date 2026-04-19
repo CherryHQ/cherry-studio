@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { TraceMethod } from '@mcp-trace/trace-core'
 import type {
   WebSearchExecutionConfig,
   WebSearchRequest,
@@ -150,6 +151,7 @@ class WebSearchService {
     }
   }
 
+  @TraceMethod({ spanName: 'WebSearch', tag: 'WebSearch' })
   async search(request: WebSearchRequest, httpOptions?: RequestInit): Promise<WebSearchResponse> {
     try {
       const context = await this.prepareSearchContext(request)

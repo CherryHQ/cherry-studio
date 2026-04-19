@@ -2,6 +2,7 @@ import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { TraceMethod } from '@mcp-trace/trace-core'
 import type { CreateKnowledgeItemsDto } from '@shared/data/api/schemas/knowledges'
 import type { KnowledgeItem, KnowledgeSearchResult } from '@shared/data/types/knowledge'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -87,6 +88,7 @@ export class KnowledgeOrchestrationService extends BaseService {
     await runtime.deleteItems(base, items)
   }
 
+  @TraceMethod({ spanName: 'Knowledge.search', tag: 'Knowledge' })
   async search(baseId: string, query: string): Promise<KnowledgeSearchResult[]> {
     const base = await knowledgeBaseService.getById(baseId)
     const runtime = application.get('KnowledgeRuntimeService')
