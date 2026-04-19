@@ -2534,37 +2534,6 @@
     "xiaoyi": "Xiaoyi",
     "zhihu": "Zhihu"
   },
-  "miniwindow": {
-    "alert": {
-      "google_login": "Remarque : Si vous recevez un message d'alerte Google indiquant que le navigateur n'est pas fiable lors de la connexion, veuillez d'abord vous connecter à votre compte via l'application intégrée Google dans la liste des mini-programmes, puis utilisez la connexion Google dans d'autres mini-programmes"
-    },
-    "clipboard": {
-      "empty": "Presse-papiers vide"
-    },
-    "feature": {
-      "chat": "Répondre à cette question",
-      "explanation": "Explication",
-      "summary": "Résumé du contenu",
-      "translate": "Traduction de texte"
-    },
-    "footer": {
-      "backspace_clear": "Appuyez sur Retour arrière pour effacer",
-      "copy_last_message": "Appuyez sur C pour copier",
-      "esc": "Appuyez sur ESC {{action}}",
-      "esc_back": "Revenir en arrière",
-      "esc_close": "Fermer la fenêtre",
-      "esc_pause": "Pause"
-    },
-    "input": {
-      "placeholder": {
-        "empty": "Demander à {{model}} pour obtenir de l'aide...",
-        "title": "Que souhaitez-vous faire avec le texte ci-dessous"
-      }
-    },
-    "tooltip": {
-      "pin": "Закрепить окно"
-    }
-  },
   "models": {
     "add_parameter": "Ajouter un paramètre",
     "all": "Tout",
@@ -3350,6 +3319,37 @@
     "zai": "Z.ai",
     "zhinao": "360 ZhiNao",
     "zhipu": "BigModel"
+  },
+  "quickAssistant": {
+    "alert": {
+      "google_login": "Remarque : Si vous recevez un message d'alerte Google indiquant que le navigateur n'est pas fiable lors de la connexion, veuillez d'abord vous connecter à votre compte via l'application intégrée Google dans la liste des mini-programmes, puis utilisez la connexion Google dans d'autres mini-programmes"
+    },
+    "clipboard": {
+      "empty": "Presse-papiers vide"
+    },
+    "feature": {
+      "chat": "Répondre à cette question",
+      "explanation": "Explication",
+      "summary": "Résumé du contenu",
+      "translate": "Traduction de texte"
+    },
+    "footer": {
+      "backspace_clear": "Appuyez sur Retour arrière pour effacer",
+      "copy_last_message": "Appuyez sur C pour copier",
+      "esc": "Appuyez sur ESC {{action}}",
+      "esc_back": "Revenir en arrière",
+      "esc_close": "Fermer la fenêtre",
+      "esc_pause": "Pause"
+    },
+    "input": {
+      "placeholder": {
+        "empty": "Demander à {{model}} pour obtenir de l'aide...",
+        "title": "Que souhaitez-vous faire avec le texte ci-dessous"
+      }
+    },
+    "tooltip": {
+      "pin": "Закрепить окно"
+    }
   },
   "restore": {
     "confirm": {
@@ -5458,10 +5458,10 @@
       "enabled": "activer",
       "exit_fullscreen": "Quitter le plein écran",
       "label": "Touche",
-      "mini_window": "Assistant rapide",
       "new_topic": "Nouveau sujet",
       "occupied_by_other_application": "Ce raccourci est déjà utilisé par le système ou une autre application",
       "press_shortcut": "Appuyer sur raccourci clavier",
+      "quick_assistant": "Assistant rapide",
       "rename_topic": "Renommer le sujet",
       "reset_defaults": "Réinitialiser raccourcis par défaut",
       "reset_defaults_confirm": "Êtes-vous sûr de vouloir réinitialiser tous les raccourcis clavier ?",
@@ -5921,7 +5921,7 @@
   },
   "tray": {
     "quit": "Quitter",
-    "show_mini_window": "Assistant Rapide",
+    "show_quick_assistant": "Assistant Rapide",
     "show_window": "Afficher la fenêtre"
   },
   "update": {

@@ -301,7 +301,7 @@ export class WindowService extends BaseService {
       // show window only when laucn to tray not set
       const isLaunchToTray = preferenceService.get('app.tray.on_launch')
       if (!isLaunchToTray) {
-        //[mac]hacky-fix: miniWindow set visibleOnFullScreen:true will cause dock icon disappeared
+        //[mac]hacky-fix: quickAssistant set visibleOnFullScreen:true will cause dock icon disappeared
         void app.dock?.show()
         mainWindow.show()
       }

@@ -2534,37 +2534,6 @@
     "xiaoyi": "Xiaoyi",
     "zhihu": "Zhihu"
   },
-  "miniwindow": {
-    "alert": {
-      "google_login": "Aviso: Caso encontre a mensagem do Google \"navegador não confiável\" ao fazer login, faça primeiro o login da conta no mini programa do Google na lista de mini programas, e depois use o login do Google em outros mini programas"
-    },
-    "clipboard": {
-      "empty": "A área de transferência está vazia"
-    },
-    "feature": {
-      "chat": "Responder a esta pergunta",
-      "explanation": "Explicação",
-      "summary": "Resumo do conteúdo",
-      "translate": "Tradução de texto"
-    },
-    "footer": {
-      "backspace_clear": "Pressione Backspace para limpar",
-      "copy_last_message": "Pressione C para copiar",
-      "esc": "Pressione ESC {{action}}",
-      "esc_back": "Voltar",
-      "esc_close": "Fechar janela",
-      "esc_pause": "Pausar"
-    },
-    "input": {
-      "placeholder": {
-        "empty": "Pergunte a {{model}} para obter ajuda...",
-        "title": "O que você quer fazer com o texto abaixo"
-      }
-    },
-    "tooltip": {
-      "pin": "Fixar na frente"
-    }
-  },
   "models": {
     "add_parameter": "Adicionar parâmetro",
     "all": "Todos",
@@ -3350,6 +3319,37 @@
     "zai": "Z.ai",
     "zhinao": "360 Inteligência Artificial",
     "zhipu": "BigModel"
+  },
+  "quickAssistant": {
+    "alert": {
+      "google_login": "Aviso: Caso encontre a mensagem do Google \"navegador não confiável\" ao fazer login, faça primeiro o login da conta no mini programa do Google na lista de mini programas, e depois use o login do Google em outros mini programas"
+    },
+    "clipboard": {
+      "empty": "A área de transferência está vazia"
+    },
+    "feature": {
+      "chat": "Responder a esta pergunta",
+      "explanation": "Explicação",
+      "summary": "Resumo do conteúdo",
+      "translate": "Tradução de texto"
+    },
+    "footer": {
+      "backspace_clear": "Pressione Backspace para limpar",
+      "copy_last_message": "Pressione C para copiar",
+      "esc": "Pressione ESC {{action}}",
+      "esc_back": "Voltar",
+      "esc_close": "Fechar janela",
+      "esc_pause": "Pausar"
+    },
+    "input": {
+      "placeholder": {
+        "empty": "Pergunte a {{model}} para obter ajuda...",
+        "title": "O que você quer fazer com o texto abaixo"
+      }
+    },
+    "tooltip": {
+      "pin": "Fixar na frente"
+    }
   },
   "restore": {
     "confirm": {
@@ -5458,10 +5458,10 @@
       "enabled": "ativar",
       "exit_fullscreen": "Sair da tela cheia",
       "label": "Tecla",
-      "mini_window": "Atalho de assistente",
       "new_topic": "Novo tópico",
       "occupied_by_other_application": "Este atalho já está sendo usado pelo sistema ou por outro aplicativo",
       "press_shortcut": "Pressionar atalho",
+      "quick_assistant": "Atalho de assistente",
       "rename_topic": "Renomear tópico",
       "reset_defaults": "Redefinir atalhos padrão",
       "reset_defaults_confirm": "Tem certeza de que deseja redefinir todos os atalhos?",
@@ -5921,7 +5921,7 @@
   },
   "tray": {
     "quit": "Sair",
-    "show_mini_window": "Atalho de Assistente",
+    "show_quick_assistant": "Atalho de Assistente",
     "show_window": "Exibir Janela"
   },
   "update": {

@@ -23,7 +23,7 @@ const ClipboardPreview: FC<ClipboardPreviewProps> = ({ referenceText, clearClipb
           ellipsis={{ rows: 2 }}
           style={{ margin: '0 12px', fontSize: 12, flex: 1, minWidth: 0 }}
           className="nodrag">
-          {referenceText || t('miniwindow.clipboard.empty')}
+          {referenceText || t('quickAssistant.clipboard.empty')}
         </Paragraph>
         <CloseButton onClick={clearClipboard} className="nodrag">
           <CloseOutlined style={{ fontSize: '14px' }} />

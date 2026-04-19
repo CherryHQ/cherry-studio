@@ -2534,37 +2534,6 @@
     "xiaoyi": "Xiaoyi",
     "zhihu": "Zhihu"
   },
-  "miniwindow": {
-    "alert": {
-      "google_login": "Sfat: Dacă vezi un mesaj 'browser not trusted' când te conectezi la Google, te rugăm să te conectezi mai întâi prin mini-aplicația Google din lista de mini-aplicații, apoi să folosești autentificarea Google în alte mini-aplicații"
-    },
-    "clipboard": {
-      "empty": "Clipboardul este gol"
-    },
-    "feature": {
-      "chat": "Răspunde la această întrebare",
-      "explanation": "Explicație",
-      "summary": "Rezumat conținut",
-      "translate": "Traducere text"
-    },
-    "footer": {
-      "backspace_clear": "Backspace pentru a șterge",
-      "copy_last_message": "Apasă C pentru a copia",
-      "esc": "ESC pentru a {{action}}",
-      "esc_back": "reveni",
-      "esc_close": "închide",
-      "esc_pause": "pune pauză"
-    },
-    "input": {
-      "placeholder": {
-        "empty": "Cere ajutor de la {{model}}...",
-        "title": "Ce vrei să faci cu acest text?"
-      }
-    },
-    "tooltip": {
-      "pin": "Menține fereastra deasupra"
-    }
-  },
   "models": {
     "add_parameter": "Adaugă parametru",
     "all": "Toate",
@@ -3350,6 +3319,37 @@
     "zai": "Z.ai",
     "zhinao": "360AI",
     "zhipu": "BigModel"
+  },
+  "quickAssistant": {
+    "alert": {
+      "google_login": "Sfat: Dacă vezi un mesaj 'browser not trusted' când te conectezi la Google, te rugăm să te conectezi mai întâi prin mini-aplicația Google din lista de mini-aplicații, apoi să folosești autentificarea Google în alte mini-aplicații"
+    },
+    "clipboard": {
+      "empty": "Clipboardul este gol"
+    },
+    "feature": {
+      "chat": "Răspunde la această întrebare",
+      "explanation": "Explicație",
+      "summary": "Rezumat conținut",
+      "translate": "Traducere text"
+    },
+    "footer": {
+      "backspace_clear": "Backspace pentru a șterge",
+      "copy_last_message": "Apasă C pentru a copia",
+      "esc": "ESC pentru a {{action}}",
+      "esc_back": "reveni",
+      "esc_close": "închide",
+      "esc_pause": "pune pauză"
+    },
+    "input": {
+      "placeholder": {
+        "empty": "Cere ajutor de la {{model}}...",
+        "title": "Ce vrei să faci cu acest text?"
+      }
+    },
+    "tooltip": {
+      "pin": "Menține fereastra deasupra"
+    }
   },
   "restore": {
     "confirm": {
@@ -5458,10 +5458,10 @@
       "enabled": "Activează",
       "exit_fullscreen": "Ieși din ecran complet",
       "label": "Tastă",
-      "mini_window": "Asistent rapid",
       "new_topic": "Subiect nou",
       "occupied_by_other_application": "Această comandă rapidă este deja utilizată de sistem sau de o altă aplicație",
       "press_shortcut": "Apasă comanda rapidă",
+      "quick_assistant": "Asistent rapid",
       "rename_topic": "Redenumește subiectul",
       "reset_defaults": "Resetează la implicite",
       "reset_defaults_confirm": "Ești sigur că vrei să resetezi toate comenzile rapide?",
@@ -5921,7 +5921,7 @@
   },
   "tray": {
     "quit": "Ieșire",
-    "show_mini_window": "Asistent rapid",
+    "show_quick_assistant": "Asistent rapid",
     "show_window": "Afișează fereastra"
   },
   "update": {

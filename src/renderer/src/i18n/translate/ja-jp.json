@@ -2534,37 +2534,6 @@
     "xiaoyi": "小藝",
     "zhihu": "知乎直答"
   },
-  "miniwindow": {
-    "alert": {
-      "google_login": "ヒント：Googleログイン時に「信頼できないブラウザ」というメッセージが表示された場合は、先にミニアプリリストのGoogleミニアプリでアカウントログインを完了してから、他のミニアプリでGoogleログインを使用してください"
-    },
-    "clipboard": {
-      "empty": "クリップボードが空です"
-    },
-    "feature": {
-      "chat": "この質問に回答",
-      "explanation": "説明",
-      "summary": "内容要約",
-      "translate": "テキスト翻訳"
-    },
-    "footer": {
-      "backspace_clear": "バックスペースを押してクリアします",
-      "copy_last_message": "C キーを押してコピー",
-      "esc": "ESC キーを押して{{action}}",
-      "esc_back": "戻る",
-      "esc_close": "ウィンドウを閉じる",
-      "esc_pause": "一時停止"
-    },
-    "input": {
-      "placeholder": {
-        "empty": "{{model}} に質問してください...",
-        "title": "下のテキストに対して何をしますか？"
-      }
-    },
-    "tooltip": {
-      "pin": "上部ウィンドウ"
-    }
-  },
   "models": {
     "add_parameter": "パラメータを追加",
     "all": "すべて",
@@ -3350,6 +3319,37 @@
     "zai": "Z.ai",
     "zhinao": "360智脳",
     "zhipu": "BigModel"
+  },
+  "quickAssistant": {
+    "alert": {
+      "google_login": "ヒント：Googleログイン時に「信頼できないブラウザ」というメッセージが表示された場合は、先にミニアプリリストのGoogleミニアプリでアカウントログインを完了してから、他のミニアプリでGoogleログインを使用してください"
+    },
+    "clipboard": {
+      "empty": "クリップボードが空です"
+    },
+    "feature": {
+      "chat": "この質問に回答",
+      "explanation": "説明",
+      "summary": "内容要約",
+      "translate": "テキスト翻訳"
+    },
+    "footer": {
+      "backspace_clear": "バックスペースを押してクリアします",
+      "copy_last_message": "C キーを押してコピー",
+      "esc": "ESC キーを押して{{action}}",
+      "esc_back": "戻る",
+      "esc_close": "ウィンドウを閉じる",
+      "esc_pause": "一時停止"
+    },
+    "input": {
+      "placeholder": {
+        "empty": "{{model}} に質問してください...",
+        "title": "下のテキストに対して何をしますか？"
+      }
+    },
+    "tooltip": {
+      "pin": "上部ウィンドウ"
+    }
   },
   "restore": {
     "confirm": {
@@ -5458,10 +5458,10 @@
       "enabled": "有効化",
       "exit_fullscreen": "フルスクリーンを終了",
       "label": "キー",
-      "mini_window": "クイックアシスタント",
       "new_topic": "新しいトピック",
       "occupied_by_other_application": "このショートカットは既にシステムまたは別のアプリケーションで使用されています",
       "press_shortcut": "ショートカットを押す",
+      "quick_assistant": "クイックアシスタント",
       "rename_topic": "トピックの名前を変更",
       "reset_defaults": "デフォルトのショートカットをリセット",
       "reset_defaults_confirm": "すべてのショートカットをリセットしてもよろしいですか？",
@@ -5921,7 +5921,7 @@
   },
   "tray": {
     "quit": "終了",
-    "show_mini_window": "クイックアシスタント",
+    "show_quick_assistant": "クイックアシスタント",
     "show_window": "ウィンドウを表示"
   },
   "update": {

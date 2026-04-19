@@ -2534,37 +2534,6 @@
     "xiaoyi": "小藝",
     "zhihu": "知乎直答"
   },
-  "miniwindow": {
-    "alert": {
-      "google_login": "提示：若 Google 登入時顯示「不受信任的瀏覽器」，請先在小程式清單中的 Google 小程式完成帳號登入，再到其他小程式使用 Google 登入。"
-    },
-    "clipboard": {
-      "empty": "剪貼簿為空"
-    },
-    "feature": {
-      "chat": "回答此問題",
-      "explanation": "解釋說明",
-      "summary": "內容總結",
-      "translate": "文字翻譯"
-    },
-    "footer": {
-      "backspace_clear": "按 Backspace 清空",
-      "copy_last_message": "按 C 鍵複製",
-      "esc": "按 ESC {{action}}",
-      "esc_back": "回傳",
-      "esc_close": "關閉視窗",
-      "esc_pause": "暫停"
-    },
-    "input": {
-      "placeholder": {
-        "empty": "詢問 {{model}} 取得幫助...",
-        "title": "你想對下方文字做什麼"
-      }
-    },
-    "tooltip": {
-      "pin": "視窗置頂"
-    }
-  },
   "models": {
     "add_parameter": "新增參數",
     "all": "全部",
@@ -3350,6 +3319,37 @@
     "zai": "Z.ai",
     "zhinao": "360 智腦",
     "zhipu": "智譜開放平台"
+  },
+  "quickAssistant": {
+    "alert": {
+      "google_login": "提示：若 Google 登入時顯示「不受信任的瀏覽器」，請先在小程式清單中的 Google 小程式完成帳號登入，再到其他小程式使用 Google 登入。"
+    },
+    "clipboard": {
+      "empty": "剪貼簿為空"
+    },
+    "feature": {
+      "chat": "回答此問題",
+      "explanation": "解釋說明",
+      "summary": "內容總結",
+      "translate": "文字翻譯"
+    },
+    "footer": {
+      "backspace_clear": "按 Backspace 清空",
+      "copy_last_message": "按 C 鍵複製",
+      "esc": "按 ESC {{action}}",
+      "esc_back": "回傳",
+      "esc_close": "關閉視窗",
+      "esc_pause": "暫停"
+    },
+    "input": {
+      "placeholder": {
+        "empty": "詢問 {{model}} 取得幫助...",
+        "title": "你想對下方文字做什麼"
+      }
+    },
+    "tooltip": {
+      "pin": "視窗置頂"
+    }
   },
   "restore": {
     "confirm": {
@@ -5458,10 +5458,10 @@
       "enabled": "啟用",
       "exit_fullscreen": "離開全螢幕",
       "label": "按鍵",
-      "mini_window": "快捷助手",
       "new_topic": "新增話題",
       "occupied_by_other_application": "此快捷鍵已被系統或其他應用程式占用",
       "press_shortcut": "按下快捷鍵",
+      "quick_assistant": "快捷助手",
       "rename_topic": "重新命名話題",
       "reset_defaults": "重設預設快捷鍵",
       "reset_defaults_confirm": "確定要重設所有快捷鍵嗎？",
@@ -5921,7 +5921,7 @@
   },
   "tray": {
     "quit": "結束",
-    "show_mini_window": "快捷助手",
+    "show_quick_assistant": "快捷助手",
     "show_window": "顯示視窗"
   },
   "update": {

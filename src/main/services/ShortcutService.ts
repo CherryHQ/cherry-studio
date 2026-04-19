@@ -88,7 +88,7 @@ export class ShortcutService extends BaseService {
 
     this.handlers.set('shortcut.feature.quick_assistant.toggle_window', () => {
       if (!application.get('PreferenceService').get('feature.quick_assistant.enabled')) return
-      application.get('QuickAssistantService').toggleQuickWindow()
+      application.get('QuickAssistantService').toggleQuickAssistant()
     })
 
     this.handlers.set('shortcut.general.zoom_in', (window) => {

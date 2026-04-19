@@ -1,8 +1,9 @@
 import { loggerService } from '@logger'
 import { ipcMain, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
 
+import { getServiceName } from './decorators'
 import { type Disposable, toDisposable } from './event'
-import { type ErrorStrategy, isActivatable, isPausable, LifecycleState } from './types'
+import { type ErrorStrategy, isActivatable, isPausable, LifecycleState, type ServiceConstructor } from './types'
 
 const logger = loggerService.withContext('Lifecycle')
 
@@ -43,9 +44,10 @@ export abstract class BaseService {
   constructor() {
     const ctor = this.constructor
     if (BaseService.instances.has(ctor)) {
+      const name = getServiceName(ctor as ServiceConstructor)
       throw new Error(
-        `Service '${ctor.name}' has already been instantiated. ` +
-          `Use ServiceContainer.get(${ctor.name}) to access the existing instance.`
+        `Service '${name}' has already been instantiated. ` +
+          `Use ServiceContainer.get(${name}) to access the existing instance.`
       )
     }
     BaseService.instances.add(ctor)
@@ -276,7 +278,9 @@ export abstract class BaseService {
       await this.onActivate()
       const duration = performance.now() - start
       this._activated = true
-      logger.info(`Service '${this.constructor.name}' activated (${duration.toFixed(3)}ms)`)
+      logger.info(
+        `Service '${getServiceName(this.constructor as ServiceConstructor)}' activated (${duration.toFixed(3)}ms)`
+      )
       return true
     } finally {
       this._activating = false
@@ -299,7 +303,9 @@ export abstract class BaseService {
       await this.onDeactivate()
       const duration = performance.now() - start
       this._activated = false
-      logger.info(`Service '${this.constructor.name}' deactivated (${duration.toFixed(3)}ms)`)
+      logger.info(
+        `Service '${getServiceName(this.constructor as ServiceConstructor)}' deactivated (${duration.toFixed(3)}ms)`
+      )
       return true
     } finally {
       this._activating = false

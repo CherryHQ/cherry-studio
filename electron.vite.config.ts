@@ -146,7 +146,7 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve(__dirname, 'src/renderer/index.html'),
-          miniWindow: resolve(__dirname, 'src/renderer/miniWindow.html'),
+          quickAssistant: resolve(__dirname, 'src/renderer/quickAssistant.html'),
           selectionToolbar: resolve(__dirname, 'src/renderer/selectionToolbar.html'),
           selectionAction: resolve(__dirname, 'src/renderer/selectionAction.html'),
           traceWindow: resolve(__dirname, 'src/renderer/traceWindow.html'),

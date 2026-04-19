@@ -2534,37 +2534,6 @@
     "xiaoyi": "Xiaoyi",
     "zhihu": "Zhihu"
   },
-  "miniwindow": {
-    "alert": {
-      "google_login": "Sugerencia: si aparece el mensaje de Google \"navegador no confiable\" al iniciar sesión, primero inicie sesión en su cuenta a través de la miniaplicación de Google en la lista de miniaplicaciones, y luego use el inicio de sesión de Google en otras miniaplicaciones"
-    },
-    "clipboard": {
-      "empty": "El portapapeles está vacío"
-    },
-    "feature": {
-      "chat": "Responder a esta pregunta",
-      "explanation": "Explicación",
-      "summary": "Resumen del contenido",
-      "translate": "Traducción de texto"
-    },
-    "footer": {
-      "backspace_clear": "Presione Retroceso para borrar",
-      "copy_last_message": "Presione C para copiar",
-      "esc": "Presione ESC {{action}}",
-      "esc_back": "Volver",
-      "esc_close": "Cerrar ventana",
-      "esc_pause": "Pausa"
-    },
-    "input": {
-      "placeholder": {
-        "empty": "Pregunta a {{model}} para obtener ayuda...",
-        "title": "¿Qué deseas hacer con el texto de abajo?"
-      }
-    },
-    "tooltip": {
-      "pin": "Fijar en la parte superior"
-    }
-  },
   "models": {
     "add_parameter": "Agregar parámetro",
     "all": "Todo",
@@ -3350,6 +3319,37 @@
     "zai": "Z.ai",
     "zhinao": "360 Inteligente",
     "zhipu": "BigModel"
+  },
+  "quickAssistant": {
+    "alert": {
+      "google_login": "Sugerencia: si aparece el mensaje de Google \"navegador no confiable\" al iniciar sesión, primero inicie sesión en su cuenta a través de la miniaplicación de Google en la lista de miniaplicaciones, y luego use el inicio de sesión de Google en otras miniaplicaciones"
+    },
+    "clipboard": {
+      "empty": "El portapapeles está vacío"
+    },
+    "feature": {
+      "chat": "Responder a esta pregunta",
+      "explanation": "Explicación",
+      "summary": "Resumen del contenido",
+      "translate": "Traducción de texto"
+    },
+    "footer": {
+      "backspace_clear": "Presione Retroceso para borrar",
+      "copy_last_message": "Presione C para copiar",
+      "esc": "Presione ESC {{action}}",
+      "esc_back": "Volver",
+      "esc_close": "Cerrar ventana",
+      "esc_pause": "Pausa"
+    },
+    "input": {
+      "placeholder": {
+        "empty": "Pregunta a {{model}} para obtener ayuda...",
+        "title": "¿Qué deseas hacer con el texto de abajo?"
+      }
+    },
+    "tooltip": {
+      "pin": "Fijar en la parte superior"
+    }
   },
   "restore": {
     "confirm": {
@@ -5458,10 +5458,10 @@
       "enabled": "habilitar",
       "exit_fullscreen": "Salir de pantalla completa",
       "label": "Tecla",
-      "mini_window": "Asistente rápido",
       "new_topic": "Nuevo tema",
       "occupied_by_other_application": "Este atajo ya está en uso por el sistema u otra aplicación",
       "press_shortcut": "Presionar atajo",
+      "quick_assistant": "Asistente rápido",
       "rename_topic": "Renombrar tema",
       "reset_defaults": "Restablecer atajos predeterminados",
       "reset_defaults_confirm": "¿Está seguro de querer restablecer todos los atajos?",
@@ -5921,7 +5921,7 @@
   },
   "tray": {
     "quit": "Salir",
-    "show_mini_window": "Asistente rápido",
+    "show_quick_assistant": "Asistente rápido",
     "show_window": "Mostrar ventana"
   },
   "update": {
