@@ -3,9 +3,9 @@
   "aliases": {
     "components": "@cherrystudio/ui/components",
     "hooks": "@cherrystudio/ui/hooks",
-    "lib": "@cherrystudio/ui/utils",
-    "ui": "@cherrystudio/ui/components",
-    "utils": "@cherrystudio/ui/utils"
+    "lib": "@cherrystudio/ui/lib",
+    "ui": "@cherrystudio/ui/components/primitives",
+    "utils": "@cherrystudio/ui/lib/utils"
   },
   "iconLibrary": "lucide",
   "rsc": false,
