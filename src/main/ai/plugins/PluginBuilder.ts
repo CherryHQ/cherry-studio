@@ -51,8 +51,7 @@ export interface BuildPluginsContext {
  * its tools has a viable execution path:
  *   - `webSearchProviderId` is provided (external 3rd-party search), OR
  *   - the assistant has `knowledgeBaseIds.length > 0`.
- * The renderer-side `MemoryProcessor` is not yet ported, so memory storage
- * is intentionally skipped inside the plugin (see TODO there).
+ * Memory storage is gone — `MemoryProcessor` was deleted upstream.
  */
 export function buildPlugins(ctx: BuildPluginsContext): AiPlugin[] {
   const { provider, model, assistant, capabilities, mcpToolIds, topicId, webSearchProviderId } = ctx

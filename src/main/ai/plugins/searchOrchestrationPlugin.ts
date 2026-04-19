@@ -11,10 +11,8 @@
  *   - `onRequestEnd`: Drop the cache entries.
  *
  * Memory storage (`storeConversationMemory` in the renderer original) is
- * intentionally NOT ported — the renderer `MemoryProcessor` and the v2
- * Assistant `enableMemory` flag have not migrated to Main yet. The plugin
- * leaves a TODO marker so the next iteration can wire it in without changing
- * shape.
+ * dropped — `MemoryProcessor` was deleted upstream and the v2 Assistant
+ * schema no longer carries the `enableMemory` toggle.
  *
  * Source of truth for the renderer original: commit 188f25478
  * (`src/renderer/src/aiCore/plugins/searchOrchestrationPlugin.ts`).
@@ -212,9 +210,6 @@ export const searchOrchestrationPlugin = (
     },
 
     onRequestEnd: async (context) => {
-      // TODO: Wire conversation memory storage here when MemoryProcessor and
-      // the v2 Assistant `enableMemory` toggle land on Main. The renderer
-      // original kicked off `memoryProcessor.processConversation` async here.
       delete intentAnalysisResults[context.requestId]
       delete userMessages[context.requestId]
     }

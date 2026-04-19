@@ -12,16 +12,17 @@
  *     instead of the deleted renderer `processWebsearch(provider, extractResults, requestId)`.
  *   - Compression / RAG / cutoff is applied inside the Main service via
  *     `postProcessWebSearchResponse`, not here.
- *   - Summarize-mode (questions[0] === 'summarize' + links → fetchWebContents)
- *     is NOT ported — there is no main-side equivalent yet. Drop the special
- *     case for now; the tool just runs all questions as regular web searches.
+ *   - Summarize-mode (`questions[0] === 'summarize'` + links) fans out to
+ *     `fetchWebSearchContent` in parallel and returns the scraped pages as
+ *     search results, matching the renderer original's semantics.
  */
 
 import { loggerService } from '@logger'
 import { webSearchService } from '@main/services/webSearch/WebSearchService'
+import { fetchWebSearchContent } from '@main/services/webSearch/utils/fetchContent'
 import { REFERENCE_PROMPT } from '@shared/config/prompts'
 import type { WebSearchProviderId } from '@shared/data/preference/preferenceTypes'
-import type { WebSearchResponse } from '@shared/data/types/webSearch'
+import type { WebSearchResponse, WebSearchResult } from '@shared/data/types/webSearch'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 import * as z from 'zod'
 
@@ -71,6 +72,20 @@ You can use this tool as-is to search with the prepared queries, or provide addi
       // Skip when intent analyser said no search is needed.
       if (finalQueries[0] === 'not_needed' || finalQueries.length === 0) {
         return { query: '', results: [] } satisfies WebSearchResponse
+      }
+
+      // Summarize mode: intent analyser detected the user pasted / referenced
+      // URLs and wants them summarized. Scrape each URL directly instead of
+      // running them through the search provider.
+      const links = extractedKeywords.links
+      if (finalQueries[0] === 'summarize' && links && links.length > 0) {
+        const settled = await Promise.allSettled(links.map((url) => fetchWebSearchContent(url, false)))
+        const results: WebSearchResult[] = settled.map((result, index) =>
+          result.status === 'fulfilled'
+            ? result.value
+            : { title: 'Error', url: links[index], content: 'No content found' }
+        )
+        return { query: 'summaries', results } satisfies WebSearchResponse
       }
 
       try {
