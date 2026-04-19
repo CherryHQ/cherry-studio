@@ -8,18 +8,13 @@ import {
   type FileMetadata,
   type KnowledgeBase,
   type KnowledgeBaseParams,
-  type KnowledgeReference,
   type KnowledgeSearchResult,
   SystemProviderIds
 } from '@renderer/types'
-import type { Chunk } from '@renderer/types/chunk'
-import { ChunkType } from '@renderer/types/chunk'
 import { routeToEndpoint } from '@renderer/utils'
-import type { ExtractResults } from '@renderer/utils/extract'
 import { isAzureOpenAIProvider, isGeminiProvider } from '@renderer/utils/provider'
 import { getRotatedProviderApiKey } from '@renderer/utils/providerAuth'
 import { formatProviderApiHost } from '@renderer/utils/providerHost'
-import { isEmpty } from 'lodash'
 
 import { getProviderByModel } from './AssistantService'
 import FileManager from './FileManager'
@@ -223,126 +218,5 @@ export const searchKnowledgeBase = async (
       })
     }
     throw error
-  }
-}
-
-export const processKnowledgeSearch = async (
-  extractResults: ExtractResults,
-  knowledgeBaseIds: string[] | undefined,
-  topicId: string,
-  parentSpanId?: string,
-  modelName?: string
-): Promise<KnowledgeReference[]> => {
-  if (
-    !extractResults.knowledge?.question ||
-    extractResults.knowledge.question.length === 0 ||
-    isEmpty(knowledgeBaseIds)
-  ) {
-    logger.info('No valid question found in extractResults.knowledge')
-    return []
-  }
-
-  const questions = extractResults.knowledge.question
-  const rewrite = extractResults.knowledge.rewrite
-
-  const bases = store.getState().knowledge.bases.filter((kb) => knowledgeBaseIds?.includes(kb.id))
-  if (!bases || bases.length === 0) {
-    logger.info('Skipping knowledge search: No matching knowledge bases found.')
-    return []
-  }
-
-  const span = await addSpan({
-    topicId,
-    name: 'knowledgeSearch',
-    inputs: {
-      questions,
-      rewrite,
-      knowledgeBaseIds: knowledgeBaseIds
-    },
-    tag: 'Knowledge',
-    parentSpanId,
-    modelName
-  })
-
-  // 为每个知识库执行多问题搜索
-  const baseSearchPromises = bases.map(async (base) => {
-    // 为每个问题搜索并合并结果
-    const allResults = await Promise.all(
-      questions.map((question) =>
-        searchKnowledgeBase(question, base, rewrite, topicId, span?.spanContext().spanId, modelName)
-      )
-    )
-
-    // 合并结果并去重
-    const flatResults = allResults.flat()
-    const uniqueResults = Array.from(
-      new Map(flatResults.map((item) => [item.metadata.uniqueId || item.pageContent, item])).values()
-    ).sort((a, b) => b.score - a.score)
-
-    // 转换为引用格式
-    const result = await Promise.all(
-      uniqueResults.map(
-        async (item, index) =>
-          ({
-            id: index + 1,
-            content: item.pageContent,
-            sourceUrl: await getKnowledgeSourceUrl(item),
-            metadata: item.metadata,
-            type: 'file'
-          }) as KnowledgeReference
-      )
-    )
-    return result
-  })
-
-  // 汇总所有知识库的结果
-  const resultsPerBase = await Promise.all(baseSearchPromises)
-  const allReferencesRaw = resultsPerBase.flat().filter((ref): ref is KnowledgeReference => !!ref)
-  endSpan({
-    topicId,
-    outputs: resultsPerBase,
-    span,
-    modelName
-  })
-
-  // 重新为引用分配ID
-  return allReferencesRaw.map((ref, index) => ({
-    ...ref,
-    id: index + 1
-  }))
-}
-
-/**
- * 处理知识库搜索结果中的引用
- * @param references 知识库引用
- * @param onChunkReceived Chunk接收回调
- */
-export function processKnowledgeReferences(
-  references: KnowledgeReference[] | undefined,
-  onChunkReceived: (chunk: Chunk) => void
-) {
-  if (!references || references.length === 0) {
-    return
-  }
-
-  for (const ref of references) {
-    const { metadata } = ref
-    if (!metadata?.source) {
-      continue
-    }
-
-    switch (metadata.type) {
-      case 'video': {
-        onChunkReceived({
-          type: ChunkType.VIDEO_SEARCHED,
-          video: {
-            type: 'path',
-            content: metadata.source
-          },
-          metadata
-        })
-        break
-      }
-    }
   }
 }
