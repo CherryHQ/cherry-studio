@@ -3951,38 +3951,39 @@ afterPersist: async (finalMessage) => {
 
 虽然逻辑上这些都属于 Phase 2,但**不要一次性上**。按依赖顺序拆成 6 个可独立 merge 的子步骤(编号 Step 2.3 - 2.8,紧接 Step 2.1 / 2.2 之后):
 
-**Step 2.3 · 基础设施 (1-2 天)**
-- [ ] 新建 `src/main/ai/stream-manager/` 目录
-- [ ] 定义 `StreamListener` / `StreamTarget` / `ActiveStream` / `AiStreamManagerConfig` 类型(**不定义 `StreamSource`** —— AiStreamManager 不区分流的发起源)
-- [ ] `ActiveStream.sourceSessionId` 字段预留给 ClaudeCodeService 路径使用
-- [ ] 实现 `InternalStreamTarget`
-- [ ] **不写** `UIMessageAccumulator` —— 最终 UIMessage 由上游 agentLoop 调 AI SDK 的 `readUIMessageStream`(或等价工具)产出,AiStreamManager 只负责存 `stream.finalMessage` 字段
-- [ ] `AiStreamManager` 空壳 + lifecycle 注册,`onInit` 只注册 4 个 channel 但暂不处理
-- [ ] `AiService.executeStream` 参数类型放宽为 `StreamTarget`(确保既有调用方零破坏)
-- [ ] **不新建** `MessagePersistenceService` —— `PersistenceListener` 直接 `import { messageService } from '@main/data/services/MessageService'` 调 `messageService.create(topicId, { parentId: parentUserMessageId, ... })`。如果 reasoning parts 的 `thinking_millsec → cherry.thinkingMs` 规范化还没在 Phase 1 stream plugin 里完成,抽一个 `normalizeReasoningParts(parts)` util 函数放在 listener 同目录,10 行以内
-- [ ] `PendingMessageQueue` 加 `Emitter<'push'>` 事件订阅能力(给 steering 消费方使用)
-- [ ] 单元测试:FakeListener 验证 AiStreamManager 的分发逻辑、buffer 回放、isAlive 清理、异常隔离
+**Step 2.3 · 基础设施 (1-2 天)** ✅ 已完成
+- [x] 新建 `src/main/ai/stream-manager/` 目录(当前已扩展为 `context/` + `persistence/` + `listeners/` 三个子系统)
+- [x] 定义 `StreamListener` / `StreamTarget` / `ActiveStream` / `AiStreamManagerConfig` 类型(**不定义 `StreamSource`** —— AiStreamManager 不区分流的发起源)
+- [x] `ActiveStream.sourceSessionId` 字段预留给 ClaudeCodeService 路径使用
+- [x] 实现 `InternalStreamTarget`(后续已合入 AiStreamManager 的 target 参数类型)
+- [x] **不写** `UIMessageAccumulator` —— 最终 UIMessage 由上游 agentLoop 调 AI SDK 的 `readUIMessageStream` 产出
+- [x] `AiStreamManager` lifecycle 注册 + 4 个 channel 注册
+- [x] `AiService.executeStream` 参数类型放宽为 `StreamTarget`
+- [x] **不新建** `MessagePersistenceService` —— 演进为 `PersistenceBackend` 接口 + 3 个 backend(`MessageServiceBackend` / `AgentMessageBackend` / `TemporaryChatBackend`)
+- [x] `PendingMessageQueue` 事件订阅能力(AsyncIterable 形态)
+- [x] 单元测试:`__tests__/` 已覆盖分发逻辑、buffer 回放、lifecycle
 
-**Step 2.4 · Renderer 流接入 (2-3 天)**
-- [ ] `AiStreamManager.startStream` / `send` / `steer` / `onChunk` / `onDone` / `onError` / `abort` 完整实现
-- [ ] `handleStreamRequest` IPC handler 实现(构造 WebContentsListener + PersistenceListener)
-- [ ] 新建 `src/renderer/src/transport/IpcChatTransport.ts`,`sendMessages` 走 `Ai_Stream_Open`
-- [ ] E2E:发消息、收 chunk、正常完成、错误、abort(走 AiCompletionService 路径,**普通 chat**)
+**Step 2.4 · Renderer 流接入 (2-3 天)** ✅ 已完成
+- [x] `AiStreamManager.startStream` / `send` / `steer` / `onChunk` / `onDone` / `onError` / `abort` 完整实现
+- [x] stream request handling 引入 ChatContextProvider 分层(commit 7ae8b920a)
+- [x] 新建 `src/renderer/src/transport/IpcChatTransport.ts`,`sendMessages` 走 `Ai_Stream_Open`(含 `ExecutionTransport` 多模型分叉)
+- [x] E2E:发消息、收 chunk、正常完成、错误、abort
 
-**Step 2.5 · Reconnect (1-2 天)**
-- [ ] `handleAttach` + `addListener` + buffer 回放
-- [ ] `IpcChatTransport.reconnectToStream` 真正实现
-- [ ] 测试:切 topic → 切回来 → 流继续 → 完成
-- [ ] 测试:多窗口同看 topic → chunks 两边同步
-- [ ] 测试:WebContents destroyed 时自动从 listeners 剔除
+**Step 2.5 · Reconnect (1-2 天)** ✅ 已完成
+- [x] `handleAttach` + `addListener` + buffer 回放
+- [x] `IpcChatTransport.reconnectToStream` 真正实现 + `buildCompactReplay` 支持
+- [x] 切 topic → 切回来 → 流继续 → 完成
+- [x] 多窗口同看 topic → chunks 两边同步
+- [x] WebContents destroyed 时自动从 listeners 剔除
 
-**Step 2.6 · 持久化下沉 & 旧 Renderer 侧路径清理 (2 天)**
-- [ ] `AiStreamManager.onDone(topicId, status)` 通过 `PersistenceListener` 完成落库(`PersistenceListener` 直接调 Main 端 `messageService.create`,无中间 Service),status 由 AiStreamManager 根据自然完成 vs abort 路径决定
-- [ ] `handleStreamRequest` 在起流之前**原子**落 user message —— 调 `messageService.create(topicId, { role: 'user', parentId: req.parentAnchorId, data })` 拿真实 id,再用这个 id 作为 PersistenceListener 的 `parentUserMessageId`。从源头避开 Renderer `streamingService.createUserMessage` 依赖 `topic.activeNodeId` 的多窗口竞态
-- [ ] 搬迁 `messageThunk.ts:220-279` 的 `renameAgentSessionIfNeeded` 逻辑 —— **作为 `PersistenceListener.afterPersist` hook 注入**,`handleStreamRequest` 在识别到 agent session 时构造一个闭包传入。用 `[req.userMessage, finalMessage]` 内存数据生成摘要,不走 DB 读
-- [ ] 删除 v1 `messageThunk.ts` 里 `createAgentMessageStream` / `createSSEReadableStream` / `withAbortStreamPart` / `fetchAndProcessAgentResponseImpl` / `setupChannelStream` / `addChannelUserMessage` / `renameAgentSessionIfNeeded` 等函数(~500 行),它们都被 AiStreamManager + 三个内置 listener + `afterPersist` hook 统一取代
-- [ ] Renderer 侧改用官方 `useChat({ id: topicId, transport, messages: historyFromUseQuery })`
-- [ ] 历史消息改走 `useQuery('/topics/:id/messages')`(DataApi)
+**Step 2.6 · 持久化下沉 & 旧 Renderer 侧路径清理 (2 天)** ✅ 已完成
+- [x] `AiStreamManager.onDone` 通过 `PersistenceBackend`(非 Listener)完成落库,status 根据自然完成 vs abort 路径决定
+- [x] `handleStreamRequest` 起流前原子落 user message(显式 parentAnchorId,避开 activeNodeId 竞态)
+- [x] `renameAgentSessionIfNeeded` 逻辑迁入 —— 作为 agent session 自动重命名能力(commit 27aade780)
+- [x] 删除 v1 `messageThunk.ts` 旧 transport 代码
+- [x] Renderer 侧改用官方 `useChat` —— `useChatWithHistory` hook(`V2ChatContent.tsx`)
+- [x] 历史消息走 `useTopicMessagesV2` / DataApi
+- [x] `src/renderer/src/aiCore/` 整个目录删除(commit 188f25478 `refactor(renderer): remove legacy aiCore layer`)
 
 > **"PersistenceListener 不做业务逻辑磁铁" 原则**:`PersistenceListener.onDone` 的主体方法只管"把消息写 SQLite"一件事,**业务副作用通过 `afterPersist` hook 参数注入**,不直接写进 PersistenceListener 的代码里。将来增加新副作用时:
 > - 在 `handleStreamRequest` 构造 PersistenceListener 时,把新动作加到 `afterPersist` 闭包里
@@ -3993,18 +3994,20 @@ afterPersist: async (finalMessage) => {
 >
 > **为什么不是推回 `agentLoop.afterIteration` / `onFinish`**:agentLoop 的 hooks 是执行引擎的控制面,不该沾业务副作用;还会破坏"persistence-first"的次序。详见前面小节里对两条反对理由的完整论证。
 
-**Step 2.7 · Channel Push 迁移 (2 天)**
-- [ ] 实现 `ChannelAdapterListener`
-- [ ] 改造 `ChannelMessageHandler.handleIncoming` 走 `aiStreamAiStreamManager.startStream`
-- [ ] 测试:Discord/Slack 收消息 → bot 正常回复
-- [ ] 测试:Channel 发起期间 Renderer 打开对应 topic → 能看到实时流
-- [ ] 测试:channel 断线时 abort 语义正确
+**Step 2.7 · Channel Push 迁移 (2 天)** ✅ 已完成
+- [x] 实现 `ChannelAdapterListener`(含 `SSEListener` 为 API gateway 提供格式转换)
+- [x] 改造 `ChannelMessageHandler.handleIncoming` 走 `AiStreamManager.startStream`
+- [x] 测试:Discord/Slack 收消息 → bot 正常回复
+- [x] 测试:Channel 发起期间 Renderer 打开对应 topic → 能看到实时流
+- [x] 测试:channel 断线时 abort 语义正确
+- [x] agent session stream 旧 IPC 彻底移除(commit 18c9fc621)
 
-**Step 2.8 · 兼容期清理 (1 天)**
-- [ ] 删除 `AiService.ts` 的 `Ai_StreamRequest` / `Ai_Abort` / `Ai_SteerMessage` 三个 `ipcHandle` / `ipcOn` 注册
-- [ ] 删除 `AiCompletionService` 的 per-call AbortController 注册表 + `PendingMessageQueue` 全局 Map
-- [ ] 更新 `docs/ai-core-renderer-design.md`、`docs/ai-core-renderer-dev-plan.md` 的相关段落
-- [ ] 一并检查 Phase 3/4 的 SUPERSEDED 标注,替换为指向本章节的链接
+**Step 2.8 · 兼容期清理 (1 天)** ✅ 已完成
+- [x] 删除 `AiService.ts` 的 `Ai_StreamRequest` / `Ai_Abort` / `Ai_SteerMessage` 旧 `ipcHandle` / `ipcOn` 注册
+- [x] 删除 `AiCompletionService` 的 per-call AbortController 注册表 + `PendingMessageQueue` 全局 Map
+- [x] `docs/ai-core-renderer-dev-plan.md` 已删除
+- [x] `docs/ai-core-renderer-design.md` 已对齐当前架构
+- [ ] 补:Phase 3/4 的 SUPERSEDED 标注全文替换(可延后)
 
 ### 边界情况检查清单
 
@@ -5465,8 +5468,36 @@ SDK 追踪完整成本信息：
 - [x] fetchModels → Main（listModels.ts 10 个 provider fetcher）
 - [x] Token usage tracking — AnalyticsService 直接调用（hooks.onFinish）
 - [x] 基础模型参数（temperature/topP/maxOutputTokens 从 assistant.settings 提取到 AgentOptions）
-- [x] MCP tools 按需注册（registerMcpTools + createMcpTool + callTool + toolCallId）
-- [ ] 删除 renderer ApiService 中的 AI 调用代码 + AiProvider 类（等所有调用方确认无残留）
+- [x] MCP tools 按需注册（registerMcpTools + createMcpTool + callTool + toolCallId） + `resolveAssistantMcpTools` 抽离
+- [x] renderer `src/aiCore/` 整个目录删除（commit 188f25478）
+- [ ] 最后一个 `AiProvider` 引用（`InputEmbeddingDimension.test.tsx`）清理
+
+### Phase 2 子阶段（AiStreamManager 架构） ✅ 已全部落地
+
+- [x] **Step 2.3 基础设施**：`stream-manager/` 目录落地（扩展为 `context/` + `persistence/` + `listeners/` 三子系统）+ `types.ts` + `PendingMessageQueue` AsyncIterable
+- [x] **Step 2.4 Renderer 流接入**：`AiStreamManager` 核心方法 + ChatContextProvider 分层（commit 7ae8b920a）+ `IpcChatTransport` / `ExecutionTransport`
+- [x] **Step 2.5 Reconnect**：`handleAttach` + `buildCompactReplay` + `IpcChatTransport.reconnectToStream`
+- [x] **Step 2.6 持久化下沉**：由 `PersistenceBackend` 接口 + 3 backends（`MessageServiceBackend` / `AgentMessageBackend` / `TemporaryChatBackend`）承担；agent session 自动重命名（commit 27aade780）
+- [x] **Step 2.7 Channel Push**：`ChannelAdapterListener` + `SSEListener`（API gateway 格式转换）+ agent session stream 旧 IPC 彻底移除（commit 18c9fc621）
+- [x] **Step 2.8 兼容期清理**：删除 `Ai_StreamRequest` / `Ai_Abort` / `Ai_SteerMessage`；dev-plan.md 已删；renderer-design.md 已对齐
+
+### Phase 3 — Renderer useChat 接入 ✅ 已完成
+
+- [x] `src/renderer/src/aiCore/` 整个目录删除（commit 188f25478 `refactor(renderer): remove legacy aiCore layer`）
+- [x] `V2ChatContent.tsx` 采用官方 `useChat` 路径：`useChatWithHistory` hook + `ipcChatTransport` singleton
+- [x] `ExecutionStreamCollector` 为多模型 execution 处理 `ExecutionTransport`
+- [x] `useTopicMessagesV2` 从 DataApi 取历史
+- [x] `PartsRenderer` + `CherryUIMessage` / `CherryMessagePart` 类型:parts 替代 blocks
+
+### Phase 4 — Agent 功能完善 🟡 进行中
+
+- [x] Tool 权限审批原生化：`ToolApprovalProvider` + `useToolApprovalBridge` hooks（commits 3f9b9d31b / 906c28a06）
+- [x] 新 tool approval 流程 + registry
+- [x] 审批 hooks 整合,删除旧代码
+- [x] `feat(provider-registry): vendor identity patterns + 模型能力检测`（ce9390bed）
+- [x] UniqueModelId 迁移（commit a4309aad6 + greedy path params 14359）
+- [ ] Agent 步骤进度推送 UI
+- [ ] 残留旧 Agent UI 清理
 
 ### Phase 1 剩余（功能增强，可渐进）
 
@@ -5474,14 +5505,26 @@ SDK 追踪完整成本信息：
   ② 适配耦合文件 — parameterBuilder, messageConverter, fileProcessor
      (替换 window.api → Node.js fs / 直接 import service, 移除 @ts-nocheck)
      ⚠️ 阻塞: 部分 stubs 依赖 v2 data layer 完成
-  ③ 复制缺失的耦合 plugin (searchOrchestration, telemetry, pdf, anthropicCache)
-  ④ ToolRegistry 接入内置 tools (WebSearch, Knowledge, Memory)
+
+  ③ 复制缺失的耦合 plugin
+     ✅ anthropicCachePlugin (已存在)
+     ✅ pdfCompatibilityPlugin (已存在)
+     ✅ telemetryPlugin (已存在, commit d6f113a8c)
+     ⏳ searchOrchestrationPlugin (仍缺)
+
+  ④ ~~ToolRegistry 接入内置 tools (WebSearch, Knowledge, Memory)~~
+     ❌ 路线已调整 —— 内置 tools 方向作废(commit eff583abb `remove unused builtin tools`)
+        转向:通过 MCP tools / Hub meta-tools 暴露这些能力
+
   ⑤ MCP tool 动态生命周期（server 连接/断开自动注册/注销）
      ⚠️ 依赖 #14123 MCPService 重构:
        - 需要 MCPService 统一入口 + server 生命周期事件
        - 需要 isServerConnected(id) API 实现 checkAvailable
        - 需要 CallToolArgs 扩展支持 context 传递
+
   ⑥ PluginBuilder 接入已有 plugins (reasoning, noThink, etc.)
+     ✅ 已接入 + 条件能力支持(commit f4d4c8b9e)
+
   ⑦ providerOptions 接入 (reasoning effort, web search 等)
      ⚠️ 阻塞: buildProviderOptions 依赖 stubs
 ```
@@ -6183,14 +6226,22 @@ new SSEListener(
 - **SSE 只是一种 transport**。和 IPC（WebContentsListener）、IM（ChannelAdapterListener）平级
 - **同一个 topic 的所有消费者共享同一个流**。API Client + Renderer + Channel 可以同时订阅
 
-### 当前进度总览
+### 当前进度总览(2026-04-19)
 
 | Phase | 状态 | 说明 |
 |-------|------|------|
 | Phase 1 — Main AI 执行层 | ✅ 完成 | AiService, AiCompletionService, agentLoop, ToolRegistry, plugins |
-| Phase 2 — IPC 通道 + AiStreamManager | ✅ 完成 | stream-manager, listeners, IpcChatTransport, preload |
-| Phase 2.5 — ApiService 迁移 | ✅ 完成 | generateText, checkModel, embedMany, generateImage, listModels |
+| Phase 2 — IPC 通道 + AiStreamManager | ✅ 完成 | stream-manager, listeners, IpcChatTransport, preload;扩展为 context/ + persistence/ + listeners/ 三子系统 |
+| Phase 2.5 — ApiService 迁移 | ✅ 完成 | generateText, checkModel, embedMany, generateImage, listModels;renderer aiCore 目录已删 |
+| Phase 3 — Renderer useChat 接入 | ✅ 完成 | `V2ChatContent` + `useChatWithHistory` + `ipcChatTransport`;renderer legacy aiCore 删除(188f25478) |
+| Phase 4 — Agent 功能完善 | 🟡 进行中 | ✅ Tool 权限审批原生化(ToolApprovalProvider + 新 registry);✅ agent session 自动重命名;⏳ Agent 步骤进度推送、旧 Agent UI 清理 |
 | Phase 6 — Claude Code 统一 | ✅ 完成 | ai-sdk-provider-claude-code, claudeCodeSettingsBuilder, 删除旧代码 |
-| Phase 3 — Renderer useChat 接入 | 待开始 | useChat + DataUIPart + Message 渲染改造 |
-| Phase 4 — Agent 功能完善 | 🟡 进行中 | ✅ Tool 权限审批已原生化；⏳ Agent 步骤进度、旧 UI 清理 |
 | Phase 5 — 架构优化 | 待开始 | aiCore plugins 拆分, Utility Process 评估 |
+
+**尚未完成的具体项**:
+- Phase 1 ③ `searchOrchestrationPlugin` 仍待复制
+- Phase 1 ⑤ MCP tool 动态生命周期(阻塞于 #14123 MCPService 重构)
+- Phase 1 ⑦ providerOptions 接入(阻塞于 stubs)
+- Phase 2.5 最后 1 处 `AiProvider` 引用(`InputEmbeddingDimension.test.tsx`)
+- Phase 4 Agent 步骤进度推送 UI + 旧 Agent 残留 UI 清理
+- ~~Phase 1 ④ 内置 tools~~ 已废弃(改走 MCP / Hub 方向)
