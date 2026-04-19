@@ -57,12 +57,12 @@ const Footer: FC<FooterProps> = ({
           }
           className="nodrag"
           onClick={onEsc}>
-          {t('miniwindow.footer.esc', {
+          {t('quickAssistant.footer.esc', {
             action: loading
-              ? t('miniwindow.footer.esc_pause')
+              ? t('quickAssistant.footer.esc_pause')
               : route === 'home'
-                ? t('miniwindow.footer.esc_close')
-                : t('miniwindow.footer.esc_back')
+                ? t('quickAssistant.footer.esc_close')
+                : t('quickAssistant.footer.esc_back')
           })}
         </Tag>
         {route === 'home' && !canUseBackspace && (
@@ -72,7 +72,7 @@ const Footer: FC<FooterProps> = ({
             style={{ cursor: 'pointer' }}
             className="nodrag"
             onClick={() => clearClipboard!()}>
-            {t('miniwindow.footer.backspace_clear')}
+            {t('quickAssistant.footer.backspace_clear')}
           </Tag>
         )}
         {route !== 'home' && !loading && (
@@ -82,12 +82,12 @@ const Footer: FC<FooterProps> = ({
             style={{ cursor: 'pointer' }}
             className="nodrag"
             onClick={handleCopy}>
-            {t('miniwindow.footer.copy_last_message')}
+            {t('quickAssistant.footer.copy_last_message')}
           </Tag>
         )}
       </FooterText>
       <PinButtonArea onClick={() => setIsPinned(!isPinned)} className="nodrag">
-        <Tooltip placement="left" content={t('miniwindow.tooltip.pin')} delay={800}>
+        <Tooltip placement="left" content={t('quickAssistant.tooltip.pin')} delay={800}>
           <Pin
             size={14}
             stroke={isPinned ? 'var(--color-primary)' : 'var(--color-text)'}

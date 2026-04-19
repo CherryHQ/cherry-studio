@@ -35,8 +35,8 @@ describe('pathRegistry.shouldAutoEnsure', () => {
       expect(shouldAutoEnsure('app.userdata.data')).toBe(true)
     })
 
-    it('returns true for the new app.userdata.cache key', () => {
-      expect(shouldAutoEnsure('app.userdata.cache')).toBe(true)
+    it('returns true for the new app.session.cache key', () => {
+      expect(shouldAutoEnsure('app.session.cache')).toBe(true)
     })
 
     it('returns true for feature.notes.data', () => {

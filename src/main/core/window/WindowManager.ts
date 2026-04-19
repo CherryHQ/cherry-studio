@@ -3,7 +3,16 @@ import { join } from 'node:path'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isDev, isMac } from '@main/constant'
-import { BaseService, Emitter, type Event, Injectable, Phase, Priority, ServicePhase } from '@main/core/lifecycle'
+import {
+  BaseService,
+  type Disposable,
+  Emitter,
+  type Event,
+  Injectable,
+  Phase,
+  Priority,
+  ServicePhase
+} from '@main/core/lifecycle'
 import { applyWindowQuirks } from '@main/core/window/quirks'
 import type { WindowType } from '@main/core/window/types'
 import {
@@ -64,7 +73,7 @@ function defaultWarmup(cfg: PoolConfig): 'eager' | 'lazy' {
  * which fires synchronously BEFORE content is loaded — guaranteeing that all
  * event listeners are attached before `ready-to-show` can fire.
  *
- * @see README.md for architecture overview and usage guide
+ * @see docs/references/window-manager/README.md for architecture overview, usage guide, and API reference
  */
 @Injectable('WindowManager')
 @ServicePhase(Phase.WhenReady)
@@ -104,6 +113,31 @@ export class WindowManager extends BaseService {
   private readonly _onWindowDestroyed = this.registerDisposable(new Emitter<ManagedWindow>())
   /** Fires when a window is truly destroyed (NOT on pool release). */
   public readonly onWindowDestroyed: Event<ManagedWindow> = this._onWindowDestroyed.event
+
+  /**
+   * Subscribe to window creations for a specific {@link WindowType}. Equivalent to
+   * `onWindowCreated` + an inline type filter — prefer this when you only care
+   * about one window type, which is the typical consumer pattern.
+   *
+   * Fires exactly once per fresh `BrowserWindow` instance matching `type`;
+   * pool recycles and singleton reopens do NOT re-fire. Returns a `Disposable`
+   * to unsubscribe (usually passed to `this.registerDisposable(...)`).
+   */
+  public onWindowCreatedByType(type: WindowType, listener: (managed: ManagedWindow) => void): Disposable {
+    return this.onWindowCreated((managed) => {
+      if (managed.type === type) listener(managed)
+    })
+  }
+
+  /**
+   * Subscribe to window destructions for a specific {@link WindowType}. Fires
+   * when the underlying `BrowserWindow` is truly destroyed — not on pool release.
+   */
+  public onWindowDestroyedByType(type: WindowType, listener: (managed: ManagedWindow) => void): Disposable {
+    return this.onWindowDestroyed((managed) => {
+      if (managed.type === type) listener(managed)
+    })
+  }
 
   // ─── Lifecycle hooks ───────────────────────────────────────────
 

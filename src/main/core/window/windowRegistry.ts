@@ -34,6 +34,59 @@ export const DEFAULT_WINDOW_CONFIG: WindowOptions = {
  * ```
  */
 export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata>> = {
+  // Quick Assistant window — singleton floating panel.
+  // Managed by QuickAssistantService: stateKeeper bounds are injected via wm.create({ options }),
+  // visibility is driven by showQuickAssistant() (cursor-follow, Windows opacity dance, macOS app.hide).
+  [WindowType.QuickAssistant]: {
+    type: WindowType.QuickAssistant,
+    lifecycle: 'singleton',
+    htmlPath: 'quickAssistant.html',
+    preload: 'standard',
+    // QuickAssistantService.showQuickAssistant controls visibility; show: false also keeps singleton
+    // reopen (wm.open) from accidentally re-showing the window before reposition runs.
+    show: false,
+    // Quick window is a floating helper, not a primary surface — never touch the Dock.
+    showInDock: false,
+    quirks: {
+      // Replaces the legacy one-shot `setAlwaysOnTop(true, 'floating')` after every show.
+      // QuickAssistantService also calls it once in onWindowCreated to set the level before
+      // the first show; the quirk ensures it sticks across hide/show cycles on macOS.
+      macReapplyAlwaysOnTop: 'floating'
+    },
+    defaultConfig: {
+      width: 550,
+      height: 400,
+      minWidth: 350,
+      minHeight: 380,
+      maxWidth: 1024,
+      maxHeight: 768,
+      frame: false,
+      alwaysOnTop: true,
+      useContentSize: true,
+      skipTaskbar: true,
+      autoHideMenuBar: true,
+      resizable: true,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
+      platformOverrides: {
+        mac: {
+          type: 'panel',
+          transparent: true,
+          vibrancy: 'under-window',
+          visualEffectState: 'followWindow'
+        }
+      },
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: false,
+        webSecurity: false,
+        webviewTag: true
+      }
+    }
+  },
+
   // Floating toolbar that appears near user text selections.
   // Managed by SelectionService: onActivate opens it (hidden), showToolbarAtPosition positions + shows.
   [WindowType.SelectionToolbar]: {

@@ -193,7 +193,7 @@ Cherry Studio runs multiple windows, each with its own renderer entry point:
 | Window | Purpose |
 |--------|---------|
 | Main Window | Primary chat and settings interface |
-| Mini Window | Quick-access floating panel |
+| Quick Assistant | Quick-access floating panel |
 | Selection Toolbar | Text selection actions overlay |
 
 Windows are managed by `WindowService` and communicate through IPC and shared state (CacheService, PreferenceService).
