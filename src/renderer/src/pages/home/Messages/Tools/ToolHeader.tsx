@@ -1,5 +1,5 @@
+import { useIsToolAutoApproved } from '@renderer/hooks/useMCPServers'
 import type { MCPTool, MCPToolResponse, NormalToolResponse } from '@renderer/types'
-import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
 import { Flex, Tooltip } from 'antd'
 import {
   Bot,
@@ -193,6 +193,53 @@ const StatusWrapper = styled.div`
   margin-left: auto;
 `
 
+// ============ MCP Tool sub-renderer ============
+
+interface McpToolHeaderProps {
+  tool: MCPTool
+  description?: ReactNode
+  stats?: ReactNode
+  showStatus: boolean
+  status?: ToolStatus
+  hasError: boolean
+  Container: typeof HeaderContainer
+}
+
+const McpToolHeader: FC<McpToolHeaderProps> = ({
+  tool,
+  description,
+  stats,
+  showStatus,
+  status,
+  hasError,
+  Container
+}) => {
+  const { t } = useTranslation()
+  const autoApproved = useIsToolAutoApproved(tool)
+  return (
+    <Container>
+      <ToolName align="center" gap={6}>
+        <Wrench size={14} className="tool-icon" />
+        <span className="name">
+          {tool.serverName} : {tool.name}
+        </span>
+        {autoApproved && (
+          <Tooltip title={t('message.tools.autoApproveEnabled')} mouseLeaveDelay={0}>
+            <ShieldCheck size={14} color="var(--color-primary)" />
+          </Tooltip>
+        )}
+      </ToolName>
+      {description && <Description>{description}</Description>}
+      {stats && <Stats>{stats}</Stats>}
+      {showStatus && status && (
+        <StatusWrapper>
+          <ToolStatusIndicator status={status} hasError={hasError} />
+        </StatusWrapper>
+      )}
+    </Container>
+  )
+}
+
 // ============ Main Component ============
 
 const ToolHeader: FC<ToolHeaderProps> = ({
@@ -220,28 +267,16 @@ const ToolHeader: FC<ToolHeaderProps> = ({
   const Container = variant === 'standalone' ? HeaderContainer : LabelContainer
 
   if (tool?.type === 'mcp') {
-    const mcpTool = tool as MCPTool
     return (
-      <Container>
-        <ToolName align="center" gap={6}>
-          <Wrench size={14} className="tool-icon" />
-          <span className="name">
-            {mcpTool.serverName} : {mcpTool.name}
-          </span>
-          {isToolAutoApproved(mcpTool) && (
-            <Tooltip title={t('message.tools.autoApproveEnabled')} mouseLeaveDelay={0}>
-              <ShieldCheck size={14} color="var(--color-primary)" />
-            </Tooltip>
-          )}
-        </ToolName>
-        {description && <Description>{description}</Description>}
-        {stats && <Stats>{stats}</Stats>}
-        {showStatus && status && (
-          <StatusWrapper>
-            <ToolStatusIndicator status={status} hasError={hasError} />
-          </StatusWrapper>
-        )}
-      </Container>
+      <McpToolHeader
+        tool={tool as MCPTool}
+        description={description}
+        stats={stats}
+        showStatus={showStatus}
+        status={status}
+        hasError={hasError}
+        Container={Container}
+      />
     )
   }
 

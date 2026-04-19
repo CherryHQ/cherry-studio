@@ -5,9 +5,9 @@ import { loggerService } from '@logger'
 import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import { CopyIcon } from '@renderer/components/Icons'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
+import { useIsToolAutoApproved } from '@renderer/hooks/useMCPServers'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { MCPToolResponse } from '@renderer/types'
-import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
 import type { MCPProgressEvent } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Collapse, ConfigProvider, Progress } from 'antd'
@@ -56,6 +56,7 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
   const approval = useToolApproval(toolResponse)
 
   const { id, tool, status, response, partialArguments } = toolResponse
+  const autoApproved = useIsToolAutoApproved(tool)
   const isPending = status === 'pending'
   const isDone = status === 'done'
   const isError = status === 'error'
@@ -130,7 +131,7 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
           <TitleContent>
             <ToolName className="items-center gap-1">
               {tool.serverName} : {tool.name}
-              {isToolAutoApproved(tool) && (
+              {autoApproved && (
                 <Tooltip content={t('message.tools.autoApproveEnabled')}>
                   <ShieldCheck size={14} color="var(--status-color-success)" />
                 </Tooltip>

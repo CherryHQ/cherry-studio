@@ -1,6 +1,8 @@
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import NavigationService from '@renderer/services/NavigationService'
+import type { MCPTool } from '@renderer/types'
+import { findMcpServerByTool, isToolAutoApproved } from '@renderer/utils/mcp-tools'
 import type { CreateMCPServerDto, ListMCPServersQuery } from '@shared/data/api/schemas/mcpServers'
 import type { MCPServer } from '@shared/data/types/mcpServer'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -73,6 +75,19 @@ export const useMCPServer = (id: string) => {
  * Mutation-only hook for a single MCP server — no query, no N+1.
  * Use when server data is already available from a parent (e.g. from useMCPServers list).
  */
+/**
+ * Resolve `isToolAutoApproved` for a tool without plumbing the server prop
+ * through every renderer. Reads the server list from the shared
+ * `/mcp-servers` SWR query and falls back to the `hub` built-in constant.
+ */
+export const useIsToolAutoApproved = (tool: MCPTool, allowedTools?: string[]): boolean => {
+  const { mcpServers } = useMCPServers()
+  return useMemo(() => {
+    const server = findMcpServerByTool(mcpServers, tool)
+    return isToolAutoApproved(tool, server, allowedTools)
+  }, [mcpServers, tool, allowedTools])
+}
+
 export const useMCPServerMutations = (id: string) => {
   const path = `/mcp-servers/${id}` as const
 

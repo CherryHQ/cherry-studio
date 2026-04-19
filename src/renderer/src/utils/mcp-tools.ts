@@ -1,36 +1,30 @@
-import store from '@renderer/store'
 import { hubMCPServer } from '@renderer/store/mcp'
 import type { MCPServer, MCPTool } from '@renderer/types'
 
-export function getMcpServerByTool(tool: MCPTool) {
-  const servers = store.getState().mcp.servers
+/**
+ * Pure lookup: find the MCP server a tool belongs to within an already-
+ * loaded server list. Falls back to the built-in hub constant for tools
+ * tagged `serverId: 'hub'` (the hub isn't stored in the DB).
+ */
+export function findMcpServerByTool(servers: MCPServer[], tool: MCPTool): MCPServer | undefined {
   const server = servers.find((s) => s.id === tool.serverId)
-  if (server) {
-    return server
-  }
-  // For hub server (auto mode), the server isn't in the store
-  // Return the hub server constant if the tool's serverId matches
-  if (tool.serverId === 'hub') {
-    return hubMCPServer
-  }
+  if (server) return server
+  if (tool.serverId === 'hub') return hubMCPServer
   return undefined
 }
 
+/**
+ * Pure predicate — callers that already hold the server (e.g. settings pages
+ * rendering a server's own tool list) use this form directly. Callers that
+ * only have a tool should use `useIsToolAutoApproved` so the server lookup
+ * goes through the DataApi SWR cache.
+ */
 export function isToolAutoApproved(tool: MCPTool, server?: MCPServer, allowedTools?: string[]): boolean {
-  if (tool.isBuiltIn) {
-    return true
-  }
-  // Check agent-level pre-authorization (allowed_tools from Agent Settings)
-  if (allowedTools?.includes(tool.id)) {
-    return true
-  }
-  // Fall back to server-level auto-approve setting
-  const effectiveServer = server ?? getMcpServerByTool(tool)
-  if (!effectiveServer) return false
+  if (tool.isBuiltIn) return true
+  if (allowedTools?.includes(tool.id)) return true
+  if (!server) return false
   // Hub meta-tools: read-only tools (list, inspect) are auto-approved;
   // execution tools (invoke, exec) require approval.
-  if (effectiveServer.id === 'hub') {
-    return tool.name === 'list' || tool.name === 'inspect'
-  }
-  return !effectiveServer.disabledAutoApproveTools?.includes(tool.name)
+  if (server.id === 'hub') return tool.name === 'list' || tool.name === 'inspect'
+  return !server.disabledAutoApproveTools?.includes(tool.name)
 }
