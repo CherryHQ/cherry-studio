@@ -543,6 +543,10 @@ export class AgentService extends BaseService {
         sessionCount: sessions.length
       })
     } catch (error) {
+      // TODO(agents-v2): session sync is intentionally best-effort so a
+      // partial failure does not abort the agent update that already
+      // committed. Revisit once sessions move onto the DataApi boundary
+      // and this method can share the agent-update transaction.
       logger.warn('Failed to sync agent settings to sessions', {
         agentId,
         error: error instanceof Error ? error.message : String(error)

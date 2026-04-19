@@ -46,15 +46,19 @@ export class TaskService extends BaseService {
     }
 
     const database = await this.getDatabase()
-    await database.insert(scheduledTasksTable).values(insertData)
+    await database.transaction(async (tx) => {
+      const result = await tx.insert(scheduledTasksTable).values(insertData)
+      if (result.rowsAffected !== 1) {
+        throw new Error(`Failed to insert task ${id}: rowsAffected=${result.rowsAffected}`)
+      }
 
-    // Create channel subscriptions
-    if (req.channel_ids?.length) {
-      await database
-        .insert(channelTaskSubscriptionsTable)
-        .values(req.channel_ids.map((channelId) => ({ channelId, taskId: id })))
-        .onConflictDoNothing()
-    }
+      if (req.channel_ids?.length) {
+        await tx
+          .insert(channelTaskSubscriptionsTable)
+          .values(req.channel_ids.map((channelId) => ({ channelId, taskId: id })))
+          .onConflictDoNothing()
+      }
+    })
 
     logger.info('Task created', { taskId: id, agentId })
     return this.getTaskWithChannels(id)
@@ -307,15 +311,27 @@ export class TaskService extends BaseService {
   /** Replace all channel subscriptions for a task. */
   private async syncTaskChannels(taskId: string, channelIds: string[]): Promise<void> {
     const database = await this.getDatabase()
-    // Delete existing subscriptions
-    await database.delete(channelTaskSubscriptionsTable).where(eq(channelTaskSubscriptionsTable.taskId, taskId))
-    // Insert new ones
-    if (channelIds.length > 0) {
-      await database
+    await database.transaction(async (tx) => {
+      await tx.delete(channelTaskSubscriptionsTable).where(eq(channelTaskSubscriptionsTable.taskId, taskId))
+
+      if (channelIds.length === 0) return
+
+      const result = await tx
         .insert(channelTaskSubscriptionsTable)
         .values(channelIds.map((channelId) => ({ channelId, taskId })))
         .onConflictDoNothing()
-    }
+
+      if (result.rowsAffected !== channelIds.length) {
+        // Delete-first means FK violations would have thrown; the only way we
+        // land here is duplicate ids in the input list tripping
+        // onConflictDoNothing. Tolerated, surfaced for observability.
+        logger.warn('syncTaskChannels inserted fewer rows than requested', {
+          taskId,
+          requested: channelIds.length,
+          inserted: result.rowsAffected
+        })
+      }
+    })
   }
 
   async deleteTask(agentId: string, taskId: string): Promise<boolean> {
@@ -485,8 +501,12 @@ export class TaskService extends BaseService {
     if (row.configuration) {
       try {
         config = JSON.parse(row.configuration) as Record<string, unknown>
-      } catch {
-        // malformed JSON — treat as non-autonomous
+      } catch (error) {
+        throw new Error(
+          `Agent ${agentId} has a malformed configuration JSON and cannot be scheduled: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        )
       }
     }
 
