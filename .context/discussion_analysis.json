@@ -1,26 +1,45 @@
 {
-  "generated_at": "2026-04-17T17:00:00Z",
-  "snapshot_date": "2026-04-17",
-  "repository": "CherryHQ/cherry-studio",
-  "note": "Discussion data requires GraphQL API access. This file contains a structural placeholder. Full discussion data will be populated when GraphQL Discussions API is available via MCP tools.",
-  "data_availability": "PARTIAL — GitHub MCP tools do not expose a Discussions GraphQL endpoint in this session",
-  "known_discussion_themes": [
-    {
-      "theme": "v2 Refactoring Progress",
-      "description": "Community interest in v2 timeline and feature migration status"
-    },
-    {
-      "theme": "Model Provider Issues",
-      "description": "Most active issue label is 'Models' (31 open issues) — likely drives discussion traffic too"
-    },
-    {
-      "theme": "MCP Integration",
-      "description": "MCP label present in 8 open issues; MCP protocol upgrade (Nov 2025) still tracked as open"
-    },
-    {
-      "theme": "Security Advisory",
-      "description": "GHSA-qmgw-45x4-3626 raised publicly via issue #12966; needs immediate team triage"
-    }
-  ],
-  "action_required": "Run: gh api graphql -f query='...' (as specified in task) to populate full discussion data"
+  "generated_at": "2026-04-19T17:00:00Z",
+  "report_date": "2026-04-19",
+  "note": "Discussion data via GraphQL API was not available in this run. Stats below are derived from Issues labeled 'discussion'.",
+  "discussion_via_issues": {
+    "open_discussion_labeled": 10,
+    "closed_discussion_labeled_30d": 13,
+    "notable_discussions": [
+      {
+        "number": 14387,
+        "title": "[Discussion]: Suspicious telemetry connection to cherry-ai.com persists",
+        "comments": 6,
+        "labels": [],
+        "priority": "HIGH",
+        "note": "Privacy/security concern from community — warrants team response"
+      },
+      {
+        "number": 12913,
+        "title": "[Bug]: Error starting openclaw: process exited with code 1",
+        "comments": 20,
+        "note": "Most active discussion thread — 20 comments, likely needs resolution"
+      },
+      {
+        "number": 9943,
+        "title": "[错误]: MCPB（原DXT）文件导入MCP服务器的相关问题",
+        "comments": 13,
+        "note": "Longstanding MCP file import issue"
+      },
+      {
+        "number": 9145,
+        "title": "[Feature]: MCP Elicitation Support",
+        "comments": 10,
+        "labels": [],
+        "note": "Community interest in MCP Elicitation feature"
+      }
+    ]
+  },
+  "trending_topics": [
+    "MCP server issues (openclaw, MCPB import, Elicitation)",
+    "Azure OpenAI API compatibility regression",
+    "Telemetry/privacy concerns (cherry-ai.com)",
+    "WebDAV/S3 backup failures",
+    "V2 migration progress"
+  ]
 }

@@ -1,119 +1,102 @@
 {
-  "generated_at": "2026-04-17T17:00:00Z",
-  "snapshot_date": "2026-04-17",
-  "repository": "CherryHQ/cherry-studio",
+  "generated_at": "2026-04-19T17:00:00Z",
+  "report_date": "2026-04-19",
   "summary": {
-    "total_open_issues": 783,
-    "health_score_note": "Based on last-update timestamp buckets via GitHub search API",
-    "health_distribution": {
-      "active_lt7d": {"count": 248, "pct": 31.7, "description": "Updated within last 7 days — healthy"},
-      "aging_7_30d": {"count": 400, "pct": 51.1, "description": "Updated 7–30 days ago — needs attention"},
-      "stale_30_90d": {"count": 132, "pct": 16.9, "description": "Updated 30–90 days ago — stale"},
-      "zombie_gt90d": {"count": 3, "pct": 0.4, "description": "Not updated in 90+ days — zombie"}
+    "total_open": 800,
+    "total_closed_30d": 147,
+    "p1_count": 3,
+    "uncategorized_pct": "16.0%",
+    "health_score": "MODERATE",
+    "health_notes": "Large aging backlog (466 issues 7-30d old) needs triage attention"
+  },
+  "health_distribution": {
+    "active": {
+      "count": 188,
+      "pct": "23.5%",
+      "definition": "Updated within last 7 days (after 2026-04-12)"
+    },
+    "aging": {
+      "count": 466,
+      "pct": "58.3%",
+      "definition": "Updated 7-30 days ago (2026-03-20 to 2026-04-12)"
+    },
+    "stale": {
+      "count": 149,
+      "pct": "18.6%",
+      "definition": "Updated 30-90 days ago (2026-01-20 to 2026-03-20)"
+    },
+    "zombie": {
+      "count": 3,
+      "pct": "0.4%",
+      "definition": "Not updated in 90+ days (before 2026-01-20)"
     }
   },
-  "p1_urgent_issues": [
+  "p1_issues": [
     {
       "number": 12966,
       "title": "[URGENT] Unanswered Critical Security Advisory (GHSA-qmgw-45x4-3626)",
-      "severity": "CRITICAL",
       "labels": ["BUG", "P1"],
-      "days_since_update": 23,
       "created_at": "2026-02-19",
       "last_updated": "2026-03-25",
-      "note": "Security advisory pending triage — supply chain risk",
+      "days_open": 59,
+      "days_since_update": 25,
+      "assignee": null,
+      "severity": "CRITICAL",
+      "action_required": "Immediate security triage — reporter threatens public disclosure",
       "url": "https://github.com/CherryHQ/cherry-studio/issues/12966"
-    },
-    {
-      "number": 13193,
-      "title": "[Bug]: Azure OpenAI uses responses API causing 404 Resource Not Found",
-      "severity": "HIGH",
-      "labels": ["P1", "Models"],
-      "assignee": "DeJeune",
-      "days_since_update": 43,
-      "created_at": "2026-03-04",
-      "last_updated": "2026-03-05",
-      "note": "Regression since v1.7.19, Azure users cannot use chat completions API",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"
     },
     {
       "number": 13608,
       "title": "[Bug]: xiaomi mimo response only displays the last line",
-      "severity": "HIGH",
       "labels": ["P1", "Models"],
-      "days_since_update": 29,
       "created_at": "2026-03-18",
       "last_updated": "2026-03-19",
-      "note": "Streaming display issue with mimo-v2-flash model",
+      "days_open": 32,
+      "days_since_update": 31,
+      "assignee": null,
+      "severity": "HIGH",
+      "action_required": "No update in 31 days — needs investigation",
       "url": "https://github.com/CherryHQ/cherry-studio/issues/13608"
-    }
-  ],
-  "zombie_issues": [
-    {
-      "number": 5712,
-      "title": "【需求汇总】Agents with Workflows / 工作流&协同",
-      "labels": ["invalid", "inactive"],
-      "days_since_update": 175,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/5712"
     },
     {
-      "number": 10844,
-      "title": "[Feature]: Backup feature enhance",
-      "labels": ["Dev Team", "Data"],
-      "days_since_update": 166,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/10844"
-    },
-    {
-      "number": 11578,
-      "title": "Upgrade to the MCP protocol by November 25, 2025",
-      "labels": ["MCP"],
+      "number": 13193,
+      "title": "[Bug]: Azure OpenAI Resource not found (responses API regression)",
+      "labels": ["P1", "Models"],
+      "created_at": "2026-03-04",
+      "last_updated": "2026-03-05",
+      "days_open": 46,
+      "days_since_update": 45,
       "assignee": "DeJeune",
-      "days_since_update": 137,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/11578"
+      "severity": "HIGH",
+      "action_required": "Assigned but no update in 45 days — follow up with assignee",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"
     }
   ],
-  "closure_velocity": {
-    "closed_last_30d": 160,
-    "avg_daily_closures": 5.3,
-    "avg_time_to_close_days": 13.6,
-    "closed_within_1d_pct": 45.0,
-    "closed_after_7d_pct": 36.0,
-    "top_closure_days": [
-      {"date": "2026-04-16", "count": 8},
-      {"date": "2026-04-11", "count": 9},
-      {"date": "2026-04-17", "count": 6},
-      {"date": "2026-04-15", "count": 6},
-      {"date": "2026-04-09", "count": 6}
-    ]
-  },
-  "label_health": {
-    "inactive_labeled": 27,
-    "needs_repro": 5,
-    "needs_more_info": 1,
-    "needs_triage": 1,
-    "no_label_sample": 13,
-    "no_label_pct_sample": 13.0
-  },
-  "recommendations": [
+  "triage_recommendations": [
     {
-      "priority": "CRITICAL",
-      "action": "Triage security advisory #12966 (GHSA-qmgw-45x4-3626) immediately",
-      "reason": "Supply chain risk, 23 days without response"
+      "priority": 1,
+      "action": "Respond to security advisory #12966 immediately",
+      "rationale": "Potential public disclosure, GHSA advisory outstanding"
     },
     {
-      "priority": "HIGH",
-      "action": "Follow up on P1 issues #13193 and #13608",
-      "reason": "29–43 days inactive despite high priority labels"
+      "priority": 2,
+      "action": "Review 149 stale issues for closure or reprioritization",
+      "rationale": "18.6% of backlog not touched in 30-90 days"
     },
     {
-      "priority": "MEDIUM",
-      "action": "Triage 400 aging issues (7–30d inactive)",
-      "reason": "51% of all open issues are in aging state"
+      "priority": 3,
+      "action": "Label the ~128 uncategorized open issues",
+      "rationale": "16% lack labels, impeding triage and routing"
     },
     {
-      "priority": "LOW",
-      "action": "Close or archive 132 stale and 3 zombie issues",
-      "reason": "16.9% stale issues with no recent activity"
+      "priority": 4,
+      "action": "Audit zombie issues (3 total) — close or convert to discussions",
+      "rationale": "Issues untouched >90 days are unlikely to be actioned without explicit triage"
     }
-  ]
+  ],
+  "resolution_velocity": {
+    "closed_last_30d": 147,
+    "daily_avg_close": 4.9,
+    "net_change_30d": "Unknown — new issue creation rate not measured in this snapshot"
+  }
 }
