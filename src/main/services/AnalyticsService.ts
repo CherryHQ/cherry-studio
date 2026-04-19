@@ -21,6 +21,11 @@ class AnalyticsService {
   }
 
   public init(): void {
+    if (!configManager.getEnableDataCollection()) {
+      logger.info('Analytics service disabled by user preference')
+      return
+    }
+
     this.client = new AnalyticsClient({
       clientId: configManager.getClientId(),
       channel: 'cherry-studio',
@@ -34,12 +39,10 @@ class AnalyticsService {
       }
     })
 
-    if (configManager.getEnableDataCollection()) {
-      this.client.trackAppLaunch({
-        version: app.getVersion(),
-        os: process.platform
-      })
-    }
+    this.client.trackAppLaunch({
+      version: app.getVersion(),
+      os: process.platform
+    })
 
     logger.info('Analytics service initialized')
   }
