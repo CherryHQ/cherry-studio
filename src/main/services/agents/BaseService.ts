@@ -4,11 +4,9 @@ import { getMcpApiService } from '@main/apiServer/services/mcp'
 import { type ModelValidationError, validateModelId } from '@main/apiServer/utils'
 import { buildFunctionCallToolName } from '@shared/mcp'
 import type { AgentType, SlashCommand, SystemProviderId, Tool } from '@types'
-import { objectKeys } from '@types'
 import fs from 'fs'
 import path from 'path'
 
-import { databaseManager } from './database/DatabaseManager'
 import { type AgentModelField, AgentModelValidationError } from './errors'
 import { builtinSlashCommands } from './services/claudecode/commands'
 import { builtinTools } from './services/claudecode/tools'
@@ -27,10 +25,50 @@ const toLegacyMcpToolId = (toolId: string) => {
 }
 
 /**
+ * Maps Drizzle row property names (camelCase) back to entity field names (snake_case).
+ * Used in deserializeJsonFields to produce entity-compatible objects from DB rows.
+ */
+const ROW_TO_ENTITY_FIELD_MAP: Record<string, string> = {
+  accessiblePaths: 'accessible_paths',
+  planModel: 'plan_model',
+  smallModel: 'small_model',
+  allowedTools: 'allowed_tools',
+  slashCommands: 'slash_commands',
+  sortOrder: 'sort_order',
+  createdAt: 'created_at',
+  updatedAt: 'updated_at',
+  agentId: 'agent_id',
+  agentType: 'agent_type',
+  sessionId: 'session_id',
+  agentSessionId: 'agent_session_id',
+  folderName: 'folder_name',
+  sourceUrl: 'source_url',
+  contentHash: 'content_hash',
+  isEnabled: 'is_enabled',
+  taskId: 'task_id',
+  runAt: 'run_at',
+  durationMs: 'duration_ms',
+  scheduleType: 'schedule_type',
+  scheduleValue: 'schedule_value',
+  timeoutMinutes: 'timeout_minutes',
+  nextRun: 'next_run',
+  lastRun: 'last_run',
+  lastResult: 'last_result'
+}
+
+/**
+ * Maps entity field names (snake_case) to Drizzle row property names (camelCase).
+ * Used when constructing Drizzle update/insert objects from entity data.
+ */
+export const ENTITY_TO_ROW_FIELD_MAP: Record<string, string> = Object.fromEntries(
+  Object.entries(ROW_TO_ENTITY_FIELD_MAP).map(([camel, snake]) => [snake, camel])
+)
+
+/**
  * Base service class providing shared utilities for all agent-related services.
  *
  * Features:
- * - Database access through DatabaseManager singleton
+ * - Database access through the shared main SQLite instance
  * - JSON field serialization/deserialization
  * - Path validation and creation
  * - Model validation
@@ -144,12 +182,13 @@ export abstract class BaseService {
   }
 
   /**
-   * Get database instance
-   * Automatically waits for initialization to complete
+   * Get the consolidated v2 main database.
+   *
+   * Agents services now read/write the shared main SQLite database via
+   * `DbService` instead of the deprecated standalone `agents.db` manager.
    */
   public async getDatabase() {
-    await databaseManager.initialize()
-    return databaseManager.getDatabase()
+    return application.get('DbService').getDb()
   }
 
   protected serializeJsonFields(data: any): any {
@@ -172,6 +211,26 @@ export abstract class BaseService {
 
     const deserialized = { ...data }
 
+    // Remap camelCase Drizzle row fields to snake_case entity field names.
+    // This ensures downstream code that relies on entity-level (snake_case)
+    // property names continues to work after the schema rename.
+    for (const [camelKey, snakeKey] of Object.entries(ROW_TO_ENTITY_FIELD_MAP)) {
+      if (camelKey in deserialized) {
+        deserialized[snakeKey] = deserialized[camelKey]
+        delete deserialized[camelKey]
+      }
+    }
+
+    // Convert integer timestamps (Unix ms) to ISO datetime strings.
+    // The database stores timestamps as INTEGER (milliseconds since epoch),
+    // but the API schema expects ISO 8601 datetime strings.
+    const timestampFields = ['created_at', 'updated_at']
+    for (const field of timestampFields) {
+      if (typeof deserialized[field] === 'number' && deserialized[field] > 0) {
+        deserialized[field] = new Date(deserialized[field]).toISOString()
+      }
+    }
+
     for (const field of this.jsonFields) {
       if (deserialized[field] && typeof deserialized[field] === 'string') {
         try {
@@ -191,7 +250,7 @@ export abstract class BaseService {
     }
 
     // convert null from db to undefined to satisfy type definition
-    for (const key of objectKeys(data)) {
+    for (const key of Object.keys(deserialized)) {
       if (deserialized[key] === null) {
         deserialized[key] = undefined
       }

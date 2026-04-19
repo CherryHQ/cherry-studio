@@ -192,10 +192,10 @@ class SchedulerService {
 
     // Create log entry immediately so UI shows the running task
     const logId = await taskService.logTaskRun({
-      task_id: task.id,
-      session_id: null,
-      run_at: new Date().toISOString(),
-      duration_ms: 0,
+      taskId: task.id,
+      sessionId: null,
+      runAt: Date.now(),
+      durationMs: 0,
       status: 'running',
       result: null,
       error: null
@@ -319,8 +319,8 @@ class SchedulerService {
 
     // Update the log entry with final results
     await taskService.updateTaskRunLog(logId, {
-      session_id: sessionId ?? null,
-      duration_ms: durationMs,
+      sessionId: sessionId ?? null,
+      durationMs,
       status: error ? 'error' : 'success',
       result,
       error

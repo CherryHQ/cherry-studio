@@ -134,10 +134,10 @@ describe('installBuiltinSkills', () => {
     expect(mockRepo.getByFolderName).toHaveBeenCalledWith('my-skill')
     expect(mockRepo.insert).toHaveBeenCalledWith(
       expect.objectContaining({
-        folder_name: 'my-skill',
+        folderName: 'my-skill',
         source: 'builtin',
         // Legacy column — deliberately false in the new per-agent model.
-        is_enabled: false
+        isEnabled: false
       })
     )
     // First install of this builtin → fan out to every existing agent.
@@ -251,7 +251,7 @@ describe('installBuiltinSkills', () => {
     // But DB row should be created
     expect(mockRepo.insert).toHaveBeenCalledWith(
       expect.objectContaining({
-        folder_name: 'my-skill',
+        folderName: 'my-skill',
         source: 'builtin'
       })
     )

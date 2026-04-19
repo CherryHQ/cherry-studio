@@ -10,6 +10,7 @@ import {
   type InsertTaskRunLogRow,
   scheduledTasksTable,
   type TaskRow,
+  type TaskRunLogRow,
   taskRunLogsTable
 } from '../database/schema'
 
@@ -29,34 +30,35 @@ export class TaskService extends BaseService {
     await this.assertAutonomous(agentId)
 
     const id = `task_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
-    const now = new Date().toISOString()
 
     const nextRun = this.computeInitialNextRun(req.schedule_type, req.schedule_value)
 
     const insertData: InsertTaskRow = {
       id,
-      agent_id: agentId,
+      agentId,
       name: req.name,
       prompt: req.prompt,
-      schedule_type: req.schedule_type,
-      schedule_value: req.schedule_value,
-      ...(req.timeout_minutes != null ? { timeout_minutes: req.timeout_minutes } : {}),
-      next_run: nextRun,
-      status: 'active',
-      created_at: now,
-      updated_at: now
+      scheduleType: req.schedule_type,
+      scheduleValue: req.schedule_value,
+      ...(req.timeout_minutes != null ? { timeoutMinutes: req.timeout_minutes } : {}),
+      nextRun,
+      status: 'active'
     }
 
     const database = await this.getDatabase()
-    await database.insert(scheduledTasksTable).values(insertData)
+    await database.transaction(async (tx) => {
+      const result = await tx.insert(scheduledTasksTable).values(insertData)
+      if (result.rowsAffected !== 1) {
+        throw new Error(`Failed to insert task ${id}: rowsAffected=${result.rowsAffected}`)
+      }
 
-    // Create channel subscriptions
-    if (req.channel_ids?.length) {
-      await database
-        .insert(channelTaskSubscriptionsTable)
-        .values(req.channel_ids.map((channelId) => ({ channelId, taskId: id })))
-        .onConflictDoNothing()
-    }
+      if (req.channel_ids?.length) {
+        await tx
+          .insert(channelTaskSubscriptionsTable)
+          .values(req.channel_ids.map((channelId) => ({ channelId, taskId: id })))
+          .onConflictDoNothing()
+      }
+    })
 
     logger.info('Task created', { taskId: id, agentId })
     return this.getTaskWithChannels(id)
@@ -75,7 +77,7 @@ export class TaskService extends BaseService {
     const result = await database
       .select()
       .from(scheduledTasksTable)
-      .where(and(eq(scheduledTasksTable.id, taskId), eq(scheduledTasksTable.agent_id, agentId)))
+      .where(and(eq(scheduledTasksTable.id, taskId), eq(scheduledTasksTable.agentId, agentId)))
       .limit(1)
 
     if (!result[0]) return null
@@ -91,8 +93,8 @@ export class TaskService extends BaseService {
 
     // By default, exclude heartbeat tasks from the listing
     const whereCondition = includeHeartbeat
-      ? eq(scheduledTasksTable.agent_id, agentId)
-      : and(eq(scheduledTasksTable.agent_id, agentId), ne(scheduledTasksTable.name, 'heartbeat'))
+      ? eq(scheduledTasksTable.agentId, agentId)
+      : and(eq(scheduledTasksTable.agentId, agentId), ne(scheduledTasksTable.name, 'heartbeat'))
 
     const totalResult = await database.select({ count: count() }).from(scheduledTasksTable).where(whereCondition)
 
@@ -100,7 +102,7 @@ export class TaskService extends BaseService {
       .select()
       .from(scheduledTasksTable)
       .where(whereCondition)
-      .orderBy(desc(scheduledTasksTable.created_at))
+      .orderBy(desc(scheduledTasksTable.createdAt))
 
     const result =
       paginationOptions.limit !== undefined
@@ -127,27 +129,26 @@ export class TaskService extends BaseService {
     const existing = await this.getTaskById(taskId)
     if (!existing) return null
 
-    const now = new Date().toISOString()
-    const updateData: Partial<TaskRow> = { updated_at: now }
+    const updateData: Partial<TaskRow> = { updatedAt: Date.now() }
 
     if (updates.name !== undefined) updateData.name = updates.name
     if (updates.prompt !== undefined) updateData.prompt = updates.prompt
-    if (updates.agent_id !== undefined) updateData.agent_id = updates.agent_id
-    if (updates.timeout_minutes !== undefined) updateData.timeout_minutes = updates.timeout_minutes ?? 2
+    if (updates.agent_id !== undefined) updateData.agentId = updates.agent_id
+    if (updates.timeout_minutes !== undefined) updateData.timeoutMinutes = updates.timeout_minutes ?? 2
     if (updates.status !== undefined) updateData.status = updates.status
 
     if (updates.schedule_type !== undefined || updates.schedule_value !== undefined) {
       const schedType = updates.schedule_type ?? existing.schedule_type
       const schedValue = updates.schedule_value ?? existing.schedule_value
-      updateData.schedule_type = schedType
-      updateData.schedule_value = schedValue
-      updateData.next_run = this.computeInitialNextRun(schedType, schedValue)
+      updateData.scheduleType = schedType
+      updateData.scheduleValue = schedValue
+      updateData.nextRun = this.computeInitialNextRun(schedType, schedValue)
     }
 
     if (updates.status === 'active' && existing.status === 'paused') {
       const schedType = updates.schedule_type ?? existing.schedule_type
       const schedValue = updates.schedule_value ?? existing.schedule_value
-      updateData.next_run = this.computeInitialNextRun(schedType, schedValue)
+      updateData.nextRun = this.computeInitialNextRun(schedType, schedValue)
     }
 
     const database = await this.getDatabase()
@@ -180,7 +181,7 @@ export class TaskService extends BaseService {
       .select()
       .from(scheduledTasksTable)
       .where(whereCondition)
-      .orderBy(desc(scheduledTasksTable.created_at))
+      .orderBy(desc(scheduledTasksTable.createdAt))
 
     const result =
       options.limit !== undefined
@@ -199,35 +200,34 @@ export class TaskService extends BaseService {
     const existing = await this.getTask(agentId, taskId)
     if (!existing) return null
 
-    const now = new Date().toISOString()
-    const updateData: Partial<TaskRow> = { updated_at: now }
+    const updateData: Partial<TaskRow> = { updatedAt: Date.now() }
 
     if (updates.name !== undefined) updateData.name = updates.name
     if (updates.prompt !== undefined) updateData.prompt = updates.prompt
-    if (updates.timeout_minutes !== undefined) updateData.timeout_minutes = updates.timeout_minutes ?? 2
+    if (updates.timeout_minutes !== undefined) updateData.timeoutMinutes = updates.timeout_minutes ?? 2
     if (updates.status !== undefined) updateData.status = updates.status
 
-    // If schedule type or value changed, recompute next_run
+    // If schedule type or value changed, recompute nextRun
     if (updates.schedule_type !== undefined || updates.schedule_value !== undefined) {
       const schedType = updates.schedule_type ?? existing.schedule_type
       const schedValue = updates.schedule_value ?? existing.schedule_value
-      updateData.schedule_type = schedType
-      updateData.schedule_value = schedValue
-      updateData.next_run = this.computeInitialNextRun(schedType, schedValue)
+      updateData.scheduleType = schedType
+      updateData.scheduleValue = schedValue
+      updateData.nextRun = this.computeInitialNextRun(schedType, schedValue)
     }
 
-    // If resuming from paused, recompute next_run
+    // If resuming from paused, recompute nextRun
     if (updates.status === 'active' && existing.status === 'paused') {
       const schedType = updates.schedule_type ?? existing.schedule_type
       const schedValue = updates.schedule_value ?? existing.schedule_value
-      updateData.next_run = this.computeInitialNextRun(schedType, schedValue)
+      updateData.nextRun = this.computeInitialNextRun(schedType, schedValue)
     }
 
     const database = await this.getDatabase()
     await database
       .update(scheduledTasksTable)
       .set(updateData)
-      .where(and(eq(scheduledTasksTable.id, taskId), eq(scheduledTasksTable.agent_id, agentId)))
+      .where(and(eq(scheduledTasksTable.id, taskId), eq(scheduledTasksTable.agentId, agentId)))
 
     // Sync channel subscriptions if provided
     if (updates.channel_ids !== undefined) {
@@ -238,6 +238,44 @@ export class TaskService extends BaseService {
     return this.getTaskWithChannels(taskId)
   }
 
+  /**
+   * Convert a TaskRow (camelCase Drizzle properties) to a ScheduledTaskEntity
+   * (snake_case entity properties expected by the rest of the app).
+   */
+  private rowToEntity(row: TaskRow): ScheduledTaskEntity {
+    return {
+      id: row.id,
+      agent_id: row.agentId,
+      name: row.name,
+      prompt: row.prompt,
+      schedule_type: row.scheduleType as ScheduledTaskEntity['schedule_type'],
+      schedule_value: row.scheduleValue,
+      timeout_minutes: row.timeoutMinutes,
+      next_run: row.nextRun != null ? new Date(row.nextRun).toISOString() : null,
+      last_run: row.lastRun != null ? new Date(row.lastRun).toISOString() : null,
+      last_result: row.lastResult ?? null,
+      status: row.status as ScheduledTaskEntity['status'],
+      created_at: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
+      updated_at: row.updatedAt ? new Date(row.updatedAt).toISOString() : new Date().toISOString()
+    } as ScheduledTaskEntity
+  }
+
+  /**
+   * Convert a TaskRunLogRow (camelCase) to a TaskRunLogEntity (snake_case).
+   */
+  private runLogRowToEntity(row: TaskRunLogRow): TaskRunLogEntity {
+    return {
+      id: row.id,
+      task_id: row.taskId,
+      session_id: row.sessionId ?? null,
+      run_at: new Date(row.runAt).toISOString(),
+      duration_ms: row.durationMs,
+      status: row.status as TaskRunLogEntity['status'],
+      result: row.result ?? null,
+      error: row.error ?? null
+    }
+  }
+
   /** Enrich a single task row with its subscribed channel_ids. */
   private async enrichWithChannels(row: TaskRow): Promise<ScheduledTaskEntity> {
     const database = await this.getDatabase()
@@ -245,7 +283,8 @@ export class TaskService extends BaseService {
       .select({ channelId: channelTaskSubscriptionsTable.channelId })
       .from(channelTaskSubscriptionsTable)
       .where(eq(channelTaskSubscriptionsTable.taskId, row.id))
-    return { ...row, channel_ids: subs.map((s) => s.channelId) } as ScheduledTaskEntity
+    const entity = this.rowToEntity(row)
+    return { ...entity, channel_ids: subs.map((s) => s.channelId) } as ScheduledTaskEntity
   }
 
   /** Enrich multiple task rows with their subscribed channel_ids (batched). */
@@ -263,31 +302,43 @@ export class TaskService extends BaseService {
       arr.push(sub.channelId)
       subsByTask.set(sub.taskId, arr)
     }
-    return rows.map((row) => ({
-      ...row,
-      channel_ids: subsByTask.get(row.id) ?? []
-    })) as ScheduledTaskEntity[]
+    return rows.map((row) => {
+      const entity = this.rowToEntity(row)
+      return { ...entity, channel_ids: subsByTask.get(row.id) ?? [] } as ScheduledTaskEntity
+    })
   }
 
   /** Replace all channel subscriptions for a task. */
   private async syncTaskChannels(taskId: string, channelIds: string[]): Promise<void> {
     const database = await this.getDatabase()
-    // Delete existing subscriptions
-    await database.delete(channelTaskSubscriptionsTable).where(eq(channelTaskSubscriptionsTable.taskId, taskId))
-    // Insert new ones
-    if (channelIds.length > 0) {
-      await database
+    await database.transaction(async (tx) => {
+      await tx.delete(channelTaskSubscriptionsTable).where(eq(channelTaskSubscriptionsTable.taskId, taskId))
+
+      if (channelIds.length === 0) return
+
+      const result = await tx
         .insert(channelTaskSubscriptionsTable)
         .values(channelIds.map((channelId) => ({ channelId, taskId })))
         .onConflictDoNothing()
-    }
+
+      if (result.rowsAffected !== channelIds.length) {
+        // Delete-first means FK violations would have thrown; the only way we
+        // land here is duplicate ids in the input list tripping
+        // onConflictDoNothing. Tolerated, surfaced for observability.
+        logger.warn('syncTaskChannels inserted fewer rows than requested', {
+          taskId,
+          requested: channelIds.length,
+          inserted: result.rowsAffected
+        })
+      }
+    })
   }
 
   async deleteTask(agentId: string, taskId: string): Promise<boolean> {
     const database = await this.getDatabase()
     const result = await database
       .delete(scheduledTasksTable)
-      .where(and(eq(scheduledTasksTable.id, taskId), eq(scheduledTasksTable.agent_id, agentId)))
+      .where(and(eq(scheduledTasksTable.id, taskId), eq(scheduledTasksTable.agentId, agentId)))
 
     logger.info('Task deleted', { taskId, agentId })
     return result.rowsAffected > 0
@@ -305,24 +356,23 @@ export class TaskService extends BaseService {
   }
 
   async getDueTasks(): Promise<ScheduledTaskEntity[]> {
-    const now = new Date().toISOString()
+    const nowMs = Date.now()
     const database = await this.getDatabase()
     const result = await database
       .select()
       .from(scheduledTasksTable)
-      .where(and(eq(scheduledTasksTable.status, 'active'), lte(scheduledTasksTable.next_run, now)))
-      .orderBy(asc(scheduledTasksTable.next_run))
+      .where(and(eq(scheduledTasksTable.status, 'active'), lte(scheduledTasksTable.nextRun, nowMs)))
+      .orderBy(asc(scheduledTasksTable.nextRun))
 
-    return result as ScheduledTaskEntity[]
+    return result.map((row) => this.rowToEntity(row))
   }
 
-  async updateTaskAfterRun(taskId: string, nextRun: string | null, lastResult: string): Promise<void> {
-    const now = new Date().toISOString()
+  async updateTaskAfterRun(taskId: string, nextRun: number | null, lastResult: string): Promise<void> {
     const updateData: Partial<TaskRow> = {
-      last_run: now,
-      last_result: lastResult,
-      next_run: nextRun,
-      updated_at: now
+      lastRun: Date.now(),
+      lastResult,
+      nextRun,
+      updatedAt: Date.now()
     }
 
     // Mark one-time tasks as completed
@@ -344,7 +394,7 @@ export class TaskService extends BaseService {
 
   async updateTaskRunLog(
     logId: number,
-    updates: Partial<Pick<InsertTaskRunLogRow, 'status' | 'result' | 'error' | 'duration_ms' | 'session_id'>>
+    updates: Partial<Pick<InsertTaskRunLogRow, 'status' | 'result' | 'error' | 'durationMs' | 'sessionId'>>
   ): Promise<void> {
     const database = await this.getDatabase()
     await database.update(taskRunLogsTable).set(updates).where(eq(taskRunLogsTable.id, logId))
@@ -356,13 +406,13 @@ export class TaskService extends BaseService {
     const totalResult = await database
       .select({ count: count() })
       .from(taskRunLogsTable)
-      .where(eq(taskRunLogsTable.task_id, taskId))
+      .where(eq(taskRunLogsTable.taskId, taskId))
 
     const baseQuery = database
       .select()
       .from(taskRunLogsTable)
-      .where(eq(taskRunLogsTable.task_id, taskId))
-      .orderBy(desc(taskRunLogsTable.run_at))
+      .where(eq(taskRunLogsTable.taskId, taskId))
+      .orderBy(desc(taskRunLogsTable.runAt))
 
     const result =
       options.limit !== undefined
@@ -372,7 +422,7 @@ export class TaskService extends BaseService {
         : await baseQuery
 
     return {
-      logs: result as unknown as TaskRunLogEntity[],
+      logs: result.map((row) => this.runLogRowToEntity(row)),
       total: totalResult[0].count
     }
   }
@@ -384,18 +434,18 @@ export class TaskService extends BaseService {
   async getLastRunSessionId(taskId: string): Promise<string | null> {
     const database = await this.getDatabase()
     const result = await database
-      .select({ session_id: taskRunLogsTable.session_id })
+      .select({ sessionId: taskRunLogsTable.sessionId })
       .from(taskRunLogsTable)
-      .where(and(eq(taskRunLogsTable.task_id, taskId), eq(taskRunLogsTable.status, 'success')))
-      .orderBy(desc(taskRunLogsTable.run_at))
+      .where(and(eq(taskRunLogsTable.taskId, taskId), eq(taskRunLogsTable.status, 'success')))
+      .orderBy(desc(taskRunLogsTable.runAt))
       .limit(1)
 
-    return result[0]?.session_id ?? null
+    return result[0]?.sessionId ?? null
   }
 
   // --- Next run computation (nanoclaw-inspired, drift-resistant) ---
 
-  computeNextRun(task: ScheduledTaskEntity): string | null {
+  computeNextRun(task: ScheduledTaskEntity): number | null {
     if (task.schedule_type === 'once') return null
 
     const now = Date.now()
@@ -404,7 +454,7 @@ export class TaskService extends BaseService {
       try {
         const { CronExpressionParser } = require('cron-parser')
         const interval = CronExpressionParser.parse(task.schedule_value)
-        return interval.next().toISOString()
+        return interval.next().getTime()
       } catch {
         logger.warn('Invalid cron expression', { taskId: task.id, cron: task.schedule_value })
         return null
@@ -416,7 +466,7 @@ export class TaskService extends BaseService {
       const ms = minutes * 60_000
       if (!ms || ms <= 0) {
         logger.warn('Invalid interval value', { taskId: task.id, value: task.schedule_value })
-        return new Date(now + 60_000).toISOString()
+        return now + 60_000
       }
 
       // Anchor to scheduled time to prevent drift
@@ -424,7 +474,7 @@ export class TaskService extends BaseService {
       while (next <= now) {
         next += ms
       }
-      return new Date(next).toISOString()
+      return next
     }
 
     return null
@@ -451,8 +501,12 @@ export class TaskService extends BaseService {
     if (row.configuration) {
       try {
         config = JSON.parse(row.configuration) as Record<string, unknown>
-      } catch {
-        // malformed JSON — treat as non-autonomous
+      } catch (error) {
+        throw new Error(
+          `Agent ${agentId} has a malformed configuration JSON and cannot be scheduled: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        )
       }
     }
 
@@ -463,7 +517,7 @@ export class TaskService extends BaseService {
     throw new Error('Scheduled tasks require Soul Mode or Bypass Permissions mode. Update the agent settings first.')
   }
 
-  private computeInitialNextRun(scheduleType: string, scheduleValue: string): string | null {
+  private computeInitialNextRun(scheduleType: string, scheduleValue: string): number | null {
     const now = Date.now()
 
     switch (scheduleType) {
@@ -471,7 +525,7 @@ export class TaskService extends BaseService {
         try {
           const { CronExpressionParser } = require('cron-parser')
           const interval = CronExpressionParser.parse(scheduleValue)
-          return interval.next().toISOString()
+          return interval.next().getTime()
         } catch {
           return null
         }
@@ -479,11 +533,12 @@ export class TaskService extends BaseService {
       case 'interval': {
         const minutes = parseInt(scheduleValue, 10)
         if (!minutes || minutes <= 0) return null
-        return new Date(now + minutes * 60_000).toISOString()
+        return now + minutes * 60_000
       }
       case 'once': {
         // schedule_value is an ISO timestamp for once
-        return scheduleValue
+        const parsed = Date.parse(scheduleValue)
+        return Number.isNaN(parsed) ? null : parsed
       }
       default:
         return null

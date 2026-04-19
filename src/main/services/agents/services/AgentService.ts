@@ -38,10 +38,26 @@ export class AgentService extends BaseService {
 
   private readonly modelFields: AgentModelField[] = ['model', 'plan_model', 'small_model']
 
+  /**
+   * Maps entity-level field names (snake_case) from AgentBaseSchema to
+   * Drizzle row property names (camelCase) for constructing update objects.
+   */
+  private readonly agentEntityToRowField: Partial<Record<string, keyof AgentRow>> = {
+    accessible_paths: 'accessiblePaths',
+    plan_model: 'planModel',
+    small_model: 'smallModel',
+    allowed_tools: 'allowedTools',
+    name: 'name',
+    description: 'description',
+    instructions: 'instructions',
+    model: 'model',
+    mcps: 'mcps',
+    configuration: 'configuration'
+  }
+
   // Agent Methods
   async createAgent(req: CreateAgentRequest): Promise<CreateAgentResponse> {
     const id = `agent_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
-    const now = new Date().toISOString()
 
     req.accessible_paths = this.resolveAccessiblePaths(req.accessible_paths, id)
 
@@ -60,19 +76,17 @@ export class AgentService extends BaseService {
       description: req.description,
       instructions: req.instructions || 'You are a helpful assistant.',
       model: req.model,
-      plan_model: req.plan_model,
-      small_model: req.small_model,
+      planModel: req.plan_model,
+      smallModel: req.small_model,
       configuration: serializedReq.configuration,
-      accessible_paths: serializedReq.accessible_paths,
-      sort_order: 0,
-      created_at: now,
-      updated_at: now
+      accessiblePaths: serializedReq.accessible_paths,
+      sortOrder: 0
     }
 
     const database = await this.getDatabase()
     // Shift all existing agents' sort_order up by 1 and insert new agent at position 0 atomically
     await database.transaction(async (tx) => {
-      await tx.update(agentsTable).set({ sort_order: sql`${agentsTable.sort_order} + 1` })
+      await tx.update(agentsTable).set({ sortOrder: sql`${agentsTable.sortOrder} + 1` })
       await tx.insert(agentsTable).values(insertData)
     })
     const result = await database.select().from(agentsTable).where(eq(agentsTable.id, id)).limit(1)
@@ -109,7 +123,7 @@ export class AgentService extends BaseService {
     const database = await this.getDatabase()
     const whereClause = options.includeDeleted
       ? eq(agentsTable.id, id)
-      : and(eq(agentsTable.id, id), isNull(agentsTable.deleted_at))
+      : and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt))
 
     const result = await database.select().from(agentsTable).where(whereClause).limit(1)
 
@@ -133,23 +147,36 @@ export class AgentService extends BaseService {
   async listAgents(options: ListOptions = {}): Promise<{ agents: AgentEntity[]; total: number }> {
     // Build query with pagination
     const database = await this.getDatabase()
-    const visibleAgents = isNull(agentsTable.deleted_at)
+    const visibleAgents = isNull(agentsTable.deletedAt)
     const totalResult = await database.select({ count: count() }).from(agentsTable).where(visibleAgents)
 
     const sortBy = options.sortBy || 'sort_order'
     const orderBy = options.orderBy || (sortBy === 'sort_order' ? 'asc' : 'desc')
 
-    const sortField = agentsTable[sortBy]
+    // Map entity-level sortBy keys to row-level column references
+    const sortByToColumn: Record<
+      string,
+      | typeof agentsTable.sortOrder
+      | typeof agentsTable.createdAt
+      | typeof agentsTable.name
+      | typeof agentsTable.updatedAt
+    > = {
+      sort_order: agentsTable.sortOrder,
+      created_at: agentsTable.createdAt,
+      updated_at: agentsTable.updatedAt,
+      name: agentsTable.name
+    }
+    const sortField = sortByToColumn[sortBy] ?? agentsTable.sortOrder
     const orderFn = orderBy === 'asc' ? asc : desc
 
-    // Use created_at DESC as secondary sort for tie-breaking (e.g., after migration when all sort_order = 0)
+    // Use createdAt DESC as secondary sort for tie-breaking (e.g., after migration when all sortOrder = 0)
     const baseQuery =
       sortBy === 'sort_order'
         ? database
             .select()
             .from(agentsTable)
             .where(visibleAgents)
-            .orderBy(orderFn(sortField), desc(agentsTable.created_at))
+            .orderBy(orderFn(sortField), desc(agentsTable.createdAt))
         : database.select().from(agentsTable).where(visibleAgents).orderBy(orderFn(sortField))
 
     const result =
@@ -197,7 +224,7 @@ export class AgentService extends BaseService {
       const database = await this.getDatabase()
       const existing = await this.findAgentRow(id, { includeDeleted: true })
 
-      if (existing?.deleted_at) {
+      if (existing?.deletedAt) {
         logger.info(`Built-in ${builtinRole} agent was deleted by user — skipping recreation`, { id })
         return { agentId: null, skippedReason: 'deleted' }
       }
@@ -208,7 +235,7 @@ export class AgentService extends BaseService {
         const workspace = resolvedPaths[0]
         const agentConfig = workspace ? await provisionWorkspace(workspace, builtinRole) : undefined
         if (agentConfig && (agentConfig.description || agentConfig.instructions)) {
-          const updateData: Partial<InsertAgentRow> = { updated_at: new Date().toISOString() }
+          const updateData: Partial<InsertAgentRow> = { updatedAt: Date.now() }
           if (agentConfig.description) updateData.description = agentConfig.description
           if (agentConfig.instructions) updateData.instructions = agentConfig.instructions
           await database.update(agentsTable).set(updateData).where(eq(agentsTable.id, id))
@@ -230,7 +257,6 @@ export class AgentService extends BaseService {
       // Provision workspace (.claude/skills, plugins) and read agent.json config
       const agentConfig = workspace ? await provisionWorkspace(workspace, builtinRole) : undefined
 
-      const now = new Date().toISOString()
       const configuration: CreateAgentRequest['configuration'] = {
         permission_mode: 'default',
         max_turns: 100,
@@ -259,14 +285,12 @@ export class AgentService extends BaseService {
         instructions: req.instructions || 'You are a helpful assistant.',
         model: req.model,
         configuration: serialized.configuration,
-        accessible_paths: serialized.accessible_paths,
-        sort_order: 0,
-        created_at: now,
-        updated_at: now
+        accessiblePaths: serialized.accessible_paths,
+        sortOrder: 0
       }
 
       await database.transaction(async (tx) => {
-        await tx.update(agentsTable).set({ sort_order: sql`${agentsTable.sort_order} + 1` })
+        await tx.update(agentsTable).set({ sortOrder: sql`${agentsTable.sortOrder} + 1` })
         await tx.insert(agentsTable).values(insertData)
       })
 
@@ -298,7 +322,7 @@ export class AgentService extends BaseService {
       const database = await this.getDatabase()
       const existing = await this.findAgentRow(id, { includeDeleted: true })
 
-      if (existing?.deleted_at) {
+      if (existing?.deletedAt) {
         logger.info('Default CherryClaw agent was deleted by user — skipping recreation', { id })
         return { agentId: null, skippedReason: 'deleted' }
       }
@@ -314,7 +338,6 @@ export class AgentService extends BaseService {
         return { agentId: null, skippedReason: 'no_model' }
       }
 
-      const now = new Date().toISOString()
       const configuration: CreateAgentRequest['configuration'] = {
         avatar: '🦞',
         permission_mode: 'bypassPermissions',
@@ -349,14 +372,12 @@ export class AgentService extends BaseService {
         instructions: 'You are a helpful assistant.',
         model: req.model,
         configuration: serialized.configuration,
-        accessible_paths: serialized.accessible_paths,
-        sort_order: 0,
-        created_at: now,
-        updated_at: now
+        accessiblePaths: serialized.accessible_paths,
+        sortOrder: 0
       }
 
       await database.transaction(async (tx) => {
-        await tx.update(agentsTable).set({ sort_order: sql`${agentsTable.sort_order} + 1` })
+        await tx.update(agentsTable).set({ sortOrder: sql`${agentsTable.sortOrder} + 1` })
         await tx.insert(agentsTable).values(insertData)
       })
 
@@ -394,8 +415,6 @@ export class AgentService extends BaseService {
       return null
     }
 
-    const now = new Date().toISOString()
-
     if (updates.accessible_paths !== undefined) {
       if (updates.accessible_paths.length === 0) {
         throw new Error('accessible_paths must not be empty')
@@ -417,18 +436,20 @@ export class AgentService extends BaseService {
     const serializedUpdates = this.serializeJsonFields(updates)
 
     const updateData: Partial<AgentRow> = {
-      updated_at: now
+      updatedAt: Date.now()
     }
-    const replaceableFields = Object.keys(AgentBaseSchema.shape) as (keyof AgentRow)[]
+    // AgentBaseSchema.shape keys are entity-level (snake_case); map them to row-level (camelCase)
+    const replaceableEntityFields = Object.keys(AgentBaseSchema.shape)
     const shouldReplace = options.replace ?? false
 
-    for (const field of replaceableFields) {
-      if (shouldReplace || Object.prototype.hasOwnProperty.call(serializedUpdates, field)) {
-        if (Object.prototype.hasOwnProperty.call(serializedUpdates, field)) {
-          const value = serializedUpdates[field as keyof typeof serializedUpdates]
-          ;(updateData as Record<string, unknown>)[field] = value ?? null
+    for (const entityField of replaceableEntityFields) {
+      const rowField = (this.agentEntityToRowField[entityField] ?? entityField) as keyof AgentRow
+      if (shouldReplace || Object.prototype.hasOwnProperty.call(serializedUpdates, entityField)) {
+        if (Object.prototype.hasOwnProperty.call(serializedUpdates, entityField)) {
+          const value = serializedUpdates[entityField as keyof typeof serializedUpdates]
+          ;(updateData as Record<string, unknown>)[rowField] = value ?? null
         } else if (shouldReplace) {
-          ;(updateData as Record<string, unknown>)[field] = null
+          ;(updateData as Record<string, unknown>)[rowField] = null
         }
       }
     }
@@ -441,7 +462,7 @@ export class AgentService extends BaseService {
     const rawRows = await database
       .select()
       .from(agentsTable)
-      .where(and(eq(agentsTable.id, id), isNull(agentsTable.deleted_at)))
+      .where(and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
       .limit(1)
     const rawOldAgent = rawRows[0]
 
@@ -470,40 +491,47 @@ export class AgentService extends BaseService {
     rawOldAgent: Record<string, unknown>,
     serializedUpdates: Record<string, unknown>
   ): Promise<void> {
-    const syncFields = ['model', 'plan_model', 'small_model', 'allowed_tools', 'configuration', 'mcps', 'instructions']
+    // Map from entity-level field names (snake_case, from serializedUpdates) to
+    // row-level field names (camelCase, used to read/write DB row objects).
+    const syncFieldMap: Array<{ entityField: string; rowField: string }> = [
+      { entityField: 'model', rowField: 'model' },
+      { entityField: 'plan_model', rowField: 'planModel' },
+      { entityField: 'small_model', rowField: 'smallModel' },
+      { entityField: 'allowed_tools', rowField: 'allowedTools' },
+      { entityField: 'configuration', rowField: 'configuration' },
+      { entityField: 'mcps', rowField: 'mcps' },
+      { entityField: 'instructions', rowField: 'instructions' }
+    ]
 
-    // rawOldAgent is already in DB-serialized form (JSON strings), so we can
-    // compare directly against session rows without normalization mismatch.
+    // rawOldAgent is already in DB-serialized form (JSON strings) with camelCase keys.
     // Only sync fields that are present in the update AND actually changed.
-    const changedFields = syncFields.filter((field) => {
-      if (!Object.prototype.hasOwnProperty.call(serializedUpdates, field)) return false
-      return (serializedUpdates[field] ?? null) !== (rawOldAgent[field] ?? null)
+    const changedFields = syncFieldMap.filter(({ entityField, rowField }) => {
+      if (!Object.prototype.hasOwnProperty.call(serializedUpdates, entityField)) return false
+      return (serializedUpdates[entityField] ?? null) !== (rawOldAgent[rowField] ?? null)
     })
     if (changedFields.length === 0) return
 
     try {
-      const sessions = await database.select().from(sessionsTable).where(eq(sessionsTable.agent_id, agentId))
+      const sessions = await database.select().from(sessionsTable).where(eq(sessionsTable.agentId, agentId))
 
       if (sessions.length === 0) return
-
-      const now = new Date().toISOString()
 
       await database.transaction(async (tx) => {
         for (const session of sessions) {
           const sessionUpdateData: Partial<Record<string, unknown>> = {}
 
-          for (const field of changedFields) {
-            const oldAgentValue = rawOldAgent[field] ?? null
-            const sessionValue = (session as Record<string, unknown>)[field] ?? null
+          for (const { entityField, rowField } of changedFields) {
+            const oldAgentValue = rawOldAgent[rowField] ?? null
+            const sessionValue = (session as Record<string, unknown>)[rowField] ?? null
 
             // Only sync if session still has the agent's old value (not user-customized)
             if (oldAgentValue === sessionValue) {
-              sessionUpdateData[field] = serializedUpdates[field] ?? null
+              sessionUpdateData[rowField] = serializedUpdates[entityField] ?? null
             }
           }
 
           if (Object.keys(sessionUpdateData).length > 0) {
-            sessionUpdateData.updated_at = now
+            sessionUpdateData.updatedAt = Date.now()
             await tx.update(sessionsTable).set(sessionUpdateData).where(eq(sessionsTable.id, session.id))
           }
         }
@@ -511,10 +539,14 @@ export class AgentService extends BaseService {
 
       logger.info('Synced agent settings to sessions', {
         agentId,
-        changedFields,
+        changedFields: changedFields.map((f) => f.entityField),
         sessionCount: sessions.length
       })
     } catch (error) {
+      // TODO(agents-v2): session sync is intentionally best-effort so a
+      // partial failure does not abort the agent update that already
+      // committed. Revisit once sessions move onto the DataApi boundary
+      // and this method can share the agent-update transaction.
       logger.warn('Failed to sync agent settings to sessions', {
         agentId,
         error: error instanceof Error ? error.message : String(error)
@@ -526,7 +558,7 @@ export class AgentService extends BaseService {
     const database = await this.getDatabase()
     await database.transaction(async (tx) => {
       for (let i = 0; i < orderedIds.length; i++) {
-        await tx.update(agentsTable).set({ sort_order: i }).where(eq(agentsTable.id, orderedIds[i]))
+        await tx.update(agentsTable).set({ sortOrder: i }).where(eq(agentsTable.id, orderedIds[i]))
       }
     })
     logger.info('Agents reordered', { count: orderedIds.length })
@@ -541,14 +573,15 @@ export class AgentService extends BaseService {
     }
 
     if (isBuiltinAgentId(id)) {
-      const now = new Date().toISOString()
+      const deletedAt = Date.now()
+      const updatedAt = Date.now()
 
       await database.transaction(async (tx) => {
-        await tx.delete(agentSkillsTable).where(eq(agentSkillsTable.agent_id, id))
-        await tx.delete(scheduledTasksTable).where(eq(scheduledTasksTable.agent_id, id))
-        await tx.delete(sessionsTable).where(eq(sessionsTable.agent_id, id))
+        await tx.delete(agentSkillsTable).where(eq(agentSkillsTable.agentId, id))
+        await tx.delete(scheduledTasksTable).where(eq(scheduledTasksTable.agentId, id))
+        await tx.delete(sessionsTable).where(eq(sessionsTable.agentId, id))
         await tx.update(channelsTable).set({ agentId: null }).where(eq(channelsTable.agentId, id))
-        await tx.update(agentsTable).set({ deleted_at: now, updated_at: now }).where(eq(agentsTable.id, id))
+        await tx.update(agentsTable).set({ deletedAt, updatedAt }).where(eq(agentsTable.id, id))
       })
 
       return true

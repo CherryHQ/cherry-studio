@@ -7,10 +7,10 @@ import { type AgentSkillRow, agentSkillsTable } from '../database/schema'
 const logger = loggerService.withContext('AgentSkillRepository')
 
 /**
- * Database repository for the `agent_skills` join table.
+ * Database repository for the `agent_skill` join table.
  *
  * Each row records whether a given skill is enabled for a given agent.
- * Only rows with `is_enabled = true` correspond to an actual symlink under
+ * Only rows with `isEnabled = true` correspond to an actual symlink under
  * the agent's workspace `.claude/skills/` directory.
  */
 export class AgentSkillRepository extends BaseService {
@@ -25,12 +25,12 @@ export class AgentSkillRepository extends BaseService {
 
   async getByAgentId(agentId: string): Promise<AgentSkillRow[]> {
     const db = await this.getDatabase()
-    return db.select().from(agentSkillsTable).where(eq(agentSkillsTable.agent_id, agentId))
+    return db.select().from(agentSkillsTable).where(eq(agentSkillsTable.agentId, agentId))
   }
 
   async getBySkillId(skillId: string): Promise<AgentSkillRow[]> {
     const db = await this.getDatabase()
-    return db.select().from(agentSkillsTable).where(eq(agentSkillsTable.skill_id, skillId))
+    return db.select().from(agentSkillsTable).where(eq(agentSkillsTable.skillId, skillId))
   }
 
   async get(agentId: string, skillId: string): Promise<AgentSkillRow | null> {
@@ -38,28 +38,20 @@ export class AgentSkillRepository extends BaseService {
     const rows = await db
       .select()
       .from(agentSkillsTable)
-      .where(and(eq(agentSkillsTable.agent_id, agentId), eq(agentSkillsTable.skill_id, skillId)))
+      .where(and(eq(agentSkillsTable.agentId, agentId), eq(agentSkillsTable.skillId, skillId)))
       .limit(1)
     return rows[0] ?? null
   }
 
   async upsert(agentId: string, skillId: string, isEnabled: boolean): Promise<void> {
     const db = await this.getDatabase()
-    const now = Date.now()
 
-    // SQLite upsert via ON CONFLICT on the composite primary key.
     await db
       .insert(agentSkillsTable)
-      .values({
-        agent_id: agentId,
-        skill_id: skillId,
-        is_enabled: isEnabled,
-        created_at: now,
-        updated_at: now
-      })
+      .values({ agentId, skillId, isEnabled })
       .onConflictDoUpdate({
-        target: [agentSkillsTable.agent_id, agentSkillsTable.skill_id],
-        set: { is_enabled: isEnabled, updated_at: now }
+        target: [agentSkillsTable.agentId, agentSkillsTable.skillId],
+        set: { isEnabled }
       })
 
     logger.info('Agent skill upserted', { agentId, skillId, isEnabled })
@@ -69,16 +61,16 @@ export class AgentSkillRepository extends BaseService {
     const db = await this.getDatabase()
     await db
       .delete(agentSkillsTable)
-      .where(and(eq(agentSkillsTable.agent_id, agentId), eq(agentSkillsTable.skill_id, skillId)))
+      .where(and(eq(agentSkillsTable.agentId, agentId), eq(agentSkillsTable.skillId, skillId)))
   }
 
   async deleteByAgentId(agentId: string): Promise<void> {
     const db = await this.getDatabase()
-    await db.delete(agentSkillsTable).where(eq(agentSkillsTable.agent_id, agentId))
+    await db.delete(agentSkillsTable).where(eq(agentSkillsTable.agentId, agentId))
   }
 
   async deleteBySkillId(skillId: string): Promise<void> {
     const db = await this.getDatabase()
-    await db.delete(agentSkillsTable).where(eq(agentSkillsTable.skill_id, skillId))
+    await db.delete(agentSkillsTable).where(eq(agentSkillsTable.skillId, skillId))
   }
 }

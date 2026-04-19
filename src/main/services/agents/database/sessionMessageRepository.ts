@@ -79,7 +79,7 @@ class AgentMessageRepository extends BaseService {
       .from(sessionMessagesTable)
       .where(
         and(
-          eq(sessionMessagesTable.session_id, sessionId),
+          eq(sessionMessagesTable.sessionId, sessionId),
           eq(sessionMessagesTable.role, role),
           sql`json_extract(${sessionMessagesTable.content}, '$.message.id') = ${messageId}`
         )
@@ -92,7 +92,7 @@ class AgentMessageRepository extends BaseService {
   private async upsertMessage(
     params: PersistUserMessageParams | PersistAssistantMessageParams
   ): Promise<AgentSessionMessageEntity> {
-    const { sessionId, agentSessionId = '', payload, metadata, createdAt } = params
+    const { sessionId, agentSessionId = '', payload, metadata } = params
 
     if (!payload?.message?.role) {
       throw new Error('Message payload missing role')
@@ -103,7 +103,6 @@ class AgentMessageRepository extends BaseService {
     }
 
     const database = await this.getDatabase()
-    const now = createdAt ?? payload.message.createdAt ?? new Date().toISOString()
     const serializedPayload = this.serializeMessage(payload)
     const serializedMetadata = this.serializeMetadata(metadata)
 
@@ -111,15 +110,16 @@ class AgentMessageRepository extends BaseService {
 
     if (existingRow) {
       const metadataToPersist = serializedMetadata ?? existingRow.metadata ?? undefined
-      const agentSessionToPersist = agentSessionId || existingRow.agent_session_id || ''
+      const agentSessionToPersist = agentSessionId || existingRow.agentSessionId || ''
+      const updatedAtMs = Date.now()
 
       await database
         .update(sessionMessagesTable)
         .set({
           content: serializedPayload,
           metadata: metadataToPersist,
-          agent_session_id: agentSessionToPersist,
-          updated_at: now
+          agentSessionId: agentSessionToPersist,
+          updatedAt: updatedAtMs
         })
         .where(eq(sessionMessagesTable.id, existingRow.id))
 
@@ -127,19 +127,17 @@ class AgentMessageRepository extends BaseService {
         ...existingRow,
         content: serializedPayload,
         metadata: metadataToPersist,
-        agent_session_id: agentSessionToPersist,
-        updated_at: now
+        agentSessionId: agentSessionToPersist,
+        updatedAt: updatedAtMs
       })
     }
 
     const insertData: InsertSessionMessageRow = {
-      session_id: sessionId,
+      sessionId,
       role: payload.message.role,
       content: serializedPayload,
-      agent_session_id: agentSessionId,
-      metadata: serializedMetadata,
-      created_at: now,
-      updated_at: now
+      agentSessionId,
+      metadata: serializedMetadata
     }
 
     const [saved] = await database.insert(sessionMessagesTable).values(insertData).returning()
@@ -189,8 +187,8 @@ class AgentMessageRepository extends BaseService {
       const rows = await database
         .select()
         .from(sessionMessagesTable)
-        .where(eq(sessionMessagesTable.session_id, sessionId))
-        .orderBy(asc(sessionMessagesTable.created_at))
+        .where(eq(sessionMessagesTable.sessionId, sessionId))
+        .orderBy(asc(sessionMessagesTable.createdAt))
 
       const messages: AgentPersistedMessage[] = []
 

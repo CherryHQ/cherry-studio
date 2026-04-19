@@ -102,23 +102,24 @@ async function syncBuiltinSkillToDb(folderName: string, destPath: string, filesU
         description: metadata.description ?? null,
         author: metadata.author ?? null,
         tags,
-        content_hash: contentHash
+        contentHash
       })
     } else {
       const now = Date.now()
       const inserted = await repo.insert({
         name: metadata.name,
         description: metadata.description ?? null,
-        folder_name: folderName,
+        folderName,
         source: 'builtin',
-        source_url: null,
+        sourceUrl: null,
         namespace: null,
         author: metadata.author ?? null,
         tags,
-        content_hash: contentHash,
-        is_enabled: false,
-        created_at: now,
-        updated_at: now
+        contentHash,
+        // Legacy column: no longer consumed. Per-agent state lives in agent_skills.
+        isEnabled: false,
+        createdAt: now,
+        updatedAt: now
       })
 
       // Fan out to every agent on first install only.

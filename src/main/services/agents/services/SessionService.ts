@@ -110,7 +110,7 @@ export class SessionService extends BaseService {
     const agents = await database
       .select()
       .from(agentsTable)
-      .where(and(eq(agentsTable.id, agentId), isNull(agentsTable.deleted_at)))
+      .where(and(eq(agentsTable.id, agentId), isNull(agentsTable.deletedAt)))
       .limit(1)
     if (!agents[0]) {
       throw new Error('Agent not found')
@@ -118,7 +118,6 @@ export class SessionService extends BaseService {
     const agent = this.deserializeJsonFields(agents[0]) as AgentEntity
 
     const id = `session_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
-    const now = new Date().toISOString()
 
     // inherit configuration from agent by default, can be overridden by sessionData
     const sessionData: Partial<CreateSessionRequest> = {
@@ -140,30 +139,28 @@ export class SessionService extends BaseService {
 
     const insertData: InsertSessionRow = {
       id,
-      agent_id: agentId,
-      agent_type: agent.type,
+      agentId,
+      agentType: agent.type,
       name: serializedData.name || null,
       description: serializedData.description || null,
-      accessible_paths: serializedData.accessible_paths || null,
+      accessiblePaths: serializedData.accessible_paths || null,
       instructions: serializedData.instructions || null,
       model: serializedData.model || null,
-      plan_model: serializedData.plan_model || null,
-      small_model: serializedData.small_model || null,
+      planModel: serializedData.plan_model || null,
+      smallModel: serializedData.small_model || null,
       mcps: serializedData.mcps || null,
-      allowed_tools: serializedData.allowed_tools || null,
+      allowedTools: serializedData.allowed_tools || null,
       configuration: serializedData.configuration || null,
-      sort_order: 0,
-      created_at: now,
-      updated_at: now
+      sortOrder: 0
     }
 
     const db = await this.getDatabase()
-    // Shift all existing sessions' sort_order up by 1 and insert new session at position 0 atomically
+    // Shift all existing sessions' sortOrder up by 1 and insert new session at position 0 atomically
     await db.transaction(async (tx) => {
       await tx
         .update(sessionsTable)
-        .set({ sort_order: sql`${sessionsTable.sort_order} + 1` })
-        .where(eq(sessionsTable.agent_id, agentId))
+        .set({ sortOrder: sql`${sessionsTable.sortOrder} + 1` })
+        .where(eq(sessionsTable.agentId, agentId))
       await tx.insert(sessionsTable).values(insertData)
     })
 
@@ -182,7 +179,7 @@ export class SessionService extends BaseService {
     const result = await database
       .select()
       .from(sessionsTable)
-      .where(and(eq(sessionsTable.id, id), eq(sessionsTable.agent_id, agentId)))
+      .where(and(eq(sessionsTable.id, id), eq(sessionsTable.agentId, agentId)))
       .limit(1)
 
     if (!result[0]) {
@@ -210,7 +207,7 @@ export class SessionService extends BaseService {
     // Build where conditions
     const whereConditions: SQL[] = []
     if (agentId) {
-      whereConditions.push(eq(sessionsTable.agent_id, agentId))
+      whereConditions.push(eq(sessionsTable.agentId, agentId))
     }
 
     const whereClause =
@@ -226,12 +223,12 @@ export class SessionService extends BaseService {
 
     const total = totalResult[0].count
 
-    // Build list query with pagination - sort by sort_order ASC, created_at DESC for tie-breaking
+    // Build list query with pagination - sort by sortOrder ASC, createdAt DESC for tie-breaking
     const baseQuery = database
       .select()
       .from(sessionsTable)
       .where(whereClause)
-      .orderBy(asc(sessionsTable.sort_order), desc(sessionsTable.created_at))
+      .orderBy(asc(sessionsTable.sortOrder), desc(sessionsTable.createdAt))
 
     const result =
       options.limit !== undefined
@@ -267,8 +264,6 @@ export class SessionService extends BaseService {
     // Validate agent exists if changing main_agent_id
     // We'll skip this validation for now to avoid circular dependencies
 
-    const now = new Date().toISOString()
-
     if (updates.accessible_paths !== undefined) {
       if (updates.accessible_paths.length === 0) {
         throw new Error('accessible_paths must not be empty')
@@ -290,14 +285,29 @@ export class SessionService extends BaseService {
     const serializedUpdates = this.serializeJsonFields(updates)
 
     const updateData: Partial<SessionRow> = {
-      updated_at: now
+      updatedAt: Date.now()
     }
-    const replaceableFields = Object.keys(AgentBaseSchema.shape) as (keyof SessionRow)[]
+    // AgentBaseSchema.shape keys are entity-level (snake_case); map them to row-level (camelCase)
+    const sessionEntityToRowField: Partial<Record<string, keyof SessionRow>> = {
+      accessible_paths: 'accessiblePaths',
+      plan_model: 'planModel',
+      small_model: 'smallModel',
+      allowed_tools: 'allowedTools',
+      slash_commands: 'slashCommands',
+      name: 'name',
+      description: 'description',
+      instructions: 'instructions',
+      model: 'model',
+      mcps: 'mcps',
+      configuration: 'configuration'
+    }
+    const replaceableEntityFields = Object.keys(AgentBaseSchema.shape)
 
-    for (const field of replaceableFields) {
-      if (Object.prototype.hasOwnProperty.call(serializedUpdates, field)) {
-        const value = serializedUpdates[field as keyof typeof serializedUpdates]
-        ;(updateData as Record<string, unknown>)[field] = value ?? null
+    for (const entityField of replaceableEntityFields) {
+      if (Object.prototype.hasOwnProperty.call(serializedUpdates, entityField)) {
+        const rowField = (sessionEntityToRowField[entityField] ?? entityField) as keyof SessionRow
+        const value = serializedUpdates[entityField as keyof typeof serializedUpdates]
+        ;(updateData as Record<string, unknown>)[rowField] = value ?? null
       }
     }
 
@@ -311,7 +321,7 @@ export class SessionService extends BaseService {
     const database = await this.getDatabase()
     const result = await database
       .delete(sessionsTable)
-      .where(and(eq(sessionsTable.id, id), eq(sessionsTable.agent_id, agentId)))
+      .where(and(eq(sessionsTable.id, id), eq(sessionsTable.agentId, agentId)))
 
     return result.rowsAffected > 0
   }
@@ -322,8 +332,8 @@ export class SessionService extends BaseService {
       for (let i = 0; i < orderedIds.length; i++) {
         await tx
           .update(sessionsTable)
-          .set({ sort_order: i })
-          .where(and(eq(sessionsTable.id, orderedIds[i]), eq(sessionsTable.agent_id, agentId)))
+          .set({ sortOrder: i })
+          .where(and(eq(sessionsTable.id, orderedIds[i]), eq(sessionsTable.agentId, agentId)))
       }
     })
     logger.info('Sessions reordered', { agentId, count: orderedIds.length })
@@ -334,7 +344,7 @@ export class SessionService extends BaseService {
     const result = await database
       .select({ id: sessionsTable.id })
       .from(sessionsTable)
-      .where(and(eq(sessionsTable.id, id), eq(sessionsTable.agent_id, agentId)))
+      .where(and(eq(sessionsTable.id, id), eq(sessionsTable.agentId, agentId)))
       .limit(1)
 
     return result.length > 0
