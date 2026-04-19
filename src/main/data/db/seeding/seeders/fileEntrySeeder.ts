@@ -3,7 +3,8 @@ import { getFilesDir, getNotesDir, getTempFilesDir } from '@main/utils/file'
 import type { MountType, SystemKey } from '@shared/data/types/file'
 import { sql } from 'drizzle-orm'
 
-import type { DbType, ISeed } from '../types'
+import type { DbType, ISeeder } from '../../types'
+import { hashObject } from '../hashObject'
 
 interface SystemMount {
   systemKey: SystemKey
@@ -70,11 +71,26 @@ function getSystemMounts(): SystemMount[] {
   ]
 }
 
-class FileEntrySeed implements ISeed {
-  async migrate(db: DbType): Promise<void> {
-    const systemMounts = getSystemMounts()
+export class FileEntrySeeder implements ISeeder {
+  readonly name = 'fileEntry'
+  readonly description = 'Initialize system mount entries'
+
+  private _mounts?: SystemMount[]
+
+  private getMounts(): SystemMount[] {
+    if (!this._mounts) {
+      this._mounts = getSystemMounts()
+    }
+    return this._mounts
+  }
+
+  get version(): string {
+    return hashObject(this.getMounts())
+  }
+
+  async run(db: DbType): Promise<void> {
     // Upsert by systemKey: insert new system mounts or update config if paths changed
-    for (const mount of systemMounts) {
+    for (const mount of this.getMounts()) {
       await db
         .insert(mountTable)
         .values(mount)
@@ -91,5 +107,3 @@ class FileEntrySeed implements ISeed {
     }
   }
 }
-
-export default FileEntrySeed
