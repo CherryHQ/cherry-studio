@@ -1,5 +1,6 @@
 import type { AiPlugin } from '@cherrystudio/ai-core'
 import { createPromptToolUsePlugin, providerToolPlugin } from '@cherrystudio/ai-core/built-in/plugins'
+import { application } from '@main/core/application'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -18,6 +19,7 @@ import { createQwenThinkingPlugin } from './qwenThinkingPlugin'
 import { createReasoningExtractionPlugin } from './reasoningExtractionPlugin'
 import { createSimulateStreamingPlugin } from './simulateStreamingPlugin'
 import { createSkipGeminiThoughtSignaturePlugin } from './skipGeminiThoughtSignaturePlugin'
+import { createTelemetryPlugin } from './telemetryPlugin'
 
 export interface BuildPluginsContext {
   provider: Provider
@@ -38,15 +40,22 @@ export interface BuildPluginsContext {
  * `reasoningTimePlugin` was commented out in the original renderer builder
  * and remains unwired here to preserve parity.
  *
- * `telemetryPlugin` and `searchOrchestrationPlugin` are intentionally NOT
- * wired yet — they depend on Main-side infrastructure (`SpanManagerService`
- * equivalent for telemetry, `MemoryProcessor` + `KnowledgeSearchTool` for
- * search orchestration) that was deleted with the renderer aiCore and has
- * not been re-implemented on Main. Wiring them here would crash at import.
+ * `searchOrchestrationPlugin` is intentionally NOT wired — it depends on
+ * `MemoryProcessor` + `KnowledgeSearchTool` services that were deleted with
+ * the renderer aiCore and have not been re-implemented on Main. Wiring it
+ * here would crash at import. The telemetry plugin runs in a scaled-down
+ * mode that skips per-topic parent-span nesting (see `telemetryPlugin.ts`).
  */
 export function buildPlugins(ctx: BuildPluginsContext): AiPlugin[] {
-  const { provider, model, assistant, capabilities, mcpToolIds } = ctx
+  const { provider, model, assistant, capabilities, mcpToolIds, topicId } = ctx
   const plugins: AiPlugin<any, any>[] = []
+
+  // Telemetry — only when developer mode is on AND we have a topicId to
+  // attribute spans to. Must run first so the tracer is injected before any
+  // other plugin transforms `experimental_telemetry`.
+  if (topicId && application.get('PreferenceService').get('app.developer_mode.enabled')) {
+    plugins.push(createTelemetryPlugin({ topicId, modelName: model.name ?? model.id }))
+  }
 
   // PDF compatibility — must run before Anthropic cache so cache token
   // estimation accounts for the extracted text (PDFs become TextParts for
