@@ -1,8 +1,8 @@
 // Original: src/renderer/src/components/HorizontalScrollContainer/index.tsx
+import { cn } from '@cherrystudio/ui/lib/utils'
 import { ChevronRight } from 'lucide-react'
 import * as React from 'react'
 
-import { cn } from '../../../lib/utils'
 import Scrollbar from '../Scrollbar'
 
 export interface HorizontalScrollContainerProps {

@@ -1,9 +1,8 @@
+import { cn } from '@cherrystudio/ui/lib/utils'
 import * as CheckboxPrimitive from '@radix-ui/react-checkbox'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { CheckIcon } from 'lucide-react'
 import * as React from 'react'
-
-import { cn } from '../../lib/utils'
 
 export type CheckedState = CheckboxPrimitive.CheckedState
 

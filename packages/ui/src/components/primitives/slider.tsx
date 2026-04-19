@@ -1,8 +1,7 @@
+import { cn } from '@cherrystudio/ui/lib/utils'
 import * as SliderPrimitive from '@radix-ui/react-slider'
 import { cva, type VariantProps } from 'class-variance-authority'
 import * as React from 'react'
-
-import { cn } from '../../lib/utils'
 
 type SliderMark = {
   value: number

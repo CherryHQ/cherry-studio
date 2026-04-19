@@ -1,6 +1,6 @@
 'use client'
 
-import { cn } from '../../lib/utils'
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 type CircularProgressProps = {
   value: number

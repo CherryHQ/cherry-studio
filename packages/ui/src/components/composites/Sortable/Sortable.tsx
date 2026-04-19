@@ -1,3 +1,4 @@
+import { cn } from '@cherrystudio/ui/lib/utils'
 import type {
   Active,
   DragEndEvent,
@@ -32,7 +33,6 @@ import {
 import React, { useCallback, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 
-import { cn } from '../../../lib/utils'
 import { ItemRenderer } from './ItemRenderer'
 import { SortableItem } from './SortableItem'
 import type { RenderItemType } from './types'

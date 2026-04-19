@@ -30,9 +30,6 @@ npm install framer-motion react react-dom tailwindcss
 > `@cherrystudio/ui/utils`
 > `@cherrystudio/ui/styles/*`
 >
-> Inside `packages/ui/src`, do not route internal imports back through `@cherrystudio/ui/*`.
-> Use relative imports so the public package contract stays clearly separated from internal implementation wiring.
-
 ### Two Integration Modes
 
 #### Mode 1: Full Theme Contract ✨

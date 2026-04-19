@@ -1,13 +1,19 @@
 'use client'
 
+import { Button } from '@cherrystudio/ui/components/primitives/button'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList
+} from '@cherrystudio/ui/components/primitives/command'
+import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui/components/primitives/popover'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { Check, ChevronDown, X } from 'lucide-react'
 import * as React from 'react'
-
-import { cn } from '../../lib/utils'
-import { Button } from './button'
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from './command'
-import { Popover, PopoverContent, PopoverTrigger } from './popover'
 
 // ==================== Variants ====================
 
