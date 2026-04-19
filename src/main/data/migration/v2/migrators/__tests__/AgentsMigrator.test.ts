@@ -101,7 +101,7 @@ describe('AgentsMigrator', () => {
     expect(run).toHaveBeenCalledTimes(13)
   })
 
-  it('rolls back and clears target tables when an import statement fails after attach', async () => {
+  it('rolls back and detaches when an import statement fails after attach', async () => {
     const run = vi
       .fn()
       .mockResolvedValueOnce(undefined)
@@ -117,9 +117,10 @@ describe('AgentsMigrator', () => {
     await migrator.prepare(createMigrationContext())
     await expect(migrator.execute(createMigrationContext({ db: { run } }))).rejects.toThrow('insert failed')
 
-    expect(getExecutedSql(run)).toContain('ROLLBACK')
-    expect(getExecutedSql(run)).toContain('DELETE FROM agent_session_message')
-    expect(getExecutedSql(run).at(-1)).toBe('DETACH DATABASE agents_legacy')
+    const executed = getExecutedSql(run)
+    expect(executed).toContain('ROLLBACK')
+    expect(executed.at(-1)).toBe('DETACH DATABASE agents_legacy')
+    expect(executed.some((stmt) => stmt.startsWith('DELETE FROM agent'))).toBe(false)
   })
 
   it('validate fails when imported table counts are lower than the expected filtered counts', async () => {
@@ -157,6 +158,48 @@ describe('AgentsMigrator', () => {
     expect(result.errors.map((error) => error.key)).toEqual(['agent_count_mismatch', 'agent_channel_count_mismatch'])
     expect(result.stats.sourceCount).toBe(45)
     expect(result.stats.targetCount).toBe(43)
+  })
+
+  it('validate flags target tables whose row count exceeds the expected filtered count', async () => {
+    vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue('/mock/feature.agents.db_file')
+    vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockResolvedValue(createSchemaInfo() as never)
+    vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockResolvedValue(createCounts())
+
+    const get = vi
+      .fn()
+      .mockResolvedValueOnce({ count: 2 }) // agent target (expected 1 → too high)
+      .mockResolvedValueOnce({ count: 1 }) // agent expected
+      .mockResolvedValueOnce({ count: 2 }) // agent_session target
+      .mockResolvedValueOnce({ count: 2 }) // agent_session expected
+      .mockResolvedValueOnce({ count: 3 }) // agent_global_skill target
+      .mockResolvedValueOnce({ count: 3 }) // agent_global_skill expected
+      .mockResolvedValueOnce({ count: 4 }) // agent_skill target
+      .mockResolvedValueOnce({ count: 4 }) // agent_skill expected
+      .mockResolvedValueOnce({ count: 5 }) // agent_task target
+      .mockResolvedValueOnce({ count: 5 }) // agent_task expected
+      .mockResolvedValueOnce({ count: 6 }) // agent_task_run_log target
+      .mockResolvedValueOnce({ count: 6 }) // agent_task_run_log expected
+      .mockResolvedValueOnce({ count: 7 }) // agent_channel target
+      .mockResolvedValueOnce({ count: 7 }) // agent_channel expected
+      .mockResolvedValueOnce({ count: 8 }) // agent_channel_task target
+      .mockResolvedValueOnce({ count: 8 }) // agent_channel_task expected
+      .mockResolvedValueOnce({ count: 9 }) // agent_session_message target
+      .mockResolvedValueOnce({ count: 9 }) // agent_session_message expected
+
+    const run = vi.fn().mockResolvedValue(undefined)
+
+    await migrator.prepare(createMigrationContext())
+    const result = await migrator.validate(createMigrationContext({ db: { get, run } }))
+
+    expect(result.success).toBe(false)
+    expect(result.errors).toEqual([
+      expect.objectContaining({
+        key: 'agent_count_mismatch',
+        expected: 1,
+        actual: 2,
+        message: expect.stringContaining('too high')
+      })
+    ])
   })
 
   it('resolves the legacy db path once and reuses it across phases', async () => {

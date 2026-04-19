@@ -273,18 +273,6 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
   }
 ] as const
 
-export const AGENTS_TARGET_TABLE_DELETE_ORDER = [
-  'agent_session_message',
-  'agent_channel_task',
-  'agent_task_run_log',
-  'agent_channel',
-  'agent_task',
-  'agent_skill',
-  'agent_session',
-  'agent_global_skill',
-  'agent'
-] as const
-
 export function getAgentsSourceTableNames(): AgentsSourceTableName[] {
   return AGENTS_TABLE_MIGRATION_SPECS.map((spec) => spec.sourceTable)
 }

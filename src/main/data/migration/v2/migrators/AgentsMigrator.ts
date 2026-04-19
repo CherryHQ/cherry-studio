@@ -7,7 +7,6 @@ import { LegacyAgentsDbReader } from '../utils/LegacyAgentsDbReader'
 import { BaseMigrator } from './BaseMigrator'
 import {
   AGENTS_TABLE_MIGRATION_SPECS,
-  AGENTS_TARGET_TABLE_DELETE_ORDER,
   type AgentsSchemaInfo,
   type AgentsTableRowCounts,
   buildAgentsImportStatements,
@@ -27,11 +26,13 @@ export class AgentsMigrator extends BaseMigrator {
   private sourceCounts: AgentsTableRowCounts = this.createEmptyCounts()
   private sourceDbPath: string | null | undefined = undefined
   private sourceSchemaInfo: AgentsSchemaInfo = createEmptyAgentsSchemaInfo()
+  private reader: LegacyAgentsDbReader | null = null
 
   override reset(): void {
     this.sourceCounts = this.createEmptyCounts()
     this.sourceDbPath = undefined
     this.sourceSchemaInfo = createEmptyAgentsSchemaInfo()
+    this.reader = null
   }
 
   async prepare(ctx: MigrationContext): Promise<PrepareResult> {
@@ -120,7 +121,6 @@ export class AgentsMigrator extends BaseMigrator {
       if (transactionStarted) {
         await ctx.db.run(sql.raw('ROLLBACK'))
       }
-      await this.cleanupPartialImport(ctx)
       throw error
     } finally {
       if (isAttached) {
@@ -187,7 +187,7 @@ export class AgentsMigrator extends BaseMigrator {
         const hasWhereClause = !!spec.whereClause
         const tableSkippedCount = Math.max(0, tableSourceCount - tableExpectedCount)
         skippedCount += tableSkippedCount
-        const ok = tableTargetCount >= tableExpectedCount
+        const ok = tableTargetCount === tableExpectedCount
 
         validationDetails.push({
           table: spec.targetTable,
@@ -199,11 +199,12 @@ export class AgentsMigrator extends BaseMigrator {
         })
 
         if (!ok) {
+          const direction = tableTargetCount < tableExpectedCount ? 'too low' : 'too high'
           errors.push({
             key: `${spec.targetTable}_count_mismatch`,
             expected: tableExpectedCount,
             actual: tableTargetCount,
-            message: `${spec.targetTable} count too low: expected ${tableExpectedCount}, got ${tableTargetCount}`
+            message: `${spec.targetTable} count ${direction}: expected ${tableExpectedCount}, got ${tableTargetCount}`
           })
         }
       }
@@ -224,13 +225,13 @@ export class AgentsMigrator extends BaseMigrator {
         sourceCount: getTotalAgentsRowCount(this.sourceCounts),
         targetCount,
         skippedCount,
-        mismatchReason: errors.length > 0 ? 'One or more agents_* tables were not fully imported' : undefined
+        mismatchReason: errors.length > 0 ? 'One or more agent_* tables did not match expected row counts' : undefined
       }
     }
   }
 
   private createReader(ctx: MigrationContext): LegacyAgentsDbReader {
-    return new LegacyAgentsDbReader(ctx.paths)
+    return (this.reader ??= new LegacyAgentsDbReader(ctx.paths))
   }
 
   private resolveSourceDbPath(reader: LegacyAgentsDbReader): string | null {
@@ -240,12 +241,6 @@ export class AgentsMigrator extends BaseMigrator {
 
     this.sourceDbPath = reader.resolvePath()
     return this.sourceDbPath
-  }
-
-  private async cleanupPartialImport(ctx: MigrationContext): Promise<void> {
-    for (const tableName of AGENTS_TARGET_TABLE_DELETE_ORDER) {
-      await ctx.db.run(sql.raw(`DELETE FROM ${tableName}`))
-    }
   }
 
   private createEmptyCounts(): AgentsTableRowCounts {
