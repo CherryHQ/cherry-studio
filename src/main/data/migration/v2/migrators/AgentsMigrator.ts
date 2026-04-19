@@ -90,37 +90,37 @@ export class AgentsMigrator extends BaseMigrator {
 
     const statements = buildAgentsImportStatements(dbPath, this.sourceSchemaInfo)
 
-    // Debug logging: show generated SQL statements
-    logger.info('Generated SQL statements:', {
+    logger.debug('Generated SQL statements:', {
       statementCount: statements.length,
       statements: statements.map((s, i) => ({ index: i, sql: s.substring(0, 200) }))
     })
 
-    const [attachStatement, ...remainingStatements] = statements
+    // ATTACH/DETACH and PRAGMA foreign_keys cannot live inside a transaction.
+    // libsql creates a fresh connection per transaction() call with FK=ON
+    // (see SQLITE_DEFAULT_FOREIGN_KEYS=1 in libsql-ffi); disabling FK before
+    // the transaction starts lets the INSERT..SELECTs land in any order without
+    // tripping referential checks that the legacy rows already satisfy.
+    const importStatements = statements.slice(1, -1)
     let isAttached = false
-    let transactionStarted = false
 
     try {
-      await ctx.db.run(sql.raw(attachStatement))
+      await ctx.db.run(sql.raw(statements[0])) // ATTACH DATABASE …
       isAttached = true
-      await ctx.db.run(sql.raw('BEGIN IMMEDIATE'))
-      transactionStarted = true
+      await ctx.db.run(sql.raw('PRAGMA foreign_keys = OFF'))
 
-      for (const statement of remainingStatements.filter(
-        (statement) => statement !== 'DETACH DATABASE agents_legacy'
-      )) {
-        logger.debug('Executing SQL:', { sql: statement.substring(0, 200) })
-        await ctx.db.run(sql.raw(statement))
+      try {
+        await ctx.db.transaction(async (tx) => {
+          for (const statement of importStatements) {
+            logger.debug('Executing SQL:', { sql: statement.substring(0, 200) })
+            await tx.run(sql.raw(statement))
+          }
+        })
+        logger.info('Agents migration transaction committed successfully')
+      } finally {
+        await ctx.db.run(sql.raw('PRAGMA foreign_keys = ON'))
       }
-
-      await ctx.db.run(sql.raw('COMMIT'))
-      transactionStarted = false
-      logger.info('Agents migration transaction committed successfully')
     } catch (error) {
       logger.error('Agents migration execute failed:', error as Error)
-      if (transactionStarted) {
-        await ctx.db.run(sql.raw('ROLLBACK'))
-      }
       throw error
     } finally {
       if (isAttached) {

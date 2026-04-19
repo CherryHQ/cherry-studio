@@ -13,6 +13,7 @@ vi.mock('@logger', () => ({
 
 import { LegacyAgentsDbReader } from '../../utils/LegacyAgentsDbReader'
 import { AgentsMigrator } from '../AgentsMigrator'
+import { AGENTS_TABLE_MIGRATION_SPECS } from '../mappings/AgentsDbMappings'
 
 function createCounts() {
   return {
@@ -56,6 +57,12 @@ function getExecutedSql(run: ReturnType<typeof vi.fn>) {
   return run.mock.calls.map(([statement]) => statement.queryChunks[0]?.value?.[0])
 }
 
+function createTransactionMock(txRun: ReturnType<typeof vi.fn>) {
+  return vi.fn(async (callback: (tx: { run: typeof txRun }) => Promise<void>) => {
+    await callback({ run: txRun })
+  })
+}
+
 describe('AgentsMigrator', () => {
   let migrator: AgentsMigrator
 
@@ -85,40 +92,44 @@ describe('AgentsMigrator', () => {
     expect(result.itemCount).toBe(45)
   })
 
-  it('execute attaches the legacy db and imports every table in a transaction', async () => {
+  it('execute attaches the legacy db and imports every table inside a FK-off transaction', async () => {
     const run = vi.fn().mockResolvedValue(undefined)
+    const txRun = vi.fn().mockResolvedValue(undefined)
+    const transaction = createTransactionMock(txRun)
     vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue('/mock/feature.agents.db_file')
     vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockResolvedValue(createSchemaInfo() as never)
     vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockResolvedValue(createCounts())
 
     await migrator.prepare(createMigrationContext())
-    const result = await migrator.execute(createMigrationContext({ db: { run } }))
+    const result = await migrator.execute(createMigrationContext({ db: { run, transaction } }))
 
     expect(result.success).toBe(true)
     expect(result.processedCount).toBe(45)
-    expect(getExecutedSql(run)).toContain('BEGIN IMMEDIATE')
-    expect(getExecutedSql(run)).toContain('COMMIT')
-    expect(run).toHaveBeenCalledTimes(13)
+    const outer = getExecutedSql(run)
+    expect(outer[0]).toBe("ATTACH DATABASE '/mock/feature.agents.db_file' AS agents_legacy")
+    expect(outer[1]).toBe('PRAGMA foreign_keys = OFF')
+    expect(outer.at(-2)).toBe('PRAGMA foreign_keys = ON')
+    expect(outer.at(-1)).toBe('DETACH DATABASE agents_legacy')
+    expect(transaction).toHaveBeenCalledTimes(1)
+    expect(txRun).toHaveBeenCalledTimes(AGENTS_TABLE_MIGRATION_SPECS.length)
   })
 
-  it('rolls back and detaches when an import statement fails after attach', async () => {
-    const run = vi
-      .fn()
-      .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce(undefined)
-      .mockRejectedValueOnce(new Error('insert failed'))
-      .mockResolvedValueOnce(undefined)
-      .mockResolvedValue(undefined)
+  it('re-enables FK and detaches when an import statement fails inside the transaction', async () => {
+    const run = vi.fn().mockResolvedValue(undefined)
+    const txRun = vi.fn().mockRejectedValueOnce(new Error('insert failed')).mockResolvedValue(undefined)
+    const transaction = createTransactionMock(txRun)
 
     vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue('/mock/feature.agents.db_file')
     vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockResolvedValue(createSchemaInfo() as never)
     vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockResolvedValue(createCounts())
 
     await migrator.prepare(createMigrationContext())
-    await expect(migrator.execute(createMigrationContext({ db: { run } }))).rejects.toThrow('insert failed')
+    await expect(migrator.execute(createMigrationContext({ db: { run, transaction } }))).rejects.toThrow(
+      'insert failed'
+    )
 
     const executed = getExecutedSql(run)
-    expect(executed).toContain('ROLLBACK')
+    expect(executed).toContain('PRAGMA foreign_keys = ON')
     expect(executed.at(-1)).toBe('DETACH DATABASE agents_legacy')
     expect(executed.some((stmt) => stmt.startsWith('DELETE FROM agent'))).toBe(false)
   })
@@ -211,7 +222,8 @@ describe('AgentsMigrator', () => {
 
     const run = vi.fn().mockResolvedValue(undefined)
     const get = vi.fn().mockResolvedValue({ count: 8 })
-    const migrationContext = createMigrationContext({ db: { run, get } })
+    const transaction = createTransactionMock(vi.fn().mockResolvedValue(undefined))
+    const migrationContext = createMigrationContext({ db: { run, get, transaction } })
 
     await migrator.prepare(migrationContext)
     await migrator.execute(migrationContext)

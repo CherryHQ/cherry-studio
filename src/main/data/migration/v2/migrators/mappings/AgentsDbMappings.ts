@@ -44,6 +44,19 @@ export type AgentsTableMigrationSpec = {
   whereClause?: string
 }
 
+/**
+ * The order of entries in this array is load-bearing.
+ *
+ * Several specs use a `whereClause` that filters rows by whether their parent
+ * was already imported (e.g. `agent_skill` filters on `agent_id IN (SELECT id
+ * FROM agent)`). That only works because the parent spec runs first and has
+ * already populated the target table. Build order therefore follows FK
+ * parent → child: `agent` → `agent_session` → `agent_global_skill` →
+ * `agent_skill` → `agent_task` → `agent_task_run_log` → `agent_channel` →
+ * `agent_channel_task` → `agent_session_message`.
+ *
+ * Do not reorder entries without updating the child `whereClause`s.
+ */
 export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] = [
   {
     sourceTable: 'agents',
@@ -272,6 +285,22 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
     whereClause: 'session_id IN (SELECT id FROM agent_session)'
   }
 ] as const
+
+;(function assertSpecOrdering() {
+  const seen = new Set<AgentsTableMigrationSpec['targetTable']>()
+  for (const spec of AGENTS_TABLE_MIGRATION_SPECS) {
+    const where = spec.whereClause ?? ''
+    for (const other of AGENTS_TABLE_MIGRATION_SPECS) {
+      if (other === spec) continue
+      if (where.includes(`FROM ${other.targetTable})`) && !seen.has(other.targetTable)) {
+        throw new Error(
+          `AGENTS_TABLE_MIGRATION_SPECS ordering violated: ${spec.targetTable} references ${other.targetTable} in its whereClause, but ${other.targetTable} is imported later`
+        )
+      }
+    }
+    seen.add(spec.targetTable)
+  }
+})()
 
 export function getAgentsSourceTableNames(): AgentsSourceTableName[] {
   return AGENTS_TABLE_MIGRATION_SPECS.map((spec) => spec.sourceTable)
