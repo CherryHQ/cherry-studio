@@ -34,10 +34,12 @@ class AnalyticsService {
       }
     })
 
-    this.client.trackAppLaunch({
-      version: app.getVersion(),
-      os: process.platform
-    })
+    if (configManager.getEnableDataCollection()) {
+      this.client.trackAppLaunch({
+        version: app.getVersion(),
+        os: process.platform
+      })
+    }
 
     logger.info('Analytics service initialized')
   }
@@ -53,7 +55,7 @@ class AnalyticsService {
   }
 
   public async trackAppUpdate(): Promise<void> {
-    if (!this.client) {
+    if (!this.client || !configManager.getEnableDataCollection()) {
       return
     }
 
