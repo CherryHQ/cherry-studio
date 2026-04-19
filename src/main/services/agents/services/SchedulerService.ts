@@ -194,7 +194,7 @@ class SchedulerService {
     const logId = await taskService.logTaskRun({
       taskId: task.id,
       sessionId: null,
-      runAt: new Date().toISOString(),
+      runAt: Date.now(),
       durationMs: 0,
       status: 'running',
       result: null,

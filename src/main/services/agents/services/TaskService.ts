@@ -247,8 +247,8 @@ export class TaskService extends BaseService {
       schedule_type: row.scheduleType as ScheduledTaskEntity['schedule_type'],
       schedule_value: row.scheduleValue,
       timeout_minutes: row.timeoutMinutes,
-      next_run: row.nextRun ?? null,
-      last_run: row.lastRun ?? null,
+      next_run: row.nextRun != null ? new Date(row.nextRun).toISOString() : null,
+      last_run: row.lastRun != null ? new Date(row.lastRun).toISOString() : null,
       last_result: row.lastResult ?? null,
       status: row.status as ScheduledTaskEntity['status'],
       created_at: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
@@ -264,7 +264,7 @@ export class TaskService extends BaseService {
       id: row.id,
       task_id: row.taskId,
       session_id: row.sessionId ?? null,
-      run_at: row.runAt,
+      run_at: new Date(row.runAt).toISOString(),
       duration_ms: row.durationMs,
       status: row.status as TaskRunLogEntity['status'],
       result: row.result ?? null,
@@ -340,21 +340,20 @@ export class TaskService extends BaseService {
   }
 
   async getDueTasks(): Promise<ScheduledTaskEntity[]> {
-    const now = new Date().toISOString()
+    const nowMs = Date.now()
     const database = await this.getDatabase()
     const result = await database
       .select()
       .from(scheduledTasksTable)
-      .where(and(eq(scheduledTasksTable.status, 'active'), lte(scheduledTasksTable.nextRun, now)))
+      .where(and(eq(scheduledTasksTable.status, 'active'), lte(scheduledTasksTable.nextRun, nowMs)))
       .orderBy(asc(scheduledTasksTable.nextRun))
 
     return result.map((row) => this.rowToEntity(row))
   }
 
-  async updateTaskAfterRun(taskId: string, nextRun: string | null, lastResult: string): Promise<void> {
-    const nowIso = new Date().toISOString()
+  async updateTaskAfterRun(taskId: string, nextRun: number | null, lastResult: string): Promise<void> {
     const updateData: Partial<TaskRow> = {
-      lastRun: nowIso,
+      lastRun: Date.now(),
       lastResult,
       nextRun,
       updatedAt: Date.now()
@@ -430,7 +429,7 @@ export class TaskService extends BaseService {
 
   // --- Next run computation (nanoclaw-inspired, drift-resistant) ---
 
-  computeNextRun(task: ScheduledTaskEntity): string | null {
+  computeNextRun(task: ScheduledTaskEntity): number | null {
     if (task.schedule_type === 'once') return null
 
     const now = Date.now()
@@ -439,7 +438,7 @@ export class TaskService extends BaseService {
       try {
         const { CronExpressionParser } = require('cron-parser')
         const interval = CronExpressionParser.parse(task.schedule_value)
-        return interval.next().toISOString()
+        return interval.next().getTime()
       } catch {
         logger.warn('Invalid cron expression', { taskId: task.id, cron: task.schedule_value })
         return null
@@ -451,7 +450,7 @@ export class TaskService extends BaseService {
       const ms = minutes * 60_000
       if (!ms || ms <= 0) {
         logger.warn('Invalid interval value', { taskId: task.id, value: task.schedule_value })
-        return new Date(now + 60_000).toISOString()
+        return now + 60_000
       }
 
       // Anchor to scheduled time to prevent drift
@@ -459,7 +458,7 @@ export class TaskService extends BaseService {
       while (next <= now) {
         next += ms
       }
-      return new Date(next).toISOString()
+      return next
     }
 
     return null
@@ -498,7 +497,7 @@ export class TaskService extends BaseService {
     throw new Error('Scheduled tasks require Soul Mode or Bypass Permissions mode. Update the agent settings first.')
   }
 
-  private computeInitialNextRun(scheduleType: string, scheduleValue: string): string | null {
+  private computeInitialNextRun(scheduleType: string, scheduleValue: string): number | null {
     const now = Date.now()
 
     switch (scheduleType) {
@@ -506,7 +505,7 @@ export class TaskService extends BaseService {
         try {
           const { CronExpressionParser } = require('cron-parser')
           const interval = CronExpressionParser.parse(scheduleValue)
-          return interval.next().toISOString()
+          return interval.next().getTime()
         } catch {
           return null
         }
@@ -514,11 +513,12 @@ export class TaskService extends BaseService {
       case 'interval': {
         const minutes = parseInt(scheduleValue, 10)
         if (!minutes || minutes <= 0) return null
-        return new Date(now + minutes * 60_000).toISOString()
+        return now + minutes * 60_000
       }
       case 'once': {
         // schedule_value is an ISO timestamp for once
-        return scheduleValue
+        const parsed = Date.parse(scheduleValue)
+        return Number.isNaN(parsed) ? null : parsed
       }
       default:
         return null

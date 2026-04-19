@@ -7,7 +7,7 @@ import { type AgentSkillRow, agentSkillsTable } from '../database/schema'
 const logger = loggerService.withContext('AgentSkillRepository')
 
 /**
- * Database repository for the `agents_agent_skills` join table.
+ * Database repository for the `agent_skill` join table.
  *
  * Each row records whether a given skill is enabled for a given agent.
  * Only rows with `isEnabled = true` correspond to an actual symlink under

@@ -43,8 +43,8 @@ const MAX_FOLDER_NAME_LENGTH = 80
  * `{agentWorkspace}/.claude/skills/{folderName}/` pointing to the library,
  * making the skill discoverable by Claude Code running against that workspace.
  *
- * Skill library metadata lives in `agents_global_skills`. Per-agent enablement
- * state lives in the `agents_agent_skills` join table.
+ * Skill library metadata lives in `agent_global_skill`. Per-agent enablement
+ * state lives in the `agent_skill` join table.
  */
 export class SkillService {
   private static instance: SkillService | null = null
@@ -75,7 +75,7 @@ export class SkillService {
    * List installed skills.
    *
    * When `agentId` is provided, each skill's `isEnabled` field reflects the
-   * per-agent enablement state from `agents_agent_skills`. Without `agentId`,
+   * per-agent enablement state from `agent_skill`. Without `agentId`,
    * the field is forced to `false`.
    */
   async list(agentId?: string): Promise<InstalledSkill[]> {
@@ -95,7 +95,7 @@ export class SkillService {
   /**
    * Enable or disable a skill for a specific agent.
    *
-   * Updates the `agents_agent_skills` join row and creates / removes the
+   * Updates the `agent_skill` join row and creates / removes the
    * corresponding symlink under `{agentWorkspace}/.claude/skills/`.
    */
   async toggle(options: SkillToggleOptions): Promise<InstalledSkill | null> {
@@ -116,7 +116,7 @@ export class SkillService {
       } catch (error) {
         // Roll back DB state so it stays consistent with the filesystem
         await this.agentSkillRepository.upsert(options.agentId, options.skillId, !options.isEnabled).catch((e) => {
-          logger.error('Failed to roll back agent_skills after symlink error', {
+          logger.error('Failed to roll back agent_skill after symlink error', {
             agentId: options.agentId,
             skillId: options.skillId,
             error: e instanceof Error ? e.message : String(e)
@@ -196,7 +196,7 @@ export class SkillService {
 
   /**
    * Ensure the workspace's `.claude/skills/` directory matches the
-   * `agents_agent_skills` DB state for the given agent.
+   * `agent_skill` DB state for the given agent.
    */
   async reconcileAgentSkills(agentId: string, workspace: string): Promise<void> {
     if (!workspace) return

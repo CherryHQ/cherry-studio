@@ -1,12 +1,12 @@
 /**
- * Compatibility re-export for the shared agents sessions schema.
+ * Compatibility re-export for the shared agent session schema.
  *
  * The canonical table definition now lives under src/main/data/db/schemas.
- * TODO: Remove this file in a follow-up PR; import from @data/db/schemas/agentsSessions directly.
+ * TODO: Remove this file in a follow-up PR; import from @data/db/schemas/agentSession directly.
  */
 
 export {
-  type InsertAgentsSessionRow as InsertSessionRow,
-  type AgentsSessionRow as SessionRow,
-  agentsSessionsTable as sessionsTable
-} from '../../../../data/db/schemas/agentsSessions'
+  type InsertAgentSessionRow as InsertSessionRow,
+  type AgentSessionRow as SessionRow,
+  agentSessionTable as sessionsTable
+} from '../../../../data/db/schemas/agentSession'

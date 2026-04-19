@@ -1,12 +1,12 @@
 /**
- * Compatibility re-export for the shared agents agent-skills schema.
+ * Compatibility re-export for the shared per-agent skill junction schema.
  *
  * The canonical table definition now lives under src/main/data/db/schemas.
- * TODO: Remove this file in a follow-up PR; import from @data/db/schemas/agentsAgentSkills directly.
+ * TODO: Remove this file in a follow-up PR; import from @data/db/schemas/agentSkill directly.
  */
 
 export {
-  type AgentsAgentSkillRow as AgentSkillRow,
-  agentsAgentSkillsTable as agentSkillsTable,
-  type InsertAgentsAgentSkillRow as InsertAgentSkillRow
-} from '../../../../data/db/schemas/agentsAgentSkills'
+  type AgentSkillRow,
+  agentSkillTable as agentSkillsTable,
+  type InsertAgentSkillRow
+} from '../../../../data/db/schemas/agentSkill'

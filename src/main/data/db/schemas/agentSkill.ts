@@ -1,8 +1,8 @@
 import { index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps } from './_columnHelpers'
-import { agentsAgentsTable } from './agentsAgents'
-import { agentsGlobalSkillsTable } from './agentsSkills'
+import { agentTable } from './agent'
+import { agentGlobalSkillTable } from './agentGlobalSkill'
 
 /**
  * Per-agent skill enablement join table.
@@ -11,24 +11,24 @@ import { agentsGlobalSkillsTable } from './agentsSkills'
  * `isEnabled = true` correspond to an actual symlink under the agent's
  * workspace `.claude/skills/` directory.
  */
-export const agentsAgentSkillsTable = sqliteTable(
-  'agents_agent_skills',
+export const agentSkillTable = sqliteTable(
+  'agent_skill',
   {
     agentId: text()
       .notNull()
-      .references(() => agentsAgentsTable.id, { onDelete: 'cascade' }),
+      .references(() => agentTable.id, { onDelete: 'cascade' }),
     skillId: text()
       .notNull()
-      .references(() => agentsGlobalSkillsTable.id, { onDelete: 'cascade' }),
+      .references(() => agentGlobalSkillTable.id, { onDelete: 'cascade' }),
     isEnabled: integer({ mode: 'boolean' }).notNull().default(false),
     ...createUpdateTimestamps
   },
   (t) => [
     primaryKey({ columns: [t.agentId, t.skillId] }),
-    index('agents_agent_skills_agent_id_idx').on(t.agentId),
-    index('agents_agent_skills_skill_id_idx').on(t.skillId)
+    index('agent_skill_agent_id_idx').on(t.agentId),
+    index('agent_skill_skill_id_idx').on(t.skillId)
   ]
 )
 
-export type AgentsAgentSkillRow = typeof agentsAgentSkillsTable.$inferSelect
-export type InsertAgentsAgentSkillRow = typeof agentsAgentSkillsTable.$inferInsert
+export type AgentSkillRow = typeof agentSkillTable.$inferSelect
+export type InsertAgentSkillRow = typeof agentSkillTable.$inferInsert

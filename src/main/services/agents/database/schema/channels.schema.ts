@@ -1,18 +1,18 @@
 /**
- * Compatibility re-export for the shared agents channels schema.
+ * Compatibility re-export for the shared agent channel schema.
  *
  * The canonical table definition now lives under src/main/data/db/schemas.
- * TODO: Remove this file in a follow-up PR; import from @data/db/schemas/agentsChannels directly.
+ * TODO: Remove this file in a follow-up PR; import from @data/db/schemas/agentChannel directly.
  */
 
 export {
-  type AgentsChannelRow as ChannelRow,
-  agentsChannelsTable as channelsTable,
-  type AgentsChannelTaskSubscriptionRow as ChannelTaskSubscriptionRow,
-  agentsChannelTaskSubscriptionsTable as channelTaskSubscriptionsTable,
-  type InsertAgentsChannelRow as InsertChannelRow,
-  type InsertAgentsChannelTaskSubscriptionRow as InsertChannelTaskSubscriptionRow
-} from '../../../../data/db/schemas/agentsChannels'
+  type AgentChannelRow as ChannelRow,
+  agentChannelTable as channelsTable,
+  type AgentChannelTaskRow as ChannelTaskSubscriptionRow,
+  agentChannelTaskTable as channelTaskSubscriptionsTable,
+  type InsertAgentChannelRow as InsertChannelRow,
+  type InsertAgentChannelTaskRow as InsertChannelTaskSubscriptionRow
+} from '../../../../data/db/schemas/agentChannel'
 export type {
   ChannelConfig,
   DiscordChannelConfig,

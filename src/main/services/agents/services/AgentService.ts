@@ -569,7 +569,7 @@ export class AgentService extends BaseService {
     }
 
     if (isBuiltinAgentId(id)) {
-      const deletedAt = new Date().toISOString()
+      const deletedAt = Date.now()
       const updatedAt = Date.now()
 
       await database.transaction(async (tx) => {

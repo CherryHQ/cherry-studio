@@ -36,7 +36,7 @@ describe('AgentsDbMappings', () => {
 
     expect(statements[0]).toBe("ATTACH DATABASE '/tmp/agent''s.db' AS agents_legacy")
     expect(statements).toContain(
-      "INSERT INTO agents_agents (id, type, name, description, accessible_paths, instructions, model, plan_model, small_model, mcps, allowed_tools, configuration, sort_order, deleted_at, created_at, updated_at) SELECT id, type, name, description, accessible_paths, instructions, model, plan_model, small_model, mcps, allowed_tools, configuration, sort_order, deleted_at, CAST(strftime('%s', created_at) AS INTEGER) * 1000 AS created_at, CAST(strftime('%s', updated_at) AS INTEGER) * 1000 AS updated_at FROM agents_legacy.agents"
+      "INSERT INTO agent (id, type, name, description, accessible_paths, instructions, model, plan_model, small_model, mcps, allowed_tools, configuration, sort_order, deleted_at, created_at, updated_at) SELECT id, type, name, description, accessible_paths, instructions, model, plan_model, small_model, mcps, allowed_tools, configuration, sort_order, CASE WHEN deleted_at IS NULL THEN NULL ELSE CAST(strftime('%s', deleted_at) AS INTEGER) * 1000 END AS deleted_at, CAST(strftime('%s', created_at) AS INTEGER) * 1000 AS created_at, CAST(strftime('%s', updated_at) AS INTEGER) * 1000 AS updated_at FROM agents_legacy.agents"
     )
     expect(statements.at(-1)).toBe('DETACH DATABASE agents_legacy')
   })
@@ -66,7 +66,7 @@ describe('AgentsDbMappings', () => {
 
     // deleted_at absent from source → skipped in INSERT (resolveColumnSelection returns null)
     expect(statements).toContain(
-      "INSERT INTO agents_agents (id, type, name, description, accessible_paths, instructions, model, plan_model, small_model, mcps, allowed_tools, configuration, sort_order, created_at, updated_at) SELECT id, type, name, description, accessible_paths, instructions, model, plan_model, small_model, mcps, allowed_tools, configuration, 0 AS sort_order, CAST(strftime('%s', created_at) AS INTEGER) * 1000 AS created_at, CAST(strftime('%s', updated_at) AS INTEGER) * 1000 AS updated_at FROM agents_legacy.agents"
+      "INSERT INTO agent (id, type, name, description, accessible_paths, instructions, model, plan_model, small_model, mcps, allowed_tools, configuration, sort_order, created_at, updated_at) SELECT id, type, name, description, accessible_paths, instructions, model, plan_model, small_model, mcps, allowed_tools, configuration, 0 AS sort_order, CAST(strftime('%s', created_at) AS INTEGER) * 1000 AS created_at, CAST(strftime('%s', updated_at) AS INTEGER) * 1000 AS updated_at FROM agents_legacy.agents"
     )
     expect(statements.some((statement) => statement.includes('agents_legacy.skills'))).toBe(false)
   })
@@ -86,7 +86,7 @@ describe('AgentsDbMappings', () => {
     ])
 
     const statements = buildAgentsImportStatements('/tmp/agents.db', schemaInfo)
-    const sessionsInsert = statements.find((s) => s.includes('agents_sessions'))
+    const sessionsInsert = statements.find((s) => s.startsWith('INSERT INTO agent_session '))
 
     expect(sessionsInsert).toContain('WHERE agent_id IN (SELECT id FROM agents_legacy.agents)')
   })
@@ -106,9 +106,9 @@ describe('AgentsDbMappings', () => {
     ])
 
     const statements = buildAgentsImportStatements('/tmp/agents.db', schemaInfo)
-    const messagesInsert = statements.find((s) => s.includes('agents_session_messages'))
+    const messagesInsert = statements.find((s) => s.startsWith('INSERT INTO agent_session_message '))
 
-    expect(messagesInsert).toContain('WHERE session_id IN (SELECT id FROM agents_sessions)')
+    expect(messagesInsert).toContain('WHERE session_id IN (SELECT id FROM agent_session)')
   })
 
   it('appends WHERE clause for channels to exclude orphaned agent and session references', () => {
@@ -129,29 +129,29 @@ describe('AgentsDbMappings', () => {
     ])
 
     const statements = buildAgentsImportStatements('/tmp/agents.db', schemaInfo)
-    const channelsInsert = statements.find((s) => s.includes('agents_channels'))
+    const channelsInsert = statements.find((s) => s.startsWith('INSERT INTO agent_channel '))
 
     expect(channelsInsert).toContain('(agent_id IS NULL OR agent_id IN (SELECT id FROM agents_legacy.agents))')
-    expect(channelsInsert).toContain('(session_id IS NULL OR session_id IN (SELECT id FROM agents_sessions))')
+    expect(channelsInsert).toContain('(session_id IS NULL OR session_id IN (SELECT id FROM agent_session))')
   })
 
-  it('maps agent_skills → agents_agent_skills with FK-safe WHERE clause', () => {
+  it('maps agent_skills → agent_skill with FK-safe WHERE clause', () => {
     const schemaInfo = createEmptyAgentsSchemaInfo()
     schemaInfo.agent_skills.exists = true
     schemaInfo.agent_skills.columns = new Set(['agent_id', 'skill_id', 'is_enabled', 'created_at', 'updated_at'])
 
     const statements = buildAgentsImportStatements('/tmp/agents.db', schemaInfo)
-    const agentSkillsInsert = statements.find((s) => s.includes('agents_agent_skills'))
+    const agentSkillsInsert = statements.find((s) => s.startsWith('INSERT INTO agent_skill '))
 
     expect(agentSkillsInsert).toContain(
-      'INSERT INTO agents_agent_skills (agent_id, skill_id, is_enabled, created_at, updated_at)'
+      'INSERT INTO agent_skill (agent_id, skill_id, is_enabled, created_at, updated_at)'
     )
     expect(agentSkillsInsert).toContain('FROM agents_legacy.agent_skills')
-    expect(agentSkillsInsert).toContain('WHERE agent_id IN (SELECT id FROM agents_agents)')
-    expect(agentSkillsInsert).toContain('AND skill_id IN (SELECT id FROM agents_global_skills)')
+    expect(agentSkillsInsert).toContain('WHERE agent_id IN (SELECT id FROM agent)')
+    expect(agentSkillsInsert).toContain('AND skill_id IN (SELECT id FROM agent_global_skill)')
   })
 
-  it('maps skills → agents_global_skills', () => {
+  it('maps skills → agent_global_skill', () => {
     const schemaInfo = createEmptyAgentsSchemaInfo()
     schemaInfo.skills.exists = true
     schemaInfo.skills.columns = new Set([
@@ -166,10 +166,65 @@ describe('AgentsDbMappings', () => {
     ])
 
     const statements = buildAgentsImportStatements('/tmp/agents.db', schemaInfo)
-    const skillsInsert = statements.find((s) => s.includes('agents_global_skills'))
+    const skillsInsert = statements.find((s) => s.startsWith('INSERT INTO agent_global_skill '))
 
-    expect(skillsInsert).toContain('INSERT INTO agents_global_skills')
+    expect(skillsInsert).toContain('INSERT INTO agent_global_skill')
     expect(skillsInsert).toContain('FROM agents_legacy.skills')
+  })
+
+  it('appends FK-safe WHERE clause for scheduled_tasks', () => {
+    const schemaInfo = createEmptyAgentsSchemaInfo()
+    schemaInfo.scheduled_tasks.exists = true
+    schemaInfo.scheduled_tasks.columns = new Set([
+      'id',
+      'agent_id',
+      'name',
+      'prompt',
+      'schedule_type',
+      'schedule_value',
+      'timeout_minutes',
+      'status',
+      'created_at',
+      'updated_at'
+    ])
+
+    const statements = buildAgentsImportStatements('/tmp/agents.db', schemaInfo)
+    const tasksInsert = statements.find((s) => s.startsWith('INSERT INTO agent_task '))
+
+    expect(tasksInsert).toContain('WHERE agent_id IN (SELECT id FROM agent)')
+  })
+
+  it('appends FK-safe WHERE clause for task_run_logs', () => {
+    const schemaInfo = createEmptyAgentsSchemaInfo()
+    schemaInfo.task_run_logs.exists = true
+    schemaInfo.task_run_logs.columns = new Set([
+      'id',
+      'task_id',
+      'session_id',
+      'run_at',
+      'duration_ms',
+      'status',
+      'result',
+      'error'
+    ])
+
+    const statements = buildAgentsImportStatements('/tmp/agents.db', schemaInfo)
+    const logsInsert = statements.find((s) => s.startsWith('INSERT INTO agent_task_run_log '))
+
+    expect(logsInsert).toContain('WHERE task_id IN (SELECT id FROM agent_task)')
+  })
+
+  it('appends FK-safe WHERE clause for channel_task_subscriptions', () => {
+    const schemaInfo = createEmptyAgentsSchemaInfo()
+    schemaInfo.channel_task_subscriptions.exists = true
+    schemaInfo.channel_task_subscriptions.columns = new Set(['channel_id', 'task_id'])
+
+    const statements = buildAgentsImportStatements('/tmp/agents.db', schemaInfo)
+    const subsInsert = statements.find((s) => s.startsWith('INSERT INTO agent_channel_task '))
+
+    expect(subsInsert).toContain(
+      'WHERE channel_id IN (SELECT id FROM agent_channel) AND task_id IN (SELECT id FROM agent_task)'
+    )
   })
 
   it('exposes all source table names in dependency order', () => {

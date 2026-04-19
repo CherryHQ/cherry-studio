@@ -1,12 +1,12 @@
 /**
- * Compatibility re-export for the shared agents schema.
+ * Compatibility re-export for the shared agent schema.
  *
  * The canonical table definition now lives under src/main/data/db/schemas.
- * TODO: Remove this file in a follow-up PR; import from @data/db/schemas/agentsAgents directly.
+ * TODO: Remove this file in a follow-up PR; import from @data/db/schemas/agent directly.
  */
 
 export {
-  type AgentsAgentRow as AgentRow,
-  agentsAgentsTable as agentsTable,
-  type InsertAgentsAgentRow as InsertAgentRow
-} from '../../../../data/db/schemas/agentsAgents'
+  type AgentRow,
+  agentTable as agentsTable,
+  type InsertAgentRow
+} from '../../../../data/db/schemas/agent'

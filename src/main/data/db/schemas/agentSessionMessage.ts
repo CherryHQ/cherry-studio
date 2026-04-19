@@ -1,10 +1,10 @@
 import { foreignKey, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps } from './_columnHelpers'
-import { agentsSessionsTable } from './agentsSessions'
+import { agentSessionTable } from './agentSession'
 
-export const agentsSessionMessagesTable = sqliteTable(
-  'agents_session_messages',
+export const agentSessionMessageTable = sqliteTable(
+  'agent_session_message',
   {
     id: integer().primaryKey({ autoIncrement: true }),
     sessionId: text().notNull(),
@@ -17,12 +17,12 @@ export const agentsSessionMessagesTable = sqliteTable(
   (t) => [
     foreignKey({
       columns: [t.sessionId],
-      foreignColumns: [agentsSessionsTable.id],
-      name: 'agents_session_messages_session_id_fk'
+      foreignColumns: [agentSessionTable.id],
+      name: 'agent_session_message_session_id_fk'
     }).onDelete('cascade'),
-    index('agents_session_messages_session_id_idx').on(t.sessionId)
+    index('agent_session_message_session_id_idx').on(t.sessionId)
   ]
 )
 
-export type AgentsSessionMessageRow = typeof agentsSessionMessagesTable.$inferSelect
-export type InsertAgentsSessionMessageRow = typeof agentsSessionMessagesTable.$inferInsert
+export type AgentSessionMessageRow = typeof agentSessionMessageTable.$inferSelect
+export type InsertAgentSessionMessageRow = typeof agentSessionMessageTable.$inferInsert

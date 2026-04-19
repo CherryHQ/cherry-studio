@@ -30,15 +30,15 @@ export type AgentsColumnExpr =
 export type AgentsTableMigrationSpec = {
   sourceTable: AgentsSourceTableName
   targetTable:
-    | 'agents_agents'
-    | 'agents_sessions'
-    | 'agents_global_skills'
-    | 'agents_agent_skills'
-    | 'agents_tasks'
-    | 'agents_task_run_logs'
-    | 'agents_channels'
-    | 'agents_channel_task_subscriptions'
-    | 'agents_session_messages'
+    | 'agent'
+    | 'agent_session'
+    | 'agent_global_skill'
+    | 'agent_skill'
+    | 'agent_task'
+    | 'agent_task_run_log'
+    | 'agent_channel'
+    | 'agent_channel_task'
+    | 'agent_session_message'
   columns: readonly AgentsColumnExpr[]
   /** Optional WHERE clause appended to the SELECT to filter source rows */
   whereClause?: string
@@ -47,7 +47,7 @@ export type AgentsTableMigrationSpec = {
 export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] = [
   {
     sourceTable: 'agents',
-    targetTable: 'agents_agents',
+    targetTable: 'agent',
     columns: [
       'id',
       'type',
@@ -62,7 +62,11 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       'allowed_tools',
       'configuration',
       { name: 'sort_order', expr: 'sort_order', fallbackExpr: '0' },
-      'deleted_at',
+      {
+        name: 'deleted_at',
+        expr: "CASE WHEN deleted_at IS NULL THEN NULL ELSE CAST(strftime('%s', deleted_at) AS INTEGER) * 1000 END",
+        sourceColumn: 'deleted_at'
+      },
       {
         name: 'created_at',
         expr: "CAST(strftime('%s', created_at) AS INTEGER) * 1000",
@@ -77,7 +81,7 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
   },
   {
     sourceTable: 'sessions',
-    targetTable: 'agents_sessions',
+    targetTable: 'agent_session',
     columns: [
       'id',
       'agent_type',
@@ -112,7 +116,7 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
   },
   {
     sourceTable: 'skills',
-    targetTable: 'agents_global_skills',
+    targetTable: 'agent_global_skill',
     columns: [
       'id',
       'name',
@@ -131,7 +135,7 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
   },
   {
     sourceTable: 'agent_skills',
-    targetTable: 'agents_agent_skills',
+    targetTable: 'agent_skill',
     columns: [
       { name: 'agent_id', expr: 'agent_id' },
       { name: 'skill_id', expr: 'skill_id' },
@@ -141,11 +145,11 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
     ],
     // Only import agent_skill rows whose agent and skill were both successfully
     // migrated; orphaned rows would fail the FK checks.
-    whereClause: 'agent_id IN (SELECT id FROM agents_agents) AND skill_id IN (SELECT id FROM agents_global_skills)'
+    whereClause: 'agent_id IN (SELECT id FROM agent) AND skill_id IN (SELECT id FROM agent_global_skill)'
   },
   {
     sourceTable: 'scheduled_tasks',
-    targetTable: 'agents_tasks',
+    targetTable: 'agent_task',
     columns: [
       'id',
       'agent_id',
@@ -154,8 +158,16 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       'schedule_type',
       'schedule_value',
       'timeout_minutes',
-      'next_run',
-      'last_run',
+      {
+        name: 'next_run',
+        expr: "CASE WHEN next_run IS NULL THEN NULL ELSE CAST(strftime('%s', next_run) AS INTEGER) * 1000 END",
+        sourceColumn: 'next_run'
+      },
+      {
+        name: 'last_run',
+        expr: "CASE WHEN last_run IS NULL THEN NULL ELSE CAST(strftime('%s', last_run) AS INTEGER) * 1000 END",
+        sourceColumn: 'last_run'
+      },
       'last_result',
       'status',
       {
@@ -168,16 +180,23 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
         expr: "CAST(strftime('%s', updated_at) AS INTEGER) * 1000",
         sourceColumn: 'updated_at'
       }
-    ]
+    ],
+    // Only import tasks whose agent was successfully migrated; orphaned rows
+    // would fail the FK check on agent_task.agent_id → agent.id.
+    whereClause: 'agent_id IN (SELECT id FROM agent)'
   },
   {
     sourceTable: 'task_run_logs',
-    targetTable: 'agents_task_run_logs',
+    targetTable: 'agent_task_run_log',
     columns: [
       'id',
       'task_id',
       'session_id',
-      'run_at',
+      {
+        name: 'run_at',
+        expr: "CAST(strftime('%s', run_at) AS INTEGER) * 1000",
+        sourceColumn: 'run_at'
+      },
       'duration_ms',
       'status',
       'result',
@@ -192,11 +211,14 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
         expr: "CAST(strftime('%s', run_at) AS INTEGER) * 1000",
         sourceColumn: 'run_at'
       }
-    ]
+    ],
+    // Only import logs whose task was successfully migrated; orphaned rows
+    // would fail the FK check on agent_task_run_log.task_id → agent_task.id.
+    whereClause: 'task_id IN (SELECT id FROM agent_task)'
   },
   {
     sourceTable: 'channels',
-    targetTable: 'agents_channels',
+    targetTable: 'agent_channel',
     columns: [
       'id',
       'type',
@@ -210,20 +232,23 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       'created_at',
       'updated_at'
     ],
-    // Channels reference agents_agents and agents_sessions via FK; skip any
-    // channel whose agent was deleted or whose session was filtered out.
+    // Channels reference agent and agent_session via FK; skip any channel whose
+    // agent was deleted or whose session was filtered out.
     whereClause:
       '(agent_id IS NULL OR agent_id IN (SELECT id FROM agents_legacy.agents)) AND ' +
-      '(session_id IS NULL OR session_id IN (SELECT id FROM agents_sessions))'
+      '(session_id IS NULL OR session_id IN (SELECT id FROM agent_session))'
   },
   {
     sourceTable: 'channel_task_subscriptions',
-    targetTable: 'agents_channel_task_subscriptions',
-    columns: ['channel_id', 'task_id']
+    targetTable: 'agent_channel_task',
+    columns: ['channel_id', 'task_id'],
+    // Only import subscriptions whose channel and task were both successfully
+    // migrated; orphaned rows would fail the FK checks.
+    whereClause: 'channel_id IN (SELECT id FROM agent_channel) AND task_id IN (SELECT id FROM agent_task)'
   },
   {
     sourceTable: 'session_messages',
-    targetTable: 'agents_session_messages',
+    targetTable: 'agent_session_message',
     columns: [
       'id',
       'session_id',
@@ -244,20 +269,20 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
     ],
     // Only import messages whose session was successfully migrated; messages
     // referencing a filtered-out session would fail the FK check.
-    whereClause: 'session_id IN (SELECT id FROM agents_sessions)'
+    whereClause: 'session_id IN (SELECT id FROM agent_session)'
   }
 ] as const
 
 export const AGENTS_TARGET_TABLE_DELETE_ORDER = [
-  'agents_session_messages',
-  'agents_channel_task_subscriptions',
-  'agents_task_run_logs',
-  'agents_channels',
-  'agents_tasks',
-  'agents_agent_skills',
-  'agents_sessions',
-  'agents_global_skills',
-  'agents_agents'
+  'agent_session_message',
+  'agent_channel_task',
+  'agent_task_run_log',
+  'agent_channel',
+  'agent_task',
+  'agent_skill',
+  'agent_session',
+  'agent_global_skill',
+  'agent'
 ] as const
 
 export function getAgentsSourceTableNames(): AgentsSourceTableName[] {

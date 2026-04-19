@@ -118,7 +118,7 @@ describe('AgentsMigrator', () => {
     await expect(migrator.execute(createMigrationContext({ db: { run } }))).rejects.toThrow('insert failed')
 
     expect(getExecutedSql(run)).toContain('ROLLBACK')
-    expect(getExecutedSql(run)).toContain('DELETE FROM agents_session_messages')
+    expect(getExecutedSql(run)).toContain('DELETE FROM agent_session_message')
     expect(getExecutedSql(run).at(-1)).toBe('DETACH DATABASE agents_legacy')
   })
 
@@ -129,24 +129,24 @@ describe('AgentsMigrator', () => {
 
     const get = vi
       .fn()
-      .mockResolvedValueOnce({ count: 0 }) // agents_agents target (expected 1 → mismatch)
-      .mockResolvedValueOnce({ count: 1 }) // agents_agents expected
-      .mockResolvedValueOnce({ count: 2 }) // agents_sessions target
-      .mockResolvedValueOnce({ count: 2 }) // agents_sessions expected
-      .mockResolvedValueOnce({ count: 3 }) // agents_global_skills target
-      .mockResolvedValueOnce({ count: 3 }) // agents_global_skills expected
-      .mockResolvedValueOnce({ count: 4 }) // agents_agent_skills target
-      .mockResolvedValueOnce({ count: 4 }) // agents_agent_skills expected
-      .mockResolvedValueOnce({ count: 5 }) // agents_tasks target
-      .mockResolvedValueOnce({ count: 5 }) // agents_tasks expected
-      .mockResolvedValueOnce({ count: 6 }) // agents_task_run_logs target
-      .mockResolvedValueOnce({ count: 6 }) // agents_task_run_logs expected
-      .mockResolvedValueOnce({ count: 6 }) // agents_channels target (expected 7 → mismatch)
-      .mockResolvedValueOnce({ count: 7 }) // agents_channels expected
-      .mockResolvedValueOnce({ count: 8 }) // agents_channel_task_subscriptions target
-      .mockResolvedValueOnce({ count: 8 }) // agents_channel_task_subscriptions expected
-      .mockResolvedValueOnce({ count: 9 }) // agents_session_messages target
-      .mockResolvedValueOnce({ count: 9 }) // agents_session_messages expected
+      .mockResolvedValueOnce({ count: 0 }) // agent target (expected 1 → mismatch)
+      .mockResolvedValueOnce({ count: 1 }) // agent expected
+      .mockResolvedValueOnce({ count: 2 }) // agent_session target
+      .mockResolvedValueOnce({ count: 2 }) // agent_session expected
+      .mockResolvedValueOnce({ count: 3 }) // agent_global_skill target
+      .mockResolvedValueOnce({ count: 3 }) // agent_global_skill expected
+      .mockResolvedValueOnce({ count: 4 }) // agent_skill target
+      .mockResolvedValueOnce({ count: 4 }) // agent_skill expected
+      .mockResolvedValueOnce({ count: 5 }) // agent_task target
+      .mockResolvedValueOnce({ count: 5 }) // agent_task expected
+      .mockResolvedValueOnce({ count: 6 }) // agent_task_run_log target
+      .mockResolvedValueOnce({ count: 6 }) // agent_task_run_log expected
+      .mockResolvedValueOnce({ count: 6 }) // agent_channel target (expected 7 → mismatch)
+      .mockResolvedValueOnce({ count: 7 }) // agent_channel expected
+      .mockResolvedValueOnce({ count: 8 }) // agent_channel_task target
+      .mockResolvedValueOnce({ count: 8 }) // agent_channel_task expected
+      .mockResolvedValueOnce({ count: 9 }) // agent_session_message target
+      .mockResolvedValueOnce({ count: 9 }) // agent_session_message expected
 
     const run = vi.fn().mockResolvedValue(undefined)
 
@@ -154,10 +154,7 @@ describe('AgentsMigrator', () => {
     const result = await migrator.validate(createMigrationContext({ db: { get, run } }))
 
     expect(result.success).toBe(false)
-    expect(result.errors.map((error) => error.key)).toEqual([
-      'agents_agents_count_mismatch',
-      'agents_channels_count_mismatch'
-    ])
+    expect(result.errors.map((error) => error.key)).toEqual(['agent_count_mismatch', 'agent_channel_count_mismatch'])
     expect(result.stats.sourceCount).toBe(45)
     expect(result.stats.targetCount).toBe(43)
   })
