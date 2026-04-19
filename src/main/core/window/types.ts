@@ -7,7 +7,7 @@ import type { BrowserWindow, BrowserWindowConstructorOptions } from 'electron'
  */
 export enum WindowType {
   Main = 'main',
-  Mini = 'mini',
+  QuickAssistant = 'quickAssistant',
   DetachedTab = 'detachedTab',
   SelectionToolbar = 'selectionToolbar',
   SelectionAction = 'selectionAction'
@@ -47,8 +47,8 @@ export type PoolWarmup = 'eager' | 'lazy'
  * temporarily have `managed = in-use + standbySize` windows during bursts
  * where in-use exceeds `recycleMaxSize`; close paths converge back over time.
  *
- * See `src/main/core/window/README.md` for the full behavior matrix and
- * scenario walk-throughs.
+ * See `docs/references/window-manager/window-manager-pool-mechanics.md` for the
+ * full behavior matrix and scenario walk-throughs.
  */
 export interface PoolConfig {
   // ─── Producer axis: active pre-warming ───

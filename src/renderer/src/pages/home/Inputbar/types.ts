@@ -15,7 +15,7 @@ export { TopicType }
 
 const logger = loggerService.withContext('InputbarToolsRegistry')
 
-export type InputbarScope = TopicType | 'mini-window'
+export type InputbarScope = TopicType | 'quick-assistant'
 
 export interface InputbarScopeConfig {
   placeholder?: string

@@ -2,6 +2,7 @@ import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
+import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { AssistantDataService, assistantDataService } from '@data/services/AssistantService'
@@ -368,6 +369,17 @@ describe('AssistantDataService', () => {
 
       const rows = await dbh.db.select().from(assistantTable)
       expect(rows).toHaveLength(1)
+    })
+
+    it('should remove entity_tag rows for the deleted assistant', async () => {
+      await dbh.db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
+      await dbh.db.insert(tagTable).values({ id: 'tag-1', name: 'work' })
+      await dbh.db.insert(entityTagTable).values({ entityType: 'assistant', entityId: 'ast-1', tagId: 'tag-1' })
+
+      await assistantDataService.delete('ast-1')
+
+      const tagRows = await dbh.db.select().from(entityTagTable)
+      expect(tagRows).toHaveLength(0)
     })
 
     it('should throw NOT_FOUND when deleting non-existent assistant', async () => {

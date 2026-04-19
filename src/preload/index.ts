@@ -403,12 +403,12 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Config_Set, key, value, isNotify),
     get: (key: string) => ipcRenderer.invoke(IpcChannel.Config_Get, key)
   },
-  miniWindow: {
-    show: () => ipcRenderer.invoke(IpcChannel.MiniWindow_Show),
-    hide: () => ipcRenderer.invoke(IpcChannel.MiniWindow_Hide),
-    close: () => ipcRenderer.invoke(IpcChannel.MiniWindow_Close),
-    toggle: () => ipcRenderer.invoke(IpcChannel.MiniWindow_Toggle),
-    setPin: (isPinned: boolean) => ipcRenderer.invoke(IpcChannel.MiniWindow_SetPin, isPinned)
+  quickAssistant: {
+    show: () => ipcRenderer.invoke(IpcChannel.QuickAssistant_Show),
+    hide: () => ipcRenderer.invoke(IpcChannel.QuickAssistant_Hide),
+    close: () => ipcRenderer.invoke(IpcChannel.QuickAssistant_Close),
+    toggle: () => ipcRenderer.invoke(IpcChannel.QuickAssistant_Toggle),
+    setPin: (isPinned: boolean) => ipcRenderer.invoke(IpcChannel.QuickAssistant_SetPin, isPinned)
   },
   aes: {
     encrypt: (text: string, secretKey: string, iv: string) =>
