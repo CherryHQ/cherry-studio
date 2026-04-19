@@ -7,7 +7,7 @@ import type { BrowserWindow, BrowserWindowConstructorOptions } from 'electron'
  */
 export enum WindowType {
   Main = 'main',
-  Mini = 'mini',
+  QuickAssistant = 'quickAssistant',
   DetachedTab = 'detachedTab',
   SelectionToolbar = 'selectionToolbar',
   SelectionAction = 'selectionAction'
@@ -23,26 +23,97 @@ export type WindowLifecycleMode = 'default' | 'singleton' | 'pooled'
 export type PoolWarmup = 'eager' | 'lazy'
 
 /**
- * Elastic pool configuration.
- * Classic pool pattern: minIdle(p) ≤ initialSize(n) ≤ maxSize(m).
+ * Two-axis pool configuration.
  *
- * Dimension note: `minIdle` is compared against idle window count,
- * while `initialSize` and `maxSize` are compared against managed count
- * (total = in-use + idle).
+ * The pool supports two orthogonal axes, each independently enabled:
+ *
+ * 1. **Producer axis (standby):** `standbySize` pre-warmed windows are always
+ *    maintained in the idle queue, actively replenished on every `open()` via
+ *    `setImmediate`. This guarantees zero-wait for the next caller regardless
+ *    of concurrent usage, matching the "warm pool" pattern (AWS EC2 Warm Pools,
+ *    RAID hot spares, GPU triple buffering).
+ *
+ * 2. **Consumer axis (recycle):** `recycleMinSize` / `recycleMaxSize` govern
+ *    what happens when a window is closed — push to idle for reuse (bounded by
+ *    `recycleMaxSize`) or destroy, with `recycleMinSize` acting as a passive
+ *    floor for decay-based eviction.
+ *
+ * Field dimensions: all `*Size` fields are counts; `decayInterval` and
+ * `inactivityTimeout` are seconds. `standbySize` is compared against idle count,
+ * while `recycleMaxSize` / `initialSize` are compared against managed count
+ * (in-use + idle).
+ *
+ * **Important:** `standbySize` is NOT bound by `recycleMaxSize`. The pool may
+ * temporarily have `managed = in-use + standbySize` windows during bursts
+ * where in-use exceeds `recycleMaxSize`; close paths converge back over time.
+ *
+ * See `docs/references/window-manager/window-manager-pool-mechanics.md` for the
+ * full behavior matrix and scenario walk-throughs.
  */
 export interface PoolConfig {
-  /** Minimum idle windows to keep. Decay evicts down to this level but stops here. */
-  minIdle: number
-  /** Target managed (total) window count — filled at warmup (eager) or after first release (lazy). */
-  initialSize: number
-  /** Maximum managed (total) windows (in-use + idle). Soft cap: open()/create() warn but allow overflow; excess windows are destroyed immediately on release. */
-  maxSize: number
-  /** 'eager' = pre-create initialSize at startup, 'lazy' = fill pool after first release. */
-  warmup: PoolWarmup
-  /** Seconds between decay ticks (evict one idle window above minIdle). 0 = no decay. */
-  decayInterval: number
-  /** Seconds since last open() before releasing ALL idle windows, ignoring minIdle. 0 = never. */
-  idleTimeout: number
+  // ─── Producer axis: active pre-warming ───
+  /**
+   * Pre-warmed spares always maintained in the idle queue. On every `open()`,
+   * one is popped and an async replacement is scheduled via `setImmediate`.
+   * Not bound by `recycleMaxSize` (producer-side guarantee overrides recycle cap).
+   * 0 or undefined = disabled (no active pre-warming).
+   */
+  standbySize?: number
+
+  /**
+   * Target managed count at warmup. When omitted, defaults to
+   * `max(standbySize ?? 0, recycleMinSize ?? 0)`. Useful when the user wants
+   * a larger initial buffer to absorb cold-start bursts (e.g. `initialSize: 5`
+   * with `standbySize: 1` will pre-create 5 and decay back down to 1).
+   */
+  initialSize?: number
+
+  // ─── Consumer axis: recycling policy ───
+  /**
+   * Decay floor for idle queue after recycling. Decay evicts oldest idle down
+   * to this count but stops here. Passive — NOT actively replenished on `open()`.
+   * Meaningless unless `recycleMaxSize > 0` (no recycling means no windows
+   * ever enter idle via release to retain).
+   */
+  recycleMinSize?: number
+
+  /**
+   * Soft cap on the number of managed windows that are eligible for recycling.
+   * On `close()`, if `managed.size + inflightCreates > recycleMaxSize`, the
+   * closing window is destroyed instead of returning to the idle queue. 0 or
+   * undefined disables recycling entirely (close always destroys).
+   * Note: `standbySize`-maintained windows are NOT counted against this cap.
+   */
+  recycleMaxSize?: number
+
+  // ─── Time parameters ───
+  /**
+   * Seconds between decay ticks. Each tick evicts the oldest idle window when
+   * `idle.length > max(standbySize ?? 0, recycleMinSize ?? 0)`. The floor here
+   * is intentionally the max of both axes, so decay cannot drop idle below
+   * `standbySize`. 0 or undefined = no decay.
+   */
+  decayInterval?: number
+
+  /**
+   * Seconds of no `open()` activity before trimming the idle queue. The floor
+   * for this trim is `standbySize` ONLY — `recycleMinSize` is NOT preserved
+   * (asymmetric by design): `standbySize` is a permanent availability
+   * commitment; `recycleMinSize` is a short-term retention buffer meant for
+   * active usage and should be released when the feature is truly idle.
+   * 0 or undefined = never trim.
+   */
+  inactivityTimeout?: number
+
+  // ─── Warmup mode ───
+  /**
+   * `'eager'` pre-creates `initialSize` windows during `onAllReady()`.
+   * `'lazy'` defers until the first `close()` returns a window, then backfills
+   * to `initialSize`. When `standbySize > 0` or `initialSize > 0` and `warmup`
+   * is omitted, defaults to `'eager'` (standby implies zero-wait intent).
+   * When both are unset, defaults to `'lazy'` (legacy behavior).
+   */
+  warmup?: PoolWarmup
 }
 
 /**
@@ -221,4 +292,25 @@ export interface PoolState {
   lastDecayAt: number
   /** When true, pool is suspended — no warmup, no pool tracking for new windows */
   suspended: boolean
+  /**
+   * Count of standby replenishment creates scheduled via `setImmediate` but not
+   * yet executed. Included in cap checks (`managed.size + inflightCreates`) to
+   * avoid accounting drift between scheduling and actual window creation.
+   */
+  inflightCreates: number
+  /**
+   * Pre-computed pool config values, populated once at PoolState creation and
+   * never mutated. Caching them on the state lets `poolGcTick` skip per-tick
+   * `getWindowTypeMetadata` lookups, `?? 0` coalescing, and `* 1000` arithmetic.
+   */
+  /** `cfg.standbySize ?? 0` — inactivity-trim floor. */
+  readonly standbyFloor: number
+  /** `max(standbySize, recycleMinSize) ?? 0` — decay floor. */
+  readonly decayFloor: number
+  /** `cfg.inactivityTimeout * 1000` (0 means feature disabled). */
+  readonly inactivityTimeoutMs: number
+  /** `cfg.decayInterval * 1000` (0 means feature disabled). */
+  readonly decayIntervalMs: number
+  /** True when both inactivity and decay are disabled — GC tick can skip this pool entirely. */
+  readonly gcDisabled: boolean
 }

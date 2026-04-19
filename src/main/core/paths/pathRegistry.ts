@@ -68,11 +68,11 @@ export function buildPathRegistry() {
     'app.logs': LOGS_DIR,
     'app.crash_dumps': app.getPath('crashDumps'),
     'app.session': appSession,
+    'app.session.cache': path.join(appSession, 'Cache'), // Chromium cache Directory
     'app.extra_resources': appExtraResources, // electron-builder extraResources output root
     'app.temp': appTemp, // Cherry-specific temp under sys.temp
     'app.userdata': appUserData, // Electron per-app data dir (Cherry-owned)
     'app.userdata.data': appUserDataData,
-    'app.userdata.cache': path.join(appUserData, 'Cache'),
     'app.database.file': path.join(appUserData, 'cherrystudio.sqlite'),
     // Dev: relative to __dirname; packaged: shipped via extraResources
     'app.database.migrations': app.isPackaged

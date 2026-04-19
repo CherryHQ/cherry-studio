@@ -17,6 +17,8 @@ import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/a
 import type { UniqueModelId } from '@shared/data/types/model'
 import { and, asc, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
 
+import { tagService } from './TagService'
+
 const logger = loggerService.withContext('DataApi:AssistantService')
 
 type AssistantRow = typeof assistantTable.$inferSelect
@@ -30,9 +32,6 @@ function createEmptyRelations(): AssistantRelationIds {
   }
 }
 
-/**
- * Convert database row to Assistant entity
- */
 function rowToAssistant(row: AssistantRow, relations: AssistantRelationIds = createEmptyRelations()): Assistant {
   return {
     id: row.id,
@@ -242,11 +241,16 @@ export class AssistantDataService {
    * Soft-delete an assistant (sets deletedAt timestamp).
    * The row is preserved so topic.assistantId FK remains valid
    * and junction table data (mcpServers, knowledgeBases) is retained.
+   * Tag bindings are intentionally removed during delete, so restoring a
+   * soft-deleted assistant does not restore its previous tags.
    */
   async delete(id: string): Promise<void> {
     await this.getActiveRowById(id)
 
-    await this.db.update(assistantTable).set({ deletedAt: Date.now() }).where(eq(assistantTable.id, id))
+    await this.db.transaction(async (tx) => {
+      await tx.update(assistantTable).set({ deletedAt: Date.now() }).where(eq(assistantTable.id, id))
+      await tagService.removeEntityTags('assistant', id, tx)
+    })
 
     logger.info('Soft-deleted assistant', { id })
   }

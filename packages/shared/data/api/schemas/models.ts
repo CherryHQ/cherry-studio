@@ -15,7 +15,8 @@ import {
   objectValues,
   ParameterSupportDbSchema,
   RuntimeModelPricingSchema,
-  RuntimeReasoningSchema
+  RuntimeReasoningSchema,
+  type UniqueModelId
 } from '../../types/model'
 
 /** Query parameters for listing models */
@@ -115,26 +116,27 @@ export interface ModelSchemas {
   }
 
   /**
-   * Individual model endpoint (keyed by providerId + modelId)
-   * @example GET /models/openai/gpt-5
-   * @example PATCH /models/openai/gpt-5 { "isEnabled": false }
-   * @example DELETE /models/openai/gpt-5
+   * Individual model endpoint (keyed by UniqueModelId "providerId::modelId").
+   * Uses a greedy tail param so modelIds containing `/` are captured verbatim.
+   * @example GET /models/openai::gpt-5
+   * @example PATCH /models/openai::gpt-5 { "isEnabled": false }
+   * @example DELETE /models/qwen::qwen/qwen3-vl
    */
-  '/models/:providerId/:modelId': {
-    /** Get a model by provider ID and model ID */
+  '/models/:uniqueModelId*': {
+    /** Get a model by UniqueModelId */
     GET: {
-      params: { providerId: string; modelId: string }
+      params: { uniqueModelId: UniqueModelId }
       response: Model
     }
     /** Update a model */
     PATCH: {
-      params: { providerId: string; modelId: string }
+      params: { uniqueModelId: UniqueModelId }
       body: UpdateModelDto
       response: Model
     }
     /** Delete a model */
     DELETE: {
-      params: { providerId: string; modelId: string }
+      params: { uniqueModelId: UniqueModelId }
       response: void
     }
   }

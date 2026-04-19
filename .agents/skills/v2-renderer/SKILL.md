@@ -15,7 +15,7 @@ Replace Redux `useAppSelector` / `dispatch` in React components with v2 hooks (`
 
 ## Multi-Window Architecture
 
-Cherry Studio has multiple renderer windows (main app, mini window, selection toolbar). Each system handles cross-window sync differently:
+Cherry Studio has multiple renderer windows (main app, quick assistant, selection toolbar). Each system handles cross-window sync differently:
 
 | System | Sync Strategy | Notes |
 |--------|--------------|-------|

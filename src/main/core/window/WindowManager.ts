@@ -1,8 +1,19 @@
 import { join } from 'node:path'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { isDev, isMac } from '@main/constant'
-import { BaseService, Emitter, type Event, Injectable, Phase, Priority, ServicePhase } from '@main/core/lifecycle'
+import {
+  BaseService,
+  type Disposable,
+  Emitter,
+  type Event,
+  Injectable,
+  Phase,
+  Priority,
+  ServicePhase
+} from '@main/core/lifecycle'
+import { applyWindowQuirks } from '@main/core/window/quirks'
 import type { WindowType } from '@main/core/window/types'
 import {
   type ManagedWindow,
@@ -20,8 +31,37 @@ import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('WindowManager')
 
-/** GC tick interval in ms */
-const POOL_GC_INTERVAL = 120_000
+/** GC tick interval in ms — minute-grained precision is sufficient for pool decay/inactivity. */
+const POOL_GC_INTERVAL = 60_000
+
+/**
+ * Structured pool operation tags. Every pool state mutation logs exactly one
+ * `pool[type] <op>` line carrying the full `{idle, managed, inflight}` snapshot,
+ * so a pool's timeline can be reconstructed by greppung `op:` or `pool[<type>]`.
+ */
+type PoolOp =
+  | 'recycle'
+  | 'create-fresh'
+  | 'create-idle'
+  | 'release'
+  | 'release-skip'
+  | 'release-destroy-disabled'
+  | 'release-destroy-overcap'
+  | 'decay'
+  | 'inactivity-trim'
+  | 'lazy-backfill'
+  | 'suspend'
+  | 'resume'
+  | 'warmup'
+
+/**
+ * Default warmup mode when not explicitly set: 'eager' when the user has
+ * expressed an intent to keep windows pre-warmed (`standbySize` or
+ * `initialSize` set), otherwise 'lazy' (legacy behavior).
+ */
+function defaultWarmup(cfg: PoolConfig): 'eager' | 'lazy' {
+  return (cfg.standbySize ?? 0) > 0 || (cfg.initialSize ?? 0) > 0 ? 'eager' : 'lazy'
+}
 
 /**
  * WindowManager — lifecycle-managed service for managing application windows.
@@ -33,7 +73,7 @@ const POOL_GC_INTERVAL = 120_000
  * which fires synchronously BEFORE content is loaded — guaranteeing that all
  * event listeners are attached before `ready-to-show` can fire.
  *
- * @see README.md for architecture overview and usage guide
+ * @see docs/references/window-manager/README.md for architecture overview, usage guide, and API reference
  */
 @Injectable('WindowManager')
 @ServicePhase(Phase.WhenReady)
@@ -54,6 +94,16 @@ export class WindowManager extends BaseService {
   /** Single GC timer shared across all pools (null when no idle windows exist) */
   private poolGcTimer: ReturnType<typeof setInterval> | null = null
 
+  /**
+   * Pool types whose `idle.length > 0`. Lets `poolGcTick` iterate only over
+   * pools with actual work to do, avoiding empty-pool overhead. Subset of
+   * `pools.keys()`. Maintained on every push/shift/splice of `state.idle`.
+   * The `poolGcTick` defends against brief inconsistency (between
+   * `destroyWindow()` and the async `closed` listener splice) by re-checking
+   * `state.idle.length === 0` inside the loop.
+   */
+  private activePoolTypes = new Set<WindowType>()
+
   // ─── Events ────────────────────────────────────────────────────
 
   private readonly _onWindowCreated = this.registerDisposable(new Emitter<ManagedWindow>())
@@ -63,6 +113,31 @@ export class WindowManager extends BaseService {
   private readonly _onWindowDestroyed = this.registerDisposable(new Emitter<ManagedWindow>())
   /** Fires when a window is truly destroyed (NOT on pool release). */
   public readonly onWindowDestroyed: Event<ManagedWindow> = this._onWindowDestroyed.event
+
+  /**
+   * Subscribe to window creations for a specific {@link WindowType}. Equivalent to
+   * `onWindowCreated` + an inline type filter — prefer this when you only care
+   * about one window type, which is the typical consumer pattern.
+   *
+   * Fires exactly once per fresh `BrowserWindow` instance matching `type`;
+   * pool recycles and singleton reopens do NOT re-fire. Returns a `Disposable`
+   * to unsubscribe (usually passed to `this.registerDisposable(...)`).
+   */
+  public onWindowCreatedByType(type: WindowType, listener: (managed: ManagedWindow) => void): Disposable {
+    return this.onWindowCreated((managed) => {
+      if (managed.type === type) listener(managed)
+    })
+  }
+
+  /**
+   * Subscribe to window destructions for a specific {@link WindowType}. Fires
+   * when the underlying `BrowserWindow` is truly destroyed — not on pool release.
+   */
+  public onWindowDestroyedByType(type: WindowType, listener: (managed: ManagedWindow) => void): Disposable {
+    return this.onWindowDestroyed((managed) => {
+      if (managed.type === type) listener(managed)
+    })
+  }
 
   // ─── Lifecycle hooks ───────────────────────────────────────────
 
@@ -78,11 +153,32 @@ export class WindowManager extends BaseService {
    */
   protected override onAllReady(): void {
     for (const [type, metadata] of Object.entries(WINDOW_TYPE_REGISTRY)) {
-      if (metadata.lifecycle === 'pooled' && metadata.poolConfig.warmup === 'eager') {
-        const state = this.pools.get(type as WindowType)
-        if (state?.suspended) continue
-        this.warmPool(type as WindowType, metadata.poolConfig)
-      }
+      if (metadata.lifecycle !== 'pooled') continue
+      this.validatePoolConfig(type as WindowType, metadata.poolConfig)
+      const warmup = metadata.poolConfig.warmup ?? defaultWarmup(metadata.poolConfig)
+      if (warmup !== 'eager') continue
+      const state = this.pools.get(type as WindowType)
+      if (state?.suspended) continue
+      this.warmPool(type as WindowType, metadata.poolConfig)
+    }
+  }
+
+  /** Warn on pool configurations that express contradictory intent. */
+  private validatePoolConfig(type: WindowType, cfg: PoolConfig): void {
+    const recycleMin = cfg.recycleMinSize ?? 0
+    const recycleMax = cfg.recycleMaxSize ?? 0
+    if (recycleMin > 0 && recycleMax <= 0) {
+      logger.warn(
+        'Pool config: recycleMinSize is set without recycleMaxSize — recycling is disabled, recycleMinSize has no effect',
+        { type, recycleMinSize: recycleMin, recycleMaxSize: recycleMax }
+      )
+    }
+    const standby = cfg.standbySize ?? 0
+    const initialSize = cfg.initialSize ?? 0
+    if (standby === 0 && recycleMin === 0 && recycleMax === 0 && initialSize === 0) {
+      logger.warn('Pool config: all pool sizes are zero/undefined — consider using lifecycle: "default" instead', {
+        type
+      })
     }
   }
 
@@ -92,6 +188,12 @@ export class WindowManager extends BaseService {
     if (this.poolGcTimer) {
       clearInterval(this.poolGcTimer)
       this.poolGcTimer = null
+    }
+    this.activePoolTypes.clear()
+    // Signal any pending setImmediate standby replenish callbacks to bail out.
+    // They check `state.suspended` at execution time.
+    for (const state of this.pools.values()) {
+      state.suspended = true
     }
     this.pools.clear()
     this.initDataStore.clear()
@@ -251,15 +353,17 @@ export class WindowManager extends BaseService {
     const windowId = this.createWindow(type, args)
 
     if (metadata.lifecycle === 'pooled') {
-      const state = this.getOrCreatePoolState(type)
+      const state = this.getOrCreatePoolState(type, metadata.poolConfig)
       if (!state.suspended) {
         state.managed.add(windowId)
       }
-      if (!state.suspended && state.managed.size > metadata.poolConfig.maxSize) {
-        logger.warn('Pool managed count exceeds maxSize via create()', {
+      const recycleMax = metadata.poolConfig.recycleMaxSize ?? 0
+      if (!state.suspended && recycleMax > 0 && state.managed.size + state.inflightCreates > recycleMax) {
+        logger.warn('Pool managed count exceeds recycleMaxSize via create()', {
           type,
           managed: state.managed.size,
-          maxSize: metadata.poolConfig.maxSize
+          inflight: state.inflightCreates,
+          recycleMaxSize: recycleMax
         })
       }
     }
@@ -273,10 +377,16 @@ export class WindowManager extends BaseService {
    * to the renderer via `WindowManager_Reused` so the renderer can update
    * in-place without a round-trip.
    *
-   * No-op when `data === undefined` — never fire empty Reused events.
+   * When `data === undefined`, any previously stored init data for this window
+   * is cleared so the renderer does not observe a stale payload from an earlier
+   * open() on the same singleton/pooled instance. No Reused event is fired in
+   * that case.
    */
   private applyReusedInitData(managed: ManagedWindow, data: unknown): void {
-    if (data === undefined) return
+    if (data === undefined) {
+      this.initDataStore.delete(managed.id)
+      return
+    }
     this.setInitData(managed.id, data)
     if (!managed.window.isDestroyed()) {
       managed.window.webContents.send(IpcChannel.WindowManager_Reused, data)
@@ -501,10 +611,13 @@ export class WindowManager extends BaseService {
       return 0
     }
 
-    const state = this.getOrCreatePoolState(type)
+    const state = this.getOrCreatePoolState(type, metadata.poolConfig)
     state.suspended = true
 
-    if (state.idle.length === 0) return 0
+    if (state.idle.length === 0) {
+      this.activePoolTypes.delete(type)
+      return 0
+    }
 
     const toDestroy = state.idle.slice()
     let count = 0
@@ -516,7 +629,9 @@ export class WindowManager extends BaseService {
       }
     }
 
-    logger.info('Pool suspended', { type, count })
+    this.activePoolTypes.delete(type)
+
+    this.logPoolEvent('suspend', type, state, { count })
     this.updateDockVisibility()
     return count
   }
@@ -538,11 +653,15 @@ export class WindowManager extends BaseService {
     state.suspended = false
     state.lastOpenAt = Date.now()
 
-    if (metadata.poolConfig.warmup === 'eager') {
+    const warmup = metadata.poolConfig.warmup ?? defaultWarmup(metadata.poolConfig)
+    if (warmup === 'eager') {
       this.warmPool(type, metadata.poolConfig)
+    } else {
+      // Lazy pools with standbySize still need the spare materialised on resume.
+      this.replenishStandby(type, state, metadata.poolConfig)
     }
 
-    logger.info('Pool resumed', { type })
+    this.logPoolEvent('resume', type, state)
   }
 
   // ─── Pool internals ───────────────────────────────────────────
@@ -556,11 +675,12 @@ export class WindowManager extends BaseService {
    * - Are shown/focused immediately based on metadata `show` behavior.
    */
   private openPooled<T>(type: WindowType, poolConfig: PoolConfig, args?: OpenWindowArgs<T>): string {
-    const state = this.getOrCreatePoolState(type)
+    const state = this.getOrCreatePoolState(type, poolConfig)
 
     // Try to find a healthy idle window
     while (state.idle.length > 0) {
       const candidateId = state.idle.shift()!
+      if (state.idle.length === 0) this.activePoolTypes.delete(type)
       const candidate = this.windows.get(candidateId)
 
       if (!candidate || candidate.window.isDestroyed() || candidate.window.webContents.isCrashed()) {
@@ -587,12 +707,8 @@ export class WindowManager extends BaseService {
       }
 
       state.lastOpenAt = Date.now()
-      logger.debug('Window recycled from pool', {
-        windowId: candidateId,
-        type,
-        idle: state.idle.length,
-        managed: state.managed.size
-      })
+      this.replenishStandby(type, state, poolConfig)
+      this.logPoolEvent('recycle', type, state, { windowId: candidateId })
       return candidateId
     }
 
@@ -601,21 +717,55 @@ export class WindowManager extends BaseService {
     state.managed.add(windowId)
     state.lastOpenAt = Date.now()
 
-    if (state.managed.size > poolConfig.maxSize) {
-      logger.warn('Pool managed count exceeds maxSize', {
+    const recycleMax = poolConfig.recycleMaxSize ?? 0
+    if (recycleMax > 0 && state.managed.size + state.inflightCreates > recycleMax) {
+      logger.warn('Pool managed count exceeds recycleMaxSize', {
         type,
         managed: state.managed.size,
-        maxSize: poolConfig.maxSize
+        inflight: state.inflightCreates,
+        recycleMaxSize: recycleMax
       })
     }
 
-    logger.debug('Pool fresh window created', {
-      windowId,
-      type,
-      idle: state.idle.length,
-      managed: state.managed.size
-    })
+    this.replenishStandby(type, state, poolConfig)
+    this.logPoolEvent('create-fresh', type, state, { windowId })
     return windowId
+  }
+
+  /**
+   * Schedule async standby replenishment after `open()` consumed an idle window
+   * (or had to synchronously create because idle was empty). Uses `setImmediate`
+   * to defer creation to the next tick so the current open() returns without
+   * paying for the replenish-create cost.
+   *
+   * The `inflightCreates` counter prevents double-scheduling when multiple
+   * opens fire within the same tick before scheduled callbacks execute.
+   * Callbacks check `state.suspended` at execution time to stay correct if
+   * `suspendPool()` fires between scheduling and execution.
+   */
+  private replenishStandby(type: WindowType, state: PoolState, cfg: PoolConfig): void {
+    // Do not prewarm during app quit — otherwise newly created pooled windows
+    // would re-trigger the close intercept and stall app.quit().
+    if (application.isQuitting) return
+    const target = cfg.standbySize ?? 0
+    if (target <= 0 || state.suspended) return
+    const shortfall = target - state.idle.length - state.inflightCreates
+    for (let i = 0; i < shortfall; i++) {
+      state.inflightCreates++
+      setImmediate(() => {
+        try {
+          if (state.suspended) return
+          this.createPooledIdleWindow(type, state)
+        } catch (err) {
+          logger.error('standbySize replenish failed', { type, err })
+        } finally {
+          state.inflightCreates--
+        }
+      })
+    }
+    if (shortfall > 0) {
+      this.startPoolGc()
+    }
   }
 
   /**
@@ -669,23 +819,37 @@ export class WindowManager extends BaseService {
   ): void {
     // Idempotency guard
     if (state.idle.includes(windowId)) {
-      logger.debug('Pool release skipped - window already idle', { windowId, type })
+      this.logPoolEvent('release-skip', type, state, { windowId })
       return
     }
 
-    // Excess capacity: destroy immediately instead of pooling.
-    if (state.managed.size > poolConfig.maxSize) {
+    const recycleMax = poolConfig.recycleMaxSize ?? 0
+    const standby = poolConfig.standbySize ?? 0
+
+    // Recycling disabled (recycleMaxSize not configured): destroy the closing window.
+    // In pure standby mode (scenario ②), this preserves the legacy "close destroys,
+    // async replenish keeps one warm" behavior.
+    if (recycleMax <= 0) {
       if (!managed.window.isDestroyed()) {
         managed.window.hide()
       }
       this.destroyWindow(managed.window)
       this.initDataStore.delete(windowId)
-      logger.debug('Pool over maxSize - window destroyed on release', {
-        windowId,
-        type,
-        managed: state.managed.size,
-        maxSize: poolConfig.maxSize
-      })
+      this.logPoolEvent('release-destroy-disabled', type, state, { windowId })
+      this.updateDockVisibility()
+      return
+    }
+
+    // Excess capacity: destroy immediately instead of pooling. Include inflight
+    // standby replenishments in the cap check to avoid accounting drift between
+    // scheduling and window creation.
+    if (state.managed.size + state.inflightCreates > recycleMax) {
+      if (!managed.window.isDestroyed()) {
+        managed.window.hide()
+      }
+      this.destroyWindow(managed.window)
+      this.initDataStore.delete(windowId)
+      this.logPoolEvent('release-destroy-overcap', type, state, { windowId, recycleMaxSize: recycleMax })
       this.updateDockVisibility()
       return
     }
@@ -698,27 +862,23 @@ export class WindowManager extends BaseService {
     this.initDataStore.delete(windowId)
 
     state.idle.push(windowId)
-    logger.debug('Window released to pool', {
-      windowId,
-      type,
-      idle: state.idle.length,
-      managed: state.managed.size
-    })
+    this.activePoolTypes.add(type)
+    this.logPoolEvent('release', type, state, { windowId })
 
     this.startPoolGc()
 
-    // Lazy warmup: backfill to initialSize after first release
-    if (poolConfig.warmup === 'lazy' && state.managed.size < poolConfig.initialSize) {
-      const deficit = poolConfig.initialSize - state.managed.size
-      for (let i = 0; i < deficit; i++) {
-        this.createPooledIdleWindow(type, state)
+    // Lazy warmup: backfill to initialSize after first release. Skipped when
+    // standbySize is configured — standby replenish already keeps the idle
+    // queue populated, and running both paths would double-create.
+    if (poolConfig.warmup === 'lazy' && standby === 0) {
+      const initialSize = poolConfig.initialSize ?? poolConfig.recycleMinSize ?? 0
+      if (initialSize > 0 && state.managed.size < initialSize) {
+        const deficit = initialSize - state.managed.size
+        for (let i = 0; i < deficit; i++) {
+          this.createPooledIdleWindow(type, state)
+        }
+        this.logPoolEvent('lazy-backfill', type, state, { deficit })
       }
-      logger.debug('Pool lazy warmup backfill', {
-        type,
-        deficit,
-        idle: state.idle.length,
-        managed: state.managed.size
-      })
     }
 
     this.updateDockVisibility()
@@ -729,36 +889,69 @@ export class WindowManager extends BaseService {
     const windowId = this.createWindow(type, undefined, true)
     state.managed.add(windowId)
     state.idle.push(windowId)
-    logger.debug('Pool idle window created', { windowId, type })
+    this.activePoolTypes.add(type)
+    this.logPoolEvent('create-idle', type, state, { windowId })
   }
 
   /** Pre-create idle windows for eager warmup pools */
   private warmPool(type: WindowType, poolConfig: PoolConfig): void {
-    const state = this.getOrCreatePoolState(type)
-    const count = poolConfig.initialSize - state.managed.size
+    const state = this.getOrCreatePoolState(type, poolConfig)
+    const target = poolConfig.initialSize ?? Math.max(poolConfig.standbySize ?? 0, poolConfig.recycleMinSize ?? 0)
+    const count = target - state.managed.size
     for (let i = 0; i < count; i++) {
       this.createPooledIdleWindow(type, state)
     }
     if (count > 0) {
       this.startPoolGc()
-      logger.info('Pool warmed', { type, count })
+      this.logPoolEvent('warmup', type, state, { count })
     }
   }
 
-  /** Get or create PoolState for a window type */
-  private getOrCreatePoolState(type: WindowType): PoolState {
+  /**
+   * Get or create PoolState for a window type. The `cfg` argument is consumed
+   * only on first creation to populate the readonly precomputed fields; later
+   * calls ignore it (config is immutable per pool lifetime).
+   */
+  private getOrCreatePoolState(type: WindowType, cfg: PoolConfig): PoolState {
     let state = this.pools.get(type)
-    if (!state) {
-      state = {
-        idle: [],
-        managed: new Set(),
-        lastOpenAt: Date.now(),
-        lastDecayAt: Date.now(),
-        suspended: false
-      }
-      this.pools.set(type, state)
+    if (state) return state
+
+    const standby = cfg.standbySize ?? 0
+    const recycMin = cfg.recycleMinSize ?? 0
+    const inactMs = (cfg.inactivityTimeout ?? 0) * 1000
+    const decayMs = (cfg.decayInterval ?? 0) * 1000
+    state = {
+      idle: [],
+      managed: new Set(),
+      lastOpenAt: Date.now(),
+      lastDecayAt: Date.now(),
+      suspended: false,
+      inflightCreates: 0,
+      standbyFloor: standby,
+      decayFloor: Math.max(standby, recycMin),
+      inactivityTimeoutMs: inactMs,
+      decayIntervalMs: decayMs,
+      gcDisabled: inactMs === 0 && decayMs === 0
     }
+    this.pools.set(type, state)
     return state
+  }
+
+  /**
+   * Single entry point for pool state-change logs. Produces one structured line
+   * per state mutation: `pool[<type>] <op>` with `{op, type, idle, managed, inflight}`
+   * plus any caller-supplied extras. Caller responsibility: invoke after the
+   * mutation lands, so the snapshot reflects post-state.
+   */
+  private logPoolEvent(op: PoolOp, type: WindowType, state: PoolState, extra?: Record<string, unknown>): void {
+    logger.debug(`pool[${type}] ${op}`, {
+      op,
+      type,
+      idle: state.idle.length,
+      managed: state.managed.size,
+      inflight: state.inflightCreates,
+      ...extra
+    })
   }
 
   // ─── GC Timer ─────────────────────────────────────────────────
@@ -767,66 +960,104 @@ export class WindowManager extends BaseService {
   private startPoolGc(): void {
     if (this.poolGcTimer) return
     this.poolGcTimer = setInterval(() => this.poolGcTick(), POOL_GC_INTERVAL)
-    logger.debug('Pool GC timer started', { intervalMs: POOL_GC_INTERVAL })
+    logger.debug('pool gc-start', { intervalMs: POOL_GC_INTERVAL })
   }
 
-  /** Single GC tick — handles decay and idle timeout for all pool types */
+  /**
+   * Single GC tick — handles decay and idle timeout.
+   *
+   * Iterates only `activePoolTypes` (pools with `idle.length > 0`), skipping
+   * empty pools entirely. All threshold values are read from precomputed
+   * `PoolState` fields, avoiding per-tick `getWindowTypeMetadata` lookups,
+   * `?? 0` coalescing, and `* 1000` arithmetic.
+   */
   private poolGcTick(): void {
+    if (this.activePoolTypes.size === 0) {
+      if (this.poolGcTimer) {
+        clearInterval(this.poolGcTimer)
+        this.poolGcTimer = null
+        logger.debug('pool gc-stop', { reason: 'no active pools' })
+      }
+      return
+    }
+
     const now = Date.now()
-    let hasIdle = false
+    let toDeactivate: WindowType[] | null = null
 
-    for (const [type, state] of this.pools) {
-      if (state.idle.length === 0) continue
-      hasIdle = true
-
-      const metadata = getWindowTypeMetadata(type)
-      if (metadata.lifecycle !== 'pooled') continue
-      const pool = metadata.poolConfig
-
-      // Idle timeout (priority 1): release ALL idle if no open() for idleTimeout seconds
-      if (pool.idleTimeout > 0 && now - state.lastOpenAt > pool.idleTimeout * 1000) {
-        this.destroyAllIdle(type, state)
+    for (const type of this.activePoolTypes) {
+      const state = this.pools.get(type)
+      if (!state || state.suspended) continue
+      // Pools with no time-driven GC at all (no inactivity, no decay) have
+      // nothing to do — drop from active set so the timer can self-stop.
+      if (state.gcDisabled) {
+        ;(toDeactivate ??= []).push(type)
         continue
       }
+      // Defense against the brief inconsistency window between destroyWindow()
+      // and the async `closed` listener splice — activePoolTypes may still
+      // point at this pool while `state.idle` has already been emptied.
+      if (state.idle.length === 0) continue
 
-      // Decay (priority 2): evict one idle window above minIdle
-      if (pool.decayInterval > 0 && state.idle.length > pool.minIdle) {
-        if (now - state.lastOpenAt > pool.decayInterval * 1000 && now - state.lastDecayAt > pool.decayInterval * 1000) {
+      // Inactivity timeout (priority 1): trim idle queue down to standbyFloor.
+      if (state.inactivityTimeoutMs > 0 && now - state.lastOpenAt > state.inactivityTimeoutMs) {
+        this.trimIdleToFloor(type, state, state.standbyFloor)
+      } else if (state.decayIntervalMs > 0 && state.idle.length > state.decayFloor) {
+        // Decay (priority 2): evict one idle window above decayFloor when interval elapsed.
+        if (now - state.lastOpenAt > state.decayIntervalMs && now - state.lastDecayAt > state.decayIntervalMs) {
           this.destroyOneIdle(type, state)
           state.lastDecayAt = now
         }
       }
+
+      // Steady-state pruning: a pool with `idle <= standbyFloor` has no
+      // inactivity-trim work (excess = idle - standbyFloor ≤ 0); since
+      // `standbyFloor ≤ decayFloor` by definition, it also has no decay work.
+      // Drop from `activePoolTypes` so the timer self-stops once ALL pools
+      // converge to steady state. Subsequent `release` / `replenish` will
+      // re-add via the maintenance points.
+      if (state.idle.length <= state.standbyFloor) {
+        ;(toDeactivate ??= []).push(type)
+      }
     }
 
-    if (!hasIdle) {
-      clearInterval(this.poolGcTimer!)
-      this.poolGcTimer = null
-      logger.debug('Pool GC timer stopped - no idle windows')
+    if (toDeactivate) {
+      for (const type of toDeactivate) this.activePoolTypes.delete(type)
     }
   }
 
-  /** Destroy all idle windows for a pool type */
-  private destroyAllIdle(type: WindowType, state: PoolState): void {
-    const toDestroy = state.idle.slice()
-    const count = toDestroy.length
+  /**
+   * Trim the idle queue down to `floor` by destroying the oldest windows from
+   * the front (FIFO semantics). When `floor <= 0`, all idle windows are
+   * destroyed. Used by the inactivity timeout path with `floor = standbySize`
+   * to preserve the standby commitment while releasing the recycle buffer.
+   *
+   * Per-window cleanup (removing from `state.idle` / `state.managed`) flows
+   * through the centralized `closed` event listener — this method only issues
+   * `destroyWindow()` calls.
+   */
+  private trimIdleToFloor(type: WindowType, state: PoolState, floor: number): void {
+    const excess = state.idle.length - Math.max(0, floor)
+    if (excess <= 0) return
+    const toDestroy = state.idle.slice(0, excess)
     for (const id of toDestroy) {
       const managed = this.windows.get(id)
       if (managed) {
         this.destroyWindow(managed.window)
       }
     }
-    logger.debug('Pool idle timeout - all idle destroyed', { type, count })
+    this.logPoolEvent('inactivity-trim', type, state, { floor, destroyed: excess })
   }
 
   /** Destroy the oldest idle window for a pool type */
   private destroyOneIdle(type: WindowType, state: PoolState): void {
     const id = state.idle.shift()
     if (!id) return
+    if (state.idle.length === 0) this.activePoolTypes.delete(type)
     const managed = this.windows.get(id)
     if (managed) {
       this.destroyWindow(managed.window)
     }
-    logger.debug('Pool decay - idle window destroyed', { type, windowId: id })
+    this.logPoolEvent('decay', type, state, { windowId: id })
   }
 
   // ─── Window creation & lifecycle ──────────────────────────────
@@ -922,7 +1153,7 @@ export class WindowManager extends BaseService {
     // 4a. Apply declarative platform quirks (method-slot monkey-patches).
     // Runs AFTER onWindowCreated so domain-service listeners attach first; the quirk
     // wrappers then transparently apply around any subsequent hide()/show()/close().
-    this.applyQuirks(managedWindow)
+    applyWindowQuirks(managedWindow.window, managedWindow.metadata.quirks)
 
     // 5. Store initData synchronously — renderer's cold-start `getInitData`
     //    invoke (fired after mount) is guaranteed to see the fresh value.
@@ -966,6 +1197,10 @@ export class WindowManager extends BaseService {
 
     // Intercept native close for pooled windows — hide and return to pool
     window.on('close', (event) => {
+      // App is quitting — let native close proceed so app.quit() can complete.
+      // Without this, pooled windows' preventDefault stalls will-quit indefinitely.
+      if (application.isQuitting) return
+
       for (const [type, state] of this.pools) {
         if (state.managed.has(windowId)) {
           const metadata = getWindowTypeMetadata(type)
@@ -993,18 +1228,17 @@ export class WindowManager extends BaseService {
         logger.debug('Window closed', { windowId, type: managed.type })
       }
 
-      // Pool cleanup
+      // Pool cleanup. The upper-level pool op (decay / inactivity-trim / suspend
+      // / release-destroy-*) already logged its own snapshot before this fires;
+      // we deliberately do not emit a second per-window log here. For natively
+      // closed (user-initiated) windows, the generic `Window closed` line above
+      // is the lifecycle marker.
       for (const [type, state] of this.pools) {
         if (state.managed.has(windowId)) {
           state.managed.delete(windowId)
           const idx = state.idle.indexOf(windowId)
           if (idx !== -1) state.idle.splice(idx, 1)
-          logger.debug('Pool window removed on close', {
-            windowId,
-            type,
-            idle: state.idle.length,
-            managed: state.managed.size
-          })
+          if (state.idle.length === 0) this.activePoolTypes.delete(type)
           break
         }
       }
@@ -1042,94 +1276,6 @@ export class WindowManager extends BaseService {
         logger.error('Failed to load window content', { windowId, filePath, error: String(err) })
       })
     }
-  }
-
-  // ─── Platform quirks ──────────────────────────────────────────
-
-  /**
-   * Apply declarative OS quirks to a freshly-created window by monkey-patching
-   * the native instance methods. Consumers continue calling `window.hide()` /
-   * `window.show()` as usual; the wrappers transparently run the pre/post hooks.
-   *
-   * The native method is captured via `.bind(w)` so inner Electron C++ bindings
-   * still see the correct `this`; other properties (`webContents`, EventEmitter
-   * `.on/.once`, etc.) remain untouched.
-   */
-  private applyQuirks(managed: ManagedWindow): void {
-    const q = managed.metadata.quirks
-    if (!q) return
-    const w = managed.window
-
-    // [macOS] Exit-path methods (hide/close): preserve HEAD's ordering —
-    //   focus-down (begin guard) → native hide/close → sendInputEvent → 50ms restore (end guard)
-    if (isMac && (q.macRestoreFocusOnHide || q.macClearHoverOnHide)) {
-      const originalHide = w.hide.bind(w)
-      const originalClose = w.close.bind(w)
-
-      w.hide = () => {
-        const guard = q.macRestoreFocusOnHide ? this.beginMacFocusGuard() : null
-        originalHide()
-        if (q.macClearHoverOnHide && !w.isDestroyed()) {
-          // [macOS] hacky way — because the window may not be a FOCUSED window,
-          // the hover status remains on next show. Send a synthetic mouseMove
-          // at (-1, -1) to force the hover state off.
-          w.webContents.sendInputEvent({ type: 'mouseMove', x: -1, y: -1 })
-        }
-        if (guard) this.endMacFocusGuard(guard)
-      }
-
-      // close only wraps the focus dance; hover clearing would be meaningless
-      // because webContents is about to be destroyed.
-      if (q.macRestoreFocusOnHide) {
-        w.close = () => {
-          const guard = this.beginMacFocusGuard()
-          originalClose()
-          this.endMacFocusGuard(guard)
-        }
-      }
-    }
-
-    // [macOS] Show-path methods (show/showInactive): post-hook re-applies alwaysOnTop level.
-    if (isMac && q.macReapplyAlwaysOnTop) {
-      const level = q.macReapplyAlwaysOnTop === true ? 'floating' : q.macReapplyAlwaysOnTop
-      const originalShow = w.show.bind(w)
-      const originalShowInactive = w.showInactive.bind(w)
-      w.show = () => {
-        originalShow()
-        if (!w.isDestroyed()) w.setAlwaysOnTop(true, level)
-      }
-      w.showInactive = () => {
-        originalShowInactive()
-        if (!w.isDestroyed()) w.setAlwaysOnTop(true, level)
-      }
-    }
-  }
-
-  // [macOS] a HACKY way
-  // make sure other windows do not bring to front when the window is hidden
-  // get all focusable windows and set them to not focusable
-  private beginMacFocusGuard(): BrowserWindow[] {
-    const focusableWindows: BrowserWindow[] = []
-    for (const window of BrowserWindow.getAllWindows()) {
-      if (!window.isDestroyed() && window.isVisible()) {
-        if (window.isFocusable()) {
-          focusableWindows.push(window)
-          window.setFocusable(false)
-        }
-      }
-    }
-    return focusableWindows
-  }
-
-  // set them back to focusable after 50ms
-  private endMacFocusGuard(focusableWindows: BrowserWindow[]): void {
-    setTimeout(() => {
-      for (const window of focusableWindows) {
-        if (!window.isDestroyed()) {
-          window.setFocusable(true)
-        }
-      }
-    }, 50)
   }
 
   // ─── macOS Dock visibility ────────────────────────────────────

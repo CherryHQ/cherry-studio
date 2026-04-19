@@ -120,7 +120,7 @@ const GoogleLoginTip = ({
   if (!needsGoogleLogin || !visible) return null
 
   // 使用直接的消息文本
-  const message = t('miniwindow.alert.google_login')
+  const message = t('quickAssistant.alert.google_login')
 
   return (
     <Alert

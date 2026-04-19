@@ -2553,37 +2553,6 @@
     "xiaoyi": "Xiaoyi",
     "zhihu": "Zhihu"
   },
-  "miniwindow": {
-    "alert": {
-      "google_login": "Tip: If you see a 'browser not trusted' message when logging into Google, please first login through the Google mini app in the mini app list, then use Google login in other mini apps"
-    },
-    "clipboard": {
-      "empty": "Clipboard is empty"
-    },
-    "feature": {
-      "chat": "Answer this question",
-      "explanation": "Explanation",
-      "summary": "Content summary",
-      "translate": "Text translation"
-    },
-    "footer": {
-      "backspace_clear": "Backspace to clear",
-      "copy_last_message": "Press C to copy",
-      "esc": "ESC to {{action}}",
-      "esc_back": "return",
-      "esc_close": "close",
-      "esc_pause": "pause"
-    },
-    "input": {
-      "placeholder": {
-        "empty": "Ask {{model}} for help...",
-        "title": "What do you want to do with this text?"
-      }
-    },
-    "tooltip": {
-      "pin": "Keep Window on Top"
-    }
-  },
   "models": {
     "add_parameter": "Add Parameter",
     "all": "All",
@@ -3369,6 +3338,37 @@
     "zai": "Z.ai",
     "zhinao": "360AI",
     "zhipu": "BigModel"
+  },
+  "quickAssistant": {
+    "alert": {
+      "google_login": "Tip: If you see a 'browser not trusted' message when logging into Google, please first login through the Google mini app in the mini app list, then use Google login in other mini apps"
+    },
+    "clipboard": {
+      "empty": "Clipboard is empty"
+    },
+    "feature": {
+      "chat": "Answer this question",
+      "explanation": "Explanation",
+      "summary": "Content summary",
+      "translate": "Text translation"
+    },
+    "footer": {
+      "backspace_clear": "Backspace to clear",
+      "copy_last_message": "Press C to copy",
+      "esc": "ESC to {{action}}",
+      "esc_back": "return",
+      "esc_close": "close",
+      "esc_pause": "pause"
+    },
+    "input": {
+      "placeholder": {
+        "empty": "Ask {{model}} for help...",
+        "title": "What do you want to do with this text?"
+      }
+    },
+    "tooltip": {
+      "pin": "Keep Window on Top"
+    }
   },
   "restore": {
     "confirm": {
@@ -5477,10 +5477,10 @@
       "enabled": "Enable",
       "exit_fullscreen": "Exit Fullscreen",
       "label": "Key",
-      "mini_window": "Quick Assistant",
       "new_topic": "New Topic",
       "occupied_by_other_application": "This shortcut is already used by the system or another application",
       "press_shortcut": "Press Shortcut",
+      "quick_assistant": "Quick Assistant",
       "rename_topic": "Rename Topic",
       "reset_defaults": "Reset Defaults",
       "reset_defaults_confirm": "Are you sure you want to reset all shortcuts?",
@@ -5939,7 +5939,7 @@
   },
   "tray": {
     "quit": "Quit",
-    "show_mini_window": "Quick Assistant",
+    "show_quick_assistant": "Quick Assistant",
     "show_window": "Show Window"
   },
   "update": {

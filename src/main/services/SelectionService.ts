@@ -214,28 +214,33 @@ export class SelectionService extends BaseService implements Activatable {
 
     const wm = application.get('WindowManager')
 
-    // Inject behavior into newly-created Selection windows.
-    // onWindowCreated fires synchronously before content loads, so listeners here attach
-    // before the renderer can start sending IPC messages.
+    // Inject behavior into newly-created Selection windows. onWindowCreatedByType fires
+    // synchronously before content loads, so listeners here attach before the renderer
+    // can start sending IPC messages.
     this.registerDisposable(
-      wm.onWindowCreated((managed) => {
-        if (managed.type === WindowType.SelectionToolbar) {
-          // Cache the BrowserWindow reference for the ~20 downstream call sites
-          // (showToolbarAtPosition, hideToolbar, processTextSelection, etc.)
-          this.toolbarWindow = managed.window
-          this.setupToolbarBehavior(managed.window)
-        } else if (managed.type === WindowType.SelectionAction) {
-          //remember the action window size
-          managed.window.on('resized', () => {
-            if (managed.window.isDestroyed()) return
-            if (this.isRemeberWinSize) {
-              this.lastActionWindowSize = {
-                width: managed.window.getBounds().width,
-                height: managed.window.getBounds().height
-              }
+      wm.onWindowCreatedByType(WindowType.SelectionToolbar, ({ window }) => {
+        // Cache the BrowserWindow reference for the ~20 downstream call sites
+        // (showToolbarAtPosition, hideToolbar, processTextSelection, etc.)
+        this.toolbarWindow = window
+        this.setupToolbarBehavior(window)
+      })
+    )
+
+    // Per-instance resized listener for action windows. Must live inside
+    // onWindowCreatedByType — pool recycle paths do not re-fire the event,
+    // so attaching at the open() call site would either miss recycled instances
+    // or accumulate duplicates across reuses.
+    this.registerDisposable(
+      wm.onWindowCreatedByType(WindowType.SelectionAction, (mw) => {
+        mw.window.on('resized', () => {
+          if (mw.window.isDestroyed()) return
+          if (this.isRemeberWinSize) {
+            this.lastActionWindowSize = {
+              width: mw.window.getBounds().width,
+              height: mw.window.getBounds().height
             }
-          })
-        }
+          }
+        })
       })
     )
 
@@ -243,8 +248,8 @@ export class SelectionService extends BaseService implements Activatable {
     // The macOS focus dance on hide/close is handled by the macRestoreFocusOnHide quirk
     // (see WindowManager.applyQuirks) — no subscription needed here.
     this.registerDisposable(
-      wm.onWindowDestroyed((managed) => {
-        if (managed.type === WindowType.SelectionToolbar && managed.id === this.toolbarWindowId) {
+      wm.onWindowDestroyedByType(WindowType.SelectionToolbar, ({ id }) => {
+        if (id === this.toolbarWindowId) {
           this.toolbarWindow = null
           this.toolbarWindowId = null
         }

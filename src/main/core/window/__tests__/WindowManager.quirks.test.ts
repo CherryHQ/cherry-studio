@@ -172,12 +172,12 @@ vi.mock('electron', () => {
 // ─── Mock registry with quirks-bearing fixtures ────────────────────
 
 const basePool = {
-  minIdle: 0,
+  recycleMinSize: 0,
   initialSize: 1,
-  maxSize: 2,
+  recycleMaxSize: 2,
   warmup: 'lazy' as const,
   decayInterval: 300,
-  idleTimeout: 1800
+  inactivityTimeout: 1800
 }
 
 vi.mock('../windowRegistry', () => {
@@ -352,11 +352,11 @@ describe('WindowManager quirks — applyQuirks monkey-patching', () => {
 
     // ─── Branch: excess-capacity path (pooled close destroys instead of releases) ─
 
-    it('fires on excess-capacity close (pool over maxSize, destroyWindow path)', () => {
+    it('fires on excess-capacity close (pool over recycleMaxSize, destroyWindow path)', () => {
       const bystanderId = wm.open('plain' as never)
       const bystander = createdWindows[0]
 
-      // pool maxSize=2, warmup=lazy. Open 3 — the 3rd exceeds maxSize.
+      // pool recycleMaxSize=2, warmup=lazy. Open 3 — the 3rd exceeds recycleMaxSize.
       const ids = Array.from({ length: 3 }, () => wm.open('action' as never))
       bystander.setFocusable.mockClear()
 
