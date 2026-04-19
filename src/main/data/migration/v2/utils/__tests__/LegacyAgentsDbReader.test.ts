@@ -1,39 +1,19 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { resolveLegacyAgentsDbPath } from '../LegacyAgentsDbReader'
+import { LegacyAgentsDbReader } from '../LegacyAgentsDbReader'
 
 describe('LegacyAgentsDbReader', () => {
-  it('prefers the canonical agents db path when it exists', () => {
-    const exists = vi.fn((candidate: string) => candidate === '/data/agents.db')
+  it('returns the legacy agents db path when it exists', () => {
+    const exists = vi.fn((path: unknown) => path === '/data/agents.db')
+    const reader = new LegacyAgentsDbReader({ legacyAgentDbFile: '/data/agents.db' }, exists)
 
-    expect(
-      resolveLegacyAgentsDbPath({
-        canonicalPath: '/data/agents.db',
-        fallbackPath: '/user/agents.db',
-        exists
-      })
-    ).toBe('/data/agents.db')
+    expect(reader.resolvePath()).toBe('/data/agents.db')
+    expect(exists).toHaveBeenCalledWith('/data/agents.db')
   })
 
-  it('falls back to the old userData root path', () => {
-    const exists = vi.fn((candidate: string) => candidate === '/user/agents.db')
+  it('returns null when the legacy agents db does not exist', () => {
+    const reader = new LegacyAgentsDbReader({ legacyAgentDbFile: '/data/agents.db' }, () => false)
 
-    expect(
-      resolveLegacyAgentsDbPath({
-        canonicalPath: '/data/agents.db',
-        fallbackPath: '/user/agents.db',
-        exists
-      })
-    ).toBe('/user/agents.db')
-  })
-
-  it('returns null when no legacy agents db exists', () => {
-    expect(
-      resolveLegacyAgentsDbPath({
-        canonicalPath: '/data/agents.db',
-        fallbackPath: '/user/agents.db',
-        exists: () => false
-      })
-    ).toBeNull()
+    expect(reader.resolvePath()).toBeNull()
   })
 })

@@ -10,8 +10,8 @@ const logger = loggerService.withContext('SkillRepository')
 /**
  * Database repository for the global `skills` table.
  *
- * All DB access for skills goes through this class.
- * Extends BaseService to reuse DatabaseManager access.
+ * All DB access for skills goes through this class. Extends BaseService
+ * to reuse its database accessor and JSON helpers.
  */
 export class SkillRepository extends BaseService {
   private static instance: SkillRepository | null = null

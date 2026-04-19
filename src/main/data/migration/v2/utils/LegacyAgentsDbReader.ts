@@ -13,52 +13,19 @@ import {
   getAgentsSourceTableNames
 } from '../migrators/mappings/AgentsDbMappings'
 
-export type ResolveLegacyAgentsDbPathArgs = {
-  canonicalPath: string
-  fallbackPath: string
-  exists: (path: string) => boolean
-}
-
-export function resolveLegacyAgentsDbPath({
-  canonicalPath,
-  fallbackPath,
-  exists
-}: ResolveLegacyAgentsDbPathArgs): string | null {
-  if (exists(canonicalPath)) {
-    return canonicalPath
-  }
-
-  if (exists(fallbackPath)) {
-    return fallbackPath
-  }
-
-  return null
-}
-
 export class LegacyAgentsDbReader {
-  private readonly paths: Pick<MigrationPaths, 'legacyAgentDbFile' | 'legacyAgentDbFallbackFile'>
+  private readonly paths: Pick<MigrationPaths, 'legacyAgentDbFile'>
 
   constructor(
-    paths?: Pick<MigrationPaths, 'legacyAgentDbFile' | 'legacyAgentDbFallbackFile'>,
+    paths?: Pick<MigrationPaths, 'legacyAgentDbFile'>,
     private readonly exists = existsSync
   ) {
     this.paths = paths ?? resolveMigrationPaths().paths
   }
 
-  getCanonicalPath(): string {
-    return this.paths.legacyAgentDbFile
-  }
-
-  getFallbackPath(): string {
-    return this.paths.legacyAgentDbFallbackFile
-  }
-
   resolvePath(): string | null {
-    return resolveLegacyAgentsDbPath({
-      canonicalPath: this.getCanonicalPath(),
-      fallbackPath: this.getFallbackPath(),
-      exists: this.exists
-    })
+    const dbPath = this.paths.legacyAgentDbFile
+    return this.exists(dbPath) ? dbPath : null
   }
 
   async inspectSchema(): Promise<AgentsSchemaInfo> {

@@ -14,7 +14,6 @@ const mockPaths: MigrationPaths = {
   knowledgeBaseDir: '/tmp/test-userdata/Data/KnowledgeBase',
   versionLogFile: '/tmp/test-userdata/version.log',
   legacyAgentDbFile: '/tmp/test-userdata/Data/agents.db',
-  legacyAgentDbFallbackFile: '/tmp/test-userdata/agents.db',
   legacyConfigFile: '/tmp/test-cherryhome/config/config.json',
   migrationsFolder: '/tmp/test-migrations'
 }

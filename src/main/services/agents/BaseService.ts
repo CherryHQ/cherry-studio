@@ -68,7 +68,7 @@ export const ENTITY_TO_ROW_FIELD_MAP: Record<string, string> = Object.fromEntrie
  * Base service class providing shared utilities for all agent-related services.
  *
  * Features:
- * - Database access through DatabaseManager singleton
+ * - Database access through the shared main SQLite instance
  * - JSON field serialization/deserialization
  * - Path validation and creation
  * - Model validation

@@ -49,10 +49,8 @@ export interface MigrationPaths {
   readonly knowledgeBaseDir: string
   /** {userData}/version.log — v1 VersionService version history log. */
   readonly versionLogFile: string
-  /** {userData}/Data/agents.db — preferred legacy standalone agents SQLite location. */
+  /** {userData}/Data/agents.db — legacy standalone agents SQLite location. */
   readonly legacyAgentDbFile: string
-  /** {userData}/agents.db — historical fallback location for older agents builds. */
-  readonly legacyAgentDbFallbackFile: string
 
   // ── Derived from cherryHome ──
 
@@ -165,7 +163,6 @@ export function resolveMigrationPaths(): MigrationPathsResult {
     knowledgeBaseDir: path.join(currentUserData, 'Data', 'KnowledgeBase'),
     versionLogFile: path.join(currentUserData, 'version.log'),
     legacyAgentDbFile: path.join(currentUserData, 'Data', 'agents.db'),
-    legacyAgentDbFallbackFile: path.join(currentUserData, 'agents.db'),
     legacyConfigFile,
     migrationsFolder: app.isPackaged
       ? path.join(process.resourcesPath, MIGRATIONS_BASE_PATH)
