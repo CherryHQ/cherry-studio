@@ -799,7 +799,7 @@ class CodeToolsService {
 
       // Detect bun "failed to remap" error on Windows
       if (isWin && errorMessage.includes('Bun failed to remap')) {
-        const retryMessage = `Failed to update ${cliTool} due to bun global install issue on Windows. Try running 'bun install --force' in the project root manually.`
+        const retryMessage = `Failed to update ${cliTool} due to bun global install issue on Windows. The application will try using bunx to run the package instead.`
         logger.error(retryMessage, error as Error)
         return {
           success: false,
@@ -957,9 +957,10 @@ class CodeToolsService {
 
     // Special handling for claude-code on Windows: use bunx to avoid bun global install issues
     // This avoids the "Bun failed to remap" error on Windows
+    // Using "x" (bunx) which caches packages globally - avoids directory pollution
     if (useBunxForClaudeCode) {
       const registryUrl = await this.getNpmRegistryUrl()
-      const bunxCmd = `"${bunPath}" -y ${packageName} --prefix .`
+      const bunxCmd = `"${bunPath}" x ${packageName}`
       baseCommand = `set "BUN_INSTALL=${bunInstallPath}" && set "NPM_CONFIG_REGISTRY=${registryUrl}" && ${bunxCmd}`
       logger.debug('Using bunx command for claude-code:', baseCommand)
     }
