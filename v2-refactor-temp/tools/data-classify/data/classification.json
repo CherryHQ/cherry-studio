@@ -868,7 +868,7 @@
         },
         {
           "originalKey": "targetLanguage",
-          "type": "PreferenceTypes.TranslateLanguageCode",
+          "type": "PreferenceTypes.TranslateLangCode",
           "defaultValue": "en-us",
           "status": "classified",
           "category": "preferences",
@@ -1522,7 +1522,7 @@
           "defaultValue": false,
           "status": "classified",
           "category": "preferences",
-          "targetKey": "chat.input.translate.auto_translate_with_space"
+          "targetKey": "feature.translate.chat.auto_translate_with_space"
         },
         {
           "originalKey": "showTranslateConfirm",
@@ -1530,7 +1530,7 @@
           "defaultValue": true,
           "status": "classified",
           "category": "preferences",
-          "targetKey": "chat.input.translate.show_confirm"
+          "targetKey": "feature.translate.chat.show_confirm"
         },
         {
           "originalKey": "enableTopicNaming",
@@ -3542,7 +3542,7 @@
         },
         {
           "originalKey": "translate:target:language",
-          "type": "PreferenceTypes.TranslateLanguageCode",
+          "type": "PreferenceTypes.TranslateLangCode",
           "defaultValue": "zh-cn",
           "status": "classified",
           "category": "preferences",

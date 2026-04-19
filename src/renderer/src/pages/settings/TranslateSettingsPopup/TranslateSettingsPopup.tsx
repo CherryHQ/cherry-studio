@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingContainer, SettingGroup } from '..'
-import CustomLanguageSettings from './CustomLanguageSettings'
+import TranslateLanguageSettings from './TranslateLanguageSettings'
 import TranslatePromptSettings from './TranslatePromptSettings'
 
 interface Props {
@@ -45,7 +45,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       <SettingContainer theme={theme} style={{ padding: '10px 0', background: 'transparent' }}>
         <TranslatePromptSettings />
         <SettingGroup theme={theme} style={{ flex: 1 }}>
-          <CustomLanguageSettings />
+          <TranslateLanguageSettings />
         </SettingGroup>
       </SettingContainer>
     </Modal>

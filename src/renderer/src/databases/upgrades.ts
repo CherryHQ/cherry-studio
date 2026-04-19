@@ -15,7 +15,7 @@
  * --------------------------------------------------------------------------
  */
 import { loggerService } from '@logger'
-import type { LegacyMessage as OldMessage, Topic, TranslateLanguageCode } from '@renderer/types'
+import type { LegacyMessage as OldMessage, Topic } from '@renderer/types'
 import { FILE_TYPE, WEB_SEARCH_SOURCE } from '@renderer/types' // Import FileTypes enum
 import type {
   BaseMessageBlock,
@@ -24,6 +24,8 @@ import type {
   MessageBlock
 } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
+import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import { BUILTIN_LANGUAGE } from '@shared/data/presets/translate-languages'
 import type { Transaction } from 'dexie'
 import { isEmpty } from 'lodash'
 
@@ -337,7 +339,7 @@ export async function upgradeToV7(tx: Transaction): Promise<void> {
 export async function upgradeToV8(tx: Transaction): Promise<void> {
   logger.info('DB migration to version 8 started')
 
-  const langMap: Record<string, TranslateLanguageCode> = {
+  const langMap: Record<string, TranslateLangCode> = {
     english: 'en-us',
     chinese: 'zh-cn',
     'chinese-traditional': 'zh-tw',
@@ -360,7 +362,10 @@ export async function upgradeToV8(tx: Transaction): Promise<void> {
   }
 
   const settingsTable = tx.table('settings')
-  const defaultPair: [TranslateLanguageCode, TranslateLanguageCode] = ['en-us', 'zh-cn']
+  const defaultPair: [TranslateLangCode, TranslateLangCode] = [
+    BUILTIN_LANGUAGE.enUS.langCode,
+    BUILTIN_LANGUAGE.zhCN.langCode
+  ]
   const originSource = (await settingsTable.get('translate:source:language'))?.value
   const originTarget = (await settingsTable.get('translate:target:language'))?.value
   const originPair = (await settingsTable.get('translate:bidirectional:pair'))?.value
@@ -371,14 +376,14 @@ export async function upgradeToV8(tx: Transaction): Promise<void> {
   } else {
     newSource = langMap[originSource]
     if (!newSource) {
-      newSource = 'en-us'
+      newSource = BUILTIN_LANGUAGE.enUS.langCode
     }
   }
 
   logger.info('originTarget: %o', originTarget)
   newTarget = langMap[originTarget]
   if (!newTarget) {
-    newTarget = 'zh-cn'
+    newTarget = BUILTIN_LANGUAGE.zhCN.langCode
   }
 
   logger.info('originPair: %o', originPair)

@@ -14,7 +14,6 @@ import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navb
 import Scrollbar from '@renderer/components/Scrollbar'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isMac } from '@renderer/config/constant'
-import { LanguagesEnum } from '@renderer/config/translate'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
@@ -23,6 +22,7 @@ import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import type { FileMetadata, Painting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
+import { BUILTIN_LANGUAGE } from '@shared/data/presets/translate-languages'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import { Input, InputNumber, Radio, Select, Slider } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
@@ -285,7 +285,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
     setCurrentImageIndex(0)
   }
 
-  const [autoTranslateWithSpace] = usePreference('chat.input.translate.auto_translate_with_space')
+  const [autoTranslateWithSpace] = usePreference('feature.translate.chat.auto_translate_with_space')
   const [spaceClickCount, setSpaceClickCount] = useState(0)
   const [isTranslating, setIsTranslating] = useState(false)
   const spaceClickTimer = useRef<NodeJS.Timeout>(null)
@@ -301,7 +301,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     try {
       setIsTranslating(true)
-      const translatedText = await translateText(painting.prompt, LanguagesEnum.enUS)
+      const translatedText = await translateText(painting.prompt, BUILTIN_LANGUAGE.enUS.langCode)
       updatePaintingState({ prompt: translatedText })
     } catch (error) {
       logger.error('Translation failed:', error as Error)

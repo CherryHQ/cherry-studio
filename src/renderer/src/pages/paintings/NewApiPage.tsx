@@ -11,7 +11,6 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isMac } from '@renderer/config/constant'
 import { PROVIDER_URLS } from '@renderer/config/providers'
-import { LanguagesEnum } from '@renderer/config/translate'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
@@ -29,6 +28,7 @@ import type { PaintingAction, PaintingsState } from '@renderer/types'
 import type { FileMetadata } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { isNewApiProvider } from '@renderer/utils/provider'
+import { BUILTIN_LANGUAGE } from '@shared/data/presets/translate-languages'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import { Empty, InputNumber, Segmented, Select, Upload } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
@@ -76,7 +76,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const [generating, setGenerating] = useCache('chat.generating')
   const navigate = useNavigate()
-  const [autoTranslateWithSpace] = usePreference('chat.input.translate.auto_translate_with_space')
+  const [autoTranslateWithSpace] = usePreference('feature.translate.chat.auto_translate_with_space')
   const spaceClickTimer = useRef<NodeJS.Timeout>(null)
   const newApiProvider = newApiProviders.find((p) => p.id === routeName) || newApiProviders[0]
 
@@ -412,7 +412,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     try {
       setIsTranslating(true)
-      const translatedText = await translateText(painting.prompt, LanguagesEnum.enUS)
+      const translatedText = await translateText(painting.prompt, BUILTIN_LANGUAGE.enUS.langCode)
       updatePaintingState({ prompt: translatedText })
     } catch (error) {
       logger.error('Translation failed:', error as Error)
@@ -529,7 +529,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
               {t('paintings.learn_more')}
               {(() => {
                 const Icon = resolveProviderIcon(newApiProvider.id)
-                return Icon ? <Icon.Avatar size={16} className="ml-[5px]" /> : null
+                return Icon ? <Icon.Avatar size={16} className="ml-1.25" /> : null
               })()}
             </SettingHelpLink>
           </ProviderTitleContainer>

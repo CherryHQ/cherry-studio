@@ -1,7 +1,6 @@
 import { LoadingOutlined } from '@ant-design/icons'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import useTranslate from '@renderer/hooks/useTranslate'
 import { translateText } from '@renderer/services/TranslateService'
 import type { ModalProps } from 'antd'
 import { Modal } from 'antd'
@@ -40,12 +39,11 @@ const PopupContainer: React.FC<Props> = ({
 }) => {
   const [open, setOpen] = useState(true)
   const { t } = useTranslation()
-  const { getLanguageByLangcode } = useTranslate()
   const [textValue, setTextValue] = useState(text)
   const [isTranslating, setIsTranslating] = useState(false)
   const textareaRef = useRef<TextAreaRef>(null)
   const [targetLanguage] = usePreference('feature.translate.chat.target_language')
-  const [showTranslateConfirm] = usePreference('chat.input.translate.show_confirm')
+  const [showTranslateConfirm] = usePreference('feature.translate.chat.show_confirm')
   const isMounted = useRef(true)
 
   useEffect(() => {
@@ -109,7 +107,7 @@ const PopupContainer: React.FC<Props> = ({
     }
 
     try {
-      const translatedText = await translateText(textValue, getLanguageByLangcode(targetLanguage))
+      const translatedText = await translateText(textValue, targetLanguage)
       if (isMounted.current) {
         setTextValue(translatedText)
       }

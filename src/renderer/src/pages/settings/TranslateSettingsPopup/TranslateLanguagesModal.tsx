@@ -1,9 +1,9 @@
 import { Button, InfoTooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import EmojiPicker from '@renderer/components/EmojiPicker'
-import useTranslate from '@renderer/hooks/useTranslate'
-import { addCustomLanguage, updateCustomLanguage } from '@renderer/services/TranslateService'
-import type { CustomTranslateLanguage } from '@renderer/types'
+import { useAddLanguage, useUpdateLanguage } from '@renderer/hooks/translate'
+import { useLanguages } from '@renderer/hooks/translate/useLanguages'
+import type { TranslateLanguageVo } from '@renderer/types'
 import { Form, Input, Modal, Popover, Space } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -11,25 +11,25 @@ import { useTranslation } from 'react-i18next'
 
 type Props = {
   isOpen: boolean
-  editingCustomLanguage?: CustomTranslateLanguage
-  onAdd: (item: CustomTranslateLanguage) => void
-  onEdit: (item: CustomTranslateLanguage) => void
+  editingLanguage?: TranslateLanguageVo
   onCancel: () => void
 }
 
 const logger = loggerService.withContext('CustomLanguageModal')
 
-const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onCancel }: Props) => {
+const TranslateLanguagesModal = ({ isOpen, editingLanguage: editingCustomLanguage, onCancel }: Props) => {
   const { t } = useTranslation()
   const [form] = Form.useForm()
   // antd表单的getFieldValue方法在首次渲染时无法获取到值，但emoji需要获取表单值来显示，所以单独管理状态
   const defaultEmoji = '🏳️'
   const [emoji, setEmoji] = useState(defaultEmoji)
-  const { translateLanguages } = useTranslate()
+  const { languages } = useLanguages()
+  const addLanguage = useAddLanguage()
+  const updateLanguage = useUpdateLanguage(editingCustomLanguage?.langCode ?? '')
 
   const langCodeList = useMemo(() => {
-    return translateLanguages.map((item) => item.langCode)
-  }, [translateLanguages])
+    return languages?.map((item) => item.langCode) ?? []
+  }, [languages])
 
   useEffect(() => {
     if (editingCustomLanguage) {
@@ -61,16 +61,14 @@ const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onC
 
       if (editingCustomLanguage) {
         try {
-          await updateCustomLanguage(editingCustomLanguage, value, emoji, langCode)
-          onEdit({ ...editingCustomLanguage, emoji, value, langCode })
+          await updateLanguage({ value, emoji })
           window.toast.success(t('settings.translate.custom.success.update'))
         } catch (e) {
           window.toast.error(t('settings.translate.custom.error.update') + ': ' + (e as Error).message)
         }
       } else {
         try {
-          const added = await addCustomLanguage(value, emoji, langCode)
-          onAdd(added)
+          await addLanguage({ value, emoji, langCode })
           window.toast.success(t('settings.translate.custom.success.add'))
         } catch (e) {
           window.toast.error(t('settings.translate.custom.error.add') + ': ' + (e as Error).message)
@@ -78,7 +76,7 @@ const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onC
       }
       onCancel()
     },
-    [editingCustomLanguage, onCancel, t, onEdit, onAdd]
+    [addLanguage, updateLanguage, editingCustomLanguage, onCancel, t]
   )
 
   const footer = useMemo(() => {
@@ -120,7 +118,7 @@ const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onC
             }
             arrow
             trigger="click">
-            <Button style={{ aspectRatio: '1/1' }} size="icon">
+            <Button type="button" style={{ aspectRatio: '1/1' }} size="icon">
               <Emoji emoji={emoji} />
             </Button>
           </Popover>
@@ -163,7 +161,10 @@ const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onC
               }
             }
           ]}>
-          <Input placeholder={t('settings.translate.custom.langCode.placeholder')} />
+          <Input
+            disabled={editingCustomLanguage !== undefined}
+            placeholder={t('settings.translate.custom.langCode.placeholder')}
+          />
         </Form.Item>
       </Form>
     </Modal>
@@ -183,4 +184,4 @@ const Emoji: FC<{ emoji: string; size?: number }> = ({ emoji, size = 18 }) => {
   return <div style={{ lineHeight: 0, fontSize: size }}>{emoji}</div>
 }
 
-export default CustomLanguageModal
+export default TranslateLanguagesModal

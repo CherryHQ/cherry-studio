@@ -1,52 +1,25 @@
 import { Button, ColFlex, Flex, HelpTooltip, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import LanguageSelect from '@renderer/components/LanguageSelect'
-import db from '@renderer/databases'
-import useTranslate from '@renderer/hooks/useTranslate'
-import type { AutoDetectionMethod, Model, TranslateLanguage } from '@renderer/types'
+import type { TranslateBidirectionalPair, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { Modal, Radio, Space } from 'antd'
 import type { FC } from 'react'
-import { memo, useEffect, useState } from 'react'
+import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import TranslateSettingsPopup from '../settings/TranslateSettingsPopup/TranslateSettingsPopup'
 
-// TODO: Just don't send so many props. Migrate them to redux.
 const TranslateSettings: FC<{
   visible: boolean
   onClose: () => void
-  isScrollSyncEnabled: boolean
-  setIsScrollSyncEnabled: (value: boolean) => void
-  isBidirectional: boolean
-  setIsBidirectional: (value: boolean) => void
-  enableMarkdown: boolean
-  setEnableMarkdown: (value: boolean) => void
-  bidirectionalPair: [TranslateLanguage, TranslateLanguage]
-  setBidirectionalPair: (value: [TranslateLanguage, TranslateLanguage]) => void
-  translateModel: Model | undefined
-  autoDetectionMethod: AutoDetectionMethod
-  setAutoDetectionMethod: (method: AutoDetectionMethod) => void
-}> = ({
-  visible,
-  onClose,
-  isScrollSyncEnabled,
-  setIsScrollSyncEnabled,
-  isBidirectional,
-  setIsBidirectional,
-  enableMarkdown,
-  setEnableMarkdown,
-  bidirectionalPair,
-  setBidirectionalPair,
-  autoDetectionMethod,
-  setAutoDetectionMethod
-}) => {
+}> = ({ visible, onClose }) => {
   const { t } = useTranslation()
-  const [localPair, setLocalPair] = useState<[TranslateLanguage, TranslateLanguage]>(bidirectionalPair)
-  const { getLanguageByLangcode, settings, updateSettings } = useTranslate()
-  const { autoCopy } = settings
-
-  useEffect(() => {
-    setLocalPair(bidirectionalPair)
-  }, [bidirectionalPair, visible])
+  const [pair, setPair] = usePreference('feature.translate.page.bidirectional_pair')
+  const [enableMarkdown, setEnableMarkdown] = usePreference('feature.translate.page.enable_markdown')
+  const [autoCopy, setAutoCopy] = usePreference('feature.translate.page.auto_copy')
+  const [autoDetectionMethod, setAutoDetectionMethod] = usePreference('feature.translate.auto_detection_method')
+  const [isScrollSyncEnabled, setIsScrollSyncEnabled] = usePreference('feature.translate.page.scroll_sync')
+  const [isBidirectional, setIsBidirectional] = usePreference('feature.translate.page.bidirectional_enabled')
 
   const onMoreSetting = () => {
     onClose()
@@ -69,8 +42,7 @@ const TranslateSettings: FC<{
             <Switch
               checked={enableMarkdown}
               onCheckedChange={(checked) => {
-                setEnableMarkdown(checked)
-                void db.settings.put({ id: 'translate:markdown:enabled', value: checked })
+                void setEnableMarkdown(checked)
               }}
             />
           </Flex>
@@ -82,8 +54,8 @@ const TranslateSettings: FC<{
             <Switch
               checked={autoCopy}
               color="primary"
-              onCheckedChange={(isSelected) => {
-                updateSettings({ autoCopy: isSelected })
+              onCheckedChange={async (isSelected) => {
+                return await setAutoCopy(isSelected)
               }}
             />
           </RowFlex>
@@ -95,9 +67,8 @@ const TranslateSettings: FC<{
             <Switch
               checked={isScrollSyncEnabled}
               color="primary"
-              onCheckedChange={(isSelected) => {
-                setIsScrollSyncEnabled(isSelected)
-                void db.settings.put({ id: 'translate:scroll:sync', value: isSelected })
+              onCheckedChange={async (isSelected) => {
+                return await setIsScrollSyncEnabled(isSelected)
               }}
             />
           </Flex>
@@ -111,14 +82,14 @@ const TranslateSettings: FC<{
               iconProps={{ color: 'var(--color-text-3)', className: 'ml-1' }}
             />
           </div>
-          <RowFlex className="items-center gap-[5px]">
+          <RowFlex className="items-center gap-1.25">
             <Radio.Group
               defaultValue={'auto'}
               value={autoDetectionMethod}
               optionType="button"
               buttonStyle="solid"
-              onChange={(e) => {
-                setAutoDetectionMethod(e.target.value)
+              onChange={async (e) => {
+                return await setAutoDetectionMethod(e.target.value)
               }}>
               <Tooltip content={t('translate.detect.method.auto.tip')}>
                 <Radio.Button value="auto">{t('translate.detect.method.auto.label')}</Radio.Button>
@@ -136,7 +107,7 @@ const TranslateSettings: FC<{
         <div>
           <Flex className="items-center justify-between">
             <div style={{ fontWeight: 500 }}>
-              <RowFlex className="items-center gap-[5px]">
+              <RowFlex className="items-center gap-1.25">
                 {t('translate.settings.bidirectional')}
                 <HelpTooltip
                   content={t('translate.settings.bidirectional_tip')}
@@ -147,9 +118,8 @@ const TranslateSettings: FC<{
             <Switch
               checked={isBidirectional}
               color="primary"
-              onCheckedChange={(isSelected) => {
-                setIsBidirectional(isSelected)
-                // 双向翻译设置不需要持久化，它只是界面状态
+              onCheckedChange={async (isSelected) => {
+                return await setIsBidirectional(isSelected)
               }}
             />
           </Flex>
@@ -158,37 +128,27 @@ const TranslateSettings: FC<{
               <Flex className="items-center justify-between gap-2.5">
                 <LanguageSelect
                   style={{ flex: 1 }}
-                  value={localPair[0].langCode}
+                  value={pair[0]}
                   onChange={(value) => {
-                    const newPair: [TranslateLanguage, TranslateLanguage] = [getLanguageByLangcode(value), localPair[1]]
+                    const newPair: TranslateBidirectionalPair = [value, pair[1]]
                     if (newPair[0] === newPair[1]) {
                       window.toast.warning(t('translate.language.same'))
                       return
                     }
-                    setLocalPair(newPair)
-                    setBidirectionalPair(newPair)
-                    void db.settings.put({
-                      id: 'translate:bidirectional:pair',
-                      value: [newPair[0].langCode, newPair[1].langCode]
-                    })
+                    void setPair(newPair)
                   }}
                 />
                 <span>⇆</span>
                 <LanguageSelect
                   style={{ flex: 1 }}
-                  value={localPair[1].langCode}
-                  onChange={(value) => {
-                    const newPair: [TranslateLanguage, TranslateLanguage] = [localPair[0], getLanguageByLangcode(value)]
+                  value={pair[1]}
+                  onChange={async (value: TranslateLangCode) => {
+                    const newPair: TranslateBidirectionalPair = [pair[0], value]
                     if (newPair[0] === newPair[1]) {
                       window.toast.warning(t('translate.language.same'))
                       return
                     }
-                    setLocalPair(newPair)
-                    setBidirectionalPair(newPair)
-                    void db.settings.put({
-                      id: 'translate:bidirectional:pair',
-                      value: [newPair[0].langCode, newPair[1].langCode]
-                    })
+                    return await setPair(newPair)
                   }}
                 />
               </Flex>

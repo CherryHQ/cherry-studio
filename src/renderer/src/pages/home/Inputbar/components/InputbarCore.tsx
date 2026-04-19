@@ -7,7 +7,6 @@ import type { QuickPanelTriggerInfo } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { useTimer } from '@renderer/hooks/useTimer'
-import useTranslate from '@renderer/hooks/useTranslate'
 import PasteService from '@renderer/services/PasteService'
 import { translateText } from '@renderer/services/TranslateService'
 import type { FileMetadata } from '@renderer/types'
@@ -131,7 +130,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [pasteLongTextAsFile] = usePreference('chat.input.paste_long_text_as_file')
   const [pasteLongTextThreshold] = usePreference('chat.input.paste_long_text_threshold')
-  const [autoTranslateWithSpace] = usePreference('chat.input.translate.auto_translate_with_space')
+  const [autoTranslateWithSpace] = usePreference('feature.translate.chat.auto_translate_with_space')
   const [enableQuickPanelTriggers] = usePreference('chat.input.quick_panel.triggers_enabled')
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
@@ -140,7 +139,6 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
 
   const { t } = useTranslation()
   const [isTranslating, setIsTranslating] = useState(false)
-  const { getLanguageByLangcode } = useTranslate()
 
   const [spaceClickCount, setSpaceClickCount] = useState(0)
   const spaceClickTimer = useRef<NodeJS.Timeout | null>(null)
@@ -206,7 +204,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
 
     try {
       setIsTranslating(true)
-      const translatedText = await translateText(text, getLanguageByLangcode(targetLanguage))
+      const translatedText = await translateText(text, targetLanguage)
       translatedText && setText(translatedText)
       setTimeoutTimer('translate', () => resizeTextArea(), 0)
     } catch (error) {
@@ -214,7 +212,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
     } finally {
       setIsTranslating(false)
     }
-  }, [getLanguageByLangcode, isTranslating, resizeTextArea, setText, setTimeoutTimer, targetLanguage, text])
+  }, [isTranslating, resizeTextArea, setText, setTimeoutTimer, targetLanguage, text])
 
   const rootTriggerHandlerRef = useRef<((payload?: unknown) => void) | undefined>(undefined)
 
