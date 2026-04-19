@@ -1,12 +1,15 @@
+import type { IconComponent } from '@cherrystudio/ui/icons'
+import {
+  ClaudeCode,
+  GeminiCli,
+  GithubCopilotCli,
+  IflowCli,
+  KimiCli,
+  OpenaiCodex,
+  OpenCode,
+  QwenCode
+} from '@cherrystudio/ui/icons'
 import { getThinkingBudget } from '@renderer/aiCore/utils/reasoning'
-import ClaudeCodeIcon from '@renderer/assets/images/code-cli/claude-code.svg'
-import GeminiCliIcon from '@renderer/assets/images/code-cli/gemini-cli.svg'
-import GithubCopilotCliIcon from '@renderer/assets/images/code-cli/github-copilot-cli.svg'
-import IflowCliIcon from '@renderer/assets/images/code-cli/iflow-cli.svg'
-import KimiCliIcon from '@renderer/assets/images/code-cli/kimi-cli.svg'
-import OpenCodeIcon from '@renderer/assets/images/code-cli/open-code.svg'
-import OpenaiCodexIcon from '@renderer/assets/images/code-cli/openai-codex.svg'
-import QwenCodeIcon from '@renderer/assets/images/code-cli/qwen-code.svg'
 import {
   isReasoningModel,
   isSupportedReasoningEffortModel,
@@ -36,15 +39,15 @@ export interface ToolEnvironmentConfig {
 }
 
 export const CLI_TOOLS = [
-  { value: codeCLI.claudeCode, label: 'Claude Code', icon: ClaudeCodeIcon },
-  { value: codeCLI.qwenCode, label: 'Qwen Code', icon: QwenCodeIcon },
-  { value: codeCLI.geminiCli, label: 'Gemini CLI', icon: GeminiCliIcon },
-  { value: codeCLI.openaiCodex, label: 'OpenAI Codex', icon: OpenaiCodexIcon },
-  { value: codeCLI.iFlowCli, label: 'iFlow CLI', icon: IflowCliIcon },
-  { value: codeCLI.githubCopilotCli, label: 'GitHub Copilot CLI', icon: GithubCopilotCliIcon },
-  { value: codeCLI.kimiCli, label: 'Kimi CLI', icon: KimiCliIcon },
-  { value: codeCLI.openCode, label: 'OpenCode', icon: OpenCodeIcon }
-]
+  { value: codeCLI.claudeCode, label: 'Claude Code', icon: ClaudeCode },
+  { value: codeCLI.qwenCode, label: 'Qwen Code', icon: QwenCode },
+  { value: codeCLI.geminiCli, label: 'Gemini CLI', icon: GeminiCli },
+  { value: codeCLI.openaiCodex, label: 'OpenAI Codex', icon: OpenaiCodex },
+  { value: codeCLI.iFlowCli, label: 'iFlow CLI', icon: IflowCli },
+  { value: codeCLI.githubCopilotCli, label: 'GitHub Copilot CLI', icon: GithubCopilotCli },
+  { value: codeCLI.kimiCli, label: 'Kimi CLI', icon: KimiCli },
+  { value: codeCLI.openCode, label: 'OpenCode', icon: OpenCode }
+] as const satisfies ReadonlyArray<{ value: codeCLI; label: string; icon: IconComponent }>
 
 export const GEMINI_SUPPORTED_PROVIDERS = ['aihubmix', 'dmxapi', 'new-api', 'cherryin']
 

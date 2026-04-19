@@ -1,17 +1,18 @@
+import type { IconComponent } from '@cherrystudio/ui/icons'
 import { cn } from '@cherrystudio/ui/lib/utils'
 
 import { CliIconBadge } from './CliIconBadge'
 import type { CodeToolMeta } from './types'
 
-interface ToolGridProps<T extends { value: string; label: string; icon: string }> {
+interface ToolGridProps<T extends { value: string; label: string; icon: IconComponent | null | undefined }> {
   title?: string
-  tools: T[]
+  tools: readonly T[]
   activeValue?: string
   onSelect: (value: T['value']) => void
   toMeta: (tool: T) => CodeToolMeta
 }
 
-export function ToolGrid<T extends { value: string; label: string; icon: string }>({
+export function ToolGrid<T extends { value: string; label: string; icon: IconComponent | null | undefined }>({
   title,
   tools,
   activeValue,
