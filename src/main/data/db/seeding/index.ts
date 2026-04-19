@@ -1,4 +1,5 @@
 import type { ISeeder } from '../types'
+import { FileEntrySeeder } from './seeders/fileEntrySeeder'
 import { PreferenceSeeder } from './seeders/preferenceSeeder'
 import { PresetProviderSeeder } from './seeders/presetProviderSeeder'
 import { TranslateLanguageSeeder } from './seeders/translateLanguageSeeder'
@@ -8,4 +9,9 @@ import { TranslateLanguageSeeder } from './seeders/translateLanguageSeeder'
  * To add a new seeder: create an ISeeder class, add it to this array.
  * No changes to DbService needed.
  */
-export const seeders: ISeeder[] = [new PreferenceSeeder(), new TranslateLanguageSeeder(), new PresetProviderSeeder()]
+export const seeders: ISeeder[] = [
+  new PreferenceSeeder(),
+  new TranslateLanguageSeeder(),
+  new PresetProviderSeeder(),
+  new FileEntrySeeder()
+]
