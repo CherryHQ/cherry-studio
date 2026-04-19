@@ -1,4 +1,6 @@
-// @ts-nocheck — TODO: Full v2 type migration pending. Pre-existing issues with stubs, Model/Provider types.
+// @ts-nocheck — TODO: Full v2 type migration pending. Pre-existing Model/Provider type drift
+//                 (e.g. `assistant.model` / `assistant.enableWebSearch` top-level flags) independent
+//                 of the stubs migration. Revisit when the BuildContext refactor lands.
 /**
  * 参数构建模块
  * 构建AI SDK的流式和非流式参数
@@ -9,8 +11,11 @@ import { application } from '@application'
 import type { WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugins'
 import { extensionRegistry } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
+import { IdleTimeoutController, type IdleTimeoutHandle } from '@main/utils/IdleTimeoutController'
+import { replacePromptVariables } from '@main/utils/prompt'
 import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@shared/config/constants'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { Provider } from '@shared/data/types/provider'
 import {
   isAnthropicModel,
@@ -28,22 +33,16 @@ import {
 import { isAIGatewayProvider, isAwsBedrockProvider, isSupportUrlContextProvider } from '@shared/utils/provider'
 import { type Assistant, getEffectiveMcpMode, type MCPTool, SystemProviderIds } from '@types'
 import type { StreamTextParams } from '@types/aiCoreTypes'
-import type { ModelMessage } from 'ai'
-import { stepCountIs } from 'ai'
+import { type ModelMessage, stepCountIs } from 'ai'
 
+import { getHubModeSystemPrompt } from '../prompts/hubMode'
 import { getAiSdkProviderId } from '../provider/factory'
-import type { AppProviderId } from '../types'
-import type { ProviderCapabilities } from '../types'
+import type { AppProviderId, ProviderCapabilities } from '../types'
 import { setupToolsConfig } from '../utils/mcp'
 import { buildProviderOptions } from '../utils/options'
-import type { CherryWebSearchConfig } from '../utils/stubs'
-import { buildProviderBuiltinWebSearchConfig } from '../utils/websearch'
+import { type CherryWebSearchConfig, buildProviderBuiltinWebSearchConfig } from '../utils/websearch'
 import { addAnthropicHeaders } from './header'
 import { getMaxTokens, getTemperature, getTopP } from './modelParameters'
-import { getHubModeSystemPrompt } from './stubs'
-import { DEFAULT_ASSISTANT_SETTINGS, getDefaultModel } from './stubs'
-import { IdleTimeoutController, type IdleTimeoutHandle } from './stubs'
-import { replacePromptVariables } from './stubs'
 
 const logger = loggerService.withContext('parameterBuilder')
 
@@ -116,7 +115,10 @@ export async function buildStreamTextParams(
   }
   const finalSignal = AbortSignal.any(signals)
 
-  const model = assistant.model || getDefaultModel()
+  // TODO: v2 `Assistant` carries `modelId` (string) not `model`. Caller must supply
+  // the resolved Model when this builder is wired up — the renderer fallback to
+  // Redux `defaultModel` has no Main equivalent.
+  const model = assistant.model
   const aiSdkProviderId = getAiSdkProviderId(provider)
 
   // 这三个变量透传出来，交给下面启用插件/中间件

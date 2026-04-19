@@ -1,13 +1,17 @@
-// @ts-nocheck — TODO (Step 2 Phase C): Remove after BuildContext refactor. Current file has renderer-stub type mismatches.
+// @ts-nocheck — v2 drift: Model type no longer carries `endpoint_type` (now `endpointTypes`).
+//                 Unrelated to stubs migration — revisit when the `cherryin` branch is re-audited.
 import type { WebSearchPluginConfig } from '@cherrystudio/ai-core/core/plugins/built-in/webSearchPlugin'
 import type { Model } from '@shared/data/types/model'
 import { isOpenAIDeepResearchModel, isOpenAIWebSearchChatCompletionOnlyModel } from '@shared/utils/model'
 
 import type { AppProviderId } from '../types'
-// TODO (Step 2 Phase C): Extract websearch config type to shared
-import type { CherryWebSearchConfig } from './stubs'
-// TODO (Step 2 Phase C): Migrate utility function
-import { mapRegexToPatterns } from './stubs'
+import { mapRegexToPatterns } from './blacklistMatchPattern'
+
+/** Inputs for provider-builtin web-search plugin configuration. */
+export interface CherryWebSearchConfig {
+  maxResults: number
+  excludeDomains: string[]
+}
 
 export function getWebSearchParams(model: Model): Record<string, any> {
   if (model.providerId === 'hunyuan') {

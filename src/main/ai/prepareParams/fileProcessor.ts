@@ -7,6 +7,7 @@
 
 import type OpenAI from '@cherrystudio/openai'
 import { loggerService } from '@logger'
+import type { Provider } from '@shared/data/types/provider'
 import type { FileMetadata, Message, Model } from '@types'
 import { FILE_TYPE } from '@types'
 import type { FileMessageBlock } from '@types/newMessage'
@@ -16,9 +17,21 @@ import i18n from 'i18next'
 import { getAiSdkProviderId } from '../provider/factory'
 import { findFileBlocks } from './messageUtilStubs'
 import { getFileSizeLimit, supportsImageInput, supportsLargeFileUpload } from './modelCapabilities'
-import { getProviderByModel } from './stubs'
 
 const logger = loggerService.withContext('fileProcessor')
+
+/**
+ * Placeholder: resolve the Provider that owns a given Model.
+ *
+ * The real Main-side resolution is an async `DataApi.providers.get(model.providerId)`
+ * lookup, which would ripple through every caller's signature (sync → async).
+ * This file is `@ts-nocheck` WIP and never executed; the helper is kept local
+ * so when the BuildContext refactor lands it can either make callers async or
+ * pass the provider in from above — no central stub file to wire first.
+ */
+function getProviderByModel(_model: Model): Provider {
+  throw new Error('getProviderByModel: pending BuildContext refactor — caller must supply provider')
+}
 
 /**
  * 提取文件内容

@@ -6,6 +6,8 @@
 
 import { loggerService } from '@logger'
 import { DEFAULT_TIMEOUT } from '@shared/config/constant'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import type { Provider } from '@shared/data/types/provider'
 import {
   isClaude46SeriesModel,
   isClaudeReasoningModel,
@@ -19,7 +21,29 @@ import {
 import { type Assistant, type Model } from '@types'
 
 import { getThinkingBudget } from '../utils/reasoning'
-import { DEFAULT_ASSISTANT_SETTINGS, getAssistantSettings, getProviderByModel } from './stubs'
+
+/**
+ * Placeholder: resolve the Provider that owns a given Model.
+ *
+ * The real Main-side resolution is an async `DataApi.providers.get(model.providerId)`
+ * lookup, which would ripple through every caller's signature. This file is
+ * `@ts-nocheck` WIP and never executed; the helper is kept local so when the
+ * BuildContext refactor lands it can either make callers async or pass the
+ * provider in from above — no central stub file to wire first.
+ */
+function getProviderByModel(_model: Model): Provider {
+  throw new Error('getProviderByModel: pending BuildContext refactor — caller must supply provider')
+}
+
+/**
+ * Placeholder: in v2, `Assistant.settings` is already fully defaulted by the
+ * Zod schema, so the legacy renderer merge-with-defaults helper reduces to an
+ * identity. Retained as a no-op to keep the file diff narrow; callers can be
+ * simplified to `assistant.settings` directly when this file is rewritten.
+ */
+function getAssistantSettings(assistant: Assistant): Assistant['settings'] {
+  return assistant.settings
+}
 
 const logger = loggerService.withContext('modelParameters')
 

@@ -48,8 +48,7 @@ import {
   getReasoningEffort,
   getXAIReasoningParams
 } from './reasoning'
-// TODO (Step 2 Phase C): Migrate translate config
-import { mapLanguageToQwenMTModel } from './stubs'
+import { mapLanguageToQwenMTModel } from '../config/translate'
 import { getWebSearchParams } from './websearch'
 
 const logger = loggerService.withContext('aiCore.utils.options')
@@ -582,9 +581,12 @@ function buildGenericProviderOptions(
   if (isQwenMTModel(model)) {
     if (isTranslateAssistant(assistant)) {
       const targetLanguage = assistant.targetLanguage
+      // `targetLanguage` carries `{ langCode }` — pass the whole object so Chinese
+      // variants (zh-cn / zh-tw / zh-yue) resolve correctly. Renderer origin/main
+      // does the same.
       const translationOptions = {
         source_lang: 'auto',
-        target_lang: mapLanguageToQwenMTModel(targetLanguage.value)
+        target_lang: mapLanguageToQwenMTModel(targetLanguage)
       } as const
       if (!translationOptions.target_lang) {
         throw new Error(t('translate.error.not_supported', { language: targetLanguage.value }))
