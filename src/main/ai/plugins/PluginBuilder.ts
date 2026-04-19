@@ -1,6 +1,7 @@
 import type { AiPlugin } from '@cherrystudio/ai-core'
 import { createPromptToolUsePlugin, providerToolPlugin } from '@cherrystudio/ai-core/built-in/plugins'
 import { application } from '@main/core/application'
+import type { WebSearchProviderId } from '@shared/data/preference/preferenceTypes'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -17,6 +18,7 @@ import { createOpenrouterReasoningPlugin } from './openrouterReasoningPlugin'
 import { createPdfCompatibilityPlugin } from './pdfCompatibilityPlugin'
 import { createQwenThinkingPlugin } from './qwenThinkingPlugin'
 import { createReasoningExtractionPlugin } from './reasoningExtractionPlugin'
+import { searchOrchestrationPlugin } from './searchOrchestrationPlugin'
 import { createSimulateStreamingPlugin } from './simulateStreamingPlugin'
 import { createSkipGeminiThoughtSignaturePlugin } from './skipGeminiThoughtSignaturePlugin'
 import { createTelemetryPlugin } from './telemetryPlugin'
@@ -29,6 +31,11 @@ export interface BuildPluginsContext {
   /** MCP tool ids attached to this request — only `length > 0` is needed by plugins. */
   mcpToolIds?: string[]
   topicId?: string
+  /** External 3rd-party web search provider id (Tavily / Bocha / etc.). When
+   *  set, `searchOrchestrationPlugin` will inject the `builtin_web_search` tool.
+   *  TODO: Plumb this through from the AiStreamRequest once the renderer chat
+   *  flow surfaces a per-assistant web search provider selection. */
+  webSearchProviderId?: WebSearchProviderId
 }
 
 /**
@@ -40,14 +47,15 @@ export interface BuildPluginsContext {
  * `reasoningTimePlugin` was commented out in the original renderer builder
  * and remains unwired here to preserve parity.
  *
- * `searchOrchestrationPlugin` is intentionally NOT wired — it depends on
- * `MemoryProcessor` + `KnowledgeSearchTool` services that were deleted with
- * the renderer aiCore and have not been re-implemented on Main. Wiring it
- * here would crash at import. The telemetry plugin runs in a scaled-down
- * mode that skips per-topic parent-span nesting (see `telemetryPlugin.ts`).
+ * `searchOrchestrationPlugin` is wired but only fires when at least one of
+ * its tools has a viable execution path:
+ *   - `webSearchProviderId` is provided (external 3rd-party search), OR
+ *   - the assistant has `knowledgeBaseIds.length > 0`.
+ * The renderer-side `MemoryProcessor` is not yet ported, so memory storage
+ * is intentionally skipped inside the plugin (see TODO there).
  */
 export function buildPlugins(ctx: BuildPluginsContext): AiPlugin[] {
-  const { provider, model, assistant, capabilities, mcpToolIds, topicId } = ctx
+  const { provider, model, assistant, capabilities, mcpToolIds, topicId, webSearchProviderId } = ctx
   const plugins: AiPlugin<any, any>[] = []
 
   // Telemetry — only when developer mode is on AND we have a topicId to
@@ -121,6 +129,22 @@ export function buildPlugins(ctx: BuildPluginsContext): AiPlugin[] {
   }
   if (capabilities.enableUrlContext) {
     plugins.push(providerToolPlugin('urlContext'))
+  }
+
+  // Search orchestration — runs an LLM intent analyser then conditionally
+  // injects `builtin_web_search` and / or `builtin_knowledge_search` tools.
+  // Skipped entirely when neither source is configured to avoid the wasted
+  // intent-analysis LLM round-trip.
+  const hasExternalWebSearch = !!webSearchProviderId
+  const hasKnowledgeBases = (assistant.knowledgeBaseIds?.length ?? 0) > 0
+  if (hasExternalWebSearch || hasKnowledgeBases) {
+    plugins.push(
+      searchOrchestrationPlugin({
+        assistant,
+        topicId: topicId ?? '',
+        webSearchProviderId
+      })
+    )
   }
 
   // Prompt-mode tool use (XML <tool_use> blocks) for models that don't support
