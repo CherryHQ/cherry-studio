@@ -797,9 +797,9 @@ class CodeToolsService {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
 
-      // Detect bun "failed to remap" error on Windows
-      if (isWin && errorMessage.includes('Bun failed to remap')) {
-        const retryMessage = `Failed to update ${cliTool} due to bun global install issue on Windows. The application will try using bunx to run the package instead.`
+      // Detect bun global install issues (postinstall not executed or bin remap failure)
+      if (errorMessage.includes('Bun failed to remap') || errorMessage.includes('postinstall')) {
+        const retryMessage = `Failed to update ${cliTool} due to bun global install issue. The application will try using bunx to run the package instead.`
         logger.error(retryMessage, error as Error)
         return {
           success: false,
@@ -956,15 +956,19 @@ class CodeToolsService {
     }
 
     const bunInstallPath = path.join(os.homedir(), HOME_CHERRY_DIR)
-    const useBunxForClaudeCode = cliTool === codeTools.claudeCode && platform === 'win32'
+    const useBunxForClaudeCode = cliTool === codeTools.claudeCode
 
-    // Special handling for claude-code on Windows: use bunx to avoid bun global install issues
-    // This avoids the "Bun failed to remap" error on Windows
+    // Special handling for claude-code: use bunx to avoid bun global install issues
+    // This avoids the "Bun failed to remap" error on Windows and "postinstall not executed" on Linux/macOS
     // Using "x" (bunx) which caches packages globally - avoids directory pollution
     if (useBunxForClaudeCode) {
       const registryUrl = await this.getNpmRegistryUrl()
       const bunxCmd = `"${bunPath}" x ${packageName}`
-      baseCommand = `set "BUN_INSTALL=${bunInstallPath}" && set "NPM_CONFIG_REGISTRY=${registryUrl}" && ${bunxCmd}`
+      if (platform === 'win32') {
+        baseCommand = `set "BUN_INSTALL=${bunInstallPath}" && set "NPM_CONFIG_REGISTRY=${registryUrl}" && ${bunxCmd}`
+      } else {
+        baseCommand = `export BUN_INSTALL="${bunInstallPath}" && export NPM_CONFIG_REGISTRY="${registryUrl}" && ${bunxCmd}`
+      }
       logger.debug('Using bunx command for claude-code:', baseCommand)
     }
 
