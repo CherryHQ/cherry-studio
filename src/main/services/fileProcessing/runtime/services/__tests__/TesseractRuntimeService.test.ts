@@ -2,6 +2,8 @@ import fs from 'node:fs'
 
 import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle'
+import { getPhase } from '@main/core/lifecycle/decorators'
+import { Phase } from '@main/core/lifecycle/types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PreparedTesseractContext } from '../../../ocr/providers/tesseract/types'
@@ -45,6 +47,10 @@ describe('TesseractRuntimeService', () => {
     vi.useRealTimers()
     service = undefined
     BaseService.resetInstances()
+  })
+
+  it('uses WhenReady phase', () => {
+    expect(getPhase(TesseractRuntimeService)).toBe(Phase.WhenReady)
   })
 
   it('terminates the shared worker on stop', async () => {

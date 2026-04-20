@@ -1,4 +1,6 @@
 import { BaseService } from '@main/core/lifecycle'
+import { getPhase } from '@main/core/lifecycle/decorators'
+import { Phase } from '@main/core/lifecycle/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { resolveProcessorConfigByFeatureMock, createMarkdownProviderMock, persistResultMock } = vi.hoisted(() => ({
@@ -39,6 +41,10 @@ describe('MarkdownTaskService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     BaseService.resetInstances()
+  })
+
+  it('uses WhenReady phase', () => {
+    expect(getPhase(MarkdownTaskService)).toBe(Phase.WhenReady)
   })
 
   it('starts a remote task and persists the completed result on query', async () => {
@@ -90,6 +96,7 @@ describe('MarkdownTaskService', () => {
 
     expect(persistResultMock).toHaveBeenCalledWith({
       fileId: documentFile.id,
+      taskId: startedTask.taskId,
       result: {
         kind: 'markdown',
         markdownContent: '# hello'
@@ -198,7 +205,7 @@ describe('MarkdownTaskService', () => {
       id: 'open-mineru'
     })
     createMarkdownProviderMock.mockReturnValue(backgroundProvider)
-    persistResultMock.mockResolvedValue('/tmp/output.md')
+    persistResultMock.mockImplementation(async ({ taskId }) => `/tmp/${taskId}/output.md`)
 
     const service = new MarkdownTaskService()
     await service._doInit()
@@ -231,8 +238,18 @@ describe('MarkdownTaskService', () => {
         status: 'completed',
         progress: 100,
         processorId: 'open-mineru',
-        markdownPath: '/tmp/output.md'
+        markdownPath: `/tmp/${startedTask.taskId}/output.md`
       })
+    })
+
+    expect(persistResultMock).toHaveBeenCalledWith({
+      fileId: documentFile.id,
+      taskId: startedTask.taskId,
+      result: {
+        kind: 'markdown',
+        markdownContent: '# done'
+      },
+      signal: expect.any(AbortSignal)
     })
 
     await service._doStop()

@@ -108,6 +108,14 @@ describe('resolveProcessorConfig', () => {
     )
   })
 
+  it('fails fast when the migrated default markdown processor is invalid for markdown conversion', () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.default_markdown_conversion', 'mistral')
+
+    expect(() => resolveProcessorConfigByFeature('markdown_conversion')).toThrowError(
+      'File processor mistral does not support markdown_conversion'
+    )
+  })
+
   it('throws when the configured default processor does not support the requested feature', () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.default_text_extraction', 'open-mineru')
 

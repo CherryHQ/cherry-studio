@@ -30,7 +30,7 @@ interface BackgroundExecution {
 }
 
 @Injectable('MarkdownTaskService')
-@ServicePhase(Phase.BeforeReady)
+@ServicePhase(Phase.WhenReady)
 export class MarkdownTaskService extends BaseService {
   private tasks: Map<string, MarkdownTaskRecord> | null = null
   private pruneTimer: NodeJS.Timeout | null = null
@@ -251,6 +251,7 @@ export class MarkdownTaskService extends BaseService {
         const task = this.getRequiredTask(taskId)
         const markdownPath = await markdownResultStore.persistResult({
           fileId: task.fileId,
+          taskId,
           result: pollResult.result,
           signal
         })
@@ -325,6 +326,7 @@ export class MarkdownTaskService extends BaseService {
 
       const markdownPath = await markdownResultStore.persistResult({
         fileId: currentTask.fileId,
+        taskId,
         result,
         signal
       })

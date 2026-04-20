@@ -7,17 +7,18 @@ import { net } from 'electron'
 import { persistMarkdownResult, persistResponseZipResult } from '../persistence/resultPersistence'
 import type { MarkdownProviderCompletionPayload } from './types'
 
-export function getFileProcessingResultsDir(fileId: string): string {
-  return path.join(application.getPath('feature.files.data'), fileId, 'file-processing')
+export function getFileProcessingResultsDir(fileId: string, taskId: string): string {
+  return path.join(application.getPath('feature.files.data'), fileId, 'file-processing', taskId)
 }
 
 class MarkdownResultStore {
   async persistResult(options: {
     fileId: string
+    taskId: string
     result: MarkdownProviderCompletionPayload
     signal?: AbortSignal
   }): Promise<string> {
-    const resultsDir = getFileProcessingResultsDir(options.fileId)
+    const resultsDir = getFileProcessingResultsDir(options.fileId, options.taskId)
 
     switch (options.result.kind) {
       case 'markdown':

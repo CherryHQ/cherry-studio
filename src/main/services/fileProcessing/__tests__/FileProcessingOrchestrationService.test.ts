@@ -70,9 +70,12 @@ describe('FileProcessingOrchestrationService', () => {
     vi.clearAllMocks()
   })
 
-  it('uses WhenReady phase without init-time service dependencies', () => {
+  it('uses WhenReady phase and waits for file-processing runtime services', () => {
     expect(getPhase(FileProcessingOrchestrationService)).toBe(Phase.WhenReady)
-    expect(getDependencies(FileProcessingOrchestrationService)).toEqual([])
+    expect(getDependencies(FileProcessingOrchestrationService)).toEqual([
+      'MarkdownTaskService',
+      'TesseractRuntimeService'
+    ])
   })
 
   it('registers the three file processing IPC handlers', () => {

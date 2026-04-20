@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { FILE_PROCESSOR_IDS } from '@shared/data/preference/preferenceTypes'
 import { FileMetadataSchema } from '@shared/data/types/knowledge'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -41,6 +41,7 @@ const GetMarkdownConversionTaskResultPayloadSchema = z
 
 @Injectable('FileProcessingOrchestrationService')
 @ServicePhase(Phase.WhenReady)
+@DependsOn(['MarkdownTaskService', 'TesseractRuntimeService'])
 export class FileProcessingOrchestrationService extends BaseService {
   protected onInit(): void {
     this.registerIpcHandlers()

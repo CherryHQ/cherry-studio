@@ -21,7 +21,7 @@ const TESSERACT_LANGS_DOWNLOAD_URL_CN = 'https://gitcode.com/beyondkmp/tessdata-
 const TESSERACT_WORKER_IDLE_TIMEOUT_MS = 60 * 1000
 
 @Injectable('TesseractRuntimeService')
-@ServicePhase(Phase.BeforeReady)
+@ServicePhase(Phase.WhenReady)
 export class TesseractRuntimeService extends BaseService {
   private sharedWorker: Tesseract.Worker | null = null
   private previousLangsKey: string | null = null
