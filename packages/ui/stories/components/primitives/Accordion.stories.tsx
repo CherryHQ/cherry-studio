@@ -48,7 +48,7 @@ export const Default: Story = {
   args: {
     defaultValue: 'item-1'
   },
-  render: (args) => (
+  render: (args: AccordionArgs) => (
     <Accordion {...args}>
       <AccordionItem value="item-1">
         <AccordionTrigger>Is it accessible?</AccordionTrigger>
@@ -67,7 +67,7 @@ export const Multiple: Story = {
     type: 'multiple',
     defaultValue: ['item-1', 'item-2']
   },
-  render: (args) => (
+  render: (args: AccordionArgs) => (
     <Accordion {...args}>
       <AccordionItem value="item-1">
         <AccordionTrigger>Can I open multiple items?</AccordionTrigger>

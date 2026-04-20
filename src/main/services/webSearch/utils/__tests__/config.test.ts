@@ -32,7 +32,7 @@ describe('webSearch config utils', () => {
     const providerIds = resolved.providers.map((provider) => provider.id)
 
     expect(providerIds).toContain('exa-mcp')
-    expect(providerIds).toContain('local-google')
+    expect(providerIds).toContain('querit')
 
     const tavily = resolved.providers.find((provider) => provider.id === 'tavily')
     expect(tavily?.apiKeys).toEqual(['tavily-key'])
