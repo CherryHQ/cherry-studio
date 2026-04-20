@@ -4,7 +4,6 @@ import type { ReadableStream as NodeReadableStream } from 'node:stream/web'
 import { application } from '@application'
 import * as Lark from '@larksuiteoapi/node-sdk'
 import { WindowType } from '@main/core/window/types'
-import type { FeishuDomain } from '@main/services/agents/database/schema'
 import { IpcChannel } from '@shared/IpcChannel'
 
 import {
@@ -14,6 +13,7 @@ import {
   MAX_FILE_SIZE_BYTES,
   type SendMessageOptions
 } from '../../ChannelAdapter'
+import type { FeishuDomain } from '../../channelConfig'
 import { registerAdapterFactory } from '../../ChannelManager'
 import { isSlashCommand } from '../../constants'
 import { FlushController } from '../../FlushController'

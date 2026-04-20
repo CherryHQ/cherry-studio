@@ -1,4 +1,9 @@
 import { application } from '@application'
+import { type AgentRow, agentTable as agentsTable, type InsertAgentRow } from '@data/db/schemas/agent'
+import { agentChannelTable as channelsTable } from '@data/db/schemas/agentChannel'
+import { agentSessionTable as sessionsTable } from '@data/db/schemas/agentSession'
+import { agentSkillTable as agentSkillsTable } from '@data/db/schemas/agentSkill'
+import { agentTaskTable as scheduledTasksTable } from '@data/db/schemas/agentTask'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { modelsService } from '@main/apiServer/services/models'
@@ -22,15 +27,6 @@ import {
   serializeJsonFields,
   validateAgentModels
 } from '../agentUtils'
-import {
-  type AgentRow,
-  agentSkillsTable,
-  agentsTable,
-  channelsTable,
-  type InsertAgentRow,
-  scheduledTasksTable,
-  sessionsTable
-} from '../database/schema'
 import type { AgentModelField } from '../errors'
 import { skillService } from '../skills/SkillService'
 import { CHERRY_CLAW_AGENT_ID, isBuiltinAgentId } from './builtin/BuiltinAgentIds'

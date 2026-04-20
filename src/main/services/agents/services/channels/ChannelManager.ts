@@ -1,12 +1,13 @@
 import { application } from '@application'
+import type { AgentChannelRow as ChannelRow } from '@data/db/schemas/agentChannel'
 import { loggerService } from '@logger'
 import { WindowType } from '@main/core/window/types'
 import type { ChannelLogEntry, ChannelStatusEvent } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 
-import type { ChannelConfig, ChannelRow } from '../../database/schema'
 import { channelService } from '../ChannelService'
 import type { ChannelAdapter } from './ChannelAdapter'
+import type { ChannelConfig } from './channelConfig'
 import { ChannelLogBuffer } from './ChannelLogBuffer'
 import { channelMessageHandler } from './ChannelMessageHandler'
 

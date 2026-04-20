@@ -1,3 +1,9 @@
+import { application } from '@application'
+import {
+  type AgentSessionMessageRow as SessionMessageRow,
+  agentSessionMessageTable as sessionMessagesTable,
+  type InsertAgentSessionMessageRow as InsertSessionMessageRow
+} from '@data/db/schemas/agentSessionMessage'
 import { loggerService } from '@logger'
 import type {
   AgentMessageAssistantPersistPayload,
@@ -8,10 +14,6 @@ import type {
   AgentSessionMessageEntity
 } from '@types'
 import { and, asc, eq, sql } from 'drizzle-orm'
-
-import { BaseService } from '../BaseService'
-import type { InsertSessionMessageRow, SessionMessageRow } from './schema'
-import { sessionMessagesTable } from './schema'
 
 const logger = loggerService.withContext('AgentMessageRepository')
 
@@ -25,7 +27,7 @@ export type PersistAssistantMessageParams = AgentMessageAssistantPersistPayload 
   agentSessionId: string
 }
 
-class AgentMessageRepository extends BaseService {
+class AgentMessageRepository {
   private serializeMessage(payload: AgentPersistedMessage): string {
     return JSON.stringify(payload)
   }
@@ -72,7 +74,7 @@ class AgentMessageRepository extends BaseService {
     role: string,
     messageId: string
   ): Promise<SessionMessageRow | null> {
-    const database = await this.getDatabase()
+    const database = await application.get('DbService').getDb()
     // Use SQLite json_extract to query by messageId directly, avoiding loading all messages
     const rows = await database
       .select()
@@ -102,7 +104,7 @@ class AgentMessageRepository extends BaseService {
       throw new Error('Message payload missing id')
     }
 
-    const database = await this.getDatabase()
+    const database = await application.get('DbService').getDb()
     const serializedPayload = this.serializeMessage(payload)
     const serializedMetadata = this.serializeMetadata(metadata)
 
@@ -183,7 +185,7 @@ class AgentMessageRepository extends BaseService {
 
   async getSessionHistory(sessionId: string): Promise<AgentPersistedMessage[]> {
     try {
-      const database = await this.getDatabase()
+      const database = await application.get('DbService').getDb()
       const rows = await database
         .select()
         .from(sessionMessagesTable)

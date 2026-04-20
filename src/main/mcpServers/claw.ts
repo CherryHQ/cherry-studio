@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
-import { type ChannelConfig, ChannelConfigSchema } from '@main/services/agents/database/schema'
 import { agentService } from '@main/services/agents/services/AgentService'
+import { type ChannelConfig, ChannelConfigSchema } from '@main/services/agents/services/channels/channelConfig'
 import { channelManager } from '@main/services/agents/services/channels/ChannelManager'
 import { channelService } from '@main/services/agents/services/ChannelService'
 import { taskService } from '@main/services/agents/services/TaskService'

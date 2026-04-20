@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
 import { application } from '@application'
+import { agentSessionMessageTable as sessionMessagesTable } from '@data/db/schemas/agentSessionMessage'
 import { loggerService } from '@logger'
 import type {
   AgentPersistedMessage,
@@ -12,10 +13,9 @@ import type {
 import type { TextStreamPart } from 'ai'
 import { and, desc, eq, isNotNull } from 'drizzle-orm'
 
-import { sessionMessagesTable } from '../database/schema'
-import { agentMessageRepository } from '../database/sessionMessageRepository'
 import type { AgentStreamEvent } from '../interfaces/AgentStreamInterface'
 import ClaudeCodeService from './claudecode'
+import { agentMessageRepository } from './sessionMessageRepository'
 
 const logger = loggerService.withContext('SessionMessageService')
 

@@ -22,29 +22,8 @@ vi.mock('@main/apiServer/utils', () => ({
   validateModelId: (...args: unknown[]) => mockValidateModelId(...args)
 }))
 
-import { BaseService } from '../BaseService'
+import { normalizeAllowedTools, resolveAccessiblePaths, validateAgentModels } from '../agentUtils'
 import { AgentModelValidationError } from '../errors'
-
-class TestBaseService extends BaseService {
-  public normalize(
-    allowedTools: string[] | undefined,
-    tools: Tool[],
-    legacyIdMap?: Map<string, string>
-  ): string[] | undefined {
-    return this.normalizeAllowedTools(allowedTools, tools, legacyIdMap)
-  }
-
-  public async validateModels(
-    agentType: AgentType,
-    models: Partial<Record<AgentModelField, string | undefined>>
-  ): Promise<void> {
-    return this.validateAgentModels(agentType, models)
-  }
-
-  public resolve(paths: string[] | undefined, id: string): string[] {
-    return this.resolveAccessiblePaths(paths, id)
-  }
-}
 
 const buildMcpTool = (id: string): Tool => ({
   id,
@@ -54,12 +33,10 @@ const buildMcpTool = (id: string): Tool => ({
   requirePermissions: true
 })
 
-describe('BaseService.normalizeAllowedTools', () => {
-  const service = new TestBaseService()
-
+describe('normalizeAllowedTools', () => {
   it('returns undefined or empty inputs unchanged', () => {
-    expect(service.normalize(undefined, [])).toBeUndefined()
-    expect(service.normalize([], [])).toEqual([])
+    expect(normalizeAllowedTools(undefined, [])).toBeUndefined()
+    expect(normalizeAllowedTools([], [])).toEqual([])
   })
 
   it('normalizes legacy MCP tool IDs and deduplicates entries', () => {
@@ -86,7 +63,7 @@ describe('BaseService.normalizeAllowedTools', () => {
       'mcp__server-2__tool-two'
     ]
 
-    expect(service.normalize(allowedTools, tools, legacyIdMap)).toEqual([
+    expect(normalizeAllowedTools(allowedTools, tools, legacyIdMap)).toEqual([
       'mcp__server_one__tool_one',
       'custom_tool',
       'mcp__server_two__tool_two'
@@ -99,7 +76,7 @@ describe('BaseService.normalizeAllowedTools', () => {
 
     const allowedTools = ['mcp__unknown__tool', 'mcp__server_one__tool_one']
 
-    expect(service.normalize(allowedTools, tools, legacyIdMap)).toEqual([
+    expect(normalizeAllowedTools(allowedTools, tools, legacyIdMap)).toEqual([
       'mcp__unknown__tool',
       'mcp__server_one__tool_one'
     ])
@@ -109,22 +86,23 @@ describe('BaseService.normalizeAllowedTools', () => {
     const allowedTools = ['custom_tool', 'builtin_tool']
     const tools: Tool[] = [{ id: 'custom_tool', name: 'custom_tool', type: 'custom' }]
 
-    expect(service.normalize(allowedTools, tools)).toEqual(allowedTools)
+    expect(normalizeAllowedTools(allowedTools, tools)).toEqual(allowedTools)
   })
 })
 
-describe('BaseService.validateAgentModels', () => {
-  const service = new TestBaseService()
-
+describe('validateAgentModels', () => {
   it('throws error when regular provider is missing API key', async () => {
     mockValidateModelId.mockResolvedValue({
       valid: true,
       provider: { id: 'openai', apiKey: '' }
     })
 
-    await expect(service.validateModels('claude-code', { model: 'openai:gpt-4' })).rejects.toThrow(
-      AgentModelValidationError
-    )
+    await expect(
+      validateAgentModels(
+        'claude-code' as AgentType,
+        { model: 'openai:gpt-4' } as Partial<Record<AgentModelField, string | undefined>>
+      )
+    ).rejects.toThrow(AgentModelValidationError)
   })
 
   it('does not throw for ollama provider without API key and sets placeholder', async () => {
@@ -134,7 +112,12 @@ describe('BaseService.validateAgentModels', () => {
       provider
     })
 
-    await expect(service.validateModels('claude-code', { model: 'ollama:llama3' })).resolves.not.toThrow()
+    await expect(
+      validateAgentModels(
+        'claude-code' as AgentType,
+        { model: 'ollama:llama3' } as Partial<Record<AgentModelField, string | undefined>>
+      )
+    ).resolves.not.toThrow()
     expect(provider.apiKey).toBe('ollama')
   })
 
@@ -145,7 +128,12 @@ describe('BaseService.validateAgentModels', () => {
       provider
     })
 
-    await expect(service.validateModels('claude-code', { model: 'lmstudio:model' })).resolves.not.toThrow()
+    await expect(
+      validateAgentModels(
+        'claude-code' as AgentType,
+        { model: 'lmstudio:model' } as Partial<Record<AgentModelField, string | undefined>>
+      )
+    ).resolves.not.toThrow()
     expect(provider.apiKey).toBe('lmstudio')
   })
 
@@ -156,27 +144,30 @@ describe('BaseService.validateAgentModels', () => {
       provider
     })
 
-    await expect(service.validateModels('claude-code', { model: 'openai:gpt-4' })).resolves.not.toThrow()
+    await expect(
+      validateAgentModels(
+        'claude-code' as AgentType,
+        { model: 'openai:gpt-4' } as Partial<Record<AgentModelField, string | undefined>>
+      )
+    ).resolves.not.toThrow()
     expect(provider.apiKey).toBe('sk-existing-key')
   })
 })
 
-describe('BaseService.resolveAccessiblePaths', () => {
-  const service = new TestBaseService()
+describe('resolveAccessiblePaths', () => {
   const testId = 'agent_1234567890_abcdefghi'
   // Matches the stub in tests/main.setup.ts → application.getPath('feature.agents.workspaces')
   const defaultPath = path.join('/mock/feature.agents.workspaces', 'abcdefghi')
 
   it('assigns a default path when paths is undefined', () => {
-    expect(service.resolve(undefined, testId)).toEqual([defaultPath])
+    expect(resolveAccessiblePaths(undefined, testId)).toEqual([defaultPath])
   })
 
   it('assigns a default path when paths is empty array', () => {
-    expect(service.resolve([], testId)).toEqual([defaultPath])
+    expect(resolveAccessiblePaths([], testId)).toEqual([defaultPath])
   })
 
   it('passes through provided paths unchanged', () => {
-    // Use path.normalize to get platform-appropriate path format for comparison
-    expect(service.resolve(['/some/path'], testId)).toEqual([path.normalize('/some/path')])
+    expect(resolveAccessiblePaths(['/some/path'], testId)).toEqual([path.normalize('/some/path')])
   })
 })

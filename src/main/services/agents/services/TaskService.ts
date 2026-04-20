@@ -1,18 +1,17 @@
 import { application } from '@application'
+import { agentTable as agentsTable } from '@data/db/schemas/agent'
+import { agentChannelTaskTable as channelTaskSubscriptionsTable } from '@data/db/schemas/agentChannel'
+import {
+  type AgentTaskRow as TaskRow,
+  type AgentTaskRunLogRow as TaskRunLogRow,
+  agentTaskRunLogTable as taskRunLogsTable,
+  agentTaskTable as scheduledTasksTable,
+  type InsertAgentTaskRow as InsertTaskRow,
+  type InsertAgentTaskRunLogRow as InsertTaskRunLogRow
+} from '@data/db/schemas/agentTask'
 import { loggerService } from '@logger'
 import type { CreateTaskRequest, ListOptions, ScheduledTaskEntity, TaskRunLogEntity, UpdateTaskRequest } from '@types'
 import { and, asc, count, desc, eq, inArray, lte, ne } from 'drizzle-orm'
-
-import {
-  agentsTable,
-  channelTaskSubscriptionsTable,
-  type InsertTaskRow,
-  type InsertTaskRunLogRow,
-  scheduledTasksTable,
-  type TaskRow,
-  type TaskRunLogRow,
-  taskRunLogsTable
-} from '../database/schema'
 
 const logger = loggerService.withContext('TaskService')
 

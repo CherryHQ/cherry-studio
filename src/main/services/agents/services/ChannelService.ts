@@ -1,14 +1,14 @@
 import { application } from '@application'
+import {
+  type AgentChannelRow as ChannelRow,
+  agentChannelTable as channelsTable,
+  agentChannelTaskTable as channelTaskSubscriptionsTable,
+  type InsertAgentChannelRow as InsertChannelRow
+} from '@data/db/schemas/agentChannel'
 import { loggerService } from '@logger'
 import { and, eq, inArray } from 'drizzle-orm'
 
-import {
-  type ChannelConfig,
-  type ChannelRow,
-  channelsTable,
-  channelTaskSubscriptionsTable,
-  type InsertChannelRow
-} from '../database/schema'
+import type { ChannelConfig } from './channels/channelConfig'
 
 const logger = loggerService.withContext('ChannelService')
 
