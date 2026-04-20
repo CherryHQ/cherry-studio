@@ -220,15 +220,15 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       'result',
       'error',
       {
-        // run_at is the best proxy for created_at/updated_at; COALESCE guards
-        // against NULL run_at since $defaultFn is bypassed in a raw INSERT...SELECT.
+        // run_at is the best proxy for created_at/updated_at; COALESCE mirrors
+        // $defaultFn (Date.now()) for NULL run_at since raw INSERT...SELECT bypasses it.
         name: 'created_at',
-        expr: "COALESCE(CAST(strftime('%s', run_at) AS INTEGER) * 1000, 0)",
+        expr: "COALESCE(CAST(strftime('%s', run_at) AS INTEGER) * 1000, CAST(strftime('%s', 'now') AS INTEGER) * 1000)",
         sourceColumn: 'run_at'
       },
       {
         name: 'updated_at',
-        expr: "COALESCE(CAST(strftime('%s', run_at) AS INTEGER) * 1000, 0)",
+        expr: "COALESCE(CAST(strftime('%s', run_at) AS INTEGER) * 1000, CAST(strftime('%s', 'now') AS INTEGER) * 1000)",
         sourceColumn: 'run_at'
       }
     ],

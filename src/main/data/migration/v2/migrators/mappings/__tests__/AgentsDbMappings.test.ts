@@ -88,7 +88,7 @@ describe('AgentsDbMappings', () => {
     const statements = buildAgentsImportStatements('/tmp/agents.db', schemaInfo)
     const sessionsInsert = statements.find((s) => s.startsWith('INSERT INTO agent_session '))
 
-    expect(sessionsInsert).toContain('WHERE agent_id IN (SELECT id FROM agents_legacy.agents)')
+    expect(sessionsInsert).toContain('WHERE agent_id IN (SELECT id FROM agent)')
   })
 
   it('appends WHERE clause for session_messages to match migrated sessions only', () => {
