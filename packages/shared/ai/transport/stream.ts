@@ -97,6 +97,15 @@ export interface AiStreamOpenRequest {
   userMessageParts: CherryMessagePart[]
   /** UniqueModelIds of @-mentioned models — Main dispatches one execution per model. */
   mentionedModelIds?: UniqueModelId[]
+  /**
+   * Caller-supplied UUID for the assistant placeholder. When provided and a
+   * single-model execution is resolved, Main inserts the placeholder with
+   * this id so `useChat.activeResponse.state.message.id` and the DB row
+   * agree — preventing the duplicate-assistant-message bug on the first
+   * streamed chunk. Ignored for multi-model turns (N placeholders) and
+   * regenerate (reuses an existing placeholder row).
+   */
+  assistantMessageId?: string
 }
 
 /** Subscribe to a topic's stream state. */

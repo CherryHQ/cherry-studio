@@ -38,13 +38,24 @@ const logger = loggerService.withContext('DataApi:MessageService')
  * Placeholders have `parentId` and `siblingsGroupId` intentionally omitted:
  * both are derived by the reservation (placeholders always hang off the user
  * message, and share the turn's group).
+ *
+ * An optional `id` on each placeholder lets callers (notably the AI stream
+ * pipeline) pre-generate the UUID on the renderer and thread it through so
+ * `useChat.activeResponse` and the DB row agree — eliminating the
+ * duplicate-assistant-message bug caused by client/DB id divergence.
  */
+export interface ReserveAssistantTurnPlaceholder
+  extends Omit<CreateMessageDto, 'parentId' | 'siblingsGroupId' | 'setAsActive'> {
+  /** Optional caller-supplied UUID; falls back to the schema default when omitted. */
+  id?: string
+}
+
 export interface ReserveAssistantTurnInput {
   topicId: string
   userMessage: { mode: 'create'; dto: CreateMessageDto } | { mode: 'existing'; id: string }
   /** If set, placeholders use this group and existing children with groupId=0 are backfilled. */
   siblingsGroupId?: number
-  placeholders: Array<Omit<CreateMessageDto, 'parentId' | 'siblingsGroupId' | 'setAsActive'>>
+  placeholders: ReserveAssistantTurnPlaceholder[]
 }
 
 export interface ReserveAssistantTurnResult {
@@ -776,6 +787,7 @@ export class MessageService {
         const [row] = await tx
           .insert(messageTable)
           .values({
+            ...(p.id && { id: p.id }),
             topicId: input.topicId,
             parentId: userMessage.id,
             role: p.role,

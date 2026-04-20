@@ -6,6 +6,7 @@ import { messageService } from '@data/services/MessageService'
 import { BlockType, type MessageData } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 function mainText(content: string): MessageData {
@@ -176,6 +177,35 @@ describe('MessageService', () => {
       expect(path[1].siblingsGroupId).toBe(1)
       expect(path[1].modelId).toBe(createUniqueModelId('provider-b', 'model-B'))
       expect(path[2].parentId).toBe('m-a2')
+    })
+  })
+
+  describe('reserveAssistantTurn — placeholder id override', () => {
+    it('uses the caller-supplied id when provided, generates otherwise', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-res', activeNodeId: null })
+
+      const suppliedId = '11111111-1111-4111-8111-111111111111'
+      const { userMessage, placeholders } = await messageService.reserveAssistantTurn({
+        topicId: 'topic-res',
+        userMessage: {
+          mode: 'create',
+          dto: { role: 'user', parentId: null, data: mainText('hi'), status: 'success' }
+        },
+        placeholders: [
+          { id: suppliedId, role: 'assistant', data: { blocks: [] }, status: 'pending' },
+          { role: 'assistant', data: { blocks: [] }, status: 'pending' }
+        ]
+      })
+
+      expect(userMessage.role).toBe('user')
+      expect(placeholders[0].id).toBe(suppliedId)
+      // Second placeholder falls back to the uuidv7 default — format check only.
+      expect(placeholders[1].id).not.toBe(suppliedId)
+      expect(placeholders[1].id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
+
+      // activeNodeId points at the last placeholder regardless of id source.
+      const [topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-res')).limit(1)
+      expect(topic.activeNodeId).toBe(placeholders[1].id)
     })
   })
 })

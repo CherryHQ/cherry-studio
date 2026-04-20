@@ -110,6 +110,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
     setMessages,
     streamingUIMessages,
     activeExecutionIds,
+    prepareNextAssistantId,
     addToolApprovalResponse
   } = useChatWithHistory(topic.id, initialMessages, refresh, { assistantId: assistant.id }, metadataMap)
 
@@ -319,6 +320,16 @@ const V2ChatContentInner: FC<InnerProps> = ({
 
   const handleSendV2 = useCallback(
     async (text: string, options?: { files?: FileMetadata[]; mentionedModels?: UniqueModelId[] }) => {
+      // Single-model only: pre-generate the assistant UUID and align all
+      // three consumers on it (useChat.activeResponse, useChat.state.messages
+      // after refresh, and the DB placeholder row). Multi-model turns keep
+      // the old path — Main allocates N ids and the overlay renderer owns
+      // per-execution state via `ExecutionStreamCollector`.
+      const isMultiModel = (options?.mentionedModels?.length ?? 0) > 1
+      const assistantMessageId = isMultiModel ? undefined : crypto.randomUUID()
+      if (assistantMessageId) {
+        prepareNextAssistantId(assistantMessageId)
+      }
       void sendMessage(
         { text },
         {
@@ -326,12 +337,30 @@ const V2ChatContentInner: FC<InnerProps> = ({
             parentAnchorId: activeNodeId ?? undefined,
             files: options?.files,
             mentionedModels: options?.mentionedModels,
+            assistantMessageId,
             ...capabilityBody
           }
         }
       )
+      // Append an empty assistant placeholder so the PENDING indicator shows
+      // during the ~20–50ms gap between click and Main's `pending` broadcast.
+      // The id matches Main's placeholder row, so the later `refresh` +
+      // `setMessages(refreshed)` is an idempotent id-preserving replace.
+      //
+      // The append must wait ONE microtask: `sendMessage` awaits
+      // `convertFileListToFileUIParts` (ai/src/ui/chat.ts:371) before
+      // `pushMessage(user)`, even for text-only turns (async function yields
+      // once). Appending synchronously lands the placeholder *before* the new
+      // user message — `adaptedMessages` then derives its `askId` from the
+      // prior turn's user, flashing the placeholder into the previous
+      // multi-model siblings group until `pending` refresh repairs the order.
+      if (assistantMessageId) {
+        queueMicrotask(() => {
+          setMessages((prev) => [...prev, { id: assistantMessageId, role: 'assistant', parts: [] }])
+        })
+      }
     },
-    [activeNodeId, sendMessage, capabilityBody]
+    [activeNodeId, sendMessage, setMessages, prepareNextAssistantId, capabilityBody]
   )
 
   return (

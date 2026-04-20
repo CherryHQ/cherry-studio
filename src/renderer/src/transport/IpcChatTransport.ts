@@ -57,7 +57,8 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
         trigger,
         parentAnchorId: mergedBody.parentAnchorId || (trigger === 'regenerate-message' ? lastMessage?.id : undefined),
         userMessageParts: lastMessage ? lastMessage.parts : [],
-        mentionedModelIds: mergedBody.mentionedModels
+        mentionedModelIds: mergedBody.mentionedModels,
+        assistantMessageId: mergedBody.assistantMessageId
       })
       .catch((error: unknown) => {
         logger.error('streamOpen IPC failed', error instanceof Error ? error : new Error(String(error)))

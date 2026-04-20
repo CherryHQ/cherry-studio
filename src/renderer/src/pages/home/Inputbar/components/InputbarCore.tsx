@@ -620,7 +620,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
             onClick={onPause}
             aria-label={t('chat.input.pause')}
             style={{ marginRight: -2 }}
-            icon={<CirclePause size={20} color="var(--color-error)" />}
+            icon={<CirclePause size={20} color="var(--color-error-base)" />}
           />
         </Tooltip>
       )

@@ -22,6 +22,7 @@ import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/mess
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ChatRequestOptions, ChatStatus } from 'ai'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { v4 as uuidv4 } from 'uuid'
 
 import type { MessageMetadataMap } from './useTopicMessagesV2'
 
@@ -48,6 +49,16 @@ export interface UseChatWithHistoryResult {
   activeExecutionIds: readonly UniqueModelId[]
   initialMessages: CherryUIMessage[]
   /**
+   * Queue a UUID to be consumed by the next `Chat.generateId()` call —
+   * which `makeRequest` uses to seed `activeResponse.state.message.id`
+   * (see `ai/src/ui/chat.ts:659`). Pair with `body.assistantMessageId`
+   * on `sendMessage` so the renderer's activeResponse and the DB
+   * placeholder share the same id, avoiding the duplicate-assistant
+   * bug when the first chunk arrives and AI SDK falls back to
+   * `pushMessage` on id mismatch.
+   */
+  prepareNextAssistantId: (id: string) => void
+  /**
    * AI SDK v6 native tool-approval response. Flips a `ToolUIPart` from
    * `approval-requested` to `approval-responded` on the local message.
    * For Claude Agent approvals the caller must also unblock Main via
@@ -65,6 +76,22 @@ export function useChatWithHistory(
   context: { assistantId: string },
   metadataMap: MessageMetadataMap = {}
 ): UseChatWithHistoryResult {
+  // Single-slot queue for the next id `Chat.generateId()` should return.
+  // `V2ChatContent.handleSendV2` writes a UUID here right before calling
+  // `sendMessage` and also threads it into `body.assistantMessageId`, so
+  // the assistant id ends up identical on three sides: the renderer's
+  // `activeResponse.state.message`, `useChat.state.messages`, and the DB
+  // placeholder row created by Main.
+  const pendingAssistantIdRef = useRef<string | null>(null)
+  const generateId = useCallback(() => {
+    const queued = pendingAssistantIdRef.current
+    if (queued) {
+      pendingAssistantIdRef.current = null
+      return queued
+    }
+    return uuidv4()
+  }, [])
+
   const { messages, setMessages, stop, status, error, sendMessage, regenerate, resumeStream, addToolApprovalResponse } =
     useChat<CherryUIMessage>({
       id: topicId,
@@ -72,10 +99,15 @@ export function useChatWithHistory(
       messages: initialMessages,
       experimental_throttle: 50,
       sendAutomaticallyWhen: cherryApprovalPredicate,
+      generateId,
       onError: (streamError) => {
         logger.error('AI stream error', { topicId, streamError })
       }
     })
+
+  const prepareNextAssistantId = useCallback((id: string) => {
+    pendingAssistantIdRef.current = id
+  }, [])
 
   // Stable ref for refresh to avoid re-subscribing IPC listeners
   const refreshRef = useRef(refresh)
@@ -104,6 +136,14 @@ export function useChatWithHistory(
 
       resumeInFlightRef.current = (async () => {
         if (reason === 'started-event') {
+          // Only seed state from the DB placeholder row when there's nothing
+          // live yet. Once the stream is already producing chunks,
+          // overwriting `messages` with the DB snapshot (placeholder still
+          // has empty parts) would wipe the in-flight content and reset
+          // the latest assistant to "pending".
+          if (status === 'streaming') {
+            return
+          }
           try {
             const refreshed = await refreshRef.current()
             setMessages(refreshed)
@@ -238,6 +278,7 @@ export function useChatWithHistory(
     streamingUIMessages: messages,
     activeExecutionIds,
     initialMessages,
+    prepareNextAssistantId,
     addToolApprovalResponse
   }
 }

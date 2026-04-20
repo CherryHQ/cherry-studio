@@ -9,6 +9,13 @@ export interface AiChatRequestBody {
   mentionedModels?: UniqueModelId[]
   /** Uploaded file metadata. */
   files?: Array<{ id: string; name: string; type: string; size: number; url: string }>
+  /**
+   * Caller-supplied UUID for the assistant placeholder (single-model turns
+   * only). Threaded into `AiStreamOpenRequest.assistantMessageId` so the
+   * renderer's `useChat.activeResponse.state.message.id` matches the DB
+   * placeholder row. See `useChatWithHistory` / `V2ChatContent`.
+   */
+  assistantMessageId?: string
 }
 
 export type {
