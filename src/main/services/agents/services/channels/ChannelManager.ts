@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { WindowType } from '@main/core/window/types'
 import type { ChannelLogEntry, ChannelStatusEvent } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 
@@ -157,10 +158,7 @@ class ChannelManager {
   }
 
   private sendToRenderer(channel: string, data: unknown): void {
-    const mainWindow = application.get('WindowService').getMainWindow()
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send(channel, data)
-    }
+    application.get('WindowManager').broadcastToType(WindowType.Main, channel, data)
   }
 
   /** Disconnect the adapter for a single channel without reconnecting. */

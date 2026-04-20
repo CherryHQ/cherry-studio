@@ -11,7 +11,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@main/services/WindowService', () => ({
+vi.mock('@main/services/MainWindowService', () => ({
   windowService: {
     getMainWindow: vi.fn().mockReturnValue(null)
   }

@@ -80,6 +80,10 @@ describe('legacyModelToUniqueId', () => {
     it('should handle pre-composed id with different provider', () => {
       expect(legacyModelToUniqueId({ id: 'azure::gpt-4', provider: 'openai' })).toBe('azure::gpt-4')
     })
+
+    it('should return null when provider contains the separator', () => {
+      expect(legacyModelToUniqueId({ id: 'gpt-4', provider: 'o::p' })).toBeNull()
+    })
   })
 
   describe('fallback parameter', () => {

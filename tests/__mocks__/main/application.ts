@@ -27,10 +27,38 @@ import { MockMainTesseractRuntimeServiceExport } from './TesseractRuntimeService
  *   })
  */
 
-/** Minimal WindowService mock for tests that access application.get('WindowService') */
-const mockWindowService = {
+/** Minimal MainWindowService mock for tests that access application.get('MainWindowService') */
+const mockMainWindowService = {
   getMainWindow: vi.fn(() => null),
-  showMainWindow: vi.fn()
+  showMainWindow: vi.fn(),
+  toggleMainWindow: vi.fn(),
+  quoteToMainWindow: vi.fn()
+}
+
+/**
+ * Minimal WindowManager mock — consumers that used to read
+ * `application.get('MainWindowService').getMainWindow()?.webContents.send(...)`
+ * now go through `WindowManager.broadcastToType(WindowType.Main, ...)`.
+ * Tests can assert on these spies directly.
+ */
+const mockWindowManager = {
+  broadcast: vi.fn(),
+  broadcastToType: vi.fn(),
+  getWindow: vi.fn(() => undefined),
+  getWindowsByType: vi.fn(() => []),
+  getAllWindows: vi.fn(() => []),
+  getWindowInfo: vi.fn(() => undefined),
+  getWindowId: vi.fn(() => undefined),
+  getWindowIdByWebContents: vi.fn(() => undefined),
+  open: vi.fn(() => 'mock-window-id'),
+  close: vi.fn(() => true),
+  show: vi.fn(() => true),
+  hide: vi.fn(() => true),
+  focus: vi.fn(() => true),
+  onWindowCreated: vi.fn(() => ({ dispose: vi.fn() })),
+  onWindowDestroyed: vi.fn(() => ({ dispose: vi.fn() })),
+  onWindowCreatedByType: vi.fn(() => ({ dispose: vi.fn() })),
+  onWindowDestroyedByType: vi.fn(() => ({ dispose: vi.fn() }))
 }
 
 /** Default service instances from existing mock files */
@@ -43,7 +71,8 @@ export const defaultServiceInstances = {
   Doc2xRuntimeService: MockMainDoc2xRuntimeServiceExport.doc2xRuntimeService,
   TesseractRuntimeService: MockMainTesseractRuntimeServiceExport.tesseractRuntimeService,
   OpenMineruRuntimeService: MockMainOpenMineruRuntimeServiceExport.openMineruRuntimeService,
-  WindowService: mockWindowService
+  MainWindowService: mockMainWindowService,
+  WindowManager: mockWindowManager
 } as const
 
 /** Type for per-service overrides */
@@ -72,7 +101,9 @@ export function createMockApplication(overrides: ServiceOverrides = {}) {
     registerAll: vi.fn(),
     initPathRegistry: vi.fn(),
     bootstrap: vi.fn().mockResolvedValue(undefined),
-    isReady: vi.fn(() => true)
+    isReady: vi.fn(() => true),
+    // Tests can mutate `application.isQuitting = true` to exercise quit-aware code paths.
+    isQuitting: false
   }
 }
 

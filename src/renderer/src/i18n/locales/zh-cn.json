@@ -2534,37 +2534,6 @@
     "xiaoyi": "小艺",
     "zhihu": "知乎直答"
   },
-  "miniwindow": {
-    "alert": {
-      "google_login": "提示：如遇到Google登录提示\"不受信任的浏览器\"，请先在小程序列表中的Google小程序中完成账号登录，再在其它小程序使用Google登录"
-    },
-    "clipboard": {
-      "empty": "剪贴板为空"
-    },
-    "feature": {
-      "chat": "回答此问题",
-      "explanation": "解释说明",
-      "summary": "内容总结",
-      "translate": "文本翻译"
-    },
-    "footer": {
-      "backspace_clear": "按 Backspace 清空",
-      "copy_last_message": "按 C 键复制",
-      "esc": "按 ESC {{action}}",
-      "esc_back": "返回",
-      "esc_close": "关闭",
-      "esc_pause": "暂停"
-    },
-    "input": {
-      "placeholder": {
-        "empty": "询问 {{model}} 获取帮助...",
-        "title": "你想对下方文字做什么"
-      }
-    },
-    "tooltip": {
-      "pin": "窗口置顶"
-    }
-  },
   "models": {
     "add_parameter": "添加参数",
     "all": "全部",
@@ -3350,6 +3319,37 @@
     "zai": "Z.ai",
     "zhinao": "360 智脑",
     "zhipu": "智谱开放平台"
+  },
+  "quickAssistant": {
+    "alert": {
+      "google_login": "提示：如遇到Google登录提示\"不受信任的浏览器\"，请先在小程序列表中的Google小程序中完成账号登录，再在其它小程序使用Google登录"
+    },
+    "clipboard": {
+      "empty": "剪贴板为空"
+    },
+    "feature": {
+      "chat": "回答此问题",
+      "explanation": "解释说明",
+      "summary": "内容总结",
+      "translate": "文本翻译"
+    },
+    "footer": {
+      "backspace_clear": "按 Backspace 清空",
+      "copy_last_message": "按 C 键复制",
+      "esc": "按 ESC {{action}}",
+      "esc_back": "返回",
+      "esc_close": "关闭",
+      "esc_pause": "暂停"
+    },
+    "input": {
+      "placeholder": {
+        "empty": "询问 {{model}} 获取帮助...",
+        "title": "你想对下方文字做什么"
+      }
+    },
+    "tooltip": {
+      "pin": "窗口置顶"
+    }
   },
   "restore": {
     "confirm": {
@@ -5458,10 +5458,10 @@
       "enabled": "启用",
       "exit_fullscreen": "退出全屏",
       "label": "按键",
-      "mini_window": "快捷助手",
       "new_topic": "新建话题",
       "occupied_by_other_application": "该快捷键已被系统或其他应用占用",
       "press_shortcut": "按下快捷键",
+      "quick_assistant": "快捷助手",
       "rename_topic": "重命名话题",
       "reset_defaults": "重置默认快捷键",
       "reset_defaults_confirm": "确定要重置所有快捷键吗？",
@@ -5920,7 +5920,7 @@
   },
   "tray": {
     "quit": "退出",
-    "show_mini_window": "快捷助手",
+    "show_quick_assistant": "快捷助手",
     "show_window": "显示窗口"
   },
   "update": {

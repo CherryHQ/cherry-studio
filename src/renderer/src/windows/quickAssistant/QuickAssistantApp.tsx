@@ -14,7 +14,7 @@ import { ThemeProvider } from '../../context/ThemeProvider'
 import HomeWindow from './home/HomeWindow'
 
 // Inner component that uses the hook after Redux is initialized
-function MiniWindowContent(): React.ReactElement {
+function QuickAssistantContent(): React.ReactElement {
   const [customCss] = usePreference('ui.custom_css')
 
   useEffect(() => {
@@ -34,7 +34,7 @@ function MiniWindowContent(): React.ReactElement {
   return <HomeWindow />
 }
 
-function MiniWindow(): React.ReactElement {
+function QuickAssistantApp(): React.ReactElement {
   useEffect(() => {
     window.toast = getToastUtilities()
   }, [])
@@ -46,7 +46,7 @@ function MiniWindow(): React.ReactElement {
           <CodeStyleProvider>
             <PersistGate loading={null} persistor={persistor}>
               <ErrorBoundary>
-                <MiniWindowContent />
+                <QuickAssistantContent />
               </ErrorBoundary>
             </PersistGate>
           </CodeStyleProvider>
@@ -56,4 +56,4 @@ function MiniWindow(): React.ReactElement {
   )
 }
 
-export default MiniWindow
+export default QuickAssistantApp

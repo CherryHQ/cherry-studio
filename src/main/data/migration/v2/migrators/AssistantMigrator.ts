@@ -204,23 +204,31 @@ export class AssistantMigrator extends BaseMigrator {
         const assistantTagNames = new Map<string, string[]>()
         for (const r of this.preparedResults) {
           if (r.tags.length > 0) {
-            assistantTagNames.set(r.assistant.id as string, r.tags)
-            for (const t of r.tags) uniqueTagNames.add(t)
+            const dedupedTags = [...new Set(r.tags)]
+            assistantTagNames.set(r.assistant.id as string, dedupedTags)
+            for (const t of dedupedTags) uniqueTagNames.add(t)
           }
         }
 
         if (uniqueTagNames.size > 0) {
           const tagRows = [...uniqueTagNames].map((name) => ({ name }))
+          let insertedTagRowCount = 0
           for (let i = 0; i < tagRows.length; i += BATCH_SIZE) {
-            await tx
+            const insertedRows = await tx
               .insert(tagTable)
               .values(tagRows.slice(i, i + BATCH_SIZE))
               .onConflictDoNothing()
+              .returning({ id: tagTable.id })
+            insertedTagRowCount += insertedRows.length
           }
 
           // Query back to get tag IDs (name → id mapping)
           const insertedTags = await tx.select({ id: tagTable.id, name: tagTable.name }).from(tagTable)
           const tagNameToId = new Map(insertedTags.map((t) => [t.name, t.id]))
+          const missingTagNames = [...uniqueTagNames].filter((name) => !tagNameToId.has(name))
+          if (missingTagNames.length > 0) {
+            logger.warn(`Tag migration could not resolve some tag names after insert`, { missingTagNames })
+          }
 
           const entityTagRows: (typeof entityTagTable.$inferInsert)[] = []
           for (const [assistantId, tags] of assistantTagNames) {
@@ -232,11 +240,20 @@ export class AssistantMigrator extends BaseMigrator {
             }
           }
 
+          let insertedAssociationCount = 0
           for (let i = 0; i < entityTagRows.length; i += BATCH_SIZE) {
-            await tx.insert(entityTagTable).values(entityTagRows.slice(i, i + BATCH_SIZE))
+            const insertedRows = await tx
+              .insert(entityTagTable)
+              .values(entityTagRows.slice(i, i + BATCH_SIZE))
+              .onConflictDoNothing()
+              .returning({ tagId: entityTagTable.tagId })
+            insertedAssociationCount += insertedRows.length
           }
 
-          logger.info(`Migrated ${uniqueTagNames.size} unique tags and ${entityTagRows.length} tag associations`)
+          logger.info(`Migrated ${uniqueTagNames.size} unique tags and ${entityTagRows.length} tag associations`, {
+            insertedTagRowCount,
+            insertedAssociationCount
+          })
         }
       })
 

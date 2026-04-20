@@ -28,7 +28,7 @@ PreferenceService handles data that:
 ### Cross-Window Synchronization
 
 - Changes automatically broadcast to all windows
-- Consistent state across main window, mini window, etc.
+- Consistent state across main window, quick assistant, etc.
 - Conflict resolution handled by Main process
 
 ## Update Strategies

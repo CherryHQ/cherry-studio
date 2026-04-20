@@ -24,7 +24,7 @@ const relevantDefinitions = SHORTCUT_DEFINITIONS.filter(
 
 @Injectable('ShortcutService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowService', 'SelectionService'])
+@DependsOn(['MainWindowService', 'SelectionService'])
 export class ShortcutService extends BaseService {
   private mainWindow: BrowserWindow | null = null
   private handlers = new Map<ShortcutPreferenceKey, ShortcutHandler>()
@@ -37,7 +37,7 @@ export class ShortcutService extends BaseService {
     this.registerBuiltInHandlers()
     this.subscribeToPreferenceChanges()
 
-    const windowService = application.get('WindowService')
+    const windowService = application.get('MainWindowService')
     this.registerDisposable(windowService.onMainWindowCreated((window) => this.registerForWindow(window)))
 
     const existingWindow = windowService.getMainWindow()
@@ -53,11 +53,11 @@ export class ShortcutService extends BaseService {
 
   private registerBuiltInHandlers(): void {
     this.handlers.set('shortcut.general.show_main_window', () => {
-      application.get('WindowService').toggleMainWindow()
+      application.get('MainWindowService').toggleMainWindow()
     })
 
     this.handlers.set('shortcut.general.show_settings', () => {
-      const windowService = application.get('WindowService')
+      const windowService = application.get('MainWindowService')
       let targetWindow = windowService.getMainWindow()
 
       if (
@@ -75,7 +75,7 @@ export class ShortcutService extends BaseService {
 
       const navigateToSettings = () => {
         if (!targetWindow || targetWindow.isDestroyed()) return
-        targetWindow.webContents.send(IpcChannel.Windows_NavigateToSettings)
+        targetWindow.webContents.send(IpcChannel.MainWindow_NavigateToSettings)
       }
 
       if (targetWindow.webContents.isLoadingMainFrame()) {
@@ -88,7 +88,7 @@ export class ShortcutService extends BaseService {
 
     this.handlers.set('shortcut.feature.quick_assistant.toggle_window', () => {
       if (!application.get('PreferenceService').get('feature.quick_assistant.enabled')) return
-      application.get('WindowService').toggleMiniWindow()
+      application.get('QuickAssistantService').toggleQuickAssistant()
     })
 
     this.handlers.set('shortcut.general.zoom_in', (window) => {

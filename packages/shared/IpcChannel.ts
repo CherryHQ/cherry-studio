@@ -7,7 +7,6 @@ export enum IpcChannel {
   App_SetSpellCheckLanguages = 'app:set-spell-check-languages',
   App_CheckForUpdate = 'app:check-for-update',
   App_QuitAndInstall = 'app:quit-and-install',
-  App_Reload = 'app:reload',
   Application_Quit = 'application:quit',
   App_Info = 'app:info',
   App_SetLaunchToTray = 'app:set-launch-to-tray',
@@ -40,11 +39,8 @@ export enum IpcChannel {
   // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
   // App_SaveData = 'app:save-data',
   App_GetDiskInfo = 'app:get-disk-info',
-  App_SetFullScreen = 'app:set-full-screen',
-  App_IsFullScreen = 'app:is-full-screen',
   App_GetSystemFonts = 'app:get-system-fonts',
   App_GetIpCountry = 'app:get-ip-country',
-  APP_CrashRenderProcess = 'app:crash-render-process',
 
   App_MacIsProcessTrusted = 'app:mac-is-process-trusted',
   App_MacRequestProcessTrust = 'app:mac-request-process-trust',
@@ -71,11 +67,13 @@ export enum IpcChannel {
   Config_Set = 'config:set',
   Config_Get = 'config:get',
 
-  MiniWindow_Show = 'miniwindow:show',
-  MiniWindow_Hide = 'miniwindow:hide',
-  MiniWindow_Close = 'miniwindow:close',
-  MiniWindow_Toggle = 'miniwindow:toggle',
-  MiniWindow_SetPin = 'miniwindow:set-pin',
+  // Quick Assistant
+  QuickAssistant_Show = 'quick-assistant:show',
+  QuickAssistant_Hide = 'quick-assistant:hide',
+  QuickAssistant_Close = 'quick-assistant:close',
+  QuickAssistant_Toggle = 'quick-assistant:toggle',
+  QuickAssistant_SetPin = 'quick-assistant:set-pin',
+  QuickAssistant_Shown = 'quick-assistant:shown',
 
   // Mcp
   Mcp_AddServer = 'mcp:add-server',
@@ -101,6 +99,8 @@ export enum IpcChannel {
   Mcp_ServerLog = 'mcp:server-log',
   // Python
   Python_Execute = 'python:execute',
+  Python_ExecutionRequest = 'python:execution-request',
+  Python_ExecutionResponse = 'python:execution-response',
 
   // agent messages
   AgentMessage_PersistExchange = 'agent-message:persist-exchange',
@@ -170,18 +170,45 @@ export enum IpcChannel {
   VertexAI_GetAccessToken = 'vertexai:get-access-token',
   VertexAI_ClearAuthCache = 'vertexai:clear-auth-cache',
 
-  Windows_ResetMinimumSize = 'window:reset-minimum-size',
-  Windows_SetMinimumSize = 'window:set-minimum-size',
-  Windows_Resize = 'window:resize',
-  Windows_GetSize = 'window:get-size',
+  // ──────────────────────────────────────────────────────────────
+  // Main-window-specific channels. Handlers live in MainWindowService
+  // and only operate on the main window instance. Wire values use the
+  // `main-window:*` prefix to match the TypeScript symbol semantics —
+  // both main and renderer reference these via the IpcChannel enum,
+  // so the prefix can evolve without any hardcoded-string drift.
+  // ──────────────────────────────────────────────────────────────
+  MainWindow_Reload = 'main-window:reload',
+  MainWindow_SetFullScreen = 'main-window:set-full-screen',
+  MainWindow_IsFullScreen = 'main-window:is-full-screen',
+  MainWindow_CrashRenderProcess = 'main-window:crash-render-process',
+  MainWindow_ResetMinimumSize = 'main-window:reset-minimum-size',
+  MainWindow_SetMinimumSize = 'main-window:set-minimum-size',
+  MainWindow_Resize = 'main-window:resize',
+  MainWindow_GetSize = 'main-window:get-size',
+  MainWindow_MaximizedChanged = 'main-window:maximized-changed',
+  MainWindow_NavigateToAbout = 'main-window:navigate-to-about',
+  MainWindow_NavigateToSettings = 'main-window:navigate-to-settings',
+
+  // ──────────────────────────────────────────────────────────────
+  // Window-self-operation channels.
+  //
+  // These target whichever BrowserWindow originated the IPC call
+  // (resolved via BrowserWindow.fromWebContents(event.sender) in
+  // MainWindowService.resolveIpcSenderWindow). Both the Main window
+  // and Detached Tab windows (which share the same preload) use these
+  // for their own titlebar buttons.
+  //
+  // TODO(v2): these overlap with WindowManager_Minimize / Maximize /
+  // Hide / Show / Focus (which also use sender resolution). Consolidate
+  // onto WindowManager_* as a separate migration task — requires
+  // updating preload API targets and removing the MainWindowService
+  // handlers.
+  // ──────────────────────────────────────────────────────────────
   Windows_Minimize = 'window:minimize',
   Windows_Maximize = 'window:maximize',
   Windows_Unmaximize = 'window:unmaximize',
   Windows_Close = 'window:close',
   Windows_IsMaximized = 'window:is-maximized',
-  Windows_MaximizedChanged = 'window:maximized-changed',
-  Windows_NavigateToAbout = 'window:navigate-to-about',
-  Windows_NavigateToSettings = 'window:navigate-to-settings',
   Shortcut_RegistrationConflict = 'shortcut:registration-conflict',
 
   // Tab
@@ -333,9 +360,6 @@ export enum IpcChannel {
   DirectoryProcessingPercent = 'directory-processing-percent',
 
   FullscreenStatusChanged = 'fullscreen-status-changed',
-
-  HideMiniWindow = 'hide-mini-window',
-  ShowMiniWindow = 'show-mini-window',
 
   ReduxStoreReady = 'redux-store-ready',
 
@@ -492,4 +516,17 @@ export enum IpcChannel {
   // caller supplied it; main never fires this event for fresh window creation or
   // when reuse happens without new initData.
   WindowManager_Reused = 'window-manager:reused'
+
+  // ──────────────────────────────────────────────────────────────
+  // TODO(v2): the following IPC channels are still referenced via
+  // bare string literals throughout the codebase and not declared
+  // as enum members. They should be collected here in a future
+  // cleanup pass so broadcastToType/invoke call sites get editor
+  // auto-complete and cross-reference support:
+  //
+  //   - 'notification-click'        (NotificationService + ipc.ts Notification_OnClick handler)
+  //   - 'protocol-data'             (ProtocolService + preload)
+  //   - 'file-preprocess-finished'  (PreprocessingService + KnowledgeService)
+  //   - 'file-preprocess-progress'  (BasePreprocessProvider)
+  // ──────────────────────────────────────────────────────────────
 }

@@ -207,69 +207,69 @@ vi.mock('../windowRegistry', () => {
       lifecycle: 'pooled',
       poolConfig,
       htmlPath: 'windows/pooled/index.html',
-      defaultConfig: { width: 1100, height: 720 }
+      windowOptions: { width: 1100, height: 720 }
     },
     pooledHidden: {
       type: 'pooledHidden',
       lifecycle: 'pooled',
       poolConfig,
-      show: false,
+      showMode: 'manual',
       htmlPath: 'windows/pooledHidden/index.html',
-      defaultConfig: {}
+      windowOptions: {}
     },
     eagerPooled: {
       type: 'eagerPooled',
       lifecycle: 'pooled',
       poolConfig: eagerPoolConfig,
       htmlPath: 'windows/eagerPooled/index.html',
-      defaultConfig: { width: 800, height: 600 }
+      windowOptions: { width: 800, height: 600 }
     },
     default: {
       type: 'default',
       lifecycle: 'default',
       htmlPath: 'windows/default/index.html',
-      defaultConfig: {}
+      windowOptions: {}
     },
     singleton: {
       type: 'singleton',
       lifecycle: 'singleton',
       htmlPath: 'windows/singleton/index.html',
-      defaultConfig: {}
+      windowOptions: {}
     },
     singletonHidden: {
       type: 'singletonHidden',
       lifecycle: 'singleton',
-      show: false,
+      showMode: 'manual',
       htmlPath: 'windows/singletonHidden/index.html',
-      defaultConfig: {}
+      windowOptions: {}
     },
     alwaysOnTopPool: {
       type: 'alwaysOnTopPool',
       lifecycle: 'pooled',
       poolConfig,
       htmlPath: 'windows/alwaysOnTopPool/index.html',
-      defaultConfig: { width: 400, height: 300, alwaysOnTop: true }
+      windowOptions: { width: 400, height: 300, alwaysOnTop: true }
     },
     standbyOnly: {
       type: 'standbyOnly',
       lifecycle: 'pooled',
       poolConfig: standbyOnlyPoolConfig,
       htmlPath: 'windows/standbyOnly/index.html',
-      defaultConfig: { width: 400, height: 300 }
+      windowOptions: { width: 400, height: 300 }
     },
     hybrid: {
       type: 'hybrid',
       lifecycle: 'pooled',
       poolConfig: hybridPoolConfig,
       htmlPath: 'windows/hybrid/index.html',
-      defaultConfig: { width: 400, height: 300 }
+      windowOptions: { width: 400, height: 300 }
     },
     lazyStandby: {
       type: 'lazyStandby',
       lifecycle: 'pooled',
       poolConfig: lazyStandbyPoolConfig,
       htmlPath: 'windows/lazyStandby/index.html',
-      defaultConfig: { width: 400, height: 300 }
+      windowOptions: { width: 400, height: 300 }
     }
   }
   return {
@@ -279,9 +279,9 @@ vi.mock('../windowRegistry', () => {
       if (!meta) throw new Error(`WindowType '${type}' is not registered`)
       return meta
     },
-    mergeWindowConfig: (type: string, overrides?: Record<string, unknown>) => {
-      const meta = registry[type] as { defaultConfig?: Record<string, unknown> }
-      return { ...meta?.defaultConfig, ...overrides, webPreferences: {} }
+    mergeWindowOptions: (type: string, overrides?: Record<string, unknown>) => {
+      const meta = registry[type] as { windowOptions?: Record<string, unknown> }
+      return { ...meta?.windowOptions, ...overrides, webPreferences: {} }
     }
   }
 })
@@ -385,7 +385,7 @@ describe('WindowManager', () => {
       expect(createdWindows).toHaveLength(2)
     })
 
-    it('does NOT show/focus existing singleton when metadata.show is false', () => {
+    it('does NOT show/focus existing singleton when metadata.showMode is "manual"', () => {
       const id1 = wm.open('singletonHidden' as never)
       const win = createdWindows[0]
       win.show.mockClear()
@@ -794,6 +794,113 @@ describe('WindowManager', () => {
           expect(newlyDestroyed).toBe(expectedDestroys)
         })
       })
+
+      describe('GC efficiency optimizations', () => {
+        type WmInternals = {
+          activePoolTypes: Set<string>
+          poolGcTimer: ReturnType<typeof setInterval> | null
+          poolGcTick: () => void
+          pools: Map<
+            string,
+            {
+              idle: string[]
+              standbyFloor: number
+              decayFloor: number
+              inactivityTimeoutMs: number
+              decayIntervalMs: number
+              gcDisabled: boolean
+            }
+          >
+        }
+
+        it('activePoolTypes contains type after releaseToPool pushes idle', async () => {
+          await bootEagerPools()
+          const id = wm.open('hybrid' as never)
+          await flushImmediate()
+
+          wm.close(id)
+
+          const internals = wm as unknown as WmInternals
+          expect(internals.activePoolTypes.has('hybrid')).toBe(true)
+        })
+
+        it('activePoolTypes drops type after suspendPool destroys all idle', async () => {
+          await bootEagerPools()
+          // hybrid pool has standbySize=1 idle window after eager warmup.
+          const internals = wm as unknown as WmInternals
+          expect(internals.activePoolTypes.has('hybrid')).toBe(true)
+
+          wm.suspendPool('hybrid' as never)
+
+          expect(internals.activePoolTypes.has('hybrid')).toBe(false)
+        })
+
+        it('poolGcTick stops the interval when activePoolTypes is empty', async () => {
+          await bootEagerPools()
+          const internals = wm as unknown as WmInternals
+
+          // Force activePoolTypes empty (simulate the steady idle state where
+          // every pool either has 0 idle or has been suspended).
+          internals.activePoolTypes.clear()
+          // Simulate a previously running interval timer.
+          if (!internals.poolGcTimer) {
+            internals.poolGcTimer = setInterval(() => {}, 60_000)
+          }
+
+          internals.poolGcTick()
+
+          expect(internals.poolGcTimer).toBeNull()
+        })
+
+        it('getOrCreatePoolState caches precomputed config values', async () => {
+          await bootEagerPools()
+          const internals = wm as unknown as WmInternals
+
+          // hybridPoolConfig: standbySize=1, recycleMinSize=1, decayInterval=60, inactivityTimeout=300
+          const hybrid = internals.pools.get('hybrid')!
+          expect(hybrid.standbyFloor).toBe(1)
+          expect(hybrid.decayFloor).toBe(1)
+          expect(hybrid.inactivityTimeoutMs).toBe(300_000)
+          expect(hybrid.decayIntervalMs).toBe(60_000)
+          expect(hybrid.gcDisabled).toBe(false)
+
+          // standbyOnlyPoolConfig: standbySize=1, no decay/inactivity → gcDisabled=true
+          const standbyOnly = internals.pools.get('standbyOnly')!
+          expect(standbyOnly.standbyFloor).toBe(1)
+          expect(standbyOnly.decayFloor).toBe(1)
+          expect(standbyOnly.inactivityTimeoutMs).toBe(0)
+          expect(standbyOnly.decayIntervalMs).toBe(0)
+          expect(standbyOnly.gcDisabled).toBe(true)
+        })
+
+        it('poolGcTick prunes pool from activePoolTypes once idle settles at standbyFloor', async () => {
+          await bootEagerPools()
+          const internals = wm as unknown as WmInternals
+
+          // After eager warmup, hybrid has idle=standbySize=1. It was added to
+          // activePoolTypes via createPooledIdleWindow.
+          expect(internals.activePoolTypes.has('hybrid')).toBe(true)
+
+          internals.poolGcTick()
+
+          // idle (1) <= standbyFloor (1) → no GC work possible until next
+          // release grows the queue past the floor → drop from active set.
+          expect(internals.activePoolTypes.has('hybrid')).toBe(false)
+        })
+
+        it('poolGcTick prunes gcDisabled pools from activePoolTypes immediately', async () => {
+          await bootEagerPools()
+          const internals = wm as unknown as WmInternals
+
+          // standbyOnly has gcDisabled=true (no inactivity, no decay configured).
+          // It was added to activePoolTypes when the standby idle window landed.
+          expect(internals.activePoolTypes.has('standbyOnly')).toBe(true)
+
+          internals.poolGcTick()
+
+          expect(internals.activePoolTypes.has('standbyOnly')).toBe(false)
+        })
+      })
     })
   })
 
@@ -1089,6 +1196,25 @@ describe('WindowManager', () => {
       win.emit('close', event)
 
       expect(event.preventDefault).not.toHaveBeenCalled()
+    })
+
+    it('does not intercept close for pooled windows when app is quitting', async () => {
+      const { application } = (await import('@application')) as unknown as { application: { isQuitting: boolean } }
+      const previousQuitting = application.isQuitting
+      application.isQuitting = true
+      try {
+        wm.open('pooled' as never)
+        const win = createdWindows[createdWindows.length - 1]
+
+        const event = { preventDefault: vi.fn() }
+        win.emit('close', event)
+
+        // Close must proceed natively so app.quit()'s will-quit can fire.
+        expect(event.preventDefault).not.toHaveBeenCalled()
+        expect(win.hide).not.toHaveBeenCalled()
+      } finally {
+        application.isQuitting = previousQuitting
+      }
     })
   })
 

@@ -21,6 +21,7 @@ import { messageHandlers } from './messages'
 import { miniappHandlers } from './miniapps'
 import { modelHandlers } from './models'
 import { providerHandlers } from './providers'
+import { tagHandlers } from './tags'
 import { temporaryChatHandlers } from './temporaryChats'
 import { topicHandlers } from './topics'
 import { translateHandlers } from './translate'
@@ -42,5 +43,6 @@ export const apiHandlers: ApiImplementation = {
   ...knowledgeHandlers,
   ...translateHandlers,
   ...mcpServerHandlers,
-  ...miniappHandlers
+  ...miniappHandlers,
+  ...tagHandlers
 }

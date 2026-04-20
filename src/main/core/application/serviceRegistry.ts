@@ -20,6 +20,7 @@ import {
 import { KnowledgeOrchestrationService, KnowledgeRuntimeService } from '@main/services/knowledge'
 import { KnowledgeVectorStoreService } from '@main/services/knowledge/vectorstore/KnowledgeVectorStoreService'
 import { LanTransferService } from '@main/services/lanTransfer'
+import { MainWindowService } from '@main/services/MainWindowService'
 import { MCPService } from '@main/services/MCPService'
 import { NodeTraceService } from '@main/services/NodeTraceService'
 import { OcrService } from '@main/services/ocr/OcrService'
@@ -29,6 +30,7 @@ import { PowerMonitorService } from '@main/services/PowerMonitorService'
 import { ProtocolService } from '@main/services/ProtocolService'
 import { ProxyManager } from '@main/services/ProxyManager'
 import { PythonService } from '@main/services/PythonService'
+import { QuickAssistantService } from '@main/services/QuickAssistantService'
 import { SearchService } from '@main/services/SearchService'
 import { SelectionService } from '@main/services/SelectionService'
 import { ShortcutService } from '@main/services/ShortcutService'
@@ -36,7 +38,6 @@ import { SpanCacheService } from '@main/services/SpanCacheService'
 import { ThemeService } from '@main/services/ThemeService'
 import { TrayService } from '@main/services/TrayService'
 import { WebviewService } from '@main/services/WebviewService'
-import { WindowService } from '@main/services/WindowService'
 
 import type { ServiceConstructor } from '../lifecycle/types'
 
@@ -92,7 +93,8 @@ export const services = {
   PythonService,
   TrayService,
   WebviewService,
-  WindowService,
+  MainWindowService,
+  QuickAssistantService,
   MCPService,
   OpenClawService,
   SearchService,
