@@ -33,8 +33,8 @@ const menuItemVariants = cva(
         )
       },
       size: {
-        default: 'px-2.5 py-[5px] text-[13px]',
-        sm: 'px-2.5 py-[4px] text-[11px]'
+        default: 'px-2.5 py-1.25 text-[13px]',
+        sm: 'px-2.5 py-1 text-[11px]'
       }
     },
     defaultVariants: {
@@ -48,6 +48,8 @@ type MenuItemProps = React.ComponentProps<'button'> &
   VariantProps<typeof menuItemVariants> & {
     icon?: React.ReactNode
     label: string
+    description?: React.ReactNode
+    descriptionLines?: number
     active?: boolean
     suffix?: React.ReactNode
     asChild?: boolean
@@ -59,6 +61,8 @@ function MenuItem({
   size,
   icon,
   label,
+  description,
+  descriptionLines,
   active,
   disabled,
   suffix,
@@ -67,6 +71,14 @@ function MenuItem({
   ...props
 }: MenuItemProps) {
   const Comp = asChild ? Slot : 'button'
+  const descriptionStyle =
+    descriptionLines && descriptionLines > 0
+      ? ({
+          display: '-webkit-box',
+          WebkitBoxOrient: 'vertical',
+          WebkitLineClamp: descriptionLines
+        } as React.CSSProperties)
+      : undefined
 
   return (
     <Comp
@@ -78,7 +90,16 @@ function MenuItem({
       className={cn(menuItemVariants({ variant, size }), className)}
       {...props}>
       {icon && <span className="flex shrink-0 items-center justify-center">{icon}</span>}
-      <span className={`min-w-0 truncate ${suffix ? 'flex-1' : ''}`}>{label}</span>
+      <span className={`min-w-0 text-left ${suffix ? 'flex-1' : ''}`}>
+        <span className="block truncate">{label}</span>
+        {description && (
+          <span
+            className={cn('mt-0.5 block text-[10px] text-muted-foreground', descriptionLines ? 'overflow-hidden' : '')}
+            style={descriptionStyle}>
+            {description}
+          </span>
+        )}
+      </span>
       {suffix && <span className="ml-auto flex shrink-0 items-center">{suffix}</span>}
     </Comp>
   )
@@ -93,7 +114,7 @@ MenuItem.displayName = 'MenuItem'
 type MenuListProps = React.ComponentProps<'div'>
 
 function MenuList({ className, ref, ...props }: MenuListProps) {
-  return <div ref={ref} data-slot="menu-list" className={cn('flex flex-col gap-0.5', className)} {...props} />
+  return <div ref={ref} data-slot="menu-list" className={cn('flex flex-col gap-1', className)} {...props} />
 }
 
 MenuList.displayName = 'MenuList'

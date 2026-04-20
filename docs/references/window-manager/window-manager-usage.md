@@ -25,9 +25,9 @@ WINDOW_TYPE_REGISTRY[WindowType.Settings] = {
   type: WindowType.Settings,
   lifecycle: 'singleton',
   htmlPath: 'settings.html',
-  preload: 'standard',
-  show: 'auto',
-  defaultConfig: {
+  // preload omitted → defaults to 'index.js'
+  // showMode omitted → defaults to 'auto'
+  windowOptions: {
     ...DEFAULT_WINDOW_CONFIG,
     width: 800,
     height: 600,
@@ -140,7 +140,7 @@ This looks cleaner than subscribing to an event, but it carries three hidden cos
 
 1. **Forces you off `open()`.** If the window is reused (singleton reopen or pool recycle), these listeners attach a second time on a window that already has them. To make the pattern safe you'd have to switch to `create()` — which is an internal primitive, not a consumer API (see "Window API layers" below).
 2. **Multiple entry paths silently decouple.** Crash recovery, test fixtures, or any future `open()` call site each need to remember to run setup. An `onWindowCreated` subscription covers all of them in one place.
-3. **Implicit coupling to registry config.** If listener safety depends on a specific `show` / `paintWhenInitiallyHidden` / etc. value (e.g. pre-show `setFocusable` timing that only works when `show: false`), a later registry change breaks correctness with no compile-time signal.
+3. **Implicit coupling to registry config.** If listener safety depends on a specific `showMode` / `paintWhenInitiallyHidden` / etc. value (e.g. pre-show `setFocusable` timing that only works when `showMode: 'manual'`), a later registry change breaks correctness with no compile-time signal.
 
 If you feel drawn to this pattern, subscribe to `onWindowCreatedByType(type, listener)` — one extra line, and all three costs disappear.
 

@@ -11,7 +11,7 @@ vi.mock('@main/constant', () => platform)
 
 import type { WindowTypeMetadata } from '../types'
 
-const { mergeWindowConfig } = await import('../windowRegistry')
+const { mergeWindowOptions } = await import('../windowRegistry')
 const { WINDOW_TYPE_REGISTRY } = await import('../windowRegistry')
 const { WindowType } = await import('../types')
 
@@ -32,21 +32,21 @@ function resetPlatform(): void {
   platform.isLinux = false
 }
 
-describe('mergeWindowConfig', () => {
+describe('mergeWindowOptions', () => {
   beforeEach(() => {
     resetPlatform()
   })
 
-  it('returns the baseConfig when no platformOverrides are set', () => {
+  it('returns the baseOptions when no platformOverrides are set', () => {
     setFixture({
       type: fixtureKey,
       lifecycle: 'singleton',
       htmlPath: 'x.html',
-      defaultConfig: { width: 100, height: 200 }
+      windowOptions: { width: 100, height: 200 }
     })
     platform.isMac = true
 
-    const result = mergeWindowConfig(fixtureKey)
+    const result = mergeWindowOptions(fixtureKey)
 
     expect(result.width).toBe(100)
     expect(result.height).toBe(200)
@@ -58,7 +58,7 @@ describe('mergeWindowConfig', () => {
       type: fixtureKey,
       lifecycle: 'singleton',
       htmlPath: 'x.html',
-      defaultConfig: {
+      windowOptions: {
         width: 100,
         height: 200,
         platformOverrides: {
@@ -70,7 +70,7 @@ describe('mergeWindowConfig', () => {
     })
     platform.isMac = true
 
-    const result = mergeWindowConfig(fixtureKey)
+    const result = mergeWindowOptions(fixtureKey)
 
     expect(result.width).toBe(999)
     expect(result.frame).toBe(false)
@@ -82,7 +82,7 @@ describe('mergeWindowConfig', () => {
       type: fixtureKey,
       lifecycle: 'singleton',
       htmlPath: 'x.html',
-      defaultConfig: {
+      windowOptions: {
         width: 100,
         platformOverrides: {
           mac: { width: 999 },
@@ -92,7 +92,7 @@ describe('mergeWindowConfig', () => {
     })
     platform.isWin = true
 
-    const result = mergeWindowConfig(fixtureKey)
+    const result = mergeWindowOptions(fixtureKey)
 
     expect(result.width).toBe(555)
     expect(result.focusable).toBe(false)
@@ -103,7 +103,7 @@ describe('mergeWindowConfig', () => {
       type: fixtureKey,
       lifecycle: 'singleton',
       htmlPath: 'x.html',
-      defaultConfig: {
+      windowOptions: {
         width: 100,
         platformOverrides: {
           linux: { width: 333 }
@@ -112,27 +112,27 @@ describe('mergeWindowConfig', () => {
     })
     platform.isLinux = true
 
-    const result = mergeWindowConfig(fixtureKey)
+    const result = mergeWindowOptions(fixtureKey)
 
     expect(result.width).toBe(333)
   })
 
-  it('leaves the baseConfig unchanged when no override matches the current platform', () => {
+  it('leaves the baseOptions unchanged when no override matches the current platform', () => {
     setFixture({
       type: fixtureKey,
       lifecycle: 'singleton',
       htmlPath: 'x.html',
-      defaultConfig: {
+      windowOptions: {
         width: 100,
         platformOverrides: {
           mac: { width: 999 }
-          // no win/linux — on Windows the baseConfig wins
+          // no win/linux — on Windows the baseOptions wins
         }
       }
     })
     platform.isWin = true
 
-    const result = mergeWindowConfig(fixtureKey)
+    const result = mergeWindowOptions(fixtureKey)
 
     expect(result.width).toBe(100)
   })
@@ -142,7 +142,7 @@ describe('mergeWindowConfig', () => {
       type: fixtureKey,
       lifecycle: 'singleton',
       htmlPath: 'x.html',
-      defaultConfig: {
+      windowOptions: {
         width: 100,
         platformOverrides: {
           mac: { frame: false }
@@ -151,7 +151,7 @@ describe('mergeWindowConfig', () => {
     })
     platform.isMac = true
 
-    const result = mergeWindowConfig(fixtureKey)
+    const result = mergeWindowOptions(fixtureKey)
 
     expect('platformOverrides' in result).toBe(false)
   })
@@ -161,7 +161,7 @@ describe('mergeWindowConfig', () => {
       type: fixtureKey,
       lifecycle: 'singleton',
       htmlPath: 'x.html',
-      defaultConfig: {
+      windowOptions: {
         webPreferences: { contextIsolation: true, nodeIntegration: false },
         platformOverrides: {
           mac: {
@@ -172,7 +172,7 @@ describe('mergeWindowConfig', () => {
     })
     platform.isMac = true
 
-    const result = mergeWindowConfig(fixtureKey, {
+    const result = mergeWindowOptions(fixtureKey, {
       webPreferences: { devTools: true },
       platformOverrides: {
         mac: { webPreferences: { nodeIntegration: true } }
@@ -193,7 +193,7 @@ describe('mergeWindowConfig', () => {
       type: fixtureKey,
       lifecycle: 'singleton',
       htmlPath: 'x.html',
-      defaultConfig: {
+      windowOptions: {
         width: 100,
         height: 200,
         platformOverrides: {
@@ -203,7 +203,7 @@ describe('mergeWindowConfig', () => {
     })
     platform.isMac = true
 
-    const result = mergeWindowConfig(fixtureKey, {
+    const result = mergeWindowOptions(fixtureKey, {
       width: 500, // overrides base
       platformOverrides: {
         mac: { height: 777 } // overrides base-platform's absence; wins over caller's width since

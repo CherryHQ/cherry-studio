@@ -6,6 +6,7 @@ import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { WindowType } from '@main/core/window/types'
 import { createInMemoryMCPServer } from '@main/mcpServers/factory'
 import { makeSureDirExists, removeEnvProxy } from '@main/utils'
 import { findCommandInShellEnv, getBinaryName, getBinaryPath, isBinaryExists } from '@main/utils/process'
@@ -146,7 +147,7 @@ function withCache<T extends unknown[], R>(
 
 @Injectable('MCPService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowService'])
+@DependsOn(['WindowManager'])
 export class MCPService extends BaseService {
   private clients: Map<string, Client> = new Map()
   private pendingClients: Map<string, Promise<Client>> = new Map()
@@ -258,10 +259,9 @@ export class MCPService extends BaseService {
   private emitServerLog(server: MCPServer, entry: MCPServerLogEntry) {
     const serverKey = this.getServerKey(server)
     this.serverLogs.append(serverKey, entry)
-    const mainWindow = application.get('WindowService').getMainWindow()
-    if (mainWindow) {
-      mainWindow.webContents.send(IpcChannel.Mcp_ServerLog, { ...entry, serverId: server.id })
-    }
+    application
+      .get('WindowManager')
+      .broadcastToType(WindowType.Main, IpcChannel.Mcp_ServerLog, { ...entry, serverId: server.id })
   }
 
   public getServerLogs(server: MCPServer): MCPServerLogEntry[] {
@@ -942,13 +942,10 @@ export class MCPService extends BaseService {
             getServerLogger(server, { tool: name, callId: toolCallId }).debug(`Progress`, {
               ratio: process.progress / (process.total || 1)
             })
-            const mainWindow = application.get('WindowService').getMainWindow()
-            if (mainWindow) {
-              mainWindow.webContents.send(IpcChannel.Mcp_Progress, {
-                callId: toolCallId,
-                progress: process.progress / (process.total || 1)
-              } as MCPProgressEvent)
-            }
+            application.get('WindowManager').broadcastToType(WindowType.Main, IpcChannel.Mcp_Progress, {
+              callId: toolCallId,
+              progress: process.progress / (process.total || 1)
+            } as MCPProgressEvent)
           },
           timeout: server.timeout ? server.timeout * 1000 : 60000, // Default timeout of 1 minute,
           // 需要服务端支持: https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#timeouts

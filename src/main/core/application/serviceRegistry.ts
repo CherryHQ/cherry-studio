@@ -13,6 +13,7 @@ import { DetachedWindowManager } from '@main/services/DetachedWindowManager'
 import { KnowledgeOrchestrationService, KnowledgeRuntimeService } from '@main/services/knowledge'
 import { KnowledgeVectorStoreService } from '@main/services/knowledge/vectorstore/KnowledgeVectorStoreService'
 import { LanTransferService } from '@main/services/lanTransfer'
+import { MainWindowService } from '@main/services/MainWindowService'
 import { MCPService } from '@main/services/MCPService'
 import { NodeTraceService } from '@main/services/NodeTraceService'
 import { OcrService } from '@main/services/ocr/OcrService'
@@ -30,7 +31,6 @@ import { SpanCacheService } from '@main/services/SpanCacheService'
 import { ThemeService } from '@main/services/ThemeService'
 import { TrayService } from '@main/services/TrayService'
 import { WebviewService } from '@main/services/WebviewService'
-import { WindowService } from '@main/services/WindowService'
 
 import type { ServiceConstructor } from '../lifecycle/types'
 
@@ -81,7 +81,7 @@ export const services = {
   PythonService,
   TrayService,
   WebviewService,
-  WindowService,
+  MainWindowService,
   QuickAssistantService,
   MCPService,
   OpenClawService,
