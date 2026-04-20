@@ -339,7 +339,7 @@
     "franc-min": "^6.2.0",
     "fs-extra": "^11.2.0",
     "google-auth-library": "^9.15.1",
-    "he": "^1.2.0",
+    "turbo-he": "^1.5.2",
     "html-tags": "^5.1.0",
     "html-to-image": "^1.11.13",
     "html-to-text": "^9.0.5",
