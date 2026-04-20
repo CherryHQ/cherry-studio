@@ -56,7 +56,7 @@ export class LegacyAgentsDbReader {
 
         schemaInfo[tableName].exists = true
 
-        const columns = await db.all<{ name: string }>(sql.raw(`PRAGMA table_info(${tableName})`))
+        const columns = await db.all<{ name: string }>(sql.raw(`PRAGMA table_info(\`${tableName}\`)`))
         schemaInfo[tableName].columns = new Set(columns.map((column) => column.name))
       }
 
@@ -89,7 +89,7 @@ export class LegacyAgentsDbReader {
           continue
         }
 
-        const result = await db.get<{ count: number }>(sql.raw(`SELECT COUNT(*) AS count FROM ${tableName}`))
+        const result = await db.get<{ count: number }>(sql.raw(`SELECT COUNT(*) AS count FROM \`${tableName}\``))
         counts[tableName] = Number(result?.count ?? 0)
       }
 

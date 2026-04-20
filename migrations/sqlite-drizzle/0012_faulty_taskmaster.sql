@@ -99,7 +99,7 @@ CREATE TABLE `agent_session_message` (
 	`session_id` text NOT NULL,
 	`role` text NOT NULL,
 	`content` text NOT NULL,
-	`agent_session_id` text DEFAULT '',
+	`agent_session_id` text,
 	`metadata` text,
 	`created_at` integer,
 	`updated_at` integer,

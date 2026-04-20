@@ -6,6 +6,8 @@ import { agentTable } from './agent'
 export const agentTaskTable = sqliteTable(
   'agent_task',
   {
+    // IDs use the app-generated "task_<timestamp>_<random>" format, not UUIDs,
+    // so uuidPrimaryKey() is intentionally not used here. Callers must always supply an id.
     id: text().primaryKey(),
     agentId: text().notNull(),
     name: text().notNull(),

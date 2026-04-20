@@ -6,6 +6,8 @@ import { agentTable } from './agent'
 export const agentSessionTable = sqliteTable(
   'agent_session',
   {
+    // IDs use the app-generated "session_<timestamp>_<random>" format, not UUIDs,
+    // so uuidPrimaryKey() is intentionally not used here. Callers must always supply an id.
     id: text().primaryKey(),
     agentType: text().notNull(),
     agentId: text().notNull(),

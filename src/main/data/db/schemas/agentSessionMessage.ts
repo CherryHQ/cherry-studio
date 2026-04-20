@@ -10,7 +10,7 @@ export const agentSessionMessageTable = sqliteTable(
     sessionId: text().notNull(),
     role: text().notNull(),
     content: text().notNull(),
-    agentSessionId: text().default(''),
+    agentSessionId: text(),
     metadata: text(),
     ...createUpdateTimestamps
   },

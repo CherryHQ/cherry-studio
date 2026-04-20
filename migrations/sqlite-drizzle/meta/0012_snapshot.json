@@ -645,8 +645,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false,
-          "autoincrement": false,
-          "default": "''"
+          "autoincrement": false
         },
         "metadata": {
           "name": "metadata",

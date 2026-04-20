@@ -73,6 +73,11 @@ export const ENTITY_TO_ROW_FIELD_MAP: Record<string, string> = Object.fromEntrie
  * - Path validation and creation
  * - Model validation
  * - MCP tools and slash commands listing
+ *
+ * TODO(agents-v2): This service layer predates the v2 architecture and does not yet follow
+ * the v2 patterns (lifecycle decorators, DataApi handlers in `src/main/data/`). Tracked for
+ * a follow-up PR that will migrate agents services to lifecycle-managed v2 services with
+ * DataApi endpoints, eliminating the re-export shims in `database/schema/`.
  */
 export abstract class BaseService {
   protected jsonFields: string[] = [
