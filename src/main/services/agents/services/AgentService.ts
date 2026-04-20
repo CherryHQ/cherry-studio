@@ -1,3 +1,5 @@
+import { application } from '@application'
+import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { modelsService } from '@main/apiServer/services/models'
 import type {
@@ -12,7 +14,14 @@ import type {
 import { AgentBaseSchema } from '@types'
 import { and, asc, count, desc, eq, isNull, sql } from 'drizzle-orm'
 
-import { BaseService } from '../BaseService'
+import {
+  deserializeJsonFields,
+  listMcpTools,
+  normalizeAllowedTools,
+  resolveAccessiblePaths,
+  serializeJsonFields,
+  validateAgentModels
+} from '../agentUtils'
 import {
   type AgentRow,
   agentSkillsTable,
@@ -33,7 +42,7 @@ export type BuiltinAgentInitResult =
   | { agentId: string; skippedReason?: undefined }
   | { agentId: null; skippedReason: 'deleted' | 'no_model' }
 
-export class AgentService extends BaseService {
+export class AgentService {
   static readonly DEFAULT_AGENT_ID = CHERRY_CLAW_AGENT_ID
 
   private readonly modelFields: AgentModelField[] = ['model', 'plan_model', 'small_model']
@@ -59,15 +68,15 @@ export class AgentService extends BaseService {
   async createAgent(req: CreateAgentRequest): Promise<CreateAgentResponse> {
     const id = `agent_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
 
-    req.accessible_paths = this.resolveAccessiblePaths(req.accessible_paths, id)
+    req.accessible_paths = resolveAccessiblePaths(req.accessible_paths, id)
 
-    await this.validateAgentModels(req.type, {
+    await validateAgentModels(req.type, {
       model: req.model,
       plan_model: req.plan_model,
       small_model: req.small_model
     })
 
-    const serializedReq = this.serializeJsonFields(req)
+    const serializedReq = serializeJsonFields(req)
 
     const insertData: InsertAgentRow = {
       id,
@@ -83,7 +92,7 @@ export class AgentService extends BaseService {
       sortOrder: 0
     }
 
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     // Shift all existing agents' sort_order up by 1 and insert new agent at position 0 atomically
     await database.transaction(async (tx) => {
       await tx.update(agentsTable).set({ sortOrder: sql`${agentsTable.sortOrder} + 1` })
@@ -94,7 +103,7 @@ export class AgentService extends BaseService {
       throw new Error('Failed to create agent')
     }
 
-    const agent = this.deserializeJsonFields(result[0]) as AgentEntity
+    const agent = deserializeJsonFields(result[0]) as AgentEntity
 
     // Seed workspace templates for soul mode agents
     if ((req.configuration as Record<string, unknown> | undefined)?.soul_enabled === true) {
@@ -120,7 +129,7 @@ export class AgentService extends BaseService {
   }
 
   private async findAgentRow(id: string, options: { includeDeleted?: boolean } = {}): Promise<AgentRow | undefined> {
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     const whereClause = options.includeDeleted
       ? eq(agentsTable.id, id)
       : and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt))
@@ -136,17 +145,17 @@ export class AgentService extends BaseService {
       return null
     }
 
-    const agent = this.deserializeJsonFields(row) as GetAgentResponse
-    const { tools, legacyIdMap } = await this.listMcpTools(agent.type, agent.mcps)
+    const agent = deserializeJsonFields(row) as GetAgentResponse
+    const { tools, legacyIdMap } = await listMcpTools(agent.type, agent.mcps)
     agent.tools = tools
-    agent.allowed_tools = this.normalizeAllowedTools(agent.allowed_tools, agent.tools, legacyIdMap)
+    agent.allowed_tools = normalizeAllowedTools(agent.allowed_tools, agent.tools, legacyIdMap)
 
     return agent
   }
 
   async listAgents(options: ListOptions = {}): Promise<{ agents: AgentEntity[]; total: number }> {
     // Build query with pagination
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     const visibleAgents = isNull(agentsTable.deletedAt)
     const totalResult = await database.select({ count: count() }).from(agentsTable).where(visibleAgents)
 
@@ -186,13 +195,13 @@ export class AgentService extends BaseService {
           : await baseQuery.limit(options.limit)
         : await baseQuery
 
-    const agents = result.map((row) => this.deserializeJsonFields(row)) as GetAgentResponse[]
+    const agents = result.map((row) => deserializeJsonFields(row)) as GetAgentResponse[]
 
     await Promise.all(
       agents.map(async (agent) => {
-        const { tools, legacyIdMap } = await this.listMcpTools(agent.type, agent.mcps)
+        const { tools, legacyIdMap } = await listMcpTools(agent.type, agent.mcps)
         agent.tools = tools
-        agent.allowed_tools = this.normalizeAllowedTools(agent.allowed_tools, agent.tools, legacyIdMap)
+        agent.allowed_tools = normalizeAllowedTools(agent.allowed_tools, agent.tools, legacyIdMap)
       })
     )
 
@@ -221,7 +230,7 @@ export class AgentService extends BaseService {
   }): Promise<BuiltinAgentInitResult> {
     const { id, builtinRole, provisionWorkspace } = opts
     try {
-      const database = await this.getDatabase()
+      const database = application.get('DbService').getDb()
       const existing = await this.findAgentRow(id, { includeDeleted: true })
 
       if (existing?.deletedAt) {
@@ -231,7 +240,7 @@ export class AgentService extends BaseService {
 
       if (existing) {
         // Sync localized description/instructions on every startup (language may have changed)
-        const resolvedPaths = this.resolveAccessiblePaths([], id)
+        const resolvedPaths = resolveAccessiblePaths([], id)
         const workspace = resolvedPaths[0]
         const agentConfig = workspace ? await provisionWorkspace(workspace, builtinRole) : undefined
         if (agentConfig && (agentConfig.description || agentConfig.instructions)) {
@@ -251,7 +260,7 @@ export class AgentService extends BaseService {
       }
 
       // Resolve workspace path first so provisioner can copy template files
-      const resolvedPaths = this.resolveAccessiblePaths([], id)
+      const resolvedPaths = resolveAccessiblePaths([], id)
       const workspace = resolvedPaths[0]
 
       // Provision workspace (.claude/skills, plugins) and read agent.json config
@@ -274,8 +283,8 @@ export class AgentService extends BaseService {
         configuration
       }
 
-      await this.validateAgentModels(req.type, { model: req.model })
-      const serialized = this.serializeJsonFields(req)
+      await validateAgentModels(req.type, { model: req.model })
+      const serialized = serializeJsonFields(req)
 
       const insertData: InsertAgentRow = {
         id,
@@ -326,7 +335,7 @@ export class AgentService extends BaseService {
   async initDefaultCherryClawAgent(): Promise<BuiltinAgentInitResult> {
     const id = AgentService.DEFAULT_AGENT_ID
     try {
-      const database = await this.getDatabase()
+      const database = application.get('DbService').getDb()
       const existing = await this.findAgentRow(id, { includeDeleted: true })
 
       if (existing?.deletedAt) {
@@ -366,10 +375,10 @@ export class AgentService extends BaseService {
         configuration
       }
 
-      const resolvedPaths = this.resolveAccessiblePaths(req.accessible_paths, id)
-      await this.validateAgentModels(req.type, { model: req.model })
+      const resolvedPaths = resolveAccessiblePaths(req.accessible_paths, id)
+      await validateAgentModels(req.type, { model: req.model })
 
-      const serialized = this.serializeJsonFields({ ...req, accessible_paths: resolvedPaths })
+      const serialized = serializeJsonFields({ ...req, accessible_paths: resolvedPaths })
 
       const insertData: InsertAgentRow = {
         id,
@@ -432,7 +441,7 @@ export class AgentService extends BaseService {
       if (updates.accessible_paths.length === 0) {
         throw new Error('accessible_paths must not be empty')
       }
-      updates.accessible_paths = this.resolveAccessiblePaths(updates.accessible_paths, id)
+      updates.accessible_paths = resolveAccessiblePaths(updates.accessible_paths, id)
     }
 
     const modelUpdates: Partial<Record<AgentModelField, string | undefined>> = {}
@@ -443,10 +452,10 @@ export class AgentService extends BaseService {
     }
 
     if (Object.keys(modelUpdates).length > 0) {
-      await this.validateAgentModels(existing.type, modelUpdates)
+      await validateAgentModels(existing.type, modelUpdates)
     }
 
-    const serializedUpdates = this.serializeJsonFields(updates)
+    const serializedUpdates = serializeJsonFields(updates)
 
     const updateData: Partial<AgentRow> = {
       updatedAt: Date.now()
@@ -467,7 +476,7 @@ export class AgentService extends BaseService {
       }
     }
 
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
 
     // Read the raw agent row before updating — getAgent() normalizes allowed_tools
     // (legacy ID → canonical ID), but sessions store the original format. We need
@@ -499,7 +508,7 @@ export class AgentService extends BaseService {
    * the session, so we skip it.
    */
   private async syncSettingsToSessions(
-    database: Awaited<ReturnType<typeof this.getDatabase>>,
+    database: DbType,
     agentId: string,
     rawOldAgent: Record<string, unknown>,
     serializedUpdates: Record<string, unknown>
@@ -568,7 +577,7 @@ export class AgentService extends BaseService {
   }
 
   async reorderAgents(orderedIds: string[]): Promise<void> {
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     await database.transaction(async (tx) => {
       for (let i = 0; i < orderedIds.length; i++) {
         await tx.update(agentsTable).set({ sortOrder: i }).where(eq(agentsTable.id, orderedIds[i]))
@@ -578,7 +587,7 @@ export class AgentService extends BaseService {
   }
 
   async deleteAgent(id: string): Promise<boolean> {
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     const agent = await this.findAgentRow(id)
 
     if (!agent) {

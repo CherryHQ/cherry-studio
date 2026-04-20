@@ -1,6 +1,7 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { parsePluginMetadata } from '@main/utils/markdownParser'
 import {
@@ -16,14 +17,22 @@ import {
 } from '@types'
 import { and, asc, count, desc, eq, isNull, type SQL, sql } from 'drizzle-orm'
 
-import { BaseService } from '../BaseService'
+import {
+  deserializeJsonFields,
+  ensurePathsExist,
+  listMcpTools,
+  normalizeAllowedTools,
+  resolveAccessiblePaths,
+  serializeJsonFields,
+  validateAgentModels
+} from '../agentUtils'
 import { agentsTable, type InsertSessionRow, type SessionRow, sessionsTable } from '../database/schema'
 import type { AgentModelField } from '../errors'
 import { builtinSlashCommands } from './claudecode/commands'
 
 const logger = loggerService.withContext('SessionService')
 
-export class SessionService extends BaseService {
+export class SessionService {
   private readonly modelFields: AgentModelField[] = ['model', 'plan_model', 'small_model']
 
   /**
@@ -40,9 +49,9 @@ export class SessionService extends BaseService {
     // Add local command plugins from .claude/commands/
     if (agentId) {
       try {
-        const database = await this.getDatabase()
+        const database = application.get('DbService').getDb()
         const result = await database.select().from(agentsTable).where(eq(agentsTable.id, agentId)).limit(1)
-        const agent = result[0] ? this.deserializeJsonFields(result[0]) : null
+        const agent = result[0] ? deserializeJsonFields(result[0]) : null
         const workdir = (agent as AgentEntity | null)?.accessible_paths?.[0]
 
         if (workdir) {
@@ -106,7 +115,7 @@ export class SessionService extends BaseService {
     // For now, we'll skip this validation to avoid circular dependencies
     // The database foreign key constraint will handle this
 
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     const agents = await database
       .select()
       .from(agentsTable)
@@ -115,7 +124,7 @@ export class SessionService extends BaseService {
     if (!agents[0]) {
       throw new Error('Agent not found')
     }
-    const agent = this.deserializeJsonFields(agents[0]) as AgentEntity
+    const agent = deserializeJsonFields(agents[0]) as AgentEntity
 
     const id = `session_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
 
@@ -125,17 +134,17 @@ export class SessionService extends BaseService {
       ...req
     }
 
-    await this.validateAgentModels(agent.type, {
+    await validateAgentModels(agent.type, {
       model: sessionData.model,
       plan_model: sessionData.plan_model,
       small_model: sessionData.small_model
     })
 
     if (sessionData.accessible_paths !== undefined) {
-      sessionData.accessible_paths = this.ensurePathsExist(sessionData.accessible_paths)
+      sessionData.accessible_paths = ensurePathsExist(sessionData.accessible_paths)
     }
 
-    const serializedData = this.serializeJsonFields(sessionData)
+    const serializedData = serializeJsonFields(sessionData)
 
     // `name` and `model` are NOT NULL on agent_session; fall back to the parent
     // agent's values rather than coercing empty strings to null.
@@ -156,7 +165,7 @@ export class SessionService extends BaseService {
       sortOrder: 0
     }
 
-    const db = await this.getDatabase()
+    const db = application.get('DbService').getDb()
     // Shift all existing sessions' sortOrder up by 1 and insert new session at position 0 atomically
     await db.transaction(async (tx) => {
       await tx
@@ -172,12 +181,12 @@ export class SessionService extends BaseService {
       throw new Error('Failed to create session')
     }
 
-    const session = this.deserializeJsonFields(result[0])
+    const session = deserializeJsonFields(result[0])
     return await this.getSession(agentId, session.id)
   }
 
   async getSession(agentId: string, id: string): Promise<GetAgentSessionResponse | null> {
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     const result = await database
       .select()
       .from(sessionsTable)
@@ -188,10 +197,10 @@ export class SessionService extends BaseService {
       return null
     }
 
-    const session = this.deserializeJsonFields(result[0]) as GetAgentSessionResponse
-    const { tools, legacyIdMap } = await this.listMcpTools(session.agent_type, session.mcps)
+    const session = deserializeJsonFields(result[0]) as GetAgentSessionResponse
+    const { tools, legacyIdMap } = await listMcpTools(session.agent_type, session.mcps)
     session.tools = tools
-    session.allowed_tools = this.normalizeAllowedTools(session.allowed_tools, session.tools, legacyIdMap)
+    session.allowed_tools = normalizeAllowedTools(session.allowed_tools, session.tools, legacyIdMap)
 
     // If slash_commands is not in database yet (e.g., first invoke before init message),
     // fall back to builtin + local commands. Otherwise, use the merged commands from database.
@@ -220,7 +229,7 @@ export class SessionService extends BaseService {
           : undefined
 
     // Get total count
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     const totalResult = await database.select({ count: count() }).from(sessionsTable).where(whereClause)
 
     const total = totalResult[0].count
@@ -239,13 +248,13 @@ export class SessionService extends BaseService {
           : await baseQuery.limit(options.limit)
         : await baseQuery
 
-    const sessions = result.map((row) => this.deserializeJsonFields(row)) as GetAgentSessionResponse[]
+    const sessions = result.map((row) => deserializeJsonFields(row)) as GetAgentSessionResponse[]
 
     await Promise.all(
       sessions.map(async (session) => {
-        const { tools, legacyIdMap } = await this.listMcpTools(session.agent_type, session.mcps)
+        const { tools, legacyIdMap } = await listMcpTools(session.agent_type, session.mcps)
         session.tools = tools
-        session.allowed_tools = this.normalizeAllowedTools(session.allowed_tools, session.tools, legacyIdMap)
+        session.allowed_tools = normalizeAllowedTools(session.allowed_tools, session.tools, legacyIdMap)
       })
     )
 
@@ -270,7 +279,7 @@ export class SessionService extends BaseService {
       if (updates.accessible_paths.length === 0) {
         throw new Error('accessible_paths must not be empty')
       }
-      updates.accessible_paths = this.resolveAccessiblePaths(updates.accessible_paths, existing.agent_id)
+      updates.accessible_paths = resolveAccessiblePaths(updates.accessible_paths, existing.agent_id)
     }
 
     const modelUpdates: Partial<Record<AgentModelField, string | undefined>> = {}
@@ -281,10 +290,10 @@ export class SessionService extends BaseService {
     }
 
     if (Object.keys(modelUpdates).length > 0) {
-      await this.validateAgentModels(existing.agent_type, modelUpdates)
+      await validateAgentModels(existing.agent_type, modelUpdates)
     }
 
-    const serializedUpdates = this.serializeJsonFields(updates)
+    const serializedUpdates = serializeJsonFields(updates)
 
     const updateData: Partial<SessionRow> = {
       updatedAt: Date.now()
@@ -313,14 +322,14 @@ export class SessionService extends BaseService {
       }
     }
 
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     await database.update(sessionsTable).set(updateData).where(eq(sessionsTable.id, id))
 
     return await this.getSession(agentId, id)
   }
 
   async deleteSession(agentId: string, id: string): Promise<boolean> {
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     const result = await database
       .delete(sessionsTable)
       .where(and(eq(sessionsTable.id, id), eq(sessionsTable.agentId, agentId)))
@@ -329,7 +338,7 @@ export class SessionService extends BaseService {
   }
 
   async reorderSessions(agentId: string, orderedIds: string[]): Promise<void> {
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     await database.transaction(async (tx) => {
       for (let i = 0; i < orderedIds.length; i++) {
         await tx
@@ -342,7 +351,7 @@ export class SessionService extends BaseService {
   }
 
   async sessionExists(agentId: string, id: string): Promise<boolean> {
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     const result = await database
       .select({ id: sessionsTable.id })
       .from(sessionsTable)

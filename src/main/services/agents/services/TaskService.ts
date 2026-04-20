@@ -1,9 +1,9 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
 import type { CreateTaskRequest, ListOptions, ScheduledTaskEntity, TaskRunLogEntity, UpdateTaskRequest } from '@types'
 import { CronExpressionParser } from 'cron-parser'
 import { and, asc, count, desc, eq, inArray, lte, ne } from 'drizzle-orm'
 
-import { BaseService } from '../BaseService'
 import {
   agentsTable,
   channelTaskSubscriptionsTable,
@@ -17,7 +17,7 @@ import {
 
 const logger = loggerService.withContext('TaskService')
 
-export class TaskService extends BaseService {
+export class TaskService {
   async createTask(agentId: string, req: CreateTaskRequest): Promise<ScheduledTaskEntity> {
     await this.assertAutonomous(agentId)
 
@@ -37,7 +37,7 @@ export class TaskService extends BaseService {
       status: 'active'
     }
 
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     await database.transaction(async (tx) => {
       const result = await tx.insert(scheduledTasksTable).values(insertData)
       if (result.rowsAffected !== 1) {
@@ -58,14 +58,14 @@ export class TaskService extends BaseService {
 
   /** Fetch a task row enriched with its subscribed channel_ids. */
   private async getTaskWithChannels(taskId: string): Promise<ScheduledTaskEntity> {
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     const result = await database.select().from(scheduledTasksTable).where(eq(scheduledTasksTable.id, taskId)).limit(1)
     if (!result[0]) throw new Error('Task not found')
     return this.enrichWithChannels(result[0])
   }
 
   async getTask(agentId: string, taskId: string): Promise<ScheduledTaskEntity | null> {
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     const result = await database
       .select()
       .from(scheduledTasksTable)
@@ -80,7 +80,7 @@ export class TaskService extends BaseService {
     agentId: string,
     options: ListOptions & { includeHeartbeat?: boolean } = {}
   ): Promise<{ tasks: ScheduledTaskEntity[]; total: number }> {
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     const { includeHeartbeat = false, ...paginationOptions } = options
 
     // By default, exclude heartbeat tasks from the listing
@@ -110,7 +110,7 @@ export class TaskService extends BaseService {
   }
 
   async getTaskById(taskId: string): Promise<ScheduledTaskEntity | null> {
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     const result = await database.select().from(scheduledTasksTable).where(eq(scheduledTasksTable.id, taskId)).limit(1)
 
     if (!result[0]) return null
@@ -143,7 +143,7 @@ export class TaskService extends BaseService {
       updateData.nextRun = this.computeInitialNextRun(schedType, schedValue)
     }
 
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     await database.update(scheduledTasksTable).set(updateData).where(eq(scheduledTasksTable.id, taskId))
 
     // Sync channel subscriptions if provided
@@ -156,7 +156,7 @@ export class TaskService extends BaseService {
   }
 
   async deleteTaskById(taskId: string): Promise<boolean> {
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     const result = await database.delete(scheduledTasksTable).where(eq(scheduledTasksTable.id, taskId))
 
     logger.info('Task deleted', { taskId })
@@ -164,7 +164,7 @@ export class TaskService extends BaseService {
   }
 
   async listAllTasks(options: ListOptions = {}): Promise<{ tasks: ScheduledTaskEntity[]; total: number }> {
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     const whereCondition = ne(scheduledTasksTable.name, 'heartbeat')
 
     const totalResult = await database.select({ count: count() }).from(scheduledTasksTable).where(whereCondition)
@@ -215,7 +215,7 @@ export class TaskService extends BaseService {
       updateData.nextRun = this.computeInitialNextRun(schedType, schedValue)
     }
 
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     await database
       .update(scheduledTasksTable)
       .set(updateData)
@@ -270,7 +270,7 @@ export class TaskService extends BaseService {
 
   /** Enrich a single task row with its subscribed channel_ids. */
   private async enrichWithChannels(row: TaskRow): Promise<ScheduledTaskEntity> {
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     const subs = await database
       .select({ channelId: channelTaskSubscriptionsTable.channelId })
       .from(channelTaskSubscriptionsTable)
@@ -282,7 +282,7 @@ export class TaskService extends BaseService {
   /** Enrich multiple task rows with their subscribed channel_ids (batched). */
   private async enrichManyWithChannels(rows: TaskRow[]): Promise<ScheduledTaskEntity[]> {
     if (rows.length === 0) return []
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     const taskIds = rows.map((r) => r.id)
     const allSubs = await database
       .select()
@@ -302,7 +302,7 @@ export class TaskService extends BaseService {
 
   /** Replace all channel subscriptions for a task. */
   private async syncTaskChannels(taskId: string, channelIds: string[]): Promise<void> {
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     await database.transaction(async (tx) => {
       await tx.delete(channelTaskSubscriptionsTable).where(eq(channelTaskSubscriptionsTable.taskId, taskId))
 
@@ -327,7 +327,7 @@ export class TaskService extends BaseService {
   }
 
   async deleteTask(agentId: string, taskId: string): Promise<boolean> {
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     const result = await database
       .delete(scheduledTasksTable)
       .where(and(eq(scheduledTasksTable.id, taskId), eq(scheduledTasksTable.agentId, agentId)))
@@ -339,7 +339,7 @@ export class TaskService extends BaseService {
   // --- Due tasks (used by SchedulerService poll loop) ---
 
   async hasActiveTasks(): Promise<boolean> {
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     const [result] = await database
       .select({ count: count() })
       .from(scheduledTasksTable)
@@ -349,7 +349,7 @@ export class TaskService extends BaseService {
 
   async getDueTasks(): Promise<ScheduledTaskEntity[]> {
     const nowMs = Date.now()
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     const result = await database
       .select()
       .from(scheduledTasksTable)
@@ -372,14 +372,14 @@ export class TaskService extends BaseService {
       updateData.status = 'completed'
     }
 
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     await database.update(scheduledTasksTable).set(updateData).where(eq(scheduledTasksTable.id, taskId))
   }
 
   // --- Task run logs ---
 
   async logTaskRun(log: Omit<InsertTaskRunLogRow, 'id'>): Promise<number> {
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     const result = await database.insert(taskRunLogsTable).values(log).returning({ id: taskRunLogsTable.id })
     return result[0].id
   }
@@ -388,12 +388,12 @@ export class TaskService extends BaseService {
     logId: number,
     updates: Partial<Pick<InsertTaskRunLogRow, 'status' | 'result' | 'error' | 'durationMs' | 'sessionId'>>
   ): Promise<void> {
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     await database.update(taskRunLogsTable).set(updates).where(eq(taskRunLogsTable.id, logId))
   }
 
   async getTaskLogs(taskId: string, options: ListOptions = {}): Promise<{ logs: TaskRunLogEntity[]; total: number }> {
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
 
     const totalResult = await database
       .select({ count: count() })
@@ -424,7 +424,7 @@ export class TaskService extends BaseService {
    * Used by SchedulerService to reuse an existing session for context continuity.
    */
   async getLastRunSessionId(taskId: string): Promise<string | null> {
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     const result = await database
       .select({ sessionId: taskRunLogsTable.sessionId })
       .from(taskRunLogsTable)
@@ -481,7 +481,7 @@ export class TaskService extends BaseService {
    * tool calls during task execution will fail with permission errors.
    */
   private async assertAutonomous(agentId: string): Promise<void> {
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     const [row] = await database
       .select({ configuration: agentsTable.configuration })
       .from(agentsTable)

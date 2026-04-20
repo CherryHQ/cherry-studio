@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import type {
   AgentPersistedMessage,
@@ -11,7 +12,6 @@ import type {
 import type { TextStreamPart } from 'ai'
 import { and, desc, eq, isNotNull } from 'drizzle-orm'
 
-import { BaseService } from '../BaseService'
 import { sessionMessagesTable } from '../database/schema'
 import { agentMessageRepository } from '../database/sessionMessageRepository'
 import type { AgentStreamEvent } from '../interfaces/AgentStreamInterface'
@@ -110,11 +110,11 @@ class TextStreamAccumulator {
   }
 }
 
-export class SessionMessageService extends BaseService {
+export class SessionMessageService {
   private cc: ClaudeCodeService = new ClaudeCodeService()
 
   async sessionMessageExists(id: number): Promise<boolean> {
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     const result = await database
       .select({ id: sessionMessagesTable.id })
       .from(sessionMessagesTable)
@@ -129,7 +129,7 @@ export class SessionMessageService extends BaseService {
     options: ListOptions = {}
   ): Promise<{ messages: AgentSessionMessageEntity[] }> {
     // Get messages with pagination
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     const baseQuery = database
       .select()
       .from(sessionMessagesTable)
@@ -149,7 +149,7 @@ export class SessionMessageService extends BaseService {
   }
 
   async deleteSessionMessage(sessionId: string, messageId: number): Promise<boolean> {
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     const result = await database
       .delete(sessionMessagesTable)
       .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
@@ -422,7 +422,7 @@ export class SessionMessageService extends BaseService {
 
   private async getLastAgentSessionId(sessionId: string): Promise<string> {
     try {
-      const database = await this.getDatabase()
+      const database = application.get('DbService').getDb()
       const result = await database
         .select({ agentSessionId: sessionMessagesTable.agentSessionId })
         .from(sessionMessagesTable)
