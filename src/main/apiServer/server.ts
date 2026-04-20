@@ -2,6 +2,7 @@ import { createServer } from 'node:http'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { WindowType } from '@main/core/window/types'
 import { IpcChannel } from '@shared/IpcChannel'
 
 import { createApp } from './app'
@@ -43,10 +44,7 @@ export class ApiServer {
         logger.info('API server started', { host, port })
 
         // Notify renderer that API server is ready
-        const mainWindow = application.get('WindowService').getMainWindow()
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send(IpcChannel.ApiServer_Ready)
-        }
+        application.get('WindowManager').broadcastToType(WindowType.Main, IpcChannel.ApiServer_Ready)
 
         resolve()
       })

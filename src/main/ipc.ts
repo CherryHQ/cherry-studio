@@ -21,7 +21,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { extractPdfText } from '@shared/utils/pdf'
 import type { AgentPersistedMessage, FileMetadata, Notification, Provider } from '@types'
 import checkDiskSpace from 'check-disk-space'
-import { BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'
 import fontList from 'font-list'
 
 import { agentMessageRepository } from './services/agents/database'
@@ -56,13 +56,13 @@ const exportService = new ExportService()
 const obsidianVaultService = new ObsidianVaultService()
 const dxtService = new DxtService()
 
-export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
+export async function registerIpc() {
   const notificationService = new NotificationService()
 
   // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
   // const powerMonitorService = application.get('PowerMonitorService')
   // powerMonitorService.registerShutdownHandler(() => {
-  //   const mw = application.get('WindowService').getMainWindow()
+  //   const mw = application.get('MainWindowService').getMainWindow()
   //   if (mw && !mw.isDestroyed()) {
   //     mw.webContents.send(IpcChannel.App_SaveData)
   //   }
@@ -83,7 +83,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     installPath: application.getPath('app.install')
   }))
 
-  ipcMain.handle(IpcChannel.App_Reload, () => mainWindow.reload())
+  // MainWindow_Reload handler moved into MainWindowService.registerIpcHandlers.
   // Application_Quit is registered by Application.registerApplicationIpc()
   ipcMain.handle(IpcChannel.Open_Website, (_, url: string) => {
     if (!isSafeExternalUrl(url)) {
@@ -178,13 +178,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     })
   }
 
-  ipcMain.handle(IpcChannel.App_SetFullScreen, (_, value: boolean): void => {
-    mainWindow.setFullScreen(value)
-  })
-
-  ipcMain.handle(IpcChannel.App_IsFullScreen, (): boolean => {
-    return mainWindow.isFullScreen()
-  })
+  // MainWindow_SetFullScreen / MainWindow_IsFullScreen handlers moved into MainWindowService.
 
   // Get System Fonts
   ipcMain.handle(IpcChannel.App_GetSystemFonts, async () => {
@@ -244,7 +238,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   // get cache size
   ipcMain.handle(IpcChannel.App_GetCacheSize, async () => {
-    const cachePath = application.getPath('app.userdata.cache')
+    const cachePath = application.getPath('app.session.cache')
     logger.info(`Calculating cache size for path: ${cachePath}`)
 
     try {
@@ -353,9 +347,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.Notification_Send, async (_, notification: Notification) => {
     await notificationService.sendNotification(notification)
   })
-  ipcMain.handle(IpcChannel.Notification_OnClick, (_, notification: Notification) => {
-    mainWindow.webContents.send('notification-click', notification)
-  })
+  // Notification_OnClick handler moved into MainWindowService (uses wm.broadcastToType).
 
   // zip
   ipcMain.handle(IpcChannel.Zip_Compress, (_, text: string) => compress(text))
@@ -774,9 +766,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     }
   })
 
-  ipcMain.handle(IpcChannel.APP_CrashRenderProcess, () => {
-    mainWindow.webContents.forcefullyCrashRenderer()
-  })
+  // MainWindow_CrashRenderProcess handler moved into MainWindowService (dev-only).
 
   // WeChat
   ipcMain.handle(IpcChannel.WeChat_HasCredentials, async (_, channelId: string) => {

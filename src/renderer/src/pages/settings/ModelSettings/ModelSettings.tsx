@@ -67,11 +67,9 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   return (
     <SettingContainer theme={theme} style={containerStyle}>
       <SettingGroup theme={theme} style={groupStyle}>
-        <SettingTitle style={{ marginBottom: 12 }}>
-          <RowFlex className="items-center gap-2.5">
-            <MessageSquareMore size={18} color="var(--color-text)" />
-            {t('settings.models.default_assistant_model')}
-          </RowFlex>
+        <SettingTitle style={{ justifyContent: 'flex-start', gap: 10, marginBottom: 12 }}>
+          <MessageSquareMore size={18} className="lucide-custom shrink-0 text-(--color-text-1)" />
+          {t('settings.models.default_assistant_model')}
         </SettingTitle>
         <RowFlex className="items-center">
           <ModelSelector
@@ -95,12 +93,10 @@ const ModelSettings: FC<ModelSettingsProps> = ({
         )}
       </SettingGroup>
       <SettingGroup theme={theme} style={groupStyle}>
-        <SettingTitle style={{ marginBottom: 12 }}>
-          <RowFlex className="items-center gap-2.5">
-            <Rocket size={18} color="var(--color-text)" />
-            {t('settings.models.quick_model.label')}
-            <InfoTooltip content={t('settings.models.quick_model.tooltip')} />
-          </RowFlex>
+        <SettingTitle style={{ justifyContent: 'flex-start', gap: 10, marginBottom: 12 }}>
+          <Rocket size={18} className="lucide-custom shrink-0 text-(--color-text-1)" />
+          {t('settings.models.quick_model.label')}
+          <InfoTooltip content={t('settings.models.quick_model.tooltip')} />
         </SettingTitle>
         <RowFlex className="items-center">
           <ModelSelector
@@ -122,11 +118,9 @@ const ModelSettings: FC<ModelSettingsProps> = ({
         {showDescription && <SettingDescription>{t('settings.models.quick_model.description')}</SettingDescription>}
       </SettingGroup>
       <SettingGroup theme={theme} style={groupStyle}>
-        <SettingTitle style={{ marginBottom: 12 }}>
-          <RowFlex className="items-center gap-2.5">
-            <Languages size={18} color="var(--color-text)" />
-            {t('settings.models.translate_model')}
-          </RowFlex>
+        <SettingTitle style={{ justifyContent: 'flex-start', gap: 10, marginBottom: 12 }}>
+          <Languages size={18} className="lucide-custom shrink-0 text-(--color-text-1)" />
+          {t('settings.models.translate_model')}
         </SettingTitle>
         <RowFlex className="items-center">
           <ModelSelector

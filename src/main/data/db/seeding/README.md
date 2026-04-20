@@ -4,7 +4,7 @@ Database seeding system for populating initial/builtin data on app startup.
 
 ## Documentation
 
-See [Database Seeding Guide](../../../../docs/references/data/database-seeding-guide.md) for full documentation.
+See [Database Seeding Guide](../../../../../docs/references/data/database-seeding-guide.md) for full documentation.
 
 ## Quick Reference
 

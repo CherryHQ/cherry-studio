@@ -24,7 +24,7 @@ vi.mock('@application', async () => {
   const result = mockApplicationFactory()
   const originalGet = result.application.get.getMockImplementation()!
   result.application.get.mockImplementation((name: string) => {
-    if (name === 'WindowService') {
+    if (name === 'MainWindowService') {
       return { getMainWindow: vi.fn() }
     }
     return originalGet(name)

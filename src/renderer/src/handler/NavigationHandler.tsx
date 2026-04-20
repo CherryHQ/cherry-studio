@@ -15,11 +15,11 @@ const NavigationHandler: React.FC = () => {
     }
 
     const removeAboutListener = window.electron.ipcRenderer.on(
-      IpcChannel.Windows_NavigateToAbout,
+      IpcChannel.MainWindow_NavigateToAbout,
       handleNavigateToAbout
     )
     const removeSettingsListener = window.electron.ipcRenderer.on(
-      IpcChannel.Windows_NavigateToSettings,
+      IpcChannel.MainWindow_NavigateToSettings,
       handleNavigateToSettings
     )
 

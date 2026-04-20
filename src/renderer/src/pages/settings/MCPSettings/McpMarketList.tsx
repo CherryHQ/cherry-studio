@@ -114,7 +114,7 @@ const MarketCard = styled.div`
   display: flex;
   flex-direction: column;
   border: 0.5px solid var(--color-border);
-  border-radius: var(--list-item-border-radius);
+  border-radius: var(--cs-radius-2xs);
   padding: 12px 16px;
   transition: all 0.2s ease;
   background-color: var(--color-background);

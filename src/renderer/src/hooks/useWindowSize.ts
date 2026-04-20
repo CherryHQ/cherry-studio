@@ -24,7 +24,7 @@ export const useWindowSize = () => {
     () =>
       debounce(async () => {
         const [currentWidth, currentHeight] = await window.api.window.getSize()
-        logger.debug('Windows_GetSize', { width: currentWidth, height: currentHeight })
+        logger.debug('MainWindow_GetSize', { width: currentWidth, height: currentHeight })
         setWidth(currentWidth)
         setHeight(currentHeight)
       }, 200),
@@ -33,7 +33,7 @@ export const useWindowSize = () => {
 
   const callback = useCallback(
     (_, [width, height]) => {
-      logger.silly('Windows_Resize', { width, height })
+      logger.silly('MainWindow_Resize', { width, height })
       setWidth(width)
       setHeight(height)
       void debouncedGetSize()
@@ -43,7 +43,7 @@ export const useWindowSize = () => {
 
   useEffect(() => {
     // 设置监听器
-    const cleanup = window.electron.ipcRenderer.on(IpcChannel.Windows_Resize, callback)
+    const cleanup = window.electron.ipcRenderer.on(IpcChannel.MainWindow_Resize, callback)
 
     return () => {
       cleanup()
