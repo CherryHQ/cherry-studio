@@ -1,29 +1,29 @@
 {
-  "generated_at": "2026-04-19T17:00:00Z",
-  "report_date": "2026-04-19",
+  "generated_at": "2026-04-20T00:00:00Z",
+  "report_date": "2026-04-20",
   "summary": {
-    "total_open": 800,
-    "total_closed_30d": 147,
+    "total_open": 821,
+    "total_closed_30d": 145,
     "p1_count": 3,
-    "uncategorized_pct": "16.0%",
+    "uncategorized_pct": "10.6%",
     "health_score": "MODERATE",
-    "health_notes": "Large aging backlog (466 issues 7-30d old) needs triage attention"
+    "health_notes": "Large aging backlog (474 issues 8-30d old) needs triage attention"
   },
   "health_distribution": {
     "active": {
-      "count": 188,
-      "pct": "23.5%",
-      "definition": "Updated within last 7 days (after 2026-04-12)"
+      "count": 199,
+      "pct": "24.2%",
+      "definition": "Updated within last 7 days (after 2026-04-13)"
     },
     "aging": {
-      "count": 466,
-      "pct": "58.3%",
-      "definition": "Updated 7-30 days ago (2026-03-20 to 2026-04-12)"
+      "count": 474,
+      "pct": "57.7%",
+      "definition": "Updated 8-30 days ago (2026-03-21 to 2026-04-13)"
     },
     "stale": {
-      "count": 149,
-      "pct": "18.6%",
-      "definition": "Updated 30-90 days ago (2026-01-20 to 2026-03-20)"
+      "count": 145,
+      "pct": "17.7%",
+      "definition": "Updated 31-90 days ago (2026-01-21 to 2026-03-21)"
     },
     "zombie": {
       "count": 3,
@@ -38,11 +38,11 @@
       "labels": ["BUG", "P1"],
       "created_at": "2026-02-19",
       "last_updated": "2026-03-25",
-      "days_open": 59,
-      "days_since_update": 25,
+      "days_open": 60,
+      "days_since_update": 26,
       "assignee": null,
       "severity": "CRITICAL",
-      "action_required": "Immediate security triage — reporter threatens public disclosure",
+      "action_required": "Immediate security triage — reporter threatens public disclosure (60 days outstanding)",
       "url": "https://github.com/CherryHQ/cherry-studio/issues/12966"
     },
     {
@@ -51,11 +51,11 @@
       "labels": ["P1", "Models"],
       "created_at": "2026-03-18",
       "last_updated": "2026-03-19",
-      "days_open": 32,
-      "days_since_update": 31,
+      "days_open": 33,
+      "days_since_update": 32,
       "assignee": null,
       "severity": "HIGH",
-      "action_required": "No update in 31 days — needs investigation",
+      "action_required": "No update in 32 days — needs investigation",
       "url": "https://github.com/CherryHQ/cherry-studio/issues/13608"
     },
     {
@@ -64,11 +64,11 @@
       "labels": ["P1", "Models"],
       "created_at": "2026-03-04",
       "last_updated": "2026-03-05",
-      "days_open": 46,
-      "days_since_update": 45,
+      "days_open": 47,
+      "days_since_update": 46,
       "assignee": "DeJeune",
       "severity": "HIGH",
-      "action_required": "Assigned but no update in 45 days — follow up with assignee",
+      "action_required": "Assigned but no update in 46 days — follow up with assignee",
       "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"
     }
   ],
@@ -80,13 +80,13 @@
     },
     {
       "priority": 2,
-      "action": "Review 149 stale issues for closure or reprioritization",
-      "rationale": "18.6% of backlog not touched in 30-90 days"
+      "action": "Review 145 stale issues for closure or reprioritization",
+      "rationale": "17.7% of backlog not touched in 30-90 days"
     },
     {
       "priority": 3,
-      "action": "Label the ~128 uncategorized open issues",
-      "rationale": "16% lack labels, impeding triage and routing"
+      "action": "Label the ~87 uncategorized open issues",
+      "rationale": "10.6% lack labels, impeding triage and routing"
     },
     {
       "priority": 4,
@@ -95,8 +95,8 @@
     }
   ],
   "resolution_velocity": {
-    "closed_last_30d": 147,
-    "daily_avg_close": 4.9,
+    "closed_last_30d": 145,
+    "daily_avg_close": 4.8,
     "net_change_30d": "Unknown — new issue creation rate not measured in this snapshot"
   }
 }

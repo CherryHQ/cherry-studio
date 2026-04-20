@@ -1,11 +1,11 @@
 {
-  "generated_at": "2026-04-19T17:00:00Z",
-  "report_date": "2026-04-19",
+  "generated_at": "2026-04-20T00:00:00Z",
+  "report_date": "2026-04-20",
   "v2_branch_status": {
     "strategy": "All new features, refactoring, and optimizations target v2 branch. main is under code freeze (hotfix/* only).",
-    "open_prs": 50,
-    "merged_prs_30d": 54,
-    "pr_velocity": "~1.8 merges/day in last 30 days"
+    "open_prs": 52,
+    "merged_prs_30d": 57,
+    "pr_velocity": "~1.9 merges/day in last 30 days"
   },
   "recently_merged_prs": [
     {"number": 14359, "title": "refactor(data-api): use greedy :uniqueModelId* for model routing", "labels": ["v2"], "category": "data"},
@@ -20,7 +20,12 @@
     {"number": 14220, "title": "refactor: move rtk extraction into agent bootstrap service", "labels": [], "category": "refactor"}
   ],
   "open_prs_active": [
-    {"number": 14071, "title": "feat(ai): add V2 AI streaming pipeline and blocks-to-parts migration", "author": "DeJeune", "category": "ai-core"},
+    {"number": 14431, "title": "refactor(agents): migrate renderer agent hooks from HTTP to DataApi", "author": "vaayne", "category": "data"},
+    {"number": 14429, "title": "docs(bootConfig): add Boot Config system documentation", "author": "DeJeune", "category": "docs"},
+    {"number": 14428, "title": "refactor(agents-data-api): migrate agents domain to DataApi", "author": "vaayne", "category": "data"},
+    {"number": 14357, "title": "feat(memory): pluggable memory provider system with Hina", "author": "kwisser", "category": "feature"},
+    {"number": 14071, "title": "feat(ai): add V2 AI streaming pipeline and blocks-to-payload", "author": "DeJeune", "category": "ai-core"},
+    {"number": 14146, "title": "feat(layout): add split-view infrastructure for multi-panel", "author": "DeJeune", "category": "ui"},
     {"number": 14159, "title": "feat: migrate agents storage to v2 main database", "author": "vaayne", "category": "migration"},
     {"number": 14328, "title": "refactor: stabilize ui package boundaries and theme contracts", "author": "kangfenmao", "category": "ui"},
     {"number": 14309, "title": "refactor(settings): unify settings list item and action button patterns", "author": "kangfenmao", "category": "ui"},
@@ -33,14 +38,20 @@
       "Tag entity DataApi",
       "Assistant/topic decoupling",
       "Sidebar tab bar UI",
-      "RTK extraction → agent bootstrap"
+      "RTK extraction → agent bootstrap",
+      "Paintings data architecture",
+      "Models/providers domain hooks"
     ],
     "in_progress": [
-      "AI streaming pipeline (V2 blocks-to-parts)",
-      "Agents storage → v2 main database",
+      "AI streaming pipeline (V2 blocks-to-payload)",
+      "Agents storage → DataApi (HTTP → IPC migration)",
+      "Memory provider system (pluggable)",
+      "Split-view / multi-panel layout infrastructure",
       "UI package boundaries/theme contracts",
       "Settings UI unification",
-      "Renderer translate module"
+      "Renderer translate module",
+      "Copilot IPC decoupling",
+      "MiniApp category navigation"
     ],
     "blocked_prs": 1
   },

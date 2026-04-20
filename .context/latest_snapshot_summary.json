@@ -1,11 +1,11 @@
 {
-  "generated_at": "2026-04-19T17:00:00Z",
-  "snapshot_date": "2026-04-19",
+  "generated_at": "2026-04-20T00:00:00Z",
+  "snapshot_date": "2026-04-20",
   "open_issues": {
-    "total": 800,
-    "uncategorized_count": 128,
-    "uncategorized_pct": "16.0%",
-    "note": "Uncategorized estimate based on 200-issue sample (32/200=16%)",
+    "total": 821,
+    "no_label_count": 87,
+    "no_label_pct": "10.6%",
+    "note": "No-label count from GitHub search (exact). Bug issues open: 171.",
     "p1_critical": [
       {
         "number": 12966,
@@ -37,9 +37,9 @@
       }
     ],
     "health": {
-      "active_7d": 188,
-      "aging_7_30d": 466,
-      "stale_30_90d": 149,
+      "active_7d": 199,
+      "aging_8_30d": 474,
+      "stale_31_90d": 145,
       "zombie_90d_plus": 3
     },
     "top_labels": [
@@ -68,7 +68,7 @@
     ]
   },
   "closed_issues_30d": {
-    "total": 147,
+    "total": 145,
     "top_labels_closed": [
       {"label": "inactive", "count": 29},
       {"label": "Models", "count": 26},
@@ -83,10 +83,9 @@
     ]
   },
   "open_prs": {
-    "total_sampled": 100,
-    "targeting_main": 45,
-    "targeting_v2": 54,
-    "targeting_other": 1,
+    "total": 252,
+    "targeting_v2": 52,
+    "targeting_main_or_other": 200,
     "age_buckets": {
       "fresh_7d": 82,
       "aging_7_30d": 18,
@@ -101,13 +100,9 @@
     ]
   },
   "v2_branch": {
-    "open_prs": 50,
-    "merged_prs_30d": 54,
-    "open_prs_age": {
-      "fresh_7d": 50,
-      "aging_7_30d": 0,
-      "stale_30d": 0
-    },
+    "open_prs": 52,
+    "merged_prs_30d": 57,
+    "velocity": "~1.9 merges/day",
     "recent_merged_10": [
       {"number": 14359, "title": "refactor(data-api): use greedy :uniqueModelId* for model routing"},
       {"number": 14234, "title": "feat(data): add Tag entity DataApi with CRUD and entity-tag relations"},

@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-04-19T17:00:00Z",
-  "report_date": "2026-04-19",
+  "generated_at": "2026-04-20T00:00:00Z",
+  "report_date": "2026-04-20",
   "note": "Discussion data via GraphQL API was not available in this run. Stats below are derived from Issues labeled 'discussion'.",
   "discussion_via_issues": {
     "open_discussion_labeled": 10,
