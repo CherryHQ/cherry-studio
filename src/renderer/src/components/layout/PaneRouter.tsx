@@ -18,6 +18,10 @@ interface PaneRouterProps {
  *
  * Based on TabRouter but operates at the pane level.
  * Activity visibility is managed by the parent TabContainer.
+ *
+ * Note: deprecated by Phase 2's LeafPaneView (which embeds the router
+ * inline to key by tabId). Kept here until Sub-Phase C deletes the
+ * legacy TabContainer/SplitContainer that still consume it.
  */
 export const PaneRouter = ({ paneId, url, isActive, isPreview, onUrlChange, onFocus }: PaneRouterProps) => {
   const router = useMemo(() => {
@@ -26,7 +30,6 @@ export const PaneRouter = ({ paneId, url, isActive, isPreview, onUrlChange, onFo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paneId])
 
-  // Sync internal navigation back to pane state
   useEffect(() => {
     return router.subscribe('onResolved', ({ toLocation }) => {
       const nextHref = toLocation.href
@@ -36,7 +39,6 @@ export const PaneRouter = ({ paneId, url, isActive, isPreview, onUrlChange, onFo
     })
   }, [router, url, onUrlChange, paneId])
 
-  // Navigate when url prop changes externally (e.g., from Sidebar)
   useEffect(() => {
     const currentHref = router.state.location.href
     if (url !== currentHref) {
