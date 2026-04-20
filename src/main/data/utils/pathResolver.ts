@@ -35,7 +35,7 @@ export function resolvePhysicalPath(entry: PathResolvableEntry): string {
   }
 
   if (entry.origin === 'internal') {
-    return application.getPath('files', `${entry.id}${getExtSuffix(entry.ext)}`)
+    return application.getPath('feature.files.data', `${entry.id}${getExtSuffix(entry.ext)}`)
   }
 
   // external
