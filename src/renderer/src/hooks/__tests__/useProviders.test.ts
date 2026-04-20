@@ -432,9 +432,9 @@ describe('useProviderMutations', () => {
     const { result } = renderHook(() => useProviderMutations('openai'))
 
     await act(async () => {
-      await expect(result.current.updateApiKeys([{ id: 'k1', key: 'sk-test', isEnabled: true } as any])).rejects.toThrow(
-        'API key update failed'
-      )
+      await expect(
+        result.current.updateApiKeys([{ id: 'k1', key: 'sk-test', isEnabled: true } as any])
+      ).rejects.toThrow('API key update failed')
     })
 
     expect(loggerSpy).toHaveBeenCalledWith('Failed to update API keys', { providerId: 'openai', error })
