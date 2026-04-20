@@ -1,4 +1,4 @@
-import { foreignKey, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps } from './_columnHelpers'
 import { agentTable } from './agent'
@@ -10,7 +10,9 @@ export const agentSessionTable = sqliteTable(
     // so uuidPrimaryKey() is intentionally not used here. Callers must always supply an id.
     id: text().primaryKey(),
     agentType: text().notNull(),
-    agentId: text().notNull(),
+    agentId: text()
+      .notNull()
+      .references(() => agentTable.id, { onDelete: 'cascade' }),
     name: text().notNull(),
     description: text(),
     accessiblePaths: text(),
@@ -26,11 +28,6 @@ export const agentSessionTable = sqliteTable(
     ...createUpdateTimestamps
   },
   (t) => [
-    foreignKey({
-      columns: [t.agentId],
-      foreignColumns: [agentTable.id],
-      name: 'agent_session_agent_id_fk'
-    }).onDelete('cascade'),
     index('agent_session_agent_id_idx').on(t.agentId),
     index('agent_session_model_idx').on(t.model),
     index('agent_session_sort_order_idx').on(t.sortOrder)

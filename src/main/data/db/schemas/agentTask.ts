@@ -1,4 +1,4 @@
-import { foreignKey, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps } from './_columnHelpers'
 import { agentTable } from './agent'
@@ -9,7 +9,9 @@ export const agentTaskTable = sqliteTable(
     // IDs use the app-generated "task_<timestamp>_<random>" format, not UUIDs,
     // so uuidPrimaryKey() is intentionally not used here. Callers must always supply an id.
     id: text().primaryKey(),
-    agentId: text().notNull(),
+    agentId: text()
+      .notNull()
+      .references(() => agentTable.id, { onDelete: 'cascade' }),
     name: text().notNull(),
     prompt: text().notNull(),
     scheduleType: text().notNull(),
@@ -22,11 +24,6 @@ export const agentTaskTable = sqliteTable(
     ...createUpdateTimestamps
   },
   (t) => [
-    foreignKey({
-      columns: [t.agentId],
-      foreignColumns: [agentTable.id],
-      name: 'agent_task_agent_id_fk'
-    }).onDelete('cascade'),
     index('agent_task_agent_id_idx').on(t.agentId),
     index('agent_task_next_run_idx').on(t.nextRun),
     index('agent_task_status_idx').on(t.status)
@@ -37,7 +34,9 @@ export const agentTaskRunLogTable = sqliteTable(
   'agent_task_run_log',
   {
     id: integer().primaryKey({ autoIncrement: true }),
-    taskId: text().notNull(),
+    taskId: text()
+      .notNull()
+      .references(() => agentTaskTable.id, { onDelete: 'cascade' }),
     sessionId: text(),
     runAt: integer().notNull(),
     durationMs: integer().notNull(),
@@ -46,14 +45,7 @@ export const agentTaskRunLogTable = sqliteTable(
     error: text(),
     ...createUpdateTimestamps
   },
-  (t) => [
-    foreignKey({
-      columns: [t.taskId],
-      foreignColumns: [agentTaskTable.id],
-      name: 'agent_task_run_log_task_id_fk'
-    }).onDelete('cascade'),
-    index('agent_task_run_log_task_id_idx').on(t.taskId)
-  ]
+  (t) => [index('agent_task_run_log_task_id_idx').on(t.taskId)]
 )
 
 export type AgentTaskRow = typeof agentTaskTable.$inferSelect

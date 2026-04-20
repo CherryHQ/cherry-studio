@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "818714fe-7bf4-47d7-8483-fee81bfeed8a",
+  "id": "543efe92-83d7-4491-8e7e-e81cc4b35c90",
   "prevId": "a947c27c-3d23-43b7-8846-3a82fcbbdee6",
   "tables": {
     "agent": {
@@ -595,8 +595,8 @@
         }
       },
       "foreignKeys": {
-        "agent_session_agent_id_fk": {
-          "name": "agent_session_agent_id_fk",
+        "agent_session_agent_id_agent_id_fk": {
+          "name": "agent_session_agent_id_agent_id_fk",
           "tableFrom": "agent_session",
           "tableTo": "agent",
           "columnsFrom": ["agent_id"],
@@ -854,8 +854,8 @@
         }
       },
       "foreignKeys": {
-        "agent_task_run_log_task_id_fk": {
-          "name": "agent_task_run_log_task_id_fk",
+        "agent_task_run_log_task_id_agent_task_id_fk": {
+          "name": "agent_task_run_log_task_id_agent_task_id_fk",
           "tableFrom": "agent_task_run_log",
           "tableTo": "agent_task",
           "columnsFrom": ["task_id"],
@@ -983,8 +983,8 @@
         }
       },
       "foreignKeys": {
-        "agent_task_agent_id_fk": {
-          "name": "agent_task_agent_id_fk",
+        "agent_task_agent_id_agent_id_fk": {
+          "name": "agent_task_agent_id_agent_id_fk",
           "tableFrom": "agent_task",
           "tableTo": "agent",
           "columnsFrom": ["agent_id"],

@@ -131,7 +131,7 @@ describe('AgentsDbMappings', () => {
     const statements = buildAgentsImportStatements('/tmp/agents.db', schemaInfo)
     const channelsInsert = statements.find((s) => s.startsWith('INSERT INTO agent_channel '))
 
-    expect(channelsInsert).toContain('(agent_id IS NULL OR agent_id IN (SELECT id FROM agents_legacy.agents))')
+    expect(channelsInsert).toContain('(agent_id IS NULL OR agent_id IN (SELECT id FROM agent))')
     expect(channelsInsert).toContain('(session_id IS NULL OR session_id IN (SELECT id FROM agent_session))')
   })
 
