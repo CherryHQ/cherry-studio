@@ -3,20 +3,10 @@ import { getDependencies, getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  preferenceGetMock,
-  createTextExtractionProcessorMock,
-  createMarkdownConversionProcessorMock,
-  extractTextMock,
-  startMarkdownConversionTaskMock,
-  getMarkdownConversionTaskResultMock
-} = vi.hoisted(() => ({
-  preferenceGetMock: vi.fn(),
-  createTextExtractionProcessorMock: vi.fn(),
-  createMarkdownConversionProcessorMock: vi.fn(),
+const { extractTextMock, startTaskMock, getTaskResultMock } = vi.hoisted(() => ({
   extractTextMock: vi.fn(),
-  startMarkdownConversionTaskMock: vi.fn(),
-  getMarkdownConversionTaskResultMock: vi.fn()
+  startTaskMock: vi.fn(),
+  getTaskResultMock: vi.fn()
 }))
 
 vi.mock('@main/core/lifecycle', async (importOriginal) => {
@@ -36,15 +26,17 @@ vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
 
   return mockApplicationFactory({
-    PreferenceService: {
-      get: preferenceGetMock
+    MarkdownTaskService: {
+      startTask: startTaskMock,
+      getTaskResult: getTaskResultMock
     }
   })
 })
 
-vi.mock('../processors/factory', () => ({
-  createTextExtractionProcessor: createTextExtractionProcessorMock,
-  createMarkdownConversionProcessor: createMarkdownConversionProcessorMock
+vi.mock('../ocr/OcrService', () => ({
+  ocrService: {
+    extractText: extractTextMock
+  }
 }))
 
 const { FileProcessingOrchestrationService } = await import('../FileProcessingOrchestrationService')
@@ -76,21 +68,6 @@ const documentFile = {
 describe('FileProcessingOrchestrationService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    preferenceGetMock.mockImplementation((key: string) => {
-      if (key === 'feature.file_processing.default_text_extraction') {
-        return 'tesseract'
-      }
-
-      if (key === 'feature.file_processing.default_markdown_conversion') {
-        return 'open-mineru'
-      }
-
-      if (key === 'feature.file_processing.overrides') {
-        return {}
-      }
-
-      return undefined
-    })
   })
 
   it('uses WhenReady phase without init-time service dependencies', () => {
@@ -111,7 +88,7 @@ describe('FileProcessingOrchestrationService', () => {
     ])
   })
 
-  it('validates extract-text IPC input before dispatching to processors', async () => {
+  it('validates extract-text IPC input before dispatching to OCR', async () => {
     const service = new FileProcessingOrchestrationService()
     ;(service as any).onInit()
 
@@ -119,7 +96,6 @@ describe('FileProcessingOrchestrationService', () => {
       (call) => call[0] === 'file-processing:extract-text'
     )?.[1]
 
-    expect(extractTextHandler).toBeTypeOf('function')
     await expect(
       extractTextHandler?.(
         {},
@@ -131,10 +107,11 @@ describe('FileProcessingOrchestrationService', () => {
         }
       )
     ).rejects.toThrow('[')
-    expect(createTextExtractionProcessorMock).not.toHaveBeenCalled()
+
+    expect(extractTextMock).not.toHaveBeenCalled()
   })
 
-  it('validates markdown-result IPC input before dispatching to processors', async () => {
+  it('validates markdown-result IPC input before dispatching to markdown tasks', async () => {
     const service = new FileProcessingOrchestrationService()
     ;(service as any).onInit()
 
@@ -142,35 +119,14 @@ describe('FileProcessingOrchestrationService', () => {
       (call) => call[0] === 'file-processing:get-markdown-conversion-task-result'
     )?.[1]
 
-    expect(getResultHandler).toBeTypeOf('function')
-    await expect(getResultHandler?.({}, { providerTaskId: '   ', processorId: 'doc2x' })).rejects.toThrow('[')
-    expect(createMarkdownConversionProcessorMock).not.toHaveBeenCalled()
+    await expect(getResultHandler?.({}, { taskId: '   ' })).rejects.toThrow('[')
+    expect(getTaskResultMock).not.toHaveBeenCalled()
   })
 
-  it('resolves text extraction config and forwards the request to the selected processor', async () => {
+  it('delegates OCR requests to ocrService', async () => {
     const signal = new AbortController().signal
     const service = new FileProcessingOrchestrationService()
 
-    preferenceGetMock.mockImplementation((key: string) => {
-      if (key === 'feature.file_processing.default_text_extraction') {
-        return 'tesseract'
-      }
-
-      if (key === 'feature.file_processing.overrides') {
-        return {
-          tesseract: {
-            options: {
-              langs: ['eng']
-            }
-          }
-        }
-      }
-
-      return undefined
-    })
-    createTextExtractionProcessorMock.mockReturnValueOnce({
-      extractText: extractTextMock
-    })
     extractTextMock.mockResolvedValueOnce({
       text: 'hello'
     })
@@ -179,79 +135,43 @@ describe('FileProcessingOrchestrationService', () => {
       text: 'hello'
     })
 
-    expect(createTextExtractionProcessorMock).toHaveBeenCalledWith('tesseract')
-    expect(extractTextMock).toHaveBeenCalledWith(
-      imageFile,
-      expect.objectContaining({
-        id: 'tesseract',
-        options: {
-          langs: ['eng']
-        }
-      }),
+    expect(extractTextMock).toHaveBeenCalledWith({
+      file: imageFile,
+      processorId: undefined,
       signal
-    )
+    })
   })
 
-  it('starts markdown conversion with the resolved processor config only', async () => {
+  it('delegates markdown task start requests to MarkdownTaskService', async () => {
     const signal = new AbortController().signal
     const service = new FileProcessingOrchestrationService()
 
-    preferenceGetMock.mockImplementation((key: string) => {
-      if (key === 'feature.file_processing.default_markdown_conversion') {
-        return 'open-mineru'
-      }
-
-      if (key === 'feature.file_processing.overrides') {
-        return {
-          'open-mineru': {
-            apiKeys: ['secret-key'],
-            capabilities: {
-              markdown_conversion: {
-                apiHost: 'http://127.0.0.1:8000'
-              }
-            }
-          }
-        }
-      }
-
-      return undefined
-    })
-    createMarkdownConversionProcessorMock.mockReturnValueOnce({
-      startMarkdownConversionTask: startMarkdownConversionTaskMock
-    })
-    startMarkdownConversionTaskMock.mockResolvedValueOnce({
-      providerTaskId: 'task-1',
+    startTaskMock.mockResolvedValueOnce({
+      taskId: 'task-1',
       status: 'processing',
       progress: 0,
       processorId: 'open-mineru'
     })
 
     await expect(service.startMarkdownConversionTask({ file: documentFile as never, signal })).resolves.toEqual({
-      providerTaskId: 'task-1',
+      taskId: 'task-1',
       status: 'processing',
       progress: 0,
       processorId: 'open-mineru'
     })
 
-    expect(createMarkdownConversionProcessorMock).toHaveBeenCalledWith('open-mineru')
-    expect(startMarkdownConversionTaskMock).toHaveBeenCalledWith(
-      documentFile,
-      expect.objectContaining({
-        id: 'open-mineru',
-        apiKeys: ['secret-key']
-      }),
+    expect(startTaskMock).toHaveBeenCalledWith({
+      file: documentFile,
+      processorId: undefined,
       signal
-    )
+    })
   })
 
-  it('queries markdown conversion result directly from the requested processor id', async () => {
+  it('delegates markdown task queries to MarkdownTaskService by taskId', async () => {
     const signal = new AbortController().signal
     const service = new FileProcessingOrchestrationService()
 
-    createMarkdownConversionProcessorMock.mockReturnValueOnce({
-      getMarkdownConversionTaskResult: getMarkdownConversionTaskResultMock
-    })
-    getMarkdownConversionTaskResultMock.mockResolvedValueOnce({
+    getTaskResultMock.mockResolvedValueOnce({
       status: 'completed',
       progress: 100,
       processorId: 'doc2x',
@@ -260,8 +180,7 @@ describe('FileProcessingOrchestrationService', () => {
 
     await expect(
       service.getMarkdownConversionTaskResult({
-        providerTaskId: 'provider-task-1',
-        processorId: 'doc2x',
+        taskId: 'task-1',
         signal
       })
     ).resolves.toEqual({
@@ -271,7 +190,9 @@ describe('FileProcessingOrchestrationService', () => {
       markdownPath: '/tmp/output.md'
     })
 
-    expect(createMarkdownConversionProcessorMock).toHaveBeenCalledWith('doc2x')
-    expect(getMarkdownConversionTaskResultMock).toHaveBeenCalledWith('provider-task-1', signal)
+    expect(getTaskResultMock).toHaveBeenCalledWith({
+      taskId: 'task-1',
+      signal
+    })
   })
 })

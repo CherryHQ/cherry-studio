@@ -3,9 +3,7 @@ import { vi } from 'vitest'
 import { MockMainCacheServiceExport } from './CacheService'
 import { MockMainDataApiServiceExport } from './DataApiService'
 import { MockMainDbServiceExport } from './DbService'
-import { MockMainDoc2xRuntimeServiceExport } from './Doc2xRuntimeService'
-import { MockMainFileProcessingRuntimeServiceExport } from './FileProcessingRuntimeService'
-import { MockMainOpenMineruRuntimeServiceExport } from './OpenMineruRuntimeService'
+import { MockMainMarkdownTaskServiceExport } from './MarkdownTaskService'
 import { MockMainPreferenceServiceExport } from './PreferenceService'
 import { MockMainTesseractRuntimeServiceExport } from './TesseractRuntimeService'
 
@@ -67,10 +65,8 @@ export const defaultServiceInstances = {
   CacheService: MockMainCacheServiceExport.cacheService,
   DataApiService: MockMainDataApiServiceExport.dataApiService,
   DbService: MockMainDbServiceExport.dbService,
-  FileProcessingRuntimeService: MockMainFileProcessingRuntimeServiceExport.fileProcessingRuntimeService,
-  Doc2xRuntimeService: MockMainDoc2xRuntimeServiceExport.doc2xRuntimeService,
+  MarkdownTaskService: MockMainMarkdownTaskServiceExport.markdownTaskService,
   TesseractRuntimeService: MockMainTesseractRuntimeServiceExport.tesseractRuntimeService,
-  OpenMineruRuntimeService: MockMainOpenMineruRuntimeServiceExport.openMineruRuntimeService,
   MainWindowService: mockMainWindowService,
   WindowManager: mockWindowManager
 } as const

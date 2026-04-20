@@ -1,11 +1,12 @@
 import { loggerService } from '@logger'
+import { application } from '@main/core/application'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { FILE_PROCESSOR_IDS } from '@shared/data/preference/preferenceTypes'
 import { FileMetadataSchema } from '@shared/data/types/knowledge'
 import { IpcChannel } from '@shared/IpcChannel'
 import * as z from 'zod'
 
-import { resolveProcessorConfigByFeature } from './config/resolveProcessorConfig'
+import { ocrService } from './ocr/OcrService'
 import type {
   ExtractTextInput,
   FileProcessingMarkdownTaskResult,
@@ -13,8 +14,7 @@ import type {
   FileProcessingTextExtractionResult,
   GetMarkdownConversionTaskResultInput,
   StartMarkdownConversionTaskInput
-} from './contracts/types'
-import { createMarkdownConversionProcessor, createTextExtractionProcessor } from './processors/factory'
+} from './types'
 
 const logger = loggerService.withContext('FileProcessingOrchestrationService')
 const FileProcessorIdSchema = z.enum(FILE_PROCESSOR_IDS)
@@ -35,8 +35,7 @@ const StartMarkdownConversionTaskPayloadSchema = z
 
 const GetMarkdownConversionTaskResultPayloadSchema = z
   .object({
-    providerTaskId: z.string().trim().min(1),
-    processorId: FileProcessorIdSchema
+    taskId: z.string().trim().min(1)
   })
   .strict()
 
@@ -45,19 +44,20 @@ const GetMarkdownConversionTaskResultPayloadSchema = z
 export class FileProcessingOrchestrationService extends BaseService {
   protected onInit(): void {
     this.registerIpcHandlers()
-    logger.info('File processing orchestration service initialized')
+    logger.info('File processing service initialized')
   }
 
   async extractText({ file, processorId, signal }: ExtractTextInput): Promise<FileProcessingTextExtractionResult> {
-    const resolvedConfig = resolveProcessorConfigByFeature('text_extraction', processorId)
-    const processor = createTextExtractionProcessor(resolvedConfig.id)
-
-    logger.debug('Extracting text with file-processing orchestration service', {
-      processorId: resolvedConfig.id,
+    logger.debug('Dispatching OCR request', {
+      requestedProcessorId: processorId,
       fileId: file.id
     })
 
-    return await processor.extractText(file, resolvedConfig, signal)
+    return ocrService.extractText({
+      file,
+      processorId,
+      signal
+    })
   }
 
   async startMarkdownConversionTask({
@@ -65,30 +65,34 @@ export class FileProcessingOrchestrationService extends BaseService {
     processorId,
     signal
   }: StartMarkdownConversionTaskInput): Promise<FileProcessingMarkdownTaskStartResult> {
-    const resolvedConfig = resolveProcessorConfigByFeature('markdown_conversion', processorId)
-    const processor = createMarkdownConversionProcessor(resolvedConfig.id)
+    const markdownTaskService = application.get('MarkdownTaskService')
 
-    logger.debug('Starting markdown conversion task with file-processing orchestration service', {
-      processorId: resolvedConfig.id,
+    logger.debug('Dispatching markdown task start request', {
+      requestedProcessorId: processorId,
       fileId: file.id
     })
 
-    return await processor.startMarkdownConversionTask(file, resolvedConfig, signal)
+    return markdownTaskService.startTask({
+      file,
+      processorId,
+      signal
+    })
   }
 
   async getMarkdownConversionTaskResult({
-    providerTaskId,
-    processorId,
+    taskId,
     signal
   }: GetMarkdownConversionTaskResultInput): Promise<FileProcessingMarkdownTaskResult> {
-    const processor = createMarkdownConversionProcessor(processorId)
+    const markdownTaskService = application.get('MarkdownTaskService')
 
-    logger.debug('Getting markdown conversion task result with file-processing orchestration service', {
-      processorId,
-      providerTaskId
+    logger.debug('Dispatching markdown task query request', {
+      taskId
     })
 
-    return await processor.getMarkdownConversionTaskResult(providerTaskId, signal)
+    return markdownTaskService.getTaskResult({
+      taskId,
+      signal
+    })
   }
 
   private registerIpcHandlers(): void {

@@ -4,6 +4,8 @@ import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { PreparedTesseractContext } from '../../../ocr/providers/tesseract/types'
+
 const { createWorkerMock, getIpCountryMock, loadOcrImageMock } = vi.hoisted(() => ({
   createWorkerMock: vi.fn(),
   getIpCountryMock: vi.fn(),
@@ -40,6 +42,7 @@ describe('TesseractRuntimeService', () => {
     if (service && !service.isStopped && !service.isDestroyed) {
       await service._doStop()
     }
+    vi.useRealTimers()
     service = undefined
     BaseService.resetInstances()
   })
@@ -235,6 +238,89 @@ describe('TesseractRuntimeService', () => {
 
     await expect(service._doStop()).resolves.toBeUndefined()
     service = undefined
+
+    expect(terminateMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('releases the shared worker after an idle timeout', async () => {
+    vi.useFakeTimers()
+
+    const terminateMock = vi.fn().mockResolvedValue(undefined)
+    createWorkerMock.mockResolvedValue({
+      recognize: vi.fn().mockResolvedValue({
+        data: {
+          text: 'hello'
+        }
+      }),
+      terminate: terminateMock
+    })
+
+    service = new TesseractRuntimeService()
+    await service._doInit()
+
+    await service.extract({
+      file: {
+        id: 'file-1',
+        name: 'scan.png',
+        origin_name: 'scan.png',
+        path: '/tmp/scan.png',
+        size: 1024,
+        ext: '.png',
+        type: 'image',
+        created_at: '2026-03-31T00:00:00.000Z',
+        count: 1
+      },
+      langs: ['eng']
+    })
+
+    expect(terminateMock).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(60_000)
+
+    expect(terminateMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the worker alive when another request arrives before the idle timeout', async () => {
+    vi.useFakeTimers()
+
+    const recognizeMock = vi.fn().mockResolvedValue({
+      data: {
+        text: 'hello'
+      }
+    })
+    const terminateMock = vi.fn().mockResolvedValue(undefined)
+    createWorkerMock.mockResolvedValue({
+      recognize: recognizeMock,
+      terminate: terminateMock
+    })
+
+    service = new TesseractRuntimeService()
+    await service._doInit()
+
+    const request: PreparedTesseractContext = {
+      file: {
+        id: 'file-1',
+        name: 'scan.png',
+        origin_name: 'scan.png',
+        path: '/tmp/scan.png',
+        size: 1024,
+        ext: '.png',
+        type: 'image',
+        created_at: '2026-03-31T00:00:00.000Z',
+        count: 1
+      },
+      langs: ['eng']
+    }
+
+    await service.extract(request)
+    await vi.advanceTimersByTimeAsync(30_000)
+    await service.extract(request)
+    await vi.advanceTimersByTimeAsync(59_000)
+
+    expect(createWorkerMock).toHaveBeenCalledTimes(1)
+    expect(terminateMock).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(1_000)
 
     expect(terminateMock).toHaveBeenCalledTimes(1)
   })

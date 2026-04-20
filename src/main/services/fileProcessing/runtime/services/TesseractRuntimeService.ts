@@ -11,13 +11,14 @@ import type { LanguageCode } from 'tesseract.js'
 import type Tesseract from 'tesseract.js'
 import { createWorker } from 'tesseract.js'
 
-import type { FileProcessingTextExtractionResult } from '../../contracts/types'
-import type { PreparedTesseractContext } from '../../processors/builtin/tesseract/type'
+import type { PreparedTesseractContext } from '../../ocr/providers/tesseract/types'
+import type { FileProcessingTextExtractionResult } from '../../types'
 
 const logger = loggerService.withContext('TesseractRuntimeService')
 
 const MB_SIZE_THRESHOLD = 50
 const TESSERACT_LANGS_DOWNLOAD_URL_CN = 'https://gitcode.com/beyondkmp/tessdata-best/releases/download/1.0.0/'
+const TESSERACT_WORKER_IDLE_TIMEOUT_MS = 60 * 1000
 
 @Injectable('TesseractRuntimeService')
 @ServicePhase(Phase.BeforeReady)
@@ -26,6 +27,7 @@ export class TesseractRuntimeService extends BaseService {
   private previousLangsKey: string | null = null
   private acceptingTasks = false
   private shutdownController: AbortController | null = null
+  private idleReleaseTimer: NodeJS.Timeout | null = null
   // TODO(file-processing): When ProcessManagerService lands, move the shared
   // worker lifecycle and concurrency control behind a managed utility process
   // or process pool instead of keeping the runtime in the main process.
@@ -40,6 +42,7 @@ export class TesseractRuntimeService extends BaseService {
 
   protected async onStop(): Promise<void> {
     this.acceptingTasks = false
+    this.clearIdleReleaseTimer()
     this.shutdownController?.abort(this.createAbortError('Tesseract runtime is stopping'))
 
     await this.disposeWorkerSafely()
@@ -55,39 +58,44 @@ export class TesseractRuntimeService extends BaseService {
     }
 
     context.signal?.throwIfAborted()
+    this.clearIdleReleaseTimer()
 
-    const extractionResult = await this.extractionQueue.add(async () => {
-      this.throwIfStopped()
-      context.signal?.throwIfAborted()
-
-      const worker = await this.getWorker(context.langs)
-      this.throwIfStopped()
-
-      const stat = await fs.promises.stat(context.file.path)
-      this.throwIfStopped()
-
-      if (stat.size > MB_SIZE_THRESHOLD * MB) {
-        throw new Error(`This image is too large (max ${MB_SIZE_THRESHOLD}MB)`)
-      }
-
-      const buffer = await loadOcrImage(context.file)
-      this.throwIfStopped()
-      const result = await worker.recognize(buffer).catch((error) => {
+    try {
+      const extractionResult = await this.extractionQueue.add(async () => {
         this.throwIfStopped()
-        throw error
+        context.signal?.throwIfAborted()
+
+        const worker = await this.getWorker(context.langs)
+        this.throwIfStopped()
+
+        const stat = await fs.promises.stat(context.file.path)
+        this.throwIfStopped()
+
+        if (stat.size > MB_SIZE_THRESHOLD * MB) {
+          throw new Error(`This image is too large (max ${MB_SIZE_THRESHOLD}MB)`)
+        }
+
+        const buffer = await loadOcrImage(context.file)
+        this.throwIfStopped()
+        const result = await worker.recognize(buffer).catch((error) => {
+          this.throwIfStopped()
+          throw error
+        })
+        this.throwIfStopped()
+
+        return {
+          text: result.data.text
+        }
       })
-      this.throwIfStopped()
 
-      return {
-        text: result.data.text
+      if (!extractionResult) {
+        throw new Error('Tesseract extraction task did not return a result')
       }
-    })
 
-    if (!extractionResult) {
-      throw new Error('Tesseract extraction task did not return a result')
+      return extractionResult
+    } finally {
+      this.scheduleIdleWorkerReleaseIfNeeded()
     }
-
-    return extractionResult
   }
 
   private async getWorker(langs: LanguageCode[]): Promise<Tesseract.Worker> {
@@ -140,6 +148,44 @@ export class TesseractRuntimeService extends BaseService {
     } catch (error) {
       logger.warn('Failed to terminate Tesseract worker during shutdown', error as Error)
     }
+  }
+
+  private scheduleIdleWorkerReleaseIfNeeded(): void {
+    if (!this.acceptingTasks || !this.sharedWorker) {
+      return
+    }
+
+    if (this.extractionQueue.pending > 0 || this.extractionQueue.size > 0) {
+      return
+    }
+
+    this.clearIdleReleaseTimer()
+    this.idleReleaseTimer = setTimeout(() => {
+      this.idleReleaseTimer = null
+      void this.releaseWorkerIfIdle()
+    }, TESSERACT_WORKER_IDLE_TIMEOUT_MS)
+  }
+
+  private clearIdleReleaseTimer(): void {
+    if (!this.idleReleaseTimer) {
+      return
+    }
+
+    clearTimeout(this.idleReleaseTimer)
+    this.idleReleaseTimer = null
+  }
+
+  private async releaseWorkerIfIdle(): Promise<void> {
+    if (!this.acceptingTasks || !this.sharedWorker) {
+      return
+    }
+
+    if (this.extractionQueue.pending > 0 || this.extractionQueue.size > 0) {
+      return
+    }
+
+    logger.debug('Releasing idle Tesseract worker')
+    await this.disposeWorkerSafely()
   }
 
   private async getLangPath(): Promise<string> {

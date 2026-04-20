@@ -14,7 +14,7 @@ export type FileProcessingTextExtractionResult = z.infer<typeof FileProcessingTe
 
 export const FileProcessingMarkdownTaskStartResultSchema = z
   .object({
-    providerTaskId: z.string().min(1),
+    taskId: z.string().min(1),
     status: z.enum(['pending', 'processing']),
     progress: z.number().min(0).max(100),
     processorId: z.enum(FILE_PROCESSOR_IDS)

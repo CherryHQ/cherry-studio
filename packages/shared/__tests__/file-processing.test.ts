@@ -140,10 +140,20 @@ describe('FileProcessorOverrideSchema', () => {
 })
 
 describe('FileProcessingMarkdownTaskStartResultSchema', () => {
+  it('requires taskId on task start results', () => {
+    expect(() =>
+      FileProcessingMarkdownTaskStartResultSchema.parse({
+        status: 'processing',
+        progress: 0,
+        processorId: 'mineru'
+      })
+    ).toThrow()
+  })
+
   it('requires processorId on task start results', () => {
     expect(() =>
       FileProcessingMarkdownTaskStartResultSchema.parse({
-        providerTaskId: 'task-1',
+        taskId: 'task-1',
         status: 'processing',
         progress: 0
       })
@@ -152,12 +162,13 @@ describe('FileProcessingMarkdownTaskStartResultSchema', () => {
 
   it('accepts valid task start results', () => {
     const result = FileProcessingMarkdownTaskStartResultSchema.parse({
-      providerTaskId: 'task-1',
+      taskId: 'task-1',
       status: 'processing',
       progress: 0,
       processorId: 'mineru'
     })
 
+    expect(result.taskId).toBe('task-1')
     expect(result.processorId).toBe('mineru')
   })
 })

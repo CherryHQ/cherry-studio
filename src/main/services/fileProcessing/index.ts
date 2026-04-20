@@ -1,4 +1,7 @@
-export type { IMarkdownConversionProcessor, ITextExtractionProcessor } from './contracts/processorContracts'
+export { FileProcessingOrchestrationService } from './FileProcessingOrchestrationService'
+export { MarkdownTaskService } from './markdown/MarkdownTaskService'
+export { ocrService } from './ocr/OcrService'
+export { TesseractRuntimeService } from './runtime/services/TesseractRuntimeService'
 export type {
   BaseProcessFileInput,
   ExtractTextInput,
@@ -7,14 +10,4 @@ export type {
   FileProcessingTextExtractionResult,
   GetMarkdownConversionTaskResultInput,
   StartMarkdownConversionTaskInput
-} from './contracts/types'
-export { FileProcessingOrchestrationService } from './FileProcessingOrchestrationService'
-export {
-  BaseFileProcessor,
-  BaseMarkdownConversionProcessor,
-  BaseTextExtractionProcessor
-} from './processors/base/BaseFileProcessor'
-export { Doc2xRuntimeService } from './runtime/services/Doc2xRuntimeService'
-export { FileProcessingRuntimeService } from './runtime/services/FileProcessingRuntimeService'
-export { OpenMineruRuntimeService } from './runtime/services/OpenMineruRuntimeService'
-export { TesseractRuntimeService } from './runtime/services/TesseractRuntimeService'
+} from './types'
