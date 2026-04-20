@@ -161,15 +161,21 @@ export function LeafPaneView({ pane, isRootLeaf, isActivePane, isDetached = fals
       <main
         ref={handleContentRef}
         className={cn('relative flex-1 overflow-hidden bg-background', isRootLeaf ? 'rounded-[16px]' : '')}>
-        {liveTabs.map((tab) => (
-          <TabRouterSlot
-            key={tab.id}
-            tab={tab}
-            paneId={pane.paneId}
-            isActiveTab={tab.id === pane.activeTabId}
-            onUrlChange={(url) => updateTab(pane.paneId, tab.id, { url })}
-          />
-        ))}
+        {liveTabs.map((tab) => {
+          const isActiveTab = tab.id === pane.activeTabId
+          if (tab.type === 'webview') {
+            return <WebviewSlot key={tab.id} tab={tab} isActiveTab={isActiveTab} />
+          }
+          return (
+            <TabRouterSlot
+              key={tab.id}
+              tab={tab}
+              paneId={pane.paneId}
+              isActiveTab={isActiveTab}
+              onUrlChange={(url) => updateTab(pane.paneId, tab.id, { url })}
+            />
+          )
+        })}
       </main>
 
       <PaneDropIndicator paneId={pane.paneId} />
@@ -215,6 +221,27 @@ function TabRouterSlot({ tab, isActiveTab, onUrlChange }: TabRouterSlotProps) {
     <Activity mode={isActiveTab ? 'visible' : 'hidden'}>
       <div className="h-full w-full">
         <RouterProvider router={router} />
+      </div>
+    </Activity>
+  )
+}
+
+interface WebviewSlotProps {
+  tab: PaneTab
+  isActiveTab: boolean
+}
+
+/**
+ * Placeholder for a webview-type tab. Kept as a visual stub until the real
+ * MinApp/webview integration lands — mirrors the Phase-1 mock but scoped to
+ * the leaf pane's tab list.
+ */
+function WebviewSlot({ tab, isActiveTab }: WebviewSlotProps) {
+  return (
+    <Activity mode={isActiveTab ? 'visible' : 'hidden'}>
+      <div className="flex h-full w-full flex-col items-center justify-center bg-background">
+        <div className="mb-2 font-bold text-lg">Webview App</div>
+        <code className="rounded bg-muted p-2">{tab.url}</code>
       </div>
     </Activity>
   )
