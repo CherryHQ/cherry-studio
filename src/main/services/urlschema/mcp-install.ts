@@ -7,7 +7,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 const logger = loggerService.withContext('URLSchema:handleMcpProtocolUrl')
 
 function installMCPServer(server: MCPServer) {
-  const mainWindow = application.get('WindowService').getMainWindow()
+  const mainWindow = application.get('MainWindowService').getMainWindow()
   const now = Date.now()
 
   const payload: MCPServer = {
@@ -73,7 +73,7 @@ export function handleMcpProtocolUrl(url: URL) {
         }
       }
 
-      application.get('WindowService').getMainWindow()?.show()
+      application.get('MainWindowService').showMainWindow()
 
       break
     }

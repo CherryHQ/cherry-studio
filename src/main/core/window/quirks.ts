@@ -1,5 +1,5 @@
 import { isMac } from '@main/constant'
-import type { WindowQuirks } from '@main/core/window/types'
+import type { WindowBehavior, WindowQuirks } from '@main/core/window/types'
 import { BrowserWindow } from 'electron'
 
 /**
@@ -11,11 +11,25 @@ import { BrowserWindow } from 'electron'
  * still see the correct `this`; other properties (`webContents`, EventEmitter
  * `.on/.once`, etc.) remain untouched.
  *
- * Extracted from WindowManager to keep platform-specific workarounds in a
- * single quarantined module. See `WindowQuirks` in `types.ts` for the field
- * contract and the empirical motivation of each quirk.
+ * Distinct from `applyWindowBehavior`: this module holds **OS-specific hacks**
+ * (workarounds for macOS bugs). Non-hacky declarative behavior (hideOnBlur,
+ * initial setVisibleOnAllWorkspaces, etc.) lives in `behavior.ts`.
+ *
+ * Must be called AFTER `applyWindowBehavior` so that the behavior layer's
+ * initial setter calls (e.g. the first `setAlwaysOnTop(true, level)`) do not
+ * accidentally re-trigger the monkey-patched show/showInactive hooks.
+ *
+ * @param window - The BrowserWindow instance
+ * @param quirks - The OS workaround flags (undefined skips all work)
+ * @param behavior - The declarative behavior layer, consulted for the level
+ *   to re-apply under `macReapplyAlwaysOnTop` (single source of truth for
+ *   level/relativeLevel — see `behavior.alwaysOnTop`).
  */
-export function applyWindowQuirks(window: BrowserWindow, quirks: WindowQuirks | undefined): void {
+export function applyWindowQuirks(
+  window: BrowserWindow,
+  quirks: WindowQuirks | undefined,
+  behavior: WindowBehavior | undefined
+): void {
   if (!quirks) return
 
   // ── macRestoreFocusOnHide + macClearHoverOnHide ──────────────────────
@@ -63,22 +77,39 @@ export function applyWindowQuirks(window: BrowserWindow, quirks: WindowQuirks | 
   //        across hide/show cycles — after the next show() the level can
   //        silently demote, causing the window to slide behind fullscreen
   //        apps or the menu bar.
-  // Does:  After show() / showInactive(), re-applies setAlwaysOnTop(true, level).
+  // Does:  After show() / showInactive(), re-applies
+  //        setAlwaysOnTop(true, level, relativeLevel) with values read from
+  //        `behavior.alwaysOnTop` (single source of truth).
   // When:  Windows that must retain an elevated stacking level (screen-saver
   //        for overlays on top of fullscreen apps; floating otherwise).
+  //        No-op when `behavior.alwaysOnTop.level` / `relativeLevel` are unset.
   //
   // [macOS] Show-path methods (show/showInactive): post-hook re-applies alwaysOnTop level.
   if (isMac && quirks.macReapplyAlwaysOnTop) {
-    const level = quirks.macReapplyAlwaysOnTop === true ? 'floating' : quirks.macReapplyAlwaysOnTop
+    // When behavior doesn't declare a level, fall back to 'floating' explicitly
+    // rather than relying on Electron's internal default — this keeps the
+    // re-apply call signature stable across Electron upgrades.
+    const level = behavior?.alwaysOnTop?.level ?? 'floating'
+    const relativeLevel = behavior?.alwaysOnTop?.relativeLevel
     const originalShow = window.show.bind(window)
     const originalShowInactive = window.showInactive.bind(window)
+    const reapply = () => {
+      if (window.isDestroyed()) return
+      // Pass relativeLevel only when declared — avoids polluting the call
+      // site with a trailing `undefined` that changes spy signatures.
+      if (relativeLevel !== undefined) {
+        window.setAlwaysOnTop(true, level, relativeLevel)
+      } else {
+        window.setAlwaysOnTop(true, level)
+      }
+    }
     window.show = () => {
       originalShow()
-      if (!window.isDestroyed()) window.setAlwaysOnTop(true, level)
+      reapply()
     }
     window.showInactive = () => {
       originalShowInactive()
-      if (!window.isDestroyed()) window.setAlwaysOnTop(true, level)
+      reapply()
     }
   }
 }

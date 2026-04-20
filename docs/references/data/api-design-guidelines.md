@@ -45,6 +45,63 @@ Guidelines for designing RESTful APIs in the Cherry Studio Data API system.
 }
 ```
 
+## Greedy Path Parameters
+
+Use a greedy param when a single path-param value may itself contain `/`.
+This avoids URL-encoding (which the project does not use) and keeps composite
+identifiers readable in the path.
+
+**Syntax:** `:<name>*` (trailing `*` on a `:`-prefixed segment).
+
+**Position:** valid as the **last** segment, or **in the middle** of a pattern
+anchored by static / plain-param trailing segments. A pattern may contain at
+most one greedy param — a second greedy is rejected defensively to keep route
+matching unambiguous.
+
+**Semantics:**
+
+- Matches **one or more** consecutive path segments and exposes the raw joined
+  string (segments rejoined with `/`) as `params.<name>`.
+- Does **not** match zero segments — the capture is required.
+- The captured value is **not decoded**; any `/`, `::`, `%`, etc. inside it is
+  preserved verbatim, consistent with the rest of the router.
+- There is no `*`-as-any-segment or `**` wildcard — only `:name*`.
+
+**Examples:**
+
+```typescript
+// Tail greedy — composite ID at end of path
+'/models/:uniqueModelId*'
+  '/models/openai::gpt-4'                          → { uniqueModelId: 'openai::gpt-4' }
+  '/models/qwen::qwen/qwen3-vl'                    → { uniqueModelId: 'qwen::qwen/qwen3-vl' }
+  '/models/fireworks::accounts/fireworks/models/x' → { uniqueModelId: 'fireworks::accounts/fireworks/models/x' }
+  '/models'                                        → no match (greedy requires ≥1 segment)
+
+// Middle greedy — free-form ID wrapped by static anchors
+'/models/:uid*/order'
+  '/models/a/b/c/order'                            → { uid: 'a/b/c' }
+  '/models/qwen::qwen/order'                       → { uid: 'qwen::qwen' }
+  '/models/order'                                  → no match (greedy requires ≥1 segment)
+  '/models/a/b/c'                                  → no match (trailing anchor mismatch)
+
+// Mixed leading plain + middle greedy + trailing anchor
+'/providers/:providerId/models/:uid*/actions'
+  '/providers/openai/models/qwen/qwen3-vl/actions' → { providerId: 'openai', uid: 'qwen/qwen3-vl' }
+```
+
+**When to reach for this:**
+
+- Composite identifiers whose component can include `/`
+  (e.g. OpenRouter/Fireworks-style model IDs).
+- Third-party IDs where you cannot control the character set.
+- Attaching sub-actions (`/…/order`, `/…/actions`) to resources whose ID
+  contains `/`.
+
+**When NOT to use it:**
+
+- For nanoid/UUID-style IDs that never contain `/` — prefer the plain `:id`
+  form so the route stays strictly 1-to-1 with its shape.
+
 ## PATCH vs Dedicated Endpoints
 
 ### Decision Criteria
