@@ -1123,6 +1123,46 @@ describe('options utils', () => {
         })
       })
 
+      it.each([
+        { providerId: 'newapi', providerName: 'NewAPI' },
+        { providerId: 'aihubmix', providerName: 'AiHubMix' }
+      ])(
+        'should route Gemini models to google providerOptions through $providerName',
+        async ({ providerId, providerName }) => {
+          const { getCustomParameters } = await import('../reasoning')
+          vi.mocked(getCustomParameters).mockReturnValue({
+            generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
+            imageConfig: { aspectRatio: '3:4', imageSize: '4K' }
+          })
+
+          const provider: Provider = {
+            id: providerId,
+            name: providerName,
+            type: 'openai',
+            models: [] as Model[]
+          } as Provider
+
+          const geminiModel: Model = {
+            id: 'gemini-3.1-flash-image-preview',
+            name: 'Gemini 3.1 Flash Image Preview',
+            provider: providerId
+          } as Model
+
+          const result = buildProviderOptions(mockAssistant, geminiModel, provider, {
+            enableReasoning: false,
+            enableWebSearch: false,
+            enableGenerateImage: true
+          })
+
+          expect(result.providerOptions).toHaveProperty('google')
+          expect(result.providerOptions).not.toHaveProperty(providerId)
+          expect(result.providerOptions.google).toMatchObject({
+            generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
+            imageConfig: { aspectRatio: '3:4', imageSize: '4K' }
+          })
+        }
+      )
+
       // Note: For proxy providers like aihubmix/newapi, users should write AI SDK provider ID (google/anthropic)
       // instead of the Cherry Studio provider ID for custom parameters to work correctly
 

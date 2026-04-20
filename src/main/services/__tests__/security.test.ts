@@ -17,6 +17,10 @@ describe('isSafeExternalUrl', () => {
     expect(isSafeExternalUrl('mailto:user@example.com')).toBe(true)
   })
 
+  it('allows obsidian:// protocol', () => {
+    expect(isSafeExternalUrl('obsidian://new?file=test&vault=myvault&clipboard')).toBe(true)
+  })
+
   it('rejects file:// protocol', () => {
     expect(isSafeExternalUrl('file:///etc/passwd')).toBe(false)
     expect(isSafeExternalUrl('file://localhost/tmp')).toBe(false)
