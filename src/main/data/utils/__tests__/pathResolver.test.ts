@@ -1,16 +1,12 @@
-import path from 'node:path'
-
 import { describe, expect, it, vi } from 'vitest'
 
-// Mock application.getPath — tests focus on path construction logic, not actual userData location
-vi.mock('@application', () => ({
-  application: {
-    getPath: vi.fn((namespace: string, filename?: string) => {
-      const base = path.posix.join('/mock/userData', namespace)
-      return filename ? path.posix.join(base, filename) : base
-    })
-  }
-}))
+// Route `@application` through the unified mock factory so `application.getPath`
+// follows the project-wide stub (`/mock/<key>[/<filename>]`) and stays in sync
+// with any future changes in tests/__mocks__/main/application.ts.
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory()
+})
 
 import type { PathResolvableEntry } from '../pathResolver'
 import { getExtSuffix, resolvePhysicalPath } from '../pathResolver'
@@ -28,24 +24,24 @@ describe('getExtSuffix', () => {
 
 describe('resolvePhysicalPath', () => {
   describe('origin=internal', () => {
-    it('returns {userData}/files/{id}.{ext}', () => {
+    it('returns {userData}/feature.files.data/{id}.{ext}', () => {
       const entry: PathResolvableEntry = {
         id: 'abc-123',
         origin: 'internal',
         ext: 'pdf',
         externalPath: null
       }
-      expect(resolvePhysicalPath(entry)).toBe('/mock/userData/files/abc-123.pdf')
+      expect(resolvePhysicalPath(entry)).toBe('/mock/feature.files.data/abc-123.pdf')
     })
 
-    it('returns {userData}/files/{id} with null ext', () => {
+    it('returns path with bare id when ext is null', () => {
       const entry: PathResolvableEntry = {
         id: 'abc-123',
         origin: 'internal',
         ext: null,
         externalPath: null
       }
-      expect(resolvePhysicalPath(entry)).toBe('/mock/userData/files/abc-123')
+      expect(resolvePhysicalPath(entry)).toBe('/mock/feature.files.data/abc-123')
     })
   })
 

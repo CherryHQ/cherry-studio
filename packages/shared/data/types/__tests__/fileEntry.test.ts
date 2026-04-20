@@ -153,6 +153,11 @@ describe('FileEntrySchema origin invariants', () => {
       const result = FileEntrySchema.safeParse(makeExternal({ externalPath: 'relative/path' }))
       expect(result.success).toBe(false)
     })
+
+    it('rejects external with file:// URL (not a filesystem path)', () => {
+      const result = FileEntrySchema.safeParse(makeExternal({ externalPath: 'file:///Users/me/file.pdf' }))
+      expect(result.success).toBe(false)
+    })
   })
 
   describe('origin discriminator', () => {
@@ -176,6 +181,43 @@ describe('FileEntrySchema trash (trashedAt)', () => {
 
   it('accepts trashed external entry', () => {
     expect(FileEntrySchema.safeParse(makeExternal({ trashedAt: TS })).success).toBe(true)
+  })
+})
+
+// ─── Size / ext boundary checks ───
+
+describe('FileEntrySchema size/ext boundaries', () => {
+  it('rejects negative size', () => {
+    expect(FileEntrySchema.safeParse(makeInternal({ size: -1 })).success).toBe(false)
+  })
+
+  it('rejects non-integer size', () => {
+    expect(FileEntrySchema.safeParse(makeInternal({ size: 1.5 })).success).toBe(false)
+  })
+
+  it('accepts size=0 (empty file)', () => {
+    expect(FileEntrySchema.safeParse(makeInternal({ size: 0 })).success).toBe(true)
+  })
+
+  it('accepts size up to MAX_SAFE_INTEGER', () => {
+    expect(FileEntrySchema.safeParse(makeInternal({ size: Number.MAX_SAFE_INTEGER })).success).toBe(true)
+  })
+
+  it('rejects empty ext string (use null for extensionless files)', () => {
+    expect(FileEntrySchema.safeParse(makeInternal({ ext: '' })).success).toBe(false)
+  })
+})
+
+// ─── Brand (duck-typing prevention) ───
+
+describe('FileEntrySchema brand', () => {
+  it('parsed entry carries brand (type-level guarantee; runtime only checks structure)', () => {
+    const result = FileEntrySchema.safeParse(makeInternal())
+    expect(result.success).toBe(true)
+    // The brand is a compile-time construct — we can't assert it at runtime,
+    // but the following assignment would fail type-check if brand were lost:
+    //   const typed: FileEntry = { ...makeInternal() } // type error (missing brand)
+    //   const typed: FileEntry = result.data!           // OK
   })
 })
 

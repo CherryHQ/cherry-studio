@@ -24,6 +24,15 @@
  * | `externalPath`| null                   | non-null absolute path               |
  * | `trashedAt`   | nullable               | nullable                             |
  *
+ * ## Type safety: Zod brand on FileEntry
+ *
+ * `FileEntrySchema` is branded so arbitrary object literals cannot satisfy
+ * the `FileEntry` type. Only values that have passed `FileEntrySchema.parse()`
+ * (or `.safeParse()` with success) carry the brand. This forces entry
+ * production through sanctioned paths (FileManager.createEntry IPC, DataApi
+ * handler row→DTO conversion, FileMigrator insert) which own the derivation
+ * of `name`/`ext`/`size`/etc.
+ *
  * ## Lifecycle
  *
  * ```
@@ -45,7 +54,7 @@
  * - Active:   `trashedAt = null`
  * - Trashed:  `trashedAt = <ms epoch>`
  * - permanentDelete on internal: unlink FS file + delete DB row
- * - permanentDelete on external: delete DB row only (user's file untouched)
+ * - permanentDelete on external: unlink user's file (explicit action) + delete DB row
  */
 
 import * as z from 'zod'
@@ -71,53 +80,62 @@ export type FileEntryOrigin = z.infer<typeof FileEntryOriginSchema>
 
 // ─── Absolute Path ───
 
-/** Absolute filesystem path (Unix or Windows) */
+/** Absolute filesystem path (Unix or Windows). Rejects `file://` URLs — use a dedicated URL schema if needed. */
 const AbsolutePathSchema = z
   .string()
   .min(1)
-  .refine((s) => s.startsWith('/') || /^[A-Za-z]:\\/.test(s), 'externalPath must be an absolute path')
+  .refine((s) => s.startsWith('/') || /^[A-Za-z]:\\/.test(s), 'externalPath must be an absolute filesystem path')
 
-// ─── FileEntry Schema ───
+// ─── FileEntry Schema (discriminated union on origin, branded) ───
 
+const CommonEntryFields = {
+  /** Entry ID (UUID v7) */
+  id: FileEntryIdSchema,
+  /** User-visible name (without extension) */
+  name: SafeNameSchema,
+  /** File extension without leading dot (e.g. 'pdf', 'md'). Null for extensionless files */
+  ext: z.string().min(1).nullable(),
+  /** File size in bytes. For external, this is the last-observed snapshot. */
+  size: z.int().nonnegative(),
+  /** Trash timestamp (ms epoch). Non-null = trashed. */
+  trashedAt: TimestampSchema.nullable(),
+  /** Creation timestamp (ms epoch) */
+  createdAt: TimestampSchema,
+  /** Last update timestamp (ms epoch) */
+  updatedAt: TimestampSchema
+} as const
+
+/** origin='internal': Cherry owns the content. `externalPath` must be null. */
+export const InternalEntrySchema = z.object({
+  ...CommonEntryFields,
+  origin: z.literal('internal'),
+  /** Must be null for internal entries (physical storage is UUID-based in userData). */
+  externalPath: z.null()
+})
+
+/** origin='external': Cherry references a user-provided path. `externalPath` must be a non-null absolute path. */
+export const ExternalEntrySchema = z.object({
+  ...CommonEntryFields,
+  origin: z.literal('external'),
+  /** Absolute filesystem path to the user-provided file. */
+  externalPath: AbsolutePathSchema
+})
+
+/**
+ * FileEntry schema (discriminated on `origin`, branded).
+ *
+ * Branding: only values produced by `FileEntrySchema.parse(raw)` satisfy the
+ * `FileEntry` type. This prevents duck-typed object literals from being
+ * assigned to `FileEntry`, forcing all entry production through sanctioned
+ * code paths (see file-level docstring).
+ */
 export const FileEntrySchema = z
-  .object({
-    /** Entry ID (UUID v7) */
-    id: FileEntryIdSchema,
-    /** Content ownership: 'internal' (Cherry-owned) | 'external' (user-owned, referenced only) */
-    origin: FileEntryOriginSchema,
-    /** User-visible name (without extension) */
-    name: SafeNameSchema,
-    /** File extension without leading dot (e.g. 'pdf', 'md'). Null for extensionless files */
-    ext: z.string().min(1).nullable(),
-    /** File size in bytes. For external, this is the last-observed snapshot. */
-    size: z.int().nonnegative(),
-    /** Absolute path to user-provided file. Non-null iff origin='external'. */
-    externalPath: AbsolutePathSchema.nullable(),
-    /** Trash timestamp (ms epoch). Non-null = trashed. */
-    trashedAt: TimestampSchema.nullable(),
-    /** Creation timestamp (ms epoch) */
-    createdAt: TimestampSchema,
-    /** Last update timestamp (ms epoch) */
-    updatedAt: TimestampSchema
-  })
-  .superRefine((entry, ctx) => {
-    if (entry.origin === 'internal' && entry.externalPath !== null) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['externalPath'],
-        message: 'internal entry must have null externalPath'
-      })
-    }
-    if (entry.origin === 'external' && entry.externalPath === null) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['externalPath'],
-        message: 'external entry must have non-null externalPath'
-      })
-    }
-  })
+  .discriminatedUnion('origin', [InternalEntrySchema, ExternalEntrySchema])
+  .brand<'FileEntry'>()
 
 export type FileEntry = z.infer<typeof FileEntrySchema>
+export type InternalFileEntry = z.infer<typeof InternalEntrySchema>
+export type ExternalFileEntry = z.infer<typeof ExternalEntrySchema>
 
 // ─── Dangling State (presence of the backing file) ───
 
@@ -131,7 +149,7 @@ export type FileEntry = z.infer<typeof FileEntrySchema>
  * Internal entries are always `'present'`.
  *
  * Not persisted in DB. Computed at query time when DataApi caller passes
- * `includeDangling: true`. See `file-manager-architecture.md §11`.
+ * `includeDangling: true`. See [file-manager-architecture.md](../../../../docs/zh/references/file/file-manager-architecture.md#11-dangling-detection).
  */
 export const DanglingStateSchema = z.enum(['present', 'missing', 'unknown'])
 export type DanglingState = z.infer<typeof DanglingStateSchema>

@@ -5,20 +5,23 @@
  * Fallback: buffer detection (isBinaryFile + chardet) for unknown extensions.
  */
 
-import type { FileType } from '@shared/file/types'
-import type { FilePath } from '@shared/file/types'
+import type { FilePath, FileType } from '@shared/file/types'
+
+const notImplemented = (op: string): never => {
+  throw new Error(`ops.metadata.${op}: not implemented (Phase 1a stub, implementation lands in Phase 1b)`)
+}
 
 /** Detect file type from extension, with fallback to buffer inspection. */
 export async function getFileType(_path: FilePath): Promise<FileType> {
-  throw new Error('Not implemented')
+  return notImplemented('getFileType')
 }
 
 /** Check if a file is a text file (chardet + isBinaryFile). */
 export async function isTextFile(_path: FilePath): Promise<boolean> {
-  throw new Error('Not implemented')
+  return notImplemented('isTextFile')
 }
 
 /** Map MIME type to file extension (without leading dot). */
 export function mimeToExt(_mime: string): string | undefined {
-  throw new Error('Not implemented')
+  return notImplemented('mimeToExt')
 }

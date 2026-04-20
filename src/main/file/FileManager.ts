@@ -25,8 +25,10 @@
  * content" or "entry becomes dangling".
  *
  * Which callers use internal vs external is a business-layer decision —
- * FileManager makes no assumption. See
- * `docs/zh/references/file/file-manager-architecture.md §1` and §11.
+ * FileManager makes no assumption. For module boundaries and dangling-state
+ * tracking, see:
+ * - [file-manager-architecture.md](../../../docs/zh/references/file/file-manager-architecture.md)
+ * - [architecture.md](../../../docs/zh/references/file/architecture.md)
  *
  * Cherry **allows** user-initiated modification of external files:
  * - `write` / `writeIfUnchanged` → atomic write to `externalPath`

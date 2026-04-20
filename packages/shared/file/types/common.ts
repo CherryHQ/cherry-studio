@@ -28,8 +28,14 @@ export type FileType = z.infer<typeof FileTypeSchema>
 
 // ─── Content Source Types ───
 
-/** Local filesystem path. Runtime validation required — pattern is intentionally broad for type-level hints only. */
-export type FilePath = `/${string}` | `${string}:\\${string}` | `file://${string}`
+/**
+ * Local filesystem path (absolute Unix or Windows).
+ *
+ * Runtime validation required — the template-literal pattern only provides
+ * type-level hints. Rejects `file://` URLs; use a dedicated URL type (or plain
+ * `string`) when a consumer needs to accept URLs.
+ */
+export type FilePath = `/${string}` | `${string}:\\${string}`
 export type Base64String = `data:${string};base64,${string}`
 export type URLString = `http://${string}` | `https://${string}`
 export type FileContent = FilePath | Base64String | URLString | Uint8Array
