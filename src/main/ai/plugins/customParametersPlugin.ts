@@ -9,8 +9,11 @@
  *   - Provider-scoped params → merged into `params.providerOptions[providerId]`
  *     using the Case 1/2/3 routing in `mergeCustomProviderParameters`.
  *
- * Runs after `providerOptionsPlugin` (and `anthropicCachePlugin` /
- * `qwenThinkingPlugin` / etc.) so user overrides win over capability defaults.
+ * Layers on top of the capability-driven `providerOptions` that
+ * `AiService.buildAgentParams` writes at agent creation time (flows via
+ * `agentSettings.providerOptions` → into streamText params), plus any other
+ * plugins that touched `params.providerOptions` upstream
+ * (`anthropicCachePlugin` / `qwenThinkingPlugin` / etc.).
  *
  * Enforce = 'pre' — same phase as the other capability plugins; ordering
  * within phase is by `plugins.push` order in `PluginBuilder`.
