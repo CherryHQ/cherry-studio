@@ -78,7 +78,7 @@ export function buildPlugins(ctx: BuildPluginsContext): AiPlugin[] {
     isAzureOpenAIProvider(provider) ||
     aiSdkProviderId === 'openai' ||
     aiSdkProviderId === 'openai-chat' ||
-    aiSdkProviderId === 'openai-responses' ||
+    aiSdkProviderId === 'openai-response' ||
     aiSdkProviderId === 'openai-compatible'
   if (isOpenAIFamilyProvider) {
     const tagName = getReasoningTagName(model.id.toLowerCase())
@@ -126,6 +126,7 @@ export function buildPlugins(ctx: BuildPluginsContext): AiPlugin[] {
   if (capabilities.enableWebSearch && capabilities.webSearchPluginConfig) {
     plugins.push(providerToolPlugin('webSearch', capabilities.webSearchPluginConfig))
   }
+
   if (capabilities.enableUrlContext) {
     plugins.push(providerToolPlugin('urlContext'))
   }
