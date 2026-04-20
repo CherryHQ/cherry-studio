@@ -41,6 +41,20 @@
       "description": "Complex migration: merge redux/preprocess.providers and redux/ocr.providers into file processing overrides"
     },
     {
+      "targetKey": "chat.web_search.default_provider",
+      "type": "PreferenceTypes.WebSearchProviderId",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Web search default provider id (normalized from legacy defaultProvider, unsupported legacy values collapse to null)"
+    },
+    {
+      "targetKey": "chat.web_search.subscribe_sources",
+      "type": "PreferenceTypes.WebSearchSubscribeSource[]",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "Web search blacklist subscription sources"
+    },
+    {
       "targetKey": "chat.web_search.compression.cutoff_limit",
       "type": "number",
       "defaultValue": null,

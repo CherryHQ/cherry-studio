@@ -20,7 +20,7 @@ const CompressionSettings = () => {
   ]
 
   const handleCompressionMethodChange = (method: 'none' | 'cutoff' | 'rag') => {
-    updateCompressionConfig({ method })
+    void updateCompressionConfig({ method })
   }
 
   return (

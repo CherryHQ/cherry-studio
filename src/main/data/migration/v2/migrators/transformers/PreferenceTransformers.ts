@@ -153,7 +153,11 @@
  * ```
  */
 
-import type { WebSearchProviderOverride, WebSearchProviderOverrides } from '@shared/data/preference/preferenceTypes'
+import type {
+  WebSearchProviderId,
+  WebSearchProviderOverride,
+  WebSearchProviderOverrides
+} from '@shared/data/preference/preferenceTypes'
 import { PRESETS_WEB_SEARCH_PROVIDERS } from '@shared/data/presets/web-search-providers'
 
 import type { TransformResult } from '../mappings/ComplexPreferenceMappings'
@@ -199,9 +203,33 @@ export function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0
 }
 
+const SUPPORTED_WEB_SEARCH_PROVIDER_IDS = new Set<WebSearchProviderId>(
+  PRESETS_WEB_SEARCH_PROVIDERS.map((preset) => preset.id)
+)
+
+function isSupportedWebSearchProviderId(value: string): value is WebSearchProviderId {
+  return SUPPORTED_WEB_SEARCH_PROVIDER_IDS.has(value as WebSearchProviderId)
+}
+
 // ============================================================================
 // WebSearch Transformers
 // ============================================================================
+
+/**
+ * Normalize the legacy default web search provider into a v2 Preference key.
+ *
+ * Unsupported legacy ids, removed local providers, and empty strings are all
+ * treated as "no default provider selected" to keep the migrated Preference
+ * compatible with the curated preset list.
+ */
+export function normalizeWebSearchDefaultProvider(sources: { defaultProvider?: string | null }): TransformResult {
+  const defaultProvider = sources.defaultProvider?.trim()
+
+  return {
+    'chat.web_search.default_provider':
+      defaultProvider && isSupportedWebSearchProviderId(defaultProvider) ? defaultProvider : null
+  }
+}
 
 /**
  * WebSearch compression config source type

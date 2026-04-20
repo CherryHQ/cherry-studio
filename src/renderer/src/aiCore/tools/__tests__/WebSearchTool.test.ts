@@ -1,20 +1,36 @@
-import { webSearchService } from '@renderer/services/WebSearchService'
+import type { WebSearchProviderResponse } from '@renderer/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { webSearchToolWithPreExtractedKeywords } from '../WebSearchTool'
+const mocks = vi.hoisted(() => ({
+  getWebSearchProvider: vi.fn(),
+  processWebsearch: vi.fn(),
+  loggerWarn: vi.fn()
+}))
 
 vi.mock('@renderer/services/WebSearchService', () => ({
   webSearchService: {
-    getWebSearchProvider: vi.fn(),
-    processWebsearch: vi.fn()
+    getWebSearchProvider: mocks.getWebSearchProvider,
+    processWebsearch: mocks.processWebsearch
   }
 }))
 
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: vi.fn(() => ({
+      warn: mocks.loggerWarn
+    }))
+  }
+}))
+
+import { webSearchToolWithPreExtractedKeywords } from '../WebSearchTool'
+
 describe('webSearchToolWithPreExtractedKeywords', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    vi.mocked(webSearchService.getWebSearchProvider).mockReturnValue({ id: 'tavily' } as any)
-    vi.mocked(webSearchService.processWebsearch).mockResolvedValue({
+    mocks.getWebSearchProvider.mockReset()
+    mocks.processWebsearch.mockReset()
+    mocks.loggerWarn.mockReset()
+    mocks.getWebSearchProvider.mockReturnValue({ id: 'tavily' })
+    mocks.processWebsearch.mockResolvedValue({
       query: 'first | second',
       results: [
         {
@@ -38,8 +54,8 @@ describe('webSearchToolWithPreExtractedKeywords', () => {
     const firstResult = await searchTool.execute({})
     const secondResult = await searchTool.execute({ additionalContext: 'new context' })
 
-    expect(webSearchService.processWebsearch).toHaveBeenCalledTimes(1)
-    expect(webSearchService.processWebsearch).toHaveBeenCalledWith(
+    expect(mocks.processWebsearch).toHaveBeenCalledTimes(1)
+    expect(mocks.processWebsearch).toHaveBeenCalledWith(
       { id: 'tavily' },
       {
         websearch: {
@@ -60,7 +76,7 @@ describe('webSearchToolWithPreExtractedKeywords', () => {
   })
 
   it('reuses the in-flight search request for concurrent executions', async () => {
-    const searchResponse = {
+    const searchResponse: WebSearchProviderResponse = {
       query: 'first',
       results: [
         {
@@ -70,7 +86,7 @@ describe('webSearchToolWithPreExtractedKeywords', () => {
         }
       ]
     }
-    vi.mocked(webSearchService.processWebsearch).mockImplementation(
+    mocks.processWebsearch.mockImplementation(
       () => new Promise((resolve) => setTimeout(() => resolve(searchResponse), 0))
     )
 
@@ -87,8 +103,8 @@ describe('webSearchToolWithPreExtractedKeywords', () => {
       searchTool.execute({ additionalContext: 'second context' })
     ])
 
-    expect(webSearchService.processWebsearch).toHaveBeenCalledTimes(1)
-    expect(webSearchService.processWebsearch).toHaveBeenCalledWith(
+    expect(mocks.processWebsearch).toHaveBeenCalledTimes(1)
+    expect(mocks.processWebsearch).toHaveBeenCalledWith(
       { id: 'tavily' },
       {
         websearch: {
@@ -100,5 +116,26 @@ describe('webSearchToolWithPreExtractedKeywords', () => {
     )
     expect(firstResult).toBe(searchResponse)
     expect(secondResult).toBe(searchResponse)
+  })
+
+  it('returns an empty result when the configured provider is unavailable', async () => {
+    mocks.getWebSearchProvider.mockReturnValue(undefined)
+
+    const searchTool = webSearchToolWithPreExtractedKeywords(
+      'tavily',
+      { question: ['latest cherry studio'] },
+      'request-1'
+    )
+
+    await expect(searchTool.execute?.({ additionalContext: undefined }, {} as never)).resolves.toEqual({
+      query: '',
+      results: []
+    })
+
+    expect(mocks.processWebsearch).not.toHaveBeenCalled()
+    expect(mocks.loggerWarn).toHaveBeenCalledWith('Skip web search because provider is unavailable', {
+      webSearchProviderId: 'tavily',
+      requestId: 'request-1'
+    })
   })
 })

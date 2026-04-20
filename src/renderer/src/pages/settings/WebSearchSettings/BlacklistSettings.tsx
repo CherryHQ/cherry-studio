@@ -4,8 +4,6 @@ import { loggerService } from '@logger'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useBlacklist } from '@renderer/hooks/useWebSearchProviders'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { setExcludeDomains } from '@renderer/store/websearch'
 import { parseMatchPattern, parseSubscribeContent } from '@renderer/utils/blacklistMatchPattern'
 import type { TableProps } from 'antd'
 import { Alert, Table } from 'antd'
@@ -38,33 +36,30 @@ const columns: TableProps<DataType>['columns'] = [
 const BlacklistSettings: FC = () => {
   const [errFormat, setErrFormat] = useState(false)
   const [blacklistInput, setBlacklistInput] = useState('')
-  const excludeDomains = useAppSelector((state) => state.websearch.excludeDomains)
-  const { websearch, setSubscribeSources, addSubscribeSource } = useBlacklist()
+  const { subscribeSources, excludeDomains, setExcludeDomains, setSubscribeSources, addSubscribeSource } =
+    useBlacklist()
   const { theme } = useTheme()
   const [subscribeChecking, setSubscribeChecking] = useState(false)
   const [subscribeValid, setSubscribeValid] = useState(false)
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
   const [dataSource, setDataSource] = useState<DataType[]>(
-    websearch.subscribeSources?.map((source) => ({
+    subscribeSources.map((source) => ({
       key: source.key,
       url: source.url,
       name: source.name
-    })) || []
+    }))
   )
   const { setTimeoutTimer } = useTimer()
-
-  const dispatch = useAppDispatch()
-
   useEffect(() => {
     setDataSource(
-      (websearch.subscribeSources || []).map((source) => ({
+      subscribeSources.map((source) => ({
         key: source.key,
         url: source.url,
         name: source.name
       }))
     )
-    logger.info('subscribeSources', websearch.subscribeSources)
-  }, [websearch.subscribeSources])
+    logger.info('subscribeSources', subscribeSources)
+  }, [subscribeSources])
 
   useEffect(() => {
     if (excludeDomains) {
@@ -72,7 +67,7 @@ const BlacklistSettings: FC = () => {
     }
   }, [excludeDomains])
 
-  function updateManualBlacklist(blacklist: string) {
+  async function updateManualBlacklist(blacklist: string) {
     const blacklistDomains = blacklist.split('\n').filter((url) => url.trim() !== '')
     const validDomains: string[] = []
     const hasError = blacklistDomains.some((domain) => {
@@ -100,7 +95,7 @@ const BlacklistSettings: FC = () => {
     setErrFormat(hasError)
     if (hasError) return
 
-    dispatch(setExcludeDomains(validDomains))
+    await setExcludeDomains(validDomains)
     window.toast.info({
       title: t('message.save.success.title'),
       timeout: 4000,
@@ -156,8 +151,8 @@ const BlacklistSettings: FC = () => {
       }
 
       if (updatedSources.length > 0) {
-        // 更新 Redux store
-        setSubscribeSources(updatedSources)
+        const updatedSourceMap = new Map(updatedSources.map((source) => [source.key, source]))
+        await setSubscribeSources(subscribeSources.map((source) => updatedSourceMap.get(source.key) ?? source))
         setSubscribeValid(true)
         // 显示成功消息
         window.toast.success({
@@ -194,8 +189,7 @@ const BlacklistSettings: FC = () => {
         if (blacklist.length === 0) {
           throw new Error('No valid patterns found in subscribe content')
         }
-        // 添加到 Redux store
-        addSubscribeSource({
+        await addSubscribeSource({
           url: result.url,
           name: result.name || result.url,
           blacklist
@@ -220,11 +214,9 @@ const BlacklistSettings: FC = () => {
   function handleDeleteSubscribe() {
     try {
       // 过滤掉被选中要删除的项目
-      const remainingSources =
-        websearch.subscribeSources?.filter((source) => !selectedRowKeys.includes(source.key)) || []
+      const remainingSources = subscribeSources.filter((source) => !selectedRowKeys.includes(source.key))
 
-      // 更新 Redux store
-      setSubscribeSources(remainingSources)
+      void setSubscribeSources(remainingSources)
 
       // 清空选中状态
       setSelectedRowKeys([])

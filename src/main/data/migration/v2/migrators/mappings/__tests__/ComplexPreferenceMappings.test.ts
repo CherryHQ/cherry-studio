@@ -86,6 +86,14 @@ describe('ComplexPreferenceMappings', () => {
       expect(providersMapping?.targetKeys).toContain('chat.web_search.provider_overrides')
     })
 
+    it('should contain websearch default provider migrate mapping', () => {
+      const defaultProviderMapping = COMPLEX_PREFERENCE_MAPPINGS.find(
+        (m) => m.id === 'websearch_default_provider_migrate'
+      )
+      expect(defaultProviderMapping).toBeDefined()
+      expect(defaultProviderMapping?.targetKeys).toEqual(['chat.web_search.default_provider'])
+    })
+
     it('should contain the code_cli_overrides mapping', () => {
       const codeToolsMapping = COMPLEX_PREFERENCE_MAPPINGS.find((m) => m.id === 'code_cli_overrides')
       expect(codeToolsMapping).toBeDefined()
@@ -102,6 +110,7 @@ describe('ComplexPreferenceMappings', () => {
       const keys = getComplexMappingTargetKeys()
       expect(keys).toContain('chat.web_search.compression.method')
       expect(keys).toContain('chat.web_search.provider_overrides')
+      expect(keys).toContain('chat.web_search.default_provider')
       expect(keys).toContain('feature.code_cli.overrides')
       expect(keys).toContain('feature.file_processing.overrides')
       expect(keys).toContain('chat.default_model_id')
@@ -109,7 +118,7 @@ describe('ComplexPreferenceMappings', () => {
       expect(keys).toContain('feature.quick_assistant.model_id')
       expect(keys).toContain('feature.translate.model_id')
       expect(keys).toContain('shortcut.general.zoom_in')
-      expect(keys.length).toBe(34) // 7 websearch compression + 1 provider overrides + 1 code_cli + 20 shortcuts + 1 file processing + 4 llm model ids
+      expect(keys.length).toBe(35) // 7 websearch compression + 1 provider overrides + 1 default provider + 1 code_cli + 20 shortcuts + 1 file processing + 4 llm model ids
     })
 
     it('should flatten target keys from all mappings', () => {

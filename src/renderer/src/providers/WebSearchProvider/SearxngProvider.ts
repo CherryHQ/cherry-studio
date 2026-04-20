@@ -1,7 +1,6 @@
 import { SearxngClient } from '@agentic/searxng'
 import { loggerService } from '@logger'
-import type { WebSearchState } from '@renderer/store/websearch'
-import type { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
+import type { WebSearchProvider, WebSearchProviderResponse, WebSearchState } from '@renderer/types'
 import { fetchWebContent, noContent } from '@renderer/utils/fetch'
 import axios from 'axios'
 import ky from 'ky'

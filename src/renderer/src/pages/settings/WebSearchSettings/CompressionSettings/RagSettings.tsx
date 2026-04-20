@@ -35,20 +35,20 @@ const RagSettings = () => {
 
   const handleEmbeddingModelChange = (modelValue: string) => {
     const selectedModel = find(embeddingModels, JSON.parse(modelValue)) as Model
-    updateCompressionConfig({ embeddingModel: selectedModel })
+    void updateCompressionConfig({ embeddingModel: selectedModel })
   }
 
   const handleRerankModelChange = (modelValue?: string) => {
     const selectedModel = modelValue ? (find(rerankModels, JSON.parse(modelValue)) as Model) : undefined
-    updateCompressionConfig({ rerankModel: selectedModel })
+    void updateCompressionConfig({ rerankModel: selectedModel })
   }
 
   const handleEmbeddingDimensionsChange = (value: number | null) => {
-    updateCompressionConfig({ embeddingDimensions: value || undefined })
+    void updateCompressionConfig({ embeddingDimensions: value || undefined })
   }
 
   const handleDocumentCountChange = (value: number) => {
-    updateCompressionConfig({ documentCount: value })
+    void updateCompressionConfig({ documentCount: value })
   }
 
   return (

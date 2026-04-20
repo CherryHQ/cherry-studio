@@ -12,11 +12,11 @@ const CutoffSettings = () => {
   const { compressionConfig, updateCompressionConfig } = useWebSearchSettings()
 
   const handleCutoffLimitChange = (value: number | null) => {
-    updateCompressionConfig({ cutoffLimit: value || undefined })
+    void updateCompressionConfig({ cutoffLimit: value || undefined })
   }
 
   const handleCutoffUnitChange = (unit: 'char' | 'token') => {
-    updateCompressionConfig({ cutoffUnit: unit })
+    void updateCompressionConfig({ cutoffUnit: unit })
   }
 
   const unitOptions = [

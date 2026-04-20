@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { webSearchService } from '@renderer/services/WebSearchService'
 import type { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 import type { ExtractResults } from '@renderer/utils/extract'
@@ -5,6 +6,8 @@ import { getUrlOriginOrFallback } from '@renderer/utils/url'
 import { REFERENCE_PROMPT } from '@shared/config/prompts'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 import * as z from 'zod'
+
+const logger = loggerService.withContext('WebSearchTool')
 
 export const BUILTIN_WEB_SEARCH_TOOL_NAME = 'builtin_web_search'
 
@@ -86,6 +89,14 @@ You can use this tool as-is to search with the prepared queries, or provide addi
         return { query: '', results: [] }
       }
 
+      if (!webSearchProvider) {
+        logger.warn('Skip web search because provider is unavailable', {
+          webSearchProviderId,
+          requestId
+        })
+        return { query: '', results: [] }
+      }
+
       // 构建 ExtractResults 结构用于 processWebsearch
       const extractResults: ExtractResults = {
         websearch: {
@@ -93,7 +104,8 @@ You can use this tool as-is to search with the prepared queries, or provide addi
           links: extractedKeywords.links
         }
       }
-      cachedSearchResultsPromise = webSearchService.processWebsearch(webSearchProvider!, extractResults, requestId)
+
+      cachedSearchResultsPromise = webSearchService.processWebsearch(webSearchProvider, extractResults, requestId)
       try {
         return await cachedSearchResultsPromise
       } catch (error) {

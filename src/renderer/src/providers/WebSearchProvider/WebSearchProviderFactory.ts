@@ -5,9 +5,6 @@ import BochaProvider from './BochaProvider'
 import DefaultProvider from './DefaultProvider'
 import ExaMcpProvider from './ExaMcpProvider'
 import ExaProvider from './ExaProvider'
-import LocalBaiduProvider from './LocalBaiduProvider'
-import LocalBingProvider from './LocalBingProvider'
-import LocalGoogleProvider from './LocalGoogleProvider'
 import QueritProvider from './QueritProvider'
 import SearxngProvider from './SearxngProvider'
 import TavilyProvider from './TavilyProvider'
@@ -30,12 +27,6 @@ export default class WebSearchProviderFactory {
         return new ExaMcpProvider(provider)
       case 'querit':
         return new QueritProvider(provider)
-      case 'local-google':
-        return new LocalGoogleProvider(provider)
-      case 'local-baidu':
-        return new LocalBaiduProvider(provider)
-      case 'local-bing':
-        return new LocalBingProvider(provider)
       default:
         return new DefaultProvider(provider)
     }
