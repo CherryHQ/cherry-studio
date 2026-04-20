@@ -79,6 +79,7 @@ function pdfCompatibilityMiddleware(provider: Provider, model: Model): LanguageM
 
           const fileName = part.filename || 'PDF'
           try {
+            // TODO: use OCR service to extract text from PDF in V2
             const textContent = await extractPdfText(part.data)
             logger.debug(`Converting PDF FilePart to TextPart for provider ${provider.id}`)
             newContent.push({ type: 'text', text: `${fileName}\n${textContent.trim()}` })
