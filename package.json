@@ -153,7 +153,7 @@
     "@cherrystudio/embedjs-loader-sitemap": "0.1.31",
     "@cherrystudio/embedjs-loader-web": "0.1.31",
     "@cherrystudio/embedjs-loader-xml": "0.1.31",
-    "@cherrystudio/embedjs-ollama": "0.1.31",
+    "@cherrystudio/embedjs-ollama": "0.1.35",
     "@cherrystudio/embedjs-openai": "0.1.31",
     "@cherrystudio/embedjs-utils": "0.1.31",
     "@cherrystudio/extension-table-plus": "workspace:^",
