@@ -20,7 +20,7 @@
 
 import { loggerService } from '@logger'
 import type { CherryMessagePart, CherryUIMessage, FileUIPart, Message } from '@shared/data/types/message'
-import { convertToModelMessages, type ModelMessage } from 'ai'
+import { convertToModelMessages, type ModelMessage, type UIMessage } from 'ai'
 
 import { resolveFileUIPart } from './fileProcessor'
 
@@ -44,25 +44,36 @@ export function toCherryUIMessage(message: Message): CherryUIMessage {
 }
 
 /**
- * Resolve any `file://` URLs in a message's file parts to base64 data URLs.
- * Parts that can't be resolved (missing file, read error) are dropped with
- * a warning so the remainder of the request can proceed.
+ * Resolve any `file://` URLs in a single `UIMessage`'s file parts to base64
+ * data URLs. Parts that can't be resolved are dropped with a warning.
  */
-async function resolveMessageParts(message: CherryUIMessage): Promise<CherryUIMessage> {
+async function resolveMessageParts<T extends UIMessage>(message: T): Promise<T> {
   if (!message.parts?.length) return message
 
-  const resolved: CherryMessagePart[] = []
+  const resolved: UIMessage['parts'] = []
   for (const part of message.parts) {
     if (part.type === 'file') {
       const next = await resolveFileUIPart(part as FileUIPart)
-      if (next) resolved.push(next as CherryMessagePart)
+      if (next) resolved.push(next as UIMessage['parts'][number])
       else logger.warn('Dropped unresolved file part', { messageId: message.id })
       continue
     }
-    resolved.push(part)
+    resolved.push(part as UIMessage['parts'][number])
   }
 
-  return { ...message, parts: resolved }
+  return { ...message, parts: resolved } as T
+}
+
+/**
+ * Rewrite `file://` URLs to base64 data URLs in every `UIMessage`'s file
+ * parts. Idempotent for non-file parts and non-`file://` URLs.
+ *
+ * Call this at the boundary between "received from caller" and "handed to
+ * AI SDK" — AI SDK's `convertToModelMessages` doesn't fetch `file://`
+ * URLs, so the provider would otherwise see bogus links.
+ */
+export async function resolveUIMessageFileUrls<T extends UIMessage = UIMessage>(messages: T[]): Promise<T[]> {
+  return Promise.all(messages.map(resolveMessageParts))
 }
 
 /**
@@ -71,7 +82,7 @@ async function resolveMessageParts(message: CherryUIMessage): Promise<CherryUIMe
  * before `convertToModelMessages` runs.
  */
 export async function prepareModelMessages(messages: Message[]): Promise<ModelMessage[]> {
-  const uiMessages = await Promise.all(messages.map(toCherryUIMessage).map(resolveMessageParts))
+  const uiMessages = await resolveUIMessageFileUrls(messages.map(toCherryUIMessage))
   return convertToModelMessages(uiMessages)
 }
 
@@ -81,5 +92,5 @@ export async function prepareModelMessages(messages: Message[]): Promise<ModelMe
  * runs its own `convertToModelMessages` under the hood).
  */
 export async function prepareUIMessages(messages: Message[]): Promise<CherryUIMessage[]> {
-  return Promise.all(messages.map(toCherryUIMessage).map(resolveMessageParts))
+  return resolveUIMessageFileUrls(messages.map(toCherryUIMessage))
 }
