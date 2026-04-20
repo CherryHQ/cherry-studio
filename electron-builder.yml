@@ -151,10 +151,10 @@ releaseInfo:
     - [i18n] Add Vietnamese (Tiếng Việt) language support with complete UI translations
 
     🐛 Bug Fixes
+    - [Analytics] Fix telemetry being sent even when data collection is disabled
     - [Agents] Agent settings changes (model, permissions, tools, etc.) now sync immediately to all active sessions
     - [Agents] Built-in agent prompt updates now properly sync to existing sessions
     - [Agents] Cherry Assistant now displays the 🍒 avatar instead of generic ⭐️
-    - [Analytics] Fix telemetry being sent even when data collection is disabled
     - [Search] Fix CJK (Chinese/Japanese/Korean) text search failing in whole-word mode
     - [Search] Add phrase search support (e.g., "machine learning" with quotes)
     - [Export] Fix Obsidian export silently failing due to blocked obsidian:// protocol
@@ -176,10 +176,10 @@ releaseInfo:
     - [i18n] 新增越南语（Tiếng Việt）支持，包含完整的 UI 翻译
 
     🐛 问题修复
+    - [数据统计] 修复即使禁用数据统计仍发送统计数据的问题
     - [智能体] 智能体设置更改（模型、权限、工具等）现立即同步到所有活跃会话
     - [智能体] 内置智能体提示词更新现正确同步到现有会话
     - [智能体] Cherry Assistant 现显示 🍒 头像而非通用的 ⭐️
-    - [数据收集] 修复即使禁用数据收集仍发送遥测数据的问题
     - [搜索] 修复中日韩（CJK）文本在全词模式下搜索失败的问题
     - [搜索] 添加短语搜索支持（例如带引号的 "machine learning"）
     - [导出] 修复因 obsidian:// 协议被阻止导致 Obsidian 导出静默失败的问题
