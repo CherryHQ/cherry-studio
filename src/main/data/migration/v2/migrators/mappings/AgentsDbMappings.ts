@@ -123,9 +123,9 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       }
     ],
     // Exclude sessions whose agent no longer exists — they would fail the
-    // post-migration PRAGMA foreign_key_check (agents_sessions.agent_id →
-    // agents_agents.id) and cause the entire migration to be marked failed.
-    whereClause: 'agent_id IN (SELECT id FROM agents_legacy.agents)'
+    // post-migration PRAGMA foreign_key_check (agent_session.agent_id →
+    // agent.id) and cause the entire migration to be marked failed.
+    whereClause: 'agent_id IN (SELECT id FROM agent)'
   },
   {
     sourceTable: 'skills',
@@ -220,13 +220,15 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       'result',
       'error',
       {
+        // run_at is the best proxy for created_at/updated_at; COALESCE guards
+        // against NULL run_at since $defaultFn is bypassed in a raw INSERT...SELECT.
         name: 'created_at',
-        expr: "CAST(strftime('%s', run_at) AS INTEGER) * 1000",
+        expr: "COALESCE(CAST(strftime('%s', run_at) AS INTEGER) * 1000, 0)",
         sourceColumn: 'run_at'
       },
       {
         name: 'updated_at',
-        expr: "CAST(strftime('%s', run_at) AS INTEGER) * 1000",
+        expr: "COALESCE(CAST(strftime('%s', run_at) AS INTEGER) * 1000, 0)",
         sourceColumn: 'run_at'
       }
     ],
@@ -270,6 +272,8 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
     sourceTable: 'session_messages',
     targetTable: 'agent_session_message',
     columns: [
+      // id is autoincrement in target, but copying source values is safe — SQLite
+      // resumes from max(rowid)+1 for new rows, so migrated IDs are preserved.
       'id',
       'session_id',
       'role',
