@@ -1,9 +1,10 @@
 import type { Model } from '@renderer/types'
-import { getLowerBaseModelName } from '@renderer/utils'
+import { getLowerBaseModelName } from '@renderer/utils/naming'
 
 export const OPENAI_NO_SUPPORT_DEV_ROLE_MODELS = ['o1-preview', 'o1-mini']
 
-export function isOpenAILLMModel(model: Model): boolean {
+// Excludes known image models from isOpenAIModel.
+export function isOpenAILLMModel(model?: Model): boolean {
   if (!model) {
     return false
   }
@@ -12,22 +13,18 @@ export function isOpenAILLMModel(model: Model): boolean {
   if (modelId.includes('gpt-4o-image')) {
     return false
   }
-  if (isOpenAIReasoningModel(model)) {
-    return true
-  }
-  if (modelId.includes('gpt')) {
-    return true
-  }
-  return false
+  return isOpenAIModel(model)
 }
 
+// TODO: only covers GPT and reasoning (o-series) models.
+// Non-chat models (dall-e, whisper, tts, text-embedding-*) are not detected.
 export function isOpenAIModel(model: Model): boolean {
   if (!model) {
     return false
   }
   const modelId = getLowerBaseModelName(model.id)
 
-  return modelId.includes('gpt') || isOpenAIReasoningModel(model)
+  return /\bgpt\b/.test(modelId) || isOpenAIReasoningModel(model)
 }
 
 export const isGPT5ProModel = (model: Model) => {
@@ -120,7 +117,7 @@ export function isSupportNoneReasoningEffortModel(model: Model): boolean {
   )
 }
 
-export function isOpenAIChatCompletionOnlyModel(model: Model): boolean {
+export function isOpenAIChatCompletionOnlyModel(model?: Model): boolean {
   if (!model) {
     return false
   }

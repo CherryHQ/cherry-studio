@@ -1,6 +1,6 @@
 import { PlusOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
-import AiProvider from '@renderer/aiCore'
+import { AiProvider } from '@renderer/aiCore'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -261,8 +261,12 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
     // NOTE: Cherry Studio当下 newapi只接受v1/images/xxx的请求
     // TODO: support gemini https://www.newapi.ai/zh/docs/api/ai-model/images/gemini/geminirelayv1beta-383837589
-    const url = newApiProvider.apiHost.replace(/\/v1$/, '') + `/v1/images/generations`
-    const editUrl = newApiProvider.apiHost.replace(/\/v1$/, '') + `/v1/images/edits`
+    let url = newApiProvider.apiHost.replace(/\/v1$/, '') + `/v1/images/generations`
+    let editUrl = newApiProvider.apiHost.replace(/\/v1$/, '') + `/v1/images/edits`
+    if (newApiProvider.id === 'aionly') {
+      url = newApiProvider.apiHost.replace(/\/v1$/, '') + `/openai/v1/images/generations`
+      editUrl = newApiProvider.apiHost.replace(/\/v1$/, '') + `/openai/v1/images/edits`
+    }
 
     try {
       if (mode === 'openai_image_generate') {

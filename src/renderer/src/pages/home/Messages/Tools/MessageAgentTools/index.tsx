@@ -20,6 +20,7 @@ import { getEffectiveStatus, StreamingContext, type ToolStatus, ToolStatusIndica
 import { GlobTool } from './GlobTool'
 import { GrepTool } from './GrepTool'
 import { MultiEditTool } from './MultiEditTool'
+import { NavigateToolInline } from './NavigateTool'
 import { NotebookEditTool } from './NotebookEditTool'
 import { ReadTool } from './ReadTool'
 import { SearchTool } from './SearchTool'
@@ -145,6 +146,11 @@ export function MessageAgentTools({ toolResponse }: { toolResponse: NormalToolRe
       return undefined
     }
   }, [partialArguments])
+
+  // Navigate tool renders as a simple inline button, not a tool card
+  if (tool?.name === 'mcp__assistant__navigate') {
+    return <NavigateToolInline input={args ?? parsedPartialArgs} output={response} />
+  }
 
   // AskUserQuestion uses a unified card for both pending and completed states
   if (tool?.name === AgentToolsType.AskUserQuestion) {

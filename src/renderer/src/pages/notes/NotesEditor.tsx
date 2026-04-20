@@ -79,7 +79,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
               key={`${activeNodeId}-${tmpViewMode === 'preview' ? 'preview' : 'read'}`}
               ref={editorRef}
               initialContent={currentContent}
-              onMarkdownChange={onMarkdownChange}
+              onMarkdownChange={tmpViewMode === 'preview' ? onMarkdownChange : undefined}
               onCommandsReady={handleCommandsReady}
               showToolbar={tmpViewMode === 'preview'}
               editable={tmpViewMode === 'preview'}

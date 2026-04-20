@@ -1,11 +1,5 @@
-import type {
-  AnthropicSearchConfig,
-  OpenAISearchConfig,
-  WebSearchPluginConfig,
-  XAIWebSearchConfig,
-  XAIXSearchConfig
-} from '@cherrystudio/ai-core/core/plugins/built-in/webSearchPlugin/helper'
-import type { BaseProviderId } from '@cherrystudio/ai-core/provider'
+import type { WebSearchPluginConfig } from '@cherrystudio/ai-core/core/plugins/built-in/webSearchPlugin'
+import type { AppProviderId } from '@renderer/aiCore/types'
 import { isOpenAIDeepResearchModel, isOpenAIWebSearchChatCompletionOnlyModel } from '@renderer/config/models'
 import type { CherryWebSearchConfig } from '@renderer/store/websearch'
 import type { Model } from '@renderer/types'
@@ -46,14 +40,16 @@ export function getWebSearchParams(model: Model): Record<string, any> {
  * range in [0, 100]
  * @param maxResults
  */
-function mapMaxResultToOpenAIContextSize(maxResults: number): OpenAISearchConfig['searchContextSize'] {
+function mapMaxResultToOpenAIContextSize(
+  maxResults: number
+): NonNullable<WebSearchPluginConfig['openai']>['searchContextSize'] {
   if (maxResults <= 33) return 'low'
   if (maxResults <= 66) return 'medium'
   return 'high'
 }
 
 export function buildProviderBuiltinWebSearchConfig(
-  providerId: BaseProviderId,
+  providerId: AppProviderId,
   webSearchConfig: CherryWebSearchConfig,
   model?: Model
 ): WebSearchPluginConfig | undefined {
@@ -81,7 +77,7 @@ export function buildProviderBuiltinWebSearchConfig(
     }
     case 'anthropic': {
       const blockedDomains = mapRegexToPatterns(webSearchConfig.excludeDomains)
-      const anthropicSearchOptions: AnthropicSearchConfig = {
+      const anthropicSearchOptions: NonNullable<WebSearchPluginConfig['anthropic']> = {
         maxUses: webSearchConfig.maxResults,
         blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
       }
@@ -89,20 +85,20 @@ export function buildProviderBuiltinWebSearchConfig(
         anthropic: anthropicSearchOptions
       }
     }
-    case 'xai': {
+    case 'xai':
+    case 'xai-responses': {
       const excludeDomains = mapRegexToPatterns(webSearchConfig.excludeDomains)
-      const xaiWebConfig: XAIWebSearchConfig = {
+      const xaiWebConfig: NonNullable<NonNullable<WebSearchPluginConfig['xai-responses']>['webSearch']> = {
         enableImageUnderstanding: true
       }
       if (excludeDomains.length > 0) {
         xaiWebConfig.excludedDomains = excludeDomains.slice(0, 5)
       }
-      const xaiXSearchConfig: XAIXSearchConfig = {
-        enableImageUnderstanding: true
-      }
       return {
-        xai: xaiWebConfig,
-        'xai-xsearch': xaiXSearchConfig
+        'xai-responses': {
+          webSearch: xaiWebConfig,
+          xSearch: { enableImageUnderstanding: true }
+        }
       }
     }
     case 'openrouter': {

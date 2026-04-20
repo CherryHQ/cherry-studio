@@ -358,12 +358,12 @@ export const selectFormattedCitationsByBlockId = createSelector([selectBlockEnti
 })
 
 // --- Active TodoWrite Block Selector ---
-interface TodoWriteNormalToolResponse extends Omit<NormalToolResponse, 'tool' | 'arguments'> {
+export interface TodoWriteNormalToolResponse extends Omit<NormalToolResponse, 'tool' | 'arguments'> {
   tool: BaseTool & { name: 'TodoWrite' }
   arguments: TodoWriteToolInput
 }
 
-interface TodoWriteToolMessageBlock extends Omit<ToolMessageBlock, 'metadata'> {
+export interface TodoWriteToolMessageBlock extends Omit<ToolMessageBlock, 'metadata'> {
   metadata: NonNullable<ToolMessageBlock['metadata']> & {
     rawMcpToolResponse: TodoWriteNormalToolResponse
   }
@@ -378,7 +378,7 @@ const hasIncompleteTodos = (todos: TodoItem[]): boolean =>
 /**
  * Check if a block is a TodoWrite tool block
  */
-const isTodoWriteBlock = (block: MessageBlock | undefined): block is TodoWriteToolMessageBlock => {
+export const isTodoWriteBlock = (block: MessageBlock | undefined): block is TodoWriteToolMessageBlock => {
   if (!block || block.type !== MessageBlockType.TOOL) return false
   const toolResponse = block.metadata?.rawMcpToolResponse
   if (toolResponse?.tool?.name !== 'TodoWrite') return false

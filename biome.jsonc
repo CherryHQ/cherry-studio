@@ -23,7 +23,7 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "includes": ["**", "!**/.claude/**", "!**/.vscode/**", "!**/.conductor/**"],
+    "includes": ["**", "!**/.claude/**", "!**/.vscode/**", "!**/.conductor/**", "!resources/**", "!**/dist/**"],
     "maxSize": 2097152
   },
   "formatter": {

@@ -1,5 +1,5 @@
 import { defineTool, registerTool, TopicType } from '@renderer/pages/home/Inputbar/types'
-import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/mcp-tools'
+import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/assistant'
 
 import MCPToolsButton from './components/MCPToolsButton'
 

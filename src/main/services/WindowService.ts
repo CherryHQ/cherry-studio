@@ -10,12 +10,13 @@ import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, BrowserWindow, nativeImage, nativeTheme, screen, shell } from 'electron'
 import windowStateKeeper from 'electron-window-state'
-import { join } from 'path'
+import path, { join } from 'path'
 
 import iconPath from '../../../build/icon.png?asset'
 import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
 import { configManager } from './ConfigManager'
 import { contextMenu } from './ContextMenu'
+import { isSafeExternalUrl } from './security'
 import { initSessionUserAgent } from './WebviewService'
 
 const DEFAULT_MINIWINDOW_WIDTH = 550
@@ -279,7 +280,11 @@ export class WindowService {
       }
 
       event.preventDefault()
-      void shell.openExternal(url)
+      if (isSafeExternalUrl(url)) {
+        void shell.openExternal(url)
+      } else {
+        logger.warn(`Blocked navigation to untrusted URL scheme: ${url}`)
+      }
     })
 
     mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -310,11 +315,22 @@ export class WindowService {
 
       if (url.includes('http://file/')) {
         const fileName = url.replace('http://file/', '')
+        if (!fileName) {
+          logger.warn('Blocked empty file name in http://file/ URL')
+          return { action: 'deny' }
+        }
         const storageDir = getFilesDir()
-        const filePath = storageDir + '/' + fileName
-        shell.openPath(filePath).catch((err) => logger.error('Failed to open file:', err))
-      } else {
+        const filePath = path.resolve(storageDir, fileName)
+        // Prevent path traversal: ensure resolved path is within storageDir
+        if (!filePath.startsWith(path.resolve(storageDir) + path.sep)) {
+          logger.warn(`Blocked path traversal attempt: ${fileName}`)
+        } else {
+          shell.openPath(filePath).catch((err) => logger.error('Failed to open file:', err))
+        }
+      } else if (isSafeExternalUrl(details.url)) {
         void shell.openExternal(details.url)
+      } else {
+        logger.warn(`Blocked shell.openExternal for untrusted URL scheme: ${details.url}`)
       }
 
       return { action: 'deny' }

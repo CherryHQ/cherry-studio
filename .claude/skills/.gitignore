@@ -3,6 +3,7 @@
 *
 !.gitignore
 !README*.md
+!cherry-pr-test
 !create-skill
 !gh-create-issue
 !gh-create-pr

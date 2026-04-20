@@ -223,7 +223,7 @@ export const generateToolEnvironment = ({
         }
         env.OPENCODE_PROVIDER_TYPE = providerType
         env.OPENCODE_PROVIDER_NAME = providerName
-        const envVarKey = `OPENCODE_API_KEY_${providerName.toUpperCase().replace(/-/g, '_')}`
+        const envVarKey = `OPENCODE_API_KEY_${providerName.toUpperCase().replace(/[-.]/g, '_')}`
         env[envVarKey] = apiKey
       }
       break

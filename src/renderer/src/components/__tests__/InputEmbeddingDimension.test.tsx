@@ -80,14 +80,18 @@ vi.mock('antd', () => {
 })
 
 // Mock dependencies
-vi.mock('@renderer/aiCore/index_new', () => ({
-  default: vi.fn().mockImplementation(() => ({
+vi.mock('@renderer/aiCore', () => ({
+  AiProvider: vi.fn().mockImplementation(() => ({
     getEmbeddingDimensions: mocks.aiCore.getEmbeddingDimensions
   }))
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
-  useProvider: () => ({ provider: { id: 'test-provider', name: 'Test Provider' } })
+  useProvider: () => ({ provider: { id: 'test-provider', name: 'Test Provider', apiKey: 'test-key' } })
+}))
+
+vi.mock('@renderer/services/ApiService', () => ({
+  getRotatedApiKey: (provider: any) => provider.apiKey || ''
 }))
 
 // mock i18n

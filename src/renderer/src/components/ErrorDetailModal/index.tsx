@@ -1,5 +1,8 @@
 import CodeViewer from '@renderer/components/CodeViewer'
+import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
+import i18n from '@renderer/i18n'
+import type { DiagnosisContext, DiagnosisResult } from '@renderer/services/ErrorDiagnosisService'
 import type { SerializedAiSdkError, SerializedAiSdkErrorUnion, SerializedError } from '@renderer/types/error'
 import {
   isSerializedAiSdkAPICallError,
@@ -28,15 +31,19 @@ import {
 import { formatAiSdkError, formatError, safeToString } from '@renderer/utils/error'
 import { parseDataUrl } from '@shared/utils'
 import { Button } from 'antd'
-import { Modal } from 'antd'
+import { CheckCircle, Copy, Loader2, Stethoscope } from 'lucide-react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-interface ErrorDetailModalProps {
-  open: boolean
-  onClose: () => void
+import Scrollbar from '../Scrollbar'
+import AIDiagnosisSectionWithStatus from './AIDiagnosisSection'
+
+interface ErrorDetailContentProps {
   error?: SerializedError
+  diagnosisContext?: DiagnosisContext
+  blockId?: string
+  cachedDiagnosis?: DiagnosisResult
 }
 
 const truncateLargeData = (
@@ -67,9 +74,9 @@ const truncateLargeData = (
 
 // --- Styled Components ---
 
-const ErrorDetailContainer = styled.div`
+const ErrorDetailContainer = styled(Scrollbar)`
   max-height: 60vh;
-  overflow-y: auto;
+  padding-right: 5px;
 `
 
 const ErrorDetailList = styled.div`
@@ -137,13 +144,13 @@ const BuiltinError = memo(({ error }: { error: SerializedError }) => {
       {error.name && (
         <ErrorDetailItem>
           <ErrorDetailLabel>{t('error.name')}:</ErrorDetailLabel>
-          <ErrorDetailValue>{error.name}</ErrorDetailValue>
+          <ErrorDetailValue className="selectable">{error.name}</ErrorDetailValue>
         </ErrorDetailItem>
       )}
       {error.message && (
         <ErrorDetailItem>
           <ErrorDetailLabel>{t('error.message')}:</ErrorDetailLabel>
-          <ErrorDetailValue>{error.message}</ErrorDetailValue>
+          <ErrorDetailValue className="selectable">{error.message}</ErrorDetailValue>
         </ErrorDetailItem>
       )}
       {error.stack && (
@@ -208,7 +215,7 @@ const AiSdkErrorBase = memo(({ error }: { error: SerializedAiSdkError }) => {
           </ErrorDetailLabel>
           <ErrorDetailValue>
             <div
-              className="markdown [&_pre]:!bg-transparent [&_pre_span]:whitespace-pre-wrap"
+              className="markdown [&_pre]:bg-transparent! [&_pre_span]:whitespace-pre-wrap"
               dangerouslySetInnerHTML={{ __html: highlightedString }}
             />
           </ErrorDetailValue>
@@ -231,7 +238,7 @@ const TruncatedCodeViewer = memo(
         {isLikelyBase64 ? (
           <ErrorDetailValue>{content}</ErrorDetailValue>
         ) : (
-          <CodeViewer value={content} className="source-view" language={language} expanded />
+          <CodeViewer value={content} className="source-view selectable" language={language} expanded />
         )}
       </ErrorDetailItem>
     )
@@ -246,7 +253,7 @@ const AiSdkError = memo(({ error }: { error: SerializedAiSdkErrorUnion }) => {
       {(isSerializedAiSdkAPICallError(error) || isSerializedAiSdkDownloadError(error)) && error.url && (
         <ErrorDetailItem>
           <ErrorDetailLabel>{t('error.requestUrl')}:</ErrorDetailLabel>
-          <ErrorDetailValue>{error.url}</ErrorDetailValue>
+          <ErrorDetailValue className="selectable">{error.url}</ErrorDetailValue>
         </ErrorDetailItem>
       )}
 
@@ -257,7 +264,7 @@ const AiSdkError = memo(({ error }: { error: SerializedAiSdkErrorUnion }) => {
       {(isSerializedAiSdkAPICallError(error) || isSerializedAiSdkDownloadError(error)) && error.statusCode && (
         <ErrorDetailItem>
           <ErrorDetailLabel>{t('error.statusCode')}:</ErrorDetailLabel>
-          <ErrorDetailValue>{error.statusCode}</ErrorDetailValue>
+          <ErrorDetailValue className="selectable">{error.statusCode}</ErrorDetailValue>
         </ErrorDetailItem>
       )}
 
@@ -497,13 +504,39 @@ const AiSdkError = memo(({ error }: { error: SerializedAiSdkErrorUnion }) => {
   )
 })
 
-// --- Main Component ---
+// --- Main Content Component ---
 
-const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({ open, onClose, error }) => {
+const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
+  error,
+  diagnosisContext,
+  blockId,
+  cachedDiagnosis
+}) => {
   const { t } = useTranslation()
+  const [diagStatus, setDiagStatus] = useState<'idle' | 'loading' | 'done' | 'error'>(cachedDiagnosis ? 'done' : 'idle')
+  const diagSectionRef = useRef<{ runDiagnosis: () => void }>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const isInitialRenderRef = useRef(true)
+
+  // Scroll to bottom when diagnosis status changes, but skip initial render
+  useEffect(() => {
+    if (isInitialRenderRef.current) {
+      isInitialRenderRef.current = false
+      return
+    }
+
+    if (diagStatus !== 'idle') {
+      requestAnimationFrame(() => {
+        containerRef.current?.scrollTo({ top: containerRef.current.scrollHeight, behavior: 'smooth' })
+      })
+    }
+  }, [diagStatus])
 
   const copyErrorDetails = useCallback(() => {
-    if (!error) return
+    if (!error) {
+      return
+    }
+
     let errorText: string
     if (isSerializedAiSdkError(error)) {
       errorText = formatAiSdkError(error)
@@ -514,14 +547,18 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({ open, onClose, erro
     }
 
     void navigator.clipboard.writeText(errorText)
-    window.toast.addToast({ title: t('message.copied') })
+    window.toast.success(t('message.copied'))
   }, [error, t])
 
   const renderErrorDetails = (error?: SerializedError) => {
-    if (!error) return <div>{t('error.unknown')}</div>
+    if (!error) {
+      return <div>{t('error.unknown')}</div>
+    }
+
     if (isSerializedAiSdkErrorUnion(error)) {
       return <AiSdkError error={error} />
     }
+
     return (
       <ErrorDetailList>
         <BuiltinError error={error} />
@@ -529,27 +566,73 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({ open, onClose, erro
     )
   }
 
+  const handleDiagnose = () => {
+    if (diagStatus === 'loading') return
+    setDiagStatus('loading')
+    diagSectionRef.current?.runDiagnosis()
+  }
+
+  const getDiagButtonText = () => {
+    switch (diagStatus) {
+      case 'loading':
+        return t('error.diagnosis.ai_loading') + '...'
+      case 'done':
+        return t('error.diagnosis.ai_done')
+      default:
+        return t('error.diagnosis.ai_button')
+    }
+  }
+
   return (
-    <Modal
-      centered
-      title={t('error.detail')}
-      open={open}
-      onCancel={onClose}
-      footer={[
-        <Button key="copy" variant="text" color="default" onClick={copyErrorDetails}>
+    <>
+      <ErrorDetailContainer ref={containerRef}>
+        {renderErrorDetails(error)}
+        {diagStatus !== 'idle' && (
+          <AIDiagnosisSectionWithStatus
+            key={blockId ?? error?.message}
+            ref={diagSectionRef}
+            error={error}
+            status={diagStatus}
+            onStatusChange={setDiagStatus}
+            diagnosisContext={diagnosisContext}
+            blockId={blockId}
+            cachedDiagnosis={cachedDiagnosis}
+          />
+        )}
+      </ErrorDetailContainer>
+      <div className="my-2 mt-4 flex justify-end gap-2">
+        <Button color="default" icon={<Copy size={14} />} onClick={copyErrorDetails}>
           {t('common.copy')}
-        </Button>,
-        <Button key="close" variant="text" color="default" onClick={onClose}>
-          {t('common.close')}
         </Button>
-      ]}
-      width="80%"
-      style={{ maxWidth: '1200px', minWidth: '600px' }}>
-      <ErrorDetailContainer>{renderErrorDetails(error)}</ErrorDetailContainer>
-    </Modal>
+        <Button
+          type="primary"
+          disabled={diagStatus === 'loading'}
+          icon={
+            diagStatus === 'loading' ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : diagStatus === 'done' ? (
+              <CheckCircle size={14} />
+            ) : (
+              <Stethoscope size={14} />
+            )
+          }
+          onClick={handleDiagnose}>
+          {getDiagButtonText()}
+        </Button>
+      </div>
+    </>
   )
 }
 
-export { ErrorDetailModal }
-export default ErrorDetailModal
-export type { ErrorDetailModalProps }
+export function showErrorDetailPopup(params: ErrorDetailContentProps) {
+  void GeneralPopup.show({
+    title: i18n.t('error.detail'),
+    content: <ErrorDetailContent {...params} />,
+    footer: null,
+    width: '60vw',
+    style: { maxWidth: '1200px', minWidth: '600px' }
+  })
+}
+
+export { ErrorDetailContent }
+export type { ErrorDetailContentProps }
