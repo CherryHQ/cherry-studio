@@ -82,7 +82,7 @@ describe('/models', () => {
     const registryData = {
       presetModel: { id: 'gpt-4o', name: 'GPT-4o' },
       registryOverride: null,
-      defaultChatEndpoint: 'openai',
+      defaultChatEndpoint: 'openai' as const,
       reasoningFormatTypes: {}
     }
     lookupModelMock.mockResolvedValue(registryData)
