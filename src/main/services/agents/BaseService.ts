@@ -20,8 +20,7 @@ export { ENTITY_TO_ROW_FIELD_MAP }
 /**
  * @deprecated Use standalone functions from `agentUtils.ts` and call
  * `application.get('DbService').getDb()` directly. This class remains only
- * to support SkillRepository, AgentSkillRepository, and AgentMessageRepository
- * until they are removed in the agents-data-api refactor.
+ * to support `AgentMessageRepository` until it is removed in the agents-data-api refactor.
  */
 export abstract class BaseService {
   protected jsonFields: string[] = JSON_FIELDS
