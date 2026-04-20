@@ -28,47 +28,6 @@ export type PersistAssistantMessageParams = AgentMessageAssistantPersistPayload 
 }
 
 class AgentMessageRepository {
-  private serializeMessage(payload: AgentPersistedMessage): string {
-    return JSON.stringify(payload)
-  }
-
-  private serializeMetadata(metadata?: Record<string, unknown>): string | undefined {
-    if (!metadata) {
-      return undefined
-    }
-
-    try {
-      return JSON.stringify(metadata)
-    } catch (error) {
-      logger.warn('Failed to serialize session message metadata', error as Error)
-      return undefined
-    }
-  }
-
-  private deserialize(row: any): AgentSessionMessageEntity {
-    if (!row) return row
-
-    const deserialized = { ...row }
-
-    if (typeof deserialized.content === 'string') {
-      try {
-        deserialized.content = JSON.parse(deserialized.content)
-      } catch (error) {
-        logger.warn('Failed to parse session message content JSON', error as Error)
-      }
-    }
-
-    if (typeof deserialized.metadata === 'string') {
-      try {
-        deserialized.metadata = JSON.parse(deserialized.metadata)
-      } catch (error) {
-        logger.warn('Failed to parse session message metadata JSON', error as Error)
-      }
-    }
-
-    return deserialized
-  }
-
   private async findExistingMessageRow(
     sessionId: string,
     role: string,

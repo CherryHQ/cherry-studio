@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 
@@ -552,7 +551,7 @@ export class SkillService {
     await fs.promises.mkdir(path.dirname(destPath), { recursive: true })
     await this.installer.install(skillDir, destPath)
 
-    const tags = metadata.tags ? JSON.stringify(metadata.tags) : null
+    const tags = metadata.tags ?? null
 
     if (existing) {
       // Update metadata in-place to preserve the skill ID and its agent_skills rows.
@@ -563,8 +562,7 @@ export class SkillService {
           description: metadata.description ?? null,
           author: metadata.author ?? null,
           tags,
-          contentHash,
-          updatedAt: Date.now()
+          contentHash
         })
         .where(eq(agentGlobalSkillTable.id, existing.id))
       const updated = (await this.getSkillById(existing.id))!
@@ -573,11 +571,8 @@ export class SkillService {
     }
 
     const isBuiltin = source === 'builtin'
-    const id = randomUUID()
-    const now = Date.now()
 
     const insertData: InsertAgentGlobalSkillRow = {
-      id,
       name: metadata.name,
       description: metadata.description ?? null,
       folderName,
@@ -587,9 +582,7 @@ export class SkillService {
       author: metadata.author ?? null,
       tags,
       contentHash,
-      isEnabled: false,
-      createdAt: now,
-      updatedAt: now
+      isEnabled: false
     }
     const [inserted] = await this.db.insert(agentGlobalSkillTable).values(insertData).returning()
     if (!inserted) throw new Error(`Failed to insert skill: ${metadata.name}`)
@@ -801,7 +794,7 @@ export class SkillService {
       sourceUrl: row.sourceUrl,
       namespace: row.namespace,
       author: row.author,
-      tags: row.tags ? JSON.parse(row.tags) : [],
+      tags: row.tags ?? [],
       contentHash: row.contentHash,
       isEnabled: row.isEnabled,
       createdAt: row.createdAt ?? Date.now(),
@@ -879,7 +872,7 @@ export class SkillService {
 
     const metadata = await parseSkillMetadata(destPath, folderName, 'skills')
     const contentHash = await this.installer.computeContentHash(destPath)
-    const tags = metadata.tags ? JSON.stringify(metadata.tags) : null
+    const tags = metadata.tags ?? null
 
     if (existing) {
       await this.db
@@ -889,17 +882,13 @@ export class SkillService {
           description: metadata.description ?? null,
           author: metadata.author ?? null,
           tags,
-          contentHash,
-          updatedAt: Date.now()
+          contentHash
         })
         .where(eq(agentGlobalSkillTable.id, existing.id))
     } else {
-      const id = randomUUID()
-      const now = Date.now()
       const [inserted] = await this.db
         .insert(agentGlobalSkillTable)
         .values({
-          id,
           name: metadata.name,
           description: metadata.description ?? null,
           folderName,
@@ -909,9 +898,7 @@ export class SkillService {
           author: metadata.author ?? null,
           tags,
           contentHash,
-          isEnabled: false,
-          createdAt: now,
-          updatedAt: now
+          isEnabled: false
         })
         .returning()
       if (!inserted) throw new Error(`Failed to insert builtin skill: ${folderName}`)
