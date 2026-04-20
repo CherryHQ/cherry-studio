@@ -13,7 +13,7 @@ import {
   Sparkles
 } from 'lucide-react'
 
-import type { Tab } from '../../hooks/useTabs'
+import type { PaneTab } from '../../hooks/usePanes'
 
 export type IconComponent = React.FC<{ size?: number; strokeWidth?: number; className?: string }>
 
@@ -35,7 +35,7 @@ export const ROUTE_ICONS: Record<string, IconComponent> = {
   '/settings': Settings
 }
 
-export function getTabIcon(tab: Tab): IconComponent {
+export function getTabIcon(tab: PaneTab): IconComponent {
   if (tab.type === 'webview') return Globe
   const segments = tab.url.split('/').filter(Boolean)
   const key = segments[0] === 'app' && segments.length >= 2 ? '/app/' + segments[1] : '/' + (segments[0] || '')

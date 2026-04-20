@@ -89,7 +89,7 @@ function normalize(state: PanesState): PanesState {
     if (!leaf) continue
     const hasActive = leaf.tabs.some((t) => t.id === leaf.activeTabId)
     if (!hasActive && leaf.tabs.length > 0) {
-      root = updateLeafById(root, paneId, (l) => ({ ...l, activeTabId: l.tabs[0]!.id }))
+      root = updateLeafById(root, paneId, (l) => ({ ...l, activeTabId: l.tabs[0].id }))
     }
   }
 
@@ -487,7 +487,7 @@ export function PanesProvider({ children, initialState, ephemeral = false }: Pan
           activeTabId: ''
         }
         // Set activeTabId to the single tab we just created.
-        newLeaf.activeTabId = newLeaf.tabs[0]!.id
+        newLeaf.activeTabId = newLeaf.tabs[0].id
 
         const nextRoot = splitLeaf(prev.root, paneId, direction, newLeaf, 'after')
         logger.info('Pane split', { from: paneId, newPaneId, direction })

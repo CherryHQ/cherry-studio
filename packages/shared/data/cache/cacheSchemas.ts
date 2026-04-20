@@ -247,8 +247,6 @@ export const DefaultSharedCache: SharedCacheSchema = {
  * This ensures type safety and prevents key conflicts
  */
 export type RendererPersistCacheSchema = {
-  'ui.tab.pinned_tabs': CacheValueTypes.Tab[]
-  'ui.sidebar.docked_tabs': CacheValueTypes.Tab[]
   'ui.panes.layout': CacheValueTypes.PanesState
   'ui.sidebar.width': number
   'feature.mcp.is_uv_installed': boolean
@@ -278,8 +276,6 @@ const DEFAULT_PANES_STATE: CacheValueTypes.PanesState = {
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
-  'ui.tab.pinned_tabs': [],
-  'ui.sidebar.docked_tabs': [],
   'ui.panes.layout': DEFAULT_PANES_STATE,
   'ui.sidebar.width': 65,
   'feature.mcp.is_uv_installed': false,

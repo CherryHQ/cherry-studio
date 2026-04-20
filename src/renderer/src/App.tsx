@@ -12,8 +12,8 @@ import TopViewContainer from './components/TopView'
 import AntdProvider from './context/AntdProvider'
 import { CodeStyleProvider } from './context/CodeStyleProvider'
 import { NotificationProvider } from './context/NotificationProvider'
+import { PanesProvider } from './context/PanesContext'
 import StyleSheetManager from './context/StyleSheetManager'
-import { TabsProvider } from './context/TabsContext'
 import { ThemeProvider } from './context/ThemeProvider'
 
 const logger = loggerService.withContext('App.tsx')
@@ -42,11 +42,11 @@ function App(): React.ReactElement {
               <NotificationProvider>
                 <CodeStyleProvider>
                   <PersistGate loading={null} persistor={persistor}>
-                    <TabsProvider>
+                    <PanesProvider>
                       <TopViewContainer>
                         <AppShell />
                       </TopViewContainer>
-                    </TabsProvider>
+                    </PanesProvider>
                   </PersistGate>
                 </CodeStyleProvider>
               </NotificationProvider>

@@ -17,7 +17,6 @@ import AntdProvider from '../../context/AntdProvider'
 import { CodeStyleProvider } from '../../context/CodeStyleProvider'
 import { NotificationProvider } from '../../context/NotificationProvider'
 import StyleSheetManager from '../../context/StyleSheetManager'
-import { TabsProvider } from '../../context/TabsContext'
 import { ThemeProvider } from '../../context/ThemeProvider'
 
 // Initialize logger for this window
@@ -45,11 +44,9 @@ function DetachedTabApp(): React.ReactElement {
               <NotificationProvider>
                 <CodeStyleProvider>
                   <PersistGate loading={null} persistor={persistor}>
-                    <TabsProvider>
-                      <TopViewContainer>
-                        <DetachedAppShell />
-                      </TopViewContainer>
-                    </TabsProvider>
+                    <TopViewContainer>
+                      <DetachedAppShell />
+                    </TopViewContainer>
                   </PersistGate>
                 </CodeStyleProvider>
               </NotificationProvider>
