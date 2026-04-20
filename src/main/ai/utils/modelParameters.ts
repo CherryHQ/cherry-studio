@@ -25,7 +25,7 @@ import {
 } from '@shared/utils/model'
 import { isAwsBedrockProvider } from '@shared/utils/provider'
 
-import { getThinkingBudget } from '../utils/reasoning'
+import { getThinkingBudget } from './reasoning'
 
 const logger = loggerService.withContext('modelParameters')
 

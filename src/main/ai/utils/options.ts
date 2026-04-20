@@ -15,9 +15,9 @@
  *    params, then layers the provider params onto an existing
  *    providerOptions map. Consumed by `customParametersPlugin`.
  *
- * The combined `buildProviderOptions` wrapper is kept for callers (like the
- * WIP `prepareParams/parameterBuilder.ts`) that still want the full legacy
- * output; it's a thin composition over the primitives above.
+ * The combined `buildProviderOptions` wrapper is kept as a convenience for
+ * callers that want the legacy single-call output; it's a thin composition
+ * over the primitives above.
  *
  * Ported from renderer `aiCore/utils/options.ts` (origin/main). Differences:
  *   - `AiSdkParam` / `OpenAIVerbosity` types now come from `@shared/types/aiSdk`
@@ -346,9 +346,9 @@ export function mergeCustomProviderParameters(
 
 /**
  * Convenience wrapper that runs the full legacy pipeline: capability
- * provider options + customParameters split + merge. Retained so callers
- * that want the combined output (like `prepareParams/parameterBuilder.ts`)
- * don't need to orchestrate the primitives themselves.
+ * provider options + customParameters split + merge. Retained for callers
+ * that want the combined output in one call (plugins use the primitives
+ * directly).
  *
  * Equivalent to:
  *   const providerOptions = buildCapabilityProviderOptions(...)

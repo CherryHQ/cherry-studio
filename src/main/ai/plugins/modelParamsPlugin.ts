@@ -2,7 +2,7 @@
  * Model-parameter plugin.
  *
  * Applies `temperature` / `topP` / `maxOutputTokens` to the request params
- * using the capability-aware helpers in `prepareParams/modelParameters.ts`.
+ * using the capability-aware helpers in `utils/modelParameters.ts`.
  *
  * Replaces the naive inline merge that `AiService.buildAgentParams` used to
  * do: the plugin version knows about per-model quirks like Claude reasoning
@@ -20,7 +20,7 @@ import type { Assistant } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
-import { getMaxTokens, getTemperature, getTopP } from '../prepareParams/modelParameters'
+import { getMaxTokens, getTemperature, getTopP } from '../utils/modelParameters'
 
 export interface ModelParamsPluginConfig {
   assistant: Assistant

@@ -8,8 +8,7 @@
  *   - `buildBedrockProviderOptions` in `utils/options.ts` — uses the array
  *     as `providerOptions.bedrock.anthropicBeta` (Bedrock has its own field).
  *
- * Moved out of the WIP `prepareParams/` dir since it's live infrastructure
- * used by live plugins. Ported from renderer origin/main `aiCore/prepareParams/header.ts`.
+ * Ported from renderer origin/main `aiCore/prepareParams/header.ts`.
  */
 
 import type { Assistant } from '@shared/data/types/assistant'
