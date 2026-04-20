@@ -2,7 +2,7 @@
  * Security utility functions for the main process.
  */
 
-const ALLOWED_EXTERNAL_PROTOCOLS = new Set(['http:', 'https:', 'mailto:'])
+const ALLOWED_EXTERNAL_PROTOCOLS = new Set(['http:', 'https:', 'mailto:', 'obsidian:'])
 
 /**
  * Check whether a URL is safe to open via shell.openExternal().

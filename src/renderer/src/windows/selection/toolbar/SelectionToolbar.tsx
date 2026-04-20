@@ -1,4 +1,4 @@
-import '@renderer/assets/styles/selection-toolbar.css'
+import './selection-toolbar.css'
 
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
