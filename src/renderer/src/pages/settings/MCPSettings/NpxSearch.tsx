@@ -104,7 +104,7 @@ const NpxSearch: FC = () => {
     <Container>
       <Center>
         <Space direction="vertical" style={{ marginBottom: 25, width: 500 }}>
-          <Center className="mb-[15px]">
+          <Center className="mb-3.75">
             <img src={logo} alt="npm" width={120} />
           </Center>
           <Space.Compact style={{ width: '100%' }}>
@@ -149,7 +149,7 @@ const NpxSearch: FC = () => {
               <Card
                 size="small"
                 key={record.name}
-                style={{ borderRadius: 'var(--list-item-border-radius)' }}
+                style={{ borderRadius: 'var(--cs-radius-2xs)' }}
                 title={
                   <Typography.Title level={5} style={{ margin: 0 }} className="selectable">
                     {record.name}
