@@ -52,6 +52,28 @@ FileEntry
 
 **Path 唯一性**：同一 `externalPath` 在 **非 trashed 状态下最多只能存在一条 entry**。通过 SQLite partial unique index 实现：`UNIQUE(externalPath) WHERE origin='external' AND trashedAt IS NULL`。
 
+**`externalPath` 的 canonical 不变量**：SQLite 对 `externalPath` 字段做**字节级**比较，无法感知 `FILE.pdf` ≡ `file.pdf`（case-insensitive FS）或 NFC ≡ NFD（Unicode）。因此 `externalPath` 持久化前**必须**经 `canonicalizeExternalPath(raw)` 规范化——这是应用层不变量，`ensureExternalEntry` 与 `fileEntryService.findByExternalPath` 都是强制调用点。
+
+| 来源 | 是否原生 canonical | 依赖规范化消除 |
+|---|---|---|
+| Electron `showOpenDialog` | ✅（OS 返回磁盘真 case） | 无 |
+| Drag-drop from Finder/Explorer | ✅（OS drag source） | 无 |
+| 用户手敲 `@/path/...` / 剪贴板粘贴 | ❌ | case / NFD/NFC 都有风险 |
+| 外部 URL scheme / shell 集成 | ❌ | 同上 |
+| v1 migration（继承 Dexie 存值） | ❌（继承旧值质量） | 迁移时 canonicalize 一次 |
+
+**Phase 1b 规范化范围**（同步、无 FS IO）：
+- `path.resolve(raw)` → 绝对化 + 消除 `./` `../`
+- `.normalize('NFC')` → Unicode 规范化（关 macOS 中日韩 NFD/NFC 窗口）
+- 尾部分隔符裁剪
+
+**Phase 1b 刻意不做**（留给 Phase 2 按用户反馈补）：
+- `fs.realpath` 做 case-insensitive FS 去重（需异步 FS IO + 文件存在前置条件）
+- Symlink target 合并
+- Windows 8.3 短名解析
+
+详细契约见 `src/main/data/utils/pathResolver.ts:canonicalizeExternalPath` 的 JSDoc。
+
 不变量（Invariants）：
 
 | 字段 | origin='internal' | origin='external' |
@@ -101,7 +123,7 @@ createUnmanagedHandle('/Users/me/doc')  // 指向任意路径
 
 **接受 FileHandle 的操作**：`read` / `getMetadata` / `getVersion` / `getContentHash` / `write` / `writeIfUnchanged` / `rename` / `permanentDelete` / `copy` / `open` / `showInFolder`
 
-**仅对 FileEntryId 生效的操作**（即只针对 managed entry，unmanaged 不适用）：`trash` / `restore` / `createEntry` / `refreshMetadata` / `withTempCopy`
+**仅对 FileEntryId 生效的操作**（即只针对 managed entry，unmanaged 不适用）：`trash` / `restore` / `createInternalEntry` / `ensureExternalEntry` / `refreshMetadata` / `withTempCopy`
 
 ### 1.5 FileUpload（AI provider 上传缓存）
 
@@ -117,6 +139,187 @@ FileUpload
 ├── status: 'active' | 'expired' | 'failed'
 └── UNIQUE(fileEntryId, provider)
 ```
+
+### 1.6 FileManager 实现布局（Facade + Private Internals）
+
+FileManager 是 file module 的**唯一公开入口**，但并非一个 30 方法的 God class。实现上采用 **facade + 私有纯函数模块**模式。
+
+#### 1.6.1 为什么可以拆
+
+对 FileManager public API 逐方法盘点"是否依赖 class instance 状态"后，结论：**绝大多数方法不依赖实例状态**。
+
+| 状态 | 使用者 | 归属 |
+|---|---|---|
+| `versionCache` (LRU) | `write` / `writeIfUnchanged` / `getVersion` | **class private field**（FileManager 实例持有） |
+| `fileEntryService` / `fileRefService` | 所有 DB 操作 | container singleton（`application.get(...)`） |
+| `danglingCache` | external 相关方法 | file-module singleton（模块 import） |
+| `ops/*` | 所有 FS 操作 | 纯函数，无状态 |
+| IPC handler 注册句柄、orphan sweep handle | lifecycle | `onInit` / `onStop` 管理 |
+
+真正绑定在 FileManager 实例上的只有 **versionCache** 与 **lifecycle 工件**；业务方法自身是无状态的。
+
+#### 1.6.2 模块布局
+
+```
+src/main/file/
+├── index.ts              ← barrel: 仅导出 FileManager + 公共类型
+├── FileManager.ts        ← facade class; lifecycle + IPC + versionCache
+├── internal/             ← 私有实现 (不经 index.ts 导出, 外部不得 import)
+│     ├── deps.ts              — FileManagerDeps 类型
+│     ├── entry/
+│     │    ├── create.ts       — createInternal / ensureExternal
+│     │    ├── lifecycle.ts    — trash / restore / permanentDelete + batches
+│     │    ├── rename.ts
+│     │    ├── copy.ts
+│     │    └── refresh.ts      — refreshMetadata / getMetadata
+│     ├── content/
+│     │    ├── read.ts         — read / createReadStream (含 unmanaged 变体)
+│     │    ├── write.ts        — write / writeIfUnchanged / createWriteStream
+│     │    └── hash.ts         — getContentHash / getVersion
+│     ├── system/
+│     │    ├── shell.ts        — open / showInFolder
+│     │    └── tempCopy.ts     — withTempCopy
+│     └── orphanSweep.ts       — 启动期孤儿扫描任务
+└── versionCache.ts       ← LRU 类型定义
+```
+
+#### 1.6.3 依赖传递约定
+
+每个 `internal/*` 纯函数显式接收 `FileManagerDeps`：
+
+```typescript
+// internal/deps.ts
+export interface FileManagerDeps {
+  readonly repo: FileEntryService
+  readonly versionCache: VersionCache
+  readonly danglingCache: DanglingCache
+}
+
+// internal/entry/create.ts — 两个 API，对应 FileManager facade 的两个 public method
+export async function createInternalEntry(
+  deps: FileManagerDeps,
+  params: CreateInternalEntryParams
+): Promise<FileEntry> {
+  // 写物理文件 → DB insert；永远产生新 entry
+}
+
+export async function ensureExternalEntry(
+  deps: FileManagerDeps,
+  params: EnsureExternalEntryParams
+): Promise<FileEntry> {
+  // 按 externalPath upsert：reuse / restore / insert 三路之一
+}
+```
+
+#### 1.6.4 Facade 薄委托
+
+```typescript
+// FileManager.ts
+export class FileManager extends BaseService implements IFileManager {
+  private readonly versionCache = new VersionCache(1000)
+  private readonly repo = application.get('FileEntryService')
+
+  private get deps(): FileManagerDeps {
+    return { repo: this.repo, versionCache: this.versionCache, danglingCache }
+  }
+
+  // public API: 薄委托；命名严格对齐语义（create = 新增、ensure = upsert）
+  createInternalEntry(params) { return entryCreate.createInternalEntry(this.deps, params) }
+  ensureExternalEntry(params) { return entryCreate.ensureExternalEntry(this.deps, params) }
+  read(id, opts?) { return contentRead.readManaged(this.deps, id, opts) }
+  trash(id) { return entryLifecycle.trash(this.deps, id) }
+  // ... 每个方法一行
+
+  protected async onInit() {
+    this.registerIpcHandlers()
+    void orphanSweep.run(this.deps) // fire-and-forget
+  }
+}
+```
+
+#### 1.6.5 FileHandle 分派约定（IPC 边界的适配职责）
+
+**分派位置**：`FileHandle.kind` 的分派**留在 IPC handler 注册处**。理由：
+
+- `FileHandle` 是 IPC 序列化层的输入形态——renderer 送来的是 `{ kind, ... }` tagged union，反序列化后做 kind 分派属于"解读请求"范畴，是 IPC 适配层的**正当职责**
+- FileManager public API 保持 entry-native（只收 `FileEntryId`），Main 侧业务 service 调用直观，不需要 `createManagedHandle(id)` 包装
+- 对 unmanaged 的操作**仅 IPC handler 需要**，Main 侧业务 service 持有的就是 FileEntry，没有 unmanaged path 场景
+
+**Internal 模块约定**：每个 action 文件按 kind 暴露命名一致的变体：
+
+```typescript
+// internal/content/read.ts
+export async function readManaged(deps, entryId, opts): Promise<ReadResult<T>>    // 服务 FileManager public API
+export async function readUnmanaged(deps, path, opts): Promise<ReadResult<T>>      // 服务 IPC handler 的 unmanaged 分支
+// future: export async function readVirtual(deps, handle, opts)
+```
+
+`*Managed` 走 FileManager 公开方法；`*Unmanaged`（及未来的 `*Virtual`）**不走** FileManager 公开方法——它们只服务 IPC handler 的 unmanaged 分支。
+
+**分派 helper 统一风格**：防止"每个 IPC 方法各写 if-else"脏化，FileManager 内部提供小辅助：
+
+```typescript
+// FileManager.ts (私有)
+private dispatchHandle<T>(
+  handle: FileHandle,
+  managed: (entryId: FileEntryId) => Promise<T>,
+  unmanaged: (path: FilePath) => Promise<T>
+): Promise<T> {
+  switch (handle.kind) {
+    case 'managed':   return managed(handle.entryId)
+    case 'unmanaged': return unmanaged(handle.path)
+  }
+}
+
+private registerIpcHandlers() {
+  this.ipcHandle('file.read', (handle, opts) =>
+    this.dispatchHandle(handle,
+      id   => this.read(id, opts),
+      path => contentRead.readUnmanaged(this.deps, path, opts)
+    )
+  )
+  this.ipcHandle('file.write', (handle, data) =>
+    this.dispatchHandle(handle,
+      id   => this.write(id, data),
+      path => contentWrite.writeUnmanaged(this.deps, path, data)
+    )
+  )
+  // ... 其他接受 FileHandle 的 IPC 方法
+
+  // 仅 FileEntryId 的 IPC 方法直接透传
+  this.ipcHandle('file.trash', ({ id }) => this.trash(id))
+  this.ipcHandle('file.createInternalEntry', params => this.createInternalEntry(params))
+  this.ipcHandle('file.ensureExternalEntry', params => this.ensureExternalEntry(params))
+}
+```
+
+**新增 handle kind**（例如 `virtual` 指向压缩包成员、`remote` 指向 S3 URI）的改动面：
+
+1. `packages/shared/file/types/handle.ts` — handle union 加变体
+2. 相关 `internal/*/*.ts` — 加对应 `*Virtual` / `*Remote` 纯函数
+3. `FileManager.ts` — `dispatchHandle` 签名增加回调参数；每个 IPC handler 显式处理该 kind（或抛"不支持"）
+
+**扩展面集中在 FileManager.ts 一个文件内**——每个 IPC 方法对哪些 kind 有意义一目了然，有利审计。这比引入独立 `FileAccessor` 类更轻，但获得同样的"扩展收敛"效果。
+
+#### 1.6.6 外部访问约束
+
+| 位置 | 可 import | 禁止 import |
+|---|---|---|
+| Main 业务 service（KnowledgeService、MessageService 等） | `@main/file`（拿 FileManager） / `@main/file/ops` / `@main/file/watcher` | `@main/file/internal/**` |
+| file-module 自身内部（`internal/*`、`ops/*`、`watcher/*`） | 按需互相引用 | 除 FileManager 外不得 import `internal/*` |
+| 外部 Node/renderer | 不适用（file-module 是 main 侧） | — |
+
+**边界强化**：通过 `src/main/file/index.ts` barrel 只 re-export 公共类型 + `FileManager` class；`internal/` 的 symbol 无法通过 `@main/file` 取到。Phase 1b 实现时如发现越界 import，追加 ESLint `no-restricted-imports` 规则。
+
+#### 1.6.7 设计权衡
+
+| 选项 | 采纳？ | 理由 |
+|---|---|---|
+| 把业务方法拆成 5 个 lifecycle service | ❌ | 过度——lifecycle 注册、依赖排序、测试 mock 成本都要 5 倍，换来的只是"方法分文件" |
+| FileManager 作为 facade + `internal/*` 纯函数 | ✅ | 只有 1 个 lifecycle node，纯函数可直接用 stub deps 单测，外部 API 面保持稳定 |
+| FileAccessor 独立 class 负责 `FileHandle` 分派 | ❌ | 分派本身是 IPC 适配层的正当职责，收敛到 FileManager 内部的 `dispatchHandle` helper 即可；再分一层纯增复杂度 |
+| FileManager public API 改 handle-native | ❌ | IPC 与 Main-side 调用契约不必同 shape；Main 侧业务 service 直接用 entry-native 更直观，不需要 `createManagedHandle` 包装 |
+| versionCache 抽为模块 singleton | ❌ | 作为 FileManager private field 天然支持 test 隔离（new instance = fresh cache）|
 
 ---
 
@@ -171,7 +374,7 @@ file_module 在以下场景刷新 external entry 的 DB 快照（stat + 对比 +
 
 | # | 触发 | 刷新内容 |
 |---|---|---|
-| 1 | `createEntry({ origin: 'external', externalPath })`（upsert 路径） | 新建时初次 stat；复用现有 entry 时 stat 刷新 snapshot |
+| 1 | `ensureExternalEntry({ externalPath })`（upsert 路径） | 新建时初次 stat；复用现有 entry 时 stat 刷新 snapshot |
 | 2 | `read(id)` 对 external | stat-verify；size 变则 UPDATE |
 | 3 | `getVersion(id)` 对 external | stat，更新 size |
 | 4 | `getContentHash(id)` 对 external | 读文件 + hash（stat 顺带） |
@@ -345,7 +548,8 @@ Stream 写入同样走 tmp + rename。返回的 `AtomicWriteStream` 继承 `Writ
 |---|---|
 | permanentDelete 时 unlink 失败（文件已缺失、权限问题） | 幂等忽略 ENOENT，其他错误 log warn，继续删 DB |
 | permanentDelete external 时 externalPath 不可写（只读挂载盘、权限不足） | log error，仍删 DB 记录；用户可见 Cherry 里消失，但文件留在磁盘 |
-| createEntry(external, path) 时同路径 non-trashed entry 已存在 | Upsert：返回现有 entry，顺带刷新 snapshot；同时可能 restore 已 trashed 的同路径 entry |
+| `ensureExternalEntry(path)` 时同路径 non-trashed entry 已存在 | 入口先 `canonicalizeExternalPath(raw)`；Upsert：返回现有 entry，顺带刷新 snapshot；同时可能 restore 已 trashed 的同路径 entry |
+| **case / NFC 差异导致同文件出现两条 entry**（macOS APFS、Windows NTFS、或 NFD ↔ NFC 输入） | Phase 1b 的 canonicalize 关 NFC 窗口；case-insensitive FS dedup 暂不实现（见 §1.2 "Phase 1b 规范化范围"）——有真实用户报告后补 `fs.realpath` + one-off migration |
 | restore external entry 时原路径文件已被外部替换为另一个文件 | Cherry 不检测内容一致性（best-effort），`refreshMetadata` 会刷新 size/name；UI 可由 dangling/snapshot 变化提示用户 |
 | trash 中的 entry 被外部永久删除后再 restore | 表现为 dangling（DanglingCache 下次 check 返回 missing），UI 显示失效样式 |
 | external write 时目标路径权限错误 / 磁盘满 | 抛错不污染 DB，调用方决定重试或告知用户 |
@@ -592,7 +796,7 @@ WHERE origin = 'external' AND trashedAt IS NULL
 
 | 并发场景 | 结果 |
 |---|---|
-| sweep 期间 createEntry 创建新 internal 文件 | orphan sweep 的 `mtime > 5min` 过滤，新文件不被误删 |
+| sweep 期间 createInternalEntry 创建新 internal 文件 | orphan sweep 的 `mtime > 5min` 过滤，新文件不被误删 |
 | sweep 期间 FileManager.read/write 已有 entry | 无互斥，读写走不同代码路径，不受影响 |
 | sweep 期间 app 退出 | 无持久副作用，下次启动重跑 |
 
@@ -602,12 +806,12 @@ file_module 的崩溃窗口非常窄：
 
 | 操作 | 顺序 | 崩溃中途 | 恢复 |
 |---|---|---|---|
-| createEntry (internal) | FS 写 UUID 文件 → DB insert | orphan 文件 | Orphan sweep |
+| createInternalEntry | FS 写 UUID 文件 → DB insert | orphan 文件 | Orphan sweep |
 | write (internal) | atomic tmp+rename + DB update | 新旧文件之一保留 | 自然一致 |
 | trash / restore / rename | DB only | 无 | 无 |
 | permanentDelete (internal) | FS unlink → DB delete | dangling（真 dangling，表现为读失败）| DanglingCache 查询时自然发现 |
 | copy (internal) | FS copy → DB insert | orphan 文件 | Orphan sweep |
-| createEntry (external) | DB insert（不动用户文件） | 无 | 无 |
+| ensureExternalEntry | DB insert / reuse / restore（不动用户文件） | 无 | 无 |
 | permanentDelete (external) | DB delete + ops.remove | 仅 DB 已删 FS 未删 / 反之，两边终态都是"没有"即可 | 自然一致 |
 
 无需 WAL / pending_fs_ops 表。Orphan sweep 覆盖 internal 侧的崩溃残留；external 侧天然不需要（删除失败就留在磁盘）。
@@ -699,8 +903,8 @@ export function createDirectoryWatcher(opts: DirectoryWatcherOptions): Directory
 | 事件 | 动作 |
 |---|---|
 | 启动 `initFromDb()` | `SELECT id, externalPath FROM file_entry WHERE origin='external' AND trashedAt IS NULL` → 批量 add |
-| `createEntry(external)` 新建 | addEntry(id, path) |
-| `createEntry(external)` 复用（upsert hit） | 无变化（路径已在索引）|
+| `ensureExternalEntry` 新建 | addEntry(id, path) |
+| `ensureExternalEntry` 复用（upsert hit） | 无变化（路径已在索引）|
 | `restore(external)` | addEntry(id, path) |
 | `trash(external)` | removeEntry(id, path)（trashed entry 不参与 dangling 跟踪）|
 | `permanentDelete(external)` | removeEntry(id, path) |
@@ -754,7 +958,7 @@ async function attachDangling(entries: FileEntry[]): Promise<FileEntryView[]> {
 | **origin 二态** | internal/external | 分别表示"Cherry 拥有"和"用户拥有，Cherry 引用"，语义清晰 |
 | **external 读写权限** | 用户显式操作可改，Cherry 不自动改 | VS Code 式行为模型——用户让改就改，不偷偷动 |
 | **external 操作对称性** | write/rename/permanentDelete 都委派到 ops 生效；trash/restore 仅动 DB | 软删除保可逆（不碰 FS）；硬删是终局动作（真删 FS） |
-| **external 身份** | externalPath unique(where not trashed) | 同路径同时只有一个活 entry；createEntry 按 path upsert |
+| **external 身份** | externalPath unique(where not trashed) | 同路径同时只有一个活 entry；`ensureExternalEntry` 按 path upsert |
 | **Cherry 追踪 external rename** | 不追踪 | Best-effort 语义；外部 rename → dangling → 用户重新 @ |
 | **快照 vs 实时 stat** | DB 存快照，critical path 自动刷新 | List 查询零 stat 成本；接受 UI 显示可能陈旧（用户可手动刷新） |
 | **Dangling 状态载体** | 内存 singleton DanglingCache | 不入 DB（避免 DB-FS 双向同步）；三态 `present/missing/unknown`；无 TTL 事件驱动失效 |

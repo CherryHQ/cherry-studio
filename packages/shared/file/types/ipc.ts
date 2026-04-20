@@ -41,15 +41,26 @@ export interface ReadResult<T> {
 
 // ─── IPC Params ───
 
-/** Create a FileEntry. Internal = Cherry-owned; external = references a user-provided path. */
-export type CreateEntryIpcParams =
-  | { origin: 'internal'; name: string; ext?: string | null; content: FileContent }
-  | { origin: 'external'; externalPath: FilePath; name?: string }
+/**
+ * Params for creating a Cherry-owned (internal) FileEntry.
+ * Always produces a fresh entry with a new UUID — no conflict resolution.
+ */
+export type CreateInternalEntryIpcParams = {
+  name: string
+  ext?: string | null
+  content: FileContent
+}
 
-/** Batch-create params. All items share the same origin. */
-export type BatchCreateEntriesIpcParams =
-  | { origin: 'internal'; items: Array<{ name: string; ext?: string | null; content: FileContent }> }
-  | { origin: 'external'; items: Array<{ externalPath: FilePath; name?: string }> }
+/**
+ * Params for ensuring an entry exists for a user-provided (external) path.
+ * Upsert semantics: if a non-trashed entry with the same path exists, return
+ * it; if a trashed entry exists, restore it; otherwise create a new one.
+ */
+export type EnsureExternalEntryIpcParams = {
+  externalPath: FilePath
+  /** Optional display-name override. Defaults to `path.basename(externalPath)`. */
+  name?: string
+}
 
 // ─── IPC Result ───
 
@@ -85,10 +96,38 @@ export interface FileIpcApi {
 
   // ─── B. Entry Creation ───
 
-  /** Create a FileEntry (internal or external). */
-  createEntry(params: CreateEntryIpcParams): Promise<FileEntry>
-  /** Batch create entries. All items share the same origin. */
-  batchCreateEntries(params: BatchCreateEntriesIpcParams): Promise<BatchOperationResult>
+  /**
+   * Create a new Cherry-owned (internal) FileEntry. Always inserts a fresh
+   * row with a new UUID. No conflict / upsert semantics — call as many times
+   * as needed, each invocation produces an independent entry.
+   */
+  createInternalEntry(params: CreateInternalEntryIpcParams): Promise<FileEntry>
+
+  /**
+   * Ensure an external FileEntry exists for the given absolute path.
+   *
+   * **Upsert + restore** semantics (not plain insert):
+   * - Non-trashed entry with same path exists → return it (snapshot refreshed
+   *   via stat)
+   * - Trashed entry with same path exists → restore (`trashedAt = null`) and
+   *   return it
+   * - No existing entry → insert a new one
+   *
+   * Idempotent by design — callers holding an `externalPath` can invoke this
+   * freely without pre-checking. The partial unique index
+   * `UNIQUE(externalPath) WHERE origin='external' AND trashedAt IS NULL`
+   * enforces this invariant at the DB level.
+   */
+  ensureExternalEntry(params: EnsureExternalEntryIpcParams): Promise<FileEntry>
+
+  /** Batch version of `createInternalEntry`. Each item produces an independent new entry. */
+  batchCreateInternalEntries(items: CreateInternalEntryIpcParams[]): Promise<BatchOperationResult>
+
+  /**
+   * Batch version of `ensureExternalEntry`. Each item is individually upserted.
+   * Within-batch path duplicates are coalesced to a single entry in the result.
+   */
+  batchEnsureExternalEntries(items: EnsureExternalEntryIpcParams[]): Promise<BatchOperationResult>
 
   // ─── C. Read / Metadata (accepts FileHandle) ───
 

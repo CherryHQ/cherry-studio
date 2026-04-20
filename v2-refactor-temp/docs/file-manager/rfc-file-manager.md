@@ -32,7 +32,7 @@
 
 - `file_entry` / `file_ref` 两张表的 Drizzle Schema
 - DataApi（只读）+ File IPC（读写）契约
-- FileManager 核心流程伪代码（createEntry / read / write / trash / restore / permanentDelete / rename / copy）
+- FileManager 核心流程伪代码（createInternalEntry / ensureExternalEntry / read / write / trash / restore / permanentDelete / rename / copy）
 - OrphanRefScanner 注册式 checker 设计
 - Dexie → SQLite 的 FileMigrator 流程
 - 分阶段实施计划（Phase 1a / 1b / 2 / X）
@@ -67,7 +67,7 @@
 | FileEntry 结构 | 扁平（无 `parentId`、无 mount） | 持久化层不做目录树；Notes 自治（问题 6/10） |
 | 主键策略 | UUID v7（`uuidPrimaryKeyOrdered`）；旧数据保留 v4 | 新 entry 时间有序；旧 v4 ID 跨表引用零翻译（migration-plan §2.9） |
 | `origin` 枚举 | `'internal' \| 'external'` | Cherry 拥有 vs 用户拥有；语义清晰 |
-| External path 唯一性 | Partial unique index: `WHERE origin='external' AND trashedAt IS NULL` | 同路径最多一个活跃 entry；`createEntry` 按 path upsert |
+| External path 唯一性 | Partial unique index: `WHERE origin='external' AND trashedAt IS NULL` | 同路径最多一个活跃 entry；`ensureExternalEntry` 按 path upsert |
 | `size` 字段 | 必填（INTEGER NOT NULL） | 查询/排序需要；external 为最后观测的快照 |
 | trash 语义 | `trashedAt` 时间戳（无 parentId 变动） | 扁平 schema，软删仅 DB，不动 FS |
 | `sourceType` / `role` | 应用层 Zod 验证 + 编译期 checker 注册 | 新增 sourceType 无需 DB migration |
@@ -212,7 +212,7 @@ export type FileEntry = z.infer<typeof FileEntrySchema>
 
 | 生产者 | 位置 |
 |---|---|
-| `createEntry` / `batchCreateEntries` IPC | `FileManager` 返回前 parse |
+| `createInternalEntry` / `ensureExternalEntry` / `batchCreateInternalEntries` / `batchEnsureExternalEntries` IPC | `FileManager` 返回前 parse |
 | DataApi handler（row → DTO） | `src/main/data/api/handlers/files.ts` 响应前 parse（含 opt-in 派生） |
 | FileMigrator insert | `FileMigrator` 转换后 parse |
 
@@ -241,27 +241,35 @@ type DanglingState = z.infer<typeof DanglingStateSchema>      // 'present' | 'mi
 
 > FS 操作由 `ops/*` 纯函数执行（唯一 FS owner）。DB 操作由 `FileEntryService` / `FileRefService` 执行（纯 DB repository）。FileManager 做协调与 IPC 分派。
 
-### 5.1 createEntry（上传 / 登记）
+### 5.1 Entry 创建：`createInternalEntry` + `ensureExternalEntry`
+
+公开 API 按语义严格拆分（见 `file-manager-architecture.md §1.6`）：
+
+- `createInternalEntry(params)` —— 总是 insert，每次产生新 UUID
+- `ensureExternalEntry(params)` —— 按 `externalPath` upsert：reuse / restore / insert 三路之一，幂等
 
 ```typescript
-// Internal: 复制 / 移动内容到 {userData}/files/{id}.{ext}
-async function createEntry(params: CreateEntryIpcParams): Promise<FileEntry> {
-  if (params.origin === 'internal') {
-    const id = uuidv7()
-    const { name, ext } = splitName(params.name, params.ext)
-    const dest = resolvePhysicalPath({ id, ext, origin: 'internal' })
+// createInternalEntry: 复制 / 移动内容到 {userData}/files/{id}.{ext}
+async function createInternalEntry(params: CreateInternalEntryParams): Promise<FileEntry> {
+  const id = uuidv7()
+  const { name, ext } = splitName(params.name, params.ext)
+  const dest = resolvePhysicalPath({ id, ext, origin: 'internal' })
 
-    // 1. 原子写物理文件
-    await ops.atomicWriteFile(dest, params.content)
-    const { size } = await ops.stat(dest)
+  // 1. 原子写物理文件
+  await ops.atomicWriteFile(dest, params.content)
+  const { size } = await ops.stat(dest)
 
-    // 2. 写入 DB
-    return fileEntryService.create({ id, origin: 'internal', name, ext, size })
-  }
+  // 2. 写入 DB
+  return fileEntryService.create({ id, origin: 'internal', name, ext, size })
+}
 
-  // External: 按 externalPath upsert
-  const normalizedPath = path.resolve(params.externalPath)
-  const existing = await fileEntryService.findByExternalPath(normalizedPath, { includeTrashed: true })
+// ensureExternalEntry: 按 externalPath upsert
+async function ensureExternalEntry(params: EnsureExternalEntryParams): Promise<FileEntry> {
+  // Phase 1b 同步廉价 canonicalize: path.resolve + NFC + trailing-sep strip.
+  // 不含 fs.realpath（case-insensitive FS 去重由 Phase 2 视用户反馈补）。
+  // 是 upsert/查询的唯一 key 来源。
+  const canonicalPath = canonicalizeExternalPath(params.externalPath)
+  const existing = await fileEntryService.findByExternalPath(canonicalPath, { includeTrashed: true })
 
   if (existing && existing.trashedAt === null) {
     return existing // 复用活跃 entry
@@ -270,22 +278,22 @@ async function createEntry(params: CreateEntryIpcParams): Promise<FileEntry> {
     return fileEntryService.update(existing.id, { trashedAt: null }) // 复活
   }
 
-  const stat = await ops.stat(normalizedPath) // 验证存在 + 取 snapshot
-  const { name, ext } = splitName(path.basename(normalizedPath))
+  const stat = await ops.stat(canonicalPath) // 验证存在 + 取 snapshot
+  const { name, ext } = splitName(path.basename(canonicalPath))
   return fileEntryService.create({
     origin: 'external',
     name,
     ext,
     size: stat.size,
-    externalPath: normalizedPath
+    externalPath: canonicalPath
   })
 }
 ```
 
 **原子性**：
 
-- Internal：物理写 + DB 写两步。物理写失败 → 无 DB 行；DB 写失败 → 启动期 orphan sweep 清理残留 UUID 文件
-- External：仅 DB 写 + 一次 stat 验证；stat 失败直接抛错
+- `createInternalEntry`：物理写 + DB 写两步。物理写失败 → 无 DB 行；DB 写失败 → 启动期 orphan sweep 清理残留 UUID 文件
+- `ensureExternalEntry`：仅 DB 写 + 一次 stat 验证；stat 失败直接抛错
 
 ### 5.2 read / write / writeIfUnchanged
 
@@ -350,8 +358,7 @@ async function permanentDelete(handle: FileHandle): Promise<void> {
 async function copy(params: { source: FileHandle; newName?: string }): Promise<FileEntry> {
   const sourcePath = resolveFileHandle(params.source)
   const content = ops.createReadStream(sourcePath)
-  return createEntry({
-    origin: 'internal',
+  return createInternalEntry({
     name: params.newName ?? deriveNameFromHandle(params.source),
     content
   })
@@ -369,8 +376,8 @@ async function copy(params: { source: FileHandle; newName?: string }): Promise<F
 
 ### 5.8 元数据生产统一入口（问题 13）
 
-- **`createEntry` 是 entry 创建的唯一路径**——renderer 不再自己拼接 FileMetadata
-- **`name` / `ext` 切分**：main 侧统一在 createEntry 内处理（见 migration-plan §2.7）
+- **`createInternalEntry` / `ensureExternalEntry` 是 entry 创建的唯一路径**——renderer 不再自己拼接 FileMetadata
+- **`name` / `ext` 切分**：main 侧统一在这两个方法内处理（见 migration-plan §2.7）
 - **`type` 派生**：不持久化，查询时由 `ops/metadata.getFileType(ext)` 计算；`getMetadata` 可 buffer 升级 OTHER → 具体类型（见 migration-plan §2.5）
 
 ---
@@ -550,8 +557,10 @@ export interface FileSchemas {
 |---|---|---|---|
 | `select` | 对话框选项 | `string \| string[] \| null` | Electron file/folder picker |
 | `save` | `{ content, defaultPath?, filters? }` | `string \| null` | Save dialog + 写文件 |
-| `createEntry` | `CreateEntryIpcParams` | `FileEntry` | Internal 创建 / External upsert |
-| `batchCreateEntries` | 批量参数 | `BatchOperationResult` | 批量创建 |
+| `createInternalEntry` | `CreateInternalEntryIpcParams` | `FileEntry` | 新建 Cherry 拥有 entry，每次产生新 UUID，无冲突 |
+| `ensureExternalEntry` | `EnsureExternalEntryIpcParams` | `FileEntry` | 按 `externalPath` upsert：reuse / restore / insert |
+| `batchCreateInternalEntries` | `CreateInternalEntryIpcParams[]` | `BatchOperationResult` | 批量新建 internal |
+| `batchEnsureExternalEntries` | `EnsureExternalEntryIpcParams[]` | `BatchOperationResult` | 批量 upsert external（批内 path 重复会 coalesce）|
 | `read` | `FileHandle, opts?` | `ReadResult<T>` | 读内容（text / base64 / binary） |
 | `getMetadata` | `FileHandle` | `PhysicalFileMetadata` | 物理元数据 |
 | `getVersion` | `FileHandle` | `FileVersion` | 轻量版本戳 |
@@ -591,7 +600,8 @@ const { data: entries } = useQuery(fileApi.listEntries, {
 const filePaths = entries.map((e) => e.path).join('\n')
 
 // 案例 3：写操作（走 File IPC）
-await window.api.file.createEntry({ origin: 'internal', name, content })
+await window.api.file.createInternalEntry({ name, content })
+await window.api.file.ensureExternalEntry({ externalPath })
 await window.api.file.trash({ id })
 ```
 
@@ -828,8 +838,9 @@ Phase 1a ──→ Phase 1b ──→ Phase 2 ──→ (业务 PRs)
 | `packages/shared/data/api/schemas/files.ts` | DataApi `FileSchemas` 类型声明 |
 | `packages/shared/file/types/ipc.ts` | File IPC 类型契约 |
 | `packages/shared/file/types/handle.ts` | `FileHandle` tagged union |
-| `src/main/file/ops/` | `ops/*` 纯函数骨架（`fs` / `shell` / `path` / `metadata` / `search`） |
-| `src/main/file/FileManager.ts` | lifecycle service 骨架，IPC handler 占位 |
+| `src/main/file/index.ts` | 模块 barrel，仅导出 `FileManager` + 公共类型 |
+| `src/main/file/ops/` | `ops/*` 纯函数骨架（`fs` / `shell` / `path` / `metadata` / `search`），对 main 开放 |
+| `src/main/file/FileManager.ts` | lifecycle service 骨架 + IPC handler 占位；实现走 facade 模式（见 `file-manager-architecture.md §1.6`） |
 | `src/main/file/danglingCache.ts` | singleton 骨架 |
 | `src/main/file/watcher/` | `DirectoryWatcher` primitive + 工厂 |
 | `src/main/data/api/handlers/files.ts` | DataApi handler（只读端点，允许部分端点占位） |
@@ -838,20 +849,32 @@ Phase 1a ──→ Phase 1b ──→ Phase 2 ──→ (业务 PRs)
 
 ### 9.3 Phase 1b：FileManager 实现
 
-**目标**：填充 FileManager 与 ops 的具体实现 + 单元测试。
+**目标**：填充 FileManager 与 ops 的具体实现 + 单元测试。按 facade + private internals 结构（见 `file-manager-architecture.md §1.6`）。
 
 **关键任务**：
 
 1. `ops/*` 纯函数实现：`atomicWriteFile` / `atomicWriteIfUnchanged` / `createAtomicWriteStream` / `statVersion` / `contentHash`（xxhash-128）/ `read` / `write` / `copy` / `move` / `remove` / `open` / `showInFolder` / `listDirectory`（ripgrep + 模糊匹配）
 2. `FileEntryService` / `FileRefService` data repository 实现（纯 DB）
-3. `FileManager` 协调逻辑：
-   - `createEntry` 原子性（物理写 + DB 写）
-   - `read` / `write` / `writeIfUnchanged` 按 `FileHandle.kind` 分派
-   - `trash` / `restore`（纯 DB）/ `permanentDelete`（先 FS 后 DB）
-   - `rename` / `copy` / `refreshMetadata`
-   - `resolvePhysicalPath` 路径解析
-   - LRU version cache
-4. 启动期 orphan sweep（非阻塞）
+3. `src/main/file/internal/` 纯函数模块（每个接收 `FileManagerDeps`）：
+   - `internal/entry/create.ts` — `createInternal` / `ensureExternal`（A-7 命名拆分）
+   - `internal/entry/lifecycle.ts` — `trash` / `restore` / `permanentDelete` + batches
+   - `internal/entry/rename.ts` / `copy.ts` / `refresh.ts`
+   - `internal/content/read.ts` / `write.ts` / `hash.ts`（含 `*Unmanaged` 变体，IPC handler 用）
+   - `internal/system/shell.ts` / `tempCopy.ts`
+   - `internal/orphanSweep.ts` — 启动期孤儿扫描
+   - `internal/deps.ts` — `FileManagerDeps` 类型
+4. `FileManager` facade class：
+   - `BaseService` + `@Injectable('FileManager')` + `@ServicePhase('WhenReady')` + `@DependsOn('DbService')`
+   - 持有 `versionCache` 为 private field
+   - Public API 保持 **entry-native**（`FileEntryId` 入参），每个方法薄委托到 `internal/*` 纯函数的 `*Managed` 变体
+   - `onInit`：注册 IPC handler，用私有 `dispatchHandle(handle, managedFn, unmanagedFn)` helper 把 `FileHandle.kind` 分派到 facade public method（managed）或 `internal/*` 的 `*Unmanaged` 变体（unmanaged）；fire-and-forget `orphanSweep.run(deps)`
+   - `onStop`：清 versionCache；IPC handler 由 `BaseService` 自动清理
+   - 分派约定详见 `file-manager-architecture.md §1.6.5`——新增 handle kind 只需扩展 `dispatchHandle` 签名与本文件内的 IPC handler，不碰 public API / 业务 service
+5. `src/main/file/index.ts` barrel：只 re-export `FileManager` class + 公共类型；`internal/*` 不导出
+6. 单元测试策略：
+   - `internal/*` 纯函数：直接 `import` 测试 + 传 stub deps，无需 mock FileManager
+   - `FileManager`：测试 facade 是否正确委托 + IPC 注册正确
+   - DB 层：`setupTestDatabase()` 真 DB 验证 schema 不变量（已在 Phase 1a 部分覆盖）
 5. DanglingCache 反向索引初始化 + watcher 事件自动接入
 6. 单元测试覆盖（使用 `setupTestDatabase()` 真 DB）
 
@@ -910,6 +933,7 @@ Vercel AI SDK Files API 稳定后：
 | Painting 的 file_ref 暂缺 | 文件页无法追溯 painting 引用 | 文件条目本身已存在可访问；随 Painting 重构补建 |
 | Phase 1a 的 `throw NotImplemented` 影响上游 | 开发期阻塞 | Phase 1a 不切换 renderer 调用路径，Phase 1b 补齐后统一切换 |
 | External entry 物理文件外部丢失 | entry 变 dangling | DanglingCache + `includeDangling` opt-in 给 UI 展示；不自动清理 file_ref（用户手动处理） |
+| `externalPath` 大小写不敏感 FS 导致同文件双 entry（macOS APFS / Windows NTFS） | 文件页用户看到两份同文件、file_ref 分裂 | Phase 1b `canonicalizeExternalPath` 做同步廉价规范化（resolve + NFC + trailing-sep），**刻意不做** `fs.realpath` case 去重——支配性来源（dialog / drag-drop）本就给 OS-canonical 值；收到真实用户报告后再 additively 扩展 + one-off migration 合并重复行 |
 
 ---
 

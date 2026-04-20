@@ -1,21 +1,52 @@
 /**
- * FileManager — the sole coordinator between FileEntry (DB) and the filesystem.
+ * FileManager — the sole public entry point for all file operations.
  *
  * Every FileEntry has an `origin`:
  * - `internal`: Cherry owns the content (stored at `{userData}/files/{id}.{ext}`)
  * - `external`: Cherry references a user-provided absolute path
  *
- * ## Managed vs Unmanaged
+ * ## Facade pattern
  *
- * Most FileManager methods target a FileEntry (identified by `FileEntryId`).
- * For operations that also make sense on arbitrary filesystem paths (read,
- * getMetadata, open, showInFolder, write, rename, permanentDelete, etc.),
- * the IPC layer exposes a unified `FileHandle` tagged union and dispatches:
- * - `{ kind: 'managed', entryId }` → FileManager method (this file)
- * - `{ kind: 'unmanaged', path }`  → `ops/*` direct
+ * FileManager is a **thin facade** — it exposes the public IPC-backed API and
+ * delegates every method to pure-function modules under `./internal/*`. The
+ * class itself only owns:
+ * - lifecycle (`onInit` / `onStop`; IPC handler registration via `BaseService`)
+ * - `versionCache` (LRU backing `writeIfUnchanged` / `getVersion`)
+ * - `FileHandle.kind` dispatch at the IPC boundary
  *
- * FileManager's own public API (below) only speaks FileEntryId.
- * IPC handlers handle the FileHandle dispatch externally.
+ * External callers in the Main process must go through FileManager (either via
+ * `application.get('FileManager')` or by importing from `@main/file`). The
+ * `internal/*` modules are private and not re-exported via `src/main/file/index.ts`.
+ *
+ * See `docs/zh/references/file/file-manager-architecture.md §1.6` for the full
+ * implementation-layout decision.
+ *
+ * ## Managed vs Unmanaged — FileHandle dispatch at the IPC boundary
+ *
+ * FileManager's public API (below) is **entry-native** — every method takes a
+ * `FileEntryId`. Main-side business services call it directly without having
+ * to wrap ids in a handle.
+ *
+ * At the IPC boundary, the renderer speaks `FileHandle` (a tagged union over
+ * managed/unmanaged references). Dispatching on `handle.kind` is treated as
+ * the IPC adapter's legitimate responsibility (translating request shape),
+ * not business orchestration. FileManager.onInit registers handlers with the
+ * private `dispatchHandle` helper:
+ *
+ * - `{ kind: 'managed', entryId }` → the corresponding FileManager public
+ *   method (e.g. `this.read(entryId, opts)`)
+ * - `{ kind: 'unmanaged', path }`  → the `*Unmanaged` variant exported from
+ *   `internal/*` (e.g. `contentRead.readUnmanaged(deps, path, opts)`)
+ *
+ * `*Unmanaged` variants are not exposed on the FileManager class — Main-side
+ * callers have no use for them (they hold FileEntry, not arbitrary paths).
+ *
+ * New handle kinds (e.g. `virtual` for zip members) extend `dispatchHandle`
+ * and each IPC handler within this file; the public API surface and
+ * `internal/*` pure-function structure both stay stable.
+ *
+ * See `docs/zh/references/file/file-manager-architecture.md §1.6.5` for the
+ * full dispatch convention.
  *
  * ## External entries — best-effort reference semantics
  *
@@ -75,22 +106,28 @@ export interface ReadResult<T> {
 
 // ─── Create params ───
 
-export type CreateEntryParams =
-  | {
-      origin: 'internal'
-      /** User-visible name (without extension) */
-      name: string
-      /** Optional extension (without leading dot). Derived from `name` if omitted. */
-      ext?: string | null
-      content: FileContent
-    }
-  | {
-      origin: 'external'
-      /** Absolute path to user-provided file. Must exist and be readable. */
-      externalPath: FilePath
-      /** Optional override for display name (defaults to basename of externalPath) */
-      name?: string
-    }
+/**
+ * Params for `createInternalEntry`. Each call produces a fresh entry with a
+ * new UUID — no conflict / upsert semantics.
+ */
+export type CreateInternalEntryParams = {
+  /** User-visible name (without extension) */
+  name: string
+  /** Optional extension (without leading dot). Derived from `name` if omitted. */
+  ext?: string | null
+  content: FileContent
+}
+
+/**
+ * Params for `ensureExternalEntry`. Upsert semantics — see method JSDoc below
+ * for the full insert / reuse / restore matrix.
+ */
+export type EnsureExternalEntryParams = {
+  /** Absolute path to user-provided file. Must exist and be readable. */
+  externalPath: FilePath
+  /** Optional override for display name (defaults to basename of externalPath) */
+  name?: string
+}
 
 // ─── Stream helpers ───
 
@@ -124,26 +161,47 @@ export class StaleVersionError extends Error {
 
 export interface IFileManager {
   // ─── Entry Creation ───
+  //
+  // Naming follows strict create-vs-ensure convention:
+  // - `createInternalEntry` is pure insert — always a new row, new UUID
+  // - `ensureExternalEntry` is upsert+restore — idempotent by design
+  //
+  // The original `createEntry({ origin })` umbrella was intentionally split
+  // to keep the public API's name match the actual semantics; see ADR / PR
+  // #13451 review response (A-7).
 
   /**
-   * Create a FileEntry.
-   * - `origin='internal'`: writes content to `{userData}/files/{id}.{ext}`, inserts DB row
-   * - `origin='external'`: **upsert by `externalPath`**:
-   *   - Existing non-trashed entry with same path → return it (snapshot refreshed via stat)
-   *   - Existing trashed entry with same path → restore (trashedAt=null) and return it
-   *   - Otherwise → insert new row
+   * Create a new Cherry-owned (internal) FileEntry.
    *
-   *   The partial unique index `UNIQUE(externalPath) WHERE origin='external' AND trashedAt IS NULL`
-   *   enforces this invariant at the DB level.
+   * Writes `content` to `{userData}/files/{newUuid}.{ext}` and inserts a fresh
+   * DB row. No conflict resolution — every call produces an independent entry.
    */
-  createEntry(params: CreateEntryParams): Promise<FileEntry>
+  createInternalEntry(params: CreateInternalEntryParams): Promise<FileEntry>
 
-  /** Batch create entries. All items must share the same origin. */
-  batchCreateEntries(
-    params:
-      | { origin: 'internal'; items: Array<{ name: string; ext?: string | null; content: FileContent }> }
-      | { origin: 'external'; items: Array<{ externalPath: FilePath; name?: string }> }
-  ): Promise<BatchOperationResult>
+  /**
+   * Ensure an entry exists for a user-provided absolute path.
+   *
+   * Upsert semantics on `externalPath`:
+   * - Existing non-trashed entry with same path → return it (snapshot refreshed via stat)
+   * - Existing trashed entry with same path → restore (`trashedAt = null`) and return it
+   * - No existing entry → insert a new row
+   *
+   * The partial unique index
+   * `UNIQUE(externalPath) WHERE origin='external' AND trashedAt IS NULL`
+   * enforces this invariant at the DB level; repeated calls with the same
+   * path are safe and idempotent.
+   */
+  ensureExternalEntry(params: EnsureExternalEntryParams): Promise<FileEntry>
+
+  /** Batch version of `createInternalEntry`. Each item produces an independent new entry. */
+  batchCreateInternalEntries(items: CreateInternalEntryParams[]): Promise<BatchOperationResult>
+
+  /**
+   * Batch version of `ensureExternalEntry`. Within-batch path duplicates are
+   * coalesced to a single entry in the result (the second occurrence hits the
+   * non-trashed reuse path).
+   */
+  batchEnsureExternalEntries(items: EnsureExternalEntryParams[]): Promise<BatchOperationResult>
 
   // ─── Reading ───
 

@@ -80,7 +80,19 @@ export type FileEntryOrigin = z.infer<typeof FileEntryOriginSchema>
 
 // ─── Absolute Path ───
 
-/** Absolute filesystem path (Unix or Windows). Rejects `file://` URLs — use a dedicated URL schema if needed. */
+/**
+ * Absolute filesystem path (Unix or Windows). Rejects `file://` URLs — use a
+ * dedicated URL schema if needed.
+ *
+ * **Storage invariant for `externalPath`**: values persisted in
+ * `file_entry.externalPath` must be the output of
+ * `canonicalizeExternalPath()` — currently `path.resolve` + Unicode NFC +
+ * trailing-separator strip (Phase 1b scope). Zod cannot enforce this shape
+ * at the schema level; `ensureExternalEntry` and `fileEntryService.findByExternalPath`
+ * are the application-layer enforcement points. See `pathResolver.ts` for
+ * the full contract, including deliberately deferred normalization steps
+ * (case-insensitive FS dedupe, symlink target resolution).
+ */
 const AbsolutePathSchema = z
   .string()
   .min(1)

@@ -35,12 +35,12 @@
 
 **解决方案**：
 
-- **`createEntry` IPC** 在 main 侧一次性完成 "FS 落地 + DB 登记"，成功/失败整体可见
+- **`createInternalEntry` / `ensureExternalEntry` IPC** 在 main 侧一次性完成 "FS 落地 + DB 登记"（internal）或 "upsert + stat 验证"（external），成功/失败整体可见
 - Internal：拷贝内容到 `{userData}/files/{id}.{ext}` 后 insert `file_entry` 行
 - External：按 `externalPath` upsert（命中 non-trashed 复用；命中 trashed 则 restore；否则新建）
 - Renderer **没有**独立登记 entry 的入口——`addFile` 这类绕路被类型系统封闭
 
-**参考**：`architecture.md §2.3` 的 `createEntry` / `batchCreateEntries`、`file-manager-architecture.md §1.2`（external path unique）。
+**参考**：`architecture.md §2.3` 的 `createInternalEntry` / `ensureExternalEntry`（及批量版本）、`file-manager-architecture.md §1.2`（external path unique）。
 
 ---
 
@@ -53,7 +53,7 @@
 - DataApi **判定标准**明确：read-only、禁止 mutation。所有 FileRef 的 create / cleanup **不**经 DataApi 暴露
 - `FileRef` 的写操作仅由 main 侧业务 service 直接调用 `fileRefService`
 - `FileEntry` 的所有写操作仅经 File IPC → FileManager，无 renderer 直写路径
-- External path 由 main 侧在 `createEntry` 时 stat 验证，不信任 renderer 传入的任意字符串
+- External path 由 main 侧在 `ensureExternalEntry` 时 stat 验证，不信任 renderer 传入的任意字符串
 
 **参考**：`architecture.md §3.1`（DataApi vs File IPC 判定）、§4.2 (1)(2)。
 
@@ -65,7 +65,7 @@
 
 **解决方案**：
 
-- 新架构**取消 internal 的内容级去重**。"每一条 FileEntry 对应一个用户上传/保存的文件"，每次 `createEntry(internal)` 产生独立 entry
+- 新架构**取消 internal 的内容级去重**。"每一条 FileEntry 对应一个用户上传/保存的文件"，每次 `createInternalEntry` 产生独立 entry
 - `contentHash`（xxhash-128）仅用于版本检测与 upload 缓存失效，**不作为身份键**
 - External 通过 `externalPath` 去重（同路径复用 entry），这是**路径语义的同一性**，非内容去重，不与"文件名独立"相冲突
 
@@ -197,7 +197,7 @@
 
 **解决方案**：
 
-- **写入事务**：`createEntry` / `permanentDelete` 在 main 侧一次完成 FS + DB，错误路径整体回滚
+- **写入事务**：`createInternalEntry` / `ensureExternalEntry` / `permanentDelete` 在 main 侧一次完成 FS + DB（或 DB + stat），错误路径整体回滚
 - **启动期孤儿扫描**（`FileManager.runOrphanSweep`，Background）：
   - 扫描 `{userData}/files/` 下 UUID 文件名但 DB 无对应行的孤儿 → unlink
   - 清理 `*.tmp-<uuidv7>` 原子写残留
@@ -274,7 +274,7 @@ export type FileEntry = z.infer<typeof FileEntrySchema>
 
 | 生产者 | 位置 | parse 时机 |
 |---|---|---|
-| `createEntry` / `batchCreateEntries` IPC | `FileManager` | 返回前 `FileEntrySchema.parse` |
+| `createInternalEntry` / `ensureExternalEntry` / 批量版本 IPC | `FileManager` | 返回前 `FileEntrySchema.parse` |
 | DataApi handler（row → DTO） | `src/main/data/api/handlers/files.ts` | 响应前 `FileEntrySchema.parse`（含 opt-in 派生字段） |
 | FileMigrator insert | `src/main/data/migration/v2/migrators/FileMigrator.ts` | 写入前转换并 parse |
 
@@ -282,7 +282,7 @@ renderer 不再在前端拼接 entry 对象，**类型系统层封堵"直接搓 
 
 ### 字段语义收敛（消除推断歧义）
 
-- `ext`（不含前导点）与 `name`（不含扩展名）在 `createEntry` 内由 main 侧统一切分（见 `migration-plan.md §2.7`）
+- `ext`（不含前导点）与 `name`（不含扩展名）在 `createInternalEntry` / `ensureExternalEntry` 内由 main 侧统一切分（见 `migration-plan.md §2.7`）
 - `type` 不再持久化，改为读时派生（默认按 `ext`，`getMetadata` 时可 buffer 升级，见 §2.5）
 - 推断逻辑集中在 main 的 `ops/metadata.ts`，renderer 不再自行判断 MIME / ext
 

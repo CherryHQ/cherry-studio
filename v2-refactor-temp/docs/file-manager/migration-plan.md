@@ -984,7 +984,7 @@ const filePaths = entries.map(e => e.path).join('\n')
 
 #### 2.7.1 `name`（存储名）现状
 
-**Producer（FileStorage 统一构造）**：所有 `FileStorage.ts` 的 setter 里 `name: uuid + ext` 或 `path.basename(...)` 模式，统一是"id + ext"形态。由 `createEntry` 返回给 renderer。
+**Producer（FileStorage 统一构造）**：所有 `FileStorage.ts` 的 setter 里 `name: uuid + ext` 或 `path.basename(...)` 模式，统一是"id + ext"形态。由 `createInternalEntry` / `ensureExternalEntry` 返回给 renderer。
 
 **Renderer 中的真实消费者**：
 
