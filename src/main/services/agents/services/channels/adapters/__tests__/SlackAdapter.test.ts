@@ -686,6 +686,62 @@ describe('SlackAdapter', () => {
 
   // ─── User Name Resolution ────────────────────────────────
 
+  it('sendMedia() runs files.uploadV2 three-step flow and completes into channel', async () => {
+    const adapter = await connectAdapter()
+
+    const calls: string[] = []
+    mockNetFetch.mockImplementation((url: string) => {
+      calls.push(url)
+      if (url.includes('auth.test')) {
+        return Promise.resolve(mockJsonResponse({ ok: true, user_id: BOT_USER_ID }))
+      }
+      if (url.includes('files.getUploadURLExternal')) {
+        return Promise.resolve(
+          mockJsonResponse({ ok: true, upload_url: 'https://files.slack/upload/abc', file_id: 'F123' })
+        )
+      }
+      if (url.includes('/upload/abc')) {
+        return Promise.resolve(mockJsonResponse({ ok: true }))
+      }
+      if (url.includes('files.completeUploadExternal')) {
+        return Promise.resolve(mockJsonResponse({ ok: true }))
+      }
+      return Promise.resolve(mockJsonResponse({ ok: true }))
+    })
+
+    await adapter.sendMedia('C0ALLOWED', Buffer.from('abcd'), 'file', 'report.pdf')
+
+    expect(calls.some((u) => u.includes('files.getUploadURLExternal'))).toBe(true)
+    expect(calls.some((u) => u.includes('/upload/abc'))).toBe(true)
+    expect(calls.some((u) => u.includes('files.completeUploadExternal'))).toBe(true)
+
+    const completeCall = mockNetFetch.mock.calls.find((c: unknown[]) =>
+      (c[0] as string).includes('files.completeUploadExternal')
+    )
+    const body = JSON.parse(completeCall![1].body) as {
+      files: { id: string; title: string }[]
+      channel_id: string
+    }
+    expect(body.files).toEqual([{ id: 'F123', title: 'report.pdf' }])
+    expect(body.channel_id).toBe('C0ALLOWED')
+  })
+
+  it('sendMedia() throws when Slack rejects the reservation', async () => {
+    const adapter = await connectAdapter()
+
+    mockNetFetch.mockImplementation((url: string) => {
+      if (url.includes('auth.test')) {
+        return Promise.resolve(mockJsonResponse({ ok: true, user_id: BOT_USER_ID }))
+      }
+      if (url.includes('files.getUploadURLExternal')) {
+        return Promise.resolve(mockJsonResponse({ ok: false, error: 'invalid_auth' }))
+      }
+      return Promise.resolve(mockJsonResponse({ ok: true }))
+    })
+
+    await expect(adapter.sendMedia('C0ALLOWED', Buffer.from('x'), 'image')).rejects.toThrow(/invalid_auth/)
+  })
+
   it('caches user names across messages', async () => {
     const adapter = await connectAdapter()
     const messageSpy = vi.fn()

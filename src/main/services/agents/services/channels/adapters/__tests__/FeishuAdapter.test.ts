@@ -29,12 +29,17 @@ const mockCardSettings = vi.fn().mockResolvedValue({ code: 0 })
 const mockCardUpdate = vi.fn().mockResolvedValue({ code: 0 })
 const mockElementContent = vi.fn().mockResolvedValue({ code: 0 })
 
+const mockImImageCreate = vi.fn()
+const mockImFileCreate = vi.fn()
+
 const mockClient = {
   im: {
     message: {
       create: mockImCreate,
       update: mockImUpdate
-    }
+    },
+    image: { create: mockImImageCreate },
+    file: { create: mockImFileCreate }
   },
   cardkit: {
     v1: {
@@ -76,6 +81,8 @@ describe('FeishuAdapter', () => {
   beforeEach(() => {
     mockImCreate.mockClear().mockResolvedValue({ code: 0, data: { message_id: 'msg-1' } })
     mockImUpdate.mockClear().mockResolvedValue({ code: 0 })
+    mockImImageCreate.mockClear().mockResolvedValue({ image_key: 'img_key_stub' })
+    mockImFileCreate.mockClear().mockResolvedValue({ file_key: 'file_key_stub' })
     mockCardCreate.mockClear().mockResolvedValue({ code: 0, data: { card_id: 'card-1' } })
     mockCardSettings.mockClear().mockResolvedValue({ code: 0 })
     mockCardUpdate.mockClear().mockResolvedValue({ code: 0 })
@@ -380,5 +387,57 @@ describe('FeishuAdapter', () => {
   it('sets notifyChatIds from allowed_chat_ids', () => {
     const adapter = createAdapter({ allowed_chat_ids: ['oc_a', 'oc_b'] })
     expect(adapter.notifyChatIds).toEqual(['oc_a', 'oc_b'])
+  })
+
+  it('sendMedia(image) uploads via im.image.create then posts an image message', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    const buf = Buffer.from([0x89, 0x50, 0x4e, 0x47])
+    await adapter.sendMedia('oc_123', buf, 'image')
+
+    expect(mockImImageCreate).toHaveBeenCalledWith({ data: { image_type: 'message', image: buf } })
+    const msgCall = mockImCreate.mock.calls.at(-1)!
+    expect(msgCall[0]).toMatchObject({
+      params: { receive_id_type: 'chat_id' },
+      data: { receive_id: 'oc_123', msg_type: 'image', content: JSON.stringify({ image_key: 'img_key_stub' }) }
+    })
+  })
+
+  it('sendMedia(file) uploads via im.file.create with derived file_type, then posts a file message', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    const buf = Buffer.from('pdf-body')
+    await adapter.sendMedia('oc_123', buf, 'file', 'report.pdf')
+
+    expect(mockImFileCreate).toHaveBeenCalledWith({
+      data: { file_type: 'pdf', file_name: 'report.pdf', file: buf }
+    })
+    const msgCall = mockImCreate.mock.calls.at(-1)!
+    expect(msgCall[0]).toMatchObject({
+      params: { receive_id_type: 'chat_id' },
+      data: { receive_id: 'oc_123', msg_type: 'file', content: JSON.stringify({ file_key: 'file_key_stub' }) }
+    })
+  })
+
+  it('sendMedia(file) falls back to file_type "stream" for unknown extensions', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    await adapter.sendMedia('oc_123', Buffer.from('x'), 'file', 'archive.zip')
+
+    expect(mockImFileCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ file_type: 'stream', file_name: 'archive.zip' })
+      })
+    )
+  })
+
+  it('sendMedia(file) throws when fileName is missing', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    await expect(adapter.sendMedia('oc_123', Buffer.from('x'), 'file')).rejects.toThrow(/fileName is required/)
   })
 })

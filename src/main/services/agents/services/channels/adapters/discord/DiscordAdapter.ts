@@ -14,7 +14,7 @@ import {
 import { registerAdapterFactory } from '../../ChannelManager'
 import { isSlashCommand, SLASH_COMMANDS } from '../../constants'
 import { FlushController } from '../../FlushController'
-import { splitMessage } from '../../utils'
+import { detectImageExtension, detectImageMime, mimeFromFileName, splitMessage } from '../../utils'
 
 const DISCORD_API_BASE = 'https://discord.com/api/v10'
 const DISCORD_MAX_LENGTH = 2000
@@ -703,6 +703,47 @@ class DiscordAdapter extends ChannelAdapter {
       })
     } catch {
       // Typing indicator is best-effort
+    }
+  }
+
+  override async sendMedia(
+    chatId: string,
+    data: Buffer,
+    mediaType: 'image' | 'file',
+    fileName?: string
+  ): Promise<void> {
+    const channelId = chatId.split(':')[1]
+    if (!channelId) {
+      throw new Error(`Invalid Discord chatId: ${chatId}`)
+    }
+
+    let uploadName: string
+    let mime: string
+    if (mediaType === 'image') {
+      uploadName = fileName ?? `image.${detectImageExtension(data)}`
+      mime = detectImageMime(data)
+    } else {
+      if (!fileName) throw new Error('fileName is required when sending a file to Discord')
+      uploadName = fileName
+      mime = mimeFromFileName(fileName)
+    }
+
+    const form = new FormData()
+    form.append('payload_json', JSON.stringify({ attachments: [{ id: 0, filename: uploadName }] }))
+    form.append('files[0]', new Blob([new Uint8Array(data)], { type: mime }), uploadName)
+
+    const response = await net.fetch(`${DISCORD_API_BASE}/channels/${channelId}/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bot ${this.botToken}`,
+        'User-Agent': USER_AGENT
+      },
+      body: form
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '')
+      throw new Error(`Discord media upload failed: HTTP ${response.status} - ${errorText}`)
     }
   }
 

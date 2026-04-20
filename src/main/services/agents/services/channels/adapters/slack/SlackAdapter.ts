@@ -12,7 +12,7 @@ import {
 import { registerAdapterFactory } from '../../ChannelManager'
 import { isSlashCommand } from '../../constants'
 import { FlushController } from '../../FlushController'
-import { splitMessage } from '../../utils'
+import { detectImageExtension, detectImageMime, mimeFromFileName, splitMessage } from '../../utils'
 import { toSlackMarkdown } from './slackMarkdown'
 
 const SLACK_API_BASE = 'https://slack.com/api'
@@ -557,6 +557,62 @@ class SlackAdapter extends ChannelAdapter {
   async sendTypingIndicator(_chatId: string): Promise<void> {
     // Slack doesn't have a public "typing" API for bots.
     // Acknowledgment is handled via reactions in handleEvent() instead.
+  }
+
+  /**
+   * Upload a file via Slack's 3-step files.uploadV2 flow:
+   *   1. files.getUploadURLExternal — reserves an upload URL for (filename, length)
+   *   2. POST the bytes to that URL
+   *   3. files.completeUploadExternal — finalizes and shares into the target channel
+   */
+  override async sendMedia(
+    chatId: string,
+    data: Buffer,
+    mediaType: 'image' | 'file',
+    fileName?: string
+  ): Promise<void> {
+    let uploadName: string
+    let mime: string
+    if (mediaType === 'image') {
+      uploadName = fileName ?? `image.${detectImageExtension(data)}`
+      mime = detectImageMime(data)
+    } else {
+      if (!fileName) throw new Error('fileName is required when sending a file to Slack')
+      uploadName = fileName
+      mime = mimeFromFileName(fileName)
+    }
+
+    const getUrl = new URLSearchParams({ filename: uploadName, length: String(data.length) })
+    const getResp = await net.fetch(`${SLACK_API_BASE}/files.getUploadURLExternal?${getUrl}`, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${this.botToken}` }
+    })
+    if (!getResp.ok) {
+      throw new Error(`Slack files.getUploadURLExternal: HTTP ${getResp.status}`)
+    }
+    const { ok, error, upload_url, file_id } = (await getResp.json()) as {
+      ok: boolean
+      error?: string
+      upload_url?: string
+      file_id?: string
+    }
+    if (!ok || !upload_url || !file_id) {
+      throw new Error(`Slack files.getUploadURLExternal: ${error ?? 'missing upload_url/file_id'}`)
+    }
+
+    const uploadResp = await net.fetch(upload_url, {
+      method: 'POST',
+      headers: { 'Content-Type': mime },
+      body: new Uint8Array(data)
+    })
+    if (!uploadResp.ok) {
+      throw new Error(`Slack CDN upload failed: HTTP ${uploadResp.status}`)
+    }
+
+    await this.apiRequest('files.completeUploadExternal', {
+      files: [{ id: file_id, title: uploadName }],
+      channel_id: chatId
+    })
   }
 
   // ─── Streaming ─────────────────────────────────────────────

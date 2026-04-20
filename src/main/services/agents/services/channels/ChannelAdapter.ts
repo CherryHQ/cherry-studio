@@ -274,6 +274,13 @@ export abstract class ChannelAdapter extends EventEmitter {
   abstract sendTypingIndicator(chatId: string): Promise<void>
 
   /**
+   * Send a binary media payload (image or file) to a chat. Adapters that
+   * don't support media delivery should keep the default throw-implementation
+   * so the caller (MCP notify tool) can surface a clear error. Subclasses that
+   * support it override this method.
+   */
+  abstract sendMedia(chatId: string, data: Buffer, mediaType: 'image' | 'file', fileName?: string): Promise<void>
+  /**
    * Called on every text update during streaming. The adapter decides
    * internally when/how to flush to the platform (throttle, mutex, etc.).
    * @param fullText - The full cumulative response text so far.

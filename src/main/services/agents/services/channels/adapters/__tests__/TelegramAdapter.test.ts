@@ -18,19 +18,32 @@ const mockBot = {
   api: {
     setMyCommands: vi.fn().mockResolvedValue(undefined),
     sendMessage: vi.fn().mockResolvedValue(undefined),
-    sendChatAction: vi.fn().mockResolvedValue(undefined)
+    sendChatAction: vi.fn().mockResolvedValue(undefined),
+    sendPhoto: vi.fn().mockResolvedValue(undefined),
+    sendDocument: vi.fn().mockResolvedValue(undefined)
   },
   catch: vi.fn(),
   start: vi.fn().mockResolvedValue(undefined),
   stop: vi.fn().mockResolvedValue(undefined)
 }
 
-vi.mock('grammy', () => ({
-  Bot: vi.fn().mockImplementation(() => mockBot)
-}))
+vi.mock('grammy', () => {
+  class FakeInputFile {
+    constructor(
+      public source: unknown,
+      public filename?: string
+    ) {}
+  }
+  return {
+    Bot: vi.fn().mockImplementation(() => mockBot),
+    InputFile: FakeInputFile
+  }
+})
 
 // Import the module to trigger self-registration side effect
 import '../telegram/TelegramAdapter'
+
+type FakeInputFile = { source: unknown; filename?: string }
 
 import { registerAdapterFactory } from '../../ChannelManager'
 
@@ -49,6 +62,8 @@ describe('TelegramAdapter', () => {
     mockBot.api.setMyCommands.mockClear().mockResolvedValue(undefined)
     mockBot.api.sendMessage.mockClear().mockResolvedValue(undefined)
     mockBot.api.sendChatAction.mockClear().mockResolvedValue(undefined)
+    mockBot.api.sendPhoto.mockClear().mockResolvedValue(undefined)
+    mockBot.api.sendDocument.mockClear().mockResolvedValue(undefined)
     mockBot.catch.mockClear()
     mockBot.start.mockClear().mockResolvedValue(undefined)
     mockBot.stop.mockClear().mockResolvedValue(undefined)
@@ -244,5 +259,39 @@ describe('TelegramAdapter', () => {
       userName: 'TestUser',
       text: 'Hello bot'
     })
+  })
+
+  it('sendMedia(image) calls bot.api.sendPhoto with an InputFile wrapping the buffer', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    const buf = Buffer.from([0x89, 0x50, 0x4e, 0x47]) // PNG magic
+    await adapter.sendMedia('123', buf, 'image')
+
+    expect(mockBot.api.sendPhoto).toHaveBeenCalledTimes(1)
+    const [chatId, inputFile] = mockBot.api.sendPhoto.mock.calls[0]
+    expect(chatId).toBe('123')
+    expect((inputFile as FakeInputFile).source).toBe(buf)
+    expect((inputFile as FakeInputFile).filename).toBe('image.png')
+    expect(mockBot.api.sendDocument).not.toHaveBeenCalled()
+  })
+
+  it('sendMedia(file) calls bot.api.sendDocument with the provided filename', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    const buf = Buffer.from('abc')
+    await adapter.sendMedia('123', buf, 'file', 'report.pdf')
+
+    expect(mockBot.api.sendDocument).toHaveBeenCalledTimes(1)
+    const [, inputFile] = mockBot.api.sendDocument.mock.calls[0]
+    expect((inputFile as FakeInputFile).filename).toBe('report.pdf')
+  })
+
+  it('sendMedia(file) throws when fileName is missing', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    await expect(adapter.sendMedia('123', Buffer.from('x'), 'file')).rejects.toThrow(/fileName is required/)
   })
 })

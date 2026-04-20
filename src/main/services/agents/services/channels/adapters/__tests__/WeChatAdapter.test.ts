@@ -36,7 +36,9 @@ const mockBot = {
   send: vi.fn().mockResolvedValue(undefined),
   reply: vi.fn().mockResolvedValue(undefined),
   sendTyping: vi.fn().mockResolvedValue(undefined),
-  stopTyping: vi.fn().mockResolvedValue(undefined)
+  stopTyping: vi.fn().mockResolvedValue(undefined),
+  sendImage: vi.fn().mockResolvedValue(undefined),
+  sendFile: vi.fn().mockResolvedValue(undefined)
 }
 
 vi.mock('../wechat/WeChatProtocol', () => ({
@@ -69,6 +71,8 @@ describe('WeChatAdapter', () => {
     mockBot.reply.mockClear().mockResolvedValue(undefined)
     mockBot.sendTyping.mockClear().mockResolvedValue(undefined)
     mockBot.stopTyping.mockClear().mockResolvedValue(undefined)
+    mockBot.sendImage.mockClear().mockResolvedValue(undefined)
+    mockBot.sendFile.mockClear().mockResolvedValue(undefined)
   })
 
   afterEach(() => {
@@ -212,6 +216,35 @@ describe('WeChatAdapter', () => {
     })
 
     expect(messageSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('sendMedia() routes image to bot.sendImage()', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    const buf = Buffer.from([0x89, 0x50, 0x4e, 0x47])
+    await adapter.sendMedia('user-123', buf, 'image')
+
+    expect(mockBot.sendImage).toHaveBeenCalledWith('user-123', buf)
+    expect(mockBot.sendFile).not.toHaveBeenCalled()
+  })
+
+  it('sendMedia() routes file to bot.sendFile() with fileName', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    const buf = Buffer.from('hello')
+    await adapter.sendMedia('user-123', buf, 'file', 'report.pdf')
+
+    expect(mockBot.sendFile).toHaveBeenCalledWith('user-123', buf, 'report.pdf')
+    expect(mockBot.sendImage).not.toHaveBeenCalled()
+  })
+
+  it('sendMedia() rejects file without fileName', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    await expect(adapter.sendMedia('user-123', Buffer.from('x'), 'file')).rejects.toThrow(/fileName is required/)
   })
 
   it('/whoami command replies with user info', async () => {

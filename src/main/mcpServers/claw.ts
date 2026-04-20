@@ -1,6 +1,10 @@
+import { readFile } from 'node:fs/promises'
+import path from 'node:path'
+
 import { loggerService } from '@logger'
 import { type ChannelConfig, ChannelConfigSchema } from '@main/services/agents/database/schema'
 import { agentService } from '@main/services/agents/services/AgentService'
+import type { ChannelAdapter } from '@main/services/agents/services/channels/ChannelAdapter'
 import { channelManager } from '@main/services/agents/services/channels/ChannelManager'
 import { channelService } from '@main/services/agents/services/ChannelService'
 import { taskService } from '@main/services/agents/services/TaskService'
@@ -83,20 +87,34 @@ const CRON_TOOL: Tool = {
 const NOTIFY_TOOL: Tool = {
   name: 'notify',
   description:
-    'Send a notification message to the user through connected channels (e.g. Telegram). Use this to proactively inform the user about task results, status updates, or any important information.',
+    "Send a notification to the user through connected channels (e.g. Telegram, WeChat). Use to proactively deliver task results, status updates, or files you've generated. Supports optional image attachment (image_path OR image_base64) and/or file attachment (file_path) so images and documents you produce in the agent workspace can be relayed straight to the user's IM client instead of sending URLs. Media delivery currently supported by WeChat.",
   inputSchema: {
     type: 'object',
     properties: {
       message: {
         type: 'string',
-        description: 'The notification message to send to the user'
+        description:
+          'The notification message to send. Optional when an image or file is attached — the attachment is then sent on its own.'
       },
       channel_id: {
         type: 'string',
         description: 'Optional: send to a specific channel only (omit to send to all notify-enabled channels)'
+      },
+      image_path: {
+        type: 'string',
+        description: 'Absolute local file path to an image (PNG/JPEG/GIF/WebP). Mutually exclusive with image_base64.'
+      },
+      image_base64: {
+        type: 'string',
+        description: 'Base64-encoded image bytes (raw or data URI). Mutually exclusive with image_path.'
+      },
+      file_path: {
+        type: 'string',
+        description:
+          'Absolute local file path to a document (PDF, DOCX, etc.) to send as a file attachment. The basename is used as the file name shown to the recipient.'
       }
     },
-    required: ['message']
+    required: []
   }
 }
 
@@ -200,6 +218,109 @@ const CONFIG_TOOL: Tool = {
     },
     required: ['action']
   }
+}
+
+// ── Notify tool helpers ────────────────────────────────────────────────
+// Kept as module-level functions so ClawServer.sendNotification stays short:
+// parse args → build payloads → deliver → format summary.
+
+type NotifyKind = 'text' | 'image' | 'file'
+
+type NotifyPayload = {
+  kind: NotifyKind
+  send: (adapter: ChannelAdapter, chatId: string) => Promise<void>
+}
+
+const NOTIFY_KIND_LABELS: Record<NotifyKind, string> = {
+  text: 'Notification',
+  image: 'Image',
+  file: 'File'
+}
+
+async function buildNotifyPayloads(args: Record<string, unknown>): Promise<NotifyPayload[]> {
+  const message = args.message as string | undefined
+  const imagePath = args.image_path as string | undefined
+  const imageBase64 = args.image_base64 as string | undefined
+  const filePath = args.file_path as string | undefined
+
+  if (imagePath && imageBase64) {
+    throw new McpError(ErrorCode.InvalidParams, "Provide only one of 'image_path' or 'image_base64'")
+  }
+
+  const payloads: NotifyPayload[] = []
+
+  const imageBuffer = await resolveImageBytes(imagePath, imageBase64)
+  if (imageBuffer) {
+    payloads.push({
+      kind: 'image',
+      send: (adapter, chatId) => adapter.sendMedia(chatId, imageBuffer, 'image')
+    })
+  }
+
+  if (filePath) {
+    const file = await resolveFileBytes(filePath)
+    payloads.push({
+      kind: 'file',
+      send: (adapter, chatId) => adapter.sendMedia(chatId, file.buffer, 'file', file.fileName)
+    })
+  }
+
+  if (message) {
+    payloads.push({
+      kind: 'text',
+      send: (adapter, chatId) => adapter.sendMessage(chatId, message)
+    })
+  }
+
+  if (payloads.length === 0) {
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      "At least one of 'message', 'image_path', 'image_base64', or 'file_path' is required"
+    )
+  }
+
+  return payloads
+}
+
+async function resolveImageBytes(imagePath?: string, imageBase64?: string): Promise<Buffer | undefined> {
+  if (imagePath) return readAbsoluteFile(imagePath, 'image_path')
+  if (!imageBase64) return undefined
+
+  const raw = imageBase64.startsWith('data:') ? (imageBase64.split(',', 2)[1] ?? '') : imageBase64
+  const buffer = Buffer.from(raw, 'base64')
+  if (buffer.length === 0) {
+    throw new McpError(ErrorCode.InvalidParams, "'image_base64' did not decode to any bytes")
+  }
+  return buffer
+}
+
+async function resolveFileBytes(filePath: string): Promise<{ buffer: Buffer; fileName: string }> {
+  const buffer = await readAbsoluteFile(filePath, 'file_path')
+  return { buffer, fileName: path.basename(filePath) }
+}
+
+async function readAbsoluteFile(absPath: string, argName: string): Promise<Buffer> {
+  if (!path.isAbsolute(absPath)) {
+    throw new McpError(ErrorCode.InvalidParams, `'${argName}' must be an absolute path`)
+  }
+  try {
+    return await readFile(absPath)
+  } catch (err) {
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      `Failed to read ${argName} "${absPath}": ${err instanceof Error ? err.message : String(err)}`
+    )
+  }
+}
+
+function formatNotifyResult(payloads: NotifyPayload[], stats: Record<NotifyKind, number>, errors: string[]): string {
+  const attempted = new Set(payloads.map((p) => p.kind))
+  const parts: string[] = []
+  for (const kind of ['text', 'image', 'file'] as const) {
+    if (attempted.has(kind)) parts.push(`${NOTIFY_KIND_LABELS[kind]} sent to ${stats[kind]} chat(s).`)
+  }
+  if (errors.length > 0) parts.push(`Errors: ${errors.join('; ')}`)
+  return parts.join(' ')
 }
 
 class ClawServer {
@@ -356,16 +477,9 @@ class ClawServer {
     }
   }
 
-  private async sendNotification(args: Record<string, string | undefined>) {
-    const message = args.message
-    if (!message) throw new McpError(ErrorCode.InvalidParams, "'message' is required for notify")
-
-    const targetChannelId = args.channel_id
-    let adapters = channelManager.getAgentAdapters(this.agentId)
-
-    if (targetChannelId) {
-      adapters = adapters.filter((a) => a.channelId === targetChannelId)
-    }
+  private async sendNotification(args: Record<string, unknown>) {
+    const payloads = await buildNotifyPayloads(args)
+    const adapters = this.resolveNotifyAdapters(args.channel_id as string | undefined)
 
     if (adapters.length === 0) {
       return {
@@ -378,36 +492,43 @@ class ClawServer {
       }
     }
 
-    let sent = 0
+    const stats: Record<NotifyKind, number> = { text: 0, image: 0, file: 0 }
     const errors: string[] = []
 
     for (const adapter of adapters) {
       for (const chatId of adapter.notifyChatIds) {
-        try {
-          await adapter.sendMessage(chatId, message)
-          sent++
-        } catch (err) {
-          const errMsg = err instanceof Error ? err.message : String(err)
-          errors.push(`${adapter.channelId}/${chatId}: ${errMsg}`)
-          logger.warn('Failed to send notification', {
-            agentId: this.agentId,
-            channelId: adapter.channelId,
-            chatId,
-            error: errMsg
-          })
+        for (const payload of payloads) {
+          try {
+            await payload.send(adapter, chatId)
+            stats[payload.kind]++
+          } catch (err) {
+            const errMsg = err instanceof Error ? err.message : String(err)
+            errors.push(`${adapter.channelId}/${chatId} (${payload.kind}): ${errMsg}`)
+            logger.warn('Failed to send notification payload', {
+              agentId: this.agentId,
+              channelId: adapter.channelId,
+              chatId,
+              kind: payload.kind,
+              error: errMsg
+            })
+          }
         }
       }
     }
 
-    const parts = [`Notification sent to ${sent} chat(s).`]
-    if (errors.length > 0) {
-      parts.push(`Errors: ${errors.join('; ')}`)
-    }
-
-    logger.info('Notification sent via notify tool', { agentId: this.agentId, sent, errors: errors.length })
+    logger.info('Notification sent via notify tool', {
+      agentId: this.agentId,
+      ...stats,
+      errors: errors.length
+    })
     return {
-      content: [{ type: 'text' as const, text: parts.join(' ') }]
+      content: [{ type: 'text' as const, text: formatNotifyResult(payloads, stats, errors) }]
     }
+  }
+
+  private resolveNotifyAdapters(targetChannelId: string | undefined): ChannelAdapter[] {
+    const adapters = channelManager.getAgentAdapters(this.agentId)
+    return targetChannelId ? adapters.filter((a) => a.channelId === targetChannelId) : adapters
   }
 
   // ── Config tool handlers ──────────────────────────────────────────

@@ -16,6 +16,11 @@ import { splitMessage } from '../../utils'
 const QQ_MAX_LENGTH = 2000
 const QQ_API_BASE = 'https://api.sgroup.qq.com'
 
+// Rich-media file_type enum for /v2/{users|groups}/{id}/files
+// (openclaw-qqbot MediaFileType: IMAGE=1, VIDEO=2, VOICE=3, FILE=4)
+const QQ_MEDIA_FILE_TYPE_IMAGE = 1
+const QQ_MEDIA_FILE_TYPE_FILE = 4
+
 // QQ Bot WebSocket opcodes
 const OP_DISPATCH = 0
 const OP_HEARTBEAT = 1
@@ -558,6 +563,60 @@ class QQAdapter extends ChannelAdapter {
     // QQ Bot API does not support typing indicators for most message types
     // For C2C, there's sendC2CInputNotify but it requires message_id context
     // This is a no-op
+  }
+
+  /**
+   * Upload rich media to the QQ open-platform CDN and push a media message.
+   * Protocol mirrors tencent-connect/openclaw-qqbot's simple-upload path:
+   *   1. POST /v2/{users|groups}/{id}/files  with { file_type, file_data (base64), file_name?, srv_send_msg: false }
+   *      → { file_info }
+   *   2. POST /v2/{users|groups}/{id}/messages  with { msg_type: 7, media: { file_info }, msg_seq }
+   *
+   * Supported chat types: c2c, group. `channel` and `dm` (guild API) don't share
+   * this endpoint — we'd need the older guild-side rich-media flow.
+   */
+  override async sendMedia(
+    chatId: string,
+    data: Buffer,
+    mediaType: 'image' | 'file',
+    fileName?: string
+  ): Promise<void> {
+    const [type, id] = chatId.split(':')
+    if ((type !== 'c2c' && type !== 'group') || !id) {
+      throw new Error(`QQ sendMedia only supports 'c2c:' and 'group:' chats, got "${chatId}"`)
+    }
+    if (mediaType === 'file' && !fileName) {
+      throw new Error('fileName is required when sending a file to QQ')
+    }
+
+    const fileType = mediaType === 'image' ? QQ_MEDIA_FILE_TYPE_IMAGE : QQ_MEDIA_FILE_TYPE_FILE
+    const body: Record<string, unknown> = {
+      file_type: fileType,
+      file_data: data.toString('base64'),
+      srv_send_msg: false
+    }
+    if (mediaType === 'file') {
+      body.file_name = fileName
+    }
+
+    const uploadEndpoint =
+      type === 'c2c' ? `${QQ_API_BASE}/v2/users/${id}/files` : `${QQ_API_BASE}/v2/groups/${id}/files`
+    const uploadResp = await this.apiRequest(uploadEndpoint, { method: 'POST', body })
+    const uploadData = (await uploadResp.json()) as { file_info?: string }
+    if (!uploadData.file_info) {
+      throw new Error('QQ media upload returned no file_info')
+    }
+
+    const messageEndpoint =
+      type === 'c2c' ? `${QQ_API_BASE}/v2/users/${id}/messages` : `${QQ_API_BASE}/v2/groups/${id}/messages`
+    await this.apiRequest(messageEndpoint, {
+      method: 'POST',
+      body: {
+        msg_type: 7,
+        media: { file_info: uploadData.file_info },
+        msg_seq: Math.floor(Math.random() * 1_000_000) + 1
+      }
+    })
   }
 
   private cleanup(): void {
