@@ -59,7 +59,7 @@
 
 import * as z from 'zod'
 
-import { SafeNameSchema, TimestampSchema } from './essential'
+import { SafeExtSchema, SafeNameSchema, TimestampSchema } from './essential'
 
 // ─── Entry ID ───
 
@@ -105,8 +105,17 @@ const CommonEntryFields = {
   id: FileEntryIdSchema,
   /** User-visible name (without extension) */
   name: SafeNameSchema,
-  /** File extension without leading dot (e.g. 'pdf', 'md'). Null for extensionless files */
-  ext: z.string().min(1).nullable(),
+  /**
+   * File extension without leading dot (e.g. `'pdf'`, `'md'`). `null` for
+   * extensionless files (e.g. Dockerfile).
+   *
+   * Runtime validation is centralized in `SafeExtSchema`: no leading dot, no
+   * path separators, no null bytes, no whitespace-only value. The TS type
+   * stays plain `string | null` (no brand); correctness is enforced at system
+   * boundaries (IPC parse, DB row parse, factory `splitName`) rather than at
+   * every assignment site. `FileEntrySchema.parse` is the authoritative check.
+   */
+  ext: SafeExtSchema.nullable(),
   /** File size in bytes. For external, this is the last-observed snapshot. */
   size: z.int().nonnegative(),
   /** Trash timestamp (ms epoch). Non-null = trashed. */

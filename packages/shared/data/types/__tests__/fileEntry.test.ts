@@ -206,6 +206,31 @@ describe('FileEntrySchema size/ext boundaries', () => {
   it('rejects empty ext string (use null for extensionless files)', () => {
     expect(FileEntrySchema.safeParse(makeInternal({ ext: '' })).success).toBe(false)
   })
+
+  it('rejects ext with leading dot (convention: bare extension)', () => {
+    expect(FileEntrySchema.safeParse(makeInternal({ ext: '.pdf' })).success).toBe(false)
+    expect(FileEntrySchema.safeParse(makeExternal({ ext: '.md' })).success).toBe(false)
+  })
+
+  it('rejects ext with path separators', () => {
+    expect(FileEntrySchema.safeParse(makeInternal({ ext: 'foo/bar' })).success).toBe(false)
+    expect(FileEntrySchema.safeParse(makeInternal({ ext: 'foo\\bar' })).success).toBe(false)
+  })
+
+  it('rejects ext with null bytes', () => {
+    expect(FileEntrySchema.safeParse(makeInternal({ ext: 'pdf\0evil' })).success).toBe(false)
+  })
+
+  it('rejects whitespace-only ext (use null for extensionless files)', () => {
+    expect(FileEntrySchema.safeParse(makeInternal({ ext: '   ' })).success).toBe(false)
+  })
+
+  it('accepts ext with internal dots (e.g. tar.gz convention lives in name, not ext)', () => {
+    // `.tar.gz` is split as name='archive.tar', ext='gz' by splitName — this
+    // test just confirms the schema itself allows bare multi-letter extensions.
+    expect(FileEntrySchema.safeParse(makeInternal({ ext: 'gz' })).success).toBe(true)
+    expect(FileEntrySchema.safeParse(makeInternal({ ext: '7z' })).success).toBe(true)
+  })
 })
 
 // ─── Brand (duck-typing prevention) ───

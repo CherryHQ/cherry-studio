@@ -249,18 +249,49 @@ type DanglingState = z.infer<typeof DanglingStateSchema>      // 'present' | 'mi
 - `ensureExternalEntry(params)` —— 按 `externalPath` upsert：reuse / restore / insert 三路之一，幂等
 
 ```typescript
+// CreateInternalEntryParams 是 source-discriminated union：
+//   | { source: 'path',   path: FilePath }
+//   | { source: 'url',    url: URLString }
+//   | { source: 'base64', data: Base64String; name?: string }
+//   | { source: 'bytes',  data: Uint8Array;   name: string; ext: string | null }
+// 类型门把"能从 content 派生的字段"在可派生分支上直接 hide，避免调用方冗余/矛盾输入。
+// 完整契约与决策说明见 `packages/shared/file/types/ipc.ts` + `file-arch-problems-response.md`（A-7 延伸）。
+
 // createInternalEntry: 复制 / 移动内容到 {userData}/files/{id}.{ext}
 async function createInternalEntry(params: CreateInternalEntryParams): Promise<FileEntry> {
   const id = uuidv7()
-  const { name, ext } = splitName(params.name, params.ext)
+  const { name, ext, bytes } = await resolveInternalSource(params)
   const dest = resolvePhysicalPath({ id, ext, origin: 'internal' })
 
   // 1. 原子写物理文件
-  await ops.atomicWriteFile(dest, params.content)
+  await ops.atomicWriteFile(dest, bytes)
   const { size } = await ops.stat(dest)
 
   // 2. 写入 DB
   return fileEntryService.create({ id, origin: 'internal', name, ext, size })
+}
+
+// resolveInternalSource: 按 source 分支派生 name/ext/bytes
+async function resolveInternalSource(p: CreateInternalEntryParams) {
+  switch (p.source) {
+    case 'path': {
+      const bytes = await ops.createReadStream(p.path)
+      return { ...splitName(path.basename(p.path)), bytes }
+    }
+    case 'url': {
+      const res = await fetch(p.url)
+      return {
+        ...deriveFromUrl(p.url, res.headers), // 末段 / Content-Disposition / Content-Type
+        bytes: new Uint8Array(await res.arrayBuffer())
+      }
+    }
+    case 'base64': {
+      const { mime, bytes } = decodeDataUrl(p.data)
+      return { name: p.name ?? synthesizeName(mime), ext: mimeToExt(mime), bytes }
+    }
+    case 'bytes':
+      return { name: p.name, ext: p.ext, bytes: p.data }
+  }
 }
 
 // ensureExternalEntry: 按 externalPath upsert
@@ -356,12 +387,11 @@ async function permanentDelete(handle: FileHandle): Promise<void> {
 
 ```typescript
 async function copy(params: { source: FileHandle; newName?: string }): Promise<FileEntry> {
-  const sourcePath = resolveFileHandle(params.source)
-  const content = ops.createReadStream(sourcePath)
-  return createInternalEntry({
-    name: params.newName ?? deriveNameFromHandle(params.source),
-    content
-  })
+  const sourcePath = resolveFileHandle(params.source) // → absolute FilePath
+  // source: 'path' 分支 — createInternalEntry 内部会走 basename/extname 派生 name/ext。
+  // newName 另走一条：若提供则在派生后 override（copy 独占的 UX 需求，不污染 core API）。
+  const entry = await createInternalEntry({ source: 'path', path: sourcePath })
+  return params.newName ? rename(entry.id, params.newName) : entry
 }
 ```
 
@@ -600,7 +630,10 @@ const { data: entries } = useQuery(fileApi.listEntries, {
 const filePaths = entries.map((e) => e.path).join('\n')
 
 // 案例 3：写操作（走 File IPC）
-await window.api.file.createInternalEntry({ name, content })
+// createInternalEntry 按 source 分支调用，字段类型门自动收紧
+await window.api.file.createInternalEntry({ source: 'path', path: userPickedPath })
+await window.api.file.createInternalEntry({ source: 'base64', data: dataUrl, name: 'Pasted Image' })
+await window.api.file.createInternalEntry({ source: 'url', url: downloadUrl })
 await window.api.file.ensureExternalEntry({ externalPath })
 await window.api.file.trash({ id })
 ```

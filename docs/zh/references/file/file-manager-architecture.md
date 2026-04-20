@@ -196,11 +196,15 @@ export interface FileManagerDeps {
 }
 
 // internal/entry/create.ts — 两个 API，对应 FileManager facade 的两个 public method
+// 注：CreateInternalEntryParams 是 source-discriminated union
+//   （source: 'path' | 'url' | 'base64' | 'bytes'），每个分支只暴露 content
+//   无法派生的 name/ext 字段。完整矩阵见 `packages/shared/file/types/ipc.ts`
+//   及 `v2-refactor-temp/docs/file-manager/file-arch-problems-response.md`（A-7 延伸）。
 export async function createInternalEntry(
   deps: FileManagerDeps,
   params: CreateInternalEntryParams
 ): Promise<FileEntry> {
-  // 写物理文件 → DB insert；永远产生新 entry
+  // 按 source 分支解出 { name, ext, bytes } → 写物理文件 → DB insert；永远产生新 entry
 }
 
 export async function ensureExternalEntry(

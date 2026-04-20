@@ -21,7 +21,7 @@
 
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 
-import type { DirectoryListOptions, FileContent, FilePath, PhysicalFileMetadata } from './common'
+import type { Base64String, DirectoryListOptions, FilePath, PhysicalFileMetadata, URLString } from './common'
 import type { FileHandle } from './handle'
 
 export type { DirectoryListOptions, FilePath } from './common'
@@ -43,13 +43,58 @@ export interface ReadResult<T> {
 
 /**
  * Params for creating a Cherry-owned (internal) FileEntry.
+ *
  * Always produces a fresh entry with a new UUID — no conflict resolution.
+ *
+ * ## Why a `source` discriminator union?
+ *
+ * `name` and `ext` are display metadata. They can sometimes be derived from
+ * the content source, but not always. Rather than taking them all as optional
+ * and letting callers silently pass redundant (or contradictory) values, we
+ * enumerate the four content sources and type-gate the fields that each one
+ * can or cannot derive:
+ *
+ * | source   | name derivation          | ext derivation              | caller must pass  |
+ * |----------|--------------------------|-----------------------------|-------------------|
+ * | `path`   | `basename(path)`         | `extname(path)`             | — (path only)     |
+ * | `url`    | URL tail / CD header     | URL suffix / Content-Type   | — (url only)      |
+ * | `base64` | no origin                | mime → ext lookup           | `name?` (UX)      |
+ * | `bytes`  | no origin                | no origin                   | `name`, `ext`     |
+ *
+ * "Can derive" ⇒ the field is **absent** from that branch — preventing
+ * callers from accidentally passing a `name` that disagrees with `basename(path)`.
+ * "Cannot derive" ⇒ the field is **required** (or optional-with-fallback for
+ * UX names, where the caller has a legitimate choice).
+ *
+ * See `file-arch-problems-response.md` for the full rationale (extension of A-7).
  */
-export type CreateInternalEntryIpcParams = {
-  name: string
-  ext?: string | null
-  content: FileContent
-}
+export type CreateInternalEntryIpcParams =
+  | {
+      /** Copy the file at `path` into Cherry storage. `name` / `ext` derived from basename+extname. */
+      source: 'path'
+      path: FilePath
+    }
+  | {
+      /** Download the URL into Cherry storage. `name` / `ext` derived from URL tail, Content-Disposition, and Content-Type. */
+      source: 'url'
+      url: URLString
+    }
+  | {
+      /** Decode `data:<mime>;base64,...` and write into Cherry storage. `ext` derived from mime; caller may override the UX display name. */
+      source: 'base64'
+      data: Base64String
+      /** Optional display name override. If omitted, FileManager synthesizes one (e.g. `Pasted Image 2026-04-21`). */
+      name?: string
+    }
+  | {
+      /** Write raw bytes into Cherry storage. No derivation possible — caller is the sole authority for `name` and `ext`. */
+      source: 'bytes'
+      data: Uint8Array
+      /** Display name without extension. */
+      name: string
+      /** File extension without leading dot (e.g. `'pdf'`), or `null` for extensionless. */
+      ext: string | null
+    }
 
 /**
  * Params for ensuring an entry exists for a user-provided (external) path.

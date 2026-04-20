@@ -25,3 +25,27 @@ export const SafeNameSchema = z
   .refine((s) => !/[/\\]/.test(s), 'Name must not contain path separators')
   .refine((s) => !/^\.\.?$/.test(s), 'Name must not be . or ..')
   .refine((s) => s.trim().length > 0, 'Name must not be all whitespace')
+
+/**
+ * Extension schema with path-safety validations.
+ *
+ * Threat model: internal-entry writes persist files as `{id}.{ext}` under a
+ * Cherry-owned directory. The extension therefore becomes part of a path
+ * segment passed to `application.getPath(..., filename)`. If callers can pass
+ * separators or null bytes here, they can break the "single relative segment"
+ * invariant and escape the managed directory.
+ *
+ * Design intent:
+ * - `ext` is the bare suffix only (`pdf`, `md`, `gz`) — never `.pdf`
+ * - multi-part names like `archive.tar.gz` split as `name='archive.tar'`,
+ *   `ext='gz'`
+ * - extensionless files should use `null`, not empty string / whitespace
+ */
+export const SafeExtSchema = z
+  .string()
+  .min(1)
+  .max(255)
+  .refine((s) => !s.includes('\0'), 'Extension must not contain null bytes')
+  .refine((s) => !/[/\\]/.test(s), 'Extension must not contain path separators')
+  .refine((s) => !s.startsWith('.'), 'Extension must be bare (no leading dot), e.g. "pdf" not ".pdf"')
+  .refine((s) => s.trim().length > 0, 'Extension must not be all whitespace')

@@ -87,7 +87,20 @@
 import type { Readable, Writable } from 'node:stream'
 
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
-import type { BatchOperationResult, FileContent, FilePath, PhysicalFileMetadata } from '@shared/file/types'
+import type {
+  BatchOperationResult,
+  CreateInternalEntryIpcParams,
+  EnsureExternalEntryIpcParams,
+  PhysicalFileMetadata
+} from '@shared/file/types'
+
+// Main-side parameter types are structurally identical to the IPC variants —
+// `CreateInternalEntryIpcParams` is a discriminated union on `source`
+// (`'path' | 'url' | 'base64' | 'bytes'`) that type-gates which of
+// `name`/`ext` each source may pass (see ipc.ts JSDoc).
+// Re-exported under shorter names for Main callers.
+export type CreateInternalEntryParams = CreateInternalEntryIpcParams
+export type EnsureExternalEntryParams = EnsureExternalEntryIpcParams
 
 // ─── Version types ───
 
@@ -102,31 +115,6 @@ export interface ReadResult<T> {
   content: T
   mime: string
   version: FileVersion
-}
-
-// ─── Create params ───
-
-/**
- * Params for `createInternalEntry`. Each call produces a fresh entry with a
- * new UUID — no conflict / upsert semantics.
- */
-export type CreateInternalEntryParams = {
-  /** User-visible name (without extension) */
-  name: string
-  /** Optional extension (without leading dot). Derived from `name` if omitted. */
-  ext?: string | null
-  content: FileContent
-}
-
-/**
- * Params for `ensureExternalEntry`. Upsert semantics — see method JSDoc below
- * for the full insert / reuse / restore matrix.
- */
-export type EnsureExternalEntryParams = {
-  /** Absolute path to user-provided file. Must exist and be readable. */
-  externalPath: FilePath
-  /** Optional override for display name (defaults to basename of externalPath) */
-  name?: string
 }
 
 // ─── Stream helpers ───
@@ -173,8 +161,17 @@ export interface IFileManager {
   /**
    * Create a new Cherry-owned (internal) FileEntry.
    *
-   * Writes `content` to `{userData}/files/{newUuid}.{ext}` and inserts a fresh
-   * DB row. No conflict resolution — every call produces an independent entry.
+   * `params` is a `source`-discriminated union (`'path' | 'url' | 'base64' | 'bytes'`)
+   * that type-gates which of `name`/`ext` each content source may supply —
+   * fields derivable from the source are **absent** from the branch; only
+   * non-derivable fields (e.g. `name` for base64 / bytes, `ext` for bytes) are
+   * exposed. See `@shared/file/types/ipc.ts` for the full matrix and
+   * `v2-refactor-temp/docs/file-manager/file-arch-problems-response.md` (A-7
+   * extension) for the decision rationale.
+   *
+   * FileManager resolves the derived fields, writes bytes to
+   * `{userData}/files/{newUuid}.{ext}`, and inserts a fresh DB row. No conflict
+   * resolution — every call produces an independent entry.
    */
   createInternalEntry(params: CreateInternalEntryParams): Promise<FileEntry>
 
