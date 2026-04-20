@@ -561,6 +561,32 @@ function buildAIGatewayOptions(
   | GoogleGenerativeAIProviderOptions
   | Record<string, unknown>
 > {
+  // Proxy providers (CherryIN, NewAPI) may annotate model.endpoint_type to force a specific protocol.
+  // Keys here must stay aligned with the language-model class each SDK layer builds, otherwise
+  // AI SDK drops the custom provider options. See:
+  //   - packages/ai-sdk-provider/src/cherryin-provider.ts (createChatModel)
+  //   - src/renderer/src/aiCore/provider/custom/newapi-provider.ts (createChatModel)
+  //
+  //   endpoint_type      | SDK language-model class           | AI SDK providerOptions key
+  //   -------------------+------------------------------------+---------------------------
+  //   'anthropic'        | AnthropicMessagesLanguageModel     | anthropic
+  //   'gemini'           | GoogleGenerativeAILanguageModel    | google
+  //   'openai-response'  | OpenAIResponsesLanguageModel       | openai
+  //   'openai'           | OpenAICompatibleChatLanguageModel  | openai-compatible
+  //   'image-generation' | OpenAICompatibleChatLanguageModel  | openai-compatible
+  switch (model.endpoint_type) {
+    case 'anthropic':
+      return buildAnthropicProviderOptions(assistant, model, capabilities)
+    case 'gemini':
+      return buildGeminiProviderOptions(assistant, model, capabilities)
+    case 'openai-response':
+      return buildOpenAIProviderOptions(assistant, model, capabilities, serviceTier, textVerbosity)
+    case 'openai':
+    case 'image-generation':
+      return buildGenericProviderOptions('openai-compatible', assistant, model, capabilities)
+  }
+
+  // Fallback: model-name heuristic (covers Vercel Gateway, AiHubMix, and untagged models)
   if (isAnthropicModel(model)) {
     return buildAnthropicProviderOptions(assistant, model, capabilities)
   } else if (isOpenAIModel(model)) {
