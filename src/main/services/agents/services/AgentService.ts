@@ -4,6 +4,7 @@ import { agentChannelTable as channelsTable } from '@data/db/schemas/agentChanne
 import { agentSessionTable as sessionsTable } from '@data/db/schemas/agentSession'
 import { agentSkillTable as agentSkillsTable } from '@data/db/schemas/agentSkill'
 import { agentTaskTable as scheduledTasksTable } from '@data/db/schemas/agentTask'
+import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { modelsService } from '@main/apiServer/services/models'
@@ -90,10 +91,14 @@ export class AgentService {
 
     const database = application.get('DbService').getDb()
     // Shift all existing agents' sort_order up by 1 and insert new agent at position 0 atomically
-    await database.transaction(async (tx) => {
-      await tx.update(agentsTable).set({ sortOrder: sql`${agentsTable.sortOrder} + 1` })
-      await tx.insert(agentsTable).values(insertData)
-    })
+    await withSqliteErrors(
+      () =>
+        database.transaction(async (tx) => {
+          await tx.update(agentsTable).set({ sortOrder: sql`${agentsTable.sortOrder} + 1` })
+          await tx.insert(agentsTable).values(insertData)
+        }),
+      defaultHandlersFor('Agent', id)
+    )
     const result = await database.select().from(agentsTable).where(eq(agentsTable.id, id)).limit(1)
     if (!result[0]) {
       throw new Error('Failed to create agent')
@@ -484,7 +489,10 @@ export class AgentService {
       .limit(1)
     const rawOldAgent = rawRows[0]
 
-    await database.update(agentsTable).set(updateData).where(eq(agentsTable.id, id))
+    await withSqliteErrors(
+      () => database.update(agentsTable).set(updateData).where(eq(agentsTable.id, id)),
+      defaultHandlersFor('Agent', id)
+    )
 
     // Sync changed fields to all sessions that still match the agent's old values.
     // Sessions where the user has customized a field are left untouched.

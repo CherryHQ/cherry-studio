@@ -157,15 +157,19 @@ export interface AgentSchemas {
     }
   }
 
-  /** List or delete session messages */
+  /** List session messages */
   '/agents/:id/sessions/:sid/messages': {
     GET: {
       params: { id: string; sid: string }
       query: ListSessionMessagesParams
       response: ListSessionMessagesResponse
     }
+  }
+
+  /** Delete a specific session message */
+  '/agents/:id/sessions/:sid/messages/:messageId': {
     DELETE: {
-      params: { id: string; sid: string; messageId: number }
+      params: { id: string; sid: string; messageId: string }
       response: void
     }
   }

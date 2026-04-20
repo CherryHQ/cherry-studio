@@ -13,15 +13,6 @@ import type { ChannelConfig } from './channels/channelConfig'
 const logger = loggerService.withContext('ChannelService')
 
 export class ChannelService {
-  private static instance: ChannelService | null = null
-
-  static getInstance(): ChannelService {
-    if (!ChannelService.instance) {
-      ChannelService.instance = new ChannelService()
-    }
-    return ChannelService.instance
-  }
-
   async createChannel(data: {
     type: ChannelConfig['type']
     name: string
@@ -158,4 +149,4 @@ export class ChannelService {
   }
 }
 
-export const channelService = ChannelService.getInstance()
+export const channelService = new ChannelService()

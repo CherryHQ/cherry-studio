@@ -74,7 +74,7 @@ class AgentMessageRepository {
     role: string,
     messageId: string
   ): Promise<SessionMessageRow | null> {
-    const database = await application.get('DbService').getDb()
+    const database = application.get('DbService').getDb()
     // Use SQLite json_extract to query by messageId directly, avoiding loading all messages
     const rows = await database
       .select()
@@ -104,7 +104,7 @@ class AgentMessageRepository {
       throw new Error('Message payload missing id')
     }
 
-    const database = await application.get('DbService').getDb()
+    const database = application.get('DbService').getDb()
 
     const existingRow = await this.findExistingMessageRow(sessionId, payload.message.role, payload.message.id)
 
@@ -187,7 +187,7 @@ class AgentMessageRepository {
 
   async getSessionHistory(sessionId: string): Promise<AgentPersistedMessage[]> {
     try {
-      const database = await application.get('DbService').getDb()
+      const database = application.get('DbService').getDb()
       const rows = await database
         .select()
         .from(sessionMessagesTable)
