@@ -1,20 +1,11 @@
 /**
  * Database Module
  *
- * This module provides centralized access to Drizzle ORM schemas
- * for type-safe database operations.
- *
- * Schema evolution is handled by Drizzle Kit migrations.
+ * This module provides centralized access to Drizzle ORM schemas and
+ * repository helpers for the agents service. Tables live on the main
+ * SQLite database and are migrated by the v2 migration engine; there is
+ * no longer a per-service DatabaseManager.
  */
 
-// Database Manager (Singleton)
-export * from './DatabaseManager'
-
-// Drizzle ORM schemas
 export * from './schema'
-
-// Repository helpers
 export * from './sessionMessageRepository'
-
-// Migration Service
-export * from './MigrationService'
