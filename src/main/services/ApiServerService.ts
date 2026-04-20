@@ -18,7 +18,7 @@ const logger = loggerService.withContext('ApiServerService')
 
 @Injectable('ApiServerService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowService'])
+@DependsOn(['MainWindowService'])
 export class ApiServerService extends BaseService implements Activatable {
   private apiServer: ApiServer | null = null
 

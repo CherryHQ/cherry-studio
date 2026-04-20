@@ -57,7 +57,16 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const [clipboardText, setClipboardText] = useState('')
   const lastClipboardTextRef = useRef<string | null>(null)
 
-  const [isPinned, setIsPinned] = useState(false)
+  const [isPinned, setIsPinnedState] = useState(false)
+
+  // Wraps setState with an eager IPC call so main's pin flag is updated
+  // synchronously inside the click handler — the previous useEffect-based
+  // sync deferred IPC by at least one render cycle, opening a race window
+  // where blur could fire with the main flag still stale.
+  const setIsPinned = useCallback((next: boolean) => {
+    void window.api.quickAssistant.setPin(next)
+    setIsPinnedState(next)
+  }, [])
 
   // Indicator for loading(thinking/streaming)
   const [isLoading, setIsLoading] = useState(false)
@@ -133,14 +142,10 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   }, [readClipboard, focusInput])
 
   useEffect(() => {
-    void window.api.miniWindow.setPin(isPinned)
-  }, [isPinned])
-
-  useEffect(() => {
-    window.electron.ipcRenderer.on(IpcChannel.ShowMiniWindow, onWindowShow)
+    window.electron.ipcRenderer.on(IpcChannel.QuickAssistant_Shown, onWindowShow)
 
     return () => {
-      window.electron.ipcRenderer.removeAllListeners(IpcChannel.ShowMiniWindow)
+      window.electron.ipcRenderer.removeAllListeners(IpcChannel.QuickAssistant_Shown)
     }
   }, [onWindowShow])
 
@@ -148,7 +153,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     void readClipboard()
   }, [readClipboard])
 
-  const handleCloseWindow = useCallback(() => window.api.miniWindow.hide(), [])
+  const handleCloseWindow = useCallback(() => window.api.quickAssistant.hide(), [])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     // 使用非直接输入法时（例如中文、日文输入法），存在输入法键入过程
@@ -514,9 +519,9 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   // Memoize placeholder text
   const inputPlaceholder = useMemo(() => {
     if (referenceText && route === 'home') {
-      return t('miniwindow.input.placeholder.title')
+      return t('quickAssistant.input.placeholder.title')
     }
-    return t('miniwindow.input.placeholder.empty', {
+    return t('quickAssistant.input.placeholder.empty', {
       model: quickAssistantId ? currentAssistant.name : currentAssistant.model.name
     })
   }, [referenceText, route, t, quickAssistantId, currentAssistant])
@@ -530,7 +535,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
       setIsPinned,
       isPinned
     }),
-    [route, isLoading, handleEsc, isPinned]
+    [route, isLoading, handleEsc, setIsPinned, isPinned]
   )
 
   switch (route) {

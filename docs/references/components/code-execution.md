@@ -82,7 +82,7 @@ The service layer acts as a bridge between UI components and the Web Worker runn
 - **Request Handling**: Manage concurrent requests using a `resolvers` Map, matching requests and responses via unique IDs.
 - **API for UI**: Expose the `runScript(script, context, timeout)` method to UI. Returns `Promise<{ text: string; image?: string }>` to support multiple output types including images.
 - **Output Processing**: Receive `output` objects containing text, errors, and optional image data from the Worker. Format text and errors into a user-friendly string and return it along with image data to the UI layer.
-- **IPC Endpoint**: The service also provides a `python-execution-request` IPC endpoint, allowing the main process to request Python code execution.
+- **IPC Endpoint**: The service also listens on `IpcChannel.Python_ExecutionRequest` (`python:execution-request`) and replies via `IpcChannel.Python_ExecutionResponse` (`python:execution-response`), allowing the main process to request Python code execution.
 
 ## 3. Worker Layer
 

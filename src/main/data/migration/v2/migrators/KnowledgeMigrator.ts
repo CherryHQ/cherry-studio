@@ -16,6 +16,7 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
+import { userModelTable } from '@data/db/schemas/userModel'
 import { createClient, type Value as LibsqlValue } from '@libsql/client'
 import { loggerService } from '@logger'
 import { sanitizeFilename } from '@main/utils/file'
@@ -36,6 +37,7 @@ import {
   transformKnowledgeBase,
   transformKnowledgeItem
 } from './mappings/KnowledgeMappings'
+import { resolveModelReference } from './transformers/ModelTransformers'
 
 const logger = loggerService.withContext('KnowledgeMigrator')
 
@@ -400,6 +402,9 @@ export class KnowledgeMigrator extends BaseMigrator {
       const { noteIds, fileIds } = this.collectLookupIds(bases)
       const noteById = await this.loadNoteLookup(ctx, noteIds)
       const filesById = await this.loadFileLookup(ctx, fileIds)
+      const validModelIds = ctx.db?.select
+        ? new Set((await ctx.db.select({ id: userModelTable.id }).from(userModelTable)).map((row) => row.id))
+        : null
 
       for (const base of bases) {
         this.sourceCount += 1
@@ -437,19 +442,33 @@ export class KnowledgeMigrator extends BaseMigrator {
         }
 
         const baseResult = transformKnowledgeBase(validBase, resolvedDimensions.dimensions)
-        if (!baseResult.ok) {
-          this.skippedCount += 1 + items.length
-          this.sourceCount += items.length
-          const warningMessage = `Skipped knowledge base ${validBase.id}: ${baseResult.reason}`
+        const preparedBase = { ...baseResult.value }
+
+        const embeddingResolution = resolveModelReference(preparedBase.embeddingModelId ?? null, validModelIds)
+        if (embeddingResolution.kind === 'resolved') {
+          preparedBase.embeddingModelId = embeddingResolution.modelId
+        } else {
+          preparedBase.embeddingModelId = null
+          const warningMessage =
+            embeddingResolution.kind === 'dangling'
+              ? `Knowledge base ${validBase.id}: dangling embedding model reference ${embeddingResolution.modelId} was cleared`
+              : `Knowledge base ${validBase.id}: missing embedding model reference was cleared`
           logger.warn(warningMessage)
           this.warnings.push(warningMessage)
-          continue
         }
 
-        this.seenBaseIds.add(baseResult.value.id!)
-        this.preparedBases.push(baseResult.value)
+        const rerankResolution = resolveModelReference(preparedBase.rerankModelId ?? null, validModelIds)
+        preparedBase.rerankModelId = rerankResolution.kind === 'resolved' ? rerankResolution.modelId : null
+        if (rerankResolution.kind === 'dangling') {
+          const warningMessage = `Knowledge base ${validBase.id}: dangling rerank model reference ${rerankResolution.modelId} was cleared`
+          logger.warn(warningMessage)
+          this.warnings.push(warningMessage)
+        }
 
-        const invalidConfigWarning = getInvalidKnowledgeBaseConfigWarning(validBase, baseResult.value)
+        this.seenBaseIds.add(preparedBase.id!)
+        this.preparedBases.push(preparedBase)
+
+        const invalidConfigWarning = getInvalidKnowledgeBaseConfigWarning(validBase, preparedBase)
         if (invalidConfigWarning) {
           logger.warn(invalidConfigWarning)
           this.warnings.push(invalidConfigWarning)

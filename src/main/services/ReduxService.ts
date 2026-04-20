@@ -50,7 +50,7 @@ export class ReduxService {
   private async getWebContents(): Promise<Electron.WebContents> {
     await this.waitForStoreReady()
 
-    const mainWindow = application.get('WindowService').getMainWindow()
+    const mainWindow = application.get('MainWindowService').getMainWindow()
 
     if (!mainWindow) {
       throw new Error('Main window is not available')

@@ -84,9 +84,11 @@ Key points:
 
 - Runs after both BeforeReady and `app.whenReady()` have completed.
 - Full access to Electron APIs (`BrowserWindow`, `Tray`, `screen`, `nativeTheme`, `dialog`, `globalShortcut`, etc.).
-- Can depend on other WhenReady services. No need to `@DependsOn` BeforeReady services — they are guaranteed to be ready before the WhenReady phase starts.
+- Can depend on other WhenReady services.
 - Best for: window management, tray, system shortcuts, theme management, IPC handlers that need Electron APIs.
 - This is the default phase — if you omit `@ServicePhase`, the service is placed here.
+
+> **⚠️ Cross-phase dependencies are automatic.** BeforeReady services (`PreferenceService`, `DbService`, `CacheService`, `DataApiService`) are guaranteed to finish before WhenReady starts. Do **not** declare `@DependsOn('PreferenceService')` (or similar) on a WhenReady service — it is redundant and misleading. Only use `@DependsOn` for same-phase coupling.
 
 **Background** — Fire-and-forget
 
@@ -104,6 +106,8 @@ Key points:
 | Background  | Background             | BeforeReady, WhenReady |
 | WhenReady   | BeforeReady, WhenReady | Background             |
 
+**Cross-phase dependencies are implicit** — the "Can Depend On" column means those services are guaranteed to be ready, **not** that you should declare them via `@DependsOn`. Reserve `@DependsOn` for same-phase ordering; cross-phase readiness is enforced automatically by `LifecycleManager.startPhase()`.
+
 **Invalid dependencies are auto-corrected** with a warning log:
 ```
 [WARN] Service 'X' declared as Background but depends on BeforeReady service 'Y', adjusted to BeforeReady
@@ -117,7 +121,7 @@ Services within the same phase that have no inter-dependencies are initialized i
 Phase: WhenReady
 Layer 1: [DbService, ConfigService]  <- parallel (no inter-dependency)
 Layer 2: [PreferenceService]               <- sequential (depends on layer 1)
-Layer 3: [WindowService]                   <- sequential (depends on layer 2)
+Layer 3: [MainWindowService]                   <- sequential (depends on layer 2)
 ```
 
 ## Lifecycle Hooks
@@ -249,14 +253,14 @@ manager.on(LifecycleEvents.ALL_SERVICES_READY, () => {
 
 ## Inter-Service Communication
 
-`@DependsOn` guarantees initialization order, but some services need to react to work completed by other services at **runtime** (after `onInit()`). For example, `ShortcutService` needs to know when `WindowService` creates the main window — which happens after all services have initialized.
+`@DependsOn` guarantees initialization order, but some services need to react to work completed by other services at **runtime** (after `onInit()`). For example, `ShortcutService` needs to know when `MainWindowService` creates the main window — which happens after all services have initialized.
 
 The lifecycle system provides two typed primitives for this, avoiding ad-hoc `EventEmitter` patterns (no type safety, magic strings, manual cleanup):
 
 | Communication Pattern | Mechanism | Example |
 |---|---|---|
 | "Service B must init after Service A" | `@DependsOn` | PreferenceService depends on DbService |
-| "Service A completed runtime work, others react" (repeatable) | `Emitter<T>` / `Event<T>` | WindowService fires `onMainWindowCreated` |
+| "Service A completed runtime work, others react" (repeatable) | `Emitter<T>` / `Event<T>` | MainWindowService fires `onMainWindowCreated` |
 | "Service A completed runtime work, others react" (one-shot) | `Signal<T>` | DbService signals `migrationComplete` |
 | "Tell a specific service to do something" | Direct method call via `application.get()` | `windowService.showMainWindow()` |
 

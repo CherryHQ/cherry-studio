@@ -121,7 +121,7 @@ export const SHORTCUT_DEFINITIONS = [
     key: 'shortcut.feature.quick_assistant.toggle_window',
     scope: 'main',
     category: 'feature.quick_assistant',
-    labelKey: 'mini_window',
+    labelKey: 'quick_assistant',
     global: true,
     enabledWhen: 'feature.quick_assistant.enabled'
   }),

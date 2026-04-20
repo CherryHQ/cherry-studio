@@ -21,7 +21,8 @@
 
 import type { AssistantInsert } from '@data/db/schemas/assistant'
 import type { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
-import { createUniqueModelId } from '@shared/data/types/model'
+
+import { legacyModelToUniqueId } from '../transformers/ModelTransformers'
 
 // ============================================================================
 // Old Type Definitions (Source Data Structures)
@@ -132,15 +133,7 @@ export interface AssistantTransformResult {
  * Prefers `model` over `defaultModel` (defaultModel is the settings-level fallback).
  */
 function extractPrimaryModelId(source: OldAssistant): string | null {
-  if (source.model?.provider && source.model?.id) {
-    return createUniqueModelId(source.model.provider, source.model.id)
-  }
-
-  if (source.defaultModel?.provider && source.defaultModel?.id) {
-    return createUniqueModelId(source.defaultModel.provider, source.defaultModel.id)
-  }
-
-  return null
+  return legacyModelToUniqueId(source.model) ?? legacyModelToUniqueId(source.defaultModel)
 }
 
 function extractMcpServerIds(source: OldAssistant): string[] {
@@ -184,7 +177,7 @@ export function transformAssistant(source: OldAssistant): AssistantTransformResu
       prompt: source.prompt ?? null,
       emoji: source.emoji ?? null,
       description: source.description ?? null,
-      modelId: primaryModelId,
+      modelId: primaryModelId ?? null,
       settings: Object.keys(legacySettings).length > 0 ? (legacySettings as AssistantInsert['settings']) : null
     },
     mcpServers: mcpServerIds.map((mcpServerId) => ({ assistantId, mcpServerId })),

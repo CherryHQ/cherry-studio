@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { WindowType } from '@main/core/window/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { parseDataUrl } from '@shared/utils'
 
@@ -119,15 +120,12 @@ class WeChatAdapter extends ChannelAdapter {
     status: 'pending' | 'confirmed' | 'expired' | 'disconnected',
     userId?: string
   ): void {
-    const mainWindow = application.get('WindowService').getMainWindow()
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send(IpcChannel.WeChat_QrLogin, {
-        channelId: this.channelId,
-        url,
-        status,
-        userId
-      })
-    }
+    application.get('WindowManager').broadcastToType(WindowType.Main, IpcChannel.WeChat_QrLogin, {
+      channelId: this.channelId,
+      url,
+      status,
+      userId
+    })
   }
 
   private registerMessageHandler(bot: WeixinBot): void {

@@ -90,8 +90,11 @@ vi.mock('fs-extra', () => ({
 vi.mock('@application', () => ({
   application: {
     get: vi.fn((name: string) => {
-      if (name === 'WindowService') {
+      if (name === 'MainWindowService') {
         return { getMainWindow: vi.fn() }
+      }
+      if (name === 'WindowManager') {
+        return { broadcastToType: vi.fn(), getWindowsByType: vi.fn(() => []), getAllWindows: vi.fn(() => []) }
       }
       throw new Error(`[MockApplication] Unknown service: ${name}`)
     }),

@@ -33,7 +33,7 @@ const FeatureMenus = ({
     () => [
       {
         icon: <MessageSquare size={16} color="var(--color-text)" />,
-        title: t('miniwindow.feature.chat'),
+        title: t('quickAssistant.feature.chat'),
         active: true,
         onClick: () => {
           if (text) {
@@ -44,12 +44,12 @@ const FeatureMenus = ({
       },
       {
         icon: <Languages size={16} color="var(--color-text)" />,
-        title: t('miniwindow.feature.translate'),
+        title: t('quickAssistant.feature.translate'),
         onClick: () => text && setRoute('translate')
       },
       {
         icon: <FileText size={16} color="var(--color-text)" />,
-        title: t('miniwindow.feature.summary'),
+        title: t('quickAssistant.feature.summary'),
         onClick: () => {
           if (text) {
             setRoute('summary')
@@ -59,7 +59,7 @@ const FeatureMenus = ({
       },
       {
         icon: <Lightbulb size={16} color="var(--color-text)" />,
-        title: t('miniwindow.feature.explanation'),
+        title: t('quickAssistant.feature.explanation'),
         onClick: () => {
           if (text) {
             setRoute('explanation')

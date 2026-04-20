@@ -1,4 +1,6 @@
-import { type WindowOptions, type WindowType, type WindowTypeMetadata } from '@main/core/window/types'
+import { isDev, isLinux, isMac, isWin } from '@main/constant'
+import { type WindowOptions, WindowType, type WindowTypeMetadata } from '@main/core/window/types'
+import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
 
 /**
  * Default window configuration.
@@ -27,14 +29,285 @@ export const DEFAULT_WINDOW_CONFIG: WindowOptions = {
  *   type: WindowType.Main,
  *   lifecycle: 'singleton',
  *   htmlPath: 'index.html',
- *   preload: 'standard',
- *   defaultConfig: { ...DEFAULT_WINDOW_CONFIG, minWidth: 350, minHeight: 400 },
+ *   windowOptions: { ...DEFAULT_WINDOW_CONFIG, minWidth: 350, minHeight: 400 },
  * }
  * ```
  */
 export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata>> = {
-  // Window configs are populated during migration — see migration plans in
-  // ~/MyProjects/plans/cs-v2-window-manager-migration/
+  // Main application window — singleton primary surface.
+  // Managed by MainWindowService: dynamic options (window-state position/size, theme-driven
+  // backgroundColor / titleBarOverlay / backgroundMaterial / frame / icon / zoomFactor) are
+  // injected via wm.open({ options }). showMode 'manual' lets MainWindowService decide first
+  // show in the ready-to-show handler (so tray-on-launch can suppress it).
+  [WindowType.Main]: {
+    type: WindowType.Main,
+    lifecycle: 'singleton',
+    htmlPath: 'index.html',
+    // preload omitted → defaults to 'index.js' (full API preload).
+    showMode: 'manual',
+    windowOptions: {
+      width: MIN_WINDOW_WIDTH,
+      height: MIN_WINDOW_HEIGHT,
+      minWidth: MIN_WINDOW_WIDTH,
+      minHeight: MIN_WINDOW_HEIGHT,
+      autoHideMenuBar: true,
+      transparent: false,
+      vibrancy: 'sidebar',
+      visualEffectState: 'active',
+      platformOverrides: {
+        mac: {
+          titleBarStyle: 'hidden',
+          trafficLightPosition: { x: 13, y: 16 }
+          // titleBarOverlay is theme-dependent → injected via args.options
+        }
+        // win: backgroundMaterial is runtime-computed (may be undefined) → args.options
+        // linux: frame depends on `app.use_system_title_bar` preference, icon is nativeImage
+        //        → both injected via args.options
+      },
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: false,
+        webSecurity: false,
+        webviewTag: true,
+        allowRunningInsecureContent: true,
+        backgroundThrottling: false
+        // zoomFactor depends on PreferenceService → injected via args.options
+      }
+    },
+    behavior: {
+      // Main window is the primary surface — always reflected in the macOS Dock.
+      // WindowManager.updateDockVisibility uses this to drive Dock show/hide on
+      // every show/hide/minimize/restore, replacing the manual app.dock?.show()
+      // / app.dock?.hide() calls that used to live in the close handler.
+      macShowInDock: true
+    }
+  },
+
+  // Quick Assistant window — singleton floating panel.
+  // Managed by QuickAssistantService: stateKeeper bounds are injected via wm.create({ options }),
+  // visibility is driven by showQuickAssistant() (cursor-follow, Windows opacity dance, macOS app.hide).
+  [WindowType.QuickAssistant]: {
+    type: WindowType.QuickAssistant,
+    lifecycle: 'singleton',
+    htmlPath: 'quickAssistant.html',
+    // preload omitted → defaults to 'index.js' (full API preload).
+    // QuickAssistantService.showQuickAssistant controls visibility; showMode: 'manual' also keeps
+    // singleton reopen (wm.open) from accidentally re-showing the window before reposition runs.
+    showMode: 'manual',
+    windowOptions: {
+      width: 550,
+      height: 400,
+      minWidth: 350,
+      minHeight: 380,
+      maxWidth: 1024,
+      maxHeight: 768,
+      frame: false,
+      alwaysOnTop: true,
+      useContentSize: true,
+      skipTaskbar: true,
+      autoHideMenuBar: true,
+      resizable: true,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
+      platformOverrides: {
+        mac: {
+          type: 'panel',
+          transparent: true,
+          vibrancy: 'under-window',
+          visualEffectState: 'followWindow'
+        }
+      },
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: false,
+        webSecurity: false,
+        webviewTag: true
+      }
+    },
+    behavior: {
+      // NOTE: QuickAssistant intentionally does NOT declare `hideOnBlur` here.
+      // Its blur handler calls `hideQuickAssistant()`, which is platform-specific
+      // business policy (Windows uses minimize + setOpacity(0) to avoid flicker;
+      // macOS <26 additionally calls `app.hide()` to return focus to the previous
+      // app). `behavior.hideOnBlur` would only invoke `window.hide()` — losing
+      // both behaviors on those platforms. QuickAssistantService keeps its
+      // blur handler and its internal `isPinnedQuickAssistant` flag.
+      // `new BrowserWindow({ alwaysOnTop: true })` cannot accept a level — the
+      // floating level is applied by applyWindowBehavior on create, and kept
+      // across show cycles by the macReapplyAlwaysOnTop quirk below.
+      alwaysOnTop: { level: 'floating' },
+      // Quick window is visible across all workspaces and over fullscreen apps.
+      visibleOnAllWorkspaces: { enabled: true, visibleOnFullScreen: true },
+      // Quick window is a floating helper, not a primary surface — never touch the Dock.
+      macShowInDock: false
+    },
+    quirks: {
+      // Re-apply the floating level after every show/showInactive — macOS silently
+      // demotes it across cycles. The actual level is read from `behavior.alwaysOnTop`.
+      macReapplyAlwaysOnTop: true
+    }
+  },
+
+  // Floating toolbar that appears near user text selections.
+  // Managed by SelectionService: onActivate opens it (hidden), showToolbarAtPosition positions + shows.
+  [WindowType.SelectionToolbar]: {
+    type: WindowType.SelectionToolbar,
+    lifecycle: 'singleton',
+    htmlPath: 'selectionToolbar.html',
+    // preload omitted → defaults to 'index.js'.
+    // SelectionService controls visibility itself via showToolbarAtPosition/hideToolbar.
+    // showMode: 'manual' also prevents wm.open() from re-showing an existing singleton unexpectedly.
+    showMode: 'manual',
+    windowOptions: {
+      width: 350,
+      height: 43,
+      frame: false,
+      transparent: true,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      autoHideMenuBar: true,
+      resizable: false,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false, // [macOS] must be false
+      movable: true,
+      hasShadow: false,
+      thickFrame: false,
+      roundedCorners: true,
+
+      // Platform specific settings
+      //   [macOS] DO NOT set focusable to false — it causes other windows to bring to front together.
+      //           type 'panel' conflicts with some settings and triggers the warning
+      //           `NSWindow does not support nonactivating panel styleMask 0x80`,
+      //           but it still works correctly on fullscreen apps, so we keep it.
+      //   [Windows/Linux X11] focusable: false prevents toolbar from stealing focus.
+      //           On Linux X11 this also makes the window stop interacting with WM (stays on top).
+      //   [Linux Wayland] focusable: true enables blur events for outside-click hiding.
+      //           With focusable: false on XWayland, blur never fires and there is no reliable
+      //           way to detect outside clicks (selection-hook coordinates use a different
+      //           coordinate space than Electron's getBounds on Wayland).
+      // The real focusable value on Wayland is set at runtime by SelectionService
+      // via setFocusable(isLinuxWaylandDisplay) inside the onWindowCreated callback,
+      // because the Wayland detection is only available after the native module loads.
+      platformOverrides: {
+        mac: {
+          type: 'panel',
+          hiddenInMissionControl: true, // [macOS only]
+          acceptFirstMouse: true // [macOS only]
+        },
+        win: {
+          type: 'toolbar',
+          focusable: false
+        },
+        linux: {
+          // focusable is left to SelectionService to set at runtime
+          // (Wayland → true, X11 → false) once the native module reports the display protocol.
+          type: 'toolbar'
+        }
+      },
+
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: false,
+        devTools: isDev
+      }
+    },
+    behavior: {
+      // Auto-hide on blur. SelectionService routes the mouse-key hook lifecycle
+      // through `window.on('show'/'hide')` events so any hide path (this one
+      // included) triggers the cleanup.
+      hideOnBlur: true,
+      alwaysOnTop: { level: 'screen-saver' },
+      // Baseline declaration only. SelectionService.showToolbarAtPosition has a
+      // per-show `!isSelf` branch that additionally sets
+      // `skipTransformProcessType: true`; it MUST stay there, because one-shot
+      // sinking that flag here would break the self / non-self distinction
+      // (Cherry Studio as the frontmost app needs the flag off, others need it on).
+      visibleOnAllWorkspaces: { enabled: true, visibleOnFullScreen: true },
+      macShowInDock: false
+    },
+    // Declarative OS-specific workarounds — WindowManager monkey-patches instance methods
+    // so that business calls to window.hide() / window.showInactive() / window.close()
+    // transparently invoke the required pre/post hooks. See WindowQuirks in types.ts.
+    quirks: {
+      macRestoreFocusOnHide: true,
+      macClearHoverOnHide: true,
+      macReapplyAlwaysOnTop: true
+    }
+  },
+
+  // Action result window — pooled for instant reuse.
+  // Managed by SelectionService: processAction uses wm.open({ initData }) to hand each action to a renderer.
+  [WindowType.SelectionAction]: {
+    type: WindowType.SelectionAction,
+    lifecycle: 'pooled',
+    htmlPath: 'selectionAction.html',
+    // preload omitted → defaults to 'index.js'.
+    // SelectionService controls visibility itself via showActionWindow (computes bounds + fullscreen handling).
+    showMode: 'manual',
+    windowOptions: {
+      width: 500,
+      height: 400,
+      minWidth: 300,
+      minHeight: 200,
+      frame: false,
+      transparent: true,
+      autoHideMenuBar: true,
+      hasShadow: false,
+      thickFrame: false,
+      platformOverrides: {
+        mac: {
+          titleBarStyle: 'hidden', // [macOS]
+          trafficLightPosition: { x: 12, y: 9 } // [macOS]
+        }
+      },
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: false,
+        devTools: true
+      }
+    },
+    behavior: {
+      // SelectionAction intentionally declares no hideOnBlur / alwaysOnTop.level /
+      // visibleOnAllWorkspaces:
+      //   - hideOnBlur is driven per-instance by the renderer's `isAutoClose && !isPinned`
+      //     logic (see SelectionActionApp.tsx) — too case-specific for a WM default.
+      //   - alwaysOnTop is toggled at runtime by pinActionWindow via wm.setAlwaysOnTop;
+      //     passing no level lets Electron use its default ('floating' on macOS).
+      //   - setVisibleOnAllWorkspaces's true/false options differ per call in the
+      //     full-screen show sequence; see SelectionService.showActionWindow.
+      macShowInDock: false
+    },
+    // Only restoreFocusOnHide applies — action windows show via the fullscreen-aware
+    // sequence in SelectionService.showActionWindow (C-layer), not through window.show(),
+    // so clearHover / reapplyAlwaysOnTop do not participate in its lifecycle.
+    quirks: {
+      macRestoreFocusOnHide: true
+    },
+    poolConfig: {
+      // Producer axis: always keep one pre-warmed idle window. On every open(),
+      // an async setImmediate replacement is scheduled so the next action recycles
+      // instantly — the action window is user-facing and must not block on create.
+      standbySize: 1,
+      // Consumer axis: allow a small burst of concurrent action windows to be
+      // recycled for reuse (triggered when a second action fires while the first
+      // is still open). Beyond 3, close destroys.
+      recycleMaxSize: 3,
+      // Burst cleanup: after the pool grew above standbySize due to bursts,
+      // shed one extra idle window per minute back down toward standbySize.
+      decayInterval: 60,
+      // Full idle release: after 5 minutes of no action, trim the recycle
+      // buffer down to the standby window. standbySize is preserved as a
+      // permanent availability commitment.
+      inactivityTimeout: 300,
+      warmup: 'eager'
+    }
+  }
 }
 
 /**
@@ -55,26 +328,64 @@ export function getWindowTypeMetadata(type: WindowType): WindowTypeMetadata {
 }
 
 /**
+ * Pick the `platformOverrides` branch matching the current runtime.
+ * Returns `undefined` when no override is configured for the current platform.
+ */
+function pickPlatformOverride(
+  overrides: WindowOptions['platformOverrides']
+): Partial<Omit<WindowOptions, 'platformOverrides'>> | undefined {
+  if (!overrides) return undefined
+  if (isMac) return overrides.mac
+  if (isWin) return overrides.win
+  if (isLinux) return overrides.linux
+  return undefined
+}
+
+/**
  * Merge window configuration.
- * Combines the type's default configuration with caller overrides,
- * performing a deep merge for webPreferences.
+ *
+ * Order of precedence (later wins):
+ *   1. baseOptions (from registry `windowOptions`)
+ *   2. baseOptions.platformOverrides[currentPlatform]
+ *   3. caller-provided `overrides`
+ *   4. caller-provided `overrides.platformOverrides[currentPlatform]`
+ *
+ * `webPreferences` is deep-merged in the same order.
+ * The `platformOverrides` field is stripped from the returned config so it never
+ * leaks into `new BrowserWindow(...)` (Electron would silently ignore it, but keeping
+ * the return type clean avoids confusion for consumers and future refactors).
  *
  * @param type - The window type
  * @param overrides - Optional configuration overrides from the caller
- * @returns Merged window configuration
+ * @returns Merged window configuration, guaranteed to omit `platformOverrides`.
  */
-export function mergeWindowConfig(type: WindowType, overrides?: Partial<WindowOptions>): WindowOptions {
+export function mergeWindowOptions(
+  type: WindowType,
+  overrides?: Partial<WindowOptions>
+): Omit<WindowOptions, 'platformOverrides'> {
   const metadata = getWindowTypeMetadata(type)
-  const baseConfig = metadata.defaultConfig
+  const baseOptions = metadata.windowOptions
+
+  const basePlatform = pickPlatformOverride(baseOptions.platformOverrides)
+  const overridePlatform = pickPlatformOverride(overrides?.platformOverrides)
 
   const webPreferences = {
-    ...baseConfig.webPreferences,
-    ...overrides?.webPreferences
+    ...baseOptions.webPreferences,
+    ...basePlatform?.webPreferences,
+    ...overrides?.webPreferences,
+    ...overridePlatform?.webPreferences
   }
 
-  return {
-    ...baseConfig,
+  const merged: WindowOptions = {
+    ...baseOptions,
+    ...basePlatform,
     ...overrides,
+    ...overridePlatform,
     webPreferences
   }
+
+  // Strip platformOverrides from the returned object so it never leaks to `new BrowserWindow(...)`.
+  const rest: Record<string, unknown> = { ...merged }
+  delete rest.platformOverrides
+  return rest as Omit<WindowOptions, 'platformOverrides'>
 }

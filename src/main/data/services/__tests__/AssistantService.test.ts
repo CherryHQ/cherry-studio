@@ -2,13 +2,61 @@ import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
+import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { AssistantDataService, assistantDataService } from '@data/services/AssistantService'
 import { ErrorCode } from '@shared/data/api'
+import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 describe('AssistantDataService', () => {
   const dbh = setupTestDatabase()
+
+  beforeEach(async () => {
+    await seedModelRefs()
+  })
+
+  async function seedModelRefs() {
+    await dbh.db.insert(userProviderTable).values([
+      { providerId: 'openai', name: 'OpenAI' },
+      { providerId: 'anthropic', name: 'Anthropic' }
+    ])
+
+    await dbh.db.insert(userModelTable).values([
+      {
+        id: createUniqueModelId('openai', 'gpt-4'),
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        presetModelId: 'gpt-4',
+        name: 'GPT-4',
+        isEnabled: true,
+        isHidden: false,
+        sortOrder: 0
+      },
+      {
+        id: createUniqueModelId('anthropic', 'claude-3'),
+        providerId: 'anthropic',
+        modelId: 'claude-3',
+        presetModelId: 'claude-3',
+        name: 'Claude 3',
+        isEnabled: true,
+        isHidden: false,
+        sortOrder: 0
+      },
+      {
+        id: createUniqueModelId('openai', 'text-embedding-3-large'),
+        providerId: 'openai',
+        modelId: 'text-embedding-3-large',
+        presetModelId: 'text-embedding-3-large',
+        name: 'text-embedding-3-large',
+        isEnabled: true,
+        isHidden: false,
+        sortOrder: 0
+      }
+    ])
+  }
 
   async function seedMcpServer(id = 'srv-1', name = 'MCP') {
     await dbh.db.insert(mcpServerTable).values({ id, name })
@@ -19,7 +67,7 @@ describe('AssistantDataService', () => {
       id,
       name: 'KB',
       dimensions: 1024,
-      embeddingModelId: 'openai::text-embedding-3-large'
+      embeddingModelId: createUniqueModelId('openai', 'text-embedding-3-large')
     })
   }
 
@@ -321,6 +369,17 @@ describe('AssistantDataService', () => {
 
       const rows = await dbh.db.select().from(assistantTable)
       expect(rows).toHaveLength(1)
+    })
+
+    it('should remove entity_tag rows for the deleted assistant', async () => {
+      await dbh.db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
+      await dbh.db.insert(tagTable).values({ id: 'tag-1', name: 'work' })
+      await dbh.db.insert(entityTagTable).values({ entityType: 'assistant', entityId: 'ast-1', tagId: 'tag-1' })
+
+      await assistantDataService.delete('ast-1')
+
+      const tagRows = await dbh.db.select().from(entityTagTable)
+      expect(tagRows).toHaveLength(0)
     })
 
     it('should throw NOT_FOUND when deleting non-existent assistant', async () => {

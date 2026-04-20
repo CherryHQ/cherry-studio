@@ -102,7 +102,7 @@ function rowToKnowledgeBase(row: typeof knowledgeBaseTable.$inferSelect): Knowle
     name: row.name,
     description: row.description ?? undefined,
     dimensions: row.dimensions,
-    embeddingModelId: row.embeddingModelId,
+    embeddingModelId: row.embeddingModelId ?? null,
     rerankModelId: row.rerankModelId ?? undefined,
     fileProcessorId: row.fileProcessorId ?? undefined,
     chunkSize: row.chunkSize ?? undefined,
@@ -157,7 +157,7 @@ export class KnowledgeBaseService {
       description: dto.description,
       dimensions: dto.dimensions,
       embeddingModelId: dto.embeddingModelId.trim(),
-      rerankModelId: dto.rerankModelId,
+      rerankModelId: dto.rerankModelId ?? null,
       fileProcessorId: dto.fileProcessorId,
       chunkSize: dto.chunkSize,
       chunkOverlap: dto.chunkOverlap,
@@ -185,7 +185,16 @@ export class KnowledgeBaseService {
     const updates: Partial<typeof knowledgeBaseTable.$inferInsert> = {}
     if (dto.name !== undefined) updates.name = dto.name.trim()
     if (dto.description !== undefined) updates.description = dto.description
-    if (dto.rerankModelId !== undefined) updates.rerankModelId = dto.rerankModelId
+
+    if (dto.embeddingModelId !== undefined) {
+      const nextEmbeddingModelId = dto.embeddingModelId.trim()
+      if (nextEmbeddingModelId !== (existing.embeddingModelId ?? null)) {
+        updates.embeddingModelId = nextEmbeddingModelId
+      }
+    }
+    if (dto.rerankModelId !== undefined) {
+      updates.rerankModelId = dto.rerankModelId ?? null
+    }
     if (dto.fileProcessorId !== undefined) updates.fileProcessorId = dto.fileProcessorId
     if (dto.chunkSize !== undefined) updates.chunkSize = dto.chunkSize
     if (dto.chunkOverlap !== undefined) updates.chunkOverlap = dto.chunkOverlap
