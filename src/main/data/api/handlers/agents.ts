@@ -17,6 +17,15 @@ import { skillService } from '@main/services/agents/skills/SkillService'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
 import type { AgentSchemas } from '@shared/data/api/schemas/agents'
+import type {
+  CreateAgentRequest,
+  CreateSessionRequest,
+  CreateTaskRequest,
+  ListOptions,
+  UpdateAgentRequest,
+  UpdateSessionRequest,
+  UpdateTaskRequest
+} from '@types'
 
 type AgentHandler<Path extends keyof AgentSchemas, Method extends ApiMethods<Path>> = ApiHandler<Path, Method>
 
@@ -36,13 +45,12 @@ export const agentHandlers: {
   '/agents': {
     GET: async () => {
       const { agents, total } = await agentService.listAgents()
-      return { data: agents as any[], total, limit: agents.length, offset: 0 }
+      return { data: agents, total, limit: agents.length, offset: 0 }
     },
 
     POST: async ({ body }) => {
-      requireFields(body as any, ['type', 'name', 'model'])
-      const agent = await agentService.createAgent(body as any)
-      return agent as any
+      requireFields(body as unknown as Record<string, unknown>, ['type', 'name', 'model'])
+      return await agentService.createAgent(body as CreateAgentRequest)
     }
   },
 
@@ -50,13 +58,13 @@ export const agentHandlers: {
     GET: async ({ params }) => {
       const agent = await agentService.getAgent(params.id)
       if (!agent) throw DataApiErrorFactory.notFound('Agent', params.id)
-      return agent as any
+      return agent
     },
 
     PATCH: async ({ params, body }) => {
-      const agent = await agentService.updateAgent(params.id, body as any)
+      const agent = await agentService.updateAgent(params.id, body as UpdateAgentRequest)
       if (!agent) throw DataApiErrorFactory.notFound('Agent', params.id)
-      return agent as any
+      return agent
     },
 
     DELETE: async ({ params }) => {
@@ -69,12 +77,13 @@ export const agentHandlers: {
   '/agents/:id/sessions': {
     GET: async ({ params }) => {
       const { sessions, total } = await sessionService.listSessions(params.id)
-      return { data: sessions as any[], total, limit: sessions.length, offset: 0 }
+      return { data: sessions, total, limit: sessions.length, offset: 0 }
     },
 
     POST: async ({ params, body }) => {
-      const session = await sessionService.createSession(params.id, body as any)
-      return session as any
+      const session = await sessionService.createSession(params.id, body as Partial<CreateSessionRequest>)
+      if (!session) throw DataApiErrorFactory.notFound('Session', params.id)
+      return session
     }
   },
 
@@ -82,13 +91,13 @@ export const agentHandlers: {
     GET: async ({ params }) => {
       const session = await sessionService.getSession(params.id, params.sid)
       if (!session) throw DataApiErrorFactory.notFound('Session', params.sid)
-      return session as any
+      return session
     },
 
     PATCH: async ({ params, body }) => {
-      const session = await sessionService.updateSession(params.id, params.sid, body as any)
+      const session = await sessionService.updateSession(params.id, params.sid, body as UpdateSessionRequest)
       if (!session) throw DataApiErrorFactory.notFound('Session', params.sid)
-      return session as any
+      return session
     },
 
     DELETE: async ({ params }) => {
@@ -100,7 +109,7 @@ export const agentHandlers: {
 
   '/agents/:id/sessions/:sid/messages': {
     GET: async ({ params, query }) => {
-      return await sessionMessageService.listSessionMessages(params.sid, query as any)
+      return await sessionMessageService.listSessionMessages(params.sid, query as ListOptions)
     }
   },
 
@@ -119,12 +128,12 @@ export const agentHandlers: {
   '/agents/:id/tasks': {
     GET: async ({ params }) => {
       const { tasks, total } = await taskService.listTasks(params.id)
-      return { data: tasks as any[], total, limit: tasks.length, offset: 0 }
+      return { data: tasks, total, limit: tasks.length, offset: 0 }
     },
 
     POST: async ({ params, body }) => {
-      requireFields(body as any, ['name', 'prompt', 'schedule_type', 'schedule_value'])
-      return await taskService.createTask(params.id, body as any)
+      requireFields(body as unknown as Record<string, unknown>, ['name', 'prompt', 'schedule_type', 'schedule_value'])
+      return await taskService.createTask(params.id, body as CreateTaskRequest)
     }
   },
 
@@ -136,7 +145,7 @@ export const agentHandlers: {
     },
 
     PATCH: async ({ params, body }) => {
-      const task = await taskService.updateTask(params.id, params.tid, body as any)
+      const task = await taskService.updateTask(params.id, params.tid, body as UpdateTaskRequest)
       if (!task) throw DataApiErrorFactory.notFound('Task', params.tid)
       return task
     },

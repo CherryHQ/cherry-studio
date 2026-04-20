@@ -10,7 +10,7 @@
 // Core agent types
 // ============================================================================
 
-export type AgentType = 'assistant' | 'claw'
+export type AgentType = 'claude-code'
 
 export type TaskScheduleType = 'cron' | 'interval' | 'once'
 

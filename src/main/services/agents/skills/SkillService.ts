@@ -50,23 +50,14 @@ const MAX_FOLDER_NAME_LENGTH = 80
  * state lives in the `agent_skill` join table.
  */
 export class SkillService {
-  private static instance: SkillService | null = null
   private readonly installer: SkillInstaller
 
-  private constructor() {
+  constructor() {
     this.installer = new SkillInstaller()
-    logger.info('SkillService initialized')
   }
 
   private get db() {
     return application.get('DbService').getDb()
-  }
-
-  static getInstance(): SkillService {
-    if (!SkillService.instance) {
-      SkillService.instance = new SkillService()
-    }
-    return SkillService.instance
   }
 
   // ===========================================================================
@@ -592,7 +583,7 @@ export class SkillService {
       await this.enableForAllAgents(skill.id, folderName)
     }
 
-    logger.info('Skill installed', { id, name: metadata.name, folderName, source })
+    logger.info('Skill installed', { id: skill.id, name: metadata.name, folderName, source })
     return skill
   }
 
@@ -914,4 +905,4 @@ export class SkillService {
   }
 }
 
-export const skillService = SkillService.getInstance()
+export const skillService = new SkillService()
