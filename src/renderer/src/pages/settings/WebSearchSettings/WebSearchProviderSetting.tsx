@@ -142,8 +142,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
 
   const needsApiKey = webSearchProviderRequiresApiKey(provider.id)
   const supportsBasicAuth = webSearchProviderSupportsBasicAuth(provider.id)
-  const hasApiKey = provider.apiKey?.trim() !== ''
-  const canSetAsDefault = !isDefault && (!needsApiKey || hasApiKey)
+  const canSetAsDefault = !isDefault && webSearchService.isWebSearchEnabled(provider.id)
 
   const handleSetAsDefault = () => {
     if (canSetAsDefault) {

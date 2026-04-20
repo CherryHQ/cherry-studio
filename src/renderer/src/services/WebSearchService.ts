@@ -637,13 +637,17 @@ export function resolveWebSearchProviders(overrides: WebSearchProviderOverrides)
 
 export function buildWebSearchProviderOverrides(providers: WebSearchProvider[]): WebSearchProviderOverrides {
   return providers.reduce<WebSearchProviderOverrides>((acc, provider) => {
-    acc[provider.id] = normalizeWebSearchProviderOverride({
+    const normalizedOverride = normalizeWebSearchProviderOverride({
       apiKeys: parseApiKeys(provider.apiKey),
       apiHost: provider.apiHost,
       engines: provider.engines,
       basicAuthUsername: provider.basicAuthUsername,
       basicAuthPassword: provider.basicAuthPassword
     })
+
+    if (Object.keys(normalizedOverride).length > 0) {
+      acc[provider.id] = normalizedOverride
+    }
 
     return acc
   }, {})
@@ -666,9 +670,17 @@ export function updateWebSearchProviderOverride(
       updates.basicAuthPassword !== undefined ? updates.basicAuthPassword : currentOverride.basicAuthPassword
   }
 
+  const normalizedOverride = normalizeWebSearchProviderOverride(nextOverride)
+
+  if (Object.keys(normalizedOverride).length === 0) {
+    const restOverrides = { ...overrides }
+    delete restOverrides[providerId]
+    return restOverrides
+  }
+
   return {
     ...overrides,
-    [providerId]: normalizeWebSearchProviderOverride(nextOverride)
+    [providerId]: normalizedOverride
   }
 }
 

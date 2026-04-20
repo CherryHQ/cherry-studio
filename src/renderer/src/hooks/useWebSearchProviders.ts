@@ -13,6 +13,12 @@ import type { WebSearchProvider, WebSearchProviderId, WebSearchState } from '@re
 import type { UnifiedPreferenceType, WebSearchSubscribeSource } from '@shared/data/preference/preferenceTypes'
 import { useMemo } from 'react'
 
+function resolveRendererWebSearchProviders(
+  providerOverrides: UnifiedPreferenceType['chat.web_search.provider_overrides']
+) {
+  return filterSupportedWebSearchProviders(resolveWebSearchProviders(providerOverrides))
+}
+
 export const useDefaultWebSearchProvider = () => {
   const [defaultProviderId, setDefaultProviderId] = usePreference('chat.web_search.default_provider')
   const { providers } = useWebSearchProviders()
@@ -27,10 +33,7 @@ export const useDefaultWebSearchProvider = () => {
 
 export const useWebSearchProviders = () => {
   const [providerOverrides, setProviderOverrides] = usePreference('chat.web_search.provider_overrides')
-  const resolvedProviders = useMemo(
-    () => filterSupportedWebSearchProviders(resolveWebSearchProviders(providerOverrides)),
-    [providerOverrides]
-  )
+  const resolvedProviders = useMemo(() => resolveRendererWebSearchProviders(providerOverrides), [providerOverrides])
 
   return {
     providers: resolvedProviders,
@@ -48,10 +51,7 @@ export const useWebSearchProviders = () => {
 
 export const useWebSearchProvider = (id: WebSearchProviderId) => {
   const [providerOverrides, setProviderOverrides] = usePreference('chat.web_search.provider_overrides')
-  const providers = useMemo(
-    () => filterSupportedWebSearchProviders(resolveWebSearchProviders(providerOverrides)),
-    [providerOverrides]
-  )
+  const providers = useMemo(() => resolveRendererWebSearchProviders(providerOverrides), [providerOverrides])
   const provider = providers.find((item) => item.id === id)
 
   if (!provider) {

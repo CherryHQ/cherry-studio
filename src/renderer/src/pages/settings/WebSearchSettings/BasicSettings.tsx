@@ -34,13 +34,19 @@ const BasicSettings: FC = () => {
     if (provider) {
       const needsApiKey = webSearchProviderRequiresApiKey(provider.id)
       const hasApiKey = provider.apiKey?.trim() !== ''
+      const isAvailable = webSearchService.isWebSearchEnabled(provider.id)
 
-      if (needsApiKey && !hasApiKey) {
-        // Don't allow selection, show modal to configure
+      if (!isAvailable) {
         window.modal.confirm({
-          title: t('settings.tool.websearch.api_key_required.title'),
-          content: t('settings.tool.websearch.api_key_required.content', { provider: provider.name }),
-          okText: t('settings.tool.websearch.api_key_required.ok'),
+          title:
+            needsApiKey && !hasApiKey
+              ? t('settings.tool.websearch.api_key_required.title')
+              : t('settings.provider.api_host'),
+          content:
+            needsApiKey && !hasApiKey
+              ? t('settings.tool.websearch.api_key_required.content', { provider: provider.name })
+              : `${provider.name} ${t('settings.provider.api_host')}`,
+          okText: needsApiKey && !hasApiKey ? t('settings.tool.websearch.api_key_required.ok') : t('go_to_settings'),
           cancelText: t('common.cancel'),
           centered: true,
           onOk: () => {
