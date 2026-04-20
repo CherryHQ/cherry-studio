@@ -41,10 +41,9 @@ export const createModelParamsPlugin = ({
       const topP = getTopP(assistant, model)
       const maxOutputTokens = getMaxTokens(assistant, model, provider)
 
-      const patch: Partial<StreamTextParams> = {}
-      if (temperature !== undefined) patch.temperature = temperature
-      if (topP !== undefined) patch.topP = topP
-      if (maxOutputTokens !== undefined) patch.maxOutputTokens = maxOutputTokens
-      return patch
+      if (temperature !== undefined) params.temperature = temperature
+      if (topP !== undefined) params.topP = topP
+      if (maxOutputTokens !== undefined) params.maxOutputTokens = maxOutputTokens
+      return params
     }
   })
