@@ -14,15 +14,6 @@ const logger = loggerService.withContext('SkillRepository')
  * to reuse its database accessor and JSON helpers.
  */
 export class SkillRepository extends BaseService {
-  private static instance: SkillRepository | null = null
-
-  static getInstance(): SkillRepository {
-    if (!SkillRepository.instance) {
-      SkillRepository.instance = new SkillRepository()
-    }
-    return SkillRepository.instance
-  }
-
   async list(): Promise<InstalledSkill[]> {
     const db = await this.getDatabase()
     const rows = await db.select().from(skillsTable)
@@ -68,7 +59,13 @@ export class SkillRepository extends BaseService {
 
   async updateMetadata(
     id: string,
-    data: { name: string; description: string | null; author: string | null; tags: string | null; contentHash: string }
+    data: {
+      name: string
+      description: string | null
+      author: string | null
+      tags: string[] | null
+      contentHash: string
+    }
   ): Promise<void> {
     const db = await this.getDatabase()
     await db
@@ -98,7 +95,7 @@ export class SkillRepository extends BaseService {
       sourceUrl: row.sourceUrl,
       namespace: row.namespace,
       author: row.author,
-      tags: row.tags ? JSON.parse(row.tags) : [],
+      tags: row.tags ?? [],
       contentHash: row.contentHash,
       isEnabled: row.isEnabled,
       createdAt: row.createdAt ?? Date.now(),
@@ -106,3 +103,5 @@ export class SkillRepository extends BaseService {
     }
   }
 }
+
+export const skillRepository = new SkillRepository()

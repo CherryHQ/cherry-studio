@@ -251,12 +251,11 @@ class SchedulerService {
         sessionId = session.id
         logger.debug('Reusing session from last run', { taskId: task.id, sessionId })
       } else {
-        const newSession = await sessionService.createSession(task.agent_id, {})
-        sessionId = newSession!.id
-        session = await sessionService.getSession(task.agent_id, sessionId)
+        session = await sessionService.createSession(task.agent_id, {})
         if (!session) {
-          throw new Error(`Session not found: ${sessionId}`)
+          throw new Error(`Failed to create session for task ${task.id}`)
         }
+        sessionId = session.id
         logger.debug('Created new session for task', { taskId: task.id, sessionId })
       }
 

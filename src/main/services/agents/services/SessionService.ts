@@ -137,15 +137,17 @@ export class SessionService extends BaseService {
 
     const serializedData = this.serializeJsonFields(sessionData)
 
+    // `name` and `model` are NOT NULL on agent_session; fall back to the parent
+    // agent's values rather than coercing empty strings to null.
     const insertData: InsertSessionRow = {
       id,
       agentId,
       agentType: agent.type,
-      name: serializedData.name || null,
+      name: serializedData.name || agent.name,
       description: serializedData.description || null,
       accessiblePaths: serializedData.accessible_paths || null,
       instructions: serializedData.instructions || null,
-      model: serializedData.model || null,
+      model: serializedData.model || agent.model,
       planModel: serializedData.plan_model || null,
       smallModel: serializedData.small_model || null,
       mcps: serializedData.mcps || null,

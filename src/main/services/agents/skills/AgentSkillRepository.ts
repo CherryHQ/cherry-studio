@@ -14,15 +14,6 @@ const logger = loggerService.withContext('AgentSkillRepository')
  * the agent's workspace `.claude/skills/` directory.
  */
 export class AgentSkillRepository extends BaseService {
-  private static instance: AgentSkillRepository | null = null
-
-  static getInstance(): AgentSkillRepository {
-    if (!AgentSkillRepository.instance) {
-      AgentSkillRepository.instance = new AgentSkillRepository()
-    }
-    return AgentSkillRepository.instance
-  }
-
   async getByAgentId(agentId: string): Promise<AgentSkillRow[]> {
     const db = await this.getDatabase()
     return db.select().from(agentSkillsTable).where(eq(agentSkillsTable.agentId, agentId))
@@ -74,3 +65,5 @@ export class AgentSkillRepository extends BaseService {
     await db.delete(agentSkillsTable).where(eq(agentSkillsTable.skillId, skillId))
   }
 }
+
+export const agentSkillRepository = new AgentSkillRepository()

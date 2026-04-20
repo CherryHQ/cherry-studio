@@ -131,7 +131,8 @@ CREATE TABLE `agent_task_run_log` (
 	`error` text,
 	`created_at` integer,
 	`updated_at` integer,
-	FOREIGN KEY (`task_id`) REFERENCES `agent_task`(`id`) ON UPDATE no action ON DELETE cascade
+	FOREIGN KEY (`task_id`) REFERENCES `agent_task`(`id`) ON UPDATE no action ON DELETE cascade,
+	CONSTRAINT "agent_task_run_log_status_check" CHECK("agent_task_run_log"."status" IN ('running', 'success', 'error'))
 );
 --> statement-breakpoint
 CREATE INDEX `agent_task_run_log_task_id_idx` ON `agent_task_run_log` (`task_id`);--> statement-breakpoint
@@ -149,7 +150,9 @@ CREATE TABLE `agent_task` (
 	`status` text DEFAULT 'active' NOT NULL,
 	`created_at` integer,
 	`updated_at` integer,
-	FOREIGN KEY (`agent_id`) REFERENCES `agent`(`id`) ON UPDATE no action ON DELETE cascade
+	FOREIGN KEY (`agent_id`) REFERENCES `agent`(`id`) ON UPDATE no action ON DELETE cascade,
+	CONSTRAINT "agent_task_schedule_type_check" CHECK("agent_task"."schedule_type" IN ('cron', 'interval', 'once')),
+	CONSTRAINT "agent_task_status_check" CHECK("agent_task"."status" IN ('active', 'paused', 'completed'))
 );
 --> statement-breakpoint
 CREATE INDEX `agent_task_agent_id_idx` ON `agent_task` (`agent_id`);--> statement-breakpoint

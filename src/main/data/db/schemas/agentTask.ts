@@ -1,4 +1,5 @@
-import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { sql } from 'drizzle-orm'
+import { check, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps } from './_columnHelpers'
 import { agentTable } from './agent'
@@ -26,7 +27,9 @@ export const agentTaskTable = sqliteTable(
   (t) => [
     index('agent_task_agent_id_idx').on(t.agentId),
     index('agent_task_next_run_idx').on(t.nextRun),
-    index('agent_task_status_idx').on(t.status)
+    index('agent_task_status_idx').on(t.status),
+    check('agent_task_schedule_type_check', sql`${t.scheduleType} IN ('cron', 'interval', 'once')`),
+    check('agent_task_status_check', sql`${t.status} IN ('active', 'paused', 'completed')`)
   ]
 )
 
@@ -45,7 +48,10 @@ export const agentTaskRunLogTable = sqliteTable(
     error: text(),
     ...createUpdateTimestamps
   },
-  (t) => [index('agent_task_run_log_task_id_idx').on(t.taskId)]
+  (t) => [
+    index('agent_task_run_log_task_id_idx').on(t.taskId),
+    check('agent_task_run_log_status_check', sql`${t.status} IN ('running', 'success', 'error')`)
+  ]
 )
 
 export type AgentTaskRow = typeof agentTaskTable.$inferSelect

@@ -22,7 +22,7 @@ import {
   scheduledTasksTable,
   sessionsTable
 } from '../database/schema'
-import type { AgentModelField } from '../errors'
+import { type AgentModelField, AgentModelValidationError } from '../errors'
 import { skillService } from '../skills/SkillService'
 import { CHERRY_CLAW_AGENT_ID, isBuiltinAgentId } from './builtin/BuiltinAgentIds'
 import { seedWorkspaceTemplates } from './cherryclaw/seedWorkspace'
@@ -306,8 +306,15 @@ export class AgentService extends BaseService {
       logger.info(`Created built-in ${builtinRole} agent`, { id })
       return { agentId: id }
     } catch (error) {
+      // Only swallow model-validation failures (no compatible model yet). Every
+      // other failure — DB errors, FK violations, coding bugs — must surface so
+      // we don't silently lose the agent on startup.
+      if (error instanceof AgentModelValidationError) {
+        logger.warn(`Skipping built-in ${builtinRole} agent: no compatible model`, error)
+        return { agentId: null, skippedReason: 'no_model' }
+      }
       logger.error(`Failed to init built-in ${builtinRole} agent`, error as Error)
-      return { agentId: null, skippedReason: 'no_model' }
+      throw error
     }
   }
 
@@ -399,8 +406,14 @@ export class AgentService extends BaseService {
       logger.info('Created default CherryClaw agent', { id })
       return { agentId: id }
     } catch (error) {
+      // Only swallow model-validation failures (no compatible model yet).
+      // Other failures must bubble up — silently dropping them hid real bugs.
+      if (error instanceof AgentModelValidationError) {
+        logger.warn('Skipping default CherryClaw agent: no compatible model', error)
+        return { agentId: null, skippedReason: 'no_model' }
+      }
       logger.error('Failed to init default CherryClaw agent', error as Error)
-      return { agentId: null, skippedReason: 'no_model' }
+      throw error
     }
   }
 

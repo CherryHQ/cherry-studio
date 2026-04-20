@@ -44,9 +44,7 @@ const { mockRepo, mockEnableForAllAgents } = vi.hoisted(() => ({
 }))
 
 vi.mock('../services/agents/skills/SkillRepository', () => ({
-  SkillRepository: {
-    getInstance: () => mockRepo
-  }
+  skillRepository: mockRepo
 }))
 
 vi.mock('../services/agents/skills/SkillService', () => ({

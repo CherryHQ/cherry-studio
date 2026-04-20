@@ -130,6 +130,9 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
   {
     sourceTable: 'skills',
     targetTable: 'agent_global_skill',
+    // Legacy `skills.created_at` / `updated_at` are already stored as INTEGER
+    // epoch-milliseconds (see resources/database/drizzle/0005_normal_doomsday.sql),
+    // so no strftime() wrapping is needed — copy through verbatim.
     columns: [
       'id',
       'name',
@@ -149,6 +152,8 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
   {
     sourceTable: 'agent_skills',
     targetTable: 'agent_skill',
+    // Legacy `agent_skills.created_at` / `updated_at` are already INTEGER epoch-ms
+    // (see resources/database/drizzle/0006_famous_fallen_one.sql) — no wrapping.
     columns: [
       { name: 'agent_id', expr: 'agent_id' },
       { name: 'skill_id', expr: 'skill_id' },
@@ -232,6 +237,8 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
   {
     sourceTable: 'channels',
     targetTable: 'agent_channel',
+    // Legacy `channels.created_at` / `updated_at` are INTEGER epoch-ms
+    // (see resources/database/drizzle/0004_busy_giant_girl.sql) — no strftime wrap.
     columns: [
       'id',
       'type',

@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import type { CreateTaskRequest, ListOptions, ScheduledTaskEntity, TaskRunLogEntity, UpdateTaskRequest } from '@types'
+import { CronExpressionParser } from 'cron-parser'
 import { and, asc, count, desc, eq, inArray, lte, ne } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
@@ -17,15 +18,6 @@ import {
 const logger = loggerService.withContext('TaskService')
 
 export class TaskService extends BaseService {
-  private static instance: TaskService | null = null
-
-  static getInstance(): TaskService {
-    if (!TaskService.instance) {
-      TaskService.instance = new TaskService()
-    }
-    return TaskService.instance
-  }
-
   async createTask(agentId: string, req: CreateTaskRequest): Promise<ScheduledTaskEntity> {
     await this.assertAutonomous(agentId)
 
@@ -452,11 +444,14 @@ export class TaskService extends BaseService {
 
     if (task.schedule_type === 'cron') {
       try {
-        const { CronExpressionParser } = require('cron-parser')
         const interval = CronExpressionParser.parse(task.schedule_value)
         return interval.next().getTime()
-      } catch {
-        logger.warn('Invalid cron expression', { taskId: task.id, cron: task.schedule_value })
+      } catch (error) {
+        logger.warn('Invalid cron expression', {
+          taskId: task.id,
+          cron: task.schedule_value,
+          error: error instanceof Error ? error.message : String(error)
+        })
         return null
       }
     }
@@ -523,10 +518,13 @@ export class TaskService extends BaseService {
     switch (scheduleType) {
       case 'cron': {
         try {
-          const { CronExpressionParser } = require('cron-parser')
           const interval = CronExpressionParser.parse(scheduleValue)
           return interval.next().getTime()
-        } catch {
+        } catch (error) {
+          logger.warn('Invalid cron expression for initial next-run computation', {
+            scheduleValue,
+            error: error instanceof Error ? error.message : String(error)
+          })
           return null
         }
       }
@@ -546,4 +544,4 @@ export class TaskService extends BaseService {
   }
 }
 
-export const taskService = TaskService.getInstance()
+export const taskService = new TaskService()

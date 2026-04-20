@@ -130,9 +130,16 @@ export class AgentsMigrator extends BaseMigrator {
     } finally {
       try {
         await ctx.db.run(sql.raw('PRAGMA foreign_keys = ON'))
-      } catch {}
+      } catch (pragmaError) {
+        logger.warn('Failed to re-enable foreign_keys after agents migration', pragmaError as Error)
+      }
       if (isAttached) {
-        await ctx.db.run(sql.raw('DETACH DATABASE agents_legacy'))
+        try {
+          await ctx.db.run(sql.raw('DETACH DATABASE agents_legacy'))
+        } catch (detachError) {
+          // DETACH must not mask the original error; just log it so it surfaces in diagnostics.
+          logger.warn('Failed to DETACH agents_legacy database', detachError as Error)
+        }
       }
     }
 
@@ -217,7 +224,11 @@ export class AgentsMigrator extends BaseMigrator {
         }
       }
     } finally {
-      await ctx.db.run(sql.raw('DETACH DATABASE agents_legacy'))
+      try {
+        await ctx.db.run(sql.raw('DETACH DATABASE agents_legacy'))
+      } catch (detachError) {
+        logger.warn('Failed to DETACH agents_legacy database during validation', detachError as Error)
+      }
     }
 
     logger.info('AgentsMigrator validation:', {

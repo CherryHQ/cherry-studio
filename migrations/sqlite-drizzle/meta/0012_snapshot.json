@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "543efe92-83d7-4491-8e7e-e81cc4b35c90",
+  "id": "07d44a98-4b3c-4020-8656-bf2be5cd53c8",
   "prevId": "a947c27c-3d23-43b7-8846-3a82fcbbdee6",
   "tables": {
     "agent": {
@@ -677,8 +677,8 @@
         }
       },
       "foreignKeys": {
-        "agent_session_message_session_id_fk": {
-          "name": "agent_session_message_session_id_fk",
+        "agent_session_message_session_id_agent_session_id_fk": {
+          "name": "agent_session_message_session_id_agent_session_id_fk",
           "tableFrom": "agent_session_message",
           "tableTo": "agent_session",
           "columnsFrom": ["session_id"],
@@ -866,7 +866,12 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "checkConstraints": {
+        "agent_task_run_log_status_check": {
+          "name": "agent_task_run_log_status_check",
+          "value": "\"agent_task_run_log\".\"status\" IN ('running', 'success', 'error')"
+        }
+      }
     },
     "agent_task": {
       "name": "agent_task",
@@ -995,7 +1000,16 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "checkConstraints": {
+        "agent_task_schedule_type_check": {
+          "name": "agent_task_schedule_type_check",
+          "value": "\"agent_task\".\"schedule_type\" IN ('cron', 'interval', 'once')"
+        },
+        "agent_task_status_check": {
+          "name": "agent_task_status_check",
+          "value": "\"agent_task\".\"status\" IN ('active', 'paused', 'completed')"
+        }
+      }
     },
     "app_state": {
       "name": "app_state",
