@@ -25,6 +25,7 @@ import {
 
 import { type AgentLoopHooks, type AgentOptions, runAgentLoop } from './agentLoop'
 import { resolveCapabilities } from './capabilities'
+import { resolveUIMessageFileUrls } from './messages/messageConverter'
 import type { PendingMessageQueue } from './PendingMessageQueue'
 import { buildPlugins } from './plugins/PluginBuilder'
 import type { ClaudeCodeProviderSettings } from './provider/claude-code/types'
@@ -437,6 +438,11 @@ export class AiService extends BaseService {
       : options
     const mergedHooks = this.composeHooks(model, extensions.hooks)
 
+    // Inline any `file://` URLs in the UIMessages' file parts as base64
+    // data URLs. AI SDK's `convertToModelMessages` doesn't fetch
+    // `file://`, so the provider would otherwise see bogus links.
+    const preparedMessages = await resolveUIMessageFileUrls(request.messages ?? [])
+
     return runAgentLoop(
       {
         providerId: sdkConfig.providerId,
@@ -450,7 +456,7 @@ export class AiService extends BaseService {
         pendingMessages: request.pendingMessages,
         hooks: mergedHooks
       },
-      request.messages ?? [],
+      preparedMessages,
       signal
     )
   }
