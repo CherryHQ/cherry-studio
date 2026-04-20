@@ -1,8 +1,6 @@
 // Original path: src/renderer/src/components/EditableNumber/index.tsx
-import { InputNumber } from 'antd'
-import type { FC } from 'react'
-import { useEffect, useState } from 'react'
-import styled from 'styled-components'
+import { cn } from '@cherrystudio/ui/lib/utils'
+import * as React from 'react'
 
 export interface EditableNumberProps {
   value?: number | null
@@ -21,9 +19,58 @@ export interface EditableNumberProps {
   suffix?: string
   prefix?: string
   align?: 'start' | 'center' | 'end'
+  formatter?: (value: number | null) => string | number
 }
 
-const EditableNumber: FC<EditableNumberProps> = ({
+const sizeClasses: Record<NonNullable<EditableNumberProps['size']>, string> = {
+  small: 'h-8 text-sm',
+  middle: 'h-9 text-sm',
+  large: 'h-10 text-base'
+}
+
+const alignClasses: Record<NonNullable<EditableNumberProps['align']>, string> = {
+  start: 'justify-start text-left',
+  center: 'justify-center text-center',
+  end: 'justify-end text-right'
+}
+
+const clamp = (value: number, min?: number, max?: number) => {
+  if (min !== undefined && value < min) {
+    return min
+  }
+  if (max !== undefined && value > max) {
+    return max
+  }
+  return value
+}
+
+const normalizeNumber = (value: string, precision?: number, min?: number, max?: number) => {
+  const trimmed = value.trim()
+  if (!trimmed || trimmed === '-' || trimmed === '.' || trimmed === '-.') {
+    return null
+  }
+
+  const parsed = Number(trimmed)
+  if (Number.isNaN(parsed)) {
+    return null
+  }
+
+  const clamped = clamp(parsed, min, max)
+  if (precision === undefined) {
+    return clamped
+  }
+
+  return Number(clamped.toFixed(precision))
+}
+
+const toInputValue = (value: number | null | undefined, precision?: number) => {
+  if (value === null || value === undefined) {
+    return ''
+  }
+  return precision === undefined ? String(value) : value.toFixed(precision)
+}
+
+const EditableNumber: React.FC<EditableNumberProps> = ({
   value,
   min,
   max,
@@ -37,79 +84,111 @@ const EditableNumber: FC<EditableNumberProps> = ({
   style,
   className,
   size = 'middle',
-  align = 'end'
+  align = 'end',
+  suffix,
+  prefix,
+  formatter
 }) => {
-  const [isEditing, setIsEditing] = useState(false)
-  const [inputValue, setInputValue] = useState(value)
+  const [isEditing, setIsEditing] = React.useState(false)
+  const [inputValue, setInputValue] = React.useState(() => toInputValue(value, precision))
 
-  useEffect(() => {
-    setInputValue(value)
-  }, [value])
+  React.useEffect(() => {
+    if (!isEditing) {
+      setInputValue(toInputValue(value, precision))
+    }
+  }, [isEditing, precision, value])
+
+  const commitValue = React.useCallback(
+    (nextValue: string) => {
+      const normalized = normalizeNumber(nextValue, precision, min, max)
+      onChange?.(normalized)
+      return normalized
+    },
+    [max, min, onChange, precision]
+  )
 
   const handleFocus = () => {
-    if (disabled) return
+    if (disabled) {
+      return
+    }
     setIsEditing(true)
   }
 
-  const handleInputChange = (newValue: number | null) => {
-    onChange?.(newValue ?? null)
+  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const nextValue = event.target.value
+    setInputValue(nextValue)
+
+    if (!changeOnBlur) {
+      commitValue(nextValue)
+    }
   }
 
   const handleBlur = () => {
+    const normalized = changeOnBlur ? commitValue(inputValue) : normalizeNumber(inputValue, precision, min, max)
+    setInputValue(toInputValue(normalized, precision))
     setIsEditing(false)
     onBlur?.()
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleBlur()
-    } else if (e.key === 'Escape') {
-      e.stopPropagation()
-      setInputValue(value)
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      event.currentTarget.blur()
+      return
+    }
+
+    if (event.key === 'Escape') {
+      event.stopPropagation()
+      setInputValue(toInputValue(value, precision))
       setIsEditing(false)
+      event.currentTarget.blur()
     }
   }
 
+  const displayValue = formatter ? formatter(value ?? null) : (value ?? placeholder)
+
   return (
-    <Container>
-      <InputNumber
-        style={{ ...style, opacity: isEditing ? 1 : 0 }}
+    <div className="relative inline-block">
+      <input
+        type="number"
         value={inputValue}
         min={min}
         max={max}
         step={step}
-        precision={precision}
-        size={size}
-        onChange={handleInputChange}
+        disabled={disabled}
+        onChange={handleChange}
         onBlur={handleBlur}
         onFocus={handleFocus}
         onKeyDown={handleKeyDown}
-        className={className}
-        controls={isEditing}
-        changeOnBlur={changeOnBlur}
+        className={cn(
+          'border-input bg-background w-full rounded-md border px-3 text-sm shadow-xs outline-none transition-[color,box-shadow] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
+          'focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]',
+          'disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50',
+          sizeClasses[size],
+          align === 'start' ? 'text-left' : align === 'center' ? 'text-center' : 'text-right',
+          className
+        )}
+        style={{
+          ...style,
+          opacity: isEditing ? 1 : 0
+        }}
       />
-      <DisplayText style={style} className={className} $align={align} $isEditing={isEditing}>
-        {value ?? placeholder}
-      </DisplayText>
-    </Container>
+      <div
+        className={cn(
+          'pointer-events-none absolute inset-0 flex items-center px-3',
+          !isEditing ? 'flex' : 'hidden',
+          alignClasses[align],
+          sizeClasses[size],
+          className
+        )}
+        style={style}>
+        <span className="truncate">
+          {prefix}
+          {displayValue}
+          {suffix}
+        </span>
+      </div>
+    </div>
   )
 }
-
-const Container = styled.div`
-  display: inline-block;
-  position: relative;
-`
-
-const DisplayText = styled.div<{
-  $align: 'start' | 'center' | 'end'
-  $isEditing: boolean
-}>`
-  position: absolute;
-  inset: 0;
-  display: ${({ $isEditing }) => ($isEditing ? 'none' : 'flex')};
-  align-items: center;
-  justify-content: ${({ $align }) => $align};
-  pointer-events: none;
-`
 
 export default EditableNumber

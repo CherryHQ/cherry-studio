@@ -8,6 +8,65 @@ import reactHooks from 'eslint-plugin-react-hooks'
 import simpleImportSort from 'eslint-plugin-simple-import-sort'
 import unusedImports from 'eslint-plugin-unused-imports'
 
+const LEGACY_RENDERER_CSS_VARS = [
+  '--color-text-1',
+  '--color-text-2',
+  '--color-text-3',
+  '--color-text',
+  '--color-text-secondary',
+  '--color-text-soft',
+  '--color-text-light',
+  '--color-background-soft',
+  '--color-background-mute',
+  '--color-background-opacity',
+  '--color-border-soft',
+  '--color-border-mute',
+  '--color-error',
+  '--color-link',
+  '--color-primary-bg',
+  '--color-fill-secondary',
+  '--color-fill-2',
+  '--color-bg-base',
+  '--color-bg-1',
+  '--color-code-background',
+  '--color-inline-code-background',
+  '--color-inline-code-text',
+  '--color-hover',
+  '--color-active',
+  '--color-frame-border',
+  '--color-group-background',
+  '--color-reference',
+  '--color-reference-text',
+  '--color-reference-background',
+  '--color-list-item',
+  '--color-list-item-hover',
+  '--color-highlight',
+  '--color-background-highlight',
+  '--color-background-highlight-accent',
+  '--navbar-background-mac',
+  '--navbar-background',
+  '--modal-background',
+  '--chat-background',
+  '--chat-background-user',
+  '--chat-background-assistant',
+  '--chat-text-user',
+  '--list-item-border-radius',
+  '--color-gray-1',
+  '--color-gray-2',
+  '--color-gray-3',
+  '--color-icon-white',
+  '--color-primary-1',
+  '--color-primary-6',
+  '--color-status-success',
+  '--color-status-error',
+  '--color-status-warning'
+]
+
+const LEGACY_RENDERER_CSS_VAR_REGEX = new RegExp(
+  `(${LEGACY_RENDERER_CSS_VARS.map((value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})(?![\\w-])`,
+  'g'
+)
+
 export default defineConfig([
   eslint.configs.recommended,
   tseslint.configs.recommended,
@@ -253,6 +312,65 @@ export default defineConfig([
           ]
         }
       ]
+    }
+  },
+  // renderer legacy css var migration warnings
+  {
+    files: ['src/renderer/src/**/*.{ts,tsx,js,jsx}'],
+    ignores: [
+      'src/renderer/src/**/*.test.*',
+      'src/renderer/src/**/__tests__/**',
+      'src/renderer/src/**/__mocks__/**'
+    ],
+    plugins: {
+      'renderer-styles': {
+        rules: {
+          'no-legacy-css-vars': {
+            meta: {
+              type: 'suggestion',
+              docs: {
+                description:
+                  'Warn when renderer code references legacy CSS compatibility variables instead of the shared theme contract.',
+                recommended: true
+              },
+              messages: {
+                legacyVar:
+                  'Legacy renderer CSS variable "{{variable}}" is deprecated. Prefer @cherrystudio/ui theme contract variables or Tailwind semantic utilities instead.'
+              }
+            },
+            create(context) {
+              function reportIfLegacyCssVar(node, text) {
+                const matches = text.matchAll(LEGACY_RENDERER_CSS_VAR_REGEX)
+                for (const match of matches) {
+                  const variable = match[1]
+                  if (!variable) continue
+                  context.report({
+                    node,
+                    messageId: 'legacyVar',
+                    data: { variable }
+                  })
+                }
+              }
+
+              return {
+                Literal(node) {
+                  if (typeof node.value !== 'string') return
+                  reportIfLegacyCssVar(node, node.value)
+                },
+                TemplateElement(node) {
+                  reportIfLegacyCssVar(node, node.value.raw)
+                },
+                JSXText(node) {
+                  reportIfLegacyCssVar(node, node.value)
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    rules: {
+      'renderer-styles/no-legacy-css-vars': 'warn'
     }
   },
   // Schema key naming convention (cache & preferences)

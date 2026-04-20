@@ -8,7 +8,6 @@ function createProvider(overrides: Partial<ResolvedWebSearchProvider>): Resolved
     id: 'tavily',
     name: 'Tavily',
     type: 'api',
-    usingBrowser: false,
     apiKeys: ['test-key'],
     apiHost: 'https://api.example.com',
     engines: [],

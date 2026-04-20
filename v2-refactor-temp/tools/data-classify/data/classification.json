@@ -2849,7 +2849,7 @@
         {
           "originalKey": "defaultProvider",
           "type": "string",
-          "defaultValue": "local-bing",
+          "defaultValue": "",
           "status": "classified",
           "category": "preferences",
           "targetKey": null
