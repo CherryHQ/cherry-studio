@@ -234,6 +234,51 @@ describe('findTabInTree', () => {
   })
 })
 
+describe('WeakMap index', () => {
+  it('returns the same cached array from collectAllLeafIds on repeated calls', () => {
+    const a = collectAllLeafIds(nestedSplit)
+    const b = collectAllLeafIds(nestedSplit)
+    expect(a).toBe(b)
+  })
+
+  it('returns the same cached array from collectAllTabs on repeated calls', () => {
+    const a = collectAllTabs(nestedSplit)
+    const b = collectAllTabs(nestedSplit)
+    expect(a).toBe(b)
+  })
+
+  it('rebuilds index when the root reference changes', () => {
+    const first = collectAllLeafIds(nestedSplit)
+    // Create a structurally-identical but reference-different tree.
+    const twin: PaneLayout = {
+      type: 'split',
+      direction: nestedSplit.direction,
+      ratio: nestedSplit.ratio,
+      children: nestedSplit.children
+    }
+    const second = collectAllLeafIds(twin)
+    expect(second).not.toBe(first) // different WeakMap keys
+    expect(second).toEqual(first) // same content
+  })
+
+  it('findLeafById / findTabInTree hit the index in O(1) after first call', () => {
+    // Smoke test — just asserts the API still works through the index
+    const tree: PaneLayout = {
+      type: 'split',
+      direction: 'horizontal',
+      ratio: 50,
+      children: [
+        { type: 'leaf', paneId: 'p1', tabs: [tabA], activeTabId: 'a' },
+        { type: 'leaf', paneId: 'p2', tabs: [tabB, tabC], activeTabId: 'b' }
+      ]
+    }
+    expect(findLeafById(tree, 'p2')?.paneId).toBe('p2')
+    expect(findLeafById(tree, 'p2')?.paneId).toBe('p2') // cached
+    expect(findTabInTree(tree, 'c')?.tab).toBe(tabC)
+    expect(findTabInTree(tree, 'missing')).toBeNull()
+  })
+})
+
 describe('moveTabBetweenLeaves', () => {
   const twoPerPane: PaneLayout = {
     type: 'split',

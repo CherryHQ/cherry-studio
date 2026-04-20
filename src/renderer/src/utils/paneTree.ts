@@ -1,13 +1,71 @@
 import type { LeafPane, PaneDirection, PaneLayout, PaneTab } from '@shared/data/cache/cacheValueTypes'
 
 /**
+ * Per-layout lookup index.
+ *
+ * Trees are immutable — producing a mutation always creates a new root
+ * reference. We key a WeakMap on the layout node so the index is lazily
+ * built on first lookup and garbage-collected when the tree is replaced.
+ * No manual invalidation needed.
+ *
+ * Build cost is O(n); subsequent lookups on the same reference are O(1).
+ * Break-even is two lookups per tree, which every mutation path meets
+ * (find + update, or find + split + normalize).
+ */
+interface TreeIndex {
+  leafById: Map<string, LeafPane>
+  tabById: Map<string, { paneId: string; tab: PaneTab }>
+  leafIds: string[]
+  allTabs: Array<{ paneId: string; tab: PaneTab }>
+}
+
+const indexCache = new WeakMap<PaneLayout, TreeIndex>()
+
+function buildIndex(root: PaneLayout): TreeIndex {
+  const idx: TreeIndex = {
+    leafById: new Map(),
+    tabById: new Map(),
+    leafIds: [],
+    allTabs: []
+  }
+  const walk = (node: PaneLayout): void => {
+    if (node.type === 'leaf') {
+      idx.leafById.set(node.paneId, node)
+      idx.leafIds.push(node.paneId)
+      for (const tab of node.tabs) {
+        const entry = { paneId: node.paneId, tab }
+        idx.tabById.set(tab.id, entry)
+        idx.allTabs.push(entry)
+      }
+      return
+    }
+    walk(node.children[0])
+    walk(node.children[1])
+  }
+  walk(root)
+  return idx
+}
+
+function getIndex(root: PaneLayout): TreeIndex {
+  let idx = indexCache.get(root)
+  if (!idx) {
+    idx = buildIndex(root)
+    indexCache.set(root, idx)
+  }
+  return idx
+}
+
+/**
  * Find a leaf pane by its ID in the layout tree.
+ *
+ * Uses the WeakMap-cached index: first call builds it in O(n), subsequent
+ * calls on the same tree reference are O(1).
  */
 export function findLeafById(layout: PaneLayout, paneId: string): LeafPane | null {
   if (layout.type === 'leaf') {
     return layout.paneId === paneId ? layout : null
   }
-  return findLeafById(layout.children[0], paneId) ?? findLeafById(layout.children[1], paneId)
+  return getIndex(layout).leafById.get(paneId) ?? null
 }
 
 /**
@@ -79,23 +137,25 @@ export function updateRatioAtPath(layout: PaneLayout, path: number[], ratio: num
 
 /**
  * Collect all leaf paneIds in tree order (depth-first, left-to-right).
+ * Returns the index-cached array directly — do not mutate the result.
  */
 export function collectAllLeafIds(layout: PaneLayout): string[] {
   if (layout.type === 'leaf') {
     return [layout.paneId]
   }
-  return [...collectAllLeafIds(layout.children[0]), ...collectAllLeafIds(layout.children[1])]
+  return getIndex(layout).leafIds
 }
 
 /**
  * Collect every (paneId, tab) pair across the whole tree.
  * Used by LRU to run a cross-pane hibernation pass.
+ * Returns the index-cached array directly — do not mutate the result.
  */
 export function collectAllTabs(layout: PaneLayout): Array<{ paneId: string; tab: PaneTab }> {
   if (layout.type === 'leaf') {
     return layout.tabs.map((tab) => ({ paneId: layout.paneId, tab }))
   }
-  return [...collectAllTabs(layout.children[0]), ...collectAllTabs(layout.children[1])]
+  return getIndex(layout).allTabs
 }
 
 /**
@@ -136,13 +196,16 @@ export function splitLeaf(
 
 /**
  * Locate a tab by id anywhere in the tree.
+ *
+ * Uses the WeakMap-cached index: first call builds it in O(n), subsequent
+ * calls on the same tree reference are O(1).
  */
 export function findTabInTree(layout: PaneLayout, tabId: string): { paneId: string; tab: PaneTab } | null {
   if (layout.type === 'leaf') {
     const tab = layout.tabs.find((t) => t.id === tabId)
     return tab ? { paneId: layout.paneId, tab } : null
   }
-  return findTabInTree(layout.children[0], tabId) ?? findTabInTree(layout.children[1], tabId)
+  return getIndex(layout).tabById.get(tabId) ?? null
 }
 
 /**
