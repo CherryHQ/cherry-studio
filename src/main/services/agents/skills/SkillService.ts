@@ -81,6 +81,10 @@ export class SkillService {
    * per-agent enablement state from `agent_skill`. Without `agentId`,
    * the field is forced to `false`.
    */
+  async getById(id: string): Promise<InstalledSkill | null> {
+    return this.getSkillById(id)
+  }
+
   async list(agentId?: string): Promise<InstalledSkill[]> {
     const rows = await this.db.select().from(agentGlobalSkillTable)
     const skills = rows.map(this.rowToInstalledSkill)

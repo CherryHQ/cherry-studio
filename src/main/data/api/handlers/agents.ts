@@ -2,8 +2,8 @@
  * Agents domain API Handlers
  *
  * Thin routing layer between the DataApi transport and the existing agent
- * service singletons. Each handler validates its inputs and delegates to the
- * appropriate service method.
+ * service singletons. Each handler validates required inputs and delegates
+ * to the appropriate service method.
  *
  * Service layer: src/main/services/agents/services/
  * Skills layer:  src/main/services/agents/skills/SkillService
@@ -20,6 +20,14 @@ import type { AgentSchemas } from '@shared/data/api/schemas/agents'
 
 type AgentHandler<Path extends keyof AgentSchemas, Method extends ApiMethods<Path>> = ApiHandler<Path, Method>
 
+function requireFields(body: Record<string, unknown> | undefined, fields: string[]): void {
+  const missing = fields.filter((f) => !body?.[f])
+  if (missing.length > 0) {
+    const fieldErrors = Object.fromEntries(missing.map((f) => [f, ['is required']]))
+    throw DataApiErrorFactory.validation(fieldErrors, `Missing required fields: ${missing.join(', ')}`)
+  }
+}
+
 export const agentHandlers: {
   [Path in keyof AgentSchemas]: {
     [Method in keyof AgentSchemas[Path]]: AgentHandler<Path, Method & ApiMethods<Path>>
@@ -32,6 +40,7 @@ export const agentHandlers: {
     },
 
     POST: async ({ body }) => {
+      requireFields(body as any, ['type', 'name', 'model'])
       const agent = await agentService.createAgent(body as any)
       return agent as any
     }
@@ -92,11 +101,17 @@ export const agentHandlers: {
   '/agents/:id/sessions/:sid/messages': {
     GET: async ({ params, query }) => {
       return await sessionMessageService.listSessionMessages(params.sid, query as any)
-    },
+    }
+  },
 
+  '/agents/:id/sessions/:sid/messages/:messageId': {
     DELETE: async ({ params }) => {
-      const deleted = await sessionMessageService.deleteSessionMessage(params.sid, (params as any).messageId)
-      if (!deleted) throw DataApiErrorFactory.notFound('Message', String((params as any).messageId))
+      const messageId = Number(params.messageId)
+      if (!Number.isFinite(messageId)) {
+        throw DataApiErrorFactory.validation({ messageId: ['must be a numeric id'] }, 'Invalid message id')
+      }
+      const deleted = await sessionMessageService.deleteSessionMessage(params.sid, messageId)
+      if (!deleted) throw DataApiErrorFactory.notFound('Message', params.messageId)
       return undefined
     }
   },
@@ -108,6 +123,7 @@ export const agentHandlers: {
     },
 
     POST: async ({ params, body }) => {
+      requireFields(body as any, ['name', 'prompt', 'schedule_type', 'schedule_value'])
       return await taskService.createTask(params.id, body as any)
     }
   },
@@ -135,14 +151,13 @@ export const agentHandlers: {
   '/skills': {
     GET: async () => {
       const skills = await skillService.list()
-      return { data: skills }
+      return { data: skills, total: skills.length, limit: skills.length, offset: 0 }
     }
   },
 
   '/skills/:id': {
     GET: async ({ params }) => {
-      const skills = await skillService.list()
-      const skill = skills.find((s) => s.id === params.id)
+      const skill = await skillService.getById(params.id)
       if (!skill) throw DataApiErrorFactory.notFound('Skill', params.id)
       return skill
     }

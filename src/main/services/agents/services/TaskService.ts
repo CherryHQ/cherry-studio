@@ -9,6 +9,7 @@ import {
   type InsertAgentTaskRow as InsertTaskRow,
   type InsertAgentTaskRunLogRow as InsertTaskRunLogRow
 } from '@data/db/schemas/agentTask'
+import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import { loggerService } from '@logger'
 import type { CreateTaskRequest, ListOptions, ScheduledTaskEntity, TaskRunLogEntity, UpdateTaskRequest } from '@types'
 import { and, asc, count, desc, eq, inArray, lte, ne } from 'drizzle-orm'
@@ -16,15 +17,6 @@ import { and, asc, count, desc, eq, inArray, lte, ne } from 'drizzle-orm'
 const logger = loggerService.withContext('TaskService')
 
 export class TaskService {
-  private static instance: TaskService | null = null
-
-  static getInstance(): TaskService {
-    if (!TaskService.instance) {
-      TaskService.instance = new TaskService()
-    }
-    return TaskService.instance
-  }
-
   async createTask(agentId: string, req: CreateTaskRequest): Promise<ScheduledTaskEntity> {
     await this.assertAutonomous(agentId)
 
@@ -45,19 +37,23 @@ export class TaskService {
     }
 
     const database = application.get('DbService').getDb()
-    await database.transaction(async (tx) => {
-      const result = await tx.insert(scheduledTasksTable).values(insertData)
-      if (result.rowsAffected !== 1) {
-        throw new Error(`Failed to insert task ${id}: rowsAffected=${result.rowsAffected}`)
-      }
+    await withSqliteErrors(
+      () =>
+        database.transaction(async (tx) => {
+          const result = await tx.insert(scheduledTasksTable).values(insertData)
+          if (result.rowsAffected !== 1) {
+            throw new Error(`Failed to insert task ${id}: rowsAffected=${result.rowsAffected}`)
+          }
 
-      if (req.channel_ids?.length) {
-        await tx
-          .insert(channelTaskSubscriptionsTable)
-          .values(req.channel_ids.map((channelId) => ({ channelId, taskId: id })))
-          .onConflictDoNothing()
-      }
-    })
+          if (req.channel_ids?.length) {
+            await tx
+              .insert(channelTaskSubscriptionsTable)
+              .values(req.channel_ids.map((channelId) => ({ channelId, taskId: id })))
+              .onConflictDoNothing()
+          }
+        }),
+      defaultHandlersFor('Task', id)
+    )
 
     logger.info('Task created', { taskId: id, agentId })
     return this.getTaskWithChannels(id)
@@ -151,7 +147,10 @@ export class TaskService {
     }
 
     const database = application.get('DbService').getDb()
-    await database.update(scheduledTasksTable).set(updateData).where(eq(scheduledTasksTable.id, taskId))
+    await withSqliteErrors(
+      () => database.update(scheduledTasksTable).set(updateData).where(eq(scheduledTasksTable.id, taskId)),
+      defaultHandlersFor('Task', taskId)
+    )
 
     // Sync channel subscriptions if provided
     if (updates.channel_ids !== undefined) {
@@ -545,4 +544,4 @@ export class TaskService {
   }
 }
 
-export const taskService = TaskService.getInstance()
+export const taskService = new TaskService()

@@ -8,6 +8,7 @@ import {
   agentSessionTable as sessionsTable,
   type InsertAgentSessionRow as InsertSessionRow
 } from '@data/db/schemas/agentSession'
+import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import { loggerService } from '@logger'
 import { parsePluginMetadata } from '@main/utils/markdownParser'
 import {
@@ -170,13 +171,17 @@ export class SessionService {
 
     const db = application.get('DbService').getDb()
     // Shift all existing sessions' sortOrder up by 1 and insert new session at position 0 atomically
-    await db.transaction(async (tx) => {
-      await tx
-        .update(sessionsTable)
-        .set({ sortOrder: sql`${sessionsTable.sortOrder} + 1` })
-        .where(eq(sessionsTable.agentId, agentId))
-      await tx.insert(sessionsTable).values(insertData)
-    })
+    await withSqliteErrors(
+      () =>
+        db.transaction(async (tx) => {
+          await tx
+            .update(sessionsTable)
+            .set({ sortOrder: sql`${sessionsTable.sortOrder} + 1` })
+            .where(eq(sessionsTable.agentId, agentId))
+          await tx.insert(sessionsTable).values(insertData)
+        }),
+      defaultHandlersFor('Session', id)
+    )
 
     const result = await db.select().from(sessionsTable).where(eq(sessionsTable.id, id)).limit(1)
 
@@ -326,7 +331,10 @@ export class SessionService {
     }
 
     const database = application.get('DbService').getDb()
-    await database.update(sessionsTable).set(updateData).where(eq(sessionsTable.id, id))
+    await withSqliteErrors(
+      () => database.update(sessionsTable).set(updateData).where(eq(sessionsTable.id, id)),
+      defaultHandlersFor('Session', id)
+    )
 
     return await this.getSession(agentId, id)
   }
