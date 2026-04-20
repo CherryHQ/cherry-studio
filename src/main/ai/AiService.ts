@@ -89,12 +89,45 @@ type ChatTrigger = Parameters<ChatTransport<UIMessage>['sendMessages']>[0]['trig
 
 // ── Request types ──────────────────────────────────────────────────
 
+/**
+ * Per-request transport options.
+ *
+ * Separate from `AiGenerateExtensions` / `AiStreamExtensions` which are
+ * SDK-level extension points (plugins, hooks). `requestOptions` is pure
+ * transport data (strings, numbers) that IPC can serialise.
+ */
+export interface AiRequestOptions {
+  /**
+   * Extra request headers layered on top of provider-level defaults
+   * (`defaultAppHeaders()` + `provider.settings.extraHeaders`).
+   *
+   * Standard spread semantics — caller values win on key conflict; no
+   * User-Agent concatenation, no key lowercasing. If you need the latter,
+   * do it at the call site before handing the object in.
+   */
+  headers?: Record<string, string | undefined>
+
+  /**
+   * Idle-chunk timeout in milliseconds for streaming requests. The timer
+   * resets on every chunk received from the provider; the request aborts
+   * when the stream is silent for `timeout` ms. Falls back to
+   * `DEFAULT_TIMEOUT` (30 min).
+   *
+   * Only honoured by streaming flows that go through `AiStreamManager`.
+   * Non-streaming flows rely on caller-supplied `AbortSignal` for
+   * cancellation.
+   */
+  timeout?: number
+}
+
 /** Base fields shared by all AI requests. */
 export interface AiBaseRequest {
   assistantId?: string
   /** Model identifier in "providerId::modelId" format. */
   uniqueModelId?: UniqueModelId
   mcpToolIds?: string[]
+  /** Per-request transport options (headers, idle timeout, …). */
+  requestOptions?: AiRequestOptions
 }
 
 /** Streaming chat request — pure transport data. Serialisable across IPC. */
@@ -628,13 +661,18 @@ export class AiService extends BaseService {
     // awareness (reasoning disables temperature on Claude, mutually exclusive
     // with topP on some models, thinking-token budget subtraction, etc.).
     const stopWhen = assistant ? resolveStopWhen(assistant) : undefined
+    const headers = request.requestOptions?.headers
     const options: AgentOptions = {
       // Disable AI SDK transparent retries — they can duplicate stream state
       // in the multi-iteration tool loop. Higher layers retry if needed.
       maxRetries: 0,
       // Inner-loop tool-call limit. When the user disables it, leave unset so
       // the AI SDK default (`stepCountIs(20)`) applies.
-      ...(stopWhen && { stopWhen })
+      ...(stopWhen && { stopWhen }),
+      // Per-call extra headers from `request.requestOptions.headers`. Layered
+      // on top of provider-level defaults; later plugins (e.g.
+      // `anthropicHeadersPlugin`) layer on top of these via `transformParams`.
+      ...(headers && { headers })
     }
 
     return { sdkConfig, tools, plugins, system, options, provider, model }

@@ -696,11 +696,14 @@ export class AiStreamManager extends BaseService {
       return
     }
 
-    // Wrap with an idle-chunk timer. If `DEFAULT_TIMEOUT` elapses without a
-    // new chunk, the wrapper aborts `exec.abortController`; the abort signal
-    // is already wired into the upstream AI SDK request, so the provider
-    // HTTP connection and the broadcast reader both tear down together.
-    const stream = withIdleTimeout(rawStream, exec.abortController, DEFAULT_TIMEOUT)
+    // Wrap with an idle-chunk timer. If `timeoutMs` elapses without a new
+    // chunk, the wrapper aborts `exec.abortController`; the abort signal is
+    // already wired into the upstream AI SDK request, so the provider HTTP
+    // connection and the broadcast reader both tear down together.
+    // Caller override comes from `request.requestOptions.timeout`; otherwise
+    // `DEFAULT_TIMEOUT` (30 min) applies.
+    const timeoutMs = request.requestOptions?.timeout ?? DEFAULT_TIMEOUT
+    const stream = withIdleTimeout(rawStream, exec.abortController, timeoutMs)
 
     const [forBroadcast, forAccum] = stream.tee()
     const broadcastReader = forBroadcast.getReader()
