@@ -1125,7 +1125,8 @@ describe('options utils', () => {
 
       it.each([
         { providerId: 'newapi', providerName: 'NewAPI' },
-        { providerId: 'aihubmix', providerName: 'AiHubMix' }
+        { providerId: 'aihubmix', providerName: 'AiHubMix' },
+        { providerId: 'cherryin', providerName: 'CherryIN' }
       ])(
         'should route Gemini models to google providerOptions through $providerName',
         async ({ providerId, providerName }) => {
@@ -1169,7 +1170,8 @@ describe('options utils', () => {
       it('should handle cherryin fallback to openai-compatible with custom parameters', async () => {
         const { getCustomParameters } = await import('../reasoning')
 
-        // Mock cherryin provider that falls back to openai-compatible (default case)
+        // Mock cherryin provider with a non-Gemini/Claude/GPT/Grok model that falls back
+        // to openai-compatible via buildAIGatewayOptions
         const cherryinProvider = {
           id: 'cherryin',
           name: 'Cherry In',
@@ -1196,10 +1198,11 @@ describe('options utils', () => {
           enableGenerateImage: false
         })
 
-        // When cherryin falls back to default case, it should use rawProviderId (cherryin)
-        // User's cherryin params should merge with the provider options
-        expect(result.providerOptions).toHaveProperty('cherryin')
-        expect(result.providerOptions.cherryin).toMatchObject({
+        // Non-Gemini/Claude/GPT/Grok models fall back to openai-compatible via buildAIGatewayOptions.
+        // User's custom params (not matching any AI SDK provider ID) merge into the primary bucket.
+        expect(result.providerOptions).toHaveProperty('openai-compatible')
+        expect(result.providerOptions).not.toHaveProperty('cherryin')
+        expect(result.providerOptions['openai-compatible']).toMatchObject({
           customCherryinOption: 'cherryin_value'
         })
       })

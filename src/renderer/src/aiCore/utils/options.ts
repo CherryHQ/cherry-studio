@@ -192,19 +192,10 @@ export function buildProviderOptions(
     case 'bedrock':
       providerSpecificOptions = buildBedrockProviderOptions(assistant, model, capabilities)
       break
-    case 'cherryin':
-      providerSpecificOptions = buildCherryInProviderOptions(
-        assistant,
-        model,
-        capabilities,
-        actualProvider,
-        serviceTier,
-        textVerbosity
-      )
-      break
     case SystemProviderIds.ollama:
       providerSpecificOptions = buildOllamaProviderOptions(assistant, model, capabilities)
       break
+    case 'cherryin':
     case 'newapi':
     case 'aihubmix':
     case SystemProviderIds.gateway:
@@ -461,29 +452,6 @@ function buildXAIProviderOptions(
     xai: {
       ...providerOptions
     }
-  }
-}
-
-function buildCherryInProviderOptions(
-  assistant: Assistant,
-  model: Model,
-  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>,
-  actualProvider: Provider,
-  serviceTier: OpenAIServiceTier,
-  textVerbosity: OpenAIVerbosity
-): Record<string, OpenAIResponsesProviderOptions | AnthropicProviderOptions | GoogleGenerativeAIProviderOptions> {
-  switch (actualProvider.type) {
-    case 'openai':
-      return buildGenericProviderOptions('cherryin', assistant, model, capabilities)
-    case 'openai-response':
-      return buildOpenAIProviderOptions(assistant, model, capabilities, serviceTier, textVerbosity)
-    case 'anthropic':
-      return buildAnthropicProviderOptions(assistant, model, capabilities)
-    case 'gemini':
-      return buildGeminiProviderOptions(assistant, model, capabilities)
-
-    default:
-      return buildGenericProviderOptions('cherryin', assistant, model, capabilities)
   }
 }
 
