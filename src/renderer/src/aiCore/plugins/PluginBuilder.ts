@@ -65,9 +65,17 @@ export function buildPlugins({ provider, model, config }: BuildPluginsContext): 
   // 这样反转后 extractReasoning 在外层，其 wrapStream（状态机）
   // 能处理 simulateStreaming 生成的模拟流中的未闭合 <think> 标签。
 
-  // 0.1 Reasoning extraction for OpenAI/Azure providers
+  // 0.1 Reasoning extraction for OpenAI-compatible providers
+  // Providers that have native reasoning support or their own reasoning plugin are excluded.
+  const EXCLUDED_REASONING_EXTRACTION_TYPES = new Set([
+    'anthropic', // native thinking blocks
+    'vertex-anthropic', // native thinking blocks
+    'gemini', // native thought
+    'vertexai', // native thought
+    'openai-response' // native reasoning via Responses API
+  ])
   const providerType = provider.type
-  if (providerType === 'openai' || providerType === 'azure-openai') {
+  if (!EXCLUDED_REASONING_EXTRACTION_TYPES.has(providerType) && provider.id !== SystemProviderIds.openrouter) {
     const tagName = getReasoningTagName(model.id.toLowerCase())
     plugins.push(createReasoningExtractionPlugin({ tagName }))
   }
