@@ -9,7 +9,7 @@ import { PanesContainer } from './PanesContainer'
 /**
  * Top-level main-window shell.
  *
- * Post-Phase 2: the window is a single pane tree rendered by PanesContainer.
+ * the window is a single pane tree rendered by PanesContainer.
  * The "global tab bar" is simply the tab bar of the root leaf when the tree
  * has not been split; splits produce per-leaf tab bars inside the tree.
  *

@@ -37,10 +37,6 @@ export interface TabSavedState {
   scrollPosition?: number
 }
 
-// ============================================================================
-// Pane-First Layout (Phase 2, Obsidian-style recursive pane tree)
-// ============================================================================
-
 export type PaneDirection = 'horizontal' | 'vertical'
 
 /**
