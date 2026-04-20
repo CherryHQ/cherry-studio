@@ -1,11 +1,10 @@
-import { CheckOutlined, PlusOutlined } from '@ant-design/icons'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { getBuiltInMcpServerDescriptionLabel, getMcpTypeLabel } from '@renderer/i18n/label'
 import { builtinMCPServers } from '@renderer/store/mcp'
 import { Button, Popover, Tag } from 'antd'
+import { Check, Plus } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { SettingTitle } from '..'
 
@@ -16,20 +15,24 @@ const BuiltinMCPServerList: FC = () => {
   return (
     <>
       <SettingTitle style={{ gap: 3, marginBottom: 10 }}>{t('settings.mcp.builtinServers')}</SettingTitle>
-      <ServersGrid>
+      <div className="mb-5 grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-3">
         {builtinMCPServers.map((server) => {
           const isInstalled = mcpServers.some((existingServer) => existingServer.name === server.name)
 
           return (
-            <ServerCard key={server.id}>
-              <ServerHeader>
-                <ServerName>
-                  <ServerNameText>{server.name}</ServerNameText>
-                </ServerName>
-                <StatusIndicator>
+            <div
+              key={server.id}
+              className="flex h-31.25 cursor-default flex-col rounded-2xs border border-(--color-border) bg-(--color-background) px-4 py-2.5 transition-all duration-200 ease-in-out hover:border-(--color-primary)">
+              <div className="mb-1.25 flex items-center">
+                <div className="flex flex-1 items-center gap-1 overflow-hidden text-ellipsis whitespace-nowrap">
+                  <span className="font-medium text-[15px]">{server.name}</span>
+                </div>
+                <div className="ml-2 flex items-center gap-2">
                   <Button
                     type="text"
-                    icon={isInstalled ? <CheckOutlined style={{ color: 'var(--color-primary)' }} /> : <PlusOutlined />}
+                    icon={
+                      isInstalled ? <Check size={16} style={{ color: 'var(--color-primary)' }} /> : <Plus size={16} />
+                    }
                     size="small"
                     onClick={async () => {
                       if (isInstalled) {
@@ -45,22 +48,30 @@ const BuiltinMCPServerList: FC = () => {
                     }}
                     disabled={isInstalled}
                   />
-                </StatusIndicator>
-              </ServerHeader>
+                </div>
+              </div>
               <Popover
                 content={
-                  <PopoverContent>
+                  <div className="wrap-break-word max-w-87.5 whitespace-pre-wrap text-(--color-text-1) text-[14px] leading-normal">
                     {getBuiltInMcpServerDescriptionLabel(server.name)}
-                    {server.reference && <ReferenceLink href={server.reference}>{server.reference}</ReferenceLink>}
-                  </PopoverContent>
+                    {server.reference && (
+                      <a
+                        href={server.reference}
+                        className="wrap-break-word mt-2 inline-block max-w-87.5 text-(--color-primary) no-underline hover:text-(--color-primary-hover) hover:underline">
+                        {server.reference}
+                      </a>
+                    )}
+                  </div>
                 }
                 title={server.name}
                 trigger="hover"
                 placement="topLeft"
                 overlayStyle={{ maxWidth: 400 }}>
-                <ServerDescription>{getBuiltInMcpServerDescriptionLabel(server.name)}</ServerDescription>
+                <div className="wrap-break-word relative line-clamp-2 w-full cursor-pointer text-(--color-text-2) text-[12px] hover:text-(--color-text-1)">
+                  {getBuiltInMcpServerDescriptionLabel(server.name)}
+                </div>
               </Popover>
-              <ServerFooter>
+              <div className="mt-2.5 flex items-center justify-start gap-1">
                 <Tag color="processing" style={{ borderRadius: 20, margin: 0, fontWeight: 500 }}>
                   {getMcpTypeLabel(server.type ?? 'stdio')}
                 </Tag>
@@ -74,115 +85,13 @@ const BuiltinMCPServerList: FC = () => {
                     </Tag>
                   </a>
                 )}
-              </ServerFooter>
-            </ServerCard>
+              </div>
+            </div>
           )
         })}
-      </ServersGrid>
+      </div>
     </>
   )
 }
-
-const ServersGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 12px;
-  margin-bottom: 20px;
-`
-
-const ServerCard = styled.div`
-  display: flex;
-  flex-direction: column;
-  border: 0.5px solid var(--color-border);
-  border-radius: var(--list-item-border-radius);
-  padding: 10px 16px;
-  transition: all 0.2s ease;
-  background-color: var(--color-background);
-  height: 125px;
-  cursor: default;
-
-  &:hover {
-    border-color: var(--color-primary);
-  }
-`
-
-const ServerHeader = styled.div`
-  display: flex;
-  align-items: center;
-  margin-bottom: 5px;
-`
-
-const ServerName = styled.div`
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-`
-
-const ServerNameText = styled.span`
-  font-size: 15px;
-  font-weight: 500;
-`
-
-const StatusIndicator = styled.div`
-  margin-left: 8px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-`
-
-const ServerDescription = styled.div`
-  font-size: 12px;
-  color: var(--color-text-2);
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  width: 100%;
-  word-break: break-word;
-  max-height: calc(1.4em * 2);
-  cursor: pointer;
-  position: relative;
-
-  &:hover {
-    color: var(--color-text-1);
-  }
-`
-
-const PopoverContent = styled.div`
-  max-width: 350px;
-  line-height: 1.5;
-  font-size: 14px;
-  color: var(--color-text-1);
-  white-space: pre-wrap;
-  word-break: break-word;
-`
-
-const ReferenceLink = styled.a`
-  max-width: 350px;
-  white-space: normal;
-  color: var(--color-primary);
-  text-decoration: none;
-  word-break: break-word;
-  line-height: 1.4;
-  display: inline-block;
-  margin-top: 8px;
-
-  &:hover {
-    color: var(--color-primary-hover);
-    text-decoration: underline;
-  }
-`
-
-const ServerFooter = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  justify-content: flex-start;
-  margin-top: 10px;
-`
 
 export default BuiltinMCPServerList

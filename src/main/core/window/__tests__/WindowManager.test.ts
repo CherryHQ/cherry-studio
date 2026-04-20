@@ -207,69 +207,69 @@ vi.mock('../windowRegistry', () => {
       lifecycle: 'pooled',
       poolConfig,
       htmlPath: 'windows/pooled/index.html',
-      defaultConfig: { width: 1100, height: 720 }
+      windowOptions: { width: 1100, height: 720 }
     },
     pooledHidden: {
       type: 'pooledHidden',
       lifecycle: 'pooled',
       poolConfig,
-      show: false,
+      showMode: 'manual',
       htmlPath: 'windows/pooledHidden/index.html',
-      defaultConfig: {}
+      windowOptions: {}
     },
     eagerPooled: {
       type: 'eagerPooled',
       lifecycle: 'pooled',
       poolConfig: eagerPoolConfig,
       htmlPath: 'windows/eagerPooled/index.html',
-      defaultConfig: { width: 800, height: 600 }
+      windowOptions: { width: 800, height: 600 }
     },
     default: {
       type: 'default',
       lifecycle: 'default',
       htmlPath: 'windows/default/index.html',
-      defaultConfig: {}
+      windowOptions: {}
     },
     singleton: {
       type: 'singleton',
       lifecycle: 'singleton',
       htmlPath: 'windows/singleton/index.html',
-      defaultConfig: {}
+      windowOptions: {}
     },
     singletonHidden: {
       type: 'singletonHidden',
       lifecycle: 'singleton',
-      show: false,
+      showMode: 'manual',
       htmlPath: 'windows/singletonHidden/index.html',
-      defaultConfig: {}
+      windowOptions: {}
     },
     alwaysOnTopPool: {
       type: 'alwaysOnTopPool',
       lifecycle: 'pooled',
       poolConfig,
       htmlPath: 'windows/alwaysOnTopPool/index.html',
-      defaultConfig: { width: 400, height: 300, alwaysOnTop: true }
+      windowOptions: { width: 400, height: 300, alwaysOnTop: true }
     },
     standbyOnly: {
       type: 'standbyOnly',
       lifecycle: 'pooled',
       poolConfig: standbyOnlyPoolConfig,
       htmlPath: 'windows/standbyOnly/index.html',
-      defaultConfig: { width: 400, height: 300 }
+      windowOptions: { width: 400, height: 300 }
     },
     hybrid: {
       type: 'hybrid',
       lifecycle: 'pooled',
       poolConfig: hybridPoolConfig,
       htmlPath: 'windows/hybrid/index.html',
-      defaultConfig: { width: 400, height: 300 }
+      windowOptions: { width: 400, height: 300 }
     },
     lazyStandby: {
       type: 'lazyStandby',
       lifecycle: 'pooled',
       poolConfig: lazyStandbyPoolConfig,
       htmlPath: 'windows/lazyStandby/index.html',
-      defaultConfig: { width: 400, height: 300 }
+      windowOptions: { width: 400, height: 300 }
     }
   }
   return {
@@ -279,9 +279,9 @@ vi.mock('../windowRegistry', () => {
       if (!meta) throw new Error(`WindowType '${type}' is not registered`)
       return meta
     },
-    mergeWindowConfig: (type: string, overrides?: Record<string, unknown>) => {
-      const meta = registry[type] as { defaultConfig?: Record<string, unknown> }
-      return { ...meta?.defaultConfig, ...overrides, webPreferences: {} }
+    mergeWindowOptions: (type: string, overrides?: Record<string, unknown>) => {
+      const meta = registry[type] as { windowOptions?: Record<string, unknown> }
+      return { ...meta?.windowOptions, ...overrides, webPreferences: {} }
     }
   }
 })
@@ -385,7 +385,7 @@ describe('WindowManager', () => {
       expect(createdWindows).toHaveLength(2)
     })
 
-    it('does NOT show/focus existing singleton when metadata.show is false', () => {
+    it('does NOT show/focus existing singleton when metadata.showMode is "manual"', () => {
       const id1 = wm.open('singletonHidden' as never)
       const win = createdWindows[0]
       win.show.mockClear()

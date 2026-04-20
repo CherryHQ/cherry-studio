@@ -1,5 +1,8 @@
 # Cherry Studio UI Migration Plan
 
+This document is development-only planning material for the `packages/ui` workspace.
+It is not part of the runtime package surface and should not be treated as package API documentation.
+
 ## Overview
 
 This document outlines the detailed plan for migrating Cherry Studio from antd + styled-components to shadcn/ui + Tailwind CSS. We will adopt a progressive migration strategy to ensure system stability and development efficiency, while gradually implementing UI refactoring in collaboration with UI designers.

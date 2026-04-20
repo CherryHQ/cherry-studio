@@ -141,9 +141,7 @@ export class SearxngProvider extends BaseWebSearchProvider {
   ) {
     const validItems = searchPayload.results.filter((item) => isValidUrl(item.url || '')).slice(0, context.maxResults)
     const settledResults = await Promise.allSettled(
-      validItems.map((item) =>
-        fetchWebSearchContent(item.url || '', this.provider.usingBrowser, { signal: context.signal })
-      )
+      validItems.map((item) => fetchWebSearchContent(item.url || '', { signal: context.signal }))
     )
 
     const rejectedResults = settledResults.filter((item): item is PromiseRejectedResult => item.status === 'rejected')

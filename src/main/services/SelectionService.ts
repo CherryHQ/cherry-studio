@@ -471,25 +471,32 @@ export class SelectionService extends BaseService implements Activatable {
     // [Linux Wayland] focusable must be true on Wayland to receive blur events for
     // outside-click hiding. onWindowCreated fires before loadURL(), so setFocusable()
     // here takes effect before the window is shown. The full platform rationale is
-    // documented in windowRegistry.ts under SelectionToolbar's defaultConfig.
+    // documented in windowRegistry.ts under SelectionToolbar's windowOptions.
     if (isLinux) {
       window.setFocusable(this.isLinuxWaylandDisplay)
     }
 
-    // Hide when losing focus
-    window.on('blur', () => {
-      if (window.isVisible()) {
-        this.hideToolbar()
-      }
-    })
+    // Blur → hide is now driven declaratively by WindowManager via
+    // `behavior.hideOnBlur: true` (see windowRegistry.ts). The previous
+    // handler here called `hideToolbar()`, which combined `window.hide()`
+    // with the mouse-key hook cleanup; the hook lifecycle is now bound to
+    // the window's show/hide events below, so a plain `window.hide()` from
+    // WM suffices and all cleanup still runs.
 
-    // Add show/hide event listeners
     window.on('show', () => {
       window.webContents.send(IpcChannel.Selection_ToolbarVisibilityChange, true)
+      // Mouse-key hook start tied to visibility rather than to specific call
+      // sites: normal show path, crash-recovery re-open, and any future
+      // caller all inherit this for free.
+      this.startHideByMouseKeyListener()
     })
 
     window.on('hide', () => {
       window.webContents.send(IpcChannel.Selection_ToolbarVisibilityChange, false)
+      // Symmetric to the show listener — any path to hidden (business
+      // `hideToolbar()`, WM blur-driven `window.hide()`, quirk-wrapped hide)
+      // triggers cleanup. `stopHideByMouseKeyListener` is idempotent.
+      this.stopHideByMouseKeyListener()
     })
 
     /** uncomment to open dev tools in dev mode */
@@ -548,7 +555,7 @@ export class SelectionService extends BaseService implements Activatable {
        *   It's a strange behavior, so we don't use it for compatibility
        */
       // this.toolbarWindow!.setOpacity(1)
-      this.startHideByMouseKeyListener()
+      // Mouse-key hook start fires from window.on('show') in setupToolbarBehavior.
       return
     }
 
@@ -586,7 +593,8 @@ export class SelectionService extends BaseService implements Activatable {
     // [macOS] restore the focusable status
     this.toolbarWindow!.setFocusable(true)
 
-    this.startHideByMouseKeyListener()
+    // Mouse-key hook start fires from window.on('show') in setupToolbarBehavior
+    // (showInactive also fires 'show').
 
     return
   }
@@ -597,8 +605,9 @@ export class SelectionService extends BaseService implements Activatable {
   public hideToolbar(): void {
     if (!this.isToolbarAlive()) return
 
-    this.stopHideByMouseKeyListener()
-
+    // Mouse-key hook stop is driven by window.on('hide') in setupToolbarBehavior,
+    // which covers this call site as well as the WM-driven blur → window.hide().
+    //
     // On macOS, the toolbar's hide() call is wrapped by WindowManager's applyQuirks:
     //   - macRestoreFocusOnHide guards focus (setFocusable(false) on all visible windows, restored after 50ms)
     //   - macClearHoverOnHide sends a synthetic mouseMove(-1,-1) to clear any residual hover state
@@ -1310,7 +1319,10 @@ export class SelectionService extends BaseService implements Activatable {
 
     // setFocusable(false) to prevent the action window hide when blur (if auto hide on blur is enabled)
     actionWindow.setFocusable(false)
-    actionWindow.setAlwaysOnTop(true, 'floating')
+    // No explicit level: Electron defaults to 'floating' on macOS, and
+    // SelectionAction's registry intentionally declares no alwaysOnTop.level
+    // (the pin toggle and this show sequence use the same default path).
+    actionWindow.setAlwaysOnTop(true)
 
     // `setVisibleOnAllWorkspaces(true)` will cause the dock icon disappeared
     // just store the dock icon status, and show it again
@@ -1371,7 +1383,17 @@ export class SelectionService extends BaseService implements Activatable {
 
   public pinActionWindow(actionWindow: BrowserWindow, isPinned: boolean): void {
     if (actionWindow.isDestroyed()) return
-    actionWindow.setAlwaysOnTop(isPinned)
+    // Route through WindowManager so any future `behavior.alwaysOnTop` on the
+    // SelectionAction registry entry (currently none) flows automatically.
+    // With no level declared, this is equivalent to `setAlwaysOnTop(isPinned)`.
+    const wm = application.get('WindowManager')
+    const id = wm.getWindowId(actionWindow)
+    if (id !== undefined) {
+      wm.behavior.setAlwaysOnTop(id, isPinned)
+    } else {
+      // Untracked window (shouldn't happen in the normal pooled flow).
+      actionWindow.setAlwaysOnTop(isPinned)
+    }
   }
 
   /**

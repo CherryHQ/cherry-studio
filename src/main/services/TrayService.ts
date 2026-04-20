@@ -66,7 +66,7 @@ export class TrayService extends BaseService implements Activatable {
       if (quickAssistantEnabled && clickTrayToShowQuickAssistant) {
         application.get('QuickAssistantService').showQuickAssistant()
       } else {
-        application.get('WindowService').showMainWindow()
+        application.get('MainWindowService').showMainWindow()
       }
     })
   }
@@ -90,7 +90,7 @@ export class TrayService extends BaseService implements Activatable {
     const template = [
       {
         label: trayLocale.show_window,
-        click: () => application.get('WindowService').showMainWindow()
+        click: () => application.get('MainWindowService').showMainWindow()
       },
       quickAssistantEnabled && {
         label: trayLocale.show_quick_assistant,

@@ -57,7 +57,16 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const [clipboardText, setClipboardText] = useState('')
   const lastClipboardTextRef = useRef<string | null>(null)
 
-  const [isPinned, setIsPinned] = useState(false)
+  const [isPinned, setIsPinnedState] = useState(false)
+
+  // Wraps setState with an eager IPC call so main's pin flag is updated
+  // synchronously inside the click handler — the previous useEffect-based
+  // sync deferred IPC by at least one render cycle, opening a race window
+  // where blur could fire with the main flag still stale.
+  const setIsPinned = useCallback((next: boolean) => {
+    void window.api.quickAssistant.setPin(next)
+    setIsPinnedState(next)
+  }, [])
 
   // Indicator for loading(thinking/streaming)
   const [isLoading, setIsLoading] = useState(false)
@@ -131,10 +140,6 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     await readClipboard()
     focusInput()
   }, [readClipboard, focusInput])
-
-  useEffect(() => {
-    void window.api.quickAssistant.setPin(isPinned)
-  }, [isPinned])
 
   useEffect(() => {
     window.electron.ipcRenderer.on(IpcChannel.QuickAssistant_Shown, onWindowShow)
@@ -530,7 +535,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
       setIsPinned,
       isPinned
     }),
-    [route, isLoading, handleEsc, isPinned]
+    [route, isLoading, handleEsc, setIsPinned, isPinned]
   )
 
   switch (route) {

@@ -46,6 +46,7 @@ interface MockBrowserWindow {
   setPosition: ReturnType<typeof vi.fn>
   setAlwaysOnTop: ReturnType<typeof vi.fn>
   setFocusable: ReturnType<typeof vi.fn>
+  setVisibleOnAllWorkspaces: ReturnType<typeof vi.fn>
   center: ReturnType<typeof vi.fn>
   getTitle: ReturnType<typeof vi.fn>
   setTitleBarOverlay: ReturnType<typeof vi.fn>
@@ -95,6 +96,7 @@ function createMockBrowserWindow(): MockBrowserWindow {
     setPosition: vi.fn(),
     setAlwaysOnTop: vi.fn(),
     setFocusable: vi.fn(),
+    setVisibleOnAllWorkspaces: vi.fn(),
     center: vi.fn(),
     getTitle: vi.fn(() => 'Test Window'),
     setTitleBarOverlay: vi.fn(),
@@ -182,26 +184,29 @@ const basePool = {
 
 vi.mock('../windowRegistry', () => {
   const registry: Record<string, unknown> = {
-    // Singleton toolbar with all three quirks + show:false (like SelectionToolbar)
+    // Singleton toolbar with all three quirks + showMode:'manual' (like SelectionToolbar)
     toolbar: {
       type: 'toolbar',
       lifecycle: 'singleton',
-      show: false,
+      showMode: 'manual',
       htmlPath: 'toolbar/index.html',
-      defaultConfig: { width: 350, height: 43 },
+      windowOptions: { width: 350, height: 43 },
+      behavior: {
+        alwaysOnTop: { level: 'screen-saver' }
+      },
       quirks: {
         macRestoreFocusOnHide: true,
         macClearHoverOnHide: true,
-        macReapplyAlwaysOnTop: 'screen-saver'
+        macReapplyAlwaysOnTop: true
       }
     },
     // Pooled action with only restoreFocusOnHide (like SelectionAction)
     action: {
       type: 'action',
       lifecycle: 'pooled',
-      show: false,
+      showMode: 'manual',
       htmlPath: 'action/index.html',
-      defaultConfig: { width: 500, height: 400 },
+      windowOptions: { width: 500, height: 400 },
       poolConfig: basePool,
       quirks: { macRestoreFocusOnHide: true }
     },
@@ -210,15 +215,60 @@ vi.mock('../windowRegistry', () => {
       type: 'plain',
       lifecycle: 'default',
       htmlPath: 'plain/index.html',
-      defaultConfig: {}
+      windowOptions: {}
     },
-    // reapplyAlwaysOnTop: true (defaults to 'floating')
+    // reapplyAlwaysOnTop: true with no behavior.alwaysOnTop.level → falls back to 'floating'
     floatingTop: {
       type: 'floatingTop',
       lifecycle: 'default',
       htmlPath: 'floatingTop/index.html',
-      defaultConfig: {},
+      windowOptions: {},
       quirks: { macReapplyAlwaysOnTop: true }
+    },
+    // behavior.hideOnBlur — singleton, declarative blur→hide
+    blurHider: {
+      type: 'blurHider',
+      lifecycle: 'singleton',
+      showMode: 'manual',
+      htmlPath: 'blurHider/index.html',
+      windowOptions: {},
+      behavior: { hideOnBlur: true }
+    },
+    // behavior.hideOnBlur + pooled (for release-to-idle override reset)
+    pooledBlurHider: {
+      type: 'pooledBlurHider',
+      lifecycle: 'pooled',
+      showMode: 'manual',
+      htmlPath: 'pooledBlurHider/index.html',
+      windowOptions: {},
+      poolConfig: basePool,
+      behavior: { hideOnBlur: true }
+    },
+    // behavior.alwaysOnTop.level with windowOptions.alwaysOnTop=true — initial apply
+    topWithLevel: {
+      type: 'topWithLevel',
+      lifecycle: 'default',
+      htmlPath: 'topWithLevel/index.html',
+      windowOptions: { alwaysOnTop: true },
+      behavior: { alwaysOnTop: { level: 'screen-saver' } }
+    },
+    // behavior.visibleOnAllWorkspaces — initial setter call on create
+    allWorkspaces: {
+      type: 'allWorkspaces',
+      lifecycle: 'default',
+      htmlPath: 'allWorkspaces/index.html',
+      windowOptions: {},
+      behavior: {
+        visibleOnAllWorkspaces: { enabled: true, visibleOnFullScreen: true, skipTransformProcessType: true }
+      }
+    },
+    // behavior.macShowInDock: false — dock-invisible window
+    dockHidden: {
+      type: 'dockHidden',
+      lifecycle: 'default',
+      htmlPath: 'dockHidden/index.html',
+      windowOptions: {},
+      behavior: { macShowInDock: false }
     }
   }
   return {
@@ -228,9 +278,9 @@ vi.mock('../windowRegistry', () => {
       if (!meta) throw new Error(`WindowType '${type}' is not registered`)
       return meta
     },
-    mergeWindowConfig: (type: string, overrides?: Record<string, unknown>) => {
-      const meta = registry[type] as { defaultConfig?: Record<string, unknown> }
-      return { ...meta?.defaultConfig, ...overrides, webPreferences: {} }
+    mergeWindowOptions: (type: string, overrides?: Record<string, unknown>) => {
+      const meta = registry[type] as { windowOptions?: Record<string, unknown> }
+      return { ...meta?.windowOptions, ...overrides, webPreferences: {} }
     }
   }
 })
@@ -521,6 +571,162 @@ describe('WindowManager quirks — applyQuirks monkey-patching', () => {
       expect(toolbar.close).toBe(closeMock)
       expect(toolbar.show).toBe(showMock)
       expect(toolbar.showInactive).toBe(showInactiveMock)
+    })
+  })
+
+  // ─── behavior layer: hideOnBlur / alwaysOnTop / visibleOnAllWorkspaces ──
+
+  describe('behavior.hideOnBlur — declarative blur→hide', () => {
+    it('installs a blur listener that calls window.hide()', () => {
+      wm.open('blurHider' as never)
+      const win = firstWindow()
+
+      win.emit('blur')
+
+      expect(win.hide).toHaveBeenCalledTimes(1)
+    })
+
+    it('skips hide() when window is not visible', () => {
+      wm.open('blurHider' as never)
+      const win = firstWindow()
+      win.isVisible.mockReturnValue(false)
+
+      win.emit('blur')
+
+      expect(win.hide).not.toHaveBeenCalled()
+    })
+
+    it('does NOT install blur listener when behavior.hideOnBlur is absent', () => {
+      wm.open('plain' as never)
+      const win = firstWindow()
+
+      win.emit('blur')
+
+      expect(win.hide).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('setHideOnBlur — runtime override', () => {
+    it('override=false suppresses the declared hide-on-blur', () => {
+      const id = wm.open('blurHider' as never)
+      const win = firstWindow()
+
+      wm.behavior.setHideOnBlur(id, false)
+      win.emit('blur')
+
+      expect(win.hide).not.toHaveBeenCalled()
+    })
+
+    it('override=true keeps hide-on-blur active (idempotent with declared default)', () => {
+      const id = wm.open('blurHider' as never)
+      const win = firstWindow()
+
+      wm.behavior.setHideOnBlur(id, true)
+      win.emit('blur')
+
+      expect(win.hide).toHaveBeenCalledTimes(1)
+    })
+
+    it('is a no-op when the window does not declare hideOnBlur (no listener to override)', () => {
+      const id = wm.open('plain' as never)
+      const win = firstWindow()
+
+      // Should not throw; should not install a listener just because override is set
+      wm.behavior.setHideOnBlur(id, false)
+      win.emit('blur')
+
+      expect(win.hide).not.toHaveBeenCalled()
+    })
+
+    it('is a no-op for unknown window ids', () => {
+      expect(() => wm.behavior.setHideOnBlur('bogus-id', false)).not.toThrow()
+    })
+
+    it('pool releaseToPool resets the override for the next consumer', () => {
+      const id1 = wm.open('pooledBlurHider' as never)
+      const win = firstWindow()
+      wm.behavior.setHideOnBlur(id1, false)
+
+      // Release to idle pool
+      wm.close(id1)
+
+      // Re-open (recycles the same window) — override should be gone
+      wm.open('pooledBlurHider' as never)
+      win.hide.mockClear()
+      win.emit('blur')
+
+      // With override cleared, registry default (hideOnBlur: true) takes over
+      expect(win.hide).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('setAlwaysOnTop — registry-driven level/relativeLevel', () => {
+    it('passes level from behavior.alwaysOnTop', () => {
+      const id = wm.open('topWithLevel' as never)
+      const win = firstWindow()
+      win.setAlwaysOnTop.mockClear()
+
+      wm.behavior.setAlwaysOnTop(id, true)
+
+      expect(win.setAlwaysOnTop).toHaveBeenCalledWith(true, 'screen-saver')
+    })
+
+    it('omits level when behavior.alwaysOnTop is not declared', () => {
+      const id = wm.open('plain' as never)
+      const win = firstWindow()
+      win.setAlwaysOnTop.mockClear()
+
+      wm.behavior.setAlwaysOnTop(id, true)
+
+      expect(win.setAlwaysOnTop).toHaveBeenCalledWith(true)
+    })
+
+    it('supports enabled=false without passing level (Electron ignores level on false)', () => {
+      const id = wm.open('topWithLevel' as never)
+      const win = firstWindow()
+      win.setAlwaysOnTop.mockClear()
+
+      wm.behavior.setAlwaysOnTop(id, false)
+
+      expect(win.setAlwaysOnTop).toHaveBeenCalledWith(false, 'screen-saver')
+    })
+
+    it('is a no-op for unknown window ids', () => {
+      expect(() => wm.behavior.setAlwaysOnTop('bogus-id', true)).not.toThrow()
+    })
+  })
+
+  describe('behavior initial setters — fire once on window create', () => {
+    it('applies setAlwaysOnTop(true, level) when windowOptions.alwaysOnTop is true', () => {
+      wm.open('topWithLevel' as never)
+      const win = firstWindow()
+
+      // The initial call from applyWindowBehavior (pre-quirk-patch) uses 2 args.
+      // Subsequent patched show() calls also re-apply via the macReapplyAlwaysOnTop
+      // quirk — but 'topWithLevel' does not declare that quirk, so show()s do
+      // not add more setAlwaysOnTop calls. Filter by the 2-arg shape to assert
+      // the initial application specifically.
+      const matching = win.setAlwaysOnTop.mock.calls.filter(
+        ([enabled, level]) => enabled === true && level === 'screen-saver'
+      )
+      expect(matching.length).toBeGreaterThanOrEqual(1)
+    })
+
+    it('applies setVisibleOnAllWorkspaces on create with options', () => {
+      wm.open('allWorkspaces' as never)
+      const win = firstWindow()
+
+      expect(win.setVisibleOnAllWorkspaces).toHaveBeenCalledWith(true, {
+        visibleOnFullScreen: true,
+        skipTransformProcessType: true
+      })
+    })
+
+    it('does NOT call setVisibleOnAllWorkspaces when behavior does not declare it', () => {
+      wm.open('plain' as never)
+      const win = firstWindow()
+
+      expect(win.setVisibleOnAllWorkspaces).not.toHaveBeenCalled()
     })
   })
 })

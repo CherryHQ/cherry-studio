@@ -58,7 +58,7 @@ vi.mock('@main/services/agents/services/ChannelService', () => ({
   }
 }))
 
-vi.mock('@main/services/WindowService', () => ({
+vi.mock('@main/services/MainWindowService', () => ({
   windowService: {
     getMainWindow: vi.fn().mockReturnValue(null)
   }

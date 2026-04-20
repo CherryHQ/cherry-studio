@@ -9,17 +9,21 @@ export default function useUserTheme() {
   const [userFontFamily, setUserFontFamily] = usePreference('ui.theme_user.font_family')
   const [userCodeFontFamily, setUserCodeFontFamily] = usePreference('ui.theme_user.code_font_family')
 
+  const setOptionalCssVar = (name: string, value?: string) => {
+    if (value?.trim()) {
+      document.documentElement.style.setProperty(name, `'${value}'`)
+      return
+    }
+
+    document.documentElement.style.removeProperty(name)
+  }
+
   const initUserTheme = (theme: { colorPrimary: string } = { colorPrimary }) => {
     const colorPrimary = Color(theme.colorPrimary)
 
-    document.body.style.setProperty('--color-primary', colorPrimary.toString())
-    document.body.style.setProperty('--primary', colorPrimary.toString())
-    document.body.style.setProperty('--color-primary-soft', colorPrimary.alpha(0.6).toString())
-    document.body.style.setProperty('--color-primary-mute', colorPrimary.alpha(0.3).toString())
-
-    // Set font family CSS variables
-    document.documentElement.style.setProperty('--user-font-family', `'${userFontFamily}'`)
-    document.documentElement.style.setProperty('--user-code-font-family', `'${userCodeFontFamily}'`)
+    document.documentElement.style.setProperty('--cs-theme-primary', colorPrimary.toString())
+    setOptionalCssVar('--cs-user-font-family', userFontFamily)
+    setOptionalCssVar('--cs-user-code-font-family', userCodeFontFamily)
   }
 
   return {

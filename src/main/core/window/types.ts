@@ -1,4 +1,4 @@
-import type { BrowserWindow, BrowserWindowConstructorOptions } from 'electron'
+import type { BrowserWindow, BrowserWindowConstructorOptions, VisibleOnAllWorkspacesOptions } from 'electron'
 
 /**
  * Window type enumeration.
@@ -111,7 +111,7 @@ export interface PoolConfig {
    * `'lazy'` defers until the first `close()` returns a window, then backfills
    * to `initialSize`. When `standbySize > 0` or `initialSize > 0` and `warmup`
    * is omitted, defaults to `'eager'` (standby implies zero-wait intent).
-   * When both are unset, defaults to `'lazy'` (legacy behavior).
+   * When both are unset, defaults to `'lazy'`.
    */
   warmup?: PoolWarmup
 }
@@ -136,6 +136,70 @@ export interface WindowOptions extends Omit<BrowserWindowConstructorOptions, 'sh
 }
 
 /**
+ * Level type for `setAlwaysOnTop`, derived from Electron's method signature so it
+ * stays in sync with `@types/electron` automatically. Electron currently
+ * enumerates 9 values (`'normal' | 'floating' | 'torn-off-menu' | 'modal-panel'
+ * | 'main-menu' | 'status' | 'pop-up-menu' | 'screen-saver' | 'dock'`) — we
+ * never restate them.
+ *
+ * Note: if Electron adds additional overloads to `setAlwaysOnTop`, `Parameters<>`
+ * resolves against the last overload only; re-verify this type when upgrading.
+ */
+export type AlwaysOnTopLevel = NonNullable<Parameters<BrowserWindow['setAlwaysOnTop']>[1]>
+
+/**
+ * WM-level declarative behavior — cross-platform, non-hacky configuration that
+ * cannot be expressed via Electron's `BrowserWindow` constructor (either because
+ * the API is setter-only, or because the behavior is higher-level than a single
+ * Electron call).
+ *
+ * Distinct from `WindowQuirks` (OS hacks / monkey-patches) and from
+ * `WindowOptions` (Electron constructor parameters). See the window-manager
+ * README for the three-layer split rationale.
+ */
+export interface WindowBehavior {
+  /**
+   * Auto-hide the window on the `blur` event. Runtime override via
+   * `wm.behavior.setHideOnBlur(id, enabled)` — the override suppresses
+   * (or enables) the declared behavior for this instance only.
+   */
+  hideOnBlur?: boolean
+
+  /**
+   * Extensions to Electron's boolean `alwaysOnTop` construction flag. Since
+   * `new BrowserWindow` cannot accept a level, this block is the single source
+   * of truth for `level` / `relativeLevel`. Consumed at three points:
+   *   1. Initial application after window create (when `windowOptions.alwaysOnTop` is true).
+   *   2. `wm.behavior.setAlwaysOnTop(id, enabled)` runtime calls.
+   *   3. `quirks.macReapplyAlwaysOnTop` re-application after show/showInactive.
+   */
+  alwaysOnTop?: {
+    level?: AlwaysOnTopLevel
+    relativeLevel?: number
+  }
+
+  /**
+   * Declarative initial `setVisibleOnAllWorkspaces(enabled, options)` call,
+   * applied once after window creation. Since the Electron constructor has no
+   * equivalent option, WM invokes the setter on create.
+   *
+   * Intentionally no runtime WM setter — windows whose true/false options
+   * differ across calls (e.g. SelectionAction's full-screen show sequence)
+   * should drive both directions directly on the `BrowserWindow` instance.
+   *
+   * Reuses Electron's named type `VisibleOnAllWorkspacesOptions` directly,
+   * so any field additions in `@types/electron` flow in automatically.
+   */
+  visibleOnAllWorkspaces?: { enabled: boolean } & VisibleOnAllWorkspacesOptions
+
+  /**
+   * [macOS-only effect] Whether this window type triggers Dock icon visibility.
+   * No-op on Windows/Linux. Defaults to true when omitted.
+   */
+  macShowInDock?: boolean
+}
+
+/**
  * Platform quirks — opt-in OS-specific workarounds that WindowManager applies
  * automatically at the right lifecycle moments by monkey-patching the BrowserWindow
  * instance methods (`hide`/`close`/`show`/`showInactive`).
@@ -143,6 +207,9 @@ export interface WindowOptions extends Omit<BrowserWindowConstructorOptions, 'sh
  * Each quirk is empirically derived from hard-won experience in SelectionService;
  * enabling it in a window's metadata is a declarative replacement for hand-rolling
  * the same dance at every call site.
+ *
+ * Distinct from `WindowBehavior`: quirks are genuine hacks tied to specific OS
+ * bugs; pure-semantic declarative config lives in `behavior`.
  */
 export interface WindowQuirks {
   /**
@@ -163,13 +230,13 @@ export interface WindowQuirks {
   macClearHoverOnHide?: boolean
 
   /**
-   * [macOS] set the window to always on top (highest level)
-   * should set every time the window is shown.
-   *
-   * After invoking `show()` or `showInactive()`, re-apply `setAlwaysOnTop(true, level)`
-   * so that the level configured here takes effect on the freshly-shown window.
+   * [macOS] Re-apply `setAlwaysOnTop(true, level, relativeLevel)` after every
+   * `show()`/`showInactive()` call, because macOS silently demotes the level
+   * across show cycles. Pure boolean switch — the actual level/relativeLevel
+   * are read from `behavior.alwaysOnTop` (single source of truth).
+   * No-op when `behavior.alwaysOnTop.level` is unset.
    */
-  macReapplyAlwaysOnTop?: 'screen-saver' | 'floating' | true
+  macReapplyAlwaysOnTop?: boolean
 }
 
 /** Common fields shared by all window type metadata variants */
@@ -178,32 +245,34 @@ interface WindowTypeMetadataBase {
   type: WindowType
   /** Path to the HTML file for this window (relative to renderer root) */
   htmlPath: string
-  /** Default BrowserWindow configuration for this window type */
-  defaultConfig: WindowOptions
   /**
-   * Window show behavior.
-   * - `'auto'`: WindowManager manages visibility — creates hidden, shows on `ready-to-show`
-   *   (fresh path) or immediately (recycled path)
-   * - `false`: Consumer manages visibility — WindowManager never calls `show()`
-   * - `true`: Immediately visible — BrowserWindow created with `show: true`
+   * Preload script filename (basename with extension) in `src/preload/`.
+   * - Omitted → defaults to `'index.js'`
+   * - Empty string → no preload (for windows with `nodeIntegration: true`)
+   * - Otherwise → WM prefixes `'../preload/'` and loads that file
+   * Mirrors `htmlPath`'s three-state encoding (omitted / non-empty / empty).
+   */
+  preload?: string
+  /**
+   * WindowManager creation strategy — controls who drives first-show.
+   * - `'auto'`: WM manages visibility — creates hidden, shows on `ready-to-show`
+   *   (fresh path) or immediately (recycled path).
+   * - `'immediate'`: Window becomes visible as soon as it is constructed
+   *   (`new BrowserWindow({ show: true })`). Skips the `ready-to-show` handshake.
+   * - `'manual'`: Consumer manages visibility — WM never calls `show()`
+   *   for this window type (neither on create nor on singleton reopen).
    * @default 'auto'
    */
-  show?: 'auto' | boolean
+  showMode?: 'auto' | 'immediate' | 'manual'
+  /** Electron `BrowserWindow` constructor parameters (plus `platformOverrides`). */
+  windowOptions: WindowOptions
   /**
-   * (macOS only) Whether this window type should trigger Dock icon visibility.
-   * When true or undefined, showing this window will make the Dock icon appear.
-   * When false, this window will not affect Dock visibility.
-   * @default true
+   * WindowManager declarative behavior layer. Cross-platform, non-hacky
+   * configuration that Electron's constructor cannot express directly.
+   * See `WindowBehavior` for each field's semantics and the three-layer
+   * split rationale (documented in the window-manager README).
    */
-  showInDock?: boolean
-  /**
-   * Preload script variant.
-   * - `'standard'`: Full API preload (default, index.js)
-   * - `'simplest'`: Minimal preload (simplest.js)
-   * - `'none'`: No preload (for windows with nodeIntegration:true)
-   * @default 'standard'
-   */
-  preload?: 'standard' | 'simplest' | 'none'
+  behavior?: WindowBehavior
   /**
    * Opt-in OS-specific quirks applied by WindowManager via method-slot monkey-patches.
    * See `WindowQuirks` for each flag's semantics.

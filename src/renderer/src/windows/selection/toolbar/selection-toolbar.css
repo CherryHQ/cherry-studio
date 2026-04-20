@@ -1,4 +1,4 @@
-@import './font.css';
+@import '../../../assets/styles/font.css';
 
 html {
   font-family: var(--font-family);
