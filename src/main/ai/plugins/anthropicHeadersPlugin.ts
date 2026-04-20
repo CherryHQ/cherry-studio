@@ -39,14 +39,15 @@ export const createAnthropicHeadersPlugin = ({
     enforce: 'pre',
     transformParams: (params) => {
       const betas = addAnthropicHeaders(assistant, model, provider)
-      if (betas.length === 0) return {}
+      if (betas.length === 0) return params
 
       const existingHeaders = (params.headers ?? {}) as Record<string, string>
       return {
+        ...params,
         headers: {
           ...existingHeaders,
           'anthropic-beta': betas.join(',')
         }
-      } as Partial<StreamTextParams>
+      }
     }
   })
