@@ -90,9 +90,9 @@ function controlledStream(): {
   }
 }
 
-const mockStreamText = vi.fn<
-  (request: AiStreamRequest, signal: AbortSignal) => Promise<ReadableStream<UIMessageChunk>>
->(async () => pendingStream())
+const mockStreamText = vi.fn<(request: AiStreamRequest) => Promise<ReadableStream<UIMessageChunk>>>(async () =>
+  pendingStream()
+)
 
 /**
  * Fake WindowService used by broadcast-path tests. Tests push real-ish

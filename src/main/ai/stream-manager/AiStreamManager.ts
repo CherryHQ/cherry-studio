@@ -689,7 +689,13 @@ export class AiStreamManager extends BaseService {
       // for per-call hooks / options overrides. stream-manager intentionally
       // does not forward them — callers that need per-call tuning call
       // `aiService.streamText` directly without going through stream-manager.
-      rawStream = await aiService.streamText(request, signal)
+      // Inject this execution's AbortController.signal into requestOptions so
+      // `AiService.streamText` sees it on the request (signal is not
+      // IPC-serialisable, the in-process caller sets it here).
+      rawStream = await aiService.streamText({
+        ...request,
+        requestOptions: { ...request.requestOptions, signal }
+      })
     } catch (err) {
       if (!signal.aborted) logger.error('streamText failed before stream start', { topicId, modelId, err })
       await this.onExecutionError(topicId, modelId, serializeError(err))

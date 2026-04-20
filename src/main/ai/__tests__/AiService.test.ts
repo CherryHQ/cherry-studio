@@ -75,21 +75,19 @@ describe('AiService', () => {
       media_type: 'image/jpeg'
     })
 
-    const result = await service.generateImage(
-      {
-        uniqueModelId: 'test-provider::test-model',
-        prompt: 'draw a cat',
-        n: 2,
-        size: '1024x1024',
-        negativePrompt: 'blurry',
-        seed: 7,
-        quality: 'high',
-        numInferenceSteps: 30,
-        guidanceScale: 4.5,
-        promptEnhancement: true
-      },
-      new AbortController().signal
-    )
+    const result = await service.generateImage({
+      uniqueModelId: 'test-provider::test-model',
+      prompt: 'draw a cat',
+      n: 2,
+      size: '1024x1024',
+      negativePrompt: 'blurry',
+      seed: 7,
+      quality: 'high',
+      numInferenceSteps: 30,
+      guidanceScale: 4.5,
+      promptEnhancement: true,
+      requestOptions: { signal: new AbortController().signal }
+    })
 
     expect(mockGenerateImage).toHaveBeenCalledWith(
       'test-provider',

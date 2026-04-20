@@ -93,8 +93,13 @@ type ChatTrigger = Parameters<ChatTransport<UIMessage>['sendMessages']>[0]['trig
  * Per-request transport options.
  *
  * Separate from `AiGenerateExtensions` / `AiStreamExtensions` which are
- * SDK-level extension points (plugins, hooks). `requestOptions` is pure
- * transport data (strings, numbers) that IPC can serialise.
+ * SDK-level extension points (plugins, hooks). `requestOptions` bundles
+ * all per-call transport config in one place.
+ *
+ * NOTE: `signal` is not IPC-serialisable. When a request crosses process
+ * boundaries, leave `signal` unset in the payload; the in-process receiver
+ * (usually `AiStreamManager`) sets it from its own `AbortController` before
+ * handing the request to `AiService`.
  */
 export interface AiRequestOptions {
   /**
@@ -114,10 +119,25 @@ export interface AiRequestOptions {
    * `DEFAULT_TIMEOUT` (30 min).
    *
    * Only honoured by streaming flows that go through `AiStreamManager`.
-   * Non-streaming flows rely on caller-supplied `AbortSignal` for
-   * cancellation.
+   * Non-streaming flows rely on `signal` for cancellation.
    */
   timeout?: number
+
+  /**
+   * AbortSignal for the whole request (streaming or non-streaming).
+   * Non-IPC-serialisable — set by the in-process caller, not by renderer
+   * payloads.
+   */
+  signal?: AbortSignal
+
+  /**
+   * Override AI SDK transparent-retry count. Defaults to `0` because
+   * transparent retries can duplicate stream state inside the
+   * multi-iteration tool loop. Safe to raise for non-streaming flows
+   * (`generateText`, `embedMany`) when the caller tolerates idempotent
+   * retries.
+   */
+  maxRetries?: number
 }
 
 /** Base fields shared by all AI requests. */
@@ -271,7 +291,7 @@ export interface AiEmbedResult {
  *
  * Two categories of work, sharing provider/model resolution + tool registry:
  *
- * - **Streaming**: `streamText(request, signal)` — returns a raw
+ * - **Streaming**: `streamText(request)` — returns a raw
  *   `UIMessageChunk` stream that `AiStreamManager` drives through its
  *   execution loop (multicast, finalMessage accumulation, abort/pause
  *   semantics all live there).
@@ -315,7 +335,10 @@ export class AiService extends BaseService {
       const controller = new AbortController()
       this.registerRequest(request.requestId, controller)
       try {
-        return await this.generateImage(request.payload, controller.signal)
+        return await this.generateImage({
+          ...request.payload,
+          requestOptions: { ...request.payload.requestOptions, signal: controller.signal }
+        })
       } finally {
         this.removeRequest(request.requestId)
       }
@@ -366,10 +389,10 @@ export class AiService extends BaseService {
    */
   async streamText(
     request: AiStreamRequest,
-    signal: AbortSignal,
     extensions: AiStreamExtensions = {}
   ): Promise<ReadableStream<UIMessageChunk>> {
     logger.info('streamText started', { chatId: request.chatId })
+    const signal = request.requestOptions?.signal ?? new AbortController().signal
 
     const { sdkConfig, tools, plugins, system, options, model } = await this.buildAgentParams(request)
 
@@ -440,10 +463,10 @@ export class AiService extends BaseService {
 
   async generateText(
     request: AiGenerateRequest,
-    extensions: AiGenerateExtensions = {},
-    signal?: AbortSignal
+    extensions: AiGenerateExtensions = {}
   ): Promise<AiGenerateResult> {
     logger.info('generateText started', { assistantId: request.assistantId })
+    const signal = request.requestOptions?.signal
 
     const { sdkConfig, tools, plugins, system, options, model } = await this.buildAgentParams(request)
 
@@ -482,8 +505,9 @@ export class AiService extends BaseService {
 
   // ── Image generation ──
 
-  async generateImage(request: AiImageRequest, signal: AbortSignal): Promise<AiImageResult> {
+  async generateImage(request: AiImageRequest): Promise<AiImageResult> {
     logger.info('generateImage started', { assistantId: request.assistantId, uniqueModelId: request.uniqueModelId })
+    const signal = request.requestOptions?.signal
 
     const { sdkConfig } = await this.buildAgentParams(request)
 
@@ -502,13 +526,13 @@ export class AiService extends BaseService {
       ...(request.numInferenceSteps !== undefined ? { numInferenceSteps: request.numInferenceSteps } : {}),
       ...(request.guidanceScale !== undefined ? { guidanceScale: request.guidanceScale } : {}),
       ...(request.promptEnhancement !== undefined ? { promptEnhancement: request.promptEnhancement } : {}),
-      abortSignal: signal,
+      ...(signal ? { abortSignal: signal } : {}),
       experimental_download: async (downloads) => {
         return Promise.all(
           downloads.map(async ({ url }) => {
-            if (signal.aborted) return null
+            if (signal?.aborted) return null
             const downloaded = await downloadImageAsBase64(url.toString())
-            if (signal.aborted) return null
+            if (signal?.aborted) return null
             if (!downloaded) return null
             return {
               data: Buffer.from(downloaded.data, 'base64'),
@@ -554,8 +578,9 @@ export class AiService extends BaseService {
 
   // ── Embedding ──
 
-  async embedMany(request: AiEmbedRequest, signal?: AbortSignal): Promise<AiEmbedResult> {
+  async embedMany(request: AiEmbedRequest): Promise<AiEmbedResult> {
     logger.info('embedMany started', { assistantId: request.assistantId, count: request.values.length })
+    const signal = request.requestOptions?.signal
 
     const { sdkConfig, model } = await this.buildAgentParams(request)
 
@@ -608,9 +633,13 @@ export class AiService extends BaseService {
       }, timeout)
     })
 
+    const probeRequest = {
+      ...request,
+      requestOptions: { ...request.requestOptions, signal: controller.signal }
+    }
     const probe = isEmbeddingModel(model)
-      ? this.embedMany({ ...request, values: ['test'] }, controller.signal)
-      : this.generateText({ ...request, system: 'test', prompt: 'hi' }, undefined, controller.signal)
+      ? this.embedMany({ ...probeRequest, values: ['test'] })
+      : this.generateText({ ...probeRequest, system: 'test', prompt: 'hi' })
 
     try {
       await Promise.race([probe, timeoutPromise])
@@ -661,11 +690,12 @@ export class AiService extends BaseService {
     // awareness (reasoning disables temperature on Claude, mutually exclusive
     // with topP on some models, thinking-token budget subtraction, etc.).
     const stopWhen = assistant ? resolveStopWhen(assistant) : undefined
-    const headers = request.requestOptions?.headers
+    const { headers, maxRetries } = request.requestOptions ?? {}
     const options: AgentOptions = {
-      // Disable AI SDK transparent retries — they can duplicate stream state
-      // in the multi-iteration tool loop. Higher layers retry if needed.
-      maxRetries: 0,
+      // Disable AI SDK transparent retries by default — they can duplicate
+      // stream state in the multi-iteration tool loop. Caller can override
+      // via `requestOptions.maxRetries` for non-streaming / idempotent flows.
+      maxRetries: maxRetries ?? 0,
       // Inner-loop tool-call limit. When the user disables it, leave unset so
       // the AI SDK default (`stepCountIs(20)`) applies.
       ...(stopWhen && { stopWhen }),
