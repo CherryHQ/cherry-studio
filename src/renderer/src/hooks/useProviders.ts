@@ -2,7 +2,7 @@ import { dataApiService } from '@data/DataApiService'
 import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
-import type { CreateProviderDto, UpdateProviderDto } from '@shared/data/api/schemas/providers'
+import type { CreateProviderDto, ListProvidersQuery, UpdateProviderDto } from '@shared/data/api/schemas/providers'
 import type { Model } from '@shared/data/types/model'
 import type { ApiKeyEntry, AuthConfig, Provider } from '@shared/data/types/provider'
 import { useCallback, useMemo } from 'react'
@@ -10,6 +10,9 @@ import { useCallback, useMemo } from 'react'
 const REFRESH_PROVIDERS = ['/providers'] as const
 const EMPTY_PROVIDERS: Provider[] = []
 const logger = loggerService.withContext('useProviders')
+
+// Provider reorder is intentionally omitted here until a transactional batch endpoint exists.
+// Sending N independent PATCH requests can leave persistent partial state on failure.
 
 /** Provider IDs are system-defined simple strings (no `/` or special chars),
  *  so standard `:providerId` params need no encoding. */
@@ -33,8 +36,8 @@ function providerRegistryModelsPath(providerId: string): ConcreteApiPaths {
   return `/providers/${providerId}/registry-models` as ConcreteApiPaths
 }
 
-// ─── Layer 1: List + Create + Reorder ─────────────────────────────────
-export function useProviders(query?: { enabled?: boolean }) {
+// ─── Layer 1: List + Create ────────────────────────────────────────────
+export function useProviders(query?: ListProvidersQuery) {
   const { data, isLoading, mutate } = useQuery('/providers', query ? { query } : undefined)
 
   const { trigger: createTrigger } = useMutation('POST', '/providers', {
@@ -53,36 +56,12 @@ export function useProviders(query?: { enabled?: boolean }) {
     [createTrigger]
   )
 
-  const reorderProviders = useCallback(
-    async (reorderedList: Provider[]) => {
-      // Individual PATCH calls are non-atomic, so a failure can leave a partially reordered server state.
-      // We only revert the optimistic client state locally and then revalidate against the server response.
-      void mutate(reorderedList, false) // optimistic
-      try {
-        await Promise.all(
-          reorderedList.map((p, i) => dataApiService.patch(providerPath(p.id), { body: { sortOrder: i } }))
-        )
-        await mutate()
-      } catch (error) {
-        logger.warn('Failed to reorder providers, reverting optimistic state', error as Error)
-        try {
-          await mutate()
-        } catch (revertError) {
-          logger.warn('Failed to revert optimistic state after reorder failure', revertError as Error)
-        }
-        throw error
-      }
-    },
-    [mutate]
-  )
-
   const providers = useMemo(() => data ?? EMPTY_PROVIDERS, [data])
 
   return {
     providers,
     isLoading,
     addProvider,
-    reorderProviders,
     refetch: mutate
   }
 }
@@ -213,13 +192,13 @@ export function useProviderRegistryModels(providerId: string) {
 export function useProviderActions() {
   const invalidate = useInvalidateCache()
 
-  const patchProviderById = useCallback(
+  const updateProviderById = useCallback(
     async (providerId: string, updates: UpdateProviderDto) => {
       try {
         await dataApiService.patch(providerPath(providerId), { body: updates })
         await invalidate('/providers')
       } catch (error) {
-        logger.error('Failed to patch provider', { providerId, error })
+        logger.error('Failed to update provider', { providerId, error })
         throw error
       }
     },
@@ -239,5 +218,5 @@ export function useProviderActions() {
     [invalidate]
   )
 
-  return { patchProviderById, deleteProviderById }
+  return { updateProviderById, deleteProviderById }
 }

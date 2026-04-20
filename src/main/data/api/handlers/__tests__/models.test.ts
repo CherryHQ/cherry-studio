@@ -112,6 +112,36 @@ describe('/models', () => {
   })
 })
 describe('/models/batch handler', () => {
+  it('passes registry data for every batch item on the happy path', async () => {
+    const registryData1 = { presetModel: { id: 'gpt-4o', name: 'GPT-4o' }, registryOverride: null }
+    const registryData2 = { presetModel: { id: 'gpt-5', name: 'GPT-5' }, registryOverride: null }
+    const created = [{ id: 'openai::gpt-4o' }, { id: 'openai::gpt-5' }]
+
+    lookupModelMock.mockResolvedValueOnce(registryData1).mockResolvedValueOnce(registryData2)
+    batchCreateMock.mockResolvedValue(created)
+
+    const result = await modelHandlers['/models/batch'].POST({
+      body: {
+        items: [
+          { providerId: 'openai', modelId: 'gpt-4o' },
+          { providerId: 'openai', modelId: 'gpt-5' }
+        ]
+      }
+    } as any)
+
+    expect(batchCreateMock).toHaveBeenCalledWith([
+      {
+        dto: { providerId: 'openai', modelId: 'gpt-4o' },
+        registryData: registryData1
+      },
+      {
+        dto: { providerId: 'openai', modelId: 'gpt-5' },
+        registryData: registryData2
+      }
+    ] satisfies BatchCreateModelInput[])
+    expect(result).toEqual(created)
+  })
+
   it('falls back to custom model creation when registry lookup fails for one item', async () => {
     const warnSpy = vi.spyOn(mockMainLoggerService, 'warn').mockImplementation(() => {})
     const registryData = { presetModel: { id: 'gpt-4o', name: 'GPT-4o' }, registryOverride: null }
@@ -142,6 +172,22 @@ describe('/models/batch handler', () => {
       'Registry lookup failed during batch create, falling back to custom',
       expect.objectContaining({ providerId: 'custom/provider', modelId: 'my-model' })
     )
+  })
+
+  it('propagates batchCreate service errors without wrapping them', async () => {
+    const serviceError = DataApiErrorFactory.conflict('Model', 'openai/gpt-4o')
+    const registryData = { presetModel: { id: 'gpt-4o', name: 'GPT-4o' }, registryOverride: null }
+
+    lookupModelMock.mockResolvedValueOnce(registryData)
+    batchCreateMock.mockRejectedValueOnce(serviceError)
+
+    await expect(
+      modelHandlers['/models/batch'].POST({
+        body: {
+          items: [{ providerId: 'openai', modelId: 'gpt-4o' }]
+        }
+      } as any)
+    ).rejects.toBe(serviceError)
   })
 })
 

@@ -1,5 +1,6 @@
 import { mockDataApiService } from '@test-mocks/renderer/DataApiService'
 import { mockUseInvalidateCache, mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -85,6 +86,14 @@ describe('useModels', () => {
 
     expect(mockUseQuery).toHaveBeenCalledWith('/models', {
       query: { providerId: 'openai', enabled: true }
+    })
+  })
+
+  it('should pass capability from the shared ListModelsQuery contract', () => {
+    renderHook(() => useModels({ providerId: 'openai', capability: MODEL_CAPABILITY.REASONING }))
+
+    expect(mockUseQuery).toHaveBeenCalledWith('/models', {
+      query: { providerId: 'openai', capability: MODEL_CAPABILITY.REASONING }
     })
   })
 
@@ -218,7 +227,7 @@ describe('useModelMutations', () => {
     expect(loggerSpy).toHaveBeenCalledWith('Failed to create model batch', { count: 1, error })
   })
 
-  it('should log and rethrow patchModel errors', async () => {
+  it('should log and rethrow updateModel errors', async () => {
     const error = new Error('Patch failed')
     const loggerSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
     const mockInvalidate = vi.fn().mockResolvedValue(undefined)
@@ -228,10 +237,14 @@ describe('useModelMutations', () => {
     const { result } = renderHook(() => useModelMutations())
 
     await act(async () => {
-      await expect(result.current.patchModel('openai', 'gpt-4o', { isEnabled: false })).rejects.toThrow('Patch failed')
+      await expect(result.current.updateModel('openai', 'gpt-4o', { isEnabled: false })).rejects.toThrow('Patch failed')
     })
 
-    expect(loggerSpy).toHaveBeenCalledWith('Failed to patch model', { providerId: 'openai', modelId: 'gpt-4o', error })
+    expect(loggerSpy).toHaveBeenCalledWith('Failed to update model', {
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      error
+    })
     expect(mockInvalidate).not.toHaveBeenCalled()
   })
 
@@ -250,7 +263,7 @@ describe('useModelMutations', () => {
     expect(mockInvalidate).toHaveBeenCalledWith('/models')
   })
 
-  it('should patch model via dataApiService and invalidate cache', async () => {
+  it('should update model via dataApiService and invalidate cache', async () => {
     const mockInvalidate = vi.fn().mockResolvedValue(undefined)
     mockUseInvalidateCache.mockImplementation(() => mockInvalidate)
     mockDataApiService.patch.mockResolvedValue({})
@@ -258,7 +271,7 @@ describe('useModelMutations', () => {
     const { result } = renderHook(() => useModelMutations())
 
     await act(async () => {
-      await result.current.patchModel('openai', 'gpt-4o', { isEnabled: false })
+      await result.current.updateModel('openai', 'gpt-4o', { isEnabled: false })
     })
 
     expect(mockDataApiService.patch).toHaveBeenCalledWith('/models/openai::gpt-4o', {

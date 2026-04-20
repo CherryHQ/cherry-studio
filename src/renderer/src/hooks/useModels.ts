@@ -2,7 +2,7 @@ import { dataApiService } from '@data/DataApiService'
 import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
-import type { CreateModelDto, CreateModelsBatchDto, UpdateModelDto } from '@shared/data/api/schemas/models'
+import type { CreateModelDto, CreateModelsBatchDto, ListModelsQuery, UpdateModelDto } from '@shared/data/api/schemas/models'
 import type { Model } from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { useCallback, useMemo } from 'react'
@@ -19,8 +19,10 @@ const REFRESH_MODELS = ['/models'] as const
 const EMPTY_MODELS: Model[] = []
 
 // ─── Layer 1: List ────────────────────────────────────────────────────
-export function useModels(query?: { providerId?: string; enabled?: boolean }, options?: { fetchEnabled?: boolean }) {
-  const filteredQuery = query ? Object.fromEntries(Object.entries(query).filter(([, v]) => v !== undefined)) : undefined
+export function useModels(query?: ListModelsQuery, options?: { fetchEnabled?: boolean }) {
+  const filteredQuery = query
+    ? (Object.fromEntries(Object.entries(query).filter(([, v]) => v !== undefined)) as ListModelsQuery)
+    : undefined
   const hasQuery = filteredQuery && Object.keys(filteredQuery).length > 0
 
   const { data, isLoading, mutate } = useQuery('/models', {
@@ -80,18 +82,18 @@ export function useModelMutations() {
     [invalidate]
   )
 
-  const patchModel = useCallback(
+  const updateModel = useCallback(
     async (providerId: string, modelId: string, updates: UpdateModelDto) => {
       try {
         await dataApiService.patch(modelPath(providerId, modelId), { body: updates })
         await invalidate('/models')
       } catch (error) {
-        logger.error('Failed to patch model', { providerId, modelId, error })
+        logger.error('Failed to update model', { providerId, modelId, error })
         throw error
       }
     },
     [invalidate]
   )
 
-  return { createModel, createModelsBatch, deleteModel, patchModel }
+  return { createModel, createModelsBatch, deleteModel, updateModel }
 }
