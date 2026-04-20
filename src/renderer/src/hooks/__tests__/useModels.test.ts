@@ -155,17 +155,11 @@ describe('useModelMutations', () => {
   it('should log and rethrow createModel errors', async () => {
     const error = new Error('Create failed')
     const loggerSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
-    mockUseMutation
-      .mockImplementationOnce(() => ({
-        trigger: vi.fn().mockRejectedValue(error),
-        isLoading: false,
-        error: undefined
-      }))
-      .mockImplementationOnce(() => ({
-        trigger: vi.fn(),
-        isLoading: false,
-        error: undefined
-      }))
+    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+      trigger: path === '/models' ? vi.fn().mockRejectedValue(error) : vi.fn(),
+      isLoading: false,
+      error: undefined
+    }))
 
     const { result } = renderHook(() => useModelMutations())
 
@@ -185,17 +179,11 @@ describe('useModelMutations', () => {
   it('should call batch create trigger when createModelsBatch is invoked', async () => {
     const singleTrigger = vi.fn().mockResolvedValue({ id: 'single-model' })
     const batchTrigger = vi.fn().mockResolvedValue([{ id: 'batch-model-1' }, { id: 'batch-model-2' }])
-    mockUseMutation
-      .mockImplementationOnce(() => ({
-        trigger: singleTrigger,
-        isLoading: false,
-        error: undefined
-      }))
-      .mockImplementationOnce(() => ({
-        trigger: batchTrigger,
-        isLoading: false,
-        error: undefined
-      }))
+    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+      trigger: path === '/models/batch' ? batchTrigger : singleTrigger,
+      isLoading: false,
+      error: undefined
+    }))
 
     const { result } = renderHook(() => useModelMutations())
 
@@ -209,6 +197,42 @@ describe('useModelMutations', () => {
 
     expect(batchTrigger).toHaveBeenCalledWith({ body: { items } })
     expect(singleTrigger).not.toHaveBeenCalled()
+  })
+
+  it('should log and rethrow createModelsBatch errors', async () => {
+    const error = new Error('Batch failed')
+    const loggerSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
+    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+      trigger: path === '/models/batch' ? vi.fn().mockRejectedValue(error) : vi.fn(),
+      isLoading: false,
+      error: undefined
+    }))
+
+    const { result } = renderHook(() => useModelMutations())
+
+    const items = [{ providerId: 'openai', modelId: 'gpt-5' }]
+    await act(async () => {
+      await expect(result.current.createModelsBatch(items)).rejects.toThrow('Batch failed')
+    })
+
+    expect(loggerSpy).toHaveBeenCalledWith('Failed to create model batch', { count: 1, error })
+  })
+
+  it('should log and rethrow patchModel errors', async () => {
+    const error = new Error('Patch failed')
+    const loggerSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
+    const mockInvalidate = vi.fn().mockResolvedValue(undefined)
+    mockUseInvalidateCache.mockImplementation(() => mockInvalidate)
+    mockDataApiService.patch.mockRejectedValue(error)
+
+    const { result } = renderHook(() => useModelMutations())
+
+    await act(async () => {
+      await expect(result.current.patchModel('openai', 'gpt-4o', { isEnabled: false })).rejects.toThrow('Patch failed')
+    })
+
+    expect(loggerSpy).toHaveBeenCalledWith('Failed to patch model', { providerId: 'openai', modelId: 'gpt-4o', error })
+    expect(mockInvalidate).not.toHaveBeenCalled()
   })
 
   it('should delete model via dataApiService and invalidate cache', async () => {

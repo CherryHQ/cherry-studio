@@ -11,24 +11,26 @@ const REFRESH_PROVIDERS = ['/providers'] as const
 const EMPTY_PROVIDERS: Provider[] = []
 const logger = loggerService.withContext('useProviders')
 
+/** Provider IDs are system-defined simple strings (no `/` or special chars),
+ *  so standard `:providerId` params need no encoding. */
 function providerPath(providerId: string): ConcreteApiPaths {
-  return `/providers/${encodeURIComponent(providerId)}` as ConcreteApiPaths
+  return `/providers/${providerId}` as ConcreteApiPaths
 }
 
 function providerAuthConfigPath(providerId: string): ConcreteApiPaths {
-  return `/providers/${encodeURIComponent(providerId)}/auth-config` as ConcreteApiPaths
+  return `/providers/${providerId}/auth-config` as ConcreteApiPaths
 }
 
 function providerApiKeysPath(providerId: string): ConcreteApiPaths {
-  return `/providers/${encodeURIComponent(providerId)}/api-keys` as ConcreteApiPaths
+  return `/providers/${providerId}/api-keys` as ConcreteApiPaths
 }
 
 function providerApiKeyPath(providerId: string, keyId: string): ConcreteApiPaths {
-  return `/providers/${encodeURIComponent(providerId)}/api-keys/${encodeURIComponent(keyId)}` as ConcreteApiPaths
+  return `/providers/${providerId}/api-keys/${keyId}` as ConcreteApiPaths
 }
 
 function providerRegistryModelsPath(providerId: string): ConcreteApiPaths {
-  return `/providers/${encodeURIComponent(providerId)}/registry-models` as ConcreteApiPaths
+  return `/providers/${providerId}/registry-models` as ConcreteApiPaths
 }
 
 // ─── Layer 1: List + Create + Reorder ─────────────────────────────────
@@ -53,9 +55,8 @@ export function useProviders(query?: { enabled?: boolean }) {
 
   const reorderProviders = useCallback(
     async (reorderedList: Provider[]) => {
-      // TODO: Replace individual PATCH calls with a batch /providers/reorder endpoint
-      // to avoid partial-write hazard (some providers updated, others not).
-      // Current mitigation: optimistic update + revert on any failure.
+      // Individual PATCH calls are non-atomic, so a failure can leave a partially reordered server state.
+      // We only revert the optimistic client state locally and then revalidate against the server response.
       void mutate(reorderedList, false) // optimistic
       try {
         await Promise.all(
@@ -89,6 +90,7 @@ export function useProviders(query?: { enabled?: boolean }) {
 // ─── Layer 2: Single read + write + delete ────────────────────────────
 export function useProvider(providerId: string) {
   const result = useQuery(providerPath(providerId))
+  // Dynamic path loses type inference; cast matches schema: GET /providers/:id -> Provider
   const data = result.data as Provider | undefined
   const { isLoading } = result
 
@@ -191,16 +193,19 @@ export function useProviderMutations(providerId: string) {
 // ─── Typed query helpers ─────────────────────────────────────────────
 export function useProviderAuthConfig(providerId: string) {
   const result = useQuery(providerAuthConfigPath(providerId))
+  // Schema: GET /providers/:id/auth-config -> AuthConfig | null
   return { ...result, data: result.data as AuthConfig | null | undefined }
 }
 
 export function useProviderApiKeys(providerId: string) {
   const result = useQuery(providerApiKeysPath(providerId))
+  // Schema: GET /providers/:id/api-keys -> { keys: ApiKeyEntry[] }
   return { ...result, data: result.data as { keys: ApiKeyEntry[] } | undefined }
 }
 
 export function useProviderRegistryModels(providerId: string) {
   const result = useQuery(providerRegistryModelsPath(providerId))
+  // Schema: GET /providers/:id/registry-models -> Model[]
   return { ...result, data: result.data as Model[] | undefined }
 }
 

@@ -9,7 +9,8 @@ import { useCallback, useMemo } from 'react'
 
 const logger = loggerService.withContext('useModels')
 
-/** Helper to build `/models/:uniqueModelId*` concrete path */
+/** Helper to build `/models/:uniqueModelId*` concrete path.
+ *  No encoding needed: greedy param `/:uniqueModelId*` handles slashes natively. */
 function modelPath(providerId: string, modelId: string): ConcreteApiPaths {
   return `/models/${createUniqueModelId(providerId, modelId)}` as ConcreteApiPaths
 }
