@@ -5,6 +5,11 @@ const { mockGetModels, mockInitSkillsForAgent } = vi.hoisted(() => ({
   mockInitSkillsForAgent: vi.fn()
 }))
 
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory()
+})
+
 vi.mock('@main/apiServer/services/mcp', () => ({
   mcpApiService: {
     getServerInfo: vi.fn()
@@ -15,51 +20,9 @@ vi.mock('@main/apiServer/utils', () => ({
   validateModelId: vi.fn()
 }))
 
-vi.mock('@main/utils', () => ({
-  getDataPath: vi.fn(() => '/mock/data')
-}))
-
 vi.mock('@main/apiServer/services/models', () => ({
   modelsService: {
     getModels: mockGetModels
-  }
-}))
-
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: vi.fn(() => ({
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn()
-    }))
-  }
-}))
-
-vi.mock('electron', () => ({
-  app: {
-    getPath: vi.fn(() => '/tmp'),
-    getAppPath: vi.fn(() => '/app')
-  },
-  BrowserWindow: vi.fn(),
-  dialog: {},
-  ipcMain: {},
-  nativeTheme: {
-    on: vi.fn(),
-    themeSource: 'system',
-    shouldUseDarkColors: false
-  },
-  screen: {},
-  session: {},
-  shell: {}
-}))
-
-vi.mock('@electron-toolkit/utils', () => ({
-  is: {
-    dev: true,
-    macOS: false,
-    windows: false,
-    linux: true
   }
 }))
 
@@ -68,6 +31,8 @@ vi.mock('../../skills/SkillService', () => ({
     initSkillsForAgent: mockInitSkillsForAgent
   }
 }))
+
+import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 
 import { agentService } from '../AgentService'
 
@@ -85,6 +50,7 @@ describe('AgentService built-in agent lifecycle', () => {
   const service = agentService
 
   beforeEach(() => {
+    MockMainDbServiceUtils.resetMocks()
     vi.clearAllMocks()
   })
 
@@ -94,8 +60,7 @@ describe('AgentService built-in agent lifecycle', () => {
         createSelectQuery([{ id: 'cherry-assistant-default', deletedAt: '2026-04-15T00:00:00.000Z' }])
       )
     }
-
-    vi.spyOn(service as never, 'getDatabase').mockResolvedValue(database as never)
+    MockMainDbServiceUtils.setDb(database)
 
     const result = await service.initBuiltinAgent({
       id: 'cherry-assistant-default',
@@ -120,8 +85,7 @@ describe('AgentService built-in agent lifecycle', () => {
       ),
       delete: vi.fn(() => ({ where: deleteWhere }))
     }
-
-    vi.spyOn(service as never, 'getDatabase').mockResolvedValue(database as never)
+    MockMainDbServiceUtils.setDb(database)
 
     const deleted = await service.deleteAgent('cherry-claw-default')
 

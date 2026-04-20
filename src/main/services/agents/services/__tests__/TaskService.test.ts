@@ -1,52 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: vi.fn(() => ({
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn()
-    }))
-  }
-}))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory()
+})
 
-vi.mock('electron', () => ({
-  app: {
-    getPath: vi.fn(() => '/tmp'),
-    getAppPath: vi.fn(() => '/app')
-  },
-  BrowserWindow: vi.fn(),
-  dialog: {},
-  ipcMain: {
-    handle: vi.fn(),
-    on: vi.fn(),
-    removeHandler: vi.fn(),
-    removeAllListeners: vi.fn()
-  },
-  nativeTheme: {
-    on: vi.fn(),
-    themeSource: 'system',
-    shouldUseDarkColors: false
-  },
-  screen: {},
-  session: {},
-  shell: {}
-}))
-
-vi.mock('@electron-toolkit/utils', () => ({
-  is: {
-    dev: true,
-    macOS: false,
-    windows: false,
-    linux: true
-  }
-}))
-
-vi.mock('@main/utils', () => ({
-  getDataPath: vi.fn(() => '/mock/data')
-}))
-
+import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import type { CreateTaskRequest } from '@types'
 
 import { taskService } from '../TaskService'
@@ -70,15 +29,16 @@ const baseRequest: CreateTaskRequest = {
 
 describe('TaskService silent-failure guards', () => {
   beforeEach(() => {
+    MockMainDbServiceUtils.resetMocks()
     vi.clearAllMocks()
   })
 
   it('throws a clear error when the agent configuration JSON is malformed', async () => {
     const database = {
-      select: vi.fn(() => createConfigQuery([{ configuration: '{not valid json' }]))
+      select: vi.fn(() => createConfigQuery([{ configuration: '{not valid json' }])),
+      transaction: vi.fn()
     }
-
-    vi.spyOn(taskService as never, 'getDatabase').mockResolvedValue(database as never)
+    MockMainDbServiceUtils.setDb(database)
 
     await expect(taskService.createTask('agent-1', baseRequest)).rejects.toThrow(
       /Agent agent-1 has a malformed configuration JSON and cannot be scheduled/
@@ -93,8 +53,7 @@ describe('TaskService silent-failure guards', () => {
       select: vi.fn(() => createConfigQuery([{ configuration: JSON.stringify({ soul_enabled: true }) }])),
       transaction: vi.fn(async (callback: (tx: unknown) => Promise<void>) => callback({ insert: txInsert }))
     }
-
-    vi.spyOn(taskService as never, 'getDatabase').mockResolvedValue(database as never)
+    MockMainDbServiceUtils.setDb(database)
 
     await expect(taskService.createTask('agent-1', baseRequest)).rejects.toThrow(
       /Failed to insert task .*: rowsAffected=0/
