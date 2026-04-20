@@ -27,7 +27,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useActivePane } from '../../hooks/useActivePane'
-import { usePanes } from '../../hooks/usePanes'
+import { usePanesActions } from '../../hooks/usePanes'
 import { cn } from '../../utils'
 import { OpenClawSidebarIcon } from '../Icons/SVGIcon'
 import UserPopup from '../Popups/UserPopup'
@@ -86,7 +86,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
   const [showOpenedInSidebar] = usePreference('feature.minapp.show_opened_in_sidebar')
   const { activePaneId, activeTab } = useActivePane()
-  const { updateTab, openTabInActivePane } = usePanes()
+  const { updateTab, openTabInActivePane } = usePanesActions()
   const { defaultPaintingProvider } = useSettings()
 
   // Sidebar width — persisted across restarts

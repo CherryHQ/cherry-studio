@@ -17,7 +17,6 @@ import type { ReactNode } from 'react'
 import { createContext, use, useCallback, useEffect, useMemo, useRef } from 'react'
 
 import {
-  collectAllLeafIds,
   findLeafById,
   findTabInTree,
   firstLeaf,
@@ -62,44 +61,54 @@ function withLocalizedTitle(tab: PaneTab): PaneTab {
 }
 
 /**
- * Enforce the three PanesState invariants:
- *   1. activePaneId references an existing leaf (else fall back to firstLeaf)
- *   2. every leaf's activeTabId references a tab in that leaf's tabs
- *   3. empty leaves auto-collapse; empty tree → DEFAULT_PANES_STATE
+ * Compute the display title for a tab without allocating a new PaneTab.
+ *
+ * Route tabs derive their title from `getDefaultRouteTitle(url)` so the text
+ * follows the current i18n language; webview tabs keep whatever they stored.
+ * Prefer this over `withLocalizedTitle` at render sites so we don't have to
+ * remap the entire pane tree on every state change.
  */
+export function getTabDisplayTitle(tab: PaneTab): string {
+  if (tab.type === 'route') return getDefaultRouteTitle(tab.url)
+  return tab.title
+}
+
+/**
+ * Single-pass walker that enforces the PanesState invariants:
+ *   1. activePaneId references an existing leaf (else fall back to firstLeaf)
+ *   2. every leaf's activeTabId references a tab in its tabs
+ *   3. empty leaves auto-collapse; empty tree → DEFAULT_PANES_STATE
+ *
+ * Returns null when the whole subtree should disappear (used by splits to
+ * collapse to their surviving child). Reuses incoming references when no
+ * change is needed, so referentially-equal subtrees skip downstream work.
+ */
+function normalizeLayout(layout: PaneLayout): PaneLayout | null {
+  if (layout.type === 'leaf') {
+    if (layout.tabs.length === 0) return null
+    const hasActive = layout.tabs.some((t) => t.id === layout.activeTabId)
+    if (hasActive) return layout
+    return { ...layout, activeTabId: layout.tabs[0].id }
+  }
+
+  const left = normalizeLayout(layout.children[0])
+  const right = normalizeLayout(layout.children[1])
+  if (left === null && right === null) return null
+  if (left === null) return right
+  if (right === null) return left
+  if (left === layout.children[0] && right === layout.children[1]) return layout
+  return { ...layout, children: [left, right] }
+}
+
 function normalize(state: PanesState): PanesState {
-  let root: PaneLayout | null = state.root
+  const root = normalizeLayout(state.root)
+  if (root === null) return makeDefaultPanesState()
 
-  // Auto-collapse empty leaves.
-  const leafIds = collectAllLeafIds(root)
-  for (const paneId of leafIds) {
-    const leaf = findLeafById(root, paneId)
-    if (leaf && leaf.tabs.length === 0) {
-      root = removeLeafById(root, paneId)
-      if (root === null) break
-    }
-  }
+  // Snap activePaneId if it no longer points at a leaf. findLeafById is the
+  // only remaining lookup — unavoidable, and still O(n) at worst.
+  const activePaneId = findLeafById(root, state.activePaneId) ? state.activePaneId : firstLeaf(root).paneId
 
-  if (root === null) {
-    return makeDefaultPanesState()
-  }
-
-  // Snap each leaf's activeTabId into `tabs`.
-  for (const paneId of collectAllLeafIds(root)) {
-    const leaf = findLeafById(root, paneId)
-    if (!leaf) continue
-    const hasActive = leaf.tabs.some((t) => t.id === leaf.activeTabId)
-    if (!hasActive && leaf.tabs.length > 0) {
-      root = updateLeafById(root, paneId, (l) => ({ ...l, activeTabId: l.tabs[0].id }))
-    }
-  }
-
-  // Snap activePaneId.
-  let activePaneId = state.activePaneId
-  if (!findLeafById(root, activePaneId)) {
-    activePaneId = firstLeaf(root).paneId
-  }
-
+  if (root === state.root && activePaneId === state.activePaneId) return state
   return { root, activePaneId }
 }
 
@@ -112,13 +121,23 @@ export interface OpenTabOptions {
   id?: string
 }
 
-export interface PanesContextValue {
+/**
+ * State slice — changes on every pane mutation. Consumers that only depend on
+ * methods should use `usePanesActions()` to avoid re-rendering on state changes.
+ */
+export interface PanesStateValue {
   panes: PanesState
   activePaneId: string
   activePane: LeafPane
   activeTab: PaneTab | undefined
   isLoading: boolean
+}
 
+/**
+ * Action slice — stable references across renders. Consumers that only
+ * dispatch mutations never re-render because of state changes.
+ */
+export interface PanesActionsValue {
   // Navigation
   openTabInPane: (paneId: string, url: string, options?: OpenTabOptions) => string
   openTabInActivePane: (url: string, options?: OpenTabOptions) => string
@@ -158,7 +177,14 @@ export interface PanesContextValue {
   attachTab: (tab: PaneTab) => void
 }
 
-const PanesContext = createContext<PanesContextValue | null>(null)
+/**
+ * Combined convenience type. New code should prefer the slice-specific types
+ * and hooks (`usePanesState`, `usePanesActions`) for better re-render control.
+ */
+export interface PanesContextValue extends PanesStateValue, PanesActionsValue {}
+
+const PanesStateContext = createContext<PanesStateValue | null>(null)
+const PanesActionsContext = createContext<PanesActionsValue | null>(null)
 
 export interface PanesProviderProps {
   children: ReactNode
@@ -244,17 +270,6 @@ export function PanesProvider({ children, initialState, ephemeral = false }: Pan
     const tab = activePane.tabs.find((t) => t.id === activePane.activeTabId)
     return tab ? withLocalizedTitle(tab) : undefined
   }, [activePane])
-
-  // Localize titles on render (route-type tabs only).
-  const panesView = useMemo<PanesState>(() => {
-    const localize = (layout: PaneLayout): PaneLayout => {
-      if (layout.type === 'leaf') {
-        return { ...layout, tabs: layout.tabs.map(withLocalizedTitle) }
-      }
-      return { ...layout, children: [localize(layout.children[0]), localize(layout.children[1])] }
-    }
-    return { ...panes, root: localize(panes.root) }
-  }, [panes])
 
   // ─── Mutations ──────────────────────────────────────────────────────────────
 
@@ -652,46 +667,93 @@ export function PanesProvider({ children, initialState, ephemeral = false }: Pan
     return window.electron.ipcRenderer.on(IpcChannel.Tab_Attach, handler)
   }, [attachTab])
 
-  const value: PanesContextValue = {
-    panes: panesView,
-    activePaneId,
-    activePane,
-    activeTab,
-    isLoading: false,
+  const stateValue = useMemo<PanesStateValue>(
+    () => ({
+      panes,
+      activePaneId,
+      activePane,
+      activeTab,
+      isLoading: false
+    }),
+    [panes, activePaneId, activePane, activeTab]
+  )
 
-    openTabInPane,
-    openTabInActivePane,
-    setActiveTab,
-    setActivePane,
-    closeTab,
-    updateTab,
+  const actionsValue = useMemo<PanesActionsValue>(
+    () => ({
+      openTabInPane,
+      openTabInActivePane,
+      setActiveTab,
+      setActivePane,
+      closeTab,
+      updateTab,
 
-    pinTab,
-    unpinTab,
+      pinTab,
+      unpinTab,
 
-    reorderTabsInPane,
+      reorderTabsInPane,
 
-    splitPane,
-    unsplitPane,
-    updateSplitRatio,
+      splitPane,
+      unsplitPane,
+      updateSplitRatio,
 
-    moveTabToPane,
-    splitPaneWithTab,
+      moveTabToPane,
+      splitPaneWithTab,
 
-    hibernateTab,
-    wakeTab,
+      hibernateTab,
+      wakeTab,
 
-    detachTab,
-    attachTab
-  }
+      detachTab,
+      attachTab
+    }),
+    [
+      openTabInPane,
+      openTabInActivePane,
+      setActiveTab,
+      setActivePane,
+      closeTab,
+      updateTab,
+      pinTab,
+      unpinTab,
+      reorderTabsInPane,
+      splitPane,
+      unsplitPane,
+      updateSplitRatio,
+      moveTabToPane,
+      splitPaneWithTab,
+      hibernateTab,
+      wakeTab,
+      detachTab,
+      attachTab
+    ]
+  )
 
-  return <PanesContext value={value}>{children}</PanesContext>
+  return (
+    <PanesStateContext value={stateValue}>
+      <PanesActionsContext value={actionsValue}>{children}</PanesActionsContext>
+    </PanesStateContext>
+  )
 }
 
+/** Subscribe to pane state (re-renders on any mutation). */
+export function usePanesState(): PanesStateValue {
+  const ctx = use(PanesStateContext)
+  if (!ctx) throw new Error('usePanesState must be used within a PanesProvider')
+  return ctx
+}
+
+/** Subscribe to pane actions only — the returned object is stable across renders. */
+export function usePanesActions(): PanesActionsValue {
+  const ctx = use(PanesActionsContext)
+  if (!ctx) throw new Error('usePanesActions must be used within a PanesProvider')
+  return ctx
+}
+
+/**
+ * Convenience hook — returns both state and actions. Prefer the split hooks
+ * (`usePanesState` / `usePanesActions`) in new code when you only need one.
+ */
 export function usePanesContext(): PanesContextValue {
-  const context = use(PanesContext)
-  if (!context) {
-    throw new Error('usePanesContext must be used within a PanesProvider')
-  }
-  return context
+  const state = usePanesState()
+  const actions = usePanesActions()
+  return useMemo(() => ({ ...state, ...actions }), [state, actions])
 }

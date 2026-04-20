@@ -1,11 +1,11 @@
-import { usePanes } from './usePanes'
+import { usePanesState } from './usePanes'
 
 /**
  * Thin convenience hook that surfaces the currently focused leaf pane
- * together with its active tab. Consumers that only need the focused slice
- * can depend on this instead of the whole PanesContext.
+ * together with its active tab. Reads from the state slice so it only
+ * re-renders when state changes (not when actions are rebuilt).
  */
 export function useActivePane() {
-  const { activePane, activeTab, activePaneId } = usePanes()
+  const { activePane, activeTab, activePaneId } = usePanesState()
   return { activePane, activeTab, activePaneId }
 }

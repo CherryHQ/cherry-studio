@@ -1,11 +1,14 @@
+import { useDraggable, useDroppable } from '@dnd-kit/core'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { cn } from '@renderer/utils'
 import { Plus, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { getTabDisplayTitle } from '../../context/PanesContext'
 import type { LeafPane, PaneTab } from '../../hooks/usePanes'
-import { usePanes } from '../../hooks/usePanes'
+import { usePanesActions } from '../../hooks/usePanes'
+import type { TabDragData } from './PaneDndProvider'
 import { PaneTabContextMenu } from './PaneTabContextMenu'
 import { getTabIcon } from './tabIcons'
 
@@ -27,6 +30,10 @@ interface PaneTabBarProps {
   rightPaddingClass?: string
   /** Hide the [+] button (e.g., detached window). */
   hideAddButton?: boolean
+  /** Ref callback for the header element — used by `LeafPaneView` to compute tabBarRect. */
+  tabBarRef?: (el: HTMLElement | null) => void
+  /** Ref callback for each tab button, keyed by tabId. */
+  onTabButtonRef?: (tabId: string, el: HTMLElement | null) => void
 }
 
 interface ContextMenuState {
@@ -36,28 +43,35 @@ interface ContextMenuState {
 }
 
 /**
- * Per-leaf tab bar.
+ * Per-leaf tab bar with dnd-kit draggable tabs.
  *
- * Replaces the legacy `AppShellTabBar` which served one global tab list.
- * Each leaf pane gets its own bar; splits produce independent bars.
- *
- * Phase 2 scope:
- *   - tab reorder within the same pane (pointer drag)
- *   - right-click context menu (pin/close/split/unsplit/moveToFirst)
- *   - add new tab ([+] button)
- *
- * Cross-pane drag and edge-split are deferred to Phase 3.
+ * Each TabButton is both a draggable (so it can move to another pane) and
+ * acts as a sortable target within this pane. The tab bar container itself
+ * is a droppable so cross-pane reorder lands here cleanly.
  */
 export function PaneTabBar({
   pane,
   isActivePane,
   renderShellActions,
   rightPaddingClass = '',
-  hideAddButton = false
+  hideAddButton = false,
+  tabBarRef,
+  onTabButtonRef
 }: PaneTabBarProps) {
   const { t } = useTranslation()
   const isMacTransparentWindow = useMacTransparentWindow()
-  const { setActiveTab, closeTab, reorderTabsInPane, openTabInPane } = usePanes()
+  const { setActiveTab, closeTab, reorderTabsInPane, openTabInPane } = usePanesActions()
+
+  // Tab bar is the drop target for reorder / cross-pane move.
+  const { setNodeRef: setDropRef } = useDroppable({ id: `${pane.paneId}:tabbar` })
+
+  const headerRef = useCallback(
+    (el: HTMLElement | null) => {
+      setDropRef(el)
+      tabBarRef?.(el)
+    },
+    [setDropRef, tabBarRef]
+  )
 
   const tabTone = useMemo<TabToneProps>(
     () =>
@@ -99,6 +113,7 @@ export function PaneTabBar({
   return (
     <>
       <header
+        ref={headerRef}
         className={cn(
           'relative flex h-11 w-full shrink-0 select-none items-center gap-1 pl-3 [-webkit-app-region:drag]',
           isActivePane ? 'bg-sidebar-accent/20' : 'bg-sidebar',
@@ -108,11 +123,13 @@ export function PaneTabBar({
           {pane.tabs.map((tab) => (
             <TabButton
               key={tab.id}
+              paneId={pane.paneId}
               tab={tab}
               isActive={tab.id === pane.activeTabId}
               onSelect={() => setActiveTab(pane.paneId, tab.id)}
               onClose={() => closeTab(pane.paneId, tab.id)}
               onContextMenu={(e) => handleContextMenu(e, tab.id)}
+              onTabButtonRef={onTabButtonRef}
               tone={tabTone}
             />
           ))}
@@ -150,18 +167,41 @@ export function PaneTabBar({
 }
 
 interface TabButtonProps {
+  paneId: string
   tab: PaneTab
   isActive: boolean
   onSelect: () => void
   onClose: () => void
   onContextMenu: (e: React.MouseEvent) => void
+  onTabButtonRef?: (tabId: string, el: HTMLElement | null) => void
   tone: TabToneProps
 }
 
-function TabButton({ tab, isActive, onSelect, onClose, onContextMenu, tone }: TabButtonProps) {
+function TabButton({ paneId, tab, isActive, onSelect, onClose, onContextMenu, onTabButtonRef, tone }: TabButtonProps) {
   const Icon = getTabIcon(tab)
   const btnRef = useRef<HTMLButtonElement | null>(null)
   const [isNarrow, setIsNarrow] = useState(false)
+
+  const dragData: TabDragData = useMemo(() => ({ paneId, tabId: tab.id, tab }), [paneId, tab])
+
+  const {
+    setNodeRef: setDragRef,
+    listeners,
+    attributes,
+    isDragging
+  } = useDraggable({
+    id: `tab:${tab.id}`,
+    data: dragData
+  })
+
+  const combinedRef = useCallback(
+    (el: HTMLButtonElement | null) => {
+      btnRef.current = el
+      setDragRef(el)
+      onTabButtonRef?.(tab.id, el)
+    },
+    [setDragRef, onTabButtonRef, tab.id]
+  )
 
   useEffect(() => {
     const el = btnRef.current
@@ -173,20 +213,26 @@ function TabButton({ tab, isActive, onSelect, onClose, onContextMenu, tone }: Ta
     return () => ro.disconnect()
   }, [])
 
+  useEffect(() => {
+    return () => onTabButtonRef?.(tab.id, null)
+  }, [onTabButtonRef, tab.id])
+
   const showRightClose = !isNarrow
   const showIconOverlayClose = isNarrow
 
   return (
     <button
-      ref={btnRef}
+      ref={combinedRef}
       data-tab-id={tab.id}
       type="button"
       onClick={onSelect}
       onContextMenu={onContextMenu}
+      {...attributes}
+      {...listeners}
       className={cn(
         'group relative flex h-[30px] min-w-[40px] max-w-[160px] flex-1 items-center gap-1.5 rounded-[10px] transition-all duration-150 [-webkit-app-region:no-drag]',
         showRightClose ? 'pr-1 pl-2' : 'px-2',
-        'cursor-default',
+        isDragging ? 'opacity-40' : 'cursor-default',
         isActive ? tone.activeClass : tone.hoverClass
       )}>
       <div className="relative flex h-[13px] w-[13px] shrink-0 items-center justify-center">
@@ -195,6 +241,8 @@ function TabButton({ tab, isActive, onSelect, onClose, onContextMenu, tone }: Ta
           <div
             role="button"
             tabIndex={0}
+            data-no-dnd
+            onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation()
               onClose()
@@ -213,12 +261,14 @@ function TabButton({ tab, isActive, onSelect, onClose, onContextMenu, tone }: Ta
       <span
         className="min-w-0 flex-1 truncate text-left font-medium text-[11px] leading-none"
         style={{ maskImage: 'linear-gradient(to right, black 80%, transparent 100%)' }}>
-        {tab.title}
+        {getTabDisplayTitle(tab)}
       </span>
       {showRightClose && (
         <div
           role="button"
           tabIndex={0}
+          data-no-dnd
+          onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation()
             onClose()

@@ -1,5 +1,5 @@
-export type { OpenTabOptions, PanesContextValue } from '../context/PanesContext'
-export { usePanesContext as usePanes } from '../context/PanesContext'
+export type { OpenTabOptions, PanesActionsValue, PanesContextValue, PanesStateValue } from '../context/PanesContext'
+export { usePanesContext as usePanes, usePanesActions, usePanesState } from '../context/PanesContext'
 export type {
   LeafPane,
   PaneDirection,

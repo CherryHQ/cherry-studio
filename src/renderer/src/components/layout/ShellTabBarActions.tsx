@@ -8,7 +8,7 @@ import { Monitor, Moon, Settings, Sun } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { useActivePane } from '../../hooks/useActivePane'
-import { usePanes } from '../../hooks/usePanes'
+import { usePanesActions } from '../../hooks/usePanes'
 import WindowControls from '../WindowControls'
 
 export function useShellTabBarLayout(isDetached: boolean) {
@@ -33,7 +33,7 @@ export function ShellTabBarActions({ isDetached = false }: { isDetached?: boolea
   const { t } = useTranslation()
   const { settedTheme, toggleTheme } = useTheme()
   const { activePane, activePaneId, activeTab } = useActivePane()
-  const { updateTab, openTabInActivePane } = usePanes()
+  const { updateTab, openTabInActivePane } = usePanesActions()
   const { hasWindowControls } = useShellTabBarLayout(isDetached)
 
   const ThemeIcon = settedTheme === 'dark' ? Moon : settedTheme === 'light' ? Sun : Monitor

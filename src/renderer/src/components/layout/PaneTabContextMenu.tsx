@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
-import { usePanes } from '../../hooks/usePanes'
+import { usePanesActions, usePanesState } from '../../hooks/usePanes'
 
 /** Above sidebar chrome (z-50) and app overlays; below ConfirmDialog (99998). */
 const Z_BACKDROP = 10049
@@ -33,7 +33,8 @@ export function PaneTabContextMenu({
   onDismiss
 }: PaneTabContextMenuProps) {
   const { t } = useTranslation()
-  const { pinTab, unpinTab, splitPane, unsplitPane, closeTab, panes } = usePanes()
+  const { pinTab, unpinTab, splitPane, unsplitPane, closeTab } = usePanesActions()
+  const { panes } = usePanesState()
   const ref = useRef<HTMLDivElement>(null)
 
   // A pane can be unsplit only when it lives inside a split parent.

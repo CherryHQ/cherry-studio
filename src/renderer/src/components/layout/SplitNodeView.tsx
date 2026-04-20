@@ -2,7 +2,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@cherrystu
 import { useCallback } from 'react'
 
 import type { PaneLayout, PaneSplitNode } from '../../hooks/usePanes'
-import { usePanes } from '../../hooks/usePanes'
+import { usePanesActions } from '../../hooks/usePanes'
 import { LeafPaneView } from './LeafPaneView'
 
 interface SplitNodeViewProps {
@@ -19,7 +19,7 @@ const FIRST_PANEL_ID = 'first'
  * Each child is either another split node (recursion) or a LeafPaneView.
  */
 export function SplitNodeView({ node, path, activePaneId, isDetached }: SplitNodeViewProps) {
-  const { updateSplitRatio } = usePanes()
+  const { updateSplitRatio } = usePanesActions()
 
   const handleLayoutChanged = useCallback(
     (newLayout: Record<string, number>) => {
