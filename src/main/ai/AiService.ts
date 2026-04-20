@@ -8,17 +8,19 @@ import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { downloadImageAsBase64 } from '@main/services/agents/services/channels/ChannelAdapter'
 import { toolApprovalRegistry } from '@main/services/agents/services/claudecode/ToolApprovalRegistry'
-import type { Assistant } from '@shared/data/types/assistant'
+import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@shared/config/constants'
+import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { ENDPOINT_TYPE, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
-import type {
-  ChatTransport,
-  EmbeddingModelUsage,
-  LanguageModelUsage,
-  ModelMessage,
-  ToolSet,
-  UIMessage,
-  UIMessageChunk
+import {
+  type ChatTransport,
+  type EmbeddingModelUsage,
+  type LanguageModelUsage,
+  type ModelMessage,
+  stepCountIs,
+  type ToolSet,
+  type UIMessage,
+  type UIMessageChunk
 } from 'ai'
 
 import { type AgentLoopHooks, type AgentOptions, runAgentLoop } from './agentLoop'
@@ -64,6 +66,23 @@ function mergeTools(base: ToolSet | undefined, extra: ToolSet | undefined): Tool
   if (!extra) return base
   if (!base) return extra
   return { ...extra, ...base }
+}
+
+/**
+ * Resolve the `stopWhen` condition for the inner tool-call loop.
+ *
+ *   - `enableMaxToolCalls` = false → `undefined` (AI SDK default applies).
+ *   - Otherwise, clamp the user-supplied `maxToolCalls` to `[MIN, MAX]`;
+ *     invalid / missing values fall back to the schema default.
+ */
+function resolveStopWhen(assistant: Assistant): ReturnType<typeof stepCountIs> | undefined {
+  const enableMaxToolCalls = assistant.settings?.enableMaxToolCalls ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxToolCalls
+  if (!enableMaxToolCalls) return undefined
+
+  const raw = assistant.settings?.maxToolCalls
+  const valid = raw !== undefined && raw >= MIN_TOOL_CALLS && raw <= MAX_TOOL_CALLS
+  const count = valid ? raw : DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
+  return stepCountIs(count)
 }
 
 type ChatTrigger = Parameters<ChatTransport<UIMessage>['sendMessages']>[0]['trigger']
@@ -608,7 +627,15 @@ export class AiService extends BaseService {
     // `modelParamsPlugin` via `transformParams` with full model-capability
     // awareness (reasoning disables temperature on Claude, mutually exclusive
     // with topP on some models, thinking-token budget subtraction, etc.).
-    const options: AgentOptions = {}
+    const stopWhen = assistant ? resolveStopWhen(assistant) : undefined
+    const options: AgentOptions = {
+      // Disable AI SDK transparent retries — they can duplicate stream state
+      // in the multi-iteration tool loop. Higher layers retry if needed.
+      maxRetries: 0,
+      // Inner-loop tool-call limit. When the user disables it, leave unset so
+      // the AI SDK default (`stepCountIs(20)`) applies.
+      ...(stopWhen && { stopWhen })
+    }
 
     return { sdkConfig, tools, plugins, system, options, provider, model }
   }

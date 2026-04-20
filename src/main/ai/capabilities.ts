@@ -16,6 +16,7 @@ import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import {
   isAnthropicModel,
+  isFixedReasoningModel,
   isFunctionCallingModel,
   isGeminiModel,
   isGenerateImageModel,
@@ -64,9 +65,12 @@ export function resolveCapabilities(
   assistant: Assistant,
   options: ResolveCapabilitiesOptions = {}
 ): ResolvedCapabilities {
+  // `isFixedReasoningModel` covers models where reasoning is always on regardless
+  // of user setting (e.g. OpenAI o1 / o3 — they reason by construction).
   const enableReasoning =
-    (isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) &&
-    assistant.settings?.reasoning_effort !== undefined
+    ((isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) &&
+      assistant.settings?.reasoning_effort !== undefined) ||
+    isFixedReasoningModel(model)
 
   const hasExternalSearch = !!options.webSearchProviderId
   const enableWebSearch =
