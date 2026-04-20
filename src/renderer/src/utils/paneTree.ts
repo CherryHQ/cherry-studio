@@ -144,3 +144,80 @@ export function findTabInTree(layout: PaneLayout, tabId: string): { paneId: stri
   }
   return findTabInTree(layout.children[0], tabId) ?? findTabInTree(layout.children[1], tabId)
 }
+
+/**
+ * Move a tab from one leaf to another (or reorder within a single leaf).
+ *
+ * - Same-leaf case: splice within `tabs`, applying insertion-index math that
+ *   accounts for the removal (if inserting after the removal point, shift back
+ *   by one).
+ * - Cross-leaf case: remove from source, insert at `insertIndex` in target;
+ *   if the source leaf ends up empty, it is auto-collapsed via `removeLeafById`.
+ *
+ * `insertIndex` is clamped to the valid range [0, target.tabs.length]. The
+ * moved tab becomes the target leaf's `activeTabId`. If the source leaf
+ * retained tabs, its `activeTabId` is updated to a neighbour when the moved
+ * tab was the previously active one.
+ *
+ * If `fromPaneId` doesn't exist, the tab isn't in the source, or `toPaneId`
+ * doesn't exist, the tree is returned unchanged.
+ */
+export function moveTabBetweenLeaves(
+  root: PaneLayout,
+  fromPaneId: string,
+  tabId: string,
+  toPaneId: string,
+  insertIndex: number
+): PaneLayout {
+  const source = findLeafById(root, fromPaneId)
+  if (!source) return root
+  const movingIndex = source.tabs.findIndex((t) => t.id === tabId)
+  if (movingIndex === -1) return root
+  const movingTab = source.tabs[movingIndex]
+
+  // Same-leaf reorder — splice directly to avoid the collapse path.
+  if (fromPaneId === toPaneId) {
+    const tabs = [...source.tabs]
+    tabs.splice(movingIndex, 1)
+    const clamped = Math.max(0, Math.min(insertIndex, tabs.length))
+    // If insertIndex was past the removal, the already-spliced array needs no shift.
+    // If insertIndex <= movingIndex, insert at the original position.
+    const finalIndex = insertIndex > movingIndex ? clamped : Math.min(insertIndex, tabs.length)
+    tabs.splice(finalIndex, 0, movingTab)
+    return updateLeafById(root, fromPaneId, (l) => ({
+      ...l,
+      tabs,
+      activeTabId: movingTab.id
+    }))
+  }
+
+  // Cross-leaf move — verify destination exists before mutating source.
+  const target = findLeafById(root, toPaneId)
+  if (!target) return root
+
+  // 1. Remove from source (may result in empty source).
+  const afterRemove = updateLeafById(root, fromPaneId, (l) => {
+    const nextTabs = l.tabs.filter((t) => t.id !== tabId)
+    const nextActive =
+      l.activeTabId === tabId ? (nextTabs[movingIndex - 1]?.id ?? nextTabs[0]?.id ?? '') : l.activeTabId
+    return { ...l, tabs: nextTabs, activeTabId: nextActive }
+  })
+
+  // 2. If source is now empty, collapse it so `toPaneId` still resolves in the compacted tree.
+  let afterCollapse: PaneLayout = afterRemove
+  const sourceAfter = findLeafById(afterRemove, fromPaneId)
+  if (sourceAfter && sourceAfter.tabs.length === 0) {
+    const collapsed = removeLeafById(afterRemove, fromPaneId)
+    if (collapsed) afterCollapse = collapsed
+  }
+
+  // 3. Insert into target leaf.
+  const targetAfter = findLeafById(afterCollapse, toPaneId)
+  if (!targetAfter) return afterCollapse // safety net; shouldn't happen for valid input
+  const clamped = Math.max(0, Math.min(insertIndex, targetAfter.tabs.length))
+  return updateLeafById(afterCollapse, toPaneId, (l) => {
+    const tabs = [...l.tabs]
+    tabs.splice(clamped, 0, movingTab)
+    return { ...l, tabs, activeTabId: movingTab.id }
+  })
+}

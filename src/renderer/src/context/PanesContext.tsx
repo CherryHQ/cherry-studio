@@ -21,6 +21,7 @@ import {
   findLeafById,
   findTabInTree,
   firstLeaf,
+  moveTabBetweenLeaves,
   removeLeafById,
   splitLeaf,
   updateLeafById,
@@ -137,6 +138,16 @@ export interface PanesContextValue {
   splitPane: (paneId: string, direction: PaneDirection, seedTab?: PaneTab) => void
   unsplitPane: (paneId: string) => void
   updateSplitRatio: (path: number[], ratio: number) => void
+
+  // Drag-and-drop mutations (Phase 3)
+  moveTabToPane: (fromPaneId: string, tabId: string, toPaneId: string, insertIndex: number) => void
+  splitPaneWithTab: (
+    fromPaneId: string,
+    tabId: string,
+    targetPaneId: string,
+    direction: PaneDirection,
+    placement: 'before' | 'after'
+  ) => void
 
   // LRU
   hibernateTab: (paneId: string, tabId: string) => void
@@ -520,6 +531,78 @@ export function PanesProvider({ children, initialState, ephemeral = false }: Pan
     [setPanes]
   )
 
+  /**
+   * Move a tab from one leaf to another (or within the same leaf) at
+   * `insertIndex`. Source pane auto-collapses if it ends up empty.
+   */
+  const moveTabToPane = useCallback(
+    (fromPaneId: string, tabId: string, toPaneId: string, insertIndex: number) => {
+      setPanes((prev) => {
+        const nextRoot = moveTabBetweenLeaves(prev.root, fromPaneId, tabId, toPaneId, insertIndex)
+        if (nextRoot === prev.root) return prev
+        logger.info('Tab moved across panes', { fromPaneId, tabId, toPaneId, insertIndex })
+        return { root: nextRoot, activePaneId: toPaneId }
+      })
+    },
+    [setPanes]
+  )
+
+  /**
+   * Split a target pane with a dragged tab as the new sibling leaf.
+   *
+   * Steps: remove tab from source → (source auto-collapses if empty) → build a
+   * new leaf containing just that tab → wrap target leaf in a split with it.
+   * `normalize()` handles any bookkeeping (active pane/tab, empty-leaf pruning).
+   */
+  const splitPaneWithTab = useCallback(
+    (
+      fromPaneId: string,
+      tabId: string,
+      targetPaneId: string,
+      direction: PaneDirection,
+      placement: 'before' | 'after'
+    ) => {
+      setPanes((prev) => {
+        const found = findTabInTree(prev.root, tabId)
+        if (!found) return prev
+
+        // 1. Remove tab from source leaf.
+        const afterRemove = updateLeafById(prev.root, fromPaneId, (l) => {
+          const nextTabs = l.tabs.filter((t) => t.id !== tabId)
+          const movingIndex = l.tabs.findIndex((t) => t.id === tabId)
+          const nextActive =
+            l.activeTabId === tabId ? (nextTabs[movingIndex - 1]?.id ?? nextTabs[0]?.id ?? '') : l.activeTabId
+          return { ...l, tabs: nextTabs, activeTabId: nextActive }
+        })
+
+        // 2. If source ended up empty, collapse it so `targetPaneId` still resolves.
+        let afterCollapse: PaneLayout = afterRemove
+        const sourceAfter = findLeafById(afterRemove, fromPaneId)
+        if (sourceAfter && sourceAfter.tabs.length === 0) {
+          const collapsed = removeLeafById(afterRemove, fromPaneId)
+          if (collapsed) afterCollapse = collapsed
+        }
+
+        // 3. Bail out if target vanished (e.g. was the source and got collapsed).
+        if (!findLeafById(afterCollapse, targetPaneId)) return prev
+
+        // 4. Build the new leaf and wrap the target in a split.
+        const newPaneId = uuid()
+        const newLeaf: LeafPane = {
+          type: 'leaf',
+          paneId: newPaneId,
+          tabs: [found.tab],
+          activeTabId: found.tab.id
+        }
+        const nextRoot = splitLeaf(afterCollapse, targetPaneId, direction, newLeaf, placement)
+
+        logger.info('Pane split with tab', { fromPaneId, tabId, targetPaneId, direction, placement })
+        return { root: nextRoot, activePaneId: newPaneId }
+      })
+    },
+    [setPanes]
+  )
+
   // ─── Detach / Attach ────────────────────────────────────────────────────────
 
   const detachTab = useCallback(
@@ -591,6 +674,9 @@ export function PanesProvider({ children, initialState, ephemeral = false }: Pan
     splitPane,
     unsplitPane,
     updateSplitRatio,
+
+    moveTabToPane,
+    splitPaneWithTab,
 
     hibernateTab,
     wakeTab,

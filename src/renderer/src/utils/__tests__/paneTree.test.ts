@@ -7,6 +7,7 @@ import {
   findLeafById,
   findTabInTree,
   firstLeaf,
+  moveTabBetweenLeaves,
   removeLeafById,
   replaceLeafById,
   splitLeaf,
@@ -230,5 +231,106 @@ describe('findTabInTree', () => {
 
   it('returns null when the tab does not exist', () => {
     expect(findTabInTree(simpleSplit, 'zzz')).toBeNull()
+  })
+})
+
+describe('moveTabBetweenLeaves', () => {
+  const twoPerPane: PaneLayout = {
+    type: 'split',
+    direction: 'horizontal',
+    ratio: 50,
+    children: [
+      { type: 'leaf', paneId: 'p1', tabs: [tabA, tabB], activeTabId: 'a' },
+      { type: 'leaf', paneId: 'p2', tabs: [tabC], activeTabId: 'c' }
+    ]
+  }
+
+  describe('same-pane reorder', () => {
+    const twoTabs: LeafPane = {
+      type: 'leaf',
+      paneId: 'p1',
+      tabs: [tabA, tabB],
+      activeTabId: 'a'
+    }
+
+    it('moves a tab to a later index', () => {
+      const result = moveTabBetweenLeaves(twoTabs, 'p1', 'a', 'p1', 2)
+      const leaf = findLeafById(result, 'p1') as LeafPane
+      expect(leaf.tabs.map((t) => t.id)).toEqual(['b', 'a'])
+      expect(leaf.activeTabId).toBe('a')
+    })
+
+    it('moves a tab to an earlier index', () => {
+      const result = moveTabBetweenLeaves(twoTabs, 'p1', 'b', 'p1', 0)
+      const leaf = findLeafById(result, 'p1') as LeafPane
+      expect(leaf.tabs.map((t) => t.id)).toEqual(['b', 'a'])
+    })
+
+    it('is a no-op when moving to the same position', () => {
+      const result = moveTabBetweenLeaves(twoTabs, 'p1', 'a', 'p1', 0)
+      const leaf = findLeafById(result, 'p1') as LeafPane
+      expect(leaf.tabs.map((t) => t.id)).toEqual(['a', 'b'])
+    })
+
+    it('clamps an out-of-range insertIndex', () => {
+      const result = moveTabBetweenLeaves(twoTabs, 'p1', 'a', 'p1', 99)
+      const leaf = findLeafById(result, 'p1') as LeafPane
+      expect(leaf.tabs.map((t) => t.id)).toEqual(['b', 'a'])
+    })
+  })
+
+  describe('cross-pane move', () => {
+    it('moves a tab to another leaf at the given index', () => {
+      const result = moveTabBetweenLeaves(twoPerPane, 'p1', 'a', 'p2', 0)
+      const p2 = findLeafById(result, 'p2') as LeafPane
+      expect(p2.tabs.map((t) => t.id)).toEqual(['a', 'c'])
+      expect(p2.activeTabId).toBe('a')
+      const p1 = findLeafById(result, 'p1') as LeafPane
+      expect(p1.tabs.map((t) => t.id)).toEqual(['b'])
+      expect(p1.activeTabId).toBe('b') // snapped since active was the moved tab
+    })
+
+    it('appends when insertIndex equals tabs.length', () => {
+      const result = moveTabBetweenLeaves(twoPerPane, 'p1', 'b', 'p2', 1)
+      const p2 = findLeafById(result, 'p2') as LeafPane
+      expect(p2.tabs.map((t) => t.id)).toEqual(['c', 'b'])
+    })
+
+    it('auto-collapses the source leaf when it becomes empty', () => {
+      const single: PaneLayout = {
+        type: 'split',
+        direction: 'horizontal',
+        ratio: 50,
+        children: [
+          { type: 'leaf', paneId: 'p1', tabs: [tabA], activeTabId: 'a' },
+          { type: 'leaf', paneId: 'p2', tabs: [tabC], activeTabId: 'c' }
+        ]
+      }
+      const result = moveTabBetweenLeaves(single, 'p1', 'a', 'p2', 0)
+      // The source leaf p1 disappears; p2 is now the root.
+      expect(findLeafById(result, 'p1')).toBeNull()
+      const p2 = findLeafById(result, 'p2') as LeafPane
+      expect(p2.tabs.map((t) => t.id)).toEqual(['a', 'c'])
+    })
+
+    it('leaves activeTabId on source intact when a non-active tab is moved', () => {
+      const result = moveTabBetweenLeaves(twoPerPane, 'p1', 'b', 'p2', 0)
+      const p1 = findLeafById(result, 'p1') as LeafPane
+      expect(p1.activeTabId).toBe('a')
+    })
+  })
+
+  describe('invalid inputs', () => {
+    it('returns the tree unchanged when source pane does not exist', () => {
+      expect(moveTabBetweenLeaves(twoPerPane, 'pX', 'a', 'p2', 0)).toBe(twoPerPane)
+    })
+
+    it('returns the tree unchanged when target pane does not exist', () => {
+      expect(moveTabBetweenLeaves(twoPerPane, 'p1', 'a', 'pX', 0)).toBe(twoPerPane)
+    })
+
+    it('returns the tree unchanged when the tab is not in the source pane', () => {
+      expect(moveTabBetweenLeaves(twoPerPane, 'p1', 'zz', 'p2', 0)).toBe(twoPerPane)
+    })
   })
 })
