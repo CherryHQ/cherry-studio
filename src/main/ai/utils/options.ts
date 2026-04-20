@@ -17,9 +17,12 @@
  *    user-input-driven. Splits `assistant.settings.customParameters` into
  *    AI-SDK standard params (topK, frequencyPenalty, etc.) and provider
  *    params, then layers the provider params onto an existing
- *    providerOptions map. Consumed by `customParametersPlugin`
- *    (`transformParams`) so user overrides can layer on top of the
- *    agent-level capability defaults.
+ *    providerOptions map.
+ *
+ *    Also consumed by `AiService.buildAgentParams` — user customParameters
+ *    share the assistant's lifetime, so they're treated as agent-level
+ *    config and written into `AgentOptions` alongside the capability defaults
+ *    rather than layered per-call via `transformParams`.
  *
  * The combined `buildProviderOptions` wrapper is kept as a convenience for
  * callers that want the legacy single-call output; it's a thin composition

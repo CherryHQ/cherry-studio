@@ -31,12 +31,18 @@ import { buildPlugins } from './plugins/PluginBuilder'
 import type { ClaudeCodeProviderSettings } from './provider/claude-code/types'
 import { extractAgentSessionId, isAgentSessionTopic } from './provider/claudeCodeSettingsBuilder'
 import { providerToAiSdkConfig } from './provider/config'
+import { getAiSdkProviderId } from './provider/factory'
 import { listModels as listModelsFromProvider } from './services/listModels'
 import { registerMcpTools } from './tools/mcpTools'
 import { resolveAssistantMcpToolIds } from './tools/resolveAssistantMcpTools'
 import { ToolRegistry } from './tools/ToolRegistry'
 import type { AppProviderSettingsMap } from './types'
-import { buildCapabilityProviderOptions } from './utils/options'
+import {
+  buildCapabilityProviderOptions,
+  extractAiSdkStandardParams,
+  mergeCustomProviderParameters
+} from './utils/options'
+import { getCustomParameters } from './utils/reasoning'
 
 const logger = loggerService.withContext('AiService')
 
@@ -724,15 +730,31 @@ export class AiService extends BaseService {
     const { headers, maxRetries } = request.requestOptions ?? {}
 
     // Capability-driven `providerOptions` — per-provider-family reasoning
-    // params, service tier, verbosity, generate-image flags. These are
-    // stable for the (assistant, model, provider, capabilities) tuple, so
-    // they belong at the agent level (flows to `agentSettings.providerOptions`
-    // in runAgentLoop). Plugins like `customParametersPlugin` still layer
-    // user overrides via `transformParams`.
-    const providerOptions =
+    // params, service tier, verbosity, generate-image flags. Stable for the
+    // (assistant, model, provider, capabilities) tuple, so they belong at
+    // the agent level; flow to `agentSettings.providerOptions` in runAgentLoop.
+    let providerOptions =
       assistant && capabilities
         ? buildCapabilityProviderOptions(assistant, model, provider, capabilities)
-        : undefined
+        : {}
+
+    // User-supplied `assistant.settings.customParameters` — same lifetime
+    // as the assistant, so also agent-level rather than per-call. Split into
+    // AI-SDK standard params (top-level) and provider-scoped params (merged
+    // into providerOptions on top of the capability defaults).
+    let standardParams: Partial<Record<string, unknown>> = {}
+    if (assistant) {
+      const customParams = getCustomParameters(assistant)
+      if (Object.keys(customParams).length > 0) {
+        const split = extractAiSdkStandardParams(customParams)
+        standardParams = split.standardParams
+        providerOptions = mergeCustomProviderParameters(
+          providerOptions,
+          split.providerParams,
+          getAiSdkProviderId(provider)
+        )
+      }
+    }
 
     const options: AgentOptions = {
       // Disable AI SDK transparent retries by default — they can duplicate
@@ -746,7 +768,10 @@ export class AiService extends BaseService {
       // on top of provider-level defaults; later plugins (e.g.
       // `anthropicHeadersPlugin`) layer on top of these via `transformParams`.
       ...(headers && { headers }),
-      ...(providerOptions && Object.keys(providerOptions).length > 0 && { providerOptions })
+      ...(Object.keys(providerOptions).length > 0 && { providerOptions }),
+      // AI-SDK standard params extracted from customParameters
+      // (topK / frequencyPenalty / presencePenalty / stopSequences / seed).
+      ...standardParams
     }
 
     return { sdkConfig, tools, plugins, system, options, provider, model }

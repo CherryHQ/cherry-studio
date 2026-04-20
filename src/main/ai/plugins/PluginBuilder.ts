@@ -24,7 +24,6 @@ import { getAiSdkProviderId } from '../provider/factory'
 import { getReasoningTagName } from '../utils/reasoning'
 import { createAnthropicCachePlugin } from './anthropicCachePlugin'
 import { createAnthropicHeadersPlugin } from './anthropicHeadersPlugin'
-import { createCustomParametersPlugin } from './customParametersPlugin'
 import { createModelParamsPlugin } from './modelParamsPlugin'
 import { createNoThinkPlugin } from './noThinkPlugin'
 import { createOpenrouterReasoningPlugin } from './openrouterReasoningPlugin'
@@ -83,14 +82,6 @@ export function buildPlugins(ctx: BuildPluginsContext): AiPlugin[] {
   // clamping, mutually exclusive temp/topP, Claude thinking-token budget
   // subtraction, and Claude reasoning topP clamping.
   plugins.push(createModelParamsPlugin({ assistant, model, provider }))
-
-  // Custom parameters — user-supplied `assistant.settings.customParameters`.
-  // Splits into AI-SDK standard params (applied to params root) and
-  // provider-scoped params (merged onto whatever capability-driven
-  // `providerOptions` the agent was created with — see
-  // `AiService.buildAgentParams` which writes capability-derived
-  // providerOptions directly to `AgentOptions.providerOptions`).
-  plugins.push(createCustomParametersPlugin({ assistant, provider }))
 
   // System prompt — resolves `{{date}}` / `{{username}}` / `{{model_name}}`
   // etc. and appends the hub-mode system prompt when MCP mode is 'auto'.
