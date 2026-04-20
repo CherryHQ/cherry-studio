@@ -8,15 +8,24 @@
 
 import { modelService } from '@data/services/ModelService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
+import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
-import type { ModelSchemas } from '@shared/data/api/schemas/models'
+import {
+  CreateModelDtoSchema,
+  CreateModelsBatchDtoSchema,
+  ListModelsQuerySchema,
+  type ModelSchemas,
+  UpdateModelDtoSchema
+} from '@shared/data/api/schemas/models'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 
 /**
  * Handler type for a specific model endpoint
  */
 type ModelHandler<Path extends keyof ModelSchemas, Method extends ApiMethods<Path>> = ApiHandler<Path, Method>
+
+const logger = loggerService.withContext('DataApi:ModelHandlers')
 
 /**
  * Parse a UniqueModelId from the transport layer, raising a 422 validation
@@ -41,12 +50,51 @@ export const modelHandlers: {
 } = {
   '/models': {
     GET: async ({ query }) => {
-      return await modelService.list(query ?? {})
+      const parsed = ListModelsQuerySchema.parse(query ?? {})
+      return await modelService.list(parsed)
     },
 
     POST: async ({ body }) => {
-      const registryData = await providerRegistryService.lookupModel(body.providerId, body.modelId)
-      return await modelService.create(body, registryData)
+      const parsed = CreateModelDtoSchema.parse(body)
+      let registryData
+      try {
+        registryData = await providerRegistryService.lookupModel(parsed.providerId, parsed.modelId)
+      } catch (error) {
+        logger.warn('Registry lookup failed during create, falling back to custom', {
+          providerId: parsed.providerId,
+          modelId: parsed.modelId,
+          error
+        })
+      }
+      return await modelService.create(parsed, registryData)
+    }
+  },
+
+  '/models/batch': {
+    POST: async ({ body }) => {
+      const parsed = CreateModelsBatchDtoSchema.parse(body)
+      const items = await Promise.all(
+        parsed.items.map(async (dto) => {
+          try {
+            return {
+              dto,
+              registryData: await providerRegistryService.lookupModel(dto.providerId, dto.modelId)
+            }
+          } catch (error) {
+            logger.warn('Registry lookup failed during batch create, falling back to custom', {
+              providerId: dto.providerId,
+              modelId: dto.modelId,
+              error
+            })
+            return {
+              dto,
+              registryData: undefined
+            }
+          }
+        })
+      )
+
+      return await modelService.batchCreate(items)
     }
   },
 
@@ -58,7 +106,8 @@ export const modelHandlers: {
 
     PATCH: async ({ params, body }) => {
       const { providerId, modelId } = parseOrValidationError(params.uniqueModelId)
-      return await modelService.update(providerId, modelId, body)
+      const parsed = UpdateModelDtoSchema.parse(body)
+      return await modelService.update(providerId, modelId, parsed)
     },
 
     DELETE: async ({ params }) => {
