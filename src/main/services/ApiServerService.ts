@@ -1,4 +1,6 @@
-import { preferenceService } from '@data/PreferenceService'
+import { application } from '@application'
+import { loggerService } from '@logger'
+import { type Activatable, BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { IpcChannel } from '@shared/IpcChannel'
 import type {
   ApiServerConfig,
@@ -7,25 +9,60 @@ import type {
   StartApiServerStatusResult,
   StopApiServerStatusResult
 } from '@types'
-import { ipcMain } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 
-import { apiServer } from '../apiServer'
-import { loggerService } from './LoggerService'
+import { ApiServer } from '../apiServer'
+import { agentService } from './agents'
+
 const logger = loggerService.withContext('ApiServerService')
 
-//FIXME v2 refactor: ApiServer的启动/停止，是否运行的逻辑，现在比较乱。特别是在v2的新数据架构下，需要进一步优化，现在仅仅是做了简单的替换
-// 例如： 这样的warning：[mainWindow::PreferenceService] Attempted to confirm mismatched request for feature.csaas.enabled: expected req_1764650398717_0zb6wc350_feature.csaas.enabled, got req_1764650398704_41o5b5l1b_feature.csaas.enabled
-export class ApiServerService {
-  constructor() {
-    // Use the new clean implementation
+@Injectable('ApiServerService')
+@ServicePhase(Phase.WhenReady)
+@DependsOn(['MainWindowService'])
+export class ApiServerService extends BaseService implements Activatable {
+  private apiServer: ApiServer | null = null
+
+  protected async onInit(): Promise<void> {
+    this.registerIpcHandlers()
+    // FIXME: Original code does not subscribe to feature.csaas.enabled runtime changes.
+    // Start/stop is driven entirely by the renderer UI via IPC.
+    // Consider adding a preference subscription for automatic runtime toggle in the future.
+  }
+
+  protected async onReady(): Promise<void> {
+    const shouldStart = await this.shouldAutoStart()
+    if (shouldStart) {
+      await this.activate()
+    }
+  }
+
+  async onActivate(): Promise<void> {
+    try {
+      await this.ensureValidApiKey()
+      this.apiServer = new ApiServer()
+      await this.apiServer.start()
+      logger.info('API Server activated')
+    } catch (error) {
+      // Activatable failure contract: clean up partial state before throwing
+      if (this.apiServer) {
+        await this.apiServer.stop().catch(() => {})
+        this.apiServer = null
+      }
+      throw error
+    }
+  }
+
+  async onDeactivate(): Promise<void> {
+    if (this.apiServer) {
+      await this.apiServer.stop()
+      this.apiServer = null
+    }
+    logger.info('API Server deactivated')
   }
 
   async start(): Promise<void> {
     try {
-      // Ensure valid API key before starting
-      await this.ensureValidApiKey()
-      await apiServer.start()
+      await this.activate()
       logger.info('API Server started successfully')
     } catch (error: any) {
       logger.error('Failed to start API Server:', error)
@@ -35,7 +72,7 @@ export class ApiServerService {
 
   async stop(): Promise<void> {
     try {
-      await apiServer.stop()
+      await this.deactivate()
       logger.info('API Server stopped successfully')
     } catch (error: any) {
       logger.error('Failed to stop API Server:', error)
@@ -45,7 +82,8 @@ export class ApiServerService {
 
   async restart(): Promise<void> {
     try {
-      await apiServer.restart()
+      await this.deactivate()
+      await this.activate()
       logger.info('API Server restarted successfully')
     } catch (error: any) {
       logger.error('Failed to restart API Server:', error)
@@ -54,14 +92,11 @@ export class ApiServerService {
   }
 
   isRunning(): boolean {
-    return apiServer.isRunning()
+    return this.apiServer?.isRunning() ?? false
   }
 
-  /**
-   * Get current API server configuration from preference service
-   */
   getCurrentConfig(): ApiServerConfig {
-    const config = preferenceService.getMultiple({
+    const config = application.get('PreferenceService').getMultiple({
       enabled: 'feature.csaas.enabled',
       host: 'feature.csaas.host',
       port: 'feature.csaas.port',
@@ -71,10 +106,8 @@ export class ApiServerService {
     return config
   }
 
-  /**
-   * Ensure a valid API key exists, generate one if null
-   */
   async ensureValidApiKey(): Promise<string> {
+    const preferenceService = application.get('PreferenceService')
     let apiKey = preferenceService.get('feature.csaas.api_key')
     if (apiKey === null) {
       apiKey = `cs-sk-${uuidv4()}`
@@ -84,9 +117,8 @@ export class ApiServerService {
     return apiKey
   }
 
-  registerIpcHandlers(): void {
-    // API Server
-    ipcMain.handle(IpcChannel.ApiServer_Start, async (): Promise<StartApiServerStatusResult> => {
+  private registerIpcHandlers(): void {
+    this.ipcHandle(IpcChannel.ApiServer_Start, async (): Promise<StartApiServerStatusResult> => {
       try {
         await this.start()
         return { success: true }
@@ -95,7 +127,7 @@ export class ApiServerService {
       }
     })
 
-    ipcMain.handle(IpcChannel.ApiServer_Stop, async (): Promise<StopApiServerStatusResult> => {
+    this.ipcHandle(IpcChannel.ApiServer_Stop, async (): Promise<StopApiServerStatusResult> => {
       try {
         await this.stop()
         return { success: true }
@@ -104,7 +136,7 @@ export class ApiServerService {
       }
     })
 
-    ipcMain.handle(IpcChannel.ApiServer_Restart, async (): Promise<RestartApiServerStatusResult> => {
+    this.ipcHandle(IpcChannel.ApiServer_Restart, async (): Promise<RestartApiServerStatusResult> => {
       try {
         await this.restart()
         return { success: true }
@@ -113,7 +145,7 @@ export class ApiServerService {
       }
     })
 
-    ipcMain.handle(IpcChannel.ApiServer_GetStatus, (): GetApiServerStatusResult => {
+    this.ipcHandle(IpcChannel.ApiServer_GetStatus, (): GetApiServerStatusResult => {
       try {
         const config = this.getCurrentConfig()
         return {
@@ -129,7 +161,7 @@ export class ApiServerService {
       }
     })
 
-    ipcMain.handle(IpcChannel.ApiServer_GetConfig, () => {
+    this.ipcHandle(IpcChannel.ApiServer_GetConfig, () => {
       try {
         return this.getCurrentConfig()
       } catch (error: any) {
@@ -137,7 +169,30 @@ export class ApiServerService {
       }
     })
   }
-}
 
-// Export singleton instance
-export const apiServerService = new ApiServerService()
+  private async shouldAutoStart(): Promise<boolean> {
+    try {
+      const config = this.getCurrentConfig()
+      logger.info('API server config:', config)
+
+      if (config.enabled) {
+        return true
+      }
+
+      try {
+        const { total } = await agentService.listAgents({ limit: 1 })
+        if (total > 0) {
+          logger.info(`Detected ${total} agent(s), auto-starting API server`)
+          return true
+        }
+      } catch (error: any) {
+        logger.warn('Failed to check agent count:', error)
+      }
+
+      return false
+    } catch (error: any) {
+      logger.error('Failed to check API server auto-start condition:', error)
+      return false
+    }
+  }
+}

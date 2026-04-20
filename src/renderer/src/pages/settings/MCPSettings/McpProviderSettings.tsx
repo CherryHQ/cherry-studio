@@ -12,7 +12,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { SettingHelpLink, SettingHelpTextRow, SettingSubtitle } from '..'
-import type { ProviderConfig } from './providers/config'
+import { getProviderDisplayName, type ProviderConfig } from './providers/config'
 
 const logger = loggerService.withContext('McpProviderSettings')
 
@@ -47,7 +47,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
       }
     }
 
-    loadServersFromDb()
+    void loadServersFromDb()
   }, [provider.key])
 
   // Sort servers: servers with logo first, then by name
@@ -123,7 +123,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
     <DetailContainer>
       <ProviderHeader>
         <Flex className="items-center">
-          <ProviderName>{provider.name}</ProviderName>
+          <ProviderName>{getProviderDisplayName(provider, t)}</ProviderName>
           {provider.discoverUrl && (
             <Link target="_blank" href={provider.discoverUrl} style={{ display: 'flex' }}>
               <Button type="text" size="small">
@@ -190,10 +190,14 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
                     <Button
                       disabled={isAlreadyAdded}
                       style={{ marginLeft: 10 }}
-                      onClick={() => {
+                      onClick={async () => {
                         if (!isAlreadyAdded) {
-                          addMCPServer(server)
-                          window.toast.success(t('settings.mcp.addSuccess'))
+                          try {
+                            await addMCPServer(server)
+                            window.toast.success(t('settings.mcp.addSuccess'))
+                          } catch {
+                            window.toast.error(t('settings.mcp.addError'))
+                          }
                         }
                       }}
                       icon={isAlreadyAdded ? <Check size={14} /> : <Plus size={14} />}

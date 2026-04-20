@@ -1,8 +1,8 @@
 import { usePreference } from '@data/hooks/usePreference'
-import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
+import { allMinApps } from '@renderer/config/minapps'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import NavigationService from '@renderer/services/NavigationService'
-import TabsService from '@renderer/services/TabsService'
+import { tabsService } from '@renderer/services/TabsService'
 import type { MinAppType } from '@renderer/types'
 import { clearWebviewState } from '@renderer/utils/webviewStateManager'
 import { LRUCache } from 'lru-cache'
@@ -47,10 +47,10 @@ export const useMinappPopup = () => {
         clearWebviewState(key)
 
         // Close corresponding tab if it exists
-        const tabs = TabsService.getTabs()
+        const tabs = tabsService.getTabs()
         const tabToClose = tabs.find((tab) => tab.path === `/apps/${key}`)
         if (tabToClose) {
-          TabsService.closeTab(tabToClose.id)
+          tabsService.closeTab(tabToClose.id)
         }
 
         // Update Redux state
@@ -120,10 +120,10 @@ export const useMinappPopup = () => {
     [openMinapp]
   )
 
-  /** Open a minapp by id (look up the minapp in DEFAULT_MIN_APPS) */
+  /** Open a minapp by id (look up the minapp in allMinApps) */
   const openMinappById = useCallback(
     (id: string, keepAlive: boolean = false) => {
-      const app = DEFAULT_MIN_APPS.find((app) => app?.id === id)
+      const app = allMinApps.find((app) => app?.id === id)
       if (app) {
         openMinapp(app, keepAlive)
       }
@@ -186,7 +186,7 @@ export const useMinappPopup = () => {
 
         // Then navigate to the app tab using NavigationService
         if (NavigationService.navigate) {
-          NavigationService.navigate({ to: `/apps/${config.id}` })
+          void NavigationService.navigate({ to: `/apps/${config.id}` })
         }
       } else {
         // For side navbar, use the traditional popup system

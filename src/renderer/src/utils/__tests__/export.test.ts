@@ -9,9 +9,9 @@ import { afterEach, beforeEach, describe, expect, it, test, vi } from 'vitest'
 vi.mock('@renderer/config/minapps', () => {
   return {
     ORIGIN_DEFAULT_MIN_APPS: [],
-    DEFAULT_MIN_APPS: [],
+    allMinApps: [],
     loadCustomMiniApp: async () => [],
-    updateDefaultMinApps: vi.fn()
+    updateAllMinApps: vi.fn()
   }
 })
 
@@ -486,7 +486,7 @@ describe('export', () => {
       ])
       ;(markdownToPlainText as any).mockImplementation((str: string) => str.replace(/[#*_]/g, ''))
 
-      const result = await messageToPlainText(testMessage)
+      const result = messageToPlainText(testMessage)
       expect(result).toBe('Single Message Content')
       expect(markdownToPlainText).toHaveBeenCalledWith('### Single Message Content')
     })

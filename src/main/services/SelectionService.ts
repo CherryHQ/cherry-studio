@@ -1,12 +1,13 @@
-import { preferenceService } from '@data/PreferenceService'
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { SELECTION_FINETUNED_LIST, SELECTION_PREDEFINED_BLACKLIST } from '@main/configs/SelectionConfig'
-import { isDev, isMac, isWin } from '@main/constant'
+import { isDev, isLinux, isMac, isWin } from '@main/constant'
+import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { WindowType } from '@main/core/window/types'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
-import { app, BrowserWindow, ipcMain, screen, systemPreferences } from 'electron'
-import { join } from 'path'
+import { app, BrowserWindow, clipboard, screen, systemPreferences } from 'electron'
 import type {
   KeyboardEventData,
   MouseEventData,
@@ -17,17 +18,7 @@ import type {
 
 const logger = loggerService.withContext('SelectionService')
 
-const isSupportedOS = isWin || isMac
-
 let SelectionHook: SelectionHookConstructor | null = null
-try {
-  //since selection-hook v1.0.0, it supports macOS
-  if (isSupportedOS) {
-    SelectionHook = require('selection-hook')
-  }
-} catch (error) {
-  logger.error('Failed to load selection-hook:', error as Error)
-}
 
 // Type definitions
 type Point = { x: number; y: number }
@@ -42,7 +33,7 @@ type RelativeOrientation =
   | 'middleRight'
   | 'center'
 
-/** SelectionService is a singleton class that manages the selection hook and the toolbar window
+/** SelectionService manages the selection hook and the toolbar window
  *
  * Features:
  * - Text selection detection and processing
@@ -52,17 +43,14 @@ type RelativeOrientation =
  * - Screen boundary-aware positioning
  *
  * Usage:
- *   import selectionService from '/src/main/services/SelectionService'
- *   selectionService?.start()
+ *   const selectionService = application.get('SelectionService')
  */
-export class SelectionService {
-  private static instance: SelectionService | null = null
+@Injectable('SelectionService')
+@ServicePhase(Phase.WhenReady)
+export class SelectionService extends BaseService implements Activatable {
   private selectionHook: SelectionHookInstance | null = null
 
-  private static isIpcHandlerRegistered = false
-
   private initStatus: boolean = false
-  private started: boolean = false
 
   private triggerMode = SelectionTriggerMode.Selected
   private isFollowToolbar = true
@@ -72,10 +60,11 @@ export class SelectionService {
 
   private unsubscriberForChangeListeners: (() => void)[] = []
 
+  // Toolbar window is managed by WindowManager (singleton). We cache the BrowserWindow
+  // reference here because there are ~20 usage sites across this file — the cache avoids
+  // querying WindowManager at each call site. Kept in sync via onWindowCreated/Destroyed.
   private toolbarWindow: BrowserWindow | null = null
-  private actionWindows = new Set<BrowserWindow>()
-  private preloadedActionWindows: BrowserWindow[] = []
-  private readonly PRELOAD_ACTION_WINDOW_COUNT = 1
+  private toolbarWindowId: string | null = null
 
   private isHideByMouseKeyListenerActive: boolean = false
   private isCtrlkeyListenerActive: boolean = false
@@ -86,6 +75,16 @@ export class SelectionService {
    * -1 - Ctrlkey action triggered, no need to process again
    */
   private lastCtrlkeyDownTime: number = 0
+
+  //Linux wayland specific
+  //isLinuxWaylandDisplay: true when running under Wayland
+  //isLinuxXWaylandMode: true when running under XWayland
+  //hasLinuxInputDeviceAccess: true when the process has access to input devices
+  //isLinuxCompositorCompatible: true when the compositor supports data-control protocols
+  private isLinuxWaylandDisplay: boolean = false
+  private isLinuxXWaylandMode: boolean = false
+  private hasLinuxInputDeviceAccess: boolean = false
+  private isLinuxCompositorCompatible: boolean = false
 
   private zoomFactor: number = 1
 
@@ -100,53 +99,229 @@ export class SelectionService {
     height: this.ACTION_WINDOW_HEIGHT
   }
 
-  private constructor() {
+  private loadModuleAndCreateInstance(): boolean {
     try {
       if (!SelectionHook) {
-        throw new Error('module selection-hook not exists')
+        SelectionHook = require('selection-hook')
+      }
+
+      if (!SelectionHook) {
+        this.logError('Failed to load selection-hook module')
+        return false
       }
 
       this.selectionHook = new SelectionHook()
-      if (this.selectionHook) {
-        this.initZoomFactor()
-
-        this.initStatus = true
+      if (!this.selectionHook) {
+        this.logError('Failed to create SelectionHook instance')
+        return false
       }
+
+      // Detect Wayland display protocol for platform-specific behavior.
+      // On Wayland, Electron runs via XWayland, causing coordinate space mismatches
+      // between selection-hook (Wayland compositor coords) and Electron (XWayland coords).
+      // Several workarounds are applied when isWaylandDisplay is true.
+      if (isLinux) {
+        const envInfo = this.selectionHook.linuxGetEnvInfo()
+        this.isLinuxWaylandDisplay = envInfo?.displayProtocol === SelectionHook.DisplayProtocol.WAYLAND
+        this.hasLinuxInputDeviceAccess = envInfo?.hasInputDeviceAccess ?? false
+
+        // X11: all compositors are compatible (no data-control protocol needed).
+        // Wayland: Mutter (GNOME) does not implement data-control protocols; Unknown is uncertain.
+        if (this.isLinuxWaylandDisplay) {
+          this.isLinuxCompositorCompatible =
+            envInfo?.compositorType !== SelectionHook.CompositorType.MUTTER &&
+            envInfo?.compositorType !== SelectionHook.CompositorType.UNKNOWN
+        } else {
+          this.isLinuxCompositorCompatible = true
+        }
+
+        // Detect if Electron is running under XWayland (not native Wayland).
+        // Since Electron 38+, native Wayland is the default when XDG_SESSION_TYPE=wayland.
+        // When --ozone-platform=x11 is set, Electron runs via XWayland instead.
+        if (this.isLinuxWaylandDisplay) {
+          this.isLinuxXWaylandMode = app.commandLine.getSwitchValue('ozone-platform').toLowerCase() === 'x11'
+        }
+      }
+
+      this.initStatus = true
+      this.logInfo('selection-hook module loaded and instance created successfully')
+      return true
     } catch (error) {
-      this.logError('Failed to initialize SelectionService:', error as Error)
+      this.logError('Failed to load selection-hook:', error as Error)
+      return false
     }
   }
 
-  public static getInstance(): SelectionService | null {
-    if (!isSupportedOS) return null
-
-    if (!SelectionService.instance) {
-      SelectionService.instance = new SelectionService()
+  onActivate(): void {
+    // Load native module if not yet loaded (lazy loading preserved across activation cycles)
+    if (!this.initStatus) {
+      if (!this.loadModuleAndCreateInstance()) {
+        // Setting preference to false triggers the subscription which calls deactivate(),
+        // but _activating guard in BaseService ensures the deactivate() is a safe no-op.
+        const preferenceService = application.get('PreferenceService')
+        void preferenceService.set('feature.selection.enabled', false)
+        throw new Error('Failed to load selection-hook module')
+      }
     }
 
-    if (SelectionService.instance.initStatus) {
-      return SelectionService.instance
+    if (isMac) {
+      if (!systemPreferences.isTrustedAccessibilityClient(false)) {
+        this.logError('process is not trusted on macOS, please turn on the Accessibility permission')
+        throw new Error('macOS accessibility permission not granted')
+      }
     }
-    return null
+
+    try {
+      const wm = application.get('WindowManager')
+
+      // Resume the action pool in case a prior deactivate/activate cycle suspended it.
+      // With registry warmup: 'eager', the pool auto-creates idle windows at app start,
+      // so the first user-triggered action recycles instantly instead of going through
+      // the fresh-path (create + load HTML + wait for React to mount).
+      wm.resumePool(WindowType.SelectionAction)
+
+      // Open the toolbar (singleton) — registry's show: false ensures no auto-show here,
+      // showToolbarAtPosition controls positioning and visibility.
+      this.toolbarWindowId = wm.open(WindowType.SelectionToolbar)
+
+      this.selectionHook!.on('error', (error: { message: string }) => {
+        this.logError('Error in SelectionHook:', error as Error)
+      })
+      this.selectionHook!.on('text-selection', this.processTextSelection)
+
+      if (!this.selectionHook!.start({ debug: isDev })) {
+        throw new Error('Failed to start text selection hook')
+      }
+
+      this.initConfig()
+      this.processTriggerMode()
+      this.logInfo('SelectionService activated', true)
+    } catch (error) {
+      // Clean up partial state before throwing (Activatable failure contract)
+      this.releaseActivationResources()
+      throw error
+    }
+  }
+
+  onDeactivate(): void {
+    this.releaseActivationResources()
+    this.logInfo('SelectionService deactivated', true)
+  }
+
+  protected async onInit(): Promise<void> {
+    this.initZoomFactor()
+    this.registerIpcHandlers()
+
+    const wm = application.get('WindowManager')
+
+    // Inject behavior into newly-created Selection windows. onWindowCreatedByType fires
+    // synchronously before content loads, so listeners here attach before the renderer
+    // can start sending IPC messages.
+    this.registerDisposable(
+      wm.onWindowCreatedByType(WindowType.SelectionToolbar, ({ window }) => {
+        // Cache the BrowserWindow reference for the ~20 downstream call sites
+        // (showToolbarAtPosition, hideToolbar, processTextSelection, etc.)
+        this.toolbarWindow = window
+        this.setupToolbarBehavior(window)
+      })
+    )
+
+    // Per-instance resized listener for action windows. Must live inside
+    // onWindowCreatedByType — pool recycle paths do not re-fire the event,
+    // so attaching at the open() call site would either miss recycled instances
+    // or accumulate duplicates across reuses.
+    this.registerDisposable(
+      wm.onWindowCreatedByType(WindowType.SelectionAction, (mw) => {
+        mw.window.on('resized', () => {
+          if (mw.window.isDestroyed()) return
+          if (this.isRemeberWinSize) {
+            this.lastActionWindowSize = {
+              width: mw.window.getBounds().width,
+              height: mw.window.getBounds().height
+            }
+          }
+        })
+      })
+    )
+
+    // Destruction: keep the cached toolbar reference in sync.
+    // The macOS focus dance on hide/close is handled by the macRestoreFocusOnHide quirk
+    // (see WindowManager.applyQuirks) — no subscription needed here.
+    this.registerDisposable(
+      wm.onWindowDestroyedByType(WindowType.SelectionToolbar, ({ id }) => {
+        if (id === this.toolbarWindowId) {
+          this.toolbarWindow = null
+          this.toolbarWindowId = null
+        }
+      })
+    )
+
+    const preferenceService = application.get('PreferenceService')
+    this.registerDisposable({
+      dispose: preferenceService.subscribeChange('feature.selection.enabled', (enabled: boolean) => {
+        if (enabled) void this.activate()
+        else void this.deactivate()
+      })
+    })
+  }
+
+  protected async onReady(): Promise<void> {
+    const preferenceService = application.get('PreferenceService')
+    if (preferenceService.get('feature.selection.enabled')) {
+      this.logInfo('Selection feature enabled, loading selection-hook module')
+      await this.activate()
+    } else {
+      this.logInfo('Selection feature disabled, skipping selection-hook module loading')
+    }
+  }
+
+  protected async onStop(): Promise<void> {
+    // _doStop() auto-deactivates before onStop() — releaseActivationResources() already called
+    // Disposables (preference subscriptions) are cleaned up after onStop() by the framework
+
+    // Final cleanup: release the native module entirely
+    if (this.selectionHook) {
+      this.selectionHook.cleanup()
+    }
+    this.selectionHook = null
+    this.initStatus = false
+    this.logInfo('SelectionService stopped via lifecycle', true)
+  }
+
+  public isInitialized(): boolean {
+    return this.initStatus
   }
 
   public getSelectionHook(): SelectionHookInstance | null {
     return this.selectionHook
   }
 
-  /**
-   * Initialize zoom factor from config and subscribe to changes
-   * Ensures UI elements scale properly with system DPI settings
-   */
+  public getLinuxEnvInfo(): {
+    isLinuxWaylandDisplay: boolean
+    isLinuxXWaylandMode: boolean
+    hasLinuxInputDeviceAccess: boolean
+    isLinuxCompositorCompatible: boolean
+  } {
+    return {
+      isLinuxWaylandDisplay: this.isLinuxWaylandDisplay,
+      isLinuxXWaylandMode: this.isLinuxXWaylandMode,
+      hasLinuxInputDeviceAccess: this.hasLinuxInputDeviceAccess,
+      isLinuxCompositorCompatible: this.isLinuxCompositorCompatible
+    }
+  }
+
   private initZoomFactor(): void {
+    const preferenceService = application.get('PreferenceService')
     const zoomFactor = preferenceService.get('app.zoom_factor')
 
     if (zoomFactor) {
       this.setZoomFactor(zoomFactor)
     }
 
-    preferenceService.subscribeChange('app.zoom_factor', (zoomFactor: number) => {
-      this.setZoomFactor(zoomFactor)
+    this.registerDisposable({
+      dispose: preferenceService.subscribeChange('app.zoom_factor', (zoomFactor: number) => {
+        this.setZoomFactor(zoomFactor)
+      })
     })
   }
 
@@ -155,6 +330,7 @@ export class SelectionService {
   }
 
   private initConfig(): void {
+    const preferenceService = application.get('PreferenceService')
     this.triggerMode = preferenceService.get('feature.selection.trigger_mode')
     this.isFollowToolbar = preferenceService.get('feature.selection.follow_toolbar')
     this.isRemeberWinSize = preferenceService.get('feature.selection.remember_win_size')
@@ -273,215 +449,65 @@ export class SelectionService {
   }
 
   /**
-   * Start the selection service and initialize required windows
-   * @returns {boolean} Success status of service start
-   */
-  public start(): boolean {
-    if (!isSupportedOS) {
-      this.logError('SelectionService start(): not supported on this OS')
-      return false
-    }
-
-    if (!this.selectionHook) {
-      this.logError('SelectionService start(): instance is null')
-      return false
-    }
-
-    if (this.started) {
-      this.logError('SelectionService start(): already started')
-      return false
-    }
-
-    //On macOS, we need to check if the process is trusted
-    if (isMac) {
-      if (!systemPreferences.isTrustedAccessibilityClient(false)) {
-        this.logError(
-          'SelectionSerice not started: process is not trusted on macOS, please turn on the Accessibility permission'
-        )
-        return false
-      }
-    }
-
-    try {
-      //make sure the toolbar window is ready
-      this.createToolbarWindow()
-      // Initialize preloaded windows
-      this.initPreloadedActionWindows()
-      // Handle errors
-      this.selectionHook.on('error', (error: { message: string }) => {
-        this.logError('Error in SelectionHook:', error as Error)
-      })
-      // Handle text selection events
-      this.selectionHook.on('text-selection', this.processTextSelection)
-
-      // Start the hook
-      if (this.selectionHook.start({ debug: isDev })) {
-        //init basic configs
-        this.initConfig()
-
-        //init trigger mode configs
-        this.processTriggerMode()
-
-        this.started = true
-        this.logInfo('SelectionService Started', true)
-        return true
-      }
-
-      this.logError('Failed to start text selection hook.')
-      return false
-    } catch (error) {
-      this.logError('Failed to set up text selection hook:', error as Error)
-      return false
-    }
-  }
-
-  /**
-   * Stop the selection service and cleanup resources
-   * Called when user disables selection assistant
-   * @returns {boolean} Success status of service stop
-   */
-  public stop(): boolean {
-    if (!this.selectionHook) return false
-
-    this.selectionHook.stop()
-    this.selectionHook.cleanup() //already remove all listeners
-
-    for (const unsubscriber of this.unsubscriberForChangeListeners) {
-      unsubscriber()
-    }
-    this.unsubscriberForChangeListeners = []
-
-    //reset the listener states
-    this.isCtrlkeyListenerActive = false
-    this.isHideByMouseKeyListenerActive = false
-
-    if (this.toolbarWindow) {
-      this.toolbarWindow.close()
-      this.toolbarWindow = null
-    }
-
-    this.closePreloadedActionWindows()
-
-    this.started = false
-    this.logInfo('SelectionService Stopped', true)
-    return true
-  }
-
-  /**
-   * Completely quit the selection service
-   * Called when the app is closing
-   */
-  public quit(): void {
-    if (!this.selectionHook) return
-
-    this.stop()
-
-    this.selectionHook = null
-    this.initStatus = false
-    SelectionService.instance = null
-    this.logInfo('SelectionService Quitted', true)
-  }
-
-  /**
    * Toggle the enabled state of the selection service
    * Will sync the new enabled store to all renderer windows
    */
   public toggleEnabled(enabled: boolean | undefined = undefined): void {
-    if (!this.selectionHook) return
-
+    const preferenceService = application.get('PreferenceService')
     const newEnabled = enabled === undefined ? !preferenceService.get('feature.selection.enabled') : enabled
 
-    preferenceService.set('feature.selection.enabled', newEnabled)
+    void preferenceService.set('feature.selection.enabled', newEnabled)
   }
 
   /**
-   * Create and configure the toolbar window
-   * Sets up window properties, event handlers, and loads the toolbar UI
-   * @param readyCallback Optional callback when window is ready to show
+   * Attach toolbar-specific runtime behavior to a freshly-created SelectionToolbar window.
+   * Invoked from the WindowManager.onWindowCreated hook registered in onInit().
+   *
+   * Window configuration (frame, transparent, type: 'panel', focusable default, etc.) lives
+   * in windowRegistry.ts alongside the full platform-specific commentary. This method only
+   * handles behavior that depends on runtime state (e.g., Wayland detection) or event wiring.
    */
-  private createToolbarWindow(readyCallback?: () => void): void {
-    if (this.isToolbarAlive()) return
+  private setupToolbarBehavior(window: BrowserWindow): void {
+    // [Linux Wayland] focusable must be true on Wayland to receive blur events for
+    // outside-click hiding. onWindowCreated fires before loadURL(), so setFocusable()
+    // here takes effect before the window is shown. The full platform rationale is
+    // documented in windowRegistry.ts under SelectionToolbar's windowOptions.
+    if (isLinux) {
+      window.setFocusable(this.isLinuxWaylandDisplay)
+    }
 
-    const { toolbarWidth, toolbarHeight } = this.getToolbarRealSize()
+    // Blur → hide is now driven declaratively by WindowManager via
+    // `behavior.hideOnBlur: true` (see windowRegistry.ts). The previous
+    // handler here called `hideToolbar()`, which combined `window.hide()`
+    // with the mouse-key hook cleanup; the hook lifecycle is now bound to
+    // the window's show/hide events below, so a plain `window.hide()` from
+    // WM suffices and all cleanup still runs.
 
-    this.toolbarWindow = new BrowserWindow({
-      width: toolbarWidth,
-      height: toolbarHeight,
-      show: false,
-      frame: false,
-      transparent: true,
-      alwaysOnTop: true,
-      skipTaskbar: true,
-      autoHideMenuBar: true,
-      resizable: false,
-      minimizable: false,
-      maximizable: false,
-      fullscreenable: false, // [macOS] must be false
-      movable: true,
-      hasShadow: false,
-      thickFrame: false,
-      roundedCorners: true,
-
-      // Platform specific settings
-      //   [macOS] DO NOT set focusable to false, it will make other windows bring to front together
-      //   [macOS] `panel` conflicts with other settings ,
-      //           and log will show `NSWindow does not support nonactivating panel styleMask 0x80`
-      //           but it seems still work on fullscreen apps, so we set this anyway
-      ...(isWin ? { type: 'toolbar', focusable: false } : { type: 'panel' }),
-      hiddenInMissionControl: true, // [macOS only]
-      acceptFirstMouse: true, // [macOS only]
-
-      webPreferences: {
-        preload: join(__dirname, '../preload/index.js'),
-        contextIsolation: true,
-        nodeIntegration: false,
-        sandbox: false,
-        devTools: isDev ? true : false
-      }
+    window.on('show', () => {
+      window.webContents.send(IpcChannel.Selection_ToolbarVisibilityChange, true)
+      // Mouse-key hook start tied to visibility rather than to specific call
+      // sites: normal show path, crash-recovery re-open, and any future
+      // caller all inherit this for free.
+      this.startHideByMouseKeyListener()
     })
 
-    // Hide when losing focus
-    this.toolbarWindow.on('blur', () => {
-      if (this.toolbarWindow!.isVisible()) {
-        this.hideToolbar()
-      }
-    })
-
-    // Clean up when closed
-    this.toolbarWindow.on('closed', () => {
-      if (!this.toolbarWindow?.isDestroyed()) {
-        this.toolbarWindow?.destroy()
-      }
-      this.toolbarWindow = null
-    })
-
-    // Add show/hide event listeners
-    this.toolbarWindow.on('show', () => {
-      this.toolbarWindow?.webContents.send(IpcChannel.Selection_ToolbarVisibilityChange, true)
-    })
-
-    this.toolbarWindow.on('hide', () => {
-      this.toolbarWindow?.webContents.send(IpcChannel.Selection_ToolbarVisibilityChange, false)
+    window.on('hide', () => {
+      window.webContents.send(IpcChannel.Selection_ToolbarVisibilityChange, false)
+      // Symmetric to the show listener — any path to hidden (business
+      // `hideToolbar()`, WM blur-driven `window.hide()`, quirk-wrapped hide)
+      // triggers cleanup. `stopHideByMouseKeyListener` is idempotent.
+      this.stopHideByMouseKeyListener()
     })
 
     /** uncomment to open dev tools in dev mode */
     // if (isDev) {
-    //   this.toolbarWindow.once('ready-to-show', () => {
-    //     this.toolbarWindow!.webContents.openDevTools({ mode: 'detach' })
+    //   window.once('ready-to-show', () => {
+    //     window.webContents.openDevTools({ mode: 'detach' })
     //   })
     // }
 
-    if (readyCallback) {
-      this.toolbarWindow.once('ready-to-show', readyCallback)
-    }
-
-    /** get ready to load the toolbar window */
-
-    if (isDev && process.env['ELECTRON_RENDERER_URL']) {
-      this.toolbarWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/selectionToolbar.html')
-    } else {
-      this.toolbarWindow.loadFile(join(__dirname, '../renderer/selectionToolbar.html'))
-    }
+    // Note: there is no 'closed' listener here — WindowManager fires onWindowDestroyed
+    // which is handled in onInit() to clear toolbarWindowId/toolbarWindow.
   }
 
   /**
@@ -491,9 +517,18 @@ export class SelectionService {
    */
   private showToolbarAtPosition(point: Point, orientation: RelativeOrientation, programName: string): void {
     if (!this.isToolbarAlive()) {
-      this.createToolbarWindow(() => {
-        this.showToolbarAtPosition(point, orientation, programName)
-      })
+      // Toolbar was destroyed (e.g., crash recovery). Re-open via WindowManager — the
+      // onWindowCreated handler will call setupToolbarBehavior() and update toolbarWindow.
+      // After ready-to-show, retry positioning. If the caller is in a tight loop, the
+      // recursive retry will converge as soon as the renderer finishes loading.
+      const wm = application.get('WindowManager')
+      this.toolbarWindowId = wm.open(WindowType.SelectionToolbar)
+      const newToolbar = wm.getWindow(this.toolbarWindowId)
+      if (newToolbar) {
+        newToolbar.once('ready-to-show', () => {
+          this.showToolbarAtPosition(point, orientation, programName)
+        })
+      }
       return
     }
 
@@ -509,9 +544,8 @@ export class SelectionService {
       y: posY
     })
 
-    //set the window to always on top (highest level)
-    //should set every time the window is shown
-    this.toolbarWindow!.setAlwaysOnTop(true, 'screen-saver')
+    // setAlwaysOnTop(true, 'screen-saver') is re-applied by the macReapplyAlwaysOnTop
+    // quirk after every show()/showInactive() call (see WindowManager.applyQuirks).
 
     if (!isMac) {
       this.toolbarWindow!.show()
@@ -521,7 +555,7 @@ export class SelectionService {
        *   It's a strange behavior, so we don't use it for compatibility
        */
       // this.toolbarWindow!.setOpacity(1)
-      this.startHideByMouseKeyListener()
+      // Mouse-key hook start fires from window.on('show') in setupToolbarBehavior.
       return
     }
 
@@ -559,7 +593,8 @@ export class SelectionService {
     // [macOS] restore the focusable status
     this.toolbarWindow!.setFocusable(true)
 
-    this.startHideByMouseKeyListener()
+    // Mouse-key hook start fires from window.on('show') in setupToolbarBehavior
+    // (showInactive also fires 'show').
 
     return
   }
@@ -570,52 +605,14 @@ export class SelectionService {
   public hideToolbar(): void {
     if (!this.isToolbarAlive()) return
 
-    this.stopHideByMouseKeyListener()
-
-    // [Windows] just hide the toolbar window is enough
-    if (!isMac) {
-      this.toolbarWindow!.hide()
-      return
-    }
-
-    /************************************************
-     * [macOS] the following code is only for macOS
-     *************************************************/
-
-    // [macOS] a HACKY way
-    // make sure other windows do not bring to front when toolbar is hidden
-    // get all focusable windows and set them to not focusable
-    const focusableWindows: BrowserWindow[] = []
-    for (const window of BrowserWindow.getAllWindows()) {
-      if (!window.isDestroyed() && window.isVisible()) {
-        if (window.isFocusable()) {
-          focusableWindows.push(window)
-          window.setFocusable(false)
-        }
-      }
-    }
-
+    // Mouse-key hook stop is driven by window.on('hide') in setupToolbarBehavior,
+    // which covers this call site as well as the WM-driven blur → window.hide().
+    //
+    // On macOS, the toolbar's hide() call is wrapped by WindowManager's applyQuirks:
+    //   - macRestoreFocusOnHide guards focus (setFocusable(false) on all visible windows, restored after 50ms)
+    //   - macClearHoverOnHide sends a synthetic mouseMove(-1,-1) to clear any residual hover state
+    // so this call site remains a plain .hide() on every platform.
     this.toolbarWindow!.hide()
-
-    // set them back to focusable after 50ms
-    setTimeout(() => {
-      for (const window of focusableWindows) {
-        if (!window.isDestroyed()) {
-          window.setFocusable(true)
-        }
-      }
-    }, 50)
-
-    // [macOS] hacky way
-    // Because toolbar is not a FOCUSED window, so the hover status will remain when next time show
-    // so we just send mouseMove event to the toolbar window to make the hover status disappear
-    this.toolbarWindow!.webContents.sendInputEvent({
-      type: 'mouseMove',
-      x: -1,
-      y: -1
-    })
-
-    return
   }
 
   /**
@@ -748,7 +745,7 @@ export class SelectionService {
    * it's a public method used by shortcut service
    */
   public processSelectTextByShortcut(): void {
-    if (!this.selectionHook || !this.started || this.triggerMode !== SelectionTriggerMode.Shortcut) return
+    if (!this.selectionHook || !this.isActivated || this.triggerMode !== SelectionTriggerMode.Shortcut) return
 
     const selectionData = this.selectionHook.getCurrentSelection()
 
@@ -790,9 +787,20 @@ export class SelectionService {
    * @param selectionData Text selection information and coordinates
    */
   private processTextSelection = (selectionData: TextSelectionData) => {
-    // Skip if no text or toolbar already visible
-    if (!selectionData.text || (this.isToolbarAlive() && this.toolbarWindow!.isVisible())) {
+    if (!selectionData.text) {
       return
+    }
+
+    // Skip if toolbar already visible.
+    // [Wayland] Allow new selections to reposition the toolbar by hiding it first.
+    // This acts as a safety net: if blur fails to hide the toolbar on some compositors,
+    // selecting new text will still dismiss and reposition it instead of getting stuck.
+    if (this.isToolbarAlive() && this.toolbarWindow!.isVisible()) {
+      if (this.isLinuxWaylandDisplay) {
+        this.hideToolbar()
+      } else {
+        return
+      }
     }
 
     if (!this.shouldProcessTextSelection(selectionData)) {
@@ -815,8 +823,16 @@ export class SelectionService {
         break
       case SelectionHook?.PositionLevel.MOUSE_SINGLE:
         {
-          refOrientation = 'bottomMiddle'
-          refPoint = { x: selectionData.mousePosEnd.x, y: selectionData.mousePosEnd.y + 16 }
+          if (isLinux && selectionData.mousePosEnd.x === SelectionHook?.INVALID_COORDINATE) {
+            // Wayland degraded mode: coordinates unavailable, fall back to Electron cursor position
+            const cursorPoint = screen.getCursorScreenPoint()
+            refPoint = { x: cursorPoint.x, y: cursorPoint.y }
+            refOrientation = 'bottomMiddle'
+            isLogical = true
+          } else {
+            refOrientation = 'bottomMiddle'
+            refPoint = { x: selectionData.mousePosEnd.x, y: selectionData.mousePosEnd.y + 16 }
+          }
         }
         break
       case SelectionHook?.PositionLevel.MOUSE_DUAL:
@@ -920,8 +936,8 @@ export class SelectionService {
     }
 
     if (!isLogical) {
-      // [macOS] don't need to convert by screenToDipPoint
-      if (!isMac) {
+      // [Windows/Linux] selection-hook returns physical pixels; convert to logical (DIP)
+      if (isWin || isLinux) {
         refPoint = screen.screenToDipPoint(refPoint)
       }
       //screenToDipPoint can be float, so we need to round it
@@ -940,8 +956,13 @@ export class SelectionService {
   // Start monitoring global mouse clicks
   private startHideByMouseKeyListener(): void {
     try {
-      // Register event handlers
-      this.selectionHook!.on('mouse-down', this.handleMouseDownHide)
+      // [Wayland] Skip mouse-down listener — selection-hook reports Wayland compositor
+      // coordinates while Electron getBounds() uses XWayland coordinates. This mismatch
+      // makes isInsideToolbar hit-testing unreliable, so outside-click hiding on Wayland
+      // is handled by blur (focusable: true) instead.
+      if (!this.isLinuxWaylandDisplay) {
+        this.selectionHook!.on('mouse-down', this.handleMouseDownHide)
+      }
       this.selectionHook!.on('mouse-wheel', this.handleMouseWheelHide)
       this.selectionHook!.on('key-down', this.handleKeyDownHide)
       this.isHideByMouseKeyListenerActive = true
@@ -955,7 +976,9 @@ export class SelectionService {
     if (!this.isHideByMouseKeyListenerActive) return
 
     try {
-      this.selectionHook!.off('mouse-down', this.handleMouseDownHide)
+      if (!this.isLinuxWaylandDisplay) {
+        this.selectionHook!.off('mouse-down', this.handleMouseDownHide)
+      }
       this.selectionHook!.off('mouse-wheel', this.handleMouseWheelHide)
       this.selectionHook!.off('key-down', this.handleKeyDownHide)
       this.isHideByMouseKeyListenerActive = false
@@ -983,8 +1006,8 @@ export class SelectionService {
       return
     }
 
-    //data point is physical coordinates, convert to logical coordinates(only for windows/linux)
-    const mousePoint = isMac ? { x: data.x, y: data.y } : screen.screenToDipPoint({ x: data.x, y: data.y })
+    // [Windows/Linux] selection-hook returns physical pixels; convert to logical (DIP)
+    const mousePoint = isWin || isLinux ? screen.screenToDipPoint({ x: data.x, y: data.y }) : { x: data.x, y: data.y }
 
     const bounds = this.toolbarWindow!.getBounds()
 
@@ -1119,136 +1142,46 @@ export class SelectionService {
   }
 
   /**
-   * Create a preloaded action window for quick response
-   * Action windows handle specific operations on selected text
-   * @returns Configured BrowserWindow instance
+   * Release all activation-scoped resources.
+   * Uses stop() + removeAllListeners() instead of cleanup() to preserve the native instance
+   * for efficient reactivation. Safe to call even if onActivate() never ran or partially ran.
+   *
+   * Note on action windows: we intentionally DO NOT destroy in-use action windows —
+   * users may still be reading those results. The WindowManager pool is suspended
+   * (idle windows destroyed, no further warmup), but in-use windows stay alive until
+   * the user closes them (suspendPool only destroys idle, never managed).
    */
-  private createPreloadedActionWindow(): BrowserWindow {
-    const preloadedActionWindow = new BrowserWindow({
-      width: this.isRemeberWinSize ? this.lastActionWindowSize.width : this.ACTION_WINDOW_WIDTH,
-      height: this.isRemeberWinSize ? this.lastActionWindowSize.height : this.ACTION_WINDOW_HEIGHT,
-      minWidth: 300,
-      minHeight: 200,
-      frame: false,
-      transparent: true,
-      autoHideMenuBar: true,
-      titleBarStyle: 'hidden', // [macOS]
-      trafficLightPosition: { x: 12, y: 9 }, // [macOS]
-      hasShadow: false,
-      thickFrame: false,
-      show: false,
-      webPreferences: {
-        preload: join(__dirname, '../preload/index.js'),
-        contextIsolation: true,
-        nodeIntegration: false,
-        sandbox: false,
-        devTools: true
+  private releaseActivationResources(): void {
+    if (this.selectionHook) {
+      try {
+        this.selectionHook.stop()
+        this.selectionHook.removeAllListeners()
+      } catch (error) {
+        this.logError('Failed to stop selection hook:', error as Error)
       }
-    })
-
-    // Load the base URL without action data
-    if (isDev && process.env['ELECTRON_RENDERER_URL']) {
-      preloadedActionWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/selectionAction.html')
-    } else {
-      preloadedActionWindow.loadFile(join(__dirname, '../renderer/selectionAction.html'))
     }
 
-    return preloadedActionWindow
-  }
-
-  /**
-   * Initialize preloaded action windows
-   * Creates a pool of windows at startup for faster response
-   */
-  private async initPreloadedActionWindows(): Promise<void> {
-    try {
-      // Create initial pool of preloaded windows
-      for (let i = 0; i < this.PRELOAD_ACTION_WINDOW_COUNT; i++) {
-        await this.pushNewActionWindow()
-      }
-    } catch (error) {
-      this.logError('Failed to initialize preloaded windows:', error as Error)
+    for (const unsub of this.unsubscriberForChangeListeners) {
+      unsub()
     }
-  }
+    this.unsubscriberForChangeListeners = []
 
-  /**
-   * Close all preloaded action windows
-   */
-  private closePreloadedActionWindows(): void {
-    for (const actionWindow of this.preloadedActionWindows) {
-      if (!actionWindow.isDestroyed()) {
-        actionWindow.destroy()
-      }
+    this.isCtrlkeyListenerActive = false
+    this.isHideByMouseKeyListenerActive = false
+    this.lastCtrlkeyDownTime = 0
+
+    const wm = application.get('WindowManager')
+
+    // Destroy toolbar (singleton — not pooled)
+    if (this.toolbarWindowId) {
+      wm.destroy(this.toolbarWindowId)
+      // toolbarWindow / toolbarWindowId are cleared by the onWindowDestroyed handler in onInit().
     }
-  }
 
-  /**
-   * Preload a new action window asynchronously
-   * This method is called after popping a window to ensure we always have windows ready
-   */
-  private async pushNewActionWindow(): Promise<void> {
-    try {
-      const actionWindow = this.createPreloadedActionWindow()
-      this.preloadedActionWindows.push(actionWindow)
-    } catch (error) {
-      this.logError('Failed to push new action window:', error as Error)
-    }
-  }
-
-  /**
-   * Pop an action window from the preloadedActionWindows queue
-   * Immediately returns a window and asynchronously creates a new one
-   * @returns {BrowserWindow} The action window
-   */
-  private popActionWindow(): BrowserWindow {
-    // Get a window from the preloaded queue or create a new one if empty
-    const actionWindow = this.preloadedActionWindows.pop() || this.createPreloadedActionWindow()
-
-    // Set up event listeners for this instance
-    actionWindow.on('closed', () => {
-      this.actionWindows.delete(actionWindow)
-      if (!actionWindow.isDestroyed()) {
-        actionWindow.destroy()
-      }
-
-      // [macOS] a HACKY way
-      // make sure other windows do not bring to front when action window is closed
-      if (isMac) {
-        const focusableWindows: BrowserWindow[] = []
-        for (const window of BrowserWindow.getAllWindows()) {
-          if (!window.isDestroyed() && window.isVisible()) {
-            if (window.isFocusable()) {
-              focusableWindows.push(window)
-              window.setFocusable(false)
-            }
-          }
-        }
-        setTimeout(() => {
-          for (const window of focusableWindows) {
-            if (!window.isDestroyed()) {
-              window.setFocusable(true)
-            }
-          }
-        }, 50)
-      }
-    })
-
-    //remember the action window size
-    actionWindow.on('resized', () => {
-      if (this.isRemeberWinSize) {
-        this.lastActionWindowSize = {
-          width: actionWindow.getBounds().width,
-          height: actionWindow.getBounds().height
-        }
-      }
-    })
-
-    this.actionWindows.add(actionWindow)
-
-    // Asynchronously create a new preloaded window
-    this.pushNewActionWindow()
-
-    return actionWindow
+    // Suspend the action pool — destroys idle windows and disables further warmup until
+    // resumePool() is called on next activate. In-use windows are NOT destroyed here,
+    // preserving user-visible results.
+    wm.suspendPool(WindowType.SelectionAction)
   }
 
   /**
@@ -1257,9 +1190,29 @@ export class SelectionService {
    * @param isFullScreen [macOS] only macOS has the available isFullscreen mode
    */
   public processAction(actionItem: SelectionActionItem, isFullScreen: boolean = false): void {
-    const actionWindow = this.popActionWindow()
+    const wm = application.get('WindowManager')
 
-    actionWindow.webContents.send(IpcChannel.Selection_UpdateActionData, actionItem)
+    // open({ initData }) atomically stores the action payload and, for the
+    // pool-recycle path, emits WindowManager_Reused with the same payload so
+    // the renderer can update in-place. For recycled windows the renderer has
+    // been mounted and its listener registered since warmup, so the DOM is
+    // ready on the next tick. For fresh windows the renderer mounts,
+    // `useWindowInitData` pulls the payload via `getInitData`, and React
+    // paints before the user notices. This mirrors the behavior of the
+    // pre-WindowManager SelectionService: push data, then show immediately.
+    const windowId = wm.open(WindowType.SelectionAction, {
+      initData: actionItem,
+      options: {
+        width: this.isRemeberWinSize ? this.lastActionWindowSize.width : this.ACTION_WINDOW_WIDTH,
+        height: this.isRemeberWinSize ? this.lastActionWindowSize.height : this.ACTION_WINDOW_HEIGHT
+      }
+    })
+
+    const actionWindow = wm.getWindow(windowId)
+    if (!actionWindow) {
+      this.logError(`Failed to get action window ${windowId}`)
+      return
+    }
 
     this.showActionWindow(actionWindow, isFullScreen)
   }
@@ -1300,7 +1253,7 @@ export class SelectionService {
       })
     } else {
       // Follow toolbar position
-      const toolbarBounds = this.toolbarWindow!.getBounds()
+      const toolbarBounds = this.toolbarWindow.getBounds()
       const GAP = 6 // 6px gap from screen edges
 
       //make sure action window is inside screen
@@ -1366,7 +1319,10 @@ export class SelectionService {
 
     // setFocusable(false) to prevent the action window hide when blur (if auto hide on blur is enabled)
     actionWindow.setFocusable(false)
-    actionWindow.setAlwaysOnTop(true, 'floating')
+    // No explicit level: Electron defaults to 'floating' on macOS, and
+    // SelectionAction's registry intentionally declares no alwaysOnTop.level
+    // (the pin toggle and this show sequence use the same default path).
+    actionWindow.setAlwaysOnTop(true)
 
     // `setVisibleOnAllWorkspaces(true)` will cause the dock icon disappeared
     // just store the dock icon status, and show it again
@@ -1383,11 +1339,12 @@ export class SelectionService {
     // show the dock again if last time it was shown
     // do not put it after `actionWindow.focus()`, will cause the action window to be closed when auto hide on blur is enabled
     if (!app.dock?.isVisible() && isDockShown) {
-      app.dock?.show()
+      void app.dock?.show()
     }
 
     // unset everything
     setTimeout(() => {
+      if (actionWindow.isDestroyed()) return
       actionWindow.setVisibleOnAllWorkspaces(false, {
         visibleOnFullScreen: true,
         skipTransformProcessType: true
@@ -1401,65 +1358,41 @@ export class SelectionService {
     }, 50)
   }
 
+  /**
+   * Close an action window via WindowManager.
+   * For pooled windows, WindowManager intercepts the close and hides the window back
+   * into the idle pool. The macRestoreFocusOnHide quirk applies the macOS focus dance
+   * automatically at the hide/close call site.
+   */
   public closeActionWindow(actionWindow: BrowserWindow): void {
-    actionWindow.close()
+    if (actionWindow.isDestroyed()) return
+    const wm = application.get('WindowManager')
+    const windowId = wm.getWindowId(actionWindow)
+    if (windowId) {
+      wm.close(windowId)
+    } else {
+      // Fallback for untracked windows (should not happen in normal flow)
+      actionWindow.close()
+    }
   }
 
   public minimizeActionWindow(actionWindow: BrowserWindow): void {
+    if (actionWindow.isDestroyed()) return
     actionWindow.minimize()
   }
 
   public pinActionWindow(actionWindow: BrowserWindow, isPinned: boolean): void {
-    actionWindow.setAlwaysOnTop(isPinned)
-  }
-
-  /**
-   * [Windows only] Manual window resize handler
-   *
-   * ELECTRON BUG WORKAROUND:
-   * In Electron, when using `frame: false` + `transparent: true`, the native window
-   * resize functionality is broken on Windows. This is a known Electron bug.
-   * See: https://github.com/electron/electron/issues/48554
-   *
-   * This method can be removed once the Electron bug is fixed.
-   */
-  public resizeActionWindow(actionWindow: BrowserWindow, deltaX: number, deltaY: number, direction: string): void {
-    const bounds = actionWindow.getBounds()
-    const minWidth = 300
-    const minHeight = 200
-
-    let { x, y, width, height } = bounds
-
-    // Handle horizontal resize
-    if (direction.includes('e')) {
-      width = Math.max(minWidth, width + deltaX)
-    }
-    if (direction.includes('w')) {
-      const newWidth = Math.max(minWidth, width - deltaX)
-      if (newWidth !== width) {
-        x = x + (width - newWidth)
-        width = newWidth
-      }
-    }
-
-    // Handle vertical resize
-    if (direction.includes('s')) {
-      height = Math.max(minHeight, height + deltaY)
-    }
-    if (direction.includes('n')) {
-      const newHeight = Math.max(minHeight, height - deltaY)
-      if (newHeight !== height) {
-        y = y + (height - newHeight)
-        height = newHeight
-      }
-    }
-
-    actionWindow.setBounds({ x, y, width, height })
-
-    // [Windows only] Update remembered window size for custom resize
-    // setBounds() may not trigger the 'resized' event, so we need to update manually
-    if (this.isRemeberWinSize) {
-      this.lastActionWindowSize = { width, height }
+    if (actionWindow.isDestroyed()) return
+    // Route through WindowManager so any future `behavior.alwaysOnTop` on the
+    // SelectionAction registry entry (currently none) flows automatically.
+    // With no level declared, this is equivalent to `setAlwaysOnTop(isPinned)`.
+    const wm = application.get('WindowManager')
+    const id = wm.getWindowId(actionWindow)
+    if (id !== undefined) {
+      wm.behavior.setAlwaysOnTop(id, isPinned)
+    } else {
+      // Untracked window (shouldn't happen in the normal pooled flow).
+      actionWindow.setAlwaysOnTop(isPinned)
     }
   }
 
@@ -1507,71 +1440,78 @@ export class SelectionService {
   }
 
   public writeToClipboard(text: string): boolean {
-    if (!this.selectionHook || !this.started) return false
+    if (isLinux) {
+      try {
+        clipboard.writeText(text)
+        return true
+      } catch (error) {
+        logger.error('Failed to write to clipboard on Linux:', error as Error)
+        return false
+      }
+    }
+    if (!this.selectionHook || !this.isActivated) return false
     return this.selectionHook.writeToClipboard(text)
   }
 
-  /**
-   * Register IPC handlers for communication with renderer process
-   * Handles toolbar, action window, and selection-related commands
-   */
-  public static registerIpcHandler(): void {
-    if (this.isIpcHandlerRegistered) return
-
-    ipcMain.handle(IpcChannel.Selection_ToolbarHide, () => {
-      selectionService?.hideToolbar()
+  private registerIpcHandlers(): void {
+    this.ipcHandle(IpcChannel.Selection_ToolbarHide, () => {
+      this.hideToolbar()
     })
 
-    ipcMain.handle(IpcChannel.Selection_WriteToClipboard, (_, text: string): boolean => {
-      return selectionService?.writeToClipboard(text) ?? false
+    this.ipcHandle(IpcChannel.Selection_WriteToClipboard, (_, text: string): boolean => {
+      return this.writeToClipboard(text) ?? false
     })
 
-    ipcMain.handle(IpcChannel.Selection_ToolbarDetermineSize, (_, width: number, height: number) => {
-      selectionService?.determineToolbarSize(width, height)
+    this.ipcHandle(IpcChannel.Selection_ToolbarDetermineSize, (_, width: number, height: number) => {
+      this.determineToolbarSize(width, height)
     })
 
     // [macOS] only macOS has the available isFullscreen mode
-    ipcMain.handle(
+    this.ipcHandle(
       IpcChannel.Selection_ProcessAction,
       (_, actionItem: SelectionActionItem, isFullScreen: boolean = false) => {
-        selectionService?.processAction(actionItem, isFullScreen)
+        this.processAction(actionItem, isFullScreen)
       }
     )
 
-    ipcMain.handle(IpcChannel.Selection_ActionWindowClose, (event) => {
-      const actionWindow = BrowserWindow.fromWebContents(event.sender)
-      if (actionWindow) {
-        selectionService?.closeActionWindow(actionWindow)
+    // Helper: resolve an action window from an IPC event via WindowManager.
+    // Falls back to BrowserWindow.fromWebContents if the window is not tracked by WM
+    // (e.g., race conditions during deactivate), matching the pre-migration behavior.
+    const resolveActionWindow = (event: Electron.IpcMainInvokeEvent): BrowserWindow | null => {
+      const wm = application.get('WindowManager')
+      const windowId = wm.getWindowIdByWebContents(event.sender)
+      if (windowId) {
+        return wm.getWindow(windowId) ?? null
+      }
+      return BrowserWindow.fromWebContents(event.sender)
+    }
+
+    this.ipcHandle(IpcChannel.Selection_ActionWindowClose, (event) => {
+      const actionWindow = resolveActionWindow(event)
+      if (actionWindow && !actionWindow.isDestroyed()) {
+        this.closeActionWindow(actionWindow)
       }
     })
 
-    ipcMain.handle(IpcChannel.Selection_ActionWindowMinimize, (event) => {
-      const actionWindow = BrowserWindow.fromWebContents(event.sender)
-      if (actionWindow) {
-        selectionService?.minimizeActionWindow(actionWindow)
+    this.ipcHandle(IpcChannel.Selection_ActionWindowMinimize, (event) => {
+      const actionWindow = resolveActionWindow(event)
+      if (actionWindow && !actionWindow.isDestroyed()) {
+        this.minimizeActionWindow(actionWindow)
       }
     })
 
-    ipcMain.handle(IpcChannel.Selection_ActionWindowPin, (event, isPinned: boolean) => {
-      const actionWindow = BrowserWindow.fromWebContents(event.sender)
-      if (actionWindow) {
-        selectionService?.pinActionWindow(actionWindow, isPinned)
+    this.ipcHandle(IpcChannel.Selection_ActionWindowPin, (event, isPinned: boolean) => {
+      const actionWindow = resolveActionWindow(event)
+      if (actionWindow && !actionWindow.isDestroyed()) {
+        this.pinActionWindow(actionWindow, isPinned)
       }
     })
 
-    // [Windows only] Electron bug workaround - can be removed once fixed
-    // See: https://github.com/electron/electron/issues/48554
-    ipcMain.handle(
-      IpcChannel.Selection_ActionWindowResize,
-      (event, deltaX: number, deltaY: number, direction: string) => {
-        const actionWindow = BrowserWindow.fromWebContents(event.sender)
-        if (actionWindow) {
-          selectionService?.resizeActionWindow(actionWindow, deltaX, deltaY, direction)
-        }
-      }
-    )
-
-    this.isIpcHandlerRegistered = true
+    if (isLinux) {
+      this.ipcHandle(IpcChannel.Selection_GetLinuxEnvInfo, () => {
+        return this.getLinuxEnvInfo()
+      })
+    }
   }
 
   private logInfo(message: string, forceShow: boolean = false): void {
@@ -1584,43 +1524,3 @@ export class SelectionService {
     logger.error(message, error)
   }
 }
-
-/**
- * Initialize selection service when app starts
- * Sets up config subscription and starts service if enabled
- * @returns {boolean} Success status of initialization
- */
-export function initSelectionService(): boolean {
-  if (!isSupportedOS) return false
-
-  const enabled = preferenceService.get('feature.selection.enabled')
-
-  preferenceService.subscribeChange('feature.selection.enabled', (enabled: boolean): void => {
-    //avoid closure
-    const ss = SelectionService.getInstance()
-    if (!ss) {
-      logger.error('SelectionService not initialized: instance is null')
-      return
-    }
-
-    if (enabled) {
-      ss.start()
-    } else {
-      ss.stop()
-    }
-  })
-
-  if (!enabled) return false
-
-  const ss = SelectionService.getInstance()
-  if (!ss) {
-    logger.error('SelectionService not initialized: instance is null')
-    return false
-  }
-
-  return ss.start()
-}
-
-const selectionService = SelectionService.getInstance()
-
-export default selectionService

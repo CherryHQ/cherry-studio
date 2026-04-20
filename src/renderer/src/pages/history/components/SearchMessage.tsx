@@ -24,7 +24,7 @@ const SearchMessage: FC<Props> = ({ message, ...props }) => {
   const [topic, setTopic] = useState<Topic | null>(null)
 
   useEffect(() => {
-    runAsyncFunction(async () => {
+    void runAsyncFunction(async () => {
       if (message?.topicId) {
         const topic = await getTopicById(message.topicId)
         setTopic(topic)

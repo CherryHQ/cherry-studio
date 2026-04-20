@@ -338,7 +338,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
         type="text"
         onClick={goToPrevious}
         disabled={disableNavigation}
-        aria-label="Previous match"
+        aria-label={t('common.previous_match')}
         icon={<ChevronUp size={16} className="w-6" />}
         className="text-default-500 hover:text-default-900"
       />
@@ -347,7 +347,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
         type="text"
         onClick={goToNext}
         disabled={disableNavigation}
-        aria-label="Next match"
+        aria-label={t('common.next_match')}
         icon={<ChevronDown size={16} className="w-6" />}
         className="text-default-500 hover:text-default-900"
       />

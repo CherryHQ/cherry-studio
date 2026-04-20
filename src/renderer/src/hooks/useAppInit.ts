@@ -6,13 +6,9 @@ import { isLocalAi } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import db from '@renderer/databases'
 import { useAppUpdateHandler, useAppUpdateState } from '@renderer/hooks/useAppUpdate'
-import i18n from '@renderer/i18n'
-import KnowledgeQueue from '@renderer/queue/KnowledgeQueue'
-import MemoryService from '@renderer/services/MemoryService'
+import i18n, { setDayjsLocale } from '@renderer/i18n'
+import { knowledgeQueue } from '@renderer/queue/KnowledgeQueue'
 import { useAppDispatch } from '@renderer/store'
-import { useAppSelector } from '@renderer/store'
-import { handleSaveData } from '@renderer/store'
-import { selectMemoryConfig } from '@renderer/store/memory'
 import {
   type ToolPermissionRequestPayload,
   type ToolPermissionResultPayload,
@@ -20,6 +16,7 @@ import {
 } from '@renderer/store/toolPermissions'
 import { delay, runAsyncFunction } from '@renderer/utils'
 import { checkDataLimit } from '@renderer/utils'
+import { sendToolApprovalNotification } from '@renderer/utils/userConfirmation'
 import { defaultLanguage } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { useLiveQuery } from 'dexie-react-hooks'
@@ -29,6 +26,7 @@ import { useTranslation } from 'react-i18next'
 import { useDefaultModel } from './useAssistant'
 import useFullScreenNotice from './useFullScreenNotice'
 import { useMinapps } from './useMinapps'
+import useNavBackgroundColor from './useNavBackgroundColor'
 import { useNavbarPosition } from './useNavbar'
 const logger = loggerService.withContext('useAppInit')
 
@@ -38,10 +36,7 @@ export function useAppInit() {
   const [language] = usePreference('app.language')
   const [windowStyle] = usePreference('ui.window_style')
   const [customCss] = usePreference('ui.custom_css')
-  const [proxyUrl] = usePreference('app.proxy.url')
-  const [proxyBypassRules] = usePreference('app.proxy.bypass_rules')
   const [autoCheckUpdate] = usePreference('app.dist.auto_update.enabled')
-  const [proxyMode] = usePreference('app.proxy.mode')
   const [enableDataCollection] = usePreference('app.privacy.data_collection.enabled')
 
   const { isLeftNavbar } = useNavbarPosition()
@@ -50,30 +45,28 @@ export function useAppInit() {
   const { setDefaultModel, setQuickModel, setTranslateModel } = useDefaultModel()
   const savedAvatar = useLiveQuery(() => db.settings.get('image://avatar'))
   const { theme } = useTheme()
-  const memoryConfig = useAppSelector(selectMemoryConfig)
+  const navBackgroundColor = useNavBackgroundColor()
 
   useEffect(() => {
     document.getElementById('spinner')?.remove()
     // eslint-disable-next-line no-restricted-syntax
     console.timeEnd('init')
-
-    // Initialize MemoryService after app is ready
-    MemoryService.getInstance()
   }, [])
 
   useEffect(() => {
-    window.api.getDataPathFromArgs().then((dataPath) => {
+    void window.api.getDataPathFromArgs().then((dataPath) => {
       if (dataPath) {
-        window.navigate({ to: '/settings/data', replace: true })
+        void window.navigate({ to: '/settings/data', replace: true })
       }
     })
   }, [])
 
-  useEffect(() => {
-    window.electron.ipcRenderer.on(IpcChannel.App_SaveData, async () => {
-      await handleSaveData()
-    })
-  }, [])
+  // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
+  // useEffect(() => {
+  //   window.electron.ipcRenderer.on(IpcChannel.App_SaveData, async () => {
+  //     await handleSaveData()
+  //   })
+  // }, [])
 
   useAppUpdateHandler()
   useFullScreenNotice()
@@ -95,7 +88,7 @@ export function useAppInit() {
     }
 
     // Initial check with delay
-    runAsyncFunction(async () => {
+    void runAsyncFunction(async () => {
       const { isPackaged } = await window.api.getAppInfo()
       if (isPackaged && autoCheckUpdate) {
         await delay(2)
@@ -111,30 +104,21 @@ export function useAppInit() {
   }, [autoCheckUpdate, updateAppUpdateState])
 
   useEffect(() => {
-    if (proxyMode === 'system') {
-      window.api.setProxy('system', undefined)
-    } else if (proxyMode === 'custom') {
-      proxyUrl && window.api.setProxy(proxyUrl, proxyBypassRules)
-    } else {
-      // set proxy to none for direct mode
-      window.api.setProxy('', undefined)
-    }
-  }, [proxyUrl, proxyMode, proxyBypassRules])
-
-  useEffect(() => {
-    i18n.changeLanguage(language || navigator.language || defaultLanguage)
+    const currentLanguage = language || navigator.language || defaultLanguage
+    void i18n.changeLanguage(currentLanguage)
+    setDayjsLocale(currentLanguage)
   }, [language])
 
   useEffect(() => {
     const isMacTransparentWindow = windowStyle === 'transparent' && isMac
 
     if (minappShow && isLeftNavbar) {
-      window.root.style.background = isMacTransparentWindow ? 'var(--color-background)' : 'var(--navbar-background)'
+      window.root.style.background = isMacTransparentWindow ? 'var(--color-background)' : navBackgroundColor
       return
     }
 
-    window.root.style.background = isMacTransparentWindow ? 'var(--navbar-background-mac)' : 'var(--navbar-background)'
-  }, [windowStyle, minappShow, theme, isLeftNavbar])
+    window.root.style.background = navBackgroundColor
+  }, [windowStyle, minappShow, theme, isLeftNavbar, navBackgroundColor])
 
   useEffect(() => {
     if (isLocalAi) {
@@ -148,14 +132,14 @@ export function useAppInit() {
 
   useEffect(() => {
     // set files path
-    window.api.getAppInfo().then((info) => {
+    void window.api.getAppInfo().then((info) => {
       cacheService.set('app.path.files', info.filesPath)
       cacheService.set('app.path.resources', info.resourcesPath)
     })
   }, [])
 
   useEffect(() => {
-    KnowledgeQueue.checkAllBases()
+    void knowledgeQueue.checkAllBases()
   }, [])
 
   useEffect(() => {
@@ -179,20 +163,15 @@ export function useAppInit() {
       logger.debug('Renderer received tool permission request', {
         requestId: payload.requestId,
         toolName: payload.toolName,
-        expiresAt: payload.expiresAt,
         suggestionCount: payload.suggestions.length,
         autoApprove: payload.autoApprove
       })
-      dispatch(toolPermissionsActions.requestReceived(payload))
 
-      // Auto-approve if requested
       if (payload.autoApprove) {
         logger.debug('Auto-approving tool permission request', {
           requestId: payload.requestId,
           toolName: payload.toolName
         })
-
-        dispatch(toolPermissionsActions.submissionSent({ requestId: payload.requestId, behavior: 'allow' }))
 
         try {
           const response = await window.api.agentTools.respondToPermission({
@@ -212,9 +191,16 @@ export function useAppInit() {
           })
         } catch (error) {
           logger.error('Failed to send auto-approval response', error as Error)
-          dispatch(toolPermissionsActions.submissionFailed({ requestId: payload.requestId }))
+          // Fall through to add to store for manual approval
+          dispatch(toolPermissionsActions.requestReceived(payload))
         }
+        return
       }
+
+      dispatch(toolPermissionsActions.requestReceived(payload))
+
+      // Send system notification for agent tool approval
+      sendToolApprovalNotification(payload.toolName)
     }
 
     const resultListener = (_event: Electron.IpcRendererEvent, payload: ToolPermissionResultPayload) => {
@@ -265,13 +251,7 @@ export function useAppInit() {
     // TODO: init data collection
   }, [enableDataCollection])
 
-  // Update memory service configuration when it changes
   useEffect(() => {
-    const memoryService = MemoryService.getInstance()
-    memoryService.updateConfig().catch((error) => logger.error('Failed to update memory config:', error))
-  }, [memoryConfig])
-
-  useEffect(() => {
-    checkDataLimit()
+    void checkDataLimit()
   }, [])
 }

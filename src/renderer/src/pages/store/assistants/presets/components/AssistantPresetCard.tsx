@@ -65,7 +65,7 @@ const AssistantPresetCard: FC<Props> = ({ preset, onClick, activegroup, getLocal
       icon: <EditIcon size={14} />,
       onClick: (e: any) => {
         e.domEvent.stopPropagation()
-        AssistantSettingsPopup.show({ assistant: preset })
+        void AssistantSettingsPopup.show({ assistant: preset })
       }
     },
     {
@@ -74,7 +74,7 @@ const AssistantPresetCard: FC<Props> = ({ preset, onClick, activegroup, getLocal
       icon: <PlusIcon size={14} />,
       onClick: (e: any) => {
         e.domEvent.stopPropagation()
-        createAssistantFromAgent(preset)
+        void createAssistantFromAgent(preset)
       }
     },
     {
@@ -92,7 +92,7 @@ const AssistantPresetCard: FC<Props> = ({ preset, onClick, activegroup, getLocal
       icon: <SquareArrowOutUpRight size={14} />,
       onClick: (e: any) => {
         e.domEvent.stopPropagation()
-        exportPreset()
+        void exportPreset()
       }
     },
     {

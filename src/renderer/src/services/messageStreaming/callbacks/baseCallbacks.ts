@@ -19,13 +19,19 @@ import { loggerService } from '@logger'
 import { autoRenameTopic } from '@renderer/hooks/useTopic'
 import i18n from '@renderer/i18n'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { NotificationService } from '@renderer/services/NotificationService'
+import { notificationService } from '@renderer/services/NotificationService'
 import { estimateMessagesUsage } from '@renderer/services/TokenService'
+import store from '@renderer/store/'
+import { isTodoWriteBlock } from '@renderer/store/messageBlock'
+import { toolPermissionsActions } from '@renderer/store/toolPermissions'
 import type { Assistant } from '@renderer/types'
+import { ERROR_I18N_KEY_REQUEST_TIMEOUT, ERROR_I18N_KEY_STREAM_PAUSED } from '@renderer/types/error'
 import type { PlaceholderMessageBlock, Response, ThinkingMessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
-import { isAbortError, serializeError } from '@renderer/utils/error'
+import { isAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { trackTokenUsage } from '@renderer/utils/analytics'
+import { isAbortError, isTimeoutError, serializeError } from '@renderer/utils/error'
 import { createBaseMessageBlock, createErrorBlock } from '@renderer/utils/messageUtils/create'
 import { findAllBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { isFocused, isOnHomePage } from '@renderer/utils/window'
@@ -55,7 +61,7 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
   const { blockManager, topicId, assistantMsgId, assistant, getCurrentThinkingInfo } = deps
 
   const startTime = Date.now()
-  const notificationService = NotificationService.getInstance()
+  // notificationService is imported as a module-level singleton
 
   /**
    * Find the block ID that should receive completion updates.
@@ -81,6 +87,44 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
     return blockManager.initialPlaceholderBlockId
   }
 
+  /**
+   * Mark in_progress todos as completed when stream ends,
+   * since the model will no longer update them.
+   */
+  const cleanupInProgressTodos = (): string[] => {
+    const currentMessage = streamingService.getMessage(assistantMsgId)
+    if (!currentMessage) return []
+
+    const allBlockRefs = findAllBlocks(currentMessage)
+    const cleanedBlockIds: string[] = []
+
+    for (const blockRef of allBlockRefs) {
+      const block = streamingService.getBlock(blockRef.id) ?? undefined
+      if (!isTodoWriteBlock(block)) continue
+
+      const toolResponse = block.metadata.rawMcpToolResponse
+      const todos = toolResponse.arguments.todos
+      if (!todos.some((todo) => todo.status === 'in_progress')) continue
+
+      const updatedTodos = todos.map((todo) =>
+        todo.status === 'in_progress' ? { ...todo, status: 'completed' as const } : todo
+      )
+
+      streamingService.updateBlock(block.id, {
+        metadata: {
+          ...block.metadata,
+          rawMcpToolResponse: {
+            ...toolResponse,
+            arguments: { todos: updatedTodos }
+          }
+        }
+      })
+      cleanedBlockIds.push(block.id)
+    }
+
+    return cleanedBlockIds
+  }
+
   return {
     /**
      * Called when LLM response stream is created.
@@ -103,9 +147,12 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
         return
       }
       const isErrorTypeAbort = isAbortError(error)
+      const isErrorTypeTimeout = isTimeoutError(error)
       const serializableError = serializeError(error)
       if (isErrorTypeAbort) {
-        serializableError.message = 'pause_placeholder'
+        serializableError.i18nKey = ERROR_I18N_KEY_STREAM_PAUSED
+      } else if (isErrorTypeTimeout) {
+        serializableError.i18nKey = ERROR_I18N_KEY_REQUEST_TIMEOUT
       }
 
       const duration = Date.now() - startTime
@@ -152,12 +199,18 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
         const thinkingInfo = getCurrentThinkingInfo?.()
         for (const blockRef of allBlockRefs) {
           const block = streamingService.getBlock(blockRef.id)
-          if (block && block.status === MessageBlockStatus.STREAMING && block.id !== possibleBlockId) {
-            // 构建更新对象
+          if (!block) continue
+
+          // 更新非 possibleBlockId 的 STREAMING blocks（possibleBlockId 已在上面处理）
+          // 跳过 TOOL 类型 blocks，它们在下面的 tool block 分支中统一处理
+          if (
+            block.id !== possibleBlockId &&
+            block.status === MessageBlockStatus.STREAMING &&
+            block.type !== MessageBlockType.TOOL
+          ) {
             const changes: Partial<ThinkingMessageBlock> = {
               status: isErrorTypeAbort ? MessageBlockStatus.PAUSED : MessageBlockStatus.ERROR
             }
-            // 如果是 thinking block 且有思考时间信息，保留实际思考时间
             if (
               block.type === MessageBlockType.THINKING &&
               thinkingInfo?.blockId === block.id &&
@@ -168,18 +221,61 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
             }
             streamingService.updateBlock(block.id, changes)
           }
+
+          // Fix: 更新所有仍处于非完成状态的 tool blocks 的 rawMcpToolResponse.status
+          // 当用户点击停止时，tool blocks 的 UI 状态依赖 rawMcpToolResponse.status，
+          // 而不是 MessageBlockStatus，所以需要单独更新
+          if (block.type === MessageBlockType.TOOL) {
+            const toolBlock = block
+            const toolResponse = toolBlock.metadata?.rawMcpToolResponse
+            const toolStatus = toolResponse?.status
+            if (
+              toolResponse &&
+              toolStatus &&
+              toolStatus !== 'done' &&
+              toolStatus !== 'error' &&
+              toolStatus !== 'cancelled'
+            ) {
+              streamingService.updateBlock(block.id, {
+                status: isErrorTypeAbort ? MessageBlockStatus.PAUSED : MessageBlockStatus.ERROR,
+                metadata: {
+                  ...toolBlock.metadata,
+                  rawMcpToolResponse: {
+                    ...toolResponse,
+                    status: isErrorTypeAbort ? 'cancelled' : 'error'
+                  }
+                }
+              })
+            }
+          }
         }
       }
 
+      // Clean up pending/submitting tool permission requests from this stream.
+      // Preserve 'invoking' entries as they may belong to concurrent streams.
+      store.dispatch(toolPermissionsActions.clearPending())
+
+      // Mark in_progress todos as completed since stream ended
+      cleanupInProgressTodos()
+
       // Create error block
-      const errorBlock = createErrorBlock(assistantMsgId, serializableError, { status: MessageBlockStatus.SUCCESS })
+      const errorBlock = createErrorBlock(assistantMsgId, serializableError, {
+        status: MessageBlockStatus.SUCCESS
+      })
       await blockManager.handleBlockTransition(errorBlock, MessageBlockType.ERROR)
+      const messageErrorUpdate = {
+        status: isErrorTypeAbort ? AssistantMessageStatus.SUCCESS : AssistantMessageStatus.ERROR
+      }
+      streamingService.updateMessage(assistantMsgId, messageErrorUpdate)
 
-      // Finalize session with error/success status
-      const finalStatus = isErrorTypeAbort ? AssistantMessageStatus.SUCCESS : AssistantMessageStatus.ERROR
-      await streamingService.finalize(assistantMsgId, finalStatus)
+      // 从更新后的 state 中获取需要持久化的 blocks
+      // const blocksToSave = updatedBlockIds.map((id) => streamingService.getBlock(id)).filter(Boolean) as MessageBlock[]
+      await streamingService.finalize(
+        assistantMsgId,
+        isErrorTypeAbort ? AssistantMessageStatus.SUCCESS : AssistantMessageStatus.ERROR
+      )
 
-      EventEmitter.emit(EVENT_NAMES.MESSAGE_COMPLETE, {
+      void EventEmitter.emit(EVENT_NAMES.MESSAGE_COMPLETE, {
         id: assistantMsgId,
         topicId,
         status: isErrorTypeAbort ? 'pause' : 'error',
@@ -223,7 +319,7 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
         }
 
         // Rename topic if needed
-        autoRenameTopic(assistant, topicId)
+        void autoRenameTopic(assistant, topicId)
 
         // Process usage estimation
         // For OpenRouter, always use the accurate usage data from API, don't estimate
@@ -240,7 +336,10 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
           if (task?.contextMessages && task.contextMessages.length > 0) {
             // Include the final assistant message in context for accurate estimation
             const finalContextWithAssistant = [...task.contextMessages, finalAssistantMsg]
-            const usage = await estimateMessagesUsage({ assistant, messages: finalContextWithAssistant })
+            const usage = await estimateMessagesUsage({
+              assistant,
+              messages: finalContextWithAssistant
+            })
             response.usage = usage
           } else {
             logger.debug('Skipping usage estimation - contextMessages not available in task')
@@ -261,6 +360,9 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
         }
       }
 
+      // Mark in_progress todos as completed since stream ended
+      cleanupInProgressTodos()
+
       // Update message with final stats before finalize
       if (response) {
         streamingService.updateMessage(assistantMsgId, {
@@ -272,7 +374,16 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
       // Finalize session and persist to database
       await streamingService.finalize(assistantMsgId, status)
 
-      EventEmitter.emit(EVENT_NAMES.MESSAGE_COMPLETE, { id: assistantMsgId, topicId, status })
+      // Track token usage for agent sessions (chat sessions are tracked in fetchChatCompletion)
+      if (status === 'success' && isAgentSessionTopicId(topicId)) {
+        trackTokenUsage({ usage: response?.usage, model: assistant?.model, source: 'agent' })
+      }
+
+      void EventEmitter.emit(EVENT_NAMES.MESSAGE_COMPLETE, {
+        id: assistantMsgId,
+        topicId,
+        status
+      })
       logger.debug('onComplete finished')
     }
   }

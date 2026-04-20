@@ -1,4 +1,4 @@
-import { preferenceService } from '@data/PreferenceService'
+import { application } from '@application'
 import crypto from 'crypto'
 import type { NextFunction, Request, Response } from 'express'
 
@@ -20,7 +20,7 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction) 
     return res.status(401).json({ error: 'Unauthorized: missing credentials' })
   }
 
-  const apiKey = preferenceService.get('feature.csaas.api_key')
+  const apiKey = application.get('PreferenceService').get('feature.csaas.api_key')
 
   if (!apiKey) {
     return res.status(403).json({ error: 'Forbidden' })

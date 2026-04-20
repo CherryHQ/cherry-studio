@@ -1,16 +1,8 @@
-import BaiduLogo from '@renderer/assets/images/search/baidu.svg'
-import BingLogo from '@renderer/assets/images/search/bing.svg'
-import BochaLogo from '@renderer/assets/images/search/bocha.webp'
-import ExaLogo from '@renderer/assets/images/search/exa.png'
-import GoogleLogo from '@renderer/assets/images/search/google.svg'
-import SearxngLogo from '@renderer/assets/images/search/searxng.svg'
-import TavilyLogo from '@renderer/assets/images/search/tavily.png'
-import ZhipuLogo from '@renderer/assets/images/search/zhipu.png'
 import DividerWithText from '@renderer/components/DividerWithText'
 import ListItem from '@renderer/components/ListItem'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { getWebSearchProviderLogo } from '@renderer/config/webSearchProviders'
 import { useDefaultWebSearchProvider, useWebSearchProviders } from '@renderer/hooks/useWebSearchProviders'
-import type { WebSearchProviderId } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
 import { Flex, Tag } from 'antd'
@@ -50,31 +42,6 @@ const WebSearchSettings: FC = () => {
   const apiProviders = providers.filter((p) => hasObjectKey(p, 'apiKey') || hasObjectKey(p, 'apiHost'))
   const localProviders = providers.filter((p) => p.id.startsWith('local'))
 
-  // Provider logos map
-  const getProviderLogo = (providerId: WebSearchProviderId): string | undefined => {
-    switch (providerId) {
-      case 'zhipu':
-        return ZhipuLogo
-      case 'tavily':
-        return TavilyLogo
-      case 'searxng':
-        return SearxngLogo
-      case 'exa':
-      case 'exa-mcp':
-        return ExaLogo
-      case 'bocha':
-        return BochaLogo
-      case 'local-google':
-        return GoogleLogo
-      case 'local-bing':
-        return BingLogo
-      case 'local-baidu':
-        return BaiduLogo
-      default:
-        return undefined
-    }
-  }
-
   return (
     <Container>
       <MainContainer>
@@ -88,7 +55,7 @@ const WebSearchSettings: FC = () => {
           />
           <DividerWithText text={t('settings.tool.websearch.api_providers')} style={{ margin: '10px 0 8px 0' }} />
           {apiProviders.map((provider) => {
-            const logo = getProviderLogo(provider.id)
+            const logo = getWebSearchProviderLogo(provider.id)
             const isDefault = defaultProvider?.id === provider.id
             return (
               <ListItem
@@ -100,7 +67,7 @@ const WebSearchSettings: FC = () => {
                 }
                 icon={
                   logo ? (
-                    <img src={logo} alt={provider.name} className="h-5 w-5 rounded object-contain" />
+                    <logo.Avatar size={20} shape="rounded" />
                   ) : (
                     <div className="h-5 w-5 rounded bg-[var(--color-background-soft)]" />
                   )
@@ -120,7 +87,7 @@ const WebSearchSettings: FC = () => {
             <>
               <DividerWithText text={t('settings.tool.websearch.local_providers')} style={{ margin: '10px 0 8px 0' }} />
               {localProviders.map((provider) => {
-                const logo = getProviderLogo(provider.id)
+                const logo = getWebSearchProviderLogo(provider.id)
                 const isDefault = defaultProvider?.id === provider.id
                 return (
                   <ListItem
@@ -132,7 +99,7 @@ const WebSearchSettings: FC = () => {
                     }
                     icon={
                       logo ? (
-                        <img src={logo} alt={provider.name} className="h-5 w-5 rounded object-contain" />
+                        <logo.Avatar size={20} shape="rounded" />
                       ) : (
                         <div className="h-5 w-5 rounded bg-[var(--color-background-soft)]" />
                       )

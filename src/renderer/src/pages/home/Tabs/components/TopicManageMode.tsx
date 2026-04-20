@@ -69,7 +69,7 @@ interface TopicManagePanelProps {
   assistants: Assistant[]
   activeTopic: Topic
   setActiveTopic: (topic: Topic) => void
-  removeTopic: (topic: Topic) => void
+  updateTopics: (topics: Topic[]) => void
   moveTopic: (topic: Topic, toAssistant: Assistant) => void
   manageState: TopicManageModeState
   filteredTopics: Topic[]
@@ -83,7 +83,7 @@ export const TopicManagePanel: React.FC<TopicManagePanelProps> = ({
   assistants,
   activeTopic,
   setActiveTopic,
-  removeTopic,
+  updateTopics,
   moveTopic,
   manageState,
   filteredTopics
@@ -142,23 +142,38 @@ export const TopicManagePanel: React.FC<TopicManagePanelProps> = ({
 
     await modelGenerating()
 
-    const deletedCount = selectedIds.size
-    for (const id of selectedIds) {
-      const topic = assistant.topics.find((t) => t.id === id)
-      if (topic) {
-        await TopicManager.removeTopic(id)
-        removeTopic(topic)
-      }
-    }
+    const idsArray = Array.from(selectedIds)
+
+    // Delete DB records and files
+    const results = await Promise.allSettled(idsArray.map((id) => TopicManager.removeTopic(id).then(() => id)))
+
+    // Filter successful ids
+    const successfulIds = new Set(
+      results.filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled').map((r) => r.value)
+    )
+
+    const actualRemainingTopics = assistant.topics.filter((topic) => !successfulIds.has(topic.id))
+    updateTopics(actualRemainingTopics)
 
     // Switch to first remaining topic if current topic was deleted
-    if (selectedIds.has(activeTopic.id)) {
-      setActiveTopic(remainingTopics[0])
+    if (successfulIds.has(activeTopic.id) && actualRemainingTopics.length > 0) {
+      setActiveTopic(actualRemainingTopics[0])
     }
 
-    window.toast.success(t('chat.topics.manage.delete.success', { count: deletedCount }))
+    if (successfulIds.size === idsArray.length) {
+      window.toast.success(t('chat.topics.manage.delete.success', { count: successfulIds.size }))
+    } else if (successfulIds.size > 0) {
+      window.toast.warning(
+        t('chat.topics.manage.delete.partial_success', {
+          successCount: successfulIds.size,
+          failedCount: idsArray.length - successfulIds.size
+        })
+      )
+    } else {
+      window.toast.error(t('chat.topics.manage.delete.error'))
+    }
     exitManageMode()
-  }, [selectedIds, assistant.topics, removeTopic, activeTopic.id, setActiveTopic, t, exitManageMode])
+  }, [selectedIds, assistant.topics, activeTopic.id, setActiveTopic, t, exitManageMode, updateTopics])
 
   // Handle move selected topics to another assistant
   const handleMoveSelected = useCallback(

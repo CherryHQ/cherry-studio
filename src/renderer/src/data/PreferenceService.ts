@@ -1,11 +1,11 @@
 import { loggerService } from '@logger'
-import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type {
-  PreferenceDefaultScopeType,
-  PreferenceKeyType,
-  PreferenceMultipleResultType,
-  PreferenceUpdateOptions
+  PreferenceUpdateOptions,
+  UnifiedPreferenceKeyType,
+  UnifiedPreferenceMultipleResultType,
+  UnifiedPreferenceType
 } from '@shared/data/preference/preferenceTypes'
+import { getDefaultValue } from '@shared/data/preference/preferenceUtils'
 
 const logger = loggerService.withContext('PreferenceService')
 
@@ -21,8 +21,6 @@ const logger = loggerService.withContext('PreferenceService')
  * - Integration with React's useSyncExternalStore
  */
 export class PreferenceService {
-  private static instance: PreferenceService
-
   private cache: Record<string, any> = {}
 
   private allChangesListeners = new Set<() => void>()
@@ -35,7 +33,7 @@ export class PreferenceService {
 
   // Optimistic update tracking
   private optimisticValues = new Map<
-    PreferenceKeyType,
+    UnifiedPreferenceKeyType,
     {
       value: any
       originalValue: any
@@ -47,7 +45,7 @@ export class PreferenceService {
 
   // Request queues for managing concurrent updates to the same key
   private requestQueues = new Map<
-    PreferenceKeyType,
+    UnifiedPreferenceKeyType,
     Array<{
       requestId: string
       value: any
@@ -56,19 +54,8 @@ export class PreferenceService {
     }>
   >()
 
-  private constructor() {
+  constructor() {
     this.setupChangeListeners()
-  }
-
-  /**
-   * Get the singleton instance of PreferenceService
-   * @returns The singleton PreferenceService instance
-   */
-  public static getInstance(): PreferenceService {
-    if (!PreferenceService.instance) {
-      PreferenceService.instance = new PreferenceService()
-    }
-    return PreferenceService.instance
   }
 
   /**
@@ -112,10 +99,10 @@ export class PreferenceService {
    * @param key The preference key to retrieve
    * @returns Promise resolving to the preference value with defaults applied
    */
-  public async get<K extends PreferenceKeyType>(key: K): Promise<PreferenceDefaultScopeType[K]> {
+  public async get<K extends UnifiedPreferenceKeyType>(key: K): Promise<UnifiedPreferenceType[K]> {
     // Check cache first
     if (key in this.cache && this.cache[key] !== undefined) {
-      return this.cache[key] as PreferenceDefaultScopeType[K]
+      return this.cache[key] as UnifiedPreferenceType[K]
     }
 
     logger.verbose(`get: ${key} not found in cache`)
@@ -134,8 +121,7 @@ export class PreferenceService {
       return value
     } catch (error) {
       logger.error(`Failed to get preference ${key}:`, error as Error)
-      // Return default value on error
-      return DefaultPreferences.default[key] as PreferenceDefaultScopeType[K]
+      return getDefaultValue(key)
     }
   }
 
@@ -146,9 +132,9 @@ export class PreferenceService {
    * @param options Update strategy options (optimistic by default)
    * @returns Promise that resolves when update completes
    */
-  public async set<K extends PreferenceKeyType>(
+  public async set<K extends UnifiedPreferenceKeyType>(
     key: K,
-    value: PreferenceDefaultScopeType[K],
+    value: UnifiedPreferenceType[K],
     options: PreferenceUpdateOptions = { optimistic: true }
   ): Promise<void> {
     if (options.optimistic) {
@@ -165,9 +151,9 @@ export class PreferenceService {
    * @param value The new value to set
    * @returns Promise that resolves when update completes
    */
-  private async setOptimistic<K extends PreferenceKeyType>(
+  private async setOptimistic<K extends UnifiedPreferenceKeyType>(
     key: K,
-    value: PreferenceDefaultScopeType[K]
+    value: UnifiedPreferenceType[K]
   ): Promise<void> {
     const requestId = this.generateRequestId()
     return this.enqueueRequest(key, requestId, value)
@@ -180,7 +166,7 @@ export class PreferenceService {
    * @param requestId Unique identifier for this update request
    * @returns Promise that resolves when update completes
    */
-  private async executeOptimisticUpdate(key: PreferenceKeyType, value: any, requestId: string): Promise<void> {
+  private async executeOptimisticUpdate(key: UnifiedPreferenceKeyType, value: any, requestId: string): Promise<void> {
     const existingState = this.optimisticValues.get(key)
     const isFirst = !existingState
     const originalValue = isFirst ? this.cache[key] : existingState.originalValue
@@ -221,9 +207,9 @@ export class PreferenceService {
    * @param value The new value to set
    * @returns Promise that resolves when update completes
    */
-  private async setPessimistic<K extends PreferenceKeyType>(
+  private async setPessimistic<K extends UnifiedPreferenceKeyType>(
     key: K,
-    value: PreferenceDefaultScopeType[K]
+    value: UnifiedPreferenceType[K]
   ): Promise<void> {
     try {
       await window.api.preference.set(key, value)
@@ -244,10 +230,12 @@ export class PreferenceService {
    * @param keys Array of preference keys to retrieve
    * @returns Promise resolving to object with preference values for requested keys
    */
-  public async getMultipleRaw<K extends PreferenceKeyType>(keys: K[]): Promise<PreferenceMultipleResultType<K>> {
+  public async getMultipleRaw<K extends UnifiedPreferenceKeyType>(
+    keys: K[]
+  ): Promise<UnifiedPreferenceMultipleResultType<K>> {
     // Check which keys are already cached
-    const cachedResults: Partial<PreferenceDefaultScopeType> = {}
-    const uncachedKeys: PreferenceKeyType[] = []
+    const cachedResults: Partial<UnifiedPreferenceType> = {}
+    const uncachedKeys: UnifiedPreferenceKeyType[] = []
 
     for (const key of keys) {
       if (key in this.cache && this.cache[key] !== undefined) {
@@ -265,30 +253,27 @@ export class PreferenceService {
 
         // Update cache with new results
         for (const [key, value] of Object.entries(uncachedResults)) {
-          this.cache[key as PreferenceKeyType] = value
+          this.cache[key as UnifiedPreferenceKeyType] = value
 
           this.notifyChangeListeners(key)
 
-          await this.subscribeToKeyInternal([key as PreferenceKeyType])
+          await this.subscribeToKeyInternal([key as UnifiedPreferenceKeyType])
         }
 
-        return { ...cachedResults, ...uncachedResults } as PreferenceMultipleResultType<K>
+        return { ...cachedResults, ...uncachedResults } as UnifiedPreferenceMultipleResultType<K>
       } catch (error) {
         logger.error('Failed to get multiple preferences:', error as Error)
 
         // Fill in default values for failed keys
-        const defaultResults: Partial<PreferenceDefaultScopeType> = {}
-        for (const key of uncachedKeys) {
-          if (key in DefaultPreferences.default) {
-            ;(defaultResults as any)[key] = DefaultPreferences.default[key]
-          }
-        }
+        const defaultResults = Object.fromEntries(
+          uncachedKeys.map((key) => [key, getDefaultValue(key)])
+        ) as Partial<UnifiedPreferenceType>
 
-        return { ...cachedResults, ...defaultResults } as PreferenceMultipleResultType<K>
+        return { ...cachedResults, ...defaultResults } as UnifiedPreferenceMultipleResultType<K>
       }
     }
 
-    return cachedResults as PreferenceMultipleResultType<K>
+    return cachedResults as UnifiedPreferenceMultipleResultType<K>
   }
 
   /**
@@ -296,11 +281,11 @@ export class PreferenceService {
    * @param keys Object mapping local names to preference keys
    * @returns Promise resolving to object with mapped preference values
    */
-  public async getMultiple<T extends Record<string, PreferenceKeyType>>(
+  public async getMultiple<T extends Record<string, UnifiedPreferenceKeyType>>(
     keys: T
-  ): Promise<{ [P in keyof T]: PreferenceDefaultScopeType[T[P]] }> {
+  ): Promise<{ [P in keyof T]: UnifiedPreferenceType[T[P]] }> {
     const values = await this.getMultipleRaw(Object.values(keys))
-    const result = {} as { [P in keyof T]: PreferenceDefaultScopeType[T[P]] }
+    const result = {} as { [P in keyof T]: UnifiedPreferenceType[T[P]] }
 
     for (const key in keys) {
       result[key] = values[keys[key]]
@@ -316,7 +301,7 @@ export class PreferenceService {
    * @returns Promise that resolves when all updates complete
    */
   public async setMultiple(
-    updates: Partial<PreferenceDefaultScopeType>,
+    updates: Partial<UnifiedPreferenceType>,
     options: PreferenceUpdateOptions = { optimistic: true }
   ): Promise<void> {
     if (options.optimistic) {
@@ -331,21 +316,21 @@ export class PreferenceService {
    * @param updates Object containing preference key-value pairs to update
    * @returns Promise that resolves when batch update completes
    */
-  private async setMultipleOptimistic(updates: Partial<PreferenceDefaultScopeType>): Promise<void> {
+  private async setMultipleOptimistic(updates: Partial<UnifiedPreferenceType>): Promise<void> {
     const batchRequestId = this.generateRequestId()
     const originalValues: Record<string, any> = {}
-    const keysToUpdate = Object.keys(updates) as PreferenceKeyType[]
+    const keysToUpdate = Object.keys(updates) as UnifiedPreferenceKeyType[]
 
     // For batch updates, we need to check for existing optimistic states
     // and preserve the original values from first requests
     for (const key of keysToUpdate) {
       const existingState = this.optimisticValues.get(key)
-      originalValues[key] = existingState ? existingState.originalValue : this.cache[key as PreferenceKeyType]
+      originalValues[key] = existingState ? existingState.originalValue : this.cache[key]
     }
 
     // Update cache immediately and track original values
     for (const [key, value] of Object.entries(updates)) {
-      this.cache[key as PreferenceKeyType] = value
+      this.cache[key as UnifiedPreferenceKeyType] = value
       this.notifyChangeListeners(key)
     }
 
@@ -356,7 +341,7 @@ export class PreferenceService {
       const isFirst = !existingState
 
       this.optimisticValues.set(key, {
-        value: updates[key as PreferenceKeyType],
+        value: updates[key],
         originalValue: originalValues[key], // Use protected original value
         timestamp,
         requestId: `${batchRequestId}_${key}`, // Unique ID per key in batch
@@ -388,13 +373,13 @@ export class PreferenceService {
    * @param updates Object containing preference key-value pairs to update
    * @returns Promise that resolves when batch update completes
    */
-  private async setMultiplePessimistic(updates: Partial<PreferenceDefaultScopeType>): Promise<void> {
+  private async setMultiplePessimistic(updates: Partial<UnifiedPreferenceType>): Promise<void> {
     try {
       await window.api.preference.setMultiple(updates)
 
       // Update local cache for all updated values after successful database update
       for (const [key, value] of Object.entries(updates)) {
-        this.cache[key as PreferenceKeyType] = value
+        this.cache[key as UnifiedPreferenceKeyType] = value
         this.notifyChangeListeners(key)
       }
 
@@ -410,7 +395,7 @@ export class PreferenceService {
    * @param keys Array of preference keys to subscribe to
    * @returns Promise that resolves when subscription is established
    */
-  private async subscribeToKeyInternal(keys: PreferenceKeyType[]): Promise<void> {
+  private async subscribeToKeyInternal(keys: UnifiedPreferenceKeyType[]): Promise<void> {
     const keysToSubscribe = keys.filter((key) => !this.subscribedKeys.has(key))
     if (keysToSubscribe.length === 0) return
 
@@ -441,7 +426,7 @@ export class PreferenceService {
    * @returns Function that takes a callback and returns an unsubscribe function
    */
   public subscribeChange =
-    (key: PreferenceKeyType) =>
+    (key: UnifiedPreferenceKeyType) =>
     (callback: () => void): (() => void) => {
       if (!this.keyChangeListeners.has(key)) {
         this.keyChangeListeners.set(key, new Set())
@@ -451,7 +436,7 @@ export class PreferenceService {
       keyListeners.add(callback)
 
       // Auto-subscribe to this key for updates
-      this.subscribeToKeyInternal([key])
+      void this.subscribeToKeyInternal([key])
 
       return () => {
         keyListeners.delete(callback)
@@ -466,7 +451,7 @@ export class PreferenceService {
    * @param key The preference key to retrieve from cache
    * @returns The cached value or undefined if not cached
    */
-  public getCachedValue<K extends PreferenceKeyType>(key: K): PreferenceDefaultScopeType[K] | undefined {
+  public getCachedValue<K extends UnifiedPreferenceKeyType>(key: K): UnifiedPreferenceType[K] | undefined {
     return this.cache[key]
   }
 
@@ -475,7 +460,7 @@ export class PreferenceService {
    * @param key The preference key to check
    * @returns True if the key is cached, false otherwise
    */
-  public isCached(key: PreferenceKeyType): boolean {
+  public isCached(key: UnifiedPreferenceKeyType): boolean {
     return key in this.cache && this.cache[key] !== undefined
   }
 
@@ -483,19 +468,19 @@ export class PreferenceService {
    * Load all preferences from main process at once for optimal performance
    * @returns Promise resolving to all preference values
    */
-  public async preloadAll(): Promise<PreferenceDefaultScopeType> {
+  public async preloadAll(): Promise<UnifiedPreferenceType> {
     try {
       const allPreferences = await window.api.preference.getAll()
 
       // Update local cache with all preferences
       for (const [key, value] of Object.entries(allPreferences)) {
-        this.cache[key as PreferenceKeyType] = value
+        this.cache[key as UnifiedPreferenceKeyType] = value
 
         // Notify change listeners for the loaded value
         this.notifyChangeListeners(key)
       }
 
-      await this.subscribeToKeyInternal(Object.keys(allPreferences) as PreferenceKeyType[])
+      await this.subscribeToKeyInternal(Object.keys(allPreferences) as UnifiedPreferenceKeyType[])
 
       this.fullCacheLoaded = true
       logger.info(`Loaded all ${Object.keys(allPreferences).length} preferences into cache`)
@@ -520,7 +505,7 @@ export class PreferenceService {
    * @param keys Array of preference keys to preload
    * @returns Promise that resolves when preloading completes
    */
-  public async preload(keys: PreferenceKeyType[]): Promise<void> {
+  public async preload(keys: UnifiedPreferenceKeyType[]): Promise<void> {
     const uncachedKeys = keys.filter((key) => !this.isCached(key))
 
     if (uncachedKeys.length > 0) {
@@ -538,7 +523,7 @@ export class PreferenceService {
    * @param key The preference key that was updated
    * @param requestId The unique identifier for the update request
    */
-  private confirmOptimistic(key: PreferenceKeyType, requestId: string): void {
+  private confirmOptimistic(key: UnifiedPreferenceKeyType, requestId: string): void {
     const optimisticState = this.optimisticValues.get(key)
     if (optimisticState && optimisticState.requestId === requestId) {
       this.optimisticValues.delete(key)
@@ -558,7 +543,7 @@ export class PreferenceService {
    * @param key The preference key to rollback
    * @param requestId The unique identifier for the failed update request
    */
-  private rollbackOptimistic(key: PreferenceKeyType, requestId: string): void {
+  private rollbackOptimistic(key: UnifiedPreferenceKeyType, requestId: string): void {
     const optimisticState = this.optimisticValues.get(key)
     if (optimisticState && optimisticState.requestId === requestId) {
       // Restore original value (the real original value from first request)
@@ -617,7 +602,7 @@ export class PreferenceService {
    * @param value The value to set
    * @returns Promise that resolves when the request is processed
    */
-  private enqueueRequest(key: PreferenceKeyType, requestId: string, value: any): Promise<void> {
+  private enqueueRequest(key: UnifiedPreferenceKeyType, requestId: string, value: any): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       if (!this.requestQueues.has(key)) {
         this.requestQueues.set(key, [])
@@ -628,7 +613,7 @@ export class PreferenceService {
 
       // If this is the first request in queue, process it immediately
       if (queue.length === 1) {
-        this.processNextQueuedRequest(key)
+        void this.processNextQueuedRequest(key)
       }
     })
   }
@@ -638,7 +623,7 @@ export class PreferenceService {
    * @param key The preference key to process requests for
    * @returns Promise that resolves when processing completes
    */
-  private async processNextQueuedRequest(key: PreferenceKeyType): Promise<void> {
+  private async processNextQueuedRequest(key: UnifiedPreferenceKeyType): Promise<void> {
     const queue = this.requestQueues.get(key)
     if (!queue || queue.length === 0) {
       return
@@ -657,14 +642,14 @@ export class PreferenceService {
    * Complete current request and process next in queue
    * @param key The preference key to complete processing for
    */
-  private completeQueuedRequest(key: PreferenceKeyType): void {
+  private completeQueuedRequest(key: UnifiedPreferenceKeyType): void {
     const queue = this.requestQueues.get(key)
     if (queue && queue.length > 0) {
       queue.shift() // Remove completed request
 
       // Process next request if any
       if (queue.length > 0) {
-        this.processNextQueuedRequest(key)
+        void this.processNextQueuedRequest(key)
       } else {
         // Clean up empty queue
         this.requestQueues.delete(key)
@@ -702,5 +687,5 @@ export class PreferenceService {
 }
 
 // Export singleton instance
-export const preferenceService = PreferenceService.getInstance()
+export const preferenceService = new PreferenceService()
 export default preferenceService

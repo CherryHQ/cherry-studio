@@ -1,11 +1,11 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
-import { Avatar, Button, InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
+import { Button, InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
+import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { useCache } from '@data/hooks/useCache'
 import DMXAPIToImg from '@renderer/assets/images/providers/DMXAPI-to-img.webp'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isMac } from '@renderer/config/constant'
-import { getProviderLogo } from '@renderer/config/providers'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import FileManager from '@renderer/services/FileManager'
@@ -76,7 +76,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const modeOptions = MODEOPTIONS.map((ele) => {
     return {
-      label: t(ele.label),
+      label: t(ele.labelKey),
       value: ele.value
     }
   })
@@ -100,7 +100,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const [modelOptions, setModelOptions] = useState(() => {
     // 根据当前painting的generationMode初始化modelOptions
-    const currentMode = painting?.generationMode || (MODEOPTIONS[0].value as generationModeType)
+    const currentMode = painting?.generationMode || MODEOPTIONS[0].value
     return getModelOptions(currentMode)
   })
 
@@ -383,7 +383,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
 
     if (painting.style_type) {
-      params.prompt = prompt + ',风格：' + painting.style_type
+      params.prompt = prompt + t('paintings.dmxapi.style') + painting.style_type
     }
 
     if (Array.isArray(fileMap.imageFiles) && fileMap.imageFiles.length > 0) {
@@ -414,7 +414,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
 
     if (painting.style_type) {
-      params.prompt = prompt + ',风格：' + painting.style_type
+      params.prompt = prompt + t('paintings.dmxapi.style') + painting.style_type
     }
 
     const formData = new FormData()
@@ -463,7 +463,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
         throw new Error('paintings.req_error_no_balance')
       }
 
-      throw new Error('操作失败,请稍后重试')
+      throw new Error('paintings.operation_failed')
     }
 
     const data = await response.json()
@@ -533,7 +533,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
 
     if (!dmxapiProvider.enabled) {
-      checkProviderEnabled(dmxapiProvider, t)
+      void checkProviderEnabled(dmxapiProvider, t)
       return
     }
 
@@ -653,7 +653,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const handleProviderChange = (providerId: string) => {
     const routeName = location.pathname.split('/').pop()
     if (providerId !== routeName) {
-      navigate({ to: '../' + providerId, replace: true })
+      void navigate({ to: '../' + providerId, replace: true })
     }
   }
 
@@ -708,13 +708,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     ) {
       return (
         <LoadTextWrap>
-          <div>
-            正在用使用官方的模型生产，
-            <br />
-            预计等待2~5分钟效果最好，
-            <br />
-            本次消耗金额请到DMXAPI后台日志查看
-          </div>
+          <div>{t('paintings.dmxapi.generating_tip')}</div>
         </LoadTextWrap>
       )
     }
@@ -723,7 +717,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   useEffect(() => {
-    loadModelData().then(() => {})
+    void loadModelData().then(() => {})
   }, [])
 
   useEffect(() => {
@@ -752,13 +746,13 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     // 确保modelOptions与当前painting的generationMode保持一致
     if (painting?.generationMode) {
-      setModelOptions(getModelOptions(painting.generationMode as generationModeType))
+      setModelOptions(getModelOptions(painting.generationMode))
     }
 
     // 如果当前painting没有model，设置默认模型
     if (painting && !painting.model && allModels.length > 0) {
       const currentMode = painting.generationMode || MODEOPTIONS[0].value
-      const modelGroups = getModelOptions(currentMode as generationModeType)
+      const modelGroups = getModelOptions(currentMode)
       let firstModel = ''
       let priceModel = ''
       for (const provider of Object.keys(modelGroups)) {
@@ -807,7 +801,10 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
               <SettingHelpLink target="_blank" href={TOP_UP_URL}>
                 {t('paintings.top_up')}
               </SettingHelpLink>
-              <ProviderLogo radius="md" src={getProviderLogo(dmxapiProvider.id)} className="ml-1" />
+              {(() => {
+                const Icon = resolveProviderIcon(dmxapiProvider.id)
+                return Icon ? <Icon.Avatar size={16} className="ml-1" /> : null
+              })()}
             </div>
           </ProviderTitleContainer>
           <ProviderSelect
@@ -819,7 +816,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
           {painting.generationMode &&
             [generationModeType.EDIT, generationModeType.MERGE].includes(painting.generationMode) && (
               <>
-                <SettingTitle className="mt-4 mb-1">参考图</SettingTitle>
+                <SettingTitle className="mt-4 mb-1">{t('paintings.remix.image_file')}</SettingTitle>
                 <ImageUploader
                   fileMap={fileMap}
                   maxImages={painting.generationMode === generationModeType.EDIT ? 1 : 3}
@@ -937,10 +934,10 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             <RadioTextBox>
               {STYLE_TYPE_OPTIONS.map((ele) => (
                 <RadioTextItem
-                  key={ele.label}
-                  className={painting.style_type === ele.label ? 'selected' : ''}
-                  onClick={() => onSelectStyleType(ele.label)}>
-                  {ele.label}
+                  key={ele.value}
+                  className={painting.style_type === ele.value ? 'selected' : ''}
+                  onClick={() => onSelectStyleType(ele.value)}>
+                  {t(ele.labelKey)}
                 </RadioTextItem>
               ))}
             </RadioTextBox>
@@ -1016,10 +1013,6 @@ const ProviderTitleContainer = styled.div`
   justify-content: space-between;
   align-items: center;
   margin-bottom: 5px;
-`
-
-const ProviderLogo = styled(Avatar)`
-  border: 0.5px solid var(--color-border);
 `
 
 const ContentContainer = styled.div`

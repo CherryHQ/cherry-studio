@@ -1,10 +1,17 @@
 import { Button, HelpTooltip, RowFlex, Switch } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
+import CodeEditor from '@renderer/components/CodeEditor'
 import EditableNumber from '@renderer/components/EditableNumber'
 import { DeleteIcon, ResetIcon } from '@renderer/components/Icons'
-import { SelectModelPopup } from '@renderer/components/Popups/SelectModelPopup'
+import { SelectChatModelPopup } from '@renderer/components/Popups/SelectModelPopup'
 import Selector from '@renderer/components/Selector'
-import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE, MAX_CONTEXT_COUNT } from '@renderer/config/constant'
+import {
+  DEFAULT_CONTEXTCOUNT,
+  DEFAULT_TEMPERATURE,
+  MAX_CONTEXT_COUNT,
+  MAX_TOOL_CALLS,
+  MIN_TOOL_CALLS
+} from '@renderer/config/constant'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { SettingRow } from '@renderer/pages/settings'
@@ -15,7 +22,7 @@ import { Col, Divider, Input, InputNumber, Row, Select, Slider } from 'antd'
 import { isNull } from 'lodash'
 import { PlusIcon } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -28,19 +35,40 @@ interface Props {
 const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateAssistantSettings }) => {
   const [temperature, setTemperature] = useState(assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE)
   const [contextCount, setContextCount] = useState(assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT)
-  const [enableMaxTokens, setEnableMaxTokens] = useState(assistant?.settings?.enableMaxTokens ?? false)
-  const [maxTokens, setMaxTokens] = useState(assistant?.settings?.maxTokens ?? 0)
-  const [streamOutput, setStreamOutput] = useState(assistant?.settings?.streamOutput)
-  const [toolUseMode, setToolUseMode] = useState<AssistantSettings['toolUseMode']>(
-    assistant?.settings?.toolUseMode ?? 'function'
+  const enableMaxTokens = useMemo(
+    () => assistant?.settings?.enableMaxTokens ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxTokens,
+    [assistant?.settings?.enableMaxTokens]
   )
-  const [defaultModel, setDefaultModel] = useState(assistant?.defaultModel)
+  const [maxTokens, setMaxTokens] = useState(assistant?.settings?.maxTokens ?? 0)
+  const streamOutput = useMemo(
+    () => assistant?.settings?.streamOutput ?? DEFAULT_ASSISTANT_SETTINGS.streamOutput,
+    [assistant?.settings?.streamOutput]
+  )
+  const toolUseMode = useMemo(
+    () => assistant?.settings?.toolUseMode ?? DEFAULT_ASSISTANT_SETTINGS.toolUseMode,
+    [assistant?.settings?.toolUseMode]
+  )
+  const [maxToolCalls, setMaxToolCalls] = useState(assistant?.settings?.maxToolCalls ?? 20)
+  const enableMaxToolCalls = useMemo(
+    () => assistant?.settings?.enableMaxToolCalls ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxToolCalls,
+    [assistant?.settings?.enableMaxToolCalls]
+  )
+  const defaultModel = useMemo(
+    () => assistant?.defaultModel ?? DEFAULT_ASSISTANT_SETTINGS.defaultModel,
+    [assistant?.defaultModel]
+  )
   const [topP, setTopP] = useState(assistant?.settings?.topP ?? 1)
-  const [enableTopP, setEnableTopP] = useState(assistant?.settings?.enableTopP ?? false)
+  const enableTopP = useMemo(
+    () => assistant?.settings?.enableTopP ?? DEFAULT_ASSISTANT_SETTINGS.enableTopP,
+    [assistant?.settings?.enableTopP]
+  )
   const [customParameters, setCustomParameters] = useState<AssistantSettingCustomParameters[]>(
     assistant?.settings?.customParameters ?? []
   )
-  const [enableTemperature, setEnableTemperature] = useState(assistant?.settings?.enableTemperature ?? false)
+  const enableTemperature = useMemo(
+    () => assistant?.settings?.enableTemperature ?? DEFAULT_ASSISTANT_SETTINGS.enableTemperature,
+    [assistant?.settings?.enableTemperature]
+  )
 
   const customParametersRef = useRef(customParameters)
 
@@ -129,26 +157,41 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
             ]}
           />
         )
-      case 'json':
+      case 'json': {
+        const jsonValue = typeof param.value === 'string' ? param.value : JSON.stringify(param.value, null, 2)
+        let hasJsonError = false
+        if (jsonValue.trim()) {
+          try {
+            JSON.parse(jsonValue)
+          } catch {
+            hasJsonError = true
+          }
+        }
         return (
-          <Input
-            value={typeof param.value === 'string' ? param.value : JSON.stringify(param.value, null, 2)}
-            onChange={(e) => {
-              // For JSON type parameters, always store the value as a STRING
-              //
-              // Data Flow:
-              // 1. UI stores: { name: "config", value: '{"key":"value"}', type: "json" } ← STRING format
-              // 2. API parses: getCustomParameters() in src/renderer/src/aiCore/utils/reasoning.ts:687-696
-              //                calls JSON.parse() to convert string to object
-              // 3. Request sends: The parsed object is sent to the AI provider
-              //
-              // Previously this code was parsing JSON here and storing
-              // the object directly, which caused getCustomParameters() to fail when trying
-              // to JSON.parse() an already-parsed object.
-              onUpdateCustomParameter(index, 'value', e.target.value)
-            }}
-          />
+          <>
+            <CodeEditor
+              value={jsonValue}
+              language="json"
+              onChange={(value) => onUpdateCustomParameter(index, 'value', value)}
+              expanded={false}
+              height="auto"
+              maxHeight="200px"
+              minHeight="60px"
+              options={{ lint: true, lineNumbers: false, foldGutter: false, highlightActiveLine: false }}
+              style={{
+                borderRadius: 6,
+                overflow: 'hidden',
+                border: `1px solid ${hasJsonError ? 'var(--color-error)' : 'var(--color-border)'}`
+              }}
+            />
+            {hasJsonError && (
+              <div style={{ color: 'var(--color-error)', fontSize: 12, marginTop: 4 }}>
+                {t('models.json_parse_error')}
+              </div>
+            )}
+          </>
         )
+      }
       default:
         return (
           <Input
@@ -167,30 +210,25 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
 
   const onReset = () => {
     setTemperature(DEFAULT_ASSISTANT_SETTINGS.temperature)
-    setEnableTemperature(DEFAULT_ASSISTANT_SETTINGS.enableTemperature ?? false)
     setContextCount(DEFAULT_ASSISTANT_SETTINGS.contextCount)
-    setEnableMaxTokens(DEFAULT_ASSISTANT_SETTINGS.enableMaxTokens ?? false)
-    setMaxTokens(DEFAULT_ASSISTANT_SETTINGS.maxTokens ?? 0)
-    setStreamOutput(DEFAULT_ASSISTANT_SETTINGS.streamOutput)
+    setMaxTokens(DEFAULT_ASSISTANT_SETTINGS.maxTokens)
     setTopP(DEFAULT_ASSISTANT_SETTINGS.topP)
-    setEnableTopP(DEFAULT_ASSISTANT_SETTINGS.enableTopP ?? false)
-    setCustomParameters(DEFAULT_ASSISTANT_SETTINGS.customParameters ?? [])
-    setToolUseMode(DEFAULT_ASSISTANT_SETTINGS.toolUseMode)
+    setCustomParameters(DEFAULT_ASSISTANT_SETTINGS.customParameters)
+    setMaxToolCalls(DEFAULT_ASSISTANT_SETTINGS.maxToolCalls)
     updateAssistantSettings(DEFAULT_ASSISTANT_SETTINGS)
   }
   const modelFilter = (model: Model) => !isEmbeddingModel(model) && !isRerankModel(model)
 
   const onSelectModel = useCallback(async () => {
     const currentModel = defaultModel ? assistant?.model : undefined
-    const selectedModel = await SelectModelPopup.show({ model: currentModel, filter: modelFilter })
+    const selectedModel = await SelectChatModelPopup.show({ model: currentModel, filter: modelFilter })
     if (selectedModel) {
-      setDefaultModel(selectedModel)
       updateAssistant({
         ...assistant,
         model: selectedModel,
         defaultModel: selectedModel
       })
-      // TODO: 需要根据配置来设置默认值
+      // TODO: 移除根据模型自动修改参数的逻辑
       if (selectedModel.name.includes('kimi-k2')) {
         setTemperature(0.6)
         setTimeoutTimer('onSelectModel_1', () => updateAssistantSettings({ temperature: 0.6 }), 500)
@@ -225,7 +263,6 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
               variant="destructive"
               size="icon"
               onClick={() => {
-                setDefaultModel(undefined)
                 updateAssistant({ ...assistant, defaultModel: undefined })
               }}>
               <DeleteIcon size={14} className="lucide-custom" />
@@ -248,7 +285,6 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         <Switch
           checked={enableTemperature}
           onCheckedChange={(enabled) => {
-            setEnableTemperature(enabled)
             updateAssistantSettings({ enableTemperature: enabled })
           }}
         />
@@ -297,7 +333,6 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         <Switch
           checked={enableTopP}
           onCheckedChange={(enabled) => {
-            setEnableTopP(enabled)
             updateAssistantSettings({ enableTopP: enabled })
           }}
         />
@@ -365,16 +400,24 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       </Row>
       <Row align="middle" gutter={24}>
         <Col span={24}>
-          <Slider
-            min={0}
-            max={MAX_CONTEXT_COUNT}
-            onChange={setContextCount}
-            onChangeComplete={onContextCountChange}
-            value={typeof contextCount === 'number' ? contextCount : 0}
-            marks={{ 0: '0', 25: '25', 50: '50', 75: '75', 100: t('chat.settings.max') }}
-            step={1}
-            tooltip={{ formatter: formatSliderTooltip, open: false }}
-          />
+          <ContextSliderWrapper>
+            <Slider
+              min={0}
+              max={MAX_CONTEXT_COUNT}
+              onChange={setContextCount}
+              onChangeComplete={onContextCountChange}
+              value={typeof contextCount === 'number' ? contextCount : 0}
+              marks={{
+                0: '0',
+                25: '25',
+                50: '50',
+                75: '75',
+                100: <span style={{ position: 'absolute', right: -2 }}>{t('chat.settings.max')}</span>
+              }}
+              step={1}
+              tooltip={{ formatter: formatSliderTooltip, open: false }}
+            />
+          </ContextSliderWrapper>
         </Col>
       </Row>
       <Divider style={{ margin: '10px 0' }} />
@@ -399,8 +442,6 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
               })
               if (!confirmed) return
             }
-
-            setEnableMaxTokens(enabled)
             updateAssistantSettings({ enableMaxTokens: enabled })
           }}
         />
@@ -432,7 +473,6 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         <Switch
           checked={streamOutput}
           onCheckedChange={(checked) => {
-            setStreamOutput(checked)
             updateAssistantSettings({ streamOutput: checked })
           }}
         />
@@ -447,12 +487,46 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
             { label: t('assistants.settings.tool_use_mode.function'), value: 'function' }
           ]}
           onChange={(value) => {
-            setToolUseMode(value)
             updateAssistantSettings({ toolUseMode: value })
           }}
           size={14}
         />
       </SettingRow>
+      <Divider style={{ margin: '10px 0' }} />
+      <SettingRow style={{ minHeight: 30 }}>
+        <RowFlex className="items-center">
+          <Label>{t('assistants.settings.max_tool_calls.label')}</Label>
+          <HelpTooltip
+            content={t('assistants.settings.max_tool_calls.tip')}
+            iconProps={{ className: 'cursor-pointer text-[var(--color-text-3)]' }}
+          />
+        </RowFlex>
+        <Switch
+          checked={enableMaxToolCalls}
+          onCheckedChange={(enabled) => {
+            updateAssistantSettings({ enableMaxToolCalls: enabled })
+          }}
+        />
+      </SettingRow>
+      {enableMaxToolCalls && (
+        <Row align="middle" style={{ marginTop: 5, marginBottom: 5 }}>
+          <Col span={24}>
+            <InputNumber
+              min={MIN_TOOL_CALLS}
+              max={MAX_TOOL_CALLS}
+              step={1}
+              value={maxToolCalls}
+              onChange={(value) => {
+                if (!isNull(value)) {
+                  setMaxToolCalls(value)
+                  setTimeoutTimer('maxToolCalls_onChange', () => updateAssistantSettings({ maxToolCalls: value }), 500)
+                }
+              }}
+              style={{ width: '100%' }}
+            />
+          </Col>
+        </Row>
+      )}
       <Divider style={{ margin: '10px 0' }} />
       <SettingRow style={{ minHeight: 30 }}>
         <Label>{t('models.custom_parameters')}</Label>
@@ -462,32 +536,35 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         </Button>
       </SettingRow>
       {customParameters.map((param, index) => (
-        <Row key={index} align="stretch" gutter={10} style={{ marginTop: 10 }}>
-          <Col span={6}>
-            <Input
-              placeholder={t('models.parameter_name')}
-              value={param.name}
-              onChange={(e) => onUpdateCustomParameter(index, 'name', e.target.value)}
-            />
-          </Col>
-          <Col span={6}>
-            <Select
-              value={param.type}
-              onChange={(value) => onUpdateCustomParameter(index, 'type', value)}
-              style={{ width: '100%' }}>
-              <Select.Option value="string">{t('models.parameter_type.string')}</Select.Option>
-              <Select.Option value="number">{t('models.parameter_type.number')}</Select.Option>
-              <Select.Option value="boolean">{t('models.parameter_type.boolean')}</Select.Option>
-              <Select.Option value="json">{t('models.parameter_type.json')}</Select.Option>
-            </Select>
-          </Col>
-          <Col span={10}>{renderParameterValueInput(param, index)}</Col>
-          <Col span={2} style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <Button size="sm" variant="destructive" onClick={() => onDeleteCustomParameter(index)}>
-              <DeleteIcon size={14} className="lucide-custom" />
-            </Button>
-          </Col>
-        </Row>
+        <div key={index} style={{ marginTop: 10 }}>
+          <Row align="stretch" gutter={10}>
+            <Col span={6}>
+              <Input
+                placeholder={t('models.parameter_name')}
+                value={param.name}
+                onChange={(e) => onUpdateCustomParameter(index, 'name', e.target.value)}
+              />
+            </Col>
+            <Col span={6}>
+              <Select
+                value={param.type}
+                onChange={(value) => onUpdateCustomParameter(index, 'type', value)}
+                style={{ width: '100%' }}>
+                <Select.Option value="string">{t('models.parameter_type.string')}</Select.Option>
+                <Select.Option value="number">{t('models.parameter_type.number')}</Select.Option>
+                <Select.Option value="boolean">{t('models.parameter_type.boolean')}</Select.Option>
+                <Select.Option value="json">{t('models.parameter_type.json')}</Select.Option>
+              </Select>
+            </Col>
+            {param.type !== 'json' && <Col span={10}>{renderParameterValueInput(param, index)}</Col>}
+            <Col span={param.type === 'json' ? 12 : 2} style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <Button variant="destructive" size="icon-sm" onClick={() => onDeleteCustomParameter(index)}>
+                <DeleteIcon size={14} className="lucide-custom" />
+              </Button>
+            </Col>
+          </Row>
+          {param.type === 'json' && <div style={{ marginTop: 6 }}>{renderParameterValueInput(param, index)}</div>}
+        </div>
       ))}
       <Divider style={{ margin: '15px 0' }} />
       <RowFlex className="justify-end">
@@ -531,6 +608,10 @@ const ModelName = styled.span`
   text-overflow: ellipsis;
   white-space: nowrap;
   display: inline-block;
+`
+
+const ContextSliderWrapper = styled.div`
+  padding-bottom: 5px;
 `
 
 export default AssistantModelSettings

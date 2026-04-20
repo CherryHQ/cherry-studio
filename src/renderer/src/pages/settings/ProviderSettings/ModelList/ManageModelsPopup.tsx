@@ -6,7 +6,6 @@ import {
   groupQwenModels,
   isEmbeddingModel,
   isFunctionCallingModel,
-  isNotSupportTextDeltaModel,
   isReasoningModel,
   isRerankModel,
   isVisionModel,
@@ -19,7 +18,7 @@ import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/
 import { fetchModels } from '@renderer/services/ApiService'
 import type { Model, Provider } from '@renderer/types'
 import { filterModelsByKeywords, getFancyProviderName } from '@renderer/utils'
-import { isFreeModel } from '@renderer/utils/model'
+import { getDuplicateModelNames, isFreeModel } from '@renderer/utils/model'
 import { isNewApiProvider } from '@renderer/utils/provider'
 import { Empty, Modal, Spin, Tabs } from 'antd'
 import Input from 'antd/es/input/Input'
@@ -74,8 +73,11 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
   const { t, i18n } = useTranslation()
   const searchInputRef = useRef<any>(null)
 
-  const systemModels = SYSTEM_MODELS[provider.id] || []
-  const allModels = uniqBy([...systemModels, ...listModels, ...models], 'id')
+  const allModels = useMemo(
+    () => uniqBy([...(SYSTEM_MODELS[provider.id] || []), ...listModels, ...models], 'id'),
+    [provider.id, listModels, models]
+  )
+  const duplicateModelNames = useMemo(() => getDuplicateModelNames(allModels), [allModels])
 
   const isLoading = useMemo(
     () => loadingModels || isFilterTypePending || isSearchPending,
@@ -130,20 +132,15 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
   const onAddModel = useCallback(
     (model: Model) => {
       if (!isEmpty(model.name)) {
-        if (isNewApiProvider(provider)) {
-          const endpointTypes = model.supported_endpoint_types
-          if (endpointTypes && endpointTypes.length > 0) {
-            addModel({
-              ...model,
-              endpoint_type: endpointTypes.includes('image-generation') ? 'image-generation' : endpointTypes[0],
-              supported_text_delta: !isNotSupportTextDeltaModel(model)
-            })
-          } else {
-            NewApiAddModelPopup.show({ title: t('settings.models.add.add_model'), provider, model })
-          }
-        } else {
-          addModel({ ...model, supported_text_delta: !isNotSupportTextDeltaModel(model) })
+        const hasSupportedEndpointTypes = model.supported_endpoint_types?.length
+
+        // NewAPI provider without supported_endpoint_types needs manual configuration
+        if (isNewApiProvider(provider) && !hasSupportedEndpointTypes) {
+          void NewApiAddModelPopup.show({ title: t('settings.models.add.add_model'), provider, model })
+          return
         }
+
+        addModel(model)
       }
     },
     [addModel, provider, t]
@@ -163,10 +160,10 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
       centered: true,
       onOk: () => {
         if (isNewApiProvider(provider)) {
-          if (models.every(isValidNewApiModel)) {
+          if (wouldAddModel.every(isValidNewApiModel)) {
             wouldAddModel.forEach(onAddModel)
           } else {
-            NewApiBatchAddModelPopup.show({
+            void NewApiBatchAddModelPopup.show({
               title: t('settings.models.add.batch_add_models'),
               batchModels: wouldAddModel,
               provider
@@ -177,7 +174,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
         }
       }
     })
-  }, [list, models, onAddModel, provider, t])
+  }, [list, onAddModel, provider, t])
 
   const loadModels = useCallback(async (provider: Provider) => {
     setLoadingModels(true)
@@ -193,7 +190,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
   }, [])
 
   useEffect(() => {
-    loadModels(provider)
+    void loadModels(provider)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -243,7 +240,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
             {isAllFilteredInProvider ? <ListMinus size={18} /> : <ListPlus size={18} />}
           </Button>
         </Tooltip>
-        <Tooltip content={t('settings.models.manage.refetch_list')} closeDelay={0}>
+        <Tooltip content={t('settings.models.manage.refetch_list')}>
           <Button variant="ghost" size="icon-lg" onClick={() => loadModels(provider)} disabled={loadingModels}>
             <RefreshCcw size={16} />
           </Button>
@@ -328,6 +325,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
           ) : (
             <ManageModelsList
               modelGroups={modelGroups}
+              duplicateModelNames={duplicateModelNames}
               provider={provider}
               onAddModel={onAddModel}
               onRemoveModel={onRemoveModel}

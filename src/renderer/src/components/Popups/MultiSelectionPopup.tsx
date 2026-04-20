@@ -17,7 +17,7 @@ const MultiSelectActionPopup: FC<Props> = ({ topic }) => {
     useChatContext(topic)
 
   const handleAction = (action: string) => {
-    handleMultiSelectAction(action, selectedMessageIds)
+    void handleMultiSelectAction(action, selectedMessageIds)
   }
 
   const handleClose = () => {

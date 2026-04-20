@@ -78,7 +78,10 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           if (!urlItems.find((item) => item.content === url.trim())) {
             addUrl(url.trim())
           } else {
-            window.toast.success(t('knowledge.url_added'))
+            window.toast.warning({
+              title: t('knowledge.url_added'),
+              key: `url-added`
+            })
           }
         } catch (e) {
           // Skip invalid URLs silently
@@ -149,7 +152,7 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                           icon: <CopyIcon size={14} />,
                           label: t('common.copy'),
                           onClick: () => {
-                            navigator.clipboard.writeText(item.content as string)
+                            void navigator.clipboard.writeText(item.content as string)
                             window.toast.success(t('message.copied'))
                           }
                         }

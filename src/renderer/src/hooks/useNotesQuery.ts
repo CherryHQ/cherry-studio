@@ -43,7 +43,7 @@ export function useFileContentSync() {
 
   const invalidateFileContent = useCallback(
     (filePath: string) => {
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: ['fileContent', filePath],
         exact: true
       })

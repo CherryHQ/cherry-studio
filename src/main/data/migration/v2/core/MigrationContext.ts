@@ -2,25 +2,39 @@
  * Migration context shared between all migrators
  */
 
-import { dbService } from '@data/db/DbService'
 import type { DbType } from '@data/db/types'
 import { type LoggerService, loggerService } from '@logger'
-import type { ConfigManager } from '@main/services/ConfigManager'
-import { configManager } from '@main/services/ConfigManager'
+import type { LocalStorageRecord } from '@shared/data/migration/v2/types'
+import Store from 'electron-store'
+import fs from 'fs/promises'
 
 import { DexieFileReader } from '../utils/DexieFileReader'
+import { DexieSettingsReader, type DexieSettingsRecord } from '../utils/DexieSettingsReader'
+import { KnowledgeVectorSourceReader } from '../utils/KnowledgeVectorSourceReader'
+import { LegacyHomeConfigReader } from '../utils/LegacyHomeConfigReader'
+import { LocalStorageReader } from '../utils/LocalStorageReader'
 import { ReduxStateReader } from '../utils/ReduxStateReader'
+import type { MigrationPaths } from './MigrationPaths'
 
 // Logger type for migration context (using actual LoggerService type)
 export type MigrationLogger = LoggerService
+
+// Read-only interface for electron-store access during migration
+export interface ElectronStoreReader {
+  get<T>(key: string, defaultValue?: T): T | undefined
+}
 
 // Migration context interface
 export interface MigrationContext {
   // Data source accessors
   sources: {
-    electronStore: ConfigManager
+    electronStore: ElectronStoreReader
     reduxState: ReduxStateReader
     dexieExport: DexieFileReader
+    dexieSettings: DexieSettingsReader
+    localStorage: LocalStorageReader
+    knowledgeVectorSource: KnowledgeVectorSourceReader
+    legacyHomeConfig: LegacyHomeConfigReader
   }
 
   // Target database
@@ -31,6 +45,9 @@ export interface MigrationContext {
 
   // Logger
   logger: MigrationLogger
+
+  // Migration paths
+  paths: MigrationPaths
 }
 
 /**
@@ -38,18 +55,57 @@ export interface MigrationContext {
  * @param reduxData - Parsed Redux state data from Renderer
  * @param dexieExportPath - Path to exported Dexie files
  */
-export function createMigrationContext(reduxData: Record<string, unknown>, dexieExportPath: string): MigrationContext {
-  const db = dbService.getDb()
+export async function createMigrationContext(
+  db: DbType,
+  paths: MigrationPaths,
+  reduxData: Record<string, unknown>,
+  dexieExportPath: string,
+  localStorageExportPath?: string
+): Promise<MigrationContext> {
   const logger = loggerService.withContext('Migration')
+  const electronStore = new Store({ cwd: paths.userData })
+  const dexieFileReader = new DexieFileReader(dexieExportPath)
+
+  // Pre-load Dexie settings table into memory for synchronous access
+  let dexieSettingsRecords: DexieSettingsRecord[] = []
+  if (await dexieFileReader.tableExists('settings')) {
+    dexieSettingsRecords = await dexieFileReader.readTable<DexieSettingsRecord>('settings')
+    logger.info(`Loaded ${dexieSettingsRecords.length} Dexie settings records`)
+  } else {
+    logger.warn('Dexie settings table export not found, skipping')
+  }
+
+  // Pre-load localStorage data into memory
+  let localStorageRecords: LocalStorageRecord[] = []
+  if (localStorageExportPath) {
+    try {
+      const raw = await fs.readFile(localStorageExportPath, 'utf-8')
+      localStorageRecords = JSON.parse(raw) as LocalStorageRecord[]
+      logger.info(`Loaded ${localStorageRecords.length} localStorage records`)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        logger.warn('localStorage export file not found, skipping')
+      } else {
+        logger.error('Failed to load localStorage export', error as Error)
+      }
+    }
+  } else {
+    logger.warn('No localStorage export path provided, skipping')
+  }
 
   return {
     sources: {
-      electronStore: configManager,
+      electronStore,
       reduxState: new ReduxStateReader(reduxData),
-      dexieExport: new DexieFileReader(dexieExportPath)
+      dexieExport: dexieFileReader,
+      dexieSettings: new DexieSettingsReader(dexieSettingsRecords),
+      localStorage: new LocalStorageReader(localStorageRecords),
+      knowledgeVectorSource: new KnowledgeVectorSourceReader(),
+      legacyHomeConfig: new LegacyHomeConfigReader(paths.legacyConfigFile)
     },
     db,
     sharedData: new Map(),
-    logger
+    logger,
+    paths
   }
 }

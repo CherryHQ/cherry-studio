@@ -26,6 +26,7 @@ const pushLog = (level, args) => {
   if (logs.length >= MAX_LOGS) {
     return
   }
+
   const message = args.map((arg) => stringify(arg)).join(' ')
   const entry = \`[\${level}] \${message}\`
   logs.push(entry)
@@ -40,50 +41,55 @@ const capturedConsole = {
   debug: (...args) => pushLog('debug', args)
 }
 
-const callTool = (functionName, params) =>
+const callTool = (name, params) =>
   new Promise((resolve, reject) => {
     const requestId = crypto.randomUUID()
     pendingCalls.set(requestId, { resolve, reject })
-    parentPort?.postMessage({ type: 'callTool', requestId, functionName, params })
+    parentPort?.postMessage({ type: 'callTool', requestId, name, params })
   })
 
-const buildContext = (tools) => {
-  const context = {
-    __callTool: callTool,
+const mcp = {
+  callTool,
+  log: (level, message, fields) => {
+    const safeLevel = typeof level === 'string' ? level : 'info'
+    const safeMsg = typeof message === 'string' ? message : stringify(message)
+    if (fields !== undefined) {
+      pushLog(safeLevel, [safeMsg, fields])
+    } else {
+      pushLog(safeLevel, [safeMsg])
+    }
+  }
+}
+
+const buildContext = () => {
+  return {
+    mcp,
     parallel: (...promises) => Promise.all(promises),
     settle: (...promises) => Promise.allSettled(promises),
     console: capturedConsole
   }
-
-  for (const tool of tools) {
-    context[tool.functionName] = (params) => callTool(tool.functionName, params)
-  }
-
-  return context
 }
 
 const runCode = async (code, context) => {
   const contextKeys = Object.keys(context)
   const contextValues = contextKeys.map((key) => context[key])
 
-  const wrappedCode = \`
-    return (async () => {
-      \${code}
-    })()
-  \`
+  // We run in an async context to allow top-level await inside the provided code.
+  // IMPORTANT: Users should explicitly return the final value.
+  const wrappedCode = "return (async () => {\\n" + code + "\\n})()"
 
   const fn = new Function(...contextKeys, wrappedCode)
   return await fn(...contextValues)
 }
 
-const handleExec = async (code, tools) => {
+const handleExec = async (code) => {
   if (isExecuting) {
     return
   }
   isExecuting = true
 
   try {
-    const context = buildContext(tools)
+    const context = buildContext()
     const result = await runCode(code, context)
     parentPort?.postMessage({ type: 'result', result, logs: logs.length > 0 ? logs : undefined })
   } catch (error) {
@@ -118,7 +124,7 @@ parentPort?.on('message', (message) => {
   }
   switch (message.type) {
     case 'exec':
-      handleExec(message.code, message.tools ?? [])
+      handleExec(message.code)
       break
     case 'toolResult':
       handleToolResult(message)

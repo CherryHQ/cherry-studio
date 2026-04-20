@@ -115,10 +115,21 @@ vi.mock('axios', () => {
   }
 })
 
+// Mock ResizeObserver for jsdom environment
+vi.stubGlobal(
+  'ResizeObserver',
+  class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+)
+
 vi.stubGlobal('electron', {
   ipcRenderer: {
     on: vi.fn(),
-    send: vi.fn()
+    send: vi.fn(),
+    invoke: vi.fn().mockResolvedValue(undefined)
   }
 })
 vi.stubGlobal('api', {
@@ -186,8 +197,14 @@ vi.mock('@cherrystudio/ui', () => {
         checked: isSelected,
         onChange: (e) => onValueChange?.(e.target.checked),
         'data-testid': 'switch'
-      })
-    // Add any other components that are commonly imported
+      }),
+    // Icon registry stubs
+    PROVIDER_ICON_CATALOG: {},
+    MODEL_ICON_CATALOG: {},
+    resolveProviderIcon: () => undefined,
+    resolveModelIcon: () => undefined,
+    resolveModelToProviderIcon: () => undefined,
+    resolveIcon: () => undefined
   }
 })
 

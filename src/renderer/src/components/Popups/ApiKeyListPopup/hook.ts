@@ -2,13 +2,13 @@ import { loggerService } from '@logger'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import SelectProviderModelPopup from '@renderer/pages/settings/ProviderSettings/SelectProviderModelPopup'
 import { checkApi } from '@renderer/services/ApiService'
-import WebSearchService from '@renderer/services/WebSearchService'
+import { webSearchService } from '@renderer/services/WebSearchService'
 import type { Model, PreprocessProvider, Provider, WebSearchProvider } from '@renderer/types'
 import { isPreprocessProviderId, isWebSearchProviderId } from '@renderer/types'
 import type { ApiKeyConnectivity, ApiKeyWithStatus } from '@renderer/types/healthCheck'
 import { HealthStatus } from '@renderer/types/healthCheck'
 import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'
-import { formatErrorMessage } from '@renderer/utils/error'
+import { serializeHealthCheckError } from '@renderer/utils/error'
 import type { TFunction } from 'i18next'
 import { isEmpty } from 'lodash'
 import { useCallback, useMemo, useState } from 'react'
@@ -203,7 +203,7 @@ export function useApiKeys({ provider, updateProvider }: UseApiKeysProps) {
         if (isLlmProvider(provider) && model) {
           await checkApi({ ...provider, apiKey: keyToCheck }, model)
         } else if (isWebSearchProvider(provider)) {
-          const result = await WebSearchService.checkSearch({ ...provider, apiKey: keyToCheck })
+          const result = await webSearchService.checkSearch({ ...provider, apiKey: keyToCheck })
           if (!result.valid) throw new Error(result.error)
         } else {
           // 不处理预处理供应商
@@ -218,17 +218,19 @@ export function useApiKeys({ provider, updateProvider }: UseApiKeysProps) {
           latency,
           error: undefined
         })
-      } catch (error: any) {
+      } catch (error: unknown) {
         // 连通性检查失败
+        const serializedError = serializeHealthCheckError(error)
+
         updateConnectivityState(keyToCheck, {
           checking: false,
           status: HealthStatus.FAILED,
-          error: formatErrorMessage(error),
+          error: serializedError,
           model: undefined,
           latency: undefined
         })
 
-        logger.error('failed to validate the connectivity of the api key', error)
+        logger.error('failed to validate the connectivity of the api key', error as Error)
       }
     },
     [keys, connectivityStates, updateConnectivityState, provider]

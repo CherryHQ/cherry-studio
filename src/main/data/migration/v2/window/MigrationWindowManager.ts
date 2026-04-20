@@ -56,9 +56,9 @@ export class MigrationWindowManager {
 
     // Load the migration window
     if (isDev && process.env['ELECTRON_RENDERER_URL']) {
-      this.window.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/migrationV2.html')
+      void this.window.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/migrationV2.html')
     } else {
-      this.window.loadFile(join(__dirname, '../renderer/migrationV2.html'))
+      void this.window.loadFile(join(__dirname, '../renderer/migrationV2.html'))
     }
 
     this.window.once('ready-to-show', () => {

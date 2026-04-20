@@ -1,4 +1,4 @@
-import { languages } from '@shared/config/languages'
+import { codeLanguages as languages } from '@shared/config/code-languages'
 import * as cmThemes from '@uiw/codemirror-themes-all'
 import type { Extension } from '@uiw/react-codemirror'
 import diff from 'fast-diff'
@@ -132,7 +132,7 @@ export function getCmThemeNames(): string[] {
   return ['auto', 'light', 'dark']
     .concat(Object.keys(cmThemes))
     .filter((item) => typeof cmThemes[item as keyof typeof cmThemes] !== 'function')
-    .filter((item) => !/^(defaultSettings)/.test(item as string) && !/(Style)$/.test(item as string))
+    .filter((item) => !/^(defaultSettings)/.test(item) && !/(Style)$/.test(item))
 }
 
 /**

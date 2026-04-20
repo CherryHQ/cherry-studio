@@ -49,6 +49,12 @@ const initialState: PreprocessState = {
       name: 'Open MinerU',
       apiKey: '',
       apiHost: ''
+    },
+    {
+      id: 'paddleocr',
+      name: 'PaddleOCR',
+      apiKey: '',
+      apiHost: ''
     }
   ],
   defaultProvider: 'mineru'

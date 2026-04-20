@@ -110,12 +110,12 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           // 如果焦点在输入框且有搜索内容，则默认选择第一项
           if (document.activeElement === inputRef.current?.input && searchText.trim()) {
             e.preventDefault()
-            onCreateAssistant(displayedPresets[selectedIndex])
+            void onCreateAssistant(displayedPresets[selectedIndex])
           }
           // 否则选择当前选中项
           else if (selectedIndex >= 0 && selectedIndex < displayedPresets.length) {
             e.preventDefault()
-            onCreateAssistant(displayedPresets[selectedIndex])
+            void onCreateAssistant(displayedPresets[selectedIndex])
           }
           break
       }

@@ -11,7 +11,6 @@ import styled from 'styled-components'
 
 import AssistantKnowledgeBaseSettings from './AssistantKnowledgeBaseSettings'
 import AssistantMCPSettings from './AssistantMCPSettings'
-import AssistantMemorySettings from './AssistantMemorySettings'
 import AssistantModelSettings from './AssistantModelSettings'
 import AssistantPromptSettings from './AssistantPromptSettings'
 import AssistantRegularPromptsSettings from './AssistantRegularPromptsSettings'
@@ -21,14 +20,7 @@ interface AssistantSettingPopupShowParams {
   tab?: AssistantSettingPopupTab
 }
 
-type AssistantSettingPopupTab =
-  | 'prompt'
-  | 'model'
-  | 'messages'
-  | 'knowledge_base'
-  | 'mcp'
-  | 'regular_phrases'
-  | 'memory'
+type AssistantSettingPopupTab = 'prompt' | 'model' | 'messages' | 'knowledge_base' | 'mcp' | 'regular_phrases'
 
 interface Props extends AssistantSettingPopupShowParams {
   resolve: (assistant: Assistant) => void
@@ -83,10 +75,6 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
     {
       key: 'regular_phrases',
       label: t('assistants.settings.regular_phrases.title', 'Regular Prompts')
-    },
-    {
-      key: 'memory',
-      label: t('memory.title', 'Memories')
     }
   ].filter(Boolean) as { key: string; label: string }[]
 
@@ -110,7 +98,7 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
           padding: 0
         }
       }}
-      width="min(800px, 70vw)"
+      width="min(900px, 70vw)"
       height="80vh"
       centered>
       <RowFlex>
@@ -144,23 +132,9 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
               updateAssistantSettings={updateAssistantSettings}
             />
           )}
-          {menu === 'mcp' && (
-            <AssistantMCPSettings
-              assistant={assistant}
-              updateAssistant={updateAssistant}
-              updateAssistantSettings={updateAssistantSettings}
-            />
-          )}
+          {menu === 'mcp' && <AssistantMCPSettings assistant={assistant} updateAssistant={updateAssistant} />}
           {menu === 'regular_phrases' && (
             <AssistantRegularPromptsSettings assistant={assistant} updateAssistant={updateAssistant} />
-          )}
-          {menu === 'memory' && (
-            <AssistantMemorySettings
-              assistant={assistant}
-              updateAssistant={updateAssistant}
-              updateAssistantSettings={updateAssistantSettings}
-              onClose={onCancel}
-            />
           )}
         </Settings>
       </RowFlex>

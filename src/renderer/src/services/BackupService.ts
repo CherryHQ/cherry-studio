@@ -12,7 +12,7 @@ import type { S3Config, WebDavConfig } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import dayjs from 'dayjs'
 
-import { NotificationService } from './NotificationService'
+import { notificationService } from './NotificationService'
 
 const logger = loggerService.withContext('BackupService')
 
@@ -68,33 +68,66 @@ async function deleteWebdavFileWithRetry(fileName: string, webdavConfig: WebDavC
 
 export async function backup(skipBackupFile: boolean) {
   const filename = `cherry-studio.${dayjs().format('YYYYMMDDHHmm')}.zip`
-  const fileContnet = await getBackupData()
   const selectFolder = await window.api.file.selectFolder()
   if (selectFolder) {
-    await window.api.backup.backup(filename, fileContnet, selectFolder, skipBackupFile)
+    // Use direct backup method - copy IndexedDB/LocalStorage directories directly
+    await window.api.backup.backup(filename, selectFolder, skipBackupFile)
     window.toast.success(i18n.t('message.backup.success'))
   }
 }
 
+export async function backupToLanTransfer() {
+  // Let user select save location first
+  const savePath = await window.api.file.selectFolder()
+
+  if (!savePath) {
+    return
+  }
+
+  // Create backup directly in the selected location
+  const backupData = await getBackupData()
+  await window.api.backup.createLanTransferBackup(backupData, savePath)
+
+  window.toast.success(i18n.t('settings.data.export_to_phone.file.export_success'))
+}
+
 export async function restore() {
-  const notificationService = NotificationService.getInstance()
+  // notificationService is imported as a module-level singleton
   const file = await window.api.file.open({ filters: [{ name: '备份文件', extensions: ['bak', 'zip'] }] })
 
   if (file) {
     try {
-      let data: Record<string, any> = {}
-
       // zip backup file
       if (file?.fileName.endsWith('.zip')) {
         const restoreData = await window.api.backup.restore(file.filePath)
-        data = JSON.parse(restoreData)
+
+        // Direct backup format returns void (app needs to relaunch)
+        // Legacy format returns JSON string that needs to be processed
+        if (restoreData !== undefined && restoreData !== null) {
+          const data = JSON.parse(restoreData)
+          await handleData(data)
+        } else {
+          // Direct backup was restored, app will relaunch
+          void notificationService.send({
+            id: uuid(),
+            type: 'success',
+            title: i18n.t('common.success'),
+            message: i18n.t('message.restore.success'),
+            silent: false,
+            timestamp: Date.now(),
+            source: 'backup',
+            channel: 'system'
+          })
+          // App will relaunch automatically
+          return
+        }
       } else {
-        data = JSON.parse(await window.api.zip.decompress(file.content))
+        // Legacy .bak format
+        const data = JSON.parse(await window.api.zip.decompress(file.content))
+        await handleData(data)
       }
 
-      await handleData(data)
-
-      notificationService.send({
+      void notificationService.send({
         id: uuid(),
         type: 'success',
         title: i18n.t('common.success'),
@@ -106,7 +139,11 @@ export async function restore() {
       })
     } catch (error) {
       logger.error('restore: Error restoring backup file:', error as Error)
-      window.toast.error(i18n.t('error.backup.file_format'))
+      window.modal.error({
+        title: i18n.t('error.backup.file_format'),
+        content: (error as Error).message,
+        centered: true
+      })
     }
   }
 }
@@ -125,10 +162,11 @@ export async function reset() {
         content: i18n.t('message.reset.double.confirm.content'),
         centered: true,
         onOk: async () => {
-          await localStorage.clear()
+          localStorage.clear()
           await clearDatabase()
-          await window.api.file.clear()
-          window.api.reload()
+          await window.api.resetData()
+          window.toast.success(i18n.t('message.reset.success'))
+          setTimeout(() => window.api.application.relaunch(), 1000)
         }
       })
     }
@@ -151,7 +189,7 @@ export async function backupToWebdav({
   customFileName?: string
   autoBackupProcess?: boolean
 } = {}) {
-  const notificationService = NotificationService.getInstance()
+  // notificationService is imported as a module-level singleton
   if (isManualBackupRunning) {
     logger.verbose('Manual backup already in progress')
     return
@@ -194,11 +232,10 @@ export async function backupToWebdav({
   const timestamp = dayjs().format('YYYYMMDDHHmmss')
   const backupFileName = customFileName || `cherry-studio.${timestamp}.${hostname}.${deviceType}.zip`
   const finalFileName = backupFileName.endsWith('.zip') ? backupFileName : `${backupFileName}.zip`
-  const backupData = await getBackupData()
 
-  // 上传文件
+  // 上传文件 - Use direct backup method (copy IndexedDB/LocalStorage directories)
   try {
-    const success = await window.api.backup.backupToWebdav(backupData, {
+    const success = await window.api.backup.backupToWebdav({
       webdavHost,
       webdavUser,
       webdavPass,
@@ -213,7 +250,7 @@ export async function backupToWebdav({
           lastSyncError: null
         })
       )
-      notificationService.send({
+      void notificationService.send({
         id: uuid(),
         type: 'success',
         title: i18n.t('common.success'),
@@ -283,7 +320,7 @@ export async function backupToWebdav({
     if (autoBackupProcess) {
       throw error
     }
-    notificationService.send({
+    void notificationService.send({
       id: uuid(),
       type: 'error',
       title: i18n.t('message.backup.failed'),
@@ -328,8 +365,16 @@ export async function restoreFromWebdav(fileName?: string) {
       title: i18n.t('message.restore.failed'),
       content: error.message
     })
+    return
   }
 
+  // Direct backup format (version 6+) returns undefined - app needs to relaunch
+  if (!data) {
+    logger.info('[WebDAVBackup] Direct backup restored, app will restart')
+    return
+  }
+
+  // Legacy backup format (version <= 5) returns JSON string
   try {
     await handleData(JSON.parse(data))
   } catch (error) {
@@ -347,7 +392,7 @@ export async function backupToS3({
   customFileName?: string
   autoBackupProcess?: boolean
 } = {}) {
-  const notificationService = NotificationService.getInstance()
+  // notificationService is imported as a module-level singleton
   if (isManualBackupRunning) {
     logger.verbose('Manual backup already in progress')
     return
@@ -384,10 +429,10 @@ export async function backupToS3({
   const timestamp = dayjs().format('YYYYMMDDHHmmss')
   const backupFileName = customFileName || `cherry-studio.${timestamp}.${hostname}.${deviceType}.zip`
   const finalFileName = backupFileName.endsWith('.zip') ? backupFileName : `${backupFileName}.zip`
-  const backupData = await getBackupData()
 
   try {
-    const success = await window.api.backup.backupToS3(backupData, {
+    // Use direct backup method (copy IndexedDB/LocalStorage directories)
+    const success = await window.api.backup.backupToS3({
       ...s3Config,
       fileName: finalFileName
     })
@@ -400,7 +445,7 @@ export async function backupToS3({
           lastSyncTime: Date.now()
         })
       )
-      notificationService.send({
+      void notificationService.send({
         id: uuid(),
         type: 'success',
         title: i18n.t('common.success'),
@@ -454,7 +499,7 @@ export async function backupToS3({
     if (autoBackupProcess) {
       throw error
     }
-    notificationService.send({
+    void notificationService.send({
       id: uuid(),
       type: 'error',
       title: i18n.t('message.backup.failed'),
@@ -508,6 +553,14 @@ export async function restoreFromS3(fileName?: string) {
       ...s3Config,
       fileName
     })
+
+    // Direct backup format (version 6+) returns undefined - app needs to relaunch
+    if (!restoreData) {
+      logger.info('[S3Backup] Direct backup restored, app will restart')
+      return
+    }
+
+    // Legacy backup format (version <= 5) returns JSON string
     const data = JSON.parse(restoreData)
     await handleData(data)
   }
@@ -548,13 +601,13 @@ export async function startAutoSync(immediate = false, type?: BackupType) {
     })
 
     if (webdavAutoSync && webdavHost) {
-      startAutoSync(immediate, 'webdav')
+      void startAutoSync(immediate, 'webdav')
     }
     if (s3Settings?.autoSync && s3Settings?.endpoint) {
-      startAutoSync(immediate, 's3')
+      void startAutoSync(immediate, 's3')
     }
     if (localBackupAutoSync && localBackupDir) {
-      startAutoSync(immediate, 'local')
+      void startAutoSync(immediate, 'local')
     }
     return
   }
@@ -577,7 +630,7 @@ export async function startAutoSync(immediate = false, type?: BackupType) {
 
     webdavAutoSyncStarted = true
     stopAutoSync('webdav')
-    scheduleNextBackup(immediate ? 'immediate' : 'fromLastSyncTime', 'webdav')
+    void scheduleNextBackup(immediate ? 'immediate' : 'fromLastSyncTime', 'webdav')
   } else if (type === 's3') {
     if (s3AutoSyncStarted) {
       return
@@ -595,7 +648,7 @@ export async function startAutoSync(immediate = false, type?: BackupType) {
 
     s3AutoSyncStarted = true
     stopAutoSync('s3')
-    scheduleNextBackup(immediate ? 'immediate' : 'fromLastSyncTime', 's3')
+    void scheduleNextBackup(immediate ? 'immediate' : 'fromLastSyncTime', 's3')
   } else if (type === 'local') {
     if (localAutoSyncStarted) {
       return
@@ -613,7 +666,7 @@ export async function startAutoSync(immediate = false, type?: BackupType) {
 
     localAutoSyncStarted = true
     stopAutoSync('local')
-    scheduleNextBackup(immediate ? 'immediate' : 'fromLastSyncTime', 'local')
+    void scheduleNextBackup(immediate ? 'immediate' : 'fromLastSyncTime', 'local')
   }
 
   async function scheduleNextBackup(
@@ -710,7 +763,17 @@ export async function startAutoSync(immediate = false, type?: BackupType) {
 
     if (isRunning || isManualBackupRunning) {
       logger.verbose(`${logPrefix} Backup already in progress, rescheduling`)
-      scheduleNextBackup('fromNow', backupType)
+      void scheduleNextBackup('fromNow', backupType)
+      return
+    }
+
+    // Check if any topic is currently streaming/loading
+    const state = store.getState()
+    const anyTopicLoading = Object.values(state.messages.loadingByTopic).some((loading) => loading === true)
+
+    if (anyTopicLoading) {
+      logger.info(`${logPrefix} Streaming in progress, deferring backup`)
+      void scheduleNextBackup('fromNow', backupType)
       return
     }
 
@@ -768,7 +831,7 @@ export async function startAutoSync(immediate = false, type?: BackupType) {
           isLocalAutoBackupRunning = false
         }
 
-        scheduleNextBackup('fromNow', backupType)
+        void scheduleNextBackup('fromNow', backupType)
         break
       } catch (error: any) {
         retryCount++
@@ -806,7 +869,7 @@ export async function startAutoSync(immediate = false, type?: BackupType) {
             content: `${logPrefix} ${new Date().toLocaleString()} ` + error.message
           })
 
-          scheduleNextBackup('fromNow', backupType)
+          void scheduleNextBackup('fromNow', backupType)
 
           // 重置运行状态
           if (backupType === 'webdav') {
@@ -901,9 +964,9 @@ export async function handleData(data: Record<string, any>) {
       }
     }
 
-    await localStorage.setItem('persist:cherry-studio', data.localStorage['persist:cherry-studio'])
+    localStorage.setItem('persist:cherry-studio', data.localStorage['persist:cherry-studio'])
     window.toast.success(i18n.t('message.restore.success'))
-    setTimeout(() => window.api.reload(), 1000)
+    setTimeout(() => window.api.application.relaunch(), 1000)
     return
   }
 
@@ -931,7 +994,7 @@ export async function handleData(data: Record<string, any>) {
     }
 
     window.toast.success(i18n.t('message.restore.success'))
-    setTimeout(() => window.api.reload(), 1000)
+    setTimeout(() => window.api.application.relaunch(), 1000)
     return
   }
 
@@ -959,7 +1022,7 @@ async function restoreDatabase(backup: Record<string, any>) {
 }
 
 async function clearDatabase() {
-  const storeNames = await db.tables.map((table) => table.name)
+  const storeNames = db.tables.map((table) => table.name)
 
   await db.transaction('rw', db.tables, async () => {
     for (const storeName of storeNames) {
@@ -980,7 +1043,7 @@ export async function backupToLocal({
   customFileName?: string
   autoBackupProcess?: boolean
 } = {}) {
-  const notificationService = NotificationService.getInstance()
+  // notificationService is imported as a module-level singleton
   if (isManualBackupRunning) {
     logger.verbose('Manual backup already in progress')
     return
@@ -1012,10 +1075,10 @@ export async function backupToLocal({
   const timestamp = dayjs().format('YYYYMMDDHHmmss')
   const backupFileName = customFileName || `cherry-studio.${timestamp}.${hostname}.${deviceType}.zip`
   const finalFileName = backupFileName.endsWith('.zip') ? backupFileName : `${backupFileName}.zip`
-  const backupData = await getBackupData()
 
   try {
-    const result = await window.api.backup.backupToLocalDir(backupData, finalFileName, {
+    // Use direct backup method (copy IndexedDB/LocalStorage directories)
+    const result = await window.api.backup.backupToLocalDir(finalFileName, {
       localBackupDir,
       skipBackupFile: localBackupSkipBackupFile
     })
@@ -1028,7 +1091,7 @@ export async function backupToLocal({
       )
 
       if (showMessage) {
-        notificationService.send({
+        void notificationService.send({
           id: uuid(),
           type: 'success',
           title: i18n.t('common.success'),
@@ -1126,6 +1189,14 @@ export async function restoreFromLocal(fileName: string) {
     const localBackupDirSetting = await preferenceService.get('data.backup.local.dir')
     const localBackupDir = await window.api.resolvePath(localBackupDirSetting)
     const restoreData = await window.api.backup.restoreFromLocalBackup(fileName, localBackupDir)
+
+    // Direct backup format (version 6+) returns undefined - app needs to relaunch
+    if (!restoreData) {
+      logger.info('[LocalBackup] Direct backup restored, app will restart')
+      return true
+    }
+
+    // Legacy backup format (version <= 5) returns JSON string
     const data = JSON.parse(restoreData)
     await handleData(data)
 

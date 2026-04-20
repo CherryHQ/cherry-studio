@@ -14,7 +14,7 @@ const mentionModelsTool = defineTool({
   key: 'mention_models',
   label: (t) => t('assistants.presets.edit.model.select.title'),
 
-  visibleInScopes: [TopicType.Chat, 'mini-window'],
+  visibleInScopes: [TopicType.Chat, 'quick-assistant'],
   dependencies: {
     state: ['mentionedModels', 'files', 'couldMentionNotVisionModel'] as const,
     actions: ['setMentionedModels', 'onTextChange'] as const

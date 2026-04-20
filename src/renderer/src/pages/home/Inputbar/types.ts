@@ -4,7 +4,7 @@ import type {
   QuickPanelListItem,
   QuickPanelReservedSymbol
 } from '@renderer/components/QuickPanel'
-import { type Assistant, type Model, TopicType } from '@renderer/types'
+import { type Assistant, type Model, type ThinkingOption, TopicType } from '@renderer/types'
 import type { InputBarToolType } from '@renderer/types/chat'
 import type { TFunction } from 'i18next'
 import React from 'react'
@@ -15,7 +15,7 @@ export { TopicType }
 
 const logger = loggerService.withContext('InputbarToolsRegistry')
 
-export type InputbarScope = TopicType | 'mini-window'
+export type InputbarScope = TopicType | 'quick-assistant'
 
 export interface InputbarScopeConfig {
   placeholder?: string
@@ -68,6 +68,8 @@ export interface ToolContext {
     slashCommands?: Array<{ command: string; description?: string }>
     tools?: Array<{ id: string; name: string; type: string; description?: string }>
     accessiblePaths?: string[]
+    reasoningEffort?: ThinkingOption
+    onReasoningEffortChange?: (option: ThinkingOption) => void
   }
 }
 

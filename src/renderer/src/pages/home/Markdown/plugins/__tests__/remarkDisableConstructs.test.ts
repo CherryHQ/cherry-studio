@@ -24,7 +24,7 @@ describe('remarkDisableConstructs', () => {
   describe('normal path', () => {
     it('should add micromarkExtensions for single construct', () => {
       const plugin = remarkDisableConstructs(['codeIndented'])
-      plugin.call(mockThis as any)
+      plugin.call(mockThis)
 
       expect(mockData).toHaveProperty('micromarkExtensions')
       expect(Array.isArray(mockData.micromarkExtensions)).toBe(true)
@@ -39,7 +39,7 @@ describe('remarkDisableConstructs', () => {
     it('should handle multiple constructs', () => {
       const constructs = ['codeIndented', 'autolink', 'htmlFlow']
       const plugin = remarkDisableConstructs(constructs)
-      plugin.call(mockThis as any)
+      plugin.call(mockThis)
 
       expect(mockData.micromarkExtensions[0]).toEqual({
         disable: {
@@ -52,21 +52,21 @@ describe('remarkDisableConstructs', () => {
   describe('edge cases', () => {
     it('should not add extensions when empty array is provided', () => {
       const plugin = remarkDisableConstructs([])
-      plugin.call(mockThis as any)
+      plugin.call(mockThis)
 
       expect(mockData).not.toHaveProperty('micromarkExtensions')
     })
 
     it('should not add extensions when undefined is passed', () => {
       const plugin = remarkDisableConstructs()
-      plugin.call(mockThis as any)
+      plugin.call(mockThis)
 
       expect(mockData).not.toHaveProperty('micromarkExtensions')
     })
 
     it('should handle empty construct names', () => {
       const plugin = remarkDisableConstructs(['', ' '])
-      plugin.call(mockThis as any)
+      plugin.call(mockThis)
 
       expect(mockData.micromarkExtensions[0]).toEqual({
         disable: {
@@ -77,7 +77,7 @@ describe('remarkDisableConstructs', () => {
 
     it('should handle mixed valid and empty construct names', () => {
       const plugin = remarkDisableConstructs(['codeIndented', '', 'autolink'])
-      plugin.call(mockThis as any)
+      plugin.call(mockThis)
 
       expect(mockData.micromarkExtensions[0]).toEqual({
         disable: {
@@ -93,7 +93,7 @@ describe('remarkDisableConstructs', () => {
       mockData.micromarkExtensions = [existingExtension]
 
       const plugin = remarkDisableConstructs(['codeIndented'])
-      plugin.call(mockThis as any)
+      plugin.call(mockThis)
 
       expect(mockData.micromarkExtensions).toHaveLength(2)
       expect(mockData.micromarkExtensions[0]).toBe(existingExtension)

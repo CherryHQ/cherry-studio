@@ -17,7 +17,6 @@
 import { ZOOM_SHORTCUTS } from '@shared/config/constant'
 import type { Shortcut } from '@types'
 import Store from 'electron-store'
-import { v4 as uuidv4 } from 'uuid'
 
 export enum ConfigKeys {
   Language = 'language',
@@ -40,6 +39,7 @@ export enum ConfigKeys {
   SelectionAssistantFilterMode = 'selectionAssistantFilterMode',
   SelectionAssistantFilterList = 'selectionAssistantFilterList',
   DisableHardwareAcceleration = 'disableHardwareAcceleration',
+  UseSystemTitleBar = 'useSystemTitleBar',
   Proxy = 'proxy',
   EnableDeveloperMode = 'enableDeveloperMode',
   ClientId = 'clientId',
@@ -96,13 +96,13 @@ export class ConfigManager {
   //   this.set(ConfigKeys.TrayOnClose, value)
   // }
 
-  getZoomFactor(): number {
-    return this.get<number>(ConfigKeys.ZoomFactor, 1)
-  }
+  // getZoomFactor(): number {
+  //   return this.get<number>(ConfigKeys.ZoomFactor, 1)
+  // }
 
-  setZoomFactor(factor: number) {
-    this.setAndNotify(ConfigKeys.ZoomFactor, factor)
-  }
+  // setZoomFactor(factor: number) {
+  //   this.setAndNotify(ConfigKeys.ZoomFactor, factor)
+  // }
 
   subscribe<T>(key: string, callback: (newValue: T) => void) {
     if (!this.subscribers.has(key)) {
@@ -238,12 +238,20 @@ export class ConfigManager {
   //   this.setAndNotify(ConfigKeys.SelectionAssistantFilterList, value)
   // }
 
-  getDisableHardwareAcceleration(): boolean {
-    return this.get<boolean>(ConfigKeys.DisableHardwareAcceleration, false)
-  }
+  // getDisableHardwareAcceleration(): boolean {
+  //   return this.get<boolean>(ConfigKeys.DisableHardwareAcceleration, false)
+  // }
 
   // setDisableHardwareAcceleration(value: boolean) {
   //   this.set(ConfigKeys.DisableHardwareAcceleration, value)
+  // }
+
+  // getUseSystemTitleBar(): boolean {
+  //   return this.get<boolean>(ConfigKeys.UseSystemTitleBar, false)
+  // }
+
+  // setUseSystemTitleBar(value: boolean) {
+  //   this.set(ConfigKeys.UseSystemTitleBar, value)
   // }
 
   setAndNotify(key: string, value: unknown) {
@@ -258,16 +266,16 @@ export class ConfigManager {
   //   this.set(ConfigKeys.EnableDeveloperMode, value)
   // }
 
-  getClientId(): string {
-    let clientId = this.get<string>(ConfigKeys.ClientId)
+  // getClientId(): string {
+  //   let clientId = this.get<string>(ConfigKeys.ClientId)
 
-    if (!clientId) {
-      clientId = uuidv4()
-      this.set(ConfigKeys.ClientId, clientId)
-    }
+  //   if (!clientId) {
+  //     clientId = uuid()
+  //     this.set(ConfigKeys.ClientId, clientId)
+  //   }
 
-    return clientId
-  }
+  //   return clientId
+  // }
 
   set(key: string, value: unknown, isNotify: boolean = false) {
     this.store.set(key, value)

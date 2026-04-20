@@ -1,5 +1,5 @@
 import { ArrowsAltOutlined, ShrinkOutlined } from '@ant-design/icons'
-import { Avatar, AvatarGroup, RowFlex, Tooltip } from '@cherrystudio/ui'
+import { Avatar, AvatarFallback, AvatarGroup, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -41,7 +41,7 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
 
       if (isCompact) {
         return (
-          <Tooltip key={message.id} content={modelTip} delay={500} closeDelay={0}>
+          <Tooltip key={message.id} content={modelTip} delay={500}>
             <AvatarWrapper
               className="avatar-wrapper"
               $isSelected={message.id === selectMessageId}
@@ -73,8 +73,7 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
             ? t('message.message.multi_model_style.fold.expand')
             : t('message.message.multi_model_style.fold.compress')
         }
-        delay={500}
-        closeDelay={0}>
+        delay={500}>
         <DisplayModeToggle
           displayMode={foldDisplayMode}
           onClick={() => setFoldDisplayMode(isCompact ? 'expanded' : 'compact')}>
@@ -84,22 +83,27 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
       <ModelsContainer $displayMode={foldDisplayMode}>
         {isCompact ? (
           /* Compact style display */
-          <AvatarGroup className="p-2" isBordered>
+          <AvatarGroup className="p-2">
             {messages.map((message) => {
               const modelTip = message.model?.name
               const isSelected = message.id === selectMessageId
 
               return (
-                <Tooltip key={message.id} content={modelTip} delay={500} closeDelay={0}>
-                  <Avatar
-                    src={getModelLogo(message.model)}
-                    name={first(message.model?.name)}
-                    size="xs"
-                    isBordered={isSelected}
-                    color={isSelected ? 'primary' : 'default'}
-                    onClick={() => setSelectedMessage(message)}
-                    className="shadow-lg"
-                  />
+                <Tooltip key={message.id} content={modelTip} delay={500}>
+                  {(() => {
+                    const Icon = getModelLogo(message.model)
+                    return Icon ? (
+                      <div onClick={() => setSelectedMessage(message)} className="cursor-pointer">
+                        <Icon.Avatar size={24} className={isSelected ? 'shadow-lg ring-2 ring-primary' : 'shadow-lg'} />
+                      </div>
+                    ) : (
+                      <Avatar
+                        className={`h-6 w-6 cursor-pointer shadow-lg ${isSelected ? 'ring-2 ring-primary' : ''}`}
+                        onClick={() => setSelectedMessage(message)}>
+                        <AvatarFallback>{first(message.model?.name)}</AvatarFallback>
+                      </Avatar>
+                    )
+                  })()}
                 </Tooltip>
               )
             })}

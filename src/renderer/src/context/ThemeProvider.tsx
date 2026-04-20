@@ -49,7 +49,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
       [ThemeMode.dark]: ThemeMode.system,
       [ThemeMode.system]: ThemeMode.light
     }[settedTheme]
-    setSettedTheme(nextTheme || ThemeMode.system)
+    void setSettedTheme(nextTheme || ThemeMode.system)
   }
 
   useEffect(() => {
@@ -68,7 +68,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     // if theme is old auto, then set theme to system
     // we can delete this after next big release
     if (settedTheme !== ThemeMode.dark && settedTheme !== ThemeMode.light && settedTheme !== ThemeMode.system) {
-      setSettedTheme(ThemeMode.system)
+      void setSettedTheme(ThemeMode.system)
     }
 
     initUserTheme()

@@ -116,7 +116,7 @@ const CustomLanguageSettings = () => {
         logger.error('Failed to load custom languages:', error as Error)
       }
     }
-    loadData()
+    void loadData()
   }, [])
 
   return (

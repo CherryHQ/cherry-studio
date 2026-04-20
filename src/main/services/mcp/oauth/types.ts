@@ -1,6 +1,6 @@
 import type {
   OAuthClientInformation,
-  OAuthClientInformationFull,
+  OAuthClientInformationMixed,
   OAuthTokens
 } from '@modelcontextprotocol/sdk/shared/auth.js'
 import type EventEmitter from 'events'
@@ -22,9 +22,9 @@ export const OAuthStorageSchema = z.object({
 
 export interface IOAuthStorage {
   getClientInformation(): Promise<OAuthClientInformation | undefined>
-  saveClientInformation(info: OAuthClientInformationFull): Promise<void>
+  saveClientInformation(info: OAuthClientInformationMixed | undefined): Promise<void>
   getTokens(): Promise<OAuthTokens | undefined>
-  saveTokens(tokens: OAuthTokens): Promise<void>
+  saveTokens(tokens: OAuthTokens | undefined): Promise<void>
   getCodeVerifier(): Promise<string>
   saveCodeVerifier(codeVerifier: string): Promise<void>
   clear(): Promise<void>

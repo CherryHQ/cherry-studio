@@ -1,15 +1,15 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
-import { Avatar, Button, InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
+import { Button, InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
+import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import AiProvider from '@renderer/aiCore'
+import { AiProvider } from '@renderer/aiCore'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isMac } from '@renderer/config/constant'
-import { getProviderLogo } from '@renderer/config/providers'
 import { LanguagesEnum } from '@renderer/config/translate'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
@@ -194,7 +194,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
               })
             )
             await FileManager.addFiles(validFiles)
-            updatePaintingState({ files: validFiles, urls: validFiles.map((file) => file.name) })
+            updatePaintingState({ files: validFiles, urls: [] })
           }
           return
         } else if (painting.model === 'gemini-3-pro-image-preview') {
@@ -235,7 +235,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           if (!response.ok) {
             const errorData = await response.json()
             logger.error('Gemini API Error:', errorData)
-            throw new Error(errorData.error?.message || '生成图像失败')
+            throw new Error(errorData.error?.message || t('paintings.generate_failed'))
           }
 
           const data = await response.json()
@@ -262,7 +262,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
               })
             )
             await FileManager.addFiles(validFiles)
-            updatePaintingState({ files: validFiles, urls: validFiles.map((file) => file.name) })
+            updatePaintingState({ files: validFiles, urls: [] })
           }
           return
         } else if (painting.model === 'V_3') {
@@ -336,7 +336,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             if (!response.ok) {
               const errorData = await response.json()
               logger.error('V3 API错误:', errorData)
-              throw new Error(errorData.error?.message || '生成图像失败')
+              throw new Error(errorData.error?.message || t('paintings.generate_failed'))
             }
 
             const data = await response.json()
@@ -464,7 +464,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           if (!response.ok) {
             const errorData = await response.json()
             logger.error('V3 Remix API错误:', errorData)
-            throw new Error(errorData.error?.message || '图像混合失败')
+            throw new Error(errorData.error?.message || t('paintings.image_mix_failed'))
           }
 
           const data = await response.json()
@@ -534,7 +534,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
         if (!response.ok) {
           const errorData = await response.json()
           logger.error('通用API错误:', errorData)
-          throw new Error(errorData.error?.message || '生成图像失败')
+          throw new Error(errorData.error?.message || t('paintings.generate_failed'))
         }
 
         const data = await response.json()
@@ -547,7 +547,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             })
           )
           await FileManager.addFiles(validFiles)
-          updatePaintingState({ files: validFiles, urls: validFiles.map((file) => file.name) })
+          updatePaintingState({ files: validFiles, urls: [] })
           return
         }
         const urls = data.data.filter((item) => item.url).map((item) => item.url)
@@ -566,7 +566,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             })
           )
           await FileManager.addFiles(validFiles)
-          updatePaintingState({ files: validFiles, urls: validFiles.map((file) => file.name) })
+          updatePaintingState({ files: validFiles, urls: [] })
         }
       }
     } catch (error: unknown) {
@@ -621,7 +621,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
     }
 
-    removePainting(mode, paintingToDelete)
+    void removePainting(mode, paintingToDelete)
   }
 
   const translate = async () => {
@@ -659,7 +659,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       if (spaceClickCount === 2) {
         setSpaceClickCount(0)
         setIsTranslating(true)
-        translate()
+        void translate()
       }
     }
   }
@@ -667,7 +667,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   const handleProviderChange = (providerId: string) => {
     const routeName = location.pathname.split('/').pop()
     if (providerId !== routeName) {
-      navigate({ to: '../' + providerId, replace: true })
+      void navigate({ to: '../' + providerId, replace: true })
     }
   }
 
@@ -700,11 +700,11 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           typeof item.options === 'function'
             ? item.options(item, painting).map((option) => ({
                 ...option,
-                label: option.label.startsWith('paintings.') ? t(option.label) : option.label
+                label: option.labelKey ? t(option.labelKey) : option.label
               }))
             : item.options?.map((option) => ({
                 ...option,
-                label: option.label.startsWith('paintings.') ? t(option.label) : option.label
+                label: option.labelKey ? t(option.labelKey) : option.label
               }))
 
         return (
@@ -724,11 +724,11 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           typeof item.options === 'function'
             ? item.options(item, painting).map((option) => ({
                 ...option,
-                label: option.label.startsWith('paintings.') ? t(option.label) : option.label
+                label: option.labelKey ? t(option.labelKey) : option.label
               }))
             : item.options?.map((option) => ({
                 ...option,
-                label: option.label.startsWith('paintings.') ? t(option.label) : option.label
+                label: option.labelKey ? t(option.labelKey) : option.label
               }))
 
         return (
@@ -888,12 +888,10 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
             <SettingHelpLink target="_blank" href={aihubmixProvider.apiHost}>
               {t('paintings.learn_more')}
-              <Avatar
-                radius="md"
-                src={getProviderLogo(aihubmixProvider.id)}
-                className="h-4 w-4 border-[0.5px] border-[var(--color-border)]"
-                style={{ marginLeft: 5 }}
-              />
+              {(() => {
+                const Icon = resolveProviderIcon(aihubmixProvider.id)
+                return Icon ? <Icon.Avatar size={16} className="ml-[5px]" /> : null
+              })()}
             </SettingHelpLink>
           </ProviderTitleContainer>
           <ProviderSelect

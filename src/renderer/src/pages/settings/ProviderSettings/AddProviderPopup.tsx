@@ -1,9 +1,9 @@
 import { Center, ColFlex } from '@cherrystudio/ui'
+import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import ProviderLogoPicker from '@renderer/components/ProviderLogoPicker'
 import { TopView } from '@renderer/components/TopView'
-import { PROVIDER_LOGO_MAP } from '@renderer/config/providers'
 import ImageStorage from '@renderer/services/ImageStorage'
 import type { Provider, ProviderType } from '@renderer/types'
 import { compressImage, generateColorFromChar, getForegroundColor } from '@renderer/utils'
@@ -43,7 +43,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
           logger.error('Failed to load logo', error as Error)
         }
       }
-      loadLogo()
+      void loadLogo()
     }
   }, [provider])
 
@@ -52,7 +52,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
 
     // 返回结果，但不包含文件对象，因为文件已经直接保存到 ImageStorage
     const result = {
-      name,
+      name: name.trim(),
       type,
       logo: logo || undefined
     }
@@ -65,22 +65,25 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
   }
 
   const onClose = () => {
-    resolve({ name, type, logo: logo || undefined })
+    resolve({ name: name.trim(), type, logo: logo || undefined })
   }
 
-  const buttonDisabled = name.length === 0
+  const buttonDisabled = name.trim().length === 0
 
   // 处理内置头像的点击事件
   const handleProviderLogoClick = async (providerId: string) => {
     try {
-      const logoUrl = PROVIDER_LOGO_MAP[providerId]
+      const icon = resolveProviderIcon(providerId)
+      if (!icon) return
+
+      // Store the provider icon ID as a reference (prefixed with 'icon:')
+      const iconRef = `icon:${providerId}`
 
       if (provider?.id) {
-        await ImageStorage.set(`provider-${provider.id}`, logoUrl)
-        const savedLogo = await ImageStorage.get(`provider-${provider.id}`)
-        setLogo(savedLogo)
+        await ImageStorage.set(`provider-${provider.id}`, iconRef)
+        setLogo(iconRef)
       } else {
-        setLogo(logoUrl)
+        setLogo(iconRef)
       }
 
       setLogoPickerOpen(false)
@@ -234,11 +237,11 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
         <Form.Item label={t('settings.provider.add.name.label')} style={{ marginBottom: 8 }}>
           <Input
             value={name}
-            onChange={(e) => setName(e.target.value.trim())}
+            onChange={(e) => setName(e.target.value)}
             placeholder={t('settings.provider.add.name.placeholder')}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
-                onOk()
+                void onOk()
               }
             }}
             maxLength={32}

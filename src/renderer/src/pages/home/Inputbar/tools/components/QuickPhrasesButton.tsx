@@ -51,7 +51,7 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea, assista
   )
 
   useEffect(() => {
-    loadQuickListPhrases()
+    void loadQuickListPhrases()
   }, [loadQuickListPhrases])
 
   const handlePhraseSelect = useCallback(
@@ -61,7 +61,7 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea, assista
         () => {
           setInputValue((prev) => {
             const triggerInfo = triggerInfoRef.current
-            const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement | null
+            const textArea = document.querySelector<HTMLTextAreaElement>('.inputbar textarea')
 
             const focusAndSelect = (start: number) => {
               setTimeoutTimer(
@@ -140,7 +140,7 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea, assista
     ]
     if (formData.location === 'assistant') {
       // 添加到助手的 regularPhrases
-      await updateAssistant({ ...assistant, regularPhrases: updatedPrompts })
+      updateAssistant({ ...assistant, regularPhrases: updatedPrompts })
     } else {
       // 添加到全局 Quick Phrases
       await QuickPhraseService.add(formData)
@@ -250,7 +250,7 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea, assista
 
   return (
     <>
-      <Tooltip content={t('settings.quickPhrase.title')} closeDelay={0}>
+      <Tooltip content={t('settings.quickPhrase.title')}>
         <ActionIconButton
           onClick={handleOpenQuickPanel}
           aria-label={t('settings.quickPhrase.title')}

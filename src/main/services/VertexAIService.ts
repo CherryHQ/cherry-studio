@@ -12,16 +12,8 @@ interface VertexAIAuthParams {
 
 const REQUIRED_VERTEX_AI_SCOPE = 'https://www.googleapis.com/auth/cloud-platform'
 
-class VertexAIService {
-  private static instance: VertexAIService
+export class VertexAIService {
   private authClients: Map<string, GoogleAuth> = new Map()
-
-  static getInstance(): VertexAIService {
-    if (!VertexAIService.instance) {
-      VertexAIService.instance = new VertexAIService()
-    }
-    return VertexAIService.instance
-  }
 
   /**
    * 格式化私钥，确保它包含正确的PEM头部和尾部
@@ -170,4 +162,4 @@ class VertexAIService {
   }
 }
 
-export default VertexAIService
+export const vertexAIService = new VertexAIService()

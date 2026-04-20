@@ -12,18 +12,27 @@ export const zhCN = {
       migration: '迁移',
       completed: '完成'
     },
+    steps: {
+      start: '开始',
+      backup: '备份',
+      migrate: '迁移',
+      complete: '完成'
+    },
     buttons: {
       cancel: '取消',
       next: '下一步',
       create_backup: '创建备份',
+      backup_completed: '已完成备份',
       confirm_backup: '我已备份，开始迁移',
       start_migration: '开始迁移',
       confirm: '确定',
       restart: '重启应用',
-      retry: '重新尝试',
+      retry: '重试',
+      exit: '退出',
       close: '关闭应用',
+      ignore_migration: '忽略并使用默认值',
       backing_up: '正在备份...',
-      migrating: '迁移进行中...'
+      migrating: '迁移中...'
     },
     status: {
       pending: '等待中',
@@ -52,6 +61,14 @@ export const zhCN = {
     migration: {
       title: '正在迁移数据...'
     },
+    progress: {
+      processing: '正在处理{{name}}...',
+      migrated_boot_config: '已迁移 {{processed}}/{{total}} 条启动配置',
+      migrated_chats: '已迁移 {{processed}}/{{total}} 个对话，{{messages}} 条消息',
+      migrated_preferences: '已迁移 {{processed}}/{{total}} 条配置',
+      migrated_knowledge: '已迁移 {{processed}}/{{total}} 条知识库记录',
+      migrated_knowledge_vectors: '已迁移 {{processed}}/{{total}} 个知识库向量工作单元'
+    },
     migration_completed: {
       title: '数据迁移完成！',
       description: '所有数据已成功迁移到新架构，请点击确定继续。'
@@ -64,6 +81,18 @@ export const zhCN = {
       title: '迁移失败',
       description: '迁移过程遇到错误，您可以重新尝试或继续使用之前版本（原始数据完好保存）。',
       error_prefix: '错误信息：'
+    },
+    version_incompatible: {
+      title: '版本升级提示',
+      preamble: 'Cherry Studio 对数据存储进行了重大重构，为了保证旧数据的安全迁移，我们对升级顺序有严格要求。',
+      no_version_log:
+        '无法确定您之前使用的版本。请先安装 {{requiredVersion}} 版本并运行一次，然后再安装此版本进行数据迁移。',
+      v1_too_old:
+        '您之前的版本（{{previousVersion}}）过旧，无法直接迁移。请先升级到 {{requiredVersion}} 版本并运行一次，然后再安装此版本。',
+      v2_gateway_skipped:
+        '无法从 {{previousVersion}} 直接升级到 {{currentVersion}}。请先安装 {{gatewayVersion}} 版本完成数据迁移，然后再升级到此版本。',
+      ignore_hint: '您也可以选择忽略旧数据，直接以全新默认配置启动。',
+      confirm_ignore: '这将放弃所有旧数据并以全新默认值启动，继续后将重启应用。确定继续吗？'
     }
   }
 }
@@ -77,16 +106,25 @@ export const enUS = {
       migration: 'Migration',
       completed: 'Completed'
     },
+    steps: {
+      start: 'Start',
+      backup: 'Backup',
+      migrate: 'Migrate',
+      complete: 'Complete'
+    },
     buttons: {
       cancel: 'Cancel',
       next: 'Next',
       create_backup: 'Create Backup',
+      backup_completed: 'Backup Completed',
       confirm_backup: 'I Have Backup, Start Migration',
       start_migration: 'Start Migration',
       confirm: 'OK',
       restart: 'Restart App',
       retry: 'Retry',
+      exit: 'Exit',
       close: 'Close App',
+      ignore_migration: 'Ignore and Use Defaults',
       backing_up: 'Backing up...',
       migrating: 'Migrating...'
     },
@@ -120,6 +158,14 @@ export const enUS = {
     migration: {
       title: 'Migrating Data...'
     },
+    progress: {
+      processing: 'Processing {{name}}...',
+      migrated_boot_config: 'Migrated {{processed}}/{{total}} boot config items',
+      migrated_chats: 'Migrated {{processed}}/{{total}} conversations, {{messages}} messages',
+      migrated_preferences: 'Migrated {{processed}}/{{total}} preferences',
+      migrated_knowledge: 'Migrated {{processed}}/{{total}} knowledge records',
+      migrated_knowledge_vectors: 'Migrated {{processed}}/{{total}} knowledge vector work units'
+    },
     migration_completed: {
       title: 'Data Migration Completed!',
       description: 'All data has been successfully migrated to the new architecture. Please click OK to continue.'
@@ -133,6 +179,20 @@ export const enUS = {
       description:
         'An error occurred during migration. You can retry or continue using the previous version (original data is intact).',
       error_prefix: 'Error: '
+    },
+    version_incompatible: {
+      title: 'Version Upgrade Required',
+      preamble:
+        'Cherry Studio has undergone a major data storage refactoring. To ensure safe migration of your data, we have strict requirements on the upgrade order.',
+      no_version_log:
+        'Cannot determine your previous version. Please install version {{requiredVersion}} first and run it at least once, then install this version to complete the data migration.',
+      v1_too_old:
+        'Your previous version ({{previousVersion}}) is too old to migrate directly. Please install version {{requiredVersion}} first, then install this version.',
+      v2_gateway_skipped:
+        'Cannot upgrade directly from {{previousVersion}} to {{currentVersion}}. Please install version {{gatewayVersion}} first to complete the data migration, then upgrade to this version.',
+      ignore_hint: 'You can also choose to ignore old data and start fresh with default settings.',
+      confirm_ignore:
+        'This will discard all previous data and start fresh with defaults. The app will restart after confirming. Continue?'
     }
   }
 }

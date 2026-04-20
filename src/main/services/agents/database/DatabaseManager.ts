@@ -16,14 +16,22 @@
  */
 import { type Client, createClient } from '@libsql/client'
 import { loggerService } from '@logger'
+import { isDev } from '@main/constant'
 import type { LibSQLDatabase } from 'drizzle-orm/libsql'
 import { drizzle } from 'drizzle-orm/libsql'
+import { app } from 'electron'
 import fs from 'fs'
 import path from 'path'
 
-import { dbPath } from '../drizzle.config'
+import { DataMigrationService } from './DataMigrationService'
 import { MigrationService } from './MigrationService'
 import * as schema from './schema'
+
+const dbPath = path.join(app.getPath('userData'), 'Data', 'agents.db')
+
+function getOldDbPath() {
+  return path.join(app.getPath('userData'), 'agents.db')
+}
 
 const logger = loggerService.withContext('DatabaseManager')
 
@@ -48,25 +56,39 @@ enum InitState {
  * - Windows platform compatibility fixes
  */
 export class DatabaseManager {
-  private static instance: DatabaseManager | null = null
-
   private client: Client | null = null
   private db: LibSQLDatabase<typeof schema> | null = null
   private state: InitState = InitState.INITIALIZING
 
   /**
-   * Get the singleton instance (database initialization starts automatically)
+   * Migrate agents.db from old path ({userData}/agents.db) to new path ({userData}/Data/agents.db).
+   * Only moves when old path exists and new path does not. Also handles -wal and -shm auxiliary files.
    */
-  public static async getInstance(): Promise<DatabaseManager> {
-    if (DatabaseManager.instance) {
-      return DatabaseManager.instance
+  private static migrateFromOldPath(): void {
+    if (isDev) {
+      return
     }
 
-    const instance = new DatabaseManager()
-    await instance.initialize()
-    DatabaseManager.instance = instance
+    const oldPath = getOldDbPath()
+    if (!fs.existsSync(oldPath) || fs.existsSync(dbPath)) {
+      return
+    }
 
-    return instance
+    const dbDir = path.dirname(dbPath)
+    if (!fs.existsSync(dbDir)) {
+      fs.mkdirSync(dbDir, { recursive: true })
+    }
+
+    logger.info(`Migrating agents.db from ${oldPath} to ${dbPath}`)
+    fs.renameSync(oldPath, dbPath)
+
+    // SQLite WAL mode auxiliary files: -wal (write-ahead log with uncommitted data) and -shm (shared memory index)
+    for (const suffix of ['-wal', '-shm']) {
+      const oldAux = oldPath + suffix
+      if (fs.existsSync(oldAux)) {
+        fs.renameSync(oldAux, dbPath + suffix)
+      }
+    }
   }
 
   /**
@@ -78,6 +100,8 @@ export class DatabaseManager {
     }
 
     try {
+      DatabaseManager.migrateFromOldPath()
+
       logger.info(`Initializing database at: ${dbPath}`)
 
       // Ensure database directory exists
@@ -106,9 +130,13 @@ export class DatabaseManager {
       // Create drizzle instance
       this.db = drizzle(this.client, { schema })
 
-      // Run migrations
+      // Run schema migrations
       const migrationService = new MigrationService(this.db, this.client)
       await migrationService.runMigrations()
+
+      // Run data migrations (must run after schema migrations)
+      const dataMigrationService = new DataMigrationService(this.db, this.client)
+      await dataMigrationService.runDataMigrations()
 
       this.state = InitState.INITIALIZED
       logger.info('Database initialized successfully')
@@ -169,4 +197,24 @@ export class DatabaseManager {
   public isInitialized(): boolean {
     return this.state === InitState.INITIALIZED
   }
+
+  /**
+   * Close the database connection.
+   * Must be called before deleting agents.db (e.g. during backup restore).
+   */
+  public async close(): Promise<void> {
+    if (this.client) {
+      try {
+        this.client.close()
+        this.client = null
+        this.db = null
+        this.state = InitState.INITIALIZING
+        logger.info('Database connection closed')
+      } catch (error) {
+        logger.warn('Failed to close database connection:', error as Error)
+      }
+    }
+  }
 }
+
+export const databaseManager = new DatabaseManager()

@@ -24,7 +24,8 @@ import type {
   TranslateAssistant,
   TranslateLanguage
 } from '@renderer/types'
-import { uuid } from '@renderer/utils'
+import type { CreateTopicDto } from '@shared/data/api/schemas/topics'
+import { v4 as uuid } from 'uuid'
 
 const logger = loggerService.withContext('AssistantService')
 
@@ -53,10 +54,11 @@ export const DEFAULT_ASSISTANT_SETTINGS = {
   defaultModel: undefined,
   customParameters: [],
   reasoning_effort: 'default',
-  reasoning_effort_cache: undefined,
   qwenThinkMode: undefined,
   // It would gracefully fallback to prompt if not supported by model.
-  toolUseMode: 'function'
+  toolUseMode: 'function',
+  maxToolCalls: 20,
+  enableMaxToolCalls: true
 } as const satisfies AssistantSettings
 
 /**
@@ -173,6 +175,14 @@ export function getDefaultTopic(assistantId: string): Topic {
   }
 }
 
+// TODO: remove it in v2
+export function mapLegacyTopicToDto(topic: Topic): CreateTopicDto {
+  return {
+    name: topic.name,
+    assistantId: topic.assistantId
+  }
+}
+
 export function getDefaultProvider() {
   return getProviderByModel(getDefaultModel())
 }
@@ -251,6 +261,8 @@ export const getAssistantSettings = (assistant: Assistant): AssistantSettings =>
     maxTokens: getAssistantMaxTokens(),
     streamOutput: assistant?.settings?.streamOutput ?? DEFAULT_ASSISTANT_SETTINGS.streamOutput,
     toolUseMode: assistant?.settings?.toolUseMode ?? DEFAULT_ASSISTANT_SETTINGS.toolUseMode,
+    maxToolCalls: assistant?.settings?.maxToolCalls ?? DEFAULT_ASSISTANT_SETTINGS.maxToolCalls,
+    enableMaxToolCalls: assistant?.settings?.enableMaxToolCalls ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxToolCalls,
     defaultModel: assistant?.defaultModel ?? DEFAULT_ASSISTANT_SETTINGS.defaultModel,
     reasoning_effort: assistant?.settings?.reasoning_effort ?? DEFAULT_ASSISTANT_SETTINGS.reasoning_effort,
     customParameters: assistant?.settings?.customParameters ?? DEFAULT_ASSISTANT_SETTINGS.customParameters

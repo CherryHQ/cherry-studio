@@ -106,7 +106,7 @@ type ValidateResponses<T> = {
  * @example
  * ```typescript
  * // In schemas/index.ts
- * export type ApiSchemas = AssertValidSchemas<TestSchemas & BatchSchemas>
+ * export type ApiSchemas = AssertValidSchemas<TopicSchemas & MessageSchemas>
  *
  * // Invalid method will cause error:
  * // Type 'never' is not assignable to type...
@@ -443,7 +443,7 @@ export interface ApiClient {
   get<TPath extends ConcreteApiPaths>(
     path: TPath,
     options?: {
-      query?: QueryParamsForPath<TPath>
+      query?: QueryParamsForPath<TPath, 'GET'>
       headers?: Record<string, string>
     }
   ): Promise<ResponseForPath<TPath, 'GET'>>
@@ -452,7 +452,7 @@ export interface ApiClient {
     path: TPath,
     options: {
       body?: BodyForPath<TPath, 'POST'>
-      query?: Record<string, any>
+      query?: QueryParamsForPath<TPath, 'POST'>
       headers?: Record<string, string>
     }
   ): Promise<ResponseForPath<TPath, 'POST'>>
@@ -461,7 +461,7 @@ export interface ApiClient {
     path: TPath,
     options: {
       body: BodyForPath<TPath, 'PUT'>
-      query?: Record<string, any>
+      query?: QueryParamsForPath<TPath, 'PUT'>
       headers?: Record<string, string>
     }
   ): Promise<ResponseForPath<TPath, 'PUT'>>
@@ -469,7 +469,7 @@ export interface ApiClient {
   delete<TPath extends ConcreteApiPaths>(
     path: TPath,
     options?: {
-      query?: Record<string, any>
+      query?: QueryParamsForPath<TPath, 'DELETE'>
       headers?: Record<string, string>
     }
   ): Promise<ResponseForPath<TPath, 'DELETE'>>
@@ -478,7 +478,7 @@ export interface ApiClient {
     path: TPath,
     options: {
       body?: BodyForPath<TPath, 'PATCH'>
-      query?: Record<string, any>
+      query?: QueryParamsForPath<TPath, 'PATCH'>
       headers?: Record<string, string>
     }
   ): Promise<ResponseForPath<TPath, 'PATCH'>>

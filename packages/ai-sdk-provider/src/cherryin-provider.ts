@@ -11,12 +11,12 @@ import {
 } from '@ai-sdk/openai/internal'
 import { OpenAICompatibleChatLanguageModel } from '@ai-sdk/openai-compatible'
 import {
-  type EmbeddingModelV2,
-  type ImageModelV2,
-  type LanguageModelV2,
-  type ProviderV2,
-  type SpeechModelV2,
-  type TranscriptionModelV2
+  type EmbeddingModelV3,
+  type ImageModelV3,
+  type LanguageModelV3,
+  type ProviderV3,
+  type SpeechModelV3,
+  type TranscriptionModelV3
 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
@@ -74,21 +74,19 @@ export interface CherryInProviderSettings {
   endpointType?: 'openai' | 'openai-response' | 'anthropic' | 'gemini' | 'image-generation' | 'jina-rerank'
 }
 
-export interface CherryInProvider extends ProviderV2 {
-  (modelId: string, settings?: OpenAIProviderSettings): LanguageModelV2
-  languageModel(modelId: string, settings?: OpenAIProviderSettings): LanguageModelV2
-  chat(modelId: string, settings?: OpenAIProviderSettings): LanguageModelV2
-  responses(modelId: string): LanguageModelV2
-  completion(modelId: string, settings?: OpenAIProviderSettings): LanguageModelV2
-  embedding(modelId: string, settings?: OpenAIProviderSettings): EmbeddingModelV2<string>
-  textEmbedding(modelId: string, settings?: OpenAIProviderSettings): EmbeddingModelV2<string>
-  textEmbeddingModel(modelId: string, settings?: OpenAIProviderSettings): EmbeddingModelV2<string>
-  image(modelId: string, settings?: OpenAIProviderSettings): ImageModelV2
-  imageModel(modelId: string, settings?: OpenAIProviderSettings): ImageModelV2
-  transcription(modelId: string): TranscriptionModelV2
-  transcriptionModel(modelId: string): TranscriptionModelV2
-  speech(modelId: string): SpeechModelV2
-  speechModel(modelId: string): SpeechModelV2
+export interface CherryInProvider extends ProviderV3 {
+  (modelId: string, settings?: OpenAIProviderSettings): LanguageModelV3
+  languageModel(modelId: string, settings?: OpenAIProviderSettings): LanguageModelV3
+  chat(modelId: string, settings?: OpenAIProviderSettings): LanguageModelV3
+  responses(modelId: string): LanguageModelV3
+  completion(modelId: string, settings?: OpenAIProviderSettings): LanguageModelV3
+  embedding(modelId: string, settings?: OpenAIProviderSettings): EmbeddingModelV3
+  image(modelId: string, settings?: OpenAIProviderSettings): ImageModelV3
+  imageModel(modelId: string, settings?: OpenAIProviderSettings): ImageModelV3
+  transcription(modelId: string): TranscriptionModelV3
+  transcriptionModel(modelId: string): TranscriptionModelV3
+  speech(modelId: string): SpeechModelV3
+  speechModel(modelId: string): SpeechModelV3
 }
 
 const resolveApiKey = (options: CherryInProviderSettings): string =>
@@ -315,14 +313,8 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
       fetch
     })
 
-  const provider: CherryInProvider = function (modelId: string, settings?: OpenAIProviderSettings) {
-    if (new.target) {
-      throw new Error('CherryIN provider function cannot be called with the new keyword.')
-    }
-
-    return createChatModel(modelId, settings)
-  }
-
+  const provider = (modelId: string, settings?: OpenAIProviderSettings) => createChatModel(modelId, settings)
+  provider.specificationVersion = 'v3' as const
   provider.languageModel = createChatModel
   provider.chat = createOpenAIChatModel
 
@@ -330,8 +322,7 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
   provider.completion = createCompletionModel
 
   provider.embedding = createEmbeddingModel
-  provider.textEmbedding = createEmbeddingModel
-  provider.textEmbeddingModel = createEmbeddingModel
+  provider.embeddingModel = createEmbeddingModel
 
   provider.image = createImageModel
   provider.imageModel = createImageModel
@@ -342,7 +333,7 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
   provider.speech = createSpeechModel
   provider.speechModel = createSpeechModel
 
-  return provider
+  return provider as CherryInProvider
 }
 
 export const cherryIn = createCherryIn()

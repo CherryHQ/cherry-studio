@@ -13,16 +13,25 @@
  * import type { ApiSchemas, DataRequest } from '@shared/data/api'
  *
  * // Domain DTOs directly from schema files
- * import type { TestItem, CreateTestItemDto } from '@shared/data/api/schemas/test'
  * import type { Topic, CreateTopicDto } from '@shared/data/api/schemas/topics'
  * import type { Message, CreateMessageDto } from '@shared/data/api/schemas/messages'
+ * import type { TranslateHistory, CreateTranslateHistoryDto } from '@shared/data/api/schemas/translate'
  * ```
  */
 
 import type { AssertValidSchemas } from '../apiTypes'
+import type { AssistantSchemas } from './assistants'
+import type { FileProcessingSchemas } from './fileProcessing'
+import type { KnowledgeSchemas } from './knowledges'
+import type { MCPServerSchemas } from './mcpServers'
 import type { MessageSchemas } from './messages'
-import type { TestSchemas } from './test'
+import type { MiniappSchemas } from './miniapps'
+import type { ModelSchemas } from './models'
+import type { ProviderSchemas } from './providers'
+import type { TagSchemas } from './tags'
+import type { TemporaryChatSchemas } from './temporaryChats'
 import type { TopicSchemas } from './topics'
+import type { TranslateSchemas } from './translate'
 
 /**
  * Merged API Schemas - single source of truth for all API endpoints
@@ -36,4 +45,18 @@ import type { TopicSchemas } from './topics'
  * 1. Create the schema file (e.g., topic.ts)
  * 2. Import and add to intersection below
  */
-export type ApiSchemas = AssertValidSchemas<TestSchemas & TopicSchemas & MessageSchemas>
+
+export type ApiSchemas = AssertValidSchemas<
+  TopicSchemas &
+    MessageSchemas &
+    TemporaryChatSchemas &
+    ModelSchemas &
+    ProviderSchemas &
+    TranslateSchemas &
+    FileProcessingSchemas &
+    MCPServerSchemas &
+    KnowledgeSchemas &
+    MiniappSchemas &
+    AssistantSchemas &
+    TagSchemas
+>

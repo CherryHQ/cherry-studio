@@ -16,26 +16,27 @@
 import * as fs from 'node:fs'
 import path from 'node:path'
 
+import { application } from '@application'
 import type { RAGApplication } from '@cherrystudio/embedjs'
 import { RAGApplicationBuilder } from '@cherrystudio/embedjs'
 import { LibSqlDb } from '@cherrystudio/embedjs-libsql'
 import { SitemapLoader } from '@cherrystudio/embedjs-loader-sitemap'
 import { WebLoader } from '@cherrystudio/embedjs-loader-web'
 import { loggerService } from '@logger'
+import { WindowType } from '@main/core/window/types'
 import Embeddings from '@main/knowledge/embedjs/embeddings/Embeddings'
 import { addFileLoader } from '@main/knowledge/embedjs/loader'
 import { NoteLoader } from '@main/knowledge/embedjs/loader/noteLoader'
 import PreprocessProvider from '@main/knowledge/preprocess/PreprocessProvider'
 import Reranker from '@main/knowledge/reranker/Reranker'
 import { fileStorage } from '@main/services/FileStorage'
-import { windowService } from '@main/services/WindowService'
-import { getDataPath } from '@main/utils'
 import { getAllFiles, sanitizeFilename } from '@main/utils/file'
 import { TraceMethod } from '@mcp-trace/trace-core'
 import { MB } from '@shared/config/constant'
 import type { LoaderReturn } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { FileMetadata, KnowledgeBaseParams, KnowledgeItem, KnowledgeSearchResult } from '@types'
+import { app } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('MainKnowledgeService')
@@ -96,7 +97,25 @@ const loaderTaskIntoOfSet = (loaderTask: LoaderTask): LoaderTaskOfSet => {
 }
 
 class KnowledgeService {
-  private storageDir = path.join(getDataPath(), 'KnowledgeBase')
+  // KnowledgeService is v1 legacy and intentionally does NOT consume the v2
+  // path registry — storageDir / pendingDeleteFile are hand-rolled from
+  // app.getPath('userData') instead of application.getPath('feature.
+  // knowledgebase.data'). Reason: this class is exported as a module-level
+  // singleton (`export const knowledgeService = new KnowledgeService()` at
+  // the bottom of this file) and is constructed during the static import
+  // graph of `src/main/index.ts` — BEFORE `application.bootstrap()` builds
+  // the path registry. Routing through application.getPath() would throw
+  // "called before Application.bootstrap() ran" at construction time, and
+  // every workaround (lazy getter, setImmediate, polling) ends up fighting
+  // the same root issue because the constructor itself triggers cleanup.
+  //
+  // The proper v2 fix is to migrate KnowledgeService into the lifecycle
+  // system (extend `BaseService`, register in `serviceRegistry.ts`, resolve
+  // via `application.get('KnowledgeService')`) — that refactor is on the
+  // roadmap. Until then, stay self-contained with the v1 path style.
+  // Application.ts:132-137 explicitly carves out this exception for v1
+  // legacy services.
+  private storageDir = path.join(app.getPath('userData'), 'Data', 'KnowledgeBase')
   private pendingDeleteFile = path.join(this.storageDir, 'knowledge_pending_delete.json')
   // Byte based
   private workload = 0
@@ -361,8 +380,7 @@ class KnowledgeService {
     let processedFiles = 0
 
     const sendDirectoryProcessingPercent = (totalFiles: number, processedFiles: number) => {
-      const mainWindow = windowService.getMainWindow()
-      mainWindow?.webContents.send(IpcChannel.DirectoryProcessingPercent, {
+      application.get('WindowManager').broadcastToType(WindowType.Main, IpcChannel.DirectoryProcessingPercent, {
         itemId: item.id,
         percent: (processedFiles / totalFiles) * 100
       })
@@ -589,7 +607,7 @@ class KnowledgeService {
     const subTasks = getSubtasksUntilMaximumLoad()
     if (subTasks.length > 0) {
       const subTaskPromises = subTasks.map(({ taskPromise }) => taskPromise())
-      Promise.all(subTaskPromises).then(() => {
+      void Promise.all(subTaskPromises).then(() => {
         subTasks.forEach(({ resolve }) => resolve())
       })
     }
@@ -627,7 +645,7 @@ class KnowledgeService {
           })()
 
           if (task) {
-            this.appendProcessingQueue(task).then(() => {
+            void this.appendProcessingQueue(task).then(() => {
               resolve(task.loaderDoneReturn!)
             })
             this.processingQueueHandle()
@@ -682,6 +700,41 @@ class KnowledgeService {
     return await new Reranker(base).rerank(search, results)
   }
 
+  /**
+   * Close all open database connections and clear cached instances.
+   * Used during factory reset and backup restore to release file handles.
+   */
+  public closeAll = async (): Promise<void> => {
+    const failed: string[] = []
+
+    for (const [id, db] of this.dbInstances) {
+      try {
+        // LibSqlDb's client is private; upstream should add a close() method.
+        // TODO: Remove this cast once LibSqlDb exposes close() natively.
+        const client = (db as any).client
+        if (client && typeof client.close === 'function') {
+          client.close()
+          logger.debug(`Closed database instance for id: ${id}`)
+        } else {
+          logger.error(`Cannot close database instance for id: ${id} — client not accessible`)
+          failed.push(id)
+        }
+      } catch (error) {
+        logger.error(`Failed to close database instance for id: ${id}`, error as Error)
+        failed.push(id)
+      }
+    }
+
+    this.dbInstances.clear()
+    this.ragApplications.clear()
+
+    if (failed.length > 0) {
+      throw new Error(`Failed to close KnowledgeBase connections: ${failed.join(', ')}`)
+    }
+
+    logger.info('All KnowledgeBase connections closed')
+  }
+
   public getStorageDir = (): string => {
     return this.storageDir
   }
@@ -706,12 +759,10 @@ class KnowledgeService {
 
         // Execute preprocessing
         logger.debug(`Starting preprocess processing for scanned PDF: ${filePath}`)
-        const { processedFile, quota } = await provider.parseFile(item.id, file)
+        const { processedFile } = await provider.parseFile(item.id, file)
         fileToProcess = processedFile
-        const mainWindow = windowService.getMainWindow()
-        mainWindow?.webContents.send('file-preprocess-finished', {
-          itemId: item.id,
-          quota: quota
+        application.get('WindowManager').broadcastToType(WindowType.Main, 'file-preprocess-finished', {
+          itemId: item.id
         })
       } catch (err) {
         logger.error(`Preprocess processing failed: ${err}`)
@@ -723,23 +774,6 @@ class KnowledgeService {
 
     return fileToProcess
   }
-
-  public checkQuota = async (
-    _: Electron.IpcMainInvokeEvent,
-    base: KnowledgeBaseParams,
-    userId: string
-  ): Promise<number> => {
-    try {
-      if (base.preprocessProvider && base.preprocessProvider.type === 'preprocess') {
-        const provider = new PreprocessProvider(base.preprocessProvider.provider, userId)
-        return await provider.checkQuota()
-      }
-      throw new Error('No preprocess provider configured')
-    } catch (err) {
-      logger.error(`Failed to check quota: ${err}`)
-      throw new Error(`Failed to check quota: ${err}`)
-    }
-  }
 }
 
-export default new KnowledgeService()
+export const knowledgeService = new KnowledgeService()

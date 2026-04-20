@@ -1,7 +1,8 @@
 import { loggerService } from '@logger'
 import { TopView } from '@renderer/components/TopView'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdate'
-import { handleSaveData } from '@renderer/store'
+// [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
+// import { handleSaveData } from '@renderer/store'
 import { Button, Modal } from 'antd'
 import type { ReleaseNoteInfo, UpdateInfo } from 'builder-util-runtime'
 import { useEffect, useState } from 'react'
@@ -33,7 +34,8 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, resolve }) => {
   const handleInstall = async () => {
     setIsInstalling(true)
     try {
-      await handleSaveData()
+      // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
+      // await handleSaveData()
       await window.api.quitAndInstall()
       setOpen(false)
     } catch (error) {
@@ -44,6 +46,7 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, resolve }) => {
   }
 
   const onCancel = () => {
+    updateAppUpdateState({ manualCheck: false })
     setOpen(false)
   }
 
@@ -52,7 +55,7 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, resolve }) => {
   }
 
   const onIgnore = () => {
-    updateAppUpdateState({ ignore: true })
+    updateAppUpdateState({ ignore: true, manualCheck: false })
     setOpen(false)
   }
 

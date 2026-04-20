@@ -1,0 +1,635 @@
+import { Button, Tooltip } from '@cherrystudio/ui'
+import { AiProvider } from '@renderer/aiCore'
+import AnthropicProviderListPopover from '@renderer/components/AnthropicProviderListPopover'
+import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
+import ModelSelector from '@renderer/components/ModelSelector'
+import { isMac, isWin } from '@renderer/config/constant'
+import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
+import { usePersistCache } from '@renderer/data/hooks/useCache'
+import { useCodeCli } from '@renderer/hooks/useCodeCli'
+import { useProviders } from '@renderer/hooks/useProvider'
+import { useTimer } from '@renderer/hooks/useTimer'
+import { getAssistantSettings, getProviderByModel } from '@renderer/services/AssistantService'
+import { loggerService } from '@renderer/services/LoggerService'
+import { getModelUniqId } from '@renderer/services/ModelService'
+import { useAppSelector } from '@renderer/store'
+import type { EndpointType, Model } from '@renderer/types'
+import type { TerminalConfig } from '@shared/config/constant'
+import { codeCLI, terminalApps } from '@shared/config/constant'
+import { CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS, isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
+import { Alert, Checkbox, Input, Select, Space } from 'antd'
+import { Download, FolderOpen, Terminal, X } from 'lucide-react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import styled from 'styled-components'
+
+import {
+  CLI_TOOL_PROVIDER_MAP,
+  CLI_TOOLS,
+  generateToolEnvironment,
+  OPENAI_CODEX_SUPPORTED_PROVIDERS,
+  parseEnvironmentVariables
+} from '.'
+
+const logger = loggerService.withContext('CodeCliPage')
+
+const CodeCliPage: FC = () => {
+  const { t } = useTranslation()
+  const { providers } = useProviders()
+  const [isBunInstalled, setIsBunInstalled] = usePersistCache('feature.mcp.is_bun_installed')
+  const {
+    selectedCliTool,
+    selectedModel,
+    selectedTerminal,
+    environmentVariables,
+    directories,
+    currentDirectory,
+    canLaunch,
+    setCliTool,
+    setModel,
+    setTerminal,
+    setEnvVars,
+    setCurrentDir,
+    removeDir,
+    selectFolder
+  } = useCodeCli()
+  const { setTimeoutTimer } = useTimer()
+
+  // Get default assistant settings for budget tokens calculation
+  const defaultAssistant = useAppSelector((state) => state.assistants.defaultAssistant)
+  const { maxTokens, reasoning_effort } = useMemo(() => {
+    if (!defaultAssistant) {
+      return { maxTokens: undefined, reasoning_effort: undefined }
+    }
+    return getAssistantSettings(defaultAssistant)
+  }, [defaultAssistant])
+
+  const [isLaunching, setIsLaunching] = useState(false)
+  const [isInstallingBun, setIsInstallingBun] = useState(false)
+  const [autoUpdateToLatest, setAutoUpdateToLatest] = useState(false)
+  const [availableTerminals, setAvailableTerminals] = useState<TerminalConfig[]>([])
+  const [isLoadingTerminals, setIsLoadingTerminals] = useState(false)
+  const [terminalCustomPaths, setTerminalCustomPaths] = useState<Record<string, string>>({})
+
+  const modelPredicate = useCallback(
+    (m: Model) => {
+      if (isEmbeddingModel(m) || isRerankModel(m) || isTextToImageModel(m)) {
+        return false
+      }
+
+      if (m.provider === 'cherryai') {
+        return false
+      }
+
+      if (selectedCliTool === codeCLI.claudeCode) {
+        if (m.supported_endpoint_types) {
+          return m.supported_endpoint_types.includes('anthropic')
+        }
+        // Special handling for silicon provider: only specific models support Anthropic API
+        if (m.provider === 'silicon') {
+          return isSiliconAnthropicCompatibleModel(m.id)
+        }
+        // Check if model belongs to an anthropic type provider or has anthropicApiHost
+        const modelProvider = providers.find((p) => p.id === m.provider)
+        if (modelProvider?.type === 'anthropic' || modelProvider?.anthropicApiHost) {
+          return true
+        }
+        return m.id.includes('claude') || CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS.includes(m.provider)
+      }
+
+      if (selectedCliTool === codeCLI.geminiCli) {
+        if (m.supported_endpoint_types) {
+          return m.supported_endpoint_types.includes('gemini')
+        }
+        return m.id.includes('gemini')
+      }
+
+      if (selectedCliTool === codeCLI.openaiCodex) {
+        if (m.supported_endpoint_types) {
+          return ['openai', 'openai-response'].some((type) =>
+            m.supported_endpoint_types?.includes(type as EndpointType)
+          )
+        }
+        // Check if model belongs to an openai-response type provider (including custom providers)
+        const openaiProvider = providers.find((p) => p.id === m.provider)
+        if (openaiProvider?.type === 'openai-response') {
+          return true
+        }
+        return m.id.includes('openai') || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(m.provider)
+      }
+
+      if (selectedCliTool === codeCLI.githubCopilotCli) {
+        return false
+      }
+
+      if (selectedCliTool === codeCLI.qwenCode || selectedCliTool === codeCLI.iFlowCli) {
+        if (m.supported_endpoint_types) {
+          return ['openai', 'openai-response'].some((type) =>
+            m.supported_endpoint_types?.includes(type as EndpointType)
+          )
+        }
+        return true
+      }
+
+      if (selectedCliTool === codeCLI.openCode) {
+        if (m.supported_endpoint_types) {
+          return ['openai', 'openai-response', 'anthropic'].some((type) =>
+            m.supported_endpoint_types?.includes(type as EndpointType)
+          )
+        }
+        // Check if model belongs to openai, openai-response, or anthropic type provider
+        const provider = providers.find((p) => p.id === m.provider)
+        return !!['openai', 'openai-response', 'anthropic'].includes(provider?.type ?? '')
+      }
+
+      return true
+    },
+    [selectedCliTool, providers]
+  )
+
+  const availableProviders = useMemo(() => {
+    const filterFn = CLI_TOOL_PROVIDER_MAP[selectedCliTool]
+    return filterFn ? filterFn(providers) : []
+  }, [providers, selectedCliTool])
+
+  // Resolve a stored model ID string back to a full Model object
+  // TODO: remove after provider & model Merged
+  const resolveModel = useCallback(
+    (modelIdStr: string): Model | null => {
+      for (const provider of providers || []) {
+        const model = provider.models.find((m) => getModelUniqId(m) === modelIdStr)
+        if (model) return model
+      }
+      logger.warn(`Model not found for ID: ${modelIdStr}`)
+      return null
+    },
+    [providers]
+  )
+
+  const handleModelChange = (value: string) => {
+    if (!value) {
+      setModel(null).catch((err) => logger.error('Failed to clear model:', err as Error))
+      return
+    }
+
+    // Store the model unique ID string directly (v2: preference stores ID, not full Model)
+    setModel(value).catch((err) => logger.error('Failed to set model:', err as Error))
+  }
+
+  // 处理删除目录
+  const handleRemoveDirectory = (directory: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    removeDir(directory).catch((err) => logger.error('Failed to remove directory:', err as Error))
+  }
+
+  // 检查 bun 是否安装
+  const checkBunInstallation = useCallback(async () => {
+    try {
+      const bunExists = await window.api.isBinaryExist('bun')
+      setIsBunInstalled(bunExists)
+    } catch (error) {
+      logger.error('Failed to check bun installation status:', error as Error)
+      // IPC failure — leave previous value unchanged
+    }
+  }, [setIsBunInstalled])
+
+  // 获取可用终端
+  const loadAvailableTerminals = useCallback(async () => {
+    if (!isMac && !isWin) return // 仅 macOS 和 Windows 支持
+
+    try {
+      setIsLoadingTerminals(true)
+      const terminals = await window.api.codeCli.getAvailableTerminals()
+      setAvailableTerminals(terminals)
+      logger.info(
+        `Found ${terminals.length} available terminals:`,
+        terminals.map((t) => t.name)
+      )
+    } catch (error) {
+      logger.error('Failed to load available terminals:', error as Error)
+      setAvailableTerminals([])
+    } finally {
+      setIsLoadingTerminals(false)
+    }
+  }, [])
+
+  // 安装 bun
+  const handleInstallBun = async () => {
+    try {
+      setIsInstallingBun(true)
+      await window.api.installBunBinary()
+      setIsBunInstalled(true)
+      window.toast.success(t('settings.mcp.installSuccess'))
+    } catch (error: any) {
+      logger.error('Failed to install bun:', error as Error)
+      window.toast.error(`${t('settings.mcp.installError')}: ${error.message}`)
+    } finally {
+      setIsInstallingBun(false)
+      // 重新检查安装状态
+      setTimeoutTimer('handleInstallBun', checkBunInstallation, 1000)
+    }
+  }
+
+  // 验证启动条件
+  const validateLaunch = (): { isValid: boolean; message?: string } => {
+    if (!canLaunch || !isBunInstalled) {
+      return {
+        isValid: false,
+        message: !isBunInstalled ? t('code.launch.bun_required') : t('code.launch.validation_error')
+      }
+    }
+
+    if (!selectedModel && selectedCliTool !== codeCLI.githubCopilotCli) {
+      return { isValid: false, message: t('code.model_required') }
+    }
+
+    return { isValid: true }
+  }
+
+  // 准备启动环境
+  const prepareLaunchEnvironment = async (): Promise<{
+    env: Record<string, string>
+  } | null> => {
+    if (selectedCliTool === codeCLI.githubCopilotCli) {
+      const userEnv = parseEnvironmentVariables(environmentVariables)
+      return { env: userEnv }
+    }
+
+    if (!selectedModel) return null
+
+    // Resolve full Model object from stored ID string
+    const resolvedModel = resolveModel(selectedModel)
+    if (!resolvedModel) return null
+
+    const modelProvider = getProviderByModel(resolvedModel)
+    const aiProvider = new AiProvider(modelProvider)
+    const baseUrl = aiProvider.getBaseURL()
+    const apiKey = aiProvider.getApiKey()
+
+    // 生成工具特定的环境变量
+    const { env: toolEnv } = generateToolEnvironment({
+      tool: selectedCliTool,
+      model: resolvedModel,
+      modelProvider,
+      apiKey,
+      baseUrl,
+      context: { maxTokens, reasoningEffort: reasoning_effort }
+    })
+
+    // 合并用户自定义的环境变量
+    const userEnv = parseEnvironmentVariables(environmentVariables)
+
+    return { env: { ...toolEnv, ...userEnv } }
+  }
+
+  // 执行启动操作
+  const executeLaunch = async (env: Record<string, string>) => {
+    const resolvedModel = selectedModel ? resolveModel(selectedModel) : null
+    if (selectedCliTool !== codeCLI.githubCopilotCli && !resolvedModel) {
+      logger.warn('Cannot launch: model could not be resolved')
+      window.toast.error(t('code.model_required'))
+      return
+    }
+    const modelId = selectedCliTool === codeCLI.githubCopilotCli ? '' : (resolvedModel?.id ?? '')
+
+    const runOptions = {
+      autoUpdateToLatest,
+      terminal: selectedTerminal
+    }
+
+    try {
+      const result = await window.api.codeCli.run(selectedCliTool, modelId, currentDirectory, env, runOptions)
+      if (result && result.success) {
+        window.toast.success(t('code.launch.success'))
+      } else {
+        window.toast.error(result?.message || t('code.launch.error'))
+      }
+    } catch (error) {
+      logger.error('codeTools.run failed:', error as Error)
+      window.toast.error(t('code.launch.error'))
+    }
+  }
+
+  // 设置终端自定义路径
+  const handleSetCustomPath = async (terminalId: string) => {
+    try {
+      const result = await window.api.file.select({
+        properties: ['openFile'],
+        filters: [
+          { name: 'Executable', extensions: ['exe'] },
+          { name: 'All Files', extensions: ['*'] }
+        ]
+      })
+
+      if (result && result.length > 0) {
+        const path = result[0].path
+        await window.api.codeCli.setCustomTerminalPath(terminalId, path)
+        setTerminalCustomPaths((prev) => ({ ...prev, [terminalId]: path }))
+        window.toast.success(t('code.custom_path_set'))
+        // Reload terminals to reflect changes
+        void loadAvailableTerminals()
+      }
+    } catch (error) {
+      logger.error('Failed to set custom terminal path:', error as Error)
+      window.toast.error(t('code.custom_path_error'))
+    }
+  }
+
+  // 处理启动
+  const handleLaunch = async () => {
+    const validation = validateLaunch()
+
+    if (!validation.isValid) {
+      window.toast.warning(validation.message || t('code.launch.validation_error'))
+      return
+    }
+
+    setIsLaunching(true)
+
+    try {
+      const result = await prepareLaunchEnvironment()
+      if (!result) {
+        window.toast.error(t('code.model_required'))
+        return
+      }
+
+      await executeLaunch(result.env)
+    } catch (error) {
+      logger.error('start code tools failed:', error as Error)
+      window.toast.error(t('code.launch.error'))
+    } finally {
+      setIsLaunching(false)
+    }
+  }
+
+  // 页面加载时检查 bun 安装状态
+  useEffect(() => {
+    void checkBunInstallation()
+  }, [checkBunInstallation])
+
+  // 页面加载时获取可用终端
+  useEffect(() => {
+    void loadAvailableTerminals()
+  }, [loadAvailableTerminals])
+
+  return (
+    <Container>
+      <Navbar>
+        <NavbarCenter style={{ borderRight: 'none' }}>{t('code.title')}</NavbarCenter>
+      </Navbar>
+      <ContentContainer id="content-container">
+        <MainContent>
+          <Title>{t('code.title')}</Title>
+          <Description>{t('code.description')}</Description>
+
+          {/* Bun 安装状态提示 */}
+          {!isBunInstalled && (
+            <BunInstallAlert>
+              <Alert
+                type="warning"
+                banner
+                style={{ borderRadius: 'var(--list-item-border-radius)' }}
+                message={
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
+                    }}>
+                    <span>{t('code.bun_required_message')}</span>
+                    <Button size="sm" onClick={handleInstallBun} disabled={isInstallingBun}>
+                      <Download size={14} />
+                      {isInstallingBun ? t('code.installing_bun') : t('code.install_bun')}
+                    </Button>
+                  </div>
+                }
+              />
+            </BunInstallAlert>
+          )}
+
+          <SettingsPanel>
+            <SettingsItem>
+              <div className="settings-label">{t('code.cli_tool')}</div>
+              <Select
+                style={{ width: '100%' }}
+                placeholder={t('code.cli_tool_placeholder')}
+                value={selectedCliTool}
+                onChange={setCliTool}
+                options={CLI_TOOLS}
+              />
+            </SettingsItem>
+
+            {selectedCliTool !== codeCLI.githubCopilotCli && (
+              <SettingsItem>
+                <div className="settings-label">
+                  {t('code.model')}
+                  {selectedCliTool === 'claude-code' && <AnthropicProviderListPopover />}
+                </div>
+                <ModelSelector
+                  providers={availableProviders}
+                  predicate={modelPredicate}
+                  style={{ width: '100%' }}
+                  placeholder={t('code.model_placeholder')}
+                  value={selectedModel || undefined}
+                  onChange={handleModelChange}
+                  allowClear
+                />
+              </SettingsItem>
+            )}
+
+            <SettingsItem>
+              <div className="settings-label">{t('code.working_directory')}</div>
+              <Space.Compact style={{ width: '100%', display: 'flex' }}>
+                <Select
+                  style={{ flex: 1, width: 480 }}
+                  placeholder={t('code.folder_placeholder')}
+                  value={currentDirectory || undefined}
+                  onChange={setCurrentDir}
+                  allowClear
+                  showSearch
+                  filterOption={(input, option) => {
+                    const label = typeof option?.label === 'string' ? option.label : String(option?.value || '')
+                    return label.toLowerCase().includes(input.toLowerCase())
+                  }}
+                  options={directories.map((dir) => ({ value: dir, label: dir }))}
+                  optionRender={(option) => (
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                      }}>
+                      <span
+                        style={{
+                          flex: 1,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          minWidth: 0
+                        }}>
+                        {option.value}
+                      </span>
+                      <X
+                        size={14}
+                        style={{
+                          marginLeft: 8,
+                          cursor: 'pointer',
+                          color: '#999'
+                        }}
+                        onClick={(e) => handleRemoveDirectory(option.value as string, e)}
+                      />
+                    </div>
+                  )}
+                />
+                <Button onClick={selectFolder} style={{ width: 120 }}>
+                  {t('code.select_folder')}
+                </Button>
+              </Space.Compact>
+            </SettingsItem>
+
+            <SettingsItem>
+              <div className="settings-label">{t('code.environment_variables')}</div>
+              <Input.TextArea
+                placeholder={`KEY1=value1\nKEY2=value2`}
+                value={environmentVariables}
+                onChange={(e) => setEnvVars(e.target.value)}
+                rows={2}
+                style={{ fontFamily: 'monospace' }}
+              />
+              <div
+                style={{
+                  fontSize: 12,
+                  color: 'var(--color-text-3)',
+                  marginTop: 4
+                }}>
+                {t('code.env_vars_help')}
+              </div>
+            </SettingsItem>
+
+            {/* 终端选择 (macOS 和 Windows) */}
+            {(isMac || isWin) && availableTerminals.length > 0 && (
+              <SettingsItem>
+                <div className="settings-label">{t('code.terminal')}</div>
+                <Space.Compact style={{ width: '100%', display: 'flex' }}>
+                  <Select
+                    style={{ flex: 1 }}
+                    placeholder={t('code.terminal_placeholder')}
+                    value={selectedTerminal}
+                    onChange={setTerminal}
+                    loading={isLoadingTerminals}
+                    options={availableTerminals.map((terminal) => ({
+                      value: terminal.id,
+                      label: terminal.name
+                    }))}
+                  />
+                  {/* Show custom path button for Windows terminals except cmd/powershell */}
+                  {isWin &&
+                    selectedTerminal &&
+                    selectedTerminal !== terminalApps.cmd &&
+                    selectedTerminal !== terminalApps.powershell &&
+                    selectedTerminal !== terminalApps.windowsTerminal && (
+                      <Tooltip content={terminalCustomPaths[selectedTerminal] || t('code.set_custom_path')}>
+                        <Button size="icon" onClick={() => handleSetCustomPath(selectedTerminal)}>
+                          <FolderOpen size={16} />
+                        </Button>
+                      </Tooltip>
+                    )}
+                </Space.Compact>
+                {isWin &&
+                  selectedTerminal &&
+                  selectedTerminal !== terminalApps.cmd &&
+                  selectedTerminal !== terminalApps.powershell &&
+                  selectedTerminal !== terminalApps.windowsTerminal && (
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: 'var(--color-text-3)',
+                        marginTop: 4
+                      }}>
+                      {terminalCustomPaths[selectedTerminal]
+                        ? `${t('code.custom_path')}: ${terminalCustomPaths[selectedTerminal]}`
+                        : t('code.custom_path_required')}
+                    </div>
+                  )}
+              </SettingsItem>
+            )}
+
+            <SettingsItem>
+              <div className="settings-label">{t('code.update_options')}</div>
+              <Checkbox checked={autoUpdateToLatest} onChange={(e) => setAutoUpdateToLatest(e.target.checked)}>
+                {t('code.auto_update_to_latest')}
+              </Checkbox>
+            </SettingsItem>
+          </SettingsPanel>
+
+          <Button
+            size="lg"
+            onClick={handleLaunch}
+            disabled={!canLaunch || !isBunInstalled || isLaunching}
+            className="w-full">
+            <Terminal size={16} />
+            {isLaunching ? t('code.launching') : t('code.launch.label')}
+          </Button>
+        </MainContent>
+      </ContentContainer>
+    </Container>
+  )
+}
+
+const Container = styled.div`
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+`
+
+const ContentContainer = styled.div`
+  display: flex;
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 0;
+`
+
+const MainContent = styled.div`
+  width: 600px;
+  margin: auto;
+  min-height: fit-content;
+`
+
+const Title = styled.h1`
+  font-size: 24px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--color-text-1);
+`
+
+const Description = styled.p`
+  font-size: 14px;
+  color: var(--color-text-2);
+  margin-bottom: 32px;
+  line-height: 1.5;
+`
+
+const SettingsPanel = styled.div`
+  margin-bottom: 32px;
+`
+
+const SettingsItem = styled.div`
+  margin-bottom: 24px;
+
+  .settings-label {
+    font-size: 14px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--color-text-1);
+    font-weight: 500;
+  }
+`
+
+const BunInstallAlert = styled.div`
+  margin-bottom: 24px;
+`
+
+export default CodeCliPage

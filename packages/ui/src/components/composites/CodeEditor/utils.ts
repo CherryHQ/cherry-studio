@@ -238,7 +238,7 @@ export function getCmThemeNames(): string[] {
   return ['auto', 'light', 'dark']
     .concat(Object.keys(cmThemes))
     .filter((item) => typeof (cmThemes as any)[item] !== 'function')
-    .filter((item) => !/^(defaultSettings)/.test(item as string) && !/(Style)$/.test(item as string))
+    .filter((item) => !/^(defaultSettings)/.test(item) && !/(Style)$/.test(item))
 }
 
 /**

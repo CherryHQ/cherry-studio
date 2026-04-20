@@ -1,16 +1,16 @@
 import { randomUUID } from 'node:crypto'
 
 import type { PermissionResult, PermissionUpdate } from '@anthropic-ai/claude-agent-sdk'
+import { application } from '@application'
 import { loggerService } from '@logger'
+import { WindowType } from '@main/core/window/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { ipcMain } from 'electron'
 
-import { windowService } from '../../../WindowService'
 import { builtinTools } from './tools'
 
 const logger = loggerService.withContext('ClaudeCodeService')
 
-const TOOL_APPROVAL_TIMEOUT_MS = 30_000
 const MAX_PREVIEW_LENGTH = 2_000
 const shouldAutoApproveTools = process.env.CHERRY_AUTO_ALLOW_TOOLS === '1'
 
@@ -26,7 +26,6 @@ type ToolPermissionResponsePayload = {
 
 type PendingPermissionRequest = {
   fulfill: (update: PermissionResult) => void
-  timeout: NodeJS.Timeout
   signal?: AbortSignal
   abortListener?: () => void
   originalInput: Record<string, unknown>
@@ -44,7 +43,6 @@ type RendererPermissionRequestPayload = {
   input: Record<string, unknown>
   inputPreview: string
   createdAt: number
-  expiresAt: number
   suggestions: PermissionUpdate[]
   autoApprove?: boolean
 }
@@ -55,6 +53,7 @@ type RendererPermissionResultPayload = {
   message?: string
   reason: 'response' | 'timeout' | 'aborted' | 'no-window'
   toolCallId?: string
+  updatedInput?: Record<string, unknown>
 }
 
 const pendingRequests = new Map<string, PendingPermissionRequest>()
@@ -101,9 +100,10 @@ const broadcastToRenderer = (
   channel: IpcChannel,
   payload: RendererPermissionRequestPayload | RendererPermissionResultPayload
 ): boolean => {
-  const mainWindow = windowService.getMainWindow()
+  const wm = application.get('WindowManager')
+  const mainWindows = wm.getWindowsByType(WindowType.Main)
 
-  if (!mainWindow) {
+  if (mainWindows.length === 0) {
     logger.warn('Unable to send agent tool permission payload – main window unavailable', {
       channel,
       requestId: 'requestId' in payload ? payload.requestId : undefined
@@ -111,7 +111,7 @@ const broadcastToRenderer = (
     return false
   }
 
-  mainWindow.webContents.send(channel, payload)
+  wm.broadcastToType(WindowType.Main, channel, payload)
 
   return true
 }
@@ -136,7 +136,6 @@ const finalizeRequest = (
   })
 
   pendingRequests.delete(requestId)
-  clearTimeout(pending.timeout)
 
   if (pending.signal && pending.abortListener) {
     pending.signal.removeEventListener('abort', pending.abortListener)
@@ -149,7 +148,8 @@ const finalizeRequest = (
     behavior: update.behavior,
     message: update.behavior === 'deny' ? update.message : undefined,
     reason,
-    toolCallId: pending.toolCallId
+    toolCallId: pending.toolCallId,
+    updatedInput: update.behavior === 'allow' ? update.updatedInput : undefined
   }
 
   const dispatched = broadcastToRenderer(IpcChannel.AgentToolPermission_Result, resultPayload)
@@ -241,9 +241,9 @@ export async function promptForToolApproval(
     return { behavior: 'deny', message: 'Tool request was cancelled before prompting the user' }
   }
 
-  const mainWindow = windowService.getMainWindow()
+  const mainWindowInfos = application.get('WindowManager').getWindowsByType(WindowType.Main)
 
-  if (!mainWindow) {
+  if (mainWindowInfos.length === 0) {
     logger.warn('Denying tool usage because no renderer window is available to obtain approval', { toolName })
     return { behavior: 'deny', message: 'Unable to request approval – renderer not ready' }
   }
@@ -255,8 +255,6 @@ export async function promptForToolApproval(
 
   const requestId = randomUUID()
   const createdAt = Date.now()
-  const expiresAt = createdAt + TOOL_APPROVAL_TIMEOUT_MS
-
   logger.info('Requesting user approval for tool usage', {
     requestId,
     toolName,
@@ -274,7 +272,6 @@ export async function promptForToolApproval(
     input: sanitizedInput,
     inputPreview,
     createdAt,
-    expiresAt,
     suggestions: sanitizedSuggestions,
     autoApprove: options.autoApprove
   }
@@ -286,23 +283,12 @@ export async function promptForToolApproval(
     toolName,
     toolCallId: options.toolCallId,
     requiresPermissions: requestPayload.requiresPermissions,
-    timeoutMs: TOOL_APPROVAL_TIMEOUT_MS,
     suggestionCount: sanitizedSuggestions.length
   })
 
   return new Promise<PermissionResult>((resolve) => {
-    const timeout = setTimeout(() => {
-      logger.info('User tool permission request timed out', {
-        requestId,
-        toolName,
-        toolCallId: options.toolCallId
-      })
-      finalizeRequest(requestId, { behavior: 'deny', message: 'Timed out waiting for approval' }, 'timeout')
-    }, TOOL_APPROVAL_TIMEOUT_MS)
-
     const pending: PendingPermissionRequest = {
       fulfill: resolve,
-      timeout,
       originalInput: sanitizedInput,
       toolName,
       signal: options?.signal,

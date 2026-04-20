@@ -10,6 +10,7 @@
     "extract": "node scripts/extract-inventory.js",
     "generate": "node scripts/generate-all.js",
     "generate:preferences": "node scripts/generate-preferences.js",
+    "generate:boot-config": "node scripts/generate-boot-config.js",
     "generate:migration": "node scripts/generate-migration.js",
     "validate": "node scripts/validate-consistency.js",
     "validate:gen": "node scripts/validate-generation.js",

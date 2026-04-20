@@ -16,10 +16,12 @@ const OVMSSettings: FC = () => {
 
   useEffect(() => {
     const checkStatus = async () => {
+      const supported = await window.api.ovms.isSupported()
+      if (!supported) return
       const status = await window.api.ovms.getStatus()
       setOvmsStatus(status)
     }
-    checkStatus()
+    void checkStatus()
   }, [])
 
   const installOvms = async () => {

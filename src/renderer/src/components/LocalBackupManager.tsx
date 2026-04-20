@@ -54,7 +54,7 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
 
   useEffect(() => {
     if (visible) {
-      fetchBackupFiles()
+      void fetchBackupFiles()
       setSelectedRowKeys([])
       setPagination((prev) => ({
         ...prev,

@@ -20,7 +20,7 @@ export const writeToolDefinition = {
 - ALWAYS prefer using the 'edit' tool for existing files
 - NEVER proactively create documentation files unless explicitly requested
 - Parent directories will be created automatically if they don't exist
-- The file_path must be an absolute path, not a relative path`,
+- The file_path must resolve within the configured workspace root`,
   inputSchema: z.toJSONSchema(WriteToolSchema)
 }
 

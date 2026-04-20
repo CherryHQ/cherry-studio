@@ -1,10 +1,10 @@
 {
   "metadata": {
     "version": "2.0.0",
-    "lastUpdated": "2025-11-29T03:44:52.215Z",
-    "totalItems": 385,
-    "classified": 256,
-    "pending": 123,
+    "lastUpdated": "2026-04-16T11:08:56.000Z",
+    "totalItems": 408,
+    "classified": 299,
+    "pending": 100,
     "deleted": 0
   },
   "classifications": {
@@ -28,7 +28,7 @@
         },
         {
           "originalKey": "tagsOrder",
-          "type": "string",
+          "type": "string[]",
           "defaultValue": [],
           "status": "pending",
           "category": null,
@@ -152,8 +152,8 @@
           "originalKey": "defaultModel",
           "type": "unknown",
           "defaultValue": "SYSTEM_MODELS.defaultModel[0]",
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "preferences",
           "targetKey": null,
           "children": [
             {
@@ -162,13 +162,14 @@
               "originalKey": "id",
               "status": "pending",
               "targetKey": null,
-              "type": "string"
+              "type": "string",
+              "note": "Migrated via complex mapping: llm_model_ids_to_unique"
             },
             {
               "category": null,
               "defaultValue": "GPT-3.5 Turbo",
               "originalKey": "name",
-              "status": "pending",
+              "status": "deleted",
               "targetKey": null,
               "type": "string"
             }
@@ -178,8 +179,8 @@
           "originalKey": "topicNamingModel",
           "type": "unknown",
           "defaultValue": "SYSTEM_MODELS.defaultModel[1]",
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "preferences",
           "targetKey": null,
           "children": [
             {
@@ -188,13 +189,14 @@
               "originalKey": "id",
               "status": "pending",
               "targetKey": null,
-              "type": "string"
+              "type": "string",
+              "note": "Migrated via complex mapping: llm_model_ids_to_unique"
             },
             {
               "category": null,
               "defaultValue": "GPT-4",
               "originalKey": "name",
-              "status": "pending",
+              "status": "deleted",
               "targetKey": null,
               "type": "string"
             }
@@ -204,8 +206,8 @@
           "originalKey": "quickModel",
           "type": "unknown",
           "defaultValue": "SYSTEM_MODELS.defaultModel[1]",
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "preferences",
           "targetKey": null,
           "children": [
             {
@@ -214,13 +216,14 @@
               "originalKey": "id",
               "status": "pending",
               "targetKey": null,
-              "type": "string"
+              "type": "string",
+              "note": "Migrated via complex mapping: llm_model_ids_to_unique"
             },
             {
               "category": null,
               "defaultValue": "GPT-4",
               "originalKey": "name",
-              "status": "pending",
+              "status": "deleted",
               "targetKey": null,
               "type": "string"
             }
@@ -230,25 +233,18 @@
           "originalKey": "translateModel",
           "type": "unknown",
           "defaultValue": "SYSTEM_MODELS.defaultModel[2]",
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "preferences",
           "targetKey": null,
           "children": [
             {
               "category": null,
-              "defaultValue": "claude-3",
+              "defaultValue": null,
               "originalKey": "id",
               "status": "pending",
               "targetKey": null,
-              "type": "string"
-            },
-            {
-              "category": null,
-              "defaultValue": "Claude 3",
-              "originalKey": "name",
-              "status": "pending",
-              "targetKey": null,
-              "type": "string"
+              "type": "string",
+              "note": "Migrated via complex mapping: llm_model_ids_to_unique"
             }
           ]
         },
@@ -256,9 +252,9 @@
           "originalKey": "quickAssistantId",
           "type": "string",
           "defaultValue": "",
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.quick_assistant.assistant_id"
         },
         {
           "originalKey": "settings",
@@ -412,7 +408,7 @@
               "category": "preferences",
               "defaultValue": 1536,
               "originalKey": "embedderDimensions",
-              "status": "classified",
+              "status": "pending",
               "targetKey": "feature.memory.embedder_dimensions",
               "type": "number"
             },
@@ -420,7 +416,7 @@
               "category": "preferences",
               "defaultValue": true,
               "originalKey": "isAutoDimensions",
-              "status": "classified",
+              "status": "pending",
               "targetKey": "feature.memory.auto_dimensions",
               "type": "boolean"
             },
@@ -428,7 +424,7 @@
               "category": "preferences",
               "defaultValue": "VALUE: MEMORY_FACT_EXTRACTION_PROMPT",
               "originalKey": "customFactExtractionPrompt",
-              "status": "classified",
+              "status": "pending",
               "targetKey": "feature.memory.fact_extraction_prompt",
               "type": "string"
             },
@@ -436,7 +432,7 @@
               "category": "preferences",
               "defaultValue": "VALUE: MEMORY_UPDATE_SYSTEM_PROMPT",
               "originalKey": "customUpdateMemoryPrompt",
-              "status": "classified",
+              "status": "pending",
               "targetKey": "feature.memory.update_memory_prompt",
               "type": "string"
             }
@@ -446,7 +442,7 @@
           "originalKey": "currentUserId",
           "type": "string",
           "defaultValue": "default-user",
-          "status": "classified",
+          "status": "pending",
           "category": "preferences",
           "targetKey": "feature.memory.current_user_id"
         },
@@ -454,7 +450,7 @@
           "originalKey": "globalMemoryEnabled",
           "type": "boolean",
           "defaultValue": false,
-          "status": "classified",
+          "status": "pending",
           "category": "preferences",
           "targetKey": "feature.memory.enabled"
         }
@@ -618,6 +614,22 @@
           "status": "pending",
           "category": null,
           "targetKey": null
+        },
+        {
+          "originalKey": "ovms_paintings",
+          "type": "array",
+          "defaultValue": [],
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "ppio_draw",
+          "type": "array",
+          "defaultValue": [],
+          "status": "pending",
+          "category": null,
+          "targetKey": null
         }
       ],
       "preprocess": [
@@ -625,26 +637,50 @@
           "originalKey": "providers",
           "type": "array",
           "defaultValue": "[ { id: 'mineru', name: 'MinerU', apiKey: '', apiHost: 'https://mineru.net' }",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": null
+        },
+        {
+          "originalKey": "defaultProvider",
+          "type": "PreferenceTypes.FileProcessorId",
+          "defaultValue": "VALUE: null",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.file_processing.default_markdown_conversion"
+        }
+      ],
+      "runtime": [
+        {
+          "originalKey": "detectedRegion",
+          "type": "unknown",
+          "defaultValue": null,
           "status": "pending",
           "category": null,
           "targetKey": null
         },
         {
-          "originalKey": "defaultProvider",
+          "originalKey": "loadingMap",
+          "type": "string",
+          "defaultValue": {},
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "apiServerRunning",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "placeHolder",
           "type": "string",
           "defaultValue": null,
           "status": "pending",
           "category": null,
-          "targetKey": null
-        }
-      ],
-      "runtime": [
-        {
-          "originalKey": "chat",
-          "type": "object",
-          "defaultValue": "{ isMultiSelectMode: false, selectedMessageIds: [], activeTopic: null, activeAgentId: null, activeTopicOrSession: 'topic', activeSessionIdMap: {}, renamingTopics: [], newlyRenamedTopics: [], sessionWaiting: {} }",
-          "status": "classified",
-          "category": "cache",
           "targetKey": null
         }
       ],
@@ -832,11 +868,11 @@
         },
         {
           "originalKey": "targetLanguage",
-          "type": "string",
+          "type": "PreferenceTypes.TranslateLanguageCode",
           "defaultValue": "en-us",
           "status": "classified",
           "category": "preferences",
-          "targetKey": "feature.translate.target_language"
+          "targetKey": "feature.translate.chat.target_language"
         },
         {
           "originalKey": "proxyMode",
@@ -1548,6 +1584,7 @@
               "category": "preferences",
               "defaultValue": [
                 "assistants",
+                "agents",
                 "store",
                 "paintings",
                 "translate",
@@ -1577,6 +1614,7 @@
           "type": "PreferenceTypes.SidebarIcon[]",
           "defaultValue": [
             "assistants",
+            "agents",
             "store",
             "paintings",
             "translate",
@@ -1863,6 +1901,14 @@
           "targetKey": "feature.minapp.open_link_external"
         },
         {
+          "originalKey": "minAppRegion",
+          "type": "unknown",
+          "defaultValue": "auto",
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
           "originalKey": "enableDataCollection",
           "type": "boolean",
           "defaultValue": false,
@@ -1899,8 +1945,16 @@
           "type": "boolean",
           "defaultValue": false,
           "status": "classified",
-          "category": "preferences",
+          "category": "bootConfig",
           "targetKey": "app.disable_hardware_acceleration"
+        },
+        {
+          "originalKey": "useSystemTitleBar",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.use_system_title_bar"
         },
         {
           "originalKey": "exportMenuOptions",
@@ -2142,6 +2196,22 @@
           "originalKey": "verbosity",
           "type": "string",
           "defaultValue": "medium",
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "streamOptions",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "includeUsage",
+          "type": "unknown",
+          "defaultValue": null,
           "status": "pending",
           "category": null,
           "targetKey": null
@@ -2421,236 +2491,276 @@
             {
               "category": "preferences",
               "defaultValue": {
-                "editable": false,
-                "enabled": true,
-                "key": ["CommandOrControl", "="],
-                "system": true
+                "binding": [
+                  "CommandOrControl",
+                  "="
+                ],
+                "enabled": true
               },
               "originalKey": "zoom_in",
               "status": "classified",
-              "targetKey": "shortcut.app.zoom_in",
-              "type": "object"
+              "targetKey": "shortcut.general.zoom_in",
+              "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "editable": false,
-                "enabled": true,
-                "key": ["CommandOrControl", "-"],
-                "system": true
+                "binding": [
+                  "CommandOrControl",
+                  "-"
+                ],
+                "enabled": true
               },
               "originalKey": "zoom_out",
               "status": "classified",
-              "targetKey": "shortcut.app.zoom_out",
-              "type": "object"
+              "targetKey": "shortcut.general.zoom_out",
+              "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "editable": false,
-                "enabled": true,
-                "key": ["CommandOrControl", "0"],
-                "system": true
+                "binding": [
+                  "CommandOrControl",
+                  "0"
+                ],
+                "enabled": true
               },
               "originalKey": "zoom_reset",
               "status": "classified",
-              "targetKey": "shortcut.app.zoom_reset",
-              "type": "object"
+              "targetKey": "shortcut.general.zoom_reset",
+              "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "editable": false,
-                "enabled": true,
-                "key": ["CommandOrControl", ","],
-                "system": true
+                "binding": [
+                  "CommandOrControl",
+                  ","
+                ],
+                "enabled": true
               },
               "originalKey": "show_settings",
               "status": "classified",
-              "targetKey": "shortcut.app.show_settings",
-              "type": "object"
+              "targetKey": "shortcut.general.show_settings",
+              "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "editable": true,
-                "enabled": true,
-                "key": [],
-                "system": true
+                "binding": [],
+                "enabled": false
               },
               "originalKey": "show_app",
               "status": "classified",
-              "targetKey": "shortcut.app.show_main_window",
-              "type": "object"
+              "targetKey": "shortcut.general.show_main_window",
+              "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "editable": true,
-                "enabled": false,
-                "key": ["CommandOrControl", "E"],
-                "system": true
+                "binding": [
+                  "CommandOrControl",
+                  "E"
+                ],
+                "enabled": false
               },
               "originalKey": "mini_window",
               "status": "classified",
-              "targetKey": "shortcut.app.show_mini_window",
-              "type": "object"
+              "targetKey": "shortcut.feature.quick_assistant.toggle_window",
+              "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "editable": true,
-                "enabled": false,
-                "key": [],
-                "system": true
+                "binding": [],
+                "enabled": false
               },
               "originalKey": "selection_assistant_toggle",
               "status": "classified",
-              "targetKey": "shortcut.selection.toggle_enabled",
-              "type": "object"
+              "targetKey": "shortcut.feature.selection.toggle_enabled",
+              "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "editable": true,
-                "enabled": false,
-                "key": [],
-                "system": true
+                "binding": [],
+                "enabled": false
               },
               "originalKey": "selection_assistant_select_text",
               "status": "classified",
-              "targetKey": "shortcut.selection.get_text",
-              "type": "object"
+              "targetKey": "shortcut.feature.selection.get_text",
+              "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "editable": true,
-                "enabled": true,
-                "key": ["CommandOrControl", "N"],
-                "system": false
+                "binding": [
+                  "CommandOrControl",
+                  "N"
+                ],
+                "enabled": true
               },
               "originalKey": "new_topic",
               "status": "classified",
               "targetKey": "shortcut.topic.new",
-              "type": "object"
-            },
-            {
-              "category": null,
-              "defaultValue": {
-                "editable": true,
-                "enabled": false,
-                "key": ["CommandOrControl", "T"],
-                "system": false
-              },
-              "originalKey": "rename_topic",
-              "status": "pending",
-              "targetKey": null,
-              "type": "object"
+              "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "editable": true,
-                "enabled": true,
-                "key": ["CommandOrControl", "["],
-                "system": false
+                "binding": [
+                  "CommandOrControl",
+                  "T"
+                ],
+                "enabled": false
+              },
+              "originalKey": "rename_topic",
+              "status": "classified",
+              "targetKey": "shortcut.topic.rename",
+              "type": "PreferenceTypes.PreferenceShortcutType"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": {
+                "binding": [
+                  "CommandOrControl",
+                  "]"
+                ],
+                "enabled": true
+              },
+              "originalKey": "toggle_show_topics",
+              "status": "classified",
+              "targetKey": "shortcut.topic.toggle_show_topics",
+              "type": "PreferenceTypes.PreferenceShortcutType"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": {
+                "binding": [
+                  "CommandOrControl",
+                  "["
+                ],
+                "enabled": true
               },
               "originalKey": "toggle_show_assistants",
               "status": "classified",
-              "targetKey": "shortcut.app.toggle_show_assistants",
-              "type": "object"
+              "targetKey": "shortcut.general.toggle_sidebar",
+              "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "editable": true,
-                "enabled": false,
-                "key": ["CommandOrControl", "Shift", "C"],
-                "system": false
+                "binding": [
+                  "CommandOrControl",
+                  "Shift",
+                  "C"
+                ],
+                "enabled": false
               },
               "originalKey": "copy_last_message",
               "status": "classified",
               "targetKey": "shortcut.chat.copy_last_message",
-              "type": "object"
-            },
-            {
-              "category": null,
-              "defaultValue": {
-                "editable": true,
-                "enabled": false,
-                "key": ["CommandOrControl", "Shift", "E"],
-                "system": false
-              },
-              "originalKey": "edit_last_user_message",
-              "status": "pending",
-              "targetKey": null,
-              "type": "object"
+              "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "editable": true,
-                "enabled": true,
-                "key": ["CommandOrControl", "F"],
-                "system": false
+                "binding": [
+                  "CommandOrControl",
+                  "Shift",
+                  "E"
+                ],
+                "enabled": false
+              },
+              "originalKey": "edit_last_user_message",
+              "status": "classified",
+              "targetKey": "shortcut.chat.edit_last_user_message",
+              "type": "PreferenceTypes.PreferenceShortcutType"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": {
+                "binding": [
+                  "CommandOrControl",
+                  "F"
+                ],
+                "enabled": true
               },
               "originalKey": "search_message_in_chat",
               "status": "classified",
               "targetKey": "shortcut.chat.search_message",
-              "type": "object"
+              "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "editable": true,
-                "enabled": true,
-                "key": ["CommandOrControl", "Shift", "F"],
-                "system": false
+                "binding": [
+                  "CommandOrControl",
+                  "Shift",
+                  "F"
+                ],
+                "enabled": true
               },
               "originalKey": "search_message",
               "status": "classified",
-              "targetKey": "shortcut.app.search_message",
-              "type": "object"
+              "targetKey": "shortcut.general.search",
+              "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "editable": true,
-                "enabled": true,
-                "key": ["CommandOrControl", "L"],
-                "system": false
+                "binding": [
+                  "CommandOrControl",
+                  "L"
+                ],
+                "enabled": true
               },
               "originalKey": "clear_topic",
               "status": "classified",
               "targetKey": "shortcut.chat.clear",
-              "type": "object"
+              "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "editable": true,
-                "enabled": true,
-                "key": ["CommandOrControl", "K"],
-                "system": false
+                "binding": [
+                  "CommandOrControl",
+                  "K"
+                ],
+                "enabled": true
               },
               "originalKey": "toggle_new_context",
               "status": "classified",
               "targetKey": "shortcut.chat.toggle_new_context",
-              "type": "object"
+              "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
               "category": "preferences",
               "defaultValue": {
-                "editable": false,
-                "enabled": true,
-                "key": ["Escape"],
-                "system": true
+                "binding": [
+                  "CommandOrControl",
+                  "Shift",
+                  "M"
+                ],
+                "enabled": true
+              },
+              "originalKey": "select_model",
+              "status": "classified",
+              "targetKey": "shortcut.chat.select_model",
+              "type": "PreferenceTypes.PreferenceShortcutType"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": {
+                "binding": [
+                  "Escape"
+                ],
+                "enabled": true
               },
               "originalKey": "exit_fullscreen",
               "status": "classified",
-              "targetKey": "shortcut.app.exit_fullscreen",
-              "type": "object"
+              "targetKey": "shortcut.general.exit_fullscreen",
+              "type": "PreferenceTypes.PreferenceShortcutType"
             }
           ]
         }
@@ -2681,6 +2791,14 @@
           "status": "pending",
           "category": null,
           "targetKey": null
+        },
+        {
+          "originalKey": "resolvedInputs",
+          "type": "string",
+          "defaultValue": {},
+          "status": "pending",
+          "category": null,
+          "targetKey": null
         }
       ],
       "translate": [
@@ -2688,33 +2806,43 @@
           "originalKey": "translateInput",
           "type": "string",
           "defaultValue": null,
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "cache",
           "targetKey": null
         },
         {
           "originalKey": "translatedContent",
           "type": "string",
           "defaultValue": null,
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "cache",
           "targetKey": null
         },
         {
           "originalKey": "settings",
-          "type": "unknown",
+          "type": "object",
           "defaultValue": null,
           "status": "pending",
           "category": null,
-          "targetKey": null
+          "targetKey": null,
+          "children": [
+            {
+              "originalKey": "autoCopy",
+              "type": "boolean",
+              "defaultValue": false,
+              "status": "classified",
+              "category": "preferences",
+              "targetKey": "feature.translate.page.auto_copy"
+            }
+          ]
         },
         {
           "originalKey": "autoCopy",
           "type": "boolean",
-          "defaultValue": null,
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.translate.page.auto_copy"
         }
       ],
       "websearch": [
@@ -2722,90 +2850,72 @@
           "originalKey": "defaultProvider",
           "type": "string",
           "defaultValue": "local-bing",
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "preferences",
           "targetKey": null
         },
         {
           "originalKey": "providers",
           "type": "string",
           "defaultValue": "WEB_SEARCH_PROVIDERS",
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "preferences",
           "targetKey": null
         },
         {
           "originalKey": "searchWithTime",
           "type": "boolean",
           "defaultValue": true,
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "preferences",
           "targetKey": null
         },
         {
           "originalKey": "maxResults",
           "type": "number",
           "defaultValue": 5,
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.web_search.max_results"
         },
         {
           "originalKey": "excludeDomains",
           "type": "array",
           "defaultValue": [],
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.web_search.exclude_domains"
         },
         {
           "originalKey": "subscribeSources",
           "type": "array",
           "defaultValue": [],
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "preferences",
           "targetKey": null
         },
         {
           "originalKey": "overwrite",
           "type": "boolean",
           "defaultValue": false,
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "preferences",
           "targetKey": null
         },
         {
           "originalKey": "compressionConfig",
           "type": "unknown",
           "defaultValue": "{ method: 'none', cutoffUnit: 'char' }",
-          "status": "pending",
-          "category": null,
-          "targetKey": null,
-          "children": [
-            {
-              "category": null,
-              "defaultValue": "none",
-              "originalKey": "method",
-              "status": "pending",
-              "targetKey": null,
-              "type": "string"
-            },
-            {
-              "category": null,
-              "defaultValue": "char",
-              "originalKey": "cutoffUnit",
-              "status": "pending",
-              "targetKey": null,
-              "type": "string"
-            }
-          ]
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": null
         },
         {
           "originalKey": "providerConfig",
           "type": "object",
           "defaultValue": {},
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "preferences",
           "targetKey": null
         }
       ],
@@ -2814,47 +2924,47 @@
           "originalKey": "selectedCliTool",
           "type": "string",
           "defaultValue": "codeTools.qwenCode",
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "preferences",
           "targetKey": null
         },
         {
           "originalKey": "selectedModels",
           "type": "string",
           "defaultValue": "{ [codeTools.qwenCode]: null, [codeTools.claudeCode]: null, [codeTools.geminiCli]: null, [codeTools.openaiCodex]: null, [codeTools.iFlowCli]: null, [codeTools.githubCopilotCli]: null }",
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "preferences",
           "targetKey": null,
           "children": [
             {
-              "category": null,
+              "category": "preferences",
               "defaultValue": null,
               "originalKey": "[codeTools.qwenCode]",
-              "status": "pending",
+              "status": "classified",
               "targetKey": null,
               "type": "null"
             },
             {
-              "category": null,
+              "category": "preferences",
               "defaultValue": null,
               "originalKey": "[codeTools.claudeCode]",
-              "status": "pending",
+              "status": "classified",
               "targetKey": null,
               "type": "null"
             },
             {
-              "category": null,
+              "category": "preferences",
               "defaultValue": null,
               "originalKey": "[codeTools.geminiCli]",
-              "status": "pending",
+              "status": "classified",
               "targetKey": null,
               "type": "null"
             },
             {
-              "category": null,
+              "category": "preferences",
               "defaultValue": null,
               "originalKey": "[codeTools.openaiCodex]",
-              "status": "pending",
+              "status": "classified",
               "targetKey": null,
               "type": "null"
             }
@@ -2871,31 +2981,31 @@
             "iflow-cli": "",
             "github-copilot-cli": ""
           },
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "preferences",
           "targetKey": null,
           "children": [
             {
-              "category": null,
+              "category": "preferences",
               "defaultValue": "",
               "originalKey": "qwen-code",
-              "status": "pending",
+              "status": "classified",
               "targetKey": null,
               "type": "string"
             },
             {
-              "category": null,
+              "category": "preferences",
               "defaultValue": "",
               "originalKey": "claude-code",
-              "status": "pending",
+              "status": "classified",
               "targetKey": null,
               "type": "string"
             },
             {
-              "category": null,
+              "category": "preferences",
               "defaultValue": "",
               "originalKey": "gemini-cli",
-              "status": "pending",
+              "status": "classified",
               "targetKey": null,
               "type": "string"
             }
@@ -2905,24 +3015,24 @@
           "originalKey": "directories",
           "type": "array",
           "defaultValue": [],
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "preferences",
           "targetKey": null
         },
         {
           "originalKey": "currentDirectory",
           "type": "string",
           "defaultValue": "",
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "preferences",
           "targetKey": null
         },
         {
           "originalKey": "selectedTerminal",
           "type": "string",
           "defaultValue": null,
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "preferences",
           "targetKey": null
         }
       ],
@@ -2931,17 +3041,17 @@
           "originalKey": "providers",
           "type": "array",
           "defaultValue": "BUILTIN_OCR_PROVIDERS",
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "preferences",
           "targetKey": null
         },
         {
           "originalKey": "imageProviderId",
-          "type": "string",
-          "defaultValue": null,
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "type": "PreferenceTypes.FileProcessorId",
+          "defaultValue": "VALUE: null",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.file_processing.default_text_extraction"
         }
       ],
       "note": [
@@ -3130,16 +3240,6 @@
           "targetKey": "app.zoom_factor"
         }
       ],
-      "Shortcuts": [
-        {
-          "originalKey": "Shortcuts",
-          "type": "unknown",
-          "defaultValue": null,
-          "status": "pending",
-          "category": "preferences",
-          "targetKey": null
-        }
-      ],
       "ClickTrayToShowQuickAssistant": [
         {
           "originalKey": "ClickTrayToShowQuickAssistant",
@@ -3266,8 +3366,18 @@
           "type": "unknown",
           "defaultValue": null,
           "status": "classified",
-          "category": "preferences",
+          "category": "bootConfig",
           "targetKey": "app.disable_hardware_acceleration"
+        }
+      ],
+      "UseSystemTitleBar": [
+        {
+          "originalKey": "UseSystemTitleBar",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
         }
       ],
       "Proxy": [
@@ -3299,6 +3409,26 @@
           "category": null,
           "targetKey": null
         }
+      ],
+      "GitBashPath": [
+        {
+          "originalKey": "GitBashPath",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        }
+      ],
+      "GitBashPathSource": [
+        {
+          "originalKey": "GitBashPathSource",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        }
       ]
     },
     "localStorage": {
@@ -3312,6 +3442,16 @@
           "targetKey": null
         }
       ],
+      "onboarding-completed": [
+        {
+          "originalKey": "onboarding-completed",
+          "type": "string",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        }
+      ],
       "memory_currentUserId": [
         {
           "originalKey": "memory_currentUserId",
@@ -3320,6 +3460,93 @@
           "status": "pending",
           "category": null,
           "targetKey": null
+        }
+      ]
+    },
+    "dexieSettings": {
+      "settings": [
+        {
+          "originalKey": "translate:detect:method",
+          "type": "PreferenceTypes.AutoDetectionMethod",
+          "defaultValue": "auto",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.translate.auto_detection_method"
+        },
+        {
+          "originalKey": "pinned:models",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "image://avatar",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "translate:markdown:enabled",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.translate.page.enable_markdown"
+        },
+        {
+          "originalKey": "translate:scroll:sync",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.translate.page.scroll_sync"
+        },
+        {
+          "originalKey": "translate:bidirectional:pair",
+          "type": "PreferenceTypes.TranslateBidirectionalPair",
+          "defaultValue": [
+            "zh-cn",
+            "en-us"
+          ],
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.translate.page.bidirectional_pair"
+        },
+        {
+          "originalKey": "translate:model",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "classified",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "translate:bidirectional:enabled",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.translate.page.bidirectional_enabled"
+        },
+        {
+          "originalKey": "translate:source:language",
+          "type": "PreferenceTypes.TranslateSourceLanguage",
+          "defaultValue": "auto",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.translate.page.source_language"
+        },
+        {
+          "originalKey": "translate:target:language",
+          "type": "PreferenceTypes.TranslateLanguageCode",
+          "defaultValue": "zh-cn",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.translate.page.target_language"
         }
       ]
     },
@@ -3369,8 +3596,8 @@
           "originalKey": "translate_history",
           "type": "table",
           "defaultValue": null,
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "user_data",
           "targetKey": null
         }
       ],
@@ -3399,8 +3626,8 @@
           "originalKey": "translate_languages",
           "type": "table",
           "defaultValue": null,
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "user_data",
           "targetKey": null
         }
       ]

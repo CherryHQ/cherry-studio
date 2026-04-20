@@ -1,6 +1,8 @@
 import { useCache } from '@data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
+import AddButton from '@renderer/components/AddButton'
 import AssistantAvatar from '@renderer/components/Avatar/AssistantAvatar'
+import type { DraggableVirtualListRef } from '@renderer/components/DraggableList'
 import { DraggableVirtualList } from '@renderer/components/DraggableList'
 import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
@@ -57,7 +59,6 @@ import { useTranslation } from 'react-i18next'
 import { useDispatch, useSelector } from 'react-redux'
 import styled from 'styled-components'
 
-import AddButton from './AddButton'
 import { TopicManagePanel, useTopicManageMode } from './TopicManageMode'
 
 interface Props {
@@ -89,6 +90,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
   const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null)
   const deleteTimerRef = useRef<NodeJS.Timeout>(null)
   const [editingTopicId, setEditingTopicId] = useState<string | null>(null)
+  const listRef = useRef<DraggableVirtualListRef>(null)
 
   // 管理模式状态
   const manageState = useTopicManageMode()
@@ -147,7 +149,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
     (topic: Topic) => {
       // window.keyv.set(EVENT_NAMES.CHAT_COMPLETION_PAUSED, true)
       setGenerating(false)
-      EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, topic)
+      void EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, topic)
     },
     [setGenerating]
   )
@@ -175,10 +177,40 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
 
   const onPinTopic = useCallback(
     (topic: Topic) => {
+      // 只有当 pinTopicsToTop 开启时才重新排序话题
+      if (pinTopicsToTop) {
+        let newIndex = 0
+
+        if (topic.pinned) {
+          // 取消固定：将话题移到未固定话题的顶部
+          const pinnedTopics = assistant.topics.filter((t) => t.pinned)
+          const unpinnedTopics = assistant.topics.filter((t) => !t.pinned)
+
+          const reorderedTopics = [...pinnedTopics.filter((t) => t.id !== topic.id), topic, ...unpinnedTopics]
+
+          newIndex = pinnedTopics.length - 1
+          updateTopics(reorderedTopics)
+        } else {
+          // 固定话题：移到固定区域顶部
+          const pinnedTopics = assistant.topics.filter((t) => t.pinned)
+          const unpinnedTopics = assistant.topics.filter((t) => !t.pinned)
+
+          const reorderedTopics = [topic, ...pinnedTopics, ...unpinnedTopics.filter((t) => t.id !== topic.id)]
+
+          newIndex = 0
+          updateTopics(reorderedTopics)
+        }
+
+        // 延迟滚动到话题位置（等待渲染完成）
+        setTimeout(() => {
+          listRef.current?.scrollToIndex(newIndex, { align: 'auto' })
+        }, 50)
+      }
+
       const updatedTopic = { ...topic, pinned: !topic.pinned }
       updateTopic(updatedTopic)
     },
-    [updateTopic]
+    [assistant.topics, updateTopic, updateTopics, pinTopicsToTop]
   )
 
   const onDeleteTopic = useCallback(
@@ -242,12 +274,12 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
           if (messages.length >= 2) {
             startTopicRenaming(topic.id)
             try {
-              const summaryText = await fetchMessagesSummary({ messages, assistant })
+              const { text: summaryText, error } = await fetchMessagesSummary({ messages })
               if (summaryText) {
                 const updatedTopic = { ...topic, name: summaryText, isNameManuallyEdited: false }
                 updateTopic(updatedTopic)
-              } else {
-                window.toast?.error(t('message.error.fetchTopicName'))
+              } else if (error) {
+                window.toast?.error(`${t('message.error.fetchTopicName')}: ${error}`)
               }
             } finally {
               finishTopicRenaming(topic.id)
@@ -316,7 +348,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
         key: 'notes',
         icon: <NotebookPen size={14} />,
         onClick: async () => {
-          exportTopicToNotes(topic, notesPath)
+          void exportTopicToNotes(topic, notesPath)
         }
       },
       {
@@ -410,14 +442,14 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
             key: 'word',
             onClick: async () => {
               const markdown = await topicToMarkdown(topic)
-              window.api.export.toWord(markdown, removeSpecialCharactersForFileName(topic.name))
+              void window.api.export.toWord(markdown, removeSpecialCharactersForFileName(topic.name))
             }
           },
           exportMenuOptions.notion && {
             label: t('chat.topics.export.notion'),
             key: 'notion',
             onClick: async () => {
-              exportTopicToNotion(topic)
+              void exportTopicToNotion(topic)
             }
           },
           exportMenuOptions.yuque && {
@@ -425,7 +457,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
             key: 'yuque',
             onClick: async () => {
               const markdown = await topicToMarkdown(topic)
-              exportMarkdownToYuque(topic.name, markdown)
+              void exportMarkdownToYuque(topic.name, markdown)
             }
           },
           exportMenuOptions.obsidian && {
@@ -440,7 +472,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
             key: 'joplin',
             onClick: async () => {
               const topicMessages = await TopicManager.getTopicMessages(topic.id)
-              exportMarkdownToJoplin(topic.name, topicMessages)
+              void exportMarkdownToJoplin(topic.name, topicMessages)
             }
           },
           exportMenuOptions.siyuan && {
@@ -448,7 +480,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
             key: 'siyuan',
             onClick: async () => {
               const markdown = await topicToMarkdown(topic)
-              exportMarkdownToSiyuan(topic.name, markdown)
+              void exportMarkdownToSiyuan(topic.name, markdown)
             }
           }
         ].filter(Boolean) as ItemType<MenuItemType>[]
@@ -460,6 +492,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
         label: t('chat.topics.move_to'),
         key: 'move',
         icon: <FolderOpen size={14} />,
+        popupClassName: 'move-to-submenu',
         children: assistants
           .filter((a) => a.id !== assistant.id)
           .map((a) => ({
@@ -548,6 +581,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
   return (
     <>
       <DraggableVirtualList
+        ref={listRef}
         className="topics-tab"
         list={filteredTopics}
         onUpdate={updateTopics}
@@ -577,8 +611,8 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
           const canSelect = !topic.pinned
 
           const getTopicNameClassName = () => {
-            if (isRenaming(topic.id)) return 'shimmer'
-            if (isNewlyRenamed(topic.id)) return 'typing'
+            if (isRenaming(topic.id)) return 'animation-shimmer'
+            if (isNewlyRenamed(topic.id)) return 'animation-reveal'
             return ''
           }
 
@@ -588,7 +622,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
                 toggleSelectTopic(topic.id)
               }
             } else {
-              onSwitchTopic(topic)
+              void onSwitchTopic(topic)
             }
           }
 
@@ -655,9 +689,9 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
                         className="menu"
                         onClick={(e) => {
                           if (e.ctrlKey || e.metaKey) {
-                            handleConfirmDelete(topic, e)
+                            void handleConfirmDelete(topic, e)
                           } else if (deletingTopicId === topic.id) {
-                            handleConfirmDelete(topic, e)
+                            void handleConfirmDelete(topic, e)
                           } else {
                             handleDeleteClick(topic.id, e)
                           }
@@ -682,7 +716,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
                   </TopicPromptText>
                 )}
                 {showTopicTime && (
-                  <TopicTime className="time">{dayjs(topic.createdAt).format('MM/DD HH:mm')}</TopicTime>
+                  <TopicTime className="time">{dayjs(topic.createdAt).format('YYYY/MM/DD HH:mm')}</TopicTime>
                 )}
               </TopicListItem>
             </Dropdown>
@@ -696,7 +730,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
         assistants={assistants}
         activeTopic={activeTopic}
         setActiveTopic={setActiveTopic}
-        removeTopic={removeTopic}
+        updateTopics={updateTopics}
         moveTopic={moveTopic}
         manageState={manageState}
         filteredTopics={filteredTopics}
@@ -775,46 +809,12 @@ const TopicName = styled.div`
   overflow: hidden;
   font-size: 13px;
   position: relative;
-  will-change: background-position, width;
   flex: 1;
   text-align: left;
 
-  --color-shimmer-mid: var(--color-text-1);
-  --color-shimmer-end: color-mix(in srgb, var(--color-text-1) 25%, transparent);
-
-  &.shimmer {
-    background: linear-gradient(to left, var(--color-shimmer-end), var(--color-shimmer-mid), var(--color-shimmer-end));
-    background-size: 200% 100%;
-    background-clip: text;
-    color: transparent;
-    animation: shimmer 3s linear infinite;
-  }
-
-  &.typing {
-    display: block;
+  &.animation-reveal {
     -webkit-line-clamp: unset;
     -webkit-box-orient: unset;
-    white-space: nowrap;
-    overflow: hidden;
-    animation: typewriter 0.5s steps(40, end);
-  }
-
-  @keyframes shimmer {
-    0% {
-      background-position: 200% 0;
-    }
-    100% {
-      background-position: -200% 0;
-    }
-  }
-
-  @keyframes typewriter {
-    from {
-      width: 0;
-    }
-    to {
-      width: 100%;
-    }
   }
 `
 
@@ -891,7 +891,8 @@ const HeaderRow = styled.div`
   align-items: center;
   gap: 6px;
   padding-right: 10px;
-  margin-bottom: 5px;
+  margin-bottom: 8px;
+  margin-top: 2px;
 `
 
 const HeaderIconButton = styled.div`

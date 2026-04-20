@@ -16,11 +16,11 @@
  */
 import { loggerService } from '@logger'
 import { combineReducers, configureStore } from '@reduxjs/toolkit'
+import { IpcChannel } from '@shared/IpcChannel'
 import { useDispatch, useSelector, useStore } from 'react-redux'
 import { FLUSH, PAUSE, PERSIST, persistReducer, persistStore, PURGE, REGISTER, REHYDRATE } from 'redux-persist'
 import storage from 'redux-persist/lib/storage'
 
-import storeSyncService from '../services/StoreSyncService'
 import assistants from './assistants'
 import backup from './backup'
 import codeTools from './codeTools'
@@ -38,6 +38,7 @@ import { setNotesPath } from './note'
 import note from './note'
 import nutstore from './nutstore'
 import ocr from './ocr'
+import openclaw from './openclaw'
 import paintings from './paintings'
 import preprocess from './preprocess'
 import runtime from './runtime'
@@ -67,6 +68,7 @@ const rootReducer = combineReducers({
   mcp,
   memory,
   copilot,
+  openclaw,
   selectionStore,
   tabs,
   preprocess,
@@ -83,27 +85,12 @@ const persistedReducer = persistReducer(
   {
     key: 'cherry-studio',
     storage,
-    version: 192,
+    version: 206,
     blacklist: ['runtime', 'messages', 'messageBlocks', 'tabs', 'toolPermissions'],
     migrate
   },
   rootReducer
 )
-
-/**
- * Configures the store sync service to synchronize specific state slices across all windows.
- * For detailed implementation, see @renderer/services/StoreSyncService.ts
- *
- * Usage:
- * - 'xxxx/' - Synchronizes the entire state slice
- * - 'xxxx/sliceName' - Synchronizes a specific slice within the state
- *
- * To listen for store changes in a window:
- * Call storeSyncService.subscribe() in the window's entryPoint.tsx
- */
-storeSyncService.setOptions({
-  syncList: ['assistants/', 'settings/', 'llm/', 'selectionStore/', 'note/']
-})
 
 const store = configureStore({
   // @ts-ignore store type is unknown
@@ -113,7 +100,7 @@ const store = configureStore({
       serializableCheck: {
         ignoredActions: [FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER]
       }
-    }).concat(storeSyncService.createMiddleware())
+    })
   },
   devTools: true
 })
@@ -136,6 +123,10 @@ export const persistor = persistStore(store, undefined, () => {
       }
     }, 0)
   }
+
+  // Notify main process that Redux store is ready
+  void window.electron?.ipcRenderer?.invoke(IpcChannel.ReduxStoreReady)
+  logger.info('Redux store ready, notified main process')
 })
 
 export const useAppDispatch = useDispatch.withTypes<AppDispatch>()
@@ -143,10 +134,11 @@ export const useAppSelector = useSelector.withTypes<RootState>()
 export const useAppStore = useStore.withTypes<typeof store>()
 window.store = store
 
-export async function handleSaveData() {
-  logger.info('Flushing redux persistor data')
-  await persistor.flush()
-  logger.info('Flushed redux persistor data')
-}
+// [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
+// export async function handleSaveData() {
+//   logger.info('Flushing redux persistor data')
+//   await persistor.flush()
+//   logger.info('Flushed redux persistor data')
+// }
 
 export default store

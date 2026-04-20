@@ -125,7 +125,7 @@ class ConcurrencyController {
       }
 
       if (this.running < this.maxConcurrent) {
-        execute()
+        void execute()
       } else {
         this.queue.push(execute)
       }
@@ -135,7 +135,7 @@ class ConcurrencyController {
   private processQueue() {
     if (this.queue.length > 0 && this.running < this.maxConcurrent) {
       const next = this.queue.shift()
-      if (next) next()
+      if (next) void next()
     }
   }
 }
@@ -354,4 +354,4 @@ const main = async () => {
   console.log(`📈 Average time per file: ${avgDuration}s`)
 }
 
-main()
+void main()

@@ -2,13 +2,14 @@
  * 职责：提供原子化的、无状态的API调用函数
  */
 import { cacheService } from '@data/CacheService'
+import { dataApiService } from '@data/DataApiService'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import type { AiSdkMiddlewareConfig } from '@renderer/aiCore/middleware/AiSdkMiddlewareBuilder'
 import { buildStreamTextParams } from '@renderer/aiCore/prepareParams'
+import type { AiSdkMiddlewareConfig } from '@renderer/aiCore/types/middlewareConfig'
+import { buildProviderOptions } from '@renderer/aiCore/utils/options'
 import { isDedicatedImageGenerationModel, isEmbeddingModel, isFunctionCallingModel } from '@renderer/config/models'
 import i18n from '@renderer/i18n'
-import store from '@renderer/store'
 import { hubMCPServer } from '@renderer/store/mcp'
 import type { Assistant, MCPServer, MCPTool, Model, Provider } from '@renderer/types'
 import { type FetchChatCompletionParams, getEffectiveMcpMode, isSystemProvider } from '@renderer/types'
@@ -17,17 +18,18 @@ import { type Chunk, ChunkType } from '@renderer/types/chunk'
 import type { Message, ResponseError } from '@renderer/types/newMessage'
 import { removeSpecialCharactersForTopicName, uuid } from '@renderer/utils'
 import { abortCompletion, readyToAbort } from '@renderer/utils/abortController'
+import { trackTokenUsage } from '@renderer/utils/analytics'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
-import { isAbortError } from '@renderer/utils/error'
+import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/assistant'
+import { getErrorMessage, isAbortError } from '@renderer/utils/error'
 import { purifyMarkdownImages } from '@renderer/utils/markdown'
-import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/mcp-tools'
-import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { containsSupportedVariables, replacePromptVariables } from '@renderer/utils/prompt'
 import { NOT_SUPPORT_API_KEY_PROVIDER_TYPES, NOT_SUPPORT_API_KEY_PROVIDERS } from '@renderer/utils/provider'
 import { isEmpty, takeRight } from 'lodash'
 
-import type { ModernAiProviderConfig } from '../aiCore/index_new'
-import AiProviderNew from '../aiCore/index_new'
+import type { AiProviderConfig } from '../aiCore'
+import { AiProvider } from '../aiCore'
 import {
   // getAssistantProvider,
   // getAssistantSettings,
@@ -37,6 +39,7 @@ import {
   getQuickModel
 } from './AssistantService'
 import { ConversationService } from './ConversationService'
+import FileManager from './FileManager'
 import { injectUserMessageWithKnowledgeSearchPrompt } from './KnowledgeService'
 import type { BlockManager } from './messageStreaming'
 import type { StreamProcessorCallbacks } from './StreamProcessingService'
@@ -52,14 +55,21 @@ import type { StreamProcessorCallbacks } from './StreamProcessingService'
 // FIXME: 这里太多重复逻辑，需要重构
 
 const logger = loggerService.withContext('ApiService')
+const SUMMARY_REQUEST_TIMEOUT_MS = 15_000
+
+/**
+ * Fetch active MCP servers from the Data API.
+ */
+async function fetchActiveMcpServers(): Promise<MCPServer[]> {
+  const response = await dataApiService.get('/mcp-servers', { query: { isActive: true } })
+  return (response as { items: MCPServer[] }).items ?? []
+}
 
 /**
  * Get the MCP servers to use based on the assistant's MCP mode.
  */
-export function getMcpServersForAssistant(assistant: Assistant): MCPServer[] {
+export async function getMcpServersForAssistant(assistant: Assistant): Promise<MCPServer[]> {
   const mode = getEffectiveMcpMode(assistant)
-  const allMcpServers = store.getState().mcp.servers || []
-  const activedMcpServers = allMcpServers.filter((s) => s.isActive)
 
   switch (mode) {
     case 'disabled':
@@ -67,6 +77,7 @@ export function getMcpServersForAssistant(assistant: Assistant): MCPServer[] {
     case 'auto':
       return [hubMCPServer]
     case 'manual': {
+      const activedMcpServers = await fetchActiveMcpServers()
       const assistantMcpServers = assistant.mcpServers || []
       return activedMcpServers.filter((server) => assistantMcpServers.some((s) => s.id === server.id))
     }
@@ -76,8 +87,7 @@ export function getMcpServersForAssistant(assistant: Assistant): MCPServer[] {
 }
 
 export async function fetchAllActiveServerTools(): Promise<MCPTool[]> {
-  const allMcpServers = store.getState().mcp.servers || []
-  const activedMcpServers = allMcpServers.filter((s) => s.isActive)
+  const activedMcpServers = await fetchActiveMcpServers()
 
   if (activedMcpServers.length === 0) {
     return []
@@ -106,7 +116,7 @@ export async function fetchAllActiveServerTools(): Promise<MCPTool[]> {
 
 export async function fetchMcpTools(assistant: Assistant) {
   let mcpTools: MCPTool[] = []
-  const enabledMCPs = getMcpServersForAssistant(assistant)
+  const enabledMCPs = await getMcpServersForAssistant(assistant)
 
   if (enabledMCPs && enabledMCPs.length > 0) {
     try {
@@ -145,6 +155,7 @@ export async function transformMessagesAndFetch(
     assistantMsgId: string
     callbacks: StreamProcessorCallbacks
     topicId?: string // 添加 topicId 用于 trace
+    allowedTools?: string[]
     options: {
       signal?: AbortSignal
       timeout?: number
@@ -161,6 +172,17 @@ export async function transformMessagesAndFetch(
     // replace prompt variables
     assistant.prompt = await replacePromptVariables(assistant.prompt, assistant.model?.name)
 
+    // 专用图像生成模型直接走 fetchImageGeneration
+    const model = assistant.model || getDefaultModel()
+    if (isDedicatedImageGenerationModel(model)) {
+      await fetchImageGeneration({
+        messages: uiMessages,
+        assistant,
+        onChunkReceived
+      })
+      return
+    }
+
     // inject knowledge search prompt into model messages
     await injectUserMessageWithKnowledgeSearchPrompt({
       modelMessages,
@@ -175,6 +197,7 @@ export async function transformMessagesAndFetch(
       messages: modelMessages,
       assistant: assistant,
       topicId: request.topicId,
+      allowedTools: request.allowedTools,
       requestOptions: request.options,
       uiMessages,
       onChunkReceived
@@ -184,6 +207,10 @@ export async function transformMessagesAndFetch(
   }
 }
 
+/**
+ * Note: This path always uses AI SDK streaming under the hood via `streamText`.
+ * There is no `generateText` (non-stream) branch inside this function.
+ */
 export async function fetchChatCompletion({
   messages,
   prompt,
@@ -191,7 +218,8 @@ export async function fetchChatCompletion({
   requestOptions,
   onChunkReceived,
   topicId,
-  uiMessages
+  uiMessages,
+  allowedTools
 }: FetchChatCompletionParams) {
   logger.info('fetchChatCompletion called with detailed context', {
     messageCount: messages?.length || 0,
@@ -212,7 +240,7 @@ export async function fetchChatCompletion({
     apiKey: getRotatedApiKey(baseProvider)
   }
 
-  const AI = new AiProviderNew(assistant.model || getDefaultModel(), providerWithRotatedKey)
+  const AI = new AiProvider(assistant.model || getDefaultModel(), providerWithRotatedKey)
   const provider = AI.getActualProvider()
 
   const mcpTools: MCPTool[] = []
@@ -238,6 +266,7 @@ export async function fetchChatCompletion({
     webSearchPluginConfig
   } = await buildStreamTextParams(messages, assistant, provider, {
     mcpTools: mcpTools,
+    allowedTools,
     webSearchProviderId: assistant.webSearchProviderId,
     requestOptions
   })
@@ -250,11 +279,9 @@ export async function fetchChatCompletion({
   const middlewareConfig: AiSdkMiddlewareConfig = {
     streamOutput: assistant.settings?.streamOutput ?? true,
     onChunk: onChunkReceived,
-    model: assistant.model,
     enableReasoning: capabilities.enableReasoning,
     isPromptToolUse: usePromptToolUse,
     isSupportedToolUse: isSupportedToolUse(assistant),
-    isImageGenerationEndpoint: isDedicatedImageGenerationModel(assistant.model || getDefaultModel()),
     webSearchPluginConfig: webSearchPluginConfig,
     enableWebSearch: capabilities.enableWebSearch,
     enableGenerateImage: capabilities.enableGenerateImage,
@@ -263,6 +290,15 @@ export async function fetchChatCompletion({
     mcpTools,
     uiMessages,
     knowledgeRecognition: assistant.knowledgeRecognition
+  }
+
+  // Wrap onChunkReceived to automatically track token usage on completion
+  const originalOnChunk = middlewareConfig.onChunk
+  middlewareConfig.onChunk = (chunk: Chunk) => {
+    if (chunk.type === ChunkType.BLOCK_COMPLETE) {
+      trackTokenUsage({ usage: chunk.response?.usage, model: assistant?.model, source: 'chat' })
+    }
+    originalOnChunk?.(chunk)
   }
 
   // --- Call AI Completions ---
@@ -275,9 +311,127 @@ export async function fetchChatCompletion({
   })
 }
 
-export async function fetchMessagesSummary({ messages, assistant }: { messages: Message[]; assistant: Assistant }) {
+/**
+ * 从消息中收集图像（用于图像编辑）
+ * 收集用户消息中上传的图像和助手消息中生成的图像
+ */
+async function collectImagesFromMessages(userMessage: Message, assistantMessage?: Message): Promise<string[]> {
+  const images: string[] = []
+
+  // 收集用户消息中的图像
+  const userImageBlocks = findImageBlocks(userMessage)
+  for (const block of userImageBlocks) {
+    if (block.file) {
+      const base64 = await FileManager.readBase64File(block.file)
+      const mimeType = block.file.type || 'image/png'
+      images.push(`data:${mimeType};base64,${base64}`)
+    }
+  }
+
+  // 收集助手消息中的图像（用于继续编辑生成的图像）
+  if (assistantMessage) {
+    const assistantImageBlocks = findImageBlocks(assistantMessage)
+    for (const block of assistantImageBlocks) {
+      if (block.url) {
+        images.push(block.url)
+      }
+    }
+  }
+
+  return images
+}
+
+/**
+ * 独立的图像生成函数
+ * 专用于 DALL-E、GPT-Image-1 等专用图像生成模型
+ */
+export async function fetchImageGeneration({
+  messages,
+  assistant,
+  onChunkReceived
+}: {
+  messages: Message[]
+  assistant: Assistant
+  onChunkReceived: (chunk: Chunk) => void
+}) {
+  // 创建 AI provider
+  const baseProvider = getProviderByModel(assistant.model || getDefaultModel())
+  const providerWithRotatedKey = {
+    ...baseProvider,
+    apiKey: getRotatedApiKey(baseProvider)
+  }
+  const aiProvider = new AiProvider(assistant.model || getDefaultModel(), providerWithRotatedKey)
+
+  onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })
+  onChunkReceived({ type: ChunkType.IMAGE_CREATED })
+
+  const startTime = Date.now()
+
+  try {
+    // 提取 prompt 和图像
+    const lastUserMessage = messages.findLast((m) => m.role === 'user')
+    const lastAssistantMessage = messages.findLast((m) => m.role === 'assistant')
+
+    if (!lastUserMessage) {
+      throw new Error('No user message found for image generation.')
+    }
+
+    const prompt = getMainTextContent(lastUserMessage)
+    const inputImages = await collectImagesFromMessages(lastUserMessage, lastAssistantMessage)
+
+    // 调用 generateImage 或 editImage
+    // 使用默认图像生成配置
+    const imageSize = '1024x1024'
+    const batchSize = 1
+
+    let images: string[]
+    if (inputImages.length > 0) {
+      images = await aiProvider.editImage({
+        model: assistant.model!.id,
+        prompt: prompt || '',
+        inputImages,
+        imageSize
+      })
+    } else {
+      images = await aiProvider.generateImage({
+        model: assistant.model!.id,
+        prompt: prompt || '',
+        imageSize,
+        batchSize
+      })
+    }
+
+    // 发送结果 chunks
+    const imageType = images[0]?.startsWith('data:') ? 'base64' : 'url'
+    onChunkReceived({
+      type: ChunkType.IMAGE_COMPLETE,
+      image: { type: imageType, images }
+    })
+
+    onChunkReceived({
+      type: ChunkType.LLM_RESPONSE_COMPLETE,
+      response: {
+        usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+        metrics: {
+          completion_tokens: 0,
+          time_first_token_millsec: 0,
+          time_completion_millsec: Date.now() - startTime
+        }
+      }
+    })
+  } catch (error) {
+    onChunkReceived({ type: ChunkType.ERROR, error: error as Error })
+    throw error
+  }
+}
+
+export async function fetchMessagesSummary({
+  messages
+}: {
+  messages: Message[]
+}): Promise<{ text: string | null; error?: string }> {
   let prompt = (await preferenceService.get('topic.naming_prompt')) || i18n.t('prompts.title')
-  const model = getQuickModel() || assistant?.model || getDefaultModel()
+  const model = getQuickModel()
 
   if (prompt && containsSupportedVariables(prompt)) {
     prompt = await replacePromptVariables(prompt, model.name)
@@ -288,7 +442,7 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
   const provider = getProviderByModel(model)
 
   if (!hasApiKey(provider)) {
-    return null
+    return { text: null, error: i18n.t('error.no_api_key') }
   }
 
   // Apply API key rotation
@@ -299,7 +453,8 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
     apiKey: getRotatedApiKey(provider)
   }
 
-  const AI = new AiProviderNew(model, providerWithRotatedKey)
+  const AI = new AiProvider(model, providerWithRotatedKey)
+  const actualProvider = AI.getActualProvider()
 
   const topicId = messages?.find((message) => message.topicId)?.topicId || ''
 
@@ -324,29 +479,31 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
   })
   const conversation = JSON.stringify(structredMessages)
 
-  // // 复制 assistant 对象，并强制关闭思考预算
-  // const summaryAssistant = {
-  //   ...assistant,
-  //   settings: {
-  //     ...assistant.settings,
-  //     reasoning_effort: undefined,
-  //     qwenThinkMode: false
-  //   }
-  // }
+  const defaultAssistant = getDefaultAssistant()
   const summaryAssistant = {
-    ...assistant,
+    ...defaultAssistant,
     settings: {
-      ...assistant.settings,
-      reasoning_effort: undefined,
+      ...defaultAssistant.settings,
+      reasoning_effort: 'none',
       qwenThinkMode: false
     },
     prompt,
     model
-  }
+  } satisfies Assistant
+
+  const { providerOptions, standardParams } = buildProviderOptions(summaryAssistant, model, actualProvider, {
+    enableReasoning: false,
+    enableWebSearch: false,
+    enableGenerateImage: false
+  })
 
   const llmMessages = {
     system: prompt,
-    prompt: conversation
+    prompt: conversation,
+    providerOptions,
+    ...standardParams,
+    abortSignal: AbortSignal.timeout(SUMMARY_REQUEST_TIMEOUT_MS),
+    maxRetries: 0
   }
 
   const middlewareConfig: AiSdkMiddlewareConfig = {
@@ -354,7 +511,6 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
     enableReasoning: false,
     isPromptToolUse: false,
     isSupportedToolUse: false,
-    isImageGenerationEndpoint: false,
     enableWebSearch: false,
     enableGenerateImage: false,
     enableUrlContext: false,
@@ -370,16 +526,20 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
       await appendTrace({ topicId, traceId: messageWithTrace.traceId, model })
     }
 
-    const { getText } = await AI.completions(model.id, llmMessages, {
+    const { getText, usage } = await AI.completions(model.id, llmMessages, {
       ...middlewareConfig,
       assistant: summaryAssistant,
       topicId,
       callType: 'summary'
     })
+
+    trackTokenUsage({ usage, model })
+
     const text = getText()
-    return removeSpecialCharactersForTopicName(text) || null
-  } catch (error: any) {
-    return null
+    const result = removeSpecialCharactersForTopicName(text)
+    return result ? { text: result } : { text: null, error: i18n.t('error.no_response') }
+  } catch (error: unknown) {
+    return { text: null, error: getErrorMessage(error) }
   }
 }
 
@@ -406,7 +566,7 @@ export async function fetchNoteSummary({ content, assistant }: { content: string
     apiKey: getRotatedApiKey(provider)
   }
 
-  const AI = new AiProviderNew(model, providerWithRotatedKey)
+  const AI = new AiProvider(model, providerWithRotatedKey)
 
   // only 2000 char and no images
   const truncatedContent = content.substring(0, 2000)
@@ -425,7 +585,9 @@ export async function fetchNoteSummary({ content, assistant }: { content: string
 
   const llmMessages = {
     system: prompt,
-    prompt: purifiedContent
+    prompt: purifiedContent,
+    abortSignal: AbortSignal.timeout(SUMMARY_REQUEST_TIMEOUT_MS),
+    maxRetries: 0
   }
 
   const middlewareConfig: AiSdkMiddlewareConfig = {
@@ -433,7 +595,6 @@ export async function fetchNoteSummary({ content, assistant }: { content: string
     enableReasoning: false,
     isPromptToolUse: false,
     isSupportedToolUse: false,
-    isImageGenerationEndpoint: false,
     enableWebSearch: false,
     enableGenerateImage: false,
     enableUrlContext: false,
@@ -441,11 +602,14 @@ export async function fetchNoteSummary({ content, assistant }: { content: string
   }
 
   try {
-    const { getText } = await AI.completions(model.id, llmMessages, {
+    const { getText, usage } = await AI.completions(model.id, llmMessages, {
       ...middlewareConfig,
       assistant: summaryAssistant,
       callType: 'summary'
     })
+
+    trackTokenUsage({ usage, model })
+
     const text = getText()
     return removeSpecialCharactersForTopicName(text) || null
   } catch (error: any) {
@@ -502,7 +666,7 @@ export async function fetchGenerate({
     apiKey: getRotatedApiKey(provider)
   }
 
-  const AI = new AiProviderNew(model, providerWithRotatedKey)
+  const AI = new AiProvider(model, providerWithRotatedKey)
 
   const assistant = getDefaultAssistant()
   assistant.model = model
@@ -520,7 +684,6 @@ export async function fetchGenerate({
     enableReasoning: false,
     isPromptToolUse: false,
     isSupportedToolUse: false,
-    isImageGenerationEndpoint: false,
     enableWebSearch: false,
     enableGenerateImage: false,
     enableUrlContext: false
@@ -539,6 +702,9 @@ export async function fetchGenerate({
         callType: 'generate'
       }
     )
+
+    trackTokenUsage({ usage: result.usage, model })
+
     return result.getText() || ''
   } catch (error: any) {
     return ''
@@ -560,7 +726,7 @@ export function hasApiKey(provider: Provider) {
  * Get rotated API key for providers that support multiple keys
  * Returns empty string for providers that don't require API keys
  */
-function getRotatedApiKey(provider: Provider): string {
+export function getRotatedApiKey(provider: Provider): string {
   // Handle providers that don't require API keys
   if (!provider.apiKey || provider.apiKey.trim() === '') {
     return ''
@@ -614,7 +780,7 @@ export async function fetchModels(provider: Provider): Promise<Model[]> {
     apiKey: getRotatedApiKey(provider)
   }
 
-  const AI = new AiProviderNew(providerWithRotatedKey)
+  const AI = new AiProvider(providerWithRotatedKey)
 
   try {
     return await AI.models()
@@ -661,15 +827,15 @@ export function checkApiProvider(provider: Provider): void {
 export async function checkApi(provider: Provider, model: Model, timeout = 15000): Promise<void> {
   checkApiProvider(provider)
 
-  const ai = new AiProviderNew(model, provider)
+  const ai = new AiProvider(model, provider)
 
   const assistant = getDefaultAssistant()
   assistant.model = model
   assistant.prompt = 'test' // 避免部分 provider 空系统提示词会报错
 
   if (isEmbeddingModel(model)) {
-    logger.silly("it's a embedding model")
-    const timerPromise = new Promise((_, reject) => setTimeout(() => reject('Timeout'), timeout))
+    logger.info('checkApi: embedding model detected, calling getEmbeddingDimensions', { modelId: model.id })
+    const timerPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeout))
     await Promise.race([ai.getEmbeddingDimensions(model), timerPromise])
   } else {
     const abortId = uuid()
@@ -680,11 +846,10 @@ export async function checkApi(provider: Provider, model: Model, timeout = 15000
       prompt: 'hi',
       abortSignal: signal
     }
-    const config: ModernAiProviderConfig = {
+    const config: AiProviderConfig = {
       streamOutput: true,
       enableReasoning: false,
       isSupportedToolUse: false,
-      isImageGenerationEndpoint: false,
       enableWebSearch: false,
       enableGenerateImage: false,
       isPromptToolUse: false,

@@ -1,44 +1,118 @@
 import { Button, Switch, Tooltip } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { DeleteIcon } from '@renderer/components/Icons'
 import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { useMCPServerMutations } from '@renderer/hooks/useMCPServers'
+import { useMCPServerTrust } from '@renderer/hooks/useMCPServerTrust'
 import { getMcpTypeLabel } from '@renderer/i18n/label'
-import type { MCPServer } from '@renderer/types'
+import { formatMcpError } from '@renderer/utils/error'
 import { formatErrorMessage } from '@renderer/utils/error'
+import type { MCPServer } from '@shared/data/types/mcpServer'
 import { Alert, Space, Tag, Typography } from 'antd'
 import { CircleXIcon, Settings2, SquareArrowOutUpRight } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { FallbackProps } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+const logger = loggerService.withContext('McpServerCard')
+
 interface McpServerCardProps {
   server: MCPServer
-  version?: string | null
-  isLoading: boolean
-  onToggle: (active: boolean) => void
-  onDelete: () => void
   onEdit: () => void
-  onOpenUrl: (url: string) => void
 }
 
-const McpServerCard: FC<McpServerCardProps> = ({
-  server,
-  version,
-  isLoading,
-  onToggle,
-  onDelete,
-  onEdit,
-  onOpenUrl
-}) => {
+const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
+  const { updateMCPServer, deleteMCPServer } = useMCPServerMutations(server.id)
+  const [loading, setLoading] = useState(false)
+  const [version, setVersion] = useState<string | null>(null)
+
+  const updateServerBody = useCallback((body: Partial<MCPServer>) => updateMCPServer({ body }), [updateMCPServer])
+
+  const { ensureServerTrusted } = useMCPServerTrust(updateServerBody)
   const { t } = useTranslation()
+
+  // Fetch version for active servers
+  const fetchServerVersion = useCallback(async (s: MCPServer) => {
+    if (!s.isActive) return
+    try {
+      const v = await window.api.mcp.getServerVersion(s)
+      setVersion(v)
+    } catch {
+      setVersion(null)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (server.isActive) {
+      void fetchServerVersion(server)
+    } else {
+      setVersion(null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [server.isActive, server.id, fetchServerVersion])
+
+  const handleToggleActive = useCallback(
+    async (active: boolean) => {
+      let serverForUpdate = server
+      if (active) {
+        const trustedServer = await ensureServerTrusted(server)
+        if (!trustedServer) return
+        serverForUpdate = trustedServer
+      }
+
+      setLoading(true)
+      const oldActiveState = serverForUpdate.isActive
+      logger.debug('toggle activate', { serverId: serverForUpdate.id, active })
+      try {
+        if (active) {
+          await fetchServerVersion({ ...serverForUpdate, isActive: active })
+        } else {
+          await window.api.mcp.stopServer(serverForUpdate)
+          setVersion(null)
+        }
+        void updateMCPServer({ body: { isActive: active } })
+      } catch (error: any) {
+        window.modal.error({
+          title: t('settings.mcp.startError'),
+          content: formatMcpError(error),
+          centered: true
+        })
+        void updateMCPServer({ body: { isActive: oldActiveState } })
+      } finally {
+        setLoading(false)
+      }
+    },
+    [server, ensureServerTrusted, fetchServerVersion, updateMCPServer, t]
+  )
+
+  const handleDelete = useCallback(() => {
+    try {
+      window.modal.confirm({
+        title: t('settings.mcp.deleteServer'),
+        content: t('settings.mcp.deleteServerConfirm'),
+        centered: true,
+        onOk: async () => {
+          await window.api.mcp.removeServer(server)
+          await deleteMCPServer({})
+          window.toast.success(t('settings.mcp.deleteSuccess'))
+        }
+      })
+    } catch (error: any) {
+      window.toast.error(`${t('settings.mcp.deleteError')}: ${error.message}`)
+    }
+  }, [server, deleteMCPServer, t])
+
   const handleOpenUrl = () => {
     if (server.providerUrl) {
-      onOpenUrl(server.providerUrl)
+      window.open(server.providerUrl, '_blank')
     }
   }
+
+  const isLoading = loading
 
   const Fallback = useCallback(
     (props: FallbackProps) => {
@@ -62,7 +136,7 @@ const McpServerCard: FC<McpServerCardProps> = ({
       }
 
       const onClickDetails = () => {
-        GeneralPopup.show({ content: <ErrorDetails /> })
+        void GeneralPopup.show({ content: <ErrorDetails /> })
       }
       return (
         <Alert
@@ -87,7 +161,7 @@ const McpServerCard: FC<McpServerCardProps> = ({
                 variant="destructive"
                 size="sm"
                 onClick={() => {
-                  onDelete()
+                  handleDelete()
                 }}>
                 <Tooltip content={t('common.delete')}>
                   <DeleteIcon size={16} />
@@ -98,7 +172,7 @@ const McpServerCard: FC<McpServerCardProps> = ({
         />
       )
     },
-    [onDelete, t]
+    [handleDelete, t]
   )
 
   return (
@@ -119,10 +193,10 @@ const McpServerCard: FC<McpServerCardProps> = ({
               checked={server.isActive}
               key={server.id}
               disabled={isLoading}
-              onCheckedChange={onToggle}
+              onCheckedChange={handleToggleActive}
               data-no-dnd
             />
-            <Button size="sm" variant="destructive" className="rounded-full" onClick={onDelete}>
+            <Button size="sm" variant="destructive" className="rounded-full" onClick={handleDelete}>
               <DeleteIcon size={14} className="lucide-custom" />
             </Button>
             <Button size="sm" variant="ghost" className="rounded-full" onClick={onEdit} data-no-dnd>

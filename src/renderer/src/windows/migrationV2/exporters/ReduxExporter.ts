@@ -11,8 +11,14 @@ const SLICES_TO_EXPORT = [
   'assistants', // Assistant configurations
   'knowledge', // Knowledge base metadata
   'llm', // LLM provider and model configurations
+  'mcp', // MCP server configurations
+  'minapps', // Mini app configurations (enabled/disabled/pinned)
   'note', // Note-related settings
-  'selectionStore' // Selection assistant settings
+  'selectionStore', // Selection assistant settings
+  'preprocess', // File preprocess provider configurations
+  'ocr', // OCR provider configurations
+  'websearch', // Web search configurations
+  'codeTools' // Code tools settings (CLI tool, models, terminal)
 ]
 
 export interface ReduxExportResult {
@@ -30,7 +36,11 @@ export class ReduxExporter {
     const rawData = localStorage.getItem(PERSIST_KEY)
 
     if (!rawData) {
-      throw new Error(`Redux Persist data not found in localStorage (key: ${PERSIST_KEY})`)
+      return {
+        data: {},
+        slicesFound: [],
+        slicesMissing: [...SLICES_TO_EXPORT]
+      }
     }
 
     // Parse the outer JSON

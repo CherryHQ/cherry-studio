@@ -1,7 +1,7 @@
 import { PlusOutlined, UploadOutlined } from '@ant-design/icons'
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { loadCustomMiniApp, ORIGIN_DEFAULT_MIN_APPS, updateDefaultMinApps } from '@renderer/config/minapps'
+import { loadCustomMiniApp, ORIGIN_DEFAULT_MIN_APPS, updateAllMinApps } from '@renderer/config/minapps'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import type { MinAppType } from '@renderer/types'
 import { Form, Input, Modal, Radio, Upload } from 'antd'
@@ -61,7 +61,7 @@ const NewAppButton: FC<Props> = ({ size = 60 }) => {
       form.resetFields()
       setFileList([])
       const reloadedApps = [...ORIGIN_DEFAULT_MIN_APPS, ...(await loadCustomMiniApp())]
-      updateDefaultMinApps(reloadedApps)
+      updateAllMinApps(reloadedApps)
       updateMinapps([...minapps, newApp])
     } catch (error) {
       window.toast.error(t('settings.miniapps.custom.save_error'))

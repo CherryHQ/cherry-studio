@@ -14,6 +14,8 @@ Unified test mocks for the project, organized by process type and globally confi
 | Renderer | `useDataApi` | Data API hooks (useQuery, useMutation, etc.) |
 | Renderer | `usePreference` | Preference hooks |
 | Renderer | `useCache` | Cache hooks |
+| Main | `application` | Unified mock application factory with `application.get()` |
+| Main | `DbService` | Database service with mock db |
 | Main | `CacheService` | Internal + shared cache |
 | Main | `DataApiService` | API coordinator |
 | Main | `PreferenceService` | Preference service |
@@ -30,8 +32,10 @@ tests/__mocks__/
 │   ├── usePreference.ts
 │   └── useCache.ts
 ├── main/
+│   ├── application.ts
 │   ├── CacheService.ts
 │   ├── DataApiService.ts
+│   ├── DbService.ts
 │   └── PreferenceService.ts
 ├── RendererLoggerService.ts
 └── MainLoggerService.ts
@@ -250,6 +254,84 @@ await setTheme('dark')
 
 ## Main Process Mocks
 
+### Application Mock (Unified Factory)
+
+All main-process tests get `application.get()` mocked globally via `tests/main.setup.ts`. Tests that need custom service instances can override specific services using `mockApplicationFactory(overrides)`.
+
+#### API
+
+| Export | Description |
+|--------|-------------|
+| `mockApplicationFactory(overrides?)` | Returns full mock module `{ application, serviceList }` for `vi.mock()` |
+| `createMockApplication(overrides?)` | Returns just the mock `application` object |
+| `defaultServiceInstances` | Default mock instances for all registered services |
+
+#### Usage
+
+**Global setup** (already configured in `tests/main.setup.ts`):
+
+```typescript
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('./__mocks__/main/application')
+  return mockApplicationFactory()
+})
+```
+
+**Override specific services** in individual test files:
+
+```typescript
+const mockDb = { select: vi.fn(), insert: vi.fn() }
+
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    DbService: { getDb: () => mockDb }
+  })
+})
+```
+
+**Override with custom method spies:**
+
+```typescript
+const mockPreferenceGet = vi.fn()
+
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    PreferenceService: { get: mockPreferenceGet }
+  })
+})
+```
+
+> **Important**: Do NOT create inline `application.get()` mocks in test files. Always use `mockApplicationFactory()` from `@test-mocks/main/application`.
+
+---
+
+### Main DbService
+
+Database service providing access to the mock SQLite database.
+
+#### Methods
+
+| Method | Signature |
+|--------|-----------|
+| `getDb` | `() => MockDb` |
+| `isReady` | `boolean` (getter) |
+
+```typescript
+import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+
+beforeEach(() => MockMainDbServiceUtils.resetMocks())
+
+// Use default mock db
+MockMainDbServiceUtils.getDefaultMockDb()
+
+// Replace with custom db
+MockMainDbServiceUtils.setDb(customMockDb)
+```
+
+---
+
 ### Main CacheService
 
 Internal cache and cross-window shared cache.
@@ -318,9 +400,10 @@ Each mock exports a `MockXxxUtils` object with testing utilities:
 ## Best Practices
 
 1. **Use global mocks** - Don't re-mock in individual tests unless necessary
-2. **Reset in beforeEach** - Call `MockXxxUtils.resetMocks()` to ensure test isolation
-3. **Use utility functions** - Prefer `MockXxxUtils` over direct mock manipulation
-4. **Type safety** - Mocks match actual service interfaces
+2. **Use `mockApplicationFactory()`** - When a test needs to override `application.get()`, use `mockApplicationFactory(overrides)` instead of creating inline mocks
+3. **Reset in beforeEach** - Call `MockXxxUtils.resetMocks()` to ensure test isolation
+4. **Use utility functions** - Prefer `MockXxxUtils` over direct mock manipulation
+5. **Type safety** - Mocks match actual service interfaces
 
 ## Troubleshooting
 

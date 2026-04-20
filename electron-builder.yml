@@ -68,17 +68,15 @@ files:
   - "!node_modules/tesseract.js-core/{tesseract-core-lstm.js,tesseract-core-lstm.wasm,tesseract-core-lstm.wasm.js}" # we don't need source files
   - "!node_modules/tesseract.js-core/{tesseract-core-simd-lstm.js,tesseract-core-simd-lstm.wasm,tesseract-core-simd-lstm.wasm.js}" # we don't need source files
   - "!**/*.{h,iobj,ipdb,tlog,recipe,vcxproj,vcxproj.filters,Makefile,*.Makefile}" # filter .node build files
+  - "resources/**/*" # include all files in resources, and unpack them from asar for runtime access
 asarUnpack:
+  - out/proxy/**
   - resources/**
   - "**/*.{metal,exp,lib}"
-  - "node_modules/@img/sharp-libvips-*/**"
+  - "node_modules/@img/sharp-*/**"
 extraResources:
   - from: "migrations/sqlite-drizzle"
     to: "migrations/sqlite-drizzle"
-  # copy from node_modules/claude-code-plugins/plugins to resources/data/claude-code-pluginso
-  - from: "./node_modules/claude-code-plugins/plugins/"
-    to: "claude-code-plugins"
-
 win:
   executableName: Cherry Studio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
@@ -117,6 +115,7 @@ dmg:
   writeUpdateInfo: false
 linux:
   artifactName: ${productName}-${version}-${arch}.${ext}
+  executableName: CherryStudio
   target:
     - target: AppImage
     - target: deb
@@ -125,6 +124,7 @@ linux:
   category: Utility
   desktop:
     entry:
+      Name: Cherry Studio
       StartupWMClass: CherryStudio
   mimeTypes:
     - x-scheme-handler/cherrystudio
@@ -144,30 +144,94 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.7.13 - Security & Bug Fixes
+    Cherry Studio 1.9.1 - CherryClaw Agent & Skills System
 
-    🔒 Security
-    - [Plugin] Fix security vulnerability in DXT plugin system on Windows
+    ⚠️ Breaking Changes
+    - [Agents] "Plugins" system renamed to "Skills". Plugin marketplace has been replaced by a unified Skills management interface
+
+    ✨ New Features
+    - [Agents] Add CherryClaw autonomous agent: personality system, scheduled tasks, multi-channel integration (Telegram, Discord, Feishu, Slack, WeChat, QQ), and filesystem sandbox
+    - [Agents] Add built-in Cherry Assistant — helps diagnose issues, navigate pages, collect FAQs, and submit bug reports
+    - [Agents] Improved tool output display with syntax highlighting, diff viewer, line numbers, and file type icons
+    - [ErrorHandling] Add AI-powered error diagnosis with instant classification and step-by-step fix suggestions
+    - [MCP] Add flomo as a built-in MCP server for capturing notes and ideas
+    - [MCP] Add MCPWorld (mcpworld.com) as a new MCP server marketplace
+    - [Topics] Support pinning topics to the top of the list
+    - [Models] Add endpoint option for aionly provider and update default models
+
+    🔒 Security Fixes
+    - [Security] Fix potential security issues with external URL handling and file operations
+    - [Security] Fix XSS vulnerability in MCP description and search results
 
     🐛 Bug Fixes
-    - [Agent] Fix Agent not working when Node.js is not installed on system
-    - [Chat] Fix app crash when opening certain agents
-    - [Chat] Fix reasoning process not displaying correctly for some providers
-    - [Chat] Fix memory leak issue during streaming conversations
-    - [MCP] Fix timeout field not accepting string format in MCP configuration
-    - [Settings] Add careers section in About page
+    - [Models] Add Ollama gemma4 format support for Gemma 4 model capability detection
+    - [Models] Fix new-api provider ignoring configured host for Anthropic format requests
+    - [Models] Fix Poe provider unable to load models dynamically
+    - [Models] Fix Google Gemini web search failing
+    - [Models] Fix model detection for Qwen3.5–3.9 and GPT series
+    - [Models] Fix NVIDIA provider reasoning parameters for Qwen/DeepSeek/Kimi/Zhipu models
+    - [Models] Fix Xiaomi MiMo thinking/non-thinking toggle behavior
+    - [Agents] Fix Claude Code child processes ignoring app proxy settings (including SOCKS proxy)
+    - [Agents] Fix Cherry Assistant ignoring user's language and always responding in English
+    - [MCP] Fix Hub-mode MCP tool calls silently truncating list-style responses
+    - [Knowledge] Fix epub file embedding failure
+    - [Notes] Fix KaTeX formula corruption when toggling editor modes
+    - [Notes] Fix note editor search state and scrolling
+    - [Thinking] Fix thinking time display showing incorrect values
+    - [MiniApps] Fix removed pinned mini-apps silently reappearing
+    - [Code Tools] Fix kimi-cli crash when uv is not installed
+    - [Build] Fix built-in skill files (.md) missing from packaged app
+    - [Chat] Fix data loss when selecting model via keyboard shortcut
+    - [UI] Fix move-to submenu height overflow
+    - [UI] Fix macOS traffic light alignment in custom title bar
+
+    ⚡ Performance
+    - [Backup] Faster backups with smaller file sizes
+    - [Agent] Improve session switch experience
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.7.13 - 安全与问题修复
+    Cherry Studio 1.9.1 - CherryClaw 智能体与技能系统
+
+    ⚠️ 破坏性变更
+    - [智能体] "插件"系统更名为"技能（Skills）"，插件市场已替换为统一的技能管理界面
+
+    ✨ 新功能
+    - [智能体] 新增 CherryClaw 自主智能体：个性系统、定时任务、多渠道集成（Telegram、Discord、飞书、Slack、微信、QQ）和文件系统沙箱
+    - [智能体] 新增内置 Cherry Assistant — 可帮助诊断问题、导航页面、收集常见问题和提交 Bug 报告
+    - [智能体] 改进工具输出展示：语法高亮、差异对比视图、行号和文件类型图标
+    - [错误处理] 新增 AI 驱动的错误诊断，支持即时分类和分步修复建议
+    - [MCP] 新增 flomo 内置 MCP 服务器，支持通过 AI 捕捉笔记和灵感
+    - [MCP] 新增 MCPWorld (mcpworld.com) 作为新的 MCP 服务器市场
+    - [话题] 支持将话题置顶显示
+    - [模型] 为 aionly 服务商添加端点选项并更新默认模型
 
     🔒 安全修复
-    - [插件] 修复 Windows 系统 DXT 插件的安全漏洞
+    - [安全] 修复外部链接打开和文件操作中的潜在安全问题
+    - [安全] 修复 MCP 描述和搜索结果中的 XSS 漏洞
 
     🐛 问题修复
-    - [Agent] 修复系统未安装 Node.js 时 Agent 功能无法使用的问题
-    - [对话] 修复打开某些智能体时应用崩溃的问题
-    - [对话] 修复部分服务商推理过程无法正确显示的问题
-    - [对话] 修复流式对话时的内存泄漏问题
-    - [MCP] 修复 MCP 配置的 timeout 字段不支持字符串格式的问题
-    - [设置] 关于页面新增招聘入口
+    - [模型] 添加 Ollama gemma4 格式支持以正确识别 Gemma 4 模型能力
+    - [模型] 修复 new-api 服务商在 Anthropic 格式请求时忽略已配置主机的问题
+    - [模型] 修复 Poe 服务商无法动态加载模型的问题
+    - [模型] 修复 Google Gemini 网络搜索失败的问题
+    - [模型] 修复 Qwen3.5–3.9 和 GPT 系列模型的识别问题
+    - [模型] 修复 NVIDIA 服务商的 Qwen/DeepSeek/Kimi/Zhipu 模型推理参数
+    - [模型] 修复小米 MiMo 思考模式开关行为异常
+    - [智能体] 修复 Claude Code 子进程忽略应用代理设置的问题（包括 SOCKS 代理）
+    - [智能体] 修复 Cherry Assistant 忽略用户语言、始终以英语回复的问题
+    - [MCP] 修复 Hub 模式下 MCP 工具调用静默截断列表样式响应的问题
+    - [知识库] 修复 epub 文件嵌入失败的问题
+    - [笔记] 修复切换编辑器模式时 KaTeX 公式损坏的问题
+    - [笔记] 修复笔记编辑器搜索状态和滚动问题
+    - [思考] 修复思考时间显示数值异常的问题
+    - [小程序] 修复已移除的固定小程序意外重新出现的问题
+    - [代码工具] 修复未安装 uv 时 kimi-cli 崩溃的问题
+    - [构建] 修复内置技能文件（.md）未包含在打包应用中的问题
+    - [聊天] 修复通过键盘快捷键选择模型导致数据丢失的问题
+    - [UI] 修复"移动到"子菜单高度溢出
+    - [UI] 修复 macOS 自定义标题栏中红绿灯控件对齐问题
+
+    ⚡ 性能优化
+    - [备份] 优化备份速度，减小备份文件大小
+    - [智能体] 改善会话切换时的体验
     <!--LANG:END-->

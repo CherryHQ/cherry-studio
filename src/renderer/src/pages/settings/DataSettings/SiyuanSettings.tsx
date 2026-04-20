@@ -24,19 +24,19 @@ const SiyuanSettings: FC = () => {
   const { theme } = useTheme()
 
   const handleApiUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSiyuanApiUrl(e.target.value)
+    void setSiyuanApiUrl(e.target.value)
   }
 
   const handleTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSiyuanToken(e.target.value)
+    void setSiyuanToken(e.target.value)
   }
 
   const handleBoxIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSiyuanBoxId(e.target.value)
+    void setSiyuanBoxId(e.target.value)
   }
 
   const handleRootPathChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSiyuanRootPath(e.target.value)
+    void setSiyuanRootPath(e.target.value)
   }
 
   const handleSiyuanHelpClick = () => {

@@ -22,7 +22,7 @@ const logger = loggerService.withContext('TranslateButton')
 const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoading }) => {
   const { t } = useTranslation()
   const [isTranslating, setIsTranslating] = useState(false)
-  const [targetLanguage] = usePreference('feature.translate.target_language')
+  const [targetLanguage] = usePreference('feature.translate.chat.target_language')
   const [showTranslateConfirm] = usePreference('chat.input.translate.show_confirm')
   const { getLanguageByLangcode } = useTranslate()
 
@@ -64,9 +64,7 @@ const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoa
   }, [isLoading])
 
   return (
-    <Tooltip
-      content={t('chat.input.translate', { target_language: getLanguageByLangcode(targetLanguage).label() })}
-      closeDelay={0}>
+    <Tooltip content={t('chat.input.translate', { target_language: getLanguageByLangcode(targetLanguage).label() })}>
       <Button
         onClick={handleTranslate}
         disabled={disabled || isTranslating}

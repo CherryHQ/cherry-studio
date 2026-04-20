@@ -16,7 +16,7 @@
  */
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
-import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
+import { allMinApps } from '@renderer/config/minapps'
 import type { MinAppType } from '@renderer/types'
 
 export interface MinAppsState {
@@ -26,7 +26,7 @@ export interface MinAppsState {
 }
 
 const initialState: MinAppsState = {
-  enabled: DEFAULT_MIN_APPS,
+  enabled: allMinApps,
   disabled: [],
   pinned: []
 }

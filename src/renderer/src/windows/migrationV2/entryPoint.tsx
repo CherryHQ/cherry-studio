@@ -18,6 +18,6 @@ loggerService.initWindowSource('MigrationV2')
 const root = createRoot(document.getElementById('root') as HTMLElement)
 
 // Wait for i18n to be fully initialized before rendering
-initI18n().then(() => {
+void initI18n().then(() => {
   root.render(<MigrationApp />)
 })

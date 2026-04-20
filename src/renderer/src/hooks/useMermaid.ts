@@ -63,7 +63,7 @@ export const useMermaid = () => {
       }
     }
 
-    initialize()
+    void initialize()
 
     return () => {
       mounted = false

@@ -1,30 +1,89 @@
-import { preferenceService } from '@data/PreferenceService'
+import { application } from '@application'
 import { loggerService } from '@logger'
-import type { Attributes, SpanEntity, TokenUsage, TraceCache } from '@mcp-trace/trace-core'
-import { convertSpanToSpanEntity } from '@mcp-trace/trace-core'
+import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { convertSpanToSpanEntity } from '@mcp-trace/trace-core/core/spanConvert'
+import type { TraceCache } from '@mcp-trace/trace-core/core/traceCache'
+import type { Attributes, SpanEntity, TokenUsage } from '@mcp-trace/trace-core/types/config'
 import { SpanStatusCode } from '@opentelemetry/api'
 import type { ReadableSpan } from '@opentelemetry/sdk-trace-base'
 import { HOME_CHERRY_DIR } from '@shared/config/constant'
+import { IpcChannel } from '@shared/IpcChannel'
 import fs from 'fs/promises'
 import * as os from 'os'
 import * as path from 'path'
 
 const logger = loggerService.withContext('SpanCacheService')
 
-class SpanCacheService implements TraceCache {
+@Injectable('SpanCacheService')
+@ServicePhase(Phase.WhenReady)
+export class SpanCacheService extends BaseService implements TraceCache, Activatable {
   private topicMap: Map<string, string> = new Map<string, string>()
-  private fileDir: string
+  private fileDir: string = path.join(os.homedir(), HOME_CHERRY_DIR, 'trace')
   private cache: Map<string, SpanEntity> = new Map<string, SpanEntity>()
-  pri
 
-  constructor() {
-    this.fileDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'trace')
+  protected async onInit() {
+    this.registerIpcHandlers()
+  }
+
+  /**
+   * Activate only when developer_mode is enabled at startup.
+   * Runtime preference changes take effect after restart — no runtime activate/deactivate.
+   */
+  protected async onReady() {
+    const enabled = application.get('PreferenceService').get('app.developer_mode.enabled')
+    logger.info(
+      `Developer mode is ${enabled ? 'enabled' : 'disabled'}, span caching ${enabled ? 'activated' : 'skipped'}`
+    )
+    if (enabled) {
+      await this.activate()
+    }
+  }
+
+  async onActivate() {
+    await this._checkFolder(this.fileDir)
+  }
+
+  /**
+   * Only called during app shutdown (auto-deactivation in _doStop).
+   * Runtime deactivation is not supported — developer_mode changes require restart.
+   */
+  async onDeactivate() {
+    this.cache.clear()
+    this.topicMap.clear()
+  }
+
+  private registerIpcHandlers() {
+    this.ipcHandle(IpcChannel.TRACE_SAVE_DATA, (_, topicId: string) => this.saveSpans(topicId))
+    this.ipcHandle(IpcChannel.TRACE_GET_DATA, (_, topicId: string, traceId: string, modelName?: string) =>
+      this.getSpans(topicId, traceId, modelName)
+    )
+    this.ipcHandle(IpcChannel.TRACE_SAVE_ENTITY, (_, entity: SpanEntity) => this.saveEntity(entity))
+    this.ipcHandle(IpcChannel.TRACE_GET_ENTITY, (_, spanId: string) => this.getEntity(spanId))
+    this.ipcHandle(IpcChannel.TRACE_BIND_TOPIC, (_, topicId: string, traceId: string) =>
+      this.setTopicId(traceId, topicId)
+    )
+    this.ipcHandle(IpcChannel.TRACE_CLEAN_TOPIC, (_, topicId: string, traceId?: string) =>
+      this.cleanTopic(topicId, traceId)
+    )
+    this.ipcHandle(IpcChannel.TRACE_TOKEN_USAGE, (_, spanId: string, usage: TokenUsage) =>
+      this.updateTokenUsage(spanId, usage)
+    )
+    this.ipcHandle(IpcChannel.TRACE_CLEAN_HISTORY, (_, topicId: string, traceId: string, modelName?: string) =>
+      this.cleanHistoryTrace(topicId, traceId, modelName)
+    )
+    this.ipcHandle(IpcChannel.TRACE_ADD_END_MESSAGE, (_, spanId: string, modelName: string, message: string) =>
+      this.setEndMessage(spanId, modelName, message)
+    )
+    this.ipcHandle(IpcChannel.TRACE_CLEAN_LOCAL_DATA, () => this.cleanLocalData())
+    this.ipcHandle(
+      IpcChannel.TRACE_ADD_STREAM_MESSAGE,
+      (_, spanId: string, modelName: string, context: string, msg: any) =>
+        this.addStreamMessage(spanId, modelName, context, msg)
+    )
   }
 
   createSpan: (span: ReadableSpan) => void = (span: ReadableSpan) => {
-    if (!preferenceService.get('app.developer_mode.enabled')) {
-      return
-    }
+    if (!this.isActivated) return
     const spanEntity = convertSpanToSpanEntity(span)
     spanEntity.topicId = this.topicMap.get(spanEntity.traceId)
     this.cache.set(span.spanContext().spanId, spanEntity)
@@ -32,9 +91,7 @@ class SpanCacheService implements TraceCache {
   }
 
   endSpan: (span: ReadableSpan) => void = (span: ReadableSpan) => {
-    if (!preferenceService.get('app.developer_mode.enabled')) {
-      return
-    }
+    if (!this.isActivated) return
     const spanId = span.spanContext().spanId
     const spanEntity = this.cache.get(spanId)
     if (!spanEntity) {
@@ -61,41 +118,37 @@ class SpanCacheService implements TraceCache {
     await this._checkFolder(path.join(this.fileDir, topicId))
 
     if (modelName) {
-      this.cleanHistoryTrace(topicId, traceId || '', modelName)
-      this.saveSpans(topicId)
+      await this.cleanHistoryTrace(topicId, traceId || '', modelName)
+      await this.saveSpans(topicId)
     } else if (traceId) {
-      fs.rm(path.join(this.fileDir, topicId, traceId))
+      await fs.rm(path.join(this.fileDir, topicId, traceId))
     } else {
-      fs.readdir(path.join(this.fileDir, topicId)).then((files) =>
-        files.forEach((file) => {
-          fs.rm(path.join(this.fileDir, topicId, file))
-        })
-      )
+      const files = await fs.readdir(path.join(this.fileDir, topicId))
+      for (const file of files) {
+        await fs.rm(path.join(this.fileDir, topicId, file))
+      }
     }
   }
 
   async cleanLocalData() {
     this.cache.clear()
-    fs.readdir(this.fileDir)
-      .then((files) =>
-        files.forEach((topicId) => {
-          fs.rm(path.join(this.fileDir, topicId), { recursive: true, force: true })
-        })
-      )
-      .catch((err) => {
-        logger.error('Error cleaning local data:', err)
-      })
+    try {
+      const files = await fs.readdir(this.fileDir)
+      for (const topicId of files) {
+        await fs.rm(path.join(this.fileDir, topicId), { recursive: true, force: true })
+      }
+    } catch (err) {
+      logger.error('Error cleaning local data:', err as Error)
+    }
   }
 
   async saveSpans(topicId: string) {
-    if (!preferenceService.get('app.developer_mode.enabled')) {
-      return
-    }
+    if (!this.isActivated) return
     let traceId: string | undefined
     for (const [key, value] of this.topicMap.entries()) {
       if (value === topicId) {
         traceId = key
-        break // 找到后立即退出循环
+        break
       }
     }
     if (!traceId) {
@@ -131,6 +184,7 @@ class SpanCacheService implements TraceCache {
    * @param topicId topicId
    */
   setTopicId(traceId: string, topicId: string): void {
+    if (!this.isActivated) return
     this.topicMap.set(traceId, topicId)
   }
 
@@ -139,9 +193,7 @@ class SpanCacheService implements TraceCache {
   }
 
   saveEntity(entity: SpanEntity) {
-    if (!preferenceService.get('app.developer_mode.enabled')) {
-      return
-    }
+    if (!this.isActivated) return
     if (this.cache.has(entity.id)) {
       this._updateEntity(entity)
     } else {
@@ -151,6 +203,7 @@ class SpanCacheService implements TraceCache {
   }
 
   updateTokenUsage(spanId: string, usage: TokenUsage) {
+    if (!this.isActivated) return
     const entity = this.cache.get(spanId)
     if (entity) {
       entity.usage = { ...usage }
@@ -161,6 +214,7 @@ class SpanCacheService implements TraceCache {
   }
 
   addStreamMessage(spanId: string, modelName: string, context: string, message: any) {
+    if (!this.isActivated) return
     const span = this.cache.get(spanId)
     if (!span) {
       return
@@ -179,6 +233,7 @@ class SpanCacheService implements TraceCache {
   }
 
   setEndMessage(spanId: string, modelName: string, message: string) {
+    if (!this.isActivated) return
     const span = this.cache.get(spanId)
     if (span && span.attributes) {
       let outputs = span.attributes['outputs']
@@ -232,6 +287,7 @@ class SpanCacheService implements TraceCache {
     }
     entity.modelName = modelName
   }
+
   private _updateEntity(entity: SpanEntity): void {
     entity.topicId = this.topicMap.get(entity.traceId)
     const savedEntity = this.cache.get(entity.id)
@@ -283,7 +339,6 @@ class SpanCacheService implements TraceCache {
       return
     }
     const attributes = span.attributes
-    // 如果含有modelName属性，是具体的某个modalName输出，拼接到streamText下面
     if (attributes && span.modelName) {
       const currentValue = attributes['outputs']
       if (currentValue && typeof currentValue === 'object') {
@@ -352,7 +407,6 @@ class SpanCacheService implements TraceCache {
       }
       await fileHandle.close()
 
-      // 使用生成器逐行处理
       const parseLines = function* (text: string) {
         for (const line of text.split('\n')) {
           const trimmed = line.trim()
@@ -360,7 +414,7 @@ class SpanCacheService implements TraceCache {
             try {
               yield JSON.parse(trimmed) as SpanEntity
             } catch (e) {
-              logger.error(`JSON解析失败: ${trimmed}`, e as Error)
+              logger.error(`JSON parse failed: ${trimmed}`, e as Error)
             }
           }
         }
@@ -393,16 +447,3 @@ class SpanCacheService implements TraceCache {
     }
   }
 }
-
-export const spanCacheService = new SpanCacheService()
-export const cleanTopic = spanCacheService.cleanTopic.bind(spanCacheService)
-export const saveEntity = spanCacheService.saveEntity.bind(spanCacheService)
-export const getEntity = spanCacheService.getEntity.bind(spanCacheService)
-export const tokenUsage = spanCacheService.updateTokenUsage.bind(spanCacheService)
-export const saveSpans = spanCacheService.saveSpans.bind(spanCacheService)
-export const getSpans = spanCacheService.getSpans.bind(spanCacheService)
-export const addEndMessage = spanCacheService.setEndMessage.bind(spanCacheService)
-export const bindTopic = spanCacheService.setTopicId.bind(spanCacheService)
-export const addStreamMessage = spanCacheService.addStreamMessage.bind(spanCacheService)
-export const cleanHistoryTrace = spanCacheService.cleanHistoryTrace.bind(spanCacheService)
-export const cleanLocalData = spanCacheService.cleanLocalData.bind(spanCacheService)

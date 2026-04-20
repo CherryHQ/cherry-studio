@@ -1,21 +1,22 @@
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type {
-  PreferenceDefaultScopeType,
-  PreferenceKeyType,
-  PreferenceUpdateOptions
+  PreferenceUpdateOptions,
+  UnifiedPreferenceKeyType,
+  UnifiedPreferenceType
 } from '@shared/data/preference/preferenceTypes'
+import { getDefaultValue } from '@shared/data/preference/preferenceUtils'
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 
 const logger = loggerService.withContext('usePreference')
+const DEFAULT_PREFERENCE_OPTIONS: PreferenceUpdateOptions = { optimistic: true }
 
 /**
  * React hook for managing a single preference value with automatic synchronization
  * Uses useSyncExternalStore for optimal React 18 integration and real-time updates
  * Supports both optimistic and pessimistic update strategies for flexible UX
  *
- * @param key - The preference key to manage (must be a valid PreferenceKeyType)
+ * @param key - The preference key to manage (must be a valid UnifiedPreferenceKeyType)
  * @param options - Optional configuration for update behavior:
  *   - optimistic: true (default) for immediate UI updates, false for database-first updates
  * @returns A tuple [value, setValue] where:
@@ -78,10 +79,10 @@ const logger = loggerService.withContext('usePreference')
  * )
  * ```
  */
-export function usePreference<K extends PreferenceKeyType>(
+export function usePreference<K extends UnifiedPreferenceKeyType>(
   key: K,
-  options: PreferenceUpdateOptions = { optimistic: true }
-): [PreferenceDefaultScopeType[K], (value: PreferenceDefaultScopeType[K]) => Promise<void>] {
+  options: PreferenceUpdateOptions = DEFAULT_PREFERENCE_OPTIONS
+): [UnifiedPreferenceType[K], (value: UnifiedPreferenceType[K]) => Promise<void>] {
   // Subscribe to changes for this specific preference (raw value including undefined)
   const rawValue = useSyncExternalStore(
     useCallback((callback) => preferenceService.subscribeChange(key)(callback), [key]),
@@ -99,12 +100,11 @@ export function usePreference<K extends PreferenceKeyType>(
   }, [key, rawValue])
 
   // Convert undefined to default value for external consumption
-  const exposedValue =
-    rawValue !== undefined ? rawValue : (DefaultPreferences.default[key] as PreferenceDefaultScopeType[K])
+  const exposedValue = rawValue !== undefined ? rawValue : getDefaultValue(key)
 
   // Memoized setter function
   const setValue = useCallback(
-    async (newValue: PreferenceDefaultScopeType[K]) => {
+    async (newValue: UnifiedPreferenceType[K]) => {
       try {
         await preferenceService.set(key, newValue, options)
       } catch (error) {
@@ -124,7 +124,7 @@ export function usePreference<K extends PreferenceKeyType>(
  * Supports both optimistic and pessimistic update strategies for flexible UX
  *
  * @param keys - Object mapping local names to preference keys. Keys are your custom names,
- *               values must be valid PreferenceKeyType identifiers
+ *               values must be valid UnifiedPreferenceKeyType identifiers
  * @param options - Optional configuration for update behavior:
  *   - optimistic: true (default) for immediate UI updates, false for database-first updates
  * @returns A tuple [values, updateValues] where:
@@ -244,12 +244,12 @@ export function usePreference<K extends PreferenceKeyType>(
  * return <CodeBlock config={codeConfig} />
  * ```
  */
-export function useMultiplePreferences<T extends Record<string, PreferenceKeyType>>(
+export function useMultiplePreferences<T extends Record<string, UnifiedPreferenceKeyType>>(
   keys: T,
-  options: PreferenceUpdateOptions = { optimistic: true }
+  options: PreferenceUpdateOptions = DEFAULT_PREFERENCE_OPTIONS
 ): [
-  { [P in keyof T]: PreferenceDefaultScopeType[T[P]] },
-  (updates: Partial<{ [P in keyof T]: PreferenceDefaultScopeType[T[P]] }>) => Promise<void>
+  { [P in keyof T]: UnifiedPreferenceType[T[P]] },
+  (updates: Partial<{ [P in keyof T]: UnifiedPreferenceType[T[P]] }>) => Promise<void>
 ] {
   // Create stable key dependencies
   const keyList = useMemo(() => Object.values(keys), [keys])
@@ -318,14 +318,14 @@ export function useMultiplePreferences<T extends Record<string, PreferenceKeyTyp
     const result: Record<string, any> = {}
     for (const [localKey, prefKey] of Object.entries(keys)) {
       const rawValue = rawValues[localKey]
-      result[localKey] = rawValue !== undefined ? rawValue : DefaultPreferences.default[prefKey]
+      result[localKey] = rawValue !== undefined ? rawValue : getDefaultValue(prefKey)
     }
     return result
   }, [keys, rawValues])
 
   // Memoized batch update function
   const updateValues = useCallback(
-    async (updates: Partial<{ [P in keyof T]: PreferenceDefaultScopeType[T[P]] }>) => {
+    async (updates: Partial<{ [P in keyof T]: UnifiedPreferenceType[T[P]] }>) => {
       try {
         // Convert local keys back to preference keys
         const prefUpdates: Record<string, any> = {}
@@ -346,7 +346,7 @@ export function useMultiplePreferences<T extends Record<string, PreferenceKeyTyp
   )
 
   // Type-cast the values to the expected shape
-  const typedValues = exposedValues as { [P in keyof T]: PreferenceDefaultScopeType[T[P]] }
+  const typedValues = exposedValues as { [P in keyof T]: UnifiedPreferenceType[T[P]] }
 
   return [typedValues, updateValues]
 }

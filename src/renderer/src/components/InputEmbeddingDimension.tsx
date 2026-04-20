@@ -8,7 +8,8 @@ import { InputNumber, Space } from 'antd'
 import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import AiProviderNew from '../aiCore/index_new'
+import { AiProvider } from '../aiCore'
+import { getRotatedApiKey } from '../services/ApiService'
 
 const logger = loggerService.withContext('DimensionsInput')
 
@@ -49,7 +50,11 @@ const InputEmbeddingDimension = ({
 
     setLoading(true)
     try {
-      const aiProvider = new AiProviderNew(provider)
+      const providerWithRotatedKey = {
+        ...provider,
+        apiKey: getRotatedApiKey(provider)
+      }
+      const aiProvider = new AiProvider(providerWithRotatedKey)
       const dimension = await aiProvider.getEmbeddingDimensions(model)
       // for controlled input
       if (ref?.current) {
@@ -78,7 +83,7 @@ const InputEmbeddingDimension = ({
       <Tooltip content={t('knowledge.dimensions_auto_set')}>
         <Button
           role="button"
-          aria-label="Get embedding dimension"
+          aria-label={t('common.get_embedding_dimension')}
           disabled={disabled || loading}
           onClick={handleFetchDimension}
           size="icon-sm">

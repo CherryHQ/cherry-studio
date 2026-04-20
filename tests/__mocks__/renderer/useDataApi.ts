@@ -52,7 +52,7 @@ export const mockUseQuery = vi.fn(
   <TPath extends ConcreteApiPaths>(
     path: TPath,
     options?: {
-      query?: QueryParamsForPath<TPath>
+      query?: QueryParamsForPath<TPath, 'GET'>
       enabled?: boolean
       swrOptions?: any
     }
@@ -107,13 +107,13 @@ export const mockUseMutation = vi.fn(
   ): {
     trigger: (data?: {
       body?: BodyForPath<TPath, TMethod>
-      query?: QueryParamsForPath<TPath>
+      query?: QueryParamsForPath<TPath, TMethod>
     }) => Promise<ResponseForPath<TPath, TMethod>>
     isLoading: boolean
     error: Error | undefined
   } => {
     const mockTrigger = vi.fn(
-      async (_data?: { body?: BodyForPath<TPath, TMethod>; query?: QueryParamsForPath<TPath> }) => {
+      async (_data?: { body?: BodyForPath<TPath, TMethod>; query?: QueryParamsForPath<TPath, TMethod> }) => {
         // Simulate different responses based on method
         switch (method) {
           case 'POST':
@@ -145,7 +145,7 @@ export const mockUsePaginatedQuery = vi.fn(
   <TPath extends ConcreteApiPaths>(
     path: TPath,
     _options?: {
-      query?: Omit<QueryParamsForPath<TPath>, 'page' | 'limit'>
+      query?: Omit<QueryParamsForPath<TPath, 'GET'>, 'page' | 'limit'>
       limit?: number
       swrOptions?: any
     }
@@ -224,7 +224,7 @@ export const mockPrefetch = vi.fn(
   async <TPath extends ConcreteApiPaths>(
     path: TPath,
     _options?: {
-      query?: QueryParamsForPath<TPath>
+      query?: QueryParamsForPath<TPath, 'GET'>
     }
   ): Promise<ResponseForPath<TPath, 'GET'>> => {
     return createMockDataForPath(path) as ResponseForPath<TPath, 'GET'>

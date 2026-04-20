@@ -1,4 +1,4 @@
-import ZhipuLogo from '@renderer/assets/images/providers/zhipu.png'
+import { Composio, Glama, Higress, Mcp, Mcpso, Modelscope, Pulse, Smithery, Zhipu } from '@cherrystudio/ui/icons'
 import { ExternalLink } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -8,62 +8,68 @@ import { SettingTitle } from '..'
 
 const mcpMarkets = [
   {
+    name: 'MCP World',
+    url: 'https://www.mcpworld.com',
+    logo: 'https://mcpworld.bdstatic.com/store/v2/865ad5d/mcp-server-store/ec04344/favicon.ico',
+    descriptionKey: 'settings.mcp.more.mcpworld'
+  },
+  {
     name: 'BigModel MCP Market',
     url: 'https://bigmodel.cn/marketplace/index/mcp',
-    logo: ZhipuLogo,
+    logo: Zhipu,
     descriptionKey: 'settings.mcp.more.zhipu'
   },
   {
     name: 'modelscope.cn',
     url: 'https://www.modelscope.cn/mcp',
-    logo: 'https://g.alicdn.com/sail-web/maas/2.7.35/favicon/128.ico',
+    logo: Modelscope,
     descriptionKey: 'settings.mcp.more.modelscope'
   },
   {
     name: 'mcp.higress.ai',
     url: 'https://mcp.higress.ai/',
-    logo: 'https://framerusercontent.com/images/FD5yBobiBj4Evn0qf11X7iQ9csk.png',
+    logo: Higress,
     descriptionKey: 'settings.mcp.more.higress'
   },
   {
     name: 'mcp.so',
     url: 'https://mcp.so/',
-    logo: 'https://mcp.so/favicon.ico',
+    logo: Mcpso,
     descriptionKey: 'settings.mcp.more.mcpso'
   },
   {
     name: 'smithery.ai',
     url: 'https://smithery.ai/',
-    logo: 'https://smithery.ai/icon.svg',
+    logo: Smithery,
     descriptionKey: 'settings.mcp.more.smithery'
   },
   {
     name: 'glama.ai',
     url: 'https://glama.ai/mcp/servers',
-    logo: 'https://glama.ai/favicon.ico',
+    logo: Glama,
     descriptionKey: 'settings.mcp.more.glama'
   },
   {
     name: 'pulsemcp.com',
     url: 'https://www.pulsemcp.com',
-    logo: 'https://www.pulsemcp.com/favicon.svg',
+    logo: Pulse,
     descriptionKey: 'settings.mcp.more.pulsemcp'
   },
   {
     name: 'mcp.composio.dev',
     url: 'https://mcp.composio.dev/',
-    logo: 'https://avatars.githubusercontent.com/u/128464815',
+    logo: Composio,
     descriptionKey: 'settings.mcp.more.composio'
   },
   {
     name: 'Model Context Protocol Servers',
     url: 'https://github.com/modelcontextprotocol/servers',
-    logo: 'https://avatars.githubusercontent.com/u/182288589',
+    logo: Mcp,
     descriptionKey: 'settings.mcp.more.official'
   },
   {
     name: 'Awesome MCP Servers',
-    url: 'https://github.com/punkpeye/awesome-mcp-servers',
+    url: 'https://github.com/wong2/awesome-mcp-servers',
     logo: 'https://github.githubassets.com/assets/github-logo-55c5b9a1fe52.png',
     descriptionKey: 'settings.mcp.more.awesome'
   }
@@ -79,7 +85,11 @@ const McpMarketList: FC = () => {
         {mcpMarkets.map((resource) => (
           <MarketCard key={resource.name} onClick={() => window.open(resource.url, '_blank', 'noopener,noreferrer')}>
             <MarketHeader>
-              <MarketLogo src={resource.logo} alt={`${resource.name} logo`} />
+              {typeof resource.logo !== 'string' ? (
+                <resource.logo.Avatar size={24} shape="rounded" className="mr-2" />
+              ) : (
+                <MarketLogo src={resource.logo} alt={`${resource.name} logo`} />
+              )}
               <MarketName>{resource.name}</MarketName>
               <ExternalLinkIcon>
                 <ExternalLink size={14} />

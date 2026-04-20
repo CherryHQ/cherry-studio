@@ -14,6 +14,8 @@ export type LanguageConfig = Record<string, LanguageData>
 
 export interface CodeEditorHandles {
   save?: () => void
+  scrollToLine?: (lineNumber: number, options?: { highlight?: boolean }) => void
+  getContent?: () => string
 }
 
 export interface CodeEditorProps {

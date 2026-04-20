@@ -1,4 +1,4 @@
-import { cacheService } from '@data/CacheService'
+import { application } from '@application'
 import type { File, Files } from '@google/genai'
 import { FileState, GoogleGenAI } from '@google/genai'
 import { loggerService } from '@logger'
@@ -68,7 +68,7 @@ export class GeminiService extends BaseFileService {
       // 只缓存成功的文件
       if (status === 'success') {
         const cacheKey = `${GeminiService.FILE_LIST_CACHE_KEY}_${response.fileId}`
-        cacheService.set<FileUploadResponse>(cacheKey, response, GeminiService.FILE_CACHE_DURATION)
+        application.get('CacheService').set<FileUploadResponse>(cacheKey, response, GeminiService.FILE_CACHE_DURATION)
       }
 
       return response
@@ -85,7 +85,9 @@ export class GeminiService extends BaseFileService {
 
   async retrieveFile(fileId: string): Promise<FileUploadResponse> {
     try {
-      const cachedResponse = cacheService.get<FileUploadResponse>(`${GeminiService.FILE_LIST_CACHE_KEY}_${fileId}`)
+      const cachedResponse = application
+        .get('CacheService')
+        .get<FileUploadResponse>(`${GeminiService.FILE_LIST_CACHE_KEY}_${fileId}`)
       logger.debug('[GeminiService] cachedResponse', cachedResponse)
       if (cachedResponse) {
         return cachedResponse
@@ -131,6 +133,7 @@ export class GeminiService extends BaseFileService {
 
   async listFiles(): Promise<FileListResponse> {
     try {
+      const cacheService = application.get('CacheService')
       const cachedList = cacheService.get<FileListResponse>(GeminiService.FILE_LIST_CACHE_KEY)
       if (cachedList) {
         return cachedList

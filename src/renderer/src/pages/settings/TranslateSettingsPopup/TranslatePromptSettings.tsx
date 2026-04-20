@@ -20,7 +20,7 @@ const TranslatePromptSettings = () => {
 
   const onResetTranslatePrompt = () => {
     setLocalPrompt(TRANSLATE_PROMPT)
-    setTranslateModelPrompt(TRANSLATE_PROMPT)
+    void setTranslateModelPrompt(TRANSLATE_PROMPT)
   }
 
   return (

@@ -33,10 +33,13 @@ export type MatchApiPath<Path extends string> = {
 }[keyof ApiSchemas]
 
 /**
- * Extract query parameters type for a given concrete path
+ * Extract query parameters type for a given concrete path and HTTP method
  */
-export type QueryParamsForPath<Path extends string> = MatchApiPath<Path> extends keyof ApiSchemas
-  ? ApiSchemas[MatchApiPath<Path>] extends { GET: { query?: infer Q } }
+export type QueryParamsForPath<
+  Path extends string,
+  Method extends 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
+> = MatchApiPath<Path> extends keyof ApiSchemas
+  ? ApiSchemas[MatchApiPath<Path>] extends { [M in Method]: { query?: infer Q } }
     ? Q
     : Record<string, any>
   : Record<string, any>

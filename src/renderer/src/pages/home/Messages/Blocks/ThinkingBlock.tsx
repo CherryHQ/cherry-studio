@@ -40,12 +40,12 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
       navigator.clipboard
         .writeText(block.content)
         .then(() => {
-          window.toast.success(t('message.copied'))
+          window.toast.success({ title: t('message.copied'), key: 'copy-message' })
           setCopied(true)
         })
         .catch((error) => {
           logger.error('Failed to copy text:', error)
-          window.toast.error(t('message.copy.failed'))
+          window.toast.error({ title: t('message.copy.failed'), key: 'copy-message-error' })
         })
     }
   }, [block.content, setCopied, t])
@@ -110,7 +110,10 @@ const normalizeThinkingTime = (value?: number) => (typeof value === 'number' && 
 const ThinkingTimeSeconds = memo(
   ({ blockThinkingTime, isThinking }: { blockThinkingTime: number; isThinking: boolean }) => {
     const { t } = useTranslation()
-    const [displayTime, setDisplayTime] = useState(normalizeThinkingTime(blockThinkingTime))
+    // Initialize to 0 so the local timer always starts fresh when thinking begins.
+    // The actual blockThinkingTime is only applied once thinking completes (isThinking = false),
+    // which prevents a race condition from inflating the initial display value.
+    const [displayTime, setDisplayTime] = useState(isThinking ? 0 : normalizeThinkingTime(blockThinkingTime))
 
     const timer = useRef<NodeJS.Timeout | null>(null)
 

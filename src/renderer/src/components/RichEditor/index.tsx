@@ -6,7 +6,7 @@ import DragHandle from '@tiptap/extension-drag-handle-react'
 import { EditorContent } from '@tiptap/react'
 import { t } from 'i18next'
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, GripVertical, Plus, Trash2 } from 'lucide-react'
-import React, { useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 
 import Scrollbar from '../Scrollbar'
@@ -37,14 +37,12 @@ const logger = loggerService.withContext('RichEditor')
  * 3. Closest line <= target
  */
 function findElementByLine(editorDom: HTMLElement, lineNumber: number, lineContent?: string): HTMLElement | null {
-  const allElements = Array.from(editorDom.querySelectorAll(`[${MARKDOWN_SOURCE_LINE_ATTR}]`)) as HTMLElement[]
+  const allElements = Array.from(editorDom.querySelectorAll<HTMLElement>(`[${MARKDOWN_SOURCE_LINE_ATTR}]`))
   if (allElements.length === 0) {
     logger.warn('No elements with data-source-line attribute found')
     return null
   }
-  const exactMatches = editorDom.querySelectorAll(
-    `[${MARKDOWN_SOURCE_LINE_ATTR}="${lineNumber}"]`
-  ) as NodeListOf<HTMLElement>
+  const exactMatches = editorDom.querySelectorAll<HTMLElement>(`[${MARKDOWN_SOURCE_LINE_ATTR}="${lineNumber}"]`)
 
   // Strategy 1: Exact line + content match
   if (exactMatches.length > 1 && lineContent) {
@@ -247,6 +245,15 @@ const RichEditor = ({
 
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const contentSearchRef = useRef<ContentSearchRef>(null)
+  const contentSearchFilter = useMemo<NodeFilter>(
+    () => ({
+      acceptNode(node) {
+        const inEditor = node.parentElement?.closest('.ProseMirror')
+        return inEditor ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
+      }
+    }),
+    []
+  )
 
   const onKeyDownEditor = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -568,7 +575,10 @@ const RichEditor = ({
           scrollContainer={scrollContainerRef}
         />
       )}
-      <Scrollbar ref={scrollContainerRef} style={{ flex: 1, display: 'flex' }}>
+      <Scrollbar
+        ref={scrollContainerRef}
+        className="rich-editor-content"
+        style={{ flex: 1, display: 'flex', minHeight: 0 }}>
         <StyledEditorContent>
           <PlusButton editor={editor} onElementClick={handlePlusButtonClick}>
             <Tooltip content={t('richEditor.plusButton')}>
@@ -587,12 +597,7 @@ const RichEditor = ({
         <ContentSearch
           ref={contentSearchRef}
           searchTarget={scrollContainerRef as React.RefObject<HTMLElement>}
-          filter={{
-            acceptNode(node) {
-              const inEditor = (node as Node).parentElement?.closest('.ProseMirror')
-              return inEditor ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
-            }
-          }}
+          filter={contentSearchFilter}
           includeUser={false}
           onIncludeUserChange={() => {}}
           showUserToggle={false}

@@ -1,6 +1,7 @@
+import { application } from '@application'
+import { loggerService } from '@logger'
+import { WindowType } from '@main/core/window/types'
 import PreprocessProvider from '@main/knowledge/preprocess/PreprocessProvider'
-import { loggerService } from '@main/services/LoggerService'
-import { windowService } from '@main/services/WindowService'
 import type { FileMetadata, KnowledgeBaseParams, KnowledgeItem } from '@types'
 
 const logger = loggerService.withContext('PreprocessingService')
@@ -27,14 +28,12 @@ class PreprocessingService {
 
         // Execute preprocessing
         logger.debug(`Starting preprocess for scanned PDF: ${file.path}`)
-        const { processedFile, quota } = await provider.parseFile(item.id, file)
+        const { processedFile } = await provider.parseFile(item.id, file)
         fileToProcess = processedFile
 
         // Notify the UI
-        const mainWindow = windowService.getMainWindow()
-        mainWindow?.webContents.send('file-preprocess-finished', {
-          itemId: item.id,
-          quota: quota
+        application.get('WindowManager').broadcastToType(WindowType.Main, 'file-preprocess-finished', {
+          itemId: item.id
         })
       } catch (err) {
         logger.error(`Preprocessing failed: ${err}`)
@@ -44,19 +43,6 @@ class PreprocessingService {
     }
 
     return fileToProcess
-  }
-
-  public async checkQuota(base: KnowledgeBaseParams, userId: string): Promise<number> {
-    try {
-      if (base.preprocessProvider && base.preprocessProvider.type === 'preprocess') {
-        const provider = new PreprocessProvider(base.preprocessProvider.provider, userId)
-        return await provider.checkQuota()
-      }
-      throw new Error('No preprocess provider configured')
-    } catch (err) {
-      logger.error(`Failed to check quota: ${err}`)
-      throw new Error(`Failed to check quota: ${err}`)
-    }
   }
 }
 

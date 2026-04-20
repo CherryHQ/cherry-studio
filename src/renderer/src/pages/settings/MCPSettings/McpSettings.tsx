@@ -5,13 +5,14 @@ import type { McpError } from '@modelcontextprotocol/sdk/types.js'
 import { DeleteIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useMCPServer, useMCPServers } from '@renderer/hooks/useMCPServers'
+import { useMCPServer } from '@renderer/hooks/useMCPServers'
 import { useMCPServerTrust } from '@renderer/hooks/useMCPServerTrust'
 import MCPDescription from '@renderer/pages/settings/MCPSettings/McpDescription'
-import type { MCPPrompt, MCPResource, MCPServer, MCPTool } from '@renderer/types'
+import type { MCPPrompt, MCPResource, MCPTool } from '@renderer/types'
 import { parseKeyValueString } from '@renderer/utils/env'
 import { formatMcpError } from '@renderer/utils/error'
 import type { MCPServerLogEntry } from '@shared/config/types'
+import type { MCPServer } from '@shared/data/types/mcpServer'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import type { TabsProps } from 'antd'
 import { Badge, Form, Input, Modal, Radio, Select, Tabs, Tag, Typography } from 'antd'
@@ -69,12 +70,13 @@ type TabKey = 'settings' | 'description' | 'tools' | 'prompts' | 'resources'
 
 const McpSettings: React.FC = () => {
   const { t } = useTranslation()
-  const params = useParams({ strict: false }) as { serverId?: string }
+  const params = useParams({ strict: false })
   const serverId = params.serverId
-  const decodedServerId = serverId ? decodeURIComponent(serverId) : ''
-  const server = useMCPServer(decodedServerId).server as MCPServer
-  const { deleteMCPServer, updateMCPServer } = useMCPServers()
-  const { ensureServerTrusted } = useMCPServerTrust()
+  const { server, isLoading: isServerLoading, updateMCPServer, deleteMCPServer } = useMCPServer(serverId ?? '')
+
+  const updateServerBody = useCallback((body: Partial<MCPServer>) => updateMCPServer({ body }), [updateMCPServer])
+
+  const { ensureServerTrusted } = useMCPServerTrust(updateServerBody)
   const [serverType, setServerType] = useState<MCPServer['type']>('stdio')
   const [form] = Form.useForm<MCPFormValues>()
   const [loading, setLoading] = useState(false)
@@ -102,6 +104,7 @@ const McpSettings: React.FC = () => {
 
   // Initialize form values whenever the server changes
   useEffect(() => {
+    if (!server) return
     const serverType: MCPServer['type'] = server.type || (server.baseUrl ? 'sse' : 'stdio')
     setServerType(serverType)
 
@@ -189,7 +192,7 @@ const McpSettings: React.FC = () => {
   }, [form.getFieldValue('serverType')])
 
   const fetchTools = async () => {
-    if (server.isActive) {
+    if (server?.isActive) {
       try {
         setLoadingServer(server.id)
         const localTools = await window.api.mcp.listTools(server)
@@ -203,7 +206,7 @@ const McpSettings: React.FC = () => {
   }
 
   const fetchPrompts = async () => {
-    if (server.isActive) {
+    if (server?.isActive) {
       try {
         setLoadingServer(server.id)
         const localPrompts = await window.api.mcp.listPrompts(server)
@@ -217,7 +220,7 @@ const McpSettings: React.FC = () => {
   }
 
   const fetchResources = async () => {
-    if (server.isActive) {
+    if (server?.isActive) {
       try {
         setLoadingServer(server.id)
         const localResources = await window.api.mcp.listResources(server)
@@ -231,7 +234,7 @@ const McpSettings: React.FC = () => {
   }
 
   const fetchServerVersion = async () => {
-    if (server.isActive) {
+    if (server?.isActive) {
       try {
         const version = await window.api.mcp.getServerVersion(server)
         setServerVersion(version)
@@ -242,6 +245,7 @@ const McpSettings: React.FC = () => {
   }
 
   const fetchServerLogs = async () => {
+    if (!server) return
     try {
       const history = await window.api.mcp.getServerLogs(server)
       setLogs(history)
@@ -252,7 +256,7 @@ const McpSettings: React.FC = () => {
 
   useEffect(() => {
     const unsubscribe = window.api.mcp.onServerLog((log) => {
-      if (log.serverId && log.serverId !== server.id) return
+      if (log.serverId && log.serverId !== server?.id) return
       setLogs((prev) => {
         const merged = [...prev, log]
         if (merged.length > 200) {
@@ -265,29 +269,30 @@ const McpSettings: React.FC = () => {
     return () => {
       unsubscribe?.()
     }
-  }, [server.id])
+  }, [server?.id])
 
   useEffect(() => {
     setLogs([])
-  }, [server.id])
+  }, [server?.id])
 
   useEffect(() => {
-    if (server.isActive) {
-      fetchTools()
-      fetchPrompts()
-      fetchResources()
-      fetchServerVersion()
-      fetchServerLogs()
+    if (server?.isActive) {
+      void fetchTools()
+      void fetchPrompts()
+      void fetchResources()
+      void fetchServerVersion()
+      void fetchServerLogs()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [server.id, server.isActive])
+  }, [server?.id, server?.isActive])
 
   useEffect(() => {
     setIsFormChanged(false)
-  }, [server.id])
+  }, [server?.id])
 
   // Save the form data
   const onSave = async () => {
+    if (!server) return
     setLoading(true)
     try {
       const values = await form.validateFields()
@@ -331,11 +336,11 @@ const McpSettings: React.FC = () => {
       if (server.isActive) {
         try {
           await window.api.mcp.restartServer(mcpServer)
-          updateMCPServer({ ...mcpServer, isActive: true })
+          await updateMCPServer({ body: { ...mcpServer, isActive: true } })
           window.toast.success(t('settings.mcp.updateSuccess'))
           setIsFormChanged(false)
         } catch (error: any) {
-          updateMCPServer({ ...mcpServer, isActive: false })
+          await updateMCPServer({ body: { ...mcpServer, isActive: false } }).catch(() => {})
           window.modal.error({
             title: t('settings.mcp.updateError'),
             content: error.message,
@@ -343,7 +348,7 @@ const McpSettings: React.FC = () => {
           })
         }
       } else {
-        updateMCPServer({ ...mcpServer, isActive: false })
+        await updateMCPServer({ body: { ...mcpServer, isActive: false } })
         window.toast.success(t('settings.mcp.updateSuccess'))
         setIsFormChanged(false)
       }
@@ -402,28 +407,29 @@ const McpSettings: React.FC = () => {
   }
 
   const onDeleteMcpServer = useCallback(
-    async (server: MCPServer) => {
+    async (serverToDelete: MCPServer) => {
       try {
         window.modal.confirm({
           title: t('settings.mcp.deleteServer'),
           content: t('settings.mcp.deleteServerConfirm'),
           centered: true,
           onOk: async () => {
-            await window.api.mcp.removeServer(server)
-            deleteMCPServer(server.id)
+            await window.api.mcp.removeServer(serverToDelete)
+            await deleteMCPServer({})
             window.toast.success(t('settings.mcp.deleteSuccess'))
-            navigate({ to: '/settings/mcp' })
+            void navigate({ to: '/settings/mcp' })
           }
         })
       } catch (error: any) {
         window.toast.error(`${t('settings.mcp.deleteError')}: ${error.message}`)
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [server, t]
+
+    [deleteMCPServer, t, navigate]
   )
 
   const onToggleActive = async (active: boolean) => {
+    if (!server) return
     if (isFormChanged && active) {
       await onSave()
       return
@@ -459,14 +465,14 @@ const McpSettings: React.FC = () => {
         await window.api.mcp.stopServer(serverForUpdate)
         setServerVersion(null)
       }
-      updateMCPServer({ ...serverForUpdate, isActive: active })
+      void updateMCPServer({ body: { isActive: active } })
     } catch (error: any) {
       window.modal.error({
         title: t('settings.mcp.startError'),
         content: formatMcpError(error as McpError),
         centered: true
       })
-      updateMCPServer({ ...serverForUpdate, isActive: oldActiveState })
+      void updateMCPServer({ body: { isActive: oldActiveState } })
     } finally {
       setLoadingServer(null)
     }
@@ -475,6 +481,7 @@ const McpSettings: React.FC = () => {
   // Handle toggling a tool on/off
   const handleToggleTool = useCallback(
     async (tool: MCPTool, enabled: boolean) => {
+      if (!server) return
       // Create a new disabledTools array or use the existing one
       let disabledTools = [...(server.disabledTools || [])]
 
@@ -488,15 +495,8 @@ const McpSettings: React.FC = () => {
         }
       }
 
-      // Update the server with new disabledTools
-      const updatedServer = {
-        ...server,
-        disabledTools
-      }
-
       // Save the updated server configuration
-      // await window.api.mcp.updateServer(updatedServer)
-      updateMCPServer(updatedServer)
+      void updateMCPServer({ body: { disabledTools } })
     },
     [server, updateMCPServer]
   )
@@ -504,6 +504,7 @@ const McpSettings: React.FC = () => {
   // Handle toggling auto-approve for a tool
   const handleToggleAutoApprove = useCallback(
     async (tool: MCPTool, autoApprove: boolean) => {
+      if (!server) return
       let disabledAutoApproveTools = [...(server.disabledAutoApproveTools || [])]
 
       if (autoApprove) {
@@ -515,18 +516,15 @@ const McpSettings: React.FC = () => {
         }
       }
 
-      // Update the server with new disabledTools
-      const updatedServer = {
-        ...server,
-        disabledAutoApproveTools
-      }
-
       // Save the updated server configuration
-      // await window.api.mcp.updateServer(updatedServer)
-      updateMCPServer(updatedServer)
+      void updateMCPServer({ body: { disabledAutoApproveTools } })
     },
     [server, updateMCPServer]
   )
+
+  if (!server || isServerLoading) {
+    return null
+  }
 
   const tabs: TabsProps['items'] = [
     {
@@ -820,18 +818,18 @@ const McpSettings: React.FC = () => {
         bodyStyle={{ maxHeight: '70vh', minHeight: '40vh', overflowY: 'auto' }}
         afterOpenChange={(open) => {
           if (open) {
-            fetchServerLogs()
+            void fetchServerLogs()
           }
         }}>
         <LogList>
           {logs.length === 0 && <Text type="secondary">{t('settings.mcp.noLogs', 'No logs yet')}</Text>}
           {logs.map((log, idx) => (
             <LogItem key={`${log.timestamp}-${idx}`}>
-              <Flex className="items-baseline gap-8">
+              <LogHeader>
                 <Timestamp>{new Date(log.timestamp).toLocaleTimeString()}</Timestamp>
                 <Tag color={mapLogLevelColor(log.level)}>{log.level}</Tag>
-                <Text>{log.message}</Text>
-              </Flex>
+                <LogMessage>{log.message}</LogMessage>
+              </LogHeader>
               {log.data && (
                 <PreBlock>{typeof log.data === 'string' ? log.data : JSON.stringify(log.data, null, 2)}</PreBlock>
               )}
@@ -877,9 +875,23 @@ const LogItem = styled.div`
   border: 1px solid var(--color-border, rgba(255, 255, 255, 0.08));
 `
 
+const LogHeader = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+`
+
 const Timestamp = styled.span`
   color: var(--color-text-3, #9aa2b1);
   font-size: 12px;
+  flex-shrink: 0;
+`
+
+const LogMessage = styled.span`
+  font-size: 13px;
+  line-height: 1.5;
+  word-break: break-word;
 `
 
 const PreBlock = styled.pre`

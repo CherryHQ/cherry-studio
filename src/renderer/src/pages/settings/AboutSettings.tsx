@@ -49,15 +49,16 @@ const AboutSettings: FC = () => {
 
       if (appUpdateState.downloaded) {
         // Open update dialog directly in renderer
-        UpdateDialogPopup.show({ releaseInfo: appUpdateState.info || null })
+        void UpdateDialogPopup.show({ releaseInfo: appUpdateState.info || null })
         return
       }
 
-      updateAppUpdateState({ checking: true })
+      updateAppUpdateState({ checking: true, manualCheck: true })
 
       try {
         await window.api.checkForUpdate()
       } catch (error) {
+        updateAppUpdateState({ manualCheck: false })
         window.toast.error(t('settings.about.updateError'))
       }
 
@@ -68,7 +69,7 @@ const AboutSettings: FC = () => {
   )
 
   const onOpenWebsite = (url: string) => {
-    window.api.openWebsite(url)
+    void window.api.openWebsite(url)
   }
 
   const mailto = async () => {
@@ -85,7 +86,7 @@ const AboutSettings: FC = () => {
   }
 
   const showEnterprise = async () => {
-    onOpenWebsite('https://cherry-ai.com/enterprise')
+    onOpenWebsite('https://enterprise.cherry-ai.com')
   }
 
   const showReleases = async () => {
@@ -108,7 +109,7 @@ const AboutSettings: FC = () => {
     if (testPlan && currentChannelByVersion !== UpgradeChannel.LATEST && value !== currentChannelByVersion) {
       window.toast.warning(t('settings.general.test_plan.version_channel_not_match'))
     }
-    setTestChannel(value)
+    void setTestChannel(value)
     // Clear update info when switching upgrade channel
     updateAppUpdateState({
       available: false,
@@ -137,7 +138,7 @@ const AboutSettings: FC = () => {
   }
 
   const handleSetTestPlan = (value: boolean) => {
-    setTestPlan(value)
+    void setTestPlan(value)
     updateAppUpdateState({
       available: false,
       info: null,
@@ -148,7 +149,7 @@ const AboutSettings: FC = () => {
     })
 
     if (value === true) {
-      setTestChannel(getTestChannel())
+      void setTestChannel(getTestChannel())
     }
   }
 
@@ -160,17 +161,17 @@ const AboutSettings: FC = () => {
   }
 
   useEffect(() => {
-    runAsyncFunction(async () => {
+    void runAsyncFunction(async () => {
       const appInfo = await window.api.getAppInfo()
       setVersion(appInfo.version)
       setIsPortable(appInfo.isPortable)
     })
-    setAutoCheckUpdate(autoCheckUpdate)
+    void setAutoCheckUpdate(autoCheckUpdate)
   }, [autoCheckUpdate, setAutoCheckUpdate])
 
   const onOpenDocs = () => {
     const isChinese = i18n.language.startsWith('zh')
-    window.api.openWebsite(isChinese ? 'https://docs.cherry-ai.com/' : 'https://docs.cherry-ai.com/docs/en-us')
+    void window.api.openWebsite(isChinese ? 'https://docs.cherry-ai.com/' : 'https://docs.cherry-ai.com/docs/en-us')
   }
 
   return (

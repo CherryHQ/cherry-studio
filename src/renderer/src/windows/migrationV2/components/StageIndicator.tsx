@@ -6,6 +6,7 @@
 import type { MigrationStage } from '@shared/data/migration/v2/types'
 import { CheckCircle2, Database, FileArchive, Rocket } from 'lucide-react'
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 
 interface Props {
   stage: MigrationStage
@@ -13,15 +14,15 @@ interface Props {
 
 interface StepInfo {
   id: string
-  label: string
+  labelKey: string
   icon: React.ReactNode
 }
 
 const steps: StepInfo[] = [
-  { id: 'intro', label: '开始', icon: <Rocket className="h-4 w-4" /> },
-  { id: 'backup', label: '备份', icon: <FileArchive className="h-4 w-4" /> },
-  { id: 'migrate', label: '迁移', icon: <Database className="h-4 w-4" /> },
-  { id: 'complete', label: '完成', icon: <CheckCircle2 className="h-4 w-4" /> }
+  { id: 'intro', labelKey: 'migration.steps.start', icon: <Rocket className="h-4 w-4" /> },
+  { id: 'backup', labelKey: 'migration.steps.backup', icon: <FileArchive className="h-4 w-4" /> },
+  { id: 'migrate', labelKey: 'migration.steps.migrate', icon: <Database className="h-4 w-4" /> },
+  { id: 'complete', labelKey: 'migration.steps.complete', icon: <CheckCircle2 className="h-4 w-4" /> }
 ]
 
 function getStepIndex(stage: MigrationStage): number {
@@ -44,6 +45,7 @@ function getStepIndex(stage: MigrationStage): number {
 }
 
 export const StageIndicator: React.FC<Props> = ({ stage }) => {
+  const { t } = useTranslation()
   const currentIndex = getStepIndex(stage)
   const isError = stage === 'error'
 
@@ -72,7 +74,7 @@ export const StageIndicator: React.FC<Props> = ({ stage }) => {
                   ${isCurrent && isError ? 'text-red-600 dark:text-red-400' : ''}
                   ${isPending ? 'text-muted-foreground' : ''}
                 `}>
-                {step.label}
+                {t(step.labelKey)}
               </span>
             </div>
 

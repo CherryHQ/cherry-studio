@@ -5,10 +5,11 @@ import { Button } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { ResetIcon } from '@renderer/components/Icons'
 import TextBadge from '@renderer/components/TextBadge'
-import { isMac, THEME_COLOR_PRESETS } from '@renderer/config/constant'
+import { isLinux, isMac, THEME_COLOR_PRESETS } from '@renderer/config/constant'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
+import { useTimer } from '@renderer/hooks/useTimer'
 import useUserTheme from '@renderer/hooks/useUserTheme'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
@@ -61,10 +62,12 @@ const DisplaySettings: FC = () => {
   const [showTopicTime, setShowTopicTime] = usePreference('topic.tab.show_time')
   const [assistantIconType, setAssistantIconType] = usePreference('assistant.icon_type')
   const [fontSize] = usePreference('chat.message.font_size')
+  const [useSystemTitleBar, setUseSystemTitleBar] = usePreference('app.use_system_title_bar')
 
   const { navbarPosition, setNavbarPosition } = useNavbarPosition()
   const { theme, settedTheme, setTheme } = useTheme()
   const { t } = useTranslation()
+  const { setTimeoutTimer } = useTimer()
   const [currentZoom, setCurrentZoom] = useState(1.0)
   const { userTheme, setUserTheme } = useUserTheme()
   const { activeCmTheme } = useCodeStyle()
@@ -74,10 +77,30 @@ const DisplaySettings: FC = () => {
 
   const handleWindowStyleChange = useCallback(
     (checked: boolean) => {
-      setWindowStyle(checked ? 'transparent' : 'opaque')
+      void setWindowStyle(checked ? 'transparent' : 'opaque')
     },
     [setWindowStyle]
   )
+
+  const handleUseSystemTitleBarChange = (checked: boolean) => {
+    window.modal.confirm({
+      title: t('settings.use_system_title_bar.confirm.title'),
+      content: t('settings.use_system_title_bar.confirm.content'),
+      okText: t('common.confirm'),
+      cancelText: t('common.cancel'),
+      centered: true,
+      onOk() {
+        void setUseSystemTitleBar(checked)
+        setTimeoutTimer(
+          'handleUseSystemTitleBarChange',
+          () => {
+            void window.api.application.relaunch()
+          },
+          500
+        )
+      }
+    })
+  }
 
   const handleColorPrimaryChange = useCallback(
     (colorHex: string) => {
@@ -90,8 +113,8 @@ const DisplaySettings: FC = () => {
   )
 
   const handleReset = useCallback(() => {
-    setVisibleIcons(DefaultPreferences.default['ui.sidebar.icons.visible'])
-    setInvisibleIcons(DefaultPreferences.default['ui.sidebar.icons.invisible'])
+    void setVisibleIcons(DefaultPreferences.default['ui.sidebar.icons.visible'])
+    void setInvisibleIcons(DefaultPreferences.default['ui.sidebar.icons.invisible'])
   }, [setVisibleIcons, setInvisibleIcons])
 
   const themeOptions = useMemo(
@@ -129,17 +152,17 @@ const DisplaySettings: FC = () => {
 
   useEffect(() => {
     // 初始化获取所有系统字体
-    window.api.getSystemFonts().then((fonts: string[]) => {
+    void window.api.getSystemFonts().then((fonts: string[]) => {
       setFontList(fonts)
     })
 
     // 初始化获取当前缩放值
-    window.api.handleZoomFactor(0).then((factor) => {
+    void window.api.handleZoomFactor(0).then((factor) => {
       setCurrentZoom(factor)
     })
 
     const handleResize = () => {
-      window.api.handleZoomFactor(0).then((factor) => {
+      void window.api.handleZoomFactor(0).then((factor) => {
         setCurrentZoom(factor)
       })
     }
@@ -247,6 +270,15 @@ const DisplaySettings: FC = () => {
             <SettingRow>
               <SettingRowTitle>{t('settings.theme.window.style.transparent')}</SettingRowTitle>
               <Switch checked={windowStyle === 'transparent'} onCheckedChange={handleWindowStyleChange} />
+            </SettingRow>
+          </>
+        )}
+        {isLinux && (
+          <>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>{t('settings.use_system_title_bar.title')}</SettingRowTitle>
+              <Switch checked={useSystemTitleBar} onCheckedChange={handleUseSystemTitleBarChange} />
             </SettingRow>
           </>
         )}

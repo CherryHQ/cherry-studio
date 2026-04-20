@@ -15,9 +15,8 @@
  * --------------------------------------------------------------------------
  */
 import { loggerService } from '@logger'
-import { LanguagesEnum } from '@renderer/config/translate'
 import type { LegacyMessage as OldMessage, Topic, TranslateLanguageCode } from '@renderer/types'
-import { FileTypes, WebSearchSource } from '@renderer/types' // Import FileTypes enum
+import { FILE_TYPE, WEB_SEARCH_SOURCE } from '@renderer/types' // Import FileTypes enum
 import type {
   BaseMessageBlock,
   CitationMessageBlock,
@@ -186,7 +185,7 @@ export async function upgradeToV7(tx: Transaction): Promise<void> {
       // 4. File Blocks (Non-Image) and Image Blocks (from Files) (Status is SUCCESS)
       if (oldMessage.files?.length) {
         oldMessage.files.forEach((file) => {
-          if (file.type === FileTypes.IMAGE) {
+          if (file.type === FILE_TYPE.IMAGE) {
             const block = createImageBlock(oldMessage.id, {
               file: file,
               createdAt: oldMessage.createdAt,
@@ -224,14 +223,14 @@ export async function upgradeToV7(tx: Transaction): Promise<void> {
         hasCitationData = true
         citationDataToCreate.response = {
           results: oldMessage.metadata.groundingMetadata,
-          source: WebSearchSource.GEMINI
+          source: WEB_SEARCH_SOURCE.GEMINI
         }
       }
       if (oldMessage.metadata?.annotations?.length) {
         hasCitationData = true
         citationDataToCreate.response = {
           results: oldMessage.metadata.annotations,
-          source: WebSearchSource.OPENAI_RESPONSE
+          source: WEB_SEARCH_SOURCE.OPENAI_RESPONSE
         }
       }
       if (oldMessage.metadata?.citations?.length) {
@@ -239,14 +238,14 @@ export async function upgradeToV7(tx: Transaction): Promise<void> {
         citationDataToCreate.response = {
           results: oldMessage.metadata.citations,
           // 无法区分，统一为Openrouter
-          source: WebSearchSource.OPENROUTER
+          source: WEB_SEARCH_SOURCE.OPENROUTER
         }
       }
       if (oldMessage.metadata?.webSearch) {
         hasCitationData = true
         citationDataToCreate.response = {
           results: oldMessage.metadata.webSearch,
-          source: WebSearchSource.WEBSEARCH
+          source: WEB_SEARCH_SOURCE.WEBSEARCH
         }
       }
       if (oldMessage.metadata?.webSearchInfo) {
@@ -254,7 +253,7 @@ export async function upgradeToV7(tx: Transaction): Promise<void> {
         citationDataToCreate.response = {
           results: oldMessage.metadata.webSearchInfo,
           // 无法区分，统一为zhipu
-          source: WebSearchSource.ZHIPU
+          source: WEB_SEARCH_SOURCE.ZHIPU
         }
       }
       if (oldMessage.metadata?.knowledge?.length) {
@@ -361,10 +360,7 @@ export async function upgradeToV8(tx: Transaction): Promise<void> {
   }
 
   const settingsTable = tx.table('settings')
-  const defaultPair: [TranslateLanguageCode, TranslateLanguageCode] = [
-    LanguagesEnum.enUS.langCode,
-    LanguagesEnum.zhCN.langCode
-  ]
+  const defaultPair: [TranslateLanguageCode, TranslateLanguageCode] = ['en-us', 'zh-cn']
   const originSource = (await settingsTable.get('translate:source:language'))?.value
   const originTarget = (await settingsTable.get('translate:target:language'))?.value
   const originPair = (await settingsTable.get('translate:bidirectional:pair'))?.value
@@ -375,14 +371,14 @@ export async function upgradeToV8(tx: Transaction): Promise<void> {
   } else {
     newSource = langMap[originSource]
     if (!newSource) {
-      newSource = LanguagesEnum.enUS.langCode
+      newSource = 'en-us'
     }
   }
 
   logger.info('originTarget: %o', originTarget)
   newTarget = langMap[originTarget]
   if (!newTarget) {
-    newTarget = LanguagesEnum.zhCN.langCode
+    newTarget = 'zh-cn'
   }
 
   logger.info('originPair: %o', originPair)

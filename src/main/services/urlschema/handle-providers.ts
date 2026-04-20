@@ -1,7 +1,6 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { isMac } from '@main/constant'
-
-import { windowService } from '../WindowService'
 const logger = loggerService.withContext('URLSchema:handleProvidersProtocolUrl')
 
 function ParseData(data: string) {
@@ -40,7 +39,7 @@ export async function handleProvidersProtocolUrl(url: URL) {
         return
       }
 
-      const mainWindow = windowService.getMainWindow()
+      const mainWindow = application.get('MainWindowService').getMainWindow()
       const version = params.get('v')
       if (version == '1') {
         // TODO: handle different version
@@ -53,17 +52,17 @@ export async function handleProvidersProtocolUrl(url: URL) {
         !mainWindow.isDestroyed() &&
         (await mainWindow.webContents.executeJavaScript(`typeof window.navigate === 'function'`))
       ) {
-        mainWindow.webContents.executeJavaScript(
+        void mainWindow.webContents.executeJavaScript(
           `window.navigate('/settings/provider?addProviderData=${encodeURIComponent(data)}')`
         )
 
         if (isMac) {
-          windowService.showMainWindow()
+          application.get('MainWindowService').showMainWindow()
         }
       } else {
         setTimeout(() => {
           logger.debug('handleProvidersProtocolUrl timeout', { data, version })
-          handleProvidersProtocolUrl(url)
+          void handleProvidersProtocolUrl(url)
         }, 1000)
       }
       break

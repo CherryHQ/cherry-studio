@@ -1,15 +1,19 @@
-import { preferenceService } from '@data/PreferenceService'
 import type { NextFunction, Request, Response } from 'express'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { authMiddleware } from '../auth'
 
-// Mock the preferenceService module
-vi.mock('@data/PreferenceService', () => ({
-  preferenceService: {
-    get: vi.fn()
-  }
+// Mock preferenceService via application.get()
+const { mockPreferenceGet } = vi.hoisted(() => ({
+  mockPreferenceGet: vi.fn()
 }))
+
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    PreferenceService: { get: mockPreferenceGet }
+  })
+})
 
 // Mock the logger
 vi.mock('@logger', () => ({
@@ -19,8 +23,6 @@ vi.mock('@logger', () => ({
     }))
   }
 }))
-
-const mockPreferenceService = preferenceService as any
 
 describe('authMiddleware', () => {
   let req: Partial<Request>
@@ -77,7 +79,7 @@ describe('authMiddleware', () => {
         return ''
       })
 
-      mockPreferenceService.get.mockReturnValue('')
+      mockPreferenceGet.mockReturnValue('')
 
       authMiddleware(req as Request, res as Response, next)
 
@@ -92,7 +94,7 @@ describe('authMiddleware', () => {
         return ''
       })
 
-      mockPreferenceService.get.mockReturnValue(null)
+      mockPreferenceGet.mockReturnValue(null)
 
       authMiddleware(req as Request, res as Response, next)
 
@@ -106,7 +108,7 @@ describe('authMiddleware', () => {
     const validApiKey = 'valid-api-key-123'
 
     beforeEach(() => {
-      mockPreferenceService.get.mockReturnValue(validApiKey)
+      mockPreferenceGet.mockReturnValue(validApiKey)
     })
 
     it('should authenticate successfully with valid API key', () => {
@@ -191,7 +193,7 @@ describe('authMiddleware', () => {
     const validApiKey = 'valid-api-key-123'
 
     beforeEach(() => {
-      mockPreferenceService.get.mockReturnValue(validApiKey)
+      mockPreferenceGet.mockReturnValue(validApiKey)
     })
 
     it('should authenticate successfully with valid Bearer token when no API key', () => {
@@ -287,7 +289,7 @@ describe('authMiddleware', () => {
     const validApiKey = 'valid-api-key-123'
 
     beforeEach(() => {
-      mockPreferenceService.get.mockReturnValue(validApiKey)
+      mockPreferenceGet.mockReturnValue(validApiKey)
     })
 
     it('should use timing-safe comparison for different length tokens', () => {
@@ -321,7 +323,7 @@ describe('authMiddleware', () => {
     const validApiKey = 'valid-api-key-123'
 
     beforeEach(() => {
-      mockPreferenceService.get.mockReturnValue(validApiKey)
+      mockPreferenceGet.mockReturnValue(validApiKey)
     })
 
     it('should handle similar length but different API keys securely', () => {

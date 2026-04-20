@@ -1,0 +1,154 @@
+diff --git a/dist/index.d.mts b/dist/index.d.mts
+index 00a528a923dfd113b43bbbc99fd4218121690e2e..825db3a81a0e7c3e109c2226a8c74e58f29c3427 100644
+--- a/dist/index.d.mts
++++ b/dist/index.d.mts
+@@ -4259,6 +4259,12 @@ declare function generateImage({ model: modelArg, prompt: promptArg, n, maxImage
+   Only applicable for HTTP-based providers.
+    */
+     headers?: Record<string, string>;
++    /**
++  Custom download function to use for URLs.
++
++  By default, files are downloaded if the model returns URLs instead of binary data.
++     */
++    experimental_download?: DownloadFunction | undefined;
+ }): Promise<GenerateImageResult>;
+
+ /**
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index 00a528a923dfd113b43bbbc99fd4218121690e2e..825db3a81a0e7c3e109c2226a8c74e58f29c3427 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -4259,6 +4259,12 @@ declare function generateImage({ model: modelArg, prompt: promptArg, n, maxImage
+   Only applicable for HTTP-based providers.
+    */
+     headers?: Record<string, string>;
++    /**
++  Custom download function to use for URLs.
++
++  By default, files are downloaded if the model returns URLs instead of binary data.
++     */
++    experimental_download?: DownloadFunction | undefined;
+ }): Promise<GenerateImageResult>;
+
+ /**
+diff --git a/dist/index.js b/dist/index.js
+index b72259eb460c25f479cf9087a5c3c2e39bacf060..4d43da4202089bff9d774894888463f137f09358 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -8237,7 +8237,8 @@ async function generateImage({
+   providerOptions,
+   maxRetries: maxRetriesArg,
+   abortSignal,
+-  headers
++  headers,
++  experimental_download: download2
+ }) {
+   var _a14, _b;
+   const model = resolveImageModel(modelArg);
+@@ -8286,21 +8287,33 @@ async function generateImage({
+     outputTokens: void 0,
+     totalTokens: void 0
+   };
++  const downloadFn = download2 ?? createDefaultDownloadFunction();
+   for (const result of results) {
+-    images.push(
+-      ...result.images.map(
+-        (image) => {
+-          var _a15;
+-          return new DefaultGeneratedFile({
+-            data: image,
+-            mediaType: (_a15 = detectMediaType({
+-              data: image,
+-              signatures: imageMediaTypeSignatures
+-            })) != null ? _a15 : "image/png"
+-          });
++    const processedImages = await Promise.all(
++      result.images.map(async (image) => {
++        var _a15;
++        // 检查是否为 URL 字符串
++        if (typeof image === "string" && (image.startsWith("http://") || image.startsWith("https://"))) {
++          const downloaded = await downloadFn([{ url: new URL(image), isUrlSupportedByModel: false }]);
++          const downloadedData = downloaded[0];
++          if (downloadedData) {
++            return new DefaultGeneratedFile({
++              data: downloadedData.data,
++              mediaType: downloadedData.mediaType ?? "image/png"
++            });
++          }
+         }
+-      )
++        // 原有逻辑：base64/Uint8Array
++        return new DefaultGeneratedFile({
++          data: image,
++          mediaType: (_a15 = detectMediaType({
++            data: image,
++            signatures: imageMediaTypeSignatures
++          })) != null ? _a15 : "image/png"
++        });
++      })
+     );
++    images.push(...processedImages);
+     warnings.push(...result.warnings);
+     if (result.usage != null) {
+       totalUsage = addImageModelUsage(totalUsage, result.usage);
+diff --git a/dist/index.mjs b/dist/index.mjs
+index a6538d517173782802369ef4f90dac2a8cf9d75a..0977129233232d8bfcfa3c4936f5e9addeb8ca4a 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -8177,7 +8177,8 @@ async function generateImage({
+   providerOptions,
+   maxRetries: maxRetriesArg,
+   abortSignal,
+-  headers
++  headers,
++  experimental_download: download2
+ }) {
+   var _a14, _b;
+   const model = resolveImageModel(modelArg);
+@@ -8226,21 +8227,33 @@ async function generateImage({
+     outputTokens: void 0,
+     totalTokens: void 0
+   };
++  const downloadFn = download2 ?? createDefaultDownloadFunction();
+   for (const result of results) {
+-    images.push(
+-      ...result.images.map(
+-        (image) => {
+-          var _a15;
+-          return new DefaultGeneratedFile({
+-            data: image,
+-            mediaType: (_a15 = detectMediaType({
+-              data: image,
+-              signatures: imageMediaTypeSignatures
+-            })) != null ? _a15 : "image/png"
+-          });
++    const processedImages = await Promise.all(
++      result.images.map(async (image) => {
++        var _a15;
++        // 检查是否为 URL 字符串
++        if (typeof image === "string" && (image.startsWith("http://") || image.startsWith("https://"))) {
++          const downloaded = await downloadFn([{ url: new URL(image), isUrlSupportedByModel: false }]);
++          const downloadedData = downloaded[0];
++          if (downloadedData) {
++            return new DefaultGeneratedFile({
++              data: downloadedData.data,
++              mediaType: downloadedData.mediaType ?? "image/png"
++            });
++          }
+         }
+-      )
++        // 原有逻辑：base64/Uint8Array
++        return new DefaultGeneratedFile({
++          data: image,
++          mediaType: (_a15 = detectMediaType({
++            data: image,
++            signatures: imageMediaTypeSignatures
++          })) != null ? _a15 : "image/png"
++        });
++      })
+     );
++    images.push(...processedImages);
+     warnings.push(...result.warnings);
+     if (result.usage != null) {
+       totalUsage = addImageModelUsage(totalUsage, result.usage);

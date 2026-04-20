@@ -1,24 +1,24 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
+import { toAsarUnpackedPath } from '@main/utils'
 import {
   checkName,
-  getFilesDir,
   getFileType as getFileTypeByExt,
   getName,
-  getNotesDir,
-  getTempDir,
   readTextFileWithAutoEncoding,
   scanDir
 } from '@main/utils/file'
+import { t } from '@main/utils/language'
 import { documentExts, imageExts, KB, MB } from '@shared/config/constant'
 import { parseDataUrl } from '@shared/utils'
-import type { FileMetadata, NotesTreeNode } from '@types'
-import { FileTypes } from '@types'
+import type { FileMetadata, FileType, NotesTreeNode } from '@types'
+import { FILE_TYPE } from '@types'
 import chardet from 'chardet'
 import type { FSWatcher } from 'chokidar'
 import chokidar from 'chokidar'
 import * as crypto from 'crypto'
 import type { OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'electron'
-import { app, dialog, net, shell } from 'electron'
+import { dialog, net, shell } from 'electron'
 import * as fs from 'fs'
 import { writeFileSync } from 'fs'
 import { readFile } from 'fs/promises'
@@ -26,7 +26,6 @@ import { isBinaryFile } from 'isbinaryfile'
 import officeParser from 'officeparser'
 import * as path from 'path'
 import { PDFDocument } from 'pdf-lib'
-import { chdir } from 'process'
 import { v4 as uuidv4 } from 'uuid'
 import WordExtractor from 'word-extractor'
 
@@ -44,9 +43,7 @@ const getRipgrepBinaryPath = (): string | null => {
       process.platform === 'win32' ? 'rg.exe' : 'rg'
     )
 
-    if (app.isPackaged) {
-      ripgrepBinaryPath = ripgrepBinaryPath.replace(/\.asar([\\/])/, '.asar.unpacked$1')
-    }
+    ripgrepBinaryPath = toAsarUnpackedPath(ripgrepBinaryPath)
 
     if (fs.existsSync(ripgrepBinaryPath)) {
       return ripgrepBinaryPath
@@ -146,9 +143,6 @@ const DEFAULT_DIRECTORY_LIST_OPTIONS: Required<DirectoryListOptions> = {
 }
 
 class FileStorage {
-  private storageDir = getFilesDir()
-  private notesDir = getNotesDir()
-  private tempDir = getTempDir()
   private watcher?: FSWatcher
   private watcherSender?: Electron.WebContents
   private currentWatchPath?: string
@@ -156,25 +150,38 @@ class FileStorage {
   private watcherConfig: Required<FileWatcherConfig> = DEFAULT_WATCHER_CONFIG
   private isPaused = false
 
-  constructor() {
-    this.initStorageDir()
+  // TODO(v2): Lazy getter is a workaround, not a fix.
+  //
+  // The real problem is that `FileStorage` is exported as a top-level
+  // singleton at the bottom of this file
+  // (`export const fileStorage = new FileStorage()`). That singleton is
+  // instantiated during the static import graph of `src/main/index.ts`
+  // (via both `ipc.ts` and the `ApiServerService → ApiServer → routes
+  // → KnowledgeService` chain), BEFORE `application.bootstrap()` runs
+  // and builds the path registry. The previous shape used field
+  // initializers (`private storageDir = application.getPath(...)`),
+  // which threw "PATHS not initialized" at module-load time.
+  //
+  // Lazy getters defer the path lookup until first *access*, by which
+  // point bootstrap has finished — but the class itself is still being
+  // constructed too early. We've merely moved the path lookup out of
+  // construction; we have NOT solved the architectural issue.
+  //
+  // The proper v2 fix is to migrate `FileStorage` into the lifecycle
+  // system: extend `BaseService`, add `@Injectable`, register in
+  // `serviceRegistry.ts`, and have callers resolve it via
+  // `application.get('FileStorage')` instead of importing the singleton.
+  // Once that's done, the DI container will instantiate it inside
+  // `application.bootstrap()` after the path registry is built, and
+  // these getters can become plain field initializers (or move into
+  // `onInit`). Until then, keep them as getters — do NOT "simplify"
+  // them back to fields.
+  private get storageDir(): string {
+    return application.getPath('feature.files.data')
   }
 
-  private initStorageDir = (): void => {
-    try {
-      if (!fs.existsSync(this.storageDir)) {
-        fs.mkdirSync(this.storageDir, { recursive: true })
-      }
-      if (!fs.existsSync(this.notesDir)) {
-        fs.mkdirSync(this.notesDir, { recursive: true })
-      }
-      if (!fs.existsSync(this.tempDir)) {
-        fs.mkdirSync(this.tempDir, { recursive: true })
-      }
-    } catch (error) {
-      logger.error('Failed to initialize storage directories:', error as Error)
-      throw error
-    }
+  private get tempDir(): string {
+    return application.getPath('app.temp')
   }
 
   // @TraceProperty({ spanName: 'getFileHash', tag: 'FileStorage' })
@@ -227,11 +234,11 @@ class FileStorage {
     return null
   }
 
-  public getFileType = async (filePath: string): Promise<FileTypes> => {
+  public getFileType = async (filePath: string): Promise<FileType> => {
     const ext = path.extname(filePath)
     const fileType = getFileTypeByExt(ext)
 
-    return fileType === FileTypes.OTHER && (await this._isTextFile(filePath)) ? FileTypes.TEXT : fileType
+    return fileType === FILE_TYPE.OTHER && (await this._isTextFile(filePath)) ? FILE_TYPE.TEXT : fileType
   }
 
   public selectFile = async (
@@ -503,22 +510,18 @@ class FileStorage {
     const fileExtension = path.extname(filePath)
 
     if (documentExts.includes(fileExtension)) {
-      const originalCwd = process.cwd()
       try {
-        chdir(this.tempDir)
-
         if (fileExtension === '.doc') {
           const extractor = new WordExtractor()
           const extracted = await extractor.extract(filePath)
-          chdir(originalCwd)
           return extracted.getBody()
         }
 
-        const data = await officeParser.parseOfficeAsync(filePath)
-        chdir(originalCwd)
+        const data = await officeParser.parseOfficeAsync(filePath, {
+          tempFilesLocation: this.tempDir
+        })
         return data
       } catch (error) {
-        chdir(originalCwd)
         logger.error('Failed to read document file:', error as Error)
         throw error
       }
@@ -610,10 +613,6 @@ class FileStorage {
   }
 
   public createTempFile = async (_: Electron.IpcMainInvokeEvent, fileName: string): Promise<string> => {
-    if (!fs.existsSync(this.tempDir)) {
-      fs.mkdirSync(this.tempDir, { recursive: true })
-    }
-
     return path.join(this.tempDir, `temp_file_${uuidv4()}_${fileName}`)
   }
 
@@ -675,9 +674,10 @@ class FileStorage {
 
       const parseResult = parseDataUrl(base64Data)
       const base64String = parseResult?.data ?? base64Data
+      const ext = parseResult?.mediaType ? this.getExtensionFromMimeType(parseResult.mediaType) : '.png'
+
       const buffer = Buffer.from(base64String, 'base64')
       const uuid = uuidv4()
-      const ext = '.png'
       const destPath = path.join(this.storageDir, uuid + ext)
 
       logger.debug('Saving base64 image:', {
@@ -807,7 +807,7 @@ class FileStorage {
 
   public clear = async (): Promise<void> => {
     await fs.promises.rm(this.storageDir, { recursive: true })
-    this.initStorageDir()
+    await fs.promises.mkdir(this.storageDir, { recursive: true })
   }
 
   public clearTemp = async (): Promise<void> => {
@@ -821,9 +821,9 @@ class FileStorage {
   ): Promise<{ fileName: string; filePath: string; content?: Buffer; size: number } | null> => {
     try {
       const result: OpenDialogReturnValue = await dialog.showOpenDialog({
-        title: '打开文件',
+        title: t('dialog.open_file'),
         properties: ['openFile'],
-        filters: [{ name: '所有文件', extensions: ['*'] }],
+        filters: [{ name: t('dialog.all_files'), extensions: ['*'] }],
         ...options
       })
 
@@ -1387,8 +1387,8 @@ class FileStorage {
 
       // Get app paths to prevent selection of restricted directories
       const appDataPath = path.resolve(process.env.APPDATA || path.join(require('os').homedir(), '.config'))
-      const filesDir = path.resolve(getFilesDir())
-      const currentNotesDir = path.resolve(getNotesDir())
+      const filesDir = path.resolve(application.getPath('feature.files.data'))
+      const currentNotesDir = path.resolve(application.getPath('feature.notes.data'))
 
       // Prevent selecting app data directories
       if (
@@ -1437,7 +1437,7 @@ class FileStorage {
   ): Promise<string> => {
     try {
       const result: SaveDialogReturnValue = await dialog.showSaveDialog({
-        title: '保存文件',
+        title: t('dialog.save_file'),
         defaultPath: fileName,
         ...options
       })
@@ -1457,26 +1457,28 @@ class FileStorage {
     }
   }
 
-  public saveImage = async (_: Electron.IpcMainInvokeEvent, name: string, data: string): Promise<void> => {
+  public saveImage = async (_: Electron.IpcMainInvokeEvent, name: string, data: string): Promise<boolean> => {
     try {
       const filePath = dialog.showSaveDialogSync({
         defaultPath: `${name}.png`,
-        filters: [{ name: 'PNG Image', extensions: ['png'] }]
+        filters: [{ name: t('dialog.png_image'), extensions: ['png'] }]
       })
 
       if (filePath) {
         const parseResult = parseDataUrl(data)
         fs.writeFileSync(filePath, parseResult?.data ?? data, 'base64')
+        return true
       }
     } catch (error) {
       logger.error('[IPC - Error] An error occurred saving the image:', error as Error)
     }
+    return false
   }
 
   public selectFolder = async (_: Electron.IpcMainInvokeEvent, options: OpenDialogOptions): Promise<string | null> => {
     try {
       const result: OpenDialogReturnValue = await dialog.showOpenDialog({
-        title: '选择文件夹',
+        title: t('dialog.select_folder'),
         properties: ['openDirectory'],
         ...options
       })
@@ -1562,6 +1564,8 @@ class FileStorage {
       'image/jpeg': '.jpg',
       'image/png': '.png',
       'image/gif': '.gif',
+      'image/webp': '.webp',
+      'image/bmp': '.bmp',
       'application/pdf': '.pdf',
       'text/plain': '.txt',
       'application/msword': '.doc',
@@ -1743,7 +1747,7 @@ class FileStorage {
     try {
       if (!this.watcherSender || this.watcherSender.isDestroyed()) {
         logger.warn('Sender destroyed, stopping watcher')
-        this.stopFileWatcher()
+        void this.stopFileWatcher()
         return
       }
 
@@ -1850,6 +1854,15 @@ class FileStorage {
       return false
     } catch (error) {
       logger.error('Failed to check if file is text:', error as Error)
+      return false
+    }
+  }
+
+  public isDirectory = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<boolean> => {
+    try {
+      const stat = await fs.promises.stat(filePath)
+      return stat.isDirectory()
+    } catch {
       return false
     }
   }

@@ -1,4 +1,4 @@
-import { preferenceService } from '@data/PreferenceService'
+import { application } from '@application'
 import { defaultLanguage } from '@shared/config/constant'
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 import { app } from 'electron'
@@ -33,7 +33,7 @@ export const locales = Object.fromEntries(
 )
 
 export const getAppLanguage = (): LanguageVarious => {
-  const language = preferenceService.get('app.language')
+  const language = application.get('PreferenceService').get('app.language')
   const appLocale = app.getLocale()
 
   if (language) {
@@ -46,4 +46,21 @@ export const getAppLanguage = (): LanguageVarious => {
 export const getI18n = (): Record<string, any> => {
   const language = getAppLanguage()
   return locales[language]
+}
+
+/**
+ * Get translation by key path (e.g., 'dialog.save_file')
+ * This is a simplified version for main process, similar to i18next's t() function
+ */
+export const t = (key: string): string => {
+  const locale = getI18n()
+  const keys = key.split('.')
+  let result: any = locale.translation
+  for (const k of keys) {
+    result = result?.[k]
+    if (result === undefined) {
+      return key
+    }
+  }
+  return typeof result === 'string' ? result : key
 }

@@ -1,18 +1,16 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { loggerService } from '@logger'
-import { windowService } from '@main/services/WindowService'
-import { getFileExt, getTempDir } from '@main/utils/file'
-import type { FileMetadata, PreprocessProvider } from '@types'
+import { application } from '@application'
+import { WindowType } from '@main/core/window/types'
+import { getFileExt } from '@main/utils/file'
+import type { FileMetadata, PreprocessProvider, PreprocessReadPdfResult } from '@types'
 import { PDFDocument } from 'pdf-lib'
-
-const logger = loggerService.withContext('BasePreprocessProvider')
 
 export default abstract class BasePreprocessProvider {
   protected provider: PreprocessProvider
   protected userId?: string
-  public storageDir = path.join(getTempDir(), 'preprocess')
+  public storageDir = application.getPath('feature.preprocess.temp')
 
   constructor(provider: PreprocessProvider, userId?: string) {
     if (!provider) {
@@ -20,22 +18,9 @@ export default abstract class BasePreprocessProvider {
     }
     this.provider = provider
     this.userId = userId
-    this.ensureDirectories()
   }
 
-  private ensureDirectories() {
-    try {
-      if (!fs.existsSync(this.storageDir)) {
-        fs.mkdirSync(this.storageDir, { recursive: true })
-      }
-    } catch (error) {
-      logger.error('Failed to create directories:', error as Error)
-    }
-  }
-
-  abstract parseFile(sourceId: string, file: FileMetadata): Promise<{ processedFile: FileMetadata; quota?: number }>
-
-  abstract checkQuota(): Promise<number>
+  abstract parseFile(sourceId: string, file: FileMetadata): Promise<{ processedFile: FileMetadata }>
 
   /**
    * 检查文件是否已经被预处理过
@@ -90,7 +75,7 @@ export default abstract class BasePreprocessProvider {
     return new Promise((resolve) => setTimeout(resolve, ms))
   }
 
-  public async readPdf(buffer: Buffer) {
+  public async readPdf(buffer: Buffer): Promise<PreprocessReadPdfResult> {
     const pdfDoc = await PDFDocument.load(buffer, { ignoreEncryption: true })
     return {
       numPages: pdfDoc.getPageCount()
@@ -98,8 +83,7 @@ export default abstract class BasePreprocessProvider {
   }
 
   public async sendPreprocessProgress(sourceId: string, progress: number): Promise<void> {
-    const mainWindow = windowService.getMainWindow()
-    mainWindow?.webContents.send('file-preprocess-progress', {
+    application.get('WindowManager').broadcastToType(WindowType.Main, 'file-preprocess-progress', {
       itemId: sourceId,
       progress: progress
     })

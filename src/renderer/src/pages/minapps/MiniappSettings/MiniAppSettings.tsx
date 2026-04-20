@@ -1,10 +1,15 @@
-import { UndoOutlined } from '@ant-design/icons' // 导入重置图标
+import { InfoCircleOutlined, UndoOutlined } from '@ant-design/icons' // 导入重置图标和Info图标
 import { Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
+import Selector from '@renderer/components/Selector'
+import { allMinApps } from '@renderer/config/minapps'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { SettingDescription, SettingDivider, SettingRowTitle, SettingTitle } from '@renderer/pages/settings'
-import { Slider } from 'antd'
+import type { RootState } from '@renderer/store'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
+import { setMinAppRegion } from '@renderer/store/settings'
+import type { MinAppRegionFilter } from '@renderer/types'
+import { Flex, Slider } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -14,6 +19,25 @@ import MiniAppIconsManager from './MiniAppIconsManager'
 
 // 默认小程序缓存数量
 const DEFAULT_MAX_KEEPALIVE = 3
+
+// Region selector component with defensive default value
+const RegionSelector: FC = () => {
+  const { t } = useTranslation()
+  const dispatch = useAppDispatch()
+  const minAppRegion = useAppSelector((state: RootState) => state.settings.minAppRegion) ?? 'auto'
+
+  const onMinAppRegionChange = (value: MinAppRegionFilter) => {
+    dispatch(setMinAppRegion(value))
+  }
+
+  const minAppRegionOptions: { value: MinAppRegionFilter; label: string }[] = [
+    { value: 'auto', label: t('settings.miniapps.region.auto') },
+    { value: 'CN', label: t('settings.miniapps.region.cn') },
+    { value: 'Global', label: t('settings.miniapps.region.global') }
+  ]
+
+  return <Selector size={14} value={minAppRegion} onChange={onMinAppRegionChange} options={minAppRegionOptions} />
+}
 
 const MiniAppSettings: FC = () => {
   const { t } = useTranslation()
@@ -30,12 +54,19 @@ const MiniAppSettings: FC = () => {
   const [disabledMiniApps, setDisabledMiniApps] = useState(disabled || [])
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
 
+  // 当 store 数据变化时（例如切换地区）同步本地状态
+  useEffect(() => {
+    setVisibleMiniApps(minapps)
+    setDisabledMiniApps(disabled || [])
+  }, [minapps, disabled])
+
   const handleResetMinApps = useCallback(() => {
-    setVisibleMiniApps(DEFAULT_MIN_APPS)
+    // 仅重置为当前地区可见的应用，以避免混淆
+    setVisibleMiniApps(minapps)
     setDisabledMiniApps([])
-    updateMinapps(DEFAULT_MIN_APPS)
+    updateMinapps(allMinApps)
     updateDisabledMinapps([])
-  }, [updateDisabledMinapps, updateMinapps])
+  }, [minapps, updateDisabledMinapps, updateMinapps])
 
   const handleSwapMinApps = useCallback(() => {
     const temp = visibleMiniApps
@@ -45,14 +76,14 @@ const MiniAppSettings: FC = () => {
 
   // 恢复默认缓存数量
   const handleResetCacheLimit = useCallback(() => {
-    setMaxKeepAliveMinapps(DEFAULT_MAX_KEEPALIVE)
+    void setMaxKeepAliveMinapps(DEFAULT_MAX_KEEPALIVE)
     window.toast.info(t('settings.miniapps.cache_change_notice'))
   }, [t, setMaxKeepAliveMinapps])
 
   // 处理缓存数量变更
   const handleCacheChange = useCallback(
     (value: number) => {
-      setMaxKeepAliveMinapps(value)
+      void setMaxKeepAliveMinapps(value)
 
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current)
@@ -91,6 +122,17 @@ const MiniAppSettings: FC = () => {
           setDisabledMiniApps={setDisabledMiniApps}
         />
       </BorderedContainer>
+      <SettingDivider />
+      {/* 小程序地区设置 */}
+      <SettingRow style={{ height: 40, alignItems: 'center' }}>
+        <Flex align="center" gap={4}>
+          <SettingRowTitle>{t('settings.miniapps.region.title')}</SettingRowTitle>
+          <Tooltip title={t('settings.miniapps.region.description')} placement="right">
+            <InfoCircleOutlined style={{ cursor: 'pointer' }} />
+          </Tooltip>
+        </Flex>
+        <RegionSelector />
+      </SettingRow>
       <SettingDivider />
       <SettingRow style={{ height: 40, alignItems: 'center' }}>
         <SettingLabelGroup>

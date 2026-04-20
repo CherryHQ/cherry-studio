@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2025-11-29T03:45:07.227Z
+ * Generated at: 2026-04-16T11:13:15.385Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in packages/shared/data/preferences.ts
@@ -75,10 +75,6 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'app.privacy.data_collection.enabled'
     },
     {
-      originalKey: 'disableHardwareAcceleration',
-      targetKey: 'app.disable_hardware_acceleration'
-    },
-    {
       originalKey: 'enableDeveloperMode',
       targetKey: 'app.developer_mode.enabled'
     },
@@ -100,7 +96,7 @@ export const REDUX_STORE_MAPPINGS = {
     },
     {
       originalKey: 'targetLanguage',
-      targetKey: 'feature.translate.target_language'
+      targetKey: 'feature.translate.chat.target_language'
     },
     {
       originalKey: 'proxyMode',
@@ -503,6 +499,10 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'chat.input.quick_panel.triggers_enabled'
     },
     {
+      originalKey: 'useSystemTitleBar',
+      targetKey: 'app.use_system_title_bar'
+    },
+    {
       originalKey: 'exportMenuOptions.image',
       targetKey: 'data.export.menus.image'
     },
@@ -689,30 +689,10 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'feature.selection.action_items'
     }
   ],
-  memory: [
+  llm: [
     {
-      originalKey: 'memoryConfig.embedderDimensions',
-      targetKey: 'feature.memory.embedder_dimensions'
-    },
-    {
-      originalKey: 'memoryConfig.isAutoDimensions',
-      targetKey: 'feature.memory.auto_dimensions'
-    },
-    {
-      originalKey: 'memoryConfig.customFactExtractionPrompt',
-      targetKey: 'feature.memory.fact_extraction_prompt'
-    },
-    {
-      originalKey: 'memoryConfig.customUpdateMemoryPrompt',
-      targetKey: 'feature.memory.update_memory_prompt'
-    },
-    {
-      originalKey: 'currentUserId',
-      targetKey: 'feature.memory.current_user_id'
-    },
-    {
-      originalKey: 'globalMemoryEnabled',
-      targetKey: 'feature.memory.enabled'
+      originalKey: 'quickAssistantId',
+      targetKey: 'feature.quick_assistant.assistant_id'
     }
   ],
   nutstore: [
@@ -741,70 +721,32 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'data.backup.nutstore.max_backups'
     }
   ],
-  shortcuts: [
+  preprocess: [
     {
-      originalKey: 'shortcuts.zoom_in',
-      targetKey: 'shortcut.app.zoom_in'
+      originalKey: 'defaultProvider',
+      targetKey: 'feature.file_processing.default_markdown_conversion'
+    }
+  ],
+  translate: [
+    {
+      originalKey: 'settings.autoCopy',
+      targetKey: 'feature.translate.page.auto_copy'
+    }
+  ],
+  websearch: [
+    {
+      originalKey: 'maxResults',
+      targetKey: 'chat.web_search.max_results'
     },
     {
-      originalKey: 'shortcuts.zoom_out',
-      targetKey: 'shortcut.app.zoom_out'
-    },
+      originalKey: 'excludeDomains',
+      targetKey: 'chat.web_search.exclude_domains'
+    }
+  ],
+  ocr: [
     {
-      originalKey: 'shortcuts.zoom_reset',
-      targetKey: 'shortcut.app.zoom_reset'
-    },
-    {
-      originalKey: 'shortcuts.show_settings',
-      targetKey: 'shortcut.app.show_settings'
-    },
-    {
-      originalKey: 'shortcuts.show_app',
-      targetKey: 'shortcut.app.show_main_window'
-    },
-    {
-      originalKey: 'shortcuts.mini_window',
-      targetKey: 'shortcut.app.show_mini_window'
-    },
-    {
-      originalKey: 'shortcuts.selection_assistant_toggle',
-      targetKey: 'shortcut.selection.toggle_enabled'
-    },
-    {
-      originalKey: 'shortcuts.selection_assistant_select_text',
-      targetKey: 'shortcut.selection.get_text'
-    },
-    {
-      originalKey: 'shortcuts.new_topic',
-      targetKey: 'shortcut.topic.new'
-    },
-    {
-      originalKey: 'shortcuts.toggle_show_assistants',
-      targetKey: 'shortcut.app.toggle_show_assistants'
-    },
-    {
-      originalKey: 'shortcuts.copy_last_message',
-      targetKey: 'shortcut.chat.copy_last_message'
-    },
-    {
-      originalKey: 'shortcuts.search_message_in_chat',
-      targetKey: 'shortcut.chat.search_message'
-    },
-    {
-      originalKey: 'shortcuts.search_message',
-      targetKey: 'shortcut.app.search_message'
-    },
-    {
-      originalKey: 'shortcuts.clear_topic',
-      targetKey: 'shortcut.chat.clear'
-    },
-    {
-      originalKey: 'shortcuts.toggle_new_context',
-      targetKey: 'shortcut.chat.toggle_new_context'
-    },
-    {
-      originalKey: 'shortcuts.exit_fullscreen',
-      targetKey: 'shortcut.app.exit_fullscreen'
+      originalKey: 'imageProviderId',
+      targetKey: 'feature.file_processing.default_text_extraction'
     }
   ],
   note: [
@@ -851,17 +793,73 @@ export const REDUX_STORE_MAPPINGS = {
   ]
 } as const
 
+/**
+ * Dexie Settings映射关系 - 简单KV结构
+ *
+ * Maps Dexie IndexedDB `settings` table keys (id field) to new preference target keys.
+ * The settings table uses a simple KV structure: { id: string, value: any }.
+ *
+ * These are simple 1:1 mappings where the value can be used as-is.
+ * For complex transformations (value conversion, multi-key merging, etc.),
+ * use ComplexPreferenceMappings with source: 'dexie-settings' instead.
+ */
+export const DEXIE_SETTINGS_MAPPINGS: ReadonlyArray<{ originalKey: string; targetKey: string }> = [
+  {
+    originalKey: 'translate:detect:method',
+    targetKey: 'feature.translate.auto_detection_method'
+  },
+  {
+    originalKey: 'translate:markdown:enabled',
+    targetKey: 'feature.translate.page.enable_markdown'
+  },
+  {
+    originalKey: 'translate:scroll:sync',
+    targetKey: 'feature.translate.page.scroll_sync'
+  },
+  {
+    originalKey: 'translate:bidirectional:pair',
+    targetKey: 'feature.translate.page.bidirectional_pair'
+  },
+  {
+    originalKey: 'translate:bidirectional:enabled',
+    targetKey: 'feature.translate.page.bidirectional_enabled'
+  },
+  {
+    originalKey: 'translate:source:language',
+    targetKey: 'feature.translate.page.source_language'
+  },
+  {
+    originalKey: 'translate:target:language',
+    targetKey: 'feature.translate.page.target_language'
+  }
+] as const
+
+/**
+ * localStorage映射关系 - 简单KV结构
+ *
+ * Maps browser localStorage keys to new preference target keys.
+ * localStorage stores various UI state and provider tokens.
+ *
+ * These are simple 1:1 mappings where the value can be used as-is.
+ * For complex transformations (pattern-based keys, value conversion),
+ * use ComplexPreferenceMappings with source: 'localStorage' instead.
+ */
+export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetKey: string }> = [] as const
+
 // === AUTO-GENERATED CONTENT END ===
 
 /**
  * 映射统计:
  * - ElectronStore项: 1
- * - Redux Store项: 202
- * - Redux分类: settings, selectionStore, memory, nutstore, shortcuts, note
- * - 总配置项: 203
+ * - Redux Store项: 186
+ * - Redux分类: settings, selectionStore, llm, nutstore, preprocess, translate, websearch, ocr, note
+ * - DexieSettings项: 7
+ * - localStorage项: 0
+ * - 总配置项: 194
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)
  * 2. Redux读取: 需要解析嵌套路径 reduxData[category][originalKey路径]
- * 3. 默认值: 从defaultPreferences.default[mapping.targetKey]获取
+ * 3. DexieSettings读取: ctx.sources.dexieSettings.get(mapping.originalKey)
+ * 4. 默认值: 从defaultPreferences.default[mapping.targetKey]获取
  */

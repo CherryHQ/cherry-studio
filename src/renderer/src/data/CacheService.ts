@@ -56,8 +56,6 @@ const logger = loggerService.withContext('CacheService')
  * - Type-safe persist cache with predefined schema
  */
 export class CacheService {
-  private static instance: CacheService
-
   // Three-layer cache system
   private memoryCache = new Map<string, CacheEntry>() // Cross-component cache
   private sharedCache = new Map<string, CacheEntry>() // Cross-window cache (local copy)
@@ -77,18 +75,8 @@ export class CacheService {
   private sharedCacheReady = false
   private sharedCacheReadyCallbacks: Array<() => void> = []
 
-  private constructor() {
+  constructor() {
     this.initialize()
-  }
-
-  /**
-   * Get singleton instance
-   */
-  public static getInstance(): CacheService {
-    if (!CacheService.instance) {
-      CacheService.instance = new CacheService()
-    }
-    return CacheService.instance
   }
 
   /**
@@ -100,7 +88,7 @@ export class CacheService {
     this.setupWindowUnloadHandler()
 
     // Async sync SharedCache from Main (does not block initialization)
-    this.syncSharedCacheFromMain()
+    void this.syncSharedCacheFromMain()
 
     logger.debug('CacheService initialized')
   }
@@ -1202,4 +1190,4 @@ export class CacheService {
 }
 
 // Export singleton instance
-export const cacheService = CacheService.getInstance()
+export const cacheService = new CacheService()

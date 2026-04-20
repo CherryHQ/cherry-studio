@@ -51,7 +51,7 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
 
   useEffect(() => {
     if (!codeEditorEnabled) {
-      getShiki().then(({ bundledThemesInfo }) => {
+      void getShiki().then(({ bundledThemesInfo }) => {
         setShikiThemesInfo(bundledThemesInfo)
       })
     }
@@ -115,7 +115,7 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
   // 流式代码高亮，返回已高亮的 token lines
   const highlightCodeChunk = useCallback(
     async (trunk: string, language: string, callerId: string) => {
-      const normalizedLang = languageAliases[language as keyof typeof languageAliases] || language.toLowerCase()
+      const normalizedLang = languageAliases[language] || language.toLowerCase()
       return shikiStreamService.highlightCodeChunk(trunk, normalizedLang, activeShikiTheme, callerId)
     },
     [activeShikiTheme, languageAliases]
@@ -129,7 +129,7 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
   // 高亮流式输出的代码
   const highlightStreamingCode = useCallback(
     async (fullContent: string, language: string, callerId: string) => {
-      const normalizedLang = languageAliases[language as keyof typeof languageAliases] || language.toLowerCase()
+      const normalizedLang = languageAliases[language] || language.toLowerCase()
       return shikiStreamService.highlightStreamingCode(fullContent, normalizedLang, activeShikiTheme, callerId)
     },
     [activeShikiTheme, languageAliases]
@@ -138,7 +138,7 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
   // 获取 Shiki pre 标签属性
   const getShikiPreProperties = useCallback(
     async (language: string) => {
-      const normalizedLang = languageAliases[language as keyof typeof languageAliases] || language.toLowerCase()
+      const normalizedLang = languageAliases[language] || language.toLowerCase()
       return shikiStreamService.getShikiPreProperties(normalizedLang, activeShikiTheme)
     },
     [activeShikiTheme, languageAliases]

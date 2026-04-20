@@ -346,10 +346,25 @@ export type MessageDataBlock =
   | CompactBlock
 
 // ============================================================================
-// Message Entity Types
+// Snapshot Types (immutable records captured at message creation time)
 // ============================================================================
 
-import type { AssistantMeta, ModelMeta } from './meta'
+/**
+ * Model snapshot captured at message creation time.
+ * Preserves model identity and metadata even if the model is later removed from provider.
+ *
+ * TODO: Replace with Pick/Omit from v2 Model type once stabilized.
+ */
+export interface ModelSnapshot {
+  id: string
+  name: string
+  provider: string
+  group?: string
+}
+
+// ============================================================================
+// Message Entity Types
+// ============================================================================
 
 /**
  * Message role - user, assistant, or system
@@ -377,7 +392,7 @@ export interface Message {
   parentId: string | null
   /** Message role */
   role: MessageRole
-  /** Message content (blocks, mentions, etc.) */
+  /** Message content (blocks with inline references) */
   data: MessageData
   /** Searchable text extracted from data.blocks */
   searchableText?: string | null
@@ -385,14 +400,11 @@ export interface Message {
   status: MessageStatus
   /** Siblings group ID (0 = normal branch, >0 = multi-model response group) */
   siblingsGroupId: number
-  /** Assistant ID */
-  assistantId?: string | null
-  /** Preserved assistant info for display */
-  assistantMeta?: AssistantMeta | null
+  // Assistant info is derived via topic → assistant FK chain; not stored on message.
   /** Model identifier */
   modelId?: string | null
-  /** Preserved model info (provider, name) */
-  modelMeta?: ModelMeta | null
+  /** Snapshot of model at message creation time */
+  modelSnapshot?: ModelSnapshot | null
   /** Trace ID for tracking */
   traceId?: string | null
   /** Statistics: token usage, performance metrics */
@@ -422,8 +434,6 @@ export interface TreeNode {
   preview: string
   /** Model identifier */
   modelId?: string | null
-  /** Model display info */
-  modelMeta?: ModelMeta | null
   /** Message status */
   status: MessageStatus
   /** Creation timestamp (ISO string) */

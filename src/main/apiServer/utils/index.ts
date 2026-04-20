@@ -1,8 +1,9 @@
-import { cacheService } from '@data/CacheService'
+import { application } from '@application'
 import { loggerService } from '@logger'
+import { formatProviderApiHost } from '@main/aiCore/provider/providerConfig'
 import { reduxService } from '@main/services/ReduxService'
 import { isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
-import type { ApiModel, Model, Provider } from '@types'
+import type { ApiModel, Model, Provider, ProviderType } from '@types'
 
 const logger = loggerService.withContext('ApiServerUtils')
 
@@ -12,6 +13,8 @@ const PROVIDERS_CACHE_TTL = 10 * 1000 // 10 seconds
 
 export async function getAvailableProviders(): Promise<Provider[]> {
   try {
+    const cacheService = application.get('CacheService')
+
     // Try to get from cache first (faster)
     const cachedSupportedProviders = cacheService.get<Provider[]>(PROVIDERS_CACHE_KEY)
     if (cachedSupportedProviders && cachedSupportedProviders.length > 0) {
@@ -28,20 +31,34 @@ export async function getAvailableProviders(): Promise<Provider[]> {
       return []
     }
 
-    // Support OpenAI and Anthropic type providers for API server
-    const supportedProviders = providers.filter(
-      (p: Provider) => p.enabled && (p.type === 'openai' || p.type === 'anthropic')
-    )
+    // Support OpenAI-compatible and Anthropic-compatible providers for API server
+    const supportedTypes: ProviderType[] = ['openai', 'anthropic', 'ollama', 'new-api']
+    const supportedProviders = providers.filter((p: Provider) => p.enabled && supportedTypes.includes(p.type))
 
-    // Cache the filtered results
-    cacheService.set(PROVIDERS_CACHE_KEY, supportedProviders, PROVIDERS_CACHE_TTL)
+    // Format provider apiHost according to their type
+    const results = await Promise.allSettled(supportedProviders.map((p: Provider) => formatProviderApiHost(p)))
+    const formattedProviders: Provider[] = []
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i]
+      if (result.status === 'fulfilled') {
+        formattedProviders.push(result.value)
+      } else {
+        logger.warn('Failed to format provider API host', {
+          providerId: supportedProviders[i].id,
+          error: result.reason
+        })
+      }
+    }
 
-    logger.info('Providers filtered', {
-      supported: supportedProviders.length,
+    // Cache the formatted results
+    cacheService.set(PROVIDERS_CACHE_KEY, formattedProviders, PROVIDERS_CACHE_TTL)
+
+    logger.info('Providers filtered and formatted', {
+      supported: formattedProviders.length,
       total: providers.length
     })
 
-    return supportedProviders
+    return formattedProviders
   } catch (error: any) {
     logger.error('Failed to get providers from Redux store', { error })
     return []
@@ -286,12 +303,10 @@ export const getProviderAnthropicModelChecker = (providerId: string): ((m: Model
     case 'cherryin':
     case 'new-api':
       return (m: Model) => m.endpoint_type === 'anthropic'
-    case 'aihubmix':
-      return (m: Model) => m.id.includes('claude')
     case 'silicon':
       return (m: Model) => isSiliconAnthropicCompatibleModel(m.id)
     default:
-      // allow all models when checker not configured
+      // allow all models when checker not configured (aihubmix, ollama, etc.)
       return () => true
   }
 }

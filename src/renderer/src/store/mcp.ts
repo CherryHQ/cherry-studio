@@ -19,6 +19,7 @@ import { createSlice, nanoid, type PayloadAction } from '@reduxjs/toolkit'
 import { type BuiltinMCPServer, BuiltinMCPServerNames, type MCPConfig, type MCPServer } from '@renderer/types'
 
 const logger = loggerService.withContext('Store:MCP')
+const filesystemManualApprovalTools = ['write', 'edit', 'delete'] as const
 
 export const initialState: MCPConfig = {
   servers: [],
@@ -111,6 +112,16 @@ export const hubMCPServer: BuiltinMCPServer = {
 export const builtinMCPServers: BuiltinMCPServer[] = [
   {
     id: nanoid(),
+    name: BuiltinMCPServerNames.flomo,
+    reference: 'https://flomoapp.com',
+    type: 'inMemory',
+    isActive: false,
+    provider: 'flomo',
+    installSource: 'builtin',
+    isTrusted: true
+  },
+  {
+    id: nanoid(),
     name: BuiltinMCPServerNames.mcpAutoInstall,
     reference: 'https://docs.cherry-ai.com/advanced-basic/mcp/auto-install',
     type: 'inMemory',
@@ -170,7 +181,8 @@ export const builtinMCPServers: BuiltinMCPServer[] = [
     id: nanoid(),
     name: BuiltinMCPServerNames.filesystem,
     type: 'inMemory',
-    args: ['/Users/username/Desktop', '/path/to/other/allowed/dir'],
+    args: ['/Users/username/Desktop'],
+    disabledAutoApproveTools: [...filesystemManualApprovalTools],
     shouldConfig: true,
     isActive: false,
     provider: 'CherryAI',

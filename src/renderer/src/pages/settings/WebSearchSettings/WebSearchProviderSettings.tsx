@@ -7,7 +7,7 @@ import { SettingContainer, SettingGroup } from '..'
 import WebSearchProviderSetting from './WebSearchProviderSetting'
 
 const WebSearchProviderSettings: FC = () => {
-  const params = useParams({ strict: false }) as { providerId?: string }
+  const params = useParams({ strict: false })
   const providerId = params.providerId
   const { theme } = useTheme()
 

@@ -30,12 +30,12 @@ const LocalBackupSettings: React.FC = () => {
   const [appInfo, setAppInfo] = useState<AppInfo>()
 
   useEffect(() => {
-    window.api.getAppInfo().then(setAppInfo)
+    void window.api.getAppInfo().then(setAppInfo)
   }, [])
 
   useEffect(() => {
     if (localBackupDir) {
-      window.api.resolvePath(localBackupDir).then(setResolvedLocalBackupDir)
+      void window.api.resolvePath(localBackupDir).then(setResolvedLocalBackupDir)
     }
   }, [localBackupDir])
 
@@ -46,13 +46,13 @@ const LocalBackupSettings: React.FC = () => {
   const { localBackupSync } = useAppSelector((state) => state.backup)
 
   const onSyncIntervalChange = (value: number) => {
-    setLocalBackupSyncInterval(value)
+    void setLocalBackupSyncInterval(value)
     if (value === 0) {
-      setLocalBackupAutoSync(false)
+      void setLocalBackupAutoSync(false)
       stopAutoSync('local')
     } else {
-      setLocalBackupAutoSync(true)
-      startAutoSync(false, 'local')
+      void setLocalBackupAutoSync(true)
+      void startAutoSync(false, 'local')
     }
   }
 
@@ -93,7 +93,7 @@ const LocalBackupSettings: React.FC = () => {
     }
 
     if (value === '') {
-      handleClearDirectory()
+      void handleClearDirectory()
       return
     }
 
@@ -102,7 +102,7 @@ const LocalBackupSettings: React.FC = () => {
       setResolvedLocalBackupDir(await window.api.resolvePath(value))
 
       await setLocalBackupAutoSync(true)
-      startAutoSync(true, 'local')
+      void startAutoSync(true, 'local')
       return
     }
 
@@ -113,11 +113,11 @@ const LocalBackupSettings: React.FC = () => {
   }
 
   const onMaxBackupsChange = (value: number) => {
-    setLocalBackupMaxBackups(value)
+    void setLocalBackupMaxBackups(value)
   }
 
   const onSkipBackupFilesChange = (value: boolean) => {
-    setLocalBackupSkipBackupFile(value)
+    void setLocalBackupSkipBackupFile(value)
   }
 
   const handleBrowseDirectory = async () => {

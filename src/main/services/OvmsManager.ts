@@ -3,17 +3,23 @@ import { homedir } from 'node:os'
 import { promisify } from 'node:util'
 
 import { loggerService } from '@logger'
-import { isWin } from '@main/constant'
-import { getCpuName } from '@main/utils/system'
+import {
+  BaseService,
+  Conditional,
+  Injectable,
+  onCpuVendor,
+  onPlatform,
+  Phase,
+  ServicePhase
+} from '@main/core/lifecycle'
 import { HOME_CHERRY_DIR } from '@shared/config/constant'
+import { IpcChannel } from '@shared/IpcChannel'
 import * as fs from 'fs-extra'
 import * as path from 'path'
 
 const logger = loggerService.withContext('OvmsManager')
 
 const execAsync = promisify(exec)
-
-export const isOvmsSupported = isWin && getCpuName().toLowerCase().includes('intel')
 
 interface OvmsProcess {
   pid: number
@@ -30,13 +36,32 @@ interface OvmsConfig {
   mediapipe_config_list: ModelConfig[]
 }
 
-class OvmsManager {
+@Injectable('OvmsManager')
+@ServicePhase(Phase.WhenReady)
+@Conditional(onPlatform('win32'), onCpuVendor('intel'))
+export class OvmsManager extends BaseService {
   private ovms: OvmsProcess | null = null
 
-  constructor() {
-    if (!isOvmsSupported) {
-      throw new Error('OVMS Manager is only supported on Windows platform with Intel CPU.')
-    }
+  protected async onInit() {
+    this.registerIpcHandlers()
+  }
+
+  private registerIpcHandlers() {
+    this.ipcHandle(
+      IpcChannel.Ovms_AddModel,
+      (_, modelName: string, modelId: string, modelSource: string, task: string) =>
+        this.addModel(modelName, modelId, modelSource, task)
+    )
+    this.ipcHandle(IpcChannel.Ovms_StopAddModel, () => this.stopAddModel())
+    this.ipcHandle(IpcChannel.Ovms_GetModels, () => this.getModels())
+    this.ipcHandle(IpcChannel.Ovms_IsRunning, () => this.initializeOvms())
+    this.ipcHandle(IpcChannel.Ovms_GetStatus, () => this.getOvmsStatus())
+    this.ipcHandle(IpcChannel.Ovms_RunOVMS, () => this.runOvms())
+    this.ipcHandle(IpcChannel.Ovms_StopOVMS, () => this.stopOvms())
+  }
+
+  protected async onStop() {
+    await this.stopOvms()
   }
 
   /**
@@ -194,8 +219,6 @@ class OvmsManager {
       }
 
       // Check if OVMS process is running
-      //const psCommand = `Get-Process -Name "ovms" -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq "${ovmsPath.replace(/\\/g, '\\\\')}" } | Select-Object Id | ConvertTo-Json`;
-      //const { stdout } = await execAsync(`powershell -Command "${psCommand}"`);
       const psCommand = `Get-Process -Name "ovms" -ErrorAction SilentlyContinue | Select-Object Id, Path | ConvertTo-Json`
       const { stdout } = await execAsync(`powershell -Command "${psCommand}"`)
 
@@ -440,7 +463,7 @@ class OvmsManager {
 
       // Terminate all ovdnd processes
       for (const process of processList) {
-        this.terminalProcess(process.Id)
+        void this.terminalProcess(process.Id)
       }
 
       logger.info('Model download process stopped successfully')
@@ -571,6 +594,3 @@ class OvmsManager {
     }
   }
 }
-
-// Export singleton instance
-export const ovmsManager = isOvmsSupported ? new OvmsManager() : undefined

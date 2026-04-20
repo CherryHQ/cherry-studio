@@ -77,7 +77,7 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
       if (!origin) {
         return
       }
-      updateTranslateHistory(id, { star: !origin.star })
+      void updateTranslateHistory(id, { star: !origin.star })
     },
     [translateHistory]
   )
@@ -85,7 +85,7 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
   const handleDelete = useCallback(
     (id: string) => {
       try {
-        deleteHistory(id)
+        void deleteHistory(id)
       } catch (e) {
         window.toast.error(t('translate.history.error.delete'))
       }

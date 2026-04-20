@@ -99,7 +99,7 @@ export interface UseMutationResult<
 > {
   trigger: (data?: {
     body?: BodyForPath<TPath, TMethod>
-    query?: QueryParamsForPath<TPath>
+    query?: QueryParamsForPath<TPath, TMethod>
   }) => Promise<ResponseForPath<TPath, TMethod>>
   isLoading: boolean
   error: Error | undefined
@@ -195,7 +195,7 @@ export function useQuery<TPath extends ConcreteApiPaths>(
   path: TPath,
   options?: {
     /** Query parameters for filtering, pagination, etc. */
-    query?: QueryParamsForPath<TPath>
+    query?: QueryParamsForPath<TPath, 'GET'>
     /** Disable the request (default: true) */
     enabled?: boolean
     /** Override default SWR configuration */
@@ -294,7 +294,7 @@ export function useMutation<TPath extends ConcreteApiPaths, TMethod extends 'POS
     }: {
       arg?: {
         body?: BodyForPath<TPath, TMethod>
-        query?: QueryParamsForPath<TPath>
+        query?: QueryParamsForPath<TPath, TMethod>
       }
     }
   ): Promise<ResponseForPath<TPath, TMethod>> => {
@@ -322,14 +322,14 @@ export function useMutation<TPath extends ConcreteApiPaths, TMethod extends 'POS
 
   const trigger = async (data?: {
     body?: BodyForPath<TPath, TMethod>
-    query?: QueryParamsForPath<TPath>
+    query?: QueryParamsForPath<TPath, TMethod>
   }): Promise<ResponseForPath<TPath, TMethod>> => {
     const opts = optionsRef.current
     const hasOptimisticData = opts?.optimisticData !== undefined
 
     // Apply optimistic update if optimisticData is provided
     if (hasOptimisticData) {
-      await globalMutate([path], opts!.optimisticData, false)
+      await globalMutate([path], opts.optimisticData, false)
     }
 
     try {
@@ -416,7 +416,7 @@ export function useInvalidateCache() {
 export function prefetch<TPath extends ConcreteApiPaths>(
   path: TPath,
   options?: {
-    query?: QueryParamsForPath<TPath>
+    query?: QueryParamsForPath<TPath, 'GET'>
   }
 ): Promise<ResponseForPath<TPath, 'GET'>> {
   const key = buildSWRKey(path, options?.query)
@@ -463,7 +463,7 @@ export function useInfiniteQuery<TPath extends ConcreteApiPaths>(
   path: TPath,
   options?: {
     /** Additional query parameters (cursor/limit are managed internally) */
-    query?: Omit<QueryParamsForPath<TPath>, 'cursor' | 'limit'>
+    query?: Omit<QueryParamsForPath<TPath, 'GET'>, 'cursor' | 'limit'>
     /** Items per page (default: 10) */
     limit?: number
     /** Set to false to disable fetching (default: true) */
@@ -496,7 +496,7 @@ export function useInfiniteQuery<TPath extends ConcreteApiPaths>(
   )
 
   const infiniteFetcher = (key: [TPath, Record<string, unknown>]) => {
-    return getFetcher(key as unknown as [TPath, QueryParamsForPath<TPath>?]) as Promise<
+    return getFetcher(key as unknown as [TPath, QueryParamsForPath<TPath, 'GET'>?]) as Promise<
       CursorPaginationResponse<InferPaginatedItem<TPath>>
     >
   }
@@ -519,7 +519,7 @@ export function useInfiniteQuery<TPath extends ConcreteApiPaths>(
 
   const loadNext = useCallback(() => {
     if (!hasNext || isValidating) return
-    setSize((s) => s + 1)
+    void setSize((s) => s + 1)
   }, [hasNext, isValidating, setSize])
 
   const refresh = useCallback(() => mutate(), [mutate])
@@ -580,7 +580,7 @@ export function usePaginatedQuery<TPath extends ConcreteApiPaths>(
   path: TPath,
   options?: {
     /** Additional query parameters (page/limit are managed internally) */
-    query?: Omit<QueryParamsForPath<TPath>, 'page' | 'limit'>
+    query?: Omit<QueryParamsForPath<TPath, 'GET'>, 'page' | 'limit'>
     /** Items per page (default: 10) */
     limit?: number
     /** Set to false to disable fetching (default: true) */
@@ -607,7 +607,7 @@ export function usePaginatedQuery<TPath extends ConcreteApiPaths>(
 
   const { data, isLoading, isRefreshing, error, refetch } = useQuery(path, {
     // Type assertion needed: we're adding pagination params to a partial query type
-    query: queryWithPagination as QueryParamsForPath<TPath>,
+    query: queryWithPagination as QueryParamsForPath<TPath, 'GET'>,
     enabled: options?.enabled,
     swrOptions: options?.swrOptions
   })
@@ -675,22 +675,35 @@ function createApiFetcher<TPath extends ConcreteApiPaths, TMethod extends 'GET' 
     path: TPath,
     options?: {
       body?: BodyForPath<TPath, TMethod>
-      query?: QueryParamsForPath<TPath>
+      query?: QueryParamsForPath<TPath, TMethod>
     }
   ): Promise<ResponseForPath<TPath, TMethod>> => {
-    // Internal type assertion for dataApiService boundary (accepts any)
-    const query = options?.query as Record<string, unknown> | undefined
+    // TS can't narrow generic TMethod in switch branches, so per-branch type assertions are needed
+    const query = options?.query
     switch (method) {
       case 'GET':
-        return dataApiService.get(path, { query })
+        return dataApiService.get(path, {
+          query: query as QueryParamsForPath<TPath, 'GET'>
+        }) as Promise<ResponseForPath<TPath, TMethod>>
       case 'POST':
-        return dataApiService.post(path, { body: options?.body, query })
+        return dataApiService.post(path, {
+          body: options?.body as BodyForPath<TPath, 'POST'>,
+          query: query as QueryParamsForPath<TPath, 'POST'>
+        }) as Promise<ResponseForPath<TPath, TMethod>>
       case 'PUT':
-        return dataApiService.put(path, { body: options?.body || {}, query })
+        return dataApiService.put(path, {
+          body: (options?.body || {}) as BodyForPath<TPath, 'PUT'>,
+          query: query as QueryParamsForPath<TPath, 'PUT'>
+        }) as Promise<ResponseForPath<TPath, TMethod>>
       case 'DELETE':
-        return dataApiService.delete(path, { query })
+        return dataApiService.delete(path, {
+          query: query as QueryParamsForPath<TPath, 'DELETE'>
+        }) as Promise<ResponseForPath<TPath, TMethod>>
       case 'PATCH':
-        return dataApiService.patch(path, { body: options?.body, query })
+        return dataApiService.patch(path, {
+          body: options?.body as BodyForPath<TPath, 'PATCH'>,
+          query: query as QueryParamsForPath<TPath, 'PATCH'>
+        }) as Promise<ResponseForPath<TPath, TMethod>>
       default:
         throw new Error(`Unsupported method: ${method}`)
     }
@@ -705,7 +718,7 @@ function createApiFetcher<TPath extends ConcreteApiPaths, TMethod extends 'GET' 
  * @param query - Optional query parameters
  * @returns Tuple of [path, query?] for SWR cache key
  */
-function buildSWRKey<TPath extends ConcreteApiPaths, TQuery extends QueryParamsForPath<TPath>>(
+function buildSWRKey<TPath extends ConcreteApiPaths, TQuery extends QueryParamsForPath<TPath, 'GET'>>(
   path: TPath,
   query?: TQuery
 ): [TPath, TQuery?] {
@@ -723,7 +736,7 @@ function buildSWRKey<TPath extends ConcreteApiPaths, TQuery extends QueryParamsF
  * @param key - SWR cache key tuple [path, query?]
  * @returns Promise resolving to the API response
  */
-function getFetcher<TPath extends ConcreteApiPaths>([path, query]: [TPath, QueryParamsForPath<TPath>?]): Promise<
+function getFetcher<TPath extends ConcreteApiPaths>([path, query]: [TPath, QueryParamsForPath<TPath, 'GET'>?]): Promise<
   ResponseForPath<TPath, 'GET'>
 > {
   const apiFetcher = createApiFetcher<TPath, 'GET'>('GET')

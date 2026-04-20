@@ -1,18 +1,18 @@
-import Doc2xLogo from '@renderer/assets/images/ocr/doc2x.png'
-import MinerULogo from '@renderer/assets/images/ocr/mineru.jpg'
-import MistralLogo from '@renderer/assets/images/providers/mistral.png'
+import { Doc2x, Mineru, Mistral, Paddleocr } from '@cherrystudio/ui/icons'
 import type { PreprocessProviderId } from '@renderer/types'
 
 export function getPreprocessProviderLogo(providerId: PreprocessProviderId) {
   switch (providerId) {
     case 'doc2x':
-      return Doc2xLogo
+      return Doc2x
     case 'mistral':
-      return MistralLogo
+      return Mistral
     case 'mineru':
-      return MinerULogo
+      return Mineru
     case 'open-mineru':
-      return MinerULogo
+      return Mineru
+    case 'paddleocr':
+      return Paddleocr
     default:
       return undefined
   }
@@ -43,6 +43,12 @@ export const PREPROCESS_PROVIDER_CONFIG: Record<PreprocessProviderId, Preprocess
     websites: {
       official: 'https://github.com/opendatalab/MinerU/',
       apiKey: 'https://github.com/opendatalab/MinerU/'
+    }
+  },
+  paddleocr: {
+    websites: {
+      official: 'https://aistudio.baidu.com/paddleocr/',
+      apiKey: 'https://aistudio.baidu.com/paddleocr/'
     }
   }
 }

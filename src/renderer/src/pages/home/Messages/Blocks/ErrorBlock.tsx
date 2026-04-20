@@ -1,78 +1,23 @@
+import { SettingOutlined } from '@ant-design/icons'
 import { Button } from '@cherrystudio/ui'
-import CodeViewer from '@renderer/components/CodeViewer'
-import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
+import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getHttpMessageLabel, getProviderLabel } from '@renderer/i18n/label'
+import type { DiagnosisResult } from '@renderer/services/ErrorDiagnosisService'
+import { classifyErrorByAI } from '@renderer/services/ErrorDiagnosisService'
 import { useAppDispatch } from '@renderer/store'
 import { removeBlocksThunk } from '@renderer/store/thunk/messageThunk'
-import type { SerializedAiSdkError, SerializedAiSdkErrorUnion, SerializedError } from '@renderer/types/error'
-import {
-  isSerializedAiSdkAPICallError,
-  isSerializedAiSdkDownloadError,
-  isSerializedAiSdkError,
-  isSerializedAiSdkErrorUnion,
-  isSerializedAiSdkInvalidArgumentError,
-  isSerializedAiSdkInvalidDataContentError,
-  isSerializedAiSdkInvalidMessageRoleError,
-  isSerializedAiSdkInvalidPromptError,
-  isSerializedAiSdkInvalidToolInputError,
-  isSerializedAiSdkJSONParseError,
-  isSerializedAiSdkMessageConversionError,
-  isSerializedAiSdkNoObjectGeneratedError,
-  isSerializedAiSdkNoSpeechGeneratedError,
-  isSerializedAiSdkNoSuchModelError,
-  isSerializedAiSdkNoSuchProviderError,
-  isSerializedAiSdkNoSuchToolError,
-  isSerializedAiSdkRetryError,
-  isSerializedAiSdkToolCallRepairError,
-  isSerializedAiSdkTooManyEmbeddingValuesForCallError,
-  isSerializedAiSdkTypeValidationError,
-  isSerializedAiSdkUnsupportedFunctionalityError,
-  isSerializedError
-} from '@renderer/types/error'
 import type { ErrorMessageBlock, Message } from '@renderer/types/newMessage'
-import { formatAiSdkError, formatError, safeToString } from '@renderer/utils/error'
-import { formatFileSize } from '@renderer/utils/file'
-import { KB } from '@shared/config/constant'
-import { Link } from '@tanstack/react-router'
-import { Alert as AntdAlert, Modal } from 'antd'
-import React, { useEffect, useState } from 'react'
+import { classifyError } from '@renderer/utils/errorClassifier'
+import { Link, useNavigate } from '@tanstack/react-router'
+import { AlertTriangle, ChevronRight, X } from 'lucide-react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 const HTTP_ERROR_CODES = [400, 401, 403, 404, 429, 500, 502, 503, 504]
 
-const MAX_DISPLAY_SIZE = 100 * KB
-
-/**
- * Truncate large data to prevent OOM when displaying error details.
- * Uses simple string operations to avoid regex performance issues with large strings.
- */
-const truncateLargeData = (
-  data: string,
-  t: (key: string) => string
-): { content: string; truncated: boolean; isLikelyBase64: boolean } => {
-  if (!data || data.length <= MAX_DISPLAY_SIZE) {
-    return { content: data, truncated: false, isLikelyBase64: false }
-  }
-
-  const isLikelyBase64 = data.includes('data:image/') && data.includes(';base64,')
-  const formattedSize = formatFileSize(data.length)
-
-  if (isLikelyBase64) {
-    return {
-      content: `[${t('error.base64DataTruncated')} ~${formattedSize}]`,
-      truncated: true,
-      isLikelyBase64: true
-    }
-  }
-
-  return {
-    content: data.slice(0, MAX_DISPLAY_SIZE) + `\n\n... [${t('error.truncated')} ${formattedSize}]`,
-    truncated: true,
-    isLikelyBase64: false
-  }
-}
+// Module-level cache for AI classification to avoid duplicate API calls
+const aiClassifyCache = new Map<string, Promise<string>>()
 
 interface Props {
   block: ErrorMessageBlock
@@ -116,9 +61,9 @@ const ErrorMessage: React.FC<{ block: ErrorMessageBlock }> = ({ block }) => {
 
   if (typeof errorStatus === 'number' && HTTP_ERROR_CODES.includes(errorStatus)) {
     return (
-      <h5>
+      <span>
         {getHttpMessageLabel(errorStatus.toString())} {block.error?.message}
-      </h5>
+      </span>
     )
   }
 
@@ -128,577 +73,125 @@ const ErrorMessage: React.FC<{ block: ErrorMessageBlock }> = ({ block }) => {
 const MessageErrorInfo: React.FC<{ block: ErrorMessageBlock; message: Message }> = ({ block, message }) => {
   const dispatch = useAppDispatch()
   const { setTimeoutTimer } = useTimer()
-  const [showDetailModal, setShowDetailModal] = useState(false)
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const navigate = useNavigate()
+  const [aiSummary, setAiSummary] = useState<string>('')
 
-  const onRemoveBlock = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    setTimeoutTimer('onRemoveBlock', () => dispatch(removeBlocksThunk(message.topicId, message.id, [block.id])), 350)
-  }
+  const providerId = message.model?.provider ?? (block.error?.providerId as string | undefined)
+  const classification = useMemo(() => classifyError(block.error, providerId), [block.error, providerId])
+
+  // AI fallback: when rule-based classification returns 'unknown', ask AI for a one-line summary
+  const errorForAI = block.error
+  useEffect(() => {
+    if (classification.category !== 'unknown' || !errorForAI?.message) return
+    let cancelled = false
+    const cacheKey = `${errorForAI.message}:${i18n.language}`
+    const cached = aiClassifyCache.get(cacheKey)
+    const promise =
+      cached ??
+      classifyErrorByAI(errorForAI, i18n.language).then((summary) => {
+        if (!summary) aiClassifyCache.delete(cacheKey)
+        return summary
+      })
+    if (!cached) aiClassifyCache.set(cacheKey, promise)
+    promise
+      .then((summary) => {
+        if (!cancelled && summary) setAiSummary(summary)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [classification.category, errorForAI, i18n.language])
+
+  const diagnosisContext = useMemo(
+    () => ({
+      errorSource: 'chat' as const,
+      providerName: block.error?.providerId as string | undefined,
+      modelId: block.error?.modelId as string | undefined
+    }),
+    [block.error?.providerId, block.error?.modelId]
+  )
+
+  const onRemoveBlock = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      setTimeoutTimer('onRemoveBlock', () => dispatch(removeBlocksThunk(message.topicId, message.id, [block.id])), 350)
+    },
+    [setTimeoutTimer, dispatch, message.topicId, message.id, block.id]
+  )
 
   const showErrorDetail = () => {
-    setShowDetailModal(true)
+    showErrorDetailPopup({
+      error: block.error,
+      blockId: block.id,
+      cachedDiagnosis: block.metadata?.diagnosis as DiagnosisResult | undefined,
+      diagnosisContext
+    })
   }
 
-  const getAlertMessage = () => {
-    const status =
-      block.error && ('status' in block.error || 'statusCode' in block.error)
-        ? block.error?.status || block.error?.statusCode
-        : undefined
-    if (block.error && typeof status === 'number' && HTTP_ERROR_CODES.includes(status)) {
-      return block.error.message
+  const onNavigate = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (classification.navTarget) {
+      void navigate({ to: classification.navTarget })
     }
-    return null
-  }
-
-  const getAlertDescription = () => {
-    const status =
-      block.error && ('status' in block.error || 'statusCode' in block.error)
-        ? block.error?.status || block.error?.statusCode
-        : undefined
-    if (block.error && typeof status === 'number' && HTTP_ERROR_CODES.includes(status)) {
-      return getHttpMessageLabel(status.toString())
-    }
-    return <ErrorMessage block={block} />
   }
 
   return (
-    <>
-      <Alert
-        message={getAlertMessage()}
-        description={getAlertDescription()}
-        type="error"
-        closable
-        onClose={onRemoveBlock}
-        onClick={showErrorDetail}
-        style={{ cursor: 'pointer' }}
-        action={
-          <Button size="sm" className="p-0" variant="ghost" onClick={showErrorDetail}>
-            {t('common.detail')}
+    <div
+      className="group relative my-2 cursor-pointer rounded-lg border px-3.5 py-3 text-[13px] transition-all duration-200 hover:border-[color-mix(in_srgb,var(--color-error)_35%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-error)_7%,transparent)]"
+      style={{
+        borderColor: 'color-mix(in srgb, var(--color-error) 20%, transparent)',
+        background: 'color-mix(in srgb, var(--color-error) 4%, transparent)'
+      }}
+      onClick={showErrorDetail}>
+      {/* Close button */}
+      <button
+        type="button"
+        className="absolute top-2 right-2 flex h-5.5 w-5.5 cursor-pointer items-center justify-center rounded border-none bg-transparent opacity-0 transition-all duration-150 hover:bg-[color-mix(in_srgb,var(--color-error)_12%,transparent)] hover:text-(--color-error) group-hover:opacity-100"
+        onClick={onRemoveBlock}
+        aria-label="close"
+        title={t('common.close')}>
+        <X size={14} />
+      </button>
+
+      {/* Header: icon + title */}
+      <div className="mb-1.5 flex items-center gap-2">
+        <div className="flex shrink-0 items-center justify-center" style={{ color: 'var(--color-error)' }}>
+          <AlertTriangle size={15} />
+        </div>
+        <div className="pr-5 font-semibold text-[13px] leading-[1.4]" style={{ color: 'var(--color-error)' }}>
+          {aiSummary || t(classification.i18nKey)}
+        </div>
+      </div>
+
+      {/* Description */}
+      <div
+        className="wrap-break-word ml-5.75 line-clamp-3 text-xs leading-normal [&_a]:text-(--color-link)"
+        style={{ color: 'var(--color-text-2)' }}>
+        {block.error?.message || <ErrorMessage block={block} />}
+      </div>
+
+      {/* Footer */}
+      <div className="mt-2.5 ml-5.75 flex items-center gap-2">
+        {classification.navTarget && (
+          <Button
+            size="sm"
+            type="button"
+            className="inline-flex items-center gap-1 rounded-[5px] border-[color-mix(in_srgb,var(--color-error)_25%,transparent)] text-(--color-error) text-xs hover:border-(--color-error)"
+            onClick={onNavigate}>
+            <SettingOutlined style={{ fontSize: 12 }} />
+            {t('error.diagnosis.go_to_settings')}
           </Button>
-        }
-      />
-      <ErrorDetailModal open={showDetailModal} onClose={() => setShowDetailModal(false)} error={block.error} />
-    </>
-  )
-}
-
-interface ErrorDetailModalProps {
-  open: boolean
-  onClose: () => void
-  error?: SerializedError
-}
-
-const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({ open, onClose, error }) => {
-  const { t } = useTranslation()
-
-  const copyErrorDetails = () => {
-    if (!error) return
-    let errorText: string
-    if (isSerializedAiSdkError(error)) {
-      errorText = formatAiSdkError(error)
-    } else if (isSerializedError(error)) {
-      errorText = formatError(error)
-    } else {
-      // fallback
-      errorText = safeToString(error)
-    }
-
-    navigator.clipboard.writeText(errorText)
-    window.toast.addToast({ title: t('message.copied') })
-  }
-
-  const renderErrorDetails = (error?: SerializedError) => {
-    if (!error) return <div>{t('error.unknown')}</div>
-    if (isSerializedAiSdkErrorUnion(error)) {
-      return <AiSdkError error={error} />
-    }
-    return (
-      <ErrorDetailList>
-        <BuiltinError error={error} />
-      </ErrorDetailList>
-    )
-  }
-
-  return (
-    <Modal
-      centered
-      title={t('error.detail')}
-      open={open}
-      onCancel={onClose}
-      footer={[
-        <Button key="copy" size="sm" variant="ghost" onClick={copyErrorDetails}>
-          {t('common.copy')}
-        </Button>,
-        <Button key="close" size="sm" variant="ghost" onClick={onClose}>
-          {t('common.close')}
-        </Button>
-      ]}
-      width="80%"
-      style={{ maxWidth: '1200px', minWidth: '600px' }}>
-      <ErrorDetailContainer>{renderErrorDetails(error)}</ErrorDetailContainer>
-    </Modal>
-  )
-}
-
-const ErrorDetailContainer = styled.div`
-  max-height: 60vh;
-  overflow-y: auto;
-`
-
-const ErrorDetailList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-`
-
-const ErrorDetailItem = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-`
-
-const ErrorDetailLabel = styled.div`
-  font-weight: 600;
-  color: var(--color-text);
-  font-size: 14px;
-`
-
-const ErrorDetailValue = styled.div`
-  font-family: var(--code-font-family);
-  font-size: 12px;
-  padding: 8px;
-  background: var(--color-code-background);
-  border-radius: 4px;
-  border: 1px solid var(--color-border);
-  word-break: break-word;
-  color: var(--color-text);
-`
-
-const StackTrace = styled.div`
-  background: var(--color-background-soft);
-  border: 1px solid var(--color-error);
-  border-radius: 6px;
-  padding: 12px;
-
-  pre {
-    margin: 0;
-    white-space: pre-wrap;
-    word-break: break-word;
-    font-family: var(--code-font-family);
-    font-size: 12px;
-    line-height: 1.4;
-    color: var(--color-error);
-  }
-`
-
-const Alert = styled(AntdAlert)`
-  margin: 0.5rem 0 !important;
-  padding: 10px;
-  font-size: 12px;
-  align-items: center;
-  & .ant-alert-close-icon {
-    margin: 5px;
-  }
-`
-
-const TruncatedBadge = styled.span`
-  margin-left: 8px;
-  padding: 2px 6px;
-  font-size: 10px;
-  font-weight: normal;
-  color: var(--color-warning);
-  background: var(--color-warning-bg, rgba(250, 173, 20, 0.1));
-  border-radius: 4px;
-`
-
-// 作为 base，渲染公共字段，应当在 ErrorDetailList 中渲染
-const BuiltinError = ({ error }: { error: SerializedError }) => {
-  const { t } = useTranslation()
-  return (
-    <>
-      {error.name && (
-        <ErrorDetailItem>
-          <ErrorDetailLabel>{t('error.name')}:</ErrorDetailLabel>
-          <ErrorDetailValue>{error.name}</ErrorDetailValue>
-        </ErrorDetailItem>
-      )}
-      {error.message && (
-        <ErrorDetailItem>
-          <ErrorDetailLabel>{t('error.message')}:</ErrorDetailLabel>
-          <ErrorDetailValue>{error.message}</ErrorDetailValue>
-        </ErrorDetailItem>
-      )}
-      {error.stack && (
-        <ErrorDetailItem>
-          <ErrorDetailLabel>{t('error.stack')}:</ErrorDetailLabel>
-          <StackTrace>
-            <pre>{error.stack}</pre>
-          </StackTrace>
-        </ErrorDetailItem>
-      )}
-    </>
-  )
-}
-
-// Base component to render common fields, should be rendered inside ErrorDetailList
-const AiSdkErrorBase = ({ error }: { error: SerializedAiSdkError }) => {
-  const { t } = useTranslation()
-  const { highlightCode } = useCodeStyle()
-  const [highlightedString, setHighlightedString] = useState('')
-  const [isTruncated, setIsTruncated] = useState(false)
-  const cause = error.cause
-
-  useEffect(() => {
-    const highlight = async () => {
-      try {
-        // Truncate large data before processing to prevent OOM
-        const { content: truncatedCause, truncated, isLikelyBase64 } = truncateLargeData(cause || '', t)
-        setIsTruncated(truncated)
-
-        // Skip JSON parsing and syntax highlighting for base64 data
-        if (isLikelyBase64) {
-          setHighlightedString(truncatedCause)
-          return
-        }
-
-        // Try to parse and format JSON
-        try {
-          const parsed = JSON.parse(truncatedCause || '{}')
-          const formatted = JSON.stringify(parsed, null, 2)
-          const result = await highlightCode(formatted, 'json')
-          setHighlightedString(result)
-        } catch {
-          // If not valid JSON, use as-is
-          setHighlightedString(truncatedCause || '')
-        }
-      } catch {
-        setHighlightedString(cause || '')
-      }
-    }
-    const timer = setTimeout(highlight, 0)
-
-    return () => clearTimeout(timer)
-  }, [highlightCode, cause, t])
-
-  return (
-    <>
-      <BuiltinError error={error} />
-      {cause && (
-        <ErrorDetailItem>
-          <ErrorDetailLabel>
-            {t('error.cause')}:{isTruncated && <TruncatedBadge>{t('error.truncatedBadge')}</TruncatedBadge>}
-          </ErrorDetailLabel>
-          <ErrorDetailValue>
-            <div
-              className="markdown [&_pre]:!bg-transparent [&_pre_span]:whitespace-pre-wrap"
-              dangerouslySetInnerHTML={{ __html: highlightedString }}
-            />
-          </ErrorDetailValue>
-        </ErrorDetailItem>
-      )}
-    </>
-  )
-}
-
-// Wrapper component to safely display potentially large data in CodeViewer
-const TruncatedCodeViewer: React.FC<{
-  value: string
-  label: string
-  language?: string
-}> = ({ value, label, language = 'json' }) => {
-  const { t } = useTranslation()
-  const { content, truncated, isLikelyBase64 } = truncateLargeData(value, t)
-
-  return (
-    <ErrorDetailItem>
-      <ErrorDetailLabel>
-        {label}:{truncated && <TruncatedBadge>{t('error.truncatedBadge')}</TruncatedBadge>}
-      </ErrorDetailLabel>
-      {isLikelyBase64 ? (
-        <ErrorDetailValue>{content}</ErrorDetailValue>
-      ) : (
-        <CodeViewer value={content} className="source-view" language={language} expanded />
-      )}
-    </ErrorDetailItem>
-  )
-}
-
-const AiSdkError = ({ error }: { error: SerializedAiSdkErrorUnion }) => {
-  const { t } = useTranslation()
-
-  return (
-    <ErrorDetailList>
-      {(isSerializedAiSdkAPICallError(error) || isSerializedAiSdkDownloadError(error)) && (
-        <>
-          {error.url && (
-            <ErrorDetailItem>
-              <ErrorDetailLabel>{t('error.requestUrl')}:</ErrorDetailLabel>
-              <ErrorDetailValue>{error.url}</ErrorDetailValue>
-            </ErrorDetailItem>
-          )}
-        </>
-      )}
-
-      {isSerializedAiSdkAPICallError(error) && (
-        <>{error.responseBody && <TruncatedCodeViewer value={error.responseBody} label={t('error.responseBody')} />}</>
-      )}
-
-      {(isSerializedAiSdkAPICallError(error) || isSerializedAiSdkDownloadError(error)) && (
-        <>
-          {error.statusCode && (
-            <ErrorDetailItem>
-              <ErrorDetailLabel>{t('error.statusCode')}:</ErrorDetailLabel>
-              <ErrorDetailValue>{error.statusCode}</ErrorDetailValue>
-            </ErrorDetailItem>
-          )}
-        </>
-      )}
-
-      {isSerializedAiSdkAPICallError(error) && (
-        <>
-          {error.responseHeaders && (
-            <ErrorDetailItem>
-              <ErrorDetailLabel>{t('error.responseHeaders')}:</ErrorDetailLabel>
-              <CodeViewer
-                value={JSON.stringify(error.responseHeaders, null, 2)}
-                className="source-view"
-                language="json"
-                expanded
-              />
-            </ErrorDetailItem>
-          )}
-
-          {error.requestBodyValues && (
-            <TruncatedCodeViewer value={safeToString(error.requestBodyValues)} label={t('error.requestBodyValues')} />
-          )}
-
-          {error.data && <TruncatedCodeViewer value={safeToString(error.data)} label={t('error.data')} />}
-        </>
-      )}
-
-      {isSerializedAiSdkDownloadError(error) && (
-        <>
-          {error.statusText && (
-            <ErrorDetailItem>
-              <ErrorDetailLabel>{t('error.statusText')}:</ErrorDetailLabel>
-              <ErrorDetailValue>{error.statusText}</ErrorDetailValue>
-            </ErrorDetailItem>
-          )}
-        </>
-      )}
-
-      {isSerializedAiSdkInvalidArgumentError(error) && (
-        <>
-          {error.parameter && (
-            <ErrorDetailItem>
-              <ErrorDetailLabel>{t('error.parameter')}:</ErrorDetailLabel>
-              <ErrorDetailValue>{error.parameter}</ErrorDetailValue>
-            </ErrorDetailItem>
-          )}
-        </>
-      )}
-
-      {(isSerializedAiSdkInvalidArgumentError(error) || isSerializedAiSdkTypeValidationError(error)) && (
-        <>
-          {error.value && (
-            <ErrorDetailItem>
-              <ErrorDetailLabel>{t('error.value')}:</ErrorDetailLabel>
-              <ErrorDetailValue>{safeToString(error.value)}</ErrorDetailValue>
-            </ErrorDetailItem>
-          )}
-        </>
-      )}
-
-      {isSerializedAiSdkInvalidDataContentError(error) && (
-        <ErrorDetailItem>
-          <ErrorDetailLabel>{t('error.content')}:</ErrorDetailLabel>
-          <ErrorDetailValue>{safeToString(error.content)}</ErrorDetailValue>
-        </ErrorDetailItem>
-      )}
-
-      {isSerializedAiSdkInvalidMessageRoleError(error) && (
-        <ErrorDetailItem>
-          <ErrorDetailLabel>{t('error.role')}:</ErrorDetailLabel>
-          <ErrorDetailValue>{error.role}</ErrorDetailValue>
-        </ErrorDetailItem>
-      )}
-
-      {isSerializedAiSdkInvalidPromptError(error) && (
-        <ErrorDetailItem>
-          <ErrorDetailLabel>{t('error.prompt')}:</ErrorDetailLabel>
-          <ErrorDetailValue>{safeToString(error.prompt)}</ErrorDetailValue>
-        </ErrorDetailItem>
-      )}
-
-      {isSerializedAiSdkInvalidToolInputError(error) && (
-        <>
-          {error.toolName && (
-            <ErrorDetailItem>
-              <ErrorDetailLabel>{t('error.toolName')}:</ErrorDetailLabel>
-              <ErrorDetailValue>{error.toolName}</ErrorDetailValue>
-            </ErrorDetailItem>
-          )}
-          {error.toolInput && (
-            <ErrorDetailItem>
-              <ErrorDetailLabel>{t('error.toolInput')}:</ErrorDetailLabel>
-              <ErrorDetailValue>{error.toolInput}</ErrorDetailValue>
-            </ErrorDetailItem>
-          )}
-        </>
-      )}
-
-      {(isSerializedAiSdkJSONParseError(error) || isSerializedAiSdkNoObjectGeneratedError(error)) && (
-        <ErrorDetailItem>
-          <ErrorDetailLabel>{t('error.text')}:</ErrorDetailLabel>
-          <ErrorDetailValue>{error.text}</ErrorDetailValue>
-        </ErrorDetailItem>
-      )}
-
-      {isSerializedAiSdkMessageConversionError(error) && (
-        <ErrorDetailItem>
-          <ErrorDetailLabel>{t('error.originalMessage')}:</ErrorDetailLabel>
-          <ErrorDetailValue>{safeToString(error.originalMessage)}</ErrorDetailValue>
-        </ErrorDetailItem>
-      )}
-
-      {isSerializedAiSdkNoSpeechGeneratedError(error) && (
-        <ErrorDetailItem>
-          <ErrorDetailLabel>{t('error.responses')}:</ErrorDetailLabel>
-          <ErrorDetailValue>{error.responses.join(', ')}</ErrorDetailValue>
-        </ErrorDetailItem>
-      )}
-
-      {isSerializedAiSdkNoObjectGeneratedError(error) && (
-        <>
-          {error.response && (
-            <ErrorDetailItem>
-              <ErrorDetailLabel>{t('error.response')}:</ErrorDetailLabel>
-              <ErrorDetailValue>{safeToString(error.response)}</ErrorDetailValue>
-            </ErrorDetailItem>
-          )}
-          {error.usage && (
-            <ErrorDetailItem>
-              <ErrorDetailLabel>{t('error.usage')}:</ErrorDetailLabel>
-              <ErrorDetailValue>{safeToString(error.usage)}</ErrorDetailValue>
-            </ErrorDetailItem>
-          )}
-          {error.finishReason && (
-            <ErrorDetailItem>
-              <ErrorDetailLabel>{t('error.finishReason')}:</ErrorDetailLabel>
-              <ErrorDetailValue>{error.finishReason}</ErrorDetailValue>
-            </ErrorDetailItem>
-          )}
-        </>
-      )}
-
-      {(isSerializedAiSdkNoSuchModelError(error) ||
-        isSerializedAiSdkNoSuchProviderError(error) ||
-        isSerializedAiSdkTooManyEmbeddingValuesForCallError(error)) && (
-        <ErrorDetailItem>
-          <ErrorDetailLabel>{t('error.modelId')}:</ErrorDetailLabel>
-          <ErrorDetailValue>{error.modelId}</ErrorDetailValue>
-        </ErrorDetailItem>
-      )}
-
-      {(isSerializedAiSdkNoSuchModelError(error) || isSerializedAiSdkNoSuchProviderError(error)) && (
-        <ErrorDetailItem>
-          <ErrorDetailLabel>{t('error.modelType')}:</ErrorDetailLabel>
-          <ErrorDetailValue>{error.modelType}</ErrorDetailValue>
-        </ErrorDetailItem>
-      )}
-
-      {isSerializedAiSdkNoSuchProviderError(error) && (
-        <>
-          <ErrorDetailItem>
-            <ErrorDetailLabel>{t('error.providerId')}:</ErrorDetailLabel>
-            <ErrorDetailValue>{error.providerId}</ErrorDetailValue>
-          </ErrorDetailItem>
-
-          <ErrorDetailItem>
-            <ErrorDetailLabel>{t('error.availableProviders')}:</ErrorDetailLabel>
-            <ErrorDetailValue>{error.availableProviders.join(', ')}</ErrorDetailValue>
-          </ErrorDetailItem>
-        </>
-      )}
-
-      {isSerializedAiSdkNoSuchToolError(error) && (
-        <>
-          <ErrorDetailItem>
-            <ErrorDetailLabel>{t('error.toolName')}:</ErrorDetailLabel>
-            <ErrorDetailValue>{error.toolName}</ErrorDetailValue>
-          </ErrorDetailItem>
-          {error.availableTools && (
-            <ErrorDetailItem>
-              <ErrorDetailLabel>{t('error.availableTools')}:</ErrorDetailLabel>
-              <ErrorDetailValue>{error.availableTools?.join(', ') || t('common.none')}</ErrorDetailValue>
-            </ErrorDetailItem>
-          )}
-        </>
-      )}
-
-      {isSerializedAiSdkRetryError(error) && (
-        <>
-          {error.reason && (
-            <ErrorDetailItem>
-              <ErrorDetailLabel>{t('error.reason')}:</ErrorDetailLabel>
-              <ErrorDetailValue>{error.reason}</ErrorDetailValue>
-            </ErrorDetailItem>
-          )}
-          {error.lastError && (
-            <ErrorDetailItem>
-              <ErrorDetailLabel>{t('error.lastError')}:</ErrorDetailLabel>
-              <ErrorDetailValue>{safeToString(error.lastError)}</ErrorDetailValue>
-            </ErrorDetailItem>
-          )}
-          {error.errors && error.errors.length > 0 && (
-            <ErrorDetailItem>
-              <ErrorDetailLabel>{t('error.errors')}:</ErrorDetailLabel>
-              <ErrorDetailValue>{error.errors.map((e) => safeToString(e)).join('\n\n')}</ErrorDetailValue>
-            </ErrorDetailItem>
-          )}
-        </>
-      )}
-
-      {isSerializedAiSdkTooManyEmbeddingValuesForCallError(error) && (
-        <>
-          {error.provider && (
-            <ErrorDetailItem>
-              <ErrorDetailLabel>{t('error.provider')}:</ErrorDetailLabel>
-              <ErrorDetailValue>{error.provider}</ErrorDetailValue>
-            </ErrorDetailItem>
-          )}
-          {error.maxEmbeddingsPerCall && (
-            <ErrorDetailItem>
-              <ErrorDetailLabel>{t('error.maxEmbeddingsPerCall')}:</ErrorDetailLabel>
-              <ErrorDetailValue>{error.maxEmbeddingsPerCall}</ErrorDetailValue>
-            </ErrorDetailItem>
-          )}
-          {error.values && (
-            <ErrorDetailItem>
-              <ErrorDetailLabel>{t('error.values')}:</ErrorDetailLabel>
-              <ErrorDetailValue>{safeToString(error.values)}</ErrorDetailValue>
-            </ErrorDetailItem>
-          )}
-        </>
-      )}
-
-      {isSerializedAiSdkToolCallRepairError(error) && (
-        <ErrorDetailItem>
-          <ErrorDetailLabel>{t('error.originalError')}:</ErrorDetailLabel>
-          <ErrorDetailValue>{safeToString(error.originalError)}</ErrorDetailValue>
-        </ErrorDetailItem>
-      )}
-
-      {isSerializedAiSdkUnsupportedFunctionalityError(error) && (
-        <ErrorDetailItem>
-          <ErrorDetailLabel>{t('error.functionality')}:</ErrorDetailLabel>
-          <ErrorDetailValue>{error.functionality}</ErrorDetailValue>
-        </ErrorDetailItem>
-      )}
-
-      <AiSdkErrorBase error={error} />
-    </ErrorDetailList>
+        )}
+        <div
+          className="ml-auto inline-flex items-center gap-0.5 text-xs transition-colors duration-150 group-hover:text-(--color-error)"
+          style={{ color: 'var(--color-text-3)' }}>
+          {t('common.detail')}
+          <ChevronRight size={14} />
+        </div>
+      </div>
+    </div>
   )
 }
 

@@ -1,14 +1,13 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
+import type { MCPServer } from '@shared/data/types/mcpServer'
 import { IpcChannel } from '@shared/IpcChannel'
-import type { MCPServer } from '@types'
-
-import { windowService } from '../WindowService'
 
 const logger = loggerService.withContext('URLSchema:handleMcpProtocolUrl')
 
 function installMCPServer(server: MCPServer) {
-  const mainWindow = windowService.getMainWindow()
+  const mainWindow = application.get('MainWindowService').getMainWindow()
   const now = Date.now()
 
   const payload: MCPServer = {
@@ -74,7 +73,7 @@ export function handleMcpProtocolUrl(url: URL) {
         }
       }
 
-      windowService.getMainWindow()?.show()
+      application.get('MainWindowService').showMainWindow()
 
       break
     }

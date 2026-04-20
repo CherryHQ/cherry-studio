@@ -32,7 +32,7 @@ const SelectionFilterListModal: FC<SelectionFilterListModalProps> = ({ open, onC
         .trim()
         .toLowerCase()
         .split('\n')
-        .map((line: string) => line.trim().slice(0, 32))
+        .map((line: string) => line.trim())
         .filter((line: string) => line.length > 0)
       onSave([...new Set(newList)])
       onClose()

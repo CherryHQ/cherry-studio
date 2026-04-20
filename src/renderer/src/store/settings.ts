@@ -21,6 +21,7 @@ import type {
   ApiServerConfig,
   CodeStyleVarious,
   MathEngine,
+  MinAppRegionFilter,
   OpenAIServiceTier,
   PaintingProvider,
   S3Config,
@@ -31,7 +32,6 @@ import type {
   OpenAIReasoningSummary,
   OpenAIVerbosity
 } from '@renderer/types/aiCoreTypes'
-import { uuid } from '@renderer/utils'
 import { API_SERVER_DEFAULTS } from '@shared/config/constant'
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
@@ -44,6 +44,7 @@ import type {
   SidebarIcon
 } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
+import { v4 as uuid } from 'uuid'
 
 import type { RemoteSyncState } from './backup'
 
@@ -196,6 +197,8 @@ export interface SettingsState {
   maxKeepAliveMinapps: number
   showOpenedMinappsInSidebar: boolean
   minappsOpenLinkExternal: boolean
+  /** Mini app region filter: 'auto' (detect from IP), 'CN', or 'Global' */
+  minAppRegion: MinAppRegionFilter
   // 隐私设置
   enableDataCollection: boolean
   enableSpellCheck: boolean
@@ -203,6 +206,8 @@ export interface SettingsState {
   enableQuickPanelTriggers: boolean
   // 硬件加速设置
   disableHardwareAcceleration: boolean
+  // 使用系统标题栏 (仅Linux)
+  useSystemTitleBar: boolean
   exportMenuOptions: {
     image: boolean
     markdown: boolean
@@ -379,6 +384,7 @@ export const initialState: SettingsState = {
   maxKeepAliveMinapps: 3,
   showOpenedMinappsInSidebar: true,
   minappsOpenLinkExternal: false,
+  minAppRegion: 'auto',
   enableDataCollection: false,
   enableSpellCheck: false,
   spellCheckLanguages: [],
@@ -388,6 +394,8 @@ export const initialState: SettingsState = {
   confirmRegenerateMessage: true,
   // 硬件加速设置
   disableHardwareAcceleration: false,
+  // 使用系统标题栏 (仅Linux)
+  useSystemTitleBar: false,
   exportMenuOptions: {
     image: true,
     markdown: true,
@@ -799,6 +807,9 @@ const settingsSlice = createSlice({
     // setMinappsOpenLinkExternal: (state, action: PayloadAction<boolean>) => {
     //   state.minappsOpenLinkExternal = action.payload
     // },
+    setMinAppRegion: (state, action: PayloadAction<MinAppRegionFilter>) => {
+      state.minAppRegion = action.payload
+    },
     // setEnableDataCollection: (state, action: PayloadAction<boolean>) => {
     //   state.enableDataCollection = action.payload
     // },
@@ -823,6 +834,9 @@ const settingsSlice = createSlice({
     // // setDisableHardwareAcceleration: (state, action: PayloadAction<boolean>) => {
     // //   state.disableHardwareAcceleration = action.payload
     // // },
+    // setUseSystemTitleBar: (state, action: PayloadAction<boolean>) => {
+    //   state.useSystemTitleBar = action.payload
+    // },
     setOpenAISummaryText: (state, action: PayloadAction<OpenAIReasoningSummary>) => {
       state.openAI.summaryText = action.payload
     },
@@ -995,6 +1009,7 @@ export const {
   // setMaxKeepAliveMinapps,
   // setShowOpenedMinappsInSidebar,
   // setMinappsOpenLinkExternal,
+  setMinAppRegion,
   // setEnableDataCollection,
   // setEnableSpellCheck,
   // setSpellCheckLanguages,
@@ -1003,6 +1018,7 @@ export const {
   // setConfirmDeleteMessage,
   // setConfirmRegenerateMessage,
   // setDisableHardwareAcceleration,
+  // setUseSystemTitleBar,
   setOpenAISummaryText,
   setOpenAIVerbosity,
   setOpenAIStreamOptionsIncludeUsage,

@@ -1,7 +1,6 @@
 import { loggerService } from '@logger'
 import type { Span } from '@opentelemetry/api'
-import { ModernAiProvider } from '@renderer/aiCore'
-import AiProvider from '@renderer/aiCore/legacy'
+import { AiProvider } from '@renderer/aiCore'
 import { getMessageContent } from '@renderer/aiCore/plugins/searchOrchestrationPlugin'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, DEFAULT_KNOWLEDGE_THRESHOLD } from '@renderer/config/constant'
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
@@ -30,12 +29,13 @@ import { isEmpty } from 'lodash'
 import { getProviderByModel } from './AssistantService'
 import FileManager from './FileManager'
 import type { BlockManager } from './messageStreaming'
+import { estimateTextTokens } from './TokenService'
 
 const logger = loggerService.withContext('RendererKnowledgeService')
 
 export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams => {
   const rerankProvider = getProviderByModel(base.rerankModel)
-  const aiProvider = new ModernAiProvider(base.model)
+  const aiProvider = new AiProvider(base.model)
   const rerankAiProvider = new AiProvider(rerankProvider)
 
   // get preprocess provider from store instead of base.preprocessProvider
@@ -146,6 +146,16 @@ export const searchKnowledgeBase = async (
   parentSpanId?: string,
   modelName?: string
 ): Promise<Array<KnowledgeSearchResult & { file: FileMetadata | null }>> => {
+  // Truncate query based on embedding model's max_context to prevent embedding errors
+  const maxContext = getEmbeddingMaxContext(base.model.id)
+  if (maxContext) {
+    const estimatedTokens = estimateTextTokens(query)
+    if (estimatedTokens > maxContext) {
+      const ratio = maxContext / estimatedTokens
+      query = query.slice(0, Math.floor(query.length * ratio))
+    }
+  }
+
   let currentSpan: Span | undefined = undefined
   try {
     const baseParams = getKnowledgeBaseParams(base)
@@ -462,7 +472,7 @@ export const createKnowledgeReferencesBlock = async ({
   )
 
   // 处理引用块
-  blockManager.handleBlockTransition(citationBlock, MessageBlockType.CITATION)
+  void blockManager.handleBlockTransition(citationBlock, MessageBlockType.CITATION)
 
   // 设置引用块ID
   setCitationBlockId(citationBlock.id)

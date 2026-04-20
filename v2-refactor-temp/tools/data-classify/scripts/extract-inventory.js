@@ -81,6 +81,7 @@ class DataExtractor {
       redux: await this.extractReduxData(),
       electronStore: await this.extractElectronStoreData(),
       localStorage: await this.extractLocalStorageData(),
+      dexieSettings: await this.extractDexieSettingsData(),
       dexie: await this.extractDexieData()
     }
 
@@ -217,6 +218,50 @@ class DataExtractor {
 
     console.log(`  Found ${Object.keys(localStorageData).length} localStorage keys`)
     return localStorageData
+  }
+
+  /**
+   * Extract Dexie settings table keys (string literals only)
+   *
+   * Scans for db.settings.get/put/add calls with string literal keys.
+   * Dynamic keys (e.g. template literals) cannot be extracted automatically.
+   */
+  async extractDexieSettingsData() {
+    console.log('Extracting Dexie Settings data...')
+    const settingsKeys = new Map() // key -> { file, type }
+
+    const { glob } = require('glob')
+    const files = await glob('src/**/*.{ts,tsx}', { cwd: this.rootDir })
+
+    for (const file of files) {
+      const filePath = path.join(this.rootDir, file)
+      const content = fs.readFileSync(filePath, 'utf8')
+
+      // Match db.settings.get({ id: 'key' }) and db.settings.put({ id: 'key', ... })
+      const objectStyleRegex = /db\.settings\.(?:get|put|add)\(\s*\{\s*id:\s*['"]([^'"]+)['"]/g
+      // Match db.settings.get('key')
+      const directStyleRegex = /db\.settings\.(?:get|put|add)\(\s*['"]([^'"]+)['"]/g
+
+      let match
+      while ((match = objectStyleRegex.exec(content)) !== null) {
+        if (!settingsKeys.has(match[1])) {
+          settingsKeys.set(match[1], { file, type: 'unknown', defaultValue: null })
+        }
+      }
+      while ((match = directStyleRegex.exec(content)) !== null) {
+        if (!settingsKeys.has(match[1])) {
+          settingsKeys.set(match[1], { file, type: 'unknown', defaultValue: null })
+        }
+      }
+    }
+
+    const result = {}
+    for (const [key, data] of settingsKeys) {
+      result[key] = data
+    }
+
+    console.log(`  Found ${settingsKeys.size} Dexie settings keys (string literals)`)
+    return result
   }
 
   /**
@@ -453,6 +498,34 @@ class DataExtractor {
             })
           }
         }
+      } else if (source === 'dexieSettings') {
+        // DexieSettings: all keys go under 'settings' group
+        nestedClassifications[source].settings = []
+        const existingItems = existing.dexieSettings?.settings || []
+
+        for (const key of Object.keys(data)) {
+          const fieldData = data[key]
+          const existingItem = existingItems.find((item) => item.originalKey === key)
+
+          nestedClassifications[source].settings.push({
+            originalKey: key,
+            type: existingItem?.type || normalizeType(fieldData?.type),
+            defaultValue: existingItem?.defaultValue ?? fieldData?.defaultValue ?? null,
+            status: existingItem?.status || 'pending',
+            category: existingItem?.category || null,
+            targetKey: existingItem?.targetKey || null
+          })
+        }
+
+        // Preserve manually-added entries not found by extraction
+        for (const existingItem of existingItems) {
+          const alreadyAdded = nestedClassifications[source].settings.some(
+            (item) => item.originalKey === existingItem.originalKey
+          )
+          if (!alreadyAdded) {
+            nestedClassifications[source].settings.push({ ...existingItem })
+          }
+        }
       } else {
         // Other sources: direct mapping
         for (const [tableName, tableData] of Object.entries(data)) {
@@ -524,6 +597,7 @@ class DataExtractor {
     console.log(`Redux modules: ${Object.keys(inventory.redux || {}).length}`)
     console.log(`Electron Store keys: ${Object.keys(inventory.electronStore || {}).length}`)
     console.log(`LocalStorage keys: ${Object.keys(inventory.localStorage || {}).length}`)
+    console.log(`Dexie settings keys: ${Object.keys(inventory.dexieSettings || {}).length}`)
     console.log(`Dexie tables: ${Object.keys(inventory.dexie || {}).length}`)
     console.log('----------------------------------------')
     console.log(`Total items: ${classification.metadata.totalItems}`)

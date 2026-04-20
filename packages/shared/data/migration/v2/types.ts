@@ -4,6 +4,7 @@
 
 // Migration stages for UI flow
 export type MigrationStage =
+  | 'version_incompatible'
   | 'introduction'
   | 'backup_required'
   | 'backup_progress'
@@ -24,11 +25,19 @@ export interface MigratorProgress {
   error?: string
 }
 
+// I18n message with key and interpolation params
+export interface I18nMessage {
+  key: string
+  params?: Record<string, string | number>
+}
+
 // Overall migration progress
 export interface MigrationProgress {
   stage: MigrationStage
   overallProgress: number // 0-100
   currentMessage: string
+  /** Optional i18n key with params for translation in renderer */
+  i18nMessage?: I18nMessage
   migrators: MigratorProgress[]
   error?: string
 }
@@ -65,6 +74,8 @@ export interface ValidateResult {
     skippedCount: number
     mismatchReason?: string
   }
+  /** Migrator-specific diagnostics for threshold-based failure decisions */
+  diagnostics?: Record<string, number>
 }
 
 // Individual migrator result
@@ -94,6 +105,18 @@ export interface MigrationStatusValue {
   error?: string | null
 }
 
+// localStorage record type (shared between main LocalStorageReader and renderer LocalStorageExporter)
+export interface LocalStorageRecord {
+  key: string
+  value: unknown
+}
+
+export interface StartMigrationPayload {
+  reduxData: Record<string, unknown>
+  dexieExportPath: string
+  localStorageExportPath?: string
+}
+
 // IPC channels for migration communication
 export const MigrationIpcChannels = {
   // Status queries
@@ -112,10 +135,11 @@ export const MigrationIpcChannels = {
   Cancel: 'migration:cancel',
   Restart: 'migration:restart',
 
-  // Data transfer (Renderer -> Main)
-  SendReduxData: 'migration:send-redux-data',
-  DexieExportCompleted: 'migration:dexie-export-completed',
+  // File transfer (Renderer -> Main)
   WriteExportFile: 'migration:write-export-file',
+
+  // Skip migration (version incompatible — user chose to use defaults)
+  SkipMigration: 'migration:skip-migration',
 
   // Progress broadcast (Main -> Renderer)
   Progress: 'migration:progress',

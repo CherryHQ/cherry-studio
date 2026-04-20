@@ -1,10 +1,11 @@
 import { BaiduOutlined, GoogleOutlined } from '@ant-design/icons'
+import { Querit } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
 import { BingLogo, BochaLogo, ExaLogo, SearXNGLogo, TavilyLogo, ZhipuLogo } from '@renderer/components/Icons'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
 import {
-  isFunctionCallingModel,
+  isGemini3Model,
   isGeminiModel,
   isGPT5SeriesReasoningModel,
   isOpenAIWebSearchModel,
@@ -15,11 +16,10 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearchProviders'
 import type { ToolQuickPanelController, ToolRenderContext } from '@renderer/pages/home/Inputbar/types'
 import { getProviderByModel } from '@renderer/services/AssistantService'
-import WebSearchService from '@renderer/services/WebSearchService'
+import { webSearchService } from '@renderer/services/WebSearchService'
 import { getEffectiveMcpMode, type WebSearchProvider, type WebSearchProviderId } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
-import { isPromptToolUse } from '@renderer/utils/mcp-tools'
 import { isGeminiWebSearchProvider } from '@renderer/utils/provider'
 import { Globe } from 'lucide-react'
 import { useCallback, useEffect, useMemo } from 'react'
@@ -47,6 +47,8 @@ export const WebSearchProviderIcon = ({
       return <ZhipuLogo className="icon" width={size} height={size} color={color} />
     case 'searxng':
       return <SearXNGLogo className="icon" width={size} height={size} color={color} />
+    case 'querit':
+      return <Querit.Mono className="icon" width={size} height={size} color={color} />
     case 'local-baidu':
       return <BaiduOutlined size={size} style={{ color, fontSize: size }} />
     case 'local-bing':
@@ -82,9 +84,9 @@ export const useWebSearchPanelController = (assistantId: string, quickPanelContr
   const updateQuickPanelItem = useCallback(
     async (providerId?: WebSearchProvider['id']) => {
       if (providerId === assistant.webSearchProviderId) {
-        updateWebSearchProvider(undefined)
+        void updateWebSearchProvider(undefined)
       } else {
-        updateWebSearchProvider(providerId)
+        void updateWebSearchProvider(providerId)
       }
     },
     [assistant.webSearchProviderId, updateWebSearchProvider]
@@ -103,9 +105,11 @@ export const useWebSearchPanelController = (assistantId: string, quickPanelContr
       window.toast.error(t('error.model.not_exists'))
       return
     }
+    // Gemini 3+ supports combining built-in tools with function calling
     if (
       isGeminiWebSearchProvider(provider) &&
       isGeminiModel(model) &&
+      !isGemini3Model(model) &&
       isToolUseModeFunction(assistant) &&
       update.enableWebSearch &&
       getEffectiveMcpMode(assistant) !== 'disabled'
@@ -128,24 +132,22 @@ export const useWebSearchPanelController = (assistantId: string, quickPanelContr
   const providerItems = useMemo<QuickPanelListItem[]>(() => {
     const isWebSearchModelEnabled = assistant.model && isWebSearchModel(assistant.model)
     const items: QuickPanelListItem[] = []
-    if (isFunctionCallingModel(assistant.model) || isPromptToolUse(assistant)) {
-      items.push(
-        ...providers
-          .map((p) => ({
-            label: p.name,
-            description: WebSearchService.isWebSearchEnabled(p.id)
-              ? hasObjectKey(p, 'apiKey')
-                ? t('settings.tool.websearch.apikey')
-                : t('settings.tool.websearch.free')
-              : t('chat.input.web_search.enable_content'),
-            icon: <WebSearchProviderIcon size={13} pid={p.id} />,
-            isSelected: p.id === assistant?.webSearchProviderId,
-            disabled: !WebSearchService.isWebSearchEnabled(p.id),
-            action: () => updateQuickPanelItem(p.id)
-          }))
-          .filter((item) => !item.disabled)
-      )
-    }
+    items.push(
+      ...providers
+        .map((p) => ({
+          label: p.name,
+          description: webSearchService.isWebSearchEnabled(p.id)
+            ? hasObjectKey(p, 'apiKey')
+              ? t('settings.tool.websearch.apikey')
+              : t('settings.tool.websearch.free')
+            : t('chat.input.web_search.enable_content'),
+          icon: <WebSearchProviderIcon size={13} pid={p.id} />,
+          isSelected: p.id === assistant?.webSearchProviderId,
+          disabled: !webSearchService.isWebSearchEnabled(p.id),
+          action: () => updateQuickPanelItem(p.id)
+        }))
+        .filter((item) => !item.disabled)
+    )
 
     if (isWebSearchModelEnabled) {
       items.unshift({

@@ -7,7 +7,7 @@ import { useAssistants, useDefaultAssistant, useDefaultModel } from '@renderer/h
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setQuickAssistantId } from '@renderer/store/llm'
 import { matchKeywordsInString } from '@renderer/utils'
-import HomeWindow from '@renderer/windows/mini/home/HomeWindow'
+import HomeWindow from '@renderer/windows/quickAssistant/home/HomeWindow'
 import { Select } from 'antd'
 import type { FC } from 'react'
 import { useMemo } from 'react'
@@ -43,7 +43,7 @@ const QuickAssistantSettings: FC = () => {
   const handleEnableQuickAssistant = async (enable: boolean) => {
     await setEnableQuickAssistant(enable)
 
-    !enable && window.api.miniWindow.close()
+    void (!enable && window.api.quickAssistant.close())
 
     if (enable && !clickTrayToShowQuickAssistant) {
       window.toast.info({
@@ -54,18 +54,18 @@ const QuickAssistantSettings: FC = () => {
     }
 
     if (enable && clickTrayToShowQuickAssistant) {
-      setTray(true)
+      void setTray(true)
     }
   }
 
   const handleClickTrayToShowQuickAssistant = async (checked: boolean) => {
     await setClickTrayToShowQuickAssistant(checked)
-    checked && setTray(true)
+    if (checked) void setTray(true)
   }
 
   const handleClickReadClipboardAtStartup = async (checked: boolean) => {
     await setReadClipboardAtStartup(checked)
-    window.api.miniWindow.close()
+    void window.api.quickAssistant.close()
   }
 
   return (

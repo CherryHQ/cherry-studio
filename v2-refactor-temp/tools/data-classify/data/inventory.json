@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "generatedAt": "2025-11-29T03:44:51.977Z",
+    "generatedAt": "2026-03-13T06:11:12.842Z",
     "version": "2.0.0",
     "description": "Cherry Studio data inventory"
   },
@@ -148,7 +148,7 @@
       "settings": {
         "file": "src/renderer/src/store/llm.ts",
         "type": "unknown",
-        "defaultValue": "{ ollama: { keepAliveTime: 0 }, lmstudio: { keepAliveTime: 0 }, gpustack: { keepAliveTime: 0 }, vertexai: { serviceAccount: { privateKey: '', clientEmail: '' }, projectId: '', location: '' }, awsBedrock: { authType: 'iam', accessKeyId: '', secretAccessKey: '', apiKey: '', region: '' } }"
+        "defaultValue": "{ ollama: { keepAliveTime: 0 }, lmstudio: { keepAliveTime: 0 }, gpustack: { keepAliveTime: 0 }, vertexai: { serviceAccount: { privateKey: '', clientEmail: '' }, projectId: '', location: '' }, awsBedrock: { authType: 'iam', accessKeyId: '', secretAccessKey: '', apiKey: '', region: '' }, cherryIn: { accessToken: '', refreshToken: '' } }"
       }
     },
     "mcp": {
@@ -208,7 +208,7 @@
       "enabled": {
         "file": "src/renderer/src/store/minapps.ts",
         "type": "string",
-        "defaultValue": "DEFAULT_MIN_APPS"
+        "defaultValue": "allMinApps"
       },
       "disabled": {
         "file": "src/renderer/src/store/minapps.ts",
@@ -317,6 +317,16 @@
         "file": "src/renderer/src/store/paintings.ts",
         "type": "array",
         "defaultValue": []
+      },
+      "ovms_paintings": {
+        "file": "src/renderer/src/store/paintings.ts",
+        "type": "array",
+        "defaultValue": []
+      },
+      "ppio_draw": {
+        "file": "src/renderer/src/store/paintings.ts",
+        "type": "array",
+        "defaultValue": []
       }
     },
     "preprocess": {
@@ -340,10 +350,20 @@
         "file": "src/renderer/src/store/runtime.ts",
         "interface": "RuntimeState"
       },
-      "chat": {
+      "detectedRegion": {
         "file": "src/renderer/src/store/runtime.ts",
         "type": "unknown",
-        "defaultValue": "{ isMultiSelectMode: false, selectedMessageIds: [], activeTopic: null, activeAgentId: null, activeTopicOrSession: 'topic', activeSessionIdMap: {}, renamingTopics: [], newlyRenamedTopics: [], sessionWaiting: {} }"
+        "defaultValue": null
+      },
+      "loadingMap": {
+        "file": "src/renderer/src/store/runtime.ts",
+        "type": "string",
+        "defaultValue": {}
+      },
+      "placeHolder": {
+        "file": "src/renderer/src/store/runtime.ts",
+        "type": "string",
+        "defaultValue": null
       }
     },
     "selectionStore": {
@@ -972,6 +992,11 @@
         "type": "boolean",
         "defaultValue": false
       },
+      "minAppRegion": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "unknown",
+        "defaultValue": "auto"
+      },
       "enableDataCollection": {
         "file": "src/renderer/src/store/settings.ts",
         "type": "boolean",
@@ -993,6 +1018,11 @@
         "defaultValue": false
       },
       "disableHardwareAcceleration": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "useSystemTitleBar": {
         "file": "src/renderer/src/store/settings.ts",
         "type": "boolean",
         "defaultValue": false
@@ -1060,7 +1090,7 @@
       "openAI": {
         "file": "src/renderer/src/store/settings.ts",
         "type": "unknown",
-        "defaultValue": "{ summaryText: 'auto', serviceTier: 'auto', verbosity: undefined }"
+        "defaultValue": "{ summaryText: 'auto', serviceTier: 'auto', verbosity: undefined, streamOptions: { includeUsage: DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE } }"
       },
       "summaryText": {
         "file": "src/renderer/src/store/settings.ts",
@@ -1073,6 +1103,16 @@
         "defaultValue": null
       },
       "verbosity": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "unknown",
+        "defaultValue": null
+      },
+      "streamOptions": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "unknown",
+        "defaultValue": null
+      },
+      "includeUsage": {
         "file": "src/renderer/src/store/settings.ts",
         "type": "unknown",
         "defaultValue": null
@@ -1145,7 +1185,7 @@
       "apiServer": {
         "file": "src/renderer/src/store/settings.ts",
         "type": "unknown",
-        "defaultValue": "{ enabled: false, host: 'localhost', port: 23333, apiKey: `cs-sk-${uuid()}` }"
+        "defaultValue": "{ enabled: false, host: API_SERVER_DEFAULTS.HOST, port: API_SERVER_DEFAULTS.PORT, apiKey: `cs-sk-${uuid()}` }"
       },
       "showMessageOutline": {
         "file": "src/renderer/src/store/settings.ts",
@@ -1186,6 +1226,11 @@
         "interface": "ToolPermissionsState"
       },
       "requests": {
+        "file": "src/renderer/src/store/toolPermissions.ts",
+        "type": "string",
+        "defaultValue": {}
+      },
+      "resolvedInputs": {
         "file": "src/renderer/src/store/toolPermissions.ts",
         "type": "string",
         "defaultValue": {}
@@ -1281,19 +1326,12 @@
       "selectedModels": {
         "file": "src/renderer/src/store/codeTools.ts",
         "type": "string",
-        "defaultValue": "{ [codeTools.qwenCode]: null, [codeTools.claudeCode]: null, [codeTools.geminiCli]: null, [codeTools.openaiCodex]: null, [codeTools.iFlowCli]: null, [codeTools.githubCopilotCli]: null }"
+        "defaultValue": "{ [codeTools.qwenCode]: null, [codeTools.claudeCode]: null, [codeTools.geminiCli]: null, [codeTools.openaiCodex]: null, [codeTools.iFlowCli]: null, [codeTools.githubCopilotCli]: null, [codeTools.kimiCli]: null, [codeTools.openCode]: null }"
       },
       "environmentVariables": {
         "file": "src/renderer/src/store/codeTools.ts",
         "type": "string",
-        "defaultValue": {
-          "qwen-code": "",
-          "claude-code": "",
-          "gemini-cli": "",
-          "openai-codex": "",
-          "iflow-cli": "",
-          "github-copilot-cli": ""
-        }
+        "defaultValue": "{ 'qwen-code': '', 'claude-code': '', 'gemini-cli': '', 'openai-codex': '', 'iflow-cli': '', 'github-copilot-cli': '', 'kimi-cli': '', opencode: '' }"
       },
       "directories": {
         "file": "src/renderer/src/store/codeTools.ts",
@@ -1490,6 +1528,12 @@
       "type": "unknown",
       "defaultValue": null
     },
+    "UseSystemTitleBar": {
+      "file": "src/main/services/ConfigManager.ts",
+      "enum": "ConfigKeys.UseSystemTitleBar",
+      "type": "unknown",
+      "defaultValue": null
+    },
     "Proxy": {
       "file": "src/main/services/ConfigManager.ts",
       "enum": "ConfigKeys.Proxy",
@@ -1507,17 +1551,81 @@
       "enum": "ConfigKeys.ClientId",
       "type": "unknown",
       "defaultValue": null
+    },
+    "GitBashPath": {
+      "file": "src/main/services/ConfigManager.ts",
+      "enum": "ConfigKeys.GitBashPath",
+      "type": "unknown",
+      "defaultValue": null
+    },
+    "GitBashPathSource": {
+      "file": "src/main/services/ConfigManager.ts",
+      "enum": "ConfigKeys.GitBashPathSource",
+      "type": "unknown",
+      "defaultValue": null
     }
   },
   "localStorage": {
-    "persist:cherry-studio": {
-      "file": "src\\main\\utils\\index.ts",
+    "memory_currentUserId": {
+      "file": "src/renderer/src/store/memory.ts",
       "type": "string",
       "defaultValue": null
     },
-    "memory_currentUserId": {
-      "file": "src\\renderer\\src\\store\\memory.ts",
+    "persist:cherry-studio": {
+      "file": "src/renderer/src/services/BackupService.ts",
       "type": "string",
+      "defaultValue": null
+    }
+  },
+  "dexieSettings": {
+    "translate:detect:method": {
+      "file": "src/renderer/src/utils/translate.ts",
+      "type": "unknown",
+      "defaultValue": null
+    },
+    "pinned:models": {
+      "file": "src/renderer/src/hooks/usePinnedModels.ts",
+      "type": "unknown",
+      "defaultValue": null
+    },
+    "image://avatar": {
+      "file": "src/renderer/src/hooks/useAppInit.ts",
+      "type": "unknown",
+      "defaultValue": null
+    },
+    "translate:markdown:enabled": {
+      "file": "src/renderer/src/pages/translate/TranslateSettings.tsx",
+      "type": "unknown",
+      "defaultValue": null
+    },
+    "translate:scroll:sync": {
+      "file": "src/renderer/src/pages/translate/TranslateSettings.tsx",
+      "type": "unknown",
+      "defaultValue": null
+    },
+    "translate:bidirectional:pair": {
+      "file": "src/renderer/src/pages/translate/TranslateSettings.tsx",
+      "type": "unknown",
+      "defaultValue": null
+    },
+    "translate:model": {
+      "file": "src/renderer/src/pages/translate/TranslatePage.tsx",
+      "type": "unknown",
+      "defaultValue": null
+    },
+    "translate:bidirectional:enabled": {
+      "file": "src/renderer/src/pages/translate/TranslatePage.tsx",
+      "type": "unknown",
+      "defaultValue": null
+    },
+    "translate:source:language": {
+      "file": "src/renderer/src/pages/translate/TranslatePage.tsx",
+      "type": "unknown",
+      "defaultValue": null
+    },
+    "translate:target:language": {
+      "file": "src/renderer/src/pages/translate/TranslatePage.tsx",
+      "type": "unknown",
       "defaultValue": null
     }
   },

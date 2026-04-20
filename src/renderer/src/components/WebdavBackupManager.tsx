@@ -87,7 +87,7 @@ export function WebdavBackupManager({
 
   useEffect(() => {
     if (visible) {
-      fetchBackupFiles()
+      void fetchBackupFiles()
       setSelectedRowKeys([])
       setPagination((prev) => ({
         ...prev,

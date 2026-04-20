@@ -3,7 +3,7 @@ import CodeMirror, { Annotation, EditorView } from '@uiw/react-codemirror'
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
 import { memo } from 'react'
 
-import { useBlurHandler, useHeightListener, useLanguageExtensions, useSaveKeymap } from './hooks'
+import { useBlurHandler, useHeightListener, useLanguageExtensions, useSaveKeymap, useScrollToLine } from './hooks'
 import type { CodeEditorProps } from './types'
 import { prepareCodeChanges } from './utils'
 
@@ -64,6 +64,11 @@ const CodeEditor = ({
     onSave?.(currentDoc)
   }, [onSave])
 
+  // Get current content from editor
+  const getContent = useCallback(() => {
+    return editorViewRef.current?.state.doc.toString() ?? ''
+  }, [])
+
   // Calculate changes during streaming response to update EditorView
   // Cannot handle user editing code during streaming response (and probably doesn't need to)
   useEffect(() => {
@@ -97,9 +102,17 @@ const CodeEditor = ({
     ].flat()
   }, [extensions, langExtensions, wrapped, saveKeymapExtension, blurExtension, heightListenerExtension])
 
-  useImperativeHandle(ref, () => ({
-    save: handleSave
-  }))
+  const scrollToLine = useScrollToLine(editorViewRef)
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      save: handleSave,
+      scrollToLine,
+      getContent
+    }),
+    [handleSave, scrollToLine, getContent]
+  )
 
   return (
     <CodeMirror

@@ -1,5 +1,5 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { pythonService } from '@main/services/PythonService'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
 
@@ -92,7 +92,7 @@ print('python code here')`,
 
         logger.debug('Executing Python code via Pyodide')
 
-        const result = await pythonService.executeScript(code, context, timeout)
+        const result = await application.get('PythonService').executeScript(code, context, timeout)
 
         return {
           content: [

@@ -1,17 +1,22 @@
 /**
- * Preferences migrator - migrates preferences from ElectronStore and Redux to SQLite
+ * Preferences migrator - migrates preferences from ElectronStore, Redux, and Dexie settings to SQLite
  */
 
 import { preferenceTable } from '@data/db/schemas/preference'
 import { loggerService } from '@logger'
-import { configManager } from '@main/services/ConfigManager'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import { and, eq, sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
-import { ELECTRON_STORE_MAPPINGS, REDUX_STORE_MAPPINGS } from './mappings/PreferencesMappings'
+import { COMPLEX_PREFERENCE_MAPPINGS, getComplexMappingTargetKeys } from './mappings/ComplexPreferenceMappings'
+import {
+  DEXIE_SETTINGS_MAPPINGS,
+  ELECTRON_STORE_MAPPINGS,
+  LOCALSTORAGE_MAPPINGS,
+  REDUX_STORE_MAPPINGS
+} from './mappings/PreferencesMappings'
 
 const logger = loggerService.withContext('PreferencesMigrator')
 
@@ -19,14 +24,14 @@ interface MigrationItem {
   originalKey: string
   targetKey: string
   defaultValue: unknown
-  source: 'electronStore' | 'redux'
+  source: 'electronStore' | 'redux' | 'dexie-settings' | 'localStorage'
   sourceCategory?: string
 }
 
 interface PreparedData {
   targetKey: string
   value: unknown
-  source: 'electronStore' | 'redux'
+  source: 'electronStore' | 'redux' | 'dexie-settings' | 'localStorage' | 'complex'
   originalKey: string
 }
 
@@ -39,26 +44,47 @@ export class PreferencesMigrator extends BaseMigrator {
   private preparedItems: PreparedData[] = []
   private skippedCount = 0
 
-  async prepare(ctx: MigrationContext): Promise<PrepareResult> {
-    const warnings: string[] = []
+  override reset(): void {
     this.preparedItems = []
     this.skippedCount = 0
+  }
+
+  async prepare(ctx: MigrationContext): Promise<PrepareResult> {
+    const warnings: string[] = []
 
     try {
-      // Load migration items from mappings
-      const migrationItems = this.loadMigrationItems()
-      logger.info(`Found ${migrationItems.length} preference items to migrate`)
+      // Step 1: Detect conflicts between simple and complex mappings (strict mode)
+      const simpleTargetKeys = this.getSimpleMappingTargetKeys()
+      const complexTargetKeys = getComplexMappingTargetKeys()
 
-      // Prepare each item
+      const conflicts = simpleTargetKeys.filter((k) => complexTargetKeys.includes(k))
+      if (conflicts.length > 0) {
+        const errorMessage =
+          `Mapping conflicts detected! The following keys exist in both simple and complex mappings:\n` +
+          conflicts.map((k) => `  - ${k}`).join('\n') +
+          `\n\nPlease remove these keys from simple mappings (PreferencesMappings.ts) ` +
+          `since they are handled by complex mappings.`
+        logger.error('Mapping conflicts detected', { conflicts })
+        throw new Error(errorMessage)
+      }
+
+      // Step 2: Process simple mappings
+      const migrationItems = this.loadMigrationItems()
+      logger.info(`Found ${migrationItems.length} simple preference items to migrate`)
+
       for (const item of migrationItems) {
         try {
           let originalValue: unknown
 
           // Read from source
           if (item.source === 'electronStore') {
-            originalValue = configManager.get(item.originalKey)
+            originalValue = ctx.sources.electronStore.get(item.originalKey)
           } else if (item.source === 'redux' && item.sourceCategory) {
             originalValue = ctx.sources.reduxState.get(item.sourceCategory, item.originalKey)
+          } else if (item.source === 'dexie-settings') {
+            originalValue = ctx.sources.dexieSettings.get(item.originalKey)
+          } else if (item.source === 'localStorage') {
+            originalValue = ctx.sources.localStorage.get(item.originalKey)
           }
 
           // Determine value to migrate
@@ -83,9 +109,54 @@ export class PreferencesMigrator extends BaseMigrator {
         }
       }
 
+      // Step 3: Process complex mappings
+      if (COMPLEX_PREFERENCE_MAPPINGS.length > 0) {
+        logger.info(`Processing ${COMPLEX_PREFERENCE_MAPPINGS.length} complex preference mappings`)
+
+        for (const mapping of COMPLEX_PREFERENCE_MAPPINGS) {
+          try {
+            // Collect all source values
+            const sourceValues: Record<string, unknown> = {}
+            for (const [name, def] of Object.entries(mapping.sources)) {
+              if (def.source === 'electronStore') {
+                sourceValues[name] = ctx.sources.electronStore.get(def.key)
+              } else if (def.source === 'redux' && def.category) {
+                sourceValues[name] = ctx.sources.reduxState.get(def.category, def.key)
+              } else if (def.source === 'dexie-settings') {
+                sourceValues[name] = ctx.sources.dexieSettings.get(def.key)
+              } else if (def.source === 'localStorage') {
+                sourceValues[name] = ctx.sources.localStorage.get(def.key)
+              }
+            }
+
+            // Execute transformation
+            const results = mapping.transform(sourceValues)
+
+            // Add results to preparedItems
+            for (const [targetKey, value] of Object.entries(results)) {
+              if (value !== undefined) {
+                this.preparedItems.push({
+                  targetKey,
+                  value,
+                  source: 'complex',
+                  originalKey: mapping.id
+                })
+              }
+            }
+
+            logger.debug(`Complex mapping '${mapping.id}' produced ${Object.keys(results).length} keys`)
+          } catch (error) {
+            warnings.push(`Failed to process complex mapping '${mapping.id}': ${error}`)
+            logger.warn(`Complex mapping '${mapping.id}' failed`, error as Error)
+          }
+        }
+      }
+
       logger.info('Preparation completed', {
         itemCount: this.preparedItems.length,
-        skipped: this.skippedCount
+        skipped: this.skippedCount,
+        simpleMappings: migrationItems.length,
+        complexMappings: COMPLEX_PREFERENCE_MAPPINGS.length
       })
 
       return {
@@ -132,7 +203,10 @@ export class PreferencesMigrator extends BaseMigrator {
 
           // Report progress
           const progress = Math.round(((i + batch.length) / insertValues.length) * 100)
-          this.reportProgress(progress, `已迁移 ${i + batch.length}/${insertValues.length} 条配置`)
+          this.reportProgress(progress, `Migrated ${i + batch.length}/${insertValues.length} preferences`, {
+            key: 'migration.progress.migrated_preferences',
+            params: { processed: i + batch.length, total: insertValues.length }
+          })
         }
       })
 
@@ -232,6 +306,11 @@ export class PreferencesMigrator extends BaseMigrator {
     // Process Redux mappings
     for (const [category, mappings] of Object.entries(REDUX_STORE_MAPPINGS)) {
       for (const mapping of mappings) {
+        // Shortcut entries are handled by a complex mapping because the legacy
+        // Redux source stores them as an array, which cannot be read via
+        // `reduxState.get(category, key)`. See ShortcutMappings.ts.
+        if (mapping.targetKey.startsWith('shortcut.')) continue
+
         const defaultValue = DefaultPreferences.default[mapping.targetKey] ?? null
         items.push({
           originalKey: mapping.originalKey,
@@ -243,6 +322,60 @@ export class PreferencesMigrator extends BaseMigrator {
       }
     }
 
+    // Process Dexie settings mappings
+    for (const mapping of DEXIE_SETTINGS_MAPPINGS) {
+      const defaultValue = DefaultPreferences.default[mapping.targetKey] ?? null
+      items.push({
+        originalKey: mapping.originalKey,
+        targetKey: mapping.targetKey,
+        defaultValue,
+        source: 'dexie-settings'
+      })
+    }
+
+    // Process localStorage mappings
+    for (const mapping of LOCALSTORAGE_MAPPINGS) {
+      const defaultValue = DefaultPreferences.default[mapping.targetKey] ?? null
+      items.push({
+        originalKey: mapping.originalKey,
+        targetKey: mapping.targetKey,
+        defaultValue,
+        source: 'localStorage'
+      })
+    }
+
     return items
+  }
+
+  /**
+   * Get all target keys from simple mappings (for conflict detection)
+   */
+  private getSimpleMappingTargetKeys(): string[] {
+    const keys: string[] = []
+
+    // Collect from ElectronStore mappings
+    for (const mapping of ELECTRON_STORE_MAPPINGS) {
+      keys.push(mapping.targetKey)
+    }
+
+    // Collect from Redux mappings (excluding shortcuts — handled by complex mapping)
+    for (const mappings of Object.values(REDUX_STORE_MAPPINGS)) {
+      for (const mapping of mappings) {
+        if (mapping.targetKey.startsWith('shortcut.')) continue
+        keys.push(mapping.targetKey)
+      }
+    }
+
+    // Collect from Dexie settings mappings
+    for (const mapping of DEXIE_SETTINGS_MAPPINGS) {
+      keys.push(mapping.targetKey)
+    }
+
+    // Collect from localStorage mappings
+    for (const mapping of LOCALSTORAGE_MAPPINGS) {
+      keys.push(mapping.targetKey)
+    }
+
+    return keys
   }
 }

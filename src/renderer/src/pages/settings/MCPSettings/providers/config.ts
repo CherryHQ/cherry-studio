@@ -1,4 +1,5 @@
-import { getProviderLabel } from '@renderer/i18n/label'
+import type { CompoundIcon } from '@cherrystudio/ui'
+import { Ai302, Bailian, Lanyun, Mcprouter, Modelscope, Tokenflux } from '@cherrystudio/ui/icons'
 import type { MCPServer } from '@renderer/types'
 
 import { getAI302Token, saveAI302Token, syncAi302Servers } from './302ai'
@@ -8,23 +9,33 @@ import { getMCPRouterToken, saveMCPRouterToken, syncMCPRouterServers } from './m
 import { getModelScopeToken, MODELSCOPE_HOST, saveModelScopeToken, syncModelScopeServers } from './modelscope'
 import { getTokenFluxToken, saveTokenFluxToken, syncTokenFluxServers, TOKENFLUX_HOST } from './tokenflux'
 
+export interface SyncResult {
+  success: boolean
+  message: string
+  addedServers: MCPServer[]
+  updatedServers?: MCPServer[]
+  allServers?: MCPServer[]
+}
+
 export interface ProviderConfig {
   key: string
-  name: string
-  description: string
+  /** i18n key for provider name, or plain text if not starting with 'provider.' */
+  nameKey: string
+  /** i18n key for provider description */
+  descriptionKey: string
   discoverUrl: string
   apiKeyUrl: string
   tokenFieldName: string
   getToken: () => string | null
   saveToken: (token: string) => void
-  syncServers: (token: string, existingServers: MCPServer[]) => Promise<any>
+  syncServers: (token: string, existingServers: MCPServer[]) => Promise<SyncResult>
 }
 
 export const providers: ProviderConfig[] = [
   {
     key: 'bailian',
-    name: getProviderLabel('dashscope'),
-    description: '百炼平台服务',
+    nameKey: 'provider.dashscope',
+    descriptionKey: 'settings.mcp.sync.providerDescriptions.bailian',
     discoverUrl: `https://bailian.console.aliyun.com/?tab=mcp#/mcp-market`,
     apiKeyUrl: `https://bailian.console.aliyun.com/?tab=app#/api-key`,
     tokenFieldName: 'bailianToken',
@@ -34,8 +45,8 @@ export const providers: ProviderConfig[] = [
   },
   {
     key: 'modelscope',
-    name: 'ModelScope',
-    description: 'ModelScope 平台 MCP 服务',
+    nameKey: 'ModelScope',
+    descriptionKey: 'settings.mcp.sync.providerDescriptions.modelscope',
     discoverUrl: `${MODELSCOPE_HOST}/mcp?hosted=1&page=1`,
     apiKeyUrl: `${MODELSCOPE_HOST}/my/myaccesstoken`,
     tokenFieldName: 'modelScopeToken',
@@ -45,8 +56,8 @@ export const providers: ProviderConfig[] = [
   },
   {
     key: 'tokenflux',
-    name: 'TokenFlux',
-    description: 'TokenFlux 平台 MCP 服务',
+    nameKey: 'TokenFlux',
+    descriptionKey: 'settings.mcp.sync.providerDescriptions.tokenflux',
     discoverUrl: `${TOKENFLUX_HOST}/mcps`,
     apiKeyUrl: `${TOKENFLUX_HOST}/dashboard/api-keys`,
     tokenFieldName: 'tokenfluxToken',
@@ -56,8 +67,8 @@ export const providers: ProviderConfig[] = [
   },
   {
     key: 'lanyun',
-    name: getProviderLabel('lanyun'),
-    description: '蓝耘科技云平台 MCP 服务',
+    nameKey: 'provider.lanyun',
+    descriptionKey: 'settings.mcp.sync.providerDescriptions.lanyun',
     discoverUrl: 'https://mcp.lanyun.net',
     apiKeyUrl: LANYUN_KEY_HOST,
     tokenFieldName: 'tokenLanyunToken',
@@ -67,8 +78,8 @@ export const providers: ProviderConfig[] = [
   },
   {
     key: '302ai',
-    name: '302.AI',
-    description: '302.AI 平台 MCP 服务',
+    nameKey: '302.AI',
+    descriptionKey: 'settings.mcp.sync.providerDescriptions.302ai',
     discoverUrl: 'https://302.ai',
     apiKeyUrl: 'https://dash.302.ai/apis/list',
     tokenFieldName: 'token302aiToken',
@@ -78,8 +89,8 @@ export const providers: ProviderConfig[] = [
   },
   {
     key: 'mcprouter',
-    name: 'MCP Router',
-    description: 'MCP Router 平台 MCP 服务',
+    nameKey: 'MCP Router',
+    descriptionKey: 'settings.mcp.sync.providerDescriptions.mcprouter',
     discoverUrl: 'https://mcprouter.co',
     apiKeyUrl: 'https://mcprouter.co/settings/keys',
     tokenFieldName: 'mcprouterToken',
@@ -88,3 +99,24 @@ export const providers: ProviderConfig[] = [
     syncServers: syncMCPRouterServers
   }
 ]
+
+/**
+ * Helper function to get the display name for a provider.
+ * Translates if nameKey starts with 'provider.', otherwise returns as-is.
+ */
+export const getProviderDisplayName = (provider: ProviderConfig, t: (key: string) => string): string => {
+  return provider.nameKey.startsWith('provider.') ? t(provider.nameKey) : provider.nameKey
+}
+
+const MCP_PROVIDER_ICONS: Record<string, CompoundIcon> = {
+  modelscope: Modelscope,
+  tokenflux: Tokenflux,
+  lanyun: Lanyun,
+  '302ai': Ai302,
+  bailian: Bailian,
+  mcprouter: Mcprouter
+}
+
+export function getMCPProviderLogo(providerKey: string): CompoundIcon | undefined {
+  return MCP_PROVIDER_ICONS[providerKey]
+}

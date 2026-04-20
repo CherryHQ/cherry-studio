@@ -38,7 +38,7 @@ interface RequestState {
 /**
  * 提供网络搜索相关功能的服务类
  */
-class WebSearchService {
+export class WebSearchService {
   /**
    * 是否暂停
    */
@@ -191,11 +191,11 @@ class WebSearchService {
    * 设置网络搜索状态
    */
   private async setWebSearchStatus(requestId: string, status: WebSearchStatus, delayMs?: number) {
-    // Use ?? {} to handle cache miss (cacheService.get returns undefined when not cached)
-    const activeSearches = cacheService.get('chat.websearch.active_searches') ?? {}
-    activeSearches[requestId] = status
-
-    cacheService.set('chat.websearch.active_searches', activeSearches)
+    const activeSearches = cacheService.getShared('chat.web_search.active_searches') ?? {}
+    cacheService.setShared('chat.web_search.active_searches', {
+      ...activeSearches,
+      [requestId]: status
+    })
 
     if (delayMs) {
       await new Promise((resolve) => setTimeout(resolve, delayMs))
@@ -569,4 +569,4 @@ class WebSearchService {
   }
 }
 
-export default new WebSearchService()
+export const webSearchService = new WebSearchService()

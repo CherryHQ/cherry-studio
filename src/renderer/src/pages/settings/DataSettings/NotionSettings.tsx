@@ -22,15 +22,15 @@ const NotionSettings: FC = () => {
   const { openSmartMinapp } = useMinappPopup()
 
   const handleNotionTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setNotionApiKey(e.target.value)
+    void setNotionApiKey(e.target.value)
   }
 
   const handleNotionDatabaseIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setNotionDatabaseID(e.target.value)
+    void setNotionDatabaseID(e.target.value)
   }
 
   const handleNotionPageNameKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setNotionPageNameKey(e.target.value)
+    void setNotionPageNameKey(e.target.value)
   }
 
   const handleNotionConnectionCheck = () => {
@@ -60,7 +60,7 @@ const NotionSettings: FC = () => {
   }
 
   const handleNotionExportReasoningChange = (checked: boolean) => {
-    setNotionExportReasoning(checked)
+    void setNotionExportReasoning(checked)
   }
 
   const handleNotionTitleClick = () => {

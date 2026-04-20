@@ -1,0 +1,12 @@
+# Public skills tracked by skills:sync and skills:check.
+# One skill name per line.
+gh-create-pr
+prepare-release
+create-skill
+gh-create-issue
+gh-pr-review
+vercel-react-best-practices
+v2-migrator
+v2-data-api
+v2-renderer
+cherry-pr-test

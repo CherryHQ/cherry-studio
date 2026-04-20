@@ -1,7 +1,25 @@
 import { loggerService } from '@logger'
-import type { MCPServer } from '@renderer/types'
+import type { MCPServer } from '@shared/data/types/mcpServer'
 
 const logger = loggerService.withContext('MCPSettings/utils')
+
+/**
+ * Whitelist of trusted MCP server URLs that auto-approve without user confirmation
+ */
+const TRUSTED_SERVER_WHITELIST: readonly string[] = [
+  'http://127.0.0.1:18930/mcp' // WPS Notes
+]
+
+/**
+ * Check if a server URL is in the trusted whitelist
+ */
+function isServerInWhitelist(server: MCPServer): boolean {
+  const isUrlBasedServer = server.type === 'sse' || server.type === 'streamableHttp'
+  if (!isUrlBasedServer || !server.baseUrl) {
+    return false
+  }
+  return TRUSTED_SERVER_WHITELIST.includes(server.baseUrl)
+}
 
 /**
  * Get command preview string from MCP server configuration
@@ -24,7 +42,7 @@ export const getCommandPreview = (server: MCPServer): string => {
 export async function ensureServerTrusted(
   currentServer: MCPServer,
   requestConfirm: (server: MCPServer) => Promise<boolean>,
-  updateServer: (server: MCPServer) => void
+  updateServer: (body: Partial<MCPServer>) => void
 ): Promise<MCPServer | null> {
   const isProtocolInstall = currentServer.installSource === 'protocol'
 
@@ -39,6 +57,23 @@ export async function ensureServerTrusted(
     return currentServer
   }
 
+  // Auto-trust whitelisted servers (e.g., WPS Notes)
+  if (isServerInWhitelist(currentServer)) {
+    logger.info('Auto-trusting whitelisted server', {
+      serverId: currentServer.id,
+      baseUrl: currentServer.baseUrl
+    })
+
+    const trustFields = {
+      installSource: 'protocol' as const,
+      isTrusted: true,
+      trustedAt: Date.now()
+    }
+    updateServer(trustFields)
+
+    return { ...currentServer, ...trustFields }
+  }
+
   // Request user confirmation via callback
   const confirmed = await requestConfirm(currentServer)
 
@@ -47,12 +82,12 @@ export async function ensureServerTrusted(
   }
 
   // Update server with trust information
-  const trustedServer = {
-    ...currentServer,
+  const trustFields = {
     installSource: 'protocol' as const,
     isTrusted: true,
     trustedAt: Date.now()
   }
-  updateServer(trustedServer)
-  return trustedServer
+  updateServer(trustFields)
+
+  return { ...currentServer, ...trustFields }
 }

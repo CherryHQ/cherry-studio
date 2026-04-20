@@ -35,36 +35,36 @@ const MarkdownExportSettings: FC = () => {
   const handleSelectFolder = async () => {
     const path = await window.api.file.selectFolder()
     if (path) {
-      setmarkdownExportPath(path)
+      void setmarkdownExportPath(path)
     }
   }
 
   const handleClearPath = () => {
-    setmarkdownExportPath(null)
+    void setmarkdownExportPath(null)
   }
 
   const handleToggleForceDollarMath = (checked: boolean) => {
-    setForceDollarMathInMarkdown(checked)
+    void setForceDollarMathInMarkdown(checked)
   }
 
   const handleToggleTopicNaming = (checked: boolean) => {
-    setUseTopicNamingForMessageTitle(checked)
+    void setUseTopicNamingForMessageTitle(checked)
   }
 
   const handleToggleShowModelName = (checked: boolean) => {
-    setShowModelNameInMarkdown(checked)
+    void setShowModelNameInMarkdown(checked)
   }
 
   const handleToggleShowModelProvider = (checked: boolean) => {
-    setShowModelProviderInMarkdown(checked)
+    void setShowModelProviderInMarkdown(checked)
   }
 
   const handleToggleExcludeCitations = (checked: boolean) => {
-    setExcludeCitationsInExport(checked)
+    void setExcludeCitationsInExport(checked)
   }
 
   const handleToggleStandardizeCitations = (checked: boolean) => {
-    setStandardizeCitationsInExport(checked)
+    void setStandardizeCitationsInExport(checked)
   }
 
   return (

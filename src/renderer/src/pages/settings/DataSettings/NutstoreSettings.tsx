@@ -59,7 +59,7 @@ const NutstoreSettings: FC = () => {
     window.open(ssoUrl, '_blank')
     const nutstoreToken = await nutstoreSSOHandler()
 
-    setNutstoreToken(nutstoreToken)
+    void setNutstoreToken(nutstoreToken)
   }, [nutstoreSSOHandler, setNutstoreToken])
 
   useEffect(() => {
@@ -71,13 +71,13 @@ const NutstoreSettings: FC = () => {
           setNutstoreUsername(decrypted.username)
           setNutstorePass(decrypted.access_token)
           if (!nutstorePath) {
-            setNutstorePath('/cherry-studio')
+            void setNutstorePath('/cherry-studio')
             // setStoragePath('/cherry-studio')
           }
         }
       }
     }
-    decryptTokenEffect()
+    void decryptTokenEffect()
   }, [nutstoreToken, setNutstorePath, nutstorePath])
 
   const handleLayout = useCallback(async () => {
@@ -86,9 +86,9 @@ const NutstoreSettings: FC = () => {
       content: t('settings.data.nutstore.logout.content')
     })
     if (confirmedLogout) {
-      setNutstoreToken('')
-      setNutstorePath('')
-      setNutstoreAutoSync(false)
+      void setNutstoreToken('')
+      void setNutstorePath('')
+      void setNutstoreAutoSync(false)
       setNutstoreUsername('')
     }
   }, [setNutstorePath, setNutstoreToken, setNutstoreAutoSync, t])
@@ -123,16 +123,16 @@ const NutstoreSettings: FC = () => {
       stopNutstoreAutoSync()
     } else {
       await setNutstoreAutoSync(true)
-      startNutstoreAutoSync()
+      void startNutstoreAutoSync()
     }
   }
 
   const onSkipBackupFilesChange = (value: boolean) => {
-    setNutstoreSkipBackupFile(value)
+    void setNutstoreSkipBackupFile(value)
   }
 
   const onMaxBackupsChange = (value: number) => {
-    setNutstoreMaxBackups(value)
+    void setNutstoreMaxBackups(value)
   }
 
   const handleClickPathChange = async () => {
@@ -162,7 +162,7 @@ const NutstoreSettings: FC = () => {
       return
     }
 
-    setNutstorePath(targetPath)
+    void setNutstorePath(targetPath)
   }
 
   const renderSyncStatus = () => {
@@ -247,7 +247,7 @@ const NutstoreSettings: FC = () => {
                 style={{ width: 250 }}
                 value={nutstorePath}
                 onChange={(e) => {
-                  setNutstorePath(e.target.value)
+                  void setNutstorePath(e.target.value)
                 }}
               />
               <Button variant="default" onClick={handleClickPathChange} size="icon">

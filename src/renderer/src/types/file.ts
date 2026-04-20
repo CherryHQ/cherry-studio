@@ -1,6 +1,8 @@
 import type OpenAI from '@cherrystudio/openai'
 import type { File } from '@google/genai'
 import type { FileSchema } from '@mistralai/mistralai/models/components'
+import { objectValues } from '@types'
+import * as z from 'zod'
 
 export type RemoteFile =
   | {
@@ -61,6 +63,19 @@ export interface FileListResponse {
   }>
 }
 
+export const FILE_TYPE = {
+  IMAGE: 'image',
+  VIDEO: 'video',
+  AUDIO: 'audio',
+  TEXT: 'text',
+  DOCUMENT: 'document',
+  OTHER: 'other'
+} as const
+
+const FileTypeSchema = z.enum(objectValues(FILE_TYPE))
+
+export type FileType = z.infer<typeof FileTypeSchema>
+
 /**
  * @interface
  * @description 文件元数据接口
@@ -93,7 +108,7 @@ export interface FileMetadata {
   /**
    * 文件类型
    */
-  type: FileTypes
+  type: FileType
   /**
    * 文件创建时间的ISO字符串
    */
@@ -112,19 +127,8 @@ export interface FileMetadata {
   purpose?: OpenAI.FilePurpose
 }
 
-export interface FileType extends FileMetadata {}
-
-export enum FileTypes {
-  IMAGE = 'image',
-  VIDEO = 'video',
-  AUDIO = 'audio',
-  TEXT = 'text',
-  DOCUMENT = 'document',
-  OTHER = 'other'
-}
-
 export type ImageFileMetadata = FileMetadata & {
-  type: FileTypes.IMAGE
+  type: typeof FILE_TYPE.IMAGE
 }
 
 export type PdfFileMetadata = FileMetadata & {
@@ -137,5 +141,5 @@ export type PdfFileMetadata = FileMetadata & {
  * @returns 如果文件是图片类型则返回 true
  */
 export const isImageFileMetadata = (file: FileMetadata): file is ImageFileMetadata => {
-  return file.type === FileTypes.IMAGE
+  return file.type === FILE_TYPE.IMAGE
 }

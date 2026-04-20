@@ -52,38 +52,57 @@ const mockTools: MCPTool[] = [
   }
 ]
 
-vi.mock('@main/services/MCPService', () => ({
-  default: {
-    listAllActiveServerTools: vi.fn(async () => mockTools),
-    callToolById: vi.fn(async (toolId: string, args: unknown) => {
-      if (toolId === 'github__search_repos') {
-        return {
-          content: [{ type: 'text', text: JSON.stringify({ repos: ['repo1', 'repo2'], query: args }) }]
-        }
+const mockMCPService = {
+  listAllActiveServerTools: vi.fn(async () => mockTools),
+  callToolById: vi.fn(async (toolId: string, args: unknown) => {
+    if (toolId === 'github__search_repos') {
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ repos: ['repo1', 'repo2'], query: args }) }]
       }
-      if (toolId === 'github__get_user') {
-        return {
-          content: [{ type: 'text', text: JSON.stringify({ username: (args as any).username, id: 123 }) }]
-        }
+    }
+    if (toolId === 'github__get_user') {
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ username: (args as any).username, id: 123 }) }]
       }
-      if (toolId === 'database__query') {
-        return {
-          content: [{ type: 'text', text: JSON.stringify({ rows: [{ id: 1 }, { id: 2 }] }) }]
-        }
+    }
+    if (toolId === 'database__query') {
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ rows: [{ id: 1 }, { id: 2 }] }) }]
       }
-      return { content: [{ type: 'text', text: '{}' }] }
-    }),
-    abortTool: vi.fn(async () => true)
+    }
+    return { content: [{ type: 'text', text: '{}' }] }
+  }),
+  abortTool: vi.fn(async () => true)
+}
+
+const cacheStore = new Map<string, unknown>()
+const mockCacheService = {
+  has: vi.fn((key: string) => cacheStore.has(key)),
+  get: vi.fn((key: string) => cacheStore.get(key)),
+  set: vi.fn((key: string, value: unknown) => cacheStore.set(key, value)),
+  delete: vi.fn((key: string) => cacheStore.delete(key))
+}
+
+vi.mock('@application', () => ({
+  application: {
+    get: vi.fn((name: string) => {
+      if (name === 'MCPService') {
+        return mockMCPService
+      }
+      if (name === 'CacheService') {
+        return mockCacheService
+      }
+      throw new Error(`[MockApplication] Unknown service: ${name}`)
+    })
   }
 }))
-
-import mcpService from '@main/services/MCPService'
 
 describe('HubServer Integration', () => {
   let hubServer: HubServer
 
   beforeEach(() => {
     vi.clearAllMocks()
+    cacheStore.clear()
     hubServer = new HubServer()
   })
 
@@ -91,17 +110,15 @@ describe('HubServer Integration', () => {
     vi.clearAllMocks()
   })
 
-  describe('full search → exec flow', () => {
-    it('searches for tools and executes them', async () => {
-      const searchResult = await (hubServer as any).handleSearch({ query: 'github,repos' })
+  describe('full list → exec flow', () => {
+    it('lists tools and executes them', async () => {
+      const listResult = await (hubServer as any).handleList({ limit: 100, offset: 0 })
 
-      expect(searchResult.content).toBeDefined()
-      const searchText = JSON.parse(searchResult.content[0].text)
-      expect(searchText.total).toBeGreaterThan(0)
-      expect(searchText.tools).toContain('github_searchRepos')
+      expect(listResult.content).toBeDefined()
+      expect(listResult.content[0].text).toContain('githubSearchRepos')
 
       const execResult = await (hubServer as any).handleExec({
-        code: 'return await github_searchRepos({ query: "test" })'
+        code: 'return await mcp.callTool("githubSearchRepos", { query: "test" })'
       })
 
       expect(execResult.content).toBeDefined()
@@ -110,13 +127,13 @@ describe('HubServer Integration', () => {
     })
 
     it('handles multiple tool calls in parallel', async () => {
-      await (hubServer as any).handleSearch({ query: 'github' })
+      await (hubServer as any).handleList({ limit: 100, offset: 0 })
 
       const execResult = await (hubServer as any).handleExec({
         code: `
           const results = await parallel(
-            github_searchRepos({ query: "react" }),
-            github_getUser({ username: "octocat" })
+            mcp.callTool("githubSearchRepos", { query: "react" }),
+            mcp.callTool("githubGetUser", { username: "octocat" })
           );
           return results
         `
@@ -128,41 +145,43 @@ describe('HubServer Integration', () => {
       expect(execOutput.result[1]).toEqual({ username: 'octocat', id: 123 })
     })
 
-    it('searches across multiple servers', async () => {
-      const searchResult = await (hubServer as any).handleSearch({ query: 'query' })
-
-      const searchText = JSON.parse(searchResult.content[0].text)
-      expect(searchText.tools).toContain('database_query')
+    it('lists tools across multiple servers', async () => {
+      const listResult = await (hubServer as any).handleList({ limit: 100, offset: 0 })
+      expect(listResult.content[0].text).toContain('databaseQuery')
     })
   })
 
   describe('tools caching', () => {
     it('uses cached tools within TTL', async () => {
-      await (hubServer as any).handleSearch({ query: 'github' })
-      const firstCallCount = vi.mocked(mcpService.listAllActiveServerTools).mock.calls.length
+      await (hubServer as any).handleList({ limit: 100, offset: 0 })
+      const firstCallCount = mockMCPService.listAllActiveServerTools.mock.calls.length
 
-      await (hubServer as any).handleSearch({ query: 'github' })
-      const secondCallCount = vi.mocked(mcpService.listAllActiveServerTools).mock.calls.length
+      await (hubServer as any).handleList({ limit: 100, offset: 0 })
+      const secondCallCount = mockMCPService.listAllActiveServerTools.mock.calls.length
 
       expect(secondCallCount).toBe(firstCallCount) // Should use cache
     })
 
     it('refreshes tools after cache invalidation', async () => {
-      await (hubServer as any).handleSearch({ query: 'github' })
-      const firstCallCount = vi.mocked(mcpService.listAllActiveServerTools).mock.calls.length
+      await (hubServer as any).handleList({ limit: 100, offset: 0 })
+      const firstCallCount = mockMCPService.listAllActiveServerTools.mock.calls.length
 
       hubServer.invalidateCache()
 
-      await (hubServer as any).handleSearch({ query: 'github' })
-      const secondCallCount = vi.mocked(mcpService.listAllActiveServerTools).mock.calls.length
+      await (hubServer as any).handleList({ limit: 100, offset: 0 })
+      const secondCallCount = mockMCPService.listAllActiveServerTools.mock.calls.length
 
       expect(secondCallCount).toBe(firstCallCount + 1)
     })
   })
 
   describe('error handling', () => {
-    it('throws error for invalid search query', async () => {
-      await expect((hubServer as any).handleSearch({})).rejects.toThrow('query parameter is required')
+    it('throws error for invalid inspect name', async () => {
+      await expect((hubServer as any).handleInspect({})).rejects.toThrow('name parameter is required')
+    })
+
+    it('throws error for invalid invoke name', async () => {
+      await expect((hubServer as any).handleInvoke({})).rejects.toThrow('name parameter is required')
     })
 
     it('throws error for invalid exec code', async () => {
@@ -193,7 +212,7 @@ describe('HubServer Integration', () => {
         toolCallStarted = resolve
       })
 
-      vi.mocked(mcpService.callToolById).mockImplementationOnce(async () => {
+      mockMCPService.callToolById.mockImplementationOnce(async () => {
         toolCallStarted?.()
         return await new Promise(() => {})
       })
@@ -201,7 +220,7 @@ describe('HubServer Integration', () => {
       const execPromise = (hubServer as any).handleExec({
         code: `
           console.log("starting");
-          return await github_searchRepos({ query: "hang" });
+          return await mcp.callTool("githubSearchRepos", { query: "hang" });
         `
       })
 
@@ -216,7 +235,7 @@ describe('HubServer Integration', () => {
       expect(execOutput.result).toBeUndefined()
       expect(execOutput.isError).toBe(true)
       expect(execOutput.logs).toContain('[log] starting')
-      expect(vi.mocked(mcpService.abortTool)).toHaveBeenCalled()
+      expect(mockMCPService.abortTool).toHaveBeenCalled()
     })
   })
 

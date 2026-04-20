@@ -1,5 +1,8 @@
+import { randomUUID } from 'node:crypto'
+
 import { loggerService } from '@logger'
 import type {
+  AgentPersistedMessage,
   AgentSessionMessageEntity,
   CreateSessionMessageRequest,
   GetAgentSessionResponse,
@@ -10,6 +13,7 @@ import { and, desc, eq, not } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
 import { sessionMessagesTable } from '../database/schema'
+import { agentMessageRepository } from '../database/sessionMessageRepository'
 import type { AgentStreamEvent } from '../interfaces/AgentStreamInterface'
 import ClaudeCodeService from './claudecode'
 
@@ -21,6 +25,15 @@ type SessionStreamResult = {
     userMessage?: AgentSessionMessageEntity
     assistantMessage?: AgentSessionMessageEntity
   }>
+}
+
+export type CreateMessageOptions = {
+  /** When true, persist user+assistant messages to DB on stream complete. Use for headless callers (channels, scheduler) where no UI handles persistence. */
+  persist?: boolean
+  /** Optional display-safe user content for persistence. When set, this is stored instead of req.content (which may contain security wrappers not meant for display). */
+  displayContent?: string
+  /** Images to persist in the user message for UI display (not sent to AI model). */
+  images?: Array<{ data: string; media_type: string }>
 }
 
 // Ensure errors emitted through SSE are serializable
@@ -55,7 +68,7 @@ class TextStreamAccumulator {
         break
       case 'text-delta':
         if (part.text) {
-          this.textBuffer += part.text
+          this.textBuffer = part.text
         }
         break
       case 'text-end': {
@@ -91,18 +104,14 @@ class TextStreamAccumulator {
         break
     }
   }
+
+  getText(): string {
+    return (this.totalText + this.textBuffer).replace(/\n+$/, '')
+  }
 }
 
 export class SessionMessageService extends BaseService {
-  private static instance: SessionMessageService | null = null
   private cc: ClaudeCodeService = new ClaudeCodeService()
-
-  static getInstance(): SessionMessageService {
-    if (!SessionMessageService.instance) {
-      SessionMessageService.instance = new SessionMessageService()
-    }
-    return SessionMessageService.instance
-  }
 
   async sessionMessageExists(id: number): Promise<boolean> {
     const database = await this.getDatabase()
@@ -134,7 +143,7 @@ export class SessionMessageService extends BaseService {
           : await baseQuery.limit(options.limit)
         : await baseQuery
 
-    const messages = result.map((row) => this.deserializeSessionMessage(row)) as AgentSessionMessageEntity[]
+    const messages = result.map((row) => this.deserializeSessionMessage(row))
 
     return { messages }
   }
@@ -151,26 +160,32 @@ export class SessionMessageService extends BaseService {
   async createSessionMessage(
     session: GetAgentSessionResponse,
     messageData: CreateSessionMessageRequest,
-    abortController: AbortController
+    abortController: AbortController,
+    options?: CreateMessageOptions
   ): Promise<SessionStreamResult> {
-    return await this.startSessionMessageStream(session, messageData, abortController)
+    return await this.startSessionMessageStream(session, messageData, abortController, options)
   }
 
   private async startSessionMessageStream(
     session: GetAgentSessionResponse,
     req: CreateSessionMessageRequest,
-    abortController: AbortController
+    abortController: AbortController,
+    options?: CreateMessageOptions
   ): Promise<SessionStreamResult> {
     const agentSessionId = await this.getLastAgentSessionId(session.id)
     logger.debug('Session Message stream message data:', { message: req, session_id: agentSessionId })
 
-    if (session.agent_type !== 'claude-code') {
-      // TODO: Implement support for other agent types
-      logger.error('Unsupported agent type for streaming:', { agent_type: session.agent_type })
-      throw new Error('Unsupported agent type for streaming')
-    }
-
-    const claudeStream = await this.cc.invoke(req.content, session, abortController, agentSessionId)
+    const claudeStream = await this.cc.invoke(
+      req.content,
+      session,
+      abortController,
+      agentSessionId,
+      {
+        effort: req.effort,
+        thinking: req.thinking
+      },
+      undefined
+    )
     const accumulator = new TextStreamAccumulator()
 
     let resolveCompletion!: (value: {
@@ -226,14 +241,57 @@ export class SessionMessageService extends BaseService {
               case 'complete': {
                 cleanup()
                 controller.close()
-                resolveCompletion({})
+                if (options?.persist) {
+                  // Read SDK session_id from the stream object (set by ClaudeCodeService on init)
+                  const resolvedSessionId = claudeStream.sdkSessionId || agentSessionId
+                  logger.debug('Persisting headless exchange with agent session ID', {
+                    sdkSessionId: claudeStream.sdkSessionId,
+                    fallback: agentSessionId,
+                    resolved: resolvedSessionId
+                  })
+                  this.persistHeadlessExchange(
+                    session,
+                    options?.displayContent ?? req.content,
+                    accumulator.getText(),
+                    resolvedSessionId,
+                    options?.images
+                  )
+                    .then(resolveCompletion)
+                    .catch((err) => {
+                      logger.error('Failed to persist headless exchange', err as Error)
+                      resolveCompletion({})
+                    })
+                } else {
+                  resolveCompletion({})
+                }
                 break
               }
 
               case 'cancelled': {
                 cleanup()
                 controller.close()
-                resolveCompletion({})
+                if (options?.persist) {
+                  const resolvedSessionId = claudeStream.sdkSessionId || agentSessionId
+                  const partialText = accumulator.getText()
+                  if (partialText) {
+                    this.persistHeadlessExchange(
+                      session,
+                      options?.displayContent ?? req.content,
+                      partialText,
+                      resolvedSessionId,
+                      options?.images
+                    )
+                      .then(resolveCompletion)
+                      .catch((err) => {
+                        logger.error('Failed to persist cancelled exchange', err as Error)
+                        resolveCompletion({})
+                      })
+                  } else {
+                    resolveCompletion({})
+                  }
+                } else {
+                  resolveCompletion({})
+                }
                 break
               }
 
@@ -258,6 +316,108 @@ export class SessionMessageService extends BaseService {
     })
 
     return { stream, completion }
+  }
+
+  /**
+   * Persist user + assistant messages for headless callers (channels, scheduler)
+   * that have no UI to handle persistence via IPC.
+   */
+  private async persistHeadlessExchange(
+    session: GetAgentSessionResponse,
+    userContent: string,
+    assistantContent: string,
+    agentSessionId: string,
+    images?: Array<{ data: string; media_type: string }>
+  ): Promise<{ userMessage?: AgentSessionMessageEntity; assistantMessage?: AgentSessionMessageEntity }> {
+    const now = new Date().toISOString()
+    const userMsgId = randomUUID()
+    const assistantMsgId = randomUUID()
+    const userBlockId = randomUUID()
+    const assistantBlockId = randomUUID()
+    const topicId = `agent-session:${session.id}`
+
+    // Build image blocks for user message
+    const imageBlocks: Array<{
+      id: string
+      messageId: string
+      type: string
+      createdAt: string
+      status: string
+      url: string
+    }> = []
+    if (images && images.length > 0) {
+      for (const img of images) {
+        imageBlocks.push({
+          id: randomUUID(),
+          messageId: userMsgId,
+          type: 'image',
+          createdAt: now,
+          status: 'success',
+          url: `data:${img.media_type};base64,${img.data}`
+        })
+      }
+    }
+
+    const userPayload = {
+      message: {
+        id: userMsgId,
+        role: 'user' as const,
+        assistantId: session.agent_id,
+        topicId,
+        createdAt: now,
+        status: 'success',
+        blocks: [userBlockId, ...imageBlocks.map((b) => b.id)]
+      },
+      blocks: [
+        {
+          id: userBlockId,
+          messageId: userMsgId,
+          type: 'main_text',
+          createdAt: now,
+          status: 'success',
+          content: userContent
+        },
+        ...imageBlocks
+      ]
+    } as AgentPersistedMessage
+
+    const assistantPayload = {
+      message: {
+        id: assistantMsgId,
+        role: 'assistant' as const,
+        assistantId: session.agent_id,
+        topicId,
+        createdAt: now,
+        status: 'success',
+        blocks: [assistantBlockId],
+        modelId: session.model
+      },
+      blocks: [
+        {
+          id: assistantBlockId,
+          messageId: assistantMsgId,
+          type: 'main_text',
+          createdAt: now,
+          status: 'success',
+          content: assistantContent
+        }
+      ]
+    } as AgentPersistedMessage
+
+    const result = await agentMessageRepository.persistExchange({
+      sessionId: session.id,
+      agentSessionId,
+      user: { payload: userPayload, createdAt: now },
+      assistant: { payload: assistantPayload, createdAt: now }
+    })
+
+    logger.info('Persisted headless exchange', {
+      sessionId: session.id,
+      userMessageId: userMsgId,
+      assistantMessageId: assistantMsgId
+    })
+
+    return result
   }
 
   private async getLastAgentSessionId(sessionId: string): Promise<string> {
@@ -308,4 +468,4 @@ export class SessionMessageService extends BaseService {
   }
 }
 
-export const sessionMessageService = SessionMessageService.getInstance()
+export const sessionMessageService = new SessionMessageService()

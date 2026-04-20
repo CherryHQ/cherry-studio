@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { getBackupData } from '@renderer/services/BackupService'
-import type { LocalTransferPeer } from '@shared/config/types'
+import type { LanTransferPeer } from '@shared/config/types'
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -110,7 +110,7 @@ export interface UseLanTransferReturn {
   state: LanTransferReducerState
 
   // Derived values
-  lanDevices: LocalTransferPeer[]
+  lanDevices: LanTransferPeer[]
   isAnyTransferring: boolean
   lastError: string | undefined
 
@@ -148,29 +148,12 @@ export function useLanTransfer(): UseLanTransferReturn {
   const lastError = state.lanState?.lastError
 
   // ==========================================
-  // LAN State Sync
-  // ==========================================
-
-  const syncLanState = useCallback(async () => {
-    if (!window.api?.localTransfer) {
-      logger.warn('Local transfer bridge is unavailable')
-      return
-    }
-    try {
-      const nextState = await window.api.localTransfer.getState()
-      dispatch({ type: 'SET_LAN_STATE', payload: nextState })
-    } catch (error) {
-      logger.error('Failed to sync LAN state', error as Error)
-    }
-  }, [])
-
-  // ==========================================
   // Send File Handler
   // ==========================================
 
   const handleSendFile = useCallback(
     async (peerId: string) => {
-      if (!window.api?.localTransfer || isSendingRef.current) {
+      if (!window.api?.lanTransfer || isSendingRef.current) {
         return
       }
       isSendingRef.current = true
@@ -187,7 +170,7 @@ export function useLanTransfer(): UseLanTransferReturn {
         if (!state.lastHandshakeResult?.ack.accepted || state.lastHandshakeResult.peerId !== peerId) {
           dispatch({ type: 'SET_HANDSHAKE_PEER_ID', payload: peerId })
           try {
-            const ack = await window.api.localTransfer.connect({ peerId })
+            const ack = await window.api.lanTransfer.connect({ peerId })
             dispatch({
               type: 'SET_HANDSHAKE_RESULT',
               payload: { peerId, ack, timestamp: Date.now() }
@@ -217,7 +200,7 @@ export function useLanTransfer(): UseLanTransferReturn {
 
         // Step 3: Send file
         logger.info(`Sending backup file: ${backupPath}`)
-        const result = await window.api.localTransfer.sendFile(backupPath)
+        const result = await window.api.lanTransfer.sendFile(backupPath)
 
         if (result.success) {
           dispatch({
@@ -241,7 +224,7 @@ export function useLanTransfer(): UseLanTransferReturn {
         // Step 4: Clean up temp file
         if (backupPath) {
           try {
-            await window.api.backup.deleteTempBackup(backupPath)
+            await window.api.backup.deleteLanTransferBackup(backupPath)
             logger.info('Cleaned up temporary backup file')
           } catch (cleanupError) {
             logger.warn('Failed to clean up temp backup', cleanupError as Error)
@@ -263,23 +246,28 @@ export function useLanTransfer(): UseLanTransferReturn {
   tempBackupPathRef.current = state.tempBackupPath
 
   const teardownLan = useCallback(async () => {
-    if (!window.api?.localTransfer) {
+    if (!window.api?.lanTransfer) {
       return
     }
     try {
-      await window.api.localTransfer.cancelTransfer?.()
+      await window.api.lanTransfer.cancelTransfer?.()
     } catch (error) {
       logger.warn('Failed to cancel LAN transfer on close', error as Error)
     }
     try {
-      await window.api.localTransfer.disconnect?.()
+      await window.api.lanTransfer.disconnect?.()
     } catch (error) {
       logger.warn('Failed to disconnect LAN on close', error as Error)
+    }
+    try {
+      await window.api.lanTransfer.stopScan()
+    } catch (error) {
+      logger.warn('Failed to stop LAN scan on close', error as Error)
     }
     // Clean up temp backup if exists (use ref to get current value)
     if (tempBackupPathRef.current) {
       try {
-        await window.api.backup.deleteTempBackup(tempBackupPathRef.current)
+        await window.api.backup.deleteLanTransferBackup(tempBackupPathRef.current)
       } catch (error) {
         logger.warn('Failed to cleanup temp backup on close', error as Error)
       }
@@ -296,26 +284,33 @@ export function useLanTransfer(): UseLanTransferReturn {
   // Effects
   // ==========================================
 
-  // Initial sync and service listener
+  // Start scanning on mount, subscribe to updates
   useEffect(() => {
-    if (!window.api?.localTransfer) {
+    if (!window.api?.lanTransfer) {
       return
     }
-    syncLanState()
-    const removeListener = window.api.localTransfer.onServicesUpdated((lanState) => {
+    window.api.lanTransfer
+      .startScan()
+      .then((lanState) => {
+        dispatch({ type: 'SET_LAN_STATE', payload: lanState })
+      })
+      .catch((error) => {
+        logger.error('Failed to start LAN scan', error as Error)
+      })
+    const removeListener = window.api.lanTransfer.onServicesUpdated((lanState) => {
       dispatch({ type: 'SET_LAN_STATE', payload: lanState })
     })
     return () => {
       removeListener?.()
     }
-  }, [syncLanState])
+  }, [])
 
   // Client events listener (progress, completion)
   useEffect(() => {
-    if (!window.api?.localTransfer) {
+    if (!window.api?.lanTransfer) {
       return
     }
-    const removeListener = window.api.localTransfer.onClientEvent((event) => {
+    const removeListener = window.api.lanTransfer.onClientEvent((event) => {
       const key = event.peerId ?? 'global'
 
       if (event.type === 'file_transfer_progress') {

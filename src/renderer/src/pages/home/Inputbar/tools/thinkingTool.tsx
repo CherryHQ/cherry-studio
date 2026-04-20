@@ -5,10 +5,18 @@ import { defineTool, registerTool, TopicType } from '@renderer/pages/home/Inputb
 const thinkingTool = defineTool({
   key: 'thinking',
   label: (t) => t('chat.input.thinking.label'),
-  visibleInScopes: [TopicType.Chat],
-  condition: ({ model }) => isReasoningModel(model),
-  render: ({ assistant, model, quickPanel }) => (
-    <ThinkingButton quickPanel={quickPanel} model={model} assistantId={assistant.id} />
+  visibleInScopes: [TopicType.Chat, TopicType.Session],
+  condition: ({ model }) => {
+    return isReasoningModel(model)
+  },
+  render: ({ assistant, model, quickPanel, session }) => (
+    <ThinkingButton
+      quickPanel={quickPanel}
+      model={model}
+      assistantId={assistant.id}
+      reasoningEffort={session?.reasoningEffort}
+      onReasoningEffortChange={session?.onReasoningEffortChange}
+    />
   )
 })
 

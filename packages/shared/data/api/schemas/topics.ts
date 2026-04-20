@@ -4,7 +4,6 @@
  * Contains all topic-related endpoints for CRUD operations and branch switching.
  */
 
-import type { AssistantMeta } from '@shared/data/types/meta'
 import type { Topic } from '@shared/data/types/topic'
 
 // ============================================================================
@@ -19,10 +18,6 @@ export interface CreateTopicDto {
   name?: string
   /** Associated assistant ID */
   assistantId?: string
-  /** Preserved assistant info */
-  assistantMeta?: AssistantMeta
-  /** Topic-specific prompt */
-  prompt?: string
   /** Group ID for organization */
   groupId?: string
   /**
@@ -42,10 +37,6 @@ export interface UpdateTopicDto {
   isNameManuallyEdited?: boolean
   /** Updated assistant ID */
   assistantId?: string
-  /** Updated assistant meta */
-  assistantMeta?: AssistantMeta
-  /** Updated prompt */
-  prompt?: string
   /** Updated group ID */
   groupId?: string
   /** Updated sort order */

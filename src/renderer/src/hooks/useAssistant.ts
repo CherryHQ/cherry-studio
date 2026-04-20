@@ -6,6 +6,7 @@ import {
   MODEL_SUPPORTED_OPTIONS,
   MODEL_SUPPORTED_REASONING_EFFORT
 } from '@renderer/config/models'
+import { cacheService } from '@renderer/data/CacheService'
 import { db } from '@renderer/databases'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
@@ -79,7 +80,7 @@ export function useAssistant(id: string) {
   const { defaultModel } = useDefaultModel()
 
   const model = useMemo(() => assistant?.model ?? assistant?.defaultModel ?? defaultModel, [assistant, defaultModel])
-  if (!model) {
+  if (assistant && !model) {
     throw new Error(`Assistant model is not set for assistant with name: ${assistant?.name ?? 'unknown'}`)
   }
 
@@ -110,11 +111,13 @@ export function useAssistant(id: string) {
     const settings = settingsRef.current
     if (settings) {
       const currentReasoningEffort = settings.reasoning_effort
+      const cacheKey = `assistant.reasoning_effort_cache.${assistant.id}` as const
+
       if (isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) {
         const modelType = getThinkModelType(model)
         const supportedOptions = MODEL_SUPPORTED_OPTIONS[modelType]
         if (supportedOptions.every((option) => option !== currentReasoningEffort)) {
-          const cache = settings.reasoning_effort_cache
+          const cache = cacheService.get(cacheKey) as ThinkingOption | undefined
           let fallbackOption: ThinkingOption
 
           // 选项不支持时，首先尝试恢复到上次使用的值
@@ -129,9 +132,9 @@ export function useAssistant(id: string) {
               : MODEL_SUPPORTED_OPTIONS[modelType][0]
           }
 
+          cacheService.set(cacheKey, fallbackOption === 'none' ? undefined : fallbackOption)
           updateAssistantSettings({
             reasoning_effort: fallbackOption === 'none' ? undefined : fallbackOption,
-            reasoning_effort_cache: fallbackOption === 'none' ? undefined : fallbackOption,
             qwenThinkMode: fallbackOption === 'none' ? undefined : true
           })
         } else {
@@ -139,28 +142,30 @@ export function useAssistant(id: string) {
         }
       } else {
         // 切换到非思考模型时保留cache
+        if (currentReasoningEffort !== undefined) {
+          cacheService.set(cacheKey, currentReasoningEffort)
+        }
         updateAssistantSettings({
           reasoning_effort: undefined,
-          reasoning_effort_cache: currentReasoningEffort,
           qwenThinkMode: undefined
         })
       }
     }
-  }, [model, updateAssistantSettings])
+  }, [model, assistant?.id, updateAssistantSettings])
 
   return {
     assistant: assistantWithModel,
     model,
     addTopic: (topic: Topic) => dispatch(addTopic({ assistantId: assistant.id, topic })),
     removeTopic: (topic: Topic) => {
-      TopicManager.removeTopic(topic.id)
+      void TopicManager.removeTopic(topic.id)
       dispatch(removeTopic({ assistantId: assistant.id, topic }))
     },
     moveTopic: (topic: Topic, toAssistant: Assistant) => {
       dispatch(addTopic({ assistantId: toAssistant.id, topic: { ...topic, assistantId: toAssistant.id } }))
       dispatch(removeTopic({ assistantId: assistant.id, topic }))
       // update topic messages in database
-      db.topics
+      void db.topics
         .where('id')
         .equals(topic.id)
         .modify((dbTopic) => {

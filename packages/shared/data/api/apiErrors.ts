@@ -49,6 +49,9 @@ export enum ErrorCode {
   /** 405 - HTTP method not supported for this endpoint */
   METHOD_NOT_ALLOWED = 'METHOD_NOT_ALLOWED',
 
+  /** 409 - Resource conflict, e.g. duplicate name or unique constraint violation */
+  CONFLICT = 'CONFLICT',
+
   /** 422 - Request body fails validation rules */
   VALIDATION_ERROR = 'VALIDATION_ERROR',
 
@@ -124,13 +127,14 @@ export enum ErrorCode {
 export const ERROR_STATUS_MAP: Record<ErrorCode, number> = {
   // Client errors (4xx)
   [ErrorCode.BAD_REQUEST]: 400,
+  [ErrorCode.INVALID_OPERATION]: 400,
   [ErrorCode.UNAUTHORIZED]: 401,
+  [ErrorCode.PERMISSION_DENIED]: 403,
   [ErrorCode.NOT_FOUND]: 404,
   [ErrorCode.METHOD_NOT_ALLOWED]: 405,
+  [ErrorCode.CONFLICT]: 409,
   [ErrorCode.VALIDATION_ERROR]: 422,
   [ErrorCode.RATE_LIMIT_EXCEEDED]: 429,
-  [ErrorCode.PERMISSION_DENIED]: 403,
-  [ErrorCode.INVALID_OPERATION]: 400,
 
   // Server errors (5xx)
   [ErrorCode.INTERNAL_SERVER_ERROR]: 500,
@@ -139,10 +143,10 @@ export const ERROR_STATUS_MAP: Record<ErrorCode, number> = {
   [ErrorCode.TIMEOUT]: 504,
 
   // Application-specific errors
-  [ErrorCode.MIGRATION_ERROR]: 500,
   [ErrorCode.RESOURCE_LOCKED]: 423,
   [ErrorCode.CONCURRENT_MODIFICATION]: 409,
-  [ErrorCode.DATA_INCONSISTENT]: 409
+  [ErrorCode.DATA_INCONSISTENT]: 409,
+  [ErrorCode.MIGRATION_ERROR]: 500
 }
 
 /**
@@ -154,6 +158,7 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   [ErrorCode.UNAUTHORIZED]: 'Unauthorized: Authentication required',
   [ErrorCode.NOT_FOUND]: 'Not found: Requested resource does not exist',
   [ErrorCode.METHOD_NOT_ALLOWED]: 'Method not allowed: HTTP method not supported for this endpoint',
+  [ErrorCode.CONFLICT]: 'Conflict: Resource already exists or conflicts with existing data',
   [ErrorCode.VALIDATION_ERROR]: 'Validation error: Request data does not meet requirements',
   [ErrorCode.RATE_LIMIT_EXCEEDED]: 'Rate limit exceeded: Too many requests',
   [ErrorCode.PERMISSION_DENIED]: 'Permission denied: Insufficient permissions for this operation',
@@ -250,6 +255,14 @@ export interface InvalidOperationErrorDetails {
 }
 
 /**
+ * Details for CONFLICT - resource conflict information.
+ */
+export interface ConflictErrorDetails {
+  resource?: string
+  description?: string
+}
+
+/**
  * Details for RESOURCE_LOCKED - which resource is locked.
  */
 export interface ResourceLockedErrorDetails {
@@ -290,6 +303,7 @@ export type ErrorDetailsMap = {
   [ErrorCode.DATA_INCONSISTENT]: DataInconsistentErrorDetails
   [ErrorCode.PERMISSION_DENIED]: PermissionDeniedErrorDetails
   [ErrorCode.INVALID_OPERATION]: InvalidOperationErrorDetails
+  [ErrorCode.CONFLICT]: ConflictErrorDetails
   [ErrorCode.RESOURCE_LOCKED]: ResourceLockedErrorDetails
   [ErrorCode.CONCURRENT_MODIFICATION]: ConcurrentModificationErrorDetails
   [ErrorCode.INTERNAL_SERVER_ERROR]: InternalErrorDetails
@@ -673,6 +687,29 @@ export class DataApiErrorFactory {
   }
 
   /**
+   * Create a conflict error for duplicate or conflicting resources.
+   * Use when: unique constraint violation, duplicate name, or resource state conflict.
+   *
+   * @param message - Description of the conflict
+   * @param resource - Optional resource type name
+   * @param requestContext - Optional request context
+   * @returns DataApiError with CONFLICT code
+   */
+  static conflict(
+    message: string,
+    resource?: string,
+    requestContext?: RequestContext
+  ): DataApiError<ErrorCode.CONFLICT> {
+    return new DataApiError(
+      ErrorCode.CONFLICT,
+      message,
+      ERROR_STATUS_MAP[ErrorCode.CONFLICT],
+      { resource, description: message },
+      requestContext
+    )
+  }
+
+  /**
    * Create a data inconsistency error.
    * @param resource - The resource with inconsistent data
    * @param description - Description of the inconsistency
@@ -805,6 +842,17 @@ export function toDataApiError(error: unknown, context?: string): DataApiError {
     return DataApiError.fromJSON(error)
   }
 
+  // Convert ZodError to 422 VALIDATION_ERROR
+  if (isZodError(error)) {
+    const fieldErrors: Record<string, string[]> = {}
+    for (const issue of error.issues) {
+      const path = issue.path.length > 0 ? issue.path.join('.') : '_root'
+      if (!fieldErrors[path]) fieldErrors[path] = []
+      fieldErrors[path].push(issue.message)
+    }
+    return DataApiErrorFactory.validation(fieldErrors, `Validation failed${context ? ` in ${context}` : ''}`)
+  }
+
   if (error instanceof Error) {
     return DataApiErrorFactory.internal(error, context)
   }
@@ -813,5 +861,17 @@ export function toDataApiError(error: unknown, context?: string): DataApiError {
     ErrorCode.INTERNAL_SERVER_ERROR,
     `Unknown error${context ? ` in ${context}` : ''}: ${String(error)}`,
     { originalError: String(error), context } as DetailsForCode<ErrorCode.INTERNAL_SERVER_ERROR>
+  )
+}
+
+/**
+ * Duck-type check for ZodError without importing zod as a dependency.
+ * ZodError has a `.issues` array and `.name === 'ZodError'`.
+ */
+function isZodError(error: unknown): error is { issues: Array<{ path: (string | number)[]; message: string }> } {
+  return (
+    error instanceof Error &&
+    error.name === 'ZodError' &&
+    Array.isArray((error as unknown as Record<string, unknown>).issues)
   )
 }

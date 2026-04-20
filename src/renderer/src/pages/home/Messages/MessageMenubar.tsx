@@ -4,9 +4,10 @@ import { usePreference } from '@data/hooks/usePreference'
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { CopyIcon, DeleteIcon, EditIcon, RefreshIcon } from '@renderer/components/Icons'
+import InspectMessagePopup from '@renderer/components/Popups/InspectMessagePopup'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
-import { SelectModelPopup } from '@renderer/components/Popups/SelectModelPopup'
+import { SelectChatModelPopup } from '@renderer/components/Popups/SelectModelPopup'
 import { isEmbeddingModel, isRerankModel, isVisionModel } from '@renderer/config/models'
 import type { MessageMenubarButtonId, MessageMenubarScope } from '@renderer/config/registry/messageMenubar'
 import { DEFAULT_MESSAGE_MENUBAR_SCOPE, getMessageMenubarConfig } from '@renderer/config/registry/messageMenubar'
@@ -20,13 +21,16 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageTitle } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
 import store, { useAppDispatch } from '@renderer/store'
-import { messageBlocksSelectors, removeOneBlock } from '@renderer/store/messageBlock'
+import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
+import { removeBlocksThunk } from '@renderer/store/thunk/messageThunk'
 import { TraceIcon } from '@renderer/trace/pages/Component'
 import type { Assistant, Model, Topic, TranslateLanguage } from '@renderer/types'
-import { type Message, MessageBlockType } from '@renderer/types/newMessage'
+import { type Message, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { captureScrollableAsBlob, captureScrollableAsDataURL, classNames } from '@renderer/utils'
+import { abortCompletion } from '@renderer/utils/abortController'
 import { copyMessageAsPlainText } from '@renderer/utils/copy'
+import { isAbortError } from '@renderer/utils/error'
 import {
   exportMarkdownToJoplin,
   exportMarkdownToSiyuan,
@@ -50,7 +54,9 @@ import dayjs from 'dayjs'
 import type { TFunction } from 'i18next'
 import {
   AtSign,
+  Bug,
   Check,
+  CirclePause,
   FilePenLine,
   Languages,
   ListChecks,
@@ -68,6 +74,12 @@ import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
 import MessageTokens from './MessageTokens'
+
+const createTranslationAbortKey = (messageId: string) => `translation-abort-key:${messageId}`
+
+const abortTranslation = (messageId: string) => {
+  abortCompletion(createTranslationAbortKey(messageId))
+}
 
 interface Props {
   message: Message
@@ -104,6 +116,7 @@ type MessageMenubarButtonContext = {
   isBubbleStyle: boolean
   isGrouped?: boolean
   isLastMessage: boolean
+  isTranslating: boolean
   isUserMessage: boolean
   message: Message
   notesPath: string
@@ -139,7 +152,7 @@ const MessageMenubar: FC<Props> = (props) => {
   const { notesPath } = useNotesSettings()
   const { toggleMultiSelectMode } = useChatContext(props.topic)
   const [copied, setCopied] = useTemporaryValue(false, 2000)
-  const [isTranslating, setIsTranslating] = useState(false)
+  const translationAbortKey = createTranslationAbortKey(message.id)
   // remove confirm for regenerate; tooltip stays simple
   const [showDeleteTooltip, setShowDeleteTooltip] = useState(false)
   const { translateLanguages } = useTranslate()
@@ -178,7 +191,6 @@ const MessageMenubar: FC<Props> = (props) => {
   })
 
   const dispatch = useAppDispatch()
-
   // const processedMessage = useMemo(() => {
   //   if (message.role === 'assistant' && message.model && isReasoningModel(message.model)) {
   //     return withMessageThought(message)
@@ -203,12 +215,12 @@ const MessageMenubar: FC<Props> = (props) => {
 
       let contentToCopy = ''
       if (latestMessageEntity) {
-        contentToCopy = getMainTextContent(latestMessageEntity as Message)
+        contentToCopy = getMainTextContent(latestMessageEntity)
       } else {
         contentToCopy = getMainTextContent(message)
       }
 
-      navigator.clipboard.writeText(removeTrailingDoubleSpaces(contentToCopy.trimStart()))
+      void navigator.clipboard.writeText(removeTrailingDoubleSpaces(contentToCopy.trimStart()))
 
       window.toast.success(t('message.copied'))
       setCopied(true)
@@ -217,7 +229,7 @@ const MessageMenubar: FC<Props> = (props) => {
   )
 
   const onNewBranch = useCallback(async () => {
-    EventEmitter.emit(EVENT_NAMES.NEW_BRANCH, index)
+    void EventEmitter.emit(EVENT_NAMES.NEW_BRANCH, index)
     window.toast.success(t('chat.message.new.branch.created'))
   }, [index, t])
 
@@ -234,40 +246,58 @@ const MessageMenubar: FC<Props> = (props) => {
     startEditing(message.id)
   }, [message.id, startEditing])
 
+  const blockEntities = useSelector(messageBlocksSelectors.selectEntities)
+
+  const isTranslating = useMemo(() => {
+    const translationBlock = message.blocks
+      .map((blockId) => blockEntities[blockId])
+      .find((block) => block?.type === MessageBlockType.TRANSLATION)
+    return (
+      translationBlock?.status === MessageBlockStatus.STREAMING ||
+      translationBlock?.status === MessageBlockStatus.PROCESSING
+    )
+  }, [message.blocks, blockEntities])
+
   const handleTranslate = useCallback(
     async (language: TranslateLanguage) => {
       if (isTranslating) return
 
-      setIsTranslating(true)
       const messageId = message.id
       const translationUpdater = await getTranslationUpdater(messageId, language.langCode)
       if (!translationUpdater) return
+
       try {
-        await translateText(mainTextContent, language, translationUpdater)
+        await translateText(mainTextContent, language, translationUpdater, translationAbortKey)
       } catch (error) {
-        window.toast.error(t('translate.error.failed'))
-        // 理应只有一个
+        if (!isAbortError(error)) {
+          window.toast.error(t('translate.error.failed'))
+        }
         const translationBlocks = findTranslationBlocksById(message.id)
         logger.silly(`there are ${translationBlocks.length} translation blocks`)
         if (translationBlocks.length > 0) {
           const block = translationBlocks[0]
           logger.silly(`block`, block)
           if (!block.content) {
-            dispatch(removeOneBlock(block.id))
+            void dispatch(removeBlocksThunk(message.topicId, message.id, [block.id]))
           }
         }
-
-        // clearStreamMessage(message.id)
-      } finally {
-        setIsTranslating(false)
       }
     },
-    [isTranslating, message, getTranslationUpdater, mainTextContent, t, dispatch]
+    [
+      isTranslating,
+      message.topicId,
+      message.id,
+      getTranslationUpdater,
+      mainTextContent,
+      translationAbortKey,
+      t,
+      dispatch
+    ]
   )
 
   const handleTraceUserMessage = useCallback(async () => {
     if (message.traceId) {
-      window.api.trace.openWindow(
+      void window.api.trace.openWindow(
         message.topicId,
         message.traceId,
         true,
@@ -319,14 +349,14 @@ const MessageMenubar: FC<Props> = (props) => {
             key: 'file',
             onClick: () => {
               const fileName = dayjs(message.createdAt).format('YYYYMMDDHHmm') + '.md'
-              window.api.file.save(fileName, mainTextContent)
+              void window.api.file.save(fileName, mainTextContent)
             }
           },
           {
             label: t('chat.save.knowledge.title'),
             key: 'knowledge',
             onClick: () => {
-              SaveToKnowledgePopup.showForMessage(message)
+              void SaveToKnowledgePopup.showForMessage(message)
             }
           }
         ]
@@ -359,7 +389,8 @@ const MessageMenubar: FC<Props> = (props) => {
               const imageData = await captureScrollableAsDataURL(messageContainerRef)
               const title = await getMessageTitle(message)
               if (title && imageData) {
-                window.api.file.saveImage(title, imageData)
+                const success = await window.api.file.saveImage(title, imageData)
+                if (success) window.toast.success(t('chat.topics.export.image_saved'))
               }
             }
           },
@@ -379,7 +410,7 @@ const MessageMenubar: FC<Props> = (props) => {
             onClick: async () => {
               const markdown = await messageToMarkdown(message)
               const title = await getMessageTitle(message)
-              window.api.export.toWord(markdown, title)
+              void window.api.export.toWord(markdown, title)
             }
           },
           exportMenuOptions.notion && {
@@ -388,7 +419,7 @@ const MessageMenubar: FC<Props> = (props) => {
             onClick: async () => {
               const title = await getMessageTitle(message)
               const markdown = await messageToMarkdown(message)
-              exportMessageToNotion(title, markdown, message)
+              void exportMessageToNotion(title, markdown, message)
             }
           },
           exportMenuOptions.yuque && {
@@ -397,7 +428,7 @@ const MessageMenubar: FC<Props> = (props) => {
             onClick: async () => {
               const title = await getMessageTitle(message)
               const markdown = await messageToMarkdown(message)
-              exportMarkdownToYuque(title, markdown)
+              void exportMarkdownToYuque(title, markdown)
             }
           },
           exportMenuOptions.obsidian && {
@@ -413,7 +444,7 @@ const MessageMenubar: FC<Props> = (props) => {
             key: 'joplin',
             onClick: async () => {
               const title = await getMessageTitle(message)
-              exportMarkdownToJoplin(title, message)
+              void exportMarkdownToJoplin(title, message)
             }
           },
           exportMenuOptions.siyuan && {
@@ -422,7 +453,7 @@ const MessageMenubar: FC<Props> = (props) => {
             onClick: async () => {
               const title = await getMessageTitle(message)
               const markdown = await messageToMarkdown(message)
-              exportMarkdownToSiyuan(title, markdown)
+              void exportMarkdownToSiyuan(title, markdown)
             }
           }
         ].filter(Boolean)
@@ -477,7 +508,7 @@ const MessageMenubar: FC<Props> = (props) => {
     // editMessage(message.id, { ..._message }) // REMOVED
 
     // Call the function from the hook
-    regenerateAssistantMessage(message, assistant)
+    void regenerateAssistantMessage(message, assistant)
   }
 
   // 按条件筛选能够提及的模型，该函数仅在isAssistantMessage时会用到
@@ -516,9 +547,9 @@ const MessageMenubar: FC<Props> = (props) => {
   const onMentionModel = useCallback(
     async (e: React.MouseEvent) => {
       e.stopPropagation()
-      const selectedModel = await SelectModelPopup.show({ model, filter: mentionModelFilter })
+      const selectedModel = await SelectChatModelPopup.show({ model, filter: mentionModelFilter })
       if (!selectedModel) return
-      appendAssistantResponse(message, selectedModel, { ...assistant, model: selectedModel })
+      void appendAssistantResponse(message, selectedModel, { ...assistant, model: selectedModel })
     },
     [appendAssistantResponse, assistant, mentionModelFilter, message, model]
   )
@@ -531,7 +562,6 @@ const MessageMenubar: FC<Props> = (props) => {
     [message.id, onUpdateUseful]
   )
 
-  const blockEntities = useSelector(messageBlocksSelectors.selectEntities)
   const hasTranslationBlocks = useMemo(() => {
     const translationBlocks = findTranslationBlocks(message)
     return translationBlocks.length > 0
@@ -558,6 +588,7 @@ const MessageMenubar: FC<Props> = (props) => {
     isBubbleStyle,
     isGrouped,
     isLastMessage,
+    isTranslating,
     isUserMessage,
     message,
     notesPath,
@@ -756,6 +787,7 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
   },
   translate: ({
     isUserMessage,
+    isTranslating,
     translateLanguages,
     handleTranslate,
     hasTranslationBlocks,
@@ -767,6 +799,22 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
   }) => {
     if (isUserMessage) {
       return null
+    }
+
+    if (isTranslating) {
+      return (
+        <Tooltip title={t('translate.stop')}>
+          <ActionButton
+            className="message-action-button"
+            onClick={(e) => {
+              e.stopPropagation()
+              abortTranslation(message.id)
+            }}
+            $softHoverBg={softHoverBg}>
+            <CirclePause size={15} />
+          </ActionButton>
+        </Tooltip>
+      )
     }
 
     const items: MenuProps['items'] = [
@@ -793,7 +841,7 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
                     .trim()
 
                   if (translationContent) {
-                    navigator.clipboard.writeText(translationContent)
+                    void navigator.clipboard.writeText(translationContent)
                     window.toast.success(t('translate.copied'))
                   } else {
                     window.toast.warning(t('translate.empty'))
@@ -813,7 +861,7 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
                 if (translationBlocks.length > 0) {
                   translationBlocks.forEach((blockId) => {
                     if (blockId) {
-                      removeMessageBlock(message.id, blockId)
+                      void removeMessageBlock(message.id, blockId)
                     }
                   })
                   window.toast.success(t('translate.closed'))
@@ -879,7 +927,7 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
             e.stopPropagation()
             const title = await getMessageTitle(message)
             const markdown = await messageToMarkdown(message)
-            exportMessageToNotes(title, markdown, notesPath)
+            void exportMessageToNotes(title, markdown, notesPath)
           }}
           $softHoverBg={softHoverBg}>
           <NotebookPen size={15} />
@@ -902,12 +950,17 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
       </Tooltip>
     )
 
+    const handleDeleteMessage = async () => {
+      abortTranslation(message.id)
+      await deleteMessage(message.id, message.traceId, message.model?.name)
+    }
+
     if (confirmDeleteMessage) {
       return (
         <Popconfirm
           title={t('message.message.delete.content')}
           okButtonProps={{ danger: true }}
-          onConfirm={() => deleteMessage(message.id, message.traceId, message.model?.name)}
+          onConfirm={async () => await handleDeleteMessage()}
           onOpenChange={(open) => open && setShowDeleteTooltip(false)}>
           <ActionButton
             className="message-action-button"
@@ -922,9 +975,9 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
     return (
       <ActionButton
         className="message-action-button"
-        onClick={(e) => {
+        onClick={async (e) => {
           e.stopPropagation()
-          deleteMessage(message.id, message.traceId, message.model?.name)
+          await handleDeleteMessage()
         }}
         $softHoverBg={softHoverBg}>
         {deleteTooltip}
@@ -940,6 +993,29 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
       <Tooltip content={t('trace.label')} delay={800}>
         <ActionButton className="message-action-button" onClick={() => handleTraceUserMessage()}>
           <TraceIcon size={16} className={'lucide lucide-trash'} />
+        </ActionButton>
+      </Tooltip>
+    )
+  },
+  'inspect-data': ({ message, blockEntities, enableDeveloperMode }) => {
+    if (!enableDeveloperMode) {
+      return null
+    }
+
+    const handleInspect = (e: React.MouseEvent) => {
+      e.stopPropagation()
+      const blocks = message.blocks.map((blockId) => blockEntities[blockId]).filter(Boolean)
+      void InspectMessagePopup.show({
+        title: `Message: ${message.id}`,
+        message,
+        blocks
+      })
+    }
+
+    return (
+      <Tooltip content="Inspect Data (Dev)" delay={800}>
+        <ActionButton className="message-action-button" onClick={handleInspect}>
+          <Bug size={15} />
         </ActionButton>
       </Tooltip>
     )

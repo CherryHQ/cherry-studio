@@ -8,6 +8,7 @@ class PreferencesGenerator {
     this.dataDir = path.resolve(__dirname, '../data')
     this.targetFile = path.resolve(__dirname, '../../../../packages/shared/data/preference/preferenceSchemas.ts')
     this.classificationFile = path.join(this.dataDir, 'classification.json')
+    this.targetKeyDefinitionsFile = path.join(this.dataDir, 'target-key-definitions.json')
   }
 
   generate() {
@@ -17,7 +18,13 @@ class PreferencesGenerator {
     const classification = this.loadClassification()
 
     // 提取preferences相关数据
-    const preferencesData = this.extractPreferencesData(classification)
+    const classificationData = this.extractPreferencesData(classification)
+
+    // 读取target-key-definitions.json（复杂映射的target key定义）
+    const targetKeyDefinitions = this.loadTargetKeyDefinitions()
+
+    // 合并数据：target-key-definitions 覆盖 classification
+    const preferencesData = this.mergeDataSources(classificationData, targetKeyDefinitions)
 
     // 构建类型结构
     const typeStructure = this.buildTypeStructure(preferencesData)
@@ -32,6 +39,84 @@ class PreferencesGenerator {
     this.printSummary(preferencesData)
   }
 
+  /**
+   * Load target-key-definitions.json for complex mapping target keys
+   * These definitions override or extend classification.json
+   */
+  loadTargetKeyDefinitions() {
+    if (!fs.existsSync(this.targetKeyDefinitionsFile)) {
+      console.log('target-key-definitions.json 不存在，跳过')
+      return { definitions: [] }
+    }
+
+    const content = fs.readFileSync(this.targetKeyDefinitionsFile, 'utf8')
+    const data = JSON.parse(content)
+    console.log(`读取 target-key-definitions.json: ${data.definitions?.length || 0} 项定义`)
+    return data
+  }
+
+  /**
+   * Merge classification data with target-key-definitions
+   * Target-key-definitions take priority (can override or disable keys)
+   */
+  mergeDataSources(classificationData, targetKeyDefinitions) {
+    // Use Map to deduplicate by targetKey, definitions take priority
+    const targetKeyMap = new Map()
+
+    // First add classification data
+    for (const item of classificationData) {
+      if (item.targetKey) {
+        targetKeyMap.set(item.targetKey, {
+          ...item,
+          _source: 'classification'
+        })
+      }
+    }
+
+    const definitionsCount = {
+      added: 0,
+      overridden: 0,
+      disabled: 0
+    }
+
+    // Then process target-key-definitions (override or disable)
+    for (const def of targetKeyDefinitions.definitions || []) {
+      if (def.status === 'classified') {
+        const existed = targetKeyMap.has(def.targetKey)
+        targetKeyMap.set(def.targetKey, {
+          targetKey: def.targetKey,
+          type: def.type,
+          defaultValue: def.defaultValue,
+          source: 'target-key-definitions',
+          sourceCategory: def.source || 'complex',
+          originalKey: def.source || 'complex',
+          fullPath: `target-key-definitions/${def.targetKey}`,
+          _source: 'target-key-definitions'
+        })
+        if (existed) {
+          definitionsCount.overridden++
+          console.log(`  覆盖: ${def.targetKey}`)
+        } else {
+          definitionsCount.added++
+          console.log(`  新增: ${def.targetKey}`)
+        }
+      } else if (def.status === 'pending' && targetKeyMap.has(def.targetKey)) {
+        // status: pending can disable keys from classification
+        targetKeyMap.delete(def.targetKey)
+        definitionsCount.disabled++
+        console.log(`  禁用: ${def.targetKey}`)
+      }
+    }
+
+    if (definitionsCount.added + definitionsCount.overridden + definitionsCount.disabled > 0) {
+      console.log(
+        `target-key-definitions 处理完成: 新增 ${definitionsCount.added}, 覆盖 ${definitionsCount.overridden}, 禁用 ${definitionsCount.disabled}`
+      )
+    }
+
+    return Array.from(targetKeyMap.values())
+  }
+
   loadClassification() {
     if (!fs.existsSync(this.classificationFile)) {
       throw new Error(`分类文件不存在: ${this.classificationFile}`)
@@ -43,7 +128,7 @@ class PreferencesGenerator {
 
   extractPreferencesData(classification) {
     const allPreferencesData = []
-    const sources = ['electronStore', 'redux', 'localStorage']
+    const sources = ['electronStore', 'redux', 'localStorage', 'dexieSettings']
 
     // 递归提取项目，包括children
     const extractItems = (items, source, category, parentKey = '') => {
@@ -90,8 +175,8 @@ class PreferencesGenerator {
       targetKeyGroups[item.targetKey].push(item)
     })
 
-    // 去重：按redux > localStorage > electronStore优先级选择
-    const sourcePriority = { redux: 3, localStorage: 2, electronStore: 1 }
+    // 去重：按redux > dexieSettings > localStorage > electronStore优先级选择
+    const sourcePriority = { redux: 4, dexieSettings: 3, localStorage: 2, electronStore: 1 }
     const deduplicatedData = []
 
     Object.keys(targetKeyGroups).forEach((targetKey) => {
@@ -220,7 +305,7 @@ class PreferencesGenerator {
  * === AUTO-GENERATED CONTENT START ===
  */
 
-import { MEMORY_FACT_EXTRACTION_PROMPT, MEMORY_UPDATE_SYSTEM_PROMPT,TRANSLATE_PROMPT } from '@shared/config/prompts'
+import { TRANSLATE_PROMPT } from '@shared/config/prompts'
 import * as PreferenceTypes from '@shared/data/preference/preferenceTypes'
 
 /* eslint @typescript-eslint/member-ordering: ["error", {
@@ -242,6 +327,7 @@ import * as PreferenceTypes from '@shared/data/preference/preferenceTypes'
  * - electronStore项: ${preferencesData.filter((p) => p.source === 'electronStore').length}
  * - redux项: ${preferencesData.filter((p) => p.source === 'redux').length}
  * - localStorage项: ${preferencesData.filter((p) => p.source === 'localStorage').length}
+ * - dexieSettings项: ${preferencesData.filter((p) => p.source === 'dexieSettings').length}
  */`
 
     return [header, interfaceCode, defaultsCode, footer].join('\n\n')
@@ -373,6 +459,7 @@ export const DefaultPreferences: PreferenceSchemas = {`
     console.log(`- electronStore项: ${preferencesData.filter((p) => p.source === 'electronStore').length}`)
     console.log(`- redux项: ${preferencesData.filter((p) => p.source === 'redux').length}`)
     console.log(`- localStorage项: ${preferencesData.filter((p) => p.source === 'localStorage').length}`)
+    console.log(`- dexieSettings项: ${preferencesData.filter((p) => p.source === 'dexieSettings').length}`)
     console.log(`- 输出文件: ${this.targetFile}`)
 
     // 显示一些示例targetKey

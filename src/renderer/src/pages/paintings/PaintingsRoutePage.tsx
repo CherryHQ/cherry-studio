@@ -13,33 +13,44 @@ import AihubmixPage from './AihubmixPage'
 import DmxapiPage from './DmxapiPage'
 import NewApiPage from './NewApiPage'
 import OvmsPage from './OvmsPage'
+import PpioPage from './PpioPage'
 import SiliconPage from './SiliconPage'
 import TokenFluxPage from './TokenFluxPage'
 import ZhipuPage from './ZhipuPage'
 
 const logger = loggerService.withContext('PaintingsRoutePage')
 
-const BASE_OPTIONS: SystemProviderId[] = ['zhipu', 'aihubmix', 'silicon', 'dmxapi', 'tokenflux', 'ovms']
+const BASE_OPTIONS: SystemProviderId[] = ['zhipu', 'aihubmix', 'silicon', 'dmxapi', 'tokenflux', 'ovms', 'ppio']
 
 const PaintingsRoutePage: FC = () => {
-  const params = useParams({ strict: false }) as { _splat?: string }
+  const params = useParams({ strict: false })
   const provider = params._splat
   const dispatch = useAppDispatch()
   const providers = useAllProviders()
+  const [isOvmsSupported, setIsOvmsSupported] = useState(false)
   const [ovmsStatus, setOvmsStatus] = useState<'not-installed' | 'not-running' | 'running'>('not-running')
 
   const Options = useMemo(() => [...BASE_OPTIONS, ...providers.filter(isNewApiProvider).map((p) => p.id)], [providers])
   const newApiProviders = useMemo(() => providers.filter(isNewApiProvider), [providers])
 
   useEffect(() => {
-    const checkStatus = async () => {
-      const status = await window.api.ovms.getStatus()
-      setOvmsStatus(status)
+    const checkOvms = async () => {
+      const supported = await window.api.ovms.isSupported()
+      setIsOvmsSupported(supported)
+      if (supported) {
+        const status = await window.api.ovms.getStatus()
+        setOvmsStatus(status)
+      }
     }
-    checkStatus()
+    void checkOvms()
   }, [])
 
-  const validOptions = Options.filter((option) => option !== 'ovms' || ovmsStatus === 'running')
+  const validOptions = Options.filter((option) => {
+    if (option === 'ovms') {
+      return isOvmsSupported && ovmsStatus === 'running'
+    }
+    return true
+  })
 
   useEffect(() => {
     logger.debug(`defaultPaintingProvider: ${provider}`)
@@ -63,7 +74,10 @@ const PaintingsRoutePage: FC = () => {
       case 'tokenflux':
         return <TokenFluxPage Options={validOptions} />
       case 'ovms':
+        if (!isOvmsSupported) return null
         return <OvmsPage Options={validOptions} />
+      case 'ppio':
+        return <PpioPage Options={validOptions} />
       case 'new-api':
         return <NewApiPage Options={validOptions} />
       default:

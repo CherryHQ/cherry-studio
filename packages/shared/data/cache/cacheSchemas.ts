@@ -119,9 +119,7 @@ export type UseCacheSchema = {
   'chat.multi_select_mode': boolean
   'chat.selected_message_ids': string[]
   'chat.generating': boolean
-  'chat.websearch.searching': boolean
-  'chat.websearch.active_searches': CacheValueTypes.CacheActiveSearches
-  'chat.active_view': 'topic' | 'session'
+  'chat.web_search.searching': boolean
 
   // Minapp management
   'minapp.opened_keep_alive': CacheValueTypes.CacheMinAppType[]
@@ -138,6 +136,19 @@ export type UseCacheSchema = {
   'agent.active_id': string | null
   'agent.session.active_id_map': Record<string, string | null>
   'agent.session.waiting_id_map': Record<string, boolean>
+
+  // Translate page state management
+  /** Input text */
+  'translate.input': string
+  /** Output text */
+  'translate.output': string
+  /** Whether detecting source language or not */
+  'translate.detecting': boolean
+  /** Whether translating input text */
+  'translate.translating': CacheValueTypes.TranslatingState
+
+  // Assistant reasoning effort cache (per-assistant, not persisted to DB)
+  'assistant.reasoning_effort_cache.${assistantId}': string | undefined
 
   // Template key examples (for testing and demonstration)
   'scroll.position.${topicId}': number
@@ -168,7 +179,8 @@ export const DefaultUseCache: UseCacheSchema = {
     downloaded: false,
     downloadProgress: 0,
     available: false,
-    ignore: false
+    ignore: false,
+    manualCheck: false
   },
   'app.user.avatar': '',
   'app.path.files': '',
@@ -177,9 +189,7 @@ export const DefaultUseCache: UseCacheSchema = {
   'chat.multi_select_mode': false,
   'chat.selected_message_ids': [],
   'chat.generating': false,
-  'chat.websearch.searching': false,
-  'chat.websearch.active_searches': {},
-  'chat.active_view': 'topic',
+  'chat.web_search.searching': false,
 
   // Minapp management
   'minapp.opened_keep_alive': [],
@@ -197,6 +207,18 @@ export const DefaultUseCache: UseCacheSchema = {
   'agent.session.active_id_map': {},
   'agent.session.waiting_id_map': {},
 
+  // Translate page state management
+  'translate.input': '',
+  'translate.output': '',
+  'translate.detecting': false,
+  'translate.translating': {
+    isTranslating: false,
+    abortKey: null
+  },
+
+  // Assistant reasoning effort cache
+  'assistant.reasoning_effort_cache.${assistantId}': undefined,
+
   // Template key examples (for testing and demonstration)
   'scroll.position.${topicId}': 0,
   'entity.cache.${type}_${id}': { loaded: false, data: null },
@@ -213,11 +235,11 @@ export const DefaultUseCache: UseCacheSchema = {
  * Use shared cache schema for renderer hook
  */
 export type SharedCacheSchema = {
-  'example_scope.example_key': string
+  'chat.web_search.active_searches': CacheValueTypes.CacheActiveSearches
 }
 
 export const DefaultSharedCache: SharedCacheSchema = {
-  'example_scope.example_key': 'example default value'
+  'chat.web_search.active_searches': {}
 }
 
 /**
@@ -225,11 +247,23 @@ export const DefaultSharedCache: SharedCacheSchema = {
  * This ensures type safety and prevents key conflicts
  */
 export type RendererPersistCacheSchema = {
-  'ui.tab.state': CacheValueTypes.TabsState
+  'ui.tab.pinned_tabs': CacheValueTypes.Tab[]
+  'ui.sidebar.docked_tabs': CacheValueTypes.Tab[]
+  'ui.sidebar.width': number
+  'feature.mcp.is_uv_installed': boolean
+  'feature.mcp.is_bun_installed': boolean
+  // Multi-model list for @mention parallel answering, keyed by assistantId
+  // This is UI-level state, not core assistant config (default model is assistant.modelId)
+  'ui.assistant.multi_model_ids': Record<string, string[]>
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
-  'ui.tab.state': { tabs: [], activeTabId: '' }
+  'ui.tab.pinned_tabs': [],
+  'ui.sidebar.docked_tabs': [],
+  'ui.sidebar.width': 65,
+  'feature.mcp.is_uv_installed': false,
+  'feature.mcp.is_bun_installed': false,
+  'ui.assistant.multi_model_ids': {}
 }
 
 // ============================================================================

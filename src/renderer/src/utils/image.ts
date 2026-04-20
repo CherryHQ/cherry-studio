@@ -102,9 +102,22 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
         return Promise.reject()
       }
 
+      const filterHiddenElements = (node: Node) => {
+        if (node instanceof HTMLElement) {
+          if (node.style.display === 'none') {
+            return false
+          }
+          if (window.getComputedStyle(node).display === 'none') {
+            return false
+          }
+        }
+        return true
+      }
+
       const canvas = await new Promise<HTMLCanvasElement>((resolve, reject) => {
         htmlToImage
           .toCanvas(el, {
+            filter: filterHiddenElements,
             backgroundColor: getComputedStyle(el).getPropertyValue('--color-background'),
             cacheBust: true,
             pixelRatio: window.devicePixelRatio,
@@ -295,7 +308,7 @@ export async function captureScrollableIframe(
   let injectedFontStyle: HTMLStyleElement | null = null
 
   const ensureFontStyle = (css: string): HTMLStyleElement => {
-    const EXISTING = doc.head.querySelector('style[data-cs-inline-fonts="true"]') as HTMLStyleElement | null
+    const EXISTING = doc.head.querySelector<HTMLStyleElement>('style[data-cs-inline-fonts="true"]')
     if (EXISTING) {
       if (css && css.trim()) {
         EXISTING.textContent = `${EXISTING.textContent || ''}\n${css}`

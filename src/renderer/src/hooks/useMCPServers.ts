@@ -1,52 +1,88 @@
-import { createSelector } from '@reduxjs/toolkit'
+import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import { loggerService } from '@logger'
 import NavigationService from '@renderer/services/NavigationService'
-import type { RootState } from '@renderer/store'
-import store, { useAppDispatch, useAppSelector } from '@renderer/store'
-import { addMCPServer, deleteMCPServer, setMCPServers, updateMCPServer } from '@renderer/store/mcp'
-import type { MCPServer } from '@renderer/types'
+import type { CreateMCPServerDto, ListMCPServersQuery } from '@shared/data/api/schemas/mcpServers'
+import type { MCPServer } from '@shared/data/types/mcpServer'
 import { IpcChannel } from '@shared/IpcChannel'
+import { useCallback, useMemo } from 'react'
 
-// Listen for server changes from main process
-window.electron.ipcRenderer.on(IpcChannel.Mcp_ServersChanged, (_event, servers) => {
-  store.dispatch(setMCPServers(servers))
+// Navigate to MCP server settings when a server is installed via URL scheme
+window.electron.ipcRenderer.on(IpcChannel.Mcp_AddServer, (_event, server: { id: string }) => {
+  void NavigationService.navigate?.({ to: '/settings/mcp' })
+  void NavigationService.navigate?.({ to: `/settings/mcp/settings/${server.id}` })
 })
 
-window.electron.ipcRenderer.on(IpcChannel.Mcp_AddServer, (_event, server: MCPServer) => {
-  store.dispatch(addMCPServer(server))
-  NavigationService.navigate?.({ to: '/settings/mcp' })
-  NavigationService.navigate?.({ to: `/settings/mcp/settings/${encodeURIComponent(server.id)}` })
-})
+/**
+ * MCP servers list hook — data fetching with optional filters and create mutation.
+ */
+export const useMCPServers = (query?: ListMCPServersQuery) => {
+  const { data, isLoading, mutate } = useQuery('/mcp-servers', { query })
 
-const selectMcpServers = (state: RootState) => state.mcp.servers
-const selectActiveMcpServers = createSelector([selectMcpServers], (servers) =>
-  servers.filter((server) => server.isActive)
-)
+  const mcpServers = useMemo(() => data?.items ?? [], [data])
 
-export const useMCPServers = () => {
-  const mcpServers = useAppSelector(selectMcpServers)
-  const activedMcpServers = useAppSelector(selectActiveMcpServers)
-  const dispatch = useAppDispatch()
+  const { trigger: createMCPServer } = useMutation('POST', '/mcp-servers', {
+    refresh: ['/mcp-servers']
+  })
+
+  const addMCPServer = useCallback((dto: CreateMCPServerDto) => createMCPServer({ body: dto }), [createMCPServer])
+
+  const { trigger: reorderTrigger } = useMutation('PATCH', '/mcp-servers', {
+    refresh: ['/mcp-servers']
+  })
+
+  const reorderMCPServers = useCallback(
+    (reorderedList: MCPServer[]) => {
+      void mutate(data ? { ...data, items: reorderedList } : undefined, false)
+      reorderTrigger({ body: { orderedIds: reorderedList.map((s) => s.id) } }).catch((error) => {
+        loggerService.withContext('useMCPServers').warn('Failed to reorder MCP servers, reverting', error as Error)
+        void mutate()
+      })
+    },
+    [data, mutate, reorderTrigger]
+  )
 
   return {
     mcpServers,
-    activedMcpServers,
-    addMCPServer: (server: MCPServer) => dispatch(addMCPServer(server)),
-    updateMCPServer: (server: MCPServer) => dispatch(updateMCPServer(server)),
-    deleteMCPServer: (id: string) => dispatch(deleteMCPServer(id)),
-    setMCPServerActive: (server: MCPServer, isActive: boolean) => dispatch(updateMCPServer({ ...server, isActive })),
-    getActiveMCPServers: () => mcpServers.filter((server) => server.isActive),
-    updateMcpServers: (servers: MCPServer[]) => dispatch(setMCPServers(servers))
+    isLoading,
+    addMCPServer,
+    reorderMCPServers,
+    refetch: mutate
   }
 }
 
+/**
+ * Single MCP server hook — read + update + delete.
+ * Fetches via the list endpoint with an id filter (separate SWR cache entry
+ * from the unfiltered list). Mutations use refresh: ['/mcp-servers'] to
+ * auto-invalidate all /mcp-servers caches (list, filtered, and detail).
+ */
 export const useMCPServer = (id: string) => {
-  const server = useAppSelector((state) => (state.mcp.servers || []).find((server) => server.id === id))
-  const dispatch = useAppDispatch()
+  const { data, isLoading } = useQuery('/mcp-servers', {
+    query: { id },
+    enabled: !!id
+  })
 
-  return {
-    server,
-    updateMCPServer: (server: MCPServer) => dispatch(updateMCPServer(server)),
-    setMCPServerActive: (server: MCPServer, isActive: boolean) => dispatch(updateMCPServer({ ...server, isActive })),
-    deleteMCPServer: (id: string) => dispatch(deleteMCPServer(id))
-  }
+  const { updateMCPServer, deleteMCPServer } = useMCPServerMutations(id)
+
+  const server = useMemo(() => data?.items?.[0], [data])
+
+  return { server, isLoading, updateMCPServer, deleteMCPServer }
+}
+
+/**
+ * Mutation-only hook for a single MCP server — no query, no N+1.
+ * Use when server data is already available from a parent (e.g. from useMCPServers list).
+ */
+export const useMCPServerMutations = (id: string) => {
+  const path = `/mcp-servers/${id}` as const
+
+  const { trigger: updateMCPServer } = useMutation('PATCH', path, {
+    refresh: ['/mcp-servers']
+  })
+
+  const { trigger: deleteMCPServer } = useMutation('DELETE', path, {
+    refresh: ['/mcp-servers']
+  })
+
+  return { updateMCPServer, deleteMCPServer }
 }

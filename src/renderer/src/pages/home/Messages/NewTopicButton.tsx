@@ -13,7 +13,7 @@ const NewTopicButton: FC = () => {
   const { theme } = useTheme()
 
   const addNewTopic = () => {
-    EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)
+    void EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)
   }
 
   return (

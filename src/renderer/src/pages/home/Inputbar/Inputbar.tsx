@@ -1,4 +1,5 @@
 import { cacheService } from '@data/CacheService'
+import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import {
@@ -11,7 +12,6 @@ import {
   isWebSearchModel
 } from '@renderer/config/models'
 import { useCache } from '@renderer/data/hooks/useCache'
-import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useInputText } from '@renderer/hooks/useInputText'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
@@ -24,16 +24,23 @@ import {
   useInputbarToolsInternalDispatch,
   useInputbarToolsState
 } from '@renderer/pages/home/Inputbar/context/InputbarToolsProvider'
-import { getDefaultTopic } from '@renderer/services/AssistantService'
+import { getDefaultTopic, mapLegacyTopicToDto } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
 import { checkRateLimit, getUserMessage } from '@renderer/services/MessagesService'
 import { spanManagerService } from '@renderer/services/SpanManagerService'
 import { estimateTextTokens as estimateTxtTokens, estimateUserPromptUsage } from '@renderer/services/TokenService'
-import WebSearchService from '@renderer/services/WebSearchService'
+import { webSearchService } from '@renderer/services/WebSearchService'
 import { useAppDispatch } from '@renderer/store'
 import { sendMessage as _sendMessage } from '@renderer/store/thunk/messageThunk'
-import { type Assistant, type FileType, type KnowledgeBase, type Model, type Topic, TopicType } from '@renderer/types'
+import {
+  type Assistant,
+  type FileMetadata,
+  type KnowledgeBase,
+  type Model,
+  type Topic,
+  TopicType
+} from '@renderer/types'
 import type { MessageInputBaseParams } from '@renderer/types/newMessage'
 import { delay } from '@renderer/utils'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
@@ -96,7 +103,7 @@ const Inputbar: FC<Props> = ({ assistant: initialAssistant, setActiveTopic, topi
 
   const initialState = useMemo(
     () => ({
-      files: [] as FileType[],
+      files: [] as FileMetadata[],
       mentionedModels: initialMentionedModels,
       selectedKnowledgeBases: initialAssistant.knowledge_bases ?? [],
       isExpanded: false,
@@ -239,7 +246,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
       { topicId: topic.id, name: 'sendMessage', inputs: text },
       mentionedModels.length > 0 ? mentionedModels : [assistant.model]
     )
-    EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: topic.id, traceId: parent?.spanContext().traceId })
+    void EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: topic.id, traceId: parent?.spanContext().traceId })
 
     try {
       const uploadedFiles = await FileManager.uploadFiles(files)
@@ -257,17 +264,31 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
       const { message, blocks } = getUserMessage(baseUserMessage)
       message.traceId = parent?.spanContext().traceId
 
-      dispatch(_sendMessage(message, blocks, assistant, topic.id))
+      void dispatch(_sendMessage(message, blocks, assistant, topic.id))
 
       setText('')
       setFiles([])
       setTimeoutTimer('sendMessage_1', () => setText(''), 500)
       setTimeoutTimer('sendMessage_2', () => resizeTextArea(), 0)
+      // Restore focus to textarea after sending to maintain IME state (fcitx5 issue)
+      focusTextarea()
     } catch (error) {
       logger.warn('Failed to send message:', error as Error)
       parent?.recordException(error as Error)
     }
-  }, [assistant, topic, text, mentionedModels, files, dispatch, setText, setFiles, setTimeoutTimer, resizeTextArea])
+  }, [
+    assistant,
+    topic,
+    text,
+    mentionedModels,
+    files,
+    dispatch,
+    setText,
+    setFiles,
+    setTimeoutTimer,
+    resizeTextArea,
+    focusTextarea
+  ])
 
   const tokenCountProps = useMemo(() => {
     if (!config.showTokenCount || estimateTokenCount === undefined || !showInputEstimatedTokens) {
@@ -291,29 +312,36 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
       await delay(1)
     }
 
-    EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, topic)
+    void EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, topic)
     focusTextarea()
   }, [focusTextarea, loading, onPause, topic])
 
   const onNewContext = useCallback(() => {
     if (loading) {
-      onPause()
+      void onPause()
       return
     }
-    EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
+    void EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
   }, [loading, onPause])
 
   const addNewTopic = useCallback(async () => {
     const newTopic = getDefaultTopic(assistant.id)
 
-    await db.topics.add({ id: newTopic.id, messages: [] })
+    // Create topic via Data API and use server-returned data
+    const createdTopic = await dataApiService.post('/topics', {
+      body: mapLegacyTopicToDto(newTopic)
+    })
+
+    logger.silly('create topic in sqlite', { id: createdTopic.id })
 
     if (assistant.defaultModel) {
       setModel(assistant.defaultModel)
     }
 
-    addTopic(newTopic)
-    setActiveTopic(newTopic)
+    // @ts-ignore TODO: #13748
+    addTopic(createdTopic)
+    // @ts-ignore
+    setActiveTopic(createdTopic)
 
     setTimeoutTimer('addNewTopic', () => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
   }, [addTopic, assistant.defaultModel, assistant.id, setActiveTopic, setModel, setTimeoutTimer])
@@ -355,16 +383,16 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
   }, [resizeTextArea, addNewTopic, clearTopic, onNewContext, setText, handleToggleExpanded, actionsRef])
 
   useShortcut(
-    'new_topic',
+    'topic.new',
     () => {
-      addNewTopic()
-      EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
+      void addNewTopic()
+      void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
       focusTextarea()
     },
     { preventDefault: true, enableOnFormTags: true }
   )
 
-  useShortcut('clear_topic', clearTopic, {
+  useShortcut('chat.clear', clearTopic, {
     preventDefault: true,
     enableOnFormTags: true
   })
@@ -424,7 +452,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
     // Clear web search provider if disabled or model has mandatory search
     if (
       assistant.webSearchProviderId &&
-      (!WebSearchService.isWebSearchEnabled(assistant.webSearchProviderId) || isMandatoryWebSearchModel(model))
+      (!webSearchService.isWebSearchEnabled(assistant.webSearchProviderId) || isMandatoryWebSearchModel(model))
     ) {
       updateAssistant({ ...assistant, webSearchProviderId: undefined })
     }
@@ -460,7 +488,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
   )
 
   // leftToolbar: 左侧工具栏
-  const leftToolbar = config.showTools ? <InputbarTools scope={scope} assistantId={assistant.id} /> : null
+  const leftToolbar = config.showTools ? <InputbarTools scope={scope} assistant={assistant} model={model} /> : null
 
   // rightToolbar: 右侧工具栏
   const rightToolbar = (

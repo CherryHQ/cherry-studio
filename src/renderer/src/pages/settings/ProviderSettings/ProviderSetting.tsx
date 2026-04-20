@@ -2,6 +2,7 @@ import { Button, Flex, RowFlex, Switch, Tooltip, WarnTooltip } from '@cherrystud
 import { HelpTooltip } from '@cherrystudio/ui'
 import { adaptProvider } from '@renderer/aiCore/provider/providerConfig'
 import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
+import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
 import { LoadingIcon } from '@renderer/components/Icons'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
 import Selector from '@renderer/components/Selector'
@@ -21,7 +22,7 @@ import { isSystemProvider, isSystemProviderId, SystemProviderIds } from '@render
 import type { ApiKeyConnectivity } from '@renderer/types/healthCheck'
 import { HealthStatus } from '@renderer/types/healthCheck'
 import { formatApiHost, formatApiKeys, getFancyProviderName, validateApiHost } from '@renderer/utils'
-import { formatErrorMessage } from '@renderer/utils/error'
+import { serializeHealthCheckError } from '@renderer/utils/error'
 import {
   isAIGatewayProvider,
   isAnthropicProvider,
@@ -39,7 +40,7 @@ import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
 import { Bolt, Check, Settings2, SquareArrowOutUpRight } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -53,6 +54,7 @@ import {
 } from '..'
 import ApiOptionsSettingsPopup from './ApiOptionsSettings/ApiOptionsSettingsPopup'
 import AwsBedrockSettings from './AwsBedrockSettings'
+import CherryINOAuth from './CherryINOAuth'
 import CherryINSettings from './CherryINSettings'
 import CustomHeaderPopup from './CustomHeaderPopup'
 import DMXAPISettings from './DMXAPISettings'
@@ -66,6 +68,8 @@ import VertexAISettings from './VertexAISettings'
 
 interface Props {
   providerId: string
+  /** Whether in onboarding mode for new users */
+  isOnboarding?: boolean
 }
 
 const ANTHROPIC_COMPATIBLE_PROVIDER_IDS = [
@@ -84,7 +88,8 @@ const ANTHROPIC_COMPATIBLE_PROVIDER_IDS = [
   SystemProviderIds.dmxapi,
   SystemProviderIds.mimo,
   SystemProviderIds.openrouter,
-  SystemProviderIds.tokenflux
+  SystemProviderIds.tokenflux,
+  SystemProviderIds.ollama
 ] as const
 type AnthropicCompatibleProviderId = (typeof ANTHROPIC_COMPATIBLE_PROVIDER_IDS)[number]
 
@@ -95,7 +100,7 @@ const isAnthropicCompatibleProviderId = (id: string): id is AnthropicCompatibleP
 
 type HostField = 'apiHost' | 'anthropicApiHost'
 
-const ProviderSetting: FC<Props> = ({ providerId }) => {
+const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
   const { provider, updateProvider, models } = useProvider(providerId)
   const allProviders = useAllProviders()
   const { updateProviders } = useProviders()
@@ -137,31 +142,56 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     [dispatch, provider.id]
   )
 
+  // Store callbacks in ref to avoid recreating debounce function when dependencies change
+  const callbacks = { updateProvider, updateWebSearchProviderKey, isOnboarding, providerEnabled: provider.enabled }
+  const callbacksRef = useRef(callbacks)
+  callbacksRef.current = callbacks
+
   const debouncedUpdateApiKey = useMemo(
     () =>
       debounce((value: string) => {
-        updateProvider({ apiKey: formatApiKeys(value) })
-        updateWebSearchProviderKey({ apiKey: formatApiKeys(value) })
+        const { updateProvider, updateWebSearchProviderKey, isOnboarding, providerEnabled } = callbacksRef.current
+        const formattedKey = formatApiKeys(value)
+        updateProvider({ apiKey: formattedKey })
+        updateWebSearchProviderKey({ apiKey: formattedKey })
+        // Auto-enable provider when apiKey is updated in onboarding mode
+        if (isOnboarding && formattedKey && !providerEnabled) {
+          updateProvider({ enabled: true })
+        }
       }, 150),
-    [updateProvider, updateWebSearchProviderKey]
+    []
   )
 
-  // 同步 provider.apiKey 到 localApiKey
-  // 重置连通性检查状态
+  // Track whether update comes from external source to avoid loops
+  const isExternalUpdateRef = useRef(false)
+
+  // Sync provider.apiKey to localApiKey and reset connectivity status
   useEffect(() => {
+    // Cancel any pending debounce calls to prevent old values from overwriting new ones
+    debouncedUpdateApiKey.cancel()
+    isExternalUpdateRef.current = true
     setLocalApiKey(provider.apiKey)
     setApiKeyConnectivity({ status: HealthStatus.NOT_CHECKED })
-  }, [provider.apiKey])
+  }, [provider.apiKey, debouncedUpdateApiKey])
 
-  // 同步 localApiKey 到 provider.apiKey（防抖）
+  // Sync localApiKey to provider.apiKey (debounced)
+  // Only trigger on user input, not on external updates
   useEffect(() => {
+    if (isExternalUpdateRef.current) {
+      isExternalUpdateRef.current = false
+      return
+    }
     if (localApiKey !== provider.apiKey) {
       debouncedUpdateApiKey(localApiKey)
     }
-
-    // 卸载时取消任何待执行的更新
-    return () => debouncedUpdateApiKey.cancel()
   }, [localApiKey, provider.apiKey, debouncedUpdateApiKey])
+
+  // Flush pending updates on unmount to prevent data loss
+  useEffect(() => {
+    return () => {
+      debouncedUpdateApiKey.flush()
+    }
+  }, [debouncedUpdateApiKey])
 
   const isApiKeyConnectable = useMemo(() => {
     return apiKeyConnectivity.status === 'success'
@@ -189,7 +219,13 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       return
     }
     if (isVertexProvider(provider) || apiHost.trim()) {
-      updateProvider({ apiHost })
+      // For new-api provider, keep apiHost and anthropicApiHost in sync
+      if (isNewApiProvider(provider)) {
+        updateProvider({ apiHost, anthropicApiHost: apiHost })
+        setAnthropicHost(apiHost)
+      } else {
+        updateProvider({ apiHost })
+      }
     } else {
       setApiHost(provider.apiHost)
     }
@@ -223,6 +259,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
 
   const onCheckApi = async () => {
     const formattedLocalKey = formatApiKeys(localApiKey)
+
     // 如果存在多个密钥，直接打开管理窗口
     if (formattedLocalKey.includes(',')) {
       await openApiKeyList()
@@ -256,6 +293,12 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       })
 
       setApiKeyConnectivity((prev) => ({ ...prev, status: HealthStatus.SUCCESS }))
+
+      // Auto-enable provider when API check succeeds in onboarding mode
+      if (isOnboarding && !provider.enabled) {
+        updateProvider({ enabled: true })
+      }
+
       setTimeoutTimer(
         'onCheckApi',
         () => {
@@ -263,13 +306,15 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
         },
         3000
       )
-    } catch (error: any) {
+    } catch (error: unknown) {
       window.toast.error({
         timeout: 8000,
         title: i18n.t('message.api.connection.failed')
       })
 
-      setApiKeyConnectivity((prev) => ({ ...prev, status: HealthStatus.FAILED, error: formatErrorMessage(error) }))
+      const serializedError = serializeHealthCheckError(error)
+
+      setApiKeyConnectivity((prev) => ({ ...prev, status: HealthStatus.FAILED, error: serializedError }))
     } finally {
       setApiKeyConnectivity((prev) => ({ ...prev, checking: false }))
     }
@@ -298,7 +343,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     if (isAzureOpenAIProvider(provider)) {
       const apiVersion = provider.apiVersion || ''
       const path = !['preview', 'v1'].includes(apiVersion)
-        ? `/v1/chat/completion?apiVersion=v1`
+        ? `/v1/chat/completions?apiVersion=v1`
         : `/v1/responses?apiVersion=v1`
       return formattedApiHost + path
     }
@@ -329,10 +374,15 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     }
 
     return (
-      <WarnTooltip
-        content={<ErrorOverlay>{apiKeyConnectivity.error}</ErrorOverlay>}
-        iconProps={{ size: 16, color: 'var(--color-status-warning)' }}
-      />
+      <>
+        <WarnTooltip
+          content={
+            <ErrorOverlay>{apiKeyConnectivity.error?.message || t('settings.models.check.failed')}</ErrorOverlay>
+          }
+          iconProps={{ size: 16, color: 'var(--color-status-warning)' }}
+          onClick={() => showErrorDetailPopup({ error: apiKeyConnectivity.error })}
+        />
+      </>
     )
   }
 
@@ -428,6 +478,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       </SettingTitle>
       <Divider style={{ width: '100%', margin: '10px 0' }} />
       {isProviderSupportAuth(provider) && <ProviderOAuth providerId={provider.id} />}
+      {isCherryIN && <CherryINOAuth providerId={provider.id} />}
       {provider.id === 'openai' && <OpenAIAlert />}
       {provider.id === 'ovms' && <OVMSSettings />}
       {isDmxapi && <DMXAPISettings providerId={provider.id} />}
@@ -510,7 +561,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
                       <Selector
                         size={14}
                         value={activeHostField}
-                        onChange={(value) => setActiveHostField(value as HostField)}
+                        onChange={(value) => setActiveHostField(value)}
                         options={hostSelectorOptions}
                         style={{ paddingLeft: 1, fontWeight: 'bold' }}
                         placement="bottomLeft"

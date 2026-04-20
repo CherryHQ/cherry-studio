@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * @deprecated Scheduled for removal in v2.0.0
  * --------------------------------------------------------------------------
@@ -135,6 +136,13 @@ const initialState: ShortcutsState = {
       system: false
     },
     {
+      key: 'select_model',
+      shortcut: ['CommandOrControl', 'Shift', 'M'],
+      editable: true,
+      enabled: true,
+      system: false
+    },
+    {
       key: 'exit_fullscreen',
       shortcut: ['Escape'],
       editable: false,
@@ -160,15 +168,15 @@ const shortcutsSlice = createSlice({
   reducers: {
     updateShortcut: (state, action: PayloadAction<Shortcut>) => {
       state.shortcuts = state.shortcuts.map((s) => (s.key === action.payload.key ? action.payload : s))
-      window.api.shortcuts.update(getSerializableShortcuts(state.shortcuts))
+      void window.api.shortcuts.update(getSerializableShortcuts(state.shortcuts))
     },
     toggleShortcut: (state, action: PayloadAction<string>) => {
       state.shortcuts = state.shortcuts.map((s) => (s.key === action.payload ? { ...s, enabled: !s.enabled } : s))
-      window.api.shortcuts.update(getSerializableShortcuts(state.shortcuts))
+      void window.api.shortcuts.update(getSerializableShortcuts(state.shortcuts))
     },
     resetShortcuts: (state) => {
       state.shortcuts = initialState.shortcuts
-      window.api.shortcuts.update(getSerializableShortcuts(state.shortcuts))
+      void window.api.shortcuts.update(getSerializableShortcuts(state.shortcuts))
     }
   }
 })
