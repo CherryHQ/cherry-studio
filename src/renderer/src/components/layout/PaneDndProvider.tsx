@@ -1,13 +1,4 @@
-import {
-  DndContext,
-  type DragEndEvent,
-  type DragMoveEvent,
-  DragOverlay,
-  type DragStartEvent,
-  KeyboardSensor,
-  useSensor,
-  useSensors
-} from '@dnd-kit/core'
+import { DndContext, DragOverlay, type DragStartEvent, KeyboardSensor, useSensor, useSensors } from '@dnd-kit/core'
 import type { PaneDirection, PaneTab } from '@shared/data/cache/cacheValueTypes'
 import type { ReactNode } from 'react'
 import { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -135,58 +126,52 @@ export function PaneDndProvider({ children }: { children: ReactNode }) {
     setPreview(null)
   }, [])
 
-  const handleDragMove = useCallback(
-    (_e: DragMoveEvent) => {
-      if (!activeDrag) return
-      const next = computePreview()
-      setPreview((prev) => (previewsEqual(prev, next) ? prev : next))
-    },
-    [activeDrag, computePreview]
-  )
+  const handleDragMove = useCallback(() => {
+    if (!activeDrag) return
+    const next = computePreview()
+    setPreview((prev) => (previewsEqual(prev, next) ? prev : next))
+  }, [activeDrag, computePreview])
 
-  const handleDragEnd = useCallback(
-    (_e: DragEndEvent) => {
-      const drag = activeDrag
-      const current = preview
-      setActiveDrag(null)
-      setPreview(null)
+  const handleDragEnd = useCallback(() => {
+    const drag = activeDrag
+    const current = preview
+    setActiveDrag(null)
+    setPreview(null)
 
-      if (!drag) return
+    if (!drag) return
 
-      if (!current) {
-        // Dropped outside any pane — detach if pointer is well outside the window.
-        const pt = pointerRef.current
-        const margin = 30
-        const out =
-          pt.x < -margin || pt.y < -margin || pt.x > window.innerWidth + margin || pt.y > window.innerHeight + margin
-        if (out) {
-          detachTab(drag.paneId, drag.tabId)
-        }
-        return
+    if (!current) {
+      // Dropped outside any pane — detach if pointer is well outside the window.
+      const pt = pointerRef.current
+      const margin = 30
+      const out =
+        pt.x < -margin || pt.y < -margin || pt.x > window.innerWidth + margin || pt.y > window.innerHeight + margin
+      if (out) {
+        detachTab(drag.paneId, drag.tabId)
       }
+      return
+    }
 
-      if (current.kind === 'reorder') {
-        // insertIndex is the target position; reorderTabsInPane takes (oldIndex, newIndex).
-        const geom = geometryRef.current.get(current.paneId)
-        if (!geom) return
-        const fromIndex = geom.tabButtonRects.findIndex((r) => r.tabId === drag.tabId)
-        if (fromIndex === -1) return
-        const toIndex = current.insertIndex > fromIndex ? current.insertIndex - 1 : current.insertIndex
-        reorderTabsInPane(current.paneId, fromIndex, toIndex)
-        return
-      }
+    if (current.kind === 'reorder') {
+      // insertIndex is the target position; reorderTabsInPane takes (oldIndex, newIndex).
+      const geom = geometryRef.current.get(current.paneId)
+      if (!geom) return
+      const fromIndex = geom.tabButtonRects.findIndex((r) => r.tabId === drag.tabId)
+      if (fromIndex === -1) return
+      const toIndex = current.insertIndex > fromIndex ? current.insertIndex - 1 : current.insertIndex
+      reorderTabsInPane(current.paneId, fromIndex, toIndex)
+      return
+    }
 
-      if (current.kind === 'move') {
-        moveTabToPane(drag.paneId, drag.tabId, current.paneId, current.insertIndex)
-        return
-      }
+    if (current.kind === 'move') {
+      moveTabToPane(drag.paneId, drag.tabId, current.paneId, current.insertIndex)
+      return
+    }
 
-      if (current.kind === 'split') {
-        splitPaneWithTab(drag.paneId, drag.tabId, current.paneId, current.direction, current.placement)
-      }
-    },
-    [activeDrag, preview, geometryRef, reorderTabsInPane, moveTabToPane, splitPaneWithTab, detachTab]
-  )
+    if (current.kind === 'split') {
+      splitPaneWithTab(drag.paneId, drag.tabId, current.paneId, current.direction, current.placement)
+    }
+  }, [activeDrag, preview, geometryRef, reorderTabsInPane, moveTabToPane, splitPaneWithTab, detachTab])
 
   const handleDragCancel = useCallback(() => {
     setActiveDrag(null)
