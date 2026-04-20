@@ -35,6 +35,7 @@ import type { GoogleGenerativeAIProviderOptions } from '@ai-sdk/google'
 import type { OpenAIResponsesProviderOptions } from '@ai-sdk/openai'
 import type { XaiProviderOptions } from '@ai-sdk/xai'
 import { loggerService } from '@logger'
+import type { Assistant } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import {
   type GroqServiceTier,
@@ -58,7 +59,7 @@ import {
   isSupportVerbosityModel
 } from '@shared/utils/model'
 import { isSupportServiceTierProvider, isSupportVerbosityProvider } from '@shared/utils/provider'
-import { type Assistant, SystemProviderIds } from '@types'
+import { SystemProviderIds } from '@types'
 import type { JSONValue } from 'ai'
 import { merge } from 'lodash'
 import type { OllamaProviderOptions } from 'ollama-ai-provider-v2'
@@ -554,10 +555,14 @@ function buildAIGatewayOptions(
   textVerbosity?: OpenAIVerbosity
 ): Record<
   string,
-  OpenAIResponsesProviderOptions | AnthropicProviderOptions | GoogleGenerativeAIProviderOptions | Record<string, unknown>
+  | OpenAIResponsesProviderOptions
+  | AnthropicProviderOptions
+  | GoogleGenerativeAIProviderOptions
+  | Record<string, unknown>
 > {
   if (isAnthropicModel(model)) return buildAnthropicProviderOptions(assistant, model, capabilities)
-  if (isOpenAIModel(model)) return buildOpenAIProviderOptions(assistant, model, capabilities, provider, serviceTier, textVerbosity)
+  if (isOpenAIModel(model))
+    return buildOpenAIProviderOptions(assistant, model, capabilities, provider, serviceTier, textVerbosity)
   if (isGeminiModel(model)) return buildGeminiProviderOptions(assistant, model, capabilities)
   if (isGrokModel(model)) return buildXAIProviderOptions(assistant, model, capabilities)
   return buildGenericProviderOptions('openai-compatible', assistant, model, capabilities, provider)

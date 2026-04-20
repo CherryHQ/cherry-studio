@@ -6,9 +6,11 @@ import type { XaiProviderOptions } from '@ai-sdk/xai'
 import type OpenAI from '@cherrystudio/openai'
 import { loggerService } from '@logger'
 import { DEFAULT_MAX_TOKENS } from '@shared/config/constants'
+import type { Assistant } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import type { OpenAIReasoningSummary, ReasoningEffortOption } from '@shared/types/aiSdk'
 import {
   findTokenLimit,
   GEMINI_FLASH_MODEL_REGEX,
@@ -44,10 +46,8 @@ import {
   isSupportNoneReasoningEffortModel
 } from '@shared/utils/model'
 import { isSupportEnableThinkingProvider } from '@shared/utils/provider'
-import type { Assistant, ReasoningEffortOption } from '@types'
 import { EFFORT_RATIO, isSystemProviderId, SystemProviderIds } from '@types'
 import { toInteger } from 'lodash'
-import type { OpenAIReasoningEffort, OpenAIReasoningSummary } from '@shared/types/aiSdk'
 import type { OllamaProviderOptions } from 'ollama-ai-provider-v2'
 
 const logger = loggerService.withContext('reasoning')
@@ -55,9 +55,9 @@ const logger = loggerService.withContext('reasoning')
 type ReasoningEffortOptionalParams = {
   thinking?: { type: 'disabled' | 'enabled' | 'auto'; budget_tokens?: number }
   reasoning?: { max_tokens?: number; exclude?: boolean; effort?: string; enabled?: boolean } | OpenAI.Reasoning
-  reasoningEffort?: OpenAIReasoningEffort
+  reasoningEffort?: ReasoningEffortOption
   // WARN: This field will be overwrite to undefined by aisdk if the provider is openai-compatible. Use reasoningEffort instead.
-  reasoning_effort?: OpenAIReasoningEffort
+  reasoning_effort?: ReasoningEffortOption
   enable_thinking?: boolean
   thinking_budget?: number
   incremental_output?: boolean
@@ -79,7 +79,7 @@ type ReasoningEffortOptionalParams = {
       type: 'enabled' | 'disabled'
     }
     thinking_budget?: number
-    reasoning_effort?: OpenAIReasoningEffort
+    reasoning_effort?: ReasoningEffortOption
   }
   disable_reasoning?: boolean
   // Add any other potential reasoning-related keys here if they exist
@@ -106,7 +106,7 @@ export function getReasoningEffort(
       reasoning_effort: 'medium'
     }
   }
-  const reasoningEffort = assistant?.settings?.reasoning_effort
+  const reasoningEffort = assistant?.settings?.reasoning_effort as ReasoningEffortOption | undefined
 
   // reasoningEffort is not set, no extra reasoning setting
   // Generally, for every model which supports reasoning control, the reasoning effort won't be undefined.
@@ -489,7 +489,7 @@ export function getReasoningEffort(
     } else {
       // 如果不支持，fallback到第一个支持的值
       return {
-        reasoningEffort: supportedOptions?.[0] as OpenAIReasoningEffort | undefined
+        reasoningEffort: supportedOptions?.[0] as ReasoningEffortOption | undefined
       }
     }
   }
@@ -777,7 +777,7 @@ export function getGeminiReasoningParams(
     return {}
   }
 
-  const reasoningEffort = assistant?.settings?.reasoning_effort
+  const reasoningEffort = assistant?.settings?.reasoning_effort as ReasoningEffortOption | undefined
 
   if (!reasoningEffort || reasoningEffort === 'default') {
     return {}

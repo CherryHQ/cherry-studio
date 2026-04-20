@@ -1,9 +1,5 @@
 import { SpanStatusCode, trace } from '@opentelemetry/api'
-import {
-  BasicTracerProvider,
-  InMemorySpanExporter,
-  SimpleSpanProcessor
-} from '@opentelemetry/sdk-trace-base'
+import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base'
 import type {
   ResolvedWebSearchProvider,
   WebSearchExecutionConfig,

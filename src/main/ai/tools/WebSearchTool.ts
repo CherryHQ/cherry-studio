@@ -18,8 +18,8 @@
  */
 
 import { loggerService } from '@logger'
-import { webSearchService } from '@main/services/webSearch/WebSearchService'
 import { fetchWebSearchContent } from '@main/services/webSearch/utils/fetchContent'
+import { webSearchService } from '@main/services/webSearch/WebSearchService'
 import { REFERENCE_PROMPT } from '@shared/config/prompts'
 import type { WebSearchProviderId } from '@shared/data/preference/preferenceTypes'
 import type { WebSearchResponse, WebSearchResult } from '@shared/data/types/webSearch'
@@ -48,9 +48,7 @@ export const webSearchToolWithPreExtractedKeywords = (
 
 This tool has been configured with search parameters based on the conversation context:
 - Prepared queries: ${extractedKeywords.question.map((q) => `"${q}"`).join(', ')}${
-      extractedKeywords.links?.length
-        ? `\n- Relevant URLs: ${extractedKeywords.links.join(', ')}`
-        : ''
+      extractedKeywords.links?.length ? `\n- Relevant URLs: ${extractedKeywords.links.join(', ')}` : ''
     }
 
 You can use this tool as-is to search with the prepared queries, or provide additionalContext to refine or replace the search terms.`,

@@ -39,20 +39,12 @@ function makeProvider(overrides: Partial<Provider> = {}): Provider {
 
 describe('addAnthropicHeaders', () => {
   it('adds interleaved-thinking beta for Claude 4.5 reasoning + function tool use on direct Anthropic', () => {
-    const headers = addAnthropicHeaders(
-      makeAssistant({ toolUseMode: 'function' }),
-      makeModel(),
-      makeProvider()
-    )
+    const headers = addAnthropicHeaders(makeAssistant({ toolUseMode: 'function' }), makeModel(), makeProvider())
     expect(headers).toContain('interleaved-thinking-2025-05-14')
   })
 
   it('skips interleaved-thinking when tool use mode is `prompt`', () => {
-    const headers = addAnthropicHeaders(
-      makeAssistant({ toolUseMode: 'prompt' }),
-      makeModel(),
-      makeProvider()
-    )
+    const headers = addAnthropicHeaders(makeAssistant({ toolUseMode: 'prompt' }), makeModel(), makeProvider())
     expect(headers).not.toContain('interleaved-thinking-2025-05-14')
   })
 

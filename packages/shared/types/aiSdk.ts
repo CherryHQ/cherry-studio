@@ -23,7 +23,7 @@ export type OpenAIVerbosity = OpenAI.Responses.ResponseTextConfig['verbosity']
 export type ValidOpenAIVerbosity = NotUndefined<OpenAIVerbosity>
 
 /** Reasoning effort level accepted by OpenAI reasoning-capable models. */
-export type OpenAIReasoningEffort = NonNullable<OpenAI.ReasoningEffort> | 'auto'
+export type ReasoningEffortOption = NonNullable<OpenAI.ReasoningEffort> | 'auto' | 'default'
 
 /**
  * Summary configuration for OpenAI reasoning responses.
