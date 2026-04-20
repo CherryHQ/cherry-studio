@@ -2,12 +2,7 @@ import { dataApiService } from '@data/DataApiService'
 import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
-import type {
-  CreateModelDto,
-  CreateModelsBatchDto,
-  ListModelsQuery,
-  UpdateModelDto
-} from '@shared/data/api/schemas/models'
+import type { CreateModelDto, CreateModelsDto, ListModelsQuery, UpdateModelDto } from '@shared/data/api/schemas/models'
 import type { Model } from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { useCallback, useMemo } from 'react'
@@ -47,14 +42,20 @@ export function useModelMutations() {
   const { trigger: createTrigger } = useMutation('POST', '/models', {
     refresh: [...REFRESH_MODELS]
   })
-  const { trigger: createBatchTrigger } = useMutation('POST', '/models/batch', {
-    refresh: [...REFRESH_MODELS]
-  })
 
   const createModel = useCallback(
     async (dto: CreateModelDto) => {
       try {
-        return await createTrigger({ body: dto })
+        // Service/DataApi create is intentionally array-based. This wrapper keeps
+        // the old single-model ergonomics at the renderer boundary.
+        const created = await createTrigger({ body: [dto] })
+        if (!Array.isArray(created)) {
+          throw new Error('Expected an array of created models')
+        }
+        if (created.length !== 1) {
+          throw new Error(`Expected exactly one created model, received ${created.length}`)
+        }
+        return created[0]
       } catch (error) {
         logger.error('Failed to create model', { providerId: dto.providerId, modelId: dto.modelId, error })
         throw error
@@ -62,16 +63,22 @@ export function useModelMutations() {
     },
     [createTrigger]
   )
-  const createModelsBatch = useCallback(
-    async (dtos: CreateModelsBatchDto['items']) => {
+  const createModels = useCallback(
+    async (dtos: CreateModelsDto) => {
       try {
-        return await createBatchTrigger({ body: { items: dtos } })
+        // Batch callers already match the transport contract, so this path
+        // forwards the array verbatim and validates the response shape.
+        const created = await createTrigger({ body: dtos })
+        if (!Array.isArray(created)) {
+          throw new Error('Expected an array of created models')
+        }
+        return created
       } catch (error) {
-        logger.error('Failed to create model batch', { count: dtos.length, error })
+        logger.error('Failed to create models', { count: dtos.length, error })
         throw error
       }
     },
-    [createBatchTrigger]
+    [createTrigger]
   )
 
   const deleteModel = useCallback(
@@ -100,5 +107,5 @@ export function useModelMutations() {
     [invalidate]
   )
 
-  return { createModel, createModelsBatch, deleteModel, updateModel }
+  return { createModel, createModels, deleteModel, updateModel }
 }

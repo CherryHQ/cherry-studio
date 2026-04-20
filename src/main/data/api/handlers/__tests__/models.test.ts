@@ -1,30 +1,26 @@
-import type { BatchCreateModelInput } from '@data/services/ModelService'
+import type { CreateModelInput } from '@data/services/ModelService'
 import { DataApiErrorFactory, ErrorCode } from '@shared/data/api'
-import { CreateModelsBatchDtoSchema, MODELS_BATCH_MAX_ITEMS } from '@shared/data/api/schemas/models'
+import { CreateModelsDtoSchema, MODELS_BATCH_MAX_ITEMS } from '@shared/data/api/schemas/models'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../../tests/__mocks__/MainLoggerService'
 
-const { listMock, createMock, getByKeyMock, updateMock, deleteMock, batchCreateMock, lookupModelMock } = vi.hoisted(
-  () => ({
-    listMock: vi.fn(),
-    createMock: vi.fn(),
-    getByKeyMock: vi.fn(),
-    updateMock: vi.fn(),
-    deleteMock: vi.fn(),
-    batchCreateMock: vi.fn(),
-    lookupModelMock: vi.fn()
-  })
-)
+const { listMock, getByKeyMock, updateMock, deleteMock, createMock, lookupModelMock } = vi.hoisted(() => ({
+  listMock: vi.fn(),
+  getByKeyMock: vi.fn(),
+  updateMock: vi.fn(),
+  deleteMock: vi.fn(),
+  createMock: vi.fn(),
+  lookupModelMock: vi.fn()
+}))
 
 vi.mock('@data/services/ModelService', () => ({
   modelService: {
     list: listMock,
-    create: createMock,
     getByKey: getByKeyMock,
     update: updateMock,
     delete: deleteMock,
-    batchCreate: batchCreateMock
+    create: createMock
   }
 }))
 
@@ -41,21 +37,26 @@ beforeEach(() => {
 })
 
 describe('Model handler validation', () => {
-  it('accepts batch create payloads up to the configured limit', () => {
+  it('accepts create payload arrays up to the configured limit', () => {
     const items = Array.from({ length: MODELS_BATCH_MAX_ITEMS }, (_, index) => ({
       providerId: 'openai',
       modelId: `gpt-${index}`
     }))
-    expect(() => CreateModelsBatchDtoSchema.parse({ items })).not.toThrow()
+
+    expect(() => CreateModelsDtoSchema.parse(items)).not.toThrow()
   })
 
-  it('rejects batch create payloads over the configured limit', () => {
+  it('rejects single-object payloads for /models', () => {
+    expect(() => CreateModelsDtoSchema.parse({ providerId: 'openai', modelId: 'gpt-4o' })).toThrow()
+  })
+
+  it('rejects create payload arrays over the configured limit', () => {
     const items = Array.from({ length: MODELS_BATCH_MAX_ITEMS + 1 }, (_, index) => ({
       providerId: 'openai',
       modelId: `gpt-${index}`
     }))
 
-    expect(() => CreateModelsBatchDtoSchema.parse({ items })).toThrow()
+    expect(() => CreateModelsDtoSchema.parse(items)).toThrow()
   })
 })
 
@@ -77,7 +78,7 @@ describe('/models', () => {
     expect(listMock).toHaveBeenCalledWith({ providerId: 'openai' })
   })
 
-  it('passes registry data to modelService.create', async () => {
+  it('passes registry data to modelService.create for a single-item array', async () => {
     const registryData = {
       presetModel: { id: 'gpt-4o', name: 'GPT-4o' },
       registryOverride: null,
@@ -85,51 +86,58 @@ describe('/models', () => {
       reasoningFormatTypes: {}
     }
     lookupModelMock.mockResolvedValue(registryData)
-    createMock.mockResolvedValue({ id: 'openai::gpt-4o' })
+    createMock.mockResolvedValue([{ id: 'openai::gpt-4o' }])
 
     await modelHandlers['/models'].POST({
-      body: { providerId: 'openai', modelId: 'gpt-4o' }
+      body: [{ providerId: 'openai', modelId: 'gpt-4o' }]
     } as any)
 
     expect(lookupModelMock).toHaveBeenCalledWith('openai', 'gpt-4o')
-    expect(createMock).toHaveBeenCalledWith({ providerId: 'openai', modelId: 'gpt-4o' }, registryData)
+    expect(createMock).toHaveBeenCalledWith([
+      {
+        dto: { providerId: 'openai', modelId: 'gpt-4o' },
+        registryData
+      }
+    ] satisfies CreateModelInput[])
   })
 
   it('falls back to custom model creation when registry lookup fails', async () => {
     const warnSpy = vi.spyOn(mockMainLoggerService, 'warn').mockImplementation(() => {})
     lookupModelMock.mockRejectedValue(new Error('registry down'))
-    createMock.mockResolvedValue({ id: 'openai::custom-model' })
+    createMock.mockResolvedValue([{ id: 'openai::custom-model' }])
 
     await modelHandlers['/models'].POST({
-      body: { providerId: 'openai', modelId: 'custom-model' }
+      body: [{ providerId: 'openai', modelId: 'custom-model' }]
     } as any)
 
-    expect(createMock).toHaveBeenCalledWith({ providerId: 'openai', modelId: 'custom-model' }, undefined)
+    expect(createMock).toHaveBeenCalledWith([
+      {
+        dto: { providerId: 'openai', modelId: 'custom-model' },
+        registryData: undefined
+      }
+    ] satisfies CreateModelInput[])
     expect(warnSpy).toHaveBeenCalledWith(
       'Registry lookup failed during create, falling back to custom',
       expect.objectContaining({ providerId: 'openai', modelId: 'custom-model' })
     )
   })
-})
-describe('/models/batch handler', () => {
-  it('passes registry data for every batch item on the happy path', async () => {
+
+  it('accepts a bare array body and delegates to create', async () => {
     const registryData1 = { presetModel: { id: 'gpt-4o', name: 'GPT-4o' }, registryOverride: null }
     const registryData2 = { presetModel: { id: 'gpt-5', name: 'GPT-5' }, registryOverride: null }
     const created = [{ id: 'openai::gpt-4o' }, { id: 'openai::gpt-5' }]
 
     lookupModelMock.mockResolvedValueOnce(registryData1).mockResolvedValueOnce(registryData2)
-    batchCreateMock.mockResolvedValue(created)
+    createMock.mockResolvedValue(created)
 
-    const result = await modelHandlers['/models/batch'].POST({
-      body: {
-        items: [
-          { providerId: 'openai', modelId: 'gpt-4o' },
-          { providerId: 'openai', modelId: 'gpt-5' }
-        ]
-      }
+    const result = await modelHandlers['/models'].POST({
+      body: [
+        { providerId: 'openai', modelId: 'gpt-4o' },
+        { providerId: 'openai', modelId: 'gpt-5' }
+      ]
     } as any)
 
-    expect(batchCreateMock).toHaveBeenCalledWith([
+    expect(createMock).toHaveBeenCalledWith([
       {
         dto: { providerId: 'openai', modelId: 'gpt-4o' },
         registryData: registryData1
@@ -138,27 +146,25 @@ describe('/models/batch handler', () => {
         dto: { providerId: 'openai', modelId: 'gpt-5' },
         registryData: registryData2
       }
-    ] satisfies BatchCreateModelInput[])
+    ] satisfies CreateModelInput[])
     expect(result).toEqual(created)
   })
 
-  it('falls back to custom model creation when registry lookup fails for one item', async () => {
+  it('falls back to custom model creation when registry lookup fails for one batch item', async () => {
     const warnSpy = vi.spyOn(mockMainLoggerService, 'warn').mockImplementation(() => {})
     const registryData = { presetModel: { id: 'gpt-4o', name: 'GPT-4o' }, registryOverride: null }
 
     lookupModelMock.mockResolvedValueOnce(registryData).mockRejectedValueOnce(new Error('lookup failed'))
-    batchCreateMock.mockResolvedValue([])
+    createMock.mockResolvedValue([])
 
-    await modelHandlers['/models/batch'].POST({
-      body: {
-        items: [
-          { providerId: 'openai', modelId: 'gpt-4o' },
-          { providerId: 'custom/provider', modelId: 'my-model' }
-        ]
-      }
+    await modelHandlers['/models'].POST({
+      body: [
+        { providerId: 'openai', modelId: 'gpt-4o' },
+        { providerId: 'custom/provider', modelId: 'my-model' }
+      ]
     } as any)
 
-    expect(batchCreateMock).toHaveBeenCalledWith([
+    expect(createMock).toHaveBeenCalledWith([
       {
         dto: { providerId: 'openai', modelId: 'gpt-4o' },
         registryData
@@ -167,25 +173,23 @@ describe('/models/batch handler', () => {
         dto: { providerId: 'custom/provider', modelId: 'my-model' },
         registryData: undefined
       }
-    ] satisfies BatchCreateModelInput[])
+    ] satisfies CreateModelInput[])
     expect(warnSpy).toHaveBeenCalledWith(
       'Registry lookup failed during batch create, falling back to custom',
       expect.objectContaining({ providerId: 'custom/provider', modelId: 'my-model' })
     )
   })
 
-  it('propagates batchCreate service errors without wrapping them', async () => {
+  it('propagates create service errors without wrapping them', async () => {
     const serviceError = DataApiErrorFactory.conflict('Model', 'openai/gpt-4o')
     const registryData = { presetModel: { id: 'gpt-4o', name: 'GPT-4o' }, registryOverride: null }
 
     lookupModelMock.mockResolvedValueOnce(registryData)
-    batchCreateMock.mockRejectedValueOnce(serviceError)
+    createMock.mockRejectedValueOnce(serviceError)
 
     await expect(
-      modelHandlers['/models/batch'].POST({
-        body: {
-          items: [{ providerId: 'openai', modelId: 'gpt-4o' }]
-        }
+      modelHandlers['/models'].POST({
+        body: [{ providerId: 'openai', modelId: 'gpt-4o' }]
       } as any)
     ).rejects.toBe(serviceError)
   })

@@ -146,7 +146,7 @@ class ProviderRegistryService {
    * {@link RegistryLoader.findModel}) with DB-aware reasoning config resolution.
    *
    * Used by: `POST /models` handler — the handler calls this, then passes
-   * the result to `ModelService.create(dto, registryData)` to avoid a
+   * the result to `ModelService.create([{ dto, registryData }])` to avoid a
    * circular dependency between ModelService and this service.
    *
    * @param providerId - The provider context for override and reasoning lookup

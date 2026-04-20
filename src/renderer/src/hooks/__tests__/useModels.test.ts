@@ -138,13 +138,11 @@ describe('useModelMutations', () => {
     expect(mockUseMutation).toHaveBeenCalledWith('POST', '/models', {
       refresh: ['/models']
     })
-    expect(mockUseMutation).toHaveBeenCalledWith('POST', '/models/batch', {
-      refresh: ['/models']
-    })
+    expect(mockUseMutation).toHaveBeenCalledTimes(1)
   })
 
-  it('should call createTrigger when createModel is invoked', async () => {
-    const mockTrigger = vi.fn().mockResolvedValue({ id: 'new-model' })
+  it('should call createTrigger with a single-item array when createModel is invoked', async () => {
+    const mockTrigger = vi.fn().mockResolvedValue([{ id: 'new-model' }])
     mockUseMutation.mockImplementation(() => ({
       trigger: mockTrigger,
       isLoading: false,
@@ -158,7 +156,7 @@ describe('useModelMutations', () => {
       await result.current.createModel(dto)
     })
 
-    expect(mockTrigger).toHaveBeenCalledWith({ body: dto })
+    expect(mockTrigger).toHaveBeenCalledWith({ body: [dto] })
   })
 
   it('should log and rethrow createModel errors', async () => {
@@ -185,11 +183,61 @@ describe('useModelMutations', () => {
     })
   })
 
-  it('should call batch create trigger when createModelsBatch is invoked', async () => {
-    const singleTrigger = vi.fn().mockResolvedValue({ id: 'single-model' })
-    const batchTrigger = vi.fn().mockResolvedValue([{ id: 'batch-model-1' }, { id: 'batch-model-2' }])
-    mockUseMutation.mockImplementation((_method: string, path: string) => ({
-      trigger: path === '/models/batch' ? batchTrigger : singleTrigger,
+  it('should unwrap the first created model from the array response', async () => {
+    const mockTrigger = vi.fn().mockResolvedValue([{ id: 'new-model' }])
+    mockUseMutation.mockImplementation(() => ({
+      trigger: mockTrigger,
+      isLoading: false,
+      error: undefined
+    }))
+
+    const { result } = renderHook(() => useModelMutations())
+
+    const dto = { providerId: 'openai', modelId: 'gpt-5' }
+    let created: any
+    await act(async () => {
+      created = await result.current.createModel(dto)
+    })
+
+    expect(created).toEqual({ id: 'new-model' })
+  })
+
+  it('should reject createModel when the array response is empty', async () => {
+    mockUseMutation.mockImplementation(() => ({
+      trigger: vi.fn().mockResolvedValue([]),
+      isLoading: false,
+      error: undefined
+    }))
+
+    const { result } = renderHook(() => useModelMutations())
+
+    await act(async () => {
+      await expect(result.current.createModel({ providerId: 'openai', modelId: 'gpt-5' })).rejects.toThrow(
+        'Expected exactly one created model'
+      )
+    })
+  })
+
+  it('should reject createModel when the response is not an array', async () => {
+    mockUseMutation.mockImplementation(() => ({
+      trigger: vi.fn().mockResolvedValue({ id: 'wrong-shape' }),
+      isLoading: false,
+      error: undefined
+    }))
+
+    const { result } = renderHook(() => useModelMutations())
+
+    await act(async () => {
+      await expect(result.current.createModel({ providerId: 'openai', modelId: 'gpt-5' })).rejects.toThrow(
+        'Expected an array of created models'
+      )
+    })
+  })
+
+  it('should call create trigger with the full array when createModels is invoked', async () => {
+    const mockTrigger = vi.fn().mockResolvedValue([{ id: 'batch-model-1' }, { id: 'batch-model-2' }])
+    mockUseMutation.mockImplementation(() => ({
+      trigger: mockTrigger,
       isLoading: false,
       error: undefined
     }))
@@ -201,18 +249,17 @@ describe('useModelMutations', () => {
       { providerId: 'openai', modelId: 'gpt-5-mini' }
     ]
     await act(async () => {
-      await result.current.createModelsBatch(items)
+      await result.current.createModels(items)
     })
 
-    expect(batchTrigger).toHaveBeenCalledWith({ body: { items } })
-    expect(singleTrigger).not.toHaveBeenCalled()
+    expect(mockTrigger).toHaveBeenCalledWith({ body: items })
   })
 
-  it('should log and rethrow createModelsBatch errors', async () => {
+  it('should log and rethrow createModels errors', async () => {
     const error = new Error('Batch failed')
     const loggerSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
-    mockUseMutation.mockImplementation((_method: string, path: string) => ({
-      trigger: path === '/models/batch' ? vi.fn().mockRejectedValue(error) : vi.fn(),
+    mockUseMutation.mockImplementation(() => ({
+      trigger: vi.fn().mockRejectedValue(error),
       isLoading: false,
       error: undefined
     }))
@@ -221,10 +268,26 @@ describe('useModelMutations', () => {
 
     const items = [{ providerId: 'openai', modelId: 'gpt-5' }]
     await act(async () => {
-      await expect(result.current.createModelsBatch(items)).rejects.toThrow('Batch failed')
+      await expect(result.current.createModels(items)).rejects.toThrow('Batch failed')
     })
 
-    expect(loggerSpy).toHaveBeenCalledWith('Failed to create model batch', { count: 1, error })
+    expect(loggerSpy).toHaveBeenCalledWith('Failed to create models', { count: 1, error })
+  })
+
+  it('should reject createModels when the response is not an array', async () => {
+    mockUseMutation.mockImplementation(() => ({
+      trigger: vi.fn().mockResolvedValue({ id: 'wrong-shape' }),
+      isLoading: false,
+      error: undefined
+    }))
+
+    const { result } = renderHook(() => useModelMutations())
+
+    await act(async () => {
+      await expect(result.current.createModels([{ providerId: 'openai', modelId: 'gpt-5' }])).rejects.toThrow(
+        'Expected an array of created models'
+      )
+    })
   })
 
   it('should log and rethrow updateModel errors', async () => {

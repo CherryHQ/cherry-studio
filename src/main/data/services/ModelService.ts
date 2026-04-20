@@ -40,23 +40,18 @@ type CreateModelRegistryData = ModelLookupResult & {
   defaultChatEndpoint?: EndpointType
 }
 
-export interface BatchCreateModelInput {
+export interface CreateModelInput {
   dto: CreateModelDto
   registryData?: CreateModelRegistryData
 }
 
-function createModelSqliteHandlers(dto: CreateModelDto): SqliteErrorHandlers {
-  return {
-    ...defaultHandlersFor('Model', `${dto.providerId}/${dto.modelId}`),
-    foreignKey: () => DataApiErrorFactory.notFound('Provider', dto.providerId)
-  }
-}
-
-function createBatchModelSqliteHandlers(values: NewUserModel[]): SqliteErrorHandlers {
+function createModelsSqliteHandlers(values: NewUserModel[]): SqliteErrorHandlers {
   const providerIds = [...new Set(values.map((value) => value.providerId))]
+  const identifier =
+    values.length === 1 ? `${values[0].providerId}/${values[0].modelId}` : `batch(${values.length} items)`
 
   return {
-    ...defaultHandlersFor('Model', `batch(${values.length} items)`),
+    ...defaultHandlersFor('Model', identifier),
     unique: () => DataApiErrorFactory.conflict('One or more models already exist', 'Model'),
     foreignKey: () =>
       DataApiErrorFactory.notFound('Provider', providerIds.length === 1 ? providerIds[0] : providerIds.join(', '))
@@ -250,40 +245,25 @@ class ModelService {
   }
 
   /**
-   * Create a new model
+   * Create one or more models under a single collection-oriented contract.
    *
    * Automatically enriches from registry preset data when a match is found.
    * DTO values take priority over registry (user > registryOverride > preset).
    *
-   * @param registryData - Pre-looked-up registry data (caller provides to avoid circular dependency)
+   * Design intent:
+   * - Service exposes one `create` entrypoint instead of separate single/batch variants.
+   * - Input is always an array so create semantics stay aligned with `POST /models`.
+   * - Transaction atomicity remains identical for single-item and multi-item calls.
+   * - Renderer and other callers can still offer single-item convenience by
+   *   wrapping one DTO into a one-element array before crossing the boundary.
+   *
+   * This is a deliberate service-boundary choice, not an implementation shortcut.
+   *
+   * @param items - Create inputs with optional pre-looked-up registry data so
+   * the handler can resolve registry metadata without introducing a circular
+   * dependency between ModelService and ProviderRegistryService.
    */
-  async create(dto: CreateModelDto, registryData?: CreateModelRegistryData): Promise<Model> {
-    const db = application.get('DbService').getDb()
-    const wasRegistryEnriched = Boolean(registryData?.presetModel)
-    const values = this.buildCreateValues(dto, registryData)
-
-    const [row] = await withSqliteErrors(
-      () => db.insert(userModelTable).values(values).returning(),
-      createModelSqliteHandlers(dto)
-    )
-
-    if (wasRegistryEnriched) {
-      logger.info('Created model with registry enrichment', {
-        providerId: dto.providerId,
-        modelId: dto.modelId,
-        presetModelId: values.presetModelId
-      })
-    } else {
-      logger.info('Created custom model (no registry match)', {
-        providerId: dto.providerId,
-        modelId: dto.modelId
-      })
-    }
-
-    return rowToRuntimeModel(row)
-  }
-
-  async batchCreate(items: BatchCreateModelInput[]): Promise<Model[]> {
+  async create(items: CreateModelInput[]): Promise<Model[]> {
     if (items.length === 0) return []
 
     const db = application.get('DbService').getDb()
@@ -294,13 +274,31 @@ class ModelService {
         db.transaction(async (tx) => {
           return await tx.insert(userModelTable).values(values).returning()
         }),
-      createBatchModelSqliteHandlers(values)
+      createModelsSqliteHandlers(values)
     )
 
-    logger.info('Created models batch', {
-      count: rows.length,
-      providers: [...new Set(values.map((value) => value.providerId))]
-    })
+    if (items.length === 1) {
+      const [{ dto, registryData }] = items
+      const firstValue = values[0]
+
+      if (registryData?.presetModel) {
+        logger.info('Created model with registry enrichment', {
+          providerId: dto.providerId,
+          modelId: dto.modelId,
+          presetModelId: firstValue?.presetModelId
+        })
+      } else {
+        logger.info('Created custom model (no registry match)', {
+          providerId: dto.providerId,
+          modelId: dto.modelId
+        })
+      }
+    } else {
+      logger.info('Created models', {
+        count: rows.length,
+        providers: [...new Set(values.map((value) => value.providerId))]
+      })
+    }
 
     return rows.map(rowToRuntimeModel)
   }

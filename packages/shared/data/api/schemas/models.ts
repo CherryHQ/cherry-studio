@@ -69,10 +69,15 @@ export type CreateModelDto = z.infer<typeof CreateModelDtoSchema>
 
 export const MODELS_BATCH_MAX_ITEMS = 100
 
-export const CreateModelsBatchDtoSchema = z.object({
-  items: z.array(CreateModelDtoSchema).min(1).max(MODELS_BATCH_MAX_ITEMS)
-})
-export type CreateModelsBatchDto = z.infer<typeof CreateModelsBatchDtoSchema>
+/**
+ * `POST /models` intentionally accepts arrays only.
+ *
+ * This keeps the transport contract and response shape stable: callers always
+ * send `CreateModelDto[]` and always receive `Model[]`, while single-item
+ * convenience is handled by higher layers such as renderer hooks.
+ */
+export const CreateModelsDtoSchema = z.array(CreateModelDtoSchema).min(1).max(MODELS_BATCH_MAX_ITEMS)
+export type CreateModelsDto = z.infer<typeof CreateModelsDtoSchema>
 
 /** DTO for updating an existing model — CreateModelDto minus identity fields, all optional, plus status fields */
 export const UpdateModelDtoSchema = CreateModelDtoSchema.omit({
@@ -106,8 +111,13 @@ export type EnrichModelsDto = z.infer<typeof EnrichModelsDtoSchema>
 export interface ModelSchemas {
   /**
    * Models collection endpoint
+   *
+   * Design note: create is array-only on purpose. We do not support a parallel
+   * single-object body because the uniform array contract keeps DataApi typing,
+   * handler logic, and renderer wrappers aligned.
+   *
    * @example GET /models?providerId=openai&capability=REASONING
-   * @example POST /models { "providerId": "openai", "modelId": "gpt-5" }
+   * @example POST /models [{ "providerId": "openai", "modelId": "gpt-5" }]
    */
   '/models': {
     /** List models with optional filters */
@@ -115,16 +125,9 @@ export interface ModelSchemas {
       query: ListModelsQuery
       response: Model[]
     }
-    /** Create a new model */
+    /** Create one or more models in a single request */
     POST: {
-      body: CreateModelDto
-      response: Model
-    }
-  }
-
-  '/models/batch': {
-    POST: {
-      body: CreateModelsBatchDto
+      body: CreateModelsDto
       response: Model[]
     }
   }

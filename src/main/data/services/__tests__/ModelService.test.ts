@@ -188,7 +188,7 @@ describe('ModelService.update', () => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ModelService.create — merge behavior
+// ModelService.create — merge behavior and batch semantics
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('ModelService.create', () => {
@@ -218,7 +218,7 @@ describe('ModelService.create', () => {
       registryOverride: null
     }
 
-    const created = await modelService.create(dto, registryData)
+    const [created] = await modelService.create([{ dto, registryData }])
 
     expect(created.name).toBe('GPT-4o')
     expect(created.capabilities).toEqual(['function-call'])
@@ -242,12 +242,16 @@ describe('ModelService.create', () => {
 
     const infoSpy = vi.spyOn(mockMainLoggerService, 'info').mockImplementation(() => {})
 
-    await modelService.create({
-      providerId: 'openai',
-      modelId: 'custom-gpt',
-      presetModelId: 'preset-from-dto',
-      name: 'Custom GPT'
-    })
+    await modelService.create([
+      {
+        dto: {
+          providerId: 'openai',
+          modelId: 'custom-gpt',
+          presetModelId: 'preset-from-dto',
+          name: 'Custom GPT'
+        }
+      }
+    ])
 
     expect(infoSpy).toHaveBeenCalledWith('Created custom model (no registry match)', {
       providerId: 'openai',
@@ -268,24 +272,20 @@ describe('ModelService.create', () => {
     })
 
     await expect(
-      modelService.create({
-        providerId: 'openai',
-        modelId: 'gpt-4o',
-        name: 'Duplicate GPT-4o'
-      })
+      modelService.create([
+        {
+          dto: {
+            providerId: 'openai',
+            modelId: 'gpt-4o',
+            name: 'Duplicate GPT-4o'
+          }
+        }
+      ])
     ).rejects.toMatchObject({
       code: ErrorCode.CONFLICT,
       status: 409
     })
   })
-})
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ModelService.batchCreate — batch insert with create semantics
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('ModelService.batchCreate', () => {
-  const dbh = setupTestDatabase()
 
   it('builds all rows with the same registry-aware merge semantics as create', async () => {
     await dbh.db.insert(userProviderTable).values([
@@ -321,7 +321,7 @@ describe('ModelService.batchCreate', () => {
       }
     ]
 
-    const created = await modelService.batchCreate(batch as any)
+    const created = await modelService.create(batch as any)
 
     expect(created).toHaveLength(2)
     expect(created[0]).toMatchObject({
@@ -370,34 +370,6 @@ describe('ModelService.batchCreate', () => {
     })
   })
 
-  it('translates duplicate batch create into a 409 conflict', async () => {
-    await dbh.db.insert(userProviderTable).values({
-      providerId: 'openai',
-      name: 'OpenAI'
-    })
-    await dbh.db.insert(userModelTable).values({
-      id: createUniqueModelId('openai', 'gpt-4o'),
-      providerId: 'openai',
-      modelId: 'gpt-4o',
-      name: 'GPT-4o'
-    })
-
-    await expect(
-      modelService.batchCreate([
-        {
-          dto: {
-            providerId: 'openai',
-            modelId: 'gpt-4o',
-            name: 'Duplicate GPT-4o'
-          }
-        }
-      ])
-    ).rejects.toMatchObject({
-      code: ErrorCode.CONFLICT,
-      status: 409
-    })
-  })
-
   it('rolls back all inserts when one item conflicts (transaction atomicity)', async () => {
     await dbh.db.insert(userProviderTable).values({
       providerId: 'openai',
@@ -411,7 +383,7 @@ describe('ModelService.batchCreate', () => {
     })
 
     await expect(
-      modelService.batchCreate([
+      modelService.create([
         {
           dto: {
             providerId: 'openai',
