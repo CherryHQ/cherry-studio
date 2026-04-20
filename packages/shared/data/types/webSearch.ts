@@ -58,7 +58,6 @@ export type ResolvedWebSearchProvider = {
   id: WebSearchProviderId
   name: string
   type: WebSearchProviderType
-  usingBrowser: boolean
   apiKeys: string[]
   apiHost: string
   engines: string[]

@@ -58,6 +58,7 @@ export interface DraggableVirtualListProps<T> {
   header?: React.ReactNode
   children: (item: T, index: number) => React.ReactNode
   disabled?: boolean
+  disableInteractiveElementBlocking?: boolean
 }
 
 /**
@@ -84,7 +85,8 @@ function DraggableVirtualList<T>({
   overscan = 5,
   header,
   children,
-  disabled
+  disabled,
+  disableInteractiveElementBlocking
 }: DraggableVirtualListProps<T>): React.ReactElement {
   const _onDragEnd = (result: DropResult, provided: ResponderProvided) => {
     onDragEnd?.(result, provided)
@@ -185,6 +187,7 @@ function DraggableVirtualList<T>({
                       virtualizer={virtualizer}
                       children={children}
                       disabled={disabled}
+                      disableInteractiveElementBlocking={disableInteractiveElementBlocking}
                     />
                   ))}
                 </div>
@@ -201,7 +204,16 @@ function DraggableVirtualList<T>({
  * 渲染单个可拖拽的虚拟列表项，高度为动态测量
  */
 const VirtualRow = memo(
-  ({ virtualItem, list, children, itemStyle, itemContainerStyle, virtualizer, disabled }: any) => {
+  ({
+    virtualItem,
+    list,
+    children,
+    itemStyle,
+    itemContainerStyle,
+    virtualizer,
+    disabled,
+    disableInteractiveElementBlocking
+  }: any) => {
     const item = list[virtualItem.index]
     const draggableId = String(virtualItem.key)
     return (
@@ -209,6 +221,7 @@ const VirtualRow = memo(
         key={`draggable_${draggableId}`}
         draggableId={draggableId}
         isDragDisabled={disabled}
+        disableInteractiveElementBlocking={disableInteractiveElementBlocking}
         index={virtualItem.index}>
         {(provided) => {
           const setDragRefs = (el: HTMLElement | null) => {
