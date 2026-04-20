@@ -91,7 +91,7 @@ const KnowledgeVideos: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           icon={<Plus size={16} />}
           onClick={(e) => {
             e.stopPropagation()
-            handleAddVideo()
+            void handleAddVideo()
           }}
           disabled={disabled}>
           {t('knowledge.add_video')}

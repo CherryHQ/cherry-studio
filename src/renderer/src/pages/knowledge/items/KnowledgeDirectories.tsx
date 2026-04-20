@@ -73,7 +73,7 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
           icon={<PlusIcon size={16} />}
           onClick={(e) => {
             e.stopPropagation()
-            handleAddDirectory()
+            void handleAddDirectory()
           }}
           disabled={disabled}>
           {t('knowledge.add_directory')}

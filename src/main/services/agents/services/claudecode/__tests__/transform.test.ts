@@ -476,9 +476,7 @@ describe('Claude → AiSDK transform', () => {
     }
 
     // Extract only tool-input-delta parts
-    const inputDeltas = parts.filter((p) => p.type === 'tool-input-delta') as Array<
-      Extract<(typeof parts)[number], { type: 'tool-input-delta' }>
-    >
+    const inputDeltas = parts.filter((p) => p.type === 'tool-input-delta')
 
     expect(inputDeltas).toHaveLength(3)
 

@@ -94,7 +94,7 @@ export function useInPlaceEdit(options: UseInPlaceEditOptions): UseInPlaceEditRe
       if (e.nativeEvent.isComposing) return
       if (e.key === 'Enter') {
         e.preventDefault()
-        saveEdit()
+        void saveEdit()
       } else if (e.key === 'Escape') {
         e.preventDefault()
         e.stopPropagation()
@@ -114,7 +114,7 @@ export function useInPlaceEdit(options: UseInPlaceEditOptions): UseInPlaceEditRe
     // 通常 InPlaceEdit 的逻辑是 Blur 即 Save。
     // 如果不想 Blur 保存，可以去掉这一行，或者判断 relatedTarget。
     if (!isSaving) {
-      saveEdit()
+      void saveEdit()
     }
   }, [saveEdit, isSaving])
 

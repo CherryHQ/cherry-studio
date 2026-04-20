@@ -125,14 +125,7 @@ const getToolDescription = (toolResponse?: MCPToolResponse | NormalToolResponse)
   if (!args || typeof args !== 'object' || Array.isArray(args)) return undefined
 
   // Common description fields
-  return (
-    (args as Record<string, unknown>).description ||
-    (args as Record<string, unknown>).file_path ||
-    (args as Record<string, unknown>).pattern ||
-    (args as Record<string, unknown>).query ||
-    (args as Record<string, unknown>).command ||
-    (args as Record<string, unknown>).url
-  )?.toString()
+  return (args.description || args.file_path || args.pattern || args.query || args.command || args.url)?.toString()
 }
 
 // ============ Styled Components ============
@@ -175,13 +168,15 @@ const ToolName = styled(Flex)`
 const Description = styled.span`
   color: var(--color-text-2);
   font-weight: 400;
-  font-size: 12px;
+  font-size: 13px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
   flex: 1;
   max-width: 300px;
+  display: inline-flex;
+  align-items: center;
 `
 
 const Stats = styled.span`

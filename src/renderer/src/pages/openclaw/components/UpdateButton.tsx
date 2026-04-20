@@ -59,7 +59,7 @@ const UpdateButton: FC<UpdateButtonProps> = ({ onUpdateComplete, onUpdatingChang
 
   // Check for updates on mount
   useEffect(() => {
-    checkUpdate()
+    void checkUpdate()
   }, [checkUpdate])
 
   const handleClick = () => {
@@ -76,7 +76,7 @@ const UpdateButton: FC<UpdateButtonProps> = ({ onUpdateComplete, onUpdatingChang
       centered: true,
       onOk: () => {
         // Start update without waiting, modal closes immediately
-        performUpdate()
+        void performUpdate()
       }
     })
   }

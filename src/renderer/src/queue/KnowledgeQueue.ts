@@ -121,7 +121,7 @@ class KnowledgeQueue {
       message = t('notification.knowledge.batch_mixed', { succeeded, failed })
     }
 
-    NotificationService.getInstance().send({
+    void NotificationService.getInstance().send({
       id: uuid(),
       type,
       title: t('common.knowledge_base'),

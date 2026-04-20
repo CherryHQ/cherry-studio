@@ -30,27 +30,27 @@ const OAuthButton: FC<Props> = ({ provider, onSuccess, ...buttonProps }) => {
     }
 
     if (provider.id === 'silicon') {
-      oauthWithSiliconFlow(handleSuccess)
+      void oauthWithSiliconFlow(handleSuccess)
     }
 
     if (provider.id === 'aihubmix') {
-      oauthWithAihubmix(handleSuccess)
+      void oauthWithAihubmix(handleSuccess)
     }
 
     if (provider.id === 'ppio') {
-      oauthWithPPIO(handleSuccess)
+      void oauthWithPPIO(handleSuccess)
     }
 
     if (provider.id === 'tokenflux') {
-      oauthWithTokenFlux()
+      void oauthWithTokenFlux()
     }
 
     if (provider.id === '302ai') {
-      oauthWith302AI(handleSuccess)
+      void oauthWith302AI(handleSuccess)
     }
 
     if (provider.id === 'aionly') {
-      oauthWithAiOnly(handleSuccess)
+      void oauthWithAiOnly(handleSuccess)
     }
   }
 

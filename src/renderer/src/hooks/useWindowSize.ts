@@ -36,7 +36,7 @@ export const useWindowSize = () => {
       logger.silly('Windows_Resize', { width, height })
       setWidth(width)
       setHeight(height)
-      debouncedGetSize()
+      void debouncedGetSize()
     },
     [debouncedGetSize]
   )
@@ -52,7 +52,7 @@ export const useWindowSize = () => {
 
   // 手动触发一次
   useEffect(() => {
-    debouncedGetSize()
+    void debouncedGetSize()
   }, [debouncedGetSize])
 
   return {

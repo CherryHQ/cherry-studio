@@ -85,7 +85,7 @@ const BasicSettings: FC = () => {
         return
       }
 
-      setDefaultProvider(provider as WebSearchProvider)
+      setDefaultProvider(provider)
     }
   }
 

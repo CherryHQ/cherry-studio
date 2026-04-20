@@ -3,6 +3,7 @@ import { getAnthropicReasoningParams } from '@renderer/aiCore/utils/reasoning'
 import type { QuickPanelTriggerInfo } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
+import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useSession } from '@renderer/hooks/agents/useSession'
 import { useInputText } from '@renderer/hooks/useInputText'
 import { selectNewTopicLoading } from '@renderer/hooks/useMessageOperations'
@@ -21,6 +22,7 @@ import InputbarTools from '@renderer/pages/home/Inputbar/InputbarTools'
 import { getInputbarConfig } from '@renderer/pages/home/Inputbar/registry'
 import type { ToolContext } from '@renderer/pages/home/Inputbar/types'
 import { TopicType } from '@renderer/pages/home/Inputbar/types'
+import { isSoulModeEnabled } from '@renderer/pages/settings/AgentSettings/shared'
 import { CacheService } from '@renderer/services/CacheService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { pauseTrace } from '@renderer/services/SpanManagerService'
@@ -147,6 +149,7 @@ interface InnerProps {
 }
 
 const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, sessionId, sessionData, actionsRef }) => {
+  const { agent: agentBase } = useAgent(agentId)
   const scope = TopicType.Session
   const config = getInputbarConfig(scope)
 
@@ -370,7 +373,7 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
       abortCompletion(askId)
     }
 
-    pauseTrace(sessionTopicId)
+    void pauseTrace(sessionTopicId)
     dispatch(newMessagesActions.setTopicLoading({ topicId: sessionTopicId, loading: false }))
   }, [dispatch, sessionTopicId, streamingAskIds])
 
@@ -414,7 +417,7 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
           )
         : {}
 
-      dispatch(
+      void dispatch(
         dispatchSendMessage(userMessage, userMessageBlocks, assistant, sessionTopicId, {
           agentId,
           sessionId,
@@ -423,7 +426,7 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
       )
 
       // Emit event to trigger scroll to bottom in AgentSessionMessages
-      EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: sessionTopicId })
+      void EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: sessionTopicId })
 
       // Clear text and files after successful send (draft is cleared automatically via onChange)
       setText('')
@@ -480,18 +483,21 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
   const leftToolbar = useMemo(
     () => (
       <ToolbarGroup>
-        {config.showTools && <InputbarTools scope={scope} assistantId={assistant.id} session={toolsSession} />}
+        {config.showTools && (
+          <InputbarTools scope={scope} assistant={assistant} model={assistant.model!} session={toolsSession} />
+        )}
       </ToolbarGroup>
     ),
-    [config.showTools, scope, assistant.id, toolsSession]
+    [config.showTools, scope, assistant, toolsSession]
   )
-  const placeholderText = useMemo(
-    () =>
-      t('agent.input.placeholder', {
-        key: getSendMessageShortcutLabel(sendMessageShortcut)
-      }),
-    [sendMessageShortcut, t]
-  )
+  const placeholderText = useMemo(() => {
+    if (isSoulModeEnabled(agentBase?.configuration)) {
+      return t('agent.input.soul_placeholder')
+    }
+    return t('agent.input.placeholder', {
+      key: getSendMessageShortcutLabel(sendMessageShortcut)
+    })
+  }, [agentBase?.configuration, sendMessageShortcut, t])
 
   return (
     <InputbarCore

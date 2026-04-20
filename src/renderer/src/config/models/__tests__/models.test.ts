@@ -4,7 +4,7 @@ import {
   isSupportedThinkingTokenQwenModel,
   isVisionModel
 } from '@renderer/config/models'
-import { isQwen35Model } from '@renderer/config/models/qwen'
+import { isQwen35to39Model } from '@renderer/config/models/qwen'
 import type { Model } from '@renderer/types'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
@@ -105,19 +105,24 @@ describe('Qwen Model Detection', () => {
     expect(isVisionModel({ id: 'qwen-omni-turbo' } as Model)).toBe(true)
   })
 
-  test('isQwen35Model', () => {
+  test('isQwen35to39Model', () => {
     // Qwen 3.5 series
-    expect(isQwen35Model({ id: 'qwen3.5-plus' } as Model)).toBe(true)
-    expect(isQwen35Model({ id: 'qwen3.5-plus-2026-02-15' } as Model)).toBe(true)
-    expect(isQwen35Model({ id: 'qwen3.5-flash' } as Model)).toBe(true)
-    expect(isQwen35Model({ id: 'qwen3.5-397b-a17b' } as Model)).toBe(true)
-    expect(isQwen35Model({ id: 'qwen3.5-thinking' } as Model)).toBe(true)
-    expect(isQwen35Model({ id: 'qwen3.5-instruct' } as Model)).toBe(true)
-    // Not Qwen 3.5
-    expect(isQwen35Model({ id: 'qwen3-max' } as Model)).toBe(false)
-    expect(isQwen35Model({ id: 'qwen3-8b' } as Model)).toBe(false)
-    expect(isQwen35Model({ id: 'qwen-plus' } as Model)).toBe(false)
-    expect(isQwen35Model(undefined)).toBe(false)
+    expect(isQwen35to39Model({ id: 'qwen3.5-plus' } as Model)).toBe(true)
+    expect(isQwen35to39Model({ id: 'qwen3.5-plus-2026-02-15' } as Model)).toBe(true)
+    expect(isQwen35to39Model({ id: 'qwen3.5-flash' } as Model)).toBe(true)
+    expect(isQwen35to39Model({ id: 'qwen3.5-397b-a17b' } as Model)).toBe(true)
+    expect(isQwen35to39Model({ id: 'qwen3.5-thinking' } as Model)).toBe(true)
+    expect(isQwen35to39Model({ id: 'qwen3.5-instruct' } as Model)).toBe(true)
+    // Qwen 3.6+ series (future-proof)
+    expect(isQwen35to39Model({ id: 'qwen3.6-plus' } as Model)).toBe(true)
+    expect(isQwen35to39Model({ id: 'qwen3.6-flash' } as Model)).toBe(true)
+    expect(isQwen35to39Model({ id: 'qwen3.7-200b' } as Model)).toBe(true)
+    expect(isQwen35to39Model({ id: 'qwen3.9-thinking' } as Model)).toBe(true)
+    // Not Qwen 3.5~3.9
+    expect(isQwen35to39Model({ id: 'qwen3-max' } as Model)).toBe(false)
+    expect(isQwen35to39Model({ id: 'qwen3-8b' } as Model)).toBe(false)
+    expect(isQwen35to39Model({ id: 'qwen-plus' } as Model)).toBe(false)
+    expect(isQwen35to39Model(undefined)).toBe(false)
   })
 })
 

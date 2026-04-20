@@ -35,7 +35,7 @@ export default function useUpdateHandler() {
         }
       }),
       ipcRenderer.on(IpcChannel.UpdateAvailable, (_, releaseInfo: UpdateInfo) => {
-        notificationService.send({
+        void notificationService.send({
           id: uuid(),
           type: 'info',
           title: t('button.update_available'),
@@ -79,7 +79,7 @@ export default function useUpdateHandler() {
         )
         // Auto show update dialog when download completes (only if user manually triggered the check)
         if (manualCheckRef.current) {
-          UpdateDialogPopup.show({ releaseInfo })
+          void UpdateDialogPopup.show({ releaseInfo })
         }
       }),
       ipcRenderer.on(IpcChannel.UpdateError, (_, error) => {

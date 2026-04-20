@@ -1,0 +1,26 @@
+{
+  "skill": {
+    "slug": "code-reviewer-pro",
+    "displayName": "Code Reviewer Pro",
+    "summary": "Advanced code review with security analysis",
+    "tags": {
+      "category": "development",
+      "language": "typescript"
+    },
+    "stats": {
+      "downloads": 5200,
+      "stars": 128,
+      "installsAllTime": 3400
+    }
+  },
+  "owner": {
+    "handle": "devmaster",
+    "displayName": "Dev Master",
+    "image": "https://clawhub.ai/avatars/devmaster.png"
+  },
+  "moderation": {
+    "isSuspicious": false,
+    "isMalwareBlocked": false,
+    "verdict": "clean"
+  }
+}

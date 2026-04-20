@@ -215,7 +215,7 @@ const OpenClawPage: FC = () => {
   )
 
   useEffect(() => {
-    checkInstallation()
+    void checkInstallation()
   }, [checkInstallation])
 
   // Listen for install progress events

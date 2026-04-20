@@ -17,31 +17,30 @@
 /**
  * Drizzle Kit configuration for agents database
  */
-
-import path from 'node:path'
-
 import { defineConfig } from 'drizzle-kit'
-import { app } from 'electron'
 
-function getDbPath() {
-  return path.join(app.getPath('userData'), 'Data', 'agents.db')
+function getDefaultDbUrl(): string {
+  const platform = process.platform
+  const home = process.env.HOME ?? process.env.USERPROFILE ?? ''
+  const appName = process.env.NODE_ENV === 'development' ? 'CherryStudioDev' : 'CherryStudio'
+
+  switch (platform) {
+    case 'darwin':
+      return `${home}/Library/Application Support/${appName}/Data/agents.db`
+    case 'win32':
+      return `${process.env.APPDATA ?? `${home}/AppData/Roaming`}/${appName}/Data/agents.db`
+    default:
+      // Linux: ~/.config/<appName>
+      return `${process.env.XDG_CONFIG_HOME ?? `${home}/.config`}/${appName}/Data/agents.db`
+  }
 }
-
-export function getOldDbPath() {
-  // production
-  return path.join(app.getPath('userData'), 'agents.db')
-}
-
-const resolvedDbPath = getDbPath()
-
-export const dbPath = resolvedDbPath
 
 export default defineConfig({
   dialect: 'sqlite',
   schema: './src/main/services/agents/database/schema/index.ts',
   out: './resources/database/drizzle',
   dbCredentials: {
-    url: `file:${resolvedDbPath}`
+    url: process.env.AGENTS_DB_URL ?? getDefaultDbUrl()
   },
   verbose: true,
   strict: true

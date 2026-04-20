@@ -1,4 +1,4 @@
-import AiProvider from '@renderer/aiCore'
+import { AiProvider } from '@renderer/aiCore'
 import AnthropicProviderListPopover from '@renderer/components/AnthropicProviderListPopover'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import ModelSelector from '@renderer/components/ModelSelector'
@@ -90,9 +90,9 @@ const CodeToolsPage: FC = () => {
         if (m.provider === 'silicon') {
           return isSiliconAnthropicCompatibleModel(m.id)
         }
-        // Check if model belongs to an anthropic type provider (including custom providers)
-        const anthropicProvider = providers.find((p) => p.id === m.provider)
-        if (anthropicProvider?.type === 'anthropic') {
+        // Check if model belongs to an anthropic type provider or has anthropicApiHost
+        const modelProvider = providers.find((p) => p.id === m.provider)
+        if (modelProvider?.type === 'anthropic' || modelProvider?.anthropicApiHost) {
           return true
         }
         return m.id.includes('claude') || CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS.includes(m.provider)
@@ -280,8 +280,17 @@ const CodeToolsPage: FC = () => {
       terminal: selectedTerminal
     }
 
-    window.api.codeTools.run(selectedCliTool, modelId, currentDirectory, env, runOptions)
-    window.toast.success(t('code.launch.success'))
+    try {
+      const result = await window.api.codeTools.run(selectedCliTool, modelId, currentDirectory, env, runOptions)
+      if (result && result.success) {
+        window.toast.success(t('code.launch.success'))
+      } else {
+        window.toast.error(result?.message || t('code.launch.error'))
+      }
+    } catch (error) {
+      logger.error('codeTools.run failed:', error as Error)
+      window.toast.error(t('code.launch.error'))
+    }
   }
 
   // 设置终端自定义路径
@@ -301,7 +310,7 @@ const CodeToolsPage: FC = () => {
         setTerminalCustomPaths((prev) => ({ ...prev, [terminalId]: path }))
         window.toast.success(t('code.custom_path_set'))
         // Reload terminals to reflect changes
-        loadAvailableTerminals()
+        void loadAvailableTerminals()
       }
     } catch (error) {
       logger.error('Failed to set custom terminal path:', error as Error)
@@ -338,12 +347,12 @@ const CodeToolsPage: FC = () => {
 
   // 页面加载时检查 bun 安装状态
   useEffect(() => {
-    checkBunInstallation()
+    void checkBunInstallation()
   }, [checkBunInstallation])
 
   // 页面加载时获取可用终端
   useEffect(() => {
-    loadAvailableTerminals()
+    void loadAvailableTerminals()
   }, [loadAvailableTerminals])
 
   return (

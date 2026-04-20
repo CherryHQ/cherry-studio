@@ -2,6 +2,7 @@ import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { permissionModeCards } from '@renderer/config/agent'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import type { UpdateAgentBaseForm } from '@renderer/types'
+import { GLOBALLY_DISALLOWED_TOOLS, SOUL_MODE_DISALLOWED_TOOLS } from '@shared/agents/claudecode/constants'
 import type { CardProps } from 'antd'
 import { Card, Switch, Tag, Tooltip } from 'antd'
 import { uniq } from 'lodash'
@@ -14,6 +15,7 @@ import {
   type AgentOrSessionSettingsProps,
   computeModeDefaults,
   defaultConfiguration,
+  isSoulModeEnabled,
   SettingsContainer,
   SettingsItem,
   SettingsTitle
@@ -78,21 +80,27 @@ export const ToolsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, upda
     return merged
   }, [agentBase?.allowed_tools, autoToolIds, availableTools])
   const selectedMcpIds = useMemo(() => agentBase?.mcps ?? [], [agentBase?.mcps])
+  const isSoulEnabled = isSoulModeEnabled(agentBase?.configuration)
 
-  const availableServers = useMemo(() => allServers ?? [], [allServers])
+  const availableServers = useMemo(() => (allServers ?? []).filter((s) => s.name !== '@cherry/browser'), [allServers])
 
   const filteredTools = useMemo(() => {
+    const hiddenTools = [
+      ...(GLOBALLY_DISALLOWED_TOOLS as readonly string[]),
+      ...(isSoulEnabled ? (SOUL_MODE_DISALLOWED_TOOLS as readonly string[]) : [])
+    ]
+    const visible = availableTools.filter((tool) => !hiddenTools.includes(tool.id))
     if (!searchTerm.trim()) {
-      return availableTools
+      return visible
     }
     const term = searchTerm.trim().toLowerCase()
-    return availableTools.filter((tool) => {
+    return visible.filter((tool) => {
       return (
         tool.name.toLowerCase().includes(term) ||
         (tool.description ? tool.description.toLowerCase().includes(term) : false)
       )
     })
-  }, [availableTools, searchTerm])
+  }, [availableTools, searchTerm, isSoulEnabled])
 
   const handleToggleTool = useCallback(
     async (toolId: string, isApproved: boolean) => {

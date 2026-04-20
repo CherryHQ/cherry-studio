@@ -13,7 +13,7 @@ export default class ImageStorage {
       if (typeof value === 'string') {
         // string（emoji）
         if (await db.settings.get(id)) {
-          db.settings.update(id, { value })
+          void db.settings.update(id, { value })
           return
         }
         await db.settings.add({ id, value })
@@ -22,7 +22,7 @@ export default class ImageStorage {
         const base64Image = await convertToBase64(value)
         if (typeof base64Image === 'string') {
           if (await db.settings.get(id)) {
-            db.settings.update(id, { value: base64Image })
+            void db.settings.update(id, { value: base64Image })
             return
           }
           await db.settings.add({ id, value: base64Image })

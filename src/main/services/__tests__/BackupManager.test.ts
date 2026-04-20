@@ -1,4 +1,41 @@
+import type * as PathModule from 'path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+// Mock path module to normalize all paths to POSIX format for cross-platform consistency
+// This ensures path operations work the same way regardless of the actual OS
+vi.mock('path', async () => {
+  const actual: typeof PathModule = await vi.importActual('path')
+  return {
+    ...actual,
+    sep: '/', // Always use forward slash for consistency
+    delimiter: ':',
+    join: (...args: string[]) => {
+      // Join with forward slashes, normalizing away backslashes
+      return actual.join(...args).replace(/\\/g, '/')
+    },
+    normalize: (p: string) => {
+      // Normalize path separators and remove redundant slashes
+      return actual.normalize(p).replace(/\\/g, '/')
+    },
+    resolve: (...args: string[]) => {
+      // For paths starting with / (Unix-style), use posix.resolve to avoid drive letter prefix
+      if (args.some((arg) => typeof arg === 'string' && arg.startsWith('/'))) {
+        return actual.posix.resolve(...args.map((a) => String(a).replace(/\\/g, '/')))
+      }
+      // For relative or Windows paths, use native resolve
+      return actual.resolve(...args).replace(/\\/g, '/')
+    },
+    isAbsolute: (p: string) => actual.isAbsolute(p) || String(p).startsWith('/'),
+    dirname: (p: string) => actual.dirname(p).replace(/\\/g, '/'),
+    basename: actual.basename,
+    extname: actual.extname,
+    relative: (from: string, to: string) =>
+      actual.relative(from.replace(/\\/g, '/'), to.replace(/\\/g, '/')).replace(/\\/g, '/'),
+    // Keep native POSIX and win32 for direct use if needed
+    posix: actual.posix,
+    win32: actual.win32
+  }
+})
 
 // Use vi.hoisted to define mocks that are available during hoisting
 const { mockLogger } = vi.hoisted(() => ({

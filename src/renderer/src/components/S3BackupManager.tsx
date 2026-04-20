@@ -69,7 +69,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
 
   useEffect(() => {
     if (visible) {
-      fetchBackupFiles()
+      void fetchBackupFiles()
       setSelectedRowKeys([])
       setPagination((prev) => ({
         ...prev,

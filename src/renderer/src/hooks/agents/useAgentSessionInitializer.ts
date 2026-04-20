@@ -66,7 +66,7 @@ export const useAgentSessionInitializer = () => {
     if (activeAgentId) {
       // Check if we need to initialize this agent's session (key not yet in map)
       if (!(activeAgentId in activeSessionIdMapRef.current)) {
-        initializeAgentSession(activeAgentId)
+        void initializeAgentSession(activeAgentId)
       }
     }
   }, [activeAgentId, initializeAgentSession])

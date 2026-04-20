@@ -12,7 +12,7 @@ import { crossPlatformSpawn, findExecutableInEnv, getBinaryPath, runInstallScrip
 import getShellEnv, { refreshShellEnv } from '@main/utils/shell-env'
 import type { OperationResult } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import { hasAPIVersion, withoutTrailingSlash } from '@shared/utils'
+import { formatApiHost, hasAPIVersion, withoutTrailingSlash } from '@shared/utils'
 import type { Model, Provider, ProviderType, VertexProvider } from '@types'
 
 import { parseCurrentVersion, parseUpdateStatus } from './utils/openClawParsers'
@@ -63,15 +63,18 @@ export interface OpenClawConfig {
   }
 }
 
+export interface OpenClawModelConfig {
+  id: string
+  name: string
+  contextWindow?: number
+  [key: string]: unknown
+}
+
 export interface OpenClawProviderConfig {
   baseUrl: string
   apiKey: string
   api: string
-  models: Array<{
-    id: string
-    name: string
-    contextWindow?: number
-  }>
+  models: OpenClawModelConfig[]
 }
 
 /**
@@ -84,6 +87,16 @@ const OPENCLAW_API_TYPES = {
   ANTHROPIC: 'anthropic-messages',
   OPENAI_RESPOSNE: 'openai-responses'
 } as const
+
+/**
+ * Placeholder API keys for providers that don't require authentication.
+ * OpenClaw requires a non-empty apiKey value even for local providers.
+ * Keys are matched by provider id first, then by provider type.
+ */
+const NO_KEY_PLACEHOLDERS: Record<string, string> = {
+  ollama: 'ollama',
+  lmstudio: 'lmstudio'
+}
 
 /**
  * Providers that always use Anthropic API format
@@ -688,7 +701,9 @@ class OpenClawService {
     }
     let url = `http://127.0.0.1:${this.gatewayPort}`
     if (this.gatewayAuthToken) {
-      url += `#token=${encodeURIComponent(this.gatewayAuthToken)}`
+      // Use query string (not URL fragment) so dashboard app state can persist correctly.
+      // Fragment (#...) is often used by SPAs for transient client-side state.
+      url += `?token=${encodeURIComponent(this.gatewayAuthToken)}`
     }
     return url
   }
@@ -781,17 +796,34 @@ class OpenClawService {
         }
       }
 
+      // Providers like Ollama and LM Studio don't require real API keys,
+      // but OpenClaw needs a non-empty placeholder value
+      if (!apiKey) {
+        apiKey = NO_KEY_PLACEHOLDERS[provider.id] ?? NO_KEY_PLACEHOLDERS[provider.type] ?? 'no-key-required'
+      }
+
       // Build OpenClaw provider config
+      // Preserve existing model-level config that users may have modified in OpenClaw
+      // (e.g., vision, custom context window, extra parameters)
+      config.models = config.models || { mode: 'merge', providers: {} }
+      config.models.providers = config.models.providers || {}
+      const existingModels = config.models.providers[providerKey]?.models || []
+      const existingModelMap = new Map(existingModels.map((m) => [m.id, m]))
+
+      // Build OpenClaw provider config with merge strategy
       const openclawProvider: OpenClawProviderConfig = {
         baseUrl,
         apiKey,
         api: apiType,
-        models: provider.models.map((m) => ({
-          id: m.id,
-          name: m.name,
-          // FIXME: in v2
-          contextWindow: 128000
-        }))
+        models: provider.models.map((m) => {
+          const existing = existingModelMap.get(m.id)
+          return {
+            ...existing,
+            id: m.id,
+            name: m.name,
+            contextWindow: existing?.contextWindow ?? 128000
+          }
+        })
       }
 
       // Set gateway mode to local (required for gateway to start)
@@ -804,8 +836,6 @@ class OpenClawService {
       this.gatewayAuthToken = token
 
       // Update config
-      config.models = config.models || { mode: 'merge', providers: {} }
-      config.models.providers = config.models.providers || {}
       config.models.providers[providerKey] = openclawProvider
 
       // Set primary model
@@ -1017,6 +1047,14 @@ class OpenClawService {
    * - Others: {host}/v1
    */
   private formatOpenAIUrl(provider: Provider): string {
+    // Special-case built-in GitHub / Copilot providers: these hosts should
+    // not have a `/v1` suffix appended by default (renderer applies
+    // `formatApiHost(..., false)` for these). Mirror that behavior here
+    // to avoid constructing incorrect endpoints that return 404.
+    if (provider.id === 'copilot' || provider.id === 'github') {
+      return formatApiHost(provider.apiHost, false)
+    }
+
     const url = withoutTrailingSlash(provider.apiHost)
     const providerType = provider.type
 

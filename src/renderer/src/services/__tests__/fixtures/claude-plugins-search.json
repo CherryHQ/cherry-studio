@@ -1,0 +1,71 @@
+{
+  "skills": [
+    {
+      "id": "cp-001",
+      "name": "code-review",
+      "namespace": "anthropic",
+      "sourceUrl": "https://github.com/anthropic/skills/tree/main/code-review",
+      "description": "Automated code review skill for Claude",
+      "version": "1.2.0",
+      "author": "anthropic",
+      "stars": 42,
+      "installs": 1500,
+      "metadata": {
+        "repoOwner": "anthropic",
+        "repoName": "skills",
+        "directoryPath": "code-review",
+        "rawFileUrl": "https://raw.githubusercontent.com/anthropic/skills/main/code-review/SKILL.md"
+      },
+      "createdAt": "2025-01-15T10:00:00Z",
+      "updatedAt": "2025-06-20T14:30:00Z"
+    },
+    {
+      "id": "cp-002",
+      "name": "test-generator",
+      "namespace": "community",
+      "sourceUrl": null,
+      "description": null,
+      "version": null,
+      "author": null,
+      "stars": 10,
+      "installs": 300,
+      "metadata": null,
+      "createdAt": "2025-03-01T08:00:00Z",
+      "updatedAt": "2025-05-10T12:00:00Z"
+    },
+    {
+      "id": "cp-003",
+      "name": "docs-writer",
+      "namespace": "devtools",
+      "description": "Generate technical documentation",
+      "version": "0.5.0",
+      "author": "devtools-org",
+      "metadata": {
+        "repoOwner": "devtools-org",
+        "repoName": "claude-skills"
+      }
+    },
+    {
+      "id": "cp-004",
+      "name": "vercel-react-best-practices",
+      "namespace": "@vercel-labs/agent-skills/react-best-practices",
+      "sourceUrl": "https://github.com/vercel-labs/agent-skills/tree/main/skills/react-best-practices",
+      "description": "React and Next.js performance optimization guidelines",
+      "version": null,
+      "author": "vercel-labs",
+      "stars": 1200,
+      "installs": 8500,
+      "metadata": {
+        "repoOwner": "vercel-labs",
+        "repoName": "agent-skills",
+        "directoryPath": "skills/react-best-practices",
+        "rawFileUrl": "https://raw.githubusercontent.com/vercel-labs/agent-skills/main/skills/react-best-practices/SKILL.md"
+      },
+      "createdAt": "2025-06-01T00:00:00Z",
+      "updatedAt": "2025-12-15T10:00:00Z"
+    }
+  ],
+  "total": 4,
+  "limit": 20,
+  "offset": 0
+}

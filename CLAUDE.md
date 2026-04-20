@@ -35,9 +35,13 @@ Only investigate CI failures by reading the logs, not by re-running checks local
 When creating an Issue, you MUST use the `gh-create-issue` skill.
 If the skill is unavailable, directly read `.agents/skills/gh-create-issue/SKILL.md` and follow it manually.
 
-### Current Contribution Restrictions
+### Branch Strategy (Effective April 3, 2026)
 
-> **IMPORTANT**: Feature PRs that change Redux data models or IndexedDB schemas are **temporarily blocked** until v2.0.0 releases. Only bug fixes, performance improvements, docs, and non-data-model features are accepted. Track progress at [#10162](https://github.com/CherryHQ/cherry-studio/pull/10162).
+> **IMPORTANT**: The `main` branch is now under **code freeze**. Only critical bug fixes submitted via `hotfix/*` branches are accepted. Fix PRs must be minimal in scope and must not include any refactoring code.
+>
+> All new features, refactoring, and optimizations should be developed on the **`v2` branch**. We welcome every developer to actively participate in v2 development!
+>
+> The `v2` branch will only accept new feature submissions after all current features have been fully refactored.
 
 ## Development Commands
 
@@ -297,6 +301,11 @@ Several dependencies have patches in `patches/` — be careful when upgrading:
 ## Important Notes
 
 ### V2 Refactoring in Progress
+
+The `main` branch is under code freeze. All development has moved to the `v2` branch.
+
+- **`main` branch**: Only accepts critical bug fixes via `hotfix/*` branches. Minimal changes, no refactoring.
+- **`v2` branch**: All new features, refactoring, and optimizations go here.
 
 Files marked with the following header are **blocked for feature changes**:
 

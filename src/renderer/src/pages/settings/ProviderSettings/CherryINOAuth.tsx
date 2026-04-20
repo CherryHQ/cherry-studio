@@ -74,7 +74,7 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
   useEffect(() => {
     // Only fetch balance if logged in via OAuth
     if (isOAuthLoggedIn) {
-      fetchData()
+      void fetchData()
     } else {
       setBalanceInfo(null)
     }
@@ -84,7 +84,7 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
     try {
       await oauthWithCherryIn(
         (apiKeys: string) => {
-          updateProvider({ apiKey: apiKeys })
+          updateProvider({ apiKey: apiKeys, enabled: true })
           setHasOAuthToken(true)
           window.toast.success(t('auth.get_key_success'))
         },

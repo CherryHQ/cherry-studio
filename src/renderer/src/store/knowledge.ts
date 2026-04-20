@@ -43,8 +43,8 @@ const knowledgeSlice = createSlice({
       if (base) {
         state.bases = state.bases.filter((b) => b.id !== action.payload.baseId)
         const files = base.items.filter((item) => item.type === 'file')
-        FileManager.deleteFiles(files.map((item) => item.content) as FileMetadata[])
-        window.api.knowledgeBase.delete(action.payload.baseId)
+        void FileManager.deleteFiles(files.map((item) => item.content) as FileMetadata[])
+        void window.api.knowledgeBase.delete(action.payload.baseId)
       }
     },
 

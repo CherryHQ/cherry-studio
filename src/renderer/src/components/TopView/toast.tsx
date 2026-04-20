@@ -89,7 +89,7 @@ const createToast = (color: ToastColor) => {
 
     return (
       (api.open({
-        type: type as 'error' | 'success' | 'warning' | 'info',
+        type: type,
         content: <ToastContent title={title} description={description} icon={icon} />,
         duration,
         ...restConfig

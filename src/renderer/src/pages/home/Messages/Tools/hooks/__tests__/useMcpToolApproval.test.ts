@@ -192,7 +192,7 @@ describe('useMcpToolApproval', () => {
       const { result } = renderHook(() => useMcpToolApproval(block))
 
       act(() => {
-        result.current.confirm()
+        void result.current.confirm()
       })
 
       expect(mockConfirmToolAction).toHaveBeenCalledWith('tool-123')
@@ -206,7 +206,7 @@ describe('useMcpToolApproval', () => {
       const { result } = renderHook(() => useMcpToolApproval(block))
 
       act(() => {
-        result.current.cancel()
+        void result.current.cancel()
       })
 
       expect(mockCancelToolAction).toHaveBeenCalledWith('tool-123')

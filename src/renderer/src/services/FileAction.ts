@@ -99,6 +99,6 @@ export async function handleRename(fileId: string) {
   if (!file) return
   const newName = await TextEditPopup.show({ text: file.origin_name })
   if (newName) {
-    FileManager.updateFile({ ...file, origin_name: newName })
+    void FileManager.updateFile({ ...file, origin_name: newName })
   }
 }

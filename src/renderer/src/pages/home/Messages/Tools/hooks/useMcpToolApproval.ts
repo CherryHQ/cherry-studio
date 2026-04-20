@@ -81,7 +81,7 @@ export function useMcpToolApproval(block: ToolMessageBlock): ToolApprovalState &
       return
     }
     let cancelled = false
-    resolveHubToolServer(tool, toolResponse, mcpServers).then((result) => {
+    void resolveHubToolServer(tool, toolResponse, mcpServers).then((result) => {
       if (cancelled) return
       if (result) {
         setHubResolvedAutoApproved(!result.server.disabledAutoApproveTools?.includes(result.toolName))

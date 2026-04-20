@@ -230,7 +230,7 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
 
   const handleOpenLink = useCallback(() => {
     const urlToOpen = currentUrl || app.url
-    window.api.openWebsite(urlToOpen)
+    void window.api.openWebsite(urlToOpen)
   }, [currentUrl, app.url])
 
   return (

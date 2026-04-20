@@ -22,6 +22,9 @@
     "packages/**/dist",
     "eslint.config.mjs"
   ],
+  "options": {
+    "typeAware": true
+  },
   "overrides": [
     {
       "env": {
@@ -83,7 +86,7 @@
     "typescript/consistent-type-imports": "error",
     "typescript/no-array-constructor": "error",
     "typescript/no-array-delete": "warn",
-    "typescript/no-base-to-string": "warn",
+    "typescript/no-base-to-string": "off", // TODO: warn
     "typescript/no-duplicate-enum-values": "error",
     "typescript/no-duplicate-type-constituents": "warn",
     "typescript/no-empty-object-type": "off",
@@ -91,16 +94,17 @@
     "typescript/no-extra-non-null-assertion": "error",
     "typescript/no-floating-promises": "warn",
     "typescript/no-for-in-array": "warn",
-    "typescript/no-implied-eval": "warn",
+    "typescript/no-implied-eval": "off", // TODO: warn
     "typescript/no-meaningless-void-operator": "warn",
     "typescript/no-misused-new": "error",
-    "typescript/no-misused-spread": "warn",
+    "typescript/no-misused-spread": "off", // TODO: warn
     "typescript/no-namespace": "error",
     "typescript/no-non-null-asserted-optional-chain": "off",
-    "typescript/no-redundant-type-constituents": "warn",
+    "typescript/no-redundant-type-constituents": "off", // TODO: warn
     "typescript/no-require-imports": "off",
     "typescript/no-this-alias": "error",
     "typescript/no-unnecessary-parameter-property-assignment": "warn",
+    "typescript/no-unnecessary-type-assertion": "error",
     "typescript/no-unnecessary-type-constraint": "error",
     "typescript/no-unsafe-declaration-merging": "error",
     "typescript/no-unsafe-function-type": "error",
@@ -109,10 +113,10 @@
     "typescript/no-wrapper-object-types": "error",
     "typescript/prefer-as-const": "error",
     "typescript/prefer-namespace-keyword": "error",
-    "typescript/require-array-sort-compare": "warn",
-    "typescript/restrict-template-expressions": "warn",
+    "typescript/require-array-sort-compare": "off", // TODO: warn
+    "typescript/restrict-template-expressions": "off", // TODO: warn
     "typescript/triple-slash-reference": "error",
-    "typescript/unbound-method": "warn",
+    "typescript/unbound-method": "off", // TODO: warn
     "unicorn/no-await-in-promise-methods": "warn",
     "unicorn/no-empty-file": "off",
     "unicorn/no-invalid-fetch-options": "warn",

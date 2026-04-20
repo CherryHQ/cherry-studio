@@ -352,18 +352,18 @@ export const formatCitationsFromBlock = (block: CitationMessageBlock | undefined
 // Memoized selector that takes a block ID and returns formatted citations
 export const selectFormattedCitationsByBlockId = createSelector([selectBlockEntityById], (blockEntity): Citation[] => {
   if (blockEntity?.type === MessageBlockType.CITATION) {
-    return formatCitationsFromBlock(blockEntity as CitationMessageBlock)
+    return formatCitationsFromBlock(blockEntity)
   }
   return []
 })
 
 // --- Active TodoWrite Block Selector ---
-interface TodoWriteNormalToolResponse extends Omit<NormalToolResponse, 'tool' | 'arguments'> {
+export interface TodoWriteNormalToolResponse extends Omit<NormalToolResponse, 'tool' | 'arguments'> {
   tool: BaseTool & { name: 'TodoWrite' }
   arguments: TodoWriteToolInput
 }
 
-interface TodoWriteToolMessageBlock extends Omit<ToolMessageBlock, 'metadata'> {
+export interface TodoWriteToolMessageBlock extends Omit<ToolMessageBlock, 'metadata'> {
   metadata: NonNullable<ToolMessageBlock['metadata']> & {
     rawMcpToolResponse: TodoWriteNormalToolResponse
   }
@@ -378,14 +378,14 @@ const hasIncompleteTodos = (todos: TodoItem[]): boolean =>
 /**
  * Check if a block is a TodoWrite tool block
  */
-const isTodoWriteBlock = (block: MessageBlock | undefined): block is TodoWriteToolMessageBlock => {
+export const isTodoWriteBlock = (block: MessageBlock | undefined): block is TodoWriteToolMessageBlock => {
   if (!block || block.type !== MessageBlockType.TOOL) return false
-  const toolResponse = (block as ToolMessageBlock).metadata?.rawMcpToolResponse
+  const toolResponse = block.metadata?.rawMcpToolResponse
   if (toolResponse?.tool?.name !== 'TodoWrite') return false
   // Defensive: validate todos is actually an array to prevent dirty data from crashing selectors (#12804)
   const args = toolResponse.arguments
   if (!args || typeof args !== 'object' || Array.isArray(args)) return false
-  return Array.isArray((args as Record<string, unknown>).todos)
+  return Array.isArray(args.todos)
 }
 
 /**

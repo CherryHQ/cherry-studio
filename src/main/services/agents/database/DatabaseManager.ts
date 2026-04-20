@@ -19,13 +19,19 @@ import { loggerService } from '@logger'
 import { isDev } from '@main/constant'
 import type { LibSQLDatabase } from 'drizzle-orm/libsql'
 import { drizzle } from 'drizzle-orm/libsql'
+import { app } from 'electron'
 import fs from 'fs'
 import path from 'path'
 
-import { dbPath, getOldDbPath } from '../drizzle.config'
 import { DataMigrationService } from './DataMigrationService'
 import { MigrationService } from './MigrationService'
 import * as schema from './schema'
+
+const dbPath = path.join(app.getPath('userData'), 'Data', 'agents.db')
+
+function getOldDbPath() {
+  return path.join(app.getPath('userData'), 'agents.db')
+}
 
 const logger = loggerService.withContext('DatabaseManager')
 

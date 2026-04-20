@@ -20,7 +20,7 @@ import type { LanguageVarious, Shortcut } from '@types'
 import { ThemeMode } from '@types'
 import { app } from 'electron'
 import Store from 'electron-store'
-import { v4 as uuidv4 } from 'uuid'
+import { v7 as uuid } from 'uuid'
 
 import { locales } from '../utils/locales'
 
@@ -276,7 +276,7 @@ export class ConfigManager {
     let clientId = this.get<string>(ConfigKeys.ClientId)
 
     if (!clientId) {
-      clientId = uuidv4()
+      clientId = uuid()
       this.set(ConfigKeys.ClientId, clientId)
     }
 

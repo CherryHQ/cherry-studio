@@ -5,7 +5,6 @@ import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { useAppDispatch } from '@renderer/store'
 import { setNarrowMode } from '@renderer/store/settings'
 import type { Assistant, Topic } from '@renderer/types'
@@ -34,18 +33,8 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
   const { showTopics, toggleShowTopics } = useShowTopics()
   const dispatch = useAppDispatch()
 
-  useShortcut('toggle_show_assistants', toggleShowAssistants)
-
-  useShortcut('toggle_show_topics', () => {
-    if (topicPosition === 'right') {
-      toggleShowTopics()
-    } else {
-      EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
-    }
-  })
-
   useShortcut('search_message', () => {
-    SearchPopup.show()
+    void SearchPopup.show()
   })
 
   const handleNarrowModeToggle = async () => {
@@ -54,7 +43,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
   }
 
   const onShowAssistantsDrawer = () => {
-    AssistantsDrawer.show({
+    void AssistantsDrawer.show({
       activeAssistant,
       setActiveAssistant,
       activeTopic,

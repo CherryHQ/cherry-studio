@@ -4,7 +4,7 @@ import { ContentSearch } from '@renderer/components/ContentSearch'
 import { HStack } from '@renderer/components/Layout'
 import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
-import { SelectModelPopup } from '@renderer/components/Popups/SelectModelPopup'
+import { SelectChatModelPopup } from '@renderer/components/Popups/SelectModelPopup'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { isEmbeddingModel, isRerankModel, isWebSearchModel } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
@@ -71,7 +71,7 @@ const Chat: FC<Props> = (props) => {
     const topic = props.activeTopic
     if (!topic) return
 
-    EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
+    void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
 
     const name = await PromptPopup.show({
       title: t('chat.topics.edit.title'),
@@ -87,13 +87,15 @@ const Chat: FC<Props> = (props) => {
 
   useShortcut('select_model', async () => {
     const modelFilter = (m: Model) => !isEmbeddingModel(m) && !isRerankModel(m)
-    const selectedModel = await SelectModelPopup.show({ model: assistant?.model, filter: modelFilter })
+    const selectedModel = await SelectChatModelPopup.show({
+      model: assistant?.model,
+      filter: modelFilter
+    })
     if (selectedModel) {
       const enabledWebSearch = isWebSearchModel(selectedModel)
       updateAssistant({
-        ...props.assistant,
         model: selectedModel,
-        enableWebSearch: enabledWebSearch && props.assistant.enableWebSearch
+        enableWebSearch: enabledWebSearch && assistant.enableWebSearch
       })
     }
   })

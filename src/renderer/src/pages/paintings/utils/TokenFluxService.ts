@@ -191,7 +191,7 @@ export class TokenFluxService {
       }
 
       // Start polling
-      poll()
+      void poll()
     })
   }
 

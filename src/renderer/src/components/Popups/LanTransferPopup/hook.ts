@@ -301,7 +301,7 @@ export function useLanTransfer(): UseLanTransferReturn {
     if (!window.api?.localTransfer) {
       return
     }
-    syncLanState()
+    void syncLanState()
     const removeListener = window.api.localTransfer.onServicesUpdated((lanState) => {
       dispatch({ type: 'SET_LAN_STATE', payload: lanState })
     })

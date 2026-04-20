@@ -43,7 +43,12 @@ const getIsOvmsSupported = async (): Promise<boolean> => {
   }
 }
 
-const ProviderList: FC = () => {
+interface ProviderListProps {
+  /** Whether in onboarding mode for new users */
+  isOnboarding?: boolean
+}
+
+const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
   const [searchParams, setSearchParams] = useSearchParams()
   const providers = useAllProviders()
   const { updateProviders, addProvider, removeProvider, updateProvider } = useProviders()
@@ -80,7 +85,7 @@ const ProviderList: FC = () => {
       setProviderLogos(logos)
     }
 
-    loadAllLogos()
+    void loadAllLogos()
   }, [providers])
 
   useEffect(() => {
@@ -161,7 +166,7 @@ const ProviderList: FC = () => {
         return
       }
 
-      handleProviderAddKey({ id, apiKey: newApiKey, baseUrl, type, name })
+      void handleProviderAddKey({ id, apiKey: newApiKey, baseUrl, type, name })
     } catch (error) {
       window.toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
       window.navigate('/settings/provider')
@@ -440,7 +445,7 @@ const ProviderList: FC = () => {
           </Button>
         </AddButtonWrapper>
       </ProviderListContainer>
-      <ProviderSetting providerId={selectedProvider.id} key={selectedProvider.id} />
+      <ProviderSetting providerId={selectedProvider.id} key={selectedProvider.id} isOnboarding={isOnboarding} />
     </Container>
   )
 }
@@ -456,7 +461,6 @@ const ProviderListContainer = styled.div`
   display: flex;
   flex-direction: column;
   min-width: calc(var(--settings-width) + 10px);
-  height: calc(100vh - var(--navbar-height));
   padding-bottom: 5px;
   border-right: 0.5px solid var(--color-border);
 `

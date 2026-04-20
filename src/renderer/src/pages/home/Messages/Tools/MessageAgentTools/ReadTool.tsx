@@ -1,7 +1,8 @@
+import CodeViewer from '@renderer/components/CodeViewer'
+import { getLanguageByFilePath } from '@renderer/utils/code-language'
 import { formatFileSize } from '@renderer/utils/file'
 import type { CollapseProps } from 'antd'
 import { useTranslation } from 'react-i18next'
-import ReactMarkdown from 'react-markdown'
 
 import { truncateOutput } from '../shared/truncateOutput'
 import { ClickableFilePath } from './ClickableFilePath'
@@ -11,6 +12,15 @@ import { AgentToolsType } from './types'
 
 const removeSystemReminderTags = (text: string): string => {
   return text.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/gi, '')
+}
+
+/**
+ * Strip line number prefixes from Read tool output.
+ * The model returns lines like: "     1→content" or "    10→content"
+ * Pattern: optional spaces + digits + arrow (→) + actual content
+ */
+const stripLineNumbers = (text: string): string => {
+  return text.replace(/^ *\d+→/gm, '')
 }
 
 const normalizeOutputString = (output?: ReadToolOutputType): string | null => {
@@ -24,6 +34,8 @@ const normalizeOutputString = (output?: ReadToolOutputType): string | null => {
       .map(toText)
       .join('')
   }
+
+  if (typeof output !== 'string') return null
 
   return removeSystemReminderTags(output)
 }
@@ -48,7 +60,9 @@ export function ReadTool({
   const outputString = normalizeOutputString(output)
   const stats = getOutputStats(outputString)
   const filename = input?.file_path?.split('/').pop()
+  const language = getLanguageByFilePath(input?.file_path ?? '')
   const { data: truncatedOutput, isTruncated, originalLength } = truncateOutput(outputString)
+  const strippedOutput = truncatedOutput ? stripLineNumbers(truncatedOutput) : null
 
   return {
     key: AgentToolsType.Read,
@@ -70,9 +84,16 @@ export function ReadTool({
         showStatus={false}
       />
     ),
-    children: truncatedOutput ? (
+    children: strippedOutput ? (
       <div>
-        <ReactMarkdown>{truncatedOutput}</ReactMarkdown>
+        <CodeViewer
+          value={strippedOutput}
+          language={language}
+          expanded={false}
+          wrapped={false}
+          maxHeight={240}
+          options={{ lineNumbers: true }}
+        />
         {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
       </div>
     ) : (

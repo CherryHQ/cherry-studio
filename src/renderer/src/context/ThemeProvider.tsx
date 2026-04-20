@@ -82,7 +82,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   }, [actualTheme])
 
   useEffect(() => {
-    window.api.setTheme(settedTheme)
+    void window.api.setTheme(settedTheme)
   }, [settedTheme])
 
   return (

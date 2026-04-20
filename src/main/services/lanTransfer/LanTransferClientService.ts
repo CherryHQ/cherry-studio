@@ -141,7 +141,7 @@ class LanTransferClientService {
       })
 
       socket.once('error', (error) => {
-        logger.error('LAN transfer socket error', error as Error)
+        logger.error('LAN transfer socket error', error)
         const message = error instanceof Error ? error.message : String(error)
         this.broadcastClientEvent({
           type: 'error',

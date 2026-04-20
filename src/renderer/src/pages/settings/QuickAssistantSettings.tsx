@@ -41,7 +41,7 @@ const QuickAssistantSettings: FC = () => {
     dispatch(setEnableQuickAssistant(enable))
     await window.api.config.set('enableQuickAssistant', enable, true)
 
-    !enable && window.api.miniWindow.close()
+    void (!enable && window.api.miniWindow.close())
 
     if (enable && !clickTrayToShowQuickAssistant) {
       window.toast.info({
@@ -65,7 +65,7 @@ const QuickAssistantSettings: FC = () => {
   const handleClickReadClipboardAtStartup = async (checked: boolean) => {
     dispatch(setReadClipboardAtStartup(checked))
     await window.api.config.set('readClipboardAtStartup', checked)
-    window.api.miniWindow.close()
+    void window.api.miniWindow.close()
   }
 
   return (

@@ -362,6 +362,9 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     type: 'openai',
     apiKey: '',
     apiHost: 'https://openrouter.ai/api/v1/',
+    // Anthropic-compatible endpoint for Agent mode (Claude Code SDK)
+    // https://openrouter.ai/docs/guides/guides/coding-agents/claude-code-integration
+    anthropicApiHost: 'https://openrouter.ai/api',
     models: SYSTEM_MODELS.openrouter,
     isSystem: true,
     enabled: false
@@ -394,6 +397,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     type: 'openai',
     apiKey: '',
     apiHost: 'http://localhost:1234',
+    anthropicApiHost: 'http://localhost:1234',
     models: SYSTEM_MODELS.lmstudio,
     isSystem: true,
     enabled: false
@@ -1462,7 +1466,7 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
     },
     websites: {
       official: 'https://poe.com/',
-      apiKey: 'https://poe.com/api_key',
+      apiKey: 'https://poe.com/api/keys',
       docs: 'https://creator.poe.com/docs/external-applications/openai-compatible-api',
       models: 'https://poe.com/'
     }

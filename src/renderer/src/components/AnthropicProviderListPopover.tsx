@@ -55,7 +55,7 @@ const AnthropicProviderListPopover: FC<AnthropicProviderListPopoverProps> = ({
       setProviderLogos(logos)
     }
 
-    loadAllLogos()
+    void loadAllLogos()
   }, [providers])
 
   const handleClick = (providerId: string) => {

@@ -82,40 +82,29 @@ export class EpubLoader extends BaseLoader<Record<string, string | number | bool
 
   /**
    * 等待 epub 文件初始化完成
-   * epub 库使用事件机制，需要等待 'end' 事件触发后才能访问文件内容
    * @param epub epub 实例
    * @returns 元数据和章节信息
    */
-  private waitForEpubInit(epub: any): Promise<{ metadata: EpubMetadata; chapters: EpubChapter[] }> {
-    return new Promise((resolve, reject) => {
-      epub.on('end', () => {
-        // 提取元数据
-        const metadata: EpubMetadata = {
-          creator: epub.metadata.creator,
-          creatorFileAs: epub.metadata.creatorFileAs,
-          title: epub.metadata.title,
-          language: epub.metadata.language,
-          subject: epub.metadata.subject,
-          date: epub.metadata.date,
-          description: epub.metadata.description
-        }
+  private async waitForEpubInit(epub: EPub): Promise<{ metadata: EpubMetadata; chapters: EpubChapter[] }> {
+    await epub.parse()
 
-        // 提取章节信息
-        const chapters: EpubChapter[] = epub.flow.map((chapter: any, index: number) => ({
-          id: chapter.id,
-          title: chapter.title || `Chapter ${index + 1}`,
-          order: index + 1
-        }))
+    const metadata: EpubMetadata = {
+      creator: epub.metadata.creator,
+      creatorFileAs: epub.metadata.creatorFileAs,
+      title: epub.metadata.title,
+      language: epub.metadata.language,
+      subject: epub.metadata.subject,
+      date: epub.metadata.date,
+      description: epub.metadata.description
+    }
 
-        resolve({ metadata, chapters })
-      })
+    const chapters: EpubChapter[] = epub.flow.map((chapter: any, index: number) => ({
+      id: chapter.id,
+      title: chapter.title || `Chapter ${index + 1}`,
+      order: index + 1
+    }))
 
-      epub.on('error', (error: Error) => {
-        reject(error)
-      })
-
-      epub.parse()
-    })
+    return { metadata, chapters }
   }
 
   /**
@@ -124,16 +113,8 @@ export class EpubLoader extends BaseLoader<Record<string, string | number | bool
    * @param chapterId 章节 ID
    * @returns 章节文本内容
    */
-  private getChapter(epub: any, chapterId: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-      epub.getChapter(chapterId, (error: Error | null, text: string) => {
-        if (error) {
-          reject(error)
-        } else {
-          resolve(text)
-        }
-      })
-    })
+  private async getChapter(epub: EPub, chapterId: string): Promise<string> {
+    return epub.getChapter(chapterId)
   }
 
   /**

@@ -7,11 +7,9 @@ export enum IpcChannel {
   App_SetSpellCheckLanguages = 'app:set-spell-check-languages',
   App_CheckForUpdate = 'app:check-for-update',
   App_QuitAndInstall = 'app:quit-and-install',
-  App_ManualInstallUpdate = 'app:manual-install-update',
   App_Reload = 'app:reload',
   App_Quit = 'app:quit',
   App_Info = 'app:info',
-  App_GetSigningInfo = 'app:get-signing-info',
   App_Proxy = 'app:proxy',
   App_SetLaunchToTray = 'app:set-launch-to-tray',
   App_SetTray = 'app:set-tray',
@@ -110,6 +108,26 @@ export enum IpcChannel {
   AgentToolPermission_Request = 'agent-tool-permission:request',
   AgentToolPermission_Response = 'agent-tool-permission:response',
   AgentToolPermission_Result = 'agent-tool-permission:result',
+
+  // Agent session stream (IM channel -> renderer real-time)
+  AgentSessionStream_Subscribe = 'agent-session-stream:subscribe',
+  AgentSessionStream_Unsubscribe = 'agent-session-stream:unsubscribe',
+  AgentSessionStream_Abort = 'agent-session-stream:abort',
+  AgentSessionStream_Chunk = 'agent-session-stream:chunk',
+  AgentSession_Changed = 'agent-session:changed',
+
+  // WeChat channel
+  WeChat_QrLogin = 'wechat:qr-login',
+  WeChat_HasCredentials = 'wechat:has-credentials',
+
+  // Feishu channel
+  Feishu_QrLogin = 'feishu:qr-login',
+
+  // Channel status & logs
+  Channel_StatusChange = 'channel:status-change',
+  Channel_Log = 'channel:log',
+  Channel_GetLogs = 'channel:get-logs',
+  Channel_GetStatuses = 'channel:get-statuses',
 
   //copilot
   Copilot_GetAuthMessage = 'copilot:get-auth-message',
@@ -219,6 +237,9 @@ export enum IpcChannel {
   File_BatchUploadMarkdown = 'file:batchUploadMarkdown',
   File_ShowInFolder = 'file:showInFolder',
 
+  // PDF
+  Pdf_ExtractText = 'pdf:extractText',
+
   // file service
   FileService_Upload = 'file-service:upload',
   FileService_List = 'file-service:list',
@@ -315,10 +336,9 @@ export enum IpcChannel {
   Selection_ActionWindowClose = 'selection:action-window-close',
   Selection_ActionWindowMinimize = 'selection:action-window-minimize',
   Selection_ActionWindowPin = 'selection:action-window-pin',
-  // [Windows only] Electron bug workaround - can be removed once https://github.com/electron/electron/issues/48554 is fixed
-  Selection_ActionWindowResize = 'selection:action-window-resize',
   Selection_ProcessAction = 'selection:process-action',
   Selection_UpdateActionData = 'selection:update-action-data',
+  Selection_GetLinuxEnvInfo = 'selection:get-linux-env-info',
 
   // Memory
   Memory_Add = 'memory:add',
@@ -392,14 +412,16 @@ export enum IpcChannel {
   // CherryAI
   Cherryai_GetSignature = 'cherryai:get-signature',
 
-  // Claude Code Plugins
-  ClaudeCodePlugin_Install = 'claudeCodePlugin:install',
-  ClaudeCodePlugin_Uninstall = 'claudeCodePlugin:uninstall',
-  ClaudeCodePlugin_UninstallPackage = 'claudeCodePlugin:uninstall-package',
-  ClaudeCodePlugin_ListInstalled = 'claudeCodePlugin:list-installed',
-  ClaudeCodePlugin_WriteContent = 'claudeCodePlugin:write-content',
-  ClaudeCodePlugin_InstallFromZip = 'claudeCodePlugin:install-from-zip',
-  ClaudeCodePlugin_InstallFromDirectory = 'claudeCodePlugin:install-from-directory',
+  // Global Skills
+  Skill_List = 'skill:list',
+  Skill_Install = 'skill:install',
+  Skill_Uninstall = 'skill:uninstall',
+  Skill_Toggle = 'skill:toggle',
+  Skill_InstallFromZip = 'skill:install-from-zip',
+  Skill_InstallFromDirectory = 'skill:install-from-directory',
+  Skill_ReadFile = 'skill:read-file',
+  Skill_ListFiles = 'skill:list-files',
+  Skill_ListLocal = 'skill:list-local',
 
   // Local Transfer
   LocalTransfer_ListServices = 'local-transfer:list',

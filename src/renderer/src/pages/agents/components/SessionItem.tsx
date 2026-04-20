@@ -1,17 +1,20 @@
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
+import MarqueeText from '@renderer/components/MarqueeText'
 import { isMac } from '@renderer/config/constant'
 import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { finishTopicRenaming, startTopicRenaming } from '@renderer/hooks/useTopic'
 import { SessionSettingsPopup } from '@renderer/pages/settings/AgentSettings'
 import { SessionLabel } from '@renderer/pages/settings/AgentSettings/shared'
-import store, { useAppDispatch, useAppSelector } from '@renderer/store'
+import store, { type RootState, useAppDispatch, useAppSelector } from '@renderer/store'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import { loadTopicMessagesThunk, renameAgentSessionIfNeeded } from '@renderer/store/thunk/messageThunk'
 import type { AgentSessionEntity } from '@renderer/types'
 import { classNames } from '@renderer/utils'
+import { getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { MenuProps } from 'antd'
 import { Dropdown, Tooltip } from 'antd'
@@ -26,11 +29,12 @@ interface SessionItemProps {
   session: AgentSessionEntity
   // use external agentId as SSOT, instead of session.agent_id
   agentId: string
+  channelType?: string
   onDelete: () => void
   onPress: () => void
 }
 
-const SessionItem = ({ session, agentId, onDelete, onPress }: SessionItemProps) => {
+const SessionItem = ({ session, agentId, channelType, onDelete, onPress }: SessionItemProps) => {
   const { t } = useTranslation()
   const { chat } = useRuntime()
   const { updateSession } = useUpdateSession(agentId)
@@ -95,6 +99,10 @@ const SessionItem = ({ session, agentId, onDelete, onPress }: SessionItemProps) 
   const sessionTopicId = buildAgentSessionTopicId(session.id)
   const isPending = useMemo(() => topicLoadingQuery[sessionTopicId], [sessionTopicId, topicLoadingQuery])
   const isFulfilled = useMemo(() => topicFulfilledQuery[sessionTopicId], [sessionTopicId, topicFulfilledQuery])
+  const renamingTopics = useAppSelector((state: RootState) => state.runtime.chat.renamingTopics)
+  const newlyRenamedTopics = useAppSelector((state: RootState) => state.runtime.chat.newlyRenamedTopics)
+  const isRenaming = renamingTopics.includes(sessionTopicId)
+  const isNewlyRenamed = newlyRenamedTopics.includes(sessionTopicId)
 
   useEffect(() => {
     if (isFulfilled && activeSessionId === session.id) {
@@ -107,6 +115,8 @@ const SessionItem = ({ session, agentId, onDelete, onPress }: SessionItemProps) 
     }
   }, [activeSessionId, dispatch, isFulfilled, session.id, sessionTopicId])
 
+  const channelIcon = getChannelTypeIcon(channelType)
+
   const { topicPosition, setTopicPosition } = useSettings()
   const singlealone = topicPosition === 'right'
 
@@ -117,7 +127,7 @@ const SessionItem = ({ session, agentId, onDelete, onPress }: SessionItemProps) 
         key: 'edit',
         icon: <EditIcon size={14} />,
         onClick: () => {
-          SessionSettingsPopup.show({
+          void SessionSettingsPopup.show({
             agentId,
             sessionId: session.id
           })
@@ -127,13 +137,18 @@ const SessionItem = ({ session, agentId, onDelete, onPress }: SessionItemProps) 
         label: t('chat.topics.auto_rename'),
         key: 'auto-rename',
         icon: <Sparkles size={14} />,
-        onClick: () => {
+        onClick: async () => {
           const agentSession = {
             agentId: agentId,
             sessionId: targetSession.id
           }
-          dispatch(loadTopicMessagesThunk(sessionTopicId))
-          renameAgentSessionIfNeeded(agentSession, sessionTopicId, store.getState)
+          void dispatch(loadTopicMessagesThunk(sessionTopicId))
+          try {
+            startTopicRenaming(sessionTopicId)
+            await renameAgentSessionIfNeeded(agentSession, sessionTopicId, store.getState)
+          } finally {
+            finishTopicRenaming(sessionTopicId)
+          }
         }
       },
       {
@@ -188,9 +203,15 @@ const SessionItem = ({ session, agentId, onDelete, onPress }: SessionItemProps) 
             <SessionEditInput {...inputProps} style={{ opacity: isSaving ? 0.5 : 1 }} />
           ) : (
             <>
-              <div className="truncate text-[13px]">
-                <SessionLabel session={session} />
-              </div>
+              <SessionName>
+                {channelIcon && <ChannelIconImg src={channelIcon} />}
+                <MarqueeText className="flex min-w-0 flex-1">
+                  <SessionLabel
+                    session={session}
+                    className={isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-reveal' : ''}
+                  />
+                </MarqueeText>
+              </SessionName>
               <DeleteButton />
             </>
           )}
@@ -254,6 +275,24 @@ const SessionNameContainer = styled.div`
   gap: 4px;
   height: 20px;
   justify-content: space-between;
+`
+
+const SessionName = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  font-size: 13px;
+  position: relative;
+  min-width: 0;
+`
+
+const ChannelIconImg = styled.img`
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  border-radius: 2px;
+  object-fit: contain;
 `
 
 const SessionEditInput = styled.input`

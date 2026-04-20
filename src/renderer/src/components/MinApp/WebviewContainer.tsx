@@ -75,9 +75,9 @@ const WebviewContainer = memo(
       const handleDomReady = () => {
         const webviewId = webviewRef.current?.getWebContentsId()
         if (webviewId) {
-          window.api?.webview?.setSpellCheckEnabled?.(webviewId, enableSpellCheck)
+          void window.api?.webview?.setSpellCheckEnabled?.(webviewId, enableSpellCheck)
           // Set link opening behavior for this webview
-          window.api?.webview?.setOpenLinkExternal?.(webviewId, minappsOpenLinkExternal)
+          void window.api?.webview?.setOpenLinkExternal?.(webviewId, minappsOpenLinkExternal)
         }
       }
 
@@ -158,8 +158,8 @@ const WebviewContainer = memo(
       try {
         const webviewId = webviewRef.current.getWebContentsId()
         if (webviewId) {
-          window.api?.webview?.setSpellCheckEnabled?.(webviewId, enableSpellCheck)
-          window.api?.webview?.setOpenLinkExternal?.(webviewId, minappsOpenLinkExternal)
+          void window.api?.webview?.setSpellCheckEnabled?.(webviewId, enableSpellCheck)
+          void window.api?.webview?.setOpenLinkExternal?.(webviewId, minappsOpenLinkExternal)
         }
       } catch (error) {
         // WebView may not be ready yet, settings will be applied in dom-ready event

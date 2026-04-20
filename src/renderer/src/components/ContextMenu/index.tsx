@@ -91,7 +91,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ children }) => {
         label: t('chat.message.quote'),
         onClick: () => {
           if (selectedText) {
-            window.api?.quoteToMainWindow(selectedText)
+            void window.api?.quoteToMainWindow(selectedText)
           }
         }
       }

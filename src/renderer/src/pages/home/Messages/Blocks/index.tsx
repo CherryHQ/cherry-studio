@@ -132,7 +132,7 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
             if (block.length === 1) {
               return (
                 <AnimatedBlockWrapper key={groupKey} enableAnimation={message.status.includes('ing')}>
-                  <ImageBlock key={block[0].id} block={block[0] as ImageMessageBlock} isSingle={true} />
+                  <ImageBlock key={block[0].id} block={block[0]} isSingle={true} />
                 </AnimatedBlockWrapper>
               )
             }

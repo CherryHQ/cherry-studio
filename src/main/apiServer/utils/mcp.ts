@@ -14,8 +14,6 @@ const logger = loggerService.withContext('MCPApiService')
 const MCP_SERVERS_CACHE_KEY = 'api-server:mcp-servers'
 const MCP_SERVERS_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
 
-const cachedServers: Record<string, Server> = {}
-
 async function handleListToolsRequest(request: any, extra: any): Promise<ListToolsResult> {
   logger.debug('Handling list tools request', { request: request, extra: extra })
   const serverId: string = request.params._meta.serverId
@@ -72,26 +70,24 @@ export async function getMCPServersFromRedux(): Promise<MCPServer[]> {
   }
 }
 
-export async function getMcpServerById(id: string): Promise<Server> {
-  const server = cachedServers[id]
-  if (!server) {
-    const servers = await getMCPServersFromRedux()
-    const mcpServer = servers.find((s) => s.id === id || s.name === id)
-    if (!mcpServer) {
-      throw new Error(`Server not found: ${id}`)
-    }
-
-    const createMcpServer = (name: string, version: string): Server => {
-      const server = new Server({ name: name, version }, { capabilities: { tools: {} } })
-      server.setRequestHandler(ListToolsRequestSchema, handleListToolsRequest)
-      server.setRequestHandler(CallToolRequestSchema, handleCallToolRequest)
-      return server
-    }
-
-    const newServer = createMcpServer(mcpServer.name, '0.1.0')
-    cachedServers[id] = newServer
-    return newServer
+/**
+ * Creates a fresh MCP Server instance for a given server ID.
+ *
+ * A new Server is created for each transport session because the MCP SDK's
+ * Protocol.connect() throws "Already connected" if the Server is already
+ * bound to a transport. Since the Claude Agent SDK spawns a new CLI process
+ * per query (including resumes), each process establishes a new HTTP
+ * transport, so the proxy must provide a fresh Server instance every time.
+ */
+export async function createMcpServerForTransport(id: string): Promise<Server> {
+  const servers = await getMCPServersFromRedux()
+  const mcpServer = servers.find((s) => s.id === id || s.name === id)
+  if (!mcpServer) {
+    throw new Error(`Server not found: ${id}`)
   }
-  logger.debug('Returning cached MCP server', { id, hasHandlers: Boolean(server) })
+
+  const server = new Server({ name: mcpServer.name, version: '0.1.0' }, { capabilities: { tools: {} } })
+  server.setRequestHandler(ListToolsRequestSchema, handleListToolsRequest)
+  server.setRequestHandler(CallToolRequestSchema, handleCallToolRequest)
   return server
 }

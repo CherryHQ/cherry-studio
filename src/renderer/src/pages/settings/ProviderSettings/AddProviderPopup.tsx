@@ -43,7 +43,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
           logger.error('Failed to load logo', error as Error)
         }
       }
-      loadLogo()
+      void loadLogo()
     }
   }, [provider])
 
@@ -238,7 +238,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
             placeholder={t('settings.provider.add.name.placeholder')}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
-                onOk()
+                void onOk()
               }
             }}
             maxLength={32}

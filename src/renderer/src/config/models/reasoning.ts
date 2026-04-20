@@ -80,6 +80,8 @@ export const MODEL_SUPPORTED_REASONING_EFFORT = {
   perplexity: ['low', 'medium', 'high'] as const,
   deepseek_hybrid: ['auto'] as const,
   kimi_k2_5: ['none', 'auto'] as const,
+  // Claude 3.7, 4.0, 4.5 reasoning models
+  claude: ['low', 'medium', 'high'] as const,
   // Claude 4.6 supports low, medium, high, xhigh (xhigh is mapped to max in API)
   claude46: ['low', 'medium', 'high', 'xhigh'] as const
 } as const satisfies ReasoningEffortConfig
@@ -117,6 +119,7 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   perplexity: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.perplexity] as const,
   deepseek_hybrid: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.deepseek_hybrid] as const,
   kimi_k2_5: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.kimi_k2_5] as const,
+  claude: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.claude] as const,
   claude46: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.claude46] as const
 } as const
 
@@ -124,7 +127,12 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
 const _getThinkModelType = (model: Model): ThinkingModelType => {
   let thinkingModelType: ThinkingModelType = 'default'
   const modelId = getLowerBaseModelName(model.id)
-  if (isOpenAIDeepResearchModel(model)) {
+  if (isClaudeReasoningModel(model)) {
+    thinkingModelType = 'claude'
+    if (isClaude46SeriesModel(model)) {
+      thinkingModelType = 'claude46'
+    }
+  } else if (isOpenAIDeepResearchModel(model)) {
     return 'openai_deep_research'
   } else if (isGPT5FamilyModel(model)) {
     if (isGPT51SeriesModel(model)) {
@@ -200,8 +208,6 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
     thinkingModelType = 'mimo'
   } else if (isSupportedThinkingTokenKimiModel(model)) {
     thinkingModelType = 'kimi_k2_5'
-  } else if (isClaude46SeriesModel(model)) {
-    thinkingModelType = 'claude46'
   }
   return thinkingModelType
 }
@@ -445,8 +451,8 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
     return false
   }
 
-  // qwen 3.5 series models, all support
-  if (modelId.startsWith('qwen3.5')) {
+  // qwen 3.5~3.9 series models, all support
+  if (/^qwen3\.[5-9]/.test(modelId)) {
     return true
   }
 
@@ -458,9 +464,9 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
   //    In the global deployment environment, qwen-max still points to the non-reasoning snapshot from 2025-09-23,
   //    whereas in mainland China, qwen-max has been updated to the latest 2026-01-23 snapshot, which supports reasoning control. - 2026-03-05
   const MAX_REGEX = /^(?:qwen3-max(?!-2025-09-23)|qwen-max-latest)(?:-|$)/i
-  const PLUS_REGEX = /^qwen(?:3\.5)?-plus(?:-|$)/i
-  const FLASH_REGEX = /^qwen(?:3\.5)?-flash(?:-|$)/i
-  const TURBO_REGEX = /^qwen(?:3\.5)?-turbo(?:-|$)/i
+  const PLUS_REGEX = /^qwen(?:3\.[5-9])?-plus(?:-|$)/i
+  const FLASH_REGEX = /^qwen(?:3\.[5-9])?-flash(?:-|$)/i
+  const TURBO_REGEX = /^qwen(?:3\.[5-9])?-turbo(?:-|$)/i
   // open-weight qwen3 models with numeric size (e.g. qwen3-8b, qwen3-72b)
   const QWEN3_OPEN_REGEX = /^qwen3-\d/i
 
@@ -586,9 +592,19 @@ export const isSupportedReasoningEffortPerplexityModel = (model: Model): boolean
   return modelId.includes('sonar-deep-research')
 }
 
+/**
+ * Checks whether a Zhipu model supports thinking token control.
+ *
+ * Matches model IDs containing:
+ * - `glm5` or `glm-5` (GLM-5 series)
+ * - `glm-4.5`, `glm-4.6`, `glm-4.7` (GLM-4.x advanced series)
+ *
+ * Note: GLM-Z1 reasoning models are NOT included here — they are covered
+ * by {@link isZhipuReasoningModel} instead.
+ */
 export const isSupportedThinkingTokenZhipuModel = (model: Model): boolean => {
   const modelId = getLowerBaseModelName(model.id, '/')
-  return ['glm-5', 'glm-4.5', 'glm-4.6', 'glm-4.7'].some((id) => modelId.includes(id))
+  return /glm-?5|glm-4\.[567]/.test(modelId)
 }
 
 export const isSupportedThinkingTokenMiMoModel = (model: Model): boolean => {
@@ -746,7 +762,9 @@ export function isReasoningModel(model?: Model): boolean {
     modelId.includes('magistral') ||
     modelId.includes('pangu-pro-moe') ||
     modelId.includes('seed-oss') ||
-    modelId.includes('deepseek-v3.2-speciale')
+    modelId.includes('deepseek-v3.2-speciale') ||
+    modelId.includes('gemma-4') ||
+    modelId.includes('gemma4')
   ) {
     return true
   }
@@ -775,8 +793,8 @@ const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
   'qwen-flash.*$': { min: 0, max: 81_920 },
   // qwen3-max series (reasoning models, equivalent to qwen-plus for thinking budget)
   'qwen3-max(-.*)?$': { min: 0, max: 81_920 },
-  // Qwen3.5 series (max thinking budget: 81920)
-  '^qwen3\\.5': { min: 0, max: 81_920 },
+  // Qwen3.5+ series (max thinking budget: 81920)
+  '^qwen3\\.[5-9]': { min: 0, max: 81_920 },
   'qwen3-(?!max).*$': { min: 1024, max: 38_912 },
 
   // Claude models (supports AWS Bedrock 'anthropic.' prefix, GCP Vertex AI '@' separator, and '-v1:0' suffix)
@@ -802,7 +820,12 @@ const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
 
   // Baichuan models
   'baichuan-m2$': { min: 0, max: 30_000 },
-  'baichuan-m3$': { min: 0, max: 30_000 }
+  'baichuan-m3$': { min: 0, max: 30_000 },
+
+  // Gemma 4 models (GenAI: gemma-4-*, Ollama: gemma4:*)
+  'gemma-?4[:-]?e[24]b': { min: 1024, max: 8192 },
+  'gemma-?4[:-]?26b': { min: 1024, max: 30720 },
+  'gemma-?4[:-]?31b': { min: 1024, max: 30720 }
 }
 
 export const findTokenLimit = (modelId: string): { min: number; max: number } | undefined => {

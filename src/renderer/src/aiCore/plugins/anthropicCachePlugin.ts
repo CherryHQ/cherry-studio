@@ -17,7 +17,7 @@ function estimateContentTokens(content: LanguageModelV3Message['content']): numb
   if (Array.isArray(content)) {
     return content.reduce((acc, part) => {
       if (part.type === 'text') {
-        return acc + estimateTextTokens(part.text as string)
+        return acc + estimateTextTokens(part.text)
       }
       return acc
     }, 0)
@@ -41,7 +41,7 @@ function anthropicCacheMiddleware(provider: Provider): LanguageModelMiddleware {
       // Cache system message (providerOptions on message object)
       if (cacheSystemMessage) {
         for (let i = 0; i < messages.length; i++) {
-          const msg = messages[i] as LanguageModelV3Message
+          const msg = messages[i]
           if (msg.role === 'system' && estimateContentTokens(msg.content) >= tokenThreshold) {
             messages[i] = { ...msg, providerOptions: cacheProviderOptions }
             break
@@ -54,13 +54,13 @@ function anthropicCacheMiddleware(provider: Provider): LanguageModelMiddleware {
         const cumsumTokens = [] as Array<number>
         let tokenSum = 0 as number
         for (let i = 0; i < messages.length; i++) {
-          const msg = messages[i] as LanguageModelV3Message
+          const msg = messages[i]
           tokenSum += estimateContentTokens(msg.content)
           cumsumTokens.push(tokenSum)
         }
 
         for (let i = messages.length - 1; i >= 0 && cachedCount < cacheLastNMessages; i--) {
-          const msg = messages[i] as LanguageModelV3Message
+          const msg = messages[i]
           if (msg.role === 'system' || cumsumTokens[i] < tokenThreshold || msg.content.length === 0) {
             continue
           }

@@ -37,7 +37,7 @@ export const NameSetting = ({ base, update }: NameSettingsProps) => {
           avatar
         }
       }
-      update(payload)
+      void update(payload)
     },
     [base, update, isAgent]
   )
@@ -71,7 +71,7 @@ export const NameSetting = ({ base, update }: NameSettingsProps) => {
             onChange={(e) => setName(e.target.value)}
             onBlur={() => {
               if (name !== base.name) {
-                updateName(name)
+                void updateName(name)
               }
             }}
             className="absolute right-0"

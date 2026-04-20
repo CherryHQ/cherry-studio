@@ -3,6 +3,7 @@
 exports[`Scrollbar > rendering > should match default styled snapshot 1`] = `
 .c0 {
   overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 .c0::-webkit-scrollbar-thumb {

@@ -18,6 +18,7 @@ import { loggerService } from '@logger'
 import { AiSdkToChunkAdapter } from '@renderer/aiCore/chunk/AiSdkToChunkAdapter'
 import { AgentApiClient } from '@renderer/api/agent'
 import db from '@renderer/databases'
+import { getModel } from '@renderer/hooks/useModel'
 import { fetchMessagesSummary, transformMessagesAndFetch } from '@renderer/services/ApiService'
 import { dbService } from '@renderer/services/db'
 import { DbService } from '@renderer/services/db/DbService'
@@ -37,7 +38,12 @@ import type {
 } from '@renderer/types/agent'
 import { ChunkType } from '@renderer/types/chunk'
 import type { FileMessageBlock, ImageMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
-import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import {
+  AssistantMessageStatus,
+  MessageBlockStatus,
+  MessageBlockType,
+  UserMessageStatus
+} from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
 import { addAbortController } from '@renderer/utils/abortController'
 import {
@@ -252,7 +258,7 @@ const createSSEReadableStream = (
       const cancelReader = (reason?: any) => reader.cancel(reason).catch(() => {})
 
       const abortHandler = () => {
-        cancelReader(signal.reason ?? 'aborted')
+        void cancelReader(signal.reason ?? 'aborted')
         controller.error(new DOMException('Aborted', 'AbortError'))
       }
 
@@ -278,7 +284,7 @@ const createSSEReadableStream = (
 
         if (dataPayload === '[DONE]') {
           signal.removeEventListener('abort', abortHandler)
-          cancelReader()
+          void cancelReader()
           controller.close()
           return true
         }
@@ -336,6 +342,49 @@ const createSSEReadableStream = (
   })
 }
 
+/**
+ * Wraps a parsed stream with abort-signal lifecycle handling.
+ * In the normal chat pipeline the AI SDK runtime converts abort signals into
+ * `{ type: 'abort' }` stream parts. The agent pipeline bypasses the AI SDK
+ * runtime, so this middleware fills that gap — keeping the SSE parser
+ * (transport) and the chunk adapter (protocol) free of lifecycle concerns.
+ */
+const withAbortStreamPart = (
+  source: ReadableStream<TextStreamPart<Record<string, any>>>,
+  signal: AbortSignal
+): ReadableStream<TextStreamPart<Record<string, any>>> => {
+  const reader = source.getReader()
+
+  return new ReadableStream<TextStreamPart<Record<string, any>>>({
+    async pull(controller) {
+      try {
+        const { value, done } = await reader.read()
+        if (done) {
+          controller.close()
+          return
+        }
+        controller.enqueue(value)
+      } catch (error) {
+        // When the source errors due to abort, emit the abort stream part
+        // so downstream consumers (AiSdkToChunkAdapter) can fire onError.
+        if (signal.aborted) {
+          try {
+            controller.enqueue({ type: 'abort' } as TextStreamPart<Record<string, any>>)
+          } catch {
+            // Controller may already be closed
+          }
+          controller.close()
+        } else {
+          controller.error(error)
+        }
+      }
+    },
+    cancel(reason) {
+      return reader.cancel(reason)
+    }
+  })
+}
+
 const createAgentMessageStream = async (
   apiServer: ApiServerConfig,
   agentSession: AgentSessionContext,
@@ -374,7 +423,8 @@ const createAgentMessageStream = async (
     throw new Error('Agent message stream has no body')
   }
 
-  return createSSEReadableStream(response.body, signal)
+  const sseStream = createSSEReadableStream(response.body, signal)
+  return withAbortStreamPart(sseStream, signal)
 }
 // TODO: 后续可以将db操作移到Listener Middleware中
 // export const saveMessageAndBlocksToDB = async (message: Message, blocks: MessageBlock[], messageIndex: number = -1) => {
@@ -513,7 +563,7 @@ export const cleanupMultipleBlocks = (dispatch: AppDispatch, blockIds: string[])
     await Promise.all(files.map((file) => FileManager.deleteFile(file.id, false)))
   }
 
-  getBlocksFiles(blockIds).then(cleanupFiles)
+  void getBlocksFiles(blockIds).then(cleanupFiles)
 
   if (blockIds.length > 0) {
     dispatch(removeManyBlocks(blockIds))
@@ -699,7 +749,7 @@ const fetchAndProcessAgentResponseImpl = async (
       false,
       false,
       (sessionId) => {
-        persistAgentSessionId(sessionId)
+        void persistAgentSessionId(sessionId)
       },
       () => sessionWasCleared // Provide getter for session cleared flag
     )
@@ -772,7 +822,7 @@ const dispatchMultiModelResponses = async (
 
   const queue = getTopicQueue(topicId)
   for (const task of tasksToQueue) {
-    queue.add(async () => {
+    void queue.add(async () => {
       await fetchAndProcessAssistantResponseImpl(dispatch, getState, topicId, task.assistantConfig, task.messageStub)
     })
   }
@@ -966,7 +1016,7 @@ export const sendMessage =
         await saveMessageAndBlocksToDB(topicId, assistantMessage, [])
         dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
 
-        queue.add(async () => {
+        void queue.add(async () => {
           await fetchAndProcessAgentResponseImpl(dispatch, getState, {
             topicId,
             assistant,
@@ -994,7 +1044,7 @@ export const sendMessage =
             })
           )
 
-          queue.add(async () => {
+          void queue.add(async () => {
             await fetchAndProcessAssistantResponseImpl(dispatch, getState, topicId, assistant, assistantMessage)
           })
         }
@@ -1002,7 +1052,7 @@ export const sendMessage =
     } catch (error) {
       logger.error('Error in sendMessage thunk:', error as Error)
     } finally {
-      finishTopicLoading(topicId)
+      void finishTopicLoading(topicId)
     }
   }
 
@@ -1257,14 +1307,14 @@ export const resendMessageThunk =
           ...assistant,
           ...(resetMsg.model ? { model: resetMsg.model } : {})
         }
-        queue.add(async () => {
+        void queue.add(async () => {
           await fetchAndProcessAssistantResponseImpl(dispatch, getState, topicId, assistantConfigForThisRegen, resetMsg)
         })
       }
     } catch (error) {
       logger.error(`[resendMessageThunk] Error resending user message ${userMessageToResend.id}:`, error as Error)
     } finally {
-      finishTopicLoading(topicId)
+      void finishTopicLoading(topicId)
     }
   }
 
@@ -1276,7 +1326,7 @@ export const resendMessageThunk =
 export const resendUserMessageWithEditThunk =
   (topicId: Topic['id'], originalMessage: Message, assistant: Assistant) => async (dispatch: AppDispatch) => {
     // Trigger the regeneration logic for associated assistant messages
-    dispatch(resendMessageThunk(topicId, originalMessage, assistant))
+    void dispatch(resendMessageThunk(topicId, originalMessage, assistant))
   }
 
 /**
@@ -1379,7 +1429,7 @@ export const regenerateAssistantResponseThunk =
         ...assistant,
         ...(resetAssistantMsg.model ? { model: resetAssistantMsg.model } : {})
       }
-      queue.add(async () => {
+      void queue.add(async () => {
         await fetchAndProcessAssistantResponseImpl(
           dispatch,
           getState,
@@ -1395,7 +1445,7 @@ export const regenerateAssistantResponseThunk =
       )
       // dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
     } finally {
-      finishTopicLoading(topicId)
+      void finishTopicLoading(topicId)
     }
   }
 
@@ -1554,8 +1604,8 @@ export const appendAssistantResponseThunk =
         })
       )
 
-      dispatch(updateMessageAndBlocksThunk(topicId, { id: existingAssistantMessageId, foldSelected: false }, []))
-      dispatch(updateMessageAndBlocksThunk(topicId, { id: newAssistantMessageStub.id, foldSelected: true }, []))
+      void dispatch(updateMessageAndBlocksThunk(topicId, { id: existingAssistantMessageId, foldSelected: false }, []))
+      void dispatch(updateMessageAndBlocksThunk(topicId, { id: newAssistantMessageStub.id, foldSelected: true }, []))
 
       // 5. Prepare and queue the processing task
       const assistantConfigForThisCall = {
@@ -1563,7 +1613,7 @@ export const appendAssistantResponseThunk =
         model: newModel
       }
       const queue = getTopicQueue(topicId)
-      queue.add(async () => {
+      void queue.add(async () => {
         await fetchAndProcessAssistantResponseImpl(
           dispatch,
           getState,
@@ -1577,7 +1627,7 @@ export const appendAssistantResponseThunk =
       // Optionally dispatch an error action or notification
       // Resetting loading state should be handled by the underlying fetchAndProcessAssistantResponseImpl
     } finally {
-      finishTopicLoading(topicId)
+      void finishTopicLoading(topicId)
     }
   }
 
@@ -2038,5 +2088,168 @@ export const updateBlocks = async (blocks: MessageBlock[]): Promise<void> => {
   } catch (error) {
     logger.error('Failed to update blocks:', { count: blocks.length, error })
     throw error
+  }
+}
+
+// ---------------------------------------------------------------------------
+// IM Channel stream rendering
+// ---------------------------------------------------------------------------
+// Reuses the same BlockManager + AiSdkToChunkAdapter pipeline used for SSE
+// streaming. IPC chunks are wrapped into a ReadableStream and fed into the
+// existing stream processing infrastructure.
+//
+// Persistence is handled by the same saveUpdatesToDB / saveUpdatedBlockToDB
+// functions used for normal agent messages (writes to SQLite via
+// AgentMessageDataSource). When the renderer is watching, the backend skips
+// its own persistHeadlessExchange to avoid duplicate writes.
+// ---------------------------------------------------------------------------
+
+export type ChannelStreamController = {
+  pushChunk: (chunk: TextStreamPart<Record<string, any>>) => void
+  complete: () => void
+  error: (err: Error) => void
+  assistantMessageId: string
+}
+
+/**
+ * Dispatches an IM channel user message to Redux and persists to DB.
+ * Call this BEFORE setupChannelStream so the user message appears first.
+ */
+export const addChannelUserMessage = (
+  dispatch: AppDispatch,
+  topicId: string,
+  agentId: string,
+  text: string,
+  images?: Array<{ data: string; media_type: string }>
+) => {
+  const now = new Date().toISOString()
+  const userMsgId = uuid()
+  const blockId = uuid()
+
+  const allBlocks: MessageBlock[] = [
+    {
+      id: blockId,
+      messageId: userMsgId,
+      type: MessageBlockType.MAIN_TEXT,
+      content: text,
+      status: MessageBlockStatus.SUCCESS,
+      createdAt: now
+    }
+  ]
+
+  if (images && images.length > 0) {
+    for (const img of images) {
+      allBlocks.push({
+        id: uuid(),
+        messageId: userMsgId,
+        type: MessageBlockType.IMAGE,
+        url: `data:${img.media_type};base64,${img.data}`,
+        status: MessageBlockStatus.SUCCESS,
+        createdAt: now
+      } as MessageBlock)
+    }
+  }
+
+  const userMessage: Message = {
+    id: userMsgId,
+    role: 'user',
+    assistantId: agentId,
+    topicId,
+    createdAt: now,
+    status: UserMessageStatus.SUCCESS,
+    blocks: allBlocks.map((b) => b.id)
+  }
+
+  for (const block of allBlocks) {
+    dispatch(upsertOneBlock(block))
+  }
+  dispatch(newMessagesActions.addMessage({ topicId, message: userMessage }))
+
+  dbService.appendMessage(topicId, userMessage, allBlocks).catch((err) => {
+    logger.error('Failed to persist channel user message', err as Error)
+  })
+}
+
+/**
+ * Sets up the streaming pipeline for rendering IM channel responses in real-time.
+ * Creates the assistant message immediately — call addChannelUserMessage first
+ * to ensure correct message ordering.
+ */
+export const setupChannelStream = (
+  dispatch: AppDispatch,
+  getState: () => RootState,
+  topicId: string,
+  agentId: string,
+  modelId?: string
+): ChannelStreamController => {
+  const model: Model | undefined =
+    (modelId ? getModel(modelId) : undefined) ??
+    (modelId ? { id: modelId, provider: '', name: '', group: '' } : undefined)
+  const assistantMessage = createAssistantMessage(agentId, topicId, {
+    ...(model ? { modelId: model.id, model } : {})
+  })
+  dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
+  dispatch(newMessagesActions.setTopicLoading({ topicId, loading: true }))
+  dbService.appendMessage(topicId, assistantMessage, []).catch((err) => {
+    logger.error('Failed to persist initial channel assistant message', err as Error)
+  })
+
+  let streamController: ReadableStreamDefaultController<TextStreamPart<Record<string, any>>> | null = null
+  const stream = new ReadableStream<TextStreamPart<Record<string, any>>>({
+    start(controller) {
+      streamController = controller
+    }
+  })
+
+  const assistant: Assistant = { id: agentId, name: '', prompt: '', topics: [], type: 'claude-code', model }
+
+  const blockManager = new BlockManager({
+    dispatch,
+    getState,
+    saveUpdatedBlockToDB,
+    saveUpdatesToDB,
+    assistantMsgId: assistantMessage.id,
+    topicId,
+    throttledBlockUpdate,
+    cancelThrottledBlockUpdate
+  })
+
+  const callbacks = createCallbacks({
+    blockManager,
+    dispatch,
+    getState,
+    topicId,
+    assistantMsgId: assistantMessage.id,
+    saveUpdatesToDB,
+    assistant
+  })
+
+  const streamProcessorCallbacks = createStreamProcessor(callbacks)
+  streamProcessorCallbacks({ type: ChunkType.LLM_RESPONSE_CREATED })
+
+  const adapter = new AiSdkToChunkAdapter(streamProcessorCallbacks, [], false, false)
+  adapter
+    .processStream({
+      fullStream: stream,
+      text: Promise.resolve('')
+    })
+    .catch((err) => {
+      logger.error('Channel stream processing failed', err as Error)
+    })
+    .finally(() => {
+      dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
+    })
+
+  return {
+    assistantMessageId: assistantMessage.id,
+    pushChunk(chunk: TextStreamPart<Record<string, any>>) {
+      streamController?.enqueue(chunk)
+    },
+    complete() {
+      streamController?.close()
+    },
+    error(err: Error) {
+      streamController?.error(err)
+    }
   }
 }
