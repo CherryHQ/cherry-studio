@@ -58,6 +58,6 @@ export const createSystemPromptPlugin = ({
       if (!systemPrompt) return {}
 
       logger.debug('resolved system prompt', { length: systemPrompt.length })
-      return { system: systemPrompt } as Partial<StreamTextParams>
+      return { ...params, system: systemPrompt }
     }
   })
