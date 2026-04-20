@@ -2,16 +2,16 @@ import { useCallback } from 'react'
 import useSWR from 'swr'
 
 import { useApiServer } from '../useApiServer'
-import { useAgentClient } from './useAgentClient'
+import { requireAgentClient, useAgentClient } from './useAgentClient'
 
 export const useChannels = (type?: string) => {
   const client = useAgentClient()
   const { apiServerRunning } = useApiServer()
 
-  const key = apiServerRunning ? `${client.channelPaths.base}?type=${type ?? ''}` : null
+  const key = apiServerRunning && client ? `${client.channelPaths.base}?type=${type ?? ''}` : null
 
   const fetcher = useCallback(async () => {
-    const result = await client.listChannels(type ? { type } : undefined)
+    const result = await requireAgentClient(client).listChannels(type ? { type } : undefined)
     return result.data
   }, [client, type])
 
@@ -19,7 +19,7 @@ export const useChannels = (type?: string) => {
 
   const createChannel = useCallback(
     async (channelData: Record<string, unknown>) => {
-      const result = await client.createChannel(channelData)
+      const result = await requireAgentClient(client).createChannel(channelData)
       void mutate((prev) => [...(prev ?? []), result], false)
       return result
     },
@@ -28,7 +28,7 @@ export const useChannels = (type?: string) => {
 
   const updateChannel = useCallback(
     async (id: string, updates: Record<string, unknown>) => {
-      const result = await client.updateChannel(id, updates)
+      const result = await requireAgentClient(client).updateChannel(id, updates)
       void mutate((prev) => prev?.map((ch) => (ch.id === id ? result : ch)) ?? [], false)
       return result
     },
@@ -37,7 +37,7 @@ export const useChannels = (type?: string) => {
 
   const deleteChannel = useCallback(
     async (id: string) => {
-      await client.deleteChannel(id)
+      await requireAgentClient(client).deleteChannel(id)
       void mutate((prev) => prev?.filter((ch) => ch.id !== id) ?? [], false)
     },
     [client, mutate]

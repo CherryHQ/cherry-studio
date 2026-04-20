@@ -228,8 +228,7 @@ export function useSplitView(tabId: string) {
         return
       }
 
-      const anchorPaneId =
-        options?.anchorPaneId ?? tab.activePaneId ?? collectAllPaneIds(tab.splitLayout)[0]
+      const anchorPaneId = options?.anchorPaneId ?? tab.activePaneId ?? collectAllPaneIds(tab.splitLayout)[0]
       if (!anchorPaneId) return
 
       const anchor = findPaneById(tab.splitLayout, anchorPaneId)

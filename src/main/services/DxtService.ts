@@ -1,5 +1,5 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import * as fs from 'fs'
 import StreamZip from 'node-stream-zip'
 import * as os from 'os'

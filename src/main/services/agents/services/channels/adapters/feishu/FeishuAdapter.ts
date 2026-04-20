@@ -1,8 +1,9 @@
 import { Readable } from 'node:stream'
 import type { ReadableStream as NodeReadableStream } from 'node:stream/web'
 
+import { application } from '@application'
 import * as Lark from '@larksuiteoapi/node-sdk'
-import { application } from '@main/core/application'
+import { WindowType } from '@main/core/window/types'
 import type { FeishuDomain } from '@main/services/agents/database/schema'
 import { IpcChannel } from '@shared/IpcChannel'
 
@@ -477,7 +478,7 @@ class FeishuAdapter extends ChannelAdapter {
       // Return without connecting. The base class background branch will call
       // markConnected via .then(), but we override that below: checkReady()
       // returned false, so we explicitly mark as NOT connected. The adapter
-      // will be recreated by syncAgent once credentials arrive.
+      // will be recreated by syncChannel once credentials arrive.
       this.startRegistrationInBackground()
       return
     }
@@ -574,16 +575,13 @@ class FeishuAdapter extends ChannelAdapter {
     appId?: string,
     appSecret?: string
   ): void {
-    const mainWindow = application.get('WindowService').getMainWindow()
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send(IpcChannel.Feishu_QrLogin, {
-        channelId: this.channelId,
-        url,
-        status,
-        appId,
-        appSecret
-      })
-    }
+    application.get('WindowManager').broadcastToType(WindowType.Main, IpcChannel.Feishu_QrLogin, {
+      channelId: this.channelId,
+      url,
+      status,
+      appId,
+      appSecret
+    })
   }
 
   protected override async performDisconnect(): Promise<void> {

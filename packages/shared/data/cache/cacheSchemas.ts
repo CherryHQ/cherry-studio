@@ -147,6 +147,9 @@ export type UseCacheSchema = {
   /** Whether translating input text */
   'translate.translating': CacheValueTypes.TranslatingState
 
+  // Assistant reasoning effort cache (per-assistant, not persisted to DB)
+  'assistant.reasoning_effort_cache.${assistantId}': string | undefined
+
   // Template key examples (for testing and demonstration)
   'scroll.position.${topicId}': number
   'entity.cache.${type}_${id}': { loaded: boolean; data: unknown }
@@ -213,6 +216,9 @@ export const DefaultUseCache: UseCacheSchema = {
     abortKey: null
   },
 
+  // Assistant reasoning effort cache
+  'assistant.reasoning_effort_cache.${assistantId}': undefined,
+
   // Template key examples (for testing and demonstration)
   'scroll.position.${topicId}': 0,
   'entity.cache.${type}_${id}': { loaded: false, data: null },
@@ -241,15 +247,23 @@ export const DefaultSharedCache: SharedCacheSchema = {
  * This ensures type safety and prevents key conflicts
  */
 export type RendererPersistCacheSchema = {
-  'ui.tab.state': CacheValueTypes.TabsState
+  'ui.tab.pinned_tabs': CacheValueTypes.Tab[]
+  'ui.sidebar.docked_tabs': CacheValueTypes.Tab[]
+  'ui.sidebar.width': number
   'feature.mcp.is_uv_installed': boolean
   'feature.mcp.is_bun_installed': boolean
+  // Multi-model list for @mention parallel answering, keyed by assistantId
+  // This is UI-level state, not core assistant config (default model is assistant.modelId)
+  'ui.assistant.multi_model_ids': Record<string, string[]>
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
-  'ui.tab.state': { tabs: [], activeTabId: '' },
+  'ui.tab.pinned_tabs': [],
+  'ui.sidebar.docked_tabs': [],
+  'ui.sidebar.width': 65,
   'feature.mcp.is_uv_installed': false,
-  'feature.mcp.is_bun_installed': false
+  'feature.mcp.is_bun_installed': false,
+  'ui.assistant.multi_model_ids': {}
 }
 
 // ============================================================================

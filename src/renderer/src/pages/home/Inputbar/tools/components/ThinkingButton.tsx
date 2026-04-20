@@ -19,6 +19,7 @@ import {
   isOpenAIWebSearchModel,
   MODEL_SUPPORTED_OPTIONS
 } from '@renderer/config/models'
+import { cacheService } from '@renderer/data/CacheService'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import type { Model, ThinkingOption } from '@renderer/types'
@@ -78,9 +79,9 @@ const ThinkingButton: FC<Props> = ({
       }
 
       if (!isEnabled) {
+        cacheService.set(`assistant.reasoning_effort_cache.${assistantId}`, option)
         updateAssistantSettings({
           reasoning_effort: option,
-          reasoning_effort_cache: option,
           qwenThinkMode: false
         })
         return
@@ -94,13 +95,13 @@ const ThinkingButton: FC<Props> = ({
         window.toast.warning(t('chat.web_search.warning.openai'))
         return
       }
+      cacheService.set(`assistant.reasoning_effort_cache.${assistantId}`, option)
       updateAssistantSettings({
         reasoning_effort: option,
-        reasoning_effort_cache: option,
         qwenThinkMode: true
       })
     },
-    [isControlled, onReasoningEffortChange, updateAssistantSettings, assistant.enableWebSearch, model, t]
+    [isControlled, onReasoningEffortChange, updateAssistantSettings, assistantId, assistant.enableWebSearch, model, t]
   )
 
   const reasoningEffortOptionLabelMap = {

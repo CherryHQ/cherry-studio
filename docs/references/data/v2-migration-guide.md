@@ -2,6 +2,60 @@
 
 Architecture for the new one-shot migration from the legacy Dexie + Redux Persist stores into the SQLite schema. This module owns orchestration, data access helpers, migrator plugins, and IPC entry points used by the renderer migration window.
 
+## Version Upgrade Requirements
+
+The v2 migration system enforces a **linear upgrade path** to ensure
+data integrity:
+
+```
+v1.old  →  v1.last (≥1.9.0)  →  v2.0.0  →  v2.x
+```
+
+### Why a linear path?
+
+v2.0.0 contains the one-shot data migration from Redux/Dexie to SQLite.
+Supporting migration from every v1 version would create an O(n²) test
+matrix. By requiring all users to be on the final v1 release first, the
+migration code only needs to handle a single source data format.
+
+### How it works
+
+1. **VersionService** has been embedded since v1.7. It writes a
+   `version.log` file to `{userData}/` on every launch where the
+   version changes.
+2. On v2 first launch, `v2MigrationGate.ts` reads `version.log` via
+   `MigrationPaths.versionLogFile` (using the resolved userData path
+   that accounts for v1 custom directories).
+3. If the previous version is too old, missing, or if the user skipped
+   v2.0.0, the gate shows an error dialog and quits.
+
+### Blocking rules
+
+| Scenario | Block reason | User action |
+|----------|-------------|-------------|
+| No `version.log` (v1 < 1.7 user) | `no_version_log` | Install v1.last, run once, then install v2.0.0 |
+| Previous version < 1.9.0 | `v1_too_old` | Upgrade to v1.last first |
+| Previous version is v1.x but current > v2.0.0 | `v2_gateway_skipped` | Install v2.0.0 first |
+
+### Pre-release versions
+
+v2.0.0 pre-releases (alpha/beta/rc) are treated as **before v2.0.0**
+per semver ordering. They are allowed as migration targets from v1.last
+(the gateway check coerces `currentVersion`, so `2.0.0-alpha` → `2.0.0`
+passes). Pre-release to pre-release upgrades work because migration
+status is `completed` after the first successful run.
+
+The gateway is **strictly v2.0.0** — v2.0.x patches are blocked from
+being a first migration target. This may be relaxed in a future release.
+
+### Relationship with the auto-updater
+
+The auto-updater (`AppUpdaterService`) controls which versions are
+offered via OTA using `minCompatibleVersion` in the remote config. The
+migration gate is a **separate safety net** for users who manually
+download and install a version. Both systems enforce compatible upgrade
+paths but operate independently.
+
 ## Directory Layout
 
 ```
@@ -16,9 +70,11 @@ src/main/data/migration/v2/
 ## Core Contracts
 
 - `core/MigrationEngine.ts` coordinates all migrators in order, surfaces progress to the UI, and marks status in `app_state.key = 'migration_v2_status'`. It will clear new-schema tables before running and abort on any validation failure.
+- `core/MigrationPaths.ts` defines `MigrationPaths` (a frozen object of pre-computed paths) and `resolveMigrationPaths()` which detects v1 legacy userData directories from `~/.cherrystudio/config/config.json`. Called once at the migration gate entry, before engine initialization. All migration code uses these paths instead of `app.getPath()` — see the **Path safety** convention below.
 - `core/MigrationContext.ts` builds the shared context passed to every migrator:
   - `sources`: `ConfigManager` (ElectronStore), `ReduxStateReader` (parsed Redux Persist data), `DexieFileReader` (JSON exports), `LegacyHomeConfigReader` (v1 `~/.cherrystudio/config/config.json` for the config-file migration path used by `BootConfigMigrator`)
   - `db`: current SQLite connection
+  - `paths`: `MigrationPaths` — pre-computed filesystem paths; migrators that need file paths use `ctx.paths` instead of `app.getPath()`
   - `sharedData`: `Map` for passing cross-cutting info between migrators
   - `logger`: `loggerService` scoped to migration
 - `@shared/data/migration/v2/types` defines stages, results, and validation stats used across main and renderer.
@@ -44,6 +100,7 @@ src/main/data/migration/v2/
   - **Foreign keys during bulk inserts**: libsql (turso's SQLite fork) is compiled with `SQLITE_DEFAULT_FOREIGN_KEYS=1`, so every new connection has `foreign_keys = ON` by default (unlike standard SQLite). Additionally, `@libsql/client`'s `transaction()` nullifies its internal connection after each transaction (`this.#db = null`), and the lazily-created replacement inherits the compile-time default (FK ON). If your migrator does batch inserts into tables with self-referencing FKs (e.g., `message.parentId → message.id`), you **must** run `await db.run(sql\`PRAGMA foreign_keys = OFF\`)` before **each** `db.transaction()` call — setting it once is not enough. The engine runs `PRAGMA foreign_key_check` after all migrators complete to verify referential integrity.
   - Count validation is mandatory; engine will fail the run if `targetCount < sourceCount - skippedCount` or if `ValidateResult.errors` is non-empty.
   - Keep migrations idempotent per run—engine clears target tables before it starts, but each migrator should tolerate retries within the same run.
+  - **Path safety**: All filesystem paths MUST come from `ctx.paths` (the `MigrationPaths` object). NEVER call `app.getPath('userData')` or construct paths with `path.join` from scratch. Doing so bypasses the v1 legacy userData detection and may cause data loss for users with custom `appDataPath` configurations. If you need a path not yet in `MigrationPaths`, add it to the interface — do not inline it.
 
 ## Utilities
 

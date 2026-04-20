@@ -35,8 +35,8 @@ describe('pathRegistry.shouldAutoEnsure', () => {
       expect(shouldAutoEnsure('app.userdata.data')).toBe(true)
     })
 
-    it('returns true for the new app.userdata.cache key', () => {
-      expect(shouldAutoEnsure('app.userdata.cache')).toBe(true)
+    it('returns true for the new app.session.cache key', () => {
+      expect(shouldAutoEnsure('app.session.cache')).toBe(true)
     })
 
     it('returns true for feature.notes.data', () => {
@@ -79,10 +79,6 @@ describe('pathRegistry.shouldAutoEnsure', () => {
 
     it('returns true for app.database.file', () => {
       expect(shouldAutoEnsure('app.database.file')).toBe(true)
-    })
-
-    it('returns true for the new feature.memory.db_file key', () => {
-      expect(shouldAutoEnsure('feature.memory.db_file')).toBe(true)
     })
 
     it('returns true for the new feature.copilot.token_file key', () => {

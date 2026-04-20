@@ -1,11 +1,9 @@
 /**
  * Topic entity types
  *
- * Topics are containers for messages and belong to assistants.
- * They can be organized into groups and have tags for categorization.
+ * Topics are containers for messages. They reference the last-used assistant
+ * and can be organized into groups.
  */
-
-import type { AssistantMeta } from './meta'
 
 /**
  * Complete topic entity as stored in database
@@ -17,12 +15,8 @@ export interface Topic {
   name?: string | null
   /** Whether the name was manually edited by user */
   isNameManuallyEdited: boolean
-  /** Associated assistant ID */
+  /** Last-used assistant ID (updated on message send) */
   assistantId?: string | null
-  /** Preserved assistant info for display when assistant is deleted */
-  assistantMeta?: AssistantMeta | null
-  /** Topic-specific prompt override */
-  prompt?: string | null
   /** Active node ID in the message tree */
   activeNodeId?: string | null
   /** Group ID for organization */

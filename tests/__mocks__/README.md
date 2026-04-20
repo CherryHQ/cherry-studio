@@ -271,7 +271,7 @@ All main-process tests get `application.get()` mocked globally via `tests/main.s
 **Global setup** (already configured in `tests/main.setup.ts`):
 
 ```typescript
-vi.mock('@main/core/application', async () => {
+vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('./__mocks__/main/application')
   return mockApplicationFactory()
 })
@@ -282,7 +282,7 @@ vi.mock('@main/core/application', async () => {
 ```typescript
 const mockDb = { select: vi.fn(), insert: vi.fn() }
 
-vi.mock('@main/core/application', async () => {
+vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
     DbService: { getDb: () => mockDb }
@@ -295,7 +295,7 @@ vi.mock('@main/core/application', async () => {
 ```typescript
 const mockPreferenceGet = vi.fn()
 
-vi.mock('@main/core/application', async () => {
+vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
     PreferenceService: { get: mockPreferenceGet }

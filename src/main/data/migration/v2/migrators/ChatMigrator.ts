@@ -37,9 +37,9 @@
  *    - Old: Separate `CitationMessageBlock`
  *    - New: Merged into `MainTextBlock.references` as ContentReference[]
  *
- * 5. **Mention Migration**
+ * 5. **Mentions Dropped**
  *    - Old: `message.mentions: Model[]`
- *    - New: `MentionReference[]` in `MainTextBlock.references`
+ *    - New: Not migrated — derivable from sibling responses' modelId + siblingsGroupId
  *
  * ## Performance Considerations
  *
@@ -53,6 +53,7 @@
 
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
+import { userModelTable } from '@data/db/schemas/userModel'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import { eq, sql } from 'drizzle-orm'
@@ -74,6 +75,7 @@ import {
   transformMessage,
   transformTopic
 } from './mappings/ChatMappings'
+import { resolveModelReference } from './transformers/ModelTransformers'
 
 const logger = loggerService.withContext('ChatMigrator')
 
@@ -90,7 +92,7 @@ const TOPIC_BATCH_SIZE = 50
 const MESSAGE_INSERT_BATCH_SIZE = 100
 
 /**
- * Assistant data from Redux for generating AssistantMeta
+ * Assistant data from Redux for assistant lookup
  */
 interface AssistantState {
   assistants: OldAssistant[]
@@ -121,10 +123,17 @@ export class ChatMigrator extends BaseMigrator {
   private topicAssistantLookup: Map<string, string> = new Map()
   private skippedTopics = 0
   private skippedMessages = 0
+  private orphanedAssistantTopics = 0
+  // Valid assistant IDs from AssistantMigrator (for FK validation)
+  private validAssistantIds: Set<string> | null = null
+  // Valid model IDs from ProviderModelMigrator/SQLite for FK validation
+  private validModelIds: Set<string> | null = null
   // Track seen message IDs to handle duplicates across topics
   private seenMessageIds = new Set<string>()
   // Block statistics for diagnostics
   private blockStats = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
+  // Count of messages promoted to root because no migrated ancestor was found
+  private promotedToRootCount = 0
 
   override reset(): void {
     this.topicCount = 0
@@ -135,8 +144,12 @@ export class ChatMigrator extends BaseMigrator {
     this.topicAssistantLookup = new Map()
     this.skippedTopics = 0
     this.skippedMessages = 0
+    this.orphanedAssistantTopics = 0
     this.seenMessageIds = new Set()
     this.blockStats = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
+    this.promotedToRootCount = 0
+    this.validAssistantIds = null
+    this.validModelIds = null
   }
 
   /**
@@ -149,6 +162,28 @@ export class ChatMigrator extends BaseMigrator {
    * 4. Count topics and estimate message count
    * 5. Validate sample data for integrity
    */
+
+  private sanitizeMessageModelReferences(messages: NewMessage[]): number {
+    let droppedModelRefs = 0
+
+    for (const message of messages) {
+      const resolution = resolveModelReference(message.modelId ?? null, this.validModelIds)
+      if (resolution.kind === 'resolved') {
+        message.modelId = resolution.modelId
+        continue
+      }
+
+      if (resolution.kind === 'dangling') {
+        droppedModelRefs += 1
+        logger.warn(`Dropping dangling message model ref: message=${message.id}, model=${resolution.modelId}`)
+      }
+
+      message.modelId = null
+    }
+
+    return droppedModelRefs
+  }
+
   async prepare(ctx: MigrationContext): Promise<PrepareResult> {
     const warnings: string[] = []
 
@@ -178,7 +213,7 @@ export class ChatMigrator extends BaseMigrator {
         logger.info(`Loaded ${this.blockLookup.size} blocks into lookup map`)
       }
 
-      // Step 3: Load assistant data for generating AssistantMeta
+      // Step 3: Load assistant data for model lookup
       // Also extract topic metadata from assistants (Redux stores topic metadata in assistants.topics[])
       const assistantState = ctx.sources.reduxState.getCategory<AssistantState>('assistants')
       if (assistantState?.assistants) {
@@ -201,7 +236,7 @@ export class ChatMigrator extends BaseMigrator {
           `Loaded ${this.assistantLookup.size} assistants and ${this.topicMetaLookup.size} topic metadata entries`
         )
       } else {
-        warnings.push('No assistant data found - topics will have null assistantMeta and missing names')
+        warnings.push('No assistant data found - topics will have null assistantId and missing names')
       }
 
       // Step 4: Count topics and estimate messages
@@ -278,6 +313,15 @@ export class ChatMigrator extends BaseMigrator {
       const db = ctx.db
       const topicReader = ctx.sources.dexieExport.createStreamReader('topics')
 
+      // Load valid assistant IDs for FK validation (set by AssistantMigrator)
+      this.validAssistantIds = (ctx.sharedData.get('assistantIds') as Set<string>) ?? null
+      if (!this.validAssistantIds) {
+        throw new Error('validAssistantIds not set in sharedData. AssistantMigrator must run before ChatMigrator.')
+      }
+      this.validModelIds = ctx.db?.select
+        ? new Set((await ctx.db.select({ id: userModelTable.id }).from(userModelTable)).map((row) => row.id))
+        : null
+
       // Process topics in batches
       await topicReader.readInBatches<OldTopic>(TOPIC_BATCH_SIZE, async (topics, batchIndex) => {
         logger.debug(`Processing topic batch ${batchIndex + 1}`, { count: topics.length })
@@ -329,25 +373,32 @@ export class ChatMigrator extends BaseMigrator {
             }
           }
 
+          const droppedMessageModelRefs = this.sanitizeMessageModelReferences(allMessages)
+          if (droppedMessageModelRefs > 0) {
+            logger.info(`Filtered ${droppedMessageModelRefs} dangling message model references`)
+          }
+
           // @libsql/client creates new DB connections after each transaction()
           // (this.#db = null). libsql is compiled with SQLITE_DEFAULT_FOREIGN_KEYS=1
           // (see libsql-ffi/build.rs), so new connections have foreign_keys = ON.
           // Must disable FK before each batch to prevent
           // SQLITE_CONSTRAINT_FOREIGNKEY on message.parentId self-references.
           await db.run(sql`PRAGMA foreign_keys = OFF`)
+          try {
+            await db.transaction(async (tx) => {
+              // Insert topics
+              const topicValues = preparedData.map((d) => d.topic)
+              await tx.insert(topicTable).values(topicValues)
 
-          // Execute transaction
-          await db.transaction(async (tx) => {
-            // Insert topics
-            const topicValues = preparedData.map((d) => d.topic)
-            await tx.insert(topicTable).values(topicValues)
-
-            // Insert messages in batches (SQLite parameter limit)
-            for (let i = 0; i < allMessages.length; i += MESSAGE_INSERT_BATCH_SIZE) {
-              const batch = allMessages.slice(i, i + MESSAGE_INSERT_BATCH_SIZE)
-              await tx.insert(messageTable).values(batch)
-            }
-          })
+              // Insert messages in batches (SQLite parameter limit)
+              for (let i = 0; i < allMessages.length; i += MESSAGE_INSERT_BATCH_SIZE) {
+                const batch = allMessages.slice(i, i + MESSAGE_INSERT_BATCH_SIZE)
+                await tx.insert(messageTable).values(batch)
+              }
+            })
+          } finally {
+            await db.run(sql`PRAGMA foreign_keys = ON`)
+          }
 
           // Update state ONLY after transaction succeeds (transaction safety)
           for (const id of batchMessageIds) {
@@ -486,6 +537,29 @@ export class ChatMigrator extends BaseMigrator {
         })
       }
 
+      // Check for multi-root topics (topics with more than one root message)
+      const multiRootCheck = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(sql`(SELECT topic_id FROM ${messageTable} WHERE parent_id IS NULL GROUP BY topic_id HAVING count(*) > 1)`)
+        .get()
+
+      if (multiRootCheck && multiRootCheck.count > 0) {
+        logger.warn(`Found ${multiRootCheck.count} topics with multiple root messages (multi-root forest)`)
+        errors.push({
+          key: 'multi_root_topics',
+          message: `Found ${multiRootCheck.count} topics with multiple root messages`
+        })
+      }
+
+      const diagnostics = {
+        skippedMessages: this.skippedMessages,
+        orphanedAssistantTopics: this.orphanedAssistantTopics,
+        messagesWithMissingBlocks: this.blockStats.messagesWithMissingBlocks,
+        messagesWithEmptyBlocks: this.blockStats.messagesWithEmptyBlocks,
+        promotedToRootCount: this.promotedToRootCount
+      }
+      logger.info('Validation diagnostics', diagnostics)
+
       return {
         success: errors.length === 0,
         errors,
@@ -493,7 +567,8 @@ export class ChatMigrator extends BaseMigrator {
           sourceCount: this.topicCount,
           targetCount: targetTopicCount,
           skippedCount: this.skippedTopics
-        }
+        },
+        diagnostics
       }
     } catch (error) {
       logger.error('Validation failed', error as Error)
@@ -562,13 +637,17 @@ export class ChatMigrator extends BaseMigrator {
 
     // Get assistantId from Redux mapping (Dexie topics don't store assistantId)
     // Fall back to oldTopic.assistantId in case Dexie did store it (defensive)
-    const assistantId = this.topicAssistantLookup.get(oldTopic.id) || oldTopic.assistantId
-    if (assistantId && !oldTopic.assistantId) {
-      oldTopic.assistantId = assistantId
+    let resolvedAssistantId = this.topicAssistantLookup.get(oldTopic.id) || oldTopic.assistantId || ''
+
+    // Validate assistantId FK — clear if orphaned (transformTopic coerces '' to null via || null)
+    if (resolvedAssistantId && this.validAssistantIds && !this.validAssistantIds.has(resolvedAssistantId)) {
+      logger.warn(`Topic ${oldTopic.id}: assistant ${resolvedAssistantId} not found in assistant table, clearing`)
+      resolvedAssistantId = ''
+      this.orphanedAssistantTopics++
     }
 
-    // Get assistant for meta generation
-    const assistant = this.assistantLookup.get(assistantId) || null
+    // Write resolved value back for transformTopic consumption (avoids mutating original beyond this point)
+    oldTopic.assistantId = resolvedAssistantId
 
     // Get messages array (may be empty or undefined)
     const oldMessages = oldTopic.messages || []
@@ -647,15 +726,11 @@ export class ChatMigrator extends BaseMigrator {
         // Resolve parentId through any skipped messages
         const resolvedParentId = resolveParentId(treeInfo.parentId)
 
-        // Get assistant for this message (may differ from topic's assistant)
-        const msgAssistant = this.assistantLookup.get(oldMsg.assistantId) || assistant
-
         const newMsg = transformMessage(
           oldMsg,
           resolvedParentId, // Use resolved parent instead of original
           treeInfo.siblingsGroupId,
           blocks,
-          msgAssistant,
           oldTopic.id
         )
 
@@ -686,6 +761,7 @@ export class ChatMigrator extends BaseMigrator {
           logger.warn(
             `No migrated ancestor found for message ${msg.id} (original parentId: ${msg.parentId}), setting as root`
           )
+          this.promotedToRootCount++
         }
         msg.parentId = ancestor
       }
@@ -714,7 +790,7 @@ export class ChatMigrator extends BaseMigrator {
     }
 
     // Transform topic with correct activeNodeId
-    const newTopic = transformTopic(oldTopic, assistant, activeNodeId)
+    const newTopic = transformTopic(oldTopic, activeNodeId)
 
     return {
       topic: newTopic,

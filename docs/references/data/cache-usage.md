@@ -118,7 +118,7 @@ Main process CacheService provides SharedCache for cross-window state management
 ### SharedCache in Main Process
 
 ```typescript
-import { application } from '@main/core/application'
+import { application } from '@application'
 
 const cacheService = application.get('CacheService')
 

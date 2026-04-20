@@ -1,10 +1,11 @@
+import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
+import { extractRtkBinaries } from '../utils/rtk'
 import { bootstrapBuiltinAgents } from './agents/services/builtin/BuiltinAgentBootstrap'
 import { channelManager } from './agents/services/channels'
 import { registerSessionStreamIpc } from './agents/services/channels/sessionStreamIpc'
 import { schedulerService } from './agents/services/SchedulerService'
-import { loggerService } from './LoggerService'
 
 const logger = loggerService.withContext('AgentBootstrapService')
 
@@ -20,6 +21,8 @@ const logger = loggerService.withContext('AgentBootstrapService')
 @DependsOn(['ApiServerService'])
 export class AgentBootstrapService extends BaseService {
   protected async onReady(): Promise<void> {
+    await this.extractRtkBinaries()
+
     await bootstrapBuiltinAgents()
     logger.info('Built-in agents bootstrapped')
 
@@ -39,5 +42,15 @@ export class AgentBootstrapService extends BaseService {
 
     await channelManager.stop()
     logger.info('Channel manager stopped')
+  }
+
+  private async extractRtkBinaries(): Promise<void> {
+    try {
+      await extractRtkBinaries()
+    } catch (error) {
+      logger.warn('Failed to extract rtk binaries (non-fatal)', {
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
   }
 }

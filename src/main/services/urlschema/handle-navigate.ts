@@ -1,6 +1,6 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { isMac } from '@main/constant'
-import { application } from '@main/core/application'
 
 const logger = loggerService.withContext('URLSchema:handleNavigateProtocolUrl')
 
@@ -44,7 +44,7 @@ export function handleNavigateProtocolUrl(url: URL) {
 
   logger.debug('handleNavigateProtocolUrl', { path: fullPath })
 
-  const mainWindow = application.get('WindowService').getMainWindow()
+  const mainWindow = application.get('MainWindowService').getMainWindow()
 
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents
@@ -53,7 +53,7 @@ export function handleNavigateProtocolUrl(url: URL) {
         if (hasNavigate) {
           void mainWindow.webContents.executeJavaScript(`window.navigate('${fullPath}')`)
           if (isMac) {
-            application.get('WindowService').showMainWindow()
+            application.get('MainWindowService').showMainWindow()
           }
         } else {
           logger.warn('window.navigate not available yet, retrying in 1s')

@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next'
 import useSWR, { mutate } from 'swr'
 
 import { useApiServer } from '../useApiServer'
-import { useAgentClient } from './useAgentClient'
+import { requireAgentClient, useAgentClient } from './useAgentClient'
 
 const TASKS_LIST_KEY = '/v1/tasks'
 
@@ -19,11 +19,9 @@ export const useTasks = () => {
   const client = useAgentClient()
   const { apiServerRunning } = useApiServer()
 
-  const key = apiServerRunning ? TASKS_LIST_KEY : null
+  const key = apiServerRunning && client ? TASKS_LIST_KEY : null
 
-  const fetcher = useCallback(async () => {
-    return client.listTasks({ limit: 200 })
-  }, [client])
+  const fetcher = useCallback(async () => requireAgentClient(client).listTasks({ limit: 200 }), [client])
 
   const { data, error, isLoading } = useSWR<ListTasksResponse>(key, fetcher)
 
@@ -42,7 +40,7 @@ export const useCreateTask = () => {
   const createTask = useCallback(
     async (agentId: string, req: CreateTaskRequest): Promise<ScheduledTaskEntity | undefined> => {
       try {
-        const result = await client.createTask(agentId, req)
+        const result = await requireAgentClient(client).createTask(agentId, req)
         void mutate(TASKS_LIST_KEY)
         window.toast.success({ key: 'create-task', title: t('common.create_success') })
         return result
@@ -66,7 +64,7 @@ export const useUpdateTask = () => {
   const updateTask = useCallback(
     async (taskId: string, updates: UpdateTaskRequest): Promise<ScheduledTaskEntity | undefined> => {
       try {
-        const result = await client.updateTask(taskId, updates)
+        const result = await requireAgentClient(client).updateTask(taskId, updates)
         void mutate(TASKS_LIST_KEY)
         window.toast.success({ key: 'update-task', title: t('common.update_success') })
         return result
@@ -90,7 +88,7 @@ export const useRunTask = () => {
   const runTask = useCallback(
     async (taskId: string): Promise<boolean> => {
       try {
-        await client.runTask(taskId)
+        await requireAgentClient(client).runTask(taskId)
         void mutate(TASKS_LIST_KEY)
         window.toast.success({ key: 'run-task', title: t('agent.cherryClaw.tasks.runTriggered') })
         return true
@@ -114,7 +112,7 @@ export const useDeleteTask = () => {
   const deleteTask = useCallback(
     async (taskId: string): Promise<boolean> => {
       try {
-        await client.deleteTask(taskId)
+        await requireAgentClient(client).deleteTask(taskId)
         void mutate(TASKS_LIST_KEY)
         window.toast.success({ key: 'delete-task', title: t('common.delete_success') })
         return true
@@ -135,11 +133,11 @@ export const useTaskLogs = (taskId: string | null) => {
   const client = useAgentClient()
   const { apiServerRunning } = useApiServer()
 
-  const key = apiServerRunning && taskId ? client.taskPaths.logs(taskId) : null
+  const key = apiServerRunning && taskId && client ? client.taskPaths.logs(taskId) : null
 
   const fetcher = useCallback(async () => {
     if (!taskId) throw new Error('Task ID required')
-    return client.getTaskLogs(taskId, { limit: 50 })
+    return requireAgentClient(client).getTaskLogs(taskId, { limit: 50 })
   }, [client, taskId])
 
   const { data, error, isLoading } = useSWR<ListTaskLogsResponse>(key, fetcher)

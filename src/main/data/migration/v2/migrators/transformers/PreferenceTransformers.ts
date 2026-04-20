@@ -157,6 +157,7 @@ import type { WebSearchProviderOverride, WebSearchProviderOverrides } from '@sha
 import { PRESETS_WEB_SEARCH_PROVIDERS } from '@shared/data/presets/web-search-providers'
 
 import type { TransformResult } from '../mappings/ComplexPreferenceMappings'
+import { legacyModelToUniqueId } from './ModelTransformers'
 
 // Re-export TransformResult for convenience
 export type { TransformResult }
@@ -230,16 +231,6 @@ function normalizeCompressionMethod(value: unknown): (typeof WEB_SEARCH_COMPRESS
 function normalizeCutoffUnit(value: unknown): (typeof WEB_SEARCH_CUTOFF_UNITS)[number] {
   return isStringInList(value, WEB_SEARCH_CUTOFF_UNITS) ? value : 'char'
 }
-function buildCompressionModelId(model?: { id?: string; provider?: string } | null): string | null {
-  const providerId = model?.provider?.trim()
-  const modelId = model?.id?.trim()
-
-  if (!providerId || !modelId) {
-    return null
-  }
-
-  return `${providerId}::${modelId}`
-}
 
 /**
  * Flatten websearch compressionConfig object into separate preference keys.
@@ -288,9 +279,9 @@ export function flattenCompressionConfig(sources: {
     'chat.web_search.compression.cutoff_limit': config.cutoffLimit ?? null,
     'chat.web_search.compression.cutoff_unit': cutoffUnit,
     'chat.web_search.compression.rag_document_count': config.documentCount ?? 5,
-    'chat.web_search.compression.rag_embedding_model_id': buildCompressionModelId(config.embeddingModel),
+    'chat.web_search.compression.rag_embedding_model_id': legacyModelToUniqueId(config.embeddingModel),
     'chat.web_search.compression.rag_embedding_dimensions': config.embeddingDimensions ?? null,
-    'chat.web_search.compression.rag_rerank_model_id': buildCompressionModelId(config.rerankModel)
+    'chat.web_search.compression.rag_rerank_model_id': legacyModelToUniqueId(config.rerankModel)
   }
 }
 

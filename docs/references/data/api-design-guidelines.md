@@ -45,6 +45,63 @@ Guidelines for designing RESTful APIs in the Cherry Studio Data API system.
 }
 ```
 
+## Greedy Path Parameters
+
+Use a greedy param when a single path-param value may itself contain `/`.
+This avoids URL-encoding (which the project does not use) and keeps composite
+identifiers readable in the path.
+
+**Syntax:** `:<name>*` (trailing `*` on a `:`-prefixed segment).
+
+**Position:** valid as the **last** segment, or **in the middle** of a pattern
+anchored by static / plain-param trailing segments. A pattern may contain at
+most one greedy param — a second greedy is rejected defensively to keep route
+matching unambiguous.
+
+**Semantics:**
+
+- Matches **one or more** consecutive path segments and exposes the raw joined
+  string (segments rejoined with `/`) as `params.<name>`.
+- Does **not** match zero segments — the capture is required.
+- The captured value is **not decoded**; any `/`, `::`, `%`, etc. inside it is
+  preserved verbatim, consistent with the rest of the router.
+- There is no `*`-as-any-segment or `**` wildcard — only `:name*`.
+
+**Examples:**
+
+```typescript
+// Tail greedy — composite ID at end of path
+'/models/:uniqueModelId*'
+  '/models/openai::gpt-4'                          → { uniqueModelId: 'openai::gpt-4' }
+  '/models/qwen::qwen/qwen3-vl'                    → { uniqueModelId: 'qwen::qwen/qwen3-vl' }
+  '/models/fireworks::accounts/fireworks/models/x' → { uniqueModelId: 'fireworks::accounts/fireworks/models/x' }
+  '/models'                                        → no match (greedy requires ≥1 segment)
+
+// Middle greedy — free-form ID wrapped by static anchors
+'/models/:uid*/order'
+  '/models/a/b/c/order'                            → { uid: 'a/b/c' }
+  '/models/qwen::qwen/order'                       → { uid: 'qwen::qwen' }
+  '/models/order'                                  → no match (greedy requires ≥1 segment)
+  '/models/a/b/c'                                  → no match (trailing anchor mismatch)
+
+// Mixed leading plain + middle greedy + trailing anchor
+'/providers/:providerId/models/:uid*/actions'
+  '/providers/openai/models/qwen/qwen3-vl/actions' → { providerId: 'openai', uid: 'qwen/qwen3-vl' }
+```
+
+**When to reach for this:**
+
+- Composite identifiers whose component can include `/`
+  (e.g. OpenRouter/Fireworks-style model IDs).
+- Third-party IDs where you cannot control the character set.
+- Attaching sub-actions (`/…/order`, `/…/actions`) to resources whose ID
+  contains `/`.
+
+**When NOT to use it:**
+
+- For nanoid/UUID-style IDs that never contain `/` — prefer the plain `:id`
+  form so the route stays strictly 1-to-1 with its shape.
+
 ## PATCH vs Dedicated Endpoints
 
 ### Decision Criteria
@@ -321,6 +378,27 @@ if (error instanceof DataApiError && error.isRetryable) {
 }
 ```
 
+### SQLite Constraint Translation
+
+When a Service writes to the database, SQLite constraint violations (UNIQUE,
+FOREIGN KEY, CHECK, NOT NULL) come out as `DrizzleQueryError` with the real
+error buried in the `.cause` chain. Translate them to `DataApiError` with
+`withSqliteErrors` from `src/main/data/db/sqliteErrors.ts`:
+
+```typescript
+import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
+
+const [row] = await withSqliteErrors(
+  () => this.db.insert(tagTable).values(dto).returning(),
+  defaultHandlersFor('Tag', dto.name)
+)
+```
+
+`defaultHandlersFor` covers the common CRUD case (UNIQUE → 409, FK → 404,
+CHECK / NOT NULL → 422). Spread and override any specific kind when needed.
+Any unrecognized error is rethrown unchanged — see the file's JSDoc for the
+full API contract and the "do not replace pre-validation" discipline note.
+
 ## Naming Conventions Summary
 
 | Element | Case | Example |
@@ -363,5 +441,5 @@ Routing non-data operations through DataApi causes concrete problems:
 
 - **Automatic retry is dangerous for side effects**: DataApi retries failed requests with exponential backoff. Retrying a "send notification" or "restart service" operation means it executes multiple times.
 - **SWR caching is meaningless for commands**: `useQuery` caches and deduplicates responses. Caching the result of "open window" or "start backup" has no value and can mask failures.
-- **Four-layer architecture becomes hollow**: Handler → Service → Repository → SQLite is designed for data flow. Without a database layer, the Repository layer is absent and the Service layer becomes a pass-through wrapper with no purpose.
+- **Layered architecture becomes hollow**: Handler → Service → SQLite is designed for data flow. Without a database layer, the Service layer becomes a pass-through wrapper with no purpose.
 - **Test patterns don't match**: DataApi tests mock database operations (Drizzle queries, transactions). Side-effectful operations need entirely different test strategies (mocking external services, verifying calls).

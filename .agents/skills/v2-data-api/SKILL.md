@@ -1,6 +1,6 @@
 ---
 name: v2-data-api
-description: Build Main-process services and APIs that expose data from SQLite to renderers. Covers the Handler -> Service -> Repository layered architecture, API schema design, database patterns, preference schema, and business logic implementation. Use when adding endpoints, creating services, designing schemas, or refactoring business logic in the v2 data layer.
+description: Build Main-process services and APIs that expose data from SQLite to renderers. Covers the Handler -> Service layered architecture, API schema design, database patterns, preference schema, and business logic implementation. Use when adding endpoints, creating services, designing schemas, or refactoring business logic in the v2 data layer.
 ---
 
 # V2 Data API: Main-Process Services (Phase 2 of 3)
@@ -50,31 +50,18 @@ If ANY check fails → this operation does NOT belong in DataApi. Use IPC handle
 │    - NO business logic                                         │
 │         │                                                      │
 │         v                                                      │
-│  Service (business logic)                                      │
+│  Service (business logic + data access)                        │
 │    - Validation, authorization                                 │
 │    - Transaction coordination                                  │
 │    - Domain workflows                                          │
-│    - Orchestrates repositories or direct Drizzle               │
+│    - Data access via Drizzle ORM                               │
 │         │                                                      │
-│    ┌────┴────┐                                                 │
-│    v         v                                                 │
-│  Repository    Direct Drizzle                                  │
-│  (complex)     (simple CRUD)                                   │
-│    │              │                                            │
-│    └──────┬───────┘                                            │
-│           v                                                    │
+│         v                                                      │
 │  SQLite (Drizzle ORM)                                          │
 └──────────────────────────────────────────────────────────────┘
 ```
 
-**When to use Repository vs Direct Drizzle:**
-
-| Use Repository | Use Direct Drizzle |
-|---|---|
-| Complex queries (joins, subqueries, aggregations) | Simple CRUD |
-| GB-scale data with pagination | Small datasets (< 100MB) |
-| Complex multi-table transactions | Single-table operations |
-| Reusable data access patterns | Domain-specific one-off queries |
+> **⚠️ Do NOT create separate Repository files.** Services handle both business logic and data access directly via Drizzle ORM. Only create a Repository when you are **1000% certain** it is absolutely necessary (e.g., extremely complex multi-table queries reused across multiple services). If in doubt, keep it in the Service.
 
 ## File Locations
 
@@ -83,7 +70,6 @@ If ANY check fails → this operation does NOT belong in DataApi. Use IPC handle
 | Shared API types/schemas | `packages/shared/data/api/schemas/` |
 | Handlers | `src/main/data/api/handlers/` |
 | Services | `src/main/data/services/` |
-| Repositories | `src/main/data/repositories/` (optional) |
 | DB schemas | `src/main/data/db/schemas/` |
 | Preference types | `packages/shared/data/preference/` |
 | Cache schemas | `packages/shared/data/cache/cacheSchemas.ts` |
@@ -348,28 +334,9 @@ export const allHandlers: ApiImplementation = {
 - NO business logic, validation, or error handling (service does that)
 - Status codes inferred automatically (200 for data, 204 for void)
 
-### Step 6: Repository (optional, for complex domains)
+### Note: No Repository Layer
 
-```typescript
-// src/main/data/repositories/MyDomainRepository.ts
-import { eq, desc, sql, and, like } from 'drizzle-orm'
-import { DbService } from '@data/db/DbService'
-import { myDomainTable } from '@data/db/schemas/myDomain'
-
-export class MyDomainRepository {
-  async findWithRelations(id: string, tx?: Transaction) {
-    const db = tx || DbService.db
-    // Complex join query...
-  }
-
-  async search(query: string, options: SearchOptions, tx?: Transaction) {
-    const db = tx || DbService.db
-    // Full-text search, aggregations...
-  }
-}
-```
-
-Always accept optional `tx` parameter for transaction support.
+Services handle data access directly via Drizzle ORM. Do **NOT** create separate Repository files. If a service method has complex query logic, extract it as a private method within the same service file.
 
 ## Adding a Preference Key
 
@@ -619,7 +586,7 @@ throw DataApiErrorFactory.timeout('fetch topics', 3000)
 - [ ] API schema in `packages/shared/data/api/schemas/` + registered in index
 - [ ] Service with business logic in `src/main/data/services/`
 - [ ] Handler (thin) in `src/main/data/api/handlers/` + registered in index
-- [ ] Repository (if complex domain) in `src/main/data/repositories/`
+- [ ] No separate Repository files created (data access lives in Service)
 - [ ] Error handling via `DataApiErrorFactory`
 - [ ] Logging via `loggerService` with context
 - [ ] Business logic extracted from Redux thunks/selectors into Service

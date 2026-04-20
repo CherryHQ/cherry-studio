@@ -11,7 +11,6 @@
 | [i18n Guide](./guides/i18n.md) | Internationalization guide |
 | [Logging Guide](./guides/logging.md) | How to use the logger service |
 | [Middleware](./guides/middleware.md) | How to write AI Provider middleware |
-| [Memory Feature](./guides/memory.md) | Memory feature usage guide |
 
 ## References
 

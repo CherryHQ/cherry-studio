@@ -1,47 +1,137 @@
-import * as ContextMenu from '@radix-ui/react-context-menu'
-import type { Tab } from '@shared/data/cache/cacheValueTypes'
-import { Columns2, Rows2 } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { ChevronsLeft, Columns2, Pin, PinOff, Rows2, SquareSplitHorizontal, X } from 'lucide-react'
+import { useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
+import { useTranslation } from 'react-i18next'
 
 import { useSplitView } from '../../hooks/useSplitView'
 
+/** Above sidebar chrome (z-50) and app overlays; below ConfirmDialog (99998). */
+const TAB_CONTEXT_MENU_Z_BACKDROP = 10049
+const TAB_CONTEXT_MENU_Z_PANEL = 10050
+
 interface TabContextMenuProps {
-  tab: Tab
-  children: ReactNode
+  tabId: string
+  x: number
+  y: number
+  isPinned: boolean
+  onPin: () => void
+  onClose: () => void
+  onMoveToFirst: () => void
+  onDismiss: () => void
 }
 
-export const TabContextMenu = ({ tab, children }: TabContextMenuProps) => {
-  const { splitPane, unsplit, isSplit } = useSplitView(tab.id)
+export function TabContextMenu({
+  tabId,
+  x,
+  y,
+  isPinned,
+  onPin,
+  onClose,
+  onMoveToFirst,
+  onDismiss
+}: TabContextMenuProps) {
+  const { t } = useTranslation()
+  const ref = useRef<HTMLDivElement>(null)
+  const { splitPane, unsplit, isSplit } = useSplitView(tabId)
 
-  return (
-    <ContextMenu.Root>
-      <ContextMenu.Trigger asChild>{children}</ContextMenu.Trigger>
-      <ContextMenu.Portal>
-        <ContextMenu.Content className="fade-in-0 zoom-in-95 z-50 min-w-[160px] animate-in rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
-          <ContextMenu.Item
-            className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent focus:bg-accent"
-            onSelect={() => splitPane('horizontal')}>
-            <Columns2 className="size-4" />
-            Split Right
-          </ContextMenu.Item>
-          <ContextMenu.Item
-            className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent focus:bg-accent"
-            onSelect={() => splitPane('vertical')}>
-            <Rows2 className="size-4" />
-            Split Down
-          </ContextMenu.Item>
-          {isSplit && (
-            <>
-              <ContextMenu.Separator className="my-1 h-px bg-border" />
-              <ContextMenu.Item
-                className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent focus:bg-accent"
-                onSelect={unsplit}>
-                Unsplit
-              </ContextMenu.Item>
-            </>
-          )}
-        </ContextMenu.Content>
-      </ContextMenu.Portal>
-    </ContextMenu.Root>
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onDismiss()
+    }
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('keydown', handleKey)
+    }
+  }, [onDismiss])
+
+  const itemClass =
+    'flex w-full items-center gap-1.5 rounded-sm px-2 py-[5px] text-left text-[11px] text-popover-foreground transition-colors hover:bg-accent'
+
+  const ui = (
+    <>
+      {/* Captures all hits below the menu so sidebar / drag regions cannot steal pointer events */}
+      <div
+        role="presentation"
+        className="fixed inset-0 [-webkit-app-region:no-drag]"
+        style={{ zIndex: TAB_CONTEXT_MENU_Z_BACKDROP }}
+        onPointerDown={(e) => {
+          if (e.button !== 0 && e.button !== 2) return
+          e.preventDefault()
+          onDismiss()
+        }}
+      />
+      <div
+        ref={ref}
+        className="pointer-events-auto fixed min-w-[130px] rounded-[4px] border border-border bg-popover p-0.5 shadow-xl [-webkit-app-region:no-drag]"
+        style={{ left: x, top: y, zIndex: TAB_CONTEXT_MENU_Z_PANEL }}
+        onPointerDown={(e) => e.stopPropagation()}>
+        <button
+          type="button"
+          className={itemClass}
+          onClick={() => {
+            onMoveToFirst()
+            onDismiss()
+          }}>
+          <ChevronsLeft size={11} />
+          {t('tab.moveToFirst')}
+        </button>
+        <button
+          type="button"
+          className={itemClass}
+          onClick={() => {
+            onPin()
+            onDismiss()
+          }}>
+          {isPinned ? <PinOff size={11} /> : <Pin size={11} />}
+          {isPinned ? t('tab.unpin') : t('tab.pin')}
+        </button>
+        <div className="my-0.5 h-px bg-border" />
+        <button
+          type="button"
+          className={itemClass}
+          onClick={() => {
+            splitPane('horizontal')
+            onDismiss()
+          }}>
+          <Columns2 size={11} />
+          {t('tab.splitRight')}
+        </button>
+        <button
+          type="button"
+          className={itemClass}
+          onClick={() => {
+            splitPane('vertical')
+            onDismiss()
+          }}>
+          <Rows2 size={11} />
+          {t('tab.splitDown')}
+        </button>
+        {isSplit && (
+          <button
+            type="button"
+            className={itemClass}
+            onClick={() => {
+              unsplit()
+              onDismiss()
+            }}>
+            <SquareSplitHorizontal size={11} />
+            {t('tab.unsplit')}
+          </button>
+        )}
+        <div className="my-0.5 h-px bg-border" />
+        <button
+          type="button"
+          className={itemClass}
+          onClick={() => {
+            onClose()
+            onDismiss()
+          }}>
+          <X size={11} />
+          {t('tab.close')}
+        </button>
+      </div>
+    </>
   )
+
+  return typeof document !== 'undefined' ? createPortal(ui, document.body) : ui
 }

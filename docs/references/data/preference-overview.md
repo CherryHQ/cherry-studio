@@ -28,7 +28,7 @@ PreferenceService handles data that:
 ### Cross-Window Synchronization
 
 - Changes automatically broadcast to all windows
-- Consistent state across main window, mini window, etc.
+- Consistent state across main window, quick assistant, etc.
 - Conflict resolution handled by Main process
 
 ## Update Strategies
@@ -118,7 +118,7 @@ Main process provides `getStats(details?)` for debugging subscription status:
 - **Warning**: Resource-intensive, recommended for development only
 
 ```typescript
-import { application } from '@main/core/application'
+import { application } from '@application'
 
 const preferenceService = application.get('PreferenceService')
 const stats = preferenceService.getStats(true);

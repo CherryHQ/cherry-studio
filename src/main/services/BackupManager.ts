@@ -14,9 +14,10 @@
  * - v2 Refactor PR   : https://github.com/CherryHQ/cherry-studio/pull/10162
  * --------------------------------------------------------------------------
  */
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
-import { application } from '@main/core/application'
+import { WindowType } from '@main/core/window/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { WebDavConfig } from '@types'
 import type { S3Config } from '@types'
@@ -813,8 +814,7 @@ class BackupManager {
    */
   private onProgress = (channel: IpcChannel, shouldLog: boolean) => {
     return (processData: { stage: string; progress: number; total: number }) => {
-      const mainWindow = application.get('WindowService').getMainWindow()
-      mainWindow?.webContents.send(channel, processData)
+      application.get('WindowManager').broadcastToType(WindowType.Main, channel, processData)
       // Never log copying_files as it generates too many log entries
       if (shouldLog && processData.stage !== 'copying_files') {
         logger.info('Backup progress', processData)

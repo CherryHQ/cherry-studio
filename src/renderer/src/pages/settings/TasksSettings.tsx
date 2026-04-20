@@ -784,6 +784,10 @@ const TasksSettings: FC = () => {
   )
 
   const loadData = useCallback(async () => {
+    if (!client) {
+      return
+    }
+
     try {
       const [tasksRes, agentsRes] = await Promise.all([
         client.listTasks({ limit: 200 }),
@@ -829,6 +833,9 @@ const TasksSettings: FC = () => {
 
   const handleCreate = useCallback(
     async (agentId: string, req: CreateTaskRequest) => {
+      if (!client) {
+        return
+      }
       const created = await client.createTask(agentId, req)
       setCreating(false)
       await loadData()
@@ -839,6 +846,9 @@ const TasksSettings: FC = () => {
 
   const handleUpdate = useCallback(
     async (taskId: string, updates: UpdateTaskRequest) => {
+      if (!client) {
+        return
+      }
       await client.updateTask(taskId, updates)
       void loadData()
     },
@@ -847,6 +857,9 @@ const TasksSettings: FC = () => {
 
   const handleDelete = useCallback(
     async (taskId: string) => {
+      if (!client) {
+        return
+      }
       await client.deleteTask(taskId)
       if (selectedTaskId === taskId) setSelectedTaskId(null)
       void loadData()
@@ -856,6 +869,9 @@ const TasksSettings: FC = () => {
 
   const handleRun = useCallback(
     async (taskId: string) => {
+      if (!client) {
+        return
+      }
       await client.runTask(taskId)
       void loadData()
       // Refresh task logs SWR cache so the logs list updates
@@ -872,6 +888,9 @@ const TasksSettings: FC = () => {
 
   const handleToggleStatus = useCallback(
     async (taskId: string, newStatus: string) => {
+      if (!client) {
+        return
+      }
       await client.updateTask(taskId, { status: newStatus as 'active' | 'paused' })
       void loadData()
     },

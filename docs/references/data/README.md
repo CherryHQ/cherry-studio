@@ -14,7 +14,7 @@ This is the main entry point for Cherry Studio's data management documentation. 
 - [Cache Usage](./cache-usage.md) - useCache hooks, CacheService examples
 - [Preference Usage](./preference-usage.md) - usePreference hook, PreferenceService examples
 - [DataApi in Renderer](./data-api-in-renderer.md) - useQuery/useMutation, DataApiService
-- [DataApi in Main](./data-api-in-main.md) - Handlers, Services, Repositories patterns
+- [DataApi in Main](./data-api-in-main.md) - Handlers, Services patterns
 
 ### Reference Guides (Coding Standards)
 - [API Design Guidelines](./api-design-guidelines.md) - RESTful design rules
@@ -24,6 +24,7 @@ This is the main entry point for Cherry Studio's data management documentation. 
 - [Boot Config Schema Guide](./boot-config-schema-guide.md) - Adding new boot config keys
 - [Layered Preset Pattern](./best-practice-layered-preset-pattern.md) - Presets with user overrides
 - [V2 Migration Guide](./v2-migration-guide.md) - Migration system
+- [Database Seeding Guide](./database-seeding-guide.md) - Seeding architecture, version strategies, adding new seeders
 
 ### Testing
 - [Test Mocks](../../../tests/__mocks__/README.md) - Unified mocks for Cache, Preference, and DataApi

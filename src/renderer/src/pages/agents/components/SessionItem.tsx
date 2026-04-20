@@ -10,7 +10,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { finishTopicRenaming, startTopicRenaming } from '@renderer/hooks/useTopic'
 import { SessionSettingsPopup } from '@renderer/pages/settings/AgentSettings'
 import { SessionLabel } from '@renderer/pages/settings/AgentSettings/shared'
-import store, { useAppDispatch, useAppSelector } from '@renderer/store'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import { loadTopicMessagesThunk, renameAgentSessionIfNeeded } from '@renderer/store/thunk/messageThunk'
 import type { AgentSessionEntity } from '@renderer/types'
@@ -145,7 +145,7 @@ const SessionItem = ({ session, agentId, channelType, onDelete, onPress }: Sessi
           void dispatch(loadTopicMessagesThunk(sessionTopicId))
           try {
             startTopicRenaming(sessionTopicId)
-            await renameAgentSessionIfNeeded(agentSession, sessionTopicId, store.getState)
+            await renameAgentSessionIfNeeded(agentSession, sessionTopicId)
           } finally {
             finishTopicRenaming(sessionTopicId)
           }

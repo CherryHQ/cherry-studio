@@ -55,15 +55,10 @@ export const PaneRouter = ({ paneId, url, isActive, isPreview, onUrlChange, onFo
       className={cn(
         'relative h-full w-full transition-colors',
         !isActive && 'bg-muted/20',
-        isPreview && 'outline outline-1 outline-dashed outline-primary/40 -outline-offset-1'
+        isPreview && '-outline-offset-1 outline outline-dashed outline-1 outline-primary/40'
       )}
       onPointerDown={handlePointerDown}>
-      {isActive && (
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-x-0 top-0 z-10 h-[2px] bg-primary"
-        />
-      )}
+      {isActive && <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 z-10 h-[2px] bg-primary" />}
       <RouterProvider router={router} />
     </div>
   )

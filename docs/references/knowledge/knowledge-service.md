@@ -1,170 +1,136 @@
-# KnowledgeService Concurrency Control
+# Knowledge Service
 
-This document details the concurrency control and workload management mechanism in `KnowledgeService`.
+This document records the current v2 knowledge backend shape in the main process.
 
-## Concurrency Control and Workload Management
+## Overview
 
-KnowledgeService implements a fine-grained task queue system to control the number of concurrently processed items and workload. This system is implemented through the following key components:
+The current implementation is split into three layers:
 
-### 1. Key Variables and Limits
+1. `KnowledgeBaseService` / `KnowledgeItemService`
+   - Persist SQLite-backed knowledge base and knowledge item data.
+   - Validate `type` / `data` consistency.
+   - Persist `knowledge_item.status` and `error`.
+2. `KnowledgeOrchestrationService`
+   - Exposes the caller-facing IPC workflow.
+   - Coordinates expand, create, filter, add, delete, and search flows.
+3. `KnowledgeRuntimeService`
+   - Executes indexing and retrieval work.
+   - Owns the in-memory add queue, interruption handling, and vector-store coordination.
 
-```typescript
-private workload = 0
-private processingItemCount = 0
-private knowledgeItemProcessingQueueMappingPromise: Map<LoaderTaskOfSet, () => void> = new Map()
-private static MAXIMUM_WORKLOAD = 1024 * 1024 * 80  // ~80MB
-private static MAXIMUM_PROCESSING_ITEM_COUNT = 30
+```text
+caller
+  -> Data API
+  -> preload IPC
+     -> KnowledgeOrchestrationService
+        -> KnowledgeBaseService / KnowledgeItemService
+        -> KnowledgeRuntimeService
+           -> reader / chunk / embed / rerank / vector store
 ```
 
-- `workload`: Tracks the total work currently being processed (in bytes)
-- `processingItemCount`: Tracks the number of items currently being processed
-- `MAXIMUM_WORKLOAD`: Maximum workload set to 80MB
-- `MAXIMUM_PROCESSING_ITEM_COUNT`: Maximum concurrent processing items set to 30
+## Caller Contract
 
-### 2. Workload Estimation
+The caller-facing model is now unified:
 
-Each task has a workload estimation mechanism via the `evaluateTaskWorkload` property:
+1. Create item records through Data API.
+2. Call runtime IPC once with item ids.
 
-```typescript
-interface EvaluateTaskWorkload {
-  workload: number
-}
+For leaf items (`file`, `url`, `note`):
+
+```text
+caller
+ -> Data API create item(s)
+ -> preload IPC add-items(item ids)
 ```
 
-Different task types have different workload estimations:
+For container items (`directory`, `sitemap`):
 
-- File tasks: Use file size as workload `{ workload: file.size }`
-- URL tasks: Use a fixed value `{ workload: 1024 * 1024 * 2 }` (~2MB)
-- Sitemap tasks: Use a fixed value `{ workload: 1024 * 1024 * 20 }` (~20MB)
-- Note tasks: Use text content byte length `{ workload: contentBytes.length }`
-
-### 3. Task State Management
-
-Tasks track their lifecycle through a state enum:
-
-```typescript
-enum LoaderTaskItemState {
-  PENDING,    // Waiting to be processed
-  PROCESSING, // Currently being processed
-  DONE        // Completed
-}
+```text
+caller
+ -> Data API create owner item
+ -> preload IPC add-items(owner item ids)
+    -> orchestration expands owner
+    -> orchestration persists child items
+    -> orchestration filters indexable leaf items
+    -> runtime enqueues leaf items
 ```
 
-### 4. Core Queue Processing Logic
+The caller no longer needs to invoke separate `expand*` IPC APIs.
 
-The core queue processing logic resides in the `processingQueueHandle` method:
+## IPC Surface
 
-```typescript
-private processingQueueHandle() {
-  const getSubtasksUntilMaximumLoad = (): QueueTaskItem[] => {
-    const queueTaskList: QueueTaskItem[] = []
-    that: for (const [task, resolve] of this.knowledgeItemProcessingQueueMappingPromise) {
-      for (const item of task.loaderTasks) {
-        if (this.maximumLoad()) {
-          break that
-        }
+`KnowledgeOrchestrationService` currently owns the public IPC entrypoints:
 
-        const { state, task: taskPromise, evaluateTaskWorkload } = item
+- `knowledge-runtime:create-base`
+- `knowledge-runtime:delete-base`
+- `knowledge-runtime:add-items`
+- `knowledge-runtime:delete-items`
+- `knowledge-runtime:search`
 
-        if (state !== LoaderTaskItemState.PENDING) {
-          continue
-        }
+These IPC handlers are workflow-oriented. They may call data services and runtime services internally before returning.
 
-        const { workload } = evaluateTaskWorkload
-        this.workload += workload
-        this.processingItemCount += 1
-        item.state = LoaderTaskItemState.PROCESSING
-        queueTaskList.push({
-          taskPromise: () =>
-            taskPromise().then(() => {
-              this.workload -= workload
-              this.processingItemCount -= 1
-              task.loaderTasks.delete(item)
-              if (task.loaderTasks.size === 0) {
-                this.knowledgeItemProcessingQueueMappingPromise.delete(task)
-                resolve()
-              }
-              this.processingQueueHandle()
-            }),
-          resolve: () => {},
-          evaluateTaskWorkload
-        })
-      }
-    }
-    return queueTaskList
-  }
+## Runtime Behavior
 
-  const subTasks = getSubtasksUntilMaximumLoad()
-  if (subTasks.length > 0) {
-    const subTaskPromises = subTasks.map(({ taskPromise }) => taskPromise())
-    Promise.all(subTaskPromises).then(() => {
-      subTasks.forEach(({ resolve }) => resolve())
-    })
-  }
-}
-```
+`KnowledgeRuntimeService` keeps a single in-memory add queue with:
 
-This method works as follows:
+- one shared queue across all knowledge bases
+- fixed concurrency of `5`
+- item-level deduplication for pending/running add work
+- interruption support for delete and shutdown
 
-1. Iterates through all pending task sets
-2. For each subtask in a task set:
-   - Checks if maximum load is reached (via `maximumLoad()`)
-   - If task state is PENDING:
-     - Increases current workload and processing item count
-     - Updates task state to PROCESSING
-     - Adds task to the execution queue
-3. Executes all collected subtasks
-4. When a subtask completes:
-   - Decreases workload and processing item count
-   - Removes completed task from the task set
-   - If the task set is empty, resolves the corresponding Promise
-   - Recursively calls `processingQueueHandle()` to process more tasks
+Current status writes are:
 
-### 5. Load Check
+- `pending` before enqueue
+- `completed` after successful vector write
+- `failed` on error or shutdown interruption
 
-```typescript
-private maximumLoad() {
-  return (
-    this.processingItemCount >= KnowledgeService.MAXIMUM_PROCESSING_ITEM_COUNT ||
-    this.workload >= KnowledgeService.MAXIMUM_WORKLOAD
-  )
-}
-```
+Intermediate states such as `file_processing`, `read`, and `embed` remain reserved in schema/types, but are not written by the current runtime.
 
-This method checks whether maximum load is reached via two conditions:
+## Search
 
-- Processing item count reaches the limit (30)
-- Total workload reaches the limit (80MB)
+Search is executed by `KnowledgeRuntimeService.search(base, query)`:
 
-### 6. Task Addition and Execution Flow
+1. embed query
+2. query the libsql vector store
+3. map nodes into `KnowledgeSearchResult`
+4. rerank only when `base.rerankModelId` is configured
 
-When adding new tasks:
+Current `KnowledgeSearchResult` includes:
 
-1. Create a task (different tasks for different types)
-2. Add the task to the queue via `appendProcessingQueue`
-3. Call `processingQueueHandle` to start processing queued tasks
+- `pageContent`
+- `score`
+- `metadata`
+- optional `itemId`
+- required `chunkId`
 
-```typescript
-private appendProcessingQueue(task: LoaderTask): Promise<LoaderReturn> {
-  return new Promise((resolve) => {
-    this.knowledgeItemProcessingQueueMappingPromise.set(loaderTaskIntoOfSet(task), () => {
-      resolve(task.loaderDoneReturn!)
-    })
-  })
-}
-```
+`chunkId` is the vector row identity used for result-level attribution. `itemId` is populated from stored metadata when available.
 
-## Benefits of This Concurrency Control
+### Current Retrieval Cost Assumption
 
-1. **Resource Optimization**: Limits concurrent items and total workload to prevent system resource exhaustion
-2. **Auto-regulation**: Automatically fetches new tasks from the queue when tasks complete, maintaining efficient resource utilization
-3. **Flexibility**: Different task types have different workload estimations, more accurately reflecting actual resource requirements
-4. **Reliability**: State management and Promise resolution mechanism ensures tasks complete correctly and notify callers
+The current v2 implementation intentionally does **not** create a libSQL vector index and does **not** use `vector_top_k`.
+Similarity search currently queries the base table directly and sorts by `vector_distance_cos(...)`.
 
-## Real-world Use Cases
+This means retrieval cost scales roughly linearly with the number of vector rows in a single knowledge base.
+That tradeoff is currently accepted because it keeps the runtime path simpler and performs well enough for the expected near-term corpus sizes.
 
-This concurrency control is especially useful when processing large amounts of data:
+A local benchmark run on April 15, 2026 with 1536-dimension embeddings and `topK=10` measured approximately:
 
-- Importing large directories that may contain hundreds of files
-- Processing large sitemaps with many URLs
-- Handling multiple users adding knowledge base items simultaneously
+- `20k` rows: `~78ms` warm vector search
+- `50k` rows: `~195ms` warm vector search
+
+Current guidance:
+
+1. Treat the no-index design as the default for now, not as an unlimited scaling guarantee.
+2. Re-evaluate indexed search if real single-base corpora grow toward `100k+` rows or retrieval latency budgets can no longer tolerate a few hundred milliseconds per query.
+3. If future product requirements change, adding a vector index remains a valid follow-up optimization rather than a blocked prerequisite for the current design.
+
+## Deletion
+
+Deletion still requires two concerns to be handled:
+
+1. Runtime deletion
+   - interrupt queue work
+   - delete vectors
+2. Data deletion
+   - remove SQLite rows through Data API
+
+The runtime layer does not delete SQLite business data by itself.

@@ -1,6 +1,6 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
-import { app, net, safeStorage } from 'electron'
+import { net, safeStorage } from 'electron'
 import fs from 'fs'
 import path from 'path'
 
@@ -111,7 +111,8 @@ class CopilotService {
   }
 
   private getTokenFilePath = (): string => {
-    const oldTokenFilePath = path.join(app.getPath('userData'), CONFIG.TOKEN_FILE_NAME)
+    // Legacy path: token was previously stored directly under userData
+    const oldTokenFilePath = path.join(application.getPath('app.userdata'), CONFIG.TOKEN_FILE_NAME)
     if (fs.existsSync(oldTokenFilePath)) {
       return oldTokenFilePath
     }

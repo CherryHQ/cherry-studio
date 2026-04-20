@@ -1,18 +1,10 @@
+import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
-import { application } from '@main/core/application'
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp'
-import type { JSONRPCMessage, Tool } from '@modelcontextprotocol/sdk/types'
-import { isJSONRPCRequest, JSONRPCMessageSchema } from '@modelcontextprotocol/sdk/types'
+import { loggerService } from '@logger'
+import type { Tool } from '@modelcontextprotocol/sdk/types'
 import type { MCPServer } from '@shared/data/types/mcpServer'
-import { randomUUID } from 'crypto'
-import type { Request, Response } from 'express'
-import type { IncomingMessage, ServerResponse } from 'http'
-
-import { loggerService } from '../../services/LoggerService'
-import { createMcpServerForTransport } from '../utils/mcp'
 
 const logger = loggerService.withContext('MCPApiService')
-const transports: Record<string, StreamableHTTPServerTransport> = {}
 
 /**
  * MCPApiService - API layer for MCP server management
@@ -75,61 +67,16 @@ class MCPApiService {
       throw new Error('Failed to retrieve server info')
     }
   }
-
-  async handleRequest(req: Request, res: Response, server: MCPServer) {
-    const sessionId = req.headers['mcp-session-id'] as string | undefined
-    logger.debug('Handling MCP request', { sessionId, serverId: server.id })
-    let transport: StreamableHTTPServerTransport
-    if (sessionId && transports[sessionId]) {
-      transport = transports[sessionId]
-    } else {
-      transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: () => randomUUID(),
-        onsessioninitialized: (sessionId) => {
-          transports[sessionId] = transport
-        }
-      })
-
-      transport.onclose = () => {
-        logger.info('Transport closed', { sessionId })
-        if (transport.sessionId) {
-          delete transports[transport.sessionId]
-        }
-      }
-      const mcpServer = await createMcpServerForTransport(server.id)
-      await mcpServer.connect(transport)
-    }
-    const jsonpayload = req.body
-    const messages: JSONRPCMessage[] = []
-
-    if (Array.isArray(jsonpayload)) {
-      for (const payload of jsonpayload) {
-        const message = JSONRPCMessageSchema.parse(payload)
-        messages.push(message)
-      }
-    } else {
-      const message = JSONRPCMessageSchema.parse(jsonpayload)
-      messages.push(message)
-    }
-
-    for (const message of messages) {
-      if (isJSONRPCRequest(message)) {
-        if (!message.params) {
-          message.params = {}
-        }
-        if (!message.params._meta) {
-          message.params._meta = {}
-        }
-        message.params._meta.serverId = server.id
-      }
-    }
-
-    logger.debug('Dispatching MCP request', {
-      sessionId: transport.sessionId ?? sessionId,
-      messageCount: messages.length
-    })
-    await transport.handleRequest(req as IncomingMessage, res as ServerResponse, messages)
-  }
 }
 
-export const mcpApiService = new MCPApiService()
+// TODO: The lazy getter below is a timing workaround — without it, the
+// module-level singleton would be constructed during ESM evaluation, before
+// preboot completes. The apiServer subsystem (MCPApiService, routes, app.ts,
+// ApiServer, ApiServerService) has tangled coupling that needs to be untangled
+// as a whole; this getter should be removed as part of that broader refactor.
+let _mcpApiService: MCPApiService | null = null
+
+export function getMcpApiService(): MCPApiService {
+  if (!_mcpApiService) _mcpApiService = new MCPApiService()
+  return _mcpApiService
+}
