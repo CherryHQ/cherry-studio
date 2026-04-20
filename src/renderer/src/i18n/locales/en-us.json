@@ -5753,7 +5753,10 @@
     "moveToFirst": "Move to First",
     "new": "New Tab",
     "pin": "Pin Tab",
-    "unpin": "Unpin Tab"
+    "splitDown": "Split Down",
+    "splitRight": "Split Right",
+    "unpin": "Unpin Tab",
+    "unsplit": "Unsplit"
   },
   "title": {
     "apps": "Apps",

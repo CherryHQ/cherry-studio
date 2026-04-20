@@ -5753,7 +5753,10 @@
     "moveToFirst": "Mover para o Primeiro",
     "new": "Nova Aba",
     "pin": "Fixar Aba",
-    "unpin": "Desafixar Aba"
+    "splitDown": "[to be translated]:Split Down",
+    "splitRight": "[to be translated]:Split Right",
+    "unpin": "Desafixar Aba",
+    "unsplit": "[to be translated]:Unsplit"
   },
   "title": {
     "apps": "Miniaplicativos",

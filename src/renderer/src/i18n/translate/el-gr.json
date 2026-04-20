@@ -5753,7 +5753,10 @@
     "moveToFirst": "Μετακίνηση στο Πρώτο",
     "new": "Νέα Καρτέλα",
     "pin": "Καρφίτσωμα καρτέλας",
-    "unpin": "Ξεκαρφίτσωση Καρτέλας"
+    "splitDown": "[to be translated]:Split Down",
+    "splitRight": "[to be translated]:Split Right",
+    "unpin": "Ξεκαρφίτσωση Καρτέλας",
+    "unsplit": "[to be translated]:Unsplit"
   },
   "title": {
     "apps": "Εφαρμογές",

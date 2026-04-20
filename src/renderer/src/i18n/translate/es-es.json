@@ -5753,7 +5753,10 @@
     "moveToFirst": "Mover al primero",
     "new": "Nueva pestaña",
     "pin": "Anclar pestaña",
-    "unpin": "Desanclar pestaña"
+    "splitDown": "[to be translated]:Split Down",
+    "splitRight": "[to be translated]:Split Right",
+    "unpin": "Desanclar pestaña",
+    "unsplit": "[to be translated]:Unsplit"
   },
   "title": {
     "apps": "Aplicaciones",
