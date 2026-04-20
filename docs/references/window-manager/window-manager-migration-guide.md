@@ -22,14 +22,24 @@ WINDOW_TYPE_REGISTRY[WindowType.MyWindow] = {
   type: WindowType.MyWindow,
   lifecycle: 'singleton',       // or 'default' or 'pooled'
   htmlPath: 'my-window.html',
-  preload: 'standard',          // 'standard' | 'simplest' | 'none'
-  show: 'auto',                 // 'auto' | true | false
-  showInDock: true,             // macOS Dock visibility (default: true)
-  defaultConfig: {
+  // preload omitted → defaults to 'index.js'. Write basename (with extension)
+  // to select a different file in src/preload/. Empty string → no preload.
+  // preload: 'simplest.js',
+  showMode: 'auto',             // 'auto' | 'immediate' | 'manual'
+  windowOptions: {
     ...DEFAULT_WINDOW_CONFIG,
     width: 800,
     height: 600,
   },
+  behavior: {
+    // Declarative WM-level behaviors (all optional). See the README "Configuration Layers" section.
+    // hideOnBlur: true,                    // auto-hide on blur (runtime override: wm.behavior.setHideOnBlur)
+    // alwaysOnTop: { level: 'floating' },  // level/relativeLevel for setAlwaysOnTop (runtime override: wm.behavior.setAlwaysOnTop)
+    // visibleOnAllWorkspaces: { enabled: true, visibleOnFullScreen: true },
+    // macShowInDock: false,                // do not contribute to Dock visibility (macOS helper windows only; default true)
+    //                                      // runtime override: wm.behavior.setMacShowInDockByType(type, value) for tray-mode transitions
+  },
+  // quirks: { ... },                       // OS hacks — see Platform Configuration
 }
 ```
 
@@ -99,24 +109,25 @@ Note: there is intentionally no entry for `this.window.destroy()`. `wm.close()` 
 
 ## Step 5: Handle show behavior
 
-Remove manual `show` / `ready-to-show` logic if using `show: 'auto'` (the default). WindowManager handles:
+Remove manual `show` / `ready-to-show` logic if using `showMode: 'auto'` (the default). WindowManager handles:
 
 - Creating the window hidden
 - Showing on `ready-to-show` (fresh path) or immediately (recycled path)
 
-If your window needs custom show timing, set `show: false` in the registry and manage visibility yourself.
+If your window needs custom show timing, set `showMode: 'manual'` in the registry and manage visibility yourself.
 
 ## Checklist
 
 - [ ] Added `WindowType` enum value in `types.ts`
 - [ ] Registered metadata in `WINDOW_TYPE_REGISTRY` in `windowRegistry.ts`
 - [ ] Chose the correct lifecycle mode (`default` / `singleton` / `pooled`)
-- [ ] Set `preload` variant (`standard` / `simplest` / `none`)
-- [ ] Set `show` behavior (`'auto'` / `true` / `false`)
-- [ ] Set `showInDock` if this window should not affect macOS Dock visibility
+- [ ] Set `preload` filename if not using the default (`'index.js'`)
+- [ ] Set `showMode` behavior (`'auto'` / `'immediate'` / `'manual'`)
+- [ ] Set `behavior.macShowInDock: false` ONLY for helper windows (floating panels, selection overlays); primary app windows leave it at the default `true`. Use `wm.behavior.setMacShowInDockByType(type, value)` for runtime tray-mode transitions, not a different registry default.
+- [ ] Declared `behavior.hideOnBlur` / `behavior.alwaysOnTop` / `behavior.visibleOnAllWorkspaces` as needed
 - [ ] Moved domain logic from constructor to `onWindowCreated` hook
 - [ ] Replaced direct `BrowserWindow` references with WindowManager API calls
-- [ ] Removed manual `ready-to-show` handling (if using `show: 'auto'`)
+- [ ] Removed manual `ready-to-show` handling (if using `showMode: 'auto'`)
 - [ ] If the window consumes init data: replaced hand-rolled `getInitData` + reset IPC wiring with the `useWindowInitData` hook
 - [ ] If pooled: chose appropriate `PoolConfig` axes (`standbySize` for active pre-warm, `recycleMinSize`/`recycleMaxSize` for recycling). Leave `recycleMaxSize` unset for one-shot "close destroys" semantics; set `standbySize` when zero-wait matters under concurrent opens.
 - [ ] Verified `onWindowDestroyed` cleanup in the domain service

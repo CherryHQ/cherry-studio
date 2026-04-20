@@ -24,6 +24,11 @@ const { mockLogger, mocks } = vi.hoisted(() => ({
     bonjour: null as {
       find: Mock
       destroy: Mock
+    } | null,
+    windowManager: null as {
+      broadcastToType: Mock
+      getWindowsByType: Mock
+      getAllWindows: Mock
     } | null
   }
 }))
@@ -38,8 +43,11 @@ vi.mock('@logger', () => ({
 vi.mock('@application', () => ({
   application: {
     get: vi.fn((name: string) => {
-      if (name === 'WindowService') {
+      if (name === 'MainWindowService') {
         return { getMainWindow: vi.fn(() => mocks.mainWindow) }
+      }
+      if (name === 'WindowManager') {
+        return mocks.windowManager
       }
       throw new Error(`[MockApplication] Unknown service: ${name}`)
     })
@@ -101,6 +109,11 @@ describe('LanTransferService - Discovery', () => {
     mocks.mainWindow = {
       isDestroyed: vi.fn(() => false),
       webContents: { send: vi.fn() }
+    }
+    mocks.windowManager = {
+      broadcastToType: vi.fn(),
+      getWindowsByType: vi.fn(() => [{ id: 'main-1' }]),
+      getAllWindows: vi.fn(() => [])
     }
 
     mocks.browser = Object.assign(new EventEmitter(), {
@@ -166,7 +179,7 @@ describe('LanTransferService - Discovery', () => {
 
       service.startDiscovery()
 
-      expect(mocks.mainWindow?.webContents.send).toHaveBeenCalled()
+      expect(mocks.windowManager?.broadcastToType).toHaveBeenCalled()
     })
 
     it('should handle browser.start() error', () => {
@@ -216,7 +229,7 @@ describe('LanTransferService - Discovery', () => {
 
       service.stopDiscovery()
 
-      expect(mocks.mainWindow?.webContents.send).toHaveBeenCalled()
+      expect(mocks.windowManager?.broadcastToType).toHaveBeenCalled()
     })
   })
 
@@ -492,7 +505,9 @@ describe('LanTransferService - Discovery', () => {
 
   describe('broadcastState', () => {
     it('should not throw when main window is null', () => {
-      mocks.mainWindow = null
+      // Service now broadcasts via WindowManager which is always present;
+      // a missing main window is WindowManager's concern (it silently skips).
+      mocks.windowManager!.getWindowsByType = vi.fn(() => [])
 
       const service = createService()
 
@@ -501,16 +516,12 @@ describe('LanTransferService - Discovery', () => {
     })
 
     it('should not throw when main window is destroyed', () => {
-      mocks.mainWindow = {
-        isDestroyed: vi.fn(() => true),
-        webContents: { send: vi.fn() }
-      }
-
+      // WindowManager.broadcastToType internally skips destroyed windows;
+      // service never inspects BrowserWindow.isDestroyed() anymore.
       const service = createService()
 
       // Should not throw
       expect(() => service.startDiscovery()).not.toThrow()
-      expect(mocks.mainWindow.webContents.send).not.toHaveBeenCalled()
     })
   })
 

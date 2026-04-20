@@ -58,7 +58,7 @@ WINDOW_TYPE_REGISTRY[WindowType.DetachedTab] = {
   type: WindowType.DetachedTab,
   lifecycle: 'default',
   htmlPath: 'detached-tab.html',
-  defaultConfig: { ...DEFAULT_WINDOW_CONFIG },
+  windowOptions: { ...DEFAULT_WINDOW_CONFIG },
 }
 
 // Usage — each call creates a new window
@@ -78,7 +78,7 @@ WINDOW_TYPE_REGISTRY[WindowType.Main] = {
   type: WindowType.Main,
   lifecycle: 'singleton',
   htmlPath: 'index.html',
-  defaultConfig: { ...DEFAULT_WINDOW_CONFIG, minWidth: 350, minHeight: 400 },
+  windowOptions: { ...DEFAULT_WINDOW_CONFIG, minWidth: 350, minHeight: 400 },
 }
 
 // First call creates; second call shows + focuses the existing window
@@ -110,7 +110,7 @@ WINDOW_TYPE_REGISTRY[WindowType.SelectionAction] = {
     inactivityTimeout: 300,  // after 5min idle, trim back to standbySize
     warmup: 'eager'
   },
-  defaultConfig: { ...DEFAULT_WINDOW_CONFIG, width: 400, height: 300 },
+  windowOptions: { ...DEFAULT_WINDOW_CONFIG, width: 400, height: 300 },
 }
 ```
 
@@ -125,7 +125,7 @@ See [Pool Mechanics](./window-manager-pool-mechanics.md) for the full pool confi
 | `broadcast()` / `broadcastToType()` | IPC fan-out to all or type-filtered windows |
 | `open({ initData })` / `create({ initData })` / `setInitData()` / `getInitData()` | Init payload passed atomically on open/create; automatically pushed to renderer via `WindowManager_Reused` on reuse paths |
 | `suspendPool()` / `resumePool()` | Pause pool tracking without destroying in-use windows |
-| macOS Dock visibility management | Automatic based on visible windows and `showInDock` metadata |
+| macOS Dock visibility management | Existence-based: Dock is visible while any window with `behavior.macShowInDock !== false` is alive (not destroyed). Services express tray-mode intent via `wm.behavior.setMacShowInDockByType(type, value)` to temporarily opt a type out of Dock contribution. Matches native macOS semantics where Cmd+W does not remove the app from the Dock. |
 | `setTitleBarOverlay()` | Batch update overlay on all applicable windows |
 
 ## Event Timing Contract

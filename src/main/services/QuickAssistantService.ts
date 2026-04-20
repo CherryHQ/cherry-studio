@@ -15,7 +15,7 @@
  *   - bounds persistence via electron-window-state
  *
  * Notes for future maintainers:
- *   - `mainWindowRef` caches the BrowserWindow directly because WindowService is
+ *   - `mainWindowRef` caches the BrowserWindow directly because MainWindowService is
  *     not yet under WindowManager. Once it is, replace the cache with
  *     `wm.getWindowsByType(WindowType.Main)[0]`.
  *   - `wasMainWindowFocused` is captured exactly once per show, inside
@@ -44,14 +44,81 @@ const QUICK_ASSISTANT_STATE_FILE = 'quickAssistant-state.json'
  */
 const MACOS_AUTO_FOCUS_VERSION = 26
 
+// ─── Post-unpin focus poll: rationale, trade-offs, degradation modes ───────
+//
+// WHAT IT IS
+//   A bounded `setInterval` that watches `window.isFocused()` after the user
+//   un-pins QuickAssistant. When focus drops, the poll triggers hide and stops.
+//
+// WHY IT EXISTS (upstream bug)
+//   `type: 'panel'` (NSPanel) + `alwaysOnTop` on macOS hits an Electron
+//   limitation marked **wontfix** — see electron/electron#3222. After the
+//   sequence (outside-click → intra-panel-click → outside-click), Cocoa fires
+//   `windowDidResignKey:` for the second outside-click but Electron filters it:
+//   its blur tracker thinks the window was already blurred (the intra-panel
+//   click silently re-keys the panel without firing `windowDidBecomeKey:`).
+//   Result: `window.on('blur')` never fires again until the window is shown
+//   afresh, so our normal blur→hide path is broken right when the user expects
+//   it to work most (just unpinned, about to switch away).
+//
+// WHY POLLING (alternatives we ruled out)
+//   • blur+focus dance (`window.blur(); window.focus()`): functionally fixes
+//     the tracker but `blur()` on NSPanel briefly orders the window out,
+//     producing visible disappear-then-reappear flicker. Even with
+//     `visualEffectState: 'active'` the z-order glitch remains.
+//   • `electron-panel-window` / `electron-nspanel`: native modules with
+//     `makeKeyWindow` that goes through Cocoa cleanly, but require platform-
+//     specific addons and one is archived since 2020.
+//   • app-level events (`app.on('browser-window-focus')`): catches Cherry-
+//     internal focus changes only; misses external-app and desktop clicks.
+//   Polling reads `window.isFocused()` which delegates to `[NSWindow
+//   isKeyWindow]` — Cocoa's true state, untouched by Electron's broken
+//   tracker. Zero side effects, no dependencies.
+//
+// COSTS
+//   • Latency: up to 200ms between focus loss and hide (one tick). Not
+//     perceivable by users in practice — they have already moved attention.
+//   • CPU: ~5 calls/sec to a single Cocoa accessor; ≪ 0.1% on any modern Mac.
+//   • Active only after un-pin AND only when a real blur fired since show
+//     (`hasBlurredSinceShow`); otherwise tracker is healthy and the normal
+//     blur path covers everything.
+//
+// THE 30-SECOND CEILING
+//   An "engaged user" timer. The poll stops after 30s even with no focus loss.
+//   Rationale: un-pinning expresses intent to switch away soon. If 30s pass
+//   the user has shifted from "quick toggle" to "persistent reading" mode —
+//   honoring auto-hide on the next outside-click is no longer load-bearing.
+//
+//   Degradation when ceiling hits and user later clicks outside:
+//     • Auto-hide may not fire (the upstream bug surfaces again)
+//     • User recovery: press Esc, click pin/unpin to re-arm, or invoke the
+//       hotkey (which destroys-and-shows, fully resetting the tracker)
+//
+// PLATFORM SCOPE
+//   The poll only starts on macOS (`isMac` guard in setPinQuickAssistant).
+//   The bug is specific to NSPanel; Windows/Linux paths route through plain
+//   `BrowserWindow` and `window.on('blur')` works reliably there.
+const POST_UNPIN_FOCUS_POLL_MAX_MS = 30_000
+const POST_UNPIN_FOCUS_POLL_INTERVAL_MS = 200
+
 const logger = loggerService.withContext('QuickAssistantService')
 
 @Injectable('QuickAssistantService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowService', 'WindowManager'])
+@DependsOn(['MainWindowService', 'WindowManager'])
 export class QuickAssistantService extends BaseService implements Activatable {
   private windowId: string | null = null
   private isPinnedQuickAssistant = false
+  // Fallback poll for the macOS NSPanel blur-event bug — see the
+  // "Post-unpin focus poll" block above the file's constants for the full
+  // rationale, trade-offs, and degradation modes.
+  private postUnpinFocusPollTimer: ReturnType<typeof setInterval> | null = null
+  // Gate for arming the post-unpin focus poll. `false` immediately after a
+  // fresh show (Electron's blur tracker is healthy at that point), flips to
+  // `true` on the first real 'blur' event. The poll only starts when this is
+  // true, avoiding a no-op timer for the (common) "open → pin → unpin without
+  // ever blurring" sequence.
+  private hasBlurredSinceShow = false
   // Captured before each show; hideQuickAssistant consults it to decide whether to call app.hide()
   // so that the previous foreground app gets focus back instead of an unrelated app.
   private wasMainWindowFocused = false
@@ -145,6 +212,8 @@ export class QuickAssistantService extends BaseService implements Activatable {
     // next activate() instantiates a fresh keeper that reloads persisted bounds.
     this.quickAssistantState = null
     this.isPinnedQuickAssistant = false
+    this.hasBlurredSinceShow = false
+    this.stopPostUnpinFocusPoll()
   }
 
   private registerIpcHandlers() {
@@ -156,15 +225,15 @@ export class QuickAssistantService extends BaseService implements Activatable {
   }
 
   /**
-   * Subscribe to mainWindow lifecycle through WindowService's event API (loose coupling).
+   * Subscribe to mainWindow lifecycle through MainWindowService's event API (loose coupling).
    *   - Hide quickWindow when mainWindow becomes visible ('show') or is restored from
-   *     minimized ('restore'). Both are required: WindowService.showMainWindow calls
+   *     minimized ('restore'). Both are required: MainWindowService.showMainWindow calls
    *     mainWindow.restore() for the minimized branch, which does NOT fire 'show'.
    *   - Cache the mainWindow reference so isFocused() can be read locally, without
-   *     calling WindowService methods at runtime.
+   *     calling MainWindowService methods at runtime.
    */
   private subscribeMainWindowLifecycle() {
-    const windowService = application.get('WindowService')
+    const windowService = application.get('MainWindowService')
 
     const attach = (mainWindow: BrowserWindow) => {
       this.mainWindowRef = mainWindow
@@ -275,15 +344,20 @@ export class QuickAssistantService extends BaseService implements Activatable {
     // Inbound restoration was already done at construction via wm.create options.
     this.quickAssistantState?.manage(window)
 
-    // Keep the window visible across all workspaces and over fullscreen apps.
-    // (Reusable WindowQuirks abstraction is a planned follow-up — see plan doc.)
-    window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+    // Declarative window infra (initial alwaysOnTop level, cross-workspace visibility,
+    // macOS level reapply across show cycles) is owned by WindowManager via the
+    // `WindowType.QuickAssistant` registry entry (`behavior` + `quirks`).
 
-    // Set the initial alwaysOnTop level once. The macReapplyAlwaysOnTop quirk
-    // ensures macOS does not silently demote the level on subsequent show() calls.
-    window.setAlwaysOnTop(true, 'floating')
-
+    // Blur → hide is intentionally kept here (not downsunk to behavior.hideOnBlur)
+    // because `hideQuickAssistant()` is a platform-specific business flow:
+    //   - Windows uses minimize + setOpacity(0) to avoid a show-flash
+    //   - macOS <26 additionally calls `app.hide()` to return focus to the previous app
+    // A generic `window.hide()` dispatch in WM cannot express either path.
     const onBlur = () => {
+      // Mark that a real blur has fired since the last show — used by
+      // setPinQuickAssistant to decide whether the post-unpin focus poll
+      // workaround is needed (see that method for the full rationale).
+      this.hasBlurredSinceShow = true
       if (!this.isPinnedQuickAssistant) {
         this.hideQuickAssistant()
       }
@@ -292,17 +366,26 @@ export class QuickAssistantService extends BaseService implements Activatable {
     // + focuses input on every show. The symmetric "Hidden" event used to exist
     // but had no listener anywhere — removed as dead code.
     const onShow = () => {
+      // Window is freshly shown and focused — focus tracker is healthy, and
+      // any post-unpin focus poll from a previous lifetime is irrelevant.
+      this.hasBlurredSinceShow = false
+      this.stopPostUnpinFocusPoll()
       if (!window.isDestroyed()) {
         window.webContents.send(IpcChannel.QuickAssistant_Shown)
       }
     }
+    const onHide = () => {
+      this.stopPostUnpinFocusPoll()
+    }
 
     window.on('blur', onBlur)
     window.on('show', onShow)
+    window.on('hide', onHide)
     this.registerDisposable(() => {
       if (window.isDestroyed()) return
       window.removeListener('blur', onBlur)
       window.removeListener('show', onShow)
+      window.removeListener('hide', onHide)
     })
   }
 
@@ -402,13 +485,13 @@ export class QuickAssistantService extends BaseService implements Activatable {
   }
 
   /**
-   * Behavior change vs. legacy: this is now a hide(), not a destroy. The quick window
-   * is a high-frequency toggle surface; destroy + recreate would cause a blank-flash
-   * on next show (loadURL is async and ready-to-show races the show() call) and waste
-   * the preload work. The two renderer call sites (settings panel toggles) only need
-   * the window to disappear — hide() satisfies that. True teardown happens in
-   * onDeactivate() when the feature preference is turned off, and as a final fallback
-   * in WindowManager.onDestroy() at app quit.
+   * Hides the quick window rather than destroying it. The quick window is a
+   * high-frequency toggle surface; destroy + recreate would cause a blank-flash
+   * on next show (loadURL is async and ready-to-show races the show() call) and
+   * waste the preload work. The renderer call sites (settings panel toggles)
+   * only need the window to disappear — hide() satisfies that. True teardown
+   * happens in onDeactivate() when the feature preference is turned off, and
+   * as a final fallback in WindowManager.onDestroy() at app quit.
    */
   public closeQuickAssistant() {
     this.getQuickAssistant()?.hide()
@@ -425,5 +508,61 @@ export class QuickAssistantService extends BaseService implements Activatable {
 
   public setPinQuickAssistant(isPinned: boolean) {
     this.isPinnedQuickAssistant = isPinned
+
+    // Arm the post-unpin focus poll only on macOS, only when un-pinning, and
+    // only after a real blur has fired since the last show — that combination
+    // is the precise window in which the upstream NSPanel bug can hide a
+    // subsequent outside-click. Full background, alternatives considered, and
+    // degradation modes are documented at the top of this file (see the
+    // "Post-unpin focus poll" comment block above the constants).
+    if (!isPinned && isMac && this.hasBlurredSinceShow) {
+      this.startPostUnpinFocusPoll()
+    } else {
+      this.stopPostUnpinFocusPoll()
+    }
+  }
+
+  /**
+   * Start the post-unpin focus poll (see file-top comment block for the
+   * full rationale). Idempotent — restarting clears any previous timer.
+   *
+   * Stop conditions, in priority order:
+   *   1. Window destroyed / hidden          — nothing to observe
+   *   2. User re-pinned                      — auto-hide intent revoked
+   *   3. `window.isFocused()` returns false  — outside-click detected → hide
+   *   4. `POST_UNPIN_FOCUS_POLL_MAX_MS`      — engaged-user retreat (see constant)
+   */
+  private startPostUnpinFocusPoll() {
+    this.stopPostUnpinFocusPoll()
+    const startedAt = Date.now()
+    this.postUnpinFocusPollTimer = setInterval(() => {
+      const window = this.getQuickAssistant()
+      if (!window || window.isDestroyed() || !window.isVisible()) {
+        this.stopPostUnpinFocusPoll()
+        return
+      }
+      if (this.isPinnedQuickAssistant) {
+        // User re-pinned — no need to keep polling.
+        this.stopPostUnpinFocusPoll()
+        return
+      }
+      if (!window.isFocused()) {
+        this.stopPostUnpinFocusPoll()
+        this.hideQuickAssistant()
+        return
+      }
+      // Retreat after the bounded window — the user has settled into the panel
+      // and the bug-prone "about to switch away" period has passed.
+      if (Date.now() - startedAt >= POST_UNPIN_FOCUS_POLL_MAX_MS) {
+        this.stopPostUnpinFocusPoll()
+      }
+    }, POST_UNPIN_FOCUS_POLL_INTERVAL_MS)
+  }
+
+  private stopPostUnpinFocusPoll() {
+    if (this.postUnpinFocusPollTimer) {
+      clearInterval(this.postUnpinFocusPollTimer)
+      this.postUnpinFocusPollTimer = null
+    }
   }
 }

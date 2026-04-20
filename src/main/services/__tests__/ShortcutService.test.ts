@@ -39,7 +39,7 @@ const { windowServiceMock, selectionServiceMock, quickAssistantServiceMock, glob
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
-    WindowService: windowServiceMock,
+    MainWindowService: windowServiceMock,
     SelectionService: selectionServiceMock,
     QuickAssistantService: quickAssistantServiceMock
   } as any)

@@ -4,6 +4,7 @@ import { loggerService } from '@logger'
 import { titleBarOverlayDark, titleBarOverlayLight } from '@main/config'
 import { isLinux, isMac, isWin } from '@main/constant'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { WindowType } from '@main/core/window/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { BrowserWindow, nativeTheme, shell } from 'electron'
 import { join } from 'path'
@@ -39,7 +40,7 @@ type DetachedWindowState = {
 
 @Injectable('DetachedWindowManager')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowService'])
+@DependsOn(['WindowManager'])
 export class DetachedWindowManager extends BaseService {
   private windows: Map<string, BrowserWindow> = new Map()
   private windowState: Map<string, DetachedWindowState> = new Map()
@@ -49,32 +50,31 @@ export class DetachedWindowManager extends BaseService {
     this.registerIpcHandlers()
   }
 
-  private getWindowService() {
-    return application.get('WindowService')
-  }
-
   private registerIpcHandlers() {
     this.ipcOn(IpcChannel.Tab_Detach, (_, payload) => {
       this.createWindow(payload)
     })
 
     this.ipcHandle(IpcChannel.Tab_Attach, (event, payload) => {
-      const mainWindow = this.getWindowService().getMainWindow()
-      if (!mainWindow || mainWindow.isDestroyed()) {
+      const wm = application.get('WindowManager')
+      if (wm.getWindowsByType(WindowType.Main).length === 0) {
         logger.warn('Tab_Attach failed: main window not available')
         return false
       }
 
       try {
-        mainWindow.webContents.send(IpcChannel.Tab_Attach, payload)
+        wm.broadcastToType(WindowType.Main, IpcChannel.Tab_Attach, payload)
       } catch (err: any) {
         logger.error('Tab_Attach failed: could not send to main window', err as Error)
         return false
       }
 
-      // Only close sender after successful send
+      // Close sender detached window after successful broadcast. Main-window
+      // senders are skipped because they are not in the DetachedWindowManager
+      // pool (this.windows) and the check below only fires for detached tabs.
       const senderWindow = BrowserWindow.fromWebContents(event.sender)
-      if (senderWindow && senderWindow !== mainWindow && !senderWindow.isDestroyed()) {
+      const isDetachedTab = senderWindow ? Array.from(this.windows.values()).includes(senderWindow) : false
+      if (senderWindow && isDetachedTab && !senderWindow.isDestroyed()) {
         try {
           senderWindow.close()
         } catch (err: any) {
@@ -107,7 +107,11 @@ export class DetachedWindowManager extends BaseService {
     this.ipcHandle(
       IpcChannel.Tab_TryAttach,
       (_, payload: { tab: { id: string }; screenX: number; screenY: number }) => {
-        const mainWindow = this.getWindowService().getMainWindow()
+        // Main window is a singleton. Resolve the BrowserWindow directly via
+        // WindowManager (we need .getBounds() for geometry check — broadcast
+        // alone isn't enough).
+        const wm = application.get('WindowManager')
+        const mainWindow = wm.getAllWindows().find((m) => m.type === WindowType.Main)?.window
         if (!mainWindow || mainWindow.isDestroyed()) {
           logger.warn('Tab_TryAttach failed: main window not available')
           return false
@@ -123,7 +127,7 @@ export class DetachedWindowManager extends BaseService {
 
         if (isOverTabBar) {
           try {
-            mainWindow.webContents.send(IpcChannel.Tab_Attach, payload.tab)
+            wm.broadcastToType(WindowType.Main, IpcChannel.Tab_Attach, payload.tab)
           } catch (err: any) {
             logger.error('Tab_TryAttach failed: could not send to main window', err as Error)
             return false

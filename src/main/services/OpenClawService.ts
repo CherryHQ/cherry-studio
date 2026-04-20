@@ -9,6 +9,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { WindowType } from '@main/core/window/types'
 import { isUserInChina } from '@main/utils/ipService'
 import { crossPlatformSpawn, findExecutableInEnv, getBinaryPath, runInstallScript } from '@main/utils/process'
 import getShellEnv, { refreshShellEnv } from '@main/utils/shell-env'
@@ -127,7 +128,7 @@ function isVertexProvider(provider: Provider): provider is VertexProvider {
 
 @Injectable('OpenClawService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowService'])
+@DependsOn(['WindowManager'])
 export class OpenClawService extends BaseService {
   private gatewayStatus: GatewayStatus = 'stopped'
   private gatewayPort: number = DEFAULT_GATEWAY_PORT
@@ -195,8 +196,9 @@ export class OpenClawService extends BaseService {
    * Send install progress to renderer
    */
   private sendInstallProgress(message: string, type: 'info' | 'warn' | 'error' = 'info') {
-    const win = application.get('WindowService').getMainWindow()
-    win?.webContents.send(IpcChannel.OpenClaw_InstallProgress, { message, type })
+    application
+      .get('WindowManager')
+      .broadcastToType(WindowType.Main, IpcChannel.OpenClaw_InstallProgress, { message, type })
   }
 
   /**

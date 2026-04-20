@@ -77,7 +77,7 @@ BaseService provides built-in IPC tracking for self-contained handlers — see [
 
 |                         | Lifecycle                                    | Direct-import singleton                        |
 | ----------------------- | -------------------------------------------- | ---------------------------------------------- |
-| Examples                | `DbService`, `CacheService`, `WindowService` | `ExportService`, `BackupManager`                |
+| Examples                | `DbService`, `CacheService`, `MainWindowService` | `ExportService`, `BackupManager`                |
 | Long-lived resources    | Yes                                          | No (or request-scoped)                         |
 | Persistent side effects | Yes                                          | No                                             |
 | `onInit` / `onStop`     | Meaningful                                   | Would be empty                                 |
@@ -176,10 +176,10 @@ Does the service need to be entirely excluded on some platforms?
 
    ```typescript
    // ❌ Redundant — PreferenceService is BeforeReady, guaranteed ready
-   @Injectable('WindowService')
+   @Injectable('MainWindowService')
    @ServicePhase(Phase.WhenReady)
    @DependsOn('PreferenceService')   // <-- remove this
-   export class WindowService extends BaseService { ... }
+   export class MainWindowService extends BaseService { ... }
 
    // ✅ Correct — only declare same-phase deps
    @Injectable('AgentBootstrapService')
