@@ -3,24 +3,53 @@
  *
  * Defines the parameter and return types for File IPC operations.
  * All file entry write operations that may affect the filesystem go through
- * File IPC (not DataApi). The handler delegates to FileManager (sole FS owner),
- * which coordinates FS ops and calls FileTreeService for DB sync.
+ * File IPC (not DataApi). The handler delegates to FileManager (sole FS owner).
  *
  * These types are shared between main (handler implementation) and
  * preload (method signatures exposed to renderer).
+ *
+ * ## Unified access via FileHandle
+ *
+ * Most operations accept `FileHandle` (tagged union) so consumers don't need
+ * to branch on "managed entry vs arbitrary path". The handler dispatches:
+ * - `{ kind: 'managed', entryId }` → FileManager method (entry-aware)
+ * - `{ kind: 'unmanaged', path }`  → `ops/*` direct (path-only)
+ *
+ * Operations that only make sense on FileEntry (trash, rename, refreshMetadata,
+ * etc.) take `FileEntryId` directly.
  */
 
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 
 import type { DirectoryListOptions, FileContent, FilePath, PhysicalFileMetadata } from './common'
+import type { FileHandle } from './handle'
 
 export type { DirectoryListOptions, FilePath } from './common'
 
+// ─── Version ───
+
+export interface FileVersion {
+  mtime: number
+  size: number
+}
+
+export interface ReadResult<T> {
+  content: T
+  mime: string
+  version: FileVersion
+}
+
 // ─── IPC Params ───
 
+/** Create a FileEntry. Internal = Cherry-owned; external = references a user-provided path. */
 export type CreateEntryIpcParams =
-  | { type: 'file'; parentId: FileEntryId; name: string; content: FileContent }
-  | { type: 'dir'; parentId: FileEntryId; name: string }
+  | { origin: 'internal'; name: string; ext?: string | null; content: FileContent }
+  | { origin: 'external'; externalPath: FilePath; name?: string }
+
+/** Batch-create params. All items share the same origin. */
+export type BatchCreateEntriesIpcParams =
+  | { origin: 'internal'; items: Array<{ name: string; ext?: string | null; content: FileContent }> }
+  | { origin: 'external'; items: Array<{ externalPath: FilePath; name?: string }> }
 
 // ─── IPC Result ───
 
@@ -32,11 +61,10 @@ export interface BatchOperationResult {
 // ─── File IPC API ───
 
 /**
- * File IPC interface — the complete contract between renderer and main process
+ * File IPC interface — the contract between renderer and main process
  * for all file operations that may affect the filesystem.
  *
  * DataApi handles read-only entry queries; all writes go through this interface.
- * Handler dispatches by target type: FileEntryId → FileManager, FilePath → ops.
  */
 export interface FileIpcApi {
   // ─── A. File Selection / Dialogs ───
@@ -57,72 +85,104 @@ export interface FileIpcApi {
 
   // ─── B. Entry Creation ───
 
-  /** Create a file or directory entry. For files, content is processed by source type (path/base64/URL/buffer). */
+  /** Create a FileEntry (internal or external). */
   createEntry(params: CreateEntryIpcParams): Promise<FileEntry>
-  /** Batch create file entries (files only, no directories) */
-  batchCreateEntries(params: {
-    parentId: FileEntryId
-    items: Array<{ name: string; content: FileContent }>
-  }): Promise<BatchOperationResult>
+  /** Batch create entries. All items share the same origin. */
+  batchCreateEntries(params: BatchCreateEntriesIpcParams): Promise<BatchOperationResult>
 
-  // ─── C. File Reading / Metadata ───
+  // ─── C. Read / Metadata (accepts FileHandle) ───
 
-  /** Read file content as text */
-  read(target: FileEntryId | FilePath, options?: { encoding?: 'text'; detectEncoding?: boolean }): Promise<string>
-  /** Read file content as base64 */
-  read(target: FileEntryId | FilePath, options: { encoding: 'base64' }): Promise<{ data: string; mime: string }>
-  /** Read file content as binary */
-  read(target: FileEntryId | FilePath, options: { encoding: 'binary' }): Promise<{ data: Uint8Array; mime: string }>
-  /** Get physical file metadata (size, timestamps, and type-specific info like dimensions/pageCount) */
-  getMetadata(target: FileEntryId | FilePath): Promise<PhysicalFileMetadata>
+  /** Read content as text */
+  read(handle: FileHandle, options?: { encoding?: 'text'; detectEncoding?: boolean }): Promise<ReadResult<string>>
+  /** Read content as base64 */
+  read(handle: FileHandle, options: { encoding: 'base64' }): Promise<ReadResult<string>>
+  /** Read content as binary */
+  read(handle: FileHandle, options: { encoding: 'binary' }): Promise<ReadResult<Uint8Array>>
 
-  // ─── D. Entry Deletion ───
+  /** Get physical metadata (size, mime, timestamps, type-specific fields) */
+  getMetadata(handle: FileHandle): Promise<PhysicalFileMetadata>
 
-  /** Move entry to Trash (soft delete) */
+  /** Get lightweight FileVersion. For managed-external entries, refreshes DB snapshot if changed. */
+  getVersion(handle: FileHandle): Promise<FileVersion>
+
+  /** Compute xxhash-128 of file content. */
+  getContentHash(handle: FileHandle): Promise<string>
+
+  // ─── D. Write (accepts FileHandle; external and unmanaged paths are written via ops atomic write) ───
+
+  /** Unconditional atomic write. */
+  write(handle: FileHandle, data: string | Uint8Array): Promise<FileVersion>
+
+  /** Optimistic-concurrency write. Throws StaleVersionError on version mismatch. */
+  writeIfUnchanged(handle: FileHandle, data: string | Uint8Array, expectedVersion: FileVersion): Promise<FileVersion>
+
+  // ─── E. Trash / Delete ───
+
+  /**
+   * Move entry to Trash (soft delete via trashedAt). No FS impact for either origin.
+   * Only applies to managed entries.
+   */
   trash(params: { id: FileEntryId }): Promise<void>
-  /** Restore entry from Trash */
+
+  /** Restore entry from Trash. No FS impact. Only applies to managed entries. */
   restore(params: { id: FileEntryId }): Promise<FileEntry>
-  /** Permanently delete entry and its physical file */
-  permanentDelete(params: { id: FileEntryId }): Promise<void>
-  /** Batch move entries to Trash */
+
+  /**
+   * Permanently delete.
+   * - Managed: unlinks physical file (internal or external) and deletes DB row.
+   * - Unmanaged: removes the file at the given path (delegates to `ops.remove`).
+   */
+  permanentDelete(handle: FileHandle): Promise<void>
+
+  /** Batch move entries to Trash (managed only) */
   batchTrash(params: { ids: FileEntryId[] }): Promise<BatchOperationResult>
-  /** Batch restore entries from Trash */
+  /** Batch restore entries from Trash (managed only) */
   batchRestore(params: { ids: FileEntryId[] }): Promise<BatchOperationResult>
-  /** Batch permanently delete entries */
+  /** Batch permanently delete managed entries */
   batchPermanentDelete(params: { ids: FileEntryId[] }): Promise<BatchOperationResult>
 
-  // ─── E. Entry Move (includes rename) ───
+  // ─── F. Rename ───
 
-  /** Move entry to new parent and/or rename (Unix mv semantics) */
-  move(params: { id: FileEntryId; targetParentId: FileEntryId; newName?: string }): Promise<FileEntry>
-  /** Batch move entries to target parent */
-  batchMove(params: { ids: FileEntryId[]; targetParentId: FileEntryId }): Promise<BatchOperationResult>
+  /**
+   * Rename a file.
+   * - Managed: `newTarget` is a new display name (no path separators). For external,
+   *   the physical file is renamed in place; for internal, only DB name changes.
+   * - Unmanaged: `newTarget` is a full new absolute path. Equivalent to `fs.rename(path, newTarget)`.
+   */
+  rename(handle: FileHandle, newTarget: string): Promise<FileEntry | void>
 
-  // ─── F. File Write / Copy ───
+  // ─── G. Copy ───
 
-  /** Write content to an existing entry or external path (does not create a new entry) */
-  write(target: FileEntryId | FilePath, data: string | Uint8Array): Promise<void>
-  /** Copy entry within the file tree (creates a new entry with physical copy) */
-  copy(params: { id: FileEntryId; targetParentId: FileEntryId; newName?: string }): Promise<FileEntry>
-  /** Export entry's physical file to an external path (no new entry created) */
-  copy(params: { id: FileEntryId; destPath: FilePath }): Promise<void>
+  /**
+   * Copy content into a new internal managed entry.
+   * Source can be managed (internal or external) or unmanaged.
+   */
+  copy(params: { source: FileHandle; newName?: string }): Promise<FileEntry>
 
-  // ─── G. Validation ───
+  // ─── H. External Metadata Refresh (managed-external only) ───
 
-  /** Validate a directory path for use as the Notes mount basePath */
-  validateNotesPath(dirPath: FilePath): Promise<boolean>
+  /**
+   * Re-stat external entry and refresh DB snapshot (name/ext/size). No-op for internal.
+   * Side effect: updates DanglingCache based on stat result.
+   *
+   * Dangling state itself is queried via DataApi (`includeDangling`).
+   */
+  refreshMetadata(params: { id: FileEntryId }): Promise<FileEntry>
 
-  // ─── H. System Operations ───
+  // ─── I. System Operations (accepts FileHandle) ───
 
   /** Open file/directory with the system default application */
-  open(target: FileEntryId | FilePath): Promise<void>
+  open(handle: FileHandle): Promise<void>
   /** Reveal file/directory in the system file manager */
-  showInFolder(target: FileEntryId | FilePath): Promise<void>
+  showInFolder(handle: FileHandle): Promise<void>
 
-  // ─── I. Directory Listing ───
+  // ─── J. Directory Listing (arbitrary path) ───
 
-  /** List contents of an external directory (not managed by the entry system) */
+  /** List contents of an arbitrary directory. */
   listDirectory(dirPath: FilePath, options?: DirectoryListOptions): Promise<string[]>
+
+  /** Check if a directory is non-empty. */
+  isNotEmptyDir(dirPath: FilePath): Promise<boolean>
 }
 
 // ─── Electron Types ───

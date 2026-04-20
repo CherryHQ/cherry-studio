@@ -1,14 +1,12 @@
 /**
  * File API Handlers (Placeholder)
  *
- * Stub handlers for Phase 1 — will be implemented in Phase 2.
+ * Stub handlers for Phase 1a — will be implemented in Phase 1b.
  * All endpoints throw NOT_IMPLEMENTED to satisfy ApiSchemas type requirements.
  *
- * Note: Only read endpoints are exposed via DataApi. Write operations (create,
- * rename, move, trash, delete, upload) are handled by FileIpcService -> FileService,
- * which internally calls FileTreeService for DB synchronization.
- * Ref write operations (create/cleanup) are called directly by business services
- * via fileRefService, not exposed via DataApi.
+ * Note: Only read endpoints are exposed via DataApi. Write operations
+ * (create, rename, trash, permanentDelete, etc.) are handled by FileManager IPC.
+ * Ref write operations are called directly by business services via fileRefService.
  */
 
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
@@ -19,7 +17,7 @@ type FileHandler<Path extends keyof FileSchemas, Method extends ApiMethods<Path>
 const notImplemented =
   (endpoint: string): (() => never) =>
   (): never => {
-    throw new Error(`Not implemented: ${endpoint} — will be added in Phase 2`)
+    throw new Error(`Not implemented: ${endpoint} — will be added in Phase 1b`)
   }
 
 export const fileHandlers: {
@@ -33,16 +31,10 @@ export const fileHandlers: {
   '/files/entries/:id': {
     GET: notImplemented('GET /files/entries/:id')
   },
-  '/files/entries/:id/children': {
-    GET: notImplemented('GET /files/entries/:id/children')
-  },
   '/files/entries/:id/refs': {
     GET: notImplemented('GET /files/entries/:id/refs')
   },
   '/files/refs/by-source': {
     GET: notImplemented('GET /files/refs/by-source')
-  },
-  '/files/mounts': {
-    GET: notImplemented('GET /files/mounts')
   }
 }

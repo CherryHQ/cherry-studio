@@ -1,5 +1,4 @@
 export * from './essential'
 export * from './file'
 export * from './fileEntry'
-export * from './provider'
 export * from './ref'

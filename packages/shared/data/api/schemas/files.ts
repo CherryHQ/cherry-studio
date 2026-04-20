@@ -1,84 +1,132 @@
 /**
  * File API Schema definitions (read-only DataApi)
  *
- * DataApi is a pure data interface — read-only, no FS side effects.
- * FS-side-effect operations go through File IPC (separate type definitions).
+ * DataApi is a **read-only data interface**. Handlers must not mutate anything —
+ * no writes to SQLite, no writes to FS. But **safe read-only side effects are
+ * allowed**: SQL aggregations, `fs.stat` for dangling detection, content hash
+ * look-ups from in-memory caches, etc. As long as an operation is idempotent and
+ * doesn't modify persistent state, it belongs here.
+ *
+ * Anything that mutates state (create / rename / delete / move / write / trash)
+ * goes through **File IPC** (see `packages/shared/file/types/ipc.ts`).
  *
  * Endpoints:
- * - /files/entries — Entry listing and detail
- * - /files/entries/:id/children — Tree lazy-loading
+ * - /files/entries — Entry listing and detail (flat list, no tree)
  * - /files/entries/:id/refs — File references per entry
  * - /files/refs/by-source — File references by business source
- * - /files/mounts — Mount point listing
+ *
+ * ## External snapshot staleness
+ *
+ * External entries may return stale snapshots (name/ext/size are last-observed).
+ * Consumers needing fresh values should use File IPC `refreshMetadata` or `read`.
+ *
+ * ## Opt-in derived fields
+ *
+ * - `includeRefCount`: pure SQL aggregate over `file_ref`
+ * - `includeDangling`: queries file_module `DanglingCache`; cache miss triggers
+ *   one `fs.stat` (read-only, idempotent). Internal entries always `'present'`.
+ * - `includePath`: raw absolute path (via `resolvePhysicalPath`). Use for
+ *   agent context embedding, drag-drop, subprocess spawn — any caller that
+ *   genuinely needs a path string.
+ * - `includeUrl`: file:// URL with danger-file safety wrap (returns dirname
+ *   URL for `.sh/.bat/.ps1` etc.). Use for `<img src>` / `<video src>`
+ *   rendering. Prevents accidental file-URL execution on dangerous file types.
+ *
+ * These two fields let renderer code avoid knowing Cherry's internal file
+ * storage layout (id + ext concatenation, userData path). Main remains the
+ * single source of truth for path resolution.
  */
 
 import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
-import type { FileEntry, FileEntryId, FileRef, Mount } from '@shared/data/types/file'
+import type { DanglingState, FileEntry, FileEntryId, FileEntryOrigin, FileRef } from '@shared/data/types/file'
+
+/**
+ * FileEntry augmented with optional opt-in derived fields.
+ * Each field is present only when the corresponding `include*` flag was requested.
+ */
+export type FileEntryView = FileEntry & {
+  refCount?: number
+  dangling?: DanglingState
+  /**
+   * Raw absolute path (e.g. `/Users/me/Library/.../files/<id>.pdf` for internal,
+   * or `entry.externalPath` for external). Populated when query passes
+   * `includePath: true`. Use for agent context, drag-drop, subprocess spawn.
+   */
+  path?: string
+  /**
+   * file:// URL suitable for `<img src>` / `<video src>`, with danger-file
+   * safety wrapping (for .sh/.bat/.ps1 etc., the URL points to the containing
+   * directory instead of the file, preventing accidental execution).
+   *
+   * Populated when query passes `includeUrl: true`. Keeps renderer unaware
+   * of internal storage layout (id + ext concatenation).
+   */
+  url?: string
+}
+
 export interface FileSchemas {
   // ─── Entry Queries ───
 
   /**
-   * Entries collection query
-   * @example GET /files/entries?mountId=mount_files&type=file
+   * Entries collection query (flat list).
+   *
+   * Opt-in derived fields:
+   * - `includeRefCount` → `refCount` (SQL aggregate over `file_ref`)
+   * - `includeDangling` → `dangling` state (DanglingCache + lazy fs.stat)
+   * - `includePath` → `path` (raw absolute path)
+   * - `includeUrl` → `url` (file:// URL with danger-file safety)
+   *
+   * All are opt-in; unset fields are omitted.
+   *
+   * @example GET /files/entries?origin=internal&inTrash=false
+   * @example GET /files/entries?includeRefCount=true&sortBy=refCount
+   * @example GET /files/entries?includeUrl=true&includeDangling=true
+   * @example GET /files/entries?includePath=true  // agent / drag-drop
    */
   '/files/entries': {
-    /** List entries with filters and pagination */
     GET: {
       query: {
-        mountId?: FileEntryId
-        parentId?: FileEntryId
-        type?: 'file' | 'dir'
+        origin?: FileEntryOrigin
         inTrash?: boolean
+        includeRefCount?: boolean
+        includeDangling?: boolean
+        includePath?: boolean
+        includeUrl?: boolean
+        sortBy?: 'name' | 'createdAt' | 'updatedAt' | 'size' | 'refCount'
+        sortOrder?: 'asc' | 'desc'
         page?: number
         limit?: number
       }
-      response: OffsetPaginationResponse<FileEntry>
+      response: OffsetPaginationResponse<FileEntryView>
     }
   }
 
   /**
-   * Individual entry query
+   * Individual entry query.
+   *
    * @example GET /files/entries/abc123
+   * @example GET /files/entries/abc123?includePath=true&includeUrl=true
    */
   '/files/entries/:id': {
-    /** Get an entry by ID */
-    GET: {
-      params: { id: FileEntryId }
-      response: FileEntry
-    }
-  }
-
-  // ─── Tree Queries ───
-
-  /**
-   * Children endpoint for lazy-loading file tree
-   * @example GET /files/entries/abc123/children?sortBy=name&sortOrder=asc
-   */
-  '/files/entries/:id/children': {
-    /** Get child entries with sorting and pagination */
     GET: {
       params: { id: FileEntryId }
       query: {
-        recursive?: boolean
-        /** Max tree depth when recursive=true. Clamped to server maximum (default: 20) */
-        maxDepth?: number
-        sortBy?: 'name' | 'updatedAt' | 'size' | 'type'
-        sortOrder?: 'asc' | 'desc'
-        limit?: number
-        offset?: number
+        includeRefCount?: boolean
+        includeDangling?: boolean
+        includePath?: boolean
+        includeUrl?: boolean
       }
-      response: OffsetPaginationResponse<FileEntry>
+      response: FileEntryView
     }
   }
 
   // ─── File Reference Queries ───
 
   /**
-   * File references for a specific entry
+   * File references for a specific entry.
    * @example GET /files/entries/abc123/refs
    */
   '/files/entries/:id/refs': {
-    /** Get all references for a file entry */
     GET: {
       params: { id: FileEntryId }
       response: FileRef[]
@@ -86,7 +134,7 @@ export interface FileSchemas {
   }
 
   /**
-   * File references by business source (read-only)
+   * File references by business source (read-only).
    *
    * Ref write operations (create / cleanup) are NOT exposed via DataApi.
    * Business services call fileRefService directly; Renderer does not manage refs.
@@ -94,24 +142,9 @@ export interface FileSchemas {
    * @example GET /files/refs/by-source?sourceType=chat_message&sourceId=msg1
    */
   '/files/refs/by-source': {
-    /** Get all file references for a business object */
     GET: {
       query: { sourceType: string; sourceId: string }
       response: FileRef[]
-    }
-  }
-
-  // ─── Mounts ───
-
-  /**
-   * Mount points listing
-   * @example GET /files/mounts?includeSystem=true
-   */
-  '/files/mounts': {
-    /** Get mount point list (excludes system mounts like Trash by default) */
-    GET: {
-      query: { includeSystem?: boolean }
-      response: Mount[]
     }
   }
 }

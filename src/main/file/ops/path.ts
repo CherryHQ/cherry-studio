@@ -23,8 +23,3 @@ export async function canWrite(_path: FilePath): Promise<boolean> {
 export async function isNotEmptyDir(_path: FilePath): Promise<boolean> {
   throw new Error('Not implemented')
 }
-
-/** Validate a directory path for use as the Notes mount basePath. */
-export async function validateNotesPath(_dirPath: FilePath): Promise<boolean> {
-  throw new Error('Not implemented')
-}

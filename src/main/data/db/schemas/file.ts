@@ -1,113 +1,72 @@
 import { sql } from 'drizzle-orm'
-import { check, foreignKey, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { check, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, uuidPrimaryKey, uuidPrimaryKeyOrdered } from './_columnHelpers'
 
 /**
- * Mount table — storage configuration for file tree roots.
- *
- * Each mount defines a storage mode (local_managed, local_external, remote, system).
- * System mounts use well-known `systemKey` values; user-created mounts have systemKey = null.
- * Config fields are stored as independent columns (not JSON) since mount count is tiny (< 10).
+ * NOTE: `file_upload` (AI provider upload cache) is intentionally NOT included
+ * in Phase 1a — deferred until Vercel AI SDK's Files Upload API exits pre-release
+ * status. Design is preserved in file-manager-architecture.md §9 for future reference.
  */
-export const mountTable = sqliteTable(
-  'mount',
-  {
-    id: uuidPrimaryKeyOrdered(),
-
-    // System mount identifier: 'files' | 'notes' | 'temp' | 'trash' | null (user-created)
-    systemKey: text(),
-    // User-visible name
-    name: text().notNull(),
-    // Storage mode discriminator
-    mountType: text().notNull(),
-
-    // ─── local_managed / local_external fields ───
-    basePath: text(),
-
-    // ─── local_external fields ───
-    watch: integer({ mode: 'boolean' }),
-    watchExtensions: text({ mode: 'json' }).$type<string[]>(),
-
-    // ─── remote fields ───
-    apiType: text(),
-    providerId: text(),
-    cachePath: text(),
-    autoSync: integer({ mode: 'boolean' }),
-    remoteOptions: text({ mode: 'json' }).$type<Record<string, unknown>>(),
-
-    // ─── Timestamps ───
-    ...createUpdateTimestamps
-  },
-  (t) => [
-    // System mount lookup
-    uniqueIndex('mount_system_key_idx').on(t.systemKey),
-    // Mount type constraint
-    check('mount_type_check', sql`${t.mountType} IN ('local_managed', 'local_external', 'remote', 'system')`)
-  ]
-)
 
 /**
- * File entry table — file and directory entries in the managed file tree.
+ * File entry table — all files managed by Cherry.
  *
- * Uses adjacency list pattern (parentId) for tree navigation.
- * Trash is modeled via `trashedAt` timestamp — parentId never changes.
+ * Flat list; no tree structure, no mount concept.
+ *
+ * - origin='internal': Cherry owns the content, stored at `{userData}/files/{id}.{ext}`
+ *   name/ext/size are authoritative.
+ * - origin='external': Cherry only references the user-provided path.
+ *   name/ext/size are last-observed snapshots (refreshed on critical operations or manual refresh).
  */
 export const fileEntryTable = sqliteTable(
   'file_entry',
   {
     id: uuidPrimaryKeyOrdered(),
 
-    // ─── Core fields ───
-    // Entry type: file | dir
-    type: text().notNull(),
-    // User-visible name (without extension)
+    /** 'internal' | 'external' */
+    origin: text().notNull(),
+
+    // ─── Display / metadata ───
+    /** User-visible name (without extension). internal: authoritative; external: snapshot of basename */
     name: text().notNull(),
-    // Extension without leading dot (e.g. 'pdf', 'md'). Null for dirs
+    /** Extension without leading dot (e.g. 'pdf', 'md'). Null for extensionless files */
     ext: text(),
+    /** File size in bytes. internal: authoritative; external: last-observed snapshot */
+    size: integer().notNull(),
 
-    // ─── Tree structure ───
-    // Parent entry ID. Null for mount root children (direct children of a mount)
-    parentId: text(),
-    // Mount this entry belongs to (FK → mount table, redundant for query performance)
-    // Trashed entries keep their original mountId
-    mountId: text()
-      .notNull()
-      .references(() => mountTable.id),
-
-    // ─── File attributes ───
-    // File size in bytes. Null for dirs
-    size: integer(),
-
-    // ─── Remote file fields (files under remote mounts) ───
-    remoteId: text(),
-    cachedAt: integer(),
+    // ─── External ───
+    /** Absolute path to the user-provided file. Non-null iff origin='external' */
+    externalPath: text(),
 
     // ─── Trash ───
-    // Non-null = trashed (ms epoch). Only set on the top-level trashed entry.
-    // Child entries are implicitly trashed via tree traversal.
+    /** Non-null = trashed (ms epoch) */
     trashedAt: integer(),
 
     // ─── Timestamps ───
     ...createUpdateTimestamps
   },
   (t) => [
-    // Self-referencing FK: cascade delete children when parent is deleted
-    foreignKey({ columns: [t.parentId], foreignColumns: [t.id] }).onDelete('cascade'),
-    // Indexes
-    index('fe_parent_id_idx').on(t.parentId),
-    index('fe_mount_id_idx').on(t.mountId),
-    index('fe_mount_type_idx').on(t.mountId, t.type),
-    index('fe_name_idx').on(t.name),
-    index('fe_updated_at_idx').on(t.updatedAt),
     index('fe_trashed_at_idx').on(t.trashedAt),
-    // ─── Type constraint ───
-    check('fe_type_check', sql`${t.type} IN ('file', 'dir')`)
+    index('fe_created_at_idx').on(t.createdAt),
+    index('fe_external_path_idx').on(t.externalPath),
+    // Partial unique: same externalPath at most once when not trashed.
+    // createEntry(external) upserts against this index.
+    uniqueIndex('fe_external_path_unique_idx')
+      .on(t.externalPath)
+      .where(sql`${t.origin} = 'external' AND ${t.trashedAt} IS NULL`),
+    // Origin must be 'internal' or 'external'
+    check('fe_origin_check', sql`${t.origin} IN ('internal', 'external')`),
+    // externalPath must be non-null iff origin='external'
+    check(
+      'fe_origin_consistency',
+      sql`(${t.origin} = 'internal' AND ${t.externalPath} IS NULL) OR (${t.origin} = 'external' AND ${t.externalPath} IS NOT NULL)`
+    )
   ]
 )
 
 /**
- * File reference table - tracks which business entities reference which file entries
+ * File reference table — tracks which business entities reference which file entries.
  *
  * Polymorphic association: sourceType + sourceId identify the referencing entity.
  * No FK constraint on sourceId (polymorphic). Application-layer cleanup required
