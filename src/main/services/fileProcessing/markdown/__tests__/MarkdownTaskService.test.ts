@@ -23,7 +23,7 @@ vi.mock('../MarkdownResultStore', () => ({
   }
 }))
 
-const { MarkdownTaskService } = await import('../MarkdownTaskService')
+const { MarkdownTaskService, FILE_PROCESSING_TASK_PRUNE_INTERVAL_MS } = await import('../MarkdownTaskService')
 
 const documentFile = {
   id: 'file-1',
@@ -266,5 +266,24 @@ describe('MarkdownTaskService', () => {
     ).rejects.toThrow('Markdown task not found: missing-task')
 
     await service._doStop()
+  })
+
+  it('stops the prune timer on stop and ignores pruning without a task store', async () => {
+    vi.useFakeTimers()
+
+    try {
+      const service = new MarkdownTaskService()
+      await service._doInit()
+
+      expect((service as any).pruneTimer).not.toBeNull()
+
+      await service._doStop()
+
+      expect((service as any).pruneTimer).toBeNull()
+      expect(() => (service as any).pruneExpiredTasks()).not.toThrow()
+      expect(() => vi.advanceTimersByTime(FILE_PROCESSING_TASK_PRUNE_INTERVAL_MS)).not.toThrow()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

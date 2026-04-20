@@ -122,6 +122,43 @@
    - `ocrService`：non-lifecycle direct-import singleton
    - `FileProcessingOrchestrationService` 会显式依赖 `MarkdownTaskService` 和 `TesseractRuntimeService`，避免 IPC 提前暴露到尚未完成初始化的运行时能力
 
+### 5.1 当前数据归属与 `docs/references/data` 对齐
+
+当前实现里，file-processing 相关数据并不全部落到同一种数据系统里，而是按职责拆分：
+
+1. processor 只读模板定义：
+   - 位于 `packages/shared/data/presets/file-processing.ts`
+   - 属于 shared code 内建元数据，不属于 DataApi / Cache / Preference 持久化记录
+2. 用户可配置的默认 processor 与 override：
+   - 位于 Preference
+   - 当前键位包括：
+     - `feature.file_processing.default_markdown_conversion`
+     - `feature.file_processing.default_text_extraction`
+     - `feature.file_processing.overrides`
+3. markdown 任务运行时状态：
+   - 由 `MarkdownTaskService` 持有
+   - 包括 task record、`providerTaskId`、`queryContext`、in-flight query、background execution、abort controller 等
+   - 这些都属于 Main 进程 runtime coordination state，不落 DataApi，也不额外镜像到 Cache / SharedCache
+4. markdown 最终结果文件：
+   - 稳定落盘到 `application.getPath('feature.files.data')/fileId/file-processing/taskId`
+   - 属于 feature-owned filesystem artifact，不通过 DataApi table 持久化，也不通过 Cache 承载最终内容
+
+因此，当前 file-processing 的数据归属应直接理解为：
+
+1. 配置在 Preference
+2. 运行时状态在 lifecycle service 内存
+3. 最终文件结果在 feature 文件目录
+4. 不额外引入 DataApi facade 或 shared cache 镜像层
+
+### 5.2 当前 IPC / 输入校验边界
+
+当前 `FileProcessingOrchestrationService` 使用 Zod 做 payload 结构校验，但边界有意保持在“当前服务负责的最小闭环”：
+
+1. `processorId` 会按 `FILE_PROCESSOR_IDS` 枚举校验。
+2. markdown 查询接口只要求非空 `taskId`。
+3. 文件入参当前复用共享的 `FileMetadataSchema` 做结构校验，确保 payload 形状符合当前主服务调用约定。
+4. 更高一层的文件系统来源、文件所有权和统一文件标识约束，当前仍由上游文件系统链路负责，不在本次 PR 的 file-processing service 内重复建模。
+
 当前接口语义：
 
 1. `extractText(...)`：
