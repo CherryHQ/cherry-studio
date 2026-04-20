@@ -1,6 +1,8 @@
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { withIdleTimeout } from '@main/utils/withIdleTimeout'
+import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 import type {
   AiStreamAbortRequest,
   AiStreamAttachRequest,
@@ -678,7 +680,7 @@ export class AiStreamManager extends BaseService {
     const aiService = application.get('AiService')
     const signal = exec.abortController.signal
 
-    let stream: ReadableStream<UIMessageChunk>
+    let rawStream: ReadableStream<UIMessageChunk>
     try {
       // Pre-stream errors (provider/model resolution, agent param build) reject
       // the Promise before any stream is created; they route straight to the
@@ -687,12 +689,18 @@ export class AiStreamManager extends BaseService {
       // for per-call hooks / options overrides. stream-manager intentionally
       // does not forward them — callers that need per-call tuning call
       // `aiService.streamText` directly without going through stream-manager.
-      stream = await aiService.streamText(request, signal)
+      rawStream = await aiService.streamText(request, signal)
     } catch (err) {
       if (!signal.aborted) logger.error('streamText failed before stream start', { topicId, modelId, err })
       await this.onExecutionError(topicId, modelId, serializeError(err))
       return
     }
+
+    // Wrap with an idle-chunk timer. If `DEFAULT_TIMEOUT` elapses without a
+    // new chunk, the wrapper aborts `exec.abortController`; the abort signal
+    // is already wired into the upstream AI SDK request, so the provider
+    // HTTP connection and the broadcast reader both tear down together.
+    const stream = withIdleTimeout(rawStream, exec.abortController, DEFAULT_TIMEOUT)
 
     const [forBroadcast, forAccum] = stream.tee()
     const broadcastReader = forBroadcast.getReader()
