@@ -598,7 +598,11 @@ export class AiService extends BaseService {
       assistant && capabilities
         ? buildPlugins({ provider, model, assistant, capabilities, mcpToolIds, topicId: chatId })
         : []
-    const system = assistant?.prompt || undefined
+    // System prompt is owned entirely by `systemPromptPlugin`
+    // (`replacePromptVariables` + hub-mode append). Leave
+    // `agentSettings.instructions` undefined so the plugin is the single
+    // source of truth.
+    const system = undefined
 
     // `temperature` / `topP` / `maxOutputTokens` are applied by
     // `modelParamsPlugin` via `transformParams` with full model-capability

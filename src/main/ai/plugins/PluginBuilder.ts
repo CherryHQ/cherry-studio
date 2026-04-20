@@ -35,6 +35,7 @@ import { createReasoningExtractionPlugin } from './reasoningExtractionPlugin'
 import { searchOrchestrationPlugin } from './searchOrchestrationPlugin'
 import { createSimulateStreamingPlugin } from './simulateStreamingPlugin'
 import { createSkipGeminiThoughtSignaturePlugin } from './skipGeminiThoughtSignaturePlugin'
+import { createSystemPromptPlugin } from './systemPromptPlugin'
 import { createTelemetryPlugin } from './telemetryPlugin'
 
 export interface BuildPluginsContext {
@@ -94,6 +95,12 @@ export function buildPlugins(ctx: BuildPluginsContext): AiPlugin[] {
   // provider-scoped params (merged onto whatever providerOptions plugins
   // wrote above).
   plugins.push(createCustomParametersPlugin({ assistant, provider }))
+
+  // System prompt — resolves `{{date}}` / `{{username}}` / `{{model_name}}`
+  // etc. and appends the hub-mode system prompt when MCP mode is 'auto'.
+  // Owns `params.system` entirely; AiService leaves agentSettings.instructions
+  // undefined so this is the single source of truth.
+  plugins.push(createSystemPromptPlugin({ assistant, model }))
 
   // PDF compatibility — must run before Anthropic cache so cache token
   // estimation accounts for the extracted text (PDFs become TextParts for
