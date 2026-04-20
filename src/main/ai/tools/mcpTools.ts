@@ -17,6 +17,7 @@ import type { MCPCallToolResponse, MCPServer, MCPTool } from '@types'
 import type { JSONSchema7, Tool } from 'ai'
 import { jsonSchema } from 'ai'
 
+import { mcpResultToTextSummary } from '../utils/mcp'
 import type { RegisteredTool, ToolRegistry } from './ToolRegistry'
 
 const logger = loggerService.withContext('mcpTools')
@@ -55,25 +56,30 @@ function createMcpTool(mcpTool: MCPTool, disabledAutoApproveTools?: readonly str
       })
 
       if (result.isError) {
-        const errorText = result.content
-          .filter((c) => c.type === 'text')
-          .map((c) => c.text)
-          .join('\n')
-        throw new Error(errorText || 'MCP tool call failed')
+        throw new Error(mcpResultToTextSummary(result) || 'MCP tool call failed')
       }
 
-      const textParts = result.content.filter((c) => c.type === 'text').map((c) => c.text)
-      const content = textParts.length > 0 ? textParts.join('\n') : JSON.stringify(result.content)
-
-      // Structured return — Renderer reads output.metadata from ToolUIPart
+      // Return the full MCPCallToolResponse so the renderer's ToolUIPart has
+      // access to the original content array (images, audio, resources). The
+      // model-facing string view is produced by `toModelOutput` below so
+      // multimodal parts collapse to placeholders instead of being silently
+      // dropped.
       return {
-        content,
+        ...result,
         metadata: {
           serverName: mcpTool.serverName,
           serverId: mcpTool.serverId,
           type: 'mcp' as const
         }
       }
+    },
+    // `toModelOutput` produces the string the model sees. We route it
+    // through `mcpResultToTextSummary` so image / audio / binary-resource
+    // parts become `[Image: …, delivered to user]` placeholders, matching
+    // the renderer-side behaviour (origin/main `aiCore/utils/mcp.ts`).
+    toModelOutput({ output }) {
+      const result = output as MCPCallToolResponse
+      return { type: 'text' as const, value: mcpResultToTextSummary(result) }
     }
   }
 
