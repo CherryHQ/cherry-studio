@@ -20,6 +20,7 @@
  */
 
 import type { AssertValidSchemas } from '../apiTypes'
+import type { AgentSchemas } from './agents'
 import type { AssistantSchemas } from './assistants'
 import type { FileProcessingSchemas } from './fileProcessing'
 import type { KnowledgeSchemas } from './knowledges'
@@ -58,5 +59,6 @@ export type ApiSchemas = AssertValidSchemas<
     KnowledgeSchemas &
     MiniappSchemas &
     AssistantSchemas &
-    TagSchemas
+    TagSchemas &
+    AgentSchemas
 >
