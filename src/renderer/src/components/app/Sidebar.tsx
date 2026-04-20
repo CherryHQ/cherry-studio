@@ -1,5 +1,6 @@
 import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
+import { isMac } from '@renderer/config/constant'
 import { AppLogo } from '@renderer/config/env'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
@@ -27,6 +28,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useActivePane } from '../../hooks/useActivePane'
 import { usePanes } from '../../hooks/usePanes'
+import { cn } from '../../utils'
 import { OpenClawSidebarIcon } from '../Icons/SVGIcon'
 import UserPopup from '../Popups/UserPopup'
 import { Sidebar as UISidebar } from '../Sidebar'
@@ -207,7 +209,12 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   }
 
   return (
-    <div ref={ref} id="app-sidebar" className="relative h-full [-webkit-app-region:no-drag]">
+    <div
+      ref={ref}
+      id="app-sidebar"
+      className={cn('relative h-full [-webkit-app-region:no-drag]', isMac && 'pt-[38px]')}>
+      {/* macOS traffic-light clearance: draggable strip above the sidebar content. */}
+      {isMac && <div className="pointer-events-none absolute inset-x-0 top-0 h-[38px] [-webkit-app-region:drag]" />}
       <UISidebar width={sidebarWidth} setWidth={setSidebarWidth} onHoverChange={setHoverVisible} {...sidebarProps} />
       {hoverVisible && layout === 'hidden' && (
         <UISidebar

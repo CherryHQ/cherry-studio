@@ -1,4 +1,3 @@
-import { isMac } from '@renderer/config/constant'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { cn } from '@renderer/utils'
 import { Plus, X } from 'lucide-react'
@@ -20,9 +19,7 @@ interface TabToneProps {
 
 interface PaneTabBarProps {
   pane: LeafPane
-  /** Whether this leaf is the window's root pane (hosts ShellTabBarActions and left padding). */
-  isRootLeaf: boolean
-  /** Whether the parent leaf is the active pane (influences drag cursor / styling). */
+  /** Whether the parent leaf is the active pane (influences styling). */
   isActivePane: boolean
   /** Render shell actions (settings, theme, window controls) — only on root leaf + main window. */
   renderShellActions?: () => React.ReactNode
@@ -53,7 +50,6 @@ interface ContextMenuState {
  */
 export function PaneTabBar({
   pane,
-  isRootLeaf,
   isActivePane,
   renderShellActions,
   rightPaddingClass = '',
@@ -104,10 +100,9 @@ export function PaneTabBar({
     <>
       <header
         className={cn(
-          'relative flex h-11 w-full shrink-0 select-none items-center gap-1 [-webkit-app-region:drag]',
+          'relative flex h-11 w-full shrink-0 select-none items-center gap-1 pl-3 [-webkit-app-region:drag]',
           isActivePane ? 'bg-sidebar-accent/20' : 'bg-sidebar',
-          rightPaddingClass,
-          isRootLeaf && isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-3'
+          rightPaddingClass
         )}>
         <div className="flex flex-1 items-center gap-1 overflow-x-auto px-1 [&::-webkit-scrollbar]:hidden">
           {pane.tabs.map((tab) => (

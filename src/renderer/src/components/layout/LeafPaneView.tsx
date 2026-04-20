@@ -47,7 +47,6 @@ export function LeafPaneView({ pane, isRootLeaf, isActivePane, isDetached = fals
       onPointerDownCapture={handleFocus}>
       <PaneTabBar
         pane={pane}
-        isRootLeaf={isRootLeaf}
         isActivePane={isActivePane}
         renderShellActions={shellActions}
         rightPaddingClass={shellPadding}
