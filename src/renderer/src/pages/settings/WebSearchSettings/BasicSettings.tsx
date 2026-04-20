@@ -7,14 +7,27 @@ import {
   useWebSearchProviders,
   useWebSearchSettings
 } from '@renderer/hooks/useWebSearchProviders'
+import { webSearchService } from '@renderer/services/WebSearchService'
 import type { WebSearchProvider } from '@renderer/types'
 import { useNavigate } from '@tanstack/react-router'
 import { Slider } from 'antd'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
+import type { TFunction } from 'react-i18next'
 import { useTranslation } from 'react-i18next'
 
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
+
+function getUnavailableProviderDialogConfig(provider: WebSearchProvider, t: TFunction) {
+  const needsApiKey = webSearchProviderRequiresApiKey(provider.id)
+  const missingFieldLabel = needsApiKey ? t('settings.tool.websearch.apikey') : t('settings.provider.api_host')
+
+  return {
+    title: t('settings.tool.websearch.search_provider'),
+    content: `${provider.name} ${missingFieldLabel}`,
+    okText: t('settings.tool.websearch.search_provider_placeholder')
+  }
+}
 
 const BasicSettings: FC = () => {
   const { theme } = useTheme()
@@ -29,35 +42,29 @@ const BasicSettings: FC = () => {
     setDraftMaxResults(maxResults)
   }, [maxResults])
 
+  const openProviderSettings = (provider: WebSearchProvider) => {
+    window.modal.confirm({
+      ...getUnavailableProviderDialogConfig(provider, t),
+      cancelText: t('common.cancel'),
+      centered: true,
+      onOk: () => {
+        void navigate({ to: '/settings/websearch/provider/$providerId', params: { providerId: provider.id } })
+      }
+    })
+  }
+
   const updateSelectedWebSearchProvider = (providerId: string) => {
     const provider = providers.find((p) => p.id === providerId)
-    if (provider) {
-      const needsApiKey = webSearchProviderRequiresApiKey(provider.id)
-      const hasApiKey = provider.apiKey?.trim() !== ''
-      const isAvailable = webSearchService.isWebSearchEnabled(provider.id)
-
-      if (!isAvailable) {
-        window.modal.confirm({
-          title:
-            needsApiKey && !hasApiKey
-              ? t('settings.tool.websearch.api_key_required.title')
-              : t('settings.provider.api_host'),
-          content:
-            needsApiKey && !hasApiKey
-              ? t('settings.tool.websearch.api_key_required.content', { provider: provider.name })
-              : `${provider.name} ${t('settings.provider.api_host')}`,
-          okText: needsApiKey && !hasApiKey ? t('settings.tool.websearch.api_key_required.ok') : t('go_to_settings'),
-          cancelText: t('common.cancel'),
-          centered: true,
-          onOk: () => {
-            void navigate({ to: '/settings/websearch/provider/$providerId', params: { providerId: provider.id } })
-          }
-        })
-        return
-      }
-
-      setDefaultProvider(provider)
+    if (!provider) {
+      return
     }
+
+    if (!webSearchService.isWebSearchEnabled(provider.id)) {
+      openProviderSettings(provider)
+      return
+    }
+
+    setDefaultProvider(provider)
   }
 
   const renderProviderLabel = (provider: WebSearchProvider) => {

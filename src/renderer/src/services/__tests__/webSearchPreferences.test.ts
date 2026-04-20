@@ -73,6 +73,48 @@ describe('webSearchPreferences', () => {
     })
   })
 
+  it('keeps explicit empty auth fields when building provider overrides', () => {
+    const overrides = buildWebSearchProviderOverrides([
+      {
+        id: 'tavily',
+        name: 'Tavily',
+        apiKey: '',
+        apiHost: undefined,
+        engines: undefined,
+        basicAuthUsername: '',
+        basicAuthPassword: ''
+      }
+    ] as any)
+
+    expect(overrides).toEqual({
+      tavily: {
+        apiKeys: [],
+        basicAuthUsername: '',
+        basicAuthPassword: ''
+      }
+    })
+  })
+
+  it('keeps provider key when a field is explicitly cleared to empty', () => {
+    const overrides = updateWebSearchProviderOverride(
+      {
+        tavily: {
+          apiHost: 'https://custom.tavily.dev'
+        }
+      },
+      'tavily',
+      {
+        apiHost: ' '
+      } as any
+    )
+
+    expect(overrides).toEqual({
+      tavily: {
+        apiHost: ''
+      }
+    })
+  })
+
   it('builds renderer websearch state from preference snapshot', () => {
     const state = buildRendererWebSearchState({
       'chat.web_search.default_provider': 'tavily',
