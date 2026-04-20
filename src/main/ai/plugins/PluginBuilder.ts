@@ -29,7 +29,6 @@ import { createModelParamsPlugin } from './modelParamsPlugin'
 import { createNoThinkPlugin } from './noThinkPlugin'
 import { createOpenrouterReasoningPlugin } from './openrouterReasoningPlugin'
 import { createPdfCompatibilityPlugin } from './pdfCompatibilityPlugin'
-import { createProviderOptionsPlugin } from './providerOptionsPlugin'
 import { createQwenThinkingPlugin } from './qwenThinkingPlugin'
 import { createReasoningExtractionPlugin } from './reasoningExtractionPlugin'
 import { searchOrchestrationPlugin } from './searchOrchestrationPlugin'
@@ -85,15 +84,12 @@ export function buildPlugins(ctx: BuildPluginsContext): AiPlugin[] {
   // subtraction, and Claude reasoning topP clamping.
   plugins.push(createModelParamsPlugin({ assistant, model, provider }))
 
-  // Provider options — capability-driven `providerOptions[providerId]` blob:
-  // per-family reasoning params, service tier, verbosity, generate-image
-  // flags. Must run before `customParametersPlugin` so user overrides win.
-  plugins.push(createProviderOptionsPlugin({ assistant, model, provider, capabilities }))
-
   // Custom parameters — user-supplied `assistant.settings.customParameters`.
   // Splits into AI-SDK standard params (applied to params root) and
-  // provider-scoped params (merged onto whatever providerOptions plugins
-  // wrote above).
+  // provider-scoped params (merged onto whatever capability-driven
+  // `providerOptions` the agent was created with — see
+  // `AiService.buildAgentParams` which writes capability-derived
+  // providerOptions directly to `AgentOptions.providerOptions`).
   plugins.push(createCustomParametersPlugin({ assistant, provider }))
 
   // System prompt — resolves `{{date}}` / `{{username}}` / `{{model_name}}`

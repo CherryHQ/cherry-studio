@@ -1,19 +1,25 @@
 /**
  * Provider-options builder for the AI SDK request.
  *
- * Split into two layers so plugins can own them independently:
+ * Split into two layers by who owns them:
  *
  * 1. `buildCapabilityProviderOptions` — capability-driven. Per-provider
  *    dispatch that produces `{ providerId: providerOptions }` based on
  *    `(assistant, model, provider, capabilities)`. Covers reasoning params,
- *    service tier, verbosity, generate-image flags. Consumed by
- *    `providerOptionsPlugin`.
+ *    service tier, verbosity, generate-image flags.
+ *
+ *    Called once by `AiService.buildAgentParams` and written directly to
+ *    `AgentOptions.providerOptions` — these values are stable for the
+ *    (assistant, model, provider, capabilities) tuple, so they live at the
+ *    agent level, not per streamText call.
  *
  * 2. `extractAiSdkStandardParams` + `mergeCustomProviderParameters` —
  *    user-input-driven. Splits `assistant.settings.customParameters` into
  *    AI-SDK standard params (topK, frequencyPenalty, etc.) and provider
  *    params, then layers the provider params onto an existing
- *    providerOptions map. Consumed by `customParametersPlugin`.
+ *    providerOptions map. Consumed by `customParametersPlugin`
+ *    (`transformParams`) so user overrides can layer on top of the
+ *    agent-level capability defaults.
  *
  * The combined `buildProviderOptions` wrapper is kept as a convenience for
  * callers that want the legacy single-call output; it's a thin composition

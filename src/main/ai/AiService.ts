@@ -36,6 +36,7 @@ import { registerMcpTools } from './tools/mcpTools'
 import { resolveAssistantMcpToolIds } from './tools/resolveAssistantMcpTools'
 import { ToolRegistry } from './tools/ToolRegistry'
 import type { AppProviderSettingsMap } from './types'
+import { buildCapabilityProviderOptions } from './utils/options'
 
 const logger = loggerService.withContext('AiService')
 
@@ -721,6 +722,18 @@ export class AiService extends BaseService {
     // with topP on some models, thinking-token budget subtraction, etc.).
     const stopWhen = assistant ? resolveStopWhen(assistant) : undefined
     const { headers, maxRetries } = request.requestOptions ?? {}
+
+    // Capability-driven `providerOptions` — per-provider-family reasoning
+    // params, service tier, verbosity, generate-image flags. These are
+    // stable for the (assistant, model, provider, capabilities) tuple, so
+    // they belong at the agent level (flows to `agentSettings.providerOptions`
+    // in runAgentLoop). Plugins like `customParametersPlugin` still layer
+    // user overrides via `transformParams`.
+    const providerOptions =
+      assistant && capabilities
+        ? buildCapabilityProviderOptions(assistant, model, provider, capabilities)
+        : undefined
+
     const options: AgentOptions = {
       // Disable AI SDK transparent retries by default — they can duplicate
       // stream state in the multi-iteration tool loop. Caller can override
@@ -732,7 +745,8 @@ export class AiService extends BaseService {
       // Per-call extra headers from `request.requestOptions.headers`. Layered
       // on top of provider-level defaults; later plugins (e.g.
       // `anthropicHeadersPlugin`) layer on top of these via `transformParams`.
-      ...(headers && { headers })
+      ...(headers && { headers }),
+      ...(providerOptions && Object.keys(providerOptions).length > 0 && { providerOptions })
     }
 
     return { sdkConfig, tools, plugins, system, options, provider, model }
