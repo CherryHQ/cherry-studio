@@ -338,7 +338,7 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea }: Props
 
   return (
     <>
-      <Tooltip content={t('settings.prompts.title')} closeDelay={0}>
+      <Tooltip content={t('settings.prompts.title')}>
         <ActionIconButton
           onClick={handleOpenQuickPanel}
           aria-label={t('settings.prompts.title')}

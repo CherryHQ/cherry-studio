@@ -64,7 +64,9 @@ function createMockContext(
       localStorage: {
         get: vi.fn(),
         getAll: vi.fn()
-      } as unknown as MigrationContext['sources']['localStorage']
+      } as unknown as MigrationContext['sources']['localStorage'],
+      knowledgeVectorSource: {} as unknown as MigrationContext['sources']['knowledgeVectorSource'],
+      legacyHomeConfig: {} as unknown as MigrationContext['sources']['legacyHomeConfig']
     },
     db: db as unknown as MigrationContext['db'],
     sharedData: new Map(),
@@ -73,7 +75,8 @@ function createMockContext(
       warn: vi.fn(),
       error: vi.fn(),
       debug: vi.fn()
-    } as unknown as MigrationContext['logger']
+    } as unknown as MigrationContext['logger'],
+    paths: {} as unknown as MigrationContext['paths']
   }
 }
 
