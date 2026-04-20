@@ -1,6 +1,6 @@
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { mockDataApiService } from '@test-mocks/renderer/DataApiService'
 import { mockUseInvalidateCache, mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
-import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
