@@ -63,9 +63,9 @@ import type { JSONValue } from 'ai'
 import { merge } from 'lodash'
 import type { OllamaProviderOptions } from 'ollama-ai-provider-v2'
 
-import { addAnthropicHeaders } from '../prepareParams/header'
 import { getAiSdkProviderId } from '../provider/factory'
 import type { ProviderCapabilities } from '../types'
+import { addAnthropicHeaders } from './anthropicHeaders'
 import { buildGeminiGenerateImageParams } from './image'
 import {
   getAnthropicReasoningParams,

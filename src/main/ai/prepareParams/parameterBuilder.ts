@@ -38,10 +38,10 @@ import { type ModelMessage, stepCountIs } from 'ai'
 import { getHubModeSystemPrompt } from '../prompts/hubMode'
 import { getAiSdkProviderId } from '../provider/factory'
 import type { AppProviderId, ProviderCapabilities } from '../types'
+import { addAnthropicHeaders } from '../utils/anthropicHeaders'
 import { setupToolsConfig } from '../utils/mcp'
 import { buildProviderOptions } from '../utils/options'
 import { type CherryWebSearchConfig, buildProviderBuiltinWebSearchConfig } from '../utils/websearch'
-import { addAnthropicHeaders } from './header'
 import { getMaxTokens, getTemperature, getTopP } from './modelParameters'
 
 const logger = loggerService.withContext('parameterBuilder')

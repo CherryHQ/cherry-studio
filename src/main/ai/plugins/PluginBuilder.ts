@@ -5,14 +5,25 @@ import type { WebSearchProviderId } from '@shared/data/preference/preferenceType
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { isGemini3Model, isQwen35to39Model, isSupportedThinkingTokenQwenModel } from '@shared/utils/model'
-import { isAzureOpenAIProvider, isOllamaProvider, isSupportEnableThinkingProvider } from '@shared/utils/provider'
+import {
+  isAnthropicModel,
+  isGemini3Model,
+  isQwen35to39Model,
+  isSupportedThinkingTokenQwenModel
+} from '@shared/utils/model'
+import {
+  isAwsBedrockProvider,
+  isAzureOpenAIProvider,
+  isOllamaProvider,
+  isSupportEnableThinkingProvider
+} from '@shared/utils/provider'
 import { SystemProviderIds } from '@types'
 
 import type { ResolvedCapabilities } from '../capabilities'
 import { getAiSdkProviderId } from '../provider/factory'
 import { getReasoningTagName } from '../utils/reasoning'
 import { createAnthropicCachePlugin } from './anthropicCachePlugin'
+import { createAnthropicHeadersPlugin } from './anthropicHeadersPlugin'
 import { createCustomParametersPlugin } from './customParametersPlugin'
 import { createModelParamsPlugin } from './modelParamsPlugin'
 import { createNoThinkPlugin } from './noThinkPlugin'
@@ -113,6 +124,13 @@ export function buildPlugins(ctx: BuildPluginsContext): AiPlugin[] {
   // Anthropic prompt caching — gate on provider-level cacheControl settings.
   if (provider.settings?.cacheControl?.enabled && provider.settings.cacheControl.tokenThreshold) {
     plugins.push(createAnthropicCachePlugin(provider))
+  }
+
+  // Anthropic beta headers — Claude 4.5 reasoning + tool use, Claude 4 +
+  // Vertex + web search. Bedrock handles this via `providerOptions.bedrock.
+  // anthropicBeta` inside `buildBedrockProviderOptions`, so skip it here.
+  if (isAnthropicModel(model) && !isAwsBedrockProvider(provider)) {
+    plugins.push(createAnthropicHeadersPlugin({ assistant, model, provider }))
   }
 
   // OpenRouter reasoning-redacted block stripping.
