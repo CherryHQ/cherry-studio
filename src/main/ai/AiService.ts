@@ -90,18 +90,14 @@ type ChatTrigger = Parameters<ChatTransport<UIMessage>['sendMessages']>[0]['trig
 // ── Request types ──────────────────────────────────────────────────
 
 /**
- * Per-request transport options.
+ * IPC-safe per-request transport config.
  *
- * Separate from `AiGenerateExtensions` / `AiStreamExtensions` which are
- * SDK-level extension points (plugins, hooks). `requestOptions` bundles
- * all per-call transport config in one place.
- *
- * NOTE: `signal` is not IPC-serialisable. When a request crosses process
- * boundaries, leave `signal` unset in the payload; the in-process receiver
- * (usually `AiStreamManager`) sets it from its own `AbortController` before
- * handing the request to `AiService`.
+ * Every field here can survive Electron's structured-clone (strings,
+ * numbers, plain records). Use this type on **preload bridge / IPC
+ * handler** signatures so renderer-supplied payloads cannot smuggle in
+ * non-serialisable fields like `AbortSignal`.
  */
-export interface AiRequestOptions {
+export interface AiTransportOptions {
   /**
    * Extra request headers layered on top of provider-level defaults
    * (`defaultAppHeaders()` + `provider.settings.extraHeaders`).
@@ -124,13 +120,6 @@ export interface AiRequestOptions {
   timeout?: number
 
   /**
-   * AbortSignal for the whole request (streaming or non-streaming).
-   * Non-IPC-serialisable — set by the in-process caller, not by renderer
-   * payloads.
-   */
-  signal?: AbortSignal
-
-  /**
    * Override AI SDK transparent-retry count. Defaults to `0` because
    * transparent retries can duplicate stream state inside the
    * multi-iteration tool loop. Safe to raise for non-streaming flows
@@ -140,13 +129,48 @@ export interface AiRequestOptions {
   maxRetries?: number
 }
 
+/**
+ * In-process per-request transport config. Extends `AiTransportOptions`
+ * with an `AbortSignal` — non-IPC-serialisable, injected by the in-process
+ * caller (typically `AiStreamManager` or `AiService.checkModel`), never
+ * by renderer payloads.
+ *
+ * `AiService.*` method signatures expect this full type; IPC entry points
+ * narrow to `AiTransportOptions` at the handler boundary.
+ */
+export interface AiRequestOptions extends AiTransportOptions {
+  /**
+   * AbortSignal for the whole request (streaming or non-streaming).
+   * **Not IPC-serialisable.** Set it only on in-process callers (e.g.
+   * `AiStreamManager.runExecutionLoop`). Renderer payloads MUST use
+   * `AiTransportOptions` (which omits this field) so Electron's
+   * structured-clone doesn't throw when the payload crosses IPC.
+   */
+  signal?: AbortSignal
+}
+
 /** Base fields shared by all AI requests. */
 export interface AiBaseRequest {
   assistantId?: string
   /** Model identifier in "providerId::modelId" format. */
   uniqueModelId?: UniqueModelId
   mcpToolIds?: string[]
-  /** Per-request transport options (headers, idle timeout, …). */
+  /**
+   * Per-request transport options. IPC-safe shape by default — preload
+   * bridges and IPC handler signatures that take renderer input should
+   * keep this type as-is. In-process callers who need to pass an
+   * `AbortSignal` widen via `AsInProcess<T>` (see below).
+   */
+  requestOptions?: AiTransportOptions
+}
+
+/**
+ * Widen a request type so its `requestOptions` field accepts the full
+ * in-process shape (`AiRequestOptions`, which adds `signal`). Use this on
+ * `AiService.*` method signatures so in-process callers can attach a
+ * `signal` without forcing a structural mismatch.
+ */
+export type AsInProcess<T extends AiBaseRequest> = Omit<T, 'requestOptions'> & {
   requestOptions?: AiRequestOptions
 }
 
@@ -388,7 +412,7 @@ export class AiService extends BaseService {
    *    itself errors and the caller's reader.read() rejects.
    */
   async streamText(
-    request: AiStreamRequest,
+    request: AsInProcess<AiStreamRequest>,
     extensions: AiStreamExtensions = {}
   ): Promise<ReadableStream<UIMessageChunk>> {
     logger.info('streamText started', { chatId: request.chatId })
@@ -462,7 +486,7 @@ export class AiService extends BaseService {
   // ── Non-streaming text generation (agent.generate) ──
 
   async generateText(
-    request: AiGenerateRequest,
+    request: AsInProcess<AiGenerateRequest>,
     extensions: AiGenerateExtensions = {}
   ): Promise<AiGenerateResult> {
     logger.info('generateText started', { assistantId: request.assistantId })
@@ -505,7 +529,7 @@ export class AiService extends BaseService {
 
   // ── Image generation ──
 
-  async generateImage(request: AiImageRequest): Promise<AiImageResult> {
+  async generateImage(request: AsInProcess<AiImageRequest>): Promise<AiImageResult> {
     logger.info('generateImage started', { assistantId: request.assistantId, uniqueModelId: request.uniqueModelId })
     const signal = request.requestOptions?.signal
 
@@ -578,7 +602,7 @@ export class AiService extends BaseService {
 
   // ── Embedding ──
 
-  async embedMany(request: AiEmbedRequest): Promise<AiEmbedResult> {
+  async embedMany(request: AsInProcess<AiEmbedRequest>): Promise<AiEmbedResult> {
     logger.info('embedMany started', { assistantId: request.assistantId, count: request.values.length })
     const signal = request.requestOptions?.signal
 
@@ -651,7 +675,7 @@ export class AiService extends BaseService {
 
   // ── Shared agent parameter resolution ──
 
-  private async buildAgentParams(request: AiBaseRequest & { chatId?: string }) {
+  private async buildAgentParams(request: AsInProcess<AiBaseRequest> & { chatId?: string }) {
     const { provider, model, assistant } = await this.getProviderAndModel(request)
 
     const chatId = request.chatId
