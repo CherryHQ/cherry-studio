@@ -23,6 +23,7 @@ import {
 } from 'antd'
 import {
   ArrowLeft,
+  Check,
   ChevronRight,
   Download,
   ExternalLink,
@@ -161,11 +162,13 @@ FileTreeNode.displayName = 'FileTreeNode'
 
 const SearchResultRow: FC<{
   result: SkillSearchResult
+  isInstalled: boolean
   isInstalling: (source?: string) => boolean
   onInstall: (result: SkillSearchResult) => void
   onPreview: (result: SkillSearchResult) => void
   installLabel: string
-}> = memo(({ result, isInstalling, onInstall, onPreview, installLabel }) => (
+  installedLabel: string
+}> = memo(({ result, isInstalled, isInstalling, onInstall, onPreview, installLabel, installedLabel }) => (
   <SearchResultItem>
     <ResultInfo onClick={() => onPreview(result)}>
       <ResultName>{result.name}</ResultName>
@@ -195,13 +198,14 @@ const SearchResultRow: FC<{
         </Tooltip>
       ) : null}
       <Button
-        type="primary"
+        type={isInstalled ? 'default' : 'primary'}
         size="small"
-        icon={<Download size={12} />}
-        loading={isInstalling(result.installSource)}
+        icon={isInstalled ? <Check size={12} /> : <Download size={12} />}
+        loading={!isInstalled && isInstalling(result.installSource)}
+        disabled={isInstalled}
         onClick={() => onInstall(result)}
         style={INSTALL_BTN_STYLE}>
-        {installLabel}
+        {isInstalled ? installedLabel : installLabel}
       </Button>
     </ResultActions>
   </SearchResultItem>
@@ -321,6 +325,8 @@ const SkillsSettings: FC = () => {
     return results.filter((r) => r.sourceRegistry === searchTab)
   }, [results, searchTab])
 
+  const installedNames = useMemo(() => new Set(skills.map((s) => s.name.toLowerCase())), [skills])
+
   // Pre-compute tab counts in one pass (js-combine-iterations)
   const tabCounts = useMemo(() => {
     const counts = new Map<SkillSearchSource, number>()
@@ -344,6 +350,11 @@ const SkillsSettings: FC = () => {
 
   const handleInstall = useCallback(
     async (result: SkillSearchResult) => {
+      if (installedNames.has(result.name.toLowerCase())) {
+        setPreviewResult(null)
+        return
+      }
+
       const { skill, error } = await install(result.installSource)
       if (skill) {
         message.success(t('settings.skills.installSuccess', { name: result.name }))
@@ -353,7 +364,7 @@ const SkillsSettings: FC = () => {
         message.error(t('settings.skills.installFailed', { name: result.name }) + (error ? `: ${error}` : ''))
       }
     },
-    [install, refresh, t]
+    [install, installedNames, refresh, t]
   )
 
   const handleUninstall = useCallback(
@@ -690,10 +701,12 @@ const SkillsSettings: FC = () => {
                         <SearchResultRow
                           key={`${result.sourceRegistry}:${result.slug}`}
                           result={result}
+                          isInstalled={installedNames.has(result.name.toLowerCase())}
                           isInstalling={isInstalling}
                           onInstall={handleInstall}
                           onPreview={setPreviewResult}
                           installLabel={t('settings.skills.install')}
+                          installedLabel={t('settings.skills.installed')}
                         />
                       ))}
                     </SearchResultsScroll>
@@ -770,15 +783,19 @@ const SkillsSettings: FC = () => {
         title={previewResult?.name}
         open={!!previewResult}
         onCancel={() => setPreviewResult(null)}
-        footer={
-          <Button
-            type="primary"
-            icon={<Download size={14} />}
-            loading={previewResult ? isInstalling(previewResult.installSource) : false}
-            onClick={() => previewResult && handleInstall(previewResult)}>
-            {t('settings.skills.install')}
-          </Button>
-        }
+        footer={(() => {
+          const installed = !!previewResult && installedNames.has(previewResult.name.toLowerCase())
+          return (
+            <Button
+              type={installed ? 'default' : 'primary'}
+              icon={installed ? <Check size={14} /> : <Download size={14} />}
+              loading={previewResult ? !installed && isInstalling(previewResult.installSource) : false}
+              disabled={installed}
+              onClick={() => previewResult && handleInstall(previewResult)}>
+              {installed ? t('settings.skills.installed') : t('settings.skills.install')}
+            </Button>
+          )
+        })()}
         width={560}>
         {previewResult ? (
           <PreviewContent>
