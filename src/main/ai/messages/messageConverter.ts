@@ -19,7 +19,7 @@
  */
 
 import { loggerService } from '@logger'
-import type { CherryMessagePart, CherryUIMessage, FileUIPart, Message } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage, Message } from '@shared/data/types/message'
 import { convertToModelMessages, type ModelMessage, type UIMessage } from 'ai'
 
 import { resolveFileUIPart } from './fileProcessor'
@@ -53,7 +53,7 @@ async function resolveMessageParts<T extends UIMessage>(message: T): Promise<T> 
   const resolved: UIMessage['parts'] = []
   for (const part of message.parts) {
     if (part.type === 'file') {
-      const next = await resolveFileUIPart(part as FileUIPart)
+      const next = await resolveFileUIPart(part)
       if (next) resolved.push(next as UIMessage['parts'][number])
       else logger.warn('Dropped unresolved file part', { messageId: message.id })
       continue
