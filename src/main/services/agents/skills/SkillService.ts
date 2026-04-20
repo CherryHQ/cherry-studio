@@ -3,6 +3,13 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 
 import { application } from '@application'
+import { agentTable } from '@data/db/schemas/agent'
+import {
+  type AgentGlobalSkillRow,
+  agentGlobalSkillTable,
+  type InsertAgentGlobalSkillRow
+} from '@data/db/schemas/agentGlobalSkill'
+import { agentSkillTable } from '@data/db/schemas/agentSkill'
 import { loggerService } from '@logger'
 import { directoryExists } from '@main/utils/file'
 import { deleteDirectoryRecursive } from '@main/utils/fileOperations'
@@ -20,10 +27,7 @@ import { eq } from 'drizzle-orm'
 import { net } from 'electron'
 import StreamZip from 'node-stream-zip'
 
-import { agentsTable } from '../database/schema'
-import { AgentSkillRepository } from './AgentSkillRepository'
 import { SkillInstaller } from './SkillInstaller'
-import { SkillRepository } from './SkillRepository'
 
 const logger = loggerService.withContext('SkillService')
 
@@ -48,16 +52,15 @@ const MAX_FOLDER_NAME_LENGTH = 80
  */
 export class SkillService {
   private static instance: SkillService | null = null
-
-  private readonly repository: SkillRepository
-  private readonly agentSkillRepository: AgentSkillRepository
   private readonly installer: SkillInstaller
 
   private constructor() {
-    this.repository = SkillRepository.getInstance()
-    this.agentSkillRepository = AgentSkillRepository.getInstance()
     this.installer = new SkillInstaller()
     logger.info('SkillService initialized')
+  }
+
+  private get db() {
+    return application.get('DbService').getDb()
   }
 
   static getInstance(): SkillService {
@@ -79,12 +82,13 @@ export class SkillService {
    * the field is forced to `false`.
    */
   async list(agentId?: string): Promise<InstalledSkill[]> {
-    const skills = await this.repository.list()
+    const rows = await this.db.select().from(agentGlobalSkillTable)
+    const skills = rows.map(this.rowToInstalledSkill)
     if (!agentId) {
       return skills.map((s) => ({ ...s, isEnabled: false }))
     }
 
-    const agentSkillRows = await this.agentSkillRepository.getByAgentId(agentId)
+    const agentSkillRows = await this.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, agentId))
     const enabledMap = new Map<string, boolean>()
     for (const row of agentSkillRows) {
       enabledMap.set(row.skillId, row.isEnabled)
@@ -99,12 +103,12 @@ export class SkillService {
    * corresponding symlink under `{agentWorkspace}/.claude/skills/`.
    */
   async toggle(options: SkillToggleOptions): Promise<InstalledSkill | null> {
-    const skill = await this.repository.getById(options.skillId)
+    const skill = await this.getSkillById(options.skillId)
     if (!skill) return null
 
     const workspace = await this.getAgentWorkspace(options.agentId)
 
-    await this.agentSkillRepository.upsert(options.agentId, options.skillId, options.isEnabled)
+    await this.upsertAgentSkill(options.agentId, options.skillId, options.isEnabled)
 
     if (workspace) {
       try {
@@ -115,7 +119,7 @@ export class SkillService {
         }
       } catch (error) {
         // Roll back DB state so it stays consistent with the filesystem
-        await this.agentSkillRepository.upsert(options.agentId, options.skillId, !options.isEnabled).catch((e) => {
+        await this.upsertAgentSkill(options.agentId, options.skillId, !options.isEnabled).catch((e) => {
           logger.error('Failed to roll back agent_skill after symlink error', {
             agentId: options.agentId,
             skillId: options.skillId,
@@ -146,12 +150,12 @@ export class SkillService {
    * Every skill marked `source = 'builtin'` is auto-enabled for the new agent.
    */
   async initSkillsForAgent(agentId: string, workspace: string | undefined): Promise<void> {
-    const skills = await this.repository.list()
-    const builtinSkills = skills.filter((s) => s.source === 'builtin')
+    const rows = await this.db.select().from(agentGlobalSkillTable)
+    const builtinSkills = rows.filter((r) => r.source === 'builtin').map(this.rowToInstalledSkill)
     if (builtinSkills.length === 0) return
 
     for (const skill of builtinSkills) {
-      await this.agentSkillRepository.upsert(agentId, skill.id, true)
+      await this.upsertAgentSkill(agentId, skill.id, true)
       if (workspace) {
         try {
           await this.linkSkill(skill.folderName, workspace)
@@ -172,13 +176,12 @@ export class SkillService {
    * Used when a new builtin skill is installed.
    */
   async enableForAllAgents(skillId: string, folderName: string): Promise<void> {
-    const database = await this.repository.getDatabase()
-    const agents = await database
-      .select({ id: agentsTable.id, accessiblePaths: agentsTable.accessiblePaths })
-      .from(agentsTable)
+    const agents = await this.db
+      .select({ id: agentTable.id, accessiblePaths: agentTable.accessiblePaths })
+      .from(agentTable)
 
     for (const agent of agents) {
-      await this.agentSkillRepository.upsert(agent.id, skillId, true)
+      await this.upsertAgentSkill(agent.id, skillId, true)
       const workspace = this.parseFirstAccessiblePath(agent.accessiblePaths)
       if (!workspace || !(await directoryExists(workspace))) continue
       try {
@@ -200,11 +203,11 @@ export class SkillService {
    */
   async reconcileAgentSkills(agentId: string, workspace: string): Promise<void> {
     if (!workspace) return
-    const agentSkillRows = await this.agentSkillRepository.getByAgentId(agentId)
+    const agentSkillRows = await this.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, agentId))
 
     for (const row of agentSkillRows) {
       if (!row.isEnabled) continue
-      const skill = await this.repository.getById(row.skillId)
+      const skill = await this.getSkillById(row.skillId)
       if (!skill) continue
       try {
         await this.linkSkill(skill.folderName, workspace)
@@ -219,7 +222,7 @@ export class SkillService {
   }
 
   async readFile(skillId: string, filename: string): Promise<string | null> {
-    const skill = await this.repository.getById(skillId)
+    const skill = await this.getSkillById(skillId)
     if (!skill) return null
 
     const skillRoot = this.getSkillStoragePath(skill.folderName)
@@ -236,7 +239,7 @@ export class SkillService {
   }
 
   async listFiles(skillId: string): Promise<SkillFileNode[]> {
-    const skill = await this.repository.getById(skillId)
+    const skill = await this.getSkillById(skillId)
     if (!skill) return []
 
     const skillRoot = this.getSkillStoragePath(skill.folderName)
@@ -248,7 +251,7 @@ export class SkillService {
   }
 
   async uninstallByFolderName(folderName: string): Promise<void> {
-    const skill = await this.repository.getByFolderName(folderName)
+    const skill = await this.getSkillByFolderName(folderName)
     if (!skill) {
       throw new Error(`Skill not found by folder name: ${folderName}`)
     }
@@ -257,7 +260,7 @@ export class SkillService {
 
   async getByFolderName(name: string): Promise<InstalledSkill | null> {
     const folderName = this.sanitizeFolderName(name)
-    return this.repository.getByFolderName(folderName)
+    return this.getSkillByFolderName(folderName)
   }
 
   /**
@@ -269,14 +272,14 @@ export class SkillService {
   }
 
   async uninstall(skillId: string): Promise<void> {
-    const skill = await this.repository.getById(skillId)
+    const skill = await this.getSkillById(skillId)
     if (!skill) {
       throw new Error(`Skill not found: ${skillId}`)
     }
 
     // Remove symlinks from every agent workspace that had this skill enabled,
     // before we lose the join rows to the cascade delete below.
-    const agentSkillRows = await this.agentSkillRepository.getBySkillId(skillId)
+    const agentSkillRows = await this.db.select().from(agentSkillTable).where(eq(agentSkillTable.skillId, skillId))
     for (const row of agentSkillRows) {
       if (!row.isEnabled) continue
       const workspace = await this.getAgentWorkspace(row.agentId)
@@ -295,7 +298,7 @@ export class SkillService {
     // Remove from global storage; FK cascade on skill_id deletes agent_skills rows.
     const skillPath = this.getSkillStoragePath(skill.folderName)
     await this.installer.uninstall(skillPath)
-    await this.repository.delete(skillId)
+    await this.db.delete(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.id, skillId))
     logger.info('Skill uninstalled', { skillId, folderName: skill.folderName })
   }
 
@@ -537,7 +540,7 @@ export class SkillService {
     const isInPlace = path.resolve(path.dirname(skillDir)) === skillsRoot
     const folderName = isInPlace ? path.basename(skillDir) : this.sanitizeFolderName(metadata.filename)
 
-    const existing = await this.repository.getByFolderName(folderName)
+    const existing = await this.getSkillByFolderName(folderName)
 
     const contentHash = await this.installer.computeContentHash(skillDir)
     const destPath = this.getSkillStoragePath(folderName)
@@ -549,14 +552,18 @@ export class SkillService {
 
     if (existing) {
       // Update metadata in-place to preserve the skill ID and its agent_skills rows.
-      await this.repository.updateMetadata(existing.id, {
-        name: metadata.name,
-        description: metadata.description ?? null,
-        author: metadata.author ?? null,
-        tags,
-        contentHash
-      })
-      const updated = (await this.repository.getById(existing.id))!
+      await this.db
+        .update(agentGlobalSkillTable)
+        .set({
+          name: metadata.name,
+          description: metadata.description ?? null,
+          author: metadata.author ?? null,
+          tags,
+          contentHash,
+          updatedAt: Date.now()
+        })
+        .where(eq(agentGlobalSkillTable.id, existing.id))
+      const updated = (await this.getSkillById(existing.id))!
       logger.info('Skill updated', { id: existing.id, name: metadata.name, folderName, source })
       return updated
     }
@@ -565,7 +572,7 @@ export class SkillService {
     const id = randomUUID()
     const now = Date.now()
 
-    const skill = await this.repository.insert({
+    const insertData: InsertAgentGlobalSkillRow = {
       id,
       name: metadata.name,
       description: metadata.description ?? null,
@@ -579,7 +586,10 @@ export class SkillService {
       isEnabled: false,
       createdAt: now,
       updatedAt: now
-    })
+    }
+    const [inserted] = await this.db.insert(agentGlobalSkillTable).values(insertData).returning()
+    if (!inserted) throw new Error(`Failed to insert skill: ${metadata.name}`)
+    const skill = this.rowToInstalledSkill(inserted)
 
     if (isBuiltin) {
       await this.enableForAllAgents(skill.id, folderName)
@@ -729,11 +739,10 @@ export class SkillService {
   }
 
   private async getAgentWorkspace(agentId: string): Promise<string | undefined> {
-    const database = await this.repository.getDatabase()
-    const rows = await database
-      .select({ accessiblePaths: agentsTable.accessiblePaths })
-      .from(agentsTable)
-      .where(eq(agentsTable.id, agentId))
+    const rows = await this.db
+      .select({ accessiblePaths: agentTable.accessiblePaths })
+      .from(agentTable)
+      .where(eq(agentTable.id, agentId))
       .limit(1)
     const workspace = this.parseFirstAccessiblePath(rows[0]?.accessiblePaths)
     if (!workspace) return undefined
@@ -752,6 +761,48 @@ export class SkillService {
       // Fall through
     }
     return undefined
+  }
+
+  private async getSkillById(id: string): Promise<InstalledSkill | null> {
+    const rows = await this.db.select().from(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.id, id)).limit(1)
+    return rows[0] ? this.rowToInstalledSkill(rows[0]) : null
+  }
+
+  private async getSkillByFolderName(folderName: string): Promise<InstalledSkill | null> {
+    const rows = await this.db
+      .select()
+      .from(agentGlobalSkillTable)
+      .where(eq(agentGlobalSkillTable.folderName, folderName))
+      .limit(1)
+    return rows[0] ? this.rowToInstalledSkill(rows[0]) : null
+  }
+
+  private async upsertAgentSkill(agentId: string, skillId: string, isEnabled: boolean): Promise<void> {
+    await this.db
+      .insert(agentSkillTable)
+      .values({ agentId, skillId, isEnabled })
+      .onConflictDoUpdate({
+        target: [agentSkillTable.agentId, agentSkillTable.skillId],
+        set: { isEnabled }
+      })
+  }
+
+  private rowToInstalledSkill(row: AgentGlobalSkillRow): InstalledSkill {
+    return {
+      id: row.id,
+      name: row.name,
+      description: row.description,
+      folderName: row.folderName,
+      source: row.source,
+      sourceUrl: row.sourceUrl,
+      namespace: row.namespace,
+      author: row.author,
+      tags: row.tags ? JSON.parse(row.tags) : [],
+      contentHash: row.contentHash,
+      isEnabled: row.isEnabled,
+      createdAt: row.createdAt ?? Date.now(),
+      updatedAt: row.updatedAt ?? Date.now()
+    }
   }
 
   private sanitizeFolderName(folderName: string): string {
@@ -807,6 +858,63 @@ export class SkillService {
     }
 
     return nodes
+  }
+
+  /**
+   * Register or refresh a built-in skill's DB row after its files have been
+   * copied to the global skills directory. Called by `installBuiltinSkills`.
+   *
+   * - If the row exists and files weren't updated, no-ops.
+   * - If files were updated, refreshes the metadata row in-place.
+   * - If the row is missing (first install), inserts it and fans it out to
+   *   every existing agent via `enableForAllAgents`.
+   */
+  async syncBuiltinSkill(folderName: string, destPath: string, filesUpdated: boolean): Promise<void> {
+    const existing = await this.getSkillByFolderName(folderName)
+    if (existing && !filesUpdated) return
+
+    const metadata = await parseSkillMetadata(destPath, folderName, 'skills')
+    const contentHash = await this.installer.computeContentHash(destPath)
+    const tags = metadata.tags ? JSON.stringify(metadata.tags) : null
+
+    if (existing) {
+      await this.db
+        .update(agentGlobalSkillTable)
+        .set({
+          name: metadata.name,
+          description: metadata.description ?? null,
+          author: metadata.author ?? null,
+          tags,
+          contentHash,
+          updatedAt: Date.now()
+        })
+        .where(eq(agentGlobalSkillTable.id, existing.id))
+    } else {
+      const id = randomUUID()
+      const now = Date.now()
+      const [inserted] = await this.db
+        .insert(agentGlobalSkillTable)
+        .values({
+          id,
+          name: metadata.name,
+          description: metadata.description ?? null,
+          folderName,
+          source: 'builtin',
+          sourceUrl: null,
+          namespace: null,
+          author: metadata.author ?? null,
+          tags,
+          contentHash,
+          isEnabled: false,
+          createdAt: now,
+          updatedAt: now
+        })
+        .returning()
+      if (!inserted) throw new Error(`Failed to insert builtin skill: ${folderName}`)
+      await this.enableForAllAgents(inserted.id, folderName)
+    }
+
+    logger.info('Built-in skill synced to DB', { folderName, firstInstall: !existing })
   }
 
   private async reportInstall(owner: string, repo: string, skillName: string): Promise<void> {

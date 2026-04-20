@@ -1,13 +1,10 @@
-import { createHash } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { parseSkillMetadata } from '@main/utils/markdownParser'
 import { app } from 'electron'
 
-import { SkillRepository } from '../services/agents/skills/SkillRepository'
 import { skillService } from '../services/agents/skills/SkillService'
 import { toAsarUnpackedPath } from '.'
 
@@ -65,87 +62,19 @@ export async function installBuiltinSkills(): Promise<void> {
       installed++
     }
 
-    // Register (or refresh) the DB row; fan the skill out to existing agents
-    // only when this is the first time we see it.
-    await syncBuiltinSkillToDb(entry.name, destPath, filesUpdated)
+    try {
+      await skillService.syncBuiltinSkill(entry.name, destPath, filesUpdated)
+    } catch (error) {
+      logger.warn('Failed to sync built-in skill to DB', {
+        folderName: entry.name,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
   }
 
   if (installed > 0) {
     logger.info('Built-in skills installed', { installed, version: appVersion })
   }
-}
-
-/**
- * Ensure a built-in skill has a corresponding row in the `skills` DB table.
- * If the row already exists and files were not updated, skip.
- * If files were updated the metadata is refreshed. If the row is missing
- * entirely (first time we see this builtin) the skill is fanned out to every
- * existing agent's workspace.
- */
-async function syncBuiltinSkillToDb(folderName: string, destPath: string, filesUpdated: boolean): Promise<void> {
-  try {
-    const repo = SkillRepository.getInstance()
-    const existing = await repo.getByFolderName(folderName)
-
-    if (existing && !filesUpdated) return
-
-    const metadata = await parseSkillMetadata(destPath, folderName, 'skills')
-    const contentHash = await computeHash(destPath)
-
-    const tags = metadata.tags ? JSON.stringify(metadata.tags) : null
-
-    if (existing) {
-      // Update metadata in-place to preserve the skill ID and its agent_skills
-      // rows (per-agent enablement state survives app upgrades).
-      await repo.updateMetadata(existing.id, {
-        name: metadata.name,
-        description: metadata.description ?? null,
-        author: metadata.author ?? null,
-        tags,
-        contentHash
-      })
-    } else {
-      const now = Date.now()
-      const inserted = await repo.insert({
-        name: metadata.name,
-        description: metadata.description ?? null,
-        folderName,
-        source: 'builtin',
-        sourceUrl: null,
-        namespace: null,
-        author: metadata.author ?? null,
-        tags,
-        contentHash,
-        // Legacy column: no longer consumed. Per-agent state lives in agent_skills.
-        isEnabled: false,
-        createdAt: now,
-        updatedAt: now
-      })
-
-      // Fan out to every agent on first install only.
-      await skillService.enableForAllAgents(inserted.id, folderName)
-    }
-
-    logger.info('Built-in skill synced to DB', { folderName, firstInstall: !existing })
-  } catch (error) {
-    logger.warn('Failed to sync built-in skill to DB', {
-      folderName,
-      error: error instanceof Error ? error.message : String(error)
-    })
-  }
-}
-
-async function computeHash(skillDir: string): Promise<string> {
-  const candidates = ['SKILL.md', 'skill.md']
-  for (const name of candidates) {
-    try {
-      const content = await fs.readFile(path.join(skillDir, name), 'utf-8')
-      return createHash('sha256').update(content).digest('hex')
-    } catch {
-      // try next
-    }
-  }
-  return ''
 }
 
 async function isUpToDate(destPath: string, appVersion: string): Promise<boolean> {
