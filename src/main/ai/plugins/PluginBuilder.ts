@@ -17,6 +17,7 @@ import { createNoThinkPlugin } from './noThinkPlugin'
 import { createOpenrouterReasoningPlugin } from './openrouterReasoningPlugin'
 import { createPdfCompatibilityPlugin } from './pdfCompatibilityPlugin'
 import { createQwenThinkingPlugin } from './qwenThinkingPlugin'
+import { createModelParamsPlugin } from './modelParamsPlugin'
 import { createReasoningExtractionPlugin } from './reasoningExtractionPlugin'
 import { searchOrchestrationPlugin } from './searchOrchestrationPlugin'
 import { createSimulateStreamingPlugin } from './simulateStreamingPlugin'
@@ -63,6 +64,12 @@ export function buildPlugins(ctx: BuildPluginsContext): AiPlugin[] {
   if (topicId && application.get('PreferenceService').get('app.developer_mode.enabled')) {
     plugins.push(createTelemetryPlugin({ topicId, modelName: model.name ?? model.id }))
   }
+
+  // Model params — temperature / topP / maxOutputTokens. Capability-aware:
+  // handles Claude reasoning disabling temperature, isMaxTemperatureOneModel
+  // clamping, mutually exclusive temp/topP, Claude thinking-token budget
+  // subtraction, and Claude reasoning topP clamping.
+  plugins.push(createModelParamsPlugin({ assistant, model, provider }))
 
   // PDF compatibility — must run before Anthropic cache so cache token
   // estimation accounts for the extracted text (PDFs become TextParts for

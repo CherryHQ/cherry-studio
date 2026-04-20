@@ -1,12 +1,17 @@
-// @ts-nocheck — TODO (Step 2 Phase C): Remove after BuildContext refactor. Current file has renderer-stub type mismatches.
 /**
- * 模型基础参数处理模块
- * 处理温度、TopP、超时等基础参数的获取逻辑
+ * Model-parameter resolution helpers.
+ *
+ * Translate Assistant settings + Model/Provider capabilities into the final
+ * `temperature` / `topP` / `maxOutputTokens` values that are sent to the AI
+ * SDK. Ported from renderer `aiCore/prepareParams/modelParameters.ts` and
+ * adapted to the v2 shared types — callers supply the resolved `Provider`
+ * explicitly instead of going through the renderer's Redux-backed lookup.
  */
 
 import { loggerService } from '@logger'
 import { DEFAULT_TIMEOUT } from '@shared/config/constant'
-import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import {
   isClaude46SeriesModel,
@@ -18,51 +23,27 @@ import {
   isSupportTopPModel,
   isTemperatureTopPMutuallyExclusiveModel
 } from '@shared/utils/model'
-import { type Assistant, type Model } from '@types'
+import { isAwsBedrockProvider } from '@shared/utils/provider'
 
 import { getThinkingBudget } from '../utils/reasoning'
-
-/**
- * Placeholder: resolve the Provider that owns a given Model.
- *
- * The real Main-side resolution is an async `DataApi.providers.get(model.providerId)`
- * lookup, which would ripple through every caller's signature. This file is
- * `@ts-nocheck` WIP and never executed; the helper is kept local so when the
- * BuildContext refactor lands it can either make callers async or pass the
- * provider in from above — no central stub file to wire first.
- */
-function getProviderByModel(_model: Model): Provider {
-  throw new Error('getProviderByModel: pending BuildContext refactor — caller must supply provider')
-}
-
-/**
- * Placeholder: in v2, `Assistant.settings` is already fully defaulted by the
- * Zod schema, so the legacy renderer merge-with-defaults helper reduces to an
- * identity. Retained as a no-op to keep the file diff narrow; callers can be
- * simplified to `assistant.settings` directly when this file is rewritten.
- */
-function getAssistantSettings(assistant: Assistant): Assistant['settings'] {
-  return assistant.settings
-}
 
 const logger = loggerService.withContext('modelParameters')
 
 /**
- * Retrieves the temperature parameter, adapting it based on assistant.settings and model capabilities.
- * - Disabled when enableTemperature is off.
- * - Disabled for Claude reasoning models when reasoning effort is set (excluding 'default' and 'none').
- * - Disabled for models that do not support temperature.
- * - Clamped to 1 for models with max temperature of 1.
- * Otherwise, returns the temperature value.
+ * Resolve the `temperature` value to send with the request, or `undefined`
+ * to fall back to the provider default.
+ *
+ *   - Disabled when `enableTemperature` is off.
+ *   - Disabled for Claude reasoning models when reasoning effort is set
+ *     (other than `default` / `none`) — thinking is incompatible with
+ *     temperature modifications.
+ *   - Disabled for models that do not support temperature at all.
+ *   - Clamped to 1 on models with a max temperature of 1.
  */
 export function getTemperature(assistant: Assistant, model: Model): number | undefined {
   const enableTemperature = assistant.settings?.enableTemperature ?? DEFAULT_ASSISTANT_SETTINGS.enableTemperature
-  if (!enableTemperature) {
-    return undefined
-  }
+  if (!enableTemperature) return undefined
 
-  // Thinking isn't compatible with temperature or top_k modifications as well as forced tool use.
-  // See: https://platform.claude.com/docs/en/build-with-claude/extended-thinking#feature-compatibility
   if (
     isClaudeReasoningModel(model) &&
     assistant.settings?.reasoning_effort &&
@@ -73,7 +54,7 @@ export function getTemperature(assistant: Assistant, model: Model): number | und
     return undefined
   }
 
-  if (!isSupportTemperatureModel(model, assistant)) {
+  if (!isSupportTemperatureModel(model)) {
     logger.info(`Model ${model.id} does not support temperature, disabling temperature`)
     return undefined
   }
@@ -93,20 +74,20 @@ export function getTemperature(assistant: Assistant, model: Model): number | und
 }
 
 /**
- * Retrieves the TopP parameter, adapting it based on assistant.settings and model capabilities.
- * - Disabled when enableTopP is off.
- * - Disabled for models that do not support TopP.
- * - Disabled for mutually exclusive models when temperature is enabled.
- * - Clamped to [0.95, 1] for Claude reasoning models with reasoning effort set (excluding 'default' and 'none').
- * Otherwise, returns the TopP value.
+ * Resolve the `topP` value to send, or `undefined` to use the provider default.
+ *
+ *   - Disabled when `enableTopP` is off.
+ *   - Disabled for models that don't support topP.
+ *   - Disabled on mutually-exclusive models when temperature is also enabled
+ *     (temperature wins).
+ *   - Clamped to `[0.95, 1]` on Claude reasoning models when reasoning effort
+ *     is set (other than `default` / `none`).
  */
 export function getTopP(assistant: Assistant, model: Model): number | undefined {
   const enableTopP = assistant.settings?.enableTopP ?? DEFAULT_ASSISTANT_SETTINGS.enableTopP
-  if (!enableTopP) {
-    return undefined
-  }
+  if (!enableTopP) return undefined
 
-  if (!isSupportTopPModel(model, assistant)) {
+  if (!isSupportTopPModel(model)) {
     logger.info(`Model ${model.id} does not support topP, disabling topP.`)
     return undefined
   }
@@ -118,9 +99,6 @@ export function getTopP(assistant: Assistant, model: Model): number | undefined 
 
   let topP = assistant.settings?.topP ?? DEFAULT_ASSISTANT_SETTINGS.topP
 
-  // When thinking is enabled, the topP should be between 0.95 and 1
-  // See: https://platform.claude.com/docs/en/build-with-claude/extended-thinking#feature-compatibility
-  // NOTE: It depends on the behavior that extended thinking defaults to off, so we clamp the topP value also when reasoning is not 'default'
   if (
     isClaudeReasoningModel(model) &&
     assistant.settings?.reasoning_effort &&
@@ -137,41 +115,32 @@ export function getTopP(assistant: Assistant, model: Model): number | undefined 
   return topP
 }
 
-/**
- * 获取超时设置
- */
+/** Provider timeout override (`flex` tier gets a longer timeout). */
 export function getTimeout(model: Model): number {
-  if (isSupportedFlexServiceTier(model)) {
-    return 15 * 1000 * 60
-  }
+  if (isSupportedFlexServiceTier(model)) return 15 * 1000 * 60
   return DEFAULT_TIMEOUT
 }
 
-export function getMaxTokens(assistant: Assistant, model: Model): number | undefined {
-  // NOTE: ai-sdk会把maxToken和budgetToken加起来
-  const assistantSettings = getAssistantSettings(assistant)
-  const enabledMaxTokens = assistantSettings.enableMaxTokens ?? false
-  let maxTokens = assistantSettings.maxTokens
+/**
+ * Resolve the `maxOutputTokens` value to send, or `undefined` to let the
+ * provider pick its default. For Claude thinking-token models (pre-4.6),
+ * subtracts the thinking budget because the AI SDK adds it back on top.
+ */
+export function getMaxTokens(assistant: Assistant, model: Model, provider: Provider): number | undefined {
+  const enableMaxTokens = assistant.settings?.enableMaxTokens ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxTokens
+  let maxTokens = assistant.settings?.maxTokens ?? DEFAULT_ASSISTANT_SETTINGS.maxTokens
 
-  // If user hasn't enabled enableMaxTokens, return undefined to let the API use its default value.
-  // Note: Anthropic API requires max_tokens, but that's handled by the Anthropic client with a fallback.
-  if (!enabledMaxTokens || maxTokens === undefined) {
-    return undefined
-  }
+  if (!enableMaxTokens || maxTokens === undefined) return undefined
 
-  const provider = getProviderByModel(model)
-  // Claude 4.6 uses adaptive thinking (no budgetTokens), so the AI SDK does not add budget back
-  // to maxOutputTokens. Skip the subtraction to avoid incorrectly reducing max_tokens.
-  if (
-    isSupportedThinkingTokenClaudeModel(model) &&
-    !isClaude46SeriesModel(model) &&
-    ['anthropic', 'aws-bedrock'].includes(provider.type)
-  ) {
-    const { reasoning_effort: reasoningEffort } = assistantSettings
+  // Claude 4.6 uses adaptive thinking (no budgetTokens), so the AI SDK does
+  // not add budget back to maxOutputTokens — skip the subtraction.
+  const isAnthropicLike =
+    provider.id === 'anthropic' || provider.presetProviderId === 'anthropic' || isAwsBedrockProvider(provider)
+  if (isSupportedThinkingTokenClaudeModel(model) && !isClaude46SeriesModel(model) && isAnthropicLike) {
+    const reasoningEffort = assistant.settings?.reasoning_effort
     const budget = getThinkingBudget(maxTokens, reasoningEffort, model.id)
-    if (budget) {
-      maxTokens -= budget
-    }
+    if (budget) maxTokens -= budget
   }
+
   return maxTokens
 }

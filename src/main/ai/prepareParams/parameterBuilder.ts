@@ -200,7 +200,7 @@ export async function buildStreamTextParams(
 
   const params: StreamTextParams = {
     messages: sdkMessages,
-    maxOutputTokens: getMaxTokens(assistant, model),
+    maxOutputTokens: getMaxTokens(assistant, model, provider),
     temperature: getTemperature(assistant, model),
     topP: getTopP(assistant, model),
     // Include AI SDK standard params extracted from custom parameters

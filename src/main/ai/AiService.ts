@@ -600,14 +600,11 @@ export class AiService extends BaseService {
         : []
     const system = assistant?.prompt || undefined
 
-    // Extract model parameters from assistant settings
-    const settings = assistant?.settings
-    const options: AgentOptions = {
-      ...(settings?.enableTemperature !== false &&
-        settings?.temperature != null && { temperature: settings.temperature }),
-      ...(settings?.enableTopP !== false && settings?.topP != null && { topP: settings.topP }),
-      ...(settings?.enableMaxTokens && settings?.maxTokens != null && { maxOutputTokens: settings.maxTokens })
-    }
+    // `temperature` / `topP` / `maxOutputTokens` are applied by
+    // `modelParamsPlugin` via `transformParams` with full model-capability
+    // awareness (reasoning disables temperature on Claude, mutually exclusive
+    // with topP on some models, thinking-token budget subtraction, etc.).
+    const options: AgentOptions = {}
 
     return { sdkConfig, tools, plugins, system, options, provider, model }
   }
