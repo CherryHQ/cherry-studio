@@ -40,6 +40,13 @@ export interface SplitPane {
   paneId: string
   url: string
   title: string
+  /**
+   * Preview pane: passively opened (e.g. by following a link/reference).
+   * At most one preview pane per Tab. Replaced in-place when another preview
+   * opens. Promoted to persistent (isPreview = false) when the user navigates
+   * within it, double-clicks the header, or drags it.
+   */
+  isPreview?: boolean
 }
 
 export interface SplitNode {

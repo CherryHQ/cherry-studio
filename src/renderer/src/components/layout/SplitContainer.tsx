@@ -85,6 +85,7 @@ export const SplitContainer = ({
         paneId={layout.paneId}
         url={layout.url}
         isActive={layout.paneId === activePaneId}
+        isPreview={layout.isPreview}
         onUrlChange={onUrlChange}
         onFocus={onFocus}
       />

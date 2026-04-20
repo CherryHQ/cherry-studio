@@ -76,12 +76,12 @@ export function collectAllPaneIds(layout: SplitLayout): string[] {
 }
 
 /**
- * Update a specific pane's URL and title in the tree.
+ * Update a specific pane's URL, title, or preview flag in the tree.
  */
 export function updatePaneInLayout(
   layout: SplitLayout,
   paneId: string,
-  updates: Partial<Pick<SplitPane, 'url' | 'title'>>
+  updates: Partial<Pick<SplitPane, 'url' | 'title' | 'isPreview'>>
 ): SplitLayout {
   if (layout.type === 'leaf') {
     return layout.paneId === paneId ? { ...layout, ...updates } : layout
@@ -93,4 +93,15 @@ export function updatePaneInLayout(
       updatePaneInLayout(layout.children[1], paneId, updates)
     ]
   }
+}
+
+/**
+ * Find the preview pane in the layout tree (if any).
+ * Invariant: at most one preview pane per tree.
+ */
+export function findPreviewPane(layout: SplitLayout): SplitPane | null {
+  if (layout.type === 'leaf') {
+    return layout.isPreview ? layout : null
+  }
+  return findPreviewPane(layout.children[0]) ?? findPreviewPane(layout.children[1])
 }

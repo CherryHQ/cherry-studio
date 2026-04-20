@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import {
   collectAllPaneIds,
   findPaneById,
+  findPreviewPane,
   removePaneById,
   replacePaneById,
   updatePaneInLayout,
@@ -150,5 +151,34 @@ describe('updatePaneInLayout', () => {
   it('does not affect other panes', () => {
     const result = updatePaneInLayout(simpleSplit, 'a', { url: '/new', title: 'New' })
     expect(findPaneById(result, 'b')).toEqual(paneB)
+  })
+
+  it('toggles the isPreview flag', () => {
+    const withPreview = updatePaneInLayout(simpleSplit, 'a', { isPreview: true })
+    expect(findPaneById(withPreview, 'a')?.isPreview).toBe(true)
+    const promoted = updatePaneInLayout(withPreview, 'a', { isPreview: false })
+    expect(findPaneById(promoted, 'a')?.isPreview).toBe(false)
+  })
+})
+
+describe('findPreviewPane', () => {
+  it('returns null when no preview pane exists', () => {
+    expect(findPreviewPane(simpleSplit)).toBeNull()
+  })
+
+  it('returns the preview pane in a simple split', () => {
+    const withPreview = updatePaneInLayout(simpleSplit, 'b', { isPreview: true })
+    const preview = findPreviewPane(withPreview)
+    expect(preview?.paneId).toBe('b')
+    expect(preview?.isPreview).toBe(true)
+  })
+
+  it('finds preview pane in a nested layout', () => {
+    const withPreview = updatePaneInLayout(nestedSplit, 'c', { isPreview: true })
+    expect(findPreviewPane(withPreview)?.paneId).toBe('c')
+  })
+
+  it('returns null for a non-preview leaf', () => {
+    expect(findPreviewPane(paneA)).toBeNull()
   })
 })
