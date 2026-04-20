@@ -1,3 +1,34 @@
+/**
+ * Provider-options builder for the AI SDK request.
+ *
+ * Split into two layers so plugins can own them independently:
+ *
+ * 1. `buildCapabilityProviderOptions` — capability-driven. Per-provider
+ *    dispatch that produces `{ providerId: providerOptions }` based on
+ *    `(assistant, model, provider, capabilities)`. Covers reasoning params,
+ *    service tier, verbosity, generate-image flags. Consumed by
+ *    `providerOptionsPlugin`.
+ *
+ * 2. `extractAiSdkStandardParams` + `mergeCustomProviderParameters` —
+ *    user-input-driven. Splits `assistant.settings.customParameters` into
+ *    AI-SDK standard params (topK, frequencyPenalty, etc.) and provider
+ *    params, then layers the provider params onto an existing
+ *    providerOptions map. Consumed by `customParametersPlugin`.
+ *
+ * The combined `buildProviderOptions` wrapper is kept for callers (like the
+ * WIP `prepareParams/parameterBuilder.ts`) that still want the full legacy
+ * output; it's a thin composition over the primitives above.
+ *
+ * Ported from renderer `aiCore/utils/options.ts` (origin/main). Differences:
+ *   - `AiSdkParam` / `OpenAIVerbosity` types now come from `@shared/types/aiSdk`
+ *     (moved out of the renderer).
+ *   - The Qwen-MT `translation_options` branch is deleted — v2 translate is
+ *     its own entity (`packages/shared/data/types/translate.ts`) with its own
+ *     request flow, not a field on the chat `Assistant`. When translate-on-
+ *     Main lands it will inject `target_lang` from the translate handler, not
+ *     from here.
+ */
+
 import type { BedrockProviderOptions } from '@ai-sdk/amazon-bedrock'
 import { type AnthropicProviderOptions } from '@ai-sdk/anthropic'
 import type { GoogleGenerativeAIProviderOptions } from '@ai-sdk/google'
@@ -15,25 +46,23 @@ import {
   type Provider,
   type ServiceTier
 } from '@shared/data/types/provider'
+import { type AiSdkParam, isAiSdkParam, type OpenAIVerbosity } from '@shared/types/aiSdk'
 import {
   getModelSupportedVerbosity,
   isAnthropicModel,
   isGeminiModel,
   isGrokModel,
   isOpenAIModel,
-  isQwenMTModel,
   isReasoningModel,
   isSupportFlexServiceTierModel,
   isSupportVerbosityModel
 } from '@shared/utils/model'
 import { isSupportServiceTierProvider, isSupportVerbosityProvider } from '@shared/utils/provider'
-import { type Assistant, isTranslateAssistant, SystemProviderIds } from '@types'
+import { type Assistant, SystemProviderIds } from '@types'
 import type { JSONValue } from 'ai'
-import { t } from 'i18next'
 import { merge } from 'lodash'
 import type { OllamaProviderOptions } from 'ollama-ai-provider-v2'
 
-import { type AiSdkParam, isAiSdkParam, type OpenAIVerbosity } from '../../../renderer/src/types/aiCoreTypes'
 import { addAnthropicHeaders } from '../prepareParams/header'
 import { getAiSdkProviderId } from '../provider/factory'
 import type { ProviderCapabilities } from '../types'
@@ -48,7 +77,6 @@ import {
   getReasoningEffort,
   getXAIReasoningParams
 } from './reasoning'
-import { mapLanguageToQwenMTModel } from '../config/translate'
 import { getWebSearchParams } from './websearch'
 
 const logger = loggerService.withContext('aiCore.utils.options')
@@ -67,9 +95,8 @@ function toOpenAIServiceTier(model: Model, serviceTier: ServiceTier): OpenAIServ
     (serviceTier === OpenAIServiceTiers.flex && !isSupportFlexServiceTierModel(model))
   ) {
     return undefined
-  } else {
-    return serviceTier
   }
+  return serviceTier
 }
 
 function toGroqServiceTier(model: Model, serviceTier: ServiceTier): GroqServiceTier {
@@ -78,27 +105,24 @@ function toGroqServiceTier(model: Model, serviceTier: ServiceTier): GroqServiceT
     (serviceTier === GroqServiceTiers.flex && !isSupportFlexServiceTierModel(model))
   ) {
     return undefined
-  } else {
-    return serviceTier
   }
+  return serviceTier
 }
 
 function getServiceTier<T extends GroqProvider>(model: Model, provider: T): GroqServiceTier
 function getServiceTier<T extends NonGroqProvider>(model: Model, provider: T): OpenAIServiceTier
 function getServiceTier<T extends Provider>(model: Model, provider: T): OpenAIServiceTier | GroqServiceTier {
-  const serviceTierSetting = provider.settings.serviceTier as ServiceTier
+  const serviceTierSetting = provider.settings.serviceTier as ServiceTier | undefined
 
   if (!isSupportServiceTierProvider(provider) || !isOpenAIModel(model) || !serviceTierSetting) {
     return undefined
   }
 
-  // 处理不同供应商需要 fallback 到默认值的情况
   if (isGroqProvider(provider)) {
     return toGroqServiceTier(model, serviceTierSetting)
-  } else {
-    // 其他 OpenAI 供应商，假设他们的服务层级设置和 OpenAI 完全相同
-    return toOpenAIServiceTier(model, serviceTierSetting)
   }
+  // Non-Groq OpenAI-family providers — assume same service tier semantics as OpenAI.
+  return toOpenAIServiceTier(model, serviceTierSetting)
 }
 
 function getVerbosity(model: Model, provider: Provider): OpenAIVerbosity {
@@ -110,18 +134,17 @@ function getVerbosity(model: Model, provider: Provider): OpenAIVerbosity {
 
   if (userVerbosity) {
     const supportedVerbosity = getModelSupportedVerbosity(model)
-    // Use user's verbosity if supported, otherwise use the first supported option
-    const verbosity = supportedVerbosity.includes(userVerbosity)
-      ? userVerbosity
-      : (supportedVerbosity[0] as OpenAIVerbosity)
-    return verbosity
+    return supportedVerbosity.includes(userVerbosity) ? userVerbosity : (supportedVerbosity[0] as OpenAIVerbosity)
   }
   return undefined
 }
 
 /**
- * Extract AI SDK standard parameters from custom parameters
- * These parameters should be passed directly to streamText() instead of providerOptions
+ * Split a flat custom-parameters map into:
+ *   - `standardParams`: the AI SDK "standard" request fields (temperature,
+ *     topK, frequencyPenalty, etc.) that live on `params` root.
+ *   - `providerParams`: everything else, destined for
+ *     `params.providerOptions[providerId]`.
  */
 export function extractAiSdkStandardParams(customParams: Record<string, any>): {
   standardParams: Partial<Record<AiSdkParam, any>>
@@ -137,39 +160,29 @@ export function extractAiSdkStandardParams(customParams: Record<string, any>): {
       providerParams[key] = value
     }
   }
-
   return { standardParams, providerParams }
 }
 
 /**
- * 构建 AI SDK 的 providerOptions
- * 按 provider 类型分离，保持类型安全
- * 返回格式：{
- *   providerOptions: { 'providerId': providerOptions },
- *   standardParams: { topK, frequencyPenalty, presencePenalty, stopSequences, seed }
- * }
+ * Capability-driven provider options — per-provider dispatch producing the
+ * `{ providerId: providerOptions }` blob for the AI SDK request.
  *
- * Custom parameters are split into two categories:
- * 1. AI SDK standard parameters (topK, frequencyPenalty, etc.) - returned separately to be passed to streamText()
- * 2. Provider-specific parameters - merged into providerOptions
+ * Does NOT read `assistant.settings.customParameters`. Customer parameters
+ * are layered separately by `mergeCustomProviderParameters` so plugins can
+ * keep the two concerns isolated.
  */
-export function buildProviderOptions(
+export function buildCapabilityProviderOptions(
   assistant: Assistant,
   model: Model,
   actualProvider: Provider,
   capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
-): {
-  providerOptions: Record<string, Record<string, JSONValue>>
-  standardParams: Partial<Record<AiSdkParam, any>>
-} {
+): Record<string, Record<string, JSONValue>> {
   const rawProviderId = getAiSdkProviderId(actualProvider)
-  logger.debug('buildProviderOptions', { assistant, model, actualProvider, capabilities, rawProviderId })
-  // 构建 provider 特定的选项
-  let providerSpecificOptions: Record<string, any> = {}
   const serviceTier = getServiceTier(model, actualProvider)
   const textVerbosity = getVerbosity(model, actualProvider)
 
-  // 根据 provider ID 构建特定选项
+  let providerSpecificOptions: Record<string, any> = {}
+
   switch (rawProviderId) {
     case 'openai':
     case 'openai-chat':
@@ -228,7 +241,6 @@ export function buildProviderOptions(
     case 'openrouter':
     case 'openai-compatible':
     default:
-      // 对于其他 provider，使用通用的构建逻辑
       providerSpecificOptions = buildGenericProviderOptions(
         rawProviderId,
         assistant,
@@ -236,7 +248,6 @@ export function buildProviderOptions(
         capabilities,
         actualProvider
       )
-      // Merge serviceTier and textVerbosity
       providerSpecificOptions = {
         ...providerSpecificOptions,
         [rawProviderId]: {
@@ -247,25 +258,40 @@ export function buildProviderOptions(
       }
       break
   }
-  logger.debug('Built providerSpecificOptions', { providerSpecificOptions })
-  /**
-   * Retrieve custom parameters and separate standard parameters from provider-specific parameters.
-   */
-  const customParams = getCustomParameters(assistant)
-  const { standardParams, providerParams } = extractAiSdkStandardParams(customParams)
-  logger.debug('Extracted standardParams and providerParams', { standardParams, providerParams })
 
-  /**
-   * Get the actual AI SDK provider ID(s) from the already-built providerSpecificOptions.
-   * For proxy providers (cherryin, aihubmix, newapi), this will be the actual SDK provider (e.g., 'google', 'openai', 'anthropic')
-   * For regular providers, this will be the provider itself
-   */
-  const actualAiSdkProviderIds = Object.keys(providerSpecificOptions)
-  const primaryAiSdkProviderId = actualAiSdkProviderIds[0] // Use the first one as primary for non-scoped params
+  logger.debug('buildCapabilityProviderOptions', {
+    rawProviderId,
+    capabilities,
+    providerSpecificOptions
+  })
+  return providerSpecificOptions
+}
 
-  // For openai-compatible providers, auto-convert reasoning_effort (snake_case) to reasoningEffort (camelCase).
-  // The AI SDK's openai-compatible provider overwrites reasoning_effort to undefined,
-  // but accepts reasoningEffort. See: https://github.com/CherryHQ/cherry-studio/issues/11987
+/**
+ * Layer user-supplied `providerParams` onto an existing provider-options map.
+ *
+ * Key routing (matches renderer origin/main semantics):
+ *   1. Key ∈ actualAiSdkProviderIds → merge directly (user knows the actual
+ *      AI SDK provider ID).
+ *   2. Key == rawProviderId, not in actualAiSdkProviderIds:
+ *      - gateway / ollama → preserve (routing / serving config).
+ *      - Otherwise → map onto primary AI SDK provider (proxy case — cherryin).
+ *   3. Otherwise → merge to primary provider as a regular parameter.
+ *
+ * For `openai-compatible` providers, the `reasoning_effort` (snake_case) key
+ * is auto-renamed to `reasoningEffort` (camelCase) — the AI SDK's
+ * openai-compatible provider silently drops the snake_case form. See
+ * https://github.com/CherryHQ/cherry-studio/issues/11987.
+ */
+export function mergeCustomProviderParameters(
+  providerOptions: Record<string, Record<string, JSONValue>>,
+  providerParams: Record<string, any>,
+  rawProviderId: string
+): Record<string, Record<string, JSONValue>> {
+  const actualAiSdkProviderIds = Object.keys(providerOptions)
+  const primaryAiSdkProviderId = actualAiSdkProviderIds[0]
+
+  // Key rename patch for openai-compatible.
   if (primaryAiSdkProviderId === 'openai-compatible' && 'reasoning_effort' in providerParams) {
     if (!('reasoningEffort' in providerParams)) {
       providerParams.reasoningEffort = providerParams.reasoning_effort
@@ -273,76 +299,80 @@ export function buildProviderOptions(
     delete providerParams.reasoning_effort
   }
 
-  /**
-   * Merge custom parameters into providerSpecificOptions.
-   * Simple logic:
-   * 1. If key is in actualAiSdkProviderIds → merge directly (user knows the actual AI SDK provider ID)
-   * 2. If key == rawProviderId:
-   *    - If it's gateway/ollama → preserve (they need their own config for routing/options)
-   *    - Otherwise → map to primary (this is a proxy provider like cherryin)
-   * 3. Otherwise → treat as regular parameter, merge to primary provider
-   *
-   * Example:
-   * - User writes `cherryin: { opt: 'val' }` → mapped to `google: { opt: 'val' }` (case 2, proxy)
-   * - User writes `gateway: { order: [...] }` → stays as `gateway: { order: [...] }` (case 2, routing config)
-   * - User writes `google: { opt: 'val' }` → stays as `google: { opt: 'val' }` (case 1)
-   * - User writes `customKey: 'val'` → merged to `google: { customKey: 'val' }` (case 3)
-   */
+  let result = providerOptions
   for (const key of Object.keys(providerParams)) {
     if (actualAiSdkProviderIds.includes(key)) {
-      // Case 1: Key is an actual AI SDK provider ID - merge directly
-      providerSpecificOptions = {
-        ...providerSpecificOptions,
+      // Case 1: Key is an actual AI SDK provider ID.
+      result = {
+        ...result,
         [key]: {
-          ...providerSpecificOptions[key],
+          ...result[key],
           ...providerParams[key]
         }
       }
     } else if (key === rawProviderId && !actualAiSdkProviderIds.includes(rawProviderId)) {
-      // Case 2: Key is the current provider (not in actualAiSdkProviderIds, so it's a proxy or special provider)
-      // Gateway is special: it needs routing config preserved
+      // Case 2: proxy / special provider.
       if (key === SystemProviderIds.gateway) {
-        // Preserve gateway config for routing
-        providerSpecificOptions = {
-          ...providerSpecificOptions,
+        result = {
+          ...result,
           [key]: {
-            ...providerSpecificOptions[key],
+            ...result[key],
             ...providerParams[key]
           }
         }
       } else {
-        // Proxy provider (cherryin, etc.) - map to actual AI SDK provider
-        providerSpecificOptions = {
-          ...providerSpecificOptions,
+        result = {
+          ...result,
           [primaryAiSdkProviderId]: {
-            ...providerSpecificOptions[primaryAiSdkProviderId],
+            ...result[primaryAiSdkProviderId],
             ...providerParams[key]
           }
         }
       }
     } else {
-      // Case 3: Regular parameter - merge to primary provider
-      providerSpecificOptions = {
-        ...providerSpecificOptions,
+      // Case 3: regular parameter.
+      result = {
+        ...result,
         [primaryAiSdkProviderId]: {
-          ...providerSpecificOptions[primaryAiSdkProviderId],
+          ...result[primaryAiSdkProviderId],
           [key]: providerParams[key]
         }
       }
     }
   }
-  logger.debug('Final providerSpecificOptions after merging providerParams', { providerSpecificOptions })
-
-  // 返回 AI Core SDK 要求的格式：{ 'providerId': providerOptions } 以及提取的标准参数
-  return {
-    providerOptions: providerSpecificOptions,
-    standardParams
-  }
+  return result
 }
 
 /**
- * 构建 OpenAI 特定的 providerOptions
+ * Convenience wrapper that runs the full legacy pipeline: capability
+ * provider options + customParameters split + merge. Retained so callers
+ * that want the combined output (like `prepareParams/parameterBuilder.ts`)
+ * don't need to orchestrate the primitives themselves.
+ *
+ * Equivalent to:
+ *   const providerOptions = buildCapabilityProviderOptions(...)
+ *   const { standardParams, providerParams } = extractAiSdkStandardParams(getCustomParameters(assistant))
+ *   const merged = mergeCustomProviderParameters(providerOptions, providerParams, rawProviderId)
+ *   return { providerOptions: merged, standardParams }
  */
+export function buildProviderOptions(
+  assistant: Assistant,
+  model: Model,
+  actualProvider: Provider,
+  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
+): {
+  providerOptions: Record<string, Record<string, JSONValue>>
+  standardParams: Partial<Record<AiSdkParam, any>>
+} {
+  const rawProviderId = getAiSdkProviderId(actualProvider)
+  const providerOptions = buildCapabilityProviderOptions(assistant, model, actualProvider, capabilities)
+  const customParams = getCustomParameters(assistant)
+  const { standardParams, providerParams } = extractAiSdkStandardParams(customParams)
+  const merged = mergeCustomProviderParameters(providerOptions, providerParams, rawProviderId)
+  return { providerOptions: merged, standardParams }
+}
+
+/** OpenAI-family (openai / azure / huggingface / openai-chat) options. */
 function buildOpenAIProviderOptions(
   assistant: Assistant,
   model: Model,
@@ -353,30 +383,26 @@ function buildOpenAIProviderOptions(
 ): Record<string, OpenAIResponsesProviderOptions> {
   const { enableReasoning } = capabilities
   let providerOptions: OpenAIResponsesProviderOptions = {}
-  // OpenAI 推理参数
   if (enableReasoning) {
     const reasoningParams = getOpenAIReasoningParams(assistant, model)
     providerOptions = {
       ...providerOptions,
       ...reasoningParams,
-      // TODO: Remove this workaround after migrating to @ai-sdk/open-responses (#13462)
-      // Bypass @ai-sdk/openai's model ID allowlist for reasoning detection.
-      // Third-party providers often use non-canonical model IDs (e.g., "openai/gpt-5.2")
-      // that fail the SDK's startsWith() checks, causing reasoning params to be silently dropped.
+      // TODO: Remove after migrating to @ai-sdk/open-responses (#13462).
+      // Bypass @ai-sdk/openai's model-ID allowlist for reasoning detection.
+      // Third-party providers often use non-canonical model IDs (e.g. "openai/gpt-5.2")
+      // that fail the SDK's startsWith() checks, silently dropping reasoning params.
       ...(isReasoningModel(model) && { forceReasoning: true })
     }
   }
 
   if (isSupportVerbosityModel(model) && isSupportVerbosityProvider(provider)) {
     const userVerbosity = provider.settings.verbosity as OpenAIVerbosity
-
     if (userVerbosity && ['low', 'medium', 'high'].includes(userVerbosity)) {
       const supportedVerbosity = getModelSupportedVerbosity(model)
-      // Use user's verbosity if supported, otherwise use the first supported option
       const verbosity = supportedVerbosity.includes(userVerbosity)
         ? userVerbosity
         : (supportedVerbosity[0] as OpenAIVerbosity)
-
       providerOptions = {
         ...providerOptions,
         textVerbosity: verbosity
@@ -384,22 +410,17 @@ function buildOpenAIProviderOptions(
     }
   }
 
-  // TODO: 支持配置是否在服务端持久化
+  // TODO: support configurable server-side persistence.
   providerOptions = {
     ...providerOptions,
     serviceTier,
     textVerbosity,
     store: false
   }
-
-  return {
-    openai: providerOptions
-  }
+  return { openai: providerOptions }
 }
 
-/**
- * 构建 Anthropic 特定的 providerOptions
- */
+/** Anthropic-family options (direct + Azure-Anthropic + Vertex-Anthropic). */
 function buildAnthropicProviderOptions(
   assistant: Assistant,
   model: Model,
@@ -407,26 +428,14 @@ function buildAnthropicProviderOptions(
 ): Record<string, AnthropicProviderOptions> {
   const { enableReasoning } = capabilities
   let providerOptions: AnthropicProviderOptions = {}
-
-  // Anthropic 推理参数
   if (enableReasoning) {
     const reasoningParams = getAnthropicReasoningParams(assistant, model)
-    providerOptions = {
-      ...providerOptions,
-      ...reasoningParams
-    }
+    providerOptions = { ...providerOptions, ...reasoningParams }
   }
-
-  return {
-    anthropic: {
-      ...providerOptions
-    }
-  }
+  return { anthropic: { ...providerOptions } }
 }
 
-/**
- * 构建 Gemini 特定的 providerOptions
- */
+/** Gemini / Vertex-Gemini options. */
 function buildGeminiProviderOptions(
   assistant: Assistant,
   model: Model,
@@ -434,30 +443,17 @@ function buildGeminiProviderOptions(
 ): Record<string, GoogleGenerativeAIProviderOptions> {
   const { enableReasoning, enableGenerateImage } = capabilities
   let providerOptions: GoogleGenerativeAIProviderOptions = {}
-
-  // Gemini 推理参数
   if (enableReasoning) {
     const reasoningParams = getGeminiReasoningParams(assistant, model)
-    providerOptions = {
-      ...providerOptions,
-      ...reasoningParams
-    }
+    providerOptions = { ...providerOptions, ...reasoningParams }
   }
-
   if (enableGenerateImage) {
-    providerOptions = {
-      ...providerOptions,
-      ...buildGeminiGenerateImageParams()
-    }
+    providerOptions = { ...providerOptions, ...buildGeminiGenerateImageParams() }
   }
-
-  return {
-    google: {
-      ...providerOptions
-    }
-  }
+  return { google: { ...providerOptions } }
 }
 
+/** XAI Grok options. */
 function buildXAIProviderOptions(
   assistant: Assistant,
   model: Model,
@@ -465,22 +461,13 @@ function buildXAIProviderOptions(
 ): Record<string, XaiProviderOptions> {
   const { enableReasoning } = capabilities
   let providerOptions: Record<string, any> = {}
-
   if (enableReasoning) {
-    const reasoningParams = getXAIReasoningParams(assistant, model)
-    providerOptions = {
-      ...providerOptions,
-      ...reasoningParams
-    }
+    providerOptions = { ...providerOptions, ...getXAIReasoningParams(assistant, model) }
   }
-
-  return {
-    xai: {
-      ...providerOptions
-    }
-  }
+  return { xai: { ...providerOptions } }
 }
 
+/** CherryIn proxy options — dispatches on endpoint type. */
 function buildCherryInProviderOptions(
   assistant: Assistant,
   model: Model,
@@ -499,15 +486,12 @@ function buildCherryInProviderOptions(
       return buildAnthropicProviderOptions(assistant, model, capabilities)
     case 'google-generate-content':
       return buildGeminiProviderOptions(assistant, model, capabilities)
-
     default:
       return buildGenericProviderOptions('cherryin', assistant, model, capabilities, actualProvider)
   }
 }
 
-/**
- * Build Bedrock providerOptions
- */
+/** AWS Bedrock options — reasoning via Anthropic shape + beta headers. */
 function buildBedrockProviderOptions(
   assistant: Assistant,
   model: Model,
@@ -515,46 +499,31 @@ function buildBedrockProviderOptions(
 ): Record<string, BedrockProviderOptions> {
   const { enableReasoning } = capabilities
   let providerOptions: BedrockProviderOptions = {}
-
   if (enableReasoning) {
-    const reasoningParams = getBedrockReasoningParams(assistant, model)
-    providerOptions = {
-      ...providerOptions,
-      ...reasoningParams
-    }
+    providerOptions = { ...providerOptions, ...getBedrockReasoningParams(assistant, model) }
   }
-
   const betaHeaders = addAnthropicHeaders(assistant, model)
   if (betaHeaders.length > 0) {
     providerOptions.anthropicBeta = betaHeaders
   }
-
-  return {
-    bedrock: providerOptions
-  }
+  return { bedrock: providerOptions }
 }
 
+/** Ollama options. */
 function buildOllamaProviderOptions(
   assistant: Assistant,
   model: Model,
   capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
 ): Record<string, OllamaProviderOptions> {
   const { enableReasoning } = capabilities
-  let options = {}
-
+  let options: Record<string, any> = {}
   if (enableReasoning) {
-    options = {
-      ...options,
-      ...getOllamaReasoningParams(assistant, model)
-    }
+    options = { ...options, ...getOllamaReasoningParams(assistant, model) }
   }
-
   return { ollama: options }
 }
 
-/**
- * 构建通用的 providerOptions（用于其他 provider）
- */
+/** Generic fallback — covers deepseek / openrouter / openai-compatible / etc. */
 function buildGenericProviderOptions(
   providerId: string,
   assistant: Assistant,
@@ -566,42 +535,16 @@ function buildGenericProviderOptions(
   let providerOptions: Record<string, any> = {}
 
   const reasoningParams = getReasoningEffort(assistant, model, provider)
-  logger.debug('reasoningParams', reasoningParams)
-  providerOptions = {
-    ...providerOptions,
-    ...reasoningParams
-  }
+  providerOptions = { ...providerOptions, ...reasoningParams }
 
   if (enableWebSearch) {
-    const webSearchParams = getWebSearchParams(model)
-    providerOptions = merge({}, providerOptions, webSearchParams)
+    providerOptions = merge({}, providerOptions, getWebSearchParams(model))
   }
 
-  // 特殊处理 Qwen MT
-  if (isQwenMTModel(model)) {
-    if (isTranslateAssistant(assistant)) {
-      const targetLanguage = assistant.targetLanguage
-      // `targetLanguage` carries `{ langCode }` — pass the whole object so Chinese
-      // variants (zh-cn / zh-tw / zh-yue) resolve correctly. Renderer origin/main
-      // does the same.
-      const translationOptions = {
-        source_lang: 'auto',
-        target_lang: mapLanguageToQwenMTModel(targetLanguage)
-      } as const
-      if (!translationOptions.target_lang) {
-        throw new Error(t('translate.error.not_supported', { language: targetLanguage.value }))
-      }
-      providerOptions.translation_options = translationOptions
-    } else {
-      throw new Error(t('translate.error.chat_qwen_mt'))
-    }
-  }
-
-  return {
-    [providerId]: providerOptions
-  }
+  return { [providerId]: providerOptions }
 }
 
+/** AI Gateway — maps to the underlying provider family by model kind. */
 function buildAIGatewayOptions(
   assistant: Assistant,
   model: Model,
@@ -611,20 +554,11 @@ function buildAIGatewayOptions(
   textVerbosity?: OpenAIVerbosity
 ): Record<
   string,
-  | OpenAIResponsesProviderOptions
-  | AnthropicProviderOptions
-  | GoogleGenerativeAIProviderOptions
-  | Record<string, unknown>
+  OpenAIResponsesProviderOptions | AnthropicProviderOptions | GoogleGenerativeAIProviderOptions | Record<string, unknown>
 > {
-  if (isAnthropicModel(model)) {
-    return buildAnthropicProviderOptions(assistant, model, capabilities)
-  } else if (isOpenAIModel(model)) {
-    return buildOpenAIProviderOptions(assistant, model, capabilities, provider, serviceTier, textVerbosity)
-  } else if (isGeminiModel(model)) {
-    return buildGeminiProviderOptions(assistant, model, capabilities)
-  } else if (isGrokModel(model)) {
-    return buildXAIProviderOptions(assistant, model, capabilities)
-  } else {
-    return buildGenericProviderOptions('openai-compatible', assistant, model, capabilities, provider)
-  }
+  if (isAnthropicModel(model)) return buildAnthropicProviderOptions(assistant, model, capabilities)
+  if (isOpenAIModel(model)) return buildOpenAIProviderOptions(assistant, model, capabilities, provider, serviceTier, textVerbosity)
+  if (isGeminiModel(model)) return buildGeminiProviderOptions(assistant, model, capabilities)
+  if (isGrokModel(model)) return buildXAIProviderOptions(assistant, model, capabilities)
+  return buildGenericProviderOptions('openai-compatible', assistant, model, capabilities, provider)
 }

@@ -13,11 +13,13 @@ import type { ResolvedCapabilities } from '../capabilities'
 import { getAiSdkProviderId } from '../provider/factory'
 import { getReasoningTagName } from '../utils/reasoning'
 import { createAnthropicCachePlugin } from './anthropicCachePlugin'
+import { createCustomParametersPlugin } from './customParametersPlugin'
+import { createModelParamsPlugin } from './modelParamsPlugin'
 import { createNoThinkPlugin } from './noThinkPlugin'
 import { createOpenrouterReasoningPlugin } from './openrouterReasoningPlugin'
 import { createPdfCompatibilityPlugin } from './pdfCompatibilityPlugin'
+import { createProviderOptionsPlugin } from './providerOptionsPlugin'
 import { createQwenThinkingPlugin } from './qwenThinkingPlugin'
-import { createModelParamsPlugin } from './modelParamsPlugin'
 import { createReasoningExtractionPlugin } from './reasoningExtractionPlugin'
 import { searchOrchestrationPlugin } from './searchOrchestrationPlugin'
 import { createSimulateStreamingPlugin } from './simulateStreamingPlugin'
@@ -70,6 +72,17 @@ export function buildPlugins(ctx: BuildPluginsContext): AiPlugin[] {
   // clamping, mutually exclusive temp/topP, Claude thinking-token budget
   // subtraction, and Claude reasoning topP clamping.
   plugins.push(createModelParamsPlugin({ assistant, model, provider }))
+
+  // Provider options — capability-driven `providerOptions[providerId]` blob:
+  // per-family reasoning params, service tier, verbosity, generate-image
+  // flags. Must run before `customParametersPlugin` so user overrides win.
+  plugins.push(createProviderOptionsPlugin({ assistant, model, provider, capabilities }))
+
+  // Custom parameters — user-supplied `assistant.settings.customParameters`.
+  // Splits into AI-SDK standard params (applied to params root) and
+  // provider-scoped params (merged onto whatever providerOptions plugins
+  // wrote above).
+  plugins.push(createCustomParametersPlugin({ assistant, provider }))
 
   // PDF compatibility — must run before Anthropic cache so cache token
   // estimation accounts for the extracted text (PDFs become TextParts for

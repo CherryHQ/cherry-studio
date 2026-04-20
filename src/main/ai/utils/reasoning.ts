@@ -47,9 +47,8 @@ import { isSupportEnableThinkingProvider } from '@shared/utils/provider'
 import type { Assistant, ReasoningEffortOption } from '@types'
 import { EFFORT_RATIO, isSystemProviderId, SystemProviderIds } from '@types'
 import { toInteger } from 'lodash'
+import type { OpenAIReasoningEffort, OpenAIReasoningSummary } from '@shared/types/aiSdk'
 import type { OllamaProviderOptions } from 'ollama-ai-provider-v2'
-
-import type { OpenAIReasoningEffort, OpenAIReasoningSummary } from '../../../renderer/src/types/aiCoreTypes'
 
 const logger = loggerService.withContext('reasoning')
 
