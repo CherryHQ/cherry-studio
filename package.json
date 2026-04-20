@@ -466,7 +466,7 @@
       "@codemirror/lint": "6.9.5",
       "@lezer/common": "1.5.1",
       "esbuild": "^0.25.0",
-      "node-abi": "4.24.0",
+      "node-abi": "4.28.0",
       "openai": "npm:@cherrystudio/openai@6.15.0",
       "tar-fs": "^2.1.4",
       "undici": "6.23.0",
