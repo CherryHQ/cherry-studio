@@ -955,6 +955,9 @@ class CodeToolsService {
       baseCommand = `${uvPath} tool run ${packageName}`
     }
 
+    const bunInstallPath = path.join(os.homedir(), HOME_CHERRY_DIR)
+    const useBunxForClaudeCode = cliTool === codeTools.claudeCode && platform === 'win32'
+
     // Special handling for claude-code on Windows: use bunx to avoid bun global install issues
     // This avoids the "Bun failed to remap" error on Windows
     // Using "x" (bunx) which caches packages globally - avoids directory pollution
@@ -1021,16 +1024,6 @@ class CodeToolsService {
 
       // Add --model flag with dynamic provider prefix to avoid race conditions
       baseCommand = `${baseCommand} --model Cherry-${providerName}/${modelId}`
-    }
-
-    const bunInstallPath = path.join(os.homedir(), HOME_CHERRY_DIR)
-
-    // Special handling for claude-code: use bunx on Windows to avoid bun global install issues
-    // See: https://github.com/CherryHQ/cherry-studio/issues/14367
-    const useBunxForClaudeCode = cliTool === codeTools.claudeCode && platform === 'win32'
-
-    if (useBunxForClaudeCode) {
-      logger.info('Using bunx to run claude-code on Windows to avoid global install issues')
     }
 
     // Special handling for kimi-cli: uvx handles installation automatically
