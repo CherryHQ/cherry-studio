@@ -2,6 +2,12 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 
 import { application } from '@application'
+import { agentTable as agentsTable } from '@data/db/schemas/agent'
+import {
+  type AgentSessionRow as SessionRow,
+  agentSessionTable as sessionsTable,
+  type InsertAgentSessionRow as InsertSessionRow
+} from '@data/db/schemas/agentSession'
 import { loggerService } from '@logger'
 import { parsePluginMetadata } from '@main/utils/markdownParser'
 import {
@@ -26,7 +32,6 @@ import {
   serializeJsonFields,
   validateAgentModels
 } from '../agentUtils'
-import { agentsTable, type InsertSessionRow, type SessionRow, sessionsTable } from '../database/schema'
 import type { AgentModelField } from '../errors'
 import { builtinSlashCommands } from './claudecode/commands'
 

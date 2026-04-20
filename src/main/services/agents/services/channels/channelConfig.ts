@@ -1,8 +1,3 @@
-/**
- * Transitional agents channel config schemas retained under the legacy service
- * layer while agents features are still being moved to the v2 data API.
- */
-
 import * as z from 'zod'
 
 // ---- Per-channel-type config schemas ----

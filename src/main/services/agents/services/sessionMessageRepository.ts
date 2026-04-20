@@ -1,3 +1,9 @@
+import { application } from '@application'
+import {
+  type AgentSessionMessageRow as SessionMessageRow,
+  agentSessionMessageTable as sessionMessagesTable,
+  type InsertAgentSessionMessageRow as InsertSessionMessageRow
+} from '@data/db/schemas/agentSessionMessage'
 import { loggerService } from '@logger'
 import type {
   AgentMessageAssistantPersistPayload,
@@ -8,10 +14,6 @@ import type {
   AgentSessionMessageEntity
 } from '@types'
 import { and, asc, eq, sql } from 'drizzle-orm'
-
-import { BaseService } from '../BaseService'
-import type { InsertSessionMessageRow, SessionMessageRow } from './schema'
-import { sessionMessagesTable } from './schema'
 
 const logger = loggerService.withContext('AgentMessageRepository')
 
@@ -25,16 +27,54 @@ export type PersistAssistantMessageParams = AgentMessageAssistantPersistPayload 
   agentSessionId: string
 }
 
-class AgentMessageRepository extends BaseService {
-  // Drizzle serializes/deserializes content and metadata automatically via
-  // `{ mode: 'json' }` on the schema — no manual JSON.stringify/parse here.
+class AgentMessageRepository {
+  private serializeMessage(payload: AgentPersistedMessage): string {
+    return JSON.stringify(payload)
+  }
+
+  private serializeMetadata(metadata?: Record<string, unknown>): string | undefined {
+    if (!metadata) {
+      return undefined
+    }
+
+    try {
+      return JSON.stringify(metadata)
+    } catch (error) {
+      logger.warn('Failed to serialize session message metadata', error as Error)
+      return undefined
+    }
+  }
+
+  private deserialize(row: any): AgentSessionMessageEntity {
+    if (!row) return row
+
+    const deserialized = { ...row }
+
+    if (typeof deserialized.content === 'string') {
+      try {
+        deserialized.content = JSON.parse(deserialized.content)
+      } catch (error) {
+        logger.warn('Failed to parse session message content JSON', error as Error)
+      }
+    }
+
+    if (typeof deserialized.metadata === 'string') {
+      try {
+        deserialized.metadata = JSON.parse(deserialized.metadata)
+      } catch (error) {
+        logger.warn('Failed to parse session message metadata JSON', error as Error)
+      }
+    }
+
+    return deserialized
+  }
 
   private async findExistingMessageRow(
     sessionId: string,
     role: string,
     messageId: string
   ): Promise<SessionMessageRow | null> {
-    const database = await this.getDatabase()
+    const database = await application.get('DbService').getDb()
     // Use SQLite json_extract to query by messageId directly, avoiding loading all messages
     const rows = await database
       .select()
@@ -64,7 +104,7 @@ class AgentMessageRepository extends BaseService {
       throw new Error('Message payload missing id')
     }
 
-    const database = await this.getDatabase()
+    const database = await application.get('DbService').getDb()
 
     const existingRow = await this.findExistingMessageRow(sessionId, payload.message.role, payload.message.id)
 
@@ -147,7 +187,7 @@ class AgentMessageRepository extends BaseService {
 
   async getSessionHistory(sessionId: string): Promise<AgentPersistedMessage[]> {
     try {
-      const database = await this.getDatabase()
+      const database = await application.get('DbService').getDb()
       const rows = await database
         .select()
         .from(sessionMessagesTable)
