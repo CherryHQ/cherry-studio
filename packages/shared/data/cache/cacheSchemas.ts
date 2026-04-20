@@ -249,6 +249,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
 export type RendererPersistCacheSchema = {
   'ui.tab.pinned_tabs': CacheValueTypes.Tab[]
   'ui.sidebar.docked_tabs': CacheValueTypes.Tab[]
+  'ui.panes.layout': CacheValueTypes.PanesState
   'ui.sidebar.width': number
   'feature.mcp.is_uv_installed': boolean
   'feature.mcp.is_bun_installed': boolean
@@ -257,9 +258,29 @@ export type RendererPersistCacheSchema = {
   'ui.assistant.multi_model_ids': Record<string, string[]>
 }
 
+const DEFAULT_PANES_STATE: CacheValueTypes.PanesState = {
+  root: {
+    type: 'leaf',
+    paneId: 'pane-root',
+    tabs: [
+      {
+        id: 'home',
+        type: 'route',
+        url: '/home',
+        title: '',
+        lastAccessTime: 0,
+        isDormant: false
+      }
+    ],
+    activeTabId: 'home'
+  },
+  activePaneId: 'pane-root'
+}
+
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.tab.pinned_tabs': [],
   'ui.sidebar.docked_tabs': [],
+  'ui.panes.layout': DEFAULT_PANES_STATE,
   'ui.sidebar.width': 65,
   'feature.mcp.is_uv_installed': false,
   'feature.mcp.is_bun_installed': false,

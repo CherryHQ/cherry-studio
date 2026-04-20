@@ -89,6 +89,53 @@ export interface TabsState {
   activeTabId: string
 }
 
+// ============================================================================
+// Pane-First Layout (Phase 2, Obsidian-style recursive pane tree)
+// ============================================================================
+
+export type PaneDirection = 'horizontal' | 'vertical'
+
+/**
+ * A single tab inside a leaf pane. Successor to Tab, minus the nested split
+ * fields (splitLayout/activePaneId) that are now expressed at the tree level.
+ */
+export interface PaneTab {
+  id: string
+  type: TabType
+  url: string
+  title: string
+  icon?: string
+  metadata?: Record<string, unknown>
+  lastAccessTime?: number
+  isDormant?: boolean
+  isPinned?: boolean
+  savedState?: TabSavedState
+}
+
+export interface LeafPane {
+  type: 'leaf'
+  paneId: string
+  tabs: PaneTab[]
+  /** Must reference a tab in `tabs` (enforced by normalize). */
+  activeTabId: string
+}
+
+export interface PaneSplitNode {
+  type: 'split'
+  direction: PaneDirection
+  /** 0-100 percentage for the first child. */
+  ratio: number
+  children: [PaneLayout, PaneLayout]
+}
+
+export type PaneLayout = LeafPane | PaneSplitNode
+
+export interface PanesState {
+  root: PaneLayout
+  /** Must be the paneId of an existing leaf (enforced by normalize). */
+  activePaneId: string
+}
+
 export type TranslatingState =
   | {
       isTranslating: true
