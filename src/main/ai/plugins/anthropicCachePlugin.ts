@@ -12,18 +12,18 @@ import type { LanguageModelV3Message } from '@ai-sdk/provider'
 import { definePlugin } from '@cherrystudio/ai-core'
 import type { Provider } from '@shared/data/types/provider'
 import type { LanguageModelMiddleware } from 'ai'
-import { approximateTokenSize } from 'tokenx'
+import { estimateTokenCount } from 'tokenx'
 
 const cacheProviderOptions = {
   anthropic: { cacheControl: { type: 'ephemeral' } }
 }
 
 function estimateContentTokens(content: LanguageModelV3Message['content']): number {
-  if (typeof content === 'string') return approximateTokenSize(content)
+  if (typeof content === 'string') return estimateTokenCount(content)
   if (Array.isArray(content)) {
     return content.reduce((acc, part) => {
       if (part.type === 'text') {
-        return acc + approximateTokenSize(part.text)
+        return acc + estimateTokenCount(part.text)
       }
       return acc
     }, 0)
@@ -82,6 +82,7 @@ function anthropicCacheMiddleware(provider: Provider): LanguageModelMiddleware {
   }
 }
 
+// TODO: use context manager replace middleware
 export const createAnthropicCachePlugin = (provider: Provider) =>
   definePlugin({
     name: 'anthropicCache',
