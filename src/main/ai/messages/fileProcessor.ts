@@ -12,10 +12,10 @@
  *   - `window.api.file.read` → `fs.promises.readFile` (Main has direct disk access).
  *   - No `i18next` error toasts — callers decide how to surface failures.
  *   - `handleGeminiFileUpload` / `handleOpenAILargeFileUpload` (provider-side
- *     file APIs) are deferred to a follow-up PR; they require a Main-side
- *     provider file-upload service that doesn't exist yet. Large PDFs that
- *     used to go through those paths will fall back to inline data URLs here
- *     (the default AI SDK flow).
+ *     file APIs) are deferred. See `./largeFileUpload.ts` for the verbatim
+ *     renderer source and a port TODO checklist. Until that lands, large
+ *     PDFs / media fall back to inline base64 here — fine for small files,
+ *     problematic for anything near provider payload limits.
  */
 
 import { loggerService } from '@logger'
