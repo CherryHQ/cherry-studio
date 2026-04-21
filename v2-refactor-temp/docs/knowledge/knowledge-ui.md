@@ -7,6 +7,9 @@
 ## 1. 组件结构设计约束
 
 - Knowledge V2 UI 实现统一使用 Tailwind CSS + `@cherrystudio/ui`（cherry-ui）。
+- Knowledge V2 UI 优先复用 `@cherrystudio/ui` 已有的 primitive / composite 组件，不在业务页面中直接实现一套新的基础 UI。
+- 对按钮、输入框、下拉、文本域、弹层、标签页、滚动容器等基础交互，优先使用 cherry-ui 组件，不直接使用原生组件作为业务实现方案。
+- 如果 cherry-ui 暂时缺少所需能力，优先补齐 `@cherrystudio/ui` 或先回到设计 / 组件层确认，不接受在 Knowledge V2 UI 中直接回退到原生基础组件的临时方案。
 - UI 文件结构设计优先遵循 `vercel-composition-patterns`。
 - Knowledge V2 UI 优先采用 composition-first 的组织方式，优先考虑 compound components、清晰的 slot / children 组合，以及必要时的 provider + context 接口。
 - 避免在单一组件中通过大量布尔 props 或模式开关堆叠分支逻辑。

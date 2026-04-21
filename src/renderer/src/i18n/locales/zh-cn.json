@@ -2096,6 +2096,51 @@
     "videos": "视频",
     "videos_file": "视频文件"
   },
+  "knowledge_v2": {
+    "data_source": {
+      "chunks_count": "{{count}} chunks",
+      "filters": {
+        "all": "全部"
+      },
+      "ready_summary": "{{ready}}/{{total}} 就绪",
+      "status": {
+        "chunking": "分块中",
+        "embedding": "嵌入中",
+        "error": "错误",
+        "ready": "就绪"
+      }
+    },
+    "groups": {
+      "personal": "个人",
+      "project": "项目",
+      "work": "工作"
+    },
+    "meta": {
+      "documents_count": "{{count}} 文档"
+    },
+    "rag": {
+      "chunking": "分块规则 (Chunking)",
+      "default_separator": "自动（推荐）",
+      "preprocessing_hint": "文档预处理将在文档导入时自动执行，选择合适的处理服务商可提升文档解析质量",
+      "processor": "处理服务商",
+      "rerank_disabled": "不使用",
+      "reset_defaults": "恢复默认",
+      "retrieval": "检索设置",
+      "separator_rule": "分隔符规则",
+      "tokens_unit": "tokens"
+    },
+    "recall": {
+      "empty_description": "结果将展示匹配的文档片段和分数",
+      "empty_title": "输入查询语句开始检索测试",
+      "placeholder": "输入测试 Query...",
+      "submit": "检索"
+    },
+    "tabs": {
+      "data_source": "数据源",
+      "rag_config": "RAG 配置",
+      "recall_test": "召回测试"
+    }
+  },
   "languages": {
     "arabic": "阿拉伯文",
     "chinese": "简体中文",
