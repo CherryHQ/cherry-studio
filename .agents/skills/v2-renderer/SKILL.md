@@ -126,7 +126,23 @@ await remove()
 const { trigger: toggleStar } = useMutation('PATCH', `/topics/${id}`, {
   optimisticData: { ...topic, starred: !topic.starred }
 })
+
+// Template path (operate on any id chosen at trigger time)
+const { trigger: deleteAnyProvider } = useMutation('DELETE', '/providers/:providerId', {
+  refresh: ({ args }) => [
+    '/providers',
+    `/providers/${args.params.providerId}/*` // fan-out via `/*` prefix
+  ]
+})
+await deleteAnyProvider({ params: { providerId: clickedId } })
+
+// Function-form refresh (keys depend on args or server response)
+const { trigger: deleteMessage } = useMutation('DELETE', '/messages/:messageId', {
+  refresh: ({ args }) => [`/topics/${args.body.topicId}/tree`]
+})
 ```
+
+**When to use template path vs `providerPath(id)`:** use template when a single hook instance handles multiple ids (sidebar delete, command palette). Use concrete path when the id is stable (component props). See `docs/references/data/api-design-guidelines.md#template-path-vs-hook-binding`.
 
 ### useInfiniteQuery (Cursor-based Infinite Scroll)
 

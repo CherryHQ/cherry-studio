@@ -109,6 +109,11 @@ export default defineConfig({
       // packages/ui 单元测试配置
       {
         extends: true,
+        resolve: {
+          alias: {
+            '@cherrystudio/ui': resolve(__dirname, 'packages/ui/src')
+          }
+        },
         test: {
           name: 'ui',
           environment: 'node',

@@ -1,3 +1,14 @@
+import type { IconComponent } from '@cherrystudio/ui/icons'
+import {
+  ClaudeCode,
+  GeminiCli,
+  GithubCopilotCli,
+  IflowCli,
+  KimiCli,
+  OpenaiCodex,
+  OpenCode,
+  QwenCode
+} from '@cherrystudio/ui/icons'
 import { getThinkingBudget } from '@renderer/aiCore/utils/reasoning'
 import {
   isReasoningModel,
@@ -27,17 +38,16 @@ export interface ToolEnvironmentConfig {
   }
 }
 
-// CLI 工具选项
 export const CLI_TOOLS = [
-  { value: codeCLI.claudeCode, label: 'Claude Code' },
-  { value: codeCLI.qwenCode, label: 'Qwen Code' },
-  { value: codeCLI.geminiCli, label: 'Gemini CLI' },
-  { value: codeCLI.openaiCodex, label: 'OpenAI Codex' },
-  { value: codeCLI.iFlowCli, label: 'iFlow CLI' },
-  { value: codeCLI.githubCopilotCli, label: 'GitHub Copilot CLI' },
-  { value: codeCLI.kimiCli, label: 'Kimi CLI' },
-  { value: codeCLI.openCode, label: 'OpenCode' }
-]
+  { value: codeCLI.claudeCode, label: 'Claude Code', icon: ClaudeCode },
+  { value: codeCLI.qwenCode, label: 'Qwen Code', icon: QwenCode },
+  { value: codeCLI.geminiCli, label: 'Gemini CLI', icon: GeminiCli },
+  { value: codeCLI.openaiCodex, label: 'OpenAI Codex', icon: OpenaiCodex },
+  { value: codeCLI.iFlowCli, label: 'iFlow CLI', icon: IflowCli },
+  { value: codeCLI.githubCopilotCli, label: 'GitHub Copilot CLI', icon: GithubCopilotCli },
+  { value: codeCLI.kimiCli, label: 'Kimi CLI', icon: KimiCli },
+  { value: codeCLI.openCode, label: 'OpenCode', icon: OpenCode }
+] as const satisfies ReadonlyArray<{ value: codeCLI; label: string; icon: IconComponent }>
 
 export const GEMINI_SUPPORTED_PROVIDERS = ['aihubmix', 'dmxapi', 'new-api', 'cherryin']
 
