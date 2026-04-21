@@ -13,7 +13,7 @@ import { createGroq, type GroqProviderSettings } from '@ai-sdk/groq'
 import { createHuggingFace, type HuggingFaceProviderSettings } from '@ai-sdk/huggingface'
 import { createMistral, type MistralProviderSettings } from '@ai-sdk/mistral'
 import { createPerplexity, type PerplexityProviderSettings } from '@ai-sdk/perplexity'
-import type { ProviderV3 } from '@ai-sdk/provider'
+import { type ProviderV3 } from '@ai-sdk/provider'
 import { createTogetherAI, type TogetherAIProviderSettings } from '@ai-sdk/togetherai'
 import { ProviderExtension, type ProviderExtensionConfig } from '@cherrystudio/ai-core/provider'
 import {
@@ -21,12 +21,14 @@ import {
   type GitHubCopilotProviderSettings
 } from '@opeoginni/github-copilot-openai-compatible'
 import { SystemProviderIds } from '@types'
+import { createPoe, type PoeProviderSettings } from 'ai-sdk-provider-poe'
 import type { OllamaProviderSettings } from 'ollama-ai-provider-v2'
 import { createOllama } from 'ollama-ai-provider-v2'
 import { createVoyage, type VoyageProviderSettings } from 'voyage-ai-provider'
 
 import { type AihubmixProviderSettings, createAihubmix } from '../custom/aihubmix-provider'
 import { createNewApi, type NewApiProviderSettings } from '../custom/newapi-provider'
+import { adaptPoeProvider, getPoeWebSearchPatch } from './poe'
 
 /**
  * Google Vertex AI Extension
@@ -117,6 +119,19 @@ export const PerplexityExtension = ProviderExtension.create({
   supportsImageGeneration: false,
   create: createPerplexity
 } as const satisfies ProviderExtensionConfig<PerplexityProviderSettings, ProviderV3, 'perplexity'>)
+
+/**
+ * Poe Extension
+ */
+export const PoeExtension = ProviderExtension.create({
+  name: 'poe',
+  aliases: [SystemProviderIds.poe] as const,
+  supportsImageGeneration: false,
+  create: (options?: PoeProviderSettings) => adaptPoeProvider(createPoe(options)),
+  toolFactories: {
+    webSearch: () => getPoeWebSearchPatch
+  }
+} as const satisfies ProviderExtensionConfig<PoeProviderSettings, ProviderV3, 'poe'>)
 
 /**
  * Mistral Extension
@@ -222,6 +237,7 @@ export const extensions = [
   GitHubCopilotExtension,
   BedrockExtension,
   PerplexityExtension,
+  PoeExtension,
   MistralExtension,
   HuggingFaceExtension,
   GatewayExtension,

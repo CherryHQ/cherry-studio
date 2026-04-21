@@ -36,15 +36,17 @@ import {
   SystemProviderIds
 } from '@renderer/types'
 import { type AiSdkParam, isAiSdkParam, type OpenAIVerbosity } from '@renderer/types/aiCoreTypes'
+import { getLowerBaseModelName } from '@renderer/utils'
 import { isSupportServiceTierProvider, isSupportVerbosityProvider } from '@renderer/utils/provider'
 import type { JSONValue } from 'ai'
+import type { PoeScopedProviderOptions } from 'ai-sdk-provider-poe'
+import { getModel as getPoeModel } from 'ai-sdk-provider-poe/code'
 import { t } from 'i18next'
 import { merge } from 'lodash'
 import type { OllamaProviderOptions } from 'ollama-ai-provider-v2'
 
 import { addAnthropicHeaders } from '../prepareParams/header'
 import { getAiSdkProviderId } from '../provider/factory'
-import type { ProviderCapabilities } from '../types'
 import { buildGeminiGenerateImageParams } from './image'
 import {
   getAnthropicReasoningParams,
@@ -59,6 +61,54 @@ import {
 import { getWebSearchParams } from './websearch'
 
 const logger = loggerService.withContext('aiCore.utils.options')
+
+type ProviderOptionCapabilities = {
+  enableReasoning: boolean
+  enableWebSearch: boolean
+  enableGenerateImage: boolean
+}
+
+function getPoeRawModelId(model: Model): string {
+  return getLowerBaseModelName(model.id)
+}
+
+function resolvePoeDownstreamProviderId(model: Model): 'anthropic' | 'openai' {
+  const endpoint = getPoeModel(getPoeRawModelId(model))?.supportedEndpoints?.[0]
+
+  return endpoint === '/v1/messages' ? 'anthropic' : 'openai'
+}
+
+function normalizePoeScopedCustomParams(params: Record<string, any>): {
+  scopedOptions: PoeScopedProviderOptions
+  downstreamOptions: Record<string, any>
+} {
+  const scopedOptions: PoeScopedProviderOptions = {}
+  const downstreamOptions: Record<string, any> = {}
+
+  for (const [optionKey, optionValue] of Object.entries(params)) {
+    switch (optionKey) {
+      case 'reasoningBudgetTokens':
+        scopedOptions.reasoningBudgetTokens = optionValue as number
+        break
+      case 'reasoningEffort':
+        scopedOptions.reasoningEffort = optionValue as string
+        break
+      case 'reasoningSummary':
+        scopedOptions.reasoningSummary = optionValue as string
+        break
+      case 'cache':
+        scopedOptions.cache = optionValue as boolean
+        break
+      default:
+        downstreamOptions[optionKey] = optionValue
+    }
+  }
+
+  return {
+    scopedOptions,
+    downstreamOptions
+  }
+}
 
 function toOpenAIServiceTier(model: Model, serviceTier: ServiceTier): OpenAIServiceTier {
   if (
@@ -155,7 +205,7 @@ export function buildProviderOptions(
   assistant: Assistant,
   model: Model,
   actualProvider: Provider,
-  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
+  capabilities: ProviderOptionCapabilities
 ): {
   providerOptions: Record<string, Record<string, JSONValue>>
   standardParams: Partial<Record<AiSdkParam, any>>
@@ -166,6 +216,8 @@ export function buildProviderOptions(
   let providerSpecificOptions: Record<string, any> = {}
   const serviceTier = getServiceTier(model, actualProvider)
   const textVerbosity = getVerbosity(model)
+  const poeDownstreamProviderId =
+    rawProviderId === SystemProviderIds.poe ? resolvePoeDownstreamProviderId(model) : undefined
 
   // 根据 provider ID 构建特定选项
   switch (rawProviderId) {
@@ -210,6 +262,9 @@ export function buildProviderOptions(
     case SystemProviderIds.gateway:
       providerSpecificOptions = buildAIGatewayOptions(assistant, model, capabilities, serviceTier, textVerbosity)
       break
+    case SystemProviderIds.poe:
+      providerSpecificOptions = buildPoeProviderOptions(assistant, model, capabilities)
+      break
     case 'deepseek':
     case 'openrouter':
     case 'openai-compatible':
@@ -241,7 +296,8 @@ export function buildProviderOptions(
    * For regular providers, this will be the provider itself
    */
   const actualAiSdkProviderIds = Object.keys(providerSpecificOptions)
-  const primaryAiSdkProviderId = actualAiSdkProviderIds[0] // Use the first one as primary for non-scoped params
+  const primaryAiSdkProviderId =
+    (rawProviderId === SystemProviderIds.poe ? poeDownstreamProviderId : undefined) ?? actualAiSdkProviderIds[0]
 
   // For openai-compatible providers, auto-convert reasoning_effort (snake_case) to reasoningEffort (camelCase).
   // The AI SDK's openai-compatible provider overwrites reasoning_effort to undefined,
@@ -269,6 +325,40 @@ export function buildProviderOptions(
    * - User writes `customKey: 'val'` → merged to `google: { customKey: 'val' }` (case 3)
    */
   for (const key of Object.keys(providerParams)) {
+    if (rawProviderId === SystemProviderIds.poe && key === SystemProviderIds.poe) {
+      const { scopedOptions, downstreamOptions } = normalizePoeScopedCustomParams(providerParams[key] ?? {})
+
+      providerSpecificOptions = {
+        ...providerSpecificOptions,
+        poe: {
+          ...providerSpecificOptions.poe,
+          ...scopedOptions
+        }
+      }
+
+      if (Object.keys(downstreamOptions).length > 0) {
+        providerSpecificOptions = {
+          ...providerSpecificOptions,
+          [primaryAiSdkProviderId]: {
+            ...providerSpecificOptions[primaryAiSdkProviderId],
+            ...downstreamOptions
+          }
+        }
+      }
+      continue
+    }
+
+    if (rawProviderId === SystemProviderIds.poe && (key === 'openai' || key === 'anthropic')) {
+      providerSpecificOptions = {
+        ...providerSpecificOptions,
+        [key]: {
+          ...providerSpecificOptions[key],
+          ...providerParams[key]
+        }
+      }
+      continue
+    }
+
     if (actualAiSdkProviderIds.includes(key)) {
       // Case 1: Key is an actual AI SDK provider ID - merge directly
       providerSpecificOptions = {
@@ -326,7 +416,7 @@ export function buildProviderOptions(
 function buildOpenAIProviderOptions(
   assistant: Assistant,
   model: Model,
-  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>,
+  capabilities: ProviderOptionCapabilities,
   serviceTier: OpenAIServiceTier,
   textVerbosity?: OpenAIVerbosity
 ): Record<string, OpenAIResponsesProviderOptions> {
@@ -386,7 +476,7 @@ function buildOpenAIProviderOptions(
 function buildAnthropicProviderOptions(
   assistant: Assistant,
   model: Model,
-  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
+  capabilities: ProviderOptionCapabilities
 ): Record<string, AnthropicProviderOptions> {
   const { enableReasoning } = capabilities
   let providerOptions: AnthropicProviderOptions = {}
@@ -413,7 +503,7 @@ function buildAnthropicProviderOptions(
 function buildGeminiProviderOptions(
   assistant: Assistant,
   model: Model,
-  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
+  capabilities: ProviderOptionCapabilities
 ): Record<string, GoogleGenerativeAIProviderOptions> {
   const { enableReasoning, enableGenerateImage } = capabilities
   let providerOptions: GoogleGenerativeAIProviderOptions = {}
@@ -444,7 +534,7 @@ function buildGeminiProviderOptions(
 function buildXAIProviderOptions(
   assistant: Assistant,
   model: Model,
-  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
+  capabilities: ProviderOptionCapabilities
 ): Record<string, XaiProviderOptions> {
   const { enableReasoning } = capabilities
   let providerOptions: Record<string, any> = {}
@@ -464,10 +554,51 @@ function buildXAIProviderOptions(
   }
 }
 
+function buildPoeProviderOptions(
+  assistant: Assistant,
+  model: Model,
+  capabilities: ProviderOptionCapabilities
+): Record<'poe', PoeScopedProviderOptions> {
+  const { enableReasoning } = capabilities
+  const providerOptions: PoeScopedProviderOptions = {}
+
+  if (enableReasoning) {
+    if (isAnthropicModel(model)) {
+      const reasoningParams = getAnthropicReasoningParams(assistant, model)
+      const budgetTokens =
+        reasoningParams.thinking?.type === 'enabled' ? reasoningParams.thinking.budgetTokens : undefined
+
+      if (typeof budgetTokens === 'number') {
+        providerOptions.reasoningBudgetTokens = budgetTokens
+      }
+    } else if (isOpenAIModel(model)) {
+      const reasoningParams = getOpenAIReasoningParams(assistant, model)
+
+      if (typeof reasoningParams.reasoningEffort === 'string') {
+        providerOptions.reasoningEffort = reasoningParams.reasoningEffort
+      }
+
+      if (typeof reasoningParams.reasoningSummary === 'string') {
+        providerOptions.reasoningSummary = reasoningParams.reasoningSummary
+      }
+    } else if (isGrokModel(model)) {
+      const reasoningParams = getXAIReasoningParams(assistant, model)
+
+      if (typeof reasoningParams.reasoningEffort === 'string') {
+        providerOptions.reasoningEffort = reasoningParams.reasoningEffort
+      }
+    }
+  }
+
+  return {
+    poe: providerOptions
+  }
+}
+
 function buildCherryInProviderOptions(
   assistant: Assistant,
   model: Model,
-  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>,
+  capabilities: ProviderOptionCapabilities,
   actualProvider: Provider,
   serviceTier: OpenAIServiceTier,
   textVerbosity: OpenAIVerbosity
@@ -493,7 +624,7 @@ function buildCherryInProviderOptions(
 function buildBedrockProviderOptions(
   assistant: Assistant,
   model: Model,
-  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
+  capabilities: ProviderOptionCapabilities
 ): Record<string, BedrockProviderOptions> {
   const { enableReasoning } = capabilities
   let providerOptions: BedrockProviderOptions = {}
@@ -519,7 +650,7 @@ function buildBedrockProviderOptions(
 function buildOllamaProviderOptions(
   assistant: Assistant,
   model: Model,
-  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
+  capabilities: ProviderOptionCapabilities
 ): Record<string, OllamaProviderOptions> {
   const { enableReasoning } = capabilities
   let options = {}
@@ -541,7 +672,7 @@ function buildGenericProviderOptions(
   providerId: string,
   assistant: Assistant,
   model: Model,
-  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
+  capabilities: ProviderOptionCapabilities
 ): Record<string, any> {
   const { enableWebSearch } = capabilities
   let providerOptions: Record<string, any> = {}
@@ -583,7 +714,7 @@ function buildGenericProviderOptions(
 function buildAIGatewayOptions(
   assistant: Assistant,
   model: Model,
-  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>,
+  capabilities: ProviderOptionCapabilities,
   serviceTier: OpenAIServiceTier,
   textVerbosity?: OpenAIVerbosity
 ): Record<

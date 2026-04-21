@@ -1,9 +1,9 @@
 import type { WebSearchPluginConfig } from '@cherrystudio/ai-core/core/plugins/built-in/webSearchPlugin'
-import type { AppProviderId } from '@renderer/aiCore/types'
 import { isOpenAIDeepResearchModel, isOpenAIWebSearchChatCompletionOnlyModel } from '@renderer/config/models'
 import type { CherryWebSearchConfig } from '@renderer/store/websearch'
 import type { Model } from '@renderer/types'
 import { mapRegexToPatterns } from '@renderer/utils/blacklistMatchPattern'
+import { getModel as getPoeModel } from 'ai-sdk-provider-poe/code'
 
 export function getWebSearchParams(model: Model): Record<string, any> {
   if (model.provider === 'hunyuan') {
@@ -15,15 +15,6 @@ export function getWebSearchParams(model: Model): Record<string, any> {
       enable_search: true,
       search_options: {
         forced_search: true
-      }
-    }
-  }
-
-  // https://creator.poe.com/docs/external-applications/openai-compatible-api#using-custom-parameters-with-extra_body
-  if (model.provider === 'poe') {
-    return {
-      extra_body: {
-        web_search: true
       }
     }
   }
@@ -48,8 +39,22 @@ function mapMaxResultToOpenAIContextSize(
   return 'high'
 }
 
+function resolvePoeWebSearchProviderId(model: Model): 'anthropic' | 'openai' | 'openai-chat' {
+  const endpoint = getPoeModel(model.id)?.supportedEndpoints?.[0]
+
+  if (endpoint === '/v1/messages') {
+    return 'anthropic'
+  }
+
+  if (endpoint === '/v1/chat/completions') {
+    return 'openai-chat'
+  }
+
+  return 'openai'
+}
+
 export function buildProviderBuiltinWebSearchConfig(
-  providerId: AppProviderId,
+  providerId: string,
   webSearchConfig: CherryWebSearchConfig,
   model?: Model
 ): WebSearchPluginConfig | undefined {
@@ -117,6 +122,19 @@ export function buildProviderBuiltinWebSearchConfig(
       const _providerId =
         { 'openai-response': 'openai', openai: 'openai-chat' }[model?.endpoint_type ?? ''] ?? model?.endpoint_type
       return buildProviderBuiltinWebSearchConfig(_providerId, webSearchConfig, model)
+    }
+    case 'poe': {
+      if (!model) {
+        return {}
+      }
+
+      const downstreamProviderId = resolvePoeWebSearchProviderId(model)
+      return {
+        poe: {
+          downstreamProviderId,
+          ...buildProviderBuiltinWebSearchConfig(downstreamProviderId, webSearchConfig, model)
+        }
+      } as WebSearchPluginConfig
     }
     default: {
       return {}
