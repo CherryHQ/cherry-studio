@@ -1375,6 +1375,13 @@
         "tip": "Standardwert ist 1. Je kleiner der Wert, desto monotoner und leichter verständlich ist der KI-generierte Inhalt; je größer der Wert, desto größer ist der Wortschatzbereich der KI-Antwort und desto vielfältiger"
       }
     },
+    "sideQuestion": {
+      "count": "Nachfrage(n)",
+      "empty": "Nachfragen stellen, ohne den Sitzungskontext zu verwenden",
+      "help": "Nebenfrage ist ein unabhängiges Frage-Antwort-Fenster, das den Kontext der aktuellen Agent-Sitzung nicht belegt. Sie können jederzeit zusätzliche Fragen zu einer Nachricht stellen, ohne das Hauptgespräch zu beeinflussen.",
+      "placeholder": "Frage eingeben...",
+      "title": "Nebenfrage"
+    },
     "suggestions": {
       "title": "Vorgeschlagene Fragen"
     },

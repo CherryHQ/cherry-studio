@@ -1375,6 +1375,13 @@
         "tip": "Valoarea implicită este 1; cu cât valoarea este mai mică, cu atât mai puțină varietate în răspunsuri și mai ușor de înțeles; cu cât valoarea este mai mare, cu atât gama de vocabular a AI-ului este mai largă și mai diversă"
       }
     },
+    "sideQuestion": {
+      "count": "întrebare(-ări)",
+      "empty": "Pune întrebări suplimentare fără a folosi contextul sesiunii",
+      "help": "Întrebarea Laterală este o fereastră independentă de întrebări și răspunsuri care nu consumă contextul sesiunii curente a Agentului. Poți pune liber întrebări suplimentare despre orice mesaj fără a afecta conversația principală.",
+      "placeholder": "Scrie întrebarea ta...",
+      "title": "Întrebare Laterală"
+    },
     "suggestions": {
       "title": "Întrebări sugerate"
     },

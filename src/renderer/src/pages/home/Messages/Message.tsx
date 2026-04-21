@@ -7,6 +7,7 @@ import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
 import { useModel } from '@renderer/hooks/useModel'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { hasThread } from '@renderer/hooks/useSideQuestion'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageModelId } from '@renderer/services/MessagesService'
@@ -29,6 +30,7 @@ import MessageErrorBoundary from './MessageErrorBoundary'
 import MessageHeader from './MessageHeader'
 import MessageMenubar from './MessageMenubar'
 import MessageOutline from './MessageOutline'
+import SideQuestionIndicator from './SideQuestionIndicator'
 
 interface Props {
   message: Message
@@ -228,6 +230,7 @@ const MessageItem: FC<Props> = ({
                 <MessageContent message={message} />
               </MessageErrorBoundary>
             </MessageContentContainer>
+            {hasThread(message.id) && <SideQuestionIndicator message={message} />}
             {showMenubar && (
               <MessageFooter className="MessageFooter">
                 <HorizontalScrollContainer
