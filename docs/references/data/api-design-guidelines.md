@@ -443,3 +443,37 @@ Routing non-data operations through DataApi causes concrete problems:
 - **SWR caching is meaningless for commands**: `useQuery` caches and deduplicates responses. Caching the result of "open window" or "start backup" has no value and can mask failures.
 - **Layered architecture becomes hollow**: Handler → Service → SQLite is designed for data flow. Without a database layer, the Service layer becomes a pass-through wrapper with no purpose.
 - **Test patterns don't match**: DataApi tests mock database operations (Drizzle queries, transactions). Side-effectful operations need entirely different test strategies (mocking external services, verifying calls).
+
+## Template Path vs Hook Binding
+
+The data hooks (`useQuery`, `useMutation`, `useInfiniteQuery`, `usePaginatedQuery`) accept two equivalent ways to supply path parameters. They produce byte-for-byte identical SWR cache keys, but suit different call-site shapes.
+
+| Form | Use when |
+|---|---|
+| Concrete path — `useQuery(providerPath(id))` | The id is stable in the caller's scope (props, hook arg, closed over in a single component) |
+| Template path — `useQuery('/providers/:providerId', { params: { providerId: id } })` | One hook instance operates on multiple ids over its lifetime (sidebar actions, command palette, URL handlers) |
+
+Pick based on **where the id comes from**, not personal preference:
+
+- `<ProviderSettings providerId={id}>` — id is stable → concrete path (`providerPath(id)`). Template form would add typing noise (`params` on every trigger) without benefit.
+- `useProviderActions()` hook exposing `deleteProviderById(id)` — id varies per call → template path. The alternative would be dropping back to imperative `dataApiService.delete(...)` and hand-rolling `invalidate(...)`, which loses `isLoading` / declarative refresh / optimistic rollback.
+
+Don't mix both forms for the same resource inside one module — although cache keys are identical, readers have to hold two mental models. Pick one and stay consistent.
+
+**Concurrent trigger caveat**: a single template `useMutation` instance shares `isMutating`/`error` across all `params`. For true concurrent writes on different ids (e.g., deleting multiple rows in parallel), mount one hook per row bound to a concrete path. See [DataApi in Renderer → Concurrent trigger caveat](./data-api-in-renderer.md#caveat-concurrent-trigger-on-template-usemutation).
+
+## Matcher Semantics: Cache vs DataApi
+
+Cherry Studio has two cache layers with different key shapes and different invalidation matchers. They look similar but **are not interchangeable**:
+
+| Layer | Key shape | Match syntax | Example |
+|---|---|---|---|
+| **Cache** (`useCache`, `useSharedCache`) | Arbitrary string with embedded template segments | `${}` interpolation + regex compiled from template | `cacheService.match('user:${userId}:*')` |
+| **DataApi** (`useQuery`, `useMutation` refresh, `useInvalidateCache`) | `[path, query?]` tuple with REST-style paths | Exact string match on `key[0]` with optional `/*` prefix | `refresh: ['/providers', '/providers/*']` |
+
+Why the two differ:
+
+- **Cache keys are caller-defined and free-form**: a cache entry could be `user:123:preferences:theme`. Regex matching makes sense because key structure varies by use case.
+- **DataApi keys mirror REST resource paths**: `['/providers/abc', { limit: 10 }]`. The structure is rigid (it maps to server routes), so a simple exact-or-prefix matcher is enough and more predictable than regex.
+
+**Implication for reviewers**: don't copy a `${}` template from `useCache` into `refresh` options, or vice versa. `refresh: ['/providers/${providerId}/*']` is a bug — the `${}` is left as a literal string, not interpolated. Use template literal backticks (`` `/providers/${providerId}/*` ``) or compute the key in the function-form refresh.
