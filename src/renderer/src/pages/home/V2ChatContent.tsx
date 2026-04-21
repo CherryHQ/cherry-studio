@@ -1,4 +1,4 @@
-import { dataApiService } from '@data/DataApiService'
+import { useMutation } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import { isDev } from '@renderer/config/constant'
@@ -11,6 +11,7 @@ import { useTopicMessagesV2 } from '@renderer/hooks/useTopicMessagesV2'
 import type { Assistant, FileMetadata, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { AssistantMessageStatus } from '@renderer/types/newMessage'
+import { DataApiError, ErrorCode } from '@shared/data/api'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { FC, ReactNode } from 'react'
@@ -211,15 +212,43 @@ const V2ChatContentInner: FC<InnerProps> = ({
     return nextPartsMap
   }, [activeExecutionIds, executionMessagesById, partsMap])
 
-  /** Delete a single message (reparent children to grandparent) and sync UI. */
+  // All message-write hooks share the same refresh target: whichever
+  // `useTopicMessagesV2` instances are currently subscribed to this topic's
+  // branch list. Enumerating a specific key (rather than a `/*` prefix) keeps
+  // cross-window invalidation narrow — we don't want a DELETE on one topic
+  // to revalidate every other topic's message queries.
+  const messagesRefreshKeys = useMemo<`/topics/${string}/messages`[]>(
+    () => [`/topics/${topic.id}/messages`],
+    [topic.id]
+  )
+
+  const { trigger: deleteMessageTrigger } = useMutation('DELETE', '/messages/:id', {
+    refresh: messagesRefreshKeys
+  })
+
+  const { trigger: patchMessageTrigger } = useMutation('PATCH', '/messages/:id', {
+    refresh: messagesRefreshKeys
+  })
+
+  /**
+   * Delete a single message (reparent children to grandparent) and sync UI.
+   *
+   * Two-phase: first try `cascade=false` (reparent). The server signals with
+   * `INVALID_OPERATION` when the message has descendants the server can't
+   * safely reparent (e.g. a sibling multi-model group), and the UX contract
+   * is to fall back to a cascading delete. That retry is hard to express via
+   * `useMutation`'s single-trigger model, so we orchestrate it ourselves and
+   * lean on the hook only for the per-call refresh + refresh-failure
+   * isolation semantics.
+   */
   const handleDeleteMessage = useCallback(
     async (id: string) => {
       try {
-        await dataApiService.delete(`/messages/${id}`, { query: { cascade: false } })
+        await deleteMessageTrigger({ params: { id }, query: { cascade: false } })
         setMessages((msgs) => msgs.filter((m) => m.id !== id))
       } catch (err: unknown) {
-        if (err && typeof err === 'object' && 'code' in err && err.code === 'INVALID_OPERATION') {
-          const result = await dataApiService.delete(`/messages/${id}`, { query: { cascade: true } })
+        if (err instanceof DataApiError && err.code === ErrorCode.INVALID_OPERATION) {
+          const result = await deleteMessageTrigger({ params: { id }, query: { cascade: true } })
           const deletedSet = new Set(result.deletedIds)
           setMessages((msgs) => msgs.filter((m) => !deletedSet.has(m.id)))
         } else {
@@ -227,45 +256,41 @@ const V2ChatContentInner: FC<InnerProps> = ({
         }
       }
       logger.info('Deleted message', { id })
-      await refresh()
     },
-    [refresh, setMessages]
+    [deleteMessageTrigger, setMessages]
   )
 
   /** Delete a message and all descendants (cascade) and sync UI. */
   const handleDeleteMessageGroup = useCallback(
     async (id: string) => {
-      const result = await dataApiService.delete(`/messages/${id}`, { query: { cascade: true } })
+      const result = await deleteMessageTrigger({ params: { id }, query: { cascade: true } })
       const deletedSet = new Set(result.deletedIds)
       setMessages((msgs) => msgs.filter((m) => !deletedSet.has(m.id)))
       logger.info('Deleted message group', { id, count: result.deletedIds.length })
-      await refresh()
     },
-    [refresh, setMessages]
+    [deleteMessageTrigger, setMessages]
   )
 
   /** Clear all messages for the current topic from DataApi and UI. */
   const handleClearTopicMessages = useCallback(async () => {
     const rootMsg = adaptedMessages.find((m: Message) => !m.askId)
     if (rootMsg) {
-      await dataApiService.delete(`/messages/${rootMsg.id}`, { query: { cascade: true } })
+      await deleteMessageTrigger({ params: { id: rootMsg.id }, query: { cascade: true } })
       logger.info('Cleared all messages via root cascade delete', { topicId: topic.id, rootId: rootMsg.id })
     }
     setMessages([])
-    await refresh()
-  }, [adaptedMessages, refresh, setMessages, topic.id])
+  }, [adaptedMessages, deleteMessageTrigger, setMessages, topic.id])
 
   /** Edit a message's parts directly and persist to DataApi. */
   const handleEditMessage = useCallback(
     async (messageId: string, editedParts: CherryMessagePart[]) => {
-      await dataApiService.patch(`/messages/${messageId}`, { body: { data: { parts: editedParts } } })
+      await patchMessageTrigger({ params: { id: messageId }, body: { data: { parts: editedParts } } })
       logger.info('Edited message', { messageId, partCount: editedParts.length })
       setMessages((msgs) =>
         msgs.map((m) => (m.id === messageId ? { ...m, parts: editedParts as CherryUIMessage['parts'] } : m))
       )
-      await refresh()
     },
-    [refresh, setMessages]
+    [patchMessageTrigger, setMessages]
   )
 
   /** Synchronous capability flags derived from assistant config. */
