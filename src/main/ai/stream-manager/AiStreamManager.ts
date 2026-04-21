@@ -2,7 +2,6 @@ import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
-import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 import type {
   AiStreamAbortRequest,
   AiStreamAttachRequest,
@@ -13,6 +12,7 @@ import type {
   TopicStatusSnapshotEntry,
   TopicStreamStatus
 } from '@shared/ai/transport'
+import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 import type { Message } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -573,15 +573,9 @@ export class AiStreamManager extends BaseService {
    * pre-refactor "fulfilled flag sticks until the user sees it" behaviour.
    */
   private broadcastTopicStatus(topicId: string, status: TopicStreamStatus): void {
-    const windowService = application.get('WindowService')
-    const windows = windowService.getAllWindows()
     const activeExecutionIds = this.collectActiveExecutionIds(topicId)
     const payload: TopicStatusChangedPayload = { topicId, status, activeExecutionIds }
-    for (const window of windows) {
-      const wc = window.webContents
-      if (wc.isDestroyed()) continue
-      wc.send(IpcChannel.Ai_TopicStatusChanged, payload)
-    }
+    application.get('WindowManager').broadcast(IpcChannel.Ai_TopicStatusChanged, payload)
   }
 
   /**

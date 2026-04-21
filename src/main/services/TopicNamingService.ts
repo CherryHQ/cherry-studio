@@ -278,24 +278,11 @@ export class TopicNamingService {
   }
 
   private broadcastTopicUpdated(topic: Topic): void {
-    const windowService = application.get('WindowService')
-    const windows = typeof windowService.getAllWindows === 'function' ? windowService.getAllWindows() : []
-    for (const window of windows) {
-      const wc = window.webContents
-      if (wc.isDestroyed()) continue
-      wc.send(IpcChannel.Topic_Updated, topic)
-    }
+    application.get('WindowManager').broadcast(IpcChannel.Topic_Updated, topic)
   }
 
   private broadcastAgentSessionUpdated(sessionId: string, agentId: string, name: string): void {
-    const windowService = application.get('WindowService')
-    const windows = typeof windowService.getAllWindows === 'function' ? windowService.getAllWindows() : []
-    const payload = { sessionId, agentId, name }
-    for (const window of windows) {
-      const wc = window.webContents
-      if (wc.isDestroyed()) continue
-      wc.send(IpcChannel.AgentSession_Updated, payload)
-    }
+    application.get('WindowManager').broadcast(IpcChannel.AgentSession_Updated, { sessionId, agentId, name })
   }
 }
 

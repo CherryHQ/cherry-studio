@@ -95,16 +95,23 @@ const mockStreamText = vi.fn<(request: AiStreamRequest) => Promise<ReadableStrea
 )
 
 /**
- * Fake WindowService used by broadcast-path tests. Tests push real-ish
- * `{ webContents: { send } }` shapes via `fakeWindows.push(...)`; the
- * manager's `broadcastTopicStatus` helper will walk this list and
- * call `send` on each.
+ * Fake WindowManager used by broadcast-path tests. Tests push real-ish
+ * `{ webContents: { send } }` shapes via `makeFakeWindow()`; the manager's
+ * `broadcastTopicStatus` helper now goes through `WindowManager.broadcast`,
+ * so the mock mirrors that call path by iterating the registered windows.
  */
 const fakeWindows: Array<{ webContents: { isDestroyed: () => boolean; send: ReturnType<typeof vi.fn> } }> = []
-const fakeWindowService = {
-  getMainWindow: vi.fn(() => null),
+const fakeWindowManager = {
+  broadcast: vi.fn((channel: string, ...args: unknown[]) => {
+    for (const window of fakeWindows) {
+      if (!window.webContents.isDestroyed()) {
+        window.webContents.send(channel, ...args)
+      }
+    }
+  }),
+  broadcastToType: vi.fn(),
   getAllWindows: vi.fn(() => fakeWindows),
-  showMainWindow: vi.fn()
+  getWindowsByType: vi.fn(() => [])
 }
 
 function makeFakeWindow() {
@@ -116,7 +123,15 @@ function makeFakeWindow() {
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({ AiService: { streamText: mockStreamText }, WindowService: fakeWindowService })
+  // `AiService` is not in the shared `ServiceOverrides` union (which only
+  // enumerates the minimal set of mocked core services). Cast to widen —
+  // AiStreamManager reaches for `application.get('AiService')` at runtime,
+  // and the mock factory's lookup is keyed by string so the extra entry
+  // is wired up regardless of the type.
+  return mockApplicationFactory({
+    AiService: { streamText: mockStreamText },
+    WindowManager: fakeWindowManager
+  } as Parameters<typeof mockApplicationFactory>[0])
 })
 
 // ── Import after mocks ──────────────────────────────────────────────
