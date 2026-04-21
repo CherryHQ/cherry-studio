@@ -11,6 +11,7 @@ import {
 } from '@data/db/schemas/agentTask'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import { loggerService } from '@logger'
+import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateTaskRequest, ListOptions, ScheduledTaskEntity, TaskRunLogEntity, UpdateTaskRequest } from '@types'
 import { CronExpressionParser } from 'cron-parser'
 import { and, asc, count, desc, eq, inArray, lte, ne } from 'drizzle-orm'
@@ -64,7 +65,7 @@ export class TaskService {
   private async getTaskWithChannels(taskId: string): Promise<ScheduledTaskEntity> {
     const database = application.get('DbService').getDb()
     const result = await database.select().from(scheduledTasksTable).where(eq(scheduledTasksTable.id, taskId)).limit(1)
-    if (!result[0]) throw new Error('Task not found')
+    if (!result[0]) throw DataApiErrorFactory.notFound('Task', taskId)
     return this.enrichWithChannels(result[0])
   }
 
@@ -496,7 +497,7 @@ export class TaskService {
       .limit(1)
 
     if (!row) {
-      throw new Error(`Agent not found: ${agentId}`)
+      throw DataApiErrorFactory.notFound('Agent', agentId)
     }
 
     const config: Record<string, unknown> = row.configuration ?? {}

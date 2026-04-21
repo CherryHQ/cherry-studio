@@ -11,6 +11,7 @@ import {
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import { loggerService } from '@logger'
 import { parsePluginMetadata } from '@main/utils/markdownParser'
+import { DataApiErrorFactory } from '@shared/data/api'
 import {
   AgentBaseSchema,
   type AgentEntity,
@@ -127,7 +128,7 @@ export class SessionService {
       .where(and(eq(agentsTable.id, agentId), isNull(agentsTable.deletedAt)))
       .limit(1)
     if (!agents[0]) {
-      throw new Error('Agent not found')
+      throw DataApiErrorFactory.notFound('Agent', agentId)
     }
     const agent = deserializeJsonFields(agents[0]) as AgentEntity
 
