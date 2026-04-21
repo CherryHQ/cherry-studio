@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { WindowType } from '@main/core/window/types'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
 import type {
   AiStreamAbortRequest,
@@ -575,7 +576,12 @@ export class AiStreamManager extends BaseService {
   private broadcastTopicStatus(topicId: string, status: TopicStreamStatus): void {
     const activeExecutionIds = this.collectActiveExecutionIds(topicId)
     const payload: TopicStatusChangedPayload = { topicId, status, activeExecutionIds }
-    application.get('WindowManager').broadcast(IpcChannel.Ai_TopicStatusChanged, payload)
+    // `Ai_TopicStatusChanged` is consumed by AppShell's
+    // `useAiStreamTopicCache` and by each `useChatWithHistory` /
+    // `V2ChatContent` instance — all of which mount exclusively inside the
+    // Main window. DetachedTab's `DetachedAppShell` doesn't subscribe, and
+    // quick-assistant / selection windows have no chat UI at all.
+    application.get('WindowManager').broadcastToType(WindowType.Main, IpcChannel.Ai_TopicStatusChanged, payload)
   }
 
   /**

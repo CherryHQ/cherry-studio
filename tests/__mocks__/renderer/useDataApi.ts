@@ -290,61 +290,6 @@ export const mockPrefetch = vi.fn(
   }
 )
 
-// ---------------------------------------------------------------------------
-// useReadCache / useWriteCache mock state
-//
-// Both hooks talk to SWR's cache in production. In tests we replace the cache
-// with an in-memory Map keyed by a stable JSON serialization. The serializer
-// mirrors SWR's rule that empty `query` objects collapse to `[path]` so tests
-// can use either `seedCache('/x', v)` or `seedCache('/x', v, {})` and still
-// hit the same key as production code would.
-// ---------------------------------------------------------------------------
-
-const mockCacheStore = new Map<string, unknown>()
-
-function buildMockCacheKey(path: string, query?: Record<string, unknown>): string {
-  const hasQuery = query !== undefined && Object.keys(query).length > 0
-  return hasQuery ? JSON.stringify([path, query]) : JSON.stringify([path])
-}
-
-/**
- * Mock useReadCache hook
- * Matches actual signature: useReadCache() => (path, query?) => TResponse | undefined
- *
- * Returns a reader that reads from the shared mock cache store. Use
- * `MockUseDataApiUtils.seedCache()` to pre-populate values for tests.
- */
-export const mockUseReadCache = vi.fn(() => {
-  return vi.fn(
-    <TResponse = unknown>(
-      path: ConcreteApiPaths | TemplateApiPaths,
-      query?: Record<string, unknown>
-    ): TResponse | undefined => {
-      return mockCacheStore.get(buildMockCacheKey(path as string, query)) as TResponse | undefined
-    }
-  )
-})
-
-/**
- * Mock useWriteCache hook
- * Matches actual signature: useWriteCache() => async (path, value, query?) => void
- *
- * Returns a writer that stores values in the shared mock cache store. The
- * writer's call history is preserved on the returned `vi.fn()`, so tests can
- * assert on it directly via `(writer as Mock).mock.calls`.
- */
-export const mockUseWriteCache = vi.fn(() => {
-  return vi.fn(
-    async <TResponse = unknown>(
-      path: ConcreteApiPaths | TemplateApiPaths,
-      value: TResponse,
-      query?: Record<string, unknown>
-    ): Promise<void> => {
-      mockCacheStore.set(buildMockCacheKey(path as string, query), value)
-    }
-  )
-})
-
 /**
  * Export all mocks as a unified module
  */
@@ -387,7 +332,7 @@ export const MockUseDataApiUtils = {
     value: ResponseForPath<TPath, 'GET'>,
     query?: Record<string, unknown>
   ) => {
-    mockCacheStore.set(buildMockCacheKey(path as string, query), value)
+    mockCacheStore.set(cacheKey(path as string, query), value)
   },
 
   /**
@@ -395,7 +340,7 @@ export const MockUseDataApiUtils = {
    * `useWriteCache` wrote the expected payload).
    */
   getCachedValue: <TResponse = unknown>(path: ApiPath, query?: Record<string, unknown>): TResponse | undefined => {
-    return mockCacheStore.get(buildMockCacheKey(path as string, query)) as TResponse | undefined
+    return mockCacheStore.get(cacheKey(path as string, query)) as TResponse | undefined
   },
 
   /**

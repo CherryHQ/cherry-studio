@@ -4,6 +4,7 @@ import { loggerService } from '@logger'
 import type { AiGenerateRequest } from '@main/ai/AiService'
 import { parseAgentSessionModel } from '@main/ai/provider/claudeCodeSettingsBuilder'
 import { application } from '@main/core/application'
+import { WindowType } from '@main/core/window/types'
 import { messageService } from '@main/data/services/MessageService'
 import { sessionService } from '@main/services/agents'
 import type { Message, MessageData, UIMessage } from '@shared/data/types/message'
@@ -278,11 +279,21 @@ export class TopicNamingService {
   }
 
   private broadcastTopicUpdated(topic: Topic): void {
-    application.get('WindowManager').broadcast(IpcChannel.Topic_Updated, topic)
+    // Topic_Updated is consumed only by `TopViewContainer.useTopicSync`,
+    // which mounts in `Main` (App.tsx) and `DetachedTab` (detachedWindow/
+    // entryPoint.tsx). Quick-assistant and selection-toolbar windows don't
+    // render a topic list, so broadcasting to them would just burn IPC.
+    const wm = application.get('WindowManager')
+    wm.broadcastToType(WindowType.Main, IpcChannel.Topic_Updated, topic)
+    wm.broadcastToType(WindowType.DetachedTab, IpcChannel.Topic_Updated, topic)
   }
 
   private broadcastAgentSessionUpdated(sessionId: string, agentId: string, name: string): void {
-    application.get('WindowManager').broadcast(IpcChannel.AgentSession_Updated, { sessionId, agentId, name })
+    // Same subscriber set as `Topic_Updated` — keep the two calls in sync.
+    const payload = { sessionId, agentId, name }
+    const wm = application.get('WindowManager')
+    wm.broadcastToType(WindowType.Main, IpcChannel.AgentSession_Updated, payload)
+    wm.broadcastToType(WindowType.DetachedTab, IpcChannel.AgentSession_Updated, payload)
   }
 }
 

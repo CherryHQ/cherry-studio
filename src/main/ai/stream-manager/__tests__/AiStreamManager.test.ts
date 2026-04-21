@@ -97,19 +97,25 @@ const mockStreamText = vi.fn<(request: AiStreamRequest) => Promise<ReadableStrea
 /**
  * Fake WindowManager used by broadcast-path tests. Tests push real-ish
  * `{ webContents: { send } }` shapes via `makeFakeWindow()`; the manager's
- * `broadcastTopicStatus` helper now goes through `WindowManager.broadcast`,
- * so the mock mirrors that call path by iterating the registered windows.
+ * `broadcastTopicStatus` helper now goes through
+ * `WindowManager.broadcastToType(WindowType.Main, ...)`, so the mock
+ * treats every registered fake window as a Main-type window and forwards
+ * the send call — the existing tests only care that `send()` lands on
+ * every fake window and don't model the type distinction.
  */
 const fakeWindows: Array<{ webContents: { isDestroyed: () => boolean; send: ReturnType<typeof vi.fn> } }> = []
-const fakeWindowManager = {
-  broadcast: vi.fn((channel: string, ...args: unknown[]) => {
-    for (const window of fakeWindows) {
-      if (!window.webContents.isDestroyed()) {
-        window.webContents.send(channel, ...args)
-      }
+const dispatchToFakeWindows = (channel: string, ...args: unknown[]) => {
+  for (const window of fakeWindows) {
+    if (!window.webContents.isDestroyed()) {
+      window.webContents.send(channel, ...args)
     }
-  }),
-  broadcastToType: vi.fn(),
+  }
+}
+const fakeWindowManager = {
+  broadcast: vi.fn(dispatchToFakeWindows),
+  broadcastToType: vi.fn((_type: unknown, channel: string, ...args: unknown[]) =>
+    dispatchToFakeWindows(channel, ...args)
+  ),
   getAllWindows: vi.fn(() => fakeWindows),
   getWindowsByType: vi.fn(() => [])
 }
