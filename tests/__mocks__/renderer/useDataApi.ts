@@ -1,4 +1,11 @@
-import type { BodyForPath, QueryParamsForPath, ResponseForPath } from '@shared/data/api/apiPaths'
+import type {
+  ApiPath,
+  BodyForPath,
+  ParamsForPath,
+  QueryParamsForPath,
+  ResponseForPath,
+  TemplateApiPaths
+} from '@shared/data/api/apiPaths'
 import type { ConcreteApiPaths, PaginationResponse } from '@shared/data/api/apiTypes'
 import type { KeyedMutator } from 'swr'
 import { vi } from 'vitest'
@@ -9,10 +16,32 @@ import { vi } from 'vitest'
  * Matches the actual interface from src/renderer/src/data/hooks/useDataApi.ts
  */
 
+/** Mirror of ParamsOption from useDataApi so callers can pass `params` on template paths */
+type ParamsOption<TPath extends string, TMethod extends string> = TPath extends TemplateApiPaths
+  ? [ParamsForPath<TPath, TMethod>] extends [never]
+    ? { params?: never }
+    : { params: ParamsForPath<TPath, TMethod> }
+  : { params?: never }
+
+type TriggerArgs<TPath extends ApiPath, TMethod extends 'POST' | 'PUT' | 'DELETE' | 'PATCH'> = ParamsOption<
+  TPath,
+  TMethod
+> & {
+  body?: BodyForPath<TPath, TMethod>
+  query?: QueryParamsForPath<TPath, TMethod>
+}
+
+type RefreshOption<TPath extends ApiPath, TMethod extends 'POST' | 'PUT' | 'DELETE' | 'PATCH'> =
+  | ConcreteApiPaths[]
+  | ((ctx: {
+      args: TriggerArgs<TPath, TMethod> | undefined
+      result: ResponseForPath<TPath, TMethod>
+    }) => ConcreteApiPaths[])
+
 /**
  * Create mock data based on API path
  */
-function createMockDataForPath(path: ConcreteApiPaths): any {
+function createMockDataForPath(path: string): any {
   if (path.includes('/topics')) {
     if (path.endsWith('/topics')) {
       return {
@@ -49,9 +78,9 @@ function createMockDataForPath(path: ConcreteApiPaths): any {
  * Matches actual signature: useQuery(path, options?) => { data, isLoading, isRefreshing, error, refetch, mutate }
  */
 export const mockUseQuery = vi.fn(
-  <TPath extends ConcreteApiPaths>(
+  <TPath extends ApiPath>(
     path: TPath,
-    options?: {
+    options?: ParamsOption<TPath, 'GET'> & {
       query?: QueryParamsForPath<TPath, 'GET'>
       enabled?: boolean
       swrOptions?: any
@@ -76,7 +105,7 @@ export const mockUseQuery = vi.fn(
       }
     }
 
-    const mockData = createMockDataForPath(path)
+    const mockData = createMockDataForPath(path as string)
 
     return {
       data: mockData as ResponseForPath<TPath, 'GET'>,
@@ -94,40 +123,35 @@ export const mockUseQuery = vi.fn(
  * Matches actual signature: useMutation(method, path, options?) => { trigger, isLoading, error }
  */
 export const mockUseMutation = vi.fn(
-  <TPath extends ConcreteApiPaths, TMethod extends 'POST' | 'PUT' | 'DELETE' | 'PATCH'>(
+  <TPath extends ApiPath, TMethod extends 'POST' | 'PUT' | 'DELETE' | 'PATCH'>(
     method: TMethod,
     _path: TPath,
     _options?: {
       onSuccess?: (data: ResponseForPath<TPath, TMethod>) => void
       onError?: (error: Error) => void
-      refresh?: ConcreteApiPaths[]
+      refresh?: RefreshOption<TPath, TMethod>
       optimisticData?: ResponseForPath<TPath, TMethod>
       swrOptions?: any
     }
   ): {
-    trigger: (data?: {
-      body?: BodyForPath<TPath, TMethod>
-      query?: QueryParamsForPath<TPath, TMethod>
-    }) => Promise<ResponseForPath<TPath, TMethod>>
+    trigger: (data?: TriggerArgs<TPath, TMethod>) => Promise<ResponseForPath<TPath, TMethod>>
     isLoading: boolean
     error: Error | undefined
   } => {
-    const mockTrigger = vi.fn(
-      async (_data?: { body?: BodyForPath<TPath, TMethod>; query?: QueryParamsForPath<TPath, TMethod> }) => {
-        // Simulate different responses based on method
-        switch (method) {
-          case 'POST':
-            return { id: 'new_item', created: true } as ResponseForPath<TPath, TMethod>
-          case 'PUT':
-          case 'PATCH':
-            return { id: 'updated_item', updated: true } as ResponseForPath<TPath, TMethod>
-          case 'DELETE':
-            return { deleted: true } as ResponseForPath<TPath, TMethod>
-          default:
-            return { success: true } as ResponseForPath<TPath, TMethod>
-        }
+    const mockTrigger = vi.fn(async (_data?: TriggerArgs<TPath, TMethod>) => {
+      // Simulate different responses based on method
+      switch (method) {
+        case 'POST':
+          return { id: 'new_item', created: true } as ResponseForPath<TPath, TMethod>
+        case 'PUT':
+        case 'PATCH':
+          return { id: 'updated_item', updated: true } as ResponseForPath<TPath, TMethod>
+        case 'DELETE':
+          return { deleted: true } as ResponseForPath<TPath, TMethod>
+        default:
+          return { success: true } as ResponseForPath<TPath, TMethod>
       }
-    )
+    })
 
     return {
       trigger: mockTrigger,
@@ -142,9 +166,9 @@ export const mockUseMutation = vi.fn(
  * Matches actual signature: usePaginatedQuery(path, options?) => { items, total, page, isLoading, isRefreshing, error, hasNext, hasPrev, prevPage, nextPage, refresh, reset }
  */
 export const mockUsePaginatedQuery = vi.fn(
-  <TPath extends ConcreteApiPaths>(
+  <TPath extends ApiPath>(
     path: TPath,
-    _options?: {
+    _options?: ParamsOption<TPath, 'GET'> & {
       query?: Omit<QueryParamsForPath<TPath, 'GET'>, 'page' | 'limit'>
       limit?: number
       swrOptions?: any
@@ -260,7 +284,7 @@ export const MockUseDataApiUtils = {
   /**
    * Set up useQuery to return specific data
    */
-  mockQueryData: <TPath extends ConcreteApiPaths>(path: TPath, data: ResponseForPath<TPath, 'GET'>) => {
+  mockQueryData: <TPath extends ApiPath>(path: TPath, data: ResponseForPath<TPath, 'GET'>) => {
     mockUseQuery.mockImplementation((queryPath, _options) => {
       if (queryPath === path) {
         return {
@@ -273,7 +297,7 @@ export const MockUseDataApiUtils = {
         }
       }
       // Default behavior for other paths
-      const defaultData = createMockDataForPath(queryPath)
+      const defaultData = createMockDataForPath(queryPath as string)
       return {
         data: defaultData,
         isLoading: false,
@@ -288,7 +312,7 @@ export const MockUseDataApiUtils = {
   /**
    * Set up useQuery to return loading state
    */
-  mockQueryLoading: (path: ConcreteApiPaths) => {
+  mockQueryLoading: (path: ApiPath) => {
     mockUseQuery.mockImplementation((queryPath, _options) => {
       if (queryPath === path) {
         return {
@@ -300,7 +324,7 @@ export const MockUseDataApiUtils = {
           mutate: vi.fn().mockResolvedValue(undefined)
         }
       }
-      const defaultData = createMockDataForPath(queryPath)
+      const defaultData = createMockDataForPath(queryPath as string)
       return {
         data: defaultData,
         isLoading: false,
@@ -315,7 +339,7 @@ export const MockUseDataApiUtils = {
   /**
    * Set up useQuery to return error state
    */
-  mockQueryError: (path: ConcreteApiPaths, error: Error) => {
+  mockQueryError: (path: ApiPath, error: Error) => {
     mockUseQuery.mockImplementation((queryPath, _options) => {
       if (queryPath === path) {
         return {
@@ -327,7 +351,7 @@ export const MockUseDataApiUtils = {
           mutate: vi.fn().mockResolvedValue(undefined)
         }
       }
-      const defaultData = createMockDataForPath(queryPath)
+      const defaultData = createMockDataForPath(queryPath as string)
       return {
         data: defaultData,
         isLoading: false,
@@ -342,7 +366,7 @@ export const MockUseDataApiUtils = {
   /**
    * Set up useMutation to simulate success with specific result
    */
-  mockMutationSuccess: <TPath extends ConcreteApiPaths, TMethod extends 'POST' | 'PUT' | 'DELETE' | 'PATCH'>(
+  mockMutationSuccess: <TPath extends ApiPath, TMethod extends 'POST' | 'PUT' | 'DELETE' | 'PATCH'>(
     method: TMethod,
     path: TPath,
     result: ResponseForPath<TPath, TMethod>
@@ -369,7 +393,7 @@ export const MockUseDataApiUtils = {
    */
   mockMutationError: <TMethod extends 'POST' | 'PUT' | 'DELETE' | 'PATCH'>(
     method: TMethod,
-    path: ConcreteApiPaths,
+    path: ApiPath,
     error: Error
   ) => {
     mockUseMutation.mockImplementation((mutationMethod, mutationPath, _options) => {
@@ -392,10 +416,7 @@ export const MockUseDataApiUtils = {
   /**
    * Set up useMutation to be in loading state
    */
-  mockMutationLoading: <TMethod extends 'POST' | 'PUT' | 'DELETE' | 'PATCH'>(
-    method: TMethod,
-    path: ConcreteApiPaths
-  ) => {
+  mockMutationLoading: <TMethod extends 'POST' | 'PUT' | 'DELETE' | 'PATCH'>(method: TMethod, path: ApiPath) => {
     mockUseMutation.mockImplementation((mutationMethod, mutationPath, _options) => {
       if (mutationPath === path && mutationMethod === method) {
         return {
@@ -416,7 +437,7 @@ export const MockUseDataApiUtils = {
   /**
    * Set up usePaginatedQuery to return specific items
    */
-  mockPaginatedData: <TPath extends ConcreteApiPaths>(
+  mockPaginatedData: <TPath extends ApiPath>(
     path: TPath,
     items: any[],
     options?: { total?: number; page?: number; hasNext?: boolean; hasPrev?: boolean }

@@ -312,13 +312,12 @@ interface OldWebSearchProvider {
  *   providers: [
  *     { id: 'tavily', name: 'Tavily', apiKey: 'key1,key2', apiHost: 'https://api.tavily.com' },
  *     { id: 'exa-mcp', name: 'ExaMCP', apiHost: 'https://mcp.exa.ai/mcp' },
- *     { id: 'local-google', name: 'Google', url: 'https://custom.google.proxy/search?q=%s' }
+ *     { id: 'custom-provider', name: 'Custom', apiHost: 'https://custom.example.com/search' }
  *   ]
  * }
  * Output: {
  *   'chat.web_search.provider_overrides': {
- *     tavily: { apiKeys: ['key1', 'key2'] },
- *     'local-google': { apiHost: 'https://custom.google.proxy/search?q=%s' }
+ *     tavily: { apiKeys: ['key1', 'key2'] }
  *   }
  * }
  */

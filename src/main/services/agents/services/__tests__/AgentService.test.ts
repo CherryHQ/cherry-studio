@@ -91,7 +91,7 @@ describe('AgentService built-in agent lifecycle', () => {
   it('skips recreating a built-in agent that was soft-deleted by the user', async () => {
     const database = {
       select: vi.fn(() =>
-        createSelectQuery([{ id: 'cherry-assistant-default', deleted_at: '2026-04-15T00:00:00.000Z' }])
+        createSelectQuery([{ id: 'cherry-assistant-default', deletedAt: '2026-04-15T00:00:00.000Z' }])
       )
     }
 
@@ -133,8 +133,8 @@ describe('AgentService built-in agent lifecycle', () => {
     expect(txUpdateSet).toHaveBeenCalledWith(expect.objectContaining({ agentId: null }))
     expect(txUpdateSet).toHaveBeenCalledWith(
       expect.objectContaining({
-        deleted_at: expect.any(String),
-        updated_at: expect.any(String)
+        deletedAt: expect.any(Number),
+        updatedAt: expect.any(Number)
       })
     )
   })

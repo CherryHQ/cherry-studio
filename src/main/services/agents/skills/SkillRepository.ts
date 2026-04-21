@@ -10,19 +10,10 @@ const logger = loggerService.withContext('SkillRepository')
 /**
  * Database repository for the global `skills` table.
  *
- * All DB access for skills goes through this class.
- * Extends BaseService to reuse DatabaseManager access.
+ * All DB access for skills goes through this class. Extends BaseService
+ * to reuse its database accessor and JSON helpers.
  */
 export class SkillRepository extends BaseService {
-  private static instance: SkillRepository | null = null
-
-  static getInstance(): SkillRepository {
-    if (!SkillRepository.instance) {
-      SkillRepository.instance = new SkillRepository()
-    }
-    return SkillRepository.instance
-  }
-
   async list(): Promise<InstalledSkill[]> {
     const db = await this.getDatabase()
     const rows = await db.select().from(skillsTable)
@@ -37,7 +28,7 @@ export class SkillRepository extends BaseService {
 
   async getByFolderName(folderName: string): Promise<InstalledSkill | null> {
     const db = await this.getDatabase()
-    const rows = await db.select().from(skillsTable).where(eq(skillsTable.folder_name, folderName)).limit(1)
+    const rows = await db.select().from(skillsTable).where(eq(skillsTable.folderName, folderName)).limit(1)
     return rows[0] ? this.rowToInstalledSkill(rows[0]) : null
   }
 
@@ -57,27 +48,26 @@ export class SkillRepository extends BaseService {
     const rows = await db
       .select()
       .from(skillsTable)
-      .where(eq(skillsTable.install_source, normalizedInstallSource))
+      .where(eq(skillsTable.installSource, normalizedInstallSource))
       .limit(1)
     return rows[0] ? this.rowToInstalledSkill(rows[0]) : null
   }
 
   async insert(row: InsertSkillRow): Promise<InstalledSkill> {
     const db = await this.getDatabase()
-    await db.insert(skillsTable).values(row)
+    const [inserted] = await db.insert(skillsTable).values(row).returning()
 
-    const inserted = await db.select().from(skillsTable).where(eq(skillsTable.id, row.id!)).limit(1)
-    if (!inserted[0]) {
+    if (!inserted) {
       throw new Error(`Failed to insert skill: ${row.name}`)
     }
 
-    logger.info('Skill inserted', { id: row.id, name: row.name })
-    return this.rowToInstalledSkill(inserted[0])
+    logger.info('Skill inserted', { id: inserted.id, name: inserted.name })
+    return this.rowToInstalledSkill(inserted)
   }
 
   async toggleEnabled(id: string, isEnabled: boolean): Promise<InstalledSkill | null> {
     const db = await this.getDatabase()
-    await db.update(skillsTable).set({ is_enabled: isEnabled }).where(eq(skillsTable.id, id))
+    await db.update(skillsTable).set({ isEnabled }).where(eq(skillsTable.id, id))
 
     const updated = await db.select().from(skillsTable).where(eq(skillsTable.id, id)).limit(1)
     if (!updated[0]) {
@@ -94,16 +84,16 @@ export class SkillRepository extends BaseService {
       name: string
       description: string | null
       author: string | null
-      tags: string | null
-      content_hash: string
-      install_source: string | null
-      origin_key: string | null
+      tags: string[] | null
+      contentHash: string
+      installSource: string | null
+      originKey: string | null
     }
   ): Promise<void> {
     const db = await this.getDatabase()
     await db
       .update(skillsTable)
-      .set({ ...data, updated_at: Date.now() })
+      .set({ ...data, updatedAt: Date.now() })
       .where(eq(skillsTable.id, id))
     logger.info('Skill metadata updated', { id, name: data.name })
   }
@@ -123,18 +113,20 @@ export class SkillRepository extends BaseService {
       id: row.id,
       name: row.name,
       description: row.description,
-      folderName: row.folder_name,
+      folderName: row.folderName,
       source: row.source,
-      sourceUrl: row.source_url,
-      installSource: row.install_source,
-      originKey: row.origin_key,
+      sourceUrl: row.sourceUrl,
+      installSource: row.installSource,
+      originKey: row.originKey,
       namespace: row.namespace,
       author: row.author,
-      tags: row.tags ? JSON.parse(row.tags) : [],
-      contentHash: row.content_hash,
-      isEnabled: row.is_enabled,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at
+      tags: row.tags ?? [],
+      contentHash: row.contentHash,
+      isEnabled: row.isEnabled,
+      createdAt: row.createdAt ?? Date.now(),
+      updatedAt: row.updatedAt ?? Date.now()
     }
   }
 }
+
+export const skillRepository = new SkillRepository()
