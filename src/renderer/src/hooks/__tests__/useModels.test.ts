@@ -1,6 +1,5 @@
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
-import { mockDataApiService } from '@test-mocks/renderer/DataApiService'
-import { mockUseInvalidateCache, mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
+import { mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -66,7 +65,7 @@ describe('useModels', () => {
   it('should call useQuery with /models path and no query when no args', () => {
     renderHook(() => useModels())
 
-    expect(mockUseQuery).toHaveBeenCalledWith('/models', {})
+    expect(mockUseQuery).toHaveBeenCalledWith('/models', undefined)
   })
 
   it('should pass providerId as query parameter', () => {
@@ -110,20 +109,20 @@ describe('useModels', () => {
     })
   })
 
-  it('should expose refetch from mutate', () => {
-    const mockMutate = vi.fn()
+  it('should expose refetch from useQuery', () => {
+    const mockRefetch = vi.fn()
     mockUseQuery.mockImplementation(() => ({
       data: mockModelList,
       isLoading: false,
       isRefreshing: false,
       error: undefined,
-      refetch: vi.fn(),
-      mutate: mockMutate
+      refetch: mockRefetch,
+      mutate: vi.fn()
     }))
 
     const { result } = renderHook(() => useModels())
 
-    expect(result.current.refetch).toBe(mockMutate)
+    expect(result.current.refetch).toBe(mockRefetch)
   })
 })
 
@@ -132,13 +131,22 @@ describe('useModelMutations', () => {
     vi.clearAllMocks()
   })
 
-  it('should set up POST mutation for /models', () => {
+  it('should set up POST, DELETE, and PATCH mutations', () => {
     renderHook(() => useModelMutations())
 
-    expect(mockUseMutation).toHaveBeenCalledWith('POST', '/models', {
-      refresh: ['/models']
-    })
-    expect(mockUseMutation).toHaveBeenCalledTimes(1)
+    const calls = mockUseMutation.mock.calls
+    expect(calls.find((c: any[]) => c[0] === 'POST' && c[1] === '/models')).toBeDefined()
+    expect(calls.find((c: any[]) => c[0] === 'DELETE' && c[1] === '/models/:uniqueModelId*')).toBeDefined()
+    expect(calls.find((c: any[]) => c[0] === 'PATCH' && c[1] === '/models/:uniqueModelId*')).toBeDefined()
+    expect(mockUseMutation).toHaveBeenCalledTimes(3)
+  })
+
+  it('should configure all mutations to refresh /models', () => {
+    renderHook(() => useModelMutations())
+
+    for (const call of mockUseMutation.mock.calls as any[][]) {
+      expect(call[2]).toMatchObject({ refresh: ['/models'] })
+    }
   })
 
   it('should call createTrigger with a single-item array when createModel is invoked', async () => {
@@ -290,31 +298,13 @@ describe('useModelMutations', () => {
     })
   })
 
-  it('should log and rethrow updateModel errors', async () => {
-    const error = new Error('Patch failed')
-    const loggerSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
-    const mockInvalidate = vi.fn().mockResolvedValue(undefined)
-    mockUseInvalidateCache.mockImplementation(() => mockInvalidate)
-    mockDataApiService.patch.mockRejectedValue(error)
-
-    const { result } = renderHook(() => useModelMutations())
-
-    await act(async () => {
-      await expect(result.current.updateModel('openai', 'gpt-4o', { isEnabled: false })).rejects.toThrow('Patch failed')
-    })
-
-    expect(loggerSpy).toHaveBeenCalledWith('Failed to update model', {
-      providerId: 'openai',
-      modelId: 'gpt-4o',
-      error
-    })
-    expect(mockInvalidate).not.toHaveBeenCalled()
-  })
-
-  it('should delete model via dataApiService and invalidate cache', async () => {
-    const mockInvalidate = vi.fn().mockResolvedValue(undefined)
-    mockUseInvalidateCache.mockImplementation(() => mockInvalidate)
-    mockDataApiService.delete.mockResolvedValue({ deleted: true })
+  it('should call DELETE mutation trigger with uniqueModelId param when deleteModel is invoked', async () => {
+    const deleteTrigger = vi.fn().mockResolvedValue(undefined)
+    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+      trigger: path === '/models/:uniqueModelId*' && _method === 'DELETE' ? deleteTrigger : vi.fn(),
+      isLoading: false,
+      error: undefined
+    }))
 
     const { result } = renderHook(() => useModelMutations())
 
@@ -322,14 +312,16 @@ describe('useModelMutations', () => {
       await result.current.deleteModel('openai', 'gpt-4o')
     })
 
-    expect(mockDataApiService.delete).toHaveBeenCalledWith('/models/openai::gpt-4o')
-    expect(mockInvalidate).toHaveBeenCalledWith('/models')
+    expect(deleteTrigger).toHaveBeenCalledWith({ params: { uniqueModelId: 'openai::gpt-4o' } })
   })
 
-  it('should update model via dataApiService and invalidate cache', async () => {
-    const mockInvalidate = vi.fn().mockResolvedValue(undefined)
-    mockUseInvalidateCache.mockImplementation(() => mockInvalidate)
-    mockDataApiService.patch.mockResolvedValue({})
+  it('should call PATCH mutation trigger with uniqueModelId param and body when updateModel is invoked', async () => {
+    const updateTrigger = vi.fn().mockResolvedValue({})
+    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+      trigger: path === '/models/:uniqueModelId*' && _method === 'PATCH' ? updateTrigger : vi.fn(),
+      isLoading: false,
+      error: undefined
+    }))
 
     const { result } = renderHook(() => useModelMutations())
 
@@ -337,18 +329,20 @@ describe('useModelMutations', () => {
       await result.current.updateModel('openai', 'gpt-4o', { isEnabled: false })
     })
 
-    expect(mockDataApiService.patch).toHaveBeenCalledWith('/models/openai::gpt-4o', {
+    expect(updateTrigger).toHaveBeenCalledWith({
+      params: { uniqueModelId: 'openai::gpt-4o' },
       body: { isEnabled: false }
     })
-    expect(mockInvalidate).toHaveBeenCalledWith('/models')
   })
 
   it('should log and rethrow deleteModel errors', async () => {
-    const mockInvalidate = vi.fn().mockResolvedValue(undefined)
     const error = new Error('Delete failed')
     const loggerSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
-    mockUseInvalidateCache.mockImplementation(() => mockInvalidate)
-    mockDataApiService.delete.mockRejectedValue(error)
+    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+      trigger: path === '/models/:uniqueModelId*' && _method === 'DELETE' ? vi.fn().mockRejectedValue(error) : vi.fn(),
+      isLoading: false,
+      error: undefined
+    }))
 
     const { result } = renderHook(() => useModelMutations())
 
@@ -361,13 +355,37 @@ describe('useModelMutations', () => {
       modelId: 'gpt-4o',
       error
     })
-    expect(mockInvalidate).not.toHaveBeenCalled()
   })
 
-  it('should build uniqueModelId path correctly', async () => {
-    const mockInvalidate = vi.fn().mockResolvedValue(undefined)
-    mockUseInvalidateCache.mockImplementation(() => mockInvalidate)
-    mockDataApiService.delete.mockResolvedValue({ deleted: true })
+  it('should log and rethrow updateModel errors', async () => {
+    const error = new Error('Patch failed')
+    const loggerSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
+    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+      trigger: path === '/models/:uniqueModelId*' && _method === 'PATCH' ? vi.fn().mockRejectedValue(error) : vi.fn(),
+      isLoading: false,
+      error: undefined
+    }))
+
+    const { result } = renderHook(() => useModelMutations())
+
+    await act(async () => {
+      await expect(result.current.updateModel('openai', 'gpt-4o', { isEnabled: false })).rejects.toThrow('Patch failed')
+    })
+
+    expect(loggerSpy).toHaveBeenCalledWith('Failed to update model', {
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      error
+    })
+  })
+
+  it('should build uniqueModelId param correctly for simple IDs', async () => {
+    const deleteTrigger = vi.fn().mockResolvedValue(undefined)
+    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+      trigger: path === '/models/:uniqueModelId*' && _method === 'DELETE' ? deleteTrigger : vi.fn(),
+      isLoading: false,
+      error: undefined
+    }))
 
     const { result } = renderHook(() => useModelMutations())
 
@@ -375,13 +393,16 @@ describe('useModelMutations', () => {
       await result.current.deleteModel('anthropic', 'claude-3-opus')
     })
 
-    expect(mockDataApiService.delete).toHaveBeenCalledWith('/models/anthropic::claude-3-opus')
+    expect(deleteTrigger).toHaveBeenCalledWith({ params: { uniqueModelId: 'anthropic::claude-3-opus' } })
   })
 
-  it('should handle model IDs that contain slashes via uniqueModelId format', async () => {
-    const mockInvalidate = vi.fn().mockResolvedValue(undefined)
-    mockUseInvalidateCache.mockImplementation(() => mockInvalidate)
-    mockDataApiService.delete.mockResolvedValue({ deleted: true })
+  it('should build uniqueModelId param correctly for model IDs containing slashes', async () => {
+    const deleteTrigger = vi.fn().mockResolvedValue(undefined)
+    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+      trigger: path === '/models/:uniqueModelId*' && _method === 'DELETE' ? deleteTrigger : vi.fn(),
+      isLoading: false,
+      error: undefined
+    }))
 
     const { result } = renderHook(() => useModelMutations())
 
@@ -389,6 +410,22 @@ describe('useModelMutations', () => {
       await result.current.deleteModel('cherryin', 'qwen/qwen3-vl-30b-a3b-thinking(free)')
     })
 
-    expect(mockDataApiService.delete).toHaveBeenCalledWith('/models/cherryin::qwen/qwen3-vl-30b-a3b-thinking(free)')
+    expect(deleteTrigger).toHaveBeenCalledWith({
+      params: { uniqueModelId: 'cherryin::qwen/qwen3-vl-30b-a3b-thinking(free)' }
+    })
+  })
+
+  it('should expose isCreating, isDeleting, isUpdating loading states', () => {
+    mockUseMutation.mockImplementation((_method: string) => ({
+      trigger: vi.fn(),
+      isLoading: _method === 'POST',
+      error: undefined
+    }))
+
+    const { result } = renderHook(() => useModelMutations())
+
+    expect(result.current.isCreating).toBe(true)
+    expect(result.current.isDeleting).toBe(false)
+    expect(result.current.isUpdating).toBe(false)
   })
 })

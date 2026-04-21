@@ -1,7 +1,5 @@
-import { dataApiService } from '@data/DataApiService'
-import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
 import type { CreateModelDto, CreateModelsDto, ListModelsQuery, UpdateModelDto } from '@shared/data/api/schemas/models'
 import type { Model } from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
@@ -9,39 +7,53 @@ import { useCallback, useMemo } from 'react'
 
 const logger = loggerService.withContext('useModels')
 
-/** Helper to build `/models/:uniqueModelId*` concrete path.
- *  No encoding needed: greedy param `/:uniqueModelId*` handles slashes natively. */
-function modelPath(providerId: string, modelId: string): ConcreteApiPaths {
-  return `/models/${createUniqueModelId(providerId, modelId)}` as ConcreteApiPaths
-}
-
-const REFRESH_MODELS = ['/models'] as const
 const EMPTY_MODELS: Model[] = []
 
 // ─── Layer 1: List ────────────────────────────────────────────────────
 export function useModels(query?: ListModelsQuery, options?: { fetchEnabled?: boolean }) {
-  const filteredQuery = query
+  const filtered = query
     ? (Object.fromEntries(Object.entries(query).filter(([, v]) => v !== undefined)) as ListModelsQuery)
     : undefined
-  const hasQuery = filteredQuery && Object.keys(filteredQuery).length > 0
+  const hasQuery = filtered && Object.keys(filtered).length > 0
+  const fetchEnabledFlag = options?.fetchEnabled
+  const hasEnabled = fetchEnabledFlag !== undefined
 
-  const { data, isLoading, mutate } = useQuery('/models', {
-    ...(hasQuery ? { query: filteredQuery } : {}),
-    ...(options?.fetchEnabled !== undefined ? { enabled: options.fetchEnabled } : {})
-  })
+  const { data, isLoading, refetch } = useQuery(
+    '/models',
+    hasQuery || hasEnabled
+      ? {
+          ...(hasQuery && { query: filtered }),
+          ...(hasEnabled && { enabled: fetchEnabledFlag })
+        }
+      : undefined
+  )
 
   const models = useMemo(() => data ?? EMPTY_MODELS, [data])
 
-  return { models, isLoading, refetch: mutate }
+  return { models, isLoading, refetch }
 }
 
 // ─── Layer 2: Mutations ───────────────────────────────────────────────
 export function useModelMutations() {
-  const invalidate = useInvalidateCache()
-
-  const { trigger: createTrigger } = useMutation('POST', '/models', {
-    refresh: [...REFRESH_MODELS]
+  const {
+    trigger: createTrigger,
+    isLoading: isCreating,
+    error: createError
+  } = useMutation('POST', '/models', {
+    refresh: ['/models']
   })
+
+  const {
+    trigger: deleteTrigger,
+    isLoading: isDeleting,
+    error: deleteError
+  } = useMutation('DELETE', '/models/:uniqueModelId*', { refresh: ['/models'] })
+
+  const {
+    trigger: updateTrigger,
+    isLoading: isUpdating,
+    error: updateError
+  } = useMutation('PATCH', '/models/:uniqueModelId*', { refresh: ['/models'] })
 
   const createModel = useCallback(
     async (dto: CreateModelDto) => {
@@ -63,6 +75,7 @@ export function useModelMutations() {
     },
     [createTrigger]
   )
+
   const createModels = useCallback(
     async (dtos: CreateModelsDto) => {
       try {
@@ -84,28 +97,37 @@ export function useModelMutations() {
   const deleteModel = useCallback(
     async (providerId: string, modelId: string) => {
       try {
-        await dataApiService.delete(modelPath(providerId, modelId))
-        await invalidate('/models')
+        await deleteTrigger({ params: { uniqueModelId: createUniqueModelId(providerId, modelId) } })
       } catch (error) {
         logger.error('Failed to delete model', { providerId, modelId, error })
         throw error
       }
     },
-    [invalidate]
+    [deleteTrigger]
   )
 
   const updateModel = useCallback(
     async (providerId: string, modelId: string, updates: UpdateModelDto) => {
       try {
-        await dataApiService.patch(modelPath(providerId, modelId), { body: updates })
-        await invalidate('/models')
+        await updateTrigger({ params: { uniqueModelId: createUniqueModelId(providerId, modelId) }, body: updates })
       } catch (error) {
         logger.error('Failed to update model', { providerId, modelId, error })
         throw error
       }
     },
-    [invalidate]
+    [updateTrigger]
   )
 
-  return { createModel, createModels, deleteModel, updateModel }
+  return {
+    createModel,
+    createModels,
+    isCreating,
+    createError,
+    deleteModel,
+    isDeleting,
+    deleteError,
+    updateModel,
+    isUpdating,
+    updateError
+  }
 }
