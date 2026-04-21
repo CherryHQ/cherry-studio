@@ -3,7 +3,8 @@ import { loggerService } from '@logger'
 import type { CreateModelDto, CreateModelsDto, ListModelsQuery, UpdateModelDto } from '@shared/data/api/schemas/models'
 import type { Model } from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
-import { useCallback, useMemo } from 'react'
+import { isUndefined, omitBy } from 'lodash'
+import { useCallback } from 'react'
 
 const logger = loggerService.withContext('useModels')
 
@@ -11,9 +12,7 @@ const EMPTY_MODELS: Model[] = []
 
 // ─── Layer 1: List ────────────────────────────────────────────────────
 export function useModels(query?: ListModelsQuery, options?: { fetchEnabled?: boolean }) {
-  const filtered = query
-    ? (Object.fromEntries(Object.entries(query).filter(([, v]) => v !== undefined)) as ListModelsQuery)
-    : undefined
+  const filtered = query ? (omitBy(query, isUndefined) as ListModelsQuery) : undefined
   const hasQuery = filtered && Object.keys(filtered).length > 0
   const fetchEnabledFlag = options?.fetchEnabled
   const hasEnabled = fetchEnabledFlag !== undefined
@@ -28,7 +27,7 @@ export function useModels(query?: ListModelsQuery, options?: { fetchEnabled?: bo
       : undefined
   )
 
-  const models = useMemo(() => data ?? EMPTY_MODELS, [data])
+  const models = data ?? EMPTY_MODELS
 
   return { models, isLoading, refetch }
 }

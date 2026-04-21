@@ -62,6 +62,24 @@ describe('useModels', () => {
     expect(result.current.isLoading).toBe(true)
   })
 
+  it('should keep the empty fallback array reference stable across rerenders', () => {
+    mockUseQuery.mockImplementation(() => ({
+      data: undefined,
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch: vi.fn(),
+      mutate: vi.fn()
+    }))
+
+    const { result, rerender } = renderHook(() => useModels())
+    const firstModels = result.current.models
+
+    rerender()
+
+    expect(result.current.models).toBe(firstModels)
+  })
+
   it('should call useQuery with /models path and no query when no args', () => {
     renderHook(() => useModels())
 
@@ -413,6 +431,25 @@ describe('useModelMutations', () => {
     expect(deleteTrigger).toHaveBeenCalledWith({
       params: { uniqueModelId: 'cherryin::qwen/qwen3-vl-30b-a3b-thinking(free)' }
     })
+  })
+
+  it.each(['?', '#'])('should reject model IDs containing reserved route character %s', async (char) => {
+    const deleteTrigger = vi.fn().mockResolvedValue(undefined)
+    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+      trigger: path === '/models/:uniqueModelId*' && _method === 'DELETE' ? deleteTrigger : vi.fn(),
+      isLoading: false,
+      error: undefined
+    }))
+
+    const { result } = renderHook(() => useModelMutations())
+
+    await act(async () => {
+      await expect(result.current.deleteModel('openai', `gpt-5${char}preview`)).rejects.toThrow(
+        `modelId cannot contain reserved route character "${char}"`
+      )
+    })
+
+    expect(deleteTrigger).not.toHaveBeenCalled()
   })
 
   it('should expose isCreating, isDeleting, isUpdating loading states', () => {

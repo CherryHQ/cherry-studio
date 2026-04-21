@@ -3,7 +3,8 @@ import { loggerService } from '@logger'
 import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
 import type { CreateProviderDto, ListProvidersQuery, UpdateProviderDto } from '@shared/data/api/schemas/providers'
 import type { ApiKeyEntry, AuthConfig, Provider } from '@shared/data/types/provider'
-import { useCallback, useMemo } from 'react'
+import { isUndefined, omitBy } from 'lodash'
+import { useCallback } from 'react'
 
 const EMPTY_PROVIDERS: Provider[] = []
 const logger = loggerService.withContext('useProviders')
@@ -30,14 +31,16 @@ function providerRefreshPaths(providerId: string): ConcreteApiPaths[] {
 
 // ─── Layer 1: List + Create ────────────────────────────────────────────
 export function useProviders(query?: ListProvidersQuery) {
-  const filtered = query
-    ? (Object.fromEntries(Object.entries(query).filter(([, v]) => v !== undefined)) as ListProvidersQuery)
-    : undefined
+  const filtered = query ? (omitBy(query, isUndefined) as ListProvidersQuery) : undefined
   const queryOptions = filtered && Object.keys(filtered).length > 0 ? { query: filtered } : undefined
 
   const { data, isLoading, refetch } = useQuery('/providers', queryOptions)
 
-  const { trigger: createTrigger } = useMutation('POST', '/providers', {
+  const {
+    trigger: createTrigger,
+    isLoading: isCreating,
+    error: createError
+  } = useMutation('POST', '/providers', {
     refresh: ['/providers']
   })
 
@@ -53,12 +56,14 @@ export function useProviders(query?: ListProvidersQuery) {
     [createTrigger]
   )
 
-  const providers = useMemo(() => data ?? EMPTY_PROVIDERS, [data])
+  const providers = data ?? EMPTY_PROVIDERS
 
   return {
     providers,
     isLoading,
     createProvider,
+    isCreating,
+    createError,
     refetch
   }
 }
@@ -198,9 +203,7 @@ export function useProviderAuthConfig(providerId: string) {
 }
 
 export function useProviderApiKeys(providerId: string) {
-  const result = useQuery('/providers/:providerId/api-keys', { params: { providerId } })
-  // Schema: GET /providers/:id/api-keys -> { keys: ApiKeyEntry[] }
-  return { ...result, data: result.data as { keys: ApiKeyEntry[] } | undefined }
+  return useQuery('/providers/:providerId/api-keys', { params: { providerId } })
 }
 
 export function useProviderRegistryModels(providerId: string) {

@@ -283,7 +283,8 @@ describe('ModelService.create', () => {
       ])
     ).rejects.toMatchObject({
       code: ErrorCode.CONFLICT,
-      status: 409
+      status: 409,
+      message: expect.stringContaining('openai/gpt-4o')
     })
   })
 

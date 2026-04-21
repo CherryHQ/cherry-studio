@@ -49,10 +49,12 @@ function createModelsSqliteHandlers(values: NewUserModel[]): SqliteErrorHandlers
   const providerIds = [...new Set(values.map((value) => value.providerId))]
   const identifier =
     values.length === 1 ? `${values[0].providerId}/${values[0].modelId}` : `batch(${values.length} items)`
+  const uniqueMessage =
+    values.length === 1 ? `Model '${identifier}' already exists` : 'One or more models already exist'
 
   return {
     ...defaultHandlersFor('Model', identifier),
-    unique: () => DataApiErrorFactory.conflict('One or more models already exist', 'Model'),
+    unique: () => DataApiErrorFactory.conflict(uniqueMessage, 'Model'),
     foreignKey: () =>
       DataApiErrorFactory.notFound('Provider', providerIds.length === 1 ? providerIds[0] : providerIds.join(', '))
   }

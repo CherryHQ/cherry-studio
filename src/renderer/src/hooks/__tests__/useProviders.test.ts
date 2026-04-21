@@ -67,6 +67,24 @@ describe('useProviders', () => {
     expect(result.current.isLoading).toBe(true)
   })
 
+  it('should keep the empty fallback array reference stable across rerenders', () => {
+    mockUseQuery.mockImplementation(() => ({
+      data: undefined,
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch: vi.fn(),
+      mutate: vi.fn()
+    }))
+
+    const { result, rerender } = renderHook(() => useProviders())
+    const firstProviders = result.current.providers
+
+    rerender()
+
+    expect(result.current.providers).toBe(firstProviders)
+  })
+
   it('should call useQuery with /providers path', () => {
     renderHook(() => useProviders())
 
@@ -144,6 +162,20 @@ describe('useProviders', () => {
     const { result } = renderHook(() => useProviders())
 
     expect(result.current.refetch).toBe(mockRefetch)
+  })
+
+  it('should expose create mutation loading and error state', () => {
+    const mockError = new Error('Create mutation failed')
+    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+      trigger: vi.fn(),
+      isLoading: _method === 'POST' && path === '/providers',
+      error: _method === 'POST' && path === '/providers' ? mockError : undefined
+    }))
+
+    const { result } = renderHook(() => useProviders())
+
+    expect(result.current.isCreating).toBe(true)
+    expect(result.current.createError).toBe(mockError)
   })
 })
 
