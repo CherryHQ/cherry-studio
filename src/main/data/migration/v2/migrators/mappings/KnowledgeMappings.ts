@@ -102,12 +102,12 @@ const hasCompleteFileMetadata = (value: LegacyKnowledgeItem['content'] | FileMet
   typeof value.created_at === 'string' &&
   typeof value.count === 'number'
 
-export const toTimestamp = (value: number | undefined): number | undefined => {
+export const toTimestamp = (value: number | undefined): number => {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return value
   }
 
-  return undefined
+  return Date.now()
 }
 
 export const inferKnowledgeItemStatus = (item: Pick<LegacyKnowledgeItem, 'uniqueId'>): KnowledgeItemStatus =>

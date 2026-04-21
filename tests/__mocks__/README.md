@@ -183,11 +183,13 @@ React hooks for data operations.
 | `useMutation` | `(method, path, options?)` | `{ mutate, loading, error }` |
 | `usePaginatedQuery` | `(path, options?)` | `{ items, total, page, loading, error, hasMore, hasPrev, prevPage, nextPage, refresh, reset }` |
 | `useInvalidateCache` | `()` | `(keys?) => Promise<any>` |
+| `useReadCache` | `()` | `(path, query?) => TResponse \| undefined` |
+| `useWriteCache` | `()` | `async (path, value, query?) => void` |
 
 #### Usage
 
 ```typescript
-import { useQuery, useMutation } from '@data/hooks/useDataApi'
+import { useQuery, useMutation, useReadCache, useWriteCache } from '@data/hooks/useDataApi'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 
 describe('Hooks', () => {
@@ -210,8 +212,26 @@ describe('Hooks', () => {
     const { data } = useQuery('/topics')
     expect(data.custom).toBe(true)
   })
+
+  it('useReadCache reads seeded values', () => {
+    // Pre-populate the mock cache (key shape mirrors production:
+    // omit `query` for [path], pass a non-empty `query` for [path, query]).
+    MockUseDataApiUtils.seedCache('/topics', { topics: [{ id: 't1' }], total: 1 })
+
+    const read = useReadCache()
+    expect(read('/topics')).toEqual({ topics: [{ id: 't1' }], total: 1 })
+  })
+
+  it('useWriteCache persists to mock store (assertable via getCachedValue)', async () => {
+    const write = useWriteCache()
+    await write('/topics', { topics: [], total: 0 })
+
+    expect(MockUseDataApiUtils.getCachedValue('/topics')).toEqual({ topics: [], total: 0 })
+  })
 })
 ```
+
+> **Note:** `useReadCache`/`useWriteCache` share one in-memory `Map` under the hood. `resetMocks()` clears both call history and the cache store; use `clearCache()` if you want to drop cache entries without resetting hook mocks.
 
 ---
 

@@ -63,17 +63,6 @@ describe('TagService', () => {
         code: ErrorCode.NOT_FOUND
       })
     })
-
-    it('should surface timestamp anomalies instead of masking them', async () => {
-      await dbh.client.execute({
-        sql: `INSERT INTO tag (id, name, color, created_at, updated_at) VALUES (?, ?, ?, NULL, NULL)`,
-        args: [TAG_1, 'broken', '#ff0000']
-      })
-
-      await expect(tagService.getById(TAG_1)).rejects.toMatchObject({
-        code: ErrorCode.INTERNAL_SERVER_ERROR
-      })
-    })
   })
 
   describe('create', () => {

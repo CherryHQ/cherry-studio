@@ -178,8 +178,8 @@ describe('KnowledgeMappings', () => {
         },
         status: 'idle',
         error: null,
-        createdAt: undefined,
-        updatedAt: undefined
+        createdAt: expect.any(Number),
+        updatedAt: expect.any(Number)
       }
     })
   })
@@ -211,8 +211,8 @@ describe('KnowledgeMappings', () => {
         },
         status: 'completed',
         error: null,
-        createdAt: undefined,
-        updatedAt: undefined
+        createdAt: expect.any(Number),
+        updatedAt: expect.any(Number)
       }
     })
   })
@@ -264,8 +264,8 @@ describe('KnowledgeMappings', () => {
         },
         status: 'idle',
         error: null,
-        createdAt: undefined,
-        updatedAt: undefined
+        createdAt: expect.any(Number),
+        updatedAt: expect.any(Number)
       }
     })
   })
