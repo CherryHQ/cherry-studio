@@ -5772,7 +5772,10 @@
     "moveToFirst": "Mută la început",
     "new": "Filă nouă",
     "pin": "Fixează fila",
-    "unpin": "Anulați fixarea filei"
+    "splitDown": "[to be translated]:Split Down",
+    "splitRight": "[to be translated]:Split Right",
+    "unpin": "Anulați fixarea filei",
+    "unsplit": "[to be translated]:Unsplit"
   },
   "title": {
     "apps": "Aplicații",

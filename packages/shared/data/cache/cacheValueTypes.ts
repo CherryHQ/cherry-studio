@@ -35,26 +35,49 @@ export type TabType = 'route' | 'webview'
  */
 export interface TabSavedState {
   scrollPosition?: number
-  // 其他必要草稿字段可在此扩展
 }
 
-export interface Tab {
+export type PaneDirection = 'horizontal' | 'vertical'
+
+/**
+ * A single tab inside a leaf pane. Successor to Tab, minus the nested split
+ * fields (splitLayout/activePaneId) that are now expressed at the tree level.
+ */
+export interface PaneTab {
   id: string
   type: TabType
   url: string
   title: string
   icon?: string
   metadata?: Record<string, unknown>
-  // LRU 字段
-  lastAccessTime?: number // open/switch 时更新
-  isDormant?: boolean // 是否已休眠
-  isPinned?: boolean // 是否置顶（豁免 LRU）
-  savedState?: TabSavedState // 休眠前保存的状态
+  lastAccessTime?: number
+  isDormant?: boolean
+  isPinned?: boolean
+  savedState?: TabSavedState
 }
 
-export interface TabsState {
-  tabs: Tab[]
+export interface LeafPane {
+  type: 'leaf'
+  paneId: string
+  tabs: PaneTab[]
+  /** Must reference a tab in `tabs` (enforced by normalize). */
   activeTabId: string
+}
+
+export interface PaneSplitNode {
+  type: 'split'
+  direction: PaneDirection
+  /** 0-100 percentage for the first child. */
+  ratio: number
+  children: [PaneLayout, PaneLayout]
+}
+
+export type PaneLayout = LeafPane | PaneSplitNode
+
+export interface PanesState {
+  root: PaneLayout
+  /** Must be the paneId of an existing leaf (enforced by normalize). */
+  activePaneId: string
 }
 
 export type TranslatingState =

@@ -5772,7 +5772,10 @@
     "moveToFirst": "移到最左侧",
     "new": "新标签页",
     "pin": "固定标签页",
-    "unpin": "取消固定"
+    "splitDown": "向下分屏",
+    "splitRight": "向右分屏",
+    "unpin": "取消固定",
+    "unsplit": "取消分屏"
   },
   "title": {
     "apps": "小程序",

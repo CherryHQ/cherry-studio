@@ -5772,7 +5772,10 @@
     "moveToFirst": "Перейти к первому",
     "new": "Новая вкладка",
     "pin": "Закрепить вкладку",
-    "unpin": "Открепить вкладку"
+    "splitDown": "[to be translated]:Split Down",
+    "splitRight": "[to be translated]:Split Right",
+    "unpin": "Открепить вкладку",
+    "unsplit": "[to be translated]:Unsplit"
   },
   "title": {
     "apps": "Приложения",

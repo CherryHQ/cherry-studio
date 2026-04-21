@@ -7,7 +7,8 @@ import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { Monitor, Moon, Settings, Sun } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { useTabs } from '../../hooks/useTabs'
+import { useActivePane } from '../../hooks/useActivePane'
+import { usePanesActions } from '../../hooks/usePanes'
 import WindowControls from '../WindowControls'
 
 export function useShellTabBarLayout(isDetached: boolean) {
@@ -31,25 +32,26 @@ export function useShellTabBarLayout(isDetached: boolean) {
 export function ShellTabBarActions({ isDetached = false }: { isDetached?: boolean }) {
   const { t } = useTranslation()
   const { settedTheme, toggleTheme } = useTheme()
-  const { tabs, activeTabId, openTab, updateTab } = useTabs()
+  const { activePane, activePaneId, activeTab } = useActivePane()
+  const { updateTab, openTabInActivePane } = usePanesActions()
   const { hasWindowControls } = useShellTabBarLayout(isDetached)
 
   const ThemeIcon = settedTheme === 'dark' ? Moon : settedTheme === 'light' ? Sun : Monitor
 
   const handleSettingsClick = () => {
     const settingsPath = '/settings/provider'
-    const hasUserTabsInTabBar = tabs.some((tab) => tab.id !== 'home')
+    const hasUserTabsInPane = activePane.tabs.some((tab) => tab.id !== 'home')
 
-    if (!hasUserTabsInTabBar) {
-      openTab(settingsPath, {
+    if (!hasUserTabsInPane) {
+      openTabInActivePane(settingsPath, {
         forceNew: true,
         title: getDefaultRouteTitle(settingsPath)
       })
       return
     }
 
-    if (activeTabId) {
-      updateTab(activeTabId, {
+    if (activeTab) {
+      updateTab(activePaneId, activeTab.id, {
         url: settingsPath,
         title: getDefaultRouteTitle(settingsPath)
       })

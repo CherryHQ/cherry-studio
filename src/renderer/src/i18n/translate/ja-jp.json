@@ -5772,7 +5772,10 @@
     "moveToFirst": "先頭へ移動",
     "new": "新しいタブ",
     "pin": "タブをピン留め",
-    "unpin": "タブを固定解除"
+    "splitDown": "[to be translated]:Split Down",
+    "splitRight": "[to be translated]:Split Right",
+    "unpin": "タブを固定解除",
+    "unsplit": "[to be translated]:Unsplit"
   },
   "title": {
     "apps": "アプリ",

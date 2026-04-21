@@ -1,5 +1,6 @@
 import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
+import { isMac } from '@renderer/config/constant'
 import { AppLogo } from '@renderer/config/env'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
@@ -25,7 +26,9 @@ import type { Ref } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useTabs } from '../../hooks/useTabs'
+import { useActivePane } from '../../hooks/useActivePane'
+import { usePanesActions } from '../../hooks/usePanes'
+import { cn } from '../../utils'
 import { OpenClawSidebarIcon } from '../Icons/SVGIcon'
 import UserPopup from '../Popups/UserPopup'
 import { Sidebar as UISidebar } from '../Sidebar'
@@ -82,7 +85,8 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const [userName] = usePreference('app.user.name')
   const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
   const [showOpenedInSidebar] = usePreference('feature.minapp.show_opened_in_sidebar')
-  const { activeTab, updateTab, openTab } = useTabs()
+  const { activePaneId, activeTab } = useActivePane()
+  const { updateTab, openTabInActivePane } = usePanesActions()
   const { defaultPaintingProvider } = useSettings()
 
   // Sidebar width — persisted across restarts
@@ -177,17 +181,17 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       }
 
       if (activeTab?.isPinned) {
-        openTab(path, { forceNew: true, title: getDefaultRouteTitle(path) })
+        openTabInActivePane(path, { forceNew: true, title: getDefaultRouteTitle(path) })
         return
       }
 
       if (activeTab && activeTab.id !== 'home') {
-        updateTab(activeTab.id, { url: path, title: getDefaultRouteTitle(path) })
+        updateTab(activePaneId, activeTab.id, { url: path, title: getDefaultRouteTitle(path) })
       } else {
-        openTab(path, { forceNew: true, title: getDefaultRouteTitle(path) })
+        openTabInActivePane(path, { forceNew: true, title: getDefaultRouteTitle(path) })
       }
     },
-    [activeTab, updateTab, openTab, defaultPaintingProvider]
+    [activeTab, activePaneId, updateTab, openTabInActivePane, defaultPaintingProvider]
   )
 
   // Common props shared between normal and floating sidebar
@@ -205,7 +209,12 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   }
 
   return (
-    <div ref={ref} id="app-sidebar" className="relative h-full [-webkit-app-region:no-drag]">
+    <div
+      ref={ref}
+      id="app-sidebar"
+      className={cn('relative h-full [-webkit-app-region:no-drag]', isMac && 'pt-[38px]')}>
+      {/* macOS traffic-light clearance: draggable strip above the sidebar content. */}
+      {isMac && <div className="pointer-events-none absolute inset-x-0 top-0 h-[38px] [-webkit-app-region:drag]" />}
       <UISidebar width={sidebarWidth} setWidth={setSidebarWidth} onHoverChange={setHoverVisible} {...sidebarProps} />
       {hoverVisible && layout === 'hidden' && (
         <UISidebar

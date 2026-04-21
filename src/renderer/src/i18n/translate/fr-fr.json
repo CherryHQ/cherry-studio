@@ -5772,7 +5772,10 @@
     "moveToFirst": "Déplacer vers le premier",
     "new": "Nouvel onglet",
     "pin": "Épingler l'onglet",
-    "unpin": "Détacher l'onglet"
+    "splitDown": "[to be translated]:Split Down",
+    "splitRight": "[to be translated]:Split Right",
+    "unpin": "Détacher l'onglet",
+    "unsplit": "[to be translated]:Unsplit"
   },
   "title": {
     "apps": "Mini-programmes",

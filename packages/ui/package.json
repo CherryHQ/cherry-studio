@@ -83,6 +83,7 @@
     "cmdk": "^1.1.1",
     "lucide-react": "^0.545.0",
     "react-dropzone": "^14.3.8",
+    "react-resizable-panels": "^4.9.0",
     "tailwind-merge": "^2.5.5",
     "vaul": "^1.1.2"
   },

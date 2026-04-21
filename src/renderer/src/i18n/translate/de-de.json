@@ -5772,7 +5772,10 @@
     "moveToFirst": "Zum Anfang verschieben",
     "new": "Neuer Tab",
     "pin": "Tab anheften",
-    "unpin": "Tab lösen"
+    "splitDown": "[to be translated]:Split Down",
+    "splitRight": "[to be translated]:Split Right",
+    "unpin": "Tab lösen",
+    "unsplit": "[to be translated]:Unsplit"
   },
   "title": {
     "apps": "Mini-Apps",
