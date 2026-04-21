@@ -25,9 +25,26 @@
 ## 3. 数据来源与字段边界约束
 
 - Knowledge V2 UI 的数据模型与字段边界以 `src/main/data/db/schemas/knowledge.ts` 为准。
+- Knowledge V2 UI 的 renderer 侧领域类型统一复用 `packages/shared/data/types/knowledge.ts`，不再在页面目录重复定义 knowledge base 主数据类型。
 - 知识库与知识项相关 UI，应围绕 `knowledge_base` 与 `knowledge_item` 的 SQLite 结构来设计和实现。
 - 不再使用原先 Redux knowledge 数据作为事实来源。
 - 任何旧实现中存在、但不在 `knowledge.ts` 中稳定定义的字段，不应继续作为 V2 UI 的设计前提。
+- `itemCount`、知识库级 `status` 等列表展示字段属于基于 `knowledge_item` 的派生聚合结果，不属于 `knowledge_base` 主数据。
+
+### 当前暂留问题：`itemCount` / 知识库级 `status`
+
+- 当前阶段先保留该问题，不在本轮 UI 接入里彻底解决。
+- `itemCount` 与知识库级 `status` 仍然视为列表展示所需的聚合字段，而不是 `KnowledgeBase` 主数据字段。
+- 当前 renderer 已接入真实 `knowledge base` 与当前选中知识库的 `knowledge items`，但没有为所有知识库统一拿到真实聚合结果。
+- 因此，UI 上如果出现“当前选中知识库能显示真实文档数，未选中知识库仍显示 mock / 0”这类现象，应视为当前阶段的已知问题，而不是局部 UI bug。
+- 后续如果要正式解决，优先改上游 DataApi：
+  - 由 `/knowledge-bases` 列表接口或单独的 summary/list DTO 返回 `itemCount`、知识库级 `status`
+  - 不建议在 renderer 中为每个知识库逐个查询 `knowledge items` 后自行聚合，避免 N+1 请求和状态不一致
+  - 不应把这两个聚合字段直接并回 `packages/shared/data/types/knowledge.ts` 中的 `KnowledgeBase` 主类型
+- 后续上游定义聚合语义时，需要同步明确：
+  - `itemCount` 统计的是数据库中的全部 `knowledge_item`
+  - 还是 UI 当前实际展示的顶层 item 数
+- 现阶段 UI 对 `directory` / `sitemap` 展开的子项采用“先不显示”的策略，因此如果未来按 UI 展示口径统计，需排除带 `parentId` 的子项；在旧数据兼容期内，也要注意当前可能仍存在通过 `groupId` 表达 owner / child 关系的历史数据。
 
 ## 4. UI 确认约束
 

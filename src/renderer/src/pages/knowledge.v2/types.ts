@@ -1,16 +1,12 @@
-export type KnowledgeV2BaseGroup = 'work' | 'personal' | 'project'
-
-export type KnowledgeV2BaseStatus = 'ready' | 'processing' | 'failed'
+import type { KnowledgeBase, KnowledgeItem } from '@shared/data/types/knowledge'
 
 export type KnowledgeV2TabKey = 'dataSource' | 'ragConfig' | 'recallTest'
 
-export interface KnowledgeV2Base {
-  id: string
-  name: string
-  group: KnowledgeV2BaseGroup
+export type KnowledgeV2BaseListStatus = 'completed' | 'processing' | 'failed'
+export type KnowledgeV2Item = KnowledgeItem & { parentId?: string | null }
+
+export interface KnowledgeV2BaseListItem {
+  base: KnowledgeBase
   itemCount: number
-  status: KnowledgeV2BaseStatus
-  updatedAt: string
-  icon: string
-  iconClassName: string
+  status: KnowledgeV2BaseListStatus
 }

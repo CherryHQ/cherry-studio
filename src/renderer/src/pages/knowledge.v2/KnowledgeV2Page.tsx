@@ -6,126 +6,78 @@ import { useTranslation } from 'react-i18next'
 import BaseNavigator from './components/BaseNavigator'
 import DetailHeader from './components/DetailHeader'
 import DetailTabs from './components/DetailTabs'
+import { useKnowledgeV2Bases } from './hooks/useKnowledgeV2Bases'
+import { useKnowledgeV2Items } from './hooks/useKnowledgeV2Items'
 import DataSourcePanel from './panels/dataSource/DataSourcePanel'
 import RagConfigPanel from './panels/ragConfig/RagConfigPanel'
 import RecallTestPanel from './panels/recallTest/RecallTestPanel'
-import type { KnowledgeV2Base, KnowledgeV2TabKey } from './types'
+import type { KnowledgeV2TabKey } from './types'
+import { buildKnowledgeV2BaseListItems, type KnowledgeV2BaseListPatch } from './utils/baseList'
 
 const NAVIGATOR_DEFAULT_WIDTH = 180
 const NAVIGATOR_MIN_WIDTH = 180
 const NAVIGATOR_MAX_WIDTH = 360
 
-const knowledgeBases: KnowledgeV2Base[] = [
-  {
-    id: 'ai-tech-docs',
-    name: 'AI 技术文档',
-    group: 'work',
-    itemCount: 10,
-    status: 'ready',
-    updatedAt: '2026-04-21T10:40:00+08:00',
-    icon: '🤖',
-    iconClassName: 'bg-cyan-500/10 text-cyan-500'
-  },
-  {
-    id: 'design-specs',
-    name: '产品设计规范',
-    group: 'work',
-    itemCount: 5,
-    status: 'ready',
-    updatedAt: '2026-04-20T18:30:00+08:00',
-    icon: '🎨',
-    iconClassName: 'bg-fuchsia-500/10 text-fuchsia-500'
-  },
-  {
-    id: 'api-docs',
-    name: 'API 接口文档',
-    group: 'work',
-    itemCount: 6,
-    status: 'processing',
-    updatedAt: '2026-04-21T09:00:00+08:00',
-    icon: '🛰️',
-    iconClassName: 'bg-blue-500/10 text-blue-500'
-  },
-  {
-    id: 'analysis-reports',
-    name: '竞品分析报告',
-    group: 'work',
-    itemCount: 4,
-    status: 'ready',
-    updatedAt: '2026-04-19T14:20:00+08:00',
-    icon: '📊',
-    iconClassName: 'bg-amber-500/10 text-amber-500'
-  },
-  {
-    id: 'reading-notes',
-    name: '阅读笔记',
-    group: 'personal',
-    itemCount: 7,
-    status: 'ready',
-    updatedAt: '2026-04-18T20:00:00+08:00',
-    icon: '📚',
-    iconClassName: 'bg-emerald-500/10 text-emerald-500'
-  },
-  {
-    id: 'travel-plans',
-    name: '旅行攻略',
-    group: 'personal',
-    itemCount: 3,
-    status: 'ready',
-    updatedAt: '2026-04-16T09:45:00+08:00',
-    icon: '✈️',
-    iconClassName: 'bg-sky-500/10 text-sky-500'
-  },
-  {
-    id: 'recipes',
-    name: '食谱收藏',
-    group: 'personal',
-    itemCount: 4,
-    status: 'failed',
-    updatedAt: '2026-04-15T15:15:00+08:00',
-    icon: '🍳',
-    iconClassName: 'bg-orange-500/10 text-orange-500'
-  },
-  {
-    id: 'cherry-v2',
-    name: 'Cherry Studio V2',
-    group: 'project',
-    itemCount: 8,
-    status: 'processing',
-    updatedAt: '2026-04-21T09:20:00+08:00',
-    icon: '🍒',
-    iconClassName: 'bg-rose-500/10 text-rose-500'
-  },
-  {
-    id: 'ml-papers',
-    name: '机器学习论文集',
-    group: 'project',
-    itemCount: 6,
-    status: 'ready',
-    updatedAt: '2026-04-20T11:10:00+08:00',
-    icon: '🧠',
-    iconClassName: 'bg-violet-500/10 text-violet-500'
-  }
-]
+const knowledgeBaseListPatches: Partial<Record<string, KnowledgeV2BaseListPatch>> = {
+  'ai-tech-docs': { itemCount: 10, status: 'completed' },
+  'design-specs': { itemCount: 5, status: 'completed' },
+  'api-docs': { itemCount: 6, status: 'processing' },
+  'analysis-reports': { itemCount: 4, status: 'completed' },
+  'reading-notes': { itemCount: 7, status: 'completed' },
+  'travel-plans': { itemCount: 3, status: 'completed' },
+  recipes: { itemCount: 4, status: 'failed' },
+  'cherry-v2': { itemCount: 8, status: 'processing' },
+  'ml-papers': { itemCount: 6, status: 'completed' }
+}
 
 const KnowledgeV2Page = () => {
   const { t } = useTranslation()
-  const [selectedBaseId, setSelectedBaseId] = useState(knowledgeBases[0]?.id ?? '')
+  const { bases, isLoading } = useKnowledgeV2Bases()
+  const [selectedBaseId, setSelectedBaseId] = useState('')
+  const { items: selectedBaseItems, isLoading: isItemsLoading } = useKnowledgeV2Items(selectedBaseId)
   const [activeTab, setActiveTab] = useState<KnowledgeV2TabKey>('dataSource')
   const [navigatorWidth, setNavigatorWidth] = useState(NAVIGATOR_DEFAULT_WIDTH)
   const isResizingRef = useRef(false)
   const resizeCleanupRef = useRef<(() => void) | null>(null)
   const contentRef = useRef<HTMLDivElement>(null)
 
+  const knowledgeBaseListItems = useMemo(() => buildKnowledgeV2BaseListItems(bases, knowledgeBaseListPatches), [bases])
+  const navigatorBaseListItems = useMemo(() => {
+    return knowledgeBaseListItems.map((base) => {
+      if (base.base.id !== selectedBaseId) {
+        return base
+      }
+
+      return {
+        ...base,
+        itemCount: selectedBaseItems.length
+      }
+    })
+  }, [knowledgeBaseListItems, selectedBaseId, selectedBaseItems.length])
+
   const selectedBase = useMemo(() => {
-    return knowledgeBases.find((base) => base.id === selectedBaseId) ?? knowledgeBases[0]
-  }, [selectedBaseId])
+    return navigatorBaseListItems.find((base) => base.base.id === selectedBaseId)
+  }, [navigatorBaseListItems, selectedBaseId])
 
   useEffect(() => {
     return () => {
       resizeCleanupRef.current?.()
     }
   }, [])
+
+  useEffect(() => {
+    if (knowledgeBaseListItems.length === 0) {
+      if (selectedBaseId) {
+        setSelectedBaseId('')
+      }
+      return
+    }
+
+    const hasSelectedBase = knowledgeBaseListItems.some((base) => base.base.id === selectedBaseId)
+    if (!selectedBaseId || !hasSelectedBase) {
+      setSelectedBaseId(knowledgeBaseListItems[0].base.id)
+    }
+  }, [knowledgeBaseListItems, selectedBaseId])
 
   const startNavigatorResize = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
     event.preventDefault()
@@ -160,10 +112,6 @@ const KnowledgeV2Page = () => {
     resizeCleanupRef.current = cleanup
   }, [])
 
-  if (!selectedBase) {
-    return null
-  }
-
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <Navbar>
@@ -174,24 +122,30 @@ const KnowledgeV2Page = () => {
         ref={contentRef}
         className="flex h-[calc(100vh-var(--navbar-height))] min-h-0 flex-1 overflow-hidden bg-background">
         <BaseNavigator
-          bases={knowledgeBases}
+          bases={navigatorBaseListItems}
           width={navigatorWidth}
-          selectedBaseId={selectedBase.id}
+          selectedBaseId={selectedBaseId}
           onSelectBase={setSelectedBaseId}
           onCreateBase={() => undefined}
           onResizeStart={startNavigatorResize}
         />
 
-        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
-          <DetailHeader base={selectedBase} />
-          <DetailTabs activeTab={activeTab} dataSourceCount={selectedBase.itemCount} onChange={setActiveTab} />
+        {selectedBase ? (
+          <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
+            <DetailHeader base={selectedBase} />
+            <DetailTabs activeTab={activeTab} dataSourceCount={selectedBaseItems.length} onChange={setActiveTab} />
 
-          <div className="min-h-0 flex-1 overflow-hidden">
-            {activeTab === 'dataSource' && <DataSourcePanel />}
-            {activeTab === 'ragConfig' && <RagConfigPanel />}
-            {activeTab === 'recallTest' && <RecallTestPanel />}
-          </div>
-        </main>
+            <div className="min-h-0 flex-1 overflow-hidden">
+              {activeTab === 'dataSource' && <DataSourcePanel items={selectedBaseItems} isLoading={isItemsLoading} />}
+              {activeTab === 'ragConfig' && <RagConfigPanel />}
+              {activeTab === 'recallTest' && <RecallTestPanel />}
+            </div>
+          </main>
+        ) : (
+          <main className="flex min-h-0 min-w-0 flex-1 items-center justify-center bg-background px-6 text-muted-foreground text-sm">
+            {isLoading ? t('common.loading') : t('knowledge.empty')}
+          </main>
+        )}
       </div>
     </div>
   )

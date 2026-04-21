@@ -8,14 +8,15 @@ import {
   Scrollbar
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import type { KnowledgeV2Base, KnowledgeV2BaseGroup } from '@renderer/pages/knowledge.v2/types'
+import type { KnowledgeV2BaseListItem } from '@renderer/pages/knowledge.v2/types'
+import { filterKnowledgeV2BaseGroupSections } from '@renderer/pages/knowledge.v2/utils/baseList'
 import { BookOpenText, FolderPlus, Plus, Search } from 'lucide-react'
 import type { MouseEvent as ReactMouseEvent } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface BaseNavigatorProps {
-  bases: KnowledgeV2Base[]
+  bases: KnowledgeV2BaseListItem[]
   width: number
   selectedBaseId: string
   onSelectBase: (baseId: string) => void
@@ -23,13 +24,11 @@ interface BaseNavigatorProps {
   onResizeStart: (event: ReactMouseEvent<HTMLDivElement>) => void
 }
 
-const groupOrder: KnowledgeV2BaseGroup[] = ['work', 'personal', 'project']
-
 const statusDotClassNames = {
-  ready: 'bg-emerald-500',
+  completed: 'bg-emerald-500',
   processing: 'bg-amber-500',
   failed: 'bg-destructive'
-} satisfies Record<KnowledgeV2Base['status'], string>
+} satisfies Record<KnowledgeV2BaseListItem['status'], string>
 
 const BaseNavigator = ({
   bases,
@@ -42,27 +41,21 @@ const BaseNavigator = ({
   const { t } = useTranslation()
   const [searchValue, setSearchValue] = useState('')
 
-  const filteredBases = useMemo(() => {
-    const normalizedSearch = searchValue.trim().toLowerCase()
+  const filteredBases = useMemo(() => filterKnowledgeV2BaseGroupSections(bases, searchValue), [bases, searchValue])
 
-    return groupOrder
-      .map((group) => {
-        const items = bases.filter((base) => {
-          if (base.group !== group) {
-            return false
-          }
+  const getGroupLabel = (groupId: string | null) => {
+    if (!groupId) {
+      return t('assistants.tags.untagged')
+    }
 
-          if (!normalizedSearch) {
-            return true
-          }
+    const labelKeyByGroupId: Partial<Record<string, string>> = {
+      personal: 'knowledge_v2.groups.personal',
+      project: 'knowledge_v2.groups.project',
+      work: 'knowledge_v2.groups.work'
+    }
 
-          return base.name.toLowerCase().includes(normalizedSearch)
-        })
-
-        return { group, items }
-      })
-      .filter(({ items }) => items.length > 0)
-  }, [bases, searchValue])
+    return labelKeyByGroupId[groupId] ? t(labelKeyByGroupId[groupId]) : groupId
+  }
 
   return (
     <div style={{ width }} className="relative h-full min-h-0 shrink-0">
@@ -111,70 +104,79 @@ const BaseNavigator = ({
         </div>
 
         <Scrollbar className={cn('min-h-0 flex-1 px-1.5')}>
-          <Accordion type="multiple" defaultValue={groupOrder} className="space-y-1.5">
-            {filteredBases.map(({ group, items }) => {
-              return (
-                <AccordionItem key={group} value={group} className="ml-0.5 border-none">
-                  <AccordionTrigger
-                    className={cn(
-                      'gap-1.5 rounded-none px-1.5 py-1 font-normal text-[0.625rem] text-foreground/45 leading-3.75 hover:no-underline',
-                      '[&[data-state=closed]>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0',
-                      '[&>svg]:size-3 [&>svg]:shrink-0 [&>svg]:text-foreground/45',
-                      'flex-row-reverse'
-                    )}>
-                    <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                      <span className="truncate font-medium tracking-widest">{t(`knowledge_v2.groups.${group}`)}</span>
-                      <span className="shrink-0 text-foreground/45">{items.length}</span>
-                    </div>
-                  </AccordionTrigger>
+          {bases.length === 0 ? (
+            <div className="flex h-full items-center justify-center px-4 text-center text-[0.6875rem] text-muted-foreground/60">
+              {t('knowledge.empty')}
+            </div>
+          ) : (
+            <Accordion
+              type="multiple"
+              defaultValue={filteredBases.map(({ groupId }) => groupId ?? 'ungrouped')}
+              className="space-y-1.5">
+              {filteredBases.map(({ groupId, items }) => {
+                const groupValue = groupId ?? 'ungrouped'
 
-                  <AccordionContent className="pt-0 pb-0">
-                    <div className="space-y-px">
-                      {items.map((base) => {
-                        const selected = base.id === selectedBaseId
+                return (
+                  <AccordionItem key={groupValue} value={groupValue} className="ml-0.5 border-none">
+                    <AccordionTrigger
+                      className={cn(
+                        'gap-1.5 rounded-none px-1.5 py-1 font-normal text-[0.625rem] text-foreground/45 leading-3.75 hover:no-underline',
+                        '[&[data-state=closed]>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0',
+                        '[&>svg]:size-3 [&>svg]:shrink-0 [&>svg]:text-foreground/45',
+                        'flex-row-reverse'
+                      )}>
+                      <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                        <span className="truncate font-medium tracking-widest">{getGroupLabel(groupId)}</span>
+                        <span className="shrink-0 text-foreground/45">{items.length}</span>
+                      </div>
+                    </AccordionTrigger>
 
-                        return (
-                          <Button
-                            key={base.id}
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => onSelectBase(base.id)}
-                            className={cn(
-                              'h-10.25 min-h-10.25 w-full justify-start gap-2 rounded-lg px-1.5 py-1.25 text-left font-normal text-foreground shadow-none transition-all duration-150',
-                              selected
-                                ? 'bg-accent hover:bg-accent hover:text-foreground'
-                                : 'hover:bg-accent/60 hover:text-foreground'
-                            )}>
-                            <div
+                    <AccordionContent className="pt-0 pb-0">
+                      <div className="space-y-px">
+                        {items.map((base) => {
+                          const selected = base.base.id === selectedBaseId
+
+                          return (
+                            <Button
+                              key={base.base.id}
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => onSelectBase(base.base.id)}
                               className={cn(
-                                'flex size-6 shrink-0 items-center justify-center rounded text-xs',
-                                base.iconClassName
+                                'h-10.25 min-h-10.25 w-full justify-start gap-2 rounded-lg px-1.5 py-1.25 text-left font-normal text-foreground shadow-none transition-all duration-150',
+                                selected
+                                  ? 'bg-accent hover:bg-accent hover:text-foreground'
+                                  : 'hover:bg-accent/60 hover:text-foreground'
                               )}>
-                              <span aria-hidden="true">{base.icon}</span>
-                            </div>
-
-                            <div className="min-w-0 flex-1">
-                              <div className="truncate text-[0.6875rem] text-foreground leading-4.125">{base.name}</div>
-                              <div className="mt-px flex items-center gap-1">
-                                <span className="text-[0.5625rem] text-muted-foreground/45 leading-3.375">
-                                  {t('knowledge_v2.meta.documents_count', { count: base.itemCount })}
-                                </span>
-                                <span
-                                  aria-hidden="true"
-                                  className={cn('size-1.5 rounded-full', statusDotClassNames[base.status])}
-                                />
+                              <div className="flex size-6 shrink-0 items-center justify-center rounded bg-muted/60 text-xs">
+                                <span aria-hidden="true">{base.base.emoji}</span>
                               </div>
-                            </div>
-                          </Button>
-                        )
-                      })}
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-              )
-            })}
-          </Accordion>
+
+                              <div className="min-w-0 flex-1">
+                                <div className="truncate text-[0.6875rem] text-foreground leading-4.125">
+                                  {base.base.name}
+                                </div>
+                                <div className="mt-px flex items-center gap-1">
+                                  <span className="text-[0.5625rem] text-muted-foreground/45 leading-3.375">
+                                    {t('knowledge_v2.meta.documents_count', { count: base.itemCount })}
+                                  </span>
+                                  <span
+                                    aria-hidden="true"
+                                    className={cn('size-1.5 rounded-full', statusDotClassNames[base.status])}
+                                  />
+                                </div>
+                              </div>
+                            </Button>
+                          )
+                        })}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                )
+              })}
+            </Accordion>
+          )}
         </Scrollbar>
 
         <div className="shrink-0 border-border/30 border-t px-2 py-1.5">
