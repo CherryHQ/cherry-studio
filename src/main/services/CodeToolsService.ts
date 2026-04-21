@@ -969,7 +969,7 @@ class CodeToolsService {
       } else {
         baseCommand = `export BUN_INSTALL="${bunInstallPath}" && export NPM_CONFIG_REGISTRY="${registryUrl}" && ${bunxCmd}`
       }
-      logger.debug('Using bunx command for claude-code:', baseCommand)
+      logger.debug(`Using bunx command for claude-code: ${baseCommand}`)
     }
 
     // Special handling for qwen-code: add --auth-type openai for version >= 0.12.3
