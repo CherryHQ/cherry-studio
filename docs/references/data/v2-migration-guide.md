@@ -130,3 +130,33 @@ src/main/data/migration/v2/
   - Field mappings (source → target)
   - Dropped fields and rationale
   - Code quality notes
+
+## Order-Key Stamping in Migrators
+
+Legacy Redux/Dexie → SQLite migrators for sortable resources must produce `order_key` values for every row they insert. The v2 migrator layer owns a pair of **pure functions** under `src/main/data/migration/v2/utils/orderKey.ts` that handle this without touching the DB — they take a pre-flattened array and return the same rows with `orderKey` attached.
+
+| Helper | Shape | Use for |
+|---|---|---|
+| `assignOrderKeysInSequence(rows)` | Returns `rows` with one monotonically increasing `orderKey` per row. | Whole-table ordering (e.g. `mcp_server`, `user_provider`, `miniapp`). |
+| `assignOrderKeysByScope(rows, getScope)` | Groups rows by the scope key, stamps each bucket independently (independent key spaces per bucket). | Partitioned tables (e.g. `topic.groupId`, `user_model.providerId`, `group.entityType`). |
+
+**Pattern — flatten first, stamp last:** keep `transform*` functions pure (no `index` parameter, no `sortOrder` argument); flatten the legacy source into an array, then stamp keys onto the whole array:
+
+```typescript
+import { assignOrderKeysByScope, assignOrderKeysInSequence } from '@data/migration/v2/utils/orderKey'
+
+// Before — each transform took an index and emitted a sortOrder
+const rows = legacyServers.map((src, i) => transformMcpServer(src, i).row)
+
+// After — transforms are pure; keys are assigned after the flatten
+const rows = legacyServers.map((src) => transformMcpServerV2(src).row)
+const stamped = assignOrderKeysInSequence(rows)
+await tx.insert(mcpServerTable).values(stamped)
+
+// Partitioned example — each providerId becomes its own independent key space
+const stamped = assignOrderKeysByScope(userModels, (m) => m.providerId)
+```
+
+**Import rule — never reach for `fractional-indexing` directly:** the migrator helpers delegate to `generateOrderKeySequence` exported from `src/main/data/services/utils/orderKey.ts`, which is the **single** sanctioned integration point for the library. Migrator code, migration scripts, and drizzle custom-migration callbacks all re-import from that service-layer wrapper. This keeps the library boundary auditable and leaves a single place to change the character set or swap implementations.
+
+For the runtime counterparts (`insertWithOrderKey` / `insertManyWithOrderKey` / `applyMoves` / `resetOrder`) used outside the migration window, see [Reorder Guide — Server-Side Service Helpers](./data-ordering-guide.md#4-server-side-service-helpers).

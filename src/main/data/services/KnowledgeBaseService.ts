@@ -17,6 +17,8 @@ import {
 import type { KnowledgeBase, KnowledgeSearchMode } from '@shared/data/types/knowledge'
 import { desc, eq, sql } from 'drizzle-orm'
 
+import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
+
 const logger = loggerService.withContext('DataApi:KnowledgeBaseService')
 
 export interface KnowledgeBaseConfigInput {
@@ -97,22 +99,13 @@ export function validateKnowledgeBaseConfig(config: KnowledgeBaseConfigInput): R
 }
 
 function rowToKnowledgeBase(row: typeof knowledgeBaseTable.$inferSelect): KnowledgeBase {
+  const clean = nullsToUndefined(row)
   return {
-    id: row.id,
-    name: row.name,
-    description: row.description ?? undefined,
-    dimensions: row.dimensions,
-    embeddingModelId: row.embeddingModelId ?? null,
-    rerankModelId: row.rerankModelId ?? undefined,
-    fileProcessorId: row.fileProcessorId ?? undefined,
-    chunkSize: row.chunkSize ?? undefined,
-    chunkOverlap: row.chunkOverlap ?? undefined,
-    threshold: row.threshold ?? undefined,
-    documentCount: row.documentCount ?? undefined,
-    searchMode: row.searchMode ?? undefined,
-    hybridAlpha: row.hybridAlpha ?? undefined,
-    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
-    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : new Date().toISOString()
+    ...clean,
+    // Preserve `string | null` contract — bypass clean (which would narrow null → undefined)
+    embeddingModelId: row.embeddingModelId,
+    createdAt: timestampToISO(row.createdAt),
+    updatedAt: timestampToISO(row.updatedAt)
   }
 }
 

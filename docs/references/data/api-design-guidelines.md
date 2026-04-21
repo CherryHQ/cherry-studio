@@ -163,6 +163,9 @@ POST /messages/:id/update-content  // Use PATCH /messages/:id instead
 
 Use verb-based paths for operations that don't fit CRUD semantics:
 
+> For sortable resources (drag-and-drop ordering), do not invent ad-hoc endpoints — follow the canonical `PATCH /{resource}/:id/order` pattern documented in the [Ordering Guide](./data-ordering-guide.md).
+
+
 ```typescript
 // Search
 '/topics/search': {

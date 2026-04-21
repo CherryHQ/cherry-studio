@@ -25,9 +25,12 @@ export {
 export { ConfirmDialog, type ConfirmDialogProps } from './composites/ConfirmDialog'
 export { default as Ellipsis } from './composites/Ellipsis'
 export { default as EmojiAvatar } from './composites/EmojiAvatar'
+export { EmptyState, type EmptyStatePreset, type EmptyStateProps } from './composites/EmptyState'
 export { Box, Center, ColFlex, Flex, RowFlex, SpaceBetweenRowFlex } from './composites/Flex'
 export { default as HorizontalScrollContainer } from './composites/HorizontalScrollContainer'
+export { PageSidePanel, type PageSidePanelPlacement, type PageSidePanelProps } from './composites/PageSidePanel'
 export { default as Scrollbar } from './composites/Scrollbar'
+export { SelectDropdown, type SelectDropdownProps } from './composites/SelectDropdown'
 
 // Icon Components — import from '@cherrystudio/ui/icons' path
 export type { CompoundIcon, IconAvatarProps, IconComponent, IconMeta, IconProps } from './icons/types'

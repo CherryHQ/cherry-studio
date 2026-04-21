@@ -8,6 +8,8 @@
  * - {@link useInfiniteQuery} - Cursor-based infinite scrolling
  * - {@link usePaginatedQuery} - Offset-based pagination with navigation
  * - {@link useInvalidateCache} - Manual cache invalidation
+ * - {@link useReadCache} - Non-reactive cache peek (single sanctioned home for `unstable_serialize`)
+ * - {@link useWriteCache} - Write to a cache key without revalidating (optimistic overlay)
  * - {@link prefetch} - Warm up cache before user interactions
  *
  * All hooks use SWR under the hood for caching, deduplication, and revalidation.
@@ -50,7 +52,7 @@ import {
 } from '@shared/data/api/apiTypes'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { KeyedMutator, SWRConfiguration } from 'swr'
-import useSWR, { preload, useSWRConfig } from 'swr'
+import useSWR, { preload, unstable_serialize, useSWRConfig } from 'swr'
 import type { SWRInfiniteConfiguration } from 'swr/infinite'
 import useSWRInfinite from 'swr/infinite'
 import type { SWRMutationConfiguration } from 'swr/mutation'
@@ -597,6 +599,99 @@ export function prefetch<TPath extends ApiPath>(
   const resolvedPath = resolveTemplate(path, options?.params as Record<string, string | number> | undefined)
   const key = buildSWRKey(resolvedPath, options?.query as Record<string, any> | undefined)
   return preload(key, getFetcher)
+}
+
+/**
+ * Hook: snapshot-read a cached GET response WITHOUT subscribing.
+ *
+ * Returns a reader function that peeks the current value of a cache key and
+ * returns `undefined` when the key has not been fetched yet. The reader does
+ * NOT subscribe — calling it does not re-render the component when the cache
+ * entry changes.
+ *
+ * Use this for one-shot reads inside callbacks or optimistic-update reducers
+ * where re-rendering on cache change is explicitly undesirable (e.g.
+ * {@link useMutation} callbacks, drag-and-drop optimistic writes). For
+ * reactive access, use {@link useQuery} instead.
+ *
+ * This hook is the ONLY sanctioned place in the codebase to reach for SWR's
+ * internal key serialization (`unstable_serialize`) and raw cache API — any
+ * other hook that needs non-reactive cache reads must go through here so the
+ * unstable-surface stays confined to a single file.
+ *
+ * @example
+ * // Inside a callback, peek the current collection before computing an
+ * // optimistic overlay.
+ * const readSnapshot = useReadCache()
+ * const handleDrop = (next: Item[]) => {
+ *   const current = readSnapshot<{ items: Item[] }>('/mcp-servers')
+ *   // ...derive optimistic value from current + next
+ * }
+ */
+export function useReadCache() {
+  const { cache } = useSWRConfig()
+
+  return useCallback(
+    <TResponse = unknown>(
+      path: ConcreteApiPaths | TemplateApiPaths,
+      query?: Record<string, unknown>
+    ): TResponse | undefined => {
+      const hasQuery = query !== undefined && Object.keys(query).length > 0
+      const serialized = hasQuery ? unstable_serialize([path, query]) : unstable_serialize([path])
+      const entry = cache.get(serialized)
+      return entry?.data as TResponse | undefined
+    },
+    [cache]
+  )
+}
+
+/**
+ * Hook: write a value into the cache under a GET key WITHOUT triggering a
+ * revalidation.
+ *
+ * Returns a writer function that mirrors {@link useQuery}'s cache-key shape
+ * — pass the same `path` (+ optional `query`) you would to `useQuery` and it
+ * overwrites that entry in-place. This is the sanctioned form of
+ * `mutate(key, value, false)` for the DataApi layer; `useReorder` and any
+ * future hook needing to seed an optimistic overlay go through here instead
+ * of touching `useSWRConfig` directly.
+ *
+ * The write does NOT mark the entry stale and does NOT schedule a fetch —
+ * callers who need a follow-up revalidate use {@link useInvalidateCache} or
+ * rely on {@link useMutation}'s `refresh` option to handle it.
+ *
+ * @example
+ * const writeCache = useWriteCache()
+ * const invalidate = useInvalidateCache()
+ *
+ * // Seed an optimistic value derived from the current cache + user input.
+ * await writeCache('/mcp-servers', nextCollection)
+ * try {
+ *   await patchServer({ body })
+ * } catch (err) {
+ *   // Rollback: force server truth back into cache.
+ *   await invalidate('/mcp-servers')
+ *   throw err
+ * }
+ */
+export function useWriteCache() {
+  const { mutate } = useSWRConfig()
+
+  return useCallback(
+    async <TResponse = unknown>(
+      path: ConcreteApiPaths | TemplateApiPaths,
+      value: TResponse,
+      query?: Record<string, unknown>
+    ): Promise<void> => {
+      const hasQuery = query !== undefined && Object.keys(query).length > 0
+      const key = hasQuery ? [path, query] : [path]
+      // `false` (third arg) tells SWR: overwrite the cached value and skip
+      // revalidation. Critical for optimistic overlays — we want the UI to
+      // see the value immediately without racing with a GET.
+      await mutate(key, value, false)
+    },
+    [mutate]
+  )
 }
 
 // ============================================================================

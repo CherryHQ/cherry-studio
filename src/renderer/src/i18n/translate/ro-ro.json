@@ -1503,11 +1503,23 @@
     "bun_required_message": "Mediul Bun este necesar pentru a rula instrumente CLI",
     "cli_tool": "Instrument CLI",
     "cli_tool_placeholder": "Selectează instrumentul CLI de utilizat",
+    "count_one": "[to be translated]:{{count}} item",
+    "count_other": "[to be translated]:{{count}} items",
     "custom_path": "Cale personalizată",
     "custom_path_error": "Nu s-a putut seta calea personalizată a terminalului",
     "custom_path_required": "Calea personalizată este necesară pentru acest terminal",
     "custom_path_set": "Calea personalizată a terminalului a fost setată cu succes",
     "description": "Lansează rapid mai multe instrumente CLI de cod pentru a îmbunătăți eficiența dezvoltării",
+    "empty": {
+      "no_match": {
+        "description": "[to be translated]:Try adjusting your search terms",
+        "title": "[to be translated]:No matching tools found"
+      },
+      "no_tool": {
+        "description": "[to be translated]:Add a CLI tool or code assistant to get started",
+        "title": "[to be translated]:No code tools yet"
+      }
+    },
     "env_vars_help": "Introdu variabile de mediu personalizate (una pe rând, format: CHEIE=valoare)",
     "environment_variables": "Variabile de mediu",
     "folder_placeholder": "Selectează directorul de lucru",
@@ -1517,21 +1529,28 @@
       "bun_required": "Te rugăm să instalezi mai întâi mediul Bun înainte de a lansa instrumentele CLI",
       "error": "Lansarea a eșuat, te rugăm să încerci din nou",
       "label": "Lansează",
+      "launched": "[to be translated]:Launched",
       "success": "Lansare reușită",
       "validation_error": "Te rugăm să completezi toate câmpurile obligatorii: instrument CLI, model și director de lucru"
     },
     "launching": "Se lansează...",
     "model": "Model",
+    "model_hint": "[to be translated]:Choose which AI model the CLI tool should use",
     "model_placeholder": "Selectează modelul de utilizat",
     "model_required": "Te rugăm să selectezi un model",
+    "official_tag": "[to be translated]:Official",
+    "official_tools": "[to be translated]:Official",
+    "search_placeholder": "[to be translated]:Search CLI tools…",
     "select_folder": "Selectează dosarul",
     "set_custom_path": "Setează calea personalizată a terminalului",
     "supported_providers": "Furnizori acceptați",
     "terminal": "Terminal",
+    "terminal_hint": "[to be translated]:Choose which terminal application to run the CLI in",
     "terminal_placeholder": "Selectează aplicația terminal",
     "title": "Instrumente de cod",
     "update_options": "Opțiuni de actualizare",
-    "working_directory": "Director de lucru"
+    "working_directory": "Director de lucru",
+    "working_directory_hint": "[to be translated]:The working directory that the CLI tool launches in"
   },
   "code_block": {
     "collapse": "Restrânge",
