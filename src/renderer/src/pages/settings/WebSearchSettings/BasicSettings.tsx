@@ -11,9 +11,9 @@ import { webSearchService } from '@renderer/services/WebSearchService'
 import type { WebSearchProvider } from '@renderer/types'
 import { useNavigate } from '@tanstack/react-router'
 import { Slider } from 'antd'
+import type { TFunction } from 'i18next'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
-import type { TFunction } from 'react-i18next'
 import { useTranslation } from 'react-i18next'
 
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
@@ -25,7 +25,7 @@ function getUnavailableProviderDialogConfig(provider: WebSearchProvider, t: TFun
   return {
     title: t('settings.tool.websearch.search_provider'),
     content: `${provider.name} ${missingFieldLabel}`,
-    okText: t('settings.tool.websearch.search_provider_placeholder')
+    okText: t('settings.tool.websearch.api_key_required.ok')
   }
 }
 

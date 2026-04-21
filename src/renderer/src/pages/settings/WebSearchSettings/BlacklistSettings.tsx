@@ -1,4 +1,4 @@
-import { CheckOutlined, InfoCircleOutlined, LoadingOutlined } from '@ant-design/icons'
+import { CheckOutlined, LoadingOutlined } from '@ant-design/icons'
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -98,8 +98,7 @@ const BlacklistSettings: FC = () => {
     await setExcludeDomains(validDomains)
     window.toast.info({
       title: t('message.save.success.title'),
-      timeout: 4000,
-      icon: <InfoCircleOutlined />
+      timeout: 4000
     })
   }
   const onSelectChange = (newSelectedRowKeys: React.Key[]) => {

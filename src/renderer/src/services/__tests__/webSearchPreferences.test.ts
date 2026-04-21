@@ -88,7 +88,6 @@ describe('webSearchPreferences', () => {
 
     expect(overrides).toEqual({
       tavily: {
-        apiKeys: [],
         basicAuthUsername: '',
         basicAuthPassword: ''
       }

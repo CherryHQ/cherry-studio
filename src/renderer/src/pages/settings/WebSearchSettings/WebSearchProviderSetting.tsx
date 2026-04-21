@@ -97,6 +97,10 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
       return
     }
 
+    if (needsApiKey && !hasApiKey) {
+      return
+    }
+
     if (apiKey.includes(',')) {
       await openApiKeyList()
       return
@@ -104,7 +108,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
 
     try {
       setApiChecking(true)
-      const { valid, error } = await webSearchService.checkSearch(provider)
+      const { valid, error } = await webSearchService.checkSearch({ ...provider, apiKey, apiHost })
 
       const errorMessage = error && error?.message ? ' ' + error?.message : ''
       window.toast[valid ? 'success' : 'error']({
@@ -142,6 +146,8 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
 
   const needsApiKey = webSearchProviderRequiresApiKey(provider.id)
   const supportsBasicAuth = webSearchProviderSupportsBasicAuth(provider.id)
+  const hasApiKey = apiKey.split(',').some((key) => key.trim() !== '')
+  const canCheckSearch = !apiChecking && (!needsApiKey || hasApiKey)
   const canSetAsDefault = !isDefault && webSearchService.isWebSearchEnabled(provider.id)
 
   const handleSetAsDefault = () => {
@@ -200,7 +206,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
               type="password"
               autoFocus={apiKey === ''}
             />
-            <Button variant={apiValid ? 'ghost' : 'default'} onClick={checkSearch} disabled={apiChecking}>
+            <Button variant={apiValid ? 'ghost' : 'default'} onClick={checkSearch} disabled={!canCheckSearch}>
               {apiChecking ? (
                 <LoadingOutlined spin />
               ) : apiValid ? (
