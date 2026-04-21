@@ -143,8 +143,8 @@ export const agentHandlers: {
 } = {
   '/agents': {
     GET: async ({ query }) => {
-      const limit = query.limit ?? 50
-      const offset = query.offset ?? 0
+      const limit = query?.limit ?? 50
+      const offset = query?.offset ?? 0
       const { agents, total } = await agentService.listAgents({ limit, offset })
       return { data: agents, total, limit, offset }
     },
@@ -177,8 +177,8 @@ export const agentHandlers: {
 
   '/agents/:agentId/sessions': {
     GET: async ({ params, query }) => {
-      const limit = query.limit ?? 50
-      const offset = query.offset ?? 0
+      const limit = query?.limit ?? 50
+      const offset = query?.offset ?? 0
       const { sessions, total } = await sessionService.listSessions(params.agentId, { limit, offset })
       return { data: sessions, total, limit, offset }
     },
@@ -216,12 +216,16 @@ export const agentHandlers: {
 
   '/agents/:agentId/sessions/:sessionId/messages': {
     GET: async ({ params, query }) => {
+      const sessionExists = await sessionService.sessionExists(params.agentId, params.sessionId)
+      if (!sessionExists) throw DataApiErrorFactory.notFound('Session', params.sessionId)
       return await sessionMessageService.listSessionMessages(params.sessionId, query)
     }
   },
 
   '/agents/:agentId/sessions/:sessionId/messages/:messageId': {
     DELETE: async ({ params }) => {
+      const sessionExists = await sessionService.sessionExists(params.agentId, params.sessionId)
+      if (!sessionExists) throw DataApiErrorFactory.notFound('Session', params.sessionId)
       const messageId = Number(params.messageId)
       if (!Number.isFinite(messageId)) {
         throw DataApiErrorFactory.validation({ messageId: ['must be a numeric id'] }, 'Invalid message id')
@@ -234,8 +238,8 @@ export const agentHandlers: {
 
   '/agents/:agentId/tasks': {
     GET: async ({ params, query }) => {
-      const limit = query.limit ?? 50
-      const offset = query.offset ?? 0
+      const limit = query?.limit ?? 50
+      const offset = query?.offset ?? 0
       const { tasks, total } = await taskService.listTasks(params.agentId, { limit, offset })
       return { data: tasks, total, limit, offset }
     },

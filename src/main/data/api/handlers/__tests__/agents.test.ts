@@ -12,6 +12,7 @@ const {
   getSessionMock,
   updateSessionMock,
   deleteSessionMock,
+  sessionExistsMock,
   listSessionMessagesMock,
   deleteSessionMessageMock,
   listTasksMock,
@@ -32,6 +33,7 @@ const {
   getSessionMock: vi.fn(),
   updateSessionMock: vi.fn(),
   deleteSessionMock: vi.fn(),
+  sessionExistsMock: vi.fn(),
   listSessionMessagesMock: vi.fn(),
   deleteSessionMessageMock: vi.fn(),
   listTasksMock: vi.fn(),
@@ -59,7 +61,8 @@ vi.mock('@main/services/agents/services/SessionService', () => ({
     createSession: createSessionMock,
     getSession: getSessionMock,
     updateSession: updateSessionMock,
-    deleteSession: deleteSessionMock
+    deleteSession: deleteSessionMock,
+    sessionExists: sessionExistsMock
   }
 }))
 
@@ -115,6 +118,15 @@ describe('agentHandlers', () => {
 
       expect(listAgentsMock).toHaveBeenCalledOnce()
       expect(result).toMatchObject({ data: [mockAgent], total: 1 })
+    })
+
+    it('GET works without query params (defaults to limit=50 offset=0)', async () => {
+      listAgentsMock.mockResolvedValueOnce({ agents: [], total: 0 })
+
+      const result = await agentHandlers['/agents'].GET({} as never)
+
+      expect(listAgentsMock).toHaveBeenCalledWith({ limit: 50, offset: 0 })
+      expect(result).toMatchObject({ total: 0 })
     })
 
     it('delegates POST to agentService.createAgent', async () => {
@@ -265,6 +277,7 @@ describe('agentHandlers', () => {
 
   describe('/agents/:agentId/sessions/:sessionId/messages', () => {
     it('delegates GET to sessionMessageService.listSessionMessages', async () => {
+      sessionExistsMock.mockResolvedValueOnce(true)
       listSessionMessagesMock.mockResolvedValueOnce({ messages: [] })
 
       await agentHandlers['/agents/:agentId/sessions/:sessionId/messages'].GET({
@@ -272,7 +285,21 @@ describe('agentHandlers', () => {
         query: { limit: 20 }
       } as never)
 
+      expect(sessionExistsMock).toHaveBeenCalledWith(AGENT_ID, SESSION_ID)
       expect(listSessionMessagesMock).toHaveBeenCalledWith(SESSION_ID, { limit: 20 })
+    })
+
+    it('throws notFound when session does not belong to agent on GET', async () => {
+      sessionExistsMock.mockResolvedValueOnce(false)
+
+      await expect(
+        agentHandlers['/agents/:agentId/sessions/:sessionId/messages'].GET({
+          params: { agentId: AGENT_ID, sessionId: SESSION_ID },
+          query: {}
+        } as never)
+      ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+
+      expect(listSessionMessagesMock).not.toHaveBeenCalled()
     })
   })
 
@@ -280,6 +307,7 @@ describe('agentHandlers', () => {
 
   describe('/agents/:agentId/sessions/:sessionId/messages/:messageId', () => {
     it('delegates DELETE with numeric messageId', async () => {
+      sessionExistsMock.mockResolvedValueOnce(true)
       deleteSessionMessageMock.mockResolvedValueOnce(true)
 
       await expect(
@@ -288,10 +316,25 @@ describe('agentHandlers', () => {
         } as never)
       ).resolves.toBeUndefined()
 
+      expect(sessionExistsMock).toHaveBeenCalledWith(AGENT_ID, SESSION_ID)
       expect(deleteSessionMessageMock).toHaveBeenCalledWith(SESSION_ID, 42)
     })
 
+    it('throws notFound when session does not belong to agent on DELETE', async () => {
+      sessionExistsMock.mockResolvedValueOnce(false)
+
+      await expect(
+        agentHandlers['/agents/:agentId/sessions/:sessionId/messages/:messageId'].DELETE({
+          params: { agentId: AGENT_ID, sessionId: SESSION_ID, messageId: MESSAGE_ID }
+        } as never)
+      ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+
+      expect(deleteSessionMessageMock).not.toHaveBeenCalled()
+    })
+
     it('throws validation error for non-numeric messageId', async () => {
+      sessionExistsMock.mockResolvedValueOnce(true)
+
       await expect(
         agentHandlers['/agents/:agentId/sessions/:sessionId/messages/:messageId'].DELETE({
           params: { agentId: AGENT_ID, sessionId: SESSION_ID, messageId: 'not-a-number' }
@@ -302,6 +345,7 @@ describe('agentHandlers', () => {
     })
 
     it('throws notFound when message does not exist', async () => {
+      sessionExistsMock.mockResolvedValueOnce(true)
       deleteSessionMessageMock.mockResolvedValueOnce(false)
 
       await expect(
