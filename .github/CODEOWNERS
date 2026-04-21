@@ -5,13 +5,14 @@
 /src/main/ipc.ts @0xfullex @DeJeune
 
 /migrations/ @0xfullex
+/src/main/core/ @0xfullex
 /packages/shared/data/ @0xfullex
 /src/main/data/ @0xfullex
 /src/renderer/src/data/ @0xfullex
+/src/renderer/src/core/ @0xfullex
+/src/preload/ @0xfullex
 /v2-refactor-temp/ @0xfullex
-/docs/en/references/data/ @0xfullex
-/docs/zh/references/data/ @0xfullex
-
+/docs/references/data/ @0xfullex
 /packages/ui/ @MyPrototypeWhat
 
 /app-upgrade-config.json @kangfenmao

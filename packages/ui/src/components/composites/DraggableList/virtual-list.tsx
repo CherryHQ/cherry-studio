@@ -7,7 +7,7 @@ import type {
 } from '@hello-pangea/dnd'
 import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd'
 import { type ScrollToOptions, useVirtualizer, type VirtualItem } from '@tanstack/react-virtual'
-import { type Key, memo, useCallback, useImperativeHandle, useRef } from 'react'
+import { type Key, memo, useCallback, useEffect, useImperativeHandle, useRef } from 'react'
 
 import Scrollbar from '../Scrollbar'
 import { droppableReorder } from './sort'
@@ -101,6 +101,8 @@ function DraggableVirtualList<T>({
 
   // 虚拟列表滚动容器的 ref
   const parentRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const droppableInnerRef = useRef<((element: HTMLElement | null) => void) | null>(null)
 
   const virtualizer = useVirtualizer({
     count: list?.length ?? 0,
@@ -124,6 +126,11 @@ function DraggableVirtualList<T>({
     }),
     [virtualizer]
   )
+
+  useEffect(() => {
+    droppableInnerRef.current?.(scrollContainerRef.current)
+    parentRef.current = scrollContainerRef.current
+  })
 
   return (
     <div
@@ -151,15 +158,11 @@ function DraggableVirtualList<T>({
           }}
           {...droppableProps}>
           {(provided) => {
-            // 让 dnd 和虚拟列表共享同一个滚动容器
-            const setRefs = (el: HTMLDivElement | null) => {
-              provided.innerRef(el)
-              parentRef.current = el
-            }
+            droppableInnerRef.current = provided.innerRef
 
             return (
               <Scrollbar
-                ref={setRefs}
+                ref={scrollContainerRef}
                 {...provided.droppableProps}
                 className="virtual-scroller"
                 style={{

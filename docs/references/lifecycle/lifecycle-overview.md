@@ -121,7 +121,7 @@ Services within the same phase that have no inter-dependencies are initialized i
 Phase: WhenReady
 Layer 1: [DbService, ConfigService]  <- parallel (no inter-dependency)
 Layer 2: [PreferenceService]               <- sequential (depends on layer 1)
-Layer 3: [WindowService]                   <- sequential (depends on layer 2)
+Layer 3: [MainWindowService]                   <- sequential (depends on layer 2)
 ```
 
 ## Lifecycle Hooks
@@ -253,14 +253,14 @@ manager.on(LifecycleEvents.ALL_SERVICES_READY, () => {
 
 ## Inter-Service Communication
 
-`@DependsOn` guarantees initialization order, but some services need to react to work completed by other services at **runtime** (after `onInit()`). For example, `ShortcutService` needs to know when `WindowService` creates the main window — which happens after all services have initialized.
+`@DependsOn` guarantees initialization order, but some services need to react to work completed by other services at **runtime** (after `onInit()`). For example, `ShortcutService` needs to know when `MainWindowService` creates the main window — which happens after all services have initialized.
 
 The lifecycle system provides two typed primitives for this, avoiding ad-hoc `EventEmitter` patterns (no type safety, magic strings, manual cleanup):
 
 | Communication Pattern | Mechanism | Example |
 |---|---|---|
 | "Service B must init after Service A" | `@DependsOn` | PreferenceService depends on DbService |
-| "Service A completed runtime work, others react" (repeatable) | `Emitter<T>` / `Event<T>` | WindowService fires `onMainWindowCreated` |
+| "Service A completed runtime work, others react" (repeatable) | `Emitter<T>` / `Event<T>` | MainWindowService fires `onMainWindowCreated` |
 | "Service A completed runtime work, others react" (one-shot) | `Signal<T>` | DbService signals `migrationComplete` |
 | "Tell a specific service to do something" | Direct method call via `application.get()` | `windowService.showMainWindow()` |
 

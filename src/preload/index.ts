@@ -121,7 +121,7 @@ const api = {
   getAppInfo: () => ipcRenderer.invoke(IpcChannel.App_Info),
   getDiskInfo: (directoryPath: string): Promise<{ free: number; size: number } | null> =>
     ipcRenderer.invoke(IpcChannel.App_GetDiskInfo, directoryPath),
-  reload: () => ipcRenderer.invoke(IpcChannel.App_Reload),
+  reload: () => ipcRenderer.invoke(IpcChannel.MainWindow_Reload),
   checkForUpdate: () => ipcRenderer.invoke(IpcChannel.App_CheckForUpdate),
   // setLanguage: (lang: string) => ipcRenderer.invoke(IpcChannel.App_SetLanguage, lang),
   setEnableSpellCheck: (isEnable: boolean) => ipcRenderer.invoke(IpcChannel.App_SetEnableSpellCheck, isEnable),
@@ -161,11 +161,11 @@ const api = {
   clearCache: () => ipcRenderer.invoke(IpcChannel.App_ClearCache),
   logToMain: (source: LogSourceWithContext, level: LogLevel, message: string, data: any[]) =>
     ipcRenderer.invoke(IpcChannel.App_LogToMain, source, level, message, data),
-  setFullScreen: (value: boolean): Promise<void> => ipcRenderer.invoke(IpcChannel.App_SetFullScreen, value),
-  isFullScreen: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.App_IsFullScreen),
+  setFullScreen: (value: boolean): Promise<void> => ipcRenderer.invoke(IpcChannel.MainWindow_SetFullScreen, value),
+  isFullScreen: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.MainWindow_IsFullScreen),
   getSystemFonts: (): Promise<string[]> => ipcRenderer.invoke(IpcChannel.App_GetSystemFonts),
   getIpCountry: (): Promise<string> => ipcRenderer.invoke(IpcChannel.App_GetIpCountry),
-  mockCrashRenderProcess: () => ipcRenderer.invoke(IpcChannel.APP_CrashRenderProcess),
+  mockCrashRenderProcess: () => ipcRenderer.invoke(IpcChannel.MainWindow_CrashRenderProcess),
   mac: {
     isProcessTrusted: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.App_MacIsProcessTrusted),
     requestProcessTrust: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.App_MacRequestProcessTrust)
@@ -375,9 +375,9 @@ const api = {
   },
   window: {
     setMinimumSize: (width: number, height: number) =>
-      ipcRenderer.invoke(IpcChannel.Windows_SetMinimumSize, width, height),
-    resetMinimumSize: () => ipcRenderer.invoke(IpcChannel.Windows_ResetMinimumSize),
-    getSize: (): Promise<[number, number]> => ipcRenderer.invoke(IpcChannel.Windows_GetSize)
+      ipcRenderer.invoke(IpcChannel.MainWindow_SetMinimumSize, width, height),
+    resetMinimumSize: () => ipcRenderer.invoke(IpcChannel.MainWindow_ResetMinimumSize),
+    getSize: (): Promise<[number, number]> => ipcRenderer.invoke(IpcChannel.MainWindow_GetSize)
   },
   fileService: {
     upload: (provider: Provider, file: FileMetadata): Promise<FileUploadResponse> =>
@@ -415,12 +415,12 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Config_Set, key, value, isNotify),
     get: (key: string) => ipcRenderer.invoke(IpcChannel.Config_Get, key)
   },
-  miniWindow: {
-    show: () => ipcRenderer.invoke(IpcChannel.MiniWindow_Show),
-    hide: () => ipcRenderer.invoke(IpcChannel.MiniWindow_Hide),
-    close: () => ipcRenderer.invoke(IpcChannel.MiniWindow_Close),
-    toggle: () => ipcRenderer.invoke(IpcChannel.MiniWindow_Toggle),
-    setPin: (isPinned: boolean) => ipcRenderer.invoke(IpcChannel.MiniWindow_SetPin, isPinned)
+  quickAssistant: {
+    show: () => ipcRenderer.invoke(IpcChannel.QuickAssistant_Show),
+    hide: () => ipcRenderer.invoke(IpcChannel.QuickAssistant_Hide),
+    close: () => ipcRenderer.invoke(IpcChannel.QuickAssistant_Close),
+    toggle: () => ipcRenderer.invoke(IpcChannel.QuickAssistant_Toggle),
+    setPin: (isPinned: boolean) => ipcRenderer.invoke(IpcChannel.QuickAssistant_SetPin, isPinned)
   },
   aes: {
     encrypt: (text: string, secretKey: string, iv: string) =>
@@ -477,7 +477,7 @@ const api = {
   shell: {
     openExternal: (url: string, options?: Electron.OpenExternalOptions) => {
       // Defense-in-depth: validate URL scheme before forwarding to shell.openExternal
-      const ALLOWED_PROTOCOLS = ['http:', 'https:', 'mailto:']
+      const ALLOWED_PROTOCOLS = ['http:', 'https:', 'mailto:', 'obsidian:']
       try {
         const parsed = new URL(url)
         if (!ALLOWED_PROTOCOLS.includes(parsed.protocol)) {
@@ -737,7 +737,7 @@ const api = {
     close: (): Promise<void> => ipcRenderer.invoke(IpcChannel.Windows_Close),
     isMaximized: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.Windows_IsMaximized),
     onMaximizedChange: (callback: (isMaximized: boolean) => void): (() => void) => {
-      const channel = IpcChannel.Windows_MaximizedChanged
+      const channel = IpcChannel.MainWindow_MaximizedChanged
       const listener = (_: Electron.IpcRendererEvent, isMaximized: boolean) => callback(isMaximized)
       ipcRenderer.on(channel, listener)
       return () => {

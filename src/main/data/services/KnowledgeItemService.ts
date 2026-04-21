@@ -26,6 +26,7 @@ import {
 import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 
 import { knowledgeBaseService } from './KnowledgeBaseService'
+import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:KnowledgeItemService')
 
@@ -128,8 +129,8 @@ function rowToKnowledgeItem(row: typeof knowledgeItemTable.$inferSelect): Knowle
     data: parsedData,
     status: row.status,
     error: row.error,
-    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
-    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : new Date().toISOString()
+    createdAt: timestampToISO(row.createdAt),
+    updatedAt: timestampToISO(row.updatedAt)
   } as KnowledgeItem
 }
 

@@ -36,7 +36,11 @@ export const OllamaTagsResponseSchema = z.object({
           parent_model: z.string().optional(),
           format: z.string().optional(),
           family: z.string().optional(),
-          families: z.array(z.string()).optional(),
+          families: z
+            .array(z.string())
+            .nullable()
+            .optional()
+            .transform((v) => v ?? undefined),
           parameter_size: z.string().optional(),
           quantization_level: z.string().optional()
         })

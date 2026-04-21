@@ -16,6 +16,22 @@ export type CreateMessageOptions = {
   images?: Array<{ data: string; media_type: string }>
 }
 
+/**
+ * Reader/writer for the `agent_session_message` table.
+ *
+ * Scope deliberately trimmed to CRUD helpers (`sessionMessageExists`,
+ * `listSessionMessages`, `deleteSessionMessage`) — live message creation and
+ * streaming have moved to `AiStreamManager` + `AgentChatContextProvider`,
+ * which own the user / placeholder reservation path (`reserveAssistantTurn`),
+ * the execution pipeline, and persistence via `PersistenceListener`. The
+ * upstream #14159 additions (`createSessionMessage`, stream orchestration,
+ * `persistHeadlessExchange`, etc.) lived on top of the retired
+ * `claudecode/tool-permissions.ts` + `channels/sessionStreamIpc.ts` path and
+ * are not required here.
+ *
+ * Column access uses the camelCase names from the canonical `agentSessionMessage`
+ * Drizzle schema (re-exported via `../database/schema/messages.schema.ts`).
+ */
 export class SessionMessageService extends BaseService {
   async sessionMessageExists(id: number): Promise<boolean> {
     const database = await this.getDatabase()
@@ -37,8 +53,8 @@ export class SessionMessageService extends BaseService {
     const baseQuery = database
       .select()
       .from(sessionMessagesTable)
-      .where(eq(sessionMessagesTable.session_id, sessionId))
-      .orderBy(sessionMessagesTable.created_at)
+      .where(eq(sessionMessagesTable.sessionId, sessionId))
+      .orderBy(sessionMessagesTable.createdAt)
 
     const result =
       options.limit !== undefined
@@ -56,7 +72,7 @@ export class SessionMessageService extends BaseService {
     const database = await this.getDatabase()
     const result = await database
       .delete(sessionMessagesTable)
-      .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.session_id, sessionId)))
+      .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
 
     return result.rowsAffected > 0
   }

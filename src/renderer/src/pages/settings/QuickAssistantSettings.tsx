@@ -5,7 +5,7 @@ import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistants, useDefaultAssistant, useDefaultModel } from '@renderer/hooks/useAssistant'
 import { matchKeywordsInString } from '@renderer/utils'
-import HomeWindow from '@renderer/windows/mini/home/HomeWindow'
+import HomeWindow from '@renderer/windows/quickAssistant/home/HomeWindow'
 import { Select } from 'antd'
 import type { FC } from 'react'
 import { useMemo } from 'react'
@@ -40,7 +40,7 @@ const QuickAssistantSettings: FC = () => {
   const handleEnableQuickAssistant = async (enable: boolean) => {
     await setEnableQuickAssistant(enable)
 
-    void (!enable && window.api.miniWindow.close())
+    void (!enable && window.api.quickAssistant.close())
 
     if (enable && !clickTrayToShowQuickAssistant) {
       window.toast.info({
@@ -62,7 +62,7 @@ const QuickAssistantSettings: FC = () => {
 
   const handleClickReadClipboardAtStartup = async (checked: boolean) => {
     await setReadClipboardAtStartup(checked)
-    void window.api.miniWindow.close()
+    void window.api.quickAssistant.close()
   }
 
   return (

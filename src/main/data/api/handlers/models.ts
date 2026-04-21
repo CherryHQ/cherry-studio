@@ -8,15 +8,24 @@
 
 import { modelService } from '@data/services/ModelService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
+import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
-import type { ModelSchemas } from '@shared/data/api/schemas/models'
+import type { CreateModelDto } from '@shared/data/api/schemas/models'
+import {
+  CreateModelsDtoSchema,
+  ListModelsQuerySchema,
+  type ModelSchemas,
+  UpdateModelDtoSchema
+} from '@shared/data/api/schemas/models'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 
 /**
  * Handler type for a specific model endpoint
  */
 type ModelHandler<Path extends keyof ModelSchemas, Method extends ApiMethods<Path>> = ApiHandler<Path, Method>
+
+const logger = loggerService.withContext('DataApi:ModelHandlers')
 
 /**
  * Parse a UniqueModelId from the transport layer, raising a 422 validation
@@ -31,6 +40,34 @@ const parseOrValidationError = (uniqueModelId: string) => {
   return parseUniqueModelId(uniqueModelId)
 }
 
+async function enrichCreateItems(dtos: CreateModelDto[]) {
+  return await Promise.all(
+    dtos.map(async (dto) => {
+      try {
+        return {
+          dto,
+          registryData: await providerRegistryService.lookupModel(dto.providerId, dto.modelId)
+        }
+      } catch (error) {
+        logger.warn(
+          dtos.length === 1
+            ? 'Registry lookup failed during create, falling back to custom'
+            : 'Registry lookup failed during batch create, falling back to custom',
+          {
+            providerId: dto.providerId,
+            modelId: dto.modelId,
+            error
+          }
+        )
+        return {
+          dto,
+          registryData: undefined
+        }
+      }
+    })
+  )
+}
+
 /**
  * Model API handlers implementation
  */
@@ -41,12 +78,17 @@ export const modelHandlers: {
 } = {
   '/models': {
     GET: async ({ query }) => {
-      return await modelService.list(query ?? {})
+      const parsed = ListModelsQuerySchema.parse(query ?? {})
+      return await modelService.list(parsed)
     },
 
     POST: async ({ body }) => {
-      const registryData = await providerRegistryService.lookupModel(body.providerId, body.modelId)
-      return await modelService.create(body, registryData)
+      // Transport is array-only by design. Even single-item create requests are
+      // normalized before they reach the service so the service can expose one
+      // collection-oriented create path with consistent transaction semantics.
+      const parsed = CreateModelsDtoSchema.parse(body)
+      const items = await enrichCreateItems(parsed)
+      return await modelService.create(items)
     }
   },
 
@@ -58,7 +100,8 @@ export const modelHandlers: {
 
     PATCH: async ({ params, body }) => {
       const { providerId, modelId } = parseOrValidationError(params.uniqueModelId)
-      return await modelService.update(providerId, modelId, body)
+      const parsed = UpdateModelDtoSchema.parse(body)
+      return await modelService.update(providerId, modelId, parsed)
     },
 
     DELETE: async ({ params }) => {

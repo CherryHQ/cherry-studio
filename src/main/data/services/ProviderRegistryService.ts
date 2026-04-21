@@ -103,10 +103,12 @@ class ProviderRegistryService {
 
       return { defaultChatEndpoint, reasoningFormatTypes }
     } catch (error) {
-      if (!(isDataApiError(error) && error.code === ErrorCode.NOT_FOUND)) {
-        logger.warn('Failed to fetch provider for reasoning config, using registry defaults', error as Error)
+      if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
+        return registryConfig
       }
-      return registryConfig
+
+      logger.error('Failed to fetch provider for reasoning config', error as Error)
+      throw error
     }
   }
 
@@ -146,7 +148,7 @@ class ProviderRegistryService {
    * {@link RegistryLoader.findModel}) with DB-aware reasoning config resolution.
    *
    * Used by: `POST /models` handler — the handler calls this, then passes
-   * the result to `ModelService.create(dto, registryData)` to avoid a
+   * the result to `ModelService.create([{ dto, registryData }])` to avoid a
    * circular dependency between ModelService and this service.
    *
    * @param providerId - The provider context for override and reasoning lookup

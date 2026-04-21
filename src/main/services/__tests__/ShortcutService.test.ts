@@ -28,7 +28,7 @@ const { windowServiceMock, selectionServiceMock, quickAssistantServiceMock, glob
     processSelectTextByShortcut: vi.fn()
   },
   quickAssistantServiceMock: {
-    toggleQuickWindow: vi.fn()
+    toggleQuickAssistant: vi.fn()
   },
   globalShortcutMock: {
     register: vi.fn(),
@@ -39,7 +39,7 @@ const { windowServiceMock, selectionServiceMock, quickAssistantServiceMock, glob
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
-    WindowService: windowServiceMock,
+    MainWindowService: windowServiceMock,
     SelectionService: selectionServiceMock,
     QuickAssistantService: quickAssistantServiceMock
   } as any)
@@ -173,7 +173,7 @@ describe('ShortcutService', () => {
     expect(globalShortcutMock.register).not.toHaveBeenCalledWith('CommandOrControl+=', expect.any(Function))
   })
 
-  it('reacts to quick assistant enablement changes for mini window shortcut', async () => {
+  it('reacts to quick assistant enablement changes for quick assistant shortcut', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.feature.quick_assistant.toggle_window', {
       binding: ['CommandOrControl', 'E'],
       enabled: true

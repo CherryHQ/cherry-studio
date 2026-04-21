@@ -1,24 +1,11 @@
 /**
- * CherryStudio Styles - npm Package Entry Point
+ * Deprecated compatibility alias for `tokens.css`.
  *
- * Purpose: Export CSS variables only, without generating utility classes or overriding user themes
- * Use Cases:
- * - npm users who want to use design system variables without overriding Tailwind's default theme
- * - Can be used via var(--cs-primary) and similar patterns
- * - Does not generate utility classes like bg-primary (user's own bg-primary won't be affected)
+ * Canonical entry points:
+ * - `@cherrystudio/ui/styles/tokens.css`: design tokens only
+ * - `@cherrystudio/ui/styles/theme.css`: public theme contract
  *
- * Example:
- * ```css
- * @import '@cherrystudio/ui/styles/index.css';
- *
- * .my-button {
- *   background: var(--cs-primary);     // Use CS brand color
- *   padding: var(--cs-size-md);        // Use CS spacing
- * }
- * ```
- *
- * For complete theme override (generating bg-primary classes), import:
- * @import '@cherrystudio/ui/styles/theme.css';
+ * Keep this file during migration so existing imports keep working.
  */
 
 @import './tokens.css';

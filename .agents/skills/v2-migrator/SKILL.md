@@ -76,7 +76,7 @@ Renderer Process                          Main Process
                                           +---------------------------+
 ```
 
-**Multi-renderer note:** Cherry Studio has multiple renderer windows (main app, mini window, selection toolbar). Only the dedicated migration window triggers migration. Main process owns all migration logic; renderers receive progress via IPC.
+**Multi-renderer note:** Cherry Studio has multiple renderer windows (main app, quick assistant, selection toolbar). Only the dedicated migration window triggers migration. Main process owns all migration logic; renderers receive progress via IPC.
 
 ## Key Files
 

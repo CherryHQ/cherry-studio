@@ -30,6 +30,8 @@ import type {
 import type { UniqueModelId } from '@shared/data/types/model'
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 
+import { timestampToISO } from './utils/rowMappers'
+
 const logger = loggerService.withContext('DataApi:MessageService')
 
 /**
@@ -108,8 +110,8 @@ function rowToMessage(row: typeof messageTable.$inferSelect): Message {
     modelSnapshot: parseJson(row.modelSnapshot),
     traceId: row.traceId,
     stats: parseJson(row.stats),
-    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
-    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : new Date().toISOString()
+    createdAt: timestampToISO(row.createdAt),
+    updatedAt: timestampToISO(row.updatedAt)
   }
 }
 

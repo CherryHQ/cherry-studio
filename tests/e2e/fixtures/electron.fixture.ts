@@ -31,7 +31,7 @@ export const test = base.extend<ElectronFixtures>({
 
   mainWindow: async ({ electronApp }, use) => {
     // Wait for the main window (title: "Cherry Studio", not "Quick Assistant")
-    // On Mac, the app may create miniWindow for QuickAssistant with different title
+    // On Mac, the app may create the QuickAssistant window with a different title
     const mainWindow = await electronApp.waitForEvent('window', {
       predicate: async (window) => {
         const title = await window.title()

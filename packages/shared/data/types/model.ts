@@ -75,6 +75,7 @@ export const ParameterSupportDbSchema = z.object({
 
 /** Separator used in UniqueModelId */
 export const UNIQUE_MODEL_ID_SEPARATOR = '::'
+const RESERVED_UNIQUE_MODEL_ID_ROUTE_CHARS = ['?', '#'] as const
 
 /** UniqueModelId type: "providerId::modelId" */
 export type UniqueModelId = `${string}${typeof UNIQUE_MODEL_ID_SEPARATOR}${string}`
@@ -91,6 +92,10 @@ export const UniqueModelIdSchema = z.string().refine((v) => v.includes(UNIQUE_MO
 export function createUniqueModelId(providerId: string, modelId: string): UniqueModelId {
   if (providerId.includes(UNIQUE_MODEL_ID_SEPARATOR)) {
     throw new Error(`providerId cannot contain "${UNIQUE_MODEL_ID_SEPARATOR}": ${providerId}`)
+  }
+  const reservedChar = RESERVED_UNIQUE_MODEL_ID_ROUTE_CHARS.find((char) => modelId.includes(char))
+  if (reservedChar) {
+    throw new Error(`modelId cannot contain reserved route character "${reservedChar}": ${modelId}`)
   }
   return `${providerId}${UNIQUE_MODEL_ID_SEPARATOR}${modelId}`
 }

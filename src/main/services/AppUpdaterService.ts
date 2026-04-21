@@ -2,6 +2,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { WindowType } from '@main/core/window/types'
 import { getIpCountry } from '@main/utils/ipService'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
 import { APP_NAME, FeedUrl, UpdateConfigUrl, UpdateMirror } from '@shared/config/constant'
@@ -58,7 +59,7 @@ interface ChannelConfig {
 
 @Injectable('AppUpdaterService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowService'])
+@DependsOn(['WindowManager'])
 export class AppUpdaterService extends BaseService {
   private cancellationToken: CancellationToken = new CancellationToken()
   private updateCheckResult: UpdateCheckResult | null = null
@@ -92,9 +93,10 @@ export class AppUpdaterService extends BaseService {
   }
 
   private registerAutoUpdaterListeners(): void {
+    const wm = () => application.get('WindowManager')
     const onError = (error: Error) => {
       logger.error('update error', error)
-      application.get('WindowService').getMainWindow()?.webContents.send(IpcChannel.UpdateError, error)
+      wm().broadcastToType(WindowType.Main, IpcChannel.UpdateError, error)
     }
     autoUpdater.on('error', onError)
     this.registerDisposable(() => autoUpdater.removeListener('error', onError))
@@ -102,32 +104,26 @@ export class AppUpdaterService extends BaseService {
     const onUpdateAvailable = (releaseInfo: UpdateInfo) => {
       logger.info('update available', releaseInfo)
       const processedReleaseInfo = this.processReleaseInfo(releaseInfo)
-      application
-        .get('WindowService')
-        .getMainWindow()
-        ?.webContents.send(IpcChannel.UpdateAvailable, processedReleaseInfo)
+      wm().broadcastToType(WindowType.Main, IpcChannel.UpdateAvailable, processedReleaseInfo)
     }
     autoUpdater.on('update-available', onUpdateAvailable)
     this.registerDisposable(() => autoUpdater.removeListener('update-available', onUpdateAvailable))
 
     const onUpdateNotAvailable = () => {
-      application.get('WindowService').getMainWindow()?.webContents.send(IpcChannel.UpdateNotAvailable)
+      wm().broadcastToType(WindowType.Main, IpcChannel.UpdateNotAvailable)
     }
     autoUpdater.on('update-not-available', onUpdateNotAvailable)
     this.registerDisposable(() => autoUpdater.removeListener('update-not-available', onUpdateNotAvailable))
 
     const onDownloadProgress = (progress: ProgressInfo) => {
-      application.get('WindowService').getMainWindow()?.webContents.send(IpcChannel.DownloadProgress, progress)
+      wm().broadcastToType(WindowType.Main, IpcChannel.DownloadProgress, progress)
     }
     autoUpdater.on('download-progress', onDownloadProgress)
     this.registerDisposable(() => autoUpdater.removeListener('download-progress', onDownloadProgress))
 
     const onUpdateDownloaded = (releaseInfo: UpdateInfo) => {
       const processedReleaseInfo = this.processReleaseInfo(releaseInfo)
-      application
-        .get('WindowService')
-        .getMainWindow()
-        ?.webContents.send(IpcChannel.UpdateDownloaded, processedReleaseInfo)
+      wm().broadcastToType(WindowType.Main, IpcChannel.UpdateDownloaded, processedReleaseInfo)
       logger.info('update downloaded', processedReleaseInfo)
     }
     autoUpdater.on('update-downloaded', onUpdateDownloaded)

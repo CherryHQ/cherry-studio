@@ -16,7 +16,8 @@ This is the main entry point for Cherry Studio's service lifecycle and applicati
 - [Lifecycle Migration Guide](./lifecycle-migration-guide.md) - Converting old service patterns to lifecycle
 
 ### Testing
-- [Test Mocks](../../../tests/__mocks__/README.md) - Unified mocks for lifecycle services
+- [Test Mocks — Scope](../../../tests/__mocks__/README.md#scope) — which services get global mocks, which don't
+- [Testing Other Lifecycle Services](../../../tests/__mocks__/README.md#testing-other-lifecycle-services) — local-stub pattern for feature-specific lifecycle services
 
 ---
 
@@ -26,7 +27,7 @@ This is the main entry point for Cherry Studio's service lifecycle and applicati
 
 |                         | Lifecycle                                    | Direct-import singleton                        |
 | ----------------------- | -------------------------------------------- | ---------------------------------------------- |
-| Examples                | `DbService`, `CacheService`, `WindowService` | `ExportService`, `BackupManager`, `OcrService` |
+| Examples                | `DbService`, `CacheService`, `MainWindowService` | `ExportService`, `BackupManager`, `OcrService` |
 | Long-lived resources    | Yes                                          | No (or request-scoped)                         |
 | Persistent side effects | Yes                                          | No                                             |
 | `onInit` / `onStop`     | Meaningful                                   | Would be empty                                 |

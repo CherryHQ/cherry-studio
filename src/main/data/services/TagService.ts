@@ -30,23 +30,12 @@ import type { CreateTagDto, SetTagEntitiesDto, SyncEntityTagsDto, UpdateTagDto }
 import type { Tag, TaggableEntityType } from '@shared/data/types/tag'
 import { and, asc, eq, inArray, or, type SQL } from 'drizzle-orm'
 
+import { timestampToISO } from './utils/rowMappers'
+
 const logger = loggerService.withContext('DataApi:TagService')
 
 type TagRow = typeof tagTable.$inferSelect
 type EntityBinding = SetTagEntitiesDto['entities'][number]
-
-function ensureTagTimestamp(
-  timestamp: number | null | undefined,
-  field: 'createdAt' | 'updatedAt',
-  tagId: string
-): number {
-  if (timestamp == null) {
-    logger.warn('Tag row has null timestamp', { id: tagId, field })
-    throw DataApiErrorFactory.internal(new Error(`Tag row '${tagId}' is missing ${field}`), 'TagService.rowToTag')
-  }
-
-  return timestamp
-}
 
 function entityBindingKey(entity: { entityType: string; entityId: string }): string {
   return `${entity.entityType}:${entity.entityId}`
@@ -81,15 +70,12 @@ function buildEntityBindingCondition(entities: Array<{ entityType: string; entit
  * Convert database row to Tag entity
  */
 function rowToTag(row: TagRow): Tag {
-  const createdAt = ensureTagTimestamp(row.createdAt, 'createdAt', row.id)
-  const updatedAt = ensureTagTimestamp(row.updatedAt, 'updatedAt', row.id)
-
   return {
     id: row.id,
     name: row.name,
     color: row.color ?? null,
-    createdAt: new Date(createdAt).toISOString(),
-    updatedAt: new Date(updatedAt).toISOString()
+    createdAt: timestampToISO(row.createdAt),
+    updatedAt: timestampToISO(row.updatedAt)
   }
 }
 
