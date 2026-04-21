@@ -5,23 +5,24 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useShortcuts } from '@renderer/hooks/useShortcuts'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getShortcutLabel } from '@renderer/i18n/label'
-import { useAppDispatch } from '@renderer/store'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { initialState, resetShortcuts, toggleShortcut, updateShortcut } from '@renderer/store/shortcuts'
 import type { Shortcut } from '@renderer/types'
 import type { InputRef } from 'antd'
-import { Button, Input, Switch, Table as AntTable, Tooltip } from 'antd'
+import { Button, Input, Switch, Table as AntTable, Tag, Tooltip } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { FC } from 'react'
 import React, { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { SettingContainer, SettingDivider, SettingGroup, SettingTitle } from '.'
+import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '.'
 
 const ShortcutSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const dispatch = useAppDispatch()
+  const selectionAssistantEnabled = useAppSelector((state) => state.selectionStore.selectionEnabled)
   const { shortcuts: originalShortcuts } = useShortcuts()
   const inputRefs = useRef<Record<string, InputRef>>({})
   const [editingKey, setEditingKey] = useState<string | null>(null)
@@ -402,6 +403,12 @@ const ShortcutSettings: FC = () => {
       <SettingGroup theme={theme} style={{ paddingBottom: 0 }}>
         <SettingTitle>{t('settings.shortcuts.title')}</SettingTitle>
         <SettingDivider style={{ marginBottom: 0 }} />
+        <SettingRow style={{ marginBottom: 12 }}>
+          <SettingRowTitle>{t('selection.name')}</SettingRowTitle>
+          <Tag color={selectionAssistantEnabled ? 'success' : 'warning'} style={{ margin: 0, borderRadius: 999 }}>
+            {selectionAssistantEnabled ? t('common.enabled') : t('common.disabled')}
+          </Tag>
+        </SettingRow>
         <Table
           columns={columns as ColumnsType<unknown>}
           dataSource={shortcuts.map((s) => ({ ...s, name: getShortcutLabel(s.key) }))}
