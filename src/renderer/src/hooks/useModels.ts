@@ -59,14 +59,8 @@ export function useModelMutations() {
       try {
         // Service/DataApi create is intentionally array-based. This wrapper keeps
         // the old single-model ergonomics at the renderer boundary.
-        const created = await createTrigger({ body: [dto] })
-        if (!Array.isArray(created)) {
-          throw new Error('Expected an array of created models')
-        }
-        if (created.length !== 1) {
-          throw new Error(`Expected exactly one created model, received ${created.length}`)
-        }
-        return created[0]
+        const [created] = await createTrigger({ body: [dto] })
+        return created
       } catch (error) {
         logger.error('Failed to create model', { providerId: dto.providerId, modelId: dto.modelId, error })
         throw error
@@ -79,12 +73,8 @@ export function useModelMutations() {
     async (dtos: CreateModelsDto) => {
       try {
         // Batch callers already match the transport contract, so this path
-        // forwards the array verbatim and validates the response shape.
-        const created = await createTrigger({ body: dtos })
-        if (!Array.isArray(created)) {
-          throw new Error('Expected an array of created models')
-        }
-        return created
+        // forwards the array verbatim and passes the typed response through.
+        return await createTrigger({ body: dtos })
       } catch (error) {
         logger.error('Failed to create models', { count: dtos.length, error })
         throw error

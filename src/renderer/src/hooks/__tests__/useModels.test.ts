@@ -228,7 +228,7 @@ describe('useModelMutations', () => {
     expect(created).toEqual({ id: 'new-model' })
   })
 
-  it('should reject createModel when the array response is empty', async () => {
+  it('should return undefined when createModel receives an empty array response', async () => {
     mockUseMutation.mockImplementation(() => ({
       trigger: vi.fn().mockResolvedValue([]),
       isLoading: false,
@@ -237,27 +237,12 @@ describe('useModelMutations', () => {
 
     const { result } = renderHook(() => useModelMutations())
 
+    let created: any
     await act(async () => {
-      await expect(result.current.createModel({ providerId: 'openai', modelId: 'gpt-5' })).rejects.toThrow(
-        'Expected exactly one created model'
-      )
+      created = await result.current.createModel({ providerId: 'openai', modelId: 'gpt-5' })
     })
-  })
 
-  it('should reject createModel when the response is not an array', async () => {
-    mockUseMutation.mockImplementation(() => ({
-      trigger: vi.fn().mockResolvedValue({ id: 'wrong-shape' }),
-      isLoading: false,
-      error: undefined
-    }))
-
-    const { result } = renderHook(() => useModelMutations())
-
-    await act(async () => {
-      await expect(result.current.createModel({ providerId: 'openai', modelId: 'gpt-5' })).rejects.toThrow(
-        'Expected an array of created models'
-      )
-    })
+    expect(created).toBeUndefined()
   })
 
   it('should call create trigger with the full array when createModels is invoked', async () => {
@@ -298,22 +283,6 @@ describe('useModelMutations', () => {
     })
 
     expect(loggerSpy).toHaveBeenCalledWith('Failed to create models', { count: 1, error })
-  })
-
-  it('should reject createModels when the response is not an array', async () => {
-    mockUseMutation.mockImplementation(() => ({
-      trigger: vi.fn().mockResolvedValue({ id: 'wrong-shape' }),
-      isLoading: false,
-      error: undefined
-    }))
-
-    const { result } = renderHook(() => useModelMutations())
-
-    await act(async () => {
-      await expect(result.current.createModels([{ providerId: 'openai', modelId: 'gpt-5' }])).rejects.toThrow(
-        'Expected an array of created models'
-      )
-    })
   })
 
   it('should call DELETE mutation trigger with uniqueModelId param when deleteModel is invoked', async () => {

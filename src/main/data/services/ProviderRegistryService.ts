@@ -103,10 +103,12 @@ class ProviderRegistryService {
 
       return { defaultChatEndpoint, reasoningFormatTypes }
     } catch (error) {
-      if (!(isDataApiError(error) && error.code === ErrorCode.NOT_FOUND)) {
-        logger.warn('Failed to fetch provider for reasoning config, using registry defaults', error as Error)
+      if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
+        return registryConfig
       }
-      return registryConfig
+
+      logger.error('Failed to fetch provider for reasoning config', error as Error)
+      throw error
     }
   }
 
