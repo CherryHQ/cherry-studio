@@ -1,9 +1,17 @@
 import { randomUUID } from 'node:crypto'
 
 import { application } from '@application'
-import { agentSessionMessageTable as sessionMessagesTable } from '@data/db/schemas/agentSessionMessage'
+import {
+  type AgentSessionMessageRow as SessionMessageRow,
+  agentSessionMessageTable as sessionMessagesTable,
+  type InsertAgentSessionMessageRow as InsertSessionMessageRow
+} from '@data/db/schemas/agentSessionMessage'
 import { loggerService } from '@logger'
 import type {
+  AgentMessageAssistantPersistPayload,
+  AgentMessagePersistExchangePayload,
+  AgentMessagePersistExchangeResult,
+  AgentMessageUserPersistPayload,
   AgentPersistedMessage,
   AgentSessionMessageEntity,
   CreateSessionMessageRequest,
@@ -11,11 +19,10 @@ import type {
   ListOptions
 } from '@types'
 import type { TextStreamPart } from 'ai'
-import { and, desc, eq, isNotNull } from 'drizzle-orm'
+import { and, asc, desc, eq, isNotNull, sql } from 'drizzle-orm'
 
 import type { AgentStreamEvent } from '../interfaces/AgentStreamInterface'
 import ClaudeCodeService from './claudecode'
-import { agentMessageRepository } from './sessionMessageRepository'
 
 const logger = loggerService.withContext('SessionMessageService')
 
@@ -404,7 +411,7 @@ export class SessionMessageService {
       ]
     } as AgentPersistedMessage
 
-    const result = await agentMessageRepository.persistExchange({
+    const result = await this.persistExchange({
       sessionId: session.id,
       agentSessionId,
       user: { payload: userPayload, createdAt: now },
@@ -438,6 +445,150 @@ export class SessionMessageService {
         error
       })
       return ''
+    }
+  }
+
+  // ── Persistence methods (moved from AgentMessageRepository) ──────────────
+
+  private async findExistingMessageRow(
+    sessionId: string,
+    role: string,
+    messageId: string
+  ): Promise<SessionMessageRow | null> {
+    const database = application.get('DbService').getDb()
+    const rows = await database
+      .select()
+      .from(sessionMessagesTable)
+      .where(
+        and(
+          eq(sessionMessagesTable.sessionId, sessionId),
+          eq(sessionMessagesTable.role, role),
+          sql`json_extract(${sessionMessagesTable.content}, '$.message.id') = ${messageId}`
+        )
+      )
+      .limit(1)
+
+    return rows[0] ?? null
+  }
+
+  private async upsertMessage(
+    params:
+      | (AgentMessageUserPersistPayload & { sessionId: string; agentSessionId?: string })
+      | (AgentMessageAssistantPersistPayload & { sessionId: string; agentSessionId: string })
+  ): Promise<AgentSessionMessageEntity> {
+    const { sessionId, agentSessionId = '', payload, metadata } = params
+
+    if (!payload?.message?.role) {
+      throw new Error('Message payload missing role')
+    }
+
+    if (!payload.message.id) {
+      throw new Error('Message payload missing id')
+    }
+
+    const database = application.get('DbService').getDb()
+    const existingRow = await this.findExistingMessageRow(sessionId, payload.message.role, payload.message.id)
+
+    if (existingRow) {
+      const metadataToPersist = metadata ?? existingRow.metadata ?? undefined
+      const agentSessionToPersist = agentSessionId || existingRow.agentSessionId || ''
+      const updatedAtMs = Date.now()
+
+      await database
+        .update(sessionMessagesTable)
+        .set({
+          content: payload,
+          metadata: metadataToPersist,
+          agentSessionId: agentSessionToPersist,
+          updatedAt: updatedAtMs
+        })
+        .where(eq(sessionMessagesTable.id, existingRow.id))
+
+      return this.rowToEntity({
+        ...existingRow,
+        content: payload,
+        metadata: metadataToPersist ?? null,
+        agentSessionId: agentSessionToPersist,
+        updatedAt: updatedAtMs
+      })
+    }
+
+    const insertData: InsertSessionMessageRow = {
+      sessionId,
+      role: payload.message.role,
+      content: payload,
+      agentSessionId,
+      metadata
+    }
+
+    const [saved] = await database.insert(sessionMessagesTable).values(insertData).returning()
+    return this.rowToEntity(saved)
+  }
+
+  private rowToEntity(row: SessionMessageRow): AgentSessionMessageEntity {
+    return row as unknown as AgentSessionMessageEntity
+  }
+
+  async persistUserMessage(
+    params: AgentMessageUserPersistPayload & { sessionId: string; agentSessionId?: string }
+  ): Promise<AgentSessionMessageEntity> {
+    return this.upsertMessage({ ...params, agentSessionId: params.agentSessionId ?? '' })
+  }
+
+  async persistAssistantMessage(
+    params: AgentMessageAssistantPersistPayload & { sessionId: string; agentSessionId: string }
+  ): Promise<AgentSessionMessageEntity> {
+    return this.upsertMessage(params)
+  }
+
+  async persistExchange(params: AgentMessagePersistExchangePayload): Promise<AgentMessagePersistExchangeResult> {
+    const { sessionId, agentSessionId, user, assistant } = params
+    const exchangeResult: AgentMessagePersistExchangeResult = {}
+
+    if (user?.payload) {
+      exchangeResult.userMessage = await this.persistUserMessage({
+        sessionId,
+        agentSessionId,
+        payload: user.payload,
+        metadata: user.metadata,
+        createdAt: user.createdAt
+      })
+    }
+
+    if (assistant?.payload) {
+      exchangeResult.assistantMessage = await this.persistAssistantMessage({
+        sessionId,
+        agentSessionId,
+        payload: assistant.payload,
+        metadata: assistant.metadata,
+        createdAt: assistant.createdAt
+      })
+    }
+
+    return exchangeResult
+  }
+
+  async getSessionHistory(sessionId: string): Promise<AgentPersistedMessage[]> {
+    try {
+      const database = application.get('DbService').getDb()
+      const rows = await database
+        .select()
+        .from(sessionMessagesTable)
+        .where(eq(sessionMessagesTable.sessionId, sessionId))
+        .orderBy(asc(sessionMessagesTable.createdAt))
+
+      const messages: AgentPersistedMessage[] = []
+      for (const row of rows) {
+        if (row?.content) {
+          messages.push(row.content)
+        }
+      }
+
+      logger.info(`Loaded ${messages.length} messages for session ${sessionId}`)
+      return messages
+    } catch (error) {
+      logger.error('Failed to load session history', error as Error)
+      throw error
     }
   }
 

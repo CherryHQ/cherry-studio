@@ -5,7 +5,6 @@
  */
 
 import type {
-  AgentBase,
   AgentConfiguration,
   AgentDetail,
   AgentSessionDetail,
@@ -15,7 +14,6 @@ import type {
   ListAgentSessionsResponse,
   ListAgentsResponse,
   ListSessionMessagesResponse,
-  ListSkillsResponse,
   ListTasksResponse,
   ScheduledTaskEntity,
   SlashCommand,
@@ -27,32 +25,50 @@ import type {
 // Agent DTOs
 // ============================================================================
 
-export interface CreateAgentDto extends AgentBase {
+export interface CreateAgentDto {
   type: AgentType
-  /** Agent name (required) */
   name: string
-  /** Main model ID (required) */
   model: string
+  description?: string
+  accessiblePaths?: string[]
+  instructions?: string
+  planModel?: string
+  smallModel?: string
+  mcps?: string[]
+  allowedTools?: string[]
+  slashCommands?: SlashCommand[]
+  configuration?: AgentConfiguration
 }
 
-export interface UpdateAgentDto extends Partial<AgentBase> {}
+export interface UpdateAgentDto {
+  name?: string
+  description?: string
+  accessiblePaths?: string[]
+  instructions?: string
+  model?: string
+  planModel?: string
+  smallModel?: string
+  mcps?: string[]
+  allowedTools?: string[]
+  slashCommands?: SlashCommand[]
+  configuration?: AgentConfiguration
+}
 
 // ============================================================================
 // Session DTOs
 // ============================================================================
 
 export interface CreateSessionDto {
-  /** Main model ID (required) */
   model: string
   name?: string
   description?: string
-  accessible_paths?: string[]
+  accessiblePaths?: string[]
   instructions?: string
-  plan_model?: string
-  small_model?: string
+  planModel?: string
+  smallModel?: string
   mcps?: string[]
-  allowed_tools?: string[]
-  slash_commands?: SlashCommand[]
+  allowedTools?: string[]
+  slashCommands?: SlashCommand[]
   configuration?: AgentConfiguration
 }
 
@@ -72,26 +88,31 @@ export interface ListSessionMessagesParams {
 // ============================================================================
 
 export interface CreateTaskDto {
-  /** Display name for the task */
   name: string
-  /** Prompt sent to the agent on each run */
   prompt: string
-  schedule_type: TaskScheduleType
-  /** Cron expression, interval in minutes, or delay in seconds depending on schedule_type */
-  schedule_value: string
-  timeout_minutes?: number | null
-  /** Channel IDs to notify on completion */
-  channel_ids?: string[]
+  scheduleType: TaskScheduleType
+  scheduleValue: string
+  timeoutMinutes?: number | null
+  channelIds?: string[]
 }
 
 export interface UpdateTaskDto {
   name?: string
   prompt?: string
-  schedule_type?: TaskScheduleType
-  schedule_value?: string
-  timeout_minutes?: number | null
-  channel_ids?: string[]
+  scheduleType?: TaskScheduleType
+  scheduleValue?: string
+  timeoutMinutes?: number | null
+  channelIds?: string[]
   status?: TaskStatus
+}
+
+// ============================================================================
+// Common query types
+// ============================================================================
+
+export interface ListQuery {
+  limit?: number
+  offset?: number
 }
 
 // ============================================================================
@@ -102,6 +123,7 @@ export interface AgentSchemas {
   /** List all agents, create a new agent */
   '/agents': {
     GET: {
+      query: ListQuery
       response: ListAgentsResponse
     }
     POST: {
@@ -111,95 +133,97 @@ export interface AgentSchemas {
   }
 
   /** Get, update, or delete a specific agent */
-  '/agents/:id': {
+  '/agents/:agentId': {
     GET: {
-      params: { id: string }
+      params: { agentId: string }
       response: AgentDetail
     }
     PATCH: {
-      params: { id: string }
+      params: { agentId: string }
       body: UpdateAgentDto
       response: AgentDetail
     }
     DELETE: {
-      params: { id: string }
+      params: { agentId: string }
       response: void
     }
   }
 
   /** List sessions for an agent, create a new session */
-  '/agents/:id/sessions': {
+  '/agents/:agentId/sessions': {
     GET: {
-      params: { id: string }
+      params: { agentId: string }
+      query: ListQuery
       response: ListAgentSessionsResponse
     }
     POST: {
-      params: { id: string }
+      params: { agentId: string }
       body: CreateSessionDto
       response: AgentSessionDetail
     }
   }
 
   /** Get, update, or delete a specific session */
-  '/agents/:id/sessions/:sid': {
+  '/agents/:agentId/sessions/:sessionId': {
     GET: {
-      params: { id: string; sid: string }
+      params: { agentId: string; sessionId: string }
       response: AgentSessionDetail
     }
     PATCH: {
-      params: { id: string; sid: string }
+      params: { agentId: string; sessionId: string }
       body: UpdateSessionDto
       response: AgentSessionEntity
     }
     DELETE: {
-      params: { id: string; sid: string }
+      params: { agentId: string; sessionId: string }
       response: void
     }
   }
 
   /** List session messages */
-  '/agents/:id/sessions/:sid/messages': {
+  '/agents/:agentId/sessions/:sessionId/messages': {
     GET: {
-      params: { id: string; sid: string }
+      params: { agentId: string; sessionId: string }
       query: ListSessionMessagesParams
       response: ListSessionMessagesResponse
     }
   }
 
   /** Delete a specific session message */
-  '/agents/:id/sessions/:sid/messages/:messageId': {
+  '/agents/:agentId/sessions/:sessionId/messages/:messageId': {
     DELETE: {
-      params: { id: string; sid: string; messageId: string }
+      params: { agentId: string; sessionId: string; messageId: string }
       response: void
     }
   }
 
   /** List tasks for an agent, create a new task */
-  '/agents/:id/tasks': {
+  '/agents/:agentId/tasks': {
     GET: {
-      params: { id: string }
+      params: { agentId: string }
+      query: ListQuery
       response: ListTasksResponse
     }
     POST: {
-      params: { id: string }
+      params: { agentId: string }
       body: CreateTaskDto
       response: ScheduledTaskEntity
     }
   }
 
   /** Get, update, or delete a specific task */
-  '/agents/:id/tasks/:tid': {
+  '/agents/:agentId/tasks/:taskId': {
     GET: {
-      params: { id: string; tid: string }
+      params: { agentId: string; taskId: string }
       response: ScheduledTaskEntity
     }
     PATCH: {
-      params: { id: string; tid: string }
+      params: { agentId: string; taskId: string }
       body: UpdateTaskDto
       response: ScheduledTaskEntity
     }
     DELETE: {
-      params: { id: string; tid: string }
+      params: { agentId: string; taskId: string }
       response: void
     }
   }
@@ -207,7 +231,7 @@ export interface AgentSchemas {
   /** List all installed skills */
   '/skills': {
     GET: {
-      response: ListSkillsResponse
+      response: { data: InstalledSkill[] }
     }
   }
 

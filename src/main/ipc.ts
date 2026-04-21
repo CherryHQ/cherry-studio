@@ -24,7 +24,7 @@ import checkDiskSpace from 'check-disk-space'
 import { app, BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'
 import fontList from 'font-list'
 
-import { agentMessageRepository } from './services/agents/services/sessionMessageRepository'
+import { sessionMessageService } from './services/agents/services/SessionMessageService'
 import { skillService } from './services/agents/skills/SkillService'
 import { appService } from './services/AppService'
 import BackupManager from './services/BackupManager'
@@ -147,7 +147,7 @@ export async function registerIpc() {
 
   ipcMain.handle(IpcChannel.AgentMessage_PersistExchange, async (_event, payload) => {
     try {
-      return await agentMessageRepository.persistExchange(payload)
+      return await sessionMessageService.persistExchange(payload)
     } catch (error) {
       logger.error('Failed to persist agent session messages', error as Error)
       throw error
@@ -158,7 +158,7 @@ export async function registerIpc() {
     IpcChannel.AgentMessage_GetHistory,
     async (_event, { sessionId }: { sessionId: string }): Promise<AgentPersistedMessage[]> => {
       try {
-        return await agentMessageRepository.getSessionHistory(sessionId)
+        return await sessionMessageService.getSessionHistory(sessionId)
       } catch (error) {
         logger.error('Failed to get agent session history', error as Error)
         throw error
