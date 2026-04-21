@@ -104,7 +104,7 @@ When a business object is deleted, the business Service is responsible for clean
 
 ### 1.4 FileHandle (Unified File Reference)
 
-Consumers often need to share a single set of operation logic across "managed FileEntry" and "unmanaged arbitrary path" (showing previews, reading content, locating in file explorer, etc.). `FileHandle` is the unified reference type for these two cases:
+Consumers often need to share a single set of operation logic across "managed FileEntry" and "unmanaged arbitrary path" (showing previews, reading content, locating in file explorer, etc.). `FileHandle` is the unified **reference** type for these two cases:
 
 ```typescript
 type FileHandle =
@@ -121,11 +121,50 @@ createUnmanagedHandle('/Users/me/doc')  // points to an arbitrary path
 - `FileHandle` is a "unified locator for file operations", serving both IPC and business code
 - Handler dispatches by `handle.kind`: managed → FileManager, unmanaged → `ops/*`
 
+**Data-shape counterparts**: `FileHandle` lives at the *reference* layer. Once a handler dispatches, it works with the corresponding *data shape*:
+
+- `ManagedFileHandle` → **`FileEntry`** (§1.1) — DB row, identity-first, snapshot semantics
+- `UnmanagedFileHandle` → **`FileInfo`** (§1.5 below) — disk descriptor, path-first, live semantics
+
+This reference/data-shape symmetry is the type-system backbone of the file module. See [`architecture.md` §2](./architecture.md#2-type-system-reference-vs-data-shape) for the full treatment including signature selection guidance and anti-patterns.
+
 **Operations that accept FileHandle**: `read` / `getMetadata` / `getVersion` / `getContentHash` / `write` / `writeIfUnchanged` / `rename` / `permanentDelete` / `copy` / `open` / `showInFolder`
 
 **Operations that only apply to FileEntryId** (i.e., only for managed entries; unmanaged does not apply): `trash` / `restore` / `createInternalEntry` / `ensureExternalEntry` / `refreshMetadata` / `withTempCopy`
 
-### 1.5 FileUpload (AI Provider Upload Cache)
+### 1.5 FileInfo (Unmanaged Data Shape)
+
+`FileInfo` is the descriptor returned when resolving an `UnmanagedFileHandle` (or projecting a `FileEntry` for leaf-level content processing). Definition in [`packages/shared/file/types/info.ts`](../../../packages/shared/file/types/info.ts):
+
+```typescript
+interface FileInfo {
+  readonly path: FilePath
+  readonly name: string        // basename without extension
+  readonly ext: string | null  // extension without leading dot
+  readonly size: number        // live from fs.stat
+  readonly mime: string
+  readonly type: FileType
+  readonly createdAt: number   // fs birthtime (may fall back to mtime)
+  readonly modifiedAt: number  // fs mtime
+}
+```
+
+**Relation to `FileEntry`**: `FileInfo` and `FileEntry` share many attribute fields (`name`, `ext`, `size`, `type`) but have different invariants — `FileInfo` is a *live view* of whatever the filesystem currently says, while `FileEntry` is a *snapshot* stored in the DB. Notably:
+
+- `FileInfo` always has `path`; `FileEntry` never stores `path` (it is derived from `id` for internal, from `externalPath` for external)
+- `FileInfo` has no `id` / `origin` / `trashedAt`; `FileEntry` has no `modifiedAt`
+- `FileInfo.size` is the current physical size; `FileEntry.size` for `origin='external'` may be a stale snapshot until `refreshMetadata` or a critical-path touch
+
+**Projection**: `FileEntry → FileInfo` is available via `toFileInfo(entry)` (async — performs `fs.stat` plus path resolution based on `origin`). The reverse is **not** a type conversion — it requires explicit registration through `createInternalEntry` / `ensureExternalEntry`. The Zod brand on `FileEntrySchema` blocks duck-typed fabrication.
+
+**When to use**:
+
+- **As a parameter type**: leaf content processors that need only a resolved path + physical attributes (OCR, token estimation, checksum). These should accept `FileInfo`, not `FileEntry` — callers with a `FileEntry` project down via `toFileInfo`.
+- **As a return type**: `ops.stat(path)`, export/backup producers, and similar "here is a file I just materialised but did not register" outputs.
+
+`FileInfo` rarely appears as the parameter type of an IPC boundary method — that layer overwhelmingly prefers `FileHandle` so the same endpoint works for managed and unmanaged. See [`architecture.md` §2.4](./architecture.md#24-signature-selection-guide) for the full selection guide.
+
+### 1.6 FileUpload (AI Provider Upload Cache)
 
 To integrate with the AI SDK's `SharedV4ProviderReference` (Record<provider, fileId>), tracks each FileEntry's upload record on each provider:
 
@@ -140,11 +179,11 @@ FileUpload
 └── UNIQUE(fileEntryId, provider)
 ```
 
-### 1.6 FileManager Implementation Layout (Facade + Private Internals)
+### 1.7 FileManager Implementation Layout (Facade + Private Internals)
 
 FileManager is the **sole public entry point** of the file module but is not a 30-method God class. The implementation uses a **facade + private pure-function modules** pattern.
 
-#### 1.6.1 Why It Can Be Split
+#### 1.7.1 Why It Can Be Split
 
 A method-by-method audit of FileManager's public API for "does it depend on class instance state" concludes: **the vast majority of methods do not depend on instance state**.
 
@@ -158,7 +197,7 @@ A method-by-method audit of FileManager's public API for "does it depend on clas
 
 Only **versionCache** and **lifecycle artifacts** are truly bound to the FileManager instance; business methods themselves are stateless.
 
-#### 1.6.2 Module Layout
+#### 1.7.2 Module Layout
 
 ```
 src/main/file/
@@ -183,7 +222,7 @@ src/main/file/
 └── versionCache.ts       ← LRU type definition
 ```
 
-#### 1.6.3 Dependency Passing Convention
+#### 1.7.3 Dependency Passing Convention
 
 Each `internal/*` pure function explicitly receives `FileManagerDeps`:
 
@@ -215,7 +254,7 @@ export async function ensureExternalEntry(
 }
 ```
 
-#### 1.6.4 Thin-Delegation Facade
+#### 1.7.4 Thin-Delegation Facade
 
 ```typescript
 // FileManager.ts
@@ -241,7 +280,7 @@ export class FileManager extends BaseService implements IFileManager {
 }
 ```
 
-#### 1.6.5 FileHandle Dispatch Convention (Adapter Responsibility at the IPC Boundary)
+#### 1.7.5 FileHandle Dispatch Convention (Adapter Responsibility at the IPC Boundary)
 
 **Dispatch location**: `FileHandle.kind` dispatch **stays at the IPC handler registration site**. Rationale:
 
@@ -305,7 +344,7 @@ private registerIpcHandlers() {
 
 **The extension surface is concentrated in a single file, FileManager.ts**—it's immediately obvious which kinds each IPC method supports, which aids auditing. This is lighter than introducing a separate `FileAccessor` class while achieving the same "extension convergence".
 
-#### 1.6.6 External Access Constraints
+#### 1.7.6 External Access Constraints
 
 | Location | May import | Forbidden to import |
 |---|---|---|
@@ -315,7 +354,7 @@ private registerIpcHandlers() {
 
 **Boundary enforcement**: the `src/main/file/index.ts` barrel re-exports only public types + the `FileManager` class; `internal/` symbols cannot be reached via `@main/file`. If violations are found during Phase 1b implementation, add an ESLint `no-restricted-imports` rule.
 
-#### 1.6.7 Design Trade-offs
+#### 1.7.7 Design Trade-offs
 
 | Option | Adopted? | Rationale |
 |---|---|---|

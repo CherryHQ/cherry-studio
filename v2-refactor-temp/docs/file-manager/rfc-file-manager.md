@@ -22,6 +22,7 @@
 - **origin: `internal` / `external` 二态**——Cherry 拥有 vs 用户拥有
 - **无内容去重**——每个显式上传都是独立 FileEntry
 - **Notes / 其他 FS-first 业务解耦**——不强制镜像到 `file_entry`
+- **类型分层：引用 vs 数据形状**——`FileHandle` 是跨边界的多态引用层；`FileEntry`（managed）与 `FileInfo`（unmanaged）是两种"数据形状"。旧 `FileMetadata` 同时承担"DB 行"与"通用文件描述符"两个角色，v2 把这两个角色**显式拆分**：持久化角色 → `FileEntry`，描述符角色 → `FileInfo`。详见 [`architecture.md §2`](../../../docs/references/file/architecture.md#2-type-system-reference-vs-data-shape)
 - **AI SDK upload 延后**——待 Vercel AI SDK Files API 稳定后以独立 PR 引入
 
 ---
@@ -195,7 +196,7 @@ Vercel AI SDK `SharedV4ProviderReference` 集成所需的 `file_upload` 表在 S
 
 ### 4.5 DTO 类型定义
 
-位于 `packages/shared/data/types/file/`：
+位于 `packages/shared/data/types/file/`（managed 数据形状与引用图）：
 
 | 文件           | 内容                                                                                                                        |
 | -------------- | --------------------------------------------------------------------------------------------------------------------------- |
@@ -203,6 +204,16 @@ Vercel AI SDK `SharedV4ProviderReference` 集成所需的 `file_upload` 表在 S
 | `fileEntry.ts` | `FileEntrySchema`（`z.discriminatedUnion('origin')` + `.brand<'FileEntry'>()`）、`FileEntryIdSchema`、`DanglingStateSchema` |
 | `ref/`         | `FileRefSchema`（`z.discriminatedUnion('sourceType')`，不 brand）、`createRefSchema` 工厂                                   |
 | `index.ts`     | Barrel re-export                                                                                                            |
+
+位于 `packages/shared/file/types/`（跨边界引用层与 unmanaged 数据形状）：
+
+| 文件         | 内容                                                                                 |
+| ------------ | ------------------------------------------------------------------------------------ |
+| `common.ts`  | `FilePath` / `FileType` / `PhysicalFileMetadata` 等基础类型                          |
+| `handle.ts`  | `FileHandle` tagged union、`createManagedHandle` / `createUnmanagedHandle` 工厂      |
+| `info.ts`    | `FileInfo`（unmanaged 数据形状，见 §4.5.3）                                          |
+| `ipc.ts`     | File IPC 方法签名                                                                    |
+| `index.ts`   | Barrel re-export                                                                     |
 
 ### 4.5.1 Brand type 强化（解决问题 13）
 
@@ -256,6 +267,45 @@ type DanglingState = z.infer<typeof DanglingStateSchema>; // 'present' | 'missin
 **API DTO**：`FileEntryView = FileEntry & { refCount?, dangling?, path?, url? }`，各字段为 opt-in 派生（见 §七）。`FileEntryView` 保留 `FileEntry` 的 brand，opt-in 字段由 DataApi handler 在 parse 前合并，parse 后整体 branded。
 
 `FileEntryIdSchema` 使用 `z.uuid()` 而非 `z.uuidv7()`，以接受旧数据的 v4 ID（见 migration-plan §2.9）。
+
+### 4.5.3 FileInfo（unmanaged 数据形状）
+
+位于 [`packages/shared/file/types/info.ts`](../../../packages/shared/file/types/info.ts)：
+
+```typescript
+interface FileInfo {
+  readonly path: FilePath       // unmanaged 身份字段；绝对路径
+  readonly name: string         // basename 去扩展名（对齐 FileEntry.name）
+  readonly ext: string | null   // 扩展名不含前导点（对齐 FileEntry.ext）
+  readonly size: number         // fs.stat 实时
+  readonly mime: string         // 由 ext 派生，未知时 'application/octet-stream'
+  readonly type: FileType       // 由 ext 派生
+  readonly createdAt: number    // fs 出生时间（ms epoch；不可靠时回退 mtime）
+  readonly modifiedAt: number   // fs mtime（ms epoch）
+}
+```
+
+**定位**：`FileInfo` 是**unmanaged 文件的数据形状**——与 `UnmanagedFileHandle` 在引用层对应。它不承载身份（无 `id`、无 `origin`、无 `trashedAt`），只承载"磁盘上此刻的一份描述"。
+
+**与 `FileEntry` 的关系**：
+
+| 对比项       | `FileEntry`                                     | `FileInfo`                             |
+| ------------ | ----------------------------------------------- | -------------------------------------- |
+| 身份字段     | `id`                                            | `path`                                 |
+| 活性         | 快照（与物理状态解耦）                          | 实时（每次读都可能不同）               |
+| 生命周期     | 持久化；internal 有 trash/restore               | 瞬态——随调用产生即走                  |
+| 生产入口     | `createInternalEntry` / `ensureExternalEntry`   | `ops.stat` / `toFileInfo(entry)`       |
+| brand        | 有（强制走 sanctioned 生产路径）                | 无（可自由构造）                       |
+| 同名字段语义 | `size` 为注册时快照；external 可能 drift        | `size` 为 fs.stat 实时读取             |
+
+**投影方向单一**：`FileEntry → FileInfo` 通过 `toFileInfo(entry)` 异步投影（需要 `fs.stat` + 根据 `origin` 做 path 解析）。反向**不是类型转换**——从 `FileInfo` 得到 `FileEntry` 必须走 `createInternalEntry` / `ensureExternalEntry`，因为它是状态变更（注册），不是形状变换。`FileEntrySchema` 的 brand 会挡住任何对象字面量式的伪造。
+
+**签名选型**：绝大多数公共 / IPC 方法应接 **`FileHandle`** 而非 `FileInfo` —— 让同一个 API 同时服务 managed 与 unmanaged。`FileInfo` 主要出现在：
+
+- **返回类型**：`ops.stat(path)` / export 产物 / backup 归档产物
+- **叶子消费者的参数**：OCR / TokenService / 哈希计算等只读 path + 物理属性的纯处理函数（调用方若持有 `FileEntry` 需先 `toFileInfo` 投影）
+
+完整选型矩阵见 [`architecture.md §2.4`](../../../docs/references/file/architecture.md#24-signature-selection-guide)。
 
 ---
 

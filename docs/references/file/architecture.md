@@ -146,15 +146,92 @@ These modules manage their own files and may use `node:fs` or `ops/*` directly; 
 
 ---
 
-## 2. IPC Design
+## 2. Type System: Reference vs Data Shape
 
-### 2.1 Design Motivation
+### 2.1 Two Layers of File Types
+
+The file module organizes its types along two orthogonal axes — and whether the file is *managed* (Cherry has registered a FileEntry for it) or *unmanaged* (just a path on disk):
+
+```
+                    Managed                           Unmanaged
+                    ───────                           ─────────
+Reference layer     ManagedFileHandle                 UnmanagedFileHandle
+(across boundaries) { kind: 'managed', entryId }      { kind: 'unmanaged', path }
+                          │                                 │
+                          ▼ FileManager.getEntry            ▼ ops.stat + projection
+Data-shape layer    FileEntry                         FileInfo
+(after resolution)  { id, origin, name, ext,          { path, name, ext, size,
+                      size, trashedAt, ... }            mime, type, modifiedAt, ... }
+```
+
+"Managed vs unmanaged" is a property of the **file itself** at the moment of the call, not a preference of the consumer. The reference layer (`FileHandle`) is the polymorphic currency that lets a single IPC call accept either kind; the data-shape layer is what the handler works with after dispatching.
+
+### 2.2 `FileHandle`: the Polymorphic Reference
+
+`FileHandle = ManagedFileHandle | UnmanagedFileHandle` (see [`packages/shared/file/types/handle.ts`](../../../packages/shared/file/types/handle.ts)) is the first-class reference type crossing the IPC boundary. Every IPC method that makes sense on *both* managed and unmanaged files accepts a `FileHandle`; handlers dispatch internally on `handle.kind`. See §3.3 for the full dispatch table.
+
+Use `FileHandle` whenever a signature does not *inherently* require managed-file identity.
+
+### 2.3 `FileEntry` vs `FileInfo`
+
+Once a handle is dispatched, the handler works with either a `FileEntry` (the DB row for a managed file) or a `FileInfo` (a live descriptor of an unmanaged file). They are the two "data shapes" of a file:
+
+| Aspect         | `FileEntry`                                                | `FileInfo`                                                |
+|----------------|------------------------------------------------------------|-----------------------------------------------------------|
+| Role           | DB row for a managed file                                  | Descriptor for an unmanaged file                          |
+| Identity field | `id` (UUID v7)                                             | `path` (absolute filesystem path)                         |
+| Liveness       | Snapshot — decoupled from physical state                   | Live view — re-read from `fs.stat`                        |
+| Lifecycle      | Persistent; trash/restore (internal only)                  | Transient — per-call descriptor                           |
+| Produced by    | `createInternalEntry` / `ensureExternalEntry` / DataApi    | `ops.stat(path)` / `toFileInfo(entry)`                    |
+| Typical use    | FileManager ops, UI management panels, `file_ref` creation | Pure content processors (OCR, hashing, tokenization)      |
+
+**Field overlap is inherent, not redundant**: `name`, `ext`, `size`, `type` (and `mime` on `FileInfo`) describe a file regardless of whether it is managed. What distinguishes the two types is the *surrounding* fields and the *semantics* of the shared ones:
+
+- **`FileEntry` has identity fields** `FileInfo` lacks: `id`, `origin`, `externalPath`, `trashedAt`.
+- **`FileInfo` has live fields** `FileEntry` lacks: `path` (derived, never stored on `FileEntry`), `modifiedAt`.
+- **Same-named fields have different invariants**. `FileInfo.size` is live from `fs.stat`; `FileEntry.size` for an external entry is a last-observed snapshot that may drift until `refreshMetadata`. Mixing them up is a silent correctness bug.
+
+**Projection is one-way**. `FileEntry → FileInfo` is always possible via `toFileInfo(entry)` (async — performs `fs.stat` plus path resolution based on `origin`). The reverse is **not a type conversion**: it is a state change, and requires explicit registration through `FileManager.createInternalEntry` or `ensureExternalEntry`. The Zod brand on `FileEntrySchema` enforces this — arbitrary object literals cannot satisfy the `FileEntry` type.
+
+### 2.4 Signature Selection Guide
+
+Default to the narrowest type that covers the need. "When in doubt, `FileHandle`" for cross-boundary calls, and "when in doubt, `FileInfo`" for leaf content processors.
+
+| What the consumer needs                                                                 | Signature                                |
+|-----------------------------------------------------------------------------------------|------------------------------------------|
+| Doesn't care whether managed; just operates on a file                                   | `FileHandle` ⭐ default for IPC          |
+| Only to call a FileManager lifecycle op (trash, restore, permanentDelete, …)            | `FileEntryId`                            |
+| Only to hand a path to an ops-level FS function                                         | `FilePath`                               |
+| The managed record's fields (UI management panel, origin-aware rendering, ref creation) | `FileEntry`                              |
+| A resolved on-disk descriptor for pure content processing                               | `FileInfo` (typically a return type)     |
+
+Anti-patterns to avoid:
+
+- **Requiring `FileEntry` when only `path` or `size` is read** — this couples the caller to the management system. Accept `FileHandle` (and dispatch), or accept `FileInfo` (and have the caller project).
+- **Returning a value typed `FileEntry` whose contract is "might or might not be registered"** — use `FileHandle` or an explicit variant instead.
+- **Synthesising a `FileEntry` from a `FileInfo`** — registration must go through sanctioned FileManager methods; the Zod brand is specifically there to prevent this.
+
+### 2.5 Relationship to v1 `FileMetadata`
+
+The legacy `FileMetadata` type served two roles simultaneously — DB persistence (Dexie `files` table, `message_block.file` JSON) **and** generic file descriptor (OCR input, token estimation, UI rendering). The v2 type system makes those roles explicit by splitting them:
+
+- The **persistence role** → `FileEntry` (plus managed references via `file_ref`)
+- The **descriptor role** → `FileInfo`
+- The **polymorphic reference** → `FileHandle`
+
+A consumer that was "given a `FileMetadata`" is migrated by asking *which role* it was using — see the [migration plan](../../../v2-refactor-temp/docs/file-manager/migration-plan.md) for per-consumer bucket assignment.
+
+---
+
+## 3. IPC Design
+
+### 3.1 Design Motivation
 
 The renderer needs a unified entry point for file operations (a single `read` can read both FileEntry and an external path), but inside the main process, entry management (DB + FS coordination) and pure path operations (FS directly) are two very different responsibilities.
 
 Solution: **unified call entry + handler-level dispatch**. FileManager, as the sole IPC registrant, owns all handlers; each handler dispatches internally to different implementations based on target type.
 
-### 2.2 Handler Dispatch
+### 3.2 Handler Dispatch
 
 ```
 Renderer
@@ -165,7 +242,7 @@ Renderer
 
 Other services in the main process can call ops.ts or FileManager directly as needed, without going through IPC.
 
-### 2.3 IPC Method Categories
+### 3.3 IPC Method Categories
 
 All operations that can act on any file (managed FileEntry or unmanaged path) **accept a `FileHandle` tagged union** (`{ kind: 'managed', entryId } | { kind: 'unmanaged', path }`). Handlers dispatch by `handle.kind` to FileManager (managed) or `ops/*` (unmanaged).
 
@@ -196,7 +273,7 @@ All operations that can act on any file (managed FileEntry or unmanaged path) **
 | `refreshMetadata` | Explicit stat refresh of external snapshot (UI manual refresh button) |
 | `withTempCopy` | Copy isolation for calling third-party libraries |
 
-**How to obtain dangling state**: not individually exposed via IPC. The DataApi entry query endpoints support the `includeDangling: true` parameter, which the handler fills on demand via DanglingCache (see §3.1).
+**How to obtain dangling state**: not individually exposed via IPC. The DataApi entry query endpoints support the `includeDangling: true` parameter, which the handler fills on demand via DanglingCache (see §4.1).
 
 **Operations accepting only FilePath**:
 
@@ -207,7 +284,7 @@ All operations that can act on any file (managed FileEntry or unmanaged path) **
 | `listDirectory` | Scan any directory contents |
 | `isNotEmptyDir` | Check whether a directory is non-empty |
 
-### 2.4 Operational Semantics for External Files
+### 3.4 Operational Semantics for External Files
 
 **Impact of Cherry's operations on external files**:
 
@@ -229,7 +306,7 @@ All operations that can act on any file (managed FileEntry or unmanaged path) **
 
 Similar to VS Code's behavior model for open files: it changes when you tell it to, without modifying behind the scenes; if you change the file externally, it won't auto-follow.
 
-### 2.5 AI SDK Integration (Deferred)
+### 3.5 AI SDK Integration (Deferred)
 
 **AI SDK upload-related** → FileUploadService methods (**deferred implementation**, to be introduced after the AI SDK Files API is stable):
 
@@ -241,9 +318,9 @@ Similar to VS Code's behavior model for open files: it changes when you tell it 
 
 ---
 
-## 3. Layered Architecture
+## 4. Layered Architecture
 
-### 3.1 No-FS-Side-Effect Path (DataApi)
+### 4.1 No-FS-Side-Effect Path (DataApi)
 
 FileEntryService / FileRefService are data repositories under `src/main/data/services/`, following the project's existing DataApi layered pattern. They **are not standalone lifecycle services**, but are exposed to the Renderer through the DataApiService bridge.
 
@@ -283,7 +360,7 @@ DataApi endpoints (read-only):
 
 **List queries for external entries**: DataApi returns the DB snapshot by default (possibly stale) without stat. Consumers needing the **latest snapshot** (refreshed name/ext/size) call File IPC `refreshMetadata` / `read` / `getVersion`; those needing only **whether it currently exists** (dangling) pass `includeDangling: true`.
 
-### 3.1.1 Opt-in Derived Fields
+### 4.1.1 Opt-in Derived Fields
 
 The entry query on DataApi provides four opt-in fields that collectively address "I need a piece of derived information about a file" in any scenario:
 
@@ -311,7 +388,7 @@ The entry query on DataApi provides four opt-in fields that collectively address
 - Do not embed this URL into command-line args, subprocess args, or other non-HTML scenarios—use `includePath` when you need the raw path
 - Keeps the renderer unaware of internal storage layout (id+ext concatenation, userData path); storage format changes don't affect the renderer
 
-### 3.1.1.1 On "Main is SoT for path resolution"
+### 4.1.1.1 On "Main is SoT for path resolution"
 
 Main as SoT for path resolution means **authority (who defines resolution rules)**—`resolvePhysicalPath` decides how id + ext are concatenated, where userData lives, whether it becomes hash-bucketed in the future, etc. The renderer consumes the string results produced by Main, but does not share authority:
 - When storage layout iterates on the Main side, renderer code needs zero changes
@@ -319,7 +396,7 @@ Main as SoT for path resolution means **authority (who defines resolution rules)
 
 `includePath` / `includeUrl` carry the path string to the renderer process—this lets the renderer complete the "hold the value" step. The spread of **locality** is not the spread of **authority**. The former is a natural consumption relationship; only the latter is an actual tearing-apart of the SoT.
 
-### 3.1.2 Typical Renderer Call Flows
+### 4.1.2 Typical Renderer Call Flows
 
 ```typescript
 // Case 1: FilesPage sorted by refCount + showing dangling state + file preview
@@ -348,7 +425,7 @@ Benefits of the layering:
 - Mutations uniformly go through IPC, cleanly separating "view data" from "change data"
 - The renderer is unaware of internal storage layout; changes to main's storage format don't break the renderer
 
-### 3.2 FS-Side-Effect Path (File IPC)
+### 4.2 FS-Side-Effect Path (File IPC)
 
 All FS-involving operations go through dedicated IPC channels and **do not go through DataApi**.
 
@@ -368,7 +445,7 @@ Renderer                          Main
 +---------------+           +--------------------------------------+
 ```
 
-### 3.3 Layer Ownership for FS Interactions
+### 4.3 Layer Ownership for FS Interactions
 
 ```
 +-------------------------------------------------------------------------+
@@ -414,7 +491,7 @@ Renderer                          Main
 +-------------------------------------------------------------------------+
 ```
 
-### 3.4 Responsibility Boundaries Summary
+### 4.4 Responsibility Boundaries Summary
 
 | Layer                    | Type            | Touches DB     | Touches FS              | Touches Electron API      | Exposed to Renderer |
 | ------------------------ | --------------- | -------------- | ----------------------- | ------------------------- | ------------------- |
@@ -433,9 +510,9 @@ Renderer                          Main
 
 ---
 
-## 4. Business Service Integration
+## 5. Business Service Integration
 
-### 4.1 Interaction Overview
+### 5.1 Interaction Overview
 
 ```
 +- Renderer --------------------------------------------------------+
@@ -534,7 +611,7 @@ Renderer                          Main
 - **Business Service → file data**: pure DB operations call data repositories directly; FS-involving operations go through FileManager
 - **External directory monitoring**: business services create instances via the `createDirectoryWatcher()` factory and subscribe to the events they care about; the factory internally injects events into DanglingCache (business unaware)
 
-### 4.2 Touchpoints for Business Services
+### 5.2 Touchpoints for Business Services
 
 Business services interact with the file module through three channels:
 
@@ -625,7 +702,7 @@ BusinessService
 
 The scope of this constraint is **physical files backing a FileEntry**. Other modules' own files (Knowledge vector index, Agent workspace, MCP config, Notes, etc.) are outside this constraint.
 
-### 4.3 Exposure Principles for Path Operations
+### 5.3 Exposure Principles for Path Operations
 
 `resolvePhysicalPath` **is not exposed externally**. Business services obtain file content via two channels:
 
@@ -638,9 +715,9 @@ This guarantees that writes necessarily go through FileManager (no write-path es
 
 ---
 
-## 5. Service Lifecycle
+## 6. Service Lifecycle
 
-### 5.1 Startup Phase Assignment
+### 6.1 Startup Phase Assignment
 
 ```
 Lifecycle Services:
@@ -674,7 +751,7 @@ Data Repositories (not lifecycle, managed by DataApiService):
 
 - `FileUploadService` (lifecycle service) + `FileUploadRepository`
 
-### 5.2 Startup Timeline
+### 6.2 Startup Timeline
 
 ```
                      BeforeReady
@@ -705,7 +782,7 @@ Data Repositories (not lifecycle, managed by DataApiService):
 
 **Key**: `runOrphanSweep()` starts with `void` rather than `await`, so `onInit` returns immediately and the service becomes ready immediately. DanglingCache reverse index initialization is a **synchronous DB query** that should be fast (external entries are usually <10000 rows), so no additional signal mechanism is introduced.
 
-### 5.3 Dependency Declarations for Business Services
+### 6.3 Dependency Declarations for Business Services
 
 Any business service that consumes FileManager needs `@DependsOn(FileManager)`:
 
@@ -722,7 +799,7 @@ Specific services and their dependency declarations are registered by each busin
 
 ---
 
-## 6. File Locations and Module Boundaries
+## 7. File Locations and Module Boundaries
 
 ```
 src/main/data/                        -- data layer (pure DB)
@@ -757,7 +834,7 @@ src/main/file/                        -- file module
 
 ---
 
-## 7. Constraints and Limitations
+## 8. Constraints and Limitations
 
 - **External entry is a best-effort reference**: no guarantee the file remains stable, no guarantee content matches the reference-time content. Equivalent to "the user expressed intent to reference this path at some point" semantics in tools like codex
 - **External entry path is globally unique**: at most one row per `externalPath` at any time, regardless of any state (SQLite global unique index on `externalPath`; internal rows have `externalPath = null` and are exempt, since SQLite treats multiple NULLs as distinct). `ensureExternalEntry` is therefore a pure upsert by path — reuse if an entry exists, otherwise insert; no "restore" branch is possible because external entries cannot be trashed.
@@ -774,7 +851,7 @@ src/main/file/                        -- file module
 
 ---
 
-## 8. Extension Points
+## 9. Extension Points
 
 | Extension direction                     | Integration path                                                                                |
 | --------------------------------------- | ----------------------------------------------------------------------------------------------- |

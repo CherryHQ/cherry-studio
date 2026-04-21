@@ -4,13 +4,28 @@
 >
 > 本报告对 v1 `FileMetadata` / `FileStorage` 消费者的枚举（"用途"、"调用方"列）仍然准确有效，可用于迁移阶段按图索骥。
 >
-> 但"新模型映射"列（`FileIpcApi.createEntry({origin:...,content:...})` 这类记号）捕获的是的早期设计，已被推翻：
+> 但"新模型映射"列（`FileIpcApi.createEntry({origin:...,content:...})` 这类记号）捕获的是早期设计，已被推翻：
 >
 > - `createEntry({origin:'internal',...})` → `createInternalEntry(...)`
 > - `createEntry({origin:'external',...})` → `ensureExternalEntry(...)`（纯 upsert by path）
 > - External entry 不进入 trash 生命周期；`permanentDelete` 对 external 只动 DB 行
+> - **类型角色拆分**：旧 `FileMetadata` 同时承担"DB 行"与"通用文件描述符"两个角色。v2 把这两个角色拆成 `FileEntry`（持久化）与 `FileInfo`（描述符），跨边界统一用 `FileHandle` 引用。每个消费者按"持久化 / 描述符 / 两栖"分 P/I/A 桶——§6 域分析已标注桶归属。
 >
 > **新 IPC 形状请以以下为准**：[`docs/references/file/architecture.md`](../../../docs/references/file/architecture.md)、[`rfc-file-manager.md`](./rfc-file-manager.md)、[`file-arch-problems-response.md`](./file-arch-problems-response.md)。
+
+---
+
+## 桶归属说明（P / I / A）
+
+v2 把消费者分为三桶，对应不同的迁移目标：
+
+| 桶 | 使用模式                                                     | 迁移目标                                                |
+| -- | ------------------------------------------------------------ | ------------------------------------------------------- |
+| **P** 持久化 | 把 FileMetadata 存进 Dexie / message_block / knowledge_item 等载体；需要完整 DB 行 | **→ FileEntry**（或 `FileEntryId`）                     |
+| **I** 描述符 | 只用 path / name / size / ext / type 驱动一次处理，不持久化任何身份 | **→ FileInfo**（直接字段瘦身，不需 shim）               |
+| **A** 两栖   | 同一处既持久化又 pass-through，或签名要完整对象但实际只用子集（"接口说谎"） | **→ 拆签名**：持久化动作走 FileManager 升格，处理动作接 FileInfo |
+
+§6 的各业务域头部会给出"**桶归属**"标签。迁移策略和桶归属规则见 [`migration-plan.md §1.2`](./migration-plan.md#12-filemetadata-角色拆分与桶归属)。
 
 ---
 
@@ -337,6 +352,8 @@ files: 'id, name, origin_name, path, size, ext, type, created_at, count'
 
 ### 6.1 Chat Messages（最重度消费者）
 
+**桶归属**：**P**（主导）。block.file 直接内嵌 FileMetadata 进 Dexie `message_blocks`，完全是持久化身份需求。
+
 **数据模型**：
 
 - `ImageMessageBlock.file?: FileMetadata`（`types/newMessage.ts:105`）
@@ -373,6 +390,8 @@ files: 'id, name, origin_name, path, size, ext, type, created_at, count'
 
 ### 6.2 Knowledge Base
 
+**桶归属**：**P + A**。`KnowledgeItem.content` 内嵌 FileMetadata 属 P；但 preprocess provider 接收 FileMetadata 只为了读 path 处理，属 A（签名说谎——给了 FileMetadata 但只用 path/ext）。迁移时：KnowledgeItem 持久化走 FileEntry，preprocess provider 签名改吃 FileInfo。
+
 **数据模型**：
 
 - `KnowledgeItem.content: string \| FileMetadata \| FileMetadata[]`（`types/knowledge.ts:13`）
@@ -405,6 +424,8 @@ files: 'id, name, origin_name, path, size, ext, type, created_at, count'
 
 ### 6.3 Painting
 
+**桶归属**：**P**。`PaintingsState` 各 provider 持有 `FileMetadata[]`/`FileMap<string, FileMetadata>`，Redux 持久化身份；迁移后改为持有 `FileEntryId[]`，UI 渲染时走 useQuery 投影。
+
 **数据模型**：
 
 - `PaintingsState.{provider}.files: FileMetadata[]`（见 `types/index.ts:346`，各 painting 页面 state）
@@ -432,6 +453,8 @@ files: 'id, name, origin_name, path, size, ext, type, created_at, count'
 
 ### 6.4 Translate
 
+**桶归属**：**I**。文件翻译是输入 → 文本结果，原文件不被持久化到任何业务载体。临时 FileMetadata 只是在读完内容前的中间表述；迁移后改为直接以 `FileInfo`（或 `FileHandle` + 内部投影）传递。
+
 **数据模型**：
 
 - TranslatePage 内部 state + `CustomTranslateLanguage` 不含 FileMetadata，但 `TranslatePage.tsx` 接收文件翻译
@@ -452,6 +475,8 @@ files: 'id, name, origin_name, path, size, ext, type, created_at, count'
 
 ### 6.5 Paste / Clipboard
 
+**桶归属**：**I 起步，发送时升格 P**。粘贴临时文件（长文本 / 图片）在 Inputbar 未发送前只是描述符——用 `FileInfo`；用户点击发送时通过 `createInternalEntry` 显式升格 `FileEntry`，随 message 持久化。不应该"粘贴即写 DB"。
+
 **关键入口点**：
 
 - `services/PasteService.ts:handlePaste` 处理剪贴板：
@@ -469,11 +494,15 @@ files: 'id, name, origin_name, path, size, ext, type, created_at, count'
 
 ### 6.6 Notes
 
+**桶归属**：**I**（边界处）。Notes 域基本上 FS-first、自管，与 FileMetadata 解耦；边界点（`SaveToKnowledgePopup.readExternal`）只读路径读内容，不需要身份——迁移后接 `FileInfo` 或 `FileHandle`。**不应强行把 Notes 文件挂进 FileEntry**（`docs/references/file/architecture.md §1.3` 明确把 Notes 文件树排除在外）。
+
 **当前与 FileMetadata 几乎无耦合**：`NotesTreeNode` 是独立类型（`src/main/utils/file.ts:128` 附近定义），只有 `MessagesService.ts` 和 `SaveToKnowledgePopup` 用 external path 读 markdown。`SaveToKnowledgePopup.tsx:275 readExternal(note.externalPath)` 是 FileMetadata 的边界点。
 
 **迁移复杂度**：**M**（主要与 `FileStorage.getDirectoryStructure/batchUploadMarkdown/fileNameGuard/watcher` 相关，这些是 FileStorage 边缘 API，v2 中将移除或迁移到 NotesService 私有通道）
 
 ### 6.7 Agent Workspace / MCP
+
+**桶归属**：**I**。Agent workspace 是 AgentService 自管的沙盒目录，不入 FileManager；MCP tool output 只点击跳转，没有身份需求。`AgentSessionInputbar.tsx` 里的 FileMetadata 是 Inputbar 组件共享，可复用 Chat Messages 桶 P 的迁移结论（入 message 时走 FileEntry 升格）。
 
 - `ClickableFilePath.tsx:37 openPath / 62 showInFolder` — MCP tool output 点击文件时调用，不构造 FileMetadata
 - `AgentSessionInputbar.tsx` — 用 FileMetadata 但目前只是 Inputbar 复用
@@ -482,6 +511,8 @@ files: 'id, name, origin_name, path, size, ext, type, created_at, count'
 **迁移复杂度**：**S**（agent 侧基本是路径，很少构造 FileMetadata）
 
 ### 6.8 OCR / Preprocess
+
+**桶归属**：**I**。OCR input 是"输入 → 文字"的纯处理，原文件 OCR 不持有任何身份引用。10+ provider 全部只读 `file.path` 处理图像——迁移后签名改为 `FileInfo`（或 `FileHandle`，若要统一 managed/unmanaged 调用）。`SupportedOcrFile` 重构为 `FileInfo & { type: 'image' }` 类型约束。**中间产物**（抽出的 txt/pdf）若要挂入 Knowledge 才升格 FileEntry，否则仍是 ops 产出的 FileInfo。
 
 **数据模型**：`SupportedOcrFile = ImageFileMetadata`（`types/ocr.ts:130`）。OCR services 都用 `file.path` 直接读图像。
 
@@ -502,11 +533,15 @@ files: 'id, name, origin_name, path, size, ext, type, created_at, count'
 
 ### 6.9 AI Provider 文件上传（remotefile）
 
+**桶归属**：**I**（+ 远端 ID 主导）。真正的身份在远端（OpenAI fileId / Gemini file / Mistral fileId），本地只是"给我路径，我去上传"。签名应接 `FileHandle`（让管理方 / 非管理方都能上传）或 `FileInfo`；上传结果的缓存（未来 `file_upload` 表）才是新的"身份"承载处。
+
 `remotefile/` 4 个 service（OpenAI/Gemini/Mistral/Base）接收 `FileMetadata`，用 `file.path` 创建 read stream。Phase 1 根据 `src/main/data/db/schemas/file.ts:7-9` 注释**暂不做 file_upload 表**，因此这部分保持现状，但签名迁移到 `FileEntry` + `withTempCopy` 是 Phase 2 以后的事。
 
 **迁移复杂度**：**M**（延期）
 
 ### 6.10 Settings / Backup / Export
+
+**桶归属**：**I**。Export 产物（Word / Zip）和 Backup 归档由业务模块自管——用户指定落点后脱手，Cherry 不维护这些文件的身份。迁移后直接用 `FilePath` / `FileInfo`，不走 FileManager。
 
 - `BackupService.ts`：用 `selectFolder / open` — 与 FileMetadata 基本解耦
 - `utils/export.ts`（1113 行附近）：多处调用 `file.save`、`file.saveImage`、`file.readExternal`、`file.write` — 都是纯路径操作
