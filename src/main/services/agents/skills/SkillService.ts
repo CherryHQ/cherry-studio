@@ -738,17 +738,9 @@ export class SkillService {
     return workspace
   }
 
-  private parseFirstAccessiblePath(serialized: string | null | undefined): string | undefined {
-    if (!serialized) return undefined
-    try {
-      const paths = JSON.parse(serialized) as unknown
-      if (Array.isArray(paths) && paths.length > 0 && typeof paths[0] === 'string') {
-        return paths[0]
-      }
-    } catch {
-      // Fall through
-    }
-    return undefined
+  private parseFirstAccessiblePath(paths: string[] | null | undefined): string | undefined {
+    if (!paths || paths.length === 0) return undefined
+    return typeof paths[0] === 'string' ? paths[0] : undefined
   }
 
   private async getSkillById(id: string): Promise<InstalledSkill | null> {

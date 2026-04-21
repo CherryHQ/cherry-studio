@@ -150,7 +150,7 @@ export class SessionMessageService {
           : await baseQuery.limit(options.limit)
         : await baseQuery
 
-    const messages = result.map((row) => this.deserializeSessionMessage(row))
+    const messages = result.map((row) => this.rowToEntity(row))
 
     return { messages }
   }
@@ -590,32 +590,6 @@ export class SessionMessageService {
       logger.error('Failed to load session history', error as Error)
       throw error
     }
-  }
-
-  private deserializeSessionMessage(data: any): AgentSessionMessageEntity {
-    if (!data) return data
-
-    const deserialized = { ...data }
-
-    // Parse content JSON
-    if (deserialized.content && typeof deserialized.content === 'string') {
-      try {
-        deserialized.content = JSON.parse(deserialized.content)
-      } catch (error) {
-        logger.warn(`Failed to parse content JSON:`, error as Error)
-      }
-    }
-
-    // Parse metadata JSON
-    if (deserialized.metadata && typeof deserialized.metadata === 'string') {
-      try {
-        deserialized.metadata = JSON.parse(deserialized.metadata)
-      } catch (error) {
-        logger.warn(`Failed to parse metadata JSON:`, error as Error)
-      }
-    }
-
-    return deserialized
   }
 }
 

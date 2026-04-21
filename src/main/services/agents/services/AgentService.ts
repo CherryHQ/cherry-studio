@@ -25,7 +25,6 @@ import {
   listMcpTools,
   normalizeAllowedTools,
   resolveAccessiblePaths,
-  serializeJsonFields,
   validateAgentModels
 } from '../agentUtils'
 import { type AgentModelField, AgentModelValidationError } from '../errors'
@@ -73,8 +72,6 @@ export class AgentService {
       small_model: req.small_model
     })
 
-    const serializedReq = serializeJsonFields(req)
-
     const insertData: InsertAgentRow = {
       id,
       type: req.type,
@@ -84,8 +81,10 @@ export class AgentService {
       model: req.model,
       planModel: req.plan_model,
       smallModel: req.small_model,
-      configuration: serializedReq.configuration,
-      accessiblePaths: serializedReq.accessible_paths,
+      mcps: req.mcps ?? null,
+      allowedTools: req.allowed_tools ?? null,
+      configuration: req.configuration ?? null,
+      accessiblePaths: req.accessible_paths ?? null,
       sortOrder: 0
     }
 
@@ -285,7 +284,6 @@ export class AgentService {
       }
 
       await validateAgentModels(req.type, { model: req.model })
-      const serialized = serializeJsonFields(req)
 
       const insertData: InsertAgentRow = {
         id,
@@ -294,8 +292,8 @@ export class AgentService {
         description: req.description,
         instructions: req.instructions || 'You are a helpful assistant.',
         model: req.model,
-        configuration: serialized.configuration,
-        accessiblePaths: serialized.accessible_paths,
+        configuration: req.configuration ?? null,
+        accessiblePaths: req.accessible_paths ?? null,
         sortOrder: 0
       }
 
@@ -379,8 +377,6 @@ export class AgentService {
       const resolvedPaths = resolveAccessiblePaths(req.accessible_paths, id)
       await validateAgentModels(req.type, { model: req.model })
 
-      const serialized = serializeJsonFields({ ...req, accessible_paths: resolvedPaths })
-
       const insertData: InsertAgentRow = {
         id,
         type: req.type,
@@ -388,8 +384,8 @@ export class AgentService {
         description: req.description,
         instructions: 'You are a helpful assistant.',
         model: req.model,
-        configuration: serialized.configuration,
-        accessiblePaths: serialized.accessible_paths,
+        configuration: req.configuration ?? null,
+        accessiblePaths: resolvedPaths ?? null,
         sortOrder: 0
       }
 
@@ -456,8 +452,6 @@ export class AgentService {
       await validateAgentModels(existing.type, modelUpdates)
     }
 
-    const serializedUpdates = serializeJsonFields(updates)
-
     const updateData: Partial<AgentRow> = {
       updatedAt: Date.now()
     }
@@ -467,9 +461,9 @@ export class AgentService {
 
     for (const entityField of replaceableEntityFields) {
       const rowField = (this.agentEntityToRowField[entityField] ?? entityField) as keyof AgentRow
-      if (shouldReplace || Object.prototype.hasOwnProperty.call(serializedUpdates, entityField)) {
-        if (Object.prototype.hasOwnProperty.call(serializedUpdates, entityField)) {
-          const value = serializedUpdates[entityField as keyof typeof serializedUpdates]
+      if (shouldReplace || Object.prototype.hasOwnProperty.call(updates, entityField)) {
+        if (Object.prototype.hasOwnProperty.call(updates, entityField)) {
+          const value = updates[entityField as keyof typeof updates]
           ;(updateData as Record<string, unknown>)[rowField] = value ?? null
         } else if (shouldReplace) {
           ;(updateData as Record<string, unknown>)[rowField] = null
@@ -497,7 +491,7 @@ export class AgentService {
     // Sync changed fields to all sessions that still match the agent's old values.
     // Sessions where the user has customized a field are left untouched.
     if (rawOldAgent) {
-      await this.syncSettingsToSessions(database, id, rawOldAgent, serializedUpdates)
+      await this.syncSettingsToSessions(database, id, rawOldAgent, updates)
     }
 
     return await this.getAgent(id)
@@ -515,9 +509,9 @@ export class AgentService {
     database: DbType,
     agentId: string,
     rawOldAgent: Record<string, unknown>,
-    serializedUpdates: Record<string, unknown>
+    updates: Record<string, unknown>
   ): Promise<void> {
-    // Map from entity-level field names (snake_case, from serializedUpdates) to
+    // Map from entity-level field names (snake_case, from updates) to
     // row-level field names (camelCase, used to read/write DB row objects).
     const syncFieldMap: Array<{ entityField: string; rowField: string }> = [
       { entityField: 'model', rowField: 'model' },
@@ -529,11 +523,11 @@ export class AgentService {
       { entityField: 'instructions', rowField: 'instructions' }
     ]
 
-    // rawOldAgent is already in DB-serialized form (JSON strings) with camelCase keys.
     // Only sync fields that are present in the update AND actually changed.
+    // JSON.stringify is needed for array/object fields — === compares by reference.
     const changedFields = syncFieldMap.filter(({ entityField, rowField }) => {
-      if (!Object.prototype.hasOwnProperty.call(serializedUpdates, entityField)) return false
-      return (serializedUpdates[entityField] ?? null) !== (rawOldAgent[rowField] ?? null)
+      if (!Object.prototype.hasOwnProperty.call(updates, entityField)) return false
+      return JSON.stringify(updates[entityField] ?? null) !== JSON.stringify(rawOldAgent[rowField] ?? null)
     })
     if (changedFields.length === 0) return
 
@@ -550,9 +544,10 @@ export class AgentService {
             const oldAgentValue = rawOldAgent[rowField] ?? null
             const sessionValue = (session as Record<string, unknown>)[rowField] ?? null
 
-            // Only sync if session still has the agent's old value (not user-customized)
-            if (oldAgentValue === sessionValue) {
-              sessionUpdateData[rowField] = serializedUpdates[entityField] ?? null
+            // Only sync if session still has the agent's old value (not user-customized).
+            // JSON.stringify is needed for array/object fields — === compares by reference.
+            if (JSON.stringify(oldAgentValue) === JSON.stringify(sessionValue)) {
+              sessionUpdateData[rowField] = updates[entityField] ?? null
             }
           }
 

@@ -33,24 +33,12 @@ describe('TaskService silent-failure guards', () => {
     vi.clearAllMocks()
   })
 
-  it('throws a clear error when the agent configuration JSON is malformed', async () => {
-    const database = {
-      select: vi.fn(() => createConfigQuery([{ configuration: '{not valid json' }])),
-      transaction: vi.fn()
-    }
-    MockMainDbServiceUtils.setDb(database)
-
-    await expect(taskService.createTask('agent-1', baseRequest)).rejects.toThrow(
-      /Agent agent-1 has a malformed configuration JSON and cannot be scheduled/
-    )
-  })
-
   it('throws when the task insert reports rowsAffected !== 1', async () => {
     const txInsert = vi.fn(() => ({
       values: vi.fn().mockResolvedValue({ rowsAffected: 0 })
     }))
     const database = {
-      select: vi.fn(() => createConfigQuery([{ configuration: JSON.stringify({ soul_enabled: true }) }])),
+      select: vi.fn(() => createConfigQuery([{ configuration: { soul_enabled: true } }])),
       transaction: vi.fn(async (callback: (tx: unknown) => Promise<void>) => callback({ insert: txInsert }))
     }
     MockMainDbServiceUtils.setDb(database)

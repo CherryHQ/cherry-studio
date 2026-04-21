@@ -30,7 +30,6 @@ import {
   listMcpTools,
   normalizeAllowedTools,
   resolveAccessiblePaths,
-  serializeJsonFields,
   validateAgentModels
 } from '../agentUtils'
 import type { AgentModelField } from '../errors'
@@ -150,24 +149,23 @@ export class SessionService {
       sessionData.accessible_paths = ensurePathsExist(sessionData.accessible_paths)
     }
 
-    const serializedData = serializeJsonFields(sessionData)
-
     // `name` and `model` are NOT NULL on agent_session; fall back to the parent
     // agent's values rather than coercing empty strings to null.
     const insertData: InsertSessionRow = {
       id,
       agentId,
       agentType: agent.type,
-      name: serializedData.name || agent.name,
-      description: serializedData.description || null,
-      accessiblePaths: serializedData.accessible_paths || null,
-      instructions: serializedData.instructions || null,
-      model: serializedData.model || agent.model,
-      planModel: serializedData.plan_model || null,
-      smallModel: serializedData.small_model || null,
-      mcps: serializedData.mcps || null,
-      allowedTools: serializedData.allowed_tools || null,
-      configuration: serializedData.configuration || null,
+      name: sessionData.name || agent.name || 'New Session',
+      description: sessionData.description ?? null,
+      accessiblePaths: sessionData.accessible_paths ?? null,
+      instructions: sessionData.instructions ?? null,
+      model: sessionData.model || agent.model,
+      planModel: sessionData.plan_model ?? null,
+      smallModel: sessionData.small_model ?? null,
+      mcps: sessionData.mcps ?? null,
+      allowedTools: sessionData.allowed_tools ?? null,
+      slashCommands: sessionData.slash_commands ?? null,
+      configuration: sessionData.configuration ?? null,
       sortOrder: 0
     }
 
@@ -303,8 +301,6 @@ export class SessionService {
       await validateAgentModels(existing.agent_type, modelUpdates)
     }
 
-    const serializedUpdates = serializeJsonFields(updates)
-
     const updateData: Partial<SessionRow> = {
       updatedAt: Date.now()
     }
@@ -325,9 +321,9 @@ export class SessionService {
     const replaceableEntityFields = Object.keys(AgentBaseSchema.shape)
 
     for (const entityField of replaceableEntityFields) {
-      if (Object.prototype.hasOwnProperty.call(serializedUpdates, entityField)) {
+      if (Object.prototype.hasOwnProperty.call(updates, entityField)) {
         const rowField = (sessionEntityToRowField[entityField] ?? entityField) as keyof SessionRow
-        const value = serializedUpdates[entityField as keyof typeof serializedUpdates]
+        const value = updates[entityField as keyof typeof updates]
         ;(updateData as Record<string, unknown>)[rowField] = value ?? null
       }
     }

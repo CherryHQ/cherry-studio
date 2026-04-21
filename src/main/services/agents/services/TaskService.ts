@@ -499,18 +499,7 @@ export class TaskService {
       throw new Error(`Agent not found: ${agentId}`)
     }
 
-    let config: Record<string, unknown> = {}
-    if (row.configuration) {
-      try {
-        config = JSON.parse(row.configuration) as Record<string, unknown>
-      } catch (error) {
-        throw new Error(
-          `Agent ${agentId} has a malformed configuration JSON and cannot be scheduled: ${
-            error instanceof Error ? error.message : String(error)
-          }`
-        )
-      }
-    }
+    const config: Record<string, unknown> = row.configuration ?? {}
 
     if (config.soul_enabled === true || config.permission_mode === 'bypassPermissions') {
       return

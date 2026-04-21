@@ -54,26 +54,7 @@ const ROW_TO_ENTITY_FIELD_MAP: Record<string, string> = {
   lastResult: 'last_result'
 }
 
-export const ENTITY_TO_ROW_FIELD_MAP: Record<string, string> = Object.fromEntries(
-  Object.entries(ROW_TO_ENTITY_FIELD_MAP).map(([camel, snake]) => [snake, camel])
-)
-
-export const JSON_FIELDS = ['tools', 'mcps', 'configuration', 'accessible_paths', 'allowed_tools', 'slash_commands']
-
-export function serializeJsonFields(data: any, fields = JSON_FIELDS): any {
-  const serialized = { ...data }
-  for (const field of fields) {
-    if (serialized[field] !== undefined) {
-      serialized[field] =
-        Array.isArray(serialized[field]) || typeof serialized[field] === 'object'
-          ? JSON.stringify(serialized[field])
-          : serialized[field]
-    }
-  }
-  return serialized
-}
-
-export function deserializeJsonFields(data: any, fields = JSON_FIELDS): any {
+export function deserializeJsonFields(data: any): any {
   if (!data) return data
 
   const deserialized = { ...data }
@@ -89,16 +70,6 @@ export function deserializeJsonFields(data: any, fields = JSON_FIELDS): any {
   for (const field of timestampFields) {
     if (typeof deserialized[field] === 'number' && deserialized[field] > 0) {
       deserialized[field] = new Date(deserialized[field]).toISOString()
-    }
-  }
-
-  for (const field of fields) {
-    if (deserialized[field] && typeof deserialized[field] === 'string') {
-      try {
-        deserialized[field] = JSON.parse(deserialized[field])
-      } catch (error) {
-        logger.warn(`Failed to parse JSON field ${field}:`, error as Error)
-      }
     }
   }
 
