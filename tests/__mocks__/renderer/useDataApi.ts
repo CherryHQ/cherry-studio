@@ -241,6 +241,41 @@ export const mockUseInvalidateCache = vi.fn((): ((keys?: string | string[] | boo
 })
 
 /**
+ * Mock useReadCache hook
+ * Matches actual signature: useReadCache() => (path, query?) => TResponse | undefined
+ *
+ * Backing store is a Map keyed by the same `[path, query?]` serialization the
+ * real hook uses, so `mockUseReadCache` + `mockUseWriteCache` form a
+ * round-trippable stub for tests that exercise optimistic overlays.
+ */
+const mockCacheStore = new Map<string, unknown>()
+
+function cacheKey(path: string, query?: Record<string, unknown>): string {
+  if (!query || Object.keys(query).length === 0) return path
+  return `${path}::${JSON.stringify(query)}`
+}
+
+export const mockUseReadCache = vi.fn(() => {
+  return <TResponse = unknown>(path: string, query?: Record<string, unknown>): TResponse | undefined => {
+    return mockCacheStore.get(cacheKey(path, query)) as TResponse | undefined
+  }
+})
+
+/**
+ * Mock useWriteCache hook
+ * Matches actual signature: useWriteCache() => (path, value, query?) => Promise<void>
+ */
+export const mockUseWriteCache = vi.fn(() => {
+  return async <TResponse = unknown>(
+    path: string,
+    value: TResponse,
+    query?: Record<string, unknown>
+  ): Promise<void> => {
+    mockCacheStore.set(cacheKey(path, query), value)
+  }
+})
+
+/**
  * Mock prefetch function
  * Matches actual signature: prefetch(path, options?) => Promise<ResponseForPath<TPath, 'GET'>>
  */

@@ -1,4 +1,4 @@
-import { useMutation } from '@data/hooks/useDataApi'
+import { useInvalidateCache, useMutation, useReadCache, useWriteCache } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import { isDev } from '@renderer/config/constant'
@@ -12,7 +12,7 @@ import type { Assistant, FileMetadata, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { AssistantMessageStatus } from '@renderer/types/newMessage'
 import { DataApiError, ErrorCode } from '@shared/data/api'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { BranchMessagesResponse, CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -212,15 +212,59 @@ const V2ChatContentInner: FC<InnerProps> = ({
     return nextPartsMap
   }, [activeExecutionIds, executionMessagesById, partsMap])
 
-  // All message-write hooks share the same refresh target: whichever
-  // `useTopicMessagesV2` instances are currently subscribed to this topic's
-  // branch list. Enumerating a specific key (rather than a `/*` prefix) keeps
-  // cross-window invalidation narrow — we don't want a DELETE on one topic
-  // to revalidate every other topic's message queries.
+  // ── Branch-messages cache control ──────────────────────────────────
+  //
+  // The four write handlers below maintain two parallel optimistic stores:
+  //   (1) the shared SWR cache for `/topics/:id/messages` — read by every
+  //       `useTopicMessagesV2` subscriber (including other detached windows),
+  //   (2) `useChat`'s internal `messages` state — owned by the local instance,
+  //       not fed from SWR after mount.
+  //
+  // Seeding (1) via `useWriteCache` closes the ~20–50ms gap in which other
+  // subscribers would otherwise still see the stale server value while we
+  // wait for `refresh:`'s revalidation round-trip.  Rollback on error goes
+  // through `useInvalidateCache` (same pattern as `useReorder`).  (2) stays
+  // manual because `useChat` owns its own store.
+  const messagesCachePath = useMemo(() => `/topics/${topic.id}/messages` as const, [topic.id])
+  const messagesCacheQuery = useMemo(() => ({ limit: 999, includeSiblings: true }), [])
   const messagesRefreshKeys = useMemo<`/topics/${string}/messages`[]>(
     () => [`/topics/${topic.id}/messages`],
     [topic.id]
   )
+
+  const readCache = useReadCache()
+  const writeCache = useWriteCache()
+  const invalidateCache = useInvalidateCache()
+
+  /** Compute the optimistic branch response with the given ids removed. */
+  const branchWithoutIds = useCallback(
+    (prev: BranchMessagesResponse, removedIds: Set<string>): BranchMessagesResponse => {
+      const items = prev.items
+        .filter((item) => !removedIds.has(item.message.id))
+        .map((item) =>
+          item.siblingsGroup
+            ? { ...item, siblingsGroup: item.siblingsGroup.filter((s) => !removedIds.has(s.id)) }
+            : item
+        )
+      return { ...prev, items }
+    },
+    []
+  )
+
+  /** Write a transformed cache value; returns the pre-transform snapshot for rollback. */
+  const seedOptimisticBranch = useCallback(
+    async (transform: (prev: BranchMessagesResponse) => BranchMessagesResponse) => {
+      const prev = readCache<BranchMessagesResponse>(messagesCachePath, messagesCacheQuery)
+      if (!prev) return
+      await writeCache(messagesCachePath, transform(prev), messagesCacheQuery)
+    },
+    [messagesCachePath, messagesCacheQuery, readCache, writeCache]
+  )
+
+  /** Full rollback: force a revalidation against the server. */
+  const rollbackBranch = useCallback(async () => {
+    await invalidateCache(messagesCachePath)
+  }, [invalidateCache, messagesCachePath])
 
   const { trigger: deleteMessageTrigger } = useMutation('DELETE', '/messages/:id', {
     refresh: messagesRefreshKeys
@@ -235,62 +279,133 @@ const V2ChatContentInner: FC<InnerProps> = ({
    *
    * Two-phase: first try `cascade=false` (reparent). The server signals with
    * `INVALID_OPERATION` when the message has descendants the server can't
-   * safely reparent (e.g. a sibling multi-model group), and the UX contract
-   * is to fall back to a cascading delete. That retry is hard to express via
-   * `useMutation`'s single-trigger model, so we orchestrate it ourselves and
-   * lean on the hook only for the per-call refresh + refresh-failure
-   * isolation semantics.
+   * safely reparent (e.g. a sibling multi-model group); fall back to a
+   * cascading delete. The retry is orchestrated by this handler because
+   * `useMutation`'s single-trigger model doesn't express fallback paths.
+   *
+   * Optimistic flow:
+   *   1. Seed SWR cache + useChat state with the single-id removal (matches
+   *      the cascade=false expected outcome).
+   *   2. Fire `cascade=false` trigger.
+   *   3. On INVALID_OPERATION: re-seed with the full descendant set from the
+   *      server response, then fire `cascade=true`.
+   *   4. On any other error: roll back both stores.
    */
   const handleDeleteMessage = useCallback(
     async (id: string) => {
+      const optimisticIds = new Set([id])
+      await seedOptimisticBranch((prev) => branchWithoutIds(prev, optimisticIds))
+      setMessages((msgs) => msgs.filter((m) => m.id !== id))
+
       try {
         await deleteMessageTrigger({ params: { id }, query: { cascade: false } })
-        setMessages((msgs) => msgs.filter((m) => m.id !== id))
       } catch (err: unknown) {
         if (err instanceof DataApiError && err.code === ErrorCode.INVALID_OPERATION) {
-          const result = await deleteMessageTrigger({ params: { id }, query: { cascade: true } })
-          const deletedSet = new Set(result.deletedIds)
-          setMessages((msgs) => msgs.filter((m) => !deletedSet.has(m.id)))
+          try {
+            const result = await deleteMessageTrigger({ params: { id }, query: { cascade: true } })
+            const deletedSet = new Set(result.deletedIds)
+            await seedOptimisticBranch((prev) => branchWithoutIds(prev, deletedSet))
+            setMessages((msgs) => msgs.filter((m) => !deletedSet.has(m.id)))
+          } catch (cascadeErr) {
+            await rollbackBranch()
+            throw cascadeErr
+          }
         } else {
+          await rollbackBranch()
           throw err
         }
       }
       logger.info('Deleted message', { id })
     },
-    [deleteMessageTrigger, setMessages]
+    [branchWithoutIds, deleteMessageTrigger, rollbackBranch, seedOptimisticBranch, setMessages]
   )
 
   /** Delete a message and all descendants (cascade) and sync UI. */
   const handleDeleteMessageGroup = useCallback(
     async (id: string) => {
-      const result = await deleteMessageTrigger({ params: { id }, query: { cascade: true } })
-      const deletedSet = new Set(result.deletedIds)
-      setMessages((msgs) => msgs.filter((m) => !deletedSet.has(m.id)))
-      logger.info('Deleted message group', { id, count: result.deletedIds.length })
+      // Server response is the only authoritative source of deletedIds; we
+      // can't pre-compute them client-side. Seed a best-effort single-id
+      // optimistic removal first, then reconcile once the server answers.
+      await seedOptimisticBranch((prev) => branchWithoutIds(prev, new Set([id])))
+
+      try {
+        const result = await deleteMessageTrigger({ params: { id }, query: { cascade: true } })
+        const deletedSet = new Set(result.deletedIds)
+        await seedOptimisticBranch((prev) => branchWithoutIds(prev, deletedSet))
+        setMessages((msgs) => msgs.filter((m) => !deletedSet.has(m.id)))
+        logger.info('Deleted message group', { id, count: result.deletedIds.length })
+      } catch (err) {
+        await rollbackBranch()
+        throw err
+      }
     },
-    [deleteMessageTrigger, setMessages]
+    [branchWithoutIds, deleteMessageTrigger, rollbackBranch, seedOptimisticBranch, setMessages]
   )
 
   /** Clear all messages for the current topic from DataApi and UI. */
   const handleClearTopicMessages = useCallback(async () => {
     const rootMsg = adaptedMessages.find((m: Message) => !m.askId)
-    if (rootMsg) {
+    if (!rootMsg) {
+      setMessages([])
+      return
+    }
+
+    // Empty the branch list optimistically — a cascade delete from the root
+    // wipes every message in the topic.
+    await writeCache<BranchMessagesResponse>(
+      messagesCachePath,
+      { items: [], nextCursor: undefined, activeNodeId: null },
+      messagesCacheQuery
+    )
+    setMessages([])
+
+    try {
       await deleteMessageTrigger({ params: { id: rootMsg.id }, query: { cascade: true } })
       logger.info('Cleared all messages via root cascade delete', { topicId: topic.id, rootId: rootMsg.id })
+    } catch (err) {
+      await rollbackBranch()
+      throw err
     }
-    setMessages([])
-  }, [adaptedMessages, deleteMessageTrigger, setMessages, topic.id])
+  }, [
+    adaptedMessages,
+    deleteMessageTrigger,
+    messagesCachePath,
+    messagesCacheQuery,
+    rollbackBranch,
+    setMessages,
+    topic.id,
+    writeCache
+  ])
 
   /** Edit a message's parts directly and persist to DataApi. */
   const handleEditMessage = useCallback(
     async (messageId: string, editedParts: CherryMessagePart[]) => {
-      await patchMessageTrigger({ params: { id: messageId }, body: { data: { parts: editedParts } } })
-      logger.info('Edited message', { messageId, partCount: editedParts.length })
+      // Overwrite the edited message's `data.parts` in place — the server
+      // only replaces the parts array so nothing else in the branch row
+      // changes.
+      await seedOptimisticBranch((prev) => {
+        const patch = (msg: BranchMessagesResponse['items'][number]['message']) =>
+          msg.id === messageId ? { ...msg, data: { ...msg.data, parts: editedParts } } : msg
+        const items = prev.items.map((item) => ({
+          ...item,
+          message: patch(item.message),
+          siblingsGroup: item.siblingsGroup?.map(patch)
+        }))
+        return { ...prev, items }
+      })
       setMessages((msgs) =>
         msgs.map((m) => (m.id === messageId ? { ...m, parts: editedParts as CherryUIMessage['parts'] } : m))
       )
+
+      try {
+        await patchMessageTrigger({ params: { id: messageId }, body: { data: { parts: editedParts } } })
+        logger.info('Edited message', { messageId, partCount: editedParts.length })
+      } catch (err) {
+        await rollbackBranch()
+        throw err
+      }
     },
-    [patchMessageTrigger, setMessages]
+    [patchMessageTrigger, rollbackBranch, seedOptimisticBranch, setMessages]
   )
 
   /** Synchronous capability flags derived from assistant config. */
