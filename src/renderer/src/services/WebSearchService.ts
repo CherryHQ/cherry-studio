@@ -58,6 +58,25 @@ type WebSearchPreferenceSnapshot = Pick<
   | 'chat.web_search.compression.rag_rerank_model_id'
 >
 
+export const WEB_SEARCH_PREFERENCE_KEYS = {
+  defaultProvider: 'chat.web_search.default_provider',
+  excludeDomains: 'chat.web_search.exclude_domains',
+  maxResults: 'chat.web_search.max_results',
+  providerOverrides: 'chat.web_search.provider_overrides',
+  subscribeSources: 'chat.web_search.subscribe_sources',
+  compressionMethod: 'chat.web_search.compression.method',
+  cutoffLimit: 'chat.web_search.compression.cutoff_limit',
+  cutoffUnit: 'chat.web_search.compression.cutoff_unit',
+  ragDocumentCount: 'chat.web_search.compression.rag_document_count',
+  ragEmbeddingModelId: 'chat.web_search.compression.rag_embedding_model_id',
+  ragEmbeddingDimensions: 'chat.web_search.compression.rag_embedding_dimensions',
+  ragRerankModelId: 'chat.web_search.compression.rag_rerank_model_id'
+} as const
+
+type WebSearchPreferenceValues = {
+  [K in keyof typeof WEB_SEARCH_PREFERENCE_KEYS]: WebSearchPreferenceSnapshot[(typeof WEB_SEARCH_PREFERENCE_KEYS)[K]]
+}
+
 type ModelResolver = (uniqId: string | null) => Model | undefined
 
 interface RequestState {
@@ -685,67 +704,32 @@ export function updateWebSearchProviderOverride(
 }
 
 export function buildRendererWebSearchState(
-  preferences: WebSearchPreferenceSnapshot,
+  preferences: WebSearchPreferenceValues,
   resolveModel?: ModelResolver
 ): WebSearchState {
-  const compressionMethod = preferences['chat.web_search.compression.method']
-  const embeddingModelId = preferences['chat.web_search.compression.rag_embedding_model_id']
-  const rerankModelId = preferences['chat.web_search.compression.rag_rerank_model_id']
-
   return {
-    defaultProvider: preferences['chat.web_search.default_provider'],
-    providers: resolveWebSearchProviders(preferences['chat.web_search.provider_overrides']),
+    defaultProvider: preferences.defaultProvider,
+    providers: resolveWebSearchProviders(preferences.providerOverrides),
     searchWithTime: false,
-    maxResults: Math.max(1, preferences['chat.web_search.max_results']),
-    excludeDomains: preferences['chat.web_search.exclude_domains'],
-    subscribeSources: preferences['chat.web_search.subscribe_sources'],
+    maxResults: Math.max(1, preferences.maxResults),
+    excludeDomains: preferences.excludeDomains,
+    subscribeSources: preferences.subscribeSources,
     overwrite: false,
     compressionConfig: {
-      method: compressionMethod,
-      cutoffLimit: preferences['chat.web_search.compression.cutoff_limit'] ?? undefined,
-      cutoffUnit: preferences['chat.web_search.compression.cutoff_unit'],
-      documentCount:
-        preferences['chat.web_search.compression.rag_document_count'] || DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT,
-      embeddingModel: resolveModel?.(embeddingModelId) ?? undefined,
-      embeddingDimensions: preferences['chat.web_search.compression.rag_embedding_dimensions'] ?? undefined,
-      rerankModel: resolveModel?.(rerankModelId) ?? undefined
+      method: preferences.compressionMethod,
+      cutoffLimit: preferences.cutoffLimit ?? undefined,
+      cutoffUnit: preferences.cutoffUnit,
+      documentCount: preferences.ragDocumentCount || DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT,
+      embeddingModel: resolveModel?.(preferences.ragEmbeddingModelId) ?? undefined,
+      embeddingDimensions: preferences.ragEmbeddingDimensions ?? undefined,
+      rerankModel: resolveModel?.(preferences.ragRerankModelId) ?? undefined
     }
   }
 }
 
 export async function getRendererWebSearchState(resolveModel?: ModelResolver): Promise<WebSearchState> {
-  const preferences = await preferenceService.getMultiple({
-    defaultProvider: 'chat.web_search.default_provider',
-    excludeDomains: 'chat.web_search.exclude_domains',
-    maxResults: 'chat.web_search.max_results',
-    providerOverrides: 'chat.web_search.provider_overrides',
-    subscribeSources: 'chat.web_search.subscribe_sources',
-    compressionMethod: 'chat.web_search.compression.method',
-    cutoffLimit: 'chat.web_search.compression.cutoff_limit',
-    cutoffUnit: 'chat.web_search.compression.cutoff_unit',
-    ragDocumentCount: 'chat.web_search.compression.rag_document_count',
-    ragEmbeddingModelId: 'chat.web_search.compression.rag_embedding_model_id',
-    ragEmbeddingDimensions: 'chat.web_search.compression.rag_embedding_dimensions',
-    ragRerankModelId: 'chat.web_search.compression.rag_rerank_model_id'
-  })
-
-  return buildRendererWebSearchState(
-    {
-      'chat.web_search.default_provider': preferences.defaultProvider,
-      'chat.web_search.exclude_domains': preferences.excludeDomains,
-      'chat.web_search.max_results': preferences.maxResults,
-      'chat.web_search.provider_overrides': preferences.providerOverrides,
-      'chat.web_search.subscribe_sources': preferences.subscribeSources,
-      'chat.web_search.compression.method': preferences.compressionMethod,
-      'chat.web_search.compression.cutoff_limit': preferences.cutoffLimit,
-      'chat.web_search.compression.cutoff_unit': preferences.cutoffUnit,
-      'chat.web_search.compression.rag_document_count': preferences.ragDocumentCount,
-      'chat.web_search.compression.rag_embedding_model_id': preferences.ragEmbeddingModelId,
-      'chat.web_search.compression.rag_embedding_dimensions': preferences.ragEmbeddingDimensions,
-      'chat.web_search.compression.rag_rerank_model_id': preferences.ragRerankModelId
-    },
-    resolveModel
-  )
+  const preferences = await preferenceService.getMultiple(WEB_SEARCH_PREFERENCE_KEYS)
+  return buildRendererWebSearchState(preferences, resolveModel)
 }
 
 export function getCachedRendererWebSearchState(resolveModel?: ModelResolver): WebSearchState {
@@ -754,31 +738,11 @@ export function getCachedRendererWebSearchState(resolveModel?: ModelResolver): W
     return (cachedValue !== undefined ? cachedValue : getDefaultValue(key)) as PreferenceDefaultScopeType[K]
   }
 
-  return buildRendererWebSearchState(
-    {
-      'chat.web_search.default_provider': getCachedPreference('chat.web_search.default_provider'),
-      'chat.web_search.exclude_domains': getCachedPreference('chat.web_search.exclude_domains'),
-      'chat.web_search.max_results': getCachedPreference('chat.web_search.max_results'),
-      'chat.web_search.provider_overrides': getCachedPreference('chat.web_search.provider_overrides'),
-      'chat.web_search.subscribe_sources': getCachedPreference('chat.web_search.subscribe_sources'),
-      'chat.web_search.compression.method': getCachedPreference('chat.web_search.compression.method'),
-      'chat.web_search.compression.cutoff_limit': getCachedPreference('chat.web_search.compression.cutoff_limit'),
-      'chat.web_search.compression.cutoff_unit': getCachedPreference('chat.web_search.compression.cutoff_unit'),
-      'chat.web_search.compression.rag_document_count': getCachedPreference(
-        'chat.web_search.compression.rag_document_count'
-      ),
-      'chat.web_search.compression.rag_embedding_model_id': getCachedPreference(
-        'chat.web_search.compression.rag_embedding_model_id'
-      ),
-      'chat.web_search.compression.rag_embedding_dimensions': getCachedPreference(
-        'chat.web_search.compression.rag_embedding_dimensions'
-      ),
-      'chat.web_search.compression.rag_rerank_model_id': getCachedPreference(
-        'chat.web_search.compression.rag_rerank_model_id'
-      )
-    },
-    resolveModel
-  )
+  const preferences = Object.fromEntries(
+    Object.entries(WEB_SEARCH_PREFERENCE_KEYS).map(([alias, key]) => [alias, getCachedPreference(key)])
+  ) as WebSearchPreferenceValues
+
+  return buildRendererWebSearchState(preferences, resolveModel)
 }
 
 function normalizeWebSearchProviderOverride(override: WebSearchProviderOverride): WebSearchProviderOverride {

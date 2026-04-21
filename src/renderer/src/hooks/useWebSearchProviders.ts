@@ -7,7 +7,8 @@ import {
   buildRendererWebSearchState,
   buildWebSearchProviderOverrides,
   resolveWebSearchProviders,
-  updateWebSearchProviderOverride
+  updateWebSearchProviderOverride,
+  WEB_SEARCH_PREFERENCE_KEYS
 } from '@renderer/services/WebSearchService'
 import type { WebSearchProvider, WebSearchProviderId, WebSearchState } from '@renderer/types'
 import type { UnifiedPreferenceType, WebSearchSubscribeSource } from '@shared/data/preference/preferenceTypes'
@@ -101,44 +102,15 @@ export const useWebSearchSettings = (): WebSearchState & {
   updateCompressionConfig: (config: Partial<WebSearchState['compressionConfig']>) => Promise<void>
 } => {
   const { providers } = useProviders()
-  const [preferences, setPreferences] = useMultiplePreferences({
-    defaultProvider: 'chat.web_search.default_provider',
-    excludeDomains: 'chat.web_search.exclude_domains',
-    maxResults: 'chat.web_search.max_results',
-    providerOverrides: 'chat.web_search.provider_overrides',
-    subscribeSources: 'chat.web_search.subscribe_sources',
-    compressionMethod: 'chat.web_search.compression.method',
-    cutoffLimit: 'chat.web_search.compression.cutoff_limit',
-    cutoffUnit: 'chat.web_search.compression.cutoff_unit',
-    ragDocumentCount: 'chat.web_search.compression.rag_document_count',
-    ragEmbeddingModelId: 'chat.web_search.compression.rag_embedding_model_id',
-    ragEmbeddingDimensions: 'chat.web_search.compression.rag_embedding_dimensions',
-    ragRerankModelId: 'chat.web_search.compression.rag_rerank_model_id'
-  })
+  const [preferences, setPreferences] = useMultiplePreferences(WEB_SEARCH_PREFERENCE_KEYS)
 
-  const state = buildRendererWebSearchState(
-    {
-      'chat.web_search.default_provider': preferences.defaultProvider,
-      'chat.web_search.exclude_domains': preferences.excludeDomains,
-      'chat.web_search.max_results': preferences.maxResults,
-      'chat.web_search.provider_overrides': preferences.providerOverrides,
-      'chat.web_search.subscribe_sources': preferences.subscribeSources,
-      'chat.web_search.compression.method': preferences.compressionMethod,
-      'chat.web_search.compression.cutoff_limit': preferences.cutoffLimit,
-      'chat.web_search.compression.cutoff_unit': preferences.cutoffUnit,
-      'chat.web_search.compression.rag_document_count': preferences.ragDocumentCount,
-      'chat.web_search.compression.rag_embedding_model_id': preferences.ragEmbeddingModelId,
-      'chat.web_search.compression.rag_embedding_dimensions': preferences.ragEmbeddingDimensions,
-      'chat.web_search.compression.rag_rerank_model_id': preferences.ragRerankModelId
-    },
-    (uniqId) => {
-      if (!uniqId) {
-        return undefined
-      }
-
-      return providers.flatMap((provider) => provider.models).find((model) => getModelUniqId(model) === uniqId)
+  const state = buildRendererWebSearchState(preferences, (uniqId) => {
+    if (!uniqId) {
+      return undefined
     }
-  )
+
+    return providers.flatMap((provider) => provider.models).find((model) => getModelUniqId(model) === uniqId)
+  })
 
   return {
     ...state,

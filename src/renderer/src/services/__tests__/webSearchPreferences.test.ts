@@ -116,15 +116,15 @@ describe('webSearchPreferences', () => {
 
   it('builds renderer websearch state from preference snapshot', () => {
     const state = buildRendererWebSearchState({
-      'chat.web_search.default_provider': 'tavily',
-      'chat.web_search.exclude_domains': ['example.com'],
-      'chat.web_search.max_results': 12,
-      'chat.web_search.provider_overrides': {
+      defaultProvider: 'tavily',
+      excludeDomains: ['example.com'],
+      maxResults: 12,
+      providerOverrides: {
         tavily: {
           apiKeys: ['key-1']
         }
       },
-      'chat.web_search.subscribe_sources': [
+      subscribeSources: [
         {
           key: 1,
           url: 'https://example.com/list.txt',
@@ -132,13 +132,13 @@ describe('webSearchPreferences', () => {
           blacklist: ['blocked.com']
         }
       ],
-      'chat.web_search.compression.method': 'cutoff',
-      'chat.web_search.compression.cutoff_limit': 2000,
-      'chat.web_search.compression.cutoff_unit': 'token',
-      'chat.web_search.compression.rag_document_count': 3,
-      'chat.web_search.compression.rag_embedding_model_id': null,
-      'chat.web_search.compression.rag_embedding_dimensions': null,
-      'chat.web_search.compression.rag_rerank_model_id': null
+      compressionMethod: 'cutoff',
+      cutoffLimit: 2000,
+      cutoffUnit: 'token',
+      ragDocumentCount: 3,
+      ragEmbeddingModelId: null,
+      ragEmbeddingDimensions: null,
+      ragRerankModelId: null
     })
 
     expect(state.defaultProvider).toBe('tavily')
