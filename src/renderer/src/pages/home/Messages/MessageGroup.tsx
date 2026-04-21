@@ -4,7 +4,7 @@ import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
 import { useChatContext } from '@renderer/hooks/useChatContext'
-import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
+import { updateMessageUiState } from '@renderer/hooks/useMessage'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types'
@@ -41,7 +41,6 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
   const messageLength = messages.length
 
   // Hooks
-  const { editMessage } = useMessageOperations(topic)
   const [multiModelMessageStyleSetting] = usePreference('chat.message.multi_model.style')
   const [gridColumns] = usePreference('chat.message.multi_model.grid_columns')
   const [gridPopoverTrigger] = usePreference('chat.message.multi_model.grid_popover_trigger')
@@ -80,9 +79,9 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
   const setSelectedMessage = useCallback(
     (message: Message) => {
       // 前一个
-      editMessage(selectedMessageId, { foldSelected: false })
+      updateMessageUiState(selectedMessageId, { foldSelected: false })
       // 当前选中的消息
-      editMessage(message.id, { foldSelected: true })
+      updateMessageUiState(message.id, { foldSelected: true })
       setSelectedMessageIdState(message.id)
 
       setTimeoutTimer(
@@ -96,7 +95,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
         200
       )
     },
-    [editMessage, selectedMessageId, setTimeoutTimer]
+    [selectedMessageId, setTimeoutTimer]
   )
   // 添加对流程图节点点击事件的监听
   useEffect(() => {
@@ -183,18 +182,18 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
         return
       }
       if (usefulMessageId === msgId) {
-        editMessage(msgId, { useful: undefined })
+        updateMessageUiState(msgId, { useful: undefined })
         setUsefulMessageIdState(null)
       } else {
         // Reset previous useful message
         if (usefulMessageId) {
-          editMessage(usefulMessageId, { useful: undefined })
+          updateMessageUiState(usefulMessageId, { useful: undefined })
         }
-        editMessage(msgId, { useful: true })
+        updateMessageUiState(msgId, { useful: true })
         setUsefulMessageIdState(msgId)
       }
     },
-    [editMessage, messages, usefulMessageId]
+    [messages, usefulMessageId]
   )
 
   const groupContextMessageId = useMemo(() => {
@@ -295,7 +294,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
             setMultiModelMessageStyle={(style) => {
               setMultiModelMessageStyle(style)
               messages.forEach((message) => {
-                editMessage(message.id, { multiModelMessageStyle: style })
+                updateMessageUiState(message.id, { multiModelMessageStyle: style })
               })
             }}
             messages={messages}

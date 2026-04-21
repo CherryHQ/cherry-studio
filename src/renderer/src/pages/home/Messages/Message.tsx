@@ -5,7 +5,7 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
-import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
+import { useMessage } from '@renderer/hooks/useMessage'
 import { useModel } from '@renderer/hooks/useModel'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -75,7 +75,7 @@ const MessageItem: FC<Props> = ({
   const [messageStyle] = usePreference('chat.message.style')
   const [showMessageOutline] = usePreference('chat.message.show_outline')
 
-  const { editMessageParts, resendUserMessageWithEditParts } = useMessageOperations(topic)
+  const { editParts, resendWithEdit } = useMessage(message.id, topic)
   const messageContainerRef = useRef<HTMLDivElement>(null)
   const { editingMessageId, startEditing, stopEditing } = useMessageEditing()
   const { setTimeoutTimer } = useTimer()
@@ -94,25 +94,25 @@ const MessageItem: FC<Props> = ({
   const handleEditSave = useCallback(
     async (parts: CherryMessagePart[]) => {
       try {
-        await editMessageParts(message.id, parts)
+        await editParts(parts)
         stopEditing()
       } catch (error) {
         logger.error('Failed to save message parts:', error as Error)
       }
     },
-    [message.id, editMessageParts, stopEditing]
+    [editParts, stopEditing]
   )
 
   const handleEditResend = useCallback(
     async (parts: CherryMessagePart[]) => {
       try {
         stopEditing()
-        await resendUserMessageWithEditParts(message, parts)
+        await resendWithEdit(parts)
       } catch (error) {
         logger.error('Failed to resend message with parts:', error as Error)
       }
     },
-    [message, resendUserMessageWithEditParts, stopEditing]
+    [resendWithEdit, stopEditing]
   )
 
   const handleEditCancel = useCallback(() => {

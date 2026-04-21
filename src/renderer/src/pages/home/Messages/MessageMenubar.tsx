@@ -11,7 +11,7 @@ import type { MessageMenubarButtonId, MessageMenubarScope } from '@renderer/conf
 import { DEFAULT_MESSAGE_MENUBAR_SCOPE, getMessageMenubarConfig } from '@renderer/config/registry/messageMenubar'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useChatContext } from '@renderer/hooks/useChatContext'
-import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
+import { useMessage } from '@renderer/hooks/useMessage'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import useTranslate from '@renderer/hooks/useTranslate'
@@ -89,15 +89,14 @@ interface Props {
 
 const logger = loggerService.withContext('MessageMenubar')
 
-type MessageOperationsHandlers = ReturnType<typeof useMessageOperations>
-
 type MessageMenubarButtonContext = {
   assistant: Assistant
   messageParts: CherryMessagePart[]
   confirmDeleteMessage: boolean
   confirmRegenerateMessage: boolean
   copied: boolean
-  deleteMessage: MessageOperationsHandlers['deleteMessage']
+  /** Bound by `useMessage(message.id, topic)` — signature drops the leading id. */
+  deleteMessage: (traceId?: string, modelName?: string) => Promise<void>
   dropdownItems: MenuProps['items']
   enableDeveloperMode: boolean
   handleResendUserMessage: (messageUpdate?: Message) => Promise<void>
@@ -146,8 +145,12 @@ const MessageMenubar: FC<Props> = (props) => {
   const translationAbortKey = createTranslationAbortKey(message.id)
   const [showDeleteTooltip, setShowDeleteTooltip] = useState(false)
   const { translateLanguages } = useTranslate()
-  const { deleteMessage, resendMessage, regenerateAssistantMessage, getTranslationUpdater } =
-    useMessageOperations(topic)
+  const {
+    remove: deleteMessage,
+    resend: resendMessage,
+    regenerate: regenerateAssistantMessage,
+    getTranslationUpdater
+  } = useMessage(message.id, topic)
 
   const [messageStyle] = usePreference('chat.message.style')
   const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
@@ -195,10 +198,15 @@ const MessageMenubar: FC<Props> = (props) => {
 
   const handleResendUserMessage = useCallback(
     async (messageUpdate?: Message) => {
+      // The server's resend only keys off the user message id and
+      // regenerates its descendants; `messageUpdate` is an artifact of an
+      // earlier API where the caller could hand in an edited snapshot
+      // (the hook now owns the id binding). Persisted edits are already
+      // applied via `editParts` before this path runs.
       logger.debug('Resend user message triggered', { messageId: message.id, messageUpdate })
-      await resendMessage(messageUpdate ?? message, assistant)
+      await resendMessage()
     },
-    [assistant, message, resendMessage]
+    [message.id, resendMessage]
   )
 
   const { startEditing } = useMessageEditing()
@@ -221,8 +229,7 @@ const MessageMenubar: FC<Props> = (props) => {
     async (language: TranslateLanguage) => {
       if (isTranslating) return
 
-      const messageId = message.id
-      const translationUpdater = await getTranslationUpdater(messageId, language.langCode)
+      const translationUpdater = await getTranslationUpdater(language.langCode)
       if (!translationUpdater) return
 
       try {
@@ -233,7 +240,7 @@ const MessageMenubar: FC<Props> = (props) => {
         }
       }
     },
-    [isTranslating, getTranslationUpdater, mainTextContent, translationAbortKey, t, message.id]
+    [isTranslating, getTranslationUpdater, mainTextContent, translationAbortKey, t]
   )
 
   const handleTraceUserMessage = useCallback(async () => {
@@ -441,7 +448,7 @@ const MessageMenubar: FC<Props> = (props) => {
 
   const onRegenerate = async (e: React.MouseEvent | undefined) => {
     e?.stopPropagation?.()
-    void regenerateAssistantMessage(message, assistant)
+    void regenerateAssistantMessage()
   }
 
   const onUseful = useCallback(
@@ -780,7 +787,7 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
 
     const handleDeleteMessage = async () => {
       abortTranslation(message.id)
-      await deleteMessage(message.id, message.traceId, message.model?.name)
+      await deleteMessage(message.traceId, message.model?.name)
     }
 
     if (confirmDeleteMessage) {

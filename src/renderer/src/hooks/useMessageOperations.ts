@@ -1,9 +1,5 @@
-import { cacheService } from '@data/CacheService'
-import { loggerService } from '@logger'
-import { usePartsMap } from '@renderer/pages/home/Messages/Blocks/V2Contexts'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { type Assistant, type Topic, type TranslateLanguageCode } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
+import { type Topic } from '@renderer/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { createContext, use, useCallback } from 'react'
 
@@ -26,20 +22,33 @@ export interface V2ChatOverrides {
   refresh: () => Promise<unknown>
 }
 
-const V2ChatOverridesContext = createContext<V2ChatOverrides | null>(null)
+/**
+ * Context that carries the write side of V2 chat state down the tree.
+ * Exported so the per-message `useMessage` hook can read it directly
+ * without going through this file's dynamic-id convenience wrappers.
+ */
+export const V2ChatOverridesContext = createContext<V2ChatOverrides | null>(null)
 
 export const V2ChatOverridesProvider = V2ChatOverridesContext.Provider
-
-const logger = loggerService.withContext('UseMessageOperations')
 
 const DEFAULT_DISPLAY_COUNT = 10
 
 /**
- * Hook providing message operations for a specific topic.
+ * Topic-level message operations (+ dynamic-id action wrappers for consumers
+ * that can't bind a single message up-front).
+ *
+ * Per-message bound operations live in {@link useMessage}. Prefer that one
+ * whenever the caller already has a stable `message.id` for the whole
+ * render — it keeps the wiring colocated with the message in question.
+ * The methods here remain for:
+ *   - Topic-scoped actions (`clearTopicMessages`, `pauseMessages`,
+ *     `createNewContext`, `deleteGroupMessages`, `displayCount`).
+ *   - Dynamic-id actions (`deleteMessage`, `regenerateMessageById`) called
+ *     by multi-select flows (`useChatContext`) and group iterations
+ *     (`MessageGroupMenuBar`) where hook-per-id isn't viable.
  */
 export function useMessageOperations(topic: Topic) {
   const v2 = use(V2ChatOverridesContext)
-  const partsMap = usePartsMap()
 
   const deleteMessage = useCallback(
     async (id: string, traceId?: string, modelName?: string) => {
@@ -56,19 +65,9 @@ export function useMessageOperations(topic: Topic) {
     [v2]
   )
 
-  /**
-   * Update per-message UI state (foldSelected, multiModelMessageStyle, useful).
-   * Stored in Cache — transient display preferences, not persisted to DB.
-   */
-  const editMessage = useCallback((messageId: string, updates: Partial<Omit<Message, 'id' | 'topicId' | 'blocks'>>) => {
-    const cacheKey = `message.ui.${messageId}` as const
-    const current = cacheService.get(cacheKey) || {}
-    cacheService.set(cacheKey, { ...current, ...updates })
-  }, [])
-
-  const resendMessage = useCallback(
-    async (message: Message, _assistant: Assistant) => {
-      await v2?.resend(message.id)
+  const regenerateMessageById = useCallback(
+    async (messageId: string) => {
+      await v2?.regenerate(messageId)
     },
     [v2]
   )
@@ -81,99 +80,18 @@ export function useMessageOperations(topic: Topic) {
     void EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
   }, [])
 
-  const displayCount = DEFAULT_DISPLAY_COUNT
-
   const pauseMessages = useCallback(() => {
     v2?.pause()
   }, [v2])
 
-  const resumeMessage = useCallback(
-    async (message: Message, assistant: Assistant) => {
-      return resendMessage(message, assistant)
-    },
-    [resendMessage]
-  )
-
-  const regenerateAssistantMessage = useCallback(
-    async (message: Message, _assistant: Assistant) => {
-      await v2?.regenerate(message.id)
-    },
-    [v2]
-  )
-
-  /**
-   * Initiates translation and returns an updater function.
-   * TODO: Move translation persistence to Main side (dedicated IPC endpoint).
-   * Currently Renderer reads parts + patches via DataApi as a transitional approach.
-   */
-  const getTranslationUpdater = useCallback(
-    async (
-      messageId: string,
-      targetLanguage: TranslateLanguageCode,
-      sourceLanguage?: TranslateLanguageCode
-    ): Promise<((accumulatedText: string, isComplete?: boolean) => void) | null> => {
-      if (!topic.id || !v2) return null
-
-      const currentParts = partsMap?.[messageId]
-      if (!currentParts) {
-        logger.error(`[getTranslationUpdater] cannot find parts for message: ${messageId}`)
-        return null
-      }
-
-      const baseParts = currentParts.filter((p) => p.type !== 'data-translation')
-
-      // Insert empty translation part to show loading UI
-      const loadingPart = {
-        type: 'data-translation' as const,
-        data: { content: '', targetLanguage, ...(sourceLanguage && { sourceLanguage }) }
-      }
-      await v2.editMessage(messageId, [...baseParts, loadingPart as CherryMessagePart])
-
-      return (accumulatedText: string, _isComplete: boolean = false) => {
-        const translationPart = {
-          type: 'data-translation' as const,
-          data: {
-            content: accumulatedText,
-            targetLanguage,
-            ...(sourceLanguage && { sourceLanguage })
-          }
-        }
-
-        void v2.editMessage(messageId, [...baseParts, translationPart as CherryMessagePart])
-      }
-    },
-    [partsMap, topic.id, v2]
-  )
-
-  const editMessageParts = useCallback(
-    async (messageId: string, editedParts: CherryMessagePart[]) => {
-      await v2?.editMessage(messageId, editedParts)
-    },
-    [v2]
-  )
-
-  const resendUserMessageWithEditParts = useCallback(
-    async (message: Message, editedParts: CherryMessagePart[]) => {
-      await v2?.editMessage(message.id, editedParts)
-      await v2?.resend(message.id)
-    },
-    [v2]
-  )
-
   return {
-    displayCount,
+    displayCount: DEFAULT_DISPLAY_COUNT,
     deleteMessage,
     deleteGroupMessages,
-    editMessage,
-    resendMessage,
-    regenerateAssistantMessage,
-    createNewContext,
+    regenerateMessageById,
     clearTopicMessages,
-    pauseMessages,
-    resumeMessage,
-    getTranslationUpdater,
-    editMessageParts,
-    resendUserMessageWithEditParts
+    createNewContext,
+    pauseMessages
   }
 }
 

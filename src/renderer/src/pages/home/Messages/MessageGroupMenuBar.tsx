@@ -8,7 +8,6 @@ import {
 } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
 import { Button, Tooltip } from '@cherrystudio/ui'
-import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
@@ -45,8 +44,7 @@ const MessageGroupMenuBar: FC<Props> = ({
   const { t } = useTranslation()
   const partsMap = usePartsMap()
 
-  const { deleteGroupMessages, regenerateAssistantMessage } = useMessageOperations(topic)
-  const { assistant } = useAssistant(messages[0]?.assistantId)
+  const { deleteGroupMessages, regenerateMessageById } = useMessageOperations(topic)
 
   const handleDeleteGroup = async () => {
     const askId = messages[0]?.askId
@@ -91,7 +89,7 @@ const MessageGroupMenuBar: FC<Props> = ({
 
     for (const msg of candidates) {
       try {
-        await regenerateAssistantMessage(msg, assistant)
+        await regenerateMessageById(msg.id)
       } catch (e) {
         // swallow per-item errors to continue others
       }
