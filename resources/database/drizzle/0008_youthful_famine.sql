@@ -24,6 +24,7 @@ WHERE `source_url` LIKE 'https://github.com/%/tree/main/%';
 WITH `repo_only_skills` AS (
   SELECT
     `id`,
+    `folder_name` AS `skill_folder_name`,
     rtrim(replace(`source_url`, 'https://github.com/', ''), '/') AS `repo_path`
   FROM `skills`
   WHERE `source` = 'marketplace'
@@ -35,12 +36,20 @@ WITH `repo_only_skills` AS (
 UPDATE `skills`
 SET
   `install_source` = (
-    SELECT 'skills.sh:' || `repo_path`
+    SELECT 'skills.sh:' || `repo_path` ||
+      CASE
+        WHEN `skill_folder_name` = substr(`repo_path`, instr(`repo_path`, '/') + 1) THEN ''
+        ELSE '/' || `skill_folder_name`
+      END
     FROM `repo_only_skills`
     WHERE `repo_only_skills`.`id` = `skills`.`id`
   ),
   `origin_key` = (
-    SELECT 'github:' || `repo_path`
+    SELECT 'github:' || `repo_path` ||
+      CASE
+        WHEN `skill_folder_name` = substr(`repo_path`, instr(`repo_path`, '/') + 1) THEN ''
+        ELSE '#' || `skill_folder_name`
+      END
     FROM `repo_only_skills`
     WHERE `repo_only_skills`.`id` = `skills`.`id`
   )
