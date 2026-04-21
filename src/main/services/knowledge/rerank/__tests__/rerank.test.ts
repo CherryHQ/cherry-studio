@@ -1,4 +1,9 @@
-import type { KnowledgeBase, KnowledgeSearchResult } from '@shared/data/types/knowledge'
+import {
+  DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
+  DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
+  type KnowledgeBase,
+  type KnowledgeSearchResult
+} from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const fetchMock = vi.hoisted(() => vi.fn())
@@ -24,14 +29,19 @@ const { getRerankAdapter } = await import('../adapters')
 const { executeRerankRequest, rerankKnowledgeSearchResults, resolveRerankRuntime } = await import('../rerank')
 
 function createKnowledgeBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeBase {
+  const now = new Date().toISOString()
+
   return {
-    id: 'kb-1',
-    name: 'Knowledge Base',
-    dimensions: 1024,
-    embeddingModelId: 'ollama::nomic-embed-text',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    ...overrides
+    ...overrides,
+    id: overrides.id ?? 'kb-1',
+    name: overrides.name ?? 'Knowledge Base',
+    emoji: overrides.emoji ?? '📁',
+    dimensions: overrides.dimensions ?? 1024,
+    embeddingModelId: overrides.embeddingModelId ?? 'ollama::nomic-embed-text',
+    chunkSize: overrides.chunkSize ?? DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
+    chunkOverlap: overrides.chunkOverlap ?? DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
+    createdAt: overrides.createdAt ?? now,
+    updatedAt: overrides.updatedAt ?? now
   }
 }
 

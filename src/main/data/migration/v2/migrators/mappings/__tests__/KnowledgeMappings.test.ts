@@ -42,8 +42,49 @@ describe('KnowledgeMappings', () => {
       value: expect.objectContaining({
         id: 'kb-1',
         name: 'KB 1',
+        groupId: null,
+        emoji: '📁',
         embeddingModelId: null,
         rerankModelId: null
+      })
+    })
+  })
+
+  it('transformKnowledgeBase fills default chunk config when legacy values are missing', () => {
+    expect(
+      transformKnowledgeBase(
+        {
+          id: 'kb-default-config',
+          name: 'KB default config',
+          model: { id: 'BAAI/bge-m3', name: 'bge', provider: 'silicon' }
+        },
+        1024
+      )
+    ).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        chunkSize: 1024,
+        chunkOverlap: 200
+      })
+    })
+  })
+
+  it('transformKnowledgeBase keeps default overlap below a preserved small chunk size', () => {
+    expect(
+      transformKnowledgeBase(
+        {
+          id: 'kb-small-chunk',
+          name: 'KB small chunk',
+          model: { id: 'BAAI/bge-m3', name: 'bge', provider: 'silicon' },
+          chunkSize: 128
+        },
+        1024
+      )
+    ).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        chunkSize: 128,
+        chunkOverlap: 127
       })
     })
   })
@@ -74,7 +115,7 @@ describe('KnowledgeMappings', () => {
     })
   })
 
-  it('transformKnowledgeBase clears invalid tuning config instead of skipping the base', () => {
+  it('transformKnowledgeBase normalizes invalid tuning config instead of skipping the base', () => {
     expect(
       transformKnowledgeBase(
         {
@@ -95,7 +136,7 @@ describe('KnowledgeMappings', () => {
         name: 'KB invalid config',
         embeddingModelId: 'silicon::BAAI/bge-m3',
         chunkSize: 200,
-        chunkOverlap: undefined,
+        chunkOverlap: 199,
         threshold: undefined,
         documentCount: undefined,
         searchMode: 'default'
@@ -178,8 +219,8 @@ describe('KnowledgeMappings', () => {
         },
         status: 'idle',
         error: null,
-        createdAt: undefined,
-        updatedAt: undefined
+        createdAt: expect.any(Number),
+        updatedAt: expect.any(Number)
       }
     })
   })
@@ -211,8 +252,8 @@ describe('KnowledgeMappings', () => {
         },
         status: 'completed',
         error: null,
-        createdAt: undefined,
-        updatedAt: undefined
+        createdAt: expect.any(Number),
+        updatedAt: expect.any(Number)
       }
     })
   })
@@ -264,8 +305,8 @@ describe('KnowledgeMappings', () => {
         },
         status: 'idle',
         error: null,
-        createdAt: undefined,
-        updatedAt: undefined
+        createdAt: expect.any(Number),
+        updatedAt: expect.any(Number)
       }
     })
   })

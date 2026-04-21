@@ -117,13 +117,17 @@ describe('knowledgeHandlers', () => {
       const body = {
         name: '  Knowledge Base  ',
         dimensions: 1536,
-        embeddingModelId: '  text-embedding-3-large  '
+        embeddingModelId: '  text-embedding-3-large  ',
+        groupId: '  group-1  ',
+        emoji: '📚'
       }
       createKnowledgeBaseMock.mockResolvedValueOnce({
         id: 'kb-1',
         name: 'Knowledge Base',
         dimensions: 1536,
-        embeddingModelId: 'text-embedding-3-large'
+        embeddingModelId: 'text-embedding-3-large',
+        groupId: 'group-1',
+        emoji: '📚'
       })
 
       const result = await knowledgeHandlers['/knowledge-bases'].POST({ body })
@@ -131,7 +135,9 @@ describe('knowledgeHandlers', () => {
       expect(createKnowledgeBaseMock).toHaveBeenCalledWith({
         name: 'Knowledge Base',
         dimensions: 1536,
-        embeddingModelId: 'text-embedding-3-large'
+        embeddingModelId: 'text-embedding-3-large',
+        groupId: '  group-1  ',
+        emoji: '📚'
       })
       expect(result).toMatchObject({ id: 'kb-1' })
     })
@@ -157,6 +163,51 @@ describe('knowledgeHandlers', () => {
             name: 'Knowledge Base',
             dimensions: 1536,
             embeddingModelId: '   '
+          }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(createKnowledgeBaseMock).not.toHaveBeenCalled()
+    })
+
+    it('should reject invalid emoji in POST bodies before calling the service', async () => {
+      await expect(
+        knowledgeHandlers['/knowledge-bases'].POST({
+          body: {
+            name: 'Knowledge Base',
+            dimensions: 1536,
+            embeddingModelId: 'model-1',
+            emoji: 'books'
+          }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(createKnowledgeBaseMock).not.toHaveBeenCalled()
+    })
+
+    it('should reject whitespace-padded emoji in POST bodies before calling the service', async () => {
+      await expect(
+        knowledgeHandlers['/knowledge-bases'].POST({
+          body: {
+            name: 'Knowledge Base',
+            dimensions: 1536,
+            embeddingModelId: 'model-1',
+            emoji: '  📚  '
+          }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(createKnowledgeBaseMock).not.toHaveBeenCalled()
+    })
+
+    it('should reject POST bodies that provide chunkOverlap without chunkSize', async () => {
+      await expect(
+        knowledgeHandlers['/knowledge-bases'].POST({
+          body: {
+            name: 'Knowledge Base',
+            dimensions: 1536,
+            embeddingModelId: 'model-1',
+            chunkOverlap: 64
           }
         } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
@@ -237,12 +288,70 @@ describe('knowledgeHandlers', () => {
       expect(updateKnowledgeBaseMock).toHaveBeenCalledWith('kb-1', { embeddingModelId: 'new-model' })
     })
 
+    it('should pass through groupId and keep emoji unchanged in PATCH bodies before calling the service', async () => {
+      updateKnowledgeBaseMock.mockResolvedValueOnce({ id: 'kb-1', groupId: '  group-1  ', emoji: '📚' })
+
+      await expect(
+        knowledgeHandlers['/knowledge-bases/:id'].PATCH({
+          params: { id: 'kb-1' },
+          body: {
+            groupId: '  group-1  ',
+            emoji: '📚'
+          }
+        })
+      ).resolves.toMatchObject({ id: 'kb-1' })
+
+      expect(updateKnowledgeBaseMock).toHaveBeenCalledWith('kb-1', {
+        groupId: '  group-1  ',
+        emoji: '📚'
+      })
+    })
+
     it('should reject null embeddingModelId clears before calling the service', async () => {
       await expect(
         knowledgeHandlers['/knowledge-bases/:id'].PATCH({
           params: { id: 'kb-1' },
           body: {
             embeddingModelId: null
+          }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(updateKnowledgeBaseMock).not.toHaveBeenCalled()
+    })
+
+    it('should reject invalid emoji in PATCH bodies before calling the service', async () => {
+      await expect(
+        knowledgeHandlers['/knowledge-bases/:id'].PATCH({
+          params: { id: 'kb-1' },
+          body: {
+            emoji: 'books'
+          }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(updateKnowledgeBaseMock).not.toHaveBeenCalled()
+    })
+
+    it('should reject whitespace-padded emoji in PATCH bodies before calling the service', async () => {
+      await expect(
+        knowledgeHandlers['/knowledge-bases/:id'].PATCH({
+          params: { id: 'kb-1' },
+          body: {
+            emoji: '  📚  '
+          }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(updateKnowledgeBaseMock).not.toHaveBeenCalled()
+    })
+
+    it('should reject null groupId clears before calling the service', async () => {
+      await expect(
+        knowledgeHandlers['/knowledge-bases/:id'].PATCH({
+          params: { id: 'kb-1' },
+          body: {
+            groupId: null
           }
         } as never)
       ).rejects.toHaveProperty('name', 'ZodError')

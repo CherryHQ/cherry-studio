@@ -34,6 +34,11 @@ export const KnowledgeChunkOverlapSchema = z.number().int().min(0)
 export const KnowledgeThresholdSchema = z.number().min(0).max(1)
 export const KnowledgeDocumentCountSchema = z.number().int().positive()
 export const KnowledgeHybridAlphaSchema = z.number().min(0).max(1)
+export const KnowledgeBaseGroupIdSchema = z.string()
+export const KnowledgeBaseEmojiSchema = z.emoji()
+export const DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE = 1024
+export const DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP = 200
+export const DEFAULT_KNOWLEDGE_BASE_EMOJI = '📁'
 
 /**
  * Temporary schema mirroring the current FileMetadata shape.
@@ -124,12 +129,14 @@ export const KnowledgeBaseSchema = z.object({
   id: z.string(),
   name: z.string().min(1),
   description: z.string().optional(),
+  groupId: KnowledgeBaseGroupIdSchema.nullable().optional(),
+  emoji: KnowledgeBaseEmojiSchema.default(DEFAULT_KNOWLEDGE_BASE_EMOJI),
   dimensions: z.number().int().positive(),
   embeddingModelId: z.string().min(1).nullable(),
   rerankModelId: z.string().optional(),
   fileProcessorId: z.string().optional(),
-  chunkSize: KnowledgeChunkSizeSchema.optional(),
-  chunkOverlap: KnowledgeChunkOverlapSchema.optional(),
+  chunkSize: KnowledgeChunkSizeSchema,
+  chunkOverlap: KnowledgeChunkOverlapSchema,
   threshold: KnowledgeThresholdSchema.optional(),
   documentCount: KnowledgeDocumentCountSchema.optional(),
   searchMode: KnowledgeSearchModeSchema.optional(),

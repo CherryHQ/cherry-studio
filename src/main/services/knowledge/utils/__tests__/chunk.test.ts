@@ -7,6 +7,7 @@ function createBase() {
   return {
     id: 'kb-1',
     name: 'KB',
+    emoji: '📁',
     dimensions: 1024,
     embeddingModelId: 'ollama::nomic-embed-text',
     chunkSize: 1000,

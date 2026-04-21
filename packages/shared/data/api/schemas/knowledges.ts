@@ -4,10 +4,13 @@
 
 import type { OffsetPaginationResponse } from '@shared/data/api'
 import {
+  DEFAULT_KNOWLEDGE_BASE_EMOJI,
   DirectoryItemDataSchema,
   FileItemDataSchema,
   FileMetadataSchema,
   type KnowledgeBase,
+  KnowledgeBaseEmojiSchema,
+  KnowledgeBaseGroupIdSchema,
   KnowledgeChunkOverlapSchema,
   KnowledgeChunkSizeSchema,
   KnowledgeDocumentCountSchema,
@@ -23,38 +26,52 @@ import {
 } from '@shared/data/types/knowledge'
 import * as z from 'zod'
 
-export const CreateKnowledgeBaseSchema = z.object({
-  name: z.string().trim().min(1),
-  description: z.string().optional(),
-  dimensions: z.number().int().positive(),
-  embeddingModelId: z.string().trim().min(1),
-  rerankModelId: z.string().optional(),
-  fileProcessorId: z.string().optional(),
-  chunkSize: KnowledgeChunkSizeSchema.optional(),
-  chunkOverlap: KnowledgeChunkOverlapSchema.optional(),
-  threshold: KnowledgeThresholdSchema.optional(),
-  documentCount: KnowledgeDocumentCountSchema.optional(),
-  searchMode: KnowledgeSearchModeSchema.optional(),
-  hybridAlpha: KnowledgeHybridAlphaSchema.optional()
-})
-export type CreateKnowledgeBaseDto = z.infer<typeof CreateKnowledgeBaseSchema>
+export const CreateKnowledgeBaseSchema = z
+  .object({
+    name: z.string().trim().min(1),
+    description: z.string().optional(),
+    groupId: KnowledgeBaseGroupIdSchema.optional(),
+    emoji: KnowledgeBaseEmojiSchema.default(DEFAULT_KNOWLEDGE_BASE_EMOJI),
+    dimensions: z.number().int().positive(),
+    embeddingModelId: z.string().trim().min(1),
+    rerankModelId: z.string().optional(),
+    fileProcessorId: z.string().optional(),
+    chunkSize: KnowledgeChunkSizeSchema.optional(),
+    chunkOverlap: KnowledgeChunkOverlapSchema.optional(),
+    threshold: KnowledgeThresholdSchema.optional(),
+    documentCount: KnowledgeDocumentCountSchema.optional(),
+    searchMode: KnowledgeSearchModeSchema.optional(),
+    hybridAlpha: KnowledgeHybridAlphaSchema.optional()
+  })
+  .superRefine((value, ctx) => {
+    if (value.chunkOverlap != null && value.chunkSize == null) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['chunkSize'],
+        message: 'Chunk size is required when chunk overlap is provided'
+      })
+    }
+  })
+export type CreateKnowledgeBaseDto = z.input<typeof CreateKnowledgeBaseSchema>
 
 export const UpdateKnowledgeBaseSchema = z
   .object({
     name: z.string().trim().min(1).optional(),
     description: z.string().nullable().optional(),
+    groupId: KnowledgeBaseGroupIdSchema.optional(),
+    emoji: KnowledgeBaseEmojiSchema.optional(),
     embeddingModelId: z.string().trim().min(1).optional(),
     rerankModelId: z.string().nullable().optional(),
     fileProcessorId: z.string().nullable().optional(),
-    chunkSize: KnowledgeChunkSizeSchema.nullable().optional(),
-    chunkOverlap: KnowledgeChunkOverlapSchema.nullable().optional(),
+    chunkSize: KnowledgeChunkSizeSchema.optional(),
+    chunkOverlap: KnowledgeChunkOverlapSchema.optional(),
     threshold: KnowledgeThresholdSchema.nullable().optional(),
     documentCount: KnowledgeDocumentCountSchema.nullable().optional(),
     searchMode: KnowledgeSearchModeSchema.nullable().optional(),
     hybridAlpha: KnowledgeHybridAlphaSchema.nullable().optional()
   })
   .strict()
-export type UpdateKnowledgeBaseDto = z.infer<typeof UpdateKnowledgeBaseSchema>
+export type UpdateKnowledgeBaseDto = z.input<typeof UpdateKnowledgeBaseSchema>
 
 export {
   DirectoryItemDataSchema,

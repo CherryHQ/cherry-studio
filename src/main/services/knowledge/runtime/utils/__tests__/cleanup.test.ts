@@ -1,3 +1,8 @@
+import {
+  DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
+  DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
+  type KnowledgeBase
+} from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { appGetMock, getStoreIfExistsMock, knowledgeItemUpdateMock, loggerErrorMock, loggerWarnMock, vectorDeleteMock } =
@@ -33,12 +38,15 @@ vi.mock('@logger', () => ({
 
 const { deleteItemVectors, deleteVectorsForEntries, failItems } = await import('../cleanup')
 
-function createBase() {
+function createBase(): KnowledgeBase {
   return {
     id: 'kb-1',
     name: 'KB',
+    emoji: '📁',
     dimensions: 1024,
     embeddingModelId: 'ollama::nomic-embed-text',
+    chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
+    chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'
   }

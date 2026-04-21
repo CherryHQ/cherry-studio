@@ -1,13 +1,16 @@
-import type {
-  KnowledgeItemData,
-  KnowledgeItemStatus,
-  KnowledgeItemType,
-  KnowledgeSearchMode
+import {
+  DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
+  DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
+  type KnowledgeItemData,
+  type KnowledgeItemStatus,
+  type KnowledgeItemType,
+  type KnowledgeSearchMode
 } from '@shared/data/types/knowledge'
 import { sql } from 'drizzle-orm'
 import { check, foreignKey, index, integer, real, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, uuidPrimaryKey, uuidPrimaryKeyOrdered } from './_columnHelpers'
+import { groupTable } from './group'
 import { userModelTable } from './userModel'
 
 /**
@@ -19,6 +22,8 @@ export const knowledgeBaseTable = sqliteTable(
     id: uuidPrimaryKey(),
     name: text().notNull(),
     description: text(),
+    groupId: text().references(() => groupTable.id, { onDelete: 'set null' }),
+    emoji: text(),
     dimensions: integer().notNull(),
 
     // Embedding model: FK to user_model(id) — UniqueModelId "providerId::modelId"
@@ -31,8 +36,8 @@ export const knowledgeBaseTable = sqliteTable(
     fileProcessorId: text(),
 
     // Configuration
-    chunkSize: integer(),
-    chunkOverlap: integer(),
+    chunkSize: integer().notNull().default(DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE),
+    chunkOverlap: integer().notNull().default(DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP),
     threshold: real(),
     documentCount: integer(),
     searchMode: text().$type<KnowledgeSearchMode>(),

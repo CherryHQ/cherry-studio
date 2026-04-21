@@ -14,14 +14,20 @@ import {
   type KnowledgeBaseListQuery,
   type UpdateKnowledgeBaseDto
 } from '@shared/data/api/schemas/knowledges'
-import type { KnowledgeBase, KnowledgeSearchMode } from '@shared/data/types/knowledge'
+import {
+  DEFAULT_KNOWLEDGE_BASE_EMOJI,
+  type KnowledgeBase,
+  type KnowledgeSearchMode
+} from '@shared/data/types/knowledge'
 import { desc, eq, sql } from 'drizzle-orm'
+
+import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:KnowledgeBaseService')
 
 export interface KnowledgeBaseConfigInput {
-  chunkSize?: number | null
-  chunkOverlap?: number | null
+  chunkSize?: number
+  chunkOverlap?: number
   threshold?: number | null
   documentCount?: number | null
   searchMode?: KnowledgeSearchMode | null
@@ -42,12 +48,6 @@ function addFieldError(
 
 export function normalizeKnowledgeBaseConfigDependencies<T extends KnowledgeBaseConfigInput>(config: T): T {
   const normalized = { ...config }
-
-  if (normalized.chunkOverlap != null) {
-    if (normalized.chunkSize == null || normalized.chunkOverlap >= normalized.chunkSize) {
-      normalized.chunkOverlap = undefined as T['chunkOverlap']
-    }
-  }
 
   if (normalized.hybridAlpha != null && normalized.searchMode !== 'hybrid') {
     normalized.hybridAlpha = undefined as T['hybridAlpha']
@@ -81,12 +81,12 @@ export function validateKnowledgeBaseConfig(config: KnowledgeBaseConfigInput): R
   }
 
   const chunkOverlap = config.chunkOverlap
-  if (chunkOverlap != null && chunkOverlap >= 0) {
-    if (config.chunkSize == null) {
-      addFieldError(fieldErrors, 'chunkOverlap', 'Chunk overlap requires chunk size')
-    } else if (chunkOverlap >= config.chunkSize) {
-      addFieldError(fieldErrors, 'chunkOverlap', 'Chunk overlap must be smaller than chunk size')
-    }
+  if (chunkOverlap != null && config.chunkSize == null) {
+    addFieldError(fieldErrors, 'chunkSize', 'Chunk size is required when chunk overlap is provided')
+  }
+
+  if (chunkOverlap != null && config.chunkSize != null && chunkOverlap >= 0 && chunkOverlap >= config.chunkSize) {
+    addFieldError(fieldErrors, 'chunkOverlap', 'Chunk overlap must be smaller than chunk size')
   }
 
   if (config.hybridAlpha != null && hybridAlphaIsInRange && config.searchMode !== 'hybrid') {
@@ -97,22 +97,17 @@ export function validateKnowledgeBaseConfig(config: KnowledgeBaseConfigInput): R
 }
 
 function rowToKnowledgeBase(row: typeof knowledgeBaseTable.$inferSelect): KnowledgeBase {
+  const clean = nullsToUndefined(row)
   return {
-    id: row.id,
-    name: row.name,
-    description: row.description ?? undefined,
-    dimensions: row.dimensions,
-    embeddingModelId: row.embeddingModelId ?? null,
-    rerankModelId: row.rerankModelId ?? undefined,
-    fileProcessorId: row.fileProcessorId ?? undefined,
-    chunkSize: row.chunkSize ?? undefined,
-    chunkOverlap: row.chunkOverlap ?? undefined,
-    threshold: row.threshold ?? undefined,
-    documentCount: row.documentCount ?? undefined,
-    searchMode: row.searchMode ?? undefined,
-    hybridAlpha: row.hybridAlpha ?? undefined,
-    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
-    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : new Date().toISOString()
+    ...clean,
+    groupId: row.groupId ?? null,
+    emoji: row.emoji ?? DEFAULT_KNOWLEDGE_BASE_EMOJI,
+    chunkSize: row.chunkSize,
+    chunkOverlap: row.chunkOverlap,
+    // Preserve `string | null` contract — bypass clean (which would narrow null → undefined)
+    embeddingModelId: row.embeddingModelId,
+    createdAt: timestampToISO(row.createdAt),
+    updatedAt: timestampToISO(row.updatedAt)
   }
 }
 
@@ -155,6 +150,8 @@ export class KnowledgeBaseService {
     const createValues: Omit<typeof knowledgeBaseTable.$inferInsert, 'id' | 'createdAt' | 'updatedAt'> = {
       name: dto.name.trim(),
       description: dto.description,
+      groupId: dto.groupId,
+      emoji: dto.emoji,
       dimensions: dto.dimensions,
       embeddingModelId: dto.embeddingModelId.trim(),
       rerankModelId: dto.rerankModelId ?? null,
@@ -167,7 +164,14 @@ export class KnowledgeBaseService {
       hybridAlpha: dto.hybridAlpha
     }
 
-    const createFieldErrors = validateKnowledgeBaseConfig(createValues)
+    const createFieldErrors = validateKnowledgeBaseConfig({
+      chunkSize: dto.chunkSize,
+      chunkOverlap: dto.chunkOverlap,
+      threshold: dto.threshold,
+      documentCount: dto.documentCount,
+      searchMode: dto.searchMode,
+      hybridAlpha: dto.hybridAlpha
+    })
     if (Object.keys(createFieldErrors).length > 0) {
       throw DataApiErrorFactory.validation(createFieldErrors)
     }
@@ -185,6 +189,8 @@ export class KnowledgeBaseService {
     const updates: Partial<typeof knowledgeBaseTable.$inferInsert> = {}
     if (dto.name !== undefined) updates.name = dto.name.trim()
     if (dto.description !== undefined) updates.description = dto.description
+    if (dto.groupId !== undefined && dto.groupId !== existing.groupId) updates.groupId = dto.groupId
+    if (dto.emoji !== undefined) updates.emoji = dto.emoji
 
     if (dto.embeddingModelId !== undefined) {
       const nextEmbeddingModelId = dto.embeddingModelId.trim()
@@ -217,13 +223,6 @@ export class KnowledgeBaseService {
     }
     const normalizedConfig = { ...mergedConfig }
 
-    if (dto.chunkSize !== undefined && dto.chunkOverlap === undefined) {
-      normalizedConfig.chunkOverlap = normalizeKnowledgeBaseConfigDependencies({
-        chunkSize: mergedConfig.chunkSize,
-        chunkOverlap: mergedConfig.chunkOverlap
-      }).chunkOverlap
-    }
-
     if (dto.searchMode !== undefined && dto.hybridAlpha === undefined) {
       normalizedConfig.hybridAlpha = normalizeKnowledgeBaseConfigDependencies({
         searchMode: mergedConfig.searchMode,
@@ -236,13 +235,13 @@ export class KnowledgeBaseService {
       throw DataApiErrorFactory.validation(updateFieldErrors)
     }
 
-    const nextChunkSize = normalizedConfig.chunkSize ?? null
-    if (nextChunkSize !== (existing.chunkSize ?? null)) {
+    const nextChunkSize = normalizedConfig.chunkSize
+    if (nextChunkSize !== existing.chunkSize) {
       updates.chunkSize = nextChunkSize
     }
 
-    const nextChunkOverlap = normalizedConfig.chunkOverlap ?? null
-    if (nextChunkOverlap !== (existing.chunkOverlap ?? null)) {
+    const nextChunkOverlap = normalizedConfig.chunkOverlap
+    if (nextChunkOverlap !== existing.chunkOverlap) {
       updates.chunkOverlap = nextChunkOverlap
     }
 
