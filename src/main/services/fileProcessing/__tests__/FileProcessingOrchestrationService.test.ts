@@ -3,10 +3,17 @@ import { getDependencies, getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { extractTextMock, startTaskMock, getTaskResultMock } = vi.hoisted(() => ({
+const { appGetMock, extractTextMock, startTaskMock, getTaskResultMock } = vi.hoisted(() => ({
+  appGetMock: vi.fn(),
   extractTextMock: vi.fn(),
   startTaskMock: vi.fn(),
   getTaskResultMock: vi.fn()
+}))
+
+vi.mock('@application', () => ({
+  application: {
+    get: appGetMock
+  }
 }))
 
 vi.mock('@main/core/lifecycle', async (importOriginal) => {
@@ -20,17 +27,6 @@ vi.mock('@main/core/lifecycle', async (importOriginal) => {
     ...actual,
     BaseService: MockBaseService
   }
-})
-
-vi.mock('@application', async () => {
-  const { mockApplicationFactory } = await import('@test-mocks/main/application')
-
-  return mockApplicationFactory({
-    MarkdownTaskService: {
-      startTask: startTaskMock,
-      getTaskResult: getTaskResultMock
-    }
-  })
 })
 
 vi.mock('../ocr/OcrService', () => ({
@@ -68,6 +64,17 @@ const documentFile = {
 describe('FileProcessingOrchestrationService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+
+    appGetMock.mockImplementation((serviceName: string) => {
+      if (serviceName === 'MarkdownTaskService') {
+        return {
+          startTask: startTaskMock,
+          getTaskResult: getTaskResultMock
+        }
+      }
+
+      throw new Error(`Unexpected application.get(${serviceName}) in test`)
+    })
   })
 
   it('uses WhenReady phase and waits for file-processing runtime services', () => {
