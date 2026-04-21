@@ -1,12 +1,11 @@
+import { Checkbox, EmptyState, Input, Switch } from '@cherrystudio/ui'
 import { t } from 'i18next'
 import {
   ArrowUpDown,
-  Check,
   ChevronDown,
   Clock,
   Copy,
   Download,
-  Layers,
   LayoutGrid,
   List,
   MoreHorizontal,
@@ -19,7 +18,7 @@ import {
   X
 } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import type { FC, MouseEvent, ReactNode } from 'react'
+import type { FC, MouseEvent } from 'react'
 import { useCallback, useState } from 'react'
 
 import { useAssistantMutationsById } from '../adapters/assistantAdapter'
@@ -124,11 +123,11 @@ export const ResourceGrid: FC<Props> = ({
         <div className="flex items-center gap-2 px-5 py-3">
           <div className="relative max-w-[260px] flex-1">
             <Search size={13} className="-translate-y-1/2 absolute top-1/2 left-2.5 text-muted-foreground/50" />
-            <input
+            <Input
               value={search}
               onChange={(e) => onSearchChange(e.target.value)}
               placeholder="搜索资源名称、描述..."
-              className="w-full rounded-3xs border border-border/40 bg-accent/20 py-1.5 pr-7 pl-7 text-[11px] text-foreground outline-none transition-all placeholder:text-muted-foreground/40 focus:border-primary/40 focus:bg-accent/30"
+              className="h-auto w-full rounded-3xs border border-border/40 bg-accent/20 py-1.5 pr-7 pl-7 text-[11px] text-foreground shadow-none outline-none transition-all placeholder:text-muted-foreground/40 focus-visible:border-primary/40 focus-visible:bg-accent/30 focus-visible:ring-0 md:text-[11px]"
             />
             {search && (
               <button
@@ -225,9 +224,12 @@ export const ResourceGrid: FC<Props> = ({
                 setShowSort(false)
               }}
               className="flex items-center gap-1.5 rounded-3xs bg-foreground px-3 py-1.5 text-[11px] text-background transition-colors hover:bg-foreground/90 active:scale-[0.97]">
-              <Plus size={11} />
+              <Plus size={11} className="lucide-custom" />
               <span>新建资源</span>
-              <ChevronDown size={9} className={`transition-transform ${showCreate ? 'rotate-180' : ''}`} />
+              <ChevronDown
+                size={9}
+                className={`lucide-custom transition-transform ${showCreate ? 'rotate-180' : ''}`}
+              />
             </button>
             <AnimatePresence>
               {showCreate && (
@@ -238,42 +240,52 @@ export const ResourceGrid: FC<Props> = ({
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -4 }}
                     className="absolute top-full right-0 z-50 mt-1 min-w-[140px] rounded-2xs border border-border/40 bg-popover p-1 shadow-xl">
-                    {(['agent', 'assistant', 'skill'] as const).map((resourceType) => {
+                    {(['agent', 'assistant'] as const).map((resourceType) => {
                       const cfg = RESOURCE_TYPE_CONFIG[resourceType]
                       const Icon = cfg.icon
-                      const isFileType = resourceType === 'skill'
                       return (
-                        <div key={resourceType}>
-                          {resourceType === 'skill' && <div className="mx-1 my-0.5 h-px bg-border/30" />}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              onCreate(resourceType)
-                              setShowCreate(false)
-                            }}
-                            className="flex w-full items-center gap-2 rounded-4xs px-2.5 py-[6px] text-[10px] text-muted-foreground/70 transition-colors hover:bg-accent/50 hover:text-foreground">
-                            <div className={`flex h-5 w-5 items-center justify-center rounded-4xs ${cfg.color}`}>
-                              {isFileType ? <Upload size={10} /> : <Icon size={10} />}
-                            </div>
-                            <span>{isFileType ? `导入${cfg.label}` : `新建${cfg.label}`}</span>
-                          </button>
-                          {resourceType === 'assistant' && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                onImportAssistant()
-                                setShowCreate(false)
-                              }}
-                              className="flex w-full items-center gap-2 rounded-4xs px-2.5 py-[6px] text-[10px] text-muted-foreground/70 transition-colors hover:bg-accent/50 hover:text-foreground">
-                              <div className={`flex h-5 w-5 items-center justify-center rounded-4xs ${cfg.color}`}>
-                                <Upload size={10} />
-                              </div>
-                              <span>{t('assistants.presets.import.action')}</span>
-                            </button>
-                          )}
-                        </div>
+                        <button
+                          key={resourceType}
+                          type="button"
+                          onClick={() => {
+                            onCreate(resourceType)
+                            setShowCreate(false)
+                          }}
+                          className="flex w-full items-center gap-2 rounded-4xs px-2.5 py-[6px] text-[10px] text-muted-foreground/70 transition-colors hover:bg-accent/50 hover:text-foreground">
+                          <div className={`flex h-5 w-5 items-center justify-center rounded-4xs ${cfg.color}`}>
+                            <Icon size={10} />
+                          </div>
+                          <span>新建{cfg.label}</span>
+                        </button>
                       )
                     })}
+                    <div className="mx-1 my-0.5 h-px bg-border/30" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onImportAssistant()
+                        setShowCreate(false)
+                      }}
+                      className="flex w-full items-center gap-2 rounded-4xs px-2.5 py-[6px] text-[10px] text-muted-foreground/70 transition-colors hover:bg-accent/50 hover:text-foreground">
+                      <div
+                        className={`flex h-5 w-5 items-center justify-center rounded-4xs ${RESOURCE_TYPE_CONFIG.assistant.color}`}>
+                        <Upload size={10} />
+                      </div>
+                      <span>{t('assistants.presets.import.action')}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onCreate('skill')
+                        setShowCreate(false)
+                      }}
+                      className="flex w-full items-center gap-2 rounded-4xs px-2.5 py-[6px] text-[10px] text-muted-foreground/70 transition-colors hover:bg-accent/50 hover:text-foreground">
+                      <div
+                        className={`flex h-5 w-5 items-center justify-center rounded-4xs ${RESOURCE_TYPE_CONFIG.skill.color}`}>
+                        <Upload size={10} />
+                      </div>
+                      <span>导入{RESOURCE_TYPE_CONFIG.skill.label}</span>
+                    </button>
                   </motion.div>
                 </div>
               )}
@@ -302,7 +314,7 @@ export const ResourceGrid: FC<Props> = ({
           {/* Add tag (POST /tags; does not bind — newly-created tags appear only after binding) */}
           {showAddTag ? (
             <div className="flex shrink-0 items-center gap-1">
-              <input
+              <Input
                 autoFocus
                 value={newTagName}
                 onChange={(e) => setNewTagName(e.target.value)}
@@ -318,7 +330,7 @@ export const ResourceGrid: FC<Props> = ({
                 }}
                 disabled={addingTag}
                 placeholder="标签名..."
-                className="w-[80px] rounded-full border border-border/40 bg-accent/20 px-2 py-[3px] text-[10px] text-foreground outline-none transition-all placeholder:text-muted-foreground/35 focus:border-primary/40 disabled:opacity-50"
+                className="h-auto w-[80px] rounded-full border border-border/40 bg-accent/20 px-2 py-[3px] text-[10px] text-foreground shadow-none outline-none transition-all placeholder:text-muted-foreground/35 focus-visible:border-primary/40 focus-visible:ring-0 disabled:opacity-50"
               />
               <button
                 type="button"
@@ -342,7 +354,12 @@ export const ResourceGrid: FC<Props> = ({
       {/* Content */}
       <div className="flex-1 overflow-y-auto px-5 py-4 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-[3px]">
         {resources.length === 0 ? (
-          <EmptyState search={search} />
+          <EmptyState
+            preset={search ? 'no-result' : 'no-resource'}
+            title={search ? '未找到匹配的资源' : '还没有任何资源'}
+            description={search ? '尝试其他搜索关键词' : '创建你的第一个智能体或助手'}
+            className="py-20"
+          />
         ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {resources.map((r, i) => (
@@ -459,7 +476,15 @@ function GridCard({ resource: r, index, onEdit, onToggle, onOpenMenu }: CardItem
             {r.tags.length > 2 && <span className="text-[8px] text-muted-foreground/45">+{r.tags.length - 2}</span>}
             {isToolType && (
               <div onClick={(e) => e.stopPropagation()}>
-                <ToggleSwitch checked={r.enabled} onChange={() => onToggle(r.id)} />
+                <Switch
+                  checked={r.enabled}
+                  onCheckedChange={() => onToggle(r.id)}
+                  classNames={{
+                    root: 'h-4 w-7 shadow-none data-[state=checked]:bg-primary/70 data-[state=unchecked]:bg-accent/60',
+                    thumb: 'size-3 ml-[1px] mt-[2px] bg-white shadow-sm data-[state=checked]:translate-x-3',
+                    thumbSvg: 'hidden'
+                  }}
+                />
               </div>
             )}
           </div>
@@ -511,7 +536,15 @@ function ListRow({ resource: r, index, onEdit, onToggle, onOpenMenu }: CardItemP
       </div>
       {isToolType && (
         <div onClick={(e) => e.stopPropagation()} className="shrink-0">
-          <ToggleSwitch checked={r.enabled} onChange={() => onToggle(r.id)} />
+          <Switch
+            checked={r.enabled}
+            onCheckedChange={() => onToggle(r.id)}
+            classNames={{
+              root: 'h-4 w-7 shadow-none data-[state=checked]:bg-primary/70 data-[state=unchecked]:bg-accent/60',
+              thumb: 'size-3 ml-[1px] mt-[2px] bg-white shadow-sm data-[state=checked]:translate-x-3',
+              thumbSvg: 'hidden'
+            }}
+          />
         </div>
       )}
       <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
@@ -655,7 +688,7 @@ function FixedCardMenu({
               <div
                 className={`absolute ${subMenuPos} flex max-h-[260px] min-w-[160px] flex-col rounded-2xs border border-border/30 bg-popover p-1 shadow-xl`}>
                 <div className="mb-0.5 flex items-center gap-1 px-2 py-1">
-                  <input
+                  <Input
                     autoFocus
                     value={tagInput}
                     onChange={(e) => setTagInput(e.target.value)}
@@ -663,7 +696,7 @@ function FixedCardMenu({
                       if (e.key === 'Enter') addNewTag()
                     }}
                     placeholder="新标签名..."
-                    className="min-w-0 flex-1 bg-transparent text-[10px] text-foreground outline-none placeholder:text-muted-foreground/20"
+                    className="h-auto min-w-0 flex-1 rounded-none border-0 bg-transparent p-0 text-[10px] text-foreground shadow-none outline-none placeholder:text-muted-foreground/20 focus-visible:ring-0"
                   />
                   {tagInput.trim() && (
                     <button
@@ -682,23 +715,21 @@ function FixedCardMenu({
                   {allTagNames.map((tag) => {
                     const checked = localTags.includes(tag)
                     return (
-                      <button
-                        type="button"
+                      <label
                         key={tag}
-                        onClick={() => toggleTag(tag)}
-                        className="flex w-full items-center gap-2 rounded-4xs px-2.5 py-[5px] text-[10px] text-muted-foreground/60 transition-colors hover:bg-accent/50 hover:text-foreground">
-                        <div
-                          className={`flex h-3.5 w-3.5 items-center justify-center rounded-4xs border transition-colors ${
-                            checked ? 'border-foreground bg-foreground' : 'border-border/30'
-                          }`}>
-                          {checked && <Check size={8} className="text-background" />}
-                        </div>
+                        className="flex w-full cursor-pointer items-center gap-2 rounded-4xs px-2.5 py-[5px] text-[10px] text-muted-foreground/60 transition-colors hover:bg-accent/50 hover:text-foreground">
+                        <Checkbox
+                          size="sm"
+                          checked={checked}
+                          onCheckedChange={() => toggleTag(tag)}
+                          className="size-3.5 rounded-4xs border-border/30 bg-transparent shadow-none transition-colors hover:bg-transparent focus-visible:ring-0 data-[state=checked]:border-foreground data-[state=checked]:bg-foreground data-[state=checked]:text-background [&_[data-slot=checkbox-indicator]_svg]:size-2"
+                        />
                         <span
                           className="h-1.5 w-1.5 shrink-0 rounded-full"
                           style={{ backgroundColor: colorFor(tag) }}
                         />
                         <span className="flex-1 truncate text-left">{tag}</span>
-                      </button>
+                      </label>
                     )
                   })}
                 </div>
@@ -738,39 +769,6 @@ function FixedCardMenu({
           <Trash2 size={10} /> 删除
         </button>
       </motion.div>
-    </div>
-  )
-}
-
-function ToggleSwitch({ checked, onChange }: { checked: boolean; onChange: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onChange}
-      className={`relative h-4 w-7 rounded-full transition-colors ${checked ? 'bg-primary/70' : 'bg-accent/60'}`}>
-      <motion.div
-        animate={{ x: checked ? 13 : 1 }}
-        transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-        className="absolute top-0.5 h-3 w-3 rounded-full bg-white shadow-sm"
-      />
-    </button>
-  )
-}
-
-function EmptyState({ search }: { search: string }): ReactNode {
-  return (
-    <div className="flex flex-col items-center justify-center py-20">
-      <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-xs bg-accent/30">
-        {search ? (
-          <Search size={24} strokeWidth={1.2} className="text-muted-foreground/20" />
-        ) : (
-          <Layers size={24} strokeWidth={1.2} className="text-muted-foreground/20" />
-        )}
-      </div>
-      <p className="mb-1 text-[13px] text-muted-foreground/50">{search ? '未找到匹配的资源' : '还没有任何资源'}</p>
-      <p className="text-[10px] text-muted-foreground/35">
-        {search ? '尝试其他搜索关键词' : '创建你的第一个智能体或助手'}
-      </p>
     </div>
   )
 }

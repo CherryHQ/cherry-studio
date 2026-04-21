@@ -294,7 +294,7 @@ function ConfigShell({
           onClick={onSave}
           disabled={saving || !canSave}
           className="flex items-center gap-1.5 rounded-3xs bg-foreground px-3 py-1.5 text-[11px] text-background transition-colors hover:bg-foreground/90 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40">
-          <Save size={10} />
+          <Save size={10} className="lucide-custom" />
           <span>{saving ? '保存中...' : '保存'}</span>
         </button>
       </div>

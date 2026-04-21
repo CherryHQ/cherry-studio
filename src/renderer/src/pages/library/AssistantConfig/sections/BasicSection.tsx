@@ -11,7 +11,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Switch
+  Switch,
+  Textarea
 } from '@cherrystudio/ui'
 // TODO(v2-llm-migration): three entry points below are the only remaining
 // Redux touch-points in the entire `pages/library` tree. They form one
@@ -136,7 +137,7 @@ interface Props {
   allTagNames: string[]
 }
 
-export const BasicSection: FC<Props> = ({ assistant, form, onChange, tagColorByName, allTagNames }) => {
+export const BasicSection: FC<Props> = ({ form, onChange, tagColorByName, allTagNames }) => {
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const tagColor = (name: string): string => tagColorByName.get(name) ?? TAG_COLORS[name] ?? DEFAULT_TAG_COLOR
 
@@ -243,19 +244,19 @@ export const BasicSection: FC<Props> = ({ assistant, form, onChange, tagColorByN
       </FieldGroup>
 
       <FieldGroup label="名称">
-        <input
+        <Input
           value={form.name}
           onChange={(e) => onChange({ name: e.target.value })}
-          className="w-full rounded-2xs border border-border/20 bg-accent/10 px-3 py-2 text-[11px] text-foreground outline-none transition-all focus:border-border/40 focus:bg-accent/15"
+          className="h-auto w-full rounded-2xs border border-border/20 bg-accent/10 px-3 py-2 text-[11px] text-foreground shadow-none outline-none transition-all focus-visible:border-border/40 focus-visible:bg-accent/15 focus-visible:ring-0"
         />
       </FieldGroup>
 
       <FieldGroup label="简介">
-        <textarea
+        <Textarea.Input
           value={form.description}
-          onChange={(e) => onChange({ description: e.target.value })}
+          onValueChange={(description) => onChange({ description })}
           rows={3}
-          className="w-full resize-none rounded-2xs border border-border/20 bg-accent/10 px-3 py-2 text-[11px] text-foreground outline-none transition-all focus:border-border/40 focus:bg-accent/15"
+          className="min-h-0 w-full resize-none rounded-2xs border border-border/20 bg-accent/10 px-3 py-2 text-[11px] text-foreground shadow-none outline-none transition-all focus-visible:border-border/40 focus-visible:bg-accent/15 focus-visible:ring-0"
         />
       </FieldGroup>
 
@@ -378,7 +379,7 @@ export const BasicSection: FC<Props> = ({ assistant, form, onChange, tagColorByN
         valueLabel={form.enableMaxTokens ? form.maxTokens.toLocaleString() : '模型默认'}
         enabled={form.enableMaxTokens}
         onEnabledChange={(v) => onChange({ enableMaxTokens: v })}>
-        <input
+        <Input
           type="number"
           min={1}
           value={form.maxTokens}
@@ -388,7 +389,7 @@ export const BasicSection: FC<Props> = ({ assistant, form, onChange, tagColorByN
             const parsed = parseInt(e.target.value, 10)
             onChange({ maxTokens: Number.isFinite(parsed) && parsed > 0 ? parsed : UI_DEFAULT_MAX_TOKENS })
           }}
-          className="w-full rounded-2xs border border-border/20 bg-accent/10 px-3 py-2 text-[11px] text-foreground tabular-nums outline-none transition-all focus:border-border/40 focus:bg-accent/15"
+          className="h-auto w-full rounded-2xs border border-border/20 bg-accent/10 px-3 py-2 text-[11px] text-foreground tabular-nums shadow-none outline-none transition-all focus-visible:border-border/40 focus-visible:bg-accent/15 focus-visible:ring-0"
         />
       </ToggleFieldGroup>
 
@@ -424,7 +425,7 @@ export const BasicSection: FC<Props> = ({ assistant, form, onChange, tagColorByN
         valueLabel={form.enableMaxToolCalls ? form.maxToolCalls.toString() : '不限'}
         enabled={form.enableMaxToolCalls}
         onEnabledChange={(v) => onChange({ enableMaxToolCalls: v })}>
-        <input
+        <Input
           type="number"
           min={1}
           value={form.maxToolCalls}
@@ -432,7 +433,7 @@ export const BasicSection: FC<Props> = ({ assistant, form, onChange, tagColorByN
             const parsed = parseInt(e.target.value, 10)
             onChange({ maxToolCalls: Number.isFinite(parsed) && parsed > 0 ? parsed : UI_DEFAULT_MAX_TOOL_CALLS })
           }}
-          className="w-full rounded-2xs border border-border/20 bg-accent/10 px-3 py-2 text-[11px] text-foreground tabular-nums outline-none transition-all focus:border-border/40 focus:bg-accent/15"
+          className="h-auto w-full rounded-2xs border border-border/20 bg-accent/10 px-3 py-2 text-[11px] text-foreground tabular-nums shadow-none outline-none transition-all focus-visible:border-border/40 focus-visible:bg-accent/15 focus-visible:ring-0"
         />
       </ToggleFieldGroup>
 
@@ -441,12 +442,6 @@ export const BasicSection: FC<Props> = ({ assistant, form, onChange, tagColorByN
         value={form.customParameters}
         onChange={(customParameters) => onChange({ customParameters })}
       />
-
-      {assistant && (
-        <div className="text-[9px] text-muted-foreground/35">
-          ID: <span className="font-mono">{assistant.id}</span>
-        </div>
-      )}
     </div>
   )
 }
@@ -633,14 +628,14 @@ function CustomParameterRow({
       </div>
       {param.type === 'json' && (
         <div className="mt-2">
-          <textarea
+          <Textarea.Input
             value={jsonString}
-            onChange={(e) => onValueChange(e.target.value)}
+            onValueChange={onValueChange}
             rows={4}
             spellCheck={false}
             placeholder='{"key": "value"}'
-            className={`w-full resize-y rounded-3xs border bg-background px-2 py-1.5 font-mono text-[11px] text-foreground outline-none transition-all focus:border-border/60 ${
-              jsonInvalid ? 'border-destructive/50 focus:border-destructive/70' : 'border-border/20'
+            className={`min-h-0 w-full resize-y rounded-3xs border bg-background px-2 py-1.5 font-mono text-[11px] text-foreground shadow-none outline-none transition-all focus-visible:border-border/60 focus-visible:ring-0 ${
+              jsonInvalid ? 'border-destructive/50 focus-visible:border-destructive/70' : 'border-border/20'
             }`}
           />
           {jsonInvalid && <p className="mt-1 text-[9px] text-destructive/80">JSON 格式错误</p>}

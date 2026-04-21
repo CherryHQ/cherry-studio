@@ -1,3 +1,4 @@
+import { Input, Textarea } from '@cherrystudio/ui'
 import { AlertCircle, CheckCircle2, Clipboard, FileJson, Link, Upload, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import type { ChangeEvent, DragEvent } from 'react'
@@ -346,19 +347,19 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
                   initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -6 }}>
-                  <textarea
+                  <Textarea.Input
                     value={clipboardText}
-                    onChange={(e) => setClipboardText(e.target.value)}
+                    onValueChange={setClipboardText}
                     disabled={loading}
                     placeholder="在此粘贴 JSON 配置内容..."
-                    className="h-[160px] w-full resize-none rounded-2xs border border-border/20 bg-accent/10 p-3 font-mono text-[11px] text-foreground outline-none transition-all placeholder:text-muted-foreground/35 focus:border-border/40 focus:bg-accent/15 disabled:cursor-not-allowed [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-[3px]"
+                    className="h-[160px] min-h-0 w-full resize-none rounded-2xs border border-border/20 bg-accent/10 p-3 font-mono text-[11px] text-foreground shadow-none outline-none transition-all placeholder:text-muted-foreground/35 focus-visible:border-border/40 focus-visible:bg-accent/15 focus-visible:ring-0 disabled:cursor-not-allowed [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-[3px]"
                   />
                   <button
                     type="button"
                     onClick={handleClipboardImport}
                     disabled={!clipboardText.trim() || loading}
                     className="mt-3 flex items-center gap-1.5 rounded-3xs bg-foreground px-3 py-1.5 text-[11px] text-background transition-colors hover:bg-foreground/90 disabled:cursor-not-allowed disabled:opacity-30">
-                    <FileJson size={10} />
+                    <FileJson size={10} className="lucide-custom" />
                     <span>解析并导入</span>
                   </button>
                 </motion.div>
@@ -373,12 +374,12 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
                   <p className="mb-3 text-[10px] text-muted-foreground/50">
                     从 GitHub Gist、GitHub 仓库或任何公开 URL 导入配置
                   </p>
-                  <input
+                  <Input
                     value={urlText}
                     onChange={(e) => setUrlText(e.target.value)}
                     disabled={loading}
                     placeholder="https://gist.github.com/..."
-                    className="w-full rounded-2xs border border-border/20 bg-accent/10 px-3 py-2 font-mono text-[11px] text-foreground outline-none transition-all placeholder:text-muted-foreground/35 focus:border-border/40 focus:bg-accent/15 disabled:cursor-not-allowed"
+                    className="h-auto w-full rounded-2xs border border-border/20 bg-accent/10 px-3 py-2 font-mono text-[11px] text-foreground shadow-none outline-none transition-all placeholder:text-muted-foreground/35 focus-visible:border-border/40 focus-visible:bg-accent/15 focus-visible:ring-0 disabled:cursor-not-allowed"
                   />
                   <div className="mt-3 flex items-center gap-3">
                     <button
@@ -386,7 +387,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
                       onClick={() => void handleUrlImport()}
                       disabled={!urlText.trim() || loading}
                       className="flex items-center gap-1.5 rounded-3xs bg-foreground px-3 py-1.5 text-[11px] text-background transition-colors hover:bg-foreground/90 disabled:cursor-not-allowed disabled:opacity-30">
-                      <Link size={10} />
+                      <Link size={10} className="lucide-custom" />
                       <span>获取并导入</span>
                     </button>
                     <p className="text-[9px] text-muted-foreground/35">支持 raw 文件链接</p>
