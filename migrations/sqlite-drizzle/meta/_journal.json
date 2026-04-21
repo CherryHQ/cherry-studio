@@ -84,6 +84,13 @@
       "when": 1776180491685,
       "tag": "0011_outgoing_silver_sable",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1776684142338,
+      "tag": "0012_goofy_tenebrous",
+      "breakpoints": true
     }
   ],
   "version": "7"
