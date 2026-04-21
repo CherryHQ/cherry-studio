@@ -21,11 +21,22 @@ describe('isSafeExternalUrl', () => {
     expect(isSafeExternalUrl('obsidian://new?file=test&vault=myvault&clipboard')).toBe(true)
   })
 
-  it('allows code-editor deep-link protocols', () => {
+  it('allows code-editor deep-link protocols with the file authority', () => {
     expect(isSafeExternalUrl('vscode://file/C%3A/Users/foo/bar.ts?windowId=_blank')).toBe(true)
     expect(isSafeExternalUrl('vscode-insiders://file/C%3A/Users/foo/bar.ts')).toBe(true)
     expect(isSafeExternalUrl('cursor://file/C%3A/Users/foo/bar.ts?windowId=_blank')).toBe(true)
     expect(isSafeExternalUrl('zed://file/Users/foo/bar.ts')).toBe(true)
+  })
+
+  it('rejects editor deep-links with non-file authorities', () => {
+    // command authority runs registered VS Code commands
+    expect(isSafeExternalUrl('vscode://command/workbench.action.terminal.sendSequence?text=rm')).toBe(false)
+    // extension URL handlers
+    expect(isSafeExternalUrl('vscode://ms-python.python/do-something')).toBe(false)
+    expect(isSafeExternalUrl('cursor://settings')).toBe(false)
+    expect(isSafeExternalUrl('zed://extension/evil')).toBe(false)
+    // missing authority entirely
+    expect(isSafeExternalUrl('vscode:command/foo')).toBe(false)
   })
 
   it('rejects file:// protocol', () => {
