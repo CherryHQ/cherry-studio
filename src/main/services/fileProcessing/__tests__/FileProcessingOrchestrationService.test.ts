@@ -1,31 +1,23 @@
-import type * as LifecycleModule from '@main/core/lifecycle'
+import { BaseService } from '@main/core/lifecycle'
 import { getDependencies, getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appGetMock, extractTextMock, startTaskMock, getTaskResultMock } = vi.hoisted(() => ({
-  appGetMock: vi.fn(),
+const { extractTextMock, startTaskMock, getTaskResultMock } = vi.hoisted(() => ({
   extractTextMock: vi.fn(),
   startTaskMock: vi.fn(),
   getTaskResultMock: vi.fn()
 }))
 
-vi.mock('@application', () => ({
-  application: {
-    get: appGetMock
-  }
-}))
-
-vi.mock('@main/core/lifecycle', async (importOriginal) => {
-  const actual = await importOriginal<typeof LifecycleModule>()
-
-  class MockBaseService {
-    ipcHandle = vi.fn()
-  }
-
+vi.mock('@main/core/application', async () => {
+  const { createMockApplication } = await import('@test-mocks/main/application')
   return {
-    ...actual,
-    BaseService: MockBaseService
+    application: createMockApplication({
+      MarkdownTaskService: {
+        startTask: startTaskMock,
+        getTaskResult: getTaskResultMock
+      }
+    } as any)
   }
 })
 
@@ -61,20 +53,12 @@ const documentFile = {
   count: 1
 } as const
 
+type RegisteredIpcHandler = (event: unknown, payload: unknown) => Promise<unknown>
+
 describe('FileProcessingOrchestrationService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-
-    appGetMock.mockImplementation((serviceName: string) => {
-      if (serviceName === 'MarkdownTaskService') {
-        return {
-          startTask: startTaskMock,
-          getTaskResult: getTaskResultMock
-        }
-      }
-
-      throw new Error(`Unexpected application.get(${serviceName}) in test`)
-    })
+    BaseService.resetInstances()
   })
 
   it('uses WhenReady phase and waits for file-processing runtime services', () => {
@@ -87,9 +71,10 @@ describe('FileProcessingOrchestrationService', () => {
 
   it('registers the three file processing IPC handlers', () => {
     const service = new FileProcessingOrchestrationService()
+    const ipcHandleSpy = vi.spyOn(service as any, 'ipcHandle').mockReturnValue({ dispose: vi.fn() })
     ;(service as any).onInit()
 
-    const handlerCalls = ((service as any).ipcHandle as ReturnType<typeof vi.fn>).mock.calls.map((call) => call[0])
+    const handlerCalls = ipcHandleSpy.mock.calls.map((call) => call[0])
 
     expect(handlerCalls).toEqual([
       'file-processing:extract-text',
@@ -100,14 +85,17 @@ describe('FileProcessingOrchestrationService', () => {
 
   it('validates extract-text IPC input before dispatching to OCR', async () => {
     const service = new FileProcessingOrchestrationService()
+    const ipcHandleSpy = vi.spyOn(service as any, 'ipcHandle').mockReturnValue({ dispose: vi.fn() })
     ;(service as any).onInit()
 
-    const extractTextHandler = ((service as any).ipcHandle as ReturnType<typeof vi.fn>).mock.calls.find(
+    const extractTextHandler = ipcHandleSpy.mock.calls.find(
       (call) => call[0] === 'file-processing:extract-text'
-    )?.[1]
+    )?.[1] as RegisteredIpcHandler | undefined
+
+    expect(extractTextHandler).toBeDefined()
 
     await expect(
-      extractTextHandler?.(
+      extractTextHandler!(
         {},
         {
           file: {
@@ -123,13 +111,16 @@ describe('FileProcessingOrchestrationService', () => {
 
   it('validates markdown-result IPC input before dispatching to markdown tasks', async () => {
     const service = new FileProcessingOrchestrationService()
+    const ipcHandleSpy = vi.spyOn(service as any, 'ipcHandle').mockReturnValue({ dispose: vi.fn() })
     ;(service as any).onInit()
 
-    const getResultHandler = ((service as any).ipcHandle as ReturnType<typeof vi.fn>).mock.calls.find(
+    const getResultHandler = ipcHandleSpy.mock.calls.find(
       (call) => call[0] === 'file-processing:get-markdown-conversion-task-result'
-    )?.[1]
+    )?.[1] as RegisteredIpcHandler | undefined
 
-    await expect(getResultHandler?.({}, { taskId: '   ' })).rejects.toThrow('[')
+    expect(getResultHandler).toBeDefined()
+
+    await expect(getResultHandler!({}, { taskId: '   ' })).rejects.toThrow('[')
     expect(getTaskResultMock).not.toHaveBeenCalled()
   })
 

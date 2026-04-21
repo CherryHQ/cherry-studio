@@ -1,7 +1,7 @@
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import type { FileMetadata } from '@types'
 
-import { getApiKey, getRequiredCapability } from '../../utils/provider'
+import { assertHasFilePath, getRequiredApiHost, getRequiredApiKey, getRequiredCapability } from '../../utils/provider'
 import type { MarkdownProviderPollResult, MarkdownRemoteTaskProvider } from '../types'
 import type { PreparedPaddleQueryContext, PreparedPaddleStartContext } from './paddle/types'
 import { createJob, getJobResult, mapProgress, resolveJsonlResult } from './paddle/utils'
@@ -49,7 +49,7 @@ export const paddleMarkdownProvider: MarkdownRemoteTaskProvider = {
       }
     }
 
-    const markdownContent = await resolveJsonlResult(task.providerTaskId, jobResult, context.signal)
+    const markdownContent = await resolveJsonlResult(task.providerTaskId, jobResult, context.apiHost, context.signal)
 
     return {
       status: 'completed',
@@ -67,20 +67,7 @@ function prepareStartContext(
   file: FileMetadata
 ): PreparedPaddleStartContext {
   const capability = getRequiredCapability(config, 'markdown_conversion', 'paddleocr')
-
-  if (!file.path) {
-    throw new Error('File path is required')
-  }
-
-  const apiHost = capability.apiHost?.trim().replace(/\/+$/, '')
-  if (!apiHost) {
-    throw new Error('API host is required')
-  }
-
-  const apiKey = getApiKey(config, 'paddleocr')
-  if (!apiKey) {
-    throw new Error('API key is required')
-  }
+  assertHasFilePath(file)
 
   const model = capability.modelId?.trim() || undefined
 
@@ -89,8 +76,8 @@ function prepareStartContext(
   }
 
   return {
-    apiHost,
-    apiKey,
+    apiHost: getRequiredApiHost(capability),
+    apiKey: getRequiredApiKey(config, 'paddleocr'),
     signal,
     file,
     model,

@@ -11,13 +11,18 @@ export const Doc2xApiResponseSchema = <T extends z.ZodTypeAny>(data: T) =>
 
 export const Doc2xTaskStatusSchema = z.enum(['processing', 'failed', 'success'])
 
+const Doc2xUrlSchema = z
+  .string()
+  .min(1)
+  .transform((value) => decodeEscapedUnicode(value))
+
 export const Doc2xPreuploadDataSchema = z.object({
   uid: z.string().min(1),
-  url: z.string().min(1)
+  url: Doc2xUrlSchema
 })
 
 export const Doc2xParsePageSchema = z.object({
-  url: z.string().optional(),
+  url: Doc2xUrlSchema.optional(),
   page_idx: z.number(),
   page_width: z.number().optional(),
   page_height: z.number().optional(),
@@ -38,7 +43,7 @@ export const Doc2xParseStatusDataSchema = z.object({
 
 export const Doc2xExportStatusDataSchema = z.object({
   status: Doc2xTaskStatusSchema,
-  url: z.string().optional()
+  url: Doc2xUrlSchema.optional()
 })
 
 export const Doc2xPreuploadResponseSchema = Doc2xApiResponseSchema(Doc2xPreuploadDataSchema)
@@ -71,4 +76,16 @@ export type Doc2xTaskContext = Omit<PreparedDoc2xQueryContext, 'signal'> & {
   fileId: string
   stage: Doc2xTaskStage
   createdAt: number
+}
+
+function decodeEscapedUnicode(value: string): string {
+  if (!value.includes('\\u')) {
+    return value
+  }
+
+  try {
+    return JSON.parse(JSON.stringify(value).replace(/\\\\u([0-9a-fA-F]{4})/g, '\\u$1')) as string
+  } catch {
+    return value
+  }
 }

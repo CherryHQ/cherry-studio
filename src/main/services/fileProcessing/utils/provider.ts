@@ -3,6 +3,12 @@ import type { FileProcessorFeatureCapability, FileProcessorMerged } from '@share
 
 const lastUsedKeyByProcessor = new Map<FileProcessorId, string>()
 
+export function assertHasFilePath<T extends { path?: string | null }>(file: T): asserts file is T & { path: string } {
+  if (!file.path) {
+    throw new Error('File path is required')
+  }
+}
+
 export function getRequiredCapability(
   config: FileProcessorMerged,
   feature: FileProcessorFeature,
@@ -35,4 +41,24 @@ export function getApiKey(config: FileProcessorMerged, processorId: FileProcesso
 
   lastUsedKeyByProcessor.set(processorId, nextKey)
   return nextKey
+}
+
+export function getRequiredApiKey(config: FileProcessorMerged, processorId: FileProcessorId): string {
+  const apiKey = getApiKey(config, processorId)
+
+  if (!apiKey) {
+    throw new Error('API key is required')
+  }
+
+  return apiKey
+}
+
+export function getRequiredApiHost(capability: Pick<FileProcessorFeatureCapability, 'apiHost'>): string {
+  const normalizedApiHost = capability.apiHost?.trim().replace(/\/+$/, '')
+
+  if (!normalizedApiHost) {
+    throw new Error('API host is required')
+  }
+
+  return normalizedApiHost
 }

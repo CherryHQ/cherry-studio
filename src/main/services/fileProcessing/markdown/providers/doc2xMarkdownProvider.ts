@@ -1,7 +1,7 @@
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import type { FileMetadata } from '@types'
 
-import { getApiKey, getRequiredCapability } from '../../utils/provider'
+import { assertHasFilePath, getRequiredApiHost, getRequiredApiKey, getRequiredCapability } from '../../utils/provider'
 import type { MarkdownProviderPollResult, MarkdownRemoteTaskProvider } from '../types'
 import type { Doc2xTaskStage, PreparedDoc2xQueryContext, PreparedDoc2xStartContext } from './doc2x/types'
 import { createUploadTask, getExportResult, getParseStatus, triggerExportTask, uploadFile } from './doc2x/utils'
@@ -17,7 +17,7 @@ export const doc2xMarkdownProvider: MarkdownRemoteTaskProvider = {
     const context = prepareStartContext(config, signal, file)
     const uploadTask = await createUploadTask(context)
 
-    await uploadFile(file.path, uploadTask.uploadUrl, context.signal)
+    await uploadFile(file.path, uploadTask.uploadUrl, context.apiHost, context.signal)
 
     return {
       providerTaskId: uploadTask.uid,
@@ -53,24 +53,11 @@ function prepareStartContext(
   file: FileMetadata
 ): PreparedDoc2xStartContext {
   const capability = getRequiredCapability(config, 'markdown_conversion', 'doc2x')
-
-  if (!file.path) {
-    throw new Error('File path is required')
-  }
-
-  const apiHost = capability.apiHost?.trim()
-  if (!apiHost) {
-    throw new Error('API host is required')
-  }
-
-  const apiKey = getApiKey(config, 'doc2x')
-  if (!apiKey) {
-    throw new Error('API key is required')
-  }
+  assertHasFilePath(file)
 
   return {
-    apiHost,
-    apiKey,
+    apiHost: getRequiredApiHost(capability),
+    apiKey: getRequiredApiKey(config, 'doc2x'),
     signal,
     file,
     modelVersion: capability.modelId
@@ -180,7 +167,8 @@ async function handleExportStage(
     status: 'completed',
     result: {
       kind: 'remote-zip-url',
-      downloadUrl: exportStatus.url.replace(/\\u0026/g, '&')
+      downloadUrl: exportStatus.url,
+      configuredApiHost: context.apiHost
     }
   }
 }

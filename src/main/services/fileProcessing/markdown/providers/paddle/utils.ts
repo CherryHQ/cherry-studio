@@ -182,6 +182,7 @@ export async function waitForJobCompletion(
 export async function resolveJsonlResult(
   providerTaskId: string,
   jobResult: PaddleJobResultData,
+  configuredApiHost: string,
   signal?: AbortSignal
 ): Promise<string> {
   const jsonUrl = jobResult.resultUrl?.jsonUrl
@@ -190,12 +191,16 @@ export async function resolveJsonlResult(
     throw new Error(`PaddleOCR task ${providerTaskId} completed without jsonUrl`)
   }
 
-  const jsonlContent = await downloadPaddleResult(jsonUrl, signal)
+  const jsonlContent = await downloadPaddleResult(jsonUrl, configuredApiHost, signal)
   return extractMarkdownTextFromJsonl(jsonlContent, providerTaskId)
 }
 
-export async function downloadPaddleResult(downloadUrl: string, signal?: AbortSignal): Promise<string> {
-  const safeDownloadUrl = sanitizeFileProcessingRemoteUrl(downloadUrl)
+export async function downloadPaddleResult(
+  downloadUrl: string,
+  configuredApiHost: string,
+  signal?: AbortSignal
+): Promise<string> {
+  const safeDownloadUrl = sanitizeFileProcessingRemoteUrl(downloadUrl, configuredApiHost)
   const response = await net.fetch(safeDownloadUrl, {
     method: 'GET',
     signal

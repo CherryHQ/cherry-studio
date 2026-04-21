@@ -60,7 +60,11 @@ describe('paddle utils', () => {
     )
 
     await expect(
-      resolveJsonlResult('job-1', createJobResult({ jsonUrl: 'https://download.example.com/output.jsonl' }))
+      resolveJsonlResult(
+        'job-1',
+        createJobResult({ jsonUrl: 'https://download.example.com/output.jsonl' }),
+        'https://paddleocr.aistudio-app.com'
+      )
     ).resolves.toBe('page 1\n\npage 2\nline 2')
 
     expect(fetchMock).toHaveBeenCalledWith('https://download.example.com/output.jsonl', {
@@ -71,7 +75,11 @@ describe('paddle utils', () => {
 
   it('rejects text extraction results without jsonUrl', async () => {
     await expect(
-      resolveJsonlResult('job-1', createJobResult({ markdownUrl: 'https://download.example.com/output.md' }))
+      resolveJsonlResult(
+        'job-1',
+        createJobResult({ markdownUrl: 'https://download.example.com/output.md' }),
+        'https://paddleocr.aistudio-app.com'
+      )
     ).rejects.toThrow('PaddleOCR task job-1 completed without jsonUrl')
 
     expect(fetchMock).not.toHaveBeenCalled()
@@ -86,7 +94,11 @@ describe('paddle utils', () => {
     )
 
     await expect(
-      resolveJsonlResult('job-1', createJobResult({ jsonUrl: 'https://download.example.com/output.jsonl' }))
+      resolveJsonlResult(
+        'job-1',
+        createJobResult({ jsonUrl: 'https://download.example.com/output.jsonl' }),
+        'https://paddleocr.aistudio-app.com'
+      )
     ).resolves.toBe('# output')
 
     expect(fetchMock).toHaveBeenCalledWith('https://download.example.com/output.jsonl', {
@@ -97,15 +109,45 @@ describe('paddle utils', () => {
 
   it('rejects unsafe jsonUrl targets before downloading', async () => {
     await expect(
-      resolveJsonlResult('job-1', createJobResult({ jsonUrl: 'http://127.0.0.1:8080/output.jsonl' }))
+      resolveJsonlResult(
+        'job-1',
+        createJobResult({ jsonUrl: 'http://127.0.0.1:8080/output.jsonl' }),
+        'https://paddleocr.aistudio-app.com'
+      )
     ).rejects.toThrow('Unsafe remote url: local or private addresses are not allowed (127.0.0.1)')
 
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
+  it('allows local jsonUrl targets when they match the configured apiHost', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response('{"result":{"layoutParsingResults":[{"markdown":{"text":"# local output"}}]}}', {
+        status: 200,
+        statusText: 'OK'
+      })
+    )
+
+    await expect(
+      resolveJsonlResult(
+        'job-1',
+        createJobResult({ jsonUrl: 'http://localhost:8080/output.jsonl' }),
+        'http://127.0.0.1:8080'
+      )
+    ).resolves.toBe('# local output')
+
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost:8080/output.jsonl', {
+      method: 'GET',
+      signal: undefined
+    })
+  })
+
   it('rejects markdown conversion results without jsonUrl', async () => {
     await expect(
-      resolveJsonlResult('job-1', createJobResult({ markdownUrl: 'https://download.example.com/output.md' }))
+      resolveJsonlResult(
+        'job-1',
+        createJobResult({ markdownUrl: 'https://download.example.com/output.md' }),
+        'https://paddleocr.aistudio-app.com'
+      )
     ).rejects.toThrow('PaddleOCR task job-1 completed without jsonUrl')
 
     expect(fetchMock).not.toHaveBeenCalled()

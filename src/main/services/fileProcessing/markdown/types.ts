@@ -14,6 +14,7 @@ export type MarkdownProviderCompletionPayload =
   | {
       kind: 'remote-zip-url'
       downloadUrl: string
+      configuredApiHost: string
     }
   | {
       kind: 'response-zip'

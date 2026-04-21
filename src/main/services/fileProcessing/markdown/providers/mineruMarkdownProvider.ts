@@ -1,7 +1,7 @@
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import type { FileMetadata } from '@types'
 
-import { getApiKey, getRequiredCapability } from '../../utils/provider'
+import { assertHasFilePath, getRequiredApiHost, getRequiredApiKey, getRequiredCapability } from '../../utils/provider'
 import type { MarkdownProviderPollResult, MarkdownRemoteTaskProvider } from '../types'
 import type { MineruExtractFileResult, PreparedMineruQueryContext, PreparedMineruStartContext } from './mineru/types'
 import { createUploadTask, getBatchResult, mapProgress, uploadFile } from './mineru/utils'
@@ -15,7 +15,7 @@ export const mineruMarkdownProvider: MarkdownRemoteTaskProvider = {
     const context = prepareStartContext(config, signal, file)
     const uploadTask = await createUploadTask(context)
 
-    await uploadFile(file, uploadTask.uploadUrl, uploadTask.uploadHeaders, context.signal)
+    await uploadFile(file, uploadTask.uploadUrl, context.apiHost, uploadTask.uploadHeaders, context.signal)
 
     return {
       providerTaskId: uploadTask.batchId,
@@ -37,7 +37,7 @@ export const mineruMarkdownProvider: MarkdownRemoteTaskProvider = {
     }
     const batchResult = await getBatchResult(task.providerTaskId, context)
 
-    return buildPollResult(batchResult.extract_result[0])
+    return buildPollResult(batchResult.extract_result[0], context.apiHost)
   }
 }
 
@@ -47,31 +47,18 @@ function prepareStartContext(
   file: FileMetadata
 ): PreparedMineruStartContext {
   const capability = getRequiredCapability(config, 'markdown_conversion', 'mineru')
-
-  if (!file.path) {
-    throw new Error('File path is required')
-  }
-
-  const apiHost = capability.apiHost?.trim()
-  if (!apiHost) {
-    throw new Error('API host is required')
-  }
-
-  const apiKey = getApiKey(config, 'mineru')
-  if (!apiKey) {
-    throw new Error('API key is required')
-  }
+  assertHasFilePath(file)
 
   return {
-    apiHost,
-    apiKey,
+    apiHost: getRequiredApiHost(capability),
+    apiKey: getRequiredApiKey(config, 'mineru'),
     signal,
     file,
     modelVersion: capability.modelId
   }
 }
 
-function buildPollResult(fileResult: MineruExtractFileResult | undefined): MarkdownProviderPollResult {
+function buildPollResult(fileResult: MineruExtractFileResult | undefined, apiHost: string): MarkdownProviderPollResult {
   if (!fileResult) {
     return {
       status: 'processing',
@@ -101,7 +88,8 @@ function buildPollResult(fileResult: MineruExtractFileResult | undefined): Markd
     status: 'completed',
     result: {
       kind: 'remote-zip-url',
-      downloadUrl: fileResult.full_zip_url
+      downloadUrl: fileResult.full_zip_url,
+      configuredApiHost: apiHost
     }
   }
 }

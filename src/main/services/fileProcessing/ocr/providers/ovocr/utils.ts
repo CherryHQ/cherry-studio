@@ -28,39 +28,40 @@ export function prepareContext(
     throw new Error('OV OCR is not available on this device')
   }
 
-  const workingDirectory = fs.mkdtempSync(path.join(application.getPath('app.temp'), 'cherry-ovocr-'))
-  const imgDirectory = path.join(workingDirectory, 'img')
-  const outputDirectory = path.join(workingDirectory, 'output')
-
   return {
     file,
     signal,
-    workingDirectory,
-    imgDirectory,
-    outputDirectory
+    workingDirectoryPrefix: path.join(application.getPath('app.temp'), 'cherry-ovocr-')
   }
 }
 
 export async function executeExtraction(context: PreparedOvOcrContext): Promise<FileProcessingTextExtractionResult> {
   context.signal?.throwIfAborted()
 
+  let workingDirectory: string | null = null
+
   try {
-    await prepareWorkingDirectory(context.imgDirectory)
-    await prepareWorkingDirectory(context.outputDirectory)
+    workingDirectory = await fs.promises.mkdtemp(context.workingDirectoryPrefix)
+    const imgDirectory = path.join(workingDirectory, 'img')
+    const outputDirectory = path.join(workingDirectory, 'output')
+
+    await prepareWorkingDirectory(imgDirectory)
+    await prepareWorkingDirectory(outputDirectory)
 
     const fileName = path.basename(context.file.path)
-    await fs.promises.copyFile(context.file.path, path.join(context.imgDirectory, fileName))
+    await fs.promises.copyFile(context.file.path, path.join(imgDirectory, fileName))
 
     // TODO(file-processing): Once unified ProcessManagerService lands, delegate
     // OV OCR process lifecycle/logging/restart handling there and keep this
     // provider focused on input/output preparation plus result parsing.
     await execAsync(`"${getOvOcrScriptPath()}"`, {
-      cwd: context.workingDirectory,
-      timeout: 60000
+      cwd: workingDirectory,
+      timeout: 60000,
+      signal: context.signal
     })
 
     const baseNameWithoutExt = path.basename(fileName, path.extname(fileName))
-    const outputFilePath = path.join(context.outputDirectory, `${baseNameWithoutExt}.txt`)
+    const outputFilePath = path.join(outputDirectory, `${baseNameWithoutExt}.txt`)
 
     if (!fs.existsSync(outputFilePath)) {
       throw new Error(`OV OCR output file not found at: ${outputFilePath}`)
@@ -72,7 +73,9 @@ export async function executeExtraction(context: PreparedOvOcrContext): Promise<
       text: await fs.promises.readFile(outputFilePath, 'utf-8')
     }
   } finally {
-    await fs.promises.rm(context.workingDirectory, { recursive: true, force: true })
+    if (workingDirectory) {
+      await fs.promises.rm(workingDirectory, { recursive: true, force: true })
+    }
   }
 }
 

@@ -65,6 +65,7 @@ export async function createUploadTask(context: PreparedMineruStartContext): Pro
 export async function uploadFile(
   file: FileMetadata,
   uploadUrl: string,
+  configuredApiHost: string,
   uploadHeaders?: Record<string, string>,
   signal?: AbortSignal
 ): Promise<void> {
@@ -74,7 +75,7 @@ export async function uploadFile(
     throw new Error('Mineru file is too large (must be smaller than 200MB)')
   }
 
-  const safeUploadUrl = sanitizeFileProcessingRemoteUrl(uploadUrl)
+  const safeUploadUrl = sanitizeFileProcessingRemoteUrl(uploadUrl, configuredApiHost)
   const fileStream = createReadStream(file.path)
 
   try {

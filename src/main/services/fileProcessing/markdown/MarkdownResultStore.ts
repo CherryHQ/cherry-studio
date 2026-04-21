@@ -35,7 +35,10 @@ class MarkdownResultStore {
         })
 
       case 'remote-zip-url': {
-        const safeDownloadUrl = sanitizeFileProcessingRemoteUrl(options.result.downloadUrl)
+        const safeDownloadUrl = sanitizeFileProcessingRemoteUrl(
+          options.result.downloadUrl,
+          options.result.configuredApiHost
+        )
         const response = await net.fetch(safeDownloadUrl, {
           method: 'GET',
           signal: options.signal
@@ -44,6 +47,11 @@ class MarkdownResultStore {
         if (!response.ok) {
           const message = await response.text()
           throw new Error(`Markdown result download failed: ${response.status} ${response.statusText} ${message}`)
+        }
+
+        const contentType = response.headers.get('content-type')
+        if (contentType !== 'application/zip') {
+          throw new Error(`Markdown result download returned unexpected content-type: ${contentType}`)
         }
 
         return persistResponseZipResult({

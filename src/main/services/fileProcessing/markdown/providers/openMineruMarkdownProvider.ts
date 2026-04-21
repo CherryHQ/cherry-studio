@@ -2,7 +2,7 @@ import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import type { FileMetadata } from '@types'
 import { v4 as uuidv4 } from 'uuid'
 
-import { getApiKey, getRequiredCapability } from '../../utils/provider'
+import { assertHasFilePath, getApiKey, getRequiredApiHost, getRequiredCapability } from '../../utils/provider'
 import type { MarkdownBackgroundExecutionContext, MarkdownBackgroundTaskProvider } from '../types'
 import type { PreparedOpenMineruContext } from './open-mineru/types'
 import { executeTask } from './open-mineru/utils'
@@ -42,18 +42,10 @@ function prepareContext(
   signal?.throwIfAborted()
 
   const capability = getRequiredCapability(config, 'markdown_conversion', 'open-mineru')
-
-  if (!file.path) {
-    throw new Error('File path is required')
-  }
-
-  const apiHost = capability.apiHost?.trim()
-  if (!apiHost) {
-    throw new Error('API host is required')
-  }
+  assertHasFilePath(file)
 
   return {
-    apiHost,
+    apiHost: getRequiredApiHost(capability),
     apiKey: getApiKey(config, 'open-mineru'),
     file,
     signal

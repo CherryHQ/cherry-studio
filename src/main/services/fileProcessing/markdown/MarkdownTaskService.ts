@@ -45,8 +45,6 @@ export class MarkdownTaskService extends BaseService {
   }
 
   protected async onStop(): Promise<void> {
-    this.stopPruneTimer()
-
     const inFlightQueries = Array.from(this.inFlightQueries.values())
     const backgroundExecutions = Array.from(this.backgroundExecutions.values())
 
@@ -166,15 +164,6 @@ export class MarkdownTaskService extends BaseService {
         this.pruneTimer = null
       }
     })
-  }
-
-  private stopPruneTimer(): void {
-    if (!this.pruneTimer) {
-      return
-    }
-
-    clearInterval(this.pruneTimer)
-    this.pruneTimer = null
   }
 
   private runDedupedQuery(

@@ -49,14 +49,19 @@ export async function createUploadTask(context: PreparedDoc2xStartContext): Prom
   }
 }
 
-export async function uploadFile(filePath: string, uploadUrl: string, signal?: AbortSignal): Promise<void> {
+export async function uploadFile(
+  filePath: string,
+  uploadUrl: string,
+  configuredApiHost: string,
+  signal?: AbortSignal
+): Promise<void> {
   const stat = await fs.promises.stat(filePath)
 
   if (stat.size >= DOC2X_MAX_FILE_SIZE) {
     throw new Error('Doc2x file is too large (must be smaller than 1GB)')
   }
 
-  const safeUploadUrl = sanitizeFileProcessingRemoteUrl(uploadUrl)
+  const safeUploadUrl = sanitizeFileProcessingRemoteUrl(uploadUrl, configuredApiHost)
   const fileStream = createReadStream(filePath)
 
   try {

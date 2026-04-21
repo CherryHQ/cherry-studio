@@ -44,7 +44,8 @@ describe('mineru utils', () => {
         {
           path: '/tmp/large.pdf'
         } as never,
-        'https://upload.example.com'
+        'https://mineru.oss-cn-shanghai.aliyuncs.com/api-upload/task-1.pdf?Expires=1&Signature=abc',
+        'https://mineru.net'
       )
     ).rejects.toThrow('Mineru file is too large (must be smaller than 200MB)')
   })
@@ -63,14 +64,15 @@ describe('mineru utils', () => {
         {
           path: '/tmp/file.pdf'
         } as never,
-        'https://upload.example.com',
+        'https://mineru.oss-cn-shanghai.aliyuncs.com/api-upload/task-1.pdf?Expires=1&Signature=abc',
+        'https://mineru.net',
         { Authorization: 'Bearer secret' }
       )
     ).resolves.toBeUndefined()
 
     expect(createReadStreamMock).toHaveBeenCalledWith('/tmp/file.pdf')
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://upload.example.com/',
+      'https://mineru.oss-cn-shanghai.aliyuncs.com/api-upload/task-1.pdf?Expires=1&Signature=abc',
       expect.objectContaining({
         method: 'PUT',
         headers: { Authorization: 'Bearer secret' },
@@ -91,10 +93,44 @@ describe('mineru utils', () => {
           path: '/tmp/file.pdf'
         } as never,
         'http://localhost:9000/upload',
+        'https://mineru.net',
         { Authorization: 'Bearer secret' }
       )
     ).rejects.toThrow('Unsafe remote url: local or private addresses are not allowed (localhost)')
 
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('allows local upload urls when they match the configured apiHost', async () => {
+    vi.spyOn(fs, 'stat').mockResolvedValue({ size: 1024 } as never)
+    fetchMock.mockResolvedValueOnce(
+      new Response(null, {
+        status: 200,
+        statusText: 'OK'
+      })
+    )
+
+    await expect(
+      uploadFile(
+        {
+          path: '/tmp/file.pdf'
+        } as never,
+        'http://localhost:9000/upload',
+        'http://127.0.0.1:9000',
+        { Authorization: 'Bearer secret' },
+        undefined
+      )
+    ).resolves.toBeUndefined()
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:9000/upload',
+      expect.objectContaining({
+        method: 'PUT',
+        headers: { Authorization: 'Bearer secret' },
+        body: expect.any(Object),
+        duplex: 'half',
+        signal: undefined
+      })
+    )
   })
 })
