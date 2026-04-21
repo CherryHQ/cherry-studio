@@ -56,6 +56,27 @@ function getExecutedSql(run: ReturnType<typeof vi.fn>) {
   return run.mock.calls.map(([statement]) => statement.queryChunks[0]?.value?.[0])
 }
 
+/**
+ * Minimal Drizzle query-builder stubs — `transformAgentBlocksToParts`
+ * reaches for `db.select().from(...).orderBy(...)` and `db.update(...).set(...).where(...)`.
+ * These tests cover the raw-SQL orchestration (ATTACH/BEGIN/COMMIT/DETACH)
+ * and run the transforms as part of execute(), so a no-op builder that
+ * returns an empty row set keeps the orchestration path testable without
+ * pulling in a real DB. Shape-transform correctness is covered by
+ * AgentsMigrator.transforms.test.ts against setupTestDatabase().
+ */
+function stubQueryBuilders() {
+  const orderBy = vi.fn().mockResolvedValue([])
+  const from = vi.fn().mockReturnValue({ orderBy })
+  const select = vi.fn().mockReturnValue({ from })
+
+  const where = vi.fn().mockResolvedValue({ rowsAffected: 0 })
+  const set = vi.fn().mockReturnValue({ where })
+  const update = vi.fn().mockReturnValue({ set })
+
+  return { select, update }
+}
+
 describe('AgentsMigrator', () => {
   let migrator: AgentsMigrator
 
@@ -86,13 +107,16 @@ describe('AgentsMigrator', () => {
   })
 
   it('execute attaches the legacy db and imports every table inside a FK-off transaction', async () => {
-    const run = vi.fn().mockResolvedValue(undefined)
+    // Return `{ rowsAffected: 0 }` so the model-id UPDATE transform can read
+    // its result cleanly; existing assertions look at call args, not returns.
+    const run = vi.fn().mockResolvedValue({ rowsAffected: 0 })
+    const { select, update } = stubQueryBuilders()
     vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue('/mock/feature.agents.db_file')
     vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockResolvedValue(createSchemaInfo() as never)
     vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockResolvedValue(createCounts())
 
     await migrator.prepare(createMigrationContext())
-    const result = await migrator.execute(createMigrationContext({ db: { run } }))
+    const result = await migrator.execute(createMigrationContext({ db: { run, select, update } }))
 
     expect(result.success).toBe(true)
     expect(result.processedCount).toBe(45)
@@ -100,12 +124,21 @@ describe('AgentsMigrator', () => {
     expect(outer[0]).toBe("ATTACH DATABASE '/mock/feature.agents.db_file' AS agents_legacy")
     expect(outer[1]).toBe('PRAGMA foreign_keys = OFF')
     expect(outer[2]).toBe('BEGIN')
-    expect(outer.at(-3)).toBe('COMMIT')
     expect(outer.at(-2)).toBe('PRAGMA foreign_keys = ON')
     expect(outer.at(-1)).toBe('DETACH DATABASE agents_legacy')
-    // INSERT statements run between BEGIN and COMMIT
-    const insertCalls = outer.slice(3, -3)
+    // INSERT statements run between BEGIN and COMMIT — anchor off COMMIT's
+    // position rather than a fixed negative offset so the post-copy model-id
+    // transform UPDATEs (added after COMMIT) don't invalidate the slice math.
+    const commitIndex = outer.indexOf('COMMIT')
+    expect(commitIndex).toBeGreaterThan(2)
+    const insertCalls = outer.slice(3, commitIndex)
     expect(insertCalls).toHaveLength(AGENTS_TABLE_MIGRATION_SPECS.length)
+    // Every statement between COMMIT and the final `PRAGMA foreign_keys = ON`
+    // belongs to the post-copy model-id transform (6 UPDATEs — 3 columns × 2
+    // tables). Leaving the count unpinned here keeps the test resilient to
+    // future additions to the transform list.
+    const postCopy = outer.slice(commitIndex + 1, -2)
+    expect(postCopy.every((stmt) => stmt?.startsWith('UPDATE'))).toBe(true)
   })
 
   it('re-enables FK and detaches when an import statement fails inside the transaction', async () => {
@@ -218,9 +251,10 @@ describe('AgentsMigrator', () => {
     vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockResolvedValue(createSchemaInfo() as never)
     vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockResolvedValue(createCounts())
 
-    const run = vi.fn().mockResolvedValue(undefined)
+    const run = vi.fn().mockResolvedValue({ rowsAffected: 0 })
     const get = vi.fn().mockResolvedValue({ count: 8 })
-    const migrationContext = createMigrationContext({ db: { run, get } })
+    const { select, update } = stubQueryBuilders()
+    const migrationContext = createMigrationContext({ db: { run, get, select, update } })
 
     await migrator.prepare(migrationContext)
     await migrator.execute(migrationContext)

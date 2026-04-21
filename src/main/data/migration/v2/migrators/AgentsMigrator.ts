@@ -1,6 +1,8 @@
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
-import { sql } from 'drizzle-orm'
+import { asc, eq, sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { LegacyAgentsDbReader } from '../utils/LegacyAgentsDbReader'
@@ -14,6 +16,7 @@ import {
   getTotalAgentsRowCount,
   quoteSqlitePath
 } from './mappings/AgentsDbMappings'
+import { transformBlocksToParts } from './mappings/ChatMappings'
 
 const logger = loggerService.withContext('AgentsMigrator')
 
@@ -117,6 +120,16 @@ export class AgentsMigrator extends BaseMigrator {
       await ctx.db.run(sql.raw('COMMIT'))
       committed = true
       logger.info('Agents migration transaction committed successfully')
+
+      // Integrated shape reconciliation — runs after the raw INSERT...SELECT
+      // because Drizzle's query builder and the pre-BEGIN ATTACH share the
+      // same connection only if we stay on raw `ctx.db.run()` inside
+      // BEGIN/COMMIT (see note above). Any failure here fails the whole
+      // migrator — callers must be able to distinguish "copy landed but
+      // rows are in legacy shape" from "migrator succeeded", and silencing
+      // these would hide the former.
+      await transformAgentBlocksToParts(ctx.db)
+      await transformAgentModelIdFormat(ctx.db)
     } catch (error) {
       if (!committed) {
         try {
@@ -275,4 +288,116 @@ export class AgentsMigrator extends BaseMigrator {
       session_messages: 0
     }
   }
+}
+
+// ── Integrated post-copy shape transforms ────────────────────────────
+//
+// Exported as named helpers so they are unit-testable without constructing
+// a full migrator / MigrationContext. `execute()` calls them unconditionally
+// after the copy transaction commits, so failures propagate as normal
+// migrator errors (no silent post-hook semantics).
+
+export interface BlocksToPartsTransformResult {
+  totalMessages: number
+  messagesConverted: number
+  messagesSkipped: number
+  errors: Array<{ rowId: number; error: string }>
+}
+
+/**
+ * Convert `agent_session_message.content` from the legacy
+ * `{ blocks: [...] }` shape into the current `{ data: { parts: [...] } }`
+ * shape by reusing the same `transformBlocksToParts` converter regular
+ * chat messages go through. Rows whose content has no legacy `blocks`
+ * are skipped, so re-running is idempotent.
+ */
+export async function transformAgentBlocksToParts(db: DbType): Promise<BlocksToPartsTransformResult> {
+  const result: BlocksToPartsTransformResult = {
+    totalMessages: 0,
+    messagesConverted: 0,
+    messagesSkipped: 0,
+    errors: []
+  }
+
+  const rows = await db.select().from(agentSessionMessageTable).orderBy(asc(agentSessionMessageTable.createdAt))
+  result.totalMessages = rows.length
+  logger.info(`Blocks→Parts: scanning ${rows.length} agent_session_message rows`)
+
+  for (const row of rows) {
+    if (!row?.content) {
+      result.messagesSkipped++
+      continue
+    }
+
+    try {
+      // Legacy rows copied via raw INSERT...SELECT arrive as strings even
+      // though Drizzle types the column as JSON — normalise both paths.
+      const parsed = typeof row.content === 'string' ? JSON.parse(row.content) : row.content
+      const blocks = parsed?.blocks ?? []
+      const message = parsed?.message
+
+      if (!message || blocks.length === 0) {
+        result.messagesSkipped++
+        continue
+      }
+
+      const { parts } = transformBlocksToParts(blocks)
+      message.data = { ...message.data, parts }
+      message.blocks = []
+      parsed.blocks = []
+
+      await db.update(agentSessionMessageTable).set({ content: parsed }).where(eq(agentSessionMessageTable.id, row.id))
+      result.messagesConverted++
+    } catch (error) {
+      result.errors.push({ rowId: row.id, error: error instanceof Error ? error.message : String(error) })
+      logger.warn(`Failed to transform agent_session_message ${row.id}`, { error })
+    }
+  }
+
+  logger.info(
+    `Blocks→Parts complete: ${result.messagesConverted} converted, ${result.messagesSkipped} skipped, ${result.errors.length} errors`
+  )
+  return result
+}
+
+export interface ModelIdFormatTransformResult {
+  agentsUpdated: number
+  sessionsUpdated: number
+}
+
+/**
+ * Raw-SQL rewrite from legacy `providerId:modelId` to `UniqueModelId`
+ * `providerId::modelId` on agent / agent_session model columns. The
+ * `LIKE '%:%' AND NOT LIKE '%::%'` filter makes the UPDATE a no-op on
+ * already-migrated rows, so the transform is safe to re-run.
+ */
+export async function transformAgentModelIdFormat(db: DbType): Promise<ModelIdFormatTransformResult> {
+  const result: ModelIdFormatTransformResult = { agentsUpdated: 0, sessionsUpdated: 0 }
+
+  for (const col of ['model', 'plan_model', 'small_model']) {
+    const migrateColumnSql = (table: string) =>
+      sql.raw(
+        `UPDATE ${table}
+         SET ${col} = SUBSTR(${col}, 1, INSTR(${col}, ':') - 1) || '::' || SUBSTR(${col}, INSTR(${col}, ':') + 1)
+         WHERE ${col} IS NOT NULL
+           AND ${col} != ''
+           AND ${col} LIKE '%:%'
+           AND ${col} NOT LIKE '%::%'`
+      )
+
+    const agentRes = await db.run(migrateColumnSql('agent'))
+    if (agentRes.rowsAffected > 0) {
+      logger.info(`Migrated ${agentRes.rowsAffected} agent.${col} values`)
+      result.agentsUpdated += agentRes.rowsAffected
+    }
+
+    const sessionRes = await db.run(migrateColumnSql('agent_session'))
+    if (sessionRes.rowsAffected > 0) {
+      logger.info(`Migrated ${sessionRes.rowsAffected} agent_session.${col} values`)
+      result.sessionsUpdated += sessionRes.rowsAffected
+    }
+  }
+
+  logger.info('Model ID format transform complete', result)
+  return result
 }
