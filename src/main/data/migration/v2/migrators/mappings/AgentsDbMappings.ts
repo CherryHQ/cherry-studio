@@ -140,6 +140,8 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       'folder_name',
       'source',
       'source_url',
+      'install_source',
+      'origin_key',
       'namespace',
       'author',
       'tags',

@@ -4,6 +4,7 @@ import CodeViewer from '@renderer/components/CodeViewer'
 import RichEditor from '@renderer/components/RichEditor'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useInstalledSkills, useSkillInstall, useSkillSearch } from '@renderer/hooks/useSkills'
+import { isSkillSearchResultInstalled } from '@renderer/services/SkillSearchService'
 import { getFileIconName } from '@renderer/utils/fileIconName'
 import type { InstalledSkill, SkillFileNode, SkillSearchResult, SkillSearchSource } from '@types'
 import {
@@ -23,6 +24,7 @@ import {
 } from 'antd'
 import {
   ArrowLeft,
+  Check,
   ChevronRight,
   Download,
   ExternalLink,
@@ -160,11 +162,13 @@ FileTreeNode.displayName = 'FileTreeNode'
 
 const SearchResultRow: FC<{
   result: SkillSearchResult
-  isInstalling: (source?: string) => boolean
+  isInstalled: boolean
+  isInstalling: boolean
   onInstall: (result: SkillSearchResult) => void
   onPreview: (result: SkillSearchResult) => void
   installLabel: string
-}> = memo(({ result, isInstalling, onInstall, onPreview, installLabel }) => (
+  installedLabel: string
+}> = memo(({ result, isInstalled, isInstalling, onInstall, onPreview, installLabel, installedLabel }) => (
   <SearchResultItem>
     <ResultInfo onClick={() => onPreview(result)}>
       <ResultName>{result.name}</ResultName>
@@ -194,13 +198,14 @@ const SearchResultRow: FC<{
         </Tooltip>
       ) : null}
       <Button
-        type="primary"
+        type={isInstalled ? 'default' : 'primary'}
         size="small"
-        icon={<Download size={12} />}
-        loading={isInstalling(result.installSource)}
+        icon={isInstalled ? <Check size={12} /> : <Download size={12} />}
+        loading={!isInstalled && isInstalling}
+        disabled={isInstalled}
         onClick={() => onInstall(result)}
         style={INSTALL_BTN_STYLE}>
-        {installLabel}
+        {isInstalled ? installedLabel : installLabel}
       </Button>
     </ResultActions>
   </SearchResultItem>
@@ -321,6 +326,12 @@ const SkillsSettings: FC = () => {
   }, [results, searchTab])
   const selectedSkillId = selectedSkill?.id
 
+  const isResultInstalled = useMemo(() => {
+    return (result: SkillSearchResult) => isSkillSearchResultInstalled(skills, result)
+  }, [skills])
+
+  const previewInstalled = !!previewResult && isResultInstalled(previewResult)
+
   // Pre-compute tab counts in one pass (js-combine-iterations)
   const tabCounts = useMemo(() => {
     const counts = new Map<SkillSearchSource, number>()
@@ -344,6 +355,11 @@ const SkillsSettings: FC = () => {
 
   const handleInstall = useCallback(
     async (result: SkillSearchResult) => {
+      if (isResultInstalled(result)) {
+        setPreviewResult(null)
+        return
+      }
+
       const { skill, error } = await install(result.installSource)
       if (skill) {
         message.success(t('settings.skills.installSuccess', { name: result.name }))
@@ -353,7 +369,7 @@ const SkillsSettings: FC = () => {
         message.error(t('settings.skills.installFailed', { name: result.name }) + (error ? `: ${error}` : ''))
       }
     },
-    [install, refresh, t]
+    [install, isResultInstalled, refresh, t]
   )
 
   const handleUninstall = useCallback(
@@ -693,10 +709,12 @@ const SkillsSettings: FC = () => {
                         <SearchResultRow
                           key={`${result.sourceRegistry}:${result.slug}`}
                           result={result}
-                          isInstalling={isInstalling}
+                          isInstalled={isResultInstalled(result)}
+                          isInstalling={isInstalling(result.installSource)}
                           onInstall={handleInstall}
                           onPreview={setPreviewResult}
                           installLabel={t('settings.skills.install')}
+                          installedLabel={t('settings.skills.installed')}
                         />
                       ))}
                     </SearchResultsScroll>
@@ -775,11 +793,12 @@ const SkillsSettings: FC = () => {
         onCancel={() => setPreviewResult(null)}
         footer={
           <Button
-            type="primary"
-            icon={<Download size={14} />}
-            loading={previewResult ? isInstalling(previewResult.installSource) : false}
+            type={previewInstalled ? 'default' : 'primary'}
+            icon={previewInstalled ? <Check size={14} /> : <Download size={14} />}
+            loading={!!previewResult && !previewInstalled && isInstalling(previewResult.installSource)}
+            disabled={previewInstalled}
             onClick={() => previewResult && handleInstall(previewResult)}>
-            {t('settings.skills.install')}
+            {previewInstalled ? t('settings.skills.installed') : t('settings.skills.install')}
           </Button>
         }
         width={560}>

@@ -11,6 +11,8 @@ export const agentGlobalSkillTable = sqliteTable(
     folderName: text().notNull(),
     source: text().notNull(),
     sourceUrl: text(),
+    installSource: text(),
+    originKey: text(),
     namespace: text(),
     author: text(),
     tags: text({ mode: 'json' }).$type<string[]>(),

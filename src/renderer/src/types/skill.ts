@@ -129,7 +129,8 @@ export const SkillSearchResultSchema = z.object({
   downloads: z.number().default(0),
   sourceRegistry: SkillSearchSourceSchema,
   sourceUrl: z.string().nullable().default(null), // URL to the skill's page on the registry
-  installSource: z.string() // opaque handle passed to install IPC
+  installSource: z.string(), // opaque handle passed to install IPC
+  originKey: z.string().nullable().default(null) // best-effort auxiliary metadata; not an authoritative dedup key
 })
 export type SkillSearchResult = z.infer<typeof SkillSearchResultSchema>
 
@@ -144,6 +145,8 @@ export const InstalledSkillSchema = z.object({
   folderName: z.string(),
   source: z.string(),
   sourceUrl: z.string().nullable(),
+  installSource: z.string().nullable(),
+  originKey: z.string().nullable(),
   namespace: z.string().nullable(),
   author: z.string().nullable(),
   tags: z.array(z.string()),

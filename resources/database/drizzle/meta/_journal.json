@@ -56,6 +56,13 @@
       "when": 1776236285350,
       "tag": "0007_strange_galactus",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1776672658597,
+      "tag": "0008_youthful_famine",
+      "breakpoints": true
     }
   ],
   "version": "7"

@@ -17,7 +17,7 @@ export class SkillRepository extends BaseService {
   async list(): Promise<InstalledSkill[]> {
     const db = await this.getDatabase()
     const rows = await db.select().from(skillsTable)
-    return rows.map(this.rowToInstalledSkill)
+    return rows.map((row) => this.rowToInstalledSkill(row))
   }
 
   async getById(id: string): Promise<InstalledSkill | null> {
@@ -29,6 +29,27 @@ export class SkillRepository extends BaseService {
   async getByFolderName(folderName: string): Promise<InstalledSkill | null> {
     const db = await this.getDatabase()
     const rows = await db.select().from(skillsTable).where(eq(skillsTable.folderName, folderName)).limit(1)
+    return rows[0] ? this.rowToInstalledSkill(rows[0]) : null
+  }
+
+  /**
+   * Match installed skills by the authoritative same-source dedup key.
+   *
+   * Cross-registry metadata such as `origin_key` is intentionally excluded
+   * from this lookup.
+   */
+  async findByInstallSource(installSource: string | null | undefined): Promise<InstalledSkill | null> {
+    const normalizedInstallSource = installSource ?? null
+    if (!normalizedInstallSource) {
+      return null
+    }
+
+    const db = await this.getDatabase()
+    const rows = await db
+      .select()
+      .from(skillsTable)
+      .where(eq(skillsTable.installSource, normalizedInstallSource))
+      .limit(1)
     return rows[0] ? this.rowToInstalledSkill(rows[0]) : null
   }
 
@@ -65,6 +86,8 @@ export class SkillRepository extends BaseService {
       author: string | null
       tags: string[] | null
       contentHash: string
+      installSource: string | null
+      originKey: string | null
     }
   ): Promise<void> {
     const db = await this.getDatabase()
@@ -93,6 +116,8 @@ export class SkillRepository extends BaseService {
       folderName: row.folderName,
       source: row.source,
       sourceUrl: row.sourceUrl,
+      installSource: row.installSource,
+      originKey: row.originKey,
       namespace: row.namespace,
       author: row.author,
       tags: row.tags ?? [],
