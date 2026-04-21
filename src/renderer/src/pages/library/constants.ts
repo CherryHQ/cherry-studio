@@ -1,36 +1,102 @@
-import { Bot, MessageCircle, Zap } from 'lucide-react'
+import type { AssistantSettings } from '@shared/data/types/assistant'
+import { BookOpen, Bot, FileText, MessageCircle, Settings, Wrench, Zap } from 'lucide-react'
 
-import type { ResourceType, ResourceTypeUIConfig } from './types'
+import type { ResourceType, ResourceTypeUIConfig, SortKey } from './types'
 
-export const RESOURCE_TYPE_CONFIG: Record<ResourceType, ResourceTypeUIConfig> = {
-  agent: { label: '智能体', icon: Bot, color: 'text-violet-500 bg-violet-500/10' },
-  assistant: { label: '助手', icon: MessageCircle, color: 'text-sky-500 bg-sky-500/10' },
-  skill: { label: '技能', icon: Zap, color: 'text-amber-500 bg-amber-500/10' }
+export type AssistantConfigSection = 'basic' | 'prompt' | 'knowledge' | 'tools'
+export type AssistantConfigMcpMode = AssistantSettings['mcpMode']
+
+type ResourceTypeMeta = ResourceTypeUIConfig & { labelKey: string }
+
+export const RESOURCE_TYPE_META: Record<ResourceType, ResourceTypeMeta> = {
+  agent: {
+    icon: Bot,
+    color: 'text-violet-500 bg-violet-500/10',
+    labelKey: 'library.type.agent'
+  },
+  assistant: {
+    icon: MessageCircle,
+    color: 'text-sky-500 bg-sky-500/10',
+    labelKey: 'library.type.assistant'
+  },
+  skill: {
+    icon: Zap,
+    color: 'text-amber-500 bg-amber-500/10',
+    labelKey: 'library.type.skill'
+  }
 }
 
-export const RESOURCE_TYPES_LIST: { id: ResourceType; label: string; icon: typeof Bot }[] = [
-  { id: 'agent', label: '智能体', icon: Bot },
-  { id: 'assistant', label: '助手', icon: MessageCircle },
-  { id: 'skill', label: '技能', icon: Zap }
+export const RESOURCE_TYPE_ORDER: ResourceType[] = ['agent', 'assistant', 'skill']
+
+export const ASSISTANT_CONFIG_SECTIONS: {
+  id: AssistantConfigSection
+  icon: typeof Settings
+  labelKey: string
+  descKey: string
+}[] = [
+  {
+    id: 'basic',
+    icon: Settings,
+    labelKey: 'library.config.section.basic.label',
+    descKey: 'library.config.section.basic.desc'
+  },
+  {
+    id: 'prompt',
+    icon: FileText,
+    labelKey: 'library.config.section.prompt.label',
+    descKey: 'library.config.section.prompt.desc'
+  },
+  {
+    id: 'knowledge',
+    icon: BookOpen,
+    labelKey: 'library.config.section.knowledge.label',
+    descKey: 'library.config.section.knowledge.desc'
+  },
+  {
+    id: 'tools',
+    icon: Wrench,
+    labelKey: 'library.config.section.tools.label',
+    descKey: 'library.config.section.tools.desc'
+  }
 ]
 
-export const SORT_LABELS: Record<string, string> = {
-  updatedAt: '最近修改',
-  createdAt: '创建时间',
-  name: '名称排序'
+export const MCP_MODE_OPTIONS: {
+  id: AssistantConfigMcpMode
+  labelKey: string
+  descKey: string
+}[] = [
+  {
+    id: 'disabled',
+    labelKey: 'library.config.tools.mode.disabled.label',
+    descKey: 'library.config.tools.mode.disabled.desc'
+  },
+  {
+    id: 'auto',
+    labelKey: 'library.config.tools.mode.auto.label',
+    descKey: 'library.config.tools.mode.auto.desc'
+  },
+  {
+    id: 'manual',
+    labelKey: 'library.config.tools.mode.manual.label',
+    descKey: 'library.config.tools.mode.manual.desc'
+  }
+]
+
+export const SORT_META: Record<SortKey, { labelKey: string }> = {
+  updatedAt: { labelKey: 'library.sort.updated' },
+  createdAt: { labelKey: 'library.sort.created' },
+  name: { labelKey: 'library.sort.name' }
 }
 
-export const TAG_COLORS: Record<string, string> = {
-  生产力: '#8b5cf6',
-  写作: '#10b981',
-  编程: '#3b82f6',
-  翻译: '#f59e0b',
-  分析: '#ef4444',
-  创意: '#ec4899',
-  对话: '#06b6d4',
-  通用: '#6b7280'
-}
+export const SORT_ORDER: SortKey[] = ['updatedAt', 'createdAt', 'name']
 
 export const DEFAULT_TAG_COLOR = '#6b7280'
+export const TAG_COLOR_PALETTE = ['#8b5cf6', '#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#ec4899', '#06b6d4']
+
+export function getRandomTagColor(): string {
+  if (TAG_COLOR_PALETTE.length === 0) return DEFAULT_TAG_COLOR
+  const idx = Math.floor(Math.random() * TAG_COLOR_PALETTE.length)
+  return TAG_COLOR_PALETTE[idx]
+}
 
 export const PENDING_BACKEND_TYPES: ReadonlySet<ResourceType> = new Set(['agent', 'skill'])

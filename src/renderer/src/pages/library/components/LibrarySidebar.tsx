@@ -1,7 +1,8 @@
 import { Layers } from 'lucide-react'
 import type { FC } from 'react'
+import { useTranslation } from 'react-i18next'
 
-import { RESOURCE_TYPES_LIST } from '../constants'
+import { RESOURCE_TYPE_META, RESOURCE_TYPE_ORDER } from '../constants'
 import type { LibrarySidebarFilter } from '../types'
 
 interface Props {
@@ -11,6 +12,8 @@ interface Props {
 }
 
 export const LibrarySidebar: FC<Props> = ({ filter, onFilterChange, typeCounts }) => {
+  const { t } = useTranslation()
+
   const isActive = (f: LibrarySidebarFilter) => {
     if (filter.type === 'all' && f.type === 'all') return true
     if (filter.type === 'resource' && f.type === 'resource') return filter.resourceType === f.resourceType
@@ -27,8 +30,8 @@ export const LibrarySidebar: FC<Props> = ({ filter, onFilterChange, typeCounts }
     <div className="flex min-h-0 w-[200px] shrink-0 flex-col border-border/15 border-r bg-background">
       {/* Header */}
       <div className="px-4 pt-5 pb-3">
-        <h2 className="text-[13px] text-foreground tracking-tight">资源库</h2>
-        <p className="mt-0.5 text-[9px] text-muted-foreground/50">管理你的 AI 资源</p>
+        <h2 className="text-[13px] text-foreground tracking-tight">{t('library.sidebar.title')}</h2>
+        <p className="mt-0.5 text-[9px] text-muted-foreground/50">{t('library.sidebar.subtitle')}</p>
       </div>
 
       {/* Scrollable */}
@@ -37,25 +40,29 @@ export const LibrarySidebar: FC<Props> = ({ filter, onFilterChange, typeCounts }
         <div className="mb-1">
           <button type="button" onClick={() => onFilterChange({ type: 'all' })} className={itemCls({ type: 'all' })}>
             <Layers size={12} strokeWidth={1.6} />
-            <span className="flex-1 text-left">所有资源</span>
+            <span className="flex-1 text-left">{t('library.sidebar.all_resources')}</span>
           </button>
         </div>
 
         {/* Resource Types */}
         <div className="mb-3">
-          {RESOURCE_TYPES_LIST.map((rt) => (
-            <button
-              key={rt.id}
-              type="button"
-              onClick={() => onFilterChange({ type: 'resource', resourceType: rt.id })}
-              className={itemCls({ type: 'resource', resourceType: rt.id })}>
-              <rt.icon size={12} strokeWidth={1.6} />
-              <span className="flex-1 text-left">{rt.label}</span>
-              {typeCounts?.[rt.id] != null && (
-                <span className="text-[9px] text-muted-foreground/35 tabular-nums">{typeCounts[rt.id]}</span>
-              )}
-            </button>
-          ))}
+          {RESOURCE_TYPE_ORDER.map((resourceType) => {
+            const meta = RESOURCE_TYPE_META[resourceType]
+            const Icon = meta.icon
+            return (
+              <button
+                key={resourceType}
+                type="button"
+                onClick={() => onFilterChange({ type: 'resource', resourceType })}
+                className={itemCls({ type: 'resource', resourceType })}>
+                <Icon size={12} strokeWidth={1.6} />
+                <span className="flex-1 text-left">{t(meta.labelKey)}</span>
+                {typeCounts?.[resourceType] != null && (
+                  <span className="text-[9px] text-muted-foreground/35 tabular-nums">{typeCounts[resourceType]}</span>
+                )}
+              </button>
+            )
+          })}
         </div>
       </div>
     </div>

@@ -2245,24 +2245,187 @@
       "manage_tags": "管理標籤",
       "uninstall": "解除安裝"
     },
+    "badge": {
+      "update": "[to be translated]:Update"
+    },
+    "config": {
+      "basic": {
+        "context_count": "[to be translated]:Context count",
+        "creative": "[to be translated]:Creative",
+        "custom_params": "[to be translated]:Custom parameters",
+        "custom_params_add": "[to be translated]:Add parameter",
+        "custom_params_name": "[to be translated]:Parameter name",
+        "default_value": "[to be translated]:Model default",
+        "desc": "[to be translated]:Configure the assistant's identity and model parameters",
+        "description_label": "[to be translated]:Description",
+        "json_invalid": "[to be translated]:Invalid JSON format",
+        "max_tokens": "[to be translated]:Max tokens",
+        "max_tool_calls": "[to be translated]:Max tool calls",
+        "model": "[to be translated]:Default model",
+        "model_clear": "[to be translated]:Clear",
+        "model_not_found": "[to be translated]:Model not found (may have been removed): {{id}}",
+        "model_pick": "[to be translated]:+ Pick model",
+        "pick_avatar": "[to be translated]:Pick avatar",
+        "precise": "[to be translated]:Precise",
+        "stream_output": "[to be translated]:Stream output",
+        "tag_empty": "[to be translated]:No tags available",
+        "tag_hint": "[to be translated]:To add a new tag, use the \"+ Tag\" entry in the library top bar",
+        "tag_placeholder": "[to be translated]:Select tags",
+        "tag_search": "[to be translated]:Search tags",
+        "tags": "[to be translated]:Tags",
+        "temperature": "[to be translated]:Temperature",
+        "title": "[to be translated]:Basic settings",
+        "tool_use_function": "[to be translated]:Function",
+        "tool_use_mode": "[to be translated]:Tool call mode",
+        "tool_use_prompt": "[to be translated]:Prompt",
+        "top_p": "[to be translated]:Top-P",
+        "unlimited": "[to be translated]:Unlimited"
+      },
+      "breadcrumb": "[to be translated]:Library",
+      "knowledge": {
+        "add": "[to be translated]:Add knowledge base",
+        "desc": "[to be translated]:Link one or more knowledge bases; relevant snippets will be retrieved during chat",
+        "doc_count": "[to be translated]:{{count}} docs",
+        "empty_desc": "[to be translated]:Once linked, the assistant can answer based on document content",
+        "empty_title": "[to be translated]:No knowledge bases linked",
+        "invalid_suffix": "[to be translated]:... (unavailable)",
+        "linked": "[to be translated]:Linked knowledge bases",
+        "no_more": "[to be translated]:No more knowledge bases available",
+        "remove_aria": "[to be translated]:Remove",
+        "search": "[to be translated]:Search knowledge bases...",
+        "title": "[to be translated]:Knowledge bases"
+      },
+      "prompt": {
+        "dblclick_hint": "[to be translated]:Double-click the preview to switch back to edit",
+        "desc": "[to be translated]:The system prompt is sent as the opening context of the assistant",
+        "label": "[to be translated]:System prompt",
+        "placeholder": "[to be translated]:Enter the system prompt. Variables like {{date}} and {{model_name}} are supported...",
+        "title": "[to be translated]:Prompt",
+        "tokens_label": "[to be translated]:Tokens: ",
+        "variables_title": "[to be translated]:Available variables",
+        "vars": {
+          "arch": "[to be translated]:CPU architecture",
+          "date": "[to be translated]:Date",
+          "datetime": "[to be translated]:Date and time",
+          "language": "[to be translated]:Language",
+          "model_name": "[to be translated]:Model name",
+          "os": "[to be translated]:Operating system",
+          "time": "[to be translated]:Time",
+          "username": "[to be translated]:Username"
+        }
+      },
+      "save_failed": "[to be translated]:Save failed",
+      "saving": "[to be translated]:Saving...",
+      "section": {
+        "basic": {
+          "desc": "[to be translated]:Name, avatar, model parameters",
+          "label": "[to be translated]:Basic"
+        },
+        "knowledge": {
+          "desc": "[to be translated]:Linked knowledge bases and retrieval",
+          "label": "[to be translated]:Knowledge"
+        },
+        "prompt": {
+          "desc": "[to be translated]:System prompt and variables",
+          "label": "[to be translated]:Prompt"
+        },
+        "tools": {
+          "desc": "[to be translated]:MCP servers and tool configuration",
+          "label": "[to be translated]:Tools"
+        }
+      },
+      "tools": {
+        "add_mcp": "[to be translated]:Add MCP server",
+        "added": "[to be translated]:Added MCP servers",
+        "desc": "[to be translated]:Configure the MCP servers this assistant can call during chat",
+        "empty_desc": "[to be translated]:Once added, the assistant can invoke external tools",
+        "empty_title": "[to be translated]:No MCP servers added",
+        "inactive_badge": "[to be translated]:Inactive",
+        "info_main": "[to be translated]:MCP (Model Context Protocol) lets the model safely invoke external tools.",
+        "info_sub": "[to be translated]:Enabling only necessary servers improves safety and response speed.",
+        "mode": {
+          "auto": {
+            "desc": "[to be translated]:The model decides which enabled MCP tools to call",
+            "label": "[to be translated]:Auto"
+          },
+          "disabled": {
+            "desc": "[to be translated]:No MCP tools are available during chat",
+            "label": "[to be translated]:Disabled"
+          },
+          "manual": {
+            "desc": "[to be translated]:Expose only the MCP servers selected below",
+            "label": "[to be translated]:Manual"
+          }
+        },
+        "no_more": "[to be translated]:No more servers available",
+        "search": "[to be translated]:Search available servers...",
+        "switch_title_active": "[to be translated]:Toggle off to remove",
+        "switch_title_inactive": "[to be translated]:This server is disabled in MCP settings; remove it to re-add later",
+        "title": "[to be translated]:Tools"
+      }
+    },
+    "create_menu": {
+      "create": "[to be translated]:New {{type}}",
+      "import": "[to be translated]:Import {{type}}"
+    },
     "delete_confirm": {
       "cancel": "取消",
       "confirm": "刪除",
       "description": "確定要刪除「{{name}}」嗎？此操作無法復原。",
       "title": "確認刪除"
     },
+    "duplicate_name": "[to be translated]:{{name}} (copy)",
     "empty_state": {
       "description": "點選「新增」建立你的第一個資源",
+      "empty_description": "[to be translated]:Create your first agent or assistant",
+      "empty_title": "[to be translated]:No resources yet",
+      "no_match_description": "[to be translated]:Try a different search keyword",
+      "no_match_title": "[to be translated]:No matching resources",
       "title": "尚無資源"
+    },
+    "import_dialog": {
+      "clipboard": {
+        "button": "[to be translated]:Parse and import",
+        "placeholder": "[to be translated]:Paste JSON configuration here..."
+      },
+      "error": {
+        "content_too_large": "[to be translated]:Content too large (>5 MB)",
+        "file_too_large": "[to be translated]:File too large (>5 MB)",
+        "invalid_url": "[to be translated]:Invalid URL",
+        "response_too_large": "[to be translated]:Response too large (>5 MB)",
+        "timeout": "[to be translated]:Request timed out. Check that the URL is reachable.",
+        "unsupported_protocol": "[to be translated]:Only http or https URLs are supported"
+      },
+      "failure": "[to be translated]:Import failed: {{error}}",
+      "file": {
+        "drop_hint": "[to be translated]:Drag and drop a file here, or click to pick one",
+        "formats": "[to be translated]:Supports .json"
+      },
+      "partial_success": "[to be translated]:Partial success: {{success}} imported, {{failed}} failed ({{first_name}}: {{first_error}})",
+      "subtitle": "[to be translated]:JSON configuration files are supported",
+      "success": "[to be translated]:Imported successfully: {{name}}",
+      "tab": {
+        "clipboard": "[to be translated]:Clipboard",
+        "file": "[to be translated]:File upload",
+        "url": "[to be translated]:Import from URL"
+      },
+      "url": {
+        "button": "[to be translated]:Fetch and import",
+        "hint": "[to be translated]:Import from a GitHub Gist, GitHub repo, or any public URL",
+        "supports": "[to be translated]:Raw file URLs are supported"
+      }
     },
     "pending_backend": {
       "description": "此資源的寫入操作即將上線,目前僅顯示佔位。",
       "title": "資料層接入中"
     },
     "sidebar": {
+      "all_resources": "[to be translated]:All resources",
       "all_tags": "全部標籤",
       "no_tags": "尚無標籤",
-      "tags": "標籤"
+      "subtitle": "[to be translated]:Manage your AI resources",
+      "tags": "標籤",
+      "title": "[to be translated]:Library"
     },
     "sort": {
       "created": "依建立時間",
@@ -2270,13 +2433,29 @@
       "updated": "依更新時間"
     },
     "subtitle": "管理你的助手、智能體與技能",
+    "tag_picker": {
+      "no_tags": "[to be translated]:No tags yet",
+      "placeholder": "[to be translated]:New tag name..."
+    },
+    "tag_sync_failed": "[to be translated]:Failed to sync tags",
+    "time_ago": {
+      "days": "[to be translated]:{{count}} day(s) ago",
+      "hours": "[to be translated]:{{count}} hour(s) ago",
+      "just_now": "[to be translated]:Just now",
+      "minutes": "[to be translated]:{{count}} minute(s) ago",
+      "months": "[to be translated]:{{count}} month(s) ago"
+    },
     "title": "資源庫",
     "toolbar": {
-      "search_placeholder": "搜尋資源..."
+      "add_tag_placeholder": "[to be translated]:Tag name...",
+      "new_resource": "[to be translated]:New resource",
+      "search_placeholder": "搜尋資源...",
+      "tag_button": "[to be translated]:Tag"
     },
     "type": {
       "agent": "智能體",
       "assistant": "助手",
+      "new_assistant": "[to be translated]:New assistant",
       "skill": "技能"
     },
     "view": {

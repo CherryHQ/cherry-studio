@@ -41,9 +41,10 @@ import { createUniqueModelId, parseUniqueModelId } from '@shared/data/types/mode
 import { Plus, Trash2 } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { isSelectableAssistantModel } from '../../assistantModelFilter'
-import { DEFAULT_TAG_COLOR, TAG_COLORS } from '../../constants'
+import { DEFAULT_TAG_COLOR } from '../../constants'
 
 type CustomParameter = AssistantSettings['customParameters'][number]
 type CustomParameterType = CustomParameter['type']
@@ -125,8 +126,7 @@ interface Props {
   onChange: (patch: Partial<BasicFormState>) => void
   /**
    * Map of tag name → backend-assigned color (random hex chosen at POST time).
-   * Used for the tag-dot icon in the Combobox options. Falls back to the
-   * curated TAG_COLORS map / DEFAULT_TAG_COLOR.
+   * Used for the tag-dot icon in the Combobox options.
    */
   tagColorByName: Map<string, string>
   /**
@@ -138,8 +138,9 @@ interface Props {
 }
 
 export const BasicSection: FC<Props> = ({ form, onChange, tagColorByName, allTagNames }) => {
+  const { t } = useTranslation()
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
-  const tagColor = (name: string): string => tagColorByName.get(name) ?? TAG_COLORS[name] ?? DEFAULT_TAG_COLOR
+  const tagColor = (name: string): string => tagColorByName.get(name) ?? DEFAULT_TAG_COLOR
 
   // Reverse-lookup: form.modelId (UniqueModelId) → full v1 `Model` object.
   // Only exists to feed `ModelAvatar` / `SelectChatModelPopup`; the display
@@ -203,17 +204,17 @@ export const BasicSection: FC<Props> = ({ form, onChange, tagColorByName, allTag
   return (
     <div className="max-w-lg space-y-6">
       <div>
-        <h3 className="mb-1 text-[14px] text-foreground">基础设置</h3>
-        <p className="text-[10px] text-muted-foreground/55">配置助手的身份信息和模型参数</p>
+        <h3 className="mb-1 text-[14px] text-foreground">{t('library.config.basic.title')}</h3>
+        <p className="text-[10px] text-muted-foreground/55">{t('library.config.basic.desc')}</p>
       </div>
 
-      <FieldGroup label="头像">
+      <FieldGroup label={t('common.avatar')}>
         <div className="flex items-center gap-2">
           <Popover open={emojiPickerOpen} onOpenChange={setEmojiPickerOpen}>
             <PopoverTrigger asChild>
               <button
                 type="button"
-                aria-label="选择头像"
+                aria-label={t('library.config.basic.pick_avatar')}
                 className="flex h-12 w-12 items-center justify-center rounded-2xs bg-accent/50 text-xl transition-colors hover:bg-accent/70">
                 {form.emoji || '🌟'}
               </button>
@@ -243,7 +244,7 @@ export const BasicSection: FC<Props> = ({ form, onChange, tagColorByName, allTag
         </div>
       </FieldGroup>
 
-      <FieldGroup label="名称">
+      <FieldGroup label={t('common.name')}>
         <Input
           value={form.name}
           onChange={(e) => onChange({ name: e.target.value })}
@@ -251,7 +252,7 @@ export const BasicSection: FC<Props> = ({ form, onChange, tagColorByName, allTag
         />
       </FieldGroup>
 
-      <FieldGroup label="简介">
+      <FieldGroup label={t('library.config.basic.description_label')}>
         <Textarea.Input
           value={form.description}
           onValueChange={(description) => onChange({ description })}
@@ -260,19 +261,19 @@ export const BasicSection: FC<Props> = ({ form, onChange, tagColorByName, allTag
         />
       </FieldGroup>
 
-      <FieldGroup label="标签">
+      <FieldGroup label={t('library.config.basic.tags')}>
         <Combobox
           multiple
           searchable
           options={tagOptions}
           value={form.tags}
           onChange={(v) => onChange({ tags: Array.isArray(v) ? v : v ? [v] : [] })}
-          placeholder="选择标签"
-          searchPlaceholder="搜索标签"
-          emptyText="没有可选的标签"
+          placeholder={t('library.config.basic.tag_placeholder')}
+          searchPlaceholder={t('library.config.basic.tag_search')}
+          emptyText={t('library.config.basic.tag_empty')}
           className="w-full"
         />
-        <p className="mt-1.5 text-[9px] text-muted-foreground/40">如需新增标签,请在资源库顶部栏的「+ 标签」入口创建</p>
+        <p className="mt-1.5 text-[9px] text-muted-foreground/40">{t('library.config.basic.tag_hint')}</p>
       </FieldGroup>
 
       <div className="h-px bg-border/10" />
@@ -280,7 +281,7 @@ export const BasicSection: FC<Props> = ({ form, onChange, tagColorByName, allTag
       {/* 默认模型 */}
       <div>
         <div className="flex items-center justify-between">
-          <label className="text-[10px] text-muted-foreground/60">默认模型</label>
+          <label className="text-[10px] text-muted-foreground/60">{t('library.config.basic.model')}</label>
           {selectedModel ? (
             <div className="flex items-center gap-2">
               <button
@@ -293,7 +294,7 @@ export const BasicSection: FC<Props> = ({ form, onChange, tagColorByName, allTag
               <button
                 type="button"
                 onClick={() => onChange({ modelId: null })}
-                title="清空"
+                title={t('library.config.basic.model_clear')}
                 className="flex h-6 w-6 items-center justify-center rounded-4xs text-muted-foreground/40 transition-colors hover:bg-destructive/10 hover:text-destructive">
                 <Trash2 size={12} />
               </button>
@@ -303,19 +304,21 @@ export const BasicSection: FC<Props> = ({ form, onChange, tagColorByName, allTag
               type="button"
               onClick={handlePickModel}
               className="rounded-full border border-border/40 border-dashed px-2.5 py-[3px] text-[10px] text-muted-foreground/50 transition-colors hover:border-border/60 hover:text-foreground">
-              + 选择模型
+              {t('library.config.basic.model_pick')}
             </button>
           )}
         </div>
         {form.modelId && !selectedModel && (
-          <p className="mt-1 text-[9px] text-muted-foreground/40">模型未找到(可能被删除):{form.modelId}</p>
+          <p className="mt-1 text-[9px] text-muted-foreground/40">
+            {t('library.config.basic.model_not_found', { id: form.modelId })}
+          </p>
         )}
       </div>
 
       {/* 模型温度 */}
       <ToggleFieldGroup
-        label="模型温度"
-        valueLabel={form.enableTemperature ? form.temperature.toFixed(1) : '模型默认'}
+        label={t('library.config.basic.temperature')}
+        valueLabel={form.enableTemperature ? form.temperature.toFixed(1) : t('library.config.basic.default_value')}
         enabled={form.enableTemperature}
         onEnabledChange={(v) => onChange({ enableTemperature: v })}>
         <input
@@ -328,15 +331,15 @@ export const BasicSection: FC<Props> = ({ form, onChange, tagColorByName, allTag
           className="h-1 w-full cursor-pointer appearance-none rounded-full bg-accent/40 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-foreground"
         />
         <div className="mt-1 flex justify-between">
-          <span className="text-[8px] text-muted-foreground/35">精确</span>
-          <span className="text-[8px] text-muted-foreground/35">创意</span>
+          <span className="text-[8px] text-muted-foreground/35">{t('library.config.basic.precise')}</span>
+          <span className="text-[8px] text-muted-foreground/35">{t('library.config.basic.creative')}</span>
         </div>
       </ToggleFieldGroup>
 
       {/* Top-P */}
       <ToggleFieldGroup
-        label="Top-P"
-        valueLabel={form.enableTopP ? form.topP.toFixed(2) : '模型默认'}
+        label={t('library.config.basic.top_p')}
+        valueLabel={form.enableTopP ? form.topP.toFixed(2) : t('library.config.basic.default_value')}
         enabled={form.enableTopP}
         onEnabledChange={(v) => onChange({ enableTopP: v })}>
         <input
@@ -354,9 +357,9 @@ export const BasicSection: FC<Props> = ({ form, onChange, tagColorByName, allTag
       <FieldGroup
         label={
           <div className="flex items-center justify-between">
-            <span>上下文数</span>
+            <span>{t('library.config.basic.context_count')}</span>
             <span className="text-muted-foreground/40">
-              {form.contextCount >= UI_MAX_CONTEXT_COUNT ? '不限' : form.contextCount}
+              {form.contextCount >= UI_MAX_CONTEXT_COUNT ? t('library.config.basic.unlimited') : form.contextCount}
             </span>
           </div>
         }>
@@ -375,8 +378,8 @@ export const BasicSection: FC<Props> = ({ form, onChange, tagColorByName, allTag
 
       {/* 最大 Token 数 */}
       <ToggleFieldGroup
-        label="最大 Token 数"
-        valueLabel={form.enableMaxTokens ? form.maxTokens.toLocaleString() : '模型默认'}
+        label={t('library.config.basic.max_tokens')}
+        valueLabel={form.enableMaxTokens ? form.maxTokens.toLocaleString() : t('library.config.basic.default_value')}
         enabled={form.enableMaxTokens}
         onEnabledChange={(v) => onChange({ enableMaxTokens: v })}>
         <Input
@@ -395,13 +398,13 @@ export const BasicSection: FC<Props> = ({ form, onChange, tagColorByName, allTag
 
       {/* 流式输出 */}
       <div className="flex items-center justify-between">
-        <label className="text-[10px] text-muted-foreground/60">流式输出</label>
+        <label className="text-[10px] text-muted-foreground/60">{t('library.config.basic.stream_output')}</label>
         <Switch checked={form.streamOutput} onCheckedChange={(v) => onChange({ streamOutput: v })} />
       </div>
 
       {/* 工具调用方式 */}
       <div className="flex items-center justify-between">
-        <label className="text-[10px] text-muted-foreground/60">工具调用方式</label>
+        <label className="text-[10px] text-muted-foreground/60">{t('library.config.basic.tool_use_mode')}</label>
         <div className="flex items-center overflow-hidden rounded-3xs border border-border/30">
           {(['function', 'prompt'] as const).map((mode) => (
             <button
@@ -413,7 +416,9 @@ export const BasicSection: FC<Props> = ({ form, onChange, tagColorByName, allTag
                   ? 'bg-accent text-foreground'
                   : 'text-muted-foreground/60 hover:bg-accent/30 hover:text-foreground'
               }`}>
-              {mode === 'function' ? '函数' : 'Prompt'}
+              {t(
+                mode === 'function' ? 'library.config.basic.tool_use_function' : 'library.config.basic.tool_use_prompt'
+              )}
             </button>
           ))}
         </div>
@@ -421,8 +426,8 @@ export const BasicSection: FC<Props> = ({ form, onChange, tagColorByName, allTag
 
       {/* 最大工具调用次数 */}
       <ToggleFieldGroup
-        label="最大工具调用次数"
-        valueLabel={form.enableMaxToolCalls ? form.maxToolCalls.toString() : '不限'}
+        label={t('library.config.basic.max_tool_calls')}
+        valueLabel={form.enableMaxToolCalls ? form.maxToolCalls.toString() : t('library.config.basic.unlimited')}
         enabled={form.enableMaxToolCalls}
         onEnabledChange={(v) => onChange({ enableMaxToolCalls: v })}>
         <Input
@@ -480,6 +485,8 @@ function defaultValueForType(type: CustomParameterType): CustomParameter['value'
 }
 
 function CustomParametersField({ value, onChange }: CustomParametersFieldProps) {
+  const { t } = useTranslation()
+
   const add = () => {
     const next: CustomParameter = { name: '', type: 'string', value: '' }
     onChange([...value, next])
@@ -508,10 +515,10 @@ function CustomParametersField({ value, onChange }: CustomParametersFieldProps) 
   return (
     <div>
       <div className="flex items-center justify-between">
-        <label className="text-[10px] text-muted-foreground/60">自定义参数</label>
+        <label className="text-[10px] text-muted-foreground/60">{t('library.config.basic.custom_params')}</label>
         <Button type="button" variant="secondary" size="sm" onClick={add} className="h-7 gap-1 px-2.5 text-[10px]">
           <Plus size={11} />
-          添加参数
+          {t('library.config.basic.custom_params_add')}
         </Button>
       </div>
 
@@ -546,6 +553,8 @@ function CustomParameterRow({
   onValueChange: (value: CustomParameter['value']) => void
   onDelete: () => void
 }) {
+  const { t } = useTranslation()
+
   const jsonString =
     param.type === 'json'
       ? typeof param.value === 'string'
@@ -567,7 +576,7 @@ function CustomParameterRow({
     <div className="rounded-3xs border border-border/20 bg-accent/10 p-2">
       <div className="flex items-stretch gap-2">
         <Input
-          placeholder="参数名"
+          placeholder={t('library.config.basic.custom_params_name')}
           value={param.name}
           onChange={(e) => onNameChange(e.target.value)}
           className="h-8 flex-1 text-[11px]"
@@ -622,7 +631,7 @@ function CustomParameterRow({
           size="icon"
           onClick={onDelete}
           className="h-8 w-8 shrink-0"
-          title="删除">
+          title={t('common.delete')}>
           <Trash2 size={12} />
         </Button>
       </div>
@@ -638,7 +647,9 @@ function CustomParameterRow({
               jsonInvalid ? 'border-destructive/50 focus-visible:border-destructive/70' : 'border-border/20'
             }`}
           />
-          {jsonInvalid && <p className="mt-1 text-[9px] text-destructive/80">JSON 格式错误</p>}
+          {jsonInvalid && (
+            <p className="mt-1 text-[9px] text-destructive/80">{t('library.config.basic.json_invalid')}</p>
+          )}
         </div>
       )}
     </div>

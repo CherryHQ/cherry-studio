@@ -7,6 +7,7 @@ import type { Assistant } from '@shared/data/types/assistant'
 import { Edit, Eye, HelpCircle } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 
 interface Props {
@@ -16,15 +17,15 @@ interface Props {
 }
 
 /** Variable catalogue — mirrors legacy `assistants.presets.add.prompt.variables.tip.content`. */
-const PROMPT_VARIABLES: { name: string; desc: string }[] = [
-  { name: '{{date}}', desc: '日期' },
-  { name: '{{time}}', desc: '时间' },
-  { name: '{{datetime}}', desc: '日期和时间' },
-  { name: '{{system}}', desc: '操作系统' },
-  { name: '{{arch}}', desc: 'CPU 架构' },
-  { name: '{{language}}', desc: '语言' },
-  { name: '{{model_name}}', desc: '模型名称' },
-  { name: '{{username}}', desc: '用户名' }
+const PROMPT_VARIABLES: { name: string; i18n: string }[] = [
+  { name: '{{date}}', i18n: 'library.config.prompt.vars.date' },
+  { name: '{{time}}', i18n: 'library.config.prompt.vars.time' },
+  { name: '{{datetime}}', i18n: 'library.config.prompt.vars.datetime' },
+  { name: '{{system}}', i18n: 'library.config.prompt.vars.os' },
+  { name: '{{arch}}', i18n: 'library.config.prompt.vars.arch' },
+  { name: '{{language}}', i18n: 'library.config.prompt.vars.language' },
+  { name: '{{model_name}}', i18n: 'library.config.prompt.vars.model_name' },
+  { name: '{{username}}', i18n: 'library.config.prompt.vars.username' }
 ]
 
 /**
@@ -45,6 +46,7 @@ const PROMPT_VARIABLES: { name: string; desc: string }[] = [
  * the same follow-up PR. Kept here so the editor matches legacy UX.
  */
 const PromptSection: FC<Props> = ({ assistant, prompt, onChange }) => {
+  const { t } = useTranslation()
   const [fontSize] = usePreference('chat.message.font_size')
   const { activeCmTheme } = useCodeStyle()
   const [showPreview, setShowPreview] = useState(prompt.length > 0)
@@ -64,12 +66,12 @@ const PromptSection: FC<Props> = ({ assistant, prompt, onChange }) => {
 
   const variablesTip = (
     <div className="min-w-[200px]">
-      <div className="mb-1.5 font-medium text-[11px] text-foreground">可用的变量</div>
+      <div className="mb-1.5 font-medium text-[11px] text-foreground">{t('library.config.prompt.variables_title')}</div>
       <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 font-mono text-[10px] text-muted-foreground">
         {PROMPT_VARIABLES.map((v) => (
           <div key={v.name} className="contents">
             <span className="text-foreground/80">{v.name}</span>
-            <span>{v.desc}</span>
+            <span>{t(v.i18n)}</span>
           </div>
         ))}
       </div>
@@ -79,14 +81,14 @@ const PromptSection: FC<Props> = ({ assistant, prompt, onChange }) => {
   return (
     <div className="max-w-2xl space-y-6">
       <div>
-        <h3 className="mb-1 text-[14px] text-foreground">提示词</h3>
-        <p className="text-[10px] text-muted-foreground/55">系统提示词将作为该助手的上下文开头发送给模型</p>
+        <h3 className="mb-1 text-[14px] text-foreground">{t('library.config.prompt.title')}</h3>
+        <p className="text-[10px] text-muted-foreground/55">{t('library.config.prompt.desc')}</p>
       </div>
 
       <div>
         <div className="mb-1.5 flex items-center justify-between">
           <label className="flex items-center gap-1.5 text-[10px] text-muted-foreground/60">
-            <span>系统提示词</span>
+            <span>{t('library.config.prompt.label')}</span>
             <Tooltip content={variablesTip} placement="top" classNames={{ content: 'max-w-none' }}>
               <HelpCircle size={11} className="cursor-help text-muted-foreground/50 hover:text-foreground" />
             </Tooltip>
@@ -97,7 +99,7 @@ const PromptSection: FC<Props> = ({ assistant, prompt, onChange }) => {
             disabled={prompt.length === 0}
             className="flex items-center gap-1 rounded-3xs border border-border/20 px-2 py-[3px] text-[10px] text-muted-foreground/50 transition-colors hover:bg-accent/30 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40">
             {showPreview ? <Edit size={10} /> : <Eye size={10} />}
-            <span>{showPreview ? '编辑' : '预览'}</span>
+            <span>{t(showPreview ? 'common.edit' : 'common.preview')}</span>
           </button>
         </div>
 
@@ -118,14 +120,17 @@ const PromptSection: FC<Props> = ({ assistant, prompt, onChange }) => {
               expanded={false}
               minHeight="200px"
               maxHeight="50vh"
-              placeholder="在这里输入系统提示词,支持 {{date}} / {{model_name}} 等变量..."
+              placeholder={t('library.config.prompt.placeholder')}
             />
           )}
         </div>
 
         <div className="mt-1.5 flex justify-between text-[9px] text-muted-foreground/40">
-          <span>双击预览区可切回编辑</span>
-          <span className="tabular-nums">Tokens: {tokenCount}</span>
+          <span>{t('library.config.prompt.dblclick_hint')}</span>
+          <span className="tabular-nums">
+            {t('library.config.prompt.tokens_label')}
+            {tokenCount}
+          </span>
         </div>
       </div>
     </div>

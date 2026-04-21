@@ -23,6 +23,9 @@ interface Props {
 
 type ImportTab = 'file' | 'clipboard' | 'url'
 type ImportStatus = { kind: 'idle' } | { kind: 'success'; message: string } | { kind: 'error'; message: string }
+const IMPORT_ERROR_I18N_KEYS = {
+  invalid_format: 'assistants.presets.import.error.invalid_format'
+} as const
 
 /**
  * Import-config dialog for assistants — visual layout mirrors the ui-design
@@ -81,7 +84,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
     } catch (error) {
       const message =
         error instanceof AssistantTransferError
-          ? t(`assistants.presets.import.error.${error.code}`)
+          ? t(IMPORT_ERROR_I18N_KEYS[error.code])
           : error instanceof Error
             ? error.message
             : t('message.agents.import.error')
@@ -118,7 +121,9 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
     const failures = outcomes.filter((o): o is { kind: 'failed'; name: string; error: string } => o.kind === 'failed')
 
     if (failures.length === 0) {
-      const successText = fileName ? `成功导入: ${fileName}` : t('message.agents.imported', { count: successes })
+      const successText = fileName
+        ? t('library.import_dialog.success', { name: fileName })
+        : t('message.agents.imported', { count: successes })
       setStatus({ kind: 'success', message: successText })
       window.toast.success(successText)
       // File-mode banner stays so the filename echo is visible;
@@ -130,12 +135,17 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
       }
     } else if (successes > 0) {
       const first = failures[0]
-      const summary = `部分导入成功:成功 ${successes} 个,失败 ${failures.length} 个(${first.name}: ${first.error})`
+      const summary = t('library.import_dialog.partial_success', {
+        success: successes,
+        failed: failures.length,
+        first_name: first.name,
+        first_error: first.error
+      })
       setStatus({ kind: 'error', message: summary })
       window.toast.error(summary)
     } else {
       const first = failures[0]
-      const message = `导入失败:${first.error}`
+      const message = t('library.import_dialog.failure', { error: first.error })
       setStatus({ kind: 'error', message })
       window.toast.error(message)
     }
@@ -146,7 +156,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
   // ---- File tab ----
   const readFileOrBail = async (file: File): Promise<string | null> => {
     if (file.size > MAX_IMPORT_BYTES) {
-      setStatus({ kind: 'error', message: '文件过大(>5 MB)' })
+      setStatus({ kind: 'error', message: t('library.import_dialog.error.file_too_large') })
       return null
     }
     return file.text()
@@ -176,7 +186,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
   const handleClipboardImport = () => {
     if (!clipboardText.trim()) return
     if (clipboardText.length > MAX_IMPORT_BYTES) {
-      setStatus({ kind: 'error', message: '内容过大(>5 MB)' })
+      setStatus({ kind: 'error', message: t('library.import_dialog.error.content_too_large') })
       return
     }
     void runImport(clipboardText, 'clipboard')
@@ -199,12 +209,12 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
       safeUrl = sanitizeUrl(raw)
       const parsed = new URL(safeUrl)
       if (!ALLOWED_FETCH_PROTOCOLS.has(parsed.protocol)) {
-        throw new Error('仅支持 http 或 https 协议的 URL')
+        throw new Error(t('library.import_dialog.error.unsupported_protocol'))
       }
     } catch (error) {
       setStatus({
         kind: 'error',
-        message: error instanceof Error ? error.message : '无效的 URL'
+        message: error instanceof Error ? error.message : t('library.import_dialog.error.invalid_url')
       })
       return
     }
@@ -218,11 +228,11 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
       }
       const declaredLength = Number(response.headers.get('content-length') ?? '')
       if (Number.isFinite(declaredLength) && declaredLength > MAX_IMPORT_BYTES) {
-        throw new Error('响应内容过大(>5 MB)')
+        throw new Error(t('library.import_dialog.error.response_too_large'))
       }
       const content = await response.text()
       if (content.length > MAX_IMPORT_BYTES) {
-        throw new Error('响应内容过大(>5 MB)')
+        throw new Error(t('library.import_dialog.error.response_too_large'))
       }
       setLoading(false)
       await runImport(content, 'url')
@@ -230,7 +240,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
       setLoading(false)
       const message =
         error instanceof DOMException && error.name === 'TimeoutError'
-          ? '请求超时,请检查 URL 是否可达'
+          ? t('library.import_dialog.error.timeout')
           : error instanceof Error
             ? error.message
             : t('message.agents.import.error')
@@ -241,9 +251,9 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
   if (!open) return null
 
   const tabs: { id: ImportTab; label: string; icon: typeof Upload }[] = [
-    { id: 'file', label: '文件上传', icon: Upload },
-    { id: 'clipboard', label: '剪贴板', icon: Clipboard },
-    { id: 'url', label: 'URL 导入', icon: Link }
+    { id: 'file', label: t('library.import_dialog.tab.file'), icon: Upload },
+    { id: 'clipboard', label: t('library.import_dialog.tab.clipboard'), icon: Clipboard },
+    { id: 'url', label: t('library.import_dialog.tab.url'), icon: Link }
   ]
 
   return (
@@ -264,7 +274,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
           <div className="flex items-center justify-between border-border/15 border-b px-5 py-4">
             <div>
               <h3 className="text-[13px] text-foreground">{t('assistants.presets.import.title')}</h3>
-              <p className="mt-0.5 text-[9px] text-muted-foreground/45">支持 JSON 格式的配置文件</p>
+              <p className="mt-0.5 text-[9px] text-muted-foreground/45">{t('library.import_dialog.subtitle')}</p>
             </div>
             <button
               type="button"
@@ -328,8 +338,10 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
                         : 'border-border/20 hover:border-border/40 hover:bg-accent/10'
                     } ${loading ? 'pointer-events-none opacity-60' : ''}`}>
                     <Upload size={24} strokeWidth={1.2} className="mb-3 text-muted-foreground/30" />
-                    <p className="mb-1 text-[11px] text-muted-foreground/50">拖放文件到此处,或点击选择文件</p>
-                    <p className="text-[9px] text-muted-foreground/35">支持 .json</p>
+                    <p className="mb-1 text-[11px] text-muted-foreground/50">
+                      {t('library.import_dialog.file.drop_hint')}
+                    </p>
+                    <p className="text-[9px] text-muted-foreground/35">{t('library.import_dialog.file.formats')}</p>
                   </div>
                   <input
                     ref={fileInputRef}
@@ -351,7 +363,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
                     value={clipboardText}
                     onValueChange={setClipboardText}
                     disabled={loading}
-                    placeholder="在此粘贴 JSON 配置内容..."
+                    placeholder={t('library.import_dialog.clipboard.placeholder')}
                     className="h-[160px] min-h-0 w-full resize-none rounded-2xs border border-border/20 bg-accent/10 p-3 font-mono text-[11px] text-foreground shadow-none outline-none transition-all placeholder:text-muted-foreground/35 focus-visible:border-border/40 focus-visible:bg-accent/15 focus-visible:ring-0 disabled:cursor-not-allowed [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-[3px]"
                   />
                   <button
@@ -360,7 +372,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
                     disabled={!clipboardText.trim() || loading}
                     className="mt-3 flex items-center gap-1.5 rounded-3xs bg-foreground px-3 py-1.5 text-[11px] text-background transition-colors hover:bg-foreground/90 disabled:cursor-not-allowed disabled:opacity-30">
                     <FileJson size={10} className="lucide-custom" />
-                    <span>解析并导入</span>
+                    <span>{t('library.import_dialog.clipboard.button')}</span>
                   </button>
                 </motion.div>
               )}
@@ -371,9 +383,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
                   initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -6 }}>
-                  <p className="mb-3 text-[10px] text-muted-foreground/50">
-                    从 GitHub Gist、GitHub 仓库或任何公开 URL 导入配置
-                  </p>
+                  <p className="mb-3 text-[10px] text-muted-foreground/50">{t('library.import_dialog.url.hint')}</p>
                   <Input
                     value={urlText}
                     onChange={(e) => setUrlText(e.target.value)}
@@ -388,9 +398,9 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
                       disabled={!urlText.trim() || loading}
                       className="flex items-center gap-1.5 rounded-3xs bg-foreground px-3 py-1.5 text-[11px] text-background transition-colors hover:bg-foreground/90 disabled:cursor-not-allowed disabled:opacity-30">
                       <Link size={10} className="lucide-custom" />
-                      <span>获取并导入</span>
+                      <span>{t('library.import_dialog.url.button')}</span>
                     </button>
-                    <p className="text-[9px] text-muted-foreground/35">支持 raw 文件链接</p>
+                    <p className="text-[9px] text-muted-foreground/35">{t('library.import_dialog.url.supports')}</p>
                   </div>
                 </motion.div>
               )}

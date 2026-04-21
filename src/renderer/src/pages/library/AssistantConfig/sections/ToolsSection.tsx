@@ -10,26 +10,20 @@ import {
   Switch
 } from '@cherrystudio/ui'
 import { useQuery } from '@data/hooks/useDataApi'
-import type { AssistantSettings } from '@shared/data/types/assistant'
 import type { MCPServer } from '@shared/data/types/mcpServer'
 import { AlertCircle, Plug, Plus, Search, Wrench } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
-type McpMode = AssistantSettings['mcpMode']
+import { type AssistantConfigMcpMode, MCP_MODE_OPTIONS } from '../../constants'
 
 interface Props {
-  mcpMode: McpMode
+  mcpMode: AssistantConfigMcpMode
   mcpServerIds: string[]
-  onModeChange: (mode: McpMode) => void
+  onModeChange: (mode: AssistantConfigMcpMode) => void
   onServerIdsChange: (ids: string[]) => void
 }
-
-const MODE_OPTIONS: { id: McpMode; label: string; desc: string }[] = [
-  { id: 'disabled', label: '禁用', desc: '对话中不启用任何 MCP 工具' },
-  { id: 'auto', label: '自动', desc: '由模型按需决定调用哪些已启用的 MCP 工具' },
-  { id: 'manual', label: '手动', desc: '只暴露下方被勾选的 MCP 服务' }
-]
 
 /**
  * MCP servers + mode selector — writes top-level `mcpServerIds` and
@@ -41,6 +35,7 @@ const MODE_OPTIONS: { id: McpMode; label: string; desc: string }[] = [
  * in the array IS the enabled state).
  */
 const ToolsSection: FC<Props> = ({ mcpMode, mcpServerIds, onModeChange, onServerIdsChange }) => {
+  const { t } = useTranslation()
   const { data, isLoading } = useQuery('/mcp-servers', {})
   const mcpServers = useMemo(() => data?.items ?? [], [data])
 
@@ -67,28 +62,28 @@ const ToolsSection: FC<Props> = ({ mcpMode, mcpServerIds, onModeChange, onServer
   return (
     <div className="max-w-lg space-y-6">
       <div>
-        <h3 className="mb-1 text-[14px] text-foreground">工具</h3>
-        <p className="text-[10px] text-muted-foreground/55">配置该助手在对话中可以调用的 MCP 服务</p>
+        <h3 className="mb-1 text-[14px] text-foreground">{t('library.config.tools.title')}</h3>
+        <p className="text-[10px] text-muted-foreground/55">{t('library.config.tools.desc')}</p>
       </div>
 
       <ModeGroup>
-        {MODE_OPTIONS.map((o) => (
+        {MCP_MODE_OPTIONS.map((mode) => (
           <ModeRow
-            key={o.id}
-            label={o.label}
-            desc={o.desc}
-            active={mcpMode === o.id}
-            onClick={() => onModeChange(o.id)}
+            key={mode.id}
+            label={t(mode.labelKey)}
+            desc={t(mode.descKey)}
+            active={mcpMode === mode.id}
+            onClick={() => onModeChange(mode.id)}
           />
         ))}
       </ModeGroup>
 
       {mcpMode === 'manual' && (
         <div>
-          <label className="mb-2 block text-[10px] text-muted-foreground/60">已添加的 MCP 服务</label>
+          <label className="mb-2 block text-[10px] text-muted-foreground/60">{t('library.config.tools.added')}</label>
 
           {isLoading ? (
-            <p className="px-3 py-2 text-[10px] text-muted-foreground/40">加载中...</p>
+            <p className="px-3 py-2 text-[10px] text-muted-foreground/40">{t('common.loading')}</p>
           ) : boundServers.length === 0 ? (
             <EmptyHint />
           ) : (
@@ -105,24 +100,26 @@ const ToolsSection: FC<Props> = ({ mcpMode, mcpServerIds, onModeChange, onServer
                 type="button"
                 disabled={isLoading}
                 className="mt-2 flex items-center gap-1 rounded-3xs border border-border/20 px-2.5 py-1.5 text-[10px] text-muted-foreground/60 transition-colors hover:border-border/40 hover:bg-accent/30 hover:text-foreground disabled:opacity-50">
-                <Plus size={10} /> 添加 MCP 服务
+                <Plus size={10} /> {t('library.config.tools.add_mcp')}
               </button>
             </PopoverTrigger>
             <PopoverContent align="start" sideOffset={4} className="w-64 rounded-2xs p-2">
               <div className="relative mb-2">
                 <Search
                   size={10}
-                  className="pointer-events-none absolute top-1/2 left-2 -translate-y-1/2 text-muted-foreground/40"
+                  className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-2 text-muted-foreground/40"
                 />
                 <Input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="搜索可用服务..."
+                  placeholder={t('library.config.tools.search')}
                   className="h-auto rounded-3xs border border-border/20 bg-accent/10 py-1.5 pr-2 pl-6 text-[10px] shadow-none transition-all focus-visible:border-border/40 focus-visible:ring-0 md:text-[10px]"
                 />
               </div>
               {availableForPicker.length === 0 ? (
-                <p className="px-2 py-3 text-center text-[9px] text-muted-foreground/40">没有更多可用的服务</p>
+                <p className="px-2 py-3 text-center text-[9px] text-muted-foreground/40">
+                  {t('library.config.tools.no_more')}
+                </p>
               ) : (
                 <Scrollbar className="max-h-60">
                   <MenuList>
@@ -150,11 +147,9 @@ const ToolsSection: FC<Props> = ({ mcpMode, mcpServerIds, onModeChange, onServer
       <div className="flex items-start gap-2 rounded-2xs border border-blue-500/15 bg-blue-500/5 px-3 py-2.5">
         <AlertCircle size={12} className="mt-px shrink-0 text-blue-500/50" />
         <div>
-          <p className="text-[10px] text-blue-600/60 dark:text-blue-400/70">
-            MCP (Model Context Protocol) 允许模型安全地调用外部工具。
-          </p>
+          <p className="text-[10px] text-blue-600/60 dark:text-blue-400/70">{t('library.config.tools.info_main')}</p>
           <p className="mt-0.5 text-[9px] text-blue-600/40 dark:text-blue-400/50">
-            仅启用必要的服务可以提高安全性和响应速度。
+            {t('library.config.tools.info_sub')}
           </p>
         </div>
       </div>
@@ -163,6 +158,7 @@ const ToolsSection: FC<Props> = ({ mcpMode, mcpServerIds, onModeChange, onServer
 }
 
 function ServerCard({ server, onToggle }: { server: MCPServer; onToggle: () => void }) {
+  const { t } = useTranslation()
   const inactive = !server.isActive
   return (
     <div className="flex items-center gap-3 rounded-2xs border border-border/15 bg-accent/10 px-3 py-2.5 transition-colors hover:border-border/30">
@@ -173,7 +169,9 @@ function ServerCard({ server, onToggle }: { server: MCPServer; onToggle: () => v
             <span className="truncate text-[11px] text-foreground">{server.name}</span>
           </NormalTooltip>
           {inactive && (
-            <span className="shrink-0 rounded-4xs bg-warning/10 px-1 py-px text-[8px] text-warning">未启用</span>
+            <span className="shrink-0 rounded-4xs bg-warning/10 px-1 py-px text-[8px] text-warning">
+              {t('library.config.tools.inactive_badge')}
+            </span>
           )}
         </div>
         {server.description && (
@@ -186,7 +184,7 @@ function ServerCard({ server, onToggle }: { server: MCPServer; onToggle: () => v
         size="sm"
         checked
         onCheckedChange={onToggle}
-        title={inactive ? '该服务在 MCP 设置中未启用,移除后可重新添加' : '关闭以移除'}
+        title={t(inactive ? 'library.config.tools.switch_title_inactive' : 'library.config.tools.switch_title_active')}
         classNames={{
           root: 'h-3.5 w-6 shrink-0 shadow-none',
           thumb: 'size-2.5 ml-0.5 data-[state=checked]:translate-x-3'
@@ -254,11 +252,13 @@ function ModeRow({
 }
 
 function EmptyHint() {
+  const { t } = useTranslation()
+
   return (
     <div className="flex flex-col items-center rounded-2xs border border-border/20 border-dashed p-6">
       <Plug size={20} strokeWidth={1.2} className="mb-2 text-muted-foreground/20" />
-      <p className="mb-1 text-[10px] text-muted-foreground/40">暂未添加 MCP 服务</p>
-      <p className="text-[9px] text-muted-foreground/30">添加 MCP 服务后,助手可以调用外部工具</p>
+      <p className="mb-1 text-[10px] text-muted-foreground/40">{t('library.config.tools.empty_title')}</p>
+      <p className="text-[9px] text-muted-foreground/30">{t('library.config.tools.empty_desc')}</p>
     </div>
   )
 }

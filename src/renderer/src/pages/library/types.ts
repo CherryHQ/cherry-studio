@@ -39,7 +39,6 @@ export type LibrarySidebarFilter =
   | { type: 'tag'; tagName: string }
 
 export interface ResourceTypeUIConfig {
-  label: string
   icon: React.ElementType
   color: string
 }

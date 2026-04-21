@@ -2,7 +2,7 @@ import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import type { Tag, TaggableEntityType } from '@shared/data/types/tag'
 import { useCallback, useMemo, useRef } from 'react'
 
-import { DEFAULT_TAG_COLOR, TAG_COLORS } from '../constants'
+import { getRandomTagColor } from '../constants'
 import type { ResourceType } from '../types'
 import type { EntityTagsResult, TagListResult } from './types'
 
@@ -55,20 +55,9 @@ export function useEntityTags(entityType: ResourceType, entityId: string | undef
   }
 }
 
-/**
- * Pick a random hex color from the curated TAG_COLORS palette.
- * Always returns a 6-digit hex string that satisfies the backend color regex.
- */
-function randomTagColor(): string {
-  const palette = Object.values(TAG_COLORS)
-  if (palette.length === 0) return DEFAULT_TAG_COLOR
-  const idx = Math.floor(Math.random() * palette.length)
-  return palette[idx]
-}
-
 export interface CreateTagOptions {
   name: string
-  /** Optional color; if omitted, a random color from TAG_COLORS is assigned. */
+  /** Optional color; when omitted, a random palette color is assigned. */
   color?: string
 }
 
@@ -77,7 +66,7 @@ export type EnsureTagInput = string | { name: string; color?: string | null }
 /**
  * Write-side hooks for the Tag collection.
  *
- * - `createTag`: POST /tags with a random-from-palette color unless one is provided.
+ * - `createTag`: POST /tags with a random palette color when none is provided.
  *   Refreshes `/tags` so the sidebar/chips reflect the new tag immediately.
  */
 export function useTagMutations() {
@@ -87,7 +76,7 @@ export function useTagMutations() {
 
   const createTag = useCallback(
     ({ name, color }: CreateTagOptions): Promise<Tag> =>
-      createTrigger({ body: { name: name.trim(), color: color ?? randomTagColor() } }),
+      createTrigger({ body: { name: name.trim(), color: color ?? getRandomTagColor() } }),
     [createTrigger]
   )
 
@@ -99,7 +88,7 @@ export function useTagMutations() {
  *
  * Lookup order:
  *   1. Check the cached `useTagList` result (no extra request in the common path).
- *   2. Missing names → POST /tags (color defaults to a random TAG_COLORS entry).
+ *   2. Missing names → POST /tags (color defaults to a random palette entry).
  *   3. If POST fails due to a unique-constraint race, refetch the list once and
  *      retry the lookup before bubbling up.
  *

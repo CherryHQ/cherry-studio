@@ -1,8 +1,8 @@
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Tag } from '@shared/data/types/tag'
-import { t } from 'i18next'
 import { AnimatePresence, motion } from 'motion/react'
 import { useCallback, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { useAssistantMutations } from './adapters/assistantAdapter'
 import { useEnsureTags, useTagList } from './adapters/tagAdapter'
@@ -13,7 +13,7 @@ import { ImportAssistantDialog } from './components/ImportAssistantDialog'
 import { LibrarySidebar } from './components/LibrarySidebar'
 import PendingBackendNotice from './components/PendingBackendNotice'
 import { ResourceGrid } from './components/ResourceGrid'
-import { DEFAULT_TAG_COLOR, TAG_COLORS } from './constants'
+import { DEFAULT_TAG_COLOR } from './constants'
 import type { LibrarySidebarFilter, ResourceItem, ResourceType, SortKey, TagItem, ViewMode } from './types'
 import { useResourceLibrary } from './useResourceLibrary'
 
@@ -35,10 +35,9 @@ const DEFAULT_NEW_ASSISTANT_BASE = {
  * Build the top-bar chip list.
  *
  * Source: `resources` (so count reflects real bindings — unbound tags stay hidden,
- * matching the spec). Color is resolved against the backend `/tags` list so
- * newly-created tags keep the random palette color they were assigned on POST;
- * only if the tag isn't in the list yet (SWR cache race) do we fall back to the
- * curated TAG_COLORS map / DEFAULT_TAG_COLOR.
+ * matching the spec). Color is resolved against the backend `/tags` list; only
+ * if the tag isn't in the list yet (SWR cache race) do we fall back to
+ * `DEFAULT_TAG_COLOR`.
  */
 function buildTags(resources: ResourceItem[], backendTags: Tag[], filterType?: ResourceType): TagItem[] {
   const colorByName = new Map(backendTags.map((t) => [t.name, t.color] as const))
@@ -50,12 +49,13 @@ function buildTags(resources: ResourceItem[], backendTags: Tag[], filterType?: R
     .map(([name, count], i) => ({
       id: `tag-${i}`,
       name,
-      color: colorByName.get(name) ?? TAG_COLORS[name] ?? DEFAULT_TAG_COLOR,
+      color: colorByName.get(name) ?? DEFAULT_TAG_COLOR,
       count
     }))
 }
 
 export default function LibraryPage() {
+  const { t } = useTranslation()
   const [sidebarFilter, setSidebarFilter] = useState<LibrarySidebarFilter>({ type: 'all' })
   const [search, setSearch] = useState('')
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
@@ -114,22 +114,25 @@ export default function LibraryPage() {
 
   const handleDelete = useCallback((r: ResourceItem) => setDeleteConfirm(r), [])
 
-  const handleExport = useCallback(async (r: ResourceItem) => {
-    if (r.type !== 'assistant') return
+  const handleExport = useCallback(
+    async (r: ResourceItem) => {
+      if (r.type !== 'assistant') return
 
-    const assistant = r.raw as Assistant
-    try {
-      const content = serializeAssistantForExport(assistant)
+      const assistant = r.raw as Assistant
+      try {
+        const content = serializeAssistantForExport(assistant)
 
-      await window.api.file.save(`${assistant.name}.json`, new TextEncoder().encode(content), {
-        filters: [{ name: t('assistants.presets.import.file_filter'), extensions: ['json'] }]
-      })
-    } catch (error) {
-      // Export-specific fallback message — avoids the previous import.error
-      // reuse which mislabelled failures as "导入失败".
-      window.toast.error(error instanceof Error ? error.message : '导出助手失败')
-    }
-  }, [])
+        await window.api.file.save(`${assistant.name}.json`, new TextEncoder().encode(content), {
+          filters: [{ name: t('assistants.presets.import.file_filter'), extensions: ['json'] }]
+        })
+      } catch (error) {
+        // Export-specific fallback message — avoids the previous import.error
+        // reuse which mislabelled failures as "导入失败".
+        window.toast.error(error instanceof Error ? error.message : '导出助手失败')
+      }
+    },
+    [t]
+  )
 
   const handleCreate = useCallback(
     async (type: ResourceType) => {
@@ -137,10 +140,10 @@ export default function LibraryPage() {
       // Create the row up-front so the edit page opens against a real id.
       // modelId is omitted here so the backend can fill it from
       // `chat.default_model_id` (see DEFAULT_NEW_ASSISTANT_BASE above).
-      const created = await createAssistant({ ...DEFAULT_NEW_ASSISTANT_BASE })
+      const created = await createAssistant({ ...DEFAULT_NEW_ASSISTANT_BASE, name: t('library.type.new_assistant') })
       setConfigView({ type: 'assistant-edit', assistant: created })
     },
-    [createAssistant]
+    [createAssistant, t]
   )
 
   if (configView.type === 'assistant-edit') {

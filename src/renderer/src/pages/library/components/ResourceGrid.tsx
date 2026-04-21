@@ -1,5 +1,5 @@
 import { Checkbox, EmptyState, Input, Switch } from '@cherrystudio/ui'
-import { t } from 'i18next'
+import type { TFunction } from 'i18next'
 import {
   ArrowUpDown,
   ChevronDown,
@@ -20,10 +20,11 @@ import {
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC, MouseEvent } from 'react'
 import { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { useAssistantMutationsById } from '../adapters/assistantAdapter'
 import { useEnsureTags, useTagList } from '../adapters/tagAdapter'
-import { DEFAULT_TAG_COLOR, RESOURCE_TYPE_CONFIG, SORT_LABELS, TAG_COLORS } from '../constants'
+import { DEFAULT_TAG_COLOR, RESOURCE_TYPE_META, SORT_META, SORT_ORDER } from '../constants'
 import type { ResourceItem, ResourceType, SortKey, TagItem, ViewMode } from '../types'
 
 interface Props {
@@ -51,16 +52,16 @@ interface Props {
   allTagNames: string[]
 }
 
-function timeAgo(dateStr: string) {
+function timeAgo(t: TFunction, dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime()
   const mins = Math.floor(diff / 60000)
-  if (mins < 1) return '刚刚'
-  if (mins < 60) return `${mins} 分钟前`
+  if (mins < 1) return t('library.time_ago.just_now')
+  if (mins < 60) return t('library.time_ago.minutes', { count: mins })
   const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours} 小时前`
+  if (hours < 24) return t('library.time_ago.hours', { count: hours })
   const days = Math.floor(hours / 24)
-  if (days < 30) return `${days} 天前`
-  return `${Math.floor(days / 30)} 个月前`
+  if (days < 30) return t('library.time_ago.days', { count: days })
+  return t('library.time_ago.months', { count: Math.floor(days / 30) })
 }
 
 export const ResourceGrid: FC<Props> = ({
@@ -85,6 +86,7 @@ export const ResourceGrid: FC<Props> = ({
   onUpdateResourceTags,
   allTagNames
 }) => {
+  const { t } = useTranslation()
   const [showSort, setShowSort] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
   const [menuState, setMenuState] = useState<{ id: string; x: number; y: number } | null>(null)
@@ -126,7 +128,7 @@ export const ResourceGrid: FC<Props> = ({
             <Input
               value={search}
               onChange={(e) => onSearchChange(e.target.value)}
-              placeholder="搜索资源名称、描述..."
+              placeholder={t('library.toolbar.search_placeholder')}
               className="h-auto w-full rounded-3xs border border-border/40 bg-accent/20 py-1.5 pr-7 pl-7 text-[11px] text-foreground shadow-none outline-none transition-all placeholder:text-muted-foreground/40 focus-visible:border-primary/40 focus-visible:bg-accent/30 focus-visible:ring-0 md:text-[11px]"
             />
             {search && (
@@ -153,7 +155,7 @@ export const ResourceGrid: FC<Props> = ({
                   : 'border-border/40 text-muted-foreground/60 hover:border-border/60 hover:text-foreground'
               }`}>
               <ArrowUpDown size={10} />
-              <span>{SORT_LABELS[sortKey]}</span>
+              <span>{t(SORT_META[sortKey].labelKey)}</span>
             </button>
             <AnimatePresence>
               {showSort && (
@@ -164,7 +166,7 @@ export const ResourceGrid: FC<Props> = ({
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -4 }}
                     className="absolute top-full left-0 z-50 mt-1 min-w-[110px] rounded-2xs border border-border/40 bg-popover p-1 shadow-xl">
-                    {(Object.keys(SORT_LABELS) as SortKey[]).map((k) => (
+                    {SORT_ORDER.map((k) => (
                       <button
                         type="button"
                         key={k}
@@ -177,7 +179,7 @@ export const ResourceGrid: FC<Props> = ({
                             ? 'bg-accent text-foreground'
                             : 'text-muted-foreground/70 hover:bg-accent/50 hover:text-foreground'
                         }`}>
-                        {SORT_LABELS[k]}
+                        {t(SORT_META[k].labelKey)}
                       </button>
                     ))}
                   </motion.div>
@@ -225,7 +227,7 @@ export const ResourceGrid: FC<Props> = ({
               }}
               className="flex items-center gap-1.5 rounded-3xs bg-foreground px-3 py-1.5 text-[11px] text-background transition-colors hover:bg-foreground/90 active:scale-[0.97]">
               <Plus size={11} className="lucide-custom" />
-              <span>新建资源</span>
+              <span>{t('library.toolbar.new_resource')}</span>
               <ChevronDown
                 size={9}
                 className={`lucide-custom transition-transform ${showCreate ? 'rotate-180' : ''}`}
@@ -241,8 +243,8 @@ export const ResourceGrid: FC<Props> = ({
                     exit={{ opacity: 0, y: -4 }}
                     className="absolute top-full right-0 z-50 mt-1 min-w-[140px] rounded-2xs border border-border/40 bg-popover p-1 shadow-xl">
                     {(['agent', 'assistant'] as const).map((resourceType) => {
-                      const cfg = RESOURCE_TYPE_CONFIG[resourceType]
-                      const Icon = cfg.icon
+                      const meta = RESOURCE_TYPE_META[resourceType]
+                      const Icon = meta.icon
                       return (
                         <button
                           key={resourceType}
@@ -252,10 +254,10 @@ export const ResourceGrid: FC<Props> = ({
                             setShowCreate(false)
                           }}
                           className="flex w-full items-center gap-2 rounded-4xs px-2.5 py-[6px] text-[10px] text-muted-foreground/70 transition-colors hover:bg-accent/50 hover:text-foreground">
-                          <div className={`flex h-5 w-5 items-center justify-center rounded-4xs ${cfg.color}`}>
+                          <div className={`flex h-5 w-5 items-center justify-center rounded-4xs ${meta.color}`}>
                             <Icon size={10} />
                           </div>
-                          <span>新建{cfg.label}</span>
+                          <span>{t('library.create_menu.create', { type: t(meta.labelKey) })}</span>
                         </button>
                       )
                     })}
@@ -268,7 +270,7 @@ export const ResourceGrid: FC<Props> = ({
                       }}
                       className="flex w-full items-center gap-2 rounded-4xs px-2.5 py-[6px] text-[10px] text-muted-foreground/70 transition-colors hover:bg-accent/50 hover:text-foreground">
                       <div
-                        className={`flex h-5 w-5 items-center justify-center rounded-4xs ${RESOURCE_TYPE_CONFIG.assistant.color}`}>
+                        className={`flex h-5 w-5 items-center justify-center rounded-4xs ${RESOURCE_TYPE_META.assistant.color}`}>
                         <Upload size={10} />
                       </div>
                       <span>{t('assistants.presets.import.action')}</span>
@@ -281,10 +283,10 @@ export const ResourceGrid: FC<Props> = ({
                       }}
                       className="flex w-full items-center gap-2 rounded-4xs px-2.5 py-[6px] text-[10px] text-muted-foreground/70 transition-colors hover:bg-accent/50 hover:text-foreground">
                       <div
-                        className={`flex h-5 w-5 items-center justify-center rounded-4xs ${RESOURCE_TYPE_CONFIG.skill.color}`}>
+                        className={`flex h-5 w-5 items-center justify-center rounded-4xs ${RESOURCE_TYPE_META.skill.color}`}>
                         <Upload size={10} />
                       </div>
-                      <span>导入{RESOURCE_TYPE_CONFIG.skill.label}</span>
+                      <span>{t('library.create_menu.import', { type: t(RESOURCE_TYPE_META.skill.labelKey) })}</span>
                     </button>
                   </motion.div>
                 </div>
@@ -329,7 +331,7 @@ export const ResourceGrid: FC<Props> = ({
                   if (!newTagName.trim() && !addingTag) setShowAddTag(false)
                 }}
                 disabled={addingTag}
-                placeholder="标签名..."
+                placeholder={t('library.toolbar.add_tag_placeholder')}
                 className="h-auto w-[80px] rounded-full border border-border/40 bg-accent/20 px-2 py-[3px] text-[10px] text-foreground shadow-none outline-none transition-all placeholder:text-muted-foreground/35 focus-visible:border-primary/40 focus-visible:ring-0 disabled:opacity-50"
               />
               <button
@@ -345,7 +347,7 @@ export const ResourceGrid: FC<Props> = ({
               type="button"
               onClick={() => setShowAddTag(true)}
               className="flex shrink-0 items-center gap-0.5 rounded-full border border-border/40 border-dashed px-2 py-[3px] text-[10px] text-muted-foreground/40 transition-all hover:border-border/60 hover:bg-accent/30 hover:text-foreground">
-              <Plus size={9} /> 标签
+              <Plus size={9} /> {t('library.toolbar.tag_button')}
             </button>
           )}
         </div>
@@ -356,8 +358,10 @@ export const ResourceGrid: FC<Props> = ({
         {resources.length === 0 ? (
           <EmptyState
             preset={search ? 'no-result' : 'no-resource'}
-            title={search ? '未找到匹配的资源' : '还没有任何资源'}
-            description={search ? '尝试其他搜索关键词' : '创建你的第一个智能体或助手'}
+            title={search ? t('library.empty_state.no_match_title') : t('library.empty_state.empty_title')}
+            description={
+              search ? t('library.empty_state.no_match_description') : t('library.empty_state.empty_description')
+            }
             className="py-20"
           />
         ) : viewMode === 'grid' ? (
@@ -411,7 +415,8 @@ interface CardItemProps {
 }
 
 function GridCard({ resource: r, index, onEdit, onToggle, onOpenMenu }: CardItemProps) {
-  const cfg = RESOURCE_TYPE_CONFIG[r.type]
+  const { t } = useTranslation()
+  const cfg = RESOURCE_TYPE_META[r.type]
   const isToolType = r.type === 'skill'
 
   return (
@@ -434,12 +439,14 @@ function GridCard({ resource: r, index, onEdit, onToggle, onOpenMenu }: CardItem
             <div className="flex items-center gap-1.5">
               <h4 className="truncate text-[12px] text-foreground/75">{r.name}</h4>
               {r.hasUpdate && (
-                <span className="shrink-0 rounded-full bg-warning/10 px-1 py-px text-[7px] text-warning">更新</span>
+                <span className="shrink-0 rounded-full bg-warning/10 px-1 py-px text-[7px] text-warning">
+                  {t('library.badge.update')}
+                </span>
               )}
             </div>
             <div className="mt-0.5 flex items-center gap-1.5">
               <span className={`shrink-0 whitespace-nowrap rounded-full px-1.5 py-px text-[8px] ${cfg.color}`}>
-                {cfg.label}
+                {t(cfg.labelKey)}
               </span>
               {(r.model || r.version) && (
                 <span className="min-w-0 flex-1 truncate text-[9px] text-muted-foreground/40">
@@ -463,7 +470,7 @@ function GridCard({ resource: r, index, onEdit, onToggle, onOpenMenu }: CardItem
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5 text-[9px] text-muted-foreground/50">
             <Clock size={8} />
-            <span>{timeAgo(r.updatedAt)}</span>
+            <span>{timeAgo(t, r.updatedAt)}</span>
           </div>
           <div className="flex items-center gap-1.5">
             {r.tags.slice(0, 2).map((t, i) => (
@@ -495,7 +502,8 @@ function GridCard({ resource: r, index, onEdit, onToggle, onOpenMenu }: CardItem
 }
 
 function ListRow({ resource: r, index, onEdit, onToggle, onOpenMenu }: CardItemProps) {
-  const cfg = RESOURCE_TYPE_CONFIG[r.type]
+  const { t } = useTranslation()
+  const cfg = RESOURCE_TYPE_META[r.type]
   const isToolType = r.type === 'skill'
 
   return (
@@ -511,9 +519,11 @@ function ListRow({ resource: r, index, onEdit, onToggle, onOpenMenu }: CardItemP
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <span className="truncate text-[11px] text-foreground">{r.name}</span>
-          <span className={`shrink-0 rounded-full px-1.5 py-px text-[8px] ${cfg.color}`}>{cfg.label}</span>
+          <span className={`shrink-0 rounded-full px-1.5 py-px text-[8px] ${cfg.color}`}>{t(cfg.labelKey)}</span>
           {r.hasUpdate && (
-            <span className="shrink-0 rounded-full bg-warning/10 px-1 py-px text-[7px] text-warning">更新</span>
+            <span className="shrink-0 rounded-full bg-warning/10 px-1 py-px text-[7px] text-warning">
+              {t('library.badge.update')}
+            </span>
           )}
         </div>
         <p className="mt-px truncate text-[9px] text-muted-foreground/55">{r.description}</p>
@@ -532,7 +542,7 @@ function ListRow({ resource: r, index, onEdit, onToggle, onOpenMenu }: CardItemP
       )}
       <div className="hidden shrink-0 items-center gap-1 text-[9px] text-muted-foreground/45 md:flex">
         <Clock size={8} />
-        <span>{timeAgo(r.updatedAt)}</span>
+        <span>{timeAgo(t, r.updatedAt)}</span>
       </div>
       {isToolType && (
         <div onClick={(e) => e.stopPropagation()} className="shrink-0">
@@ -584,6 +594,7 @@ function FixedCardMenu({
   onUpdateResourceTags,
   allTagNames
 }: FixedCardMenuProps) {
+  const { t } = useTranslation()
   const [showTagPicker, setShowTagPicker] = useState(false)
   const [localTags, setLocalTags] = useState<string[]>(resource.tags)
   const [tagInput, setTagInput] = useState('')
@@ -600,8 +611,7 @@ function FixedCardMenu({
   // Backend-assigned tag color (random-from-palette at POST time) — look up so
   // chip dots render consistently across Row 2, card menu, and BasicSection.
   const tagList = useTagList()
-  const colorFor = (name: string): string =>
-    tagList.tags.find((t) => t.name === name)?.color ?? TAG_COLORS[name] ?? DEFAULT_TAG_COLOR
+  const colorFor = (name: string): string => tagList.tags.find((t) => t.name === name)?.color ?? DEFAULT_TAG_COLOR
 
   const menuW = 150
   const menuH = 200
@@ -620,7 +630,7 @@ function FixedCardMenu({
       } catch (e) {
         // Roll back optimistic state on failure.
         setLocalTags(previousNames)
-        setBindingError(e instanceof Error ? e.message : '标签同步失败')
+        setBindingError(e instanceof Error ? e.message : t('library.tag_sync_failed'))
       }
     },
     [canBindTags, ensureTags, updateAssistant, onUpdateResourceTags, resource.id]
@@ -667,7 +677,7 @@ function FixedCardMenu({
             onClose()
           }}
           className="flex w-full items-center gap-2 rounded-4xs px-2.5 py-[5px] text-[10px] text-muted-foreground/60 transition-colors hover:bg-accent/50 hover:text-foreground">
-          <Pencil size={10} /> 编辑
+          <Pencil size={10} /> {t('common.edit')}
         </button>
 
         {/* Tag picker — assistants only (agent/skill backend not ready) */}
@@ -677,7 +687,7 @@ function FixedCardMenu({
               type="button"
               onClick={() => setShowTagPicker(!showTagPicker)}
               className="flex w-full items-center gap-2 rounded-4xs px-2.5 py-[5px] text-[10px] text-muted-foreground/60 transition-colors hover:bg-accent/50 hover:text-foreground">
-              <Tag size={10} /> 管理标签
+              <Tag size={10} /> {t('library.action.manage_tags')}
               {localTags.length > 0 && (
                 <span className="ml-auto text-[8px] text-muted-foreground/25 tabular-nums">{localTags.length}</span>
               )}
@@ -695,7 +705,7 @@ function FixedCardMenu({
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') addNewTag()
                     }}
-                    placeholder="新标签名..."
+                    placeholder={t('library.tag_picker.placeholder')}
                     className="h-auto min-w-0 flex-1 rounded-none border-0 bg-transparent p-0 text-[10px] text-foreground shadow-none outline-none placeholder:text-muted-foreground/20 focus-visible:ring-0"
                   />
                   {tagInput.trim() && (
@@ -710,7 +720,9 @@ function FixedCardMenu({
                 <div className="mx-1 mb-0.5 h-px bg-border/15" />
                 <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-[2px]">
                   {allTagNames.length === 0 && !tagInput.trim() && (
-                    <p className="px-2.5 py-2 text-center text-[9px] text-muted-foreground/20">暂无标签</p>
+                    <p className="px-2.5 py-2 text-center text-[9px] text-muted-foreground/20">
+                      {t('library.tag_picker.no_tags')}
+                    </p>
                   )}
                   {allTagNames.map((tag) => {
                     const checked = localTags.includes(tag)
@@ -745,7 +757,7 @@ function FixedCardMenu({
             onClose()
           }}
           className="flex w-full items-center gap-2 rounded-4xs px-2.5 py-[5px] text-[10px] text-muted-foreground/60 transition-colors hover:bg-accent/50 hover:text-foreground">
-          <Copy size={10} /> 创建副本
+          <Copy size={10} /> {t('library.action.duplicate')}
         </button>
         {resource.type === 'assistant' && (
           <button
@@ -766,7 +778,7 @@ function FixedCardMenu({
             onClose()
           }}
           className="flex w-full items-center gap-2 rounded-4xs px-2.5 py-[5px] text-[10px] text-destructive/70 transition-colors hover:bg-destructive/10 hover:text-destructive">
-          <Trash2 size={10} /> 删除
+          <Trash2 size={10} /> {t('common.delete')}
         </button>
       </motion.div>
     </div>

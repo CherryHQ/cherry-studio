@@ -1,24 +1,17 @@
 import type { Assistant } from '@shared/data/types/assistant'
-import { ArrowLeft, BookOpen, ChevronRight, FileText, Save, Settings, Wrench } from 'lucide-react'
+import { ArrowLeft, ChevronRight, Save } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { useAssistantMutationsById } from '../adapters/assistantAdapter'
 import { useEnsureTags, useTagList } from '../adapters/tagAdapter'
+import { ASSISTANT_CONFIG_SECTIONS, type AssistantConfigSection } from '../constants'
 import { type BasicFormState, BasicSection, initialBasicFormState } from './sections/BasicSection'
 import KnowledgeSection from './sections/KnowledgeSection'
 import PromptSection from './sections/PromptSection'
 import ToolsSection from './sections/ToolsSection'
-
-type Section = 'basic' | 'prompt' | 'knowledge' | 'tools'
-
-const sections: { id: Section; label: string; icon: typeof Settings; desc: string }[] = [
-  { id: 'basic', label: '基础设置', icon: Settings, desc: '名称、头像、模型参数' },
-  { id: 'prompt', label: '提示词', icon: FileText, desc: '系统提示词与变量' },
-  { id: 'knowledge', label: '知识库', icon: BookOpen, desc: '关联知识库、检索策略' },
-  { id: 'tools', label: '工具', icon: Wrench, desc: 'MCP 服务与工具配置' }
-]
 
 interface Props {
   assistant: Assistant
@@ -41,7 +34,8 @@ interface Props {
  *      transaction as the assistant-row update — atomic by construction.
  */
 const AssistantConfigPage: FC<Props> = ({ assistant, onBack }) => {
-  const [activeSection, setActiveSection] = useState<Section>('basic')
+  const { t } = useTranslation()
+  const [activeSection, setActiveSection] = useState<AssistantConfigSection>('basic')
   const [form, setForm] = useState<BasicFormState>(() => initialBasicFormState(assistant))
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -156,7 +150,7 @@ const AssistantConfigPage: FC<Props> = ({ assistant, onBack }) => {
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     } catch (e) {
-      setError(e instanceof Error ? e.message : '保存失败')
+      setError(e instanceof Error ? e.message : t('library.config.save_failed'))
     } finally {
       setSaving(false)
     }
@@ -170,7 +164,8 @@ const AssistantConfigPage: FC<Props> = ({ assistant, onBack }) => {
     updateAssistant,
     ensureTags,
     form,
-    assistant
+    assistant,
+    t
   ])
 
   return (
@@ -228,8 +223,8 @@ interface ShellProps {
   canSave: boolean
   onSave: () => void
   onBack: () => void
-  activeSection: Section
-  onSectionChange: (section: Section) => void
+  activeSection: AssistantConfigSection
+  onSectionChange: (section: AssistantConfigSection) => void
   children: ReactNode
 }
 
@@ -245,6 +240,8 @@ function ConfigShell({
   onSectionChange,
   children
 }: ShellProps) {
+  const { t } = useTranslation()
+
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background">
       {/* Top bar */}
@@ -257,7 +254,7 @@ function ConfigShell({
         </button>
         <div className="flex items-center gap-1 text-[10px] text-muted-foreground/50">
           <span className="cursor-pointer transition-colors hover:text-foreground" onClick={onBack}>
-            资源库
+            {t('library.config.breadcrumb')}
           </span>
           <ChevronRight size={9} />
           <span className="text-foreground">{title}</span>
@@ -270,7 +267,7 @@ function ConfigShell({
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0 }}
               className="text-[10px] text-primary">
-              已保存
+              {t('common.saved')}
             </motion.span>
           )}
           {error && (
@@ -287,7 +284,7 @@ function ConfigShell({
           type="button"
           onClick={onBack}
           className="rounded-3xs border border-border/20 px-3 py-1.5 text-[11px] text-muted-foreground/50 transition-all hover:bg-accent/30 hover:text-foreground">
-          取消
+          {t('common.cancel')}
         </button>
         <button
           type="button"
@@ -295,14 +292,14 @@ function ConfigShell({
           disabled={saving || !canSave}
           className="flex items-center gap-1.5 rounded-3xs bg-foreground px-3 py-1.5 text-[11px] text-background transition-colors hover:bg-foreground/90 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40">
           <Save size={10} className="lucide-custom" />
-          <span>{saving ? '保存中...' : '保存'}</span>
+          <span>{saving ? t('library.config.saving') : t('common.save')}</span>
         </button>
       </div>
 
       {/* Body */}
       <div className="flex min-h-0 flex-1">
         <div className="w-[180px] shrink-0 border-border/10 border-r p-3">
-          {sections.map((s) => {
+          {ASSISTANT_CONFIG_SECTIONS.map((s) => {
             const Icon = s.icon
             const active = activeSection === s.id
             return (
@@ -317,10 +314,10 @@ function ConfigShell({
                 }`}>
                 <Icon size={13} strokeWidth={1.6} className="mt-0.5 shrink-0" />
                 <div className="min-w-0">
-                  <div className="text-[11px]">{s.label}</div>
+                  <div className="text-[11px]">{t(s.labelKey)}</div>
                   <div
                     className={`mt-px text-[9px] ${active ? 'text-muted-foreground/50' : 'text-muted-foreground/45'}`}>
-                    {s.desc}
+                    {t(s.descKey)}
                   </div>
                 </div>
               </button>

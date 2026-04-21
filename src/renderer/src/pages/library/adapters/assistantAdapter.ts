@@ -2,6 +2,7 @@ import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import type { CreateAssistantDto, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
 import type { Assistant } from '@shared/data/types/assistant'
 import { useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './types'
 
@@ -50,6 +51,7 @@ export const assistantAdapter: ResourceAdapter<Assistant> = {
  * new/updated/deleted rows automatically.
  */
 export function useAssistantMutations() {
+  const { t } = useTranslation()
   const { trigger: createTrigger } = useMutation('POST', '/assistants', {
     refresh: ['/assistants']
   })
@@ -66,10 +68,18 @@ export function useAssistantMutations() {
    * no half-success state, no follow-up tag-bind call.
    */
   const duplicateAssistant = useCallback(
-    async (source: Assistant): Promise<Assistant> =>
-      createTrigger({
+    async (source: Assistant): Promise<Assistant> => {
+      const defaultDuplicateName = `${source.name} (副本)`
+      const duplicateNameKey = 'library.duplicate_name'
+      const localizedDuplicateName = t(duplicateNameKey, {
+        name: source.name,
+        defaultValue: defaultDuplicateName
+      })
+      const duplicateName = localizedDuplicateName === duplicateNameKey ? defaultDuplicateName : localizedDuplicateName
+
+      return createTrigger({
         body: {
-          name: `${source.name} (副本)`,
+          name: duplicateName,
           prompt: source.prompt,
           emoji: source.emoji,
           description: source.description,
@@ -79,8 +89,9 @@ export function useAssistantMutations() {
           knowledgeBaseIds: source.knowledgeBaseIds,
           tagIds: source.tags.map((tag) => tag.id)
         }
-      }),
-    [createTrigger]
+      })
+    },
+    [createTrigger, t]
   )
 
   return { createAssistant, duplicateAssistant }

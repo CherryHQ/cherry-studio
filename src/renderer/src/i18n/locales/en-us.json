@@ -2245,24 +2245,187 @@
       "manage_tags": "Manage tags",
       "uninstall": "Uninstall"
     },
+    "badge": {
+      "update": "Update"
+    },
+    "config": {
+      "basic": {
+        "context_count": "Context count",
+        "creative": "Creative",
+        "custom_params": "Custom parameters",
+        "custom_params_add": "Add parameter",
+        "custom_params_name": "Parameter name",
+        "default_value": "Model default",
+        "desc": "Configure the assistant's identity and model parameters",
+        "description_label": "Description",
+        "json_invalid": "Invalid JSON format",
+        "max_tokens": "Max tokens",
+        "max_tool_calls": "Max tool calls",
+        "model": "Default model",
+        "model_clear": "Clear",
+        "model_not_found": "Model not found (may have been removed): {{id}}",
+        "model_pick": "+ Pick model",
+        "pick_avatar": "Pick avatar",
+        "precise": "Precise",
+        "stream_output": "Stream output",
+        "tag_empty": "No tags available",
+        "tag_hint": "To add a new tag, use the \"+ Tag\" entry in the library top bar",
+        "tag_placeholder": "Select tags",
+        "tag_search": "Search tags",
+        "tags": "Tags",
+        "temperature": "Temperature",
+        "title": "Basic settings",
+        "tool_use_function": "Function",
+        "tool_use_mode": "Tool call mode",
+        "tool_use_prompt": "Prompt",
+        "top_p": "Top-P",
+        "unlimited": "Unlimited"
+      },
+      "breadcrumb": "Library",
+      "knowledge": {
+        "add": "Add knowledge base",
+        "desc": "Link one or more knowledge bases; relevant snippets will be retrieved during chat",
+        "doc_count": "{{count}} docs",
+        "empty_desc": "Once linked, the assistant can answer based on document content",
+        "empty_title": "No knowledge bases linked",
+        "invalid_suffix": "... (unavailable)",
+        "linked": "Linked knowledge bases",
+        "no_more": "No more knowledge bases available",
+        "remove_aria": "Remove",
+        "search": "Search knowledge bases...",
+        "title": "Knowledge bases"
+      },
+      "prompt": {
+        "dblclick_hint": "Double-click the preview to switch back to edit",
+        "desc": "The system prompt is sent as the opening context of the assistant",
+        "label": "System prompt",
+        "placeholder": "Enter the system prompt. Variables like {{date}} and {{model_name}} are supported...",
+        "title": "Prompt",
+        "tokens_label": "Tokens: ",
+        "variables_title": "Available variables",
+        "vars": {
+          "arch": "CPU architecture",
+          "date": "Date",
+          "datetime": "Date and time",
+          "language": "Language",
+          "model_name": "Model name",
+          "os": "Operating system",
+          "time": "Time",
+          "username": "Username"
+        }
+      },
+      "save_failed": "Save failed",
+      "saving": "Saving...",
+      "section": {
+        "basic": {
+          "desc": "Name, avatar, model parameters",
+          "label": "Basic"
+        },
+        "knowledge": {
+          "desc": "Linked knowledge bases and retrieval",
+          "label": "Knowledge"
+        },
+        "prompt": {
+          "desc": "System prompt and variables",
+          "label": "Prompt"
+        },
+        "tools": {
+          "desc": "MCP servers and tool configuration",
+          "label": "Tools"
+        }
+      },
+      "tools": {
+        "add_mcp": "Add MCP server",
+        "added": "Added MCP servers",
+        "desc": "Configure the MCP servers this assistant can call during chat",
+        "empty_desc": "Once added, the assistant can invoke external tools",
+        "empty_title": "No MCP servers added",
+        "inactive_badge": "Inactive",
+        "info_main": "MCP (Model Context Protocol) lets the model safely invoke external tools.",
+        "info_sub": "Enabling only necessary servers improves safety and response speed.",
+        "mode": {
+          "auto": {
+            "desc": "The model decides which enabled MCP tools to call",
+            "label": "Auto"
+          },
+          "disabled": {
+            "desc": "No MCP tools are available during chat",
+            "label": "Disabled"
+          },
+          "manual": {
+            "desc": "Expose only the MCP servers selected below",
+            "label": "Manual"
+          }
+        },
+        "no_more": "No more servers available",
+        "search": "Search available servers...",
+        "switch_title_active": "Toggle off to remove",
+        "switch_title_inactive": "This server is disabled in MCP settings; remove it to re-add later",
+        "title": "Tools"
+      }
+    },
+    "create_menu": {
+      "create": "New {{type}}",
+      "import": "Import {{type}}"
+    },
     "delete_confirm": {
       "cancel": "Cancel",
       "confirm": "Delete",
       "description": "Delete \"{{name}}\"? This action cannot be undone.",
       "title": "Delete"
     },
+    "duplicate_name": "{{name}} (copy)",
     "empty_state": {
       "description": "Click \"New\" to create your first resource.",
+      "empty_description": "Create your first agent or assistant",
+      "empty_title": "No resources yet",
+      "no_match_description": "Try a different search keyword",
+      "no_match_title": "No matching resources",
       "title": "No resources"
+    },
+    "import_dialog": {
+      "clipboard": {
+        "button": "Parse and import",
+        "placeholder": "Paste JSON configuration here..."
+      },
+      "error": {
+        "content_too_large": "Content too large (>5 MB)",
+        "file_too_large": "File too large (>5 MB)",
+        "invalid_url": "Invalid URL",
+        "response_too_large": "Response too large (>5 MB)",
+        "timeout": "Request timed out. Check that the URL is reachable.",
+        "unsupported_protocol": "Only http or https URLs are supported"
+      },
+      "failure": "Import failed: {{error}}",
+      "file": {
+        "drop_hint": "Drag and drop a file here, or click to pick one",
+        "formats": "Supports .json"
+      },
+      "partial_success": "Partial success: {{success}} imported, {{failed}} failed ({{first_name}}: {{first_error}})",
+      "subtitle": "JSON configuration files are supported",
+      "success": "Imported successfully: {{name}}",
+      "tab": {
+        "clipboard": "Clipboard",
+        "file": "File upload",
+        "url": "Import from URL"
+      },
+      "url": {
+        "button": "Fetch and import",
+        "hint": "Import from a GitHub Gist, GitHub repo, or any public URL",
+        "supports": "Raw file URLs are supported"
+      }
     },
     "pending_backend": {
       "description": "Write operations for this resource are coming soon. This view is a placeholder.",
       "title": "Backend setup in progress"
     },
     "sidebar": {
+      "all_resources": "All resources",
       "all_tags": "All tags",
       "no_tags": "No tags yet",
-      "tags": "Tags"
+      "subtitle": "Manage your AI resources",
+      "tags": "Tags",
+      "title": "Library"
     },
     "sort": {
       "created": "Sort by created",
@@ -2270,13 +2433,29 @@
       "updated": "Sort by updated"
     },
     "subtitle": "Manage your assistants, agents and skills",
+    "tag_picker": {
+      "no_tags": "No tags yet",
+      "placeholder": "New tag name..."
+    },
+    "tag_sync_failed": "Failed to sync tags",
+    "time_ago": {
+      "days": "{{count}} day(s) ago",
+      "hours": "{{count}} hour(s) ago",
+      "just_now": "Just now",
+      "minutes": "{{count}} minute(s) ago",
+      "months": "{{count}} month(s) ago"
+    },
     "title": "Library",
     "toolbar": {
-      "search_placeholder": "Search resources..."
+      "add_tag_placeholder": "Tag name...",
+      "new_resource": "New resource",
+      "search_placeholder": "Search by name or description...",
+      "tag_button": "Tag"
     },
     "type": {
       "agent": "Agent",
       "assistant": "Assistant",
+      "new_assistant": "New assistant",
       "skill": "Skill"
     },
     "view": {
