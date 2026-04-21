@@ -163,7 +163,7 @@ FileTreeNode.displayName = 'FileTreeNode'
 const SearchResultRow: FC<{
   result: SkillSearchResult
   isInstalled: boolean
-  isInstalling: (source?: string) => boolean
+  isInstalling: boolean
   onInstall: (result: SkillSearchResult) => void
   onPreview: (result: SkillSearchResult) => void
   installLabel: string
@@ -201,7 +201,7 @@ const SearchResultRow: FC<{
         type={isInstalled ? 'default' : 'primary'}
         size="small"
         icon={isInstalled ? <Check size={12} /> : <Download size={12} />}
-        loading={!isInstalled && isInstalling(result.installSource)}
+        loading={!isInstalled && isInstalling}
         disabled={isInstalled}
         onClick={() => onInstall(result)}
         style={INSTALL_BTN_STYLE}>
@@ -325,7 +325,15 @@ const SkillsSettings: FC = () => {
     return results.filter((r) => r.sourceRegistry === searchTab)
   }, [results, searchTab])
 
-  const installedNames = useMemo(() => new Set(skills.map((s) => s.name.toLowerCase())), [skills])
+  const isResultInstalled = useMemo(() => {
+    const installSources = new Set<string>()
+    for (const skill of skills) {
+      if (skill.installSource) installSources.add(skill.installSource)
+    }
+    return (result: SkillSearchResult) => installSources.has(result.installSource)
+  }, [skills])
+
+  const previewInstalled = !!previewResult && isResultInstalled(previewResult)
 
   // Pre-compute tab counts in one pass (js-combine-iterations)
   const tabCounts = useMemo(() => {
@@ -350,7 +358,7 @@ const SkillsSettings: FC = () => {
 
   const handleInstall = useCallback(
     async (result: SkillSearchResult) => {
-      if (installedNames.has(result.name.toLowerCase())) {
+      if (isResultInstalled(result)) {
         setPreviewResult(null)
         return
       }
@@ -364,7 +372,7 @@ const SkillsSettings: FC = () => {
         message.error(t('settings.skills.installFailed', { name: result.name }) + (error ? `: ${error}` : ''))
       }
     },
-    [install, installedNames, refresh, t]
+    [install, isResultInstalled, refresh, t]
   )
 
   const handleUninstall = useCallback(
@@ -701,8 +709,8 @@ const SkillsSettings: FC = () => {
                         <SearchResultRow
                           key={`${result.sourceRegistry}:${result.slug}`}
                           result={result}
-                          isInstalled={installedNames.has(result.name.toLowerCase())}
-                          isInstalling={isInstalling}
+                          isInstalled={isResultInstalled(result)}
+                          isInstalling={isInstalling(result.installSource)}
                           onInstall={handleInstall}
                           onPreview={setPreviewResult}
                           installLabel={t('settings.skills.install')}
@@ -783,19 +791,16 @@ const SkillsSettings: FC = () => {
         title={previewResult?.name}
         open={!!previewResult}
         onCancel={() => setPreviewResult(null)}
-        footer={(() => {
-          const installed = !!previewResult && installedNames.has(previewResult.name.toLowerCase())
-          return (
-            <Button
-              type={installed ? 'default' : 'primary'}
-              icon={installed ? <Check size={14} /> : <Download size={14} />}
-              loading={previewResult ? !installed && isInstalling(previewResult.installSource) : false}
-              disabled={installed}
-              onClick={() => previewResult && handleInstall(previewResult)}>
-              {installed ? t('settings.skills.installed') : t('settings.skills.install')}
-            </Button>
-          )
-        })()}
+        footer={
+          <Button
+            type={previewInstalled ? 'default' : 'primary'}
+            icon={previewInstalled ? <Check size={14} /> : <Download size={14} />}
+            loading={!!previewResult && !previewInstalled && isInstalling(previewResult.installSource)}
+            disabled={previewInstalled}
+            onClick={() => previewResult && handleInstall(previewResult)}>
+            {previewInstalled ? t('settings.skills.installed') : t('settings.skills.install')}
+          </Button>
+        }
         width={560}>
         {previewResult ? (
           <PreviewContent>

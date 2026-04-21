@@ -26,7 +26,7 @@ export class SkillRepository extends BaseService {
   async list(): Promise<InstalledSkill[]> {
     const db = await this.getDatabase()
     const rows = await db.select().from(skillsTable)
-    return rows.map(this.rowToInstalledSkill)
+    return rows.map((row) => this.rowToInstalledSkill(row))
   }
 
   async getById(id: string): Promise<InstalledSkill | null> {
@@ -38,6 +38,27 @@ export class SkillRepository extends BaseService {
   async getByFolderName(folderName: string): Promise<InstalledSkill | null> {
     const db = await this.getDatabase()
     const rows = await db.select().from(skillsTable).where(eq(skillsTable.folder_name, folderName)).limit(1)
+    return rows[0] ? this.rowToInstalledSkill(rows[0]) : null
+  }
+
+  /**
+   * Match installed skills by the authoritative same-source dedup key.
+   *
+   * Cross-registry metadata such as `origin_key` is intentionally excluded
+   * from this lookup.
+   */
+  async findByInstallSource(installSource: string | null | undefined): Promise<InstalledSkill | null> {
+    const normalizedInstallSource = installSource ?? null
+    if (!normalizedInstallSource) {
+      return null
+    }
+
+    const db = await this.getDatabase()
+    const rows = await db
+      .select()
+      .from(skillsTable)
+      .where(eq(skillsTable.install_source, normalizedInstallSource))
+      .limit(1)
     return rows[0] ? this.rowToInstalledSkill(rows[0]) : null
   }
 
@@ -69,7 +90,15 @@ export class SkillRepository extends BaseService {
 
   async updateMetadata(
     id: string,
-    data: { name: string; description: string | null; author: string | null; tags: string | null; content_hash: string }
+    data: {
+      name: string
+      description: string | null
+      author: string | null
+      tags: string | null
+      content_hash: string
+      install_source: string | null
+      origin_key: string | null
+    }
   ): Promise<void> {
     const db = await this.getDatabase()
     await db
@@ -97,6 +126,8 @@ export class SkillRepository extends BaseService {
       folderName: row.folder_name,
       source: row.source,
       sourceUrl: row.source_url,
+      installSource: row.install_source,
+      originKey: row.origin_key,
       namespace: row.namespace,
       author: row.author,
       tags: row.tags ? JSON.parse(row.tags) : [],

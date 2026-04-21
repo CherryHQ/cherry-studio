@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { installSourceToOriginKey } from '@shared/skills/identity'
 import {
   ClaudePluginsSearchResponseSchema,
   ClawhubSearchResponseSchema,
@@ -27,6 +28,7 @@ function normalizeClaudePlugins(raw: unknown): SkillSearchResult[] {
     const repoOwner = s.metadata?.repoOwner ?? ''
     const repoName = s.metadata?.repoName ?? ''
     const directoryPath = s.metadata?.directoryPath ?? ''
+    const installSource = `claude-plugins:${repoOwner}/${repoName}/${directoryPath}`
     return {
       slug: s.id,
       name: s.name,
@@ -37,7 +39,8 @@ function normalizeClaudePlugins(raw: unknown): SkillSearchResult[] {
       sourceRegistry: 'claude-plugins.dev' as SkillSearchSource,
       sourceUrl: s.sourceUrl ?? (repoOwner && repoName ? `https://github.com/${repoOwner}/${repoName}` : null),
       // Encode sourceUrl directly so install can clone + resolve without the resolve API
-      installSource: `claude-plugins:${repoOwner}/${repoName}/${directoryPath}`
+      installSource,
+      originKey: installSourceToOriginKey(installSource)
     }
   })
 }
@@ -46,34 +49,43 @@ function normalizeSkillsSh(raw: unknown): SkillSearchResult[] {
   const parsed = SkillsShSearchResponseSchema.safeParse(raw)
   if (!parsed.success) return []
 
-  return parsed.data.skills.map((s) => ({
-    slug: s.id,
-    name: s.name,
-    description: null,
-    author: s.source.split('/')[0] ?? null,
-    stars: 0,
-    downloads: s.installs,
-    sourceRegistry: 'skills.sh' as SkillSearchSource,
-    sourceUrl: s.source ? `https://github.com/${s.source}` : null,
-    installSource: `skills.sh:${s.id}`
-  }))
+  return parsed.data.skills.map((s) => {
+    const [repoOwner = ''] = s.source.split('/')
+    const installSource = `skills.sh:${s.id}`
+    return {
+      slug: s.id,
+      name: s.name,
+      description: null,
+      author: repoOwner || null,
+      stars: 0,
+      downloads: s.installs,
+      sourceRegistry: 'skills.sh' as SkillSearchSource,
+      sourceUrl: s.source ? `https://github.com/${s.source}` : null,
+      installSource,
+      originKey: installSourceToOriginKey(installSource)
+    }
+  })
 }
 
 function normalizeClawhub(raw: unknown): SkillSearchResult[] {
   const parsed = ClawhubSearchResponseSchema.safeParse(raw)
   if (!parsed.success) return []
 
-  return parsed.data.results.map((s) => ({
-    slug: s.slug,
-    name: s.displayName,
-    description: s.summary ?? null,
-    author: null,
-    stars: 0,
-    downloads: 0,
-    sourceRegistry: 'clawhub.ai' as SkillSearchSource,
-    sourceUrl: `https://clawhub.ai/skills/${s.slug}`,
-    installSource: `clawhub:${s.slug}`
-  }))
+  return parsed.data.results.map((s) => {
+    const installSource = `clawhub:${s.slug}`
+    return {
+      slug: s.slug,
+      name: s.displayName,
+      description: s.summary ?? null,
+      author: null,
+      stars: 0,
+      downloads: 0,
+      sourceRegistry: 'clawhub.ai' as SkillSearchSource,
+      sourceUrl: `https://clawhub.ai/skills/${s.slug}`,
+      installSource,
+      originKey: installSourceToOriginKey(installSource)
+    }
+  })
 }
 
 // ===========================================================================
@@ -157,13 +169,5 @@ export async function searchSkills(query: string): Promise<SkillSearchResult[]> 
       allResults.push(...result.value)
     }
   }
-
-  // Deduplicate by name (keep first occurrence = fastest source)
-  const seen = new Set<string>()
-  return allResults.filter((r) => {
-    const key = r.name.toLowerCase()
-    if (seen.has(key)) return false
-    seen.add(key)
-    return true
-  })
+  return allResults
 }

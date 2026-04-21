@@ -1,11 +1,13 @@
+import { installSourceToOriginKey } from '@shared/skills/identity'
 import {
   ClaudePluginsSearchResponseSchema,
   ClawhubSearchResponseSchema,
   ClawhubSkillDetailSchema,
   SkillsShSearchResponseSchema
 } from '@types'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { searchSkills } from '../SkillSearchService'
 import claudePluginsFixture from './fixtures/claude-plugins-search.json'
 import clawhubDetailFixture from './fixtures/clawhub-detail.json'
 import clawhubSearchFixture from './fixtures/clawhub-search.json'
@@ -160,10 +162,15 @@ function normalizeClaudePlugins(parsed: ReturnType<typeof ClaudePluginsSearchRes
       downloads: s.installs ?? 0,
       sourceRegistry: 'claude-plugins.dev' as const,
       sourceUrl: s.sourceUrl ?? (repoOwner && repoName ? `https://github.com/${repoOwner}/${repoName}` : null),
-      installSource: `claude-plugins:${repoOwner}/${repoName}/${directoryPath}`
+      installSource: `claude-plugins:${repoOwner}/${repoName}/${directoryPath}`,
+      originKey: installSourceToOriginKey(`claude-plugins:${repoOwner}/${repoName}/${directoryPath}`)
     }
   })
 }
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
 
 describe('Skill search normalizers', () => {
   describe('normalizeClaudePlugins', () => {
@@ -178,6 +185,7 @@ describe('Skill search normalizers', () => {
       expect(results[0].author).toBe('anthropic')
       expect(results[0].stars).toBe(42)
       expect(results[0].installSource).toBe('claude-plugins:anthropic/skills/code-review')
+      expect(results[0].originKey).toBe('github:anthropic/skills#code-review')
       expect(results[0].sourceUrl).toBe('https://github.com/anthropic/skills/tree/main/code-review')
 
       // Null author falls back to namespace
@@ -214,6 +222,7 @@ describe('Skill search normalizers', () => {
 
       const noMetadata = results.find((r) => r.name === 'test-generator')!
       expect(noMetadata.installSource).toBe('claude-plugins://')
+      expect(noMetadata.originKey).toBeNull()
       expect(noMetadata.sourceUrl).toBeNull()
     })
 
@@ -240,7 +249,8 @@ describe('Skill search normalizers', () => {
         stars: 0,
         downloads: s.installs,
         sourceRegistry: 'skills.sh' as const,
-        installSource: `skills.sh:${s.id}`
+        installSource: `skills.sh:${s.id}`,
+        originKey: installSourceToOriginKey(`skills.sh:${s.id}`)
       }))
 
       expect(results).toHaveLength(3)
@@ -249,6 +259,7 @@ describe('Skill search normalizers', () => {
       expect(results[0].author).toBe('vercel-labs')
       expect(results[0].description).toBeNull()
       expect(results[1].downloads).toBe(263730)
+      expect(results[1].originKey).toBe('github:vercel-labs/agent-skills#vercel-react-best-practices')
       expect(results[2].installSource).toBe('skills.sh:vercel-labs/agent-skills/vercel-composition-patterns')
     })
   })
@@ -264,7 +275,8 @@ describe('Skill search normalizers', () => {
         stars: 0,
         downloads: 0,
         sourceRegistry: 'clawhub.ai' as const,
-        installSource: `clawhub:${s.slug}`
+        installSource: `clawhub:${s.slug}`,
+        originKey: installSourceToOriginKey(`clawhub:${s.slug}`)
       }))
 
       expect(results).toHaveLength(2)
@@ -272,34 +284,59 @@ describe('Skill search normalizers', () => {
 
       expect(results[0].name).toBe('Code Reviewer Pro')
       expect(results[0].installSource).toBe('clawhub:code-reviewer-pro')
+      expect(results[0].originKey).toBe('clawhub:code-reviewer-pro')
       expect(results[1].author).toBeNull()
     })
   })
 })
 
 // =============================================================================
-// Deduplication logic
+// Public search behavior
 // =============================================================================
 
-describe('Skill search deduplication', () => {
-  it('should deduplicate results by name (case-insensitive)', () => {
-    const allResults = [
-      { name: 'Code-Review', slug: 'a', sourceRegistry: 'claude-plugins.dev' as const },
-      { name: 'code-review', slug: 'b', sourceRegistry: 'skills.sh' as const },
-      { name: 'Code-review', slug: 'c', sourceRegistry: 'clawhub.ai' as const },
-      { name: 'Unique-Skill', slug: 'd', sourceRegistry: 'skills.sh' as const }
-    ]
+describe('searchSkills', () => {
+  it('preserves same-name results from different registries', async () => {
+    const sameNameSkillsSh = {
+      query: 'shared',
+      count: 1,
+      skills: [
+        {
+          id: 'owner/repo/shared-skill',
+          skillId: 'shared-skill',
+          name: 'shared-skill',
+          installs: 10,
+          source: 'owner/repo'
+        }
+      ]
+    }
+    const sameNameClaudePlugins = {
+      skills: [
+        {
+          id: 'cp-shared',
+          name: 'shared-skill',
+          namespace: '@owner/repo',
+          metadata: {
+            repoOwner: 'owner',
+            repoName: 'repo',
+            directoryPath: 'skills/shared-skill'
+          }
+        }
+      ]
+    }
 
-    const seen = new Set<string>()
-    const deduped = allResults.filter((r) => {
-      const key = r.name.toLowerCase()
-      if (seen.has(key)) return false
-      seen.add(key)
-      return true
-    })
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(new Response(JSON.stringify(sameNameSkillsSh), { status: 200 }))
+        .mockResolvedValueOnce(new Response(JSON.stringify(sameNameClaudePlugins), { status: 200 }))
+        .mockResolvedValueOnce(new Response(JSON.stringify({ results: [] }), { status: 200 }))
+    )
 
-    expect(deduped).toHaveLength(2)
-    expect(deduped[0].slug).toBe('a')
-    expect(deduped[1].slug).toBe('d')
+    const results = await searchSkills('review')
+
+    expect(results.filter((result) => result.name === 'shared-skill')).toHaveLength(2)
+    expect(results.some((result) => result.sourceRegistry === 'claude-plugins.dev')).toBe(true)
+    expect(results.some((result) => result.sourceRegistry === 'skills.sh')).toBe(true)
   })
 })

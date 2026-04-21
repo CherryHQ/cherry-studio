@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 
@@ -8,6 +8,7 @@ import { directoryExists } from '@main/utils/file'
 import { deleteDirectoryRecursive } from '@main/utils/fileOperations'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
 import { executeCommand, findExecutableInEnv } from '@main/utils/process'
+import { installSourceToOriginKey } from '@shared/skills/identity'
 import type {
   InstalledSkill,
   SkillFileNode,
@@ -327,11 +328,11 @@ export class SkillService {
 
     switch (source) {
       case 'claude-plugins':
-        return this.installFromClaudePlugins(identifier)
+        return this.installFromClaudePlugins(identifier, installSource)
       case 'skills.sh':
-        return this.installFromSkillsSh(identifier)
+        return this.installFromSkillsSh(identifier, installSource)
       case 'clawhub':
-        return this.installFromClawhub(identifier)
+        return this.installFromClawhub(identifier, installSource)
       default:
         throw new Error(`Unknown install source: ${source}`)
     }
@@ -461,7 +462,7 @@ export class SkillService {
   // Source-specific install flows
   // ===========================================================================
 
-  private async installFromClaudePlugins(identifier: string): Promise<InstalledSkill> {
+  private async installFromClaudePlugins(identifier: string, installSource: string): Promise<InstalledSkill> {
     // identifier: "owner/repo/directoryPath" e.g. "vercel-labs/agent-skills/skills/react-best-practices"
     const parts = identifier.split('/')
     if (parts.length < 3) {
@@ -478,7 +479,13 @@ export class SkillService {
       await this.cloneRepository(repoUrl, tempDir)
       const skillName = parts[parts.length - 1]
       const skillDir = await this.resolveSkillDirectory(tempDir, skillName, directoryPath)
-      const installed = await this.installSkillDir(skillDir, 'marketplace', sourceUrl)
+      const installed = await this.installSkillDir(
+        skillDir,
+        'marketplace',
+        sourceUrl,
+        installSource,
+        installSourceToOriginKey(installSource)
+      )
 
       // Fire-and-forget install telemetry
       this.reportInstall(owner, repo, skillName).catch((err) => {
@@ -491,7 +498,7 @@ export class SkillService {
     }
   }
 
-  private async installFromSkillsSh(identifier: string): Promise<InstalledSkill> {
+  private async installFromSkillsSh(identifier: string, installSource: string): Promise<InstalledSkill> {
     // identifier: "owner/repo" or "owner/repo/skill-name"
     const parts = identifier.split('/')
     if (parts.length < 2) {
@@ -508,13 +515,19 @@ export class SkillService {
     try {
       await this.cloneRepository(repoUrl, tempDir)
       const skillDir = await this.resolveSkillDirectory(tempDir, skillName, null)
-      return await this.installSkillDir(skillDir, 'marketplace', repoUrl)
+      return await this.installSkillDir(
+        skillDir,
+        'marketplace',
+        repoUrl,
+        installSource,
+        installSourceToOriginKey(installSource)
+      )
     } finally {
       await this.safeRemoveDirectory(tempDir)
     }
   }
 
-  private async installFromClawhub(slug: string): Promise<InstalledSkill> {
+  private async installFromClawhub(slug: string, installSource: string): Promise<InstalledSkill> {
     // Fetch skill detail to get download URL
     const detailUrl = `https://api.clawhub.ai/api/v1/skills/${slug}`
     const detailResp = await net.fetch(detailUrl, {
@@ -545,7 +558,13 @@ export class SkillService {
       await fs.promises.mkdir(extractDir, { recursive: true })
       await this.extractZip(zipPath, extractDir)
       const skillDir = await this.locateSkillDir(extractDir)
-      return await this.installSkillDir(skillDir, 'marketplace', `https://clawhub.ai/skills/${slug}`)
+      return await this.installSkillDir(
+        skillDir,
+        'marketplace',
+        `https://clawhub.ai/skills/${slug}`,
+        installSource,
+        installSourceToOriginKey(installSource)
+      )
     } finally {
       await this.safeRemoveDirectory(tempDir)
     }
@@ -559,7 +578,13 @@ export class SkillService {
    * Install a skill from a directory containing SKILL.md into global-skills storage.
    * Built-in skills are auto-linked; other sources default to disabled.
    */
-  private async installSkillDir(skillDir: string, source: string, sourceUrl: string | null): Promise<InstalledSkill> {
+  private async installSkillDir(
+    skillDir: string,
+    source: string,
+    sourceUrl: string | null,
+    installSource: string | null = null,
+    originKey: string | null = null
+  ): Promise<InstalledSkill> {
     const metadata = await parseSkillMetadata(skillDir, path.basename(skillDir), 'skills')
 
     // In-place registration: when skillDir already lives directly under the global
@@ -569,10 +594,15 @@ export class SkillService {
     const skillsRoot = path.resolve(application.getPath('feature.agents.skills'))
     const isInPlace = path.resolve(path.dirname(skillDir)) === skillsRoot
     // INVARIANT: isInPlace assumes basename was already sanitized by getSkillDirectory()
-    const folderName = isInPlace ? path.basename(skillDir) : this.sanitizeFolderName(metadata.filename)
-
-    // Check for existing skill with same folder name
-    const existing = await this.repository.getByFolderName(folderName)
+    const requestedFolderName = isInPlace ? path.basename(skillDir) : this.sanitizeFolderName(metadata.filename)
+    const existingByInstallSource = installSource ? await this.repository.findByInstallSource(installSource) : null
+    const folderName = existingByInstallSource
+      ? existingByInstallSource.folderName
+      : isInPlace
+        ? requestedFolderName
+        : await this.resolveInstallFolderName(requestedFolderName, installSource)
+    const existing =
+      existingByInstallSource ?? (installSource ? null : await this.repository.getByFolderName(folderName))
 
     const contentHash = await this.installer.computeContentHash(skillDir)
     const destPath = this.getSkillStoragePath(folderName)
@@ -590,7 +620,9 @@ export class SkillService {
         description: metadata.description ?? null,
         author: metadata.author ?? null,
         tags,
-        content_hash: contentHash
+        content_hash: contentHash,
+        install_source: installSource,
+        origin_key: originKey
       })
       const updated = (await this.repository.getById(existing.id))!
       logger.info('Skill updated', { id: existing.id, name: metadata.name, folderName, source })
@@ -608,6 +640,8 @@ export class SkillService {
       folder_name: folderName,
       source,
       source_url: sourceUrl,
+      install_source: installSource,
+      origin_key: originKey,
       namespace: null,
       author: metadata.author ?? null,
       tags,
@@ -821,6 +855,46 @@ export class SkillService {
     }
 
     return sanitized
+  }
+
+  private async resolveInstallFolderName(requestedFolderName: string, installSource: string | null): Promise<string> {
+    const existing = await this.repository.getByFolderName(requestedFolderName)
+    if (!existing) {
+      return requestedFolderName
+    }
+
+    const sourceTag = this.buildIdentitySourceTag(installSource)
+    const sourceTaggedFolderName = this.appendFolderSuffix(requestedFolderName, sourceTag)
+    if (!(await this.repository.getByFolderName(sourceTaggedFolderName))) {
+      return sourceTaggedFolderName
+    }
+
+    const identityHash = createHash('sha256')
+      .update(installSource ?? requestedFolderName)
+      .digest('hex')
+      .slice(0, 8)
+
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const hashSuffix = attempt === 0 ? `${sourceTag}_${identityHash}` : `${sourceTag}_${identityHash}_${attempt}`
+      const candidateFolderName = this.appendFolderSuffix(requestedFolderName, hashSuffix)
+      if (!(await this.repository.getByFolderName(candidateFolderName))) {
+        return candidateFolderName
+      }
+    }
+
+    throw new Error(`Unable to allocate unique folder for skill: ${requestedFolderName}`)
+  }
+
+  private buildIdentitySourceTag(installSource: string | null): string {
+    const rawSourceTag = installSource?.split(':')[0] ?? 'skill'
+    return this.sanitizeFolderName(rawSourceTag.replace(/\./g, '-'))
+  }
+
+  private appendFolderSuffix(folderName: string, suffix: string): string {
+    const sanitizedSuffix = this.sanitizeFolderName(suffix)
+    const maxBaseLength = Math.max(1, MAX_FOLDER_NAME_LENGTH - sanitizedSuffix.length - 2)
+    const baseName = folderName.slice(0, maxBaseLength)
+    return `${baseName}__${sanitizedSuffix}`
   }
 
   private async createTempDir(prefix: string): Promise<string> {

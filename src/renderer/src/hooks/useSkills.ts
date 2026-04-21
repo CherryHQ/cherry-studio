@@ -126,11 +126,28 @@ export function useSkillSearch() {
  * Hook for installing a skill from search results.
  */
 export function useSkillInstall() {
-  const [installingKey, setInstallingKey] = useState<string | null>(null)
+  const [installingKeys, setInstallingKeys] = useState<ReadonlySet<string>>(() => new Set())
+
+  const beginInstall = useCallback((key: string) => {
+    setInstallingKeys((prev) => {
+      const next = new Set(prev)
+      next.add(key)
+      return next
+    })
+  }, [])
+
+  const endInstall = useCallback((key: string) => {
+    setInstallingKeys((prev) => {
+      if (!prev.has(key)) return prev
+      const next = new Set(prev)
+      next.delete(key)
+      return next
+    })
+  }, [])
 
   const install = useCallback(
     async (installSource: string): Promise<{ skill: InstalledSkill | null; error?: string }> => {
-      setInstallingKey(installSource)
+      beginInstall(installSource)
       try {
         const result = await window.api.skill.install({ installSource })
         if (result.success) {
@@ -141,44 +158,46 @@ export function useSkillInstall() {
       } catch (err) {
         return { skill: null, error: err instanceof Error ? err.message : String(err) }
       } finally {
-        setInstallingKey(null)
+        endInstall(installSource)
       }
     },
-    []
+    [beginInstall, endInstall]
   )
 
-  const installFromZip = useCallback(async (zipFilePath: string): Promise<InstalledSkill | null> => {
-    setInstallingKey('zip')
-    try {
-      const result = await window.api.skill.installFromZip({ zipFilePath })
-      return result.success ? result.data : null
-    } catch {
-      return null
-    } finally {
-      setInstallingKey(null)
-    }
-  }, [])
+  const installFromZip = useCallback(
+    async (zipFilePath: string): Promise<InstalledSkill | null> => {
+      beginInstall('zip')
+      try {
+        const result = await window.api.skill.installFromZip({ zipFilePath })
+        return result.success ? result.data : null
+      } catch {
+        return null
+      } finally {
+        endInstall('zip')
+      }
+    },
+    [beginInstall, endInstall]
+  )
 
-  const installFromDirectory = useCallback(async (directoryPath: string): Promise<InstalledSkill | null> => {
-    setInstallingKey('directory')
-    try {
-      const result = await window.api.skill.installFromDirectory({ directoryPath })
-      return result.success ? result.data : null
-    } catch {
-      return null
-    } finally {
-      setInstallingKey(null)
-    }
-  }, [])
+  const installFromDirectory = useCallback(
+    async (directoryPath: string): Promise<InstalledSkill | null> => {
+      beginInstall('directory')
+      try {
+        const result = await window.api.skill.installFromDirectory({ directoryPath })
+        return result.success ? result.data : null
+      } catch {
+        return null
+      } finally {
+        endInstall('directory')
+      }
+    },
+    [beginInstall, endInstall]
+  )
 
   const isInstalling = useCallback(
-    (key?: string) => {
-      if (!installingKey) return false
-      if (!key) return !!installingKey
-      return installingKey === key
-    },
-    [installingKey]
+    (key?: string) => (key ? installingKeys.has(key) : installingKeys.size > 0),
+    [installingKeys]
   )
 
-  return { installingKey, isInstalling, install, installFromZip, installFromDirectory }
+  return { isInstalling, install, installFromZip, installFromDirectory }
 }

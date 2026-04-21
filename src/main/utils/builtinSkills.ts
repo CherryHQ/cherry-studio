@@ -102,7 +102,9 @@ async function syncBuiltinSkillToDb(folderName: string, destPath: string, filesU
         description: metadata.description ?? null,
         author: metadata.author ?? null,
         tags,
-        content_hash: contentHash
+        content_hash: contentHash,
+        install_source: null,
+        origin_key: null
       })
     } else {
       const now = Date.now()
@@ -112,6 +114,8 @@ async function syncBuiltinSkillToDb(folderName: string, destPath: string, filesU
         folder_name: folderName,
         source: 'builtin',
         source_url: null,
+        install_source: null,
+        origin_key: null,
         namespace: null,
         author: metadata.author ?? null,
         tags,

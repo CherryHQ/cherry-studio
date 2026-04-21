@@ -24,6 +24,8 @@ export const skillsTable = sqliteTable(
     // Source tracking
     source: text('source').notNull(), // 'marketplace' | 'local' | 'zip'
     source_url: text('source_url'),
+    install_source: text('install_source'),
+    origin_key: text('origin_key'),
     namespace: text('namespace'), // e.g. "@owner/repo/skill-name"
     author: text('author'),
     tags: text('tags'), // JSON array of strings
