@@ -442,40 +442,52 @@ describe('options utils', () => {
         isSystem: true
       } as Provider
 
-      const poeModel: Model = {
-        id: 'openai/gpt-4',
-        name: 'GPT-4',
-        provider: SystemProviderIds.poe
-      } as Model
+      it('should route Claude models to anthropic providerOptions', () => {
+        const claudeModel: Model = {
+          id: 'claude-opus-4.5',
+          name: 'Claude Opus 4.5',
+          provider: SystemProviderIds.poe
+        } as Model
 
-      it('should deep merge Poe extra_body reasoning and web search parameters', async () => {
-        const { getReasoningEffort } = await import('../reasoning')
-        const { getWebSearchParams } = await import('../websearch')
-
-        vi.mocked(getReasoningEffort).mockReturnValue({
-          extra_body: {
-            reasoning_effort: 'medium'
-          }
-        })
-        vi.mocked(getWebSearchParams).mockReturnValue({
-          extra_body: {
-            web_search: true
-          }
-        })
-
-        const result = buildProviderOptions(mockAssistant, poeModel, poeProvider, {
+        const result = buildProviderOptions(mockAssistant, claudeModel, poeProvider, {
           enableReasoning: true,
-          enableWebSearch: true,
+          enableWebSearch: false,
+          enableGenerateImage: false
+        })
+
+        expect(result.providerOptions).toHaveProperty('anthropic')
+      })
+
+      it('should route non-Claude models to openai providerOptions', () => {
+        const gptModel: Model = {
+          id: 'gpt-5.4',
+          name: 'GPT-5.4',
+          provider: SystemProviderIds.poe
+        } as Model
+
+        const result = buildProviderOptions(mockAssistant, gptModel, poeProvider, {
+          enableReasoning: true,
+          enableWebSearch: false,
+          enableGenerateImage: false
+        })
+
+        expect(result.providerOptions).toHaveProperty('openai')
+      })
+
+      it('should route Gemini models to generic poe providerOptions', () => {
+        const geminiModel: Model = {
+          id: 'gemini-3.1-pro',
+          name: 'Gemini 3.1 Pro',
+          provider: SystemProviderIds.poe
+        } as Model
+
+        const result = buildProviderOptions(mockAssistant, geminiModel, poeProvider, {
+          enableReasoning: true,
+          enableWebSearch: false,
           enableGenerateImage: false
         })
 
         expect(result.providerOptions).toHaveProperty('poe')
-        expect(result.providerOptions.poe).toMatchObject({
-          extra_body: {
-            reasoning_effort: 'medium',
-            web_search: true
-          }
-        })
       })
     })
 

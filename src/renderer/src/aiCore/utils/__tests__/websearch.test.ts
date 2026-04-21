@@ -12,7 +12,9 @@ import { buildProviderBuiltinWebSearchConfig, getWebSearchParams } from '../webs
 // Mock dependencies
 vi.mock('@renderer/config/models', () => ({
   isOpenAIWebSearchChatCompletionOnlyModel: vi.fn((model) => model?.id?.includes('o1-pro') ?? false),
-  isOpenAIDeepResearchModel: vi.fn((model) => model?.id?.includes('o3-mini') ?? false)
+  isOpenAIDeepResearchModel: vi.fn((model) => model?.id?.includes('o3-mini') ?? false),
+  isAnthropicModel: vi.fn((model) => model?.id?.toLowerCase().startsWith('claude') ?? false),
+  isOpenAILLMModel: vi.fn((model) => /\bgpt\b/i.test(model?.id ?? '') || /\bo[134]\b/i.test(model?.id ?? ''))
 }))
 
 vi.mock('@renderer/utils/blacklistMatchPattern', () => ({
@@ -68,7 +70,7 @@ describe('websearch utils', () => {
       })
     })
 
-    it('should return extra_body with web_search for poe provider', () => {
+    it('should return extra_body.web_search for poe chat-path models (Gemini, Grok, etc.)', () => {
       const model: Model = {
         id: 'Gemini-3-Flash',
         name: 'Gemini 3 Flash',
@@ -82,6 +84,30 @@ describe('websearch utils', () => {
           web_search: true
         }
       })
+    })
+
+    it('should return empty object for poe Claude models (native SDK web search)', () => {
+      const model: Model = {
+        id: 'claude-opus-4.5',
+        name: 'Claude Opus 4.5',
+        provider: 'poe'
+      } as Model
+
+      const result = getWebSearchParams(model)
+
+      expect(result).toEqual({})
+    })
+
+    it('should return empty object for poe GPT models (native SDK web search)', () => {
+      const model: Model = {
+        id: 'gpt-5.4',
+        name: 'GPT-5.4',
+        provider: 'poe'
+      } as Model
+
+      const result = getWebSearchParams(model)
+
+      expect(result).toEqual({})
     })
 
     it('should return empty object for other providers', () => {
@@ -347,6 +373,42 @@ describe('websearch utils', () => {
                 max_results: 75
               }
             ]
+          }
+        })
+      })
+    })
+
+    describe('poe provider', () => {
+      it('should route Claude models to anthropic web search config', () => {
+        const model: Model = { id: 'claude-opus-4.5', name: 'Claude Opus 4.5', provider: 'poe' } as Model
+        const result = buildProviderBuiltinWebSearchConfig('poe', defaultWebSearchConfig, model)
+
+        expect(result).toEqual({
+          anthropic: {
+            maxUses: 50,
+            blockedDomains: undefined
+          }
+        })
+      })
+
+      it('should route non-Claude models to openai web search config', () => {
+        const model: Model = { id: 'gpt-5.4', name: 'GPT-5.4', provider: 'poe' } as Model
+        const result = buildProviderBuiltinWebSearchConfig('poe', defaultWebSearchConfig, model)
+
+        expect(result).toEqual({
+          openai: {
+            searchContextSize: 'medium'
+          }
+        })
+      })
+
+      it('should route Gemini models to openai web search config', () => {
+        const model: Model = { id: 'gemini-3.1-pro', name: 'Gemini 3.1 Pro', provider: 'poe' } as Model
+        const result = buildProviderBuiltinWebSearchConfig('poe', defaultWebSearchConfig, model)
+
+        expect(result).toEqual({
+          openai: {
+            searchContextSize: 'medium'
           }
         })
       })
