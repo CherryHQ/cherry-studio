@@ -16,13 +16,23 @@ const Doc2xUrlSchema = z
   .min(1)
   .transform((value) => decodeEscapedUnicode(value))
 
+const Doc2xParsePageUrlSchema = z.preprocess(
+  (value) => (typeof value === 'string' && value.length === 0 ? undefined : value),
+  Doc2xUrlSchema.optional()
+)
+
+const Doc2xExportUrlSchema = z.preprocess(
+  (value) => (typeof value === 'string' && value.length === 0 ? undefined : value),
+  Doc2xUrlSchema.optional()
+)
+
 export const Doc2xPreuploadDataSchema = z.object({
   uid: z.string().min(1),
   url: Doc2xUrlSchema
 })
 
 export const Doc2xParsePageSchema = z.object({
-  url: Doc2xUrlSchema.optional(),
+  url: Doc2xParsePageUrlSchema,
   page_idx: z.number(),
   page_width: z.number().optional(),
   page_height: z.number().optional(),
@@ -43,7 +53,7 @@ export const Doc2xParseStatusDataSchema = z.object({
 
 export const Doc2xExportStatusDataSchema = z.object({
   status: Doc2xTaskStatusSchema,
-  url: Doc2xUrlSchema.optional()
+  url: Doc2xExportUrlSchema
 })
 
 export const Doc2xPreuploadResponseSchema = Doc2xApiResponseSchema(Doc2xPreuploadDataSchema)

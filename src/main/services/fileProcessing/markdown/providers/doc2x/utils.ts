@@ -21,6 +21,7 @@ export async function createUploadTask(context: PreparedDoc2xStartContext): Prom
   uploadUrl: string
 }> {
   const endpoint = `${context.apiHost}/api/v2/parse/preupload`
+
   const response = await net.fetch(endpoint, {
     method: 'POST',
     headers: {

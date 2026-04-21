@@ -160,7 +160,10 @@ async function handleExportStage(
   }
 
   if (!exportStatus.url) {
-    throw new Error(`Doc2x export result completed without a download URL for uid ${providerTaskId}`)
+    return {
+      status: 'processing',
+      progress: 99
+    }
   }
 
   return {

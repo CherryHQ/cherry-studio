@@ -49,4 +49,35 @@ describe('doc2x response schemas', () => {
       'https://doc2x-backend.s3.cn-north-1.amazonaws.com.cn/objects/task-1/page-1.png?page=1&token=abc'
     )
   })
+
+  it('treats empty parse page URLs as missing', () => {
+    const payload = Doc2xParseStatusResponseSchema.parse({
+      code: 'success',
+      data: {
+        status: 'processing',
+        result: {
+          pages: [
+            {
+              page_idx: 0,
+              url: ''
+            }
+          ]
+        }
+      }
+    })
+
+    expect(payload.data?.result?.pages[0].url).toBeUndefined()
+  })
+
+  it('treats empty export URLs as missing', () => {
+    const payload = Doc2xExportStatusResponseSchema.parse({
+      code: 'success',
+      data: {
+        status: 'processing',
+        url: ''
+      }
+    })
+
+    expect(payload.data?.url).toBeUndefined()
+  })
 })
