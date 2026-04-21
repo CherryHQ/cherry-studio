@@ -4,6 +4,7 @@ import CodeViewer from '@renderer/components/CodeViewer'
 import RichEditor from '@renderer/components/RichEditor'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useInstalledSkills, useSkillInstall, useSkillSearch } from '@renderer/hooks/useSkills'
+import { isSkillSearchResultInstalled } from '@renderer/services/SkillSearchService'
 import { getFileIconName } from '@renderer/utils/fileIconName'
 import type { InstalledSkill, SkillFileNode, SkillSearchResult, SkillSearchSource } from '@types'
 import {
@@ -326,11 +327,7 @@ const SkillsSettings: FC = () => {
   const selectedSkillId = selectedSkill?.id
 
   const isResultInstalled = useMemo(() => {
-    const installSources = new Set<string>()
-    for (const skill of skills) {
-      if (skill.installSource) installSources.add(skill.installSource)
-    }
-    return (result: SkillSearchResult) => installSources.has(result.installSource)
+    return (result: SkillSearchResult) => isSkillSearchResultInstalled(skills, result)
   }, [skills])
 
   const previewInstalled = !!previewResult && isResultInstalled(previewResult)

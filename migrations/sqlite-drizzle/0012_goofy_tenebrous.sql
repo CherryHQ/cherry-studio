@@ -58,8 +58,6 @@ CREATE TABLE `agent_global_skill` (
 	`folder_name` text NOT NULL,
 	`source` text NOT NULL,
 	`source_url` text,
-	`install_source` text,
-	`origin_key` text,
 	`namespace` text,
 	`author` text,
 	`tags` text,

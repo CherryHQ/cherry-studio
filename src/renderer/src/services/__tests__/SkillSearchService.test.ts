@@ -7,7 +7,7 @@ import {
 } from '@types'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { searchSkills } from '../SkillSearchService'
+import { isSkillSearchResultInstalled, searchSkills } from '../SkillSearchService'
 import claudePluginsFixture from './fixtures/claude-plugins-search.json'
 import clawhubDetailFixture from './fixtures/clawhub-detail.json'
 import clawhubSearchFixture from './fixtures/clawhub-search.json'
@@ -338,5 +338,87 @@ describe('searchSkills', () => {
     expect(results.filter((result) => result.name === 'shared-skill')).toHaveLength(2)
     expect(results.some((result) => result.sourceRegistry === 'claude-plugins.dev')).toBe(true)
     expect(results.some((result) => result.sourceRegistry === 'skills.sh')).toBe(true)
+  })
+})
+
+describe('isSkillSearchResultInstalled', () => {
+  it('matches installed skills by exact installSource', () => {
+    const result = {
+      slug: 'vercel-labs/agent-skills/vercel-react-best-practices',
+      name: 'vercel-react-best-practices',
+      description: null,
+      author: 'vercel-labs',
+      stars: 0,
+      downloads: 1,
+      sourceRegistry: 'skills.sh' as const,
+      sourceUrl: 'https://github.com/vercel-labs/agent-skills',
+      installSource: 'skills.sh:vercel-labs/agent-skills/vercel-react-best-practices',
+      originKey: 'github:vercel-labs/agent-skills#vercel-react-best-practices'
+    }
+
+    expect(
+      isSkillSearchResultInstalled(
+        [
+          {
+            id: 'skill-1',
+            name: 'vercel-react-best-practices',
+            description: null,
+            folderName: 'vercel-react-best-practices',
+            source: 'marketplace',
+            sourceUrl: 'https://github.com/vercel-labs/agent-skills',
+            installSource: 'skills.sh:vercel-labs/agent-skills/vercel-react-best-practices',
+            originKey: 'github:vercel-labs/agent-skills#vercel-react-best-practices',
+            namespace: null,
+            author: null,
+            tags: [],
+            contentHash: 'hash',
+            isEnabled: false,
+            createdAt: 1,
+            updatedAt: 1
+          }
+        ],
+        result
+      )
+    ).toBe(true)
+  })
+
+  it('does not match a different registry only because originKey matches', () => {
+    const result = {
+      slug: 'anthropic/skills/code-review',
+      name: 'code-review',
+      description: null,
+      author: 'anthropic',
+      stars: 0,
+      downloads: 1,
+      sourceRegistry: 'claude-plugins.dev' as const,
+      sourceUrl: 'https://github.com/anthropic/skills/tree/main/code-review',
+      installSource: 'claude-plugins:anthropic/skills/code-review',
+      originKey: 'github:anthropic/skills#code-review'
+    }
+
+    expect(
+      isSkillSearchResultInstalled(
+        [
+          {
+            id: 'skill-1',
+            name: 'code-review',
+            description: null,
+            folderName: 'code-review',
+            source: 'marketplace',
+            sourceUrl: 'https://github.com/anthropic/skills',
+            installSource: 'skills.sh:anthropic/skills/code-review',
+            originKey: 'github:anthropic/skills#code-review',
+            namespace: null,
+            author: null,
+            tags: [],
+            contentHash: 'hash',
+            isEnabled: false,
+            createdAt: 1,
+            updatedAt: 1
+          }
+        ],
+        result
+      )
+    ).toBe(false)
   })
 })

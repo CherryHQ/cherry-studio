@@ -3,6 +3,7 @@ import { installSourceToOriginKey } from '@shared/skills/identity'
 import {
   ClaudePluginsSearchResponseSchema,
   ClawhubSearchResponseSchema,
+  type InstalledSkill,
   type SkillSearchResult,
   type SkillSearchSource,
   SkillsShSearchResponseSchema
@@ -170,4 +171,8 @@ export async function searchSkills(query: string): Promise<SkillSearchResult[]> 
     }
   }
   return allResults
+}
+
+export function isSkillSearchResultInstalled(skills: readonly InstalledSkill[], result: SkillSearchResult): boolean {
+  return skills.some((skill) => skill.installSource === result.installSource)
 }

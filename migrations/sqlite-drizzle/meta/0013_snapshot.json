@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "07d44a98-4b3c-4020-8656-bf2be5cd53c8",
-  "prevId": "a947c27c-3d23-43b7-8846-3a82fcbbdee6",
+  "id": "5208a99f-d7e6-4229-866a-08c5cffc0e97",
+  "prevId": "07d44a98-4b3c-4020-8656-bf2be5cd53c8",
   "tables": {
     "agent": {
       "name": "agent",
@@ -375,6 +375,20 @@
         },
         "source_url": {
           "name": "source_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "install_source": {
+          "name": "install_source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "origin_key": {
+          "name": "origin_key",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
