@@ -1,35 +1,63 @@
 import { RowFlex } from '@cherrystudio/ui'
 import { PROVIDER_URLS } from '@renderer/config/providers'
-import { useAwsBedrockSettings } from '@renderer/hooks/useAwsBedrock'
+import { useProvider, useProviderAuthConfig } from '@renderer/hooks/useProviders'
 import { Alert, Input, Radio } from 'antd'
 import type { FC } from 'react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle } from '..'
 
-const AwsBedrockSettings: FC = () => {
+interface Props {
+  providerId: string
+}
+
+const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
   const { t } = useTranslation()
-  const {
-    authType,
-    accessKeyId,
-    secretAccessKey,
-    apiKey,
-    region,
-    setAuthType,
-    setAccessKeyId,
-    setSecretAccessKey,
-    setApiKey,
-    setRegion
-  } = useAwsBedrockSettings()
+  const { provider, updateAuthConfig } = useProvider(providerId)
+  const { data: authConfig } = useProviderAuthConfig(providerId)
+
+  const isIamMode = provider?.authType === 'iam-aws'
+  const awsConfig = authConfig?.type === 'iam-aws' ? authConfig : null
 
   const providerConfig = PROVIDER_URLS['aws-bedrock']
   const apiKeyWebsite = providerConfig?.websites?.apiKey
 
-  const [localAccessKeyId, setLocalAccessKeyId] = useState(accessKeyId)
-  const [localSecretAccessKey, setLocalSecretAccessKey] = useState(secretAccessKey)
-  const [localApiKey, setLocalApiKey] = useState(apiKey)
-  const [localRegion, setLocalRegion] = useState(region)
+  const [localAccessKeyId, setLocalAccessKeyId] = useState(awsConfig?.accessKeyId ?? '')
+  const [localSecretAccessKey, setLocalSecretAccessKey] = useState(awsConfig?.secretAccessKey ?? '')
+  const [localRegion, setLocalRegion] = useState(awsConfig?.region ?? '')
+
+  useEffect(() => {
+    const config = authConfig?.type === 'iam-aws' ? authConfig : null
+    if (config) {
+      setLocalAccessKeyId(config.accessKeyId ?? '')
+      setLocalSecretAccessKey(config.secretAccessKey ?? '')
+      setLocalRegion(config.region ?? '')
+    }
+  }, [authConfig])
+
+  const handleAuthTypeChange = async (value: string) => {
+    if (value === 'iam') {
+      await updateAuthConfig({ type: 'iam-aws', region: localRegion || 'us-east-1' })
+    } else {
+      await updateAuthConfig({ type: 'api-key' })
+    }
+  }
+
+  const saveIamConfig = async () => {
+    await updateAuthConfig({
+      type: 'iam-aws' as const,
+      region: localRegion,
+      accessKeyId: localAccessKeyId,
+      secretAccessKey: localSecretAccessKey
+    })
+  }
+
+  const saveRegion = async () => {
+    if (isIamMode) {
+      await saveIamConfig()
+    }
+  }
 
   return (
     <>
@@ -38,7 +66,10 @@ const AwsBedrockSettings: FC = () => {
 
       {/* Authentication Type Selector */}
       <SettingSubtitle style={{ marginTop: 15 }}>{t('settings.provider.aws-bedrock.auth_type')}</SettingSubtitle>
-      <Radio.Group value={authType} onChange={(e) => setAuthType(e.target.value)} style={{ marginTop: 5 }}>
+      <Radio.Group
+        value={isIamMode ? 'iam' : 'apiKey'}
+        onChange={(e) => handleAuthTypeChange(e.target.value)}
+        style={{ marginTop: 5 }}>
         <Radio value="iam">{t('settings.provider.aws-bedrock.auth_type_iam')}</Radio>
         <Radio value="apiKey">{t('settings.provider.aws-bedrock.auth_type_api_key')}</Radio>
       </Radio.Group>
@@ -47,7 +78,7 @@ const AwsBedrockSettings: FC = () => {
       </SettingHelpTextRow>
 
       {/* IAM Credentials Fields */}
-      {authType === 'iam' && (
+      {isIamMode && (
         <>
           <SettingSubtitle style={{ marginTop: 15 }}>
             {t('settings.provider.aws-bedrock.access_key_id')}
@@ -56,7 +87,7 @@ const AwsBedrockSettings: FC = () => {
             value={localAccessKeyId}
             placeholder={t('settings.provider.aws-bedrock.access_key_id')}
             onChange={(e) => setLocalAccessKeyId(e.target.value)}
-            onBlur={() => setAccessKeyId(localAccessKeyId)}
+            onBlur={saveIamConfig}
             style={{ marginTop: 5 }}
           />
           <SettingHelpTextRow>
@@ -70,7 +101,7 @@ const AwsBedrockSettings: FC = () => {
             value={localSecretAccessKey}
             placeholder={t('settings.provider.aws-bedrock.secret_access_key')}
             onChange={(e) => setLocalSecretAccessKey(e.target.value)}
-            onBlur={() => setSecretAccessKey(localSecretAccessKey)}
+            onBlur={saveIamConfig}
             style={{ marginTop: 5 }}
             spellCheck={false}
           />
@@ -87,29 +118,12 @@ const AwsBedrockSettings: FC = () => {
         </>
       )}
 
-      {authType === 'apiKey' && (
-        <>
-          <SettingSubtitle style={{ marginTop: 15 }}>{t('settings.provider.aws-bedrock.api_key')}</SettingSubtitle>
-          <Input.Password
-            value={localApiKey}
-            placeholder={t('settings.provider.aws-bedrock.api_key')}
-            onChange={(e) => setLocalApiKey(e.target.value)}
-            onBlur={() => setApiKey(localApiKey)}
-            style={{ marginTop: 5 }}
-            spellCheck={false}
-          />
-          <SettingHelpTextRow>
-            <SettingHelpText>{t('settings.provider.aws-bedrock.api_key_help')}</SettingHelpText>
-          </SettingHelpTextRow>
-        </>
-      )}
-
       <SettingSubtitle style={{ marginTop: 15 }}>{t('settings.provider.aws-bedrock.region')}</SettingSubtitle>
       <Input
         value={localRegion}
         placeholder="us-east-1"
         onChange={(e) => setLocalRegion(e.target.value)}
-        onBlur={() => setRegion(localRegion)}
+        onBlur={saveRegion}
         style={{ marginTop: 5 }}
       />
       <SettingHelpTextRow>

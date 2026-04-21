@@ -111,7 +111,7 @@ const OVMSSettings: FC = () => {
       <Alert
         type={getAlertType()}
         banner
-        style={{ borderRadius: 'var(--cs-radius-2xs)' }}
+        style={{ borderRadius: 'var(--list-item-border-radius)' }}
         description={
           <ColFlex>
             <SettingRow style={{ width: '100%' }}>

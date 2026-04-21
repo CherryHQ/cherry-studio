@@ -1,9 +1,10 @@
-import { Button, ButtonGroup, ColFlex, Flex, RowFlex, Tooltip } from '@cherrystudio/ui'
+import { Button, ColFlex, Flex, RowFlex, Tooltip } from '@cherrystudio/ui'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { LoadingIcon, StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { PROVIDER_URLS } from '@renderer/config/providers'
-import { useProvider } from '@renderer/hooks/useProvider'
+import { useModelMutations, useModels } from '@renderer/hooks/useModels'
+import { useProvider, useProviderApiKeys } from '@renderer/hooks/useProviders'
 import { getProviderLabel } from '@renderer/i18n/label'
 import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle } from '@renderer/pages/settings'
 import EditModelPopup from '@renderer/pages/settings/ProviderSettings/EditModelPopup/EditModelPopup'
@@ -11,18 +12,19 @@ import AddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/A
 import DownloadOVMSModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/DownloadOVMSModelPopup'
 import ManageModelsPopup from '@renderer/pages/settings/ProviderSettings/ModelList/ManageModelsPopup'
 import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiAddModelPopup'
-import type { Model } from '@renderer/types'
-import { filterModelsByKeywords } from '@renderer/utils'
-import { getDuplicateModelNames } from '@renderer/utils/model'
-import { isNewApiProvider } from '@renderer/utils/provider'
-import { Spin } from 'antd'
-import { groupBy, isEmpty, sortBy, toPairs } from 'lodash'
+import { isNewApiProvider } from '@renderer/utils/provider.v2'
+import type { Model } from '@shared/data/types/model'
+import { parseUniqueModelId } from '@shared/data/types/model'
+import { Space, Spin } from 'antd'
+import { isEmpty, sortBy, toPairs } from 'lodash'
 import { Plus, RefreshCw } from 'lucide-react'
 import React, { memo, startTransition, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { normalizeModelGroupName } from './grouping'
 import ModelListGroup from './ModelListGroup'
 import { useHealthCheck } from './useHealthCheck'
+import { filterProviderSettingModelsByKeywords, getDuplicateProviderSettingModelNames } from './utils'
 
 interface ModelListProps {
   providerId: string
@@ -35,8 +37,15 @@ const MODEL_COUNT_THRESHOLD = 10
  * 根据搜索文本筛选模型、分组并排序
  */
 const calculateModelGroups = (models: Model[], searchText: string): ModelGroups => {
-  const filteredModels = searchText ? filterModelsByKeywords(searchText, models) : models
-  const grouped = groupBy(filteredModels, 'group')
+  const filteredModels = searchText ? filterProviderSettingModelsByKeywords(searchText, models) : models
+  const grouped = filteredModels.reduce<ModelGroups>((acc, model) => {
+    const groupName = normalizeModelGroupName(model.group)
+    if (!acc[groupName]) {
+      acc[groupName] = []
+    }
+    acc[groupName].push(model)
+    return acc
+  }, {})
   return sortBy(toPairs(grouped), [0]).reduce((acc, [key, value]) => {
     acc[key] = value
     return acc
@@ -48,12 +57,27 @@ const calculateModelGroups = (models: Model[], searchText: string): ModelGroups 
  */
 const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   const { t } = useTranslation()
-  const { provider, models, removeModel } = useProvider(providerId)
+  const { provider } = useProvider(providerId)
+  const { models } = useModels({ providerId })
+  const { data: apiKeysData } = useProviderApiKeys(providerId)
+  const joinedApiKey = apiKeysData?.keys?.map((k) => k.key).join(',') ?? ''
+  const { deleteModel } = useModelMutations()
+  const duplicateModelNames = useMemo(() => getDuplicateProviderSettingModelNames(models), [models])
 
-  // 稳定的编辑模型回调，避免内联函数导致子组件 memo 失效
-  const handleEditModel = useCallback((model: Model) => EditModelPopup.show({ provider, model }), [provider])
+  const removeModel = useCallback(
+    async (model: Model) => {
+      const { modelId } = parseUniqueModelId(model.id)
+      await deleteModel(model.providerId, modelId)
+    },
+    [deleteModel]
+  )
 
-  const providerConfig = PROVIDER_URLS[provider.id]
+  const handleEditModel = useCallback(
+    (model: Model) => provider && EditModelPopup.show({ provider, model }),
+    [provider]
+  )
+
+  const providerConfig = provider ? PROVIDER_URLS[provider.id as keyof typeof PROVIDER_URLS] : undefined
   const docsWebsite = providerConfig?.websites?.docs
   const modelsWebsite = providerConfig?.websites?.models
 
@@ -65,8 +89,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
     return calculateModelGroups(models, '')
   })
 
-  const { isChecking: isHealthChecking, modelStatuses, runHealthCheck } = useHealthCheck(provider, models)
-  const duplicateModelNames = useMemo(() => getDuplicateModelNames(models), [models])
+  const { isChecking: isHealthChecking, modelStatuses, runHealthCheck } = useHealthCheck(provider, joinedApiKey, models)
 
   // 将 modelStatuses 数组转换为 Map，实现 O(1) 查找
   const modelStatusMap = useMemo(() => {
@@ -94,10 +117,11 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   }, [displayedModelGroups])
 
   const onManageModel = useCallback(() => {
-    void ManageModelsPopup.show({ providerId: provider.id })
-  }, [provider.id])
+    if (provider) void ManageModelsPopup.show({ providerId: provider.id })
+  }, [provider])
 
   const onAddModel = useCallback(() => {
+    if (!provider) return
     if (isNewApiProvider(provider)) {
       void NewApiAddModelPopup.show({ title: t('settings.models.add.add_model'), provider })
     } else {
@@ -106,7 +130,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   }, [provider, t])
 
   const onDownloadModel = useCallback(
-    () => DownloadOVMSModelPopup.show({ title: t('ovms.download.title'), provider }),
+    () => provider && DownloadOVMSModelPopup.show({ title: t('ovms.download.title'), provider }),
     [provider, t]
   )
 
@@ -114,34 +138,25 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   const hasNoModels = useMemo(() => models.length === 0, [models.length])
 
   const actionButtons = (
-    <ButtonGroup>
-      <Button onClick={onManageModel} size="sm" variant="outline" disabled={isHealthChecking}>
+    <Space.Compact>
+      <Button onClick={onManageModel} size="icon" disabled={isHealthChecking}>
         <RefreshCw size={16} />
         {t('settings.models.manage.fetch_list')}
       </Button>
-      {provider.id !== 'ovms' ? (
-        <Button
-          onClick={onAddModel}
-          size="sm"
-          variant="outline"
-          className="aspect-square px-0"
-          disabled={isHealthChecking}
-          title={t('button.add')}
-          aria-label={t('button.add')}>
-          <Plus size={16} />
-        </Button>
+      {provider?.id !== 'ovms' ? (
+        <Tooltip title={t('button.add')}>
+          <Button onClick={onAddModel} size="icon" disabled={isHealthChecking}>
+            <Plus size={16} />
+          </Button>
+        </Tooltip>
       ) : (
-        <Button
-          onClick={onDownloadModel}
-          size="sm"
-          variant="outline"
-          className="aspect-square px-0"
-          title={t('button.download')}
-          aria-label={t('button.download')}>
-          <Plus size={16} />
-        </Button>
+        <Tooltip title={t('button.download')}>
+          <Button onClick={onDownloadModel} size="icon">
+            <Plus size={16} />
+          </Button>
+        </Tooltip>
       )}
-    </ButtonGroup>
+    </Space.Compact>
   )
 
   return (
@@ -197,7 +212,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
             <SettingHelpText>{t('settings.provider.docs_check')} </SettingHelpText>
             {docsWebsite && (
               <SettingHelpLink target="_blank" href={docsWebsite}>
-                {getProviderLabel(provider.id) + ' '}
+                {getProviderLabel(provider?.id ?? '') + ' '}
                 {t('common.docs')}
               </SettingHelpLink>
             )}
@@ -210,7 +225,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
             <SettingHelpText>{t('settings.provider.docs_more_details')}</SettingHelpText>
           </SettingHelpTextRow>
         ) : (
-          <div className="h-1.25" />
+          <div className="h-[5px]" />
         )}
       </Flex>
     </>

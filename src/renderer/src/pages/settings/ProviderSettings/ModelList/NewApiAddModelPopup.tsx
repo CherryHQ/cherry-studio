@@ -2,15 +2,14 @@ import { Flex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
 import { endpointTypeOptions } from '@renderer/config/endpointTypes'
-import { isNotSupportTextDeltaModel } from '@renderer/config/models'
 import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
-import { useProvider } from '@renderer/hooks/useProvider'
-import type { EndpointType, Model, Provider } from '@renderer/types'
+import { useModelMutations, useModels } from '@renderer/hooks/useModels'
 import { getDefaultGroupName } from '@renderer/utils'
-import { isNewApiProvider } from '@renderer/utils/provider'
+import { isNewApiProvider } from '@renderer/utils/provider.v2'
+import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import type { FormProps } from 'antd'
 import { Form, Input, Modal, Select } from 'antd'
-import { find } from 'lodash'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -18,7 +17,7 @@ interface ShowParams {
   title: string
   provider: Provider
   model?: Model
-  endpointType?: EndpointType
+  endpointType?: number | string
 }
 
 interface Props extends ShowParams {
@@ -30,13 +29,14 @@ type FieldType = {
   id: string
   name?: string
   group?: string
-  endpointType?: EndpointType
+  endpointType?: number | string
 }
 
 const PopupContainer: React.FC<Props> = ({ title, provider, resolve, model, endpointType }) => {
   const [open, setOpen] = useState(true)
   const [form] = Form.useForm()
-  const { addModel, models } = useProvider(provider.id)
+  const { models } = useModels({ providerId: provider.id })
+  const { createModel } = useModelMutations()
   const { t } = useTranslation()
 
   const onOk = () => {
@@ -51,38 +51,39 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, model, endp
     resolve({})
   }
 
-  const onAddModel = (values: FieldType) => {
-    const id = values.id.trim()
+  const onAddModel = async (values: FieldType) => {
+    const modelId = values.id.trim()
 
-    if (find(models, { id })) {
+    if (models.some((m) => m.id.endsWith(`::${modelId}`))) {
       window.toast.error(t('error.model.exists'))
       return
     }
 
-    const model: Model = {
-      id,
-      provider: provider.id,
-      name: values.name ? values.name : id.toUpperCase(),
-      group: values.group ?? getDefaultGroupName(id),
-      endpoint_type: isNewApiProvider(provider) ? values.endpointType : undefined
-    }
-
-    addModel({ ...model, supported_text_delta: !isNotSupportTextDeltaModel(model) })
+    await createModel({
+      providerId: provider.id,
+      modelId,
+      name: values.name ? values.name : modelId.toUpperCase(),
+      group: values.group ?? getDefaultGroupName(modelId),
+      endpointTypes:
+        isNewApiProvider(provider) && values.endpointType ? [values.endpointType as EndpointType] : undefined
+    })
 
     return true
   }
 
-  const onFinish: FormProps<FieldType>['onFinish'] = (values) => {
+  const onFinish: FormProps<FieldType>['onFinish'] = async (values) => {
     const id = values.id.trim().replaceAll('，', ',')
 
     if (id.includes(',')) {
       const ids = id.split(',')
-      ids.forEach((id) => onAddModel({ id, name: id } as FieldType))
+      for (const singleId of ids) {
+        await onAddModel({ id: singleId, name: singleId } as FieldType)
+      }
       resolve({})
       return
     }
 
-    if (onAddModel(values)) {
+    if (await onAddModel(values)) {
       resolve({})
     }
   }
@@ -111,10 +112,10 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, model, endp
                 id: model.id,
                 name: model.name,
                 group: model.group,
-                endpointType: endpointType ?? 'openai'
+                endpointType: endpointType ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
               }
             : {
-                endpointType: endpointType ?? 'openai'
+                endpointType: endpointType ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
               }
         }>
         <Form.Item

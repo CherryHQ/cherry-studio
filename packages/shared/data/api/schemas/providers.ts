@@ -15,6 +15,7 @@ import type {
   Provider,
   ProviderSettings
 } from '../../types/provider'
+import type { OrderEndpoints } from './_endpointHelpers'
 import type { EnrichModelsDto } from './models'
 
 export interface ListProvidersQuery {
@@ -54,14 +55,12 @@ export interface CreateProviderDto extends ProviderMutableFields {
 export interface UpdateProviderDto extends ProviderMutableFields {
   /** Whether this provider is enabled */
   isEnabled?: boolean
-  /** Sort order in UI */
-  sortOrder?: number
 }
 
 /**
  * Provider API Schema definitions
  */
-export interface ProviderSchemas {
+export type ProviderSchemas = {
   /**
    * Providers collection endpoint
    * @example GET /providers?enabled=true
@@ -178,4 +177,4 @@ export interface ProviderSchemas {
       response: Provider
     }
   }
-}
+} & OrderEndpoints<'/providers'>

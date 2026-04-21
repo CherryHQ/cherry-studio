@@ -4,6 +4,7 @@
 
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { assignOrderKeysInSequence } from '@data/migration/v2/utils/orderKey'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import type { Provider as LegacyProvider } from '@types'
@@ -108,9 +109,13 @@ export class ProviderModelMigrator extends BaseMigrator {
 
     try {
       await ctx.db.transaction(async (tx) => {
+        const providerRows = assignOrderKeysInSequence(
+          this.providers.map((provider) => transformProvider(provider, this.settings))
+        )
+
         for (let providerIndex = 0; providerIndex < this.providers.length; providerIndex++) {
           const provider = this.providers[providerIndex]
-          await tx.insert(userProviderTable).values(transformProvider(provider, this.settings, providerIndex))
+          await tx.insert(userProviderTable).values(providerRows[providerIndex])
           processedProviders++
 
           const uniqueModels = Array.from(new Map((provider.models ?? []).map((model) => [model.id, model])).values())

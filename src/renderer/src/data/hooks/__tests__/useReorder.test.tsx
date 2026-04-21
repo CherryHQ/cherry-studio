@@ -411,3 +411,52 @@ describe('useReorder - idKey option', () => {
     )
   })
 })
+
+describe('useReorder - array collection values', () => {
+  const ARRAY_COLLECTION = '/providers' as const
+  const ARRAY_CACHE_KEY = unstable_serialize([ARRAY_COLLECTION])
+
+  function makeArrayWrapper(initial: Array<{ id: string }>) {
+    const cache = new Map<string, { data?: unknown }>()
+    cache.set(ARRAY_CACHE_KEY, { data: initial })
+    const provider = () => cache
+    const Wrapper = ({ children }: { children: React.ReactNode }) => (
+      <SWRConfig value={{ provider, dedupingInterval: 0, revalidateOnFocus: false, revalidateOnReconnect: false }}>
+        {children}
+      </SWRConfig>
+    )
+    return { Wrapper, cache }
+  }
+
+  function renderArrayReorder(wrapper: React.ComponentType<{ children: React.ReactNode }>) {
+    return renderHook(
+      () => {
+        useSWR([ARRAY_COLLECTION], ([p]) => getMock(p, {}) as Promise<Array<{ id: string }>>, {
+          revalidateOnMount: false,
+          revalidateIfStale: false,
+          revalidateOnFocus: false,
+          revalidateOnReconnect: false
+        })
+        return useReorder(ARRAY_COLLECTION, { revalidateOnSuccess: false })
+      },
+      { wrapper }
+    )
+  }
+
+  it('optimistically reorders array-shaped collections without requiring an items wrapper', async () => {
+    const { Wrapper, cache } = makeArrayWrapper([{ id: 'openai' }, { id: 'anthropic' }, { id: 'gemini' }])
+    patchMock.mockResolvedValue({})
+
+    const { result } = renderArrayReorder(Wrapper)
+
+    await act(async () => {
+      await result.current.move('gemini', { position: 'first' })
+    })
+
+    expect(cache.get(ARRAY_CACHE_KEY)?.data).toEqual([{ id: 'gemini' }, { id: 'openai' }, { id: 'anthropic' }])
+    expect(patchMock).toHaveBeenCalledWith(
+      `${ARRAY_COLLECTION}/gemini/order`,
+      expect.objectContaining({ body: { position: 'first' } })
+    )
+  })
+})

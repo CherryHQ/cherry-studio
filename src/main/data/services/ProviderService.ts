@@ -9,8 +9,10 @@
 import { application } from '@application'
 import type { NewUserProvider, UserProvider } from '@data/db/schemas/userProvider'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { applyMoves, insertManyWithOrderKey, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
+import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateProviderDto, ListProvidersQuery, UpdateProviderDto } from '@shared/data/api/schemas/providers'
 import type {
   ApiKeyEntry,
@@ -21,7 +23,7 @@ import type {
   RuntimeApiFeatures
 } from '@shared/data/types/provider'
 import { DEFAULT_API_FEATURES, DEFAULT_PROVIDER_SETTINGS } from '@shared/data/types/provider'
-import { eq } from 'drizzle-orm'
+import { asc, eq } from 'drizzle-orm'
 
 const logger = loggerService.withContext('DataApi:ProviderService')
 
@@ -66,22 +68,48 @@ function rowToRuntimeProvider(row: UserProvider): Provider {
 }
 
 class ProviderService {
+  private get db() {
+    return application.get('DbService').getDb()
+  }
+
+  private rethrowOrderError(error: unknown): never {
+    if (error instanceof Error) {
+      const moveTargetMatch = error.message.match(/move target id "(.+)" not found/)
+      if (moveTargetMatch) {
+        throw DataApiErrorFactory.notFound('Provider', moveTargetMatch[1])
+      }
+
+      const anchorMatch = error.message.match(/anchor id "(.+)" .* not found/)
+      if (anchorMatch) {
+        throw DataApiErrorFactory.notFound('Provider', anchorMatch[1])
+      }
+
+      if (error.message.includes("cannot equal the move's own id")) {
+        throw DataApiErrorFactory.invalidOperation(error.message)
+      }
+    }
+
+    throw error
+  }
+
+  private async listRows(): Promise<UserProvider[]> {
+    return this.db.select().from(userProviderTable).orderBy(asc(userProviderTable.orderKey))
+  }
+
   /**
    * List providers with optional filters
    */
   async list(query: ListProvidersQuery): Promise<Provider[]> {
-    const db = application.get('DbService').getDb()
-
     let rows: UserProvider[]
 
     if (query.enabled !== undefined) {
-      rows = await db
+      rows = await this.db
         .select()
         .from(userProviderTable)
         .where(eq(userProviderTable.isEnabled, query.enabled))
-        .orderBy(userProviderTable.sortOrder)
+        .orderBy(asc(userProviderTable.orderKey))
     } else {
-      rows = await db.select().from(userProviderTable).orderBy(userProviderTable.sortOrder)
+      rows = await this.listRows()
     }
 
     return rows.map(rowToRuntimeProvider)
@@ -91,9 +119,11 @@ class ProviderService {
    * Get a provider by its provider ID
    */
   async getByProviderId(providerId: string): Promise<Provider> {
-    const db = application.get('DbService').getDb()
-
-    const [row] = await db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId)).limit(1)
+    const [row] = await this.db
+      .select()
+      .from(userProviderTable)
+      .where(eq(userProviderTable.providerId, providerId))
+      .limit(1)
 
     if (!row) {
       throw DataApiErrorFactory.notFound('Provider', providerId)
@@ -106,8 +136,6 @@ class ProviderService {
    * Create a new provider
    */
   async create(dto: CreateProviderDto): Promise<Provider> {
-    const db = application.get('DbService').getDb()
-
     const values: NewUserProvider = {
       providerId: dto.providerId,
       presetProviderId: dto.presetProviderId ?? null,
@@ -120,7 +148,9 @@ class ProviderService {
       providerSettings: dto.providerSettings ?? null
     }
 
-    const [row] = await db.insert(userProviderTable).values(values).returning()
+    const row = (await insertWithOrderKey(this.db, userProviderTable, values, {
+      pkColumn: userProviderTable.providerId
+    })) as UserProvider
 
     logger.info('Created provider', { providerId: dto.providerId })
 
@@ -131,8 +161,6 @@ class ProviderService {
    * Update an existing provider
    */
   async update(providerId: string, dto: UpdateProviderDto): Promise<Provider> {
-    const db = application.get('DbService').getDb()
-
     // Verify provider exists
     await this.getByProviderId(providerId)
 
@@ -147,9 +175,8 @@ class ProviderService {
     if (dto.apiFeatures !== undefined) updates.apiFeatures = dto.apiFeatures
     if (dto.providerSettings !== undefined) updates.providerSettings = dto.providerSettings
     if (dto.isEnabled !== undefined) updates.isEnabled = dto.isEnabled
-    if (dto.sortOrder !== undefined) updates.sortOrder = dto.sortOrder
 
-    const [row] = await db
+    const [row] = await this.db
       .update(userProviderTable)
       .set(updates)
       .where(eq(userProviderTable.providerId, providerId))
@@ -168,15 +195,17 @@ class ProviderService {
   async batchUpsert(providers: NewUserProvider[]): Promise<void> {
     if (providers.length === 0) return
 
-    const db = application.get('DbService').getDb()
+    const existing = await this.db.select({ providerId: userProviderTable.providerId }).from(userProviderTable)
+    const existingIds = new Set(existing.map((row) => row.providerId))
+    const newProviders = providers.filter((provider) => !existingIds.has(provider.providerId))
 
-    await db.transaction(async (tx) => {
-      for (const provider of providers) {
-        await tx.insert(userProviderTable).values(provider).onConflictDoNothing()
-      }
+    if (newProviders.length === 0) return
+
+    await insertManyWithOrderKey(this.db, userProviderTable, newProviders, {
+      pkColumn: userProviderTable.providerId
     })
 
-    logger.info('Batch upserted providers', { count: providers.length })
+    logger.info('Batch upserted providers', { count: newProviders.length })
   }
 
   /**
@@ -184,9 +213,11 @@ class ProviderService {
    * Returns empty string for providers that don't have keys.
    */
   async getRotatedApiKey(providerId: string): Promise<string> {
-    const db = application.get('DbService').getDb()
-
-    const [row] = await db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId)).limit(1)
+    const [row] = await this.db
+      .select()
+      .from(userProviderTable)
+      .where(eq(userProviderTable.providerId, providerId))
+      .limit(1)
 
     if (!row) {
       throw DataApiErrorFactory.notFound('Provider', providerId)
@@ -225,9 +256,11 @@ class ProviderService {
    * Used by health check to test each key individually.
    */
   async getEnabledApiKeys(providerId: string): Promise<ApiKeyEntry[]> {
-    const db = application.get('DbService').getDb()
-
-    const [row] = await db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId)).limit(1)
+    const [row] = await this.db
+      .select()
+      .from(userProviderTable)
+      .where(eq(userProviderTable.providerId, providerId))
+      .limit(1)
 
     if (!row) {
       throw DataApiErrorFactory.notFound('Provider', providerId)
@@ -240,8 +273,11 @@ class ProviderService {
    * Get full auth config (includes sensitive credentials).
    */
   async getAuthConfig(providerId: string): Promise<AuthConfig | null> {
-    const db = application.get('DbService').getDb()
-    const [row] = await db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId)).limit(1)
+    const [row] = await this.db
+      .select()
+      .from(userProviderTable)
+      .where(eq(userProviderTable.providerId, providerId))
+      .limit(1)
 
     if (!row) {
       throw DataApiErrorFactory.notFound('Provider', providerId)
@@ -255,9 +291,11 @@ class ProviderService {
    * Returns the updated Provider.
    */
   async addApiKey(providerId: string, key: string, label?: string): Promise<Provider> {
-    const db = application.get('DbService').getDb()
-
-    const [row] = await db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId)).limit(1)
+    const [row] = await this.db
+      .select()
+      .from(userProviderTable)
+      .where(eq(userProviderTable.providerId, providerId))
+      .limit(1)
 
     if (!row) {
       throw DataApiErrorFactory.notFound('Provider', providerId)
@@ -280,7 +318,7 @@ class ProviderService {
 
     const updatedKeys = [...existingKeys, newEntry]
 
-    const [updated] = await db
+    const [updated] = await this.db
       .update(userProviderTable)
       .set({ apiKeys: updatedKeys })
       .where(eq(userProviderTable.providerId, providerId))
@@ -295,8 +333,11 @@ class ProviderService {
    * Delete an API key by key ID and return updated provider.
    */
   async deleteApiKey(providerId: string, keyId: string): Promise<Provider> {
-    const db = application.get('DbService').getDb()
-    const [row] = await db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId)).limit(1)
+    const [row] = await this.db
+      .select()
+      .from(userProviderTable)
+      .where(eq(userProviderTable.providerId, providerId))
+      .limit(1)
 
     if (!row) {
       throw DataApiErrorFactory.notFound('Provider', providerId)
@@ -309,7 +350,7 @@ class ProviderService {
       throw DataApiErrorFactory.notFound('API key', keyId)
     }
 
-    const [updated] = await db
+    const [updated] = await this.db
       .update(userProviderTable)
       .set({ apiKeys: updatedKeys })
       .where(eq(userProviderTable.providerId, providerId))
@@ -325,17 +366,41 @@ class ProviderService {
    * cannot be deleted. User-created providers that inherit from a preset can be deleted.
    */
   async delete(providerId: string): Promise<void> {
-    const db = application.get('DbService').getDb()
-
     const provider = await this.getByProviderId(providerId)
 
     if (provider.presetProviderId && provider.presetProviderId === providerId) {
       throw DataApiErrorFactory.invalidOperation(`Cannot delete preset provider '${providerId}'`)
     }
 
-    await db.delete(userProviderTable).where(eq(userProviderTable.providerId, providerId))
+    await this.db.delete(userProviderTable).where(eq(userProviderTable.providerId, providerId))
 
     logger.info('Deleted provider', { providerId })
+  }
+
+  async move(providerId: string, anchor: OrderRequest): Promise<void> {
+    try {
+      await this.db.transaction(async (tx) => {
+        await applyMoves(tx, userProviderTable, [{ id: providerId, anchor }], {
+          pkColumn: userProviderTable.providerId
+        })
+      })
+    } catch (error) {
+      this.rethrowOrderError(error)
+    }
+    logger.info('Moved provider', { providerId, anchor })
+  }
+
+  async reorder(moves: OrderBatchRequest['moves']): Promise<void> {
+    try {
+      await this.db.transaction(async (tx) => {
+        await applyMoves(tx, userProviderTable, moves, {
+          pkColumn: userProviderTable.providerId
+        })
+      })
+    } catch (error) {
+      this.rethrowOrderError(error)
+    }
+    logger.info('Reordered providers', { count: moves.length })
   }
 }
 

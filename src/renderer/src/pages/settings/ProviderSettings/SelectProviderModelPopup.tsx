@@ -1,37 +1,40 @@
-import ModelSelector from '@renderer/components/ModelSelector'
 import { TopView } from '@renderer/components/TopView'
-import { isRerankModel } from '@renderer/config/models'
+import { isRerankModel } from '@renderer/config/models/v2'
 import { useTimer } from '@renderer/hooks/useTimer'
 import i18n from '@renderer/i18n'
-import { getModelUniqId } from '@renderer/services/ModelService'
-import type { Model, Provider } from '@renderer/types'
-import { Modal } from 'antd'
-import { first } from 'lodash'
-import { useCallback, useMemo, useState } from 'react'
+import type { Model } from '@shared/data/types/model'
+import { Modal, Select } from 'antd'
+import { first, sortBy } from 'lodash'
+import { useMemo, useState } from 'react'
 
 interface ShowParams {
-  provider: Provider
+  models: Model[]
 }
 
 interface Props extends ShowParams {
   reject: (reason?: any) => void
-  resolve: (data: any) => void
+  resolve: (data: Model) => void
 }
 
-const PopupContainer: React.FC<Props> = ({ provider, resolve, reject }) => {
+const PopupContainer: React.FC<Props> = ({ models: rawModels, resolve, reject }) => {
   const [open, setOpen] = useState(true)
   const { setTimeoutTimer } = useTimer()
 
-  // Keep the natural order of models
-  const models = useMemo(() => provider.models.filter((m) => !isRerankModel(m)), [provider])
-
+  const models = useMemo(() => rawModels.filter((m) => !isRerankModel(m)), [rawModels])
   const [model, setModel] = useState(first(models))
 
-  const modelPredicate = useCallback((m: Model) => !isRerankModel(m), [])
-
   const defaultModelValue = useMemo(() => {
-    return model ? getModelUniqId(model) : undefined
+    return model?.id
   }, [model])
+
+  const options = useMemo(
+    () =>
+      sortBy(models, 'name').map((item) => ({
+        label: item.name,
+        value: item.id
+      })),
+    [models]
+  )
 
   const onOk = () => {
     if (!model) {
@@ -55,7 +58,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve, reject }) => {
 
   return (
     <Modal
-      title={i18n.t('message.api.check.model.title', { model: model })}
+      title={i18n.t('message.api.check.model.title', { model: model?.name || '' })}
       open={open}
       onOk={onOk}
       onCancel={onCancel}
@@ -63,15 +66,15 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve, reject }) => {
       transitionName="animation-move-down"
       width={400}
       centered>
-      <ModelSelector
-        providers={[provider]}
-        predicate={modelPredicate}
-        grouped={false}
+      <Select
+        showSearch
         defaultValue={defaultModelValue}
+        options={options}
+        optionFilterProp="label"
         placeholder={i18n.t('settings.models.empty')}
         style={{ width: '100%' }}
         onChange={(value) => {
-          setModel(models.find((m) => value === getModelUniqId(m)))
+          setModel(models.find((item) => item.id === value))
         }}
       />
     </Modal>
@@ -86,7 +89,7 @@ export default class SelectProviderModelPopup {
     TopView.hide(TopViewKey)
   }
   static show(props: ShowParams) {
-    return new Promise<any>((resolve, reject) => {
+    return new Promise<Model | undefined>((resolve, reject) => {
       TopView.show(
         <PopupContainer
           {...props}

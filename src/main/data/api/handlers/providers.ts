@@ -14,6 +14,7 @@ import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
+import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateProviderDto, UpdateProviderDto } from '@shared/data/api/schemas/providers'
 import type { ProviderSchemas } from '@shared/data/api/schemas/providers'
 import * as z from 'zod'
@@ -109,6 +110,28 @@ export const providerHandlers: {
   '/providers/:providerId/api-keys/:keyId': {
     DELETE: async ({ params }) => {
       return providerService.deleteApiKey(params.providerId, params.keyId)
+    }
+  },
+
+  '/providers/:id/order': {
+    PATCH: async ({ params, body }) => {
+      const parsed = OrderRequestSchema.safeParse(body)
+      if (!parsed.success) {
+        throw DataApiErrorFactory.validation({ body: [parsed.error.message] })
+      }
+      await providerService.move(params.id, parsed.data)
+      return undefined
+    }
+  },
+
+  '/providers/order:batch': {
+    PATCH: async ({ body }) => {
+      const parsed = OrderBatchRequestSchema.safeParse(body)
+      if (!parsed.success) {
+        throw DataApiErrorFactory.validation({ body: [parsed.error.message] })
+      }
+      await providerService.reorder(parsed.data.moves)
+      return undefined
     }
   }
 }

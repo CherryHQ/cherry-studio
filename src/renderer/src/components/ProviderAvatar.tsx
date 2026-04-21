@@ -1,7 +1,6 @@
 import type { CompoundIcon } from '@cherrystudio/ui'
 import { Avatar, AvatarFallback, AvatarImage } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
-import type { Provider } from '@renderer/types'
 import { generateColorFromChar, getFirstCharacter, getForegroundColor } from '@renderer/utils'
 import React from 'react'
 
@@ -18,7 +17,7 @@ interface ProviderAvatarPrimitiveProps {
 }
 
 interface ProviderAvatarProps {
-  provider: Provider
+  provider: { id: string; name: string }
   customLogos?: Record<string, string>
   size?: number
   className?: string

@@ -3,10 +3,10 @@ import { Button } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import OAuthButton from '@renderer/components/OAuth/OAuthButton'
 import { PROVIDER_URLS } from '@renderer/config/providers'
-import { useProvider } from '@renderer/hooks/useProvider'
+import { useProvider } from '@renderer/hooks/useProviders'
 import { getProviderLabel } from '@renderer/i18n/label'
 import { providerBills, providerCharge } from '@renderer/utils/oauth'
-import { isEmpty } from 'lodash'
+import { hasApiKeys } from '@renderer/utils/provider.v2'
 import { CircleDollarSign, ReceiptText } from 'lucide-react'
 import type { FC } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
@@ -18,11 +18,14 @@ interface Props {
 
 const ProviderOAuth: FC<Props> = ({ providerId }) => {
   const { t } = useTranslation()
-  const { provider, updateProvider } = useProvider(providerId)
+  const { provider, updateProvider, addApiKey } = useProvider(providerId)
 
-  const setApiKey = (newKey: string) => {
-    updateProvider({ apiKey: newKey, enabled: true })
+  const setApiKey = async (newKey: string) => {
+    await addApiKey(newKey, 'OAuth')
+    await updateProvider({ isEnabled: true })
   }
+
+  if (!provider) return null
 
   let providerWebsite =
     PROVIDER_URLS[provider.id]?.api?.url.replace('https://', '').replace('api.', '') || provider.name
@@ -35,8 +38,8 @@ const ProviderOAuth: FC<Props> = ({ providerId }) => {
   return (
     <Container>
       {Icon ? <Icon.Avatar size={60} /> : <ProviderLogoFallback>{provider.name[0]}</ProviderLogoFallback>}
-      {isEmpty(provider.apiKey) ? (
-        <OAuthButton provider={provider} onSuccess={setApiKey}>
+      {!hasApiKeys(provider) ? (
+        <OAuthButton provider={{ id: provider.id } as any} onSuccess={setApiKey}>
           {t('settings.provider.oauth.button', { provider: getProviderLabel(provider.id) })}
         </OAuthButton>
       ) : (

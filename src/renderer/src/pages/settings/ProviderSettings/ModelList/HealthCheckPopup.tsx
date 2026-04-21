@@ -1,7 +1,6 @@
 import { Box, ColFlex } from '@cherrystudio/ui'
 import { Flex } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
-import type { Provider } from '@renderer/types'
 import { maskApiKey } from '@renderer/utils/api'
 import { Divider, InputNumber, Modal, Radio, Segmented, Typography } from 'antd'
 import { Alert } from 'antd'
@@ -10,7 +9,6 @@ import { useTranslation } from 'react-i18next'
 
 interface ShowParams {
   title: string
-  provider: Provider
   apiKeys: string[]
 }
 

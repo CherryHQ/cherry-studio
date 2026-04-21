@@ -152,11 +152,7 @@ const SYSTEM_PROVIDER_IDS = new Set([
   'zai'
 ])
 
-export function transformProvider(
-  legacy: LegacyProvider,
-  settings: OldLlmSettings,
-  sortOrder: number
-): NewUserProvider {
+export function transformProvider(legacy: LegacyProvider, settings: OldLlmSettings): NewUserProvider {
   const endpointType = ENDPOINT_MAP[legacy.type]
   if (legacy.type && !endpointType) {
     logger.warn('Unknown provider type dropped during migration', { providerId: legacy.id, legacyType: legacy.type })
@@ -172,8 +168,7 @@ export function transformProvider(
     authConfig: buildAuthConfig(legacy, settings),
     apiFeatures: buildApiFeatures(legacy),
     providerSettings: buildProviderSettings(legacy, settings),
-    isEnabled: legacy.enabled ?? true,
-    sortOrder
+    isEnabled: legacy.enabled ?? true
   }
 }
 

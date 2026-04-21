@@ -1,7 +1,6 @@
 import MarkdownEditor from '@renderer/components/MarkdownEditor'
 import { TopView } from '@renderer/components/TopView'
-import { useProvider } from '@renderer/hooks/useProvider'
-import type { Provider } from '@renderer/types'
+import { useProvider } from '@renderer/hooks/useProviders'
 import { Modal } from 'antd'
 import type { FC } from 'react'
 import { useState } from 'react'
@@ -9,24 +8,21 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 interface ShowParams {
-  provider: Provider
+  providerId: string
 }
 
 interface Props extends ShowParams {
   resolve: (data: any) => void
 }
 
-const PopupContainer: FC<Props> = ({ provider: _provider, resolve }) => {
+const PopupContainer: FC<Props> = ({ providerId, resolve }) => {
   const { t } = useTranslation()
   const [open, setOpen] = useState(true)
-  const { provider, updateProvider } = useProvider(_provider.id)
-  const [notes, setNotes] = useState<string>(provider.notes || '')
+  const { provider, updateProvider } = useProvider(providerId)
+  const [notes, setNotes] = useState<string>(provider?.settings?.notes || '')
 
-  const handleSave = () => {
-    updateProvider({
-      ...provider,
-      notes
-    })
+  const handleSave = async () => {
+    await updateProvider({ providerSettings: { ...provider?.settings, notes } })
     setOpen(false)
   }
 

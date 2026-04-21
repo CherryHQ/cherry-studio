@@ -1,9 +1,12 @@
 import { Flex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
+import { useQuery } from '@data/hooks/useDataApi'
 import { TopView } from '@renderer/components/TopView'
-import { useAllProviders } from '@renderer/hooks/useProvider'
-import type { Provider, ProviderType } from '@renderer/types'
-import { getFancyProviderName, maskApiKey } from '@renderer/utils'
+import { useProviders } from '@renderer/hooks/useProviders'
+import type { ProviderType } from '@renderer/types'
+import { maskApiKey } from '@renderer/utils'
+import { getFancyProviderName } from '@renderer/utils/provider.v2'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { Descriptions, Modal } from 'antd'
 import { Eye, EyeOff } from 'lucide-react'
 import { useState } from 'react'
@@ -18,8 +21,16 @@ interface ShowParams {
   name?: string
 }
 
+interface ImportedProviderDraft {
+  id: string
+  name: string
+  type: ProviderType
+  apiKey: string
+  apiHost: string
+}
+
 interface PopupResult {
-  updatedProvider?: Provider
+  updatedProvider?: ImportedProviderDraft
   isNew: boolean
   displayName: string
 }
@@ -30,30 +41,35 @@ interface Props extends ShowParams {
 
 const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, resolve }: Props) => {
   const { t } = useTranslation()
-  const providers = useAllProviders()
+  const { providers } = useProviders()
   const [open, setOpen] = useState(true)
   const [showFullKey, setShowFullKey] = useState(false)
 
   const foundProvider = providers.find((p) => p.id === id)
-  const baseProvider: Provider = foundProvider ?? {
-    id,
-    name: name || id,
-    type: type || 'openai',
-    apiKey: '',
-    apiHost: baseUrl || '',
-    models: [],
-    enabled: true,
-    isSystem: false
-  }
+  const defaultEndpoint = foundProvider?.defaultChatEndpoint ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+  const existingApiHost = foundProvider?.endpointConfigs?.[defaultEndpoint]?.baseUrl ?? ''
+  const { data: apiKeysData } = useQuery('/providers/:providerId/api-keys', {
+    params: { providerId: id },
+    enabled: foundProvider !== undefined
+  })
+  const baseProvider: ImportedProviderDraft = foundProvider
+    ? {
+        id: foundProvider.id,
+        name: foundProvider.name,
+        type: type || 'openai',
+        apiKey: '',
+        apiHost: existingApiHost
+      }
+    : {
+        id,
+        name: name || id,
+        type: type || 'openai',
+        apiKey: '',
+        apiHost: baseUrl || ''
+      }
 
-  const displayName = getFancyProviderName(baseProvider)
-  const hasExistingKey = baseProvider.apiKey && baseProvider.apiKey.trim() !== ''
-  const existingKeys = hasExistingKey
-    ? baseProvider.apiKey
-        .split(',')
-        .map((k) => k.trim())
-        .filter(Boolean)
-    : []
+  const displayName = foundProvider ? getFancyProviderName(foundProvider) : baseProvider.name
+  const existingKeys = apiKeysData?.keys?.map((k) => k.key.trim()).filter(Boolean) ?? []
   const trimmedNewKey = newApiKey.trim()
   const keyAlreadyExists = existingKeys.includes(trimmedNewKey)
   const baseUrlChanged = Boolean(baseUrl) && baseUrl !== baseProvider.apiHost
@@ -67,11 +83,7 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, resolve }:
 
   const handleOk = () => {
     setOpen(false)
-    const finalApiKey = keyAlreadyExists
-      ? baseProvider.apiKey
-      : hasExistingKey
-        ? `${baseProvider.apiKey},${trimmedNewKey}`
-        : trimmedNewKey
+    const finalApiKey = keyAlreadyExists ? '' : trimmedNewKey
     const finalApiHost = baseUrlChanged ? baseUrl : baseProvider.apiHost
 
     if (finalApiKey === baseProvider.apiKey && finalApiHost === baseProvider.apiHost) {
@@ -79,7 +91,7 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, resolve }:
       return
     }
 
-    const updatedProvider: Provider = {
+    const updatedProvider: ImportedProviderDraft = {
       ...baseProvider,
       apiKey: finalApiKey,
       apiHost: finalApiHost

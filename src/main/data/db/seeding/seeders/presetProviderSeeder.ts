@@ -3,6 +3,7 @@ import type { ProtoProviderConfig } from '@cherrystudio/provider-registry'
 import { buildRuntimeEndpointConfigs, ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { insertManyWithOrderKey } from '@data/services/utils/orderKey'
 
 import type { DbType, ISeeder } from '../../types'
 
@@ -81,7 +82,9 @@ export class PresetProviderSeeder implements ISeeder {
     }
 
     if (newRows.length > 0) {
-      await db.insert(userProviderTable).values(newRows)
+      await insertManyWithOrderKey(db, userProviderTable, newRows, {
+        pkColumn: userProviderTable.providerId
+      })
     }
   }
 }

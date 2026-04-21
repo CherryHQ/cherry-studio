@@ -1,61 +1,53 @@
 import { RowFlex } from '@cherrystudio/ui'
 import { PROVIDER_URLS } from '@renderer/config/providers'
-import { useVertexAISettings } from '@renderer/hooks/useVertexAI'
+import { useProviderAuthConfig, useProviderMutations } from '@renderer/hooks/useProviders'
 import { Alert, Input } from 'antd'
-import { useState } from 'react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle } from '..'
 
-const VertexAISettings = () => {
-  const { t } = useTranslation()
-  const {
-    projectId,
-    location,
-    serviceAccount,
-    setProjectId,
-    setLocation,
-    setServiceAccountPrivateKey,
-    setServiceAccountClientEmail
-  } = useVertexAISettings()
+interface Props {
+  providerId: string
+}
 
-  const [localProjectId, setLocalProjectId] = useState(projectId)
-  const [localLocation, setLocalLocation] = useState(location)
+const VertexAISettings: FC<Props> = ({ providerId }) => {
+  const { t } = useTranslation()
+  const { data: authConfig } = useProviderAuthConfig(providerId)
+  const { updateAuthConfig: saveAuthConfigToServer } = useProviderMutations(providerId)
+
+  const gcpConfig = authConfig?.type === 'iam-gcp' ? authConfig : null
+  const credentials = gcpConfig?.credentials as Record<string, string> | undefined
+
+  const [localProjectId, setLocalProjectId] = useState(gcpConfig?.project ?? '')
+  const [localLocation, setLocalLocation] = useState(gcpConfig?.location ?? '')
+  const [localPrivateKey, setLocalPrivateKey] = useState(credentials?.privateKey ?? '')
+  const [localClientEmail, setLocalClientEmail] = useState(credentials?.clientEmail ?? '')
+
+  useEffect(() => {
+    const config = authConfig?.type === 'iam-gcp' ? authConfig : null
+    if (config) {
+      setLocalProjectId(config.project ?? '')
+      setLocalLocation(config.location ?? '')
+      setLocalPrivateKey((config.credentials as Record<string, string> | undefined)?.privateKey ?? '')
+      setLocalClientEmail((config.credentials as Record<string, string> | undefined)?.clientEmail ?? '')
+    }
+  }, [authConfig])
 
   const providerConfig = PROVIDER_URLS['vertexai']
   const apiKeyWebsite = providerConfig?.websites?.apiKey
 
-  const handleProjectIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setLocalProjectId(e.target.value)
-  }
-
-  const handleLocationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newLocation = e.target.value
-    setLocalLocation(newLocation)
-  }
-
-  const handleServiceAccountPrivateKeyChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setServiceAccountPrivateKey(e.target.value)
-  }
-
-  const handleServiceAccountPrivateKeyBlur = () => {
-    setServiceAccountPrivateKey(serviceAccount.privateKey)
-  }
-
-  const handleServiceAccountClientEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setServiceAccountClientEmail(e.target.value)
-  }
-
-  const handleServiceAccountClientEmailBlur = () => {
-    setServiceAccountClientEmail(serviceAccount.clientEmail)
-  }
-
-  const handleProjectIdBlur = () => {
-    setProjectId(localProjectId)
-  }
-
-  const handleLocationBlur = () => {
-    setLocation(localLocation)
+  const saveAuthConfig = async () => {
+    await saveAuthConfigToServer({
+      type: 'iam-gcp' as const,
+      project: localProjectId,
+      location: localLocation,
+      credentials: {
+        privateKey: localPrivateKey,
+        clientEmail: localClientEmail
+      }
+    })
   }
 
   return (
@@ -74,10 +66,10 @@ const VertexAISettings = () => {
         {t('settings.provider.vertex_ai.service_account.client_email')}
       </SettingSubtitle>
       <Input.Password
-        value={serviceAccount.clientEmail}
+        value={localClientEmail}
         placeholder={t('settings.provider.vertex_ai.service_account.client_email_placeholder')}
-        onChange={handleServiceAccountClientEmailChange}
-        onBlur={handleServiceAccountClientEmailBlur}
+        onChange={(e) => setLocalClientEmail(e.target.value)}
+        onBlur={saveAuthConfig}
         style={{ marginTop: 5 }}
       />
       <SettingHelpTextRow>
@@ -88,10 +80,10 @@ const VertexAISettings = () => {
         {t('settings.provider.vertex_ai.service_account.private_key')}
       </SettingSubtitle>
       <Input.TextArea
-        value={serviceAccount.privateKey}
+        value={localPrivateKey}
         placeholder={t('settings.provider.vertex_ai.service_account.private_key_placeholder')}
-        onChange={handleServiceAccountPrivateKeyChange}
-        onBlur={handleServiceAccountPrivateKeyBlur}
+        onChange={(e) => setLocalPrivateKey(e.target.value)}
+        onBlur={saveAuthConfig}
         style={{ marginTop: 5 }}
         spellCheck={false}
         autoSize={{ minRows: 4, maxRows: 4 }}
@@ -111,8 +103,8 @@ const VertexAISettings = () => {
         <Input.Password
           value={localProjectId}
           placeholder={t('settings.provider.vertex_ai.project_id_placeholder')}
-          onChange={handleProjectIdChange}
-          onBlur={handleProjectIdBlur}
+          onChange={(e) => setLocalProjectId(e.target.value)}
+          onBlur={saveAuthConfig}
           style={{ marginTop: 5 }}
         />
         <SettingHelpTextRow>
@@ -123,8 +115,8 @@ const VertexAISettings = () => {
         <Input
           value={localLocation}
           placeholder="us-central1"
-          onChange={handleLocationChange}
-          onBlur={handleLocationBlur}
+          onChange={(e) => setLocalLocation(e.target.value)}
+          onBlur={saveAuthConfig}
           style={{ marginTop: 5 }}
         />
         <SettingHelpTextRow>

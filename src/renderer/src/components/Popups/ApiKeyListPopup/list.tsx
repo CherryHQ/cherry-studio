@@ -2,8 +2,9 @@ import { Button, Flex, Tooltip } from '@cherrystudio/ui'
 import { DeleteIcon } from '@renderer/components/Icons'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { useModels } from '@renderer/hooks/useModels'
 import { usePreprocessProvider } from '@renderer/hooks/usePreprocess'
-import { useProvider } from '@renderer/hooks/useProvider'
+import { useProvider, useProviderApiKeys, useProviderMutations } from '@renderer/hooks/useProviders'
 import { useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
 import { SettingHelpText } from '@renderer/pages/settings'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
@@ -13,13 +14,13 @@ import { HealthStatus } from '@renderer/types/healthCheck'
 import { Card, List, Popconfirm, Space, Typography } from 'antd'
 import { Plus } from 'lucide-react'
 import type { FC } from 'react'
-import { useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { isLlmProvider, useApiKeys } from './hook'
 import ApiKeyItem from './item'
-import type { ApiProvider, UpdateApiProviderFunc } from './types'
+import type { ApiProvider, LlmApiProvider, UpdateApiProviderFunc } from './types'
 
 interface ApiKeyListProps {
   provider: ApiProvider
@@ -76,7 +77,7 @@ export const ApiKeyList: FC<ApiKeyListProps> = ({ provider, updateProvider, show
 
   const shouldAutoFocus = () => {
     if (provider.apiKey) return false
-    return isLlmProvider(provider) && provider.enabled && !isProviderSupportAuth(provider)
+    return isLlmProvider(provider) && provider.enabled && !isProviderSupportAuth(provider.sourceProvider)
   }
 
   // 合并真实 keys 和临时新项
@@ -191,9 +192,41 @@ type DocPreprocessApiKeyListProps = SpecificApiKeyListProps & {
 }
 
 export const LlmApiKeyList: FC<SpecificApiKeyListProps> = ({ providerId, showHealthCheck = true }) => {
-  const { provider, updateProvider } = useProvider(providerId)
+  const { provider } = useProvider(providerId)
+  const { data: apiKeysData } = useProviderApiKeys(providerId)
+  const { models } = useModels({ providerId })
+  const { updateApiKeys } = useProviderMutations(providerId)
 
-  return <ApiKeyList provider={provider} updateProvider={updateProvider} showHealthCheck={showHealthCheck} />
+  const joinedApiKey = useMemo(() => apiKeysData?.keys?.map((k) => k.key).join(',') ?? '', [apiKeysData])
+
+  const llmProvider = useMemo<LlmApiProvider | null>(() => {
+    if (!provider) return null
+    return {
+      kind: 'llm',
+      id: provider.id,
+      apiKey: joinedApiKey,
+      enabled: provider.isEnabled,
+      models,
+      sourceProvider: provider
+    }
+  }, [provider, models, joinedApiKey])
+
+  const shimUpdateProvider = useCallback(
+    (updates: { apiKey: string }) => {
+      if (updates.apiKey === undefined) return
+      const keys = updates.apiKey
+        .split(',')
+        .map((k) => k.trim())
+        .filter(Boolean)
+      const apiKeys = keys.map((key) => ({ id: crypto.randomUUID(), key, isEnabled: true }))
+      void updateApiKeys(apiKeys)
+    },
+    [updateApiKeys]
+  )
+
+  if (!llmProvider) return null
+
+  return <ApiKeyList provider={llmProvider} updateProvider={shimUpdateProvider} showHealthCheck={showHealthCheck} />
 }
 
 export const WebSearchApiKeyList: FC<WebSearchApiKeyList> = ({ providerId, showHealthCheck = true }) => {

@@ -1,20 +1,22 @@
 import { loggerService } from '@logger'
-import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
+import { isEmbeddingModel, isRerankModel } from '@renderer/config/models/v2'
 import SelectProviderModelPopup from '@renderer/pages/settings/ProviderSettings/SelectProviderModelPopup'
 import { checkApi } from '@renderer/services/ApiService'
 import { webSearchService } from '@renderer/services/WebSearchService'
-import type { Model, PreprocessProvider, Provider, WebSearchProvider } from '@renderer/types'
+import type { PreprocessProvider, WebSearchProvider } from '@renderer/types'
 import { isPreprocessProviderId, isWebSearchProviderId } from '@renderer/types'
 import type { ApiKeyConnectivity, ApiKeyWithStatus } from '@renderer/types/healthCheck'
 import { HealthStatus } from '@renderer/types/healthCheck'
 import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'
 import { serializeHealthCheckError } from '@renderer/utils/error'
+import { toV1ModelForCheckApi, toV1ProviderShim } from '@renderer/utils/v1ProviderShim'
+import type { Model } from '@shared/data/types/model'
 import type { TFunction } from 'i18next'
 import { isEmpty } from 'lodash'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { ApiKeyValidity, ApiProvider, UpdateApiProviderFunc } from './types'
+import type { ApiKeyValidity, ApiProvider, LlmApiProvider, UpdateApiProviderFunc } from './types'
 
 interface UseApiKeysProps {
   provider: ApiProvider
@@ -201,7 +203,11 @@ export function useApiKeys({ provider, updateProvider }: UseApiKeysProps) {
       try {
         const startTime = Date.now()
         if (isLlmProvider(provider) && model) {
-          await checkApi({ ...provider, apiKey: keyToCheck }, model)
+          const v1ProviderForCheck = toV1ProviderShim(provider.sourceProvider, {
+            models: provider.models,
+            apiKey: keyToCheck
+          })
+          await checkApi(v1ProviderForCheck, toV1ModelForCheckApi(model))
         } else if (isWebSearchProvider(provider)) {
           const result = await webSearchService.checkSearch({ ...provider, apiKey: keyToCheck })
           if (!result.valid) throw new Error(result.error)
@@ -280,8 +286,8 @@ export function useApiKeys({ provider, updateProvider }: UseApiKeysProps) {
   }
 }
 
-export function isLlmProvider(provider: ApiProvider): provider is Provider {
-  return 'models' in provider
+export function isLlmProvider(provider: ApiProvider): provider is LlmApiProvider {
+  return 'kind' in provider && provider.kind === 'llm'
 }
 
 export function isWebSearchProvider(provider: ApiProvider): provider is WebSearchProvider {
@@ -295,7 +301,7 @@ export function isPreprocessProvider(provider: ApiProvider): provider is Preproc
 }
 
 // 获取模型用于检查
-async function getModelForCheck(provider: Provider, t: TFunction): Promise<Model | null> {
+async function getModelForCheck(provider: LlmApiProvider, t: TFunction): Promise<Model | null> {
   const modelsToCheck = provider.models.filter((model) => !isEmbeddingModel(model) && !isRerankModel(model))
 
   if (isEmpty(modelsToCheck)) {
@@ -307,7 +313,7 @@ async function getModelForCheck(provider: Provider, t: TFunction): Promise<Model
   }
 
   try {
-    const selectedModel = await SelectProviderModelPopup.show({ provider })
+    const selectedModel = await SelectProviderModelPopup.show({ models: modelsToCheck })
     if (!selectedModel) return null
     return selectedModel
   } catch (error) {

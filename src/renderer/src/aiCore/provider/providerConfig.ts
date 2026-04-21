@@ -87,7 +87,7 @@ export function formatProviderApiHost(provider: Provider): Provider {
     { match: isOllamaProvider, format: (p) => formatOllamaApiHost(p.apiHost) },
     { match: isGeminiProvider, format: (p, av) => formatApiHost(p.apiHost, av, 'v1beta') },
     { match: isAzureOpenAIProvider, format: (p) => formatApiHost(p.apiHost, false) },
-    { match: isVertexProvider, format: (p) => formatVertexApiHost(p as Parameters<typeof formatVertexApiHost>[0]) }
+    { match: isVertexProvider, format: (p) => formatVertexApiHost(p as any) }
   ]
 
   const formatter = formatters.find((f) => f.match(provider))

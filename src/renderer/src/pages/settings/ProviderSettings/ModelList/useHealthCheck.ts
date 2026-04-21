@@ -1,22 +1,25 @@
-import { isRerankModel } from '@renderer/config/models'
+import { isRerankModel } from '@renderer/config/models/v2'
 import { checkModelsHealth } from '@renderer/services/HealthCheckService'
-import type { Model, Provider } from '@renderer/types'
 import type { ModelWithStatus } from '@renderer/types/healthCheck'
 import { HealthStatus } from '@renderer/types/healthCheck'
 import { splitApiKeyString } from '@renderer/utils/api'
 import { summarizeHealthResults } from '@renderer/utils/healthCheck'
+import type { Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import { isEmpty } from 'lodash'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import HealthCheckPopup from './HealthCheckPopup'
 
-export const useHealthCheck = (provider: Provider, models: Model[]) => {
+export const useHealthCheck = (provider: Provider | undefined, apiKey: string, models: Model[]) => {
   const { t } = useTranslation()
   const [modelStatuses, setModelStatuses] = useState<ModelWithStatus[]>([])
   const [isChecking, setIsChecking] = useState(false)
 
   const runHealthCheck = useCallback(async () => {
+    if (!provider) return
+
     const modelsToCheck = models.filter((model) => !isRerankModel(model))
 
     if (isEmpty(modelsToCheck)) {
@@ -27,17 +30,14 @@ export const useHealthCheck = (provider: Provider, models: Model[]) => {
       return
     }
 
-    const keys = splitApiKeyString(provider.apiKey)
+    const keys = splitApiKeyString(apiKey)
 
-    // 若无 key，插入空字符串以支持本地模型健康检查
     if (keys.length === 0) {
       keys.push('')
     }
 
-    // 弹出健康检查参数配置弹窗
     const result = await HealthCheckPopup.show({
       title: t('settings.models.check.title'),
-      provider,
       apiKeys: keys
     })
 
@@ -45,7 +45,6 @@ export const useHealthCheck = (provider: Provider, models: Model[]) => {
       return
     }
 
-    // 初始化健康检查状态
     const initialStatuses: ModelWithStatus[] = modelsToCheck.map((model) => ({
       model,
       checking: true,
@@ -55,7 +54,6 @@ export const useHealthCheck = (provider: Provider, models: Model[]) => {
     setModelStatuses(initialStatuses)
     setIsChecking(true)
 
-    // 执行健康检查，逐步更新每个模型的状态
     const checkResults = await checkModelsHealth(
       {
         provider,
@@ -85,7 +83,7 @@ export const useHealthCheck = (provider: Provider, models: Model[]) => {
     })
 
     setIsChecking(false)
-  }, [models, provider, t])
+  }, [models, provider, apiKey, t])
 
   return {
     isChecking,

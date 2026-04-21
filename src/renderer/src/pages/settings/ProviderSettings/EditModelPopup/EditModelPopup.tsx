@@ -1,8 +1,9 @@
 import { TopView } from '@renderer/components/TopView'
-import { useAssistants, useDefaultModel } from '@renderer/hooks/useAssistant'
-import { useProvider } from '@renderer/hooks/useProvider'
+import { useModelMutations } from '@renderer/hooks/useModels'
 import ModelEditContent from '@renderer/pages/settings/ProviderSettings/EditModelPopup/ModelEditContent'
-import type { Model, Provider } from '@renderer/types'
+import type { Model } from '@shared/data/types/model'
+import { parseUniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import React, { useCallback, useState } from 'react'
 
 interface ShowParams {
@@ -11,15 +12,12 @@ interface ShowParams {
 }
 
 interface Props extends ShowParams {
-  resolve: (data?: Model) => void
+  resolve: (data?: any) => void
 }
 
-const PopupContainer: React.FC<Props> = ({ provider: _provider, model, resolve }) => {
+const PopupContainer: React.FC<Props> = ({ provider, model, resolve }) => {
   const [open, setOpen] = useState(true)
-  const { provider, updateProvider, models } = useProvider(_provider.id)
-  const { assistants, updateAssistants } = useAssistants()
-  const { defaultModel, setDefaultModel, translateModel, setTranslateModel, quickModel, setQuickModel } =
-    useDefaultModel()
+  const { updateModel } = useModelMutations()
 
   const onOk = () => {
     setOpen(false)
@@ -35,51 +33,18 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, model, resolve }
   }
 
   const onUpdateModel = useCallback(
-    (updatedModel: Model) => {
-      const updatedModels = models.map((m) => (m.id === updatedModel.id ? updatedModel : m))
-
-      updateProvider({ models: updatedModels })
-
-      updateAssistants(
-        assistants.map((a) => {
-          let model = a.model
-          let defaultModel = a.defaultModel
-          if (a.model?.id === updatedModel.id && a.model.provider === provider.id) {
-            model = updatedModel
-          }
-          if (a.defaultModel?.id === updatedModel.id && a.defaultModel?.provider === provider.id) {
-            defaultModel = updatedModel
-          }
-          return { ...a, model, defaultModel }
-        })
-      )
-
-      if (defaultModel?.id === updatedModel.id && defaultModel?.provider === provider.id) {
-        setDefaultModel(updatedModel)
-      }
-      if (translateModel?.id === updatedModel.id && translateModel?.provider === provider.id) {
-        setTranslateModel(updatedModel)
-      }
-      if (quickModel?.id === updatedModel.id && quickModel?.provider === provider.id) {
-        setQuickModel(updatedModel)
-      }
+    async (patch: Partial<Model>) => {
+      const { modelId } = parseUniqueModelId(model.id)
+      await updateModel(model.providerId ?? provider.id, modelId, {
+        name: patch.name,
+        group: patch.group,
+        capabilities: patch.capabilities,
+        supportsStreaming: patch.supportsStreaming,
+        endpointTypes: patch.endpointTypes,
+        pricing: patch.pricing
+      })
     },
-    [
-      models,
-      updateProvider,
-      updateAssistants,
-      assistants,
-      defaultModel?.id,
-      defaultModel?.provider,
-      provider.id,
-      translateModel?.id,
-      translateModel?.provider,
-      quickModel?.id,
-      quickModel?.provider,
-      setDefaultModel,
-      setTranslateModel,
-      setQuickModel
-    ]
+    [model.id, model.providerId, provider.id, updateModel]
   )
 
   return (
@@ -103,7 +68,7 @@ export default class EditModelPopup {
   }
 
   static show(props: ShowParams) {
-    return new Promise<Model | undefined>((resolve) => {
+    return new Promise<any>((resolve) => {
       TopView.show(<PopupContainer {...props} resolve={resolve} />, TopViewKey)
     })
   }

@@ -1,9 +1,9 @@
 import { loggerService } from '@logger'
-import type { Model, Provider } from '@renderer/types'
 import type { ApiKeyWithStatus, ModelCheckOptions, ModelWithStatus } from '@renderer/types/healthCheck'
 import { HealthStatus } from '@renderer/types/healthCheck'
 import { serializeHealthCheckError } from '@renderer/utils/error'
 import { aggregateApiKeyResults } from '@renderer/utils/healthCheck'
+import { toV1ModelForCheckApi, toV1ProviderShim } from '@renderer/utils/v1ProviderShim'
 
 import { checkModel } from './ApiService'
 
@@ -13,15 +13,15 @@ const logger = loggerService.withContext('HealthCheckService')
  * 用多个 API 密钥检查单个模型的连通性
  */
 export async function checkModelWithMultipleKeys(
-  provider: Provider,
-  model: Model,
+  provider: ModelCheckOptions['provider'],
+  model: ModelCheckOptions['models'][number],
   apiKeys: string[],
   timeout?: number
 ): Promise<ApiKeyWithStatus[]> {
   const checkPromises = apiKeys.map(async (key) => {
     const startTime = Date.now()
     // 如果 checkModel 抛出错误，让这个 promise 失败
-    await checkModel({ ...provider, apiKey: key }, model, timeout)
+    await checkModel(toV1ProviderShim(provider, { models: [model], apiKey: key }), toV1ModelForCheckApi(model), timeout)
     const latency = Date.now() - startTime
 
     return {

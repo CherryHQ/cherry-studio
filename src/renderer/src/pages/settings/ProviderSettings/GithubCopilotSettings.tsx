@@ -2,7 +2,7 @@ import { CheckCircleOutlined, CopyOutlined, ExclamationCircleOutlined } from '@a
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useCopilot } from '@renderer/hooks/useCopilot'
-import { useProvider } from '@renderer/hooks/useProvider'
+import { useProvider } from '@renderer/hooks/useProviders'
 import { Alert, Input, Slider, Steps, Typography } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
@@ -25,9 +25,9 @@ enum AuthStatus {
 
 const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) => {
   const { t } = useTranslation()
-  const { provider, updateProvider } = useProvider(providerId)
+  const { provider, updateProvider, addApiKey, deleteApiKey } = useProvider(providerId)
   const { username, avatar, defaultHeaders, updateState } = useCopilot()
-  // 状态管理
+
   const [authStatus, setAuthStatus] = useState<AuthStatus>(AuthStatus.NOT_STARTED)
   const [deviceCode, setDeviceCode] = useState<string>('')
   const [userCode, setUserCode] = useState<string>('')
@@ -36,23 +36,22 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
   const [verificationPageOpened, setVerificationPageOpened] = useState<boolean>(false)
   const [currentStep, setCurrentStep] = useState<number>(0)
 
-  // 初始化及同步状态
+  // Sync auth status from provider settings
   useEffect(() => {
-    if (provider.isAuthed) {
+    if (provider?.settings?.isAuthed) {
       setAuthStatus(AuthStatus.AUTHENTICATED)
       setCurrentStep(3)
     } else {
       setAuthStatus(AuthStatus.NOT_STARTED)
       setCurrentStep(0)
-      // 重置其他状态
       setDeviceCode('')
       setUserCode('')
       setVerificationUri('')
       setVerificationPageOpened(false)
     }
-  }, [provider])
+  }, [provider?.settings?.isAuthed])
 
-  // 获取设备代码
+  // Get device code
   const handleGetDeviceCode = useCallback(async () => {
     try {
       setLoading(true)
@@ -66,7 +65,6 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
       setVerificationUri(verification_uri)
       setAuthStatus(AuthStatus.CODE_GENERATED)
 
-      // 自动复制授权码到剪贴板
       try {
         await navigator.clipboard.writeText(user_code)
         window.toast.success(t('settings.provider.copilot.code_copied'))
@@ -82,7 +80,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
     }
   }, [t, defaultHeaders])
 
-  // 使用设备代码获取访问令牌
+  // Get access token using device code
   const handleGetToken = useCallback(async () => {
     try {
       setLoading(true)
@@ -93,10 +91,23 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
       const { token } = await window.api.copilot.getToken(defaultHeaders)
 
       if (token) {
-        const { login, avatar } = await window.api.copilot.getUser(access_token)
+        const { login, avatar: userAvatar } = await window.api.copilot.getUser(access_token)
         setAuthStatus(AuthStatus.AUTHENTICATED)
-        updateState({ username: login, avatar: avatar })
-        updateProvider({ ...provider, apiKey: token, isAuthed: true })
+
+        // v2: POST key + update settings
+        await addApiKey(token, 'Copilot')
+        await updateProvider({
+          isEnabled: true,
+          providerSettings: {
+            ...provider?.settings,
+            isAuthed: true,
+            oauthUsername: login,
+            oauthAvatar: userAvatar
+          }
+        })
+
+        // Dual-write copilot Redux (aiCore still reads this until Phase 5B)
+        updateState({ username: login, avatar: userAvatar })
         window.toast.success(t('settings.provider.copilot.auth_success'))
       }
     } catch (error) {
@@ -106,20 +117,34 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
     } finally {
       setLoading(false)
     }
-  }, [deviceCode, t, updateProvider, provider, updateState, defaultHeaders])
+  }, [deviceCode, t, provider?.settings, addApiKey, updateProvider, updateState, defaultHeaders])
 
-  // 登出
+  // Logout
   const handleLogout = useCallback(async () => {
     try {
       setLoading(true)
 
-      // 1. 保存登出状态到本地
-      updateProvider({ ...provider, apiKey: '', isAuthed: false })
+      // Delete Copilot key
+      const copilotKey = provider?.apiKeys.find((k) => k.label === 'Copilot')
+      if (copilotKey) {
+        await deleteApiKey(copilotKey.id)
+      }
 
-      // 3. 清除本地存储的token
+      // Update settings
+      await updateProvider({
+        providerSettings: {
+          ...provider?.settings,
+          isAuthed: false,
+          oauthUsername: '',
+          oauthAvatar: ''
+        }
+      })
+
       await window.api.copilot.logout()
 
-      // 4. 更新UI状态
+      // Dual-write copilot Redux
+      updateState({ username: '', avatar: '', defaultHeaders: {} })
+
       setAuthStatus(AuthStatus.NOT_STARTED)
       setDeviceCode('')
       setUserCode('')
@@ -131,14 +156,12 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
     } catch (error) {
       logger.error('Failed to logout:', error as Error)
       window.toast.error(t('settings.provider.copilot.logout_failed'))
-      // 如果登出失败，重置登出状态
-      updateProvider({ ...provider, apiKey: '', isAuthed: false })
     } finally {
       setLoading(false)
     }
-  }, [t, updateProvider, provider])
+  }, [t, provider?.apiKeys, provider?.settings, deleteApiKey, updateProvider, updateState])
 
-  // 复制用户代码
+  // Copy user code
   const handleCopyUserCode = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(userCode)
@@ -149,7 +172,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
     }
   }, [userCode, t])
 
-  // 打开验证页面
+  // Open verification page
   const handleOpenVerificationPage = useCallback(() => {
     if (verificationUri) {
       window.open(verificationUri, '_blank')
@@ -158,7 +181,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
     }
   }, [verificationUri])
 
-  // 步骤配置
+  // Step configuration
   const getSteps = () => [
     {
       title: t('settings.provider.copilot.step_get_code'),
@@ -194,7 +217,11 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
     }
   ]
 
-  // 根据认证状态渲染不同的UI
+  const handleRateLimitChange = async (value: number) => {
+    await updateProvider({ providerSettings: { ...provider?.settings, rateLimit: value } })
+  }
+
+  // Render content based on auth status
   const renderAuthContent = () => {
     switch (authStatus) {
       case AuthStatus.AUTHENTICATED:
@@ -234,7 +261,6 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
             </StepsContainer>
 
             <AuthActionsContainer>
-              {/* 步骤2: 复制授权码 */}
               {currentStep >= 1 && (
                 <StepCard>
                   <StepHeader>
@@ -258,7 +284,6 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
                 </StepCard>
               )}
 
-              {/* 步骤3: 打开授权页面 */}
               {currentStep >= 1 && (
                 <StepCard>
                   <StepHeader>
@@ -279,7 +304,6 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
                 </StepCard>
               )}
 
-              {/* 步骤4: 完成连接 */}
               {currentStep >= 2 && (
                 <StepCard>
                   <StepHeader>
@@ -328,13 +352,13 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
         <SettingRow style={{ marginTop: 20 }}>
           <SettingSubtitle style={{ marginTop: 0 }}>{t('settings.provider.copilot.rate_limit')}</SettingSubtitle>
           <Slider
-            defaultValue={provider.rateLimit ?? 10}
+            value={provider?.settings?.rateLimit ?? 10}
             style={{ width: 200 }}
             min={1}
             max={60}
             step={1}
             marks={{ 1: '1', 10: t('common.default'), 60: '60' }}
-            onChangeComplete={(value) => updateProvider({ ...provider, rateLimit: value })}
+            onChangeComplete={handleRateLimitChange}
           />
         </SettingRow>
       )}

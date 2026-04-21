@@ -1,4 +1,6 @@
-import type { PreprocessProvider, Provider, WebSearchProvider } from '@renderer/types'
+import type { PreprocessProvider, WebSearchProvider } from '@renderer/types'
+import type { Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 
 /**
  * API key 格式有效性
@@ -13,12 +15,24 @@ export type ApiKeyValidity =
       error: string
     }
 
-export type ApiProvider = Provider | WebSearchProvider | PreprocessProvider
+export type LlmApiProvider = {
+  kind: 'llm'
+  id: string
+  apiKey: string
+  enabled: boolean
+  models: Model[]
+  sourceProvider: Provider
+}
 
-export type UpdateProviderFunc = (p: Partial<Provider>) => void
+export type ApiProvider = LlmApiProvider | WebSearchProvider | PreprocessProvider
+
+export type UpdateLlmApiProviderFunc = (p: { apiKey: string }) => void
 
 export type UpdateWebSearchProviderFunc = (p: Partial<WebSearchProvider>) => void
 
 export type UpdatePreprocessProviderFunc = (p: Partial<PreprocessProvider>) => void
 
-export type UpdateApiProviderFunc = UpdateProviderFunc | UpdateWebSearchProviderFunc | UpdatePreprocessProviderFunc
+export type UpdateApiProviderFunc =
+  | UpdateLlmApiProviderFunc
+  | UpdateWebSearchProviderFunc
+  | UpdatePreprocessProviderFunc
