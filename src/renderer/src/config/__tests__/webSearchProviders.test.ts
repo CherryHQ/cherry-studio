@@ -5,9 +5,7 @@ import {
   filterSupportedWebSearchProviders,
   isSupportedWebSearchProviderId,
   SUPPORTED_WEB_SEARCH_PROVIDER_IDS,
-  WEB_SEARCH_PROVIDERS,
-  webSearchProviderRequiresApiKey,
-  webSearchProviderSupportsBasicAuth
+  WEB_SEARCH_PROVIDERS
 } from '../webSearchProviders'
 
 describe('webSearchProviders config', () => {
@@ -36,14 +34,5 @@ describe('webSearchProviders config', () => {
     expect(filterSupportedWebSearchProviders(providers)).toEqual([
       { id: 'tavily', name: 'Tavily', apiHost: 'https://api.tavily.com', apiKey: '' }
     ])
-  })
-
-  it('exposes provider capabilities explicitly', () => {
-    expect(webSearchProviderRequiresApiKey('tavily')).toBe(true)
-    expect(webSearchProviderRequiresApiKey('searxng')).toBe(false)
-    expect(webSearchProviderRequiresApiKey('exa-mcp')).toBe(false)
-
-    expect(webSearchProviderSupportsBasicAuth('searxng')).toBe(true)
-    expect(webSearchProviderSupportsBasicAuth('tavily')).toBe(false)
   })
 })
