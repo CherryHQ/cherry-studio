@@ -2,12 +2,22 @@
  * Security utility functions for the main process.
  */
 
-const ALLOWED_EXTERNAL_PROTOCOLS = new Set(['http:', 'https:', 'mailto:', 'obsidian:'])
+const ALLOWED_EXTERNAL_PROTOCOLS = new Set([
+  'http:',
+  'https:',
+  'mailto:',
+  'obsidian:',
+  'vscode:',
+  'vscode-insiders:',
+  'cursor:',
+  'zed:'
+])
 
 /**
  * Check whether a URL is safe to open via shell.openExternal().
  *
- * Only http(s) and mailto links are allowed. This prevents attackers from
+ * Only an explicit allowlist of schemes is permitted (web links, mail, and
+ * known code-editor deep-links used by the app). This prevents attackers from
  * abusing custom protocol handlers (e.g. file://, ms-msdt:, calculator:)
  * to execute local files or launch arbitrary applications.
  *

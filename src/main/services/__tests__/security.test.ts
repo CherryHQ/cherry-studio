@@ -21,6 +21,13 @@ describe('isSafeExternalUrl', () => {
     expect(isSafeExternalUrl('obsidian://new?file=test&vault=myvault&clipboard')).toBe(true)
   })
 
+  it('allows code-editor deep-link protocols', () => {
+    expect(isSafeExternalUrl('vscode://file/C%3A/Users/foo/bar.ts?windowId=_blank')).toBe(true)
+    expect(isSafeExternalUrl('vscode-insiders://file/C%3A/Users/foo/bar.ts')).toBe(true)
+    expect(isSafeExternalUrl('cursor://file/C%3A/Users/foo/bar.ts?windowId=_blank')).toBe(true)
+    expect(isSafeExternalUrl('zed://file/Users/foo/bar.ts')).toBe(true)
+  })
+
   it('rejects file:// protocol', () => {
     expect(isSafeExternalUrl('file:///etc/passwd')).toBe(false)
     expect(isSafeExternalUrl('file://localhost/tmp')).toBe(false)
