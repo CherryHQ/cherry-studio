@@ -79,6 +79,13 @@ export interface BasicFormState {
   enableMaxToolCalls: boolean
   customParameters: CustomParameter[]
   tags: string[]
+  // Fields owned by other sections but kept on the same form object so a single
+  // PATCH commits the whole editor — prompt / knowledge / tools sections read
+  // and write these directly.
+  prompt: string
+  knowledgeBaseIds: string[]
+  mcpServerIds: string[]
+  mcpMode: AssistantSettings['mcpMode']
 }
 
 export function initialBasicFormState(assistant: Assistant): BasicFormState {
@@ -102,7 +109,11 @@ export function initialBasicFormState(assistant: Assistant): BasicFormState {
     maxToolCalls: settings.maxToolCalls ?? UI_DEFAULT_MAX_TOOL_CALLS,
     enableMaxToolCalls: settings.enableMaxToolCalls ?? true,
     customParameters: settings.customParameters ?? [],
-    tags: (assistant.tags ?? []).map((t) => t.name)
+    tags: (assistant.tags ?? []).map((t) => t.name),
+    prompt: assistant.prompt ?? '',
+    knowledgeBaseIds: assistant.knowledgeBaseIds ?? [],
+    mcpServerIds: assistant.mcpServerIds ?? [],
+    mcpMode: settings.mcpMode ?? 'auto'
   }
 }
 

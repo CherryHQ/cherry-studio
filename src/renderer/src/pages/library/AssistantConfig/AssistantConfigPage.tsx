@@ -7,13 +7,15 @@ import { useCallback, useMemo, useState } from 'react'
 import { useAssistantMutationsById } from '../adapters/assistantAdapter'
 import { useEnsureTags, useTagList } from '../adapters/tagAdapter'
 import { type BasicFormState, BasicSection, initialBasicFormState } from './sections/BasicSection'
-import PlaceholderSection from './sections/PlaceholderSection'
+import KnowledgeSection from './sections/KnowledgeSection'
+import PromptSection from './sections/PromptSection'
+import ToolsSection from './sections/ToolsSection'
 
 type Section = 'basic' | 'prompt' | 'knowledge' | 'tools'
 
 const sections: { id: Section; label: string; icon: typeof Settings; desc: string }[] = [
   { id: 'basic', label: '基础设置', icon: Settings, desc: '名称、头像、模型参数' },
-  { id: 'prompt', label: '提示词', icon: FileText, desc: '系统提示词、变量、样本' },
+  { id: 'prompt', label: '提示词', icon: FileText, desc: '系统提示词与变量' },
   { id: 'knowledge', label: '知识库', icon: BookOpen, desc: '关联知识库、检索策略' },
   { id: 'tools', label: '工具', icon: Wrench, desc: 'MCP 服务与工具配置' }
 ]
@@ -28,9 +30,9 @@ interface Props {
  *
  * Creation is handled by LibraryPage (POST /assistants on click) so this page
  * always operates against an existing row. Form state is kept locally across
- * all sections (currently only BasicSection; future Prompt/Knowledge/Tool
- * sections extend the same `form` object) and only committed on 保存 — 取消
- * simply discards the in-memory state.
+ * all sections — Basic / Prompt / Knowledge / Tools share the same `form`
+ * object so every section's edits land in a single PATCH on 保存; 取消 simply
+ * discards the in-memory state.
  *
  * Save flow collapses to a single PATCH:
  *   1. Resolve typed tag names → tag ids (`ensureTags` POSTs any missing ones).
@@ -74,6 +76,18 @@ const AssistantConfigPage: FC<Props> = ({ assistant, onBack }) => {
     return JSON.stringify(baseline.customParameters) !== JSON.stringify(form.customParameters)
   }, [baseline.customParameters, form.customParameters])
 
+  const knowledgeBaseIdsChanged = useMemo(
+    () => !sameIdSet(baseline.knowledgeBaseIds, form.knowledgeBaseIds),
+    [baseline.knowledgeBaseIds, form.knowledgeBaseIds]
+  )
+
+  const mcpServerIdsChanged = useMemo(
+    () => !sameIdSet(baseline.mcpServerIds, form.mcpServerIds),
+    [baseline.mcpServerIds, form.mcpServerIds]
+  )
+
+  // Excludes relation-array diffs — those ship as their own PATCH keys so
+  // unchanged junction bindings are not re-sent on every column edit.
   const columnsChanged = useMemo(
     () =>
       baseline.name !== form.name ||
@@ -91,11 +105,13 @@ const AssistantConfigPage: FC<Props> = ({ assistant, onBack }) => {
       baseline.toolUseMode !== form.toolUseMode ||
       baseline.maxToolCalls !== form.maxToolCalls ||
       baseline.enableMaxToolCalls !== form.enableMaxToolCalls ||
+      baseline.prompt !== form.prompt ||
+      baseline.mcpMode !== form.mcpMode ||
       customParametersChanged,
     [baseline, form, customParametersChanged]
   )
 
-  const isDirty = columnsChanged || tagsChanged
+  const isDirty = columnsChanged || tagsChanged || knowledgeBaseIdsChanged || mcpServerIdsChanged
 
   const handleSave = useCallback(async () => {
     if (saving || !isDirty) return
@@ -114,6 +130,7 @@ const AssistantConfigPage: FC<Props> = ({ assistant, onBack }) => {
               emoji: form.emoji,
               description: form.description,
               modelId: form.modelId,
+              prompt: form.prompt,
               settings: {
                 ...assistant.settings,
                 temperature: form.temperature,
@@ -127,10 +144,13 @@ const AssistantConfigPage: FC<Props> = ({ assistant, onBack }) => {
                 toolUseMode: form.toolUseMode,
                 maxToolCalls: form.maxToolCalls,
                 enableMaxToolCalls: form.enableMaxToolCalls,
-                customParameters: form.customParameters
+                customParameters: form.customParameters,
+                mcpMode: form.mcpMode
               }
             }
           : {}),
+        ...(knowledgeBaseIdsChanged ? { knowledgeBaseIds: form.knowledgeBaseIds } : {}),
+        ...(mcpServerIdsChanged ? { mcpServerIds: form.mcpServerIds } : {}),
         ...(tagIdsPayload !== undefined ? { tagIds: tagIdsPayload } : {})
       })
       setSaved(true)
@@ -140,7 +160,18 @@ const AssistantConfigPage: FC<Props> = ({ assistant, onBack }) => {
     } finally {
       setSaving(false)
     }
-  }, [saving, isDirty, columnsChanged, tagsChanged, updateAssistant, ensureTags, form, assistant])
+  }, [
+    saving,
+    isDirty,
+    columnsChanged,
+    tagsChanged,
+    knowledgeBaseIdsChanged,
+    mcpServerIdsChanged,
+    updateAssistant,
+    ensureTags,
+    form,
+    assistant
+  ])
 
   return (
     <ConfigShell
@@ -153,18 +184,32 @@ const AssistantConfigPage: FC<Props> = ({ assistant, onBack }) => {
       onBack={onBack}
       activeSection={activeSection}
       onSectionChange={setActiveSection}>
-      <SectionBody
-        section={activeSection}
-        body={
-          <BasicSection
-            assistant={assistant}
-            form={form}
-            onChange={handleChange}
-            tagColorByName={tagColorByName}
-            allTagNames={allTagNames}
-          />
-        }
-      />
+      {activeSection === 'basic' && (
+        <BasicSection
+          assistant={assistant}
+          form={form}
+          onChange={handleChange}
+          tagColorByName={tagColorByName}
+          allTagNames={allTagNames}
+        />
+      )}
+      {activeSection === 'prompt' && (
+        <PromptSection assistant={assistant} prompt={form.prompt} onChange={(prompt) => handleChange({ prompt })} />
+      )}
+      {activeSection === 'knowledge' && (
+        <KnowledgeSection
+          value={form.knowledgeBaseIds}
+          onChange={(knowledgeBaseIds) => handleChange({ knowledgeBaseIds })}
+        />
+      )}
+      {activeSection === 'tools' && (
+        <ToolsSection
+          mcpMode={form.mcpMode}
+          mcpServerIds={form.mcpServerIds}
+          onModeChange={(mcpMode) => handleChange({ mcpMode })}
+          onServerIdsChange={(mcpServerIds) => handleChange({ mcpServerIds })}
+        />
+      )}
     </ConfigShell>
   )
 }
@@ -300,25 +345,9 @@ function ConfigShell({
   )
 }
 
-function SectionBody({ section, body }: { section: Section; body: ReactNode }) {
-  if (section === 'basic') return <>{body}</>
-  if (section === 'prompt')
-    return (
-      <PlaceholderSection
-        icon={FileText}
-        title="提示词配置即将上线"
-        description="系统提示词、变量与样本的编辑能力在后续版本开放"
-      />
-    )
-  if (section === 'knowledge')
-    return (
-      <PlaceholderSection
-        icon={BookOpen}
-        title="知识库关联即将上线"
-        description="关联知识库与检索策略的能力在后续版本开放"
-      />
-    )
-  return (
-    <PlaceholderSection icon={Wrench} title="工具配置即将上线" description="MCP 服务与工具的挂载能力在后续版本开放" />
-  )
+/** Order-insensitive id-set equality; junction tables don't carry ordering. */
+function sameIdSet(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false
+  const set = new Set(a)
+  return b.every((id) => set.has(id))
 }

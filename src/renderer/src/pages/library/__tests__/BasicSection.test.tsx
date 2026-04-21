@@ -104,6 +104,10 @@ function createForm(overrides: Partial<BasicFormState> = {}): BasicFormState {
     enableMaxToolCalls: true,
     customParameters: [],
     tags: [],
+    prompt: '',
+    knowledgeBaseIds: [],
+    mcpServerIds: [],
+    mcpMode: 'auto',
     ...overrides
   }
 }
