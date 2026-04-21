@@ -98,8 +98,9 @@ export type CreateInternalEntryIpcParams =
 
 /**
  * Params for ensuring an entry exists for a user-provided (external) path.
- * Upsert semantics: if a non-trashed entry with the same path exists, return
- * it; if a trashed entry exists, restore it; otherwise create a new one.
+ * Pure upsert semantics on `externalPath`: if an entry with the same path
+ * exists, it is returned (snapshot refreshed); otherwise a new row is inserted.
+ * External entries cannot be trashed, so no "restore" branch is possible.
  */
 export type EnsureExternalEntryIpcParams = {
   externalPath: FilePath
@@ -151,17 +152,15 @@ export interface FileIpcApi {
   /**
    * Ensure an external FileEntry exists for the given absolute path.
    *
-   * **Upsert + restore** semantics (not plain insert):
-   * - Non-trashed entry with same path exists → return it (snapshot refreshed
-   *   via stat)
-   * - Trashed entry with same path exists → restore (`trashedAt = null`) and
-   *   return it
-   * - No existing entry → insert a new one
+   * **Pure upsert** semantics keyed by `externalPath`:
+   * - Existing entry with same path → return it (snapshot refreshed via stat)
+   * - No existing entry → insert a new row
    *
    * Idempotent by design — callers holding an `externalPath` can invoke this
-   * freely without pre-checking. The partial unique index
-   * `UNIQUE(externalPath) WHERE origin='external' AND trashedAt IS NULL`
-   * enforces this invariant at the DB level.
+   * freely without pre-checking. The global unique index
+   * `UNIQUE(externalPath)` (internal rows are `null` and exempt) enforces the
+   * invariant; `fe_external_no_trash` forbids trashed external rows so no
+   * "restore" branch exists.
    */
   ensureExternalEntry(params: EnsureExternalEntryIpcParams): Promise<FileEntry>
 
@@ -169,8 +168,8 @@ export interface FileIpcApi {
   batchCreateInternalEntries(items: CreateInternalEntryIpcParams[]): Promise<BatchOperationResult>
 
   /**
-   * Batch version of `ensureExternalEntry`. Each item is individually upserted.
-   * Within-batch path duplicates are coalesced to a single entry in the result.
+   * Batch version of `ensureExternalEntry`. Each item is individually upserted
+   * by path. Within-batch path duplicates are coalesced to a single entry.
    */
   batchEnsureExternalEntries(items: EnsureExternalEntryIpcParams[]): Promise<BatchOperationResult>
 
@@ -203,26 +202,34 @@ export interface FileIpcApi {
   // ─── E. Trash / Delete ───
 
   /**
-   * Move entry to Trash (soft delete via trashedAt). No FS impact for either origin.
-   * Only applies to managed entries.
+   * Move entry to Trash (soft delete via trashedAt). Managed + internal-only.
+   * Passing an external entry id throws: external entries cannot be trashed
+   * (`fe_external_no_trash` CHECK).
    */
   trash(params: { id: FileEntryId }): Promise<void>
 
-  /** Restore entry from Trash. No FS impact. Only applies to managed entries. */
+  /**
+   * Restore entry from Trash. Managed + internal-only — external entries are
+   * never trashed, so passing one throws.
+   */
   restore(params: { id: FileEntryId }): Promise<FileEntry>
 
   /**
-   * Permanently delete.
-   * - Managed: unlinks physical file (internal or external) and deletes DB row.
+   * Permanently delete. Always deletes the DB row when managed.
+   * - Managed internal: unlinks `{userData}/files/{id}.{ext}`, then deletes DB row.
+   * - Managed external: **DB-only** — the user's physical file is left
+   *   untouched. Entry-level deletion is deliberately decoupled from physical
+   *   deletion; callers wanting to also delete the file on disk should invoke
+   *   the path-level unmanaged branch below separately.
    * - Unmanaged: removes the file at the given path (delegates to `ops.remove`).
    */
   permanentDelete(handle: FileHandle): Promise<void>
 
-  /** Batch move entries to Trash (managed only) */
+  /** Batch trash — internal-only; external ids fail like `trash`. */
   batchTrash(params: { ids: FileEntryId[] }): Promise<BatchOperationResult>
-  /** Batch restore entries from Trash (managed only) */
+  /** Batch restore — internal-only; external ids fail like `restore`. */
   batchRestore(params: { ids: FileEntryId[] }): Promise<BatchOperationResult>
-  /** Batch permanently delete managed entries */
+  /** Batch permanently delete managed entries (DB row always removed; physical FS follows origin rules above). */
   batchPermanentDelete(params: { ids: FileEntryId[] }): Promise<BatchOperationResult>
 
   // ─── F. Rename ───

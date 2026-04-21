@@ -40,7 +40,15 @@ export const fileEntryTable = sqliteTable(
     externalPath: text(),
 
     // ─── Trash ───
-    /** Non-null = trashed (ms epoch) */
+    /**
+     * Non-null = trashed (ms epoch). Internal-only.
+     *
+     * External entries cannot be trashed (enforced by `fe_external_no_trash`
+     * check constraint). Their lifecycle is monotonic: create via
+     * `ensureExternalEntry`, update in place, or remove immediately via
+     * `permanentDelete` (DB-only — the physical file is left untouched;
+     * path-level deletion is a separate, explicit unmanaged `ops.remove(path)`).
+     */
     trashedAt: integer(),
 
     // ─── Timestamps ───
@@ -49,19 +57,22 @@ export const fileEntryTable = sqliteTable(
   (t) => [
     index('fe_trashed_at_idx').on(t.trashedAt),
     index('fe_created_at_idx').on(t.createdAt),
-    index('fe_external_path_idx').on(t.externalPath),
-    // Partial unique: same externalPath at most once when not trashed.
-    // createEntry(external) upserts against this index.
-    uniqueIndex('fe_external_path_unique_idx')
-      .on(t.externalPath)
-      .where(sql`${t.origin} = 'external' AND ${t.trashedAt} IS NULL`),
+    // Global unique on externalPath. Internal rows (externalPath = null) are
+    // exempt — SQLite treats multiple NULLs as distinct in a UNIQUE index.
+    // This makes `ensureExternalEntry` a pure upsert keyed by path, with no
+    // ambiguity from historical duplicates. Doubles as the lookup index.
+    uniqueIndex('fe_external_path_unique_idx').on(t.externalPath),
     // Origin must be 'internal' or 'external'
     check('fe_origin_check', sql`${t.origin} IN ('internal', 'external')`),
     // externalPath must be non-null iff origin='external'
     check(
       'fe_origin_consistency',
       sql`(${t.origin} = 'internal' AND ${t.externalPath} IS NULL) OR (${t.origin} = 'external' AND ${t.externalPath} IS NOT NULL)`
-    )
+    ),
+    // External entries cannot be trashed — trash/restore is internal-only.
+    // External removal is always immediate via permanentDelete (DB-only; the
+    // physical file is left untouched, path-level ops.remove is a separate call).
+    check('fe_external_no_trash', sql`${t.origin} != 'external' OR ${t.trashedAt} IS NULL`)
   ]
 )
 

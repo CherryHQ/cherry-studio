@@ -3,9 +3,11 @@
  *
  * The file module uses a **facade + private internals** pattern:
  *
- * - `FileManager` is the single public entry point for all file operations.
- *   External Main code consumes it via `application.get('FileManager')` or by
- *   importing the exported facade class from here.
+ * - `FileManager` is the planned single public entry point for all file
+ *   operations. In the current phase, this barrel exposes the public contract
+ *   surface only (types / errors), not a concrete lifecycle-service class.
+ *   Once the lifecycle implementation lands, Main runtime code will resolve
+ *   the singleton instance via `application.get('FileManager')`.
  * - Implementation lives under `./internal/*` (entry / content / system ops)
  *   as pure-function modules. These are **NOT** re-exported from this barrel
  *   and MUST NOT be imported from outside the file module.

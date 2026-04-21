@@ -1,5 +1,14 @@
 /**
- * FileManager — the sole public entry point for all file operations.
+ * FileManager — contract surface for the planned sole public entry point for
+ * all file operations.
+ *
+ * Phase status:
+ * - **Current phase**: this file is contract-first. It exports the public
+ *   types, method signatures, and architectural JSDoc that later phases must
+ *   implement.
+ * - **Planned Phase 1b+**: a concrete `FileManager extends BaseService`
+ *   lifecycle service will live here, be registered in `serviceRegistry.ts`,
+ *   and be resolved at runtime via `application.get('FileManager')`.
  *
  * Every FileEntry has an `origin`:
  * - `internal`: Cherry owns the content (stored at `{userData}/files/{id}.{ext}`)
@@ -7,18 +16,19 @@
  *
  * ## Facade pattern
  *
- * FileManager is a **thin facade** — it exposes the public IPC-backed API and
- * delegates every method to pure-function modules under `./internal/*`. The
- * class itself only owns:
+ * In the target implementation, FileManager is a **thin facade** — it exposes
+ * the public IPC-backed API and delegates every method to pure-function
+ * modules under `./internal/*`. The concrete class will only own:
  * - lifecycle (`onInit` / `onStop`; IPC handler registration via `BaseService`)
  * - `versionCache` (LRU backing `writeIfUnchanged` / `getVersion`)
  * - `FileHandle.kind` dispatch at the IPC boundary
  *
- * External callers in the Main process must go through FileManager (either via
- * `application.get('FileManager')` or by importing from `@main/file`). The
- * `internal/*` modules are private and not re-exported via `src/main/file/index.ts`.
+ * In the target implementation, external Main callers will go through the
+ * lifecycle-managed singleton via `application.get('FileManager')`. This
+ * module currently exposes the type surface only; `internal/*` remains a
+ * private implementation area and is not re-exported via `src/main/file/index.ts`.
  *
- * See `docs/zh/references/file/file-manager-architecture.md §1.6` for the full
+ * See `docs/references/file/file-manager-architecture.md §1.6` for the full
  * implementation-layout decision.
  *
  * ## Managed vs Unmanaged — FileHandle dispatch at the IPC boundary
@@ -30,8 +40,9 @@
  * At the IPC boundary, the renderer speaks `FileHandle` (a tagged union over
  * managed/unmanaged references). Dispatching on `handle.kind` is treated as
  * the IPC adapter's legitimate responsibility (translating request shape),
- * not business orchestration. FileManager.onInit registers handlers with the
- * private `dispatchHandle` helper:
+ * not business orchestration. In the planned lifecycle implementation,
+ * `FileManager.onInit()` will register handlers with the private
+ * `dispatchHandle` helper:
  *
  * - `{ kind: 'managed', entryId }` → the corresponding FileManager public
  *   method (e.g. `this.read(entryId, opts)`)
@@ -45,7 +56,7 @@
  * and each IPC handler within this file; the public API surface and
  * `internal/*` pure-function structure both stay stable.
  *
- * See `docs/zh/references/file/file-manager-architecture.md §1.6.5` for the
+ * See `docs/references/file/file-manager-architecture.md §1.6.5` for the
  * full dispatch convention.
  *
  * ## External entries — best-effort reference semantics
@@ -58,26 +69,33 @@
  * Which callers use internal vs external is a business-layer decision —
  * FileManager makes no assumption. For module boundaries and dangling-state
  * tracking, see:
- * - [file-manager-architecture.md](../../../docs/zh/references/file/file-manager-architecture.md)
- * - [architecture.md](../../../docs/zh/references/file/architecture.md)
+ * - [file-manager-architecture.md](../../../docs/references/file/file-manager-architecture.md)
+ * - [architecture.md](../../../docs/references/file/architecture.md)
  *
  * Cherry **allows** user-initiated modification of external files:
  * - `write` / `writeIfUnchanged` → atomic write to `externalPath`
  * - `rename` → `fs.rename` + update DB
- * - `permanentDelete` → `ops.remove(externalPath)` + delete DB
  *
- * Cherry **never** modifies external files automatically:
+ * Cherry **never** modifies external files automatically. Specifically:
  * - No watcher-driven writebacks
  * - No background sync
  * - No tracking of external rename/move
+ * - `permanentDelete` on an external file_entry removes only the DB row — this
+ *   entry-level operation is deliberately decoupled from physical deletion.
+ *   Path-level deletion remains available via unmanaged `ops.remove(path)`,
+ *   which is an explicit user-facing operation not tied to any entry id.
  *
- * Trash / restore on external entries only update `trashedAt` in DB;
- * the user's file on disk is not touched. Only `permanentDelete` physically
- * removes it.
+ * **External entries cannot be trashed.** Their lifecycle is monotonic:
+ * created by `ensureExternalEntry` (pure upsert keyed by path — see below),
+ * updated in place via `write` / `rename` / `refreshMetadata`, and removed
+ * only by an explicit (non-UI) `permanentDelete`. The `fe_external_no_trash`
+ * CHECK constraint enforces this at the DB level; `trash` / `restore` on an
+ * external entry id will throw.
  *
- * `createEntry({ origin: 'external' })` upserts by `externalPath` (partial unique
- * index on `file_entry` when `trashedAt IS NULL`), restoring a trashed entry
- * with the same path if one exists.
+ * `ensureExternalEntry` is a pure upsert on the `externalPath` global unique
+ * index: existing entry at the same path is reused (snapshot refreshed via
+ * stat); otherwise a new row is inserted. No "restore trashed" branch — trashed
+ * external entries cannot exist.
  *
  * Dangling state is tracked by the file_module's `DanglingCache` singleton,
  * not by FileManager itself. FileManager ops update the cache as a side effect
@@ -152,7 +170,7 @@ export interface IFileManager {
   //
   // Naming follows strict create-vs-ensure convention:
   // - `createInternalEntry` is pure insert — always a new row, new UUID
-  // - `ensureExternalEntry` is upsert+restore — idempotent by design
+  // - `ensureExternalEntry` is pure upsert keyed by `externalPath` — idempotent
   //
   // The original `createEntry({ origin })` umbrella was intentionally split
   // to keep the public API's name match the actual semantics; see ADR / PR
@@ -178,15 +196,15 @@ export interface IFileManager {
   /**
    * Ensure an entry exists for a user-provided absolute path.
    *
-   * Upsert semantics on `externalPath`:
-   * - Existing non-trashed entry with same path → return it (snapshot refreshed via stat)
-   * - Existing trashed entry with same path → restore (`trashedAt = null`) and return it
+   * Pure upsert keyed by `externalPath`:
+   * - Existing entry with same path → return it (snapshot refreshed via stat)
    * - No existing entry → insert a new row
    *
-   * The partial unique index
-   * `UNIQUE(externalPath) WHERE origin='external' AND trashedAt IS NULL`
-   * enforces this invariant at the DB level; repeated calls with the same
-   * path are safe and idempotent.
+   * The global unique index `UNIQUE(externalPath)` (internal rows have
+   * `externalPath = null` and are exempt — SQLite treats NULLs as distinct)
+   * guarantees at most one row per path. External entries cannot be trashed
+   * (`fe_external_no_trash` CHECK), so no "restore" branch is possible.
+   * Repeated calls with the same path are safe and idempotent.
    */
   ensureExternalEntry(params: EnsureExternalEntryParams): Promise<FileEntry>
 
@@ -195,8 +213,8 @@ export interface IFileManager {
 
   /**
    * Batch version of `ensureExternalEntry`. Within-batch path duplicates are
-   * coalesced to a single entry in the result (the second occurrence hits the
-   * non-trashed reuse path).
+   * coalesced to a single entry in the result (the second occurrence reuses
+   * the just-inserted row).
    */
   batchEnsureExternalEntries(items: EnsureExternalEntryParams[]): Promise<BatchOperationResult>
 
@@ -260,24 +278,40 @@ export interface IFileManager {
 
   // ─── Trash / Delete ───
 
-  /** Move entry to Trash (soft delete via `trashedAt`). No FS impact for either origin. */
+  /**
+   * Move entry to Trash (soft delete via `trashedAt`). Internal-only.
+   *
+   * Passing an external entry id throws: external entries cannot be trashed
+   * (enforced by the `fe_external_no_trash` CHECK constraint). Business layers
+   * should call `permanentDelete` on external entries if the user really wants
+   * the reference gone.
+   */
   trash(id: FileEntryId): Promise<void>
 
-  /** Restore entry from Trash (`trashedAt = null`). No FS impact. */
+  /**
+   * Restore entry from Trash (`trashedAt = null`). Internal-only — external
+   * entries are never trashed, so passing one throws (the entry is already
+   * active by definition).
+   */
   restore(id: FileEntryId): Promise<FileEntry>
 
   /**
-   * Permanently delete entry. Physical file is removed for both origins:
+   * Permanently delete entry. DB row is always removed; FS behavior depends on origin:
    * - internal: unlinks `{userData}/files/{id}.{ext}`
-   * - external: `ops.remove(externalPath)` — user explicitly asked to destroy
-   * Then deletes the DB row.
+   * - external: **DB-only** — the user's physical file is left untouched.
+   *   Entry-level deletion is deliberately decoupled from physical deletion;
+   *   callers that want to also delete the file on disk should invoke the
+   *   path-level `ops.remove(path)` (unmanaged FileHandle) separately.
    *
-   * Failure to unlink (e.g., file already missing, permission denied) is logged
-   * but does not block DB deletion — we prefer DB-FS convergence to "both gone".
+   * For internal, failure to unlink (file already missing, permission denied)
+   * is logged but does not block DB deletion — we prefer DB-FS convergence to
+   * "both gone".
    */
   permanentDelete(id: FileEntryId): Promise<void>
 
+  /** Batch internal-only — external ids in the batch will fail with the same error as `trash`. */
   batchTrash(ids: FileEntryId[]): Promise<BatchOperationResult>
+  /** Batch internal-only — external ids fail like `restore`. */
   batchRestore(ids: FileEntryId[]): Promise<BatchOperationResult>
   batchPermanentDelete(ids: FileEntryId[]): Promise<BatchOperationResult>
 

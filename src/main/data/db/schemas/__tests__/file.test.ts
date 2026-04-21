@@ -1,9 +1,9 @@
 /**
  * DB-level integrity tests for `file_entry` / `file_ref` schemas.
  *
- * These exercise the SQLite CHECK constraints, partial unique index, and
- * CASCADE FK — all of which are runtime guards we rely on beyond the Zod
- * layer. Kept separate from Zod-level shape tests (see
+ * These exercise the SQLite CHECK constraints, global unique index on
+ * `externalPath`, and CASCADE FK — all of which are runtime guards we rely on
+ * beyond the Zod layer. Kept separate from Zod-level shape tests (see
  * `packages/shared/data/types/__tests__/fileEntry.test.ts`).
  */
 
@@ -78,32 +78,32 @@ describe('fileEntryTable — CHECK constraints', () => {
   })
 })
 
-describe('fileEntryTable — partial unique index on externalPath', () => {
+describe('fileEntryTable — global unique index on externalPath', () => {
   const dbh = setupTestDatabase()
 
-  it('rejects two non-trashed external entries with same externalPath', async () => {
+  it('rejects two external entries with the same externalPath', async () => {
     const sharedPath = '/Users/me/shared.pdf'
     await dbh.db.insert(fileEntryTable).values(baseExternal(sharedPath))
     await expect(dbh.db.insert(fileEntryTable).values(baseExternal(sharedPath))).rejects.toThrow()
   })
 
-  it('allows a trashed entry to coexist with a non-trashed entry at the same path', async () => {
-    const sharedPath = '/Users/me/shared-trashed.pdf'
-    await dbh.db.insert(fileEntryTable).values(baseExternal(sharedPath, { trashedAt: TS }))
-    await expect(dbh.db.insert(fileEntryTable).values(baseExternal(sharedPath))).resolves.not.toThrow()
-  })
-
-  it('allows multiple trashed entries with same externalPath (partial index does not apply)', async () => {
-    const sharedPath = '/Users/me/shared-multi-trashed.pdf'
-    await dbh.db.insert(fileEntryTable).values(baseExternal(sharedPath, { trashedAt: TS }))
-    await expect(
-      dbh.db.insert(fileEntryTable).values(baseExternal(sharedPath, { trashedAt: TS + 1 }))
-    ).resolves.not.toThrow()
-  })
-
-  it('does not constrain internal entries (externalPath is null)', async () => {
+  it('does not constrain internal entries (externalPath is null — SQLite NULLs are distinct)', async () => {
     await dbh.db.insert(fileEntryTable).values(baseInternal())
     await expect(dbh.db.insert(fileEntryTable).values(baseInternal())).resolves.not.toThrow()
+  })
+})
+
+describe('fileEntryTable — fe_external_no_trash check', () => {
+  const dbh = setupTestDatabase()
+
+  it('rejects an external entry with non-null trashedAt', async () => {
+    await expect(
+      dbh.db.insert(fileEntryTable).values(baseExternal('/Users/me/will-not-trash.pdf', { trashedAt: TS }))
+    ).rejects.toThrow()
+  })
+
+  it('allows internal entries to be trashed', async () => {
+    await expect(dbh.db.insert(fileEntryTable).values(baseInternal({ trashedAt: TS }))).resolves.not.toThrow()
   })
 })
 

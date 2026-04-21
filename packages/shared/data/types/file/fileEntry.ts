@@ -22,18 +22,20 @@
  * | `ext`         | SoT                    | derived from `externalPath`          |
  * | `size`        | SoT                    | last-observed snapshot               |
  * | `externalPath`| null                   | non-null absolute path               |
- * | `trashedAt`   | nullable               | nullable                             |
+ * | `trashedAt`   | nullable               | **always null** (external cannot be trashed) |
  *
  * ## Type safety: Zod brand on FileEntry
  *
  * `FileEntrySchema` is branded so arbitrary object literals cannot satisfy
  * the `FileEntry` type. Only values that have passed `FileEntrySchema.parse()`
  * (or `.safeParse()` with success) carry the brand. This forces entry
- * production through sanctioned paths (FileManager.createEntry IPC, DataApi
- * handler row→DTO conversion, FileMigrator insert) which own the derivation
- * of `name`/`ext`/`size`/etc.
+ * production through sanctioned paths (FileManager `createInternalEntry` /
+ * `ensureExternalEntry` IPC, DataApi handler row→DTO conversion, FileMigrator
+ * insert) which own the derivation of `name`/`ext`/`size`/etc.
  *
  * ## Lifecycle
+ *
+ * Internal entries:
  *
  * ```
  *                  ┌──────────┐
@@ -51,10 +53,24 @@
  *  permanentDelete└──────────┘
  * ```
  *
- * - Active:   `trashedAt = null`
- * - Trashed:  `trashedAt = <ms epoch>`
+ * External entries are monotonic — no Trashed state:
+ *
+ * ```
+ *   ensureExternalEntry   ┌──────────┐   permanentDelete   ┌──────────┐
+ *   ────────────────────→│  Active   │───────────────────→│ Deleted  │
+ *                         └──────────┘                     └──────────┘
+ *                         (update in place via rename / write / refreshMetadata)
+ * ```
+ *
+ * - Active:   `trashedAt = null` (the only legal state for external; enforced
+ *             by both Zod `z.null()` on `ExternalEntrySchema.trashedAt` and the
+ *             DB `fe_external_no_trash` CHECK)
+ * - Trashed:  `trashedAt = <ms epoch>` (internal-only)
  * - permanentDelete on internal: unlink FS file + delete DB row
- * - permanentDelete on external: unlink user's file (explicit action) + delete DB row
+ * - permanentDelete on external: **DB row only** — the physical file is left
+ *   untouched. Entry-level deletion is decoupled from physical deletion;
+ *   callers wanting to delete the file on disk should invoke the path-level
+ *   unmanaged `ops.remove(path)` separately.
  */
 
 import * as z from 'zod'
@@ -118,8 +134,6 @@ const CommonEntryFields = {
   ext: SafeExtSchema.nullable(),
   /** File size in bytes. For external, this is the last-observed snapshot. */
   size: z.int().nonnegative(),
-  /** Trash timestamp (ms epoch). Non-null = trashed. */
-  trashedAt: TimestampSchema.nullable(),
   /** Creation timestamp (ms epoch) */
   createdAt: TimestampSchema,
   /** Last update timestamp (ms epoch) */
@@ -131,7 +145,9 @@ export const InternalEntrySchema = z.object({
   ...CommonEntryFields,
   origin: z.literal('internal'),
   /** Must be null for internal entries (physical storage is UUID-based in userData). */
-  externalPath: z.null()
+  externalPath: z.null(),
+  /** Trash timestamp (ms epoch). Non-null = trashed. Internal-only. */
+  trashedAt: TimestampSchema.nullable()
 })
 
 /** origin='external': Cherry references a user-provided path. `externalPath` must be a non-null absolute path. */
@@ -139,7 +155,14 @@ export const ExternalEntrySchema = z.object({
   ...CommonEntryFields,
   origin: z.literal('external'),
   /** Absolute filesystem path to the user-provided file. */
-  externalPath: AbsolutePathSchema
+  externalPath: AbsolutePathSchema,
+  /**
+   * External entries cannot be trashed; this is always `null`. Mirrors the
+   * `fe_external_no_trash` CHECK constraint at the DB level. Removal is
+   * always immediate via `permanentDelete` (DB-only — the physical file is
+   * left untouched; path-level `ops.remove` is a separate, explicit call).
+   */
+  trashedAt: z.null()
 })
 
 /**

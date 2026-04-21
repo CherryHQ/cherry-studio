@@ -179,8 +179,12 @@ describe('FileEntrySchema trash (trashedAt)', () => {
     expect(FileEntrySchema.safeParse(makeInternal({ trashedAt: TS })).success).toBe(true)
   })
 
-  it('accepts trashed external entry', () => {
-    expect(FileEntrySchema.safeParse(makeExternal({ trashedAt: TS })).success).toBe(true)
+  it('rejects trashed external entry (external cannot be trashed)', () => {
+    expect(FileEntrySchema.safeParse(makeExternal({ trashedAt: TS })).success).toBe(false)
+  })
+
+  it('accepts external entry with trashedAt = null', () => {
+    expect(FileEntrySchema.safeParse(makeExternal({ trashedAt: null })).success).toBe(true)
   })
 })
 

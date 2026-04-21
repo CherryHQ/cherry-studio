@@ -67,9 +67,10 @@
 | FileEntry 结构 | 扁平（无 `parentId`、无 mount） | 持久化层不做目录树；Notes 自治（问题 6/10） |
 | 主键策略 | UUID v7（`uuidPrimaryKeyOrdered`）；旧数据保留 v4 | 新 entry 时间有序；旧 v4 ID 跨表引用零翻译（migration-plan §2.9） |
 | `origin` 枚举 | `'internal' \| 'external'` | Cherry 拥有 vs 用户拥有；语义清晰 |
-| External path 唯一性 | Partial unique index: `WHERE origin='external' AND trashedAt IS NULL` | 同路径最多一个活跃 entry；`ensureExternalEntry` 按 path upsert |
+| External path 唯一性 | Global unique index on `externalPath`（internal 行为 null，SQLite UNIQUE 视多个 NULL 互不冲突，天然只约束 external 行） | 同 path 全局最多一条；`ensureExternalEntry` 纯 upsert by path，无 "restore trashed" 分支 |
 | `size` 字段 | 必填（INTEGER NOT NULL） | 查询/排序需要；external 为最后观测的快照 |
-| trash 语义 | `trashedAt` 时间戳（无 parentId 变动） | 扁平 schema，软删仅 DB，不动 FS |
+| trash 语义 | `trashedAt` 时间戳；**仅对 internal 有效**，external 由 `fe_external_no_trash` CHECK 禁止 trashed | internal 保留软删可逆窗口；external 生命周期单向（Active → Deleted），重建成本为零所以不需要撤销 |
+| external 删除语义 | `permanentDelete` 只删 DB 行；物理文件不动（path-level `ops.remove` 独立提供） | Cherry 不在 entry-level 自动 unlink 用户拥有的文件；用户有需要时走独立的 unmanaged 删除通道 |
 | `sourceType` / `role` | 应用层 Zod 验证 + 编译期 checker 注册 | 新增 sourceType 无需 DB migration |
 | `file_ref` 防重 | UNIQUE(fileEntryId, sourceType, sourceId, role) | 一个业务对象不会以同一角色重复引用同一文件 |
 | DataApi 职责 | 只读 + 允许幂等副作用（SQL 聚合、`fs.stat`） | 所有 mutation 走 File IPC |
@@ -101,7 +102,10 @@ export const fileEntryTable = sqliteTable(
     /** 用户侧绝对路径。仅 origin='external' 非空 */
     externalPath: text(),
 
-    /** 软删时间戳（ms epoch）；null 表示未 trash */
+    /**
+     * 软删时间戳（ms epoch）；null 表示未 trash。**仅 internal 可用**；
+     * external 恒为 null（由 `fe_external_no_trash` CHECK 强制）。
+     */
     trashedAt: integer(),
 
     ...createUpdateTimestamps
@@ -109,16 +113,16 @@ export const fileEntryTable = sqliteTable(
   (t) => [
     index('fe_trashed_at_idx').on(t.trashedAt),
     index('fe_created_at_idx').on(t.createdAt),
-    index('fe_external_path_idx').on(t.externalPath),
-    // 同一 externalPath 最多一条非 trashed 的 external entry
-    uniqueIndex('fe_external_path_unique_idx')
-      .on(t.externalPath)
-      .where(sql`${t.origin} = 'external' AND ${t.trashedAt} IS NULL`),
+    // 同 externalPath 全局最多一条。internal 行为 null，SQLite 视多个 NULL
+    // 互不冲突，因此天然只约束 external 行。兼任查询索引。
+    uniqueIndex('fe_external_path_unique_idx').on(t.externalPath),
     check('fe_origin_check', sql`${t.origin} IN ('internal', 'external')`),
     check(
       'fe_origin_consistency',
       sql`(${t.origin} = 'internal' AND ${t.externalPath} IS NULL) OR (${t.origin} = 'external' AND ${t.externalPath} IS NOT NULL)`
-    )
+    ),
+    // External 不可 trashed：trash/restore 仅对 internal，external 走 permanentDelete
+    check('fe_external_no_trash', sql`${t.origin} != 'external' OR ${t.trashedAt} IS NULL`)
   ]
 )
 ```
@@ -246,7 +250,7 @@ type DanglingState = z.infer<typeof DanglingStateSchema>      // 'present' | 'mi
 公开 API 按语义严格拆分（见 `file-manager-architecture.md §1.6`）：
 
 - `createInternalEntry(params)` —— 总是 insert，每次产生新 UUID
-- `ensureExternalEntry(params)` —— 按 `externalPath` upsert：reuse / restore / insert 三路之一，幂等
+- `ensureExternalEntry(params)` —— 按 `externalPath` 纯 upsert：reuse（刷 snapshot）/ insert 两路之一，幂等（external 恒非 trashed，无 restore 分支）
 
 ```typescript
 // CreateInternalEntryParams 是 source-discriminated union：
@@ -294,23 +298,23 @@ async function resolveInternalSource(p: CreateInternalEntryParams) {
   }
 }
 
-// ensureExternalEntry: 按 externalPath upsert
+// ensureExternalEntry: 按 externalPath 纯 upsert
 async function ensureExternalEntry(params: EnsureExternalEntryParams): Promise<FileEntry> {
   // Phase 1b 同步廉价 canonicalize: path.resolve + NFC + trailing-sep strip.
   // 不含 fs.realpath（case-insensitive FS 去重由 Phase 2 视用户反馈补）。
   // 是 upsert/查询的唯一 key 来源。
   const canonicalPath = canonicalizeExternalPath(params.externalPath)
-  const existing = await fileEntryService.findByExternalPath(canonicalPath, { includeTrashed: true })
-
-  if (existing && existing.trashedAt === null) {
-    return existing // 复用活跃 entry
-  }
-  if (existing?.trashedAt != null) {
-    return fileEntryService.update(existing.id, { trashedAt: null }) // 复活
-  }
+  // External 恒非 trashed（fe_external_no_trash CHECK），所以不需要 includeTrashed。
+  const existing = await fileEntryService.findByExternalPath(canonicalPath)
 
   const stat = await ops.stat(canonicalPath) // 验证存在 + 取 snapshot
   const { name, ext } = splitName(path.basename(canonicalPath))
+
+  if (existing) {
+    // 刷新 snapshot（size/name/ext 可能因外部写而过期）
+    return fileEntryService.update(existing.id, { name, ext, size: stat.size })
+  }
+
   return fileEntryService.create({
     origin: 'external',
     name,
@@ -336,40 +340,47 @@ async function ensureExternalEntry(params: EnsureExternalEntryParams): Promise<F
 
 详细语义见 `file-manager-architecture.md §4-§6`。
 
-### 5.3 trash / restore（软删除）
+### 5.3 trash / restore（软删除，仅 internal）
 
-**纯 DB 操作，不碰 FS**（external 的用户文件 **不**移到 `.trash`——Cherry 不在外部目录制造结构）：
+**纯 DB 操作，不碰 FS。仅对 internal 有效**——external 由 `fe_external_no_trash` CHECK 禁止 trashed，调用入口先校验 origin，传入 external id 直接抛错；schema 层兜底：
 
 ```typescript
 async function trash(id: FileEntryId): Promise<void> {
+  const entry = await fileEntryService.findById(id)
+  if (entry.origin === 'external') {
+    throw new Error(`Cannot trash external entry ${id}; external entries have no trashed state. Use permanentDelete.`)
+  }
   await fileEntryService.update(id, { trashedAt: Date.now() })
 }
 
 async function restore(id: FileEntryId): Promise<FileEntry> {
+  const entry = await fileEntryService.findById(id)
+  if (entry.origin === 'external') {
+    throw new Error(`Cannot restore external entry ${id}; external entries are never trashed.`)
+  }
   return fileEntryService.update(id, { trashedAt: null })
 }
 ```
 
 ### 5.4 permanentDelete
 
+物理 FS 行为按 origin 分叉：internal 真删，external 仅删 DB 行（物理文件不动；用户若想物理删除请走 unmanaged path 分支）。
+
 ```typescript
 async function permanentDelete(handle: FileHandle): Promise<void> {
   if (handle.kind === 'unmanaged') {
+    // Path-level 删除（显式、与任何 entry 解绑）
     await ops.remove(handle.path)
     return
   }
   const entry = await fileEntryService.getById(handle.entryId)
 
-  // 先删物理文件（失败时 DB 仍在可重试）
   if (entry.origin === 'internal') {
+    // Cherry 拥有物理文件：unlink FS + 删 DB
     await ops.remove(resolvePhysicalPath(entry)).catch(ignoreEnoent)
-  } else {
-    // external: 用户显式要求的物理删除
-    await ops.remove(entry.externalPath).catch((err) => {
-      logger.warn(`external permanentDelete failed: ${err.message}`)
-      // 继续删 DB; 用户视角该文件已从 Cherry 消失
-    })
   }
+  // external: entry-level 删除仅动 DB 行；不触碰用户的物理文件。
+  // 需要物理删的调用方应独立走 unmanaged 分支（上面）。
 
   await fileEntryService.delete(entry.id) // CASCADE 清 file_ref
 }
@@ -588,7 +599,7 @@ export interface FileSchemas {
 | `select` | 对话框选项 | `string \| string[] \| null` | Electron file/folder picker |
 | `save` | `{ content, defaultPath?, filters? }` | `string \| null` | Save dialog + 写文件 |
 | `createInternalEntry` | `CreateInternalEntryIpcParams` | `FileEntry` | 新建 Cherry 拥有 entry，每次产生新 UUID，无冲突 |
-| `ensureExternalEntry` | `EnsureExternalEntryIpcParams` | `FileEntry` | 按 `externalPath` upsert：reuse / restore / insert |
+| `ensureExternalEntry` | `EnsureExternalEntryIpcParams` | `FileEntry` | 按 `externalPath` 纯 upsert：reuse（刷 snapshot）/ insert |
 | `batchCreateInternalEntries` | `CreateInternalEntryIpcParams[]` | `BatchOperationResult` | 批量新建 internal |
 | `batchEnsureExternalEntries` | `EnsureExternalEntryIpcParams[]` | `BatchOperationResult` | 批量 upsert external（批内 path 重复会 coalesce）|
 | `read` | `FileHandle, opts?` | `ReadResult<T>` | 读内容（text / base64 / binary） |
@@ -597,10 +608,11 @@ export interface FileSchemas {
 | `getContentHash` | `FileHandle` | `string` | xxhash-128 |
 | `write` | `FileHandle, data` | `FileVersion` | 原子写 |
 | `writeIfUnchanged` | `FileHandle, data, version` | `FileVersion` | 乐观并发写 |
-| `trash` | `{ id }` | `void` | 软删（DB only） |
-| `restore` | `{ id }` | `FileEntry` | 从 Trash 恢复 |
-| `permanentDelete` | `FileHandle` | `void` | 物理删除 |
-| `batchTrash` / `batchRestore` / `batchPermanentDelete` | 批量参数 | `BatchOperationResult` | 批量版本 |
+| `trash` | `{ id }` | `void` | 软删（DB only）。**Internal-only** — 传 external id 抛错（`fe_external_no_trash` CHECK） |
+| `restore` | `{ id }` | `FileEntry` | 从 Trash 恢复。**Internal-only** — external 恒非 trashed，传 external id 抛错 |
+| `permanentDelete` | `FileHandle` | `void` | 删 entry。Internal: unlink FS + 删 DB 行；External (managed): **只删 DB 行**，物理文件不动；Unmanaged path: `ops.remove(path)` 物理删除 |
+| `batchTrash` / `batchRestore` | 批量参数 | `BatchOperationResult` | 批量版本，internal-only |
+| `batchPermanentDelete` | 批量参数 | `BatchOperationResult` | 批量 permanentDelete（物理影响按上述 origin 规则） |
 | `rename` | `FileHandle, newTarget` | `FileEntry \| void` | 重命名 |
 | `copy` | `{ source, newName? }` | `FileEntry` | 复制为新 internal entry |
 | `refreshMetadata` | `{ id }` | `FileEntry` | 显式 stat 刷新 external snapshot |

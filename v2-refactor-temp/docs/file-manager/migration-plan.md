@@ -267,7 +267,7 @@ ORDER BY ref_count DESC
 推荐**选项 2**，理由：
 - 删除操作原子性：业务侧只管 file_ref，不需要跨表 trigger
 - 抗误删：短时间内重新引用该文件不会 fail（比如 "undo" 删除一条 message 时）
-- 与新架构 `trashedAt` 软删的哲学一致（延迟、可逆）
+- 与 internal `trashedAt` 软删的哲学一致（延迟、可逆）；external 虽然没有软删状态，但延迟 orphan 清理仍然提供"重新引用不失败"的好处
 
 #### 2.3.11 UI 变化
 
@@ -1040,6 +1040,7 @@ interface FileEntry {
   ext: string | null          // 扩展名，**不含前导点**（'pdf'），无扩展名时 null
   size: number
   externalPath: string | null
+  // trashedAt 仅 internal 可非空；external 恒为 null（fe_external_no_trash CHECK）
   trashedAt: number | null
   createdAt: number
   updatedAt: number
@@ -1347,13 +1348,22 @@ async function migrateFileEntry(oldFile: DexieFileRow): Promise<FileEntryRow> {
     name: stripExt(oldFile.origin_name, oldFile.ext),
     ext: normalizeExt(oldFile.ext),  // '.pdf' → 'pdf'
     size: oldFile.size,
-    externalPath: oldFile.origin === 'external' ? oldFile.path : null,
-    trashedAt: null,  // Dexie 没软删除字段
+    externalPath: oldFile.origin === 'external' ? canonicalizeExternalPath(oldFile.path) : null,
+    trashedAt: null,  // Dexie 没软删除字段；external 也不允许 trashed（fe_external_no_trash）
     createdAt: toMs(oldFile.created_at),  // ISO → ms
     updatedAt: toMs(oldFile.created_at)   // Dexie 无 updatedAt，用 createdAt
   }
 }
 ```
+
+**External path 去重（强制）**：新 schema 的 `UNIQUE(externalPath)` 禁止同路径两条行。如果 Dexie 里存在多条指向同一 canonical path 的 external FileMetadata（由 case / NFD / 拼写差异合并后），FileMigrator 必须：
+
+1. 按 `canonicalizeExternalPath(path)` 分组
+2. 每组保留一条（建议取 `createdAt` 最早的）作为 surviving row
+3. 把组内其他 id 收集到 id-remap 表，在迁移 `file_ref`（以及其他引用 FileMetadata.id 的业务表）时将旧 id 重路由到 surviving id
+4. 被合并掉的 FileMetadata.id 不产生 `file_entry` 行
+
+这条 invariant 用 schema 层的 UNIQUE index 强制，任何漏网的重复插入都会在 migrator 内抛出并中止迁移——这是期望行为，引导开发者补全 remap 逻辑而不是让脏数据进库。
 
 **Step C: 引用表迁移**（对应各自 Migrator）
 

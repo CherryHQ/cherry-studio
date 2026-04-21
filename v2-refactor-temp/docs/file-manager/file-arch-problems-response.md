@@ -37,7 +37,7 @@
 
 - **`createInternalEntry` / `ensureExternalEntry` IPC** 在 main 侧一次性完成 "FS 落地 + DB 登记"（internal）或 "upsert + stat 验证"（external），成功/失败整体可见
 - Internal：拷贝内容到 `{userData}/files/{id}.{ext}` 后 insert `file_entry` 行
-- External：按 `externalPath` upsert（命中 non-trashed 复用；命中 trashed 则 restore；否则新建）
+- External：按 `externalPath` 纯 upsert（同 path 有行就 reuse + 刷 snapshot；否则新建）；external 不进入 trashed 生命周期，`fe_external_no_trash` CHECK 在 schema 层兜底
 - Renderer **没有**独立登记 entry 的入口——`addFile` 这类绕路被类型系统封闭
 
 **参考**：`architecture.md §2.3` 的 `createInternalEntry` / `ensureExternalEntry`（及批量版本）、`file-manager-architecture.md §1.2`（external path unique）。

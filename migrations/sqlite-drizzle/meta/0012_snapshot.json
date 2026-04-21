@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "67da738e-1f8c-4ad0-b9e6-a632cc38dc1a",
+  "id": "d11ac3a1-3e0b-4065-aa68-1f51cb805065",
   "prevId": "a947c27c-3d23-43b7-8846-3a82fcbbdee6",
   "tables": {
     "app_state": {
@@ -349,16 +349,10 @@
           "columns": ["created_at"],
           "isUnique": false
         },
-        "fe_external_path_idx": {
-          "name": "fe_external_path_idx",
-          "columns": ["external_path"],
-          "isUnique": false
-        },
         "fe_external_path_unique_idx": {
           "name": "fe_external_path_unique_idx",
           "columns": ["external_path"],
-          "isUnique": true,
-          "where": "\"file_entry\".\"origin\" = 'external' AND \"file_entry\".\"trashed_at\" IS NULL"
+          "isUnique": true
         }
       },
       "foreignKeys": {},
@@ -372,6 +366,10 @@
         "fe_origin_consistency": {
           "name": "fe_origin_consistency",
           "value": "(\"file_entry\".\"origin\" = 'internal' AND \"file_entry\".\"external_path\" IS NULL) OR (\"file_entry\".\"origin\" = 'external' AND \"file_entry\".\"external_path\" IS NOT NULL)"
+        },
+        "fe_external_no_trash": {
+          "name": "fe_external_no_trash",
+          "value": "\"file_entry\".\"origin\" != 'external' OR \"file_entry\".\"trashed_at\" IS NULL"
         }
       }
     },
