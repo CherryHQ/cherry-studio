@@ -201,7 +201,18 @@ export function useChatWithHistory(
   }, [setMessages, topicId])
 
   // On stream done/error: replace messages with DB truth.
-  // Multi-model: skip per-execution events, only refresh when the topic is done.
+  //
+  // Per-execution `done` events only trigger a refresh when the topic is
+  // done — in a happy-path multi-model turn, all N executions succeed in
+  // rapid succession and we let the topic-done event fold them into a
+  // single refresh. Per-execution **error** events, however, are always
+  // refreshed individually: an errored execution is terminal for that
+  // bubble (the backend has already persisted `status='error'` + a
+  // `data-error` part via PersistenceListener.mergeErrorIntoMessage) and
+  // there's no guarantee the topic-done event will land soon — the
+  // remaining executions may still be streaming. Without this refresh,
+  // the errored bubble stays stuck on PENDING until the user switches
+  // topics and comes back.
   useEffect(() => {
     const doneUnsub = window.api.ai.onStreamDone((data) => {
       if (data.topicId !== topicId) return
@@ -210,7 +221,6 @@ export function useChatWithHistory(
     })
     const errorUnsub = window.api.ai.onStreamError((data) => {
       if (data.topicId !== topicId) return
-      if (data.executionId && !data.isTopicDone) return
       refreshAndReplace()
     })
     return () => {
