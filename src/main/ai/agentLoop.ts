@@ -197,6 +197,52 @@ export function runAgentLoop<T extends AppProviderKey>(
   // throw can report the real iteration number to hooks.onError.
   let iterationNumber = 0
 
+  // Guard against close-after-close / abort-after-close races: the IIFE's
+  // `.then` closes the writer on success, `.catch` aborts it on failure.
+  // If both paths fire (e.g. writer.close itself throws after a late chunk
+  // fails), the second terminal call on the writer raises
+  // `InvalidStateError` and — because the catch is `async` — surfaces as
+  // an unhandled rejection.
+  let writerSettled = false
+  const settleWriter = async (err?: unknown): Promise<void> => {
+    if (writerSettled) return
+    writerSettled = true
+    try {
+      params.pendingMessages?.close()
+    } catch {
+      // pendingMessages.close() already idempotent in practice, but
+      // swallow defensively — we don't want cleanup to block stream
+      // termination.
+    }
+    try {
+      if (err === undefined) {
+        await writer.close()
+      } else {
+        await writer.abort(err)
+      }
+    } catch {
+      // The transform stream's writer may already be closing from a
+      // peer cancel; we only care that the terminal state was signalled
+      // once, not that every call succeeds.
+    }
+  }
+
+  // `hooks.onError` is user-supplied (e.g. AiStreamManager's persistence
+  // wrapper). An exception here used to become an unhandled rejection
+  // because the outer `.catch` was an async arrow — isolate it.
+  const invokeOnError = async (err: unknown): Promise<'retry' | 'abort' | void> => {
+    if (!hooks.onError) return undefined
+    try {
+      return await hooks.onError({
+        iterationNumber,
+        error: err instanceof Error ? err : new Error(String(err))
+      })
+    } catch (hookErr) {
+      logger.error('hooks.onError threw; aborting iteration', hookErr as Error)
+      return 'abort'
+    }
+  }
+
   ;(async () => {
     // ★ onStart
     await hooks.onStart?.()
@@ -426,24 +472,21 @@ export function runAgentLoop<T extends AppProviderKey>(
       modelMessages = [...modelMessages, ...response.messages, ...(await convertToModelMessages(pendingAsUI))]
     }
 
-    // ★ onFinish (analytics, otel root span)
-    params.pendingMessages?.close()
+    // ★ onFinish (analytics, otel root span). Cleanup is centralised in
+    // `settleWriter` below — don't close `pendingMessages` here, the `.then`
+    // handler will do it exactly once.
     hooks.onFinish?.({ totalUsage, totalIterations: iterationNumber, totalSteps, finishReason: lastFinishReason })
   })()
-    .then(() => {
-      params.pendingMessages?.close()
-      return writer.close()
-    })
+    .then(() => settleWriter())
     .catch(async (err) => {
-      params.pendingMessages?.close()
       if (!signal.aborted) {
-        const action = await hooks.onError?.({ iterationNumber, error: err })
+        const action = await invokeOnError(err)
         if (action !== 'retry') {
           logger.error('agentLoop error', err)
         }
         // TODO Phase 2: retry logic
       }
-      writer.abort(err).catch(() => {})
+      await settleWriter(err)
     })
 
   return readable
