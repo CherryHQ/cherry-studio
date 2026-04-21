@@ -19,7 +19,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import Inputbar from './Inputbar/Inputbar'
 import { PartsProvider, RefreshProvider } from './Messages/Blocks'
-import ExecutionStreamCollector from './Messages/ExecutionStreamCollector'
+import ExecutionStreamCollector, { type ExecutionStreamState } from './Messages/ExecutionStreamCollector'
 import Messages from './Messages/Messages'
 
 const logger = loggerService.withContext('V2ChatContent')
@@ -118,17 +118,22 @@ const V2ChatContentInner: FC<InnerProps> = ({
   const respondToToolApproval = useToolApprovalBridge({ addToolApprovalResponse })
 
   const [executionMessagesById, setExecutionMessagesById] = useState<Record<string, CherryUIMessage[]>>({})
+  const [executionStateById, setExecutionStateById] = useState<Record<string, ExecutionStreamState>>({})
   const executionCreatedAtRef = useRef<Record<string, string>>({})
 
   useEffect(() => {
     if (activeExecutionIds.length === 0) {
       setExecutionMessagesById({})
+      setExecutionStateById({})
       executionCreatedAtRef.current = {}
       return
     }
 
     const activeSet = new Set<string>(activeExecutionIds)
     setExecutionMessagesById((prev) =>
+      Object.fromEntries(Object.entries(prev).filter(([executionId]) => activeSet.has(executionId)))
+    )
+    setExecutionStateById((prev) =>
       Object.fromEntries(Object.entries(prev).filter(([executionId]) => activeSet.has(executionId)))
     )
   }, [activeExecutionIds])
@@ -152,6 +157,10 @@ const V2ChatContentInner: FC<InnerProps> = ({
     setExecutionMessagesById((prev) => ({ ...prev, [executionId]: messages }))
   }, [])
 
+  const handleExecutionStateChange = useCallback((executionId: string, state: ExecutionStreamState) => {
+    setExecutionStateById((prev) => ({ ...prev, [executionId]: state }))
+  }, [])
+
   const handleExecutionDispose = useCallback((executionId: string) => {
     setExecutionMessagesById((prev) => {
       if (!(executionId in prev)) return prev
@@ -159,8 +168,35 @@ const V2ChatContentInner: FC<InnerProps> = ({
       delete next[executionId]
       return next
     })
+    setExecutionStateById((prev) => {
+      if (!(executionId in prev)) return prev
+      const next = { ...prev }
+      delete next[executionId]
+      return next
+    })
     delete executionCreatedAtRef.current[executionId]
   }, [])
+
+  /**
+   * Resolve per-execution overlay status. The outer `useChatWithHistory`
+   * `status` is a topic-level aggregate that stays `'streaming'` until
+   * every execution terminates, so multi-model bubbles that individually
+   * error would otherwise all show PROCESSING. Prefer the execution's
+   * own `useChat.status` reported up by `ExecutionStreamCollector`; fall
+   * back to the topic-level status when no per-execution entry exists
+   * (single-model, or pre-mount of the collector).
+   */
+  const resolveOverlayStatus = useCallback(
+    (executionId: string): AssistantMessageStatus => {
+      const execState = executionStateById[executionId]
+      const execStatus = execState?.status ?? status
+      if (execStatus === 'error') return AssistantMessageStatus.ERROR
+      if (execStatus === 'submitted') return AssistantMessageStatus.PENDING
+      if (execStatus === 'streaming') return AssistantMessageStatus.PROCESSING
+      return AssistantMessageStatus.SUCCESS
+    },
+    [executionStateById, status]
+  )
 
   const executionOverlayMessages = useMemo<Message[]>(() => {
     const overlaidMessages: Message[] = []
@@ -183,25 +219,67 @@ const V2ChatContentInner: FC<InnerProps> = ({
           createdAt,
           askId: currentAnchorUserMessageId,
           modelId: executionId,
-          status:
-            status === 'submitted'
-              ? AssistantMessageStatus.PENDING
-              : status === 'streaming'
-                ? AssistantMessageStatus.PROCESSING
-                : AssistantMessageStatus.SUCCESS,
+          status: resolveOverlayStatus(executionId),
           blocks: []
         })
       }
     }
 
     return overlaidMessages
-  }, [activeExecutionIds, assistant.id, currentAnchorUserMessageId, executionMessagesById, status, topic.id])
+  }, [
+    activeExecutionIds,
+    assistant.id,
+    currentAnchorUserMessageId,
+    executionMessagesById,
+    resolveOverlayStatus,
+    topic.id
+  ])
 
-  const mergedMessages = useMemo(
-    () => [...adaptedMessages, ...executionOverlayMessages],
-    [adaptedMessages, executionOverlayMessages]
-  )
+  /**
+   * Build a `modelId → error` map keyed by the live per-execution state.
+   * Consumers (`mergedMessages` status patch + `mergedPartsMap` error-part
+   * injection) use this to repair DB placeholder rows whose execution
+   * errored before any content chunk reached us — those rows are sitting
+   * in `adaptedMessages` with `status='pending'` / empty parts and have no
+   * matching entry in `executionMessagesById`, so they wouldn't otherwise
+   * be reachable from the overlay path.
+   */
+  const erroredExecutions = useMemo<Record<string, Error | undefined>>(() => {
+    const map: Record<string, Error | undefined> = {}
+    for (const [executionId, execState] of Object.entries(executionStateById)) {
+      if (execState.status === 'error') {
+        map[executionId] = execState.error
+      }
+    }
+    return map
+  }, [executionStateById])
 
+  const hasErroredExecutions = Object.keys(erroredExecutions).length > 0
+
+  /**
+   * Merge overlay messages and patch status on DB placeholder rows
+   * belonging to errored executions (indexed by modelId). This covers the
+   * pre-first-chunk error case where `executionMessagesById[executionId]`
+   * stayed empty but `adaptedMessages` already contains the DB
+   * placeholder from `reserveAssistantTurn`.
+   */
+  const mergedMessages = useMemo(() => {
+    const combined = [...adaptedMessages, ...executionOverlayMessages]
+    if (!hasErroredExecutions) return combined
+    return combined.map((message) => {
+      if (message.role !== 'assistant' || !message.modelId) return message
+      return message.modelId in erroredExecutions ? { ...message, status: AssistantMessageStatus.ERROR } : message
+    })
+  }, [adaptedMessages, executionOverlayMessages, erroredExecutions, hasErroredExecutions])
+
+  /**
+   * Fold the per-execution `messages` UIMessage parts into partsMap so
+   * each overlay row renders its streamed content. For errored rows with
+   * empty parts (no chunk ever arrived), synthesize a `data-error` part
+   * from the captured `Error` so `ErrorBlock` renders the failure in
+   * place — without it, the bubble would be blank until a topic switch
+   * forces a DataApi refresh.
+   */
   const mergedPartsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
     const nextPartsMap = { ...partsMap }
     for (const executionId of activeExecutionIds) {
@@ -209,8 +287,27 @@ const V2ChatContentInner: FC<InnerProps> = ({
         nextPartsMap[uiMessage.id] = uiMessage.parts as CherryMessagePart[]
       }
     }
+    if (hasErroredExecutions) {
+      for (const message of adaptedMessages) {
+        if (message.role !== 'assistant' || !message.modelId) continue
+        if (!(message.modelId in erroredExecutions)) continue
+        const existing = nextPartsMap[message.id] ?? []
+        const alreadyHasError = existing.some((p) => p.type === 'data-error')
+        if (alreadyHasError) continue
+        const err = erroredExecutions[message.modelId]
+        const errorPart = {
+          type: 'data-error' as const,
+          data: {
+            name: err?.name ?? null,
+            message: err?.message ?? 'Stream failed',
+            stack: err?.stack ?? null
+          }
+        } as CherryMessagePart
+        nextPartsMap[message.id] = [...existing, errorPart]
+      }
+    }
     return nextPartsMap
-  }, [activeExecutionIds, executionMessagesById, partsMap])
+  }, [activeExecutionIds, adaptedMessages, erroredExecutions, executionMessagesById, hasErroredExecutions, partsMap])
 
   // ── Branch-messages cache control ──────────────────────────────────
   //
@@ -527,6 +624,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
                     topicId={topic.id}
                     executionId={executionId}
                     onMessagesChange={handleExecutionMessagesChange}
+                    onStateChange={handleExecutionStateChange}
                     onDispose={handleExecutionDispose}
                   />
                 ))}
