@@ -161,6 +161,11 @@ const api = {
   notification: {
     send: (notification: Notification) => ipcRenderer.invoke(IpcChannel.Notification_Send, notification)
   },
+  cacheReminder: {
+    playSound: () => ipcRenderer.invoke(IpcChannel.CacheReminder_PlaySound),
+    sendNotification: (topicId: string, topicName: string) =>
+      ipcRenderer.invoke(IpcChannel.CacheReminder_SendNotification, { topicId, topicName })
+  },
   system: {
     getDeviceType: () => ipcRenderer.invoke(IpcChannel.System_GetDeviceType),
     getHostname: () => ipcRenderer.invoke(IpcChannel.System_GetHostname),

@@ -1381,6 +1381,9 @@
     "thinking": "思考中（用時 {{seconds}} 秒）",
     "topics": {
       "auto_rename": "自動リネーム",
+      "cache_reminder": {
+        "label": "[to be translated]:Cache Expiration Reminder"
+      },
       "clear": {
         "title": "メッセージをクリア"
       },

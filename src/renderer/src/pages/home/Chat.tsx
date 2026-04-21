@@ -9,6 +9,7 @@ import { SelectChatModelPopup } from '@renderer/components/Popups/SelectModelPop
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { isEmbeddingModel, isRerankModel, isWebSearchModel } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useCacheReminderTimer } from '@renderer/hooks/useCacheReminderTimer'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowTopics } from '@renderer/hooks/useStore'
@@ -55,6 +56,52 @@ const Chat: FC<Props> = (props) => {
   const [filterIncludeUser, setFilterIncludeUser] = useState(false)
 
   const { setTimeoutTimer } = useTimer()
+
+  const cacheReminderEnabled = props.activeTopic?.enableCacheReminder ?? false
+  const {
+    state: cacheState,
+    startInteraction,
+    stopInteraction,
+    resetInteraction
+  } = useCacheReminderTimer(props.activeTopic?.id ?? '', cacheReminderEnabled)
+
+  React.useEffect(() => {
+    const unsubscribe = EventEmitter.on(EVENT_NAMES.MESSAGE_COMPLETE, ({ topicId }: { topicId: string }) => {
+      if (cacheReminderEnabled && topicId === props.activeTopic?.id) {
+        startInteraction()
+      }
+    })
+    return unsubscribe
+  }, [cacheReminderEnabled, startInteraction, props.activeTopic?.id])
+
+  React.useEffect(() => {
+    const unsubscribe = EventEmitter.on(EVENT_NAMES.SEND_MESSAGE, ({ topicId }: { topicId: string }) => {
+      if (cacheReminderEnabled && topicId === props.activeTopic?.id) {
+        stopInteraction()
+      }
+    })
+    return unsubscribe
+  }, [cacheReminderEnabled, stopInteraction, props.activeTopic?.id])
+
+  React.useEffect(() => {
+    if (!cacheReminderEnabled) return
+    if (cacheState === 'warning') {
+      void window.api?.cacheReminder?.sendNotification(
+        props.activeTopic?.id ?? '',
+        props.activeTopic?.name ?? 'conversation'
+      )
+    } else if (cacheState === 'critical') {
+      void window.api?.cacheReminder?.playSound()
+      void window.api?.cacheReminder?.sendNotification(
+        props.activeTopic?.id ?? '',
+        props.activeTopic?.name ?? 'conversation'
+      )
+    }
+  }, [cacheState, cacheReminderEnabled, props.activeTopic?.id, props.activeTopic?.name])
+
+  React.useEffect(() => {
+    return () => resetInteraction()
+  }, [props.activeTopic?.id, resetInteraction])
 
   useHotkeys('esc', () => {
     contentSearchRef.current?.disable()

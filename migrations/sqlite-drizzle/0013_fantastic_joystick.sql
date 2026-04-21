@@ -433,6 +433,7 @@ CREATE TABLE `__new_topic` (
 	`sort_order` integer DEFAULT 0,
 	`is_pinned` integer DEFAULT false,
 	`pinned_order` integer DEFAULT 0,
+	`enable_cache_reminder` integer DEFAULT false,
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,
 	`deleted_at` integer,
@@ -440,7 +441,7 @@ CREATE TABLE `__new_topic` (
 	FOREIGN KEY (`group_id`) REFERENCES `group`(`id`) ON UPDATE no action ON DELETE set null
 );
 --> statement-breakpoint
-INSERT INTO `__new_topic`("id", "name", "is_name_manually_edited", "assistant_id", "active_node_id", "group_id", "sort_order", "is_pinned", "pinned_order", "created_at", "updated_at", "deleted_at") SELECT "id", "name", "is_name_manually_edited", "assistant_id", "active_node_id", "group_id", "sort_order", "is_pinned", "pinned_order", "created_at", "updated_at", "deleted_at" FROM `topic`;--> statement-breakpoint
+INSERT INTO `__new_topic`("id", "name", "is_name_manually_edited", "assistant_id", "active_node_id", "group_id", "sort_order", "is_pinned", "pinned_order", "enable_cache_reminder", "created_at", "updated_at", "deleted_at") SELECT "id", "name", "is_name_manually_edited", "assistant_id", "active_node_id", "group_id", "sort_order", "is_pinned", "pinned_order", false, "created_at", "updated_at", "deleted_at" FROM `topic`;--> statement-breakpoint
 DROP TABLE `topic`;--> statement-breakpoint
 ALTER TABLE `__new_topic` RENAME TO `topic`;--> statement-breakpoint
 CREATE INDEX `topic_group_updated_idx` ON `topic` (`group_id`,`updated_at`);--> statement-breakpoint

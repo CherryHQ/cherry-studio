@@ -37,6 +37,7 @@ function fakeTopic(overrides: Partial<Topic> = {}): Topic {
     sortOrder: 0,
     isPinned: false,
     pinnedOrder: 0,
+    enableCacheReminder: false,
     createdAt: '2025-01-01T00:00:00.000Z',
     updatedAt: '2025-01-01T00:00:00.000Z',
     ...overrides

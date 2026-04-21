@@ -1381,6 +1381,9 @@
     "thinking": "En réflexion",
     "topics": {
       "auto_rename": "Générer un nom de sujet",
+      "cache_reminder": {
+        "label": "[to be translated]:Cache Expiration Reminder"
+      },
       "clear": {
         "title": "Effacer le message"
       },

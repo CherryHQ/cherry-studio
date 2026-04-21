@@ -1381,6 +1381,9 @@
     "thinking": "Мыслим ({{seconds}} секунд)",
     "topics": {
       "auto_rename": "Автопереименование",
+      "cache_reminder": {
+        "label": "[to be translated]:Cache Expiration Reminder"
+      },
       "clear": {
         "title": "Очистить сообщения"
       },

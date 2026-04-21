@@ -45,6 +45,8 @@ export interface UpdateTopicDto {
   isPinned?: boolean
   /** Updated pin order */
   pinnedOrder?: number
+  /** Cache expiration reminder toggle */
+  enableCacheReminder?: boolean
 }
 
 /**

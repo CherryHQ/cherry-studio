@@ -1381,6 +1381,9 @@
     "thinking": "Denkt ({{seconds}} Sekunden)",
     "topics": {
       "auto_rename": "Themenname generieren",
+      "cache_reminder": {
+        "label": "[to be translated]:Cache Expiration Reminder"
+      },
       "clear": {
         "title": "Nachrichten leeren"
       },

@@ -349,6 +349,68 @@ export async function registerIpc() {
   })
   // Notification_OnClick handler moved into MainWindowService (uses wm.broadcastToType).
 
+  // Cache reminder
+  ipcMain.handle(IpcChannel.CacheReminder_PlaySound, async () => {
+    if (isMac) {
+      try {
+        const { execSync } = await import('child_process')
+        execSync('osascript -e "beep"', { stdio: 'ignore' })
+      } catch {
+        // fallback: try system beep via say
+        try {
+          const { execSync: execSync2 } = await import('child_process')
+          execSync2('osascript -e "do shell script \\"printf \\x07\\""', { stdio: 'ignore' })
+        } catch {
+          // fallback: use terminal bell
+          try {
+            const { execSync: execSync3 } = await import('child_process')
+            execSync3('/bin/bash -c "printf \\x07"', { stdio: 'ignore' })
+          } catch {
+            // no sound available
+          }
+        }
+      }
+    } else if (isWin) {
+      try {
+        const { execSync } = await import('child_process')
+        execSync('powershell -Command "[Console]::Beep()"', { stdio: 'ignore' })
+      } catch {
+        // fallback: use mspaints sound
+        try {
+          const { execSync: execSync2 } = await import('child_process')
+          execSync2(
+            'powershell -Command "sapiSpVoice = New-Object -ComObject Sapi.SpVoice; sapiSpVoice.Speak([char]7)"',
+            { stdio: 'ignore' }
+          )
+        } catch {
+          // no sound available
+        }
+      }
+    } else {
+      // Linux
+      try {
+        const { execSync } = await import('child_process')
+        execSync('printf "\\x07" > /dev/stdout', { stdio: 'ignore' })
+      } catch {
+        // no sound available
+      }
+    }
+  })
+
+  ipcMain.handle(
+    IpcChannel.CacheReminder_SendNotification,
+    async (_, { topicId, topicName }: { topicId: string; topicName: string }) => {
+      await notificationService.sendNotification({
+        id: `cache-reminder-${topicId}`,
+        type: 'warning',
+        title: 'Cache Expiration Warning',
+        message: `The prompt cache for "${topicName}" is about to expire. Send a message to refresh it.`,
+        timestamp: Date.now(),
+        source: 'assistant'
+      })
+    }
+  )
+
   // zip
   ipcMain.handle(IpcChannel.Zip_Compress, (_, text: string) => compress(text))
   ipcMain.handle(IpcChannel.Zip_Decompress, (_, text: Buffer) => decompress(text))

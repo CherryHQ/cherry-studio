@@ -52,6 +52,10 @@ export enum IpcChannel {
   Notification_Send = 'notification:send',
   Notification_OnClick = 'notification:on-click',
 
+  // Cache reminder
+  CacheReminder_PlaySound = 'cache-reminder:play-sound',
+  CacheReminder_SendNotification = 'cache-reminder:send-notification',
+
   Webview_SetOpenLinkExternal = 'webview:set-open-link-external',
   Webview_SetSpellCheckEnabled = 'webview:set-spell-check-enabled',
   Webview_SearchHotkey = 'webview:search-hotkey',

@@ -81,6 +81,7 @@ export class TemporaryChatService {
       sortOrder: 0,
       isPinned: false,
       pinnedOrder: 0,
+      enableCacheReminder: false,
       createdAt: now,
       updatedAt: now
     }

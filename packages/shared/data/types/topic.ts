@@ -27,6 +27,8 @@ export interface Topic {
   isPinned: boolean
   /** Pinned order */
   pinnedOrder: number
+  /** Cache expiration reminder toggle */
+  enableCacheReminder?: boolean
   /** Creation timestamp (ISO string) */
   createdAt: string
   /** Last update timestamp (ISO string) */
