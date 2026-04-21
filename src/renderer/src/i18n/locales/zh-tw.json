@@ -938,6 +938,7 @@
         "agent": "匯出助手"
       },
       "import": {
+        "action": "匯入助手",
         "button": "匯入",
         "error": {
           "fetch_failed": "從 URL 取得資料失敗",
@@ -2232,6 +2233,56 @@
   "launchpad": {
     "apps": "應用",
     "miniApps": "小程式"
+  },
+  "library": {
+    "action": {
+      "create": "新增",
+      "delete": "刪除",
+      "disable": "停用",
+      "duplicate": "複製",
+      "edit": "編輯",
+      "enable": "啟用",
+      "manage_tags": "管理標籤",
+      "uninstall": "解除安裝"
+    },
+    "delete_confirm": {
+      "cancel": "取消",
+      "confirm": "刪除",
+      "description": "確定要刪除「{{name}}」嗎？此操作無法復原。",
+      "title": "確認刪除"
+    },
+    "empty_state": {
+      "description": "點選「新增」建立你的第一個資源",
+      "title": "尚無資源"
+    },
+    "pending_backend": {
+      "description": "此資源的寫入操作即將上線,目前僅顯示佔位。",
+      "title": "資料層接入中"
+    },
+    "sidebar": {
+      "all_tags": "全部標籤",
+      "no_tags": "尚無標籤",
+      "tags": "標籤"
+    },
+    "sort": {
+      "created": "依建立時間",
+      "name": "依名稱",
+      "updated": "依更新時間"
+    },
+    "subtitle": "管理你的助手、智能體與技能",
+    "title": "資源庫",
+    "toolbar": {
+      "search_placeholder": "搜尋資源..."
+    },
+    "type": {
+      "agent": "智能體",
+      "assistant": "助手",
+      "skill": "技能"
+    },
+    "view": {
+      "grid": "網格檢視",
+      "list": "列表檢視"
+    }
   },
   "lmstudio": {
     "keep_alive_time": {

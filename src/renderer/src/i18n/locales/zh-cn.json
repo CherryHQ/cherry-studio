@@ -938,6 +938,7 @@
         "agent": "导出助手"
       },
       "import": {
+        "action": "导入助手",
         "button": "导入",
         "error": {
           "fetch_failed": "从 URL 获取数据失败",
@@ -2232,6 +2233,56 @@
   "launchpad": {
     "apps": "应用",
     "miniApps": "小程序"
+  },
+  "library": {
+    "action": {
+      "create": "新建",
+      "delete": "删除",
+      "disable": "禁用",
+      "duplicate": "复制",
+      "edit": "编辑",
+      "enable": "启用",
+      "manage_tags": "管理标签",
+      "uninstall": "卸载"
+    },
+    "delete_confirm": {
+      "cancel": "取消",
+      "confirm": "删除",
+      "description": "确定要删除「{{name}}」吗？此操作无法撤销。",
+      "title": "确认删除"
+    },
+    "empty_state": {
+      "description": "点击「新建」创建你的第一个资源",
+      "title": "暂无资源"
+    },
+    "pending_backend": {
+      "description": "该资源的写入操作即将上线,当前仅展示占位。",
+      "title": "数据层接入中"
+    },
+    "sidebar": {
+      "all_tags": "全部标签",
+      "no_tags": "暂无标签",
+      "tags": "标签"
+    },
+    "sort": {
+      "created": "按创建时间",
+      "name": "按名称",
+      "updated": "按更新时间"
+    },
+    "subtitle": "管理你的助手、智能体与技能",
+    "title": "资源库",
+    "toolbar": {
+      "search_placeholder": "搜索资源..."
+    },
+    "type": {
+      "agent": "智能体",
+      "assistant": "助手",
+      "skill": "技能"
+    },
+    "view": {
+      "grid": "网格视图",
+      "list": "列表视图"
+    }
   },
   "lmstudio": {
     "keep_alive_time": {

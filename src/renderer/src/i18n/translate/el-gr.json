@@ -846,6 +846,7 @@
         "agent": "Εξαγωγή βοηθού"
       },
       "import": {
+        "action": "[to be translated]:Import Assistant",
         "button": "Εισαγωγή",
         "error": {
           "fetch_failed": "Αποτυχία λήψης δεδομένων από το URL",
@@ -2138,6 +2139,56 @@
   "launchpad": {
     "apps": "Εφαρμογές",
     "miniApps": "Μικρές εφαρμογές"
+  },
+  "library": {
+    "action": {
+      "create": "[to be translated]:New",
+      "delete": "[to be translated]:Delete",
+      "disable": "[to be translated]:Disable",
+      "duplicate": "[to be translated]:Duplicate",
+      "edit": "[to be translated]:Edit",
+      "enable": "[to be translated]:Enable",
+      "manage_tags": "[to be translated]:Manage tags",
+      "uninstall": "[to be translated]:Uninstall"
+    },
+    "delete_confirm": {
+      "cancel": "[to be translated]:Cancel",
+      "confirm": "[to be translated]:Delete",
+      "description": "[to be translated]:Delete \"{{name}}\"? This action cannot be undone.",
+      "title": "[to be translated]:Delete"
+    },
+    "empty_state": {
+      "description": "[to be translated]:Click \"New\" to create your first resource.",
+      "title": "[to be translated]:No resources"
+    },
+    "pending_backend": {
+      "description": "[to be translated]:Write operations for this resource are coming soon. This view is a placeholder.",
+      "title": "[to be translated]:Backend setup in progress"
+    },
+    "sidebar": {
+      "all_tags": "[to be translated]:All tags",
+      "no_tags": "[to be translated]:No tags yet",
+      "tags": "[to be translated]:Tags"
+    },
+    "sort": {
+      "created": "[to be translated]:Sort by created",
+      "name": "[to be translated]:Sort by name",
+      "updated": "[to be translated]:Sort by updated"
+    },
+    "subtitle": "[to be translated]:Manage your assistants, agents and skills",
+    "title": "[to be translated]:Library",
+    "toolbar": {
+      "search_placeholder": "[to be translated]:Search resources..."
+    },
+    "type": {
+      "agent": "[to be translated]:Agent",
+      "assistant": "[to be translated]:Assistant",
+      "skill": "[to be translated]:Skill"
+    },
+    "view": {
+      "grid": "[to be translated]:Grid view",
+      "list": "[to be translated]:List view"
+    }
   },
   "lmstudio": {
     "keep_alive_time": {

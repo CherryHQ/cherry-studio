@@ -1,0 +1,178 @@
+import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import type { Tag, TaggableEntityType } from '@shared/data/types/tag'
+import { useCallback, useMemo, useRef } from 'react'
+
+import { DEFAULT_TAG_COLOR, TAG_COLORS } from '../constants'
+import type { ResourceType } from '../types'
+import type { EntityTagsResult, TagListResult } from './types'
+
+// TaggableEntityType currently enumerates 'assistant' | 'topic' | 'session'.
+// For this PR, only 'assistant' is wired through the tag API; 'agent' / 'skill'
+// short-circuit to an empty result until the enum is extended in a follow-up task.
+const SUPPORTED_ENTITY_TYPES: readonly ResourceType[] = ['assistant'] as const
+
+function isSupportedEntityType(type: ResourceType): type is Extract<TaggableEntityType, ResourceType> {
+  return SUPPORTED_ENTITY_TYPES.includes(type)
+}
+
+export function useTagList(): TagListResult {
+  const { data, isLoading, error, refetch } = useQuery('/tags')
+  const stableRefetch = useCallback(() => refetch(), [refetch])
+
+  return {
+    tags: Array.isArray(data) ? data : [],
+    isLoading,
+    error,
+    refetch: stableRefetch
+  }
+}
+
+/**
+ * Tags bound to a specific entity (assistant today; agent/skill pending enum extension).
+ *
+ * When `entityType` is not yet supported, returns an empty result without firing
+ * a network request, keeping hook order stable across renders.
+ */
+export function useEntityTags(entityType: ResourceType, entityId: string | undefined): EntityTagsResult {
+  const supported = Boolean(entityId) && isSupportedEntityType(entityType)
+
+  const path = useMemo(() => {
+    if (!supported || !entityId) {
+      return '/tags/entities/assistant/placeholder' as const
+    }
+    return `/tags/entities/${entityType as TaggableEntityType}/${entityId}` as const
+  }, [supported, entityType, entityId])
+
+  const { data, isLoading, error, refetch } = useQuery(path, { enabled: supported })
+  const stableRefetch = useCallback(() => refetch(), [refetch])
+
+  return {
+    supported,
+    tags: supported && Array.isArray(data) ? data : [],
+    isLoading: supported ? isLoading : false,
+    error: supported ? error : undefined,
+    refetch: stableRefetch
+  }
+}
+
+/**
+ * Pick a random hex color from the curated TAG_COLORS palette.
+ * Always returns a 6-digit hex string that satisfies the backend color regex.
+ */
+function randomTagColor(): string {
+  const palette = Object.values(TAG_COLORS)
+  if (palette.length === 0) return DEFAULT_TAG_COLOR
+  const idx = Math.floor(Math.random() * palette.length)
+  return palette[idx]
+}
+
+export interface CreateTagOptions {
+  name: string
+  /** Optional color; if omitted, a random color from TAG_COLORS is assigned. */
+  color?: string
+}
+
+export type EnsureTagInput = string | { name: string; color?: string | null }
+
+/**
+ * Write-side hooks for the Tag collection.
+ *
+ * - `createTag`: POST /tags with a random-from-palette color unless one is provided.
+ *   Refreshes `/tags` so the sidebar/chips reflect the new tag immediately.
+ */
+export function useTagMutations() {
+  const { trigger: createTrigger } = useMutation('POST', '/tags', {
+    refresh: ['/tags']
+  })
+
+  const createTag = useCallback(
+    ({ name, color }: CreateTagOptions): Promise<Tag> =>
+      createTrigger({ body: { name: name.trim(), color: color ?? randomTagColor() } }),
+    [createTrigger]
+  )
+
+  return { createTag }
+}
+
+/**
+ * Resolve a list of tag names to Tag records, creating any that don't exist yet.
+ *
+ * Lookup order:
+ *   1. Check the cached `useTagList` result (no extra request in the common path).
+ *   2. Missing names → POST /tags (color defaults to a random TAG_COLORS entry).
+ *   3. If POST fails due to a unique-constraint race, refetch the list once and
+ *      retry the lookup before bubbling up.
+ *
+ * Used by assistant tag-binding flows where the UI speaks in names but the backend
+ * speaks in ids. Skips empty / whitespace-only names and de-duplicates input.
+ */
+export function useEnsureTags() {
+  const tagList = useTagList()
+  const listRef = useRef(tagList)
+  listRef.current = tagList
+
+  const { createTag } = useTagMutations()
+
+  const ensureTags = useCallback(
+    async (inputs: EnsureTagInput[]): Promise<Tag[]> => {
+      const cleaned = Array.from(
+        inputs
+          .reduce<Map<string, { name: string; color?: string | null }>>((acc, input) => {
+            const name = typeof input === 'string' ? input.trim() : input.name.trim()
+            if (!name) return acc
+
+            if (!acc.has(name)) {
+              acc.set(name, {
+                name,
+                color: typeof input === 'string' ? undefined : input.color
+              })
+            }
+
+            return acc
+          }, new Map())
+          .values()
+      )
+
+      if (cleaned.length === 0) return []
+
+      const byName = (tags: Tag[]) => new Map(tags.map((t) => [t.name, t] as const))
+
+      let existing = byName(listRef.current.tags)
+      const missing: { name: string; color?: string | null }[] = []
+      const resolved: Tag[] = []
+
+      for (const spec of cleaned) {
+        const hit = existing.get(spec.name)
+        if (hit) resolved.push(hit)
+        else missing.push(spec)
+      }
+
+      if (missing.length === 0) return resolved
+
+      for (const spec of missing) {
+        try {
+          const created = await createTag({
+            name: spec.name,
+            color: spec.color ?? undefined
+          })
+          resolved.push(created)
+        } catch (e) {
+          // Likely a unique-constraint race; refetch once and retry the lookup.
+          await listRef.current.refetch()
+          existing = byName(listRef.current.tags)
+          const hit = existing.get(spec.name)
+          if (hit) {
+            resolved.push(hit)
+          } else {
+            throw e
+          }
+        }
+      }
+
+      return resolved
+    },
+    [createTag]
+  )
+
+  return { ensureTags }
+}

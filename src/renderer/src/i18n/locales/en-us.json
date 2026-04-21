@@ -938,6 +938,7 @@
         "agent": "Export Assistant"
       },
       "import": {
+        "action": "Import Assistant",
         "button": "Import",
         "error": {
           "fetch_failed": "Failed to fetch from URL",
@@ -2232,6 +2233,56 @@
   "launchpad": {
     "apps": "Apps",
     "miniApps": "MiniApps"
+  },
+  "library": {
+    "action": {
+      "create": "New",
+      "delete": "Delete",
+      "disable": "Disable",
+      "duplicate": "Duplicate",
+      "edit": "Edit",
+      "enable": "Enable",
+      "manage_tags": "Manage tags",
+      "uninstall": "Uninstall"
+    },
+    "delete_confirm": {
+      "cancel": "Cancel",
+      "confirm": "Delete",
+      "description": "Delete \"{{name}}\"? This action cannot be undone.",
+      "title": "Delete"
+    },
+    "empty_state": {
+      "description": "Click \"New\" to create your first resource.",
+      "title": "No resources"
+    },
+    "pending_backend": {
+      "description": "Write operations for this resource are coming soon. This view is a placeholder.",
+      "title": "Backend setup in progress"
+    },
+    "sidebar": {
+      "all_tags": "All tags",
+      "no_tags": "No tags yet",
+      "tags": "Tags"
+    },
+    "sort": {
+      "created": "Sort by created",
+      "name": "Sort by name",
+      "updated": "Sort by updated"
+    },
+    "subtitle": "Manage your assistants, agents and skills",
+    "title": "Library",
+    "toolbar": {
+      "search_placeholder": "Search resources..."
+    },
+    "type": {
+      "agent": "Agent",
+      "assistant": "Assistant",
+      "skill": "Skill"
+    },
+    "view": {
+      "grid": "Grid view",
+      "list": "List view"
+    }
   },
   "lmstudio": {
     "keep_alive_time": {
