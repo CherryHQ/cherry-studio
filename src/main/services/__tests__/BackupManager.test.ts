@@ -364,10 +364,10 @@ describe('BackupManager.deleteLanTransferBackup - Security Tests', () => {
   })
 
   describe('Directory Copy Helpers', () => {
-    it('should skip symlinks while copying directories with progress', async () => {
+    it('should skip broken symlinks while copying directories with progress', async () => {
       const entries = [
         {
-          name: 'linked-skill',
+          name: 'broken-link',
           isDirectory: () => false,
           isSymbolicLink: () => true,
           isFile: () => false
@@ -382,7 +382,12 @@ describe('BackupManager.deleteLanTransferBackup - Security Tests', () => {
 
       vi.mocked(fs.readdir).mockResolvedValue(entries as never)
       vi.mocked(fs.stat).mockImplementation((filePath) => {
-        const size = String(filePath).includes('settings.json') ? 32 : 999
+        const file = String(filePath)
+        if (file.includes('broken-link')) {
+          throw new Error('ENOENT: no such file or directory')
+        }
+
+        const size = file.includes('settings.json') ? 32 : 999
         return { size } as never
       })
       vi.mocked(fs.copy).mockResolvedValue(undefined as never)
@@ -394,14 +399,14 @@ describe('BackupManager.deleteLanTransferBackup - Security Tests', () => {
 
       expect(fs.copy).toHaveBeenCalledTimes(1)
       expect(fs.copy).toHaveBeenCalledWith('/source/settings.json', '/dest/settings.json')
-      expect(fs.copy).not.toHaveBeenCalledWith('/source/linked-skill', '/dest/linked-skill')
+      expect(fs.copy).not.toHaveBeenCalledWith('/source/broken-link', '/dest/broken-link')
       expect(progressUpdates).toEqual([32])
     })
 
     it('should ignore symlinks when calculating directory size', async () => {
       const entries = [
         {
-          name: 'linked-skill',
+          name: 'broken-link',
           isDirectory: () => false,
           isSymbolicLink: () => true,
           isFile: () => false
@@ -416,7 +421,12 @@ describe('BackupManager.deleteLanTransferBackup - Security Tests', () => {
 
       vi.mocked(fs.readdir).mockResolvedValue(entries as never)
       vi.mocked(fs.stat).mockImplementation((filePath) => {
-        if (String(filePath).includes('settings.json')) {
+        const file = String(filePath)
+        if (file.includes('broken-link')) {
+          throw new Error('ENOENT: no such file or directory')
+        }
+
+        if (file.includes('settings.json')) {
           return { size: 32 } as never
         }
 

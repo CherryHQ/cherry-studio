@@ -821,6 +821,10 @@ class BackupManager {
 
     for (const item of items) {
       const fullPath = path.join(dirPath, item.name)
+      if (item.isSymbolicLink()) {
+        logger.debug('[getDirSize] Skipping symlink entry', { path: fullPath })
+        continue
+      }
       if (item.isDirectory()) {
         size += await this.getDirSize(fullPath)
       } else if (item.isFile()) {
@@ -940,6 +944,9 @@ class BackupManager {
       let count = 0
       const items = await fs.readdir(dir, { withFileTypes: true })
       for (const item of items) {
+        if (item.isSymbolicLink()) {
+          continue
+        }
         if (item.isDirectory()) {
           count += await countFiles(path.join(dir, item.name))
         } else if (item.isFile()) {
@@ -958,6 +965,11 @@ class BackupManager {
       for (const item of items) {
         const sourcePath = path.join(src, item.name)
         const destPath = path.join(dest, item.name)
+
+        if (item.isSymbolicLink()) {
+          logger.debug('[copyDirWithProgress] Skipping symlink entry', { path: sourcePath })
+          continue
+        }
 
         if (item.isDirectory()) {
           await fs.ensureDir(destPath)
