@@ -749,5 +749,49 @@ describe('StreamEventManager', () => {
 
       errorSpy.mockRestore()
     })
+
+    it('should enqueue recursive stream read errors before reader.cancel settles', async () => {
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const controller = createMockStreamController()
+      const callOrder: string[] = []
+
+      const reader = {
+        read: vi.fn().mockRejectedValue(new Error('Stream read failure')),
+        releaseLock: vi.fn(),
+        cancel: vi.fn().mockImplementation(() => {
+          callOrder.push('cancel')
+          return new Promise(() => {})
+        })
+      }
+
+      controller.enqueue.mockImplementation((chunk: TextStreamPart<EmptyToolSet>) => {
+        callOrder.push(chunk.type)
+      })
+
+      const streamLike = {
+        getReader: vi.fn(() => reader)
+      }
+
+      const context = createMockContext({
+        hasExecutedToolsInCurrentStep: true,
+        recursiveCall: vi.fn().mockResolvedValue({
+          fullStream: streamLike
+        })
+      })
+
+      let resolved = false
+      void manager.handleRecursiveCall(controller, {}, context).then(() => {
+        resolved = true
+      })
+
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(callOrder[0]).toBe('error')
+      expect(callOrder[1]).toBe('cancel')
+      expect(resolved).toBe(true)
+      expect(reader.releaseLock).toHaveBeenCalled()
+
+      errorSpy.mockRestore()
+    })
   })
 })

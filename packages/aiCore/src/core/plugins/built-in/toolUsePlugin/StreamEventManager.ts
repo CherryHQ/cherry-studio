@@ -173,15 +173,13 @@ export class StreamEventManager {
         controller.enqueue(value)
       }
     } catch (error) {
-      try {
-        await reader.cancel(error)
-      } catch {
-        // Ignore cancellation errors after the stream has already failed.
-      }
       console.error('[MCP Prompt] Error piping recursive stream:', error)
       controller.enqueue({
         type: 'error',
         error: error instanceof Error ? error : new Error(String(error))
+      })
+      void reader.cancel(error).catch(() => {
+        // Ignore cancellation errors after the stream has already failed.
       })
     } finally {
       reader.releaseLock()
