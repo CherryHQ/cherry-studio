@@ -14,6 +14,8 @@
  * - v2 Refactor PR   : https://github.com/CherryHQ/cherry-studio/pull/10162
  * --------------------------------------------------------------------------
  */
+import type { Stats } from 'node:fs'
+
 import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -33,6 +35,21 @@ import WebDav from './WebDav'
 import { windowService } from './WindowService'
 
 const logger = loggerService.withContext('BackupManager')
+
+interface CopyDirOptions {
+  dereferenceSymlinks: boolean
+}
+
+interface EffectiveEntryStats {
+  isSymlink: boolean
+  stats: Stats
+}
+
+interface ProgressData {
+  stage: string
+  progress: number
+  total: number
+}
 
 class BackupManager {
   private tempDir = path.join(app.getPath('temp'), 'cherry-studio', 'backup', 'temp')
@@ -192,14 +209,14 @@ class BackupManager {
         const tempDataDir = path.join(this.tempDir, 'Data')
 
         if (await fs.pathExists(sourcePath)) {
-          const totalSize = await this.getDirSize(sourcePath)
-          let copiedSize = 0
+          const totalSize = await this.getDirSize(sourcePath, { dereferenceSymlinks: true })
 
-          await this.copyDirWithProgress(sourcePath, tempDataDir, (size) => {
-            copiedSize += size
-            const progress = Math.min(80, 52 + Math.floor((copiedSize / totalSize) * 28))
-            onProgress({ stage: 'copying_files', progress, total: 100 })
-          })
+          await this.copyDirWithProgress(
+            sourcePath,
+            tempDataDir,
+            this.createCopyProgressHandler(totalSize, 52, 80, 'copying_files', onProgress),
+            { dereferenceSymlinks: true }
+          )
         }
       } else {
         logger.debug('[backupDirect] Skip the backup of the file')
@@ -287,15 +304,15 @@ class BackupManager {
         const tempDataDir = path.join(this.tempDir, 'Data')
 
         // Get total size of source directory
-        const totalSize = await this.getDirSize(sourcePath)
-        let copiedSize = 0
+        const totalSize = await this.getDirSize(sourcePath, { dereferenceSymlinks: true })
 
         // Use streaming copy
-        await this.copyDirWithProgress(sourcePath, tempDataDir, (size) => {
-          copiedSize += size
-          const progress = Math.min(50, Math.floor((copiedSize / totalSize) * 50))
-          onProgress({ stage: 'copying_files', progress, total: 100 })
-        })
+        await this.copyDirWithProgress(
+          sourcePath,
+          tempDataDir,
+          this.createCopyProgressHandler(totalSize, 0, 50, 'copying_files', onProgress),
+          { dereferenceSymlinks: true }
+        )
 
         onProgress({ stage: 'preparing_compression', progress: 50, total: 100 })
       } else {
@@ -607,16 +624,16 @@ class BackupManager {
       if (dataExists && dataFiles.length > 0) {
         logger.debug('[restoreDirect] Restoring Data directory...')
 
-        const totalSize = await this.getDirSize(dataSource)
-        let copiedSize = 0
+        const totalSize = await this.getDirSize(dataSource, { dereferenceSymlinks: false })
 
         await fs.remove(dataDest)
 
-        await this.copyDirWithProgress(dataSource, dataDest, (size) => {
-          copiedSize += size
-          const progress = Math.min(95, 65 + Math.floor((copiedSize / totalSize) * 30))
-          onProgress({ stage: 'restoring_data', progress, total: 100 })
-        })
+        await this.copyDirWithProgress(
+          dataSource,
+          dataDest,
+          this.createCopyProgressHandler(totalSize, 65, 95, 'restoring_data', onProgress),
+          { dereferenceSymlinks: false }
+        )
       } else {
         logger.debug('[restoreDirect] No Data directory to restore')
       }
@@ -667,17 +684,17 @@ class BackupManager {
 
       if (dataExists && dataFiles.length > 0) {
         // Get total size of source directory
-        const dataTotalSize = await this.getDirSize(dataSourcePath)
-        let copiedSize = 0
+        const dataTotalSize = await this.getDirSize(dataSourcePath, { dereferenceSymlinks: false })
 
         await fs.remove(dataDestPath)
 
         // Use streaming copy
-        await this.copyDirWithProgress(dataSourcePath, dataDestPath, (size) => {
-          copiedSize += size
-          const progress = Math.min(85, 35 + Math.floor((copiedSize / dataTotalSize) * 50))
-          onProgress({ stage: 'copying_files', progress, total: 100 })
-        })
+        await this.copyDirWithProgress(
+          dataSourcePath,
+          dataDestPath,
+          this.createCopyProgressHandler(dataTotalSize, 35, 85, 'copying_files', onProgress),
+          { dereferenceSymlinks: false }
+        )
       } else {
         logger.debug('[restoreLegacy] skipBackupFile is true, skip restoring Data directory')
       }
@@ -799,7 +816,7 @@ class BackupManager {
    * copying_files stage is never logged as it generates too many logs.
    */
   private onProgress = (channel: IpcChannel, shouldLog: boolean) => {
-    return (processData: { stage: string; progress: number; total: number }) => {
+    return (processData: ProgressData) => {
       const mainWindow = windowService.getMainWindow()
       mainWindow?.webContents.send(channel, processData)
       // Never log copying_files as it generates too many log entries
@@ -809,22 +826,54 @@ class BackupManager {
     }
   }
 
+  private createCopyProgressHandler(
+    totalSize: number,
+    startProgress: number,
+    endProgress: number,
+    stage: string,
+    onProgress: (processData: ProgressData) => void
+  ) {
+    let copiedSize = 0
+
+    return (size: number) => {
+      copiedSize += size
+      const progress =
+        totalSize > 0
+          ? Math.min(endProgress, startProgress + Math.floor((copiedSize / totalSize) * (endProgress - startProgress)))
+          : endProgress
+      onProgress({ stage, progress, total: 100 })
+    }
+  }
+
   /**
    * Calculate total size of a directory recursively
    * @param dirPath - Directory path to calculate size
    * @returns Total size in bytes
    */
-  private async getDirSize(dirPath: string): Promise<number> {
+  private async getDirSize(dirPath: string, options: CopyDirOptions): Promise<number> {
     let size = 0
     const items = await fs.readdir(dirPath, { withFileTypes: true })
 
     for (const item of items) {
       const fullPath = path.join(dirPath, item.name)
-      if (item.isDirectory()) {
-        size += await this.getDirSize(fullPath)
-      } else {
-        const stats = await fs.stat(fullPath)
-        size += stats.size
+      const entry = await this.getEffectiveEntryStats(fullPath, options)
+
+      if (!entry) {
+        continue
+      }
+
+      if (entry.stats.isDirectory()) {
+        if (entry.isSymlink) {
+          try {
+            size += await this.getDirSize(fullPath, options)
+          } catch (error) {
+            this.logSkippedSymlink(fullPath, error)
+          }
+        } else {
+          size += await this.getDirSize(fullPath, options)
+        }
+      } else if (entry.stats.isFile()) {
+        size += entry.stats.size
       }
     }
     return size
@@ -927,56 +976,78 @@ class BackupManager {
   private async copyDirWithProgress(
     source: string,
     destination: string,
-    onProgress: (size: number) => void
+    onProgress: (size: number) => void,
+    options: CopyDirOptions
   ): Promise<void> {
-    // First count total files
-    let totalFiles = 0
-    let processedFiles = 0
-    let lastProgressReported = 0
-
-    // Calculate total file count
-    const countFiles = async (dir: string): Promise<number> => {
-      let count = 0
-      const items = await fs.readdir(dir, { withFileTypes: true })
-      for (const item of items) {
-        if (item.isDirectory()) {
-          count += await countFiles(path.join(dir, item.name))
-        } else {
-          count++
-        }
-      }
-      return count
-    }
-
-    totalFiles = await countFiles(source)
-
-    // Copy files and update progress
     const copyDir = async (src: string, dest: string): Promise<void> => {
       const items = await fs.readdir(src, { withFileTypes: true })
 
       for (const item of items) {
         const sourcePath = path.join(src, item.name)
         const destPath = path.join(dest, item.name)
+        const entry = await this.getEffectiveEntryStats(sourcePath, options)
 
-        if (item.isDirectory()) {
-          await fs.ensureDir(destPath)
-          await copyDir(sourcePath, destPath)
-        } else {
-          const stats = await fs.stat(sourcePath)
-          await fs.copy(sourcePath, destPath)
-          processedFiles++
+        if (!entry) {
+          continue
+        }
 
-          // Only report progress when change exceeds 5%
-          const currentProgress = Math.floor((processedFiles / totalFiles) * 100)
-          if (currentProgress - lastProgressReported >= 5 || processedFiles === totalFiles) {
-            lastProgressReported = currentProgress
-            onProgress(stats.size)
+        if (entry.stats.isDirectory()) {
+          try {
+            await fs.ensureDir(destPath)
+            await copyDir(sourcePath, destPath)
+          } catch (error) {
+            if (!entry.isSymlink) {
+              throw error
+            }
+            await fs.remove(destPath).catch(() => {})
+            this.logSkippedSymlink(sourcePath, error)
           }
+        } else if (entry.stats.isFile()) {
+          if (entry.isSymlink) {
+            await fs.copy(sourcePath, destPath, { dereference: true })
+          } else {
+            await fs.copy(sourcePath, destPath)
+          }
+          onProgress(entry.stats.size)
+        } else if (entry.isSymlink) {
+          logger.warn('[BackupManager] Skipping symlink to unsupported target', { path: sourcePath })
         }
       }
     }
 
     await copyDir(source, destination)
+  }
+
+  private async getEffectiveEntryStats(
+    sourcePath: string,
+    options: CopyDirOptions
+  ): Promise<EffectiveEntryStats | null> {
+    const stats = await fs.lstat(sourcePath)
+
+    if (!stats.isSymbolicLink()) {
+      return { isSymlink: false, stats }
+    }
+
+    const targetStats = await this.getSymlinkTargetStats(sourcePath, options)
+    return targetStats ? { isSymlink: true, stats: targetStats } : null
+  }
+
+  private async getSymlinkTargetStats(sourcePath: string, options: CopyDirOptions): Promise<Stats | null> {
+    if (!options.dereferenceSymlinks) {
+      logger.warn('[BackupManager] Skipping symlink during restore', { path: sourcePath })
+      return null
+    }
+
+    try {
+      return await fs.stat(sourcePath)
+    } catch (error) {
+      this.logSkippedSymlink(sourcePath, error)
+      return null
+    }
+  }
+
+  private logSkippedSymlink(sourcePath: string, error: unknown) {
+    logger.warn('[BackupManager] Skipping broken or unreadable symlink', { path: sourcePath, error })
   }
 
   /**
