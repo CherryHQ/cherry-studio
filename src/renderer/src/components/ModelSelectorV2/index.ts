@@ -6,8 +6,13 @@ export type {
   ModelSelectorAlign,
   ModelSelectorGroupItem,
   ModelSelectorModelItem,
+  ModelSelectorMultiIdProps,
+  ModelSelectorMultiModelProps,
   ModelSelectorProps,
+  ModelSelectorSelectionType,
   ModelSelectorSide,
+  ModelSelectorSingleIdProps,
+  ModelSelectorSingleModelProps,
   UseModelSelectorDataOptions,
   UseModelSelectorDataResult
 } from './types'

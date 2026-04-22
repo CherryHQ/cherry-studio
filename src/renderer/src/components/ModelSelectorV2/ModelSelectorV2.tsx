@@ -2,16 +2,18 @@ import {
   Avatar,
   AvatarFallback,
   Button,
+  Checkbox,
   Input,
   Popover,
   PopoverContent,
   PopoverTrigger,
+  Switch,
   Tooltip
 } from '@cherrystudio/ui'
 import { resolveIcon } from '@cherrystudio/ui/icons'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
-import type { UniqueModelId } from '@shared/data/types/model'
+import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
 import { first } from 'lodash'
 import { Pin, Search, Settings2 } from 'lucide-react'
 import {
@@ -29,7 +31,7 @@ import { useTranslation } from 'react-i18next'
 import { matchesModelTag, MODEL_SELECTOR_TAGS } from './filters'
 import { FreeTrialModelTag } from './FreeTrialModelTag'
 import { ModelTagChip } from './ModelTagChip'
-import type { FlatListItem, ModelSelectorModelItem, ModelSelectorProps } from './types'
+import type { FlatListItem, ModelSelectorModelItem, ModelSelectorProps, ModelSelectorSelectionType } from './types'
 import { useModelListKeyboardNav } from './useModelListKeyboardNav'
 import { useModelSelectorData } from './useModelSelectorData'
 import { getProviderDisplayName } from './utils'
@@ -39,12 +41,74 @@ const ITEM_HEIGHT = 36
 const ROW_TAG_SIZE = 8
 const FILTER_TAG_SIZE = 10
 
+type ModelSelectorValue = Model | UniqueModelId | Model[] | UniqueModelId[] | undefined
+
+function dedupeSelectedIds(ids: readonly UniqueModelId[]): UniqueModelId[] {
+  const nextSelectedIds: UniqueModelId[] = []
+  const seen = new Set<UniqueModelId>()
+
+  for (const modelId of ids) {
+    if (seen.has(modelId)) {
+      continue
+    }
+
+    seen.add(modelId)
+    nextSelectedIds.push(modelId)
+  }
+
+  return nextSelectedIds
+}
+
+function areSelectedIdsEqual(left: readonly UniqueModelId[], right: readonly UniqueModelId[]) {
+  return left.length === right.length && left.every((modelId, index) => modelId === right[index])
+}
+
+function normalizeSelectedIdsFromValue(
+  value: ModelSelectorValue,
+  selectionType: ModelSelectorSelectionType,
+  multiple: boolean
+): UniqueModelId[] {
+  if (selectionType === 'id') {
+    const candidateIds = multiple
+      ? Array.isArray(value)
+        ? value.filter((modelId): modelId is UniqueModelId => typeof modelId === 'string' && isUniqueModelId(modelId))
+        : []
+      : typeof value === 'string' && isUniqueModelId(value)
+        ? [value]
+        : []
+
+    return dedupeSelectedIds(candidateIds)
+  }
+
+  const candidateValues = multiple ? (Array.isArray(value) ? value : []) : value && !Array.isArray(value) ? [value] : []
+  const candidateIds = candidateValues.flatMap((candidate) => {
+    if (candidate && typeof candidate === 'object' && 'id' in candidate && candidate.id) {
+      return [candidate.id]
+    }
+
+    return []
+  })
+
+  return dedupeSelectedIds(candidateIds)
+}
+
+function modelsFromSelectedIds(
+  selectedIds: readonly UniqueModelId[],
+  selectableModelsById: ReadonlyMap<UniqueModelId, Model>
+) {
+  return selectedIds.flatMap((modelId) => {
+    const model = selectableModelsById.get(modelId)
+    return model ? [model] : []
+  })
+}
+
 function ModelRow({
   item,
   isFocused,
   onPin,
   onSelect,
   onNavigateBeforeTrial,
+  showCheckbox,
   t
 }: {
   item: ModelSelectorModelItem
@@ -52,6 +116,7 @@ function ModelRow({
   onPin: (modelId: UniqueModelId) => void
   onSelect: (item: ModelSelectorModelItem) => void
   onNavigateBeforeTrial: () => void
+  showCheckbox: boolean
   t: (key: string) => string
 }) {
   const icon = resolveIcon(item.modelIdentifier, item.provider.id)
@@ -61,7 +126,7 @@ function ModelRow({
 
   return (
     <div
-      role="button"
+      role="option"
       tabIndex={-1}
       aria-selected={item.isSelected}
       className={cn(
@@ -72,10 +137,19 @@ function ModelRow({
       )}
       data-testid={`model-selector-item-${item.modelId}`}
       onClick={() => onSelect(item)}>
-      {item.isSelected && (
+      {!showCheckbox && item.isSelected && (
         <span
           aria-hidden="true"
           className="-translate-y-1/2 absolute top-1/2 left-0 block h-[60%] w-0.75 rounded-4xs bg-primary/40"
+        />
+      )}
+      {showCheckbox && (
+        <Checkbox
+          checked={item.isSelected}
+          tabIndex={-1}
+          aria-hidden="true"
+          className="pointer-events-none"
+          data-testid={`model-selector-checkbox-${item.modelId}`}
         />
       )}
       {/* 左侧：图标 + 名称 */}
@@ -135,23 +209,30 @@ function ModelRow({
   )
 }
 
-export function ModelSelector({
-  value,
-  onSelect,
-  trigger,
-  open: openProp,
-  onOpenChange,
-  filter,
-  showTagFilter = true,
-  showPinnedModels = true,
-  prioritizedProviderIds = [],
-  side = 'bottom',
-  align = 'start',
-  sideOffset = 4,
-  contentClassName
-}: ModelSelectorProps) {
+export function ModelSelector(props: ModelSelectorProps) {
+  const {
+    trigger,
+    open: openProp,
+    onOpenChange,
+    filter,
+    showTagFilter = true,
+    showPinnedModels = true,
+    prioritizedProviderIds = [],
+    side = 'bottom',
+    align = 'start',
+    sideOffset = 4,
+    contentClassName,
+    multiSelectMode: multiSelectModeProp,
+    defaultMultiSelectMode = false,
+    onMultiSelectModeChange
+  } = props
   const { t } = useTranslation()
+  const multiple = props.multiple === true
+  const selectionType = props.selectionType ?? 'model'
+  const value = props.value
+  const onSelect = props.onSelect
   const [internalOpen, setInternalOpen] = useState(false)
+  const [internalMultiSelectMode, setInternalMultiSelectMode] = useState(defaultMultiSelectMode)
   const [searchText, setSearchText] = useState('')
   const deferredSearchText = useDeferredValue(searchText)
   const [focusedItemKey, _setFocusedItemKey] = useState('')
@@ -183,6 +264,7 @@ export function ModelSelector({
   }, [])
 
   const open = openProp ?? internalOpen
+  const multiSelectMode = multiple ? (multiSelectModeProp ?? internalMultiSelectMode) : false
   const triggerNode = isValidElement(trigger) ? trigger : <span>{trigger}</span>
 
   const setOpen = useCallback(
@@ -195,18 +277,40 @@ export function ModelSelector({
     [onOpenChange, openProp]
   )
 
+  const setMultiSelectMode = useCallback(
+    (nextEnabled: boolean) => {
+      if (!multiple) {
+        return
+      }
+
+      if (multiSelectModeProp === undefined) {
+        setInternalMultiSelectMode(nextEnabled)
+      }
+      onMultiSelectModeChange?.(nextEnabled)
+    },
+    [multiSelectModeProp, multiple, onMultiSelectModeChange]
+  )
+
+  const rawSelectedModelIds = useMemo(
+    () => normalizeSelectedIdsFromValue(value as ModelSelectorValue, selectionType, multiple),
+    [multiple, selectionType, value]
+  )
+
   const {
     availableTags,
     isLoading,
     listItems,
     modelItems,
     resetTags,
+    resolvedSelectedModelIds,
+    selectableModelsById,
     selectedTags,
     tagSelection,
     togglePin,
     toggleTag
   } = useModelSelectorData({
-    value,
+    selectedModelIds: rawSelectedModelIds,
+    maxSelectedCount: multiple && multiSelectMode ? undefined : 1,
     searchText: deferredSearchText,
     filter,
     prioritizedProviderIds,
@@ -215,6 +319,31 @@ export function ModelSelector({
   })
 
   const listHeight = useMemo(() => Math.min(PAGE_SIZE, listItems.length || 1) * ITEM_HEIGHT, [listItems.length])
+
+  const emitSelection = useCallback(
+    (nextSelectedIds: UniqueModelId[]) => {
+      if (multiple) {
+        if (selectionType === 'id') {
+          ;(onSelect as (modelIds: UniqueModelId[]) => void)(nextSelectedIds)
+          return
+        }
+
+        ;(onSelect as (models: Model[]) => void)(modelsFromSelectedIds(nextSelectedIds, selectableModelsById))
+        return
+      }
+
+      const nextSelectedId = nextSelectedIds[0]
+      if (selectionType === 'id') {
+        ;(onSelect as (modelId: UniqueModelId | undefined) => void)(nextSelectedId)
+        return
+      }
+
+      ;(onSelect as (model: Model | undefined) => void)(
+        nextSelectedId ? selectableModelsById.get(nextSelectedId) : undefined
+      )
+    },
+    [multiple, onSelect, selectableModelsById, selectionType]
+  )
 
   const focusItem = useCallback(
     (key: string) => {
@@ -226,15 +355,28 @@ export function ModelSelector({
         })
       }
     },
-    [listItems]
+    [listItems, setFocusedItemKey]
   )
 
   const handleSelectItem = useCallback(
     (item: ModelSelectorModelItem) => {
-      onSelect(item.model)
+      skipNextFocusScroll.current = true
+
+      if (multiple && multiSelectMode) {
+        // 用 rawSelectedModelIds 作为 toggle 基底：保留业务侧存的所有 ID（包括当前 provider 禁用的），
+        // 否则 toggle 一次就会把"暂时不可选"的 ID 静默抹掉
+        const nextSelectedIds = rawSelectedModelIds.includes(item.modelId)
+          ? rawSelectedModelIds.filter((modelId) => modelId !== item.modelId)
+          : [...rawSelectedModelIds, item.modelId]
+
+        emitSelection(nextSelectedIds)
+        return
+      }
+
+      emitSelection([item.modelId])
       setOpen(false)
     },
-    [onSelect, setOpen]
+    [emitSelection, multiple, multiSelectMode, rawSelectedModelIds, setOpen]
   )
 
   const handleClose = useCallback(() => {
@@ -255,6 +397,29 @@ export function ModelSelector({
       void togglePin(modelId)
     },
     [togglePin]
+  )
+
+  const handleMultiSelectModeChange = useCallback(
+    (nextEnabled: boolean) => {
+      if (!multiple) {
+        return
+      }
+
+      skipNextFocusScroll.current = true
+      setMultiSelectMode(nextEnabled)
+
+      // 只在关闭方向回写业务 value：塌缩到首个有效 ID，保证 UI 和 value 一致（稳定性诉求）。
+      // 打开方向不 emit —— 业务 value 保持原样，由 visibleSelectedModelIdSet 自行决定 UI 显示。
+      if (nextEnabled) {
+        return
+      }
+
+      const collapsed = resolvedSelectedModelIds.slice(0, 1)
+      if (!areSelectedIdsEqual(collapsed, rawSelectedModelIds)) {
+        emitSelection(collapsed)
+      }
+    },
+    [emitSelection, multiple, rawSelectedModelIds, resolvedSelectedModelIds, setMultiSelectMode]
   )
 
   useModelListKeyboardNav({
@@ -281,7 +446,7 @@ export function ModelSelector({
       setFocusedItemKey('')
       resetTags()
     }
-  }, [open, resetTags])
+  }, [open, resetTags, setFocusedItemKey])
 
   useEffect(() => {
     if (!open || isLoading || modelItems.length === 0) {
@@ -344,6 +509,7 @@ export function ModelSelector({
             onPin={handleTogglePin}
             onSelect={handleSelectItem}
             onNavigateBeforeTrial={handleClose}
+            showCheckbox={multiple && multiSelectMode}
             t={t}
           />
         </div>
@@ -355,6 +521,8 @@ export function ModelSelector({
       handleNavigateToProviderSettings,
       handleSelectItem,
       handleTogglePin,
+      multiple,
+      multiSelectMode,
       setFocusedItemKey,
       t
     ]
@@ -410,8 +578,29 @@ export function ModelSelector({
           </div>
         )}
 
+        {multiple && (
+          <div
+            className="flex items-center justify-between gap-3 border-border/60 border-b px-3 py-2"
+            data-testid="model-selector-multi-select-row">
+            <span className="min-w-0 truncate text-[10px] text-muted-foreground">
+              {t('models.multi_select.title')}
+              {t('models.multi_select.mutually_exclusive')}
+            </span>
+            <Switch
+              checked={multiSelectMode}
+              size="sm"
+              data-testid="model-selector-multi-select-switch"
+              onCheckedChange={handleMultiSelectModeChange}
+            />
+          </div>
+        )}
+
         {listItems.length > 0 ? (
-          <div className="px-1 py-1" onScroll={handleListScroll}>
+          <div
+            className="px-1 py-1"
+            role="listbox"
+            aria-multiselectable={multiple && multiSelectMode}
+            onScroll={handleListScroll}>
             <DynamicVirtualList
               ref={listRef}
               list={listItems}

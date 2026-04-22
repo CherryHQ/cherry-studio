@@ -1,7 +1,7 @@
 import { useModels } from '@renderer/hooks/useModels'
 import { usePinnedModelIds } from '@renderer/hooks/usePinnedModelIds'
 import { useProviders } from '@renderer/hooks/useProviders'
-import { type Model, parseUniqueModelId } from '@shared/data/types/model'
+import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { sortBy } from 'lodash'
 import { useCallback, useMemo } from 'react'
@@ -74,7 +74,8 @@ function sortProvidersByPriority(providers: Provider[], prioritizedProviderIds: 
 }
 
 export function useModelSelectorData({
-  value,
+  selectedModelIds = [],
+  maxSelectedCount,
   searchText,
   filter,
   showTagFilter = true,
@@ -85,8 +86,6 @@ export function useModelSelectorData({
   const { models, isLoading: isModelsLoading } = useModels({ enabled: true })
   const { pinnedIds, togglePin } = usePinnedModelIds()
   const { tagSelection, selectedTags, tagFilter, toggleTag, resetTags } = useModelTagFilter()
-
-  const currentModelId = value?.id ?? ''
 
   const baseModelFilter = useCallback((model: Model) => filter?.(model) ?? true, [filter])
 
@@ -126,6 +125,38 @@ export function useModelSelectorData({
     return MODEL_SELECTOR_TAGS.filter((tag) => selectableModels.some((model) => matchesModelTag(model, tag)))
   }, [modelsByProvider])
 
+  const selectableModelsById = useMemo(() => {
+    const entries = [...modelsByProvider.values()].flat().map((model) => [model.id, model] as const)
+    return new Map(entries)
+  }, [modelsByProvider])
+
+  // 只做去重 + 剔除不可选的脏 ID，不做数量截断。
+  // 截断只影响 UI 的"显示为选中"态，不能让截断污染到对外回传的业务数据。
+  const resolvedSelectedModelIds = useMemo(() => {
+    const nextSelectedIds: UniqueModelId[] = []
+    const seen = new Set<UniqueModelId>()
+
+    for (const modelId of selectedModelIds) {
+      if (seen.has(modelId) || !selectableModelsById.has(modelId)) {
+        continue
+      }
+
+      seen.add(modelId)
+      nextSelectedIds.push(modelId)
+    }
+
+    return nextSelectedIds
+  }, [selectableModelsById, selectedModelIds])
+
+  // 仅用于 UI 展示：受 maxSelectedCount 约束（例如单选时只让第一个显示"已选"态）
+  const visibleSelectedModelIdSet = useMemo(() => {
+    if (maxSelectedCount == null) {
+      return new Set(resolvedSelectedModelIds)
+    }
+
+    return new Set(resolvedSelectedModelIds.slice(0, maxSelectedCount))
+  }, [maxSelectedCount, resolvedSelectedModelIds])
+
   const searchFilter = useCallback(
     (provider: Provider) => {
       let providerModels = modelsByProvider.get(provider.id) ?? []
@@ -151,11 +182,11 @@ export function useModelSelectorData({
         modelId,
         modelIdentifier: getModelIdentifier(model),
         isPinned,
-        isSelected: modelId === currentModelId,
+        isSelected: visibleSelectedModelIdSet.has(modelId),
         showIdentifier
       }
     },
-    [currentModelId]
+    [visibleSelectedModelIdSet]
   )
 
   const { listItems, modelItems } = useMemo(() => {
@@ -225,7 +256,6 @@ export function useModelSelectorData({
   }, [
     baseModelFilter,
     createModelItem,
-    modelsByProvider,
     pinnedIds,
     searchFilter,
     searchText.length,
@@ -237,12 +267,13 @@ export function useModelSelectorData({
 
   return {
     availableTags,
-    currentModelId,
     isLoading: isProvidersLoading || isModelsLoading,
     listItems,
     modelItems,
     pinnedIds,
     resetTags,
+    resolvedSelectedModelIds,
+    selectableModelsById,
     selectedTags,
     sortedProviders,
     tagSelection,

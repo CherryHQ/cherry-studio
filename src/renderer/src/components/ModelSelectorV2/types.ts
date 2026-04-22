@@ -6,10 +6,9 @@ import type { ModelSelectorTag } from './filters'
 
 export type ModelSelectorSide = 'top' | 'right' | 'bottom' | 'left'
 export type ModelSelectorAlign = 'start' | 'center' | 'end'
+export type ModelSelectorSelectionType = 'model' | 'id'
 
-export interface ModelSelectorProps {
-  value?: Model
-  onSelect: (model: Model) => void
+interface ModelSelectorCommonProps {
   trigger: ReactNode
   open?: boolean
   onOpenChange?: (open: boolean) => void
@@ -21,7 +20,44 @@ export interface ModelSelectorProps {
   align?: ModelSelectorAlign
   sideOffset?: number
   contentClassName?: string
+  multiSelectMode?: boolean
+  defaultMultiSelectMode?: boolean
+  onMultiSelectModeChange?: (enabled: boolean) => void
 }
+
+export interface ModelSelectorSingleModelProps extends ModelSelectorCommonProps {
+  multiple?: false
+  selectionType?: 'model'
+  value?: Model
+  onSelect: (model: Model | undefined) => void
+}
+
+export interface ModelSelectorSingleIdProps extends ModelSelectorCommonProps {
+  multiple?: false
+  selectionType: 'id'
+  value?: UniqueModelId
+  onSelect: (modelId: UniqueModelId | undefined) => void
+}
+
+export interface ModelSelectorMultiModelProps extends ModelSelectorCommonProps {
+  multiple: true
+  selectionType?: 'model'
+  value?: Model[]
+  onSelect: (models: Model[]) => void
+}
+
+export interface ModelSelectorMultiIdProps extends ModelSelectorCommonProps {
+  multiple: true
+  selectionType: 'id'
+  value?: UniqueModelId[]
+  onSelect: (modelIds: UniqueModelId[]) => void
+}
+
+export type ModelSelectorProps =
+  | ModelSelectorSingleModelProps
+  | ModelSelectorSingleIdProps
+  | ModelSelectorMultiModelProps
+  | ModelSelectorMultiIdProps
 
 export interface ModelSelectorGroupItem {
   key: string
@@ -47,7 +83,8 @@ export interface ModelSelectorModelItem {
 export type FlatListItem = ModelSelectorGroupItem | ModelSelectorModelItem
 
 export interface UseModelSelectorDataOptions {
-  value?: Model
+  selectedModelIds?: readonly UniqueModelId[]
+  maxSelectedCount?: number
   searchText: string
   filter?: (model: Model) => boolean
   showTagFilter?: boolean
@@ -57,12 +94,13 @@ export interface UseModelSelectorDataOptions {
 
 export interface UseModelSelectorDataResult {
   availableTags: ModelSelectorTag[]
-  currentModelId: string
   isLoading: boolean
   listItems: FlatListItem[]
   modelItems: ModelSelectorModelItem[]
   pinnedIds: string[]
   resetTags: () => void
+  resolvedSelectedModelIds: UniqueModelId[]
+  selectableModelsById: ReadonlyMap<UniqueModelId, Model>
   selectedTags: ModelSelectorTag[]
   sortedProviders: Provider[]
   tagSelection: Record<ModelSelectorTag, boolean>
