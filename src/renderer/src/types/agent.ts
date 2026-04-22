@@ -180,10 +180,17 @@ export const isAgentBaseWithId = (value: unknown): value is AgentBaseWithId => {
 
 // ------------------ Persistence entities ------------------
 
-// Agent entity representing an autonomous agent configuration
+// Agent entity representing an autonomous agent configuration.
+//
+// `model` is optional on the entity (not on create / replace requests) because
+// it is a FK onto `user_model.id` with ON DELETE SET NULL — after a referenced
+// user model is deleted, the DB column becomes NULL and the row is returned to
+// the renderer with `model` absent. Create / replace requests still require
+// an explicit model (see `agentCreatableSchema`).
 export const AgentEntitySchema = AgentBaseSchema.extend({
   id: z.string(),
   type: AgentTypeSchema,
+  model: z.string().optional(),
   created_at: z.iso.datetime(),
   updated_at: z.iso.datetime()
 })
@@ -201,11 +208,15 @@ export interface ListOptions {
   orderBy?: 'asc' | 'desc'
 }
 
-// AgentSession entity representing a conversation session with one or more agents
+// AgentSession entity representing a conversation session with one or more agents.
+//
+// `model` is optional for the same reason as `AgentEntitySchema.model` — see
+// the comment there. Create / replace requests still require it.
 export const AgentSessionEntitySchema = AgentBaseSchema.extend({
   id: z.string(),
   agent_id: z.string(), // Primary agent ID for the session
   agent_type: AgentTypeSchema,
+  model: z.string().optional(),
   // sub_agent_ids?: string[] // Array of sub-agent IDs involved in the session
 
   created_at: z.iso.datetime(),

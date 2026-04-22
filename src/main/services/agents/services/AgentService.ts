@@ -69,15 +69,21 @@ export class AgentService extends BaseService {
 
     const serializedReq = this.serializeJsonFields(req)
 
+    const { model, planModel, smallModel } = await this.resolveAgentModelIds({
+      model: req.model,
+      plan_model: req.plan_model,
+      small_model: req.small_model
+    })
+
     const insertData: InsertAgentRow = {
       id,
       type: req.type,
       name: req.name || 'New Agent',
       description: req.description,
       instructions: req.instructions || 'You are a helpful assistant.',
-      model: req.model,
-      planModel: req.plan_model,
-      smallModel: req.small_model,
+      model,
+      planModel,
+      smallModel,
       configuration: serializedReq.configuration,
       accessiblePaths: serializedReq.accessible_paths,
       sortOrder: 0
@@ -276,6 +282,7 @@ export class AgentService extends BaseService {
 
       await this.validateAgentModels(req.type, { model: req.model })
       const serialized = this.serializeJsonFields(req)
+      const { model } = await this.resolveAgentModelIds({ model: req.model })
 
       const insertData: InsertAgentRow = {
         id,
@@ -283,7 +290,7 @@ export class AgentService extends BaseService {
         name: req.name || builtinRole,
         description: req.description,
         instructions: req.instructions || 'You are a helpful assistant.',
-        model: req.model,
+        model,
         configuration: serialized.configuration,
         accessiblePaths: serialized.accessible_paths,
         sortOrder: 0
@@ -370,6 +377,7 @@ export class AgentService extends BaseService {
       await this.validateAgentModels(req.type, { model: req.model })
 
       const serialized = this.serializeJsonFields({ ...req, accessible_paths: resolvedPaths })
+      const { model } = await this.resolveAgentModelIds({ model: req.model })
 
       const insertData: InsertAgentRow = {
         id,
@@ -377,7 +385,7 @@ export class AgentService extends BaseService {
         name: req.name || 'CherryClaw',
         description: req.description,
         instructions: 'You are a helpful assistant.',
-        model: req.model,
+        model,
         configuration: serialized.configuration,
         accessiblePaths: serialized.accessible_paths,
         sortOrder: 0
@@ -448,6 +456,15 @@ export class AgentService extends BaseService {
 
     const serializedUpdates = this.serializeJsonFields(updates)
 
+    // Resolve any model fields that are part of this update into user_model.id values
+    // so the FK on agent.model / agent.plan_model / agent.small_model holds.
+    for (const field of this.modelFields) {
+      if (Object.prototype.hasOwnProperty.call(serializedUpdates, field)) {
+        const raw = serializedUpdates[field as keyof typeof serializedUpdates] as string | null | undefined
+        ;(serializedUpdates as Record<string, unknown>)[field] = await this.resolveUserModelId(raw)
+      }
+    }
+
     const updateData: Partial<AgentRow> = {
       updatedAt: Date.now()
     }
@@ -497,6 +514,29 @@ export class AgentService extends BaseService {
    * OLD value (before update). If they match, the session inherited the default and
    * should receive the new value. If they differ, the user customized that field on
    * the session, so we skip it.
+   *
+   * KNOWN PATCH — not a long-term design:
+   *   `SessionService.createSession` materializes every inheritable field via
+   *   `{ ...agent, ...req }` (see `SessionService.ts`), so a session row becomes
+   *   a decoupled copy of the agent. This method papers over that decoupling
+   *   with an equality heuristic, which has three structural costs:
+   *     1. A user who intentionally sets a session field to a value that
+   *        coincidentally matches the agent's will see it silently overwritten
+   *        on the next agent edit.
+   *     2. The sync runs in a separate try/catch from the agent-update commit,
+   *        so a partial failure leaves agent and sessions permanently divergent.
+   *     3. Every agent edit triggers an O(sessions) scan + N UPDATEs.
+   *
+   *   The right shape is "session stores overrides, NULL = inherit" with a
+   *   read-side `session.field ?? agent.field` resolver. The FK migration in
+   *   the agent/session model PR already made `session.model` nullable, which
+   *   unblocks this refactor — it is now a read-semantic change rather than
+   *   another schema change.
+   *
+   *   Tracked by CherryHQ/cherry-studio#14428 (agents → DataApi migration) and
+   *   its renderer follow-up #14431. This method should go away entirely in
+   *   that migration; do not add new inheritable fields here without coordinating
+   *   with those PRs.
    */
   private async syncSettingsToSessions(
     database: Awaited<ReturnType<typeof this.getDatabase>>,
@@ -556,10 +596,10 @@ export class AgentService extends BaseService {
         sessionCount: sessions.length
       })
     } catch (error) {
-      // TODO(agents-v2): session sync is intentionally best-effort so a
-      // partial failure does not abort the agent update that already
-      // committed. Revisit once sessions move onto the DataApi boundary
-      // and this method can share the agent-update transaction.
+      // Intentional best-effort: a partial sync failure must not abort the
+      // agent update that already committed. This whole sync path is a known
+      // patch — see the method doc above for the root-cause discussion and
+      // the PRs (#14428 / #14431) that remove it.
       logger.warn('Failed to sync agent settings to sessions', {
         agentId,
         error: error instanceof Error ? error.message : String(error)

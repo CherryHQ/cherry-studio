@@ -137,8 +137,15 @@ export class SessionService extends BaseService {
 
     const serializedData = this.serializeJsonFields(sessionData)
 
-    // `name` and `model` are NOT NULL on agent_session; fall back to the parent
-    // agent's values rather than coercing empty strings to null.
+    // Resolve into user_model.id values so the FKs on agent_session.model /
+    // plan_model / small_model hold; fall back to the parent agent's value
+    // for `model` (which is itself already a user_model.id after migration).
+    const { model, planModel, smallModel } = await this.resolveAgentModelIds({
+      model: serializedData.model || agent.model,
+      plan_model: serializedData.plan_model,
+      small_model: serializedData.small_model
+    })
+
     const insertData: InsertSessionRow = {
       id,
       agentId,
@@ -147,9 +154,9 @@ export class SessionService extends BaseService {
       description: serializedData.description || null,
       accessiblePaths: serializedData.accessible_paths || null,
       instructions: serializedData.instructions || null,
-      model: serializedData.model || agent.model,
-      planModel: serializedData.plan_model || null,
-      smallModel: serializedData.small_model || null,
+      model,
+      planModel,
+      smallModel,
       mcps: serializedData.mcps || null,
       allowedTools: serializedData.allowed_tools || null,
       configuration: serializedData.configuration || null,
@@ -285,6 +292,15 @@ export class SessionService extends BaseService {
     }
 
     const serializedUpdates = this.serializeJsonFields(updates)
+
+    // Resolve any model fields into user_model.id values so the FK on
+    // agent_session.model / plan_model / small_model holds.
+    for (const field of this.modelFields) {
+      if (Object.prototype.hasOwnProperty.call(serializedUpdates, field)) {
+        const raw = serializedUpdates[field as keyof typeof serializedUpdates] as string | null | undefined
+        ;(serializedUpdates as Record<string, unknown>)[field] = await this.resolveUserModelId(raw)
+      }
+    }
 
     const updateData: Partial<SessionRow> = {
       updatedAt: Date.now()

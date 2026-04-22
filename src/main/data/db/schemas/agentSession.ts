@@ -2,6 +2,7 @@ import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps } from './_columnHelpers'
 import { agentTable } from './agent'
+import { userModelTable } from './userModel'
 
 export const agentSessionTable = sqliteTable(
   'agent_session',
@@ -17,9 +18,9 @@ export const agentSessionTable = sqliteTable(
     description: text(),
     accessiblePaths: text(),
     instructions: text(),
-    model: text().notNull(),
-    planModel: text(),
-    smallModel: text(),
+    model: text().references(() => userModelTable.id, { onDelete: 'set null' }),
+    planModel: text().references(() => userModelTable.id, { onDelete: 'set null' }),
+    smallModel: text().references(() => userModelTable.id, { onDelete: 'set null' }),
     mcps: text(),
     allowedTools: text(),
     slashCommands: text(),

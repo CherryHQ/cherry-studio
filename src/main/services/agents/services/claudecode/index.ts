@@ -45,6 +45,7 @@ import {
   SOUL_MODE_DISALLOWED_TOOLS
 } from '@shared/agents/claudecode/constants'
 import { languageEnglishNameMap } from '@shared/config/languages'
+import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import { withoutTrailingApiVersion } from '@shared/utils'
 import { app } from 'electron'
 
@@ -74,6 +75,23 @@ const IMAGE_MAX_DIMENSION = 2000
 const IMAGE_MAX_BYTES = 5 * 1024 * 1024 // 5MB API limit
 const shouldAutoApproveTools = process.env.CHERRY_AUTO_ALLOW_TOOLS === '1'
 const NO_RESUME_COMMANDS = ['/clear']
+
+/**
+ * Collapse a UniqueModelId (`providerId::modelId`) to the legacy
+ * `providerId:modelId` shape that `validateModelId` expects. Inputs that
+ * don't carry the `::` separator pass through unchanged.
+ *
+ * Scoped to this file because it exists purely to bridge the
+ * `validateModelId` call site that this PR intentionally does not migrate.
+ * See the `TODO(agents-v2)` comment at the call site.
+ */
+function toLegacyProviderModelId(value: string): string {
+  if (!isUniqueModelId(value)) {
+    return value
+  }
+  const { providerId, modelId } = parseUniqueModelId(value)
+  return `${providerId}:${modelId}`
+}
 
 const getLanguageInstruction = () => {
   const lang = getAppLanguage()
@@ -139,8 +157,32 @@ class ClaudeCodeService implements AgentServiceInterface {
       })
     }
 
-    // Validate model info
-    const modelInfo = await validateModelId(session.model)
+    // After the agent/session model FK migration `session.model` is nullable —
+    // if the `user_model` row this session used has been deleted, ON DELETE
+    // SET NULL leaves `session.model` as NULL (→ `undefined` after the entity
+    // deserializer converts DB NULLs). Surface a user-readable error rather
+    // than letting `validateModelId(undefined)` produce `Invalid model ID 'undefined'`.
+    if (!session.model) {
+      aiStream.emit('data', {
+        type: 'error',
+        error: new Error(
+          'This session has no model configured — the previously selected model may have been removed. Please pick one before sending.'
+        )
+      })
+      return aiStream
+    }
+
+    // `session.model` is stored as a UniqueModelId (`providerId::modelId`),
+    // but `validateModelId` still parses on the first `:` and expects the
+    // v1 `providerId:modelId` shape used by the OpenAI-compat `/v1/models`
+    // endpoint. Collapse the canonical form to legacy at this boundary so
+    // `apiServer/utils` stays untouched.
+    //
+    // TODO(agents-v2): rework this call site to resolve the model via
+    // user_model/user_provider directly and drop the v1 validateModelId path
+    // once the api-server model pipeline is migrated to UniqueModelId.
+    const legacyModelId = toLegacyProviderModelId(session.model)
+    const modelInfo = await validateModelId(legacyModelId)
     if (!modelInfo.valid) {
       aiStream.emit('data', {
         type: 'error',

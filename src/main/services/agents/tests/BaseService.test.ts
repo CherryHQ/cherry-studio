@@ -159,6 +159,22 @@ describe('BaseService.validateAgentModels', () => {
     await expect(service.validateModels('claude-code', { model: 'openai:gpt-4' })).resolves.not.toThrow()
     expect(provider.apiKey).toBe('sk-existing-key')
   })
+
+  // Regression for the session-inherits-model path: `SessionService.createSession`
+  // falls back to the parent agent's `model`, which is a UniqueModelId after
+  // the FK migration. The underlying `validateModelId` still splits on the
+  // first `:` and would reject `openai::gpt-4` ('', '') as `invalid_model_format`,
+  // so `validateAgentModels` must collapse to the legacy shape first.
+  it('accepts UniqueModelId (providerId::modelId) input and forwards legacy shape to validateModelId', async () => {
+    const provider = { id: 'openai', apiKey: 'sk-existing-key' }
+    mockValidateModelId.mockResolvedValue({
+      valid: true,
+      provider
+    })
+
+    await expect(service.validateModels('claude-code', { model: 'openai::gpt-4' })).resolves.not.toThrow()
+    expect(mockValidateModelId).toHaveBeenCalledWith('openai:gpt-4')
+  })
 })
 
 describe('BaseService.resolveAccessiblePaths', () => {

@@ -1,9 +1,12 @@
 import { application } from '@application'
+import { userModelTable } from '@data/db/schemas/userModel'
 import { loggerService } from '@logger'
 import { getMcpApiService } from '@main/apiServer/services/mcp'
 import { type ModelValidationError, validateModelId } from '@main/apiServer/utils'
+import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import { buildFunctionCallToolName } from '@shared/mcp'
 import type { AgentType, SlashCommand, SystemProviderId, Tool } from '@types'
+import { eq, or, sql } from 'drizzle-orm'
 import fs from 'fs'
 import path from 'path'
 
@@ -12,6 +15,19 @@ import { builtinSlashCommands } from './services/claudecode/commands'
 import { builtinTools } from './services/claudecode/tools'
 
 const logger = loggerService.withContext('BaseService')
+
+/**
+ * Collapse a UniqueModelId (`providerId::modelId`) to the legacy
+ * `providerId:modelId` shape that `validateModelId` expects. Inputs
+ * without the `::` separator pass through unchanged. Bridges the single
+ * v1 `validateModelId` call site that this PR intentionally does not
+ * migrate — scheduled to go away with the api-server model rework.
+ */
+function toLegacyProviderModelId(value: string): string {
+  if (!isUniqueModelId(value)) return value
+  const { providerId, modelId } = parseUniqueModelId(value)
+  return `${providerId}:${modelId}`
+}
 const MCP_TOOL_ID_PREFIX = 'mcp__'
 const MCP_TOOL_LEGACY_PREFIX = 'mcp_'
 
@@ -371,7 +387,16 @@ export abstract class BaseService {
       }
 
       const modelValue = rawValue
-      const validation = await validateModelId(modelValue)
+      // `validateModelId` still parses on the first `:` and expects the v1
+      // `providerId:modelId` shape; callers here routinely pass UniqueModelId
+      // (`providerId::modelId`) — e.g. `SessionService.createSession` falls
+      // back to the parent agent's already-canonical `model`. Collapse to
+      // legacy at this one boundary so both write paths share the same
+      // resolution and the `AgentModelValidationError` below still reflects
+      // the caller's input. Same shim shape as `claudecode/index.ts`; both
+      // disappear together once the api-server model pipeline moves to
+      // UniqueModelId.
+      const validation = await validateModelId(toLegacyProviderModelId(modelValue))
 
       if (!validation.valid || !validation.provider) {
         const detail: ModelValidationError = validation.error ?? {
@@ -401,5 +426,57 @@ export abstract class BaseService {
         }
       }
     }
+  }
+
+  /**
+   * Resolve a model value to a `user_model.id` so it satisfies the FK on
+   * `agent.model` / `agent_session.model`.
+   *
+   * Accepts both the canonical `providerId::modelId` form and the legacy
+   * `providerId:modelId` form (the agents API still emits the latter because
+   * the renderer obtains model ids from the OpenAI-compat `/v1/models`
+   * endpoint, which is intentionally not migrated in this PR). The SQL here
+   * intentionally mirrors `AgentsDbMappings.buildUserModelLookupExpr`, so
+   * legacy → UniqueModelId resolution has exactly one shape across the
+   * runtime write path and the v1 → v2 importer.
+   *
+   * Returns null when the input is empty or no matching `user_model` row
+   * exists, mirroring the ON DELETE SET NULL semantic of the column.
+   */
+  protected async resolveUserModelId(value: string | null | undefined): Promise<string | null> {
+    if (!value) {
+      return null
+    }
+    const db = await this.getDatabase()
+    const [row] = await db
+      .select({ id: userModelTable.id })
+      .from(userModelTable)
+      .where(
+        or(
+          eq(userModelTable.id, value),
+          eq(sql`${userModelTable.providerId} || ':' || ${userModelTable.modelId}`, value)
+        )
+      )
+      .limit(1)
+
+    if (!row) {
+      logger.warn('Model value does not resolve to a user_model row; storing NULL', { value })
+      return null
+    }
+    return row.id
+  }
+
+  /** Convenience helper that resolves the standard agent model triple in parallel. */
+  protected async resolveAgentModelIds(models: {
+    model?: string | null
+    plan_model?: string | null
+    small_model?: string | null
+  }): Promise<{ model: string | null; planModel: string | null; smallModel: string | null }> {
+    const [model, planModel, smallModel] = await Promise.all([
+      this.resolveUserModelId(models.model),
+      this.resolveUserModelId(models.plan_model),
+      this.resolveUserModelId(models.small_model)
+    ])
+    return { model, planModel, smallModel }
   }
 }
