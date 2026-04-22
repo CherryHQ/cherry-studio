@@ -59,7 +59,7 @@ export interface UpdateAgentDto {
 // ============================================================================
 
 export interface CreateSessionDto {
-  model: string
+  model?: string
   name?: string
   description?: string
   accessiblePaths?: string[]

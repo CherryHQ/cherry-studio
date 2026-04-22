@@ -224,10 +224,14 @@ export class TaskService {
     }
 
     const database = application.get('DbService').getDb()
-    await database
-      .update(scheduledTasksTable)
-      .set(updateData)
-      .where(and(eq(scheduledTasksTable.id, taskId), eq(scheduledTasksTable.agentId, agentId)))
+    await withSqliteErrors(
+      () =>
+        database
+          .update(scheduledTasksTable)
+          .set(updateData)
+          .where(and(eq(scheduledTasksTable.id, taskId), eq(scheduledTasksTable.agentId, agentId))),
+      defaultHandlersFor('Task', taskId)
+    )
 
     // Sync channel subscriptions if provided
     if (updates.channel_ids !== undefined) {
@@ -506,7 +510,9 @@ export class TaskService {
       return
     }
 
-    throw new Error('Scheduled tasks require Soul Mode or Bypass Permissions mode. Update the agent settings first.')
+    throw DataApiErrorFactory.invalidOperation(
+      'Scheduled tasks require Soul Mode or Bypass Permissions mode. Update the agent settings first.'
+    )
   }
 
   private computeInitialNextRun(scheduleType: string, scheduleValue: string): number | null {

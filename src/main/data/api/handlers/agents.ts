@@ -81,7 +81,7 @@ function toAgentUpdateRequest(dto: UpdateAgentDto): UpdateAgentRequest {
   }) as UpdateAgentRequest
 }
 
-function toSessionRequest(dto: CreateSessionDto): CreateSessionRequest {
+function toSessionRequest(dto: Partial<CreateSessionDto>): CreateSessionRequest {
   return stripUndefined({
     model: dto.model,
     name: dto.name,
@@ -184,7 +184,7 @@ export const agentHandlers: {
     },
 
     POST: async ({ params, body }) => {
-      const session = await sessionService.createSession(params.agentId, toSessionRequest(body ?? { model: '' }))
+      const session = await sessionService.createSession(params.agentId, toSessionRequest(body ?? {}))
       if (!session) throw DataApiErrorFactory.notFound('Session', params.agentId)
       return session
     }
