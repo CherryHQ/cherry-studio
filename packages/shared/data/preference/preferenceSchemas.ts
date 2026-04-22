@@ -48,6 +48,8 @@ export interface PreferenceSchemas {
     'app.language': PreferenceTypes.LanguageVarious | null
     // redux/settings/launchOnBoot
     'app.launch_on_boot': boolean
+    // dexieSettings/settings/pinned:models
+    'app.model.pinned_ids': string[]
     // redux/settings/notification.assistant
     'app.notification.assistant.enabled': boolean
     // redux/settings/notification.backup
@@ -504,6 +506,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'app.dist.test_plan.enabled': false,
     'app.language': null,
     'app.launch_on_boot': false,
+    'app.model.pinned_ids': [],
     'app.notification.assistant.enabled': false,
     'app.notification.backup.enabled': false,
     'app.notification.knowledge.enabled': false,
@@ -771,9 +774,9 @@ export const DefaultPreferences: PreferenceSchemas = {
 
 /**
  * 生成统计:
- * - 总配置项: 228
+ * - 总配置项: 229
  * - electronStore项: 1
  * - redux项: 204
  * - localStorage项: 0
- * - dexieSettings项: 7
+ * - dexieSettings项: 8
  */

@@ -2554,6 +2554,10 @@
     "zhihu": "知乎直答"
   },
   "models": {
+    "action": {
+      "pin": "置顶此模型",
+      "unpin": "取消置顶"
+    },
     "add_parameter": "添加参数",
     "all": "全部",
     "custom_parameters": "自定义参数",

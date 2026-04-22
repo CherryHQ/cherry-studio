@@ -809,6 +809,10 @@ export const DEXIE_SETTINGS_MAPPINGS: ReadonlyArray<{ originalKey: string; targe
     targetKey: 'feature.translate.auto_detection_method'
   },
   {
+    originalKey: 'pinned:models',
+    targetKey: 'app.model.pinned_ids'
+  },
+  {
     originalKey: 'translate:markdown:enabled',
     targetKey: 'feature.translate.page.enable_markdown'
   },
@@ -853,9 +857,9 @@ export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetK
  * - ElectronStore项: 1
  * - Redux Store项: 186
  * - Redux分类: settings, selectionStore, llm, nutstore, preprocess, translate, websearch, ocr, note
- * - DexieSettings项: 7
+ * - DexieSettings项: 8
  * - localStorage项: 0
- * - 总配置项: 194
+ * - 总配置项: 195
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)

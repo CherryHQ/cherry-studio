@@ -2554,6 +2554,10 @@
     "zhihu": "Zhihu"
   },
   "models": {
+    "action": {
+      "pin": "Pin this model",
+      "unpin": "Unpin model"
+    },
     "add_parameter": "Add Parameter",
     "all": "All",
     "custom_parameters": "Custom Parameters",

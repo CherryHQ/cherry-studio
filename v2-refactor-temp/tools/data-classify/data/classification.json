@@ -3475,11 +3475,11 @@
         },
         {
           "originalKey": "pinned:models",
-          "type": "unknown",
-          "defaultValue": null,
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "type": "string[]",
+          "defaultValue": [],
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.model.pinned_ids"
         },
         {
           "originalKey": "image://avatar",
