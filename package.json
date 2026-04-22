@@ -98,7 +98,6 @@
     "@vectorstores/libsql": "workspace:*",
     "@vectorstores/readers": "^0.1.8",
     "cron-parser": "^5.0.8",
-    "drizzle-zod": "^0.8.3",
     "express": "5.1.0",
     "font-list": "2.0.0",
     "graceful-fs": "4.2.11",

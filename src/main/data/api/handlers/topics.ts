@@ -9,7 +9,12 @@
 import { topicService } from '@data/services/TopicService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
-import type { TopicSchemas } from '@shared/data/api/schemas/topics'
+import {
+  CreateTopicSchema,
+  SetActiveNodeSchema,
+  type TopicSchemas,
+  UpdateTopicSchema
+} from '@shared/data/api/schemas/topics'
 
 /**
  * Handler type for a specific topic endpoint
@@ -34,8 +39,9 @@ export const topicHandlers: {
     },
 
     POST: async ({ body }) => {
-      const topic = await topicService.create(body)
-      if (body.sourceNodeId) {
+      const parsed = CreateTopicSchema.parse(body)
+      const topic = await topicService.create(parsed)
+      if (parsed.sourceNodeId) {
         await topicNamingService.maybeRenameForkedTopic(topic.id, topic.assistantId)
         return await topicService.getById(topic.id)
       }
@@ -49,7 +55,8 @@ export const topicHandlers: {
     },
 
     PATCH: async ({ params, body }) => {
-      return await topicService.update(params.id, body)
+      const parsed = UpdateTopicSchema.parse(body)
+      return await topicService.update(params.id, parsed)
     },
 
     DELETE: async ({ params }) => {
@@ -60,7 +67,8 @@ export const topicHandlers: {
 
   '/topics/:id/active-node': {
     PUT: async ({ params, body }) => {
-      return await topicService.setActiveNode(params.id, body.nodeId)
+      const parsed = SetActiveNodeSchema.parse(body)
+      return await topicService.setActiveNode(params.id, parsed.nodeId)
     }
   }
 }

@@ -81,17 +81,25 @@ File: `src/renderer/src/data/hooks/useReorder.ts`. One hook on top of `useMutati
 import { useQuery } from '@data/hooks/useDataApi'
 import { useReorder } from '@data/hooks/useReorder'
 
+// Paginated collection — items live under `.items`.
 function McpServerList() {
   const { data } = useQuery('/mcp-servers')
   const { applyReorderedList, isPending } = useReorder('/mcp-servers')
   return <DraggableList items={data?.items ?? []} onReorder={applyReorderedList} />
 }
 
+// Flat-array collection — the response *is* the list.
+function PinList() {
+  const { data } = useQuery('/pins')
+  const { applyReorderedList } = useReorder('/pins')
+  return <DraggableList items={data ?? []} onReorder={applyReorderedList} />
+}
+
 // Non-`id` primary key (e.g. miniapp.appId):
-useReorder('/mini-apps', { idKey: 'appId' })
+useReorder('/miniapps', { idKey: 'appId' })
 ```
 
-Optimistic writes / server revalidation / failure rollback are all handled internally through the DataApi cache hooks (`useReadCache` / `useWriteCache` / `useInvalidateCache`) — the component never tracks the list in local state and never calls SWR directly.
+Optimistic writes / server revalidation / failure rollback are all handled internally through the DataApi cache hooks (`useReadCache` / `useWriteCache` / `useInvalidateCache`) — the component never tracks the list in local state and never calls SWR directly. `useReorder` reads the items list from the cache by auto-detecting flat arrays and `{ items }`-shaped objects; see §4.3 for nested shapes.
 
 ---
 
@@ -149,8 +157,10 @@ Moves apply **sequentially in one transaction**; each anchor resolves against th
 
 - **Column**: `order_key TEXT NOT NULL`. Always injected via `...orderKeyColumns`; the spread locks the TS field name to `orderKey`.
 - **Index**: required. Use `orderKeyIndex(tableName)(t)` for whole-table or `scopedOrderKeyIndex(tableName, scopeColumn)(t)` for partitioned tables.
-- **Known partition dimensions** in the codebase: `topic.groupId`, `group.entityType`, `user_model.providerId`, `miniapp.status`, `user_provider.isEnabled`.
-- **No secondary order axes**. Secondary semantics like topic pinned are modelled as **scope values** (e.g. a reserved `groupId = '__pinned__'` bucket), not a second column. One axis, one API.
+- **Known partition dimensions** in the codebase:
+  - Live (active consumers): `group.entityType`, `pin.entityType`, `user_model.providerId`, `miniapp.status`, `user_provider.isEnabled`.
+  - Planned / hypothetical: `topic.groupId` (adopted when `topic` migrates to the spec).
+- **No secondary order axes**. Each sortable table exposes exactly one `order_key`. Orthogonal user intents — e.g. "in a group" vs "pinned" — are modelled as separate tables, not as overloaded scope values on a shared column. Resource-specific design (polymorphic shape, purge contracts, concurrency semantics) lives in each schema / service's JSDoc, not here — this guide scopes to the ordering mechanism only.
 
 ---
 
@@ -163,6 +173,7 @@ All runtime `order_key` reads and writes go through `src/main/data/services/util
 | `insertWithOrderKey(tx, table, values, { pkColumn, position?, scope? })` | Single-row POST create on a sortable table. |
 | `insertManyWithOrderKey(tx, table, valuesList, { pkColumn, position?, scope? })` | Batch/seed create (≥2 rows). One boundary lookup + one bulk insert; `insertWithOrderKey` delegates to it internally. |
 | `applyMoves(tx, table, moves, { pkColumn, scope? })` | Reorder path for both `PATCH /:id/order` (wrapped as a single move) and `PATCH /order:batch`. |
+| `applyScopedMoves(tx, table, moves, { pkColumn, scopeColumn })` | Reorder path for tables partitioned by a discriminator column. Infers scope from the target row, enforces single-scope batches, and delegates to `applyMoves`. See §3.1. |
 | `resetOrder(tx, table, orderedRows, { pkColumn })` | `POST /order:reset` — caller sorts by preset, helper rewrites every key. |
 | `computeNewOrderKey(...)` | Internal to `applyMoves`; exported only for tests. |
 | `generateOrderKeySequence` / `generateOrderKeyBetween` / `generateOrderKeySequenceBetween` | The ONLY sanctioned wrappers around `fractional-indexing`. Services, migrators, and custom-migration scripts all re-import from here. |
@@ -192,6 +203,27 @@ await applyMoves(tx, userModelTable, moves, {
 
 ---
 
+## 3.1 Scoped Reorder Pattern
+
+Scope inference is a **service-layer** responsibility. The HTTP client sends `{ before: X }` / `{ after: X }` / `{ position: 'first' | 'last' }` — it never names the scope. The handler validates the body with `OrderRequestSchema` and forwards the id and anchor verbatim; it does not read the row or resolve the scope. The service SELECTs the target row, reads its scope column, and applies `eq(scopeColumn, value)` to `applyMoves`.
+
+`applyScopedMoves` (`src/main/data/services/utils/orderKey.ts`) is the infra-level helper that encodes this pattern. `GroupService` and `PinService` are its first two consumers; any future table scoped by a discriminator column should prefer it over hand-rolling `SELECT → applyMoves` boilerplate.
+
+**Contract**:
+
+- A batch that spans more than one distinct scope value is rejected with `VALIDATION_ERROR`. Scoped reorders must stay within one partition; cross-scope moves are a row update (`PATCH /:id`), not a reorder.
+- A target id missing from the table is reported as `NOT_FOUND`. The missing-id check runs before the multi-scope check.
+- Empty `moves` is a no-op (no DB access).
+
+```ts
+await applyScopedMoves(tx, pinTable, moves, {
+  pkColumn: pinTable.id,
+  scopeColumn: pinTable.entityType
+})
+```
+
+---
+
 ## 4. Renderer Integration
 
 ### 4.1 Sequence
@@ -214,14 +246,72 @@ Three observable steps: **optimistic write → PATCH → revalidate** (or **inva
 ### 4.2 Non-`id` primary keys — the `idKey` option
 
 ```tsx
-useReorder('/mini-apps', { idKey: 'appId' })
+useReorder('/miniapps', { idKey: 'appId' })
 ```
 
 Flows into both the optimistic reducer and the new-list diff. The server-facing contract is unchanged — `move(id, anchor)` still takes a plain string id, PATCH body shape is untouched. `idKey` only affects how the client **extracts** ids from cached items.
 
 Single field only — composite keys like `${providerId}:${modelName}` are out of scope; pre-project a synthetic id field before passing items to the drag library.
 
-### 4.3 Anti-pattern: don't shadow SWR with local state
+### 4.3 Supported cache shapes
+
+`useReorder` inspects the cached value at `collectionUrl` to locate the items list. Three shapes are recognized out of the box:
+
+| Shape | Example endpoints | How items are extracted |
+|---|---|---|
+| **Flat array** `T[]` | `GET /pins`, `GET /groups`, `GET /tags`, `GET /providers` | The cache value *is* the array. |
+| **Wrapped pagination** `{ items, total, page }` / `{ items, nextCursor }` | `GET /miniapps`, `GET /mcp-servers`, `GET /assistants`, `GET /knowledges` | Reads `cache.items`; preserves `total` / `page` / `nextCursor` on optimistic writes. |
+| **Naked items wrapper** `{ items: T[] }` | `GET /knowledges/:id/items` | Reads `cache.items`. |
+
+No caller configuration is required for any of the three. Both pagination shapes (`OffsetPaginationResponse` and `CursorPaginationResponse`) fall under the same `{ items }` branch — metadata fields are passed through unchanged.
+
+### 4.4 Using accessors for nested shapes
+
+For responses the defaults cannot reach — grouped views, GraphQL-style connections, or envelopes with a different field name — pass `selectItems` and `updateItems` together. Passing one without the other throws at hook construction.
+
+```tsx
+// Envelope with a different field name: cache = { data: T[], meta }
+useReorder('/custom', {
+  selectItems: (cache) => (cache as Envelope).data,
+  updateItems: (cache, items) => ({ ...(cache as Envelope), data: items })
+})
+
+// Grouped view: cache = { groups: [{ id, items }], version }
+useReorder('/grouped-view', {
+  selectItems: (cache) => (cache as GroupedView).groups[0].items,
+  updateItems: (cache, items) => {
+    const c = cache as GroupedView
+    return { ...c, groups: [{ ...c.groups[0], items }, ...c.groups.slice(1)] }
+  }
+})
+
+// GraphQL-ish connection: cache = { edges: [{ node }], pageInfo }
+useReorder('/connection', {
+  selectItems: (cache) => (cache as Conn).edges.map((e) => e.node),
+  updateItems: (cache, items) => {
+    const c = cache as Conn
+    return { ...c, edges: items.map((node, i) => ({ ...c.edges[i], node })) }
+  }
+})
+```
+
+`updateItems` must be the inverse of `selectItems`: a round trip through the pair must yield the same items list.
+
+### 4.5 Degradation: not-loaded vs. unrecognized cache
+
+The hook distinguishes two failure modes so calls remain safe even when preconditions aren't met.
+
+| Precondition | `move` / `applyBatch` | `applyReorderedList` |
+|---|---|---|
+| **Cache not yet loaded** (`readCache` returns `undefined`) | no-op, warn on each call | no-op, warn on each call |
+| **Cache loaded, shape unrecognized** | skip optimistic overlay, **PATCH still fires**, warn (de-duplicated per hook) | no-op, warn (de-duplicated per hook) |
+
+Rationale:
+
+- "Not loaded" is a UX timing bug — the user interacted before data arrived. Every occurrence is worth logging; each is an independent event.
+- "Unrecognized shape" is a caller contract issue (missing accessors for a nested cache). `move`'s `id` / `anchor` arguments are self-contained and the server can honor them without a client-side diff, so the PATCH is allowed through. `applyReorderedList`, by contrast, needs a current baseline to compute minimal moves — without one, the new list would have to be replayed blindly, which is unsafe. The warning is deduplicated because a misconfigured accessor would otherwise log on every drag.
+
+### 4.6 Anti-pattern: don't shadow SWR with local state
 
 ```tsx
 // WRONG — fights SWR cache, flickers, goes stale
@@ -263,14 +353,17 @@ Complete in one PR:
 
 1. **Schema**: `...orderKeyColumns` + `orderKeyIndex(tableName)(t)` or `scopedOrderKeyIndex(tableName, scopeColumn)(t)`.
 2. **Endpoints**: `& OrderEndpoints<'/{res}'>` on the resource's schema type. Add `POST /{res}/order:reset` inline if needed. Handlers validate bodies with `OrderRequestSchema` / `OrderBatchRequestSchema`.
-3. **Service**: `insertWithOrderKey` for create, `applyMoves` for reorder, `resetOrder` for reset. For partitioned tables, pass the right `scope`:
-   - `topic`: `topic.groupId ? eq(topicTable.groupId, groupId) : isNull(topicTable.groupId)`
-   - `group`: `eq(groupTable.entityType, entityType)`
-   - `user_model`: `eq(userModelTable.providerId, providerId)`
-   - `miniapp`: `eq(miniappTable.status, status)`
-   - `user_provider` / `mcp_server`: whole-table (`scope: undefined`)
+3. **Service**: `insertWithOrderKey` for create, `applyMoves` (or `applyScopedMoves` for discriminator-partitioned tables) for reorder, `resetOrder` for reset. For partitioned tables, the relevant scope predicate is:
+   - `group`: `eq(groupTable.entityType, entityType)` — live (`GroupService.reorder` / `reorderBatch` via `applyScopedMoves`).
+   - `pin`: `eq(pinTable.entityType, entityType)` — live (`PinService.reorder` / `reorderBatch` via `applyScopedMoves`).
+   - `user_model`: `eq(userModelTable.providerId, providerId)`.
+   - `miniapp`: `eq(miniappTable.status, status)`.
+   - `topic`: `topic.groupId ? eq(topicTable.groupId, groupId) : isNull(topicTable.groupId)` — hypothetical, pending `topic` migration.
+   - `user_provider` / `mcp_server`: whole-table (`scope: undefined`).
+
+   New scoped consumers should prefer `applyScopedMoves` (which handles scope lookup and rejects cross-scope batches) over composing `applyMoves` with a manually assembled `eq(...)` scope.
 4. **Migrator**: replace legacy `sortOrder = index` with `assignOrderKeysByScope` (or `assignOrderKeysInSequence` for whole-table). Drop `index` / `sortOrder` parameters from `transform*` functions.
-5. **Renderer**: `useReorder(collectionUrl)`, or `useReorder(collectionUrl, { idKey: 'appId' })` for non-`id` pk.
+5. **Renderer**: `useReorder(collectionUrl)`, or `useReorder(collectionUrl, { idKey: 'appId' })` for non-`id` pk. If the `GET` response is neither a flat array nor `{ items }`-shaped (e.g. a grouped or connection-style envelope), also pass `selectItems` / `updateItems` — see §4.4.
 6. **Drizzle custom migration** (runs when the consuming resource's PR lands, not part of the base-infrastructure PR): add `order_key` nullable → backfill bucket-by-bucket via `generateOrderKeySequence` imported from `@data/services/utils/orderKey` (never from `fractional-indexing` directly) → promote to `NOT NULL` → drop the old `sort_order` column → create the index. Until this step runs, the production schema keeps the legacy `sort_order INT` column — the base infrastructure never touches existing tables.
 
 ---
@@ -289,12 +382,16 @@ Complete in one PR:
 
 ---
 
-## 9. Group Ordering (Future Extension)
+## 9. Group Ordering
 
-Placeholder. When the first resource that needs group-level ordering adopts the spec (most likely `topic`), this section will cover:
+`group` table — `src/main/data/db/schemas/group.ts`. Partition column: `entityType`. Each entityType owns an independent `orderKey` sequence. `GroupService.reorder` / `reorderBatch` delegate to `applyScopedMoves` with `scopeColumn: groupTable.entityType`; see §3.1.
 
-- Extending `OrderRequestSchema` with an optional `groupId` field.
-- Cross-group move semantics — a `groupId` change is a **row update** (regular `PATCH /:id`), not a reorder. The `/order` endpoint only moves rows within their current scope.
-- `scope` interaction when a row changes groups in adjacent operations.
+Resource design (API shape, consumer-side `groupId` linkage) is documented on `GroupService` and consumer migrations — not here.
 
-No speculative `groupId` field, helper variants, or UI code is added before a real consumer drives the design.
+---
+
+## 10. Pin Ordering
+
+`pin` table — `src/main/data/db/schemas/pin.ts`. Partition column: `entityType`. Pin order is scoped per entityType via `scopedOrderKeyIndex('pin', 'entityType')`. `PinService.reorder` / `reorderBatch` delegate to `applyScopedMoves` with `scopeColumn: pinTable.entityType`; see §3.1.
+
+Resource design (polymorphic `(entityType, entityId)` shape, idempotent concurrent-safe `pin()`, `purgeForEntity` delete contract, hard-delete-on-unpin) is documented on `pin.ts` schema and `PinService` — not here.

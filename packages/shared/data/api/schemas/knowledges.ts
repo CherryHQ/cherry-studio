@@ -214,7 +214,7 @@ export const KnowledgeItemsQuerySchema = z.object({
 export type KnowledgeItemsQueryParams = z.input<typeof KnowledgeItemsQuerySchema>
 export type KnowledgeItemsQuery = z.output<typeof KnowledgeItemsQuerySchema>
 
-export interface KnowledgeSchemas {
+export type KnowledgeSchemas = {
   '/knowledge-bases': {
     GET: {
       query?: KnowledgeBaseListQueryParams

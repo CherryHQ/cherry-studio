@@ -13,10 +13,10 @@ import { DataApiErrorFactory } from '@shared/data/api'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
 import type { CreateModelDto } from '@shared/data/api/schemas/models'
 import {
-  CreateModelsDtoSchema,
+  CreateModelsSchema,
   ListModelsQuerySchema,
   type ModelSchemas,
-  UpdateModelDtoSchema
+  UpdateModelSchema
 } from '@shared/data/api/schemas/models'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 
@@ -86,7 +86,7 @@ export const modelHandlers: {
       // Transport is array-only by design. Even single-item create requests are
       // normalized before they reach the service so the service can expose one
       // collection-oriented create path with consistent transaction semantics.
-      const parsed = CreateModelsDtoSchema.parse(body)
+      const parsed = CreateModelsSchema.parse(body)
       const items = await enrichCreateItems(parsed)
       return await modelService.create(items)
     }
@@ -100,7 +100,7 @@ export const modelHandlers: {
 
     PATCH: async ({ params, body }) => {
       const { providerId, modelId } = parseOrValidationError(params.uniqueModelId)
-      const parsed = UpdateModelDtoSchema.parse(body)
+      const parsed = UpdateModelSchema.parse(body)
       return await modelService.update(providerId, modelId, parsed)
     },
 

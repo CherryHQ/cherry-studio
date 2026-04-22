@@ -447,6 +447,107 @@ Routing non-data operations through DataApi causes concrete problems:
 - **Layered architecture becomes hollow**: Handler → Service → SQLite is designed for data flow. Without a database layer, the Service layer becomes a pass-through wrapper with no purpose.
 - **Test patterns don't match**: DataApi tests mock database operations (Drizzle queries, transactions). Side-effectful operations need entirely different test strategies (mocking external services, verifying calls).
 
+## Zod Schema & DTO Conventions
+
+Four rules govern every schema file under `packages/shared/data/api/schemas/`. Follow them verbatim.
+
+### A. Use `type` for `XxxSchemas` route tables
+
+```typescript
+// ✅ Adopt
+export type TagSchemas = {
+  '/tags': { GET: {...}; POST: {...} }
+}
+
+// ✅ With composition
+export type GroupSchemas = { '/groups': {...} } & OrderEndpoints<'/groups'>
+
+// ❌ Deprecated
+export interface TagSchemas { ... }
+```
+
+**Rationale:** route tables never extend or declaration-merge; `type` supports intersection composition and eliminates `interface`/`type` mixing.
+
+### B. Drop `Dto` from Zod schema names; keep `Dto` on TS type names
+
+```typescript
+// ✅ Adopt
+export const CreateTagSchema = TagSchema.pick({ name: true, color: true })
+export type CreateTagDto = z.infer<typeof CreateTagSchema>
+
+// ❌ Deprecated
+export const CreateTagDtoSchema = ...
+```
+
+**Rationale:** `CreateXxx` already signals "DTO"; `DtoSchema` is NestJS class-based convention, not Zod community practice (tRPC / Colin Hacks / Standard Schema all use `XxxSchema`). Keep `Dto` on type names to distinguish DTOs from entity types (`Tag` vs `CreateTagDto`).
+
+**Exceptions:** value objects (`TagEntityRefSchema`) and reorder body DTOs (`ReorderGroupsSchema`) already match this rule — don't add `Dto`.
+
+### C. Derive DTOs via `.pick()` whitelist with field atoms and `z.strictObject`
+
+```typescript
+// 1. Field atoms — share between entity, DTO, query
+export const TagNameSchema = z.string().trim().min(1).max(64)
+export const TagColorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/)
+
+// 2. Entity with z.strictObject (rejects unknown fields)
+export const TagSchema = z.strictObject({
+  id: z.uuidv4(),
+  name: TagNameSchema,
+  color: TagColorSchema.nullable(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime()
+})
+export type Tag = z.infer<typeof TagSchema>
+
+// 3. Create DTO — whitelist pick
+export const CreateTagSchema = TagSchema.pick({ name: true, color: true })
+export type CreateTagDto = z.infer<typeof CreateTagSchema>
+
+// 4. Update DTO — chain from Create
+export const UpdateTagSchema = CreateTagSchema.partial()
+export type UpdateTagDto = z.infer<typeof UpdateTagSchema>
+```
+
+**Rules:**
+
+- **Never `.omit(AutoFields)`** — adding an entity field would auto-expose it (overposting risk). Always whitelist via `.pick({...})`.
+- **Always `z.strictObject`** on entity schemas — second line of defense against overposting.
+- **Prefer `CreateSchema.partial()`** for Update — preserves `.default()`/`.catch()` in Zod v4.
+- **Zod v4 gotcha:** `.pick()`/`.omit()` strip `.refine()`/`.check()` validators (working as designed, Zod discussion #4706). If entity has cross-field checks, re-attach them after pick via `.refine()` or `.safeExtend()`.
+
+**When to write a DTO by hand instead of picking:**
+
+1. Entity has ≤ 3 fields and no auto-managed columns — pick is noise.
+2. Entity is a discriminated union — `.pick`/`.omit` don't support unions.
+3. DTO type differs from entity type (e.g., entity stores `Date`, DTO takes ISO string) — reuse field atoms instead.
+4. DTO-from-DTO derivation (`UpdateModelSchema = CreateModelSchema.omit({...})`) is fine — Zod officially endorses this and overposting risk doesn't apply (source is already a DTO, not the entity).
+
+**When to extract a `XXX_MUTABLE_FIELDS` constant for `.pick(...)`:**
+
+Extract when **both** conditions hold:
+
+1. Create and Update DTOs share the same pick set (i.e. `UpdateSchema = CreateSchema.partial()`).
+2. The pick set has ≥ 5 fields (inline spans multiple lines and hurts readability).
+
+Otherwise inline `.pick({...})`:
+
+- Few fields (≤ 4) — inline is a one-liner, a named constant only adds indirection (see `tags.ts`).
+- Create and Update have **different** pick sets — a single `MUTABLE_FIELDS` constant would mislead readers into thinking the sets are shared; pick inline in each DTO instead (see `topics.ts`).
+
+### D. Write every DataApi schema in Zod; no `drizzle-zod`, no pure TS `interface` DTO
+
+All entity schemas and DTOs in `packages/shared/data/api/schemas/` MUST be hand-written Zod schemas.
+
+- **No `interface XxxDto`** — violates Electron trust-boundary validation (renderer → main IPC requires runtime validation per Electron security checklist #17).
+- **No `drizzle-zod`** — the library is being deprecated in drizzle v1, and its generated schemas have TS type bugs on `.pick()`/`.omit()` that conflict with Rule C.
+
+**Rationale:** DataApi crosses an IPC trust boundary; TS `interface` provides zero runtime defense against schema drift, mass assignment, or a compromised renderer. Zod parse cost (~25µs) is negligible compared to IPC round-trip latency. Schema-first is the industry standard (tRPC, Next.js 13+, Standard Schema Alliance).
+
+**Response types stay as TS `interface`.** Rule D covers **entities and DTOs** — not response shapes. Responses flow `main → renderer`, the **opposite** direction of the IPC trust boundary: main constructs them from trusted state, renderer consumes them after type-checked IPC plumbing. Runtime validation on that edge is cost without security benefit. Examples that correctly stay as `interface`: `DeleteMessageResponse`, `ActiveNodeResponse`, `PersistTemporaryChatResponse`, `TreeResponse`, `BranchMessagesResponse`, `TreeNode`, `SiblingsGroup`, `BranchMessage`.
+
+**Exception:** when a type is **both** a response payload and an entity (e.g., `Topic` is returned from `GET /topics/:id` and also represents a row in the DB), Zod-ify it as an entity per Rule C — the entity role wins.
+
 ## Template Path vs Hook Binding
 
 The data hooks (`useQuery`, `useMutation`, `useInfiniteQuery`, `usePaginatedQuery`) accept two equivalent ways to supply path parameters. They produce byte-for-byte identical SWR cache keys, but suit different call-site shapes.

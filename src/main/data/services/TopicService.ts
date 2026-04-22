@@ -209,7 +209,7 @@ export class TopicService {
     await db.transaction(async (tx) => {
       // Hard delete all messages first (due to foreign key)
       await tx.delete(messageTable).where(eq(messageTable.topicId, id))
-      await tagService.removeEntityTags('topic', id, tx)
+      await tagService.purgeForEntity(tx, 'topic', id)
 
       // Hard delete topic
       await tx.delete(topicTable).where(eq(topicTable.id, id))

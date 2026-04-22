@@ -2,58 +2,58 @@
  * Topic API Schema definitions
  *
  * Contains all topic-related endpoints for CRUD operations and branch switching.
+ * Entity schemas and types live in `@shared/data/types/topic`.
  */
 
-import type { Topic } from '@shared/data/types/topic'
+import * as z from 'zod'
+
+import { type Topic, TopicSchema } from '../../types/topic'
 
 // ============================================================================
 // DTOs
 // ============================================================================
 
 /**
- * DTO for creating a new topic
+ * DTO for creating a new topic.
+ *
+ * `sourceNodeId` is a transient request-only field (not a Topic column): when
+ * present, the service copies the path from root to this node into the new
+ * topic — so it lives outside the entity pick set.
  */
-export interface CreateTopicDto {
-  /** Topic name */
-  name?: string
-  /** Associated assistant ID */
-  assistantId?: string
-  /** Group ID for organization */
-  groupId?: string
-  /**
-   * Source node ID for fork operation.
-   * When provided, copies the path from root to this node into the new topic.
-   */
-  sourceNodeId?: string
-}
+export const CreateTopicSchema = TopicSchema.pick({
+  name: true,
+  assistantId: true,
+  groupId: true
+})
+  .partial()
+  .extend({
+    /** Source node ID for fork operation. */
+    sourceNodeId: z.string().optional()
+  })
+export type CreateTopicDto = z.infer<typeof CreateTopicSchema>
 
 /**
- * DTO for updating an existing topic
+ * DTO for updating an existing topic.
  */
-export interface UpdateTopicDto {
-  /** Updated topic name */
-  name?: string
-  /** Mark name as manually edited */
-  isNameManuallyEdited?: boolean
-  /** Updated assistant ID */
-  assistantId?: string
-  /** Updated group ID */
-  groupId?: string
-  /** Updated sort order */
-  sortOrder?: number
-  /** Updated pin state */
-  isPinned?: boolean
-  /** Updated pin order */
-  pinnedOrder?: number
-}
+export const UpdateTopicSchema = TopicSchema.pick({
+  name: true,
+  isNameManuallyEdited: true,
+  assistantId: true,
+  groupId: true,
+  sortOrder: true,
+  isPinned: true,
+  pinnedOrder: true
+}).partial()
+export type UpdateTopicDto = z.infer<typeof UpdateTopicSchema>
 
 /**
  * DTO for setting active node
  */
-export interface SetActiveNodeDto {
+export const SetActiveNodeSchema = z.strictObject({
   /** Node ID to set as active */
-  nodeId: string
-}
+  nodeId: z.string().min(1)
+})
+export type SetActiveNodeDto = z.infer<typeof SetActiveNodeSchema>
 
 /**
  * Response for active node update
@@ -70,7 +70,7 @@ export interface ActiveNodeResponse {
 /**
  * Topic API Schema definitions
  */
-export interface TopicSchemas {
+export type TopicSchemas = {
   /**
    * Topics collection endpoint
    * @example POST /topics { "name": "New Topic", "assistantId": "asst_123" }

@@ -52,9 +52,9 @@ type CollectionValue = { items: Item[] }
  */
 const COLLECTION_CACHE_KEY = unstable_serialize([COLLECTION])
 
-function makeWrapper(initial?: CollectionValue) {
+function makeWrapper<T = CollectionValue>(initial?: T) {
   const cache = new Map<string, { data?: unknown }>()
-  if (initial) {
+  if (initial !== undefined) {
     cache.set(COLLECTION_CACHE_KEY, { data: initial })
   }
 
@@ -409,5 +409,239 @@ describe('useReorder - idKey option', () => {
       expect.stringContaining('/c/order'),
       expect.objectContaining({ body: { position: 'first' } })
     )
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Cache-shape coverage: the three default shapes, plus custom-accessor and
+// graceful degradation for "cache not yet loaded" and "unrecognized shape".
+// ---------------------------------------------------------------------------
+
+describe('useReorder - cache shape: flat array', () => {
+  it('applyReorderedList writes optimistic overlay back as a flat array (no { items } wrapper)', async () => {
+    const initial: Item[] = [{ id: 'a' }, { id: 'b' }, { id: 'c' }]
+    const { Wrapper, cache } = makeWrapper<Item[]>(initial)
+    patchMock.mockResolvedValue({})
+
+    const { result } = renderReorder(COLLECTION, Wrapper, { revalidateOnSuccess: false })
+
+    await act(async () => {
+      await result.current.applyReorderedList([{ id: 'c' }, { id: 'a' }, { id: 'b' }])
+    })
+
+    // One-move path downgrades to single PATCH /:id/order.
+    const singleMoveCalls = patchMock.mock.calls.filter(([p]) => typeof p === 'string' && p.endsWith('/c/order'))
+    expect(singleMoveCalls).toHaveLength(1)
+
+    // Optimistic cache value must still be a plain array — a regression back
+    // to `{ items: [...] }` would break flat-array consumers reading `data`
+    // directly (e.g. `data ?? []` rather than `data?.items ?? []`).
+    const overlay = cache.get(COLLECTION_CACHE_KEY)?.data
+    expect(Array.isArray(overlay)).toBe(true)
+    expect((overlay as Item[]).map((x) => x.id)).toEqual(['c', 'a', 'b'])
+  })
+
+  it('move writes optimistic overlay back as a flat array', async () => {
+    const initial: Item[] = [{ id: 'a' }, { id: 'b' }, { id: 'c' }]
+    const { Wrapper, cache } = makeWrapper<Item[]>(initial)
+    patchMock.mockResolvedValue({})
+
+    const { result } = renderReorder(COLLECTION, Wrapper, { revalidateOnSuccess: false })
+
+    await act(async () => {
+      await result.current.move('c', { position: 'first' })
+    })
+
+    const overlay = cache.get(COLLECTION_CACHE_KEY)?.data
+    expect(Array.isArray(overlay)).toBe(true)
+    expect((overlay as Item[]).map((x) => x.id)).toEqual(['c', 'a', 'b'])
+  })
+})
+
+describe('useReorder - cache shape: OffsetPaginationResponse', () => {
+  it('preserves total / page fields on the optimistic overlay', async () => {
+    type Paged = { items: Item[]; total: number; page: number }
+    const initial: Paged = { items: [{ id: 'a' }, { id: 'b' }, { id: 'c' }], total: 3, page: 1 }
+    const { Wrapper, cache } = makeWrapper<Paged>(initial)
+    patchMock.mockResolvedValue({})
+
+    const { result } = renderReorder(COLLECTION, Wrapper, { revalidateOnSuccess: false })
+
+    await act(async () => {
+      await result.current.applyReorderedList([{ id: 'c' }, { id: 'a' }, { id: 'b' }])
+    })
+
+    const overlay = cache.get(COLLECTION_CACHE_KEY)?.data as Paged
+    expect(overlay.items.map((x) => x.id)).toEqual(['c', 'a', 'b'])
+    // Non-items metadata must survive the optimistic rewrite.
+    expect(overlay.total).toBe(3)
+    expect(overlay.page).toBe(1)
+  })
+})
+
+describe('useReorder - degradation: cache not yet loaded', () => {
+  let warnSpy: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    warnSpy.mockRestore()
+  })
+
+  it('applyReorderedList warns and skips PATCH when cache is undefined', async () => {
+    const { Wrapper } = makeWrapper<CollectionValue>() // no initial cache
+    patchMock.mockResolvedValue({})
+
+    const { result } = renderReorder(COLLECTION, Wrapper)
+
+    await act(async () => {
+      await result.current.applyReorderedList([{ id: 'a' }, { id: 'b' }])
+    })
+
+    expect(patchMock).not.toHaveBeenCalled()
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('called before data loaded'))
+  })
+
+  it('move warns and skips PATCH when cache is undefined', async () => {
+    const { Wrapper } = makeWrapper<CollectionValue>()
+    patchMock.mockResolvedValue({})
+
+    const { result } = renderReorder(COLLECTION, Wrapper)
+
+    await act(async () => {
+      await result.current.move('a', { position: 'first' })
+    })
+
+    expect(patchMock).not.toHaveBeenCalled()
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('called before data loaded'))
+  })
+})
+
+describe('useReorder - degradation: unrecognized cache shape', () => {
+  // Cache loaded but neither a flat array nor an object with an `items` array.
+  type Envelope = { data: Item[]; meta: Record<string, unknown> }
+
+  let warnSpy: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    warnSpy.mockRestore()
+  })
+
+  it('applyReorderedList refuses to PATCH without a current baseline', async () => {
+    const initial: Envelope = { data: [{ id: 'a' }, { id: 'b' }, { id: 'c' }], meta: {} }
+    const { Wrapper } = makeWrapper<Envelope>(initial)
+    patchMock.mockResolvedValue({})
+
+    const { result } = renderReorder(COLLECTION, Wrapper)
+
+    await act(async () => {
+      await result.current.applyReorderedList([{ id: 'c' }, { id: 'a' }, { id: 'b' }])
+    })
+
+    // Cannot diff without a baseline → we deliberately do not fire PATCH.
+    expect(patchMock).not.toHaveBeenCalled()
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('unrecognized shape'))
+  })
+
+  it('move skips optimistic overlay but still PATCHes (id/anchor are self-contained)', async () => {
+    const initial: Envelope = { data: [{ id: 'a' }, { id: 'b' }], meta: {} }
+    const { Wrapper, cache } = makeWrapper<Envelope>(initial)
+    patchMock.mockResolvedValue({})
+
+    const { result } = renderReorder(COLLECTION, Wrapper, { revalidateOnSuccess: false })
+
+    await act(async () => {
+      await result.current.move('b', { position: 'first' })
+    })
+
+    // PATCH still fires with the caller-supplied id and anchor.
+    expect(patchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/b/order'),
+      expect.objectContaining({ body: { position: 'first' } })
+    )
+    // Cache was not mutated with an optimistic overlay.
+    expect(cache.get(COLLECTION_CACHE_KEY)?.data).toBe(initial)
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('unrecognized shape'))
+  })
+
+  it('de-duplicates the unrecognized-shape warning across multiple calls on the same hook', async () => {
+    const initial: Envelope = { data: [{ id: 'a' }, { id: 'b' }], meta: {} }
+    const { Wrapper } = makeWrapper<Envelope>(initial)
+    patchMock.mockResolvedValue({})
+
+    const { result } = renderReorder(COLLECTION, Wrapper, { revalidateOnSuccess: false })
+
+    await act(async () => {
+      await result.current.move('a', { position: 'first' })
+      await result.current.move('b', { position: 'last' })
+    })
+
+    const unrecognizedWarnings = warnSpy.mock.calls.filter((call) =>
+      call.some((arg) => typeof arg === 'string' && arg.includes('unrecognized shape'))
+    )
+    expect(unrecognizedWarnings).toHaveLength(1)
+  })
+})
+
+describe('useReorder - custom accessors', () => {
+  // Grouped view: items live under cache.groups[0].items; the accessor picks
+  // the first group and the updater rewrites only that group's items.
+  type Group = { id: string; items: Item[] }
+  type GroupedView = { groups: Group[]; version: number }
+
+  it('reorders within the selected sub-list and preserves sibling groups', async () => {
+    const initial: GroupedView = {
+      groups: [
+        { id: 'g1', items: [{ id: 'a' }, { id: 'b' }, { id: 'c' }] },
+        { id: 'g2', items: [{ id: 'x' }, { id: 'y' }] }
+      ],
+      version: 7
+    }
+    const { Wrapper, cache } = makeWrapper<GroupedView>(initial)
+    patchMock.mockResolvedValue({})
+
+    const { result } = renderReorder(COLLECTION, Wrapper, {
+      revalidateOnSuccess: false,
+      selectItems: (c) => (c as GroupedView).groups[0].items as unknown as Array<Record<string, unknown>>,
+      updateItems: (c, items) => {
+        const v = c as GroupedView
+        return {
+          ...v,
+          groups: [{ ...v.groups[0], items: items as unknown as Item[] }, ...v.groups.slice(1)]
+        }
+      }
+    })
+
+    await act(async () => {
+      await result.current.applyReorderedList([{ id: 'c' }, { id: 'a' }, { id: 'b' }])
+    })
+
+    const overlay = cache.get(COLLECTION_CACHE_KEY)?.data as GroupedView
+    expect(overlay.groups[0].items.map((x) => x.id)).toEqual(['c', 'a', 'b'])
+    // Sibling group untouched.
+    expect(overlay.groups[1]).toEqual({ id: 'g2', items: [{ id: 'x' }, { id: 'y' }] })
+    // Non-items metadata preserved.
+    expect(overlay.version).toBe(7)
+  })
+
+  it('throws at hook construction when only one of selectItems/updateItems is provided', () => {
+    const { Wrapper } = makeWrapper<CollectionValue>({ items: [{ id: 'a' }] })
+    // React surfaces the render-phase throw on console; suppress it so the
+    // test log stays clean without hiding actual failures.
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    try {
+      expect(() => renderHook(() => useReorder(COLLECTION, { selectItems: () => [] }), { wrapper: Wrapper })).toThrow(
+        /must be provided together/
+      )
+    } finally {
+      errSpy.mockRestore()
+    }
   })
 })
