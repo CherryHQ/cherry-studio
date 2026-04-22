@@ -1,12 +1,14 @@
 # File Module Architecture
 
-> **This document is the Source of Truth for the file module architecture**, focusing on module boundaries, component responsibilities, IPC design, and service integration.
+> **SoT scope** — **this document** owns: module boundaries, type system (`FileHandle` / `FileEntry` / `FileInfo`), IPC / DataApi contracts, layered architecture (no-FS-side-effect vs FS-side-effect paths), business-service integration, and service lifecycle assignment. FileManager **internal implementation** (storage layout, version detection, atomic writes, recycle bin, reference cleanup, watcher internals, orphan sweep, DanglingCache state machine) lives in [`file-manager-architecture.md`](./file-manager-architecture.md). In case of conflict, the layer ownership above decides: positioning / contract → this document, implementation → the other.
 >
 > **Phase note**: this document mixes two layers of truth:
-> - **Current Phase 1a reality** — DB schema, shared types, IPC/DataApi contracts, and design constraints that already exist in code
-> - **Planned Phase 1b+ structure** — the concrete `FileManager extends BaseService` lifecycle-service implementation and its `internal/*` execution layout
+> - **Current Phase 1a reality (`[1a ✅]`)** — DB schema, shared types, IPC/DataApi contracts, and design constraints that already exist in code
+> - **Planned Phase 1b.x structure (`[1b.1]` / `[1b.2]` / `[1b.3]` / `[1b.4]`)** — the concrete `FileManager extends BaseService` lifecycle-service implementation and its `internal/*` execution layout, delivered incrementally per [RFC §9](../../../v2-refactor-temp/docs/file-manager/rfc-file-manager.md#九分阶段实施计划)
 >
 > When a section describes FileManager as a lifecycle service / facade class, read that as the **target implementation shape**, not as "already fully implemented in this phase". In the current phase, `src/main/file/FileManager.ts` is still contract-first: it exports the public type surface and JSDoc that the later lifecycle implementation must satisfy.
+>
+> **Phase badges used below**: `[1a ✅]` already in code · `[1b.1]` read path & repository · `[1b.2]` write path & lifecycle · `[1b.3]` watcher & DanglingCache · `[1b.4]` orphan sweep & FileRefCheckerRegistry.
 >
 > Related documents:
 >
@@ -39,61 +41,63 @@ An external entry is a persistent record that "the caller expressed the intent t
 ```
 File Module (src/main/file/)
 │
-├── index.ts              ← module barrel; exports only FileManager + public types
+├── index.ts              ← [1a ✅] module barrel; exports only FileManager + public types
 │                           (internal/* is not exported; external imports can't reach it)
 │
-├── FileManager.ts        ← public contract surface in Phase 1a; planned to become the sole lifecycle service + public facade in Phase 1b+
+├── FileManager.ts        ← [1a ✅ skeleton] [1b.1-4 impl] contract surface in Phase 1a; becomes the
+│     │                     sole lifecycle service + public facade incrementally in Phase 1b.x
 │     │                     public methods are thin delegates to internal/*; owns versionCache
 │     │                     responsible for IPC registration and FileHandle.kind dispatch
-│     ├── FileEntry lifecycle (create-or-upsert / write / trash / restore / rename / copy / permanentDelete)
-│     ├── Version detection & concurrency control (read / writeIfUnchanged / withTempCopy)
-│     ├── Metadata & system ops (getMetadata / open / showInFolder / refreshMetadata)
-│     ├── registerIpcHandlers() — unified IPC entry, dispatches by FileHandle.kind
-│     └── Electron dialog (showOpenDialog / showSaveDialog)
+│     ├── FileEntry lifecycle (create-or-upsert / write / trash / restore / rename / copy / permanentDelete)  [1b.1 ensureExternal/read · 1b.2 write/lifecycle]
+│     ├── Version detection & concurrency control (read / writeIfUnchanged / withTempCopy)  [1b.1 read · 1b.2 writeIfUnchanged]
+│     ├── Metadata & system ops (getMetadata / open / showInFolder / refreshMetadata)  [1b.1 metadata · 1b.2 shell/refresh]
+│     ├── registerIpcHandlers() — unified IPC entry, dispatches by FileHandle.kind  [1a ✅ skeleton, 1b.x fills handlers]
+│     └── Electron dialog (showOpenDialog / showSaveDialog)  [1b.2]
 │
-├── internal/             ← private implementation, not re-exported by index.ts; external imports forbidden
+├── internal/             ← [1b.1-4] private implementation, not re-exported by index.ts; external imports forbidden
 │     │                     every pure function explicitly receives FileManagerDeps (repo/versionCache/danglingCache)
-│     ├── deps.ts               — FileManagerDeps type
+│     │                     [1a ✅] interface in internal/deps.ts only; concrete modules below are 1b.x
+│     ├── deps.ts               — FileManagerDeps type  [1a ✅]
 │     ├── entry/
-│     │    ├── create.ts        — createInternal / ensureExternal
-│     │    ├── lifecycle.ts     — trash / restore / permanentDelete + batches
-│     │    ├── rename.ts
-│     │    ├── copy.ts
-│     │    └── refresh.ts       — refreshMetadata / getMetadata
+│     │    ├── create.ts        — createInternal / ensureExternal  [1b.1 ensureExternal · 1b.2 createInternal]
+│     │    ├── lifecycle.ts     — trash / restore / permanentDelete + batches  [1b.2]
+│     │    ├── rename.ts        [1b.2]
+│     │    ├── copy.ts          [1b.2]
+│     │    └── refresh.ts       — refreshMetadata / getMetadata  [1b.1 getMetadata · 1b.2 refreshMetadata]
 │     ├── content/
-│     │    ├── read.ts          — read / createReadStream (including unmanaged variants)
-│     │    ├── write.ts         — write / writeIfUnchanged / createWriteStream
-│     │    └── hash.ts          — getContentHash / getVersion
+│     │    ├── read.ts          — read / createReadStream (including unmanaged variants)  [1b.1]
+│     │    ├── write.ts         — write / writeIfUnchanged / createWriteStream  [1b.2]
+│     │    └── hash.ts          — getContentHash / getVersion  [1b.1]
 │     ├── system/
-│     │    ├── shell.ts         — open / showInFolder
-│     │    └── tempCopy.ts      — withTempCopy
-│     └── orphanSweep.ts        — startup orphan scan task
+│     │    ├── shell.ts         — open / showInFolder  [1b.2]
+│     │    └── tempCopy.ts      — withTempCopy  [1b.2]
+│     └── orphanSweep.ts        — startup orphan scan task  [1b.4]
 │
-├── versionCache.ts       ← LRU type definition; instance held as private field on FileManager
+├── versionCache.ts       ← [1a ✅ interface] [1b.2 impl] LRU type definition; instance held as private field on FileManager
 │
-├── danglingCache.ts (singleton)
+├── danglingCache.ts (singleton)  [1a ✅ interface] [1b.3 impl]
 │     ├── check(entry): DanglingState — query in-memory / cold-path stat
 │     ├── onFsEvent(path, state) — receives watcher events
 │     ├── Reverse index Map<path, Set<entryId>> (populated from DB at file_module startup)
 │     └── Queried by DataApi handler; automatically wired by the watcher factory
 │
-├── watcher/
+├── watcher/              [1a ✅ factory signature] [1b.3 impl]
 │     └── DirectoryWatcher (not a service, a generic FS monitoring primitive)
 │         ↳ factory createDirectoryWatcher() auto-wires events into danglingCache
 │
-└── ops/ (pure functions, sole FS owner, open to the entire main process)
-      ├── fs.ts       — basic FS: read / write / stat / copy / move / remove
-      │                 atomic write: atomicWriteFile / atomicWriteIfUnchanged / createAtomicWriteStream
-      │                 version: statVersion / contentHash (xxhash-128)
-      ├── shell.ts    — system ops: open / showInFolder
-      ├── path.ts     — path utils: resolvePath / isPathInside / canWrite / isNotEmptyDir
-      ├── metadata.ts — type detection: getFileType / isTextFile / mimeToExt
-      └── search.ts   — directory search: listDirectory (ripgrep + fuzzy matching)
+└── ops/ (pure functions, sole FS owner, open to the entire main process)  [1a ✅ signatures + JSDoc · 1b.x impls]
+      ├── fs.ts       — basic FS: read / write / stat / copy / move / remove  [1b.1 read/stat · 1b.2 write/atomic]
+      │                 atomic write: atomicWriteFile / atomicWriteIfUnchanged / createAtomicWriteStream  [1b.2]
+      │                 version: statVersion / contentHash (xxhash-128)  [1b.1 hash · 1b.2 statVersion]
+      ├── shell.ts    — system ops: open / showInFolder  [1b.2]
+      ├── path.ts     — path utils: resolvePath / isPathInside / canWrite / isNotEmptyDir / canonicalizeExternalPath  [1a ✅ resolvePhysicalPath/getExtSuffix · 1b.1 canonicalizeExternalPath + isUnderManagedStorage · 1b.2 rest]
+      ├── metadata.ts — type detection: getFileType / isTextFile / mimeToExt  [1b.1]
+      └── search.ts   — directory search: listDirectory (ripgrep + fuzzy matching)  [1b.2]
 
 Data Module dependencies (src/main/data/)
-├── FileEntryService (data repository, pure DB) — file_entry table
-├── FileRefService (data repository, pure DB) — file_ref table
-└── DataApi Handler (files.ts) — no fs-side-effect endpoints, optionally carries dangling state
+├── FileEntryService (data repository, pure DB) — file_entry table  [1a ✅ interface] [1b.1 impl]
+├── FileRefService (data repository, pure DB) — file_ref table      [1a ✅ interface] [1b.1 impl]
+└── DataApi Handler (files.ts) — no fs-side-effect endpoints, optionally carries dangling state  [1a ✅ schema + stub handlers] [1b.1 read endpoints · 1b.3 dangling endpoints]
 ```
 
 **Deferred implementation**:
@@ -107,7 +111,7 @@ Data Module dependencies (src/main/data/)
 FileManager is the core submodule of the file module, but is not equivalent to the file module as a whole.
 
 - **FileManager** is the **sole public entry point** for the entry management system—responsible for the full lifecycle and content operations of FileEntry. Its public API only accepts `FileEntryId` / `FileHandle`. At startup, it performs an orphan sweep in the background (cleaning up leftover internal UUID files), **without blocking the ready signal**.
-- **FileManager is a facade, not a God class**—business methods are implemented as pure functions under `internal/*` (`(deps, params) => result`); the FileManager class only handles IPC registration, `FileHandle.kind` dispatch, and persists `versionCache`. See [FileManager Architecture](./file-manager-architecture.md) for details.
+- **FileManager is a facade, not a God class** — business methods are delegated to private pure-function modules. The class itself owns only lifecycle, IPC registration, and instance-scoped caches. Implementation mechanics (dispatch helpers, deps passing, module layout, extension rules) live in [FileManager Architecture §1.6](./file-manager-architecture.md) — this document stays at the positioning layer.
 - **DanglingCache** is a file_module singleton—maintains the `'present' | 'missing'` state of external entries, pushed by watcher events, with cold-path stat as a fallback, and served to the renderer via opt-in DataApi handler.
 - **DirectoryWatcher** is a generic FS primitive, **not a lifecycle service**; business modules (such as a future NoteService) new/dispose instances themselves via the `createDirectoryWatcher()` factory; the factory internally wires events into DanglingCache.
 - **ops.ts** is on the same level as FileManager—provides pure FS/path operations that don't depend on the entry system, and is open to the entire main process.

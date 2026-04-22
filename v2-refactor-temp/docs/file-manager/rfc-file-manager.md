@@ -36,7 +36,7 @@
 - FileManager 核心流程伪代码（createInternalEntry / ensureExternalEntry / read / write / trash / restore / permanentDelete / rename / copy）
 - OrphanRefScanner 注册式 checker 设计
 - Dexie → SQLite 的 FileMigrator 流程
-- 分阶段实施计划（Phase 1a / 1b / 2 / X）
+- 分阶段实施计划（Phase 1a / 1b.1-4 / 2 / X）
 
 **不在范畴**：
 
@@ -376,7 +376,7 @@ async function resolveInternalSource(p: CreateInternalEntryParams) {
 async function ensureExternalEntry(
   params: EnsureExternalEntryParams,
 ): Promise<FileEntry> {
-  // Phase 1b 同步廉价 canonicalize: path.resolve + NFC + trailing-sep strip.
+  // Phase 1b.1 同步廉价 canonicalize: path.resolve + NFC + trailing-sep strip.
   // 不含 fs.realpath（case-insensitive FS 去重由 Phase 2 视用户反馈补）。
   // 是 upsert/查询的唯一 key 来源。
   const canonicalPath = canonicalizeExternalPath(params.externalPath);
@@ -967,68 +967,164 @@ Paintings 数据存储在 Redux state 中（`PaintingParams.files: FileMetadata[
 ### 9.1 总览
 
 ```
-Phase 1a ──→ Phase 1b ──→ Phase 2 ──→ (业务 PRs)
-(Schema +    (FileManager  (消费方
- 骨架)        实现 + 测试)   按域迁移)
-                                 │
-                                 └──→ Phase X (AI SDK upload, 延后)
+Phase 1a ──→ Phase 1b.1 ──→ Phase 1b.2 ──→ Phase 1b.3 ──→ Phase 1b.4 ──→ Phase 2 ──→ (业务 PRs)
+(契约+骨架)   (读路径)        (写/生命周期)   (监控+悬挂)    (启动一致性)    (消费方迁移)
+ 零运行时      repo + ops       versionCache   watcher +      orphanSweep +               │
+                read + canon.    + mutations    DanglingCache  Ref checker                 └──→ Phase X (AI SDK upload)
 ```
 
-### 9.2 Phase 1a：Schema & Foundation（当前 PR 目标）
+**每个 1b.x 作为独立可合入 PR**。上游（1b.1）合入后，renderer 可以按能力 opt-in 切换新路径；后续阶段 additive 扩展，互不阻塞。
 
-**目标**：建立类型系统与数据库 schema，打通骨架。handler 允许 `throw NotImplemented`。
+### 9.2 Phase 1a：Contract、Schema、Skeleton（零运行时）
 
-| 交付物                                      | 内容                                                                                                    |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `src/main/data/db/schemas/file.ts`          | `fileEntryTable` + `fileRefTable` Drizzle Schema                                                        |
-| Drizzle migration SQL                       | `pnpm agents:generate` 生成                                                                             |
-| `packages/shared/data/types/file/`          | DTO 类型（`essential` / `fileEntry` / `ref/`）                                                          |
-| `packages/shared/data/api/schemas/files.ts` | DataApi `FileSchemas` 类型声明                                                                          |
-| `packages/shared/file/types/ipc.ts`         | File IPC 类型契约                                                                                       |
-| `packages/shared/file/types/handle.ts`      | `FileHandle` tagged union                                                                               |
-| `src/main/file/index.ts`                    | 模块 barrel，仅导出 `FileManager` + 公共类型                                                            |
-| `src/main/file/ops/`                        | `ops/*` 纯函数骨架（`fs` / `shell` / `path` / `metadata` / `search`），对 main 开放                     |
-| `src/main/file/FileManager.ts`              | lifecycle service 骨架 + IPC handler 占位；实现走 facade 模式（见 `file-manager-architecture.md §1.6`） |
-| `src/main/file/danglingCache.ts`            | singleton 骨架                                                                                          |
-| `src/main/file/watcher/`                    | `DirectoryWatcher` primitive + 工厂                                                                     |
-| `src/main/data/api/handlers/files.ts`       | DataApi handler（只读端点，允许部分端点占位）                                                           |
+**职责边界**：只定义**类型契约**、**数据库 schema**、**接口骨架**。**不含任何业务逻辑实现**——所有 method body `throw new Error('not implemented in Phase 1a')`，所有 ops 纯函数、FileManager public API、IPC handler、DataApi handler 只保留签名 + JSDoc 契约。Phase 1a 的成功标准是「能让 Phase 1b.x 的子 PR 各自独立合入」。
+
+**交付物**：
+
+| 类别         | 内容                                                                                                                                                                                                                                           |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| DB Schema    | `src/main/data/db/schemas/file.ts` — `fileEntryTable` + `fileRefTable`，全部 CHECK 约束（`fe_origin_consistency` / `fe_external_no_trash` / `fe_size_nonneg`）就位                                                                             |
+| DB migration | `pnpm agents:generate` 生成的 SQL                                                                                                                                                                                                              |
+| 跨进程类型   | `packages/shared/data/types/file/` DTO（FileEntry brand DU / FileRef / DanglingState 等）；`packages/shared/data/api/schemas/files.ts` DataApi schema 声明                                                                                     |
+| File 类型    | `packages/shared/file/types/ipc.ts` File IPC 契约；`packages/shared/file/types/handle.ts` `FileHandle` tagged union + factory；`packages/shared/file/types/info.ts` `FileInfo` + `toFileInfo` **declare only**                                 |
+| Source 枚举  | `FileRefSourceType` 扩成完整 literal union（`'chat_message' \| 'knowledge_item' \| 'painting' \| 'note' \| 'temp_session'`）——Phase 1b.4 加 checker 时缺项会编译期爆                                                                           |
+| Main 骨架    | `src/main/file/index.ts` barrel；`src/main/file/ops/*` 纯函数签名 + JSDoc + `throw NotImplemented`；`src/main/file/FileManager.ts` lifecycle service 骨架；`src/main/file/danglingCache.ts` / `watcher/index.ts` / `internal/deps.ts` interface |
+| 运行时实现   | **仅** `pathResolver.resolvePhysicalPath` + `getExtSuffix`（含 null-byte 防御、9 条边界测试）                                                                                                                                                  |
+| DataApi      | `src/main/data/api/handlers/files.ts` — read-only endpoint 允许占位（返回 stub / NotImplemented）                                                                                                                                              |
+| 文档         | `architecture.md` / `file-manager-architecture.md` 全文 Phase badge；RFC 本章 Phase 准入门槛                                                                                                                                                    |
+
+**出口条件**：
+
+- `pnpm lint` + `pnpm build:check` 通过
+- `src/main/file/` 下的 interface 与 ops 签名能被 Phase 1b.x 子 PR 独立 import，无循环依赖
+- renderer 编译通过（但不走 Phase 1a handler；IPC 调用 Phase 1a 时 throw 是 acceptable）
+- 全部骨架文件包含显式 `// [Phase 1b.x] TODO:` 注释指向对应 milestone
+
+**不在本期**：
+
+- FileManager / ops / internal / watcher / danglingCache / orphanSweep 任何运行时逻辑
+- `canonicalizeExternalPath` 实现（契约与签名 Phase 1a 锁定，实现在 1b.1）
+- `versionCache` 运行时（只定义 interface）
+- 任何 Dexie → SQLite 数据搬运
+- renderer 切换调用路径
 
 **依赖**：无（可独立 merge）
 
-### 9.3 Phase 1b：FileManager 实现
+### 9.3 Phase 1b.1：Read Path & Repository
 
-**目标**：填充 FileManager 与 ops 的具体实现 + 单元测试。按 facade + private internals 结构（见 `file-manager-architecture.md §1.6`）。
+**职责边界**：填充「**数据仓库 + 读路径**」的 runtime——使 renderer 能通过新架构**读到文件条目**。零写入、零生命周期变更。
 
-**关键任务**：
+**交付物**：
 
-1. `ops/*` 纯函数实现：`atomicWriteFile` / `atomicWriteIfUnchanged` / `createAtomicWriteStream` / `statVersion` / `contentHash`（xxhash-128）/ `read` / `write` / `copy` / `move` / `remove` / `open` / `showInFolder` / `listDirectory`（ripgrep + 模糊匹配）
-2. `FileEntryService` / `FileRefService` data repository 实现（纯 DB）
-3. `src/main/file/internal/` 纯函数模块（每个接收 `FileManagerDeps`）：
-   - `internal/entry/create.ts` — `createInternal` / `ensureExternal`（A-7 命名拆分）
-   - `internal/entry/lifecycle.ts` — `trash` / `restore` / `permanentDelete` + batches
-   - `internal/entry/rename.ts` / `copy.ts` / `refresh.ts`
-   - `internal/content/read.ts` / `write.ts` / `hash.ts`（含 `*Unmanaged` 变体，IPC handler 用）
-   - `internal/system/shell.ts` / `tempCopy.ts`
-   - `internal/orphanSweep.ts` — 启动期孤儿扫描
-   - `internal/deps.ts` — `FileManagerDeps` 类型
-4. `FileManager` facade class：
-   - `BaseService` + `@Injectable('FileManager')` + `@ServicePhase('WhenReady')` + `@DependsOn('DbService')`
-   - 持有 `versionCache` 为 private field
-   - Public API 保持 **entry-native**（`FileEntryId` 入参），每个方法薄委托到 `internal/*` 纯函数的 `*Managed` 变体
-   - `onInit`：注册 IPC handler，用私有 `dispatchHandle(handle, managedFn, unmanagedFn)` helper 把 `FileHandle.kind` 分派到 facade public method（managed）或 `internal/*` 的 `*Unmanaged` 变体（unmanaged）；fire-and-forget `orphanSweep.run(deps)`
-   - `onStop`：清 versionCache；IPC handler 由 `BaseService` 自动清理
-   - 分派约定详见 `file-manager-architecture.md §1.6.5`——新增 handle kind 只需扩展 `dispatchHandle` 签名与本文件内的 IPC handler，不碰 public API / 业务 service
-5. `src/main/file/index.ts` barrel：只 re-export `FileManager` class + 公共类型；`internal/*` 不导出
-6. 单元测试策略：
-   - `internal/*` 纯函数：直接 `import` 测试 + 传 stub deps，无需 mock FileManager
-   - `FileManager`：测试 facade 是否正确委托 + IPC 注册正确
-   - DB 层：`setupTestDatabase()` 真 DB 验证 schema 不变量（已在 Phase 1a 部分覆盖）
-7. DanglingCache 反向索引初始化 + watcher 事件自动接入
-8. 单元测试覆盖（使用 `setupTestDatabase()` 真 DB）
+- `FileEntryService` / `FileRefService` CRUD 实现（纯 DB；read 路径完整，write 可保留 stub）
+- `ops/fs.ts` 的 `read` / `stat` / `exists` / `metadata` / `contentHash`（xxhash-128）
+- `ops/path.ts` 的 `resolvePhysicalPath`（已存在）+ `isUnderManagedStorage` guard
+- `canonicalizeExternalPath` 真实现（`path.resolve` + NFC + trailing-sep strip）+ 8-10 条边界测试（NFC/NFD / trailing / `./a/../a` / Windows `\\` / 盘符大小写）
+- `FileManager.get*` / `read*` / `getMetadata` / `getUrl` / `findByExternalPath` / `ensureExternalEntry`（upsert-only，不写 FS）
+- `internal/content/read.ts` / `internal/content/hash.ts`（含 `*Unmanaged` 变体）
+- `dispatchHandle(handle, managedFn, unmanagedFn)` helper 的读路径分派骨架
+- DataApi 只读 endpoint 全部上线
+- 单测：`ops/*` 纯函数 + service repo + `setupTestDatabase()` schema 不变量验证
+
+**出口条件**：
+
+- renderer 可通过 `FileHandle.managed` 查询 entry + 读内容
+- external path 大小写/NFC 差异不产生双 entry（在 case-sensitive FS 下）
+- 文件页原有读路径可 feature-flag 切到新架构，旧路径仍存
+
+**不在本期**：
+
+- 写 FS / rename / copy / trash / restore / permanentDelete
+- versionCache 运行时（interface 维持骨架）
+- watcher / DanglingCache / orphanSweep
 
 **依赖**：Phase 1a
 
-### 9.4 Phase 2：FileMigrator + 消费方迁移（分多 PR）
+### 9.4 Phase 1b.2：Write Path & Lifecycle
+
+**职责边界**：填充「**所有 mutation**」——文件写入（含 OCC 防护）、条目生命周期（trash/restore/permanentDelete）、条目物理操作（rename/copy/refresh）。
+
+**交付物**：
+
+- `VersionCache` 实现 + 跨进程可见性决策（per-process LRU，进程间不共享）
+- `FileVersion` 精度 fallback 运行时落实：mtime 秒级 + size 未变时 content-hash 回退
+- `ops/fs.atomicWriteFile` / `atomicWriteIfUnchanged` / `createAtomicWriteStream`（tmp + rename，失败回滚）
+- `ops/fs.ts` 的 `write` / `copy` / `move` / `remove` / `open` / `showInFolder` / `listDirectory`（ripgrep + 模糊）
+- `internal/entry/create.ts` — `createInternal` / `ensureExternal`（write 分支）
+- `internal/entry/lifecycle.ts` — `trash` / `restore` / `permanentDelete` + batch 变体（`permanentDelete` 解耦物理 —— DB 删 row 与 FS 删文件分两步）
+- `internal/entry/rename.ts` / `copy.ts` / `refresh.ts`
+- `internal/content/write.ts`（含 `*Unmanaged` 变体）
+- `internal/system/shell.ts` / `tempCopy.ts`
+- `FileManager` facade 全部 mutation API + `dispatchHandle` 写路径分派
+- 单测：atomic 失败回滚、OCC 误判场景（同秒+同 size）、trash/restore/permanentDelete 的 CHECK 约束
+
+**出口条件**：
+
+- renderer 可完整走 FileManager 做增删改
+- external entry 的 `trash` 调用被 DB CHECK 阻断（`fe_external_no_trash`）
+- 写失败时物理文件零残留（atomic 保证）
+- `writeIfUnchanged` 在同秒+同 size 场景用 content-hash 回退，不误判
+
+**不在本期**：
+
+- watcher / DanglingCache（外部变更感知）
+- orphanSweep（启动期一致性检查）
+
+**依赖**：Phase 1b.1
+
+### 9.5 Phase 1b.3：Watcher & DanglingCache（可观测性）
+
+**职责边界**：对**外部文件变更**的感知——watcher 作为事件源，DanglingCache 作为可订阅的状态聚合。
+
+**交付物**：
+
+- `createDirectoryWatcher` primitive 实际实现（chokidar 或等价），含 debounce / 去重
+- `DanglingCache` 反向索引实现（externalPath → entryId set）
+- watcher 事件自动接入 DanglingCache 状态更新
+- `FileManager.subscribeDangling` / `getDanglingState(entryId)` API
+- `includeDangling` 选项在 DataApi / File IPC 的端到端落实（`FileEntryView.dangling`）
+- 单测：watcher 事件→DanglingCache 状态转换、反向索引增删一致性、订阅清理
+
+**出口条件**：
+
+- external entry 物理消失 → `DanglingState` 从 `'ok'` 变 `'missing'`
+- 文件页能订阅并展示 dangling 状态
+- `DanglingCache.'unknown'` 在启动未完成索引时的行为与文档一致（consumer MUST 视为 not-actionable）
+
+**不在本期**：
+
+- 启动期全量孤儿扫描（独立于 per-path watcher）
+- 自动清理 file_ref（用户手动处理）
+
+**依赖**：Phase 1b.2
+
+### 9.6 Phase 1b.4：OrphanSweep & FileRefCheckerRegistry（启动期一致性）
+
+**职责边界**：启动期一次性「**数据一致性 sweep**」—— orphan entry（无任何 file_ref 指向）扫描与 bucket P consumers 的 ref checker 注册。
+
+**交付物**：
+
+- `internal/orphanSweep.ts` 实现
+- `FileManager.onInit` 的 fire-and-forget sweep
+- `src/main/data/services/orphan/FileRefCheckerRegistry.ts` 实现
+- 覆盖 bucket P consumers 的 checker（chat_message / knowledge_item / painting，见 `filemetadata-consumer-audit.md`）
+- sweep 结果 metric + 日志（不自动删除，只汇总 + 暴露给清理 UI）
+- 单测：orphan 识别、checker 注册完备性（`Record<FileRefSourceType, SourceTypeChecker>` 强制所有变体）
+
+**出口条件**：
+
+- 启动能识别所有 orphan entry 并产生报告
+- 新增 `FileRefSourceType` variant 时 checker 缺失会编译期爆
+- RFC §6 注册式 checker 设计完全落地
+
+**不在本期**：
+
+- 孤儿自动清理（须用户确认；UI 在 Phase 2 业务 PR）
+- `fs.realpath` case-insensitive FS 去重（见风险表，Phase 2 additively）
+
+**依赖**：Phase 1b.3
+
+### 9.7 Phase 2：FileMigrator + 消费方迁移（分多 PR）
 
 先落 **FileMigrator**（§8），将 Dexie `db.files` 一次性搬到 `file_entry`；随后按 [`migration-plan.md §3`](./migration-plan.md) 的 Batch A-E 推进：
 
@@ -1041,9 +1137,9 @@ Phase 1a ──→ Phase 1b ──→ Phase 2 ──→ (业务 PRs)
 
 **每个 Batch 完成后**：运行 `pnpm build:check`（lint + test + typecheck），确保不引入回归。
 
-**依赖**：Phase 1b
+**依赖**：Phase 1b.4
 
-### 9.5 Phase X：AI SDK Upload（延后独立 PR）
+### 9.8 Phase X：AI SDK Upload（延后独立 PR）
 
 Vercel AI SDK Files API 稳定后：
 
@@ -1079,9 +1175,9 @@ Vercel AI SDK Files API 稳定后：
 | 旧 `ext` 含点/不含点不统一                                                     | 路径解析错误                            | 迁移时 normalize 为不含点；`resolvePhysicalPath` 拼接时始终加点（migration-plan §2.7.6）                                                                                                                                                                |
 | KnowledgeMigrator / ChatMigrator 的 `fileId` 可能悬挂                          | 插入 file_ref 失败                      | 先查 `fileIdMap` 验证存在性，缺失跳过 + warn                                                                                                                                                                                                            |
 | Painting 的 file_ref 暂缺                                                      | 文件页无法追溯 painting 引用            | 文件条目本身已存在可访问；随 Painting 重构补建                                                                                                                                                                                                          |
-| Phase 1a 的 `throw NotImplemented` 影响上游                                    | 开发期阻塞                              | Phase 1a 不切换 renderer 调用路径，Phase 1b 补齐后统一切换                                                                                                                                                                                              |
+| Phase 1a 的 `throw NotImplemented` 影响上游                                    | 开发期阻塞                              | Phase 1a 不切换 renderer 调用路径，Phase 1b.1/1b.2 各自补齐后 feature-flag 切换读/写路径                                                                                                                                                                |
 | External entry 物理文件外部丢失                                                | entry 变 dangling                       | DanglingCache + `includeDangling` opt-in 给 UI 展示；不自动清理 file_ref（用户手动处理）                                                                                                                                                                |
-| `externalPath` 大小写不敏感 FS 导致同文件双 entry（macOS APFS / Windows NTFS） | 文件页用户看到两份同文件、file_ref 分裂 | Phase 1b `canonicalizeExternalPath` 做同步廉价规范化（resolve + NFC + trailing-sep），**刻意不做** `fs.realpath` case 去重——支配性来源（dialog / drag-drop）本就给 OS-canonical 值；收到真实用户报告后再 additively 扩展 + one-off migration 合并重复行 |
+| `externalPath` 大小写不敏感 FS 导致同文件双 entry（macOS APFS / Windows NTFS） | 文件页用户看到两份同文件、file_ref 分裂 | Phase 1b.1 `canonicalizeExternalPath` 做同步廉价规范化（resolve + NFC + trailing-sep），**刻意不做** `fs.realpath` case 去重——支配性来源（dialog / drag-drop）本就给 OS-canonical 值；收到真实用户报告后再 additively 扩展 + one-off migration 合并重复行 |
 
 ---
 

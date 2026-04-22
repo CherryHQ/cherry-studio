@@ -1,8 +1,10 @@
 # FileManager Architecture
 
-> **This document focuses on the FileManager submodule**—entry model, storage architecture, version & concurrency, atomic writes, recycle bin, reference cleanup, and AI SDK integration.
+> **SoT scope** — **this document** owns: FileEntry / FileRef data models, physical storage layout, version detection & concurrency control (OCC), atomic writes, recycle bin, reference cleanup, DirectoryWatcher internals, startup orphan sweep, DanglingCache state machine, and AI SDK integration design. **Module-level** concerns (type system, IPC / DataApi contracts, layered architecture, business-service integration, lifecycle assignment) live in [`architecture.md`](./architecture.md). In case of conflict, the layer ownership above decides: positioning / contract → the module-level doc, implementation → this document.
 >
-> For module-level architecture (component responsibilities, IPC design, service integration, lifecycle), see [architecture.md](./architecture.md).
+> **Phase note**: this document describes the **target implementation shape** of FileManager. In Phase 1a only the type contracts, DB schema, interface skeletons, and JSDoc semantics are landed; all runtime logic is delivered in Phase 1b.1–1b.4. When a section describes a behavior (dispatch, OCC, atomic writes, orphan sweep, etc.), read that as the **specification the implementation must satisfy**, not as "already working in Phase 1a code".
+>
+> **Phase badges used below**: `[1a ✅]` already in code · `[1b.1]` read path & repository · `[1b.2]` write path & lifecycle · `[1b.3]` watcher & DanglingCache · `[1b.4]` orphan sweep & FileRefCheckerRegistry. See [RFC §9](../../../v2-refactor-temp/docs/file-manager/rfc-file-manager.md#九分阶段实施计划) for the full phase-by-phase deliverables.
 >
 > Related documents:
 >
@@ -102,88 +104,30 @@ The enum values of `sourceType` / `role` are declared by each business module wh
 
 When a business object is deleted, the business Service is responsible for cleaning up the corresponding FileRef (Section 7).
 
-### 1.4 FileHandle (Unified File Reference)
+### 1.4 FileHandle / FileInfo — see `architecture.md §2`
 
-Consumers often need to share a single set of operation logic across "managed FileEntry" and "unmanaged arbitrary path" (showing previews, reading content, locating in file explorer, etc.). `FileHandle` is the unified **reference** type for these two cases:
+`FileHandle` (polymorphic reference crossing IPC), `FileInfo` (unmanaged data shape), and the full reference-vs-data-shape symmetry are defined at the **module-level architecture document**, not here. This document concerns FileManager's internal implementation only.
 
-```typescript
-type FileHandle =
-  | { kind: 'managed'; entryId: FileEntryId }
-  | { kind: 'unmanaged'; path: FilePath }
+- **`FileHandle`** (tagged union / factories / dispatch): [`architecture.md §2.2`](./architecture.md#22-filehandle-the-polymorphic-reference)
+- **`FileEntry` vs `FileInfo`** (semantic comparison / field invariants / projection rules): [`architecture.md §2.3`](./architecture.md#23-fileentry-vs-fileinfo)
+- **Signature selection guide & anti-patterns**: [`architecture.md §2.4`](./architecture.md#24-signature-selection-guide)
 
-// Construction (FileHandle is a brand type, only creatable via factory functions)
-createManagedHandle(entry.id)           // points to a FileEntry
-createUnmanagedHandle('/Users/me/doc')  // points to an arbitrary path
-```
+**Method applicability inside FileManager**:
 
-**Positioning**:
-- It is a **different concept** from `FileRef` (the file_ref table; a business object's reference to a FileEntry)
-- `FileHandle` is a "unified locator for file operations", serving both IPC and business code
-- Handler dispatches by `handle.kind`: managed → FileManager, unmanaged → `ops/*`
+| Category                                                                                                              | Methods                                                                                                          |
+| --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| **Accept `FileHandle`** (managed + unmanaged via IPC dispatch)                                                        | `read` / `getMetadata` / `getVersion` / `getContentHash` / `write` / `writeIfUnchanged` / `rename` / `permanentDelete` / `copy` / `open` / `showInFolder` |
+| **Accept `FileEntryId` only** (managed-identity operations; no unmanaged counterpart)                                 | `trash` / `restore` / `createInternalEntry` / `ensureExternalEntry` / `refreshMetadata` / `withTempCopy`          |
 
-**Data-shape counterparts**: `FileHandle` lives at the *reference* layer. Once a handler dispatches, it works with the corresponding *data shape*:
+### 1.5 FileUpload (AI Provider Upload Cache) — deferred
 
-- `ManagedFileHandle` → **`FileEntry`** (§1.1) — DB row, identity-first, snapshot semantics
-- `UnmanagedFileHandle` → **`FileInfo`** (§1.5 below) — disk descriptor, path-first, live semantics
+AI SDK `SharedV4ProviderReference` integration and the `file_upload` table are **deferred** until the Vercel AI SDK Files API stabilises. The module-level DataApi surface (`ensureUploaded` / `buildProviderReference` / `invalidate`) is outlined in [`architecture.md §3.5`](./architecture.md#35-ai-sdk-integration-deferred); the detailed schema and FileUploadService API are retained here in [§9 AI SDK Integration](#9-ai-sdk-integration-fileuploadservice--deferred) for the eventual landing PR.
 
-This reference/data-shape symmetry is the type-system backbone of the file module. See [`architecture.md` §2](./architecture.md#2-type-system-reference-vs-data-shape) for the full treatment including signature selection guidance and anti-patterns.
-
-**Operations that accept FileHandle**: `read` / `getMetadata` / `getVersion` / `getContentHash` / `write` / `writeIfUnchanged` / `rename` / `permanentDelete` / `copy` / `open` / `showInFolder`
-
-**Operations that only apply to FileEntryId** (i.e., only for managed entries; unmanaged does not apply): `trash` / `restore` / `createInternalEntry` / `ensureExternalEntry` / `refreshMetadata` / `withTempCopy`
-
-### 1.5 FileInfo (Unmanaged Data Shape)
-
-`FileInfo` is the descriptor returned when resolving an `UnmanagedFileHandle` (or projecting a `FileEntry` for leaf-level content processing). Definition in [`packages/shared/file/types/info.ts`](../../../packages/shared/file/types/info.ts):
-
-```typescript
-interface FileInfo {
-  readonly path: FilePath
-  readonly name: string        // basename without extension
-  readonly ext: string | null  // extension without leading dot
-  readonly size: number        // live from fs.stat
-  readonly mime: string
-  readonly type: FileType
-  readonly createdAt: number   // fs birthtime (may fall back to mtime)
-  readonly modifiedAt: number  // fs mtime
-}
-```
-
-**Relation to `FileEntry`**: `FileInfo` and `FileEntry` share many attribute fields (`name`, `ext`, `size`, `type`) but have different invariants — `FileInfo` is a *live view* of whatever the filesystem currently says, while `FileEntry` is a *snapshot* stored in the DB. Notably:
-
-- `FileInfo` always has `path`; `FileEntry` never stores `path` (it is derived from `id` for internal, from `externalPath` for external)
-- `FileInfo` has no `id` / `origin` / `trashedAt`; `FileEntry` has no `modifiedAt`
-- `FileInfo.size` is the current physical size; `FileEntry.size` for `origin='external'` may be a stale snapshot until `refreshMetadata` or a critical-path touch
-
-**Projection**: `FileEntry → FileInfo` is available via `toFileInfo(entry)` (async — performs `fs.stat` plus path resolution based on `origin`). The reverse is **not** a type conversion — it requires explicit registration through `createInternalEntry` / `ensureExternalEntry`. The Zod brand on `FileEntrySchema` blocks duck-typed fabrication.
-
-**When to use**:
-
-- **As a parameter type**: leaf content processors that need only a resolved path + physical attributes (OCR, token estimation, checksum). These should accept `FileInfo`, not `FileEntry` — callers with a `FileEntry` project down via `toFileInfo`.
-- **As a return type**: `ops.stat(path)`, export/backup producers, and similar "here is a file I just materialised but did not register" outputs.
-
-`FileInfo` rarely appears as the parameter type of an IPC boundary method — that layer overwhelmingly prefers `FileHandle` so the same endpoint works for managed and unmanaged. See [`architecture.md` §2.4](./architecture.md#24-signature-selection-guide) for the full selection guide.
-
-### 1.6 FileUpload (AI Provider Upload Cache)
-
-To integrate with the AI SDK's `SharedV4ProviderReference` (Record<provider, fileId>), tracks each FileEntry's upload record on each provider:
-
-```
-FileUpload
-├── fileEntryId → FileEntry (FK, CASCADE delete)
-├── provider: 'openai' | 'anthropic' | 'google' | ...
-├── remoteId: file ID returned by the provider
-├── contentVersion: xxhash-128; content hash at upload time
-├── uploadedAt / expiresAt
-├── status: 'active' | 'expired' | 'failed'
-└── UNIQUE(fileEntryId, provider)
-```
-
-### 1.7 FileManager Implementation Layout (Facade + Private Internals)
+### 1.6 FileManager Implementation Layout (Facade + Private Internals) `[1a ✅ skeleton]` `[1b.1-1b.4 impl]`
 
 FileManager is the **sole public entry point** of the file module but is not a 30-method God class. The implementation uses a **facade + private pure-function modules** pattern.
 
-#### 1.7.1 Why It Can Be Split
+#### 1.6.1 Why It Can Be Split
 
 A method-by-method audit of FileManager's public API for "does it depend on class instance state" concludes: **the vast majority of methods do not depend on instance state**.
 
@@ -197,7 +141,7 @@ A method-by-method audit of FileManager's public API for "does it depend on clas
 
 Only **versionCache** and **lifecycle artifacts** are truly bound to the FileManager instance; business methods themselves are stateless.
 
-#### 1.7.2 Module Layout
+#### 1.6.2 Module Layout
 
 ```
 src/main/file/
@@ -222,7 +166,7 @@ src/main/file/
 └── versionCache.ts       ← LRU type definition
 ```
 
-#### 1.7.3 Dependency Passing Convention
+#### 1.6.3 Dependency Passing Convention
 
 Each `internal/*` pure function explicitly receives `FileManagerDeps`:
 
@@ -254,7 +198,7 @@ export async function ensureExternalEntry(
 }
 ```
 
-#### 1.7.4 Thin-Delegation Facade
+#### 1.6.4 Thin-Delegation Facade
 
 ```typescript
 // FileManager.ts
@@ -280,7 +224,7 @@ export class FileManager extends BaseService implements IFileManager {
 }
 ```
 
-#### 1.7.5 FileHandle Dispatch Convention (Adapter Responsibility at the IPC Boundary)
+#### 1.6.5 FileHandle Dispatch Convention (Adapter Responsibility at the IPC Boundary)
 
 **Dispatch location**: `FileHandle.kind` dispatch **stays at the IPC handler registration site**. Rationale:
 
@@ -344,7 +288,7 @@ private registerIpcHandlers() {
 
 **The extension surface is concentrated in a single file, FileManager.ts**—it's immediately obvious which kinds each IPC method supports, which aids auditing. This is lighter than introducing a separate `FileAccessor` class while achieving the same "extension convergence".
 
-#### 1.7.6 External Access Constraints
+#### 1.6.6 External Access Constraints
 
 | Location | May import | Forbidden to import |
 |---|---|---|
@@ -354,7 +298,7 @@ private registerIpcHandlers() {
 
 **Boundary enforcement**: the `src/main/file/index.ts` barrel re-exports only public types + the `FileManager` class; `internal/` symbols cannot be reached via `@main/file`. If violations are found during Phase 1b implementation, add an ESLint `no-restricted-imports` rule.
 
-#### 1.7.7 Design Trade-offs
+#### 1.6.7 Design Trade-offs
 
 | Option | Adopted? | Rationale |
 |---|---|---|
@@ -462,7 +406,7 @@ When an external file does not exist on disk (or is inaccessible), the correspon
 
 ---
 
-## 4. Version Detection and Concurrency Control
+## 4. Version Detection and Concurrency Control `[1a ✅ FileVersion type]` `[1b.1 statVersion]` `[1b.2 VersionCache + writeIfUnchanged]`
 
 ### 4.1 FileVersion
 
@@ -528,7 +472,7 @@ FileManager maintains `Map<FileEntryId, CachedVersion>` internally (LRU, ~2000 e
 
 ---
 
-## 5. Atomic Writes
+## 5. Atomic Writes `[1a ✅ signatures + JSDoc]` `[1b.2 impl]`
 
 ### 5.1 tmp + fsync + rename Flow
 
@@ -563,7 +507,7 @@ The `atomicWriteFile` / `atomicWriteIfUnchanged` / `createAtomicWriteStream` pri
 
 ---
 
-## 6. Deletion and Recycle Bin
+## 6. Deletion and Recycle Bin `[1a ✅ schema + CHECK]` `[1b.2 impl]`
 
 ### 6.1 trashedAt Model
 
@@ -599,7 +543,7 @@ Query: `WHERE trashedAt < now() - retentionMs` → batch permanentDelete.
 
 ---
 
-## 7. Reference Cleanup Mechanism
+## 7. Reference Cleanup Mechanism `[1a ✅ FileRefSourceType union]` `[1b.4 FileRefCheckerRegistry impl]`
 
 Three layers of protection, with each layer as a fallback for the next:
 
@@ -626,7 +570,7 @@ Layer 3 enforces "every sourceType must have a checker" via the `Record<FileRefS
 
 ---
 
-## 8. DirectoryWatcher
+## 8. DirectoryWatcher `[1a ✅ factory signature]` `[1b.3 impl]`
 
 ### 8.1 Positioning
 
@@ -784,7 +728,7 @@ interface IFileUploadService {
 
 ---
 
-## 10. Startup Orphan Sweep (FileManager Background Task)
+## 10. Startup Orphan Sweep (FileManager Background Task) `[1b.4]`
 
 ### 10.1 Positioning
 
@@ -861,7 +805,7 @@ No WAL / pending_fs_ops table needed. Orphan sweep covers the internal crash res
 
 ---
 
-## 11. DanglingCache (External Presence Tracker)
+## 11. DanglingCache (External Presence Tracker) `[1a ✅ interface]` `[1b.3 impl]`
 
 ### 11.1 Positioning
 

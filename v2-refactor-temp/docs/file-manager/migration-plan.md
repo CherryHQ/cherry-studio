@@ -834,8 +834,8 @@ Main 侧消费者可以直接用 main 的 `resolvePhysicalPath(entry)`（`src/ma
       includeUrl?: boolean    // opt-in: 附加 file:// URL，危险文件走 safety wrap
     }
     response: OffsetPaginationResponse<FileEntryView>
-    // FileEntryView.path?: string
-    // FileEntryView.url?: string
+    // FileEntryView.path?: FilePath
+    // FileEntryView.url?: FileURLString
   }
 }
 ```
@@ -893,7 +893,7 @@ Renderer helper 方案已作废。
 | #   | 文件                                        | 改动                                                                                                                                |
 | --- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | A1  | `src/main/data/utils/pathResolver.ts`       | 已有 `resolvePhysicalPath(entry)`；**新增** `resolveSafeUrl(entry)`（危险文件 → dirname wrap）+ `isDangerExt(ext)` helper           |
-| A2  | `packages/shared/data/api/schemas/files.ts` | query 加 `includePath?: boolean` + `includeUrl?: boolean`；`FileEntryView` 加 `path?: string` + `url?: string` 字段                 |
+| A2  | `packages/shared/data/api/schemas/files.ts` | query 加 `includePath?: boolean` + `includeUrl?: boolean`；`FileEntryView` 加 `path?: FilePath` + `url?: FileURLString` 字段（branded，Phase 1a C3 收紧）         |
 | A3  | DataApi handler（entry 查询）               | `includePath` → 每条 entry 调 `resolvePhysicalPath(entry)`；`includeUrl` → 每条调 `resolveSafeUrl(entry)` 并 `'file://' + ...` 包装 |
 
 **Step B: C1 显示 URL 迁移**
