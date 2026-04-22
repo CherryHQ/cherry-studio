@@ -71,6 +71,7 @@ vi.mock('fs-extra', () => ({
     readdir: vi.fn(),
     lstat: vi.fn(),
     stat: vi.fn(),
+    realpath: vi.fn(),
     readFile: vi.fn(),
     writeFile: vi.fn(),
     createWriteStream: vi.fn(),
@@ -83,6 +84,7 @@ vi.mock('fs-extra', () => ({
   readdir: vi.fn(),
   lstat: vi.fn(),
   stat: vi.fn(),
+  realpath: vi.fn(),
   readFile: vi.fn(),
   writeFile: vi.fn(),
   createWriteStream: vi.fn(),
@@ -137,6 +139,7 @@ describe('BackupManager.copyDirWithProgress - Symlink Handling', () => {
     backupManager = new BackupManager()
     vi.mocked(fs.ensureDir).mockResolvedValue(undefined as never)
     vi.mocked(fs.copy).mockResolvedValue(undefined as never)
+    vi.mocked(fs.realpath).mockImplementation(async (entryPath) => String(entryPath) as never)
   })
 
   it('should copy the real file when a valid symlink points to a file', async () => {
@@ -243,6 +246,58 @@ describe('BackupManager.copyDirWithProgress - Symlink Handling', () => {
     expect(mockLogger.warn).toHaveBeenCalledWith(
       expect.stringContaining('Skipping symlink during restore'),
       expect.objectContaining({ path: '/restore-src/restore-link' })
+    )
+  })
+
+  it('should not recurse forever when a symlinked directory points to an ancestor during size calculation', async () => {
+    vi.mocked(fs.readdir).mockImplementation(async (dir) => {
+      const dirPath = String(dir)
+      if (dirPath === '/src') {
+        return [createDirent('self-link')] as never
+      }
+      throw new Error(`Unexpected readdir: ${dirPath}`)
+    })
+    vi.mocked(fs.lstat).mockResolvedValue(createStats('symlink') as never)
+    vi.mocked(fs.stat).mockResolvedValue(createStats('directory') as never)
+    vi.mocked(fs.realpath).mockImplementation(async (entryPath) => {
+      const sourcePath = String(entryPath)
+      return (sourcePath === '/src/self-link' ? '/src' : sourcePath) as never
+    })
+
+    await expect((backupManager as any).getDirSize('/src', { dereferenceSymlinks: true })).resolves.toBe(0)
+
+    expect(fs.readdir).toHaveBeenCalledTimes(1)
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Skipping circular symlink directory'),
+      expect.objectContaining({ path: '/src/self-link', realPath: '/src' })
+    )
+  })
+
+  it('should not recurse forever when copying a symlinked directory that points to an ancestor', async () => {
+    vi.mocked(fs.readdir).mockImplementation(async (dir) => {
+      const dirPath = String(dir)
+      if (dirPath === '/src') {
+        return [createDirent('self-link')] as never
+      }
+      throw new Error(`Unexpected readdir: ${dirPath}`)
+    })
+    vi.mocked(fs.lstat).mockResolvedValue(createStats('symlink') as never)
+    vi.mocked(fs.stat).mockResolvedValue(createStats('directory') as never)
+    vi.mocked(fs.realpath).mockImplementation(async (entryPath) => {
+      const sourcePath = String(entryPath)
+      return (sourcePath === '/src/self-link' ? '/src' : sourcePath) as never
+    })
+
+    await expect(
+      (backupManager as any).copyDirWithProgress('/src', '/dest', vi.fn(), { dereferenceSymlinks: true })
+    ).resolves.toBeUndefined()
+
+    expect(fs.readdir).toHaveBeenCalledTimes(1)
+    expect(fs.ensureDir).toHaveBeenCalledWith('/dest')
+    expect(fs.ensureDir).not.toHaveBeenCalledWith('/dest/self-link')
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Skipping circular symlink directory'),
+      expect.objectContaining({ path: '/src/self-link', realPath: '/src' })
     )
   })
 })

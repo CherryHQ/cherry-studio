@@ -850,32 +850,48 @@ class BackupManager {
    * @param dirPath - Directory path to calculate size
    * @returns Total size in bytes
    */
-  private async getDirSize(dirPath: string, options: CopyDirOptions): Promise<number> {
-    let size = 0
-    const items = await fs.readdir(dirPath, { withFileTypes: true })
+  private async getDirSize(
+    dirPath: string,
+    options: CopyDirOptions,
+    activeDirectoryRealPaths = new Set<string>()
+  ): Promise<number> {
+    const directoryRealPath = await this.enterDirectory(dirPath, activeDirectoryRealPaths)
 
-    for (const item of items) {
-      const fullPath = path.join(dirPath, item.name)
-      const entry = await this.getEffectiveEntryStats(fullPath, options)
-
-      if (!entry) {
-        continue
-      }
-
-      if (entry.stats.isDirectory()) {
-        if (entry.isSymlink) {
-          try {
-            size += await this.getDirSize(fullPath, options)
-          } catch (error) {
-            this.logSkippedSymlink(fullPath, error)
-          }
-        } else {
-          size += await this.getDirSize(fullPath, options)
-        }
-      } else if (entry.stats.isFile()) {
-        size += entry.stats.size
-      }
+    if (!directoryRealPath) {
+      return 0
     }
+
+    let size = 0
+
+    try {
+      const items = await fs.readdir(dirPath, { withFileTypes: true })
+
+      for (const item of items) {
+        const fullPath = path.join(dirPath, item.name)
+        const entry = await this.getEffectiveEntryStats(fullPath, options)
+
+        if (!entry) {
+          continue
+        }
+
+        if (entry.stats.isDirectory()) {
+          if (entry.isSymlink) {
+            try {
+              size += await this.getDirSize(fullPath, options, activeDirectoryRealPaths)
+            } catch (error) {
+              this.logSkippedSymlink(fullPath, error)
+            }
+          } else {
+            size += await this.getDirSize(fullPath, options, activeDirectoryRealPaths)
+          }
+        } else if (entry.stats.isFile()) {
+          size += entry.stats.size
+        }
+      }
+    } finally {
+      activeDirectoryRealPaths.delete(directoryRealPath)
+    }
+
     return size
   }
 
@@ -979,43 +995,68 @@ class BackupManager {
     onProgress: (size: number) => void,
     options: CopyDirOptions
   ): Promise<void> {
+    const activeDirectoryRealPaths = new Set<string>()
+
     const copyDir = async (src: string, dest: string): Promise<void> => {
-      const items = await fs.readdir(src, { withFileTypes: true })
+      const directoryRealPath = await this.enterDirectory(src, activeDirectoryRealPaths)
 
-      for (const item of items) {
-        const sourcePath = path.join(src, item.name)
-        const destPath = path.join(dest, item.name)
-        const entry = await this.getEffectiveEntryStats(sourcePath, options)
+      if (!directoryRealPath) {
+        return
+      }
 
-        if (!entry) {
-          continue
-        }
+      try {
+        await fs.ensureDir(dest)
 
-        if (entry.stats.isDirectory()) {
-          try {
-            await fs.ensureDir(destPath)
-            await copyDir(sourcePath, destPath)
-          } catch (error) {
-            if (!entry.isSymlink) {
-              throw error
+        const items = await fs.readdir(src, { withFileTypes: true })
+
+        for (const item of items) {
+          const sourcePath = path.join(src, item.name)
+          const destPath = path.join(dest, item.name)
+          const entry = await this.getEffectiveEntryStats(sourcePath, options)
+
+          if (!entry) {
+            continue
+          }
+
+          if (entry.stats.isDirectory()) {
+            try {
+              await copyDir(sourcePath, destPath)
+            } catch (error) {
+              if (!entry.isSymlink) {
+                throw error
+              }
+              await fs.remove(destPath).catch(() => {})
+              this.logSkippedSymlink(sourcePath, error)
             }
-            await fs.remove(destPath).catch(() => {})
-            this.logSkippedSymlink(sourcePath, error)
+          } else if (entry.stats.isFile()) {
+            if (entry.isSymlink) {
+              await fs.copy(sourcePath, destPath, { dereference: true })
+            } else {
+              await fs.copy(sourcePath, destPath)
+            }
+            onProgress(entry.stats.size)
+          } else if (entry.isSymlink) {
+            logger.warn('[BackupManager] Skipping symlink to unsupported target', { path: sourcePath })
           }
-        } else if (entry.stats.isFile()) {
-          if (entry.isSymlink) {
-            await fs.copy(sourcePath, destPath, { dereference: true })
-          } else {
-            await fs.copy(sourcePath, destPath)
-          }
-          onProgress(entry.stats.size)
-        } else if (entry.isSymlink) {
-          logger.warn('[BackupManager] Skipping symlink to unsupported target', { path: sourcePath })
         }
+      } finally {
+        activeDirectoryRealPaths.delete(directoryRealPath)
       }
     }
 
     await copyDir(source, destination)
+  }
+
+  private async enterDirectory(dirPath: string, activeDirectoryRealPaths: Set<string>): Promise<string | null> {
+    const realPath = await fs.realpath(dirPath)
+
+    if (activeDirectoryRealPaths.has(realPath)) {
+      logger.warn('[BackupManager] Skipping circular symlink directory', { path: dirPath, realPath })
+      return null
+    }
+
+    activeDirectoryRealPaths.add(realPath)
+    return realPath
   }
 
   private async getEffectiveEntryStats(
