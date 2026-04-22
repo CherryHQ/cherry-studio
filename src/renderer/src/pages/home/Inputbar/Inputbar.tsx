@@ -12,10 +12,10 @@ import {
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useInputText } from '@renderer/hooks/useInputText'
-import { useMessageOperations, useRequestStatus, useTopicLoading } from '@renderer/hooks/useMessageOperations'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTextareaResize } from '@renderer/hooks/useTextareaResize'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { useRequestStatus, useTopicLoading, useV2Chat } from '@renderer/hooks/V2ChatContext'
 import {
   InputbarToolsProvider,
   useInputbarToolsDispatch,
@@ -166,7 +166,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({
   const [contextCount, setContextCount] = useState({ current: 0, max: 0 })
 
   const { t } = useTranslation()
-  const { pauseMessages } = useMessageOperations(topic)
+  const v2Chat = useV2Chat()
   const loading = useTopicLoading()
   const requestStatus = useRequestStatus()
   const isVisionAssistant = useMemo(() => isVisionModel(model), [model])
@@ -264,13 +264,13 @@ const InputbarInner: FC<InputbarInnerProps> = ({
     }
   }, [config.showTokenCount, contextCount, estimateTokenCount, showInputEstimatedTokens])
 
-  const onPause = useCallback(async () => {
-    await pauseMessages()
-  }, [pauseMessages])
+  const onPause = useCallback(() => {
+    v2Chat?.pause()
+  }, [v2Chat])
 
   const clearTopic = useCallback(async () => {
     if (loading) {
-      await onPause()
+      onPause()
       await delay(1)
     }
 

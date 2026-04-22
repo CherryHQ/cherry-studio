@@ -19,7 +19,7 @@ vi.mock('@renderer/hooks/useChatWithHistory', () => ({
   useChatWithHistory: (...args: unknown[]) => mockUseChatWithHistory(...args)
 }))
 
-vi.mock('@renderer/hooks/useMessageOperations', () => ({
+vi.mock('@renderer/hooks/V2ChatContext', () => ({
   V2ChatOverridesProvider: ({ children }: { children: ReactNode }) => children
 }))
 

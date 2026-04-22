@@ -5,9 +5,9 @@ import { isDev } from '@renderer/config/constant'
 import { ToolApprovalProvider } from '@renderer/hooks/ToolApprovalContext'
 import { ChatContextProvider, useChatContextProvider } from '@renderer/hooks/useChatContext'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
-import { type V2ChatOverrides, V2ChatOverridesProvider } from '@renderer/hooks/useMessageOperations'
 import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
 import { useTopicMessagesV2 } from '@renderer/hooks/useTopicMessagesV2'
+import { type V2ChatOverrides, V2ChatOverridesProvider } from '@renderer/hooks/V2ChatContext'
 import type { Assistant, FileMetadata, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { AssistantMessageStatus } from '@renderer/types/newMessage'
@@ -298,8 +298,8 @@ const V2ChatContentInner: FC<InnerProps> = ({
    *      server response, then fire `cascade=true`.
    *   4. On any other error: roll back both stores.
    */
-  const handleDeleteMessage = useCallback(
-    async (id: string) => {
+  const handleDeleteMessage = useCallback<V2ChatOverrides['deleteMessage']>(
+    async (id, traceOptions) => {
       const optimisticIds = new Set([id])
       await seedOptimisticBranch((prev) => branchWithoutIds(prev, optimisticIds))
       setMessages((msgs) => msgs.filter((m) => m.id !== id))
@@ -322,9 +322,14 @@ const V2ChatContentInner: FC<InnerProps> = ({
           throw err
         }
       }
+      // Best-effort: drop span-cache history for the turn we just removed.
+      // Callers (`useMessage.remove`) pass `traceId`/`modelName` off the
+      // assistant message; caller-less flows (multi-select) fall back to
+      // `''` which targets the whole topic.
+      void window.api.trace.cleanHistory(topic.id, traceOptions?.traceId ?? '', traceOptions?.modelName)
       logger.info('Deleted message', { id })
     },
-    [branchWithoutIds, deleteMessageTrigger, rollbackBranch, seedOptimisticBranch, setMessages]
+    [branchWithoutIds, deleteMessageTrigger, rollbackBranch, seedOptimisticBranch, setMessages, topic.id]
   )
 
   /** Delete a message and all descendants (cascade) and sync UI. */

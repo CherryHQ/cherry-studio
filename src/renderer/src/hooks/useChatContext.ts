@@ -1,6 +1,6 @@
 import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
-import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
+import { useV2Chat } from '@renderer/hooks/V2ChatContext'
 import { usePartsMap } from '@renderer/pages/home/Messages/Blocks'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types'
@@ -41,12 +41,12 @@ export const useChatContext = (_topic?: Topic): ChatContextValue => {
 /**
  * Provider-level hook — creates the ChatContext value.
  *
- * IMPORTANT: This hook reads V2ChatOverridesContext and PartsContext internally,
+ * IMPORTANT: This hook reads the V2 chat context and PartsContext internally,
  * so it must be called inside V2ChatOverridesProvider + PartsProvider.
  */
 export const useChatContextProvider = (activeTopic: Topic): ChatContextValue => {
   const { t } = useTranslation()
-  const { deleteMessage } = useMessageOperations(activeTopic)
+  const v2 = useV2Chat()
   const partsMap = usePartsMap()
 
   const [isMultiSelectMode, setIsMultiSelectMode] = useCache('chat.multi_select_mode')
@@ -133,7 +133,7 @@ export const useChatContextProvider = (activeTopic: Topic): ChatContextValue => 
             centered: true,
             onOk: async () => {
               try {
-                await Promise.all(messageIds.map((messageId) => deleteMessage(messageId)))
+                await Promise.all(messageIds.map((messageId) => v2?.deleteMessage(messageId)))
                 window.toast.success(t('message.delete.success'))
                 handleToggleMultiSelectMode(false)
               } catch (error) {
@@ -172,7 +172,7 @@ export const useChatContextProvider = (activeTopic: Topic): ChatContextValue => 
           break
       }
     },
-    [t, deleteMessage, handleToggleMultiSelectMode, partsMap]
+    [t, v2, handleToggleMultiSelectMode, partsMap]
   )
 
   return {

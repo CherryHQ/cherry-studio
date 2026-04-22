@@ -300,7 +300,6 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
             messages={messages}
             selectMessageId={selectedMessageId}
             setSelectedMessage={setSelectedMessage}
-            topic={topic}
           />
         )}
       </GroupContainer>

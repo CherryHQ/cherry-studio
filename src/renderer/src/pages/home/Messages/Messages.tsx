@@ -5,11 +5,11 @@ import ContextMenu from '@renderer/components/ContextMenu'
 import { LoadingIcon } from '@renderer/components/Icons'
 import { LOAD_MORE_COUNT } from '@renderer/config/constant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
-import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicMutations } from '@renderer/hooks/useTopicDataApi'
+import { useV2Chat } from '@renderer/hooks/V2ChatContext'
 import SelectionBox from '@renderer/pages/home/Messages/SelectionBox'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getContextCount, getGroupedMessages } from '@renderer/services/MessagesService'
@@ -68,7 +68,11 @@ const Messages: React.FC<MessagesProps> = ({
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const { t } = useTranslation()
   const partsMap = usePartsMap()
-  const { displayCount, clearTopicMessages } = useMessageOperations(topic)
+  // Default infinite-scroll window; inlined here — previously delivered
+  // via a topic-level wrapper hook that existed solely to forward a
+  // constant and a few DataApi-backed mutations.
+  const displayCount = 10
+  const v2Chat = useV2Chat()
   const { setTimeoutTimer } = useTimer()
 
   const { isMultiSelectMode, handleSelectMessage } = useChatContext(topic)
@@ -116,10 +120,10 @@ const Messages: React.FC<MessagesProps> = ({
         return
       }
 
-      await clearTopicMessages()
+      await v2Chat?.clearTopicMessages()
       setDisplayMessages([])
     },
-    [clearTopicMessages, topic.id]
+    [v2Chat, topic.id]
   )
 
   useEffect(() => {

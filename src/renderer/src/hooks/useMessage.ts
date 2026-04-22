@@ -4,9 +4,9 @@ import { usePartsMap } from '@renderer/pages/home/Messages/Blocks/V2Contexts'
 import { type Topic, type TranslateLanguageCode } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { use, useCallback } from 'react'
+import { useCallback } from 'react'
 
-import { V2ChatOverridesContext } from './useMessageOperations'
+import { useV2Chat } from './V2ChatContext'
 
 const logger = loggerService.withContext('useMessage')
 
@@ -14,24 +14,27 @@ const logger = loggerService.withContext('useMessage')
  * Per-message bound operations.
  *
  * Consumers that already hold a stable `message.id` for the whole render
- * (MessageMenubar, Message, etc.) should reach for this hook; the
- * topic-level `useMessageOperations` stays for callers whose target id is
- * dynamic at call time (multi-select delete, group iteration).
+ * (MessageMenubar, Message, etc.) should reach for this hook; topic-level
+ * and dynamic-id callers (multi-select delete, group iteration) read
+ * `useV2Chat()` directly.
  *
  * All write operations delegate into the V2 chat overrides context (owned
  * by `V2ChatContent`), so they pick up the optimistic SWR cache overlay
  * and refresh-failure isolation that hook wires up.
  */
 export function useMessage(messageId: string, topic: Topic) {
-  const v2 = use(V2ChatOverridesContext)
+  const v2 = useV2Chat()
   const partsMap = usePartsMap()
 
+  // `V2ChatContent.handleDeleteMessage` handles span-cache cleanup
+  // internally; callers that have `traceId` / `modelName` on hand (e.g.
+  // `MessageMenubar` reading them off the assistant message) forward
+  // them via the optional second argument.
   const remove = useCallback(
     async (traceId?: string, modelName?: string) => {
-      await v2?.deleteMessage(messageId)
-      void window.api.trace.cleanHistory(topic.id, traceId || '', modelName)
+      await v2?.deleteMessage(messageId, { traceId, modelName })
     },
-    [messageId, topic.id, v2]
+    [messageId, v2]
   )
 
   const regenerate = useCallback(async () => {

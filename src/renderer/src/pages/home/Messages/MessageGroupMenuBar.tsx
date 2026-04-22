@@ -8,8 +8,7 @@ import {
 } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
 import { Button, Tooltip } from '@cherrystudio/ui'
-import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
-import type { Topic } from '@renderer/types'
+import { useV2Chat } from '@renderer/hooks/V2ChatContext'
 import type { Message } from '@renderer/types/newMessage'
 import { AssistantMessageStatus } from '@renderer/types/newMessage'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
@@ -30,7 +29,6 @@ interface Props {
   messages: Message[]
   selectMessageId: string
   setSelectedMessage: (message: Message) => void
-  topic: Topic
 }
 
 const MessageGroupMenuBar: FC<Props> = ({
@@ -38,13 +36,12 @@ const MessageGroupMenuBar: FC<Props> = ({
   setMultiModelMessageStyle,
   messages,
   selectMessageId,
-  setSelectedMessage,
-  topic
+  setSelectedMessage
 }) => {
   const { t } = useTranslation()
   const partsMap = usePartsMap()
 
-  const { deleteGroupMessages, regenerateMessageById } = useMessageOperations(topic)
+  const v2Chat = useV2Chat()
 
   const handleDeleteGroup = async () => {
     const askId = messages[0]?.askId
@@ -58,7 +55,7 @@ const MessageGroupMenuBar: FC<Props> = ({
         danger: true
       },
       okText: t('common.delete'),
-      onOk: () => deleteGroupMessages(askId)
+      onOk: () => v2Chat?.deleteMessageGroup(askId)
     })
   }
 
@@ -89,7 +86,7 @@ const MessageGroupMenuBar: FC<Props> = ({
 
     for (const msg of candidates) {
       try {
-        await regenerateMessageById(msg.id)
+        await v2Chat?.regenerate(msg.id)
       } catch (e) {
         // swallow per-item errors to continue others
       }
