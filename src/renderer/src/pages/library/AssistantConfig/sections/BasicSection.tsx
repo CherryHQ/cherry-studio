@@ -11,6 +11,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Slider,
   Switch,
   Textarea
 } from '@cherrystudio/ui'
@@ -212,12 +213,13 @@ export const BasicSection: FC<Props> = ({ form, onChange, tagColorByName, allTag
         <div className="flex items-center gap-2">
           <Popover open={emojiPickerOpen} onOpenChange={setEmojiPickerOpen}>
             <PopoverTrigger asChild>
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 aria-label={t('library.config.basic.pick_avatar')}
-                className="flex h-12 w-12 items-center justify-center rounded-2xs bg-accent/50 text-xl transition-colors hover:bg-accent/70">
+                className="flex h-12 min-h-0 w-12 items-center justify-center rounded-2xs bg-accent/50 font-normal text-xl shadow-none transition-colors hover:bg-accent/70 focus-visible:ring-0">
                 {form.emoji || '🌟'}
-              </button>
+              </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0">
               <EmojiPicker
@@ -230,15 +232,16 @@ export const BasicSection: FC<Props> = ({ form, onChange, tagColorByName, allTag
           </Popover>
           <div className="flex flex-wrap gap-1">
             {AVATAR_OPTIONS.map((a) => (
-              <button
+              <Button
                 key={a}
                 type="button"
+                variant="ghost"
                 onClick={() => onChange({ emoji: a })}
-                className={`flex h-7 w-7 items-center justify-center rounded-3xs text-sm transition-all ${
+                className={`flex h-7 min-h-0 w-7 items-center justify-center rounded-3xs font-normal text-sm shadow-none transition-all focus-visible:ring-0 ${
                   form.emoji === a ? 'bg-accent ring-1 ring-primary/20' : 'hover:bg-accent/40'
                 }`}>
                 {a}
-              </button>
+              </Button>
             ))}
           </div>
         </div>
@@ -284,28 +287,31 @@ export const BasicSection: FC<Props> = ({ form, onChange, tagColorByName, allTag
           <label className="text-[10px] text-muted-foreground/60">{t('library.config.basic.model')}</label>
           {selectedModel ? (
             <div className="flex items-center gap-2">
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={handlePickModel}
-                className="flex items-center gap-1.5 rounded-full bg-accent/40 px-2 py-[3px] text-[11px] text-foreground transition-colors hover:bg-accent/60">
+                className="flex h-auto min-h-0 items-center gap-1.5 rounded-full bg-accent/40 px-2 py-[3px] font-normal text-[11px] text-foreground shadow-none transition-colors hover:bg-accent/60 focus-visible:ring-0">
                 <ModelAvatar model={selectedModel} size={16} />
                 <span className="max-w-[180px] truncate">{selectedModel.name}</span>
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={() => onChange({ modelId: null })}
                 title={t('library.config.basic.model_clear')}
-                className="flex h-6 w-6 items-center justify-center rounded-4xs text-muted-foreground/40 transition-colors hover:bg-destructive/10 hover:text-destructive">
+                className="flex h-6 min-h-0 w-6 items-center justify-center rounded-4xs font-normal text-muted-foreground/40 shadow-none transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:ring-0">
                 <Trash2 size={12} />
-              </button>
+              </Button>
             </div>
           ) : (
-            <button
+            <Button
               type="button"
+              variant="ghost"
               onClick={handlePickModel}
-              className="rounded-full border border-border/40 border-dashed px-2.5 py-[3px] text-[10px] text-muted-foreground/50 transition-colors hover:border-border/60 hover:text-foreground">
+              className="h-auto min-h-0 rounded-full border border-border/40 border-dashed px-2.5 py-[3px] font-normal text-[10px] text-muted-foreground/50 shadow-none transition-colors hover:border-border/60 hover:text-foreground focus-visible:ring-0">
               {t('library.config.basic.model_pick')}
-            </button>
+            </Button>
           )}
         </div>
         {form.modelId && !selectedModel && (
@@ -321,14 +327,14 @@ export const BasicSection: FC<Props> = ({ form, onChange, tagColorByName, allTag
         valueLabel={form.enableTemperature ? form.temperature.toFixed(1) : t('library.config.basic.default_value')}
         enabled={form.enableTemperature}
         onEnabledChange={(v) => onChange({ enableTemperature: v })}>
-        <input
-          type="range"
+        <Slider
+          size="sm"
           min={0}
           max={2}
           step={0.1}
-          value={form.temperature}
-          onChange={(e) => onChange({ temperature: parseFloat(e.target.value) })}
-          className="h-1 w-full cursor-pointer appearance-none rounded-full bg-accent/40 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-foreground"
+          value={[form.temperature]}
+          onValueChange={([v]) => onChange({ temperature: v })}
+          className="w-full [&_[data-slot=slider-range]]:bg-accent/40 [&_[data-slot=slider-thumb]]:size-3 [&_[data-slot=slider-thumb]]:border-0 [&_[data-slot=slider-thumb]]:bg-foreground [&_[data-slot=slider-thumb]]:shadow-none [&_[data-slot=slider-thumb]]:hover:ring-0 [&_[data-slot=slider-thumb]]:hover:ring-offset-0 [&_[data-slot=slider-thumb]]:focus-visible:ring-0 [&_[data-slot=slider-track]]:h-1 [&_[data-slot=slider-track]]:bg-accent/40"
         />
         <div className="mt-1 flex justify-between">
           <span className="text-[8px] text-muted-foreground/35">{t('library.config.basic.precise')}</span>
@@ -342,14 +348,14 @@ export const BasicSection: FC<Props> = ({ form, onChange, tagColorByName, allTag
         valueLabel={form.enableTopP ? form.topP.toFixed(2) : t('library.config.basic.default_value')}
         enabled={form.enableTopP}
         onEnabledChange={(v) => onChange({ enableTopP: v })}>
-        <input
-          type="range"
+        <Slider
+          size="sm"
           min={0}
           max={1}
           step={0.05}
-          value={form.topP}
-          onChange={(e) => onChange({ topP: parseFloat(e.target.value) })}
-          className="h-1 w-full cursor-pointer appearance-none rounded-full bg-accent/40 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-foreground"
+          value={[form.topP]}
+          onValueChange={([v]) => onChange({ topP: v })}
+          className="w-full [&_[data-slot=slider-range]]:bg-accent/40 [&_[data-slot=slider-thumb]]:size-3 [&_[data-slot=slider-thumb]]:border-0 [&_[data-slot=slider-thumb]]:bg-foreground [&_[data-slot=slider-thumb]]:shadow-none [&_[data-slot=slider-thumb]]:hover:ring-0 [&_[data-slot=slider-thumb]]:hover:ring-offset-0 [&_[data-slot=slider-thumb]]:focus-visible:ring-0 [&_[data-slot=slider-track]]:h-1 [&_[data-slot=slider-track]]:bg-accent/40"
         />
       </ToggleFieldGroup>
 
@@ -363,14 +369,14 @@ export const BasicSection: FC<Props> = ({ form, onChange, tagColorByName, allTag
             </span>
           </div>
         }>
-        <input
-          type="range"
+        <Slider
+          size="sm"
           min={0}
           max={UI_MAX_CONTEXT_COUNT}
           step={1}
-          value={form.contextCount}
-          onChange={(e) => onChange({ contextCount: parseInt(e.target.value, 10) })}
-          className="h-1 w-full cursor-pointer appearance-none rounded-full bg-accent/40 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-foreground"
+          value={[form.contextCount]}
+          onValueChange={([v]) => onChange({ contextCount: v })}
+          className="w-full [&_[data-slot=slider-range]]:bg-accent/40 [&_[data-slot=slider-thumb]]:size-3 [&_[data-slot=slider-thumb]]:border-0 [&_[data-slot=slider-thumb]]:bg-foreground [&_[data-slot=slider-thumb]]:shadow-none [&_[data-slot=slider-thumb]]:hover:ring-0 [&_[data-slot=slider-thumb]]:hover:ring-offset-0 [&_[data-slot=slider-thumb]]:focus-visible:ring-0 [&_[data-slot=slider-track]]:h-1 [&_[data-slot=slider-track]]:bg-accent/40"
         />
       </FieldGroup>
 
@@ -407,11 +413,12 @@ export const BasicSection: FC<Props> = ({ form, onChange, tagColorByName, allTag
         <label className="text-[10px] text-muted-foreground/60">{t('library.config.basic.tool_use_mode')}</label>
         <div className="flex items-center overflow-hidden rounded-3xs border border-border/30">
           {(['function', 'prompt'] as const).map((mode) => (
-            <button
+            <Button
               key={mode}
               type="button"
+              variant="ghost"
               onClick={() => onChange({ toolUseMode: mode })}
-              className={`px-2.5 py-1 text-[10px] transition-colors ${
+              className={`h-auto min-h-0 rounded-none px-2.5 py-1 font-normal text-[10px] shadow-none transition-colors focus-visible:ring-0 ${
                 form.toolUseMode === mode
                   ? 'bg-accent text-foreground'
                   : 'text-muted-foreground/60 hover:bg-accent/30 hover:text-foreground'
@@ -419,7 +426,7 @@ export const BasicSection: FC<Props> = ({ form, onChange, tagColorByName, allTag
               {t(
                 mode === 'function' ? 'library.config.basic.tool_use_function' : 'library.config.basic.tool_use_prompt'
               )}
-            </button>
+            </Button>
           ))}
         </div>
       </div>

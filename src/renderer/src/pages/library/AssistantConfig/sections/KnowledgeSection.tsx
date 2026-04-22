@@ -1,4 +1,4 @@
-import { Input, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger, Scrollbar } from '@cherrystudio/ui'
+import { Button, Input, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger, Scrollbar } from '@cherrystudio/ui'
 import { useQuery } from '@data/hooks/useDataApi'
 import { Database, Plus, Search, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
@@ -76,13 +76,14 @@ const KnowledgeSection: FC<Props> = ({ value, onChange }) => {
                     {t('library.config.knowledge.doc_count', { count: kb.documentCount ?? 0 })}
                   </div>
                 </div>
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
                   onClick={() => remove(kb.id)}
                   aria-label={t('library.config.knowledge.remove_aria')}
-                  className="flex h-6 w-6 items-center justify-center rounded-4xs text-muted-foreground/40 opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100">
+                  className="flex h-6 min-h-0 w-6 items-center justify-center rounded-4xs font-normal text-muted-foreground/40 opacity-0 shadow-none transition-all hover:bg-destructive/10 hover:text-destructive focus-visible:ring-0 group-hover:opacity-100">
                   <Trash2 size={10} />
-                </button>
+                </Button>
               </div>
             ))}
           </div>
@@ -90,12 +91,12 @@ const KnowledgeSection: FC<Props> = ({ value, onChange }) => {
 
         <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
           <PopoverTrigger asChild>
-            <button
-              type="button"
+            <Button
+              variant="ghost"
               disabled={isLoading}
-              className="mt-2 flex items-center gap-1 rounded-3xs border border-border/20 px-2.5 py-1.5 text-[10px] text-muted-foreground/60 transition-colors hover:border-border/40 hover:bg-accent/30 hover:text-foreground disabled:opacity-50">
+              className="mt-2 flex h-auto min-h-0 items-center gap-1 rounded-3xs border border-border/20 px-2.5 py-1.5 font-normal text-[10px] text-muted-foreground/60 shadow-none transition-colors hover:border-border/40 hover:bg-accent/30 hover:text-foreground focus-visible:ring-0 disabled:opacity-50">
               <Plus size={10} /> {t('library.config.knowledge.add')}
-            </button>
+            </Button>
           </PopoverTrigger>
           <PopoverContent align="start" sideOffset={4} className="w-60 rounded-2xs p-2">
             <div className="relative mb-2">

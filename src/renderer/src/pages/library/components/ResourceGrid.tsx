@@ -1,4 +1,4 @@
-import { Checkbox, EmptyState, Input, Switch } from '@cherrystudio/ui'
+import { Button, Checkbox, EmptyState, Input, Switch } from '@cherrystudio/ui'
 import type { TFunction } from 'i18next'
 import {
   ArrowUpDown,
@@ -132,31 +132,31 @@ export const ResourceGrid: FC<Props> = ({
               className="h-auto w-full rounded-3xs border border-border/40 bg-accent/20 py-1.5 pr-7 pl-7 text-[11px] text-foreground shadow-none outline-none transition-all placeholder:text-muted-foreground/40 focus-visible:border-primary/40 focus-visible:bg-accent/30 focus-visible:ring-0 md:text-[11px]"
             />
             {search && (
-              <button
-                type="button"
+              <Button
+                variant="ghost"
                 onClick={() => onSearchChange('')}
-                className="-translate-y-1/2 absolute top-1/2 right-2 text-muted-foreground/40 transition-colors hover:text-foreground">
+                className="-translate-y-1/2 absolute top-1/2 right-2 h-auto min-h-0 w-auto p-0 font-normal text-muted-foreground/40 shadow-none transition-colors hover:text-foreground focus-visible:ring-0">
                 <X size={10} />
-              </button>
+              </Button>
             )}
           </div>
 
           {/* Sort */}
           <div className="relative">
-            <button
-              type="button"
+            <Button
+              variant="ghost"
               onClick={() => {
                 setShowSort(!showSort)
                 setShowCreate(false)
               }}
-              className={`flex items-center gap-1.5 rounded-3xs border px-2.5 py-1.5 text-[10px] transition-all ${
+              className={`flex h-auto min-h-0 items-center gap-1.5 rounded-3xs border px-2.5 py-1.5 font-normal text-[10px] shadow-none transition-all focus-visible:ring-0 ${
                 showSort
                   ? 'border-primary/30 bg-accent/60 text-foreground'
                   : 'border-border/40 text-muted-foreground/60 hover:border-border/60 hover:text-foreground'
               }`}>
               <ArrowUpDown size={10} />
               <span>{t(SORT_META[sortKey].labelKey)}</span>
-            </button>
+            </Button>
             <AnimatePresence>
               {showSort && (
                 <div>
@@ -167,20 +167,20 @@ export const ResourceGrid: FC<Props> = ({
                     exit={{ opacity: 0, y: -4 }}
                     className="absolute top-full left-0 z-50 mt-1 min-w-[110px] rounded-2xs border border-border/40 bg-popover p-1 shadow-xl">
                     {SORT_ORDER.map((k) => (
-                      <button
-                        type="button"
+                      <Button
+                        variant="ghost"
                         key={k}
                         onClick={() => {
                           onSortKeyChange(k)
                           setShowSort(false)
                         }}
-                        className={`w-full rounded-4xs px-2.5 py-[5px] text-left text-[10px] transition-colors ${
+                        className={`h-auto min-h-0 w-full justify-start rounded-4xs px-2.5 py-[5px] text-left font-normal text-[10px] shadow-none transition-colors focus-visible:ring-0 ${
                           sortKey === k
                             ? 'bg-accent text-foreground'
                             : 'text-muted-foreground/70 hover:bg-accent/50 hover:text-foreground'
                         }`}>
                         {t(SORT_META[k].labelKey)}
-                      </button>
+                      </Button>
                     ))}
                   </motion.div>
                 </div>
@@ -190,26 +190,26 @@ export const ResourceGrid: FC<Props> = ({
 
           {/* View toggle */}
           <div className="flex items-center overflow-hidden rounded-3xs border border-border/40">
-            <button
-              type="button"
+            <Button
+              variant="ghost"
               onClick={() => onViewModeChange('grid')}
-              className={`p-1.5 transition-colors ${
+              className={`h-auto min-h-0 w-auto rounded-none p-1.5 font-normal shadow-none transition-colors focus-visible:ring-0 ${
                 viewMode === 'grid'
                   ? 'bg-accent text-foreground'
                   : 'text-muted-foreground/50 hover:bg-accent/30 hover:text-foreground'
               }`}>
               <LayoutGrid size={11} />
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="ghost"
               onClick={() => onViewModeChange('list')}
-              className={`p-1.5 transition-colors ${
+              className={`h-auto min-h-0 w-auto rounded-none p-1.5 font-normal shadow-none transition-colors focus-visible:ring-0 ${
                 viewMode === 'list'
                   ? 'bg-accent text-foreground'
                   : 'text-muted-foreground/50 hover:bg-accent/30 hover:text-foreground'
               }`}>
               <List size={11} />
-            </button>
+            </Button>
           </div>
 
           <div className="flex-1" />
@@ -219,20 +219,20 @@ export const ResourceGrid: FC<Props> = ({
 
           {/* Create */}
           <div className="relative">
-            <button
-              type="button"
+            <Button
+              variant="default"
               onClick={() => {
                 setShowCreate(!showCreate)
                 setShowSort(false)
               }}
-              className="flex items-center gap-1.5 rounded-3xs bg-foreground px-3 py-1.5 text-[11px] text-background transition-colors hover:bg-foreground/90 active:scale-[0.97]">
+              className="flex h-auto min-h-0 items-center gap-1.5 rounded-3xs bg-foreground px-3 py-1.5 font-normal text-[11px] text-background shadow-none transition-colors hover:bg-foreground/90 focus-visible:ring-0 active:scale-[0.97]">
               <Plus size={11} className="lucide-custom" />
               <span>{t('library.toolbar.new_resource')}</span>
               <ChevronDown
                 size={9}
                 className={`lucide-custom transition-transform ${showCreate ? 'rotate-180' : ''}`}
               />
-            </button>
+            </Button>
             <AnimatePresence>
               {showCreate && (
                 <div>
@@ -246,48 +246,48 @@ export const ResourceGrid: FC<Props> = ({
                       const meta = RESOURCE_TYPE_META[resourceType]
                       const Icon = meta.icon
                       return (
-                        <button
+                        <Button
                           key={resourceType}
-                          type="button"
+                          variant="ghost"
                           onClick={() => {
                             onCreate(resourceType)
                             setShowCreate(false)
                           }}
-                          className="flex w-full items-center gap-2 rounded-4xs px-2.5 py-[6px] text-[10px] text-muted-foreground/70 transition-colors hover:bg-accent/50 hover:text-foreground">
+                          className="flex h-auto min-h-0 w-full items-center justify-start gap-2 rounded-4xs px-2.5 py-[6px] font-normal text-[10px] text-muted-foreground/70 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0">
                           <div className={`flex h-5 w-5 items-center justify-center rounded-4xs ${meta.color}`}>
                             <Icon size={10} />
                           </div>
                           <span>{t('library.create_menu.create', { type: t(meta.labelKey) })}</span>
-                        </button>
+                        </Button>
                       )
                     })}
                     <div className="mx-1 my-0.5 h-px bg-border/30" />
-                    <button
-                      type="button"
+                    <Button
+                      variant="ghost"
                       onClick={() => {
                         onImportAssistant()
                         setShowCreate(false)
                       }}
-                      className="flex w-full items-center gap-2 rounded-4xs px-2.5 py-[6px] text-[10px] text-muted-foreground/70 transition-colors hover:bg-accent/50 hover:text-foreground">
+                      className="flex h-auto min-h-0 w-full items-center justify-start gap-2 rounded-4xs px-2.5 py-[6px] font-normal text-[10px] text-muted-foreground/70 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0">
                       <div
                         className={`flex h-5 w-5 items-center justify-center rounded-4xs ${RESOURCE_TYPE_META.assistant.color}`}>
                         <Upload size={10} />
                       </div>
                       <span>{t('assistants.presets.import.action')}</span>
-                    </button>
-                    <button
-                      type="button"
+                    </Button>
+                    <Button
+                      variant="ghost"
                       onClick={() => {
                         onCreate('skill')
                         setShowCreate(false)
                       }}
-                      className="flex w-full items-center gap-2 rounded-4xs px-2.5 py-[6px] text-[10px] text-muted-foreground/70 transition-colors hover:bg-accent/50 hover:text-foreground">
+                      className="flex h-auto min-h-0 w-full items-center justify-start gap-2 rounded-4xs px-2.5 py-[6px] font-normal text-[10px] text-muted-foreground/70 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0">
                       <div
                         className={`flex h-5 w-5 items-center justify-center rounded-4xs ${RESOURCE_TYPE_META.skill.color}`}>
                         <Upload size={10} />
                       </div>
                       <span>{t('library.create_menu.import', { type: t(RESOURCE_TYPE_META.skill.labelKey) })}</span>
-                    </button>
+                    </Button>
                   </motion.div>
                 </div>
               )}
@@ -299,11 +299,11 @@ export const ResourceGrid: FC<Props> = ({
         <div className="flex items-center gap-1.5 overflow-x-auto px-5 pb-3 [&::-webkit-scrollbar]:h-0">
           <Tag size={11} className="mr-0.5 shrink-0 text-muted-foreground/40" />
           {tags.map((tag) => (
-            <button
-              type="button"
+            <Button
+              variant="ghost"
               key={tag.id}
               onClick={() => onTagFilter(activeTag === tag.name ? null : tag.name)}
-              className={`flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-[3px] text-[10px] transition-all ${
+              className={`flex h-auto min-h-0 shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-[3px] font-normal text-[10px] shadow-none transition-all focus-visible:ring-0 ${
                 activeTag === tag.name
                   ? 'border-primary/40 bg-primary/10 text-foreground'
                   : 'border-border/30 text-muted-foreground/50 hover:border-border/50 hover:bg-accent/30 hover:text-foreground'
@@ -311,7 +311,7 @@ export const ResourceGrid: FC<Props> = ({
               <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />
               <span>{tag.name}</span>
               <span className="text-[9px] text-muted-foreground/40 tabular-nums">{tag.count}</span>
-            </button>
+            </Button>
           ))}
           {/* Add tag (POST /tags; does not bind — newly-created tags appear only after binding) */}
           {showAddTag ? (
@@ -334,21 +334,21 @@ export const ResourceGrid: FC<Props> = ({
                 placeholder={t('library.toolbar.add_tag_placeholder')}
                 className="h-auto w-[80px] rounded-full border border-border/40 bg-accent/20 px-2 py-[3px] text-[10px] text-foreground shadow-none outline-none transition-all placeholder:text-muted-foreground/35 focus-visible:border-primary/40 focus-visible:ring-0 disabled:opacity-50"
               />
-              <button
-                type="button"
+              <Button
+                variant="ghost"
                 onClick={() => void handleAddTag()}
                 disabled={addingTag || !newTagName.trim()}
-                className="text-muted-foreground/40 transition-colors hover:text-foreground disabled:opacity-40">
+                className="h-auto min-h-0 w-auto p-0 font-normal text-muted-foreground/40 shadow-none transition-colors hover:text-foreground focus-visible:ring-0 disabled:opacity-40">
                 <Plus size={10} />
-              </button>
+              </Button>
             </div>
           ) : (
-            <button
-              type="button"
+            <Button
+              variant="ghost"
               onClick={() => setShowAddTag(true)}
-              className="flex shrink-0 items-center gap-0.5 rounded-full border border-border/40 border-dashed px-2 py-[3px] text-[10px] text-muted-foreground/40 transition-all hover:border-border/60 hover:bg-accent/30 hover:text-foreground">
+              className="flex h-auto min-h-0 shrink-0 items-center gap-0.5 rounded-full border border-border/40 border-dashed px-2 py-[3px] font-normal text-[10px] text-muted-foreground/40 shadow-none transition-all hover:border-border/60 hover:bg-accent/30 hover:text-foreground focus-visible:ring-0">
               <Plus size={9} /> {t('library.toolbar.tag_button')}
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -456,12 +456,13 @@ function GridCard({ resource: r, index, onEdit, onToggle, onOpenMenu }: CardItem
             </div>
           </div>
           <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="icon-sm"
               onClick={(e) => onOpenMenu(r.id, e)}
-              className="flex h-6 w-6 items-center justify-center rounded-4xs text-muted-foreground/25 opacity-0 transition-colors hover:bg-accent/40 hover:text-foreground group-hover:opacity-100">
+              className="flex h-6 min-h-0 w-6 items-center justify-center rounded-4xs p-0 font-normal text-muted-foreground/25 opacity-0 shadow-none transition-colors hover:bg-accent/40 hover:text-foreground focus-visible:ring-0 group-hover:opacity-100">
               <MoreHorizontal size={12} />
-            </button>
+            </Button>
           </div>
         </div>
         <p className="mb-3 line-clamp-2 min-h-[2lh] text-[10px] text-muted-foreground/70 leading-relaxed">
@@ -558,12 +559,13 @@ function ListRow({ resource: r, index, onEdit, onToggle, onOpenMenu }: CardItemP
         </div>
       )}
       <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="icon-sm"
           onClick={(e) => onOpenMenu(r.id, e)}
-          className="flex h-6 w-6 items-center justify-center rounded-4xs text-muted-foreground/35 opacity-0 transition-colors hover:bg-accent/40 hover:text-foreground group-hover:opacity-100">
+          className="flex h-6 min-h-0 w-6 items-center justify-center rounded-4xs p-0 font-normal text-muted-foreground/35 opacity-0 shadow-none transition-colors hover:bg-accent/40 hover:text-foreground focus-visible:ring-0 group-hover:opacity-100">
           <MoreHorizontal size={12} />
-        </button>
+        </Button>
       </div>
     </motion.div>
   )
@@ -670,29 +672,29 @@ function FixedCardMenu({
         transition={{ duration: 0.1 }}
         className="fixed z-[501] min-w-[140px] rounded-2xs border border-border/30 bg-popover p-1 shadow-xl"
         style={{ left: clampX, top: clampY }}>
-        <button
-          type="button"
+        <Button
+          variant="ghost"
           onClick={() => {
             onEdit(resource)
             onClose()
           }}
-          className="flex w-full items-center gap-2 rounded-4xs px-2.5 py-[5px] text-[10px] text-muted-foreground/60 transition-colors hover:bg-accent/50 hover:text-foreground">
+          className="flex h-auto min-h-0 w-full items-center justify-start gap-2 rounded-4xs px-2.5 py-[5px] font-normal text-[10px] text-muted-foreground/60 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0">
           <Pencil size={10} /> {t('common.edit')}
-        </button>
+        </Button>
 
         {/* Tag picker — assistants only (agent/skill backend not ready) */}
         {canBindTags && (
           <div className="relative">
-            <button
-              type="button"
+            <Button
+              variant="ghost"
               onClick={() => setShowTagPicker(!showTagPicker)}
-              className="flex w-full items-center gap-2 rounded-4xs px-2.5 py-[5px] text-[10px] text-muted-foreground/60 transition-colors hover:bg-accent/50 hover:text-foreground">
+              className="flex h-auto min-h-0 w-full items-center justify-start gap-2 rounded-4xs px-2.5 py-[5px] font-normal text-[10px] text-muted-foreground/60 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0">
               <Tag size={10} /> {t('library.action.manage_tags')}
               {localTags.length > 0 && (
                 <span className="ml-auto text-[8px] text-muted-foreground/25 tabular-nums">{localTags.length}</span>
               )}
               <ChevronDown size={8} className={`transition-transform ${showTagPicker ? 'rotate-180' : ''}`} />
-            </button>
+            </Button>
             {bindingError && <p className="px-2.5 py-1 text-[9px] text-destructive/80">{bindingError}</p>}
             {showTagPicker && (
               <div
@@ -709,12 +711,12 @@ function FixedCardMenu({
                     className="h-auto min-w-0 flex-1 rounded-none border-0 bg-transparent p-0 text-[10px] text-foreground shadow-none outline-none placeholder:text-muted-foreground/20 focus-visible:ring-0"
                   />
                   {tagInput.trim() && (
-                    <button
-                      type="button"
+                    <Button
+                      variant="ghost"
                       onClick={addNewTag}
-                      className="text-muted-foreground/30 transition-colors hover:text-foreground">
+                      className="h-auto min-h-0 w-auto p-0 font-normal text-muted-foreground/30 shadow-none transition-colors hover:text-foreground focus-visible:ring-0">
                       <Plus size={10} />
-                    </button>
+                    </Button>
                   )}
                 </div>
                 <div className="mx-1 mb-0.5 h-px bg-border/15" />
@@ -750,36 +752,36 @@ function FixedCardMenu({
           </div>
         )}
 
-        <button
-          type="button"
+        <Button
+          variant="ghost"
           onClick={() => {
             onDuplicate(resource)
             onClose()
           }}
-          className="flex w-full items-center gap-2 rounded-4xs px-2.5 py-[5px] text-[10px] text-muted-foreground/60 transition-colors hover:bg-accent/50 hover:text-foreground">
+          className="flex h-auto min-h-0 w-full items-center justify-start gap-2 rounded-4xs px-2.5 py-[5px] font-normal text-[10px] text-muted-foreground/60 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0">
           <Copy size={10} /> {t('library.action.duplicate')}
-        </button>
+        </Button>
         {resource.type === 'assistant' && (
-          <button
-            type="button"
+          <Button
+            variant="ghost"
             onClick={() => {
               onExport(resource)
               onClose()
             }}
-            className="flex w-full items-center gap-2 rounded-4xs px-2.5 py-[5px] text-[10px] text-muted-foreground/60 transition-colors hover:bg-accent/50 hover:text-foreground">
+            className="flex h-auto min-h-0 w-full items-center justify-start gap-2 rounded-4xs px-2.5 py-[5px] font-normal text-[10px] text-muted-foreground/60 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0">
             <Download size={10} /> {t('assistants.presets.export.agent')}
-          </button>
+          </Button>
         )}
         <div className="mx-1 my-0.5 h-px bg-border/15" />
-        <button
-          type="button"
+        <Button
+          variant="ghost"
           onClick={() => {
             onDelete(resource)
             onClose()
           }}
-          className="flex w-full items-center gap-2 rounded-4xs px-2.5 py-[5px] text-[10px] text-destructive/70 transition-colors hover:bg-destructive/10 hover:text-destructive">
+          className="flex h-auto min-h-0 w-full items-center justify-start gap-2 rounded-4xs px-2.5 py-[5px] font-normal text-[10px] text-destructive/70 shadow-none transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:ring-0">
           <Trash2 size={10} /> {t('common.delete')}
-        </button>
+        </Button>
       </motion.div>
     </div>
   )

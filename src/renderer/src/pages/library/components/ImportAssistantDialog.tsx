@@ -1,4 +1,4 @@
-import { Input, Textarea } from '@cherrystudio/ui'
+import { Button, Dialog, DialogContent, Input, Tabs, TabsList, TabsTrigger, Textarea } from '@cherrystudio/ui'
 import { AlertCircle, CheckCircle2, Clipboard, FileJson, Link, Upload, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import type { ChangeEvent, DragEvent } from 'react'
@@ -248,8 +248,6 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
     }
   }
 
-  if (!open) return null
-
   const tabs: { id: ImportTab; label: string; icon: typeof Upload }[] = [
     { id: 'file', label: t('library.import_dialog.tab.file'), icon: Upload },
     { id: 'clipboard', label: t('library.import_dialog.tab.clipboard'), icon: Clipboard },
@@ -257,181 +255,173 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
   ]
 
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={close}
-        className="fixed inset-0 z-[500] flex items-center justify-center bg-black/40 backdrop-blur-sm">
-        <motion.div
-          initial={{ scale: 0.95, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.95, opacity: 0 }}
-          onClick={(e) => e.stopPropagation()}
-          className="w-[460px] overflow-hidden rounded-xs border border-border/30 bg-popover shadow-2xl">
-          {/* Header */}
-          <div className="flex items-center justify-between border-border/15 border-b px-5 py-4">
-            <div>
-              <h3 className="text-[13px] text-foreground">{t('assistants.presets.import.title')}</h3>
-              <p className="mt-0.5 text-[9px] text-muted-foreground/45">{t('library.import_dialog.subtitle')}</p>
-            </div>
-            <button
-              type="button"
-              onClick={close}
-              disabled={loading}
-              className="flex h-6 w-6 items-center justify-center rounded-3xs text-muted-foreground/40 transition-colors hover:bg-accent/40 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40">
-              <X size={14} />
-            </button>
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        if (!v && !loading) close()
+      }}>
+      <DialogContent
+        showCloseButton={false}
+        overlayClassName="bg-black/40 backdrop-blur-sm"
+        className="w-[460px] gap-0 overflow-hidden rounded-xs border-border/30 bg-popover p-0 shadow-2xl sm:max-w-[460px]">
+        {/* Header */}
+        <div className="flex items-center justify-between border-border/15 border-b px-5 py-4">
+          <div>
+            <h3 className="text-[13px] text-foreground">{t('assistants.presets.import.title')}</h3>
+            <p className="mt-0.5 text-[9px] text-muted-foreground/45">{t('library.import_dialog.subtitle')}</p>
           </div>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={close}
+            disabled={loading}
+            className="flex h-6 min-h-0 w-6 items-center justify-center rounded-3xs font-normal text-muted-foreground/40 shadow-none transition-colors hover:bg-accent/40 hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
+            <X size={14} />
+          </Button>
+        </div>
 
-          {/* Tabs */}
-          <div className="flex items-center gap-0.5 px-5 pt-3">
+        {/* Tabs — only TabsList 用于 a11y/键盘导航；内容区自绘以保留原 mode="wait" 切换动画 */}
+        <Tabs value={tab} onValueChange={(v) => setTab(v as ImportTab)}>
+          <TabsList className="h-auto w-auto justify-start gap-0.5 bg-transparent p-0 px-5 pt-3">
             {tabs.map((tabDef) => {
               const Icon = tabDef.icon
-              const active = tab === tabDef.id
               return (
-                <button
-                  type="button"
+                <TabsTrigger
                   key={tabDef.id}
-                  onClick={() => setTab(tabDef.id)}
-                  className={`flex items-center gap-1.5 rounded-3xs px-3 py-1.5 text-[10px] transition-all ${
-                    active
-                      ? 'bg-accent/60 text-foreground'
-                      : 'text-muted-foreground/50 hover:bg-accent/30 hover:text-foreground'
-                  }`}>
+                  value={tabDef.id}
+                  className="flex h-auto flex-none items-center gap-1.5 rounded-3xs border-0 bg-transparent px-3 py-1.5 text-[10px] text-muted-foreground/50 shadow-none transition-all hover:bg-accent/30 hover:text-foreground data-[state=active]:bg-accent/60 data-[state=active]:text-foreground data-[state=active]:shadow-none dark:data-[state=active]:border-0 dark:data-[state=active]:bg-accent/60">
                   <Icon size={11} />
                   <span>{tabDef.label}</span>
-                </button>
+                </TabsTrigger>
               )
             })}
-          </div>
+          </TabsList>
+        </Tabs>
 
-          {/* Content */}
-          <div className="min-h-[200px] px-5 py-4">
-            <AnimatePresence mode="wait">
-              {tab === 'file' && (
-                <motion.div
-                  key="file"
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}>
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    onDragOver={(e) => {
+        {/* Content */}
+        <div className="min-h-[200px] px-5 py-4">
+          <AnimatePresence mode="wait">
+            {tab === 'file' && (
+              <motion.div
+                key="file"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}>
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onDragOver={(e) => {
+                    e.preventDefault()
+                    if (!loading) setDragOver(true)
+                  }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={(e) => void handleDrop(e)}
+                  onClick={() => fileInputRef.current?.click()}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault()
-                      if (!loading) setDragOver(true)
-                    }}
-                    onDragLeave={() => setDragOver(false)}
-                    onDrop={(e) => void handleDrop(e)}
-                    onClick={() => fileInputRef.current?.click()}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        fileInputRef.current?.click()
-                      }
-                    }}
-                    className={`flex cursor-pointer flex-col items-center justify-center rounded-2xs border-2 border-dashed p-8 transition-all ${
-                      dragOver
-                        ? 'border-primary/40 bg-primary/5'
-                        : 'border-border/20 hover:border-border/40 hover:bg-accent/10'
-                    } ${loading ? 'pointer-events-none opacity-60' : ''}`}>
-                    <Upload size={24} strokeWidth={1.2} className="mb-3 text-muted-foreground/30" />
-                    <p className="mb-1 text-[11px] text-muted-foreground/50">
-                      {t('library.import_dialog.file.drop_hint')}
-                    </p>
-                    <p className="text-[9px] text-muted-foreground/35">{t('library.import_dialog.file.formats')}</p>
-                  </div>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".json,application/json"
-                    className="hidden"
-                    onChange={(e) => void handleFileSelected(e)}
-                  />
-                </motion.div>
-              )}
+                      fileInputRef.current?.click()
+                    }
+                  }}
+                  className={`flex cursor-pointer flex-col items-center justify-center rounded-2xs border-2 border-dashed p-8 transition-all ${
+                    dragOver
+                      ? 'border-primary/40 bg-primary/5'
+                      : 'border-border/20 hover:border-border/40 hover:bg-accent/10'
+                  } ${loading ? 'pointer-events-none opacity-60' : ''}`}>
+                  <Upload size={24} strokeWidth={1.2} className="mb-3 text-muted-foreground/30" />
+                  <p className="mb-1 text-[11px] text-muted-foreground/50">
+                    {t('library.import_dialog.file.drop_hint')}
+                  </p>
+                  <p className="text-[9px] text-muted-foreground/35">{t('library.import_dialog.file.formats')}</p>
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".json,application/json"
+                  className="hidden"
+                  onChange={(e) => void handleFileSelected(e)}
+                />
+              </motion.div>
+            )}
+            {tab === 'clipboard' && (
+              <motion.div
+                key="clipboard"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}>
+                <Textarea.Input
+                  value={clipboardText}
+                  onValueChange={setClipboardText}
+                  disabled={loading}
+                  placeholder={t('library.import_dialog.clipboard.placeholder')}
+                  className="h-[160px] min-h-0 w-full resize-none rounded-2xs border border-border/20 bg-accent/10 p-3 font-mono text-[11px] text-foreground shadow-none outline-none transition-all placeholder:text-muted-foreground/35 focus-visible:border-border/40 focus-visible:bg-accent/15 focus-visible:ring-0 disabled:cursor-not-allowed [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-[3px]"
+                />
+                <Button
+                  onClick={handleClipboardImport}
+                  disabled={!clipboardText.trim() || loading}
+                  className="mt-3 flex h-auto min-h-0 items-center gap-1.5 rounded-3xs bg-foreground px-3 py-1.5 font-normal text-[11px] text-background shadow-none transition-colors hover:bg-foreground/90 focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-30">
+                  <FileJson size={10} className="lucide-custom" />
+                  <span>{t('library.import_dialog.clipboard.button')}</span>
+                </Button>
+              </motion.div>
+            )}
+            {tab === 'url' && (
+              <motion.div
+                key="url"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}>
+                <p className="mb-3 text-[10px] text-muted-foreground/50">{t('library.import_dialog.url.hint')}</p>
+                <Input
+                  value={urlText}
+                  onChange={(e) => setUrlText(e.target.value)}
+                  disabled={loading}
+                  placeholder="https://gist.github.com/..."
+                  className="h-auto w-full rounded-2xs border border-border/20 bg-accent/10 px-3 py-2 font-mono text-[11px] text-foreground shadow-none outline-none transition-all placeholder:text-muted-foreground/35 focus-visible:border-border/40 focus-visible:bg-accent/15 focus-visible:ring-0 disabled:cursor-not-allowed"
+                />
+                <div className="mt-3 flex items-center gap-3">
+                  <Button
+                    onClick={() => void handleUrlImport()}
+                    disabled={!urlText.trim() || loading}
+                    className="flex h-auto min-h-0 items-center gap-1.5 rounded-3xs bg-foreground px-3 py-1.5 font-normal text-[11px] text-background shadow-none transition-colors hover:bg-foreground/90 focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-30">
+                    <Link size={10} className="lucide-custom" />
+                    <span>{t('library.import_dialog.url.button')}</span>
+                  </Button>
+                  <p className="text-[9px] text-muted-foreground/35">{t('library.import_dialog.url.supports')}</p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+          <StatusBanner status={status} />
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
-              {tab === 'clipboard' && (
-                <motion.div
-                  key="clipboard"
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}>
-                  <Textarea.Input
-                    value={clipboardText}
-                    onValueChange={setClipboardText}
-                    disabled={loading}
-                    placeholder={t('library.import_dialog.clipboard.placeholder')}
-                    className="h-[160px] min-h-0 w-full resize-none rounded-2xs border border-border/20 bg-accent/10 p-3 font-mono text-[11px] text-foreground shadow-none outline-none transition-all placeholder:text-muted-foreground/35 focus-visible:border-border/40 focus-visible:bg-accent/15 focus-visible:ring-0 disabled:cursor-not-allowed [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-[3px]"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleClipboardImport}
-                    disabled={!clipboardText.trim() || loading}
-                    className="mt-3 flex items-center gap-1.5 rounded-3xs bg-foreground px-3 py-1.5 text-[11px] text-background transition-colors hover:bg-foreground/90 disabled:cursor-not-allowed disabled:opacity-30">
-                    <FileJson size={10} className="lucide-custom" />
-                    <span>{t('library.import_dialog.clipboard.button')}</span>
-                  </button>
-                </motion.div>
-              )}
-
-              {tab === 'url' && (
-                <motion.div
-                  key="url"
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}>
-                  <p className="mb-3 text-[10px] text-muted-foreground/50">{t('library.import_dialog.url.hint')}</p>
-                  <Input
-                    value={urlText}
-                    onChange={(e) => setUrlText(e.target.value)}
-                    disabled={loading}
-                    placeholder="https://gist.github.com/..."
-                    className="h-auto w-full rounded-2xs border border-border/20 bg-accent/10 px-3 py-2 font-mono text-[11px] text-foreground shadow-none outline-none transition-all placeholder:text-muted-foreground/35 focus-visible:border-border/40 focus-visible:bg-accent/15 focus-visible:ring-0 disabled:cursor-not-allowed"
-                  />
-                  <div className="mt-3 flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => void handleUrlImport()}
-                      disabled={!urlText.trim() || loading}
-                      className="flex items-center gap-1.5 rounded-3xs bg-foreground px-3 py-1.5 text-[11px] text-background transition-colors hover:bg-foreground/90 disabled:cursor-not-allowed disabled:opacity-30">
-                      <Link size={10} className="lucide-custom" />
-                      <span>{t('library.import_dialog.url.button')}</span>
-                    </button>
-                    <p className="text-[9px] text-muted-foreground/35">{t('library.import_dialog.url.supports')}</p>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Status banner */}
-            <AnimatePresence>
-              {status.kind === 'success' && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  className="mt-4 flex items-center gap-2 rounded-3xs border border-primary/20 bg-primary/10 px-3 py-2">
-                  <CheckCircle2 size={12} className="text-primary" />
-                  <span className="text-[10px] text-foreground">{status.message}</span>
-                </motion.div>
-              )}
-              {status.kind === 'error' && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  className="mt-4 flex items-center gap-2 rounded-3xs border border-destructive/20 bg-destructive/10 px-3 py-2">
-                  <AlertCircle size={12} className="text-destructive" />
-                  <span className="text-[10px] text-destructive">{status.message}</span>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+function StatusBanner({ status }: { status: ImportStatus }) {
+  return (
+    <AnimatePresence>
+      {status.kind === 'success' && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0 }}
+          className="mt-4 flex items-center gap-2 rounded-3xs border border-primary/20 bg-primary/10 px-3 py-2">
+          <CheckCircle2 size={12} className="text-primary" />
+          <span className="text-[10px] text-foreground">{status.message}</span>
         </motion.div>
-      </motion.div>
+      )}
+      {status.kind === 'error' && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0 }}
+          className="mt-4 flex items-center gap-2 rounded-3xs border border-destructive/20 bg-destructive/10 px-3 py-2">
+          <AlertCircle size={12} className="text-destructive" />
+          <span className="text-[10px] text-destructive">{status.message}</span>
+        </motion.div>
+      )}
     </AnimatePresence>
   )
 }

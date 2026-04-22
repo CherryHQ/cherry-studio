@@ -1,4 +1,4 @@
-import { CodeEditor, Tooltip } from '@cherrystudio/ui'
+import { Button, CodeEditor, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
@@ -93,14 +93,14 @@ const PromptSection: FC<Props> = ({ assistant, prompt, onChange }) => {
               <HelpCircle size={11} className="cursor-help text-muted-foreground/50 hover:text-foreground" />
             </Tooltip>
           </label>
-          <button
-            type="button"
+          <Button
+            variant="ghost"
             onClick={() => setShowPreview((v) => !v)}
             disabled={prompt.length === 0}
-            className="flex items-center gap-1 rounded-3xs border border-border/20 px-2 py-[3px] text-[10px] text-muted-foreground/50 transition-colors hover:bg-accent/30 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40">
+            className="flex h-auto min-h-0 items-center gap-1 rounded-3xs border border-border/20 px-2 py-[3px] font-normal text-[10px] text-muted-foreground/50 shadow-none transition-colors hover:bg-accent/30 hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
             {showPreview ? <Edit size={10} /> : <Eye size={10} />}
             <span>{t(showPreview ? 'common.edit' : 'common.preview')}</span>
-          </button>
+          </Button>
         </div>
 
         <div className="overflow-hidden rounded-2xs border border-border/20 bg-accent/10 transition-all focus-within:border-border/40 focus-within:bg-accent/15">

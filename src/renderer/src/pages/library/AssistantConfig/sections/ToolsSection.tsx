@@ -1,4 +1,5 @@
 import {
+  Button,
   Input,
   MenuItem,
   MenuList,
@@ -96,12 +97,12 @@ const ToolsSection: FC<Props> = ({ mcpMode, mcpServerIds, onModeChange, onServer
 
           <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
             <PopoverTrigger asChild>
-              <button
-                type="button"
+              <Button
+                variant="ghost"
                 disabled={isLoading}
-                className="mt-2 flex items-center gap-1 rounded-3xs border border-border/20 px-2.5 py-1.5 text-[10px] text-muted-foreground/60 transition-colors hover:border-border/40 hover:bg-accent/30 hover:text-foreground disabled:opacity-50">
+                className="mt-2 flex h-auto min-h-0 items-center gap-1 rounded-3xs border border-border/20 px-2.5 py-1.5 font-normal text-[10px] text-muted-foreground/60 shadow-none transition-colors hover:border-border/40 hover:bg-accent/30 hover:text-foreground focus-visible:ring-0 disabled:opacity-50">
                 <Plus size={10} /> {t('library.config.tools.add_mcp')}
-              </button>
+              </Button>
             </PopoverTrigger>
             <PopoverContent align="start" sideOffset={4} className="w-64 rounded-2xs p-2">
               <div className="relative mb-2">
@@ -230,12 +231,12 @@ function ModeRow({
   onClick: () => void
 }) {
   return (
-    <button
-      type="button"
+    <Button
+      variant="ghost"
       onClick={onClick}
-      className={`flex items-start gap-2.5 rounded-2xs border px-3 py-2.5 text-left transition-all ${
+      className={`flex h-auto min-h-0 items-start justify-start gap-2.5 rounded-2xs border px-3 py-2.5 text-left font-normal shadow-none transition-all focus-visible:ring-0 ${
         active
-          ? 'border-primary/35 bg-primary/[0.06] text-foreground'
+          ? 'border-primary/35 bg-primary/[0.06] text-foreground hover:bg-primary/[0.06] hover:text-foreground'
           : 'border-border/15 bg-accent/10 text-muted-foreground/70 hover:bg-accent/25 hover:text-foreground'
       }`}>
       <span
@@ -247,7 +248,7 @@ function ModeRow({
         <div className="text-[11px]">{label}</div>
         <div className="mt-0.5 text-[9px] text-muted-foreground/50">{desc}</div>
       </div>
-    </button>
+    </Button>
   )
 }
 

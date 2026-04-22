@@ -1,3 +1,4 @@
+import { Button, MenuItem } from '@cherrystudio/ui'
 import type { Assistant } from '@shared/data/types/assistant'
 import { ArrowLeft, ChevronRight, Save } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
@@ -246,12 +247,13 @@ function ConfigShell({
     <div className="flex min-h-0 flex-1 flex-col bg-background">
       {/* Top bar */}
       <div className="flex shrink-0 items-center gap-3 border-border/15 border-b px-5 py-3">
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="icon-sm"
           onClick={onBack}
-          className="flex h-7 w-7 items-center justify-center rounded-3xs text-muted-foreground/40 transition-colors hover:bg-accent/40 hover:text-foreground">
+          className="flex h-7 min-h-0 w-7 items-center justify-center rounded-3xs font-normal text-muted-foreground/40 shadow-none transition-colors hover:bg-accent/40 hover:text-foreground focus-visible:ring-0">
           <ArrowLeft size={14} />
-        </button>
+        </Button>
         <div className="flex items-center gap-1 text-[10px] text-muted-foreground/50">
           <span className="cursor-pointer transition-colors hover:text-foreground" onClick={onBack}>
             {t('library.config.breadcrumb')}
@@ -280,20 +282,20 @@ function ConfigShell({
             </motion.span>
           )}
         </AnimatePresence>
-        <button
-          type="button"
+        <Button
+          variant="ghost"
           onClick={onBack}
-          className="rounded-3xs border border-border/20 px-3 py-1.5 text-[11px] text-muted-foreground/50 transition-all hover:bg-accent/30 hover:text-foreground">
+          className="h-auto min-h-0 rounded-3xs border border-border/20 px-3 py-1.5 font-normal text-[11px] text-muted-foreground/50 shadow-none transition-all hover:bg-accent/30 hover:text-foreground focus-visible:ring-0">
           {t('common.cancel')}
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
+          variant="default"
           onClick={onSave}
           disabled={saving || !canSave}
-          className="flex items-center gap-1.5 rounded-3xs bg-foreground px-3 py-1.5 text-[11px] text-background transition-colors hover:bg-foreground/90 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40">
+          className="flex h-auto min-h-0 items-center gap-1.5 rounded-3xs bg-foreground px-3 py-1.5 font-normal text-[11px] text-background shadow-none transition-colors hover:bg-foreground/90 focus-visible:ring-0 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40">
           <Save size={10} className="lucide-custom" />
           <span>{saving ? t('library.config.saving') : t('common.save')}</span>
-        </button>
+        </Button>
       </div>
 
       {/* Body */}
@@ -303,24 +305,22 @@ function ConfigShell({
             const Icon = s.icon
             const active = activeSection === s.id
             return (
-              <button
+              <MenuItem
                 key={s.id}
-                type="button"
+                variant="ghost"
+                size="sm"
+                active={active}
                 onClick={() => onSectionChange(s.id)}
-                className={`mb-1 flex w-full items-start gap-2.5 rounded-2xs px-3 py-2.5 text-left transition-all ${
+                icon={<Icon size={13} strokeWidth={1.6} className="mt-0.5 shrink-0" />}
+                label={t(s.labelKey)}
+                description={t(s.descKey)}
+                descriptionClassName="mt-px text-[9px] text-muted-foreground/45 group-data-[active=true]:text-muted-foreground/50"
+                className={`mb-1 items-start gap-2.5 rounded-2xs border-0 px-3 py-2.5 text-left font-normal transition-all focus-visible:ring-0 ${
                   active
-                    ? 'bg-accent/60 text-foreground'
+                    ? 'bg-accent/60 text-foreground data-[active=true]:bg-accent/60 data-[active=true]:text-foreground'
                     : 'text-muted-foreground/60 hover:bg-accent/25 hover:text-foreground'
-                }`}>
-                <Icon size={13} strokeWidth={1.6} className="mt-0.5 shrink-0" />
-                <div className="min-w-0">
-                  <div className="text-[11px]">{t(s.labelKey)}</div>
-                  <div
-                    className={`mt-px text-[9px] ${active ? 'text-muted-foreground/50' : 'text-muted-foreground/45'}`}>
-                    {t(s.descKey)}
-                  </div>
-                </div>
-              </button>
+                }`}
+              />
             )
           })}
         </div>
