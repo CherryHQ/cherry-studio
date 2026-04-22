@@ -115,7 +115,7 @@
     "@agentic/tavily": "^7.3.3",
     "@ai-sdk/amazon-bedrock": "^4.0.87",
     "@ai-sdk/anthropic": "^3.0.58",
-    "@ai-sdk/azure": "^3.0.50",
+    "@ai-sdk/azure": "^3.0.54",
     "@ai-sdk/cerebras": "^2.0.39",
     "@ai-sdk/cohere": "^3.0.25",
     "@ai-sdk/gateway": "^3.0.85",
@@ -478,7 +478,8 @@
       "@img/sharp-linux-x64": "0.34.5",
       "@img/sharp-win32-x64": "0.34.5",
       "@langchain/core": "1.0.2",
-      "@napi-rs/canvas": "0.1.97"
+      "@napi-rs/canvas": "0.1.97",
+      "@ai-sdk/provider-utils": "4.0.23"
     },
     "patchedDependencies": {
       "@napi-rs/system-ocr@1.0.2": "patches/@napi-rs-system-ocr-npm-1.0.2-59e7a78e8b.patch",

@@ -36,15 +36,15 @@
     "ai": "^6.0.116"
   },
   "dependencies": {
-    "@cherrystudio/ai-sdk-provider": "workspace:*",
     "@ai-sdk/anthropic": "^3.0.58",
-    "@ai-sdk/azure": "^3.0.50",
+    "@ai-sdk/azure": "^3.0.54",
     "@ai-sdk/deepseek": "^2.0.24",
     "@ai-sdk/openai-compatible": "^2.0.37",
-    "@openrouter/ai-sdk-provider": "^2.3.3",
     "@ai-sdk/provider": "^3.0.8",
     "@ai-sdk/provider-utils": "^4.0.19",
     "@ai-sdk/xai": "^3.0.75",
+    "@cherrystudio/ai-sdk-provider": "workspace:*",
+    "@openrouter/ai-sdk-provider": "^2.3.3",
     "lru-cache": "^11.2.4",
     "zod": "^4.1.5"
   },
