@@ -18,7 +18,7 @@ export interface SkillStubDto {
 }
 
 const EMPTY_LIST: SkillStubDto[] = []
-const noop = async () => undefined
+const noop = () => {}
 
 function useList(): ResourceListResult<SkillStubDto> {
   return {

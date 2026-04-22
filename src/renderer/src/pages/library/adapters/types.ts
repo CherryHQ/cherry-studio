@@ -16,7 +16,7 @@ export interface ResourceListResult<TDto> {
   isLoading: boolean
   isRefreshing: boolean
   error?: Error
-  refetch: () => Promise<unknown>
+  refetch: () => void
 }
 
 /**
@@ -33,7 +33,7 @@ export interface TagListResult {
   tags: Tag[]
   isLoading: boolean
   error?: Error
-  refetch: () => Promise<unknown>
+  refetch: () => void
 }
 
 export interface EntityTagsResult extends TagListResult {

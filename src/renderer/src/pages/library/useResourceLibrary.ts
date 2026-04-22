@@ -33,7 +33,7 @@ export interface UseResourceLibraryResult {
   pendingBackend: boolean
   pendingBackendTypes: ResourceType[]
   typeCounts: Record<ResourceType, number>
-  refetch: () => Promise<void>
+  refetch: () => void
 }
 
 export function useResourceLibrary({
@@ -135,8 +135,11 @@ export function useResourceLibrary({
   const isRefreshing = assistants.isRefreshing || agents.isRefreshing || skills.isRefreshing
   const error = assistants.error ?? agents.error ?? skills.error
 
-  const refetch = useCallback(async () => {
-    await Promise.all([assistants.refetch(), agents.refetch(), skills.refetch(), tagList.refetch()])
+  const refetch = useCallback(() => {
+    assistants.refetch()
+    agents.refetch()
+    skills.refetch()
+    tagList.refetch()
   }, [assistants, agents, skills, tagList])
 
   return {

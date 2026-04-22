@@ -1,6 +1,7 @@
+import { dataApiService } from '@data/DataApiService'
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import type { Tag, TaggableEntityType } from '@shared/data/types/tag'
-import { useCallback, useMemo, useRef } from 'react'
+import { useCallback, useMemo } from 'react'
 
 import { getRandomTagColor } from '../constants'
 import type { ResourceType } from '../types'
@@ -89,17 +90,15 @@ export function useTagMutations() {
  * Lookup order:
  *   1. Check the cached `useTagList` result (no extra request in the common path).
  *   2. Missing names → POST /tags (color defaults to a random palette entry).
- *   3. If POST fails due to a unique-constraint race, refetch the list once and
- *      retry the lookup before bubbling up.
+ *   3. If POST fails due to a unique-constraint race, do a one-shot imperative
+ *      GET /tags (bypassing the reactive hook — its ref snapshot wouldn't update
+ *      in-place) and retry the lookup before bubbling up.
  *
  * Used by assistant tag-binding flows where the UI speaks in names but the backend
  * speaks in ids. Skips empty / whitespace-only names and de-duplicates input.
  */
 export function useEnsureTags() {
-  const tagList = useTagList()
-  const listRef = useRef(tagList)
-  listRef.current = tagList
-
+  const { tags: cachedTags } = useTagList()
   const { createTag } = useTagMutations()
 
   const ensureTags = useCallback(
@@ -126,7 +125,7 @@ export function useEnsureTags() {
 
       const byName = (tags: Tag[]) => new Map(tags.map((t) => [t.name, t] as const))
 
-      let existing = byName(listRef.current.tags)
+      const existing = byName(cachedTags)
       const missing: { name: string; color?: string | null }[] = []
       const resolved: Tag[] = []
 
@@ -146,10 +145,11 @@ export function useEnsureTags() {
           })
           resolved.push(created)
         } catch (e) {
-          // Likely a unique-constraint race; refetch once and retry the lookup.
-          await listRef.current.refetch()
-          existing = byName(listRef.current.tags)
-          const hit = existing.get(spec.name)
+          // Likely a unique-constraint race. The reactive hook's snapshot won't
+          // reflect the winner's insert until the next render, so pull fresh
+          // tags imperatively for this one-shot lookup.
+          const fresh = await dataApiService.get('/tags')
+          const hit = Array.isArray(fresh) ? fresh.find((t) => t.name === spec.name) : undefined
           if (hit) {
             resolved.push(hit)
           } else {
@@ -160,7 +160,7 @@ export function useEnsureTags() {
 
       return resolved
     },
-    [createTag]
+    [cachedTags, createTag]
   )
 
   return { ensureTags }

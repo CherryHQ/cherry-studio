@@ -16,7 +16,7 @@ export interface AgentStubDto {
 }
 
 const EMPTY_LIST: AgentStubDto[] = []
-const noop = async () => undefined
+const noop = () => {}
 
 function useList(): ResourceListResult<AgentStubDto> {
   return {
