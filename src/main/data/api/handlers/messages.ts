@@ -9,11 +9,13 @@
 
 import { messageService } from '@data/services/MessageService'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
-import type {
-  ActiveNodeStrategy,
-  BranchMessagesQueryParams,
-  MessageSchemas,
-  TreeQueryParams
+import {
+  BranchMessagesQuerySchema,
+  CreateMessageSchema,
+  DeleteMessageQuerySchema,
+  type MessageSchemas,
+  TreeQuerySchema,
+  UpdateMessageSchema
 } from '@shared/data/api/schemas/messages'
 
 /**
@@ -31,7 +33,7 @@ export const messageHandlers: {
 } = {
   '/topics/:topicId/tree': {
     GET: async ({ params, query }) => {
-      const q = (query || {}) as TreeQueryParams
+      const q = TreeQuerySchema.parse(query ?? {})
       return await messageService.getTree(params.topicId, {
         rootId: q.rootId,
         nodeId: q.nodeId,
@@ -42,7 +44,7 @@ export const messageHandlers: {
 
   '/topics/:topicId/messages': {
     GET: async ({ params, query }) => {
-      const q = (query || {}) as BranchMessagesQueryParams
+      const q = BranchMessagesQuerySchema.parse(query ?? {})
       return await messageService.getBranchMessages(params.topicId, {
         nodeId: q.nodeId,
         cursor: q.cursor,
@@ -52,7 +54,8 @@ export const messageHandlers: {
     },
 
     POST: async ({ params, body }) => {
-      return await messageService.create(params.topicId, body)
+      const parsed = CreateMessageSchema.parse(body)
+      return await messageService.create(params.topicId, parsed)
     }
   },
 
@@ -62,11 +65,12 @@ export const messageHandlers: {
     },
 
     PATCH: async ({ params, body }) => {
-      return await messageService.update(params.id, body)
+      const parsed = UpdateMessageSchema.parse(body)
+      return await messageService.update(params.id, parsed)
     },
 
     DELETE: async ({ params, query }) => {
-      const q = (query || {}) as { cascade?: boolean; activeNodeStrategy?: ActiveNodeStrategy }
+      const q = DeleteMessageQuerySchema.parse(query ?? {})
       const cascade = q.cascade ?? false
       const activeNodeStrategy = q.activeNodeStrategy ?? 'parent'
       return await messageService.delete(params.id, cascade, activeNodeStrategy)

@@ -618,6 +618,56 @@ export class WindowManager extends BaseService {
     return this.initDataStore.get(windowId) ?? null
   }
 
+  /**
+   * Push fresh init data to a single already-open window and notify its
+   * renderer in-place, reusing the same IPC channel (`WindowManager_Reused`)
+   * that pool-recycle and singleton-reopen paths use. The renderer's
+   * `useWindowInitData` hook picks this up without remounting the subtree.
+   *
+   * Use this for "update the already-visible window with new context"
+   * scenarios — e.g. a main-process service reacting to an external event
+   * and wanting the current window to swap its payload. For first-time
+   * creation or recycling, continue using `open({ initData })`.
+   *
+   * Semantics:
+   * - Writes `data` into the init-data store so subsequent `getInitData()`
+   *   calls (devtools reload, lazy child mount) observe the latest value.
+   * - Sends `WindowManager_Reused` to the window's `webContents`.
+   * - Returns `true` if the window exists and is not destroyed, `false`
+   *   otherwise. No throw on miss.
+   *
+   * The signature forbids `undefined` on purpose: unlike the reuse path,
+   * "pushing undefined" has no meaningful semantics here, and silently
+   * no-oping would hide caller bugs.
+   */
+  public pushInitData<T>(windowId: string, data: T): boolean {
+    const managed = this.windows.get(windowId)
+    if (!managed || managed.window.isDestroyed()) return false
+    this.setInitData(windowId, data)
+    managed.window.webContents.send(IpcChannel.WindowManager_Reused, data)
+    return true
+  }
+
+  /**
+   * Push fresh init data to every currently-open window of the given type.
+   * Returns the number of windows that received the event.
+   *
+   * Does NOT filter by visibility — an idle pooled window sitting in the
+   * recycle queue will also receive the event, so when it is next taken
+   * out of the pool its renderer already has the latest payload. If you
+   * need visibility filtering, iterate `getWindows(type)` and call
+   * `pushInitData` selectively.
+   */
+  public pushInitDataToType<T>(type: WindowType, data: T): number {
+    const ids = this.windowsByType.get(type)
+    if (!ids || ids.size === 0) return 0
+    let count = 0
+    for (const id of ids) {
+      if (this.pushInitData(id, data)) count++
+    }
+    return count
+  }
+
   // ─── Public API: Pool management ──────────────────────────────
 
   /**

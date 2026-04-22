@@ -7,18 +7,11 @@
 
 import * as z from 'zod'
 
-import { type EntityType, EntityTypeSchema } from '../../types/entityType'
-import { AutoFields } from '../../types/index'
-import {
-  EntityIdSchema as SharedEntityIdSchema,
-  type Tag,
-  TagIdSchema as SharedTagIdSchema,
-  TagSchema
-} from '../../types/tag'
+import { EntityIdSchema, type EntityType, EntityTypeSchema } from '../../types/entityType'
+import { type Tag, TagIdSchema as SharedTagIdSchema, TagSchema } from '../../types/tag'
 
 export const TAG_ASSOCIATION_MAX_ITEMS = 100
 export const TagIdSchema = SharedTagIdSchema
-export const EntityIdSchema = SharedEntityIdSchema
 
 // ============================================================================
 // DTO Derivation
@@ -29,14 +22,13 @@ export const EntityIdSchema = SharedEntityIdSchema
  * - `name` is required (unique)
  * - `color` is optional
  */
-export const CreateTagSchema = TagSchema.omit(AutoFields).partial().required({ name: true })
+export const CreateTagSchema = TagSchema.pick({ name: true, color: true }).partial().required({ name: true })
 export type CreateTagDto = z.infer<typeof CreateTagSchema>
 
 /**
- * DTO for updating an existing tag.
- * All fields optional, `id` excluded (comes from URL path).
+ * DTO for updating an existing tag. All fields optional, chain-derived from Create.
  */
-export const UpdateTagSchema = TagSchema.omit(AutoFields).partial()
+export const UpdateTagSchema = CreateTagSchema.partial()
 export type UpdateTagDto = z.infer<typeof UpdateTagSchema>
 
 /**
@@ -79,7 +71,7 @@ export type SetTagEntitiesDto = z.infer<typeof SetTagEntitiesSchema>
 /**
  * Tag API Schema definitions
  */
-export interface TagSchemas {
+export type TagSchemas = {
   /**
    * Tags collection endpoint
    * @example GET /tags
