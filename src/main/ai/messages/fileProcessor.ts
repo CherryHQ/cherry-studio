@@ -18,11 +18,12 @@
  *     problematic for anything near provider payload limits.
  */
 
-import { loggerService } from '@logger'
-import type { FileUIPart } from '@shared/data/types/message'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+
+import { loggerService } from '@logger'
+import type { FileUIPart } from '@shared/data/types/message'
 
 const logger = loggerService.withContext('ai:fileProcessor')
 

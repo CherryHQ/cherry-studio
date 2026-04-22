@@ -23,7 +23,6 @@ export type {
   StreamChunkPayload,
   StreamDonePayload,
   StreamErrorPayload,
-  TopicStatusChangedPayload,
   TopicStreamStatus
 } from '@shared/ai/transport'
 export type { CherryUIMessageChunk } from '@shared/data/types/message'
@@ -251,12 +250,7 @@ export interface ActiveStream {
   listeners: Map<string, StreamListener>
 
   /**
-   * Topic-level lifecycle phase — the same enum the `Ai_TopicStatusChanged`
-   * IPC surface carries, so renderer mirrors can be populated without a
-   * translation layer. `'pending'` is set at `send()` and flips to
-   * `'streaming'` on the first chunk from any execution; terminal values
-   * (`done` / `error` / `aborted`) are derived from executions by
-   * `computeTopicStatus`. The grace-period cleanup is silent — there is no
+   * Topic-level lifecycle phase: there is no
    * push notification when the ActiveStream is deleted from the manager;
    * renderer cache mirrors retain the last terminal value until a local
    * consumer evicts it.

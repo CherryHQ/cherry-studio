@@ -12,9 +12,10 @@
  *   - `{{model_name}}` → supplied by caller (no Redux default-model fallback)
  */
 
+import os from 'node:os'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
-import os from 'node:os'
 
 const logger = loggerService.withContext('utils:prompt')
 

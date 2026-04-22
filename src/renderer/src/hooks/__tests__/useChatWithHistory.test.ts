@@ -1,4 +1,3 @@
-import type { TopicStatusChangedPayload } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -11,8 +10,15 @@ vi.mock('@ai-sdk/react', () => ({
   useChat: (...args: unknown[]) => mockUseChat(...args)
 }))
 
+// `useTopicStreamStatus` is driven by the shared `topic.stream.statuses`
+// cache entry in production. Tests stub it here so each `it()` can
+// advance the per-topic view synchronously by calling `setMockStatus`.
+const mockTopicStreamStatus = vi.fn()
+vi.mock('../useTopicStreamStatus', () => ({
+  useTopicStreamStatus: (topicId: string) => mockTopicStreamStatus(topicId)
+}))
+
 describe('useChatWithHistory', () => {
-  const statusListeners: Array<(data: TopicStatusChangedPayload) => void> = []
   const doneListeners: Array<(data: { topicId: string; executionId?: string; isTopicDone?: boolean }) => void> = []
   const errorListeners: Array<
     (data: { topicId: string; executionId?: string; isTopicDone?: boolean; error: { message: string } }) => void
@@ -26,10 +32,29 @@ describe('useChatWithHistory', () => {
   const originalApi = window.api as any
   const refreshedMessages = [{ id: 'user-1', role: 'user', parts: [] }] as unknown as CherryUIMessage[]
 
+  /**
+   * Per-topic status map the stubbed `useTopicStreamStatus` reads from.
+   * Component re-renders are driven by mutating this map and calling
+   * `rerender()` at the test site.
+   */
+  const statuses = new Map<string, string | undefined>()
+
+  const setMockStatus = (topicId: string, status: string | undefined) => {
+    statuses.set(topicId, status)
+  }
+
   beforeEach(() => {
-    statusListeners.length = 0
     doneListeners.length = 0
     errorListeners.length = 0
+    statuses.clear()
+
+    mockTopicStreamStatus.mockImplementation((topicId: string) => ({
+      status: statuses.get(topicId),
+      activeExecutionIds: [],
+      isPending: statuses.get(topicId) === 'pending' || statuses.get(topicId) === 'streaming',
+      isFulfilled: statuses.get(topicId) === 'done',
+      markSeen: vi.fn()
+    }))
 
     resumeStream.mockClear()
     setMessages.mockClear()
@@ -74,17 +99,7 @@ describe('useChatWithHistory', () => {
               if (index >= 0) errorListeners.splice(index, 1)
             }
           }
-        ),
-        topic: {
-          ...originalApi.ai?.topic,
-          onStatusChanged: vi.fn((cb: (data: TopicStatusChangedPayload) => void) => {
-            statusListeners.push(cb)
-            return () => {
-              const index = statusListeners.indexOf(cb)
-              if (index >= 0) statusListeners.splice(index, 1)
-            }
-          })
-        }
+        )
       }
     }
   })
@@ -97,36 +112,39 @@ describe('useChatWithHistory', () => {
   it('refreshes history before resuming the matching topic when another window starts streaming', async () => {
     const refresh = vi.fn().mockResolvedValue(refreshedMessages)
 
-    renderHook(() => useChatWithHistory('topic-1', [], refresh, { assistantId: 'assistant-1' }, {}))
+    const { rerender } = renderHook(() =>
+      useChatWithHistory('topic-1', [], refresh, { assistantId: 'assistant-1' }, {})
+    )
 
     await waitFor(() => {
       expect(resumeStream).toHaveBeenCalledTimes(1)
     })
 
-    // Status change on a different topic must not trigger reattach.
-    for (const listener of statusListeners) {
-      listener({ topicId: 'other-topic', status: 'pending', activeExecutionIds: [] })
-    }
+    // Status change on a different topic must not trigger reattach —
+    // `useTopicStreamStatus` is keyed by topicId so the hook under test
+    // never sees this change.
+    setMockStatus('other-topic', 'pending')
+    rerender()
 
     await waitFor(() => {
       expect(resumeStream).toHaveBeenCalledTimes(1)
     })
     expect(refresh).not.toHaveBeenCalled()
 
-    // Non-`pending` deltas on our topic must not retrigger reattach
-    // (streaming / done / error / aborted / idle describe ongoing
-    // lifecycle, not a brand-new stream creation).
-    for (const listener of statusListeners) {
-      listener({ topicId: 'topic-1', status: 'streaming', activeExecutionIds: ['p::m'] })
-    }
+    // Non-`pending` transitions on our topic must not retrigger reattach
+    // (streaming / done / error / aborted describe ongoing lifecycle,
+    // not a brand-new stream creation).
+    setMockStatus('topic-1', 'streaming')
+    rerender()
     await waitFor(() => {
       expect(resumeStream).toHaveBeenCalledTimes(1)
     })
 
-    // `pending` on our topic = new ActiveStream created → reattach.
-    for (const listener of statusListeners) {
-      listener({ topicId: 'topic-1', status: 'pending', activeExecutionIds: ['p::m'] })
-    }
+    // A fresh `pending` on our topic = new ActiveStream created → reattach.
+    // The effect guards on the prev-value ref so transitioning via
+    // `streaming → pending` still counts as a new pending.
+    setMockStatus('topic-1', 'pending')
+    rerender()
 
     await waitFor(() => {
       expect(resumeStream).toHaveBeenCalledTimes(2)

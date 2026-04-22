@@ -164,7 +164,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const messagePath = await messageService.getPathToNode(userMessageId)
     return messagePath.map((msg) => ({
       id: msg.id,
-      role: msg.role as CherryUIMessage['role'],
+      role: msg.role,
       parts: msg.data.parts ?? []
     }))
   }

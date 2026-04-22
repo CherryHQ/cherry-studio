@@ -489,13 +489,6 @@ export enum IpcChannel {
   Ai_StreamChunk = 'ai:stream-chunk',
   Ai_StreamDone = 'ai:stream-done',
   Ai_StreamError = 'ai:stream-error',
-  /**
-   * Main → all windows: topic-level lifecycle changed
-   * (pending / streaming / done / aborted / error / idle).
-   * Broadcast to every window so observers can track state without
-   * attaching a chunk listener. See `TopicStatusChangedPayload`.
-   */
-  Ai_TopicStatusChanged = 'ai:topic-status-changed',
   /** Renderer → Main: send message (AiStreamManager routes to start or steer) */
   Ai_Stream_Open = 'ai:stream:open',
   /** Renderer → Main: subscribe to a topic's stream state */
@@ -511,13 +504,6 @@ export enum IpcChannel {
    * `ToolApprovalRegistry` which unblocks the provider's `canUseTool`.
    */
   Ai_ToolApproval_Respond = 'ai:tool-approval:respond',
-  /**
-   * Renderer → Main: snapshot of every active topic's current status.
-   * Zero side effects — no listener is registered and no replay is
-   * allocated. Used by windows to bootstrap on mount before the
-   * `Ai_TopicStatusChanged` deltas start flowing.
-   */
-  Ai_Topic_GetStatuses = 'ai:topic:get-statuses',
   Topic_Updated = 'topic:updated',
   AgentSession_Updated = 'agent-session:updated',
 

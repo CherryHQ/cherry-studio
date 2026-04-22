@@ -43,7 +43,6 @@
  *     these aren't the critical path; only the large-file-upload branch is.
  */
 
-/* eslint-disable */
 // prettier-ignore
 /*
 

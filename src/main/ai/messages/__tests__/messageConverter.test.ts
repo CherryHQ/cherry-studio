@@ -1,7 +1,8 @@
-import type { CherryMessagePart, Message } from '@shared/data/types/message'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+
+import type { CherryMessagePart, Message } from '@shared/data/types/message'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 // Mute the logger — we assert on return values, not log noise.
@@ -67,7 +68,9 @@ describe('prepareUIMessages — file:// URL resolution', () => {
 
   it('rewrites file:// URL file parts to base64 data URLs', async () => {
     const msg = makeMessage({
-      parts: [{ type: 'file', url: `file://${imgPath}`, mediaType: 'image/png', filename: 'pixel.png' }] as CherryMessagePart[]
+      parts: [
+        { type: 'file', url: `file://${imgPath}`, mediaType: 'image/png', filename: 'pixel.png' }
+      ] as CherryMessagePart[]
     })
     const [ui] = await prepareUIMessages([msg])
     const filePart = ui.parts[0] as { type: 'file'; url: string }

@@ -1,5 +1,4 @@
 import { Tooltip } from '@cherrystudio/ui'
-import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import MarqueeText from '@renderer/components/MarqueeText'
@@ -8,6 +7,7 @@ import { useCache } from '@renderer/data/hooks/useCache'
 import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { SessionSettingsPopup } from '@renderer/pages/settings/AgentSettings'
 import { SessionLabel } from '@renderer/pages/settings/AgentSettings/shared'
 import type { AgentSessionEntity } from '@renderer/types'
@@ -91,25 +91,23 @@ const SessionItem = ({ session, agentId, channelType, onDelete, onPress }: Sessi
 
   const isActive = activeSessionId === session.id
   const sessionTopicId = buildAgentSessionTopicId(session.id)
-  const [streamStatus] = useCache(`topic.stream.status.${sessionTopicId}` as const)
   // `pending` (request sent, waiting for provider) and `streaming` (chunks
   // flowing) both mean "busy" from the sidebar's perspective. If a future
   // design wants to distinguish them (spinner vs pulse), split here.
-  const isPending = streamStatus === 'pending' || streamStatus === 'streaming'
-  const isFulfilled = streamStatus === 'done'
+  const { isPending, isFulfilled, markSeen } = useTopicStreamStatus(sessionTopicId)
   const [renamingTopics] = useCache('topic.renaming')
   const [newlyRenamedTopics] = useCache('topic.newly_renamed')
   const isRenaming = renamingTopics.includes(sessionTopicId)
   const isNewlyRenamed = newlyRenamedTopics.includes(sessionTopicId)
 
   useEffect(() => {
-    // Clear the fulfilled badge when the user opens the session — Main
-    // still holds the `done` status during the grace period, so we need
-    // to locally mark it as consumed.
+    // Mark the fulfilled badge as consumed when the user opens the
+    // session — the shared stream status stays `done` globally, but each
+    // window tracks its own "already seen" flag.
     if (isFulfilled && activeSessionId === session.id) {
-      cacheService.set(`topic.stream.status.${sessionTopicId}` as const, undefined)
+      markSeen()
     }
-  }, [activeSessionId, isFulfilled, session.id, sessionTopicId])
+  }, [activeSessionId, isFulfilled, markSeen, session.id])
 
   const channelIcon = getChannelTypeIcon(channelType)
 

@@ -18,6 +18,7 @@ import { modelGenerating } from '@renderer/hooks/useModel'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { finishTopicRenaming, getTopicMessages, startTopicRenaming } from '@renderer/hooks/useTopic'
 import { useTopicsByAssistant } from '@renderer/hooks/useTopicDataApi'
+import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -109,12 +110,12 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
   })
 
   useEffect(() => {
-    // Clear the fulfilled badge for the active topic — Main still holds
-    // the `done` status during the grace period, so we need to locally
-    // mark it as consumed when the user opens the topic.
-    const key = `topic.stream.status.${activeTopic.id}` as const
-    if (cacheService.get(key) === 'done') {
-      cacheService.set(key, undefined)
+    // Mark the fulfilled badge as consumed when the user opens the
+    // topic. The shared stream status stays `done` globally; each
+    // window tracks its own "already seen" flag in the local cache.
+    const key = `topic.stream.seen.${activeTopic.id}` as const
+    if (cacheService.get(key) !== true) {
+      cacheService.set(key, true)
     }
   }, [activeTopic.id])
 
@@ -813,9 +814,9 @@ const TopicEditInput = styled.input`
  * `streamActiveCount` tripwire.
  */
 const TopicStreamIndicator = ({ topicId }: { topicId: string }) => {
-  const [status] = useCache(`topic.stream.status.${topicId}` as const)
-  if (status === 'pending' || status === 'streaming') return <PendingIndicator />
-  if (status === 'done') return <FulfilledIndicator />
+  const { isPending, isFulfilled } = useTopicStreamStatus(topicId)
+  if (isPending) return <PendingIndicator />
+  if (isFulfilled) return <FulfilledIndicator />
   return null
 }
 

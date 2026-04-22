@@ -1,6 +1,7 @@
 import type { MinAppType, Topic } from '@types'
 import type { UpdateInfo } from 'builder-util-runtime'
 
+import type { TopicStatusSnapshotEntry } from '../../ai/transport'
 import type { WebSearchStatus } from '../types/webSearch'
 
 export type CacheAppUpdateState = {
@@ -16,6 +17,15 @@ export type CacheAppUpdateState = {
 }
 
 export type CacheActiveSearches = Record<string, WebSearchStatus>
+
+/**
+ * Shared-cache map of every currently-tracked topic's stream state.
+ * Keyed by topicId. Written exclusively by Main's `AiStreamManager` at
+ * each state transition; a missing entry means "no active stream on
+ * that topic". Terminal entries (`done` / `aborted` / `error`) linger
+ * until each window flips its local `topic.stream.seen.*` flag.
+ */
+export type CacheTopicStreamStatuses = Record<string, TopicStatusSnapshotEntry>
 
 // For cache schema, we use any for complex types to avoid circular dependencies
 // The actual type checking will be done at runtime by the cache system

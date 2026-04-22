@@ -82,7 +82,7 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
     const prior = await temporaryChatService.listMessages(req.topicId)
     const history: CherryUIMessage[] = prior.map((m) => ({
       id: m.id,
-      role: m.role as CherryUIMessage['role'],
+      role: m.role,
       parts: m.data.parts ?? []
     }))
 

@@ -37,7 +37,7 @@ import { generateText, type LanguageModel, type ModelMessage } from 'ai'
 
 import { knowledgeSearchTool } from '../tools/KnowledgeSearchTool'
 import { webSearchToolWithPreExtractedKeywords } from '../tools/WebSearchTool'
-import { type ExtractResults, extractInfoFromXML } from '../utils/extract'
+import { extractInfoFromXML, type ExtractResults } from '../utils/extract'
 
 const logger = loggerService.withContext('SearchOrchestrationPlugin')
 

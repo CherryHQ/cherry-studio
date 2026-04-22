@@ -1,7 +1,6 @@
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { WindowType } from '@main/core/window/types'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
 import type {
   AiStreamAbortRequest,
@@ -9,8 +8,6 @@ import type {
   AiStreamAttachResponse,
   AiStreamDetachRequest,
   AiStreamOpenRequest,
-  TopicStatusChangedPayload,
-  TopicStatusSnapshotEntry,
   TopicStreamStatus
 } from '@shared/ai/transport'
 import { DEFAULT_TIMEOUT } from '@shared/config/constant'
@@ -173,8 +170,6 @@ export class AiStreamManager extends BaseService {
     this.ipcHandle(IpcChannel.Ai_Stream_Abort, (_, req: AiStreamAbortRequest) => {
       this.abort(req.topicId, 'user-requested')
     })
-
-    this.ipcHandle(IpcChannel.Ai_Topic_GetStatuses, () => this.getTopicStatuses())
 
     logger.info('AiStreamManager initialized')
   }
@@ -561,27 +556,30 @@ export class AiStreamManager extends BaseService {
   }
 
   /**
-   * Broadcast a topic-level status transition to every window. Unlike the
-   * per-listener terminal events (`Ai_StreamDone` / `Ai_StreamError`), this
-   * channel is unconditional — observer windows that never called `attach`
-   * still learn when a topic transitions between pending / streaming /
-   * done / aborted / error. Callers are responsible for updating
-   * `stream.status` first so the broadcast reflects the committed state.
+   * Publish a topic-level status transition to the SharedCache. Every
+   * renderer window receives the update via the existing `Cache_Sync`
+   * fan-out and reacts via `useSharedCache('topic.stream.status.*')`.
+   * Callers are responsible for updating `stream.status` first so the
+   * published value reflects the committed state.
    *
-   * The grace-period cleanup does NOT broadcast — cache mirrors retain
-   * the last terminal status until a local consumer (e.g. the
-   * active-topic `useEffect` in `Topics.tsx`) evicts it, mirroring the
-   * pre-refactor "fulfilled flag sticks until the user sees it" behaviour.
+   * Writing to SharedCache reuses the generic cache-sync plumbing —
+   * single source of truth in Main, auto-bootstrap on fresh renderer
+   * mounts via `Cache_GetAllShared`, and no hand-rolled subscriber
+   * tracking.
+   *
+   * The grace-period cleanup does NOT delete the shared entry — a
+   * `'done'` / `'aborted'` / `'error'` value lingers until each window
+   * flips its local `topic.stream.seen.*` flag, mirroring the pre-refactor
+   * "fulfilled indicator sticks until the user sees it" behaviour.
    */
   private broadcastTopicStatus(topicId: string, status: TopicStreamStatus): void {
     const activeExecutionIds = this.collectActiveExecutionIds(topicId)
-    const payload: TopicStatusChangedPayload = { topicId, status, activeExecutionIds }
-    // `Ai_TopicStatusChanged` is consumed by AppShell's
-    // `useAiStreamTopicCache` and by each `useChatWithHistory` /
-    // `V2ChatContent` instance — all of which mount exclusively inside the
-    // Main window. DetachedTab's `DetachedAppShell` doesn't subscribe, and
-    // quick-assistant / selection windows have no chat UI at all.
-    application.get('WindowManager').broadcastToType(WindowType.Main, IpcChannel.Ai_TopicStatusChanged, payload)
+    const cacheService = application.get('CacheService')
+    const current = cacheService.getShared('topic.stream.statuses') ?? {}
+    cacheService.setShared('topic.stream.statuses', {
+      ...current,
+      [topicId]: { status, activeExecutionIds }
+    })
   }
 
   /**
@@ -598,24 +596,6 @@ export class AiStreamManager extends BaseService {
       if (exec.status === 'streaming') ids.push(modelId)
     }
     return ids
-  }
-
-  /**
-   * Snapshot of every currently-tracked topic's status and its
-   * `activeExecutionIds`. Used by freshly mounted renderer hooks to
-   * bootstrap their view before the push channel starts delivering
-   * deltas. Topics whose grace period has already expired are absent
-   * from the map — consumers treat "missing key" as "no active stream".
-   */
-  getTopicStatuses(): Record<string, TopicStatusSnapshotEntry> {
-    const result: Record<string, TopicStatusSnapshotEntry> = {}
-    for (const [topicId, stream] of this.activeStreams) {
-      result[topicId] = {
-        status: stream.status,
-        activeExecutionIds: this.collectActiveExecutionIds(topicId)
-      }
-    }
-    return result
   }
 
   // ── Internal helpers ──────────────────────────────────────────────

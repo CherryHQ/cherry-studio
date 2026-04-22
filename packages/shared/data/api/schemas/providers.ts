@@ -81,7 +81,9 @@ export type UpdateProviderDto = z.infer<typeof UpdateProviderSchema>
 /** Query parameters for GET /providers */
 export const ListProvidersQuerySchema = z.strictObject({
   /** Filter by enabled status */
-  enabled: z.boolean().optional()
+  enabled: z.boolean().optional(),
+  /** Filter by endpoint type (kebab-case `EndpointType` value) */
+  endpointType: z.string().optional() as z.ZodOptional<z.ZodType<EndpointType>>
 })
 export type ListProvidersQuery = z.infer<typeof ListProvidersQuerySchema>
 

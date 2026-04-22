@@ -1,7 +1,6 @@
 import '@renderer/databases'
 
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
-import { useAiStreamTopicCache } from '@renderer/services/aiStreamTopicCache'
 import { cn } from '@renderer/utils'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { Activity } from 'react'
@@ -24,8 +23,6 @@ const WebviewContainer = ({ url, isActive }: { url: string; isActive: boolean })
 export const AppShell = () => {
   const isMacTransparentWindow = useMacTransparentWindow()
   const { tabs, activeTabId, setActiveTab, closeTab, updateTab, addTab, reorderTabs, pinTab, unpinTab } = useTabs()
-  // TODO: move to assistant/agent context
-  useAiStreamTopicCache()
 
   // Sync internal navigation back to tab state with default title
   const handleUrlChange = (tabId: string, url: string) => {

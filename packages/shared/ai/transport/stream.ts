@@ -31,26 +31,13 @@ export type TopicStreamStatus =
   | 'error' // at least one execution errored with isTopicDone
 
 /**
- * Payload of the topic-status push event.
+ * Per-topic stream state entry — stored under the shared
+ * `topic.stream.statuses` cache key, keyed by topicId.
  *
  * `activeExecutionIds` names every execution still in its non-terminal
  * phase (`exec.status === 'streaming'` — set at launch, cleared only by
- * `done` / `error` / `aborted`). Carried alongside the status so
- * renderers don't need to re-derive it by subscribing to
- * `onStreamChunk` and deduping. Empty when every execution has hit a
+ * `done` / `error` / `aborted`). Empty when every execution has hit a
  * terminal state.
- */
-export interface TopicStatusChangedPayload {
-  topicId: string
-  status: TopicStreamStatus
-  activeExecutionIds: UniqueModelId[]
-}
-
-/**
- * Snapshot entry returned by `Ai_Topic_GetStatuses` — mirrors the push
- * payload minus `topicId` (the map key). Topics whose grace period has
- * already expired are absent from the map so freshly-mounted observers
- * start clean without stale data.
  */
 export interface TopicStatusSnapshotEntry {
   status: TopicStreamStatus

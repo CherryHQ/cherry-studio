@@ -28,7 +28,6 @@ export type {
   StreamChunkPayload,
   StreamDonePayload,
   StreamErrorPayload,
-  TopicStatusChangedPayload,
   TopicStatusSnapshotEntry,
   TopicStreamStatus
 } from './stream'

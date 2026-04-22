@@ -11,7 +11,6 @@
  */
 
 import { useChat } from '@ai-sdk/react'
-import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
 import type { Message } from '@renderer/types/newMessage'
@@ -25,6 +24,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 
 import type { MessageMetadataMap } from './useTopicMessagesV2'
+import { useTopicStreamStatus } from './useTopicStreamStatus'
 
 const logger = loggerService.withContext('useChatWithHistory')
 
@@ -113,12 +113,11 @@ export function useChatWithHistory(
   const refreshRef = useRef(refresh)
   refreshRef.current = refresh
 
-  // Active execution IDs for this topic are mirrored from Main's
-  // `AiStreamManager` via the topic-status push channel (see
-  // `aiStreamTopicCache`). Absence / empty cache value means "no
-  // executions currently running".
-  const [activeExecutionIdsFromCache] = useCache(`topic.stream.executions.${topicId}` as const)
-  const activeExecutionIds = activeExecutionIdsFromCache ?? EMPTY_EXECUTIONS
+  // Active execution IDs for this topic come from the shared
+  // `topic.stream.statuses` Record authored by Main's `AiStreamManager`.
+  // An empty / missing entry means "no executions currently running".
+  const { status: topicStreamStatus, activeExecutionIds: liveExecutionIds } = useTopicStreamStatus(topicId)
+  const activeExecutionIds = liveExecutionIds.length > 0 ? liveExecutionIds : EMPTY_EXECUTIONS
 
   const resumeInFlightRef = useRef<Promise<void> | null>(null)
   const latestAssistantMessageId = useMemo(() => {
@@ -172,22 +171,21 @@ export function useChatWithHistory(
     resumeActiveStream('mount')
   }, [resumeActiveStream])
 
+  // Trigger reattach when a new stream is created on this topic.
+  // The `pending` transition uniquely marks "send() just created a new
+  // ActiveStream"; downstream deltas (streaming / done / error /
+  // aborted) describe an ongoing lifecycle and must not retrigger a
+  // reattach. Reading `status` from the shared cache instead of a
+  // custom IPC means we only need to guard against re-firing for the
+  // same pending entry.
+  const prevTopicStatusRef = useRef<typeof topicStreamStatus>(undefined)
   useEffect(() => {
-    // Trigger reattach when Main notifies that a new stream has been
-    // created on this topic. The `pending` transition uniquely marks
-    // "send() just created a new ActiveStream" — subsequent deltas
-    // (streaming / done / error / aborted / idle) describe an ongoing
-    // lifecycle and must not retrigger a reattach.
-    const unsub = window.api.ai.topic.onStatusChanged((data) => {
-      if (data.topicId !== topicId) return
-      if (data.status !== 'pending') return
+    const prev = prevTopicStatusRef.current
+    prevTopicStatusRef.current = topicStreamStatus
+    if (topicStreamStatus === 'pending' && prev !== 'pending') {
       resumeActiveStream('started-event')
-    })
-
-    return () => {
-      unsub()
     }
-  }, [resumeActiveStream, topicId])
+  }, [resumeActiveStream, topicStreamStatus])
 
   const refreshAndReplace = useCallback(() => {
     void refreshRef
