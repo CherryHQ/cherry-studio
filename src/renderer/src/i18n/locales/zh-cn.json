@@ -3880,6 +3880,22 @@
       "description": "将 Agent 连接到 Telegram、飞书、Discord 等消息平台。",
       "title": "频道"
     },
+    "componentLab": {
+      "description": "仅在开发环境显示，用于在应用内直接联调新的模型选择组件。",
+      "label": "组件测试",
+      "modelSelector": {
+        "description": "这里直接挂载当前的 ModelSelector 业务组件，方便验证选择、筛选、搜索和置顶能力。",
+        "empty": "当前没有可用模型，暂时无法展示选择器。",
+        "loading": "正在加载模型...",
+        "modelId": "模型 ID",
+        "provider": "服务商",
+        "selected": "当前选择",
+        "selectedEmpty": "尚未选择模型",
+        "title": "模型选择组件",
+        "triggerPlaceholder": "选择一个模型"
+      },
+      "title": "开发环境组件测试"
+    },
     "data": {
       "app_data": {
         "copy_data_option": "复制数据，会自动重启后将原始目录数据复制到新目录",
