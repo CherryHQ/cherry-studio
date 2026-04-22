@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import RagConfigPanel from '../RagConfigPanel'
 
-const mockUseKnowledgeConfig = vi.fn()
+const mockUseKnowledgeRagConfig = vi.fn()
 const mockSave = vi.fn()
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -47,7 +47,7 @@ vi.mock('@cherrystudio/ui', () => ({
 }))
 
 vi.mock('../../../hooks', () => ({
-  useKnowledgeConfig: (base: KnowledgeBase) => mockUseKnowledgeConfig(base)
+  useKnowledgeRagConfig: (base: KnowledgeBase) => mockUseKnowledgeRagConfig(base)
 }))
 
 vi.mock('react-i18next', () => ({
@@ -58,21 +58,22 @@ vi.mock('react-i18next', () => ({
           'common.reset': '重置',
           'common.save': '保存',
           'common.saved': '已保存',
-          'knowledge.error.failed_to_edit': '保存失败',
+          'knowledge_v2.error.failed_to_edit': '保存失败',
           'knowledge.not_set': '未设置',
-          'knowledge.settings.preprocessing': '文档预处理',
           'knowledge.chunk_size': '分块大小',
           'knowledge.chunk_overlap': '分块重叠',
           'knowledge.chunk_size_change_warning': '修改分块参数后，旧文档需要重新处理',
           'knowledge.embedding_model': 'Embedding 模型',
           'knowledge.dimensions': '向量维度',
-          'knowledge.document_count': '文档数量',
-          'knowledge.threshold': '相似度阈值',
           'models.rerank_model': 'Rerank 模型',
+          'knowledge_v2.rag.document_count': '文档数量',
+          'knowledge_v2.rag.file_processing': '文件处理',
+          'knowledge_v2.rag.file_processing_hint':
+            '文件处理会在文档导入时自动执行，选择合适的处理服务商可提升文档解析质量',
           'knowledge_v2.rag.processor': '处理服务商',
-          'knowledge_v2.rag.preprocessing_hint': '导入文档时自动执行预处理',
           'knowledge_v2.rag.chunking': '分块规则',
           'knowledge_v2.rag.retrieval': '检索设置',
+          'knowledge_v2.rag.threshold': '相似度阈值',
           'knowledge_v2.rag.tokens_unit': 'tokens',
           'knowledge_v2.rag.search_mode.title': '检索模式',
           'knowledge_v2.rag.search_mode.default': '向量检索',
@@ -119,7 +120,7 @@ describe('RagConfigPanel', () => {
       }
     })
 
-    mockUseKnowledgeConfig.mockReturnValue({
+    mockUseKnowledgeRagConfig.mockReturnValue({
       initialValues: {
         fileProcessorId: null,
         chunkSize: '512',
@@ -204,7 +205,7 @@ describe('RagConfigPanel', () => {
   })
 
   it('shows hybrid alpha when the current search mode is hybrid', () => {
-    mockUseKnowledgeConfig.mockReturnValueOnce({
+    mockUseKnowledgeRagConfig.mockReturnValueOnce({
       initialValues: {
         fileProcessorId: null,
         chunkSize: '512',

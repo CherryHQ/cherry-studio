@@ -5,7 +5,7 @@ export interface KnowledgeV2BaseGroupSection {
   items: KnowledgeBase[]
 }
 
-export const buildKnowledgeV2BaseGroupSections = (
+export const buildKnowledgeBaseGroupSections = (
   bases: ReadonlyArray<KnowledgeBase>,
   searchValue: string
 ): KnowledgeV2BaseGroupSection[] => {

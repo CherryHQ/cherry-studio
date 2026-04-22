@@ -3,29 +3,14 @@ import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useKnowledgeConfig } from '../../hooks'
-import type { KnowledgeConfigFormValues } from '../../types'
+import { useKnowledgeRagConfig } from '../../hooks'
+import { getKnowledgeRagConfigFormState } from '../../utils'
 import ChunkingSection from './ChunkingSection'
 import EmbeddingSection from './EmbeddingSection'
-import PreprocessSection from './PreprocessSection'
+import FileProcessingSection from './FileProcessingSection'
 import RetrievalSection from './RetrievalSection'
 
-interface RagConfigPanelProps {
-  base: KnowledgeBase
-}
-
-const sanitizeIntegerInput = (value: string) => value.replace(/\D/g, '')
-
-const parseInteger = (value: string) => {
-  if (!value) {
-    return null
-  }
-
-  const parsed = Number(value)
-  return Number.isInteger(parsed) ? parsed : null
-}
-
-const RagConfigPanel = ({ base }: RagConfigPanelProps) => {
+const RagConfigPanel = ({ base }: { base: KnowledgeBase }) => {
   const { t } = useTranslation()
   const {
     initialValues,
@@ -35,43 +20,18 @@ const RagConfigPanel = ({ base }: RagConfigPanelProps) => {
     searchModeOptions,
     save,
     isLoading
-  } = useKnowledgeConfig(base)
+  } = useKnowledgeRagConfig(base)
   const [values, setValues] = useState(initialValues)
 
   useEffect(() => {
     setValues(initialValues)
   }, [initialValues])
 
-  const validationErrors = useMemo(() => {
-    const chunkSize = parseInteger(values.chunkSize)
-    const chunkOverlap = parseInteger(values.chunkOverlap)
-    const errors: { chunkSize?: string; chunkOverlap?: string } = {}
-
-    if (values.chunkSize && (!chunkSize || chunkSize <= 0)) {
-      errors.chunkSize = t('knowledge_v2.rag.chunk_size_invalid')
-    }
-
-    if (values.chunkOverlap && (chunkOverlap == null || chunkOverlap < 0)) {
-      errors.chunkOverlap = t('knowledge_v2.rag.chunk_overlap_invalid')
-    }
-
-    if (chunkSize != null && chunkOverlap != null && chunkOverlap >= chunkSize) {
-      errors.chunkOverlap = t('knowledge_v2.rag.chunk_overlap_must_be_smaller')
-    }
-
-    return errors
-  }, [t, values.chunkOverlap, values.chunkSize])
-
-  const isDirty = JSON.stringify(values) !== JSON.stringify(initialValues)
-  const hasEmptyChunkFields = values.chunkSize === '' || values.chunkOverlap === ''
-  const hasValidationErrors = Object.values(validationErrors).some(Boolean)
-
-  const updateValues = (patch: Partial<KnowledgeConfigFormValues>) => {
-    setValues((currentValues) => ({ ...currentValues, ...patch }))
-  }
+  const formState = useMemo(() => getKnowledgeRagConfigFormState(initialValues, values), [initialValues, values])
+  const { validationErrorCodes, isDirty, canSave } = formState
 
   const handleSave = async () => {
-    if (!isDirty || hasEmptyChunkFields || hasValidationErrors) {
+    if (!canSave) {
       return
     }
 
@@ -79,56 +39,44 @@ const RagConfigPanel = ({ base }: RagConfigPanelProps) => {
       await save(values)
       window.toast.success(t('common.saved'))
     } catch {
-      window.toast.error(t('knowledge.error.failed_to_edit'))
+      window.toast.error(t('knowledge_v2.error.failed_to_edit'))
     }
   }
 
   return (
     <Scrollbar className="h-full min-h-0">
-      <div className="mx-auto max-w-[30rem] space-y-5 px-5 py-4">
-        <PreprocessSection
-          title={t('knowledge.settings.preprocessing')}
+      <div className="mx-auto max-w-120 space-y-5 px-5 py-4">
+        <FileProcessingSection
           fileProcessorId={values.fileProcessorId}
           fileProcessorOptions={fileProcessorOptions}
-          notSetLabel={t('knowledge.not_set')}
-          processorLabel={t('knowledge_v2.rag.processor')}
-          preprocessingHint={t('knowledge_v2.rag.preprocessing_hint')}
-          onFileProcessorChange={(fileProcessorId) => updateValues({ fileProcessorId })}
+          onFileProcessorChange={(fileProcessorId) =>
+            setValues((currentValues) => ({ ...currentValues, fileProcessorId }))
+          }
         />
 
         <ChunkingSection
-          title={t('knowledge_v2.rag.chunking')}
-          chunkSizeLabel={t('knowledge.chunk_size')}
-          chunkOverlapLabel={t('knowledge.chunk_overlap')}
-          tokensUnitLabel={t('knowledge_v2.rag.tokens_unit')}
-          warningText={t('knowledge.chunk_size_change_warning')}
           chunkSize={values.chunkSize}
           chunkOverlap={values.chunkOverlap}
-          chunkSizeError={validationErrors.chunkSize}
-          chunkOverlapError={validationErrors.chunkOverlap}
-          onChunkSizeChange={(chunkSize) => updateValues({ chunkSize: sanitizeIntegerInput(chunkSize) })}
-          onChunkOverlapChange={(chunkOverlap) => updateValues({ chunkOverlap: sanitizeIntegerInput(chunkOverlap) })}
+          chunkSizeErrorCode={validationErrorCodes.chunkSize}
+          chunkOverlapErrorCode={validationErrorCodes.chunkOverlap}
+          onChunkSizeChange={(chunkSize) =>
+            setValues((currentValues) => ({ ...currentValues, chunkSize: chunkSize.replace(/\D/g, '') }))
+          }
+          onChunkOverlapChange={(chunkOverlap) =>
+            setValues((currentValues) => ({ ...currentValues, chunkOverlap: chunkOverlap.replace(/\D/g, '') }))
+          }
         />
 
         <EmbeddingSection
-          title={t('knowledge.embedding_model')}
-          embeddingLabel={t('knowledge.embedding_model')}
-          dimensionsLabel={t('knowledge.dimensions')}
-          placeholderLabel={t('knowledge.not_set')}
           embeddingModelId={values.embeddingModelId}
           embeddingModelOptions={embeddingModelOptions}
           dimensions={values.dimensions}
-          onEmbeddingModelChange={(embeddingModelId) => updateValues({ embeddingModelId })}
+          onEmbeddingModelChange={(embeddingModelId) =>
+            setValues((currentValues) => ({ ...currentValues, embeddingModelId }))
+          }
         />
 
         <RetrievalSection
-          title={t('knowledge_v2.rag.retrieval')}
-          documentCountLabel={t('knowledge.document_count')}
-          thresholdLabel={t('knowledge.threshold')}
-          searchModeLabel={t('knowledge_v2.rag.search_mode.title')}
-          hybridAlphaLabel={t('knowledge_v2.rag.hybrid_alpha')}
-          rerankLabel={t('models.rerank_model')}
-          notSetLabel={t('knowledge.not_set')}
           searchModeOptions={searchModeOptions}
           rerankModelOptions={rerankModelOptions}
           documentCount={values.documentCount}
@@ -136,11 +84,11 @@ const RagConfigPanel = ({ base }: RagConfigPanelProps) => {
           searchMode={values.searchMode}
           hybridAlpha={values.hybridAlpha}
           rerankModelId={values.rerankModelId}
-          onDocumentCountChange={(documentCount) => updateValues({ documentCount })}
-          onThresholdChange={(threshold) => updateValues({ threshold })}
-          onSearchModeChange={(searchMode) => updateValues({ searchMode })}
-          onHybridAlphaChange={(hybridAlpha) => updateValues({ hybridAlpha })}
-          onRerankModelChange={(rerankModelId) => updateValues({ rerankModelId })}
+          onDocumentCountChange={(documentCount) => setValues((currentValues) => ({ ...currentValues, documentCount }))}
+          onThresholdChange={(threshold) => setValues((currentValues) => ({ ...currentValues, threshold }))}
+          onSearchModeChange={(searchMode) => setValues((currentValues) => ({ ...currentValues, searchMode }))}
+          onHybridAlphaChange={(hybridAlpha) => setValues((currentValues) => ({ ...currentValues, hybridAlpha }))}
+          onRerankModelChange={(rerankModelId) => setValues((currentValues) => ({ ...currentValues, rerankModelId }))}
         />
 
         <div className="flex items-center justify-end gap-2 border-border/15 border-t pt-3">
@@ -155,7 +103,7 @@ const RagConfigPanel = ({ base }: RagConfigPanelProps) => {
           <Button
             type="button"
             loading={isLoading}
-            disabled={!isDirty || hasEmptyChunkFields || hasValidationErrors}
+            disabled={!canSave}
             className="h-6 min-h-6 rounded-md bg-emerald-400 px-3 text-[0.6875rem] text-white leading-4.125 shadow-none hover:bg-emerald-500"
             onClick={handleSave}>
             {t('common.save')}

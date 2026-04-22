@@ -1,56 +1,66 @@
 import { Layers3 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
+import type { KnowledgeRagChunkValidationErrorCode } from '../../utils'
 import { RagHintText, RagNumericField, RagSectionTitle } from './panelPrimitives'
 
 interface ChunkingSectionProps {
-  title: string
-  chunkSizeLabel: string
-  chunkOverlapLabel: string
-  tokensUnitLabel: string
-  warningText: string
   chunkSize: string
   chunkOverlap: string
-  chunkSizeError?: string
-  chunkOverlapError?: string
+  chunkSizeErrorCode?: KnowledgeRagChunkValidationErrorCode
+  chunkOverlapErrorCode?: KnowledgeRagChunkValidationErrorCode
   onChunkSizeChange: (value: string) => void
   onChunkOverlapChange: (value: string) => void
 }
 
 const ChunkingSection = ({
-  title,
-  chunkSizeLabel,
-  chunkOverlapLabel,
-  tokensUnitLabel,
-  warningText,
   chunkSize,
   chunkOverlap,
-  chunkSizeError,
-  chunkOverlapError,
+  chunkSizeErrorCode,
+  chunkOverlapErrorCode,
   onChunkSizeChange,
   onChunkOverlapChange
 }: ChunkingSectionProps) => {
+  const { t } = useTranslation()
+  const getValidationErrorMessage = (errorCode?: KnowledgeRagChunkValidationErrorCode) => {
+    switch (errorCode) {
+      case 'chunkSizeInvalid':
+        return t('knowledge_v2.rag.chunk_size_invalid')
+      case 'chunkOverlapInvalid':
+        return t('knowledge_v2.rag.chunk_overlap_invalid')
+      case 'chunkOverlapMustBeSmaller':
+        return t('knowledge_v2.rag.chunk_overlap_must_be_smaller')
+      default:
+        return undefined
+    }
+  }
+
   return (
     <section className="space-y-2.5">
-      <RagSectionTitle title={title} icon={Layers3} />
+      <RagSectionTitle title={t('knowledge_v2.rag.chunking')} icon={Layers3} />
 
       <div className="grid grid-cols-2 gap-2">
         <RagNumericField
-          label={chunkSizeLabel}
+          label={t('knowledge.chunk_size')}
           value={chunkSize}
-          suffix={tokensUnitLabel}
+          suffix={t('knowledge_v2.rag.tokens_unit')}
           onChange={onChunkSizeChange}
         />
         <RagNumericField
-          label={chunkOverlapLabel}
+          label={t('knowledge.chunk_overlap')}
           value={chunkOverlap}
-          suffix={tokensUnitLabel}
+          suffix={t('knowledge_v2.rag.tokens_unit')}
           onChange={onChunkOverlapChange}
         />
       </div>
 
-      {chunkSizeError ? <RagHintText tone="error">{chunkSizeError}</RagHintText> : null}
-      {chunkOverlapError ? <RagHintText tone="error">{chunkOverlapError}</RagHintText> : null}
-      <RagHintText tone="warning">{warningText}</RagHintText>
+      {chunkSizeErrorCode ? (
+        <RagHintText tone="error">{getValidationErrorMessage(chunkSizeErrorCode)}</RagHintText>
+      ) : null}
+      {chunkOverlapErrorCode ? (
+        <RagHintText tone="error">{getValidationErrorMessage(chunkOverlapErrorCode)}</RagHintText>
+      ) : null}
+      <RagHintText tone="warning">{t('knowledge.chunk_size_change_warning')}</RagHintText>
     </section>
   )
 }

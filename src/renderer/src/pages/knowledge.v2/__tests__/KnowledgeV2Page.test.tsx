@@ -50,11 +50,11 @@ vi.mock('../components/DetailTabs', () => ({
     onChange
   }: {
     dataSourceCount: number
-    onChange: (tab: 'data' | 'config' | 'recall') => void
+    onChange: (tab: 'data' | 'rag' | 'recall') => void
   }) => (
     <div>
       <div data-testid="detail-tabs">{dataSourceCount}</div>
-      <button type="button" onClick={() => onChange('config')}>
+      <button type="button" onClick={() => onChange('rag')}>
         RAG
       </button>
     </div>

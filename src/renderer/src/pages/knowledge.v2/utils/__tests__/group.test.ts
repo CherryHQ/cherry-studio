@@ -1,7 +1,7 @@
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { describe, expect, it } from 'vitest'
 
-import { buildKnowledgeV2BaseGroupSections } from '..'
+import { buildKnowledgeBaseGroupSections } from '..'
 
 const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeBase => ({
   id: '',
@@ -32,7 +32,7 @@ describe('buildKnowledgeV2BaseGroupSections', () => {
       createKnowledgeBase({ id: 'base-3', name: 'Gamma', groupId: 'work' })
     ]
 
-    expect(buildKnowledgeV2BaseGroupSections(bases, '')).toEqual([
+    expect(buildKnowledgeBaseGroupSections(bases, '')).toEqual([
       {
         groupId: 'work',
         items: [bases[0], bases[2]]
@@ -50,7 +50,7 @@ describe('buildKnowledgeV2BaseGroupSections', () => {
       createKnowledgeBase({ id: 'base-2', name: 'Beta Notes', groupId: 'personal' })
     ]
 
-    expect(buildKnowledgeV2BaseGroupSections(bases, 'notes')).toEqual([
+    expect(buildKnowledgeBaseGroupSections(bases, 'notes')).toEqual([
       {
         groupId: 'personal',
         items: [bases[1]]

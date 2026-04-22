@@ -3,7 +3,7 @@ import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useKnowledgeConfig } from '../useKnowledgeConfig'
+import { useKnowledgeRagConfig } from '../useKnowledgeRagConfig'
 
 const mockUseModels = vi.fn()
 const mockUseMutation = vi.fn()
@@ -114,7 +114,7 @@ describe('useKnowledgeConfig', () => {
       fileProcessorId: 'doc2x',
       rerankModelId: 'jina::jina-reranker-v2-base-multilingual'
     })
-    const { result } = renderHook(() => useKnowledgeConfig(base))
+    const { result } = renderHook(() => useKnowledgeRagConfig(base))
 
     expect(result.current.fileProcessorOptions).toEqual([
       { value: 'paddleocr', label: 'PaddleOCR' },

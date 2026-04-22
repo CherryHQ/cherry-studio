@@ -1,3 +1,4 @@
 export { useKnowledgeBases } from './useKnowledgeBases'
-export { useKnowledgeConfig } from './useKnowledgeConfig'
 export { useKnowledgeItems } from './useKnowledgeItems'
+export { useKnowledgeRagConfig } from './useKnowledgeRagConfig'
+export { useKnowledgeRagConfig as useKnowledgeConfig } from './useKnowledgeRagConfig'

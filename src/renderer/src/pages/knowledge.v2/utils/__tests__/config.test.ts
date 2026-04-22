@@ -1,7 +1,7 @@
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { describe, expect, it } from 'vitest'
 
-import { buildKnowledgeV2RagConfigPatch, createKnowledgeV2RagConfigFormValues } from '..'
+import { buildKnowledgeRagConfigPatch, createKnowledgeRagConfigFormValues } from '..'
 
 const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeBase => ({
   id: '',
@@ -37,7 +37,7 @@ describe('createKnowledgeV2RagConfigFormValues', () => {
       hybridAlpha: undefined
     })
 
-    expect(createKnowledgeV2RagConfigFormValues(base)).toEqual({
+    expect(createKnowledgeRagConfigFormValues(base)).toEqual({
       fileProcessorId: 'doc2x',
       chunkSize: '512',
       chunkOverlap: '64',
@@ -54,7 +54,7 @@ describe('createKnowledgeV2RagConfigFormValues', () => {
 
 describe('buildKnowledgeV2RagConfigPatch', () => {
   it('builds a minimal patch for changed RAG config fields', () => {
-    const initialValues = createKnowledgeV2RagConfigFormValues(
+    const initialValues = createKnowledgeRagConfigFormValues(
       createKnowledgeBase({
         fileProcessorId: 'doc2x',
         chunkSize: 512,
@@ -79,7 +79,7 @@ describe('buildKnowledgeV2RagConfigPatch', () => {
       hybridAlpha: 0.7
     }
 
-    expect(buildKnowledgeV2RagConfigPatch(initialValues, nextValues)).toEqual({
+    expect(buildKnowledgeRagConfigPatch(initialValues, nextValues)).toEqual({
       fileProcessorId: 'mineru',
       chunkSize: 1024,
       chunkOverlap: 128,
@@ -93,7 +93,7 @@ describe('buildKnowledgeV2RagConfigPatch', () => {
   })
 
   it('only emits numeric chunk patches and keeps hybrid alpha clearing behavior', () => {
-    const initialValues = createKnowledgeV2RagConfigFormValues(
+    const initialValues = createKnowledgeRagConfigFormValues(
       createKnowledgeBase({
         chunkSize: 512,
         chunkOverlap: 64,
@@ -109,7 +109,7 @@ describe('buildKnowledgeV2RagConfigPatch', () => {
       hybridAlpha: 0.6
     }
 
-    expect(buildKnowledgeV2RagConfigPatch(initialValues, nextValues)).toEqual({
+    expect(buildKnowledgeRagConfigPatch(initialValues, nextValues)).toEqual({
       chunkSize: 768,
       searchMode: 'default',
       hybridAlpha: null
@@ -117,7 +117,7 @@ describe('buildKnowledgeV2RagConfigPatch', () => {
   })
 
   it('does not force display defaults into the patch when the user did not change them', () => {
-    const initialValues = createKnowledgeV2RagConfigFormValues(
+    const initialValues = createKnowledgeRagConfigFormValues(
       createKnowledgeBase({
         documentCount: undefined,
         threshold: undefined,
@@ -126,7 +126,7 @@ describe('buildKnowledgeV2RagConfigPatch', () => {
       })
     )
 
-    expect(buildKnowledgeV2RagConfigPatch(initialValues, initialValues)).toEqual({
+    expect(buildKnowledgeRagConfigPatch(initialValues, initialValues)).toEqual({
       hybridAlpha: null
     })
   })

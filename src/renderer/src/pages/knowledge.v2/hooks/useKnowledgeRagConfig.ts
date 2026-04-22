@@ -7,8 +7,8 @@ import { isUniqueModelId, MODEL_CAPABILITY, parseUniqueModelId } from '@shared/d
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { KnowledgeConfigFormValues, KnowledgeSelectOption } from '../types'
-import { buildKnowledgeV2RagConfigPatch, createKnowledgeV2RagConfigFormValues } from '../utils'
+import type { KnowledgeRagConfigFormValues, KnowledgeSelectOption } from '../types'
+import { buildKnowledgeRagConfigPatch, createKnowledgeRagConfigFormValues } from '../utils'
 
 const KNOWLEDGE_V2_FILE_PROCESSORS = PRESETS_FILE_PROCESSORS.filter((preset) =>
   preset.capabilities.some(
@@ -25,7 +25,7 @@ const formatModelOptionLabel = (uniqueModelId: string) => {
   return `${modelId} · ${providerId}`
 }
 
-export const useKnowledgeConfig = (base: KnowledgeBase) => {
+export const useKnowledgeRagConfig = (base: KnowledgeBase) => {
   const { t } = useTranslation()
   const { models: embeddingModels } = useModels({
     capability: MODEL_CAPABILITY.EMBEDDING,
@@ -39,7 +39,7 @@ export const useKnowledgeConfig = (base: KnowledgeBase) => {
     refresh: ['/knowledge-bases']
   })
 
-  const initialValues = useMemo(() => createKnowledgeV2RagConfigFormValues(base), [base])
+  const initialValues = useMemo(() => createKnowledgeRagConfigFormValues(base), [base])
 
   const fileProcessorOptions = useMemo(() => {
     return KNOWLEDGE_V2_FILE_PROCESSORS.map((processor) => ({
@@ -71,10 +71,10 @@ export const useKnowledgeConfig = (base: KnowledgeBase) => {
     [t]
   )
 
-  const save = (values: KnowledgeConfigFormValues) => {
+  const save = (values: KnowledgeRagConfigFormValues) => {
     return trigger({
       params: { id: base.id },
-      body: buildKnowledgeV2RagConfigPatch(initialValues, values)
+      body: buildKnowledgeRagConfigPatch(initialValues, values)
     })
   }
 

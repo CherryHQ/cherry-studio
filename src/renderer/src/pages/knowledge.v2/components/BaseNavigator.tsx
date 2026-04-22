@@ -8,7 +8,7 @@ import {
   Scrollbar
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { buildKnowledgeV2BaseGroupSections } from '@renderer/pages/knowledge.v2/utils'
+import { buildKnowledgeBaseGroupSections } from '@renderer/pages/knowledge.v2/utils'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { BookOpenText, FolderPlus, Plus, Search } from 'lucide-react'
 import type { MouseEvent as ReactMouseEvent } from 'react'
@@ -43,21 +43,10 @@ const BaseNavigator = ({
   const { t } = useTranslation()
   const [searchValue, setSearchValue] = useState('')
 
-  const baseGroupSections = useMemo(() => buildKnowledgeV2BaseGroupSections(bases, searchValue), [bases, searchValue])
-
-  const getGroupLabel = (groupId: string | null) => {
-    if (!groupId) {
-      return t('assistants.tags.untagged')
-    }
-
-    const labelKeyByGroupId: Partial<Record<string, string>> = {
-      personal: 'knowledge_v2.groups.personal',
-      project: 'knowledge_v2.groups.project',
-      work: 'knowledge_v2.groups.work'
-    }
-
-    return labelKeyByGroupId[groupId] ? t(labelKeyByGroupId[groupId]) : groupId
-  }
+  const knowledgeBaseGroupSections = useMemo(
+    () => buildKnowledgeBaseGroupSections(bases, searchValue),
+    [bases, searchValue]
+  )
 
   return (
     <div style={{ width }} className="relative h-full min-h-0 shrink-0">
@@ -66,7 +55,7 @@ const BaseNavigator = ({
           <div className="flex h-11 shrink-0 items-center justify-between px-3.5">
             <div className="flex min-w-0 items-center gap-1.5 text-[0.6875rem] leading-4.125">
               <BookOpenText className="size-3 text-foreground" />
-              <span className="truncate text-foreground">{t('knowledge.title')}</span>
+              <span className="truncate text-foreground">{t('knowledge_v2.title')}</span>
               <span className="ml-0.5 text-muted-foreground/50">{bases.length}</span>
             </div>
 
@@ -77,7 +66,7 @@ const BaseNavigator = ({
                 size="icon-sm"
                 className="size-5 min-h-5 min-w-5 rounded p-0 text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
                 onClick={onCreateBase}
-                aria-label={t('knowledge.add.title')}>
+                aria-label={t('knowledge_v2.add.title')}>
                 <FolderPlus className="size-3" />
               </Button>
               <Button
@@ -86,7 +75,7 @@ const BaseNavigator = ({
                 size="icon-sm"
                 className="size-5 min-h-5 min-w-5 rounded p-0 text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
                 onClick={onCreateBase}
-                aria-label={t('knowledge.add.title')}>
+                aria-label={t('knowledge_v2.add.title')}>
                 <Plus className="size-3" />
               </Button>
             </div>
@@ -98,7 +87,7 @@ const BaseNavigator = ({
               <Input
                 value={searchValue}
                 onChange={(event) => setSearchValue(event.target.value)}
-                placeholder={`${t('knowledge.search')}...`}
+                placeholder={`${t('knowledge_v2.search')}...`}
                 className="h-auto flex-1 border-0 bg-transparent px-0 py-0 text-[0.6875rem] text-foreground leading-4.125 shadow-none placeholder:text-muted-foreground/40 focus-visible:border-0 focus-visible:ring-0 md:text-[0.6875rem]"
               />
             </div>
@@ -108,14 +97,14 @@ const BaseNavigator = ({
         <Scrollbar className={cn('min-h-0 flex-1 px-1.5')}>
           {bases.length === 0 ? (
             <div className="flex h-full items-center justify-center px-4 text-center text-[0.6875rem] text-muted-foreground/60">
-              {t('knowledge.empty')}
+              {t('knowledge_v2.empty')}
             </div>
           ) : (
             <Accordion
               type="multiple"
-              defaultValue={baseGroupSections.map(({ groupId }) => groupId ?? 'ungrouped')}
+              defaultValue={knowledgeBaseGroupSections.map(({ groupId }) => groupId ?? 'ungrouped')}
               className="space-y-1.5">
-              {baseGroupSections.map(({ groupId, items }) => {
+              {knowledgeBaseGroupSections.map(({ groupId, items }) => {
                 const groupValue = groupId ?? 'ungrouped'
 
                 return (
@@ -128,7 +117,9 @@ const BaseNavigator = ({
                         'flex-row-reverse'
                       )}>
                       <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                        <span className="truncate font-medium tracking-widest">{getGroupLabel(groupId)}</span>
+                        <span className="truncate font-medium tracking-widest">
+                          {groupId || t('knowledge_v2.groups.ungrouped')}
+                        </span>
                         <span className="shrink-0 text-foreground/45">{items.length}</span>
                       </div>
                     </AccordionTrigger>
@@ -188,7 +179,7 @@ const BaseNavigator = ({
             className="h-7.25 min-h-7.25 w-full rounded-lg border border-border/40 border-dashed py-1.25 font-medium text-[0.6875rem] text-muted-foreground shadow-none hover:border-border/70 hover:bg-accent/60 hover:text-foreground"
             onClick={onCreateBase}>
             <Plus className="size-3" />
-            {t('knowledge.add.title')}
+            {t('knowledge_v2.add.title')}
           </Button>
         </div>
       </aside>

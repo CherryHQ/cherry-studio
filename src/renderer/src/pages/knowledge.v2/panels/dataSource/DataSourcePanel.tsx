@@ -1,5 +1,6 @@
 import { Button, Scrollbar } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { formatRelativeTime } from '@renderer/pages/knowledge.v2/utils'
 import { formatFileSize } from '@renderer/utils'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 import { Check, CircleAlert, FileText, Folder, Globe, Link2, LoaderCircle, Plus, StickyNote } from 'lucide-react'
@@ -172,22 +173,6 @@ const DataSourcePanel = ({ items = [], isLoading = false }: DataSourcePanelProps
     [dataSourceItems]
   )
 
-  const formatRelativeTime = (value: string) => {
-    const diffMs = new Date(value).getTime() - Date.now()
-    const absMs = Math.abs(diffMs)
-    const formatter = new Intl.RelativeTimeFormat(i18n.language, { numeric: 'auto' })
-
-    if (absMs < 60 * 60 * 1000) {
-      return formatter.format(Math.round(diffMs / (60 * 1000)), 'minute')
-    }
-
-    if (absMs < 24 * 60 * 60 * 1000) {
-      return formatter.format(Math.round(diffMs / (60 * 60 * 1000)), 'hour')
-    }
-
-    return formatter.format(Math.round(diffMs / (24 * 60 * 60 * 1000)), 'day')
-  }
-
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex shrink-0 items-center justify-between px-3 py-2">
@@ -241,8 +226,8 @@ const DataSourcePanel = ({ items = [], isLoading = false }: DataSourcePanelProps
           <div className="divide-y divide-border/15">
             {visibleItems.map((item) => {
               const Icon = item.icon
-              const metaParts = [item.sizeLabel, formatRelativeTime(item.updatedAt)].filter((part): part is string =>
-                Boolean(part)
+              const metaParts = [item.sizeLabel, formatRelativeTime(item.updatedAt, i18n.language)].filter(
+                (part): part is string => Boolean(part)
               )
 
               return (

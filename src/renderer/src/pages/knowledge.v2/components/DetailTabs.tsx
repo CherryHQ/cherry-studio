@@ -29,7 +29,7 @@ const DetailTabs = ({ activeTab, dataSourceCount, onChange }: DetailTabsProps) =
           </TabsTrigger>
 
           <TabsTrigger
-            value="config"
+            value="rag"
             className="gap-1 px-2.5 py-2 text-[0.625rem] text-muted-foreground/60 leading-3.75 after:h-0.5 after:rounded-none after:bg-transparent hover:text-foreground data-[state=active]:text-foreground data-[state=active]:after:h-0.5 data-[state=active]:after:bg-primary">
             <SlidersHorizontal className="size-3" />
             <span>{t('knowledge_v2.tabs.rag_config')}</span>

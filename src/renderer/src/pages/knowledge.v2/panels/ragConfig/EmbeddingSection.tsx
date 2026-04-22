@@ -1,13 +1,10 @@
 import type { KnowledgeSelectOption } from '@renderer/pages/knowledge.v2/types'
 import { DatabaseZap } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import { RagFieldLabel, RagReadonlyField, RagSectionTitle, RagSelectField } from './panelPrimitives'
 
 interface EmbeddingSectionProps {
-  title: string
-  embeddingLabel: string
-  dimensionsLabel: string
-  placeholderLabel: string
   embeddingModelId: string | null
   embeddingModelOptions: KnowledgeSelectOption[]
   dimensions: number
@@ -15,31 +12,29 @@ interface EmbeddingSectionProps {
 }
 
 const EmbeddingSection = ({
-  title,
-  embeddingLabel,
-  dimensionsLabel,
-  placeholderLabel,
   embeddingModelId,
   embeddingModelOptions,
   dimensions,
   onEmbeddingModelChange
 }: EmbeddingSectionProps) => {
+  const { t } = useTranslation()
+
   return (
     <section className="space-y-2.5">
-      <RagSectionTitle title={title} icon={DatabaseZap} />
+      <RagSectionTitle title={t('knowledge.embedding_model')} icon={DatabaseZap} />
 
       <div className="grid grid-cols-[minmax(0,1fr)_8.75rem] gap-2">
         <div>
-          <RagFieldLabel label={embeddingLabel} />
+          <RagFieldLabel label={t('knowledge.embedding_model')} />
           <RagSelectField
             value={embeddingModelId ?? undefined}
             options={embeddingModelOptions}
-            placeholder={placeholderLabel}
+            placeholder={t('knowledge.not_set')}
             onValueChange={onEmbeddingModelChange}
           />
         </div>
 
-        <RagReadonlyField label={dimensionsLabel} value={String(dimensions)} />
+        <RagReadonlyField label={t('knowledge.dimensions')} value={String(dimensions)} />
       </div>
     </section>
   )

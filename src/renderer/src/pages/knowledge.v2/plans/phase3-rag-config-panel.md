@@ -9,7 +9,7 @@
 ## 建议落位文件
 
 - `src/renderer/src/pages/knowledge.v2/panels/ragConfig/RagConfigPanel.tsx`
-- `src/renderer/src/pages/knowledge.v2/panels/ragConfig/PreprocessSection.tsx`
+- `src/renderer/src/pages/knowledge.v2/panels/ragConfig/FileProcessingSection.tsx`
 - `src/renderer/src/pages/knowledge.v2/panels/ragConfig/ChunkingSection.tsx`
 - `src/renderer/src/pages/knowledge.v2/panels/ragConfig/EmbeddingSection.tsx`
 - `src/renderer/src/pages/knowledge.v2/panels/ragConfig/RetrievalSection.tsx`
@@ -17,7 +17,7 @@
 
 ## 范围
 
-- 落地 `文档预处理` 区块。
+- 落地 `文件处理` 区块。
 - 落地 `分块规则 (Chunking)` 区块。
 - 落地 `Embedding 模型` 区块。
 - 落地 `检索设置` 区块。

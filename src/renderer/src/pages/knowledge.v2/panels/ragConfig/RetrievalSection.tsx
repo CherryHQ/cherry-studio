@@ -1,6 +1,7 @@
 import type { KnowledgeSelectOption } from '@renderer/pages/knowledge.v2/types'
 import type { KnowledgeSearchMode } from '@shared/data/types/knowledge'
 import { Search } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import { RagFieldLabel, RagSectionTitle, RagSelectField, RagSliderField } from './panelPrimitives'
 
@@ -8,13 +9,6 @@ const EMPTY_OPTION_VALUE = '__none__'
 const DEFAULT_HYBRID_ALPHA = 0.5
 
 interface RetrievalSectionProps {
-  title: string
-  documentCountLabel: string
-  thresholdLabel: string
-  searchModeLabel: string
-  hybridAlphaLabel: string
-  rerankLabel: string
-  notSetLabel: string
   searchModeOptions: KnowledgeSelectOption[]
   rerankModelOptions: KnowledgeSelectOption[]
   documentCount: number
@@ -29,16 +23,7 @@ interface RetrievalSectionProps {
   onRerankModelChange: (value: string | null) => void
 }
 
-const formatFloat = (value: number) => value.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')
-
 const RetrievalSection = ({
-  title,
-  documentCountLabel,
-  thresholdLabel,
-  searchModeLabel,
-  hybridAlphaLabel,
-  rerankLabel,
-  notSetLabel,
   searchModeOptions,
   rerankModelOptions,
   documentCount,
@@ -52,14 +37,15 @@ const RetrievalSection = ({
   onHybridAlphaChange,
   onRerankModelChange
 }: RetrievalSectionProps) => {
+  const { t } = useTranslation()
   const isHybridMode = searchMode === 'hybrid'
 
   return (
     <section className="space-y-2.5">
-      <RagSectionTitle title={title} icon={Search} />
+      <RagSectionTitle title={t('knowledge_v2.rag.retrieval')} icon={Search} />
 
-      <SliderField
-        label={documentCountLabel}
+      <RagSliderField
+        label={t('knowledge_v2.rag.document_count')}
         value={documentCount}
         onValueChange={onDocumentCountChange}
         min={1}
@@ -70,20 +56,20 @@ const RetrievalSection = ({
         formatValue={(value) => String(value)}
       />
 
-      <SliderField
-        label={thresholdLabel}
+      <RagSliderField
+        label={t('knowledge_v2.rag.threshold')}
         value={threshold}
         onValueChange={onThresholdChange}
         min={0}
         max={1}
-        step={0.01}
-        minLabel="0.00"
-        maxLabel="1.00"
-        formatValue={formatFloat}
+        step={0.1}
+        minLabel="0.0"
+        maxLabel="1.0"
+        formatValue={(value) => value.toFixed(1)}
       />
 
       <div>
-        <RagFieldLabel label={searchModeLabel} />
+        <RagFieldLabel label={t('knowledge_v2.rag.search_mode.title')} />
         <RagSelectField
           value={searchMode}
           options={searchModeOptions}
@@ -93,30 +79,28 @@ const RetrievalSection = ({
 
       {isHybridMode ? (
         <RagSliderField
-          label={hybridAlphaLabel}
+          label={t('knowledge_v2.rag.hybrid_alpha')}
           value={hybridAlpha ?? DEFAULT_HYBRID_ALPHA}
           onValueChange={onHybridAlphaChange}
           min={0}
           max={1}
-          step={0.01}
-          minLabel="0.00"
-          maxLabel="1.00"
-          formatValue={formatFloat}
+          step={0.1}
+          minLabel="0.0"
+          maxLabel="1.0"
+          formatValue={(value) => value.toFixed(1)}
         />
       ) : null}
 
       <div>
-        <RagFieldLabel label={rerankLabel} />
+        <RagFieldLabel label={t('models.rerank_model')} />
         <RagSelectField
           value={rerankModelId ?? EMPTY_OPTION_VALUE}
-          options={[{ value: EMPTY_OPTION_VALUE, label: notSetLabel }, ...rerankModelOptions]}
+          options={[{ value: EMPTY_OPTION_VALUE, label: t('knowledge.not_set') }, ...rerankModelOptions]}
           onValueChange={(value) => onRerankModelChange(value === EMPTY_OPTION_VALUE ? null : value)}
         />
       </div>
     </section>
   )
 }
-
-const SliderField = RagSliderField
 
 export default RetrievalSection

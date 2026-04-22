@@ -2,9 +2,10 @@ import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, DEFAULT_KNOWLEDGE_THRESHOLD } from '@
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
-import type { KnowledgeConfigFormValues } from '../types'
+import type { KnowledgeRagConfigFormValues } from '../types'
+import { parseRequiredInteger } from './validate'
 
-export const createKnowledgeV2RagConfigFormValues = (base: KnowledgeBase): KnowledgeConfigFormValues => ({
+export const createKnowledgeRagConfigFormValues = (base: KnowledgeBase): KnowledgeRagConfigFormValues => ({
   fileProcessorId: base.fileProcessorId ?? null,
   chunkSize: String(base.chunkSize),
   chunkOverlap: String(base.chunkOverlap),
@@ -17,19 +18,9 @@ export const createKnowledgeV2RagConfigFormValues = (base: KnowledgeBase): Knowl
   hybridAlpha: base.hybridAlpha ?? null
 })
 
-const parseIntegerString = (value: string): number => {
-  const parsed = Number(value)
-
-  if (!Number.isInteger(parsed)) {
-    throw new Error(`Expected integer string, received "${value}"`)
-  }
-
-  return parsed
-}
-
-export const buildKnowledgeV2RagConfigPatch = (
-  initialValues: KnowledgeConfigFormValues,
-  currentValues: KnowledgeConfigFormValues
+export const buildKnowledgeRagConfigPatch = (
+  initialValues: KnowledgeRagConfigFormValues,
+  currentValues: KnowledgeRagConfigFormValues
 ): UpdateKnowledgeBaseDto => {
   const patch: UpdateKnowledgeBaseDto = {}
 
@@ -38,11 +29,11 @@ export const buildKnowledgeV2RagConfigPatch = (
   }
 
   if (currentValues.chunkSize !== initialValues.chunkSize) {
-    patch.chunkSize = parseIntegerString(currentValues.chunkSize)
+    patch.chunkSize = parseRequiredInteger(currentValues.chunkSize)
   }
 
   if (currentValues.chunkOverlap !== initialValues.chunkOverlap) {
-    patch.chunkOverlap = parseIntegerString(currentValues.chunkOverlap)
+    patch.chunkOverlap = parseRequiredInteger(currentValues.chunkOverlap)
   }
 
   if (currentValues.embeddingModelId !== initialValues.embeddingModelId && currentValues.embeddingModelId != null) {

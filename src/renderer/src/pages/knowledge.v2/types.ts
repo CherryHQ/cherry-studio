@@ -1,13 +1,13 @@
 import type { KnowledgeSearchMode } from '@shared/data/types/knowledge'
 
-export type KnowledgeTabKey = 'data' | 'config' | 'recall'
+export type KnowledgeTabKey = 'data' | 'rag' | 'recall'
 
 export interface KnowledgeSelectOption {
   label: string
   value: string
 }
 
-export interface KnowledgeConfigFormValues {
+export interface KnowledgeRagConfigFormValues {
   fileProcessorId: string | null
   chunkSize: string
   chunkOverlap: string

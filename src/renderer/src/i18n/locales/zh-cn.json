@@ -2116,6 +2116,9 @@
     "videos_file": "视频文件"
   },
   "knowledge_v2": {
+    "add": {
+      "title": "添加知识库"
+    },
     "data_source": {
       "chunks_count": "{{count}} chunks",
       "filters": {
@@ -2129,35 +2132,40 @@
         "ready": "就绪"
       }
     },
+    "error": {
+      "failed_to_edit": "知识库编辑失败"
+    },
     "groups": {
-      "personal": "个人",
-      "project": "项目",
-      "work": "工作"
+      "ungrouped": "未分组"
     },
     "meta": {
       "documents_count": "{{count}} 文档"
     },
+    "empty": "暂无知识库",
     "rag": {
-      "chunking": "分块规则 (Chunking)",
       "chunk_overlap_invalid": "分块重叠必须大于等于 0",
       "chunk_overlap_must_be_smaller": "分块重叠必须小于分块大小",
       "chunk_overlap_requires_chunk_size": "分块重叠依赖分块大小",
       "chunk_size_invalid": "分块大小必须大于 0",
+      "chunking": "分块规则 (Chunking)",
       "default_separator": "自动（推荐）",
+      "document_count": "文档数量",
+      "file_processing": "文件处理",
+      "file_processing_hint": "文件处理会在文档导入时自动执行，选择合适的处理服务商可提升文档解析质量",
       "hybrid_alpha": "Hybrid Alpha",
       "hybrid_alpha_hint": "仅在 Hybrid 检索模式下可配置",
-      "preprocessing_hint": "文档预处理将在文档导入时自动执行，选择合适的处理服务商可提升文档解析质量",
       "processor": "处理服务商",
       "rerank_disabled": "不使用",
       "reset_defaults": "恢复默认",
       "retrieval": "检索设置",
       "search_mode": {
-        "title": "检索模式",
         "bm25": "全文检索",
         "default": "向量检索",
-        "hybrid": "混合检索（推荐）"
+        "hybrid": "混合检索（推荐）",
+        "title": "检索模式"
       },
       "separator_rule": "分隔符规则",
+      "threshold": "相似度阈值",
       "tokens_unit": "tokens"
     },
     "recall": {
@@ -2166,11 +2174,18 @@
       "placeholder": "输入测试 Query...",
       "submit": "检索"
     },
+    "search": "搜索知识库",
+    "status": {
+      "completed": "已完成",
+      "failed": "失败",
+      "processing": "处理中"
+    },
     "tabs": {
       "data_source": "数据源",
       "rag_config": "RAG 配置",
       "recall_test": "召回测试"
-    }
+    },
+    "title": "知识库"
   },
   "languages": {
     "arabic": "阿拉伯文",
@@ -3345,8 +3360,8 @@
     "copilot": "GitHub Copilot",
     "dashscope": "阿里云百炼",
     "deepseek": "深度求索",
-    "doc2x": "Doc2X",
     "dmxapi": "DMXAPI",
+    "doc2x": "Doc2X",
     "doubao": "火山引擎",
     "fireworks": "Fireworks",
     "gemini": "Gemini",
@@ -3364,9 +3379,9 @@
     "lmstudio": "LM Studio",
     "longcat": "龙猫",
     "mimo": "Xiaomi MiMo",
+    "mineru": "MinerU",
     "minimax": "MiniMax",
     "minimax-global": "MiniMax 海外版",
-    "mineru": "MinerU",
     "mistral": "Mistral",
     "modelscope": "ModelScope 魔搭",
     "moonshot": "月之暗面",
@@ -3375,11 +3390,11 @@
     "o3": "O3",
     "ocoolai": "ocoolAI",
     "ollama": "Ollama",
-    "openai": "OpenAI",
     "open-mineru": "Open MinerU",
+    "openai": "OpenAI",
     "openrouter": "OpenRouter",
-    "ovocr": "Intel OV(NPU) OCR",
     "ovms": "Intel OVMS",
+    "ovocr": "Intel OV(NPU) OCR",
     "paddleocr": "PaddleOCR",
     "perplexity": "Perplexity",
     "ph8": "PH8",
@@ -3391,8 +3406,8 @@
     "sophnet": "SophNet",
     "stepfun": "阶跃星辰",
     "system": "系统OCR",
-    "tesseract": "Tesseract",
     "tencent-cloud-ti": "腾讯云 TI",
+    "tesseract": "Tesseract",
     "together": "Together",
     "tokenflux": "TokenFlux",
     "vertexai": "Vertex AI",

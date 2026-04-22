@@ -1,45 +1,40 @@
 import type { KnowledgeSelectOption } from '@renderer/pages/knowledge.v2/types'
 import { Bot } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import { RagFieldLabel, RagHintText, RagSectionTitle, RagSelectField } from './panelPrimitives'
 
 const EMPTY_OPTION_VALUE = '__none__'
 
-interface PreprocessSectionProps {
-  title: string
+interface FileProcessingSectionProps {
   fileProcessorId: string | null
   fileProcessorOptions: KnowledgeSelectOption[]
-  notSetLabel: string
-  processorLabel: string
-  preprocessingHint: string
   onFileProcessorChange: (value: string | null) => void
 }
 
-const PreprocessSection = ({
-  title,
+const FileProcessingSection = ({
   fileProcessorId,
   fileProcessorOptions,
-  notSetLabel,
-  processorLabel,
-  preprocessingHint,
   onFileProcessorChange
-}: PreprocessSectionProps) => {
+}: FileProcessingSectionProps) => {
+  const { t } = useTranslation()
+
   return (
     <section className="space-y-2.5">
-      <RagSectionTitle title={title} icon={Bot} />
+      <RagSectionTitle title={t('knowledge_v2.rag.file_processing')} icon={Bot} />
 
       <div>
-        <RagFieldLabel label={processorLabel} />
+        <RagFieldLabel label={t('knowledge_v2.rag.processor')} />
         <RagSelectField
           value={fileProcessorId ?? EMPTY_OPTION_VALUE}
-          options={[{ value: EMPTY_OPTION_VALUE, label: notSetLabel }, ...fileProcessorOptions]}
+          options={[{ value: EMPTY_OPTION_VALUE, label: t('knowledge.not_set') }, ...fileProcessorOptions]}
           onValueChange={(value) => onFileProcessorChange(value === EMPTY_OPTION_VALUE ? null : value)}
         />
       </div>
 
-      <RagHintText>{preprocessingHint}</RagHintText>
+      <RagHintText>{t('knowledge_v2.rag.file_processing_hint')}</RagHintText>
     </section>
   )
 }
 
-export default PreprocessSection
+export default FileProcessingSection
