@@ -34,13 +34,3 @@ export const TagSchema = z.object({
   updatedAt: z.iso.datetime()
 })
 export type Tag = z.infer<typeof TagSchema>
-
-// ============================================================================
-// Entity Type Enum
-// ============================================================================
-
-/**
- * Entity types that support tagging.
- */
-export const TaggableEntityType = z.enum(['assistant', 'topic', 'session'])
-export type TaggableEntityType = z.infer<typeof TaggableEntityType>

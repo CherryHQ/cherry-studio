@@ -1,3 +1,4 @@
+import { ErrorCode } from '@shared/data/api'
 import { setupTestDatabase } from '@test-helpers/db'
 import { asc, eq } from 'drizzle-orm'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
@@ -5,6 +6,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 
 import {
   applyMoves,
+  applyScopedMoves,
   computeNewOrderKey,
   generateOrderKeyBetween,
   generateOrderKeySequence,
@@ -491,6 +493,168 @@ describe('orderKey', () => {
 
       expect(inserted.map((r) => r.appKey)).toEqual(['one', 'two'])
       expect(inserted[1].orderKey > inserted[0].orderKey).toBe(true)
+    })
+  })
+
+  // --- applyScopedMoves ---
+
+  describe('applyScopedMoves', () => {
+    async function seedScoped(entries: Array<{ id: string; scope: string }>): Promise<void> {
+      for (const { id, scope } of entries) {
+        await insertWithOrderKey(
+          dbh.db,
+          fxTable,
+          { id, scope },
+          { pkColumn: fxTable.id, scope: eq(fxTable.scope, scope) }
+        )
+      }
+    }
+
+    async function readIdsInScope(scope: string): Promise<string[]> {
+      const rows = await dbh.db.select().from(fxTable).where(eq(fxTable.scope, scope)).orderBy(asc(fxTable.orderKey))
+      return rows.map((r) => r.id)
+    }
+
+    it('returns without touching the DB when moves is empty', async () => {
+      await seedScoped([
+        { id: 'a', scope: 's1' },
+        { id: 'b', scope: 's1' }
+      ])
+      const before = await dbh.db.select().from(fxTable).orderBy(asc(fxTable.orderKey))
+
+      await dbh.db.transaction(async (tx) => {
+        await applyScopedMoves(tx, fxTable, [], { pkColumn: fxTable.id, scopeColumn: fxTable.scope })
+      })
+
+      const after = await dbh.db.select().from(fxTable).orderBy(asc(fxTable.orderKey))
+      expect(after).toEqual(before)
+    })
+
+    it('infers scope from the target row and only touches that scope bucket', async () => {
+      await seedScoped([
+        { id: 'a', scope: 's1' },
+        { id: 'b', scope: 's1' },
+        { id: 'c', scope: 's1' },
+        { id: 'x', scope: 's2' },
+        { id: 'y', scope: 's2' }
+      ])
+      const s2Before = await readIdsInScope('s2')
+      const s2RowsBefore = await dbh.db.select().from(fxTable).where(eq(fxTable.scope, 's2'))
+
+      await dbh.db.transaction(async (tx) => {
+        await applyScopedMoves(tx, fxTable, [{ id: 'c', anchor: { before: 'a' } }], {
+          pkColumn: fxTable.id,
+          scopeColumn: fxTable.scope
+        })
+      })
+
+      expect(await readIdsInScope('s1')).toEqual(['c', 'a', 'b'])
+      expect(await readIdsInScope('s2')).toEqual(s2Before)
+      const s2RowsAfter = await dbh.db.select().from(fxTable).where(eq(fxTable.scope, 's2'))
+      expect(s2RowsAfter).toEqual(s2RowsBefore)
+    })
+
+    it('applies a batch of moves within the same scope', async () => {
+      await seedScoped([
+        { id: 'a', scope: 's1' },
+        { id: 'b', scope: 's1' },
+        { id: 'c', scope: 's1' },
+        { id: 'd', scope: 's1' }
+      ])
+
+      await dbh.db.transaction(async (tx) => {
+        await applyScopedMoves(
+          tx,
+          fxTable,
+          [
+            { id: 'd', anchor: { position: 'first' } },
+            { id: 'a', anchor: { position: 'last' } }
+          ],
+          { pkColumn: fxTable.id, scopeColumn: fxTable.scope }
+        )
+      })
+
+      expect(await readIdsInScope('s1')).toEqual(['d', 'b', 'c', 'a'])
+    })
+
+    it('throws a VALIDATION_ERROR DataApiError when batch spans multiple scopes', async () => {
+      await seedScoped([
+        { id: 'a', scope: 's1' },
+        { id: 'x', scope: 's2' }
+      ])
+
+      await expect(
+        dbh.db.transaction(async (tx) => {
+          await applyScopedMoves(
+            tx,
+            fxTable,
+            [
+              { id: 'a', anchor: { position: 'last' } },
+              { id: 'x', anchor: { position: 'last' } }
+            ],
+            { pkColumn: fxTable.id, scopeColumn: fxTable.scope }
+          )
+        })
+      ).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: expect.stringMatching(/s1/)
+      })
+
+      await expect(
+        dbh.db.transaction(async (tx) => {
+          await applyScopedMoves(
+            tx,
+            fxTable,
+            [
+              { id: 'a', anchor: { position: 'last' } },
+              { id: 'x', anchor: { position: 'last' } }
+            ],
+            { pkColumn: fxTable.id, scopeColumn: fxTable.scope }
+          )
+        })
+      ).rejects.toMatchObject({
+        message: expect.stringMatching(/s2/)
+      })
+    })
+
+    it('throws a NOT_FOUND DataApiError when the target id is not in the table', async () => {
+      await seedScoped([{ id: 'a', scope: 's1' }])
+
+      await expect(
+        dbh.db.transaction(async (tx) => {
+          await applyScopedMoves(tx, fxTable, [{ id: 'ghost', anchor: { position: 'last' } }], {
+            pkColumn: fxTable.id,
+            scopeColumn: fxTable.scope
+          })
+        })
+      ).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        message: expect.stringMatching(/ghost/)
+      })
+    })
+
+    it('throws NOT_FOUND (not VALIDATION_ERROR) when one id is missing and the rest share scope', async () => {
+      await seedScoped([
+        { id: 'a', scope: 's1' },
+        { id: 'b', scope: 's1' }
+      ])
+
+      await expect(
+        dbh.db.transaction(async (tx) => {
+          await applyScopedMoves(
+            tx,
+            fxTable,
+            [
+              { id: 'a', anchor: { position: 'last' } },
+              { id: 'missing', anchor: { position: 'last' } }
+            ],
+            { pkColumn: fxTable.id, scopeColumn: fxTable.scope }
+          )
+        })
+      ).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        message: expect.stringMatching(/missing/)
+      })
     })
   })
 })
