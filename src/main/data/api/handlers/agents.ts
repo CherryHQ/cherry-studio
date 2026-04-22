@@ -21,6 +21,7 @@ import type {
   CreateAgentDto,
   CreateSessionDto,
   CreateTaskDto,
+  ListQuery,
   UpdateAgentDto,
   UpdateSessionDto,
   UpdateTaskDto
@@ -35,6 +36,13 @@ import type {
 } from '@types'
 
 type AgentHandler<Path extends keyof AgentSchemas, Method extends ApiMethods<Path>> = ApiHandler<Path, Method>
+
+function paginationFromQuery(query?: ListQuery) {
+  const page = query?.page ?? 1
+  const limit = query?.limit ?? 50
+  const offset = (page - 1) * limit
+  return { page, limit, offset }
+}
 
 function requireFields(body: Record<string, unknown> | undefined, fields: string[]): void {
   const missing = fields.filter((f) => body?.[f] === undefined || body?.[f] === null || body?.[f] === '')
@@ -143,10 +151,9 @@ export const agentHandlers: {
 } = {
   '/agents': {
     GET: async ({ query }) => {
-      const limit = query?.limit ?? 50
-      const offset = query?.offset ?? 0
+      const { page, limit, offset } = paginationFromQuery(query)
       const { agents, total } = await agentService.listAgents({ limit, offset })
-      return { data: agents, total, limit, offset }
+      return { items: agents, total, page }
     },
 
     POST: async ({ body }) => {
@@ -177,10 +184,9 @@ export const agentHandlers: {
 
   '/agents/:agentId/sessions': {
     GET: async ({ params, query }) => {
-      const limit = query?.limit ?? 50
-      const offset = query?.offset ?? 0
+      const { page, limit, offset } = paginationFromQuery(query)
       const { sessions, total } = await sessionService.listSessions(params.agentId, { limit, offset })
-      return { data: sessions, total, limit, offset }
+      return { items: sessions, total, page }
     },
 
     POST: async ({ params, body }) => {
@@ -240,10 +246,9 @@ export const agentHandlers: {
 
   '/agents/:agentId/tasks': {
     GET: async ({ params, query }) => {
-      const limit = query?.limit ?? 50
-      const offset = query?.offset ?? 0
+      const { page, limit, offset } = paginationFromQuery(query)
       const { tasks, total } = await taskService.listTasks(params.agentId, { limit, offset })
-      return { data: tasks, total, limit, offset }
+      return { items: tasks, total, page }
     },
 
     POST: async ({ params, body }) => {
@@ -273,16 +278,16 @@ export const agentHandlers: {
   },
 
   '/skills': {
-    GET: async () => {
-      const skills = await skillService.list()
+    GET: async ({ query }) => {
+      const skills = await skillService.list(query?.agentId)
       return { data: skills }
     }
   },
 
-  '/skills/:id': {
+  '/skills/:skillId': {
     GET: async ({ params }) => {
-      const skill = await skillService.getById(params.id)
-      if (!skill) throw DataApiErrorFactory.notFound('Skill', params.id)
+      const skill = await skillService.getById(params.skillId)
+      if (!skill) throw DataApiErrorFactory.notFound('Skill', params.skillId)
       return skill
     }
   }

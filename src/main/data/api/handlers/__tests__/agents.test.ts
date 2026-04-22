@@ -117,7 +117,7 @@ describe('agentHandlers', () => {
       const result = await agentHandlers['/agents'].GET({ query: {} } as never)
 
       expect(listAgentsMock).toHaveBeenCalledOnce()
-      expect(result).toMatchObject({ data: [mockAgent], total: 1 })
+      expect(result).toMatchObject({ items: [mockAgent], total: 1, page: 1 })
     })
 
     it('GET works without query params (defaults to limit=50 offset=0)', async () => {
@@ -228,7 +228,7 @@ describe('agentHandlers', () => {
       } as never)
 
       expect(listSessionsMock).toHaveBeenCalledWith(AGENT_ID, { limit: 50, offset: 0 })
-      expect(result).toMatchObject({ data: [mockSession], total: 1 })
+      expect(result).toMatchObject({ items: [mockSession], total: 1, page: 1 })
     })
 
     it('delegates POST to sessionService.createSession', async () => {
@@ -368,7 +368,7 @@ describe('agentHandlers', () => {
       } as never)
 
       expect(listTasksMock).toHaveBeenCalledWith(AGENT_ID, { limit: 50, offset: 0 })
-      expect(result).toMatchObject({ data: [mockTask], total: 1 })
+      expect(result).toMatchObject({ items: [mockTask], total: 1, page: 1 })
     })
 
     it('delegates POST to taskService.createTask', async () => {
@@ -427,20 +427,29 @@ describe('agentHandlers', () => {
     it('delegates GET to skillService.list and returns data array', async () => {
       listSkillsMock.mockResolvedValueOnce([mockSkill])
 
-      const result = await agentHandlers['/skills'].GET({} as never)
+      const result = await agentHandlers['/skills'].GET({ query: {} } as never)
 
-      expect(listSkillsMock).toHaveBeenCalledOnce()
+      expect(listSkillsMock).toHaveBeenCalledWith(undefined)
+      expect(result).toEqual({ data: [mockSkill] })
+    })
+
+    it('passes agentId to skillService.list when provided', async () => {
+      listSkillsMock.mockResolvedValueOnce([mockSkill])
+
+      const result = await agentHandlers['/skills'].GET({ query: { agentId: AGENT_ID } } as never)
+
+      expect(listSkillsMock).toHaveBeenCalledWith(AGENT_ID)
       expect(result).toEqual({ data: [mockSkill] })
     })
   })
 
-  // ── /skills/:id ──────────────────────────────────────────────────────────
+  // ── /skills/:skillId ──────────────────────────────────────────────────────
 
-  describe('/skills/:id', () => {
+  describe('/skills/:skillId', () => {
     it('delegates GET to skillService.getById', async () => {
       getSkillByIdMock.mockResolvedValueOnce(mockSkill)
 
-      const result = await agentHandlers['/skills/:id'].GET({ params: { id: SKILL_ID } } as never)
+      const result = await agentHandlers['/skills/:skillId'].GET({ params: { skillId: SKILL_ID } } as never)
 
       expect(getSkillByIdMock).toHaveBeenCalledWith(SKILL_ID)
       expect(result).toMatchObject({ id: SKILL_ID })
@@ -449,7 +458,9 @@ describe('agentHandlers', () => {
     it('throws notFound when skill does not exist', async () => {
       getSkillByIdMock.mockResolvedValueOnce(null)
 
-      await expect(agentHandlers['/skills/:id'].GET({ params: { id: SKILL_ID } } as never)).rejects.toMatchObject({
+      await expect(
+        agentHandlers['/skills/:skillId'].GET({ params: { skillId: SKILL_ID } } as never)
+      ).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
     })
