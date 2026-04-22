@@ -4,7 +4,7 @@ import { useInstalledSkills } from '@renderer/hooks/useSkills'
 import type { InstalledSkill, LocalSkill } from '@types'
 import { Button, Card, type CardProps, Empty, Spin, Switch, Tag } from 'antd'
 import { Plus, Puzzle } from 'lucide-react'
-import { type FC, memo, useCallback, useEffect, useEffectEvent, useMemo, useState } from 'react'
+import { type FC, memo, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { type AgentOrSessionSettingsProps, SettingsContainer, SettingsItem, SettingsTitle } from '../../shared'
@@ -105,6 +105,7 @@ export const InstalledSkillsSettings: FC<AgentOrSessionSettingsProps> = ({ agent
   const [filter, setFilter] = useState('')
   const [togglingId, setTogglingId] = useState<string | null>(null)
   const [localPlugins, setLocalSkills] = useState<LocalSkill[]>([])
+  const scrollPositionRef = useRef<number>(0)
 
   const workdir = agentBase?.accessible_paths?.[0]
 
@@ -136,11 +137,22 @@ export const InstalledSkillsSettings: FC<AgentOrSessionSettingsProps> = ({ agent
 
   const handleToggle = useCallback(
     async (skill: InstalledSkill, checked: boolean) => {
+      const popup = document.querySelector('.ant-modal-content')
+      const scrollContainer = popup?.querySelector('[data-skills-scroll="true"]')
+      if (scrollContainer) {
+        scrollPositionRef.current = (scrollContainer as HTMLDivElement).scrollTop
+      }
       setTogglingId(skill.id)
       try {
         await toggle(skill.id, checked)
       } finally {
         setTogglingId(null)
+        setTimeout(() => {
+          const sc = popup?.querySelector('[data-skills-scroll="true"]')
+          if (sc) {
+            ;(sc as HTMLDivElement).scrollTop = scrollPositionRef.current
+          }
+        }, 0)
       }
     },
     [toggle]
@@ -149,7 +161,7 @@ export const InstalledSkillsSettings: FC<AgentOrSessionSettingsProps> = ({ agent
   const hasNoResults = filteredSkills.length === 0 && filteredLocal.length === 0
 
   return (
-    <SettingsContainer>
+    <SettingsContainer data-skills-scroll="true">
       <SettingsItem divider={false}>
         <SettingsTitle
           contentAfter={
