@@ -119,7 +119,7 @@
     "@ai-sdk/cerebras": "^2.0.45",
     "@ai-sdk/cohere": "^3.0.30",
     "@ai-sdk/gateway": "^3.0.104",
-    "@ai-sdk/google": "^3.0.55",
+    "@ai-sdk/google": "^3.0.64",
     "@ai-sdk/google-vertex": "^4.0.112",
     "@ai-sdk/groq": "^3.0.35",
     "@ai-sdk/huggingface": "^1.0.43",
@@ -498,7 +498,7 @@
       "@opeoginni/github-copilot-openai-compatible@1.0.0": "patches/@opeoginni__github-copilot-openai-compatible@1.0.0.patch",
       "@ai-sdk/openai-compatible@2.0.37": "patches/@ai-sdk__openai-compatible@2.0.37.patch",
       "@ai-sdk/openai@3.0.53": "patches/@ai-sdk__openai@3.0.53.patch",
-      "@ai-sdk/google@3.0.55": "patches/@ai-sdk__google@3.0.55.patch"
+      "@ai-sdk/google@3.0.64": "patches/@ai-sdk__google@3.0.64.patch"
     },
     "onlyBuiltDependencies": [
       "@j178/prek",
