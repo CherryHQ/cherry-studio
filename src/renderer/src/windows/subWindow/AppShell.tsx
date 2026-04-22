@@ -18,7 +18,7 @@ const WebviewContainer = ({ url, isActive }: { url: string; isActive: boolean })
   </Activity>
 )
 
-export const DetachedAppShell = () => {
+export const SubWindowAppShell = () => {
   const { tabs, activeTabId, setActiveTab, closeTab, updateTab, addTab, reorderTabs, openTab, pinTab, unpinTab } =
     useTabs()
   const initialized = useRef(false)
@@ -55,7 +55,7 @@ export const DetachedAppShell = () => {
     }
   }, [openTab, setActiveTab])
 
-  // Close tab in detached window. closeTab handles both pinned and normal tabs correctly.
+  // Close tab in sub window. closeTab handles both pinned and normal tabs correctly.
   // Do NOT call unpinTab before closeTab — unpinTab moves the tab to normalTabs,
   // then closeTab's closure still sees isPinned=true and filters the wrong list.
   const handleCloseTab = (id: string) => {

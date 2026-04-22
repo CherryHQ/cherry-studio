@@ -11,14 +11,14 @@ import { join } from 'path'
 
 import icon from '../../../build/icon.png?asset'
 
-const logger = loggerService.withContext('DetachedWindowManager')
+const logger = loggerService.withContext('SubWindowService')
 
 /** Height of the tab bar area used for drag-to-attach detection (must match CSS h-10) */
 const TAB_BAR_HEIGHT = 40
 
 /** Must match createWindow BrowserWindow width/height */
-const DETACHED_DEFAULT_WIDTH = 800
-const DETACHED_DEFAULT_HEIGHT = 600
+const SUB_WINDOW_DEFAULT_WIDTH = 800
+const SUB_WINDOW_DEFAULT_HEIGHT = 600
 
 /**
  * After Tab_MoveWindow, ignore `resize` bursts briefly so DPI rounding noise is not written back
@@ -27,10 +27,10 @@ const DETACHED_DEFAULT_HEIGHT = 600
  */
 const MOVE_RESIZE_IGNORE_MS = 280
 
-/** Win/Linux: move detached windows with setContentBounds + cached size (see electron#27651). */
+/** Win/Linux: move sub windows with setContentBounds + cached size (see electron#27651). */
 const USE_CONTENT_BOUNDS_MOVE = isWin || isLinux
 
-type DetachedWindowState = {
+type SubWindowState = {
   /** Cached content size to avoid getBounds() round-trips during drag (electron#27651) */
   width: number
   height: number
@@ -38,12 +38,12 @@ type DetachedWindowState = {
   lastMoveAt: number
 }
 
-@Injectable('DetachedWindowManager')
+@Injectable('SubWindowService')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['WindowManager'])
-export class DetachedWindowManager extends BaseService {
+export class SubWindowService extends BaseService {
   private windows: Map<string, BrowserWindow> = new Map()
-  private windowState: Map<string, DetachedWindowState> = new Map()
+  private windowState: Map<string, SubWindowState> = new Map()
   private windowUrls: Map<string, string> = new Map()
 
   protected async onInit() {
@@ -69,16 +69,16 @@ export class DetachedWindowManager extends BaseService {
         return false
       }
 
-      // Close sender detached window after successful broadcast. Main-window
-      // senders are skipped because they are not in the DetachedWindowManager
-      // pool (this.windows) and the check below only fires for detached tabs.
+      // Close sender sub window after successful broadcast. Main-window
+      // senders are skipped because they are not in the SubWindowService
+      // pool (this.windows) and the check below only fires for sub windows.
       const senderWindow = BrowserWindow.fromWebContents(event.sender)
-      const isDetachedTab = senderWindow ? Array.from(this.windows.values()).includes(senderWindow) : false
-      if (senderWindow && isDetachedTab && !senderWindow.isDestroyed()) {
+      const isSubWindow = senderWindow ? Array.from(this.windows.values()).includes(senderWindow) : false
+      if (senderWindow && isSubWindow && !senderWindow.isDestroyed()) {
         try {
           senderWindow.close()
         } catch (err: any) {
-          logger.error('Failed to close detached window after tab attach', err as Error)
+          logger.error('Failed to close sub window after tab attach', err as Error)
         }
       }
       return true
@@ -86,7 +86,7 @@ export class DetachedWindowManager extends BaseService {
 
     this.ipcOn(IpcChannel.Tab_MoveWindow, (event, payload: { tabId: string; x: number; y: number }) => {
       // Prefer tabId lookup: when the main window sends this IPC, event.sender is the main window,
-      // but we want to move the detached window identified by tabId.
+      // but we want to move the sub window identified by tabId.
       const win = this.windows.get(payload.tabId) ?? BrowserWindow.fromWebContents(event.sender)
       if (win && !win.isDestroyed()) {
         const x = Math.round(payload.x)
@@ -95,8 +95,8 @@ export class DetachedWindowManager extends BaseService {
         if (!win.isVisible()) {
           win.show()
         }
-        // Only apply opacity when the detached window is dragging its own tab (preparing to reattach).
-        // When the main window sends Tab_MoveWindow, event.sender differs from the detached window.
+        // Only apply opacity when the sub window is dragging its own tab (preparing to reattach).
+        // When the main window sends Tab_MoveWindow, event.sender differs from the sub window.
         const senderWindow = BrowserWindow.fromWebContents(event.sender)
         if (senderWindow === win && win.getOpacity() !== 0.85) {
           win.setOpacity(0.85)
@@ -133,17 +133,17 @@ export class DetachedWindowManager extends BaseService {
             return false
           }
 
-          const detachedWin = this.windows.get(payload.tab.id)
-          if (detachedWin && !detachedWin.isDestroyed()) {
-            detachedWin.close()
+          const subWin = this.windows.get(payload.tab.id)
+          if (subWin && !subWin.isDestroyed()) {
+            subWin.close()
           }
           return true
         }
 
         // Not over tab bar — restore opacity
-        const detachedWin = this.windows.get(payload.tab.id)
-        if (detachedWin && !detachedWin.isDestroyed()) {
-          detachedWin.setOpacity(1)
+        const subWin = this.windows.get(payload.tab.id)
+        if (subWin && !subWin.isDestroyed()) {
+          subWin.setOpacity(1)
         }
 
         return false
@@ -160,7 +160,7 @@ export class DetachedWindowManager extends BaseService {
   }
 
   /**
-   * Moves a detached window to (x, y).
+   * Moves a sub window to (x, y).
    * On Win/Linux uses setContentBounds with cached size to avoid electron#27651 outer-bounds creep.
    * On macOS uses setPosition (no reported creep issue).
    */
@@ -170,7 +170,7 @@ export class DetachedWindowManager extends BaseService {
       if (state) {
         state.lastMoveAt = Date.now()
       }
-      const { width, height } = state ?? { width: DETACHED_DEFAULT_WIDTH, height: DETACHED_DEFAULT_HEIGHT }
+      const { width, height } = state ?? { width: SUB_WINDOW_DEFAULT_WIDTH, height: SUB_WINDOW_DEFAULT_HEIGHT }
       // electron#27651: avoid outer getBounds/setBounds round-trips during drag
       win.setContentBounds({ x, y, width, height })
     } else {
@@ -179,11 +179,11 @@ export class DetachedWindowManager extends BaseService {
   }
 
   /**
-   * Tracks the content size of a detached window, keeping windowState in sync.
+   * Tracks the content size of a sub window, keeping windowState in sync.
    * Must be called once per created window; cleans up state on close.
    */
   private trackWindowSize(tabId: string, win: BrowserWindow) {
-    this.windowState.set(tabId, { width: DETACHED_DEFAULT_WIDTH, height: DETACHED_DEFAULT_HEIGHT, lastMoveAt: 0 })
+    this.windowState.set(tabId, { width: SUB_WINDOW_DEFAULT_WIDTH, height: SUB_WINDOW_DEFAULT_HEIGHT, lastMoveAt: 0 })
 
     win.on('ready-to-show', () => {
       if (!win.isDestroyed() && USE_CONTENT_BOUNDS_MOVE) {
@@ -234,8 +234,8 @@ export class DetachedWindowManager extends BaseService {
     const hasPosition = x !== undefined && y !== undefined
 
     const win = new BrowserWindow({
-      width: DETACHED_DEFAULT_WIDTH,
-      height: DETACHED_DEFAULT_HEIGHT,
+      width: SUB_WINDOW_DEFAULT_WIDTH,
+      height: SUB_WINDOW_DEFAULT_HEIGHT,
       minWidth: 400,
       minHeight: 300,
       ...(hasPosition ? { x, y } : {}),
@@ -267,18 +267,18 @@ export class DetachedWindowManager extends BaseService {
     })
 
     if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      win.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/detachedWindow.html?${params.toString()}`).catch((err) => {
-        logger.error(`Failed to load detached window URL for tab ${tabId}`, err)
+      win.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/subWindow.html?${params.toString()}`).catch((err) => {
+        logger.error(`Failed to load sub window URL for tab ${tabId}`, err)
         this.windows.delete(tabId)
         if (!win.isDestroyed()) win.close()
       })
     } else {
       win
-        .loadFile(join(__dirname, '../renderer/detachedWindow.html'), {
+        .loadFile(join(__dirname, '../renderer/subWindow.html'), {
           search: params.toString()
         })
         .catch((err) => {
-          logger.error(`Failed to load detached window file for tab ${tabId}`, err)
+          logger.error(`Failed to load sub window file for tab ${tabId}`, err)
           this.windows.delete(tabId)
           if (!win.isDestroyed()) win.close()
         })
@@ -306,7 +306,7 @@ export class DetachedWindowManager extends BaseService {
 
     this.windows.set(tabId, win)
     this.windowUrls.set(tabId, url)
-    logger.info(`Created detached window for tab ${tabId}`, payload)
+    logger.info(`Created sub window for tab ${tabId}`, payload)
 
     return win
   }

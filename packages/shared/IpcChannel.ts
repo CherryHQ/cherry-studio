@@ -357,8 +357,6 @@ export enum IpcChannel {
 
   FullscreenStatusChanged = 'fullscreen-status-changed',
 
-  ReduxStoreReady = 'redux-store-ready',
-
   // Search Window
   SearchWindow_Open = 'search-window:open',
   SearchWindow_Close = 'search-window:close',

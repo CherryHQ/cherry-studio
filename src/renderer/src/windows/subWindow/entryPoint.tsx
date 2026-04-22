@@ -6,7 +6,7 @@ import '@renderer/databases'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import store, { persistor } from '@renderer/store'
-import { DetachedAppShell } from '@renderer/windows/detachedWindow/AppShell'
+import { SubWindowAppShell } from '@renderer/windows/subWindow/AppShell'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot } from 'react-dom/client'
 import { Provider } from 'react-redux'
@@ -21,7 +21,7 @@ import { TabsProvider } from '../../context/TabsContext'
 import { ThemeProvider } from '../../context/ThemeProvider'
 
 // Initialize logger for this window
-loggerService.initWindowSource('DetachedTab')
+loggerService.initWindowSource('SubWindow')
 
 void preferenceService.preloadAll()
 
@@ -35,7 +35,7 @@ const queryClient = new QueryClient({
   }
 })
 
-function DetachedTabApp(): React.ReactElement {
+function SubWindowApp(): React.ReactElement {
   return (
     <Provider store={store}>
       <QueryClientProvider client={queryClient}>
@@ -47,7 +47,7 @@ function DetachedTabApp(): React.ReactElement {
                   <PersistGate loading={null} persistor={persistor}>
                     <TabsProvider>
                       <TopViewContainer>
-                        <DetachedAppShell />
+                        <SubWindowAppShell />
                       </TopViewContainer>
                     </TabsProvider>
                   </PersistGate>
@@ -62,4 +62,4 @@ function DetachedTabApp(): React.ReactElement {
 }
 
 const root = createRoot(document.getElementById('root') as HTMLElement)
-root.render(<DetachedTabApp />)
+root.render(<SubWindowApp />)
