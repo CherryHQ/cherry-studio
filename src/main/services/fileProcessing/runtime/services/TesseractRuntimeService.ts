@@ -41,15 +41,11 @@ export class TesseractRuntimeService extends BaseService {
   }
 
   protected async onStop(): Promise<void> {
-    this.acceptingTasks = false
-    this.clearIdleReleaseTimer()
-    this.shutdownController?.abort(this.createAbortError('Tesseract runtime is stopping'))
+    await this.teardownRuntime('Tesseract runtime is stopping')
+  }
 
-    await this.disposeWorkerSafely()
-    await this.extractionQueue.onIdle()
-    this.shutdownController = null
-
-    logger.debug('Tesseract runtime cleanup completed')
+  protected async onDestroy(): Promise<void> {
+    await this.teardownRuntime('Tesseract runtime is being destroyed')
   }
 
   async extract(context: PreparedTesseractContext): Promise<FileProcessingTextExtractionResult> {
@@ -195,6 +191,20 @@ export class TesseractRuntimeService extends BaseService {
 
   private async getCacheDir(): Promise<string> {
     return application.getPath('feature.ocr.tesseract')
+  }
+
+  private async teardownRuntime(reason: string): Promise<void> {
+    this.acceptingTasks = false
+    this.clearIdleReleaseTimer()
+    this.shutdownController?.abort(this.createAbortError(reason))
+
+    await this.disposeWorkerSafely()
+    await this.extractionQueue.onIdle()
+    this.shutdownController = null
+
+    logger.debug('Tesseract runtime cleanup completed', {
+      reason
+    })
   }
 
   private throwIfStopped(): void {

@@ -28,6 +28,71 @@ vi.mock('@main/utils/ocr', () => ({
 
 import { TesseractRuntimeService } from '../TesseractRuntimeService'
 
+type RuntimeWorkerStub = {
+  terminate: ReturnType<typeof vi.fn>
+}
+
+type RuntimeStateProbe = {
+  acceptingTasks: boolean
+  idleReleaseTimer: ReturnType<typeof setTimeout> | null
+  previousLangsKey: string | null
+  sharedWorker: RuntimeWorkerStub | null
+  shutdownController: AbortController | null
+}
+
+const getRuntimeState = (value: TesseractRuntimeService): RuntimeStateProbe => value as unknown as RuntimeStateProbe
+
+const cleanupCases = [
+  {
+    lifecycle: 'stop',
+    hasWorker: false,
+    hasTimer: false,
+    expectedAbortMessage: 'Tesseract runtime is stopping'
+  },
+  {
+    lifecycle: 'stop',
+    hasWorker: false,
+    hasTimer: true,
+    expectedAbortMessage: 'Tesseract runtime is stopping'
+  },
+  {
+    lifecycle: 'stop',
+    hasWorker: true,
+    hasTimer: false,
+    expectedAbortMessage: 'Tesseract runtime is stopping'
+  },
+  {
+    lifecycle: 'stop',
+    hasWorker: true,
+    hasTimer: true,
+    expectedAbortMessage: 'Tesseract runtime is stopping'
+  },
+  {
+    lifecycle: 'destroy',
+    hasWorker: false,
+    hasTimer: false,
+    expectedAbortMessage: 'Tesseract runtime is being destroyed'
+  },
+  {
+    lifecycle: 'destroy',
+    hasWorker: false,
+    hasTimer: true,
+    expectedAbortMessage: 'Tesseract runtime is being destroyed'
+  },
+  {
+    lifecycle: 'destroy',
+    hasWorker: true,
+    hasTimer: false,
+    expectedAbortMessage: 'Tesseract runtime is being destroyed'
+  },
+  {
+    lifecycle: 'destroy',
+    hasWorker: true,
+    hasTimer: true,
+    expectedAbortMessage: 'Tesseract runtime is being destroyed'
+  }
+] as const
+
 describe('TesseractRuntimeService', () => {
   let service: TesseractRuntimeService | undefined
 
@@ -246,6 +311,89 @@ describe('TesseractRuntimeService', () => {
     service = undefined
 
     expect(terminateMock).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(cleanupCases)(
+    'cleans runtime resources on $lifecycle when worker=$hasWorker timer=$hasTimer',
+    async ({ lifecycle, hasWorker, hasTimer, expectedAbortMessage }) => {
+      vi.useFakeTimers()
+
+      service = new TesseractRuntimeService()
+      await service._doInit()
+
+      const runtimeState = getRuntimeState(service)
+      const controller = runtimeState.shutdownController
+      const terminateMock = vi.fn().mockResolvedValue(undefined)
+
+      expect(controller).not.toBeNull()
+
+      if (hasWorker) {
+        runtimeState.sharedWorker = {
+          terminate: terminateMock
+        }
+        runtimeState.previousLangsKey = 'eng'
+      }
+
+      if (hasTimer) {
+        runtimeState.idleReleaseTimer = setTimeout(() => undefined, 60_000)
+        expect(vi.getTimerCount()).toBe(1)
+      }
+
+      if (lifecycle === 'stop') {
+        await service._doStop()
+        expect(service.isStopped).toBe(true)
+      } else {
+        await service._doDestroy()
+        expect(service.isDestroyed).toBe(true)
+      }
+
+      expect(runtimeState.acceptingTasks).toBe(false)
+      expect(runtimeState.sharedWorker).toBeNull()
+      expect(runtimeState.previousLangsKey).toBeNull()
+      expect(runtimeState.idleReleaseTimer).toBeNull()
+      expect(runtimeState.shutdownController).toBeNull()
+      expect(controller!.signal.aborted).toBe(true)
+      expect(controller!.signal.reason).toMatchObject({
+        message: expectedAbortMessage,
+        name: 'AbortError'
+      })
+      expect(terminateMock).toHaveBeenCalledTimes(hasWorker ? 1 : 0)
+      expect(vi.getTimerCount()).toBe(0)
+    }
+  )
+
+  it('keeps teardown idempotent when destroy runs after stop', async () => {
+    vi.useFakeTimers()
+
+    const terminateMock = vi.fn().mockResolvedValue(undefined)
+
+    service = new TesseractRuntimeService()
+    await service._doInit()
+
+    const runtimeState = getRuntimeState(service)
+    const controller = runtimeState.shutdownController
+
+    runtimeState.sharedWorker = {
+      terminate: terminateMock
+    }
+    runtimeState.previousLangsKey = 'eng'
+    runtimeState.idleReleaseTimer = setTimeout(() => undefined, 60_000)
+
+    await expect(service._doStop()).resolves.toBeUndefined()
+    await expect(service._doDestroy()).resolves.toBeUndefined()
+
+    expect(service.isDestroyed).toBe(true)
+    expect(runtimeState.acceptingTasks).toBe(false)
+    expect(runtimeState.sharedWorker).toBeNull()
+    expect(runtimeState.previousLangsKey).toBeNull()
+    expect(runtimeState.idleReleaseTimer).toBeNull()
+    expect(runtimeState.shutdownController).toBeNull()
+    expect(controller!.signal.reason).toMatchObject({
+      message: 'Tesseract runtime is stopping',
+      name: 'AbortError'
+    })
+    expect(terminateMock).toHaveBeenCalledTimes(1)
+    expect(vi.getTimerCount()).toBe(0)
   })
 
   it('releases the shared worker after an idle timeout', async () => {
