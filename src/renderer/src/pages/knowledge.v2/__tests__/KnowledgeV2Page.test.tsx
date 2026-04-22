@@ -231,6 +231,19 @@ describe('KnowledgeV2Page', () => {
     expect(screen.queryByTestId('detail-header')).not.toBeInTheDocument()
   })
 
+  it('does not mount the create dialog before it is opened', () => {
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+
+    render(<KnowledgeV2Page />)
+
+    expect(screen.queryByTestId('create-dialog')).not.toBeInTheDocument()
+  })
+
   it('falls back to the first remaining base when the selected base disappears', () => {
     const firstBase = createKnowledgeBase({ id: 'base-1', name: 'Base 1' })
     const secondBase = createKnowledgeBase({ id: 'base-2', name: 'Base 2' })

@@ -141,13 +141,15 @@ const KnowledgeV2Page = () => {
         )}
       </div>
 
-      <CreateKnowledgeBaseDialog
-        open={isCreateDialogOpen}
-        isCreating={isCreating}
-        createBase={createBase}
-        onOpenChange={setIsCreateDialogOpen}
-        onCreated={handleCreateBaseCreated}
-      />
+      {isCreateDialogOpen ? (
+        <CreateKnowledgeBaseDialog
+          open={isCreateDialogOpen}
+          isCreating={isCreating}
+          createBase={createBase}
+          onOpenChange={setIsCreateDialogOpen}
+          onCreated={handleCreateBaseCreated}
+        />
+      ) : null}
     </div>
   )
 }
