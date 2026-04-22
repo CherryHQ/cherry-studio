@@ -185,7 +185,9 @@ export const agentHandlers: {
 
     POST: async ({ params, body }) => {
       const session = await sessionService.createSession(params.agentId, toSessionRequest(body ?? {}))
-      if (!session) throw DataApiErrorFactory.notFound('Session', params.agentId)
+      if (!session) {
+        throw DataApiErrorFactory.invalidOperation('create session', 'service returned a falsy result')
+      }
       return session
     }
   },
@@ -226,9 +228,9 @@ export const agentHandlers: {
     DELETE: async ({ params }) => {
       const sessionExists = await sessionService.sessionExists(params.agentId, params.sessionId)
       if (!sessionExists) throw DataApiErrorFactory.notFound('Session', params.sessionId)
-      const messageId = Number(params.messageId)
+      const messageId = /^\d+$/.test(params.messageId) ? Number(params.messageId) : NaN
       if (!Number.isFinite(messageId)) {
-        throw DataApiErrorFactory.validation({ messageId: ['must be a numeric id'] }, 'Invalid message id')
+        throw DataApiErrorFactory.validation({ messageId: ['must be a positive integer'] }, 'Invalid message id')
       }
       const deleted = await sessionMessageService.deleteSessionMessage(params.sessionId, messageId)
       if (!deleted) throw DataApiErrorFactory.notFound('Message', params.messageId)

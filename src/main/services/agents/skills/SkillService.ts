@@ -112,8 +112,9 @@ export class SkillService {
           await this.unlinkSkill(skill.folderName, workspace)
         }
       } catch (error) {
-        // Roll back DB state so it stays consistent with the filesystem
+        let rollbackError: unknown
         await this.upsertAgentSkill(options.agentId, options.skillId, !options.isEnabled).catch((e) => {
+          rollbackError = e
           logger.error('Failed to roll back agent_skill after symlink error', {
             agentId: options.agentId,
             skillId: options.skillId,
@@ -126,6 +127,9 @@ export class SkillService {
           isEnabled: options.isEnabled,
           error: error instanceof Error ? error.message : String(error)
         })
+        if (rollbackError) {
+          throw new AggregateError([error, rollbackError], 'Skill toggle and rollback both failed')
+        }
         throw error
       }
     } else {

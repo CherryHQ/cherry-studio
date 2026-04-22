@@ -270,7 +270,7 @@ export class SessionMessageService {
                     .then(resolveCompletion)
                     .catch((err) => {
                       logger.error('Failed to persist headless exchange', err as Error)
-                      resolveCompletion({})
+                      rejectCompletion(err)
                     })
                 } else {
                   resolveCompletion({})
@@ -295,7 +295,7 @@ export class SessionMessageService {
                       .then(resolveCompletion)
                       .catch((err) => {
                         logger.error('Failed to persist cancelled exchange', err as Error)
-                        resolveCompletion({})
+                        rejectCompletion(err)
                       })
                   } else {
                     resolveCompletion({})
@@ -448,7 +448,7 @@ export class SessionMessageService {
         sessionId,
         error
       })
-      return ''
+      throw error
     }
   }
 

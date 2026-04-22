@@ -61,22 +61,25 @@ class ChannelManager {
   }
 
   async start(): Promise<void> {
+    let channels: Awaited<ReturnType<typeof channelService.listChannels>>
     try {
-      const channels = await channelService.listChannels()
-      const activeChannels = channels.filter((ch) => ch.isActive && ch.agentId)
-
-      // Lazy-load only the adapter modules needed for active channels
-      const neededTypes = [...new Set(activeChannels.map((ch) => ch.type))]
-      await Promise.all(neededTypes.map((type) => ensureAdapterLoaded(type)))
-
-      await Promise.all(activeChannels.map((channel) => this.connectChannelFromRow(channel)))
-
-      logger.info('Channel manager started', { adapterCount: this.adapters.size })
+      channels = await channelService.listChannels()
     } catch (error) {
-      logger.error('Failed to start channel manager', {
+      logger.error('Failed to list channels during startup', {
         error: error instanceof Error ? error.message : String(error)
       })
+      return
     }
+
+    const activeChannels = channels.filter((ch) => ch.isActive && ch.agentId)
+
+    // Lazy-load only the adapter modules needed for active channels
+    const neededTypes = [...new Set(activeChannels.map((ch) => ch.type))]
+    await Promise.all(neededTypes.map((type) => ensureAdapterLoaded(type)))
+
+    await Promise.all(activeChannels.map((channel) => this.connectChannelFromRow(channel)))
+
+    logger.info('Channel manager started', { adapterCount: this.adapters.size })
   }
 
   async stop(): Promise<void> {

@@ -578,11 +578,15 @@ export class AgentService {
 
   async reorderAgents(orderedIds: string[]): Promise<void> {
     const database = application.get('DbService').getDb()
-    await database.transaction(async (tx) => {
-      for (let i = 0; i < orderedIds.length; i++) {
-        await tx.update(agentsTable).set({ sortOrder: i }).where(eq(agentsTable.id, orderedIds[i]))
-      }
-    })
+    await withSqliteErrors(
+      async () =>
+        database.transaction(async (tx) => {
+          for (let i = 0; i < orderedIds.length; i++) {
+            await tx.update(agentsTable).set({ sortOrder: i }).where(eq(agentsTable.id, orderedIds[i]))
+          }
+        }),
+      defaultHandlersFor('Agent', orderedIds.join(','))
+    )
     logger.info('Agents reordered', { count: orderedIds.length })
   }
 
@@ -598,18 +602,25 @@ export class AgentService {
       const deletedAt = Date.now()
       const updatedAt = Date.now()
 
-      await database.transaction(async (tx) => {
-        await tx.delete(agentSkillsTable).where(eq(agentSkillsTable.agentId, id))
-        await tx.delete(scheduledTasksTable).where(eq(scheduledTasksTable.agentId, id))
-        await tx.delete(sessionsTable).where(eq(sessionsTable.agentId, id))
-        await tx.update(channelsTable).set({ agentId: null }).where(eq(channelsTable.agentId, id))
-        await tx.update(agentsTable).set({ deletedAt, updatedAt }).where(eq(agentsTable.id, id))
-      })
+      await withSqliteErrors(
+        async () =>
+          database.transaction(async (tx) => {
+            await tx.delete(agentSkillsTable).where(eq(agentSkillsTable.agentId, id))
+            await tx.delete(scheduledTasksTable).where(eq(scheduledTasksTable.agentId, id))
+            await tx.delete(sessionsTable).where(eq(sessionsTable.agentId, id))
+            await tx.update(channelsTable).set({ agentId: null }).where(eq(channelsTable.agentId, id))
+            await tx.update(agentsTable).set({ deletedAt, updatedAt }).where(eq(agentsTable.id, id))
+          }),
+        defaultHandlersFor('Agent', id)
+      )
 
       return true
     }
 
-    const result = await database.delete(agentsTable).where(eq(agentsTable.id, id))
+    const result = await withSqliteErrors(
+      async () => database.delete(agentsTable).where(eq(agentsTable.id, id)),
+      defaultHandlersFor('Agent', id)
+    )
 
     return result.rowsAffected > 0
   }
