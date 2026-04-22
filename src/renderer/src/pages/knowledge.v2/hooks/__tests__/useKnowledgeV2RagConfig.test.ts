@@ -1,18 +1,27 @@
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useKnowledgeV2RagConfig } from '../useKnowledgeV2RagConfig'
 
-const mockUseProviders = vi.fn()
-const mockUsePreprocessProviders = vi.fn()
+const mockUseModels = vi.fn()
 
-vi.mock('@renderer/hooks/useProvider', () => ({
-  useProviders: () => mockUseProviders()
+vi.mock('@renderer/hooks/useModels', () => ({
+  useModels: (...args: unknown[]) => mockUseModels(...args)
 }))
 
-vi.mock('@renderer/hooks/usePreprocess', () => ({
-  usePreprocessProviders: () => mockUsePreprocessProviders()
+vi.mock('@renderer/i18n/label', () => ({
+  getFileProcessorLabel: (id: string) =>
+    (
+      ({
+        paddleocr: 'PaddleOCR',
+        mineru: 'MinerU',
+        doc2x: 'Doc2X',
+        mistral: 'Mistral',
+        'open-mineru': 'Open MinerU'
+      }) as Record<string, string>
+    )[id] ?? id
 }))
 
 const createKnowledgeBase = (overrides: Partial<KnowledgeBase>): KnowledgeBase => ({
@@ -39,51 +48,44 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase>): KnowledgeBase =
 describe('useKnowledgeV2RagConfig', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockUseProviders.mockReturnValue({
-      providers: [
-        {
-          id: 'openai',
-          name: 'OpenAI',
-          isSystem: false,
+    mockUseModels.mockImplementation((query?: { capability?: string; enabled?: boolean }) => {
+      if (query?.capability === MODEL_CAPABILITY.EMBEDDING) {
+        return {
           models: [
             {
-              id: 'text-embedding-3-small',
+              id: 'openai::text-embedding-3-small',
+              providerId: 'openai',
               name: 'text-embedding-3-small',
-              provider: 'openai',
-              group: 'embedding'
-            },
-            {
-              id: 'gpt-4o-mini',
-              name: 'gpt-4o-mini',
-              provider: 'openai',
-              group: 'chat'
-            }
-          ]
-        },
-        {
-          id: 'jina',
-          name: 'Jina AI',
-          isSystem: false,
-          models: [
-            {
-              id: 'jina-reranker-v2-base-multilingual',
-              name: 'jina-reranker-v2-base-multilingual',
-              provider: 'jina',
-              group: 'rerank'
+              capabilities: [MODEL_CAPABILITY.EMBEDDING],
+              supportsStreaming: false,
+              isEnabled: true,
+              isHidden: false
             }
           ]
         }
-      ]
-    })
-    mockUsePreprocessProviders.mockReturnValue({
-      preprocessProviders: [
-        { id: 'doc2x', name: 'Doc2X' },
-        { id: 'mineru', name: 'MinerU' }
-      ]
+      }
+
+      if (query?.capability === MODEL_CAPABILITY.RERANK) {
+        return {
+          models: [
+            {
+              id: 'jina::jina-reranker-v2-base-multilingual',
+              providerId: 'jina',
+              name: 'jina-reranker-v2-base-multilingual',
+              capabilities: [MODEL_CAPABILITY.RERANK],
+              supportsStreaming: false,
+              isEnabled: true,
+              isHidden: false
+            }
+          ]
+        }
+      }
+
+      return { models: [] }
     })
   })
 
-  it('builds processor, embedding, and rerank options from live provider data', () => {
+  it('builds processor options from shared file-processing presets and model options from live model data', () => {
     const { result } = renderHook(() =>
       useKnowledgeV2RagConfig(
         createKnowledgeBase({
@@ -94,45 +96,28 @@ describe('useKnowledgeV2RagConfig', () => {
     )
 
     expect(result.current.fileProcessorOptions).toEqual([
+      { value: 'paddleocr', label: 'PaddleOCR' },
+      { value: 'mineru', label: 'MinerU' },
       { value: 'doc2x', label: 'Doc2X' },
-      { value: 'mineru', label: 'MinerU' }
+      { value: 'mistral', label: 'Mistral' },
+      { value: 'open-mineru', label: 'Open MinerU' }
     ])
     expect(result.current.embeddingModelOptions).toEqual([
       {
         value: 'openai::text-embedding-3-small',
-        label: 'text-embedding-3-small · OpenAI'
+        label: 'text-embedding-3-small · openai'
       }
     ])
     expect(result.current.rerankModelOptions).toEqual([
       {
         value: 'jina::jina-reranker-v2-base-multilingual',
-        label: 'jina-reranker-v2-base-multilingual · Jina AI'
+        label: 'jina-reranker-v2-base-multilingual · jina'
       }
     ])
-  })
-
-  it('keeps the current saved values selectable even when the source lists no longer contain them', () => {
-    const { result } = renderHook(() =>
-      useKnowledgeV2RagConfig(
-        createKnowledgeBase({
-          fileProcessorId: 'legacy-processor',
-          embeddingModelId: 'legacy::embedding-model',
-          rerankModelId: 'legacy::rerank-model'
-        })
-      )
-    )
-
-    expect(result.current.fileProcessorOptions.at(-1)).toEqual({
-      value: 'legacy-processor',
-      label: 'legacy-processor'
-    })
-    expect(result.current.embeddingModelOptions.at(-1)).toEqual({
-      value: 'legacy::embedding-model',
-      label: 'legacy::embedding-model'
-    })
-    expect(result.current.rerankModelOptions.at(-1)).toEqual({
-      value: 'legacy::rerank-model',
-      label: 'legacy::rerank-model'
-    })
+    expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('tesseract')
+    expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('system')
+    expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('ovocr')
+    expect(mockUseModels).toHaveBeenCalledWith({ capability: MODEL_CAPABILITY.EMBEDDING, enabled: true })
+    expect(mockUseModels).toHaveBeenCalledWith({ capability: MODEL_CAPABILITY.RERANK, enabled: true })
   })
 })

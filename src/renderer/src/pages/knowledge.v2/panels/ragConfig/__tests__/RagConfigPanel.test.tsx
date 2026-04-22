@@ -139,8 +139,8 @@ describe('RagConfigPanel', () => {
         hybridAlpha: null
       },
       fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
-      embeddingModelOptions: [{ value: 'openai::text-embedding-3-small', label: 'text-embedding-3-small · OpenAI' }],
-      rerankModelOptions: [{ value: 'jina::rerank', label: 'jina-rerank · Jina AI' }]
+      embeddingModelOptions: [{ value: 'openai::text-embedding-3-small', label: 'text-embedding-3-small · openai' }],
+      rerankModelOptions: [{ value: 'jina::rerank', label: 'rerank · jina' }]
     })
     mockUseKnowledgeV2SaveRagConfig.mockReturnValue({
       save: mockSave,
@@ -185,8 +185,8 @@ describe('RagConfigPanel', () => {
         hybridAlpha: 0.6
       },
       fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
-      embeddingModelOptions: [{ value: 'openai::text-embedding-3-small', label: 'text-embedding-3-small · OpenAI' }],
-      rerankModelOptions: [{ value: 'jina::rerank', label: 'jina-rerank · Jina AI' }]
+      embeddingModelOptions: [{ value: 'openai::text-embedding-3-small', label: 'text-embedding-3-small · openai' }],
+      rerankModelOptions: [{ value: 'jina::rerank', label: 'rerank · jina' }]
     })
 
     render(<RagConfigPanel base={createKnowledgeBase({ searchMode: 'hybrid', hybridAlpha: 0.6 })} />)

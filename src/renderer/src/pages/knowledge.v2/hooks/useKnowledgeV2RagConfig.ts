@@ -1,62 +1,59 @@
-import { isEmbeddingModel, isRerankModel } from '@renderer/config/models/embedding'
-import { usePreprocessProviders } from '@renderer/hooks/usePreprocess'
-import { useProviders } from '@renderer/hooks/useProvider'
-import { getFancyProviderName } from '@renderer/utils/naming'
+import { useModels } from '@renderer/hooks/useModels'
+import { getFileProcessorLabel } from '@renderer/i18n/label'
+import { PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import { createUniqueModelId } from '@shared/data/types/model'
+import { isUniqueModelId, MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
 import { useMemo } from 'react'
 
-import type { KnowledgeV2SelectOption } from '../types'
 import { createKnowledgeV2RagConfigFormValues } from '../utils/ragConfig'
 
-const appendCurrentOption = (
-  options: KnowledgeV2SelectOption[],
-  currentValue: string | null,
-  createLabel: (value: string) => string = (value) => value
-) => {
-  if (!currentValue || options.some((option) => option.value === currentValue)) {
-    return options
+const KNOWLEDGE_V2_FILE_PROCESSORS = PRESETS_FILE_PROCESSORS.filter((preset) =>
+  preset.capabilities.some(
+    (capability) => capability.feature === 'markdown_conversion' && capability.inputs.includes('document')
+  )
+)
+
+const formatModelOptionLabel = (uniqueModelId: string) => {
+  if (!isUniqueModelId(uniqueModelId)) {
+    return uniqueModelId
   }
 
-  return [...options, { value: currentValue, label: createLabel(currentValue) }]
+  const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+  return `${modelId} · ${providerId}`
 }
 
 export const useKnowledgeV2RagConfig = (base: KnowledgeBase) => {
-  const { providers } = useProviders()
-  const { preprocessProviders } = usePreprocessProviders()
+  const { models: embeddingModels } = useModels({
+    capability: MODEL_CAPABILITY.EMBEDDING,
+    enabled: true
+  })
+  const { models: rerankModels } = useModels({
+    capability: MODEL_CAPABILITY.RERANK,
+    enabled: true
+  })
 
   const initialValues = useMemo(() => createKnowledgeV2RagConfigFormValues(base), [base])
 
   const fileProcessorOptions = useMemo(() => {
-    const options = preprocessProviders.map((provider) => ({
-      value: provider.id,
-      label: provider.name
+    return KNOWLEDGE_V2_FILE_PROCESSORS.map((processor) => ({
+      value: processor.id,
+      label: getFileProcessorLabel(processor.id)
     }))
-
-    return appendCurrentOption(options, base.fileProcessorId ?? null)
-  }, [base.fileProcessorId, preprocessProviders])
+  }, [])
 
   const embeddingModelOptions = useMemo(() => {
-    const options = providers.flatMap((provider) =>
-      provider.models.filter(isEmbeddingModel).map((model) => ({
-        value: createUniqueModelId(provider.id, model.id),
-        label: `${model.name} · ${getFancyProviderName(provider)}`
-      }))
-    )
-
-    return appendCurrentOption(options, base.embeddingModelId)
-  }, [base.embeddingModelId, providers])
+    return embeddingModels.map((model) => ({
+      value: model.id,
+      label: formatModelOptionLabel(model.id)
+    }))
+  }, [embeddingModels])
 
   const rerankModelOptions = useMemo(() => {
-    const options = providers.flatMap((provider) =>
-      provider.models.filter(isRerankModel).map((model) => ({
-        value: createUniqueModelId(provider.id, model.id),
-        label: `${model.name} · ${getFancyProviderName(provider)}`
-      }))
-    )
-
-    return appendCurrentOption(options, base.rerankModelId ?? null)
-  }, [base.rerankModelId, providers])
+    return rerankModels.map((model) => ({
+      value: model.id,
+      label: formatModelOptionLabel(model.id)
+    }))
+  }, [rerankModels])
 
   return {
     initialValues,
