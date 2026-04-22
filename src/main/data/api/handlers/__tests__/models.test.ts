@@ -1,6 +1,6 @@
 import type { CreateModelInput } from '@data/services/ModelService'
 import { DataApiErrorFactory, ErrorCode } from '@shared/data/api'
-import { CreateModelsDtoSchema, MODELS_BATCH_MAX_ITEMS } from '@shared/data/api/schemas/models'
+import { CreateModelsSchema, MODELS_BATCH_MAX_ITEMS } from '@shared/data/api/schemas/models'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../../tests/__mocks__/MainLoggerService'
@@ -43,11 +43,11 @@ describe('Model handler validation', () => {
       modelId: `gpt-${index}`
     }))
 
-    expect(() => CreateModelsDtoSchema.parse(items)).not.toThrow()
+    expect(() => CreateModelsSchema.parse(items)).not.toThrow()
   })
 
   it('rejects single-object payloads for /models', () => {
-    expect(() => CreateModelsDtoSchema.parse({ providerId: 'openai', modelId: 'gpt-4o' })).toThrow()
+    expect(() => CreateModelsSchema.parse({ providerId: 'openai', modelId: 'gpt-4o' })).toThrow()
   })
 
   it('rejects create payload arrays over the configured limit', () => {
@@ -56,7 +56,7 @@ describe('Model handler validation', () => {
       modelId: `gpt-${index}`
     }))
 
-    expect(() => CreateModelsDtoSchema.parse(items)).toThrow()
+    expect(() => CreateModelsSchema.parse(items)).toThrow()
   })
 })
 

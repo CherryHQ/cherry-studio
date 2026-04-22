@@ -8,7 +8,12 @@
 
 import { topicService } from '@data/services/TopicService'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
-import type { TopicSchemas } from '@shared/data/api/schemas/topics'
+import {
+  CreateTopicSchema,
+  SetActiveNodeSchema,
+  type TopicSchemas,
+  UpdateTopicSchema
+} from '@shared/data/api/schemas/topics'
 
 /**
  * Handler type for a specific topic endpoint
@@ -25,7 +30,8 @@ export const topicHandlers: {
 } = {
   '/topics': {
     POST: async ({ body }) => {
-      return await topicService.create(body)
+      const parsed = CreateTopicSchema.parse(body)
+      return await topicService.create(parsed)
     }
   },
 
@@ -35,7 +41,8 @@ export const topicHandlers: {
     },
 
     PATCH: async ({ params, body }) => {
-      return await topicService.update(params.id, body)
+      const parsed = UpdateTopicSchema.parse(body)
+      return await topicService.update(params.id, parsed)
     },
 
     DELETE: async ({ params }) => {
@@ -46,7 +53,8 @@ export const topicHandlers: {
 
   '/topics/:id/active-node': {
     PUT: async ({ params, body }) => {
-      return await topicService.setActiveNode(params.id, body.nodeId)
+      const parsed = SetActiveNodeSchema.parse(body)
+      return await topicService.setActiveNode(params.id, parsed.nodeId)
     }
   }
 }
