@@ -478,7 +478,8 @@
       "@img/sharp-linux-x64": "0.34.5",
       "@img/sharp-win32-x64": "0.34.5",
       "@langchain/core": "1.0.2",
-      "@napi-rs/canvas": "0.1.97"
+      "@napi-rs/canvas": "0.1.97",
+      "@ai-sdk/provider-utils": "4.0.23"
     },
     "patchedDependencies": {
       "@napi-rs/system-ocr@1.0.2": "patches/@napi-rs-system-ocr-npm-1.0.2-59e7a78e8b.patch",
