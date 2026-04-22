@@ -517,7 +517,7 @@ class ClaudeCodeService implements AgentServiceInterface {
       systemPrompt: assistantSystemPrompt
         ? assistantSystemPrompt
         : soulSystemPrompt
-          ? `${soulSystemPrompt}${channelSecurityBlock}\n\n${getLanguageInstruction()}`
+          ? `${soulSystemPrompt}${session.instructions ? `\n\n${session.instructions}` : ''}${channelSecurityBlock}\n\n${getLanguageInstruction()}`
           : {
               type: 'preset',
               preset: 'claude_code',
