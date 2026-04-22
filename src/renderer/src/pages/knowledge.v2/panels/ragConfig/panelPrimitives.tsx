@@ -16,7 +16,7 @@ export const RagFieldLabel = ({ label }: { label: string }) => {
   return (
     <div className="mb-1 flex items-center gap-1">
       <span className="text-[0.6875rem] text-foreground/75 leading-4.125">{label}</span>
-      <Info className="size-[0.5625rem] text-muted-foreground/40" />
+      <Info className="size-2.25 text-muted-foreground/40" />
     </div>
   )
 }
@@ -167,7 +167,7 @@ export const RagSliderField = ({
           step={step}
           size="sm"
           disabled={disabled}
-          className="w-full [&_[data-slot=slider-range]]:bg-foreground/65 [&_[data-slot=slider-thumb]]:size-2.5 [&_[data-slot=slider-thumb]]:border-foreground/20 [&_[data-slot=slider-thumb]]:bg-background [&_[data-slot=slider-thumb]]:shadow-none [&_[data-slot=slider-track]]:h-px [&_[data-slot=slider-track]]:bg-border/40"
+          className="w-full **:data-[slot=slider-thumb]:size-2.5 **:data-[slot=slider-track]:h-px **:data-[slot=slider-thumb]:border-foreground/20 **:data-[slot=slider-range]:bg-foreground/65 **:data-[slot=slider-thumb]:bg-background **:data-[slot=slider-track]:bg-border/40 **:data-[slot=slider-thumb]:shadow-none"
         />
 
         <div className="mt-px flex items-center justify-between text-[0.5rem] text-muted-foreground/25 leading-3">

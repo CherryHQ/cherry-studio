@@ -2122,7 +2122,12 @@
     "data_source": {
       "chunks_count": "{{count}} chunks",
       "filters": {
-        "all": "全部"
+        "all": "全部",
+        "directory": "目录",
+        "file": "文件",
+        "note": "笔记",
+        "sitemap": "站点地图",
+        "url": "链接"
       },
       "ready_summary": "{{ready}}/{{total}} 就绪",
       "status": {
