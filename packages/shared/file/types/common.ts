@@ -38,6 +38,17 @@ export type FileType = z.infer<typeof FileTypeSchema>
 export type FilePath = `/${string}` | `${string}:\\${string}`
 export type Base64String = `data:${string};base64,${string}`
 export type URLString = `http://${string}` | `https://${string}`
+
+/**
+ * `file://` URL pointing at a local resource.
+ *
+ * Runtime validation required — the template-literal pattern only provides a
+ * type-level hint. Produced by FileManager `getUrl` / DataApi `includeUrl` with
+ * a danger-file safety wrap (see `FileEntryView.url`). Keep this distinct from
+ * `URLString` (http/https) so signatures can refuse the wrong family.
+ */
+export type FileURLString = `file://${string}`
+
 export type FileContent = FilePath | Base64String | URLString | Uint8Array
 
 // ─── Physical File Metadata ───

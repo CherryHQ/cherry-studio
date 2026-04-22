@@ -122,8 +122,36 @@ export type EnsureExternalEntryParams = EnsureExternalEntryIpcParams
 
 // ─── Version types ───
 
+/**
+ * Best-effort identity of a file's current on-disk state, captured from
+ * `fs.stat`.
+ *
+ * ## Precision caveat
+ *
+ * `mtime` resolution is **filesystem-dependent**:
+ * - APFS / ext4 / NTFS (local) — typically nanosecond / millisecond precision
+ * - FAT32 / exFAT / SMB / NFS — **second-precision** (any sub-second change is
+ *   invisible to `mtime` alone)
+ *
+ * Combined with a same-size edit, a second-precision `FileVersion` comparison
+ * can **silently mis-identify two different files as equal**. `writeIfUnchanged`
+ * would then run over "stale" data without tripping `StaleVersionError`.
+ *
+ * ## Fallback strategy (Phase 1b.2 implementation contract)
+ *
+ * When `writeIfUnchanged` suspects second-precision mtime ambiguity
+ * (observed mtime has ms === 0 AND size matches expected), the implementation
+ * MUST fall back to a xxhash-128 `contentHash` comparison before committing.
+ * Hash computation is deliberately deferred to this corner case — for the
+ * common case (sub-second mtime resolution or size difference) the
+ * `(mtime, size)` pair is sufficient.
+ *
+ * `FileVersion` itself intentionally excludes content hash — embedding the
+ * hash would force computing it on every read, which is wasteful. The hash
+ * is only materialized inside the fallback path, not stored in the cache.
+ */
 export interface FileVersion {
-  /** ms epoch */
+  /** ms epoch (may be truncated to whole seconds on FAT/SMB/NFS — see caveat above) */
   mtime: number
   /** bytes */
   size: number
@@ -137,9 +165,32 @@ export interface ReadResult<T> {
 
 // ─── Stream helpers ───
 
-/** Atomic write stream: buffered to tmp until `.close()` commits via rename. */
+/**
+ * Atomic write stream: buffered to a tmp file until `.end()` commits the write
+ * by renaming the tmp file onto the target path.
+ *
+ * ## Lifecycle
+ *
+ * - `.write(chunk)` — buffers to the tmp file. Honors Node's standard
+ *   back-pressure semantics (return value `false` = pause until `'drain'`).
+ * - `.end(chunk?)` — finalises the tmp file, fsyncs, then `rename(tmp → target)`.
+ *   On success emits `'finish'`; on failure emits `'error'` after attempting
+ *   to unlink the tmp file. This is the **commit path** — no rename happens
+ *   on any other terminal transition.
+ * - `.destroy(err?)` — abnormal termination (Node stream convention). The
+ *   implementation treats this the same as `.abort()` + error propagation:
+ *   no rename, tmp file is unlinked best-effort.
+ * - `.abort()` — explicit cancel. Unlinks the tmp file and resolves once
+ *   cleanup completes. Idempotent. Preferred over `.destroy()` when the
+ *   caller wants to discard the write deliberately (e.g. validation failed)
+ *   — `.abort()` returns a promise that awaits the unlink, while `.destroy()`
+ *   follows the fire-and-forget Node convention.
+ *
+ * The only way to commit is `.end()`. `.abort()`, `.destroy()`, GC-collection,
+ * process exit — all result in **no** rename onto the target path.
+ */
 export interface AtomicWriteStream extends Writable {
-  /** Cancel the write; unlink tmp file. */
+  /** Cancel the write; unlink the tmp file. Idempotent; awaitable. */
   abort(): Promise<void>
 }
 
@@ -148,6 +199,11 @@ export interface AtomicWriteStream extends Writable {
 /**
  * Thrown by `writeIfUnchanged` when the current file version does not match the
  * caller's expected version. Caller should refresh or present a conflict UX.
+ *
+ * Note: the Phase 1b.2 implementation uses the xxhash-128 fallback path
+ * described on `FileVersion` when mtime resolution is ambiguous — a
+ * `StaleVersionError` under that branch means the hash also diverged, i.e.
+ * the content genuinely differs even when `(mtime, size)` looked equal.
  */
 export class StaleVersionError extends Error {
   constructor(

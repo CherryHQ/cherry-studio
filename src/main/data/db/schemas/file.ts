@@ -72,7 +72,12 @@ export const fileEntryTable = sqliteTable(
     // External entries cannot be trashed — trash/restore is internal-only.
     // External removal is always immediate via permanentDelete (DB-only; the
     // physical file is left untouched, path-level ops.remove is a separate call).
-    check('fe_external_no_trash', sql`${t.origin} != 'external' OR ${t.trashedAt} IS NULL`)
+    check('fe_external_no_trash', sql`${t.origin} != 'external' OR ${t.trashedAt} IS NULL`),
+    // Size is a byte count and must be non-negative. The Zod layer already
+    // rejects negatives, but anything that bypasses Zod (direct Drizzle insert
+    // from a Phase 1b migrator or a buggy test harness) would otherwise leak
+    // into the DB. Belt-and-suspenders: keep invariants at both ends.
+    check('fe_size_nonneg', sql`${t.size} >= 0`)
   ]
 )
 

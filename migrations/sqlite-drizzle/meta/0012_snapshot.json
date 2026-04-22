@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "d11ac3a1-3e0b-4065-aa68-1f51cb805065",
+  "id": "c6fe2d3d-796a-436f-aa9d-c5696c2f4665",
   "prevId": "a947c27c-3d23-43b7-8846-3a82fcbbdee6",
   "tables": {
     "app_state": {
@@ -370,6 +370,10 @@
         "fe_external_no_trash": {
           "name": "fe_external_no_trash",
           "value": "\"file_entry\".\"origin\" != 'external' OR \"file_entry\".\"trashed_at\" IS NULL"
+        },
+        "fe_size_nonneg": {
+          "name": "fe_size_nonneg",
+          "value": "\"file_entry\".\"size\" >= 0"
         }
       }
     },

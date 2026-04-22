@@ -10,7 +10,8 @@ CREATE TABLE `file_entry` (
 	`updated_at` integer,
 	CONSTRAINT "fe_origin_check" CHECK("file_entry"."origin" IN ('internal', 'external')),
 	CONSTRAINT "fe_origin_consistency" CHECK(("file_entry"."origin" = 'internal' AND "file_entry"."external_path" IS NULL) OR ("file_entry"."origin" = 'external' AND "file_entry"."external_path" IS NOT NULL)),
-	CONSTRAINT "fe_external_no_trash" CHECK("file_entry"."origin" != 'external' OR "file_entry"."trashed_at" IS NULL)
+	CONSTRAINT "fe_external_no_trash" CHECK("file_entry"."origin" != 'external' OR "file_entry"."trashed_at" IS NULL),
+	CONSTRAINT "fe_size_nonneg" CHECK("file_entry"."size" >= 0)
 );
 --> statement-breakpoint
 CREATE INDEX `fe_trashed_at_idx` ON `file_entry` (`trashed_at`);--> statement-breakpoint

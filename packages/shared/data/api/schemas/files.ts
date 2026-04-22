@@ -50,7 +50,15 @@
  */
 
 import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
-import type { DanglingState, FileEntry, FileEntryId, FileEntryOrigin, FileRef } from '@shared/data/types/file'
+import type {
+  DanglingState,
+  FileEntry,
+  FileEntryId,
+  FileEntryOrigin,
+  FileRef,
+  FileRefSourceType
+} from '@shared/data/types/file'
+import type { FilePath, FileURLString } from '@shared/file/types/common'
 
 /**
  * FileEntry augmented with optional opt-in derived fields.
@@ -114,9 +122,11 @@ export type FileEntryView = FileEntry & {
    * Exposing raw paths is a meaningful capability with real abuse potential
    * (renderer could in principle hand the string to any IPC that takes a path).
    * This is enforced by **convention only**; code review should verify each
-   * call site against the "intended uses" list above.
+   * call site against the "intended uses" list above. The branded `FilePath`
+   * type at least forces a type-level narrowing ceremony before a caller can
+   * pipe this value into another path-typed API — a bare `string` would not.
    */
-  path?: string
+  path?: FilePath
   /**
    * file:// URL suitable for `<img src>` / `<video src>`, with danger-file
    * safety wrapping (for .sh/.bat/.ps1 etc., the URL points to the containing
@@ -124,6 +134,10 @@ export type FileEntryView = FileEntry & {
    *
    * Populated when query passes `includeUrl: true`. Keeps renderer unaware
    * of internal storage layout (id + ext concatenation).
+   *
+   * The `FileURLString` brand (`file://${string}`) prevents accidental
+   * substitution with an `http`/`https` `URLString`; consumers that accept
+   * any URL should widen explicitly rather than rely on structural typing.
    *
    * ## Scope of the safety wrap
    *
@@ -136,7 +150,7 @@ export type FileEntryView = FileEntry & {
    * - Do NOT assume the wrap sanitizes against injection in text contexts
    * - Use `includePath` instead when the consumer needs the raw path value
    */
-  url?: string
+  url?: FileURLString
 }
 
 export interface FileSchemas {
@@ -218,7 +232,7 @@ export interface FileSchemas {
    */
   '/files/refs/by-source': {
     GET: {
-      query: { sourceType: string; sourceId: string }
+      query: { sourceType: FileRefSourceType; sourceId: string }
       response: FileRef[]
     }
   }

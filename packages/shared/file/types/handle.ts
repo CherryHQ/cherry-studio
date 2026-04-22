@@ -35,13 +35,51 @@ export type UnmanagedFileHandle = {
 
 export type FileHandle = ManagedFileHandle | UnmanagedFileHandle
 
-/** Wrap a FileEntry ID as a managed FileHandle. */
+/**
+ * Wrap a FileEntry ID as a managed FileHandle.
+ *
+ * The caller is responsible for ensuring `entryId` is a valid UUID v7 —
+ * typically produced by a FileManager factory or the DataApi response. This
+ * factory does not re-validate: `FileEntryId` is a type alias over `string`
+ * (see `FileEntryIdSchema`), and runtime validation happens at the entry
+ * *production* boundaries, not when wrapping an existing id.
+ */
 export function createManagedHandle(entryId: FileEntryId): ManagedFileHandle {
   return { kind: 'managed', entryId }
 }
 
-/** Wrap an arbitrary filesystem path as an unmanaged FileHandle. */
+/**
+ * Wrap an absolute filesystem path as an unmanaged FileHandle.
+ *
+ * ## Runtime validation
+ *
+ * The `FilePath` template-literal type (`` `/${string}` | `${string}:\\${string}` ``)
+ * is a compile-time hint, but untyped entry points (IPC payloads, `as FilePath`
+ * casts, renderer-side dynamic construction) can bypass it. This factory runs
+ * a cheap runtime check so a bad path fails at wrap time rather than surfacing
+ * as a confusing failure inside `ops.read` / FileManager several layers down.
+ *
+ * Rejected inputs:
+ * - Relative paths (`./foo`, `foo/bar`)
+ * - `file://` URLs — use `FileURLString` and a dedicated conversion path
+ * - Empty string
+ *
+ * Accepted: POSIX absolute (`/...`) and Windows absolute (`C:\...`).
+ *
+ * @throws {TypeError} When `path` is not a non-empty absolute filesystem path.
+ */
 export function createUnmanagedHandle(path: FilePath): UnmanagedFileHandle {
+  if (typeof path !== 'string' || path.length === 0) {
+    throw new TypeError('createUnmanagedHandle: path must be a non-empty string')
+  }
+  if (path.startsWith('file://')) {
+    throw new TypeError('createUnmanagedHandle: path must be a filesystem path, not a file:// URL')
+  }
+  const isPosixAbsolute = path.startsWith('/')
+  const isWindowsAbsolute = /^[A-Za-z]:\\/.test(path)
+  if (!isPosixAbsolute && !isWindowsAbsolute) {
+    throw new TypeError(`createUnmanagedHandle: path must be absolute (got ${JSON.stringify(path)})`)
+  }
   return { kind: 'unmanaged', path }
 }
 

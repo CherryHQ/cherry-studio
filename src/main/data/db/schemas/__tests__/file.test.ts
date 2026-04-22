@@ -107,6 +107,24 @@ describe('fileEntryTable — fe_external_no_trash check', () => {
   })
 })
 
+describe('fileEntryTable — fe_size_nonneg check', () => {
+  const dbh = setupTestDatabase()
+
+  it('accepts size = 0 (empty file)', async () => {
+    await expect(dbh.db.insert(fileEntryTable).values(baseInternal({ size: 0 }))).resolves.not.toThrow()
+  })
+
+  it('rejects negative size (internal)', async () => {
+    await expect(dbh.db.insert(fileEntryTable).values(baseInternal({ size: -1 }))).rejects.toThrow()
+  })
+
+  it('rejects negative size (external)', async () => {
+    await expect(
+      dbh.db.insert(fileEntryTable).values(baseExternal('/Users/me/neg.pdf', { size: -500 }))
+    ).rejects.toThrow()
+  })
+})
+
 describe('fileRefTable — CASCADE FK', () => {
   const dbh = setupTestDatabase()
 

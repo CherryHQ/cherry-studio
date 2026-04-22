@@ -32,3 +32,27 @@ export type {
   ReadResult
 } from './FileManager'
 export { StaleVersionError } from './FileManager'
+
+// DanglingCache: interface and singleton are both exported for Phase 1b.3
+// callers (DataApi handler, orphanSweep). External imports of the singleton
+// should stay narrow — treat the barrel-exported value as read-only from
+// outside the file module.
+export type { DanglingCache, DanglingListener, ObservedPresence } from './danglingCache'
+export { danglingCache } from './danglingCache'
+
+// VersionCache: interface only. The runtime instance is a private field on
+// FileManager and is not exposed via the barrel.
+export type { VersionCache } from './versionCache'
+
+// Watcher primitive — business modules (future NoteService, KB watcher, etc.)
+// call `createDirectoryWatcher` directly. Not a lifecycle service.
+export type {
+  CreateDirectoryWatcherOptions,
+  DirectoryWatcher,
+  WatcherEvent,
+  WatcherListener
+} from './watcher'
+export { createDirectoryWatcher } from './watcher'
+
+// Projection helper: managed FileEntry → live on-disk FileInfo descriptor.
+export { toFileInfo } from './toFileInfo'

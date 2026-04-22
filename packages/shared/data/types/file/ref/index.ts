@@ -34,18 +34,48 @@ import { tempSessionFileRefSchema, tempSessionRefFields, tempSessionRoles, tempS
 // ─── SourceType type (load-bearing — keys the OrphanRefScanner registry) ───
 
 /**
- * All registered FileRef source types.
+ * All expected FileRef source types, including variants whose full Zod schema
+ * has not yet been registered (Phase 1a status).
  *
  * The tuple form is required so `FileRefSourceType` infers as a union of
- * string literals rather than `string` — this lets `Record<FileRefSourceType, ...>`
+ * string literals rather than `string` — this lets `Record<FileRefSourceType, …>`
  * enforce exhaustive coverage at compile time (e.g. OrphanRefScanner's
- * checker registry rejects missing sourceTypes).
+ * checker registry in Phase 1b.4 compile-fails when a sourceType is missing
+ * its checker).
+ *
+ * ## Phase-by-phase registration
+ *
+ * - `temp_session` — Phase 1a (schema + runtime). Transient paste/draft refs.
+ * - `chat_message` — Phase 1b.2 (bucket P per `filemetadata-consumer-audit.md`).
+ *   Currently: tuple entry only; discriminated-union variant not landed.
+ * - `knowledge_item` — Phase 1b.2 (bucket P).
+ * - `painting` — Phase 1b.2 (bucket P).
+ * - `note` — Phase 1b.2 (narrow cross-domain: Notes referencing an external
+ *   FileEntry; Notes' own FS tree remains self-managed and does NOT create
+ *   file_refs).
+ *
+ * The type union stays complete now so registries keyed by `FileRefSourceType`
+ * (OrphanRefScanner, DataApi param typing) do not change when new variants
+ * land — only the `FileRefSchema` discriminated union grows additively.
  */
-const allSourceTypes = [tempSessionSourceType] as const
+const allSourceTypes = [
+  tempSessionSourceType,
+  'chat_message',
+  'knowledge_item',
+  'painting',
+  'note'
+] as const satisfies readonly string[]
 export type FileRefSourceType = (typeof allSourceTypes)[number]
 
 // ─── Discriminated Union ───
 
+/**
+ * Runtime-validated FileRef schema. Phase 1a registers only `tempSession`;
+ * other variants listed in `FileRefSourceType` are intentionally absent here
+ * until their schema files land. Constructing a FileRef for an unregistered
+ * sourceType via `FileRefSchema.parse` will throw — which is the desired
+ * behavior (Phase 1a producers are restricted to tempSession refs).
+ */
 export const FileRefSchema = z.discriminatedUnion('sourceType', [tempSessionFileRefSchema])
 export type FileRef = z.infer<typeof FileRefSchema>
 
