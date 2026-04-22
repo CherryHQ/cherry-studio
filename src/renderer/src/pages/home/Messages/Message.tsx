@@ -86,9 +86,13 @@ const MessageItem: FC<Props> = ({
       return null
     }
 
-    const versions = rawTopicMessages
-      .filter((item) => item.role === 'user' && item.versionGroupId === message.versionGroupId)
-      .toSorted((left, right) => (left.versionNumber ?? 1) - (right.versionNumber ?? 1))
+    const versions: Message[] = []
+    for (const item of rawTopicMessages) {
+      if (item.role === 'user' && item.versionGroupId === message.versionGroupId) {
+        versions.push(item)
+      }
+    }
+    versions.sort((left, right) => (left.versionNumber ?? 1) - (right.versionNumber ?? 1))
 
     if (versions.length <= 1) {
       return null

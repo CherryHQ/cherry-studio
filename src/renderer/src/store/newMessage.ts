@@ -307,21 +307,27 @@ export const {
 } = messagesAdapter.getSelectors(selectMessagesState)
 
 export function getVersionSelectionMap(messages: Message[]): MessageVersionSelectionMap {
-  const selectedVersions = new Map<string, string>()
+  const selectedVersions = new Map<string, { id: string; priority: number }>()
 
   messages.forEach((message) => {
-    if (message.role === 'user' && message.versionGroupId) {
-      selectedVersions.set(message.versionGroupId, message.id)
+    if (message.role !== 'user' || !message.versionGroupId) {
+      return
+    }
+
+    const nextPriority = message.versionSelected ? 2 : 1
+    const currentSelection = selectedVersions.get(message.versionGroupId)
+
+    if (!currentSelection || nextPriority >= currentSelection.priority) {
+      selectedVersions.set(message.versionGroupId, {
+        id: message.id,
+        priority: nextPriority
+      })
     }
   })
 
-  messages.forEach((message) => {
-    if (message.role === 'user' && message.versionGroupId && message.versionSelected) {
-      selectedVersions.set(message.versionGroupId, message.id)
-    }
-  })
-
-  return Object.fromEntries(selectedVersions.entries())
+  return Object.fromEntries(
+    Array.from(selectedVersions.entries()).map(([groupId, selection]) => [groupId, selection.id])
+  )
 }
 
 function isVisibleInCurrentBranch(
