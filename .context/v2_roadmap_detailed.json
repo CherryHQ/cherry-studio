@@ -1,65 +1,92 @@
 {
-  "generated_at": "2026-04-20T00:00:00Z",
-  "report_date": "2026-04-20",
-  "v2_branch_status": {
-    "strategy": "All new features, refactoring, and optimizations target v2 branch. main is under code freeze (hotfix/* only).",
-    "open_prs": 52,
-    "merged_prs_30d": 57,
-    "pr_velocity": "~1.9 merges/day in last 30 days"
+  "generated_at": "2026-04-22T00:00:00Z",
+  "date": "2026-04-22",
+  "milestone": {
+    "name": "v2.0.0",
+    "number": 34,
+    "state": "open",
+    "open_issues": 54,
+    "closed_issues": 60,
+    "completion_pct": 52.6,
+    "due_on": "2026-04-30T00:00:00Z",
+    "days_until_due": 8
   },
-  "recently_merged_prs": [
-    {"number": 14359, "title": "refactor(data-api): use greedy :uniqueModelId* for model routing", "labels": ["v2"], "category": "data"},
-    {"number": 14234, "title": "feat(data): add Tag entity DataApi with CRUD and entity-tag relations", "labels": ["v2"], "category": "data"},
-    {"number": 14229, "title": "feat(migration): migrate llm model preferences to v2 with UnifiedModel", "labels": ["v2"], "category": "migration"},
-    {"number": 14257, "title": "refactor(data): unify legacy model ID conversion and add FK constraints", "labels": ["v2"], "category": "data"},
-    {"number": 14251, "title": "refactor: remove memory module from v2", "labels": ["v2"], "category": "cleanup"},
-    {"number": 14086, "title": "refactor: migrate shortcut system to Preference architecture", "labels": ["v2"], "category": "migration"},
-    {"number": 14280, "title": "fix(v2): remove knowledge libsql vector indexes", "labels": [], "category": "fix"},
-    {"number": 14240, "title": "feat(sidebar): implement tab bar UI with drag, pin, and context menu", "labels": ["v2"], "category": "ui"},
-    {"number": 13851, "title": "feat(v2): decouple assistant from topic with dedicated table", "labels": ["v2"], "category": "data"},
-    {"number": 14220, "title": "refactor: move rtk extraction into agent bootstrap service", "labels": [], "category": "refactor"}
-  ],
-  "open_prs_active": [
-    {"number": 14431, "title": "refactor(agents): migrate renderer agent hooks from HTTP to DataApi", "author": "vaayne", "category": "data"},
-    {"number": 14429, "title": "docs(bootConfig): add Boot Config system documentation", "author": "DeJeune", "category": "docs"},
-    {"number": 14428, "title": "refactor(agents-data-api): migrate agents domain to DataApi", "author": "vaayne", "category": "data"},
-    {"number": 14357, "title": "feat(memory): pluggable memory provider system with Hina", "author": "kwisser", "category": "feature"},
-    {"number": 14071, "title": "feat(ai): add V2 AI streaming pipeline and blocks-to-payload", "author": "DeJeune", "category": "ai-core"},
-    {"number": 14146, "title": "feat(layout): add split-view infrastructure for multi-panel", "author": "DeJeune", "category": "ui"},
-    {"number": 14159, "title": "feat: migrate agents storage to v2 main database", "author": "vaayne", "category": "migration"},
-    {"number": 14328, "title": "refactor: stabilize ui package boundaries and theme contracts", "author": "kangfenmao", "category": "ui"},
-    {"number": 14309, "title": "refactor(settings): unify settings list item and action button patterns", "author": "kangfenmao", "category": "ui"},
-    {"number": 13871, "title": "refactor(translate): migrate renderer translate module from Redux/Dexie to v2 data APIs", "author": "EuRfelux", "category": "migration"}
-  ],
-  "migration_progress": {
-    "completed_areas": [
-      "LLM model preferences",
-      "Shortcut system → Preference architecture",
-      "Tag entity DataApi",
-      "Assistant/topic decoupling",
-      "Sidebar tab bar UI",
-      "RTK extraction → agent bootstrap",
-      "Paintings data architecture",
-      "Models/providers domain hooks"
-    ],
-    "in_progress": [
-      "AI streaming pipeline (V2 blocks-to-payload)",
-      "Agents storage → DataApi (HTTP → IPC migration)",
-      "Memory provider system (pluggable)",
-      "Split-view / multi-panel layout infrastructure",
-      "UI package boundaries/theme contracts",
-      "Settings UI unification",
-      "Renderer translate module",
-      "Copilot IPC decoupling",
-      "MiniApp category navigation"
-    ],
-    "blocked_prs": 1
+  "v2_pr_stats": {
+    "open_prs_targeting_v2": 57,
+    "merged_prs_last_30d": 55,
+    "note": "High merge velocity on v2 branch — 55 PRs merged in last 30 days"
   },
-  "category_breakdown": {
-    "data_api": 3,
-    "ui_refactor": 2,
-    "migration": 3,
-    "ai_core": 1,
-    "cleanup_fix": 1
-  }
+  "recent_v2_activity": [
+    {
+      "number": 14490,
+      "title": "feat(model-selector-v2): build v2 model selector on new data/UI stack",
+      "state": "open",
+      "author": "zhangjiadi225",
+      "created_at": "2026-04-22T13:57:15Z",
+      "labels": ["v2"],
+      "milestone": "v2.0.0",
+      "description": "New standalone ModelSelectorV2 with Popover UX, virtualized grouped list, keyboard nav, search, tag filters, pin toggle. Built on DataApi + Preference. Shadcn + Tailwind."
+    },
+    {
+      "number": 14359,
+      "title": "refactor(data-api): use greedy :uniqueModelId* for model route",
+      "state": "merged",
+      "author": "DeJeune",
+      "merged_at": "2026-04-18T11:15:03Z",
+      "labels": ["v2"],
+      "milestone": "v2.0.0",
+      "description": "Fixed composite model IDs containing '/' (OpenRouter/Fireworks/Qwen) by using greedy route param"
+    }
+  ],
+  "key_themes": [
+    {
+      "theme": "Data API refactor",
+      "status": "in-progress",
+      "description": "Moving from Redux+Dexie to typed DataApi (REST over IPC) with Drizzle+LibSQL backend"
+    },
+    {
+      "theme": "UI migration to Shadcn + Tailwind v4",
+      "status": "in-progress",
+      "description": "Replacing Ant Design 5 + styled-components with Shadcn primitives and TailwindCSS v4"
+    },
+    {
+      "theme": "Model Selector v2",
+      "status": "in-review",
+      "pr": 14490,
+      "description": "New v2-native model picker — popover, virtualized, keyboard nav, pinning, multi-select"
+    },
+    {
+      "theme": "Agents subsystem refactor",
+      "status": "blocked",
+      "description": "Drizzle+LibSQL agents DB undergoing v2 refactor; only critical bug fixes accepted on main"
+    },
+    {
+      "theme": "Preference schema generation",
+      "status": "in-progress",
+      "description": "classification.json + code generation pipeline for type-safe user preferences"
+    },
+    {
+      "theme": "MCP protocol upgrade (2025-11-25)",
+      "status": "open",
+      "issue": 11578,
+      "description": "Upgrade to MCP spec November 2025 — assigned DeJeune, 90+ days open"
+    }
+  ],
+  "risks": [
+    {
+      "risk": "Due date pressure",
+      "detail": "v2.0.0 milestone due 2026-04-30, 8 days away, 54 open issues remain",
+      "severity": "HIGH"
+    },
+    {
+      "risk": "Main branch code freeze",
+      "detail": "Only hotfix/* branches accepted on main; all features blocked until v2 ships",
+      "severity": "MEDIUM"
+    },
+    {
+      "risk": "Antd / Dexie migration scope",
+      "detail": "Multiple deprecated files still in use; full removal not yet complete",
+      "severity": "MEDIUM"
+    }
+  ]
 }

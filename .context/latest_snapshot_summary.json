@@ -1,126 +1,94 @@
 {
-  "generated_at": "2026-04-20T00:00:00Z",
-  "snapshot_date": "2026-04-20",
-  "open_issues": {
-    "total": 821,
-    "no_label_count": 87,
-    "no_label_pct": "10.6%",
-    "note": "No-label count from GitHub search (exact). Bug issues open: 171.",
-    "p1_critical": [
-      {
-        "number": 12966,
-        "title": "[URGENT] Unanswered Critical Security Advisory (GHSA-qmgw-45x4-3626) - Pending Triage for 8 Days",
-        "labels": ["BUG", "P1"],
-        "created_at": "2026-02-19T16:12:01Z",
-        "updated_at": "2026-03-25T06:23:45Z",
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/12966",
-        "summary": "Critical security advisory GHSA-qmgw-45x4-3626 pending triage. Reporter holding off public disclosure."
-      },
+  "generated_at": "2026-04-22T00:00:00Z",
+  "date": "2026-04-22",
+  "issues": {
+    "open_total": 775,
+    "closed_last_30d": 222,
+    "no_label_count": 89,
+    "no_label_pct": 11.5,
+    "health": {
+      "active": 215,
+      "active_pct": 27.7,
+      "aging": 408,
+      "aging_pct": 52.6,
+      "stale": 149,
+      "stale_pct": 19.2,
+      "zombie": 3,
+      "zombie_pct": 0.4
+    },
+    "top_labels": [
+      {"name": "UI/UX", "count": 30},
+      {"name": "inactive", "count": 20},
+      {"name": "Models", "count": 19},
+      {"name": "Assistant", "count": 14},
+      {"name": "needs-repro", "count": 9},
+      {"name": "Connectivity", "count": 8},
+      {"name": "MCP", "count": 8},
+      {"name": "feature", "count": 5},
+      {"name": "help wanted", "count": 5},
+      {"name": "discussion", "count": 5},
+      {"name": "BUG", "count": 5},
+      {"name": "Data", "count": 4},
+      {"name": "needs-more-info", "count": 4},
+      {"name": "Performance", "count": 4},
+      {"name": "Planned", "count": 3}
+    ],
+    "p1_issues": [
       {
         "number": 13608,
         "title": "[Bug]: xiaomi mimo response only displays the last line",
         "labels": ["P1", "Models"],
-        "created_at": "2026-03-18T14:34:38Z",
         "updated_at": "2026-03-19T14:22:09Z",
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/13608",
-        "summary": "Streaming response from mimo-v2-flash shows only last line. Affects v1.8.0."
+        "age_days": 34,
+        "health_bucket": "stale",
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/13608"
       },
       {
         "number": 13193,
-        "title": "[Bug]: [AI_APICallError: Resource not found] Could not call Azure OpenAI in the latest macOS app",
+        "title": "[Bug]: Azure OpenAI Resource not found, default use responses API",
         "labels": ["P1", "Models"],
-        "assignee": "DeJeune",
-        "created_at": "2026-03-04T05:07:40Z",
         "updated_at": "2026-03-05T08:47:59Z",
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/13193",
-        "summary": "Azure OpenAI defaults to responses API instead of chat/completions since v1.7.22-1.7.23. Regression from v1.7.19."
+        "age_days": 48,
+        "health_bucket": "stale",
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"
+      },
+      {
+        "number": 12966,
+        "title": "[URGENT] Unanswered Critical Security Advisory (GHSA-qmgw-45x4-3626)",
+        "labels": ["BUG", "P1"],
+        "updated_at": "2026-03-25T06:23:45Z",
+        "age_days": 28,
+        "health_bucket": "aging",
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/12966"
       }
-    ],
-    "health": {
-      "active_7d": 199,
-      "aging_8_30d": 474,
-      "stale_31_90d": 145,
-      "zombie_90d_plus": 3
+    ]
+  },
+  "pull_requests": {
+    "open_total": 249,
+    "merged_last_30d": 187,
+    "v2_open": 57,
+    "v2_merged_last_30d": 55
+  },
+  "v2_milestone": {
+    "name": "v2.0.0",
+    "open_issues": 54,
+    "closed_issues": 60,
+    "due_on": "2026-04-30T00:00:00Z"
+  },
+  "notable_today": [
+    {
+      "type": "hotfix_merged",
+      "number": 14488,
+      "title": "hotfix(ai-sdk/openai): patch @ai-sdk/openai to support gpt-image-2",
+      "merged_at": "2026-04-22T15:29:50Z"
     },
-    "top_labels": [
-      {"label": "inactive", "count": 62},
-      {"label": "Models", "count": 49},
-      {"label": "UI/UX", "count": 44},
-      {"label": "Assistant", "count": 19},
-      {"label": "MCP", "count": 17},
-      {"label": "needs-repro", "count": 15},
-      {"label": "discussion", "count": 10},
-      {"label": "Performance", "count": 9},
-      {"label": "Data", "count": 9},
-      {"label": "help wanted", "count": 8}
-    ],
-    "top_commented": [
-      {"number": 12913, "comments": 20, "title": "[Bug]: Error starting openclaw: process exited with code 1"},
-      {"number": 9943, "comments": 13, "title": "[错误]: MCPB（原DXT）文件导入MCP服务器的相关问题"},
-      {"number": 9145, "comments": 10, "title": "[Feature]: MCP Elicitation Support"},
-      {"number": 11101, "comments": 9, "title": "[Feature]: Keep Tool Calling Context"},
-      {"number": 12967, "comments": 8, "title": "[Bug]: plugin.json not found in .claude-plugin error when install plug"},
-      {"number": 14387, "comments": 6, "title": "[Discussion]: Suspicious telemetry connection to cherry-ai.com persist"},
-      {"number": 14300, "comments": 6, "title": "[Bug]: Backup to WebDAV and S3 failed"},
-      {"number": 13543, "comments": 6, "title": "[Bug]: gateway exited with code 3221225501"},
-      {"number": 13082, "comments": 5, "title": "[Bug]: Frequent lag during normal operations"},
-      {"number": 13578, "comments": 5, "title": "[Bug]: cherry studio quit unexpectedly"}
-    ]
-  },
-  "closed_issues_30d": {
-    "total": 145,
-    "top_labels_closed": [
-      {"label": "inactive", "count": 29},
-      {"label": "Models", "count": 26},
-      {"label": "UI/UX", "count": 21},
-      {"label": "P2", "count": 17},
-      {"label": "discussion", "count": 13},
-      {"label": "needs-more-info", "count": 12},
-      {"label": "help wanted", "count": 11},
-      {"label": "closed:no-response", "count": 9},
-      {"label": "Assistant", "count": 8},
-      {"label": "Connectivity", "count": 8}
-    ]
-  },
-  "open_prs": {
-    "total": 252,
-    "targeting_v2": 52,
-    "targeting_main_or_other": 200,
-    "age_buckets": {
-      "fresh_7d": 82,
-      "aging_7_30d": 18,
-      "stale_30d": 0
-    },
-    "main_branch_prs_sample": [
-      {"number": 10162, "title": "Cherry Studio v2: Data & UI Refactoring", "author": "0xfullex"},
-      {"number": 14390, "title": "fix(analytics): respect data collection setting for all tracking", "author": "Yuerchu"},
-      {"number": 14383, "title": "fix: use bunx for claude-code on Windows to avoid bun global path issue", "author": "LWWZH"},
-      {"number": 14378, "title": "fix(quick-panel): reset stale state on panel close", "author": "GeorgeDong32"},
-      {"number": 14388, "title": "chore(deps): upgrade AI SDK from v6.0.143 to v6.0.168", "author": "PhoenixCPH"}
-    ]
-  },
-  "v2_branch": {
-    "open_prs": 52,
-    "merged_prs_30d": 57,
-    "velocity": "~1.9 merges/day",
-    "recent_merged_10": [
-      {"number": 14359, "title": "refactor(data-api): use greedy :uniqueModelId* for model routing"},
-      {"number": 14234, "title": "feat(data): add Tag entity DataApi with CRUD and entity-tag relations"},
-      {"number": 14229, "title": "feat(migration): migrate llm model preferences to v2 with UnifiedModel"},
-      {"number": 14257, "title": "refactor(data): unify legacy model ID conversion and add FK constraints"},
-      {"number": 14251, "title": "refactor: remove memory module from v2"},
-      {"number": 14086, "title": "refactor: migrate shortcut system to Preference architecture"},
-      {"number": 14280, "title": "fix(v2): remove knowledge libsql vector indexes"},
-      {"number": 14240, "title": "feat(sidebar): implement tab bar UI with drag, pin, and context menu"},
-      {"number": 13851, "title": "feat(v2): decouple assistant from topic with dedicated table"},
-      {"number": 14220, "title": "refactor: move rtk extraction into agent bootstrap service"}
-    ],
-    "recent_open_5": [
-      {"number": 14071, "title": "feat(ai): add V2 AI streaming pipeline and blocks-to-parts migration", "author": "DeJeune"},
-      {"number": 14159, "title": "feat: migrate agents storage to v2 main database", "author": "vaayne"},
-      {"number": 14328, "title": "refactor: stabilize ui package boundaries and theme contracts", "author": "kangfenmao"},
-      {"number": 14309, "title": "refactor(settings): unify settings list item and action button patterns", "author": "kangfenmao"},
-      {"number": 13871, "title": "refactor(translate): migrate renderer translate module from Redux/Dexie to v2 data APIs", "author": "EuRfelux"}
-    ]
-  }
+    {
+      "type": "no_label_issue",
+      "number": 14465,
+      "title": "[Bug]: Built-in web search can repeat excessively and consume huge tokens",
+      "created_at": "2026-04-22T04:03:24Z",
+      "author": "kangfenmao",
+      "note": "Opened by maintainer, no label yet"
+    }
+  ]
 }

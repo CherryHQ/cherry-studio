@@ -1,102 +1,69 @@
 {
-  "generated_at": "2026-04-20T00:00:00Z",
-  "report_date": "2026-04-20",
-  "summary": {
-    "total_open": 821,
-    "total_closed_30d": 145,
-    "p1_count": 3,
-    "uncategorized_pct": "10.6%",
-    "health_score": "MODERATE",
-    "health_notes": "Large aging backlog (474 issues 8-30d old) needs triage attention"
+  "generated_at": "2026-04-22T00:00:00Z",
+  "date": "2026-04-22",
+  "definitions": {
+    "active": "Updated within last 7 days (>= 2026-04-15)",
+    "aging": "Updated 7-30 days ago (2026-03-23 to 2026-04-15)",
+    "stale": "Updated 30-90 days ago (2026-01-22 to 2026-03-23)",
+    "zombie": "Updated 90+ days ago (< 2026-01-22)"
   },
-  "health_distribution": {
-    "active": {
-      "count": 199,
-      "pct": "24.2%",
-      "definition": "Updated within last 7 days (after 2026-04-13)"
-    },
-    "aging": {
-      "count": 474,
-      "pct": "57.7%",
-      "definition": "Updated 8-30 days ago (2026-03-21 to 2026-04-13)"
-    },
-    "stale": {
-      "count": 145,
-      "pct": "17.7%",
-      "definition": "Updated 31-90 days ago (2026-01-21 to 2026-03-21)"
-    },
-    "zombie": {
-      "count": 3,
-      "pct": "0.4%",
-      "definition": "Not updated in 90+ days (before 2026-01-20)"
-    }
+  "summary": {
+    "total_open": 775,
+    "active": 215,
+    "aging": 408,
+    "stale": 149,
+    "zombie": 3,
+    "no_label": 89,
+    "p1_count": 3
+  },
+  "percentages": {
+    "active_pct": 27.7,
+    "aging_pct": 52.6,
+    "stale_pct": 19.2,
+    "zombie_pct": 0.4,
+    "no_label_pct": 11.5
   },
   "p1_issues": [
-    {
-      "number": 12966,
-      "title": "[URGENT] Unanswered Critical Security Advisory (GHSA-qmgw-45x4-3626)",
-      "labels": ["BUG", "P1"],
-      "created_at": "2026-02-19",
-      "last_updated": "2026-03-25",
-      "days_open": 60,
-      "days_since_update": 26,
-      "assignee": null,
-      "severity": "CRITICAL",
-      "action_required": "Immediate security triage — reporter threatens public disclosure (60 days outstanding)",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/12966"
-    },
     {
       "number": 13608,
       "title": "[Bug]: xiaomi mimo response only displays the last line",
       "labels": ["P1", "Models"],
-      "created_at": "2026-03-18",
-      "last_updated": "2026-03-19",
-      "days_open": 33,
-      "days_since_update": 32,
-      "assignee": null,
-      "severity": "HIGH",
-      "action_required": "No update in 32 days — needs investigation",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13608"
+      "updated_at": "2026-03-19T14:22:09Z",
+      "age_days": 34,
+      "health_bucket": "stale",
+      "assignee": "DeJeune",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13608",
+      "risk": "HIGH - P1 bug stale for 34 days, no recent activity"
     },
     {
       "number": 13193,
-      "title": "[Bug]: Azure OpenAI Resource not found (responses API regression)",
+      "title": "[Bug]: Azure OpenAI AI_APICallError Resource not found (responses API regression)",
       "labels": ["P1", "Models"],
-      "created_at": "2026-03-04",
-      "last_updated": "2026-03-05",
-      "days_open": 47,
-      "days_since_update": 46,
+      "updated_at": "2026-03-05T08:47:59Z",
+      "age_days": 48,
+      "health_bucket": "stale",
       "assignee": "DeJeune",
-      "severity": "HIGH",
-      "action_required": "Assigned but no update in 46 days — follow up with assignee",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13193",
+      "risk": "HIGH - P1 API regression stale for 48 days"
+    },
+    {
+      "number": 12966,
+      "title": "[URGENT] Unanswered Critical Security Advisory GHSA-qmgw-45x4-3626",
+      "labels": ["BUG", "P1"],
+      "updated_at": "2026-03-25T06:23:45Z",
+      "age_days": 28,
+      "health_bucket": "aging",
+      "assignee": null,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/12966",
+      "risk": "CRITICAL - Security advisory unresolved for 62+ days since submission"
     }
   ],
-  "triage_recommendations": [
-    {
-      "priority": 1,
-      "action": "Respond to security advisory #12966 immediately",
-      "rationale": "Potential public disclosure, GHSA advisory outstanding"
-    },
-    {
-      "priority": 2,
-      "action": "Review 145 stale issues for closure or reprioritization",
-      "rationale": "17.7% of backlog not touched in 30-90 days"
-    },
-    {
-      "priority": 3,
-      "action": "Label the ~87 uncategorized open issues",
-      "rationale": "10.6% lack labels, impeding triage and routing"
-    },
-    {
-      "priority": 4,
-      "action": "Audit zombie issues (3 total) — close or convert to discussions",
-      "rationale": "Issues untouched >90 days are unlikely to be actioned without explicit triage"
-    }
-  ],
-  "resolution_velocity": {
-    "closed_last_30d": 145,
-    "daily_avg_close": 4.8,
-    "net_change_30d": "Unknown — new issue creation rate not measured in this snapshot"
-  }
+  "recommendations": [
+    "P1 #12966 security advisory is the most urgent: submitted 2026-02-11, no resolution disclosed publicly",
+    "P1 #13193 Azure responses API regression is 48 days stale, assigned to DeJeune",
+    "P1 #13608 mimo streaming bug is 34 days stale, was in closed milestone v1.8.1 but issue still open",
+    "89 issues (11.5%) have no label — triaging these would improve routing",
+    "408 aging issues (52.6%) need attention or triage to avoid sliding into stale",
+    "3 zombie issues (90+ days) should be evaluated for closure or escalation"
+  ]
 }
