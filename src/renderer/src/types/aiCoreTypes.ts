@@ -47,8 +47,7 @@ export type GenerateTextParams = Omit<Parameters<typeof generateText>[0], 'model
 export type OpenAIVerbosity = OpenAI.Responses.ResponseTextConfig['verbosity']
 export type ValidOpenAIVerbosity = NotUndefined<OpenAIVerbosity>
 
-export type OpenAIReasoningEffort = OpenAI.ReasoningEffort
-
+export type OpenAIReasoningEffort = NonNullable<OpenAI.ReasoningEffort> | 'auto'
 /**
  * A summary of the reasoning performed by the model. This can be useful for debugging and understanding the model's reasoning process.
  *

@@ -1,4 +1,5 @@
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
+import MarqueeText from '@renderer/components/MarqueeText'
 import { isMac } from '@renderer/config/constant'
 import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
@@ -13,6 +14,7 @@ import { newMessagesActions } from '@renderer/store/newMessage'
 import { loadTopicMessagesThunk, renameAgentSessionIfNeeded } from '@renderer/store/thunk/messageThunk'
 import type { AgentSessionEntity } from '@renderer/types'
 import { classNames } from '@renderer/utils'
+import { getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { MenuProps } from 'antd'
 import { Dropdown, Tooltip } from 'antd'
@@ -27,11 +29,12 @@ interface SessionItemProps {
   session: AgentSessionEntity
   // use external agentId as SSOT, instead of session.agent_id
   agentId: string
+  channelType?: string
   onDelete: () => void
   onPress: () => void
 }
 
-const SessionItem = ({ session, agentId, onDelete, onPress }: SessionItemProps) => {
+const SessionItem = ({ session, agentId, channelType, onDelete, onPress }: SessionItemProps) => {
   const { t } = useTranslation()
   const { chat } = useRuntime()
   const { updateSession } = useUpdateSession(agentId)
@@ -111,6 +114,8 @@ const SessionItem = ({ session, agentId, onDelete, onPress }: SessionItemProps) 
       )
     }
   }, [activeSessionId, dispatch, isFulfilled, session.id, sessionTopicId])
+
+  const channelIcon = getChannelTypeIcon(channelType)
 
   const { topicPosition, setTopicPosition } = useSettings()
   const singlealone = topicPosition === 'right'
@@ -198,12 +203,15 @@ const SessionItem = ({ session, agentId, onDelete, onPress }: SessionItemProps) 
             <SessionEditInput {...inputProps} style={{ opacity: isSaving ? 0.5 : 1 }} />
           ) : (
             <>
-              <div className="truncate text-[13px]">
-                <SessionLabel
-                  session={session}
-                  className={isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-reveal' : ''}
-                />
-              </div>
+              <SessionName>
+                {channelIcon && <ChannelIconImg src={channelIcon} />}
+                <MarqueeText className="flex min-w-0 flex-1">
+                  <SessionLabel
+                    session={session}
+                    className={isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-reveal' : ''}
+                  />
+                </MarqueeText>
+              </SessionName>
               <DeleteButton />
             </>
           )}
@@ -267,6 +275,24 @@ const SessionNameContainer = styled.div`
   gap: 4px;
   height: 20px;
   justify-content: space-between;
+`
+
+const SessionName = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  font-size: 13px;
+  position: relative;
+  min-width: 0;
+`
+
+const ChannelIconImg = styled.img`
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  border-radius: 2px;
+  object-fit: contain;
 `
 
 const SessionEditInput = styled.input`

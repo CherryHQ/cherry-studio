@@ -68,7 +68,10 @@ vi.mock('electron', () => {
       getPrimaryDisplay: vi.fn(),
       getAllDisplays: vi.fn()
     },
-    Notification: vi.fn()
+    Notification: vi.fn(),
+    net: {
+      fetch: vi.fn()
+    }
   }
 
   return { __esModule: true, ...mock, default: mock }

@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next'
 import useSWRInfinite from 'swr/infinite'
 
 import { useAgentClient } from './useAgentClient'
+import { useSessionChanged } from './useSessionChanged'
 
 export const useSessions = (agentId: string | null, pageSize = DEFAULT_SESSION_PAGE_SIZE) => {
   const { t } = useTranslation()
@@ -54,6 +55,9 @@ export const useSessions = (agentId: string | null, pageSize = DEFAULT_SESSION_P
   const reload = useCallback(async () => {
     await mutate()
   }, [mutate])
+
+  // Auto-refresh when IM channel creates/updates sessions
+  useSessionChanged(agentId ?? undefined, reload)
 
   const createSession = useCallback(
     async (form: CreateSessionForm): Promise<CreateAgentSessionResponse | null> => {

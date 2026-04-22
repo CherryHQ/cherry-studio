@@ -26,7 +26,7 @@ const visionAllowedModels = [
   'qwen2-vl',
   'qwen2.5-vl',
   'qwen3-vl',
-  'qwen3\\.5(?:-[\\w-]+)?',
+  'qwen3\\.[5-9](?:-[\\w-]+)?',
   'qwen2.5-omni',
   'qwen3-omni(?:-[\\w-]+)?',
   'qvq',
@@ -46,7 +46,7 @@ const visionAllowedModels = [
   'deepseek-vl(?:[\\w-]+)?',
   'kimi-k2.5',
   'kimi-latest',
-  'gemma-3(?:-[\\w-]+)',
+  'gemma-?[3-4](?:[-.\\w]+)?',
   'doubao-seed-1[.-][68](?:-[\\w-]+)?',
   'doubao-seed-2[.-]0(?:-[\\w-]+)?',
   'doubao-seed-code(?:-[\\w-]+)?',
@@ -61,7 +61,8 @@ const visionAllowedModels = [
   'mistral-large-(2512|latest)',
   'mistral-medium-(2508|latest)',
   'mistral-small-(2506|latest)',
-  'mimo-v2-omni(?:-[\\w-]+)?'
+  'mimo-v2-omni(?:-[\\w-]+)?',
+  'glm-5v-turbo'
 ]
 
 const visionExcludedModels = [
@@ -118,7 +119,7 @@ const IMAGE_ENHANCEMENT_MODELS = [
   'gpt-image-1',
   'gemini-2.5-flash-image(?:-[\\w-]+)?',
   'gemini-2.0-flash-preview-image-generation',
-  'gemini-3(?:\\.\\d+)?-pro-image(?:-[\\w-]+)?'
+  'gemini-3(?:\\.\\d+)?-(?:flash|pro)-image(?:-[\\w-]+)?'
 ]
 
 const IMAGE_ENHANCEMENT_MODELS_REGEX = new RegExp(IMAGE_ENHANCEMENT_MODELS.join('|'), 'i')
@@ -128,7 +129,7 @@ const DEDICATED_IMAGE_MODEL_REGEX = new RegExp(DEDICATED_IMAGE_MODELS.join('|'),
 // Models that should auto-enable image generation button when selected
 const AUTO_ENABLE_IMAGE_MODELS = [
   'gemini-2.5-flash-image(?:-[\\w-]+)?',
-  'gemini-3(?:\\.\\d+)?-pro-image(?:-[\\w-]+)?',
+  'gemini-3(?:\\.\\d+)?-(?:flash|pro)-image(?:-[\\w-]+)?',
   ...DEDICATED_IMAGE_MODELS
 ]
 
@@ -146,7 +147,7 @@ const OPENAI_TOOL_USE_IMAGE_GENERATION_MODELS = [
 
 const OPENAI_IMAGE_GENERATION_MODELS = [...OPENAI_TOOL_USE_IMAGE_GENERATION_MODELS, 'gpt-image-1']
 
-const MODERN_IMAGE_MODELS = ['gemini-3(?:\\.\\d+)?-pro-image(?:-[\\w-]+)?']
+const MODERN_IMAGE_MODELS = ['gemini-3(?:\\.\\d+)?-(?:flash|pro)-image(?:-[\\w-]+)?']
 
 const GENERATE_IMAGE_MODELS = [
   'gemini-2.0-flash-exp(?:-[\\w-]+)?',

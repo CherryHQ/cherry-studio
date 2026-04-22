@@ -1,7 +1,6 @@
 import type { GatewayLanguageModelEntry } from '@ai-sdk/gateway'
 import { loggerService } from '@logger'
-import { type EndpointType, EndPointTypeSchema, type Model, type Provider } from '@renderer/types'
-import type { NewApiModel, SdkModel } from '@renderer/types/sdk'
+import { EndPointTypeSchema, type Model, type Provider } from '@renderer/types'
 import { getDefaultGroupName } from '@renderer/utils/naming'
 import * as z from 'zod'
 
@@ -21,10 +20,6 @@ const NormalizedModelSchema = z.object({
 
 type NormalizedModelInput = z.input<typeof NormalizedModelSchema>
 
-export function normalizeSdkModels(provider: Provider, models: SdkModel[]): Model[] {
-  return normalizeModels(models, (entry) => adaptSdkModel(provider, entry))
-}
-
 export function normalizeGatewayModels(provider: Provider, models: GatewayLanguageModelEntry[]): Model[] {
   return normalizeModels(models, (entry) => adaptGatewayModel(provider, entry))
 }
@@ -42,45 +37,6 @@ function normalizeModels<T>(models: T[], transformer: (entry: T) => Model | null
   }
 
   return uniqueModels
-}
-
-function stripModelPrefix(id: string): string {
-  return id.startsWith('models/') ? id.slice('models/'.length) : id
-}
-
-function adaptSdkModel(provider: Provider, model: SdkModel): Model | null {
-  const rawId = pickPreferredString([(model as any)?.id, (model as any)?.modelId, (model as any)?.name])
-  const id = rawId ? stripModelPrefix(rawId) : rawId
-  const name = pickPreferredString([
-    (model as any)?.display_name,
-    (model as any)?.displayName,
-    (model as any)?.name,
-    id
-  ])
-
-  if (!id || !name) {
-    logger.warn('Skip SDK model with missing id or name', {
-      providerId: provider.id,
-      modelSnippet: summarizeModel(model)
-    })
-    return null
-  }
-
-  const candidate: NormalizedModelInput = {
-    id,
-    name,
-    provider: provider.id,
-    group: getDefaultGroupName(id, provider.id),
-    description: pickPreferredString([(model as any)?.description, (model as any)?.summary]),
-    owned_by: pickPreferredString([(model as any)?.owned_by, (model as any)?.publisher])
-  }
-
-  const supportedEndpointTypes = pickSupportedEndpointTypes(provider.id, model)
-  if (supportedEndpointTypes) {
-    candidate.supported_endpoint_types = supportedEndpointTypes
-  }
-
-  return validateModel(candidate, model)
 }
 
 function adaptGatewayModel(provider: Provider, model: GatewayLanguageModelEntry): Model | null {
@@ -104,50 +60,6 @@ function adaptGatewayModel(provider: Provider, model: GatewayLanguageModelEntry)
   }
 
   return validateModel(candidate, model)
-}
-
-function pickPreferredString(values: Array<unknown>): string | undefined {
-  for (const value of values) {
-    if (typeof value === 'string') {
-      const trimmed = value.trim()
-      if (trimmed.length > 0) {
-        return trimmed
-      }
-    }
-  }
-  return undefined
-}
-
-function pickSupportedEndpointTypes(providerId: string, model: SdkModel): EndpointType[] | undefined {
-  const candidate =
-    (model as Partial<NewApiModel>).supported_endpoint_types ??
-    ((model as Record<string, unknown>).supported_endpoint_types as EndpointType[] | undefined)
-
-  if (!Array.isArray(candidate) || candidate.length === 0) {
-    return undefined
-  }
-
-  const supported: EndpointType[] = []
-  const unsupported: unknown[] = []
-
-  for (const value of candidate) {
-    const parsed = EndPointTypeSchema.safeParse(value)
-    if (parsed.success) {
-      supported.push(parsed.data)
-    } else {
-      unsupported.push(value)
-    }
-  }
-
-  if (unsupported.length > 0) {
-    logger.warn('Pruned unsupported endpoint types', {
-      providerId,
-      values: unsupported,
-      modelSnippet: summarizeModel(model)
-    })
-  }
-
-  return supported.length > 0 ? supported : undefined
 }
 
 function validateModel(candidate: NormalizedModelInput, source: unknown): Model | null {

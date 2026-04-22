@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "lastUpdated": 1774918800000,
+  "plugins": [
+    {
+      "filename": "cherry-assistant-guide",
+      "type": "skill",
+      "metadata": {
+        "sourcePath": "skills/cherry-assistant-guide",
+        "filename": "cherry-assistant-guide",
+        "name": "cherry-assistant-guide",
+        "description": "Cherry Studio 产品知识库、源码路径索引、故障排查和页面导航。当用户询问 Cherry Studio 的功能、配置、报错、使用方法时触发。也适用于用户提到 provider、模型、知识库、Agent、MCP、OpenClaw、PDF、快捷短语等关键词的场景。",
+        "category": "skills",
+        "type": "skill",
+        "size": 7318,
+        "contentHash": "994922bc4cc0280b1fa6d316e5cb8ebe5a292572c131fcc68b9d7ca80d70d2db"
+      }
+    },
+    {
+      "filename": "faq-collector",
+      "type": "skill",
+      "metadata": {
+        "sourcePath": "skills/faq-collector",
+        "filename": "faq-collector",
+        "name": "faq-collector",
+        "description": "将成功解决的用户问题收录到 FAQ 知识库。问题解决后自动判断是否收录。也可以在用户说\"收录到 FAQ\"、\"记录这个问题\"、\"add to FAQ\"时手动触发。",
+        "category": "skills",
+        "type": "skill",
+        "size": 1134,
+        "contentHash": "66f466c991a125d072dd242a87bb05ff1aee4bc7f7209ee70673004d10b887b3"
+      }
+    },
+    {
+      "filename": "issue-reporter",
+      "type": "skill",
+      "metadata": {
+        "sourcePath": "skills/issue-reporter",
+        "filename": "issue-reporter",
+        "name": "issue-reporter",
+        "description": "帮助用户提交 Bug Report 或 Feature Request。支持 GitHub Issue（有账户）和本地存档（无账户）两种模式。当诊断发现是代码 Bug 时主动提议，或当用户说\"帮我提 issue\"、\"这是个 bug\"、\"我想要这个功能\"、\"submit a bug\"、\"feature request\"时触发。",
+        "category": "skills",
+        "type": "skill",
+        "size": 1656,
+        "contentHash": "95725d616981ecf7276210d875b046c55883b570ff1eb712d910442014159125"
+      }
+    },
+    {
+      "filename": "skills-manager",
+      "type": "skill",
+      "metadata": {
+        "sourcePath": "skills/skills-manager",
+        "filename": "skills-manager",
+        "name": "skills-manager",
+        "description": "搜索、安装和创建 Claude Code Agent Skills。当用户想要搜索技能、安装工具、创建自定义 Skill，或者说\"find a skill\"、\"搜索技能\"、\"帮我做个 skill\"、\"create a skill\"时触发。也适用于用户说\"有没有做 X 的工具\"、\"我想扩展 Agent 能力\"的场景。",
+        "category": "skills",
+        "type": "skill",
+        "size": 1632,
+        "contentHash": "7aa285f334acf318b23ef0f1d3126cd5d55c2a47ad0daa360ddd7321dfc6e5c6"
+      }
+    }
+  ]
+}
