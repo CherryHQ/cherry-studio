@@ -1487,6 +1487,11 @@
         "placeholder": "搜尋話題...",
         "title": "搜尋"
       },
+      "sort": {
+        "created": "建立時間",
+        "manual": "手動",
+        "updated": "最近對話"
+      },
       "title": "話題",
       "unpin": "取消固定"
     },

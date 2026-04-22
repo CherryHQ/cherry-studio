@@ -33,9 +33,10 @@ import {
   topicToMarkdown
 } from '@renderer/utils/export'
 import type { MenuProps } from 'antd'
-import { Dropdown, Tooltip } from 'antd'
+import { Dropdown, Segmented, Tooltip } from 'antd'
 import type { ItemType, MenuItemType } from 'antd/es/menu/interface'
 import dayjs from 'dayjs'
+import { orderBy } from 'lodash'
 import { findIndex } from 'lodash'
 import {
   BrushCleaning,
@@ -77,6 +78,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
   const [showTopicTime] = usePreference('topic.tab.show_time')
   const [pinTopicsToTop] = usePreference('topic.tab.pin_to_top')
   const [topicPosition, setTopicPosition] = usePreference('topic.position')
+  const [topicSortType, setTopicSortType] = usePreference('topic.tab.sort_type')
 
   const [, setGenerating] = useCache('chat.generating')
 
@@ -542,17 +544,38 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
     onDeleteTopic
   ])
 
-  // Sort topics based on pinned status if pinTopicsToTop is enabled
+  // Sort topics based on pinned status and sort type
   const sortedTopics = useMemo(() => {
-    if (pinTopicsToTop) {
-      return [...assistant.topics].sort((a, b) => {
-        if (a.pinned && !b.pinned) return -1
-        if (!a.pinned && b.pinned) return 1
-        return 0
-      })
+    const topics = [...assistant.topics]
+
+    // If sort type is manual, just sort by pinned status if enabled
+    if (topicSortType === 'manual') {
+      if (pinTopicsToTop) {
+        return topics.sort((a, b) => {
+          if (a.pinned && !b.pinned) return -1
+          if (!a.pinned && b.pinned) return 1
+          return 0
+        })
+      }
+      return topics
     }
-    return assistant.topics
-  }, [assistant.topics, pinTopicsToTop])
+
+    // Sort by createdAt or updatedAt
+    const sortField = topicSortType
+
+    if (pinTopicsToTop) {
+      // Separate pinned and unpinned, sort each group, then combine
+      const pinnedTopics = topics.filter((t) => t.pinned)
+      const unpinnedTopics = topics.filter((t) => !t.pinned)
+
+      const sortedPinned = orderBy(pinnedTopics, sortField, 'desc')
+      const sortedUnpinned = orderBy(unpinnedTopics, sortField, 'desc')
+
+      return [...sortedPinned, ...sortedUnpinned]
+    }
+
+    return orderBy(topics, sortField, 'desc')
+  }, [assistant.topics, pinTopicsToTop, topicSortType])
 
   // Filter topics based on search text (only in manage mode)
   // Supports: case-insensitive, space-separated keywords (all must match)
@@ -599,6 +622,17 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
                 <ListChecks size={14} />
               </HeaderIconButton>
             </Tooltip>
+            {assistant.topics.length > 1 && (
+              <SortControl
+                value={topicSortType}
+                onChange={(val) => setTopicSortType(val as 'manual' | 'createdAt' | 'updatedAt')}
+                options={[
+                  { label: t('chat.topics.sort.manual'), value: 'manual' },
+                  { label: t('chat.topics.sort.created'), value: 'createdAt' },
+                  { label: t('chat.topics.sort.updated'), value: 'updatedAt' }
+                ]}
+              />
+            )}
           </HeaderRow>
         }
         disabled={isManageMode}>
@@ -893,6 +927,11 @@ const HeaderRow = styled.div`
   padding-right: 10px;
   margin-bottom: 8px;
   margin-top: 2px;
+  flex: 1;
+`
+
+const SortControl = styled(Segmented)`
+  margin-left: auto;
 `
 
 const HeaderIconButton = styled.div`

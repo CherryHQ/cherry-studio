@@ -1487,6 +1487,11 @@
         "placeholder": "Buscar temas...",
         "title": "Buscar"
       },
+      "sort": {
+        "created": "Creación",
+        "manual": "Manual",
+        "updated": "Actualizado"
+      },
       "title": "Tema",
       "unpin": "Quitar fijación"
     },

@@ -1487,6 +1487,11 @@
         "placeholder": "Search topics...",
         "title": "Search"
       },
+      "sort": {
+        "created": "Created",
+        "manual": "Manual",
+        "updated": "Updated"
+      },
       "title": "Topics",
       "unpin": "Unpin Topic"
     },
