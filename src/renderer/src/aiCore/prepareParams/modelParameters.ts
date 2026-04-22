@@ -143,8 +143,8 @@ export function filterStandardParams(
   model: Model
 ): Partial<Record<AiSdkParam, any>> {
   if (isClaude47SeriesModel(model) && 'topK' in standardParams) {
-    const { topK: _topK, ...rest } = standardParams
-    logger.info(`Model ${model.id} rejects sampling parameters, dropping topK from custom params`)
+    const { topK, ...rest } = standardParams
+    logger.info(`Model ${model.id} rejects sampling parameters, dropping topK=${topK} from custom params`)
     return rest
   }
   return standardParams
