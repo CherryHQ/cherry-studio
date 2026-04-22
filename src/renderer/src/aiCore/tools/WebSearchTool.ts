@@ -1,9 +1,41 @@
-import { REFERENCE_PROMPT } from '@renderer/config/prompts'
 import WebSearchService from '@renderer/services/WebSearchService'
 import type { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 import type { ExtractResults } from '@renderer/utils/extract'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 import * as z from 'zod'
+
+export const BUILTIN_WEB_SEARCH_TOOL_NAME = 'buildin_web_search'
+
+const MAX_BUILTIN_WEB_SEARCH_QUERIES = 3
+
+function normalizeWebSearchQueries(questions: string[]): string[] {
+  if (questions[0] === 'not_needed') {
+    return ['not_needed']
+  }
+
+  const seen = new Set<string>()
+
+  return questions
+    .map((question) => question.trim())
+    .filter((question) => question.length > 0)
+    .filter((question) => {
+      const key = question.toLocaleLowerCase()
+      if (seen.has(key)) {
+        return false
+      }
+      seen.add(key)
+      return true
+    })
+    .slice(0, MAX_BUILTIN_WEB_SEARCH_QUERIES)
+}
+
+function keepUrlDomainOnly(url: string): string {
+  try {
+    return new URL(url).origin
+  } catch {
+    return url
+  }
+}
 
 /**
  * 使用预提取关键词的网络搜索工具
@@ -18,6 +50,7 @@ export const webSearchToolWithPreExtractedKeywords = (
   requestId: string
 ) => {
   const webSearchProvider = WebSearchService.getWebSearchProvider(webSearchProviderId)
+  let cachedSearchResults: WebSearchProviderResponse | undefined
 
   return tool({
     description: `Web search tool for finding current information, news, and real-time data from the internet.
@@ -40,23 +73,23 @@ You can use this tool as-is to search with the prepared queries, or provide addi
     }),
 
     execute: async ({ additionalContext }) => {
-      let finalQueries = [...extractedKeywords.question]
+      if (cachedSearchResults) {
+        return cachedSearchResults
+      }
+
+      let finalQueries = normalizeWebSearchQueries(extractedKeywords.question)
 
       if (additionalContext?.trim()) {
         // 如果大模型提供了额外上下文，使用更具体的描述
         const cleanContext = additionalContext.trim()
         if (cleanContext) {
-          finalQueries = [cleanContext]
+          finalQueries = normalizeWebSearchQueries([cleanContext])
         }
       }
 
-      let searchResults: WebSearchProviderResponse = {
-        query: '',
-        results: []
-      }
       // 检查是否需要搜索
-      if (finalQueries[0] === 'not_needed') {
-        return searchResults
+      if (finalQueries.length === 0 || finalQueries[0] === 'not_needed') {
+        return { query: '', results: [] }
       }
 
       // 构建 ExtractResults 结构用于 processWebsearch
@@ -66,7 +99,8 @@ You can use this tool as-is to search with the prepared queries, or provide addi
           links: extractedKeywords.links
         }
       }
-      searchResults = await WebSearchService.processWebsearch(webSearchProvider!, extractResults, requestId)
+      const searchResults = await WebSearchService.processWebsearch(webSearchProvider!, extractResults, requestId)
+      cachedSearchResults = searchResults
 
       return searchResults
     },
@@ -80,15 +114,10 @@ You can use this tool as-is to search with the prepared queries, or provide addi
         number: index + 1,
         title: result.title,
         content: result.content,
-        url: result.url
+        url: keepUrlDomainOnly(result.url)
       }))
 
-      // 🔑 返回引用友好的格式，复用 REFERENCE_PROMPT 逻辑
-      const referenceContent = `\`\`\`json\n${JSON.stringify(citationData, null, 2)}\n\`\`\``
-      const fullInstructions = REFERENCE_PROMPT.replace(
-        '{question}',
-        "Based on the search results, please answer the user's question with proper citations."
-      ).replace('{references}', referenceContent)
+      const referenceContent = JSON.stringify(citationData, null, 2)
       return {
         type: 'content',
         value: [
@@ -102,103 +131,13 @@ You can use this tool as-is to search with the prepared queries, or provide addi
           },
           {
             type: 'text',
-            text: fullInstructions
+            text: `Answer using these sources. Cite them as [1], [2], etc.:\n${referenceContent}`
           }
         ]
       }
     }
   })
 }
-
-// export const webSearchToolWithExtraction = (
-//   webSearchProviderId: WebSearchProvider['id'],
-//   requestId: string,
-//   assistant: Assistant
-// ) => {
-//   const webSearchService = WebSearchService.getInstance(webSearchProviderId)
-
-//   return tool({
-//     name: 'web_search_with_extraction',
-//     description: 'Search the web for information with automatic keyword extraction from user messages',
-//     inputSchema: z.object({
-//       userMessage: z.object({
-//         content: z.string().describe('The main content of the message'),
-//         role: z.enum(['user', 'assistant', 'system']).describe('Message role')
-//       }),
-//       lastAnswer: z.object({
-//         content: z.string().describe('The main content of the message'),
-//         role: z.enum(['user', 'assistant', 'system']).describe('Message role')
-//       })
-//     }),
-//     outputSchema: z.object({
-//       extractedKeywords: z.object({
-//         question: z.array(z.string()),
-//         links: z.array(z.string()).optional()
-//       }),
-//       searchResults: z.array(
-//         z.object({
-//           query: z.string(),
-//           results: WebSearchProviderResult
-//         })
-//       )
-//     }),
-//     execute: async ({ userMessage, lastAnswer }) => {
-//       const lastUserMessage: Message = {
-//         id: requestId,
-//         role: userMessage.role,
-//         assistantId: assistant.id,
-//         topicId: 'temp',
-//         createdAt: new Date().toISOString(),
-//         status: UserMessageStatus.SUCCESS,
-//         blocks: []
-//       }
-
-//       const lastAnswerMessage: Message | undefined = lastAnswer
-//         ? {
-//             id: requestId + '_answer',
-//             role: lastAnswer.role,
-//             assistantId: assistant.id,
-//             topicId: 'temp',
-//             createdAt: new Date().toISOString(),
-//             status: UserMessageStatus.SUCCESS,
-//             blocks: []
-//           }
-//         : undefined
-
-//       const extractResults = await extractSearchKeywords(lastUserMessage, assistant, {
-//         shouldWebSearch: true,
-//         shouldKnowledgeSearch: false,
-//         lastAnswer: lastAnswerMessage
-//       })
-
-//       if (!extractResults?.websearch || extractResults.websearch.question[0] === 'not_needed') {
-//         return 'No search needed or extraction failed'
-//       }
-
-//       const searchQueries = extractResults.websearch.question
-//       const searchResults: Array<{ query: string; results: any }> = []
-
-//       for (const query of searchQueries) {
-//         // 构建单个查询的ExtractResults结构
-//         const queryExtractResults: ExtractResults = {
-//           websearch: {
-//             question: [query],
-//             links: extractResults.websearch.links
-//           }
-//         }
-//         const response = await webSearchService.processWebsearch(queryExtractResults, requestId)
-//         searchResults.push({
-//           query,
-//           results: response
-//         })
-//       }
-
-//       return { extractedKeywords: extractResults.websearch, searchResults }
-//     }
-//   })
-// }
-
-// export type WebSearchToolWithExtractionOutput = InferToolOutput<ReturnType<typeof webSearchToolWithExtraction>>
 
 export type WebSearchToolOutput = InferToolOutput<ReturnType<typeof webSearchToolWithPreExtractedKeywords>>
 export type WebSearchToolInput = InferToolInput<ReturnType<typeof webSearchToolWithPreExtractedKeywords>>
