@@ -137,7 +137,7 @@ const KnowledgeV2Page = () => {
 
             <div className="min-h-0 flex-1 overflow-hidden">
               {activeTab === 'dataSource' && <DataSourcePanel items={selectedBaseItems} isLoading={isItemsLoading} />}
-              {activeTab === 'ragConfig' && <RagConfigPanel />}
+              {activeTab === 'ragConfig' && <RagConfigPanel base={selectedBase.base} />}
               {activeTab === 'recallTest' && <RecallTestPanel />}
             </div>
           </main>

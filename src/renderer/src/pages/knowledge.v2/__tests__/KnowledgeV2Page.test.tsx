@@ -51,7 +51,20 @@ vi.mock('../components/DetailHeader', () => ({
 }))
 
 vi.mock('../components/DetailTabs', () => ({
-  default: ({ dataSourceCount }: { dataSourceCount: number }) => <div data-testid="detail-tabs">{dataSourceCount}</div>
+  default: ({
+    dataSourceCount,
+    onChange
+  }: {
+    dataSourceCount: number
+    onChange: (tab: 'dataSource' | 'ragConfig' | 'recallTest') => void
+  }) => (
+    <div>
+      <div data-testid="detail-tabs">{dataSourceCount}</div>
+      <button type="button" onClick={() => onChange('ragConfig')}>
+        RAG
+      </button>
+    </div>
+  )
 }))
 
 vi.mock('../panels/dataSource/DataSourcePanel', () => ({
@@ -59,7 +72,7 @@ vi.mock('../panels/dataSource/DataSourcePanel', () => ({
 }))
 
 vi.mock('../panels/ragConfig/RagConfigPanel', () => ({
-  default: () => <div>rag-config-panel</div>
+  default: ({ base }: { base: { id: string; name: string } }) => <div data-testid="rag-config-panel">{base.name}</div>
 }))
 
 vi.mock('../panels/recallTest/RecallTestPanel', () => ({
@@ -154,6 +167,9 @@ describe('KnowledgeV2Page', () => {
     expect(screen.getByTestId('selected-base-doc-count')).toHaveTextContent('2')
     expect(screen.getByTestId('detail-tabs')).toHaveTextContent('2')
     expect(screen.getByTestId('data-source-panel')).toHaveTextContent('2')
+
+    fireEvent.click(screen.getByRole('button', { name: 'RAG' }))
+    expect(screen.getByTestId('rag-config-panel')).toHaveTextContent('Base 1')
   })
 
   it('shows an empty state when no knowledge bases are available', () => {
