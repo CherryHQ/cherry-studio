@@ -101,7 +101,7 @@ export class AgentService {
     )
     const result = await database.select().from(agentsTable).where(eq(agentsTable.id, id)).limit(1)
     if (!result[0]) {
-      throw new Error('Failed to create agent')
+      throw DataApiErrorFactory.invalidOperation('create agent', 'insert succeeded but select returned no row')
     }
 
     const agent = deserializeJsonFields(result[0]) as AgentEntity

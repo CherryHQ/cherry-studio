@@ -187,7 +187,7 @@ export class SessionService {
     const result = await db.select().from(sessionsTable).where(eq(sessionsTable.id, id)).limit(1)
 
     if (!result[0]) {
-      throw new Error('Failed to create session')
+      throw DataApiErrorFactory.invalidOperation('create session', 'insert succeeded but select returned no row')
     }
 
     const session = deserializeJsonFields(result[0])

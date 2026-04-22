@@ -6,6 +6,7 @@ import {
   agentSessionMessageTable as sessionMessagesTable,
   type InsertAgentSessionMessageRow as InsertSessionMessageRow
 } from '@data/db/schemas/agentSessionMessage'
+import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import { loggerService } from '@logger'
 import type {
   AgentMessageAssistantPersistPayload,
@@ -157,10 +158,13 @@ export class SessionMessageService {
 
   async deleteSessionMessage(sessionId: string, messageId: number): Promise<boolean> {
     const database = application.get('DbService').getDb()
-    const result = await database
-      .delete(sessionMessagesTable)
-      .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
-
+    const result = await withSqliteErrors(
+      () =>
+        database
+          .delete(sessionMessagesTable)
+          .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId))),
+      defaultHandlersFor('Message', String(messageId))
+    )
     return result.rowsAffected > 0
   }
 
