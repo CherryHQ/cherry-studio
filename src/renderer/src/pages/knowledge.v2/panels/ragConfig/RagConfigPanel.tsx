@@ -3,9 +3,8 @@ import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useKnowledgeV2RagConfig } from '../../hooks/useKnowledgeV2RagConfig'
-import { useKnowledgeV2SaveRagConfig } from '../../hooks/useKnowledgeV2SaveRagConfig'
-import type { KnowledgeV2RagConfigFormValues, KnowledgeV2SelectOption } from '../../types'
+import { useKnowledgeConfig } from '../../hooks'
+import type { KnowledgeConfigFormValues } from '../../types'
 import ChunkingSection from './ChunkingSection'
 import EmbeddingSection from './EmbeddingSection'
 import PreprocessSection from './PreprocessSection'
@@ -28,23 +27,20 @@ const parseInteger = (value: string) => {
 
 const RagConfigPanel = ({ base }: RagConfigPanelProps) => {
   const { t } = useTranslation()
-  const { initialValues, fileProcessorOptions, embeddingModelOptions, rerankModelOptions } =
-    useKnowledgeV2RagConfig(base)
-  const { save, isLoading } = useKnowledgeV2SaveRagConfig(base)
+  const {
+    initialValues,
+    fileProcessorOptions,
+    embeddingModelOptions,
+    rerankModelOptions,
+    searchModeOptions,
+    save,
+    isLoading
+  } = useKnowledgeConfig(base)
   const [values, setValues] = useState(initialValues)
 
   useEffect(() => {
     setValues(initialValues)
   }, [initialValues])
-
-  const searchModeOptions = useMemo<KnowledgeV2SelectOption[]>(
-    () => [
-      { value: 'hybrid', label: t('knowledge_v2.rag.search_mode.hybrid') },
-      { value: 'default', label: t('knowledge_v2.rag.search_mode.default') },
-      { value: 'bm25', label: t('knowledge_v2.rag.search_mode.bm25') }
-    ],
-    [t]
-  )
 
   const validationErrors = useMemo(() => {
     const chunkSize = parseInteger(values.chunkSize)
@@ -70,7 +66,7 @@ const RagConfigPanel = ({ base }: RagConfigPanelProps) => {
   const hasEmptyChunkFields = values.chunkSize === '' || values.chunkOverlap === ''
   const hasValidationErrors = Object.values(validationErrors).some(Boolean)
 
-  const updateValues = (patch: Partial<KnowledgeV2RagConfigFormValues>) => {
+  const updateValues = (patch: Partial<KnowledgeConfigFormValues>) => {
     setValues((currentValues) => ({ ...currentValues, ...patch }))
   }
 

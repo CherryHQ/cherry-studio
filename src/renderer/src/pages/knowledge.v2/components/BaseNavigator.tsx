@@ -8,15 +8,15 @@ import {
   Scrollbar
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import type { KnowledgeV2BaseListItem } from '@renderer/pages/knowledge.v2/types'
-import { filterKnowledgeV2BaseGroupSections } from '@renderer/pages/knowledge.v2/utils/baseList'
+import { buildKnowledgeV2BaseGroupSections } from '@renderer/pages/knowledge.v2/utils'
+import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { BookOpenText, FolderPlus, Plus, Search } from 'lucide-react'
 import type { MouseEvent as ReactMouseEvent } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface BaseNavigatorProps {
-  bases: KnowledgeV2BaseListItem[]
+  bases: KnowledgeBase[]
   width: number
   selectedBaseId: string
   onSelectBase: (baseId: string) => void
@@ -24,11 +24,13 @@ interface BaseNavigatorProps {
   onResizeStart: (event: ReactMouseEvent<HTMLDivElement>) => void
 }
 
+const DEFAULT_DOCUMENT_COUNT = 0
+
 const statusDotClassNames = {
   completed: 'bg-emerald-500',
   processing: 'bg-amber-500',
   failed: 'bg-destructive'
-} satisfies Record<KnowledgeV2BaseListItem['status'], string>
+} as const
 
 const BaseNavigator = ({
   bases,
@@ -41,7 +43,7 @@ const BaseNavigator = ({
   const { t } = useTranslation()
   const [searchValue, setSearchValue] = useState('')
 
-  const filteredBases = useMemo(() => filterKnowledgeV2BaseGroupSections(bases, searchValue), [bases, searchValue])
+  const baseGroupSections = useMemo(() => buildKnowledgeV2BaseGroupSections(bases, searchValue), [bases, searchValue])
 
   const getGroupLabel = (groupId: string | null) => {
     if (!groupId) {
@@ -111,9 +113,9 @@ const BaseNavigator = ({
           ) : (
             <Accordion
               type="multiple"
-              defaultValue={filteredBases.map(({ groupId }) => groupId ?? 'ungrouped')}
+              defaultValue={baseGroupSections.map(({ groupId }) => groupId ?? 'ungrouped')}
               className="space-y-1.5">
-              {filteredBases.map(({ groupId, items }) => {
+              {baseGroupSections.map(({ groupId, items }) => {
                 const groupValue = groupId ?? 'ungrouped'
 
                 return (
@@ -134,15 +136,15 @@ const BaseNavigator = ({
                     <AccordionContent className="pt-0 pb-0">
                       <div className="space-y-px">
                         {items.map((base) => {
-                          const selected = base.base.id === selectedBaseId
+                          const selected = base.id === selectedBaseId
 
                           return (
                             <Button
-                              key={base.base.id}
+                              key={base.id}
                               type="button"
                               variant="ghost"
                               size="sm"
-                              onClick={() => onSelectBase(base.base.id)}
+                              onClick={() => onSelectBase(base.id)}
                               className={cn(
                                 'h-10.25 min-h-10.25 w-full justify-start gap-2 rounded-lg px-1.5 py-1.25 text-left font-normal text-foreground shadow-none transition-all duration-150',
                                 selected
@@ -150,20 +152,20 @@ const BaseNavigator = ({
                                   : 'hover:bg-accent/60 hover:text-foreground'
                               )}>
                               <div className="flex size-6 shrink-0 items-center justify-center rounded bg-muted/60 text-xs">
-                                <span aria-hidden="true">{base.base.emoji}</span>
+                                <span aria-hidden="true">{base.emoji}</span>
                               </div>
 
                               <div className="min-w-0 flex-1">
                                 <div className="truncate text-[0.6875rem] text-foreground leading-4.125">
-                                  {base.base.name}
+                                  {base.name}
                                 </div>
                                 <div className="mt-px flex items-center gap-1">
                                   <span className="text-[0.5625rem] text-muted-foreground/45 leading-3.375">
-                                    {t('knowledge_v2.meta.documents_count', { count: base.itemCount })}
+                                    {t('knowledge_v2.meta.documents_count', { count: DEFAULT_DOCUMENT_COUNT })}
                                   </span>
                                   <span
                                     aria-hidden="true"
-                                    className={cn('size-1.5 rounded-full', statusDotClassNames[base.status])}
+                                    className={cn('size-1.5 rounded-full', statusDotClassNames.completed)}
                                   />
                                 </div>
                               </div>

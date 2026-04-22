@@ -1,16 +1,13 @@
-import type { KnowledgeBase, KnowledgeItem, KnowledgeSearchMode } from '@shared/data/types/knowledge'
+import type { KnowledgeSearchMode } from '@shared/data/types/knowledge'
 
-export type KnowledgeV2TabKey = 'dataSource' | 'ragConfig' | 'recallTest'
+export type KnowledgeTabKey = 'data' | 'config' | 'recall'
 
-export type KnowledgeV2BaseListStatus = 'completed' | 'processing' | 'failed'
-export type KnowledgeV2Item = KnowledgeItem & { parentId?: string | null }
-
-export interface KnowledgeV2SelectOption {
+export interface KnowledgeSelectOption {
   label: string
   value: string
 }
 
-export interface KnowledgeV2RagConfigFormValues {
+export interface KnowledgeConfigFormValues {
   fileProcessorId: string | null
   chunkSize: string
   chunkOverlap: string
@@ -21,10 +18,4 @@ export interface KnowledgeV2RagConfigFormValues {
   threshold: number
   searchMode: KnowledgeSearchMode
   hybridAlpha: number | null
-}
-
-export interface KnowledgeV2BaseListItem {
-  base: KnowledgeBase
-  itemCount: number
-  status: KnowledgeV2BaseListStatus
 }

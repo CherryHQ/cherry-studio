@@ -2,7 +2,7 @@ import type { KnowledgeItem } from '@shared/data/types/knowledge'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useKnowledgeV2Items } from '../useKnowledgeV2Items'
+import { useKnowledgeItems } from '../useKnowledgeItems'
 
 const mockUseQuery = vi.fn()
 
@@ -10,7 +10,7 @@ vi.mock('@data/hooks/useDataApi', () => ({
   useQuery: (...args: unknown[]) => mockUseQuery(...args)
 }))
 
-describe('useKnowledgeV2Items', () => {
+describe('useKnowledgeItems', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -35,6 +35,20 @@ describe('useKnowledgeV2Items', () => {
         id: 'directory-child',
         baseId: 'base-1',
         groupId: 'directory-parent',
+        type: 'directory',
+        data: {
+          name: 'Nested Directory',
+          path: '/tmp/example-directory/nested'
+        },
+        status: 'completed',
+        error: null,
+        createdAt: '2026-04-21T10:00:00+08:00',
+        updatedAt: '2026-04-21T10:00:00+08:00'
+      },
+      {
+        id: 'directory-file',
+        baseId: 'base-1',
+        groupId: 'directory-parent',
         type: 'file',
         data: {
           file: {
@@ -48,6 +62,19 @@ describe('useKnowledgeV2Items', () => {
             created_at: '2026-04-21T10:00:00+08:00',
             count: 1
           }
+        },
+        status: 'completed',
+        error: null,
+        createdAt: '2026-04-21T10:00:00+08:00',
+        updatedAt: '2026-04-21T10:00:00+08:00'
+      },
+      {
+        id: 'grouped-note',
+        baseId: 'base-1',
+        groupId: 'directory-child',
+        type: 'note',
+        data: {
+          content: 'Grouped note'
         },
         status: 'completed',
         error: null,
@@ -69,6 +96,8 @@ describe('useKnowledgeV2Items', () => {
       }
     ] satisfies KnowledgeItem[]
 
+    const refetch = vi.fn()
+
     mockUseQuery.mockReturnValue({
       data: {
         items,
@@ -77,10 +106,10 @@ describe('useKnowledgeV2Items', () => {
       },
       isLoading: false,
       error: undefined,
-      refetch: vi.fn()
+      refetch
     })
 
-    const { result } = renderHook(() => useKnowledgeV2Items('base-1'))
+    const { result } = renderHook(() => useKnowledgeItems('base-1'))
 
     expect(mockUseQuery).toHaveBeenCalledWith('/knowledge-bases/:id/items', {
       params: { id: 'base-1' },
@@ -90,22 +119,31 @@ describe('useKnowledgeV2Items', () => {
     expect(result.current.items.map((item) => item.id)).toEqual(['directory-parent', 'standalone-note'])
     expect(result.current.total).toBe(items.length)
     expect(result.current.isLoading).toBe(false)
+    expect(result.current.error).toBeUndefined()
+    expect(result.current.refetch).toBe(refetch)
   })
 
   it('does not enable the query before a knowledge base is selected', () => {
+    const error = new Error('disabled')
+    const refetch = vi.fn()
+
     mockUseQuery.mockReturnValue({
       data: undefined,
       isLoading: false,
-      error: undefined,
-      refetch: vi.fn()
+      error,
+      refetch
     })
 
-    renderHook(() => useKnowledgeV2Items(''))
+    const { result } = renderHook(() => useKnowledgeItems(''))
 
     expect(mockUseQuery).toHaveBeenCalledWith('/knowledge-bases/:id/items', {
-      params: { id: '__disabled__' },
+      params: { id: '' },
       query: { page: 1, limit: 100 },
       enabled: false
     })
+    expect(result.current.items).toEqual([])
+    expect(result.current.total).toBe(0)
+    expect(result.current.error).toBe(error)
+    expect(result.current.refetch).toBe(refetch)
   })
 })

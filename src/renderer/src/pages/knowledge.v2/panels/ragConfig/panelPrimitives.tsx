@@ -1,5 +1,5 @@
 import { Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Slider } from '@cherrystudio/ui'
-import type { KnowledgeV2SelectOption } from '@renderer/pages/knowledge.v2/types'
+import type { KnowledgeSelectOption } from '@renderer/pages/knowledge.v2/types'
 import { Info, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 
@@ -28,7 +28,7 @@ export const RagSelectField = ({
   onValueChange
 }: {
   value?: string
-  options: KnowledgeV2SelectOption[]
+  options: KnowledgeSelectOption[]
   placeholder?: string
   onValueChange: (value: string) => void
 }) => {

@@ -1,14 +1,20 @@
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
-import { renderHook } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useKnowledgeV2RagConfig } from '../useKnowledgeV2RagConfig'
+import { useKnowledgeConfig } from '../useKnowledgeConfig'
 
 const mockUseModels = vi.fn()
+const mockUseMutation = vi.fn()
+const mockTrigger = vi.fn()
 
 vi.mock('@renderer/hooks/useModels', () => ({
   useModels: (...args: unknown[]) => mockUseModels(...args)
+}))
+
+vi.mock('@data/hooks/useDataApi', () => ({
+  useMutation: (...args: unknown[]) => mockUseMutation(...args)
 }))
 
 vi.mock('@renderer/i18n/label', () => ({
@@ -24,9 +30,22 @@ vi.mock('@renderer/i18n/label', () => ({
     )[id] ?? id
 }))
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) =>
+      (
+        ({
+          'knowledge_v2.rag.search_mode.hybrid': '混合检索（推荐）',
+          'knowledge_v2.rag.search_mode.default': '向量检索',
+          'knowledge_v2.rag.search_mode.bm25': '全文检索'
+        }) as Record<string, string>
+      )[key] ?? key
+  })
+}))
+
 const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeBase => ({
-  id: '',
-  name: '',
+  id: 'base-1',
+  name: 'Base 1',
   description: undefined,
   groupId: null,
   emoji: '📁',
@@ -36,16 +55,16 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   fileProcessorId: undefined,
   chunkSize: 1024,
   chunkOverlap: 200,
-  threshold: undefined,
-  documentCount: undefined,
-  searchMode: undefined,
-  hybridAlpha: undefined,
+  threshold: 0,
+  documentCount: 6,
+  searchMode: 'hybrid',
+  hybridAlpha: 0.6,
   createdAt: '2026-04-15T09:00:00+08:00',
   updatedAt: '2026-04-15T09:00:00+08:00',
   ...overrides
 })
 
-describe('useKnowledgeV2RagConfig', () => {
+describe('useKnowledgeConfig', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockUseModels.mockImplementation((query?: { capability?: string; enabled?: boolean }) => {
@@ -83,17 +102,19 @@ describe('useKnowledgeV2RagConfig', () => {
 
       return { models: [] }
     })
+    mockUseMutation.mockReturnValue({
+      trigger: mockTrigger,
+      isLoading: false,
+      error: undefined
+    })
   })
 
-  it('builds processor options from shared file-processing presets and model options from live model data', () => {
-    const { result } = renderHook(() =>
-      useKnowledgeV2RagConfig(
-        createKnowledgeBase({
-          fileProcessorId: 'doc2x',
-          rerankModelId: 'jina::jina-reranker-v2-base-multilingual'
-        })
-      )
-    )
+  it('builds options from shared data and translations and exposes the save mutation', async () => {
+    const base = createKnowledgeBase({
+      fileProcessorId: 'doc2x',
+      rerankModelId: 'jina::jina-reranker-v2-base-multilingual'
+    })
+    const { result } = renderHook(() => useKnowledgeConfig(base))
 
     expect(result.current.fileProcessorOptions).toEqual([
       { value: 'paddleocr', label: 'PaddleOCR' },
@@ -114,10 +135,46 @@ describe('useKnowledgeV2RagConfig', () => {
         label: 'jina-reranker-v2-base-multilingual · jina'
       }
     ])
+    expect(result.current.searchModeOptions).toEqual([
+      { value: 'hybrid', label: '混合检索（推荐）' },
+      { value: 'default', label: '向量检索' },
+      { value: 'bm25', label: '全文检索' }
+    ])
     expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('tesseract')
     expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('system')
     expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('ovocr')
     expect(mockUseModels).toHaveBeenCalledWith({ capability: MODEL_CAPABILITY.EMBEDDING, enabled: true })
     expect(mockUseModels).toHaveBeenCalledWith({ capability: MODEL_CAPABILITY.RERANK, enabled: true })
+    expect(mockUseMutation).toHaveBeenCalledWith('PATCH', '/knowledge-bases/:id', {
+      refresh: ['/knowledge-bases']
+    })
+
+    await act(async () => {
+      await result.current.save({
+        fileProcessorId: null,
+        chunkSize: '1536',
+        chunkOverlap: '256',
+        embeddingModelId: 'voyage::voyage-3-large',
+        rerankModelId: null,
+        dimensions: 1536,
+        documentCount: 10,
+        threshold: 0.25,
+        searchMode: 'default',
+        hybridAlpha: 0.6
+      })
+    })
+
+    expect(mockTrigger).toHaveBeenCalledWith({
+      params: { id: 'base-1' },
+      body: {
+        chunkSize: 1536,
+        chunkOverlap: 256,
+        embeddingModelId: 'voyage::voyage-3-large',
+        documentCount: 10,
+        threshold: 0.25,
+        searchMode: 'default',
+        hybridAlpha: null
+      }
+    })
   })
 })

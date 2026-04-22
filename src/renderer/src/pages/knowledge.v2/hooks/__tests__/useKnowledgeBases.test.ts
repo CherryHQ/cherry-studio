@@ -2,7 +2,7 @@ import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useKnowledgeV2Bases } from '../useKnowledgeV2Bases'
+import { useKnowledgeBases } from '../useKnowledgeBases'
 
 const mockUseQuery = vi.fn()
 
@@ -31,7 +31,7 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   ...overrides
 })
 
-describe('useKnowledgeV2Bases', () => {
+describe('useKnowledgeBases', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -41,6 +41,7 @@ describe('useKnowledgeV2Bases', () => {
       createKnowledgeBase({ id: 'base-1', name: 'Base 1' }),
       createKnowledgeBase({ id: 'base-2', name: 'Base 2' })
     ]
+    const refetch = vi.fn()
 
     mockUseQuery.mockReturnValue({
       data: {
@@ -50,29 +51,36 @@ describe('useKnowledgeV2Bases', () => {
       },
       isLoading: false,
       error: undefined,
-      refetch: vi.fn()
+      refetch
     })
 
-    const { result } = renderHook(() => useKnowledgeV2Bases())
+    const { result } = renderHook(() => useKnowledgeBases())
 
     expect(mockUseQuery).toHaveBeenCalledWith('/knowledge-bases', {
       query: { page: 1, limit: 100 }
     })
     expect(result.current.bases).toEqual(bases)
     expect(result.current.isLoading).toBe(false)
+    expect(result.current.error).toBeUndefined()
+    expect(result.current.refetch).toBe(refetch)
   })
 
   it('returns an empty list when the query has no data yet', () => {
+    const error = new Error('pending')
+    const refetch = vi.fn()
+
     mockUseQuery.mockReturnValue({
       data: undefined,
       isLoading: true,
-      error: undefined,
-      refetch: vi.fn()
+      error,
+      refetch
     })
 
-    const { result } = renderHook(() => useKnowledgeV2Bases())
+    const { result } = renderHook(() => useKnowledgeBases())
 
     expect(result.current.bases).toEqual([])
     expect(result.current.isLoading).toBe(true)
+    expect(result.current.error).toBe(error)
+    expect(result.current.refetch).toBe(refetch)
   })
 })

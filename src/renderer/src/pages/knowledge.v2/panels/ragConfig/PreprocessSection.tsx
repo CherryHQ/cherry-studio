@@ -1,4 +1,4 @@
-import type { KnowledgeV2SelectOption } from '@renderer/pages/knowledge.v2/types'
+import type { KnowledgeSelectOption } from '@renderer/pages/knowledge.v2/types'
 import { Bot } from 'lucide-react'
 
 import { RagFieldLabel, RagHintText, RagSectionTitle, RagSelectField } from './panelPrimitives'
@@ -8,7 +8,7 @@ const EMPTY_OPTION_VALUE = '__none__'
 interface PreprocessSectionProps {
   title: string
   fileProcessorId: string | null
-  fileProcessorOptions: KnowledgeV2SelectOption[]
+  fileProcessorOptions: KnowledgeSelectOption[]
   notSetLabel: string
   processorLabel: string
   preprocessingHint: string

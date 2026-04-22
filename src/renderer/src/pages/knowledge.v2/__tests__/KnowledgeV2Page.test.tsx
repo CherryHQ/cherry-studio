@@ -5,15 +5,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import KnowledgeV2Page from '../KnowledgeV2Page'
 
-const mockUseKnowledgeV2Bases = vi.fn()
-const mockUseKnowledgeV2Items = vi.fn()
+const mockUseKnowledgeBases = vi.fn()
+const mockUseKnowledgeItems = vi.fn()
 
-vi.mock('../hooks/useKnowledgeV2Bases', () => ({
-  useKnowledgeV2Bases: () => mockUseKnowledgeV2Bases()
-}))
-
-vi.mock('../hooks/useKnowledgeV2Items', () => ({
-  useKnowledgeV2Items: (baseId: string) => mockUseKnowledgeV2Items(baseId)
+vi.mock('../hooks', () => ({
+  useKnowledgeBases: () => mockUseKnowledgeBases(),
+  useKnowledgeItems: (baseId: string) => mockUseKnowledgeItems(baseId)
 }))
 
 vi.mock('@renderer/components/app/Navbar', () => ({
@@ -27,19 +24,16 @@ vi.mock('../components/BaseNavigator', () => ({
     selectedBaseId,
     onSelectBase
   }: {
-    bases: Array<{ base: { id: string; name: string }; itemCount: number }>
+    bases: Array<{ id: string; name: string }>
     selectedBaseId: string
     onSelectBase: (baseId: string) => void
   }) => (
     <div>
       <div data-testid="base-count">{bases.length}</div>
       <div data-testid="selected-base-id">{selectedBaseId}</div>
-      <div data-testid="selected-base-doc-count">
-        {bases.find((base) => base.base.id === selectedBaseId)?.itemCount ?? -1}
-      </div>
       {bases.map((base) => (
-        <button key={base.base.id} onClick={() => onSelectBase(base.base.id)} type="button">
-          {base.base.name}
+        <button key={base.id} onClick={() => onSelectBase(base.id)} type="button">
+          {base.name}
         </button>
       ))}
     </div>
@@ -47,7 +41,7 @@ vi.mock('../components/BaseNavigator', () => ({
 }))
 
 vi.mock('../components/DetailHeader', () => ({
-  default: ({ base }: { base: { base: { name: string } } }) => <div data-testid="detail-header">{base.base.name}</div>
+  default: ({ base }: { base: { name: string } }) => <div data-testid="detail-header">{base.name}</div>
 }))
 
 vi.mock('../components/DetailTabs', () => ({
@@ -56,11 +50,11 @@ vi.mock('../components/DetailTabs', () => ({
     onChange
   }: {
     dataSourceCount: number
-    onChange: (tab: 'dataSource' | 'ragConfig' | 'recallTest') => void
+    onChange: (tab: 'data' | 'config' | 'recall') => void
   }) => (
     <div>
       <div data-testid="detail-tabs">{dataSourceCount}</div>
-      <button type="button" onClick={() => onChange('ragConfig')}>
+      <button type="button" onClick={() => onChange('config')}>
         RAG
       </button>
     </div>
@@ -130,7 +124,7 @@ const createKnowledgeItem = ({ id }: { id: string }): KnowledgeItemOf<'note'> =>
 describe('KnowledgeV2Page', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockUseKnowledgeV2Items.mockReturnValue({
+    mockUseKnowledgeItems.mockReturnValue({
       items: [],
       total: 0,
       isLoading: false,
@@ -139,8 +133,8 @@ describe('KnowledgeV2Page', () => {
     })
   })
 
-  it('selects the first knowledge base after bases load and uses real item count for the selected base tab', () => {
-    mockUseKnowledgeV2Bases.mockReturnValue({
+  it('selects the first knowledge base after bases load', () => {
+    mockUseKnowledgeBases.mockReturnValue({
       bases: [
         createKnowledgeBase({ id: 'base-1', name: 'Base 1' }),
         createKnowledgeBase({ id: 'base-2', name: 'Base 2' })
@@ -149,7 +143,7 @@ describe('KnowledgeV2Page', () => {
       error: undefined,
       refetch: vi.fn()
     })
-    mockUseKnowledgeV2Items.mockImplementation((baseId: string) => ({
+    mockUseKnowledgeItems.mockImplementation((baseId: string) => ({
       items:
         baseId === 'base-1'
           ? [createKnowledgeItem({ id: 'item-1' }), createKnowledgeItem({ id: 'item-2' })]
@@ -164,7 +158,6 @@ describe('KnowledgeV2Page', () => {
 
     expect(screen.getByTestId('detail-header')).toHaveTextContent('Base 1')
     expect(screen.getByTestId('selected-base-id')).toHaveTextContent('base-1')
-    expect(screen.getByTestId('selected-base-doc-count')).toHaveTextContent('2')
     expect(screen.getByTestId('detail-tabs')).toHaveTextContent('2')
     expect(screen.getByTestId('data-source-panel')).toHaveTextContent('2')
 
@@ -173,7 +166,7 @@ describe('KnowledgeV2Page', () => {
   })
 
   it('shows an empty state when no knowledge bases are available', () => {
-    mockUseKnowledgeV2Bases.mockReturnValue({
+    mockUseKnowledgeBases.mockReturnValue({
       bases: [],
       isLoading: false,
       error: undefined,
@@ -191,7 +184,7 @@ describe('KnowledgeV2Page', () => {
     const secondBase = createKnowledgeBase({ id: 'base-2', name: 'Base 2' })
     let bases = [firstBase, secondBase]
 
-    mockUseKnowledgeV2Bases.mockImplementation(() => ({
+    mockUseKnowledgeBases.mockImplementation(() => ({
       bases,
       isLoading: false,
       error: undefined,

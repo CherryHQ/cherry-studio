@@ -5,8 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import RagConfigPanel from '../RagConfigPanel'
 
-const mockUseKnowledgeV2RagConfig = vi.fn()
-const mockUseKnowledgeV2SaveRagConfig = vi.fn()
+const mockUseKnowledgeConfig = vi.fn()
 const mockSave = vi.fn()
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -47,12 +46,8 @@ vi.mock('@cherrystudio/ui', () => ({
   )
 }))
 
-vi.mock('../../../hooks/useKnowledgeV2RagConfig', () => ({
-  useKnowledgeV2RagConfig: (base: KnowledgeBase) => mockUseKnowledgeV2RagConfig(base)
-}))
-
-vi.mock('../../../hooks/useKnowledgeV2SaveRagConfig', () => ({
-  useKnowledgeV2SaveRagConfig: (base: KnowledgeBase) => mockUseKnowledgeV2SaveRagConfig(base)
+vi.mock('../../../hooks', () => ({
+  useKnowledgeConfig: (base: KnowledgeBase) => mockUseKnowledgeConfig(base)
 }))
 
 vi.mock('react-i18next', () => ({
@@ -124,7 +119,7 @@ describe('RagConfigPanel', () => {
       }
     })
 
-    mockUseKnowledgeV2RagConfig.mockReturnValue({
+    mockUseKnowledgeConfig.mockReturnValue({
       initialValues: {
         fileProcessorId: null,
         chunkSize: '512',
@@ -139,9 +134,12 @@ describe('RagConfigPanel', () => {
       },
       fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
       embeddingModelOptions: [{ value: 'openai::text-embedding-3-small', label: 'text-embedding-3-small · openai' }],
-      rerankModelOptions: [{ value: 'jina::rerank', label: 'rerank · jina' }]
-    })
-    mockUseKnowledgeV2SaveRagConfig.mockReturnValue({
+      searchModeOptions: [
+        { value: 'hybrid', label: '混合检索（推荐）' },
+        { value: 'default', label: '向量检索' },
+        { value: 'bm25', label: '全文检索' }
+      ],
+      rerankModelOptions: [{ value: 'jina::rerank', label: 'rerank · jina' }],
       save: mockSave,
       isLoading: false,
       error: undefined
@@ -206,7 +204,7 @@ describe('RagConfigPanel', () => {
   })
 
   it('shows hybrid alpha when the current search mode is hybrid', () => {
-    mockUseKnowledgeV2RagConfig.mockReturnValueOnce({
+    mockUseKnowledgeConfig.mockReturnValueOnce({
       initialValues: {
         fileProcessorId: null,
         chunkSize: '512',
@@ -221,7 +219,15 @@ describe('RagConfigPanel', () => {
       },
       fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
       embeddingModelOptions: [{ value: 'openai::text-embedding-3-small', label: 'text-embedding-3-small · openai' }],
-      rerankModelOptions: [{ value: 'jina::rerank', label: 'rerank · jina' }]
+      searchModeOptions: [
+        { value: 'hybrid', label: '混合检索（推荐）' },
+        { value: 'default', label: '向量检索' },
+        { value: 'bm25', label: '全文检索' }
+      ],
+      rerankModelOptions: [{ value: 'jina::rerank', label: 'rerank · jina' }],
+      save: mockSave,
+      isLoading: false,
+      error: undefined
     })
 
     render(<RagConfigPanel base={createKnowledgeBase({ searchMode: 'hybrid', hybridAlpha: 0.6 })} />)

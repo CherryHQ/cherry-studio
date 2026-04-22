@@ -13,8 +13,7 @@
 - `src/renderer/src/pages/knowledge.v2/panels/ragConfig/ChunkingSection.tsx`
 - `src/renderer/src/pages/knowledge.v2/panels/ragConfig/EmbeddingSection.tsx`
 - `src/renderer/src/pages/knowledge.v2/panels/ragConfig/RetrievalSection.tsx`
-- `src/renderer/src/pages/knowledge.v2/hooks/useKnowledgeV2RagConfig.ts`
-- `src/renderer/src/pages/knowledge.v2/hooks/useKnowledgeV2SaveRagConfig.ts`
+- `src/renderer/src/pages/knowledge.v2/hooks/useKnowledgeConfig.ts`
 
 ## 范围
 

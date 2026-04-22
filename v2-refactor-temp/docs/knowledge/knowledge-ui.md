@@ -36,7 +36,8 @@
 - 当前阶段先保留该问题，不在本轮 UI 接入里彻底解决。
 - `itemCount` 与知识库级 `status` 仍然视为列表展示所需的聚合字段，而不是 `KnowledgeBase` 主数据字段。
 - 当前 renderer 已接入真实 `knowledge base` 与当前选中知识库的 `knowledge items`，但没有为所有知识库统一拿到真实聚合结果。
-- 因此，UI 上如果出现“当前选中知识库能显示真实文档数，未选中知识库仍显示 mock / 0”这类现象，应视为当前阶段的已知问题，而不是局部 UI bug。
+- 当前页面不再维护按知识库补丁的页面侧 mock patch；在上游聚合语义明确前，列表展示所需的 `itemCount` / `status` 统一回退到 `0` / `completed` 默认值。
+- 因此，UI 上如果出现“数据源面板能看到当前知识库真实条目数，但列表或头部仍显示默认值”这类现象，应视为当前阶段的已知问题，而不是局部 UI bug。
 - 后续如果要正式解决，优先改上游 DataApi：
   - 由 `/knowledge-bases` 列表接口或单独的 summary/list DTO 返回 `itemCount`、知识库级 `status`
   - 不建议在 renderer 中为每个知识库逐个查询 `knowledge items` 后自行聚合，避免 N+1 请求和状态不一致

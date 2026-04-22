@@ -7,7 +7,7 @@ const KNOWLEDGE_V2_BASES_QUERY = {
   limit: KNOWLEDGE_BASES_MAX_LIMIT
 } as const
 
-export const useKnowledgeV2Bases = () => {
+export const useKnowledgeBases = () => {
   const { data, isLoading, error, refetch } = useQuery('/knowledge-bases', {
     query: KNOWLEDGE_V2_BASES_QUERY
   })

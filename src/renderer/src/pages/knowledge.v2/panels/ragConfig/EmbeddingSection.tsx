@@ -1,4 +1,4 @@
-import type { KnowledgeV2SelectOption } from '@renderer/pages/knowledge.v2/types'
+import type { KnowledgeSelectOption } from '@renderer/pages/knowledge.v2/types'
 import { DatabaseZap } from 'lucide-react'
 
 import { RagFieldLabel, RagReadonlyField, RagSectionTitle, RagSelectField } from './panelPrimitives'
@@ -9,7 +9,7 @@ interface EmbeddingSectionProps {
   dimensionsLabel: string
   placeholderLabel: string
   embeddingModelId: string | null
-  embeddingModelOptions: KnowledgeV2SelectOption[]
+  embeddingModelOptions: KnowledgeSelectOption[]
   dimensions: number
   onEmbeddingModelChange: (value: string) => void
 }

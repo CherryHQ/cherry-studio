@@ -1,4 +1,4 @@
-import type { KnowledgeV2SelectOption } from '@renderer/pages/knowledge.v2/types'
+import type { KnowledgeSelectOption } from '@renderer/pages/knowledge.v2/types'
 import type { KnowledgeSearchMode } from '@shared/data/types/knowledge'
 import { Search } from 'lucide-react'
 
@@ -15,8 +15,8 @@ interface RetrievalSectionProps {
   hybridAlphaLabel: string
   rerankLabel: string
   notSetLabel: string
-  searchModeOptions: KnowledgeV2SelectOption[]
-  rerankModelOptions: KnowledgeV2SelectOption[]
+  searchModeOptions: KnowledgeSelectOption[]
+  rerankModelOptions: KnowledgeSelectOption[]
   documentCount: number
   threshold: number
   searchMode: KnowledgeSearchMode

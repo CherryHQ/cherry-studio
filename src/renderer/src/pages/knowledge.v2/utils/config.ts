@@ -2,9 +2,9 @@ import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, DEFAULT_KNOWLEDGE_THRESHOLD } from '@
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
-import type { KnowledgeV2RagConfigFormValues } from '../types'
+import type { KnowledgeConfigFormValues } from '../types'
 
-export const createKnowledgeV2RagConfigFormValues = (base: KnowledgeBase): KnowledgeV2RagConfigFormValues => ({
+export const createKnowledgeV2RagConfigFormValues = (base: KnowledgeBase): KnowledgeConfigFormValues => ({
   fileProcessorId: base.fileProcessorId ?? null,
   chunkSize: String(base.chunkSize),
   chunkOverlap: String(base.chunkOverlap),
@@ -28,8 +28,8 @@ const parseIntegerString = (value: string): number => {
 }
 
 export const buildKnowledgeV2RagConfigPatch = (
-  initialValues: KnowledgeV2RagConfigFormValues,
-  currentValues: KnowledgeV2RagConfigFormValues
+  initialValues: KnowledgeConfigFormValues,
+  currentValues: KnowledgeConfigFormValues
 ): UpdateKnowledgeBaseDto => {
   const patch: UpdateKnowledgeBaseDto = {}
 

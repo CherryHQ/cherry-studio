@@ -1,11 +1,14 @@
+import { useMutation } from '@data/hooks/useDataApi'
 import { useModels } from '@renderer/hooks/useModels'
 import { getFileProcessorLabel } from '@renderer/i18n/label'
 import { PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { isUniqueModelId, MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 
-import { createKnowledgeV2RagConfigFormValues } from '../utils/ragConfig'
+import type { KnowledgeConfigFormValues, KnowledgeSelectOption } from '../types'
+import { buildKnowledgeV2RagConfigPatch, createKnowledgeV2RagConfigFormValues } from '../utils'
 
 const KNOWLEDGE_V2_FILE_PROCESSORS = PRESETS_FILE_PROCESSORS.filter((preset) =>
   preset.capabilities.some(
@@ -22,7 +25,8 @@ const formatModelOptionLabel = (uniqueModelId: string) => {
   return `${modelId} · ${providerId}`
 }
 
-export const useKnowledgeV2RagConfig = (base: KnowledgeBase) => {
+export const useKnowledgeConfig = (base: KnowledgeBase) => {
+  const { t } = useTranslation()
   const { models: embeddingModels } = useModels({
     capability: MODEL_CAPABILITY.EMBEDDING,
     enabled: true
@@ -30,6 +34,9 @@ export const useKnowledgeV2RagConfig = (base: KnowledgeBase) => {
   const { models: rerankModels } = useModels({
     capability: MODEL_CAPABILITY.RERANK,
     enabled: true
+  })
+  const { trigger, isLoading, error } = useMutation('PATCH', '/knowledge-bases/:id', {
+    refresh: ['/knowledge-bases']
   })
 
   const initialValues = useMemo(() => createKnowledgeV2RagConfigFormValues(base), [base])
@@ -55,10 +62,30 @@ export const useKnowledgeV2RagConfig = (base: KnowledgeBase) => {
     }))
   }, [rerankModels])
 
+  const searchModeOptions = useMemo<KnowledgeSelectOption[]>(
+    () => [
+      { value: 'hybrid', label: t('knowledge_v2.rag.search_mode.hybrid') },
+      { value: 'default', label: t('knowledge_v2.rag.search_mode.default') },
+      { value: 'bm25', label: t('knowledge_v2.rag.search_mode.bm25') }
+    ],
+    [t]
+  )
+
+  const save = (values: KnowledgeConfigFormValues) => {
+    return trigger({
+      params: { id: base.id },
+      body: buildKnowledgeV2RagConfigPatch(initialValues, values)
+    })
+  }
+
   return {
     initialValues,
     fileProcessorOptions,
     embeddingModelOptions,
-    rerankModelOptions
+    rerankModelOptions,
+    searchModeOptions,
+    save,
+    isLoading,
+    error
   }
 }

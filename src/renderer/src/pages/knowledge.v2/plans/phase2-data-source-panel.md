@@ -12,8 +12,8 @@
 - `src/renderer/src/pages/knowledge.v2/panels/dataSource/DataSourceFilters.tsx`
 - `src/renderer/src/pages/knowledge.v2/panels/dataSource/KnowledgeItemList.tsx`
 - `src/renderer/src/pages/knowledge.v2/panels/dataSource/KnowledgeItemRow.tsx`
-- `src/renderer/src/pages/knowledge.v2/hooks/useKnowledgeV2Bases.ts`
-- `src/renderer/src/pages/knowledge.v2/hooks/useKnowledgeV2Items.ts`
+- `src/renderer/src/pages/knowledge.v2/hooks/useKnowledgeBases.ts`
+- `src/renderer/src/pages/knowledge.v2/hooks/useKnowledgeItems.ts`
 - `src/renderer/src/pages/knowledge.v2/hooks/useKnowledgeV2Selection.ts`
 
 ## 范围

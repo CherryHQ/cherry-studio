@@ -1,19 +1,19 @@
 import { Button, Scrollbar } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import type { KnowledgeV2Item } from '@renderer/pages/knowledge.v2/types'
 import { formatFileSize } from '@renderer/utils'
+import type { KnowledgeItem } from '@shared/data/types/knowledge'
 import { Check, CircleAlert, FileText, Folder, Globe, Link2, LoaderCircle, Plus, StickyNote } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-type DataSourceFilter = 'all' | KnowledgeV2Item['type']
+type DataSourceFilter = 'all' | KnowledgeItem['type']
 type DataSourceStatus = 'completed' | 'processing' | 'failed'
 type DataSourceProgressTone = 'amber' | 'violet'
 
 interface DataSourceItem {
   id: string
   title: string
-  type: KnowledgeV2Item['type']
+  type: KnowledgeItem['type']
   icon: typeof FileText
   iconWrapClassName: string
   iconClassName: string
@@ -75,9 +75,9 @@ const itemIconByType = {
     iconWrapClassName: 'bg-accent/40',
     iconClassName: 'text-emerald-500'
   }
-} satisfies Record<KnowledgeV2Item['type'], Pick<DataSourceItem, 'icon' | 'iconWrapClassName' | 'iconClassName'>>
+} satisfies Record<KnowledgeItem['type'], Pick<DataSourceItem, 'icon' | 'iconWrapClassName' | 'iconClassName'>>
 
-const getItemStatus = (item: KnowledgeV2Item): Pick<DataSourceItem, 'status' | 'statusLabelKey' | 'progressTone'> => {
+const getItemStatus = (item: KnowledgeItem): Pick<DataSourceItem, 'status' | 'statusLabelKey' | 'progressTone'> => {
   if (item.status === 'completed') {
     return { status: 'completed' }
   }
@@ -101,7 +101,7 @@ const getItemStatus = (item: KnowledgeV2Item): Pick<DataSourceItem, 'status' | '
   }
 }
 
-const getItemSuffix = (item: KnowledgeV2Item) => {
+const getItemSuffix = (item: KnowledgeItem) => {
   switch (item.type) {
     case 'file':
       return item.data.file.ext || 'FILE'
@@ -118,7 +118,7 @@ const getItemSuffix = (item: KnowledgeV2Item) => {
   }
 }
 
-const getItemTitle = (item: KnowledgeV2Item, noteFallbackLabel: string) => {
+const getItemTitle = (item: KnowledgeItem, noteFallbackLabel: string) => {
   switch (item.type) {
     case 'file':
       return item.data.file.origin_name || item.data.file.name
@@ -138,7 +138,7 @@ const getItemTitle = (item: KnowledgeV2Item, noteFallbackLabel: string) => {
   }
 }
 
-const toDataSourceItem = (item: KnowledgeV2Item, noteFallbackLabel: string): DataSourceItem => ({
+const toDataSourceItem = (item: KnowledgeItem, noteFallbackLabel: string): DataSourceItem => ({
   id: item.id,
   title: getItemTitle(item, noteFallbackLabel),
   type: item.type,
@@ -150,7 +150,7 @@ const toDataSourceItem = (item: KnowledgeV2Item, noteFallbackLabel: string): Dat
 })
 
 interface DataSourcePanelProps {
-  items?: KnowledgeV2Item[]
+  items?: KnowledgeItem[]
   isLoading?: boolean
 }
 
