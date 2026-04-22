@@ -68,7 +68,12 @@ import { mutate } from 'swr'
 
 import type { AppDispatch, RootState } from '../index'
 import { removeManyBlocks, updateOneBlock, upsertManyBlocks, upsertOneBlock } from '../messageBlock'
-import { newMessagesActions, selectMessagesForTopic } from '../newMessage'
+import {
+  getVersionSelectionMap,
+  newMessagesActions,
+  selectMessagesForTopic,
+  selectRawMessagesForTopic
+} from '../newMessage'
 // import {
 //   bulkAddBlocksV2,
 //   clearMessagesFromDBV2,
@@ -83,6 +88,23 @@ import { newMessagesActions, selectMessagesForTopic } from '../newMessage'
 // } from './messageThunk.v2'
 
 const logger = loggerService.withContext('MessageThunk')
+
+const cloneBlocksForMessage = (blocks: MessageBlock[], messageId: string): MessageBlock[] =>
+  blocks.map((block) => ({
+    ...block,
+    id: uuid(),
+    messageId,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  }))
+
+const applyBranchSelectionToMessage = (message: Message, groupId: string, versionId: string): Message => ({
+  ...message,
+  branchVersionSelections: {
+    ...(message.branchVersionSelections ?? {}),
+    [groupId]: versionId
+  }
+})
 
 const finishTopicLoading = async (topicId: string) => {
   await waitForTopicQueue(topicId)
@@ -799,7 +821,8 @@ const dispatchMultiModelResponses = async (
       askId: triggeringMessage.id,
       model: mentionedModel,
       modelId: mentionedModel.id,
-      traceId: triggeringMessage.traceId
+      traceId: triggeringMessage.traceId,
+      branchVersionSelections: triggeringMessage.branchVersionSelections
     })
     dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
     assistantMessageStubs.push(assistantMessage)
@@ -981,6 +1004,13 @@ export const sendMessage =
       }
 
       const stateBeforeSend = getState()
+      if (!userMessage.branchVersionSelections) {
+        const rawMessagesForTopic = selectRawMessagesForTopic(stateBeforeSend, topicId)
+        const selectedVersions = getVersionSelectionMap(rawMessagesForTopic)
+        if (Object.keys(selectedVersions).length > 0) {
+          userMessage.branchVersionSelections = selectedVersions
+        }
+      }
       let activeAgentSession = agentSession ?? findExistingAgentSessionContext(stateBeforeSend, topicId, assistant.id)
       if (activeAgentSession) {
         const derivedSession = findExistingAgentSessionContext(stateBeforeSend, topicId, assistant.id)
@@ -1008,7 +1038,8 @@ export const sendMessage =
         const assistantMessage = createAssistantMessage(assistant.id, topicId, {
           askId: userMessage.id,
           model: assistant.model,
-          traceId: userMessage.traceId
+          traceId: userMessage.traceId,
+          branchVersionSelections: userMessage.branchVersionSelections
         })
         if (activeAgentSession.agentSessionId && !assistantMessage.agentSessionId) {
           assistantMessage.agentSessionId = activeAgentSession.agentSessionId
@@ -1034,7 +1065,8 @@ export const sendMessage =
           const assistantMessage = createAssistantMessage(assistant.id, topicId, {
             askId: userMessage.id,
             model: assistant.model,
-            traceId: userMessage.traceId
+            traceId: userMessage.traceId,
+            branchVersionSelections: userMessage.branchVersionSelections
           })
           await saveMessageAndBlocksToDB(topicId, assistantMessage, [])
           dispatch(
@@ -1234,7 +1266,8 @@ export const resendMessageThunk =
 
         const assistantMessage = createAssistantMessage(assistant.id, topicId, {
           askId: userMessageToResend.id,
-          model: assistant.model
+          model: assistant.model,
+          branchVersionSelections: userMessageToResend.branchVersionSelections
         })
         assistantMessage.traceId = userMessageToResend.traceId
         resetDataList.push(assistantMessage)
@@ -1282,7 +1315,8 @@ export const resendMessageThunk =
         const assistantMessage = createAssistantMessage(assistant.id, topicId, {
           askId: userMessageToResend.id,
           model: model,
-          modelId: model.id
+          modelId: model.id,
+          branchVersionSelections: userMessageToResend.branchVersionSelections
         })
         resetDataList.push(assistantMessage)
         dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
@@ -1295,7 +1329,7 @@ export const resendMessageThunk =
         if (allBlockIdsToDelete.length > 0) {
           await db.message_blocks.bulkDelete(allBlockIdsToDelete)
         }
-        const finalMessagesToSave = selectMessagesForTopic(getState(), topicId)
+        const finalMessagesToSave = selectRawMessagesForTopic(getState(), topicId)
         await db.topics.update(topicId, { messages: finalMessagesToSave })
       } catch (dbError) {
         logger.error('[resendMessageThunk] Error updating database:', dbError as Error)
@@ -1320,13 +1354,106 @@ export const resendMessageThunk =
 
 /**
  * Thunk to resend a user message after its content has been edited.
- * Updates the user message's text block and then triggers the regeneration
- * of its associated assistant responses using resendMessageThunk.
+ * Creates a new user-message version instead of overwriting the original path.
  */
 export const resendUserMessageWithEditThunk =
-  (topicId: Topic['id'], originalMessage: Message, assistant: Assistant) => async (dispatch: AppDispatch) => {
-    // Trigger the regeneration logic for associated assistant messages
-    void dispatch(resendMessageThunk(topicId, originalMessage, assistant))
+  (
+    topicId: Topic['id'],
+    originalMessage: Message,
+    editedBlocks: MessageBlock[],
+    assistant: Assistant,
+    usage?: Message['usage']
+  ) =>
+  async (dispatch: AppDispatch, getState: () => RootState) => {
+    try {
+      const state = getState()
+      const rawMessages = selectRawMessagesForTopic(state, topicId)
+      const visibleMessages = selectMessagesForTopic(state, topicId)
+      const originalMessageEntity = state.messages.entities[originalMessage.id] ?? originalMessage
+
+      if (originalMessageEntity.role !== 'user') {
+        logger.error('[resendUserMessageWithEditThunk] Only user messages can create edited branches')
+        return
+      }
+
+      const versionGroupId = originalMessageEntity.versionGroupId ?? originalMessageEntity.id
+      const currentSelectedVersions = getVersionSelectionMap(rawMessages)
+      const originalVisibleIndex = visibleMessages.findIndex((message) => message.id === originalMessageEntity.id)
+      const branchMessagesToFreeze =
+        originalVisibleIndex === -1 ? [] : visibleMessages.slice(originalVisibleIndex + 1)
+
+      const siblingVersions = rawMessages.filter(
+        (message) =>
+          message.role === 'user' &&
+          (message.versionGroupId === versionGroupId || (!message.versionGroupId && message.id === versionGroupId))
+      )
+      const nextVersionNumber =
+        siblingVersions.reduce((maxVersion, message) => Math.max(maxVersion, message.versionNumber ?? 1), 1) + 1
+
+      const originalVersionUpdates = applyBranchSelectionToMessage(
+        {
+          ...originalMessageEntity,
+          versionGroupId,
+          versionNumber: originalMessageEntity.versionNumber ?? 1,
+          versionSelected: false
+        },
+        versionGroupId,
+        originalMessageEntity.id
+      )
+
+      dispatch(
+        newMessagesActions.updateMessage({
+          topicId,
+          messageId: originalMessageEntity.id,
+          updates: originalVersionUpdates
+        })
+      )
+      await updateMessage(topicId, originalMessageEntity.id, originalVersionUpdates)
+
+      await Promise.all(
+        branchMessagesToFreeze.map(async (message) => {
+          const updates = applyBranchSelectionToMessage(message, versionGroupId, originalMessageEntity.id)
+          dispatch(
+            newMessagesActions.updateMessage({
+              topicId,
+              messageId: message.id,
+              updates
+            })
+          )
+          await updateMessage(topicId, message.id, {
+            branchVersionSelections: updates.branchVersionSelections
+          })
+        })
+      )
+
+      const newMessageId = uuid()
+      const clonedBlocks = cloneBlocksForMessage(editedBlocks, newMessageId)
+      const createdAt = new Date().toISOString()
+      const newUserMessage: Message = {
+        ...originalMessageEntity,
+        id: newMessageId,
+        createdAt,
+        updatedAt: undefined,
+        status: UserMessageStatus.SUCCESS,
+        blocks: clonedBlocks.map((block) => block.id),
+        usage,
+        traceId: undefined,
+        versionGroupId,
+        versionNumber: nextVersionNumber,
+        versionSelected: true,
+        branchVersionSelections: {
+          ...(originalMessageEntity.branchVersionSelections ?? currentSelectedVersions),
+          [versionGroupId]: newMessageId
+        }
+      }
+
+      await dispatch(sendMessage(newUserMessage, clonedBlocks, assistant, topicId))
+    } catch (error) {
+      logger.error(
+        `[resendUserMessageWithEditThunk] Error branching edited user message ${originalMessage.id}:`,
+        error as Error
+      )
+    }
   }
 
 /**
@@ -1413,7 +1540,7 @@ export const regenerateAssistantResponseThunk =
       // 7. Update DB: Save the reset message state within the topic and delete old blocks
       // Fetch the current state *after* Redux updates to get the latest message list
       // Use the selector to get the final ordered list of messages for the topic
-      const finalMessagesToSave = selectMessagesForTopic(getState(), topicId)
+      const finalMessagesToSave = selectRawMessagesForTopic(getState(), topicId)
 
       await db.transaction('rw', db.topics, db.message_blocks, async () => {
         // Use the result from the selector to update the DB
@@ -1494,7 +1621,7 @@ export const initiateTranslationThunk =
 
       // 3. Update Database
       // Get the final message list from Redux state *after* updates
-      const finalMessagesToSave = selectMessagesForTopic(getState(), topicId)
+      const finalMessagesToSave = selectRawMessagesForTopic(getState(), topicId)
 
       await db.transaction('rw', db.topics, db.message_blocks, async () => {
         await db.message_blocks.put(newBlock) // Save the initial block
@@ -1585,7 +1712,8 @@ export const appendAssistantResponseThunk =
         askId: askId, // Crucial: Use the original askId
         model: newModel,
         modelId: newModel.id,
-        traceId: traceId
+        traceId: traceId,
+        branchVersionSelections: existingAssistantMsg.branchVersionSelections
       })
 
       // 3. Update Redux Store
@@ -1871,7 +1999,7 @@ export const removeBlocksThunk =
         })
       } else {
         // For Dexie topics: use transaction for atomicity
-        const finalMessagesToSave = selectMessagesForTopic(getState(), topicId)
+        const finalMessagesToSave = selectRawMessagesForTopic(getState(), topicId)
         await db.transaction('rw', db.topics, db.message_blocks, async () => {
           await db.topics.update(topicId, { messages: finalMessagesToSave })
           if (blockIdsToRemove.length > 0) {

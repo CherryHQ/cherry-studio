@@ -31,6 +31,14 @@ interface Props {
   model?: Model
   topic: Topic
   isGroupContextMessage?: boolean
+  messageVersion?: {
+    current: number
+    total: number
+    hasPrev: boolean
+    hasNext: boolean
+  }
+  onSelectPrevVersion?: () => void
+  onSelectNextVersion?: () => void
 }
 
 const getAvatarSource = (isLocalAi: boolean, modelId: string | undefined) => {
@@ -38,7 +46,17 @@ const getAvatarSource = (isLocalAi: boolean, modelId: string | undefined) => {
   return modelId ? getModelLogoById(modelId) : undefined
 }
 
-const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGroupContextMessage }) => {
+const MessageHeader: FC<Props> = memo(
+  ({
+    assistant,
+    model,
+    message,
+    topic,
+    isGroupContextMessage,
+    messageVersion,
+    onSelectPrevVersion,
+    onSelectNextVersion
+  }) => {
   const avatar = useAvatar()
   const { theme } = useTheme()
   const { userName, sidebarIcons } = useSettings()
@@ -127,6 +145,19 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
           <UserName isBubbleStyle={isBubbleStyle} theme={theme}>
             {username}
           </UserName>
+          {messageVersion && (
+            <VersionNavigator>
+              <VersionButton disabled={!messageVersion.hasPrev} onClick={onSelectPrevVersion} type="button">
+                {'<'}
+              </VersionButton>
+              <VersionLabel>
+                {messageVersion.current}/{messageVersion.total}
+              </VersionLabel>
+              <VersionButton disabled={!messageVersion.hasNext} onClick={onSelectNextVersion} type="button">
+                {'>'}
+              </VersionButton>
+            </VersionNavigator>
+          )}
           {isGroupContextMessage && (
             <Tooltip title={t('chat.message.useful.tip')}>
               <Sparkle fill="var(--color-primary)" strokeWidth={0} size={18} />
@@ -152,7 +183,8 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
       )}
     </Container>
   )
-})
+  }
+)
 
 MessageHeader.displayName = 'MessageHeader'
 
@@ -188,6 +220,44 @@ const UserName = styled.span<{ isBubbleStyle?: boolean; theme?: string }>`
 const MessageTime = styled.div`
   font-size: 10px;
   color: var(--color-text-3);
+`
+
+const VersionNavigator = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 6px;
+  border: 0.5px solid var(--color-border);
+  border-radius: 999px;
+  padding: 0 2px;
+`
+
+const VersionButton = styled.button`
+  border: none;
+  background: transparent;
+  color: var(--color-text-2);
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+
+  &:hover:not(:disabled) {
+    background: var(--color-hover);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.35;
+  }
+`
+
+const VersionLabel = styled.span`
+  font-size: 11px;
+  color: var(--color-text-2);
+  min-width: 30px;
+  text-align: center;
 `
 
 export default MessageHeader

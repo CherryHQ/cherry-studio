@@ -11,6 +11,8 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageModelId } from '@renderer/services/MessagesService'
 import { getModelUniqId } from '@renderer/services/ModelService'
+import { useAppSelector } from '@renderer/store'
+import { selectRawMessagesForTopic } from '@renderer/store/newMessage'
 import { estimateMessageUsage } from '@renderer/services/TokenService'
 import type { Assistant, Topic } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
@@ -19,7 +21,7 @@ import { scrollIntoView } from '@renderer/utils/dom'
 import { isMessageProcessing } from '@renderer/utils/messageUtils/is'
 import { Divider } from 'antd'
 import type { Dispatch, FC, SetStateAction } from 'react'
-import React, { memo, useCallback, useEffect, useRef } from 'react'
+import React, { memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -72,11 +74,40 @@ const MessageItem: FC<Props> = ({
   const { isMultiSelectMode } = useChatContext(topic)
   const model = useModel(getMessageModelId(message), message.model?.provider) || message.model
   const { messageFont, fontSize, messageStyle, showMessageOutline } = useSettings()
-  const { editMessageBlocks, resendUserMessageWithEdit, editMessage } = useMessageOperations(topic)
+  const { editMessageBlocks, resendUserMessageWithEdit, editMessage, selectMessageVersion } = useMessageOperations(topic)
   const messageContainerRef = useRef<HTMLDivElement>(null)
   const { editingMessageId, startEditing, stopEditing } = useMessageEditing()
   const { setTimeoutTimer } = useTimer()
   const isEditing = editingMessageId === message.id
+  const rawTopicMessages = useAppSelector((state) => selectRawMessagesForTopic(state, topic.id))
+
+  const messageVersion = useMemo(() => {
+    if (message.role !== 'user' || !message.versionGroupId) {
+      return null
+    }
+
+    const versions = rawTopicMessages
+      .filter((item) => item.role === 'user' && item.versionGroupId === message.versionGroupId)
+      .toSorted((left, right) => (left.versionNumber ?? 1) - (right.versionNumber ?? 1))
+
+    if (versions.length <= 1) {
+      return null
+    }
+
+    const currentIndex = versions.findIndex((item) => item.id === message.id)
+    if (currentIndex === -1) {
+      return null
+    }
+
+    return {
+      current: currentIndex + 1,
+      total: versions.length,
+      hasPrev: currentIndex > 0,
+      hasNext: currentIndex < versions.length - 1,
+      previous: versions[currentIndex - 1],
+      next: versions[currentIndex + 1]
+    }
+  }, [message, rawTopicMessages])
 
   useEffect(() => {
     if (isEditing && messageContainerRef.current) {
@@ -117,6 +148,18 @@ const MessageItem: FC<Props> = ({
   const handleEditCancel = useCallback(() => {
     stopEditing()
   }, [stopEditing])
+
+  const handleSelectPrevVersion = useCallback(() => {
+    if (messageVersion?.previous) {
+      void selectMessageVersion(messageVersion.previous)
+    }
+  }, [messageVersion, selectMessageVersion])
+
+  const handleSelectNextVersion = useCallback(() => {
+    if (messageVersion?.next) {
+      void selectMessageVersion(messageVersion.next)
+    }
+  }, [messageVersion, selectMessageVersion])
 
   const isLastMessage = index === 0 || !!isGrouped
   const isAssistantMessage = message.role === 'assistant'
@@ -195,14 +238,26 @@ const MessageItem: FC<Props> = ({
           'message-user': !isAssistantMessage
         })}
         ref={messageContainerRef}>
-        <MessageHeader
-          message={message}
-          assistant={assistant}
-          model={model}
-          key={getModelUniqId(model)}
-          topic={topic}
-          isGroupContextMessage={isGroupContextMessage}
-        />
+          <MessageHeader
+            message={message}
+            assistant={assistant}
+            model={model}
+            key={getModelUniqId(model)}
+            topic={topic}
+            isGroupContextMessage={isGroupContextMessage}
+            messageVersion={
+              messageVersion
+                ? {
+                    current: messageVersion.current,
+                    total: messageVersion.total,
+                    hasPrev: messageVersion.hasPrev,
+                    hasNext: messageVersion.hasNext
+                  }
+                : undefined
+            }
+            onSelectPrevVersion={handleSelectPrevVersion}
+            onSelectNextVersion={handleSelectNextVersion}
+          />
         {isEditing && (
           <MessageEditor
             message={message}
