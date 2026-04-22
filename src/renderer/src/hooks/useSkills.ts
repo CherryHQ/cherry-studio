@@ -47,9 +47,10 @@ export function useInstalledSkills(agentId?: string) {
       try {
         const result = await window.api.skill.toggle({ skillId, agentId, isEnabled })
         if (result.success) {
-          if (result.data) {
+          const updatedSkill = result.data
+          if (updatedSkill) {
             setSkills((currentSkills) =>
-              currentSkills.map((skill) => (skill.id === result.data.id ? result.data : skill))
+              currentSkills.map((skill) => (skill.id === updatedSkill.id ? updatedSkill : skill))
             )
           }
         }
