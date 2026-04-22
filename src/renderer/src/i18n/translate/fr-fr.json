@@ -490,6 +490,7 @@
       },
       "prompt": "Paramètres de l'invite",
       "skills": {
+        "addMore": "Ajouter plus de compétences",
         "builtin": "Intégré",
         "noFilterResults": "Aucune compétence correspondante",
         "noSkills": "Aucune compétence installée. Installez des compétences depuis Paramètres > Compétences.",
