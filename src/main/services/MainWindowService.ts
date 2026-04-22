@@ -124,7 +124,7 @@ export class MainWindowService extends BaseService {
   /**
    * Resolves the BrowserWindow that originated the IPC call.
    * Used for window-control channels (minimize/maximize/close) that must operate
-   * on whichever window sent the IPC — main window or a detached tab window.
+   * on whichever window sent the IPC — main window or a sub window.
    * Throws if the sender cannot be mapped to a live window.
    */
   private resolveIpcSenderWindow(sender: Electron.WebContents): BrowserWindow {
@@ -568,7 +568,7 @@ export class MainWindowService extends BaseService {
       // macOS close-to-tray: opt Main windows out of Dock contribution BEFORE hiding.
       // This tells WindowManager "the app is now in tray mode" so the Dock icon goes
       // away too. Unlike the previous hard-coded app.dock?.hide(), this cooperates
-      // with multi-window scenarios: if a DetachedTab (or any other Dock-contributing
+      // with multi-window scenarios: if a SubWindow (or any other Dock-contributing
       // window) is still alive, it will keep the Dock visible. The override is lifted
       // in showMainWindow/toggleMainWindow when the user brings Main back.
       if (isMac && isTrayOnClose) {
@@ -666,7 +666,7 @@ export class MainWindowService extends BaseService {
         if (application.get('PreferenceService').get('app.tray.on_close')) {
           // Same pattern as the close handler: tell WM to stop counting Main
           // toward Dock visibility BEFORE hiding, so the Dock coordinates with
-          // whatever else is alive (e.g. a DetachedTab) rather than blindly hiding.
+          // whatever else is alive (e.g. a SubWindow) rather than blindly hiding.
           if (isMac) {
             application.get('WindowManager').behavior.setMacShowInDockByType(WindowType.Main, false)
           }

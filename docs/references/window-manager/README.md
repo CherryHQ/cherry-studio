@@ -99,7 +99,7 @@ Runtime setters for the declarative behavior layer live on `wm.behavior` (the {@
 
 | Mode | Instances | `open()` behavior | `close()` behavior | Use for |
 |---|---|---|---|---|
-| `default` | many | fresh create every call | destroys permanently | Windows that appear in parallel (e.g. detached tabs) |
+| `default` | many | fresh create every call | destroys permanently | Windows that appear in parallel (e.g. sub windows) |
 | `singleton` | at most one | creates, or shows + focuses the existing one | destroys the sole instance | Unique windows (main, settings) |
 | `pooled` | many, reusable | pops an idle window, or creates fresh if empty | returns to the idle pool, or destroys if over cap | Frequently opened windows where creation cost matters (selection actions) |
 

@@ -9,7 +9,6 @@ import { ApiServerService } from '@main/services/ApiServerService'
 import { AppMenuService } from '@main/services/AppMenuService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { CodeCliService } from '@main/services/CodeCliService'
-import { DetachedWindowManager } from '@main/services/DetachedWindowManager'
 import {
   FileProcessingOrchestrationService,
   MarkdownTaskService,
@@ -33,6 +32,7 @@ import { SearchService } from '@main/services/SearchService'
 import { SelectionService } from '@main/services/SelectionService'
 import { ShortcutService } from '@main/services/ShortcutService'
 import { SpanCacheService } from '@main/services/SpanCacheService'
+import { SubWindowService } from '@main/services/SubWindowService'
 import { ThemeService } from '@main/services/ThemeService'
 import { TrayService } from '@main/services/TrayService'
 import { WebviewService } from '@main/services/WebviewService'
@@ -67,7 +67,7 @@ export const services = {
   DbService,
   CacheService,
   DataApiService,
-  DetachedWindowManager,
+  SubWindowService,
   PreferenceService,
   TesseractRuntimeService,
   MarkdownTaskService,
