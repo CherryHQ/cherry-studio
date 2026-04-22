@@ -21,7 +21,7 @@ import type { SystemProviderId } from '@renderer/types'
 import { isSystemProvider, isSystemProviderId, SystemProviderIds } from '@renderer/types'
 import type { ApiKeyConnectivity } from '@renderer/types/healthCheck'
 import { HealthStatus } from '@renderer/types/healthCheck'
-import { formatApiHost, formatApiKeys, getFancyProviderName, validateApiHost } from '@renderer/utils'
+import { formatApiHost, formatApiKeys, getFancyProviderName, routeToEndpoint, validateApiHost } from '@renderer/utils'
 import { serializeHealthCheckError } from '@renderer/utils/error'
 import {
   isAIGatewayProvider,
@@ -332,11 +332,18 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
   const hostPreview = () => {
     const formattedApiHost = adaptProvider({ provider: { ...provider, apiHost } }).apiHost
 
+    const { baseURL, endpoint } = routeToEndpoint(apiHost || '')
+    const endsWithSharp = apiHost?.endsWith('#') ?? false
+    const customEndpoint = endpoint || (endsWithSharp ? '' : undefined)
+
     if (isOllamaProvider(provider)) {
       return formattedApiHost + '/chat'
     }
 
     if (isOpenAICompatibleProvider(provider)) {
+      if (customEndpoint !== undefined) {
+        return customEndpoint ? baseURL + '/' + customEndpoint : formattedApiHost
+      }
       return formattedApiHost + '/chat/completions'
     }
 
