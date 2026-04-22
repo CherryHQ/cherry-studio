@@ -24,7 +24,7 @@ src/main/data/
 │   ├── ModelService.ts            Model CRUD, accepts registry lookup from handler
 │   └── ProviderService.ts         Provider CRUD, preset deletion protection
 └── api/handlers/
-    ├── models.ts                  POST /models: handler does registry lookup, passes to service
+    ├── models.ts                  POST /models: accepts model arrays, does registry lookup, passes to service
     └── providers.ts               Registry model endpoints
 ```
 
@@ -47,13 +47,13 @@ DbService.onInit()
 ### 2. On-Demand: Model Creation
 
 ```
-POST /models { providerId: 'openai', modelId: 'gpt-4o' }
-  → handler: providerRegistryService.lookupModel(providerId, modelId)
+POST /models [{ providerId: 'openai', modelId: 'gpt-4o' }]
+  → handler: for each item, providerRegistryService.lookupModel(providerId, modelId)
     → RegistryLoader.findModel('gpt-4o')           // O(1) indexed, normalize fallback
     → RegistryLoader.findOverride('openai', 'gpt-4o')  // O(1) indexed
     → getEffectiveReasoningConfig(providerId)       // DB query for user provider overrides
     → returns { presetModel, registryOverride, reasoningFormatTypes, defaultChatEndpoint }
-  → handler: modelService.create(dto, registryData)
+  → handler: modelService.create(items)
     → mergeModelWithUser(userRow, override, preset, providerId, ...)
     → INSERT into user_model with presetModelId = preset.id
 ```

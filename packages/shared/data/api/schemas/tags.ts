@@ -7,11 +7,11 @@
 
 import * as z from 'zod'
 
+import { type EntityType, EntityTypeSchema } from '../../types/entityType'
 import { AutoFields } from '../../types/index'
 import {
   EntityIdSchema as SharedEntityIdSchema,
   type Tag,
-  TaggableEntityType,
   TagIdSchema as SharedTagIdSchema,
   TagSchema
 } from '../../types/tag'
@@ -43,7 +43,7 @@ export type UpdateTagDto = z.infer<typeof UpdateTagSchema>
  * Body for syncing tags on an entity (replace all tag associations)
  */
 export const TagEntityRefSchema = z.object({
-  entityType: TaggableEntityType,
+  entityType: EntityTypeSchema,
   entityId: EntityIdSchema
 })
 
@@ -142,12 +142,12 @@ export interface TagSchemas {
   '/tags/entities/:entityType/:entityId': {
     /** Get all tags for an entity */
     GET: {
-      params: { entityType: TaggableEntityType; entityId: string }
+      params: { entityType: EntityType; entityId: string }
       response: Tag[]
     }
     /** Replace all tag associations for an entity */
     PUT: {
-      params: { entityType: TaggableEntityType; entityId: string }
+      params: { entityType: EntityType; entityId: string }
       body: SyncEntityTagsDto
       response: void
     }

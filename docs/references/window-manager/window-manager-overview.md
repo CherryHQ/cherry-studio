@@ -50,20 +50,20 @@ WindowManager
 
 Multi-instance mode. Every `open()` call creates a fresh window. `close()` destroys it permanently.
 
-**Use for**: windows that appear many times simultaneously (e.g., detached tabs).
+**Use for**: windows that appear many times simultaneously (e.g., sub windows).
 
 ```typescript
 // windowRegistry.ts
-WINDOW_TYPE_REGISTRY[WindowType.DetachedTab] = {
-  type: WindowType.DetachedTab,
+WINDOW_TYPE_REGISTRY[WindowType.SubWindow] = {
+  type: WindowType.SubWindow,
   lifecycle: 'default',
-  htmlPath: 'detached-tab.html',
+  htmlPath: 'sub-window.html',
   windowOptions: { ...DEFAULT_WINDOW_CONFIG },
 }
 
 // Usage — each call creates a new window
-const tab1 = wm.open(WindowType.DetachedTab)
-const tab2 = wm.open(WindowType.DetachedTab)
+const tab1 = wm.open(WindowType.SubWindow)
+const tab2 = wm.open(WindowType.SubWindow)
 wm.close(tab1) // destroyed
 ```
 

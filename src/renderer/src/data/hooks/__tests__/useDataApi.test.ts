@@ -1,4 +1,8 @@
 import type * as RendererConstantModule from '@renderer/config/constant'
+import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
+import { act, renderHook, waitFor } from '@testing-library/react'
+import React from 'react'
+import useSWR, { SWRConfig, unstable_serialize } from 'swr'
 import { describe, expect, it, vi } from 'vitest'
 
 // Tests exercise the real implementation; the global renderer setup otherwise
@@ -13,7 +17,7 @@ vi.mock('@renderer/config/constant', async (importOriginal) => {
   return { ...actual, isDev: true }
 })
 
-import { __testing } from '../useDataApi'
+import { __testing, useReadCache, useWriteCache } from '../useDataApi'
 
 const { createKeyMatcher, createMultiKeyMatcher, resolveTemplate, buildSWRKey } = __testing
 
@@ -166,5 +170,166 @@ describe('buildSWRKey cache-key equivalence', () => {
   it('includes query slot as-is when non-empty (field order preserved via object literal)', () => {
     const query = { limit: 10, cursor: 'x' }
     expect(buildSWRKey('/providers/abc', query)).toEqual(['/providers/abc', query])
+  })
+})
+
+// ============================================================================
+// useReadCache / useWriteCache: real-SWR integration tests
+//
+// These hooks directly use `useSWRConfig().cache`/`.mutate` + `unstable_serialize`
+// — the only sanctioned place in the codebase for those APIs. Tests run the
+// real hooks inside a self-provided SWRConfig so we can assert key shape,
+// query folding, and no-revalidation semantics end-to-end without involving
+// DataApiService or network layers.
+// ============================================================================
+
+/**
+ * Build a fresh SWRConfig-wrapped harness. Each test gets its own cache so
+ * state never bleeds across tests.
+ */
+function makeWrapper(initial?: Array<[unknown[], unknown]>) {
+  const cache = new Map<string, { data?: unknown }>()
+  for (const [key, value] of initial ?? []) {
+    cache.set(unstable_serialize(key), { data: value })
+  }
+  const provider = () => cache
+  const Wrapper = ({ children }: { children: React.ReactNode }) =>
+    React.createElement(
+      SWRConfig,
+      { value: { provider, dedupingInterval: 0, revalidateOnFocus: false, revalidateOnReconnect: false } },
+      children
+    )
+  return { Wrapper, cache }
+}
+
+const PATH = '/providers' as ConcreteApiPaths
+
+describe('useReadCache', () => {
+  it('returns undefined on cache miss', () => {
+    const { Wrapper } = makeWrapper()
+    const { result } = renderHook(() => useReadCache(), { wrapper: Wrapper })
+    expect(result.current(PATH)).toBeUndefined()
+  })
+
+  it('reads by [path] when query is absent', () => {
+    const { Wrapper } = makeWrapper([[['/providers'], { items: [1, 2] }]])
+    const { result } = renderHook(() => useReadCache(), { wrapper: Wrapper })
+    expect(result.current(PATH)).toEqual({ items: [1, 2] })
+  })
+
+  it('collapses empty-query to [path] (matches buildSWRKey behavior)', () => {
+    const { Wrapper } = makeWrapper([[['/providers'], { seeded: true }]])
+    const { result } = renderHook(() => useReadCache(), { wrapper: Wrapper })
+    expect(result.current(PATH, {})).toEqual({ seeded: true })
+  })
+
+  it('reads by [path, query] when query is non-empty', () => {
+    const { Wrapper } = makeWrapper([
+      [['/providers', { limit: 10 }], { paged: true }],
+      [['/providers'], { bare: true }]
+    ])
+    const { result } = renderHook(() => useReadCache(), { wrapper: Wrapper })
+    expect(result.current(PATH, { limit: 10 })).toEqual({ paged: true })
+    // Different key — must not return the [path, query] value
+    expect(result.current(PATH)).toEqual({ bare: true })
+  })
+
+  it('returns a reader with stable identity across rerenders', () => {
+    const { Wrapper } = makeWrapper()
+    const { result, rerender } = renderHook(() => useReadCache(), { wrapper: Wrapper })
+    const first = result.current
+    rerender()
+    expect(result.current).toBe(first)
+  })
+
+  it('does NOT subscribe — seeding the cache mid-test does not re-render', () => {
+    const { Wrapper, cache } = makeWrapper()
+    let renderCount = 0
+    const { result } = renderHook(
+      () => {
+        renderCount++
+        return useReadCache()
+      },
+      { wrapper: Wrapper }
+    )
+
+    const initialRenders = renderCount
+    // Mutate the underlying cache directly (what an external writer would do).
+    cache.set(unstable_serialize(['/providers']), { data: { late: true } })
+
+    // Reader picks up the new value on its next call — but no re-render fires.
+    expect(result.current(PATH)).toEqual({ late: true })
+    expect(renderCount).toBe(initialRenders)
+  })
+})
+
+describe('useWriteCache', () => {
+  it('writes under [path] when query is absent', async () => {
+    const { Wrapper, cache } = makeWrapper()
+    const { result } = renderHook(() => useWriteCache(), { wrapper: Wrapper })
+    await act(async () => {
+      await result.current(PATH, { written: true })
+    })
+    expect(cache.get(unstable_serialize(['/providers']))?.data).toEqual({ written: true })
+  })
+
+  it('writes under [path, query] when query is non-empty', async () => {
+    const { Wrapper, cache } = makeWrapper()
+    const { result } = renderHook(() => useWriteCache(), { wrapper: Wrapper })
+    await act(async () => {
+      await result.current(PATH, { paged: true }, { limit: 10 })
+    })
+    expect(cache.get(unstable_serialize(['/providers', { limit: 10 }]))?.data).toEqual({ paged: true })
+    // And does NOT leak into the bare [path] key
+    expect(cache.get(unstable_serialize(['/providers']))).toBeUndefined()
+  })
+
+  it('collapses empty-query writes to [path] (matches reader side)', async () => {
+    const { Wrapper, cache } = makeWrapper()
+    const { result } = renderHook(() => useWriteCache(), { wrapper: Wrapper })
+    await act(async () => {
+      await result.current(PATH, { collapsed: true }, {})
+    })
+    expect(cache.get(unstable_serialize(['/providers']))?.data).toEqual({ collapsed: true })
+  })
+
+  it('does NOT trigger revalidation of an active subscriber', async () => {
+    const { Wrapper } = makeWrapper()
+    const fetcher = vi.fn().mockResolvedValue({ fetched: true })
+
+    // Mount a real SWR subscriber on the same key so the cache entry is "live".
+    const { result: subResult } = renderHook(() => useSWR(['/providers'], fetcher), { wrapper: Wrapper })
+    await waitFor(() => expect(subResult.current.data).toEqual({ fetched: true }))
+    fetcher.mockClear()
+
+    // Overwrite via useWriteCache; the subscriber should see the new value
+    // without the fetcher firing again (that is the whole point of the
+    // `false` flag passed to `mutate` inside useWriteCache).
+    const { result: writerResult } = renderHook(() => useWriteCache(), { wrapper: Wrapper })
+    await act(async () => {
+      await writerResult.current(PATH, { overlay: true })
+    })
+
+    expect(fetcher).not.toHaveBeenCalled()
+    expect(subResult.current.data).toEqual({ overlay: true })
+  })
+
+  it('round-trips: value written is readable via useReadCache on the same cache', async () => {
+    const { Wrapper } = makeWrapper()
+    const { result: writer } = renderHook(() => useWriteCache(), { wrapper: Wrapper })
+    const { result: reader } = renderHook(() => useReadCache(), { wrapper: Wrapper })
+
+    await act(async () => {
+      await writer.current(PATH, { round: 'trip' })
+    })
+    expect(reader.current(PATH)).toEqual({ round: 'trip' })
+  })
+
+  it('returns a writer with stable identity across rerenders', () => {
+    const { Wrapper } = makeWrapper()
+    const { result, rerender } = renderHook(() => useWriteCache(), { wrapper: Wrapper })
+    const first = result.current
+    rerender()
+    expect(result.current).toBe(first)
   })
 })

@@ -230,6 +230,15 @@ await db.insert(table).values({ id, ...data });
 return this.getById(id);
 ```
 
+### Row → Entity Mapping
+
+All `rowToEntity` functions follow a unified paradigm: a shallow `nullsToUndefined(row)` strips DB NULL → undefined, then date fields are converted manually. See the [Row → Entity Mapping](./data-api-in-main.md#row--entity-mapping) section of `data-api-in-main.md` for the paradigm, and [services/utils/README.md](../../../src/main/data/services/utils/README.md) for function signatures and rejected alternatives.
+
+Key principles:
+
+- **Shallow, not recursive**: only column-level NULLs are handled; nested JSON payloads are not deep-cleaned
+- **No third-party null-handling library**: the in-house `nullsToUndefined` (~10 LOC) is sufficient — avoid dependency bloat
+
 ### Soft delete support
 
 The schema supports soft delete via `deletedAt` field (see `createUpdateDeleteTimestamps`).

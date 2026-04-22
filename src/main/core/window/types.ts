@@ -8,7 +8,7 @@ import type { BrowserWindow, BrowserWindowConstructorOptions, VisibleOnAllWorksp
 export enum WindowType {
   Main = 'main',
   QuickAssistant = 'quickAssistant',
-  DetachedTab = 'detachedTab',
+  SubWindow = 'subWindow',
   SelectionToolbar = 'selectionToolbar',
   SelectionAction = 'selectionAction'
 }
