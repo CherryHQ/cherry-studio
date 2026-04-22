@@ -11,7 +11,6 @@ import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import { isMac } from '@renderer/config/constant'
 import { prefetch } from '@renderer/data/hooks/useDataApi'
-import { db } from '@renderer/databases'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
 import { modelGenerating } from '@renderer/hooks/useModel'
@@ -158,10 +157,14 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
     async (topic: Topic, e: React.MouseEvent) => {
       e.stopPropagation()
       if (topics.length === 1) {
-        const newTopic = getDefaultTopic(assistant.id)
-        await db.topics.add({ id: newTopic.id, messages: [] })
-        await addTopic(newTopic)
-        setActiveTopic(newTopic)
+        // `addTopic` returns the DataApi-persisted Topic; use its id so
+        // `Ai_Stream_Open` can find it. The previous `db.topics.add(...)`
+        // placeholder was V1 Dexie bookkeeping — no longer needed now
+        // that DataApi/SQLite owns the topic table.
+        const persisted = await addTopic(getDefaultTopic(assistant.id))
+        if (persisted) {
+          setActiveTopic(persisted)
+        }
       } else {
         const index = findIndex(topics, (t) => t.id === topic.id)
         if (topic.id === activeTopic.id) {

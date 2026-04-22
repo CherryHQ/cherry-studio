@@ -8,7 +8,7 @@ import {
 } from '@renderer/config/models'
 import { cacheService } from '@renderer/data/CacheService'
 import { db } from '@renderer/databases'
-import { useTopicMutations } from '@renderer/hooks/useTopicDataApi'
+import { mapApiTopicToRendererTopic, useTopicMutations } from '@renderer/hooks/useTopicDataApi'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
@@ -145,8 +145,14 @@ export function useAssistant(id: string) {
   return {
     assistant: assistantWithModel,
     model,
-    addTopic: async (topic: Topic) => {
-      return await createTopic({ name: topic.name, assistantId: topic.assistantId })
+    addTopic: async (topic: Topic): Promise<Topic> => {
+      // DataApi assigns its own UUID — caller's local `topic.id` is
+      // ignored. Map back to renderer shape so callers can drive
+      // `setActiveTopic` / dexie writes with the server-authoritative id
+      // (using the local id leads to `Topic not found` when the stream
+      // then tries to open against an unpersisted id).
+      const persisted = await createTopic({ name: topic.name, assistantId: topic.assistantId })
+      return mapApiTopicToRendererTopic(persisted)
     },
     removeTopic: async (topic: Topic) => {
       await deleteTopic(topic.id)

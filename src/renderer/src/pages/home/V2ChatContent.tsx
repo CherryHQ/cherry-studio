@@ -197,10 +197,17 @@ const V2ChatContentInner: FC<InnerProps> = ({
     return overlaidMessages
   }, [activeExecutionIds, assistant.id, currentAnchorUserMessageId, executionMessagesById, status, topic.id])
 
-  const mergedMessages = useMemo(
-    () => [...adaptedMessages, ...executionOverlayMessages],
-    [adaptedMessages, executionOverlayMessages]
-  )
+  // Dedupe by id — `useChat.messages` (via `adaptedMessages`) already
+  // surfaces the assistant message for the primary execution during
+  // streaming; overlay entries are only there to cover the *other*
+  // executions in a multi-model turn. Plain spread duplicated ids and
+  // tripped React's "two children with the same key" warning, which in
+  // turn caused lists like `MessageAnchorLine` to render twice.
+  const mergedMessages = useMemo(() => {
+    if (executionOverlayMessages.length === 0) return adaptedMessages
+    const adaptedIds = new Set(adaptedMessages.map((m) => m.id))
+    return [...adaptedMessages, ...executionOverlayMessages.filter((m) => !adaptedIds.has(m.id))]
+  }, [adaptedMessages, executionOverlayMessages])
 
   const mergedPartsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
     const nextPartsMap = { ...partsMap }

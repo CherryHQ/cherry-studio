@@ -287,14 +287,17 @@ const InputbarInner: FC<InputbarInnerProps> = ({
   }, [loading, onPause])
 
   const addNewTopic = useCallback(async () => {
-    const newTopic = getDefaultTopic(assistant.id)
-
     if (assistant.defaultModel) {
       setModel(assistant.defaultModel)
     }
 
-    await addTopic(newTopic)
-    setActiveTopic(newTopic)
+    // `addTopic` returns the DataApi-persisted topic whose id is the one
+    // Main will recognise. Activating the local seed (`getDefaultTopic`)
+    // would leave `activeTopic.id` pointing at an unpersisted UUID, which
+    // then makes `Ai_Stream_Open` fail with "Topic not found".
+    const persisted = await addTopic(getDefaultTopic(assistant.id))
+    if (!persisted) return
+    setActiveTopic(persisted)
 
     setTimeoutTimer('addNewTopic', () => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
   }, [addTopic, assistant.defaultModel, assistant.id, setActiveTopic, setModel, setTimeoutTimer])
