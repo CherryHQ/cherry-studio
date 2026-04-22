@@ -1,15 +1,17 @@
 import type { KnowledgeBase, KnowledgeItemOf } from '@shared/data/types/knowledge'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import KnowledgeV2Page from '../KnowledgeV2Page'
 
 const mockUseKnowledgeBases = vi.fn()
+const mockUseCreateKnowledgeBase = vi.fn()
 const mockUseKnowledgeItems = vi.fn()
 
 vi.mock('../hooks', () => ({
   useKnowledgeBases: () => mockUseKnowledgeBases(),
+  useCreateKnowledgeBase: () => mockUseCreateKnowledgeBase(),
   useKnowledgeItems: (baseId: string) => mockUseKnowledgeItems(baseId)
 }))
 
@@ -22,15 +24,20 @@ vi.mock('../components/BaseNavigator', () => ({
   default: ({
     bases,
     selectedBaseId,
-    onSelectBase
+    onSelectBase,
+    onCreateBase
   }: {
     bases: Array<{ id: string; name: string }>
     selectedBaseId: string
     onSelectBase: (baseId: string) => void
+    onCreateBase: () => void
   }) => (
     <div>
       <div data-testid="base-count">{bases.length}</div>
       <div data-testid="selected-base-id">{selectedBaseId}</div>
+      <button type="button" onClick={onCreateBase}>
+        新建知识库
+      </button>
       {bases.map((base) => (
         <button key={base.id} onClick={() => onSelectBase(base.id)} type="button">
           {base.name}
@@ -73,14 +80,54 @@ vi.mock('../panels/recallTest/RecallTestPanel', () => ({
   default: () => <div>recall-test-panel</div>
 }))
 
+vi.mock('../components/CreateKnowledgeBaseDialog', () => ({
+  default: ({
+    open,
+    createBase,
+    onOpenChange,
+    onCreated
+  }: {
+    open: boolean
+    createBase: (input: {
+      name: string
+      emoji: string
+      embeddingModelId: string | null
+      dimensions: string
+    }) => Promise<KnowledgeBase>
+    onOpenChange: (open: boolean) => void
+    onCreated: (base: KnowledgeBase) => void
+  }) =>
+    open ? (
+      <div data-testid="create-dialog">
+        <button
+          type="button"
+          onClick={async () => {
+            const createdBase = await createBase({
+              name: 'Base 2',
+              emoji: '📚',
+              embeddingModelId: 'openai::text-embedding-3-small',
+              dimensions: '1536'
+            })
+            onCreated(createdBase)
+            onOpenChange(false)
+          }}>
+          Submit Create
+        </button>
+        <button type="button" onClick={() => onOpenChange(false)}>
+          Cancel Create
+        </button>
+      </div>
+    ) : null
+}))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) =>
       (
         ({
           'common.loading': '加载中...',
-          'knowledge.empty': '暂无知识库',
-          'knowledge.title': '知识库'
+          'knowledge_v2.empty': '暂无知识库',
+          'knowledge_v2.title': '知识库'
         }) as Record<string, string>
       )[key] ?? key
   })
@@ -124,6 +171,11 @@ const createKnowledgeItem = ({ id }: { id: string }): KnowledgeItemOf<'note'> =>
 describe('KnowledgeV2Page', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockUseCreateKnowledgeBase.mockReturnValue({
+      createBase: vi.fn(),
+      isCreating: false,
+      createError: undefined
+    })
     mockUseKnowledgeItems.mockReturnValue({
       items: [],
       total: 0,
@@ -201,5 +253,48 @@ describe('KnowledgeV2Page', () => {
 
     expect(screen.getByTestId('detail-header')).toHaveTextContent('Base 1')
     expect(screen.getByTestId('selected-base-id')).toHaveTextContent('base-1')
+  })
+
+  it('opens the create dialog and selects the newly created knowledge base after success', async () => {
+    const firstBase = createKnowledgeBase({ id: 'base-1', name: 'Base 1' })
+    const secondBase = createKnowledgeBase({ id: 'base-2', name: 'Base 2', emoji: '📚' })
+    let bases = [firstBase]
+    const createBase = vi.fn().mockResolvedValue(secondBase)
+
+    mockUseKnowledgeBases.mockImplementation(() => ({
+      bases,
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    }))
+    mockUseCreateKnowledgeBase.mockReturnValue({
+      createBase,
+      isCreating: false,
+      createError: undefined
+    })
+    mockUseKnowledgeItems.mockImplementation((baseId: string) => ({
+      items: baseId === 'base-2' ? [createKnowledgeItem({ id: 'item-2' })] : [createKnowledgeItem({ id: 'item-1' })],
+      total: 1,
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    }))
+
+    const { rerender } = render(<KnowledgeV2Page />)
+
+    fireEvent.click(screen.getByRole('button', { name: '新建知识库' }))
+    expect(screen.getByTestId('create-dialog')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Create' }))
+
+    await waitFor(() => expect(createBase).toHaveBeenCalledTimes(1))
+    expect(screen.getByTestId('selected-base-id')).toHaveTextContent('base-2')
+
+    bases = [firstBase, secondBase]
+    rerender(<KnowledgeV2Page />)
+
+    expect(screen.queryByTestId('create-dialog')).not.toBeInTheDocument()
+    expect(screen.getByTestId('selected-base-id')).toHaveTextContent('base-2')
+    expect(screen.getByTestId('detail-header')).toHaveTextContent('Base 2')
   })
 })

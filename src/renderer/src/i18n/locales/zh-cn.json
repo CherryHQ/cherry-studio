@@ -2117,7 +2117,9 @@
   },
   "knowledge_v2": {
     "add": {
-      "title": "添加知识库"
+      "icon": "图标",
+      "submit": "创建",
+      "title": "新建知识库"
     },
     "data_source": {
       "chunks_count": "{{count}} chunks",
@@ -2134,10 +2136,15 @@
         "chunking": "分块中",
         "embedding": "嵌入中",
         "error": "错误",
+        "pending": "等待中",
         "ready": "就绪"
       }
     },
+    "dimensions": "嵌入维度",
+    "embedding_model": "嵌入模型",
+    "embedding_model_required": "知识库嵌入模型是必需的",
     "error": {
+      "failed_to_create": "知识库创建失败",
       "failed_to_edit": "知识库编辑失败"
     },
     "groups": {
@@ -2146,11 +2153,16 @@
     "meta": {
       "documents_count": "{{count}} 文档"
     },
+    "name_required": "知识库名称为必填项",
+    "not_set": "未设置",
     "empty": "暂无知识库",
     "rag": {
+      "chunk_overlap": "重叠大小",
       "chunk_overlap_invalid": "分块重叠必须大于等于 0",
       "chunk_overlap_must_be_smaller": "分块重叠必须小于分块大小",
       "chunk_overlap_requires_chunk_size": "分块重叠依赖分块大小",
+      "chunk_size": "分段大小",
+      "chunk_size_change_warning": "分段大小和重叠大小修改只针对新添加的内容有效",
       "chunk_size_invalid": "分块大小必须大于 0",
       "chunking": "分块规则 (Chunking)",
       "default_separator": "自动（推荐）",

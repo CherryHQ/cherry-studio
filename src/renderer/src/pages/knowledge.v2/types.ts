@@ -7,6 +7,13 @@ export interface KnowledgeSelectOption {
   value: string
 }
 
+export interface CreateKnowledgeBaseInput {
+  name: string
+  emoji: string
+  embeddingModelId: string | null
+  dimensions: string
+}
+
 export interface KnowledgeRagConfigFormValues {
   fileProcessorId: string | null
   chunkSize: string

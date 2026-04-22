@@ -4,9 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import BaseNavigator from './components/BaseNavigator'
+import CreateKnowledgeBaseDialog from './components/CreateKnowledgeBaseDialog'
 import DetailHeader from './components/DetailHeader'
 import DetailTabs from './components/DetailTabs'
-import { useKnowledgeBases, useKnowledgeItems } from './hooks'
+import { useCreateKnowledgeBase, useKnowledgeBases, useKnowledgeItems } from './hooks'
 import DataSourcePanel from './panels/dataSource/DataSourcePanel'
 import RagConfigPanel from './panels/ragConfig/RagConfigPanel'
 import RecallTestPanel from './panels/recallTest/RecallTestPanel'
@@ -19,7 +20,10 @@ const NAVIGATOR_MAX_WIDTH = 360
 const KnowledgeV2Page = () => {
   const { t } = useTranslation()
   const { bases, isLoading } = useKnowledgeBases()
+  const { createBase, isCreating } = useCreateKnowledgeBase()
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [selectedBaseId, setSelectedBaseId] = useState('')
+  const [pendingSelectedBaseId, setPendingSelectedBaseId] = useState<string | null>(null)
   const { items: selectedBaseItems, isLoading: isItemsLoading } = useKnowledgeItems(selectedBaseId)
   const [activeTab, setActiveTab] = useState<KnowledgeTabKey>('data')
   const [navigatorWidth, setNavigatorWidth] = useState(NAVIGATOR_DEFAULT_WIDTH)
@@ -39,8 +43,15 @@ const KnowledgeV2Page = () => {
 
   useEffect(() => {
     if (bases.length === 0) {
-      if (selectedBaseId) {
+      if (!pendingSelectedBaseId && selectedBaseId) {
         setSelectedBaseId('')
+      }
+      return
+    }
+
+    if (pendingSelectedBaseId) {
+      if (bases.some((base) => base.id === pendingSelectedBaseId)) {
+        setPendingSelectedBaseId(null)
       }
       return
     }
@@ -49,7 +60,17 @@ const KnowledgeV2Page = () => {
     if (!selectedBaseId || !hasSelectedBase) {
       setSelectedBaseId(bases[0].id)
     }
-  }, [bases, selectedBaseId])
+  }, [bases, pendingSelectedBaseId, selectedBaseId])
+
+  const handleSelectBase = useCallback((baseId: string) => {
+    setPendingSelectedBaseId(null)
+    setSelectedBaseId(baseId)
+  }, [])
+
+  const handleCreateBaseCreated = useCallback((createdBase: { id: string }) => {
+    setPendingSelectedBaseId(createdBase.id)
+    setSelectedBaseId(createdBase.id)
+  }, [])
 
   const startNavigatorResize = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
     event.preventDefault()
@@ -87,7 +108,7 @@ const KnowledgeV2Page = () => {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <Navbar>
-        <NavbarCenter style={{ borderRight: 'none' }}>{t('knowledge.title')}</NavbarCenter>
+        <NavbarCenter style={{ borderRight: 'none' }}>{t('knowledge_v2.title')}</NavbarCenter>
       </Navbar>
 
       <div
@@ -97,8 +118,8 @@ const KnowledgeV2Page = () => {
           bases={bases}
           width={navigatorWidth}
           selectedBaseId={selectedBaseId}
-          onSelectBase={setSelectedBaseId}
-          onCreateBase={() => undefined}
+          onSelectBase={handleSelectBase}
+          onCreateBase={() => setIsCreateDialogOpen(true)}
           onResizeStart={startNavigatorResize}
         />
 
@@ -115,10 +136,18 @@ const KnowledgeV2Page = () => {
           </main>
         ) : (
           <main className="flex min-h-0 min-w-0 flex-1 items-center justify-center bg-background px-6 text-muted-foreground text-sm">
-            {isLoading ? t('common.loading') : t('knowledge.empty')}
+            {isLoading ? t('common.loading') : t('knowledge_v2.empty')}
           </main>
         )}
       </div>
+
+      <CreateKnowledgeBaseDialog
+        open={isCreateDialogOpen}
+        isCreating={isCreating}
+        createBase={createBase}
+        onOpenChange={setIsCreateDialogOpen}
+        onCreated={handleCreateBaseCreated}
+      />
     </div>
   )
 }

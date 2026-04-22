@@ -1,13 +1,16 @@
+import type { CreateKnowledgeBaseInput } from '@renderer/pages/knowledge.v2/types'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import { renderHook } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useKnowledgeBases } from '../useKnowledgeBases'
+import { useCreateKnowledgeBase, useKnowledgeBases } from '../useKnowledgeBases'
 
 const mockUseQuery = vi.fn()
+const mockUseMutation = vi.fn()
 
 vi.mock('@data/hooks/useDataApi', () => ({
-  useQuery: (...args: unknown[]) => mockUseQuery(...args)
+  useQuery: (...args: unknown[]) => mockUseQuery(...args),
+  useMutation: (...args: unknown[]) => mockUseMutation(...args)
 }))
 
 const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeBase => ({
@@ -82,5 +85,57 @@ describe('useKnowledgeBases', () => {
     expect(result.current.isLoading).toBe(true)
     expect(result.current.error).toBe(error)
     expect(result.current.refetch).toBe(refetch)
+  })
+})
+
+describe('useCreateKnowledgeBase', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('creates a knowledge base with the expected body and declares refresh via useMutation', async () => {
+    const createdBase = createKnowledgeBase({
+      id: 'base-2',
+      name: 'Base 2',
+      emoji: '📚',
+      embeddingModelId: 'openai::text-embedding-3-small',
+      dimensions: 2048
+    })
+    const trigger = vi.fn().mockResolvedValue(createdBase)
+    const createError = new Error('create failed')
+    const input: CreateKnowledgeBaseInput = {
+      name: '  Base 2  ',
+      emoji: '📚',
+      embeddingModelId: 'openai::text-embedding-3-small',
+      dimensions: '2048'
+    }
+
+    mockUseMutation.mockReturnValue({
+      trigger,
+      isLoading: true,
+      error: createError
+    })
+
+    const { result } = renderHook(() => useCreateKnowledgeBase())
+    let created: KnowledgeBase | undefined
+
+    await act(async () => {
+      created = await result.current.createBase(input)
+    })
+
+    expect(mockUseMutation).toHaveBeenCalledWith('POST', '/knowledge-bases', {
+      refresh: ['/knowledge-bases']
+    })
+    expect(trigger).toHaveBeenCalledWith({
+      body: {
+        name: 'Base 2',
+        emoji: '📚',
+        embeddingModelId: 'openai::text-embedding-3-small',
+        dimensions: 2048
+      }
+    })
+    expect(created).toEqual(createdBase)
+    expect(result.current.isCreating).toBe(true)
+    expect(result.current.createError).toBe(createError)
   })
 })
