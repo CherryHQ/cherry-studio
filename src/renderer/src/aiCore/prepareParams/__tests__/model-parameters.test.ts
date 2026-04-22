@@ -3,7 +3,7 @@ import { TopicType } from '@renderer/types'
 import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 import { describe, expect, it, vi } from 'vitest'
 
-import { getMaxTokens, getTemperature, getTimeout, getTopP } from '../modelParameters'
+import { filterStandardParams, getMaxTokens, getTemperature, getTimeout, getTopP } from '../modelParameters'
 
 vi.mock('@renderer/services/AssistantService', () => ({
   DEFAULT_ASSISTANT_SETTINGS: {
@@ -284,6 +284,40 @@ describe('modelParameters', () => {
       const model = createModel({ id: 'claude-sonnet-4', provider: 'anthropic', group: 'claude' })
 
       expect(getTopP(assistant, model)).toBe(0.97)
+    })
+  })
+
+  describe('filterStandardParams', () => {
+    const opus47 = createModel({
+      id: 'claude-opus-4-7',
+      name: 'Claude Opus 4.7',
+      provider: 'anthropic',
+      group: 'Claude 4.7'
+    })
+    const sonnet = createModel({
+      id: 'claude-sonnet-4.5',
+      name: 'Claude Sonnet 4.5',
+      provider: 'anthropic',
+      group: 'claude'
+    })
+
+    it('drops topK for Claude Opus 4.7', () => {
+      expect(filterStandardParams({ topK: 40, frequencyPenalty: 0.1 }, opus47)).toEqual({ frequencyPenalty: 0.1 })
+    })
+
+    it('returns the same object when topK is absent for Opus 4.7', () => {
+      const input = { frequencyPenalty: 0.1, seed: 42 }
+      expect(filterStandardParams(input, opus47)).toBe(input)
+    })
+
+    it('keeps topK for non-Opus-4.7 models', () => {
+      const input = { topK: 40 }
+      expect(filterStandardParams(input, sonnet)).toBe(input)
+    })
+
+    it('returns the same object when standardParams is empty', () => {
+      const input = {}
+      expect(filterStandardParams(input, opus47)).toBe(input)
     })
   })
 

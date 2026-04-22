@@ -21,6 +21,7 @@ import {
   getProviderByModel
 } from '@renderer/services/AssistantService'
 import { type Assistant, type Model } from '@renderer/types'
+import type { AiSdkParam } from '@renderer/types/aiCoreTypes'
 import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 
 import { getThinkingBudget } from '../utils/reasoning'
@@ -130,6 +131,23 @@ export function getTopP(assistant: Assistant, model: Model): number | undefined 
   }
 
   return topP
+}
+
+/**
+ * Filters AI SDK standard parameters extracted from custom parameters, removing any
+ * the model rejects. Currently strips `topK` for Claude Opus 4.7 since it rejects
+ * sampling params (temperature/top_p/top_k) with HTTP 400. See `getTemperature`.
+ */
+export function filterStandardParams(
+  standardParams: Partial<Record<AiSdkParam, any>>,
+  model: Model
+): Partial<Record<AiSdkParam, any>> {
+  if (isClaude47SeriesModel(model) && 'topK' in standardParams) {
+    const { topK: _topK, ...rest } = standardParams
+    logger.info(`Model ${model.id} rejects sampling parameters, dropping topK from custom params`)
+    return rest
+  }
+  return standardParams
 }
 
 /**

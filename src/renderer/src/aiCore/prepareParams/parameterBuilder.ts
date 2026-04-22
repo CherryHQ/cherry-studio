@@ -42,7 +42,7 @@ import { setupToolsConfig } from '../utils/mcp'
 import { buildProviderOptions } from '../utils/options'
 import { buildProviderBuiltinWebSearchConfig } from '../utils/websearch'
 import { addAnthropicHeaders } from './header'
-import { getMaxTokens, getTemperature, getTopP } from './modelParameters'
+import { filterStandardParams, getMaxTokens, getTemperature, getTopP } from './modelParameters'
 
 const logger = loggerService.withContext('parameterBuilder')
 
@@ -203,7 +203,8 @@ export async function buildStreamTextParams(
     temperature: getTemperature(assistant, model),
     topP: getTopP(assistant, model),
     // Include AI SDK standard params extracted from custom parameters
-    ...standardParams,
+    // (filtered to drop ones the model rejects, e.g. topK on Claude Opus 4.7)
+    ...filterStandardParams(standardParams, model),
     abortSignal: finalSignal,
     headers,
     providerOptions,
