@@ -23,6 +23,7 @@ import type {
   BranchMessage,
   BranchMessagesResponse,
   Message,
+  MessageData,
   SiblingsGroup,
   TreeNode,
   TreeResponse
@@ -564,6 +565,66 @@ export class MessageService {
   async updateSiblingsGroupId(id: string, siblingsGroupId: number): Promise<void> {
     const db = application.get('DbService').getDb()
     await db.update(messageTable).set({ siblingsGroupId }).where(eq(messageTable.id, id))
+  }
+
+  /**
+   * Create a new sibling of an existing message.
+   *
+   * Used by edit-and-resend flows where the user wants to branch the
+   * conversation rather than overwrite the previous turn. Runs in a single
+   * transaction so the source's `siblingsGroupId` backfill (when needed) and
+   * the new row's insert are atomic.
+   *
+   * Behavior:
+   * - Allocates a new `siblingsGroupId` (`Date.now()`) only if the source is
+   *   still ungrouped (`= 0`); otherwise joins the source's existing group.
+   * - The new message inherits the source's `role` and `topicId`, hangs off
+   *   the same `parentId`, and always becomes the topic's active node.
+   *
+   * Rejects rooted messages: a root has no parent, so "sibling under the
+   * same parent" isn't expressible.
+   */
+  async createSibling(sourceId: string, data: MessageData): Promise<Message> {
+    const db = application.get('DbService').getDb()
+
+    return await db.transaction(async (tx) => {
+      const [source] = await tx.select().from(messageTable).where(eq(messageTable.id, sourceId)).limit(1)
+      if (!source) {
+        throw DataApiErrorFactory.notFound('Message', sourceId)
+      }
+      if (source.parentId === null) {
+        throw DataApiErrorFactory.invalidOperation('create sibling', 'root message has no siblings')
+      }
+
+      let siblingsGroupId = source.siblingsGroupId ?? 0
+      if (siblingsGroupId === 0) {
+        siblingsGroupId = Date.now()
+        await tx.update(messageTable).set({ siblingsGroupId }).where(eq(messageTable.id, sourceId))
+      }
+
+      const [row] = await tx
+        .insert(messageTable)
+        .values({
+          topicId: source.topicId,
+          parentId: source.parentId,
+          role: source.role,
+          data,
+          status: 'pending',
+          siblingsGroupId
+        })
+        .returning()
+
+      await tx.update(topicTable).set({ activeNodeId: row.id }).where(eq(topicTable.id, source.topicId))
+
+      logger.info('Created sibling message', {
+        sourceId,
+        newId: row.id,
+        parentId: source.parentId,
+        siblingsGroupId
+      })
+
+      return rowToMessage(row)
+    })
   }
 
   /**

@@ -34,6 +34,14 @@ export interface V2ChatOverrides {
   pause: () => void
   clearTopicMessages: () => Promise<void>
   editMessage: (messageId: string, editedParts: CherryMessagePart[]) => Promise<void>
+  /**
+   * Branch a user message: create a new sibling under the same parent with the
+   * edited parts, make it the active node, then regenerate the assistant
+   * response anchored at the new sibling. The source message stays intact.
+   */
+  forkAndResend: (messageId: string, editedParts: CherryMessagePart[]) => Promise<void>
+  /** Switch the topic's active node — used to navigate between branch siblings. */
+  setActiveNode: (messageId: string) => Promise<void>
   requestStatus: RequestStatus
   refresh: () => Promise<unknown>
 }

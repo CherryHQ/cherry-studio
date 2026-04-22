@@ -2,6 +2,7 @@ import { useInvalidateCache, useMutation, useReadCache, useWriteCache } from '@d
 import { loggerService } from '@logger'
 import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import { isDev } from '@renderer/config/constant'
+import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
 import { ToolApprovalProvider } from '@renderer/hooks/ToolApprovalContext'
 import { ChatContextProvider, useChatContextProvider } from '@renderer/hooks/useChatContext'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
@@ -46,7 +47,14 @@ interface Props {
  *   - PartsContext: history parts + live streaming parts overlay
  */
 const V2ChatContent: FC<Props> = ({ assistant, topic, setActiveTopic, mainHeight }) => {
-  const { uiMessages, metadataMap, isLoading: isHistoryLoading, refresh, activeNodeId } = useTopicMessagesV2(topic.id)
+  const {
+    uiMessages,
+    metadataMap,
+    siblingsMap,
+    isLoading: isHistoryLoading,
+    refresh,
+    activeNodeId
+  } = useTopicMessagesV2(topic.id)
 
   // Don't mount the chat instance until history is loaded.
   // ChatSession only reads initialMessages on creation — if we create it
@@ -71,6 +79,7 @@ const V2ChatContent: FC<Props> = ({ assistant, topic, setActiveTopic, mainHeight
       mainHeight={mainHeight}
       initialMessages={uiMessages}
       metadataMap={metadataMap}
+      siblingsMap={siblingsMap}
       refresh={refresh}
       activeNodeId={activeNodeId}
     />
@@ -84,6 +93,7 @@ const V2ChatContent: FC<Props> = ({ assistant, topic, setActiveTopic, mainHeight
 interface InnerProps extends Props {
   initialMessages: CherryUIMessage[]
   metadataMap: ReturnType<typeof useTopicMessagesV2>['metadataMap']
+  siblingsMap: ReturnType<typeof useTopicMessagesV2>['siblingsMap']
   refresh: () => Promise<CherryUIMessage[]>
   activeNodeId: string | null
 }
@@ -95,6 +105,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
   mainHeight,
   initialMessages,
   metadataMap,
+  siblingsMap,
   refresh,
   activeNodeId
 }) => {
@@ -281,6 +292,14 @@ const V2ChatContentInner: FC<InnerProps> = ({
     refresh: messagesRefreshKeys
   })
 
+  const { trigger: createSiblingTrigger } = useMutation('POST', '/messages/:id/siblings', {
+    refresh: messagesRefreshKeys
+  })
+
+  const { trigger: setActiveNodeTrigger } = useMutation('PUT', '/topics/:id/active-node', {
+    refresh: messagesRefreshKeys
+  })
+
   /**
    * Delete a single message (reparent children to grandparent) and sync UI.
    *
@@ -446,6 +465,45 @@ const V2ChatContentInner: FC<InnerProps> = ({
     [regenerate, capabilityBody]
   )
 
+  /**
+   * Edit + resend as a new branch: create a sibling user message carrying the
+   * edited parts (server allocates/shares siblingsGroupId atomically and flips
+   * `activeNodeId`), then regenerate the assistant response under the new
+   * sibling. Leaves the original user message and its subtree intact.
+   */
+  const handleForkAndResend = useCallback(
+    async (messageId: string, editedParts: CherryMessagePart[]) => {
+      const newMessage = await createSiblingTrigger({
+        params: { id: messageId },
+        body: { parts: editedParts }
+      })
+      // Sync useChat's internal state from DB before regenerate — AI SDK
+      // looks up `newMessage.id` in its messages array, and the fresh
+      // sibling was just inserted server-side. The server already flipped
+      // `activeNodeId` to the new branch inside the same transaction, so
+      // a refresh lands exactly the path we want before we kick off the
+      // regeneration.
+      const refreshed = await refresh()
+      setMessages(refreshed)
+      logger.info('Forked user message', { sourceId: messageId, newId: newMessage.id })
+      await regenerateWithCapabilities(newMessage.id)
+    },
+    [createSiblingTrigger, refresh, setMessages, regenerateWithCapabilities]
+  )
+
+  const handleSetActiveNode = useCallback(
+    async (messageId: string) => {
+      await setActiveNodeTrigger({ params: { id: topic.id }, body: { nodeId: messageId } })
+      // useChat owns its own messages state — SWR invalidation refreshes the
+      // branch response but doesn't reach into the chat instance. Pull the
+      // new active branch and replace so the messages pane reflects the
+      // switched branch.
+      const refreshed = await refresh()
+      setMessages(refreshed)
+    },
+    [setActiveNodeTrigger, topic.id, refresh, setMessages]
+  )
+
   const v2ChatOverrides = useMemo<V2ChatOverrides>(
     () => ({
       regenerate: async (messageId?: string) => regenerateWithCapabilities(messageId),
@@ -455,6 +513,8 @@ const V2ChatContentInner: FC<InnerProps> = ({
       pause: stop,
       clearTopicMessages: handleClearTopicMessages,
       editMessage: handleEditMessage,
+      forkAndResend: handleForkAndResend,
+      setActiveNode: handleSetActiveNode,
       refresh,
       requestStatus: status
     }),
@@ -465,6 +525,8 @@ const V2ChatContentInner: FC<InnerProps> = ({
       stop,
       handleClearTopicMessages,
       handleEditMessage,
+      handleForkAndResend,
+      handleSetActiveNode,
       refresh,
       status
     ]
@@ -515,48 +577,52 @@ const V2ChatContentInner: FC<InnerProps> = ({
     [activeNodeId, sendMessage, setMessages, prepareNextAssistantId, capabilityBody]
   )
 
+  const siblingsContextValue = useMemo(() => ({ siblingsMap, activeNodeId }), [siblingsMap, activeNodeId])
+
   return (
     <V2ChatOverridesProvider value={v2ChatOverrides}>
-      <RefreshProvider value={refresh}>
-        <PartsProvider value={mergedPartsMap}>
-          <ToolApprovalProvider value={respondToToolApproval}>
-            <ChatContextBridge topic={topic}>
-              <div
-                className="flex flex-1 flex-col justify-between"
-                style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>
-                {isDev && (
-                  <div
-                    className="fixed top-5 right-50 z-50 px-4 py-1 text-xs opacity-50"
-                    style={{ color: 'var(--color-text-3)' }}>
-                    [V2] {status} | {mergedMessages.length} msgs
-                    {error && <span className="ml-2 text-red-500">{error.message}</span>}
-                  </div>
-                )}
+      <SiblingsProvider value={siblingsContextValue}>
+        <RefreshProvider value={refresh}>
+          <PartsProvider value={mergedPartsMap}>
+            <ToolApprovalProvider value={respondToToolApproval}>
+              <ChatContextBridge topic={topic}>
+                <div
+                  className="flex flex-1 flex-col justify-between"
+                  style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>
+                  {isDev && (
+                    <div
+                      className="fixed top-5 right-50 z-50 px-4 py-1 text-xs opacity-50"
+                      style={{ color: 'var(--color-text-3)' }}>
+                      [V2] {status} | {mergedMessages.length} msgs
+                      {error && <span className="ml-2 text-red-500">{error.message}</span>}
+                    </div>
+                  )}
 
-                {activeExecutionIds.map((executionId) => (
-                  <ExecutionStreamCollector
-                    key={executionId}
-                    topicId={topic.id}
-                    executionId={executionId}
-                    onMessagesChange={handleExecutionMessagesChange}
-                    onDispose={handleExecutionDispose}
+                  {activeExecutionIds.map((executionId) => (
+                    <ExecutionStreamCollector
+                      key={executionId}
+                      topicId={topic.id}
+                      executionId={executionId}
+                      onMessagesChange={handleExecutionMessagesChange}
+                      onDispose={handleExecutionDispose}
+                    />
+                  ))}
+
+                  <Messages
+                    key={topic.id}
+                    assistant={assistant}
+                    topic={topic}
+                    setActiveTopic={setActiveTopic}
+                    messages={mergedMessages}
                   />
-                ))}
 
-                <Messages
-                  key={topic.id}
-                  assistant={assistant}
-                  topic={topic}
-                  setActiveTopic={setActiveTopic}
-                  messages={mergedMessages}
-                />
-
-                <Inputbar assistant={assistant} topic={topic} setActiveTopic={setActiveTopic} onSend={handleSendV2} />
-              </div>
-            </ChatContextBridge>
-          </ToolApprovalProvider>
-        </PartsProvider>
-      </RefreshProvider>
+                  <Inputbar assistant={assistant} topic={topic} setActiveTopic={setActiveTopic} onSend={handleSendV2} />
+                </div>
+              </ChatContextBridge>
+            </ToolApprovalProvider>
+          </PartsProvider>
+        </RefreshProvider>
+      </SiblingsProvider>
     </V2ChatOverridesProvider>
   )
 }

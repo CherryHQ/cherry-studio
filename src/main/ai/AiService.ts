@@ -734,9 +734,7 @@ export class AiService extends BaseService {
     // (assistant, model, provider, capabilities) tuple, so they belong at
     // the agent level; flow to `agentSettings.providerOptions` in runAgentLoop.
     let providerOptions =
-      assistant && capabilities
-        ? buildCapabilityProviderOptions(assistant, model, provider, capabilities)
-        : {}
+      assistant && capabilities ? buildCapabilityProviderOptions(assistant, model, provider, capabilities) : {}
 
     // User-supplied `assistant.settings.customParameters` — same lifetime
     // as the assistant, so also agent-level rather than per-call. Split into

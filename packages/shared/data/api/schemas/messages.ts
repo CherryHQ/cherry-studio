@@ -6,7 +6,7 @@
  */
 
 import type { CursorPaginationParams } from '@shared/data/api/apiTypes'
-import type { BranchMessagesResponse, Message, TreeResponse } from '@shared/data/types/message'
+import type { BranchMessagesResponse, Message, MessageData, TreeResponse } from '@shared/data/types/message'
 import {
   MessageDataSchema,
   MessageRoleSchema,
@@ -223,6 +223,27 @@ export type MessageSchemas = {
       params: { id: string }
       query?: DeleteMessageQuery
       response: DeleteMessageResponse
+    }
+  }
+
+  /**
+   * Siblings sub-resource of a message — POST creates a new sibling under the
+   * same parent (edit-and-resend branching flow).
+   *
+   * Atomically (single DB transaction):
+   * 1. If the source has `siblingsGroupId = 0`, allocate a new group id and
+   *    backfill the source so it and the new sibling belong to the same group.
+   * 2. Insert the new message with `parentId = source.parentId`, the shared
+   *    `siblingsGroupId`, and `role = source.role`.
+   * 3. Set the topic's `activeNodeId` to the new message.
+   *
+   * @example POST /messages/msg123/siblings { "data": { "parts": [...] } }
+   */
+  '/messages/:id/siblings': {
+    POST: {
+      params: { id: string }
+      body: MessageData
+      response: Message
     }
   }
 }

@@ -17,6 +17,7 @@ import {
   TreeQuerySchema,
   UpdateMessageSchema
 } from '@shared/data/api/schemas/messages'
+import { MessageDataSchema } from '@shared/data/types/message'
 
 /**
  * Handler type for a specific message endpoint
@@ -74,6 +75,13 @@ export const messageHandlers: {
       const cascade = q.cascade ?? false
       const activeNodeStrategy = q.activeNodeStrategy ?? 'parent'
       return await messageService.delete(params.id, cascade, activeNodeStrategy)
+    }
+  },
+
+  '/messages/:id/siblings': {
+    POST: async ({ params, body }) => {
+      const parsed = MessageDataSchema.parse(body)
+      return await messageService.createSibling(params.id, parsed)
     }
   }
 }

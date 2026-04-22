@@ -27,6 +27,7 @@ import MessageErrorBoundary from './MessageErrorBoundary'
 import MessageHeader from './MessageHeader'
 import MessageMenubar from './MessageMenubar'
 import MessageOutline from './MessageOutline'
+import SiblingNavigator from './SiblingNavigator'
 
 interface Props {
   message: Message
@@ -75,7 +76,7 @@ const MessageItem: FC<Props> = ({
   const [messageStyle] = usePreference('chat.message.style')
   const [showMessageOutline] = usePreference('chat.message.show_outline')
 
-  const { editParts, resendWithEdit } = useMessage(message.id, topic)
+  const { editParts, forkAndResend } = useMessage(message.id, topic)
   const messageContainerRef = useRef<HTMLDivElement>(null)
   const { editingMessageId, startEditing, stopEditing } = useMessageEditing()
   const { setTimeoutTimer } = useTimer()
@@ -107,12 +108,12 @@ const MessageItem: FC<Props> = ({
     async (parts: CherryMessagePart[]) => {
       try {
         stopEditing()
-        await resendWithEdit(parts)
+        await forkAndResend(parts)
       } catch (error) {
         logger.error('Failed to resend message with parts:', error as Error)
       }
     },
-    [resendWithEdit, stopEditing]
+    [forkAndResend, stopEditing]
   )
 
   const handleEditCancel = useCallback(() => {
@@ -250,6 +251,7 @@ const MessageItem: FC<Props> = ({
                     onUpdateUseful={onUpdateUseful}
                   />
                 </HorizontalScrollContainer>
+                <SiblingNavigator messageId={message.id} />
               </div>
             )}
           </>

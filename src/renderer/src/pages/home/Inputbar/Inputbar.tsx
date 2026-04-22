@@ -280,7 +280,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({
 
   const onNewContext = useCallback(() => {
     if (loading) {
-      void onPause()
+      onPause()
       return
     }
     void EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)

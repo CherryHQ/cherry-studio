@@ -14,7 +14,7 @@ import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateTopicDto, UpdateTopicDto } from '@shared/data/api/schemas/topics'
 import type { Topic } from '@shared/data/types/topic'
-import { and, asc, desc, eq, isNull } from 'drizzle-orm'
+import { and, asc, desc, eq, isNull, sql } from 'drizzle-orm'
 
 import { messageService } from './MessageService'
 import { tagService } from './TagService'
@@ -219,7 +219,16 @@ export class TopicService {
   }
 
   /**
-   * Set the active node for a topic
+   * Set the active node for a topic.
+   *
+   * The caller supplies a branch entry point (e.g. a user-message sibling from
+   * the navigator). `getBranchMessages` walks ancestors, so pointing
+   * `activeNodeId` at a non-leaf would truncate the rendered conversation at
+   * that node and hide its descendants (the follow-up assistant turns on that
+   * branch). To preserve the conversation view we descend to the leaf of the
+   * target branch first — at each step picking the most recently created child
+   * so multi-model groups resolve to their latest member and newly-forked
+   * branches to the freshest turn.
    */
   async setActiveNode(topicId: string, nodeId: string): Promise<{ activeNodeId: string }> {
     const db = application.get('DbService').getDb()
@@ -234,12 +243,33 @@ export class TopicService {
       throw DataApiErrorFactory.notFound('Message', nodeId)
     }
 
-    // Update active node
-    await db.update(topicTable).set({ activeNodeId: nodeId }).where(eq(topicTable.id, topicId))
+    // Descend to any leaf in the subtree rooted at `nodeId`. Picking an
+    // arbitrary leaf is sufficient: `getBranchMessages(includeSiblings: true)`
+    // re-hydrates the whole sibling group for each path node, so multi-model
+    // alternatives at the leaf level render together regardless of which
+    // member is `activeNodeId`.
+    const [leaf] = await db.all<{ id: string }>(sql`
+      WITH RECURSIVE descend AS (
+        SELECT id FROM message WHERE id = ${nodeId} AND deleted_at IS NULL
+        UNION ALL
+        SELECT m.id FROM message m
+        INNER JOIN descend d ON m.parent_id = d.id
+        WHERE m.deleted_at IS NULL
+      )
+      SELECT d.id FROM descend d
+      WHERE NOT EXISTS (
+        SELECT 1 FROM message c
+        WHERE c.parent_id = d.id AND c.deleted_at IS NULL
+      )
+      LIMIT 1
+    `)
+    const leafId = leaf?.id ?? nodeId
 
-    logger.info('Set active node', { topicId, nodeId })
+    await db.update(topicTable).set({ activeNodeId: leafId }).where(eq(topicTable.id, topicId))
 
-    return { activeNodeId: nodeId }
+    logger.info('Set active node', { topicId, requestedNodeId: nodeId, resolvedLeafId: leafId })
+
+    return { activeNodeId: leafId }
   }
 }
 

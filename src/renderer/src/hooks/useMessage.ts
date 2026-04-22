@@ -52,10 +52,9 @@ export function useMessage(messageId: string, topic: Topic) {
     [messageId, v2]
   )
 
-  const resendWithEdit = useCallback(
+  const forkAndResend = useCallback(
     async (parts: CherryMessagePart[]) => {
-      await v2?.editMessage(messageId, parts)
-      await v2?.resend(messageId)
+      await v2?.forkAndResend(messageId, parts)
     },
     [messageId, v2]
   )
@@ -103,7 +102,7 @@ export function useMessage(messageId: string, topic: Topic) {
     [messageId, partsMap, topic.id, v2]
   )
 
-  return { remove, regenerate, resend, editParts, resendWithEdit, getTranslationUpdater }
+  return { remove, regenerate, resend, editParts, forkAndResend, getTranslationUpdater }
 }
 
 /**
