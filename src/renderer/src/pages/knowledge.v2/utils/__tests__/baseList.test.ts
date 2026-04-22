@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import { buildKnowledgeV2BaseListItems, filterKnowledgeV2BaseGroupSections } from '../baseList'
 
-const createKnowledgeBase = (overrides: Partial<KnowledgeBase>): KnowledgeBase => ({
+const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeBase => ({
   id: '',
   name: '',
   description: undefined,
@@ -13,8 +13,8 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase>): KnowledgeBase =
   embeddingModelId: null,
   rerankModelId: undefined,
   fileProcessorId: undefined,
-  chunkSize: undefined,
-  chunkOverlap: undefined,
+  chunkSize: 1024,
+  chunkOverlap: 200,
   threshold: undefined,
   documentCount: undefined,
   searchMode: undefined,

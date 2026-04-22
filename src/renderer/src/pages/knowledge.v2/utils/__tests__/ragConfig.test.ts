@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import { buildKnowledgeV2RagConfigPatch, createKnowledgeV2RagConfigFormValues } from '../ragConfig'
 
-const createKnowledgeBase = (overrides: Partial<KnowledgeBase>): KnowledgeBase => ({
+const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeBase => ({
   id: '',
   name: '',
   description: undefined,
@@ -13,8 +13,8 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase>): KnowledgeBase =
   embeddingModelId: 'openai::text-embedding-3-small',
   rerankModelId: undefined,
   fileProcessorId: undefined,
-  chunkSize: undefined,
-  chunkOverlap: undefined,
+  chunkSize: 1024,
+  chunkOverlap: 200,
   threshold: undefined,
   documentCount: undefined,
   searchMode: undefined,
@@ -92,7 +92,7 @@ describe('buildKnowledgeV2RagConfigPatch', () => {
     })
   })
 
-  it('clears dependent fields when chunking or search mode no longer uses them', () => {
+  it('only emits numeric chunk patches and keeps hybrid alpha clearing behavior', () => {
     const initialValues = createKnowledgeV2RagConfigFormValues(
       createKnowledgeBase({
         chunkSize: 512,
@@ -104,15 +104,13 @@ describe('buildKnowledgeV2RagConfigPatch', () => {
 
     const nextValues = {
       ...initialValues,
-      chunkSize: '',
-      chunkOverlap: '',
+      chunkSize: '768',
       searchMode: 'default' as const,
       hybridAlpha: 0.6
     }
 
     expect(buildKnowledgeV2RagConfigPatch(initialValues, nextValues)).toEqual({
-      chunkSize: null,
-      chunkOverlap: null,
+      chunkSize: 768,
       searchMode: 'default',
       hybridAlpha: null
     })

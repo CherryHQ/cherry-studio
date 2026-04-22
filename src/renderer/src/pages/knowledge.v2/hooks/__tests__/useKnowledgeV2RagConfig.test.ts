@@ -24,7 +24,7 @@ vi.mock('@renderer/i18n/label', () => ({
     )[id] ?? id
 }))
 
-const createKnowledgeBase = (overrides: Partial<KnowledgeBase>): KnowledgeBase => ({
+const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeBase => ({
   id: '',
   name: '',
   description: undefined,
@@ -34,8 +34,8 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase>): KnowledgeBase =
   embeddingModelId: 'openai::text-embedding-3-small',
   rerankModelId: undefined,
   fileProcessorId: undefined,
-  chunkSize: undefined,
-  chunkOverlap: undefined,
+  chunkSize: 1024,
+  chunkOverlap: 200,
   threshold: undefined,
   documentCount: undefined,
   searchMode: undefined,

@@ -6,8 +6,8 @@ import type { KnowledgeV2RagConfigFormValues } from '../types'
 
 export const createKnowledgeV2RagConfigFormValues = (base: KnowledgeBase): KnowledgeV2RagConfigFormValues => ({
   fileProcessorId: base.fileProcessorId ?? null,
-  chunkSize: base.chunkSize == null ? '' : String(base.chunkSize),
-  chunkOverlap: base.chunkOverlap == null ? '' : String(base.chunkOverlap),
+  chunkSize: String(base.chunkSize),
+  chunkOverlap: String(base.chunkOverlap),
   embeddingModelId: base.embeddingModelId,
   rerankModelId: base.rerankModelId ?? null,
   dimensions: base.dimensions,
@@ -17,12 +17,14 @@ export const createKnowledgeV2RagConfigFormValues = (base: KnowledgeBase): Knowl
   hybridAlpha: base.hybridAlpha ?? null
 })
 
-const parseOptionalInteger = (value: string): number | null => {
-  if (!value) {
-    return null
+const parseIntegerString = (value: string): number => {
+  const parsed = Number(value)
+
+  if (!Number.isInteger(parsed)) {
+    throw new Error(`Expected integer string, received "${value}"`)
   }
 
-  return Number(value)
+  return parsed
 }
 
 export const buildKnowledgeV2RagConfigPatch = (
@@ -36,16 +38,11 @@ export const buildKnowledgeV2RagConfigPatch = (
   }
 
   if (currentValues.chunkSize !== initialValues.chunkSize) {
-    patch.chunkSize = parseOptionalInteger(currentValues.chunkSize)
+    patch.chunkSize = parseIntegerString(currentValues.chunkSize)
   }
 
-  if (
-    currentValues.chunkSize === '' &&
-    (initialValues.chunkOverlap !== '' || currentValues.chunkSize !== initialValues.chunkSize)
-  ) {
-    patch.chunkOverlap = null
-  } else if (currentValues.chunkOverlap !== initialValues.chunkOverlap) {
-    patch.chunkOverlap = parseOptionalInteger(currentValues.chunkOverlap)
+  if (currentValues.chunkOverlap !== initialValues.chunkOverlap) {
+    patch.chunkOverlap = parseIntegerString(currentValues.chunkOverlap)
   }
 
   if (currentValues.embeddingModelId !== initialValues.embeddingModelId && currentValues.embeddingModelId != null) {

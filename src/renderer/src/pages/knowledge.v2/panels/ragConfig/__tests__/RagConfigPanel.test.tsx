@@ -87,14 +87,13 @@ vi.mock('react-i18next', () => ({
           'knowledge_v2.rag.hybrid_alpha_hint': '仅在 Hybrid 检索模式下可配置',
           'knowledge_v2.rag.chunk_size_invalid': '分块大小必须大于 0',
           'knowledge_v2.rag.chunk_overlap_invalid': '分块重叠必须大于等于 0',
-          'knowledge_v2.rag.chunk_overlap_requires_chunk_size': '分块重叠依赖分块大小',
           'knowledge_v2.rag.chunk_overlap_must_be_smaller': '分块重叠必须小于分块大小'
         }) as Record<string, string>
       )[key] ?? key
   })
 }))
 
-const createKnowledgeBase = (overrides: Partial<KnowledgeBase>): KnowledgeBase => ({
+const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeBase => ({
   id: 'base-1',
   name: 'Base 1',
   description: undefined,
@@ -104,8 +103,8 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase>): KnowledgeBase =
   embeddingModelId: 'openai::text-embedding-3-small',
   rerankModelId: undefined,
   fileProcessorId: undefined,
-  chunkSize: 512,
-  chunkOverlap: 64,
+  chunkSize: 1024,
+  chunkOverlap: 200,
   threshold: 0.1,
   documentCount: 6,
   searchMode: 'default',
@@ -149,11 +148,13 @@ describe('RagConfigPanel', () => {
     })
   })
 
-  it('removes separator rule UI, hides hybrid alpha outside hybrid mode, and saves through the phase3 hook', async () => {
+  it('renders current chunk values, hides hybrid alpha outside hybrid mode, and saves through the phase3 hook', async () => {
     render(<RagConfigPanel base={createKnowledgeBase({})} />)
 
     expect(screen.queryByText('separatorRule')).not.toBeInTheDocument()
     expect(screen.getByDisplayValue('1536')).toHaveAttribute('readonly')
+    expect(screen.getByDisplayValue('512')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('64')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '刷新' })).not.toBeInTheDocument()
     expect(screen.queryByText('Hybrid Alpha')).not.toBeInTheDocument()
 
@@ -163,11 +164,45 @@ describe('RagConfigPanel', () => {
     await waitFor(() => {
       expect(mockSave).toHaveBeenCalledWith(
         expect.objectContaining({
-          chunkSize: '1024'
+          chunkSize: '1024',
+          chunkOverlap: '64'
         })
       )
     })
     expect(window.toast.success).toHaveBeenCalledWith('已保存')
+  })
+
+  it('disables save when a required chunk field is cleared or becomes non-positive', () => {
+    render(<RagConfigPanel base={createKnowledgeBase({})} />)
+
+    const chunkSizeInput = screen.getByDisplayValue('512')
+    const saveButton = screen.getByRole('button', { name: '保存' })
+
+    fireEvent.change(chunkSizeInput, { target: { value: '' } })
+
+    expect(saveButton).toBeDisabled()
+
+    fireEvent.click(saveButton)
+    expect(mockSave).not.toHaveBeenCalled()
+
+    fireEvent.change(chunkSizeInput, { target: { value: '0' } })
+
+    expect(screen.getByText('分块大小必须大于 0')).toBeInTheDocument()
+    expect(saveButton).toBeDisabled()
+  })
+
+  it('blocks save when chunk overlap is not smaller than chunk size', () => {
+    render(<RagConfigPanel base={createKnowledgeBase({})} />)
+
+    const saveButton = screen.getByRole('button', { name: '保存' })
+
+    fireEvent.change(screen.getByDisplayValue('64'), { target: { value: '512' } })
+
+    expect(screen.getByText('分块重叠必须小于分块大小')).toBeInTheDocument()
+    expect(saveButton).toBeDisabled()
+
+    fireEvent.click(saveButton)
+    expect(mockSave).not.toHaveBeenCalled()
   })
 
   it('shows hybrid alpha when the current search mode is hybrid', () => {

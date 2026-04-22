@@ -59,18 +59,15 @@ const RagConfigPanel = ({ base }: RagConfigPanelProps) => {
       errors.chunkOverlap = t('knowledge_v2.rag.chunk_overlap_invalid')
     }
 
-    if (chunkOverlap != null) {
-      if (chunkSize == null) {
-        errors.chunkOverlap = t('knowledge_v2.rag.chunk_overlap_requires_chunk_size')
-      } else if (chunkOverlap >= chunkSize) {
-        errors.chunkOverlap = t('knowledge_v2.rag.chunk_overlap_must_be_smaller')
-      }
+    if (chunkSize != null && chunkOverlap != null && chunkOverlap >= chunkSize) {
+      errors.chunkOverlap = t('knowledge_v2.rag.chunk_overlap_must_be_smaller')
     }
 
     return errors
   }, [t, values.chunkOverlap, values.chunkSize])
 
   const isDirty = JSON.stringify(values) !== JSON.stringify(initialValues)
+  const hasEmptyChunkFields = values.chunkSize === '' || values.chunkOverlap === ''
   const hasValidationErrors = Object.values(validationErrors).some(Boolean)
 
   const updateValues = (patch: Partial<KnowledgeV2RagConfigFormValues>) => {
@@ -78,7 +75,7 @@ const RagConfigPanel = ({ base }: RagConfigPanelProps) => {
   }
 
   const handleSave = async () => {
-    if (!isDirty || hasValidationErrors) {
+    if (!isDirty || hasEmptyChunkFields || hasValidationErrors) {
       return
     }
 
@@ -162,7 +159,7 @@ const RagConfigPanel = ({ base }: RagConfigPanelProps) => {
           <Button
             type="button"
             loading={isLoading}
-            disabled={!isDirty || hasValidationErrors}
+            disabled={!isDirty || hasEmptyChunkFields || hasValidationErrors}
             className="h-6 min-h-6 rounded-md bg-emerald-400 px-3 text-[0.6875rem] text-white leading-4.125 shadow-none hover:bg-emerald-500"
             onClick={handleSave}>
             {t('common.save')}

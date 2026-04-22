@@ -21,8 +21,8 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   embeddingModelId: 'openai::text-embedding-3-small',
   rerankModelId: undefined,
   fileProcessorId: undefined,
-  chunkSize: 512,
-  chunkOverlap: 64,
+  chunkSize: 1024,
+  chunkOverlap: 200,
   threshold: 0,
   documentCount: 6,
   searchMode: 'hybrid',
@@ -53,8 +53,8 @@ describe('useKnowledgeV2SaveRagConfig', () => {
     await act(async () => {
       await result.current.save({
         fileProcessorId: null,
-        chunkSize: '',
-        chunkOverlap: '',
+        chunkSize: '1536',
+        chunkOverlap: '256',
         embeddingModelId: 'voyage::voyage-3-large',
         rerankModelId: null,
         dimensions: 1536,
@@ -68,8 +68,8 @@ describe('useKnowledgeV2SaveRagConfig', () => {
     expect(mockTrigger).toHaveBeenCalledWith({
       params: { id: 'base-1' },
       body: {
-        chunkSize: null,
-        chunkOverlap: null,
+        chunkSize: 1536,
+        chunkOverlap: 256,
         embeddingModelId: 'voyage::voyage-3-large',
         documentCount: 10,
         threshold: 0.25,
