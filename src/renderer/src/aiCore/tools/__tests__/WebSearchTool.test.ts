@@ -12,7 +12,7 @@ vi.mock('@renderer/services/WebSearchService', () => ({
 
 describe('webSearchToolWithPreExtractedKeywords', () => {
   beforeEach(() => {
-    vi.mocked(WebSearchService.getWebSearchProvider).mockReturnValue({ id: 'local-google' } as any)
+    vi.mocked(WebSearchService.getWebSearchProvider).mockReturnValue({ id: 'tavily' } as any)
     vi.mocked(WebSearchService.processWebsearch).mockResolvedValue({
       query: 'first | second',
       results: [
@@ -27,7 +27,7 @@ describe('webSearchToolWithPreExtractedKeywords', () => {
 
   it('deduplicates queries, limits them, keeps full URLs in output, and shortens model URLs', async () => {
     const searchTool = webSearchToolWithPreExtractedKeywords(
-      'local-google',
+      'tavily',
       {
         question: [' first ', 'FIRST', 'second', 'third', 'fourth']
       },
@@ -39,7 +39,7 @@ describe('webSearchToolWithPreExtractedKeywords', () => {
 
     expect(WebSearchService.processWebsearch).toHaveBeenCalledTimes(1)
     expect(WebSearchService.processWebsearch).toHaveBeenCalledWith(
-      { id: 'local-google' },
+      { id: 'tavily' },
       {
         websearch: {
           question: ['first', 'second', 'third'],
@@ -54,9 +54,7 @@ describe('webSearchToolWithPreExtractedKeywords', () => {
     const modelOutput = searchTool.toModelOutput({ output: firstResult })
     const modelText = modelOutput.value.map((part: { text: string }) => part.text).join('\n')
 
-    expect(modelText).toContain('Cite them as [1], [2], etc.')
     expect(modelText).toContain('"url": "https://example.com"')
-    expect(modelText).not.toContain('REFERENCE_PROMPT')
     expect(modelText).not.toContain('utm_source')
   })
 })

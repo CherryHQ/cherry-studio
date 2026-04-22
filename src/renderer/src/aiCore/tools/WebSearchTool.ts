@@ -1,6 +1,8 @@
+import { REFERENCE_PROMPT } from '@renderer/config/prompts'
 import WebSearchService from '@renderer/services/WebSearchService'
 import type { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 import type { ExtractResults } from '@renderer/utils/extract'
+import { getUrlOriginOrFallback } from '@renderer/utils/url'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 import * as z from 'zod'
 
@@ -27,14 +29,6 @@ function normalizeWebSearchQueries(questions: string[]): string[] {
       return true
     })
     .slice(0, MAX_BUILTIN_WEB_SEARCH_QUERIES)
-}
-
-function keepUrlDomainOnly(url: string): string {
-  try {
-    return new URL(url).origin
-  } catch {
-    return url
-  }
 }
 
 /**
@@ -114,10 +108,14 @@ You can use this tool as-is to search with the prepared queries, or provide addi
         number: index + 1,
         title: result.title,
         content: result.content,
-        url: keepUrlDomainOnly(result.url)
+        url: getUrlOriginOrFallback(result.url)
       }))
 
-      const referenceContent = JSON.stringify(citationData, null, 2)
+      const referenceContent = `\`\`\`json\n${JSON.stringify(citationData, null, 2)}\n\`\`\``
+      const fullInstructions = REFERENCE_PROMPT.replace(
+        '{question}',
+        "Based on the search results, please answer the user's question with proper citations."
+      ).replace('{references}', referenceContent)
       return {
         type: 'content',
         value: [
@@ -131,7 +129,7 @@ You can use this tool as-is to search with the prepared queries, or provide addi
           },
           {
             type: 'text',
-            text: `Answer using these sources. Cite them as [1], [2], etc.:\n${referenceContent}`
+            text: fullInstructions
           }
         ]
       }
