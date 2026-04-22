@@ -189,7 +189,7 @@ export class ChannelMessageHandler {
       // even for sessions created before the setting was changed.
       await this.applyChannelPermissionMode(session, adapter.channelId)
 
-      const workDir = session.accessible_paths[0]
+      const workDir = session.accessiblePaths[0]
 
       // Save images to agent workspace so the agent can read them via the Read tool
       let imagePaths: string[] = []
@@ -262,7 +262,7 @@ export class ChannelMessageHandler {
       if (rendererIsWatching) {
         sessionStreamBus.publish(session.id, {
           sessionId: session.id,
-          agentId: session.agent_id,
+          agentId: session.agentId,
           type: 'user-message',
           userMessage: {
             chatId: message.chatId,
@@ -595,7 +595,7 @@ export class ChannelMessageHandler {
         if (rendererIsWatching) {
           sessionStreamBus.publish(session.id, {
             sessionId: session.id,
-            agentId: session.agent_id,
+            agentId: session.agentId,
             type: 'chunk',
             chunk: value
           })
@@ -631,13 +631,13 @@ export class ChannelMessageHandler {
         // Notify renderer that stream is complete and data is persisted
         sessionStreamBus.publish(session.id, {
           sessionId: session.id,
-          agentId: session.agent_id,
+          agentId: session.agentId,
           type: 'complete'
         })
       }
       // headless=true means main process persisted; renderer should force-reload from DB.
       // headless=false means renderer handled persistence; no reload needed.
-      broadcastSessionChanged(session.agent_id, session.id, !rendererIsWatching)
+      broadcastSessionChanged(session.agentId, session.id, !rendererIsWatching)
 
       // Trim trailing separator
       return (completedText + currentBlockText).replace(/\n+$/, '')
@@ -645,7 +645,7 @@ export class ChannelMessageHandler {
       if (rendererIsWatching) {
         sessionStreamBus.publish(session.id, {
           sessionId: session.id,
-          agentId: session.agent_id,
+          agentId: session.agentId,
           type: 'error',
           error: { message: error instanceof Error ? error.message : String(error) }
         })

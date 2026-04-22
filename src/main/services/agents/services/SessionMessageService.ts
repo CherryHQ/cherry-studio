@@ -373,7 +373,7 @@ export class SessionMessageService {
       message: {
         id: userMsgId,
         role: 'user' as const,
-        assistantId: session.agent_id,
+        assistantId: session.agentId,
         topicId,
         createdAt: now,
         status: 'success',
@@ -396,7 +396,7 @@ export class SessionMessageService {
       message: {
         id: assistantMsgId,
         role: 'assistant' as const,
-        assistantId: session.agent_id,
+        assistantId: session.agentId,
         topicId,
         createdAt: now,
         status: 'success',
@@ -532,13 +532,13 @@ export class SessionMessageService {
   private rowToEntity(row: SessionMessageRow): AgentSessionMessageEntity {
     return {
       id: row.id,
-      session_id: row.sessionId,
+      sessionId: row.sessionId,
       role: row.role as AgentSessionMessageEntity['role'],
       content: row.content,
-      agent_session_id: row.agentSessionId ?? '',
+      agentSessionId: row.agentSessionId ?? '',
       metadata: row.metadata ?? undefined,
-      created_at: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
-      updated_at: row.updatedAt ? new Date(row.updatedAt).toISOString() : new Date().toISOString()
+      createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
+      updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : new Date().toISOString()
     }
   }
 

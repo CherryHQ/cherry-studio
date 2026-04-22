@@ -4,7 +4,7 @@ import type { PermissionModeCard } from '@renderer/types/agent'
 
 // base agent config. no default config for now.
 const DEFAULT_AGENT_CONFIG: Omit<AgentBase, 'model'> = {
-  accessible_paths: []
+  accessiblePaths: []
 } as const
 
 // no default config for now.

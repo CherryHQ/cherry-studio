@@ -26,47 +26,12 @@ const toLegacyMcpToolId = (toolId: string): string | null => {
   return `${MCP_TOOL_LEGACY_PREFIX}${rawId.replace(/__/g, '_')}`
 }
 
-const ROW_TO_ENTITY_FIELD_MAP: Record<string, string> = {
-  accessiblePaths: 'accessible_paths',
-  planModel: 'plan_model',
-  smallModel: 'small_model',
-  allowedTools: 'allowed_tools',
-  slashCommands: 'slash_commands',
-  sortOrder: 'sort_order',
-  createdAt: 'created_at',
-  updatedAt: 'updated_at',
-  agentId: 'agent_id',
-  agentType: 'agent_type',
-  sessionId: 'session_id',
-  agentSessionId: 'agent_session_id',
-  folderName: 'folder_name',
-  sourceUrl: 'source_url',
-  contentHash: 'content_hash',
-  isEnabled: 'is_enabled',
-  taskId: 'task_id',
-  runAt: 'run_at',
-  durationMs: 'duration_ms',
-  scheduleType: 'schedule_type',
-  scheduleValue: 'schedule_value',
-  timeoutMinutes: 'timeout_minutes',
-  nextRun: 'next_run',
-  lastRun: 'last_run',
-  lastResult: 'last_result'
-}
-
 export function deserializeJsonFields(data: any): any {
   if (!data) return data
 
   const deserialized = { ...data }
 
-  for (const [camelKey, snakeKey] of Object.entries(ROW_TO_ENTITY_FIELD_MAP)) {
-    if (camelKey in deserialized) {
-      deserialized[snakeKey] = deserialized[camelKey]
-      delete deserialized[camelKey]
-    }
-  }
-
-  const timestampFields = ['created_at', 'updated_at']
+  const timestampFields = ['createdAt', 'updatedAt']
   for (const field of timestampFields) {
     if (typeof deserialized[field] === 'number' && deserialized[field] > 0) {
       deserialized[field] = new Date(deserialized[field]).toISOString()
@@ -76,8 +41,8 @@ export function deserializeJsonFields(data: any): any {
   if (deserialized.type === 'cherry-claw') {
     deserialized.type = 'claude-code'
   }
-  if (deserialized.agent_type === 'cherry-claw') {
-    deserialized.agent_type = 'claude-code'
+  if (deserialized.agentType === 'cherry-claw') {
+    deserialized.agentType = 'claude-code'
   }
 
   for (const key of Object.keys(deserialized)) {

@@ -62,13 +62,13 @@ function toAgentRequest(dto: CreateAgentDto): CreateAgentRequest {
     name: dto.name,
     model: dto.model,
     description: dto.description,
-    accessible_paths: dto.accessiblePaths ?? [],
+    accessiblePaths: dto.accessiblePaths ?? [],
     instructions: dto.instructions,
-    plan_model: dto.planModel,
-    small_model: dto.smallModel,
+    planModel: dto.planModel,
+    smallModel: dto.smallModel,
     mcps: dto.mcps,
-    allowed_tools: dto.allowedTools,
-    slash_commands: dto.slashCommands,
+    allowedTools: dto.allowedTools,
+    slashCommands: dto.slashCommands,
     configuration: dto.configuration
   }) as CreateAgentRequest
 }
@@ -77,14 +77,14 @@ function toAgentUpdateRequest(dto: UpdateAgentDto): UpdateAgentRequest {
   return stripUndefined({
     name: dto.name,
     description: dto.description,
-    accessible_paths: dto.accessiblePaths,
+    accessiblePaths: dto.accessiblePaths,
     instructions: dto.instructions,
     model: dto.model,
-    plan_model: dto.planModel,
-    small_model: dto.smallModel,
+    planModel: dto.planModel,
+    smallModel: dto.smallModel,
     mcps: dto.mcps,
-    allowed_tools: dto.allowedTools,
-    slash_commands: dto.slashCommands,
+    allowedTools: dto.allowedTools,
+    slashCommands: dto.slashCommands,
     configuration: dto.configuration
   }) as UpdateAgentRequest
 }
@@ -94,13 +94,13 @@ function toSessionRequest(dto: Partial<CreateSessionDto>): CreateSessionRequest 
     model: dto.model,
     name: dto.name,
     description: dto.description,
-    accessible_paths: dto.accessiblePaths,
+    accessiblePaths: dto.accessiblePaths,
     instructions: dto.instructions,
-    plan_model: dto.planModel,
-    small_model: dto.smallModel,
+    planModel: dto.planModel,
+    smallModel: dto.smallModel,
     mcps: dto.mcps,
-    allowed_tools: dto.allowedTools,
-    slash_commands: dto.slashCommands,
+    allowedTools: dto.allowedTools,
+    slashCommands: dto.slashCommands,
     configuration: dto.configuration
   }) as CreateSessionRequest
 }
@@ -110,13 +110,13 @@ function toSessionUpdateRequest(dto: UpdateSessionDto): UpdateSessionRequest {
     model: dto.model,
     name: dto.name,
     description: dto.description,
-    accessible_paths: dto.accessiblePaths,
+    accessiblePaths: dto.accessiblePaths,
     instructions: dto.instructions,
-    plan_model: dto.planModel,
-    small_model: dto.smallModel,
+    planModel: dto.planModel,
+    smallModel: dto.smallModel,
     mcps: dto.mcps,
-    allowed_tools: dto.allowedTools,
-    slash_commands: dto.slashCommands,
+    allowedTools: dto.allowedTools,
+    slashCommands: dto.slashCommands,
     configuration: dto.configuration
   }) as UpdateSessionRequest
 }
@@ -125,10 +125,10 @@ function toTaskRequest(dto: CreateTaskDto): CreateTaskRequest {
   return stripUndefined({
     name: dto.name,
     prompt: dto.prompt,
-    schedule_type: dto.scheduleType,
-    schedule_value: dto.scheduleValue,
-    timeout_minutes: dto.timeoutMinutes,
-    channel_ids: dto.channelIds
+    scheduleType: dto.scheduleType,
+    scheduleValue: dto.scheduleValue,
+    timeoutMinutes: dto.timeoutMinutes,
+    channelIds: dto.channelIds
   }) as CreateTaskRequest
 }
 
@@ -136,10 +136,10 @@ function toTaskUpdateRequest(dto: UpdateTaskDto): UpdateTaskRequest {
   return stripUndefined({
     name: dto.name,
     prompt: dto.prompt,
-    schedule_type: dto.scheduleType,
-    schedule_value: dto.scheduleValue,
-    timeout_minutes: dto.timeoutMinutes,
-    channel_ids: dto.channelIds,
+    scheduleType: dto.scheduleType,
+    scheduleValue: dto.scheduleValue,
+    timeoutMinutes: dto.timeoutMinutes,
+    channelIds: dto.channelIds,
     status: dto.status
   }) as UpdateTaskRequest
 }

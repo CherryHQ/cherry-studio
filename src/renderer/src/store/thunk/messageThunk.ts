@@ -978,7 +978,7 @@ const fetchAndProcessAssistantResponseImpl = async (
         const agentClient = await createAgentApiClient()
         if (agentClient) {
           const agentData = await agentClient.getAgent(activeAgentId)
-          allowedTools = agentData?.allowed_tools
+          allowedTools = agentData?.allowedTools
         }
       } catch {
         // Agent fetch failed — proceed without allowedTools

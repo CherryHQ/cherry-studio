@@ -208,8 +208,8 @@ export const listAgents = async (req: Request, res: Response): Promise<Response>
   try {
     const limit = req.query.limit ? parseInt(req.query.limit as string) : 20
     const offset = req.query.offset ? parseInt(req.query.offset as string) : 0
-    const sortBy = (req.query.sortBy as 'created_at' | 'updated_at' | 'name' | 'sort_order') || 'sort_order'
-    const orderBy = (req.query.orderBy as 'asc' | 'desc') || (sortBy === 'sort_order' ? 'asc' : 'desc')
+    const sortBy = (req.query.sortBy as 'createdAt' | 'updatedAt' | 'name' | 'sortOrder') || 'sortOrder'
+    const orderBy = (req.query.orderBy as 'asc' | 'desc') || (sortBy === 'sortOrder' ? 'asc' : 'desc')
 
     logger.debug('Listing agents', { limit, offset, sortBy, orderBy })
 

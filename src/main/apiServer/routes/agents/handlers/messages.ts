@@ -22,7 +22,7 @@ const verifyAgentAndSession = async (agentId: string, sessionId: string) => {
     throw { status: 404, code: 'session_not_found', message: 'Session not found' }
   }
 
-  if (session.agent_id !== agentId) {
+  if (session.agentId !== agentId) {
     throw { status: 404, code: 'session_not_found', message: 'Session not found for this agent' }
   }
 

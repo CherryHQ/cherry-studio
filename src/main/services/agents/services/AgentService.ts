@@ -42,35 +42,18 @@ export type BuiltinAgentInitResult =
 export class AgentService {
   static readonly DEFAULT_AGENT_ID = CHERRY_CLAW_AGENT_ID
 
-  private readonly modelFields: AgentModelField[] = ['model', 'plan_model', 'small_model']
-
-  /**
-   * Maps entity-level field names (snake_case) from AgentBaseSchema to
-   * Drizzle row property names (camelCase) for constructing update objects.
-   */
-  private readonly agentEntityToRowField: Partial<Record<string, keyof AgentRow>> = {
-    accessible_paths: 'accessiblePaths',
-    plan_model: 'planModel',
-    small_model: 'smallModel',
-    allowed_tools: 'allowedTools',
-    name: 'name',
-    description: 'description',
-    instructions: 'instructions',
-    model: 'model',
-    mcps: 'mcps',
-    configuration: 'configuration'
-  }
+  private readonly modelFields: AgentModelField[] = ['model', 'planModel', 'smallModel']
 
   // Agent Methods
   async createAgent(req: CreateAgentRequest): Promise<CreateAgentResponse> {
     const id = `agent_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
 
-    req.accessible_paths = resolveAccessiblePaths(req.accessible_paths, id)
+    req.accessiblePaths = resolveAccessiblePaths(req.accessiblePaths, id)
 
     await validateAgentModels(req.type, {
       model: req.model,
-      plan_model: req.plan_model,
-      small_model: req.small_model
+      planModel: req.planModel,
+      smallModel: req.smallModel
     })
 
     const insertData: InsertAgentRow = {
@@ -80,12 +63,12 @@ export class AgentService {
       description: req.description,
       instructions: req.instructions || 'You are a helpful assistant.',
       model: req.model,
-      planModel: req.plan_model,
-      smallModel: req.small_model,
+      planModel: req.planModel,
+      smallModel: req.smallModel,
       mcps: req.mcps ?? null,
-      allowedTools: req.allowed_tools ?? null,
+      allowedTools: req.allowedTools ?? null,
       configuration: req.configuration ?? null,
-      accessiblePaths: req.accessible_paths ?? null,
+      accessiblePaths: req.accessiblePaths ?? null,
       sortOrder: 0
     }
 
@@ -108,7 +91,7 @@ export class AgentService {
 
     // Seed workspace templates for soul mode agents
     if ((req.configuration as Record<string, unknown> | undefined)?.soul_enabled === true) {
-      const workspace = agent.accessible_paths?.[0]
+      const workspace = agent.accessiblePaths?.[0]
       if (workspace) {
         await seedWorkspaceTemplates(workspace)
       }
@@ -118,7 +101,7 @@ export class AgentService {
     // app and users expect them to work without manual opt-in. Non-builtin
     // skills default to disabled and must be enabled explicitly.
     try {
-      await skillService.initSkillsForAgent(agent.id, agent.accessible_paths?.[0])
+      await skillService.initSkillsForAgent(agent.id, agent.accessiblePaths?.[0])
     } catch (error) {
       logger.warn('Failed to seed builtin skills for new agent', {
         agentId: agent.id,
@@ -149,7 +132,7 @@ export class AgentService {
     const agent = deserializeJsonFields(row) as GetAgentResponse
     const { tools, legacyIdMap } = await listMcpTools(agent.type, agent.mcps)
     agent.tools = tools
-    agent.allowed_tools = normalizeAllowedTools(agent.allowed_tools, agent.tools, legacyIdMap)
+    agent.allowedTools = normalizeAllowedTools(agent.allowedTools, agent.tools, legacyIdMap)
 
     return agent
   }
@@ -160,8 +143,8 @@ export class AgentService {
     const visibleAgents = isNull(agentsTable.deletedAt)
     const totalResult = await database.select({ count: count() }).from(agentsTable).where(visibleAgents)
 
-    const sortBy = options.sortBy || 'sort_order'
-    const orderBy = options.orderBy || (sortBy === 'sort_order' ? 'asc' : 'desc')
+    const sortBy = options.sortBy || 'sortOrder'
+    const orderBy = options.orderBy || (sortBy === 'sortOrder' ? 'asc' : 'desc')
 
     // Map entity-level sortBy keys to row-level column references
     const sortByToColumn: Record<
@@ -171,9 +154,9 @@ export class AgentService {
       | typeof agentsTable.name
       | typeof agentsTable.updatedAt
     > = {
-      sort_order: agentsTable.sortOrder,
-      created_at: agentsTable.createdAt,
-      updated_at: agentsTable.updatedAt,
+      sortOrder: agentsTable.sortOrder,
+      createdAt: agentsTable.createdAt,
+      updatedAt: agentsTable.updatedAt,
       name: agentsTable.name
     }
     const sortField = sortByToColumn[sortBy] ?? agentsTable.sortOrder
@@ -181,7 +164,7 @@ export class AgentService {
 
     // Use createdAt DESC as secondary sort for tie-breaking (e.g., after migration when all sortOrder = 0)
     const baseQuery =
-      sortBy === 'sort_order'
+      sortBy === 'sortOrder'
         ? database
             .select()
             .from(agentsTable)
@@ -202,7 +185,7 @@ export class AgentService {
       agents.map(async (agent) => {
         const { tools, legacyIdMap } = await listMcpTools(agent.type, agent.mcps)
         agent.tools = tools
-        agent.allowed_tools = normalizeAllowedTools(agent.allowed_tools, agent.tools, legacyIdMap)
+        agent.allowedTools = normalizeAllowedTools(agent.allowedTools, agent.tools, legacyIdMap)
       })
     )
 
@@ -280,7 +263,7 @@ export class AgentService {
         description: agentConfig?.description || `Built-in ${builtinRole} agent`,
         instructions: agentConfig?.instructions || 'You are a helpful assistant.',
         model: firstModel.id,
-        accessible_paths: resolvedPaths,
+        accessiblePaths: resolvedPaths,
         configuration
       }
 
@@ -294,7 +277,7 @@ export class AgentService {
         instructions: req.instructions || 'You are a helpful assistant.',
         model: req.model,
         configuration: req.configuration ?? null,
-        accessiblePaths: req.accessible_paths ?? null,
+        accessiblePaths: req.accessiblePaths ?? null,
         sortOrder: 0
       }
 
@@ -371,11 +354,11 @@ export class AgentService {
         name: 'Cherry Claw',
         description: 'Default autonomous CherryClaw agent',
         model: firstModel.id,
-        accessible_paths: [],
+        accessiblePaths: [],
         configuration
       }
 
-      const resolvedPaths = resolveAccessiblePaths(req.accessible_paths, id)
+      const resolvedPaths = resolveAccessiblePaths(req.accessiblePaths, id)
       await validateAgentModels(req.type, { model: req.model })
 
       const insertData: InsertAgentRow = {
@@ -435,11 +418,11 @@ export class AgentService {
       return null
     }
 
-    if (updates.accessible_paths !== undefined) {
-      if (updates.accessible_paths.length === 0) {
-        throw DataApiErrorFactory.validation({ accessible_paths: ['must not be empty'] })
+    if (updates.accessiblePaths !== undefined) {
+      if (updates.accessiblePaths.length === 0) {
+        throw DataApiErrorFactory.validation({ accessiblePaths: ['must not be empty'] })
       }
-      updates.accessible_paths = resolveAccessiblePaths(updates.accessible_paths, id)
+      updates.accessiblePaths = resolveAccessiblePaths(updates.accessiblePaths, id)
     }
 
     const modelUpdates: Partial<Record<AgentModelField, string | undefined>> = {}
@@ -456,25 +439,24 @@ export class AgentService {
     const updateData: Partial<AgentRow> = {
       updatedAt: Date.now()
     }
-    // AgentBaseSchema.shape keys are entity-level (snake_case); map them to row-level (camelCase)
+    // AgentBaseSchema.shape keys are now camelCase and match row-level field names directly
     const replaceableEntityFields = Object.keys(AgentBaseSchema.shape)
     const shouldReplace = options.replace ?? false
 
-    for (const entityField of replaceableEntityFields) {
-      const rowField = (this.agentEntityToRowField[entityField] ?? entityField) as keyof AgentRow
-      if (shouldReplace || Object.prototype.hasOwnProperty.call(updates, entityField)) {
-        if (Object.prototype.hasOwnProperty.call(updates, entityField)) {
-          const value = updates[entityField as keyof typeof updates]
-          ;(updateData as Record<string, unknown>)[rowField] = value ?? null
+    for (const field of replaceableEntityFields) {
+      if (shouldReplace || Object.prototype.hasOwnProperty.call(updates, field)) {
+        if (Object.prototype.hasOwnProperty.call(updates, field)) {
+          const value = updates[field as keyof typeof updates]
+          ;(updateData as Record<string, unknown>)[field] = value ?? null
         } else if (shouldReplace) {
-          ;(updateData as Record<string, unknown>)[rowField] = null
+          ;(updateData as Record<string, unknown>)[field] = null
         }
       }
     }
 
     const database = application.get('DbService').getDb()
 
-    // Read the raw agent row before updating — getAgent() normalizes allowed_tools
+    // Read the raw agent row before updating — getAgent() normalizes allowedTools
     // (legacy ID → canonical ID), but sessions store the original format. We need
     // the raw DB values so string comparison against sessions is accurate.
     const rawRows = await database
@@ -512,23 +494,14 @@ export class AgentService {
     rawOldAgent: Record<string, unknown>,
     updates: Record<string, unknown>
   ): Promise<void> {
-    // Map from entity-level field names (snake_case, from updates) to
-    // row-level field names (camelCase, used to read/write DB row objects).
-    const syncFieldMap: Array<{ entityField: string; rowField: string }> = [
-      { entityField: 'model', rowField: 'model' },
-      { entityField: 'plan_model', rowField: 'planModel' },
-      { entityField: 'small_model', rowField: 'smallModel' },
-      { entityField: 'allowed_tools', rowField: 'allowedTools' },
-      { entityField: 'configuration', rowField: 'configuration' },
-      { entityField: 'mcps', rowField: 'mcps' },
-      { entityField: 'instructions', rowField: 'instructions' }
-    ]
+    // Entity-level and row-level field names are now both camelCase.
+    const syncFields = ['model', 'planModel', 'smallModel', 'allowedTools', 'configuration', 'mcps', 'instructions']
 
     // Only sync fields that are present in the update AND actually changed.
     // JSON.stringify is needed for array/object fields — === compares by reference.
-    const changedFields = syncFieldMap.filter(({ entityField, rowField }) => {
-      if (!Object.prototype.hasOwnProperty.call(updates, entityField)) return false
-      return JSON.stringify(updates[entityField] ?? null) !== JSON.stringify(rawOldAgent[rowField] ?? null)
+    const changedFields = syncFields.filter((field) => {
+      if (!Object.prototype.hasOwnProperty.call(updates, field)) return false
+      return JSON.stringify(updates[field] ?? null) !== JSON.stringify(rawOldAgent[field] ?? null)
     })
     if (changedFields.length === 0) return
 
@@ -541,14 +514,14 @@ export class AgentService {
         for (const session of sessions) {
           const sessionUpdateData: Partial<Record<string, unknown>> = {}
 
-          for (const { entityField, rowField } of changedFields) {
-            const oldAgentValue = rawOldAgent[rowField] ?? null
-            const sessionValue = (session as Record<string, unknown>)[rowField] ?? null
+          for (const field of changedFields) {
+            const oldAgentValue = rawOldAgent[field] ?? null
+            const sessionValue = (session as Record<string, unknown>)[field] ?? null
 
             // Only sync if session still has the agent's old value (not user-customized).
             // JSON.stringify is needed for array/object fields — === compares by reference.
             if (JSON.stringify(oldAgentValue) === JSON.stringify(sessionValue)) {
-              sessionUpdateData[rowField] = updates[entityField] ?? null
+              sessionUpdateData[field] = updates[field] ?? null
             }
           }
 
@@ -561,7 +534,7 @@ export class AgentService {
 
       logger.info('Synced agent settings to sessions', {
         agentId,
-        changedFields: changedFields.map((f) => f.entityField),
+        changedFields,
         sessionCount: sessions.length
       })
     } catch (error) {

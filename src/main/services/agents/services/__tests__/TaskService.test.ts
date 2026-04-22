@@ -23,8 +23,8 @@ function createConfigQuery(rows: unknown[]) {
 const baseRequest: CreateTaskRequest = {
   name: 'nightly report',
   prompt: 'summarise overnight alerts',
-  schedule_type: 'interval',
-  schedule_value: '60'
+  scheduleType: 'interval',
+  scheduleValue: '60'
 }
 
 describe('TaskService silent-failure guards', () => {

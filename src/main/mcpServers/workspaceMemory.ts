@@ -157,7 +157,7 @@ class WorkspaceMemoryServer {
   private async getWorkspacePath(): Promise<string> {
     const agent = await agentService.getAgent(this.agentId)
     if (!agent) throw new McpError(ErrorCode.InternalError, `Agent not found: ${this.agentId}`)
-    const workspace = agent.accessible_paths?.[0]
+    const workspace = agent.accessiblePaths?.[0]
     if (!workspace) throw new McpError(ErrorCode.InternalError, 'Agent has no workspace path configured')
     return workspace
   }

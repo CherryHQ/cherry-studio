@@ -135,18 +135,18 @@ describe('SchedulerService', () => {
 
     const mockTask = {
       id: 'task-1',
-      agent_id: 'agent-1',
+      agentId: 'agent-1',
       name: 'Test task',
       prompt: 'Do something',
-      schedule_type: 'once' as const,
-      schedule_value: new Date().toISOString(),
-      timeout_minutes: 2,
-      next_run: new Date(Date.now() - 1000).toISOString(),
-      last_run: null,
-      last_result: null,
+      scheduleType: 'once' as const,
+      scheduleValue: new Date().toISOString(),
+      timeoutMinutes: 2,
+      nextRun: new Date(Date.now() - 1000).toISOString(),
+      lastRun: null,
+      lastResult: null,
       status: 'active' as const,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     }
 
     vi.mocked(taskService.getDueTasks).mockResolvedValueOnce([mockTask])
@@ -155,10 +155,10 @@ describe('SchedulerService', () => {
       type: 'claude-code',
       name: 'Test',
       model: 'claude-3',
-      accessible_paths: ['/tmp/test'],
+      accessiblePaths: ['/tmp/test'],
       configuration: { heartbeat_enabled: true },
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     } as any)
     vi.mocked(sessionService.listSessions).mockResolvedValueOnce({
       sessions: [{ id: 'session-1' }] as any,
@@ -166,7 +166,7 @@ describe('SchedulerService', () => {
     })
     vi.mocked(sessionService.getSession).mockResolvedValueOnce({
       id: 'session-1',
-      agent_id: 'agent-1'
+      agentId: 'agent-1'
     } as any)
     vi.mocked(sessionMessageService.createSessionMessage).mockResolvedValueOnce({
       stream: new ReadableStream({ start: (c) => c.close() }),

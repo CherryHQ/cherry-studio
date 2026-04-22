@@ -39,7 +39,7 @@ import { builtinSlashCommands } from './claudecode/commands'
 const logger = loggerService.withContext('SessionService')
 
 export class SessionService {
-  private readonly modelFields: AgentModelField[] = ['model', 'plan_model', 'small_model']
+  private readonly modelFields: AgentModelField[] = ['model', 'planModel', 'smallModel']
 
   /**
    * Override BaseService.listSlashCommands to merge builtin and plugin commands
@@ -58,7 +58,7 @@ export class SessionService {
         const database = application.get('DbService').getDb()
         const result = await database.select().from(agentsTable).where(eq(agentsTable.id, agentId)).limit(1)
         const agent = result[0] ? deserializeJsonFields(result[0]) : null
-        const workdir = (agent as AgentEntity | null)?.accessible_paths?.[0]
+        const workdir = (agent as AgentEntity | null)?.accessiblePaths?.[0]
 
         if (workdir) {
           const commandsDir = path.join(workdir, '.claude', 'commands')
@@ -142,12 +142,12 @@ export class SessionService {
 
     await validateAgentModels(agent.type, {
       model: sessionData.model,
-      plan_model: sessionData.plan_model,
-      small_model: sessionData.small_model
+      planModel: sessionData.planModel,
+      smallModel: sessionData.smallModel
     })
 
-    if (sessionData.accessible_paths !== undefined) {
-      sessionData.accessible_paths = ensurePathsExist(sessionData.accessible_paths)
+    if (sessionData.accessiblePaths !== undefined) {
+      sessionData.accessiblePaths = ensurePathsExist(sessionData.accessiblePaths)
     }
 
     // `name` and `model` are NOT NULL on agent_session; fall back to the parent
@@ -158,14 +158,14 @@ export class SessionService {
       agentType: agent.type,
       name: sessionData.name || agent.name || 'New Session',
       description: sessionData.description ?? null,
-      accessiblePaths: sessionData.accessible_paths ?? null,
+      accessiblePaths: sessionData.accessiblePaths ?? null,
       instructions: sessionData.instructions ?? null,
       model: sessionData.model || agent.model,
-      planModel: sessionData.plan_model ?? null,
-      smallModel: sessionData.small_model ?? null,
+      planModel: sessionData.planModel ?? null,
+      smallModel: sessionData.smallModel ?? null,
       mcps: sessionData.mcps ?? null,
-      allowedTools: sessionData.allowed_tools ?? null,
-      slashCommands: sessionData.slash_commands ?? null,
+      allowedTools: sessionData.allowedTools ?? null,
+      slashCommands: sessionData.slashCommands ?? null,
       configuration: sessionData.configuration ?? null,
       sortOrder: 0
     }
@@ -207,14 +207,14 @@ export class SessionService {
     }
 
     const session = deserializeJsonFields(result[0]) as GetAgentSessionResponse
-    const { tools, legacyIdMap } = await listMcpTools(session.agent_type, session.mcps)
+    const { tools, legacyIdMap } = await listMcpTools(session.agentType, session.mcps)
     session.tools = tools
-    session.allowed_tools = normalizeAllowedTools(session.allowed_tools, session.tools, legacyIdMap)
+    session.allowedTools = normalizeAllowedTools(session.allowedTools, session.tools, legacyIdMap)
 
-    // If slash_commands is not in database yet (e.g., first invoke before init message),
+    // If slashCommands is not in database yet (e.g., first invoke before init message),
     // fall back to builtin + local commands. Otherwise, use the merged commands from database.
-    if (!session.slash_commands || session.slash_commands.length === 0) {
-      session.slash_commands = await this.listSlashCommands(session.agent_type, agentId)
+    if (!session.slashCommands || session.slashCommands.length === 0) {
+      session.slashCommands = await this.listSlashCommands(session.agentType, agentId)
     }
 
     return session
@@ -261,9 +261,9 @@ export class SessionService {
 
     await Promise.all(
       sessions.map(async (session) => {
-        const { tools, legacyIdMap } = await listMcpTools(session.agent_type, session.mcps)
+        const { tools, legacyIdMap } = await listMcpTools(session.agentType, session.mcps)
         session.tools = tools
-        session.allowed_tools = normalizeAllowedTools(session.allowed_tools, session.tools, legacyIdMap)
+        session.allowedTools = normalizeAllowedTools(session.allowedTools, session.tools, legacyIdMap)
       })
     )
 
@@ -284,11 +284,11 @@ export class SessionService {
     // Validate agent exists if changing main_agent_id
     // We'll skip this validation for now to avoid circular dependencies
 
-    if (updates.accessible_paths !== undefined) {
-      if (updates.accessible_paths.length === 0) {
-        throw DataApiErrorFactory.validation({ accessible_paths: ['must not be empty'] })
+    if (updates.accessiblePaths !== undefined) {
+      if (updates.accessiblePaths.length === 0) {
+        throw DataApiErrorFactory.validation({ accessiblePaths: ['must not be empty'] })
       }
-      updates.accessible_paths = resolveAccessiblePaths(updates.accessible_paths, existing.agent_id)
+      updates.accessiblePaths = resolveAccessiblePaths(updates.accessiblePaths, existing.agentId)
     }
 
     const modelUpdates: Partial<Record<AgentModelField, string | undefined>> = {}
@@ -299,33 +299,19 @@ export class SessionService {
     }
 
     if (Object.keys(modelUpdates).length > 0) {
-      await validateAgentModels(existing.agent_type, modelUpdates)
+      await validateAgentModels(existing.agentType, modelUpdates)
     }
 
     const updateData: Partial<SessionRow> = {
       updatedAt: Date.now()
     }
-    // AgentBaseSchema.shape keys are entity-level (snake_case); map them to row-level (camelCase)
-    const sessionEntityToRowField: Partial<Record<string, keyof SessionRow>> = {
-      accessible_paths: 'accessiblePaths',
-      plan_model: 'planModel',
-      small_model: 'smallModel',
-      allowed_tools: 'allowedTools',
-      slash_commands: 'slashCommands',
-      name: 'name',
-      description: 'description',
-      instructions: 'instructions',
-      model: 'model',
-      mcps: 'mcps',
-      configuration: 'configuration'
-    }
+    // AgentBaseSchema.shape keys are now camelCase and match row-level field names directly
     const replaceableEntityFields = Object.keys(AgentBaseSchema.shape)
 
-    for (const entityField of replaceableEntityFields) {
-      if (Object.prototype.hasOwnProperty.call(updates, entityField)) {
-        const rowField = (sessionEntityToRowField[entityField] ?? entityField) as keyof SessionRow
-        const value = updates[entityField as keyof typeof updates]
-        ;(updateData as Record<string, unknown>)[rowField] = value ?? null
+    for (const field of replaceableEntityFields) {
+      if (Object.prototype.hasOwnProperty.call(updates, field)) {
+        const value = updates[field as keyof typeof updates]
+        ;(updateData as Record<string, unknown>)[field] = value ?? null
       }
     }
 

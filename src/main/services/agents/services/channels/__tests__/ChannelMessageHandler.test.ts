@@ -116,9 +116,9 @@ describe('ChannelMessageHandler', () => {
     const adapter = createMockAdapter()
     const session = {
       id: 'session-1',
-      agent_id: 'agent-1',
-      agent_type: 'claude-code',
-      accessible_paths: ['/tmp/test-workspace'],
+      agentId: 'agent-1',
+      agentType: 'claude-code',
+      accessiblePaths: ['/tmp/test-workspace'],
       configuration: {}
     }
 
@@ -149,9 +149,9 @@ describe('ChannelMessageHandler', () => {
     const adapter = createMockAdapter()
     const session = {
       id: 'session-1',
-      agent_id: 'agent-1',
-      agent_type: 'claude-code',
-      accessible_paths: ['/tmp/test-workspace'],
+      agentId: 'agent-1',
+      agentType: 'claude-code',
+      accessiblePaths: ['/tmp/test-workspace'],
       configuration: {}
     }
 
@@ -176,9 +176,9 @@ describe('ChannelMessageHandler', () => {
     const adapter = createMockAdapter()
     const session = {
       id: 'session-1',
-      agent_id: 'agent-1',
-      agent_type: 'claude-code',
-      accessible_paths: ['/tmp/test-workspace'],
+      agentId: 'agent-1',
+      agentType: 'claude-code',
+      accessiblePaths: ['/tmp/test-workspace'],
       configuration: {}
     }
 
@@ -220,9 +220,9 @@ describe('ChannelMessageHandler', () => {
     const adapter = createMockAdapter()
     const session = {
       id: 'session-1',
-      agent_id: 'agent-1',
-      agent_type: 'claude-code',
-      accessible_paths: ['/tmp/test-workspace'],
+      agentId: 'agent-1',
+      agentType: 'claude-code',
+      accessiblePaths: ['/tmp/test-workspace'],
       configuration: {}
     }
 
@@ -291,9 +291,9 @@ describe('ChannelMessageHandler', () => {
     const adapter = createMockAdapter()
     const newSession = {
       id: 'new-session',
-      agent_id: 'agent-1',
-      agent_type: 'claude-code',
-      accessible_paths: ['/tmp/test-workspace'],
+      agentId: 'agent-1',
+      agentType: 'claude-code',
+      accessiblePaths: ['/tmp/test-workspace'],
       configuration: {}
     }
 
@@ -326,9 +326,9 @@ describe('ChannelMessageHandler', () => {
     const adapter = createMockAdapter()
     const session1 = {
       id: 'session-1',
-      agent_id: 'agent-1',
-      agent_type: 'claude-code',
-      accessible_paths: ['/tmp/test-workspace'],
+      agentId: 'agent-1',
+      agentType: 'claude-code',
+      accessiblePaths: ['/tmp/test-workspace'],
       configuration: {}
     }
 

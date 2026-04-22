@@ -24,16 +24,16 @@ export class TaskService {
 
     const id = `task_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
 
-    const nextRun = this.computeInitialNextRun(req.schedule_type, req.schedule_value)
+    const nextRun = this.computeInitialNextRun(req.scheduleType, req.scheduleValue)
 
     const insertData: InsertTaskRow = {
       id,
       agentId,
       name: req.name,
       prompt: req.prompt,
-      scheduleType: req.schedule_type,
-      scheduleValue: req.schedule_value,
-      ...(req.timeout_minutes != null ? { timeoutMinutes: req.timeout_minutes } : {}),
+      scheduleType: req.scheduleType,
+      scheduleValue: req.scheduleValue,
+      ...(req.timeoutMinutes != null ? { timeoutMinutes: req.timeoutMinutes } : {}),
       nextRun,
       status: 'active'
     }
@@ -47,10 +47,10 @@ export class TaskService {
             throw new Error(`Failed to insert task ${id}: rowsAffected=${result.rowsAffected}`)
           }
 
-          if (req.channel_ids?.length) {
+          if (req.channelIds?.length) {
             await tx
               .insert(channelTaskSubscriptionsTable)
-              .values(req.channel_ids.map((channelId) => ({ channelId, taskId: id })))
+              .values(req.channelIds.map((channelId) => ({ channelId, taskId: id })))
               .onConflictDoNothing()
           }
         }),
@@ -130,21 +130,21 @@ export class TaskService {
 
     if (updates.name !== undefined) updateData.name = updates.name
     if (updates.prompt !== undefined) updateData.prompt = updates.prompt
-    if (updates.agent_id !== undefined) updateData.agentId = updates.agent_id
-    if (updates.timeout_minutes !== undefined) updateData.timeoutMinutes = updates.timeout_minutes ?? 2
+    if (updates.agentId !== undefined) updateData.agentId = updates.agentId
+    if (updates.timeoutMinutes !== undefined) updateData.timeoutMinutes = updates.timeoutMinutes ?? 2
     if (updates.status !== undefined) updateData.status = updates.status
 
-    if (updates.schedule_type !== undefined || updates.schedule_value !== undefined) {
-      const schedType = updates.schedule_type ?? existing.schedule_type
-      const schedValue = updates.schedule_value ?? existing.schedule_value
+    if (updates.scheduleType !== undefined || updates.scheduleValue !== undefined) {
+      const schedType = updates.scheduleType ?? existing.scheduleType
+      const schedValue = updates.scheduleValue ?? existing.scheduleValue
       updateData.scheduleType = schedType
       updateData.scheduleValue = schedValue
       updateData.nextRun = this.computeInitialNextRun(schedType, schedValue)
     }
 
     if (updates.status === 'active' && existing.status === 'paused') {
-      const schedType = updates.schedule_type ?? existing.schedule_type
-      const schedValue = updates.schedule_value ?? existing.schedule_value
+      const schedType = updates.scheduleType ?? existing.scheduleType
+      const schedValue = updates.scheduleValue ?? existing.scheduleValue
       updateData.nextRun = this.computeInitialNextRun(schedType, schedValue)
     }
 
@@ -155,8 +155,8 @@ export class TaskService {
     )
 
     // Sync channel subscriptions if provided
-    if (updates.channel_ids !== undefined) {
-      await this.syncTaskChannels(taskId, updates.channel_ids)
+    if (updates.channelIds !== undefined) {
+      await this.syncTaskChannels(taskId, updates.channelIds)
     }
 
     logger.info('Task updated', { taskId })
@@ -204,13 +204,13 @@ export class TaskService {
 
     if (updates.name !== undefined) updateData.name = updates.name
     if (updates.prompt !== undefined) updateData.prompt = updates.prompt
-    if (updates.timeout_minutes !== undefined) updateData.timeoutMinutes = updates.timeout_minutes ?? 2
+    if (updates.timeoutMinutes !== undefined) updateData.timeoutMinutes = updates.timeoutMinutes ?? 2
     if (updates.status !== undefined) updateData.status = updates.status
 
     // If schedule type or value changed, recompute nextRun
-    if (updates.schedule_type !== undefined || updates.schedule_value !== undefined) {
-      const schedType = updates.schedule_type ?? existing.schedule_type
-      const schedValue = updates.schedule_value ?? existing.schedule_value
+    if (updates.scheduleType !== undefined || updates.scheduleValue !== undefined) {
+      const schedType = updates.scheduleType ?? existing.scheduleType
+      const schedValue = updates.scheduleValue ?? existing.scheduleValue
       updateData.scheduleType = schedType
       updateData.scheduleValue = schedValue
       updateData.nextRun = this.computeInitialNextRun(schedType, schedValue)
@@ -218,8 +218,8 @@ export class TaskService {
 
     // If resuming from paused, recompute nextRun
     if (updates.status === 'active' && existing.status === 'paused') {
-      const schedType = updates.schedule_type ?? existing.schedule_type
-      const schedValue = updates.schedule_value ?? existing.schedule_value
+      const schedType = updates.scheduleType ?? existing.scheduleType
+      const schedValue = updates.scheduleValue ?? existing.scheduleValue
       updateData.nextRun = this.computeInitialNextRun(schedType, schedValue)
     }
 
@@ -234,8 +234,8 @@ export class TaskService {
     )
 
     // Sync channel subscriptions if provided
-    if (updates.channel_ids !== undefined) {
-      await this.syncTaskChannels(taskId, updates.channel_ids)
+    if (updates.channelIds !== undefined) {
+      await this.syncTaskChannels(taskId, updates.channelIds)
     }
 
     logger.info('Task updated', { taskId, agentId })
@@ -243,37 +243,36 @@ export class TaskService {
   }
 
   /**
-   * Convert a TaskRow (camelCase Drizzle properties) to a ScheduledTaskEntity
-   * (snake_case entity properties expected by the rest of the app).
+   * Convert a TaskRow (camelCase Drizzle properties) to a ScheduledTaskEntity.
    */
   private rowToEntity(row: TaskRow): ScheduledTaskEntity {
     return {
       id: row.id,
-      agent_id: row.agentId,
+      agentId: row.agentId,
       name: row.name,
       prompt: row.prompt,
-      schedule_type: row.scheduleType as ScheduledTaskEntity['schedule_type'],
-      schedule_value: row.scheduleValue,
-      timeout_minutes: row.timeoutMinutes,
-      next_run: row.nextRun != null ? new Date(row.nextRun).toISOString() : null,
-      last_run: row.lastRun != null ? new Date(row.lastRun).toISOString() : null,
-      last_result: row.lastResult ?? null,
+      scheduleType: row.scheduleType as ScheduledTaskEntity['scheduleType'],
+      scheduleValue: row.scheduleValue,
+      timeoutMinutes: row.timeoutMinutes,
+      nextRun: row.nextRun != null ? new Date(row.nextRun).toISOString() : null,
+      lastRun: row.lastRun != null ? new Date(row.lastRun).toISOString() : null,
+      lastResult: row.lastResult ?? null,
       status: row.status as ScheduledTaskEntity['status'],
-      created_at: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
-      updated_at: row.updatedAt ? new Date(row.updatedAt).toISOString() : new Date().toISOString()
+      createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
+      updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : new Date().toISOString()
     } as ScheduledTaskEntity
   }
 
   /**
-   * Convert a TaskRunLogRow (camelCase) to a TaskRunLogEntity (snake_case).
+   * Convert a TaskRunLogRow to a TaskRunLogEntity.
    */
   private runLogRowToEntity(row: TaskRunLogRow): TaskRunLogEntity {
     return {
       id: row.id,
-      task_id: row.taskId,
-      session_id: row.sessionId ?? null,
-      run_at: new Date(row.runAt).toISOString(),
-      duration_ms: row.durationMs,
+      taskId: row.taskId,
+      sessionId: row.sessionId ?? null,
+      runAt: new Date(row.runAt).toISOString(),
+      durationMs: row.durationMs,
       status: row.status as TaskRunLogEntity['status'],
       result: row.result ?? null,
       error: row.error ?? null
@@ -288,7 +287,7 @@ export class TaskService {
       .from(channelTaskSubscriptionsTable)
       .where(eq(channelTaskSubscriptionsTable.taskId, row.id))
     const entity = this.rowToEntity(row)
-    return { ...entity, channel_ids: subs.map((s) => s.channelId) } as ScheduledTaskEntity
+    return { ...entity, channelIds: subs.map((s) => s.channelId) } as ScheduledTaskEntity
   }
 
   /** Enrich multiple task rows with their subscribed channel_ids (batched). */
@@ -308,7 +307,7 @@ export class TaskService {
     }
     return rows.map((row) => {
       const entity = this.rowToEntity(row)
-      return { ...entity, channel_ids: subsByTask.get(row.id) ?? [] } as ScheduledTaskEntity
+      return { ...entity, channelIds: subsByTask.get(row.id) ?? [] } as ScheduledTaskEntity
     })
   }
 
@@ -450,34 +449,34 @@ export class TaskService {
   // --- Next run computation (nanoclaw-inspired, drift-resistant) ---
 
   computeNextRun(task: ScheduledTaskEntity): number | null {
-    if (task.schedule_type === 'once') return null
+    if (task.scheduleType === 'once') return null
 
     const now = Date.now()
 
-    if (task.schedule_type === 'cron') {
+    if (task.scheduleType === 'cron') {
       try {
-        const interval = CronExpressionParser.parse(task.schedule_value)
+        const interval = CronExpressionParser.parse(task.scheduleValue)
         return interval.next().getTime()
       } catch (error) {
         logger.warn('Invalid cron expression', {
           taskId: task.id,
-          cron: task.schedule_value,
+          cron: task.scheduleValue,
           error: error instanceof Error ? error.message : String(error)
         })
         return null
       }
     }
 
-    if (task.schedule_type === 'interval') {
-      const minutes = parseInt(task.schedule_value, 10)
+    if (task.scheduleType === 'interval') {
+      const minutes = parseInt(task.scheduleValue, 10)
       const ms = minutes * 60_000
       if (!ms || ms <= 0) {
-        logger.warn('Invalid interval value', { taskId: task.id, value: task.schedule_value })
+        logger.warn('Invalid interval value', { taskId: task.id, value: task.scheduleValue })
         return now + 60_000
       }
 
       // Anchor to scheduled time to prevent drift
-      let next = new Date(task.next_run!).getTime() + ms
+      let next = new Date(task.nextRun!).getTime() + ms
       while (next <= now) {
         next += ms
       }

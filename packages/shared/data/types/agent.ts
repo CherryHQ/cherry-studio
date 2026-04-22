@@ -35,14 +35,14 @@ export interface AgentBase {
   name?: string
   description?: string
   /** Directories accessible to the agent (empty = default workspace) */
-  accessible_paths: string[]
+  accessiblePaths: string[]
   instructions?: string
   model: string
-  plan_model?: string
-  small_model?: string
+  planModel?: string
+  smallModel?: string
   mcps?: string[]
-  allowed_tools?: string[]
-  slash_commands?: SlashCommand[]
+  allowedTools?: string[]
+  slashCommands?: SlashCommand[]
   configuration?: AgentConfiguration
 }
 
@@ -50,8 +50,8 @@ export interface AgentBase {
 export interface AgentEntity extends AgentBase {
   id: string
   type: AgentType
-  created_at: string
-  updated_at: string
+  createdAt: string
+  updatedAt: string
 }
 
 /** Agent entity with resolved tools list */
@@ -73,10 +73,10 @@ export interface ListAgentsResponse {
 /** Persisted session record */
 export interface AgentSessionEntity extends AgentBase {
   id: string
-  agent_id: string
-  agent_type: AgentType
-  created_at: string
-  updated_at: string
+  agentId: string
+  agentType: AgentType
+  createdAt: string
+  updatedAt: string
 }
 
 /** Session with resolved tools, messages, and plugins */
@@ -103,13 +103,13 @@ export interface ListAgentSessionsResponse {
 
 export interface AgentSessionMessageEntity {
   id: number
-  session_id: string
+  sessionId: string
   role: SessionMessageRole
   content: unknown
-  agent_session_id: string
+  agentSessionId: string
   metadata?: Record<string, unknown>
-  created_at: string
-  updated_at: string
+  createdAt: string
+  updatedAt: string
 }
 
 export interface ListSessionMessagesResponse {
@@ -122,19 +122,19 @@ export interface ListSessionMessagesResponse {
 
 export interface ScheduledTaskEntity {
   id: string
-  agent_id: string
+  agentId: string
   name: string
   prompt: string
-  schedule_type: TaskScheduleType
-  schedule_value: string
-  timeout_minutes: number
-  channel_ids?: string[]
-  next_run?: string | null
-  last_run?: string | null
-  last_result?: string | null
+  scheduleType: TaskScheduleType
+  scheduleValue: string
+  timeoutMinutes: number
+  channelIds?: string[]
+  nextRun?: string | null
+  lastRun?: string | null
+  lastResult?: string | null
   status: TaskStatus
-  created_at: string
-  updated_at: string
+  createdAt: string
+  updatedAt: string
 }
 
 export interface ListTasksResponse {

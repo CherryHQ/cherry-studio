@@ -109,7 +109,7 @@ describe('ClawServer', () => {
 
   describe('add action', () => {
     it('should create a task with cron schedule', async () => {
-      const task = { id: 'task_1', name: 'test', schedule_type: 'cron', schedule_value: '0 9 * * 1-5' }
+      const task = { id: 'task_1', name: 'test', scheduleType: 'cron', scheduleValue: '0 9 * * 1-5' }
       mockCreateTask.mockResolvedValue(task)
 
       const server = createServer('agent_1')
@@ -123,14 +123,14 @@ describe('ClawServer', () => {
       expect(mockCreateTask).toHaveBeenCalledWith('agent_1', {
         name: 'Daily standup',
         prompt: 'Run standup check',
-        schedule_type: 'cron',
-        schedule_value: '0 9 * * 1-5'
+        scheduleType: 'cron',
+        scheduleValue: '0 9 * * 1-5'
       })
       expect(result.content[0].text).toContain('Job created')
     })
 
     it('should create a task with interval schedule', async () => {
-      const task = { id: 'task_2', name: 'check', schedule_type: 'interval', schedule_value: '30' }
+      const task = { id: 'task_2', name: 'check', scheduleType: 'interval', scheduleValue: '30' }
       mockCreateTask.mockResolvedValue(task)
 
       const server = createServer('agent_2')
@@ -144,8 +144,8 @@ describe('ClawServer', () => {
       expect(mockCreateTask).toHaveBeenCalledWith('agent_2', {
         name: 'Health check',
         prompt: 'Check system health',
-        schedule_type: 'interval',
-        schedule_value: '30'
+        scheduleType: 'interval',
+        scheduleValue: '30'
       })
     })
 
@@ -163,8 +163,8 @@ describe('ClawServer', () => {
       expect(mockCreateTask).toHaveBeenCalledWith(
         'agent_test',
         expect.objectContaining({
-          schedule_type: 'interval',
-          schedule_value: '90'
+          scheduleType: 'interval',
+          scheduleValue: '90'
         })
       )
     })
@@ -183,7 +183,7 @@ describe('ClawServer', () => {
       expect(mockCreateTask).toHaveBeenCalledWith(
         'agent_test',
         expect.objectContaining({
-          schedule_type: 'once'
+          scheduleType: 'once'
         })
       )
     })
@@ -369,7 +369,7 @@ describe('ClawServer', () => {
         const result = await callTool(server, { action: 'status' }, 'config')
 
         const parsed = JSON.parse(result.content[0].text)
-        expect(parsed.agent_id).toBe('agent_1')
+        expect(parsed.agentId).toBe('agent_1')
         expect(parsed.model).toBe('claude-sonnet-4-20250514')
         expect(parsed.channels).toHaveLength(1)
         expect(parsed.channels[0].type).toBe('telegram')
