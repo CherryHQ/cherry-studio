@@ -39,6 +39,9 @@ patchedDependencies:
   '@ai-sdk/openai-compatible@2.0.37':
     hash: d24ef2c45b84eab205e51894a90c5c36e93e6e0b17f56533aa37145129539a1a
     path: patches/@ai-sdk__openai-compatible@2.0.37.patch
+  '@ai-sdk/openai@3.0.49':
+    hash: 08da102e1fc54948e8c0141632b4d7af084410bbcd77e238a1afd95f49666385
+    path: patches/@ai-sdk__openai@3.0.49.patch
   '@langchain/core@1.0.2':
     hash: 8dc787a82cebafe8b23c8826f25f29aca64fc8b43a0a1878e0010782e4da96ed
     path: patches/@langchain-core-npm-1.0.2-183ef83fe4.patch
@@ -203,7 +206,7 @@ importers:
         version: 3.0.27(zod@4.3.4)
       '@ai-sdk/openai':
         specifier: ^3.0.49
-        version: 3.0.49(zod@4.3.4)
+        version: 3.0.49(patch_hash=08da102e1fc54948e8c0141632b4d7af084410bbcd77e238a1afd95f49666385)(zod@4.3.4)
       '@ai-sdk/openai-compatible':
         specifier: ^2.0.37
         version: 2.0.37(patch_hash=d24ef2c45b84eab205e51894a90c5c36e93e6e0b17f56533aa37145129539a1a)(zod@4.3.4)
@@ -1293,7 +1296,7 @@ importers:
         version: 3.0.55(patch_hash=61e2f6fa9463b661654e527cf1a22d80f0852479b3c870fb8f1d5a4f9decb959)(zod@4.3.6)
       '@ai-sdk/openai':
         specifier: ^3.0.49
-        version: 3.0.49(zod@4.3.6)
+        version: 3.0.49(patch_hash=08da102e1fc54948e8c0141632b4d7af084410bbcd77e238a1afd95f49666385)(zod@4.3.6)
       '@ai-sdk/openai-compatible':
         specifier: ^2.0.37
         version: 2.0.37(patch_hash=d24ef2c45b84eab205e51894a90c5c36e93e6e0b17f56533aa37145129539a1a)(zod@4.3.6)
@@ -1330,7 +1333,7 @@ importers:
         version: 3.0.55(patch_hash=61e2f6fa9463b661654e527cf1a22d80f0852479b3c870fb8f1d5a4f9decb959)(zod@4.3.4)
       '@ai-sdk/openai':
         specifier: ^3.0.49
-        version: 3.0.49(zod@4.3.4)
+        version: 3.0.49(patch_hash=08da102e1fc54948e8c0141632b4d7af084410bbcd77e238a1afd95f49666385)(zod@4.3.4)
       '@ai-sdk/openai-compatible':
         specifier: ^2.0.37
         version: 2.0.37(patch_hash=d24ef2c45b84eab205e51894a90c5c36e93e6e0b17f56533aa37145129539a1a)(zod@4.3.4)
@@ -12897,7 +12900,7 @@ snapshots:
 
   '@ai-sdk/azure@3.0.50(zod@4.3.4)':
     dependencies:
-      '@ai-sdk/openai': 3.0.49(zod@4.3.4)
+      '@ai-sdk/openai': 3.0.49(patch_hash=08da102e1fc54948e8c0141632b4d7af084410bbcd77e238a1afd95f49666385)(zod@4.3.4)
       '@ai-sdk/provider': 3.0.8
       '@ai-sdk/provider-utils': 4.0.21(zod@4.3.4)
       zod: 4.3.4
@@ -12983,13 +12986,13 @@ snapshots:
       '@ai-sdk/provider-utils': 4.0.21(zod@4.3.6)
       zod: 4.3.6
 
-  '@ai-sdk/openai@3.0.49(zod@4.3.4)':
+  '@ai-sdk/openai@3.0.49(patch_hash=08da102e1fc54948e8c0141632b4d7af084410bbcd77e238a1afd95f49666385)(zod@4.3.4)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
       '@ai-sdk/provider-utils': 4.0.21(zod@4.3.4)
       zod: 4.3.4
 
-  '@ai-sdk/openai@3.0.49(zod@4.3.6)':
+  '@ai-sdk/openai@3.0.49(patch_hash=08da102e1fc54948e8c0141632b4d7af084410bbcd77e238a1afd95f49666385)(zod@4.3.6)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
       '@ai-sdk/provider-utils': 4.0.21(zod@4.3.6)
@@ -14665,7 +14668,7 @@ snapshots:
       node-gyp: 11.5.0
       ora: 5.4.1
       read-binary-file-arch: 1.0.6
-      semver: 7.7.2
+      semver: 7.7.1
       tar: 6.2.1
       yargs: 17.7.2
     transitivePeerDependencies:
