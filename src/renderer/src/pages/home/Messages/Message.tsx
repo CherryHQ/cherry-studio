@@ -92,7 +92,13 @@ const MessageItem: FC<Props> = ({
         versions.push(item)
       }
     }
-    versions.sort((left, right) => (left.versionNumber ?? 1) - (right.versionNumber ?? 1))
+    versions.sort((left, right) => {
+      const versionDelta = (left.versionNumber ?? 1) - (right.versionNumber ?? 1)
+      if (versionDelta !== 0) {
+        return versionDelta
+      }
+      return left.createdAt.localeCompare(right.createdAt)
+    })
 
     if (versions.length <= 1) {
       return null

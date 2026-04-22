@@ -37,6 +37,10 @@ export interface MessagesState extends EntityState<Message, string> {
 
 export type MessageVersionSelectionMap = Record<string, string>
 
+export function belongsToVersionGroup(message: Message, groupId: string) {
+  return message.role === 'user' && (message.versionGroupId === groupId || (!message.versionGroupId && message.id === groupId))
+}
+
 // 3. Define the Initial State
 const initialState: MessagesState = messagesAdapter.getInitialState({
   messageIdsByTopic: {},
@@ -307,7 +311,7 @@ export const {
 } = messagesAdapter.getSelectors(selectMessagesState)
 
 export function getVersionSelectionMap(messages: Message[]): MessageVersionSelectionMap {
-  const selectedVersions = new Map<string, { id: string; priority: number }>()
+  const selectedVersions = new Map<string, { id: string; priority: number; versionNumber: number }>()
 
   messages.forEach((message) => {
     if (message.role !== 'user' || !message.versionGroupId) {
@@ -315,12 +319,18 @@ export function getVersionSelectionMap(messages: Message[]): MessageVersionSelec
     }
 
     const nextPriority = message.versionSelected ? 2 : 1
+    const nextVersionNumber = message.versionNumber ?? 1
     const currentSelection = selectedVersions.get(message.versionGroupId)
 
-    if (!currentSelection || nextPriority >= currentSelection.priority) {
+    if (
+      !currentSelection ||
+      nextPriority > currentSelection.priority ||
+      (nextPriority === currentSelection.priority && nextVersionNumber >= currentSelection.versionNumber)
+    ) {
       selectedVersions.set(message.versionGroupId, {
         id: message.id,
-        priority: nextPriority
+        priority: nextPriority,
+        versionNumber: nextVersionNumber
       })
     }
   })
@@ -328,6 +338,26 @@ export function getVersionSelectionMap(messages: Message[]): MessageVersionSelec
   return Object.fromEntries(
     Array.from(selectedVersions.entries()).map(([groupId, selection]) => [groupId, selection.id])
   )
+}
+
+export function getVersionSelectionUpdates(messages: Message[], nextMessage: Message) {
+  if (!nextMessage.versionGroupId) {
+    return []
+  }
+
+  const currentSelectedVersion = messages.find(
+    (message) =>
+      message.role === 'user' && message.versionGroupId === nextMessage.versionGroupId && message.versionSelected
+  )
+
+  if (currentSelectedVersion?.id === nextMessage.id) {
+    return []
+  }
+
+  return [
+    ...(currentSelectedVersion ? [{ messageId: currentSelectedVersion.id, versionSelected: false }] : []),
+    { messageId: nextMessage.id, versionSelected: true }
+  ]
 }
 
 function isVisibleInCurrentBranch(
@@ -359,6 +389,7 @@ function isVisibleInCurrentBranch(
 
   return Object.entries(branchSelections).every(([groupId, versionId]) => {
     const selectedVersionId = selectedVersions[groupId]
+    // Keep legacy messages visible when no explicit selection exists for a newly introduced branch group.
     return !selectedVersionId || selectedVersionId === versionId
   })
 }

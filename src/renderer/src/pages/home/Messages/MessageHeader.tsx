@@ -148,6 +148,7 @@ const MessageHeader: FC<Props> = memo(
             {messageVersion && (
               <VersionNavigator>
                 <VersionButton
+                  aria-label="Previous version"
                   disabled={!messageVersion.hasPrev}
                   onClick={(event) => {
                     event.preventDefault()
@@ -161,6 +162,7 @@ const MessageHeader: FC<Props> = memo(
                   {messageVersion.current}/{messageVersion.total}
                 </VersionLabel>
                 <VersionButton
+                  aria-label="Next version"
                   disabled={!messageVersion.hasNext}
                   onClick={(event) => {
                     event.preventDefault()

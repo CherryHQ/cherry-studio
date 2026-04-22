@@ -5,7 +5,12 @@ import { appendMessageTrace, pauseTrace, restartTrace } from '@renderer/services
 import { estimateUserPromptUsage } from '@renderer/services/TokenService'
 import store, { type RootState, useAppDispatch, useAppSelector } from '@renderer/store'
 import { updateOneBlock } from '@renderer/store/messageBlock'
-import { newMessagesActions, selectMessagesForTopic, selectRawMessagesForTopic } from '@renderer/store/newMessage'
+import {
+  getVersionSelectionUpdates,
+  newMessagesActions,
+  selectMessagesForTopic,
+  selectRawMessagesForTopic
+} from '@renderer/store/newMessage'
 import {
   appendAssistantResponseThunk,
   clearTopicMessagesThunk,
@@ -439,21 +444,11 @@ export function useMessageOperations(topic: Topic) {
 
       const state = store.getState()
       const rawMessages = selectRawMessagesForTopic(state, topic.id)
-      const currentSelectedVersion = rawMessages.find(
-        (item) => item.role === 'user' && item.versionGroupId === message.versionGroupId && item.versionSelected
-      )
+      const selectionUpdates = getVersionSelectionUpdates(rawMessages, message)
 
-      if (currentSelectedVersion?.id === message.id) {
-        return
+      for (const update of selectionUpdates) {
+        await dispatch(updateMessageAndBlocksThunk(topic.id, { id: update.messageId, versionSelected: update.versionSelected }, []))
       }
-
-      if (currentSelectedVersion) {
-        await dispatch(
-          updateMessageAndBlocksThunk(topic.id, { id: currentSelectedVersion.id, versionSelected: false }, [])
-        )
-      }
-
-      await dispatch(updateMessageAndBlocksThunk(topic.id, { id: message.id, versionSelected: true }, []))
     },
     [dispatch, topic.id]
   )

@@ -69,6 +69,7 @@ import { mutate } from 'swr'
 import type { AppDispatch, RootState } from '../index'
 import { removeManyBlocks, updateOneBlock, upsertManyBlocks, upsertOneBlock } from '../messageBlock'
 import {
+  belongsToVersionGroup,
   getVersionSelectionMap,
   newMessagesActions,
   selectMessagesForTopic,
@@ -90,13 +91,86 @@ import {
 const logger = loggerService.withContext('MessageThunk')
 
 const cloneBlocksForMessage = (blocks: MessageBlock[], messageId: string): MessageBlock[] =>
-  blocks.map((block) => ({
-    ...block,
-    id: uuid(),
-    messageId,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  }))
+  blocks.map((block) => {
+    const now = new Date().toISOString()
+    const clonedBlock = {
+      id: uuid(),
+      messageId,
+      type: block.type,
+      createdAt: now,
+      updatedAt: now,
+      status: MessageBlockStatus.SUCCESS,
+      model: block.model,
+      metadata: block.metadata,
+      error: undefined
+    } as MessageBlock
+
+    if ('content' in block) {
+      clonedBlock.content = block.content
+    }
+    if ('knowledgeBaseIds' in block) {
+      clonedBlock.knowledgeBaseIds = block.knowledgeBaseIds
+    }
+    if ('citationReferences' in block) {
+      clonedBlock.citationReferences = block.citationReferences
+    }
+    if ('thinking_millsec' in block) {
+      clonedBlock.thinking_millsec = block.thinking_millsec
+    }
+    if ('targetLanguage' in block) {
+      clonedBlock.targetLanguage = block.targetLanguage
+    }
+    if ('sourceBlockId' in block) {
+      clonedBlock.sourceBlockId = block.sourceBlockId
+    }
+    if ('sourceLanguage' in block) {
+      clonedBlock.sourceLanguage = block.sourceLanguage
+    }
+    if ('language' in block) {
+      clonedBlock.language = block.language
+    }
+    if ('url' in block) {
+      clonedBlock.url = block.url
+    }
+    if ('file' in block) {
+      clonedBlock.file = block.file
+    }
+    if ('metadata' in block) {
+      clonedBlock.metadata = block.metadata
+    }
+    if ('toolId' in block) {
+      clonedBlock.toolId = block.toolId
+    }
+    if ('toolName' in block) {
+      clonedBlock.toolName = block.toolName
+    }
+    if ('arguments' in block) {
+      clonedBlock.arguments = block.arguments
+    }
+    if ('citations' in block) {
+      clonedBlock.citations = block.citations
+    }
+    if ('knowledge' in block) {
+      clonedBlock.knowledge = block.knowledge
+    }
+    if ('memories' in block) {
+      clonedBlock.memories = block.memories
+    }
+    if ('videos' in block) {
+      clonedBlock.videos = block.videos
+    }
+    if ('response' in block) {
+      clonedBlock.response = block.response
+    }
+    if ('filePath' in block) {
+      clonedBlock.filePath = block.filePath
+    }
+    if ('compactedContent' in block) {
+      clonedBlock.compactedContent = block.compactedContent
+    }
+
+    return clonedBlock
+  })
 
 const applyBranchSelectionToMessage = (message: Message, groupId: string, versionId: string): Message => ({
   ...message,
@@ -1004,11 +1078,16 @@ export const sendMessage =
       }
 
       const stateBeforeSend = getState()
-      if (!userMessage.branchVersionSelections) {
+      let messageToSend = userMessage
+
+      if (!messageToSend.branchVersionSelections) {
         const rawMessagesForTopic = selectRawMessagesForTopic(stateBeforeSend, topicId)
         const selectedVersions = getVersionSelectionMap(rawMessagesForTopic)
         if (Object.keys(selectedVersions).length > 0) {
-          userMessage.branchVersionSelections = selectedVersions
+          messageToSend = {
+            ...messageToSend,
+            branchVersionSelections: selectedVersions
+          }
         }
       }
       let activeAgentSession = agentSession ?? findExistingAgentSessionContext(stateBeforeSend, topicId, assistant.id)
@@ -1021,12 +1100,15 @@ export const sendMessage =
           }
         }
       }
-      if (activeAgentSession?.agentSessionId && !userMessage.agentSessionId) {
-        userMessage.agentSessionId = activeAgentSession.agentSessionId
+      if (activeAgentSession?.agentSessionId && !messageToSend.agentSessionId) {
+        messageToSend = {
+          ...messageToSend,
+          agentSessionId: activeAgentSession.agentSessionId
+        }
       }
 
-      await saveMessageAndBlocksToDB(topicId, userMessage, userMessageBlocks)
-      dispatch(newMessagesActions.addMessage({ topicId, message: userMessage }))
+      await saveMessageAndBlocksToDB(topicId, messageToSend, userMessageBlocks)
+      dispatch(newMessagesActions.addMessage({ topicId, message: messageToSend }))
       if (userMessageBlocks.length > 0) {
         dispatch(upsertManyBlocks(userMessageBlocks))
       }
@@ -1036,10 +1118,10 @@ export const sendMessage =
 
       if (activeAgentSession) {
         const assistantMessage = createAssistantMessage(assistant.id, topicId, {
-          askId: userMessage.id,
+          askId: messageToSend.id,
           model: assistant.model,
-          traceId: userMessage.traceId,
-          branchVersionSelections: userMessage.branchVersionSelections
+          traceId: messageToSend.traceId,
+          branchVersionSelections: messageToSend.branchVersionSelections
         })
         if (activeAgentSession.agentSessionId && !assistantMessage.agentSessionId) {
           assistantMessage.agentSessionId = activeAgentSession.agentSessionId
@@ -1053,20 +1135,20 @@ export const sendMessage =
             assistant,
             assistantMessage,
             agentSession: activeAgentSession,
-            userMessageId: userMessage.id
+            userMessageId: messageToSend.id
           })
         })
       } else {
-        const mentionedModels = userMessage.mentions
+        const mentionedModels = messageToSend.mentions
 
         if (mentionedModels && mentionedModels.length > 0) {
-          await dispatchMultiModelResponses(dispatch, getState, topicId, userMessage, assistant, mentionedModels)
+          await dispatchMultiModelResponses(dispatch, getState, topicId, messageToSend, assistant, mentionedModels)
         } else {
           const assistantMessage = createAssistantMessage(assistant.id, topicId, {
-            askId: userMessage.id,
+            askId: messageToSend.id,
             model: assistant.model,
-            traceId: userMessage.traceId,
-            branchVersionSelections: userMessage.branchVersionSelections
+            traceId: messageToSend.traceId,
+            branchVersionSelections: messageToSend.branchVersionSelections
           })
           await saveMessageAndBlocksToDB(topicId, assistantMessage, [])
           dispatch(
@@ -1383,9 +1465,7 @@ export const resendUserMessageWithEditThunk =
         originalVisibleIndex === -1 ? [] : visibleMessages.slice(originalVisibleIndex + 1)
 
       const siblingVersions = rawMessages.filter(
-        (message) =>
-          message.role === 'user' &&
-          (message.versionGroupId === versionGroupId || (!message.versionGroupId && message.id === versionGroupId))
+        (message) => belongsToVersionGroup(message, versionGroupId)
       )
       const nextVersionNumber =
         siblingVersions.reduce((maxVersion, message) => Math.max(maxVersion, message.versionNumber ?? 1), 1) + 1

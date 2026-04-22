@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  belongsToVersionGroup,
   getVersionSelectionMap,
+  getVersionSelectionUpdates,
   messagesSlice,
   selectMessagesForTopic,
   selectRawMessagesForTopic
@@ -147,5 +149,41 @@ describe('newMessage branch-aware selectors', () => {
     expect(getVersionSelectionMap(messages)).toEqual({
       'user-1': 'user-1-v2'
     })
+  })
+
+  it('returns deterministic version selection updates for version switching', () => {
+    const messages = [
+      {
+        id: 'user-1',
+        role: 'user',
+        assistantId: 'assistant-1',
+        topicId: 'topic-1',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        status: 'success',
+        blocks: [],
+        versionGroupId: 'user-1',
+        versionNumber: 1,
+        versionSelected: false
+      },
+      {
+        id: 'user-1-v2',
+        role: 'user',
+        assistantId: 'assistant-1',
+        topicId: 'topic-1',
+        createdAt: '2026-01-01T00:00:01.000Z',
+        status: 'success',
+        blocks: [],
+        versionGroupId: 'user-1',
+        versionNumber: 2,
+        versionSelected: true
+      }
+    ] as any
+
+    expect(getVersionSelectionUpdates(messages, messages[0])).toEqual([
+      { messageId: 'user-1-v2', versionSelected: false },
+      { messageId: 'user-1', versionSelected: true }
+    ])
+    expect(getVersionSelectionUpdates(messages, messages[1])).toEqual([])
+    expect(belongsToVersionGroup(messages[0], 'user-1')).toBe(true)
   })
 })
