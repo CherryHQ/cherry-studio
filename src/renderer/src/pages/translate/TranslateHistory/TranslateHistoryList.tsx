@@ -12,7 +12,6 @@ import { SearchIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useDeferredValue, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { TranslateHistoryItem } from './TranslateHistoryItem'
 
@@ -77,14 +76,14 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
             </PopoverConfirm>
           )}
         </DrawerHeader>
-        <HistoryContainer>
+        <div className="w-full flex flex-1 flex-col overflow-hidden pr-1 pb-1">
           {/* Search Bar */}
           <RowFlex className="px-3" style={{ borderBottom: '1px solid var(--ant-color-split)' }}>
             <Input
               prefix={
-                <IconWrapper>
+                <div className="flex justify-center items-center size-7.5 rounded-2xl">
                   <SearchIcon size={18} />
-                </IconWrapper>
+                </div>
               }
               placeholder={t('translate.history.search.placeholder')}
               value={search}
@@ -102,50 +101,20 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
 
           {/* Virtual List */}
           {deferredHistory.length > 0 ? (
-            <HistoryList>
+            <div className="flex flex-1 flex-col overflow-y-auto">
               <DynamicVirtualList list={deferredHistory} estimateSize={() => ITEM_HEIGHT}>
                 {(item) => <TranslateHistoryItem data={item} onClick={() => onHistoryItemClick(item)} />}
               </DynamicVirtualList>
-            </HistoryList>
+            </div>
           ) : (
             <Flex className="items-center justify-center" style={{ flex: 1 }}>
               <Empty description={queryError ? t('translate.history.error.load') : t('translate.history.empty')} />
             </Flex>
           )}
-        </HistoryContainer>
+        </div>
       </DrawerContent>
     </Drawer>
   )
 }
-
-const HistoryContainer = styled.div`
-  width: 100%;
-  height: calc(100vh - var(--navbar-height) - 40px);
-  transition:
-    width 0.2s,
-    opacity 0.2s;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  padding-right: 2px;
-  padding-bottom: 5px;
-`
-
-const HistoryList = styled.div`
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-`
-
-const IconWrapper = styled.div`
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 30px;
-  width: 30px;
-  border-radius: 15px;
-  background-color: var(--color-background-soft);
-`
 
 export { TranslateHistoryList }
