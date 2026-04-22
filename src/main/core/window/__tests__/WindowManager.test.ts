@@ -1218,6 +1218,76 @@ describe('WindowManager', () => {
     })
   })
 
+  // ─── pushInitData / pushInitDataToType ────────────────
+
+  describe('pushInitData', () => {
+    it('writes init-data store and sends Reused event to the target window', () => {
+      const id = wm.open('default' as never)
+      const win = createdWindows[0]
+      win.webContents.send.mockClear()
+
+      const payload = { v: 2, kind: 'refresh' }
+      const result = wm.pushInitData(id, payload)
+
+      expect(result).toBe(true)
+      expect(wm.getInitData(id)).toEqual(payload)
+      expect(win.webContents.send).toHaveBeenCalledWith('window-manager:reused', payload)
+    })
+
+    it('returns false and does not send when window does not exist', () => {
+      const result = wm.pushInitData('no-such-id', { anything: true })
+      expect(result).toBe(false)
+    })
+
+    it('returns false for a destroyed window and does not touch its webContents', () => {
+      const id = wm.open('default' as never)
+      const win = createdWindows[0]
+      win.isDestroyed.mockReturnValue(true)
+      win.webContents.send.mockClear()
+
+      const result = wm.pushInitData(id, { v: 3 })
+
+      expect(result).toBe(false)
+      expect(win.webContents.send).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('pushInitDataToType', () => {
+    it('pushes to every live window of the given type and returns the count', () => {
+      const ids = [wm.open('pooled' as never), wm.open('pooled' as never), wm.open('pooled' as never)]
+      for (const win of createdWindows) win.webContents.send.mockClear()
+
+      const payload = { broadcast: true }
+      const count = wm.pushInitDataToType('pooled' as never, payload)
+
+      expect(count).toBe(3)
+      for (const win of createdWindows) {
+        expect(win.webContents.send).toHaveBeenCalledWith('window-manager:reused', payload)
+      }
+      for (const id of ids) {
+        expect(wm.getInitData(id)).toEqual(payload)
+      }
+    })
+
+    it('returns 0 and does not throw when no windows of that type exist', () => {
+      const count = wm.pushInitDataToType('pooled' as never, { v: 1 })
+      expect(count).toBe(0)
+    })
+
+    it('skips destroyed windows in the count and does not send to them', () => {
+      wm.open('pooled' as never)
+      wm.open('pooled' as never)
+      createdWindows[0].isDestroyed.mockReturnValue(true)
+      for (const win of createdWindows) win.webContents.send.mockClear()
+
+      const count = wm.pushInitDataToType('pooled' as never, { v: 9 })
+
+      expect(count).toBe(1)
+      expect(createdWindows[0].webContents.send).not.toHaveBeenCalled()
+      expect(createdWindows[1].webContents.send).toHaveBeenCalledWith('window-manager:reused', { v: 9 })
+    })
+  })
+
   // ─── onDestroy cleanup ────────────────────────────────
 
   describe('onDestroy', () => {
