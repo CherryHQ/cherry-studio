@@ -107,6 +107,25 @@ describe('MessageService', () => {
     await dbh.db.insert(messageTable).values(messages)
   }
 
+  describe('create', () => {
+    it('preserves v2 model foreign keys', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-create' })
+      const modelId = createUniqueModelId('provider-a', 'model-A')
+
+      const message = await messageService.create('topic-create', {
+        role: 'assistant',
+        data: mainText('pending'),
+        status: 'pending',
+        modelId
+      })
+
+      expect(message.modelId).toBe(modelId)
+
+      const [row] = await dbh.db.select().from(messageTable)
+      expect(row.modelId).toBe(modelId)
+    })
+  })
+
   describe('getBranchMessages — regression for raw SQL casing bug', () => {
     it('returns camelCase fields (parentId, siblingsGroupId) for path messages', async () => {
       await seedMultiModelTree()

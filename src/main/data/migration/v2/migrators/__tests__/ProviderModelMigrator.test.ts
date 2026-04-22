@@ -1,8 +1,24 @@
 import { pinTable } from '@data/db/schemas/pin'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { MigrationContext } from '../../core/MigrationContext'
 import { ProviderModelMigrator } from '../ProviderModelMigrator'
+
+const { loggerWarnMock } = vi.hoisted(() => ({
+  loggerWarnMock: vi.fn()
+}))
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: vi.fn(() => ({
+      info: vi.fn(),
+      warn: loggerWarnMock,
+      error: vi.fn(),
+      debug: vi.fn()
+    }))
+  }
+}))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -15,11 +31,19 @@ interface MockContextOptions {
 
 function createMockContext(
   reduxState: Record<string, unknown> = {},
-  dexieSettings: Record<string, unknown> = {},
+  sourceData: Record<string, unknown> = {},
   options: MockContextOptions = {}
 ): MigrationContext {
   const insertValues: unknown[][] = []
   let stagedInsertValues: unknown[][] = []
+  const flattenInsertedRows = () =>
+    insertValues
+      .flatMap((batch) => batch)
+      .filter((row): row is Record<string, unknown> => !!row && typeof row === 'object')
+  const getInsertedProviders = () =>
+    flattenInsertedRows().filter((row) => Object.hasOwn(row, 'providerId') && !Object.hasOwn(row, 'modelId'))
+  const getInsertedModels = () => flattenInsertedRows().filter((row) => Object.hasOwn(row, 'modelId'))
+  const getInsertedPins = () => flattenInsertedRows().filter((row) => row.entityType === 'model')
 
   const mockTx = {
     insert: vi.fn((table: unknown) => ({
@@ -42,7 +66,24 @@ function createMockContext(
         getCategory: vi.fn((cat: string) => reduxState[cat])
       },
       dexieSettings: {
-        get: vi.fn((key: string) => dexieSettings[key])
+        get: vi.fn((key: string) => sourceData[key])
+      },
+      dexieExport: {
+        tableExists: vi.fn((table: string) =>
+          Promise.resolve(Array.isArray(sourceData[table]))
+        ),
+        createStreamReader: vi.fn((table: string) => ({
+          readInBatches: vi.fn(
+            async (batchSize: number, callback: (items: unknown[], index: number) => Promise<void>) => {
+              const rows = Array.isArray(sourceData[table]) ? sourceData[table] : []
+              const safeBatchSize = Math.max(batchSize, 1)
+
+              for (let index = 0; index < rows.length; index += safeBatchSize) {
+                await callback(rows.slice(index, index + safeBatchSize), index / safeBatchSize)
+              }
+            }
+          )
+        }))
       }
     },
     db: {
@@ -53,8 +94,20 @@ function createMockContext(
         return result
       }),
       select: vi.fn(() => ({
-        from: vi.fn(() => ({
-          get: vi.fn(() => Promise.resolve({ count: 0 }))
+        from: vi.fn((table: unknown) => ({
+          get: vi.fn(() =>
+            Promise.resolve({
+              count:
+                table === userProviderTable
+                  ? getInsertedProviders().length
+                  : table === pinTable
+                    ? getInsertedPins().length
+                    : getInsertedModels().length
+            })
+          ),
+          limit: vi.fn(() => ({
+            all: vi.fn(() => Promise.resolve(table === userProviderTable ? getInsertedProviders().slice(0, 5) : []))
+          }))
         }))
       }))
     },
@@ -77,6 +130,7 @@ describe('ProviderModelMigrator', () => {
 
   beforeEach(() => {
     migrator = new ProviderModelMigrator()
+    loggerWarnMock.mockClear()
   })
 
   describe('prepare', () => {
