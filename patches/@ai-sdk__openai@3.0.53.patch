@@ -1,8 +1,8 @@
 diff --git a/dist/index.js b/dist/index.js
-index 2073b24..41c6d48 100644
+index 1c78d6f..a81c976 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -1750,13 +1750,15 @@ var modelMaxImagesPerCall = {
+@@ -1753,13 +1753,15 @@ var modelMaxImagesPerCall = {
    "gpt-image-1": 10,
    "gpt-image-1-mini": 10,
    "gpt-image-1.5": 10,
@@ -20,10 +20,10 @@ index 2073b24..41c6d48 100644
  function hasDefaultResponseFormat(modelId) {
    return defaultResponseFormatPrefixes.some(
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 20f1a6e..d752ef2 100644
+index 3dee885..441a6af 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
-@@ -1765,13 +1765,15 @@ var modelMaxImagesPerCall = {
+@@ -1768,13 +1768,15 @@ var modelMaxImagesPerCall = {
    "gpt-image-1": 10,
    "gpt-image-1-mini": 10,
    "gpt-image-1.5": 10,
@@ -41,10 +41,10 @@ index 20f1a6e..d752ef2 100644
  function hasDefaultResponseFormat(modelId) {
    return defaultResponseFormatPrefixes.some(
 diff --git a/dist/internal/index.js b/dist/internal/index.js
-index ccb1008..41a697f 100644
+index 27527ce..b359aa3 100644
 --- a/dist/internal/index.js
 +++ b/dist/internal/index.js
-@@ -1777,13 +1777,15 @@ var modelMaxImagesPerCall = {
+@@ -1780,13 +1780,15 @@ var modelMaxImagesPerCall = {
    "gpt-image-1": 10,
    "gpt-image-1-mini": 10,
    "gpt-image-1.5": 10,
@@ -62,10 +62,10 @@ index ccb1008..41a697f 100644
  function hasDefaultResponseFormat(modelId) {
    return defaultResponseFormatPrefixes.some(
 diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
-index b0b393c..c88a2ec 100644
+index db50bed..04b9e17 100644
 --- a/dist/internal/index.mjs
 +++ b/dist/internal/index.mjs
-@@ -1757,13 +1757,15 @@ var modelMaxImagesPerCall = {
+@@ -1760,13 +1760,15 @@ var modelMaxImagesPerCall = {
    "gpt-image-1": 10,
    "gpt-image-1-mini": 10,
    "gpt-image-1.5": 10,

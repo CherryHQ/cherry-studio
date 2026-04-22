@@ -124,7 +124,7 @@
     "@ai-sdk/groq": "^3.0.32",
     "@ai-sdk/huggingface": "^1.0.37",
     "@ai-sdk/mistral": "^3.0.24",
-    "@ai-sdk/openai": "^3.0.49",
+    "@ai-sdk/openai": "^3.0.53",
     "@ai-sdk/openai-compatible": "^2.0.37",
     "@ai-sdk/perplexity": "^3.0.23",
     "@ai-sdk/provider": "^3.0.8",
@@ -496,7 +496,7 @@
       "@openrouter/ai-sdk-provider": "patches/@openrouter__ai-sdk-provider.patch",
       "@opeoginni/github-copilot-openai-compatible@1.0.0": "patches/@opeoginni__github-copilot-openai-compatible@1.0.0.patch",
       "@ai-sdk/openai-compatible@2.0.37": "patches/@ai-sdk__openai-compatible@2.0.37.patch",
-      "@ai-sdk/openai@3.0.49": "patches/@ai-sdk__openai@3.0.49.patch",
+      "@ai-sdk/openai@3.0.53": "patches/@ai-sdk__openai@3.0.53.patch",
       "@ai-sdk/google@3.0.55": "patches/@ai-sdk__google@3.0.55.patch"
     },
     "onlyBuiltDependencies": [
