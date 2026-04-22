@@ -475,14 +475,22 @@ export type MessageDataBlock =
   | CompactBlock
 
 /**
- * Runtime schema for `MessageData`. The discriminated-union block types are
- * runtime-opaque for now — the JSON blob is trusted because it only flows
- * `main → renderer` after being validated at the create-time block-factory
- * layer. A future pass can tighten this with a discriminated union per block.
+ * Runtime schema for `MessageData`. Both `blocks` (deprecated v1) and
+ * `parts` (v2 canonical) are optional on the TypeScript interface and
+ * the DB column, so the runtime check mirrors that: accept any object,
+ * reject only if either present field is the wrong shape. The previous
+ * implementation required `Array.isArray(value.blocks)` which broke
+ * v2-native writes like `{ data: { parts: [...] } }` from `MessageEditor`.
+ * The discriminated-union block / part types stay runtime-opaque for
+ * now; tighten with per-entry schemas in a follow-up.
  */
-export const MessageDataSchema = z.custom<MessageData>(
-  (value) => typeof value === 'object' && value !== null && Array.isArray((value as MessageData).blocks)
-)
+export const MessageDataSchema = z.custom<MessageData>((value) => {
+  if (typeof value !== 'object' || value === null) return false
+  const v = value as MessageData
+  if (v.blocks !== undefined && !Array.isArray(v.blocks)) return false
+  if (v.parts !== undefined && !Array.isArray(v.parts)) return false
+  return true
+})
 
 // ============================================================================
 // Snapshot Types (immutable records captured at message creation time)
