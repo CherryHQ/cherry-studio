@@ -95,7 +95,7 @@ const RetrievalSection = ({
         <RagFieldLabel label={t('models.rerank_model')} />
         <RagSelectField
           value={rerankModelId ?? EMPTY_OPTION_VALUE}
-          options={[{ value: EMPTY_OPTION_VALUE, label: t('knowledge.not_set') }, ...rerankModelOptions]}
+          options={[{ value: EMPTY_OPTION_VALUE, label: t('knowledge_v2.not_set') }, ...rerankModelOptions]}
           onValueChange={(value) => onRerankModelChange(value === EMPTY_OPTION_VALUE ? null : value)}
         />
       </div>

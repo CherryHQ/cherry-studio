@@ -21,20 +21,20 @@ const EmbeddingSection = ({
 
   return (
     <section className="space-y-2.5">
-      <RagSectionTitle title={t('knowledge.embedding_model')} icon={DatabaseZap} />
+      <RagSectionTitle title={t('knowledge_v2.embedding_model')} icon={DatabaseZap} />
 
       <div className="grid grid-cols-[minmax(0,1fr)_8.75rem] gap-2">
         <div>
-          <RagFieldLabel label={t('knowledge.embedding_model')} />
+          <RagFieldLabel label={t('knowledge_v2.embedding_model')} />
           <RagSelectField
             value={embeddingModelId ?? undefined}
             options={embeddingModelOptions}
-            placeholder={t('knowledge.not_set')}
+            placeholder={t('knowledge_v2.not_set')}
             onValueChange={onEmbeddingModelChange}
           />
         </div>
 
-        <RagReadonlyField label={t('knowledge.dimensions')} value={String(dimensions)} />
+        <RagReadonlyField label={t('knowledge_v2.dimensions')} value={String(dimensions)} />
       </div>
     </section>
   )

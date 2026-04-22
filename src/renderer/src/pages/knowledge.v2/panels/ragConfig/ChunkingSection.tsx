@@ -41,13 +41,13 @@ const ChunkingSection = ({
 
       <div className="grid grid-cols-2 gap-2">
         <RagNumericField
-          label={t('knowledge.chunk_size')}
+          label={t('knowledge_v2.rag.chunk_size')}
           value={chunkSize}
           suffix={t('knowledge_v2.rag.tokens_unit')}
           onChange={onChunkSizeChange}
         />
         <RagNumericField
-          label={t('knowledge.chunk_overlap')}
+          label={t('knowledge_v2.rag.chunk_overlap')}
           value={chunkOverlap}
           suffix={t('knowledge_v2.rag.tokens_unit')}
           onChange={onChunkOverlapChange}
@@ -60,7 +60,7 @@ const ChunkingSection = ({
       {chunkOverlapErrorCode ? (
         <RagHintText tone="error">{getValidationErrorMessage(chunkOverlapErrorCode)}</RagHintText>
       ) : null}
-      <RagHintText tone="warning">{t('knowledge.chunk_size_change_warning')}</RagHintText>
+      <RagHintText tone="warning">{t('knowledge_v2.rag.chunk_size_change_warning')}</RagHintText>
     </section>
   )
 }

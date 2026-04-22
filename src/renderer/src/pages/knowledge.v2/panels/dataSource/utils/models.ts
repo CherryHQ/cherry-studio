@@ -102,7 +102,7 @@ export const resolveDataSourceStatusViewModel = (item: Pick<KnowledgeItem, 'stat
   if (item.status === 'pending') {
     return {
       kind: 'processing',
-      labelKey: 'knowledge.status_pending',
+      labelKey: 'knowledge_v2.data_source.status.pending',
       textClassName: 'text-zinc-500/70',
       icon: 'loader'
     }

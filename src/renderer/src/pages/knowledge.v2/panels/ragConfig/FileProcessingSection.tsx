@@ -27,7 +27,7 @@ const FileProcessingSection = ({
         <RagFieldLabel label={t('knowledge_v2.rag.processor')} />
         <RagSelectField
           value={fileProcessorId ?? EMPTY_OPTION_VALUE}
-          options={[{ value: EMPTY_OPTION_VALUE, label: t('knowledge.not_set') }, ...fileProcessorOptions]}
+          options={[{ value: EMPTY_OPTION_VALUE, label: t('knowledge_v2.not_set') }, ...fileProcessorOptions]}
           onValueChange={(value) => onFileProcessorChange(value === EMPTY_OPTION_VALUE ? null : value)}
         />
       </div>

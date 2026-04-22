@@ -167,9 +167,11 @@ describe('useKnowledgeConfig', () => {
     expect(mockTrigger).toHaveBeenCalledWith({
       params: { id: 'base-1' },
       body: {
+        fileProcessorId: null,
         chunkSize: 1536,
         chunkOverlap: 256,
         embeddingModelId: 'voyage::voyage-3-large',
+        rerankModelId: null,
         documentCount: 10,
         threshold: 0.25,
         searchMode: 'default',

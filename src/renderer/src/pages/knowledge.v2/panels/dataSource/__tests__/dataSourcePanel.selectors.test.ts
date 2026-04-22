@@ -41,7 +41,7 @@ describe('dataSourcePanel.selectors', () => {
     })
     expect(getItemStatus(createFileItem({ id: 'file-5', status: 'pending' }))).toEqual({
       kind: 'processing',
-      labelKey: 'knowledge.status_pending',
+      labelKey: 'knowledge_v2.data_source.status.pending',
       textClassName: 'text-zinc-500/70',
       icon: 'loader'
     })
