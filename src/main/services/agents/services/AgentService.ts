@@ -8,6 +8,7 @@ import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { modelsService } from '@main/apiServer/services/models'
+import { DataApiErrorFactory } from '@shared/data/api'
 import type {
   AgentEntity,
   CreateAgentRequest,
@@ -436,7 +437,7 @@ export class AgentService {
 
     if (updates.accessible_paths !== undefined) {
       if (updates.accessible_paths.length === 0) {
-        throw new Error('accessible_paths must not be empty')
+        throw DataApiErrorFactory.validation({ accessible_paths: ['must not be empty'] })
       }
       updates.accessible_paths = resolveAccessiblePaths(updates.accessible_paths, id)
     }

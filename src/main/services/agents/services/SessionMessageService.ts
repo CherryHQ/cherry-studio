@@ -526,7 +526,16 @@ export class SessionMessageService {
   }
 
   private rowToEntity(row: SessionMessageRow): AgentSessionMessageEntity {
-    return row as unknown as AgentSessionMessageEntity
+    return {
+      id: row.id,
+      session_id: row.sessionId,
+      role: row.role as AgentSessionMessageEntity['role'],
+      content: row.content,
+      agent_session_id: row.agentSessionId ?? '',
+      metadata: row.metadata ?? undefined,
+      created_at: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
+      updated_at: row.updatedAt ? new Date(row.updatedAt).toISOString() : new Date().toISOString()
+    }
   }
 
   async persistUserMessage(

@@ -286,7 +286,7 @@ export class SessionService {
 
     if (updates.accessible_paths !== undefined) {
       if (updates.accessible_paths.length === 0) {
-        throw new Error('accessible_paths must not be empty')
+        throw DataApiErrorFactory.validation({ accessible_paths: ['must not be empty'] })
       }
       updates.accessible_paths = resolveAccessiblePaths(updates.accessible_paths, existing.agent_id)
     }
