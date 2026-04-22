@@ -671,7 +671,7 @@ function getFallbackBudgetTokens(reasoningEffort: string | undefined): number {
 export function getAnthropicReasoningParams(
   assistant: Assistant,
   model: Model
-): Pick<AnthropicProviderOptions, 'thinking' | 'effort'> {
+): { thinking?: AnthropicProviderOptions['thinking']; effort?: AnthropicProviderOptions['effort'] } {
   if (!isReasoningModel(model)) {
     return {}
   }

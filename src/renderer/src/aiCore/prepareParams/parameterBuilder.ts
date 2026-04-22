@@ -59,6 +59,16 @@ function validateMaxToolCalls(value: number | undefined): number {
   return value
 }
 
+export function getEffectiveMaxToolCalls(settings?: { maxToolCalls?: number; enableMaxToolCalls?: boolean }): number {
+  const enableMaxToolCalls = settings?.enableMaxToolCalls ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxToolCalls
+
+  if (!enableMaxToolCalls) {
+    return DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
+  }
+
+  return validateMaxToolCalls(settings?.maxToolCalls)
+}
+
 function mapVertexAIGatewayModelToProviderId(model: Model): AppProviderId | undefined {
   if (isAnthropicModel(model)) {
     return 'anthropic'
@@ -192,10 +202,9 @@ export async function buildStreamTextParams(
   // are extracted from custom parameters and passed directly to streamText()
   // instead of being placed in providerOptions
 
-  // Get max tool calls from assistant settings
-  // When enabled, validate and use user-defined value (1-100)
-  // When disabled, don't pass stopWhen - let AI SDK use its own default
-  const enableMaxToolCalls = assistant.settings?.enableMaxToolCalls ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxToolCalls
+  // AI SDK defaults to stepCountIs(1), which would stop after the first tool call.
+  // Always pass an explicit cap so native tool use can continue across steps.
+  const maxToolCalls = getEffectiveMaxToolCalls(assistant.settings)
 
   const params: StreamTextParams = {
     messages: sdkMessages,
@@ -211,12 +220,7 @@ export async function buildStreamTextParams(
     maxRetries: 0
   }
 
-  // Only add stopWhen when explicitly enabled and validated
-  if (enableMaxToolCalls) {
-    const maxToolCalls = validateMaxToolCalls(assistant.settings?.maxToolCalls)
-    params.stopWhen = stepCountIs(maxToolCalls)
-  }
-  // When disabled, don't pass stopWhen - let AI SDK use its own default
+  params.stopWhen = stepCountIs(maxToolCalls)
 
   if (tools) {
     params.tools = tools

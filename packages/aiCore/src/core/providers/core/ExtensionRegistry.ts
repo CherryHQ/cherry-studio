@@ -184,6 +184,7 @@ export class ExtensionRegistry {
       }
     }
 
+    // oxlint-disable-next-line typescript/no-unnecessary-type-assertion
     return Array.from(ids) as RegisteredProviderId[]
   }
 
