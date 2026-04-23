@@ -762,6 +762,37 @@ describe('reasoning utils', () => {
       })
     })
 
+    it('should return adaptive thinking for Claude Opus 4.7', async () => {
+      const { isReasoningModel, isSupportedThinkingTokenClaudeModel } = await import('@renderer/config/models')
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isSupportedThinkingTokenClaudeModel).mockReturnValue(true)
+
+      const model: Model = {
+        id: 'claude-opus-4-7',
+        name: 'Claude Opus 4.7',
+        provider: SystemProviderIds.anthropic
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: {
+          reasoning_effort: 'high',
+          maxTokens: 4096
+        }
+      } as Assistant
+
+      const result = getAnthropicReasoningParams(assistant, model)
+      expect(result).toEqual({
+        thinking: {
+          type: 'adaptive'
+        },
+        effort: 'high'
+      })
+      expect(result.thinking).not.toHaveProperty('budgetTokens')
+    })
+
     it('should use fallback budgetTokens when findTokenLimit returns undefined for Claude model', async () => {
       const { isReasoningModel, isSupportedThinkingTokenClaudeModel, findTokenLimit } = await import(
         '@renderer/config/models'
@@ -1461,6 +1492,37 @@ describe('reasoning utils', () => {
           budgetTokens: 4096
         }
       })
+    })
+
+    it('should return adaptive reasoning config for Claude Opus 4.7 on Bedrock', async () => {
+      const { isReasoningModel, isSupportedThinkingTokenClaudeModel } = await import('@renderer/config/models')
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isSupportedThinkingTokenClaudeModel).mockReturnValue(true)
+
+      const model: Model = {
+        id: 'claude-opus-4-7',
+        name: 'Claude Opus 4.7',
+        provider: 'bedrock'
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: {
+          reasoning_effort: 'high',
+          maxTokens: 4096
+        }
+      } as Assistant
+
+      const result = getBedrockReasoningParams(assistant, model)
+      expect(result).toEqual({
+        reasoningConfig: {
+          type: 'adaptive',
+          maxReasoningEffort: 'high'
+        }
+      })
+      expect(result.reasoningConfig).not.toHaveProperty('budgetTokens')
     })
   })
 

@@ -299,6 +299,13 @@ describe('modelParameters', () => {
       expect(getMaxTokens(assistant, model)).toBe(64000)
     })
 
+    it('returns user-configured maxTokens for Claude Opus 4.7 without subtraction', () => {
+      const assistant = createAssistant({ enableMaxTokens: true, maxTokens: 128000 })
+      const model = createModel({ id: 'claude-opus-4-7', provider: 'anthropic', group: 'claude' })
+
+      expect(getMaxTokens(assistant, model)).toBe(128000)
+    })
+
     it('subtracts thinking budget for non-4.6 Claude models with anthropic provider', () => {
       const assistant = createAssistant({ enableMaxTokens: true, maxTokens: 16384 })
       const model = createModel({ id: 'claude-sonnet-4', provider: 'anthropic', group: 'claude' })
