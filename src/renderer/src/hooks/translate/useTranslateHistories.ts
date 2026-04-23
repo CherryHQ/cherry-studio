@@ -1,8 +1,12 @@
 import { dataApiService } from '@data/DataApiService'
+import { loggerService } from '@logger'
 import { TRANSLATE_HISTORY_DEFAULT_LIMIT } from '@shared/data/api/schemas/translate'
 import type { TranslateHistory } from '@shared/data/types/translate'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import useSWRInfinite from 'swr/infinite'
+
+const logger = loggerService.withContext('translate/useTranslateHistories')
 
 interface UseTranslateHistoriesOptions {
   /** Full-text search on sourceText/targetText (server-side LIKE). */
@@ -63,6 +67,18 @@ export const useTranslateHistories = ({
   )
 
   const { data, error, isLoading, isValidating, mutate, size, setSize } = useSWRInfinite(getKey, fetcher)
+
+  const { t } = useTranslation()
+  // One-shot UX surface: mirror useLanguages — only notify the user once per
+  // session on load failure so SWR retries don't spam toasts.
+  const toastedRef = useRef(false)
+  useEffect(() => {
+    if (error && !toastedRef.current) {
+      toastedRef.current = true
+      logger.error('Failed to load translate histories', error)
+      window.toast.error(t('translate.history.error.load'))
+    }
+  }, [error, t])
 
   const items = useMemo(() => data?.flatMap((p) => p.items) ?? [], [data])
   const total = data?.[0]?.total ?? 0
