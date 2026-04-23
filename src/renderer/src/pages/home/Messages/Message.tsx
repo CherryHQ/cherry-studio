@@ -123,6 +123,11 @@ const MessageItem: FC<Props> = ({
   const isLastMessage = index === 0 || !!isGrouped
   const isAssistantMessage = message.role === 'assistant'
   const isProcessing = isMessageProcessing(message)
+  // Messages belonging to a different topic are "shared context" from a
+  // source topic. They keep read-only actions (copy, export, new-branch)
+  // but suppress writes (edit, delete, regenerate, translate, sibling
+  // navigation) so the fork's scope is preserved.
+  const isShared = message.topicId !== topic.id
   const showMenubar = !hideMenuBar && !isEditing && !isProcessing
 
   const messageHighlightHandler = useCallback(
@@ -156,10 +161,12 @@ const MessageItem: FC<Props> = ({
     return () => unsubscribes.forEach((unsub) => unsub())
   }, [message.id, messageHighlightHandler])
 
-  // Listen for external edit requests and activate editor for this message if it matches
+  // Listen for external edit requests and activate editor for this message if it matches.
+  // Shared messages are never editable (see `isShared` comment above), so
+  // guard the listener against the global "edit last user message" shortcut.
   useEffect(() => {
     const handleEditRequest = (targetId: string) => {
-      if (targetId === message.id) {
+      if (targetId === message.id && !isShared) {
         startEditing(message.id)
       }
     }
@@ -167,7 +174,7 @@ const MessageItem: FC<Props> = ({
     return () => {
       unsubscribe()
     }
-  }, [message.id, startEditing])
+  }, [message.id, startEditing, isShared])
 
   if (message.type === 'clear') {
     return (
@@ -177,10 +184,10 @@ const MessageItem: FC<Props> = ({
           if (isMultiSelectMode) return
           void EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
         }}>
-        <div className="mx-5 my-0 flex items-center gap-2 text-[var(--color-text-3)] text-sm">
-          <hr className="flex-1 border-[var(--color-border)] border-dashed" />
+        <div className="mx-5 my-0 flex items-center gap-2 text-(--color-text-3) text-sm">
+          <hr className="flex-1 border-(--color-border) border-dashed" />
           <span>{t('chat.message.new.context')}</span>
-          <hr className="flex-1 border-[var(--color-border)] border-dashed" />
+          <hr className="flex-1 border-(--color-border) border-dashed" />
         </div>
       </div>
     )
@@ -191,7 +198,7 @@ const MessageItem: FC<Props> = ({
       <div
         key={message.id}
         className={classNames({
-          'message relative flex w-full flex-col rounded-[10px] p-[10px] pb-0 transition-colors duration-300 [transform:translateZ(0)] [will-change:transform] [&:hover_.menubar]:opacity-100 [&_.menubar.show]:opacity-100 [&_.menubar]:opacity-0 [&_.menubar]:transition-opacity [&_.menubar]:duration-200': true,
+          'message relative flex w-full flex-col rounded-[10px] p-[10px] pb-0 transition-colors duration-300 transform-[translateZ(0)] will-change-transform [&:hover_.menubar]:opacity-100 [&_.menubar.show]:opacity-100 [&_.menubar]:opacity-0 [&_.menubar]:transition-opacity [&_.menubar]:duration-200': true,
           'message-assistant': isAssistantMessage,
           'message-user': !isAssistantMessage
         })}
@@ -250,7 +257,7 @@ const MessageItem: FC<Props> = ({
                     onUpdateUseful={onUpdateUseful}
                   />
                 </HorizontalScrollContainer>
-                <SiblingNavigator messageId={message.id} />
+                {!isShared && <SiblingNavigator messageId={message.id} />}
               </div>
             )}
           </>

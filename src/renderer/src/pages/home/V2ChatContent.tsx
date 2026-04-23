@@ -222,6 +222,24 @@ const V2ChatContentInner: FC<InnerProps> = ({
     return [...adaptedMessages, ...executionOverlayMessages.filter((m) => !adaptedIds.has(m.id))]
   }, [adaptedMessages, executionOverlayMessages])
 
+  // Visibility rule for forked topics (Option B architecture):
+  //   - Before the user has sent anything in the fork, show all shared
+  //     ancestors as read-only context so they can see what they're
+  //     continuing from.
+  //   - After the user's first local message, hide shared context entirely;
+  //     the fork visually becomes its own conversation even though the LLM
+  //     continues to receive the full history.
+  // Non-forked topics are a no-op here (every message's `topicId` equals
+  // `topic.id`).
+  const hasLocalDivergence = useMemo(
+    () => mergedMessages.some((m) => m.topicId === topic.id),
+    [mergedMessages, topic.id]
+  )
+  const visibleMessages = useMemo(
+    () => (hasLocalDivergence ? mergedMessages.filter((m) => m.topicId === topic.id) : mergedMessages),
+    [hasLocalDivergence, mergedMessages, topic.id]
+  )
+
   const mergedPartsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
     const nextPartsMap = { ...partsMap }
     for (const executionId of activeExecutionIds) {
@@ -632,7 +650,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
                     />
                   ))}
 
-                  <Messages key={topic.id} assistant={assistant} topic={topic} messages={mergedMessages} />
+                  <Messages key={topic.id} assistant={assistant} topic={topic} messages={visibleMessages} />
 
                   <Inputbar assistant={assistant} topic={topic} setActiveTopic={setActiveTopic} onSend={handleSendV2} />
                 </div>

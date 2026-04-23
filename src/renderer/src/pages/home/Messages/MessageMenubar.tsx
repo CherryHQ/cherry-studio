@@ -256,10 +256,20 @@ const MessageMenubar: FC<Props> = (props) => {
   const { buttonIds, dropdownRootAllowKeys } = getMessageMenubarConfig(menubarScope)
 
   const isEditable = useMemo(() => hasTextParts(messageParts), [messageParts])
+  // In forked topics, shared ancestors keep read-only actions (copy, export,
+  // new-branch) but the write-flavored button renderers gate themselves on
+  // this flag so no separate `readOnly` prop has to thread through the tree.
+  const supportsWrites = message.topicId === topic.id
 
   const dropdownItems = useMemo(() => {
+    // Assistant edit is intentionally hidden from the UI — editing an LLM
+    // reply in-place produces a confusing "the AI said X" fiction in the
+    // context window. Power users can still get the effect via edit-and-
+    // resend on their own prompt. `user-edit` primary button already role-
+    // gates; mirror that here for the overflow dropdown.
+    const canEditHere = isEditable && supportsWrites && isUserMessage
     const items: MenuProps['items'] = [
-      ...(isEditable
+      ...(canEditHere
         ? [
             {
               label: t('common.edit'),
@@ -439,6 +449,7 @@ const MessageMenubar: FC<Props> = (props) => {
     messageContainerRef,
     onEdit,
     onNewBranch,
+    supportsWrites,
     t,
     toggleMultiSelectMode,
     topic.name
@@ -491,7 +502,7 @@ const MessageMenubar: FC<Props> = (props) => {
     setShowDeleteTooltip,
     showDeleteTooltip,
     softHoverBg,
-    supportsWrites: true,
+    supportsWrites,
     t,
     translateLanguages
   }
@@ -543,10 +554,11 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
     confirmRegenerateMessage,
     handleResendUserMessage,
     setShowDeleteTooltip,
+    supportsWrites,
     t,
     isBubbleStyle
   }) => {
-    if (message.role !== 'user') {
+    if (message.role !== 'user' || !supportsWrites) {
       return null
     }
 
