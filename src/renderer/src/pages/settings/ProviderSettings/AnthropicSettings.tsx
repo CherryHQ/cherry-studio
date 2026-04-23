@@ -1,7 +1,7 @@
 import { ExclamationCircleOutlined } from '@ant-design/icons'
-import { Button } from '@cherrystudio/ui'
+import { Button, Input } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { Alert, Input, Modal } from 'antd'
+import { Alert, Modal } from 'antd'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 

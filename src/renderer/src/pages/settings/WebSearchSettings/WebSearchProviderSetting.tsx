@@ -1,5 +1,5 @@
 import { CheckOutlined, ExportOutlined, LoadingOutlined } from '@ant-design/icons'
-import { Button, Divider, Flex, InfoTooltip, RowFlex, Tooltip } from '@cherrystudio/ui'
+import { Button, Divider, Flex, InfoTooltip, Input, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import ApiKeyListPopup from '@renderer/components/Popups/ApiKeyListPopup/popup'
 import { getWebSearchProviderLogo, WEB_SEARCH_PROVIDER_CONFIG } from '@renderer/config/webSearchProviders'
@@ -8,7 +8,7 @@ import { useDefaultWebSearchProvider, useWebSearchProvider } from '@renderer/hoo
 import { webSearchService } from '@renderer/services/WebSearchService'
 import type { WebSearchProviderId } from '@renderer/types'
 import { formatApiKeys, hasObjectKey } from '@renderer/utils'
-import { Form, Input } from 'antd'
+import { Form, Input as AntdInput } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { List } from 'lucide-react'
 import type { FC } from 'react'
@@ -210,13 +210,13 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
             </Tooltip>
           </SettingSubtitle>
           <Flex className="gap-2">
-            <Input.Password
+            <Input
+              type="password"
               value={apiKey}
               placeholder={t('settings.provider.api_key.label')}
               onChange={(e) => setApiKey(formatApiKeys(e.target.value))}
               onBlur={onUpdateApiKey}
               spellCheck={false}
-              type="password"
               autoFocus={apiKey === ''}
             />
             <Button variant={apiValid ? 'ghost' : 'default'} onClick={checkSearch} disabled={apiChecking}>
@@ -290,7 +290,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
                 }
               }}>
               <Form.Item label={t('settings.provider.basic_auth.user_name.label')} name="username">
-                <Input
+                <AntdInput
                   placeholder={t('settings.provider.basic_auth.user_name.tip')}
                   onBlur={onUpdateBasicAuthUsername}
                 />
@@ -301,7 +301,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
                 rules={[{ required: !!basicAuthUsername, validateTrigger: ['onBlur', 'onChange'] }]}
                 help=""
                 hidden={!basicAuthUsername}>
-                <Input.Password
+                <AntdInput.Password
                   placeholder={t('settings.provider.basic_auth.password.tip')}
                   onBlur={onUpdateBasicAuthPassword}
                   disabled={!basicAuthUsername}

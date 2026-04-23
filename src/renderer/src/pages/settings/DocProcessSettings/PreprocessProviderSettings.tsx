@@ -1,12 +1,11 @@
 import { ExportOutlined } from '@ant-design/icons'
-import { Button, Divider, Flex, Tooltip } from '@cherrystudio/ui'
+import { Button, Divider, Flex, Input, Tooltip } from '@cherrystudio/ui'
 import { LogoAvatar } from '@renderer/components/Icons'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
 import { getPreprocessProviderLogo, PREPROCESS_PROVIDER_CONFIG } from '@renderer/config/preprocessProviders'
 import { usePreprocessProvider } from '@renderer/hooks/usePreprocess'
 import type { PreprocessProvider } from '@renderer/types'
 import { formatApiKeys, hasObjectKey } from '@renderer/utils'
-import { Input } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { List } from 'lucide-react'
 import type { FC } from 'react'
@@ -97,7 +96,8 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
             )}
           </SettingSubtitle>
           <Flex className="gap-2">
-            <Input.Password
+            <Input
+              type="password"
               value={apiKey}
               placeholder={
                 preprocessProvider.id === 'paddleocr'
@@ -107,7 +107,6 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
               onChange={(e) => setApiKey(formatApiKeys(e.target.value))}
               onBlur={onUpdateApiKey}
               spellCheck={false}
-              type="password"
               autoFocus={apiKey === ''}
             />
           </Flex>

@@ -1,10 +1,8 @@
-import { Button, InfoTooltip, RowFlex } from '@cherrystudio/ui'
+import { Button, InfoTooltip, Input, RowFlex } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
-import { Space } from 'antd'
-import { Input } from 'antd'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -100,8 +98,9 @@ const YuqueSettings: FC = () => {
           />
         </SettingRowTitle>
         <RowFlex className="w-[315px] items-center gap-[5px]">
-          <Space.Compact style={{ width: '100%' }}>
-            <Input.Password
+          <RowFlex className="w-full items-center gap-[5px]">
+            <Input
+              type="password"
               value={yuqueToken || ''}
               onChange={handleYuqueTokenChange}
               onBlur={handleYuqueTokenChange}
@@ -109,7 +108,7 @@ const YuqueSettings: FC = () => {
               style={{ width: '100%' }}
             />
             <Button onClick={handleYuqueConnectionCheck}>{t('settings.data.yuque.check.button')}</Button>
-          </Space.Compact>
+          </RowFlex>
         </RowFlex>
       </SettingRow>
     </SettingGroup>

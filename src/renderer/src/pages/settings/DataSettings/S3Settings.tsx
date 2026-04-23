@@ -1,5 +1,5 @@
 import { FolderOpenOutlined, SaveOutlined, SyncOutlined } from '@ant-design/icons'
-import { Button, InfoTooltip, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
+import { Button, InfoTooltip, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { S3BackupManager } from '@renderer/components/S3BackupManager'
 import { S3BackupModal, useS3BackupModal } from '@renderer/components/S3Modals'
@@ -9,7 +9,6 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
 import { useAppSelector } from '@renderer/store'
-import { Input } from 'antd'
 import dayjs from 'dayjs'
 import type { FC } from 'react'
 import { useState } from 'react'
@@ -162,7 +161,8 @@ const S3Settings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.s3.secretAccessKey.label')}</SettingRowTitle>
-        <Input.Password
+        <Input
+          type="password"
           placeholder={t('settings.data.s3.secretAccessKey.placeholder')}
           value={s3SecretAccessKey}
           onChange={(e) => setS3SecretAccessKey(e.target.value)}

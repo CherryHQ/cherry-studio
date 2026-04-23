@@ -1,7 +1,7 @@
-import { RowFlex } from '@cherrystudio/ui'
+import { Input, RowFlex } from '@cherrystudio/ui'
 import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useVertexAISettings } from '@renderer/hooks/useVertexAI'
-import { Alert, Input } from 'antd'
+import { Alert, Input as AntdInput } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -73,7 +73,8 @@ const VertexAISettings = () => {
       <SettingSubtitle style={{ marginTop: 5 }}>
         {t('settings.provider.vertex_ai.service_account.client_email')}
       </SettingSubtitle>
-      <Input.Password
+      <Input
+        type="password"
         value={serviceAccount.clientEmail}
         placeholder={t('settings.provider.vertex_ai.service_account.client_email_placeholder')}
         onChange={handleServiceAccountClientEmailChange}
@@ -87,7 +88,7 @@ const VertexAISettings = () => {
       <SettingSubtitle style={{ marginTop: 5 }}>
         {t('settings.provider.vertex_ai.service_account.private_key')}
       </SettingSubtitle>
-      <Input.TextArea
+      <AntdInput.TextArea
         value={serviceAccount.privateKey}
         placeholder={t('settings.provider.vertex_ai.service_account.private_key_placeholder')}
         onChange={handleServiceAccountPrivateKeyChange}
@@ -108,7 +109,8 @@ const VertexAISettings = () => {
       )}
       <>
         <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.vertex_ai.project_id')}</SettingSubtitle>
-        <Input.Password
+        <Input
+          type="password"
           value={localProjectId}
           placeholder={t('settings.provider.vertex_ai.project_id_placeholder')}
           onChange={handleProjectIdChange}

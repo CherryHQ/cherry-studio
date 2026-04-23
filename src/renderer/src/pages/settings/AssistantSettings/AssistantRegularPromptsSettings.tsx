@@ -1,11 +1,11 @@
 import { ExclamationCircleOutlined } from '@ant-design/icons'
-import { Flex } from '@cherrystudio/ui'
+import { Flex, Input, Textarea } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
 import { DraggableList } from '@renderer/components/DraggableList'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import FileItem from '@renderer/pages/files/FileItem'
 import type { Assistant, QuickPhrase } from '@renderer/types'
-import { Input, Modal, Popconfirm, Space } from 'antd'
+import { Modal, Popconfirm, Space } from 'antd'
 import { PlusIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -13,8 +13,6 @@ import { useTranslation } from 'react-i18next'
 import { v4 as uuidv4 } from 'uuid'
 
 import { SettingDivider, SettingRow, SettingTitle } from '..'
-
-const { TextArea } = Input
 
 interface AssistantRegularPromptsSettingsProps {
   assistant: Assistant
@@ -161,7 +159,7 @@ const AssistantRegularPromptsSettings: FC<AssistantRegularPromptsSettingsProps> 
             <div className="mb-2 text-foreground text-sm">
               {t('assistants.settings.regular_phrases.contentLabel', 'Content')}
             </div>
-            <TextArea
+            <Textarea.Input
               placeholder={t('assistants.settings.regular_phrases.contentPlaceholder', 'Enter content')}
               value={formData.content}
               onChange={(e) => setFormData({ ...formData, content: e.target.value })}

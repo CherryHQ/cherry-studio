@@ -1,5 +1,5 @@
 import { ExclamationCircleOutlined } from '@ant-design/icons'
-import { Flex } from '@cherrystudio/ui'
+import { Flex, Input, Textarea } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
 import { DraggableList } from '@renderer/components/DraggableList'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
@@ -7,15 +7,13 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import FileItem from '@renderer/pages/files/FileItem'
 import QuickPhraseService from '@renderer/services/QuickPhraseService'
 import type { QuickPhrase } from '@renderer/types'
-import { Input, Modal, Popconfirm, Space } from 'antd'
+import { Modal, Popconfirm, Space } from 'antd'
 import { PlusIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingTitle } from '.'
-
-const { TextArea } = Input
 
 const QuickPhraseSettings: FC = () => {
   const { t } = useTranslation()
@@ -144,7 +142,7 @@ const QuickPhraseSettings: FC = () => {
           </div>
           <div>
             <div className="mb-2 text-foreground text-sm">{t('settings.quickPhrase.contentLabel')}</div>
-            <TextArea
+            <Textarea.Input
               placeholder={t('settings.quickPhrase.contentPlaceholder')}
               value={formData.content}
               onChange={(e) => setFormData({ ...formData, content: e.target.value })}

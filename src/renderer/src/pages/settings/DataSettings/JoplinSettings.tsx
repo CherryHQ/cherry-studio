@@ -1,12 +1,10 @@
-import { InfoTooltip, RowFlex } from '@cherrystudio/ui'
+import { InfoTooltip, Input, RowFlex } from '@cherrystudio/ui'
 import { Switch } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
-import { Space } from 'antd'
-import { Input } from 'antd'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -107,8 +105,9 @@ const JoplinSettings: FC = () => {
           />
         </SettingRowTitle>
         <RowFlex className="w-[315px] items-center gap-[5px]">
-          <Space.Compact style={{ width: '100%' }}>
-            <Input.Password
+          <RowFlex className="w-full items-center gap-[5px]">
+            <Input
+              type="password"
               value={joplinToken || ''}
               onChange={handleJoplinTokenChange}
               onBlur={handleJoplinTokenChange}
@@ -116,7 +115,7 @@ const JoplinSettings: FC = () => {
               style={{ width: '100%' }}
             />
             <Button onClick={handleJoplinConnectionCheck}>{t('settings.data.joplin.check.button')}</Button>
-          </Space.Compact>
+          </RowFlex>
         </RowFlex>
       </SettingRow>
       <SettingDivider />
