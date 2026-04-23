@@ -14,10 +14,13 @@ import { createUpdateTimestamps, uuidPrimaryKey, uuidPrimaryKeyOrdered } from '.
  *
  * Flat list; no tree structure, no mount concept.
  *
- * - origin='internal': Cherry owns the content, stored at `{userData}/files/{id}.{ext}`
- *   name/ext/size are authoritative.
+ * - origin='internal': Cherry owns the content, stored at `{userData}/files/{id}.{ext}`.
+ *   `name` / `ext` / `size` are authoritative (kept in sync by atomic writes).
  * - origin='external': Cherry only references the user-provided path.
- *   name/ext/size are last-observed snapshots (refreshed on critical operations or manual refresh).
+ *   `name` / `ext` are pure projections of `externalPath` (basename / extname).
+ *   `size` is NOT stored for external — external files can change outside
+ *   Cherry at any time, so a DB snapshot would inevitably drift. Consumers
+ *   needing a live value call File IPC `getMetadata(id)` which runs `fs.stat`.
  */
 export const fileEntryTable = sqliteTable(
   'file_entry',
@@ -28,12 +31,16 @@ export const fileEntryTable = sqliteTable(
     origin: text().notNull(),
 
     // ─── Display / metadata ───
-    /** User-visible name (without extension). internal: authoritative; external: snapshot of basename */
+    /** User-visible name (without extension). internal: authoritative; external: basename of externalPath */
     name: text().notNull(),
     /** Extension without leading dot (e.g. 'pdf', 'md'). Null for extensionless files */
     ext: text(),
-    /** File size in bytes. internal: authoritative; external: last-observed snapshot */
-    size: integer().notNull(),
+    /**
+     * File size in bytes. Non-null iff origin='internal' (enforced by
+     * `fe_size_internal_only`). For external entries this is always NULL; the
+     * live value is read via File IPC `getMetadata`.
+     */
+    size: integer(),
 
     // ─── External ───
     /** Absolute path to the user-provided file. Non-null iff origin='external' */
@@ -73,11 +80,16 @@ export const fileEntryTable = sqliteTable(
     // External removal is always immediate via permanentDelete (DB-only; the
     // physical file is left untouched, path-level ops.remove is a separate call).
     check('fe_external_no_trash', sql`${t.origin} != 'external' OR ${t.trashedAt} IS NULL`),
-    // Size is a byte count and must be non-negative. The Zod layer already
-    // rejects negatives, but anything that bypasses Zod (direct Drizzle insert
-    // from a Phase 1b migrator or a buggy test harness) would otherwise leak
-    // into the DB. Belt-and-suspenders: keep invariants at both ends.
-    check('fe_size_nonneg', sql`${t.size} >= 0`)
+    // Size semantics are origin-dependent: internal rows carry an authoritative
+    // byte count (non-null, ≥ 0); external rows must leave size NULL and read
+    // live values from File IPC `getMetadata`. The Zod layer rejects the same
+    // shapes, but anything that bypasses Zod (direct Drizzle insert from a
+    // migrator or a buggy test harness) would otherwise leak into the DB.
+    // Belt-and-suspenders: keep invariants at both ends.
+    check(
+      'fe_size_internal_only',
+      sql`(${t.origin} = 'internal' AND ${t.size} IS NOT NULL AND ${t.size} >= 0) OR (${t.origin} = 'external' AND ${t.size} IS NULL)`
+    )
   ]
 )
 

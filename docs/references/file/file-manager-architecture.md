@@ -80,12 +80,12 @@ Invariants:
 
 | Field | origin='internal' | origin='external' |
 |---|---|---|
-| `name` | SoT (user can rename actively) | Derived snapshot of the basename observed last time |
-| `ext` | SoT | Extension observed last time |
-| `size` | SoT | Bytes observed last time |
+| `name` | SoT (user can rename actively) | Pure projection of `externalPath` (basename) |
+| `ext` | SoT | Pure projection of `externalPath` (extname) |
+| `size` | SoT (non-null, ≥ 0) | **Always `null`** — no DB snapshot; live value via `getMetadata` |
 | `externalPath` | NULL | Absolute path (the authoritative identity of external) |
 
-`external`'s `name/ext/size` is essentially a **derived snapshot of the external file**, updated by file_module when a refresh is triggered.
+For external entries the row stores only identity + stable projections. `name` / `ext` do not drift because `externalPath` is fixed for the lifetime of the entry (external rename by the user surfaces as a dangling entry, not an in-place rewrite of `name`). `size` / `mtime` are served live by File IPC `getMetadata(id)` on demand — see [§3 External Entry Liveness Model](#3-external-entry-liveness-model).
 
 ### 1.3 FileRef (Business Reference)
 
@@ -117,7 +117,7 @@ When a business object is deleted, the business Service is responsible for clean
 | Category                                                                                                              | Methods                                                                                                          |
 | --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | **Accept `FileHandle`** (entry + path branches via IPC dispatch)                                                      | `read` / `getMetadata` / `getVersion` / `getContentHash` / `write` / `writeIfUnchanged` / `rename` / `permanentDelete` / `copy` / `open` / `showInFolder` |
-| **Accept `FileEntryId` only** (entry-identity operations; no path-handle counterpart)                                 | `trash` / `restore` / `createInternalEntry` / `ensureExternalEntry` / `refreshMetadata` / `withTempCopy`          |
+| **Accept `FileEntryId` only** (entry-identity operations; no path-handle counterpart)                                 | `trash` / `restore` / `createInternalEntry` / `ensureExternalEntry` / `withTempCopy`                              |
 
 ### 1.5 FileUpload (AI Provider Upload Cache) — deferred
 
@@ -154,7 +154,7 @@ src/main/file/
 │     │    ├── lifecycle.ts    — trash / restore / permanentDelete + batches
 │     │    ├── rename.ts
 │     │    ├── copy.ts
-│     │    └── refresh.ts      — refreshMetadata / getMetadata
+│     │    └── metadata.ts     — getMetadata (live fs.stat for both origins)
 │     ├── content/
 │     │    ├── read.ts         — read / createReadStream (including `readByPath` variants)
 │     │    ├── write.ts        — write / writeIfUnchanged / createWriteStream
@@ -347,45 +347,35 @@ Transient processing files (OCR intermediates, PDF pagination, archive extractio
 
 ---
 
-## 3. External Entry Snapshot and Dangling Model
+## 3. External Entry Liveness Model
 
-### 3.1 The Problem
+### 3.1 Design: No DB Snapshot for Drift-Prone Fields
 
-`external`'s `name/ext/size` are derived fields. The external file may be renamed, modified, or moved by the user at any time, and the DB snapshot can go stale.
+The external file can be modified or moved by the user at any time. Rather than carrying a DB snapshot that silently drifts (and then chasing it with "refresh" paths), **file_module stores only the fields that cannot drift while the entry exists**:
 
-file_module accepts this staleness; it does no bidirectional DB-FS sync and follows best-effort semantics: external changes naturally surface as "reading new content next time" or "dangling".
-
-### 3.2 Refresh Trigger Points
-
-file_module refreshes the DB snapshot for an external entry (stat + compare + UPDATE) in the following scenarios:
-
-| # | Trigger | Refreshed content |
+| Field on `file_entry` (external) | Source of truth | Drift possible? |
 |---|---|---|
-| 1 | `ensureExternalEntry({ externalPath })` (upsert path) | Initial stat on create; stat-refreshed snapshot on reusing existing entry |
-| 2 | `read(id)` on external | stat-verify; UPDATE if size differs |
-| 3 | `getVersion(id)` on external | stat, update size |
-| 4 | `getContentHash(id)` on external | Read file + hash (stat along the way) |
-| 5 | `FileUploadService.ensureUploaded(id, provider)` | Must recompute hash before upload |
-| 6 | Explicit call to `refreshMetadata(id)` | stat + UPDATE all derived fields |
+| `id`, `origin`, `createdAt`, `updatedAt` | DB row | No |
+| `externalPath` | User intent at registration time | No (user-explicit changes go through `ensureExternalEntry(newPath)`) |
+| `name` / `ext` | Pure projection of `externalPath` (`path.basename` / `path.extname`) | No (stable as long as `externalPath` is stable) |
+| `size` | **Not stored** — always `null` (enforced by `fe_size_internal_only` CHECK) | N/A |
 
-**Side effect of refresh**: each stat synchronously updates the state in DanglingCache (stat success → `present`; stat failure → `missing`).
+Live `size` / `mtime` for an external entry are obtained via File IPC `getMetadata(id)` (`fs.stat` on demand). This makes the freshness cost **explicit at the call site** rather than hiding a stale snapshot behind the `FileEntry.size` field.
 
-**Paths that don't refresh**: pure SQL queries (list / getById / file_ref join) return DB values directly and may be stale.
+### 3.2 Why Size Is Not Stored
 
-**Cherry does not track external rename**: after a user mv/rename outside of Cherry, the corresponding entry goes dangling. The user must re-@ inside Cherry to establish a new reference (due to path uniqueness: a same-path trashed entry gets restored; otherwise a new one is created).
+The classic "DB snapshot + refresh paths" design produces two symmetric defect classes:
 
-### 3.3 Tolerating Staleness
+1. **Stale reads** — callers consume `FileEntry.size` assuming freshness, missing the part of the doc that says "snapshot may be stale".
+2. **Bookkeeping bugs** — every write / read / hash path has to remember to UPDATE the snapshot; forgetting one leaves the snapshot behind.
 
-file_module accepts the "list queries return stale snapshots" cost in exchange for:
-- List queries require no N fs.stat calls
-- SQL can filter across origins by name/size/mtime
-- The read path stays pure (no side effects, except for stat-verify on the critical path)
+Making `size` unavailable on the row eliminates both: the renderer cannot read a stale value (there is nothing to read), and the main-side code has no snapshot to maintain. The cost — one extra `fs.stat` per external row when size is actually needed — is localized and observable.
 
-When the user needs to force a refresh:
-- **Implicit**: opening/reading/uploading files auto-triggers critical-path refresh
-- **Explicit**: the UI provides a refresh button that triggers the business layer to loop over `refreshMetadata`
+**Paths that used to refresh the snapshot**: `read` / `getVersion` / `getContentHash` on external all still run `fs.stat` as part of their own work (and update DanglingCache as a side effect), but they no longer UPDATE the DB row.
 
-### 3.4 Dangling Model
+**Cherry does not track external rename**: after a user mv/rename outside of Cherry, the corresponding entry goes dangling. The user must re-@ inside Cherry to establish a new reference at the new path via `ensureExternalEntry(newPath)`.
+
+### 3.3 Dangling Model
 
 When an external file does not exist on disk (or is inaccessible), the corresponding entry is called **dangling**. Dangling state is maintained by **DanglingCache** (a file_module singleton); see §11 for details.
 
@@ -535,9 +525,9 @@ Query: `WHERE trashedAt < now() - retentionMs` → batch permanentDelete.
 |---|---|
 | unlink fails on permanentDelete (file already missing, permission issue) | Ignore ENOENT idempotently; log warn for others; proceed with DB delete |
 | externalPath not writable on permanentDelete external (read-only mounted drive, insufficient permissions) | log error; still delete DB record; from the user's perspective it disappears from Cherry but remains on disk |
-| `ensureExternalEntry(path)` when a non-trashed entry for the same path already exists | Entry point first calls `canonicalizeExternalPath(raw)`; upsert: return existing entry, refresh snapshot along the way; may also restore the same-path trashed entry |
+| `ensureExternalEntry(path)` when an entry for the same path already exists | Entry point first calls `canonicalizeExternalPath(raw)`; upsert returns the existing row. External entries cannot be trashed, so there is no "restore" branch. |
 | **Two entries for the same file due to case / NFC differences** (macOS APFS, Windows NTFS, or NFD ↔ NFC input) | Phase 1b canonicalize closes the NFC window; case-insensitive FS dedup not implemented (see §1.2 "Phase 1b normalization scope")—will add `fs.realpath` + one-off migration when there is concrete user feedback |
-| External file at original path externally replaced with a different file when restoring a trashed entry | Cherry does not check content consistency (best-effort); `refreshMetadata` refreshes size/name; UI may prompt the user by dangling/snapshot change |
+| External file at original path externally replaced with a different file | Cherry does not check content consistency (best-effort). `name` / `ext` on the row are derived from `externalPath` and do not change; `size` is always served live by `getMetadata`. DanglingCache flips to `'present'` on the next stat, so the UI just renders the new file under the existing reference. |
 | A trashed entry is permanently externally deleted and then restored | Appears dangling (DanglingCache returns missing on next check), UI shows failed style |
 | External write with permission error / disk full on target path | Throw without polluting DB; caller decides retry or user notification |
 
@@ -922,7 +912,7 @@ async function batchGetDanglingStates(ids: FileEntryId[]): Promise<Record<FileEn
 
 - Watcher add/unlink/rename events
 - Observation side effects of FileManager ops (read success → present; stat ENOENT → missing; write success → present; rename success → oldPath missing + newPath present)
-- Explicit call to `refreshMetadata`
+- Cold-path stat performed by `getDanglingState` / `getMetadata` on a cache miss
 
 **No active expiry**—a few seconds of stale state does not affect best-effort semantics; paths without watcher coverage are naturally updated by ops observations on the next query.
 
@@ -947,7 +937,7 @@ If real-time push is needed in the future, DanglingCache state changes may trigg
 | **External operation symmetry** | write/rename/permanentDelete all delegate to ops and take effect; trash/restore touch DB only | Soft delete preserves reversibility (doesn't touch FS); hard delete is the terminal action (really deletes FS) |
 | **External identity** | externalPath unique(where not trashed) | At most one active entry at a time for the same path; `ensureExternalEntry` upserts by path |
 | **Cherry tracks external rename** | Not tracked | Best-effort semantics; external rename → dangling → user re-@ |
-| **Snapshot vs realtime stat** | DB stores snapshot; critical path auto-refresh | Zero stat cost for list queries; accept that UI display may be stale (user can refresh manually) |
+| **Snapshot vs realtime stat** | External row stores only identity + stable projections (`name` / `ext` from `externalPath`); live `size` / `mtime` via `getMetadata` on demand | Eliminates stale-snapshot bug class at the type level; cost of the extra `fs.stat` is explicit at the call site instead of hidden behind a DB field |
 | **Dangling state carrier** | In-memory singleton DanglingCache | Not in DB (avoids bidirectional DB-FS sync); three states `present/missing/unknown`; no TTL, event-driven invalidation |
 | **Dangling exposure method** | File IPC `getDanglingState` / `batchGetDanglingStates` (never DataApi) | DataApi is pure SQL; FS probe lives in IPC where side effects are expected; zero cost by default; parallel stat on demand |
 | **Watcher → DanglingCache wiring** | Factory auto-wires | Business modules unaware of DanglingCache; a single watcher instance serves business events + dangling tracking |

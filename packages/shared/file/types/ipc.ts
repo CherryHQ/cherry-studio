@@ -23,7 +23,7 @@
  * - `{ kind: 'path', path }`     → `ops/*` direct (entry-agnostic)
  *
  * Operations that only make sense against a FileEntry row (trash, rename,
- * refreshMetadata, enrichment queries, etc.) take `FileEntryId` directly.
+ * enrichment queries, etc.) take `FileEntryId` directly.
  */
 
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
@@ -106,8 +106,10 @@ export type CreateInternalEntryIpcParams =
 /**
  * Params for ensuring an entry exists for a user-provided (external) path.
  * Pure upsert semantics on `externalPath`: if an entry with the same path
- * exists, it is returned (snapshot refreshed); otherwise a new row is inserted.
- * External entries cannot be trashed, so no "restore" branch is possible.
+ * exists, it is returned as-is; otherwise a new row is inserted. External
+ * rows carry no stored `size` (always `null`); live values come from
+ * `getMetadata`. External entries cannot be trashed, so no "restore" branch
+ * is possible.
  */
 export type EnsureExternalEntryIpcParams = {
   externalPath: FilePath
@@ -160,8 +162,11 @@ export interface FileIpcApi {
    * Ensure an external FileEntry exists for the given absolute path.
    *
    * **Pure upsert** semantics keyed by `externalPath`:
-   * - Existing entry with same path → return it (snapshot refreshed via stat)
-   * - No existing entry → insert a new row
+   * - Existing entry with same path → return it as-is (nothing to refresh —
+   *   `name` / `ext` are projections of `externalPath` and `size` is not
+   *   stored for external; live values come from `getMetadata`).
+   * - No existing entry → insert a new row after a one-shot `fs.stat` that
+   *   verifies the path exists and seeds DanglingCache.
    *
    * Idempotent by design — callers holding an `externalPath` can invoke this
    * freely without pre-checking. The global unique index
@@ -189,10 +194,19 @@ export interface FileIpcApi {
   /** Read content as binary */
   read(handle: FileHandle, options: { encoding: 'binary' }): Promise<ReadResult<Uint8Array>>
 
-  /** Get physical metadata (size, mime, timestamps, type-specific fields) */
+  /**
+   * Get live physical metadata (size, mime, timestamps, type-specific fields).
+   *
+   * Always runs `fs.stat` — this is the canonical way to obtain a fresh `size`
+   * / `mtime` for an external entry, since external rows carry no stored
+   * `size` in DB. For internal entries the returned `size` matches the DB
+   * row's `size` by construction (atomic writes keep DB and FS in sync).
+   *
+   * Side effect: updates DanglingCache based on stat outcome (external only).
+   */
   getMetadata(handle: FileHandle): Promise<PhysicalFileMetadata>
 
-  /** Get lightweight FileVersion. On an entry-handle pointing at an external entry, refreshes DB snapshot if changed. */
+  /** Get lightweight FileVersion (live `fs.stat`-backed). */
   getVersion(handle: FileHandle): Promise<FileVersion>
 
   /** Compute xxhash-128 of file content. */
@@ -259,25 +273,14 @@ export interface FileIpcApi {
    */
   copy(params: { source: FileHandle; newName?: string }): Promise<FileEntry>
 
-  // ─── H. External-origin Metadata Refresh (entry-handle, external origin only) ───
-
-  /**
-   * Re-stat external-origin entry and refresh DB snapshot (name/ext/size).
-   * No-op for internal-origin entries. Side effect: updates DanglingCache
-   * based on stat result.
-   *
-   * Dangling state itself is queried via `getDanglingState` / `batchGetDanglingStates` (section K).
-   */
-  refreshMetadata(params: { id: FileEntryId }): Promise<FileEntry>
-
-  // ─── I. System Operations (accepts FileHandle) ───
+  // ─── H. System Operations (accepts FileHandle) ───
 
   /** Open file/directory with the system default application */
   open(handle: FileHandle): Promise<void>
   /** Reveal file/directory in the system file manager */
   showInFolder(handle: FileHandle): Promise<void>
 
-  // ─── J. Directory Listing (arbitrary path) ───
+  // ─── I. Directory Listing (arbitrary path) ───
 
   /** List contents of an arbitrary directory. */
   listDirectory(dirPath: FilePath, options?: DirectoryListOptions): Promise<string[]>
@@ -285,7 +288,7 @@ export interface FileIpcApi {
   /** Check if a directory is non-empty. */
   isNotEmptyDir(dirPath: FilePath): Promise<boolean>
 
-  // ─── K. Entry Enrichment (FileEntryId only; FS / main-side compute) ───
+  // ─── J. Entry Enrichment (FileEntryId only; FS / main-side compute) ───
   //
   // These methods replace the former DataApi opt-in fields
   // (`includeDangling` / `includePath`). DataApi is kept strictly SQL-only;
@@ -314,8 +317,9 @@ export interface FileIpcApi {
    * user action). Do NOT cache with `staleTime: Infinity` — that combination
    * is self-contradictory (asking for dangling while refusing to re-check).
    *
-   * For user-triggered refresh of a specific entry, call `refreshMetadata(id)`
-   * and invalidate the presence query.
+   * For user-triggered refresh of a specific entry, invalidate the presence
+   * query directly (a refetch re-runs this IPC, which repopulates the cache
+   * via a cold `fs.stat`).
    */
   getDanglingState(params: { id: FileEntryId }): Promise<DanglingState>
 

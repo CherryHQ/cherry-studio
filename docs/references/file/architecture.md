@@ -27,8 +27,8 @@
 
 The `origin` field on a FileEntry defines content ownership, with two values:
 
-- **`internal`**: Cherry owns the file content, physically stored at `{userData}/files/{id}.{ext}`. The caller hands a Buffer/Stream/source file to FileManager, which copies and takes ownership.
-- **`external`**: Cherry only records an absolute path reference on the user's side, does not copy content, and does not own the file. File availability and content changes are determined by the user side.
+- **`internal`**: Cherry owns the file content, physically stored at `{userData}/files/{id}.{ext}`. The caller hands a Buffer/Stream/source file to FileManager, which copies and takes ownership. `name` / `ext` / `size` are authoritative on the row (atomic writes keep DB and FS in sync).
+- **`external`**: Cherry only records an absolute path reference on the user's side, does not copy content, and does not own the file. `name` / `ext` on the row are pure projections of `externalPath` (basename / extname); `size` is **not stored** (always `null`) — live value is obtained via File IPC `getMetadata`. File availability and content changes are determined by the user side.
 
 Which origin to pick is the **caller's** decision; FileManager makes no assumption about the business layer. For the specific caller's migration/current state, see the RFC.
 
@@ -50,7 +50,7 @@ File Module (src/main/file/)
 │     │                     responsible for IPC registration and FileHandle.kind dispatch
 │     ├── FileEntry lifecycle (create-or-upsert / write / trash / restore / rename / copy / permanentDelete)  [1b.1 ensureExternal/read · 1b.2 write/lifecycle]
 │     ├── Version detection & concurrency control (read / writeIfUnchanged / withTempCopy)  [1b.1 read · 1b.2 writeIfUnchanged]
-│     ├── Metadata & system ops (getMetadata / open / showInFolder / refreshMetadata)  [1b.1 metadata · 1b.2 shell/refresh]
+│     ├── Metadata & system ops (getMetadata / open / showInFolder)  [1b.1 metadata · 1b.2 shell]
 │     ├── registerIpcHandlers() — unified IPC entry, dispatches by FileHandle.kind  [1a ✅ skeleton, 1b.x fills handlers]
 │     └── Electron dialog (showOpenDialog / showSaveDialog)  [1b.2]
 │
@@ -63,7 +63,7 @@ File Module (src/main/file/)
 │     │    ├── lifecycle.ts     — trash / restore / permanentDelete + batches  [1b.2]
 │     │    ├── rename.ts        [1b.2]
 │     │    ├── copy.ts          [1b.2]
-│     │    └── refresh.ts       — refreshMetadata / getMetadata  [1b.1 getMetadata · 1b.2 refreshMetadata]
+│     │    └── metadata.ts      — getMetadata (live fs.stat for both origins)  [1b.1]
 │     ├── content/
 │     │    ├── read.ts          — read / createReadStream (including `*ByPath` variants)  [1b.1]
 │     │    ├── write.ts         — write / writeIfUnchanged / createWriteStream  [1b.2]
@@ -170,10 +170,10 @@ Data-shape layer    FileEntry                          FileInfo
 
 Picking a handle variant is a **call-site choice of reference form**, not a statement about the file itself. Crucially, **the two axes are orthogonal**:
 
-- **Reference form** (this layer): `FileEntryHandle` routes through the entry system (FileManager, versionCache, DanglingCache, DB snapshot refresh); `FilePathHandle` bypasses it and hits `ops/*` directly.
+- **Reference form** (this layer): `FileEntryHandle` routes through the entry system (FileManager, versionCache, DanglingCache updates); `FilePathHandle` bypasses it and hits `ops/*` directly.
 - **Content ownership** (`FileEntry.origin`, not visible in the handle): `internal` means Cherry owns `{userData}/files/{id}.{ext}`; `external` means Cherry only records a reference to a user-owned path.
 
-The **same physical external file** can therefore be reached by either handle variant. A `FileEntryHandle` to its entry goes through the entry-aware code path (snapshot refresh, dangling updates, version cache); a `FilePathHandle` to the same absolute path goes through pure FS. Picking one is a matter of which subsystem the caller wants in the loop — not a property of the file.
+The **same physical external file** can therefore be reached by either handle variant. A `FileEntryHandle` to its entry goes through the entry-aware code path (dangling updates, version cache, identity-tracked operations); a `FilePathHandle` to the same absolute path goes through pure FS. Picking one is a matter of which subsystem the caller wants in the loop — not a property of the file.
 
 ### 2.2 `FileHandle`: the Polymorphic Reference
 
@@ -189,18 +189,19 @@ Once a handle is dispatched, the handler works with either a `FileEntry` (the DB
 |----------------|------------------------------------------------------------|-----------------------------------------------------------|
 | Role           | DB row identified by `id`                                  | Live descriptor identified by `path`                      |
 | Identity field | `id` (UUID v7)                                             | `path` (absolute filesystem path)                         |
-| Liveness       | Snapshot — decoupled from physical state                   | Live view — re-read from `fs.stat`                        |
+| Liveness       | Persistent record — identity + stable projections only     | Live view — re-read from `fs.stat`                        |
 | Lifecycle      | Persistent; trash/restore (internal-origin only)           | Transient — per-call descriptor                           |
 | Produced by    | `createInternalEntry` / `ensureExternalEntry` / DataApi    | `ops.stat(path)` / `toFileInfo(entry)`                    |
 | Typical use    | FileManager ops, UI management panels, `file_ref` creation | Pure content processors (OCR, hashing, tokenization)      |
 
-**Field overlap is inherent, not redundant**: `name`, `ext`, `size`, `type` (and `mime` on `FileInfo`) describe a file regardless of whether an entry row exists for it. What distinguishes the two types is the *surrounding* fields and the *semantics* of the shared ones:
+**Field overlap is inherent, not redundant**: `name`, `ext`, `type` (and `mime` / `size` on `FileInfo`) describe a file regardless of whether an entry row exists for it. What distinguishes the two types is the *surrounding* fields and the *liveness* of the shared ones:
 
 - **`FileEntry` has identity fields** `FileInfo` lacks: `id`, `origin`, `externalPath`, `trashedAt`.
-- **`FileInfo` has live fields** `FileEntry` lacks: `path` (derived, never stored on `FileEntry`), `modifiedAt`.
-- **Same-named fields have different invariants**. `FileInfo.size` is live from `fs.stat`; `FileEntry.size` for an external-origin entry is a last-observed snapshot that may drift until `refreshMetadata`. Mixing them up is a silent correctness bug.
+- **`FileInfo` has live fields** `FileEntry` lacks: `path` (derived, never stored on `FileEntry`), `modifiedAt`, and a live `size`.
+- **`FileEntry.size` is origin-gated**. For `origin='internal'` it is an authoritative byte count (kept in sync by atomic writes). For `origin='external'` it is **always `null`** — external files may change outside Cherry at any time, so no DB snapshot is stored. Consumers that need a live value for an external entry call File IPC `getMetadata(id)`, which runs `fs.stat` on demand. This eliminates the "is this snapshot current?" question at the type level rather than at call sites.
+- **`FileEntry.name` / `FileEntry.ext` never drift**. For internal they are user-editable SoT; for external they are pure projections of `externalPath` (basename / extname) and therefore stable as long as the entry itself exists.
 
-**Projection is one-way**. `FileEntry → FileInfo` is always possible via `toFileInfo(entry)` (async — performs `fs.stat` plus path resolution based on `origin`). The reverse is **not a type conversion**: it is a state change, and requires explicit registration through `FileManager.createInternalEntry` or `ensureExternalEntry`. The Zod brand on `FileEntrySchema` enforces this — arbitrary object literals cannot satisfy the `FileEntry` type.
+**Projection is one-way**. `FileEntry → FileInfo` is always possible via `toFileInfo(entry)` (async — performs `fs.stat` plus path resolution based on `origin`, which is also how the live `size` is materialized for external). The reverse is **not a type conversion**: it is a state change, and requires explicit registration through `FileManager.createInternalEntry` or `ensureExternalEntry`. The Zod brand on `FileEntrySchema` enforces this — arbitrary object literals cannot satisfy the `FileEntry` type.
 
 ### 2.4 Signature Selection Guide
 
@@ -259,14 +260,14 @@ All operations that can act on any file (FileEntry or arbitrary path) **accept a
 
 | Method | Description | entry, internal-origin | entry, external-origin | path |
 |---|---|---|---|---|
-| `read` | Read content | ops.read(userDataPath) | ops.read(externalPath) + DB snapshot refresh | ops.read(path) |
-| `getMetadata` | Physical metadata | based on entry + ops.stat | stat + refresh | ops.stat + getFileType |
-| `getVersion` | FileVersion | stat userData | stat external + refresh | ops.statVersion |
-| `getContentHash` | xxhash-128 | read userData + hash | read external + hash | ops.contentHash |
-| `write` | Atomic write | atomic → userData | atomic → externalPath (explicit user edit) | atomic → path |
+| `read` | Read content | ops.read(userDataPath) | ops.read(externalPath) (live) | ops.read(path) |
+| `getMetadata` | Live physical metadata (`fs.stat`) | resolve + ops.stat | ops.stat(externalPath) — **sole live-size source for external** | ops.stat + getFileType |
+| `getVersion` | FileVersion (live `fs.stat`) | stat userData | stat externalPath | ops.statVersion |
+| `getContentHash` | xxhash-128 | read userData + hash | read externalPath + hash | ops.contentHash |
+| `write` | Atomic write | atomic → userData + DB size update | atomic → externalPath (explicit user edit; no DB size column to touch) | atomic → path |
 | `writeIfUnchanged` | Optimistic concurrent write | same as write plus version check | same | same (caller must getVersion first) |
 | `permanentDelete` | Delete entry | unlink userData + delete from DB | **delete from DB only** (physical file untouched; path-level deletion remains available via a `FilePathHandle` to `ops.remove`) | ops.remove(path) |
-| `rename` | Rename | pure DB (UUID path unchanged) | fs.rename + DB update | ops.rename(path, newPath) |
+| `rename` | Rename | pure DB (UUID path unchanged) | fs.rename + DB update (name + externalPath) | ops.rename(path, newPath) |
 | `copy` | Copy to a new internal-origin entry | read source + create new internal | read source external + create new internal | read path + create new internal |
 | `open` / `showInFolder` | System ops | resolve + shell | resolve + shell | shell |
 
@@ -275,16 +276,15 @@ All operations that can act on any file (FileEntry or arbitrary path) **accept a
 | Method | Description |
 |---|---|
 | `createInternalEntry` / `batchCreateInternalEntries` | Create a new Cherry-owned FileEntry (writes to `{userData}/files/{id}.{ext}`; each call produces an independent new entry, no conflict possible) |
-| `ensureExternalEntry` / `batchEnsureExternalEntries` | Pure upsert by `externalPath`—the entry point first `canonicalizeExternalPath(raw)` normalizes it (see `pathResolver.ts`); reuses the existing entry with the same path (snapshot refreshed via stat) or inserts a new one. Idempotent by design—callers may safely repeat calls. No "restore" branch: external entries cannot be trashed. |
+| `ensureExternalEntry` / `batchEnsureExternalEntries` | Pure upsert by `externalPath`—the entry point first `canonicalizeExternalPath(raw)` normalizes it (see `pathResolver.ts`); reuses the existing entry with the same path or inserts a new one. Idempotent by design—callers may safely repeat calls. No "restore" branch: external entries cannot be trashed. External rows carry no stored `size` (always `null`); live values come from `getMetadata`. |
 | `trash` / `restore` | Soft delete based on trashedAt (DB only). **Internal-origin only** — external-origin entries cannot be trashed (`fe_external_no_trash` CHECK); passing an external id throws. |
 | `batchTrash` / `batchRestore` | Batch versions of `trash` / `restore` — same internal-origin-only rule. |
 | `batchPermanentDelete` | Batch version of `permanentDelete`. |
-| `refreshMetadata` | Explicit stat refresh of external-origin snapshot (UI manual refresh button) |
 | `withTempCopy` | Copy isolation for calling third-party libraries |
 | `getDanglingState` / `batchGetDanglingStates` | Query external-origin entry presence (FS-backed via DanglingCache; cold miss triggers a single `fs.stat`). Internal-origin entries always `'present'`. |
 | `getPhysicalPath` / `batchGetPhysicalPaths` | Resolve absolute path for a FileEntry (main-side `resolvePhysicalPath`). Intended for agent context / drag-drop / subprocess spawn. Also the input to `toSafeFileUrl` for `<img src>` / `<video src>` rendering. |
 
-**How to obtain dangling state / absolute path**: these are FS-IO or main-side computation, so they live in File IPC — never DataApi. See the two `FileEntryId`-only rows above. DataApi's SQL-only boundary is documented in §4.1.1.
+**How to obtain dangling state / absolute path / live size**: these are FS-IO or main-side computation, so they live in File IPC — never DataApi. Dangling state via `getDanglingState`, path via `getPhysicalPath`, live `size` / `mtime` via `getMetadata`. DataApi's SQL-only boundary is documented in §4.1.1.
 
 **How to obtain a `file://` URL for rendering**: compose it in-process from the `FilePath` returned by `getPhysicalPath`, using the shared pure helper `toSafeFileUrl(path, ext)` in `@shared/file/urlUtil` — no dedicated IPC needed. The helper applies the danger-file wrap (`.sh` / `.bat` / `.ps1` / `.exe` / `.app` etc. → containing directory URL) and does cross-platform `file://` encoding.
 
@@ -374,7 +374,7 @@ DataApi endpoints (read-only, SQL-only, fixed-shape):
 >
 > Rule of thumb: if a handler must call anything outside the Drizzle / `@db/*` surface to answer the request, it belongs in IPC. If two callers want the same data in different shapes, the answer is **two endpoints**, not one endpoint with a flag.
 
-**List queries for external entries**: DataApi returns the DB snapshot (possibly stale) without any FS access. Consumers needing the **latest snapshot** (refreshed name/ext/size) call File IPC `refreshMetadata` / `read` / `getVersion`; those needing only **whether the file currently exists** (dangling) call File IPC `getDanglingState` / `batchGetDanglingStates`.
+**List queries for external entries**: DataApi returns the DB row directly — identity (`id`, `origin`, `externalPath`), stable projections (`name`, `ext`), timestamps, `trashedAt`. External rows carry `size: null` by design (no snapshot stored). Consumers needing **live `size` / `mtime`** call File IPC `getMetadata(id)`; those needing only **whether the file currently exists** (dangling) call File IPC `getDanglingState` / `batchGetDanglingStates`.
 
 ### 4.1.1 DataApi Boundary: SQL-Only, Fixed Shape
 
@@ -389,18 +389,19 @@ The only allowed "derivation" inside DataApi is **SQL aggregation** (JOIN / GROU
 
 **Where the former opt-in fields live now**:
 
-| Former opt-in     | Current home                                                            | Kind                                             |
-|-------------------|-------------------------------------------------------------------------|--------------------------------------------------|
-| `includeRefCount` | DataApi `GET /files/entries/ref-counts?entryIds=...` — dedicated endpoint | Pure SQL aggregation (JOIN + GROUP BY)           |
-| `includeDangling` | File IPC `getDanglingState` / `batchGetDanglingStates`                  | FS-backed (DanglingCache + cold-path `fs.stat`)  |
-| `includePath`     | File IPC `getPhysicalPath` / `batchGetPhysicalPaths`                    | Main-side path resolution                        |
-| `includeUrl`      | Shared pure helper `toSafeFileUrl(path, ext)` (`@shared/file/urlUtil`), composed in-process from the `FilePath` returned by `getPhysicalPath` | Pure formatting + danger-file wrap (no IPC of its own) |
+| Former opt-in         | Current home                                                            | Kind                                             |
+|-----------------------|-------------------------------------------------------------------------|--------------------------------------------------|
+| `includeRefCount`     | DataApi `GET /files/entries/ref-counts?entryIds=...` — dedicated endpoint | Pure SQL aggregation (JOIN + GROUP BY)           |
+| `includeDangling`     | File IPC `getDanglingState` / `batchGetDanglingStates`                  | FS-backed (DanglingCache + cold-path `fs.stat`)  |
+| `includePath`         | File IPC `getPhysicalPath` / `batchGetPhysicalPaths`                    | Main-side path resolution                        |
+| `includeUrl`          | Shared pure helper `toSafeFileUrl(path, ext)` (`@shared/file/urlUtil`), composed in-process from the `FilePath` returned by `getPhysicalPath` | Pure formatting + danger-file wrap (no IPC of its own) |
+| Live `size` / `mtime` for external | File IPC `getMetadata(id)`                                   | FS-backed (`fs.stat`) — external rows have `size: null` in DB by design |
 
 **Why this split**: DataApi's value is a predictable, cache-friendly, SQL-level surface. Once a handler can reach past the DB, every consumer inherits hidden IO costs whether they asked for them or not, and React Query cache keys stop being a reliable freshness boundary. Moving FS / compute side effects to File IPC makes the cost visible at the call site and keeps DataApi endpoints cache-safe.
 
 **Composition in the renderer**: fetch the entry list via DataApi, then call the relevant batch IPC method(s) with the retrieved ids. Wrap the two-step pattern in a dedicated hook (e.g. `useEntriesWithPresence`) so components stay declarative.
 
-**Staleness contract for dangling (best-effort)**: `dangling` is an FS-observed time-varying value — the watcher may not cover every path, and a file may be externally deleted right after a cache hit. Consumers of `getDanglingState` / `batchGetDanglingStates` MUST allow a natural refresh lifecycle (React Query `staleTime` ≤ 5min, or explicit refetch after a user action). **Do not** cache the result with `staleTime: Infinity` — that equates to the contradictory "I want dangling but refuse to re-check". For user-triggered refresh of a specific entry, call File IPC `refreshMetadata(id)` and invalidate the presence query.
+**Staleness contract for dangling (best-effort)**: `dangling` is an FS-observed time-varying value — the watcher may not cover every path, and a file may be externally deleted right after a cache hit. Consumers of `getDanglingState` / `batchGetDanglingStates` MUST allow a natural refresh lifecycle (React Query `staleTime` ≤ 5min, or explicit refetch after a user action). **Do not** cache the result with `staleTime: Infinity` — that equates to the contradictory "I want dangling but refuse to re-check". For user-triggered refresh, invalidate the presence query (the refetch re-runs the IPC, which repopulates the cache via a cold `fs.stat`).
 
 **Safety conventions for raw path / URL (carried over from the opt-in era, still relevant)**:
 
@@ -425,8 +426,10 @@ The new pattern is **DataApi for SQL-level data + File IPC for enrichments**, co
 
 ```typescript
 // Case 1: FilesPage — list + presence + preview URL + ref counts
-const { data: entries } = useQuery(fileApi.listEntries, { origin: 'internal' })
+//         (external rows also need getMetadata for live size)
+const { data: entries } = useQuery(fileApi.listEntries, {})
 const entryIds = entries?.map(e => e.id) ?? []
+const externalIds = entries?.filter(e => e.origin === 'external').map(e => e.id) ?? []
 
 const { data: presence } = useQuery(
   ['fileManager.batchGetDanglingStates', entryIds],
@@ -438,7 +441,19 @@ const { data: paths } = useQuery(
   () => window.api.fileManager.batchGetPhysicalPaths(entryIds),
   { enabled: entryIds.length > 0 }
 )
+const { data: liveMeta } = useQuery(
+  ['fileManager.getMetadata', externalIds],
+  async () => {
+    const pairs = await Promise.all(
+      externalIds.map(async (id) => [id, await window.api.fileManager.getMetadata({ kind: 'entry', entryId: id })] as const)
+    )
+    return Object.fromEntries(pairs)
+  },
+  { enabled: externalIds.length > 0 } // internal.size is already on the DataApi row
+)
 const { data: refCounts } = useQuery(fileApi.refCounts, { entryIds })
+// size lookup: prefer DB (internal SoT), fall back to live stat (external):
+//   const size = entry.size ?? liveMeta?.[entry.id]?.size
 // render (URL computed in-process — no extra IPC):
 //   <img src={paths && toSafeFileUrl(paths[entry.id], entry.ext)} />
 //   dangling: presence?.[entry.id], count: refCounts?.[entry.id]
@@ -578,8 +593,8 @@ Renderer                          Main
 |  |  trash / restore / rename / copy / permDelete             |    |
 |  |  read / write / writeIfUnchanged / withTempCopy           |    |
 |  |                                                           |    |
-|  |  -- version / refresh --                                  |    |
-|  |  getVersion / getContentHash / refreshMetadata            |    |
+|  |  -- version / live metadata --                           |    |
+|  |  getVersion / getContentHash / getMetadata                |    |
 |  |                                                           |    |
 |  |  -- Electron dialog --                                    |    |
 |  |  showOpenDialog / showSaveDialog                          |    |
@@ -878,11 +893,11 @@ src/main/file/                        -- file module
 
 - **External entry is a best-effort reference**: no guarantee the file remains stable, no guarantee content matches the reference-time content. Equivalent to "the user expressed intent to reference this path at some point" semantics in tools like codex
 - **External entry path is globally unique**: at most one row per `externalPath` at any time, regardless of any state (SQLite global unique index on `externalPath`; internal rows have `externalPath = null` and are exempt, since SQLite treats multiple NULLs as distinct). `ensureExternalEntry` is therefore a pure upsert by path — reuse if an entry exists, otherwise insert; no "restore" branch is possible because external entries cannot be trashed.
-- **External entries cannot be trashed**: enforced at the DB layer by `CHECK (origin != 'external' OR trashedAt IS NULL)` (`fe_external_no_trash`). External lifecycle is monotonic: create via `ensureExternalEntry` → update in place via `write` / `rename` / `refreshMetadata` → remove via `permanentDelete` (DB row only). There is no soft-delete / restore cycle for external entries. Calling `trash` / `restore` on an external id throws.
+- **External entries cannot be trashed**: enforced at the DB layer by `CHECK (origin != 'external' OR trashedAt IS NULL)` (`fe_external_no_trash`). External lifecycle is monotonic: create via `ensureExternalEntry` → update in place via `write` / `rename` → remove via `permanentDelete` (DB row only). There is no soft-delete / restore cycle for external entries. Calling `trash` / `restore` on an external id throws.
 - **External entries allow explicit user edits**: `write` / `writeIfUnchanged` / `createWriteStream` / `rename` take effect on external (delegated to ops' atomic write / fs.rename), triggered by explicit user action. Cherry does **not** perform automatic / watcher-driven external file modifications
 - **`permanentDelete` on external is entry-level, not file-level**: removes only the DB row + CASCADE-cleans `file_ref`; the physical file is left untouched. Path-level deletion remains available via `ops.remove(path)` (reached through a `FilePathHandle`), which is a separate explicit call not bound to any entry id.
 - **Cherry does not track rename/move of external files**: an external rename turns the entry dangling; the user must re-@ to establish a new reference
-- **External entry DB snapshot may be stale**: list queries return DB values directly; critical paths (read / hash / upload) automatically stat-verify + refresh; UI may provide a manual refresh
+- **External entry DB row carries no `size`**: `size` is `null` on every external row by design (enforced by `fe_size_internal_only` CHECK). `name` / `ext` are pure projections of `externalPath` and do not drift. Live `size` / `mtime` are served by File IPC `getMetadata(id)` via `fs.stat`; DataApi never exposes them.
 - **Dangling state exposed via DanglingCache + File IPC query methods** (`getDanglingState` / `batchGetDanglingStates`); never exposed via DataApi: not persisted to DB; watcher events + cold-path stat push updates
 - **Physical paths are not persisted**: internal is derived from `application.getPath('files', ...)`; external is read from the `externalPath` column
 - **FileRef polymorphism has no FK**: `sourceId` points into different business tables and relies on application-layer cleanup + orphan scanning as fallback

@@ -31,13 +31,23 @@ export interface CreateFileEntryRow {
   readonly origin: FileEntryOrigin
   readonly name: string
   readonly ext: string | null
-  readonly size: number
+  /**
+   * Bytes. Non-null iff `origin === 'internal'` (authoritative for internal
+   * files). Must be `null` for `origin === 'external'` — external rows carry
+   * no stored size by design (enforced by `fe_size_internal_only` CHECK);
+   * live values come from File IPC `getMetadata`.
+   */
+  readonly size: number | null
   /** Non-null iff `origin === 'external'`; must be pre-canonicalized. */
   readonly externalPath: string | null
   readonly trashedAt?: number | null
 }
 
-/** Columns that may be mutated post-insert. Origin / id / externalPath are immutable. */
+/**
+ * Columns that may be mutated post-insert. Origin / id / externalPath are
+ * immutable. Note `size` is included because internal-file writes update the
+ * byte count atomically; on external rows it must remain `null`.
+ */
 export type UpdateFileEntryRow = Partial<Pick<CreateFileEntryRow, 'name' | 'ext' | 'size'>> & {
   readonly trashedAt?: number | null
 }
@@ -66,7 +76,7 @@ export interface FileEntryService {
   /** Flat listing. Trashed filter defaults to "active only" when `inTrash` is omitted. */
   findMany(query?: FindEntriesQuery): Promise<FileEntry[]>
 
-  /** Insert a new row. Violates `fe_origin_consistency` / `fe_size_nonneg` → throws. */
+  /** Insert a new row. Violates `fe_origin_consistency` / `fe_size_internal_only` → throws. */
   create(values: CreateFileEntryRow): Promise<FileEntry>
 
   /** Update mutable columns. Returns the refreshed row. Throws if not found. */

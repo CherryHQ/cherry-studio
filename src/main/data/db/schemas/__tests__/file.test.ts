@@ -43,7 +43,7 @@ function baseExternal(path: string, overrides: Record<string, unknown> = {}) {
     origin: 'external',
     name: 'report',
     ext: 'pdf',
-    size: 200,
+    size: null,
     externalPath: path,
     trashedAt: null,
     createdAt: TS,
@@ -107,20 +107,31 @@ describe('fileEntryTable — fe_external_no_trash check', () => {
   })
 })
 
-describe('fileEntryTable — fe_size_nonneg check', () => {
+describe('fileEntryTable — fe_size_internal_only check', () => {
   const dbh = setupTestDatabase()
 
-  it('accepts size = 0 (empty file)', async () => {
+  it('accepts internal size = 0 (empty file)', async () => {
     await expect(dbh.db.insert(fileEntryTable).values(baseInternal({ size: 0 }))).resolves.not.toThrow()
   })
 
-  it('rejects negative size (internal)', async () => {
+  it('rejects internal with null size (internal size is required)', async () => {
+    await expect(dbh.db.insert(fileEntryTable).values(baseInternal({ size: null }))).rejects.toThrow()
+  })
+
+  it('rejects internal with negative size', async () => {
     await expect(dbh.db.insert(fileEntryTable).values(baseInternal({ size: -1 }))).rejects.toThrow()
   })
 
-  it('rejects negative size (external)', async () => {
+  it('accepts external with null size', async () => {
+    await expect(dbh.db.insert(fileEntryTable).values(baseExternal('/Users/me/report.pdf'))).resolves.not.toThrow()
+  })
+
+  it('rejects external with numeric size (external has no stored size)', async () => {
     await expect(
-      dbh.db.insert(fileEntryTable).values(baseExternal('/Users/me/neg.pdf', { size: -500 }))
+      dbh.db.insert(fileEntryTable).values(baseExternal('/Users/me/zero.pdf', { size: 0 }))
+    ).rejects.toThrow()
+    await expect(
+      dbh.db.insert(fileEntryTable).values(baseExternal('/Users/me/big.pdf', { size: 12345 }))
     ).rejects.toThrow()
   })
 })

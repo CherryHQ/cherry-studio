@@ -17,8 +17,9 @@
  * ## Failure modes
  *
  * - External entry whose file has been removed → `ENOENT` is surfaced. The
- *   entry becomes dangling; callers typically retry through
- *   `FileManager.refreshMetadata` or handle the `'missing'` DanglingState.
+ *   entry becomes dangling; callers handle the `'missing'` DanglingState
+ *   (queried via `getDanglingState`) and either surface the broken reference
+ *   to the user or prompt for a new `ensureExternalEntry(newPath)`.
  * - Internal entry missing on disk → a bug (should never happen with a healthy
  *   userData dir). The error propagates for visibility.
  *

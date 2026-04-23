@@ -28,7 +28,7 @@ function makeExternal(overrides: Record<string, unknown> = {}) {
     origin: 'external',
     name: 'report',
     ext: 'pdf',
-    size: 50000,
+    size: null,
     externalPath: '/Users/me/documents/report.pdf',
     trashedAt: null,
     createdAt: TS,
@@ -191,20 +191,36 @@ describe('FileEntrySchema trash (trashedAt)', () => {
 // ─── Size / ext boundary checks ───
 
 describe('FileEntrySchema size/ext boundaries', () => {
-  it('rejects negative size', () => {
+  // Internal: size is an authoritative byte count.
+  it('rejects internal with negative size', () => {
     expect(FileEntrySchema.safeParse(makeInternal({ size: -1 })).success).toBe(false)
   })
 
-  it('rejects non-integer size', () => {
+  it('rejects internal with non-integer size', () => {
     expect(FileEntrySchema.safeParse(makeInternal({ size: 1.5 })).success).toBe(false)
   })
 
-  it('accepts size=0 (empty file)', () => {
+  it('rejects internal with null size (internal size is SoT, never null)', () => {
+    expect(FileEntrySchema.safeParse(makeInternal({ size: null })).success).toBe(false)
+  })
+
+  it('accepts internal size=0 (empty file)', () => {
     expect(FileEntrySchema.safeParse(makeInternal({ size: 0 })).success).toBe(true)
   })
 
-  it('accepts size up to MAX_SAFE_INTEGER', () => {
+  it('accepts internal size up to MAX_SAFE_INTEGER', () => {
     expect(FileEntrySchema.safeParse(makeInternal({ size: Number.MAX_SAFE_INTEGER })).success).toBe(true)
+  })
+
+  // External: size must always be null — no DB snapshot exists, live value
+  // comes from File IPC `getMetadata`.
+  it('accepts external with null size', () => {
+    expect(FileEntrySchema.safeParse(makeExternal({ size: null })).success).toBe(true)
+  })
+
+  it('rejects external with numeric size (external has no stored size)', () => {
+    expect(FileEntrySchema.safeParse(makeExternal({ size: 0 })).success).toBe(false)
+    expect(FileEntrySchema.safeParse(makeExternal({ size: 12345 })).success).toBe(false)
   })
 
   it('rejects empty ext string (use null for extensionless files)', () => {

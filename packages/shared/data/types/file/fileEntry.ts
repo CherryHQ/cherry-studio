@@ -6,23 +6,38 @@
  *
  * Every entry has an `origin`:
  * - `internal`: Cherry owns the content, stored at `{userData}/files/{id}.{ext}`.
- *   `name/ext/size` are authoritative truth.
+ *   `name` / `ext` / `size` are authoritative truth (kept in sync by atomic writes).
  * - `external`: Cherry only references a user-provided path (`externalPath`).
- *   `name/ext/size` are last-observed snapshots, refreshed on critical paths
- *   (read / hash / upload) or via explicit `refreshMetadata`.
+ *   `name` / `ext` are pure projections of `externalPath` (basename / extname) —
+ *   stable as long as the reference itself is stable. `size` is **not stored**
+ *   for external entries (`null`); consumers needing a live value call File IPC
+ *   `getMetadata(id)` which runs `fs.stat` on demand.
  *
  * Timestamps are numbers (ms epoch) matching DB integer storage.
  * For file reference types, see `./ref/`.
  *
  * ## Invariants
  *
- * | Field         | origin='internal'      | origin='external'                    |
- * |---------------|------------------------|--------------------------------------|
- * | `name`        | SoT (user renamable)   | derived from `externalPath` basename |
- * | `ext`         | SoT                    | derived from `externalPath`          |
- * | `size`        | SoT                    | last-observed snapshot               |
- * | `externalPath`| null                   | non-null absolute path               |
- * | `trashedAt`   | nullable               | **always null** (external cannot be trashed) |
+ * | Field         | origin='internal'      | origin='external'                              |
+ * |---------------|------------------------|------------------------------------------------|
+ * | `name`        | SoT (user renamable)   | derived from `externalPath` basename (stable)  |
+ * | `ext`         | SoT                    | derived from `externalPath` extname (stable)   |
+ * | `size`        | SoT (bytes, ≥ 0)       | **always `null`** — live value via `getMetadata`|
+ * | `externalPath`| null                   | non-null absolute path                         |
+ * | `trashedAt`   | nullable               | **always null** (external cannot be trashed)   |
+ *
+ * ## Why `size` is null for external
+ *
+ * External files can change outside Cherry at any time (user edits, another app
+ * overwrites, the file gets moved). Storing a snapshot here would create two
+ * classes of bugs: (a) callers silently consuming stale values, (b) "refresh"
+ * operations that merely move the staleness window. Making `size` unavailable
+ * at the DB layer forces consumers to make the freshness tradeoff explicit —
+ * either they don't need it, or they call `getMetadata` for a live `fs.stat`.
+ * `name` / `ext` stay on the row because they are pure projections of
+ * `externalPath` (which is the SoT) and therefore cannot drift while the entry
+ * exists; the cost of recomputing `path.basename` on every row is not worth
+ * the denormalization saving.
  *
  * ## Type safety: Zod brand on FileEntry
  *
@@ -59,7 +74,7 @@
  *   ensureExternalEntry   ┌──────────┐   permanentDelete   ┌──────────┐
  *   ────────────────────→│  Active   │───────────────────→│ Deleted  │
  *                         └──────────┘                     └──────────┘
- *                         (update in place via rename / write / refreshMetadata)
+ *                         (update in place via rename / write)
  * ```
  *
  * - Active:   `trashedAt = null` (the only legal state for external; enforced
@@ -132,8 +147,6 @@ const CommonEntryFields = {
    * every assignment site. `FileEntrySchema.parse` is the authoritative check.
    */
   ext: SafeExtSchema.nullable(),
-  /** File size in bytes. For external, this is the last-observed snapshot. */
-  size: z.int().nonnegative(),
   /** Creation timestamp (ms epoch) */
   createdAt: TimestampSchema,
   /** Last update timestamp (ms epoch) */
@@ -144,6 +157,11 @@ const CommonEntryFields = {
 export const InternalEntrySchema = z.object({
   ...CommonEntryFields,
   origin: z.literal('internal'),
+  /**
+   * File size in bytes. Internal files are written atomically by Cherry, so
+   * this value is authoritative and kept in sync with the backing file on disk.
+   */
+  size: z.int().nonnegative(),
   /** Must be null for internal entries (physical storage is UUID-based in userData). */
   externalPath: z.null(),
   /** Trash timestamp (ms epoch). Non-null = trashed. Internal-only. */
@@ -154,6 +172,14 @@ export const InternalEntrySchema = z.object({
 export const ExternalEntrySchema = z.object({
   ...CommonEntryFields,
   origin: z.literal('external'),
+  /**
+   * Always `null` for external entries. External files may change outside
+   * Cherry at any time, so no DB-level size snapshot is stored. Consumers that
+   * need a live value call File IPC `getMetadata(id)` which performs a single
+   * `fs.stat`. Mirrors the `fe_size_internal_only` CHECK constraint at the DB
+   * level.
+   */
+  size: z.null(),
   /** Absolute filesystem path to the user-provided file. */
   externalPath: AbsolutePathSchema,
   /**

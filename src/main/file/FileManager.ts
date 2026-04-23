@@ -89,15 +89,16 @@
  *
  * **External entries cannot be trashed.** Their lifecycle is monotonic:
  * created by `ensureExternalEntry` (pure upsert keyed by path — see below),
- * updated in place via `write` / `rename` / `refreshMetadata`, and removed
- * only by an explicit (non-UI) `permanentDelete`. The `fe_external_no_trash`
- * CHECK constraint enforces this at the DB level; `trash` / `restore` on an
- * external entry id will throw.
+ * updated in place via `write` / `rename`, and removed only by an explicit
+ * (non-UI) `permanentDelete`. The `fe_external_no_trash` CHECK constraint
+ * enforces this at the DB level; `trash` / `restore` on an external entry id
+ * will throw.
  *
  * `ensureExternalEntry` is a pure upsert on the `externalPath` global unique
- * index: existing entry at the same path is reused (snapshot refreshed via
- * stat); otherwise a new row is inserted. No "restore trashed" branch — trashed
- * external entries cannot exist.
+ * index: existing entry at the same path is reused; otherwise a new row is
+ * inserted. No "restore trashed" branch — trashed external entries cannot
+ * exist. External rows carry no stored `size` (always `null`); consumers
+ * needing a live value call `getMetadata(id)`.
  *
  * Dangling state is tracked by the file_module's `DanglingCache` singleton,
  * not by FileManager itself. FileManager ops update the cache as a side effect
@@ -255,8 +256,12 @@ export interface IFileManager {
    * Ensure an entry exists for a user-provided absolute path.
    *
    * Pure upsert keyed by `externalPath`:
-   * - Existing entry with same path → return it (snapshot refreshed via stat)
-   * - No existing entry → insert a new row
+   * - Existing entry with same path → return it as-is. `name` / `ext` are
+   *   projections of `externalPath` and do not drift; `size` is not stored
+   *   for external entries (always `null` — live values come from
+   *   `getMetadata`), so there is nothing to refresh on the row.
+   * - No existing entry → insert a new row (after a one-shot `fs.stat` to
+   *   verify the path exists and populate DanglingCache).
    *
    * The global unique index `UNIQUE(externalPath)` (internal rows have
    * `externalPath = null` and are exempt — SQLite treats NULLs as distinct)
@@ -288,12 +293,21 @@ export interface IFileManager {
   /** Create a readable stream. */
   createReadStream(id: FileEntryId): Promise<Readable>
 
-  /** Get physical file metadata. For external entries, triggers stat-refresh of DB snapshot. */
+  /**
+   * Get live physical file metadata (always via `fs.stat`).
+   *
+   * This is the canonical way to obtain a fresh `size` / `mtime` for an
+   * external entry, since external rows carry no stored `size`. For internal
+   * entries the returned `size` agrees with `FileEntry.size` by construction
+   * (atomic writes keep DB and FS in sync).
+   *
+   * Side effect: updates DanglingCache based on stat outcome (external only).
+   */
   getMetadata(id: FileEntryId): Promise<PhysicalFileMetadata>
 
   // ─── Version / Hash ───
 
-  /** Get FileVersion (stat-based). For external, refreshes cached size if changed. */
+  /** Get FileVersion (stat-based) — live for both origins. */
   getVersion(id: FileEntryId): Promise<FileVersion>
 
   /** Compute xxhash-128 of file content. Reads full file. */
@@ -372,20 +386,6 @@ export interface IFileManager {
   /** Batch internal-only — external ids fail like `restore`. */
   batchRestore(ids: FileEntryId[]): Promise<BatchOperationResult>
   batchPermanentDelete(ids: FileEntryId[]): Promise<BatchOperationResult>
-
-  // ─── External entry metadata refresh ───
-
-  /**
-   * For external entries: re-stat and update DB snapshot (name/ext/size).
-   * For internal entries: no-op (returns current entry).
-   *
-   * Side effect: updates DanglingCache based on stat outcome.
-   *
-   * Note: Cherry does not track external renames. If the file has moved, the
-   * entry becomes dangling. Users must re-@ to establish a new reference (which
-   * upserts against the new path).
-   */
-  refreshMetadata(id: FileEntryId): Promise<FileEntry>
 
   // ─── 3rd-party Library Escape Hatch ───
 

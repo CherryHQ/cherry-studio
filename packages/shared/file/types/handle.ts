@@ -10,8 +10,8 @@
  *
  * The same physical file can be referenced by either form. In particular, an
  * external file that has a FileEntry can also be reached via a `FilePathHandle`
- * (with different side-effect semantics: no DB snapshot refresh, no dangling
- * cache update, no version cache lookup). Picking a form is the caller's
+ * (with different side-effect semantics: no DanglingCache update, no version
+ * cache lookup, no identity-tracked ops). Picking a form is the caller's
  * decision, driven by which subsystem they want in the loop.
  *
  * Distinct from `FileRef` (the file_ref table, which links business entities

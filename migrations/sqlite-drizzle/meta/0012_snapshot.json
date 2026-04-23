@@ -306,7 +306,7 @@
           "name": "size",
           "type": "integer",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "external_path": {
@@ -371,9 +371,9 @@
           "name": "fe_external_no_trash",
           "value": "\"file_entry\".\"origin\" != 'external' OR \"file_entry\".\"trashed_at\" IS NULL"
         },
-        "fe_size_nonneg": {
-          "name": "fe_size_nonneg",
-          "value": "\"file_entry\".\"size\" >= 0"
+        "fe_size_internal_only": {
+          "name": "fe_size_internal_only",
+          "value": "(\"file_entry\".\"origin\" = 'internal' AND \"file_entry\".\"size\" IS NOT NULL AND \"file_entry\".\"size\" >= 0) OR (\"file_entry\".\"origin\" = 'external' AND \"file_entry\".\"size\" IS NULL)"
         }
       }
     },

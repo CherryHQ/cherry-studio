@@ -17,12 +17,12 @@
  * because every file has these attributes regardless of whether a FileEntry
  * row exists for it. The difference is **semantic**, not structural:
  *
- * | Aspect          | FileInfo                                  | FileEntry                                    |
- * |-----------------|-------------------------------------------|----------------------------------------------|
- * | Liveness        | Live view — each read may differ          | DB snapshot — decoupled from physical state  |
- * | Addressing      | `path` (always present)                   | `id` (always present); path is derived       |
- * | Produced by     | `ops.stat(path)` / `toFileInfo(entry)`    | `createInternalEntry` / `ensureExternalEntry`|
- * | Lifecycle       | None — transient per-call descriptor       | Persistent DB row; trash/restore for internal|
+ * | Aspect          | FileInfo                                  | FileEntry                                              |
+ * |-----------------|-------------------------------------------|--------------------------------------------------------|
+ * | Liveness        | Live view — each read may differ          | Persistent record — identity + stable projections only |
+ * | Addressing      | `path` (always present)                   | `id` (always present); path is derived                 |
+ * | Produced by     | `ops.stat(path)` / `toFileInfo(entry)`    | `createInternalEntry` / `ensureExternalEntry`          |
+ * | Lifecycle       | None — transient per-call descriptor       | Persistent DB row; trash/restore for internal          |
  *
  * ## When to use FileInfo vs FileEntry in signatures
  *

@@ -37,10 +37,13 @@
  * batch IPC methods with the retrieved ids. Wrap the two-step pattern in a dedicated
  * hook when a pattern recurs (e.g. `useEntriesWithPresence`).
  *
- * ## External snapshot staleness
+ * ## External entries — no size snapshot
  *
- * External entries may return stale snapshots (name / ext / size are last-observed).
- * Consumers needing fresh values should use File IPC `refreshMetadata` or `read`.
+ * External rows carry `size: null` by design — external files may change outside
+ * Cherry at any time, so no DB snapshot is kept. `name` / `ext` are pure
+ * projections of `externalPath` (basename / extname) and therefore stable as
+ * long as the entry itself exists. Consumers needing a live `size` / `mtime`
+ * call File IPC `getMetadata(id)` which performs a single `fs.stat`.
  */
 
 import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
@@ -67,6 +70,13 @@ export interface FileSchemas {
    * Fixed shape — response items are plain `FileEntry`. For ref counts,
    * dangling state, absolute paths, or safe URLs, call the dedicated endpoint
    * (for ref counts) or the corresponding File IPC method.
+   *
+   * Sorting caveat: `sortBy: 'size'` is only meaningful within an
+   * `origin='internal'` filter. External rows have `size IS NULL` (no DB
+   * snapshot by design), so a mixed-origin size sort collates all externals
+   * at one end (SQLite NULLs last for ASC, first for DESC). Callers that need
+   * a live size-sorted view of external entries must fetch unsorted and sort
+   * in the renderer after calling `getMetadata`.
    *
    * @example GET /files/entries?origin=internal&inTrash=false
    */
