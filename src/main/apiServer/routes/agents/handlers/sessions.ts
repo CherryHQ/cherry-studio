@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { AgentModelValidationError, sessionService } from '@main/services/agents'
-import type { ListAgentSessionsResponse, ReplaceSessionRequest, UpdateSessionResponse } from '@types'
+import type { ReplaceSessionRequest } from '@types'
 import type { Request, Response } from 'express'
 
 import type { ValidationRequest } from '../validators/zodValidator'
@@ -163,7 +163,7 @@ export const updateSession = async (req: Request, res: Response): Promise<Respon
     }
 
     logger.info('Session updated', { agentId, sessionId })
-    return res.json(session satisfies UpdateSessionResponse)
+    return res.json(session)
   } catch (error: any) {
     if (error instanceof AgentModelValidationError) {
       logger.warn('Session model validation error during update', {
@@ -376,7 +376,7 @@ export const listAllSessions = async (req: Request, res: Response): Promise<Resp
       total: result.total,
       limit,
       offset
-    } satisfies ListAgentSessionsResponse)
+    })
   } catch (error: any) {
     logger.error('Error listing all sessions', { error })
     return res.status(500).json({

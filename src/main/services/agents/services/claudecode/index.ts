@@ -49,7 +49,7 @@ import {
 } from '@shared/agents/claudecode/constants'
 import { languageEnglishNameMap } from '@shared/config/languages'
 import { withoutTrailingApiVersion } from '@shared/utils'
-import type { GetAgentSessionResponse } from '@types'
+import type { CherryClawConfiguration, GetAgentSessionResponse } from '@types'
 import { app } from 'electron'
 
 import { listSlashCommands } from '../../agentUtils'
@@ -422,7 +422,7 @@ class ClaudeCodeService implements AgentServiceInterface {
     let soulSystemPrompt: string | undefined
 
     if (soulEnabled && cwd) {
-      soulSystemPrompt = await promptBuilder.buildSystemPrompt(cwd, agentConfig)
+      soulSystemPrompt = await promptBuilder.buildSystemPrompt(cwd, agentConfig as CherryClawConfiguration | undefined)
       logger.info('Built Soul Mode system prompt', { cwd, promptLength: soulSystemPrompt.length })
     }
 

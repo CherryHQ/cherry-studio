@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import { AgentModelValidationError, agentService, sessionService } from '@main/services/agents'
 import { channelManager } from '@main/services/agents/services/channels'
 import { schedulerService } from '@main/services/agents/services/SchedulerService'
-import type { CherryClawConfiguration, ListAgentsResponse, ReplaceAgentRequest, UpdateAgentRequest } from '@types'
+import type { CherryClawConfiguration, ReplaceAgentRequest, UpdateAgentRequest } from '@types'
 import type { Request, Response } from 'express'
 
 import type { ValidationRequest } from '../validators/zodValidator'
@@ -226,7 +226,7 @@ export const listAgents = async (req: Request, res: Response): Promise<Response>
       total: result.total,
       limit,
       offset
-    } satisfies ListAgentsResponse)
+    })
   } catch (error: any) {
     logger.error('Error listing agents', { error })
     return res.status(500).json({

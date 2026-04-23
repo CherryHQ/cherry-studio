@@ -17,7 +17,7 @@ import { AgentModelValidationError } from '@main/services/agents/errors'
 import { seedWorkspaceTemplates } from '@main/services/agents/services/cherryclaw/seedWorkspace'
 import { skillService } from '@main/services/agents/skills/SkillService'
 import { installBuiltinSkills } from '@main/utils/builtinSkills'
-import type { CreateAgentRequest, UpdateAgentRequest } from '@types'
+import type { CreateAgentDto, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 
 import { schedulerService } from '../SchedulerService'
 import { CHERRY_ASSISTANT_AGENT_ID, CHERRY_CLAW_AGENT_ID } from './BuiltinAgentIds'
@@ -135,7 +135,7 @@ async function initDefaultCherryClawAgent(): Promise<BuiltinAgentInitResult> {
       return { agentId: null, skippedReason: 'no_model' }
     }
 
-    const configuration: CreateAgentRequest['configuration'] = {
+    const configuration: CreateAgentDto['configuration'] = {
       avatar: '🦞',
       permission_mode: 'bypassPermissions',
       max_turns: 100,
@@ -151,7 +151,7 @@ async function initDefaultCherryClawAgent(): Promise<BuiltinAgentInitResult> {
 
     const resolvedPaths = resolveAccessiblePaths([], id)
 
-    const req: CreateAgentRequest = {
+    const req: CreateAgentDto = {
       type: 'claude-code',
       name: 'Cherry Claw',
       description: 'Default autonomous CherryClaw agent',
@@ -228,7 +228,7 @@ async function initBuiltinAgent(opts: {
       const workspace = resolvedPaths[0]
       const agentConfig = workspace ? await provisionWorkspace(workspace, builtinRole) : undefined
       if (agentConfig && (agentConfig.description || agentConfig.instructions)) {
-        const updateData: UpdateAgentRequest = {}
+        const updateData: UpdateAgentDto = {}
         if (agentConfig.description) updateData.description = agentConfig.description
         if (agentConfig.instructions) updateData.instructions = agentConfig.instructions
         await agentService.updateAgent(id, updateData)
@@ -249,14 +249,14 @@ async function initBuiltinAgent(opts: {
     const workspace = resolvedPaths[0]
     const agentConfig = workspace ? await provisionWorkspace(workspace, builtinRole) : undefined
 
-    const configuration: CreateAgentRequest['configuration'] = {
+    const configuration: CreateAgentDto['configuration'] = {
       permission_mode: 'default',
       max_turns: 100,
       env_vars: {},
       ...agentConfig?.configuration
     }
 
-    const req: CreateAgentRequest = {
+    const req: CreateAgentDto = {
       type: 'claude-code',
       name: agentConfig?.name || builtinRole,
       description: agentConfig?.description || `Built-in ${builtinRole} agent`,

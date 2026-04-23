@@ -519,7 +519,7 @@ export class ChannelMessageHandler {
         if (channelRow && channelRow.sessionId !== session.id) {
           channelService.updateChannel(channelId, { sessionId: session.id }).catch(() => {})
         }
-        return session
+        return session as GetAgentSessionResponse
       }
       // Tracked session gone, clear it
       this.sessionTracker.delete(trackerKey)
@@ -531,7 +531,7 @@ export class ChannelMessageHandler {
       if (existingSession) {
         this.sessionTracker.set(trackerKey, existingSession.id)
         this.evictSessionTracker()
-        return existingSession
+        return existingSession as GetAgentSessionResponse
       }
     }
 
@@ -560,7 +560,7 @@ export class ChannelMessageHandler {
       await channelService.updateChannel(channelId, { sessionId: newSession.id })
       this.sessionTracker.set(trackerKey, newSession.id)
       this.evictSessionTracker()
-      return newSession
+      return newSession as GetAgentSessionResponse
     }
 
     return null

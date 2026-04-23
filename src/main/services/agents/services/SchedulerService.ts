@@ -4,7 +4,7 @@ import { sessionService } from '@data/services/SessionService'
 import { taskService } from '@data/services/TaskService'
 import { loggerService } from '@logger'
 import { sessionMessageOrchestrator } from '@main/services/agents/services/SessionMessageOrchestrator'
-import type { CherryClawConfiguration, ScheduledTaskEntity } from '@types'
+import type { CherryClawConfiguration, GetAgentSessionResponse, ScheduledTaskEntity } from '@types'
 
 import type { ChannelAdapter } from './channels'
 import { channelManager } from './channels/ChannelManager'
@@ -261,7 +261,7 @@ class SchedulerService {
 
       // Send as user message (triggers agent response)
       const { stream, completion } = await sessionMessageOrchestrator.createSessionMessage(
-        session,
+        session as GetAgentSessionResponse,
         { content: fullPrompt },
         abortController,
         { persist: true }

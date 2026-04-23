@@ -37,7 +37,7 @@ export type AgentConfiguration = z.infer<typeof AgentConfigurationSchema>
 export const AgentBaseSchema = z.object({
   name: AgentNameAtomSchema,
   description: z.string().optional(),
-  accessiblePaths: z.array(z.string()).optional(),
+  accessiblePaths: z.array(z.string()),
   instructions: z.string().optional(),
   model: ModelIdAtomSchema,
   planModel: z.string().optional(),
@@ -115,6 +115,18 @@ export const ScheduledTaskEntitySchema = z.object({
   updatedAt: z.string()
 })
 export type ScheduledTaskEntity = z.infer<typeof ScheduledTaskEntitySchema>
+
+export const TaskRunLogEntitySchema = z.object({
+  id: z.number(),
+  taskId: z.string(),
+  sessionId: z.string().nullable().optional(),
+  runAt: z.string(),
+  durationMs: z.number(),
+  status: z.enum(['running', 'success', 'error']),
+  result: z.string().nullable().optional(),
+  error: z.string().nullable().optional()
+})
+export type TaskRunLogEntity = z.infer<typeof TaskRunLogEntitySchema>
 
 export const InstalledSkillSchema = z.object({
   id: z.string(),

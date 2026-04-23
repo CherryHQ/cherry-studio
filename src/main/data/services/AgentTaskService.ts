@@ -13,14 +13,20 @@ import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
-import type { CreateTaskRequest, ListOptions, ScheduledTaskEntity, TaskRunLogEntity, UpdateTaskRequest } from '@types'
+import {
+  type CreateTaskDto,
+  type ScheduledTaskEntity,
+  type TaskRunLogEntity,
+  type UpdateTaskDto
+} from '@shared/data/api/schemas/agents'
+import type { ListOptions } from '@types'
 import { CronExpressionParser } from 'cron-parser'
 import { and, asc, count, desc, eq, inArray, lte, ne } from 'drizzle-orm'
 
 const logger = loggerService.withContext('TaskService')
 
 export class AgentTaskService {
-  async createTask(agentId: string, req: CreateTaskRequest): Promise<ScheduledTaskEntity> {
+  async createTask(agentId: string, req: CreateTaskDto): Promise<ScheduledTaskEntity> {
     await this.assertAutonomous(agentId)
 
     const id = `task_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
@@ -123,7 +129,7 @@ export class AgentTaskService {
     return this.enrichWithChannels(result[0])
   }
 
-  async updateTaskById(taskId: string, updates: UpdateTaskRequest): Promise<ScheduledTaskEntity | null> {
+  async updateTaskById(taskId: string, updates: UpdateTaskDto): Promise<ScheduledTaskEntity | null> {
     const existing = await this.getTaskById(taskId)
     if (!existing) return null
 
@@ -131,7 +137,6 @@ export class AgentTaskService {
 
     if (updates.name !== undefined) updateData.name = updates.name
     if (updates.prompt !== undefined) updateData.prompt = updates.prompt
-    if (updates.agentId !== undefined) updateData.agentId = updates.agentId
     if (updates.timeoutMinutes !== undefined) updateData.timeoutMinutes = updates.timeoutMinutes ?? 2
     if (updates.status !== undefined) updateData.status = updates.status
 
@@ -211,7 +216,7 @@ export class AgentTaskService {
     }
   }
 
-  async updateTask(agentId: string, taskId: string, updates: UpdateTaskRequest): Promise<ScheduledTaskEntity | null> {
+  async updateTask(agentId: string, taskId: string, updates: UpdateTaskDto): Promise<ScheduledTaskEntity | null> {
     const existing = await this.getTask(agentId, taskId)
     if (!existing) return null
 

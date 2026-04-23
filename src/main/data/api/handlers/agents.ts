@@ -18,28 +18,13 @@ import { DataApiErrorFactory, toDataApiError } from '@shared/data/api'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
 import {
   type AgentSchemas,
-  type CreateAgentDto,
   CreateAgentSchema,
-  type CreateSessionDto,
-  type CreateTaskDto,
   CreateTaskSchema,
   type ListQuery,
-  type UpdateAgentDto,
   UpdateAgentSchema,
-  type UpdateSessionDto,
   UpdateSessionSchema,
-  type UpdateTaskDto,
   UpdateTaskSchema
 } from '@shared/data/api/schemas/agents'
-import type {
-  CreateAgentRequest,
-  CreateSessionRequest,
-  CreateTaskRequest,
-  UpdateAgentRequest,
-  UpdateSessionRequest,
-  UpdateTaskRequest
-} from '@types'
-
 type AgentHandler<Path extends keyof AgentSchemas, Method extends ApiMethods<Path>> = ApiHandler<Path, Method>
 
 function paginationFromQuery(query?: ListQuery) {
@@ -47,96 +32,6 @@ function paginationFromQuery(query?: ListQuery) {
   const limit = query?.limit ?? 50
   const offset = (page - 1) * limit
   return { page, limit, offset }
-}
-
-function stripUndefined<T extends object>(obj: T): Partial<T> {
-  return Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined)) as Partial<T>
-}
-
-function toAgentRequest(dto: CreateAgentDto): CreateAgentRequest {
-  return stripUndefined({
-    type: dto.type,
-    name: dto.name,
-    model: dto.model,
-    description: dto.description,
-    accessiblePaths: dto.accessiblePaths ?? [],
-    instructions: dto.instructions,
-    planModel: dto.planModel,
-    smallModel: dto.smallModel,
-    mcps: dto.mcps,
-    allowedTools: dto.allowedTools,
-    configuration: dto.configuration
-  }) as CreateAgentRequest
-}
-
-function toAgentUpdateRequest(dto: UpdateAgentDto): UpdateAgentRequest {
-  return stripUndefined({
-    name: dto.name,
-    description: dto.description,
-    accessiblePaths: dto.accessiblePaths,
-    instructions: dto.instructions,
-    model: dto.model,
-    planModel: dto.planModel,
-    smallModel: dto.smallModel,
-    mcps: dto.mcps,
-    allowedTools: dto.allowedTools,
-    configuration: dto.configuration
-  }) as UpdateAgentRequest
-}
-
-function toSessionRequest(dto: Partial<CreateSessionDto>): CreateSessionRequest {
-  return stripUndefined({
-    model: dto.model,
-    name: dto.name,
-    description: dto.description,
-    accessiblePaths: dto.accessiblePaths,
-    instructions: dto.instructions,
-    planModel: dto.planModel,
-    smallModel: dto.smallModel,
-    mcps: dto.mcps,
-    allowedTools: dto.allowedTools,
-    slashCommands: dto.slashCommands,
-    configuration: dto.configuration
-  }) as CreateSessionRequest
-}
-
-function toSessionUpdateRequest(dto: UpdateSessionDto): UpdateSessionRequest {
-  return stripUndefined({
-    model: dto.model,
-    name: dto.name,
-    description: dto.description,
-    accessiblePaths: dto.accessiblePaths,
-    instructions: dto.instructions,
-    planModel: dto.planModel,
-    smallModel: dto.smallModel,
-    mcps: dto.mcps,
-    allowedTools: dto.allowedTools,
-    slashCommands: dto.slashCommands,
-    configuration: dto.configuration
-  }) as UpdateSessionRequest
-}
-
-function toTaskRequest(dto: CreateTaskDto): CreateTaskRequest {
-  return stripUndefined({
-    name: dto.name,
-    prompt: dto.prompt,
-    scheduleType: dto.scheduleType,
-    scheduleValue: dto.scheduleValue,
-    timeoutMinutes: dto.timeoutMinutes,
-    channelIds: dto.channelIds
-  }) as CreateTaskRequest
-}
-
-function toTaskUpdateRequest(dto: UpdateTaskDto): UpdateTaskRequest {
-  return stripUndefined({
-    name: dto.name,
-    prompt: dto.prompt,
-    scheduleType: dto.scheduleType,
-    scheduleValue: dto.scheduleValue,
-    timeoutMinutes: dto.timeoutMinutes,
-    channelIds: dto.channelIds,
-    status: dto.status
-  }) as UpdateTaskRequest
 }
 
 export const agentHandlers: {
@@ -154,7 +49,7 @@ export const agentHandlers: {
     POST: async ({ body }) => {
       const parsed = CreateAgentSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
-      return await agentService.createAgent(toAgentRequest(parsed.data))
+      return await agentService.createAgent(parsed.data)
     }
   },
 
@@ -168,7 +63,7 @@ export const agentHandlers: {
     PATCH: async ({ params, body }) => {
       const parsed = UpdateAgentSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
-      const agent = await agentService.updateAgent(params.agentId, toAgentUpdateRequest(parsed.data))
+      const agent = await agentService.updateAgent(params.agentId, parsed.data)
       if (!agent) throw DataApiErrorFactory.notFound('Agent', params.agentId)
       return agent
     },
@@ -188,7 +83,7 @@ export const agentHandlers: {
     },
 
     POST: async ({ params, body }) => {
-      const session = await sessionService.createSession(params.agentId, toSessionRequest(body ?? {}))
+      const session = await sessionService.createSession(params.agentId, body ?? {})
       if (!session) {
         throw DataApiErrorFactory.invalidOperation('create session', 'service returned a falsy result')
       }
@@ -206,11 +101,7 @@ export const agentHandlers: {
     PATCH: async ({ params, body }) => {
       const parsed = UpdateSessionSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
-      const session = await sessionService.updateSession(
-        params.agentId,
-        params.sessionId,
-        toSessionUpdateRequest(parsed.data)
-      )
+      const session = await sessionService.updateSession(params.agentId, params.sessionId, parsed.data)
       if (!session) throw DataApiErrorFactory.notFound('Session', params.sessionId)
       return session
     },
@@ -255,7 +146,7 @@ export const agentHandlers: {
     POST: async ({ params, body }) => {
       const parsed = CreateTaskSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
-      return await taskService.createTask(params.agentId, toTaskRequest(parsed.data))
+      return await taskService.createTask(params.agentId, parsed.data)
     }
   },
 
@@ -269,7 +160,7 @@ export const agentHandlers: {
     PATCH: async ({ params, body }) => {
       const parsed = UpdateTaskSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
-      const task = await taskService.updateTask(params.agentId, params.taskId, toTaskUpdateRequest(parsed.data))
+      const task = await taskService.updateTask(params.agentId, params.taskId, parsed.data)
       if (!task) throw DataApiErrorFactory.notFound('Task', params.taskId)
       return task
     },

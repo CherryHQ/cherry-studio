@@ -7,6 +7,7 @@ import {
 } from '@main/apiServer/utils/createStreamAbortController'
 import { agentService, sessionMessageService, sessionService } from '@main/services/agents'
 import { sessionMessageOrchestrator } from '@main/services/agents/services/SessionMessageOrchestrator'
+import type { GetAgentSessionResponse } from '@types'
 import type { Request, Response } from 'express'
 
 const logger = loggerService.withContext('ApiServerMessagesHandlers')
@@ -55,7 +56,7 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
     })
     const { abortController, registerAbortHandler, dispose } = streamController
     const { stream, completion } = await sessionMessageOrchestrator.createSessionMessage(
-      session,
+      session as GetAgentSessionResponse,
       messageData,
       abortController
     )

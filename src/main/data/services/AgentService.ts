@@ -10,18 +10,14 @@ import type { DbType } from '@data/db/types'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
-import { AgentBaseSchema } from '@shared/data/api/schemas/agents'
-import type {
-  AgentConfiguration,
-  AgentEntity,
-  AgentType,
-  CreateAgentRequest,
-  CreateAgentResponse,
-  GetAgentResponse,
-  ListOptions,
-  UpdateAgentRequest,
-  UpdateAgentResponse
-} from '@types'
+import {
+  AgentBaseSchema,
+  type AgentConfiguration,
+  type AgentEntity,
+  type CreateAgentDto,
+  type UpdateAgentDto
+} from '@shared/data/api/schemas/agents'
+import type { AgentType, ListOptions } from '@types'
 import { and, asc, count, desc, eq, isNull, sql } from 'drizzle-orm'
 
 const logger = loggerService.withContext('AgentService')
@@ -57,7 +53,7 @@ function computeWorkspacePaths(paths: string[] | undefined, id: string): string[
 export class AgentService {
   static readonly DEFAULT_AGENT_ID = CHERRY_CLAW_AGENT_ID
 
-  async createAgent(req: CreateAgentRequest): Promise<CreateAgentResponse> {
+  async createAgent(req: CreateAgentDto): Promise<AgentEntity> {
     const id = `agent_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
 
     // Compute workspace paths (pure — directory creation is the caller's responsibility).
@@ -107,7 +103,7 @@ export class AgentService {
     return result[0]
   }
 
-  async getAgent(id: string): Promise<GetAgentResponse | null> {
+  async getAgent(id: string): Promise<AgentEntity | null> {
     const row = await this.findAgentRow(id)
     if (!row) return null
     return rowToAgent(row)
@@ -159,9 +155,9 @@ export class AgentService {
 
   async updateAgent(
     id: string,
-    updates: UpdateAgentRequest,
+    updates: UpdateAgentDto,
     options: { replace?: boolean } = {}
-  ): Promise<UpdateAgentResponse | null> {
+  ): Promise<AgentEntity | null> {
     const existing = await this.getAgent(id)
     if (!existing) return null
 

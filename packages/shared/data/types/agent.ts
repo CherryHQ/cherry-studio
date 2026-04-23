@@ -24,7 +24,8 @@ export type {
   AgentSessionMessageEntity,
   InstalledSkill,
   ScheduledTaskEntity,
-  SlashCommand
+  SlashCommand,
+  TaskRunLogEntity
 } from '../api/schemas/agents'
 
 // ============================================================================

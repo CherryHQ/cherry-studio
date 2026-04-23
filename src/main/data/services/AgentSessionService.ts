@@ -9,18 +9,15 @@ import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
-import { AgentBaseSchema } from '@shared/data/api/schemas/agents'
-import type {
-  AgentConfiguration,
-  AgentSessionEntity,
-  AgentType,
-  CreateSessionRequest,
-  GetAgentSessionResponse,
-  ListOptions,
-  SlashCommand,
-  UpdateSessionRequest,
-  UpdateSessionResponse
-} from '@types'
+import {
+  AgentBaseSchema,
+  type AgentConfiguration,
+  type AgentSessionEntity,
+  type CreateSessionDto,
+  type SlashCommand,
+  type UpdateSessionDto
+} from '@shared/data/api/schemas/agents'
+import type { AgentType, ListOptions } from '@types'
 import { and, asc, count, desc, eq, isNull, type SQL, sql } from 'drizzle-orm'
 
 const logger = loggerService.withContext('SessionService')
@@ -77,10 +74,7 @@ function rowToSession(row: SessionRow): AgentSessionEntity {
 }
 
 export class AgentSessionService {
-  async createSession(
-    agentId: string,
-    req: Partial<CreateSessionRequest> = {}
-  ): Promise<GetAgentSessionResponse | null> {
+  async createSession(agentId: string, req: CreateSessionDto = {}): Promise<AgentSessionEntity | null> {
     const database = application.get('DbService').getDb()
     const agents = await database
       .select()
@@ -94,7 +88,7 @@ export class AgentSessionService {
 
     const id = `session_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
 
-    const sessionData: Partial<CreateSessionRequest> = {
+    const sessionData: CreateSessionDto = {
       ...agent,
       ...req
     }
@@ -139,7 +133,7 @@ export class AgentSessionService {
     return rowToSession(result[0])
   }
 
-  async getSession(agentId: string, id: string): Promise<GetAgentSessionResponse | null> {
+  async getSession(agentId: string, id: string): Promise<AgentSessionEntity | null> {
     const database = application.get('DbService').getDb()
     const result = await database
       .select()
@@ -190,11 +184,7 @@ export class AgentSessionService {
     return { sessions, total }
   }
 
-  async updateSession(
-    agentId: string,
-    id: string,
-    updates: UpdateSessionRequest
-  ): Promise<UpdateSessionResponse | null> {
+  async updateSession(agentId: string, id: string, updates: UpdateSessionDto): Promise<AgentSessionEntity | null> {
     const existing = await this.getSession(agentId, id)
     if (!existing) return null
 
