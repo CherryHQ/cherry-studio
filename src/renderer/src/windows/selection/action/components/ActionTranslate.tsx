@@ -81,7 +81,6 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
       return
     }
 
-    // Only try to initialize when languages loaded, so updateLanguagePair would not fail.
     if (!isLanguagesLoaded) {
       logger.silly('[initialize] Languages not loaded. Skip initialization.')
       return
@@ -104,10 +103,6 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     setInitialized(true)
   }, [action.selectedText, initialized, isLanguagesLoaded])
 
-  // Try to initialize when:
-  // 1. action.selectedText change (generally will not)
-  // 2. isLanguagesLoaded change (only initialize when languages loaded)
-  // 3. updateLanguagePair change (depend on translateLanguages and isLanguagesLoaded)
   useEffect(() => {
     void initialize()
   }, [initialize])
