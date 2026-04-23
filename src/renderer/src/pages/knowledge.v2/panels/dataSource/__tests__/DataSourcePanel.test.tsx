@@ -66,11 +66,11 @@ describe('DataSourcePanel', () => {
   })
 
   it('renders loading and empty states through the list composition without changing panel behavior', () => {
-    const { rerender } = render(<DataSourcePanel items={[]} isLoading />)
+    const { rerender } = render(<DataSourcePanel items={[]} isLoading onAdd={vi.fn()} />)
 
     expect(screen.getByText('加载中...')).toBeInTheDocument()
 
-    rerender(<DataSourcePanel items={[]} isLoading={false} />)
+    rerender(<DataSourcePanel items={[]} isLoading={false} onAdd={vi.fn()} />)
 
     expect(screen.getByText('暂无结果')).toBeInTheDocument()
   })
@@ -83,6 +83,7 @@ describe('DataSourcePanel', () => {
           createNoteItem({ id: 'note-2', content: '\n   \n' })
         ]}
         isLoading={false}
+        onAdd={vi.fn()}
       />
     )
 
@@ -100,6 +101,7 @@ describe('DataSourcePanel', () => {
           createDirectoryItem({ id: 'directory-1', name: '本地资料夹' })
         ]}
         isLoading={false}
+        onAdd={vi.fn()}
       />
     )
 
@@ -118,6 +120,7 @@ describe('DataSourcePanel', () => {
           createNoteItem({ id: 'note-1', content: '会议纪要' })
         ]}
         isLoading={false}
+        onAdd={vi.fn()}
       />
     )
 
@@ -135,5 +138,22 @@ describe('DataSourcePanel', () => {
     fireEvent.click(screen.getByRole('button', { name: '笔记' }))
     expect(screen.getByText('会议纪要')).toBeInTheDocument()
     expect(screen.queryByText('季度报告.pdf')).not.toBeInTheDocument()
+  })
+
+  it('forwards the header add action without affecting the existing list behavior', () => {
+    const onAdd = vi.fn()
+
+    render(
+      <DataSourcePanel
+        items={[createFileItem({ id: 'file-1', originName: '季度报告.pdf' })]}
+        isLoading={false}
+        onAdd={onAdd}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '添加' }))
+
+    expect(onAdd).toHaveBeenCalledTimes(1)
+    expect(screen.getByText('季度报告.pdf')).toBeInTheDocument()
   })
 })

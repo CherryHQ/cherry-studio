@@ -9,13 +9,13 @@ import { getReadyCount, getVisibleItems } from './utils/selectors'
 export interface DataSourcePanelProps {
   items: KnowledgeItem[]
   isLoading: boolean
+  onAdd: () => void
 }
 
-const DataSourcePanel = ({ items, isLoading }: DataSourcePanelProps) => {
+const DataSourcePanel = ({ items, isLoading, onAdd }: DataSourcePanelProps) => {
   const [activeFilter, setActiveFilter] = useState<DataSourceFilter>('all')
   const readyCount = getReadyCount(items)
   const visibleItems = getVisibleItems(items, activeFilter)
-  const handleAdd = () => undefined
   const handleItemClick = () => undefined
 
   return (
@@ -25,7 +25,7 @@ const DataSourcePanel = ({ items, isLoading }: DataSourcePanelProps) => {
         readyCount={readyCount}
         totalCount={items.length}
         onFilterChange={setActiveFilter}
-        onAdd={handleAdd}
+        onAdd={onAdd}
       />
       <KnowledgeItemList items={visibleItems} isLoading={isLoading} onItemClick={handleItemClick} />
     </div>

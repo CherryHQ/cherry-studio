@@ -48,6 +48,7 @@ interface KnowledgePageContextValue {
   contentRef: RefObject<HTMLDivElement | null>
   editingBase: EditableKnowledgeBase | null
   editingGroup: EditableKnowledgeGroup | null
+  isAddSourceDialogOpen: boolean
   isCreateBaseDialogOpen: boolean
   isCreateGroupDialogOpen: boolean
   isCreatingBase: boolean
@@ -57,10 +58,12 @@ interface KnowledgePageContextValue {
   createBase: CreateKnowledgeBase
   selectBase: (baseId: string) => void
   setActiveTab: (tab: KnowledgeTabKey) => void
+  openAddSourceDialog: () => void
   openCreateBaseDialog: () => void
   openCreateGroupDialog: () => void
   openRenameBaseDialog: (base: EditableKnowledgeBase) => void
   openRenameGroupDialog: (group: EditableKnowledgeGroup) => void
+  handleAddSourceDialogOpenChange: (open: boolean) => void
   handleCreateBaseDialogOpenChange: (open: boolean) => void
   handleCreateGroupDialogOpenChange: (open: boolean) => void
   handleRenameBaseDialogOpenChange: (open: boolean) => void
@@ -93,6 +96,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
   const [navigatorWidth, setNavigatorWidth] = useState(NAVIGATOR_DEFAULT_WIDTH)
   const [editingBase, setEditingBase] = useState<EditableKnowledgeBase | null>(null)
   const [editingGroup, setEditingGroup] = useState<EditableKnowledgeGroup | null>(null)
+  const [isAddSourceDialogOpen, setIsAddSourceDialogOpen] = useState(false)
   const [isCreateBaseDialogOpen, setIsCreateBaseDialogOpen] = useState(false)
   const [isCreateGroupDialogOpen, setIsCreateGroupDialogOpen] = useState(false)
   const isResizingRef = useRef(false)
@@ -139,6 +143,10 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
     setIsCreateBaseDialogOpen(true)
   }, [])
 
+  const openAddSourceDialog = useCallback(() => {
+    setIsAddSourceDialogOpen(true)
+  }, [])
+
   const openCreateGroupDialog = useCallback(() => {
     setIsCreateGroupDialogOpen(true)
   }, [])
@@ -153,6 +161,10 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
 
   const handleCreateBaseDialogOpenChange = useCallback((open: boolean) => {
     setIsCreateBaseDialogOpen(open)
+  }, [])
+
+  const handleAddSourceDialogOpenChange = useCallback((open: boolean) => {
+    setIsAddSourceDialogOpen(open)
   }, [])
 
   const handleCreateGroupDialogOpenChange = useCallback((open: boolean) => {
@@ -286,6 +298,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       contentRef,
       editingBase,
       editingGroup,
+      isAddSourceDialogOpen,
       isCreateBaseDialogOpen,
       isCreateGroupDialogOpen,
       isCreatingBase,
@@ -295,10 +308,12 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       createBase,
       selectBase,
       setActiveTab,
+      openAddSourceDialog,
       openCreateBaseDialog,
       openCreateGroupDialog,
       openRenameBaseDialog,
       openRenameGroupDialog,
+      handleAddSourceDialogOpenChange,
       handleCreateBaseDialogOpenChange,
       handleCreateGroupDialogOpenChange,
       handleRenameBaseDialogOpenChange,
@@ -319,6 +334,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       editingBase,
       editingGroup,
       groups,
+      handleAddSourceDialogOpenChange,
       handleCreateBaseCreated,
       handleCreateBaseDialogOpenChange,
       handleCreateGroupDialogOpenChange,
@@ -326,6 +342,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       handleDeleteGroup,
       handleRenameBaseDialogOpenChange,
       handleRenameGroupDialogOpenChange,
+      isAddSourceDialogOpen,
       isCreateBaseDialogOpen,
       isCreateGroupDialogOpen,
       isCreatingBase,
@@ -336,6 +353,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       isUpdatingGroup,
       moveBase,
       navigatorWidth,
+      openAddSourceDialog,
       openCreateBaseDialog,
       openCreateGroupDialog,
       openRenameBaseDialog,

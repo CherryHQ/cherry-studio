@@ -6,8 +6,16 @@ import RagConfigPanel from '../panels/ragConfig/RagConfigPanel'
 import RecallTestPanel from '../panels/recallTest/RecallTestPanel'
 
 const KnowledgePageDetailSection = () => {
-  const { activeTab, selectedBase, selectedBaseItems, isItemsLoading, setActiveTab, openRenameBaseDialog, deleteBase } =
-    useKnowledgePage()
+  const {
+    activeTab,
+    selectedBase,
+    selectedBaseItems,
+    isItemsLoading,
+    setActiveTab,
+    openAddSourceDialog,
+    openRenameBaseDialog,
+    deleteBase
+  } = useKnowledgePage()
 
   if (!selectedBase) {
     return null
@@ -19,7 +27,9 @@ const KnowledgePageDetailSection = () => {
       <DetailTabs activeTab={activeTab} dataSourceCount={selectedBaseItems.length} onChange={setActiveTab} />
 
       <div className="min-h-0 flex-1 overflow-hidden">
-        {activeTab === 'data' ? <DataSourcePanel items={selectedBaseItems} isLoading={isItemsLoading} /> : null}
+        {activeTab === 'data' ? (
+          <DataSourcePanel items={selectedBaseItems} isLoading={isItemsLoading} onAdd={openAddSourceDialog} />
+        ) : null}
         {activeTab === 'rag' ? <RagConfigPanel base={selectedBase} /> : null}
         {activeTab === 'recall' ? <RecallTestPanel /> : null}
       </div>

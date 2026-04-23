@@ -1,3 +1,4 @@
+import AddKnowledgeSourceDialog from '../components/AddKnowledgeSourceDialog'
 import CreateKnowledgeBaseDialog from '../components/CreateKnowledgeBaseDialog'
 import CreateKnowledgeGroupDialog from '../components/CreateKnowledgeGroupDialog'
 import KnowledgeBaseNameDialog from '../components/KnowledgeBaseNameDialog'
@@ -9,6 +10,7 @@ const KnowledgePageDialogSection = () => {
     groups,
     editingBase,
     editingGroup,
+    isAddSourceDialogOpen,
     isCreateBaseDialogOpen,
     isCreateGroupDialogOpen,
     isCreatingBase,
@@ -16,6 +18,7 @@ const KnowledgePageDialogSection = () => {
     isUpdatingBase,
     isUpdatingGroup,
     createBase,
+    handleAddSourceDialogOpenChange,
     handleCreateBaseCreated,
     handleCreateBaseDialogOpenChange,
     handleCreateGroupDialogOpenChange,
@@ -28,6 +31,10 @@ const KnowledgePageDialogSection = () => {
 
   return (
     <>
+      {isAddSourceDialogOpen ? (
+        <AddKnowledgeSourceDialog open={isAddSourceDialogOpen} onOpenChange={handleAddSourceDialogOpenChange} />
+      ) : null}
+
       {isCreateGroupDialogOpen ? (
         <CreateKnowledgeGroupDialog
           open={isCreateGroupDialogOpen}

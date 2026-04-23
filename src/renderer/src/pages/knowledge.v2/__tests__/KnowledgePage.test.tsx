@@ -148,8 +148,13 @@ vi.mock('../components/DetailTabs', () => ({
 }))
 
 vi.mock('../panels/dataSource/DataSourcePanel', () => ({
-  default: ({ items, isLoading }: { items: Array<{ id: string }>; isLoading: boolean }) => (
-    <div data-testid="data-source-panel">{`${items.length}:${isLoading ? 'loading' : 'idle'}`}</div>
+  default: ({ items, isLoading, onAdd }: { items: Array<{ id: string }>; isLoading: boolean; onAdd: () => void }) => (
+    <div>
+      <div data-testid="data-source-panel">{`${items.length}:${isLoading ? 'loading' : 'idle'}`}</div>
+      <button type="button" onClick={onAdd}>
+        Open Add Source
+      </button>
+    </div>
   )
 }))
 
@@ -159,6 +164,17 @@ vi.mock('../panels/ragConfig/RagConfigPanel', () => ({
 
 vi.mock('../panels/recallTest/RecallTestPanel', () => ({
   default: () => <div data-testid="recall-test-panel">recall-test-panel</div>
+}))
+
+vi.mock('../components/AddKnowledgeSourceDialog', () => ({
+  default: ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) =>
+    open ? (
+      <div data-testid="add-source-dialog">
+        <button type="button" onClick={() => onOpenChange(false)}>
+          Close Add Source
+        </button>
+      </div>
+    ) : null
 }))
 
 vi.mock('../components/CreateKnowledgeBaseDialog', () => ({
@@ -451,6 +467,34 @@ describe('KnowledgePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Data' }))
     expect(screen.getByTestId('active-tab')).toHaveTextContent('data')
     expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:loading')
+  })
+
+  it('opens and closes the add-source dialog from the data source panel when a knowledge base is selected', async () => {
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    mockUseKnowledgeItems.mockReturnValue({
+      items: [createKnowledgeItem({ id: 'item-1' })],
+      total: 1,
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+
+    render(<KnowledgePage />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Add Source' }))
+    expect(screen.getByTestId('add-source-dialog')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close Add Source' }))
+    expect(screen.queryByTestId('add-source-dialog')).not.toBeInTheDocument()
   })
 
   it('shows the loading state when bases are still loading', () => {

@@ -2130,6 +2130,57 @@
       "rename": "重命名"
     },
     "data_source": {
+      "add_dialog": {
+        "footer": {
+          "selected_directories": "已选 {{count}} 个目录",
+          "selected_files": "已选 {{count}} 个文件",
+          "selected_notes": "已选 {{count}} 个笔记"
+        },
+        "directory": {
+          "description": "将递归导入目录下所有支持的文件",
+          "title": "点击选择目录或拖拽到此处"
+        },
+        "note": {
+          "description": "选择已有笔记作为知识库数据源",
+          "items": {
+            "customer_feedback": "客户反馈整理",
+            "meeting_minutes": "项目会议纪要",
+            "product_requirements": "产品需求文档",
+            "release_retro": "版本发布复盘",
+            "research_notes": "竞品调研笔记"
+          }
+        },
+        "placeholder": {
+          "supported_formats": "支持 PDF, DOCX, MD, XLSX, TXT, CSV",
+          "title": "点击选择文件或拖拽到此处"
+        },
+        "sources": {
+          "directory": "目录",
+          "file": "文件",
+          "note": "笔记",
+          "url": "网址",
+          "website": "网站"
+        },
+        "title": "添加数据源",
+        "url": {
+          "description": "输入网页链接：",
+          "help": "将自动抓取页面文本并分块索引",
+          "input_label": "网页地址",
+          "placeholder": "https://example.com/article",
+          "title": "导入单个网页"
+        },
+        "website": {
+          "depth_label": "爬取深度",
+          "description": "输入站点地址或 Sitemap：",
+          "help": "深度 1 = 仅首页，2 = 首页链接的页面",
+          "input_label": "站点地址 / Sitemap",
+          "max_pages_label": "最大页面数",
+          "placeholder": "https://docs.example.com/sitemap.xml",
+          "settings_description": "设置默认爬取范围和页面数量上限",
+          "settings_title": "爬虫设置",
+          "title": "导入网站或 Sitemap"
+        }
+      },
       "chunks_count": "{{count}} chunks",
       "filters": {
         "all": "全部",
@@ -2176,7 +2227,6 @@
     },
     "name_required": "知识库名称为必填项",
     "not_set": "未设置",
-    "rename_title": "重命名知识库",
     "rag": {
       "chunk_overlap": "重叠大小",
       "chunk_overlap_invalid": "分块重叠必须大于等于 0",
@@ -2212,6 +2262,7 @@
       "placeholder": "输入测试 Query...",
       "submit": "检索"
     },
+    "rename_title": "重命名知识库",
     "search": "搜索知识库",
     "status": {
       "completed": "已完成",
