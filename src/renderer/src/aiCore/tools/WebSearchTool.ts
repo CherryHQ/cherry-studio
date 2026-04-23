@@ -6,7 +6,7 @@ import { getUrlOriginOrFallback } from '@renderer/utils/url'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 import * as z from 'zod'
 
-export const BUILTIN_WEB_SEARCH_TOOL_NAME = 'buildin_web_search'
+export const BUILTIN_WEB_SEARCH_TOOL_NAME = 'builtin_web_search'
 
 const MAX_BUILTIN_WEB_SEARCH_QUERIES = 3
 
