@@ -2158,11 +2158,17 @@
     },
     "groups": {
       "add": "新建分组",
+      "delete": "删除分组",
+      "delete_confirm_description": "删除后，该分组下的知识库将移至未分组。",
+      "delete_confirm_title": "确认删除分组",
       "error": {
-        "failed_to_create": "分组创建失败"
+        "failed_to_create": "分组创建失败",
+        "failed_to_update": "分组重命名失败"
       },
       "name_placeholder": "输入分组名称...",
       "name_required": "分组名称为必填项",
+      "rename": "重命名",
+      "rename_title": "重命名分组",
       "ungrouped": "未分组"
     },
     "meta": {
@@ -2170,6 +2176,7 @@
     },
     "name_required": "知识库名称为必填项",
     "not_set": "未设置",
+    "rename_title": "重命名知识库",
     "rag": {
       "chunk_overlap": "重叠大小",
       "chunk_overlap_invalid": "分块重叠必须大于等于 0",

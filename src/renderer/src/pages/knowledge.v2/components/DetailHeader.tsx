@@ -1,13 +1,14 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { formatRelativeTime } from '@renderer/pages/knowledge.v2/utils'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import { Clock3, FileText, MoreHorizontal } from 'lucide-react'
-import { useMemo } from 'react'
+import { Clock3, FileText, MoreHorizontal, PencilLine } from 'lucide-react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface DetailHeaderProps {
   base: KnowledgeBase
+  onRenameBase: (base: Pick<KnowledgeBase, 'id' | 'name'>) => void
 }
 
 const DEFAULT_DOCUMENT_COUNT = 0
@@ -25,13 +26,22 @@ const statusTextKeys = {
   failed: 'knowledge_v2.status.failed'
 } as const
 
-const DetailHeader = ({ base }: DetailHeaderProps) => {
+const DetailHeader = ({ base, onRenameBase }: DetailHeaderProps) => {
   const { t, i18n } = useTranslation()
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
 
   const formattedUpdatedAt = useMemo(
     () => formatRelativeTime(base.updatedAt, i18n.language),
     [base.updatedAt, i18n.language]
   )
+
+  const handleRenameBase = useCallback(() => {
+    setIsMenuOpen(false)
+    onRenameBase({
+      id: base.id,
+      name: base.name
+    })
+  }, [base.id, base.name, onRenameBase])
 
   return (
     <header className="flex h-11 shrink-0 items-center justify-between border-border/15 border-b px-3.5">
@@ -57,15 +67,35 @@ const DetailHeader = ({ base }: DetailHeaderProps) => {
           <Clock3 className="size-3" />
           <span>{formattedUpdatedAt}</span>
         </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="size-5 min-h-5 min-w-5 rounded p-0 text-muted-foreground/35 shadow-none hover:bg-accent/60 hover:text-foreground"
-          onClick={() => undefined}
-          aria-label={t('common.more')}>
-          <MoreHorizontal className="size-3" />
-        </Button>
+        <Popover open={isMenuOpen} onOpenChange={setIsMenuOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="size-5 min-h-5 min-w-5 rounded p-0 text-muted-foreground/35 shadow-none hover:bg-accent/60 hover:text-foreground"
+              aria-label={t('common.more')}>
+              <MoreHorizontal className="size-3" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent
+            align="end"
+            side="bottom"
+            sideOffset={8}
+            collisionPadding={8}
+            className="w-52 rounded-xl p-2"
+            onOpenAutoFocus={(event) => event.preventDefault()}
+            onCloseAutoFocus={(event) => event.preventDefault()}>
+            <MenuList className="gap-0.5">
+              <MenuItem
+                variant="ghost"
+                icon={<PencilLine className="size-3.5" />}
+                label={t('knowledge_v2.context.rename')}
+                onClick={handleRenameBase}
+              />
+            </MenuList>
+          </PopoverContent>
+        </Popover>
       </div>
     </header>
   )

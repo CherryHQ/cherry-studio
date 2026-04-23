@@ -9,36 +9,52 @@ import {
   Input,
   Label
 } from '@cherrystudio/ui'
-import type { Group } from '@shared/data/types/group'
 import type { FormEvent } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-interface CreateKnowledgeGroupDialogProps {
+interface KnowledgeEntityNameDialogProps {
   open: boolean
-  isCreating: boolean
-  createGroup: (name: string) => Promise<Group>
+  title: string
+  submitLabel: string
+  initialName?: string
+  isSubmitting: boolean
+  submitErrorMessage?: string | null
+  onSubmit: (name: string) => Promise<void>
   onOpenChange: (open: boolean) => void
+  namePlaceholder?: string
+  nameRequiredMessage?: string
 }
 
-const CreateKnowledgeGroupDialog = ({
+const KnowledgeEntityNameDialog = ({
   open,
-  isCreating,
-  createGroup,
-  onOpenChange
-}: CreateKnowledgeGroupDialogProps) => {
+  title,
+  submitLabel,
+  initialName,
+  isSubmitting,
+  submitErrorMessage,
+  onSubmit,
+  onOpenChange,
+  namePlaceholder,
+  nameRequiredMessage
+}: KnowledgeEntityNameDialogProps) => {
   const { t } = useTranslation()
   const [name, setName] = useState('')
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
-  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [showSubmitError, setShowSubmitError] = useState(false)
 
   useEffect(() => {
     if (!open) {
       setName('')
       setHasAttemptedSubmit(false)
-      setSubmitError(null)
+      setShowSubmitError(false)
+      return
     }
-  }, [open])
+
+    setName(initialName ?? '')
+    setHasAttemptedSubmit(false)
+    setShowSubmitError(false)
+  }, [initialName, open])
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -46,49 +62,53 @@ const CreateKnowledgeGroupDialog = ({
     const normalizedName = name.trim()
 
     setHasAttemptedSubmit(true)
-    setSubmitError(null)
+    setShowSubmitError(false)
 
     if (!normalizedName) {
       return
     }
 
     try {
-      await createGroup(normalizedName)
+      await onSubmit(normalizedName)
     } catch {
-      setSubmitError(t('knowledge_v2.groups.error.failed_to_create'))
-      return
+      setShowSubmitError(true)
     }
-
-    onOpenChange(false)
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md gap-0 overflow-hidden rounded-2xl border-border/60 p-0">
         <DialogHeader className="gap-0.5 border-border/40 border-b px-4 py-3 text-left">
-          <DialogTitle className="font-medium text-xs leading-4">{t('knowledge_v2.groups.add')}</DialogTitle>
+          <DialogTitle className="font-medium text-xs leading-4">{title}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex flex-col">
           <div className="space-y-1 px-4 py-3">
             <Label
-              htmlFor="knowledge-v2-create-group-name"
+              htmlFor="knowledge-v2-entity-name"
               className="font-medium text-[11px] text-muted-foreground leading-4">
               {t('common.name')}
             </Label>
             <Input
-              id="knowledge-v2-create-group-name"
+              id="knowledge-v2-entity-name"
               autoFocus
               value={name}
               aria-invalid={hasAttemptedSubmit && !name.trim()}
-              placeholder={t('knowledge_v2.groups.name_placeholder')}
+              placeholder={namePlaceholder ?? t('common.name')}
               className="h-8 rounded-lg px-2.5 text-[11px] leading-4 placeholder:text-[11px] placeholder:text-muted-foreground/70"
-              onChange={(event) => setName(event.target.value)}
+              onChange={(event) => {
+                setName(event.target.value)
+                setShowSubmitError(false)
+              }}
             />
             {hasAttemptedSubmit && !name.trim() ? (
-              <FieldError className="text-[11px] leading-4">{t('knowledge_v2.groups.name_required')}</FieldError>
+              <FieldError className="text-[11px] leading-4">
+                {nameRequiredMessage ?? t('knowledge_v2.name_required')}
+              </FieldError>
             ) : null}
-            {submitError ? <FieldError className="text-[11px] leading-4">{submitError}</FieldError> : null}
+            {showSubmitError && submitErrorMessage ? (
+              <FieldError className="text-[11px] leading-4">{submitErrorMessage}</FieldError>
+            ) : null}
           </div>
 
           <DialogFooter className="gap-2 border-border/40 border-t px-4 py-3 sm:justify-end">
@@ -99,8 +119,8 @@ const CreateKnowledgeGroupDialog = ({
               onClick={() => onOpenChange(false)}>
               {t('common.cancel')}
             </Button>
-            <Button type="submit" loading={isCreating} className="h-8 rounded-lg px-3 font-medium text-[11px]">
-              {t('common.add')}
+            <Button type="submit" loading={isSubmitting} className="h-8 rounded-lg px-3 font-medium text-[11px]">
+              {submitLabel}
             </Button>
           </DialogFooter>
         </form>
@@ -109,4 +129,4 @@ const CreateKnowledgeGroupDialog = ({
   )
 }
 
-export default CreateKnowledgeGroupDialog
+export default KnowledgeEntityNameDialog

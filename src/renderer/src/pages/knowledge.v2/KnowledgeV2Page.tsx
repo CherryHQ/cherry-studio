@@ -1,21 +1,26 @@
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
+import type { Group } from '@shared/data/types/group'
+import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { MouseEvent as ReactMouseEvent } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import BaseNavigator from './components/BaseNavigator'
 import CreateKnowledgeBaseDialog from './components/CreateKnowledgeBaseDialog'
-import CreateKnowledgeGroupDialog from './components/CreateKnowledgeGroupDialog'
 import DetailHeader from './components/DetailHeader'
 import DetailTabs from './components/DetailTabs'
+import KnowledgeBaseNameDialog from './components/KnowledgeBaseNameDialog'
+import KnowledgeGroupNameDialog from './components/KnowledgeGroupNameDialog'
 import {
   useCreateKnowledgeBase,
   useCreateKnowledgeGroup,
   useDeleteKnowledgeBase,
+  useDeleteKnowledgeGroup,
   useKnowledgeBases,
   useKnowledgeGroups,
   useKnowledgeItems,
-  useUpdateKnowledgeBase
+  useUpdateKnowledgeBase,
+  useUpdateKnowledgeGroup
 } from './hooks'
 import DataSourcePanel from './panels/dataSource/DataSourcePanel'
 import RagConfigPanel from './panels/ragConfig/RagConfigPanel'
@@ -26,16 +31,23 @@ const NAVIGATOR_DEFAULT_WIDTH = 180
 const NAVIGATOR_MIN_WIDTH = 180
 const NAVIGATOR_MAX_WIDTH = 360
 
+type EditableKnowledgeGroup = Pick<Group, 'id' | 'name'>
+type EditableKnowledgeBase = Pick<KnowledgeBase, 'id' | 'name'>
+
 const KnowledgeV2Page = () => {
   const { t } = useTranslation()
   const { bases, isLoading } = useKnowledgeBases()
   const { groups } = useKnowledgeGroups()
   const { createGroup, isCreating: isCreatingGroup } = useCreateKnowledgeGroup()
   const { createBase, isCreating } = useCreateKnowledgeBase()
-  const { updateBase } = useUpdateKnowledgeBase()
+  const { updateBase, isUpdating: isUpdatingBase } = useUpdateKnowledgeBase()
+  const { updateGroup, isUpdating: isUpdatingGroup } = useUpdateKnowledgeGroup()
   const { deleteBase } = useDeleteKnowledgeBase()
+  const { deleteGroup } = useDeleteKnowledgeGroup()
   const [isCreateGroupDialogOpen, setIsCreateGroupDialogOpen] = useState(false)
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [editingBase, setEditingBase] = useState<EditableKnowledgeBase | null>(null)
+  const [editingGroup, setEditingGroup] = useState<EditableKnowledgeGroup | null>(null)
   const [selectedBaseId, setSelectedBaseId] = useState('')
   const [pendingSelectedBaseId, setPendingSelectedBaseId] = useState<string | null>(null)
   const { items: selectedBaseItems, isLoading: isItemsLoading } = useKnowledgeItems(selectedBaseId)
@@ -86,6 +98,14 @@ const KnowledgeV2Page = () => {
     setSelectedBaseId(createdBase.id)
   }, [])
 
+  const handleCreateGroupSubmit = useCallback(
+    async (name: string) => {
+      await createGroup(name)
+      setIsCreateGroupDialogOpen(false)
+    },
+    [createGroup]
+  )
+
   const handleMoveBase = useCallback(
     async (baseId: string, groupId: string) => {
       await updateBase(baseId, { groupId })
@@ -93,11 +113,72 @@ const KnowledgeV2Page = () => {
     [updateBase]
   )
 
+  const handleRenameGroup = useCallback((group: EditableKnowledgeGroup) => {
+    setEditingGroup(group)
+  }, [])
+
+  const handleRenameBase = useCallback((base: EditableKnowledgeBase) => {
+    setEditingBase(base)
+  }, [])
+
+  const handleRenameBaseDialogOpenChange = useCallback((open: boolean) => {
+    if (!open) {
+      setEditingBase(null)
+    }
+  }, [])
+
+  const handleRenameBaseSubmit = useCallback(
+    async (name: string) => {
+      if (!editingBase) {
+        return
+      }
+
+      if (name === editingBase.name.trim()) {
+        setEditingBase(null)
+        return
+      }
+
+      await updateBase(editingBase.id, { name })
+      setEditingBase(null)
+    },
+    [editingBase, updateBase]
+  )
+
+  const handleRenameGroupDialogOpenChange = useCallback((open: boolean) => {
+    if (!open) {
+      setEditingGroup(null)
+    }
+  }, [])
+
+  const handleRenameGroupSubmit = useCallback(
+    async (name: string) => {
+      if (!editingGroup) {
+        return
+      }
+
+      if (name === editingGroup.name.trim()) {
+        setEditingGroup(null)
+        return
+      }
+
+      await updateGroup(editingGroup.id, { name })
+      setEditingGroup(null)
+    },
+    [editingGroup, updateGroup]
+  )
+
   const handleDeleteBase = useCallback(
     async (baseId: string) => {
       await deleteBase(baseId)
     },
     [deleteBase]
+  )
+
+  const handleDeleteGroup = useCallback(
+    async (groupId: string) => {
+      await deleteGroup(groupId)
+    },
+    [deleteGroup]
   )
 
   const startNavigatorResize = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
@@ -151,13 +232,16 @@ const KnowledgeV2Page = () => {
           onCreateGroup={() => setIsCreateGroupDialogOpen(true)}
           onCreateBase={() => setIsCreateDialogOpen(true)}
           onMoveBase={handleMoveBase}
+          onRenameBase={handleRenameBase}
+          onRenameGroup={handleRenameGroup}
+          onDeleteGroup={handleDeleteGroup}
           onDeleteBase={handleDeleteBase}
           onResizeStart={startNavigatorResize}
         />
 
         {selectedBase ? (
           <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
-            <DetailHeader base={selectedBase} />
+            <DetailHeader base={selectedBase} onRenameBase={handleRenameBase} />
             <DetailTabs activeTab={activeTab} dataSourceCount={selectedBaseItems.length} onChange={setActiveTab} />
 
             <div className="min-h-0 flex-1 overflow-hidden">
@@ -173,16 +257,38 @@ const KnowledgeV2Page = () => {
         )}
       </div>
 
-      {isCreateGroupDialogOpen ? (
-        <CreateKnowledgeGroupDialog
+      {isCreateGroupDialogOpen && (
+        <KnowledgeGroupNameDialog
+          mode="create"
           open={isCreateGroupDialogOpen}
-          isCreating={isCreatingGroup}
-          createGroup={createGroup}
+          isSubmitting={isCreatingGroup}
+          onSubmit={handleCreateGroupSubmit}
           onOpenChange={setIsCreateGroupDialogOpen}
         />
-      ) : null}
+      )}
 
-      {isCreateDialogOpen ? (
+      {editingGroup && (
+        <KnowledgeGroupNameDialog
+          mode="update"
+          open
+          initialName={editingGroup.name}
+          isSubmitting={isUpdatingGroup}
+          onSubmit={handleRenameGroupSubmit}
+          onOpenChange={handleRenameGroupDialogOpenChange}
+        />
+      )}
+
+      {editingBase && (
+        <KnowledgeBaseNameDialog
+          open
+          initialName={editingBase.name}
+          isSubmitting={isUpdatingBase}
+          onSubmit={handleRenameBaseSubmit}
+          onOpenChange={handleRenameBaseDialogOpenChange}
+        />
+      )}
+
+      {isCreateDialogOpen && (
         <CreateKnowledgeBaseDialog
           open={isCreateDialogOpen}
           groups={groups}
@@ -191,7 +297,7 @@ const KnowledgeV2Page = () => {
           onOpenChange={setIsCreateDialogOpen}
           onCreated={handleCreateBaseCreated}
         />
-      ) : null}
+      )}
     </div>
   )
 }

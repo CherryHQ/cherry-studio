@@ -11,6 +11,8 @@ const mockUseKnowledgeGroups = vi.fn()
 const mockUseCreateKnowledgeGroup = vi.fn()
 const mockUseCreateKnowledgeBase = vi.fn()
 const mockUseUpdateKnowledgeBase = vi.fn()
+const mockUseUpdateKnowledgeGroup = vi.fn()
+const mockUseDeleteKnowledgeGroup = vi.fn()
 const mockUseDeleteKnowledgeBase = vi.fn()
 const mockUseKnowledgeItems = vi.fn()
 
@@ -20,6 +22,8 @@ vi.mock('../hooks', () => ({
   useCreateKnowledgeGroup: () => mockUseCreateKnowledgeGroup(),
   useCreateKnowledgeBase: () => mockUseCreateKnowledgeBase(),
   useUpdateKnowledgeBase: () => mockUseUpdateKnowledgeBase(),
+  useUpdateKnowledgeGroup: () => mockUseUpdateKnowledgeGroup(),
+  useDeleteKnowledgeGroup: () => mockUseDeleteKnowledgeGroup(),
   useDeleteKnowledgeBase: () => mockUseDeleteKnowledgeBase(),
   useKnowledgeItems: (baseId: string) => mockUseKnowledgeItems(baseId)
 }))
@@ -38,6 +42,9 @@ vi.mock('../components/BaseNavigator', () => ({
     onCreateGroup,
     onCreateBase,
     onMoveBase,
+    onRenameBase,
+    onRenameGroup,
+    onDeleteGroup,
     onDeleteBase
   }: {
     bases: Array<{ id: string; name: string }>
@@ -47,6 +54,9 @@ vi.mock('../components/BaseNavigator', () => ({
     onCreateGroup: () => void
     onCreateBase: () => void
     onMoveBase: (baseId: string, groupId: string) => Promise<void> | void
+    onRenameBase: (base: { id: string; name: string }) => void
+    onRenameGroup: (group: { id: string; name: string }) => void
+    onDeleteGroup: (groupId: string) => Promise<void> | void
     onDeleteBase: (baseId: string) => Promise<void> | void
   }) => (
     <div>
@@ -64,6 +74,9 @@ vi.mock('../components/BaseNavigator', () => ({
           <button onClick={() => onSelectBase(base.id)} type="button">
             {base.name}
           </button>
+          <button onClick={() => onRenameBase(base)} type="button">
+            RenameBase {base.name}
+          </button>
           <button onClick={() => void onMoveBase(base.id, groups[1]?.id ?? 'group-2')} type="button">
             Move {base.name}
           </button>
@@ -72,12 +85,35 @@ vi.mock('../components/BaseNavigator', () => ({
           </button>
         </div>
       ))}
+      {groups.map((group) => (
+        <div key={group.id}>
+          <button onClick={() => onRenameGroup(group)} type="button">
+            RenameGroup {group.name}
+          </button>
+          <button onClick={() => void onDeleteGroup(group.id)} type="button">
+            DeleteGroup {group.name}
+          </button>
+        </div>
+      ))}
     </div>
   )
 }))
 
 vi.mock('../components/DetailHeader', () => ({
-  default: ({ base }: { base: { name: string } }) => <div data-testid="detail-header">{base.name}</div>
+  default: ({
+    base,
+    onRenameBase
+  }: {
+    base: { id: string; name: string }
+    onRenameBase: (base: { id: string; name: string }) => void
+  }) => (
+    <div>
+      <div data-testid="detail-header">{base.name}</div>
+      <button type="button" onClick={() => onRenameBase(base)}>
+        HeaderRename {base.name}
+      </button>
+    </div>
+  )
 }))
 
 vi.mock('../components/DetailTabs', () => ({
@@ -153,28 +189,56 @@ vi.mock('../components/CreateKnowledgeBaseDialog', () => ({
     ) : null
 }))
 
-vi.mock('../components/CreateKnowledgeGroupDialog', () => ({
+vi.mock('../components/KnowledgeGroupNameDialog', () => ({
   default: ({
+    mode,
     open,
-    createGroup,
+    initialName,
+    onSubmit,
     onOpenChange
   }: {
+    mode: 'create' | 'update'
     open: boolean
-    createGroup: (name: string) => Promise<Group>
+    initialName?: string
+    onSubmit: (name: string) => Promise<void>
     onOpenChange: (open: boolean) => void
   }) =>
     open ? (
-      <div data-testid="create-group-dialog">
-        <button
-          type="button"
-          onClick={async () => {
-            await createGroup('Group 2')
-            onOpenChange(false)
-          }}>
-          Submit Create Group
+      <div data-testid={`${mode}-group-dialog`}>
+        <div data-testid="group-dialog-initial-name">{initialName ?? ''}</div>
+        <button type="button" onClick={() => void onSubmit(mode === 'create' ? 'Group 2' : 'Renamed Group')}>
+          {mode === 'create' ? 'Submit Create Group' : 'Submit Rename Group'}
         </button>
         <button type="button" onClick={() => onOpenChange(false)}>
-          Cancel Create Group
+          {mode === 'create' ? 'Cancel Create Group' : 'Cancel Rename Group'}
+        </button>
+      </div>
+    ) : null
+}))
+
+vi.mock('../components/KnowledgeBaseNameDialog', () => ({
+  default: ({
+    open,
+    initialName,
+    onSubmit,
+    onOpenChange
+  }: {
+    open: boolean
+    initialName: string
+    onSubmit: (name: string) => Promise<void>
+    onOpenChange: (open: boolean) => void
+  }) =>
+    open ? (
+      <div data-testid="rename-base-dialog">
+        <div data-testid="base-dialog-initial-name">{initialName}</div>
+        <button type="button" onClick={() => void onSubmit('Renamed Base')}>
+          Submit Rename Base
+        </button>
+        <button type="button" onClick={() => void onSubmit(initialName)}>
+          Submit Same Name Base
+        </button>
+        <button type="button" onClick={() => onOpenChange(false)}>
+          Cancel Rename Base
         </button>
       </div>
     ) : null
@@ -261,6 +325,16 @@ describe('KnowledgeV2Page', () => {
       updateBase: vi.fn(),
       isUpdating: false,
       updateError: undefined
+    })
+    mockUseUpdateKnowledgeGroup.mockReturnValue({
+      updateGroup: vi.fn(),
+      isUpdating: false,
+      updateError: undefined
+    })
+    mockUseDeleteKnowledgeGroup.mockReturnValue({
+      deleteGroup: vi.fn(),
+      isDeleting: false,
+      deleteError: undefined
     })
     mockUseDeleteKnowledgeBase.mockReturnValue({
       deleteBase: vi.fn(),
@@ -398,6 +472,108 @@ describe('KnowledgeV2Page', () => {
     expect(screen.queryByTestId('create-group-dialog')).not.toBeInTheDocument()
   })
 
+  it('opens the rename dialog with the current name and updates the selected group', async () => {
+    const updateGroup = vi.fn().mockResolvedValue(undefined)
+
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    mockUseUpdateKnowledgeGroup.mockReturnValue({
+      updateGroup,
+      isUpdating: false,
+      updateError: undefined
+    })
+
+    render(<KnowledgeV2Page />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'RenameGroup Research' }))
+
+    expect(screen.getByTestId('update-group-dialog')).toBeInTheDocument()
+    expect(screen.getByTestId('group-dialog-initial-name')).toHaveTextContent('Research')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Rename Group' }))
+
+    await waitFor(() => {
+      expect(updateGroup).toHaveBeenCalledWith('group-1', { name: 'Renamed Group' })
+    })
+    expect(screen.queryByTestId('update-group-dialog')).not.toBeInTheDocument()
+  })
+
+  it('opens the knowledge base rename dialog from the navigator and updates the selected base', async () => {
+    const updateBase = vi.fn().mockResolvedValue(undefined)
+
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    mockUseUpdateKnowledgeBase.mockReturnValue({
+      updateBase,
+      isUpdating: false,
+      updateError: undefined
+    })
+
+    render(<KnowledgeV2Page />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'RenameBase Base 1' }))
+
+    expect(screen.getByTestId('rename-base-dialog')).toBeInTheDocument()
+    expect(screen.getByTestId('base-dialog-initial-name')).toHaveTextContent('Base 1')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Rename Base' }))
+
+    await waitFor(() => {
+      expect(updateBase).toHaveBeenCalledWith('base-1', { name: 'Renamed Base' })
+    })
+    expect(screen.queryByTestId('rename-base-dialog')).not.toBeInTheDocument()
+  })
+
+  it('opens the same knowledge base rename dialog from the detail header', () => {
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+
+    render(<KnowledgeV2Page />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'HeaderRename Base 1' }))
+
+    expect(screen.getByTestId('rename-base-dialog')).toBeInTheDocument()
+    expect(screen.getByTestId('base-dialog-initial-name')).toHaveTextContent('Base 1')
+  })
+
+  it('closes the knowledge base rename dialog without updating when the trimmed name is unchanged', async () => {
+    const updateBase = vi.fn().mockResolvedValue(undefined)
+
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    mockUseUpdateKnowledgeBase.mockReturnValue({
+      updateBase,
+      isUpdating: false,
+      updateError: undefined
+    })
+
+    render(<KnowledgeV2Page />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'RenameBase Base 1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Same Name Base' }))
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('rename-base-dialog')).not.toBeInTheDocument()
+    })
+    expect(updateBase).not.toHaveBeenCalled()
+  })
+
   it('falls back to the first remaining base when the selected base disappears', () => {
     const firstBase = createKnowledgeBase({ id: 'base-1', name: 'Base 1' })
     const secondBase = createKnowledgeBase({ id: 'base-2', name: 'Base 2' })
@@ -497,6 +673,30 @@ describe('KnowledgeV2Page', () => {
     await waitFor(() => {
       expect(updateBase).toHaveBeenCalledWith('base-1', { groupId: 'group-2' })
       expect(deleteBase).toHaveBeenCalledWith('base-2')
+    })
+  })
+
+  it('passes group deletion through to the delete-group hook', async () => {
+    const deleteGroup = vi.fn().mockResolvedValue(undefined)
+
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    mockUseDeleteKnowledgeGroup.mockReturnValue({
+      deleteGroup,
+      isDeleting: false,
+      deleteError: undefined
+    })
+
+    render(<KnowledgeV2Page />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'DeleteGroup Research' }))
+
+    await waitFor(() => {
+      expect(deleteGroup).toHaveBeenCalledWith('group-1')
     })
   })
 })

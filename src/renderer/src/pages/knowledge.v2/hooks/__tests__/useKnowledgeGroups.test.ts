@@ -2,7 +2,12 @@ import type { Group } from '@shared/data/types/group'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useCreateKnowledgeGroup, useKnowledgeGroups } from '../useKnowledgeGroups'
+import {
+  useCreateKnowledgeGroup,
+  useDeleteKnowledgeGroup,
+  useKnowledgeGroups,
+  useUpdateKnowledgeGroup
+} from '../useKnowledgeGroups'
 
 const mockUseQuery = vi.fn()
 const mockUseMutation = vi.fn()
@@ -102,5 +107,73 @@ describe('useCreateKnowledgeGroup', () => {
     expect(created).toEqual(createdGroup)
     expect(result.current.isCreating).toBe(true)
     expect(result.current.createError).toBe(createError)
+  })
+})
+
+describe('useUpdateKnowledgeGroup', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('sends PATCH /groups/:id and refreshes groups', async () => {
+    const updatedGroup = createGroup({ id: 'group-1', name: 'Renamed Group' })
+    const trigger = vi.fn().mockResolvedValue(updatedGroup)
+    const updateError = new Error('update failed')
+
+    mockUseMutation.mockReturnValue({
+      trigger,
+      isLoading: true,
+      error: updateError
+    })
+
+    const { result } = renderHook(() => useUpdateKnowledgeGroup())
+    let updated: Group | undefined
+
+    await act(async () => {
+      updated = await result.current.updateGroup('group-1', { name: 'Renamed Group' })
+    })
+
+    expect(mockUseMutation).toHaveBeenCalledWith('PATCH', '/groups/:id', {
+      refresh: ['/groups']
+    })
+    expect(trigger).toHaveBeenCalledWith({
+      params: { id: 'group-1' },
+      body: { name: 'Renamed Group' }
+    })
+    expect(updated).toEqual(updatedGroup)
+    expect(result.current.isUpdating).toBe(true)
+    expect(result.current.updateError).toBe(updateError)
+  })
+})
+
+describe('useDeleteKnowledgeGroup', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('sends DELETE /groups/:id and refreshes groups', async () => {
+    const trigger = vi.fn().mockResolvedValue(undefined)
+    const deleteError = new Error('delete failed')
+
+    mockUseMutation.mockReturnValue({
+      trigger,
+      isLoading: true,
+      error: deleteError
+    })
+
+    const { result } = renderHook(() => useDeleteKnowledgeGroup())
+
+    await act(async () => {
+      await result.current.deleteGroup('group-1')
+    })
+
+    expect(mockUseMutation).toHaveBeenCalledWith('DELETE', '/groups/:id', {
+      refresh: ['/groups', '/knowledge-bases']
+    })
+    expect(trigger).toHaveBeenCalledWith({
+      params: { id: 'group-1' }
+    })
+    expect(result.current.isDeleting).toBe(true)
+    expect(result.current.deleteError).toBe(deleteError)
   })
 })
