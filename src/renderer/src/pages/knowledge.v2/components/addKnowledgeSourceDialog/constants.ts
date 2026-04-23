@@ -9,5 +9,5 @@ export const KNOWLEDGE_DATA_SOURCE_TYPES: ReadonlyArray<SourceTabDefinition> = [
   { value: 'note', labelKey: 'knowledge_v2.data_source.add_dialog.sources.note' },
   { value: 'directory', labelKey: 'knowledge_v2.data_source.add_dialog.sources.directory' },
   { value: 'url', labelKey: 'knowledge_v2.data_source.add_dialog.sources.url' },
-  { value: 'website', labelKey: 'knowledge_v2.data_source.add_dialog.sources.website' }
+  { value: 'sitemap', labelKey: 'knowledge_v2.data_source.add_dialog.sources.sitemap' }
 ]

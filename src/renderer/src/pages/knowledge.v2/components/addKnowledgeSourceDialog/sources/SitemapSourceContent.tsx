@@ -1,0 +1,26 @@
+import { Input } from '@cherrystudio/ui'
+import { useTranslation } from 'react-i18next'
+
+const SitemapSourceContent = () => {
+  const { t } = useTranslation()
+
+  return (
+    <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-0.75">
+      <div>
+        <p className="mb-1.5 text-[10px] text-muted-foreground/40 leading-4">
+          {t('knowledge_v2.data_source.add_dialog.sitemap.description')}
+        </p>
+        <Input
+          id="knowledge-source-sitemap-input"
+          placeholder={t('knowledge_v2.data_source.add_dialog.sitemap.placeholder')}
+          className="w-full rounded-md border border-border/40 bg-transparent px-2.5 py-1.25 text-[11px] text-foreground outline-none transition-all focus:border-primary/40 focus:ring-1 focus:ring-primary/15"
+        />
+        <p className="mt-1 text-[9px] text-muted-foreground/25 leading-4">
+          {t('knowledge_v2.data_source.add_dialog.sitemap.help')}
+        </p>
+      </div>
+    </div>
+  )
+}
+
+export default SitemapSourceContent

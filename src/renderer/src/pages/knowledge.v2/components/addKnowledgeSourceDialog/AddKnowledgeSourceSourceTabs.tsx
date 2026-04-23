@@ -6,8 +6,8 @@ import { KNOWLEDGE_DATA_SOURCE_TYPES } from './constants'
 import DirectorySourceContent from './sources/DirectorySourceContent'
 import FileSourceContent from './sources/FileSourceContent'
 import NoteSourceContent from './sources/NoteSourceContent'
+import SitemapSourceContent from './sources/SitemapSourceContent'
 import UrlSourceContent from './sources/UrlSourceContent'
-import WebsiteSourceContent from './sources/WebsiteSourceContent'
 import type { DirectoryItem, DropzoneOnDrop } from './types'
 
 interface AddKnowledgeSourceSourceTabsProps {
@@ -49,8 +49,8 @@ const AddKnowledgeSourceSourceTabs = ({
         )
       case 'url':
         return <UrlSourceContent />
-      case 'website':
-        return <WebsiteSourceContent />
+      case 'sitemap':
+        return <SitemapSourceContent />
       default:
         return null
     }

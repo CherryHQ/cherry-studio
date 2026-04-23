@@ -2142,7 +2142,7 @@
         },
         "note": {
           "description": "选择已有笔记作为知识库数据源",
-          "empty_description": "真实笔记列表接入后，将在这里展示可多选的笔记。当前可先使用文件、目录、网址或网站。",
+          "empty_description": "真实笔记列表接入后，将在这里展示可多选的笔记。当前可先使用文件、目录、网址或站点地图。",
           "empty_title": "暂未接入笔记数据源"
         },
         "placeholder": {
@@ -2153,8 +2153,8 @@
           "directory": "目录",
           "file": "文件",
           "note": "笔记",
-          "url": "网址",
-          "website": "网站"
+          "sitemap": "站点地图",
+          "url": "网址"
         },
         "title": "添加数据源",
         "url": {
@@ -2164,16 +2164,10 @@
           "placeholder": "https://docs.cherry-ai.com/",
           "title": "导入单个网页"
         },
-        "website": {
-          "depth_label": "爬取深度",
-          "description": "输入站点地址或 Sitemap：",
-          "help": "深度 1 = 仅首页，2 = 首页链接的页面",
-          "input_label": "站点地址 / Sitemap",
-          "max_pages_label": "最大页面数",
-          "placeholder": "https://docs.cherry-ai.com/sitemap-pages.xml",
-          "settings_description": "设置默认爬取范围和页面数量上限",
-          "settings_title": "爬虫设置",
-          "title": "导入网站或 Sitemap"
+        "sitemap": {
+          "description": "输入 Sitemap 地址：",
+          "help": "将读取 Sitemap 中包含的页面并建立索引",
+          "placeholder": "https://docs.cherry-ai.com/sitemap-pages.xml"
         }
       },
       "chunks_count": "{{count}} chunks",
