@@ -1303,3 +1303,56 @@ export async function createDirectoryTree<T = unknown>(
 - [ ] PaintingMigrator（随 Painting 业务重构独立推进，仅依赖 FileMigrator 提供的 fileId）
 - [ ] DirectoryTreeBuilder Lean 实现细节（随 Notes 集成落地）
 - [ ] AI SDK FileUploadService 详细接口（SDK 稳定后独立 PR）
+
+---
+
+## 十四、开放讨论（未立项）
+
+本节记录架构设计中已识别但**尚未决策是否落地**的问题。每项需出现明确触发场景后再考虑立项；未触发前保持开放状态，不进入任何 Phase 计划。
+
+### 14.1 External entry path relink
+
+**问题**：当前所有涉及 external entry `externalPath` 修正的 API 都以**路径为主键**，缺一条"以 entry `id` 为主键、只改指针不触碰 FS、保留所有 `file_ref`"的通道。
+
+| 现有 API                                   | 行为                     | 与 relink 需求的差异                                                                                   |
+| ------------------------------------------ | ------------------------ | ------------------------------------------------------------------------------------------------------ |
+| `rename`（external 分支）                  | `ops.rename` + DB 更新   | 主动物理重命名；若文件已被外部移走、物理原路径不存在，`fs.rename` 直接 ENOENT                          |
+| `ensureExternalEntry(newPath)`             | upsert by path           | 按路径为主键——新路径匹配不到现有 entry，产生**新 id**，旧 entry 变 dangling，原 `file_ref` 全部失联 |
+| `permanentDelete` + `ensureExternalEntry` | 先删后增                 | CASCADE 删除 `file_ref`，所有下游引用（messages、knowledge 等）归零                                    |
+
+**典型场景**：用户 @ 过 `~/Docs/report.pdf`，关联 N 条 `file_ref` → 之后在 Finder 中把文件挪到 `~/Archive/report.pdf`。按当前流程，entry 先变 dangling，用户 re-@ 产生新 id，旧 N 条 ref 要么被 OrphanRefScanner 扫掉、要么需用户手动逐条重新 @——任何选择都不理想。
+
+**如果立项，建议形态**：
+
+```ts
+// File IPC，纯 DB + DanglingCache 同步，不触碰 FS
+relinkExternalEntry(id: FileEntryId, newPath: FilePath): Promise<FileEntry>;
+```
+
+**语义承诺**：
+
+- **不触碰 FS**——与 `rename` 明确区分（"追认已移动" vs "主动移动"）
+- 保留 `id` 与所有 `file_ref`
+- 调用 `canonicalizeExternalPath` 归一化新路径
+- 同步更新 DanglingCache 反向索引（旧 path 移除、新 path 添加、状态重置）
+- `name` / `ext` 作为 `externalPath` 的投影自动跟更新
+
+**待决设计点**：
+
+1. **路径冲突策略**：若 `newPath` 已被另一 active external entry 占用（`externalPath` 全局唯一索引），如何处理？
+   - (a) 抛错，交由业务层显式 resolve（保守默认）
+   - (b) 自动合并两 entry：涉及 `file_ref` 迁移、哪个 id 胜出、trashed 状态优先级——复杂度高
+   - 倾向 **(a)**，保持 relink 语义单一
+2. **通道归属**：虽不触碰 FS，但需更新 DanglingCache（DB 外内存缓存）。按 §7.1 DataApi 的 SQL-only 边界，**必须走 File IPC**，不得做成 DataApi mutation
+3. **与 watcher 的并发**：relink 期间若刚好有 watcher 事件在飞（旧 path missing / 新 path added），需保证最终一致——可能需在 relink 内部原子化"反向索引更新 + 状态重置"
+4. **批量形态**：是否一并提供 `batchRelinkExternalEntries`？取决于是否有批量触发场景（如一次性重新定位整个目录下的所有引用）
+
+**暂不立项的理由**：
+
+- 真实触发频率未知——dangling UI + 用户 re-@ 的当前流程可能已足够覆盖常见用况
+- Phase 1b.2 需先稳定 `rename` / `write` 等已确定方法；relink 作为 additive 补充可随时加入，不阻塞任何现有流程
+
+**立项触发条件**：
+
+- 出现明确的 product-level 场景（如 Notes 集成、外部文件批量导入向导、用户反馈"移动文件后引用丢失"）
+- 用户研究发现 re-@ 流程造成非预期的关系损失
