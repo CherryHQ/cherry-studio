@@ -169,33 +169,49 @@ export class TopicService {
     // Verify topic exists
     await this.getById(id)
 
-    // Guard against orphaning forked topics: if another topic has messages
-    // parented onto this topic's messages, the fork depends on this topic's
-    // ancestor chain and deleting here would leave dangling `parent_id`
-    // references. Reject with a list of dependents so the user can decide
-    // whether to delete them first.
-    const dependents = await db.all<{ id: string; name: string }>(sql`
-      SELECT DISTINCT t.id as id, t.name as name
-      FROM message m
-      INNER JOIN topic t ON t.id = m.topic_id AND t.deleted_at IS NULL
-      WHERE m.topic_id != ${id}
-        AND m.parent_id IN (SELECT id FROM message WHERE topic_id = ${id})
-    `)
-
-    if (dependents.length > 0) {
-      const names = dependents.map((d) => d.name).join(', ')
-      throw DataApiErrorFactory.invalidOperation(
-        'delete topic',
-        `${dependents.length} forked topic(s) depend on this topic's messages: ${names}. Delete them first.`
-      )
-    }
-
     await db.transaction(async (tx) => {
-      // Hard delete all messages first (due to foreign key)
+      // Ownership transfer before cascade: forks and their source topic are
+      // peers, not parent-child, so deleting one must not collapse the
+      // others. For every other live topic with an `activeNodeId`, walk
+      // that topic's ancestor chain and reassign any encountered messages
+      // whose `topic_id` is the one being deleted — those ancestors are
+      // still needed by at least one survivor.
+      //
+      // First-come-first-served ordering is deterministic via
+      // `ORDER BY created_at`: the oldest survivor inherits first, and
+      // once a message's `topic_id` is no longer `:id`, subsequent
+      // dependents' UPDATE simply won't match it. The final `DELETE FROM
+      // message WHERE topic_id = :id` sweep then removes only the
+      // messages that were exclusive to the deleted topic.
+      const otherTopics = await tx.all<{ id: string; activeNodeId: string }>(sql`
+        SELECT id, active_node_id as activeNodeId
+        FROM topic
+        WHERE id != ${id}
+          AND deleted_at IS NULL
+          AND active_node_id IS NOT NULL
+        ORDER BY created_at
+      `)
+
+      for (const survivor of otherTopics) {
+        await tx.run(sql`
+          WITH RECURSIVE ancestors(id, parent_id) AS (
+            SELECT id, parent_id FROM message
+            WHERE id = ${survivor.activeNodeId} AND deleted_at IS NULL
+            UNION ALL
+            SELECT m.id, m.parent_id FROM message m
+            INNER JOIN ancestors a ON m.id = a.parent_id
+            WHERE m.deleted_at IS NULL
+          )
+          UPDATE message
+          SET topic_id = ${survivor.id}
+          WHERE id IN (SELECT id FROM ancestors)
+            AND topic_id = ${id}
+        `)
+      }
+
+      // Hard delete remaining (exclusively-owned) messages + tags + topic row.
       await tx.delete(messageTable).where(eq(messageTable.topicId, id))
       await tagService.purgeForEntity(tx, 'topic', id)
-
-      // Hard delete topic
       await tx.delete(topicTable).where(eq(topicTable.id, id))
     })
 
