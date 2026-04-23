@@ -148,7 +148,8 @@ const NpxSearch: FC = () => {
               <Card
                 size="small"
                 key={record.name}
-                style={{ borderRadius: 'var(--cs-radius-2xs)' }}
+                className="border border-border bg-card"
+                style={{ borderRadius: 'var(--radius-lg)' }}
                 title={
                   <Typography.Title level={5} style={{ margin: 0 }} className="selectable">
                     {record.name}

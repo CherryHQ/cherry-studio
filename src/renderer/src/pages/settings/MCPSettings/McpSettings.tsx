@@ -765,7 +765,7 @@ const McpSettings: React.FC = () => {
   return (
     <Container>
       <SettingContainer theme={theme} style={{ width: '100%', paddingTop: 55, backgroundColor: 'transparent' }}>
-        <SettingGroup style={{ marginBottom: 0, borderRadius: 'var(--cs-radius-2xs)' }}>
+        <SettingGroup style={{ marginBottom: 0 }}>
           <SettingTitle>
             <Flex className="mr-10 items-center justify-between gap-5">
               <Flex className="items-center gap-2">
@@ -858,7 +858,7 @@ const LogList = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof 
 )
 
 const LogItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('rounded-lg border border-border bg-muted px-3 py-2.5 text-foreground', className)} {...props} />
+  <div className={cn('rounded-lg border border-border bg-card px-3 py-2.5 text-foreground', className)} {...props} />
 )
 
 const LogHeader = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (

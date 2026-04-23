@@ -23,7 +23,7 @@ const BuiltinMCPServerList: FC = () => {
           return (
             <div
               key={server.id}
-              className="flex h-31.25 cursor-default flex-col rounded-lg border border-(--color-border) bg-(--color-background) px-4 py-2.5 transition-all duration-200 ease-in-out hover:border-(--color-primary)">
+              className="flex h-31.25 cursor-default flex-col rounded-lg border border-border bg-card px-4 py-2.5 transition-all duration-200 ease-in-out hover:border-primary">
               <div className="mb-1.25 flex items-center">
                 <div className="flex flex-1 items-center gap-1 overflow-hidden text-ellipsis whitespace-nowrap">
                   <span className="font-medium text-[15px]">{server.name}</span>

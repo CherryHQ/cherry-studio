@@ -144,7 +144,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
           message={t('error.boundary.mcp.invalid')}
           showIcon
           type="error"
-          style={{ height: 125, alignItems: 'flex-start', padding: 12 }}
+          style={{ height: 125, alignItems: 'flex-start', padding: 12, borderRadius: 'var(--radius-lg)' }}
           description={
             <Typography.Paragraph style={{ color: 'var(--color-error-base)' }} ellipsis={{ rows: 3 }}>
               {errorDetails}
@@ -234,7 +234,7 @@ const CardContainer = ({
 }: React.ComponentPropsWithoutRef<'div'> & { $isActive: boolean }) => (
   <div
     className={cn(
-      'mb-1.25 flex h-[125px] w-full flex-col rounded-[var(--cs-radius-2xs)] border-[0.5px] border-border bg-card py-2.5 pr-2.5 pl-4 transition-all hover:border-primary hover:opacity-100 hover:shadow-[0_2px_8px_rgba(0,0,0,0.1)]',
+      'mb-1.25 flex h-[125px] w-full flex-col rounded-lg border border-border bg-card py-2.5 pr-2.5 pl-4 transition-all hover:border-primary hover:opacity-100 hover:shadow-[0_2px_8px_rgba(0,0,0,0.1)]',
       $isActive ? 'opacity-100' : 'opacity-60',
       className
     )}

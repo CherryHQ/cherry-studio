@@ -109,7 +109,7 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
     <div className="mb-5 flex flex-col gap-3 pt-12.5">
       <Alert
         type={isUvInstalled ? 'success' : 'warning'}
-        style={{ borderRadius: 'var(--cs-radius-2xs)' }}
+        style={{ borderRadius: 'var(--radius-lg)' }}
         description={
           <ColFlex>
             <SettingRow style={{ width: '100%' }}>
@@ -134,7 +134,7 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
       />
       <Alert
         type={isBunInstalled ? 'success' : 'warning'}
-        style={{ borderRadius: 'var(--cs-radius-2xs)' }}
+        style={{ borderRadius: 'var(--radius-lg)' }}
         description={
           <ColFlex>
             <SettingRow style={{ width: '100%' }}>

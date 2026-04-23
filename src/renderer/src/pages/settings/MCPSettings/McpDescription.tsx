@@ -36,7 +36,7 @@ const MCPDescription: FC<McpDescriptionProps> = ({ searchKey }) => {
 
   return (
     <div className="max-w-[calc(100vw-var(--sidebar-width)-var(--settings-width)-75px)] pt-2">
-      <Card loading={loading}>
+      <Card className="border border-border bg-card" loading={loading} style={{ borderRadius: 'var(--radius-lg)' }}>
         <div className="markdown" dangerouslySetInnerHTML={{ __html: mcpInfo }} />
       </Card>
     </div>
