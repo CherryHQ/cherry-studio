@@ -13,17 +13,17 @@ import type { FormEvent } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-interface KnowledgeEntityNameDialogProps {
+export interface KnowledgeEntityNameDialogProps {
   open: boolean
   title: string
   submitLabel: string
-  initialName?: string
+  initialName: string
   isSubmitting: boolean
-  submitErrorMessage?: string | null
+  submitErrorMessage: string
+  namePlaceholder: string
+  nameRequiredMessage: string
   onSubmit: (name: string) => Promise<void>
   onOpenChange: (open: boolean) => void
-  namePlaceholder?: string
-  nameRequiredMessage?: string
 }
 
 const KnowledgeEntityNameDialog = ({
@@ -51,7 +51,7 @@ const KnowledgeEntityNameDialog = ({
       return
     }
 
-    setName(initialName ?? '')
+    setName(initialName)
     setHasAttemptedSubmit(false)
     setShowSubmitError(false)
   }, [initialName, open])
@@ -94,7 +94,7 @@ const KnowledgeEntityNameDialog = ({
               autoFocus
               value={name}
               aria-invalid={hasAttemptedSubmit && !name.trim()}
-              placeholder={namePlaceholder ?? t('common.name')}
+              placeholder={namePlaceholder}
               className="h-8 rounded-lg px-2.5 text-[11px] leading-4 placeholder:text-[11px] placeholder:text-muted-foreground/70"
               onChange={(event) => {
                 setName(event.target.value)
@@ -102,13 +102,9 @@ const KnowledgeEntityNameDialog = ({
               }}
             />
             {hasAttemptedSubmit && !name.trim() ? (
-              <FieldError className="text-[11px] leading-4">
-                {nameRequiredMessage ?? t('knowledge_v2.name_required')}
-              </FieldError>
+              <FieldError className="text-[11px] leading-4">{nameRequiredMessage}</FieldError>
             ) : null}
-            {showSubmitError && submitErrorMessage ? (
-              <FieldError className="text-[11px] leading-4">{submitErrorMessage}</FieldError>
-            ) : null}
+            {showSubmitError ? <FieldError className="text-[11px] leading-4">{submitErrorMessage}</FieldError> : null}
           </div>
 
           <DialogFooter className="gap-2 border-border/40 border-t px-4 py-3 sm:justify-end">

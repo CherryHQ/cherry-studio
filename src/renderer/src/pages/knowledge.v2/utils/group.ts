@@ -1,7 +1,7 @@
 import type { Group } from '@shared/data/types/group'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
-export interface KnowledgeV2BaseGroupSection {
+export interface KnowledgePageBaseGroupSection {
   groupId: string | null
   items: KnowledgeBase[]
 }
@@ -10,7 +10,7 @@ export const buildKnowledgeBaseGroupSections = (
   bases: ReadonlyArray<KnowledgeBase>,
   groups: ReadonlyArray<Group>,
   searchValue: string
-): KnowledgeV2BaseGroupSection[] => {
+): KnowledgePageBaseGroupSection[] => {
   const normalizedSearch = searchValue.trim().toLowerCase()
   const includeEmptyKnownGroups = normalizedSearch.length === 0
   const groupedBases = new Map<string | null, KnowledgeBase[]>()
@@ -37,7 +37,7 @@ export const buildKnowledgeBaseGroupSections = (
     }
   }
 
-  const sections: KnowledgeV2BaseGroupSection[] = []
+  const sections: KnowledgePageBaseGroupSection[] = []
 
   for (const group of groups) {
     const items = groupedBases.get(group.id)

@@ -1,7 +1,7 @@
 import { render } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import KnowledgeBaseNameDialog from '../KnowledgeBaseNameDialog'
+import RenameKnowledgeGroupDialog from '../RenameKnowledgeGroupDialog'
 
 const mockKnowledgeEntityNameDialog = vi.fn()
 
@@ -17,27 +17,27 @@ vi.mock('react-i18next', () => ({
     t: (key: string) =>
       (
         ({
-          'common.name': '名称',
-          'knowledge_v2.context.rename': '重命名',
-          'knowledge_v2.error.failed_to_edit': '知识库编辑失败',
-          'knowledge_v2.name_required': '知识库名称为必填项',
-          'knowledge_v2.rename_title': '重命名知识库'
+          'knowledge_v2.groups.rename': '重命名',
+          'knowledge_v2.groups.rename_title': '重命名分组',
+          'knowledge_v2.groups.name_placeholder': '输入分组名称...',
+          'knowledge_v2.groups.name_required': '分组名称为必填项',
+          'knowledge_v2.groups.error.failed_to_update': '分组重命名失败'
         }) as Record<string, string>
       )[key] ?? key
   })
 }))
 
-describe('KnowledgeBaseNameDialog', () => {
+describe('RenameKnowledgeGroupDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('passes the required rename-only props into KnowledgeEntityNameDialog', () => {
+  it('passes the explicit rename-group props into KnowledgeEntityNameDialog', () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined)
     const onOpenChange = vi.fn()
 
     render(
-      <KnowledgeBaseNameDialog
+      <RenameKnowledgeGroupDialog
         open
         initialName="Research"
         isSubmitting={false}
@@ -48,13 +48,13 @@ describe('KnowledgeBaseNameDialog', () => {
 
     expect(mockKnowledgeEntityNameDialog).toHaveBeenCalledWith({
       open: true,
-      title: '重命名知识库',
+      title: '重命名分组',
       submitLabel: '重命名',
       initialName: 'Research',
       isSubmitting: false,
-      submitErrorMessage: '知识库编辑失败',
-      namePlaceholder: '名称',
-      nameRequiredMessage: '知识库名称为必填项',
+      submitErrorMessage: '分组重命名失败',
+      namePlaceholder: '输入分组名称...',
+      nameRequiredMessage: '分组名称为必填项',
       onSubmit,
       onOpenChange
     })

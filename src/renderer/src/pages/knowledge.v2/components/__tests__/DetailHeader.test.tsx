@@ -1,5 +1,5 @@
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -22,6 +22,39 @@ vi.mock('@cherrystudio/ui', async () => {
     Button: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
       <button {...props}>{children}</button>
     ),
+    ConfirmDialog: ({
+      open,
+      title,
+      description,
+      confirmText,
+      cancelText,
+      onConfirm,
+      onOpenChange
+    }: {
+      open?: boolean
+      title: ReactNode
+      description?: ReactNode
+      confirmText?: string
+      cancelText?: string
+      onConfirm?: () => void | Promise<void>
+      onOpenChange?: (open: boolean) => void
+    }) =>
+      open ? (
+        <div>
+          <div>{title}</div>
+          {description ? <div>{description}</div> : null}
+          <button type="button" onClick={() => onOpenChange?.(false)}>
+            {cancelText}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              void onConfirm?.()
+            }}>
+            {confirmText}
+          </button>
+        </div>
+      ) : null,
     MenuItem: ({ icon, label, ...props }: { icon?: ReactNode; label: string; [key: string]: unknown }) => (
       <button {...props}>
         {icon}
@@ -75,7 +108,12 @@ vi.mock('react-i18next', () => ({
     t: (key: string, options?: { count?: number }) =>
       (
         ({
+          'common.cancel': '取消',
+          'common.delete': '删除',
           'common.more': '更多',
+          'knowledge_v2.context.delete': '删除知识库',
+          'knowledge_v2.context.delete_confirm_description': '删除后无法恢复',
+          'knowledge_v2.context.delete_confirm_title': '确认删除知识库',
           'knowledge_v2.context.rename': '重命名',
           'knowledge_v2.meta.documents_count': `${options?.count ?? 0} 文档`,
           'knowledge_v2.status.completed': '已完成'
@@ -106,18 +144,29 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
 })
 
 describe('DetailHeader', () => {
-  it('opens the more menu and shows the rename action', () => {
-    render(<DetailHeader base={createKnowledgeBase()} onRenameBase={vi.fn()} />)
+  it('renders the completed status dot before the status text', () => {
+    render(<DetailHeader base={createKnowledgeBase()} onRenameBase={vi.fn()} onDeleteBase={vi.fn()} />)
+
+    const statusText = screen.getByText('已完成')
+    const statusDot = statusText.previousElementSibling
+
+    expect(statusDot).toHaveAttribute('aria-hidden', 'true')
+    expect(statusDot).toHaveClass('bg-emerald-500')
+  })
+
+  it('opens the more menu and shows rename and delete actions', () => {
+    render(<DetailHeader base={createKnowledgeBase()} onRenameBase={vi.fn()} onDeleteBase={vi.fn()} />)
 
     fireEvent.click(screen.getByRole('button', { name: '更多' }))
 
     expect(screen.getByRole('button', { name: '重命名' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '删除知识库' })).toBeInTheDocument()
   })
 
   it('calls onRenameBase with the current knowledge base id and name', () => {
     const onRenameBase = vi.fn()
 
-    render(<DetailHeader base={createKnowledgeBase()} onRenameBase={onRenameBase} />)
+    render(<DetailHeader base={createKnowledgeBase()} onRenameBase={onRenameBase} onDeleteBase={vi.fn()} />)
 
     fireEvent.click(screen.getByRole('button', { name: '更多' }))
     fireEvent.click(screen.getByRole('button', { name: '重命名' }))
@@ -125,6 +174,24 @@ describe('DetailHeader', () => {
     expect(onRenameBase).toHaveBeenCalledWith({
       id: 'base-1',
       name: 'Base 1'
+    })
+  })
+
+  it('opens a delete confirmation dialog and confirms deletion', async () => {
+    const onDeleteBase = vi.fn().mockResolvedValue(undefined)
+
+    render(<DetailHeader base={createKnowledgeBase()} onRenameBase={vi.fn()} onDeleteBase={onDeleteBase} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+    fireEvent.click(screen.getByRole('button', { name: '删除知识库' }))
+
+    expect(screen.getByText('确认删除知识库')).toBeInTheDocument()
+    expect(screen.getByText('删除后无法恢复')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '删除' }))
+
+    await waitFor(() => {
+      expect(onDeleteBase).toHaveBeenCalledWith('base-1')
     })
   })
 })

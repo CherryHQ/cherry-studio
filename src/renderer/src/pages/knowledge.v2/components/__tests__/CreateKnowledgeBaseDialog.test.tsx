@@ -100,7 +100,7 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   description: undefined,
   groupId: null,
   emoji: '📁',
-  dimensions: 1536,
+  dimensions: 1024,
   embeddingModelId: 'openai::text-embedding-3-small',
   rerankModelId: undefined,
   fileProcessorId: undefined,
@@ -300,7 +300,7 @@ describe('CreateKnowledgeBaseDialog', () => {
         name: 'My Base',
         emoji: '📚',
         embeddingModelId: 'openai::text-embedding-3-small',
-        dimensions: '1536'
+        dimensions: '1024'
       })
     )
     expect(onCreated).toHaveBeenCalled()
@@ -332,7 +332,7 @@ describe('CreateKnowledgeBaseDialog', () => {
         emoji: '📁',
         groupId: 'group-2',
         embeddingModelId: 'openai::text-embedding-3-small',
-        dimensions: '1536'
+        dimensions: '1024'
       })
     )
   })

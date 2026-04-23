@@ -35,7 +35,7 @@ const createGroup = (overrides: Partial<Group> = {}): Group => ({
   ...overrides
 })
 
-describe('buildKnowledgeV2BaseGroupSections', () => {
+describe('buildKnowledgePageBaseGroupSections', () => {
   it('orders known groups by the real group list and keeps ungrouped bases in a null section', () => {
     const bases = [
       createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: 'group-2' }),

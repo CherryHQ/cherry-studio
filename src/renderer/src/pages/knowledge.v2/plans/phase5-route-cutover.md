@@ -9,7 +9,7 @@
 ## 建议落位文件
 
 - `src/renderer/src/routes/app/knowledge.tsx`
-- `src/renderer/src/pages/knowledge.v2/KnowledgeV2Page.tsx`
+- `src/renderer/src/pages/knowledge.v2/KnowledgePage.tsx`
 - `src/renderer/src/pages/knowledge/` 下仍被旧页面占用的相关文件
 
 ## 范围
@@ -27,7 +27,7 @@
 
 1. 确认 phase1 到 phase4 的完成标志都已满足。
 2. 盘点旧版 `pages/knowledge/` 中是否还有未迁移的能力。
-3. 路由入口改为指向 `KnowledgeV2Page`。
+3. 路由入口改为指向 `KnowledgePage`。
 4. 对旧页面代码做保守清理：
    - 仍被别处依赖的，先迁移或下沉
    - 已无引用的，再删除
@@ -42,6 +42,6 @@
 
 ## 完成标志
 
-- `/app/knowledge` 指向 `KnowledgeV2Page`。
+- `/app/knowledge` 指向 `KnowledgePage`。
 - 旧知识库页面只保留必要兼容代码，或被安全删除。
 - 主入口不再依赖旧版页面结构。

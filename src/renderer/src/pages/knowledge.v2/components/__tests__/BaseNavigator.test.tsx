@@ -5,7 +5,7 @@ import type * as ReactModule from 'react'
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
-import BaseNavigator from '../BaseNavigator'
+import BaseNavigator from '../navigator'
 
 vi.mock('@cherrystudio/ui', () => {
   const React = require('react') as typeof ReactModule
@@ -79,8 +79,18 @@ vi.mock('@cherrystudio/ui', () => {
         </button>
       )
     },
-    Button: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
-      <button {...props}>{children}</button>
+    Button: ({
+      children,
+      type = 'button',
+      ...props
+    }: {
+      children: ReactNode
+      type?: string
+      [key: string]: unknown
+    }) => (
+      <button type={type} {...props}>
+        {children}
+      </button>
     ),
     ConfirmDialog: ({
       open,
@@ -130,7 +140,7 @@ vi.mock('@cherrystudio/ui', () => {
       suffix?: ReactNode
       [key: string]: unknown
     }) => (
-      <button data-active={active ? 'true' : 'false'} {...props}>
+      <button type="button" data-active={active ? 'true' : 'false'} {...props}>
         {icon}
         {label}
         {suffix}
@@ -579,6 +589,72 @@ describe('BaseNavigator', () => {
     expect(screen.queryByRole('button', { name: '重命名' })).not.toBeInTheDocument()
   })
 
+  it('filters visible sections and rows when the search value changes', () => {
+    render(
+      <BaseNavigator
+        bases={[
+          createKnowledgeBase({ id: 'base-1', name: 'Alpha Notes', groupId: 'group-1' }),
+          createKnowledgeBase({ id: 'base-2', name: 'Beta Docs', groupId: 'group-2' })
+        ]}
+        groups={[
+          createGroup({ id: 'group-1', name: 'Research' }),
+          createGroup({ id: 'group-2', name: 'Archive', orderKey: 'a1' })
+        ]}
+        width={280}
+        selectedBaseId="base-1"
+        onSelectBase={vi.fn()}
+        onCreateGroup={vi.fn()}
+        onCreateBase={vi.fn()}
+        onMoveBase={vi.fn()}
+        onRenameBase={vi.fn()}
+        onRenameGroup={vi.fn()}
+        onDeleteGroup={vi.fn()}
+        onDeleteBase={vi.fn()}
+        onResizeStart={vi.fn()}
+      />
+    )
+
+    fireEvent.change(screen.getByPlaceholderText('搜索知识库...'), {
+      target: { value: 'Alpha' }
+    })
+
+    expect(screen.getByText('Research')).toBeInTheDocument()
+    expect(screen.queryByText('Archive')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Alpha Notes/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Beta Docs/ })).not.toBeInTheDocument()
+  })
+
+  it('highlights the selected base and forwards selection clicks', () => {
+    const onSelectBase = vi.fn()
+
+    render(
+      <BaseNavigator
+        bases={[
+          createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: 'group-1' }),
+          createKnowledgeBase({ id: 'base-2', name: 'Beta', groupId: 'group-1' })
+        ]}
+        groups={[createGroup({ id: 'group-1', name: 'Research' })]}
+        width={280}
+        selectedBaseId="base-1"
+        onSelectBase={onSelectBase}
+        onCreateGroup={vi.fn()}
+        onCreateBase={vi.fn()}
+        onMoveBase={vi.fn()}
+        onRenameBase={vi.fn()}
+        onRenameGroup={vi.fn()}
+        onDeleteGroup={vi.fn()}
+        onDeleteBase={vi.fn()}
+        onResizeStart={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: /Alpha/ })).toHaveClass('bg-accent')
+
+    fireEvent.click(screen.getByRole('button', { name: /Beta/ }))
+
+    expect(onSelectBase).toHaveBeenCalledWith('base-2')
+  })
+
   it('uses the folder-plus button as the create-group entry', () => {
     const onCreateGroup = vi.fn()
     const onCreateBase = vi.fn()
@@ -606,5 +682,62 @@ describe('BaseNavigator', () => {
     expect(onCreateGroup).toHaveBeenCalledTimes(1)
     expect(onCreateBase).not.toHaveBeenCalled()
     expect(screen.getByText('Research')).toBeInTheDocument()
+  })
+
+  it('uses both header and footer create-base buttons as knowledge base entry points', () => {
+    const onCreateBase = vi.fn()
+
+    render(
+      <BaseNavigator
+        bases={[]}
+        groups={[]}
+        width={280}
+        selectedBaseId=""
+        onSelectBase={vi.fn()}
+        onCreateGroup={vi.fn()}
+        onCreateBase={onCreateBase}
+        onMoveBase={vi.fn()}
+        onRenameBase={vi.fn()}
+        onRenameGroup={vi.fn()}
+        onDeleteGroup={vi.fn()}
+        onDeleteBase={vi.fn()}
+        onResizeStart={vi.fn()}
+      />
+    )
+
+    const createBaseButtons = screen.getAllByRole('button', { name: '新建知识库' })
+
+    expect(createBaseButtons).toHaveLength(2)
+
+    fireEvent.click(createBaseButtons[0])
+    fireEvent.click(createBaseButtons[1])
+
+    expect(onCreateBase).toHaveBeenCalledTimes(2)
+  })
+
+  it('renders a resize handle and binds mouse down to onResizeStart', () => {
+    const onResizeStart = vi.fn()
+
+    render(
+      <BaseNavigator
+        bases={[]}
+        groups={[]}
+        width={280}
+        selectedBaseId=""
+        onSelectBase={vi.fn()}
+        onCreateGroup={vi.fn()}
+        onCreateBase={vi.fn()}
+        onMoveBase={vi.fn()}
+        onRenameBase={vi.fn()}
+        onRenameGroup={vi.fn()}
+        onDeleteGroup={vi.fn()}
+        onDeleteBase={vi.fn()}
+        onResizeStart={onResizeStart}
+      />
+    )
+
+    fireEvent.mouseDown(screen.getByTestId('base-navigator-resize-handle'))
+
+    expect(onResizeStart).toHaveBeenCalledTimes(1)
   })
 })

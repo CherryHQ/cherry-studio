@@ -34,7 +34,7 @@ interface CreateKnowledgeBaseDialogProps {
 }
 
 const DEFAULT_EMOJI = '📁'
-const DEFAULT_DIMENSIONS = '1536'
+const DEFAULT_DIMENSIONS = '1024'
 const UNGROUPED_GROUP_VALUE = '__ungrouped__'
 const KNOWLEDGE_BASE_EMOJIS = ['📁', '📚', '🧠', '💡', '📝', '🔖', '🧪', '🌐', '⭐'] as const
 

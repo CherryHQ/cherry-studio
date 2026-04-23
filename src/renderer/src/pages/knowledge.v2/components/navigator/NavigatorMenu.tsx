@@ -1,0 +1,146 @@
+import { Button, MenuDivider, MenuItem, MenuList, Popover, PopoverAnchor, PopoverContent } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
+import { ArrowRightLeft, MoreHorizontal, PencilLine, Trash2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+
+import type {
+  KnowledgeBaseRowMenuProps,
+  KnowledgeGroupRowMenuProps,
+  NavigatorMoreButtonProps,
+  NavigatorRowMenuProps
+} from './types'
+
+export const NavigatorMoreButton = ({ visible, className, onClick }: NavigatorMoreButtonProps) => {
+  const { t } = useTranslation()
+
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon-sm"
+      aria-label={t('common.more')}
+      className={cn(
+        'size-4 min-h-4 min-w-4 shrink-0 rounded p-0 text-muted-foreground/35 shadow-none transition-all duration-150 hover:bg-transparent hover:text-foreground',
+        visible ? 'opacity-100' : 'opacity-0',
+        className
+      )}
+      onClick={onClick}>
+      <MoreHorizontal className="size-2.5" />
+    </Button>
+  )
+}
+
+export const NavigatorRowMenu = ({ menuPosition, onClose, children }: NavigatorRowMenuProps) => {
+  return (
+    <Popover
+      open={Boolean(menuPosition)}
+      onOpenChange={(open) => {
+        if (!open) {
+          onClose()
+        }
+      }}>
+      {menuPosition ? (
+        <PopoverAnchor
+          className="fixed size-0"
+          style={{
+            left: menuPosition.x,
+            top: menuPosition.y
+          }}
+        />
+      ) : null}
+
+      <PopoverContent
+        align="start"
+        side="bottom"
+        sideOffset={8}
+        collisionPadding={8}
+        className="w-52 rounded-xl p-2"
+        onOpenAutoFocus={(event) => event.preventDefault()}
+        onCloseAutoFocus={(event) => event.preventDefault()}>
+        {children}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+export const KnowledgeBaseRowMenu = ({
+  menuPosition,
+  availableGroups,
+  onClose,
+  onRename,
+  onMove,
+  onRequestDelete
+}: KnowledgeBaseRowMenuProps) => {
+  const { t } = useTranslation()
+
+  return (
+    <NavigatorRowMenu menuPosition={menuPosition} onClose={onClose}>
+      <MenuList className="gap-0.5">
+        <MenuItem
+          variant="ghost"
+          icon={<PencilLine className="size-3.5" />}
+          label={t('knowledge_v2.context.rename')}
+          onClick={onRename}
+        />
+
+        {availableGroups.length > 0 ? (
+          <>
+            <div className="px-2.5 pt-1 pb-0.5 font-medium text-[0.625rem] text-muted-foreground/70 leading-4">
+              {t('knowledge_v2.context.move_to')}
+            </div>
+
+            {availableGroups.map((group) => (
+              <MenuItem
+                key={group.id}
+                variant="ghost"
+                icon={<ArrowRightLeft className="size-3.5" />}
+                label={group.name}
+                onClick={() => void onMove(group.id)}
+              />
+            ))}
+
+            <MenuDivider />
+          </>
+        ) : null}
+
+        <MenuItem
+          variant="ghost"
+          icon={<Trash2 className="size-3.5" />}
+          label={t('knowledge_v2.context.delete')}
+          className="text-destructive hover:bg-destructive/10 hover:text-destructive focus-visible:ring-destructive/20"
+          onClick={onRequestDelete}
+        />
+      </MenuList>
+    </NavigatorRowMenu>
+  )
+}
+
+export const KnowledgeGroupRowMenu = ({
+  menuPosition,
+  onClose,
+  onRename,
+  onRequestDelete
+}: KnowledgeGroupRowMenuProps) => {
+  const { t } = useTranslation()
+
+  return (
+    <NavigatorRowMenu menuPosition={menuPosition} onClose={onClose}>
+      <MenuList className="gap-0.5">
+        <MenuItem
+          variant="ghost"
+          icon={<PencilLine className="size-3.5" />}
+          label={t('knowledge_v2.context.rename')}
+          onClick={onRename}
+        />
+        <MenuDivider />
+        <MenuItem
+          variant="ghost"
+          icon={<Trash2 className="size-3.5" />}
+          label={t('knowledge_v2.groups.delete')}
+          className="text-destructive hover:bg-destructive/10 hover:text-destructive focus-visible:ring-destructive/20"
+          onClick={onRequestDelete}
+        />
+      </MenuList>
+    </NavigatorRowMenu>
+  )
+}

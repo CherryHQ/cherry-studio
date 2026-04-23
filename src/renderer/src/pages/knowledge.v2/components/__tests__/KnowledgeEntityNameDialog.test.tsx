@@ -46,7 +46,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 const renderDialog = ({
-  initialName,
+  initialName = '',
   isSubmitting = false,
   submitErrorMessage = '提交失败',
   onSubmit = vi.fn().mockResolvedValue(undefined),
@@ -54,7 +54,7 @@ const renderDialog = ({
 }: {
   initialName?: string
   isSubmitting?: boolean
-  submitErrorMessage?: string | null
+  submitErrorMessage?: string
   onSubmit?: (name: string) => Promise<void>
   onOpenChange?: (open: boolean) => void
 } = {}) => {

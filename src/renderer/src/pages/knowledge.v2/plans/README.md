@@ -30,7 +30,7 @@
 
 ### 结构边界
 
-- `KnowledgeV2Page.tsx` 负责页面级拼装，不承载深层业务细节。
+- `KnowledgePage.tsx` 负责页面级拼装，不承载深层业务细节。
 - `components/` 只放页面级结构组件。
 - `panels/` 只放右侧 3 个一级 tab 的实现。
 - `hooks/` 只放 V2 自己的数据编排逻辑。

@@ -8,7 +8,7 @@
 
 ## 建议落位文件
 
-- `src/renderer/src/pages/knowledge.v2/KnowledgeV2Page.tsx`
+- `src/renderer/src/pages/knowledge.v2/KnowledgePage.tsx`
 - `src/renderer/src/pages/knowledge.v2/components/BaseNavigator.tsx`
 - `src/renderer/src/pages/knowledge.v2/components/DetailHeader.tsx`
 - `src/renderer/src/pages/knowledge.v2/components/DetailTabs.tsx`
@@ -33,7 +33,7 @@
 
 ## 具体任务
 
-1. 在 `KnowledgeV2Page.tsx` 中建立页面主拼装。
+1. 在 `KnowledgePage.tsx` 中建立页面主拼装。
 2. 将左侧导航抽成 `BaseNavigator.tsx`。
 3. 将右侧头部抽成 `DetailHeader.tsx`。
 4. 将右侧一级 tab 抽成 `DetailTabs.tsx`。
@@ -54,7 +54,7 @@
 
 ## 完成标志
 
-- `KnowledgeV2Page.tsx` 不再是 `return null`。
+- `KnowledgePage.tsx` 不再是 `return null`。
 - 页面大区块和 UI 稿一致。
 - 组件边界稳定，后续 phase 能直接在 3 个 panel 内继续扩展。
 - 没有引入旧知识库页面的结构耦合。
