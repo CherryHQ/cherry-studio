@@ -212,13 +212,29 @@ export function buildCreateAgentPayload(form: AgentFormState, type: AgentType = 
   }
 }
 
+export interface AgentCreateValidation {
+  nameMissing: boolean
+  modelMissing: boolean
+  isValid: boolean
+}
+
+export function validateAgentCreateForm(form: AgentFormState): AgentCreateValidation {
+  const nameMissing = form.name.trim() === ''
+  const modelMissing = form.model.trim() === ''
+  return {
+    nameMissing,
+    modelMissing,
+    isValid: !nameMissing && !modelMissing
+  }
+}
+
 /**
  * Minimum requirements for a valid create payload: name + model. Matches the
  * backend `requireFields(['type', 'name', 'model'])` guard in
  * `src/main/data/api/handlers/agents.ts`.
  */
 export function isCreatePayloadValid(form: AgentFormState): boolean {
-  return Boolean(form.name.trim() && form.model.trim())
+  return validateAgentCreateForm(form).isValid
 }
 
 /**

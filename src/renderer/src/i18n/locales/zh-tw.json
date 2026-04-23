@@ -2352,8 +2352,8 @@
             "no_mcp_bound": "未綁定任何 MCP 服務",
             "no_skills_enabled": "未啟用任何技能",
             "search_placeholder": "搜尋工具或 Server...",
-            "skills_require_save": "儲存後才能啟用技能",
             "skills_coming_soon": "Skill 綁定即將支援",
+            "skills_require_save": "儲存後才能啟用技能",
             "tab": {
               "mcp": "MCP Server",
               "skills": "Skills",
@@ -2495,7 +2495,6 @@
       "title": "確認刪除"
     },
     "duplicate_name": "[to be translated]:{{name}} (copy)",
-    "no_match": "無相符結果",
     "empty_state": {
       "description": "點選「新增」建立你的第一個資源",
       "empty_description": "[to be translated]:Create your first agent or assistant",
@@ -2536,6 +2535,7 @@
         "supports": "[to be translated]:Raw file URLs are supported"
       }
     },
+    "no_match": "無相符結果",
     "pending_backend": {
       "description": "此資源的寫入操作即將上線,目前僅顯示佔位。",
       "title": "資料層接入中"

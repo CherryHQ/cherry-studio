@@ -2156,6 +2156,8 @@
     },
     "config": {
       "agent": {
+        "create_banner": "[to be translated]:Save before binding tools and MCP servers",
+        "create_title": "[to be translated]:New agent",
         "field": {
           "accessible_paths": {
             "add": "[to be translated]:Add directory",
@@ -2238,20 +2240,32 @@
             "label": "[to be translated]:Basic",
             "title": "[to be translated]:Basic"
           },
+          "permission": {
+            "desc": "[to be translated]:Authorization scope for agent actions",
+            "label": "[to be translated]:Permission mode",
+            "title": "[to be translated]:Permission mode"
+          },
           "prompt": {
             "desc": "[to be translated]:System prompt and behavioral constraints",
             "label": "[to be translated]:Prompt",
             "title": "[to be translated]:Prompt"
           },
           "tools": {
+            "add": "[to be translated]:Add",
             "desc": "[to be translated]:MCP servers, allowed tools, and runtime settings",
             "label": "[to be translated]:Tools & runtime",
+            "no_builtin_enabled": "[to be translated]:No built-in tools enabled",
+            "no_mcp_bound": "[to be translated]:No MCP servers bound",
+            "no_skills_enabled": "[to be translated]:No skills enabled",
+            "search_placeholder": "[to be translated]:Search tools or servers...",
+            "skills_coming_soon": "[to be translated]:Skill bindings coming soon",
+            "skills_require_save": "[to be translated]:Save before enabling skills",
+            "tab": {
+              "mcp": "[to be translated]:MCP Server",
+              "skills": "[to be translated]:Skills",
+              "tools": "[to be translated]:Built-in tools"
+            },
             "title": "[to be translated]:Tools & runtime"
-          },
-          "workspace": {
-            "desc": "[to be translated]:Accessible directories and permission mode",
-            "label": "[to be translated]:Workspace & permissions",
-            "title": "[to be translated]:Workspace & permissions"
           }
         }
       },
@@ -2427,6 +2441,7 @@
         "supports": "[to be translated]:Raw file URLs are supported"
       }
     },
+    "no_match": "[to be translated]:No matching results",
     "pending_backend": {
       "description": "[to be translated]:Write operations for this resource are coming soon. This view is a placeholder.",
       "title": "[to be translated]:Backend setup in progress"

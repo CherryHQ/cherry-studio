@@ -181,16 +181,20 @@ function ServerCard({ server, onToggle }: { server: MCPServer; onToggle: () => v
           </NormalTooltip>
         )}
       </div>
-      <Switch
-        size="sm"
-        checked
-        onCheckedChange={onToggle}
-        title={t(inactive ? 'library.config.tools.switch_title_inactive' : 'library.config.tools.switch_title_active')}
-        classNames={{
-          root: 'h-3.5 w-6 shrink-0 shadow-none',
-          thumb: 'size-2.5 ml-0.5 data-[state=checked]:translate-x-3'
-        }}
-      />
+      <NormalTooltip
+        content={t(
+          inactive ? 'library.config.tools.switch_title_inactive' : 'library.config.tools.switch_title_active'
+        )}>
+        <Switch
+          size="sm"
+          checked
+          onCheckedChange={onToggle}
+          classNames={{
+            root: 'h-3.5 w-6 shrink-0 shadow-none',
+            thumb: 'size-2.5 ml-0.5 data-[state=checked]:translate-x-3'
+          }}
+        />
+      </NormalTooltip>
     </div>
   )
 }

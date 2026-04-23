@@ -1,4 +1,4 @@
-import { Textarea } from '@cherrystudio/ui'
+import { Field, FieldContent, FieldLabel, Textarea } from '@cherrystudio/ui'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -23,17 +23,19 @@ const PromptSection: FC<Props> = ({ form, onChange }) => {
         <p className="text-[10px] text-muted-foreground/55">{t('library.config.agent.section.prompt.desc')}</p>
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <label className="text-[10px] text-muted-foreground/60">
+      <Field className="gap-1.5">
+        <FieldLabel className="font-normal text-[10px] text-muted-foreground/60">
           {t('library.config.agent.field.instructions.label')}
-        </label>
-        <Textarea.Input
-          value={form.instructions}
-          onChange={(e) => onChange({ instructions: e.target.value })}
-          placeholder={t('library.config.agent.field.instructions.placeholder')}
-          className="min-h-80 rounded-xl border border-border/20 bg-accent/10 px-3 py-2 font-mono text-[11px] text-foreground leading-relaxed transition-all focus:border-border/40 focus:bg-accent/15"
-        />
-      </div>
+        </FieldLabel>
+        <FieldContent>
+          <Textarea.Input
+            value={form.instructions}
+            onChange={(e) => onChange({ instructions: e.target.value })}
+            placeholder={t('library.config.agent.field.instructions.placeholder')}
+            className="min-h-80 rounded-xl border border-border/20 bg-accent/10 px-3 py-2 font-mono text-[11px] text-foreground leading-relaxed transition-all focus:border-border/40 focus:bg-accent/15"
+          />
+        </FieldContent>
+      </Field>
     </div>
   )
 }

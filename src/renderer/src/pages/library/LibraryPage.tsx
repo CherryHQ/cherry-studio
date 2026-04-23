@@ -21,21 +21,10 @@ import type { LibrarySidebarFilter, ResourceItem, ResourceType, SortKey, TagItem
 
 type ConfigView =
   | { type: 'list' }
+  | { type: 'assistant-create' }
   | { type: 'assistant-edit'; assistant: Assistant }
   | { type: 'agent-edit'; agent: AgentDetail }
   | { type: 'agent-create' }
-
-// Baseline for「新建助手」. `modelId` is intentionally omitted — the backend
-// fills it from the `chat.default_model_id` preference (AssistantService
-// `resolveCreateModelId`). If the preference is unset or points at a model
-// the user has since removed, create falls back to `null`; the user can pick
-// a model in the edit page afterwards.
-const DEFAULT_NEW_ASSISTANT_BASE = {
-  name: '新助手',
-  emoji: '💬',
-  description: '',
-  prompt: ''
-} as const
 
 /**
  * Build the top-bar chip list.
@@ -79,7 +68,7 @@ export default function LibraryPage() {
     sort: sortKey
   })
 
-  const { createAssistant, duplicateAssistant } = useAssistantMutations()
+  const { duplicateAssistant } = useAssistantMutations()
   // Row 2「+ 标签」走 ensureTags 的幂等语义:已存在则静默复用,不存在才 POST。
   // Avoids 409 on duplicate names and keeps the UX consistent with BasicSection / 卡片菜单。
   const { ensureTags } = useEnsureTags()
@@ -103,6 +92,11 @@ export default function LibraryPage() {
   )
 
   const noop = useCallback(() => {}, [])
+  const handleBackToList = useCallback(() => setConfigView({ type: 'list' }), [])
+  const handleCreated = useCallback(() => {
+    refetch()
+    setConfigView({ type: 'list' })
+  }, [refetch])
 
   const handleEdit = useCallback((r: ResourceItem) => {
     if (r.type === 'assistant') {
@@ -143,27 +137,34 @@ export default function LibraryPage() {
     [t]
   )
 
-  const handleCreate = useCallback(
-    async (type: ResourceType) => {
-      if (type === 'assistant') {
-        // Create the row up-front so the edit page opens against a real id.
-        // modelId is omitted here so the backend can fill it from
-        // `chat.default_model_id` (see DEFAULT_NEW_ASSISTANT_BASE above).
-        const created = await createAssistant({
-          ...DEFAULT_NEW_ASSISTANT_BASE,
-          name: t('library.type.new_assistant')
-        })
-        setConfigView({ type: 'assistant-edit', assistant: created })
-      } else if (type === 'agent') {
-        // Defer DB write until the user hits 保存 in the config page. This
-        // avoids leaving half-configured agent rows behind if the user
-        // navigates away, and matches the flow the user spec'd:
-        // "新建智能体 要先进入到配置页 配置完后点击保存 才能成功新建".
-        setConfigView({ type: 'agent-create' })
-      }
-    },
-    [createAssistant, t]
-  )
+  const handleCreate = useCallback((type: ResourceType) => {
+    if (type === 'assistant') {
+      // Mirror the agent create flow: enter the form first, then POST only
+      // after the user fills the required fields and clicks 保存.
+      setConfigView({ type: 'assistant-create' })
+    } else if (type === 'agent') {
+      // Defer DB write until the user hits 保存 in the config page. This
+      // avoids leaving half-configured agent rows behind if the user
+      // navigates away, and matches the flow the user spec'd:
+      // "新建智能体 要先进入到配置页 配置完后点击保存 才能成功新建".
+      setConfigView({ type: 'agent-create' })
+    }
+  }, [])
+
+  if (configView.type === 'assistant-create') {
+    return (
+      <AnimatePresence mode="wait">
+        <motion.div
+          key="assistant-create"
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -20 }}
+          className="flex min-h-0 flex-1 flex-col bg-background">
+          <AssistantConfigPage onBack={handleBackToList} onCreated={handleCreated} />
+        </motion.div>
+      </AnimatePresence>
+    )
+  }
 
   if (configView.type === 'assistant-edit') {
     return (
@@ -174,7 +175,7 @@ export default function LibraryPage() {
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: -20 }}
           className="flex min-h-0 flex-1 flex-col bg-background">
-          <AssistantConfigPage assistant={configView.assistant} onBack={() => setConfigView({ type: 'list' })} />
+          <AssistantConfigPage assistant={configView.assistant} onBack={handleBackToList} />
         </motion.div>
       </AnimatePresence>
     )
@@ -189,7 +190,7 @@ export default function LibraryPage() {
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: -20 }}
           className="flex min-h-0 flex-1 flex-col bg-background">
-          <AgentConfigPage agent={configView.agent} onBack={() => setConfigView({ type: 'list' })} />
+          <AgentConfigPage agent={configView.agent} onBack={handleBackToList} />
         </motion.div>
       </AnimatePresence>
     )
@@ -204,10 +205,7 @@ export default function LibraryPage() {
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: -20 }}
           className="flex min-h-0 flex-1 flex-col bg-background">
-          <AgentConfigPage
-            onBack={() => setConfigView({ type: 'list' })}
-            onCreated={(created) => setConfigView({ type: 'agent-edit', agent: created })}
-          />
+          <AgentConfigPage onBack={handleBackToList} onCreated={handleCreated} />
         </motion.div>
       </AnimatePresence>
     )

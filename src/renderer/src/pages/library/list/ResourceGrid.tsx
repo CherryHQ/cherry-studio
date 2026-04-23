@@ -1,4 +1,19 @@
-import { Button, Checkbox, EmptyState, Input, Switch } from '@cherrystudio/ui'
+import {
+  Badge,
+  Button,
+  ButtonGroup,
+  Checkbox,
+  EmptyState,
+  Input,
+  MenuDivider,
+  MenuItem,
+  MenuList,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Separator,
+  Switch
+} from '@cherrystudio/ui'
 import type { TFunction } from 'i18next'
 import {
   ArrowUpDown,
@@ -146,58 +161,52 @@ export const ResourceGrid: FC<Props> = ({
           </div>
 
           {/* Sort */}
-          <div className="relative">
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setShowSort(!showSort)
-                setShowCreate(false)
-              }}
-              className={`flex h-auto min-h-0 items-center gap-1.5 rounded-3xs border px-2.5 py-1.5 font-normal text-[10px] shadow-none transition-all focus-visible:ring-0 ${
-                showSort
-                  ? 'border-primary/30 bg-accent/60 text-foreground'
-                  : 'border-border/40 text-muted-foreground/60 hover:border-border/60 hover:text-foreground'
-              }`}>
-              <ArrowUpDown size={10} />
-              <span>{t(SORT_META[sortKey].labelKey)}</span>
-            </Button>
-            <AnimatePresence>
-              {showSort && (
-                <div>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowSort(false)} />
-                  <motion.div
-                    initial={{ opacity: 0, y: -4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -4 }}
-                    className="absolute top-full left-0 z-50 mt-1 min-w-[110px] rounded-2xs border border-border/40 bg-popover p-1 shadow-xl">
-                    {SORT_ORDER.map((k) => (
-                      <Button
-                        variant="ghost"
-                        key={k}
-                        onClick={() => {
-                          onSortKeyChange(k)
-                          setShowSort(false)
-                        }}
-                        className={`h-auto min-h-0 w-full justify-start rounded-4xs px-2.5 py-[5px] text-left font-normal text-[10px] shadow-none transition-colors focus-visible:ring-0 ${
-                          sortKey === k
-                            ? 'bg-accent text-foreground'
-                            : 'text-muted-foreground/70 hover:bg-accent/50 hover:text-foreground'
-                        }`}>
-                        {t(SORT_META[k].labelKey)}
-                      </Button>
-                    ))}
-                  </motion.div>
-                </div>
-              )}
-            </AnimatePresence>
-          </div>
+          <Popover
+            open={showSort}
+            onOpenChange={(open) => {
+              setShowSort(open)
+              if (open) setShowCreate(false)
+            }}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                className={`flex h-auto min-h-0 items-center gap-1.5 rounded-3xs border px-2.5 py-1.5 font-normal text-[10px] shadow-none transition-all focus-visible:ring-0 ${
+                  showSort
+                    ? 'border-primary/30 bg-accent/60 text-foreground'
+                    : 'border-border/40 text-muted-foreground/60 hover:border-border/60 hover:text-foreground'
+                }`}>
+                <ArrowUpDown size={10} />
+                <span>{t(SORT_META[sortKey].labelKey)}</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              align="start"
+              sideOffset={4}
+              className="w-auto min-w-[110px] rounded-2xs border-border/40 p-1">
+              <MenuList>
+                {SORT_ORDER.map((k) => (
+                  <MenuItem
+                    key={k}
+                    variant="ghost"
+                    size="sm"
+                    active={sortKey === k}
+                    label={t(SORT_META[k].labelKey)}
+                    onClick={() => {
+                      onSortKeyChange(k)
+                      setShowSort(false)
+                    }}
+                  />
+                ))}
+              </MenuList>
+            </PopoverContent>
+          </Popover>
 
           {/* View toggle */}
-          <div className="flex items-center overflow-hidden rounded-3xs border border-border/40">
+          <ButtonGroup className="overflow-hidden rounded-3xs border border-border/40">
             <Button
               variant="ghost"
               onClick={() => onViewModeChange('grid')}
-              className={`h-auto min-h-0 w-auto rounded-none p-1.5 font-normal shadow-none transition-colors focus-visible:ring-0 ${
+              className={`h-auto min-h-0 w-auto p-1.5 font-normal shadow-none transition-colors focus-visible:ring-0 ${
                 viewMode === 'grid'
                   ? 'bg-accent text-foreground'
                   : 'text-muted-foreground/50 hover:bg-accent/30 hover:text-foreground'
@@ -207,96 +216,99 @@ export const ResourceGrid: FC<Props> = ({
             <Button
               variant="ghost"
               onClick={() => onViewModeChange('list')}
-              className={`h-auto min-h-0 w-auto rounded-none p-1.5 font-normal shadow-none transition-colors focus-visible:ring-0 ${
+              className={`h-auto min-h-0 w-auto p-1.5 font-normal shadow-none transition-colors focus-visible:ring-0 ${
                 viewMode === 'list'
                   ? 'bg-accent text-foreground'
                   : 'text-muted-foreground/50 hover:bg-accent/30 hover:text-foreground'
               }`}>
               <List size={11} />
             </Button>
-          </div>
+          </ButtonGroup>
 
           <div className="flex-1" />
 
           {/* Separator */}
-          <div className="h-4 w-px shrink-0 bg-border/30" />
+          <Separator orientation="vertical" className="h-4 shrink-0 bg-border/30" />
 
           {/* Create */}
-          <div className="relative">
-            <Button
-              variant="default"
-              onClick={() => {
-                setShowCreate(!showCreate)
-                setShowSort(false)
-              }}
-              className="flex h-auto min-h-0 items-center gap-1.5 rounded-3xs bg-foreground px-3 py-1.5 font-normal text-[11px] text-background shadow-none transition-colors hover:bg-foreground/90 focus-visible:ring-0 active:scale-[0.97]">
-              <Plus size={11} className="lucide-custom" />
-              <span>{t('library.toolbar.new_resource')}</span>
-              <ChevronDown
-                size={9}
-                className={`lucide-custom transition-transform ${showCreate ? 'rotate-180' : ''}`}
-              />
-            </Button>
-            <AnimatePresence>
-              {showCreate && (
-                <div>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowCreate(false)} />
-                  <motion.div
-                    initial={{ opacity: 0, y: -4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -4 }}
-                    className="absolute top-full right-0 z-50 mt-1 min-w-[140px] rounded-2xs border border-border/40 bg-popover p-1 shadow-xl">
-                    {(['agent', 'assistant'] as const).map((resourceType) => {
-                      const meta = RESOURCE_TYPE_META[resourceType]
-                      const Icon = meta.icon
-                      return (
-                        <Button
-                          key={resourceType}
-                          variant="ghost"
-                          onClick={() => {
-                            onCreate(resourceType)
-                            setShowCreate(false)
-                          }}
-                          className="flex h-auto min-h-0 w-full items-center justify-start gap-2 rounded-4xs px-2.5 py-[6px] font-normal text-[10px] text-muted-foreground/70 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0">
-                          <div className={`flex h-5 w-5 items-center justify-center rounded-4xs ${meta.color}`}>
-                            <Icon size={10} />
-                          </div>
-                          <span>{t('library.create_menu.create', { type: t(meta.labelKey) })}</span>
-                        </Button>
-                      )
-                    })}
-                    <div className="mx-1 my-0.5 h-px bg-border/30" />
-                    <Button
+          <Popover
+            open={showCreate}
+            onOpenChange={(open) => {
+              setShowCreate(open)
+              if (open) setShowSort(false)
+            }}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="default"
+                className="flex h-auto min-h-0 items-center gap-1.5 rounded-3xs bg-foreground px-3 py-1.5 font-normal text-[11px] text-background shadow-none transition-colors hover:bg-foreground/90 focus-visible:ring-0 active:scale-[0.97]">
+                <Plus size={11} className="lucide-custom" />
+                <span>{t('library.toolbar.new_resource')}</span>
+                <ChevronDown
+                  size={9}
+                  className={`lucide-custom transition-transform ${showCreate ? 'rotate-180' : ''}`}
+                />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              align="end"
+              sideOffset={4}
+              className="w-auto min-w-[140px] rounded-2xs border-border/40 p-1">
+              <MenuList>
+                {(['agent', 'assistant'] as const).map((resourceType) => {
+                  const meta = RESOURCE_TYPE_META[resourceType]
+                  const Icon = meta.icon
+                  return (
+                    <MenuItem
+                      key={resourceType}
                       variant="ghost"
+                      size="sm"
+                      icon={
+                        <div className={`flex h-5 w-5 items-center justify-center rounded-4xs ${meta.color}`}>
+                          <Icon size={10} />
+                        </div>
+                      }
+                      label={t('library.create_menu.create', { type: t(meta.labelKey) })}
                       onClick={() => {
-                        onImportAssistant()
+                        onCreate(resourceType)
                         setShowCreate(false)
                       }}
-                      className="flex h-auto min-h-0 w-full items-center justify-start gap-2 rounded-4xs px-2.5 py-[6px] font-normal text-[10px] text-muted-foreground/70 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0">
-                      <div
-                        className={`flex h-5 w-5 items-center justify-center rounded-4xs ${RESOURCE_TYPE_META.assistant.color}`}>
-                        <Upload size={10} />
-                      </div>
-                      <span>{t('assistants.presets.import.action')}</span>
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      onClick={() => {
-                        onCreate('skill')
-                        setShowCreate(false)
-                      }}
-                      className="flex h-auto min-h-0 w-full items-center justify-start gap-2 rounded-4xs px-2.5 py-[6px] font-normal text-[10px] text-muted-foreground/70 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0">
-                      <div
-                        className={`flex h-5 w-5 items-center justify-center rounded-4xs ${RESOURCE_TYPE_META.skill.color}`}>
-                        <Upload size={10} />
-                      </div>
-                      <span>{t('library.create_menu.import', { type: t(RESOURCE_TYPE_META.skill.labelKey) })}</span>
-                    </Button>
-                  </motion.div>
-                </div>
-              )}
-            </AnimatePresence>
-          </div>
+                    />
+                  )
+                })}
+                <MenuDivider className="bg-border/30" />
+                <MenuItem
+                  variant="ghost"
+                  size="sm"
+                  icon={
+                    <div
+                      className={`flex h-5 w-5 items-center justify-center rounded-4xs ${RESOURCE_TYPE_META.assistant.color}`}>
+                      <Upload size={10} />
+                    </div>
+                  }
+                  label={t('assistants.presets.import.action')}
+                  onClick={() => {
+                    onImportAssistant()
+                    setShowCreate(false)
+                  }}
+                />
+                <MenuItem
+                  variant="ghost"
+                  size="sm"
+                  icon={
+                    <div
+                      className={`flex h-5 w-5 items-center justify-center rounded-4xs ${RESOURCE_TYPE_META.skill.color}`}>
+                      <Upload size={10} />
+                    </div>
+                  }
+                  label={t('library.create_menu.import', { type: t(RESOURCE_TYPE_META.skill.labelKey) })}
+                  onClick={() => {
+                    onCreate('skill')
+                    setShowCreate(false)
+                  }}
+                />
+              </MenuList>
+            </PopoverContent>
+          </Popover>
         </div>
 
         {/* Row 2: Tag chips */}
@@ -443,15 +455,19 @@ function GridCard({ resource: r, index, onEdit, onToggle, onOpenMenu }: CardItem
             <div className="flex items-center gap-1.5">
               <h4 className="truncate text-[12px] text-foreground/75">{r.name}</h4>
               {r.hasUpdate && (
-                <span className="shrink-0 rounded-full bg-warning/10 px-1 py-px text-[7px] text-warning">
+                <Badge
+                  variant="secondary"
+                  className="shrink-0 border-0 bg-warning/10 px-1 py-px text-[7px] text-warning">
                   {t('library.badge.update')}
-                </span>
+                </Badge>
               )}
             </div>
             <div className="mt-0.5 flex items-center gap-1.5">
-              <span className={`shrink-0 whitespace-nowrap rounded-full px-1.5 py-px text-[8px] ${cfg.color}`}>
+              <Badge
+                variant="secondary"
+                className={`shrink-0 whitespace-nowrap border-0 px-1.5 py-px text-[8px] ${cfg.color}`}>
                 {t(cfg.labelKey)}
-              </span>
+              </Badge>
               {(r.model || r.version) && (
                 <span className="min-w-0 flex-1 truncate text-[9px] text-muted-foreground/40">
                   {[r.model, r.version && `v${r.version}`].filter(Boolean).join(' ')}
@@ -479,11 +495,12 @@ function GridCard({ resource: r, index, onEdit, onToggle, onOpenMenu }: CardItem
           </div>
           <div className="flex items-center gap-1.5">
             {r.tags.slice(0, 2).map((t, i) => (
-              <span
+              <Badge
                 key={`${t}-${i}`}
-                className="rounded-full bg-accent/50 px-1.5 py-px text-[8px] text-muted-foreground/50">
+                variant="secondary"
+                className="border-0 bg-accent/50 px-1.5 py-px text-[8px] text-muted-foreground/50">
                 {t}
-              </span>
+              </Badge>
             ))}
             {r.tags.length > 2 && <span className="text-[8px] text-muted-foreground/45">+{r.tags.length - 2}</span>}
             {isToolType && (
@@ -524,11 +541,13 @@ function ListRow({ resource: r, index, onEdit, onToggle, onOpenMenu }: CardItemP
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <span className="truncate text-[11px] text-foreground">{r.name}</span>
-          <span className={`shrink-0 rounded-full px-1.5 py-px text-[8px] ${cfg.color}`}>{t(cfg.labelKey)}</span>
+          <Badge variant="secondary" className={`shrink-0 border-0 px-1.5 py-px text-[8px] ${cfg.color}`}>
+            {t(cfg.labelKey)}
+          </Badge>
           {r.hasUpdate && (
-            <span className="shrink-0 rounded-full bg-warning/10 px-1 py-px text-[7px] text-warning">
+            <Badge variant="secondary" className="shrink-0 border-0 bg-warning/10 px-1 py-px text-[7px] text-warning">
               {t('library.badge.update')}
-            </span>
+            </Badge>
           )}
         </div>
         <p className="mt-px truncate text-[9px] text-muted-foreground/55">{r.description}</p>
@@ -538,9 +557,12 @@ function ListRow({ resource: r, index, onEdit, onToggle, onOpenMenu }: CardItemP
       {r.tags.length > 0 && (
         <div className="hidden shrink-0 items-center gap-1 lg:flex">
           {r.tags.slice(0, 2).map((t) => (
-            <span key={t} className="rounded-full bg-accent/50 px-1.5 py-px text-[8px] text-muted-foreground/50">
+            <Badge
+              key={t}
+              variant="secondary"
+              className="border-0 bg-accent/50 px-1.5 py-px text-[8px] text-muted-foreground/50">
               {t}
-            </span>
+            </Badge>
           ))}
           {r.tags.length > 2 && <span className="text-[8px] text-muted-foreground/35">+{r.tags.length - 2}</span>}
         </div>
@@ -676,29 +698,36 @@ function FixedCardMenu({
         transition={{ duration: 0.1 }}
         className="fixed z-[501] min-w-[140px] rounded-2xs border border-border/30 bg-popover p-1 shadow-xl"
         style={{ left: clampX, top: clampY }}>
-        <Button
+        <MenuItem
           variant="ghost"
+          size="sm"
+          icon={<Pencil size={10} />}
+          label={t('common.edit')}
           onClick={() => {
             onEdit(resource)
             onClose()
           }}
-          className="flex h-auto min-h-0 w-full items-center justify-start gap-2 rounded-4xs px-2.5 py-[5px] font-normal text-[10px] text-muted-foreground/60 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0">
-          <Pencil size={10} /> {t('common.edit')}
-        </Button>
+        />
 
         {/* Tag picker — assistants only (agent/skill backend not ready) */}
         {canBindTags && (
           <div className="relative">
-            <Button
+            <MenuItem
               variant="ghost"
+              size="sm"
+              active={showTagPicker}
+              icon={<Tag size={10} />}
+              label={t('library.action.manage_tags')}
+              suffix={
+                <>
+                  {localTags.length > 0 && (
+                    <span className="text-[8px] text-muted-foreground/25 tabular-nums">{localTags.length}</span>
+                  )}
+                  <ChevronDown size={8} className={`transition-transform ${showTagPicker ? 'rotate-180' : ''}`} />
+                </>
+              }
               onClick={() => setShowTagPicker(!showTagPicker)}
-              className="flex h-auto min-h-0 w-full items-center justify-start gap-2 rounded-4xs px-2.5 py-[5px] font-normal text-[10px] text-muted-foreground/60 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0">
-              <Tag size={10} /> {t('library.action.manage_tags')}
-              {localTags.length > 0 && (
-                <span className="ml-auto text-[8px] text-muted-foreground/25 tabular-nums">{localTags.length}</span>
-              )}
-              <ChevronDown size={8} className={`transition-transform ${showTagPicker ? 'rotate-180' : ''}`} />
-            </Button>
+            />
             {bindingError && <p className="px-2.5 py-1 text-[9px] text-destructive/80">{bindingError}</p>}
             {showTagPicker && (
               <div
@@ -723,7 +752,7 @@ function FixedCardMenu({
                     </Button>
                   )}
                 </div>
-                <div className="mx-1 mb-0.5 h-px bg-border/15" />
+                <Separator className="mx-1 mb-0.5 bg-border/15" />
                 <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-[2px]">
                   {allTagNames.length === 0 && !tagInput.trim() && (
                     <p className="px-2.5 py-2 text-center text-[9px] text-muted-foreground/20">
@@ -757,37 +786,41 @@ function FixedCardMenu({
         )}
 
         {canDuplicateResource(resource) && (
-          <Button
+          <MenuItem
             variant="ghost"
+            size="sm"
+            icon={<Copy size={10} />}
+            label={t('library.action.duplicate')}
             onClick={() => {
               onDuplicate(resource)
               onClose()
             }}
-            className="flex h-auto min-h-0 w-full items-center justify-start gap-2 rounded-4xs px-2.5 py-[5px] font-normal text-[10px] text-muted-foreground/60 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0">
-            <Copy size={10} /> {t('library.action.duplicate')}
-          </Button>
+          />
         )}
         {resource.type === 'assistant' && (
-          <Button
+          <MenuItem
             variant="ghost"
+            size="sm"
+            icon={<Download size={10} />}
+            label={t('assistants.presets.export.agent')}
             onClick={() => {
               onExport(resource)
               onClose()
             }}
-            className="flex h-auto min-h-0 w-full items-center justify-start gap-2 rounded-4xs px-2.5 py-[5px] font-normal text-[10px] text-muted-foreground/60 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0">
-            <Download size={10} /> {t('assistants.presets.export.agent')}
-          </Button>
+          />
         )}
-        <div className="mx-1 my-0.5 h-px bg-border/15" />
-        <Button
+        <MenuDivider className="mx-1 my-0.5 bg-border/15" />
+        <MenuItem
           variant="ghost"
+          size="sm"
+          icon={<Trash2 size={10} />}
+          label={t('common.delete')}
           onClick={() => {
             onDelete(resource)
             onClose()
           }}
-          className="flex h-auto min-h-0 w-full items-center justify-start gap-2 rounded-4xs px-2.5 py-[5px] font-normal text-[10px] text-destructive/70 shadow-none transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:ring-0">
-          <Trash2 size={10} /> {t('common.delete')}
-        </Button>
+          className="text-destructive/70 hover:bg-destructive/10 hover:text-destructive data-[active=true]:bg-destructive/10 data-[active=true]:text-destructive"
+        />
       </motion.div>
     </div>
   )

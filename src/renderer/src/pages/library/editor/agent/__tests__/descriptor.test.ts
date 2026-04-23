@@ -1,7 +1,12 @@
 import type { AgentDetail } from '@shared/data/types/agent'
 import { describe, expect, it } from 'vitest'
 
-import { buildInitialAgentFormState, diffAgentUpdate } from '../descriptor'
+import {
+  buildInitialAgentFormState,
+  diffAgentUpdate,
+  isCreatePayloadValid,
+  validateAgentCreateForm
+} from '../descriptor'
 
 function createAgent(overrides: Partial<AgentDetail> = {}): AgentDetail {
   return {
@@ -83,6 +88,32 @@ describe('buildInitialAgentFormState', () => {
 
     const state = buildInitialAgentFormState(agent)
     expect(state.maxTurns).toBe(0)
+  })
+})
+
+describe('agent create flow helpers', () => {
+  it('requires both name and model before create save is enabled', () => {
+    const draft = buildInitialAgentFormState()
+
+    expect(isCreatePayloadValid(draft)).toBe(false)
+    expect(isCreatePayloadValid({ ...draft, name: 'Planner' })).toBe(false)
+    expect(isCreatePayloadValid({ ...draft, model: 'claude-sonnet-4-5' })).toBe(false)
+    expect(isCreatePayloadValid({ ...draft, name: 'Planner', model: 'claude-sonnet-4-5' })).toBe(true)
+  })
+
+  it('reports missing required fields individually for page-level validation', () => {
+    const draft = buildInitialAgentFormState()
+
+    expect(validateAgentCreateForm(draft)).toEqual({
+      nameMissing: true,
+      modelMissing: true,
+      isValid: false
+    })
+    expect(validateAgentCreateForm({ ...draft, name: 'Planner' })).toEqual({
+      nameMissing: false,
+      modelMissing: true,
+      isValid: false
+    })
   })
 })
 

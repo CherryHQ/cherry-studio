@@ -12,7 +12,8 @@ import {
   type AgentFormState,
   type AgentSaveIntent,
   buildInitialAgentFormState,
-  diffAgentSaveIntent
+  diffAgentSaveIntent,
+  validateAgentCreateForm
 } from './descriptor'
 import AdvancedSection from './sections/AdvancedSection'
 import BasicSection from './sections/BasicSection'
@@ -29,10 +30,8 @@ interface Props {
   agent?: AgentDetail
   onBack: () => void
   /**
-   * Called once the create flow lands a new agent on the server. Library
-   * uses this to transition `ConfigView` from `agent-create` to
-   * `agent-edit` so further edits go through PATCH + the backend-filled
-   * tool catalog shows up.
+   * Called once the create flow lands a new agent on the server so the
+   * parent can return to list mode and refetch the latest collection.
    */
   onCreated?: (created: AgentDetail) => void
 }
@@ -55,8 +54,8 @@ const EMPTY_AGENT_FOR_CREATE: AgentDetail = {
  *
  * - **Create** (library "+ Agent" → this page with `agent` undefined):
  *   form starts empty, Save POSTs a `CreateAgentDto` built by the
- *   descriptor, then fires `onCreated` so the parent can swap to edit
- *   mode.
+ *   descriptor, then fires `onCreated` so the parent can return to the
+ *   list and fetch the canonical row set.
  * - **Edit** (`agent` present): Save PATCHes only the field diff.
  *   `configuration` sub-keys are merged onto the existing
  *   configuration rather than replacing it.
@@ -90,9 +89,9 @@ const AgentConfigPage: FC<Props> = ({ agent, onBack, onCreated }) => {
       if (intent.kind === 'create') {
         const created = await createAgent(intent.payload)
         onCreated?.(created)
-        // Parent will re-render with `agent = created`, but also pre-seat
-        // form/baseline here so the Save button settles immediately and
-        // subsequent edits diff against the server-filled row.
+        // Even though the page returns to the list right after create, keep
+        // the canonical row here so the save state machine completes against
+        // backend-normalized data before the parent unmounts this editor.
         const next = buildInitialAgentFormState(created)
         return { nextBaseline: next, nextForm: next }
       }
@@ -106,6 +105,8 @@ const AgentConfigPage: FC<Props> = ({ agent, onBack, onCreated }) => {
   const title = isCreate
     ? form.name.trim() || t('library.config.agent.create_title')
     : form.name || agent?.name || agent?.id || ''
+  const requiredFieldMessage = t('common.required_field')
+  const createValidation = isCreate ? validateAgentCreateForm(form) : null
 
   return (
     <ConfigEditorShell<AgentConfigSection>
@@ -120,7 +121,14 @@ const AgentConfigPage: FC<Props> = ({ agent, onBack, onCreated }) => {
       onSave={handleSave}
       onBack={onBack}
       topBanner={isCreate ? <CreateAgentBanner /> : undefined}>
-      {activeSection === 'basic' && <BasicSection form={form} onChange={onChange} />}
+      {activeSection === 'basic' && (
+        <BasicSection
+          form={form}
+          onChange={onChange}
+          nameError={createValidation?.nameMissing ? requiredFieldMessage : undefined}
+          modelError={createValidation?.modelMissing ? requiredFieldMessage : undefined}
+        />
+      )}
       {activeSection === 'prompt' && <PromptSection form={form} onChange={onChange} />}
       {activeSection === 'permission' && <PermissionSection form={form} onChange={onChange} />}
       {activeSection === 'tools' && (
@@ -136,8 +144,8 @@ export default AgentConfigPage
 /**
  * Inline banner shown above the shell body while the agent doesn't yet
  * exist server-side: the Tools tab can't bind MCP servers / tools
- * against an id that hasn't been assigned. Disappears once the user
- * saves and the parent swaps the page into edit mode.
+ * against an id that hasn't been assigned. The banner only appears
+ * during the pre-save draft session.
  */
 function CreateAgentBanner() {
   const { t } = useTranslation()

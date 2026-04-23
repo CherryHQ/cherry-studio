@@ -2352,8 +2352,8 @@
             "no_mcp_bound": "No MCP servers bound",
             "no_skills_enabled": "No skills enabled",
             "search_placeholder": "Search tools or servers...",
-            "skills_require_save": "Save before enabling skills",
             "skills_coming_soon": "Skill bindings coming soon",
+            "skills_require_save": "Save before enabling skills",
             "tab": {
               "mcp": "MCP Server",
               "skills": "Skills",
@@ -2495,7 +2495,6 @@
       "title": "Delete"
     },
     "duplicate_name": "{{name}} (copy)",
-    "no_match": "No matching results",
     "empty_state": {
       "description": "Click \"New\" to create your first resource.",
       "empty_description": "Create your first agent or assistant",
@@ -2536,6 +2535,7 @@
         "supports": "Raw file URLs are supported"
       }
     },
+    "no_match": "No matching results",
     "pending_backend": {
       "description": "Write operations for this resource are coming soon. This view is a placeholder.",
       "title": "Backend setup in progress"

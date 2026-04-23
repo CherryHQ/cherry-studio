@@ -3,7 +3,15 @@ import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { Tag } from '@shared/data/types/tag'
 import { describe, expect, it } from 'vitest'
 
-import { diffAssistantUpdate, initialAssistantFormState } from '../descriptor'
+import {
+  buildCreateAssistantFormState,
+  buildCreateAssistantPayload,
+  diffAssistantSaveIntent,
+  diffAssistantUpdate,
+  initialAssistantFormState,
+  isCreateAssistantPayloadValid,
+  validateAssistantCreateForm
+} from '../descriptor'
 
 function tag(id: string, name: string, color = '#888'): Tag {
   return {
@@ -71,6 +79,81 @@ describe('initialAssistantFormState', () => {
   it('extracts tag names from embedded tag rows', () => {
     const assistant = createAssistant({ tags: [tag('t1', 'alpha', '#f00'), tag('t2', 'beta', '#0f0')] })
     expect(initialAssistantFormState(assistant).tags).toEqual(['alpha', 'beta'])
+  })
+})
+
+describe('assistant create flow helpers', () => {
+  it('starts from an unsaved draft shape with empty required fields', () => {
+    expect(buildCreateAssistantFormState()).toMatchObject({
+      name: '',
+      prompt: '',
+      emoji: '💬',
+      description: '',
+      modelId: undefined,
+      tags: [],
+      knowledgeBaseIds: [],
+      mcpServerIds: []
+    })
+  })
+
+  it('requires both name and prompt before the first save is allowed', () => {
+    const draft = buildCreateAssistantFormState()
+
+    expect(isCreateAssistantPayloadValid(draft)).toBe(false)
+    expect(isCreateAssistantPayloadValid({ ...draft, name: 'Assistant' })).toBe(false)
+    expect(isCreateAssistantPayloadValid({ ...draft, prompt: 'You are helpful.' })).toBe(false)
+    expect(isCreateAssistantPayloadValid({ ...draft, name: 'Assistant', prompt: 'You are helpful.' })).toBe(true)
+  })
+
+  it('reports missing required fields individually for page-level validation', () => {
+    const draft = buildCreateAssistantFormState()
+
+    expect(validateAssistantCreateForm(draft)).toEqual({
+      nameMissing: true,
+      promptMissing: true,
+      isValid: false
+    })
+    expect(validateAssistantCreateForm({ ...draft, name: 'Assistant' })).toEqual({
+      nameMissing: false,
+      promptMissing: true,
+      isValid: false
+    })
+  })
+
+  it('keeps create mode unsaveable until required fields are filled', () => {
+    const baseline = buildCreateAssistantFormState()
+
+    expect(diffAssistantSaveIntent({ ...baseline, name: 'Assistant' }, baseline, null)).toBeNull()
+    expect(diffAssistantSaveIntent({ ...baseline, prompt: 'You are helpful.' }, baseline, null)).toBeNull()
+  })
+
+  it('builds the initial create payload only after name and prompt are provided', () => {
+    const baseline = buildCreateAssistantFormState()
+    const form = {
+      ...baseline,
+      name: '  Assistant  ',
+      prompt: 'You are helpful.',
+      description: 'demo',
+      tags: ['alpha', 'beta'],
+      knowledgeBaseIds: ['kb-1'],
+      mcpServerIds: ['mcp-1']
+    }
+
+    expect(buildCreateAssistantPayload(form)).toMatchObject({
+      name: 'Assistant',
+      prompt: 'You are helpful.',
+      emoji: '💬',
+      description: 'demo',
+      knowledgeBaseIds: ['kb-1'],
+      mcpServerIds: ['mcp-1']
+    })
+    expect(buildCreateAssistantPayload(form)).not.toHaveProperty('modelId')
+
+    expect(diffAssistantSaveIntent(form, baseline, null)).toEqual({
+      kind: 'create',
+      payload: buildCreateAssistantPayload(form),
+      tagNames: ['alpha', 'beta']
+    })
   })
 })
 

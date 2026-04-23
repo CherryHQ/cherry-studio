@@ -169,4 +169,27 @@ describe('useResourceEditorState', () => {
 
     expect(result.current.error).toBe('save failed')
   })
+
+  it('clears the saved flash timer on unmount', async () => {
+    vi.useFakeTimers()
+    try {
+      const onCommit = vi.fn().mockResolvedValue(undefined)
+      const { result, unmount } = setup({ onCommit, savedFlashMs: 1000 })
+
+      act(() => result.current.onChange({ count: 1 }))
+      await act(async () => {
+        await result.current.handleSave()
+      })
+
+      expect(result.current.saved).toBe(true)
+
+      unmount()
+
+      act(() => {
+        vi.runAllTimers()
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

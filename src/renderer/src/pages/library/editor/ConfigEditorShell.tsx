@@ -1,6 +1,15 @@
-import { Button, MenuItem } from '@cherrystudio/ui'
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+  Button,
+  MenuItem
+} from '@cherrystudio/ui'
 import type { LucideIcon } from 'lucide-react'
-import { ArrowLeft, ChevronRight, Save } from 'lucide-react'
+import { ArrowLeft, Save } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -64,13 +73,21 @@ export function ConfigEditorShell<Id extends string>({
           className="flex h-7 min-h-0 w-7 items-center justify-center rounded-3xs font-normal text-muted-foreground/40 shadow-none transition-colors hover:bg-accent/40 hover:text-foreground focus-visible:ring-0">
           <ArrowLeft size={14} />
         </Button>
-        <div className="flex items-center gap-1 text-[10px] text-muted-foreground/50">
-          <span className="cursor-pointer transition-colors hover:text-foreground" onClick={onBack}>
-            {t('library.config.breadcrumb')}
-          </span>
-          <ChevronRight size={9} />
-          <span className="text-foreground">{title}</span>
-        </div>
+        <Breadcrumb>
+          <BreadcrumbList className="gap-1 text-[10px] text-muted-foreground/50 sm:gap-1">
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <button type="button" className="cursor-pointer" onClick={onBack}>
+                  {t('library.config.breadcrumb')}
+                </button>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator className="[&>svg]:size-2.5" />
+            <BreadcrumbItem>
+              <BreadcrumbPage className="text-foreground">{title}</BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
         <div className="flex-1" />
         <AnimatePresence>
           {saved && (

@@ -1,7 +1,14 @@
 import {
   Button,
+  ButtonGroup,
   Combobox,
   type ComboboxOption,
+  EmojiAvatar,
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
   Input,
   Popover,
   PopoverContent,
@@ -11,9 +18,11 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Separator,
   Slider,
   Switch,
-  Textarea
+  Textarea,
+  Tooltip
 } from '@cherrystudio/ui'
 // TODO(v2-llm-migration): three entry points below are the only remaining
 // Redux touch-points in the entire `pages/library` tree. They form one
@@ -62,6 +71,8 @@ interface Props {
   assistant?: Assistant
   form: AssistantFormState
   onChange: (patch: Partial<AssistantFormState>) => void
+  /** Field-level validation owned by the page/descriptor layer. */
+  nameError?: string
   /**
    * Map of tag name → backend-assigned color (random hex chosen at POST time).
    * Used for the tag-dot icon in the Combobox options.
@@ -75,10 +86,11 @@ interface Props {
   allTagNames: string[]
 }
 
-export const BasicSection: FC<Props> = ({ form, onChange, tagColorByName, allTagNames }) => {
+export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByName, allTagNames }) => {
   const { t } = useTranslation()
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const tagColor = (name: string): string => tagColorByName.get(name) ?? DEFAULT_TAG_COLOR
+  const nameInvalid = Boolean(nameError)
 
   // Reverse-lookup: form.modelId (UniqueModelId) → full v1 `Model` object.
   // Only exists to feed `ModelAvatar` / `SelectChatModelPopup`; the display
@@ -146,82 +158,105 @@ export const BasicSection: FC<Props> = ({ form, onChange, tagColorByName, allTag
         <p className="text-[10px] text-muted-foreground/55">{t('library.config.basic.desc')}</p>
       </div>
 
-      <FieldGroup label={t('common.avatar')}>
-        <div className="flex items-center gap-2">
-          <Popover open={emojiPickerOpen} onOpenChange={setEmojiPickerOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                aria-label={t('library.config.basic.pick_avatar')}
-                className="flex h-12 min-h-0 w-12 items-center justify-center rounded-2xs bg-accent/50 font-normal text-xl shadow-none transition-colors hover:bg-accent/70 focus-visible:ring-0">
-                {form.emoji || '🌟'}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0">
-              <EmojiPicker
-                onEmojiClick={(emoji) => {
-                  onChange({ emoji })
-                  setEmojiPickerOpen(false)
-                }}
-              />
-            </PopoverContent>
-          </Popover>
-          <div className="flex flex-wrap gap-1">
-            {AVATAR_OPTIONS.map((a) => (
-              <Button
-                key={a}
-                type="button"
-                variant="ghost"
-                onClick={() => onChange({ emoji: a })}
-                className={`flex h-7 min-h-0 w-7 items-center justify-center rounded-3xs font-normal text-sm shadow-none transition-all focus-visible:ring-0 ${
-                  form.emoji === a ? 'bg-accent ring-1 ring-primary/20' : 'hover:bg-accent/40'
-                }`}>
-                {a}
-              </Button>
-            ))}
+      <Field className="gap-1.5">
+        <FieldLabel className="font-normal text-[10px] text-muted-foreground/60">{t('common.avatar')}</FieldLabel>
+        <FieldContent>
+          <div className="flex items-center gap-2">
+            <Popover open={emojiPickerOpen} onOpenChange={setEmojiPickerOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  aria-label={t('library.config.basic.pick_avatar')}
+                  className="rounded-[20%] outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring/50">
+                  <EmojiAvatar size={48} fontSize={24}>
+                    {form.emoji || '🌟'}
+                  </EmojiAvatar>
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0">
+                <EmojiPicker
+                  onEmojiClick={(emoji) => {
+                    onChange({ emoji })
+                    setEmojiPickerOpen(false)
+                  }}
+                />
+              </PopoverContent>
+            </Popover>
+            <div className="flex flex-wrap gap-1">
+              {AVATAR_OPTIONS.map((a) => (
+                <Button
+                  key={a}
+                  type="button"
+                  variant="ghost"
+                  onClick={() => onChange({ emoji: a })}
+                  className={`flex h-7 min-h-0 w-7 items-center justify-center rounded-3xs font-normal text-sm shadow-none transition-all focus-visible:ring-0 ${
+                    form.emoji === a ? 'bg-accent ring-1 ring-primary/20' : 'hover:bg-accent/40'
+                  }`}>
+                  {a}
+                </Button>
+              ))}
+            </div>
           </div>
-        </div>
-      </FieldGroup>
+        </FieldContent>
+      </Field>
 
-      <FieldGroup label={t('common.name')}>
-        <Input
-          value={form.name}
-          onChange={(e) => onChange({ name: e.target.value })}
-          className="h-auto w-full rounded-2xs border border-border/20 bg-accent/10 px-3 py-2 text-[11px] text-foreground shadow-none outline-none transition-all focus-visible:border-border/40 focus-visible:bg-accent/15 focus-visible:ring-0"
-        />
-      </FieldGroup>
+      <Field data-invalid={nameInvalid || undefined} className="gap-1.5">
+        <FieldLabel className="font-normal text-[10px] text-muted-foreground/60">{t('common.name')}</FieldLabel>
+        <FieldContent>
+          <Input
+            value={form.name}
+            onChange={(e) => onChange({ name: e.target.value })}
+            aria-invalid={nameInvalid || undefined}
+            className="h-auto w-full rounded-2xs border border-border/20 bg-accent/10 px-3 py-2 text-[11px] text-foreground shadow-none outline-none transition-all focus-visible:border-border/40 focus-visible:bg-accent/15 focus-visible:ring-0 aria-invalid:border-destructive/50"
+          />
+          <FieldError className="text-[9px]" errors={nameError ? [{ message: nameError }] : undefined} />
+        </FieldContent>
+      </Field>
 
-      <FieldGroup label={t('library.config.basic.description_label')}>
-        <Textarea.Input
-          value={form.description}
-          onValueChange={(description) => onChange({ description })}
-          rows={3}
-          className="min-h-0 w-full resize-none rounded-2xs border border-border/20 bg-accent/10 px-3 py-2 text-[11px] text-foreground shadow-none outline-none transition-all focus-visible:border-border/40 focus-visible:bg-accent/15 focus-visible:ring-0"
-        />
-      </FieldGroup>
+      <Field className="gap-1.5">
+        <FieldLabel className="font-normal text-[10px] text-muted-foreground/60">
+          {t('library.config.basic.description_label')}
+        </FieldLabel>
+        <FieldContent>
+          <Textarea.Input
+            value={form.description}
+            onValueChange={(description) => onChange({ description })}
+            rows={3}
+            className="min-h-0 w-full resize-none rounded-2xs border border-border/20 bg-accent/10 px-3 py-2 text-[11px] text-foreground shadow-none outline-none transition-all focus-visible:border-border/40 focus-visible:bg-accent/15 focus-visible:ring-0"
+          />
+        </FieldContent>
+      </Field>
 
-      <FieldGroup label={t('library.config.basic.tags')}>
-        <Combobox
-          multiple
-          searchable
-          options={tagOptions}
-          value={form.tags}
-          onChange={(v) => onChange({ tags: Array.isArray(v) ? v : v ? [v] : [] })}
-          placeholder={t('library.config.basic.tag_placeholder')}
-          searchPlaceholder={t('library.config.basic.tag_search')}
-          emptyText={t('library.config.basic.tag_empty')}
-          className="w-full"
-        />
-        <p className="mt-1.5 text-[9px] text-muted-foreground/40">{t('library.config.basic.tag_hint')}</p>
-      </FieldGroup>
+      <Field className="gap-1.5">
+        <FieldLabel className="font-normal text-[10px] text-muted-foreground/60">
+          {t('library.config.basic.tags')}
+        </FieldLabel>
+        <FieldContent>
+          <Combobox
+            multiple
+            searchable
+            options={tagOptions}
+            value={form.tags}
+            onChange={(v) => onChange({ tags: Array.isArray(v) ? v : v ? [v] : [] })}
+            placeholder={t('library.config.basic.tag_placeholder')}
+            searchPlaceholder={t('library.config.basic.tag_search')}
+            emptyText={t('library.config.basic.tag_empty')}
+            className="w-full"
+          />
+          <FieldDescription className="text-[9px] text-muted-foreground/40">
+            {t('library.config.basic.tag_hint')}
+          </FieldDescription>
+        </FieldContent>
+      </Field>
 
-      <div className="h-px bg-border/10" />
+      <Separator className="bg-border/10" />
 
       {/* 默认模型 */}
-      <div>
-        <div className="flex items-center justify-between">
-          <label className="text-[10px] text-muted-foreground/60">{t('library.config.basic.model')}</label>
+      <Field className="gap-1.5">
+        <div className="flex items-center justify-between gap-3">
+          <FieldLabel className="font-normal text-[10px] text-muted-foreground/60">
+            {t('library.config.basic.model')}
+          </FieldLabel>
           {selectedModel ? (
             <div className="flex items-center gap-2">
               <Button
@@ -232,14 +267,15 @@ export const BasicSection: FC<Props> = ({ form, onChange, tagColorByName, allTag
                 <ModelAvatar model={selectedModel} size={16} />
                 <span className="max-w-[180px] truncate">{selectedModel.name}</span>
               </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => onChange({ modelId: null })}
-                title={t('library.config.basic.model_clear')}
-                className="flex h-6 min-h-0 w-6 items-center justify-center rounded-4xs font-normal text-muted-foreground/40 shadow-none transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:ring-0">
-                <Trash2 size={12} />
-              </Button>
+              <Tooltip content={t('library.config.basic.model_clear')}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => onChange({ modelId: null })}
+                  className="flex h-6 min-h-0 w-6 items-center justify-center rounded-4xs font-normal text-muted-foreground/40 shadow-none transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:ring-0">
+                  <Trash2 size={12} />
+                </Button>
+              </Tooltip>
             </div>
           ) : (
             <Button
@@ -251,12 +287,12 @@ export const BasicSection: FC<Props> = ({ form, onChange, tagColorByName, allTag
             </Button>
           )}
         </div>
-        {form.modelId && !selectedModel && (
-          <p className="mt-1 text-[9px] text-muted-foreground/40">
+        {form.modelId && !selectedModel ? (
+          <FieldDescription className="text-[9px] text-muted-foreground/40">
             {t('library.config.basic.model_not_found', { id: form.modelId })}
-          </p>
-        )}
-      </div>
+          </FieldDescription>
+        ) : null}
+      </Field>
 
       {/* 模型温度 */}
       <ToggleFieldGroup
@@ -297,27 +333,29 @@ export const BasicSection: FC<Props> = ({ form, onChange, tagColorByName, allTag
       </ToggleFieldGroup>
 
       {/* 上下文数 */}
-      <FieldGroup
-        label={
+      <Field className="gap-1.5">
+        <FieldLabel className="font-normal text-[10px] text-muted-foreground/60">
           <div className="flex items-center justify-between">
             <span>{t('library.config.basic.context_count')}</span>
             <span className="text-muted-foreground/40">
               {form.contextCount >= UI_MAX_CONTEXT_COUNT ? t('library.config.basic.unlimited') : form.contextCount}
             </span>
           </div>
-        }>
-        <Slider
-          size="sm"
-          min={0}
-          max={UI_MAX_CONTEXT_COUNT}
-          step={1}
-          value={[form.contextCount]}
-          onValueChange={([v]) => onChange({ contextCount: v })}
-          className="w-full [&_[data-slot=slider-range]]:bg-accent/40 [&_[data-slot=slider-thumb]]:size-3 [&_[data-slot=slider-thumb]]:border-0 [&_[data-slot=slider-thumb]]:bg-foreground [&_[data-slot=slider-thumb]]:shadow-none [&_[data-slot=slider-thumb]]:hover:ring-0 [&_[data-slot=slider-thumb]]:hover:ring-offset-0 [&_[data-slot=slider-thumb]]:focus-visible:ring-0 [&_[data-slot=slider-track]]:h-1 [&_[data-slot=slider-track]]:bg-accent/40"
-        />
-      </FieldGroup>
+        </FieldLabel>
+        <FieldContent>
+          <Slider
+            size="sm"
+            min={0}
+            max={UI_MAX_CONTEXT_COUNT}
+            step={1}
+            value={[form.contextCount]}
+            onValueChange={([v]) => onChange({ contextCount: v })}
+            className="w-full [&_[data-slot=slider-range]]:bg-accent/40 [&_[data-slot=slider-thumb]]:size-3 [&_[data-slot=slider-thumb]]:border-0 [&_[data-slot=slider-thumb]]:bg-foreground [&_[data-slot=slider-thumb]]:shadow-none [&_[data-slot=slider-thumb]]:hover:ring-0 [&_[data-slot=slider-thumb]]:hover:ring-offset-0 [&_[data-slot=slider-thumb]]:focus-visible:ring-0 [&_[data-slot=slider-track]]:h-1 [&_[data-slot=slider-track]]:bg-accent/40"
+          />
+        </FieldContent>
+      </Field>
 
-      <div className="h-px bg-border/10" />
+      <Separator className="bg-border/10" />
 
       {/* 最大 Token 数 */}
       <ToggleFieldGroup
@@ -348,14 +386,14 @@ export const BasicSection: FC<Props> = ({ form, onChange, tagColorByName, allTag
       {/* 工具调用方式 */}
       <div className="flex items-center justify-between">
         <label className="text-[10px] text-muted-foreground/60">{t('library.config.basic.tool_use_mode')}</label>
-        <div className="flex items-center overflow-hidden rounded-3xs border border-border/30">
+        <ButtonGroup className="overflow-hidden rounded-3xs border border-border/30">
           {(['function', 'prompt'] as const).map((mode) => (
             <Button
               key={mode}
               type="button"
               variant="ghost"
               onClick={() => onChange({ toolUseMode: mode })}
-              className={`h-auto min-h-0 rounded-none px-2.5 py-1 font-normal text-[10px] shadow-none transition-colors focus-visible:ring-0 ${
+              className={`h-auto min-h-0 px-2.5 py-1 font-normal text-[10px] shadow-none transition-colors focus-visible:ring-0 ${
                 form.toolUseMode === mode
                   ? 'bg-accent text-foreground'
                   : 'text-muted-foreground/60 hover:bg-accent/30 hover:text-foreground'
@@ -365,7 +403,7 @@ export const BasicSection: FC<Props> = ({ form, onChange, tagColorByName, allTag
               )}
             </Button>
           ))}
-        </div>
+        </ButtonGroup>
       </div>
 
       {/* 最大工具调用次数 */}
@@ -391,15 +429,6 @@ export const BasicSection: FC<Props> = ({ form, onChange, tagColorByName, allTag
         value={form.customParameters}
         onChange={(customParameters) => onChange({ customParameters })}
       />
-    </div>
-  )
-}
-
-function FieldGroup({ label, children }: { label: ReactNode; children: ReactNode }) {
-  return (
-    <div>
-      <label className="mb-1.5 block text-[10px] text-muted-foreground/60">{label}</label>
-      {children}
     </div>
   )
 }
@@ -569,15 +598,11 @@ function CustomParameterRow({
             )}
           </div>
         )}
-        <Button
-          type="button"
-          variant="destructive"
-          size="icon"
-          onClick={onDelete}
-          className="h-8 w-8 shrink-0"
-          title={t('common.delete')}>
-          <Trash2 size={12} />
-        </Button>
+        <Tooltip content={t('common.delete')}>
+          <Button type="button" variant="destructive" size="icon" onClick={onDelete} className="h-8 w-8 shrink-0">
+            <Trash2 size={12} />
+          </Button>
+        </Tooltip>
       </div>
       {param.type === 'json' && (
         <div className="mt-2">

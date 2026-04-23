@@ -41,6 +41,14 @@ export function useResourceEditorState<TForm, TDiff>(
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const savedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const clearSavedTimeout = useCallback(() => {
+    if (savedTimeoutRef.current !== null) {
+      clearTimeout(savedTimeoutRef.current)
+      savedTimeoutRef.current = null
+    }
+  }, [])
 
   // Reset on `baselineKey` transitions — mount captures `initialForm`
   // once, subsequent transitions pick up whatever the parent is passing
@@ -49,10 +57,14 @@ export function useResourceEditorState<TForm, TDiff>(
   useEffect(() => {
     if (keyRef.current === baselineKey) return
     keyRef.current = baselineKey
+    clearSavedTimeout()
     setForm(initialFormRef.current)
     setBaseline(initialFormRef.current)
+    setSaved(false)
     setError(null)
-  }, [baselineKey])
+  }, [baselineKey, clearSavedTimeout])
+
+  useEffect(() => clearSavedTimeout, [clearSavedTimeout])
 
   const diffResult = useMemo(() => diff(form, baseline), [diff, form, baseline])
   const canSave = diffResult !== null
@@ -79,16 +91,20 @@ export function useResourceEditorState<TForm, TDiff>(
       if (result?.nextForm !== undefined) {
         setForm(result.nextForm)
       }
+      clearSavedTimeout()
       setSaved(true)
       const flash = savedFlashMs ?? DEFAULT_SAVED_FLASH_MS
-      setTimeout(() => setSaved(false), flash)
+      savedTimeoutRef.current = setTimeout(() => {
+        savedTimeoutRef.current = null
+        setSaved(false)
+      }, flash)
     } catch (e) {
       const message = e instanceof Error && e.message ? e.message : (fallbackErrorMessage ?? DEFAULT_FALLBACK_ERROR)
       setError(message)
     } finally {
       setSaving(false)
     }
-  }, [saving, form, baseline, fallbackErrorMessage, savedFlashMs])
+  }, [saving, form, baseline, fallbackErrorMessage, savedFlashMs, clearSavedTimeout])
 
   return {
     form,

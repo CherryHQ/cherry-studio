@@ -2352,8 +2352,8 @@
             "no_mcp_bound": "未绑定任何 MCP 服务",
             "no_skills_enabled": "未启用任何技能",
             "search_placeholder": "搜索工具或 Server...",
-            "skills_require_save": "保存后才能启用技能",
             "skills_coming_soon": "Skill 绑定即将支持",
+            "skills_require_save": "保存后才能启用技能",
             "tab": {
               "mcp": "MCP Server",
               "skills": "Skills",
@@ -2495,7 +2495,6 @@
       "title": "确认删除"
     },
     "duplicate_name": "{{name}} (副本)",
-    "no_match": "无匹配结果",
     "empty_state": {
       "description": "点击「新建」创建你的第一个资源",
       "empty_description": "创建你的第一个智能体或助手",
@@ -2536,6 +2535,7 @@
         "supports": "支持 raw 文件链接"
       }
     },
+    "no_match": "无匹配结果",
     "pending_backend": {
       "description": "该资源的写入操作即将上线,当前仅展示占位。",
       "title": "数据层接入中"

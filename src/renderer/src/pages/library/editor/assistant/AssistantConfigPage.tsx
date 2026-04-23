@@ -3,17 +3,19 @@ import type { FC } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useAssistantMutationsById } from '../../adapters/assistantAdapter'
+import { useAssistantMutations, useAssistantMutationsById } from '../../adapters/assistantAdapter'
 import { useEnsureTags, useTagList } from '../../adapters/tagAdapter'
 import { ConfigEditorShell } from '../ConfigEditorShell'
 import { useResourceEditorState } from '../useResourceEditorState'
 import {
   ASSISTANT_CONFIG_SECTIONS,
   type AssistantConfigSection,
-  type AssistantDiffResult,
   type AssistantFormState,
-  diffAssistantUpdate,
-  initialAssistantFormState
+  type AssistantSaveIntent,
+  buildCreateAssistantFormState,
+  diffAssistantSaveIntent,
+  initialAssistantFormState,
+  validateAssistantCreateForm
 } from './descriptor'
 import { BasicSection } from './sections/BasicSection'
 import KnowledgeSection from './sections/KnowledgeSection'
@@ -21,34 +23,33 @@ import PromptSection from './sections/PromptSection'
 import ToolsSection from './sections/ToolsSection'
 
 interface Props {
-  assistant: Assistant
+  /**
+   * `undefined` puts the page in create mode: the assistant row is only
+   * POSTed when the user clicks 保存 after filling the required fields.
+   */
+  assistant?: Assistant
   onBack: () => void
+  /** Fired after the initial POST so the parent can return to list + refetch. */
+  onCreated?: (created: Assistant) => void
 }
 
 /**
- * Assistant editor.
+ * Assistant editor — shared shell for create and edit.
  *
- * Creation is handled by LibraryPage (POST /assistants on click) so
- * this page always operates against an existing row. Form state lives
- * on `AssistantFormState` and is shared across all four sections —
- * Basic / Prompt / Knowledge / Tools edit different slices of the same
- * object so 保存 lands in a single PATCH; 取消 discards the in-memory
- * state.
+ * - Create mode (`assistant` omitted): open an empty form first, require
+ *   name + prompt before Save enables, then POST on Save.
+ * - Edit mode (`assistant` present): Save PATCHes the existing row.
  *
- * Save flow:
- *   1. `diffAssistantUpdate` produces the minimal PATCH body + a
- *      `tagsChanged` flag.
- *   2. If tags changed, resolve typed names → ids via `ensureTags`
- *      (POSTs any missing tags).
- *   3. PATCH /assistants/:id with the diff + `tagIds`. The backend
- *      syncs `entity_tag` inside the same transaction as the
- *      assistant-row update — atomic by construction.
+ * Both flows share the same top-bar shell + form state; branching lives in
+ * the `AssistantSaveIntent` returned by `diffAssistantSaveIntent`.
  */
-const AssistantConfigPage: FC<Props> = ({ assistant, onBack }) => {
+const AssistantConfigPage: FC<Props> = ({ assistant, onBack, onCreated }) => {
   const { t } = useTranslation()
+  const isCreate = !assistant
   const [activeSection, setActiveSection] = useState<AssistantConfigSection>('basic')
 
-  const { updateAssistant } = useAssistantMutationsById(assistant.id)
+  const { createAssistant } = useAssistantMutations()
+  const { updateAssistant } = useAssistantMutationsById(assistant?.id ?? '')
   const { ensureTags } = useEnsureTags()
   const tagList = useTagList()
   const tagColorByName = useMemo(
@@ -57,31 +58,50 @@ const AssistantConfigPage: FC<Props> = ({ assistant, onBack }) => {
   )
   const allTagNames = useMemo(() => tagList.tags.map((tag) => tag.name), [tagList.tags])
 
-  const initialForm = useMemo(() => initialAssistantFormState(assistant), [assistant])
+  const initialForm = useMemo(
+    () => (assistant ? initialAssistantFormState(assistant) : buildCreateAssistantFormState()),
+    [assistant]
+  )
 
   const { form, onChange, canSave, saving, saved, error, handleSave } = useResourceEditorState<
     AssistantFormState,
-    AssistantDiffResult
+    AssistantSaveIntent
   >({
     initialForm,
-    baselineKey: assistant.id,
-    diff: (nextForm, baseline) => diffAssistantUpdate(nextForm, baseline, assistant),
-    onCommit: async (diff) => {
-      // Resolve any newly-typed tag names to ids BEFORE the PATCH so
-      // the payload carries authoritative tag ids; the assistant PATCH
-      // then binds them atomically with the assistant-row update.
-      const tagIds = diff.tagsChanged ? (await ensureTags(diff.tagNames)).map((tag) => tag.id) : undefined
-      await updateAssistant({
-        ...diff.dto,
+    baselineKey: assistant?.id ?? null,
+    diff: (nextForm, baseline) => diffAssistantSaveIntent(nextForm, baseline, assistant ?? null),
+    onCommit: async (intent) => {
+      if (intent.kind === 'create') {
+        const tagIds = intent.tagNames.length > 0 ? (await ensureTags(intent.tagNames)).map((tag) => tag.id) : undefined
+        const created = await createAssistant({
+          ...intent.payload,
+          ...(tagIds !== undefined ? { tagIds } : {})
+        })
+        onCreated?.(created)
+        const next = initialAssistantFormState(created)
+        return { nextBaseline: next, nextForm: next }
+      }
+
+      const tagIds = intent.tagsChanged ? (await ensureTags(intent.tagNames)).map((tag) => tag.id) : undefined
+      const updated = await updateAssistant({
+        ...intent.payload,
         ...(tagIds !== undefined ? { tagIds } : {})
       })
+      const next = initialAssistantFormState(updated)
+      return { nextBaseline: next, nextForm: next }
     },
     fallbackErrorMessage: t('library.config.save_failed')
   })
 
+  const title = isCreate
+    ? form.name.trim() || t('library.type.new_assistant')
+    : form.name.trim() || assistant?.name || ''
+  const requiredFieldMessage = t('common.required_field')
+  const createValidation = isCreate ? validateAssistantCreateForm(form) : null
+
   return (
     <ConfigEditorShell<AssistantConfigSection>
-      title={assistant.name}
+      title={title}
       sections={ASSISTANT_CONFIG_SECTIONS}
       activeSection={activeSection}
       onSectionChange={setActiveSection}
@@ -96,12 +116,18 @@ const AssistantConfigPage: FC<Props> = ({ assistant, onBack }) => {
           assistant={assistant}
           form={form}
           onChange={onChange}
+          nameError={createValidation?.nameMissing ? requiredFieldMessage : undefined}
           tagColorByName={tagColorByName}
           allTagNames={allTagNames}
         />
       )}
       {activeSection === 'prompt' && (
-        <PromptSection assistant={assistant} prompt={form.prompt} onChange={(prompt) => onChange({ prompt })} />
+        <PromptSection
+          assistant={assistant}
+          prompt={form.prompt}
+          promptError={createValidation?.promptMissing ? requiredFieldMessage : undefined}
+          onChange={(prompt) => onChange({ prompt })}
+        />
       )}
       {activeSection === 'knowledge' && (
         <KnowledgeSection

@@ -1,5 +1,6 @@
-import type { UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
+import type { CreateAssistantDto, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
 import type { Assistant, AssistantSettings } from '@shared/data/types/assistant'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { BookOpen, FileText, Settings, Wrench } from 'lucide-react'
 
 import type { SectionDescriptor } from '../ConfigEditorShell'
@@ -68,7 +69,7 @@ export interface AssistantFormState {
   name: string
   emoji: string
   description: string
-  modelId: Assistant['modelId']
+  modelId: Assistant['modelId'] | undefined
   prompt: string
   // settings (flattened from assistant.settings)
   temperature: number
@@ -89,6 +90,30 @@ export interface AssistantFormState {
   tags: string[]
   knowledgeBaseIds: string[]
   mcpServerIds: string[]
+}
+
+const DEFAULT_CREATE_ASSISTANT_EMOJI = '💬'
+
+function buildAssistantSettingsFromForm(
+  form: AssistantFormState,
+  baseSettings: AssistantSettings = DEFAULT_ASSISTANT_SETTINGS
+): AssistantSettings {
+  return {
+    ...baseSettings,
+    temperature: form.temperature,
+    enableTemperature: form.enableTemperature,
+    topP: form.topP,
+    enableTopP: form.enableTopP,
+    maxTokens: form.maxTokens,
+    enableMaxTokens: form.enableMaxTokens,
+    contextCount: form.contextCount,
+    streamOutput: form.streamOutput,
+    toolUseMode: form.toolUseMode,
+    maxToolCalls: form.maxToolCalls,
+    enableMaxToolCalls: form.enableMaxToolCalls,
+    customParameters: form.customParameters,
+    mcpMode: form.mcpMode
+  }
 }
 
 export function initialAssistantFormState(assistant: Assistant): AssistantFormState {
@@ -118,6 +143,65 @@ export function initialAssistantFormState(assistant: Assistant): AssistantFormSt
   }
 }
 
+export function buildCreateAssistantFormState(): AssistantFormState {
+  return {
+    name: '',
+    emoji: DEFAULT_CREATE_ASSISTANT_EMOJI,
+    description: '',
+    modelId: undefined,
+    prompt: '',
+    temperature: DEFAULT_ASSISTANT_SETTINGS.temperature,
+    enableTemperature: DEFAULT_ASSISTANT_SETTINGS.enableTemperature,
+    topP: DEFAULT_ASSISTANT_SETTINGS.topP,
+    enableTopP: DEFAULT_ASSISTANT_SETTINGS.enableTopP,
+    maxTokens: DEFAULT_ASSISTANT_SETTINGS.maxTokens,
+    enableMaxTokens: DEFAULT_ASSISTANT_SETTINGS.enableMaxTokens,
+    contextCount: DEFAULT_ASSISTANT_SETTINGS.contextCount,
+    streamOutput: DEFAULT_ASSISTANT_SETTINGS.streamOutput,
+    toolUseMode: DEFAULT_ASSISTANT_SETTINGS.toolUseMode,
+    maxToolCalls: DEFAULT_ASSISTANT_SETTINGS.maxToolCalls,
+    enableMaxToolCalls: DEFAULT_ASSISTANT_SETTINGS.enableMaxToolCalls,
+    customParameters: DEFAULT_ASSISTANT_SETTINGS.customParameters,
+    mcpMode: DEFAULT_ASSISTANT_SETTINGS.mcpMode,
+    tags: [],
+    knowledgeBaseIds: [],
+    mcpServerIds: []
+  }
+}
+
+export interface AssistantCreateValidation {
+  nameMissing: boolean
+  promptMissing: boolean
+  isValid: boolean
+}
+
+export function validateAssistantCreateForm(form: AssistantFormState): AssistantCreateValidation {
+  const nameMissing = form.name.trim() === ''
+  const promptMissing = form.prompt.trim() === ''
+  return {
+    nameMissing,
+    promptMissing,
+    isValid: !nameMissing && !promptMissing
+  }
+}
+
+export function isCreateAssistantPayloadValid(form: AssistantFormState): boolean {
+  return validateAssistantCreateForm(form).isValid
+}
+
+export function buildCreateAssistantPayload(form: AssistantFormState): CreateAssistantDto {
+  return {
+    name: form.name.trim(),
+    prompt: form.prompt,
+    emoji: form.emoji,
+    description: form.description,
+    ...(form.modelId !== undefined ? { modelId: form.modelId } : {}),
+    settings: buildAssistantSettingsFromForm(form, DEFAULT_ASSISTANT_SETTINGS),
+    ...(form.knowledgeBaseIds.length > 0 ? { knowledgeBaseIds: form.knowledgeBaseIds } : {}),
+    ...(form.mcpServerIds.length > 0 ? { mcpServerIds: form.mcpServerIds } : {})
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Diff
 // ---------------------------------------------------------------------------
@@ -135,6 +219,19 @@ export interface AssistantDiffResult {
   tagsChanged: boolean
   tagNames: string[]
 }
+
+export type AssistantSaveIntent =
+  | {
+      kind: 'create'
+      payload: CreateAssistantDto
+      tagNames: string[]
+    }
+  | {
+      kind: 'update'
+      payload: UpdateAssistantDto
+      tagNames: string[]
+      tagsChanged: boolean
+    }
 
 /**
  * Compute the minimal Assistant PATCH payload + side-effect hints.
@@ -193,22 +290,7 @@ export function diffAssistantUpdate(
           description: form.description,
           modelId: form.modelId,
           prompt: form.prompt,
-          settings: {
-            ...assistant.settings,
-            temperature: form.temperature,
-            enableTemperature: form.enableTemperature,
-            topP: form.topP,
-            enableTopP: form.enableTopP,
-            maxTokens: form.maxTokens,
-            enableMaxTokens: form.enableMaxTokens,
-            contextCount: form.contextCount,
-            streamOutput: form.streamOutput,
-            toolUseMode: form.toolUseMode,
-            maxToolCalls: form.maxToolCalls,
-            enableMaxToolCalls: form.enableMaxToolCalls,
-            customParameters: form.customParameters,
-            mcpMode: form.mcpMode
-          }
+          settings: buildAssistantSettingsFromForm(form, assistant.settings)
         }
       : {}),
     ...(knowledgeBaseIdsChanged ? { knowledgeBaseIds: form.knowledgeBaseIds } : {}),
@@ -216,6 +298,33 @@ export function diffAssistantUpdate(
   }
 
   return { dto, tagsChanged, tagNames: form.tags }
+}
+
+export function diffAssistantSaveIntent(
+  form: AssistantFormState,
+  baseline: AssistantFormState,
+  assistant: Assistant | null
+): AssistantSaveIntent | null {
+  if (!assistant) {
+    if (!isCreateAssistantPayloadValid(form)) {
+      return null
+    }
+    return {
+      kind: 'create',
+      payload: buildCreateAssistantPayload(form),
+      tagNames: form.tags
+    }
+  }
+
+  const diff = diffAssistantUpdate(form, baseline, assistant)
+  if (!diff) return null
+
+  return {
+    kind: 'update',
+    payload: diff.dto,
+    tagNames: diff.tagNames,
+    tagsChanged: diff.tagsChanged
+  }
 }
 
 /** Order-insensitive id-set equality; junction tables don't carry ordering. */

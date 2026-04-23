@@ -1,4 +1,4 @@
-import { Button, CodeEditor, Tooltip } from '@cherrystudio/ui'
+import { Button, CodeEditor, Field, FieldContent, FieldError, FieldLabel, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
@@ -11,8 +11,9 @@ import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 
 interface Props {
-  assistant: Assistant
+  assistant?: Pick<Assistant, 'modelName'> | null
   prompt: string
+  promptError?: string
   onChange: (prompt: string) => void
 }
 
@@ -45,15 +46,16 @@ const PROMPT_VARIABLES: { name: string; i18n: string }[] = [
  * ModelAvatar / SelectChatModelPopup / useProviders — should land together in
  * the same follow-up PR. Kept here so the editor matches legacy UX.
  */
-const PromptSection: FC<Props> = ({ assistant, prompt, onChange }) => {
+const PromptSection: FC<Props> = ({ assistant, prompt, promptError, onChange }) => {
   const { t } = useTranslation()
   const [fontSize] = usePreference('chat.message.font_size')
   const { activeCmTheme } = useCodeStyle()
   const [showPreview, setShowPreview] = useState(prompt.length > 0)
+  const promptInvalid = Boolean(promptError)
 
   const processedPrompt = usePromptProcessor({
     prompt,
-    modelName: assistant.modelName ?? undefined
+    modelName: assistant?.modelName ?? undefined
   })
 
   const tokenCount = useMemo(() => estimateTextTokens(prompt), [prompt])
@@ -85,14 +87,14 @@ const PromptSection: FC<Props> = ({ assistant, prompt, onChange }) => {
         <p className="text-[10px] text-muted-foreground/55">{t('library.config.prompt.desc')}</p>
       </div>
 
-      <div>
-        <div className="mb-1.5 flex items-center justify-between">
-          <label className="flex items-center gap-1.5 text-[10px] text-muted-foreground/60">
+      <Field data-invalid={promptInvalid || undefined} className="gap-1.5">
+        <div className="flex items-center justify-between gap-3">
+          <FieldLabel className="flex items-center gap-1.5 font-normal text-[10px] text-muted-foreground/60">
             <span>{t('library.config.prompt.label')}</span>
             <Tooltip content={variablesTip} placement="top" classNames={{ content: 'max-w-none' }}>
               <HelpCircle size={11} className="cursor-help text-muted-foreground/50 hover:text-foreground" />
             </Tooltip>
-          </label>
+          </FieldLabel>
           <Button
             variant="ghost"
             onClick={() => setShowPreview((v) => !v)}
@@ -103,36 +105,44 @@ const PromptSection: FC<Props> = ({ assistant, prompt, onChange }) => {
           </Button>
         </div>
 
-        <div className="overflow-hidden rounded-2xs border border-border/20 bg-accent/10 transition-all focus-within:border-border/40 focus-within:bg-accent/15">
-          {showPreview ? (
-            <div
-              className="markdown max-h-[50vh] min-h-[200px] overflow-auto p-3 text-[11px] text-foreground"
-              onDoubleClick={() => setShowPreview(false)}>
-              <ReactMarkdown>{processedPrompt || prompt}</ReactMarkdown>
-            </div>
-          ) : (
-            <CodeEditor
-              theme={activeCmTheme}
-              fontSize={fontSize - 1}
-              value={prompt}
-              language="markdown"
-              onChange={onChange}
-              expanded={false}
-              minHeight="200px"
-              maxHeight="50vh"
-              placeholder={t('library.config.prompt.placeholder')}
-            />
-          )}
-        </div>
-
-        <div className="mt-1.5 flex justify-between text-[9px] text-muted-foreground/40">
-          <span>{t('library.config.prompt.dblclick_hint')}</span>
-          <span className="tabular-nums">
-            {t('library.config.prompt.tokens_label')}
-            {tokenCount}
-          </span>
-        </div>
-      </div>
+        <FieldContent>
+          <div
+            aria-invalid={promptInvalid || undefined}
+            className={`overflow-hidden rounded-2xs border bg-accent/10 transition-all focus-within:bg-accent/15 ${
+              promptInvalid
+                ? 'border-destructive/50 focus-within:border-destructive/60'
+                : 'border-border/20 focus-within:border-border/40'
+            }`}>
+            {showPreview ? (
+              <div
+                className="markdown max-h-[50vh] min-h-[200px] overflow-auto p-3 text-[11px] text-foreground"
+                onDoubleClick={() => setShowPreview(false)}>
+                <ReactMarkdown>{processedPrompt || prompt}</ReactMarkdown>
+              </div>
+            ) : (
+              <CodeEditor
+                theme={activeCmTheme}
+                fontSize={fontSize - 1}
+                value={prompt}
+                language="markdown"
+                onChange={onChange}
+                expanded={false}
+                minHeight="200px"
+                maxHeight="50vh"
+                placeholder={t('library.config.prompt.placeholder')}
+              />
+            )}
+          </div>
+          <FieldError className="text-[9px]" errors={promptError ? [{ message: promptError }] : undefined} />
+          <div className="flex justify-between text-[9px] text-muted-foreground/40">
+            <span>{t('library.config.prompt.dblclick_hint')}</span>
+            <span className="tabular-nums">
+              {t('library.config.prompt.tokens_label')}
+              {tokenCount}
+            </span>
+          </div>
+        </FieldContent>
+      </Field>
     </div>
   )
 }
