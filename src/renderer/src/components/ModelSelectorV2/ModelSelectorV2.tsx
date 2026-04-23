@@ -582,10 +582,7 @@ export function ModelSelector(props: ModelSelectorProps) {
           <div
             className="flex items-center justify-between gap-3 border-border/60 border-b px-3 py-2"
             data-testid="model-selector-multi-select-row">
-            <span className="min-w-0 truncate text-[10px] text-muted-foreground">
-              {t('models.multi_select.title')}
-              {t('models.multi_select.mutually_exclusive')}
-            </span>
+            <span className="min-w-0 truncate text-[10px] text-muted-foreground">{t('models.multi_select.label')}</span>
             <Switch
               checked={multiSelectMode}
               size="sm"

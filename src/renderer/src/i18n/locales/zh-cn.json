@@ -2576,8 +2576,7 @@
     "invalid_model": "无效模型",
     "json_parse_error": "JSON 格式无效",
     "multi_select": {
-      "mutually_exclusive": "（与多助手互斥）",
-      "title": "多模型并行"
+      "label": "多模型并行（与多助手互斥）"
     },
     "no_matches": "无可用模型",
     "parameter_name": "参数名称",

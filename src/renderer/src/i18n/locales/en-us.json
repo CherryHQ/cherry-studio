@@ -2576,8 +2576,7 @@
     "invalid_model": "Invalid Model",
     "json_parse_error": "Invalid JSON format",
     "multi_select": {
-      "mutually_exclusive": "(Mutually exclusive with multi-assistant)",
-      "title": "Multi-model parallel"
+      "label": "Multi-model parallel (mutually exclusive with multi-assistant)"
     },
     "no_matches": "No models available",
     "parameter_name": "Parameter Name",

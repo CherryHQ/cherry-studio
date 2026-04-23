@@ -51,7 +51,7 @@ export const FreeTrialModelTag: FC<Props> = ({ model, showLabel = true, onBefore
     return (
       <div className="inline-flex items-center">
         <CustomTag
-          color="var(--color-link)"
+          color="var(--color-primary)"
           size={11}
           onClick={handleTagClick}
           style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -66,19 +66,12 @@ export const FreeTrialModelTag: FC<Props> = ({ model, showLabel = true, onBefore
     <div className="inline-flex flex-row items-center gap-1">
       <span aria-hidden="true" className="size-1.5 rounded-full bg-primary shadow-[0_0_6px_var(--color-primary)]" />
       <span className="text-muted-foreground text-xs">{t('common.powered_by')}</span>
-      <a
-        role="button"
-        tabIndex={0}
-        className="text-[color:var(--color-link)] text-xs hover:underline"
-        onClick={navigateToProvider}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault()
-            navigateToProvider()
-          }
-        }}>
+      <button
+        type="button"
+        className="cursor-pointer border-0 bg-transparent p-0 text-(--color-primary) text-xs hover:underline"
+        onClick={navigateToProvider}>
         {getProviderLabel(providerId)}
-      </a>
+      </button>
     </div>
   )
 }

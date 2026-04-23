@@ -2576,8 +2576,7 @@
     "invalid_model": "Modelo inválido",
     "json_parse_error": "Formato JSON no válido",
     "multi_select": {
-      "mutually_exclusive": "[to be translated]:(Mutually exclusive with multi-assistant)",
-      "title": "[to be translated]:Multi-model parallel"
+      "label": "[to be translated]:Multi-model parallel (mutually exclusive with multi-assistant)"
     },
     "no_matches": "No hay modelos disponibles",
     "parameter_name": "Nombre del parámetro",

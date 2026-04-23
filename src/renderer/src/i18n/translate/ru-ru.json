@@ -2576,8 +2576,7 @@
     "invalid_model": "Недействительная модель",
     "json_parse_error": "Неверный формат JSON",
     "multi_select": {
-      "mutually_exclusive": "[to be translated]:(Mutually exclusive with multi-assistant)",
-      "title": "[to be translated]:Multi-model parallel"
+      "label": "[to be translated]:Multi-model parallel (mutually exclusive with multi-assistant)"
     },
     "no_matches": "Нет доступных моделей",
     "parameter_name": "Имя параметра",
