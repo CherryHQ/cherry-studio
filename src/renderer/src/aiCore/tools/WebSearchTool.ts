@@ -44,7 +44,7 @@ export const webSearchToolWithPreExtractedKeywords = (
   requestId: string
 ) => {
   const webSearchProvider = WebSearchService.getWebSearchProvider(webSearchProviderId)
-  let cachedSearchResults: WebSearchProviderResponse | undefined
+  let cachedSearchResultsPromise: Promise<WebSearchProviderResponse> | undefined
 
   return tool({
     description: `Web search tool for finding current information, news, and real-time data from the internet.
@@ -67,8 +67,8 @@ You can use this tool as-is to search with the prepared queries, or provide addi
     }),
 
     execute: async ({ additionalContext }) => {
-      if (cachedSearchResults) {
-        return cachedSearchResults
+      if (cachedSearchResultsPromise) {
+        return cachedSearchResultsPromise
       }
 
       let finalQueries = normalizeWebSearchQueries(extractedKeywords.question)
@@ -93,10 +93,13 @@ You can use this tool as-is to search with the prepared queries, or provide addi
           links: extractedKeywords.links
         }
       }
-      const searchResults = await WebSearchService.processWebsearch(webSearchProvider!, extractResults, requestId)
-      cachedSearchResults = searchResults
-
-      return searchResults
+      cachedSearchResultsPromise = WebSearchService.processWebsearch(webSearchProvider!, extractResults, requestId)
+      try {
+        return await cachedSearchResultsPromise
+      } catch (error) {
+        cachedSearchResultsPromise = undefined
+        throw error
+      }
     },
     toModelOutput: ({ output: results }) => {
       let summary = 'No search needed based on the query analysis.'

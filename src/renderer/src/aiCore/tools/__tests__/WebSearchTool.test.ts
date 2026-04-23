@@ -12,6 +12,7 @@ vi.mock('@renderer/services/WebSearchService', () => ({
 
 describe('webSearchToolWithPreExtractedKeywords', () => {
   beforeEach(() => {
+    vi.clearAllMocks()
     vi.mocked(WebSearchService.getWebSearchProvider).mockReturnValue({ id: 'tavily' } as any)
     vi.mocked(WebSearchService.processWebsearch).mockResolvedValue({
       query: 'first | second',
@@ -56,5 +57,48 @@ describe('webSearchToolWithPreExtractedKeywords', () => {
 
     expect(modelText).toContain('"url": "https://example.com"')
     expect(modelText).not.toContain('utm_source')
+  })
+
+  it('reuses the in-flight search request for concurrent executions', async () => {
+    const searchResponse = {
+      query: 'first',
+      results: [
+        {
+          title: 'Result',
+          content: 'Content',
+          url: 'https://example.com/path?utm_source=newsletter#details'
+        }
+      ]
+    }
+    vi.mocked(WebSearchService.processWebsearch).mockImplementation(
+      () => new Promise((resolve) => setTimeout(() => resolve(searchResponse), 0))
+    )
+
+    const searchTool = webSearchToolWithPreExtractedKeywords(
+      'tavily',
+      {
+        question: ['first']
+      },
+      'request-1'
+    ) as any
+
+    const [firstResult, secondResult] = await Promise.all([
+      searchTool.execute({ additionalContext: 'first context' }),
+      searchTool.execute({ additionalContext: 'second context' })
+    ])
+
+    expect(WebSearchService.processWebsearch).toHaveBeenCalledTimes(1)
+    expect(WebSearchService.processWebsearch).toHaveBeenCalledWith(
+      { id: 'tavily' },
+      {
+        websearch: {
+          question: ['first context'],
+          links: undefined
+        }
+      },
+      'request-1'
+    )
+    expect(firstResult).toBe(searchResponse)
+    expect(secondResult).toBe(searchResponse)
   })
 })
