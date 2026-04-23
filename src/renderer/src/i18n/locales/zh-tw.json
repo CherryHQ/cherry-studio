@@ -6108,7 +6108,9 @@
     "error": {
       "chat_qwen_mt": "Qwen MT 模型無法在對話中使用，請前往翻譯頁面",
       "detect": {
+        "empty": "偵測到的語言為空",
         "failed": "語言偵測失敗",
+        "invalid": "偵測到的語言不受支援",
         "qwen_mt": "QwenMT 模型不能用於語言偵測",
         "unknown": "偵測到未知語言",
         "update_setting": "設定失敗"
