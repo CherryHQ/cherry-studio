@@ -94,7 +94,7 @@ export const translateText = async (
     }
   }
 
-  if (error !== undefined && !isAbortError(error)) {
+  if (error !== undefined) {
     throw error
   }
 
