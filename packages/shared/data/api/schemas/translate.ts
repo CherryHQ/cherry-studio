@@ -31,19 +31,25 @@ export const CreateTranslateHistorySchema = z.object({
 /** DTO for creating a translate history record. */
 export type CreateTranslateHistoryDto = z.infer<typeof CreateTranslateHistorySchema>
 
-export const UpdateTranslateHistorySchema = z.object({
-  /** Non-empty string if provided */
-  sourceText: z.string().min(1).optional(),
-  /** Non-empty string if provided */
-  targetText: z.string().min(1).optional(),
-  /** Must match PersistedLangCodeSchema if provided — the `'unknown'` UI sentinel is rejected. */
-  sourceLanguage: PersistedLangCodeSchema.optional(),
-  /** Must match PersistedLangCodeSchema if provided — the `'unknown'` UI sentinel is rejected. */
-  targetLanguage: PersistedLangCodeSchema.optional(),
-  /** Boolean if provided */
-  star: z.boolean().optional()
-})
-/** DTO for updating a translate history record. All fields optional. */
+export const UpdateTranslateHistorySchema = z
+  .object({
+    /** Non-empty string if provided */
+    sourceText: z.string().min(1).optional(),
+    /** Non-empty string if provided */
+    targetText: z.string().min(1).optional(),
+    /** Must match PersistedLangCodeSchema if provided — the `'unknown'` UI sentinel is rejected. */
+    sourceLanguage: PersistedLangCodeSchema.optional(),
+    /** Must match PersistedLangCodeSchema if provided — the `'unknown'` UI sentinel is rejected. */
+    targetLanguage: PersistedLangCodeSchema.optional(),
+    /** Boolean if provided */
+    star: z.boolean().optional()
+  })
+  .strict()
+/**
+ * DTO for updating a translate history record. All fields optional. Uses
+ * `.strict()` — unknown fields (including `id`/`createdAt`) are rejected
+ * rather than silently stripped, matching `UpdateTranslateLanguageSchema`.
+ */
 export type UpdateTranslateHistoryDto = z.infer<typeof UpdateTranslateHistorySchema>
 
 export const TRANSLATE_HISTORY_DEFAULT_PAGE = 1

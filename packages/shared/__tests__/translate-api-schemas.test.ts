@@ -72,6 +72,15 @@ describe('Translate API DTOs reject the "unknown" sentinel at the persistence bo
     expect(UpdateTranslateHistorySchema.safeParse({ sourceLanguage: 'unknown' }).success).toBe(false)
   })
 
+  it('UpdateTranslateHistorySchema rejects unknown fields like id/createdAt (strict)', () => {
+    expect(UpdateTranslateHistorySchema.safeParse({ id: 'hist_1', star: true }).success).toBe(false)
+    expect(UpdateTranslateHistorySchema.safeParse({ createdAt: '2026-01-01', star: true }).success).toBe(false)
+  })
+
+  it('UpdateTranslateHistorySchema accepts an empty patch', () => {
+    expect(UpdateTranslateHistorySchema.safeParse({}).success).toBe(true)
+  })
+
   it('CreateTranslateLanguageSchema rejects unknown langCode', () => {
     expect(CreateTranslateLanguageSchema.safeParse({ langCode: 'unknown', value: 'Unknown', emoji: '🏳️' }).success).toBe(
       false
