@@ -271,7 +271,7 @@ const ShortcutSettings: FC = () => {
               </Tooltip>
             )}
             <RowFlex
-              className={`items-center gap-1 rounded-xs border bg-background-subtle px-2 py-1 ${hasSystemConflict ? 'border-red-500' : 'border-border/40'} ${isEditable ? 'cursor-pointer hover:bg-muted/30' : 'cursor-not-allowed opacity-50'}`}
+              className={`items-center gap-1 rounded-lg border bg-background-subtle px-2 py-1 ${hasSystemConflict ? 'border-red-500' : 'border-border/40'} ${isEditable ? 'cursor-pointer hover:bg-muted/30' : 'cursor-not-allowed opacity-50'}`}
               onClick={() => isEditable && handleAddShortcut(record.key)}>
               {displayKeys.map((key) => (
                 <Kbd
@@ -294,7 +294,7 @@ const ShortcutSettings: FC = () => {
     return (
       <div className="relative flex flex-col items-end">
         <span
-          className={`rounded-xs border bg-background-subtle px-3 py-1 text-foreground-muted text-sm ${hasSystemConflict ? 'border-red-500' : 'border-border/40'} ${isEditable ? 'cursor-pointer hover:bg-muted/30' : 'cursor-not-allowed opacity-50'}`}
+          className={`rounded-lg border bg-background-subtle px-3 py-1 text-foreground-muted text-sm ${hasSystemConflict ? 'border-red-500' : 'border-border/40'} ${isEditable ? 'cursor-pointer hover:bg-muted/30' : 'cursor-not-allowed opacity-50'}`}
           onClick={() => isEditable && handleAddShortcut(record.key)}>
           {t('settings.shortcuts.press_shortcut')}
         </span>

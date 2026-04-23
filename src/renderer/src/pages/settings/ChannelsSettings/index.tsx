@@ -34,7 +34,7 @@ const ChannelsSettings: FC = () => {
                       <img src={iconSrc} alt={ch.name} className="h-5.5 w-5.5 rounded object-contain" />
                     ) : undefined
                   }
-                  className="rounded-xs font-medium"
+                  className="rounded-lg font-medium"
                 />
               )
             })}

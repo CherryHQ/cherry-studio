@@ -31,7 +31,7 @@ const TranslatePromptSettings = () => {
             <Tooltip content={t('common.reset')}>
               <button
                 type="reset"
-                className="flex h-[30px] w-[30px] cursor-pointer items-center justify-center rounded-xs border-none bg-transparent p-0 text-foreground transition-colors hover:bg-accent"
+                className="flex h-[30px] w-[30px] cursor-pointer items-center justify-center rounded-lg border-none bg-transparent p-0 text-foreground transition-colors hover:bg-accent"
                 onClick={onResetTranslatePrompt}>
                 <RedoOutlined size={16} />
               </button>

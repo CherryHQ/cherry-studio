@@ -625,7 +625,7 @@ const SkillsSettings: FC = () => {
                             active={selectedSkillId === skill.id}
                             onClick={() => setSelectedSkill(skill)}
                             icon={<Puzzle size={16} />}
-                            className="rounded-xs font-medium"
+                            className="rounded-lg font-medium"
                           />
                         </div>
                       </Dropdown>
@@ -875,7 +875,7 @@ const TopBarRight = divWithClass('relative flex items-center gap-2')
 const DetailMeta = divWithClass('flex items-center gap-1.5')
 const SearchInputWrapper = divWithClass('relative w-[280px]')
 const SearchDropdown = divWithClass(
-  'absolute top-full right-0 z-100 mt-1 flex max-h-[400px] w-full flex-col rounded-xs border-border border-[0.5px] bg-background shadow-[0_4px_12px_rgba(0,0,0,0.1)]'
+  'absolute top-full right-0 z-100 mt-1 flex max-h-[400px] w-full flex-col rounded-lg border-border border-[0.5px] bg-background shadow-[0_4px_12px_rgba(0,0,0,0.1)]'
 )
 const SearchTabs = divWithClass('flex shrink-0 border-border border-b-[0.5px]')
 const SearchTab = ({ className, $active, ...props }: DivProps & { $active: boolean }) => (
@@ -890,7 +890,7 @@ const SearchTab = ({ className, $active, ...props }: DivProps & { $active: boole
     {...props}
   />
 )
-const TabCount = spanWithClass('min-w-4 rounded-xs bg-accent px-1 text-center text-[10px]')
+const TabCount = spanWithClass('min-w-4 rounded-sm bg-accent px-1 text-center text-[10px]')
 const SearchResultsScroll = divWithClass('flex-1 overflow-y-auto')
 const DropdownLoading = divWithClass('flex justify-center p-4')
 const DropdownEmpty = divWithClass('p-4 text-center text-foreground-muted text-xs')

@@ -226,7 +226,7 @@ const ServerControlPanel = ({
 }: React.ComponentPropsWithoutRef<'div'> & { $status: boolean }) => (
   <div
     className={cn(
-      'mb-4 flex items-center justify-between rounded-xs border px-5 py-4 transition-all duration-300',
+      'mb-4 flex items-center justify-between rounded-lg border px-5 py-4 transition-all duration-300',
       $status ? 'border-success-base' : 'border-border',
       className
     )}
@@ -294,7 +294,7 @@ const StartButton = ({
 const StopButton = StartButton
 
 const ConfigurationField = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex flex-col gap-2 rounded-xs border border-border bg-card p-4', className)} {...props} />
+  <div className={cn('flex flex-col gap-2 rounded-lg border border-border bg-card p-4', className)} {...props} />
 )
 
 const FieldLabel = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (

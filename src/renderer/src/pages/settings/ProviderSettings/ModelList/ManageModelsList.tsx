@@ -151,7 +151,7 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
             <div className={isCollapsed ? 'pb-2' : undefined}>
               <div
                 className={`flex min-h-[38px] cursor-pointer items-center justify-between bg-muted px-3.25 text-foreground ${
-                  isCollapsed ? 'rounded-xs' : 'rounded-t-xs'
+                  isCollapsed ? 'rounded-lg' : 'rounded-t-lg'
                 }`}
                 onClick={() => handleGroupToggle(row.groupName)}>
                 <Flex className="flex-1 items-center gap-2.5">

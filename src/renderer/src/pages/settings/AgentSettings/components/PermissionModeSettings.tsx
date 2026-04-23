@@ -119,7 +119,7 @@ export const PermissionModeSettings: FC<AgentOrSessionSettingsProps> = ({ agentB
             return (
               <div
                 key={card.mode}
-                className={`flex flex-col gap-2 overflow-hidden rounded-xs border p-4 transition-colors ${
+                className={`flex flex-col gap-2 overflow-hidden rounded-lg border p-4 transition-colors ${
                   isSelected
                     ? 'border-primary bg-primary-50/30 dark:bg-primary-950/20'
                     : 'border-default-200 hover:bg-default-50 dark:hover:bg-default-900/20'

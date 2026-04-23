@@ -33,7 +33,7 @@ const SettingsPage: FC = () => {
   const isActive = (path: string) => pathname.startsWith(path)
   const go = (path: string) => navigate({ to: path })
   const menuItemClassName =
-    'h-8 rounded-xs border-transparent px-2.5 font-semibold text-foreground/85 text-sm hover:!bg-muted data-[active=true]:!border-transparent data-[active=true]:!bg-muted data-[active=true]:!text-foreground [&_svg]:size-4 [&_svg]:text-foreground/70'
+    'h-8 rounded-lg border-transparent px-2.5 font-semibold text-foreground/85 text-sm hover:!bg-muted data-[active=true]:!border-transparent data-[active=true]:!bg-muted data-[active=true]:!text-foreground [&_svg]:size-4 [&_svg]:text-foreground/70'
   const sectionTitleClassName = 'px-2.5 pt-1.5 pb-1 font-medium text-foreground-muted text-xs first:pt-0'
   const sectionDividerClassName = 'my-1 bg-transparent'
 
@@ -180,7 +180,7 @@ const SettingsPage: FC = () => {
           </Scrollbar>
         </div>
         <div className="flex h-full min-h-0 flex-1 p-2.5 pl-0">
-          <div className="flex min-h-0 flex-1 overflow-hidden rounded-xs border border-border/40 bg-card bg-muted/10 text-card-foreground shadow-xs">
+          <div className="flex min-h-0 flex-1 overflow-hidden rounded-lg border border-border/40 bg-card bg-muted/10 text-card-foreground shadow-xs">
             <Outlet />
           </div>
         </div>

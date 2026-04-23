@@ -139,7 +139,7 @@ const HeaderContainer = ({ className, ...props }: React.ComponentPropsWithoutRef
 const ModeSelector = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      'mb-4 [&_.ant-radio-button-wrapper:not(:first-child)::before]:hidden [&_.ant-radio-button-wrapper]:h-auto [&_.ant-radio-button-wrapper]:rounded-xs [&_.ant-radio-button-wrapper]:border [&_.ant-radio-button-wrapper]:border-border [&_.ant-radio-button-wrapper]:px-4 [&_.ant-radio-button-wrapper]:py-3 [&_.ant-radio-group]:flex [&_.ant-radio-group]:flex-col [&_.ant-radio-group]:gap-2',
+      'mb-4 [&_.ant-radio-button-wrapper:not(:first-child)::before]:hidden [&_.ant-radio-button-wrapper]:h-auto [&_.ant-radio-button-wrapper]:rounded-lg [&_.ant-radio-button-wrapper]:border [&_.ant-radio-button-wrapper]:border-border [&_.ant-radio-button-wrapper]:px-4 [&_.ant-radio-button-wrapper]:py-3 [&_.ant-radio-group]:flex [&_.ant-radio-group]:flex-col [&_.ant-radio-group]:gap-2',
       className
     )}
     {...props}
@@ -177,7 +177,7 @@ const ServerItem = ({
 }: React.ComponentPropsWithoutRef<'div'> & { isEnabled: boolean }) => (
   <div
     className={cn(
-      'flex items-center justify-between rounded-xs border border-border bg-card px-4 py-3 transition-all',
+      'flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3 transition-all',
       isEnabled ? 'opacity-100' : 'opacity-70',
       className
     )}

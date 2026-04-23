@@ -71,7 +71,7 @@ const TaskListItem: FC<TaskListItemProps> = ({ task, onEdit, onToggleStatus, onD
   const typeConfig = scheduleTypeConfig[task.schedule_type] ?? { label: task.schedule_type, color: 'default' }
 
   return (
-    <div className="flex items-center justify-between rounded-xs border border-[var(--color-border)] p-3">
+    <div className="flex items-center justify-between rounded-lg border border-[var(--color-border)] p-3">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span

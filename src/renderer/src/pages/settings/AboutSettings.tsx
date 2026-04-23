@@ -265,7 +265,7 @@ const AboutSettings: FC = () => {
                         <Tooltip key={option.value} content={option.tooltip}>
                           <label
                             htmlFor={id}
-                            className="flex cursor-pointer items-center gap-2 rounded-xs border border-(--color-border) px-3 py-2 text-(--color-foreground) text-sm transition-colors hover:bg-(--color-background-subtle)">
+                            className="flex cursor-pointer items-center gap-2 rounded-lg border border-(--color-border) px-3 py-2 text-(--color-foreground) text-sm transition-colors hover:bg-(--color-background-subtle)">
                             <RadioGroupItem id={id} value={option.value} />
                             <span>{option.label}</span>
                           </label>
@@ -363,7 +363,7 @@ function AboutGroup({ children, theme }: { children: ReactNode; theme: ThemeMode
   return (
     <div
       className={cn(
-        'mb-5 rounded-2xs border border-(--color-border) p-4',
+        'mb-5 rounded-lg border border-(--color-border) p-4',
         theme === ThemeMode.dark ? 'bg-black/5' : 'bg-(--color-background)'
       )}>
       {children}

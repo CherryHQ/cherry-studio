@@ -203,7 +203,7 @@ const IconList = ({ ref, className, ...props }: DivWithElementRefProps) => (
   <div
     ref={ref as React.Ref<HTMLDivElement>}
     className={cn(
-      'flex h-[400px] min-h-[400px] flex-col overflow-y-auto rounded-xs border border-border bg-background-subtle p-2.5',
+      'flex h-[400px] min-h-[400px] flex-col overflow-y-auto rounded-lg border border-border bg-background-subtle p-2.5',
       className
     )}
     {...props}

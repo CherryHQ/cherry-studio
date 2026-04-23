@@ -375,7 +375,7 @@ const AuthActionsContainer = ({ className, ...props }: React.ComponentPropsWitho
 
 const StepCard = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
-    className={cn('rounded-xs border border-border bg-card p-4 transition-all hover:border-border-subtle', className)}
+    className={cn('rounded-lg border border-border bg-card p-4 transition-all hover:border-border-subtle', className)}
     {...props}
   />
 )
