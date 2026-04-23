@@ -68,7 +68,6 @@ function toAgentRequest(dto: CreateAgentDto): CreateAgentRequest {
     smallModel: dto.smallModel,
     mcps: dto.mcps,
     allowedTools: dto.allowedTools,
-    slashCommands: dto.slashCommands,
     configuration: dto.configuration
   }) as CreateAgentRequest
 }
@@ -84,7 +83,6 @@ function toAgentUpdateRequest(dto: UpdateAgentDto): UpdateAgentRequest {
     smallModel: dto.smallModel,
     mcps: dto.mcps,
     allowedTools: dto.allowedTools,
-    slashCommands: dto.slashCommands,
     configuration: dto.configuration
   }) as UpdateAgentRequest
 }

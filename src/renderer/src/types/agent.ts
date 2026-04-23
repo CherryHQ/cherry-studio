@@ -149,7 +149,6 @@ export const AgentBaseSchema = z.object({
   smallModel: z.string().optional(),
   mcps: z.array(z.string()).optional(),
   allowedTools: z.array(z.string()).optional(),
-  slashCommands: z.array(SlashCommandSchema).optional(),
   configuration: AgentConfigurationSchema.optional()
 })
 
@@ -197,6 +196,7 @@ export const AgentSessionEntitySchema = AgentBaseSchema.extend({
   id: z.string(),
   agentId: z.string(),
   agentType: AgentTypeSchema,
+  slashCommands: z.array(SlashCommandSchema).optional(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
 })
@@ -342,7 +342,9 @@ export type UpdateAgentResponse = GetAgentResponse
 
 export type CreateSessionRequest = z.infer<typeof CreateSessionRequestSchema>
 
-export interface UpdateSessionRequest extends Partial<AgentBase> {}
+export interface UpdateSessionRequest extends Partial<AgentBase> {
+  slashCommands?: SlashCommand[]
+}
 
 export const GetAgentSessionResponseSchema = AgentSessionEntitySchema.extend({
   tools: z.array(ToolSchema).optional(), // All tools available to the session (including built-in and custom)
@@ -471,7 +473,8 @@ export const UpdateAgentRequestSchema = AgentBaseSchema.partial()
 export const ReplaceAgentRequestSchema = AgentBaseSchema
 
 const sessionCreatableSchema = AgentBaseSchema.extend({
-  model: z.string().min(1, 'Model is required')
+  model: z.string().min(1, 'Model is required'),
+  slashCommands: z.array(SlashCommandSchema).optional()
 })
 
 export const CreateSessionRequestSchema = sessionCreatableSchema

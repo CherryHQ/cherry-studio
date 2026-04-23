@@ -46,7 +46,6 @@ export const CreateAgentSchema = z.strictObject({
   smallModel: z.string().optional(),
   mcps: z.array(z.string()).optional(),
   allowedTools: z.array(z.string()).optional(),
-  slashCommands: z.array(SlashCommandSchema).optional(),
   configuration: AgentConfigurationSchema.optional()
 })
 export type CreateAgentDto = z.infer<typeof CreateAgentSchema>

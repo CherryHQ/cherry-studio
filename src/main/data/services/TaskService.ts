@@ -150,14 +150,28 @@ export class TaskService {
 
     const database = application.get('DbService').getDb()
     await withSqliteErrors(
-      () => database.update(scheduledTasksTable).set(updateData).where(eq(scheduledTasksTable.id, taskId)),
+      () =>
+        database.transaction(async (tx) => {
+          await tx.update(scheduledTasksTable).set(updateData).where(eq(scheduledTasksTable.id, taskId))
+          if (updates.channelIds !== undefined) {
+            await tx.delete(channelTaskSubscriptionsTable).where(eq(channelTaskSubscriptionsTable.taskId, taskId))
+            if (updates.channelIds.length > 0) {
+              const result = await tx
+                .insert(channelTaskSubscriptionsTable)
+                .values(updates.channelIds.map((channelId) => ({ channelId, taskId })))
+                .onConflictDoNothing()
+              if (result.rowsAffected !== updates.channelIds.length) {
+                logger.warn('updateTaskById: inserted fewer channel rows than requested', {
+                  taskId,
+                  requested: updates.channelIds.length,
+                  inserted: result.rowsAffected
+                })
+              }
+            }
+          }
+        }),
       defaultHandlersFor('Task', taskId)
     )
-
-    // Sync channel subscriptions if provided
-    if (updates.channelIds !== undefined) {
-      await this.syncTaskChannels(taskId, updates.channelIds)
-    }
 
     logger.info('Task updated', { taskId })
     return this.getTaskWithChannels(taskId)
@@ -226,17 +240,31 @@ export class TaskService {
     const database = application.get('DbService').getDb()
     await withSqliteErrors(
       () =>
-        database
-          .update(scheduledTasksTable)
-          .set(updateData)
-          .where(and(eq(scheduledTasksTable.id, taskId), eq(scheduledTasksTable.agentId, agentId))),
+        database.transaction(async (tx) => {
+          await tx
+            .update(scheduledTasksTable)
+            .set(updateData)
+            .where(and(eq(scheduledTasksTable.id, taskId), eq(scheduledTasksTable.agentId, agentId)))
+          if (updates.channelIds !== undefined) {
+            await tx.delete(channelTaskSubscriptionsTable).where(eq(channelTaskSubscriptionsTable.taskId, taskId))
+            if (updates.channelIds.length > 0) {
+              const result = await tx
+                .insert(channelTaskSubscriptionsTable)
+                .values(updates.channelIds.map((channelId) => ({ channelId, taskId })))
+                .onConflictDoNothing()
+              if (result.rowsAffected !== updates.channelIds.length) {
+                logger.warn('updateTask: inserted fewer channel rows than requested', {
+                  taskId,
+                  agentId,
+                  requested: updates.channelIds.length,
+                  inserted: result.rowsAffected
+                })
+              }
+            }
+          }
+        }),
       defaultHandlersFor('Task', taskId)
     )
-
-    // Sync channel subscriptions if provided
-    if (updates.channelIds !== undefined) {
-      await this.syncTaskChannels(taskId, updates.channelIds)
-    }
 
     logger.info('Task updated', { taskId, agentId })
     return this.getTaskWithChannels(taskId)
@@ -308,32 +336,6 @@ export class TaskService {
     return rows.map((row) => {
       const entity = this.rowToEntity(row)
       return { ...entity, channelIds: subsByTask.get(row.id) ?? [] } as ScheduledTaskEntity
-    })
-  }
-
-  /** Replace all channel subscriptions for a task. */
-  private async syncTaskChannels(taskId: string, channelIds: string[]): Promise<void> {
-    const database = application.get('DbService').getDb()
-    await database.transaction(async (tx) => {
-      await tx.delete(channelTaskSubscriptionsTable).where(eq(channelTaskSubscriptionsTable.taskId, taskId))
-
-      if (channelIds.length === 0) return
-
-      const result = await tx
-        .insert(channelTaskSubscriptionsTable)
-        .values(channelIds.map((channelId) => ({ channelId, taskId })))
-        .onConflictDoNothing()
-
-      if (result.rowsAffected !== channelIds.length) {
-        // Delete-first means FK violations would have thrown; the only way we
-        // land here is duplicate ids in the input list tripping
-        // onConflictDoNothing. Tolerated, surfaced for observability.
-        logger.warn('syncTaskChannels inserted fewer rows than requested', {
-          taskId,
-          requested: channelIds.length,
-          inserted: result.rowsAffected
-        })
-      }
     })
   }
 

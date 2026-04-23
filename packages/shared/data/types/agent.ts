@@ -42,7 +42,6 @@ export interface AgentBase {
   smallModel?: string
   mcps?: string[]
   allowedTools?: string[]
-  slashCommands?: SlashCommand[]
   configuration?: AgentConfiguration
 }
 
@@ -76,6 +75,7 @@ export interface AgentSessionEntity extends AgentBase {
   id: string
   agentId: string
   agentType: AgentType
+  slashCommands?: SlashCommand[]
   createdAt: string
   updatedAt: string
 }
