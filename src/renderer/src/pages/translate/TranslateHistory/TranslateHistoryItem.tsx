@@ -16,7 +16,10 @@ type TranslateHistoryItemProps = {
 
 export const TranslateHistoryItem = ({ data, onClick }: TranslateHistoryItemProps) => {
   const { t } = useTranslation()
-  const updateHistory = useUpdateHistory(data.id)
+  // `rethrowError: false` — the star button is fire-and-forget and has no
+  // popover/modal that depends on propagation; the hook logs + toasts on failure.
+  const updateHistory = useUpdateHistory(data.id, { rethrowError: false })
+  // Default options: rethrow keeps the PopoverConfirm open on failure.
   const deleteHistory = useDeleteHistory(data.id)
   const { getLabel } = useLanguages()
 
@@ -35,22 +38,10 @@ export const TranslateHistoryItem = ({ data, onClick }: TranslateHistoryItemProp
   const handleStar = useCallback(
     async (e: React.MouseEvent) => {
       e.stopPropagation()
-      try {
-        await updateHistory({ star: !preparedData.star })
-      } catch {
-        window.toast.error(t('translate.history.error.save'))
-      }
+      await updateHistory({ star: !preparedData.star })
     },
-    [preparedData, updateHistory, t]
+    [preparedData.star, updateHistory]
   )
-
-  const handleDelete = useCallback(async () => {
-    try {
-      await deleteHistory()
-    } catch {
-      window.toast.error(t('translate.history.error.delete'))
-    }
-  }, [deleteHistory, t])
 
   return (
     <Container onClick={onClick}>
@@ -62,16 +53,16 @@ export const TranslateHistoryItem = ({ data, onClick }: TranslateHistoryItemProp
         </div>
         {/* Tool bar */}
         <div className="mt-2 flex items-center justify-end">
-          <Button variant="ghost" onClick={handleStar} className="">
+          <Button variant="ghost" onClick={handleStar}>
             {preparedData.star ? (
-              <StarIcon fill="yellow" className="hover:primary" />
+              <StarIcon fill="yellow" className="hover:text-primary" />
             ) : (
-              <StarIcon className="hover:primary" />
+              <StarIcon className="hover:text-primary" />
             )}
           </Button>
-          <PopoverConfirm title={t('translate.history.delete')} onConfirm={handleDelete}>
+          <PopoverConfirm title={t('translate.history.delete')} onConfirm={deleteHistory}>
             <Button variant="ghost" className="hover:text-error-text-hover" onClick={(e) => e.stopPropagation()}>
-              <TrashIcon className="text-destructive hover:text-transparent" />
+              <TrashIcon className="text-destructive" />
             </Button>
           </PopoverConfirm>
         </div>

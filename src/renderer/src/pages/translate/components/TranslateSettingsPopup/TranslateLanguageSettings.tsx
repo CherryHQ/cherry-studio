@@ -1,19 +1,16 @@
 import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
 import { useDeleteLanguage, useLanguages } from '@renderer/hooks/translate'
 import type { TranslateLanguageVo } from '@renderer/types'
 import type { TableProps } from 'antd'
 import { Popconfirm, Space, Table } from 'antd'
-import { memo, startTransition, useCallback, useMemo, useState } from 'react'
+import { memo, startTransition, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { SettingRowTitle } from '..'
 import TranslateLanguagesModal from './TranslateLanguagesModal'
-
-const logger = loggerService.withContext('TranslateLanguageSettings')
 
 const ItemActions = ({
   lang,
@@ -23,17 +20,10 @@ const ItemActions = ({
   onClickEdit: (target: TranslateLanguageVo) => void
 }) => {
   const { t } = useTranslation()
-  const deleteLanguage = useDeleteLanguage(lang.langCode)
-
-  const onDelete = useCallback(async () => {
-    try {
-      await deleteLanguage()
-      window.toast.success(t('settings.translate.custom.success.delete'))
-    } catch (e) {
-      logger.error('Failed to delete language.', e as Error)
-      window.toast.error(t('settings.translate.custom.error.delete'))
-    }
-  }, [deleteLanguage, t])
+  // `rethrowError: false` — antd's Popconfirm closes after onConfirm regardless,
+  // so rethrowing would only produce an unhandled rejection. The hook still logs
+  // and toasts on failure.
+  const deleteLanguage = useDeleteLanguage(lang.langCode, { rethrowError: false })
   return (
     <Space>
       <Button onClick={() => onClickEdit(lang)}>
@@ -43,7 +33,7 @@ const ItemActions = ({
       <Popconfirm
         title={t('settings.translate.custom.delete.title')}
         description={t('settings.translate.custom.delete.description')}
-        onConfirm={() => onDelete()}>
+        onConfirm={() => void deleteLanguage()}>
         <Button variant="destructive">
           <DeleteOutlined />
           {t('common.delete')}

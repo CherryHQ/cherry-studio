@@ -6138,12 +6138,20 @@
       "delete": "Delete translation history",
       "empty": "No translation history",
       "error": {
+        "add": "Failed to add translation history",
+        "clear": "Failed to clear translation history",
         "delete": "Deletion failed",
         "load": "Failed to load translation history",
         "save": "Failed to save translation history"
       },
       "search": {
         "placeholder": "Search translation history"
+      },
+      "success": {
+        "add": "Saved to history",
+        "clear": "History cleared",
+        "delete": "Deleted",
+        "update": "Saved"
       },
       "title": "Translation History"
     },

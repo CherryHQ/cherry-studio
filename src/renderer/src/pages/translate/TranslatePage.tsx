@@ -52,7 +52,9 @@ const TranslatePage: FC = () => {
   const { t } = useTranslation()
   const { translateModel, setTranslateModel } = useDefaultModel()
   const detectLanguage = useDetectLang()
-  const addHistory = useAddHistory()
+  // `showErrorToast: false` — consumer owns the error toast via `formatErrorMessageWithPrefix`
+  // so the user sees the upstream error message in context.
+  const addHistory = useAddHistory({ showErrorToast: false })
   const { shikiMarkdownIt } = useCodeStyle()
   const { onSelectFile, selecting, clearFiles } = useFiles({ extensions: [...imageExts, ...textExts, ...documentExts] })
   const { ocr } = useOcr()
@@ -194,7 +196,7 @@ const TranslatePage: FC = () => {
         setTimeoutTimer('auto-copy', async () => copy(translated), 100)
       }
 
-      // 保存历史记录
+      // 保存历史记录 — hook logs the error; we keep the upstream-message toast here.
       try {
         await addHistory({
           sourceText: translateInput,
@@ -203,7 +205,6 @@ const TranslatePage: FC = () => {
           targetLanguage: actualTargetLanguage
         })
       } catch (e) {
-        logger.error('Failed to save translate history', e as Error)
         window.toast.error(formatErrorMessageWithPrefix(e, t('translate.history.error.save')))
       }
     } catch (error) {

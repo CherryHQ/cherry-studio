@@ -58,25 +58,18 @@ const TranslateLanguagesModal = ({ isOpen, editingLanguage: editingCustomLanguag
   const handleSubmit = useCallback(
     async (values: any) => {
       const { emoji, value, langCode } = values
-
-      if (editingCustomLanguage) {
-        try {
+      try {
+        if (editingCustomLanguage) {
           await updateLanguage({ value, emoji })
-          window.toast.success(t('settings.translate.custom.success.update'))
-        } catch (e) {
-          window.toast.error(t('settings.translate.custom.error.update') + ': ' + (e as Error).message)
-        }
-      } else {
-        try {
+        } else {
           await addLanguage({ value, emoji, langCode })
-          window.toast.success(t('settings.translate.custom.success.add'))
-        } catch (e) {
-          window.toast.error(t('settings.translate.custom.error.add') + ': ' + (e as Error).message)
         }
+        onCancel() // Only close the modal on success — failures keep the form state so the user can retry.
+      } catch {
+        // Hooks already log + show error toast; swallow here to keep the modal open.
       }
-      onCancel()
     },
-    [addLanguage, updateLanguage, editingCustomLanguage, onCancel, t]
+    [addLanguage, updateLanguage, editingCustomLanguage, onCancel]
   )
 
   const footer = useMemo(() => {

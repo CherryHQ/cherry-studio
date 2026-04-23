@@ -6138,12 +6138,20 @@
       "delete": "删除翻译历史",
       "empty": "暂无翻译历史",
       "error": {
+        "add": "添加翻译历史失败",
+        "clear": "清空翻译历史失败",
         "delete": "删除失败",
         "load": "加载翻译历史失败",
         "save": "保存翻译历史失败"
       },
       "search": {
         "placeholder": "搜索翻译历史"
+      },
+      "success": {
+        "add": "已添加到历史",
+        "clear": "已清空",
+        "delete": "删除成功",
+        "update": "已保存"
       },
       "title": "翻译历史"
     },
