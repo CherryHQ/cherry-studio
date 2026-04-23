@@ -4,6 +4,7 @@ import { usePartsMap } from '@renderer/pages/home/Messages/Blocks/V2Contexts'
 import { type Topic, type TranslateLanguageCode } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import type { UniqueModelId } from '@shared/data/types/model'
 import { useCallback } from 'react'
 
 import { useV2Chat } from './V2ChatContext'
@@ -40,6 +41,18 @@ export function useMessage(messageId: string, topic: Topic) {
   const regenerate = useCallback(async () => {
     await v2?.regenerate(messageId)
   }, [messageId, v2])
+
+  /**
+   * Regenerate this assistant turn using a different model, producing a new
+   * sibling in the existing group for side-by-side comparison. Wired to the
+   * `@` (mention model) button on assistant messages.
+   */
+  const regenerateWithModel = useCallback(
+    async (modelId: UniqueModelId) => {
+      await v2?.regenerate(messageId, { modelId })
+    },
+    [messageId, v2]
+  )
 
   const resend = useCallback(async () => {
     await v2?.resend(messageId)
@@ -106,7 +119,16 @@ export function useMessage(messageId: string, topic: Topic) {
     [messageId, partsMap, topic.id, v2]
   )
 
-  return { remove, regenerate, resend, editParts, forkAndResend, createBranchTopic, getTranslationUpdater }
+  return {
+    remove,
+    regenerate,
+    regenerateWithModel,
+    resend,
+    editParts,
+    forkAndResend,
+    createBranchTopic,
+    getTranslationUpdater
+  }
 }
 
 /**

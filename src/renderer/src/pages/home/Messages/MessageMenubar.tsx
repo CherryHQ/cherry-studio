@@ -7,6 +7,8 @@ import { CopyIcon, DeleteIcon, EditIcon, RefreshIcon } from '@renderer/component
 import InspectMessagePopup from '@renderer/components/Popups/InspectMessagePopup'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
+import { SelectChatModelPopup } from '@renderer/components/Popups/SelectModelPopup'
+import { isEmbeddingModel, isRerankModel, isVisionModel } from '@renderer/config/models'
 import type { MessageMenubarButtonId, MessageMenubarScope } from '@renderer/config/registry/messageMenubar'
 import { DEFAULT_MESSAGE_MENUBAR_SCOPE, getMessageMenubarConfig } from '@renderer/config/registry/messageMenubar'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
@@ -46,6 +48,7 @@ import { Dropdown, Popconfirm } from 'antd'
 import dayjs from 'dayjs'
 import type { TFunction } from 'i18next'
 import {
+  AtSign,
   Bug,
   Check,
   CirclePause,
@@ -111,6 +114,7 @@ type MessageMenubarButtonContext = {
   notesPath: string
   onCopy: (e: React.MouseEvent) => void
   onEdit: () => void | Promise<void>
+  onMentionModel: (e: React.MouseEvent) => void | Promise<void>
   onRegenerate: (e?: React.MouseEvent) => void | Promise<void>
   onUseful: (e: React.MouseEvent) => void
   setShowDeleteTooltip: Dispatch<SetStateAction<boolean>>
@@ -131,6 +135,7 @@ const MessageMenubar: FC<Props> = (props) => {
     isLastMessage,
     isAssistantMessage,
     assistant,
+    model,
     topic,
     messageContainerRef,
     onUpdateUseful
@@ -146,6 +151,7 @@ const MessageMenubar: FC<Props> = (props) => {
     remove: deleteMessage,
     resend: resendMessage,
     regenerate: regenerateAssistantMessage,
+    regenerateWithModel,
     createBranchTopic,
     getTranslationUpdater
   } = useMessage(message.id, topic)
@@ -193,6 +199,35 @@ const MessageMenubar: FC<Props> = (props) => {
     await createBranchTopic()
     window.toast.success(t('chat.message.new.branch.created'))
   }, [createBranchTopic, t])
+
+  /**
+   * Mention a specific model to regenerate this assistant turn — produces a
+   * new sibling in the same group (parent user message, shared
+   * `siblingsGroupId`) using the chosen model. Filters out non-generative
+   * models (embedding/rerank) and vision-only models when the upstream turn
+   * doesn't have images.
+   */
+  const mentionModelFilter = useCallback(
+    (m: Model) => {
+      if (isEmbeddingModel(m) || isRerankModel(m)) return false
+      // For user-message siblings with images, hide text-only models.
+      const needsVision = messageParts.some((part) => part.type === 'file' && part.mediaType?.startsWith('image/'))
+      if (needsVision && !isVisionModel(m)) return false
+      return true
+    },
+    [messageParts]
+  )
+
+  const onMentionModel = useCallback(
+    async (e: React.MouseEvent) => {
+      e.stopPropagation()
+      const selectedModel = await SelectChatModelPopup.show({ model, filter: mentionModelFilter })
+      if (!selectedModel) return
+      const uniqueModelId = `${selectedModel.provider}::${selectedModel.id}` as const
+      await regenerateWithModel(uniqueModelId)
+    },
+    [model, mentionModelFilter, regenerateWithModel]
+  )
 
   const handleResendUserMessage = useCallback(
     async (messageUpdate?: Message) => {
@@ -497,6 +532,7 @@ const MessageMenubar: FC<Props> = (props) => {
     notesPath,
     onCopy,
     onEdit,
+    onMentionModel,
     onRegenerate,
     onUseful,
     setShowDeleteTooltip,
@@ -648,6 +684,19 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
       <Tooltip content={t('common.regenerate')} delay={800}>
         <ActionButton className="message-action-button" onClick={onRegenerate} $softHoverBg={softHoverBg}>
           <RefreshIcon size={15} />
+        </ActionButton>
+      </Tooltip>
+    )
+  },
+  'assistant-mention-model': ({ isAssistantMessage, onMentionModel, softHoverBg, supportsWrites, t }) => {
+    if (!isAssistantMessage || !supportsWrites) {
+      return null
+    }
+
+    return (
+      <Tooltip content={t('message.mention.title')} delay={800}>
+        <ActionButton className="message-action-button" onClick={onMentionModel} $softHoverBg={softHoverBg}>
+          <AtSign size={15} />
         </ActionButton>
       </Tooltip>
     )

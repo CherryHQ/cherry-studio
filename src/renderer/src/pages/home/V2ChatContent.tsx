@@ -506,7 +506,13 @@ const V2ChatContentInner: FC<InnerProps> = ({
 
   /** Regenerate with capability body injected. */
   const regenerateWithCapabilities = useCallback(
-    async (messageId?: string) => {
+    async (messageId?: string, options?: { modelId?: UniqueModelId }) => {
+      // `mentionedModels: [modelId]` takes the mention-model path on the main
+      // side: `resolveModels` prefers the mentioned model over the assistant
+      // default, and the single-model regenerate flow creates a new sibling
+      // (same user parent, shared siblingsGroupId) so the group renders as a
+      // cross-model comparison.
+      //
       // Regenerate is single-execution: allocate a shared assistant id here
       // to keep `useChat.activeResponse` and the DB placeholder on the same
       // UUID. Skipping this step makes AI SDK `pushMessage` on the first
@@ -514,7 +520,14 @@ const V2ChatContentInner: FC<InnerProps> = ({
       // by side. Multi-model fan-out is never a regenerate today, so the
       // single-id path always applies.
       const assistantMessageId = allocateSingleAssistantId(false)
-      await regenerate({ messageId, body: { ...capabilityBody, assistantMessageId } })
+      await regenerate({
+        messageId,
+        body: {
+          ...capabilityBody,
+          assistantMessageId,
+          ...(options?.modelId && { mentionedModels: [options.modelId] })
+        }
+      })
     },
     [regenerate, capabilityBody, allocateSingleAssistantId]
   )
@@ -580,8 +593,8 @@ const V2ChatContentInner: FC<InnerProps> = ({
 
   const v2ChatOverrides = useMemo<V2ChatOverrides>(
     () => ({
-      regenerate: async (messageId?: string) => regenerateWithCapabilities(messageId),
-      resend: async (messageId?: string) => regenerateWithCapabilities(messageId),
+      regenerate: async (messageId, options) => regenerateWithCapabilities(messageId, options),
+      resend: async (messageId) => regenerateWithCapabilities(messageId),
       deleteMessage: handleDeleteMessage,
       deleteMessageGroup: handleDeleteMessageGroup,
       pause: stop,

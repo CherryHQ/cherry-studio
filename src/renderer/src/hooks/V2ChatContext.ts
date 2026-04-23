@@ -8,6 +8,7 @@
  */
 
 import type { CherryMessagePart } from '@shared/data/types/message'
+import type { UniqueModelId } from '@shared/data/types/model'
 import { createContext, use } from 'react'
 
 /** AI SDK useChat status — V2 single source of truth for request state. */
@@ -26,8 +27,19 @@ export interface DeleteMessageTraceOptions {
   modelName?: string
 }
 
+/** Options carried alongside a regenerate request. */
+export interface RegenerateOptions {
+  /**
+   * Override the assistant model for this turn. Used by "mention model"
+   * (`@`) on an assistant message — the regenerated response joins the
+   * existing sibling group as a new member using the chosen model, so the
+   * group becomes a side-by-side comparison of different models.
+   */
+  modelId?: UniqueModelId
+}
+
 export interface V2ChatOverrides {
-  regenerate: (messageId?: string) => Promise<void>
+  regenerate: (messageId?: string, options?: RegenerateOptions) => Promise<void>
   resend: (messageId?: string) => Promise<void>
   deleteMessage: (id: string, traceOptions?: DeleteMessageTraceOptions) => Promise<void>
   deleteMessageGroup: (id: string) => Promise<void>
