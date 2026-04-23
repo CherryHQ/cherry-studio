@@ -69,6 +69,9 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const assistantRef = useRef<Assistant | null>(null)
   const topicRef = useRef<Topic | null>(null)
   const askId = useRef('')
+  // TODO: targetLangRef is captured once at mount when `languages` is still loading,
+  // so it gets pinned to UNKNOWN and selection-window cold start translation fails.
+  // Needs a `useEffect` sync or removal of the ref — deferred to the ActionTranslate rewrite.
   const targetLangRef = useRef(preferredLang)
 
   // Initialize values only once
