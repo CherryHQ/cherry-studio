@@ -1,6 +1,7 @@
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import {
   isAutoEnableImageGenerationModel,
@@ -30,7 +31,7 @@ import FileManager from '@renderer/services/FileManager'
 import { checkRateLimit, getUserMessage } from '@renderer/services/MessagesService'
 import { spanManagerService } from '@renderer/services/SpanManagerService'
 import { estimateTextTokens as estimateTxtTokens, estimateUserPromptUsage } from '@renderer/services/TokenService'
-import { webSearchService } from '@renderer/services/WebSearchService'
+import { WEB_SEARCH_PREFERENCE_KEYS, webSearchService } from '@renderer/services/WebSearchService'
 import { useAppDispatch } from '@renderer/store'
 import { sendMessage as _sendMessage } from '@renderer/store/thunk/messageThunk'
 import {
@@ -163,6 +164,8 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
   const [showInputEstimatedTokens] = usePreference('chat.input.show_estimated_tokens')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [enableQuickPanelTriggers] = usePreference('chat.input.quick_panel.triggers_enabled')
+  const [webSearchProviderOverrides] = usePreference(WEB_SEARCH_PREFERENCE_KEYS.providerOverrides)
+  const isWebSearchProviderOverridesLoaded = preferenceService.isCached(WEB_SEARCH_PREFERENCE_KEYS.providerOverrides)
   const [estimateTokenCount, setEstimateTokenCount] = useState(0)
   const [contextCount, setContextCount] = useState({ current: 0, max: 0 })
 
@@ -449,12 +452,16 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
       updateAssistant({ ...assistant, enableWebSearch: false })
     }
 
-    // Clear web search provider if disabled or model has mandatory search
-    if (
-      assistant.webSearchProviderId &&
-      (!webSearchService.isWebSearchEnabled(assistant.webSearchProviderId) || isMandatoryWebSearchModel(model))
-    ) {
-      updateAssistant({ ...assistant, webSearchProviderId: undefined })
+    // Clear web search provider if disabled or model has mandatory search.
+    // Do not treat unloaded preference cache as "provider is not configured".
+    if (assistant.webSearchProviderId) {
+      if (isMandatoryWebSearchModel(model)) {
+        updateAssistant({ ...assistant, webSearchProviderId: undefined })
+      } else if (isWebSearchProviderOverridesLoaded) {
+        if (!webSearchService.isWebSearchEnabled(assistant.webSearchProviderId)) {
+          updateAssistant({ ...assistant, webSearchProviderId: undefined })
+        }
+      }
     }
 
     // Auto-enable/disable image generation based on model capabilities
@@ -465,7 +472,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
     } else if (assistant.enableGenerateImage) {
       updateAssistant({ ...assistant, enableGenerateImage: false })
     }
-  }, [assistant, model, updateAssistant])
+  }, [assistant, isWebSearchProviderOverridesLoaded, model, updateAssistant, webSearchProviderOverrides])
 
   if (isMultiSelectMode) {
     return null

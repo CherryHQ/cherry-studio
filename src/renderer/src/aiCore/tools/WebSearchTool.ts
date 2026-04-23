@@ -46,7 +46,6 @@ export const webSearchToolWithPreExtractedKeywords = (
   },
   requestId: string
 ) => {
-  const webSearchProvider = webSearchService.getWebSearchProvider(webSearchProviderId)
   let cachedSearchResultsPromise: Promise<WebSearchProviderResponse> | undefined
 
   return tool({
@@ -88,6 +87,8 @@ You can use this tool as-is to search with the prepared queries, or provide addi
       if (finalQueries.length === 0 || finalQueries[0] === 'not_needed') {
         return { query: '', results: [] }
       }
+
+      const webSearchProvider = await webSearchService.getWebSearchProviderAsync(webSearchProviderId)
 
       if (!webSearchProvider) {
         logger.warn('Skip web search because provider is unavailable', {

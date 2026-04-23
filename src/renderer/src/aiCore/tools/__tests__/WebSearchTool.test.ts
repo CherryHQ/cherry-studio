@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@renderer/services/WebSearchService', () => ({
   webSearchService: {
-    getWebSearchProvider: mocks.getWebSearchProvider,
+    getWebSearchProviderAsync: mocks.getWebSearchProvider,
     processWebsearch: mocks.processWebsearch
   }
 }))
@@ -29,7 +29,7 @@ describe('webSearchToolWithPreExtractedKeywords', () => {
     mocks.getWebSearchProvider.mockReset()
     mocks.processWebsearch.mockReset()
     mocks.loggerWarn.mockReset()
-    mocks.getWebSearchProvider.mockReturnValue({ id: 'tavily' })
+    mocks.getWebSearchProvider.mockResolvedValue({ id: 'tavily' })
     mocks.processWebsearch.mockResolvedValue({
       query: 'first | second',
       results: [
@@ -119,7 +119,7 @@ describe('webSearchToolWithPreExtractedKeywords', () => {
   })
 
   it('returns an empty result when the configured provider is unavailable', async () => {
-    mocks.getWebSearchProvider.mockReturnValue(undefined)
+    mocks.getWebSearchProvider.mockResolvedValue(undefined)
 
     const searchTool = webSearchToolWithPreExtractedKeywords(
       'tavily',

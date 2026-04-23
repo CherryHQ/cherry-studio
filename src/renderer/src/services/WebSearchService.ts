@@ -164,6 +164,11 @@ export class WebSearchService {
     return provider
   }
 
+  public async getWebSearchProviderAsync(providerId?: string): Promise<WebSearchProvider | undefined> {
+    const providers = filterSupportedWebSearchProviders((await getRendererWebSearchState()).providers)
+    return providers.find((provider) => provider.id === providerId)
+  }
+
   /**
    * 使用指定的提供商执行网络搜索
    * @public
