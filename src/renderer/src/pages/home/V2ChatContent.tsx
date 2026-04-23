@@ -540,10 +540,25 @@ const V2ChatContentInner: FC<InnerProps> = ({
 
   const handleSetActiveNode = useCallback(
     async (messageId: string, options?: { descend?: boolean }) => {
-      await setActiveNodeTrigger({
-        params: { id: topic.id },
-        body: { nodeId: messageId, ...(options?.descend !== undefined && { descend: options.descend }) }
-      })
+      try {
+        await setActiveNodeTrigger({
+          params: { id: topic.id },
+          body: { nodeId: messageId, ...(options?.descend !== undefined && { descend: options.descend }) }
+        })
+      } catch (err) {
+        // NOT_FOUND typically means the message is still being persisted
+        // on Main (optimistic push in the renderer racing ahead of the
+        // `pending` event). Swallow it with a visible hint instead of
+        // surfacing a raw server error — the `isProcessing` gate on
+        // MessageMenubar should already suppress the entry point, so this
+        // is defensive.
+        if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
+          logger.warn('setActiveNode on unpersisted message', { messageId, topicId: topic.id })
+          window.toast.warning('Message is still syncing — try again in a moment')
+          return
+        }
+        throw err
+      }
       // useChat owns its own messages state — SWR invalidation refreshes the
       // branch response but doesn't reach into the chat instance. Pull the
       // new active branch and replace so the messages pane reflects the

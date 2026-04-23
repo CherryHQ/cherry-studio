@@ -265,7 +265,16 @@ export function useChatWithHistory(
               ? AssistantMessageStatus.PENDING
               : uiMsg.id === latestAssistantMessageId && status === 'streaming'
                 ? AssistantMessageStatus.PROCESSING
-                : ((meta?.status as AssistantMessageStatus | undefined) ?? AssistantMessageStatus.SUCCESS),
+                : // Missing metadata means the row hasn't been refreshed from
+                  // the DB yet — the message was optimistically pushed onto
+                  // `useChat` (send-placeholder or a stream chunk racing ahead
+                  // of `refreshAndReplace`). Treat it as PENDING so write
+                  // actions (edit, delete, branch) stay suppressed via
+                  // `isMessageProcessing` until the DB catches up and hands
+                  // back the real status. Otherwise a user-click on the tiny
+                  // "success-looking" placeholder reaches the server for a
+                  // row that doesn't exist yet.
+                  ((meta?.status as AssistantMessageStatus | undefined) ?? AssistantMessageStatus.PENDING),
         ...(meta?.stats && { usage: statsToUsage(meta.stats), metrics: statsToMetrics(meta.stats) }),
         blocks: []
       }
