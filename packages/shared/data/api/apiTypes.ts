@@ -539,3 +539,13 @@ export type ApiImplementation = {
     [Method in ApiMethods<Path>]: ApiHandler<Path, Method>
   }
 }
+
+/**
+ * Per-module handler map.
+ *
+ * Given a schema subset (e.g. `TopicSchemas`), produces the handler record
+ * that must exhaustively implement every path+method declared in that schema.
+ * Narrows paths to the module's own schema (prevents typos and cross-module
+ * leakage) while keeping the exhaustiveness guarantee inside that scope.
+ */
+export type HandlersFor<Schemas> = Pick<ApiImplementation, Extract<keyof Schemas, keyof ApiImplementation>>

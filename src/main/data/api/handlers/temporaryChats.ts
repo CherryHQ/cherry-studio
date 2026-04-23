@@ -12,19 +12,10 @@
  */
 
 import { temporaryChatService } from '@data/services/TemporaryChatService'
-import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
+import type { HandlersFor } from '@shared/data/api/apiTypes'
 import type { TemporaryChatSchemas } from '@shared/data/api/schemas/temporaryChats'
 
-type TemporaryChatHandler<Path extends keyof TemporaryChatSchemas, Method extends ApiMethods<Path>> = ApiHandler<
-  Path,
-  Method
->
-
-export const temporaryChatHandlers: {
-  [Path in keyof TemporaryChatSchemas]: {
-    [Method in keyof TemporaryChatSchemas[Path]]: TemporaryChatHandler<Path, Method & ApiMethods<Path>>
-  }
-} = {
+export const temporaryChatHandlers: HandlersFor<TemporaryChatSchemas> = {
   '/temporary/topics': {
     POST: async ({ body }) => {
       return await temporaryChatService.createTopic(body)
